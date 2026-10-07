@@ -1,0 +1,42 @@
+-- ox_inventory/data/items.lua
+-- Images: copy INSTALL/images/*.png to ox_inventory/web/images/
+
+['wig'] = {
+    label = 'Wig',
+    weight = 150,
+    stack = false,
+    close = true,
+    description = 'Somebody is missing this.',
+},
+
+['wig_glue'] = {
+    label = 'Lace Glue',
+    weight = 100,
+    stack = true,
+    close = true,
+    description = 'Glue your lace down. Much harder to snatch for a while.',
+},
+
+['wig_kit'] = {
+    label = 'Wig Kit',
+    weight = 250,
+    stack = true,
+    close = true,
+    description = 'Brings a beat-up wig back to life.',
+},
+
+['hair_clippers'] = {
+    label = 'Hair Clippers',
+    weight = 250,
+    stack = false,
+    close = true,
+    description = 'Buzz cuts, with or without permission.',
+},
+
+['scissors'] = {
+    label = 'Scissors',
+    weight = 150,
+    stack = false,
+    close = true,
+    description = 'For giving someone a new look.',
+},

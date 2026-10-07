@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wig Snatch</title>
+<link rel="stylesheet" href="css/fa.min.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="root" class="root">
+
+  <!-- toasts -->
+  <div id="toasts" class="toasts scaled" data-pos="top-right"></div>
+
+  <!-- snatch banners -->
+  <div id="banners" class="banners scaled"></div>
+
+  <!-- level up -->
+  <div id="levelup" class="levelup scaled" hidden></div>
+
+  <!-- buyer speech -->
+  <div id="speech" class="speech scaled" hidden></div>
+
+  <!-- small progress -->
+  <div id="progress" class="progress scaled" hidden>
+    <div class="pr-frame"><div class="pr-in">
+      <span class="pr-label"></span><span class="pr-time"></span>
+      <div class="pr-bar"><i></i></div>
+    </div></div>
+  </div>
+
+  <!-- the clash -->
+  <div id="clash" class="clash scaled" hidden>
+    <div class="cl-frame"><div class="cl-in">
+      <div class="cl-top">
+        <div class="cl-side me">
+          <span class="cl-role"></span>
+          <b class="cl-name"></b>
+        </div>
+        <div class="cl-clock"><span class="cl-time">6.5</span><i>sec</i></div>
+        <div class="cl-side them">
+          <span class="cl-role"></span>
+          <b class="cl-name"></b>
+        </div>
+      </div>
+
+      <div class="rope">
+        <div class="rope-half mine"></div>
+        <div class="rope-half theirs"></div>
+        <div class="rope-mid"></div>
+        <div class="rope-knot"><i class="fa-solid fa-grip-lines-vertical"></i></div>
+      </div>
+
+      <div class="track">
+        <div class="track-zone"></div>
+        <div class="track-cursor"></div>
+      </div>
+
+      <div class="cl-foot">
+        <div class="cl-mods"></div>
+        <div class="cl-hint"><span class="kc cl-key">SPACE</span><span>Pull when the line is in the zone</span></div>
+        <div class="cl-flash"></div>
+      </div>
+
+      <div class="cl-result" hidden><b></b><span></span></div>
+    </div></div>
+  </div>
+
+  <!-- reveal -->
+  <div id="reveal" class="reveal scaled" hidden></div>
+
+  <!-- app panel (vault / fence / barber / cuts) -->
+  <div id="app" class="app" hidden>
+    <div class="app-shade"></div>
+    <div class="app-frame scaled">
+      <div class="app-edge"><div class="app-shell">
+        <div class="app-bar">
+          <div class="app-title"><b id="appTitle">Vault</b><span id="appSub"></span></div>
+          <span class="ver" id="appVer">v2.0.0</span>
+          <button class="pill-close" data-act="close">Close</button>
+        </div>
+        <div class="app-body" id="appBody"></div>
+      </div></div>
+    </div>
+    <div id="modal" class="modal" hidden></div>
+  </div>
+
+  <!-- prompt (trade / haircut) -->
+  <div id="prompt" class="prompt" hidden></div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

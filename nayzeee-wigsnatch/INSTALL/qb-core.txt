@@ -1,0 +1,8 @@
+-- qb-core/shared/items.lua  (Qbox uses ox_inventory, see ox_inventory.txt)
+-- Images: copy INSTALL/images/*.png to your inventory's images folder
+
+wig           = { name = 'wig',           label = 'Wig',           weight = 150, type = 'item', image = 'wig.png',           unique = true,  useable = true, shouldClose = true, description = 'Somebody is missing this.' },
+wig_glue      = { name = 'wig_glue',      label = 'Lace Glue',     weight = 100, type = 'item', image = 'wig_glue.png',      unique = false, useable = true, shouldClose = true, description = 'Glue your lace down. Much harder to snatch for a while.' },
+wig_kit       = { name = 'wig_kit',       label = 'Wig Kit',       weight = 250, type = 'item', image = 'wig_kit.png',       unique = false, useable = true, shouldClose = true, description = 'Brings a beat-up wig back to life.' },
+hair_clippers = { name = 'hair_clippers', label = 'Hair Clippers', weight = 250, type = 'item', image = 'hair_clippers.png', unique = false, useable = true, shouldClose = true, description = 'Buzz cuts, with or without permission.' },
+scissors      = { name = 'scissors',      label = 'Scissors',      weight = 150, type = 'item', image = 'scissors.png',      unique = false, useable = true, shouldClose = true, description = 'For giving someone a new look.' },
