@@ -24,6 +24,14 @@ Give your admins the studio permission (or keep them in an `admin` group):
 add_ace group.admin nayzeee.backpack allow
 ```
 
+If the server console says *could not write into ox_inventory/web/images*
+after an icon capture, your FXServer build restricts cross-resource writes.
+Add this and restart (icons are still saved in `icons/` either way):
+
+```
+add_filesystem_permission nayzeee-backpack write ox_inventory
+```
+
 ## 2. Stream files
 
 See [`stream/README.md`](stream/README.md). Short version: every bag needs a
@@ -123,8 +131,21 @@ arm holds the bag instead of letting it swing. It pauses automatically in
 vehicles, swimming, climbing, ragdoll, with a weapon out, during progress bars
 and while another script (emotes) is animating, then comes back by itself.
 
+The default pose is **Carry**, GTA's own one-handed carry (the jerrycan /
+briefcase hold), so the arm hangs naturally and the walk stays clean. The
+custom photo poses are still in the list as *(custom)*; they look great
+standing still but stiffen the upper body while walking.
+
 Players can pick their pose from the bag menu (**Change pose**), saved on the
 item. `Config.Carry.walkStyle` optionally sets a walk style while carrying.
+
+**Fitting a purse:** `/bagtune` → pick the purse (its carry pose starts by
+itself) → Carry preset **Right hand** → nudge / rotate → **Save fit**. Every
+purse model has its own pivot, so each one needs this once; after that the
+saved fit is what everyone sees.
+
+Crossbody bags like the shoulder bag aren't purses: give them
+`category = 'shoulder'` and no `carry`, and they're worn on the body.
 
 ---
 
@@ -152,9 +173,9 @@ float above it. **A / D**, the arrows or the mouse wheel slide to the next bag,
 drag spins it, **ENTER** buys, **T** tries it on your character, **ESC** leaves.
 Theme chips sit at the top, type chips at the bottom; no side panel.
 
-Line the display up with your counter MLO with `display.bag` / `display.cam`
-in each location, or tweak `forward / height / camDistance` relative to the
-shop keeper.
+Set `display.bag` to where the bags should float and `display.heading` to the
+way the shop keeper faces; the camera stands `camDistance` back on the
+customer's side. Use `display.cam` for an exact camera spot instead.
 
 ---
 
@@ -223,3 +244,9 @@ Every loop idles and only goes per-frame while it has work:
 | Placed bag streaming | 3000ms | bags placed (1500ms) |
 | Shop | — | store open |
 | Studio / icon box | — | studio open |
+
+## Escrow
+
+`fxmanifest.lua` already has `escrow_ignore` (config, integrations, the
+framework bridge) and the `/assetpacks` dependency. Escrow only encrypts
+`.lua` files, so `web/` and `server/icons.js` ship readable.

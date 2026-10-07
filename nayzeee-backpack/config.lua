@@ -104,34 +104,41 @@ Config.Carry = {
     -- Players can pick their own pose from the bag menu (saved on the item)
     letPlayersPick = true,
 
+    -- 'carry' is GTA's own one-handed carry (the jerrycan / briefcase hold):
+    -- the arm hangs naturally and the walk stays clean. The others are the
+    -- custom photo poses; they look great standing still but stiffen the
+    -- upper body while walking, so they're opt-in from the pose menu.
     Poses = {
-        { key = 'withbag1', label = 'Classic',     dict = 'clementine@withyourbag01',          clip = 'withyourbag01_clip' },
-        { key = 'withbag2', label = 'Arm crook',   dict = 'clementine@withyourbag02',          clip = 'withyourbag02_clip' },
-        { key = 'withbag3', label = 'Hip hold',    dict = 'clementine@withyourbag03',          clip = 'withyourbag03_clip' },
-        { key = 'withbag4', label = 'Shoulder',    dict = 'clementine@withyourbag04',          clip = 'withyourbag04_clip' },
-        { key = 'withbag5', label = 'Clutch',      dict = 'clementine@withyourbag05',          clip = 'withyourbag05_clip' },
-        { key = 'model1',   label = 'Runway',      dict = 'f_modelpose_withbag_1@avenelanim',  clip = 'f_modelpose_withbag_1_clip' },
+        { key = 'carry',    label = 'Carry',                dict = 'move_weapon@jerrycan@generic',     clip = 'idle' },
+        { key = 'withbag1', label = 'Classic (custom)',     dict = 'clementine@withyourbag01',         clip = 'withyourbag01_clip' },
+        { key = 'withbag2', label = 'Arm crook (custom)',   dict = 'clementine@withyourbag02',         clip = 'withyourbag02_clip' },
+        { key = 'withbag3', label = 'Hip hold (custom)',    dict = 'clementine@withyourbag03',         clip = 'withyourbag03_clip' },
+        { key = 'withbag4', label = 'Shoulder (custom)',    dict = 'clementine@withyourbag04',         clip = 'withyourbag04_clip' },
+        { key = 'withbag5', label = 'Clutch (custom)',      dict = 'clementine@withyourbag05',         clip = 'withyourbag05_clip' },
+        { key = 'model1',   label = 'Runway (custom)',      dict = 'f_modelpose_withbag_1@avenelanim', clip = 'f_modelpose_withbag_1_clip' },
     },
 
-    -- A style = which pose plays + a starting offset. Fine-tune each purse in
-    -- /bagtune with the pose playing (Fit > Pose preview), then Save.
+    -- A style = which pose plays + a starting offset.
+    -- Every purse model has its own pivot, so fit each one once:
+    -- /bagtune > pick the purse (its pose starts by itself) > Carry preset
+    -- "Right hand" > nudge / rotate > Save fit. That saved fit is what everyone sees.
     Styles = {
         purse = {
             label = 'Purse in hand',
-            pose  = 'withbag1',
+            pose  = 'carry',
             offset = {
-                bone = 57005, -- SKEL_R_Hand
-                pos  = { x = 0.120, y = 0.020, z = -0.020 },
-                rot  = { x = -90.0, y = 0.0,  z = 0.0 },
+                bone = 28422, -- PH_R_Hand (the grip point the carry pose holds)
+                pos  = { x = 0.000, y = 0.000, z = 0.000 },
+                rot  = { x = 0.0,   y = 0.0,   z = 0.0 },
             },
         },
         purse_left = {
             label = 'Purse in left hand',
-            pose  = 'withbag1',
+            pose  = 'carry',
             offset = {
-                bone = 18905, -- SKEL_L_Hand
-                pos  = { x = 0.120, y = 0.020, z = 0.020 },
-                rot  = { x = 90.0, y = 0.0,  z = 0.0 },
+                bone = 60309, -- PH_L_Hand
+                pos  = { x = 0.000, y = 0.000, z = 0.000 },
+                rot  = { x = 0.0,   y = 0.0,   z = 0.0 },
             },
         },
         forearm = {
@@ -139,8 +146,8 @@ Config.Carry = {
             pose  = 'withbag2',
             offset = {
                 bone = 28252, -- SKEL_R_Forearm
-                pos  = { x = 0.050, y = 0.000, z = 0.000 },
-                rot  = { x = -90.0, y = 0.0, z = 0.0 },
+                pos  = { x = 0.000, y = 0.000, z = 0.000 },
+                rot  = { x = 0.0,   y = 0.0,   z = 0.0 },
             },
         },
     },
@@ -301,6 +308,7 @@ Config.Shop = {
         { key = 'all',        label = 'All'         },
         { key = 'backpack',   label = 'Backpacks'   },
         { key = 'pocketbook', label = 'Pocketbooks' },
+        { key = 'shoulder',   label = 'Shoulder bags' },
         { key = 'duffel',     label = 'Duffels'     },
     },
 
@@ -311,26 +319,30 @@ Config.Shop = {
     Locations = {
         {
             label   = 'Bag Store',
-            coords  = vector3(72.19, 6.63, 68.88), -- Shop keeper / interaction point
-            heading = 240.0,
+            coords  = vector3(-1187.5038, -1187.8784, 6.7681), -- Shop keeper / interaction point
+            heading = 101.4926,
 
             ped = `s_f_y_shop_low`, -- Shop keeper model, nil for a marker instead
 
             marker = { type = 21, scale = 0.6, r = 8, g = 175, b = 162, a = 140 },
             blip   = { sprite = 52, color = 26, scale = 0.7, label = 'Bag Store' },
 
-            -- Where the bags float. By default it's worked out from the shop
-            -- keeper: `forward` metres in front of them, `height` above their
-            -- waist, with the camera `camDistance` back on the customer's side.
-            -- Set `bag` / `cam` to exact coords to line it up with your counter MLO.
+            -- Where the bags float.
+            --   bag     exact spot the featured bag floats at
+            --   heading the way the shop keeper faces; the camera stands
+            --           `camDistance` back from the bag on the customer's side
+            --   cam     optional exact camera spot instead
+            -- Leave `bag` out and it's worked out from the shop keeper:
+            -- `forward` metres in front of them, `height` above their waist.
             display = {
-                forward     = 0.70,
-                height      = 0.30,
+                bag         = vector3(-1188.8307, -1187.9458, 7.9648),
+                heading     = 101.4926,
                 camDistance = 1.25,
                 camHeight   = 0.22,
                 fov         = 42.0,
-                -- bag = vector3(72.8, 6.3, 69.15),
-                -- cam = vector3(73.9, 5.7, 69.40),
+                forward     = 0.70,
+                height      = 0.30,
+                -- cam = vector3(-1190.06, -1188.20, 8.18),
             },
         },
     },
@@ -512,7 +524,7 @@ Config.IconCapture = {
 -- key      = the item name in ox_inventory (run /bagitems to print item entries)
 -- label    = shown in the menu, notifications and the studio
 -- model    = streamed .ydr model name
--- category = grouping for the shop: 'backpack', 'pocketbook', 'duffel'
+-- category = grouping for the shop: 'backpack', 'pocketbook', 'shoulder', 'duffel'
 -- theme    = shop tab: 'realistic', 'cartoon', 'animal', 'halloween'
 -- price    = shop price, leave nil to keep a bag out of the store
 -- slots    = optional, overrides Config.Storage.slots
@@ -575,12 +587,11 @@ Config.Backpacks = {
     ['nayzeee_backpack_shoulderbag'] = {
         label    = 'Shoulder Bag',
         model    = 'nayzeee_backpack_shoulderbag_01',
-        category = 'pocketbook',
+        category = 'shoulder',   -- crossbody: worn on the body like the backpacks, not hand-carried
         theme    = 'realistic',
         price    = 2000,
         slots    = 5,
         weight   = 5000,
-        carry    = 'purse',
         variants = {
             { label = 'Style A', model = 'nayzeee_backpack_shoulderbag_01' },
             { label = 'Style B', model = 'nayzeee_backpack_shoulderbag_02' },
@@ -596,7 +607,6 @@ Config.Backpacks = {
         slots    = 5,
         weight   = 5000,
         carry    = 'purse',
-        pose     = 'withbag5',
     },
 
     ['nayzeee_backpack_heart'] = {

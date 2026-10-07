@@ -263,8 +263,9 @@
         sendView(0);
         break;
       case 'shopLabel':
-        $('label').style.left = (data.x * 100) + 'vw';
-        $('label').style.top = (data.y * 100) + 'vh';
+        // never let the label ride up into the theme chips
+        $('label').style.left = Math.min(Math.max(data.x * innerWidth, 260), innerWidth - 260) + 'px';
+        $('label').style.top = Math.max(data.y * innerHeight, 210) + 'px';
         break;
       case 'shopMode':
         setMode(data.mode);

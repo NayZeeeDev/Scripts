@@ -1,27 +1,15 @@
-// Writes icon PNGs from the icon studio. Plain Node built-ins only.
+// Writes icon PNGs from the icon studio into this resource's icons/ folder.
+// Plain Node built-ins only. The copy into ox_inventory is done from Lua
+// (server/icons.lua): newer FXServer builds block Node from writing into
+// another resource unless server.cfg grants it.
 const fs = require('fs');
 const path = require('path');
 
 const RESOURCE = GetCurrentResourceName();
 const OWN_DIR = path.resolve(path.join(GetResourcePath(RESOURCE), 'icons'));
 
-function inventoryDir() {
-    if (GetResourceState('ox_inventory') === 'missing') return null;
-    const p = GetResourcePath('ox_inventory');
-    return p ? path.resolve(path.join(p, 'web', 'images')) : null;
-}
-
-function writeInto(dir, name, buf) {
-    const out = path.resolve(path.join(dir, name + '.png'));
-    if (!out.startsWith(dir + path.sep)) throw new Error('path escaped');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(out, buf);
-    return out;
-}
-
-on('nayzeee-backpack:icon:write', (src, name, b64, toInventory) => {
+on('nayzeee-backpack:icon:write', (src, name, b64) => {
     let ok = false;
-    let where = '';
     try {
         if (!/^[\w-]+$/.test(name)) throw new Error('bad name');
         const data = b64.startsWith('data:') ? b64.slice(b64.indexOf(',') + 1) : b64;
@@ -29,19 +17,14 @@ on('nayzeee-backpack:icon:write', (src, name, b64, toInventory) => {
         // PNG signature check, so nothing else ever lands on disk
         if (buf.length < 8 || buf.readUInt32BE(0) !== 0x89504e47) throw new Error('not a png');
 
-        writeInto(OWN_DIR, name, buf);
+        const out = path.resolve(path.join(OWN_DIR, name + '.png'));
+        if (!out.startsWith(OWN_DIR + path.sep)) throw new Error('path escaped');
+        if (!fs.existsSync(OWN_DIR)) fs.mkdirSync(OWN_DIR, { recursive: true });
+        fs.writeFileSync(out, buf);
         ok = true;
-
-        if (toInventory) {
-            const inv = inventoryDir();
-            if (inv) {
-                writeInto(inv, name, buf);
-                where = ' → ox_inventory/web/images';
-            }
-        }
-        console.log(`^2[nayzeee-backpack]^0 icon saved: ${name}.png (${Math.round(buf.length / 1024)} KB)${where}`);
+        console.log(`^2[nayzeee-backpack]^0 icon saved: icons/${name}.png (${Math.round(buf.length / 1024)} KB)`);
     } catch (err) {
         console.log(`^1[nayzeee-backpack]^0 icon ${name} failed: ${err && err.message ? err.message : err}`);
     }
-    emit('nayzeee-backpack:icon:written', src, name, ok, where);
+    emit('nayzeee-backpack:icon:written', src, name, ok, b64);
 });

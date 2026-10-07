@@ -470,6 +470,14 @@ local function spawnPreview(key, variant, keepTune)
     return true
 end
 
+--- Purses get fitted in the pose they're carried in, so start it by itself.
+local function autoPose(key)
+    Carry.stopPreview()
+    poseKey = nil
+    local pose = Bags.poseFor(key)
+    if pose and Carry.preview(pose.key) then poseKey = pose.key end
+end
+
 local function ensureHelper()
     if helper and DoesEntityExist(helper) then return true end
     local hash = Util.loadModel(`prop_golf_ball`, true)
@@ -693,6 +701,7 @@ local function openStudio()
         attachPreview()
     end
 
+    autoPose(currentKey)
     startCam()
     CreateThread(studioLoop)
     SetNuiFocus(true, true)
@@ -734,9 +743,8 @@ RegisterNUICallback('studio:close', function(_, cb) cb('ok'); close() end)
 
 on('studio:select', function(d)
     if not Bags.exists(d.key) then return end
-    Carry.stopPreview()
-    poseKey = nil
     spawnPreview(d.key, Bags.defaultVariant(d.key))
+    autoPose(d.key)
     if Icons and Icons.active() then Icons.refreshProp() end
 end, 'full')
 

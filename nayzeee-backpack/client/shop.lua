@@ -93,6 +93,13 @@ local function buildView(location)
 
     if d.bag and d.cam then
         anchor, camPos = d.bag, d.cam
+    elseif d.bag then
+        -- exact float spot; the camera stands back towards the customer
+        local h = d.heading or (location and location.heading) or 0.0
+        local r = math.rad(h)
+        local fwd = vec3(-math.sin(r), math.cos(r), 0.0)
+        anchor = d.bag
+        camPos = anchor + fwd * (d.camDistance or 1.25) + UP * (d.camHeight or 0.22)
     else
         -- work it out from the shop keeper: bag floats over the counter in
         -- front of them, camera stands on the customer's side looking in
@@ -276,7 +283,11 @@ local function frameLoop()
 
         HideHudAndRadarThisFrame()
         if cfg.depthOfField and mode == 'counter' then SetUseHiDof() end
-        if mode == 'counter' then SetEntityLocallyInvisible(PlayerPedId()) end
+        if mode == 'counter' then
+            -- the camera stands where the customer is, so hide them for ourselves only
+            SetLocalPlayerInvisibleLocally(true)
+            SetEntityLocallyInvisible(PlayerPedId())
+        end
 
         local spinRate = speed + spinBoost
         if spinBoost > 0 then spinBoost = math.max(0.0, spinBoost - 600.0 * dt) end

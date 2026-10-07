@@ -273,7 +273,7 @@ pre{background:var(--inset);border:1px solid var(--line-hair);border-radius:var(
 #orbit.drag{cursor:grabbing}
 
 .hints{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:4;display:flex;gap:14px;padding:7px 14px;border-radius:999px;
-  background:rgba(8,9,10,.72);border:1px solid var(--line-soft);font-size:10px;color:var(--ink-3);backdrop-filter:blur(6px);pointer-events:none;white-space:nowrap}
+  background:rgba(8,9,10,.85);border:1px solid var(--line-soft);font-size:10px;color:var(--ink-3);pointer-events:none;white-space:nowrap}
 
 /* square guide over the icon view */
 #iconGuide{position:fixed;left:50%;top:50%;z-index:2;pointer-events:none;transform:translate(-50%,-50%);
@@ -303,15 +303,15 @@ pre{background:var(--inset);border:1px solid var(--line-hair);border-radius:var(
 .s-brand b{font-size:13px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--white);text-shadow:0 2px 12px rgba(0,0,0,.8)}
 .s-chips{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
 .s-chip{height:30px;padding:0 15px;border-radius:999px;font-size:11.5px;font-weight:400;color:rgba(255,255,255,.72);
-  background:rgba(8,9,10,.42);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);transition:all var(--fast)}
+  background:rgba(8,9,10,.62);border:1px solid rgba(255,255,255,.12);transition:all var(--fast)}
 .s-chip:hover{color:var(--white);border-color:rgba(255,255,255,.3)}
 .s-chip.on{color:#00201d;background:linear-gradient(var(--teal-hi),var(--teal));border-color:transparent;font-weight:600;box-shadow:0 4px 18px rgba(8,175,162,.35)}
 .s-chip.job{border-color:var(--teal-edge);color:var(--teal-hi)}
 .s-sep{width:1px;height:18px;background:rgba(255,255,255,.18);align-self:center}
 
 .s-corner{position:fixed;top:22px;right:26px;z-index:3;display:flex;gap:9px;align-items:center}
-.s-wallet{height:30px;display:flex;align-items:center;gap:8px;padding:0 14px;border-radius:999px;background:rgba(8,9,10,.55);
-  border:1px solid rgba(255,255,255,.12);font-size:11.5px;color:var(--ink-2);backdrop-filter:blur(8px)}
+.s-wallet{height:30px;display:flex;align-items:center;gap:8px;padding:0 14px;border-radius:999px;background:rgba(8,9,10,.72);
+  border:1px solid rgba(255,255,255,.12);font-size:11.5px;color:var(--ink-2)}
 .s-wallet b{color:var(--teal-hi);font-weight:600}
 
 /* name + price floating above the bag — no box, just type */
@@ -331,7 +331,7 @@ pre{background:var(--inset);border:1px solid var(--line-hair);border-radius:var(
 .s-label .l-tags span.own{color:var(--teal-hi);border-color:var(--teal-edge)}
 
 .s-arrow{position:fixed;top:50%;z-index:3;width:54px;height:54px;margin-top:-27px;border-radius:50%;display:grid;place-items:center;
-  background:rgba(8,9,10,.35);border:1px solid rgba(255,255,255,.14);color:var(--white);backdrop-filter:blur(8px);transition:all var(--fast)}
+  background:rgba(8,9,10,.55);border:1px solid rgba(255,255,255,.14);color:var(--white);transition:all var(--fast)}
 .s-arrow svg{width:20px;height:20px;stroke-width:2}
 .s-arrow:hover{background:rgba(8,175,162,.25);border-color:var(--teal-edge);transform:scale(1.06)}
 .s-arrow:active{transform:scale(.97)}
@@ -341,12 +341,12 @@ pre{background:var(--inset);border:1px solid var(--line-hair);border-radius:var(
 .s-bottom{position:fixed;left:0;right:0;bottom:26px;z-index:3;display:flex;flex-direction:column;align-items:center;gap:12px;pointer-events:none}
 .s-bottom > *{pointer-events:auto}
 .s-swatches{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.s-swatches button{height:26px;padding:0 12px;border-radius:999px;font-size:10.5px;color:rgba(255,255,255,.75);background:rgba(8,9,10,.4);
-  border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);transition:all var(--fast)}
+.s-swatches button{height:26px;padding:0 12px;border-radius:999px;font-size:10.5px;color:rgba(255,255,255,.8);background:rgba(8,9,10,.6);
+  border:1px solid rgba(255,255,255,.14);transition:all var(--fast)}
 .s-swatches button.on{color:var(--teal-hi);border-color:var(--teal-edge);background:rgba(8,175,162,.16)}
 .s-actions{display:flex;gap:9px;align-items:center}
 .s-btn{height:42px;padding:0 20px;border-radius:999px;font-size:12.5px;font-weight:500;color:var(--white);display:flex;align-items:center;gap:9px;
-  background:rgba(8,9,10,.5);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px);transition:all var(--fast)}
+  background:rgba(8,9,10,.7);border:1px solid rgba(255,255,255,.16);transition:all var(--fast)}
 .s-btn svg{width:15px;height:15px;stroke-width:1.8}
 .s-btn:hover{border-color:rgba(255,255,255,.35)}
 .s-btn.buy{min-width:220px;justify-content:center;color:#00201d;font-weight:600;border-color:transparent;

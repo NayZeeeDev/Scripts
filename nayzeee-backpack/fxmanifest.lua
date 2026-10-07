@@ -88,6 +88,18 @@ data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_teddyskull/nayzeee_backpac
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_lean/nayzeee_backpack_lean.ytyp'
 
 dependencies {
+    '/assetpacks',       -- needed once the resource is escrowed through Tebex
     'ox_lib',
     'ox_inventory',
+    'screenshot-basic',  -- icon studio
+}
+
+-- Left readable for buyers when escrowed. Everything else stays encrypted.
+-- (Escrow only ever encrypts .lua; web/ and server/icons.js ship as-is.)
+escrow_ignore {
+    'config.lua',
+    'integrations.lua',
+    'bridge/*.lua',
+    'install.sql',
+    'INSTALL.md',
 }
