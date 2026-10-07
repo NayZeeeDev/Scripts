@@ -1,0 +1,245 @@
+<meta charset="utf-8">
+<title>Sneaker Box Prop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: stage on the left, a shoebox end-label style spec sticker on the right; stacks on phones */
+:root {
+  --bg: #efebe6;
+  --surface: #f9f7f4;
+  --stage: #e3ddd5;
+  --fg: #1d1a17;
+  --muted: #6b635b;
+  --line: #d2cac0;
+  --accent: #e2591c;
+  --accent-ink: #ffffff;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #181614; --surface: #221f1c; --stage: #2a2622; --fg: #f1ece6;
+    --muted: #a69c91; --line: #3a352f; --accent: #f06a2c; --accent-ink: #1a0d06;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #181614; --surface: #221f1c; --stage: #2a2622; --fg: #f1ece6;
+  --muted: #a69c91; --line: #3a352f; --accent: #f06a2c; --accent-ink: #1a0d06;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-display); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 40px; display: grid; gap: 20px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+h1 { margin: 0; font-weight: 800; font-size: clamp(1.6rem, 4vw, 2.3rem); letter-spacing: -0.01em; text-wrap: balance; }
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 0.95rem; max-width: 60ch; }
+.res { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+@media (max-width: 820px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.stage { position: relative; background: var(--stage); border-radius: 6px; aspect-ratio: 16 / 11; max-width: 100%; overflow: hidden; }
+.stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.stage canvas:active { cursor: grabbing; }
+.hint { position: absolute; left: 12px; bottom: 10px; font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); pointer-events: none; }
+.status[hidden] { display: none; }
+.status { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); font-family: var(--font-mono); font-size: 0.85rem; }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+button { font: 600 0.95rem var(--font-display); border-radius: 4px; padding: 10px 18px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); min-width: 9.5em; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+.angle { margin-left: auto; font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.angle b { color: var(--fg); font-weight: 500; }
+
+.sticker { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px 18px 14px; display: grid; gap: 14px; }
+.sticker .size { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.sticker .size strong { font-size: 2rem; font-weight: 800; letter-spacing: -0.01em; }
+.sticker .size span { color: var(--accent); font-weight: 800; font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-family: var(--font-mono); font-size: 0.8rem; }
+dt { color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; padding-top: 2px; }
+dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.barcode { height: 34px; background: repeating-linear-gradient(90deg, var(--fg) 0 2px, transparent 2px 4px, var(--fg) 4px 5px, transparent 5px 8px, var(--fg) 8px 11px, transparent 11px 13px); opacity: 0.85; }
+.foot { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Sneaker Box Prop</h1>
+      <p class="sub">The FiveM prop in its real build: two meshes, one 1024 px texture, and the lid hinged on the back wall. The timing and easing match the Lua script.</p>
+    </div>
+    <span class="res">resource: sneaker_box</span>
+  </header>
+
+  <div class="layout">
+    <section class="stage" id="stage" aria-label="3D preview of the sneaker box">
+      <div class="status" id="status">Loading model…</div>
+      <span class="hint">Drag to orbit · scroll to zoom</span>
+    </section>
+
+    <aside class="sticker" aria-label="Prop specs">
+      <div class="size"><strong>33 × 21</strong><span>Sneaker Co.</span></div>
+      <dl>
+        <dt>Height</dt><dd>11.9 cm closed</dd>
+        <dt>Base</dt><dd>nz_shoebox</dd>
+        <dt>Lid</dt><dd>nz_shoebox_lid</dd>
+        <dt>Hinge</dt><dd>0.000, −0.105, 0.115</dd>
+        <dt>Swing</dt><dd>105° · open 550 ms · close 500 ms</dd>
+        <dt>Mesh</dt><dd>28 quads · 1 material</dd>
+        <dt>Texture</dt><dd>1024 × 1024 atlas</dd>
+      </dl>
+      <div class="barcode" aria-hidden="true"></div>
+      <p class="foot">Open eases out with a small overshoot; close lands with a bounce.</p>
+    </aside>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="toggle" type="button">Open lid</button>
+    <label class="toggle" for="loop"><input type="checkbox" id="loop"> Loop open / close</label>
+    <button id="reset" type="button">Reset view</button>
+    <span class="angle">lid angle <b id="angle">0.0°</b></span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  // Same numbers as config.lua / generate_model.py
+  const HINGE = [0.0, -0.105, 0.115];
+  const OPEN_ANGLE = 105, OPEN_MS = 550, CLOSE_MS = 500, LOOP_HOLD_MS = 1200;
+
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const stage = document.getElementById("stage");
+  const statusEl = document.getElementById("status");
+  const toggleBtn = document.getElementById("toggle");
+  const loopBox = document.getElementById("loop");
+  const angleEl = document.getElementById("angle");
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  stage.prepend(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 16 / 11, 0.01, 20);
+  const HOME = new THREE.Vector3(0.62, 0.48, -0.78); // GTA front (+Y) faces three.js -Z
+  camera.position.copy(HOME);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.09, 0);
+  controls.enableDamping = true;
+  controls.minDistance = 0.35;
+  controls.maxDistance = 2.2;
+  controls.maxPolarAngle = Math.PI * 0.49;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7d70, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+  sun.position.set(0.6, 1.2, 0.7);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -0.5, right: 0.5, top: 0.5, bottom: -0.5, near: 0.1, far: 3 });
+  scene.add(sun);
+
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.ShadowMaterial({ opacity: 0.22 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // The OBJs are Z-up like GTA; tip the whole prop over to three.js Y-up
+  const prop = new THREE.Group();
+  prop.rotation.x = -Math.PI / 2;
+  scene.add(prop);
+  const hinge = new THREE.Group();
+  hinge.position.set(HINGE[0], HINGE[1], HINGE[2]);
+  prop.add(hinge);
+
+  const tex = new THREE.TextureLoader().load("textures/nz_shoebox.png");
+  tex.encoding = THREE.sRGBEncoding;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const material = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0 });
+
+  function prepare(obj) {
+    obj.traverse((m) => {
+      if (m.isMesh) { m.material = material; m.castShadow = true; m.receiveShadow = true; }
+    });
+    return obj;
+  }
+
+  const loader = new THREE.OBJLoader();
+  const load = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+  Promise.all([load("models/nz_shoebox.obj"), load("models/nz_shoebox_lid.obj")])
+    .then(([base, lid]) => {
+      prop.add(prepare(base));
+      hinge.add(prepare(lid));
+      statusEl.hidden = true;
+      if (!reduceMotion) { loopBox.checked = true; startLoop(); }
+    })
+    .catch(() => { statusEl.textContent = "The model files didn't load. Reload the page to try again."; });
+
+  // Lid animation (ports of easeOutBack / easeOutBounce in client.lua)
+  const easeOutBack = (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2; };
+  function easeOutBounce(t) {
+    const n1 = 7.5625, d1 = 2.75;
+    if (t < 1 / d1) return n1 * t * t;
+    if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75;
+    if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
+    return n1 * (t -= 2.625 / d1) * t + 0.984375;
+  }
+
+  const lid = { angle: 0, from: 0, to: 0, start: 0, dur: 1, opening: false, active: false };
+  let isOpen = false, loopTimer = null;
+
+  function setOpen(open) {
+    isOpen = open;
+    toggleBtn.textContent = open ? "Close lid" : "Open lid";
+    if (reduceMotion) { lid.angle = lid.to = open ? OPEN_ANGLE : 0; lid.active = false; return; }
+    Object.assign(lid, { from: lid.angle, to: open ? OPEN_ANGLE : 0, start: performance.now(),
+      dur: open ? OPEN_MS : CLOSE_MS, opening: open, active: true });
+  }
+
+  function startLoop() {
+    stopLoop();
+    const step = () => { setOpen(!isOpen); loopTimer = setTimeout(step, (isOpen ? OPEN_MS : CLOSE_MS) + LOOP_HOLD_MS); };
+    loopTimer = setTimeout(step, 500);
+  }
+  function stopLoop() { clearTimeout(loopTimer); loopTimer = null; }
+
+  toggleBtn.addEventListener("click", () => { loopBox.checked = false; stopLoop(); setOpen(!isOpen); });
+  loopBox.addEventListener("change", () => (loopBox.checked ? startLoop() : stopLoop()));
+  document.getElementById("reset").addEventListener("click", () => {
+    camera.position.copy(HOME); controls.target.set(0, 0.09, 0); controls.update();
+  });
+
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(stage);
+  resize();
+
+  function frame(now) {
+    if (lid.active) {
+      const t = Math.min((now - lid.start) / lid.dur, 1);
+      const e = lid.opening ? easeOutBack(t) : easeOutBounce(t);
+      lid.angle = lid.from + (lid.to - lid.from) * e;
+      if (t >= 1) { lid.angle = lid.to; lid.active = false; }
+    }
+    hinge.rotation.x = THREE.MathUtils.degToRad(lid.angle);
+    angleEl.textContent = lid.angle.toFixed(1) + "°";
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>

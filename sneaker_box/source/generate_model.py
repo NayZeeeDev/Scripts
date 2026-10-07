@@ -1,0 +1,383 @@
+"""
+Builds the sneaker box prop from code.
+
+Outputs (next to this file):
+  models/nz_shoebox.obj       base (open-top box), origin at bottom centre
+  models/nz_shoebox_lid.obj   hinged lid, origin on the hinge line
+  models/nz_shoebox.mtl       shared material
+  textures/nz_shoebox.png     1024x1024 atlas (lid art, end label, card, kraft)
+  nz_shoebox.ytyp.xml         archetypes for both parts (bounds match the mesh)
+
+Axes are GTA / Blender style: Z up, +Y is the front of the box, units are metres.
+The OBJs are written Z-up, so import them with forward = Y, up = Z.
+
+Put your own logo at textures/logo.png (transparent PNG) and re-run to bake it
+onto the lid. Without it a placeholder mark is drawn.
+
+    python3 generate_model.py
+"""
+
+import os
+import random
+
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(HERE, "models")
+TEX_DIR = os.path.join(HERE, "textures")
+
+# Real shoe box is roughly 33 x 21 x 12 cm
+LENGTH = 0.33      # X
+WIDTH = 0.21       # Y
+HEIGHT = 0.115     # base wall height (Z)
+WALL = 0.004       # cardboard thickness
+GAP = 0.0015       # clearance between lid skirt and base walls
+SKIRT = 0.03       # how far the lid lips hang down over the base
+
+# Hinge sits on the top edge of the back wall
+HINGE = (0.0, -WIDTH / 2, HEIGHT)
+
+ATLAS = 1024
+PAD = 6  # px kept clear around each atlas region so mips don't bleed
+
+# Atlas regions in pixels: (x0, y0, x1, y1), y measured from the top of the image
+REGION_LID = (0, 0, 1024, 652)
+REGION_LABEL = (0, 652, 512, 932)
+REGION_CARD = (512, 652, 768, 1024)
+REGION_KRAFT = (768, 652, 1024, 1024)
+
+ORANGE = (236, 97, 34)
+ORANGE_DARK = (196, 74, 22)
+KRAFT = (184, 146, 102)
+INK = (24, 24, 24)
+WHITE = (247, 245, 240)
+
+
+# --------------------------------------------------------------------------- mesh
+
+class Mesh:
+    def __init__(self, name):
+        self.name = name
+        self.verts = []
+        self.uvs = []
+        self.normals = []
+        self.faces = []
+
+    def quad(self, axis, sign, plane, a_range, b_range, region):
+        """
+        Axis-aligned rectangle. `axis` is the normal axis (0=x, 1=y, 2=z),
+        `sign` the outward direction (+1/-1), `plane` its coordinate along
+        that axis. a_range / b_range span the other two axes in x,y,z order.
+        The face is UV-fitted into `region` of the atlas.
+        """
+        a_axis, b_axis = [i for i in range(3) if i != axis]
+        (a0, a1), (b0, b1) = a_range, b_range
+
+        def point(a, b):
+            p = [0.0, 0.0, 0.0]
+            p[axis], p[a_axis], p[b_axis] = plane, a, b
+            return tuple(p)
+
+        corners = [point(a0, b0), point(a1, b0), point(a1, b1), point(a0, b1)]
+        uv_corners = [(0, 0), (1, 0), (1, 1), (0, 1)]
+
+        # Check winding against the wanted normal and flip if needed
+        n = [0.0, 0.0, 0.0]
+        n[axis] = float(sign)
+        e1 = [corners[1][i] - corners[0][i] for i in range(3)]
+        e2 = [corners[3][i] - corners[0][i] for i in range(3)]
+        cross = (
+            e1[1] * e2[2] - e1[2] * e2[1],
+            e1[2] * e2[0] - e1[0] * e2[2],
+            e1[0] * e2[1] - e1[1] * e2[0],
+        )
+        if sum(cross[i] * n[i] for i in range(3)) < 0:
+            corners.reverse()
+            uv_corners.reverse()
+
+        # Mirror UVs on faces seen from "behind" so artwork reads correctly
+        uv_corners = self._orient_uvs(axis, sign, corners, uv_corners)
+
+        base_v = len(self.verts)
+        base_t = len(self.uvs)
+        self.verts.extend(corners)
+        self.uvs.extend(region_uv(region, u, v) for u, v in uv_corners)
+        self.normals.append(tuple(n))
+        ni = len(self.normals)
+        self.faces.append([(base_v + i + 1, base_t + i + 1, ni) for i in range(4)])
+
+    @staticmethod
+    def _orient_uvs(axis, sign, corners, uv_corners):
+        # Re-derive UVs from position so artwork reads the right way round for
+        # someone looking straight at the face: "up" is +Z on walls, and on
+        # horizontal faces the top of the art points to the back (-Y), so the
+        # lid reads correctly from the front of the box.
+        if axis == 2:
+            right, up = (0, -sign), (1, -1)
+        elif axis == 1:
+            right, up = (0, -sign), (2, 1)
+        else:
+            right, up = (1, sign), (2, 1)
+        ra, rs = right
+        ua, us = up
+        rs_vals = [c[ra] * rs for c in corners]
+        us_vals = [c[ua] * us for c in corners]
+        rmin, rmax = min(rs_vals), max(rs_vals)
+        umin, umax = min(us_vals), max(us_vals)
+        return [
+            ((r - rmin) / (rmax - rmin), (u - umin) / (umax - umin))
+            for r, u in zip(rs_vals, us_vals)
+        ]
+
+    def bounds(self):
+        xs, ys, zs = zip(*self.verts)
+        return (min(xs), min(ys), min(zs)), (max(xs), max(ys), max(zs))
+
+    def write_obj(self, path, mtl_name, material):
+        with open(path, "w", newline="\n") as f:
+            f.write(f"# {self.name} - generated by generate_model.py (Z up, metres)\n")
+            f.write(f"mtllib {mtl_name}\n")
+            f.write(f"o {self.name}\n")
+            for v in self.verts:
+                f.write("v {:.5f} {:.5f} {:.5f}\n".format(*v))
+            for t in self.uvs:
+                f.write("vt {:.5f} {:.5f}\n".format(*t))
+            for n in self.normals:
+                f.write("vn {:.1f} {:.1f} {:.1f}\n".format(*n))
+            f.write(f"usemtl {material}\ns off\n")
+            for face in self.faces:
+                f.write("f " + " ".join(f"{v}/{t}/{n}" for v, t, n in face) + "\n")
+
+
+def region_uv(region, u, v):
+    x0, y0, x1, y1 = region
+    px = x0 + PAD + u * (x1 - x0 - 2 * PAD)
+    py = y0 + PAD + (1 - v) * (y1 - y0 - 2 * PAD)
+    return px / ATLAS, 1 - py / ATLAS
+
+
+def build_base():
+    m = Mesh("nz_shoebox")
+    hx, hy, h, t = LENGTH / 2, WIDTH / 2, HEIGHT, WALL
+    ix, iy = hx - t, hy - t
+
+    # Outside
+    m.quad(2, -1, 0.0, (-hx, hx), (-hy, hy), REGION_CARD)            # underside
+    m.quad(1, +1, hy, (-hx, hx), (0, h), REGION_CARD)                # front
+    m.quad(1, -1, -hy, (-hx, hx), (0, h), REGION_CARD)               # back
+    m.quad(0, +1, hx, (-hy, hy), (0, h), REGION_LABEL)               # right end (label)
+    m.quad(0, -1, -hx, (-hy, hy), (0, h), REGION_CARD)               # left end
+
+    # Inside
+    m.quad(2, +1, t, (-ix, ix), (-iy, iy), REGION_KRAFT)             # floor
+    m.quad(1, -1, iy, (-ix, ix), (t, h), REGION_KRAFT)
+    m.quad(1, +1, -iy, (-ix, ix), (t, h), REGION_KRAFT)
+    m.quad(0, -1, ix, (-iy, iy), (t, h), REGION_KRAFT)
+    m.quad(0, +1, -ix, (-iy, iy), (t, h), REGION_KRAFT)
+
+    # Rim along the top of the walls
+    m.quad(2, +1, h, (-hx, hx), (iy, hy), REGION_CARD)
+    m.quad(2, +1, h, (-hx, hx), (-hy, -iy), REGION_CARD)
+    m.quad(2, +1, h, (ix, hx), (-iy, iy), REGION_CARD)
+    m.quad(2, +1, h, (-hx, -ix), (-iy, iy), REGION_CARD)
+    return m
+
+
+def build_lid():
+    """Lid in hinge space: origin on the hinge, lid extends towards +Y."""
+    m = Mesh("nz_shoebox_lid")
+    t, s = WALL, SKIRT
+    xi = LENGTH / 2 + GAP            # inner face of the side lips
+    xo = xi + t                      # outer face of the side lips
+    yi = WIDTH + GAP                 # inner face of the front lip
+    yo = yi + t                      # outer face of the front lip
+
+    # Top panel
+    m.quad(2, +1, t, (-xo, xo), (0, yo), REGION_LID)
+    m.quad(2, -1, 0.0, (-xi, xi), (0, yi), REGION_KRAFT)
+    m.quad(1, -1, 0.0, (-xo, xo), (0, t), REGION_CARD)               # back edge of panel
+
+    # Front lip
+    m.quad(1, +1, yo, (-xo, xo), (-s, t), REGION_CARD)
+    m.quad(1, -1, yi, (-xi, xi), (-s, 0), REGION_KRAFT)
+    m.quad(2, -1, -s, (-xo, xo), (yi, yo), REGION_CARD)
+
+    # Side lips
+    for sx in (+1, -1):
+        m.quad(0, sx, sx * xo, (0, yo), (-s, t), REGION_CARD)
+        m.quad(0, -sx, sx * xi, (0, yi), (-s, 0), REGION_KRAFT)
+        lo, hi = sorted((sx * xi, sx * xo))
+        m.quad(2, -1, -s, (lo, hi), (0, yi), REGION_CARD)            # lip bottom edge
+        m.quad(1, -1, 0.0, (lo, hi), (-s, 0), REGION_CARD)           # lip back edge
+    return m
+
+
+# ------------------------------------------------------------------------ texture
+
+def font(size, bold=True):
+    candidates = [
+        "/usr/share/fonts/opentype/inter/Inter-ExtraBold.otf" if bold else
+        "/usr/share/fonts/opentype/inter/Inter-Medium.otf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default(size)
+
+
+def cardboard(size, base, rng, grain=10):
+    """Flat colour with paper speckle and a faint corrugation stripe."""
+    w, h = size
+    img = Image.new("RGB", size, base)
+    px = img.load()
+    for y in range(h):
+        stripe = 3 if (y // 6) % 2 else -3
+        for x in range(w):
+            d = rng.randint(-grain, grain) + stripe // 2
+            r, g, b = base
+            px[x, y] = (max(0, min(255, r + d)), max(0, min(255, g + d)), max(0, min(255, b + d)))
+    return img.filter(ImageFilter.GaussianBlur(0.6))
+
+
+def placeholder_logo(size):
+    """Plain monogram badge. Swap for your own logo via textures/logo.png."""
+    w, h = size
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    r = int(h * 0.48)
+    cx, cy = w // 2, h // 2
+    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=WHITE)
+    mono = font(int(r * 0.95))
+    d.text((cx, cy), "SC", font=mono, fill=ORANGE, anchor="mm")
+    return img
+
+
+def build_texture():
+    rng = random.Random(7)
+    atlas = Image.new("RGB", (ATLAS, ATLAS), ORANGE)
+
+    # Plain card + kraft interior
+    for region, colour in ((REGION_CARD, ORANGE), (REGION_KRAFT, KRAFT)):
+        x0, y0, x1, y1 = region
+        atlas.paste(cardboard((x1 - x0, y1 - y0), colour, rng), (x0, y0))
+
+    # Lid top art
+    x0, y0, x1, y1 = REGION_LID
+    lw, lh = x1 - x0, y1 - y0
+    lid = cardboard((lw, lh), ORANGE, rng)
+    d = ImageDraw.Draw(lid)
+    d.rectangle((14, 14, lw - 15, lh - 15), outline=ORANGE_DARK, width=4)
+
+    logo_path = os.path.join(TEX_DIR, "logo.png")
+    logo_box = (int(lw * 0.46), int(lh * 0.34))
+    if os.path.exists(logo_path):
+        logo = Image.open(logo_path).convert("RGBA")
+        logo.thumbnail(logo_box, Image.LANCZOS)
+    else:
+        logo = placeholder_logo(logo_box)
+    lid.paste(logo, ((lw - logo.width) // 2, int(lh * 0.22)), logo)
+
+    title = font(54)
+    text = "SNEAKER CO."
+    tw = d.textlength(text, font=title)
+    d.text(((lw - tw) / 2, lh * 0.62), text, font=title, fill=WHITE)
+    small = font(22, bold=False)
+    tag = "100% RECYCLED FIBRE  ·  KEEP DRY"
+    tw = d.textlength(tag, font=small)
+    d.text(((lw - tw) / 2, lh * 0.78), tag, font=small, fill=(255, 224, 205))
+    atlas.paste(lid, (x0, y0))
+
+    # End label (white sticker with size + barcode)
+    x0, y0, x1, y1 = REGION_LABEL
+    ew, eh = x1 - x0, y1 - y0
+    end = cardboard((ew, eh), ORANGE, rng)
+    d = ImageDraw.Draw(end)
+    lx0, ly0, lx1, ly1 = 50, 40, ew - 50, eh - 40
+    d.rounded_rectangle((lx0, ly0, lx1, ly1), radius=8, fill=WHITE)
+    d.text((lx0 + 18, ly0 + 12), "US 10", font=font(44), fill=INK)
+    d.text((lx0 + 18, ly0 + 66), "UK 9   EUR 44   CM 28", font=font(18, bold=False), fill=INK)
+    d.text((lx0 + 18, ly0 + 92), "STYLE  NZ-0420-001", font=font(18, bold=False), fill=INK)
+    # Barcode
+    bx, by = lx0 + 18, ly1 - 70
+    for i in range(48):
+        bar = rng.choice((2, 2, 3, 4))
+        if rng.random() > 0.35:
+            d.rectangle((bx, by, bx + bar - 1, by + 52), fill=INK)
+        bx += bar + 2
+    d.text((lx1 - 150, ly0 + 18), "SNEAKER\nCO.", font=font(28), fill=ORANGE)
+    atlas.paste(end, (x0, y0))
+
+    return atlas
+
+
+# --------------------------------------------------------------------------- main
+
+def write_mtl(path):
+    with open(path, "w", newline="\n") as f:
+        f.write("# generated by generate_model.py\n")
+        f.write("newmtl nz_shoebox\n")
+        f.write("Ka 1.000 1.000 1.000\nKd 1.000 1.000 1.000\nKs 0.050 0.050 0.050\n")
+        f.write("Ns 12.0\nd 1.0\nillum 2\n")
+        f.write("map_Kd ../textures/nz_shoebox.png\n")
+
+
+YTYP_ITEM = """    <Item type="CBaseArchetypeDef">
+      <lodDist value="{lod}"/>
+      <flags value="32"/>
+      <specialAttribute value="0"/>
+      <bbMin x="{min[0]:.5f}" y="{min[1]:.5f}" z="{min[2]:.5f}"/>
+      <bbMax x="{max[0]:.5f}" y="{max[1]:.5f}" z="{max[2]:.5f}"/>
+      <bsCentre x="{c[0]:.5f}" y="{c[1]:.5f}" z="{c[2]:.5f}"/>
+      <bsRadius value="{r:.5f}"/>
+      <hdTextureDist value="15.0"/>
+      <name>{name}</name>
+      <textureDictionary>{name}</textureDictionary>
+      <clipDictionary/>
+      <drawableDictionary/>
+      <physicsDictionary/>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>{name}</assetName>
+      <extensions/>
+    </Item>
+"""
+
+
+def write_ytyp(path, meshes, lod=60.0):
+    """CodeWalker-format XML. Convert to binary .ytyp before streaming."""
+    items = []
+    for mesh in meshes:
+        lo, hi = mesh.bounds()
+        c = tuple((lo[i] + hi[i]) / 2 for i in range(3))
+        r = sum((hi[i] - c[i]) ** 2 for i in range(3)) ** 0.5
+        items.append(YTYP_ITEM.format(lod=lod, min=lo, max=hi, c=c, r=r, name=mesh.name))
+    with open(path, "w", newline="\n") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n<CMapTypes>\n  <extensions/>\n  <archetypes>\n')
+        f.write("".join(items))
+        f.write("  </archetypes>\n  <name>nz_shoebox</name>\n  <dependencies/>\n"
+                "  <compositeEntityTypes/>\n</CMapTypes>\n")
+
+
+def main():
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    os.makedirs(TEX_DIR, exist_ok=True)
+
+    base, lid = build_base(), build_lid()
+    mtl = "nz_shoebox.mtl"
+    write_mtl(os.path.join(MODEL_DIR, mtl))
+    base.write_obj(os.path.join(MODEL_DIR, "nz_shoebox.obj"), mtl, "nz_shoebox")
+    lid.write_obj(os.path.join(MODEL_DIR, "nz_shoebox_lid.obj"), mtl, "nz_shoebox")
+    build_texture().save(os.path.join(TEX_DIR, "nz_shoebox.png"), optimize=True)
+    write_ytyp(os.path.join(HERE, "nz_shoebox.ytyp.xml"), (base, lid))
+
+    for mesh in (base, lid):
+        lo, hi = mesh.bounds()
+        print(f"{mesh.name:16s} {len(mesh.faces):3d} quads  "
+              f"min {tuple(round(v, 4) for v in lo)}  max {tuple(round(v, 4) for v in hi)}")
+    print("hinge offset (attach lid to base at):", HINGE)
+
+
+if __name__ == "__main__":
+    main()

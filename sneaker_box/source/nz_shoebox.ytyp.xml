@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CMapTypes>
+  <extensions/>
+  <archetypes>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60.0"/>
+      <flags value="32"/>
+      <specialAttribute value="0"/>
+      <bbMin x="-0.16500" y="-0.10500" z="0.00000"/>
+      <bbMax x="0.16500" y="0.10500" z="0.11500"/>
+      <bsCentre x="0.00000" y="0.00000" z="0.05750"/>
+      <bsRadius value="0.20385"/>
+      <hdTextureDist value="15.0"/>
+      <name>nz_shoebox</name>
+      <textureDictionary>nz_shoebox</textureDictionary>
+      <clipDictionary/>
+      <drawableDictionary/>
+      <physicsDictionary/>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_shoebox</assetName>
+      <extensions/>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60.0"/>
+      <flags value="32"/>
+      <specialAttribute value="0"/>
+      <bbMin x="-0.17050" y="0.00000" z="-0.03000"/>
+      <bbMax x="0.17050" y="0.21550" z="0.00400"/>
+      <bsCentre x="0.00000" y="0.10775" z="-0.01300"/>
+      <bsRadius value="0.20241"/>
+      <hdTextureDist value="15.0"/>
+      <name>nz_shoebox_lid</name>
+      <textureDictionary>nz_shoebox_lid</textureDictionary>
+      <clipDictionary/>
+      <drawableDictionary/>
+      <physicsDictionary/>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_shoebox_lid</assetName>
+      <extensions/>
+    </Item>
+  </archetypes>
+  <name>nz_shoebox</name>
+  <dependencies/>
+  <compositeEntityTypes/>
+</CMapTypes>
