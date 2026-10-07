@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Orbit Garden</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: full-bleed WebGL scene, a small title block top-left and one control bar along the bottom. Single dark "space" look by design. */
+:root {
+  --space: #0a0f24;
+  --ink: #eef0ff;
+  --muted: #9aa3cc;
+  --panel: rgba(18, 24, 54, 0.72);
+  --line: rgba(160, 175, 255, 0.18);
+  --sun: #ffb85c;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--space);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+#scene {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+#scene.dragging { cursor: grabbing; }
+
+.hud {
+  position: fixed;
+  left: 0; right: 0;
+  padding-inline: 16px;
+  pointer-events: none;
+}
+.hud > * { pointer-events: auto; }
+.top { top: 0; padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+.bottom {
+  bottom: 0;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; justify-content: center;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+.meta {
+  margin-top: 8px;
+  display: flex; flex-wrap: wrap; gap: 6px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.meta b { color: var(--sun); font-weight: 600; }
+
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 10px 14px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  max-width: 100%;
+}
+button {
+  font: 600 12px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+button:hover { background: rgba(160, 175, 255, 0.1); border-color: rgba(160, 175, 255, 0.4); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--sun); outline-offset: 2px; }
+button.primary { background: var(--sun); color: var(--space); border-color: var(--sun); }
+button.primary:hover { background: #ffc982; }
+
+.speed {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.speed output { color: var(--ink); min-width: 3.5ch; text-align: right; }
+input[type="range"] { accent-color: var(--sun); width: 110px; }
+
+.hint {
+  position: fixed;
+  right: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  font-size: 11px; color: var(--muted);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  pointer-events: none;
+}
+@media (max-width: 560px) { .hint { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="Animated 3D planet with trees, clouds and an orbiting moon. Drag to orbit, scroll to zoom."></canvas>
+
+<div class="hud top">
+  <h1 class="title">Orbit Garden</h1>
+  <div class="meta">
+    <span>World <b id="seed">#00000</b></span>
+    <span>Day <b id="day">1</b></span>
+    <span>Local time <b id="clock">06:00</b></span>
+    <span><b id="trees">0</b> trees</span>
+  </div>
+</div>
+<div class="hint">Drag to orbit · Scroll to zoom</div>
+
+<div class="hud bottom">
+  <div class="bar">
+    <button id="play" type="button" aria-pressed="true">Pause</button>
+    <label class="speed" for="speed">Speed
+      <input id="speed" type="range" min="0.1" max="4" step="0.1" value="1">
+      <output id="speedOut" for="speed">1.0×</output>
+    </label>
+    <button id="regen" class="primary" type="button">New world</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  const canvas = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#0a0f24');
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
+
+  // ---------- Lights ----------
+  const sun = new THREE.DirectionalLight('#fff1d6', 1.6);
+  sun.position.set(6, 2.5, 4);
+  scene.add(sun);
+  scene.add(new THREE.HemisphereLight('#7f9cff', '#1a1030', 0.35));
+
+  // ---------- Stars ----------
+  {
+    const n = 1800, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const v = randDir(Math.random);
+      v.multiplyScalar(40 + Math.random() * 40);
+      pos.set([v.x, v.y, v.z], i * 3);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: '#cfd6ff', size: 0.12, sizeAttenuation: true })));
+  }
+
+  // ---------- Helpers ----------
+  function rng(seed) {
+    let s = seed % 2147483647; if (s <= 0) s += 2147483646;
+    return () => (s = (s * 16807) % 2147483647) / 2147483647;
+  }
+  function randDir(r) {
+    const u = r() * 2 - 1, th = r() * Math.PI * 2, s = Math.sqrt(1 - u * u);
+    return new THREE.Vector3(s * Math.cos(th), u, s * Math.sin(th));
+  }
+  // Classic 3D Perlin noise, seeded.
+  function makeNoise(r) {
+    const p = Array.from({ length: 256 }, (_, i) => i);
+    for (let i = 255; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; }
+    const perm = new Uint8Array(512); for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+    const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const grad = (h, x, y, z) => {
+      h &= 15; const u = h < 8 ? x : y, v = h < 4 ? y : (h === 12 || h === 14 ? x : z);
+      return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+    };
+    const noise = (x, y, z) => {
+      const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+      x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+      const u = fade(x), v = fade(y), w = fade(z);
+      const A = perm[X] + Y, AA = perm[A] + Z, AB = perm[A + 1] + Z;
+      const B = perm[X + 1] + Y, BA = perm[B] + Z, BB = perm[B + 1] + Z;
+      return lerp(
+        lerp(lerp(grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z), u),
+             lerp(grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z), u), v),
+        lerp(lerp(grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1), u),
+             lerp(grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+    };
+    return (x, y, z) => {
+      let sum = 0, amp = 1, freq = 1.6, norm = 0;
+      for (let o = 0; o < 5; o++) { sum += amp * noise(x * freq, y * freq, z * freq); norm += amp; amp *= 0.5; freq *= 2; }
+      return sum / norm;
+    };
+  }
+
+  const BIOMES = [
+    { max: -0.12, color: '#2b4a7a' },  // deep sea floor
+    { max: 0.0,   color: '#3f6f8f' },  // shallows
+    { max: 0.05,  color: '#e8d49a' },  // beach
+    { max: 0.2,   color: '#76b551' },  // meadow
+    { max: 0.33,  color: '#3e7f3c' },  // forest
+    { max: 0.46,  color: '#8a7d70' },  // rock
+    { max: 9,     color: '#f6f5ef' },  // snow
+  ].map(b => ({ max: b.max, color: new THREE.Color(b.color) }));
+  const biome = h => BIOMES.find(b => h < b.max).color;
+  const RELIEF = 0.24;
+
+  // ---------- World (rebuilt on "New world") ----------
+  const tilt = new THREE.Group();
+  tilt.rotation.z = 0.41; // ~23.5° axial tilt
+  scene.add(tilt);
+  const world = new THREE.Group();
+  tilt.add(world);
+
+  const water = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1.0, 4),
+    new THREE.MeshStandardMaterial({ color: '#2f86c9', roughness: 0.25, metalness: 0.1, flatShading: true, transparent: true, opacity: 0.82 })
+  );
+  world.add(water);
+
+  // Soft atmosphere rim
+  const atmo = new THREE.Mesh(
+    new THREE.SphereGeometry(1.32, 48, 48),
+    new THREE.ShaderMaterial({
+      side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
+      vertexShader: 'varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'varying vec3 vN; void main(){ float i = pow(0.72 - dot(vN, vec3(0.0,0.0,1.0)), 3.0); gl_FragColor = vec4(0.45,0.7,1.0,1.0) * i; }'
+    })
+  );
+  tilt.add(atmo);
+
+  const trunkGeo = new THREE.CylinderGeometry(0.006, 0.009, 0.035, 5).translate(0, 0.0175, 0);
+  const leafGeo = new THREE.ConeGeometry(0.028, 0.075, 6).translate(0, 0.07, 0);
+  const pineGeo = new THREE.ConeGeometry(0.02, 0.06, 5).translate(0, 0.1, 0);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: '#6b4a2f', flatShading: true });
+  const leafMats = ['#2f7a3a', '#3d8f3f', '#4fa046', '#2a6b45'].map(c => new THREE.MeshStandardMaterial({ color: c, flatShading: true }));
+  const UP = new THREE.Vector3(0, 1, 0);
+
+  let terrain = null, forest = null, growing = [];
+  const seedEl = document.getElementById('seed'), treesEl = document.getElementById('trees');
+
+  function buildWorld(seed) {
+    if (terrain) { world.remove(terrain); terrain.geometry.dispose(); }
+    if (forest) world.remove(forest);
+    const r = rng(seed), noise = makeNoise(r);
+    const offset = new THREE.Vector3(r() * 50, r() * 50, r() * 50);
+    const heightAt = d => noise(d.x + offset.x, d.y + offset.y, d.z + offset.z) * 1.35 + 0.04;
+
+    // Terrain: displaced icosphere, one flat color per face.
+    const geo = new THREE.IcosahedronGeometry(1, 5);
+    const pos = geo.attributes.position, colors = new Float32Array(pos.count * 3);
+    const v = new THREE.Vector3(), hs = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).normalize();
+      const h = heightAt(v); hs[i] = h;
+      v.multiplyScalar(1 + Math.max(h, -0.15) * RELIEF);
+      pos.setXYZ(i, v.x, v.y, v.z);
+    }
+    for (let f = 0; f < pos.count; f += 3) {
+      const c = biome((hs[f] + hs[f + 1] + hs[f + 2]) / 3);
+      for (let k = 0; k < 3; k++) colors.set([c.r, c.g, c.b], (f + k) * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 }));
+    world.add(terrain);
+
+    // Trees on meadow and forest bands.
+    forest = new THREE.Group(); growing = [];
+    const now = performance.now();
+    let placed = 0;
+    for (let tries = 0; tries < 4000 && placed < 260; tries++) {
+      const d = randDir(r), h = heightAt(d);
+      if (h < 0.07 || h > 0.36) continue;
+      const tree = new THREE.Group();
+      const pine = h > 0.22;
+      tree.add(new THREE.Mesh(trunkGeo, trunkMat));
+      tree.add(new THREE.Mesh(pine ? pineGeo : leafGeo, leafMats[Math.floor(r() * leafMats.length)]));
+      if (pine) tree.add(new THREE.Mesh(leafGeo, leafMats[3]));
+      tree.position.copy(d).multiplyScalar(1 + h * RELIEF - 0.006);
+      tree.quaternion.setFromUnitVectors(UP, d);
+      tree.rotateY(r() * Math.PI);
+      tree.userData = { birth: now + 300 + r() * 1400, size: 0.7 + r() * 0.6 };
+      tree.scale.setScalar(0.0001);
+      forest.add(tree); growing.push(tree); placed++;
+    }
+    world.add(forest);
+    seedEl.textContent = '#' + String(seed).padStart(5, '0');
+    treesEl.textContent = placed;
+  }
+
+  // ---------- Clouds ----------
+  const cloudMat = new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 1, transparent: true, opacity: 0.94 });
+  const clouds = [];
+  {
+    const r = rng(7);
+    for (let i = 0; i < 14; i++) {
+      const pivot = new THREE.Group();
+      pivot.rotation.set(r() * Math.PI, r() * Math.PI, r() * Math.PI);
+      const puff = new THREE.Group();
+      const n = 3 + Math.floor(r() * 4);
+      for (let k = 0; k < n; k++) {
+        const s = 0.035 + r() * 0.045;
+        const m = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), cloudMat);
+        m.position.set((k - n / 2) * 0.05, (r() - 0.5) * 0.03, (r() - 0.5) * 0.05);
+        puff.add(m);
+      }
+      puff.position.set(0, 0, 1.3 + r() * 0.08);
+      pivot.add(puff);
+      pivot.userData.spin = 0.05 + r() * 0.1;
+      tilt.add(pivot);
+      clouds.push(pivot);
+    }
+  }
+
+  // ---------- Moon ----------
+  const moonOrbit = new THREE.Group();
+  moonOrbit.rotation.x = 0.35;
+  scene.add(moonOrbit);
+  const moonGeo = new THREE.IcosahedronGeometry(0.2, 2);
+  {
+    const p = moonGeo.attributes.position, v = new THREE.Vector3(), r = rng(99);
+    const bumps = new Map();
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i);
+      const key = v.x.toFixed(4) + v.y.toFixed(4) + v.z.toFixed(4);
+      if (!bumps.has(key)) bumps.set(key, 0.9 + r() * 0.16);
+      v.multiplyScalar(bumps.get(key));
+      p.setXYZ(i, v.x, v.y, v.z);
+    }
+    moonGeo.computeVertexNormals();
+  }
+  const moon = new THREE.Mesh(moonGeo, new THREE.MeshStandardMaterial({ color: '#c9c4bd', flatShading: true, roughness: 1 }));
+  moon.position.set(2.7, 0, 0);
+  moonOrbit.add(moon);
+
+  // ---------- Camera orbit controls (drag + wheel + pinch) ----------
+  const cam = { yaw: 0.5, pitch: 0.25, dist: 5.4, vYaw: 0, vPitch: 0 };
+  const pointers = new Map();
+  let lastPinch = 0;
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', e => {
+    const prev = pointers.get(e.pointerId); if (!prev) return;
+    if (pointers.size === 1) {
+      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+      cam.vYaw = -dx * 0.005; cam.vPitch = dy * 0.005;
+      cam.yaw += cam.vYaw; cam.pitch += cam.vPitch;
+    }
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (lastPinch) cam.dist *= lastPinch / d;
+      lastPinch = d;
+    }
+  });
+  const endPointer = e => {
+    pointers.delete(e.pointerId); lastPinch = 0;
+    if (!pointers.size) canvas.classList.remove('dragging');
+  };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist *= Math.exp(e.deltaY * 0.001); }, { passive: false });
+
+  // ---------- UI ----------
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let playing = true, speed = reduceMotion ? 0.3 : 1, simT = 0.2;
+  const playBtn = document.getElementById('play');
+  const speedIn = document.getElementById('speed'), speedOut = document.getElementById('speedOut');
+  speedIn.value = speed; speedOut.textContent = speed.toFixed(1) + '×';
+  function setPlaying(p) {
+    playing = p;
+    playBtn.textContent = p ? 'Pause' : 'Play';
+    playBtn.setAttribute('aria-pressed', String(p));
+  }
+  playBtn.addEventListener('click', () => setPlaying(!playing));
+  speedIn.addEventListener('input', () => { speed = +speedIn.value; speedOut.textContent = speed.toFixed(1) + '×'; });
+  document.getElementById('regen').addEventListener('click', () => buildWorld(1 + Math.floor(Math.random() * 99998)));
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); setPlaying(!playing); }
+  });
+
+  const dayEl = document.getElementById('day'), clockEl = document.getElementById('clock');
+  const DAY_RATE = 0.22; // radians of spin per sim-second
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    // Pull the camera back on narrow screens so the whole planet fits.
+    cam.minDist = w < h ? 6.2 : 3;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+  if (window.innerWidth < window.innerHeight) cam.dist = 7.2;
+
+  const easeOutBack = t => { const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.05); last = now;
+    if (playing) simT += dt * speed;
+
+    world.rotation.y = simT * DAY_RATE;
+    water.rotation.y = simT * 0.02;
+    clouds.forEach(c => c.rotateY(dt * (playing ? speed : 0) * c.userData.spin));
+    moonOrbit.rotation.y = simT * 0.09;
+    moon.rotation.y = simT * 0.09;
+
+    // Trees pop up with a little overshoot.
+    if (growing.length) {
+      growing = growing.filter(t => {
+        const k = Math.min(Math.max((now - t.userData.birth) / 650, 0), 1);
+        t.scale.setScalar(Math.max(easeOutBack(k), 0.0001) * t.userData.size);
+        return k < 1;
+      });
+    }
+
+    // Camera with gentle inertia once released.
+    if (!pointers.size) { cam.vYaw *= 0.94; cam.vPitch *= 0.94; cam.yaw += cam.vYaw; cam.pitch += cam.vPitch; }
+    cam.pitch = Math.max(-1.3, Math.min(1.3, cam.pitch));
+    cam.dist = Math.max(cam.minDist || 3, Math.min(12, cam.dist));
+    camera.position.set(
+      cam.dist * Math.cos(cam.pitch) * Math.sin(cam.yaw),
+      cam.dist * Math.sin(cam.pitch),
+      cam.dist * Math.cos(cam.pitch) * Math.cos(cam.yaw)
+    );
+    camera.lookAt(0, 0, 0);
+
+    // Day counter: one full spin of the planet is one day.
+    const days = (simT * DAY_RATE) / (Math.PI * 2);
+    const mins = Math.floor(((days % 1) * 1440 + 360) % 1440);
+    dayEl.textContent = Math.floor(days + 0.25) + 1;
+    clockEl.textContent = String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+
+  buildWorld(48213);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
