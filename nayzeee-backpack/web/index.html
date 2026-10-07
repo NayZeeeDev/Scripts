@@ -2,550 +2,35 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<title>Backpack</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  --void:#000000; --base:#08090a; --panel:#0e1011; --raise:#15181a;
-  --raise-2:#1c2023; --inset:#0b0c0d;
-  --line:rgba(255,255,255,.10); --line-soft:rgba(255,255,255,.06);
-  --line-hair:rgba(255,255,255,.035); --lift:rgba(255,255,255,.055);
-  --white:#ffffff; --ink:#f2f4f5; --ink-2:#9ea5aa; --ink-3:#63696d;
-  --teal:#08afa2; --teal-hi:#0fd4c4; --teal-lo:#067d74;
-  --teal-wash:rgba(8,175,162,.11); --teal-edge:rgba(8,175,162,.34);
-  --red:#e5484d; --red-lo:#b8262b; --red-wash:rgba(229,72,77,.11);
-  --r-xs:4px; --r-sm:6px; --r-md:10px; --r-lg:14px;
-  --sh-1:0 1px 2px rgba(0,0,0,.6);
-  --sh-3:0 10px 24px rgba(0,0,0,.6),0 40px 80px rgba(0,0,0,.7);
-  --fast:130ms cubic-bezier(.4,0,.2,1);
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html{-webkit-font-smoothing:antialiased}
-body{
-  font-family:'Lexend',system-ui,sans-serif;background:transparent;
-  color:var(--ink);height:100vh;overflow:hidden;
-  font-variant-numeric:tabular-nums;user-select:none;
-}
-button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
-svg{display:block}
-:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:3px}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-
-#app{display:none}
-#app.open{display:block}
-#app.shooting{opacity:0}
-
-.stage{
-  position:fixed;inset:0;pointer-events:none;
-}
-/* two panels pinned to the top corners, so the character stays visible
-   through the whole middle of the screen */
-.frame{
-  position:fixed;top:24px;pointer-events:auto;
-  background:var(--line);padding:1px;border-radius:var(--r-lg);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%);
-  box-shadow:var(--sh-3);
-}
-.frame.left{left:26px;width:264px}
-.frame.right{right:26px;width:376px}
-/* never taller than the screen, so the footer can't fall off the bottom */
-.frame.left,.frame.right{max-height:calc(100vh - 48px);display:flex}
-.shell{
-  position:relative;background:var(--base);overflow:hidden;
-  border-radius:calc(var(--r-lg) - 1px);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 21px),calc(100% - 21px) 100%,0 100%);
-  display:flex;flex-direction:column;flex:1 1 auto;min-height:0;width:100%;
-}
-.shell::after{
-  content:'';position:absolute;inset:0;pointer-events:none;z-index:80;opacity:.03;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-/* title bar */
-.bar{
-  position:relative;z-index:20;display:flex;align-items:center;gap:11px;
-  height:46px;flex:0 0 auto;padding-right:10px;
-  border-bottom:1px solid var(--line-soft);
-  background:linear-gradient(var(--panel),var(--base));
-}
-.bar::before{content:'';position:absolute;inset:0 0 auto;height:1px;background:var(--lift)}
-.bar-brand{
-  height:46px;flex:none;display:flex;align-items:center;gap:9px;
-  padding:0 12px 0 13px;border-right:1px solid var(--line-soft);position:relative;
-}
-.bar-brand::before{
-  content:'';position:absolute;top:0;left:0;right:-1px;height:2px;
-  background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0));
-}
-.mark{
-  position:relative;flex:none;width:26px;height:26px;
-  background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
-  border-radius:var(--r-sm);
-  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
-  box-shadow:0 2px 12px rgba(8,175,162,.3);
-}
-.mark::after{
-  content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;
-  background:var(--void);opacity:.85;border-radius:1px;
-}
-.ver{
-  font-size:9.5px;font-weight:500;color:var(--teal);
-  border:1px solid var(--teal-edge);background:var(--teal-wash);
-  padding:2px 6px;border-radius:var(--r-xs);letter-spacing:.02em;
-}
-.bar-mid{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--teal);
-  box-shadow:0 0 0 3px var(--teal-wash),0 0 8px var(--teal);flex:none}
-.bar-mid p{font-size:11.5px;color:var(--ink-2);font-weight:300;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar-mid p b{color:var(--white);font-weight:500}
-.pill-close{
-  height:26px;padding:0 16px;border-radius:999px;flex:none;
-  background:linear-gradient(var(--red),var(--red-lo));color:var(--white);
-  font-size:11.5px;font-weight:600;letter-spacing:.015em;
-  box-shadow:0 1px 0 rgba(255,255,255,.28) inset,var(--sh-1);
-  transition:filter var(--fast),transform var(--fast);
-}
-.pill-close:hover{filter:brightness(1.14)}
-.pill-close:active{transform:translateY(1px)}
-
-/* body */
-.body{display:block;flex:0 1 auto;min-height:0;overflow:hidden}
-
-.side{
-  background:linear-gradient(180deg,var(--base),#050607);
-  display:flex;flex-direction:column;max-height:min(360px,calc(100vh - 190px));
-}
-.grp{display:flex;align-items:center;gap:9px;margin:14px 13px 7px;
-  font-size:10.5px;color:var(--ink-3);font-weight:400;flex:none}
-.grp::after{content:'';flex:1;height:1px;background:var(--line-hair)}
-.baglist{flex:0 1 auto;min-height:0;overflow-y:auto;padding:0 10px 12px;
-  display:flex;flex-direction:column;gap:5px}
-.baglist::-webkit-scrollbar{width:8px}
-.baglist::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--base)}
-
-.bagitem{
-  position:relative;padding:10px 11px;border-radius:var(--r-sm);
-  background:var(--inset);border:1px solid var(--line-hair);
-  cursor:pointer;transition:border-color var(--fast),background var(--fast);
-}
-.bagitem:hover{border-color:var(--line)}
-.bagitem.on{background:var(--teal-wash);border-color:var(--teal-edge)}
-.bagitem.on::before{
-  content:'';position:absolute;left:0;top:8px;bottom:8px;width:2px;background:var(--teal);
-  border-radius:0 2px 2px 0;box-shadow:0 0 9px var(--teal);
-}
-.bagitem b{display:block;font-size:12.5px;font-weight:500;color:var(--white);letter-spacing:-.005em}
-.bagitem span{display:block;font-size:10px;color:var(--ink-3);margin-top:3px;font-weight:300;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.tag{font-size:9.5px;font-weight:500;padding:2px 8px;border-radius:999px;border:1px solid var(--line-soft);
-  color:var(--ink-3);background:var(--raise)}
-.tag.live{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
-
-/* main */
-.main{position:relative;display:flex;flex-direction:column;
-  flex:1 1 auto;min-height:0;overflow:hidden}
-.main::before{
-  content:'';position:absolute;right:-46px;bottom:-52px;z-index:0;pointer-events:none;
-  width:232px;height:232px;border-radius:26px;opacity:.032;background:var(--white);
-  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
-}
-.tabs{position:relative;z-index:1;display:flex;border-bottom:1px solid var(--line-soft);flex:none}
-.tabs button{
-  position:relative;flex:1;padding:13px 8px;font-size:12px;font-weight:300;color:var(--ink-2);
-  display:flex;align-items:center;justify-content:center;gap:7px;transition:all var(--fast);
-}
-.tabs button svg{width:14px;height:14px;stroke-width:1.6;opacity:.75}
-.tabs button:hover{background:var(--raise);color:var(--white)}
-.tabs button.on{color:var(--white);font-weight:500;background:var(--teal-wash)}
-.tabs button.on svg{color:var(--teal);opacity:1}
-.tabs button.on::after{
-  content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--teal);
-  box-shadow:0 0 9px var(--teal);
-}
-
-.scroll{position:relative;z-index:1;padding:13px;
-  flex:1 1 auto;min-height:0;overflow-y:auto}
-.scroll::-webkit-scrollbar{width:7px}
-.scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--base)}
-.scroll::-webkit-scrollbar{width:8px}
-.scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--base)}
-.page{display:none;flex-direction:column;gap:9px}
-.page.on{display:flex}
-
-.card{
-  background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-md);
-  padding:11px 12px;box-shadow:0 1px 0 var(--lift) inset,var(--sh-1);
-}
-.card > b{display:block;font-size:10.5px;color:var(--ink-3);font-weight:400;margin-bottom:8px}
-
-select{
-  height:34px;width:100%;padding:0 11px;background:var(--inset);
-  border:1px solid var(--line-soft);border-radius:var(--r-xs);color:var(--white);
-  font-family:inherit;font-size:12.5px;font-weight:300;cursor:pointer;
-  transition:border-color var(--fast),box-shadow var(--fast);
-}
-select:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
-
-/* axis rows */
-.axis{display:flex;align-items:center;gap:8px;margin-bottom:7px}
-.axis:last-of-type{margin-bottom:0}
-.axis .nm{width:11px;font-size:11px;color:var(--ink-3);font-weight:400;text-align:center}
-.axis input[type=range]{
-  flex:1;-webkit-appearance:none;appearance:none;height:3px;
-  background:var(--raise-2);border-radius:2px;outline:none;cursor:pointer;
-}
-.axis input[type=range]::-webkit-slider-thumb{
-  -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
-  background:linear-gradient(var(--teal-hi),var(--teal-lo));cursor:pointer;
-  box-shadow:0 0 8px rgba(8,175,162,.5);
-}
-.axis .val{
-  width:56px;height:26px;background:var(--inset);border:1px solid var(--line-soft);
-  color:var(--white);font-family:inherit;font-size:11px;font-weight:400;
-  padding:0 7px;border-radius:var(--r-xs);text-align:right;outline:none;
-  transition:border-color var(--fast),box-shadow var(--fast);
-}
-.axis .val:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
-.axis .step{
-  width:24px;height:24px;flex:none;border-radius:var(--r-xs);
-  border:1px solid var(--line);color:var(--ink-3);
-  display:grid;place-items:center;transition:all var(--fast);
-}
-.axis .step svg{width:11px;height:11px;stroke-width:2}
-.axis .step:hover{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash)}
-
-.steps{display:flex;gap:5px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line-hair)}
-.steps button{
-  flex:1;height:26px;border-radius:var(--r-xs);border:1px solid var(--line);
-  color:var(--ink-3);font-size:10.5px;font-weight:300;transition:all var(--fast);
-}
-.steps button.on{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash);font-weight:500}
-
-.rowset{display:flex;gap:7px}
-.btn-line{
-  flex:1;height:32px;padding:0 12px;border-radius:var(--r-xs);border:1px solid var(--line);
-  color:var(--ink-2);font-size:11.5px;font-weight:300;
-  display:flex;align-items:center;justify-content:center;gap:6px;transition:all var(--fast);
-}
-.btn-line svg{width:13px;height:13px;stroke-width:1.6}
-.btn-line:hover{border-color:var(--ink-3);color:var(--white)}
-
-.variants{display:flex;flex-wrap:wrap;gap:7px}
-.variants button{
-  height:30px;padding:0 14px;border-radius:999px;border:1px solid var(--line);
-  color:var(--ink-2);font-size:11.5px;font-weight:300;transition:all var(--fast);
-}
-.variants button:hover{border-color:var(--ink-3);color:var(--white)}
-.variants button.on{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash);font-weight:500}
-
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stat{
-  display:flex;align-items:center;gap:12px;padding:13px 14px;
-  background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);
-}
-.tile{
-  width:32px;height:32px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;
-  color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);
-}
-.tile svg{width:15px;height:15px;stroke-width:1.5}
-.stat-txt span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300}
-.stat-txt b{display:block;font-size:20px;font-weight:600;letter-spacing:-.03em;
-  line-height:1.2;margin-top:2px;color:var(--white)}
-
-pre{
-  background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);
-  padding:12px;font-family:'Lexend',monospace;font-size:10.5px;line-height:1.7;
-  color:var(--ink-2);font-weight:300;overflow-x:auto;white-space:pre;
-}
-.note{font-size:11px;color:var(--ink-3);font-weight:300;line-height:1.6;margin-top:10px}
-
-.empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 14px;
-  text-align:center;border:1px dashed var(--line);border-radius:var(--r-sm)}
-.empty svg{width:20px;height:20px;stroke-width:1.4;color:var(--ink-3)}
-.empty b{font-size:12px;font-weight:500;color:var(--white)}
-.empty span{font-size:11px;color:var(--ink-3);font-weight:300;max-width:34ch;line-height:1.5}
-
-/* footer actions */
-.foot{
-  position:relative;z-index:3;display:flex;gap:8px;padding:11px 13px;
-  border-top:1px solid var(--line-soft);background:var(--panel);
-  flex:0 0 auto;
-}
-.btn-teal{
-  flex:1;height:34px;border-radius:var(--r-xs);
-  background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d;
-  font-size:12px;font-weight:600;
-  display:flex;align-items:center;justify-content:center;gap:7px;
-  box-shadow:0 1px 0 rgba(255,255,255,.3) inset,var(--sh-1);
-  transition:filter var(--fast),transform var(--fast);
-}
-.btn-teal svg{width:13px;height:13px;stroke-width:1.8}
-.btn-teal:hover{filter:brightness(1.12)}
-.btn-teal:active{transform:translateY(1px)}
-.btn-ghost{
-  height:34px;padding:0 14px;border-radius:var(--r-xs);border:1px solid var(--line);
-  color:var(--ink-2);font-size:11.5px;font-weight:300;
-  display:flex;align-items:center;justify-content:center;gap:6px;transition:all var(--fast);
-}
-.btn-ghost svg{width:13px;height:13px;stroke-width:1.6}
-.btn-ghost:hover{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash)}
-
-/* status bar */
-.statusbar{
-  position:relative;z-index:20;display:flex;align-items:center;gap:15px;
-  height:28px;padding:0 14px;flex:0 0 auto;
-  border-top:1px solid var(--line-soft);background:var(--inset);
-  font-size:10px;color:var(--ink-3);font-weight:300;letter-spacing:.02em;
-}
-.statusbar b{color:var(--ink-2);font-weight:500}
-.key{
-  display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:16px;
-  padding:0 4px;margin-right:5px;border-radius:3px;
-  background:var(--raise);border:1px solid var(--line);
-  font-size:9px;color:var(--ink-2);font-weight:500;
-}
-
-/* ---- shop ---- */
-
-#shop-scope-unused{
-  --void:#000; --base:#08090a; --panel:#0e1011; --raise:#15181a; --raise-2:#1c2023; --inset:#0b0c0d;
-  --line:rgba(255,255,255,.10); --line-soft:rgba(255,255,255,.06); --line-hair:rgba(255,255,255,.035);
-  --lift:rgba(255,255,255,.055);
-  --white:#fff; --ink:#f2f4f5; --ink-2:#9ea5aa; --ink-3:#63696d;
-  --teal:#08afa2; --teal-hi:#0fd4c4; --teal-lo:#067d74;
-  --teal-wash:rgba(8,175,162,.11); --teal-edge:rgba(8,175,162,.34);
-  --red:#e5484d; --red-lo:#b8262b;
-  --r-xs:4px; --r-sm:6px; --r-md:10px; --r-lg:14px;
-  --sh-3:0 10px 24px rgba(0,0,0,.6),0 40px 80px rgba(0,0,0,.7);
-  --fast:130ms cubic-bezier(.4,0,.2,1);
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Lexend',system-ui,sans-serif;background:transparent;color:var(--ink);
-  height:100vh;overflow:hidden;font-variant-numeric:tabular-nums;user-select:none}
-#shop button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
-#shop svg{display:block}
-#shop{display:none}
-#shop.open{display:block}
-
-#shop .stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:flex-end;padding:0 44px}
-#shop .frame{width:790px;background:var(--line);padding:1px;border-radius:var(--r-lg);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 26px),calc(100% - 26px) 100%,0 100%);box-shadow:var(--sh-3)}
-#shop .shell{position:relative;background:var(--base);overflow:hidden;border-radius:calc(var(--r-lg) - 1px);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 25px),calc(100% - 25px) 100%,0 100%)}
-#shop .shell::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:80;opacity:.03;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
-
-/* bar */
-#shop .bar{position:relative;z-index:20;display:flex;align-items:center;gap:14px;height:54px;
-  padding-right:12px;border-bottom:1px solid var(--line-soft);background:linear-gradient(var(--panel),var(--base))}
-#shop .bar::before{content:'';position:absolute;inset:0 0 auto;height:1px;background:var(--lift)}
-#shop .bar-brand{width:210px;height:54px;flex:none;display:flex;align-items:center;gap:10px;padding-left:16px;
-  border-right:1px solid var(--line-soft);position:relative}
-#shop .bar-brand::before{content:'';position:absolute;top:0;left:0;right:-1px;height:2px;
-  background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
-#shop .mark{position:relative;flex:none;width:26px;height:26px;background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
-  border-radius:var(--r-sm);clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);box-shadow:0 2px 12px rgba(8,175,162,.3)}
-#shop .mark::after{content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;background:var(--void);opacity:.85;border-radius:1px}
-#shop .ver{font-size:9.5px;font-weight:500;color:var(--teal);border:1px solid var(--teal-edge);
-  background:var(--teal-wash);padding:2px 6px;border-radius:var(--r-xs)}
-#shop .bar-title{flex:1;font-size:13px;font-weight:400;color:var(--white);letter-spacing:-.01em}
-#shop .wallet{display:flex;align-items:center;gap:8px;padding:0 14px;height:30px;border-radius:999px;
-  border:1px solid var(--line);background:var(--inset);font-size:12px;color:var(--ink-2)}
-#shop .wallet b{color:var(--teal);font-weight:600}
-#shop .pill-close{height:26px;padding:0 16px;border-radius:999px;flex:none;
-  background:linear-gradient(var(--red),var(--red-lo));color:var(--white);font-size:11.5px;font-weight:600;
-  box-shadow:0 1px 0 rgba(255,255,255,.28) inset;transition:filter var(--fast),transform var(--fast)}
-#shop .pill-close:hover{filter:brightness(1.14)}
-#shop .pill-close:active{transform:translateY(1px)}
-
-/* filters */
-#shop .filters{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:11px 16px;
-  border-bottom:1px solid var(--line-soft);background:var(--panel)}
-#shop .fgroup{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
-#shop .flabel{font-size:10px;color:var(--ink-3);margin-right:2px}
-#shop .chip{height:27px;padding:0 13px;border-radius:999px;border:1px solid var(--line);
-  color:var(--ink-2);font-size:11.5px;font-weight:300;transition:all var(--fast);white-space:nowrap}
-#shop .chip:hover{border-color:var(--ink-3);color:var(--white)}
-#shop .chip.on{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash);font-weight:500}
-#shop .fgroup.hide{display:none}
-#shop .searchwrap{margin-left:auto;position:relative;display:flex;align-items:center;flex:none}
-@media (max-width:820px){ .searchwrap{margin-left:0;width:100%} #shopSearch,#shopSearch:focus{width:100%} }
-#shop .searchwrap svg{position:absolute;left:10px;width:13px;height:13px;stroke-width:1.7;
-  color:var(--ink-3);pointer-events:none}
-#shopSearch{width:172px;height:28px;padding:0 11px 0 30px;border-radius:999px;
-  background:var(--inset);border:1px solid var(--line);color:var(--white);
-  font-family:inherit;font-size:11.5px;font-weight:300;outline:none;transition:all var(--fast)}
-#shopSearch::placeholder{color:var(--ink-3)}
-#shopSearch:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash);width:200px}
-#shop .gridcount{padding:9px 14px 0;font-size:10px;color:var(--ink-3);font-weight:300}
-
-/* body */
-#shop .body{display:grid;grid-template-columns:1fr 268px;height:472px;min-height:0}
-#shop .grid{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px;display:grid;
-  grid-template-columns:repeat(3,1fr);gap:11px;align-content:start}
-#shop .grid::-webkit-scrollbar{width:8px}
-#shop .grid::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--base)}
-
-#shop .card{position:relative;padding:13px;border-radius:var(--r-md);background:var(--panel);
-  border:1px solid var(--line-soft);cursor:pointer;transition:all var(--fast);
-  box-shadow:0 1px 0 var(--lift) inset}
-#shop .card:hover{border-color:var(--line);transform:translateY(-1px)}
-#shop .card.on{border-color:var(--teal-edge);background:var(--teal-wash)}
-#shop .card.on::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:2px;background:var(--teal);
-  border-radius:0 2px 2px 0;box-shadow:0 0 9px var(--teal)}
-#shop .card .theme{font-size:9px;color:var(--ink-3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
-#shop .card b{display:block;font-size:12.5px;font-weight:500;color:var(--white);line-height:1.35;margin-bottom:7px}
-#shop .card .meta{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
-#shop .card .tag{font-size:9px;padding:2px 7px;border-radius:999px;border:1px solid var(--line-soft);
-  color:var(--ink-3);background:var(--raise)}
-#shop .card .price{font-size:14px;font-weight:600;color:var(--teal);letter-spacing:-.02em}
-#shop .card .owned{position:absolute;top:11px;right:11px;font-size:8.5px;font-weight:600;color:var(--teal);
-  border:1px solid var(--teal-edge);background:var(--teal-wash);padding:2px 6px;border-radius:999px}
-#shop .card .job{position:absolute;top:11px;right:11px;font-size:8px;font-weight:600;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--teal);border:1px solid var(--teal-edge);
-  background:var(--teal-wash);padding:2px 7px;border-radius:999px}
-#shop .djob{display:inline-flex;align-items:center;gap:6px;font-size:9.5px;font-weight:600;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--teal);border:1px solid var(--teal-edge);background:var(--teal-wash);
-  padding:3px 9px;border-radius:999px;margin-bottom:9px}
-#shop .card .price.free{color:var(--ink-2);font-size:12px;font-weight:400}
-
-#shop .empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:44px 20px;
-  text-align:center;border:1px dashed var(--line);border-radius:var(--r-sm)}
-#shop .empty svg{width:22px;height:22px;stroke-width:1.4;color:var(--ink-3)}
-#shop .empty b{font-size:12.5px;font-weight:500;color:var(--white)}
-#shop .empty span{font-size:11px;color:var(--ink-3);font-weight:300;max-width:36ch;line-height:1.55}
-
-/* detail */
-#shop .detail{border-left:1px solid var(--line-soft);background:linear-gradient(180deg,var(--base),#050607);
-  display:flex;flex-direction:column;min-height:0;overflow:hidden}
-#shop .dscroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:16px}
-#shop .dscroll::-webkit-scrollbar{width:8px}
-#shop .dscroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--base)}
-#shop .dtheme{font-size:9.5px;color:var(--teal);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
-#shop .dname{font-size:17px;font-weight:600;color:var(--white);letter-spacing:-.02em;line-height:1.25;margin-bottom:4px}
-#shop .dmodel{font-size:9.5px;color:var(--ink-3);margin-bottom:15px;word-break:break-all}
-
-#shop .spinhint{display:flex;align-items:center;gap:7px;padding:9px 11px;border-radius:var(--r-sm);
-  background:var(--teal-wash);border:1px solid var(--teal-edge);margin-bottom:15px}
-#shop .spinhint svg{width:13px;height:13px;stroke-width:1.6;color:var(--teal);flex:none}
-#shop .spinhint span{font-size:10.5px;color:var(--teal);font-weight:300}
-
-#shop .dsec{margin-bottom:15px}
-#shop .dsec > b{display:block;font-size:10px;color:var(--ink-3);font-weight:400;margin-bottom:9px}
-#shop .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-#shop .stat{background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);padding:10px 11px}
-#shop .stat span{display:block;font-size:9.5px;color:var(--ink-3);font-weight:300}
-#shop .stat b{display:block;font-size:17px;font-weight:600;color:var(--white);letter-spacing:-.03em;margin-top:2px}
-
-#shop .swatches{display:flex;flex-wrap:wrap;gap:6px}
-#shop .swatches button{height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line);
-  color:var(--ink-2);font-size:11px;font-weight:300;transition:all var(--fast)}
-#shop .swatches button:hover{border-color:var(--ink-3);color:var(--white)}
-#shop .swatches button.on{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash);font-weight:500}
-#shop .nosw{font-size:10.5px;color:var(--ink-3);font-weight:300;line-height:1.5}
-
-#shop .dfoot{padding:13px 16px;border-top:1px solid var(--line-soft);background:var(--panel);
-  flex:0 0 auto;position:relative;z-index:2}
-#shop .total{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:11px}
-#shop .total span{font-size:10.5px;color:var(--ink-3)}
-#shop .total b{font-size:21px;font-weight:600;color:var(--teal);letter-spacing:-.03em}
-#shop .btn-teal{width:100%;height:36px;border-radius:var(--r-xs);
-  background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d;font-size:12.5px;font-weight:600;
-  display:flex;align-items:center;justify-content:center;gap:7px;
-  box-shadow:0 1px 0 rgba(255,255,255,.3) inset;transition:filter var(--fast),transform var(--fast)}
-#shop .btn-teal svg{width:14px;height:14px;stroke-width:1.8}
-#shop .btn-teal:hover:not(:disabled){filter:brightness(1.12)}
-#shop .btn-teal:active:not(:disabled){transform:translateY(1px)}
-#shop .btn-teal:disabled{background:var(--raise-2);color:var(--ink-3);cursor:not-allowed;box-shadow:none}
-#shop .btn-line{width:100%;height:30px;margin-top:7px;border-radius:var(--r-xs);border:1px solid var(--line);
-  color:var(--ink-2);font-size:11px;font-weight:300;transition:all var(--fast)}
-#shop .btn-line:hover{border-color:var(--red);color:var(--red)}
-
-#shop .statusbar{position:relative;z-index:20;display:flex;align-items:center;gap:15px;height:30px;padding:0 16px;
-  border-top:1px solid var(--line-soft);background:var(--inset);font-size:10px;color:var(--ink-3);font-weight:300}
-#shop .statusbar b{color:var(--ink-2);font-weight:500}
-#shop .key{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:16px;padding:0 4px;
-  margin-right:5px;border-radius:3px;background:var(--raise);border:1px solid var(--line);
-  font-size:9px;color:var(--ink-2);font-weight:500}
-
-
-/* character-preview shop layout */
-#shop .stage{position:fixed;inset:0;display:block;pointer-events:none}
-#shop .frame{position:fixed;top:24px;right:26px;bottom:24px;width:392px;
-  pointer-events:auto;display:flex}
-#shop .shell{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;width:100%}
-#shop .bar{flex:0 0 auto}
-#shop .filters{flex:0 0 auto}
-#shop .gridcount{flex:0 0 auto}
-#shop .grid{flex:1 1 auto;min-height:0;grid-template-columns:repeat(2,1fr)}
-#shop .selected{flex:0 0 auto;padding:12px 14px;border-top:1px solid var(--line-soft);
-  background:linear-gradient(180deg,var(--panel),var(--base))}
-#shop .dfoot{flex:0 0 auto}
-#shop .statusbar{flex:0 0 auto}
-
-#shop .sel-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:9px}
-#shop .sel-txt{flex:1;min-width:0}
-#shop .sel-theme{font-size:9px;color:var(--teal);letter-spacing:.1em;text-transform:uppercase}
-#shop .sel-name{font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.02em;
-  line-height:1.25;margin-top:2px}
-#shop .sel-model{font-size:9px;color:var(--ink-3);margin-top:2px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#shop .sel-stats{display:flex;gap:6px;flex:none}
-#shop .sel-stat{background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);
-  padding:6px 10px;text-align:center;min-width:52px}
-#shop .sel-stat span{display:block;font-size:8.5px;color:var(--ink-3)}
-#shop .sel-stat b{display:block;font-size:14px;font-weight:600;color:var(--white);
-  letter-spacing:-.02em;margin-top:1px}
-
-#shop .rotrow{display:flex;align-items:center;gap:7px;margin-top:9px}
-#shop .rotrow .lbl{font-size:9.5px;color:var(--ink-3);flex:none}
-#shop .rotbtn{width:26px;height:26px;flex:none;border-radius:var(--r-xs);
-  border:1px solid var(--line);color:var(--ink-3);display:grid;place-items:center;
-  transition:all var(--fast)}
-#shop .rotbtn svg{width:12px;height:12px;stroke-width:1.7}
-#shop .rotbtn:hover{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash)}
-#shop .rotrow input[type=range]{flex:1;-webkit-appearance:none;height:3px;
-  background:var(--raise-2);border-radius:2px;outline:none;cursor:pointer}
-#shop .rotrow input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;
-  width:13px;height:13px;border-radius:50%;background:linear-gradient(var(--teal-hi),var(--teal-lo));
-  cursor:pointer;box-shadow:0 0 8px rgba(8,175,162,.5)}
-
-/* invisible drag surface over the character */
-#rotateCatcher{position:fixed;left:0;top:0;bottom:0;right:440px;
-  cursor:ew-resize;pointer-events:auto;z-index:1}
-#shop.open #rotateCatcher{display:block}
-#shop:not(.open) #rotateCatcher{display:none}
-
-@media (max-width:1100px){
-  #shop .frame{width:340px;right:14px}
-  #rotateCatcher{right:370px}
-}
-
-</style>
+<link rel="stylesheet" href="css/ui.css">
 </head>
 <body>
-<div id="app">
-<div class="stage">
+
+<!-- ============================================================
+     STUDIO  (/bagtune)
+     ============================================================ -->
+<div id="studio">
+  <div id="orbit"></div>
+  <div id="iconGuide" class="hide"><i></i><i></i><i></i><i></i></div>
 
   <!-- left: bag list -->
   <div class="frame left">
     <div class="shell">
       <div class="bar">
-        <div class="bar-brand"><div class="mark"></div><span class="ver">v1.0</span></div>
+        <div class="bar-brand"><div class="mark"></div><span class="ver">v2.0</span></div>
         <div class="bar-mid"><span class="dot"></span><p>Studio</p></div>
       </div>
-      <div class="body">
-        <div class="side">
-          <div class="grp">Backpacks</div>
-          <div class="baglist" id="baglist"></div>
-        </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="bagSearch" type="text" placeholder="Search bags" autocomplete="off" spellcheck="false">
       </div>
-      <div class="statusbar">
-        <span id="statusBag"></span>
-      </div>
+      <div class="grp"><span id="bagCount">Bags</span></div>
+      <div class="baglist" id="baglist"></div>
+      <div class="statusbar"><span id="statusBag"></span></div>
     </div>
   </div>
 
@@ -553,686 +38,269 @@ body{font-family:'Lexend',system-ui,sans-serif;background:transparent;color:var(
   <div class="frame right">
     <div class="shell">
       <div class="bar">
-        <div class="bar-mid" style="padding-left:14px"><span class="dot"></span><p>Previewing <b id="model">&mdash;</b></p></div>
+        <div class="bar-mid" style="padding-left:14px"><span class="dot" id="calDot"></span><p>Fitting <b id="model">&mdash;</b></p></div>
         <button class="pill-close" id="close">Close</button>
       </div>
 
       <div class="main">
         <div class="tabs">
-          <button data-tab="fit" class="on">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18M3 12h18M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>Fit</button>
-          <button data-tab="look">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.2"/><circle cx="15" cy="10" r="1.2"/><path d="M12 21a3 3 0 0 0 0-6"/></svg>Look</button>
-          <button data-tab="icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.2"/></svg>Icon</button>
+          <button data-tab="fit" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18M3 12h18M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>Fit</button>
+          <button data-tab="look"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.2"/><circle cx="15" cy="10" r="1.2"/><path d="M12 21a3 3 0 0 0 0-6"/></svg>Look</button>
+          <button data-tab="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.2"/></svg>Icon</button>
         </div>
 
         <div class="scroll">
 
+          <!-- FIT -->
           <div class="page on" id="page-fit">
             <div class="card">
-              <b>Carry style</b>
-              <div class="variants" id="carryPresets"></div>
+              <div class="card-h">Carry preset <em>puts the bag there, then fine-tune</em></div>
+              <div class="chips grid" id="presets"></div>
             </div>
+
             <div class="card">
-              <b>Attach bone</b>
+              <div class="card-h">Attach bone <em id="boneHint">bag stays put when you switch</em></div>
               <select id="bone"></select>
             </div>
+
             <div class="card">
-              <b>Position</b>
-              <div id="pos"></div>
-              <div class="steps" id="posStep"></div>
-            </div>
-            <div class="card">
-              <b>Rotation</b>
-              <div id="rot"></div>
-              <div class="steps" id="rotStep"></div>
-            </div>
-            <div class="card">
-              <b>View</b>
-              <div class="axis">
-                <span class="nm" title="character heading">&#8635;</span>
-                <input type="range" id="headSlider" min="0" max="359" step="1" value="0">
-                <input class="val" id="headVal" type="text" value="0">
+              <div class="card-h">Move <em>relative to the character</em></div>
+              <div class="pad">
+                <div class="dpad">
+                  <span></span>
+                  <button class="pk" data-move="f" data-dir="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M6 11l6-6 6 6"/></svg>Forward</button>
+                  <span></span>
+                  <button class="pk" data-move="r" data-dir="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Left</button>
+                  <div class="pk mid">bag</div>
+                  <button class="pk" data-move="r" data-dir="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Right</button>
+                  <span></span>
+                  <button class="pk" data-move="f" data-dir="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M6 13l6 6 6-6"/></svg>Back</button>
+                  <span></span>
+                </div>
+                <div class="vpad">
+                  <button class="pk" data-move="u" data-dir="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M6 11l6-6 6 6"/></svg>Up</button>
+                  <button class="pk" data-move="u" data-dir="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M6 13l6 6 6-6"/></svg>Down</button>
+                </div>
               </div>
-              <div class="axis">
-                <span class="nm" title="camera distance">&#8596;</span>
-                <input type="range" id="distSlider" min="0.9" max="4.5" step="0.05" value="2.05">
-                <input class="val" id="distVal" type="text" value="2.05">
-              </div>
-              <div class="steps">
-                <button data-delta="-45">&minus;45&deg;</button>
-                <button data-delta="180">180&deg;</button>
-                <button data-delta="45">+45&deg;</button>
+              <div class="steps" id="moveSteps"><span>STEP</span></div>
+            </div>
+
+            <div class="card">
+              <div class="card-h">Rotate <em id="rotHint">around the bag's centre</em></div>
+              <div class="rrow"><span class="nm">Turn <i id="ax-yaw">yaw</i></span>
+                <button class="pk" data-rot="yaw" data-dir="1">&#10226; Left</button><button class="pk" data-rot="yaw" data-dir="-1">Right &#10227;</button></div>
+              <div class="rrow"><span class="nm">Tilt <i id="ax-pitch">pitch</i></span>
+                <button class="pk" data-rot="pitch" data-dir="1">&#8593; Up</button><button class="pk" data-rot="pitch" data-dir="-1">Down &#8595;</button></div>
+              <div class="rrow"><span class="nm">Lean <i id="ax-roll">roll</i></span>
+                <button class="pk" data-rot="roll" data-dir="-1">&#8630; Left</button><button class="pk" data-rot="roll" data-dir="1">Right &#8631;</button></div>
+              <div class="steps" id="rotSteps"><span>STEP</span></div>
+            </div>
+
+            <div class="card">
+              <div class="card-h">Pose preview <em>fit purses to the hand</em></div>
+              <div class="chips" id="poseChips"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-h">View <em>drag to orbit · scroll to zoom</em></div>
+              <div class="chips" id="camChips">
+                <button data-cam="back">Back</button><button data-cam="left">Left</button><button data-cam="right">Right</button>
+                <button data-cam="front">Front</button><button data-cam="top">Top</button>
+                <button id="focusBtn" class="on">Focus bag</button>
               </div>
             </div>
+
+            <details class="card" id="advanced">
+              <summary>Exact values</summary>
+              <div class="sub">POSITION (bone space, metres)</div>
+              <div id="posRows"></div>
+              <div class="sub" style="margin-top:10px">ROTATION (degrees)</div>
+              <div id="rotRows"></div>
+              <div class="rowset" style="margin-top:10px">
+                <button class="btn-line" id="revert">Last saved</button>
+                <button class="btn-line" id="factory">config.lua</button>
+                <button class="btn-line danger" id="clearSaved">Clear saved</button>
+              </div>
+            </details>
+
             <div class="card">
-              <b>Config output</b>
+              <div class="card-h">Config output</div>
               <pre id="out"></pre>
             </div>
           </div>
 
+          <!-- LOOK -->
           <div class="page" id="page-look">
             <div class="card">
-              <b>Texture variant</b>
+              <div class="card-h">Variants <em id="varHint"></em></div>
               <div class="variants" id="variants"></div>
             </div>
+
             <div class="card">
-              <b>Storage</b>
-              <div class="stats">
-                <div class="stat">
-                  <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 12h18M8 7V4h8v3"/></svg></div>
-                  <div class="stat-txt"><span>Slots</span><b id="sSlots">&mdash;</b></div>
-                </div>
-                <div class="stat">
-                  <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v4M7 21h10a2 2 0 0 0 2-2.3L17.5 9h-11L5 18.7A2 2 0 0 0 7 21z"/></svg></div>
-                  <div class="stat-txt"><span>Weight</span><b id="sWeight">&mdash;</b></div>
-                </div>
+              <div class="card-h">Storage &amp; store <em>live edit · admin</em></div>
+              <div class="fields">
+                <label class="field"><span>Slots</span><input id="fSlots" type="number" min="1" max="200" step="1"></label>
+                <label class="field"><span>Max weight (kg)</span><input id="fWeight" type="number" min="0" step="0.5"></label>
+                <label class="field"><span>Price ($)</span><input id="fPrice" type="number" min="0" step="50"></label>
+                <label class="field"><span>Label</span><input id="fLabel" type="text" maxlength="64"></label>
               </div>
+              <div class="rowset" style="margin-top:10px">
+                <button class="btn-teal" id="saveStorage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg>Save storage</button>
+              </div>
+              <p class="note">Applies to bags that already exist too, the next time they're opened.</p>
             </div>
+
             <div class="card">
-              <b>Test animations</b>
+              <div class="card-h">How it's carried</div>
+              <div class="fields">
+                <label class="field"><span>Carry style</span><select id="fCarry"></select></label>
+                <label class="field"><span>Default pose</span><select id="fPose"></select></label>
+              </div>
+              <div class="rowset" style="margin-top:10px"><button class="btn-line" id="saveCarry">Save carry style</button></div>
+              <p class="note">A carry style loops an upper-body pose while the bag is worn, so players keep walking normally but hold the purse.</p>
+            </div>
+
+            <div class="card">
+              <div class="card-h">Test animations <em>camera swings round to watch</em></div>
               <div class="rowset">
-                <button class="btn-line" data-anim="equip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M6 13l6 6 6-6"/></svg>Put on</button>
-                <button class="btn-line" data-anim="unequip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M6 11l6-6 6 6"/></svg>Take off</button>
-                <button class="btn-line" data-anim="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l2-5h14l2 5M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9M3 9h18M12 4v5"/></svg>Open</button>
+                <button class="btn-line" data-anim="equip">Put on</button>
+                <button class="btn-line" data-anim="unequip">Take off</button>
+                <button class="btn-line" data-anim="open">Open</button>
               </div>
             </div>
+
             <div class="card">
-              <b>Config entry</b>
+              <div class="card-h">Config entry</div>
               <pre id="outEntry"></pre>
             </div>
           </div>
 
+          <!-- ICON -->
           <div class="page" id="page-icon">
-            <div class="card">
-              <b>Icon staging</b>
-              <div class="rowset"><button class="btn-line" id="iconToggle"></button></div>
-              <p class="note">Lifts the prop above the map, or to your staging coords if one is set.</p>
+            <div class="card" id="noShot">
+              <div class="card-h">screenshot-basic <em class="warn">not running</em></div>
+              <p class="note" style="margin-top:0">Start <b>screenshot-basic</b> to capture. You can still frame shots without it.</p>
             </div>
+
             <div class="card">
-              <b>Turn prop</b>
+              <div class="card-h">Icon studio <em id="iconSize"></em></div>
+              <div class="rowset"><button class="btn-teal" id="iconToggle"></button></div>
+              <p class="note">The bag floats in a lit chroma box under the map. The background is keyed out, the bag is trimmed and centred on a transparent square.</p>
+            </div>
+
+            <div class="card">
+              <div class="card-h">Backdrop <em>pick one the bag doesn't use</em></div>
+              <div class="chips" id="chromaChips">
+                <button data-chroma="green">Green</button><button data-chroma="magenta">Magenta</button><button data-chroma="blue">Blue</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-h">Framing <em>drag to orbit · scroll to zoom</em></div>
+              <div class="chips" id="angleChips">
+                <button data-yaw="200" data-elev="12">Three quarter</button>
+                <button data-yaw="180" data-elev="4">Front</button>
+                <button data-yaw="270" data-elev="4">Side</button>
+                <button data-yaw="0" data-elev="8">Back</button>
+                <button data-yaw="200" data-elev="45">High</button>
+              </div>
+              <div class="axis" style="margin-top:10px">
+                <span class="nm">z</span>
+                <input type="range" id="iconZoom" min="0.4" max="3" step="0.02" value="1">
+                <input class="val" id="iconZoomVal" type="text" value="1.00">
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-h">Capture <em id="batchInfo"></em></div>
               <div class="rowset">
-                <button class="btn-line" data-spin="-15"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12H9"/></svg>15&deg;</button>
-                <button class="btn-line" data-spin="15">15&deg;<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h5"/></svg></button>
+                <button class="btn-line" id="capOne">This bag</button>
+                <button class="btn-line" id="capAll">Every bag</button>
               </div>
+              <label class="note" style="display:flex;align-items:center;gap:7px;cursor:pointer">
+                <input type="checkbox" id="capVariants" checked> include every variant (saved as item_2.png …)
+              </label>
+              <div class="progress hide" id="batchBar"><i></i></div>
+              <div class="rowset hide" id="batchCancelRow" style="margin-top:9px"><button class="btn-line danger" id="batchCancel">Stop batch</button></div>
             </div>
+
             <div class="card">
-              <b>Camera distance</b>
-              <div class="axis">
-                <span class="nm">d</span>
-                <input type="range" id="iconDist" min="0.4" max="4" step="0.05" value="1.15">
-                <input class="val" id="iconDistVal" type="text" value="1.15">
-              </div>
-            </div>
-            <div class="card">
-              <div class="rowset">
-                <button class="btn-line" id="capture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.2"/></svg>Capture</button>
-              </div>
+              <div class="card-h">Recent <em>saved to icons/ and ox_inventory</em></div>
+              <div class="shots" id="shots"><div class="empty" style="grid-column:1/-1"><b>No captures yet</b></div></div>
             </div>
           </div>
 
         </div>
 
-        <div class="foot">
-          <button class="btn-ghost" id="reset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset</button>
-          <button class="btn-teal" id="copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button>
+        <div class="foot" id="foot">
+          <button class="btn-ghost" id="copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button>
+          <button class="btn-teal" id="save"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg>Save fit to server</button>
         </div>
       </div>
 
       <div class="statusbar">
         <span><span class="key">ESC</span>close</span>
-        <span>drag to scrub</span>
+        <span><span class="key">CTRL S</span>save</span>
+        <span><span class="key">?</span>keys</span>
       </div>
     </div>
   </div>
 
+  <div class="hints" id="hints">
+    <span><span class="key">&larr;&rarr;&uarr;&darr;</span>move</span>
+    <span><span class="key">PG UP/DN</span>up/down</span>
+    <span><span class="key">Q E</span>turn</span>
+    <span><span class="key">R F</span>tilt</span>
+    <span><span class="key">Z C</span>lean</span>
+    <span><span class="key">SHIFT</span>x5</span>
+    <span><span class="key">ALT</span>fine</span>
+  </div>
 </div>
-</div>
 
-<script>
-(function(){
-
-
-const $=id=>document.getElementById(id);
-let state={bags:[],bones:[],current:null,variant:0,iconMode:false,
-           tune:{bone:24818,pos:{x:0,y:0,z:0},rot:{x:0,y:0,z:0}}};
-let posStep=0.01, rotStep=5, tab='fit';
-
-function post(name,data){
-  return fetch(`https://${GetParentResourceName()}/${name}`,{
-    method:'POST',headers:{'Content-Type':'application/json; charset=UTF-8'},
-    body:JSON.stringify(data||{})
-  });
-}
-const bag=()=>state.bags.find(b=>b.key===state.current);
-const ic=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${d}</svg>`;
-
-function axisRow(group,axis,value,dec){
-  const row=document.createElement('div');
-  row.className='axis';
-  row.innerHTML=`
-    <span class="nm">${axis}</span>
-    <button class="step" data-dir="-1">${ic('<path d="M5 12h14"/>')}</button>
-    <input type="range" min="${group==='pos'?-1:-180}" max="${group==='pos'?1:180}"
-           step="${group==='pos'?0.001:1}" value="${value}">
-    <button class="step" data-dir="1">${ic('<path d="M12 5v14M5 12h14"/>')}</button>
-    <input class="val" type="text" value="${value.toFixed(dec)}">`;
-
-  const range=row.querySelector('input[type=range]'), box=row.querySelector('.val');
-  const set=v=>{
-    v=Math.round(v*1000)/1000;
-    state.tune[group][axis]=v;
-    range.value=v; box.value=v.toFixed(dec);
-    render();
-    post('update',{[group]:state.tune[group],bone:state.tune.bone});
-  };
-  range.addEventListener('input',()=>set(parseFloat(range.value)));
-  box.addEventListener('change',()=>{const v=parseFloat(box.value); if(!isNaN(v)) set(v);});
-  row.querySelectorAll('.step').forEach(b=>{
-    const dir=+b.dataset.dir;
-    const bump=()=>set(state.tune[group][axis]+dir*(group==='pos'?posStep:rotStep));
-    let held;
-    b.addEventListener('mousedown',()=>{bump(); held=setInterval(bump,140);});
-    ['mouseup','mouseleave'].forEach(e=>b.addEventListener(e,()=>clearInterval(held)));
-  });
-  return row;
-}
-function buildAxes(){
-  $('pos').innerHTML=''; $('rot').innerHTML='';
-  ['x','y','z'].forEach(a=>$('pos').appendChild(axisRow('pos',a,state.tune.pos[a],3)));
-  ['x','y','z'].forEach(a=>$('rot').appendChild(axisRow('rot',a,state.tune.rot[a],1)));
-}
-function buildSteps(){
-  const mk=(el,vals,cur,set)=>{
-    el.innerHTML='';
-    vals.forEach(v=>{
-      const b=document.createElement('button');
-      b.textContent=v;
-      if(v===cur()) b.classList.add('on');
-      b.onclick=()=>{set(v); buildSteps();};
-      el.appendChild(b);
-    });
-  };
-  mk($('posStep'),[0.001,0.01,0.05],()=>posStep,v=>posStep=v);
-  mk($('rotStep'),[1,5,15,45],()=>rotStep,v=>rotStep=v);
-}
-
-function buildBags(){
-  const el=$('baglist'); el.innerHTML='';
-  if(!state.bags.length){
-    el.innerHTML='<div class="empty">'+ic('<path d="M3 9l2-5h14l2 5M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9M3 9h18"/>')+
-      '<b>No backpacks</b><span>Add entries to Config.Backpacks to preview them here.</span></div>';
-    return;
-  }
-  state.bags.forEach(b=>{
-    const d=document.createElement('div');
-    d.className='bagitem'+(b.key===state.current?' on':'');
-    d.innerHTML=`<b>${b.label}</b><span>${b.model}</span>
-      <div class="tags">
-        <span class="tag">${b.slots} slots</span>
-        ${b.variants.length?`<span class="tag live">${b.variants.length} skins</span>`:''}
-        ${b.hasOffset?'<span class="tag live">tuned</span>':''}
-      </div>`;
-    d.onclick=()=>post('selectBag',{key:b.key});
-    el.appendChild(d);
-  });
-}
-
-function buildVariants(){
-  const el=$('variants'); el.innerHTML='';
-  const b=bag();
-  if(!b||!b.variants.length){
-    el.innerHTML='<div class="empty" style="width:100%">'+ic('<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>')+
-      '<b>No variants defined</b><span>Add a variants table to this bag in Config.Backpacks.</span></div>';
-    return;
-  }
-  b.variants.forEach(v=>{
-    const btn=document.createElement('button');
-    btn.textContent=v.label;
-    if(v.index===state.variant) btn.classList.add('on');
-    btn.onclick=()=>post('setVariant',{index:v.index});
-    el.appendChild(btn);
-  });
-}
-function buildStats(){
-  const b=bag();
-  $('sSlots').textContent=b?b.slots:'—';
-  $('sWeight').textContent=b?(b.weight/1000).toFixed(1)+'kg':'—';
-}
-
-function offsetText(){
-  const t=state.tune;
-  return `offset = {
-    bone = ${t.bone},
-    pos = { x = ${t.pos.x.toFixed(3)}, y = ${t.pos.y.toFixed(3)}, z = ${t.pos.z.toFixed(3)} },
-    rot = { x = ${t.rot.x.toFixed(1)}, y = ${t.rot.y.toFixed(1)}, z = ${t.rot.z.toFixed(1)} },
-},`;
-}
-function entryText(){
-  const b=bag(); if(!b) return '';
-  const t=state.tune;
-  const vars=b.variants.length
-    ? `\n    variants = {\n${b.variants.map(v=>`        [${v.index}] = '${v.label}',`).join('\n')}\n    },` : '';
-  return `['${b.key}'] = {
-    label  = '${b.label}',
-    model  = '${b.model}',
-    slots  = ${b.slots},
-    weight = ${b.weight},
-    offset = {
-        bone = ${t.bone},
-        pos = { x = ${t.pos.x.toFixed(3)}, y = ${t.pos.y.toFixed(3)}, z = ${t.pos.z.toFixed(3)} },
-        rot = { x = ${t.rot.x.toFixed(1)}, y = ${t.rot.y.toFixed(1)}, z = ${t.rot.z.toFixed(1)} },
-    },${vars}
-},`;
-}
-function render(){
-  $('out').textContent=offsetText();
-  $('outEntry').textContent=entryText();
-}
-
-function buildCarry(){
-  const el=$('carryPresets');
-  if(!el) return;
-  el.innerHTML='';
-  (state.carry||[]).forEach(c=>{
-    const b=document.createElement('button');
-    b.textContent=c.label;
-    // highlight whichever preset the current offset matches
-    const t=state.tune;
-    if(t.bone===c.bone
-       && Math.abs(t.pos.x-c.pos.x)<0.002
-       && Math.abs(t.pos.y-c.pos.y)<0.002
-       && Math.abs(t.pos.z-c.pos.z)<0.002) b.classList.add('on');
-    b.onclick=()=>post('carry',{key:c.key});
-    el.appendChild(b);
-  });
-}
-
-function buildBones(){
-  const s=$('bone'); s.innerHTML='';
-  state.bones.forEach(b=>{
-    const o=document.createElement('option');
-    o.value=b.id; o.textContent=`${b.label}  (${b.id})`;
-    if(b.id===state.tune.bone) o.selected=true;
-    s.appendChild(o);
-  });
-  s.onchange=()=>{state.tune.bone=parseInt(s.value,10); render(); post('update',{bone:state.tune.bone});};
-}
-
-function refresh(data){
-  state=data;
-  const b=bag();
-  $('model').textContent=b?b.model:'—';
-  $('statusBag').innerHTML=b?`<b>${b.slots}</b> slots · <b>${(b.weight/1000).toFixed(1)}</b>kg`:'';
-  buildBags(); buildCarry(); buildBones(); buildAxes(); buildSteps();
-  buildVariants(); buildStats(); render();
-  if(state.cam && $('distSlider')){
-    $('distSlider').value=state.cam.dist; $('distVal').value=state.cam.dist.toFixed(2);
-  }
-  if(typeof state.heading==='number'){
-    const h=state.heading%360;
-    $('headSlider').value=h; $('headVal').value=h.toFixed(0);
-  }
-  $('iconToggle').innerHTML=state.iconMode
-    ? ic('<rect x="6" y="6" width="12" height="12" rx="2"/>')+'Exit icon view'
-    : ic('<path d="M6 4l14 8-14 8z"/>')+'Enter icon view';
-}
-
-document.querySelectorAll('.tabs button').forEach(b=>{
-  b.onclick=()=>{
-    tab=b.dataset.tab;
-    document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
-    document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='page-'+tab));
-  };
-});
-
-window.addEventListener('message',e=>{
-  const {action,data}=e.data;
-  if(action==='open'){refresh(data); $('app').classList.add('open');}
-  else if(action==='close'){$('app').classList.remove('open');}
-  else if(action==='refresh'){refresh(data);}
-  else if(action==='hideForShot'){$('app').classList.add('shooting');}
-  else if(action==='showAfterShot'){$('app').classList.remove('shooting');}
-});
-
-document.querySelectorAll('[data-delta]').forEach(b=>b.onclick=()=>{
-  post('camera',{delta:+b.dataset.delta});
-  const h=(parseFloat($('headVal').value)+(+b.dataset.delta)+360)%360;
-  $('headSlider').value=h; $('headVal').value=h.toFixed(0);
-});
-
-// live view sliders: heading spins the ped, the rest move the camera
-function bindView(slider,box,dec,send){
-  const push=v=>{
-    $(slider).value=v; $(box).value=(+v).toFixed(dec); send(+v);
-  };
-  $(slider).addEventListener('input',()=>push($(slider).value));
-  $(box).addEventListener('change',()=>{
-    const v=parseFloat($(box).value);
-    if(!isNaN(v)) push(v);
-  });
-}
-bindView('headSlider','headVal',0,v=>post('camera',{absolute:v}));
-bindView('distSlider','distVal',2,v=>post('orbit',{dist:v}));
-document.querySelectorAll('[data-anim]').forEach(b=>b.onclick=()=>post('anim',{name:b.dataset.anim}));
-document.querySelectorAll('[data-spin]').forEach(b=>b.onclick=()=>post('iconSpin',{delta:+b.dataset.spin}));
-
-$('iconToggle').onclick=()=>post('iconMode',{on:!state.iconMode});
-$('capture').onclick=()=>post('capture');
-
-$('iconDist').addEventListener('input',()=>{
-  $('iconDistVal').value=(+$('iconDist').value).toFixed(2);
-  post('iconZoom',{distance:+$('iconDist').value});
-});
-$('iconDistVal').addEventListener('change',()=>{
-  const v=parseFloat($('iconDistVal').value);
-  if(!isNaN(v)){$('iconDist').value=v; post('iconZoom',{distance:v});}
-});
-
-$('reset').onclick=()=>post('reset');
-$('close').onclick=()=>{$('app').classList.remove('open'); post('close');};
-
-$('copy').onclick=()=>{
-  const text = tab==='look' ? entryText() : offsetText();
-  const ta=document.createElement('textarea');
-  ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
-  document.body.appendChild(ta); ta.select();
-  try{document.execCommand('copy');}catch(err){}
-  document.body.removeChild(ta);
-  post('copied');
-};
-
-document.addEventListener('keyup',e=>{
-  if(e.key==='Escape'){$('app').classList.remove('open'); post('close');}
-});
-
-
-})();
-</script>
-
+<!-- ============================================================
+     SHOP  (over the counter)
+     ============================================================ -->
 <div id="shop">
-<div class="stage"><div class="frame"><div class="shell">
+  <div class="veil"></div>
+  <div id="spin"></div>
 
-  <div class="bar">
-    <div class="bar-brand"><div class="mark"></div><span class="ver">v1.0</span></div>
-    <div class="bar-title" id="shopTitle">Bag Store</div>
-    <div class="wallet" id="wallet">Viewing <b id="wCount">0</b> bags</div>
-    <button class="pill-close" id="shopCloseBtn">Close</button>
+  <div class="s-top">
+    <div class="s-brand"><div class="mark"></div><b id="shopTitle">Bag Store</b></div>
+    <div class="s-chips" id="themeChips"></div>
   </div>
 
-  <div class="filters">
-    <div class="fgroup hide" id="jobGroup"><span class="flabel">VIEW</span><div id="jobChips" style="display:flex;gap:7px"></div></div>
-    <div class="fgroup" id="themeGroup"><span class="flabel">THEME</span><div id="themeChips" style="display:flex;gap:7px"></div></div>
-    <div class="fgroup" id="catGroup"><span class="flabel">TYPE</span><div id="catChips" style="display:flex;gap:7px"></div></div>
-    <div class="searchwrap" id="searchWrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="text" id="shopSearch" placeholder="Search bags" autocomplete="off" spellcheck="false">
+  <div class="s-corner">
+    <div class="s-wallet">Cash <b id="wallet">$0</b></div>
+    <button class="pill-close" id="shopClose">Leave</button>
+  </div>
+
+  <div class="s-label" id="label">
+    <div class="l-theme" id="lTheme"></div>
+    <div class="l-name" id="lName"></div>
+    <div class="l-price" id="lPrice"></div>
+    <div class="l-tags" id="lTags"></div>
+  </div>
+
+  <button class="s-arrow l" id="prev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="s-arrow r" id="next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></button>
+
+  <div class="s-toast" id="toast"></div>
+
+  <div class="s-bottom">
+    <div class="s-chips" id="catChips"></div>
+    <div class="s-swatches" id="swatches"></div>
+    <div class="s-actions">
+      <button class="s-btn" id="tryBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="7" r="4"/><path d="M5 21v-1a7 7 0 0 1 14 0v1"/></svg>Try on <span class="key">T</span></button>
+      <button class="s-btn buy" id="buyBtn"></button>
     </div>
+    <div class="s-dots" id="dots"></div>
+    <div class="s-meta" id="meta"></div>
+    <button class="s-sell hide" id="sellBtn"></button>
   </div>
-
-  <div class="gridcount" id="gridCount"></div>
-  <div class="grid" id="grid"></div>
-
-  <div class="selected" id="selected"></div>
-
-  <div class="dfoot" id="foot"></div>
-
-  <div class="statusbar">
-    <span><span class="key">ESC</span>close</span>
-    <span id="rotHint">drag the character to turn</span>
-    <span style="margin-left:auto" id="statusRight"></span>
-  </div>
-
-</div></div></div>
-
-<!-- drag anywhere over the character to spin them -->
-<div id="rotateCatcher"></div>
 </div>
 
-<script>
-(function(){
-
-const $=id=>document.getElementById(id);
-const ic=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${d}</svg>`;
-
-let DATA={items:[],themes:[],categories:[],canSell:false,sellRate:.5};
-let theme='all', cat='all', selected=null, variant=0, search='', jobOnly=false;
-let heading=0, zoom=1.55;
-
-function post(name,data){
-  return fetch(`https://${GetParentResourceName()}/${name}`,{
-    method:'POST',headers:{'Content-Type':'application/json; charset=UTF-8'},
-    body:JSON.stringify(data||{})
-  });
-}
-const money=n=>'$'+(n||0).toLocaleString();
-const filtered=()=>DATA.items.filter(i=>{
-  // the Issued tab shows only job bags; every other view hides them
-  if(jobOnly){ if(!i.job) return false; }
-  else if(i.job) return false;
-  if(theme!=='all'&&i.theme!==theme) return false;
-  if(cat!=='all'&&i.category!==cat) return false;
-  if(search){
-    const q=search.toLowerCase();
-    // match the label, the model name, and the theme, so a big catalogue stays findable
-    if(!(i.label.toLowerCase().includes(q)
-      || (i.model||'').toLowerCase().includes(q)
-      || (i.theme||'').toLowerCase().includes(q))) return false;
-  }
-  return true;
-});
-
-function chips(el,list,current,set){
-  el.innerHTML='';
-  list.forEach(t=>{
-    const b=document.createElement('button');
-    b.className='chip'+(t.key===current()?' on':'');
-    b.textContent=t.label;
-    b.onclick=()=>{set(t.key); render();};
-    el.appendChild(b);
-  });
-}
-
-function render(){
-  // a server can switch either filter row off entirely
-  const useThemes = Array.isArray(DATA.themes) && DATA.themes.length>0;
-  const useCats   = Array.isArray(DATA.categories) && DATA.categories.length>0;
-
-  const el=id=>document.getElementById(id);
-  if(el('themeGroup')) el('themeGroup').classList.toggle('hide',!useThemes);
-  if(el('catGroup'))   el('catGroup').classList.toggle('hide',!useCats);
-  if(el('searchWrap')) el('searchWrap').style.display = DATA.showSearch===false ? 'none' : 'flex';
-
-  // Issued tab, only when the player is on a job that has bags
-  const jobBags=DATA.items.filter(i=>i.job).length;
-  const showJobTab = DATA.useJobTab!==false && jobBags>0;
-
-  if(showJobTab && el('jobChips')){
-    el('jobGroup').classList.remove('hide');
-    el('jobChips').innerHTML='';
-    [{key:false,label:'Store'},{key:true,label:(DATA.jobTabLabel||'Issued')+' ('+jobBags+')'}]
-      .forEach(t=>{
-        const b=document.createElement('button');
-        b.className='chip'+(t.key===jobOnly?' on':'');
-        b.textContent=t.label;
-        b.onclick=()=>{jobOnly=t.key; render();};
-        el('jobChips').appendChild(b);
-      });
-  } else if(el('jobGroup')){
-    el('jobGroup').classList.add('hide');
-    jobOnly=false;
-  }
-
-  if(useThemes && el('themeChips')) chips(el('themeChips'),DATA.themes,()=>theme,v=>theme=v); else theme='all';
-  if(useCats   && el('catChips'))   chips(el('catChips'),DATA.categories,()=>cat,v=>cat=v);   else cat='all';
-
-  const list=filtered();
-  if(el('wCount')) el('wCount').textContent=list.length;
-
-  const total=DATA.items.length;
-  if(el('gridCount')) el('gridCount').textContent = list.length===total
-    ? `${total} bag${total===1?'':'s'}`
-    : `${list.length} of ${total}`;
-
-  const g=$('grid'); g.innerHTML='';
-
-  if(!list.length){
-    g.innerHTML='<div class="empty">'+ic('<path d="M3 9l2-5h14l2 5M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9M3 9h18"/>')+
-      '<b>Nothing here</b><span>'+(search
-        ? 'No bags match "'+search+'".'
-        : 'No bags match this filter. Try another theme or type.')+'</span></div>';
-  }
-
-  list.forEach(i=>{
-    const d=document.createElement('div');
-    d.className='card'+(selected&&i.key===selected.key?' on':'');
-    d.innerHTML=`
-      <div class="theme">${i.theme}</div>
-      <b>${i.label}</b>
-      <div class="meta">
-        <span class="tag">${i.slots} slots</span>
-        <span class="tag">${(i.weight/1000).toFixed(0)}kg</span>
-        ${i.variants.length?`<span class="tag">${i.variants.length} skins</span>`:''}
-      </div>
-      <div class="price${i.price===0?' free':''}">${i.price===0?'Issued':money(i.price)}</div>
-      ${i.job?`<div class="job">${i.job}</div>`:''}`;
-    d.onclick=()=>select(i);
-    g.appendChild(d);
-  });
-
-  if(!selected||!list.find(i=>i.key===selected.key)) select(list[0]||null,true);
-  else detail();
-}
-
-function select(item,quiet){
-  selected=item; variant=0;
-  if(item&&!quiet) post('shopSelect',{key:item.key,variant:0});
-  else if(item&&quiet) post('shopSelect',{key:item.key,variant:0});
-  detail();
-  document.querySelectorAll('.card').forEach((c,idx)=>{
-    c.classList.toggle('on',!!item&&filtered()[idx]&&filtered()[idx].key===item.key);
-  });
-}
-
-function detail(){
-  const sel=$('selected'), f=$('foot');
-
-  if(!selected){
-    sel.innerHTML='<div class="nosw">Select a bag.</div>';
-    f.innerHTML=''; $('statusRight').textContent='';
-    return;
-  }
-
-  const i=selected;
-
-  sel.innerHTML=`
-    <div class="sel-top">
-      <div class="sel-txt">
-        ${i.job?`<div class="djob">${i.job} issue</div>`:''}
-        <div class="sel-theme">${i.theme}</div>
-        <div class="sel-name">${i.label}</div>
-        <div class="sel-model">${i.model}</div>
-      </div>
-      <div class="sel-stats">
-        <div class="sel-stat"><span>SLOTS</span><b>${i.slots}</b></div>
-        <div class="sel-stat"><span>KG</span><b>${(i.weight/1000).toFixed(0)}</b></div>
-      </div>
-    </div>
-    <div class="variants" id="sw"></div>
-    <div class="rotrow">
-      <span class="lbl">TURN</span>
-      <button class="rotbtn" data-rot="-30">${ic('<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12H9"/>')}</button>
-      <input type="range" id="rotSlider" min="0" max="359" step="1" value="${heading}">
-      <button class="rotbtn" data-rot="30">${ic('<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h5"/>')}</button>
-    </div>`;
-
-  const sw=$('sw');
-  if(!i.variants.length){
-    sw.innerHTML='<div class="nosw">One finish only.</div>';
-  }else{
-    i.variants.forEach(v=>{
-      const b=document.createElement('button');
-      b.textContent=v.label;
-      if(v.index===variant) b.classList.add('on');
-      b.onclick=()=>{ variant=v.index; post('shopVariant',{index:v.index}); detail(); };
-      sw.appendChild(b);
-    });
-  }
-
-  sel.querySelectorAll('[data-rot]').forEach(b=>{
-    b.onclick=()=>{
-      heading=(heading+(+b.dataset.rot)+360)%360;
-      const sl=$('rotSlider'); if(sl) sl.value=heading;
-      post('shopRotate',{absolute:heading});
-    };
-  });
-
-  const sl=$('rotSlider');
-  if(sl) sl.addEventListener('input',e=>{
-    heading=+e.target.value;
-    post('shopRotate',{absolute:heading});
-  });
-
-  f.innerHTML=`
-    <div class="total"><span>${i.price===0?'Issued to you':'Price'}</span><b>${i.price===0?'Free':money(i.price)}</b></div>
-    <button class="btn-teal" id="buyBtn">${ic('<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/>')}${i.price===0?'Collect':'Buy'}</button>
-    ${DATA.canSell&&i.price>0?`<button class="btn-line" id="sellBtn">Sell one back for ${money(Math.floor(i.price*DATA.sellRate))}</button>`:''}`;
-
-  $('buyBtn').onclick=()=>post('shopBuy',{key:i.key,variant});
-  if($('sellBtn')) $('sellBtn').onclick=()=>post('shopSell',{key:i.key});
-
-  $('statusRight').innerHTML=`<b>${i.slots}</b> slots · <b>${(i.weight/1000).toFixed(0)}</b>kg`;
-}
-
-/* drag over the character to turn them, scroll to zoom */
-(function(){
-  const c=document.getElementById('rotateCatcher');
-  if(!c) return;
-  let dragging=false, lastX=0;
-
-  c.addEventListener('mousedown',e=>{ dragging=true; lastX=e.clientX; });
-  window.addEventListener('mouseup',()=>{ dragging=false; });
-  window.addEventListener('mousemove',e=>{
-    if(!dragging) return;
-    heading=(heading+(e.clientX-lastX)*0.55+360)%360;
-    lastX=e.clientX;
-    const sl=document.getElementById('rotSlider');
-    if(sl) sl.value=heading;
-    post('shopRotate',{absolute:heading});
-  });
-
-  c.addEventListener('wheel',e=>{
-    e.preventDefault();
-    zoom=Math.max(0.9,Math.min(3.2, zoom + e.deltaY*0.0016));
-    post('shopZoom',{distance:zoom});
-  },{passive:false});
-})();
-
-window.addEventListener('message',e=>{
-  const {action,data}=e.data;
-  if(action==='shopOpen'){
-    DATA=data;
-    theme='all'; cat='all'; selected=null; variant=0; search=''; jobOnly=false;
-    heading=0; zoom=1.55;
-    if($('shopSearch')) $('shopSearch').value='';
-    $('shopTitle').textContent=data.title||'Bag Store';
-    render();
-    $('shop').classList.add('open');
-  }
-  else if(action==='shopClose'){ $('shop').classList.remove('open'); }
-});
-
-if($('shopSearch')) $('shopSearch').addEventListener('input',e=>{ search=e.target.value.trim(); render(); });
-
-$('shopCloseBtn').onclick=()=>{ $('shop').classList.remove('open'); post('shopClose'); };
-document.addEventListener('keyup',e=>{
-  if(e.key==='Escape'&&$('shop').classList.contains('open')){
-    $('shop').classList.remove('open'); post('shopClose');
-  }
-});
-
-})();
-</script>
+<script src="js/keyer.js"></script>
+<script src="js/studio.js"></script>
+<script src="js/shop.js"></script>
 </body>
 </html>

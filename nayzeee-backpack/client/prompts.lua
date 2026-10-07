@@ -5,14 +5,13 @@
 -- instead of digging through the inventory every time.
 -----------------------------------------------------------------
 
-if not Config.Prompts or not Config.Prompts.useTarget then return end
-
-local function myBagKey()
-    local state = LocalPlayer.state.nayzeee_backpack
-    return state and state.bag or nil
+local function worn()
+    local st = LocalPlayer.state.nayzeee_backpack
+    return st and st.bag or nil, st
 end
 
 CreateThread(function()
+    if not Config.Prompts.useTarget then return end
     if GetResourceState('ox_target') ~= 'started' then
         print('^3[nayzeee-backpack] ox_target not running; prompts disabled^0')
         return
@@ -25,7 +24,7 @@ CreateThread(function()
             icon  = 'fa-solid fa-box-open',
             distance = 1.5,
             canInteract = function(entity)
-                return entity == PlayerPedId() and myBagKey() ~= nil
+                return entity == PlayerPedId() and worn() ~= nil
             end,
             onSelect = function()
                 TriggerServerEvent('nayzeee-backpack:openWorn')
@@ -39,11 +38,12 @@ CreateThread(function()
             canInteract = function(entity)
                 if entity ~= PlayerPedId() then return false end
                 if not Config.Placement or not Config.Placement.enabled then return false end
-                return myBagKey() ~= nil
+                return worn() ~= nil
             end,
             onSelect = function()
-                local bagKey = myBagKey()
-                if bagKey and StartPlacing then StartPlacing(bagKey) end
+                local bagKey = worn()
+                if not bagKey then return end
+                if Config.Placement.askAccess then ShowAccessMenu(bagKey) else StartPlacing(bagKey) end
             end,
         },
     })
@@ -54,7 +54,7 @@ end)
 -----------------------------------------------------------------
 
 RegisterCommand('openbag', function()
-    if not myBagKey() then
+    if not worn() then
         return Config.Notify(Strings.no_bag, 'error')
     end
     TriggerServerEvent('nayzeee-backpack:openWorn')
@@ -62,8 +62,16 @@ end, false)
 
 RegisterKeyMapping('openbag', 'Open your backpack', 'keyboard', '')
 
+RegisterCommand('bagmenu', function()
+    local bagKey = worn()
+    if not bagKey then return Config.Notify(Strings.no_bag, 'error') end
+    OpenBackpackMenu(bagKey)
+end, false)
+
+RegisterKeyMapping('bagmenu', 'Backpack menu', 'keyboard', '')
+
 RegisterCommand('placebag', function()
-    local bagKey = myBagKey()
+    local bagKey = worn()
     if not bagKey then
         return Config.Notify(Strings.no_bag, 'error')
     end

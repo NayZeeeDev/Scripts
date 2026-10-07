@@ -17,8 +17,7 @@ function UpdateLoad(src)
         return
     end
 
-    local slots = ox:Search(src, 'slots', state.bag)
-    local item = slots and slots[1]
+    local item = FindBagItem(src)
     local bagid = item and item.metadata and item.metadata.bagid
 
     if not bagid then
@@ -32,7 +31,7 @@ function UpdateLoad(src)
         return
     end
 
-    local max = inv.maxWeight or Config.GetStorage(state.bag).weight
+    local max = inv.maxWeight or Bags.storage(state.bag).weight
     local load = max > 0 and ((inv.weight or 0) / max) or 0.0
 
     TriggerClientEvent('nayzeee-backpack:setLoad', src, load)

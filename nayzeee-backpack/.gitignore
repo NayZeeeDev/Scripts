@@ -1,0 +1,2 @@
+# Licensed poses: one copy per server, never commit them publicly
+stream/**/*.ycd

@@ -1,18 +1,18 @@
 --[[
 ███╗   ██╗ █████╗ ██╗   ██╗███████╗███████╗███████╗███████╗
 ████╗  ██║██╔══██╗╚██╗ ██╔╝╚══███╔╝██╔════╝██╔════╝██╔════╝
-██╔██╗ ██║███████║ ╚████╔╝   ███╔╝ █████╗  █████╗  █████╗  
-██║╚██╗██║██╔══██║  ╚██╔╝   ███╔╝  ██╔══╝  ██╔══╝  ██╔══╝  
+██╔██╗ ██║███████║ ╚████╔╝   ███╔╝ █████╗  █████╗  █████╗
+██║╚██╗██║██╔══██║  ╚██╔╝   ███╔╝  ██╔══╝  ██╔══╝  ██╔══╝
 ██║ ╚████║██║  ██║   ██║   ███████╗███████╗███████╗███████╗
 ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝╚══════╝╚══════╝
 ██████╗  █████╗  ██████╗██╗  ██╗██████╗  █████╗  ██████╗██╗  ██╗
 ██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔══██╗██╔══██╗██╔════╝██║ ██╔╝
-██████╔╝███████║██║     █████╔╝ ██████╔╝███████║██║     █████╔╝ 
-██╔══██╗██╔══██║██║     ██╔═██╗ ██╔═══╝ ██╔══██║██║     ██╔═██╗ 
+██████╔╝███████║██║     █████╔╝ ██████╔╝███████║██║     █████╔╝
+██╔══██╗██╔══██║██║     ██╔═██╗ ██╔═══╝ ██╔══██║██║     ██╔═██╗
 ██████╔╝██║  ██║╚██████╗██║  ██╗██║     ██║  ██║╚██████╗██║  ██╗
 ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
 
-    BACKPACK SCRIPT - 1.0.0
+    BACKPACK SCRIPT - 2.0.0
     Discord: discord.gg/nayzeeedev
 
 ]]
@@ -26,11 +26,21 @@ Config = {}
 -- ╚██████╔╝███████╗██║ ╚████║███████╗██║  ██║██║  ██║███████╗
 --  ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
 
-Config.Debug = true -- Enable debug prints + the in-game backpack studio (/bagtune)
+Config.Debug = false -- Console debug prints
+
+-- 'auto' picks whichever is running: es_extended, qbx_core, qb-core, or none
+Config.Framework = 'auto'
 
 Config.OneBagOnly    = true  -- Only one backpack in a player's inventory at a time
 Config.BlockBagInBag = true  -- Stop a backpack being stuffed inside another backpack
 Config.ShowInVehicle = false -- Keep the prop visible on the player's back while driving
+
+-- Who counts as an admin for the studio (/bagtune), live storage edits and /bagitems.
+-- Either the ACE below, or one of the framework groups.
+Config.Admin = {
+    ace    = 'nayzeee.backpack', -- add_ace group.admin nayzeee.backpack allow
+    groups = { 'admin', 'superadmin', 'god' },
+}
 
 -- ███████╗████████╗ ██████╗ ██████╗  █████╗  ██████╗ ███████╗
 -- ██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗██╔══██╗██╔════╝ ██╔════╝
@@ -39,7 +49,9 @@ Config.ShowInVehicle = false -- Keep the prop visible on the player's back while
 -- ███████║   ██║   ╚██████╔╝██║  ██║██║  ██║╚██████╔╝███████╗
 -- ╚══════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
 
--- Fallback storage for any bag that doesn't set its own slots/weight
+-- Fallback storage for any bag that doesn't set its own slots/weight.
+-- Admins can also change slots/weight per bag live from /bagtune > Look;
+-- those edits are saved to data/overrides.json and win over this file.
 Config.Storage = {
     slots  = 8,     -- Number of inventory slots
     weight = 10000, -- Total weight in grams (10000 = 10kg)
@@ -54,11 +66,84 @@ Config.Storage = {
 
 -- Where the prop sits on the player's back.
 -- Bags built from the same clothing base share this pivot, so most need nothing here.
--- Use the studio (Config.Debug = true, then /bagtune) to tune a bag and copy the values.
+-- Use the studio (/bagtune) to fit a bag, then hit Save (or Copy).
 Config.DefaultOffset = {
-    bone = 24818, -- SKEL_Spine_Root
+    bone = 24818, -- SKEL_Spine3 (upper back)
     pos  = { x = -0.270, y = 0.010, z = -0.020 }, -- Position offset from the bone
     rot  = { x = 0.0,    y = 90.0,  z = 175.0  }, -- Rotation in degrees
+}
+
+--  ██████╗ █████╗ ██████╗ ██████╗ ██╗   ██╗
+-- ██╔════╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝
+-- ██║     ███████║██████╔╝██████╔╝ ╚████╔╝
+-- ██║     ██╔══██║██╔══██╗██╔══██╗  ╚██╔╝
+-- ╚██████╗██║  ██║██║  ██║██║  ██║   ██║
+--  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
+
+-- How purses and pocketbooks are carried. A bag opts in with `carry = 'purse'`.
+--
+-- While a carry-style bag is worn the player loops an UPPER BODY pose, so they
+-- keep walking, running and turning normally, but hold the purse like they
+-- mean it instead of swinging it around with the default walk.
+--
+-- The pose pauses by itself in vehicles, while swimming/climbing/ragdolling,
+-- with a weapon out, and whenever another script (emotes, progress bars) is
+-- playing its own animation. It comes back on its own afterwards.
+--
+-- Pose files (.ycd) go in stream/anims/ — see stream/README.md.
+Config.Carry = {
+    enabled = true,
+
+    checkInterval = 600,   -- ms between "is the pose still playing" checks (0.00 resmon)
+    blendIn       = 4.0,   -- Higher = snappier transition into the pose
+
+    -- Optional walk style while carrying. nil keeps the player's own walk.
+    -- Cute options: 'move_f@femme@', 'move_f@sexy@a', 'move_f@heels@c', 'move_f@chichi'
+    walkStyle = nil,
+
+    -- Players can pick their own pose from the bag menu (saved on the item)
+    letPlayersPick = true,
+
+    Poses = {
+        { key = 'withbag1', label = 'Classic',     dict = 'clementine@withyourbag01',          clip = 'withyourbag01_clip' },
+        { key = 'withbag2', label = 'Arm crook',   dict = 'clementine@withyourbag02',          clip = 'withyourbag02_clip' },
+        { key = 'withbag3', label = 'Hip hold',    dict = 'clementine@withyourbag03',          clip = 'withyourbag03_clip' },
+        { key = 'withbag4', label = 'Shoulder',    dict = 'clementine@withyourbag04',          clip = 'withyourbag04_clip' },
+        { key = 'withbag5', label = 'Clutch',      dict = 'clementine@withyourbag05',          clip = 'withyourbag05_clip' },
+        { key = 'model1',   label = 'Runway',      dict = 'f_modelpose_withbag_1@avenelanim',  clip = 'f_modelpose_withbag_1_clip' },
+    },
+
+    -- A style = which pose plays + a starting offset. Fine-tune each purse in
+    -- /bagtune with the pose playing (Fit > Pose preview), then Save.
+    Styles = {
+        purse = {
+            label = 'Purse in hand',
+            pose  = 'withbag1',
+            offset = {
+                bone = 57005, -- SKEL_R_Hand
+                pos  = { x = 0.120, y = 0.020, z = -0.020 },
+                rot  = { x = -90.0, y = 0.0,  z = 0.0 },
+            },
+        },
+        purse_left = {
+            label = 'Purse in left hand',
+            pose  = 'withbag1',
+            offset = {
+                bone = 18905, -- SKEL_L_Hand
+                pos  = { x = 0.120, y = 0.020, z = 0.020 },
+                rot  = { x = 90.0, y = 0.0,  z = 0.0 },
+            },
+        },
+        forearm = {
+            label = 'On the forearm',
+            pose  = 'withbag2',
+            offset = {
+                bone = 28252, -- SKEL_R_Forearm
+                pos  = { x = 0.050, y = 0.000, z = 0.000 },
+                rot  = { x = -90.0, y = 0.0, z = 0.0 },
+            },
+        },
+    },
 }
 
 -- ██████╗ ██████╗  ██████╗ ██████╗
@@ -75,6 +160,7 @@ Config.Drop = {
     onRob        = true, -- Robbery drops it instead of handing it straight over
     despawn      = 900,  -- Seconds before an untouched drop is cleaned up (0 = never)
     keepContents = true, -- false wipes the stash when it drops
+    keepJobBags  = true, -- Job-issued bags never drop on death
 }
 
 -- ██╗    ██╗███████╗██╗ ██████╗ ██╗  ██╗████████╗
@@ -109,7 +195,7 @@ Config.Robbery = {
     enabled = true,
 
     requireHandsUp = true,  -- Victim must have their hands up
-    requireCuffed  = false, -- Or be cuffed
+    requireCuffed  = false, -- Or be cuffed (wasabi_police / qb / esx cuffs all detected)
     allowDead      = true,  -- Dead players can always be looted
     requireWeapon  = true,  -- Robber needs a weapon out (ignored if the victim is dead)
 
@@ -118,12 +204,19 @@ Config.Robbery = {
     -- entirely, which makes this whole system opt-out. true keeps it honest.
     allowStowed = true,
 
+    protectJobBags = true, -- Job-issued bags can't be robbed
+
     distance = 2.0,   -- Max meters between robber and victim
     duration = 5000,  -- ms on the progress bar
     cooldown = 30,    -- Seconds before the same victim can be robbed again
 
     notifyVictim = true, -- Tell the victim their bag was taken
-    policeEvent  = nil,  -- Event name to fire for a PD alert, nil = disabled
+
+    -- Police alert. 'auto' uses ps-dispatch / cd_dispatch / qs-dispatch /
+    -- wasabi_police if one is running. false = off. A string = your own
+    -- server event, fired as TriggerEvent(name, robberId, victimId, coords).
+    dispatch = 'auto',
+    dispatchChance = 100, -- % chance an alert goes out
 }
 
 -- ██████╗ ██╗      █████╗  ██████╗██╗███╗   ██╗ ██████╗
@@ -134,12 +227,13 @@ Config.Robbery = {
 -- ╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝╚═╝  ╚═══╝ ╚═════╝
 
 -- Set a bag down as a world prop that stays put and stays lootable.
--- Dead drops, stash points, chop shops.
+-- The ghost follows where you look: [E] place, [SCROLL] rotate, [BACKSPACE] cancel.
 Config.Placement = {
     enabled = true,
 
-    maxDistance = 3.0,  -- How far ahead a bag can be set down
-    rotateStep  = 15.0, -- Degrees per scroll notch while positioning
+    maxDistance = 4.0,  -- How far from the player the bag can be set down
+    rotateStep  = 10.0, -- Degrees per scroll notch (hold SHIFT for 1/5 of that)
+    maxSlope    = 0.55, -- Surface must face at least this much upward (blocks walls)
 
     ownerOnly    = false, -- true = only the placer can ever pick it back up
     pickupAnyone = true,  -- false = contents lootable but the bag stays put
@@ -153,6 +247,7 @@ Config.Placement = {
     despawn        = 0,    -- Seconds before untouched bags are cleared (0 = never)
     blockInVehicle = true, -- Can't place while sat in a vehicle
     maxPerPlayer   = 3,    -- Cap on placed bags per player
+    renderDistance = 60.0, -- Placed bags only spawn as props within this range
 }
 
 -- ███████╗██╗  ██╗ ██████╗ ██████╗
@@ -162,8 +257,10 @@ Config.Placement = {
 -- ███████║██║  ██║╚██████╔╝██║
 -- ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝
 
--- The store players buy bags from. Themes and categories are pulled straight
--- from the entries in Config.Backpacks, so adding a bag adds it to the shop.
+-- The store. Walking up to the counter moves the camera over it and the bags
+-- float above the counter in a carousel. A/D or the mouse wheel swaps bags,
+-- drag spins them, ENTER buys, T tries the bag on your character.
+-- Themes and types come straight from Config.Backpacks.
 Config.Shop = {
     enabled = true,
 
@@ -171,18 +268,15 @@ Config.Shop = {
     canSell  = true,     -- Players can sell a bag back
     sellRate = 0.5,      -- Fraction of the price returned when selling
 
-    -- PREVIEW
-    -- The bag is attached to the player's own character, exactly as it would
-    -- be worn, so what they see is what they get.
-    previewDistance = 1.55,  -- How far the camera sits from the character
-    previewFov      = 34.0,  -- Lower = tighter framing
-    previewShift    = 0.62,  -- Pushes the character left, clear of the panel
+    -- COUNTER DISPLAY
+    spinSpeed      = 14.0,  -- Degrees per second the featured bag turns
+    transitionTime = 420,   -- ms for the slide between bags
+    sideBags       = true,  -- Show the previous / next bag either side
+    depthOfField   = true,  -- Soft-focus the store behind the counter
 
-    blurBackground    = true,  -- Blur the world behind the character
-    timecycle         = nil,   -- Optional timecycle, e.g. 'hud_def_blur'
-    timecycleStrength = 0.7,
-
-    showSearch = true,   -- Search box. Leave on if you run a big catalogue.
+    -- Try-on view (T): the old character preview
+    previewDistance = 1.55,
+    previewFov      = 34.0,
 
     -- HOW PLAYERS OPEN THE STORE
     -- 'ped'     = walk up to a shop keeper / marker at the coords below
@@ -193,11 +287,7 @@ Config.Shop = {
     command = 'bagstore', -- Used when openMode is 'command' or 'both'
     keybind = false,      -- true also registers it as a rebindable key
 
-    -- THEME FILTER
-    -- Turn this off for a plain catalogue with no theme tabs, or trim the list
-    -- to only the themes your server actually uses.
     useThemes = true,
-
     Themes = {
         { key = 'all',       label = 'All'       },
         { key = 'realistic', label = 'Realistic' },
@@ -206,15 +296,7 @@ Config.Shop = {
         { key = 'halloween', label = 'Halloween' },
     },
 
-    -- JOB BAGS
-    -- Bags with a `job` field only appear for players on that job, in their own
-    -- tab. A mechanic never sees police bags and vice versa.
-    useJobTab = true,
-    jobTabLabel = 'Issued',  -- Label on the tab holding the player's job bags
-
-    -- CATEGORY FILTER
     useCategories = true,
-
     Categories = {
         { key = 'all',        label = 'All'         },
         { key = 'backpack',   label = 'Backpacks'   },
@@ -222,30 +304,65 @@ Config.Shop = {
         { key = 'duffel',     label = 'Duffels'     },
     },
 
-    -- Physical store locations. Ignored entirely when openMode is 'command'.
+    -- Job bags only appear for players on that job, in their own tab
+    useJobTab   = true,
+    jobTabLabel = 'Issued',
+
     Locations = {
         {
             label   = 'Bag Store',
-            coords  = vector3(72.19, 6.63, 68.88),
+            coords  = vector3(72.19, 6.63, 68.88), -- Shop keeper / interaction point
             heading = 240.0,
 
             ped = `s_f_y_shop_low`, -- Shop keeper model, nil for a marker instead
 
-            marker = { -- Drawn when there's no ped
-                type  = 21,
-                scale = 0.6,
-                r = 8, g = 175, b = 162, a = 140,
-            },
+            marker = { type = 21, scale = 0.6, r = 8, g = 175, b = 162, a = 140 },
+            blip   = { sprite = 52, color = 26, scale = 0.7, label = 'Bag Store' },
 
-            blip = {
-                sprite = 52,
-                color  = 26,
-                scale  = 0.7,
-                label  = 'Bag Store',
+            -- Where the bags float. By default it's worked out from the shop
+            -- keeper: `forward` metres in front of them, `height` above their
+            -- waist, with the camera `camDistance` back on the customer's side.
+            -- Set `bag` / `cam` to exact coords to line it up with your counter MLO.
+            display = {
+                forward     = 0.70,
+                height      = 0.30,
+                camDistance = 1.25,
+                camHeight   = 0.22,
+                fov         = 42.0,
+                -- bag = vector3(72.8, 6.3, 69.15),
+                -- cam = vector3(73.9, 5.7, 69.40),
             },
-
-            previewOffset = { x = 0.0, y = 1.2, z = 0.65 }, -- Where the bag floats while previewing
         },
+    },
+}
+
+--      ██╗ ██████╗ ██████╗ ███████╗
+--      ██║██╔═══██╗██╔══██╗██╔════╝
+--      ██║██║   ██║██████╔╝███████╗
+-- ██   ██║██║   ██║██╔══██╗╚════██║
+-- ╚█████╔╝╚██████╔╝██████╔╝███████║
+--  ╚════╝  ╚═════╝ ╚═════╝ ╚══════╝
+
+-- Bags with a `job` field. See integrations.lua for wasabi_ambulance,
+-- wasabi_police and the rest, plus how other creators plug their own in.
+Config.Jobs = {
+    requireDuty = false, -- Job bags only work while on duty (ESX onDuty / QB onduty / wasabi)
+
+    -- Going on duty hands you your job bag, going off duty takes it back.
+    -- The SAME bag (and everything in it) comes back next shift.
+    autoIssue  = false,
+    autoReturn = false,
+
+    -- Starter kit added to a job bag the first time it's issued.
+    -- Items that don't exist in ox_inventory are skipped with a console warning.
+    giveKit = true,
+
+    -- Police can search (not take) the bag of a cuffed or hands-up player
+    policeSearch = {
+        enabled  = true,
+        jobs     = { 'police', 'sheriff', 'state' },
+        distance = 2.0,
+        duration = 3500,
     },
 }
 
@@ -267,12 +384,11 @@ Config.Prompts = {
     pickup     = 'Pick up',         -- Retrieve a placed bag
     stow       = 'Take off',        -- Hide the prop, keep the item
     wear       = 'Put on',          -- Show the prop again
-    takeOff    = 'Take off',
-    putOn      = 'Put on',
+    pose       = 'Change pose',     -- Purse pose picker
     rob        = 'Take backpack',   -- Robbery option on another player
-    give       = 'Hand over',
+    search     = 'Search backpack', -- Police search option
 
-    placeConfirm = '[E] Place    [SCROLL] Rotate    [X] Cancel',
+    placeHelp  = '[E] Place  ·  [SCROLL] Rotate  ·  [BACKSPACE] Cancel',
 
     accessPrivate = 'Private',      -- Only the owner can use it
     accessPublic  = 'Public',       -- Anyone can use it
@@ -298,10 +414,12 @@ Config.Logs = {
         open     = false, -- Very noisy, only for investigating
         stow     = false,
         rob      = true,  -- Who took what from whom
+        search   = true,  -- Police searches
         drop     = true,  -- Death drops
         place    = true,  -- Bag set down, with coords
         pickup   = true,  -- Placed bag picked up
         access   = false, -- Private/public toggles
+        admin    = true,  -- Studio saves / storage edits
         contents = true,  -- Snapshot what was inside on rob and drop
     },
 
@@ -329,15 +447,56 @@ Config.Animations = {
     freeze  = false, -- Lock the player in place during equip/unequip
 
     equip = { -- Putting the bag on
-        dict = 'clothingtie', anim = 'try_tie_negative_a', duration = 1800, flag = 49,
+        dict = 'clothingshirt', anim = 'try_shirt_positive_d', duration = 1600, flag = 49,
     },
 
     unequip = { -- Taking the bag off
         dict = 'clothingtie', anim = 'try_tie_negative_a', duration = 1500, flag = 49,
     },
 
-    open = { -- Quick reach-back when opening the bag
-        dict = 'mp_common', anim = 'givetake1_a', duration = 900, flag = 49,
+    open = { -- Quick reach-in when opening the bag
+        dict = 'anim@heists@ornate_bank@grab_cash', anim = 'grab', duration = 900, flag = 49,
+    },
+}
+
+-- ███████╗████████╗██╗   ██╗██████╗ ██╗ ██████╗
+-- ██╔════╝╚══██╔══╝██║   ██║██╔══██╗██║██╔═══██╗
+-- ███████╗   ██║   ██║   ██║██║  ██║██║██║   ██║
+-- ╚════██║   ██║   ██║   ██║██║  ██║██║██║   ██║
+-- ███████║   ██║   ╚██████╔╝██████╔╝██║╚██████╔╝
+-- ╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
+
+-- The in-game backpack studio. Admin only (see Config.Admin).
+Config.Studio = {
+    enabled = true,
+    command = 'bagtune',
+}
+
+-- Icon studio (/bagtune > Icon). Works like uz_AutoShot, built for bags:
+-- the prop is lit inside a chroma box, the background is keyed out in the
+-- browser, the image is trimmed + centred and saved as a transparent PNG.
+-- Needs screenshot-basic. No yarn / node modules required.
+Config.IconCapture = {
+    coords  = vector3(0.0, 0.0, -150.0), -- Studio spot (under the map, nothing else renders)
+    chroma  = 'green',  -- 'green' | 'magenta' | 'blue'. Use magenta for green bags, green for pink ones.
+    size    = 512,      -- Output width/height in px
+    padding = 0.08,     -- Empty border around the bag, as a fraction of the size
+    fov     = 30.0,
+
+    -- Where PNGs are written. The resource's own icons/ folder always gets a copy.
+    -- true also writes straight into ox_inventory/web/images/<item>.png
+    -- (restart ox_inventory, or the server, for new files to show).
+    saveToInventory = true,
+
+    -- Variants get their own image (<item>_<n>.png) and bought variants show it
+    variantIcons = true,
+
+    lights = {
+        { offset = vector3(0.0, -2.0, 1.0),  range = 6.0, intensity = 3.0 },
+        { offset = vector3(-2.0, 0.0, 1.0),  range = 5.0, intensity = 2.0 },
+        { offset = vector3(2.0, 0.0, 1.0),   range = 5.0, intensity = 2.0 },
+        { offset = vector3(0.0, 2.0, 1.0),   range = 4.0, intensity = 1.2 },
+        { offset = vector3(0.0, 0.0, 2.5),   range = 5.0, intensity = 2.0 },
     },
 }
 
@@ -348,23 +507,26 @@ Config.Animations = {
 -- ██████╔╝██║  ██║╚██████╗██║  ██╗██║     ██║  ██║╚██████╗██║  ██╗███████║
 -- ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
 
--- Models can live in ANY resource. This only stores the model NAME, so a bag
--- streamed from your own props resource works exactly like one in this script's
--- stream/ folder. Nothing here needs to move when you update the script.
+-- Models can live in ANY resource. This only stores the model NAME.
 --
--- key      = the item name in ox_inventory
+-- key      = the item name in ox_inventory (run /bagitems to print item entries)
 -- label    = shown in the menu, notifications and the studio
 -- model    = streamed .ydr model name
 -- category = grouping for the shop: 'backpack', 'pocketbook', 'duffel'
+-- theme    = shop tab: 'realistic', 'cartoon', 'animal', 'halloween'
+-- price    = shop price, leave nil to keep a bag out of the store
 -- slots    = optional, overrides Config.Storage.slots
 -- weight   = optional, overrides Config.Storage.weight
 -- offset   = optional, overrides Config.DefaultOffset (use /bagtune to get these)
--- variants = optional texture skins baked into the model, index starts at 0
--- theme    = shop tab: 'realistic', 'cartoon', 'animal', 'halloween'
--- price    = shop price, leave nil to keep a bag out of the store
--- job      = restrict to one job ('police') or several ({ 'police', 'sheriff' }).
---            Only that job sees it in the shop and only they can equip it.
+-- carry    = optional, a Config.Carry.Styles key ('purse', 'forearm' ...)
+-- pose     = optional, default pose key for this bag (Config.Carry.Poses)
+-- variants = optional skins, any of these formats:
+--              { [0] = 'Default', [1] = 'Red' }                 -- texture variations
+--              { { label = 'Red', texture = 1 }, ... }           -- same, explicit
+--              { { label = 'A', model = 'bag_a' }, ... }         -- separate models
+-- job      = restrict to one job ('police') or several ({ 'police', 'sheriff' })
 -- grade    = optional minimum job grade
+-- kit      = optional starter items for a job bag: { { 'bandage', 10 }, ... }
 
 Config.Backpacks = {
 
@@ -379,7 +541,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_cutebear'] = {
-        label    = 'Nayzeee Backpack Cutebear',
+        label    = 'Cute Bear Backpack',
         model    = 'nayzeee_backpack_cutebear',
         category = 'backpack',
         theme    = 'animal',
@@ -387,7 +549,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_snorlax'] = {
-        label    = 'Nayzeee Backpack Snorlax',
+        label    = 'Snorlax Backpack',
         model    = 'nayzeee_backpack_snorlax',
         category = 'backpack',
         theme    = 'cartoon',
@@ -395,7 +557,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_alyx'] = {
-        label    = 'Nayzeee Backpack Alyx',
+        label    = 'Alyx Backpack',
         model    = 'nayzeee_backpack_alyx',
         category = 'backpack',
         theme    = 'cartoon',
@@ -403,7 +565,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_lifesaver'] = {
-        label    = 'Nayzeee Backpack Lifesaver',
+        label    = 'Lifesaver Backpack',
         model    = 'nayzeee_backpack_lifesaver',
         category = 'backpack',
         theme    = 'realistic',
@@ -411,27 +573,34 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_shoulderbag'] = {
-        label    = 'Nayzeee Backpack Shoulderbag',
+        label    = 'Shoulder Bag',
         model    = 'nayzeee_backpack_shoulderbag_01',
         category = 'pocketbook',
         theme    = 'realistic',
         price    = 2000,
+        slots    = 5,
+        weight   = 5000,
+        carry    = 'purse',
         variants = {
-            { label = 'A', model = 'nayzeee_backpack_shoulderbag_01' },
-            { label = 'B', model = 'nayzeee_backpack_shoulderbag_02' },
+            { label = 'Style A', model = 'nayzeee_backpack_shoulderbag_01' },
+            { label = 'Style B', model = 'nayzeee_backpack_shoulderbag_02' },
         },
     },
 
     ['nayzeee_backpack_heartpurse'] = {
-        label    = 'Nayzeee Backpack Heartpurse',
+        label    = 'Heart Purse',
         model    = 'nayzeee_backpack_heartpurse',
         category = 'pocketbook',
         theme    = 'cartoon',
         price    = 2000,
+        slots    = 5,
+        weight   = 5000,
+        carry    = 'purse',
+        pose     = 'withbag5',
     },
 
     ['nayzeee_backpack_heart'] = {
-        label    = 'Nayzeee Backpack Heart',
+        label    = 'Heart Backpack',
         model    = 'nayzeee_backpack_heart',
         category = 'backpack',
         theme    = 'cartoon',
@@ -439,7 +608,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_alien'] = {
-        label    = 'Nayzeee Backpack Alien',
+        label    = 'Alien Backpack',
         model    = 'nayzeee_backpack_alien',
         category = 'backpack',
         theme    = 'cartoon',
@@ -447,7 +616,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_blueshark'] = {
-        label    = 'Nayzeee Backpack Blueshark',
+        label    = 'Blue Shark Backpack',
         model    = 'nayzeee_backpack_blueshark',
         category = 'backpack',
         theme    = 'animal',
@@ -455,7 +624,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_pug'] = {
-        label    = 'Nayzeee Backpack Pug',
+        label    = 'Pug Backpack',
         model    = 'nayzeee_backpack_pug',
         category = 'backpack',
         theme    = 'animal',
@@ -463,7 +632,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_puruplegoth'] = {
-        label    = 'Nayzeee Backpack Puruplegoth',
+        label    = 'Purple Goth Backpack',
         model    = 'nayzeee_backpack_puruplegoth',
         category = 'backpack',
         theme    = 'halloween',
@@ -471,7 +640,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_rick'] = {
-        label    = 'Nayzeee Backpack Rick',
+        label    = 'Rick Backpack',
         model    = 'nayzeee_backpack_rick',
         category = 'backpack',
         theme    = 'cartoon',
@@ -479,7 +648,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_space'] = {
-        label    = 'Nayzeee Backpack Space',
+        label    = 'Space Backpack',
         model    = 'nayzeee_backpack_space',
         category = 'backpack',
         theme    = 'cartoon',
@@ -487,7 +656,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_street'] = {
-        label    = 'Nayzeee Backpack Street',
+        label    = 'Street Backpack',
         model    = 'nayzeee_backpack_street',
         category = 'backpack',
         theme    = 'realistic',
@@ -495,7 +664,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_survivor'] = {
-        label    = 'Nayzeee Backpack Survivor',
+        label    = 'Survivor Backpack',
         model    = 'nayzeee_backpack_survivor',
         category = 'backpack',
         theme    = 'realistic',
@@ -503,7 +672,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_usahanna'] = {
-        label    = 'Nayzeee Backpack Usahanna',
+        label    = 'Usahanna Backpack',
         model    = 'nayzeee_backpack_usahanna',
         category = 'backpack',
         theme    = 'cartoon',
@@ -511,7 +680,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_teddyburger'] = {
-        label    = 'Nayzeee Backpack Teddyburger',
+        label    = 'Teddy Burger Backpack',
         model    = 'nayzeee_backpack_teddyburger',
         category = 'backpack',
         theme    = 'cartoon',
@@ -519,7 +688,7 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_teddyskull'] = {
-        label    = 'Nayzeee Backpack Teddyskull',
+        label    = 'Teddy Skull Backpack',
         model    = 'nayzeee_backpack_teddyskull',
         category = 'backpack',
         theme    = 'halloween',
@@ -527,39 +696,45 @@ Config.Backpacks = {
     },
 
     ['nayzeee_backpack_lean'] = {
-        label    = 'Nayzeee Backpack Lean',
+        label    = 'Lean Backpack',
         model    = 'nayzeee_backpack_lean',
         category = 'backpack',
         theme    = 'realistic',
         price    = 2500,
     },
 
-
     -- JOB BAGS -------------------------------------------------------------
     -- Only players on the job see these in the shop, and only they can wear
-    -- one. The bag on their back becomes part of the uniform.
+    -- one. price = 0 shows as "Issued" with a Collect button.
+    -- Swap the model for your own job bag prop once you've streamed one.
+
+    -- ['bag_ems'] = {
+    --     label    = 'Medic Bag',
+    --     model    = 'nayzeee_bag_ems',
+    --     category = 'duffel',
+    --     theme    = 'realistic',
+    --     job      = { 'ambulance', 'ems' },
+    --     price    = 0,
+    --     slots    = 14,
+    --     weight   = 20000,
+    --     -- wasabi_ambulance item names. Missing items are skipped.
+    --     kit = {
+    --         { 'bandage', 10 }, { 'medikit', 4 }, { 'defib', 1 },
+    --         { 'tweezers', 2 }, { 'suturekit', 2 }, { 'icepack', 2 }, { 'burncream', 2 },
+    --     },
+    -- },
 
     -- ['bag_police'] = {
     --     label    = 'Patrol Pack',
     --     model    = 'nayzeee_bag_police',
     --     category = 'backpack',
     --     theme    = 'realistic',
-    --     job      = 'police',   -- or { 'police', 'sheriff', 'state' }
-    --     grade    = 0,          -- Minimum job grade
-    --     price    = 0,          -- 0 = free for the job
-    --     slots    = 14,
-    --     weight   = 20000,
-    -- },
-
-    -- ['bag_ems'] = {
-    --     label    = 'Medic Bag',
-    --     model    = 'nayzeee_bag_ems',
-    --     category = 'backpack',
-    --     theme    = 'realistic',
-    --     job      = { 'ambulance', 'ems' },
+    --     job      = { 'police', 'sheriff' },
+    --     grade    = 0,
     --     price    = 0,
     --     slots    = 12,
     --     weight   = 18000,
+    --     kit = { { 'handcuffs', 2 }, { 'bandage', 4 }, { 'radio', 1 } },
     -- },
 
     -- ['bag_mechanic'] = {
@@ -571,65 +746,8 @@ Config.Backpacks = {
     --     price    = 0,
     --     slots    = 18,
     --     weight   = 30000,
+    --     kit = { { 'repairkit', 3 }, { 'cleaningkit', 2 } },
     -- },
-
-    -- Pocketbooks and purses work the same way, they just sit on a different bone
-    -- ['pocketbook_classic'] = {
-    --     label    = 'Classic Pocketbook',
-    --     model    = 'nayzeee_pocketbook_classic',
-    --     category = 'pocketbook',
-    --     slots    = 5,
-    --     weight   = 4000,
-    --     offset   = {
-    --         bone = 24817, -- Spine 1, sits higher for a shoulder bag
-    --         pos  = { x = -0.180, y = 0.090, z = -0.040 },
-    --         rot  = { x = 0.0, y = 90.0, z = 175.0 },
-    --     },
-    -- },
-
-    -- One model, several skins, switched in-script
-    -- ['backpack_lean'] = {
-    --     label  = 'Lean Backpack',
-    --     model  = 'vonnie_backpack_lean',
-    --     slots  = 12,
-    --     weight = 15000,
-    --     variants = {
-    --         [0] = 'Default',
-    --         [1] = 'Red',
-    --         [2] = 'Blue',
-    --     },
-    -- },
-
-    -- A bigger bag that needed its own position
-    -- ['backpack_duffel'] = {
-    --     label  = 'Duffel Bag',
-    --     model  = 'nayzeee_backpack_duffel',
-    --     slots  = 20,
-    --     weight = 40000,
-    --     offset = { pos = { x = -0.270, y = 0.010, z = 0.060 } },
-    -- },
-}
-
--- ██╗ ██████╗ ██████╗ ███╗   ██╗
--- ██║██╔════╝██╔═══██╗████╗  ██║
--- ██║██║     ██║   ██║██╔██╗ ██║
--- ██║██║     ██║   ██║██║╚██╗██║
--- ██║╚██████╗╚██████╔╝██║ ╚████║
--- ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝
-
--- Studio icon staging. Lifts the prop above the map so only sky sits behind it,
--- giving a clean edge to cut out for an inventory image. Config.Debug only.
-Config.IconCapture = {
-    distance = 1.15,  -- Camera distance from the prop
-    heading  = 210.0, -- Angle the prop is turned to
-    pitch    = -8.0,  -- Camera tilt in degrees
-
-    -- STAGING SPOT
-    -- nil lifts the prop 180m straight up, so only sky sits behind it.
-    -- Point this at a green screen MLO and the prop spawns there instead,
-    -- which gives a flat key colour that cuts out perfectly.
-    stagingCoords = nil,  -- e.g. vector3(-1057.0, -230.0, 44.0)
-    stagingHeight = 180.0, -- Used only when stagingCoords is nil
 }
 
 -- ███╗   ██╗ ██████╗ ████████╗██╗███████╗██╗   ██╗
@@ -645,15 +763,6 @@ Config.Notify = function(msg, type)
         type = type or 'inform',
         position = 'top',
     })
-end
-
---- Storage settings for a bag, falling back to the defaults
-function Config.GetStorage(bagKey)
-    local bag = Config.Backpacks[bagKey]
-    return {
-        slots  = (bag and bag.slots)  or Config.Storage.slots,
-        weight = (bag and bag.weight) or Config.Storage.weight,
-    }
 end
 
 -- ███████╗████████╗██████╗ ██╗███╗   ██╗ ██████╗ ███████╗
@@ -674,10 +783,12 @@ Strings = {
 
     stowed       = 'Backpack taken off.',
     worn         = 'Backpack put on.',
+    pose_set     = 'Pose changed.',
 
     placed       = 'Bag set down.',
     picked_up    = 'Bag picked up.',
     place_bad    = 'You cannot place it there.',
+    place_far    = 'Too far away.',
     place_max    = 'You have too many bags placed already.',
     not_yours    = 'That is not your bag.',
     is_private   = 'That bag is locked.',
@@ -690,6 +801,10 @@ Strings = {
     rob_victim   = 'Your bag was taken.',
     rob_cooldown = 'Not again so soon.',
     rob_moved    = 'They got away.',
+    rob_job      = 'That is department kit, leave it.',
+
+    search_start = 'Searching the bag...',
+    search_none  = 'They are not carrying a bag.',
 
     shop_bought  = 'Purchased.',
     shop_sold    = 'Sold.',
@@ -697,5 +812,11 @@ Strings = {
     shop_full    = 'No room for that.',
     shop_nothing = 'You have nothing to sell.',
     shop_job     = 'That bag is issued to a job you are not on.',
+    shop_empty   = 'Empty it first.',
     job_only     = 'This bag belongs to a job you are not on.',
+    job_duty     = 'Go on duty to use this bag.',
+    job_issued   = 'Your job bag was issued.',
+    job_returned = 'Your job bag was handed back in.',
+
+    no_admin     = 'You do not have permission for that.',
 }

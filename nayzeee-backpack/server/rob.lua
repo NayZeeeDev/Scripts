@@ -44,17 +44,21 @@ RegisterNetEvent('nayzeee-backpack:rob', function(victimId)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.rob_failed, 'error')
     end
 
+    if cfg.protectJobBags and Bags.isJobBag(bagKey) then
+        return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.rob_job, 'error')
+    end
+
     -- confirm they really hold it
-    local slots = ox:Search(victimId, 'slots', bagKey)
-    local item = slots and slots[1]
-    if not item then
-        Player(victimId).state:set('nayzeee_backpack', nil, true)
+    local item = FindBagItem(victimId)
+    if not item or item.name ~= bagKey then
+        RefreshBagState(victimId)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.rob_failed, 'error')
     end
 
     cooldowns[victimId] = now
 
     local metadata = item.metadata or {}
+    metadata.stowed = nil
 
     if Config.Drop.enabled and Config.Drop.onRob then
         -- snapshot contents before the bag changes hands
@@ -71,19 +75,31 @@ RegisterNetEvent('nayzeee-backpack:rob', function(victimId)
             return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.rob_failed, 'error')
         end
 
-        if not ox:AddItem(src, bagKey, 1, metadata) then
-            -- robber's inventory was full, so it lands on the ground instead
-            ox:CustomDrop('Backpack', { { bagKey, 1, metadata } }, GetEntityCoords(robberPed))
+        if (Config.OneBagOnly and FindBagItem(src)) or not ox:AddItem(src, bagKey, 1, metadata) then
+            -- robber already has a bag or is full, so it lands on the ground instead
+            ox:CustomDrop(Bags.label(bagKey), { { bagKey, 1, metadata } }, GetEntityCoords(robberPed),
+                1, Bags.storage(bagKey).weight, nil, joaat((Bags.resolve(bagKey, metadata.variant))))
         end
 
-        Player(victimId).state:set('nayzeee_backpack', nil, true)
+        RefreshBagState(victimId)
     end
 
     TriggerClientEvent('nayzeee-backpack:notify', src, Strings.rob_success, 'success')
     TriggerClientEvent('nayzeee-backpack:robbed', victimId)
+    TriggerEvent('nayzeee-backpack:server:robbed', src, victimId, bagKey)
+    Integrations.each('onRobbed', src, victimId, bagKey)
 
+    -- police alert
+    local coords = GetEntityCoords(victimPed)
+    if cfg.dispatch and math.random(100) <= (cfg.dispatchChance or 100) then
+        if type(cfg.dispatch) == 'string' and cfg.dispatch ~= 'auto' then
+            TriggerEvent(cfg.dispatch, src, victimId, coords)
+        else
+            TriggerClientEvent('nayzeee-backpack:dispatch', src, coords)
+        end
+    end
     if cfg.policeEvent then
-        TriggerEvent(cfg.policeEvent, src, victimId, GetEntityCoords(victimPed))
+        TriggerEvent(cfg.policeEvent, src, victimId, coords)
     end
 end)
 

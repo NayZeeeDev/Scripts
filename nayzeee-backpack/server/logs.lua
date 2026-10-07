@@ -176,3 +176,24 @@ function Logs.simple(event, title, src, bagKey)
         { name = 'Bag', value = (bag and bag.label or bagKey or '-'), inline = true },
     }, cfg.colors and cfg.colors.info)
 end
+
+function Logs.admin(src, bagKey, what)
+    local name, license = Logs.who(src)
+    local bag = Config.Backpacks[bagKey]
+    send('admin', 'Backpack studio edit', {
+        { name = 'Admin', value = ('%s\n%s'):format(name, license), inline = true },
+        { name = 'Bag', value = (bag and bag.label or bagKey or '-'), inline = true },
+        { name = 'Changed', value = what or '-', inline = false },
+    }, cfg.colors and cfg.colors.info)
+end
+
+function Logs.search(officer, suspect, bagKey)
+    local oName, oLicense = Logs.who(officer)
+    local sName, sLicense = Logs.who(suspect)
+    local bag = Config.Backpacks[bagKey]
+    send('search', 'Backpack searched', {
+        { name = 'Officer', value = ('%s\n%s'):format(oName, oLicense), inline = true },
+        { name = 'Suspect', value = ('%s\n%s'):format(sName, sLicense), inline = true },
+        { name = 'Bag', value = (bag and bag.label or bagKey or '-'), inline = true },
+    }, cfg.colors and cfg.colors.info)
+end

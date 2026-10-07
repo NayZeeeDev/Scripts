@@ -3,56 +3,66 @@ game 'gta5'
 lua54 'yes'
 
 author 'NAYZEEE Development'
-description 'Backpack system with attachable props for ESX Legacy + ox_inventory'
-version '1.0.0'
+description 'Backpacks, purses & job bags for ox_inventory (ESX / Qbox / QBCore / standalone)'
+version '2.0.0'
 
-shared_script '@ox_lib/init.lua'
-shared_script 'config.lua'
+shared_scripts {
+    '@ox_lib/init.lua',
+    'config.lua',
+    'shared/bags.lua',
+    'bridge/framework.lua',
+    'integrations.lua',
+}
 
 client_scripts {
+    'client/util.lua',
     'client/anim.lua',
-    'client/job.lua',
+    'client/status.lua',
     'client/main.lua',
-    'client/nui.lua',
+    'client/carry.lua',
     'client/menu.lua',
     'client/place.lua',
     'client/prompts.lua',
     'client/weight.lua',
     'client/rob.lua',
     'client/shop.lua',
-    'client/tuner.lua'
+    'client/studio.lua',
+    'client/icons.lua',
 }
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server/logs.lua',
-    'server/job.lua',
+    'server/overrides.lua',
     'server/main.lua',
+    'server/jobs.lua',
     'server/drop.lua',
     'server/place.lua',
     'server/weight.lua',
     'server/rob.lua',
-    'server/shop.lua'
+    'server/shop.lua',
+    'server/icons.lua',
+    'server/icons.js',
+    'server/admin.lua',
 }
 
 ui_page 'web/index.html'
 
 files {
-    'web/index.html'
-
+    'web/index.html',
+    'web/css/*.css',
+    'web/js/*.js',
+    'stream/**.ytyp',
 }
 
 -- Bag models can live here or in your own stream resource. The script only
 -- needs the model NAME in Config.Backpacks, not the files themselves.
-files {
-    'stream/**.ydr',
-    'stream/**.ytd',
-    'stream/**.ytyp'
-}
+--
+-- Purse poses (.ycd) just go in stream/anims/, they need no data_file line.
 
 -- REQUIRED for any .ytyp you put in stream/.
 -- Without this line the game never registers the archetype and the script
--- reports "model is not streaming" even though the .ydr is present.
+-- reports "model is not registered" even though the .ydr is present.
 -- Add one line per ytyp. Delete them if your props live in another resource,
 -- since that resource declares its own.
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack.ytyp'
@@ -67,7 +77,7 @@ data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_heart/nayzeee_backpack_hea
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_alien/nayzeee_backpack_alien.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_blueshark/nayzeee_backpack_blueshark.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_pug/nayzeee_backpack_pug.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_puruplegoth/nayzeee_backpack_puruplegoth.ytyp' 
+data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_puruplegoth/nayzeee_backpack_puruplegoth.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_rick/nayzeee_backpack_rick.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_space/nayzeee_backpack_space.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_street/nayzeee_backpack_street.ytyp'
@@ -80,5 +90,4 @@ data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_lean/nayzeee_backpack_lean
 dependencies {
     'ox_lib',
     'ox_inventory',
-    'es_extended'
 }

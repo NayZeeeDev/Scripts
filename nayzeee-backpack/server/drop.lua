@@ -20,11 +20,11 @@ function Drop.bag(src, bagKey, coords, skipLog)
     local bag = Config.Backpacks[bagKey]
     if not bag then return nil end
 
-    local slots = ox:Search(src, 'slots', bagKey)
-    local item = slots and slots[1]
-    if not item then return nil end
+    local item = FindBagItem(src)
+    if not item or item.name ~= bagKey then return nil end
 
     local metadata = item.metadata or {}
+    metadata.stowed = nil
 
     -- snapshot before anything is wiped or moved
     if Logs and not skipLog then
@@ -43,22 +43,23 @@ function Drop.bag(src, bagKey, coords, skipLog)
 
     coords = coords or GetEntityCoords(GetPlayerPed(src))
 
-    local storage = Config.GetStorage(bagKey)
+    local storage = Bags.storage(bagKey)
+    local model = Bags.resolve(bagKey, metadata.variant)
     local dropId = ox:CustomDrop(
-        bag.label or 'Backpack',
+        Bags.label(bagKey),
         { { bagKey, 1, metadata } },
         coords,
         1,                      -- the drop holds the bag item itself
         storage.weight,
         nil,
-        joaat(bag.model)        -- the real model on the ground
+        joaat(model)            -- the real model on the ground
     )
 
     if dropId then
         active[dropId] = { at = os.time() }
     end
 
-    Player(src).state:set('nayzeee_backpack', nil, true)
+    RefreshBagState(src)
     return dropId
 end
 
@@ -84,21 +85,48 @@ end
 -----------------------------------------------------------------
 
 if Config.Drop.enabled and Config.Drop.onDeath then
+    local lastDeath = {}
+
     local function handleDeath(src)
+        src = tonumber(src)
+        if not src then return end
+
+        -- several death events can fire for one death; only act once
+        local now = os.time()
+        if lastDeath[src] and now - lastDeath[src] < 10 then return end
+        lastDeath[src] = now
+
         local state = Player(src).state.nayzeee_backpack
         if not state or not state.bag then return end
+        if Config.Drop.keepJobBags and Bags.isJobBag(state.bag) then return end
 
         if Drop.bag(src, state.bag) then
             TriggerClientEvent('nayzeee-backpack:notify', src, Strings.bag_dropped, 'error')
         end
     end
 
-    AddEventHandler('esx:onPlayerDeath', function()
+    RegisterNetEvent('esx:onPlayerDeath', function()
         handleDeath(source)
     end)
 
-    -- ox_inventory fires this too, so it works without ESX death events
+    -- qb-ambulancejob
+    RegisterNetEvent('hospital:server:SetDeathStatus', function(isDead)
+        if isDead then handleDeath(source) end
+    end)
+
+    -- ox_inventory fires this too
     AddEventHandler('ox_inventory:playerDeath', function(playerId)
         handleDeath(playerId)
     end)
+
+    -- Everything else (wasabi_ambulance, qbx_medical, custom scripts):
+    -- the player's own client publishes its death state through
+    -- integrations.lua, so any medical script that integration knows works.
+    AddStateBagChangeHandler('nb_status', nil, function(bagName, _, value)
+        if not value or not value.dead then return end
+        local src = GetPlayerFromStateBagName(bagName)
+        if src and src ~= 0 then handleDeath(src) end
+    end)
+
+    AddEventHandler('playerDropped', function() lastDeath[source] = nil end)
 end

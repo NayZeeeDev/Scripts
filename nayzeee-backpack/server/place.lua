@@ -21,9 +21,8 @@ local function countFor(identifier)
 end
 
 local function ownerOf(src)
-    -- ESX identifier so ownership survives a reconnect
-    local xPlayer = ESX and ESX.GetPlayerFromId and ESX.GetPlayerFromId(src)
-    return xPlayer and xPlayer.identifier or ('src:%s'):format(src)
+    -- character identifier so ownership survives a reconnect
+    return Framework.getIdentifier(src)
 end
 
 -----------------------------------------------------------------
@@ -103,14 +102,16 @@ RegisterNetEvent('nayzeee-backpack:place', function(bagKey, coords, heading, acc
 
     if not bagKey or not Config.Backpacks[bagKey] then return end
     if type(coords) ~= 'vector3' and type(coords) ~= 'table' then return end
+    if not tonumber(coords.x) or not tonumber(coords.y) or not tonumber(coords.z) then return end
 
     local ped = GetPlayerPed(src)
     local pc = GetEntityCoords(ped)
     local target = vector3(coords.x + 0.0, coords.y + 0.0, coords.z + 0.0)
 
     -- never trust the client's coords
-    if #(pc - target) > (cfg.maxDistance or 3.0) + 2.0 then
-        return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.place_bad, 'error')
+    -- the origin of these props sits a little off the mesh, hence the margin
+    if #(pc - target) > (cfg.maxDistance or 4.0) + 2.0 then
+        return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.place_far, 'error')
     end
 
     local identifier = ownerOf(src)
@@ -118,9 +119,8 @@ RegisterNetEvent('nayzeee-backpack:place', function(bagKey, coords, heading, acc
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.place_max, 'error')
     end
 
-    local slots = ox:Search(src, 'slots', bagKey)
-    local item = slots and slots[1]
-    if not item then
+    local item = FindBagItem(src)
+    if not item or item.name ~= bagKey then
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.no_bag, 'error')
     end
 
@@ -131,6 +131,8 @@ RegisterNetEvent('nayzeee-backpack:place', function(bagKey, coords, heading, acc
 
     local id = nextId
     nextId = nextId + 1
+
+    metadata.stowed = nil -- picking it back up puts it on your back
 
     local entry = {
         id = id,
@@ -147,8 +149,9 @@ RegisterNetEvent('nayzeee-backpack:place', function(bagKey, coords, heading, acc
     placed[id] = entry
     saveOne(entry)
 
-    Player(src).state:set('nayzeee_backpack', nil, true)
+    RefreshBagState(src)
     BroadcastPlaced(entry)
+    TriggerEvent('nayzeee-backpack:server:placed', src, bagKey, target, id)
 
     if Logs then Logs.place(src, bagKey, target, access, id) end
     TriggerClientEvent('nayzeee-backpack:notify', src, Strings.placed, 'success')
@@ -175,12 +178,7 @@ RegisterNetEvent('nayzeee-backpack:openPlaced', function(id)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.cannot_open, 'error')
     end
 
-    local storage = Config.GetStorage(entry.bag)
-    local stashId = ('backpack_%s'):format(bagid)
-    local bag = Config.Backpacks[entry.bag]
-
-    ox:RegisterStash(stashId, bag and bag.label or 'Backpack', storage.slots, storage.weight, false)
-    TriggerClientEvent('nayzeee-backpack:open', src, stashId)
+    TriggerClientEvent('nayzeee-backpack:open', src, PrepareStash(entry.bag, bagid))
 end)
 
 -----------------------------------------------------------------
@@ -211,11 +209,8 @@ RegisterNetEvent('nayzeee-backpack:pickup', function(id)
     end
 
     -- one-bag rule still applies
-    if Config.OneBagOnly then
-        local held = ox:Search(src, 'count', entry.bag)
-        if type(held) == 'number' and held > 0 then
-            return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.one_bag_only, 'error')
-        end
+    if Config.OneBagOnly and FindBagItem(src) then
+        return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.one_bag_only, 'error')
     end
 
     if not ox:AddItem(src, entry.bag, 1, entry.metadata) then
