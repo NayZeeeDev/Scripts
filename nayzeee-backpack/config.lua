@@ -12,7 +12,7 @@
 ██████╔╝██║  ██║╚██████╗██║  ██╗██║     ██║  ██║╚██████╗██║  ██╗
 ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
 
-    BACKPACK SCRIPT - 2.0.0
+    BACKPACK SCRIPT - 1.0.0
     Discord: discord.gg/nayzeeedev
 
 ]]
@@ -281,6 +281,27 @@ Config.Shop = {
     sideBags       = true,  -- Show the previous / next bag either side
     depthOfField   = true,  -- Soft-focus the store behind the counter
 
+    -- CLEAR THE COUNTER
+    -- Props around the floating bags (monitors, keyboards, tills...) are
+    -- hidden for the shopper only while the store is open, then come back.
+    hideProps = {
+        enabled = true,
+        radius  = 1.8,  -- metres around the bags
+        maxSize = 1.6,  -- anything bigger is left alone (counters, shelves, walls)
+
+        -- Props baked into an MLO can only be hidden by model name.
+        -- Set Config.Debug = true and open the store: the F8 console lists
+        -- the props it found near the bags, so you can add their names here.
+        models = {
+            'prop_monitor_01a', 'prop_monitor_01b', 'prop_monitor_01c', 'prop_monitor_01d',
+            'prop_monitor_02', 'prop_monitor_03b', 'prop_monitor_04a', 'prop_monitor_li',
+            'prop_monitor_w_large', 'prop_ld_monitor_01', 'prop_pc_01a', 'prop_pc_02a',
+            'prop_keyboard_01a', 'prop_keyboard_01b', 'prop_mouse_01', 'prop_mouse_01a', 'prop_mouse_01b',
+            'prop_laptop_01a', 'prop_laptop_lester', 'prop_till_01', 'prop_till_02', 'prop_till_03',
+            'prop_cash_register_01', 'v_res_monitor', 'v_ret_gc_cashreg', 'v_ret_ta_till',
+        },
+    },
+
     -- Try-on view (T): the old character preview
     previewDistance = 1.55,
     previewFov      = 34.0,
@@ -319,7 +340,7 @@ Config.Shop = {
     Locations = {
         {
             label   = 'Bag Store',
-            coords  = vector3(-1187.5038, -1187.8784, 6.7681), -- Shop keeper / interaction point
+            coords  = vector3(-1187.5038, -1187.8784, 7.7681), -- Shop keeper / interaction point
             heading = 101.4926,
 
             ped = `s_f_y_shop_low`, -- Shop keeper model, nil for a marker instead
@@ -335,7 +356,7 @@ Config.Shop = {
             -- Leave `bag` out and it's worked out from the shop keeper:
             -- `forward` metres in front of them, `height` above their waist.
             display = {
-                bag         = vector3(-1188.8307, -1187.9458, 7.9648),
+                bag         = vector3(-1188.5146, -1188.2035, 8.6000),
                 heading     = 101.4926,
                 camDistance = 1.25,
                 camHeight   = 0.22,

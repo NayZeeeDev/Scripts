@@ -348,6 +348,84 @@ local function frameLoop()
 end
 
 -----------------------------------------------------------------
+-- clear the counter
+--
+-- Monitors, tills and the like around the display are hidden for the
+-- shopper only, and put back when they leave. Loose props are hidden
+-- directly; props baked into the MLO need their model in hideProps.models.
+-----------------------------------------------------------------
+
+local hiddenEnts = {}
+local modelHides = {}
+
+local function hideCounterProps()
+    local h = cfg.hideProps
+    if not h or h.enabled == false then return end
+
+    local radius = h.radius or 1.8
+    local maxSize = h.maxSize or 1.6
+    local spots = {
+        view.anchor,
+        view.anchor + view.right * 0.62 + view.fwd * 0.32,
+        view.anchor - view.right * 0.62 + view.fwd * 0.32,
+    }
+    local function near(c)
+        for _, p in ipairs(spots) do
+            if #(c - p) < radius then return true end
+        end
+        return false
+    end
+
+    local seen = {}
+    for _, obj in ipairs(GetGamePool('CObject')) do
+        if IsEntityVisible(obj) and not IsEntityAttached(obj) and near(GetEntityCoords(obj)) then
+            local model = GetEntityModel(obj)
+            local mn, mx = GetModelDimensions(model)
+            if #(mx - mn) <= maxSize then
+                SetEntityVisible(obj, false, false)
+                hiddenEnts[#hiddenEnts + 1] = obj
+                seen[GetEntityArchetypeName(obj) or tostring(model)] = true
+            end
+        end
+    end
+
+    -- one hide sphere covering the whole row of bags
+    local a = view.anchor
+    local r = radius + 0.7
+    for _, m in ipairs(h.models or {}) do
+        local hash = type(m) == 'number' and m or joaat(m)
+        if IsModelInCdimage(hash) then
+            CreateModelHide(a.x, a.y, a.z, r, hash, true)
+            modelHides[#modelHides + 1] = hash
+        end
+    end
+
+    if Config.Debug then
+        local names = {}
+        for n in pairs(seen) do names[#names + 1] = n end
+        print(('[nayzeee-backpack] shop hid %d loose prop(s) near the display: %s'):format(#hiddenEnts,
+            #names > 0 and table.concat(names, ', ') or 'none'))
+        print('[nayzeee-backpack] still see one? Add its model name to Config.Shop.hideProps.models')
+    end
+end
+
+local function restoreCounterProps()
+    for _, obj in ipairs(hiddenEnts) do
+        if DoesEntityExist(obj) then SetEntityVisible(obj, true, false) end
+    end
+    hiddenEnts = {}
+
+    if view and #modelHides > 0 then
+        local a = view.anchor
+        local r = ((cfg.hideProps and cfg.hideProps.radius) or 1.8) + 0.7
+        for _, hash in ipairs(modelHides) do
+            RemoveModelHide(a.x, a.y, a.z, r, hash, false)
+        end
+    end
+    modelHides = {}
+end
+
+-----------------------------------------------------------------
 -- cameras
 -----------------------------------------------------------------
 
@@ -429,6 +507,7 @@ local function closeShop()
 
     clearTryOn()
     clearSlots()
+    restoreCounterProps()
     for h in pairs(preloaded) do SetModelAsNoLongerNeeded(h) end
     preloaded = {}
     pending, working, collapsed = nil, false, false
@@ -476,6 +555,7 @@ function OpenShop(location)
     if SetWornPropVisible then SetWornPropVisible(false) end
     Carry.suspended = true
 
+    hideCounterProps()
     makeCounterCam()
     SetCamActive(counterCam, true)
     RenderScriptCams(true, true, 900, true, true)
