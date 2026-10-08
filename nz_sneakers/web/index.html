@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- action menu / pair picker -->
+<div class="menu" id="menu" hidden>
+  <div class="menu-head">
+    <div class="menu-img" id="menuImg" hidden><img alt=""></div>
+    <div class="menu-titles">
+      <div class="menu-title" id="menuTitle"></div>
+      <div class="menu-sub" id="menuSub"></div>
+    </div>
+  </div>
+  <div class="menu-list" id="menuList"></div>
+  <div class="menu-foot">
+    <span><kbd>↑</kbd><kbd>↓</kbd> choose · <kbd>Enter</kbd> select</span>
+    <button class="closebtn" id="menuClose">Close</button>
+  </div>
+</div>
+
+<!-- inspect card -->
+<div class="inspect" id="inspect" hidden>
+  <div class="ins-head">
+    <div class="ins-img"><img id="insImg" alt=""></div>
+    <div>
+      <div class="ins-name" id="insName"></div>
+      <div class="ins-colour" id="insColour"></div>
+    </div>
+  </div>
+  <div class="ins-rows">
+    <div class="ins-row"><span>Size</span><b id="insSize"></b></div>
+    <div class="ins-row"><span>Condition</span><b id="insCond"></b></div>
+    <div class="ins-row"><span>Serial</span><b id="insSerial" class="mono"></b></div>
+    <div class="ins-row"><span>Dirt</span><b id="insDirtTxt"></b></div>
+    <div class="bar"><i id="insDirt"></i></div>
+  </div>
+</div>
+<div class="hint" id="inspectHint" hidden></div>
+
+<!-- notifications -->
+<div class="toasts" id="toasts"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
