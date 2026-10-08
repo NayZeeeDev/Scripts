@@ -1,21 +1,21 @@
 --[[
     ███╗   ██╗ █████╗ ██╗   ██╗███████╗███████╗███████╗███████╗
     ████╗  ██║██╔══██╗╚██╗ ██╔╝╚══███╔╝██╔════╝██╔════╝██╔════╝
-    ██╔██╗ ██║███████║ ╚████╔╝   ███╔╝ █████╗  █████╗  █████╗  
-    ██║╚██╗██║██╔══██║  ╚██╔╝   ███╔╝  ██╔══╝  ██╔══╝  ██╔══╝  
+    ██╔██╗ ██║███████║ ╚████╔╝   ███╔╝ █████╗  █████╗  █████╗
+    ██║╚██╗██║██╔══██║  ╚██╔╝   ███╔╝  ██╔══╝  ██╔══╝  ██╔══╝
     ██║ ╚████║██║  ██║   ██║   ███████╗███████╗███████╗███████╗
     ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝╚══════╝╚══════╝
-                                                                
+
     ██████╗ ███████╗██╗   ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗███╗   ██╗████████╗
     ██╔══██╗██╔════╝██║   ██║██╔════╝██║     ██╔═══██╗██╔══██╗████╗ ████║██╔════╝████╗  ██║╚══██╔══╝
-    ██║  ██║█████╗  ██║   ██║█████╗  ██║     ██║   ██║██████╔╝██╔████╔██║█████╗  ██╔██╗ ██║   ██║   
-    ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║     ██║   ██║██╔═══╝ ██║╚██╔╝██║██╔══╝  ██║╚██╗██║   ██║   
-    ██████╔╝███████╗ ╚████╔╝ ███████╗███████╗╚██████╔╝██║     ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║   
-    ╚═════╝ ╚══════╝  ╚═══╝  ╚══════╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝   
-                                                                                                      
-    WIG SNATCH SCRIPT - 2.0.0
+    ██║  ██║█████╗  ██║   ██║█████╗  ██║     ██║   ██║██████╔╝██╔████╔██║█████╗  ██╔██╗ ██║   ██║
+    ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║     ██║   ██║██╔═══╝ ██║╚██╔╝██║██╔══╝  ██║╚██╗██║   ██║
+    ██████╔╝███████╗ ╚████╔╝ ███████╗███████╗╚██████╔╝██║     ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║
+    ╚═════╝ ╚══════╝  ╚═══╝  ╚══════╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝
+
+    WIG SNATCH SCRIPT - 3.0.0
     Discord: discord.gg/nayzeeedev
-    
+
 ]]
 
 Config = {}
@@ -31,12 +31,7 @@ Config.Debug     = false        -- Prints extra info to the F8 / server console
 Config.Locale    = 'en'         -- File in /locales (en ships by default)
 Config.Framework = 'auto'       -- 'auto' | 'esx' | 'qb' | 'qbx'
 Config.Inventory = 'auto'       -- 'auto' | 'ox_inventory' | 'qb-inventory' | 'qs-inventory' | 'framework'
-Config.Target    = 'auto'       -- 'auto' | 'ox_target' | 'qb-target' | 'none' (none = command / keybind only)
-
--- Notifications: 'nui' (built-in v5 toasts), 'ox_lib', 'framework' or 'custom'
--- With 'custom', edit Config.CustomNotify at the bottom of this file.
-Config.Notify = 'nui'
-Config.NotifyPosition = 'top-right' -- nui only: top-right | top-left | top-center | bottom-right | bottom-left
+Config.Target    = 'auto'       -- 'auto' | 'ox_target' | 'qb-target' | 'none' (none = commands / keybinds only)
 
 -- Which character models can lose their hair. Drawable IDs differ between the two
 -- freemode models, so wigs only fit the model they were snatched from.
@@ -45,11 +40,58 @@ Config.Models = {
     male   = { model = `mp_m_freemode_01`, enabled = true },
 }
 
--- Hair drawables that count as "already bald" (nothing to snatch)
+-- Hair drawables that count as "already bald" (nothing to snatch or cut)
 Config.BaldDrawables = {
     female = { [0] = true },
     male   = { [0] = true },
 }
+
+-- ██╗███╗   ██╗████████╗███████╗██████╗ ███████╗ █████╗  ██████╗███████╗
+-- ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝
+-- ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝█████╗  ███████║██║     █████╗
+-- ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗██╔══╝  ██╔══██║██║     ██╔══╝
+-- ██║██║ ╚████║   ██║   ███████╗██║  ██║██║     ██║  ██║╚██████╗███████╗
+-- ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝
+
+-- Server defaults for the look of every menu. With PlayerPrefs on, each player can
+-- change their own colours, size and sounds from Vault > Settings or /wigsettings.
+-- Their choices are saved on their own PC and never touch the database.
+Config.UI = {
+    Accent        = '#08afa2',   -- Main colour (buttons, bars, highlights)
+    Alert         = '#e5484d',   -- Danger colour (errors, close buttons, the other side of the rope)
+    Scale         = 1.0,         -- 0.8 - 1.25
+    ToastPosition = 'top-right', -- top-right | top-left | top-center | bottom-right | bottom-left
+    Sounds        = true,
+    Volume        = 0.7,         -- 0.0 - 1.0
+    ReduceMotion  = false,
+
+    PlayerPrefs     = true,          -- Let players pick their own colours / size / sounds / keys
+    SettingsCommand = 'wigsettings', -- Opens the settings page. false to disable
+
+    -- Swatches shown in the colour picker (players can still type any hex)
+    Presets = { '#08afa2', '#3d9bff', '#a873ff', '#ff6fb5', '#e5a50a', '#46c08a', '#e5484d', '#f2f4f5' },
+}
+
+-- ███╗   ██╗ ██████╗ ████████╗██╗███████╗██╗   ██╗
+-- ████╗  ██║██╔═══██╗╚══██╔══╝██║██╔════╝╚██╗ ██╔╝
+-- ██╔██╗ ██║██║   ██║   ██║   ██║█████╗   ╚████╔╝
+-- ██║╚██╗██║██║   ██║   ██║   ██║██╔══╝    ╚██╔╝
+-- ██║ ╚████║╚██████╔╝   ██║   ██║██║        ██║
+-- ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝
+
+-- 'auto' picks the first one that is running, in this order:
+--   okokNotify, brutal_notify, wasabi_notify, lation_ui, t-notify, pNotify, mythic_notify, ox_lib, then the built-in toasts.
+-- Or force one: 'nui' (built-in toasts) | 'ox_lib' | 'esx' | 'qb' | 'qbx' | 'okok' | 'mythic' | 'pnotify'
+--               'tnotify' | 'brutal' | 'wasabi' | 'lation' | 'custom'
+-- Every adapter lives in bridge/notify.lua if your version needs a tweak.
+Config.Notify = 'nui'
+
+-- Only used when Config.Notify = 'custom'. Runs on the client.
+-- kind: 'success' | 'error' | 'info' | 'warning'
+Config.CustomNotify = function(title, message, kind, duration)
+    -- exports['my-notify']:Notify(title, message, kind, duration)
+    print(('[%s] %s'):format(title, message))
+end
 
 -- ███████╗███╗   ██╗ █████╗ ████████╗ ██████╗██╗  ██╗
 -- ██╔════╝████╗  ██║██╔══██╗╚══██╔══╝██╔════╝██║  ██║
@@ -64,7 +106,7 @@ Config.Snatch = {
     Command      = 'snatch',   -- Snatch the closest player in front of you. false to disable.
     Keybind      = false,      -- e.g. 'G' to add a rebindable key (Settings > Key Bindings > FiveM). false to disable.
     AllowInVehicle = false,    -- Can either player be in a vehicle?
-    AllowDowned  = false,      -- Can downed / dead players be snatched? (no clash, it just happens)
+    AllowDowned  = false,      -- Can downed / dead players be snatched? (no minigame, it just happens)
     TargetLabel  = 'Snatch Wig',
     TargetIcon   = 'fa-solid fa-hand',
 
@@ -79,47 +121,117 @@ Config.Snatch = {
         male   = { drawables = { 0 }, textures = { 0 } },
     },
 
-    RegrowMinutes = 45,        -- Hair grows back on its own after this long (survives relogs). 0 = never, barber only.
+    -- Hair grows back on its own after this long (survives relogs). Regrowth Oil speeds it up.
+    -- 0 = never on its own (Regrowth Oil or an admin only).
+    RegrowMinutes = 45,
 }
 
---  ██████╗██╗      █████╗ ███████╗██╗  ██╗
--- ██╔════╝██║     ██╔══██╗██╔════╝██║  ██║
--- ██║     ██║     ███████║███████╗███████║
--- ██║     ██║     ██╔══██║╚════██║██╔══██║
--- ╚██████╗███████╗██║  ██║███████║██║  ██║
---  ╚═════╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
+-- ███╗   ███╗██╗███╗   ██╗██╗ ██████╗  █████╗ ███╗   ███╗███████╗███████╗
+-- ████╗ ████║██║████╗  ██║██║██╔════╝ ██╔══██╗████╗ ████║██╔════╝██╔════╝
+-- ██╔████╔██║██║██╔██╗ ██║██║██║  ███╗███████║██╔████╔██║█████╗  ███████╗
+-- ██║╚██╔╝██║██║██║╚██╗██║██║██║   ██║██╔══██║██║╚██╔╝██║██╔══╝  ╚════██║
+-- ██║ ╚═╝ ██║██║██║ ╚████║██║╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗███████║
+-- ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝
 
--- The Clash: a live tug-of-war between the snatcher and the victim.
--- A cursor sweeps across a track. Press the key while it's inside the zone to pull.
--- First to the end wins, otherwise whoever is ahead when time runs out.
+-- Every snatch is a live fight between both players. Both of them play the SAME minigame,
+-- the server moves the rope, and the first to the end wins (or whoever is ahead at the buzzer).
 Config.Clash = {
-    Enabled        = true,     -- false = snatches always succeed instantly
-    Key            = 'Space',  -- 'Space' | 'KeyE' | 'KeyF' ... (JavaScript KeyboardEvent.code)
-    Duration       = 6500,     -- ms
-    WinAt          = 100,      -- Rope position needed to win outright (-WinAt for the victim)
-    TieGoesTo      = 'victim', -- Who wins if the rope is dead centre at the buzzer: 'victim' | 'snatcher'
-    MinHitInterval = 220,      -- ms, server-side rate limit per player (anti-macro)
-    MissLockout    = 380,      -- ms a player is locked out after pressing outside the zone
+    Enabled   = true,          -- false = snatches always succeed instantly
 
-    Push  = { snatcher = 14,  victim = 15 },   -- Rope movement per clean pull
-    Zone  = { snatcher = 0.16, victim = 0.18 }, -- Zone width as a fraction of the track
-    Speed = { snatcher = 1.10, victim = 1.00 }, -- Cursor sweeps per second
+    -- Which minigame runs:
+    --   'random' = a random one from Games every snatch
+    --   'rotate' = goes through Games in order
+    --   'clash' | 'mash' | 'sequence' | 'circle' | 'balance' = always that one
+    Mode  = 'random',
+    Games = { 'clash', 'mash', 'sequence', 'circle', 'balance' }, -- The pool for random / rotate. Remove any you don't want.
 
-    Blindside = {               -- Grab them from behind = head start
+    Duration  = 6500,          -- ms
+    WinAt     = 100,           -- Rope position needed to win outright (-WinAt for the victim)
+    TieGoesTo = 'victim',      -- Who wins if the rope is dead centre at the buzzer: 'victim' | 'snatcher'
+    MissLockout = 380,         -- ms a player is locked out after a miss / wrong key
+
+    Blindside = {              -- Grab them from behind = head start
         Enabled = true,
-        Angle   = 70,           -- Degrees either side of directly behind the victim
-        Start   = 25,           -- Rope starts this far toward the snatcher
+        Angle   = 70,          -- Degrees either side of directly behind the victim
+        Start   = 25,          -- Rope starts this far toward the snatcher
     },
 
-    SkipIfRestrained = true,    -- Cuffed / hands up / downed victims can't fight back
-    FailRagdoll      = 1500,    -- ms the snatcher hits the floor after losing. 0 = off
+    SkipIfRestrained = true,   -- Cuffed / tied / held / hands up / tackled victims can't fight back
+    FailRagdoll      = 1500,   -- ms the snatcher hits the floor after losing. 0 = off
+}
+
+-- Per-minigame tuning. Push = rope movement per successful input (snatcher / victim).
+-- MinHitInterval is the server-side rate limit per player, so macros do nothing.
+Config.Minigames = {
+    -- Tug of War: a cursor sweeps a track, hit the key while it's inside the zone
+    clash = {
+        Label = 'Tug of War', Icon = 'fa-solid fa-grip-lines-vertical',
+        Push  = { snatcher = 14,  victim = 15 },
+        Zone  = { snatcher = 0.16, victim = 0.18 },   -- Zone width as a fraction of the track
+        Speed = { snatcher = 1.10, victim = 1.00 },   -- Cursor sweeps per second
+        MinHitInterval = 220,
+    },
+    -- Button Mash: alternate two keys as fast as you can (A / D by default)
+    mash = {
+        Label = 'Button Mash', Icon = 'fa-solid fa-hand-fist',
+        Push  = { snatcher = 4.2, victim = 4.6 },
+        MinHitInterval = 85,                           -- ~11 alternations a second max
+    },
+    -- Combo: type the arrows / WASD shown on screen in order. The server checks every key.
+    sequence = {
+        Label = 'Combo', Icon = 'fa-solid fa-keyboard',
+        Length = 5,                                    -- Keys per combo
+        Push   = { snatcher = 3.0, victim = 3.4 },     -- Per correct key
+        Bonus  = { snatcher = 12,  victim = 13 },      -- Extra pull for finishing a combo
+        MinHitInterval = 90,
+    },
+    -- Skill Check: a needle spins around a ring, hit the key when it's in the arc
+    circle = {
+        Label = 'Skill Check', Icon = 'fa-solid fa-circle-notch',
+        Push  = { snatcher = 17, victim = 18 },
+        Arc   = { snatcher = 0.13, victim = 0.15 },    -- Arc size as a fraction of the ring
+        Speed = { snatcher = 0.95, victim = 0.85 },    -- Spins per second
+        MinHitInterval = 240,
+    },
+    -- Grip: hold the key to lift the marker, let go to drop it. Stay inside the moving zone.
+    balance = {
+        Label = 'Grip', Icon = 'fa-solid fa-hand-holding',
+        Push  = { snatcher = 6.5, victim = 7.0 },
+        Zone  = { snatcher = 0.22, victim = 0.25 },    -- Zone height as a fraction of the bar
+        Tick  = 420,                                    -- ms inside the zone per pull
+        MinHitInterval = 360,
+    },
+}
+
+-- Default keys (players can rebind these in their settings). JavaScript KeyboardEvent.code names.
+Config.Keys = {
+    Pull = 'Space',            -- Tug of War / Skill Check / Grip / struggling
+    MashLeft  = 'KeyA',
+    MashRight = 'KeyD',
 }
 
 -- Statebag keys checked on the VICTIM to decide if they're restrained.
--- Covers most police / ambulance scripts. Add your own if needed.
+-- Covers most police / ambulance scripts. This script's own tie / hold / tackle states are added automatically.
 Config.RestrainedStates = { 'isCuffed', 'cuffed', 'handcuffed', 'isHandcuffed', 'ziptied', 'isTied' }
 Config.DownedStates     = { 'isDead', 'dead', 'down', 'isDown', 'inLastStand', 'laststand' }
 Config.HandsUpAnim      = { dict = 'random@mugging3', clip = 'handsup_standing_base' }
+
+-- ███████╗████████╗███████╗ █████╗ ██╗         ██████╗  █████╗  ██████╗██╗  ██╗
+-- ██╔════╝╚══██╔══╝██╔════╝██╔══██╗██║         ██╔══██╗██╔══██╗██╔════╝██║ ██╔╝
+-- ███████╗   ██║   █████╗  ███████║██║         ██████╔╝███████║██║     █████╔╝
+-- ╚════██║   ██║   ██╔══╝  ██╔══██║██║         ██╔══██╗██╔══██║██║     ██╔═██╗
+-- ███████║   ██║   ███████╗██║  ██║███████╗    ██████╔╝██║  ██║╚██████╗██║  ██╗
+-- ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
+
+-- Got snatched? For a while you can take back the EXACT wig. Snatch the person who has it
+-- (in their pockets or on their head) and it comes back to you instead of their hair.
+Config.StealBack = {
+    Enabled  = true,
+    Window   = 900,            -- Seconds after losing it
+    XP       = 30,             -- Bonus reputation for getting it back
+    Label    = 'Steal It Back',
+    Icon     = 'fa-solid fa-rotate-left',
+}
 
 -- ██████╗ ██████╗  ██████╗ ████████╗███████╗ ██████╗████████╗██╗ ██████╗ ███╗   ██╗
 -- ██╔══██╗██╔══██╗██╔═══██╗╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝██║██╔═══██╗████╗  ██║
@@ -129,11 +241,11 @@ Config.HandsUpAnim      = { dict = 'random@mugging3', clip = 'handsup_standing_b
 -- ╚═╝     ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 
 Config.Protection = {
-    VictimImmunity  = 600,      -- Seconds a victim can't be snatched again after losing their hair
+    VictimImmunity  = 600,      -- Seconds a victim can't be snatched / cut / pranked again after losing their hair
     NewPlayerHours  = 2,        -- Fresh characters are protected for this many hours. 0 = off
-    NewPlayerEndsOnAttack = true, -- Protection ends early if the new player snatches someone
+    NewPlayerEndsOnAttack = true, -- Protection ends early if the new player snatches / tackles someone
 
-    Jobs = {                    -- Jobs that can't be snatched (and can't snatch)
+    Jobs = {                    -- Jobs that can't be targeted (and can't target others)
         police    = true,
         ambulance = true,
     },
@@ -143,10 +255,231 @@ Config.Protection = {
     -- call exports['nayzeee-wigsnatch']:SetProtected(source, true/false)
     SafezoneStates = { 'inSafezone', 'safezone', 'inSafeZone' },
 
-    Passive = {                 -- Players can opt out with /wigpassive (they can't snatch either)
+    Passive = {                 -- Players can opt out with /wigpassive (they can't target anyone either)
         Enabled  = false,
         Command  = 'wigpassive',
         Cooldown = 1800,        -- Seconds before they can toggle again
+    },
+}
+
+-- ██████╗ ███████╗███████╗████████╗██████╗  █████╗ ██╗███╗   ██╗
+-- ██╔══██╗██╔════╝██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██║████╗  ██║
+-- ██████╔╝█████╗  ███████╗   ██║   ██████╔╝███████║██║██╔██╗ ██║
+-- ██╔══██╗██╔══╝  ╚════██║   ██║   ██╔══██╗██╔══██║██║██║╚██╗██║
+-- ██║  ██║███████╗███████║   ██║   ██║  ██║██║  ██║██║██║ ╚████║
+-- ╚═╝  ╚═╝╚══════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
+
+-- Sprint at someone and press the key to take them down. While they're on the floor
+-- they count as restrained, so you can tie them, hold them, snatch or shave them.
+Config.Tackle = {
+    Enabled       = true,
+    Command       = 'wigtackle',
+    Key           = 'G',        -- Rebindable in Settings > Key Bindings > FiveM. false = command only
+    RequireSprint = true,
+    Range         = 2.6,
+    Cooldown      = 25,         -- Seconds
+    TargetRagdoll = 4500,       -- ms the target stays down
+    SelfRagdoll   = 1100,       -- ms the tackler stumbles (0 = stays up)
+    DownedWindow  = 8,          -- Seconds the target counts as restrained after a tackle
+    Anim = { dict = 'missmic2ig_11', tackler = 'mic_2_ig_11_intro_goon', target = 'mic_2_ig_11_intro_p_one' },
+}
+
+-- Zip-tie someone who is tackled, cuffed, downed, held or has their hands up.
+-- Tied players can't move. They can struggle free, or anyone can untie them.
+Config.Tie = {
+    Enabled    = true,
+    Item       = 'zip_ties',
+    Consume    = true,
+    Duration   = 3500,          -- ms to tie
+    UntieTime  = 2500,          -- ms to untie
+    MaxMinutes = 10,            -- Auto-untie after this long. 0 = never
+    Label      = 'Zip Tie',
+    UntieLabel = 'Untie',
+    Struggle = {
+        Enabled  = true,
+        Strength = 100,         -- How tight the ties start
+        PerPull  = 5,           -- Taken off per mash (alternate keys)
+        MinHitInterval = 110,
+    },
+    Anims = {
+        tier   = { dict = 'mp_arresting', clip = 'a_uncuff' },
+        tied   = { dict = 'mp_arresting', clip = 'idle' },
+    },
+}
+
+-- Grab someone from behind and pin them still while a friend snatches, shaves or pranks them.
+-- They can struggle out of it.
+Config.Hold = {
+    Enabled      = true,
+    Label        = 'Hold Still',
+    RequireBehind = true,       -- Must grab from behind, unless they're already restrained
+    MaxSeconds   = 60,
+    Grip         = 100,
+    StruggleDrain = 6,          -- Grip lost per mash from the person being held
+    MinHitInterval = 110,
+    ReleaseCommand = 'wigrelease',
+    ReleaseKey   = 'X',         -- false = command only
+    Anims = {
+        holder = { dict = 'anim@gangops@hostage@', clip = 'perp_idle' },
+        held   = { dict = 'anim@gangops@hostage@', clip = 'victim_idle' },
+    },
+    Offset = { x = -0.24, y = 0.11, z = 0.0 },  -- Where the held player sits relative to the holder
+}
+
+--  ██████╗██╗   ██╗████████╗████████╗██╗███╗   ██╗ ██████╗
+-- ██╔════╝██║   ██║╚══██╔══╝╚══██╔══╝██║████╗  ██║██╔════╝
+-- ██║     ██║   ██║   ██║      ██║   ██║██╔██╗ ██║██║  ███╗
+-- ██║     ██║   ██║   ██║      ██║   ██║██║╚██╗██║██║   ██║
+-- ╚██████╗╚██████╔╝   ██║      ██║   ██║██║ ╚████║╚██████╔╝
+--  ╚═════╝ ╚═════╝    ╚═╝      ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
+
+-- First person haircuts. Pick up your tools, the camera moves in close and the cursor
+-- becomes the tool. Work each part of the head; the result depends on what you did.
+--   Scissors  - Section and snip (click on the hair)     - top, sides, back, eyebrows, beard
+--   Clippers  - Fade (hold and move around)              - top, sides, back, beard
+--   Razor     - Sharpen the lines (hold and stroke)      - top (after clippers), eyebrows, beard
+-- Clients have to agree unless they're restrained (tied, held, tackled, cuffed, hands up, downed).
+Config.Cutting = {
+    Enabled        = true,
+    Range          = 1.8,
+    RequestTimeout = 20,
+    Label          = 'Cut Hair',
+    Icon           = 'fa-solid fa-scissors',
+    ForceLabel     = 'Force Cut',
+    MaxSeconds     = 120,       -- Session ends on its own after this long
+
+    Tools = {
+        scissors = { Item = 'scissors',       Label = 'Scissors', Icon = 'scissors', Mode = 'click',  Work = 11,  Sound = 'snip',     Key = '1',
+                     Regions = { top = true, back = true, left = true, right = true, brows = true, beard = true } },
+        clippers = { Item = 'hair_clippers',  Label = 'Clippers', Icon = 'clippers', Mode = 'hold',   Work = 34,  Sound = 'clippers', Key = '2',
+                     Regions = { top = true, back = true, left = true, right = true, beard = true } },
+        razor    = { Item = 'straight_razor', Label = 'Razor',    Icon = 'razor',    Mode = 'stroke', Work = 13,  Sound = 'razor',    Key = '3',
+                     Regions = { top = true, brows = true, beard = true, left = true, right = true } },
+    },
+    -- Work per second the server accepts per player (anti-cheat). 100 work finishes a region.
+    MaxWorkPerSecond = 42,
+
+    -- What the client ends up with (base-game drawables, one is picked at random)
+    Results = {
+        trim = { male = { 4, 5, 10, 12 }, female = { 1, 7, 12, 15 } },  -- Scissors only
+        fade = { male = { 1, 12 },        female = { 8, 13 } },          -- Clippers on the sides / back
+        buzz = { male = { 1 },            female = { 0 } },              -- Clippers on the top
+        bald = { male = { 0 },            female = { 0 } },              -- Clippers then razor on the top
+    },
+    BuzzMinutes = 0,            -- Buzzed / bald from a cut regrows after this long. 0 = use Config.Snatch.RegrowMinutes
+    FaceRegrowMinutes = 30,     -- Shaved eyebrows / beard come back after this long
+
+    -- Eyebrows (head overlay 2) and facial hair (head overlay 1)
+    Face = {
+        ThinOpacity = 0.35,     -- Scissors on the eyebrows / beard thins them to this
+    },
+
+    -- Snipping long hair with scissors drops hair bundles you can turn into wigs
+    Bundles = {
+        Enabled   = true,
+        PerRegion = 1,          -- Bundles per finished region (top / back / left / right)
+        Max       = 3,
+    },
+
+    Camera = { Fov = 38.0, Dist = 0.78, MinDist = 0.45, MaxDist = 1.2, Height = 0.06 },
+    Particles = { asset = 'scr_barbers', name = 'scr_barbers_haircut', scale = 0.8 }, -- false = off
+    Anim = { dict = 'anim@heists@prison_heiststation@cop_reactions', clip = 'cop_b_idle' }, -- What others see the barber doing
+    Props = {                   -- Held in the barber's hand for everyone to see. false = none
+        scissors = { model = `prop_cs_scissors`, bone = 57005, pos = vec3(0.12, 0.04, 0.01), rot = vec3(-80.0, 0.0, 0.0) },
+        clippers = false,       -- Stream your own model and put it here
+        razor    = false,
+    },
+    SoundRange = 12.0,          -- Nearby players hear the tools
+    XP = { Cut = 8, Forced = 14, Face = 4 },
+}
+
+-- ██████╗ ██████╗  ██████╗ ██████╗ ██╗   ██╗ ██████╗████████╗███████╗
+-- ██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██║   ██║██╔════╝╚══██╔══╝██╔════╝
+-- ██████╔╝██████╔╝██║   ██║██║  ██║██║   ██║██║        ██║   ███████╗
+-- ██╔═══╝ ██╔══██╗██║   ██║██║  ██║██║   ██║██║        ██║   ╚════██║
+-- ██║     ██║  ██║╚██████╔╝██████╔╝╚██████╔╝╚██████╗   ██║   ███████║
+-- ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝  ╚═════╝  ╚═════╝   ╚═╝   ╚══════╝
+
+-- Put products in someone else's hair (or your own). Statuses wear off on their own,
+-- and some can be washed out. Everyone nearby sees the effects.
+--   Requires: 'any'        = works on anyone you can reach
+--             'behind'     = sneak up from behind, or they're restrained
+--             'restrained' = only if they're tied / held / tackled / cuffed / hands up / downed
+Config.Products = {
+    Range      = 1.8,
+    ApplyTime  = 3000,          -- ms
+    TargetIcon = 'fa-solid fa-pump-soap',
+
+    List = {
+        hair_remover = { Item = 'hair_remover', Label = 'Hair Remover', Effect = 'fallout', Requires = 'behind',     Self = false, Others = true },
+        relaxer      = { Item = 'relaxer',      Label = 'Lye Relaxer',  Effect = 'burn',    Requires = 'behind',     Self = false, Others = true, Minutes = 20, Damage = 8 },
+        lice         = { Item = 'lice_jar',     Label = 'Lice Jar',     Effect = 'lice',    Requires = 'behind',     Self = false, Others = true, Minutes = 40 },
+        mud          = { Item = 'mud_bag',      Label = 'Mud',          Effect = 'dirt',    Requires = 'any',        Self = true,  Others = true, Minutes = 60 },
+        shampoo      = { Item = 'shampoo',      Label = 'Shampoo',      Effect = 'clean',   Requires = 'any',        Self = true,  Others = true, Cleans = { 'dirt', 'lice' } },
+        regrowth     = { Item = 'regrowth_oil', Label = 'Regrowth Oil', Effect = 'regrow',  Requires = 'any',        Self = true,  Others = true, Minutes = 0 },  -- 0 = instant, else takes this many minutes off the timer
+    },
+
+    -- How each status looks
+    Status = {
+        burn = { Label = 'Burnt',  Color = '#e5484d', HairColor = { 0, 0 },
+                 Particle = { asset = 'core', name = 'exp_grd_bzgas_smoke', scale = 0.08 }, DamagePack = 'Burnt_Ped_Head_Torso', ValueMult = 0.5 },
+        lice = { Label = 'Lice',   Color = '#a873ff', Spread = true,  ItchEvery = 25,
+                 Particle = { asset = 'core', name = 'ent_amb_fly_swarm', scale = 0.35 } },
+        dirt = { Label = 'Dirty',  Color = '#a87a4f', WaterCleans = true, DamagePack = 'Dirt_Mud' },
+    },
+}
+
+-- ██████╗ ███████╗ █████╗  ██████╗████████╗██╗ ██████╗ ███╗   ██╗███████╗
+-- ██╔══██╗██╔════╝██╔══██╗██╔════╝╚══██╔══╝██║██╔═══██╗████╗  ██║██╔════╝
+-- ██████╔╝█████╗  ███████║██║        ██║   ██║██║   ██║██╔██╗ ██║███████╗
+-- ██╔══██╗██╔══╝  ██╔══██║██║        ██║   ██║██║   ██║██║╚██╗██║╚════██║
+-- ██║  ██║███████╗██║  ██║╚██████╗   ██║   ██║╚██████╔╝██║ ╚████║███████║
+-- ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+
+-- Short animations that play when something happens to you. One is picked at random.
+-- Any animation that fails to load is skipped, so add your own freely.
+Config.Reactions = {
+    Enabled = true,
+    snatched = { -- you lost your hair / wig
+        { dict = 'anim@mp_player_intcelebrationfemale@face_palm', clip = 'face_palm', duration = 2500 },
+        { dict = 'gestures@m@standing@casual', clip = 'gesture_damn', duration = 1800 },
+        { dict = 'switch@trevor@floyd_crying', clip = 'console_wasnt_fun_end_loop_floyd', duration = 3500, flag = 49 },
+    },
+    defended = { -- you held on
+        { dict = 'gestures@m@standing@casual', clip = 'gesture_no_way', duration = 1800 },
+    },
+    snatcher_win = {
+        { dict = 'mp_player_int_upperpeace_sign', clip = 'mp_player_int_peace_sign', duration = 2000 },
+        { dict = 'rcmfanatic1celebrate', clip = 'celebrate', duration = 2600 },
+    },
+    snatcher_lose = {
+        { dict = 'gestures@m@standing@casual', clip = 'gesture_damn', duration = 1800 },
+    },
+    cut_victim = { -- forced haircut / shave finished
+        { dict = 'anim@mp_player_intcelebrationfemale@face_palm', clip = 'face_palm', duration = 2500 },
+        { dict = 'misscarsteal4@actor', clip = 'actor_berating_loop', duration = 3000, flag = 49 },
+    },
+    cut_client = { -- a haircut you agreed to
+        { dict = 'mp_player_int_upperpeace_sign', clip = 'mp_player_int_peace_sign', duration = 2000 },
+    },
+    burn = {
+        { dict = 'move_m@_idles@shake_off', clip = 'shakeoff_1', duration = 2200 },
+        { dict = 'misscarsteal4@actor', clip = 'actor_berating_loop', duration = 2600, flag = 49 },
+    },
+    lice = {
+        { dict = 'move_m@_idles@shake_off', clip = 'shakeoff_1', duration = 2200 },
+    },
+    dirt = {
+        { dict = 'move_m@_idles@shake_off', clip = 'shakeoff_1', duration = 2200 },
+    },
+    fallout = {
+        { dict = 'anim@mp_player_intcelebrationfemale@face_palm', clip = 'face_palm', duration = 2500 },
+    },
+    clean = {
+        { dict = 'move_m@_idles@shake_off', clip = 'shakeoff_1', duration = 2200 },
+    },
+    tackled = {
+        { dict = 'gestures@m@standing@casual', clip = 'gesture_damn', duration = 1800 },
     },
 }
 
@@ -168,8 +501,9 @@ Config.Tiers = {
     { id = 'mythic',    label = 'Mythic',    color = '#08afa2', weight = 0.5, price = { 1800, 3000 }, xp = 180, lace = 'Full Lace Raw',      length = { 30, 40 }, broadcast = true },
 }
 
--- Style names. A victim's hairstyle always maps to the same name, so players can
--- hunt specific people to finish their catalog.
+-- Style names. A hairstyle always maps to the same name, so players can hunt specific
+-- people to finish their catalog. Names you give hairstyles in the Wig Studio (/wigstudio)
+-- override these and join the catalog.
 Config.Styles = {
     'Body Wave', 'Bone Straight', 'Deep Wave', 'Water Wave', 'Kinky Curly', 'Kinky Straight',
     'Loose Deep', 'Jerry Curl', 'Yaki Straight', 'Silk Press', 'Pixie Cut', 'Blunt Bob',
@@ -194,8 +528,8 @@ Config.CatalogRewardAccount = 'bank'
 -- ╚══════╝╚══════╝  ╚═══╝  ╚══════╝╚══════╝╚══════╝
 
 -- Reputation levels. Perks are totals at that level (not added together).
---   cooldown = % shorter snatch cooldown   zone = extra zone width in the clash
---   sell     = % more from the buyer       luck = extra tier luck
+--   cooldown = % shorter snatch cooldown   zone = extra zone / arc size in the minigames
+--   sell     = % more when selling         luck = extra tier luck
 Config.Levels = {
     { xp = 0,     title = 'Fresh Face' },
     { xp = 150,   title = 'Edge Grabber',    perks = { cooldown = 0.05 } },
@@ -208,13 +542,15 @@ Config.Levels = {
 }
 
 Config.XP = {
-    Defend      = 14,           -- Winning a clash as the victim
-    FailedSnatch = 2,           -- Losing a clash as the snatcher (still learning)
-    Buzz        = 12,           -- Forced buzz cut
-    Haircut     = 6,            -- Giving someone a haircut they agreed to
-    Revenge     = 40,           -- Snatching back the person who snatched you
-    StreakBonus = 0.10,         -- +10% XP per streak step
-    StreakCap   = 10,           -- Streak bonus stops growing here
+    Defend       = 14,          -- Winning a minigame as the victim
+    FailedSnatch = 2,           -- Losing a minigame as the snatcher (still learning)
+    Revenge      = 40,          -- Snatching back the person who snatched you
+    Tackle       = 3,
+    Tie          = 4,
+    Product      = 5,           -- Pranking someone with a product
+    Craft        = 15,          -- Making a wig from bundles
+    StreakBonus  = 0.10,        -- +10% XP per streak step
+    StreakCap    = 10,          -- Streak bonus stops growing here
 }
 
 Config.Luck = {                 -- Added together, capped at Max
@@ -236,10 +572,11 @@ Config.StreakAnnounce = 5       -- Streaks at or above this get announced citywi
 
 Config.Items = {
     Wig      = 'wig',
+    Bundle   = 'hair_bundle',
     Glue     = 'wig_glue',
     Kit      = 'wig_kit',
-    Clippers = 'hair_clippers',
-    Scissors = 'scissors',
+    Cap      = 'wig_cap',
+    Dye      = 'hair_dye',
 }
 
 Config.Wig = {
@@ -249,42 +586,127 @@ Config.Wig = {
     InfamyCap       = 0.80,
     KitRepair       = 35,        -- Condition restored by one wig kit
     ProvenanceSize  = 6,         -- How many past owners are remembered on the item
-    TieredImages    = false,     -- true = metadata image 'wig_<tier>' (add wig_common.png, wig_rare.png... to your inventory)
+
+    -- Inventory picture for each wig:
+    --   'studio' = the photo of that exact hairstyle from the Wig Studio (falls back to the plain wig image)
+    --   'tier'   = 'wig_<tier>' images you add to your inventory (wig_common.png, wig_rare.png...)
+    --   false    = the plain wig image for every wig
+    Images = 'studio',
     WearAnim = { dict = 'mp_masks@standard_car@ds@', clip = 'put_on_mask', duration = 1200 },
+
+    -- Put your wig on someone else / take a wig off someone. They get a prompt to accept.
+    PutOnOthers   = true,
+    TakeOffOthers = true,
+    PutOnLabel    = 'Put Wig On',
+    TakeOffLabel  = 'Take Wig Off',
 }
 
 Config.Glue = {
     Duration       = 1200,       -- Seconds of protection per bottle
-    PushMultiplier = 1.30,       -- Victim pulls harder in the clash
-    ZoneBonus      = 0.04,       -- Victim's zone gets wider
-    SnatcherZonePenalty = 0.03,  -- Snatcher's zone gets narrower
+    PushMultiplier = 1.30,       -- Victim pulls harder in every minigame
+    ZoneBonus      = 0.04,       -- Victim's zone / arc gets bigger
+    SnatcherZonePenalty = 0.03,  -- Snatcher's zone / arc gets smaller
     Anim = { dict = 'mp_masks@standard_car@ds@', clip = 'put_on_mask', duration = 2500 },
 }
 
--- ██████╗ ██╗   ██╗██╗   ██╗███████╗██████╗
--- ██╔══██╗██║   ██║╚██╗ ██╔╝██╔════╝██╔══██╗
--- ██████╔╝██║   ██║ ╚████╔╝ █████╗  ██████╔╝
--- ██╔══██╗██║   ██║  ╚██╔╝  ██╔══╝  ██╔══██╗
--- ██████╔╝╚██████╔╝   ██║   ███████╗██║  ██║
--- ╚═════╝  ╚═════╝    ╚═╝   ╚══════╝╚═╝  ╚═╝
+-- ██████╗ ██╗   ██╗███╗   ██╗██████╗ ██╗     ███████╗███████╗
+-- ██╔══██╗██║   ██║████╗  ██║██╔══██╗██║     ██╔════╝██╔════╝
+-- ██████╔╝██║   ██║██╔██╗ ██║██║  ██║██║     █████╗  ███████╗
+-- ██╔══██╗██║   ██║██║╚██╗██║██║  ██║██║     ██╔══╝  ╚════██║
+-- ██████╔╝╚██████╔╝██║ ╚████║██████╔╝███████╗███████╗███████║
+-- ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚══════╝╚══════╝╚══════╝
 
--- Text the buyer, he runs up to you, sell from the v5 menu.
-Config.Buyer = {
-    Enabled      = true,
-    Command      = 'sellwigs',
-    Cooldown     = 300,          -- Seconds between calls
-    Account      = 'money',      -- 'money' / 'cash' (clean) or 'black_money' (dirty, ESX)
-    Model        = `a_m_m_business_01`,
-    SpawnDistance = 35.0,        -- He spawns this far away and runs in
-    RunSpeed     = 2.0,          -- 1.0 walk, 2.0 run, 3.0 sprint
-    WaitTime     = 60,           -- Seconds he hangs around once he arrives
-    Greeting     = 'Yo, heard you got some hair for sale?',
-    PhoneAnim    = { dict = 'cellphone@', clip = 'cellphone_text_read_base', prop = `prop_npc_phone_02`, duration = 4000 },
+-- Hair bundles come from cutting long hair with scissors. Three bundles and a wig cap make
+-- a wig of that hairstyle. Bundles sell on their own too.
+Config.Bundles = {
+    -- grade: weight = how often it rolls, mult = price multiplier, tier = the wig it makes at minimum
+    Grades = {
+        { id = 'synthetic', label = 'Synthetic', weight = 30, mult = 0.6, tier = 'common'   },
+        { id = 'remy',      label = 'Remy',      weight = 40, mult = 1.0, tier = 'uncommon' },
+        { id = 'virgin',    label = 'Virgin',    weight = 22, mult = 1.5, tier = 'rare'     },
+        { id = 'raw',       label = 'Raw',       weight = 8,  mult = 2.2, tier = 'epic'     },
+    },
+    Length     = { 10, 30 },    -- Inches
+    PerInch    = 4,             -- $ per inch before the grade multiplier
 }
 
--- Optional permanent fences (spawn only while someone is nearby)
-Config.Fences = {
-    -- { coords = vec4(-1172.36, -1572.04, 4.66, 125.0), model = `g_m_y_famca_01`, account = 'black_money', label = 'Wig Plug' },
+-- ██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗███████╗██╗  ██╗ ██████╗ ██████╗
+-- ██║    ██║██╔═══██╗██╔══██╗██║ ██╔╝██╔════╝██║  ██║██╔═══██╗██╔══██╗
+-- ██║ █╗ ██║██║   ██║██████╔╝█████╔╝ ███████╗███████║██║   ██║██████╔╝
+-- ██║███╗██║██║   ██║██╔══██╗██╔═██╗ ╚════██║██╔══██║██║   ██║██╔═══╝
+-- ╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗███████║██║  ██║╚██████╔╝██║
+--  ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝
+
+-- Vault > Workshop: make wigs from bundles and dye wigs (or your own hair).
+Config.Workshop = {
+    Enabled        = true,
+    BundlesPerWig  = 3,
+    NeedCap        = true,       -- Uses one Config.Items.Cap per wig
+    CraftTime      = 6000,       -- ms
+    CraftAnim      = { dict = 'mini@repair', clip = 'fixing_a_ped' },
+    UpgradeChance  = 0.25,       -- Chance the wig rolls one tier above the bundles' grade
+}
+
+Config.Dye = {
+    Enabled    = true,
+    OwnHair    = true,           -- Players can dye their own hair (stays until they dye it again or rinse it)
+    ValueBonus = 0.10,           -- Dyed wigs sell for 10% more
+    DyeTime    = 4000,
+}
+
+-- ██████╗ ██╗  ██╗ ██████╗ ███╗   ██╗███████╗
+-- ██╔══██╗██║  ██║██╔═══██╗████╗  ██║██╔════╝
+-- ██████╔╝███████║██║   ██║██╔██╗ ██║█████╗
+-- ██╔═══╝ ██╔══██║██║   ██║██║╚██╗██║██╔══╝
+-- ██║     ██║  ██║╚██████╔╝██║ ╚████║███████╗
+-- ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+
+-- Wig selling happens on the phone. The app ships with lb-phone, YSeries and qs-smartphone
+-- adapters (bridge/phone.lua). Without a phone, /hairplug opens the same app on screen.
+Config.Phone = {
+    Enabled    = true,
+    Phone      = 'auto',         -- 'auto' | 'lb-phone' | 'yseries' | 'qs-smartphone' | 'qs-smartphone-pro' | 'standalone'
+    AppName    = 'Hair Plug',
+    Identifier = 'nz-hairplug',
+    Command    = 'hairplug',     -- Opens the app on screen (works with or without a phone). false to disable
+    Keybind    = false,          -- e.g. 'F6'
+
+    -- Instant sale from anywhere, lower price
+    QuickSell = { Enabled = true, Rate = 0.65, Account = 'money' },
+
+    -- A buyer runs to you and pays full price (+ title perk)
+    Meetup = {
+        Enabled      = true,
+        Rate         = 1.0,
+        Account      = 'money',  -- 'money' / 'cash' (clean) or 'black_money' (dirty, ESX)
+        Cooldown     = 300,      -- Seconds between meet-ups
+        Model        = `a_m_m_business_01`,
+        SpawnDistance = 35.0,    -- He spawns this far away and runs in
+        RunSpeed     = 2.0,      -- 1.0 walk, 2.0 run, 3.0 sprint
+        WaitTime     = 90,       -- Seconds he hangs around once he arrives
+        Greeting     = 'Yo, you got the hair?',
+    },
+
+    -- Player-to-player listings. The wig is held by the server until it sells or you cancel.
+    -- Sellers who are offline get paid the next time they log in.
+    Listings = {
+        Enabled     = true,
+        Fee         = 0.05,      -- Taken from the sale
+        MaxPerPlayer = 6,
+        Hours       = 72,        -- Unsold listings return to the seller after this long
+        MinPrice    = 50,
+        MaxPrice    = 250000,
+        Account     = 'bank',
+    },
+
+    -- Rotating NPC orders that pay extra for a specific kind of hair. First come, first served.
+    Orders = {
+        Enabled = true,
+        Count   = 4,
+        Minutes = 45,            -- How long each order stays up
+        Bonus   = { 1.35, 1.9 },  -- Pays the item's value times this
+        Account = 'money',
+    },
 }
 
 -- Market demand: every sale of a tier lowers its price a little. It recovers over time.
@@ -293,95 +715,6 @@ Config.Market = {
     DropPerSale  = 0.04,         -- -4% per wig sold
     Floor        = 0.55,         -- Never below 55%
     RecoverPerHour = 0.10,       -- +10% per hour back toward 100%
-}
-
--- ██████╗  █████╗ ██████╗ ██████╗ ███████╗██████╗
--- ██╔══██╗██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗
--- ██████╔╝███████║██████╔╝██████╔╝█████╗  ██████╔╝
--- ██╔══██╗██╔══██║██╔══██╗██╔══██╗██╔══╝  ██╔══██╗
--- ██████╔╝██║  ██║██║  ██║██████╔╝███████╗██║  ██║
--- ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝
-
-Config.Barber = {
-    Enabled      = true,
-    RestorePrice = 750,          -- Grow your hair back instantly
-    ResetCutPrice = 0,           -- Undo a haircut someone gave you
-    RepairPerPoint = 8,          -- $ per condition point when repairing wigs here
-    Account      = 'money',
-    Blips        = true,
-    Blip = { sprite = 71, color = 2, scale = 0.7, label = 'Barber' },
-    Locations = {
-        vec3(-814.31, -183.82, 37.57),
-        vec3(136.83, -1708.37, 29.29),
-        vec3(-1282.60, -1116.76, 6.99),
-        vec3(1931.51, 3729.67, 32.84),
-        vec3(1212.84, -472.92, 66.21),
-        vec3(-32.89, -152.32, 57.08),
-        vec3(-278.08, 6228.46, 31.70),
-    },
-    Radius = 2.0,
-}
-
--- ██╗  ██╗ █████╗ ██╗██████╗     ████████╗ ██████╗  ██████╗ ██╗     ███████╗
--- ██║  ██║██╔══██╗██║██╔══██╗    ╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔════╝
--- ███████║███████║██║██████╔╝       ██║   ██║   ██║██║   ██║██║     ███████╗
--- ██╔══██║██╔══██║██║██╔══██╗       ██║   ██║   ██║██║   ██║██║     ╚════██║
--- ██║  ██║██║  ██║██║██║  ██║       ██║   ╚██████╔╝╚██████╔╝███████╗███████║
--- ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝       ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝
-
--- Scissors and clippers on another player.
---   Styling: the other player has to accept, then you pick the cut from a menu.
---   Forced buzz (clippers only): only works if they're cuffed, have their hands up or are downed.
-Config.Tools = {
-    Duration = 4000,
-    Range    = 2.0,
-    RequestTimeout = 20,         -- Seconds they have to accept
-    Anim = { dict = 'anim@heists@prison_heiststation@cop_reactions', clip = 'cop_b_idle' },
-    Prop = { model = `prop_cs_scissors`, bone = 57005, pos = vec3(0.12, 0.04, 0.01), rot = vec3(-80.0, 0.0, 0.0) },
-    SoundRange = 12.0,           -- Nearby players hear the clippers / scissors
-
-    Scissors = { Enabled = true, Label = 'Style Hair', Icon = 'fa-solid fa-scissors', Sound = 'scissors' },
-    Clippers = { Enabled = true, Label = 'Buzz Cut',   Icon = 'fa-solid fa-wand-magic', Sound = 'clippers', AllowForced = true },
-
-    -- Cuts the barber can choose from (base-game drawables). clippers = true means the cut needs clippers.
-    Cuts = {
-        female = {
-            { label = 'Buzzed',       drawable = 0,  clippers = true },
-            { label = 'Short',        drawable = 1 },
-            { label = 'Layered Bob',  drawable = 2 },
-            { label = 'Pigtails',     drawable = 3 },
-            { label = 'Ponytail',     drawable = 4 },
-            { label = 'Braided Mohawk', drawable = 5 },
-            { label = 'Braids',       drawable = 6 },
-            { label = 'Bob',          drawable = 7 },
-            { label = 'Faux Hawk',    drawable = 8 },
-            { label = 'French Twist', drawable = 9 },
-            { label = 'Long Bob',     drawable = 10 },
-            { label = 'Loose Tied',   drawable = 11 },
-            { label = 'Pixie',        drawable = 12 },
-            { label = 'Shaved Bangs', drawable = 13, clippers = true },
-            { label = 'Top Knot',     drawable = 14 },
-            { label = 'Wavy Bob',     drawable = 15 },
-        },
-        male = {
-            { label = 'Shaved',       drawable = 0,  clippers = true },
-            { label = 'Buzzcut',      drawable = 1,  clippers = true },
-            { label = 'Faux Hawk',    drawable = 2 },
-            { label = 'Hipster',      drawable = 3 },
-            { label = 'Side Parting', drawable = 4 },
-            { label = 'Shorter Cut',  drawable = 5 },
-            { label = 'Biker',        drawable = 6 },
-            { label = 'Ponytail',     drawable = 7 },
-            { label = 'Cornrows',     drawable = 8 },
-            { label = 'Slicked',      drawable = 9 },
-            { label = 'Short Brushed', drawable = 10 },
-            { label = 'Spikey',       drawable = 11 },
-            { label = 'Caesar',       drawable = 12, clippers = true },
-            { label = 'Chopped',      drawable = 13 },
-            { label = 'Dreads',       drawable = 14 },
-            { label = 'Long Hair',    drawable = 15 },
-        },
-    },
 }
 
 -- ██████╗  ██████╗ ██╗   ██╗███╗   ██╗████████╗██╗███████╗███████╗
@@ -427,13 +760,51 @@ Config.Trading = {
 --  ╚████╔╝ ██║  ██║╚██████╔╝███████╗██║
 --   ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝
 
--- The Wig Vault: profile, wigs, catalog, bounties, leaderboard and city feed
+-- The Wig Vault: profile, wigs, workshop, catalog, bounties, leaderboard, city feed and settings
 Config.Vault = {
     Command  = 'wigs',
     Keybind  = false,            -- e.g. 'F7'
     FeedSize = 30,
     LeaderboardSize = 10,
     LeaderboardCache = 60,       -- Seconds
+}
+
+-- ███████╗████████╗██╗   ██╗██████╗ ██╗ ██████╗
+-- ██╔════╝╚══██╔══╝██║   ██║██╔══██╗██║██╔═══██╗
+-- ███████╗   ██║   ██║   ██║██║  ██║██║██║   ██║
+-- ╚════██║   ██║   ██║   ██║██║  ██║██║██║   ██║
+-- ███████║   ██║   ╚██████╔╝██████╔╝██║╚██████╔╝
+-- ╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
+
+-- Photographs every hairstyle on the server (like uz_AutoShot, built in) so every wig shows
+-- a clean picture of its exact hairstyle in the inventory, the vault and the phone app.
+-- /wigstudio (ace: command.wigstudio). Needs screenshot-basic (or screencapture).
+-- New photos are served after the next resource restart.
+Config.Studio = {
+    Enabled   = true,
+    Command   = 'wigstudio',
+    Width     = 256,             -- Output size
+    Height    = 256,
+    Chroma    = 'magenta',       -- 'magenta' | 'green' background that gets removed
+    AllTextures = false,         -- true = every texture of every hairstyle (much longer)
+    HairColor = { 2, 2 },        -- Colour / highlight the photos are taken in
+    Coords    = vec3(0.0, 0.0, -150.0),
+    Heading   = 180.0,
+    RoutingBucket = 7177,
+    Camera    = { fov = 24.0, zPos = 0.70, dist = 1.15, angle = 180.0, camZ = 0.03 },
+    WaitAfterApply = 450,        -- ms
+    WaitAfterShot  = 250,        -- ms
+    BatchSize      = 10,
+    BatchPause     = 1500,       -- ms
+    LatentRate     = 8000000,    -- bytes/sec for uploads
+    Lights = {
+        { offset = vec3(0.0, 2.5, 1.0),  range = 8.0, intensity = 3.0 },
+        { offset = vec3(-2.5, 0.0, 1.0), range = 5.0, intensity = 2.0 },
+        { offset = vec3(2.5, 0.0, 1.0),  range = 5.0, intensity = 2.0 },
+        { offset = vec3(0.0, -1.5, 1.0), range = 4.0, intensity = 1.5 },
+        { offset = vec3(0.0, 0.0, 3.0),  range = 6.0, intensity = 2.5 },
+    },
+    Box = { width = 8.0, depth = 8.0, height = 8.5, floorOffset = -3.0 },
 }
 
 -- ███████╗███████╗███████╗██████╗
@@ -456,8 +827,7 @@ Config.Anims = {
     SnatcherPull = { dict = 'mp_common', clip = 'givetake1_a', flag = 49 },
     VictimHold   = { dict = 'anim@mp_player_intuppersurrender', clip = 'idle_a', flag = 49 },
     Snatch       = { dict = 'melee@unarmed@streamed_variations', clip = 'plyr_takedown_front_slap', flag = 0, duration = 900 },
-    Celebrate    = { dict = 'mp_player_int_upperpeace_sign', clip = 'mp_player_int_peace_sign', flag = 48, duration = 2000 },
-    Victim       = { dict = 'anim@mp_player_intcelebrationfemale@face_palm', clip = 'face_palm', flag = 48, duration = 2500 },
+    Apply        = { dict = 'mp_common', clip = 'givetake1_a', flag = 49 },   -- putting a product / wig on someone
 }
 
 --  ██████╗██╗   ██╗███████╗████████╗ ██████╗ ███╗   ███╗
@@ -467,14 +837,7 @@ Config.Anims = {
 -- ╚██████╗╚██████╔╝███████║   ██║   ╚██████╔╝██║ ╚═╝ ██║
 --  ╚═════╝ ╚═════╝ ╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝
 
--- Only used when Config.Notify = 'custom'. Runs on the client.
--- kind: 'success' | 'error' | 'info' | 'warning'
-Config.CustomNotify = function(title, message, kind, duration)
-    -- exports['my-notify']:Notify(title, message, kind, duration)
-    print(('[%s] %s'):format(title, message))
-end
-
--- Return true to block snatching at the player's current spot (client-side check, for UX).
+-- Return true to block snatching / cutting / products at the player's current spot (client-side check, for UX).
 -- The server also checks Config.Protection.SafezoneStates and the SetProtected export.
 Config.IsInNoSnatchZone = function(coords)
     return false

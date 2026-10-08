@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hair Plug</title>
+<link rel="stylesheet" href="../css/fa.min.css">
+<link rel="stylesheet" href="phone.css">
+</head>
+<body>
+<div class="ph" id="ph">
+  <header class="ph-head">
+    <div class="ph-brand"><div class="mark"></div><div><b id="phName">Hair Plug</b><span id="phSub">Loading</span></div></div>
+    <button class="ph-x" id="phClose" hidden title="Close"><i class="fa-solid fa-xmark"></i></button>
+  </header>
+  <div class="ph-deal" id="phDeal" hidden></div>
+  <main class="ph-main" id="phMain"><div class="ph-empty"><i class="fa-solid fa-circle-notch fa-spin"></i></div></main>
+  <div class="ph-sheet" id="phSheet" hidden></div>
+  <nav class="ph-tabs" id="phTabs">
+    <button data-tab="sell" class="on"><i class="fa-solid fa-sack-dollar"></i><span>Sell</span></button>
+    <button data-tab="market"><i class="fa-solid fa-store"></i><span>Market</span></button>
+    <button data-tab="orders"><i class="fa-solid fa-clipboard-list"></i><span>Orders</span></button>
+    <button data-tab="prices"><i class="fa-solid fa-chart-simple"></i><span>Prices</span></button>
+  </nav>
+  <div class="ph-toast" id="phToast" hidden></div>
+</div>
+<script src="phone.js"></script>
+</body>
+</html>

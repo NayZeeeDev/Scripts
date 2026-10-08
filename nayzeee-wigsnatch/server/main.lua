@@ -6,7 +6,11 @@ CreateThread(function()
     DB.Init()
     Social.LoadBounties()
     Social.LoadFeed()
+    Wigs.LoadShotIndex()
     Hair.RegisterItems()
+    Restrain.RegisterItems()
+    Cutting.RegisterItems()
+    Products.RegisterItems()
 
     Bridge.OnLoaded(function(src)
         SetTimeout(500, function() LoadPlayer(src) end)
@@ -19,8 +23,9 @@ CreateThread(function()
         if Bridge.IsLoaded(s) then LoadPlayer(s) end
     end
 
-    print(('^2[nayzeee-wigsnatch]^7 v%s ready · %s · %s · %d players loaded'):format(
-        VERSION, Bridge.Name, Inv.Name, (function() local n = 0 for _ in pairs(Players) do n = n + 1 end return n end)()))
+    local n = 0
+    for _ in pairs(Players) do n = n + 1 end
+    print(('^2[nayzeee-wigsnatch]^7 v%s ready · %s · %s · %d players loaded'):format(VERSION, Bridge.Name, Inv.Name, n))
 end)
 
 -- client asks for its state after its own init (resource restart / late load)
@@ -40,6 +45,11 @@ AddEventHandler('onResourceStop', function(res)
     for _, P in pairs(Players) do
         P.row.last_seen = os.time()
         SaveP(P)
+        -- nobody stays tied / held / in a studio bucket across a restart
+        local st = Player(P.src).state
+        for _, k in ipairs({ ST.tied, ST.held, ST.holding, ST.down, ST.busy, ST.fx, ST.wig }) do
+            if st[k] then st:set(k, nil, true) end
+        end
     end
 end)
 
@@ -58,8 +68,8 @@ end)
 exports('RestoreHair', function(src)
     local P = GetP(src)
     if not P then return false end
-    Hair.ClearBald(P)
-    P.hair.cut = nil
+    P.hair.bald, P.hair.cut, P.hair.face = nil, nil, nil
+    Hair.Schedule(P)
     SaveP(P)
     Hair.Push(P, 'export')
     return true
@@ -80,12 +90,39 @@ exports('GiveWig', function(src, tier)
     return Wigs.Give(src, meta), meta
 end)
 
+exports('GiveBundle', function(src, grade)
+    local P = GetP(src)
+    if not P then return false end
+    local m = Hair.PedModelKey(src) or 'f'
+    local meta = Wigs.CreateBundle({ m = m, d = math.random(1, 15), t = 0, c = math.random(0, 20), h = 0 }, 'Unknown',
+        grade and GradeIndex[grade] and grade or nil)
+    return Wigs.Give(src, meta), meta
+end)
+
 exports('GetStats', function(src)
     local P = GetP(src)
     if not P then return nil end
     local lvl, data = GetLevel(P.row.xp)
     return { xp = P.row.xp, level = lvl, title = data.title, snatches = P.row.snatches, defends = P.row.defends,
-        snatched = P.row.snatched, streak = P.row.streak, best_streak = P.row.best_streak }
+        snatched = P.row.snatched, streak = P.row.streak, best_streak = P.row.best_streak,
+        tackles = P.row.tackles, ties = P.row.ties, crafted = P.row.crafted, stolen_back = P.row.stolen_back }
+end)
+
+exports('SetHairStatus', function(src, kind, minutes)
+    local P = GetP(src)
+    if not P or not Config.Products.Status[kind] then return false end
+    Hair.SetStatus(P, kind, minutes or 10)
+    SaveP(P)
+    Hair.Push(P, 'export')
+    return true
 end)
 
 exports('IsInClash', function(src) return Clash.InClash(tonumber(src)) end)
+exports('IsTied', function(src) return Restrain.IsTied(tonumber(src)) end)
+exports('Untie', function(src) Restrain.Untie(tonumber(src), 'export') end)
+exports('IsBeingCut', function(src) return Cutting.InSession(tonumber(src)) end)
+
+-- photo URL of a hairstyle from the Wig Studio, or nil if it hasn't been photographed
+exports('GetWigImage', function(model, drawable, texture)
+    return Wigs.ShotUrl({ m = model, d = drawable, t = texture or 0 })
+end)

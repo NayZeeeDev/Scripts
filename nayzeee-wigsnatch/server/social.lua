@@ -183,18 +183,6 @@ end)
 
 local Offers, oseq = {}, 0 -- [targetSrc] = offer
 
-lib.callback.register('nz-wig:nearby', function(src)
-    local ped = GetPlayerPed(src)
-    if ped == 0 then return {} end
-    local out = {}
-    for _, s in ipairs(PlayersNear(GetEntityCoords(ped), Config.Trading.Range, src)) do
-        local P = Players[s]
-        if P then out[#out + 1] = { src = s, name = P.name, dist = math.floor(PedDistance(src, s) * 10) / 10 } end
-    end
-    table.sort(out, function(a, b) return a.dist < b.dist end)
-    return out
-end)
-
 lib.callback.register('nz-wig:offer', function(src, target, key, price)
     local P = GetP(src)
     target = tonumber(target)
@@ -205,14 +193,14 @@ lib.callback.register('nz-wig:offer', function(src, target, key, price)
     if price < 0 or price > Config.Trading.MaxPrice then return false, L('invalid') end
     if PedDistance(src, target) > Config.Trading.Range then return false, L('trade_too_far') end
     if Offers[target] then return false, L('trade_pending') end
-    local stack = type(key) == 'string' and Wigs.Find(src, key)
+    local stack = type(key) == 'string' and Wigs.FindGood(src, key)
     if not stack then return false, L('invalid') end
 
     oseq = oseq + 1
     local offer = { id = oseq, from = src, fromId = P.id, to = target, key = key, price = price, exp = now() + Config.Trading.Timeout }
     Offers[target] = offer
     local pub = Wigs.Public(stack.meta, Wigs.Value(stack.meta, 0))
-    TriggerClientEvent('nz-wig:c:prompt', target, {
+    SendPrompt(target, {
         kind = 'trade', id = offer.id, timeout = Config.Trading.Timeout,
         title = L('trade_prompt_title'),
         body = price > 0 and L('trade_prompt_sell', P.name, price) or L('trade_prompt_gift', P.name),
@@ -221,7 +209,7 @@ lib.callback.register('nz-wig:offer', function(src, target, key, price)
     SetTimeout(Config.Trading.Timeout * 1000 + 500, function()
         if Offers[target] == offer then
             Offers[target] = nil
-            TriggerClientEvent('nz-wig:c:promptClose', target, offer.id)
+            ClosePrompt(target, offer.id)
             if Players[src] then Notify(src, L('trade_expired'), 'warning') end
         end
     end)
@@ -241,7 +229,7 @@ local function offerReply(src, id, accept)
         Notify(src, L('trade_too_far'), 'error')
         return Notify(offer.from, L('trade_failed'), 'error')
     end
-    local stack = Wigs.Find(offer.from, offer.key)
+    local stack = Wigs.FindGood(offer.from, offer.key)
     if not stack or not Wigs.CanCarry(src, stack.meta) then
         Notify(src, stack and L('pockets_full') or L('trade_failed'), 'error')
         return Notify(offer.from, L('trade_failed'), 'error')
@@ -267,13 +255,7 @@ local function offerReply(src, id, accept)
     Log('trade', 'Wig traded', ('**%s** → **%s** · %s `%s` · $%s'):format(S.name, B.name, stack.meta.label or 'Wig', stack.meta.serial or '-', offer.price))
 end
 
-RegisterNetEvent('nz-wig:s:promptReply', function(kind, id, accept)
-    local src = source
-    id = tonumber(id)
-    accept = accept == true
-    if kind == 'trade' then offerReply(src, id, accept)
-    elseif kind == 'haircut' then Tools.Reply(src, id, accept) end
-end)
+PromptHandlers.trade = offerReply
 
 -- revenge / bounty targets for the vault
 function Social.RevengeList(P)
@@ -305,23 +287,23 @@ end
 
 -- lifecycle -------------------------------------------------------------------------------------
 
-function Social.OnLoad(P)
+OnPlayerLoad(function(P)
     if Config.Bounty.Enabled then
         refundExpired(P.id)
         local on = Social.BountyOn(P.id)
         if on > 0 then TriggerClientEvent('nz-wig:c:bountyOnYou', P.src, on) end
     end
-end
+end)
 
-function Social.OnDrop(src)
+OnPlayerDrop(function(src)
     if Offers[src] then Offers[src] = nil end
     for t, o in pairs(Offers) do
         if o.from == src then
             Offers[t] = nil
-            TriggerClientEvent('nz-wig:c:promptClose', t, o.id)
+            ClosePrompt(t, o.id)
         end
     end
-end
+end)
 
 function Social.LoadFeed()
     Feed = {}

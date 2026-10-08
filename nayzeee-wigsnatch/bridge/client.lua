@@ -1,4 +1,4 @@
--- Client bridge: notifications, target systems, framework load events
+-- Client bridge: notifications, target systems, framework load events, restraint checks
 -- Open source so you can plug in anything custom.
 
 CB = {}
@@ -20,30 +20,12 @@ if FW == 'auto' then
 end
 CB.Framework = FW
 
-local ESX, QB
-if FW == 'esx' then ESX = exports.es_extended:getSharedObject() end
-if FW == 'qb' then QB = exports['qb-core']:GetCoreObject() end
+local ESX = FW == 'esx' and exports.es_extended:getSharedObject() or nil
 
 -- notifications ----------------------------------------------------------------------
 
 function CB.Notify(msg, kind, duration)
-    kind = kind or 'info'
-    local mode = Config.Notify
-    if mode == 'nui' then
-        NUI.Send('toast', { title = L('title'), message = msg, kind = kind, duration = duration or 4200 })
-    elseif mode == 'ox_lib' then
-        lib.notify({ title = L('title'), description = msg, type = kind == 'info' and 'inform' or kind, duration = duration or 4200, position = Config.NotifyPosition })
-    elseif mode == 'custom' then
-        Config.CustomNotify(L('title'), msg, kind, duration or 4200)
-    elseif FW == 'esx' then
-        ESX.ShowNotification(msg)
-    elseif FW == 'qb' then
-        QB.Functions.Notify(msg, kind == 'info' and 'primary' or kind, duration or 4200)
-    elseif FW == 'qbx' then
-        exports.qbx_core:Notify(msg, kind == 'info' and 'inform' or kind, duration or 4200)
-    else
-        lib.notify({ title = L('title'), description = msg, type = kind == 'info' and 'inform' or kind })
-    end
+    Notifier.Send(msg, kind, duration)
 end
 
 -- framework load ---------------------------------------------------------------------------
@@ -99,6 +81,7 @@ local function qbOpts(options)
 end
 
 function CB.AddGlobalPlayer(options)
+    if #options == 0 then return end
     if TGT == 'ox_target' then exports.ox_target:addGlobalPlayer(oxOpts(options))
     elseif TGT == 'qb-target' then exports['qb-target']:AddGlobalPlayer(qbOpts(options)) end
 end
@@ -108,21 +91,6 @@ function CB.RemoveGlobalPlayer(options)
     for i, o in ipairs(options) do names[i], labels[i] = o.name, o.label end
     if TGT == 'ox_target' then exports.ox_target:removeGlobalPlayer(names)
     elseif TGT == 'qb-target' then exports['qb-target']:RemoveGlobalPlayer(labels) end
-end
-
-function CB.AddSphere(name, coords, radius, options)
-    if TGT == 'ox_target' then
-        return exports.ox_target:addSphereZone({ name = name, coords = coords, radius = radius, options = oxOpts(options) })
-    elseif TGT == 'qb-target' then
-        exports['qb-target']:AddCircleZone(name, coords, radius, { name = name, useZ = true, debugPoly = false }, qbOpts(options))
-        return name
-    end
-end
-
-function CB.RemoveZone(id)
-    if not id then return end
-    if TGT == 'ox_target' then exports.ox_target:removeZone(id)
-    elseif TGT == 'qb-target' then exports['qb-target']:RemoveZone(id) end
 end
 
 function CB.AddLocalEntity(entity, options)
@@ -140,10 +108,17 @@ function CB.RemoveLocalEntity(entity, options)
     end
 end
 
--- is this ped restrained / downed? (used for the forced buzz option and the victim's own report)
+-- restraint checks ------------------------------------------------------------------------------
+
+local function stateOf(ped, serverId)
+    if serverId then return Player(serverId).state end
+    if ped == PlayerPedId() then return LocalPlayer.state end
+end
+
+-- cuffed, tied, held, tackled (or any Config.RestrainedStates key)
 function CB.IsRestrained(ped, serverId)
     if IsPedCuffed(ped) then return true end
-    local st = serverId and Player(serverId).state or (ped == PlayerPedId() and LocalPlayer.state) or nil
+    local st = stateOf(ped, serverId)
     if st then
         for _, k in ipairs(Config.RestrainedStates) do if st[k] then return true end end
     end
@@ -152,7 +127,7 @@ end
 
 function CB.IsDowned(ped, serverId)
     if IsEntityDead(ped) or IsPedDeadOrDying(ped, true) then return true end
-    local st = serverId and Player(serverId).state or (ped == PlayerPedId() and LocalPlayer.state) or nil
+    local st = stateOf(ped, serverId)
     if st then
         for _, k in ipairs(Config.DownedStates) do if st[k] then return true end end
     end
@@ -161,4 +136,9 @@ end
 
 function CB.HandsUp(ped)
     return IsEntityPlayingAnim(ped, Config.HandsUpAnim.dict, Config.HandsUpAnim.clip, 3)
+end
+
+-- anything that means "can't fight back"
+function CB.Helpless(ped, serverId)
+    return CB.IsRestrained(ped, serverId) or CB.HandsUp(ped) or CB.IsDowned(ped, serverId)
 end

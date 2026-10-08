@@ -1,4 +1,4 @@
--- Boot, vault and misc events
+-- Boot, vault, workshop and misc events
 
 local registered = false
 
@@ -6,11 +6,15 @@ local function registerTargets()
     if registered or CB.Target == 'none' then return end
     registered = true
     CB.AddGlobalPlayer(Snatch.TargetOptions)
-    if #Tools.TargetOptions > 0 then CB.AddGlobalPlayer(Tools.TargetOptions) end
+    CB.AddGlobalPlayer(Cutting.TargetOptions)
+    CB.AddGlobalPlayer(Restrain.TargetOptions)
+    CB.AddGlobalPlayer(Interact.TargetOptions)
 end
 
 local function boot()
     registerTargets()
+    PhoneBridge.Init()
+    TriggerServerEvent('nz-wig:s:styleNames')
     -- give the appearance script time to dress the ped, then ask for our layer
     SetTimeout(2500, function() TriggerServerEvent('nz-wig:s:ready') end)
 end
@@ -76,8 +80,8 @@ RegisterNUICallback('placeBounty', function(d, cb)
     cb({ ok = ok })
 end)
 
-RegisterNUICallback('nearby', function(_, cb)
-    cb(lib.callback.await('nz-wig:nearby', false) or {})
+RegisterNUICallback('nearby', function(d, cb)
+    cb(lib.callback.await('nz-wig:nearby', false, d and d.range) or {})
 end)
 
 RegisterNUICallback('offer', function(d, cb)
@@ -86,23 +90,96 @@ RegisterNUICallback('offer', function(d, cb)
     cb({ ok = ok })
 end)
 
+-- put a wig from the vault on someone close by
+RegisterNUICallback('vaultPutOn', function(d, cb)
+    if d and d.key and d.target then
+        NUI.CloseApp()
+        TriggerServerEvent('nz-wig:s:putOn', tonumber(d.target), d.key)
+    end
+    cb(1)
+end)
+
+RegisterNUICallback('openPhone', function(_, cb)
+    cb(1)
+    NUI.CloseApp()
+    SetTimeout(150, function() ExecuteCommand(Config.Phone.Command or '') end)
+end)
+
+-- workshop ---------------------------------------------------------------------------------------
+
+RegisterNUICallback('workshopFetch', function(_, cb)
+    cb(lib.callback.await('nz-wig:workshop', false) or false)
+end)
+
+RegisterNUICallback('craft', function(d, cb)
+    if d and type(d.keys) == 'table' then TriggerServerEvent('nz-wig:s:craft', d.keys) end
+    cb(1)
+end)
+
+RegisterNUICallback('dyeWig', function(d, cb)
+    if d and d.key then TriggerServerEvent('nz-wig:s:dye', d.key, d.c, d.h) end
+    cb(1)
+end)
+
+RegisterNUICallback('dyeSelf', function(d, cb)
+    if d then TriggerServerEvent('nz-wig:s:dyeSelf', d.c, d.h) end
+    cb(1)
+end)
+
+RegisterNUICallback('rinse', function(_, cb)
+    TriggerServerEvent('nz-wig:s:rinse')
+    cb(1)
+end)
+
+-- the game's hair colour palette, as hex, for the dye picker and the phone app
+local palette
+function HairPalette()
+    if not palette then
+        palette = {}
+        for i = 0, GetNumHairColors() - 1 do
+            local r, g, b = GetPedHairRgbColor(i)
+            palette[#palette + 1] = ('#%02x%02x%02x'):format(r, g, b)
+        end
+    end
+    return palette
+end
+
+RegisterNUICallback('hairPalette', function(_, cb) cb(HairPalette()) end)
+
+RegisterNetEvent('nz-wig:c:crafted', function(d)
+    NUI.Send('reveal', { wig = d.wig, xp = d.xp, crafted = true })
+end)
+
 -- one-shot animations triggered by the server ------------------------------------------------
 
-RegisterNetEvent('nz-wig:c:anim', function(kind)
+RegisterNetEvent('nz-wig:c:anim', function(kind, other)
     if kind == 'wear' then
         PlayAnim({ dict = Config.Wig.WearAnim.dict, clip = Config.Wig.WearAnim.clip, flag = 48 }, Config.Wig.WearAnim.duration)
     elseif kind == 'glue' then
         PlayAnim({ dict = Config.Glue.Anim.dict, clip = Config.Glue.Anim.clip, flag = 49 }, Config.Glue.Anim.duration)
+    elseif kind == 'apply' then
+        local o = other and PedOf(other) or 0
+        if o ~= 0 then FaceEntity(PlayerPedId(), o) end
+        PlayAnim({ dict = Config.Anims.Apply.dict, clip = Config.Anims.Apply.clip, flag = 48 }, 1500)
     end
+end)
+
+-- positional sound for everyone nearby
+RegisterNetEvent('nz-wig:c:sound', function(s)
+    local me = GetEntityCoords(PlayerPedId())
+    local dist = #(me - vec3(s.coords.x, s.coords.y, s.coords.z))
+    if dist > s.range then return end
+    NUI.Send('sound', { name = s.sound, volume = math.max(0.05, 1.0 - dist / s.range), duration = s.duration })
 end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= RESOURCE then return end
     Snatch.Cleanup()
-    Tools.Cleanup()
-    Buyer.Cleanup()
-    Barber.Cleanup()
+    Cutting.Cleanup()
+    Restrain.Cleanup()
+    Phone.Cleanup()
+    Studio.Cleanup()
 end)
 
-exports('IsBusy', function() return Snatch.busy or Tools.running end)
+exports('IsBusy', function() return Snatch.busy or Restrain.acting or Restrain.tied or Restrain.held ~= nil end)
 exports('OpenVault', openVault)

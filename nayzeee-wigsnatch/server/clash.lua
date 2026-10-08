@@ -1,31 +1,20 @@
--- Snatch requests + The Clash (server-authoritative tug-of-war)
+-- Snatch requests, the minigames (server-authoritative rope) and stealing your wig back
 
 Clash = {}
+StealBack = {}
 
 local active  = {}  -- [id] = clash
 local bySrc   = {}  -- [src] = id
 local queries = {}  -- [token] = { p = promise, src = n }
 local requesting = {}
-local seq, qseq = 0, 0
+local seq, qseq, rotate = 0, 0, 0
 
 local CC = Config.Clash
+local SEQ_KEYS = { 'U', 'D', 'L', 'R' }
 
--- victim hair query ------------------------------------------------------------
+local function now() return os.time() end
 
-local function queryHair(target, timeout)
-    qseq = qseq + 1
-    local token = qseq
-    local p = promise.new()
-    queries[token] = { p = p, src = target }
-    TriggerClientEvent('nz-wig:c:query', target, token)
-    SetTimeout(timeout, function()
-        if queries[token] then
-            queries[token] = nil
-            p:resolve(nil)
-        end
-    end)
-    return Citizen.Await(p)
-end
+-- victim hair query ------------------------------------------------------------------------
 
 local function int(v, lo, hi)
     v = math.floor(tonumber(v) or 0)
@@ -34,6 +23,20 @@ local function int(v, lo, hi)
     return v
 end
 
+local function queryHair(target, timeout)
+    qseq = qseq + 1
+    local token = qseq
+    local p = promise.new()
+    queries[token] = { p = p, src = target }
+    TriggerClientEvent('nz-wig:c:query', target, token)
+    SetTimeout(timeout or 2500, function()
+        if queries[token] then
+            queries[token] = nil
+            p:resolve(nil)
+        end
+    end)
+    return Citizen.Await(p)
+end
 Clash.QueryHair = queryHair
 
 RegisterNetEvent('nz-wig:s:queryReply', function(token, data)
@@ -43,29 +46,67 @@ RegisterNetEvent('nz-wig:s:queryReply', function(token, data)
     if type(data) ~= 'table' then return q.p:resolve(nil) end
     q.p:resolve({
         d = int(data.d, 0, 1000), t = int(data.t, 0, 64), c = int(data.c, 0, 63), h = int(data.h, 0, 63),
+        bv = int(data.bv, 0, 255), fv = int(data.fv, 0, 255),
         restrained = data.restrained == true, handsUp = data.handsUp == true, downed = data.downed == true,
     })
 end)
 
--- helpers -----------------------------------------------------------------------
+-- steal back ----------------------------------------------------------------------------------
+-- records[victimIdentifier][serial] = { from = identifier, fromName, untilAt }
 
-local function isBehind(attacker, victim)
-    local va, vv = GetPlayerPed(attacker), GetPlayerPed(victim)
-    local ca, cv = GetEntityCoords(va), GetEntityCoords(vv)
-    local h = math.rad(GetEntityHeading(vv))
-    local fx, fy = -math.sin(h), math.cos(h)
-    local dx, dy = ca.x - cv.x, ca.y - cv.y
-    local len = math.sqrt(dx * dx + dy * dy)
-    if len < 0.01 then return false end
-    local dot = (fx * dx + fy * dy) / len
-    local ang = math.deg(math.acos(math.max(-1, math.min(1, dot))))
-    return ang >= 180 - CC.Blindside.Angle
+local records = {}
+
+function StealBack.Add(victim, snatcher, serial)
+    if not Config.StealBack.Enabled or not serial or serial == 'GEN' then return end
+    records[victim.id] = records[victim.id] or {}
+    records[victim.id][serial] = { from = snatcher.id, fromName = snatcher.name, untilAt = now() + Config.StealBack.Window }
+    local back = ById[snatcher.id]
+    SetTimeout(Config.StealBack.Window * 1000 + 1000, function()
+        local list = records[victim.id]
+        if list and list[serial] and list[serial].untilAt <= now() then
+            list[serial] = nil
+            local vs = ById[victim.id]
+            if vs and Players[vs] then SyncP(Players[vs]) end
+        end
+    end)
+    return back
 end
+
+function StealBack.Remove(victimId, serial)
+    local list = records[victimId]
+    if list then list[serial] = nil end
+end
+
+-- which of my lost wigs does `holder` have right now? (pockets or head)
+function StealBack.Find(A, holder)
+    local list = records[A.id]
+    if not list then return nil end
+    local t = now()
+    for serial, r in pairs(list) do
+        if r.untilAt > t then
+            if holder.hair.wig and holder.hair.wig.serial == serial then return serial, 'worn' end
+            if Wigs.Find(holder.src, serial) then return serial, 'pocket' end
+        end
+    end
+end
+
+-- online players I can steal back from (the original snatchers), for the target label
+function StealBack.TargetsFor(P)
+    local out, list, t = {}, records[P.id], now()
+    if not list then return out end
+    for _, r in pairs(list) do
+        local s = ById[r.from]
+        if s and r.untilAt > t then out[#out + 1] = s end
+    end
+    return out
+end
+
+-- helpers ------------------------------------------------------------------------------------
 
 local function release(...)
     for _, src in ipairs({ ... }) do
         local P = Players[src]
-        if P then P.busy = false end
+        if P then SetBusy(P, false) end
         bySrc[src] = nil
     end
 end
@@ -79,7 +120,54 @@ local function computeLuck(A, V, revenge, bountyOpen)
     return math.min(Config.Luck.Max, luck)
 end
 
--- request -----------------------------------------------------------------------
+local function pickGame()
+    if Config.Minigames[CC.Mode] then return CC.Mode end
+    local pool = {}
+    for _, g in ipairs(CC.Games) do
+        if Config.Minigames[g] then pool[#pool + 1] = g end
+    end
+    if #pool == 0 then return 'clash' end
+    if CC.Mode == 'rotate' then
+        rotate = rotate % #pool + 1
+        return pool[rotate]
+    end
+    return pool[math.random(1, #pool)]
+end
+
+local function newSequence(len)
+    local out = {}
+    for i = 1, len do out[i] = SEQ_KEYS[math.random(1, #SEQ_KEYS)] end
+    return out
+end
+
+-- the server half and the UI half of one player's minigame settings
+local function sideFor(game, role, perks, glued)
+    local G = Config.Minigames[game]
+    local victimGlue = glued and role == 'victim'
+    local zoneMod = perks.zone + (glued and (role == 'victim' and Config.Glue.ZoneBonus or -Config.Glue.SnatcherZonePenalty) or 0)
+    local s = {
+        push = G.Push[role] * (victimGlue and Config.Glue.PushMultiplier or 1.0),
+        interval = G.MinHitInterval or 150,
+        last = 0, lock = 0, hits = 0,
+    }
+    local ui = { game = game }
+    if game == 'clash' then
+        ui.zone, ui.speed = Clamp(G.Zone[role] + zoneMod, 0.05, 0.6), G.Speed[role]
+    elseif game == 'circle' then
+        ui.arc, ui.speed = Clamp(G.Arc[role] + zoneMod, 0.05, 0.5), G.Speed[role]
+    elseif game == 'balance' then
+        ui.zone, ui.tick = Clamp(G.Zone[role] + zoneMod, 0.08, 0.6), G.Tick
+    elseif game == 'sequence' then
+        s.bonus = G.Bonus[role] * (victimGlue and Config.Glue.PushMultiplier or 1.0)
+        s.len = G.Length or 5
+        s.seq = newSequence(s.len)
+        s.idx = 1
+        ui.seq = s.seq
+    end
+    return s, ui
+end
+
+-- request ----------------------------------------------------------------------------------------
 
 RegisterNetEvent('nz-wig:s:snatch', function(target)
     local src = source
@@ -89,22 +177,25 @@ RegisterNetEvent('nz-wig:s:snatch', function(target)
     local V = target and GetP(target)
     if not V or V == A then return Notify(src, L('no_one_close'), 'error') end
 
-    local ok, key, extra = CanAttack(A)
-    if not ok then return Notify(src, key == 'cooldown' and L('cooldown', extra) or L(key), 'error') end
+    local ok, key, extra = CanAttack(A, { cooldown = true })
+    if not ok then return AttackError(src, key, extra) end
     if not Config.Snatch.AllowInVehicle and (InVehicle(src) or InVehicle(target)) then return Notify(src, L('in_vehicle'), 'error') end
     if PedDistance(src, target) > Config.Snatch.Distance + 1.0 then return Notify(src, L('no_one_close'), 'error') end
 
     local vModel = Hair.PedModelKey(target)
     if not vModel or not ModelEnabled(vModel) then return Notify(src, L('wrong_model'), 'error') end
 
-    local okT, keyT = CanBeTarget(V)
+    -- getting your own wig back skips the "they just lost their hair" immunity
+    local steal, stealWhere = StealBack.Find(A, V)
+    local okT, keyT = CanBeTarget(V, { ignoreImmune = steal ~= nil })
     if not okT then return Notify(src, L(keyT), 'error') end
 
     local layer = Hair.Layer(V)
-    if layer == 'bald' then return Notify(src, L('already_bald'), 'error') end
+    if layer == 'bald' and not steal then return Notify(src, L('already_bald'), 'error') end
 
     requesting[src] = true
-    A.busy, V.busy = true, true
+    SetBusy(A, true)
+    SetBusy(V, true)
     local q = queryHair(target, 2500)
     requesting[src] = nil
 
@@ -114,13 +205,15 @@ RegisterNetEvent('nz-wig:s:snatch', function(target)
 
     local downed = q.downed or StateFlag(target, Config.DownedStates)
     local restrained = q.restrained or q.handsUp or StateFlag(target, Config.RestrainedStates)
-    if downed and not Config.Snatch.AllowDowned then
+    if downed and not Config.Snatch.AllowDowned and not restrained then
         release(src, target)
         return Notify(src, L('cant_snatch'), 'error')
     end
 
     local hair
-    if layer == 'wig' then
+    if steal then
+        hair = nil
+    elseif layer == 'wig' then
         hair = V.hair.wig.hair
     else
         local d, t = q.d, q.t
@@ -132,18 +225,19 @@ RegisterNetEvent('nz-wig:s:snatch', function(target)
         hair = { m = vModel, d = d, t = t, c = q.c, h = q.h }
     end
 
-    if not Wigs.CanCarry(src, layer == 'wig' and V.hair.wig or { tier = 'common' }) then
+    if not steal and not Wigs.CanCarry(src, layer == 'wig' and V.hair.wig or { tier = 'common' }) then
         release(src, target)
         return Notify(src, L('pockets_full'), 'error')
     end
 
     StartCooldown(A)
-    if Config.Protection.NewPlayerEndsOnAttack then EndNewPlayer(A) end
+    EndNewPlayer(A)
     SyncP(A)
 
     local c = {
-        a = src, v = target, layer = layer, hair = hair,
-        blind = CC.Blindside.Enabled and isBehind(src, target),
+        a = src, v = target, layer = layer, hair = hair, model = vModel,
+        steal = steal, stealWhere = stealWhere,
+        blind = CC.Blindside.Enabled and IsBehindSrc(src, target, CC.Blindside.Angle),
         glued = Hair.IsGlued(V),
     }
 
@@ -155,36 +249,35 @@ RegisterNetEvent('nz-wig:s:snatch', function(target)
     Clash.Start(c)
 end)
 
--- clash ---------------------------------------------------------------------------
+-- the minigame -------------------------------------------------------------------------------------
 
 function Clash.Start(c)
     local A, V = Players[c.a], Players[c.v]
     seq = seq + 1
     c.id = seq
+    c.game = pickGame()
     c.p = c.blind and CC.Blindside.Start or 0
     c.endsAt = GetGameTimer() + CC.Duration
-    c.lastA, c.lastV, c.hitsA, c.hitsV = 0, 0, 0, 0
 
-    local pa, pv = GetPerks(A.row.xp), GetPerks(V.row.xp)
-    c.pushA = CC.Push.snatcher
-    c.pushV = CC.Push.victim * (c.glued and Config.Glue.PushMultiplier or 1.0)
-    local zoneA = CC.Zone.snatcher + pa.zone - (c.glued and Config.Glue.SnatcherZonePenalty or 0)
-    local zoneV = CC.Zone.victim + pv.zone + (c.glued and Config.Glue.ZoneBonus or 0)
+    local uiA, uiV
+    c.sa, uiA = sideFor(c.game, 'snatcher', GetPerks(A.row.xp), c.glued)
+    c.sv, uiV = sideFor(c.game, 'victim', GetPerks(V.row.xp), c.glued)
 
     active[c.id] = c
     bySrc[c.a], bySrc[c.v] = c.id, c.id
 
-    local base = { id = c.id, duration = CC.Duration, winAt = CC.WinAt, p = c.p, key = CC.Key,
-        lockout = CC.MissLockout, blind = c.blind, glued = c.glued, layer = c.layer }
+    local G = Config.Minigames[c.game]
+    local function payload(ui, role, me, opp, oppSrc)
+        ui.id, ui.duration, ui.winAt, ui.p = c.id, CC.Duration, CC.WinAt, c.p
+        ui.lockout, ui.blind, ui.glued, ui.layer = CC.MissLockout, c.blind, c.glued, c.layer
+        ui.steal = c.steal ~= nil
+        ui.role, ui.me, ui.opp, ui.oppSrc = role, me, opp, oppSrc
+        ui.label, ui.icon = G.Label, G.Icon
+        return ui
+    end
 
-    local function copy(t) local o = {} for k, v in pairs(t) do o[k] = v end return o end
-    local sa = copy(base)
-    sa.role, sa.me, sa.opp, sa.oppSrc, sa.zone, sa.speed = 'snatcher', A.name, V.name, c.v, zoneA, CC.Speed.snatcher
-    local sv = copy(base)
-    sv.role, sv.me, sv.opp, sv.oppSrc, sv.zone, sv.speed = 'victim', V.name, A.name, c.a, zoneV, CC.Speed.victim
-
-    TriggerClientEvent('nz-wig:c:clashStart', c.a, sa)
-    TriggerClientEvent('nz-wig:c:clashStart', c.v, sv)
+    TriggerClientEvent('nz-wig:c:clashStart', c.a, payload(uiA, 'snatcher', A.name, V.name, c.v))
+    TriggerClientEvent('nz-wig:c:clashStart', c.v, payload(uiV, 'victim', V.name, A.name, c.a))
 
     local id = c.id
     SetTimeout(CC.Duration + 300, function()
@@ -192,24 +285,46 @@ function Clash.Start(c)
     end)
 end
 
-RegisterNetEvent('nz-wig:s:clashHit', function(id)
+RegisterNetEvent('nz-wig:s:clashHit', function(id, token)
     local src = source
     local c = active[tonumber(id) or -1]
     if not c or c.done then return end
-    local now = GetGameTimer()
-    if now > c.endsAt + 200 then return end
+    local t = GetGameTimer()
+    if t > c.endsAt + 200 then return end
 
-    if src == c.a then
-        if now - c.lastA < CC.MinHitInterval then return end
-        c.lastA, c.hitsA = now, c.hitsA + 1
-        c.p = math.min(CC.WinAt, c.p + c.pushA)
-    elseif src == c.v then
-        if now - c.lastV < CC.MinHitInterval then return end
-        c.lastV, c.hitsV = now, c.hitsV + 1
-        c.p = math.max(-CC.WinAt, c.p - c.pushV)
+    local s, dir
+    if src == c.a then s, dir = c.sa, 1
+    elseif src == c.v then s, dir = c.sv, -1
+    else return end
+
+    if t < s.lock or t - s.last < s.interval then return end
+
+    local delta
+    if c.game == 'mash' then
+        -- must alternate left / right, holding one key does nothing
+        if (token ~= 'L' and token ~= 'R') or token == s.lastTok then return end
+        s.lastTok = token
+        delta = s.push
+    elseif c.game == 'sequence' then
+        if type(token) ~= 'string' then return end
+        if token ~= s.seq[s.idx] then
+            s.lock, s.last, s.idx = t + CC.MissLockout, t, 1
+            TriggerClientEvent('nz-wig:c:clashSeq', src, { seq = s.seq, idx = 1, miss = true })
+            return
+        end
+        s.idx = s.idx + 1
+        delta = s.push
+        if s.idx > #s.seq then
+            delta = delta + s.bonus
+            s.seq, s.idx = newSequence(s.len), 1
+            TriggerClientEvent('nz-wig:c:clashSeq', src, { seq = s.seq, idx = 1, done = true })
+        end
     else
-        return
+        delta = s.push
     end
+
+    s.last, s.hits = t, s.hits + 1
+    c.p = Clamp(c.p + delta * dir, -CC.WinAt, CC.WinAt)
 
     local p = math.floor(c.p * 10 + 0.5) / 10
     TriggerClientEvent('nz-wig:c:clashTick', c.a, p)
@@ -226,7 +341,7 @@ function Clash.Finish(c, why)
     if why == 'drop_a' then
         win = false
     elseif why == 'drop_v' then
-        win = true -- logging out mid-clash doesn't save you
+        win = true -- logging out mid-fight doesn't save you
     elseif PedDistance(c.a, c.v) > Config.Snatch.Distance + 3.0 then
         win = false
     elseif c.p == 0 then
@@ -237,25 +352,24 @@ function Clash.Finish(c, why)
     Clash.Resolve(c, win)
 end
 
-function Clash.OnDrop(src)
+OnPlayerDrop(function(src)
     local id = bySrc[src]
     local c = id and active[id]
     if c then Clash.Finish(c, src == c.a and 'drop_a' or 'drop_v') end
-end
+end)
 
 function Clash.InClash(src)
     return bySrc[src] ~= nil
 end
 
--- outcome -------------------------------------------------------------------------
+-- outcome ----------------------------------------------------------------------------------------------
 
-local function announce(A, V, meta, tier)
-    local vped = GetPlayerPed(V.src)
-    local coords = vped ~= 0 and GetEntityCoords(vped) or vec3(0, 0, 0)
-    local payload = { kind = 'snatch', actor = A.name, target = V.name, tier = tier.id, tierLabel = tier.label,
+local function announce(A, V, meta, tier, kind)
+    local coords = PedCoords(V.src) or vec3(0, 0, 0)
+    local payload = { kind = kind or 'snatch', actor = A.name, target = V.name, tier = tier.id, tierLabel = tier.label,
         color = tier.color, label = meta.label }
 
-    if tier.broadcast and Config.Announce.Broadcast then
+    if kind ~= 'steal' and tier.broadcast and Config.Announce.Broadcast then
         payload.city = true
         TriggerClientEvent('nz-wig:c:banner', -1, payload)
     else
@@ -282,11 +396,62 @@ local function catalogCheck(A, meta)
     end
     return true
 end
+Clash.CatalogCheck = catalogCheck
+
+local function cancelBoth(c)
+    TriggerClientEvent('nz-wig:c:clashEnd', c.a, { win = false, role = 'snatcher', cancelled = true })
+    TriggerClientEvent('nz-wig:c:clashEnd', c.v, { win = true, role = 'victim', cancelled = true })
+end
+
+-- getting your own wig back
+local function resolveSteal(c, A, V)
+    local serial, meta = c.steal, nil
+    if V.hair.wig and V.hair.wig.serial == serial then
+        meta = V.hair.wig
+        V.hair.wig = nil
+    else
+        local stack = Wigs.Find(V.src, serial)
+        if stack and Wigs.Remove(V.src, stack) then meta = stack.meta end
+    end
+    if not meta then
+        cancelBoth(c)
+        return Notify(A.src, L('steal_gone'), 'error')
+    end
+    Wigs.Hop(meta, V.name, A.name)
+    if not Wigs.Give(A.src, meta) then
+        if c.stealWhere == 'worn' then V.hair.wig = meta else Wigs.Give(V.src, meta) end
+        cancelBoth(c)
+        return Notify(A.src, L('pockets_full'), 'error')
+    end
+
+    StealBack.Remove(A.id, serial)
+    A.row.stolen_back = (A.row.stolen_back or 0) + 1
+    local xp = AddXP(A, Config.StealBack.XP)
+    local tier = GetTier(meta.tier)
+
+    DB.AddFeed('steal', A.id, A.name, V.id, V.name, meta.tier, meta.label, 0)
+    Social.PushFeed({ kind = 'steal', actor_name = A.name, target_name = V.name, tier = meta.tier, label = meta.label, created = now() })
+
+    TriggerClientEvent('nz-wig:c:clashEnd', c.a, {
+        win = true, role = 'snatcher', opp = V.name, p = c.p, skipped = c.skipped, steal = true,
+        reveal = { wig = Wigs.Public(meta, Wigs.Value(meta, GetPerks(A.row.xp).sell)), xp = xp, steal = true, blind = c.blind },
+    })
+    TriggerClientEvent('nz-wig:c:clashEnd', c.v, { win = false, role = 'victim', opp = A.name, p = c.p, steal = true, skipped = c.skipped })
+    Notify(A.src, L('steal_back', V.name), 'success')
+    Notify(V.src, L('steal_back_victim', A.name), 'error')
+    React(V.src, 'snatched', 900)
+    if c.stealWhere == 'worn' then
+        SetTimeout(650, function() if Players[c.v] == V then Hair.Push(V, 'snatched') end end)
+    end
+    announce(A, V, meta, tier, 'steal')
+    Log('snatch', 'Wig stolen back', ('**%s** took **%s** back from **%s** (`%s`)'):format(A.name, meta.label, V.name, meta.serial))
+    SaveP(A) SaveP(V) SyncP(A) SyncP(V)
+end
 
 function Clash.Resolve(c, win)
     local A, V = Players[c.a], Players[c.v]
     release(c.a, c.v)
-    local now = os.time()
+    local t = now()
 
     if not A or not V then
         -- someone vanished before anything could happen
@@ -305,15 +470,19 @@ function Clash.Resolve(c, win)
         TriggerClientEvent('nz-wig:c:clashEnd', c.v, { win = true, role = 'victim', opp = A.name, p = c.p, xp = gainedV })
         Notify(c.a, L('clash_lose_snatcher', V.name), 'error')
         Notify(c.v, L('clash_defended'), 'success')
-        Log('clash', 'Snatch defended', ('%s held off %s (rope %s, hits %s vs %s)'):format(V.name, A.name, c.p, c.hitsA or 0, c.hitsV or 0))
+        React(c.v, 'defended', 700)
+        Log('clash', 'Snatch defended', ('%s held off %s in %s (rope %s, hits %s vs %s)'):format(
+            V.name, A.name, c.game or 'no game', c.p, c.sa and c.sa.hits or 0, c.sv and c.sv.hits or 0))
         SaveP(A) SaveP(V) SyncP(A) SyncP(V)
         return
     end
 
-    -- snatcher wins -------------------------------------------------------------
-    local revenge = DB.HasSnatched(V.id, A.id, now - Config.Bounty.RevengeHours * 3600)
+    if c.steal then return resolveSteal(c, A, V) end
+
+    -- snatcher wins ---------------------------------------------------------------
+    local revenge = DB.HasSnatched(V.id, A.id, t - Config.Bounty.RevengeHours * 3600)
     local bountyOpen = Social.HasBounty(V.id)
-    local meta, tier
+    local meta
 
     if c.layer == 'wig' and V.hair.wig then
         meta = V.hair.wig
@@ -322,21 +491,21 @@ function Clash.Resolve(c, win)
         if Config.Snatch.WornWigReveals == 'bald' and not V.hair.bald then Hair.SetBald(V, c.hair.m) end
     else
         local luck = computeLuck(A, V, revenge, bountyOpen)
-        meta = Wigs.Create(Wigs.RollTier(luck), c.hair, V.name, A.name)
+        meta = Wigs.Create(Wigs.RollTier(luck), c.hair, V.name, A.name,
+            Hair.HasStatus(V, 'burn') and { burnt = true } or nil)
         Hair.SetBald(V, c.hair.m)
     end
-    tier = GetTier(meta.tier)
+    local tier = GetTier(meta.tier)
 
     if not Wigs.Give(c.a, meta) then
-        -- inventory changed during the clash: put everything back
+        -- inventory changed during the fight: put everything back
         if c.layer == 'wig' then V.hair.wig = meta else Hair.ClearBald(V) end
-        TriggerClientEvent('nz-wig:c:clashEnd', c.a, { win = false, role = 'snatcher', cancelled = true })
-        TriggerClientEvent('nz-wig:c:clashEnd', c.v, { win = true, role = 'victim', cancelled = true })
+        cancelBoth(c)
         Notify(c.a, L('pockets_full'), 'error')
         return
     end
 
-    V.immuneUntil = now + Config.Protection.VictimImmunity
+    V.immuneUntil = t + Config.Protection.VictimImmunity
     V.row.snatched = V.row.snatched + 1
     V.row.streak = 0
 
@@ -354,9 +523,11 @@ function Clash.Resolve(c, win)
 
     local bounty = Social.ClaimBounties(A, V)
     local newStyle = c.layer ~= 'wig' and catalogCheck(A, meta) or false
+    StealBack.Add(V, A, meta.serial)
+    Products.Spread(V, A) -- lice jump to whoever grabs your head
 
     DB.AddFeed('snatch', A.id, A.name, V.id, V.name, meta.tier, meta.label, bounty)
-    Social.PushFeed({ kind = 'snatch', actor_name = A.name, target_name = V.name, tier = meta.tier, label = meta.label, amount = bounty, created = now })
+    Social.PushFeed({ kind = 'snatch', actor_name = A.name, target_name = V.name, tier = meta.tier, label = meta.label, amount = bounty, created = t })
 
     TriggerClientEvent('nz-wig:c:clashEnd', c.a, {
         win = true, role = 'snatcher', opp = V.name, p = c.p, skipped = c.skipped,
@@ -366,10 +537,13 @@ function Clash.Resolve(c, win)
             newStyle = newStyle, worn = c.layer == 'wig', blind = c.blind,
         },
     })
-    TriggerClientEvent('nz-wig:c:clashEnd', c.v, { win = false, role = 'victim', opp = A.name, p = c.p, layer = c.layer, skipped = c.skipped })
+    TriggerClientEvent('nz-wig:c:clashEnd', c.v, { win = false, role = 'victim', opp = A.name, p = c.p, layer = c.layer, skipped = c.skipped,
+        stealBack = Config.StealBack.Enabled and math.floor(Config.StealBack.Window / 60) or nil })
     Notify(c.v, c.layer == 'wig' and L('clash_lost_wig', A.name) or L('clash_lost', A.name), 'error')
+    if Config.StealBack.Enabled then Notify(c.v, L('steal_back_hint', math.floor(Config.StealBack.Window / 60)), 'info', 7000) end
     if revenge then Notify(c.a, L('revenge', V.name), 'success') end
     if bounty > 0 then Notify(c.a, L('bounty_claimed', bounty), 'success', 7000) end
+    React(c.v, 'snatched', 900)
 
     SetTimeout(650, function()
         if Players[c.v] == V then Hair.Push(V, 'snatched') end
@@ -381,7 +555,7 @@ function Clash.Resolve(c, win)
     end
 
     Log('snatch', 'Wig snatched', ('**%s** snatched **%s** from **%s**\nSerial `%s` · rope %s · %s'):format(
-        A.name, meta.label, V.name, meta.serial, c.p or 0, c.skipped and 'no clash' or 'clash'), tier.color)
+        A.name, meta.label, V.name, meta.serial, c.p or 0, c.skipped and 'no minigame' or (c.game or 'minigame')), tier.color)
 
     SaveP(A) SaveP(V) SyncP(A) SyncP(V)
 end
@@ -389,5 +563,5 @@ end
 -- admin / export helpers
 function Clash.ResetCooldown(src)
     local P = GetP(src)
-    if P then P.cooldownUntil = 0 SyncP(P) end
+    if P then P.cooldownUntil = 0 P.tackleUntil = 0 SyncP(P) end
 end

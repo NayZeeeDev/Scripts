@@ -13,7 +13,7 @@
   <!-- toasts -->
   <div id="toasts" class="toasts scaled" data-pos="top-right"></div>
 
-  <!-- snatch banners -->
+  <!-- banners -->
   <div id="banners" class="banners scaled"></div>
 
   <!-- level up -->
@@ -30,66 +30,88 @@
     </div></div>
   </div>
 
-  <!-- the clash -->
+  <!-- key hint (holding someone) -->
+  <div id="hint" class="hint scaled" hidden></div>
+
+  <!-- struggle meter (tied / held) -->
+  <div id="struggle" class="struggle scaled" hidden></div>
+
+  <!-- the minigames -->
   <div id="clash" class="clash scaled" hidden>
     <div class="cl-frame"><div class="cl-in">
       <div class="cl-top">
-        <div class="cl-side me">
-          <span class="cl-role"></span>
-          <b class="cl-name"></b>
+        <div class="cl-side me"><span class="cl-role"></span><b class="cl-name"></b></div>
+        <div class="cl-mid">
+          <span class="cl-game"></span>
+          <div class="cl-clock"><span class="cl-time">6.5</span><i>sec</i></div>
         </div>
-        <div class="cl-clock"><span class="cl-time">6.5</span><i>sec</i></div>
-        <div class="cl-side them">
-          <span class="cl-role"></span>
-          <b class="cl-name"></b>
-        </div>
+        <div class="cl-side them"><span class="cl-role"></span><b class="cl-name"></b></div>
       </div>
-
       <div class="rope">
         <div class="rope-half mine"></div>
         <div class="rope-half theirs"></div>
         <div class="rope-mid"></div>
         <div class="rope-knot"><i class="fa-solid fa-grip-lines-vertical"></i></div>
       </div>
-
-      <div class="track">
-        <div class="track-zone"></div>
-        <div class="track-cursor"></div>
-      </div>
-
+      <div class="game" id="game"></div>
       <div class="cl-foot">
         <div class="cl-mods"></div>
-        <div class="cl-hint"><span class="kc cl-key">SPACE</span><span>Pull when the line is in the zone</span></div>
+        <div class="cl-hint"></div>
         <div class="cl-flash"></div>
       </div>
-
       <div class="cl-result" hidden><b></b><span></span></div>
     </div></div>
   </div>
 
+  <!-- first person cutting -->
+  <div id="cut" class="cutmode" hidden>
+    <div class="cut-cursor" id="cutCursor"></div>
+    <div class="cut-top scaled" id="cutTop"></div>
+    <div class="cut-tray scaled" id="cutTray"></div>
+    <div class="cut-obj scaled" id="cutObj"></div>
+    <div class="cut-side scaled" id="cutSide"></div>
+  </div>
+  <div id="cutsit" class="cutsit scaled" hidden></div>
+
   <!-- reveal -->
   <div id="reveal" class="reveal scaled" hidden></div>
 
-  <!-- app panel (vault / fence / barber / cuts) -->
+  <!-- app panel (vault / pickers / studio / phone) -->
   <div id="app" class="app" hidden>
     <div class="app-shade"></div>
     <div class="app-frame scaled">
       <div class="app-edge"><div class="app-shell">
         <div class="app-bar">
+          <div class="app-brand"><div class="mark"></div></div>
           <div class="app-title"><b id="appTitle">Vault</b><span id="appSub"></span></div>
-          <span class="ver" id="appVer">v2.0.0</span>
+          <span class="ver" id="appVer">v3.0.0</span>
           <button class="pill-close" data-act="close">Close</button>
         </div>
         <div class="app-body" id="appBody"></div>
+        <div class="app-status" id="appStatus"></div>
       </div></div>
     </div>
     <div id="modal" class="modal" hidden></div>
   </div>
 
-  <!-- prompt (trade / haircut) -->
+  <!-- phone app on screen (no phone resource) -->
+  <div id="phone" class="phone-host" hidden>
+    <div class="app-shade"></div>
+    <div class="phone-frame scaled">
+      <div class="phone-notch"></div>
+      <iframe id="phoneFrame" title="Hair Plug"></iframe>
+      <button class="phone-home" data-phone="close" title="Close"></button>
+    </div>
+  </div>
+
+  <!-- prompt (trade / haircut / wig) -->
   <div id="prompt" class="prompt" hidden></div>
 </div>
 
-<script src="js/app.js"></script>
+<script src="js/core.js"></script>
+<script src="js/games.js"></script>
+<script src="js/cut.js"></script>
+<script src="js/vault.js"></script>
+<script src="js/boot.js"></script>
 </body>
 </html>

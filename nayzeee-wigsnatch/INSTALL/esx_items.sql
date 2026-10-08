@@ -1,8 +1,19 @@
 -- Only for ESX WITHOUT ox_inventory. The default ESX inventory has no metadata,
--- so wigs there are generic (no tiers, styles or wearing). ox_inventory is strongly recommended.
+-- so wigs and bundles there are generic (no tiers, styles, pictures, wearing or listings). ox_inventory is strongly recommended.
 INSERT IGNORE INTO `items` (`name`, `label`, `weight`, `rare`, `can_remove`) VALUES
     ('wig', 'Wig', 1, 0, 1),
+    ('hair_bundle', 'Hair Bundle', 1, 0, 1),
+    ('wig_cap', 'Wig Cap', 1, 0, 1),
+    ('hair_dye', 'Hair Dye', 1, 0, 1),
     ('wig_glue', 'Lace Glue', 1, 0, 1),
     ('wig_kit', 'Wig Kit', 1, 0, 1),
+    ('scissors', 'Scissors', 1, 0, 1),
     ('hair_clippers', 'Hair Clippers', 1, 0, 1),
-    ('scissors', 'Scissors', 1, 0, 1);
+    ('straight_razor', 'Straight Razor', 1, 0, 1),
+    ('zip_ties', 'Zip Ties', 1, 0, 1),
+    ('hair_remover', 'Hair Remover', 1, 0, 1),
+    ('relaxer', 'Lye Relaxer', 1, 0, 1),
+    ('lice_jar', 'Lice Jar', 1, 0, 1),
+    ('mud_bag', 'Bag of Mud', 1, 0, 1),
+    ('shampoo', 'Shampoo', 1, 0, 1),
+    ('regrowth_oil', 'Regrowth Oil', 1, 0, 1);

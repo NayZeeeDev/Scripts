@@ -1,21 +1,28 @@
 -- NUI bridge
 
-NUI = { ready = false, app = nil, prompt = nil, keys = false }
+NUI = { ready = false, app = nil, prompt = nil, keys = false, cursor = false }
 
 function NUI.Send(action, data)
     SendNUIMessage({ action = action, data = data })
 end
 
--- Focus is shared between the app panel, prompts and the clash.
+-- Focus is shared between the app panel, prompts, minigames and first person cutting.
+--   app / prompt : mouse + keyboard in the UI, game input off
+--   cursor       : mouse in the UI, game input stays on (first person tools)
+--   keys         : keyboard in the UI only (minigames, struggling)
 local function refocus()
     if NUI.app or NUI.prompt then
         SetNuiFocus(true, true)
         SetNuiFocusKeepInput(false)
+    elseif NUI.cursor then
+        SetNuiFocus(true, true)
+        SetNuiFocusKeepInput(true)
     elseif NUI.keys then
         SetNuiFocus(true, false)
         SetNuiFocusKeepInput(false)
     else
         SetNuiFocus(false, false)
+        SetNuiFocusKeepInput(false)
     end
 end
 NUI.Refocus = refocus
@@ -28,14 +35,9 @@ end
 
 function NUI.CloseApp()
     if not NUI.app then return end
-    local was = NUI.app
     NUI.app = nil
     NUI.Send('app:close')
     refocus()
-    if was == 'cuts' and Tools.PickerId then
-        TriggerServerEvent('nz-wig:s:toolCancel', Tools.PickerId)
-        Tools.PickerId = nil
-    end
 end
 
 function NUI.Keys(on)
@@ -43,18 +45,37 @@ function NUI.Keys(on)
     refocus()
 end
 
+function NUI.Cursor(on)
+    NUI.cursor = on
+    refocus()
+end
+
 RegisterNUICallback('ready', function(_, cb)
     NUI.ready = true
     local tiers = {}
     for i, t in ipairs(Config.Tiers) do tiers[i] = { id = t.id, label = t.label, color = t.color, lace = t.lace } end
+    local grades = {}
+    for i, g in ipairs(Config.Bundles.Grades) do grades[i] = { id = g.id, label = g.label } end
+    local games = {}
+    for id, g in pairs(Config.Minigames) do games[id] = { label = g.Label, icon = g.Icon } end
+    local tools = {}
+    for _, id in ipairs(ToolOrder) do
+        local t = Config.Cutting.Tools[id]
+        if t then tools[#tools + 1] = { id = id, label = t.Label, icon = t.Icon, mode = t.Mode, key = t.Key } end
+    end
+    local statuses = {}
+    for id, s in pairs(Config.Products.Status) do statuses[id] = { label = s.Label, color = s.Color } end
     cb({
         version = VERSION,
+        resource = RESOURCE,
         tiers = tiers,
-        notifyPosition = Config.NotifyPosition,
-        clashKey = Config.Clash.Key,
-        locale = {
-            title = L('title'),
-        },
+        grades = grades,
+        games = games,
+        tools = tools,
+        statuses = statuses,
+        prefs = Prefs.All(),
+        appName = Config.Phone.AppName,
+        locale = { title = L('title') },
     })
 end)
 
@@ -63,7 +84,7 @@ RegisterNUICallback('close', function(_, cb)
     cb(1)
 end)
 
--- prompts (trade offers, haircut requests) -------------------------------------------------------
+-- prompts (trades, haircuts, wigs put on you) ----------------------------------------------------
 
 RegisterNetEvent('nz-wig:c:prompt', function(data)
     NUI.prompt = data
@@ -92,4 +113,5 @@ end)
 AddEventHandler('onResourceStop', function(res)
     if res ~= RESOURCE then return end
     SetNuiFocus(false, false)
+    SetNuiFocusKeepInput(false)
 end)

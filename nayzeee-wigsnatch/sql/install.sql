@@ -1,4 +1,4 @@
--- Wig Snatch V2 tables. The resource creates these on its own; this file is only for manual installs.
+-- Wig Snatch V3 tables. The resource creates (and upgrades) these on its own; this file is only for manual installs.
 
 CREATE TABLE IF NOT EXISTS `nz_wig_players` (
         `identifier` VARCHAR(64) NOT NULL,
@@ -71,3 +71,28 @@ CREATE TABLE IF NOT EXISTS `nz_wig_catalog` (
         `first_at` INT NOT NULL,
         PRIMARY KEY (`identifier`, `style`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `nz_wig_listings` (
+        `id` INT NOT NULL AUTO_INCREMENT,
+        `seller` VARCHAR(64) NOT NULL,
+        `seller_name` VARCHAR(64) NOT NULL,
+        `kind` VARCHAR(8) NOT NULL DEFAULT 'wig',
+        `meta` LONGTEXT NOT NULL,
+        `price` INT NOT NULL,
+        `status` VARCHAR(12) NOT NULL DEFAULT 'open',
+        `buyer` VARCHAR(64) NULL,
+        `buyer_name` VARCHAR(64) NULL,
+        `created` INT NOT NULL,
+        `closed` INT NOT NULL DEFAULT 0,
+        `settled` TINYINT(1) NOT NULL DEFAULT 0,
+        PRIMARY KEY (`id`),
+        KEY `idx_status` (`status`, `created`),
+        KEY `idx_seller` (`seller`, `status`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Upgrading from V2 by hand? Add the new columns (skip any you already have):
+-- ALTER TABLE `nz_wig_players` ADD COLUMN `tackles` INT NOT NULL DEFAULT 0;
+-- ALTER TABLE `nz_wig_players` ADD COLUMN `ties` INT NOT NULL DEFAULT 0;
+-- ALTER TABLE `nz_wig_players` ADD COLUMN `products` INT NOT NULL DEFAULT 0;
+-- ALTER TABLE `nz_wig_players` ADD COLUMN `crafted` INT NOT NULL DEFAULT 0;
+-- ALTER TABLE `nz_wig_players` ADD COLUMN `stolen_back` INT NOT NULL DEFAULT 0;
