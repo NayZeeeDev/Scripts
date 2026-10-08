@@ -643,8 +643,9 @@ body.cine #hud,body.cine #sms{opacity:0;transition:opacity .3s}
 
 /* ═══════════════ SMS ═══════════════ */
 #sms{position:absolute;right:36px;top:36px;width:360px;display:flex;flex-direction:column;gap:10px}
-.sms{display:flex;gap:12px;padding:13px 14px;border-radius:16px;background:rgba(20,22,24,.92);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(18px);
-  box-shadow:0 14px 40px rgba(0,0,0,.55);animation:smsIn .35s cubic-bezier(.2,.9,.3,1.2)}
+/* no backdrop-filter here: over the game world FiveM's browser draws it as a black box */
+.sms{display:flex;gap:12px;padding:13px 14px;border-radius:16px;background:rgba(20,22,24,.96);border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 6px 18px rgba(0,0,0,.28);animation:smsIn .35s cubic-bezier(.2,.9,.3,1.2)}
 .sms.out{animation:smsOut .3s forwards}
 @keyframes smsIn{from{opacity:0;transform:translateX(40px)}}
 @keyframes smsOut{to{opacity:0;transform:translateX(40px)}}
