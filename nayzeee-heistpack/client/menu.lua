@@ -13,6 +13,14 @@ function Menu.open(tab)
     data.serverId = cache.serverId
     UI.send('menu', { open = true, data = data })
 
+    -- resume a market delivery that survived a reconnect
+    if not Market.pending then
+        CreateThread(function()
+            local m = lib.callback.await('nzh:market:data', false)
+            if m and m.order and not Market.pending then Market.deliver(m.order.remaining) end
+        end)
+    end
+
     -- tablet prop + anim while open
     CreateThread(function()
         lib.requestAnimDict('amb@code_human_in_bus_passenger_idles@female@tablet@base')
@@ -74,14 +82,17 @@ local bridge = {
 
 for name, b in pairs(bridge) do
     RegisterNUICallback(name, function(data, cb)
-        local ok, res = lib.callback.await(b[1], false, b[2] and b[2](data or {}))
+        local a, b2 = lib.callback.await(b[1], false, b[2] and b[2](data or {}))
+        -- callbacks either return (ok, data) or a single data table
+        local ok, res
+        if type(a) == 'table' and b2 == nil then ok, res = true, a else ok, res = a == true, b2 end
         if name == 'market:buy' and ok and type(res) == 'table' and res.seconds then
             Market.deliver(res.seconds)
         elseif name == 'heist:start' and ok then
             SetTimeout(250, Menu.close)
         end
         if name == 'crew:respond' then Menu.invite = nil end
-        cb({ ok = ok ~= false and ok ~= nil, data = res })
+        cb({ ok = ok, data = res })
     end)
 end
 
@@ -132,3 +143,12 @@ RegisterNetEvent('nzh:crew:invited', function(data)
         UI.send('invite', false)
     end)
 end)
+
+--[[ /nzhcoords - copy your position as vec4 (for tuning heist locations) ]]
+RegisterCommand('nzhcoords', function()
+    local c, h = GetEntityCoords(cache.ped), GetEntityHeading(cache.ped)
+    local s = ('vec4(%.2f, %.2f, %.2f, %.2f)'):format(c.x, c.y, c.z, h)
+    lib.setClipboard(s)
+    print(s)
+    UI.notify('Copied ' .. s, 'success')
+end, false)

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nayzeee heistpack</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <!-- task HUD (transparent) -->
+    <div id="hud" class="hud hidden"></div>
+
+    <!-- notifications -->
+    <div id="notify" class="notify"></div>
+
+    <!-- [E] prompts -->
+    <div id="textui" class="textui hidden"></div>
+
+    <!-- progress -->
+    <div id="progress" class="progress hidden">
+        <div class="progress-label"><span id="progress-text"></span><span id="progress-pct">0%</span></div>
+        <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+        <div class="progress-hint"><kbd>X</kbd> cancel</div>
+    </div>
+
+    <!-- market delivery countdown -->
+    <div id="delivery" class="delivery hidden"></div>
+
+    <!-- drone camera overlay -->
+    <div id="drone" class="drone hidden"></div>
+
+    <!-- crew invite -->
+    <div id="invite" class="invite hidden"></div>
+
+    <!-- heist result -->
+    <div id="result" class="result hidden"></div>
+
+    <!-- minigames -->
+    <div id="minigame" class="minigame hidden"></div>
+
+    <!-- tablet -->
+    <div id="tablet" class="tablet-wrap hidden">
+        <div class="tablet">
+            <aside class="side">
+                <div class="brand">
+                    <div class="brand-mark"></div>
+                    <div class="brand-text"><b data-t="brand_top">NAYZEEE</b><span data-t="brand_bottom">HEISTPACK</span></div>
+                </div>
+                <nav id="nav" class="nav"></nav>
+                <div class="side-foot">
+                    <div class="police-pill"><span class="dot"></span><span id="police-count">0</span> <span data-t="police">Police</span></div>
+                </div>
+            </aside>
+            <main class="main">
+                <header class="top">
+                    <div class="top-title"><h1 id="page-title">Heists</h1><p id="page-sub"></p></div>
+                    <div id="profile-chip" class="profile-chip"></div>
+                    <button class="icon-btn close" id="close-btn" title="Close">&times;</button>
+                </header>
+                <section id="page" class="page"></section>
+            </main>
+        </div>
+    </div>
+
+    <script src="icons.js"></script>
+    <script src="minigames.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
