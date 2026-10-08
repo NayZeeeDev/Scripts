@@ -11,5 +11,6 @@ shared_script 'config.lua'
 client_script 'client.lua'
 server_script 'server.lua'
 
--- Built from source/ - see README.md. The .ydr files in stream/ are picked up automatically.
-data_file 'DLC_ITYP_REQUEST' 'stream/nz_shoebox.ytyp'
+-- Build the models with tools/shoebox-prop-tool.html (see README.md).
+-- Everything in stream/ is picked up automatically; the ytyp still needs this line.
+data_file 'DLC_ITYP_REQUEST' 'stream/nz_shoebox/nz_shoebox.ytyp'

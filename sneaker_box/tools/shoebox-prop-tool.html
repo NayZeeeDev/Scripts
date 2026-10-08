@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shoebox Prop Builder</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --bg:#0f1419;
+  --panel:#151b22;
+  --panel-2:#1a222b;
+  --border:#333d47;
+  --teal:#08afa2;
+  --red:#e5484d;
+  --amber:#e8a33d;
+  --text:#e8edf2;
+  --muted:#7d8b99;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Lexend',system-ui,sans-serif;
+  font-weight:300;
+  overflow:hidden;
+}
+.app{display:grid;grid-template-columns:1fr 390px;height:100vh}
+
+/* ---------- viewport ---------- */
+.stage{position:relative;background:radial-gradient(ellipse at 50% 40%,#1b242e 0%,#0f1419 70%)}
+#gl{width:100%;height:100%;display:block;cursor:grab}
+#gl:active{cursor:grabbing}
+
+.version{
+  position:absolute;top:18px;left:22px;
+  font-size:11px;letter-spacing:.14em;color:var(--muted);
+  font-weight:400;
+}
+
+.viewmodes{
+  position:absolute;top:14px;right:22px;z-index:5;
+  display:flex;gap:1px;background:var(--border);
+  border-radius:6px;overflow:hidden;
+}
+.viewmodes button{
+  background:var(--panel);border:none;color:var(--muted);
+  font-family:inherit;font-size:11.5px;font-weight:400;
+  padding:7px 14px;cursor:pointer;transition:background .15s,color .15s;
+}
+.viewmodes button.on{background:var(--teal);color:#04231f;font-weight:500}
+
+/* lid controls, same shape as the texture stepper */
+.stepper{
+  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:5;
+  display:flex;align-items:stretch;gap:1px;
+  background:var(--border);border-radius:8px;overflow:hidden;
+  box-shadow:0 6px 22px rgba(0,0,0,.45);
+}
+.stepper button{
+  background:var(--panel);border:none;color:var(--muted);
+  font-family:inherit;font-size:12px;padding:0 15px;cursor:pointer;
+  display:flex;align-items:center;gap:8px;
+  transition:background .15s,color .15s;
+}
+.stepper button:hover{background:var(--panel-2);color:var(--teal)}
+.stepper button.on{color:var(--teal)}
+.stepinfo{
+  background:var(--panel);padding:9px 20px;text-align:center;min-width:170px;
+}
+.stepname{font-size:12.5px;color:var(--text);font-weight:400}
+.stepcount{
+  font-size:10.5px;color:var(--muted);margin-top:1px;
+  font-variant-numeric:tabular-nums;letter-spacing:.04em;
+}
+
+.meshinfo{
+  position:absolute;bottom:18px;left:22px;
+  max-width:min(330px,30%);
+  font-size:11.5px;color:var(--muted);line-height:1.7;
+  font-variant-numeric:tabular-nums;
+}
+.meshinfo b{color:var(--text);font-weight:400}
+
+.viewhint{
+  position:absolute;bottom:18px;right:22px;
+  font-size:11px;color:var(--muted);opacity:.7;
+}
+
+/* texture thumbnail over the viewport */
+.texstrip{
+  position:absolute;top:52px;right:22px;z-index:5;
+  display:flex;flex-direction:column;gap:9px;align-items:flex-end;
+}
+.texcard{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:7px;padding:7px;width:132px;
+}
+.texcard canvas{width:118px;height:118px;display:block;border-radius:4px}
+.texcard .tn{
+  font-size:10.5px;color:var(--text);margin-top:6px;font-weight:400;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.texcard .td{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* ---------- panel ---------- */
+.panel{
+  background:var(--panel);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow-y:auto;
+}
+.panel::-webkit-scrollbar{width:8px}
+.panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+.sec{padding:20px 22px;border-bottom:1px solid var(--border)}
+.sec:last-of-type{border-bottom:none}
+.sec-head{
+  display:flex;align-items:center;gap:9px;
+  font-size:12px;font-weight:500;color:var(--muted);
+  margin-bottom:14px;
+}
+.sec-head i{color:var(--teal);font-size:11px;width:13px}
+
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+input[type=text],input[type=number]{
+  width:100%;background:var(--bg);border:1px solid var(--border);
+  color:var(--text);font-family:inherit;font-size:13.5px;font-weight:400;
+  padding:10px 12px;border-radius:6px;outline:none;transition:border-color .15s;
+}
+input[type=number]{font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button{opacity:.4}
+input[type=text]:focus,input[type=number]:focus{border-color:var(--teal)}
+.hint{font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.6}
+.hint code{
+  color:var(--teal);background:rgba(8,175,162,.09);
+  padding:1px 5px;border-radius:3px;font-family:ui-monospace,monospace;font-size:11px;
+}
+.field + .field{margin-top:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.unit{position:relative}
+.unit span{
+  position:absolute;right:11px;top:50%;transform:translateY(-50%);
+  font-size:11px;color:var(--muted);pointer-events:none;
+}
+.unit input{padding-right:30px}
+
+/* colourway presets */
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.preset{
+  display:flex;align-items:center;gap:7px;
+  background:var(--panel-2);border:1px solid var(--border);color:var(--muted);
+  font-family:inherit;font-size:11.5px;font-weight:400;
+  padding:5px 10px 5px 6px;border-radius:999px;cursor:pointer;
+  transition:border-color .15s,color .15s;
+}
+.preset:hover{border-color:var(--muted);color:var(--text)}
+.preset.on{border-color:var(--teal);color:var(--text)}
+.preset .dots{display:flex}
+.preset .dots i{
+  width:14px;height:14px;border-radius:50%;display:block;
+  border:1px solid rgba(0,0,0,.35);margin-left:-4px;
+}
+.preset .dots i:first-child{margin-left:0}
+
+/* colour pickers */
+.colours{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.colour{
+  display:flex;align-items:center;gap:10px;
+  padding:7px 10px 7px 7px;border:1px solid var(--border);border-radius:6px;
+  background:var(--panel-2);cursor:pointer;margin:0;
+}
+.colour input[type=color]{
+  -webkit-appearance:none;appearance:none;border:none;padding:0;
+  width:26px;height:26px;border-radius:5px;cursor:pointer;background:none;flex:0 0 auto;
+}
+.colour input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+.colour input[type=color]::-webkit-color-swatch{border:1px solid var(--border);border-radius:5px}
+.colour input[type=color]::-moz-color-swatch{border:1px solid var(--border);border-radius:5px}
+.colour .cn{font-size:12px;color:var(--text);font-weight:400;line-height:1.3}
+.colour .ch{font-size:10.5px;color:var(--muted);font-family:ui-monospace,monospace;text-transform:uppercase}
+
+/* file rows */
+.frow{
+  display:flex;align-items:center;gap:11px;
+  padding:10px 12px;border:1px solid var(--border);border-radius:6px;
+  font-size:12.5px;background:var(--panel-2);
+}
+.frow .ic{color:var(--muted);font-size:13px;width:15px;text-align:center}
+.frow.ok .ic{color:var(--teal)}
+.frow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}
+.frow .nm.empty{color:var(--muted)}
+.frow .x{
+  color:var(--muted);cursor:pointer;font-size:12px;padding:2px;
+  background:none;border:none;transition:color .15s;
+}
+.frow .x:hover{color:var(--red)}
+.usebtn{
+  flex:0 0 auto;
+  background:none;border:1px solid var(--border);color:var(--muted);
+  font-family:inherit;font-size:10.5px;font-weight:400;
+  padding:5px 10px;border-radius:5px;cursor:pointer;
+  transition:border-color .15s,color .15s;
+}
+.usebtn:hover{border-color:var(--teal);color:var(--teal)}
+
+.segmented{display:flex;gap:1px;background:var(--border);border-radius:6px;overflow:hidden}
+.segmented button{
+  flex:1;background:var(--bg);border:none;color:var(--muted);
+  font-family:inherit;font-size:12px;font-weight:400;
+  padding:9px 0;cursor:pointer;transition:background .15s,color .15s;
+}
+.segmented button.on{background:var(--teal);color:#04231f;font-weight:500}
+
+.rowlab{
+  display:flex;align-items:center;gap:9px;cursor:pointer;
+  font-size:12.5px;color:var(--text);margin:16px 0 0;
+}
+.rowlab input{accent-color:var(--teal);width:14px;height:14px;cursor:pointer}
+
+/* output list */
+.out{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
+.oitem{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
+.oitem i{font-size:10px;width:12px;color:var(--border)}
+.oitem.on{color:var(--text)}
+.oitem.on i{color:var(--teal)}
+.oitem span{font-family:ui-monospace,monospace;font-size:11.5px}
+
+.build{
+  width:100%;background:var(--teal);border:none;
+  color:#04231f;font-family:inherit;font-size:13.5px;font-weight:600;
+  padding:13px;border-radius:6px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  transition:opacity .15s;
+}
+.build:hover:not(:disabled){opacity:.88}
+.build:disabled{background:var(--panel-2);color:var(--muted);cursor:not-allowed;border:1px solid var(--border)}
+
+.closebtn{
+  align-self:flex-start;margin:0 22px 20px;
+  background:var(--red);border:none;color:#fff;
+  font-family:inherit;font-size:12.5px;font-weight:500;
+  padding:9px 24px;border-radius:999px;cursor:pointer;transition:opacity .15s;
+}
+.closebtn:hover{opacity:.85}
+
+.status{
+  font-size:12px;padding:11px 13px;border-radius:6px;margin-top:12px;
+  line-height:1.6;display:none;
+}
+.status.show{display:block}
+.status.ok{background:rgba(8,175,162,.1);color:var(--teal);border:1px solid rgba(8,175,162,.25)}
+.status.warn{background:rgba(232,163,61,.1);color:var(--amber);border:1px solid rgba(232,163,61,.25)}
+.status.err{background:rgba(229,72,77,.1);color:#ff8a8e;border:1px solid rgba(229,72,77,.25)}
+
+.steps{font-size:12px;color:var(--muted);line-height:1.85;counter-reset:s}
+.steps div{padding-left:22px;position:relative;counter-increment:s}
+.steps div::before{
+  content:counter(s);position:absolute;left:0;top:0;
+  color:var(--teal);font-size:10.5px;font-weight:500;
+}
+.steps code{
+  color:var(--text);background:var(--panel-2);
+  padding:1px 5px;border-radius:3px;font-family:ui-monospace,monospace;font-size:11px;
+}
+
+/* ---------- guide overlay ---------- */
+.guidebtn{
+  position:absolute;top:14px;left:70px;z-index:5;
+  background:none;border:1px solid var(--border);color:var(--muted);
+  font-family:inherit;font-size:11.5px;font-weight:400;
+  padding:6px 15px;border-radius:999px;cursor:pointer;
+  display:flex;align-items:center;gap:7px;
+  transition:border-color .15s,color .15s;
+}
+.guidebtn:hover{border-color:var(--teal);color:var(--teal)}
+
+.scrim{
+  position:fixed;inset:0;background:rgba(0,0,0,.62);
+  z-index:40;opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+.scrim.on{opacity:1;pointer-events:auto}
+
+.guide{
+  position:fixed;top:0;left:0;bottom:0;width:min(700px,92vw);
+  background:var(--panel);border-right:1px solid var(--border);
+  z-index:41;display:flex;flex-direction:column;
+  transform:translateX(-102%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+}
+.guide.on{transform:none}
+.guide-top{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:20px 26px;border-bottom:1px solid var(--border);
+}
+.guide-top h2{font-size:15px;font-weight:500;letter-spacing:.01em}
+.guide-top .sub{font-size:11.5px;color:var(--muted);margin-top:3px;font-weight:300}
+.guide-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:4px 26px 34px}
+.guide-body::-webkit-scrollbar{width:8px}
+.guide-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.gstep{padding:22px 0;border-bottom:1px solid var(--border)}
+.gstep:last-child{border-bottom:none}
+.gstep h3{display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:500;margin-bottom:12px}
+.gstep h3 .n{
+  flex:0 0 auto;width:23px;height:23px;border-radius:50%;
+  background:var(--teal);color:#04231f;
+  display:grid;place-items:center;font-size:11.5px;font-weight:600;
+}
+.gstep ul{list-style:none;margin-left:34px}
+.gstep li{position:relative;padding-left:16px;margin-bottom:9px;font-size:12.5px;color:var(--muted);line-height:1.68}
+.gstep li::before{
+  content:'';position:absolute;left:0;top:9px;
+  width:4px;height:4px;border-radius:50%;background:var(--border);
+}
+.gstep li b{color:var(--text);font-weight:400}
+.gstep code{
+  color:var(--teal);background:rgba(8,175,162,.09);
+  padding:1.5px 6px;border-radius:3px;
+  font-family:ui-monospace,monospace;font-size:11.5px;
+}
+.gnote{
+  margin:12px 0 0 34px;padding:11px 14px;border-radius:6px;
+  background:rgba(232,163,61,.08);border:1px solid rgba(232,163,61,.22);
+  font-size:12px;color:#f0c383;line-height:1.65;
+}
+.gnote b{color:var(--amber);font-weight:500}
+.gtree{
+  margin:12px 0 0 34px;padding:13px 16px;border-radius:6px;
+  background:var(--bg);border:1px solid var(--border);
+  font-family:ui-monospace,monospace;font-size:11.5px;color:var(--muted);
+  line-height:1.9;white-space:pre;overflow-x:auto;
+}
+.gtree b{color:var(--teal);font-weight:400}
+.gtable{width:100%;border-collapse:collapse;font-size:12.5px}
+.gtable td{
+  padding:10px 12px;border-bottom:1px solid var(--border);
+  color:var(--muted);line-height:1.6;vertical-align:top;
+}
+.gtable tr:last-child td{border-bottom:none}
+.gtable td:first-child{color:var(--text);font-weight:400;width:40%}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="stage">
+    <div class="version">v1.0</div>
+    <button class="guidebtn" id="openGuide"><i class="fa-solid fa-book"></i> Guide</button>
+    <canvas id="gl"></canvas>
+
+    <div class="viewmodes" id="viewmodes">
+      <button id="vmTex" class="on">Textured</button>
+      <button id="vmFlat">Shaded</button>
+      <button id="vmUv">UV check</button>
+    </div>
+
+    <div class="texstrip">
+      <div class="texcard">
+        <canvas id="atlasThumb" width="256" height="256"></canvas>
+        <div class="tn" id="atlasName">nz_shoebox_atlas</div>
+        <div class="td" id="atlasSize">1024×1024 · DXT5</div>
+      </div>
+    </div>
+
+    <div class="stepper" id="stepper">
+      <button id="lidBtn" title="Open / close the lid (space)"><i class="fa-solid fa-box-open"></i> Open</button>
+      <div class="stepinfo">
+        <div class="stepname" id="lidName">Lid closed</div>
+        <div class="stepcount" id="lidAngle">0.0° of 105°</div>
+      </div>
+      <button id="loopBtn" title="Loop open and close"><i class="fa-solid fa-repeat"></i></button>
+    </div>
+
+    <div class="meshinfo" id="meshinfo"></div>
+    <div class="viewhint">drag to rotate · scroll to zoom</div>
+  </div>
+
+  <div class="panel">
+
+    <div class="sec">
+      <div class="sec-head"><i class="fa-solid fa-tag"></i>Prop name</div>
+      <input type="text" id="slug" value="nz_shoebox" autocomplete="off" spellcheck="false">
+      <div class="hint">Builds <code id="modelPreview">nz_shoebox</code> and <code id="lidPreview">nz_shoebox_lid</code>. Lowercase and underscores only. Must be unique across the server.</div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><i class="fa-solid fa-palette"></i>Colourway</div>
+      <div class="presets" id="presets"></div>
+      <div class="colours">
+        <label class="colour"><input type="color" id="cBox"><div><div class="cn">Box</div><div class="ch" id="cBoxHex"></div></div></label>
+        <label class="colour"><input type="color" id="cLid"><div><div class="cn">Lid</div><div class="ch" id="cLidHex"></div></div></label>
+        <label class="colour"><input type="color" id="cInner"><div><div class="cn">Inside</div><div class="ch" id="cInnerHex"></div></div></label>
+        <label class="colour"><input type="color" id="cPrint"><div><div class="cn">Print</div><div class="ch" id="cPrintHex"></div></div></label>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><i class="fa-solid fa-stamp"></i>Print</div>
+      <div class="field">
+        <label for="brand">Brand on the lid</label>
+        <input type="text" id="brand" value="SNEAKER CO." maxlength="22" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="tagline">Small print under it</label>
+        <input type="text" id="tagline" value="100% RECYCLED FIBRE · KEEP DRY" maxlength="40" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Logo</label>
+        <div class="frow" id="row-logo">
+          <i class="ic fa-solid fa-image"></i>
+          <span class="nm empty">No logo · uses a monogram</span>
+          <button class="x" style="display:none" title="Remove logo"><i class="fa-solid fa-xmark"></i></button>
+          <button class="usebtn" id="pickLogo">Use file…</button>
+        </div>
+        <div class="hint">A transparent PNG works best. It's printed in the middle of the lid. Only use a logo you're allowed to use.</div>
+      </div>
+      <div class="field grid2">
+        <div>
+          <label for="shoeSize">End label size</label>
+          <input type="text" id="shoeSize" value="10" maxlength="5" autocomplete="off">
+        </div>
+        <div>
+          <label for="styleCode">Style code</label>
+          <input type="text" id="styleCode" value="NZ-0420-001" maxlength="14" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><i class="fa-solid fa-ruler-combined"></i>Size</div>
+      <div class="segmented" id="sizePreset" style="margin-bottom:12px">
+        <button data-v="kids">Kids</button>
+        <button data-v="mens" class="on">Men's</button>
+        <button data-v="boot">Boot</button>
+      </div>
+      <div class="grid3">
+        <div><label for="dimL">Length</label><div class="unit"><input type="number" id="dimL" min="10" max="80" step="0.5"><span>cm</span></div></div>
+        <div><label for="dimW">Width</label><div class="unit"><input type="number" id="dimW" min="8" max="60" step="0.5"><span>cm</span></div></div>
+        <div><label for="dimH">Height</label><div class="unit"><input type="number" id="dimH" min="5" max="40" step="0.5"><span>cm</span></div></div>
+      </div>
+      <div class="hint">Real-world size. The hinge offset in the config snippet follows whatever you set here.</div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><i class="fa-solid fa-layer-group"></i>Textures &amp; collision</div>
+      <label>Texture size baked into the prop</label>
+      <div class="segmented" id="texsize">
+        <button data-v="512">512</button>
+        <button data-v="1024" class="on">1024</button>
+        <button data-v="2048">2048</button>
+      </div>
+      <div class="hint">1024 is plenty for a shoe box. The texture is baked into both models, so no <code>.ytd</code> is needed.</div>
+      <label class="rowlab"><input type="checkbox" id="collision" checked><span>Give the base a box collision</span></label>
+      <div class="hint">Lets players bump into it and lets bullets hit it. The lid never needs one because the script turns its collision off.</div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><i class="fa-solid fa-box"></i>Package contents</div>
+      <div class="out">
+        <div class="oitem on" id="o-ydr"><i class="fa-solid fa-circle"></i><span>nz_shoebox.ydr.xml</span></div>
+        <div class="oitem on" id="o-lid"><i class="fa-solid fa-circle"></i><span>nz_shoebox_lid.ydr.xml</span></div>
+        <div class="oitem on" id="o-ytyp"><i class="fa-solid fa-circle"></i><span>nz_shoebox.ytyp.xml</span></div>
+        <div class="oitem on" id="o-tex"><i class="fa-solid fa-circle"></i><span>texture folders (1 dds each)</span></div>
+        <div class="oitem on" id="o-lua"><i class="fa-solid fa-circle"></i><span>fxmanifest + config snippet</span></div>
+      </div>
+      <button class="build" id="build"><i class="fa-solid fa-download"></i> Build package</button>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><i class="fa-solid fa-list-ol"></i>After download</div>
+      <div class="steps">
+        <div>Unzip. In CodeWalker's RPF Explorer, right-click inside the <code>&lt;name&gt;</code> folder and choose <code>Import XML</code>. Select all three <code>.xml</code> files at once.</div>
+        <div>Move the two <code>.ydr</code> files and the <code>.ytyp</code> into <code>sneaker_box/stream/&lt;name&gt;/</code>.</div>
+        <div>Paste the config snippet into <code>config.lua</code> and the <code>DLC_ITYP_REQUEST</code> line into the fxmanifest.</div>
+        <div>Restart the server, clear your client cache, then use <code>/shoebox</code> in game.</div>
+      </div>
+      <div class="hint">Full walkthrough in the <b style="color:var(--teal);font-weight:400">Guide</b> button, top left.</div>
+    </div>
+
+    <button class="closebtn" id="reset">Reset</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     guide
+     ============================================================ -->
+<div class="scrim" id="scrim"></div>
+<aside class="guide" id="guide">
+  <div class="guide-top">
+    <div>
+      <h2>Shoebox to prop, start to finish</h2>
+      <div class="sub">Style it here, import it in CodeWalker, drop it in the stream folder. No Blender.</div>
+    </div>
+    <button class="closebtn" id="closeGuide" style="margin:0">Close</button>
+  </div>
+
+  <div class="guide-body">
+
+    <div class="gstep">
+      <h3><span class="n">1</span>Style the box</h3>
+      <ul>
+        <li>Pick a <b>colourway</b> preset or set the four colours yourself. <b>Print</b> is the colour of the brand text, the monogram and the lid border.</li>
+        <li>Type the brand and small print. Add a logo with <b>Use file…</b>. A transparent PNG looks best. With no logo, the lid gets a round monogram made from the brand's initials.</li>
+        <li>The viewport shows exactly what gets built: same mesh, same texture, same hinge. Hit <b>Open</b> under the box to check the lid swing, or the loop button to keep it going.</li>
+        <li><b>UV check</b> swaps in a checker so you can see how the texture maps. <b>Shaded</b> shows the bare mesh.</li>
+      </ul>
+    </div>
+
+    <div class="gstep">
+      <h3><span class="n">2</span>Size and name</h3>
+      <ul>
+        <li>Pick <b>Kids</b>, <b>Men's</b> or <b>Boot</b>, or type your own size in centimetres. The lid hinge moves with the size, and the config snippet carries the matching <code>HingeOffset</code>.</li>
+        <li>Name it. Lowercase and underscores only, and unique across the server: <code>nz_shoebox_red</code>, not <code>box</code>. The lid is always <code>&lt;name&gt;_lid</code>.</li>
+        <li>Making more than one colourway? Build each one under its own name.</li>
+      </ul>
+    </div>
+
+    <div class="gstep">
+      <h3><span class="n">3</span>Build</h3>
+      <ul>
+        <li>Hit <b>Build package</b>. You get <code>&lt;name&gt;.zip</code>.</li>
+      </ul>
+      <div class="gtree">&lt;name&gt;.zip
+  <b>&lt;name&gt;\</b>
+      <b>&lt;name&gt;.ydr.xml</b>          the box
+      <b>&lt;name&gt;\</b>                 its texture
+      <b>&lt;name&gt;_lid.ydr.xml</b>      the lid, origin on the hinge
+      <b>&lt;name&gt;_lid\</b>             its texture
+      <b>&lt;name&gt;.ytyp.xml</b>         both archetypes
+  README.txt
+  fxmanifest-snippet.lua
+  config-snippet.lua
+  atlas-preview.png</div>
+    </div>
+
+    <div class="gstep">
+      <h3><span class="n">4</span>Import it in CodeWalker</h3>
+      <ul>
+        <li>Unzip anywhere. <b>Don't move or rename the texture folders.</b> CodeWalker looks for a folder named exactly like the XML, right next to it. Moving one gives you <code>Texture file not found</code>.</li>
+        <li>Open <b>RPF Explorer</b>, browse into the unzipped <code>&lt;name&gt;</code> folder, right-click → <b>Import XML</b>.</li>
+        <li>Select all three: <code>&lt;name&gt;.ydr.xml</code>, <code>&lt;name&gt;_lid.ydr.xml</code> and <code>&lt;name&gt;.ytyp.xml</code>. You get a real <code>.ydr</code>, <code>_lid.ydr</code> and <code>.ytyp</code>.</li>
+      </ul>
+    </div>
+
+    <div class="gstep">
+      <h3><span class="n">5</span>Into the stream folder</h3>
+      <ul>
+        <li>Make a folder for the box inside the resource's <code>stream</code> folder and put the three built files in it.</li>
+        <li><b>No <code>.ytd</code>.</b> The texture is inside each <code>.ydr</code>.</li>
+      </ul>
+      <div class="gtree">sneaker_box\stream\
+  <b>nz_shoebox\</b>
+      nz_shoebox.ydr
+      nz_shoebox_lid.ydr
+      nz_shoebox.ytyp</div>
+    </div>
+
+    <div class="gstep">
+      <h3><span class="n">6</span>fxmanifest and config</h3>
+      <ul>
+        <li>One <code>DLC_ITYP_REQUEST</code> line per ytyp, with the real path including the subfolder:</li>
+      </ul>
+      <div class="gtree">data_file 'DLC_ITYP_REQUEST' '<b>stream/nz_shoebox/nz_shoebox.ytyp</b>'</div>
+      <ul style="margin-top:12px">
+        <li>Paste <code>config-snippet.lua</code> over the model lines at the top of <code>sneaker_box/config.lua</code>. It sets <code>BaseModel</code>, <code>LidModel</code> and the <code>HingeOffset</code> for this size.</li>
+        <li>Restart the server, then <b>fully restart your client and clear cache</b>. FiveM caches streamed models and will keep showing the old one.</li>
+      </ul>
+    </div>
+
+    <div class="gstep">
+      <h3><span class="n">7</span>Try it in game</h3>
+      <ul>
+        <li><code>/shoebox</code> puts one in front of you. Press <b>E</b>, or use ox_target, to open and close it. Everyone nearby sees the lid swing.</li>
+        <li><code>/shoebox_delete</code> removes the closest box you placed.</li>
+      </ul>
+    </div>
+
+    <div class="gstep">
+      <h3><span class="n">8</span>When it goes wrong</h3>
+      <table class="gtable">
+        <tr><td><code>Texture file not found</code> on import</td>
+            <td>The texture folder isn't next to the XML, or got renamed. Unzip again and import from inside the <code>&lt;name&gt;</code> folder.</td></tr>
+        <tr><td><code>model is not streaming</code></td>
+            <td>Check three things, in this order: the <code>DLC_ITYP_REQUEST</code> line exists and its path is right, the <code>.ytyp</code> is in that folder, and the names in config match the <code>.ydr</code> filenames exactly.</td></tr>
+        <tr><td>The box spawns but the lid floats or sits inside the box</td>
+            <td><code>HingeOffset</code> in config doesn't match the size you built. Paste the config snippet from this build.</td></tr>
+        <tr><td>Box looks white or flickers</td>
+            <td>The import used an old XML. Rebuild, import again, and clear your client cache.</td></tr>
+        <tr><td>Old version keeps showing</td>
+            <td>Client cache. Close FiveM completely, delete the cache folder, relaunch.</td></tr>
+      </table>
+    </div>
+
+  </div>
+</aside>
+
+<input type="file" id="fileLogo" accept=".png,.jpg,.jpeg,.webp,image/*" hidden>
+
+<script>
+/* ============================================================
+   state
+   ============================================================ */
+const PRESETS = [
+  {id:'classic', name:'Classic',     box:'#ec6122', lid:'#ec6122', inner:'#b89266', print:'#f7f5f0'},
+  {id:'black',   name:'Triple black',box:'#1c1c1e', lid:'#1c1c1e', inner:'#2b2b2e', print:'#f2f2f2'},
+  {id:'white',   name:'White / red', box:'#f1efea', lid:'#d8262e', inner:'#e4ddd2', print:'#ffffff'},
+  {id:'kraft',   name:'Kraft',       box:'#b8925f', lid:'#b8925f', inner:'#c9a77a', print:'#1d1b19'},
+  {id:'pink',    name:'Pink',        box:'#f3a6c0', lid:'#f3a6c0', inner:'#f6e3ea', print:'#ffffff'},
+  {id:'teal',    name:'Teal',        box:'#08afa2', lid:'#0f1419', inner:'#d7e6e3', print:'#e8edf2'},
+];
+const SIZES = {kids:{L:28,W:18,H:10}, mens:{L:33,W:21,H:11.5}, boot:{L:36,W:24,H:14}};
+
+const S = {
+  colours:{...PRESETS[0]},
+  dims:{...SIZES.mens},          // centimetres
+  logo:null, logoName:null,
+  texMax:1024, collision:true,
+  viewMode:'tex',
+};
+
+const $ = id => document.getElementById(id);
+const slugEl=$('slug'), buildBtn=$('build'), statusEl=$('status');
+
+function modelName(){
+  return slugEl.value.trim().toLowerCase()
+    .replace(/[^a-z0-9_]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+}
+function setStatus(msg,type){ statusEl.innerHTML=msg; statusEl.className='status show '+type; }
+function clearStatus(){ statusEl.className='status'; }
+
+/* ============================================================
+   geometry  (same build as source/generate_model.py)
+   ============================================================ */
+const WALL=0.004, GAP=0.0015;
+
+// atlas regions as fractions of the texture: [x0,y0,x1,y1], y from the top
+const R = {
+  lid:    [0,       0,        1,    652/1024],
+  label:  [0,       652/1024, 0.5,  932/1024],
+  lidcard:[0,       932/1024, 0.5,  1],
+  card:   [0.5,     652/1024, 0.75, 1],
+  kraft:  [0.75,    652/1024, 1,    1],
+};
+const PAD = 6/1024;   // kept clear around each region so mips don't bleed
+
+function metres(){
+  return {L:S.dims.L/100, W:S.dims.W/100, H:S.dims.H/100};
+}
+function skirt(H){ return Math.min(0.03, H*0.28); }
+function hinge(){ const d=metres(); return [0, -d.W/2, d.H]; }
+
+function newMesh(name){ return {name, pos:[], nrm:[], uv:[], idx:[]}; }
+
+/* Axis-aligned rectangle. axis = normal axis (0 x, 1 y, 2 z), sign = outward
+   direction, plane = its coordinate. a/b ranges span the other two axes in
+   x,y,z order. Winding is counter-clockwise seen from outside. */
+function quad(m, axis, sign, plane, ar, br, region){
+  const [aa,ba] = [0,1,2].filter(i=>i!==axis);
+  const P=(a,b)=>{ const p=[0,0,0]; p[axis]=plane; p[aa]=a; p[ba]=b; return p; };
+  let c=[P(ar[0],br[0]),P(ar[1],br[0]),P(ar[1],br[1]),P(ar[0],br[1])];
+  const n=[0,0,0]; n[axis]=sign;
+  const e1=c[1].map((v,i)=>v-c[0][i]), e2=c[3].map((v,i)=>v-c[0][i]);
+  const cr=[e1[1]*e2[2]-e1[2]*e2[1], e1[2]*e2[0]-e1[0]*e2[2], e1[0]*e2[1]-e1[1]*e2[0]];
+  if(cr[0]*n[0]+cr[1]*n[1]+cr[2]*n[2] < 0) c.reverse();
+
+  // art reads the right way round from in front of each face; on horizontal
+  // faces the top of the art points to the back so the lid reads from the front
+  let right, up;
+  if(axis===2){ right=[0,-sign]; up=[1,-1]; }
+  else if(axis===1){ right=[0,-sign]; up=[2,1]; }
+  else { right=[1,sign]; up=[2,1]; }
+  const rv=c.map(p=>p[right[0]]*right[1]), uv=c.map(p=>p[up[0]]*up[1]);
+  const rmin=Math.min(...rv), rmax=Math.max(...rv), umin=Math.min(...uv), umax=Math.max(...uv);
+
+  const base=m.pos.length/3;
+  const [x0,y0,x1,y1]=region;
+  c.forEach((p,i)=>{
+    const u=(rv[i]-rmin)/(rmax-rmin), v=(uv[i]-umin)/(umax-umin);
+    m.pos.push(p[0],p[1],p[2]);
+    m.nrm.push(n[0],n[1],n[2]);
+    // GTA (DirectX) UVs run top-down, so v is measured from the top of the atlas
+    m.uv.push(x0+PAD+u*(x1-x0-2*PAD), y0+PAD+(1-v)*(y1-y0-2*PAD));
+  });
+  m.idx.push(base,base+1,base+2, base,base+2,base+3);
+}
+
+function buildBase(){
+  const d=metres(), m=newMesh('base');
+  const hx=d.L/2, hy=d.W/2, h=d.H, t=WALL, ix=hx-t, iy=hy-t;
+  // outside
+  quad(m,2,-1,0,[-hx,hx],[-hy,hy],R.card);
+  quad(m,1,+1,hy,[-hx,hx],[0,h],R.card);
+  quad(m,1,-1,-hy,[-hx,hx],[0,h],R.card);
+  quad(m,0,+1,hx,[-hy,hy],[0,h],R.label);
+  quad(m,0,-1,-hx,[-hy,hy],[0,h],R.card);
+  // inside
+  quad(m,2,+1,t,[-ix,ix],[-iy,iy],R.kraft);
+  quad(m,1,-1,iy,[-ix,ix],[t,h],R.kraft);
+  quad(m,1,+1,-iy,[-ix,ix],[t,h],R.kraft);
+  quad(m,0,-1,ix,[-iy,iy],[t,h],R.kraft);
+  quad(m,0,+1,-ix,[-iy,iy],[t,h],R.kraft);
+  // rim
+  quad(m,2,+1,h,[-hx,hx],[iy,hy],R.card);
+  quad(m,2,+1,h,[-hx,hx],[-hy,-iy],R.card);
+  quad(m,2,+1,h,[ix,hx],[-iy,iy],R.card);
+  quad(m,2,+1,h,[-hx,-ix],[-iy,iy],R.card);
+  return m;
+}
+
+/* lid in hinge space: origin on the hinge, lid extends towards +Y */
+function buildLid(){
+  const d=metres(), m=newMesh('lid');
+  const t=WALL, s=skirt(d.H);
+  const xi=d.L/2+GAP, xo=xi+t, yi=d.W+GAP, yo=yi+t;
+  quad(m,2,+1,t,[-xo,xo],[0,yo],R.lid);
+  quad(m,2,-1,0,[-xi,xi],[0,yi],R.kraft);
+  quad(m,1,-1,0,[-xo,xo],[0,t],R.lidcard);
+  quad(m,1,+1,yo,[-xo,xo],[-s,t],R.lidcard);
+  quad(m,1,-1,yi,[-xi,xi],[-s,0],R.kraft);
+  quad(m,2,-1,-s,[-xo,xo],[yi,yo],R.lidcard);
+  for(const sx of [1,-1]){
+    quad(m,0,sx,sx*xo,[0,yo],[-s,t],R.lidcard);
+    quad(m,0,-sx,sx*xi,[0,yi],[-s,0],R.kraft);
+    const lo=Math.min(sx*xi,sx*xo), hi=Math.max(sx*xi,sx*xo);
+    quad(m,2,-1,-s,[lo,hi],[0,yi],R.lidcard);
+    quad(m,1,-1,0,[lo,hi],[-s,0],R.lidcard);
+  }
+  return m;
+}
+
+function bounds(m){
+  const mn=[Infinity,Infinity,Infinity], mx=[-Infinity,-Infinity,-Infinity];
+  for(let i=0;i<m.pos.length;i+=3) for(let k=0;k<3;k++){
+    mn[k]=Math.min(mn[k],m.pos[i+k]); mx[k]=Math.max(mx[k],m.pos[i+k]);
+  }
+  const c=mn.map((v,k)=>(v+mx[k])/2);
+  const r=Math.hypot(mx[0]-c[0],mx[1]-c[1],mx[2]-c[2]);
+  return {min:mn,max:mx,c,r};
+}
+
+/* ============================================================
+   texture atlas
+   ============================================================ */
+function rng(seed){ return ()=>{ seed|=0; seed=seed+0x6D2B79F5|0;
+  let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+function hexRgb(h){ const n=parseInt(h.slice(1),16); return [n>>16&255,n>>8&255,n&255]; }
+function rgbHex(c){ return '#'+c.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join(''); }
+function shade(h,f){ return rgbHex(hexRgb(h).map(v=>v*f)); }
+function mix(a,b,t){ const x=hexRgb(a), y=hexRgb(b); return rgbHex(x.map((v,i)=>v+(y[i]-v)*t)); }
+function luma(h){ const [r,g,b]=hexRgb(h); return (0.299*r+0.587*g+0.114*b)/255; }
+
+/* flat colour + paper speckle + faint corrugation stripe */
+function cardboard(ctx,x,y,w,h,hex,rand,k){
+  const [r,g,b]=hexRgb(hex);
+  const img=ctx.createImageData(w,h), d=img.data;
+  const grain=luma(hex)<0.2 ? 6 : 10;
+  const band=Math.max(2,Math.round(6*k));
+  for(let py=0;py<h;py++){
+    const stripe=((py/band|0)%2)? 1.5 : -1.5;
+    for(let px=0;px<w;px++){
+      const o=(py*w+px)*4, n=(rand()*2-1)*grain+stripe;
+      d[o]=r+n; d[o+1]=g+n; d[o+2]=b+n; d[o+3]=255;
+    }
+  }
+  const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
+  tmp.getContext('2d').putImageData(img,0,0);
+  ctx.save(); ctx.filter=`blur(${0.6*k}px)`;
+  ctx.drawImage(tmp,x,y);
+  ctx.restore();
+}
+
+function initials(brand){
+  const words=brand.replace(/[^A-Za-z0-9 ]/g,' ').trim().split(/\s+/).filter(Boolean);
+  if(!words.length) return 'SB';
+  return (words.length>1 ? words[0][0]+words[1][0] : words[0].slice(0,2)).toUpperCase();
+}
+
+function fitText(ctx,text,weight,size,maxW){
+  let s=size;
+  ctx.font=`${weight} ${s}px Lexend, system-ui, sans-serif`;
+  while(s>8 && ctx.measureText(text).width>maxW){ s-=1; ctx.font=`${weight} ${s}px Lexend, system-ui, sans-serif`; }
+  return s;
+}
+
+function drawAtlas(size){
+  const cv=document.createElement('canvas'); cv.width=cv.height=size;
+  const ctx=cv.getContext('2d');
+  const k=size/1024, rand=rng(7), C=S.colours;
+  const px=r=>[Math.round(r[0]*size),Math.round(r[1]*size),Math.round(r[2]*size),Math.round(r[3]*size)];
+  const fill=(r,hex)=>{ const [x0,y0,x1,y1]=px(r); cardboard(ctx,x0,y0,x1-x0,y1-y0,hex,rand,k); return [x0,y0,x1-x0,y1-y0]; };
+
+  ctx.fillStyle=C.box; ctx.fillRect(0,0,size,size);
+  fill(R.card,C.box);
+  fill(R.kraft,C.inner);
+  fill(R.lidcard,C.lid);
+
+  // ---- lid top ----
+  const [lx,ly,lw,lh]=fill(R.lid,C.lid);
+  ctx.save(); ctx.translate(lx,ly);
+  ctx.strokeStyle=mix(C.lid,C.print,0.22); ctx.lineWidth=4*k;
+  ctx.strokeRect(16*k,16*k,lw-32*k,lh-32*k);
+  const boxW=lw*0.46, boxH=lh*0.34, boxY=lh*0.2;
+  if(S.logo){
+    const sc=Math.min(boxW/S.logo.width, boxH/S.logo.height);
+    const w=S.logo.width*sc, h=S.logo.height*sc;
+    ctx.drawImage(S.logo,(lw-w)/2,boxY+(boxH-h)/2,w,h);
+  } else {
+    const r=boxH*0.48, cx=lw/2, cy=boxY+boxH/2;
+    ctx.fillStyle=C.print; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=C.lid; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const mono=initials($('brand').value);
+    fitText(ctx,mono,700,r*0.95,r*1.5);
+    ctx.fillText(mono,cx,cy+r*0.04);
+  }
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle=C.print;
+  const brand=$('brand').value.trim();
+  if(brand){ fitText(ctx,brand,700,56*k,lw*0.8); ctx.fillText(brand,lw/2,lh*0.7); }
+  const tag=$('tagline').value.trim();
+  if(tag){ ctx.globalAlpha=0.78; fitText(ctx,tag,400,22*k,lw*0.8); ctx.fillText(tag,lw/2,lh*0.81); ctx.globalAlpha=1; }
+  ctx.restore();
+
+  // ---- end label ----
+  // the lid's lip hangs over the top of the end wall, so the sticker sits in
+  // the part that stays visible with the lid shut
+  const [ex,ey,ew,eh]=fill(R.label,C.box);
+  ctx.save(); ctx.translate(ex,ey);
+  const d=metres(), covered=skirt(d.H)/d.H;
+  const l0=40*k, l1=ew-40*k, t0=eh*covered+12*k, t1=eh-14*k, sh=t1-t0, pad=sh*0.08;
+  ctx.fillStyle='#f7f5f0';
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(l0,t0,l1-l0,sh,8*k) : ctx.rect(l0,t0,l1-l0,sh); ctx.fill();
+  ctx.fillStyle='#181818'; ctx.textAlign='left'; ctx.textBaseline='top';
+  const us=$('shoeSize').value.trim()||'10';
+  ctx.font=`700 ${sh*0.24}px Lexend, system-ui, sans-serif`; ctx.fillText('US '+us,l0+pad*1.6,t0+pad);
+  ctx.font=`400 ${sh*0.095}px Lexend, system-ui, sans-serif`;
+  const n=parseFloat(us);
+  if(Number.isFinite(n)) ctx.fillText(`UK ${+(n-1).toFixed(1)}   EUR ${Math.round(33+n*1.1)}   CM ${+(18+n).toFixed(1)}`,l0+pad*1.6,t0+sh*0.36);
+  ctx.fillText('STYLE  '+($('styleCode').value.trim()||'—'),l0+pad*1.6,t0+sh*0.49);
+  let bx=l0+pad*1.6; const bh=sh*0.26, by=t1-pad-bh, br=rng(11);
+  for(let i=0;i<46;i++){
+    const bw=[2,2,3,4][br()*4|0]*k;
+    if(br()>0.35) ctx.fillRect(bx,by,bw,bh);
+    bx+=bw+2*k;
+  }
+  if(brand){
+    ctx.fillStyle=luma(C.box)>0.85 ? '#d8262e' : C.box; ctx.textAlign='right';
+    const words=brand.split(/\s+/), size=fitText(ctx,words[0],700,sh*0.15,(l1-l0)*0.36);
+    ctx.fillText(words[0],l1-pad*1.6,t0+pad);
+    if(words[1]) ctx.fillText(words.slice(1).join(' '),l1-pad*1.6,t0+pad+size*1.15);
+  }
+  ctx.restore();
+  return cv;
+}
+
+/* ============================================================
+   BC3 encode (+ mip chain) -> .dds   (from the backpack prop tool)
+   ============================================================ */
+function encodeBC3(rgba,w,h){
+  const bw=w>>2, bh=h>>2;
+  const out=new Uint8Array(bw*bh*16);
+  const dv=new DataView(out.buffer);
+  const a=new Uint8Array(16), r=new Uint8Array(16), g=new Uint8Array(16), b=new Uint8Array(16);
+  const ap=new Uint8Array(8), pr=new Int32Array(4), pg=new Int32Array(4), pb=new Int32Array(4);
+  let w0=0;
+  for(let by=0;by<bh;by++){
+    for(let bx=0;bx<bw;bx++){
+      let aMin=255,aMax=0, rMin=255,rMax=0, gMin=255,gMax=0, bMin=255,bMax=0;
+      for(let py=0;py<4;py++){
+        for(let px=0;px<4;px++){
+          const i=py*4+px, o=((by*4+py)*w+(bx*4+px))*4;
+          const R_=rgba[o],G=rgba[o+1],B=rgba[o+2],A=rgba[o+3];
+          r[i]=R_;g[i]=G;b[i]=B;a[i]=A;
+          if(A<aMin)aMin=A; if(A>aMax)aMax=A;
+          if(R_<rMin)rMin=R_; if(R_>rMax)rMax=R_;
+          if(G<gMin)gMin=G; if(G>gMax)gMax=G;
+          if(B<bMin)bMin=B; if(B>bMax)bMax=B;
+        }
+      }
+      if(aMax===aMin){
+        out[w0]=aMax; out[w0+1]=aMin;
+        for(let k=2;k<8;k++) out[w0+k]=0;
+      } else {
+        ap[0]=aMax; ap[1]=aMin;
+        for(let i=1;i<7;i++) ap[i+1]=((7-i)*aMax+i*aMin)/7|0;
+        out[w0]=aMax; out[w0+1]=aMin;
+        let lo=0, hi=0;
+        for(let i=0;i<16;i++){
+          let best=0,bd=1e9;
+          for(let k=0;k<8;k++){ const d=Math.abs(ap[k]-a[i]); if(d<bd){bd=d;best=k;} }
+          if(i<8) lo|=best<<(3*i); else hi|=best<<(3*(i-8));
+        }
+        out[w0+2]=lo&0xFF; out[w0+3]=(lo>>>8)&0xFF; out[w0+4]=(lo>>>16)&0xFF;
+        out[w0+5]=hi&0xFF; out[w0+6]=(hi>>>8)&0xFF; out[w0+7]=(hi>>>16)&0xFF;
+      }
+      const ir=(rMax-rMin)>>4, ig=(gMax-gMin)>>4, ib=(bMax-bMin)>>4;
+      let hiR=Math.max(0,rMax-ir), hiG=Math.max(0,gMax-ig), hiB=Math.max(0,bMax-ib);
+      let loR=Math.min(255,rMin+ir), loG=Math.min(255,gMin+ig), loB=Math.min(255,bMin+ib);
+      let c0=((hiR>>3)<<11)|((hiG>>2)<<5)|(hiB>>3);
+      let c1=((loR>>3)<<11)|((loG>>2)<<5)|(loB>>3);
+      if(c0<c1){ const t=c0; c0=c1; c1=t; }
+      pr[0]=(((c0>>11)&31)*255+15)/31|0; pg[0]=(((c0>>5)&63)*255+31)/63|0; pb[0]=((c0&31)*255+15)/31|0;
+      pr[1]=(((c1>>11)&31)*255+15)/31|0; pg[1]=(((c1>>5)&63)*255+31)/63|0; pb[1]=((c1&31)*255+15)/31|0;
+      pr[2]=(2*pr[0]+pr[1])/3|0; pg[2]=(2*pg[0]+pg[1])/3|0; pb[2]=(2*pb[0]+pb[1])/3|0;
+      pr[3]=(pr[0]+2*pr[1])/3|0; pg[3]=(pg[0]+2*pg[1])/3|0; pb[3]=(pb[0]+2*pb[1])/3|0;
+      let bits=0;
+      for(let i=0;i<16;i++){
+        let best=0,bd=1e9;
+        for(let k=0;k<4;k++){
+          const dr=r[i]-pr[k], dg=g[i]-pg[k], db=b[i]-pb[k];
+          const d=dr*dr+dg*dg+db*db;
+          if(d<bd){bd=d;best=k;}
+        }
+        bits|=best<<(2*i);
+      }
+      dv.setUint16(w0+8,c0,true);
+      dv.setUint16(w0+10,c1,true);
+      dv.setUint32(w0+12,bits>>>0,true);
+      w0+=16;
+    }
+  }
+  return out;
+}
+
+function resizeRGBA(rgba,w,h,nw,nh){
+  const a=document.createElement('canvas'); a.width=w; a.height=h;
+  a.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba),w,h),0,0);
+  const c=document.createElement('canvas'); c.width=nw; c.height=nh;
+  const x=c.getContext('2d');
+  x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+  x.drawImage(a,0,0,nw,nh);
+  return x.getImageData(0,0,nw,nh).data;
+}
+
+function buildDDS(levels,w,h){
+  let total=0; for(const l of levels) total+=l.length;
+  const buf=new Uint8Array(128+total);
+  const dv=new DataView(buf.buffer);
+  dv.setUint32(0,0x20534444,true);                 // 'DDS '
+  dv.setUint32(4,124,true);
+  dv.setUint32(8,0x1|0x2|0x4|0x1000|0x80000|(levels.length>1?0x20000:0),true);
+  dv.setUint32(12,h,true);
+  dv.setUint32(16,w,true);
+  dv.setUint32(20,(w>>2)*(h>>2)*16,true);
+  dv.setUint32(28,levels.length,true);
+  dv.setUint32(76,32,true);
+  dv.setUint32(80,0x4,true);                       // DDPF_FOURCC
+  dv.setUint32(84,0x35545844,true);                // 'DXT5'
+  dv.setUint32(108,0x1000|(levels.length>1?(0x8|0x400000):0),true);
+  let o=128;
+  for(const l of levels){ buf.set(l,o); o+=l.length; }
+  return buf;
+}
+
+function bakeTexture(canvas){
+  const w=canvas.width, h=canvas.height;
+  let cur=canvas.getContext('2d').getImageData(0,0,w,h).data, cw=w, ch=h;
+  const levels=[];
+  while(cw>=4 && ch>=4){
+    levels.push(encodeBC3(cur,cw,ch));
+    if(cw===4 && ch===4) break;
+    const pw=Math.max(4,cw>>1), ph=Math.max(4,ch>>1);
+    cur=resizeRGBA(cur,cw,ch,pw,ph);
+    cw=pw; ch=ph;
+  }
+  return {w,h,levels:levels.length,dds:buildDDS(levels,w,h)};
+}
+
+/* ============================================================
+   CodeWalker XML  (.ydr.xml / .ytyp.xml)
+   ============================================================ */
+const f = v => { const s=(+v).toFixed(6).replace(/\.?0+$/,''); return s==='-0'?'0':s; };
+const v3 = (tag,p) => `<${tag} x="${f(p[0])}" y="${f(p[1])}" z="${f(p[2])}" />`;
+
+function textureItem(tex){
+  return `   <TextureDictionary>
+    <Item>
+     <Name>${tex.name}</Name>
+     <Unk32 value="128" />
+     <Usage>DIFFUSE</Usage>
+     <UsageFlags>UNK24</UsageFlags>
+     <ExtraFlags value="0" />
+     <Width value="${tex.w}" />
+     <Height value="${tex.h}" />
+     <MipLevels value="${tex.levels}" />
+     <Format>D3DFMT_DXT5</Format>
+     <FileName>${tex.name}.dds</FileName>
+    </Item>
+   </TextureDictionary>`;
+}
+
+/* default.sps with its full parameter list */
+function shaderItem(texName){
+  return `   <Shaders>
+    <Item>
+     <Name>default</Name>
+     <FileName>default.sps</FileName>
+     <RenderBucket value="0" />
+     <Parameters>
+      <Item name="DiffuseSampler" type="Texture">
+       <Name>${texName}</Name>
+      </Item>
+      <Item name="matMaterialColorScale" type="Vector" x="1" y="0" z="0" w="1" />
+      <Item name="HardAlphaBlend" type="Vector" x="1" y="0" z="0" w="0" />
+      <Item name="useTessellation" type="Vector" x="0" y="0" z="0" w="0" />
+      <Item name="wetnessMultiplier" type="Vector" x="1" y="0" z="0" w="0" />
+      <Item name="globalAnimUV0" type="Vector" x="1" y="0" z="0" w="0" />
+      <Item name="globalAnimUV1" type="Vector" x="0" y="1" z="0" w="0" />
+     </Parameters>
+    </Item>
+   </Shaders>`;
+}
+
+function boxCollision(b){
+  const size=b.max.map((v,i)=>v-b.min[i]);
+  const vol=size[0]*size[1]*size[2];
+  const inertia=[(size[1]**2+size[2]**2)/12,(size[0]**2+size[2]**2)/12,(size[0]**2+size[1]**2)/12];
+  const common=(ind)=>`${ind}${v3('BoxMin',b.min)}
+${ind}${v3('BoxMax',b.max)}
+${ind}${v3('BoxCenter',b.c)}
+${ind}${v3('SphereCenter',b.c)}
+${ind}<SphereRadius value="${f(b.r)}" />
+${ind}<Margin value="0.005" />
+${ind}<Volume value="${f(vol)}" />
+${ind}${v3('Inertia',inertia)}
+${ind}<MaterialIndex value="0" />
+${ind}<MaterialColourIndex value="0" />
+${ind}<ProceduralID value="0" />
+${ind}<RoomID value="0" />
+${ind}<PedDensity value="0" />
+${ind}<UnkFlags value="0" />
+${ind}<PolyFlags value="0" />
+${ind}<UnkType value="1" />`;
+  return ` <Bounds type="Composite">
+${common('  ')}
+  <Children>
+   <Item type="Box">
+${common('    ')}
+    <CompositeTransform>
+     1 0 0 0
+     0 1 0 0
+     0 0 1 0
+     0 0 0 1
+    </CompositeTransform>
+    <CompositeFlags1>MAP_WEAPON, MAP_DYNAMIC, MAP_ANIMAL, MAP_COVER, MAP_VEHICLE</CompositeFlags1>
+    <CompositeFlags2>VEHICLE_NOT_BVH, VEHICLE_BVH, PED, RAGDOLL, ANIMAL, ANIMAL_RAGDOLL, OBJECT, PLANT, PROJECTILE, EXPLOSION, FORKLIFT_FORKS, TEST_WEAPON, TEST_CAMERA, TEST_AI, TEST_SCRIPT, TEST_VEHICLE_WHEEL, GLASS</CompositeFlags2>
+   </Item>
+  </Children>
+ </Bounds>
+`;
+}
+
+function ydrXml(name,mesh,tex,withCollision){
+  const b=bounds(mesh);
+  const rows=[];
+  for(let i=0;i<mesh.pos.length/3;i++){
+    const p=mesh.pos.slice(i*3,i*3+3), n=mesh.nrm.slice(i*3,i*3+3), t=mesh.uv.slice(i*2,i*2+2);
+    rows.push(`          ${p.map(f).join(' ')}   ${n.map(f).join(' ')}   255 255 255 255   ${t.map(f).join(' ')}`);
+  }
+  const idx=[];
+  for(let i=0;i<mesh.idx.length;i+=24) idx.push('          '+mesh.idx.slice(i,i+24).join(' '));
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Drawable>
+ <Name>${name}</Name>
+ ${v3('BoundingSphereCenter',b.c)}
+ <BoundingSphereRadius value="${f(b.r)}" />
+ ${v3('BoundingBoxMin',b.min)}
+ ${v3('BoundingBoxMax',b.max)}
+ <LodDistHigh value="9998" />
+ <LodDistMed value="9998" />
+ <LodDistLow value="9998" />
+ <LodDistVlow value="9998" />
+ <FlagsHigh value="1" />
+ <FlagsMed value="0" />
+ <FlagsLow value="0" />
+ <FlagsVlow value="0" />
+ <ShaderGroup>
+${textureItem(tex)}
+${shaderItem(tex.name)}
+ </ShaderGroup>
+ <DrawableModelsHigh>
+  <Item>
+   <RenderMask value="255" />
+   <Flags value="0" />
+   <HasSkin value="0" />
+   <BoneIndex value="0" />
+   <Unknown1 value="0" />
+   <Geometries>
+    <Item>
+     <ShaderIndex value="0" />
+     <BoundingBoxMin x="${f(b.min[0])}" y="${f(b.min[1])}" z="${f(b.min[2])}" w="0" />
+     <BoundingBoxMax x="${f(b.max[0])}" y="${f(b.max[1])}" z="${f(b.max[2])}" w="0" />
+     <VertexBuffer>
+      <Flags value="0" />
+      <Layout type="GTAV1">
+       <Position />
+       <Normal />
+       <Colour0 />
+       <TexCoord0 />
+      </Layout>
+      <Data>
+${rows.join('\n')}
+      </Data>
+     </VertexBuffer>
+     <IndexBuffer>
+      <Data>
+${idx.join('\n')}
+      </Data>
+     </IndexBuffer>
+    </Item>
+   </Geometries>
+  </Item>
+ </DrawableModelsHigh>
+${withCollision ? boxCollision(b) : ''}</Drawable>
+`;
+}
+
+function archetype(name,b){
+  return `    <Item type="CBaseArchetypeDef">
+      <lodDist value="100"/>
+      <flags value="32"/>
+      <specialAttribute value="0"/>
+      <bbMin x="${f(b.min[0])}" y="${f(b.min[1])}" z="${f(b.min[2])}"/>
+      <bbMax x="${f(b.max[0])}" y="${f(b.max[1])}" z="${f(b.max[2])}"/>
+      <bsCentre x="${f(b.c[0])}" y="${f(b.c[1])}" z="${f(b.c[2])}"/>
+      <bsRadius value="${f(b.r)}"/>
+      <hdTextureDist value="50"/>
+      <name>${name}</name>
+      <textureDictionary/>
+      <clipDictionary/>
+      <drawableDictionary/>
+      <physicsDictionary/>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>${name}</assetName>
+      <extensions/>
+    </Item>`;
+}
+
+function ytypXml(name,base,lid){
+  // textures live inside each drawable, so the archetypes need no txd
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<CMapTypes>
+  <extensions/>
+  <archetypes>
+${archetype(name,bounds(base))}
+${archetype(name+'_lid',bounds(lid))}
+  </archetypes>
+  <name>${name}</name>
+  <dependencies/>
+  <compositeEntityTypes/>
+</CMapTypes>
+`;
+}
+
+function configSnippet(name){
+  const h=hinge(), d=S.dims;
+  return `-- sneaker_box/config.lua  -  replace the model lines at the top with these.
+-- Built at ${d.L} x ${d.W} x ${d.H} cm. HingeOffset must match that size.
+Config.BaseModel = \`${name}\`
+Config.LidModel = \`${name}_lid\`
+Config.HingeOffset = vector3(${f(h[0])}, ${f(h[1])}, ${f(h[2])})
+`;
+}
+
+function manifestSnippet(name){
+  return `-- Put the three built files in their own folder:
+--   sneaker_box/stream/${name}/${name}.ydr
+--   sneaker_box/stream/${name}/${name}_lid.ydr
+--   sneaker_box/stream/${name}/${name}.ytyp
+--
+-- Files in stream/ are picked up automatically. You only need this line,
+-- and it must be the real path on disk, subfolder included:
+data_file 'DLC_ITYP_REQUEST' 'stream/${name}/${name}.ytyp'
+`;
+}
+
+function readme(name,tex){
+  const d=S.dims;
+  return `${name}  -  shoe box prop with a hinged lid
+${d.L} x ${d.W} x ${d.H} cm   ·   texture ${tex.w}x${tex.h} DXT5, baked into both models
+
+Import in CodeWalker
+--------------------
+1. Open RPF Explorer and browse into the ${name} folder from this zip.
+2. Right-click > Import XML > select all three:
+     ${name}.ydr.xml
+     ${name}_lid.ydr.xml
+     ${name}.ytyp.xml
+   The ${name}\\ and ${name}_lid\\ folders hold the textures. They must keep
+   their names and stay next to the XML files. They already do.
+
+Move into the resource
+----------------------
+  sneaker_box/stream/${name}/${name}.ydr
+  sneaker_box/stream/${name}/${name}_lid.ydr
+  sneaker_box/stream/${name}/${name}.ytyp
+No .ytd needed. The texture is inside each .ydr.
+
+fxmanifest.lua
+--------------
+See fxmanifest-snippet.lua (one DLC_ITYP_REQUEST line).
+
+config.lua
+----------
+See config-snippet.lua. It sets the two model names and the hinge offset
+for this size.
+`;
+}
+
+/* ============================================================
+   three.js preview
+   ============================================================ */
+let renderer,scene,camera,root,hingeObj,atlasTex=null,dragging=false;
+let rot={x:0.42,y:2.35}, dist=1.25, last={x:0,y:0};   // starts front-right: GTA +Y faces three.js -Z
+const OPEN_ANGLE=105, OPEN_MS=550, CLOSE_MS=500, HOLD_MS=1200;
+const lid={angle:0,from:0,to:0,start:0,dur:1,opening:false,active:false,open:false};
+let loopOn=false, loopTimer=null;
+
+function initGL(){
+  const canvas=$('gl');
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(36,1,0.01,100);
+
+  scene.add(new THREE.AmbientLight(0xffffff,0.62));
+  const key=new THREE.DirectionalLight(0xffffff,0.85); key.position.set(2,3,2); scene.add(key);
+  const rim=new THREE.DirectionalLight(0x08afa2,0.45); rim.position.set(-2,1,-2); scene.add(rim);
+
+  resize(); addEventListener('resize',resize);
+  canvas.addEventListener('pointerdown',e=>{dragging=true;last={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId)});
+  canvas.addEventListener('pointerup',()=>{dragging=false});
+  canvas.addEventListener('pointermove',e=>{
+    if(!dragging) return;
+    rot.y-=(e.clientX-last.x)*0.008;
+    rot.x+=(e.clientY-last.y)*0.008;
+    rot.x=Math.max(-0.2,Math.min(1.4,rot.x));
+    last={x:e.clientX,y:e.clientY};
+  });
+  canvas.addEventListener('wheel',e=>{
+    e.preventDefault();
+    dist=Math.max(0.45,Math.min(3,dist+e.deltaY*0.001));
+  },{passive:false});
+  requestAnimationFrame(loop);
+}
+function resize(){
+  const s=$('gl').parentElement.getBoundingClientRect();
+  renderer.setSize(s.width,s.height,false);
+  camera.aspect=s.width/s.height; camera.updateProjectionMatrix();
+}
+
+const easeOutBack=t=>{ const c1=1.70158, c3=c1+1; return 1+c3*(t-1)**3+c1*(t-1)**2; };
+function easeOutBounce(t){
+  const n1=7.5625, d1=2.75;
+  if(t<1/d1) return n1*t*t;
+  if(t<2/d1) return n1*(t-=1.5/d1)*t+0.75;
+  if(t<2.5/d1) return n1*(t-=2.25/d1)*t+0.9375;
+  return n1*(t-=2.625/d1)*t+0.984375;
+}
+
+function loop(now){
+  requestAnimationFrame(loop);
+  if(lid.active){
+    const t=Math.min((now-lid.start)/lid.dur,1);
+    lid.angle=lid.from+(lid.to-lid.from)*(lid.opening?easeOutBack(t):easeOutBounce(t));
+    if(t>=1){ lid.angle=lid.to; lid.active=false; }
+  }
+  if(hingeObj) hingeObj.rotation.x=THREE.MathUtils.degToRad(lid.angle);
+  $('lidAngle').textContent=`${lid.angle.toFixed(1)}° of ${OPEN_ANGLE}°`;
+  $('lidName').textContent = lid.active ? (lid.opening?'Opening':'Closing') : (lid.open?'Lid open':'Lid closed');
+
+  const h=metres().H*0.55;
+  camera.position.set(
+    dist*Math.cos(rot.x)*Math.sin(rot.y),
+    h+dist*Math.sin(rot.x),
+    dist*Math.cos(rot.x)*Math.cos(rot.y)
+  );
+  camera.lookAt(0,h,0);
+  renderer.render(scene,camera);
+}
+
+function setLid(open){
+  lid.open=open;
+  $('lidBtn').innerHTML = open ? '<i class="fa-solid fa-box"></i> Close' : '<i class="fa-solid fa-box-open"></i> Open';
+  Object.assign(lid,{from:lid.angle,to:open?OPEN_ANGLE:0,start:performance.now(),
+    dur:open?OPEN_MS:CLOSE_MS,opening:open,active:true});
+}
+function setLoop(on){
+  loopOn=on; clearTimeout(loopTimer);
+  $('loopBtn').classList.toggle('on',on);
+  if(!on) return;
+  const step=()=>{ setLid(!lid.open); loopTimer=setTimeout(step,(lid.open?OPEN_MS:CLOSE_MS)+HOLD_MS); };
+  loopTimer=setTimeout(step,300);
+}
+
+let checkerTex=null;
+function makeChecker(){
+  if(checkerTex) return checkerTex;
+  const n=512, sq=32, d=new Uint8Array(n*n*4);
+  for(let y=0;y<n;y++) for(let x=0;x<n;x++){
+    const o=(y*n+x)*4, on=((x/sq|0)+(y/sq|0))%2===0, right=x>=n/2, bottom=y>=n/2;
+    let r=on?235:26, g=on?238:30, b=on?242:36;
+    if(on){
+      if(right&&!bottom){ r=8; g=175; b=162; }
+      else if(!right&&bottom){ r=229; g=72; b=77; }
+      else if(right&&bottom){ r=232; g=163; b=61; }
+    }
+    d[o]=r; d[o+1]=g; d[o+2]=b; d[o+3]=255;
+  }
+  checkerTex=new THREE.DataTexture(d,n,n,THREE.RGBAFormat);
+  checkerTex.magFilter=THREE.NearestFilter;
+  checkerTex.flipY=false; checkerTex.needsUpdate=true;
+  return checkerTex;
+}
+
+function meshGeometry(m){
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(m.pos,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(m.nrm,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(m.uv,2));
+  g.setIndex(m.idx);
+  return g;
+}
+
+function material(){
+  const map = S.viewMode==='tex' ? atlasTex : S.viewMode==='uv' ? makeChecker() : null;
+  return new THREE.MeshStandardMaterial({map, color:map?0xffffff:0xd6dee6, roughness:0.85, metalness:0});
+}
+
+function showMesh(){
+  if(root){
+    scene.remove(root);
+    root.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); });
+  }
+  const base=buildBase(), lidMesh=buildLid();
+  root=new THREE.Group();
+  root.rotation.x=-Math.PI/2;          // GTA is Z-up
+  root.add(new THREE.Mesh(meshGeometry(base),material()));
+  hingeObj=new THREE.Group();
+  hingeObj.position.set(...hinge());
+  hingeObj.add(new THREE.Mesh(meshGeometry(lidMesh),material()));
+  root.add(hingeObj);
+  scene.add(root);
+
+  const tris=(base.idx.length+lidMesh.idx.length)/3, verts=(base.pos.length+lidMesh.pos.length)/3;
+  const d=S.dims;
+  $('meshinfo').innerHTML=
+    `<b>${tris}</b> polygons &nbsp;·&nbsp; <b>${verts}</b> vertices<br>`+
+    `<b>2</b> parts &nbsp;·&nbsp; <b>1</b> shader each<br>`+
+    `<b>${d.L} × ${d.W} × ${d.H}</b> cm &nbsp;·&nbsp; hinge at <b>${hinge().map(v=>f(v)).join(', ')}</b>`;
+}
+
+/* ============================================================
+   refresh
+   ============================================================ */
+let atlasTimer=null;
+function refreshAtlas(){
+  clearTimeout(atlasTimer);
+  atlasTimer=setTimeout(()=>{
+    const cv=drawAtlas(1024);
+    if(atlasTex) atlasTex.dispose();
+    atlasTex=new THREE.CanvasTexture(cv);
+    atlasTex.flipY=false;                 // UVs are top-down, like the game
+    atlasTex.encoding=THREE.sRGBEncoding;
+    atlasTex.anisotropy=renderer.capabilities.getMaxAnisotropy();
+    $('atlasThumb').getContext('2d').drawImage(cv,0,0,256,256);
+    showMesh();
+  },60);
+}
+
+function refresh(){
+  const name=modelName();
+  $('modelPreview').textContent=name||'your_prop_name';
+  $('lidPreview').textContent=(name||'your_prop_name')+'_lid';
+  $('o-ydr').querySelector('span').textContent=(name||'…')+'.ydr.xml';
+  $('o-lid').querySelector('span').textContent=(name||'…')+'_lid.ydr.xml';
+  $('o-ytyp').querySelector('span').textContent=(name||'…')+'.ytyp.xml';
+  $('o-tex').querySelector('span').textContent=`texture folders (${S.texMax} dds in each)`;
+  $('atlasName').textContent=(name||'prop')+'_atlas';
+  $('atlasSize').textContent=`${S.texMax}×${S.texMax} · DXT5`;
+  ['ydr','lid','ytyp','tex','lua'].forEach(k=>$('o-'+k).classList.toggle('on',!!name));
+  buildBtn.disabled=!name;
+}
+
+function syncColourInputs(){
+  for(const [id,key] of [['cBox','box'],['cLid','lid'],['cInner','inner'],['cPrint','print']]){
+    $(id).value=S.colours[key];
+    $(id+'Hex').textContent=S.colours[key];
+  }
+  document.querySelectorAll('.preset').forEach(b=>{
+    const p=PRESETS.find(x=>x.id===b.dataset.id);
+    b.classList.toggle('on',['box','lid','inner','print'].every(k=>p[k]===S.colours[k]));
+  });
+}
+
+function syncDims(){
+  $('dimL').value=S.dims.L; $('dimW').value=S.dims.W; $('dimH').value=S.dims.H;
+  [...$('sizePreset').children].forEach(b=>{
+    const s=SIZES[b.dataset.v];
+    b.classList.toggle('on',s.L===S.dims.L&&s.W===S.dims.W&&s.H===S.dims.H);
+  });
+}
+
+/* ============================================================
+   build
+   ============================================================ */
+async function build(){
+  clearStatus();
+  const name=modelName();
+  if(!name){ setStatus('Give the prop a name first.','err'); return; }
+  try{
+    buildBtn.disabled=true;
+    buildBtn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Baking texture';
+    await new Promise(r=>setTimeout(r,20));
+    await document.fonts.ready;
+
+    const atlas=drawAtlas(S.texMax);
+    const baked=bakeTexture(atlas);
+    const tex={name:name+'_atlas',...baked};
+    const base=buildBase(), lidMesh=buildLid();
+
+    buildBtn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Zipping';
+    await new Promise(r=>setTimeout(r,20));
+
+    const zip=new JSZip();
+    const dir=zip.folder(name);
+    dir.file(name+'.ydr.xml', ydrXml(name,base,tex,S.collision));
+    dir.file(name+'_lid.ydr.xml', ydrXml(name+'_lid',lidMesh,tex,false));
+    dir.file(name+'.ytyp.xml', ytypXml(name,base,lidMesh));
+    // each texture folder is named exactly like its xml, or CodeWalker can't find it
+    dir.folder(name).file(tex.name+'.dds', baked.dds);
+    dir.folder(name+'_lid').file(tex.name+'.dds', baked.dds);
+    zip.file('README.txt', readme(name,tex));
+    zip.file('fxmanifest-snippet.lua', manifestSnippet(name));
+    zip.file('config-snippet.lua', configSnippet(name));
+    const png=await new Promise(r=>atlas.toBlob(r,'image/png'));
+    zip.file('atlas-preview.png', png);
+
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=name+'.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+
+    setStatus(`Built <b>${name}.zip</b>. Import the three XML files in CodeWalker, then paste the config snippet. It has the hinge offset for this size.`,'ok');
+  }catch(err){
+    setStatus(err.message,'err');
+  }finally{
+    buildBtn.innerHTML='<i class="fa-solid fa-download"></i> Build package';
+    refresh();
+  }
+}
+
+/* ============================================================
+   wiring
+   ============================================================ */
+const presetsEl=$('presets');
+for(const p of PRESETS){
+  const b=document.createElement('button');
+  b.className='preset'; b.dataset.id=p.id; b.type='button';
+  b.innerHTML=`<span class="dots"><i style="background:${p.box}"></i><i style="background:${p.lid}"></i><i style="background:${p.print}"></i></span>${p.name}`;
+  b.addEventListener('click',()=>{ S.colours={...p}; syncColourInputs(); refreshAtlas(); });
+  presetsEl.appendChild(b);
+}
+for(const [id,key] of [['cBox','box'],['cLid','lid'],['cInner','inner'],['cPrint','print']]){
+  $(id).addEventListener('input',e=>{ S.colours[key]=e.target.value; syncColourInputs(); refreshAtlas(); });
+}
+['brand','tagline','shoeSize','styleCode'].forEach(id=>$(id).addEventListener('input',refreshAtlas));
+
+slugEl.addEventListener('input',refresh);
+buildBtn.addEventListener('click',build);
+
+$('pickLogo').addEventListener('click',()=>$('fileLogo').click());
+$('fileLogo').addEventListener('change',e=>{
+  const file=e.target.files[0]; e.target.value='';
+  if(!file) return;
+  const img=new Image();
+  img.onload=()=>{
+    S.logo=img; S.logoName=file.name;
+    const row=$('row-logo');
+    row.classList.add('ok');
+    row.querySelector('.nm').textContent=file.name;
+    row.querySelector('.nm').classList.remove('empty');
+    row.querySelector('.x').style.display='block';
+    refreshAtlas();
+  };
+  img.onerror=()=>setStatus('Could not read '+file.name+'. Use a PNG or JPG.','err');
+  img.src=URL.createObjectURL(file);
+});
+$('row-logo').querySelector('.x').addEventListener('click',()=>{
+  S.logo=null; S.logoName=null;
+  const row=$('row-logo');
+  row.classList.remove('ok');
+  row.querySelector('.nm').textContent='No logo · uses a monogram';
+  row.querySelector('.nm').classList.add('empty');
+  row.querySelector('.x').style.display='none';
+  refreshAtlas();
+});
+
+$('sizePreset').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  S.dims={...SIZES[b.dataset.v]}; syncDims(); refreshAtlas();
+});
+for(const [id,key,lo,hi] of [['dimL','L',10,80],['dimW','W',8,60],['dimH','H',5,40]]){
+  $(id).addEventListener('change',e=>{
+    let v=parseFloat(e.target.value);
+    if(!Number.isFinite(v)) v=S.dims[key];
+    S.dims[key]=Math.max(lo,Math.min(hi,Math.round(v*2)/2));
+    syncDims(); refreshAtlas();   // the end label follows the height
+  });
+}
+
+$('texsize').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...$('texsize').children].forEach(x=>x.classList.toggle('on',x===b));
+  S.texMax=+b.dataset.v; refresh();
+});
+$('collision').addEventListener('change',e=>{ S.collision=e.target.checked; });
+
+function setView(m){
+  S.viewMode=m;
+  $('vmTex').classList.toggle('on',m==='tex');
+  $('vmFlat').classList.toggle('on',m==='flat');
+  $('vmUv').classList.toggle('on',m==='uv');
+  showMesh();
+}
+$('vmTex').addEventListener('click',()=>setView('tex'));
+$('vmFlat').addEventListener('click',()=>setView('flat'));
+$('vmUv').addEventListener('click',()=>setView('uv'));
+
+$('lidBtn').addEventListener('click',()=>{ setLoop(false); setLid(!lid.open); });
+$('loopBtn').addEventListener('click',()=>setLoop(!loopOn));
+addEventListener('keydown',e=>{
+  if(guideEl.classList.contains('on')) return;
+  if(['INPUT','SELECT','TEXTAREA','BUTTON'].includes(e.target.tagName)) return;
+  if(e.code==='Space'){ e.preventDefault(); setLoop(false); setLid(!lid.open); }
+});
+
+const guideEl=$('guide'), scrimEl=$('scrim');
+function setGuide(on){ guideEl.classList.toggle('on',on); scrimEl.classList.toggle('on',on); }
+$('openGuide').addEventListener('click',()=>setGuide(true));
+$('closeGuide').addEventListener('click',()=>setGuide(false));
+scrimEl.addEventListener('click',()=>setGuide(false));
+addEventListener('keydown',e=>{ if(e.key==='Escape') setGuide(false); });
+
+$('reset').addEventListener('click',()=>{
+  S.colours={...PRESETS[0]}; S.dims={...SIZES.mens}; S.texMax=1024; S.collision=true;
+  slugEl.value='nz_shoebox';
+  $('brand').value='SNEAKER CO.'; $('tagline').value='100% RECYCLED FIBRE · KEEP DRY';
+  $('shoeSize').value='10'; $('styleCode').value='NZ-0420-001';
+  $('collision').checked=true;
+  [...$('texsize').children].forEach(x=>x.classList.toggle('on',x.dataset.v==='1024'));
+  $('row-logo').querySelector('.x').click();
+  setLoop(false); clearStatus();
+  syncColourInputs(); syncDims(); refresh(); refreshAtlas();
+});
+
+initGL();
+syncColourInputs();
+syncDims();
+refresh();
+refreshAtlas();
+document.fonts.ready.then(refreshAtlas);   // redraw once Lexend has loaded
+</script>
+</body>
+</html>
