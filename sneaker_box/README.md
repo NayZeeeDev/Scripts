@@ -1,5 +1,7 @@
 # sneaker_box
 
+> **New here?** Start with [HOW-TO-USE.md](HOW-TO-USE.md). It's a plain step-by-step for dropping the box in and for using the prop tool.
+
 An orange sneaker box prop for FiveM with a lid hinged at the back that swings open and drops shut. Everyone nearby sees the open/close state.
 
 ![sneaker box opening and closing](preview.gif)
