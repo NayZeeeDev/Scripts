@@ -15,7 +15,7 @@ An orange sneaker box prop for FiveM with a lid hinged at the back that swings o
 ```
 sneaker_box/
   fxmanifest.lua  config.lua  client.lua  server.lua
-  stream/nz_shoebox/          <- the built nz_shoebox.ydr, nz_shoebox_lid.ydr, nz_shoebox.ytyp
+  stream/nz_shoebox/          nz_shoebox.ydr, nz_shoebox_lid.ydr, nz_shoebox.ytyp (prebuilt)
   tools/
     shoebox-prop-tool.html    builds the models without Blender (open it in Chrome or Edge)
   source/
@@ -29,7 +29,8 @@ sneaker_box/
 
 ## Building the models
 
-FiveM streams GTA's binary formats (`.ydr` and `.ytyp`). There are two ways to make them.
+The default orange box comes prebuilt in `stream/nz_shoebox/`, so the resource works as soon as you `ensure` it.
+To make a different colourway, size or logo, rebuild the models. FiveM streams GTA's binary formats (`.ydr` and `.ytyp`), and there are two ways to make them.
 
 ### With the prop tool (no Blender)
 
