@@ -51,11 +51,29 @@ local function textSystem()
     return 'ox'
 end
 
-local textShown
+local textShown, textSeen, textWatch = nil, 0, false
+
+-- Every prompt here is redrawn each frame by whatever shows it. One that stops
+-- being refreshed (point removed, mission over, you got out of the car, you
+-- teleported) hides itself, so nothing can stay stuck on screen.
+local function watchText()
+    if textWatch then return end
+    textWatch = true
+    CreateThread(function()
+        while textShown do
+            if GetGameTimer() - textSeen > 400 then Bridge.HideText() break end
+            Wait(100)
+        end
+        textWatch = false
+    end)
+end
+
 function Bridge.ShowText(key, label)
+    textSeen = GetGameTimer()
     local id = key .. label
     if textShown == id then return end
     textShown = id
+    watchText()
     local text = key ~= '' and ('[%s] %s'):format(key, label) or label
     local sys = textSystem()
     if sys == 'nayzeee' then
@@ -164,7 +182,7 @@ function Bridge.RemovePoint(id)
     if z.kind == 'ox' then pcall(function() exports.ox_target:removeZone(z.handle) end)
     elseif z.kind == 'qb' then pcall(function() exports['qb-target']:RemoveZone(id) end)
     elseif z.kind == 'interact' then pcall(function() exports.interact:RemoveInteraction(id) end)
-    elseif z.kind == 'text' and z.point then z.point:remove() end
+    elseif z.kind == 'text' and z.point then z.point:remove() Bridge.HideText() end
     zones[id] = nil
 end
 
@@ -222,6 +240,8 @@ AddEventHandler('onResourceStop', function(res)
     for id, z in pairs(zones) do
         if z.entity then Bridge.RemoveEntity(z.entity, id) else Bridge.RemovePoint(id) end
     end
+    -- the text UI lives in another resource, so it would outlive this one
+    Bridge.HideText()
 end)
 
 -----------------------------------------------------------------

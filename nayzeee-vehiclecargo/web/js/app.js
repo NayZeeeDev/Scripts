@@ -270,6 +270,7 @@ const KIND = {
   repair: ['fa-screwdriver-wrench', 'off', 'Repair'], upgrade: ['fa-layer-group', 'off', 'Upgrade'], purchase: ['fa-warehouse', 'off', 'Purchase'], scrap: ['fa-recycle', 'off', 'Scrapped'],
   insure: ['fa-shield-halved', 'off', 'Insured'], claim: ['fa-file-invoice-dollar', '', 'Insurance claim'], seized: ['fa-handcuffs', 'red', 'Seized'],
   bribe: ['fa-money-bill-transfer', 'off', 'Bribe'], prestige: ['fa-crown', '', 'Prestige'], keys: ['fa-key', 'off', 'Keys'],
+  wh_moved: ['fa-truck-moving', 'off', 'Moved to'], wh_sold: ['fa-sign-hanging', '', 'Sold warehouse'],
 };
 function feedRow(l) {
   const k = KIND[l.kind] || ['fa-circle', 'off', l.kind];
@@ -997,16 +998,34 @@ function tabAdmin(standalone) {
    ═══════════════════════════════════════════════════════════ */
 function renderShop() {
   const s = S.shop; if (!s) return;
+  const mine = arr(s.mine), sale = obj(s.sale);
   if (!s.locations.find(l => l.id === S.shopSel)) S.shopSel = (s.locations.find(l => !l.owned) || s.locations[0] || {}).id;
-  const sel = s.locations.find(l => l.id === S.shopSel);
+  if (!mine.find(w => w.id === S.shopFrom)) S.shopFrom = (mine[0] || {}).id;
+  const sel = s.locations.find(l => l.id === S.shopSel), from = mine.find(w => w.id === S.shopFrom);
   const maxed = s.owned >= s.max;
   const canBuy = sel && !sel.owned && !maxed && s.cash >= sel.price;
+  const moving = !!(sale.enabled && from);
+  const net = moving && sel ? sel.price - from.tradeIn : 0;
+  const canMove = moving && sel && !sel.owned && s.cash >= net;
+  const cars = n => `${n} car${n === 1 ? '' : 's'}`;
+  const yours = mine.length ? panel('Your warehouses', sale.enabled ? (mine.length > 1 ? 'Pick the one to move, or sell one back to the broker' : 'Move everything to another building, or sell it back') : `${mine.length} owned`, '', mine.map(w => `
+        <div class="row ${mine.length > 1 && w.id === S.shopFrom ? 'on' : ''}" ${mine.length > 1 ? `data-act="shopFrom" data-id="${w.id}" style="cursor:pointer"` : ''}>${tile('fa-warehouse')}
+          <div class="row-txt"><b>${esc(w.name)}</b><span>${cars(w.cars)} inside · paid ${money(w.paid)}</span></div>
+          ${mine.length > 1 && w.id === S.shopFrom ? '<span class="tag live">Moving this one</span>' : ''}
+          ${sale.enabled ? `<button class="btn danger" data-act="shopSell" data-id="${w.id}"><i class="fa-solid fa-sign-hanging"></i>Sell · ${money(obj(w.quote).total)}</button>` : ''}</div>`).join('')) : '';
+  let note = '';
+  if (sel) {
+    if (sel.owned) note = `<span class="dot red"></span><span>You already own <b>${esc(sel.name)}</b></span>`;
+    else if (moving) note = `<span class="dot"></span><span>Selected <b>${esc(sel.name)}</b> · trade in <b>${esc(from.name)}</b> for ${money(from.tradeIn)}</span>`;
+    else note = `<span class="dot"></span><span>Selected <b>${esc(sel.name)}</b></span>`;
+  }
   $('#shop-root').innerHTML = `
     <div class="bar"><div class="bar-brand"><div class="mark"></div><div class="bar-name"><div class="title-txt">Warehouse Broker</div><div class="sub">Commercial listings</div></div></div>
       <div class="bar-mid"><span class="dot ${maxed ? 'red' : ''}"></span><p>${maxed ? `You own <b>${s.owned} of ${s.max}</b> warehouses` : `Balance <b>${money(s.cash)}</b> · you own <b>${s.owned} of ${s.max}</b>`}</p><span class="ver">v${esc(s.version)}</span></div>
       <button class="pill-close" data-act="close">Close</button></div>
     <div class="body solo"><main class="main">
-      ${head('Buy a warehouse', 'Every warehouse is private. Others can buy the same building, but nobody sees your floor except you and your crew.', clock(`${s.capacity} slots`, `Upgradable to ${s.maxCapacity || 32}`))}
+      ${head(mine.length && sale.enabled ? 'Buy, move or sell' : 'Buy a warehouse', 'Every warehouse is private. Others can buy the same building, but nobody sees your floor except you and your crew.', clock(`${s.capacity} slots`, `Upgradable to ${s.maxCapacity || 32}`))}
+      ${yours}
       ${panel('Listings', `${s.locations.length} buildings`, '', s.locations.length ? s.locations.map(l => `
         <div class="row ${l.id === S.shopSel ? 'on' : ''}" data-act="shopSel" data-id="${l.id}" style="cursor:pointer">${tile('fa-warehouse', l.owned ? '' : 'off')}
           <div class="row-txt"><b>${esc(l.name)}</b><span>${l.owned ? 'You own a unit here' : 'Private vehicle warehouse'} · ${l.owners} owner${l.owners === 1 ? '' : 's'}</span></div>
@@ -1014,10 +1033,11 @@ function renderShop() {
           <button class="btn icon ghost" data-act="shopWay" data-id="${l.id}" title="Set waypoint"><i class="fa-solid fa-location-arrow"></i></button>
           <div class="row-end" style="min-width:96px"><b>${money(l.price)}</b><span>one-time</span></div></div>`).join('')
         : empty('fa-warehouse', 'Nothing listed', 'An admin needs to add a location first.'))}
-      <div class="note">${sel ? `<span class="dot ${sel.owned ? 'red' : ''}"></span><span>${sel.owned ? `You already own <b>${esc(sel.name)}</b>` : `Selected <b>${esc(sel.name)}</b>`}</span>` : ''}<span style="flex:1"></span>
-        <button class="btn primary" data-act="buy" ${canBuy ? '' : 'disabled'}><i class="fa-solid fa-key"></i>Buy · ${money(sel?.price)}</button></div>
+      <div class="note">${note}<span style="flex:1"></span>
+        ${moving ? `<button class="btn ${maxed ? 'primary' : ''}" data-act="shopMove" ${canMove ? '' : 'disabled'}><i class="fa-solid fa-truck-moving"></i>Move here · ${net < 0 ? '+' + money(-net) : money(net)}</button>` : ''}
+        <button class="btn ${maxed && moving ? '' : 'primary'}" data-act="buy" ${canBuy ? '' : 'disabled'}><i class="fa-solid fa-key"></i>Buy · ${money(sel?.price)}</button></div>
     </main></div>
-    <div class="statusbar">${keys([['ESC', 'Close'], ['↵', 'Buy selected']])}<span class="grow"></span><span>Waypoint is set after you buy</span></div>`;
+    <div class="statusbar">${keys([['ESC', 'Close'], ['↵', 'Buy selected']])}<span class="grow"></span><span>${moving ? 'Moving takes your cars, upgrades, layout and crew along' : 'Waypoint is set after you buy'}</span></div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1862,6 +1882,35 @@ const ACT = {
   /* broker */
   shopSel: d => { S.shopSel = num(d.id); renderShop(); },
   shopWay: d => { const l = S.shop.locations.find(x => x.id === num(d.id)); if (l && l.door) { post('waypoint', { x: l.door.x, y: l.door.y }); toast('Waypoint set', l.name); } },
+  shopFrom: d => { S.shopFrom = num(d.id); renderShop(); },
+  shopSell: async d => {
+    const w = arr(S.shop.mine).find(x => x.id === num(d.id)), sale = obj(S.shop.sale);
+    if (!w) return;
+    const q = obj(w.quote), pct = v => `${Math.round((v || 0) * 100)}%`, n = w.cars;
+    const html = `<div class="quote">
+      <div class="kv"><span>Building · ${pct(sale.refund)} of ${money(w.paid)}</span><b>${money(q.building)}</b></div>
+      <div class="kv"><span>Upgrades · ${pct(sale.upgradeRefund)} of what you spent</span><b>${money(q.upgrades)}</b></div>
+      ${n ? `<div class="kv"><span>${n} car${n === 1 ? '' : 's'} inside · ${pct(sale.stockRefund)} of value</span><b>${money(q.cars)}</b></div>` : ''}
+      <div class="kv sum"><span>You get</span><b class="pos">${money(q.total)}</b></div></div>`;
+    const text = `It's gone for good: the building, every upgrade${n ? `, the ${n} car${n === 1 ? '' : 's'} inside` : ''} and your crew's access. This can't be undone.`;
+    if (!await modal({ title: `Sell ${w.name}?`, text, html, confirm: `Sell · ${money(q.total)}`, danger: true, icon: 'fa-sign-hanging' })) return;
+    const r = await post('whSell', { id: w.id });
+    if (r && r.locations) { S.shop = r; renderShop(); toast('Warehouse sold', `${money(q.total)} paid out`); }
+    else toast('Sale didn\'t go through', 'Everyone has to be out and every job finished first.', false);
+  },
+  shopMove: async () => {
+    const s = S.shop, l = s.locations.find(x => x.id === S.shopSel), w = arr(s.mine).find(x => x.id === S.shopFrom);
+    if (!l || !w || l.owned) return;
+    const net = l.price - w.tradeIn, n = w.cars;
+    const html = `<div class="quote">
+      <div class="kv"><span>${esc(l.name)}</span><b>${money(l.price)}</b></div>
+      <div class="kv"><span>Trade-in · ${esc(w.name)}</span><b class="pos">−${money(w.tradeIn)}</b></div>
+      <div class="kv sum"><span>${net < 0 ? 'You get back' : 'You pay'}</span><b class="${net < 0 ? 'pos' : ''}">${money(Math.abs(net))}</b></div></div>`;
+    const text = `Everything comes with you: ${n} car${n === 1 ? '' : 's'}, upgrades, floor layout and crew. ${w.name} goes back on the market.`;
+    if (!await modal({ title: `Move to ${l.name}?`, text, html, confirm: 'Move warehouse', icon: 'fa-truck-moving' })) return;
+    const r = await post('whMove', { id: w.id, location: l.id });
+    if (!r || r.ok === false) toast('Move didn\'t go through', 'Check your balance, and make sure nobody is inside.', false);
+  },
   buy: async () => {
     const l = S.shop.locations.find(x => x.id === S.shopSel);
     if (!l || l.owned) return;
@@ -2019,6 +2068,7 @@ window.addEventListener('message', e => {
   const { action, data } = e.data || {};
   switch (action) {
     case 'open': openView(data.view, data.data, data.static); break;
+    case 'static': if (data && data.rarities) S.static = data; break;
     case 'close': closeAll(); break;
     case 'laptopApp': if (S.view === 'laptop' && data && data.app) openApp(data.app); break;
     case 'hud': {

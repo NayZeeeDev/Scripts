@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS `nz_cargo_profiles` (
         `sell_cd` INT NOT NULL DEFAULT 0,
         `prestige` INT NOT NULL DEFAULT 0,
         `contract_cd` LONGTEXT DEFAULT NULL,
+        `last_inside` INT NOT NULL DEFAULT 0,
         `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 

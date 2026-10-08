@@ -99,6 +99,7 @@ The default `Config.Interior.Floor` box is a starting point. Fit it to your inte
 | Store | Drive into the garage. Illegal cars go to the lower level. Condition is read from the car's real health. |
 | Design | Customize in the back with a GTA-style mod menu. Build points push the rarity up. |
 | Sell | Pick a buyer and drive. Every hit, ram and bullet drops the offer. At the drop you hand over the keys, take an envelope of cash and watch the buyer drive off. |
+| Move / sell the warehouse | At any broker: **Move here** buys another building and takes everything along (cars, upgrades, layout, crew), with a trade-in off the price. **Sell** gives the warehouse back for good. Set the shares in `Config.WarehouseSale`. |
 
 ---
 
@@ -369,3 +370,4 @@ Police on duty see tracked cars move on their map while the tracker is on. Break
 | A dispatch alert doesn't show | Set `Config.Dispatch.System` to your resource instead of `auto`, or use `custom` |
 | No keys after taking a car | Add your key resource to `Bridge.GiveKeys` in `bridge/client.lua` |
 | Players can't take contracts | Check `Config.Sourcing.MinPolice`, cooldowns and floor capacity |
+| After a restart or relog players stand in an empty warehouse | Handled for you: they go back into their own warehouse, or out the front door (`Config.Resume`). No multicharacter changes needed. Turn `Config.Resume.Enabled` off only if another script uses the same interior. |

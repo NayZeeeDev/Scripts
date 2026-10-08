@@ -344,7 +344,24 @@ function Server.PutInBucket(src, wid)
     end
     SetPlayerRoutingBucket(src, b)
     local s = Server.Get(src)
-    if s then s.inside = wid end
+    if s then
+        s.inside = wid
+        -- remembered per character so a restart / relog inside puts them back in the right one
+        if not s.preview then DB.SetLastInside(Server.Profile(src), wid) end
+    end
+end
+
+-- Front door to send someone to when they can't go back inside
+function Server.FallbackDoor(src, w)
+    local loc = w and DB.Locations[w.location]
+    if loc then return loc.door end
+    for _, a in ipairs(Server.Accessible(src)) do
+        loc = DB.Locations[a.location]
+        if loc then return loc.door end
+    end
+    local broker = (DB.Settings.brokers or {})[1]
+    if broker then return broker end
+    for _, l in pairs(DB.Locations) do return l.door end
 end
 
 -- Everyone currently inside a warehouse (for live refreshes)

@@ -44,7 +44,12 @@ end
 -----------------------------------------------------------------
 -- Display cars (local only, never networked)
 -----------------------------------------------------------------
+-- Bumped on every clear / respawn so a spawn still loading stops and cleans up
+-- after itself (two overlapping spawns stacked cars on top of each other).
+local displayGen = 0
+
 local function clearDisplay()
+    displayGen = displayGen + 1
     for id, d in pairs(Warehouse.display) do
         Bridge.RemoveEntity(d.entity, 'nz_car_' .. id)
         if DoesEntityExist(d.entity) then DeleteEntity(d.entity) end
@@ -57,17 +62,37 @@ local function rarityLabel(id)
     return r and r.label or id
 end
 
+-- Wheels on the floor. Spots are saved at floor height, so the car's resting
+-- height is known even when the interior collision hasn't streamed in yet.
+local function settle(veh, slot)
+    local mn = GetModelDimensions(GetEntityModel(veh))
+    local want = slot.z - mn.z
+    FreezeEntityPosition(veh, false)
+    local ok = SetVehicleOnGroundProperly(veh)
+    local c = GetEntityCoords(veh)
+    -- no ground found yet, or it landed somewhere else (on another car, under the floor)
+    if not ok or math.abs(c.z - want) > 1.0 then
+        SetEntityCoordsNoOffset(veh, slot.x, slot.y, want, false, false, false)
+        SetEntityHeading(veh, slot.w or 0.0)
+    end
+end
+
 -- Spawn one car on its spot and make sure it sits on the floor
-local function placeCar(car, slot)
+local function placeCar(car, slot, gen)
     local hash = Client.LoadModel(car.model)
-    if not hash then return nil end
+    if not hash or gen ~= displayGen then return nil end
+    local mn = GetModelDimensions(hash)
     RequestCollisionAtCoord(slot.x, slot.y, slot.z)
-    local veh = CreateVehicle(hash, slot.x, slot.y, slot.z + 0.5, slot.w or 0.0, false, false)
+    local veh = CreateVehicle(hash, slot.x, slot.y, slot.z - mn.z, slot.w or 0.0, false, false)
     SetModelAsNoLongerNeeded(hash)
+    FreezeEntityPosition(veh, true)
     SetEntityCollision(veh, true, true)
     local t = GetGameTimer() + 2500
-    while not HasCollisionLoadedAroundEntity(veh) and GetGameTimer() < t do Wait(0) end
-    SetVehicleOnGroundProperly(veh)
+    while not HasCollisionLoadedAroundEntity(veh) and GetGameTimer() < t and gen == displayGen do
+        RequestCollisionAtCoord(slot.x, slot.y, slot.z)
+        Wait(0)
+    end
+    if gen ~= displayGen then DeleteEntity(veh) return nil end
     Bridge.SetProps(veh, car.props)
     if car.plate then SetVehicleNumberPlateText(veh, car.plate) end
     SetVehicleDoorsLocked(veh, 2)
@@ -79,13 +104,15 @@ local function placeCar(car, slot)
         end
     end
     Wait(0)
-    SetVehicleOnGroundProperly(veh)
+    if gen ~= displayGen then DeleteEntity(veh) return nil end
+    settle(veh, slot)
     FreezeEntityPosition(veh, true)
     return veh
 end
 
 local function spawnDisplay(list)
     clearDisplay()
+    local gen = displayGen
     local inside = Client.inside
     if not inside then return end
     local floors = {
@@ -95,8 +122,8 @@ local function spawnDisplay(list)
     for _, f in ipairs(floors) do
         for i, car in ipairs(f.cars) do
             local slot = f.slots[i]
-            if not slot or not Client.inside then break end
-            local veh = placeCar(car, slot)
+            if not slot or not Client.inside or gen ~= displayGen then break end
+            local veh = placeCar(car, slot, gen)
             if veh then
                 local options = {
                     { label = L('ti_customize'), icon = 'fa-solid fa-spray-can-sparkles',
@@ -241,7 +268,10 @@ end
 -- Enter / exit
 -----------------------------------------------------------------
 function Warehouse.Load(data, fadeHeld)
+    Client.warping = true
     if not fadeHeld then Client.Fade(true) end
+    Client.ClosePrompts()
+    Client.Static()
     Client.inside = data
     loadInterior(data.interior, data.style)
     local ped = cache.ped
@@ -252,6 +282,7 @@ function Warehouse.Load(data, fadeHeld)
     spawnDisplay(data.display or {})
     specLoop()
     Client.Fade(false)
+    Client.warping = false
 end
 
 function Warehouse.Enter(id)
@@ -265,6 +296,8 @@ function Warehouse.Cleanup()
     Laptop.ShowDefaults()
     clearDisplay()
     clearPoints()
+    Client.ClosePrompts()
+    Client.Send('spec', { hide = true })
     for _, k in ipairs({ 'interiorId', 'lowerId' }) do
         if Warehouse[k] and Warehouse[k] ~= 0 then UnpinInterior(Warehouse[k]) end
     end
@@ -276,11 +309,13 @@ function Warehouse.Exit(mode, toCoords)
     if Laptop.open then Laptop.Close(true) end
     Client.CloseUI()
     if Workshop.active then Workshop.Close(true) end
+    Client.warping = true
     Client.Fade(true)
     local door = toCoords or lib.callback.await('nz_cargo:exit', false, mode or 'front')
     Warehouse.Cleanup()
     if door then Client.Teleport(door, (door.w or 0.0) + (mode == 'garage' and 0.0 or 180.0)) end
     Client.Fade(false)
+    Client.warping = false
 end
 
 RegisterNetEvent('nz_cargo:display', function(list)
@@ -315,6 +350,7 @@ AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
     clearDisplay()
     clearPoints()
+    Bridge.HideText()
 end)
 
 -----------------------------------------------------------------

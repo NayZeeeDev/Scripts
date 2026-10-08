@@ -141,6 +141,7 @@ function DB.Init()
     ensureColumn('nz_cargo_stock', 'hot', 'TINYINT NOT NULL DEFAULT 0')
     ensureColumn('nz_cargo_profiles', 'prestige', 'INT NOT NULL DEFAULT 0')
     ensureColumn('nz_cargo_profiles', 'contract_cd', 'LONGTEXT DEFAULT NULL')
+    ensureColumn('nz_cargo_profiles', 'last_inside', 'INT NOT NULL DEFAULT 0')
 
     ensureColumn('nz_cargo_locations', 'garage_exit', 'VARCHAR(160) DEFAULT NULL')
 
@@ -232,6 +233,12 @@ function DB.SaveWarehouse(w)
     })
 end
 
+-- Move a warehouse (and everything in it) to another building
+function DB.MoveWarehouse(w, location, paid)
+    w.location, w.paid = location, paid
+    MySQL.update.await('UPDATE nz_cargo_warehouses SET location = ?, paid = ? WHERE id = ?', { location, paid, w.id })
+end
+
 function DB.DeleteWarehouse(id)
     local w = DB.Warehouses[id]
     if not w then return end
@@ -311,7 +318,7 @@ function DB.GetProfile(identifier, name)
     if not r then
         MySQL.insert.await('INSERT IGNORE INTO nz_cargo_profiles (identifier, name) VALUES (?, ?)', { identifier, name or '' })
         r = { identifier = identifier, name = name, xp = 0, sourced = 0, sold = 0, failed = 0, earned = 0,
-              best_sale = 0, clean_streak = 0, source_cd = 0, sell_cd = 0, prestige = 0 }
+              best_sale = 0, clean_streak = 0, source_cd = 0, sell_cd = 0, prestige = 0, last_inside = 0 }
     end
     r.prestige = r.prestige or 0
     r.contract_cd = type(r.contract_cd) == 'table' and r.contract_cd or decode(r.contract_cd, {})
@@ -328,6 +335,14 @@ function DB.SaveProfile(p)
 end
 
 function DB.DropProfile(identifier) profiles[identifier] = nil end
+
+-- Which warehouse this character is inside (0 = none). Survives restarts and relogs.
+function DB.SetLastInside(p, wid)
+    wid = wid or 0
+    if (p.last_inside or 0) == wid then return end
+    p.last_inside = wid
+    MySQL.update('UPDATE nz_cargo_profiles SET last_inside = ? WHERE identifier = ?', { wid, p.identifier })
+end
 
 -----------------------------------------------------------------
 -- Ledger

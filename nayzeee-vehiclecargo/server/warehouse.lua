@@ -198,9 +198,20 @@ lib.callback.register('nz_cargo:shop', function(src)
         end
     end
     table.sort(list, function(a, b) return a.price < b.price end)
+    local WS = Config.WarehouseSale
+    local own = {}
+    for _, w in ipairs(Server.Owned(s.identifier)) do
+        local loc = locationOf(w)
+        own[#own + 1] = {
+            id = w.id, location = w.location, name = loc and loc.name or ('Warehouse #' .. w.id), paid = w.paid,
+            cars = #DB.GetStock(w.id), quote = Warehouse.SaleQuote(w), tradeIn = Warehouse.TradeIn(w),
+        }
+    end
     return {
         version = Cargo.Version,
         locations = list,
+        mine = own,
+        sale = { enabled = WS.Enabled, refund = WS.Refund, upgradeRefund = WS.UpgradeRefund, stockRefund = WS.StockRefund, tradeIn = WS.TradeIn },
         owned = #Server.Owned(s.identifier),
         max = Config.MaxWarehousesPerPlayer,
         cash = Bridge.GetMoney(src, Config.Accounts.Purchase),
@@ -226,6 +237,111 @@ lib.callback.register('nz_cargo:buy', function(src, locationId)
 end)
 
 -----------------------------------------------------------------
+-- Selling / moving a warehouse at the broker
+-----------------------------------------------------------------
+-- Everything spent on upgrades and interior styles
+local function upgradeSpend(w)
+    local total = 0
+    for track, cfg in pairs(Config.Upgrades) do
+        if cfg.levels then
+            for i = 2, (tonumber(w.upgrades[track]) or 0) + 1 do
+                total = total + (cfg.levels[i] and cfg.levels[i].price or 0)
+            end
+        elseif cfg.styles then
+            for _, sty in ipairs(cfg.styles) do
+                if (w.upgrades.owned_styles or {})[sty.id] then total = total + (sty.price or 0) end
+            end
+        end
+    end
+    return total
+end
+
+function Warehouse.SaleQuote(w)
+    local WS = Config.WarehouseSale
+    local building = math.floor((w.paid or 0) * WS.Refund)
+    local upgrades = math.floor(upgradeSpend(w) * WS.UpgradeRefund)
+    local cars = 0
+    for _, s in ipairs(DB.GetStock(w.id)) do cars = cars + math.floor(Cargo.BaseValue(s, 0) * WS.StockRefund) end
+    return { building = building, upgrades = upgrades, cars = cars, total = building + upgrades + cars }
+end
+
+function Warehouse.TradeIn(w)
+    return math.floor((w.paid or 0) * Config.WarehouseSale.TradeIn)
+end
+
+-- Owner check plus everything that would break if the building changed hands now
+local function saleCtx(src, wid)
+    local s = Server.Get(src)
+    local w = DB.Warehouses[tonumber(wid)]
+    if not s or not w or w.owner ~= s.identifier then Server.Notify(src, L('not_owner'), 'error') return nil end
+    if not Config.WarehouseSale.Enabled then Server.Notify(src, L('wh_sale_off'), 'error') return nil end
+    if s.mission or s.inside then Server.Notify(src, L('busy'), 'error') return nil end
+    if w.raid then Server.Notify(src, L('wh_raided'), 'error') return nil end
+    if #Server.Occupants(w.id) > 0 then Server.Notify(src, L('wh_occupied'), 'error') return nil end
+    for _, st in pairs(Server.Players) do
+        if st.mission and st.mission.wid == w.id then Server.Notify(src, L('wh_job_running'), 'error') return nil end
+    end
+    for _, item in ipairs(DB.GetStock(w.id)) do
+        if item.status ~= 'stored' then Server.Notify(src, L('wh_job_running'), 'error') return nil end
+    end
+    -- no yield between this check and the claim, so a double click can't pay out twice
+    if w.closing then return nil end
+    w.closing = true
+    return s, w
+end
+
+-- Tell everyone who could open this warehouse that its doors changed
+local function crewChanged(w, oldAssociates)
+    local ids = { [w.owner] = true }
+    for _, a in ipairs(oldAssociates or w.associates) do ids[a.identifier] = true end
+    for tsrc, st in pairs(Server.Players) do
+        if ids[st.identifier] then TriggerClientEvent('nz_cargo:accessChanged', tsrc, Server.Accessible(tsrc)) end
+    end
+end
+
+-- Sell for good: building, upgrades, cars and crew access are gone
+lib.callback.register('nz_cargo:warehouse:sell', function(src, wid)
+    local s, w = saleCtx(src, wid)
+    if not s then return false end
+    local loc = locationOf(w)
+    local name = loc and loc.name or ('Warehouse #' .. w.id)
+    local q = Warehouse.SaleQuote(w)
+    local crew = w.associates
+    DB.DeleteWarehouse(w.id)
+    Bridge.AddMoney(src, Config.Accounts.Payout, q.total, 'vehiclecargo-warehouse-sale')
+    DB.Log(s.identifier, w.id, 'wh_sold', name, nil, q.total, q)
+    Server.Notify(src, L('sold_warehouse', lib.math.groupdigits(q.total)), 'success', 'Vehicle Cargo')
+    Server.Webhook('Warehouse sold', { Player = s.name, Location = name, Payout = '$' .. lib.math.groupdigits(q.total) })
+    crewChanged(w, crew)
+    return true
+end)
+
+-- Move: buy another building and take everything with you (same warehouse, new address)
+lib.callback.register('nz_cargo:warehouse:move', function(src, wid, locationId)
+    local s, w = saleCtx(src, wid)
+    if not s then return false end
+    local l = DB.Locations[tonumber(locationId)]
+    if not l or not l.enabled or l.id == w.location then w.closing = nil return false end
+    for _, o in ipairs(Server.Owned(s.identifier)) do
+        if o.location == l.id then w.closing = nil Server.Notify(src, L('max_warehouses'), 'error') return false end
+    end
+    local from = locationOf(w)
+    local net = l.price - Warehouse.TradeIn(w)
+    if net > 0 then
+        if not Server.Charge(src, net, 'vehiclecargo-warehouse-move') then w.closing = nil return false end
+    elseif net < 0 then
+        Bridge.AddMoney(src, Config.Accounts.Payout, -net, 'vehiclecargo-warehouse-move')
+    end
+    DB.MoveWarehouse(w, l.id, l.price)
+    w.closing = nil
+    DB.Log(s.identifier, w.id, 'wh_moved', l.name, nil, -net, { from = from and from.name or nil })
+    Server.Notify(src, L('moved_warehouse', l.name), 'success', 'Vehicle Cargo')
+    Server.Webhook('Warehouse moved', { Player = s.name, From = from and from.name or '?', To = l.name, Paid = '$' .. lib.math.groupdigits(net) })
+    crewChanged(w)
+    return { id = w.id, door = l.door, name = l.name }
+end)
+
+-----------------------------------------------------------------
 -- Doors: enter, knock, exit, stairs
 -----------------------------------------------------------------
 local function enterPayload(src, w, role)
@@ -246,6 +362,7 @@ lib.callback.register('nz_cargo:enter', function(src, wid)
     local st = Server.Get(src)
     if st.mission and st.mission.kind == 'sell' then Server.Notify(src, L('busy'), 'error') return nil end
     local w = DB.Warehouses[wid]
+    if w.closing then Server.Notify(src, L('busy'), 'error') return nil end
     Server.PutInBucket(src, wid)
     return enterPayload(src, w, role)
 end)
@@ -300,6 +417,26 @@ lib.callback.register('nz_cargo:exit', function(src, mode)
     if not l then return nil end
     if mode == 'garage' and Config.Doors.GarageExit then return l.garageExit or l.garage end
     return l.door
+end)
+
+-- Loaded in standing in the interior (restart, relog, character switch) without
+-- being inside anything: back into their own warehouse, or out the front door.
+lib.callback.register('nz_cargo:resume', function(src)
+    local s = Server.Get(src)
+    if not s or s.inside or s.preview or s.mission then return nil end
+    -- another resource has them in its own bucket: not ours to move
+    if GetPlayerRoutingBucket(src) ~= 0 then return nil end
+    local p = Server.Profile(src)
+    local wid = p and p.last_inside or 0
+    local w = DB.Warehouses[wid]
+    local role = w and Server.Access(src, wid)
+    -- guest passes and police warrants don't survive a restart
+    if Config.Resume.PutBackInside and (role == 'owner' or role == 'associate') then
+        Server.PutInBucket(src, wid)
+        return { enter = enterPayload(src, w, role) }
+    end
+    Server.PutInBucket(src, nil)
+    return { door = Server.FallbackDoor(src, w) }
 end)
 
 -----------------------------------------------------------------

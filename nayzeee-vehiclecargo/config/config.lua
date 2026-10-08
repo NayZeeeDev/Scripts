@@ -52,6 +52,17 @@ Config.BucketBase = 7400
 
 Config.MaxWarehousesPerPlayer = 1
 
+-- Selling or moving a warehouse at the broker (owner only, nobody inside, no job running).
+--   Sell = the warehouse is gone for good: building, upgrades, cars and crew access.
+--   Move = buy another building and take everything with you: cars, upgrades, layout, crew.
+Config.WarehouseSale = {
+    Enabled       = true,
+    Refund        = 0.50,   -- sell: share of the building price that comes back
+    UpgradeRefund = 0.25,   -- sell: share of the money spent on upgrades and styles that comes back
+    StockRefund   = 0.10,   -- sell: share of each stored car's value paid out (0.10 = scrap price, 0 = cars are lost)
+    TradeIn       = 0.50,   -- move: share of the old building price taken off the new one
+}
+
 -- ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗███████╗
 -- ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║██╔════╝
 -- ███████╗ ╚████╔╝ ███████╗   ██║   █████╗  ██╔████╔██║███████╗
@@ -808,6 +819,15 @@ Config.Doors = {
     Knock        = true,     -- non-owners can knock; anyone inside can let them in
     KnockTimeout = 20,       -- seconds the owner has to answer
     GarageExit   = true,     -- "Exit through the garage" option inside
+}
+
+-- Logging back in inside the interior (server restart, relog, character switch).
+-- Works with any multicharacter: the resource remembers which warehouse each
+-- character was in and checks where they spawned once they load in.
+Config.Resume = {
+    Enabled       = true,    -- turn off if another script also uses the Import/Export warehouse interior
+    PutBackInside = true,    -- true = back into their own warehouse, false = always out the front door
+    -- Guests, police and anyone whose warehouse is gone are walked out the front door.
 }
 
 -- ██╗  ██╗██╗   ██╗██████╗

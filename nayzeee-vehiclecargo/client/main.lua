@@ -21,9 +21,22 @@ function Client.Send(action, data)
     SendNUIMessage({ action = action, data = data })
 end
 
+-- Rarities, upgrades etc. The UI gets them straight away so the spec card
+-- has its colours even before any menu was opened.
 function Client.Static()
-    if not Client.static then Client.static = lib.callback.await('nz_cargo:static', false) end
+    if not Client.static then
+        Client.static = lib.callback.await('nz_cargo:static', false)
+        if Client.static then Client.Send('static', Client.static) end
+    end
     return Client.static
+end
+
+-- Close any prompt, menu or dialog of ours that could be left on screen
+function Client.ClosePrompts()
+    Bridge.HideText()
+    local menu = lib.getOpenContextMenu()
+    if menu and tostring(menu):find('^nz_cargo') then lib.hideContext(false) end
+    if Client.knocking then lib.closeAlertDialog() end
 end
 
 function Client.OpenUI(view, data, keepInput)
@@ -332,6 +345,22 @@ handlers.buy = function(d)
     return { ok = true }
 end
 
+-- Sell a warehouse back to the broker: the shop stays open with fresh listings
+handlers.whSell = function(d)
+    if not lib.callback.await('nz_cargo:warehouse:sell', false, d.id) then return { ok = false } end
+    return lib.callback.await('nz_cargo:shop', false) or { ok = false }
+end
+
+-- Move everything to another building
+handlers.whMove = function(d)
+    local res = lib.callback.await('nz_cargo:warehouse:move', false, d.id, d.location)
+    if not res then return { ok = false } end
+    Client.CloseUI()
+    Client.Refresh()
+    if res.door then SetNewWaypoint(res.door.x, res.door.y) end
+    return { ok = true }
+end
+
 handlers.waypoint = function(d)
     if d.x and d.y then SetNewWaypoint(d.x + 0.0, d.y + 0.0) end
     return true
@@ -341,11 +370,19 @@ end
 -- Knock prompt (someone at the door)
 -----------------------------------------------------------------
 lib.callback.register('nz_cargo:knockPrompt', function(name)
+    if Client.knocking then return false end
+    local token = {}
+    Client.knocking = token
+    -- nobody answered: take the dialog off the screen instead of leaving it up
+    SetTimeout((Config.Doors.KnockTimeout or 20) * 1000, function()
+        if Client.knocking == token then lib.closeAlertDialog() end
+    end)
     local res = lib.alertDialog({
         header = 'Someone is at the door', content = L('knock_prompt', name),
         centered = true, cancel = true, labels = { confirm = 'Let in', cancel = 'Ignore' },
     })
-    return res == 'confirm'
+    Client.knocking = nil
+    return res == 'confirm' and Client.inside ~= nil
 end)
 
 -----------------------------------------------------------------
@@ -517,9 +554,57 @@ end
 local function boot()
     while not lib.callback.await('nz_cargo:ready', false) do Wait(1000) end
     Client.static = nil
+    Client.Static()
     Client.Send('hudPos', { pos = hudPos() })
     Client.Refresh()
+    Client.booted = true
 end
+
+-----------------------------------------------------------------
+-- Spawned inside the interior without being in a warehouse
+-- (server restart, relog, character switch: the framework saved
+-- your position inside). The server puts you back in your own
+-- warehouse, or walks you out the front door. No multicharacter
+-- hooks needed: it only looks at where your ped actually is.
+-----------------------------------------------------------------
+local function inInterior()
+    local i = Config.Interior
+    local p = GetEntityCoords(cache.ped)
+    if #(p - i.Coords) < 70.0 then return true end
+    return i.Lower and #(p - i.Lower.Coords) < 45.0 or false
+end
+
+local function stray()
+    return Client.booted and not Client.inside and not Client.mission and not Client.warping
+        and not IsPlayerSwitchInProgress() and IsScreenFadedIn() and inInterior()
+end
+
+local nextTry = 0
+local function resume()
+    local res = lib.callback.await('nz_cargo:resume', false)
+    -- nothing to do (no character yet, or another script owns this player): back off
+    if not res then nextTry = GetGameTimer() + 15000 return end
+    if res.enter then
+        -- the server already has them in the warehouse bucket
+        Warehouse.Load(res.enter)
+    elseif res.door and stray() then
+        Client.Fade(true)
+        Client.Teleport(res.door, (res.door.w or 0.0) + 180.0)
+        Client.Fade(false)
+        Bridge.Notify(L('resume_out'), 'info', 'Vehicle Cargo')
+    end
+end
+
+CreateThread(function()
+    while true do
+        Wait(2000)
+        -- seen twice in a row, so a door teleport in progress never trips it
+        if Config.Resume.Enabled and GetGameTimer() > nextTry and stray() then
+            Wait(1500)
+            if stray() then resume() end
+        end
+    end
+end)
 
 CreateThread(function()
     Wait(1500)
@@ -529,6 +614,7 @@ Bridge.OnLoaded(function() CreateThread(boot) end)
 Bridge.OnUnload(function()
     if Client.mission and Client.mission.cancel then Client.mission.cancel() end
     if Client.inside then Warehouse.Cleanup() end
+    Client.ClosePrompts()
     clearDoors()
     Client.access = {}
 end)
@@ -537,5 +623,6 @@ AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
     clearDoors()
     clearBrokers()
+    Client.ClosePrompts()
     if Client.nui then SetNuiFocus(false, false) end
 end)
