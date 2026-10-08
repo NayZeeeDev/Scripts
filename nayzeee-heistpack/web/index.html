@@ -6,7 +6,7 @@
     <title>nayzeee heistpack</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -21,9 +21,9 @@
 
     <!-- progress -->
     <div id="progress" class="progress hidden">
-        <div class="progress-label"><span id="progress-text"></span><span id="progress-pct">0%</span></div>
+        <div class="progress-label"><span id="progress-text"></span><b id="progress-pct">0%</b></div>
         <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
-        <div class="progress-hint"><kbd>X</kbd> cancel</div>
+        <div class="progress-hint"><span class="key">X</span><span data-t="cancel">Cancel</span></div>
     </div>
 
     <!-- market delivery countdown -->
@@ -43,25 +43,35 @@
 
     <!-- tablet -->
     <div id="tablet" class="tablet-wrap hidden">
-        <div class="tablet">
-            <aside class="side">
-                <div class="brand">
-                    <div class="brand-mark"></div>
-                    <div class="brand-text"><b data-t="brand_top">NAYZEEE</b><span data-t="brand_bottom">HEISTPACK</span></div>
+        <div class="frame">
+            <div class="shell">
+                <div class="bar">
+                    <div class="bar-brand">
+                        <div class="mark"></div>
+                        <div class="bar-name">
+                            <div class="title-txt" data-t="brand">NAYZEEE HEISTPACK</div>
+                            <div class="sub" data-t="brand_sub">Underground network · Los Santos</div>
+                        </div>
+                    </div>
+                    <div class="bar-mid">
+                        <span class="dot" id="bar-dot"></span>
+                        <p id="bar-status"></p>
+                        <span class="ver">v2.0.0</span>
+                    </div>
+                    <button class="pill-close" id="close-btn" data-t="close">Close</button>
                 </div>
-                <nav id="nav" class="nav"></nav>
-                <div class="side-foot">
-                    <div class="police-pill"><span class="dot"></span><span id="police-count">0</span> <span data-t="police">Police</span></div>
+                <div class="body">
+                    <nav class="side" id="side"></nav>
+                    <main class="main">
+                        <div class="head">
+                            <div><h1 id="page-title">Heists</h1><p id="page-sub"></p></div>
+                            <div class="clock"><b id="clock-time">--:--</b><span id="clock-date"></span></div>
+                        </div>
+                        <section id="page" class="page"></section>
+                    </main>
                 </div>
-            </aside>
-            <main class="main">
-                <header class="top">
-                    <div class="top-title"><h1 id="page-title">Heists</h1><p id="page-sub"></p></div>
-                    <div id="profile-chip" class="profile-chip"></div>
-                    <button class="icon-btn close" id="close-btn" title="Close">&times;</button>
-                </header>
-                <section id="page" class="page"></section>
-            </main>
+                <div class="statusbar" id="statusbar"></div>
+            </div>
         </div>
     </div>
 

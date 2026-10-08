@@ -53,19 +53,16 @@
 
     function svg(name, cls) {
         const body = P[name] || P.mask;
-        return `<svg class="ico ${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+        return `<svg class="ico ${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
     }
 
-    const AVATARS = [
-        ['mask', '#7c5cff', '#22d3ee'], ['skull', '#ef4444', '#f97316'], ['crown', '#f59e0b', '#fde047'], ['bolt', '#06b6d4', '#3b82f6'],
-        ['diamond', '#a855f7', '#ec4899'], ['fire', '#f97316', '#ef4444'], ['ghost', '#64748b', '#cbd5e1'], ['star', '#22c55e', '#a3e635'],
-        ['eye', '#0ea5e9', '#6366f1'], ['crosshair', '#dc2626', '#7f1d1d'], ['spade', '#111827', '#6b7280'], ['coin', '#eab308', '#84cc16'],
-    ];
+    const AVATARS = ['mask', 'skull', 'crown', 'bolt', 'diamond', 'fire', 'ghost', 'star', 'eye', 'crosshair', 'spade', 'coin'];
 
-    function avatar(n, size) {
-        const a = AVATARS[((n || 1) - 1) % AVATARS.length];
-        const s = size || 40;
-        return `<div class="avatar" style="width:${s}px;height:${s}px;background:linear-gradient(135deg,${a[1]},${a[2]})">${svg(a[0])}</div>`;
+    /** square avatar tile (NAYZEEE .av). cls: '' | 'teal' | 'red' */
+    function avatar(n, size, cls) {
+        const icon = AVATARS[((n || 1) - 1) % AVATARS.length];
+        const s = size ? `width:${size}px;height:${size}px;` : '';
+        return `<div class="av ${cls || ''}" style="${s}">${svg(icon)}</div>`;
     }
 
     window.Icons = { svg, avatar, count: AVATARS.length };

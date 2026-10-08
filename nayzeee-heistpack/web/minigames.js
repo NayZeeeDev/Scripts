@@ -7,14 +7,25 @@
     const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
     const pick = (arr) => arr[rand(0, arr.length - 1)];
 
-    function frame(title, icon, hint, body) {
+    const KEYS = {
+        keypad: '<span><span class="key">0-9</span>Enter code</span><span><span class="key">↵</span>Submit</span>',
+        circuit: '<span><span class="key">Q W E R</span><span class="key">A S D F</span>Press in order</span>',
+        typing: '<span><span class="key">A-Z</span>Type</span><span><span class="key">⌫</span>Fix</span>',
+        safecrack: '<span><span class="key">A</span><span class="key">D</span>Turn</span><span><span class="key">SPACE</span>Lock in</span>',
+        lockpick: '<span><span class="key">SPACE</span>Set pin</span>',
+        memory: '<span><span class="key">CLICK</span>Repeat the pattern</span>',
+        drill: '<span><span class="key">W</span>Hold to drill</span><span>Release to cool</span>',
+        datacrack: '<span><span class="key">CLICK</span>Select the code</span>',
+    };
+
+    function frame(title, icon, hint, body, keys) {
         root().innerHTML = `
-            <div class="mg">
-                <div class="mg-head">${Icons.svg(icon)}<h3>${title}</h3><span class="t" id="mg-t"></span></div>
-                <div class="mg-hint">${hint}</div>
-                <div class="mg-timer"><div id="mg-bar" style="width:100%"></div></div>
-                <div id="mg-body">${body}</div>
-            </div>`;
+            <div class="card mg"><div class="card-in">
+                <div class="card-bar"><div class="mark sm"></div><div class="title-txt">${title}</div><span class="end" id="mg-t"></span></div>
+                <div class="mg-timer"><i id="mg-bar" style="width:100%"></i></div>
+                <div class="card-body"><div class="mg-hint">${hint}</div><div id="mg-body">${body}</div></div>
+                <div class="card-foot"><div class="grow">${keys || ''}</div><span><span class="key">ESC</span>Abort</span></div>
+            </div></div>`;
         root().classList.remove('hidden');
     }
 
@@ -48,7 +59,7 @@
             window.removeEventListener('keydown', s.keyHandler);
             window.removeEventListener('keyup', s.keyUpHandler);
             const body = document.getElementById('mg-body');
-            if (body) body.innerHTML = `<div class="mg-status ${ok ? 'ok' : 'bad'}">${ok ? T('mg_success', 'Access granted') : T('mg_fail', 'Access denied')}</div>`;
+            if (body) body.innerHTML = `<div class="mg-status"><div class="tile ${ok ? '' : 'red'}">${Icons.svg(ok ? 'check' : 'x')}</div>${ok ? T('mg_success', 'Access granted') : T('mg_fail', 'Access denied')}</div>`;
             setTimeout(() => { root().classList.add('hidden'); root().innerHTML = ''; current = null; s.done(ok); }, 900);
         };
         return s;
@@ -70,7 +81,7 @@
         let showing = true;
         frame('Keypad', 'chip', T('mg_keypad', 'Memorise the code'), `
             <div class="kp-display" id="kp">${code}</div>
-            <div class="kp-grid">${[1,2,3,4,5,6,7,8,9,'C',0,'OK'].map(k => `<button data-k="${k}">${k}</button>`).join('')}</div>`);
+            <div class="kp-grid">${[1,2,3,4,5,6,7,8,9,'C',0,'OK'].map(k => `<button data-k="${k}">${k}</button>`).join('')}</div>`, KEYS.keypad);
         const s = session(8 + len * 2, null);
         s.done = done;
         const disp = () => { document.getElementById('kp').textContent = input.padEnd(len, '_'); };
@@ -97,7 +108,7 @@
         const pool = 'QWERASDF'.split('');
         const seq = Array.from({ length: 5 + d * 2 }, () => pick(pool));
         let i = 0;
-        frame('Circuit', 'bolt', T('mg_circuit', 'Hit the keys in order'), `<div class="seq" id="seq"></div>`);
+        frame('Circuit', 'bolt', T('mg_circuit', 'Hit the keys in order'), `<div class="seq" id="seq"></div>`, KEYS.circuit);
         const render = () => {
             document.getElementById('seq').innerHTML = seq.map((k, n) => `<span class="${n < i ? 'done' : n === i ? 'cur' : ''}">${k}</span>`).join('');
         };
@@ -118,7 +129,7 @@
         const words = Array.from({ length: 2 + d }, () => pick(WORDS));
         const target = words.join(' ');
         let typed = '';
-        frame('Type breaker', 'chip', T('mg_typing', 'Type the words'), `<div class="typing-words" id="tw"></div><div class="typing-input" id="ti">_</div>`);
+        frame('Type breaker', 'chip', T('mg_typing', 'Type the words'), `<div class="typing-words" id="tw"></div><div class="typing-input" id="ti">_</div>`, KEYS.typing);
         const render = () => {
             let h = '';
             for (let n = 0; n < target.length; n++) {
@@ -150,13 +161,13 @@
         for (let n = 0; n < 100; n += 2) ticks += `<span class="${n % 10 === 0 ? 'big' : ''}" style="transform:rotate(${n * 3.6}deg)"></span>`;
         frame('Safe', 'vault', T('mg_safecrack', 'Turn the dial with A / D, Space to lock in'), `
             <div class="dial-wrap"><div class="dial"><div class="face" id="face">${ticks}</div><div class="needle"></div><div class="num" id="num">00</div><div class="ping" id="ping"></div></div></div>
-            <div class="locks" id="locks"></div><div id="strk"></div>`);
+            <div class="locks" id="locks"></div><div id="strk"></div>`, KEYS.safecrack);
         const render = () => {
             document.getElementById('face').style.transform = `rotate(${-pos * 3.6}deg)`;
             document.getElementById('num').textContent = String(pos).padStart(2, '0');
             const dist = Math.min(Math.abs(pos - combo[idx]), 100 - Math.abs(pos - combo[idx]));
             document.getElementById('ping').classList.toggle('on', dist <= (3 - d) );
-            document.getElementById('locks').innerHTML = combo.map((_, n) => `<i class="${n < idx ? 'on' : ''}">${n < idx ? '✓' : ''}</i>`).join('');
+            document.getElementById('locks').innerHTML = combo.map((_, n) => `<i class="${n < idx ? 'on' : ''}">${n < idx ? Icons.svg('check') : ''}</i>`).join('');
             document.getElementById('strk').innerHTML = strikes(maxFails, fails);
         };
         render();
@@ -182,11 +193,11 @@
         const zoneSize = 46 - d * 9;
         frame('Lockpick', 'lock', T('mg_lockpick', 'Press Space when the pick is in the zone'), `
             <div class="lp"><svg viewBox="0 0 220 220">
-                <circle cx="110" cy="110" r="90" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="16"/>
-                <path id="lp-zone" fill="none" stroke="var(--accent2)" stroke-width="16" stroke-linecap="round"/>
-                <line id="lp-needle" x1="110" y1="110" x2="110" y2="18" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
-                <circle cx="110" cy="110" r="10" fill="var(--accent)"/>
-            </svg></div><div class="mg-strikes" id="lp-pins"></div>`);
+                <circle cx="110" cy="110" r="90" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="12"/>
+                <path id="lp-zone" fill="none" stroke="var(--teal)" stroke-width="12" stroke-linecap="round" style="filter:drop-shadow(0 0 6px var(--teal))"/>
+                <line id="lp-needle" x1="110" y1="110" x2="110" y2="18" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+                <rect x="102" y="102" width="16" height="16" rx="3" fill="var(--raise-2)" stroke="var(--teal)"/>
+            </svg></div><div class="mg-strikes" id="lp-pins"></div>`, KEYS.lockpick);
         const arc = (a0, a1) => {
             const p = (a) => [110 + 90 * Math.sin(a * Math.PI / 180), 110 - 90 * Math.cos(a * Math.PI / 180)];
             const [x0, y0] = p(a0), [x1, y1] = p(a1);
@@ -195,8 +206,8 @@
         const drawZone = () => document.getElementById('lp-zone').setAttribute('d', arc(zone, zone + zoneSize));
         const drawPins = () => {
             let h = '';
-            for (let n = 0; n < needed; n++) h += `<i class="${n < hits ? '' : ''}" style="${n < hits ? 'background:var(--success);box-shadow:0 0 8px var(--success)' : ''}"></i>`;
-            document.getElementById('lp-pins').innerHTML = h + '&nbsp;' + Array.from({ length: 2 }, (_, n) => `<i class="${n < fails ? 'x' : ''}"></i>`).join('');
+            for (let n = 0; n < needed; n++) h += `<i class="${n < hits ? 'ok' : ''}"></i>`;
+            document.getElementById('lp-pins').innerHTML = h + '<span style="width:10px"></span>' + Array.from({ length: 2 }, (_, n) => `<i class="${n < fails ? 'x' : ''}"></i>`).join('');
         };
         drawZone(); drawPins();
         let last = performance.now();
@@ -233,7 +244,7 @@
         frame('Thermite', 'fire', T('mg_memory', 'Repeat the pattern'), `
             <div class="mem-grid" id="mem" style="grid-template-columns:repeat(${size},1fr);width:${size * 62}px">
                 ${Array.from({ length: size * size }, (_, n) => `<button data-i="${n}"></button>`).join('')}
-            </div><div id="mstr"></div>`);
+            </div><div id="mstr"></div>`, KEYS.memory);
         const btns = [...root().querySelectorAll('#mem button')];
         cells.forEach(i => btns[i].classList.add('show'));
         document.getElementById('mstr').innerHTML = strikes(3, 0);
@@ -265,7 +276,7 @@
                 <div class="gauge"><div class="lbl">Depth <b id="dd">0%</b></div><div class="track"><div class="fill" id="df" style="width:0"></div></div></div>
                 <div class="gauge heat"><div class="lbl">Heat <b id="dh">0%</b></div><div class="track"><div class="fill" id="dhf" style="width:0"></div></div></div>
                 <div class="drill-bit">${hard.map(h => `<div class="hard" style="left:${h[0]}%;width:${h[1] - h[0]}%"></div>`).join('')}<div class="bit" id="bit" style="width:0"></div></div>
-            </div>`);
+            </div>`, KEYS.drill);
         let last = performance.now();
         const s = session(40 + d * 5, (e) => { const k = e.key.toLowerCase(); if (k === 'w' || k === ' ' || k === 'arrowup') pushing = true; });
         s.keyUp = (e) => { const k = e.key.toLowerCase(); if (k === 'w' || k === ' ' || k === 'arrowup') pushing = false; };
@@ -296,7 +307,7 @@
         const hex = () => Math.floor(Math.random() * 65536).toString(16).toUpperCase().padStart(4, '0');
         const rounds = 1 + d;
         let round = 0, fails = 0, target, cells = [];
-        frame('Data crack', 'chip', T('mg_datacrack', 'Find the code in the stream'), `<div class="dc-target" id="dct"></div><div class="dc-grid" id="dcg"></div><div id="dcs"></div>`);
+        frame('Data crack', 'chip', T('mg_datacrack', 'Find the code in the stream'), `<div class="dc-target"><small>Target</small><span id="dct"></span></div><div class="dc-grid" id="dcg"></div><div id="dcs"></div>`, KEYS.datacrack);
         const build = () => {
             target = hex();
             cells = Array.from({ length: 42 }, hex);
@@ -307,7 +318,7 @@
             g.querySelectorAll('button').forEach(b => b.onclick = () => {
                 if (s.finished) return;
                 if (b.textContent === target) { round++; if (round >= rounds) return s.end(true); build(); }
-                else { fails++; b.style.background = 'rgba(var(--danger-rgb),.4)'; if (fails >= 3) return s.end(false); }
+                else { fails++; b.style.background = 'var(--red-wash)'; b.style.borderColor = 'var(--red)'; if (fails >= 3) return s.end(false); }
                 document.getElementById('dcs').innerHTML = strikes(3, fails);
             });
             document.getElementById('dcs').innerHTML = strikes(3, fails);
@@ -324,7 +335,7 @@
             if (!g) return;
             const btns = g.querySelectorAll('button');
             const first = cells.shift(); cells.push(first);
-            btns.forEach((b, n) => { b.textContent = cells[n]; b.style.background = ''; });
+            btns.forEach((b, n) => { b.textContent = cells[n]; b.style.background = ''; b.style.borderColor = ''; });
         };
         return s;
     };

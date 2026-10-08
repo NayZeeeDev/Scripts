@@ -136,14 +136,15 @@ Config.Gameplay = {
 --[[ Interface ]]
 Config.UI = {
     -- Change these to match your server's style. Everything in the UI derives from them.
+    -- NAYZEEE UI: black / white / teal / red, Lexend. Change these to re-skin everything.
     theme = {
-        accent = '#7c5cff',      -- main brand colour
-        accent2 = '#22d3ee',     -- secondary / gradients
-        success = '#22c55e',
-        danger = '#ef4444',
-        warning = '#f59e0b',
-        font = "'Rajdhani', 'Segoe UI', sans-serif",
-        radius = '12px',
+        accent = '#08afa2',  -- teal (brand)
+        accent2 = '#0fd4c4', -- teal hi (glows, highlights)
+        success = '#08afa2',
+        danger = '#e5484d',  -- red
+        warning = '#e5a50a', -- amber
+        font = "'Lexend', system-ui, sans-serif",
+        radius = '10px',
     },
     hud = {
         position = 'right',  -- 'left' | 'right'

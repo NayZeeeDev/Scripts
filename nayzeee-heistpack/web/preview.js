@@ -13,7 +13,7 @@
     ].map(([id, label, category, icon, level, police], i) => ({
         id, label, category, icon, level, police, members: { min: 1, max: 4 + (i % 4) }, timeLimit: 15 + i * 2, xp: 150 + i * 120,
         money: [2000 + i * 1500, 4000 + i * 2500], cooldown: i === 7 ? 840 : 0, running: i === 5 ? 1 : 0, simultaneous: 2, locked: level > 5,
-        featured: id === 'fleeca',
+        featured: id === 'fleeca', playerCooldown: 10, locations: 1 + (i % 6),
         description: 'Crack the vault with a SafePad, breach the inner gate and empty the trolleys before the cops lock the block down.',
         requiredItems: i > 4 ? [{ name: 'safepad', label: 'SafePad', count: 1 }, { name: 'heist_drill', label: 'Heavy Drill', count: 1 }] : [],
         briefing: ['Go to the marked location.', 'Plug a SafePad into the vault panel and crack it.', 'Hack the inner gate, grab the trolleys and drill the lockboxes.', 'Get 200m away to finish.'],
@@ -58,7 +58,7 @@
         ] },
     };
 
-    send('init', { ui: { theme: { accent: '#7c5cff', accent2: '#22d3ee' }, hud: { position: 'right', background: 'none', expandKey: 'B', scale: 1 }, notify: { position: 'top-right' }, textui: { position: 'bottom' } }, strings, levels: [] });
+    send('init', { ui: { theme: { accent: '#08afa2', accent2: '#0fd4c4', danger: '#e5484d', warning: '#e5a50a' }, hud: { position: 'right', background: 'none', expandKey: 'B', scale: 1 }, notify: { position: 'top-right' }, textui: { position: 'bottom' } }, strings, levels: [] });
 
     const scene = (location.hash || '#heists').slice(1);
     const menuTabs = ['heists', 'crew', 'market', 'fence', 'profile', 'board', 'chat'];

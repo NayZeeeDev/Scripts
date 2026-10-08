@@ -74,7 +74,9 @@ Heist pack for FiveM: 21 heists, crews, levels and perks, a black market with dr
 
 ### Theme / UI style
 
-All UI colours come from `Config.UI.theme` (`accent`, `accent2`, `success`, `danger`, `warning`, `font`, `radius`). Change two hex values and the tablet, HUD, minigames, toasts and prompts all follow.
+The UI uses the **NAYZEEE UI** system: Lexend type, true-black surfaces, teal `#08afa2` and red `#e5484d`, the chamfered window with the mark and teal rail, sidebar groups, stat tiles, panels, incident cards, key-hint status bar and edge-accent toasts. The tablet, HUD, toasts, prompts, invite, result card, drone overlay and all minigames share it.
+
+`Config.UI.theme` drives every accent: `accent` (teal), `accent2` (teal hi), `danger` (red), `warning` (amber), `success`, `font`, `radius`. Washes, edges and the darker gradient stops are derived automatically. Open `web/index.html#heists` (or `#hud`, `#crew`, `#market`, `#mg-drill`, ...) through any static server to preview the UI in a browser.
 
 ### Writing a new heist
 
