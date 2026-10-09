@@ -44,6 +44,12 @@
       running = spawn(kit, args, { cwd: path.dirname(kit), windowsHide: true });
     } catch (e) {
       running = null;
+      // newer FXServer builds block Node from starting programs unless server.cfg allows it
+      if (/restricted|child-process|not allowed/i.test(e.message)) {
+        console.log(`^3[${RESOURCE}] 3D props: this server doesn't let resources start programs yet. Add this to server.cfg and restart the server:^0`);
+        console.log(`^3    add_unsafe_child_process_permission ${RESOURCE}^0`);
+        return emit('nzs:kit:msg', job.src, 'error', { message: `Add "add_unsafe_child_process_permission ${RESOURCE}" to server.cfg and restart the server` });
+      }
       return emit('nzs:kit:msg', job.src, 'error', { message: 'could not start sneakerkit: ' + e.message });
     }
     const line = (l) => {
@@ -60,7 +66,13 @@
       while ((i = buf.indexOf('\n')) >= 0) { line(buf.slice(0, i).replace(/\r$/, '')); buf = buf.slice(i + 1); }
     });
     running.stderr.on('data', (d) => { tail.push(d.toString()); if (tail.length > 30) tail.shift(); });
-    running.on('error', (e) => { tail.push(e.message); });
+    running.on('error', (e) => {
+      tail.push(e.message);
+      if (/restricted|child-process|not allowed/i.test(e.message)) {
+        console.log(`^3[${RESOURCE}] 3D props: add this to server.cfg and restart the server:  add_unsafe_child_process_permission ${RESOURCE}^0`);
+        emit('nzs:kit:msg', job.src, 'error', { message: `Add "add_unsafe_child_process_permission ${RESOURCE}" to server.cfg and restart the server` });
+      }
+    });
     running.on('close', (code) => {
       if (buf) line(buf);
       running = null;

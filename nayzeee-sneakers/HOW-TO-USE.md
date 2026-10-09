@@ -37,6 +37,7 @@ cleaning, and selling to NPC buyers through a phone app with a handover cinemati
    ```
    add_ace group.admin command.sneakerstudio allow
    add_filesystem_permission nayzeee-sneakers write ox_inventory
+   add_unsafe_child_process_permission nayzeee-sneakers
    add_ace resource.nayzeee-sneakers command.refresh allow
    add_ace resource.nayzeee-sneakers command.ensure allow
    add_ace resource.nayzeee-sneakers command.restart allow
@@ -412,6 +413,7 @@ The script is escrow ready: `config/`, `locales/`, `bridge/` and `install/*.lua`
 | Police never get alerts | Check `Config.Dispatch.PoliceJobs` matches your police job names, and that officers are on duty. |
 | Shoes or box show up invisible or inside-out | Screenshot it and send it to Claude. That's a model-file fix. |
 | /sneakerstudio does nothing | You need `command.sneakerstudio` (or the admin ace). Install, step 8. |
+| *could not start sneakerkit: Access to this API has been restricted* | Add `add_unsafe_child_process_permission nayzeee-sneakers` to server.cfg and restart the server (not just the resource). Newer FXServer builds block resources from starting programs without it. |
 | **3D props** says *sneakerkit isn't installed* | `tools/sneakerkit/linux-x64` (Linux servers) or `win-x64` (Windows) is missing from the resource. On Linux it also has to be executable: `chmod +x tools/sneakerkit/linux-x64/sneakerkit`. |
 | Props are built but nayzeee-sneakers-props doesn't start | Add the three `add_ace resource.nayzeee-sneakers command...` lines (Install, step 8), or `ensure nayzeee-sneakers-props` after this script. |
 | Photos only go to `shots/` | Add `add_filesystem_permission nayzeee-sneakers write ox_inventory` and restart. You can copy `shots/*.png` into ox_inventory/web/images by hand meanwhile. |
