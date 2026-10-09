@@ -175,7 +175,8 @@ RegisterNetEvent('nzc:s:pickup', function(id, wear)
     picking[id] = true
     local meta = d.meta
     local ok
-    if wear and not Worn.get(src) then
+    if wear and meta.broken then Worn.notify(src, T.broken, 'error') end
+    if wear and not Worn.get(src) and not meta.broken then
         Drops.remove(d.id)
         ok = Worn.set(src, meta)
         if ok then Worn.notify(src, T.wearing:format(meta.label), 'success') end

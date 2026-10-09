@@ -21,6 +21,7 @@ function Menu.show()
     if not data then return end
     data.text = Config.Text
     data.canPlace = Config.Place.Enabled
+    data.canGive = Config.Give.Enabled
     Menu.open = true
     SetNuiFocus(true, true)
     NUI.send('menu:open', data)
@@ -50,6 +51,10 @@ RegisterNUICallback('menu:action', function(d, cb)
         if key then Place.start(key, letter, 'worn') end
     elseif act == 'placeSlot' and slot and d.key then
         Place.start(d.key, d.variant, 'slot', slot)
+    elseif act == 'give' or act == 'puton' or act == 'swap' then
+        Give.start(act, nil)
+    elseif act == 'giveSlot' and slot then
+        Give.start('give', slot)
     end
 end)
 

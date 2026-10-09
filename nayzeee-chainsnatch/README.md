@@ -1,6 +1,6 @@
-# nayzeee-chainsnatch 1.0 — install & guide
+# nayzeee-chainsnatch 1.1 — install & guide
 
-Chains you can wear, flex, throw, set down, pass around and snatch. Any chain **clothing** you download is
+Chains you can buy, craft, wear, flex, throw, set down, give, swap and snatch. Any chain **clothing** you download is
 converted into a **prop** by the built-in converter (chainkit), with every texture kept.
 
 ## 1. Dependencies
@@ -54,6 +54,11 @@ texture, its name and its picture are in the metadata, so new chains never need 
 4. Pictures: chainkit already drew one per texture. For nicer ones: **Icon** tab → *Every chain*.
 
 `/givechain [id] [name]` gives one, `/chainlist` lists them all.
+
+### Crafting materials
+
+The store's **Craft** tab pays in items instead of money (`Config.Store.Craft`, `gold_bar` + `diamond` by
+default). Use items your server already has, or add them to your inventory.
 
 ### Chains people wear as clothing
 
@@ -116,7 +121,44 @@ as `<prop>.png`, which is what the item's `metadata.image` points at.
 | **Set down** | ghost follows where you look: **E** place, **SCROLL** turn (SHIFT fine), **↑ ↓** tilt, **BACKSPACE** cancel. Works from the neck, the hand or straight from your pockets |
 | **Pick up** | third-eye the chain (*Pick up*, *Pick up & wear*) or **E** without a target script |
 | **Wear someone else's** | it's just an item: snatch it, catch it, pick it up, put it on |
+| **Give / swap** | `/chain` → *Give*, *Put it on them*, *Swap chains*; they accept with **Y** |
 | **Snatch** | third-eye a player → *Snatch Chain* (or `/snatch`). A tug of war: both mash **SPACE**, the server moves the rope. Grab from behind for a head start. Cuffed / hands up / downed players can't fight back. 15% of the time the chain **snaps** and hits the floor for anyone to grab |
+
+## The jewelry store
+
+Walk up to the jeweller (or `/chainstore`): the camera moves over the counter and the chains float above it
+on a tilted display. **A / D**, the arrows or the wheel browse, drag spins, **T** tries it on your character,
+**ENTER** buys, **ESC** leaves. Set the spot with `/chainstorehere` (admin) → `Config.Store.Locations`.
+
+| Tab | |
+|---|---|
+| **Buy** | cash or bank (`Config.Store.Currency`). Price per chain in the studio's Look tab |
+| **Craft** | the same chain for materials instead of money |
+| **Repair** | chains that **snapped** in a snatch come off *broken*: they can't be worn until the jeweller fixes them (`Config.Store.Repair`) |
+
+### Exclusive chains (tied to a game license)
+
+Studio → **Look** → **Owners** → pick the player(s). From then on:
+
+- only those players' **game licenses** see the chain in the store, and only they can buy it (the server
+  checks the license on every purchase; other players never even receive the owners' licenses)
+- anyone else can only get one by **snatching** it from them, or if an owner **gives** it away
+- the item says who it was made for, and who it was snatched from
+
+No owners = anyone can buy it. Untick *For sale* to take a chain out of the store completely.
+
+## Giving
+
+`/chain` → **Give**, **Put it on them** (straight on their neck, theirs goes in their pockets) or **Swap chains**
+(you both wear one: couples). Pocket chains have a give button too. The other player gets a prompt:
+**Y** accept, **X** decline (rebindable). Nothing moves until they accept.
+
+## illenium-appearance
+
+Chains converted from a clothing pack are jewellery now: the clothing store won't put them on and says
+*"This chain must be purchased at the jewelry store."* Install the 3-step addon in
+[`install/illenium-appearance`](install/illenium-appearance/README.md). Other clothing scripts:
+`Config.Appearance.Enforce` takes a jewellery chain back off within two seconds.
 
 ## Exports (server)
 
@@ -127,6 +169,9 @@ exports['nayzeee-chainsnatch']:TakeWornChain(src)         -- takes it off, retur
 exports['nayzeee-chainsnatch']:DropChain(metadata, coords)
 exports['nayzeee-chainsnatch']:GetChains()
 ```
+
+Client: `exports['nayzeee-chainsnatch']:IsJewelleryDrawable(ped, drawable)` (accessory slot 7), used by the
+illenium addon.
 
 ## Performance
 

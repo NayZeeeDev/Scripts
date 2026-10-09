@@ -58,6 +58,21 @@ local function clean(patch)
         end
         what[#what + 1] = 'texture names'
     end
+    if patch.forSale ~= nil then out.forSale = patch.forSale == true; what[#what + 1] = 'for sale' end
+    if patch.craftable ~= nil then out.craftable = patch.craftable == true; what[#what + 1] = 'craftable' end
+    if patch.price ~= nil then
+        local v = num(patch.price, 0, 100000000)
+        if v then out.price = math.floor(v); what[#what + 1] = 'price' end
+    end
+    if type(patch.owners) == 'table' then
+        out.owners = {}
+        for _, w in ipairs(patch.owners) do
+            if type(w) == 'table' and type(w.license) == 'string' and w.license:match('^license:%x+$') and #out.owners < 20 then
+                out.owners[#out.owners + 1] = { license = w.license, name = tostring(w.name or 'Player'):sub(1, 40):gsub('[<>]', '') }
+            end
+        end
+        what[#what + 1] = #out.owners > 0 and ('exclusive to %d'):format(#out.owners) or 'open to everyone'
+    end
     return out, table.concat(what, ', ')
 end
 
@@ -67,6 +82,8 @@ local function apply(key, out)
         if k == 'fit' then
             entry.fit = entry.fit or {}
             for m, f in pairs(v) do entry.fit[m] = f end
+        elseif k == 'owners' then
+            entry.owners = #v > 0 and v or nil
         elseif k == 'vlabels' then
             entry.vlabels = entry.vlabels or {}
             for l, n in pairs(v) do entry.vlabels[l] = n ~= '' and n or nil end
@@ -128,4 +145,16 @@ RegisterNetEvent('nzc:studio:give', function(key, letter)
     if not Studio.allowed(src) or not Chains.exists(key) then return end
     local ok = Worn.give(src, key, letter)
     TriggerClientEvent('nzc:studio:result', src, ok, ok and ('%s is in your pockets.'):format(Chains.label(key, letter)) or 'No room in your pockets.')
+end)
+
+-- exclusive chains: who's online (to add as an owner), and who owns a chain now
+lib.callback.register('nzc:studio:owners', function(src, key)
+    if not Studio.allowed(src) then return nil end
+    local online = {}
+    for _, id in ipairs(GetPlayers()) do
+        local p = tonumber(id)
+        online[#online + 1] = { id = p, name = Bridge.GetCharName(p), license = Bridge.GetLicense(p) }
+    end
+    table.sort(online, function(a, b) return a.id < b.id end)
+    return { owners = Registry.owners[key] or {}, online = online }
 end)

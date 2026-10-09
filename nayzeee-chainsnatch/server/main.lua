@@ -80,6 +80,8 @@ end
 function Worn.wearSlot(src, slot)
     local current = Worn.list[src]
     if current and not Inv.CanCarry(src, current.meta) then return false, T.no_room end
+    local peek = Inv.Peek(src, slot)
+    if peek and peek.broken then return false, T.broken end
     local meta = Inv.TakeSlot(src, slot)
     if not meta then return false end
     if not Chains.fromMeta(meta) then
@@ -184,12 +186,12 @@ lib.callback.register('nzc:menu', function(src)
     for _, it in ipairs(Inv.Chains(src)) do
         local key, letter = Chains.fromMeta(it.meta)
         if key then
-            pockets[#pockets + 1] = { slot = it.slot, key = key, variant = letter, label = Chains.label(key, letter), image = Chains.model(key, letter) }
+            pockets[#pockets + 1] = { slot = it.slot, key = key, variant = letter, label = Chains.label(key, letter), image = Chains.model(key, letter), broken = it.meta.broken == true }
         end
     end
     return {
         worn = w and { key = w.key, variant = w.letter, label = w.meta.label, image = Chains.model(w.key, w.letter), holding = w.holding,
-                       value = Chains.money(Chains.value(w.key)), stolenFrom = w.meta.stolenFrom } or nil,
+                       value = Chains.money(Chains.value(w.key)), stolenFrom = w.meta.stolenFrom, owner = w.meta.owner } or nil,
         pockets = pockets,
     }
 end)
@@ -202,6 +204,7 @@ local function newMeta(key, letter, src)
     return Chains.meta(key, letter, {
         serial = ('NZC-%04d-%04d'):format(math.random(0, 9999), math.random(0, 9999)),
         owner = src and src > 0 and Bridge.GetCharName(src) or nil,
+        license = src and src > 0 and Bridge.GetLicense(src) or nil,
     })
 end
 Worn.newMeta = newMeta

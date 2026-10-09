@@ -121,3 +121,53 @@ function Inv.HookUse(cb)
         cb(src, data and data.slot)
     end)
 end
+
+--- How many of an item (materials for crafting)
+function Inv.Count(src, item)
+    if ox then return ox:GetItemCount(src, item) or 0 end
+    if qs then
+        local ok, n = pcall(function() return qs:GetItemTotalAmount(src, item) end)
+        return ok and (n or 0) or 0
+    end
+    if INV == 'qb-inventory' then
+        local p = Bridge.GetPlayer(src)
+        local n = 0
+        for _, it in pairs(p and p.PlayerData.items or {}) do if it.name == item then n = n + (it.amount or 0) end end
+        return n
+    end
+    return 0
+end
+
+function Inv.RemoveItem(src, item, count)
+    if ox then return ox:RemoveItem(src, item, count) == true end
+    if qs then return qs:RemoveItem(src, item, count) ~= false end
+    if INV == 'qb-inventory' then
+        local p = Bridge.GetPlayer(src)
+        if not p then return false end
+        local ok = p.Functions.RemoveItem(item, count)
+        if ok then qbItemBox(src, item, 'remove', count) end
+        return ok ~= false
+    end
+    return false
+end
+
+--- Change a chain's metadata where it is (repairs). Falls back to taking it out and putting it back.
+function Inv.SetMeta(src, slot, meta)
+    if ox then
+        local it = ox:GetSlot(src, slot)
+        if not it or it.name ~= Config.Item then return false end
+        ox:SetMetadata(src, slot, meta)
+        return true
+    end
+    if Inv.TakeSlot(src, slot) then return Inv.Add(src, meta) end
+    return false
+end
+
+--- The chain in a slot without taking it
+function Inv.Peek(src, slot)
+    slot = tonumber(slot)
+    for _, it in ipairs(Inv.Chains(src)) do
+        if it.slot == slot then return it.meta end
+    end
+    return nil
+end

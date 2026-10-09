@@ -14,20 +14,26 @@ function menuRender() {
     <div class="mn-worn">
       <span class="th">${chainImg(w.image, 'gem')}</span>
       <div class="mn-wt"><small>${w.holding ? 'Holding up' : 'Wearing'}</small><b>${esc(w.label)}</b>
-        <em>${esc(w.value || '')}${w.stolenFrom ? ` · snatched from ${esc(w.stolenFrom)}` : ''}</em></div>
+        <em>${esc(w.value || '')}${w.owner ? ` · made for ${esc(w.owner)}` : ''}${w.stolenFrom ? ` · snatched from ${esc(w.stolenFrom)}` : ''}</em></div>
     </div>
     <div class="mn-acts">
       <button class="mn-act red" data-act="takeoff">${icon('off')}${esc(t.take_off)}</button>
       <button class="mn-act" data-act="hold">${icon('hand')}${esc(t.hold_up)}</button>
       ${d.canPlace ? `<button class="mn-act" data-act="place">${icon('place')}${esc(t.set_down)}</button>` : ''}
-    </div>` : `<div class="card empty">${icon('gem')}${esc(t.no_chain)}</div>`;
+    </div>
+    ${d.canGive ? `<div class="mn-acts two">
+      <button class="mn-act" data-act="give">${icon('gift')}${esc(t.give)}</button>
+      <button class="mn-act" data-act="puton">${icon('user')}${esc(t.put_on_them)}</button>
+      <button class="mn-act" data-act="swap">${icon('rotate')}${esc(t.swap)}</button>
+    </div>` : ''}` : `<div class="card empty">${icon('gem')}${esc(t.no_chain)}</div>`;
 
   const list = pockets.length ? pockets.map((p) => `
     <div class="mn-row">
       <span class="th">${chainImg(p.image, 'gem')}</span>
-      <div class="mn-rt"><b>${esc(p.label)}</b><span>${esc(t.in_pockets)}</span></div>
+      <div class="mn-rt"><b>${esc(p.label)}${p.broken ? '<span class="mn-broken">BROKEN</span>' : ''}</b><span>${esc(p.broken ? 'repair it at the jewelry store' : t.in_pockets)}</span></div>
+      ${d.canGive ? `<button class="btn sm ghost" data-act="giveSlot" data-slot="${p.slot}" title="${esc(t.give)}">${icon('gift')}</button>` : ''}
       ${d.canPlace ? `<button class="btn sm ghost" data-act="placeSlot" data-slot="${p.slot}" data-key="${esc(p.key)}" data-variant="${esc(p.variant)}" title="${esc(t.set_down)}">${icon('place')}</button>` : ''}
-      <button class="btn sm teal" data-act="wear" data-slot="${p.slot}">${esc(t.put_on)}</button>
+      <button class="btn sm teal" data-act="wear" data-slot="${p.slot}" ${p.broken ? 'disabled' : ''}>${esc(t.put_on)}</button>
     </div>`).join('') : '';
 
   menuEl.innerHTML = `<div class="mn-frame scaled"><div class="mn-edge"><div class="mn-shell">

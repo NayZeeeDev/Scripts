@@ -23,6 +23,9 @@ client_scripts {
     'client/place.lua',
     'client/drops.lua',
     'client/snatch.lua',
+    'client/give.lua',
+    'client/store.lua',
+    'client/appearance.lua',
     'client/studio.lua',
     'client/icons.lua',
 }
@@ -37,6 +40,8 @@ server_scripts {
     'server/drops.lua',
     'server/throw.lua',
     'server/snatch.lua',
+    'server/give.lua',
+    'server/store.lua',
     'server/studio.lua',
     'server/icons.lua',
     'server/chainprops.lua',

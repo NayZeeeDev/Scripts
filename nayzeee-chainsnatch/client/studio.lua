@@ -527,6 +527,8 @@ local function payload()
         for _, v in ipairs(d.variants) do vars[#vars + 1] = { letter = v.letter, prop = v.prop, label = v.label } end
         list[#list + 1] = {
             key = key, label = d.label, origin = d.origin, value = d.value, variants = vars,
+            price = Chains.price(key) or d.price or Config.Store.DefaultPrice, forSale = d.forSale ~= false, craftable = d.craftable ~= false,
+            exclusive = d.exclusive == true, madeFor = d.madeFor,
             hasCentre = d.centre ~= nil,
             fitted = { worn = Chains.hasFit(key, 'worn', female), hold = Chains.hasFit(key, 'hold', female) },
         }
@@ -746,7 +748,22 @@ end, false)
 
 on('studio:look', function(d)
     if not currentKey then return end
-    TriggerServerEvent('nzc:studio:save', currentKey, { label = d.label, value = d.value, vlabels = d.vlabels })
+    TriggerServerEvent('nzc:studio:save', currentKey, {
+        label = d.label, vlabels = d.vlabels, price = d.price, value = d.price,
+        forSale = d.forSale == true, craftable = d.craftable == true,
+    })
+end, false)
+
+-- exclusive chains: who may buy it (game licenses)
+on('studio:owners', function()
+    if not currentKey then return end
+    local data = lib.callback.await('nzc:studio:owners', false, currentKey)
+    if data then data.key = currentKey; NUI.send('studio:owners', data) end
+end, false)
+
+on('studio:setOwners', function(d)
+    if not currentKey or type(d.owners) ~= 'table' then return end
+    TriggerServerEvent('nzc:studio:save', currentKey, { owners = d.owners })
 end, false)
 
 on('studio:clearFit', function()

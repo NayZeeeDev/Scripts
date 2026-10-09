@@ -64,7 +64,14 @@ end
 
 function Chains.value(key)
     local d = Chains.list[key]
-    return d and d.value or Config.DefaultValue or 0
+    return d and (d.price or d.value) or (Config.Store and Config.Store.DefaultPrice) or Config.DefaultValue or 0
+end
+
+--- Store price, or nil when it isn't sold
+function Chains.price(key)
+    local d = Chains.list[key]
+    if not d or d.forSale == false then return nil end
+    return d.price or (Config.Store and Config.Store.DefaultPrice) or Config.DefaultValue
 end
 
 local function copy(f)
@@ -110,6 +117,8 @@ function Chains.meta(key, letter, extra)
     m.label = Chains.label(key, m.variant)
     m.image = v and v.prop or nil
     local parts = { money(Chains.value(key)) }
+    if m.broken then parts[1] = 'BROKEN · ' .. parts[1] end
+    if m.owner then parts[#parts + 1] = 'made for ' .. m.owner end
     if m.stolenFrom then parts[#parts + 1] = 'snatched from ' .. m.stolenFrom end
     m.description = table.concat(parts, ' · ')
     return m

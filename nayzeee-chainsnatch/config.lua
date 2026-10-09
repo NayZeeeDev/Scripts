@@ -222,6 +222,103 @@ Config.RestrainedStates = { 'isCuffed', 'cuffed', 'handcuffed', 'isHandcuffed', 
 Config.DownedStates     = { 'isDead', 'dead', 'down', 'isDown', 'inLastStand', 'laststand' }
 Config.HandsUpAnim      = { dict = 'random@mugging3', clip = 'handsup_standing_base' }
 
+--      ██╗███████╗██╗    ██╗███████╗██╗     ██████╗ ██╗   ██╗    ███████╗████████╗ ██████╗ ██████╗ ███████╗
+--      ██║██╔════╝██║    ██║██╔════╝██║     ██╔══██╗╚██╗ ██╔╝    ██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗██╔════╝
+--      ██║█████╗  ██║ █╗ ██║█████╗  ██║     ██████╔╝ ╚████╔╝     ███████╗   ██║   ██║   ██║██████╔╝█████╗
+-- ██   ██║██╔══╝  ██║███╗██║██╔══╝  ██║     ██╔══██╗  ╚██╔╝      ╚════██║   ██║   ██║   ██║██╔══██╗██╔══╝
+-- ╚█████╔╝███████╗╚███╔███╔╝███████╗███████╗██║  ██║   ██║       ███████║   ██║   ╚██████╔╝██║  ██║███████╗
+--  ╚════╝ ╚══════╝ ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝  ╚═╝   ╚═╝       ╚══════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝
+
+-- Walk up to the jeweller: the camera moves over the counter and the chains float above it.
+-- [A]/[D] or wheel  browse      drag  spin      [T] try it on      [ENTER] buy      [ESC] leave
+-- Tabs: Buy (cash / bank), Craft (materials instead of money), Repair (chains that snapped in a snatch).
+--
+-- WHO CAN BUY WHAT
+--   Every chain is for sale to everyone unless the studio makes it EXCLUSIVE (Look tab > Owners):
+--   an exclusive chain is tied to one or more game licenses. Only those licenses see it in the store
+--   and only they can buy it. Anyone else can only get one by snatching it, or being given it.
+Config.Store = {
+    Enabled       = true,
+    Currency      = 'cash',        -- 'cash' | 'bank'
+    SellAll       = true,          -- every chain is in the store unless the studio takes it out
+    DefaultPrice  = 2500,          -- price of a chain the studio didn't price. The value shown on items too
+    OpenMode      = 'both',        -- 'ped' = walk up to the jeweller, 'command' = /chainstore anywhere, 'both'
+    Command       = 'chainstore',
+
+    Locations = {
+        {
+            label   = 'Vangelico',
+            -- The jeweller stands here; the chains float over the counter in front of them.
+            -- Stand where they should be and use /chainstorehere (admin) to print your spot.
+            coords  = vector3(-622.95, -229.95, 38.06),
+            heading = 305.0,
+            ped     = 'u_f_m_jewelsec_01',
+            blip    = { sprite = 617, color = 46, scale = 0.75, label = 'Jewelry Store' },
+            display = { forward = 0.70, height = 0.30, camDistance = 0.85, camHeight = 0.12 },
+        },
+    },
+
+    -- Counter display
+    SpinSpeed      = 18.0,
+    TransitionTime = 420,
+    SideChains     = true,
+    DepthOfField   = true,
+    HideProps      = { Enabled = true, Radius = 1.4, MaxSize = 1.2,
+                       Models = { 'prop_till_01', 'prop_till_02', 'prop_till_03', 'prop_cash_register_01', 'prop_monitor_01a', 'prop_keyboard_01a' } },
+
+    -- Craft: pay in materials instead of money. One recipe for every chain, or per chain key.
+    Craft = {
+        Enabled = true,
+        Default = { { item = 'gold_bar', label = 'Gold bar', count = 2 }, { item = 'diamond', label = 'Diamond', count = 3 } },
+        PerChain = {
+            -- ['drop|diamond_cuban_chain|teef_000'] = { { item = 'gold_bar', label = 'Gold bar', count = 4 }, { item = 'diamond', label = 'Diamond', count = 12 } },
+        },
+        Time = 4000,               -- ms the jeweller works on it
+    },
+
+    -- Repair: chains that snap in a snatch come off BROKEN and can't be worn until they're fixed here
+    Repair = {
+        Rate    = 0.15,            -- of the chain's price
+        Minimum = 150,
+        Time    = 3000,
+    },
+}
+
+--  ██████╗ ██╗██╗   ██╗██╗███╗   ██╗ ██████╗
+-- ██╔════╝ ██║██║   ██║██║████╗  ██║██╔════╝
+-- ██║  ███╗██║██║   ██║██║██╔██╗ ██║██║  ███╗
+-- ██║   ██║██║╚██╗ ██╔╝██║██║╚██╗██║██║   ██║
+-- ╚██████╔╝██║ ╚████╔╝ ██║██║ ╚████║╚██████╔╝
+--  ╚═════╝ ╚═╝  ╚═══╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝
+
+-- Hand your chain to someone, put it straight on their neck, or swap chains with them (couples).
+-- They get a prompt: [Y] accept  [X] decline  (rebindable in Settings > Key Bindings > FiveM)
+Config.Give = {
+    Enabled  = true,
+    Distance = 2.5,
+    Timeout  = 15,                 -- seconds to answer
+    Anim     = { dict = 'mp_common', clip = 'givetake1_a', duration = 1400 },
+    TakeAnim = { dict = 'mp_common', clip = 'givetake1_b', duration = 1400 },
+}
+
+--  █████╗ ██████╗ ██████╗ ███████╗ █████╗ ██████╗  █████╗ ███╗   ██╗ ██████╗███████╗
+-- ██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔════╝
+-- ███████║██████╔╝██████╔╝█████╗  ███████║██████╔╝███████║██╔██╗ ██║██║     █████╗
+-- ██╔══██║██╔═══╝ ██╔═══╝ ██╔══╝  ██╔══██║██╔══██╗██╔══██║██║╚██╗██║██║     ██╔══╝
+-- ██║  ██║██║     ██║     ███████╗██║  ██║██║  ██║██║  ██║██║ ╚████║╚██████╗███████╗
+-- ╚═╝  ╚═╝╚═╝     ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝
+
+-- Chains converted from a CLOTHING pack (Config.Convert.ScanResources) are jewellery now: they can't be
+-- picked in the clothing store any more, players buy them at the jewelry store instead.
+-- illenium-appearance: install the addon in install/illenium-appearance (one file + one line).
+-- Any other clothing script: Enforce takes the chain back off within a couple of seconds.
+Config.Appearance = {
+    BlockClothingChains = true,
+    Enforce             = true,
+    -- Also block every accessory (teef) from these clothing collections, converted or not
+    BlockCollections    = {},      -- e.g. { 'mp_m_mychains', 'mp_f_mychains' }
+}
+
 -- ███████╗████████╗██╗   ██╗██████╗ ██╗ ██████╗
 -- ██╔════╝╚══██╔══╝██║   ██║██╔══██╗██║██╔═══██╗
 -- ███████╗   ██║   ██║   ██║██║  ██║██║██║   ██║
@@ -321,6 +418,28 @@ Config.Text = {
     hint_pickup     = '<kc>E</kc> Pick up %s',
     tug_you         = 'Snatching',
     tug_them        = 'Holding on',
+    broken          = 'This chain is broken. Get it repaired at the jewelry store.',
+    jewellery_only  = 'This chain must be purchased at the jewelry store.',
+    store_title     = 'Jewelry Store',
+    bought          = 'You bought a %s.',
+    crafted         = 'The jeweller made you a %s.',
+    repaired        = 'Your %s is good as new.',
+    no_money        = 'You can\'t afford that.',
+    no_materials    = 'You don\'t have the materials.',
+    not_yours       = 'That chain is made for someone else.',
+    give            = 'Give',
+    put_on_them     = 'Put it on them',
+    swap            = 'Swap chains',
+    offer_give      = '%s wants to give you their %s',
+    offer_puton     = '%s wants to put their %s on you',
+    offer_swap      = '%s wants to swap chains with you',
+    offer_sent      = 'Waiting for them to answer...',
+    offer_declined  = 'They said no.',
+    offer_expired   = 'They didn\'t answer.',
+    gave            = 'You gave them your %s.',
+    got_given       = 'You got a %s.',
+    swapped         = 'You swapped chains.',
+    hint_offer      = '<kc>Y</kc> Accept  <kc>X</kc> Decline',
 }
 
 -- Police alert when a snatch happens (runs on the VICTIM's client, Config.Snatch.Dispatch = chance). Examples below.

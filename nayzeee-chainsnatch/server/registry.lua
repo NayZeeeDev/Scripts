@@ -6,7 +6,7 @@
 -- converter output and config.lua. Keep that file when you update.
 -----------------------------------------------------------------
 
-Registry = { overrides = {} }
+Registry = { overrides = {}, owners = {} }   -- owners stay on the server: [key] = { { license, name }, ... }
 
 local RES = GetCurrentResourceName()
 local FILE = 'data/overrides.json'
@@ -87,6 +87,25 @@ function Registry.build()
                 local l = type(o.vlabels) == 'table' and o.vlabels[v.letter]
                 if type(l) == 'string' and l ~= '' then v.label = l end
             end
+            if o.forSale ~= nil then d.forSale = o.forSale == true end
+            if tonumber(o.price) then d.price = math.floor(tonumber(o.price)) end
+            if o.craftable ~= nil then d.craftable = o.craftable == true end
+        end
+    end
+
+    -- exclusive chains: who may buy them is kept here; clients only learn THAT a chain is exclusive
+    Registry.owners = {}
+    for key, d in pairs(list) do
+        if d.forSale == nil then d.forSale = Config.Store.SellAll ~= false end
+        if d.craftable == nil then d.craftable = true end
+        local o = Registry.overrides[key]
+        local owners = type(o) == 'table' and type(o.owners) == 'table' and o.owners or {}
+        if #owners > 0 then
+            Registry.owners[key] = owners
+            d.exclusive = true
+            local names = {}
+            for _, w in ipairs(owners) do names[#names + 1] = w.name end
+            d.madeFor = table.concat(names, ' & ')
         end
     end
 
@@ -123,3 +142,14 @@ CreateThread(function()
     print(('^5[%s]^7 %d chain(s) ready%s'):format(RES, n,
         GetResourceState(Config.PropsResource) == 'missing' and (' (no %s yet, convert some in /%s)'):format(Config.PropsResource, Config.Studio.Command) or ''))
 end)
+
+--- May this player buy this chain? (exclusive chains: only their licenses)
+function Registry.canBuy(src, key)
+    local owners = Registry.owners[key]
+    if not owners then return true end
+    local lic = Bridge.GetLicense(src)
+    for _, w in ipairs(owners) do
+        if w.license == lic then return true end
+    end
+    return false
+end

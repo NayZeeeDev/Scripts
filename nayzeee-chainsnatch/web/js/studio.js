@@ -7,8 +7,9 @@
 
 const SD = {
   on: false, d: null, tab: 'fit', search: '', move: 0.005, rot: 5,
-  kit: null, prog: null, icon: null, shots: [],
+  kit: null, prog: null, icon: null, shots: [], owners: null, lk: { key: null, forSale: true, craftable: true },
 };
+H['studio:owners'] = (d) => { SD.owners = d; if (SD.on && SD.tab === 'look') sdRight(); };
 const sdRoot = $('#studio');
 
 const MOVES = [[0.001, '1mm'], [0.005, '5mm'], [0.01, '1cm'], [0.05, '5cm']];
@@ -104,7 +105,14 @@ function sdRight() {
   let body = '';
   if (!c && SD.tab !== 'convert') body = `<div class="card empty">${icon('folder')}Convert a chain first (Convert tab).</div>`;
   else if (SD.tab === 'fit') body = sdFit(c);
-  else if (SD.tab === 'look') body = sdLook(c);
+  else if (SD.tab === 'look') {
+    if (SD.lk.key !== c.key) {
+      SD.lk = { key: c.key, forSale: c.forSale !== false, craftable: c.craftable !== false };
+      SD.owners = null;
+      post('studio:owners');
+    }
+    body = sdLook(c);
+  }
   else if (SD.tab === 'icon') body = sdIcon(c);
   else body = sdConvert();
 
@@ -170,17 +178,38 @@ function sdFit(c) {
     </div>`;
 }
 
+function sdOwners(c) {
+  const o = SD.owners && SD.owners.key === c.key ? SD.owners : null;
+  if (!o) return `<div class="card sd-card"><div class="sd-ch">Owners <em>loading…</em></div></div>`;
+  const list = arr(o.owners);
+  const has = (lic) => list.some((w) => w.license === lic);
+  const short = (lic) => String(lic || '').replace('license:', '').slice(0, 10) + '…';
+  return `<div class="card sd-card">
+    <div class="sd-ch">Owners <em>${list.length ? 'only these game licenses can buy it' : 'nobody: anyone can buy it'}</em></div>
+    ${list.length ? `<div class="sd-names">${list.map((w, i) => `<div class="t-warning"><em>OWNER</em>${esc(w.name)} <span style="color:var(--ink-3);margin-left:auto">${esc(short(w.license))}</span>
+      <button class="btn sm ghost" data-sd="ownerDel" data-v="${i}" title="Remove">${icon('x')}</button></div>`).join('')}</div>` : ''}
+    <div class="sd-ch">Add from online players</div>
+    <div class="sd-chips">${arr(o.online).map((p) => chip(`data-sd="ownerAdd" data-v="${esc(p.license)}" data-n="${esc(p.name)}"`, `${icon('user')}${esc(p.name)} <span style="color:var(--ink-3)">#${p.id}</span>`, has(p.license))).join('') || '<span class="sd-note">Nobody online.</span>'}</div>
+    <div class="sd-note">Exclusive chains only show in their owners' store. Anyone else can only get one by snatching it, or being given it.</div>
+  </div>`;
+}
+
 function sdLook(c) {
   return `
     <div class="card sd-card">
       <div class="sd-ch">Name <em>what players see</em></div>
       <label class="field">${icon('tag')}<input id="lkLabel" maxlength="48" value="${esc(c.label)}"></label>
-      <div class="sd-ch">Value <em>shown on the item</em></div>
-      <label class="field"><small>$</small><input id="lkValue" type="number" min="0" value="${+c.value || 0}"></label>
+      <div class="sd-ch">Store price <em>also the value on the item</em></div>
+      <label class="field"><small>$</small><input id="lkValue" type="number" min="0" value="${+c.price || 0}"></label>
+      <div class="sd-row2">
+        ${chip(`data-sd="lkSale"`, `${icon('gem')}For sale`, SD.lk.forSale)}
+        ${chip(`data-sd="lkCraft"`, `${icon('wand')}Craftable`, SD.lk.craftable)}
+      </div>
       ${arr(c.variants).length > 1 ? `<div class="sd-ch">Textures <em>Gold, Silver, Iced …</em></div>
         ${arr(c.variants).map((v) => `<label class="field"><small>${v.letter.toUpperCase()}</small><input data-vl="${v.letter}" maxlength="24" placeholder="Texture ${v.letter.toUpperCase()}" value="${esc(v.label || '')}"></label>`).join('')}` : ''}
       <button class="btn teal" data-sd="look">${icon('save')}Save</button>
     </div>
+    ${sdOwners(c)}
     <div class="card sd-card">
       <div class="sd-ch">Try it <em>texture ${esc((SD.d.variant || 'a').toUpperCase())}</em></div>
       <button class="btn" data-sd="give">${icon('gift')}Put one in my pockets</button>
@@ -305,7 +334,24 @@ sdRoot.addEventListener('click', (e) => {
     case 'look': {
       const vl = {};
       $$('[data-vl]', $('#sdRight')).forEach((el) => { vl[el.dataset.vl] = el.value.trim(); });
-      return post('studio:look', { label: $('#lkLabel').value.trim(), value: +$('#lkValue').value || 0, vlabels: vl });
+      return post('studio:look', { label: $('#lkLabel').value.trim(), price: +$('#lkValue').value || 0, vlabels: vl, forSale: SD.lk.forSale, craftable: SD.lk.craftable });
+    }
+    case 'lkSale': SD.lk.forSale = !SD.lk.forSale; b.classList.toggle('on', SD.lk.forSale); return;
+    case 'lkCraft': SD.lk.craftable = !SD.lk.craftable; b.classList.toggle('on', SD.lk.craftable); return;
+    case 'ownerAdd': {
+      const list = arr(SD.owners && SD.owners.owners);
+      if (list.some((w) => w.license === v)) return;
+      list.push({ license: v, name: b.dataset.n });
+      SD.owners.owners = list;
+      post('studio:setOwners', { owners: list });
+      return sdRight();
+    }
+    case 'ownerDel': {
+      const list = arr(SD.owners && SD.owners.owners);
+      list.splice(+v, 1);
+      SD.owners.owners = list;
+      post('studio:setOwners', { owners: list });
+      return sdRight();
     }
     case 'give': return post('studio:give');
     case 'iconOn': return post('icon:toggle', { on: true });

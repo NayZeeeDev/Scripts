@@ -112,6 +112,9 @@ local function take(snatcher, victim, what)
     end
 
     if math.random() < (cfg.SnapChance or 0) then
+        -- it snapped: broken until the jewelry store fixes it
+        meta.broken = true
+        meta = Chains.meta(meta.chain, meta.variant, meta)
         SetTimeout(450, drop)
         Worn.notify(snatcher, T.snapped, 'warning')
         Worn.notify(victim, T.snapped, 'warning')

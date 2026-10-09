@@ -11,20 +11,23 @@ Clothing = {}
 
 local COMP = 7
 
-function Clothing.key(ped)
+--- The chainkit key of accessory drawable `d` on this ped (any drawable, not just the one worn), and its collection
+function Clothing.keyFor(ped, d)
     local model = GetEntityModel(ped)
     local g = model == `mp_m_freemode_01` and 'm' or model == `mp_f_freemode_01` and 'f' or nil
-    if not g then return nil end
-    local d = GetPedDrawableVariation(ped, COMP)
-    if d <= 0 then return nil end
+    if not g or not d or d <= 0 then return nil end
     local okN, coll = pcall(GetPedCollectionNameFromDrawable, ped, COMP, d)
     local okL, idx = pcall(GetPedCollectionLocalIndexFromDrawable, ped, COMP, d)
-    local key
     if okN and okL and coll ~= nil and idx and idx >= 0 then
-        key = ('%s|%s|%d'):format(g, string.lower(coll), idx)
-    else
-        key = ('%s||%d'):format(g, d) -- old game build: only base-game slots line up
+        coll = string.lower(coll)
+        return ('%s|%s|%d'):format(g, coll, idx), coll
     end
+    return ('%s||%d'):format(g, d), '' -- old game build: only base-game slots line up
+end
+
+function Clothing.key(ped)
+    local key = Clothing.keyFor(ped, GetPedDrawableVariation(ped, COMP))
+    if not key then return nil end
     local tex = GetPedTextureVariation(ped, COMP)
     return key, string.char(97 + math.max(0, math.min(25, tex)))
 end

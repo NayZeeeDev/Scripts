@@ -34,6 +34,13 @@ local function license(src)
     return 'src:' .. tostring(src)
 end
 
+--- The player's game license (license:xxxx). Exclusive chains are tied to this.
+function Bridge.GetLicense(src)
+    local l = GetPlayerIdentifierByType and GetPlayerIdentifierByType(src, 'license')
+    if l and l ~= '' then return l end
+    return license(src)
+end
+
 --- Character id (so a worn chain belongs to the character, not the account)
 function Bridge.GetIdentifier(src)
     local p = getPlayer(src)
@@ -67,6 +74,51 @@ function Bridge.GetJob(src)
     end
     local j = p.PlayerData.job or {}
     return j.name, j.onduty ~= false
+end
+
+local function qbAccount(acc) return (acc == 'money' or acc == 'cash') and 'cash' or acc end
+local function esxAccount(acc) return acc == 'cash' and 'money' or acc end
+
+function Bridge.GetMoney(src, acc)
+    local p = getPlayer(src)
+    if FW == 'none' or not p then
+        if GetResourceState('ox_inventory') == 'started' and acc ~= 'bank' then return exports.ox_inventory:GetItemCount(src, 'money') or 0 end
+        return 0
+    end
+    if FW == 'esx' then
+        local a = p.getAccount(esxAccount(acc))
+        return a and a.money or 0
+    end
+    return p.PlayerData.money[qbAccount(acc)] or 0
+end
+
+function Bridge.RemoveMoney(src, amount, acc, reason)
+    amount = math.floor(amount)
+    if amount <= 0 then return true end
+    if Bridge.GetMoney(src, acc) < amount then return false end
+    local p = getPlayer(src)
+    if FW == 'none' or not p then
+        return GetResourceState('ox_inventory') == 'started' and exports.ox_inventory:RemoveItem(src, 'money', amount) == true
+    end
+    if FW == 'esx' then
+        p.removeAccountMoney(esxAccount(acc), amount, reason)
+        return true
+    end
+    return p.Functions.RemoveMoney(qbAccount(acc), amount, reason) ~= false
+end
+
+function Bridge.AddMoney(src, amount, acc, reason)
+    amount = math.floor(amount)
+    if amount <= 0 then return true end
+    local p = getPlayer(src)
+    if FW == 'none' or not p then
+        return GetResourceState('ox_inventory') == 'started' and exports.ox_inventory:AddItem(src, 'money', amount) == true
+    end
+    if FW == 'esx' then
+        p.addAccountMoney(esxAccount(acc), amount, reason)
+        return true
+    end
+    return p.Functions.AddMoney(qbAccount(acc), amount, reason) ~= false
 end
 
 function Bridge.IsAdmin(src)
