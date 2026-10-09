@@ -94,9 +94,11 @@ function studioClose(silent) {
 }
 
 // game → studio state. Orbit-only changes don't rebuild the panels (that would drop a slider mid-drag).
+// what each panel shows, so a click only redraws the panel that changed
+const sdLeftSig = () => JSON.stringify([SD.key, !!SD.batch]);
 const sdSig = () => JSON.stringify([SD.key, SD.letter, SD.subject, SD.mode, SD.chroma, SD.batch, SD.screenshot]);
 function studioState(s) {
-  const before = sdSig();
+  const before = sdSig(), beforeLeft = sdLeftSig();
   const keyChanged = s.key !== undefined && s.key !== SD.key;
   Object.assign(SD, {
     key: s.key ?? SD.key, letter: s.letter || SD.letter, subject: s.subject || SD.subject, mode: s.mode || SD.mode,
@@ -105,7 +107,8 @@ function studioState(s) {
   });
   if (keyChanged || !SD.edit || SD.edit.key !== SD.key) SD.edit = sdEditFor(cur());
   if (!SD.on) return;
-  if (sdSig() !== before) sdRender();
+  if (sdLeftSig() !== beforeLeft) sdLeft();
+  if (sdSig() !== before) sdRight();
   else sdOrbitUi();
 }
 

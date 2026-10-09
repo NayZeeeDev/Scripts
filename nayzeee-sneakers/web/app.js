@@ -4,7 +4,10 @@ const post = (name, data = {}) =>
   fetch(`https://${RES}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
     .catch(() => {});
 
-const img = name => name ? `../install/images/${name}.png` : '';   // the inventory icons ship once, in install/images
+// The inventory icons ship in install/images; studio shoes' icons live elsewhere (see "icons" below).
+// Once an icon has been found, it's remembered, so redrawing a window never makes it search (and flicker) again.
+const ICON_AT = {};
+const img = name => name ? (ICON_AT[name] || `../install/images/${name}.png`) : '';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ---------------- icons (inline SVG, 24px grid, stroked) ---------------- */
@@ -485,23 +488,41 @@ let PROPS_RES = 'nayzeee-sneakers-props';
 
 // Icons: the script's own first, then photos taken in /sneakerstudio, then the props resource
 // (icons the 3D props builder rendered), then the inventory's own images, then a plain box
+const iconName = src => {
+  const m = src.match(/install\/images\/([^/?]+)\.png/) || src.match(/shots\/([^/?]+)\.png/) || src.match(/\/icons\/([^/?]+)\.png/) || src.match(/\/images\/([^/?]+)\.png/);
+  return m ? m[1] : null;
+};
 addEventListener('error', e => {
   const el = e.target;
   if (!(el instanceof HTMLImageElement)) return;
-  const src = el.getAttribute('src') || '';
-  const m = src.match(/install\/images\/([^/]+)\.png$/) || src.match(/shots\/([^/]+)\.png$/) || src.match(/\/icons\/([^/]+)\.png$/) || src.match(/\/images\/([^/]+)\.png$/);
-  if (!m) return;
-  const name = m[1];
+  const name = el.dataset.want || iconName(el.getAttribute('src') || '');
+  if (!name) return;
+  el.dataset.want = name;
+  if (ICON_AT[name]) delete ICON_AT[name];   // a remembered place stopped working: search again
   const tries = [`../install/images/${name}.png`, `../shots/${name}.png`, `https://cfx-nui-${PROPS_RES}/icons/${name}.png`,
     `https://cfx-nui-ox_inventory/web/images/${name}.png`, `https://cfx-nui-qb-inventory/html/images/${name}.png`];
   const step = +(el.dataset.fb || 0) + 1;
-  if (step < tries.length) { el.dataset.fb = step; el.src = tries[step]; return; }
-  if (name !== 'nz_shoebox') { el.dataset.fb = 0; el.src = img('nz_shoebox'); }
+  const next = step < tries.length ? tries[step] : name !== 'nz_shoebox' ? '../install/images/nz_shoebox.png' : null;
+  if (!next) return;
+  el.dataset.fb = step;
+  el.dataset.next = next;
+  el.src = next;
 }, true);
-// a fresh picture starts the search again
+// a window showing a new picture in the same <img> starts a fresh search for it
 new MutationObserver(list => list.forEach(r => {
-  if (r.attributeName === 'src' && r.target.dataset && /install\/images/.test(r.target.getAttribute('src') || '')) r.target.dataset.fb = 0;
+  const el = r.target;
+  if (r.attributeName !== 'src' || !el.dataset || el.getAttribute('src') === el.dataset.next) return;
+  delete el.dataset.want; delete el.dataset.fb; delete el.dataset.next;
 })).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['src'] });
+// remember where each icon was found (the plain box too, so a missing icon isn't searched for again)
+addEventListener('load', e => {
+  const el = e.target;
+  if (!(el instanceof HTMLImageElement)) return;
+  const src = el.getAttribute('src') || '';
+  if (src.startsWith('data:')) return;
+  const name = el.dataset.want || iconName(src);
+  if (name) ICON_AT[name] = src;
+}, true);
 
 /* ---------------- messages ---------------- */
 addEventListener('message', ({ data }) => {
