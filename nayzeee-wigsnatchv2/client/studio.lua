@@ -45,8 +45,8 @@ local function applyHair(d, t)
     SetPedPreloadVariationData(ped, HAIR, d, t)
     local timeout = GetGameTimer() + 1500
     while not HasPedPreloadVariationDataFinished(ped) and GetGameTimer() < timeout do Wait(0) end
-    SetPedComponentVariation(ped, HAIR, d, t, 0)
-    SetPedHairColor(ped, CS.HairColor[1], CS.HairColor[2])
+    SetPedComponentVariation(ped, HAIR, d, t, Hair.Palette({}))   -- the same palette players' hair uses
+    ;(SetPedHairTint or SetPedHairColor)(ped, CS.HairColor[1], CS.HairColor[2])
     ReleasePedPreloadVariationData(ped)
     drawable, texture = d, t
 end

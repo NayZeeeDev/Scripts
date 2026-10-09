@@ -13,6 +13,7 @@ local function readHair(ped)
         t = GetPedTextureVariation(ped, 2),
         c = GetPedHairColor(ped),
         h = GetPedHairHighlightColor(ped),
+        p = GetPedPaletteVariation(ped, 2),
     }
 end
 Hair.Read = readHair
@@ -44,8 +45,17 @@ local function holdTint(ped, c, h)
     end)
 end
 
+-- The hair's palette: the one your appearance script put on your own hair (ESX skinchanger uses 2,
+-- most others 0). Custom hair, female packs especially, only colours right on the palette it was
+-- made for and turns green on the other one. Config.HairPalette forces one.
+local function paletteFor(h)
+    if Config.HairPalette ~= nil then return Config.HairPalette end
+    return h.p or (Hair.natural and Hair.natural.p) or 0
+end
+Hair.Palette = paletteFor
+
 local function setHair(ped, h)
-    SetPedComponentVariation(ped, 2, h.d, h.t or 0, 0)
+    SetPedComponentVariation(ped, 2, h.d, h.t or 0, paletteFor(h))
     if h.c then
         tint(ped, h.c, h.h or h.c)
         if ped == PlayerPedId() then holdTint(ped, h.c, h.h or h.c) end

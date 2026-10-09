@@ -79,6 +79,11 @@ Config.UI = {
 -- ██║ ╚████║╚██████╔╝   ██║   ██║██║        ██║
 -- ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝
 
+-- Hair palette used when the script puts hair on a ped (wigs, cuts, dye). nil = the same one your
+-- appearance script uses on your own hair (ESX skinchanger uses 2, most others 0). If custom hair
+-- comes out green, the palette is wrong for it: try 2 or 0 here.
+Config.HairPalette = nil
+
 -- Notifications use ox_lib (lib.notify). Players pick where they pop up in Vault > Settings;
 -- Config.UI.ToastPosition is the default.
 
