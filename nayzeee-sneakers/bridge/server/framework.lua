@@ -68,6 +68,48 @@ function Bridge.RegisterUsable(name, cb)
     end
 end
 
+--- account: 'cash' | 'bank'
+local function esxAccount(account) return account == 'cash' and 'money' or account end
+
+function Bridge.GetMoney(src, account)
+    if fw == 'qbx' or fw == 'qb' then
+        local p = Bridge.GetQBPlayer(src)
+        return p and p.PlayerData.money[account] or 0
+    elseif fw == 'esx' then
+        local p = ESX.GetPlayerFromId(src)
+        local a = p and p.getAccount(esxAccount(account))
+        return a and a.money or 0
+    end
+    return 0
+end
+
+--- Takes money. Returns true only if the player had enough and it was taken.
+function Bridge.RemoveMoney(src, account, amount, reason)
+    if amount <= 0 then return true end
+    if Bridge.GetMoney(src, account) < amount then return false end
+    if fw == 'qbx' or fw == 'qb' then
+        local p = Bridge.GetQBPlayer(src)
+        return p and p.Functions.RemoveMoney(account, amount, reason) and true or false
+    elseif fw == 'esx' then
+        local p = ESX.GetPlayerFromId(src)
+        if not p then return false end
+        p.removeAccountMoney(esxAccount(account), amount, reason)
+        return true
+    end
+    return false
+end
+
+function Bridge.AddMoney(src, account, amount, reason)
+    if amount <= 0 then return end
+    if fw == 'qbx' or fw == 'qb' then
+        local p = Bridge.GetQBPlayer(src)
+        if p then p.Functions.AddMoney(account, amount, reason) end
+    elseif fw == 'esx' then
+        local p = ESX.GetPlayerFromId(src)
+        if p then p.addAccountMoney(esxAccount(account), amount, reason) end
+    end
+end
+
 function Bridge.Notify(src, text, kind)
     TriggerClientEvent('nayzeee-sneakers:notify', src, text, kind or 'inform')
 end

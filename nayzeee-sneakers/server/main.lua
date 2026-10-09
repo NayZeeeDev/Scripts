@@ -44,6 +44,25 @@ RegisterCommand(Config.Commands.giveBox, function(src, args)
     if src == 0 then print(msg) else Bridge.Notify(src, msg, ok and 'success' or 'error') end
 end, false)
 
+-- /givematerials [id] [pairs]: enough of every material for that many pairs of anything (real or fake)
+RegisterCommand(Config.Commands.materials, function(src, args)
+    if src ~= 0 and not Bridge.IsAdmin(src) then return end
+    local target = tonumber(args[1]) or src
+    local pairs_ = math.max(1, math.min(20, tonumber(args[2]) or 1))
+    local need = {}
+    for modelId in pairs(Config.ShoeModels) do
+        for name, count in pairs(Shared.Recipe(modelId, true)) do
+            need[name] = math.max(need[name] or 0, count)
+        end
+    end
+    local given = 0
+    for name, count in pairs(need) do
+        if Inv.Add(target, name, count * pairs_) then given = given + 1 end
+    end
+    local msg = ('Gave %d kinds of materials (enough for %d pair%s) to %d'):format(given, pairs_, pairs_ == 1 and '' or 's', target)
+    if src == 0 then print(msg) else Bridge.Notify(src, msg, given > 0 and 'success' or 'error') end
+end, false)
+
 -- Shoe models with no clothing id yet can't be worn; say so once on start
 CreateThread(function()
     local missing = {}

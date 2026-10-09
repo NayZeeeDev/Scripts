@@ -50,3 +50,112 @@
     description = 'For tall boots',
     server = { export = 'nayzeee-sneakers.useItem' },
 },
+
+
+-- Crafting tables: these icons come with the Dragons Lab Shoe Table Pack (install-images)
+
+['blueshoetable'] = {
+    label = 'Blue shoe table',
+    weight = 15000,
+    stack = false,
+    close = true,
+    consume = 0,
+    description = 'A crafting table for shoes. Use it to set it up',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+['pinkshoetable'] = {
+    label = 'Pink shoe table',
+    weight = 15000,
+    stack = false,
+    close = true,
+    consume = 0,
+    description = 'A crafting table for shoes. Use it to set it up',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+['purpleshoetable'] = {
+    label = 'Purple shoe table',
+    weight = 15000,
+    stack = false,
+    close = true,
+    consume = 0,
+    description = 'A crafting table for shoes. Use it to set it up',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+['redshoetable'] = {
+    label = 'Red shoe table',
+    weight = 15000,
+    stack = false,
+    close = true,
+    consume = 0,
+    description = 'A crafting table for shoes. Use it to set it up',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+-- Crafting materials
+
+['nz_leather'] = {
+    label = 'Leather hide',
+    weight = 400,
+    stack = true,
+    close = true,
+    description = 'For uppers and boots',
+},
+
+['nz_fabric'] = {
+    label = 'Mesh fabric',
+    weight = 150,
+    stack = true,
+    close = true,
+    description = 'For sneaker uppers',
+},
+
+['nz_sole'] = {
+    label = 'Rubber sole',
+    weight = 350,
+    stack = true,
+    close = true,
+    description = 'One pair of soles',
+},
+
+['nz_heel'] = {
+    label = 'Heel block',
+    weight = 300,
+    stack = true,
+    close = true,
+    description = 'For heels',
+},
+
+['nz_thread'] = {
+    label = 'Waxed thread',
+    weight = 50,
+    stack = true,
+    close = true,
+    description = 'Strong stitching thread',
+},
+
+['nz_glue'] = {
+    label = 'Shoe glue',
+    weight = 200,
+    stack = true,
+    close = true,
+    description = 'Holds a sole on for good',
+},
+
+['nz_laces'] = {
+    label = 'Laces',
+    weight = 20,
+    stack = true,
+    close = true,
+    description = 'One pair of laces',
+},
+
+['nz_authtag'] = {
+    label = 'Authentic tag',
+    weight = 10,
+    stack = true,
+    close = true,
+    description = 'Makes a pair the real thing',
+},

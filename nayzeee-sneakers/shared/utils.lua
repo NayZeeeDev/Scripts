@@ -96,3 +96,59 @@ function Shared.BoxTypeForShoe(shoeId)
     local shoe = Config.Shoes[shoeId]
     return shoe and Config.BoxTypes[shoe.box] and shoe.box or 'shoe'
 end
+
+--------------------------------------------------------------------------------
+-- Crafting and XP
+--------------------------------------------------------------------------------
+
+--- level, XP where this level starts, XP where the next one starts (nil at max)
+function Shared.LevelFor(xp)
+    local levels = Config.XP.levels
+    local level = 1
+    for i = 1, #levels do
+        if xp >= levels[i] then level = i end
+    end
+    return level, levels[level], levels[level + 1]
+end
+
+function Shared.ModelLevel(modelId)
+    local m = Config.Crafting.models[modelId]
+    return m and m.level or 1
+end
+
+--- Materials for one pair of `modelId`: { [item] = count }
+function Shared.Recipe(modelId, real)
+    local m = Config.ShoeModels[modelId]
+    if not m then return nil end
+    local over = Config.Crafting.models[modelId]
+    local out = {}
+    for k, v in pairs(over and over.recipe or Config.Recipes[m.box] or Config.Recipes.shoe) do out[k] = v end
+    if real then
+        for k, v in pairs(Config.Crafting.realExtra) do out[k] = (out[k] or 0) + v end
+    end
+    return out
+end
+
+--- The stages for `modelId` at `level`, with times sped up by level
+function Shared.Stages(modelId, level)
+    local m = Config.ShoeModels[modelId]
+    local list = Config.Crafting.stages[m and m.box or 'shoe'] or Config.Crafting.stages.shoe
+    local speed = 1.0 - math.min(0.4, (level - 1) * Config.Crafting.speedPerLevel)
+    local out = {}
+    for i, s in ipairs(list) do
+        out[i] = {
+            label = s.label,
+            time = math.floor(s.time * speed),
+            check = Config.Crafting.skillChecks and s.check or false,
+            anim = s.anim,
+        }
+    end
+    return out
+end
+
+--- Display name for any item this script knows about
+function Shared.ItemLabel(name)
+    if Config.Materials[name] then return Config.Materials[name].label end
+    if Config.Tables.items[name] then return Config.Tables.items[name].label end
+    return name
+end

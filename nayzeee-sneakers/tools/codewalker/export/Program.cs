@@ -1,5 +1,5 @@
 // cwconv: inspect / export GTA resources with CodeWalker.Core
-//   cwconv inspect <file.ydd|.ytd>
+//   cwconv inspect <file.ydd|.ytd|.ytyp>
 //   cwconv ydd2xml <file.ydd> <outdir>      (YddXml, like CodeWalker "Export XML")
 //   cwconv ytd2dds <file.ytd> <outdir>
 //   cwconv ytdreplace <in.ytd> <dds_dir> <out.ytd>   (swap textures, keep names and flags)
@@ -56,6 +56,9 @@ class P {
       File.WriteAllBytes(a[3], ytd.Save());
       var back = RpfFile.GetResourceFile<YtdFile>(File.ReadAllBytes(a[3]));
       Console.WriteLine($"wrote {a[3]}: {back.TextureDict.Textures.data_items.Length} texture(s) load back OK");
+    } else if (path.EndsWith(".ytyp")) {
+      var ytyp = new YtypFile(); ytyp.Load(data);
+      Console.WriteLine(MetaXml.GetXml(ytyp, out string fn));
     } else if (path.EndsWith(".ytd")) {
       var ytd = RpfFile.GetResourceFile<YtdFile>(data);
       foreach (var t in ytd.TextureDict.Textures.data_items) {

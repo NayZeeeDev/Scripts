@@ -1,7 +1,7 @@
-# nayzeee-sneakers: How To Use It (Phase 1)
+# nayzeee-sneakers: How To Use It
 
-Phase 1 covers the shoes themselves: shoe items, shoe boxes, inspecting a pair and wearing it.
-Crafting, XP, dirt and cleaning, and selling come in the next phases.
+This covers the shoes themselves (shoe items, shoe boxes, inspecting a pair and wearing it) and
+crafting (tables, materials, the supplier, fakes and XP). Dirt and cleaning, and selling, come next.
 
 ---
 
@@ -22,11 +22,13 @@ Crafting, XP, dirt and cleaning, and selling come in the next phases.
    - `qb-inventory/html/images/` for qb.
 
    With ox, every colourway shows its own icon. qb uses one icon per item.
+   The table icons (`blueshoetable.png` and the others) come with the Dragons Lab pack, in its `install-images` folder.
 5. **Let admins use the test commands.** In `server.cfg`:
    ```
    add_ace group.admin nayzeee-sneakers.admin allow
    ```
-6. Restart the server, then **close FiveM and clear your cache**.
+6. **Crafting tables:** install the **Dragons Lab Shoe Table Pack** (see section 5).
+7. Restart the server, then **close FiveM and clear your cache**.
 
 > **ESX:** you need ox_inventory. ESX's default inventory can't store the per-pair details (size, serial, real/fake).
 
@@ -108,6 +110,54 @@ Use **Boxed shoes** or an **empty box** from your inventory to put it on the gro
 
 ---
 
+## 5. Crafting
+
+### The tables (Dragons Lab Shoe Table Pack)
+The crafting tables are made by **SasDragon (Dragons Lab)**. They are **not included** in this script:
+every server buys the **Shoe Table Pack** from her ([her Discord](https://discord.com/invite/KEhZqcuv6m)) and installs it.
+
+1. Put her `DragonsLab_ShoeTablePack` folder in your `resources` and `ensure` it.
+2. Copy the PNGs from her `install-images` folder into your inventory's images folder.
+3. The four table items (`blueshoetable`, `pinkshoetable`, `purpleshoetable`, `redshoetable`) are already in `install/ox_items.lua` and `install/qb_items.lua`.
+   If you already added her table items from her own guide, keep yours and just add
+   `server = { export = 'nayzeee-sneakers.useItem' }` to each one (ox).
+
+Without her pack the tables show up as a plain GTA workbench, and the console says where to buy hers.
+Set `Config.Tables.fallback = false` to turn tables off completely without her pack.
+
+**Using a table:** use the table item, aim where you want it (scroll or Q / E turns it), left-click to place, right-click to cancel.
+Target it to **Use shoe table** or **Pick up table**. Placed tables stay after a restart.
+Want a table that's always there, like in a shop? Add it to `Config.Tables.fixed` in `config/crafting.lua`.
+
+### Materials and the supplier
+The **Shoe supplies** guy (clipboard icon on the map, Legion Square by default) sells everything:
+leather, mesh fabric, rubber soles, heel blocks, thread, glue, laces and **authentic tags**.
+Move him with `Config.Supplier.coords`. Prices are in `Config.Materials`.
+
+### Making a pair
+1. Target your table and pick **Use shoe table**.
+2. At the top choose **Fake** or **Real**. Real pairs need an authentic tag and level 4.
+3. Pick a shoe, a colourway and a size. The panel shows what you have and what you're missing.
+4. **Make this pair.** You walk up to the table and work in first person while the pair builds up in front of you, stage by stage.
+   Some stages have a skill check. Press **X** to stop; you keep your materials, since they're only used up when the pair is done.
+
+The finished pair goes in your inventory, brand new (Deadstock). Its card shows how it came out.
+
+### Fakes and quality
+Every fake has a **quality** (10–97%): how convincing it is. Higher level, and clean skill checks, make better fakes; a failed check costs quality.
+Real pairs are always 100%. Selling (next phase) uses quality for the NPC legit checks.
+
+### XP and levels
+Every pair gives XP (more for real pairs, a bonus for no failed checks). Levels unlock more shoes, real pairs at level 4,
+and make you work faster (4% per level). Tune it all in `config/crafting.lua`.
+
+| Command | What it does |
+|---|---|
+| `/givematerials [your id] 3` | Enough of every material for 3 pairs of anything (real or fake) |
+| `/sneakerxp [your id] 600` | Give 600 XP (level 4). No amount shows their XP |
+
+---
+
 ## Good to know
 
 - **Fakes look identical.** The difference is in the item data and the serial number. Legit checks come with selling.
@@ -124,4 +174,6 @@ Use **Boxed shoes** or an **empty box** from your inventory to put it on the gro
 | *These need a heel box* (or similar) | That pair fits a different box size. Use the matching empty box. |
 | *This shoe has no clothing set up yet* | Set the model's `drawable` in `config/shoes.lua` (section 3). |
 | *These are not made for your character* | The model's `gender` doesn't match your ped. Fix `gender`, or set `Config.GenderLock = false`. |
+| Tables are plain workbenches | The Dragons Lab pack isn't running, or that player's cache is old. `ensure` it and clear the cache. |
+| The shoes float above / sink into the table while crafting | Change `Config.Tables.surface` (the table-top height) in `config/crafting.lua`. |
 | Shoes or box show up invisible or inside-out | Screenshot it and send it to Claude. That's a model-file fix. |

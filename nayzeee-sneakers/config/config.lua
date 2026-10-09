@@ -75,6 +75,8 @@ Config.Wear = {
 Config.Commands = {
     give = 'givesneakers',       -- /givesneakers [id] [shoe] [size] [fake 0/1] [boxed 0/1]
     giveBox = 'giveshoebox',     -- /giveshoebox [id] [amount] [shoe|heel|boot]
+    materials = 'givematerials', -- /givematerials [id] [pairs]   enough materials for that many pairs of anything
+    xp = 'sneakerxp',            -- /sneakerxp [id] [amount]      no amount = show their XP
 }
 
 Config.Text = {
@@ -103,4 +105,31 @@ Config.Text = {
     notWearing = 'You are not wearing any boxed shoes',
     modelMissing = 'Shoe box model is not streamed. Check nayzeee-sneakers/stream',
     inspectHint = 'Hold LMB and drag to turn · scroll to zoom · Backspace to put them away',
+
+    -- crafting tables
+    useTable = 'Use shoe table',
+    pickUpTable = 'Pick up table',
+    placeHint = 'Scroll or Q / E to turn · LMB to place · RMB to cancel',
+    cantPlace = 'You can\'t put it there',
+    tableTooClose = 'Too close to another table',
+    tableLimit = 'You already have a table out',
+    notYourTable = 'That is not your table',
+    tableBusy = 'Someone is working at that table',
+    noTableModel = 'Shoe table model not found. Install the Dragons Lab Shoe Table Pack',
+
+    -- crafting
+    craftHint = 'X to stop',
+    levelTooLow = 'You need to be level %d',
+    missingMaterial = 'You are missing %s',
+    materialsGone = 'Your materials are gone',
+    checkPassed = 'Clean work',
+    checkFailed = 'Sloppy - that will show',
+    craftCancelled = 'You stopped working',
+    xpGained = '+%d XP',
+    levelUp = 'Level up! You are now level %d',
+
+    -- supplier
+    browseSupplies = 'Browse supplies',
+    bought = 'Paid $%d',
+    noMoney = 'You can\'t afford that',
 }

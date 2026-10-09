@@ -26,6 +26,21 @@ function UI.Inspect(show, data)
     SendNUIMessage({ action = 'inspect', show = show, data = data, hint = Config.Text.inspectHint })
 end
 
+--- Key hint pill at the bottom of the screen; nil hides it
+function UI.Hint(text)
+    SendNUIMessage({ action = 'hint', text = text })
+end
+
+--- Crafting stage bar: { label, step, steps, time, hint }; nil hides it
+function UI.Progress(data)
+    SendNUIMessage({ action = 'progress', data = data })
+end
+
+--- Card shown when a pair is finished: { name, real, quality, passed, checks, image }
+function UI.Result(data)
+    SendNUIMessage({ action = 'result', data = data })
+end
+
 function UI.Notify(text, kind)
     kind = kind or 'inform'
     if Config.Notify == 'nui' then

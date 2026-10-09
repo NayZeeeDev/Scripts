@@ -30,6 +30,7 @@ if inv == 'ox' then
         return out
     end
     function Inv.CanCarry(src, name, count, metadata) return ox:CanCarryItem(src, name, count or 1, metadata) and true or false end
+    function Inv.Count(src, name) return ox:Search(src, 'count', name) or 0 end
     function Inv.RegisterUsable(name, cb) usable[name] = cb end
 
     -- Items point here from install/ox_items.lua: server = { export = 'nayzeee-sneakers.useItem' }
@@ -82,6 +83,13 @@ elseif inv == 'qb' then
         if ok and res ~= nil then return res and true or false end
         return true
     end
+    function Inv.Count(src, name)
+        local n, p = 0, player(src)
+        for _, it in pairs(p and p.PlayerData.items or {}) do
+            if it and it.name == name then n = n + (it.amount or it.count or 1) end
+        end
+        return n
+    end
     function Inv.RegisterUsable(name, cb) Bridge.RegisterUsable(name, cb) end
 
 else
@@ -90,6 +98,7 @@ else
     Inv.GetSlot = CustomInventory.GetSlot
     Inv.List = CustomInventory.List
     Inv.CanCarry = CustomInventory.CanCarry
+    Inv.Count = CustomInventory.Count
     Inv.RegisterUsable = CustomInventory.RegisterUsable
 end
 

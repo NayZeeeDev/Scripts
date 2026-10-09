@@ -4,8 +4,8 @@ lua54 'yes'
 
 name 'nayzeee-sneakers'
 author 'NayZeee'
-description 'Sneaker reselling - shoes, shoe boxes, wearing (phase 1)'
-version '0.1.0'
+description 'Sneaker reselling - shoes, shoe boxes, wearing, crafting'
+version '0.3.0'
 
 dependencies {
     'ox_lib',
@@ -15,6 +15,7 @@ shared_scripts {
     '@ox_lib/init.lua',
     'config/config.lua',
     'config/shoes.lua',
+    'config/crafting.lua',
     'shared/utils.lua',
 }
 
@@ -25,6 +26,8 @@ client_scripts {
     'client/camera.lua',
     'client/boxes.lua',
     'client/shoes.lua',
+    'client/tables.lua',
+    'client/crafting.lua',
     'client/main.lua',
 }
 
@@ -35,6 +38,9 @@ server_scripts {
     'server/items.lua',
     'server/boxes.lua',
     'server/wear.lua',
+    'server/xp.lua',
+    'server/tables.lua',
+    'server/crafting.lua',
     'server/main.lua',
 }
 

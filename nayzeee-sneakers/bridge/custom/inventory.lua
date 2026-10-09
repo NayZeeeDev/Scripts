@@ -34,6 +34,12 @@ CustomInventory = {
         return {}
     end,
 
+    --- How many of `name` the player has, across all slots
+    Count = function(src, name)
+        -- return exports['your-inventory']:GetItemCount(src, name)
+        return 0
+    end,
+
     --- true if the player has room for the item
     CanCarry = function(src, name, count)
         return true

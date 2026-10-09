@@ -45,6 +45,105 @@
 </div>
 <div class="hint" id="inspectHint" hidden></div>
 
+<!-- workbench (crafting table) and supplier shop share the side panel -->
+<div class="scrim" id="scrim"></div>
+<div class="side" id="side" hidden>
+  <div class="side-head">
+    <div class="menu-img side-ic"><i id="sideIcon" class="fa-solid fa-scissors"></i></div>
+    <div class="menu-titles">
+      <div class="menu-title" id="sideTitle"></div>
+      <div class="menu-sub" id="sideSub"></div>
+    </div>
+    <button class="guidebtn" id="guideBtn"><i class="fa-solid fa-book-open"></i>Guide</button>
+  </div>
+
+  <!-- workbench -->
+  <div class="side-body" id="bench" hidden>
+    <div class="sec">
+      <div class="xp-top"><span>Level <b id="xpLevel">1</b></span><span id="xpText"></span></div>
+      <div class="bar"><i id="xpBar"></i></div>
+      <div class="segmented" id="mode" style="margin-top:14px">
+        <button data-v="fake" class="on"><i class="fa-solid fa-masks-theater"></i> Fake</button>
+        <button data-v="real"><i class="fa-solid fa-certificate"></i> Real</button>
+      </div>
+    </div>
+
+    <div class="sec" id="pickView">
+      <div class="sec-head"><i class="fa-solid fa-shoe-prints"></i>Pick a shoe</div>
+      <input type="text" id="search" placeholder="Search" autocomplete="off">
+      <div class="models" id="models"></div>
+    </div>
+
+    <div id="detailView" hidden>
+      <div class="sec">
+        <button class="back" id="back"><i class="fa-solid fa-arrow-left"></i> All shoes</button>
+        <div class="preview"><img id="pvImg" alt=""><span class="lvl" id="pvLevel"></span></div>
+        <div class="pv-name" id="pvName"></div>
+        <div class="pv-colour" id="pvColour"></div>
+        <div class="swatches" id="swatches"></div>
+      </div>
+      <div class="sec">
+        <div class="sec-head"><i class="fa-solid fa-ruler-horizontal"></i>Size (US)</div>
+        <div class="chips" id="sizes"></div>
+      </div>
+      <div class="sec">
+        <div class="sec-head"><i class="fa-solid fa-layer-group"></i>Materials</div>
+        <div class="mats" id="mats"></div>
+      </div>
+      <div class="sec">
+        <div class="sec-head"><i class="fa-solid fa-list-ol"></i>Stages <span class="sec-right" id="stageTime"></span></div>
+        <div class="steps" id="stages"></div>
+        <div class="status" id="benchStatus"></div>
+        <button class="build" id="craftBtn" style="margin-top:14px"><i class="fa-solid fa-scissors"></i>Make this pair</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- supplier shop -->
+  <div class="side-body" id="shop" hidden>
+    <div class="sec">
+      <div class="sec-head"><i class="fa-solid fa-layer-group"></i>Materials</div>
+      <div class="shoplist" id="shopList"></div>
+    </div>
+    <div class="sec">
+      <div class="total"><span>Total</span><b id="shopTotal">$0</b></div>
+      <div class="status" id="shopStatus"></div>
+      <button class="build" id="buyBtn" style="margin-top:12px"><i class="fa-solid fa-cart-shopping"></i>Buy</button>
+    </div>
+  </div>
+
+  <div class="side-foot"><button class="closebtn" id="sideClose">Close</button></div>
+</div>
+
+<!-- guide drawer -->
+<div class="guide" id="guide">
+  <div class="guide-top">
+    <div><h2 id="guideTitle">Guide</h2><div class="sub">How it works</div></div>
+    <button class="closebtn" id="guideClose">Close</button>
+  </div>
+  <div class="guide-body" id="guideBody"></div>
+</div>
+
+<!-- crafting stage bar -->
+<div class="progress" id="progress" hidden>
+  <div class="pg-top"><span id="pgLabel"></span><span id="pgStep"></span></div>
+  <div class="bar"><i id="pgBar"></i></div>
+  <div class="pg-hint" id="pgHint"></div>
+</div>
+
+<!-- finished pair -->
+<div class="result" id="result" hidden>
+  <div class="ins-img rs-img"><img id="rsImg" alt=""></div>
+  <div class="rs-tx">
+    <div class="rs-top"><span class="badge" id="rsBadge"></span><span class="rs-checks" id="rsChecks"></span></div>
+    <div class="ins-name" id="rsName"></div>
+    <div class="rs-q"><span>Quality</span><b id="rsQ"></b></div>
+    <div class="bar"><i id="rsBar"></i></div>
+  </div>
+</div>
+
+<div class="hint" id="hint" hidden></div>
+
 <!-- notifications -->
 <div class="toasts" id="toasts"></div>
 
