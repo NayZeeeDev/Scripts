@@ -496,6 +496,9 @@ Config.CardTypes = {
 -- How credit and secured cards are billed
 Config.CreditCards = {
     statementMinutes   = 120,   -- How often a statement is cut
+    -- A card's apr is a yearly rate. Each statement charges apr / statementsPerYear
+    -- on the carried balance, so 12 treats every statement as a month: 0.18 apr = 1.5%.
+    statementsPerYear  = 12,
     dueMinutes         = 60,    -- Time to pay after a statement lands
     minPaymentPct      = 0.10,  -- Minimum payment as a share of the balance
     minPaymentFloor    = 250,   -- But never less than this
@@ -547,9 +550,11 @@ Config.Credit = {
 
 Config.Savings = {
     enabled       = true,     -- false removes the Savings tab
-    interestRate  = 0.02,     -- Paid every payoutMinutes
+    -- Paid every payoutMinutes on the balance, up to maxBalance. 0.001 every
+    -- 60 min is about 2.4% a day of uptime. The old 0.02 compounded to 1.6x a day.
+    interestRate  = 0.001,
     payoutMinutes = 60,
-    maxBalance    = 5000000,
+    maxBalance    = 5000000,  -- Cap on deposits, transfers in and interest
     withdrawFee   = 0.0,
     requireOnline = false,    -- true only pays interest to players who are logged in
 }
@@ -600,6 +605,7 @@ Config.Bills = {
     overdueMinutes = 2880,    -- 48h before a bill goes overdue
     latePenalty    = 0.15,    -- Added once it does
     maxAmount      = 500000,
+    autoPay        = true,    -- Pay new bills straight away for players who switched auto-pay on in Settings
 
     -- Jobs allowed to bill someone from their society account
     issuers = { 'police', 'ambulance', 'mechanic', 'lawyer', 'realestate' },
@@ -699,6 +705,10 @@ Config.MultiJob = {
 -- Invoices from other creators' resources land in this bank instead of
 -- their own tables. Event names drift between forks, so change them here
 -- if a billing script is not coming through.
+--
+-- Each event is only picked up while the resource it is named after
+-- (the part before the first ':') is NOT running. If it is running it
+-- bills the player itself, and both of us answering would bill twice.
 Config.Bridge = {
     events = {
         'esx_billing:sendBill',
@@ -707,7 +717,17 @@ Config.Bridge = {
         'qb-phone:server:sendNewMail',
         'lb-phone:invoice:create',
     },
-    fallbackJob = 'government',  -- Issuer used when the caller does not name one
+    fallbackJob = 'government',  -- Issuer used when a server script does not name one
+
+    -- When a player's client raises the bill (exports and server scripts
+    -- are trusted), the sender must hold the billing job, that job must be
+    -- in Config.Bills.issuers, and their grade must be at least this.
+    minGrade    = 0,
+    jobMinGrade = {},               -- Per job, overrides minGrade, e.g. { police = 1 }
+    maxDistance = 15.0,             -- Metres from the person billed, 0 = anywhere
+
+    -- Per player: seconds between bills, and most bills in a minute
+    rateLimit = { gapSeconds = 5, perMinute = 6 },
 }
 
 -- ██████╗ ██╗  ██╗ ██████╗ ███╗   ██╗███████╗

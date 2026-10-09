@@ -127,22 +127,34 @@ function Bank.overdraftCover(acc, amount)
 
     if not c.limit or c.limit <= 0 then return 0 end
 
-    -- the line itself, measured against how far below zero this ends up
+    -- a fee for going overdrawn. Once per episode by default, so a
+    -- run of small payments while already negative is not punished
+    -- over and over.
     local fresh = Bank.getAccountById(acc.id) or acc
-    local ending = fresh.balance - amount
+    local already = (fresh.od_since or 0) > 0
+    local charge = (not already) or c.feePerUse
+    local fee = charge and Bank.round(c.fee or 0) or 0
+
+    -- the line itself, measured against how far below zero this ends
+    -- up once the fee is on it too
+    local ending = fresh.balance - amount - fee
     local limit = Bank.overdraftLimit(acc.owner)
 
     if -ending > limit and c.blockAtLimit ~= false then return 0 end
 
-    -- a fee for going overdrawn. Once per episode by default, so a
-    -- run of small payments while already negative is not punished
-    -- over and over.
-    local already = (fresh.od_since or 0) > 0
-    local charge = (not already) or c.feePerUse
-
-    if charge and (c.fee or 0) > 0 then
-        MySQL.update.await(
-            'UPDATE nz_bank_accounts SET od_fees = od_fees + ? WHERE id = ?', { c.fee, acc.id })
+    -- Taken now, not just written down. This runs before the payment's
+    -- own lock is taken, so it is a debit of its own, forced because it
+    -- is the fee for going below zero in the first place.
+    if fee > 0 then
+        local took = Bank.debit(acc.id, fee, {
+            category = 'fee', label = 'Overdraft fee', actorName = 'Bank', force = true
+        })
+        if took then
+            MySQL.update.await(
+                'UPDATE nz_bank_accounts SET od_fees = od_fees + ? WHERE id = ?', { fee, acc.id })
+        else
+            fee = 0
+        end
     end
 
     if not already then
@@ -157,8 +169,8 @@ function Bank.overdraftCover(acc, amount)
     local xPlayer = ESX.GetPlayerFromIdentifier(acc.owner)
     if xPlayer then
         Bank.notify(xPlayer.source, 'Overdrawn',
-            charge and (c.fee or 0) > 0
-                and ('You are into your overdraft. A %s%s fee was added.'):format(Config.Currency, c.fee)
+            fee > 0
+                and ('You are into your overdraft. A %s%s fee was taken.'):format(Config.Currency, fee)
                 or 'You are into your overdraft.',
             'error')
     end
@@ -166,6 +178,8 @@ function Bank.overdraftCover(acc, amount)
     Bank.log('overdraft', 'Overdraft used',
         ('Account `%s` went to %s%s'):format(acc.account_number, Config.Currency, ending))
 
+    -- with blockAtLimit off the line stretches to cover this payment
+    if c.blockAtLimit == false then return math.max(limit, -ending) end
     return limit
 end
 
@@ -263,6 +277,41 @@ end)
 --  Charged on what is actually owed, only after the grace period,
 --  and only while the account is still in the red.
 -- ═══════════════════════════════════════════════════════════
+--- Work out and take the interest while holding the account's lock, on
+--- the balance as it is now. The loop's read can be minutes old, and a
+--- deposit in between must not be written over.
+local function takeInterest(accountId, rate, cutoff)
+    local acc = Bank.getAccountById(accountId)
+    if not acc or acc.balance >= 0 then return nil end
+    if (acc.od_since or 0) == 0 or acc.od_since > cutoff then return nil end
+
+    local interest = Bank.round((-acc.balance) * rate)
+    if interest <= 0 then return nil end
+
+    -- relative, and only while still in the red
+    local changed = MySQL.update.await(
+        'UPDATE nz_bank_accounts SET balance = balance - ? WHERE id = ? AND balance < 0', { interest, accountId })
+    if not changed or changed == 0 then return nil end
+
+    return acc, interest, acc.balance - interest
+end
+
+local function chargeInterest(accountId, rate, cutoff)
+    local acc, interest, newBal = Bank.serial(accountId, takeInterest, accountId, rate, cutoff)
+    if not acc then return end
+
+    Bank.logTx(acc.id, 'out', interest, newBal, {
+        category = 'fee', label = 'Overdraft interest', actorName = 'Bank'
+    })
+    Bank.pushRefresh(acc)
+
+    local xPlayer = ESX.GetPlayerFromIdentifier(acc.owner)
+    if xPlayer then
+        Bank.notify(xPlayer.source, 'Overdraft interest',
+            ('%s%s charged on what you owe.'):format(Config.Currency, interest), 'error')
+    end
+end
+
 CreateThread(function()
     -- The flags are not set until the schema check has run, so this
     -- thread waits rather than reading them at start and switching
@@ -278,28 +327,18 @@ CreateThread(function()
         Wait(every * 60000)
 
         local cutoff = os.time() - ((c.graceMinutes or 0) * 60)
-        local rows = MySQL.query.await([[
-            SELECT id, owner, balance, account_number FROM nz_bank_accounts
+        local ok, rows = pcall(MySQL.query.await, [[
+            SELECT id FROM nz_bank_accounts
             WHERE type = 'personal' AND balance < 0 AND od_since > 0 AND od_since <= ?
-        ]], { cutoff }) or {}
+        ]], { cutoff })
+        if not ok then
+            print('^1[nayzeee-banking]^7 overdraft interest failed: ' .. tostring(rows))
+            rows = {}
+        end
 
-        for _, acc in ipairs(rows) do
-            local interest = Bank.round((-acc.balance) * c.interestRate)
-            if interest > 0 then
-                local newBal = acc.balance - interest
-                MySQL.update.await('UPDATE nz_bank_accounts SET balance = ? WHERE id = ?',
-                    { newBal, acc.id })
-                Bank.logTx(acc.id, 'out', interest, newBal, {
-                    category = 'fee', label = 'Overdraft interest', actorName = 'Bank'
-                })
-
-                local xPlayer = ESX.GetPlayerFromIdentifier(acc.owner)
-                if xPlayer then
-                    Bank.notify(xPlayer.source, 'Overdraft interest',
-                        ('%s%s charged on what you owe.'):format(Config.Currency, interest), 'error')
-                    TriggerClientEvent('nz_bank:refresh', xPlayer.source)
-                end
-            end
+        for _, row in ipairs(rows or {}) do
+            local charged, err = pcall(chargeInterest, row.id, c.interestRate, cutoff)
+            if not charged then print('^1[nayzeee-banking]^7 overdraft interest failed: ' .. tostring(err)) end
         end
     end
 end)

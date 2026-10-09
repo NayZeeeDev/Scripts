@@ -61,6 +61,50 @@ CALL nz_bank_add_column('nz_bank_settings', 'overdraft', 'TINYINT(1) NOT NULL DE
 -- before that column existed do not carry. Nothing to migrate: a
 -- statement covering a period from before this update opens at zero.
 
+-- ── One personal and one savings account per player ─────────
+-- Two requests racing on join could each open a personal account
+-- with the starting money in it. The code now waits its turn, and
+-- this key makes the database refuse a second one as well.
+CALL nz_bank_add_column('nz_bank_accounts', 'uniq_key',
+    'VARCHAR(80) GENERATED ALWAYS AS (CASE WHEN `type` IN (''personal'',''savings'') THEN CONCAT(`owner`, '':'', `type`) END) STORED');
+
+-- The key is only added when no player already has two. Nothing is
+-- merged or deleted for you: if this lists rows, move each player's
+-- money into the oldest account (lowest id), delete the others, and
+-- run this file again.
+DROP PROCEDURE IF EXISTS nz_bank_add_unique;
+
+DELIMITER //
+CREATE PROCEDURE nz_bank_add_unique()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = 'nz_bank_accounts'
+          AND INDEX_NAME   = 'uniq_key'
+    ) THEN
+        IF EXISTS (
+            SELECT `uniq_key` FROM `nz_bank_accounts`
+            WHERE `uniq_key` IS NOT NULL
+            GROUP BY `uniq_key` HAVING COUNT(*) > 1
+        ) THEN
+            SELECT `owner`, `type`, COUNT(*) AS accounts,
+                   GROUP_CONCAT(`id` ORDER BY `id`) AS ids,
+                   GROUP_CONCAT(`balance` ORDER BY `id`) AS balances,
+                   'merge into the first id, delete the rest, re-run update.sql' AS todo
+            FROM `nz_bank_accounts`
+            WHERE `uniq_key` IS NOT NULL
+            GROUP BY `owner`, `type` HAVING COUNT(*) > 1;
+        ELSE
+            ALTER TABLE `nz_bank_accounts` ADD UNIQUE KEY `uniq_key` (`uniq_key`);
+        END IF;
+    END IF;
+END //
+DELIMITER ;
+
+CALL nz_bank_add_unique();
+DROP PROCEDURE IF EXISTS nz_bank_add_unique;
+
 DROP PROCEDURE IF EXISTS nz_bank_add_column;
 
 -- ── Check it worked ─────────────────────────────────────────

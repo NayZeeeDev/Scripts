@@ -406,6 +406,58 @@ function Bank.access(src, accountId)
     }, nil
 end
 
+--- Bank.access for an identifier that may be offline, for things that run
+--- on a timer (standing orders). Same rules; with nobody online to ask,
+--- the society check reads the job ESX last saved for them.
+function Bank.accessByIdentifier(identifier, accountId)
+    if not identifier then return nil, nil, 'no_player' end
+
+    local acc = Bank.getAccountById(accountId)
+    if not acc then return nil, nil, 'no_account' end
+
+    local full = { role = 'owner', deposit = true, withdraw = true, transfer = true }
+
+    if acc.type == 'personal' or acc.type == 'savings' then
+        if acc.owner ~= identifier then return nil, nil, 'not_yours' end
+        return acc, full, nil
+    end
+
+    if acc.type == 'society' then
+        local allowed = false
+        local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
+        if xPlayer then
+            for _, jobName in ipairs(Bank.societyJobs(xPlayer)) do
+                if jobName == acc.owner then allowed = true break end
+            end
+        else
+            local ok, row = pcall(MySQL.single.await,
+                'SELECT job, job_grade FROM users WHERE identifier = ?', { identifier })
+            if ok and row and row.job == acc.owner then
+                local jobs = ESX.GetJobs()
+                local grades = jobs and jobs[row.job] and jobs[row.job].grades
+                local g = grades and grades[tostring(row.job_grade)]
+                allowed = Bank.canUseSociety(row.job, g and g.name)
+            end
+        end
+        if not allowed then return nil, nil, 'no_rank' end
+        return acc, { role = 'manager', deposit = true, withdraw = true, transfer = true }, nil
+    end
+
+    -- shared
+    if acc.owner == identifier then return acc, full, nil end
+
+    local m = MySQL.single.await(
+        'SELECT * FROM nz_bank_members WHERE account_id = ? AND identifier = ?', { acc.id, identifier })
+    if not m then return nil, nil, 'not_member' end
+
+    return acc, {
+        role     = m.role,
+        deposit  = m.can_deposit == 1,
+        withdraw = m.can_withdraw == 1,
+        transfer = m.can_transfer == 1
+    }, nil
+end
+
 -- ═══════════════════════════════════════════════════════════
 --  BALANCE MUTATION — the only place balances change
 -- ═══════════════════════════════════════════════════════════
@@ -437,7 +489,10 @@ function Bank.credit(accountId, amount, opts)
     return true, newBal
 end
 
---- @param opts table { category, label, actor, actorName, noOverdraft }
+--- @param opts table { category, label, actor, actorName, noOverdraft, force }
+--- force: the money has already gone (a shop took it through ESX, a fee
+--- or interest the bank is owed). Record it even when that takes the
+--- account below zero or the account is frozen.
 function Bank.debit(accountId, amount, opts)
     opts = opts or {}
     accountId = Bank.id(accountId)
@@ -453,7 +508,7 @@ function Bank.debit(accountId, amount, opts)
     -- debit is permitted to go. Nothing, unless the account is
     -- personal, the feature is on, and its owner opted in.
     local allowance = 0
-    if not Config.Accounts.allowNegative and not opts.noOverdraft and Bank.overdraftCover then
+    if not Config.Accounts.allowNegative and not opts.noOverdraft and not opts.force and Bank.overdraftCover then
         local peek = Bank.getAccountById(accountId)
         if peek and peek.frozen ~= 1 and peek.balance < amount then
             allowance = Bank.overdraftCover(peek, amount) or 0
@@ -464,12 +519,12 @@ function Bank.debit(accountId, amount, opts)
 
     local acc = Bank.getAccountById(accountId)
     if not acc then Bank.unlock(accountId) return false, 'no_account' end
-    if acc.frozen == 1 then Bank.unlock(accountId) return false, 'frozen' end
+    if acc.frozen == 1 and not opts.force then Bank.unlock(accountId) return false, 'frozen' end
 
     -- The authoritative check, inside the lock. Cover above may have
     -- topped the account up from savings, so this is re-made against
     -- the real balance rather than trusting the earlier read.
-    if acc.balance < amount and not Config.Accounts.allowNegative then
+    if acc.balance < amount and not Config.Accounts.allowNegative and not opts.force then
         if (amount - acc.balance) > allowance then
             Bank.unlock(accountId) return false, 'insufficient'
         end
@@ -614,17 +669,21 @@ end
 -- ═══════════════════════════════════════════════════════════
 --  BOOTSTRAP — make sure every player has a personal account
 -- ═══════════════════════════════════════════════════════════
-function Bank.ensurePlayer(xPlayer)
+local function ensurePlayerNow(xPlayer)
     local identifier = xPlayer.identifier
     local acc = Bank.getPersonal(identifier)
 
     if not acc then
         local number = Bank.newAccountNumber('PSL')
+        -- IGNORE so the unique owner+type key turns a second account away
+        -- instead of erroring. The re-read picks up whichever one exists.
         local id = MySQL.insert.await(
-            'INSERT INTO nz_bank_accounts (account_number, type, owner, label, balance) VALUES (?, "personal", ?, ?, ?)',
+            'INSERT IGNORE INTO nz_bank_accounts (account_number, type, owner, label, balance) VALUES (?, "personal", ?, ?, ?)',
             { number, identifier, Bank.fullName(xPlayer), Config.Accounts.startingBalance })
-        acc = Bank.getAccountById(id)
-        Bank.debug(('created personal account %s for %s'):format(number, identifier))
+        acc = Bank.getPersonal(identifier)
+        if id and id > 0 then
+            Bank.debug(('created personal account %s for %s'):format(number, identifier))
+        end
     end
 
     MySQL.insert('INSERT IGNORE INTO nz_bank_credit (identifier, score) VALUES (?, ?)',
@@ -632,6 +691,14 @@ function Bank.ensurePlayer(xPlayer)
     MySQL.insert('INSERT IGNORE INTO nz_bank_settings (identifier) VALUES (?)', { identifier })
 
     return acc
+end
+
+--- One at a time per player. getData and playerLoaded both land here on
+--- join, and two of them racing would each open an account with the
+--- starting money in it.
+function Bank.ensurePlayer(xPlayer)
+    local acc = Bank.serial('player:' .. tostring(xPlayer.identifier), ensurePlayerNow, xPlayer)
+    return acc or Bank.getPersonal(xPlayer.identifier)
 end
 
 AddEventHandler('esx:playerLoaded', function(src, xPlayer)

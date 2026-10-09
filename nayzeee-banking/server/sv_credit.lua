@@ -131,8 +131,10 @@ local function cutStatement(card)
         card.id
     })
 
-    -- interest on whatever is carried
-    local periodRate = tonumber(card.apr) * (Config.CreditCards.statementMinutes / 1440)
+    -- interest on whatever is carried. apr is yearly and each statement
+    -- counts as 1/statementsPerYear of it (a month, by default)
+    local perYear = math.max(1, Config.CreditCards.statementsPerYear or 12)
+    local periodRate = (tonumber(card.apr) or 0) / perYear
     local interest = Bank.round(card.balance * periodRate)
     if interest > 0 then
         local balance = card.balance + interest

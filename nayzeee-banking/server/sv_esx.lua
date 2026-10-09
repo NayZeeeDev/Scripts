@@ -26,37 +26,76 @@ local lastSociety = {}   -- [job]        = balance we last wrote into esx_addona
 -- ═══════════════════════════════════════════════════════════
 --  PLAYER BANK ACCOUNT
 -- ═══════════════════════════════════════════════════════════
-local function syncPlayer(xPlayer)
-    local acc = Bank.getPersonal(xPlayer.identifier)
+--- Fold an ESX-side payment into our ledger. The money has already left
+--- ESX (a shop took it), so a frozen or short account still pays: it is
+--- forced through rather than handed back when ESX is reset below.
+local function foldDebit(accountId, amount, opts, who)
+    local ok, why = Bank.debit(accountId, amount, opts)
+    if ok or (why ~= 'insufficient' and why ~= 'frozen') then return ok, why end
+
+    local refused = why
+    opts.force = true
+    ok, why = Bank.debit(accountId, amount, opts)
+    if ok then
+        Bank.log('esx', 'External payment forced through',
+            ('%s%s taken from %s outside the bank while the account was %s'):format(
+                Config.Currency, amount, who, refused == 'frozen' and 'frozen' or 'short'))
+    end
+    return ok, why
+end
+
+local function syncPlayerNow(xPlayer)
+    local identifier = xPlayer.identifier
+    local acc = Bank.getPersonal(identifier)
     if not acc then return end
 
     local esxAccount = xPlayer.getAccount('bank')
     if not esxAccount then return end
 
     local esxMoney = esxAccount.money or 0
-    local expected = lastBank[xPlayer.identifier]
+    local expected = lastBank[identifier]
 
     -- something outside this resource moved the ESX balance
     if expected and esxMoney ~= expected then
         local delta = esxMoney - expected
 
+        -- Marked as seen before writing, so the balanceChanged our own
+        -- write fires does not find the same gap and fold it twice.
+        lastBank[identifier] = esxMoney
+
+        local ok, why
         if delta > 0 then
-            Bank.credit(acc.id, delta, {
+            ok, why = Bank.credit(acc.id, delta, {
                 category = 'deposit', label = 'Deposit', actorName = 'External'
             })
         else
-            Bank.debit(acc.id, -delta, {
+            ok, why = foldDebit(acc.id, -delta, {
                 category = 'withdraw', label = 'Payment', actorName = 'External'
-            })
+            }, Bank.fullName(xPlayer))
         end
 
-        acc = Bank.getPersonal(xPlayer.identifier)
+        -- busy or a database error: leave the gap for the next pass. A
+        -- frozen account refusing money in is the one failure that stands,
+        -- and ESX is put back to our figure below.
+        if not ok and not (delta > 0 and why == 'frozen') then
+            lastBank[identifier] = expected
+            return
+        end
+
+        acc = Bank.getPersonal(identifier)
+        if not acc then return end
     end
 
     if esxMoney ~= acc.balance then
         xPlayer.setAccountMoney('bank', acc.balance, 'nayzeee-banking')
     end
-    lastBank[xPlayer.identifier] = acc.balance
+    lastBank[identifier] = acc.balance
+end
+
+--- One sync per player at a time, so the loop and a balanceChanged
+--- never fold the same gap twice.
+local function syncPlayer(xPlayer)
+    return Bank.serial('esx:' .. tostring(xPlayer.identifier), syncPlayerNow, xPlayer)
 end
 
 -- push our balance out the moment it changes rather than waiting on the loop
@@ -64,8 +103,30 @@ AddEventHandler('nz_bank:balanceChanged', function(identifier, balance)
     local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
     if not xPlayer then return end
 
+    -- ESX moved since we last looked. Writing our figure over it now
+    -- would hand that money back, so fold it in first.
+    local esxAccount = xPlayer.getAccount('bank')
+    local expected = lastBank[identifier]
+    if expected and esxAccount and (esxAccount.money or 0) ~= expected then
+        CreateThread(function()
+            local ok, err = pcall(syncPlayer, xPlayer)
+            if not ok then Bank.debug('bank sync failed', err) end
+        end)
+        return
+    end
+
     xPlayer.setAccountMoney('bank', balance, 'nayzeee-banking')
     lastBank[identifier] = balance
+end)
+
+-- take the first reading straight away, so a purchase in the first few
+-- seconds after joining is not written over by the first sync
+AddEventHandler('esx:playerLoaded', function(src, xPlayer)
+    CreateThread(function()
+        Wait(1000)
+        local ok, err = pcall(syncPlayer, xPlayer)
+        if not ok then Bank.debug('bank sync failed', err) end
+    end)
 end)
 
 -- ═══════════════════════════════════════════════════════════
@@ -159,17 +220,24 @@ local function syncSociety(job)
     if expected and addonMoney ~= expected then
         local delta = addonMoney - expected
 
+        local ok, why
         if delta > 0 then
-            Bank.credit(ours.id, delta, {
+            ok, why = Bank.credit(ours.id, delta, {
                 category = 'deposit', label = 'Society income', actorName = 'External'
             })
         else
-            Bank.debit(ours.id, -delta, {
+            -- the wages are already paid out, so they are recorded even
+            -- if that leaves the society short, never put back
+            ok, why = foldDebit(ours.id, -delta, {
                 category = 'payroll', label = 'Wages paid', actorName = 'ESX paycheck'
-            })
+            }, ours.label)
         end
 
+        -- busy or a database error: keep the gap for the next pass
+        if not ok and not (delta > 0 and why == 'frozen') then return end
+
         ours = Bank.getSociety(job)
+        if not ours then return end
     end
 
     if addonMoney ~= ours.balance then

@@ -147,24 +147,40 @@ Bank.callback('nz_bank:setPayroll', function(src, grade, amount, interval, enabl
     return { ok = true, msg = ('%s now earns %s%s.'):format(label, Config.Currency, amount) }
 end)
 
---- Pay one employee. Returns true when the money moved.
+--- Pay one employee. Returns true when the money moved, or false and
+--- 'short' when the society cannot cover it.
 local function payEmployee(xTarget, soc, wage)
-    local ok = Bank.debit(soc.id, wage, {
+    -- Never into the red for wages, even with Config.Accounts.allowNegative
+    -- on. The debit below re-checks this under the lock either way.
+    local fresh = Bank.getAccountById(soc.id)
+    if not fresh or fresh.balance < wage then return false, 'short' end
+
+    local ok, why = Bank.debit(soc.id, wage, {
         category = 'payroll',
         label    = ('Wage · %s'):format(Bank.fullName(xTarget)),
-        actorName= 'Payroll'
+        actorName= 'Payroll',
+        noOverdraft = true
     })
-    if not ok then return false end
+    if not ok then return false, why == 'insufficient' and 'short' or why end
 
     local settings = MySQL.single.await(
         'SELECT direct_deposit FROM nz_bank_settings WHERE identifier = ?', { xTarget.identifier })
     local toBank = not settings or settings.direct_deposit == 1
 
+    -- a frozen or missing personal account takes the wage in cash instead
+    local landed = false
     if toBank then
         local acc = Bank.getPersonal(xTarget.identifier)
-        Bank.credit(acc.id, wage, { category = 'payroll', label = ('Wage · %s'):format(soc.label) })
-    else
-        Bank.addCash(xTarget, wage)
+        landed = acc and Bank.credit(acc.id, wage, { category = 'payroll', label = ('Wage · %s'):format(soc.label) })
+    end
+    if not landed then
+        landed = Bank.addCash(xTarget, wage)
+    end
+
+    if not landed then
+        -- the wage went nowhere, so it goes back to the society
+        Bank.credit(soc.id, wage, { category = 'payroll', label = 'Wage returned', actorName = 'Payroll' })
+        return false, 'undelivered'
     end
 
     Bank.notify(xTarget.source, 'Wage paid',
@@ -186,71 +202,85 @@ local function onDuty(xTarget)
     return duty == true
 end
 
+--- One wage row falling due.
+local function runPayroll(row)
+    -- Claim this run before paying anyone. Conditional, so the same run
+    -- can never be paid twice, and a failure below waits for the next slot.
+    local claimed = MySQL.update.await('UPDATE nz_bank_payroll SET next_run = ? WHERE id = ? AND next_run = ?',
+        { os.time() + (row.interval_min * 60), row.id, row.next_run })
+    if not claimed or claimed == 0 then return end
+
+    local soc = Bank.getSociety(row.job)
+    if not soc then return end
+
+    local paid, short = 0, false
+
+    local roster = ESX.GetExtendedPlayers('job', row.job)
+
+    -- with payInactiveJobs on, people clocked into another job
+    -- still draw this wage as long as they hold the role
+    if Config.MultiJob.enabled and Config.MultiJob.payInactiveJobs then
+        for _, xAny in pairs(ESX.GetExtendedPlayers()) do
+            if xAny.job.name ~= row.job then
+                for _, held in ipairs(Bank.jobsFor(xAny)) do
+                    if held.name == row.job and held.grade == row.grade then
+                        roster[#roster + 1] = xAny
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    local seen = {}   -- one wage per person per run, however they got on the roster
+    for _, xTarget in pairs(roster) do
+        local grade = xTarget.job.name == row.job and xTarget.job.grade or row.grade
+        if not seen[xTarget.identifier] and grade == row.grade and onDuty(xTarget) then
+            seen[xTarget.identifier] = true
+            local ok, why = payEmployee(xTarget, soc, row.amount)
+            if ok then
+                paid = paid + 1
+            elseif why == 'short' then
+                short = true
+                break
+            end
+        end
+    end
+
+    if short then
+        for _, xBoss in pairs(ESX.GetExtendedPlayers('job', row.job)) do
+            if Bank.canUseSociety(xBoss.job.name, xBoss.job.grade_name) then
+                Bank.notify(xBoss.source, 'Payroll failed',
+                    ('%s does not have enough to cover wages.'):format(soc.label), 'error')
+            end
+        end
+    end
+
+    if paid > 0 then
+        Bank.log('admin', 'Payroll run',
+            ('%s · %s — %s employee%s paid %s%s each'):format(
+                soc.label, row.grade_label, paid, paid == 1 and '' or 's', Config.Currency, row.amount))
+    end
+end
+
 CreateThread(function()
     while true do
         Wait(60000)
 
-        if Config.Payroll.mode ~= 'bank' then goto continue end
+        if Config.Payroll.mode == 'bank' then
+            local ok, due = pcall(MySQL.query.await,
+                'SELECT * FROM nz_bank_payroll WHERE enabled = 1 AND amount > 0 AND next_run <= ?',
+                { os.time() })
+            if not ok then
+                print('^1[nayzeee-banking]^7 payroll failed: ' .. tostring(due))
+                due = {}
+            end
 
-        local due = MySQL.query.await(
-            'SELECT * FROM nz_bank_payroll WHERE enabled = 1 AND amount > 0 AND next_run <= ?',
-            { os.time() }) or {}
-
-        for _, row in ipairs(due) do
-            local soc = Bank.getSociety(row.job)
-            MySQL.update.await('UPDATE nz_bank_payroll SET next_run = ? WHERE id = ?',
-                { os.time() + (row.interval_min * 60), row.id })
-
-            if soc then
-                local paid, short = 0, false
-
-                local roster = ESX.GetExtendedPlayers('job', row.job)
-
-                -- with payInactiveJobs on, people clocked into another job
-                -- still draw this wage as long as they hold the role
-                if Config.MultiJob.enabled and Config.MultiJob.payInactiveJobs then
-                    for _, xAny in pairs(ESX.GetExtendedPlayers()) do
-                        if xAny.job.name ~= row.job then
-                            for _, held in ipairs(Bank.jobsFor(xAny)) do
-                                if held.name == row.job and held.grade == row.grade then
-                                    roster[#roster + 1] = xAny
-                                    break
-                                end
-                            end
-                        end
-                    end
-                end
-
-                for _, xTarget in pairs(roster) do
-                    local grade = xTarget.job.name == row.job and xTarget.job.grade or row.grade
-                    if grade == row.grade and onDuty(xTarget) then
-                        if payEmployee(xTarget, soc, row.amount) then
-                            paid = paid + 1
-                        else
-                            short = true
-                            break
-                        end
-                    end
-                end
-
-                if short then
-                    for _, xBoss in pairs(ESX.GetExtendedPlayers('job', row.job)) do
-                        if Bank.canUseSociety(xBoss.job.name, xBoss.job.grade_name) then
-                            Bank.notify(xBoss.source, 'Payroll failed',
-                                ('%s does not have enough to cover wages.'):format(soc.label), 'error')
-                        end
-                    end
-                end
-
-                if paid > 0 then
-                    Bank.log('admin', 'Payroll run',
-                        ('%s · %s — %s employee%s paid %s%s each'):format(
-                            soc.label, row.grade_label, paid, paid == 1 and '' or 's', Config.Currency, row.amount))
-                end
+            for _, row in ipairs(due or {}) do
+                local ran, err = pcall(runPayroll, row)
+                if not ran then print('^1[nayzeee-banking]^7 payroll failed: ' .. tostring(err)) end
             end
         end
-
-        ::continue::
     end
 end)
 
