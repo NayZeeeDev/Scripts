@@ -241,7 +241,7 @@ static class P
         var manifest = Path.Combine(outDir, "fxmanifest.lua");
         if (!File.Exists(manifest))
         {
-            File.WriteAllText(manifest, "fx_version 'cerulean'\ngame 'gta5'\n\ndescription 'Hairstyle props for nayzeee-wigsnatch (made by the Wig Studio)'\n\n" +
+            File.WriteAllText(manifest, "fx_version 'cerulean'\ngame 'gta5'\n\ndescription 'Hairstyle props for Wig Snatch (made by the Wig Studio)'\n\n" +
                 "this_is_a_map 'yes'\ndata_file 'DLC_ITYP_REQUEST' 'stream/nzw_hair.ytyp'\nfiles { 'hairmap.json' }\n");
         }
         Emit("done", new JsonObject { ["built"] = ok, ["tried"] = total, ["removed"] = removed, ["props"] = map.Entries.Count });

@@ -20,7 +20,7 @@ end
 
 Bridge.Name = FW
 if FW == 'none' then
-    print('^1[nayzeee-wigsnatch] No supported framework found (ESX / QBCore / Qbox)^7')
+    print(('^1[%s] No supported framework found (ESX / QBCore / Qbox)^7'):format(GetCurrentResourceName()))
 end
 
 local function getPlayer(src)

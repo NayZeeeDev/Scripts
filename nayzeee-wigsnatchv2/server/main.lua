@@ -25,7 +25,7 @@ CreateThread(function()
 
     local n = 0
     for _ in pairs(Players) do n = n + 1 end
-    print(('^2[nayzeee-wigsnatch]^7 v%s ready · %s · %s · %d players loaded'):format(VERSION, Bridge.Name, Inv.Name, n))
+    print(('^2[%s]^7 v%s ready · %s · %s · %d players loaded'):format(RESOURCE, VERSION, Bridge.Name, Inv.Name, n))
 end)
 
 -- client asks for its state after its own init (resource restart / late load)
@@ -75,7 +75,7 @@ exports('RestoreHair', function(src)
     return true
 end)
 
--- Safezones / events: exports['nayzeee-wigsnatch']:SetProtected(source, true)
+-- Safezones / events: exports['nayzeee-wigsnatchv2']:SetProtected(source, true)
 exports('SetProtected', function(src, state)
     local P = GetP(src)
     if P then P.protected = state == true end

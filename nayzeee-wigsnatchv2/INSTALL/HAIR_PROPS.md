@@ -33,9 +33,9 @@ Until a hairstyle has a prop, the foam head shows the generic wig (`nz_wig_shell
 hairkit is a separate program the server starts. Let this resource refresh and restart `nzw_hairprops`:
 
 ```cfg
-add_ace resource.nayzeee-wigsnatch command.refresh allow
-add_ace resource.nayzeee-wigsnatch command.ensure allow
-add_ace resource.nayzeee-wigsnatch command.restart allow
+add_ace resource.nayzeee-wigsnatchv2 command.refresh allow
+add_ace resource.nayzeee-wigsnatchv2 command.ensure allow
+add_ace resource.nayzeee-wigsnatchv2 command.restart allow
 ```
 
 Some hosts don't allow starting programs. Then run hairkit yourself (see `tools/README.md`) and upload

@@ -48,7 +48,7 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 
 ## 🚀 Installation
 
-1. Drop `nayzeee-wigsnatch` into your resources (remove V2 first, the database carries over).
+1. Drop `nayzeee-wigsnatchv2` into your resources, replacing your old copy (the database carries over).
 2. Add the items from `INSTALL/` (`ox_inventory.txt`, `qb-core.txt` or `esx_items.sql`) and copy `INSTALL/images/*.png` into your inventory's image folder. The wig table items use the icons in SasDragon's `install-images` folder.
 3. Start it after your framework, inventory, target and phone:
    ```cfg
@@ -58,18 +58,18 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
    ensure screenshot-basic
    ensure lb-phone
    ensure DragonsLab_WigTables
-   ensure nayzeee-wigsnatch
+   ensure nayzeee-wigsnatchv2
    ```
 4. Give admins the commands:
    ```cfg
    add_ace group.admin command.wigadmin allow
    add_ace group.admin command.wigstudio allow
    # lets the studio copy photos into ox_inventory/web/images (newer FXServer builds)
-   add_filesystem_permission nayzeee-wigsnatch write ox_inventory
+   add_filesystem_permission nayzeee-wigsnatchv2 write ox_inventory
    # lets 3D wigs refresh and restart nzw_hairprops after building
-   add_ace resource.nayzeee-wigsnatch command.refresh allow
-   add_ace resource.nayzeee-wigsnatch command.ensure allow
-   add_ace resource.nayzeee-wigsnatch command.restart allow
+   add_ace resource.nayzeee-wigsnatchv2 command.refresh allow
+   add_ace resource.nayzeee-wigsnatchv2 command.ensure allow
+   add_ace resource.nayzeee-wigsnatchv2 command.restart allow
    ```
 5. Restart. New tables and columns are added on their own (`sql/install.sql` is there if you prefer to run it by hand).
 6. Optional but recommended: `/wigstudio` > **Every hairstyle** for each model, then restart this resource and ox_inventory so the photos are served.
@@ -113,30 +113,30 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 **Server**
 
 ```lua
-exports['nayzeee-wigsnatch']:IsBald(source)
-exports['nayzeee-wigsnatch']:GetHairState(source)        -- { bald, wig, cut, face, dye, status }
-exports['nayzeee-wigsnatch']:RestoreHair(source)
-exports['nayzeee-wigsnatch']:SetProtected(source, true)  -- safezones
-exports['nayzeee-wigsnatch']:GiveWig(source, 'legendary')
-exports['nayzeee-wigsnatch']:GiveBundle(source, 'virgin')
-exports['nayzeee-wigsnatch']:SetHairStatus(source, 'lice', 10)
-exports['nayzeee-wigsnatch']:GetStats(source)
-exports['nayzeee-wigsnatch']:IsInClash(source)
-exports['nayzeee-wigsnatch']:IsTied(source)
-exports['nayzeee-wigsnatch']:Untie(source)
-exports['nayzeee-wigsnatch']:IsBeingCut(source)
-exports['nayzeee-wigsnatch']:GetWigImage('f', 12, 0)     -- studio photo URL or nil
+exports['nayzeee-wigsnatchv2']:IsBald(source)
+exports['nayzeee-wigsnatchv2']:GetHairState(source)        -- { bald, wig, cut, face, dye, status }
+exports['nayzeee-wigsnatchv2']:RestoreHair(source)
+exports['nayzeee-wigsnatchv2']:SetProtected(source, true)  -- safezones
+exports['nayzeee-wigsnatchv2']:GiveWig(source, 'legendary')
+exports['nayzeee-wigsnatchv2']:GiveBundle(source, 'virgin')
+exports['nayzeee-wigsnatchv2']:SetHairStatus(source, 'lice', 10)
+exports['nayzeee-wigsnatchv2']:GetStats(source)
+exports['nayzeee-wigsnatchv2']:IsInClash(source)
+exports['nayzeee-wigsnatchv2']:IsTied(source)
+exports['nayzeee-wigsnatchv2']:Untie(source)
+exports['nayzeee-wigsnatchv2']:IsBeingCut(source)
+exports['nayzeee-wigsnatchv2']:GetWigImage('f', 12, 0)     -- studio photo URL or nil
 ```
 
 **Client**
 
 ```lua
-exports['nayzeee-wigsnatch']:ReapplyHair()   -- call after your appearance script reloads the skin
-exports['nayzeee-wigsnatch']:GetHairState()
-exports['nayzeee-wigsnatch']:IsBusy()
-exports['nayzeee-wigsnatch']:OpenVault('wigs')
-exports['nayzeee-wigsnatch']:HasPhoneApp()   -- client: the Hair Plug app was added to a phone
-exports['nayzeee-wigsnatch']:OpenWigStudio() -- client, admins
+exports['nayzeee-wigsnatchv2']:ReapplyHair()   -- call after your appearance script reloads the skin
+exports['nayzeee-wigsnatchv2']:GetHairState()
+exports['nayzeee-wigsnatchv2']:IsBusy()
+exports['nayzeee-wigsnatchv2']:OpenVault('wigs')
+exports['nayzeee-wigsnatchv2']:HasPhoneApp()   -- client: the Hair Plug app was added to a phone
+exports['nayzeee-wigsnatchv2']:OpenWigStudio() -- client, admins
 ```
 
 **Statebags** other scripts can read: `nzTied`, `nzHeld`, `nzHolding`, `nzDown`, `nzHairFx`, `nzWigOn`, `nzWigBusy`.
@@ -248,7 +248,7 @@ Discord webhooks and the admin / studio aces live in `config_server.lua`, which 
 
 | Issue | Solution |
 | --- | --- |
-| Hair, brows or beard reset after a clothing store | Your appearance script reapplied the skin. Call `exports['nayzeee-wigsnatch']:ReapplyHair()` after it loads, or add its event to the list in `client/hair.lua`. |
+| Hair, brows or beard reset after a clothing store | Your appearance script reapplied the skin. Call `exports['nayzeee-wigsnatchv2']:ReapplyHair()` after it loads, or add its event to the list in `client/hair.lua`. |
 | Wig pictures are missing | Run the studio, then restart this resource and ox_inventory. If the console says it couldn't write into ox_inventory, add the `add_filesystem_permission` line from Installation (or copy `shots/*.png` into `ox_inventory/web/images` by hand). |
 | Studio photos come out black / empty | Start `screenshot-basic` before this resource. If the hair keys out too, switch the backdrop to one the hair doesn't use. |
 | The app isn't on my phone | Check the F8 console for "Could not add the Hair Plug app" or "No supported phone found", and adjust `bridge/phone.lua` for your phone version. |

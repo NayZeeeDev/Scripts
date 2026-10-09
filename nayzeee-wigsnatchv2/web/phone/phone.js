@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
    HAIR PLUG · phone app
    Runs inside lb-phone / YSeries / qs-smartphone.
-   Talks to nayzeee-wigsnatch through its NUI callbacks.
+   Talks to nayzeee-wigsnatchv2 through its NUI callbacks.
    ═══════════════════════════════════════════════════════════ */
 'use strict';
 

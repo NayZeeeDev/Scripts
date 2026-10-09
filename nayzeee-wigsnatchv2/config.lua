@@ -252,7 +252,7 @@ Config.Protection = {
     JobsOnDutyOnly = true,      -- Only protect them while on duty
 
     -- Statebag keys on the player that mean "in a safezone". Safezone scripts can also
-    -- call exports['nayzeee-wigsnatch']:SetProtected(source, true/false)
+    -- call exports['nayzeee-wigsnatchv2']:SetProtected(source, true/false)
     SafezoneStates = { 'inSafezone', 'safezone', 'inSafeZone' },
 
     Passive = {                 -- Players can opt out with /wigpassive (they can't target anyone either)
