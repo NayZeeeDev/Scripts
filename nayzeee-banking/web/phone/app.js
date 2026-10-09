@@ -548,6 +548,9 @@ function confirmPerson(accountNumber, name) {
   const amount = parseInt(P.amount, 10) || 0;
   const d = P.data;
   const sending = P.flow === 'send';
+  // offer to save someone new as a payee (they show up at ATMs too)
+  const canSave = sending && Array.isArray(d.payees)
+    && !d.payees.some(p => String(p.account_number).toUpperCase() === String(accountNumber).toUpperCase());
 
   openModal({
     title: `${sending ? 'Send' : 'Request'} ${money(amount)}`,
@@ -562,7 +565,9 @@ function confirmPerson(accountNumber, name) {
         ${(d.accounts || []).filter(a => a.can.transfer)
           .map(a => `<option value="${a.id}">${esc(a.label)} · ${money(a.balance)}</option>`).join('')}
       </select>` : ''}
-      <input data-name="note" maxlength="40" placeholder="What for? (optional)">`,
+      <input data-name="note" maxlength="40" placeholder="What for? (optional)">
+      ${canSave ? `<input data-name="saveAs" maxlength="32"
+        placeholder="Save as payee — their name (optional)" value="${name !== accountNumber ? esc(name) : ''}">` : ''}`,
     onConfirm: async (v) => {
       const res = sending
         ? await call('phone:transfer', {
@@ -572,6 +577,9 @@ function confirmPerson(accountNumber, name) {
 
       closeModal();
       if (!reply(res)) return;
+
+      const saveAs = (v.saveAs || '').trim();
+      if (canSave && saveAs) await call('phone:savePayee', { label: saveAs, number: accountNumber });
 
       P.amount = '';
       renderPay();

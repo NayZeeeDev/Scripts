@@ -209,7 +209,7 @@ local function pickCard(cards)
 
     lib.registerContext({
         id      = 'nz_bank_atm_cards',
-        title   = 'Which card?',
+        title   = L('atm_which_card'),
         options = options,
         onExit  = function() p:resolve(nil) end
     })
@@ -220,16 +220,16 @@ end
 --- Reasons a player can't step up to a machine right now.
 local function cantUse()
     local ped = PlayerPedId()
-    if IsEntityDead(ped) or IsPedFatallyInjured(ped) then return 'You can\'t do that right now.' end
-    if IsPedInAnyVehicle(ped, false) then return 'Get out of the vehicle first.' end
-    if IsPedRagdoll(ped) or IsPedCuffed(ped) then return 'You can\'t do that right now.' end
+    if IsEntityDead(ped) or IsPedFatallyInjured(ped) then return L('atm_cant_now') end
+    if IsPedInAnyVehicle(ped, false) then return L('atm_in_vehicle') end
+    if IsPedRagdoll(ped) or IsPedCuffed(ped) then return L('atm_cant_now') end
     if inSession or Bank.isOpen or (Bank.screenActive and Bank.screenActive()) then return 'busy' end
 end
 
 function Bank.useATM(targeted)
     local why = cantUse()
     if why then
-        if why ~= 'busy' then Bank.notify('ATM', why, 'error') end
+        if why ~= 'busy' then Bank.notify(L('atm_title'), why, 'error') end
         return
     end
 
@@ -244,9 +244,8 @@ function Bank.useATM(targeted)
         local cards = res.cards or {}
         if #cards == 0 then
             inSession = false
-            return Bank.notify('ATM', res.declined or (Config.Cards.physicalItem
-                and 'You don\'t have a bank card on you.'
-                or 'You need an active bank card. Order one at any branch.'), 'error')
+            return Bank.notify(L('atm_title'), res.declined or (Config.Cards.physicalItem
+                and L('atm_no_card_on') or L('no_card')), 'error')
         end
         card = pickCard(cards)
         if not card then inSession = false return end
@@ -256,7 +255,7 @@ function Bank.useATM(targeted)
     local start = lib.callback.await('nz_bank:atmStart', false, card and card.id, GetEntityCoords(entity))
     if not start or not start.ok then
         inSession = false
-        return Bank.notify('ATM', start and start.msg or 'The machine did not respond.', 'error')
+        return Bank.notify(L('atm_title'), start and start.msg or L('atm_no_answer'), 'error')
     end
     card = start.card or card
 
@@ -264,7 +263,7 @@ function Bank.useATM(targeted)
     if not data or not DoesEntityExist(entity) then
         inSession = false
         lib.callback.await('nz_bank:atmEnd', false)
-        return Bank.notify('ATM', data and 'You moved away from the machine.' or 'The bank did not answer.', 'error')
+        return Bank.notify(L('atm_title'), data and L('atm_moved') or L('atm_bank_silent'), 'error')
     end
 
     -- The machine's own screen is the interface when it is on.
@@ -275,7 +274,7 @@ function Bank.useATM(targeted)
         if Bank.useATMScreen(entity, model, card, data) then return end
 
         lib.callback.await('nz_bank:atmEnd', false)
-        return Bank.notify('ATM', 'That machine is still busy. Try again in a moment.', 'error')
+        return Bank.notify(L('atm_title'), L('atm_busy'), 'error')
     end
 
     Bank.atmEntity, Bank.atmModel, Bank.atmCard = entity, model, card or true
@@ -320,7 +319,7 @@ local function addTargets()
         exports.ox_target:addModel(Config.ATMModels, {{
             name     = 'nz_bank_atm',
             icon     = 'fa-solid fa-credit-card',
-            label    = 'Use ATM',
+            label    = L('atm_use'),
             distance = Config.ATM.targetDistance or 2.5,
             onSelect = function(data) Bank.useATM(data and data.entity) end
         }})
@@ -330,7 +329,7 @@ local function addTargets()
         exports['qb-target']:AddTargetModel(Config.ATMModels, {
             options = {{
                 icon   = 'fa-solid fa-credit-card',
-                label  = 'Use ATM',
+                label  = L('atm_use'),
                 action = function(entity) Bank.useATM(entity) end
             }},
             distance = Config.ATM.targetDistance or 2.5
@@ -357,7 +356,7 @@ AddEventHandler('onResourceStop', function(resource)
     if Config.Target == 'ox_target' and GetResourceState('ox_target') == 'started' then
         pcall(function() exports.ox_target:removeModel(Config.ATMModels, { 'nz_bank_atm' }) end)
     elseif Config.Target == 'qb-target' and GetResourceState('qb-target') == 'started' then
-        pcall(function() exports['qb-target']:RemoveTargetModel(Config.ATMModels, { 'Use ATM' }) end)
+        pcall(function() exports['qb-target']:RemoveTargetModel(Config.ATMModels, { L('atm_use') }) end)
     end
 
     if promptShown then lib.hideTextUI() promptShown = false end
@@ -386,7 +385,7 @@ CreateThread(function()
             if found and not Bank.isOpen and not inSession and not (Bank.screenActive and Bank.screenActive()) then
                 sleep = 0
                 if not promptShown then
-                    lib.showTextUI(('[%s]  Use ATM'):format(Config.OpenKey))
+                    lib.showTextUI(('[%s]  %s'):format(Config.OpenKey, L('atm_use')))
                     promptShown = true
                 end
                 if IsControlJustReleased(0, 38) then

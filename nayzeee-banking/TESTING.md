@@ -496,3 +496,49 @@ Worth running once on a copy of a live database, because it is the failure that 
 | L.2 | Rename the file so it is missing, restart | The built-in wordmark comes back. No errors |
 | L.3 | Set `Config.UI.logo` to a full `https://` URL | Used as given, not rewritten |
 | L.4 | Set `Config.UI.logo = ''` | Wordmark everywhere |
+
+---
+
+## 🆕 This update
+
+### The card at the machine
+| # | Do | Expect |
+|---|---|---|
+| N.1 | Use an ATM and watch the card | **One** card: it leaves your hand at the slot and slides into the reader. Nothing comes out of the machine on the way in |
+| N.2 | Eject the card | It slides back to the mouth of the slot, your hand takes it, and it's gone. No second card left behind |
+| N.3 | Use the same ATM again, then a different model (`prop_atm_01`, `prop_fleeca_atm`) | Same single card, going the right way, every time |
+| N.4 | Die at the machine (`/kill`) | The camera hands back straight away and you can respawn |
+| N.5 | Hide the minimap with your HUD, use an ATM, leave | The minimap stays hidden afterwards |
+
+### Physical cards (`Config.Cards.physicalItem = true`)
+| # | Do | Expect |
+|---|---|---|
+| N.6 | Drop your card item, use an ATM | "You don't have a bank card on you." |
+| N.7 | Carry two cards, use an ATM | A menu asks which one goes in |
+| N.8 | Give your card to another player; they use an ATM with your PIN | Your account on screen, nothing else. Withdrawals stop at the card's daily limit |
+| N.9 | Same, wrong PIN three times | The card blocks |
+| N.10 | Replace the card at a branch | Your old item swaps for the new one. An old copy someone else holds no longer works |
+| N.11 | Restyle a card in the app (ox_inventory) | The item's picture changes to the new colour |
+
+### Where cash moves
+| # | Do | Expect |
+|---|---|---|
+| N.12 | `TriggerEvent('nz_bank:open', 'bank')` away from any branch, try to withdraw | "Cash goes in and out at a branch or an ATM." Transfers and bills still work |
+| N.13 | Withdraw at a branch counter | Works, no ATM fee |
+| N.14 | Withdraw at an ATM above `Config.ATM.maxWithdraw` | Refused, whatever the client sends |
+| N.15 | Withdraw with a full inventory | "You have no room for the cash. Nothing was taken." Balance unchanged |
+
+### Saved payees
+| # | Do | Expect |
+|---|---|---|
+| N.16 | Send money in the bank with "Save as payee" ticked | They appear in Settings → Saved payees and in the phone's Saved tab |
+| N.17 | Send from the phone and fill "Save as payee" | Same |
+| N.18 | At an ATM press Transfer | Your payees beside the side buttons (and numbered for the keypad); More pages past six |
+| N.19 | Pick one, type an amount, ENTER | Sent, and they move to the top of the list |
+| N.20 | Transfer at an ATM with no payees saved | A screen telling you to save one first |
+
+### Phones
+| # | Do | Expect |
+|---|---|---|
+| N.21 | Run each supported phone (`lb-phone`, `qs-smartphone-pro`, `okokPhone`, `yseries`) with `Config.Phone.resource = 'auto'` | The bank app appears on whichever is started |
+| N.22 | Restart the phone resource | The app comes back without restarting the bank |

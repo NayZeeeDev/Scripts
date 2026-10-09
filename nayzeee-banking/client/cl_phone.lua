@@ -243,6 +243,10 @@ RegisterNUICallback('phone:transfer', function(data, cb)
         data.from, tostring(data.to or ''), tonumber(data.amount) or 0, data.note))
 end)
 
+RegisterNUICallback('phone:savePayee', function(data, cb)
+    cb(lib.callback.await('nz_bank:savePayee', false, data.label, tostring(data.number or '')))
+end)
+
 RegisterNUICallback('phone:updateCard', function(data, cb)
     cb(lib.callback.await('nz_bank:updateCard', false, data.card, data.action, data.value))
 end)

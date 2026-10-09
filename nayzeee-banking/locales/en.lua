@@ -62,5 +62,16 @@ Locales['en'] = {
     card_no_holder   = 'Unknown holder',
 
     -- phone
-    phone_app_description = 'Balance, transfers, cards and bills'
+    phone_app_description = 'Balance, transfers, cards and bills',
+
+    -- ATM
+    atm_cant_now     = 'You can\'t do that right now.',
+    atm_in_vehicle   = 'Get out of the vehicle first.',
+    atm_no_card_on   = 'You don\'t have a bank card on you.',
+    atm_no_answer    = 'The machine did not respond.',
+    atm_moved        = 'You moved away from the machine.',
+    atm_bank_silent  = 'The bank did not answer.',
+    atm_busy         = 'That machine is still busy. Try again in a moment.',
+    atm_which_card   = 'Which card?',
+    atm_use          = 'Use ATM',
 }
