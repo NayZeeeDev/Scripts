@@ -15,8 +15,14 @@ CREATE TABLE IF NOT EXISTS `nz_bank_accounts` (
   `frozen`         TINYINT(1) NOT NULL DEFAULT 0,
   `meta`           LONGTEXT DEFAULT NULL,             -- json: interest, goals
   `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- one personal and one savings account per player. NULL for shared and
+  -- society accounts, and NULLs never collide in a unique key
+  `uniq_key`       VARCHAR(80) GENERATED ALWAYS AS (
+                     CASE WHEN `type` IN ('personal','savings') THEN CONCAT(`owner`, ':', `type`) END
+                   ) STORED,
   PRIMARY KEY (`id`),
   UNIQUE KEY `account_number` (`account_number`),
+  UNIQUE KEY `uniq_key` (`uniq_key`),
   KEY `owner` (`owner`),
   KEY `type` (`type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

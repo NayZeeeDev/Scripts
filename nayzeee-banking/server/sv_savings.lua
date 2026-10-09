@@ -46,34 +46,50 @@ function Bank.getSavingsState(identifier)
     }
 end
 
+local function openSavings(xPlayer)
+    if Bank.getSavings(xPlayer.identifier) then
+        return { ok = false, msg = 'You already hold a savings account.' }
+    end
+
+    local cost = Config.Accounts.savingsCreationCost
+    local personal = Bank.getPersonal(xPlayer.identifier)
+    if cost > 0 then
+        local ok = personal and Bank.debit(personal.id, cost, {
+            category = 'fee', label = 'Savings account opened',
+            actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
+        })
+        if not ok then
+            return { ok = false, msg = ('Opening one costs %s%s.'):format(Config.Currency, cost) }
+        end
+    end
+
+    -- IGNORE so the unique owner+type key turns a second one away
+    local number = Bank.newAccountNumber('SAV')
+    local id = MySQL.insert.await([[
+        INSERT IGNORE INTO nz_bank_accounts (account_number, type, owner, label, balance, meta)
+        VALUES (?, "savings", ?, ?, 0, ?)
+    ]], { number, xPlayer.identifier, 'Savings', json.encode({ deposited = 0, earned = 0, lastInterest = os.time() }) })
+
+    if not id or id == 0 then
+        if cost > 0 then
+            Bank.credit(personal.id, cost, { category = 'fee', label = 'Savings opening fee refunded' })
+        end
+        return { ok = false, msg = 'You already hold a savings account.' }
+    end
+
+    return { ok = true, msg = 'Savings account open.', id = id }
+end
+
 Bank.callback('nz_bank:openSavings', function(src)
     if not Config.Savings.enabled then return { ok = false, msg = 'Savings accounts are disabled.' } end
 
     local xPlayer = Bank.getPlayer(src)
     if not xPlayer then return { ok = false, msg = 'Player not found.' } end
 
-    if Bank.getSavings(xPlayer.identifier) then
-        return { ok = false, msg = 'You already hold a savings account.' }
-    end
-
-    if Config.Accounts.savingsCreationCost > 0 then
-        local personal = Bank.getPersonal(xPlayer.identifier)
-        local ok = Bank.debit(personal.id, Config.Accounts.savingsCreationCost, {
-            category = 'fee', label = 'Savings account opened',
-            actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
-        })
-        if not ok then
-            return { ok = false, msg = ('Opening one costs %s%s.'):format(Config.Currency, Config.Accounts.savingsCreationCost) }
-        end
-    end
-
-    local number = Bank.newAccountNumber('SAV')
-    local id = MySQL.insert.await([[
-        INSERT INTO nz_bank_accounts (account_number, type, owner, label, balance, meta)
-        VALUES (?, "savings", ?, ?, 0, ?)
-    ]], { number, xPlayer.identifier, 'Savings', json.encode({ deposited = 0, earned = 0, lastInterest = os.time() }) })
-
-    return { ok = true, msg = 'Savings account open.', id = id }
+    -- one at a time, or two fast clicks open two accounts
+    local res, busy = Bank.serial('savings:' .. tostring(xPlayer.identifier), openSavings, xPlayer)
+    if res == false then return { ok = false, msg = busy } end
+    return res
 end)
 
 Bank.callback('nz_bank:setSavingsGoal', function(src, amount)
@@ -98,36 +114,52 @@ end)
 -- ═══════════════════════════════════════════════════════════
 --  INTEREST LOOP
 -- ═══════════════════════════════════════════════════════════
+--- One account's payout. Interest is earned on the balance up to the
+--- account limit and never takes it past that limit, or it compounds
+--- forever on money nobody could deposit.
+local function payInterest(acc)
+    local meta = readMeta(acc)
+    local last = meta.lastInterest or 0
+    local dueAt = last + (Config.Savings.payoutMinutes * 60)
+    if os.time() < dueAt then return end
+
+    local xPlayer = ESX.GetPlayerFromIdentifier(acc.owner)
+    if not Config.Savings.requireOnline or xPlayer then
+        local cap = Config.Savings.maxBalance or math.huge
+        local interest = Bank.round(math.min(acc.balance, cap) * Config.Savings.interestRate)
+        interest = math.min(interest, cap - acc.balance)
+
+        if interest > 0 then
+            local ok = Bank.credit(acc.id, interest, {
+                category = 'interest', label = 'Savings interest'
+            })
+            if ok then
+                meta.earned = (meta.earned or 0) + interest
+                if xPlayer then
+                    Bank.notify(xPlayer.source, 'Interest paid',
+                        ('%s%s added to your savings.'):format(Config.Currency, interest), 'success')
+                end
+            end
+        end
+    end
+    meta.lastInterest = os.time()
+    writeMeta(acc.id, meta)
+end
+
 CreateThread(function()
     while true do
         Wait(300000) -- check every 5 minutes
         if Config.Savings.enabled then
-            local accounts = MySQL.query.await(
-                'SELECT * FROM nz_bank_accounts WHERE type = "savings" AND balance > 0 AND frozen = 0') or {}
+            local ok, accounts = pcall(MySQL.query.await,
+                'SELECT * FROM nz_bank_accounts WHERE type = "savings" AND balance > 0 AND frozen = 0')
+            if not ok then
+                print('^1[nayzeee-banking]^7 savings interest failed: ' .. tostring(accounts))
+                accounts = {}
+            end
 
-            for _, acc in ipairs(accounts) do
-                local meta = readMeta(acc)
-                local last = meta.lastInterest or 0
-                local dueAt = last + (Config.Savings.payoutMinutes * 60)
-
-                if os.time() >= dueAt then
-                    local xPlayer = ESX.GetPlayerFromIdentifier(acc.owner)
-                    if not Config.Savings.requireOnline or xPlayer then
-                        local interest = Bank.round(acc.balance * Config.Savings.interestRate)
-                        if interest > 0 then
-                            Bank.credit(acc.id, interest, {
-                                category = 'interest', label = 'Savings interest'
-                            })
-                            meta.earned = (meta.earned or 0) + interest
-                            if xPlayer then
-                                Bank.notify(xPlayer.source, 'Interest paid',
-                                    ('%s%s added to your savings.'):format(Config.Currency, interest), 'success')
-                            end
-                        end
-                    end
-                    meta.lastInterest = os.time()
-                    writeMeta(acc.id, meta)
-                end
+            for _, acc in ipairs(accounts or {}) do
+                local paid, err = pcall(payInterest, acc)
+                if not paid then print('^1[nayzeee-banking]^7 savings interest failed: ' .. tostring(err)) end
             end
         end
     end

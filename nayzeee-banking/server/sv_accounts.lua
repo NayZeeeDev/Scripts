@@ -291,6 +291,11 @@ function Bank.doTransfer(fromId, toNumber, amount, actorId, actorName, label)
     if target.id == fromId then return false, 'That is the same account.' end
     if target.frozen == 1 then return false, 'The receiving account is frozen.' end
 
+    -- savings has a ceiling however the money arrives, not just as cash
+    if target.type == 'savings' and (target.balance + amount) > Config.Savings.maxBalance then
+        return false, 'That would take the savings account over its limit.'
+    end
+
     local fee = Bank.round(amount * Config.Accounts.transferFee)
 
     -- the number and name go on the row too, so "pay them again"
@@ -435,9 +440,17 @@ Bank.callback('nz_bank:removeMember', function(src, accountId, identifier)
     local acc, perms = Bank.access(src, accountId)
     if not acc or acc.type ~= 'shared' then return { ok = false, msg = 'Not a shared account.' } end
     if perms.role ~= 'owner' then return { ok = false, msg = 'Only the owner can remove members.' } end
+    if type(identifier) ~= 'string' then return { ok = false, msg = 'Member not found.' } end
     if identifier == acc.owner then return { ok = false, msg = 'The owner cannot be removed.' } end
 
-    MySQL.update.await('DELETE FROM nz_bank_members WHERE account_id = ? AND identifier = ?', { accountId, identifier })
+    MySQL.update.await('DELETE FROM nz_bank_members WHERE account_id = ? AND identifier = ?', { acc.id, identifier })
+
+    -- their joint card stops working with them, and so do any standing
+    -- orders they set up from this account
+    MySQL.update.await(
+        'UPDATE nz_bank_cards SET status = "blocked" WHERE account_id = ? AND holder_identifier = ? AND status = "active"',
+        { acc.id, identifier })
+    MySQL.update.await('DELETE FROM nz_bank_scheduled WHERE from_id = ? AND identifier = ?', { acc.id, identifier })
 
     local target = ESX.GetPlayerFromIdentifier(identifier)
     if target then TriggerClientEvent('nz_bank:refresh', target.source) end
