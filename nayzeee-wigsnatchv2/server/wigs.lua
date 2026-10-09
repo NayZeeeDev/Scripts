@@ -38,11 +38,9 @@ end
 
 local shots = {} -- ['f/12_0'] = true
 
-function Wigs.LoadShotIndex()
-    local raw = LoadResourceFile(RESOURCE, 'shots/index.json')
-    local ok, list = pcall(json.decode, raw or '[]')
+function Wigs.SetShotIndex(list)
     shots = {}
-    for _, k in ipairs(ok and type(list) == 'table' and list or {}) do shots[k] = true end
+    for _, k in ipairs(list or {}) do shots[k] = true end
 end
 
 function Wigs.MarkShot(key)
@@ -63,7 +61,7 @@ end
 -- the same photo as a URL any NUI can load (the vault, the phone app, other inventories)
 function Wigs.ShotUrl(hair)
     local name = Wigs.ShotName(hair)
-    return name and ('https://cfx-nui-%s/shots/%s.png'):format(RESOURCE, name) or nil
+    return name and ('https://cfx-nui-%s/%s.png'):format(Config.Studio.Resource or 'nzw_shots', name) or nil
 end
 
 -- creation -------------------------------------------------------------------------------

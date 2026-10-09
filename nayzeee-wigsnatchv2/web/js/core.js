@@ -26,6 +26,8 @@ const money = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
 const num = (n) => (Number(n) || 0).toLocaleString('en-US');
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const arr = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : []);
+// where the Wig Studio photos are served from (their own resource, nzw_shots by default)
+const shotBase = () => (S.cfg && S.cfg.shotBase) || '../shots/';
 const pct = (v) => Math.round((Number(v) || 0) * 100) + '%';
 
 function hexRgb(hex) {

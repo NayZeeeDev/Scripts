@@ -80,6 +80,8 @@ RegisterNUICallback('ready', function(_, cb)
     for id, s in pairs(Config.Products.Status) do statuses[id] = { label = s.Label, color = s.Color } end
     cb({
         version = VERSION,
+        shotBase = ('https://cfx-nui-%s/'):format(Config.Studio.Resource or 'nzw_shots'),
+        shotRes = Config.Studio.Resource or 'nzw_shots',
         resource = RESOURCE,
         tiers = tiers,
         grades = grades,

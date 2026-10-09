@@ -165,6 +165,7 @@ Locales['en'] = {
     dyeing             = 'Dyeing',
     dyed_wig           = 'Wig dyed',
     dyed_self          = 'Hair dyed',
+    dyed_worn_wig      = "You dyed the wig you're wearing",
     dye_bald           = 'You need hair to dye',
     rinsed             = 'Dye rinsed out',
 

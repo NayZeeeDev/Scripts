@@ -191,12 +191,17 @@ RegisterNetEvent('nz-wig:s:dye', function(key, c, h)
     end)
 end)
 
--- dye your own hair
+-- dye your own hair. With a wig on, it's the wig you see, so that's what gets dyed
+local function wornWig(P)
+    local w = P.hair.wig
+    return w and not w.generic and w.hair and w or nil
+end
+
 RegisterNetEvent('nz-wig:s:dyeSelf', function(c, h)
     local src = source
     local P = GetP(src)
     if not CD.Enabled or not CD.OwnHair or not P or acting[src] or P.busy then return end
-    if P.hair.bald then return Notify(src, L('dye_bald'), 'error') end
+    if P.hair.bald and not wornWig(P) then return Notify(src, L('dye_bald'), 'error') end
     if Inv.Count(src, Config.Items.Dye) < 1 then return Notify(src, L('need_item', Config.Items.Dye), 'error') end
     c, h = maxHair(c), maxHair(h)
 
@@ -204,12 +209,20 @@ RegisterNetEvent('nz-wig:s:dyeSelf', function(c, h)
     TriggerClientEvent('nz-wig:c:actionRun', src, { kind = 'dyeSelf', duration = CD.DyeTime, label = L('dyeing') })
     SetTimeout(CD.DyeTime + 100, function()
         acting[src] = nil
-        if Players[src] ~= P or P.hair.bald then return end
+        if Players[src] ~= P then return end
+        local wig = wornWig(P)
+        if not wig and P.hair.bald then return end
         if not Inv.Remove(src, Config.Items.Dye, 1) then return end
-        P.hair.dye = { c = c, h = h }
+        if wig then
+            wig.hair.c, wig.hair.h = c, h
+            wig.dyed = true
+            Wigs.Decorate(wig)
+        else
+            P.hair.dye = { c = c, h = h }
+        end
         SaveP(P)
         Hair.Push(P, 'dye')
-        Notify(src, L('dyed_self'), 'success')
+        Notify(src, wig and L('dyed_worn_wig') or L('dyed_self'), 'success')
         TriggerClientEvent('nz-wig:c:refresh', src)
     end)
 end)

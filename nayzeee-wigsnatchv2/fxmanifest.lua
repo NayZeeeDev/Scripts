@@ -74,8 +74,6 @@ files {
     'web/sounds/*.ogg',
     'web/phone/*',
     'data/*.json',
-    'shots/*.png',
-    'shots/index.json',
     'INSTALL/images/*.png',     -- item icons for the wig table and supplier windows
 }
 

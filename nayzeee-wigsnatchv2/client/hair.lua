@@ -23,9 +23,33 @@ end
 
 local tint = SetPedHairTint or SetPedHairColor   -- the native's current and old name
 
+-- The colour is checked again a few times after it's set: appearance / clothing scripts often put
+-- their saved hair colour back right after a hair change. If one keeps doing it, F8 says so.
+local tintToken, warnedTint = 0, false
+local function holdTint(ped, c, h)
+    tintToken = tintToken + 1
+    local token = tintToken
+    CreateThread(function()
+        for _, wait in ipairs({ 0, 250, 750, 1500, 3000 }) do
+            Wait(wait)
+            if token ~= tintToken or not DoesEntityExist(ped) then return end
+            if GetPedHairColor(ped) ~= c or GetPedHairHighlightColor(ped) ~= h then
+                tint(ped, c, h)
+                if wait == 3000 and not warnedTint and GetPedHairColor(ped) ~= c then
+                    warnedTint = true
+                    print(('^3[%s]^7 Hair colour %d didn\'t stick (the game says %d). Another resource keeps setting the hair colour.'):format(RESOURCE, c, GetPedHairColor(ped)))
+                end
+            end
+        end
+    end)
+end
+
 local function setHair(ped, h)
     SetPedComponentVariation(ped, 2, h.d, h.t or 0, 0)
-    if h.c then tint(ped, h.c, h.h or h.c) end
+    if h.c then
+        tint(ped, h.c, h.h or h.c)
+        if ped == PlayerPedId() then holdTint(ped, h.c, h.h or h.c) end
+    end
 end
 
 function Hair.MyModel()
@@ -178,6 +202,12 @@ for _, ev in ipairs({
     'nayzeee-appearance:client:reloadSkin',
 }) do
     RegisterNetEvent(ev, function() Hair.Reapply(1500) end)
+end
+
+-- skinchanger (ESX) and other appearance scripts load a saved skin with these local events,
+-- which puts the saved hair (and colour) back over a wig or dye
+for _, ev in ipairs({ 'skinchanger:loadSkin', 'skinchanger:loadClothes' }) do
+    AddEventHandler(ev, function() Hair.Reapply(600) end)
 end
 
 exports('ReapplyHair', function() Hair.Reapply(100) end)

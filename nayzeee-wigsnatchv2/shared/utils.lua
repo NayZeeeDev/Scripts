@@ -160,10 +160,6 @@ function StudioShotName(model, drawable, texture)
     return ('wig_%s_%d_%d'):format(model == 'm' and 'm' or 'f', drawable or 0, texture or 0)
 end
 
-function StudioShotPath(model, drawable, texture)
-    return ('shots/%s.png'):format(StudioShotName(model, drawable, texture))
-end
-
 -- all tool names in a stable order
 ToolOrder = { 'scissors', 'clippers', 'razor' }
 

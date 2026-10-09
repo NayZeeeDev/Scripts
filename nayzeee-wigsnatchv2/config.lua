@@ -955,6 +955,7 @@ Config.Studio = {
     Padding   = 0.08,            -- Empty border around the hair, as a share of the size
     Chroma    = 'green',         -- Starting backdrop: 'green' | 'magenta' | 'blue' (switch it in the studio)
     AllTextures = false,         -- Default for the "every texture too" box
+    Resource  = 'nzw_shots',     -- The photos live in this resource, made next to Wig Snatch (keep it when you update)
     SaveToInventory = true,      -- Also copy every photo into ox_inventory/web/images (see INSTALL)
     HairColor = { 2, 2 },        -- Colour / highlight the photos are taken in
     Face      = { 21, 0, 21, 0 },-- Head blend of the model: shape mum, shape dad, skin mum, skin dad

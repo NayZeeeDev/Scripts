@@ -1,10 +1,14 @@
 -- Wig Studio (server): permissions, routing bucket, hairstyle names, and saving the photos.
 -- Same flow as the nayzeee-backpack icon studio: admin + file name checks here, studio.js writes
--- the PNG into shots/, and the copy into ox_inventory/web/images is done here with SaveResourceFile.
+-- the PNG into the photo resource (Config.Studio.Resource, default nzw_shots, next to this one, so
+-- updates never wipe it), and the copy into ox_inventory/web/images is done here with SaveResourceFile.
 
 Studio = {}
 
 local CS = Config.Studio
+local SHOTS = CS.Resource or 'nzw_shots'
+SetConvar('nzwig_shots_resource', SHOTS)
+local index = {}
 local MAX_BYTES = 4 * 1024 * 1024
 local warned = false
 
@@ -13,13 +17,35 @@ local function allowed(src)
 end
 Studio.Allowed = allowed
 
+-- the photo resource is (re)started after new photos, so players can load them
+local restartAt = 0
+local function restartShots(delay)
+    restartAt = GetGameTimer() + (delay or 0)
+    SetTimeout(delay or 0, function()
+        if GetGameTimer() < restartAt then return end   -- more photos came in, a later call does it
+        ExecuteCommand('refresh')
+        if GetResourceState(SHOTS) == 'started' then ExecuteCommand('restart ' .. SHOTS) else ExecuteCommand('ensure ' .. SHOTS) end
+        SetTimeout(4000, function()
+            if GetResourceState(SHOTS) ~= 'started' then
+                print(('^3[%s] Couldn\'t start %s (the Wig Studio photos). In server.cfg:^0'):format(RESOURCE, SHOTS))
+                print(('^3    add_ace resource.%s command.refresh allow^0'):format(RESOURCE))
+                print(('^3    add_ace resource.%s command.ensure allow^0'):format(RESOURCE))
+                print(('^3    add_ace resource.%s command.restart allow^0'):format(RESOURCE))
+                print(('^3  or add "ensure %s" to server.cfg after this resource.^0'):format(SHOTS))
+            end
+        end)
+    end)
+end
+
 -- studio.js (re)built the index
-AddEventHandler('nz-wig:studio:indexed', function() Wigs.LoadShotIndex() end)
+AddEventHandler('nz-wig:studio:indexed', function(keys, moved)
+    index = type(keys) == 'table' and keys or {}
+    Wigs.SetShotIndex(index)
+    if moved or GetResourceState(SHOTS) ~= 'started' then restartShots(1000) end
+end)
 
 local function shotList()
-    local raw = LoadResourceFile(RESOURCE, 'shots/index.json')
-    local ok, list = pcall(json.decode, raw or '[]')
-    return ok and type(list) == 'table' and list or {}
+    return index
 end
 
 lib.callback.register('nz-wig:studioOpen', function(src)
@@ -95,18 +121,22 @@ local function copyToInventory(name, b64)
         warned = true
         print(('^3[%s] could not write into ox_inventory/web/images. Add this to server.cfg and restart:^0'):format(RESOURCE))
         print(('^3    add_filesystem_permission %s write ox_inventory^0'):format(RESOURCE))
-        print(('^3  The photos are still saved in %s/shots/ and you can copy them over by hand.^0'):format(RESOURCE))
+        print(('^3  The photos are still saved in %s/ and you can copy them over by hand.^0'):format(SHOTS))
     end
     return false
 end
 
 -- studio.js reports back here
 AddEventHandler('nz-wig:studio:written', function(src, name, ok, key, b64)
-    local where = ' → shots/'
+    local where = ' → ' .. SHOTS
     if ok then
         Wigs.MarkShot(key)
+        local found = false
+        for _, k in ipairs(index) do if k == key then found = true break end end
+        if not found then index[#index + 1] = key end
+        restartShots(6000)   -- once the photos stop coming in
         if CS.SaveToInventory then
-            where = copyToInventory(name, b64) and ' → shots/ + ox_inventory' or ' → shots/ only (see server console)'
+            where = copyToInventory(name, b64) and (' → %s + ox_inventory'):format(SHOTS) or (' → %s only (see server console)'):format(SHOTS)
         end
     end
     TriggerClientEvent('nz-wig:c:studioSaved', src, name, ok, key, where)

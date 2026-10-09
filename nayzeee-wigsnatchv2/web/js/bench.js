@@ -51,7 +51,7 @@
   const itemImg = (name) => `../INSTALL/images/${name}.png`;
   const fallbackImg = (name) => `https://cfx-nui-ox_inventory/web/images/${name}.png`;
   const imgTag = (name) => `<img src="${itemImg(name)}" alt="" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='${fallbackImg(name)}'}else{this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',innerHTML:'${icon('box').replace(/"/g, '&quot;')}'}))}">`;
-  const shot = (m, d, t) => `../shots/wig_${m}_${d}_${t || 0}.png`;
+  const shot = (m, d, t) => `${shotBase()}wig_${m}_${d}_${t || 0}.png`;
   const hasShot = (m, d, t) => B.shots.has(`${m}/${d}_${t || 0}`);
   const ph = (n) => `<span class="ph">${icon(n)}</span>`;
   const shotTag = (m, d, t, fb = 'wig') => hasShot(m, d, t) ? `<img src="${shot(m, d, t)}" alt="" loading="lazy">` : ph(fb);
@@ -257,7 +257,7 @@
       if (ws.ownHair && (!q || 'my own hair'.includes(q))) {
         const b = document.createElement('button');
         b.className = 'row';
-        b.innerHTML = `<span class="av">${icon('user')}</span><span class="row-txt"><b>My own hair</b><span>${ws.hair && ws.hair.bald ? 'You\'re bald' : 'Done on the spot'}</span></span><span class="tag off">You</span>`;
+        b.innerHTML = `<span class="av">${icon('user')}</span><span class="row-txt"><b>${worn(ws) ? 'The wig I\'m wearing' : 'My own hair'}</b><span>${worn(ws) ? 'Done on the spot' : ws.hair && ws.hair.bald ? 'You\'re bald' : 'Done on the spot'}</span></span><span class="tag off">You</span>`;
         b.addEventListener('click', () => pickDye('self'));
         list.appendChild(b);
       }
@@ -322,6 +322,9 @@
         <button class="btn-teal wide" id="skGo">${icon(btnIcon)}${btn}</button>
       </div></section>`;
   }
+
+  // the wig you have on (dyeing "your hair" dyes it, since it's what everyone sees)
+  const worn = (ws) => ws && ws.hair && ws.hair.wig && ws.hair.wig.hair ? ws.hair.wig.hair : null;
 
   const palRow = (field, cur) => `<div class="pals">${B.pal.map((hex, n) => `<button class="pal ${cur === n ? 'on' : ''}" style="background:${hex}" data-f="${field}" data-n="${n}" title="${n}"></button>`).join('')}</div>`;
   // colour + highlight. The highlight follows the colour until you pick one of its own
@@ -399,8 +402,9 @@
     B.dye.target = target;
     const ws = B.data.ws;
     const w = target === 'self' ? null : arr(ws.wigs).find((x) => x.key === target);
-    const c = w ? w.color : ws.hair && ws.hair.dye ? ws.hair.dye.c : null;
-    const h = w ? w.highlight : ws.hair && ws.hair.dye ? ws.hair.dye.h : null;
+    const on = worn(ws);
+    const c = w ? w.color : on ? on.c : ws.hair && ws.hair.dye ? ws.hair.dye.c : null;
+    const h = w ? w.highlight : on ? on.h : ws.hair && ws.hair.dye ? ws.hair.dye.h : null;
     if (typeof c === 'number') { B.dye.c = c; B.dye.h = typeof h === 'number' ? h : c; B.dye.hSame = B.dye.h === B.dye.c; }
     else { B.dye.h = B.dye.c; B.dye.hSame = true; }
     el('skPickView').hidden = true;
@@ -417,7 +421,7 @@
     el('skDetail').innerHTML = `
       <section class="panel">
         <div class="p-head">
-          <div><h2>${self ? 'My own hair' : esc(goodTitle(w))}</h2><p class="teal">Colour ${d.c} · Highlight ${d.h}</p></div>
+          <div><h2>${self ? (worn(ws) ? 'The wig I\'m wearing' : 'My own hair') : esc(goodTitle(w))}</h2><p class="teal">Colour ${d.c} · Highlight ${d.h}</p></div>
           <button class="btn-ghost" data-a="back">${icon('back')}All wigs</button>
         </div>
         <div class="p-body"><div class="preview">${w && w.image ? `<img src="${esc(w.image)}" alt="" style="opacity:.35">` : ''}
@@ -431,11 +435,11 @@
       </section>
       ${mats.html}
       ${self ? `<section class="panel"><div class="p-body"><div class="note" id="skStatus"></div>
-        <button class="btn-teal wide" id="skGo">${icon('drop')}Dye my hair</button>
-        ${ws.hair && ws.hair.dye ? `<button class="btn-ghost" data-a="rinse" style="justify-content:center;height:34px">${icon('drop')}Rinse my dye out</button>` : ''}</div></section>`
+        <button class="btn-teal wide" id="skGo">${icon('drop')}${worn(ws) ? 'Dye the wig I\'m wearing' : 'Dye my hair'}</button>
+        ${ws.hair && ws.hair.dye && !worn(ws) ? `<button class="btn-ghost" data-a="rinse" style="justify-content:center;height:34px">${icon('drop')}Rinse my dye out</button>` : ''}</div></section>`
         : stagesPanel('dye', 'Dye this wig', 'drop')}`;
     let kind = 'ok', text = self ? '<b>Ready.</b> Takes a few seconds.' : '<b>Ready.</b> Worked through at the table.';
-    if (self && ws.hair && ws.hair.bald) { kind = 'warn'; text = "You're <b>bald</b>. Nothing to dye."; }
+    if (self && !worn(ws) && ws.hair && ws.hair.bald) { kind = 'warn'; text = "You're <b>bald</b>. Nothing to dye."; }
     else if (mats.missing) { kind = 'err'; text = `You're missing a <b>hair dye</b>.${B.data.make && B.data.make.supplier ? ` ${esc(B.data.make.supplier)} sells it.` : ''}`; }
     setNote(el('skStatus'), kind, text);
     el('skGo').disabled = kind !== 'ok';

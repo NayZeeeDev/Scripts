@@ -21,7 +21,7 @@ function styleName(m, d, t) {
 function thumbFor(m, d, t) {
   const n = shotName(m, d, t);
   if (SD.thumbs[n]) return SD.thumbs[n];
-  if (SD.shots.has(shotKey(m, d, t))) return `../shots/${n}.png?v=${SD.v}`;
+  if (SD.shots.has(shotKey(m, d, t))) return `${shotBase()}${n}.png?v=${SD.v}`;
   return null;
 }
 const sdImg = (src) => src
@@ -176,7 +176,7 @@ function sdRight() {
       ${sdHairCard(busy)}
 
       <div class="card sd-card">
-        <div class="sd-ch">Recent <em>${SD.saveToInventory ? 'saved to shots/ and ox_inventory' : 'saved to shots/'}</em></div>
+        <div class="sd-ch">Recent <em>${SD.saveToInventory ? `saved to ${esc(S.cfg.shotRes || 'nzw_shots')} and ox_inventory` : `saved to ${esc(S.cfg.shotRes || 'nzw_shots')}`}</em></div>
         <div class="sd-shots">${SD.recent.length ? SD.recent.map((r) => `<div class="sd-shot ${r.ok === false ? 'bad' : ''}"><img src="${r.png}" alt=""><span>${esc(r.name)}</span></div>`).join('')
           : '<div class="empty" style="grid-column:1/-1;padding:16px"><b>No captures yet</b></div>'}</div>
       </div>
