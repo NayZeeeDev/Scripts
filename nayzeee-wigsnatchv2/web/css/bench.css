@@ -354,7 +354,6 @@
 .sk .dye-pv span{width:64px;height:64px;border-radius:var(--r-md);border:1px solid var(--line);box-shadow:var(--sh-2)}
 .sk .dye-pv svg{width:22px;height:22px;color:var(--ink-3);stroke-width:1.6}
 .sk .result .rs-img{width:56px;height:56px}
-body.side-open .toasts{right:calc(2.5vw + 486px)}
 .sk button > svg{width:14px;height:14px;stroke-width:1.7;flex:none}
 .sk .btn-teal > svg{width:15px;height:15px}
 .sk .seg button > svg{width:13px;height:13px}

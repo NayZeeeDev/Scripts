@@ -134,9 +134,7 @@ function PhoneBridge.Send(data)
     if a and a.send then pcall(a.send, data) end
 end
 
--- phone banner notification, falls back to a normal notification
+-- every message from the app goes out as an ox_lib notification
 function PhoneBridge.Notify(msg, kind)
-    local a = ADAPTERS[PhoneBridge.name]
-    if a and a.notify and pcall(a.notify, CP.AppName, msg) then return end
     CB.Notify(msg, kind or 'info')
 end

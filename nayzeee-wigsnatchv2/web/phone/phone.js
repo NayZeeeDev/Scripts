@@ -240,21 +240,11 @@ async function orderSheet(id) {
 }
 
 /* ─────────────── actions ─────────────── */
-let tT = 0;
-function phToast(msg, ok) {
-  if (!msg) return;
-  const t = $('#phToast');
-  t.textContent = msg;
-  t.className = 'ph-toast' + (ok ? '' : ' err');
-  t.hidden = false;
-  clearTimeout(tT); tT = setTimeout(() => (t.hidden = true), 3200);
-}
 function cash() { post('phoneCash'); }
 
 async function act(name, data, keepSel) {
   const r = await post(name, data);
   closeSheet();
-  if (r) phToast(r.msg, r.ok);
   if (r && r.ok) { if (!keepSel) A.sel.clear(); cash(); }
   await load();
 }

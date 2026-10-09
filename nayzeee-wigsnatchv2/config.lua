@@ -60,7 +60,7 @@ Config.UI = {
     Accent        = '#08afa2',   -- Main colour (buttons, bars, highlights)
     Alert         = '#e5484d',   -- Danger colour (errors, close buttons, the other side of the rope)
     Scale         = 1.0,         -- 0.8 - 1.25
-    ToastPosition = 'top-right', -- top-right | top-left | top-center | bottom-right | bottom-left
+    ToastPosition = 'top-right', -- where ox_lib notifications pop up: top-right | top-left | top-center | bottom-right | bottom-left
     Sounds        = true,
     Volume        = 0.7,         -- 0.0 - 1.0
     ReduceMotion  = false,
@@ -79,19 +79,8 @@ Config.UI = {
 -- ██║ ╚████║╚██████╔╝   ██║   ██║██║        ██║
 -- ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝
 
--- 'auto' picks the first one that is running, in this order:
---   okokNotify, brutal_notify, wasabi_notify, lation_ui, t-notify, pNotify, mythic_notify, ox_lib, then the built-in toasts.
--- Or force one: 'nui' (built-in toasts) | 'ox_lib' | 'esx' | 'qb' | 'qbx' | 'okok' | 'mythic' | 'pnotify'
---               'tnotify' | 'brutal' | 'wasabi' | 'lation' | 'custom'
--- Every adapter lives in bridge/notify.lua if your version needs a tweak.
-Config.Notify = 'nui'
-
--- Only used when Config.Notify = 'custom'. Runs on the client.
--- kind: 'success' | 'error' | 'info' | 'warning'
-Config.CustomNotify = function(title, message, kind, duration)
-    -- exports['my-notify']:Notify(title, message, kind, duration)
-    print(('[%s] %s'):format(title, message))
-end
+-- Notifications use ox_lib (lib.notify). Players pick where they pop up in Vault > Settings;
+-- Config.UI.ToastPosition is the default.
 
 -- ███████╗███╗   ██╗ █████╗ ████████╗ ██████╗██╗  ██╗
 -- ██╔════╝████╗  ██║██╔══██╗╚══██╔══╝██╔════╝██║  ██║

@@ -180,6 +180,3 @@ input{font:inherit;color:inherit}
 .ph-tabs button.on{color:var(--teal)}
 .ph-tabs .badge{position:absolute;margin:-4px 0 0 18px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:9px;font-weight:700;display:grid;place-items:center}
 
-.ph-toast{position:absolute;left:14px;right:14px;top:96px;z-index:30;padding:11px 13px;border-radius:var(--r-md);background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--teal);
-  box-shadow:0 10px 30px rgba(0,0,0,.6);font-size:12px;color:var(--ink);animation:up 200ms var(--ease) both}
-.ph-toast.err{border-left-color:var(--red)}

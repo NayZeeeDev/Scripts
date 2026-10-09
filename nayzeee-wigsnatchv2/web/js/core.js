@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
    WIG SNATCH V2 · NUI core
-   helpers · preferences · audio · toasts · banners · reveal · prompts
+   helpers · preferences · audio · banners · reveal · prompts
    ═══════════════════════════════════════════════════════════ */
 'use strict';
 
@@ -102,7 +102,6 @@ function applyPrefs(p) {
   set('red', P.alert);
   st.setProperty('--on-accent', luminance(P.accent) > 0.38 ? '#061413' : '#ffffff');
   document.body.classList.toggle('calm', !!P.reduceMotion);
-  $('#toasts').dataset.pos = P.toastPos || 'top-right';
   rescale();
 }
 
@@ -184,21 +183,9 @@ function loopSound(name, on) {
   }
 }
 
-/* ═══════════════ TOASTS ═══════════════ */
-const ICONS = { success: 'fa-check', error: 'fa-xmark', warning: 'fa-triangle-exclamation', info: 'fa-info' };
-function toast(d) {
-  const kind = ICONS[d.kind] ? d.kind : 'info';
-  const el = document.createElement('div');
-  el.className = `toast t-${kind}`;
-  const dur = d.duration || 4200;
-  el.innerHTML = `<div class="ch-frame"><div class="ch-in"><div class="ti"><i class="fa-solid ${ICONS[kind]}"></i></div><p>${esc(d.message)}</p><div class="prog"></div></div></div>`;
-  const box = $('#toasts');
-  box.appendChild(el);
-  while (box.children.length > 5) box.firstElementChild.remove();
-  el.querySelector('.prog').animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: dur, easing: 'linear', fill: 'forwards' });
-  SFX.toast();
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 220); }, dur);
-}
+/* ═══════════════ NOTIFICATIONS ═══════════════ */
+// no toasts in the UI: everything goes out as an ox_lib notification
+function toast(d) { post('notify', { message: d.message, kind: d.kind, duration: d.duration }); }
 
 /* ═══════════════ BANNERS ═══════════════ */
 function banner(p) {

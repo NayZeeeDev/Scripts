@@ -143,7 +143,7 @@ RegisterNetEvent('nz-wig:c:banner', function(payload)
 end)
 
 RegisterNetEvent('nz-wig:c:bountyOnYou', function(total)
-    NUI.Send('toast', { title = L('title'), message = L('bounty_broadcast', total, 'you'), kind = 'warning', duration = 7000 })
+    CB.Notify(L('bounty_broadcast', total, 'you'), 'warning', 7000)
 end)
 
 RegisterNetEvent('nz-wig:c:levelUp', function(level, title)

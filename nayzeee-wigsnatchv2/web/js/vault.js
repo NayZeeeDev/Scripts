@@ -343,7 +343,7 @@ function settingsView() {
     <div class="grid2">
       <div class="card set"><div class="set-h"><b>Size</b><span>${Math.round(p.scale * 100)}%</span></div>
         <input type="range" min="80" max="125" step="5" value="${Math.round(p.scale * 100)}" data-pref="scale" ${lock ? 'disabled' : ''}></div>
-      <div class="card set"><div class="set-h"><b>Notifications</b><span>Where toasts pop up</span></div>
+      <div class="card set"><div class="set-h"><b>Notifications</b><span>Where ox_lib notifications pop up</span></div>
         ${seg('toastPos', [['top-left', '<i class="fa-solid fa-arrow-up-long" style="transform:rotate(-45deg)"></i>'], ['top-center', '<i class="fa-solid fa-arrow-up-long"></i>'], ['top-right', '<i class="fa-solid fa-arrow-up-long" style="transform:rotate(45deg)"></i>'], ['bottom-left', '<i class="fa-solid fa-arrow-down-long" style="transform:rotate(45deg)"></i>'], ['bottom-right', '<i class="fa-solid fa-arrow-down-long" style="transform:rotate(-45deg)"></i>']])}</div>
     </div>
     <div class="grid2">

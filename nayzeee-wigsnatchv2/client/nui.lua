@@ -92,6 +92,12 @@ RegisterNUICallback('ready', function(_, cb)
     })
 end)
 
+-- messages from the UI (and the phone app) go out through ox_lib like every other notification
+RegisterNUICallback('notify', function(d, cb)
+    if type(d) == 'table' and d.message then CB.Notify(tostring(d.message), d.kind, tonumber(d.duration)) end
+    cb(1)
+end)
+
 RegisterNUICallback('close', function(_, cb)
     NUI.CloseApp()
     cb(1)

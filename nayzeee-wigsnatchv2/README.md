@@ -227,7 +227,6 @@ See **3D wigs** above for the hairstyles themselves.
 | `Config.Clash.Games` | all 5 | The pool for random / rotate |
 | `Config.Minigames.<id>` | | Push, zone / arc sizes, speeds and rate limits per game |
 | `Config.StealBack.Window` | `900` | Seconds you have to take your wig back |
-| `Config.Notify` | `nui` | Notification system, or `auto` |
 | `Config.UI` | | Default colours / size / sounds, and whether players can change them |
 | `Config.Tackle` / `Tie` / `Hold` | | Ranges, timers, struggle strength |
 | `Config.Cutting.Results` | | Which drawables trim / fade / buzz / bald turn into |
