@@ -148,7 +148,7 @@ Config.Box = {
     openTime         = 550,
     closeTime        = 500,
     streamDistance   = 40.0,
-    interactDistance = 2.0,
+    interactDistance = 2.5,
     maxPerPlayer     = 4,
     anyoneCanPickUp  = false,   -- false = only the player who placed it (or admins)
     cleanupOnDrop    = true,    -- remove a player's placed boxes when they leave

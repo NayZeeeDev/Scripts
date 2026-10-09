@@ -397,6 +397,7 @@ The script is escrow ready: `config/`, `locales/`, `bridge/` and `install/*.lua`
 | Problem | Fix |
 |---|---|
 | Console says *Shoe box model is not streamed* | Make sure the `stream/` folders are in the resource, then clear your client cache. |
+| Can't third eye a placed box | Type **/nzsboxes** in F8 next to the box and send the output: it shows which target script is used, the boxes that are set up and what you're aiming at. |
 | Using an item does nothing | The item isn't set up in your inventory (Install, step 3), or for ox the `server = { export = 'nayzeee-sneakers.useItem' }` line is missing. |
 | *These need a heel box* (or similar) | That pair fits a different box size. Use the matching empty box. |
 | *This shoe has no clothing set up yet* | That model has no `slot` (or `drawable`) in `config/shoes.lua`. |

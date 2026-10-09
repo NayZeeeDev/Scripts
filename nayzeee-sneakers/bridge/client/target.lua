@@ -198,6 +198,57 @@ function Target.RemoveEntity(entity)
     else textEntities[entity] = nil end
 end
 
+local spots = {}   -- [entity] = zone id / name
+
+--- Options on a small sphere around an entity instead of on its collision: they show whenever you
+--- aim at it (or right next to it), whatever the prop's collision does. Used for placed shoe boxes.
+--- The options always get `entity`, not whatever the aim ray happened to hit.
+function Target.AddSpot(entity, coords, radius, options, distance, extra)
+    distance = distance or 2.5
+    local sys = system()
+    Target.RemoveSpot(entity)
+    if sys == 'ox_target' then
+        local list = {}
+        for _, o in ipairs(options) do
+            list[#list + 1] = {
+                name = o.name, label = o.label, icon = o.icon, distance = distance,
+                canInteract = function() return DoesEntityExist(entity) and allowed(o, entity) end,
+                onSelect = function() o.onSelect(entity) end,
+            }
+        end
+        spots[entity] = exports.ox_target:addSphereZone({ coords = coords, radius = radius, debug = Config.Debug == true, options = list })
+    elseif sys == 'qb-target' then
+        local list = {}
+        for _, o in ipairs(options) do
+            list[#list + 1] = {
+                type = 'client', icon = o.icon, label = o.label,
+                action = function() o.onSelect(entity) end,
+                canInteract = function() return DoesEntityExist(entity) and allowed(o, entity) end,
+            }
+        end
+        local name = ('nzs_spot_%s'):format(entity)
+        exports['qb-target']:AddCircleZone(name, coords, radius, { name = name, useZ = true, debugPoly = Config.Debug == true },
+            { options = list, distance = distance })
+        spots[entity] = name
+    else
+        -- interact and the key prompt don't aim a ray at anything, so the entity itself is fine
+        Target.AddEntity(entity, options, distance, extra)
+        spots[entity] = true
+    end
+end
+
+function Target.RemoveSpot(entity)
+    local id = spots[entity]
+    if not id then return end
+    spots[entity] = nil
+    local sys = system()
+    if sys == 'ox_target' then pcall(function() exports.ox_target:removeZone(id) end)
+    elseif sys == 'qb-target' then pcall(function() exports['qb-target']:RemoveZone(id) end)
+    else Target.RemoveEntity(entity) end
+end
+
+function Target.System() return system() end
+
 CreateThread(function()
     Wait(2000)
     print(('^5[nayzeee-sneakers]^7 target: %s'):format(system()))

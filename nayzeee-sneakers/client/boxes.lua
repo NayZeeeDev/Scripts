@@ -204,7 +204,7 @@ local function removeBox(base)
     if box.fx then animating = animating - 1 end
     if DoesEntityExist(box.lid) then DeleteEntity(box.lid) end
     removeShoe(box)
-    Target.RemoveEntity(base)
+    Target.RemoveSpot(base)
     boxes[base] = nil
 end
 
@@ -349,11 +349,37 @@ local boxOptions = {
           canInteract = function(e) return not state(e, 'nzs:busy') end, onSelect = pickUp },
 }
 
--- Options go on each box as it streams in (the same way as the supplier), which every target
--- resource handles the same, networked or not
+-- Options go on a small sphere around each box as it streams in, so the third eye finds the box
+-- wherever you aim on or around it (it doesn't depend on the aim ray hitting the box's collision)
 function targetBox(base, t)
-    Target.AddEntity(base, boxOptions, B.interactDistance, { offset = vector3(0.0, 0.0, t.hinge.z + 0.08), ignoreLos = true })
+    local mn, mx = GetModelDimensions(t.base)
+    local half = #(vector2(mx.x - mn.x, mx.y - mn.y)) * 0.5
+    local centre = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, t.hinge.z * 0.5)
+    Target.AddSpot(base, centre, math.max(0.45, half + 0.25), boxOptions, B.interactDistance,
+        { offset = vector3(0.0, 0.0, t.hinge.z + 0.08), ignoreLos = true })
 end
+
+-- /nzsboxes: what the third eye should be seeing (paste the F8 output if boxes still can't be targeted)
+RegisterCommand('nzsboxes', function()
+    local me = GetEntityCoords(PlayerPedId())
+    print(('^5[nayzeee-sneakers]^7 target system: %s, interact distance %.1f'):format(Target.System(), B.interactDistance))
+    local n = 0
+    for base, box in pairs(boxes) do
+        n = n + 1
+        local st = Entity(base).state
+        print(('  box %d (%s) %.1fm away  networked=%s  collision=%s  open=%s  shoe=%s  busy=%s'):format(base,
+            Shared.BoxTypeOfModel(GetEntityModel(base)) or '?', #(GetEntityCoords(base) - me), tostring(NetworkGetEntityIsNetworked(base)),
+            tostring(not GetEntityCollisionDisabled(base)), tostring(st['nzs:open']), tostring(st['nzs:shoe']), tostring(st['nzs:busy'])))
+    end
+    local seen = 0
+    for _, obj in ipairs(GetGamePool('CObject')) do
+        if Shared.BoxTypeOfModel(GetEntityModel(obj)) and #(GetEntityCoords(obj) - me) < 50.0 then seen = seen + 1 end
+    end
+    print(('  %d box(es) set up for the third eye, %d box base(s) within 50m'):format(n, seen))
+    local hit, ent = lib.raycast.fromCamera(511, 4, 20)
+    print(('  aiming at: %s'):format(hit and ent ~= 0 and ('entity %d, model %s, is a box: %s'):format(ent, GetEntityModel(ent),
+        tostring(Shared.BoxTypeOfModel(GetEntityModel(ent)) ~= nil)) or 'nothing / the world'))
+end, false)
 
 -- Placing boxes -----------------------------------------------------------------
 
