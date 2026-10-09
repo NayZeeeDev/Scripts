@@ -14,6 +14,11 @@
     <RootNamespace>NayzeeeSneakerStudio</RootNamespace>
     <Version>1.0.0</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- smaller exe: only the .NET runtime is trimmed; this app and CodeWalker are kept whole -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
     <NoWarn>$(NoWarn);CS8600;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
     <CodeWalkerDir Condition="'$(CodeWalkerDir)' == ''">$(MSBuildThisFileDirectory)../CodeWalker</CodeWalkerDir>
   </PropertyGroup>
