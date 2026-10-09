@@ -74,4 +74,5 @@ Locales['en'] = {
     atm_busy         = 'That machine is still busy. Try again in a moment.',
     atm_which_card   = 'Which card?',
     atm_use          = 'Use ATM',
+    atm_card_refused = 'The machine won\'t take that card.',
 }

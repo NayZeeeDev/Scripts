@@ -51,10 +51,14 @@ function applyTheme(ui) {
   if (ui.background) root.setProperty('--base', ui.background);
   if (ui.panel) root.setProperty('--panel', ui.panel);
 
-  applyLogo(ui.logo);
+  applyLogo(ui.mark || ui.logo);
+
+  // the bank's own name where the generic word used to be
+  const title = document.querySelector('.bar-brand .title-txt');
+  if (title) title.textContent = ui.name || 'Banking';
 }
 
-/** Swap the built-in mark for the server's own logo, in both places. */
+/** Swap the built-in mark for the bank's badge (Config.UI.mark), everywhere it sits. */
 function applyLogo(url) {
   const pairs = [
     ['brandLogo', 'brandMark'],
@@ -222,7 +226,7 @@ function startIntro() {
   if (!cfg.enabled) return false;
 
   document.getElementById('introName').textContent =
-    (S.data.config.serverName || 'Banking').toUpperCase();
+    ((S.data.config.ui || {}).name || S.data.config.serverName || 'Banking').toUpperCase();
   document.getElementById('introSub').textContent = isATM()
     ? 'Reading your card'
     : (cfg.tagline || 'Secure Banking');

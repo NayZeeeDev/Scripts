@@ -135,11 +135,11 @@ function applyTheme(ui) {
 
   // Splash and the Money header. A file that will not load leaves the
   // built-in mark showing, so a missing logo costs nothing.
-  const swap = (imgId, markId) => {
+  const swap = (imgId, markId, src) => {
     const img = el(imgId), mark = markId ? el(markId) : null;
     if (!img) return;
 
-    if (!ui.logo || String(ui.logo).trim() === '') {
+    if (!src || String(src).trim() === '') {
       img.classList.add('hidden');
       if (mark) mark.classList.remove('hidden');
       return;
@@ -147,11 +147,12 @@ function applyTheme(ui) {
 
     img.onload = () => { img.classList.remove('hidden'); if (mark) mark.classList.add('hidden'); };
     img.onerror = () => { img.classList.add('hidden'); if (mark) mark.classList.remove('hidden'); };
-    img.src = ui.logo;
+    img.src = src;
   };
 
-  swap('splashLogo', 'splashMark');
-  swap('phoneLogo', null);
+  // the full logo on the splash, the badge in the small header
+  swap('splashLogo', 'splashMark', ui.logo);
+  swap('phoneLogo', null, ui.mark || ui.logo);
 }
 
 /* ── toasts ───────────────────────────────────────────────── */

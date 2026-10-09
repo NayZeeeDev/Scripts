@@ -608,9 +608,12 @@ function Bank.uiConfig()
     local ui = {}
     for k, v in pairs(Config.UI or {}) do ui[k] = v end
 
-    local logo = ui.logo
-    if type(logo) == 'string' and logo ~= '' and not logo:find('^%a[%w+.-]*://') then
-        ui.logo = ('https://cfx-nui-%s/web/images/%s'):format(GetCurrentResourceName(), logo)
+    -- a bare file name lives in web/images/; a full URL is used as given
+    for _, key in ipairs({ 'logo', 'mark' }) do
+        local file = ui[key]
+        if type(file) == 'string' and file ~= '' and not file:find('^%a[%w+.-]*://') then
+            ui[key] = ('https://cfx-nui-%s/web/images/%s'):format(GetCurrentResourceName(), file)
+        end
     end
 
     return ui

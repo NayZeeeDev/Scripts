@@ -226,7 +226,14 @@ local function cantUse()
     if inSession or Bank.isOpen or (Bank.screenActive and Bank.screenActive()) then return 'busy' end
 end
 
-function Bank.useATM(targeted)
+--- The machine the player is stood at, if any (for using a card item there).
+function Bank.atmNearby()
+    return resolveATM(nil) ~= nil
+end
+
+--- `cardId`: the card item the player used at the machine. It goes in
+--- without asking which.
+function Bank.useATM(targeted, cardId)
     local why = cantUse()
     if why then
         if why ~= 'busy' then Bank.notify(L('atm_title'), why, 'error') end
@@ -247,7 +254,17 @@ function Bank.useATM(targeted)
             return Bank.notify(L('atm_title'), res.declined or (Config.Cards.physicalItem
                 and L('atm_no_card_on') or L('no_card')), 'error')
         end
-        card = pickCard(cards)
+        if cardId then
+            for _, c in ipairs(cards) do
+                if c.id == tonumber(cardId) then card = c break end
+            end
+            if not card then
+                inSession = false
+                return Bank.notify(L('atm_title'), res.declined or L('atm_card_refused'), 'error')
+            end
+        else
+            card = pickCard(cards)
+        end
         if not card then inSession = false return end
     end
 

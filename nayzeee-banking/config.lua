@@ -56,7 +56,18 @@ Config.UI = {
     background  = '#08090a',   -- Shell background
     panel       = '#0e1011',   -- Panel background
 
+    -- The bank's name, in the title bar, the intro and on the ATM
+    name = 'Fleeca Bank',
+
     -- YOUR LOGO
+    --
+    -- Two files in web/images/, made by tools/logo.py (change the name, letters
+    -- or colours there and run it again, or drop in your own):
+    --   mark = the badge on its own, for the title bar, the intro, the PIN pad,
+    --          the ATM boot screen and the phone header
+    --   logo = badge + name, for the wide spots: the ATM header, statements,
+    --          the phone splash
+    mark = 'mark.png',
     --
     -- Drop a PNG into web/images/ and name it here. That is all —
     -- it appears in the top left of the bank, on the ATM screen and

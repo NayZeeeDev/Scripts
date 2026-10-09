@@ -294,4 +294,4 @@ svg{display:block}
 
 /* the server's own logo, in place of the wordmark */
 .head .brand{display:flex;align-items:center;gap:12px;min-width:0}
-.brand-logo{max-height:34px;max-width:240px;object-fit:contain;display:block}
+.brand-logo{max-height:54px;max-width:300px;object-fit:contain;display:block}

@@ -547,6 +547,24 @@ The ATM screen has the matching half: any request it makes gives up after `Confi
 
 ---
 
+## 🏦 Fleeca Bank branding
+
+Out of the box the bank is **Fleeca Bank**: a white badge with a teal **F**, the name in bold capitals and a small line of print, in the same style as the Sneaker Co. boxes.
+
+| File | Where it shows |
+|---|---|
+| `web/images/mark.png` (`Config.UI.mark`) | The badge: title bar, intro, PIN pad, ATM boot, phone header |
+| `web/images/logo.png` (`Config.UI.logo`) | Badge + name: ATM header and statements, phone splash |
+| `web/phone/icon.png` | The phone app icon |
+
+`Config.UI.name` is the name in the title bar, the intro and on the ATM. To rebrand, change `MONOGRAM`, `NAME`, `TAGLINE` or the colours at the top of `tools/logo.py` and run `python3 tools/logo.py`, or drop your own PNGs in with the same names.
+
+### Using a card at a machine
+
+With physical cards on, **using the card item while stood at an ATM puts that card in the machine** — no menu, no notification. Anywhere else, using it shows whose card it is. On ox_inventory this goes through the item's client export (`install/items.md`); on qs-inventory and the ESX route the items are registered as usable on start.
+
+---
+
 ## 🖼️ Your logo
 
 Drop a PNG into **`web/images/`** and name it in `Config.UI.logo`:

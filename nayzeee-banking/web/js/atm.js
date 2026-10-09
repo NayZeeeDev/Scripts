@@ -109,10 +109,13 @@ function applyTheme(ui) {
   swap('homeLogo', 'homeBrand');
   swap('stLogo', 'stBrand');
 
+  // the boot screen shows the badge over the bank's name
+  if (ui.name) el('bootName').textContent = String(ui.name).toUpperCase();
   const logo = el('bootLogo');
   const mark = el('bootMark');
-  if (ui.logo && String(ui.logo).trim() !== '') {
-    logo.src = ui.logo;
+  const badge = ui.mark || ui.logo;
+  if (badge && String(badge).trim() !== '') {
+    logo.src = badge;
     logo.onload = () => { logo.classList.remove('hidden'); mark.classList.add('hidden'); };
     logo.onerror = () => { logo.classList.add('hidden'); mark.classList.remove('hidden'); };
   } else {
@@ -348,7 +351,7 @@ window.addEventListener('message', (e) => {
       A.currency = m.currency || '$';
       A.currencyRight = !!m.currencyRight;
       applyTheme(m.ui);
-      el('bootName').textContent = (m.serverName || 'Banking').toUpperCase();
+      el('bootName').textContent = ((m.ui && m.ui.name) || m.serverName || 'Banking').toUpperCase();
       applyIsland(m.island, m.outside);
       show('boot');
       break;

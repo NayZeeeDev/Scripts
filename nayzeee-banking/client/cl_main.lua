@@ -406,14 +406,31 @@ end)
 
 --- Using a card item shows what it is and who it belongs to.
 --- ox_inventory: client = { export = 'nayzeee-banking.useCard' }
-exports('useCard', function(data, slot)
-    local meta = slot and slot.metadata or {}
+--- Stood at an ATM, using the card puts that card in the machine. Anywhere
+--- else it shows whose card it is.
+function Bank.useCardItem(meta)
+    meta = meta or {}
+
+    -- an item with no card id on it (an inventory without metadata) still opens
+    -- the machine, which then asks which card
+    if Bank.atmNearby and Bank.atmNearby() then
+        return CreateThread(function() Bank.useATM(nil, meta.cardId) end)
+    end
+
     if not meta.cardId then
         return Bank.notify(L('card_title'), L('card_blank'), 'error')
     end
+
     Bank.notify(meta.type or L('card_default'),
         ('%s · %s'):format(meta.holder or L('card_no_holder'), meta.account or ''), 'inform')
+end
+
+exports('useCard', function(data, slot)
+    Bank.useCardItem(slot and slot.metadata)
 end)
+
+-- qs-inventory / the ESX usable-item route: the server hands over the item's info
+RegisterNetEvent('nz_bank:useCardItem', function(meta) Bank.useCardItem(meta) end)
 
 local LEGACY_REACH = 3.0   -- how far from a branch an untagged teller may stand and still be ours
 

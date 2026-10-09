@@ -713,6 +713,29 @@ local function cardInfo(u)
     }
 end
 
+-- ox_inventory calls the client export straight from the item (install/items.md).
+-- qs-inventory and the ESX route need the item registered as usable here.
+CreateThread(function()
+    if not Config.Cards.physicalItem then return end
+    Wait(1000)
+    local inv = Bank.inventory()
+    if inv == 'ox_inventory' then return end
+
+    for _, t in ipairs(Config.CardTypes) do
+        if t.item then
+            local use = function(source, item)
+                local meta = type(item) == 'table' and (item.info or item.metadata) or nil
+                TriggerClientEvent('nz_bank:useCardItem', source, meta or {})
+            end
+            if inv == 'qs-inventory' and GetResourceState('qs-inventory') == 'started' then
+                pcall(function() exports['qs-inventory']:CreateUsableItem(t.item, use) end)
+            elseif ESX and ESX.RegisterUsableItem then
+                ESX.RegisterUsableItem(t.item, use)
+            end
+        end
+    end
+end)
+
 Bank.callback('nz_bank:atmCards', function(src)
     local list, declined = usableCards(src)
     local out = {}
