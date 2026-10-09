@@ -37,6 +37,18 @@ local function placePair(shoe)
     return obj
 end
 
+--- The three ways to shoot cleaning. { pos, look, fov }
+local function groundShots(ped, pairPos)
+    local eye = GetPedBoneCoords(ped, 31086, 0.0, 0.0, 0.0) + GetEntityForwardVector(ped) * 0.14 + vector3(0.0, 0.0, 0.03)
+    local up = vector3(0.0, 0.0, 1.0)
+    return {
+        -- 3/4: in front and to the side, looking back at you kneeling over the pair
+        three = { GetOffsetFromEntityInWorldCoords(ped, 1.25, 1.45, 0.25), pairPos + vector3(0.0, 0.0, 0.25) - GetEntityForwardVector(ped) * 0.25, 50.0 },
+        first = { eye, pairPos + up * 0.08, 52.0 },
+        close = { GetOffsetFromEntityInWorldCoords(ped, 0.42, 0.9, -0.72), pairPos + up * 0.07, 38.0 },
+    }
+end
+
 function Cleaning.Run(slot, meta)
     local ped = PlayerPedId()
     if Busy or IsPedInAnyVehicle(ped, false) then return end
@@ -47,18 +59,25 @@ function Cleaning.Run(slot, meta)
     local pair = placePair(Config.Shoes[meta.shoe])
     playWash()
     Wait(500)
-    if pair then Cam.LookAt(GetEntityCoords(pair) + vector3(0.0, 0.0, 0.08), 52.0) end
+    local view, shots = Views.Get(), nil
+    if pair then
+        shots = groundShots(ped, GetEntityCoords(pair))
+        local s = shots[view]
+        Cam.Shot(s[1], s[2], s[3])
+    end
 
     local results, cancelled = {}, false
     for i, st in ipairs(stages) do
         local brush = holdBrush()
-        UI.Progress({ label = st.label, step = i, steps = #stages, time = st.time, hint = Config.Text.cleanHint })
+        UI.Progress({ label = st.label, step = i, steps = #stages, time = st.time,
+                      hint = Config.Camera.Switch and Config.Text.craftHintView or Config.Text.cleanHint })
         local t0 = GetGameTimer()
         while GetGameTimer() - t0 < st.time do
             Wait(0)
             DisableControlAction(0, 24, true)
             DisableControlAction(0, 25, true)
             if IsControlJustPressed(0, 73) or IsControlJustPressed(0, 177) then cancelled = true break end
+            if shots then view = Views.Poll(view, shots) end
             if not IsEntityPlayingAnim(ped, WASH[1], WASH[2], 3) then playWash() end
         end
         UI.Progress(nil)

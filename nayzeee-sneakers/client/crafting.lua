@@ -68,7 +68,12 @@ function Crafting.Open(ent)
     if not data then return end
     benchEnt = ent
     SetNuiFocus(true, true)
-    SendNUIMessage({ action = 'bench', data = data, catalogue = buildCatalogue(), speedPerLevel = C.speedPerLevel })
+    local views
+    if Config.Camera.Switch and Config.FirstPerson then
+        views = { current = Views.Get(), label = Config.Text.camera, list = {} }
+        for _, v in ipairs(Views.order) do views.list[#views.list + 1] = { id = v, label = Views.Label(v) } end
+    end
+    SendNUIMessage({ action = 'bench', data = data, catalogue = buildCatalogue(), speedPerLevel = C.speedPerLevel, views = views })
 end
 
 RegisterNUICallback('benchClose', function(_, cb)
@@ -118,6 +123,21 @@ local function walkTo(stand, heading)
     SetEntityHeading(ped, heading)
 end
 
+--- The three ways to shoot the work at a table. { pos, look, fov }
+local function tableShots(stand, work, along, out)
+    local ped = PlayerPedId()
+    local eye = GetPedBoneCoords(ped, 31086, 0.0, 0.0, 0.0) + GetEntityForwardVector(ped) * 0.14 + vector3(0.0, 0.0, 0.03)
+    local up = vector3(0.0, 0.0, 1.0)
+    return {
+        -- 3/4: over your shoulder, a step back and to the side, so you see yourself and the whole table
+        three = { stand + along * 1.45 + out * 0.6 + up * 1.7, work - along * 0.05 + up * 0.06, 50.0 },
+        -- first person: your own eyes, looking down at your hands
+        first = { eye, work + up * 0.06, 48.0 },
+        -- close-up: low across the table from the far side, the shoes up front and you working behind them
+        close = { work - out * 0.42 + along * 0.28 + up * 0.2, work + up * 0.07, 40.0 },
+    }
+end
+
 local function cancelPressed()
     return IsControlJustPressed(0, 73) or IsControlJustPressed(0, 177)   -- X / Backspace
 end
@@ -132,8 +152,11 @@ function Crafting.Run(ent, req)
     if not ok then return end
     Busy = true
 
-    local stand, work, heading = Tables.WorkSpot(ent)
+    local stand, work, heading, along, out = Tables.WorkSpot(ent)
     walkTo(stand, heading)
+    local view = req.view
+    if not Config.Camera.Switch or (view ~= 'three' and view ~= 'first' and view ~= 'close') then view = Views.Get() end
+    Views.Set(view)
 
     -- the pair builds up on the table as the stages go
     local shoe = Config.Shoes[('%s_%s'):format(req.model, req.letter)]
@@ -146,13 +169,16 @@ function Crafting.Run(ent, req)
         SetEntityAlpha(obj, 0, false)
         SetModelAsNoLongerNeeded(shoe.prop)
     end
-    Cam.LookAt(work + vector3(0.0, 0.0, 0.06), 48.0)
+    local shots = tableShots(stand, work, along, out)
+    local s = shots[view]
+    Cam.Shot(s[1], s[2], s[3])
     playWork()
 
     local results, cancelled = {}, false
     for i, st in ipairs(stages) do
         local tool = st.anim == 'cut' and holdScissors() or nil
-        UI.Progress({ label = st.label, step = i, steps = #stages, time = st.time, hint = Config.Text.craftHint })
+        UI.Progress({ label = st.label, step = i, steps = #stages, time = st.time,
+                      hint = Config.Camera.Switch and Config.Text.craftHintView or Config.Text.craftHint })
         local t0 = GetGameTimer()
         while GetGameTimer() - t0 < st.time do
             Wait(0)
@@ -163,6 +189,7 @@ function Crafting.Run(ent, req)
                 SetEntityAlpha(obj, math.floor(25 + 210 * f), false)
             end
             if cancelPressed() then cancelled = true break end
+            view = Views.Poll(view, shots)
             if not IsEntityPlayingAnim(PlayerPedId(), WORK[1], WORK[2], 3) then playWork() end
         end
         UI.Progress(nil)

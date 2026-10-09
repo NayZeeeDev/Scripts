@@ -28,6 +28,7 @@ const PATHS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   minus: '<path d="M5 12h14"/>',
   target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
+  camera: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L2.8 16a1.6 1.6 0 0 1 2.4-2.1L8 16.5"/>',
 };
 // Older menu callers pass Font Awesome class names
@@ -41,7 +42,7 @@ const fillIcons = root => root.querySelectorAll('[data-icon]').forEach(el => { e
 fillIcons(document);
 
 /* key names in hint text become key caps */
-const KEYS = /\b(LMB|RMB|Scroll|Backspace|ESC|Enter|Q \/ E|Q|E|X|G)\b/g;
+const KEYS = /\b(LMB|RMB|Scroll|Backspace|ESC|Enter|Q \/ E|Q|E|X|G|V)\b/g;
 function keyHint(text) {
   return String(text || '').split(' · ').map(part =>
     `<span>${esc(part).replace(KEYS, k => k.split(' / ').map(x => `<span class="key">${x}</span>`).join(''))}</span>`).join('');
@@ -183,7 +184,21 @@ $('guideClose').addEventListener('click', () => showGuide(false));
 $('scrim').addEventListener('click', () => showGuide(false));
 
 /* workbench */
-const B = { data: null, cat: null, stages: {}, speed: 0, mode: 'fake', model: null, colour: 0, size: null };
+const B = { data: null, cat: null, stages: {}, speed: 0, mode: 'fake', model: null, colour: 0, size: null, view: null };
+
+function setViews(v) {
+  $('viewsRow').hidden = !v;
+  if (!v) { B.view = null; return; }
+  B.view = B.view || v.current;
+  if (v.label) $('viewsLabel').textContent = v.label;
+  $('views').innerHTML = v.list.map(x => `<button data-v="${esc(x.id)}" class="${x.id === B.view ? 'on' : ''}">${esc(x.label)}</button>`).join('');
+}
+$('views').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  B.view = b.dataset.v;
+  [...$('views').children].forEach(x => x.classList.toggle('on', x === b));
+});
 
 function setXP(d) {
   if (!d) return;
@@ -308,7 +323,7 @@ $('craftBtn').addEventListener('click', () => {
   showGuide(false);
   $('side').hidden = true;
   document.body.classList.remove('side-open');
-  post('craft', { model: m.id, letter: m.colours[B.colour].letter, size: B.size, real: B.mode === 'real' });
+  post('craft', { model: m.id, letter: m.colours[B.colour].letter, size: B.size, real: B.mode === 'real', view: B.view });
 });
 
 /* shop */
@@ -499,7 +514,9 @@ addEventListener('message', ({ data }) => {
     case 'bench':
       B.stages = (data.catalogue && data.catalogue.stages) || {};
       B.speed = data.speedPerLevel || 0;
+      B.view = data.views ? data.views.current : null;
       openBench(data.data, data.catalogue);
+      setViews(data.views);
       break;
     case 'xp':
       if (B.data) { Object.assign(B.data, data.data); if (side === 'bench') setXP(B.data); }

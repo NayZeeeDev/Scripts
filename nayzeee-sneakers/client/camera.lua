@@ -60,6 +60,73 @@ function Cam.Create(pos, target, fov)
     return cam
 end
 
+--- Point the camera at `target` from `pos`. If a camera is already up it glides
+--- over (so switching views mid-work is smooth); otherwise it eases in from gameplay.
+function Cam.Shot(pos, target, fov, ms)
+    if not Config.FirstPerson then return end
+    ms = ms or 700
+    local old = cam
+    local new = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', pos.x, pos.y, pos.z, 0.0, 0.0, 0.0, fov or 50.0, false, 2)
+    PointCamAtCoord(new, target.x, target.y, target.z)
+    SetCamUseShallowDofMode(new, true)
+    SetCamNearDof(new, 0.05)
+    SetCamFarDof(new, #(pos - target) + 0.8)
+    SetCamDofStrength(new, 0.65)
+    cam = new
+    if old then
+        SetCamActiveWithInterp(new, old, ms, 1, 1)
+        SetTimeout(ms + 100, function() if DoesCamExist(old) then DestroyCam(old, false) end end)
+    else
+        SetCamActive(new, true)
+        RenderScriptCams(true, true, ms, true, false)
+        dofLoop()
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Work views: the player picks how crafting and cleaning are shot
+--------------------------------------------------------------------------------
+
+Views = { order = { 'three', 'first', 'close' } }
+
+local function valid(v) for _, x in ipairs(Views.order) do if x == v then return true end end end
+
+--- The player's saved view (or the server default)
+function Views.Get()
+    local v = GetResourceKvpString('nzs_view')
+    if Config.Camera.Switch and valid(v) then return v end
+    return valid(Config.Camera.Default) and Config.Camera.Default or 'three'
+end
+
+function Views.Set(v)
+    if valid(v) then SetResourceKvp('nzs_view', v) end
+end
+
+function Views.Next(v)
+    for i, x in ipairs(Views.order) do
+        if x == v then return Views.order[i % #Views.order + 1] end
+    end
+    return Views.order[1]
+end
+
+function Views.Label(v)
+    return Config.Text[({ three = 'viewThree', first = 'viewFirst', close = 'viewClose' })[v] or 'viewThree']
+end
+
+--- Inside a work loop: V switches to the next view. shots = { three = {pos, look, fov}, ... }
+function Views.Poll(current, shots)
+    if not Config.Camera.Switch then return current end
+    DisableControlAction(0, 0, true)   -- V (next camera)
+    if IsDisabledControlJustPressed(0, 0) then
+        current = Views.Next(current)
+        local s = shots[current]
+        if s then Cam.Shot(s[1], s[2], s[3]) end
+        Views.Set(current)
+        UI.Notify(Views.Label(current), 'inform')
+    end
+    return current
+end
+
 function Cam.Stop(instant)
     if not cam then return end
     RenderScriptCams(false, not instant, instant and 0 or 600, true, false)

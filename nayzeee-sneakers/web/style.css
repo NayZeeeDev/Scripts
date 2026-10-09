@@ -452,3 +452,10 @@ body.cine .toasts,body.cine .dealhud,body.cine #sms{opacity:0;transition:opacity
 .sms b{display:block;font-size:13px;font-weight:600;color:var(--white);margin-top:2px}
 .sms p{margin-top:5px;padding:8px 11px;border-radius:12px 12px 12px 4px;background:rgba(255,255,255,.07);font-size:12px;color:var(--ink);line-height:1.45;font-weight:300}
 
+
+/* workbench camera picker */
+.views{display:flex;align-items:center;gap:10px;margin-top:10px}
+.views-l{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-3);font-weight:300;white-space:nowrap}
+.views-l svg{width:13px;height:13px;color:var(--teal)}
+.views .seg{flex:1}
+.seg.small button{height:26px;font-size:11px}

@@ -152,8 +152,19 @@ Prices are in `Config.Materials` and `Config.Supplier.Extra`.
 1. Target your table and pick **Use shoe table**.
 2. At the top choose **Fake** or **Real**. Real pairs need an authentic tag and level 4.
 3. Pick a shoe, a colourway and a size. The panel shows what you have and what you're missing.
-4. **Make this pair.** You walk up to the table and work in first person while the pair builds up in front of you, stage by stage.
+4. **Make this pair.** You walk up to the table and work while the pair builds up in front of you, stage by stage.
    Some stages have a skill check. Press **X** to stop; you keep your materials, since they're only used up when the pair is done.
+
+**Camera views.** Pick one under **Camera** in the table menu, or press **V** while you work to switch. Your pick is remembered,
+and cleaning uses it too:
+
+| View | What you see |
+|---|---|
+| **3/4 view** (default) | Over your shoulder, a step back and to the side: you, the whole table and the pair |
+| **First person** | Your own eyes, looking down at the work |
+| **Close-up** | Low across the table from the far side: the shoes up front, you working behind them |
+
+Set the default in `Config.Camera.Default`, or `Config.Camera.Switch = false` to lock everyone to it.
 
 The finished pair goes in your inventory, brand new (Deadstock). Its card shows how it came out.
 
@@ -277,6 +288,7 @@ Use `'custom'` and fill in `Bridge.CustomDispatch` in `bridge/server/dispatch.lu
 | *This shoe has no clothing set up yet* | Set the model's `drawable` in `config/shoes.lua` (section 3). |
 | *These are not made for your character* | The model's `gender` doesn't match your ped. Fix `gender`, or set `Config.GenderLock = false`. |
 | Tables are plain workbenches | The Dragons Lab pack isn't running, or that player's cache is old. `ensure` it and clear the cache. |
+| The close-up camera ends up inside something on the table | Her props sit at the back of the table: work further along it, or switch view with **V**. |
 | The shoes float above / sink into the table while crafting | Change `Config.Tables.surface` (the table-top height) in `config/crafting.lua`. |
 | No Plug app on the phone | Start lb-phone **before** this script (or restart this script). The F8 console says *could not add the Plug app* with lb-phone's reason if it refused. With `DefaultApp = false` it's in the App Store. |
 | Buyers never text | The player needs a phone with a number equipped. Offers still show in the app either way. |

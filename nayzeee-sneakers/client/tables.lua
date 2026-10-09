@@ -95,7 +95,8 @@ function Tables.FromEntity(ent)
 end
 
 --- Where the player stands and where the work sits, on whichever long side
---- of the table the player is on. Returns stand, work, heading.
+--- of the table the player is on. Returns stand, work, heading, and two flat
+--- directions: `along` the table and `out` from the work towards the player.
 function Tables.WorkSpot(ent)
     local _, t = Tables.FromEntity(ent)
     local min, max = GetModelDimensions(GetEntityModel(ent))
@@ -106,7 +107,11 @@ function Tables.WorkSpot(ent)
     local stand = GetOffsetFromEntityInWorldCoords(ent, x, edge + side * 0.42, 0.0)
     local work = GetOffsetFromEntityInWorldCoords(ent, x, edge - side * 0.2, (t and t.surface or 0.9) + 0.005)
     local heading = GetHeadingFromVector_2d(work.x - stand.x, work.y - stand.y)
-    return stand, work, heading
+    local d = stand - work
+    local len = math.max(0.01, math.sqrt(d.x * d.x + d.y * d.y))
+    local out = vector3(d.x / len, d.y / len, 0.0)
+    local along = vector3(-out.y, out.x, 0.0)
+    return stand, work, heading, along, out
 end
 
 -- Interactions ------------------------------------------------------------------

@@ -65,6 +65,11 @@ Locales.en = {
 
     -- crafting
     craftHint = 'X to stop',
+    craftHintView = 'X to stop · V to change view',
+    viewThree = '3/4 view',
+    viewFirst = 'First person',
+    viewClose = 'Close-up',
+    camera = 'Camera',
     levelTooLow = 'You need to be level %d',
     missingMaterial = 'You are missing %s',
     materialsGone = 'Your materials are gone',

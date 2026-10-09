@@ -171,6 +171,12 @@ Config.Float = {
 Config.FirstPerson = true       -- close-up camera + animations while packing, unboxing, cleaning and putting shoes on
 Config.GenderLock  = true       -- players can only wear shoes made for their ped (male / female freemode)
 
+-- How crafting and cleaning are shot. Players can switch while they work (V) and their pick is remembered.
+Config.Camera = {
+    Default = 'three',          -- 'three' = 3/4 view of you and the table | 'first' = first person | 'close' = close-up on the shoes
+    Switch  = true,             -- false = everyone gets Default, no switching
+}
+
 Config.Wear = {
     takeOffCommand = 'shoesoff',
     reapplyDelay   = 3000,      -- ms after spawning before worn shoes go back on (lets your clothing script load first)
