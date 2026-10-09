@@ -40,8 +40,18 @@ end
 
 RegisterNetEvent('nayzeee-sneakers:client:studioShoes', apply)
 
+-- tells the NUI where icons can be, so it never waits on a resource this server doesn't run
+local function iconSources()
+    local function on(r) return GetResourceState(r) == 'started' end
+    SendNUIMessage({ action = 'init', propsResource = S.PropsResource,
+        sources = { props = on(S.PropsResource), ox = on('ox_inventory'), qb = on('qb-inventory') } })
+end
+AddEventHandler('onClientResourceStart', function(res)
+    if res == S.PropsResource or res == 'ox_inventory' or res == 'qb-inventory' then iconSources() end
+end)
+
 CreateThread(function()
-    SendNUIMessage({ action = 'init', propsResource = S.PropsResource })
+    iconSources()
     apply(lib.callback.await('nayzeee-sneakers:studio:shoes', false))
 end)
 

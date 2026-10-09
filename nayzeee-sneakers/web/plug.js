@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = n => '$' + Math.round(n || 0).toLocaleString('en-US');
 // once an icon has been found it's remembered, so redrawing never makes it search (and flicker) again
-const ICON_AT = {};
+const ICON_AT = (() => { try { return JSON.parse(localStorage.getItem('nzs:icons') || '{}') || {}; } catch (e) { return {}; } })();
 const img = name => name ? (ICON_AT[name] || `../install/images/${name}.png`) : '';
 let PROPS_RES = 'nayzeee-sneakers-props';
 
@@ -12,21 +12,59 @@ const iconName = src => {
   const m = src.match(/install\/images\/([^/?]+)\.png/) || src.match(/shots\/([^/?]+)\.png/) || src.match(/\/icons\/([^/?]+)\.png/) || src.match(/\/images\/([^/?]+)\.png/);
   return m ? m[1] : null;
 };
+// which places exist on this server (the game says at start); a missing resource can take seconds to answer
+let ICON_SRC = { props: true, ox: true, qb: true };
+let iconSave = 0;
+const saveIcons = () => {
+  clearTimeout(iconSave);
+  iconSave = setTimeout(() => { try { localStorage.setItem('nzs:icons', JSON.stringify(ICON_AT)); } catch (e) { /* no storage: fine */ } }, 400);
+};
+const searching = {};
+function iconPlaces(name) {
+  const t = [`../install/images/${name}.png`, `../shots/${name}.png`];
+  if (ICON_SRC.props) t.push(`https://cfx-nui-${PROPS_RES}/icons/${name}.png`);
+  if (ICON_SRC.ox) t.push(`https://cfx-nui-ox_inventory/web/images/${name}.png`);
+  if (ICON_SRC.qb) t.push(`https://cfx-nui-qb-inventory/html/images/${name}.png`);
+  return t;
+}
+// asks every place at once and answers with the first one (in that order) that has the icon
+function findIcon(name) {
+  if (searching[name]) return searching[name];
+  const tries = iconPlaces(name);
+  return (searching[name] = new Promise(res => {
+    const got = tries.map(() => null);
+    const settle = () => {
+      for (let i = 0; i < tries.length; i++) {
+        if (got[i] === null) return;
+        if (got[i]) return res(tries[i]);
+      }
+      res(name === 'nz_shoebox' ? null : '../install/images/nz_shoebox.png');
+    };
+    tries.forEach((u, i) => {
+      const probe = new Image();
+      probe.onload = () => { got[i] = true; settle(); };
+      probe.onerror = () => { got[i] = false; settle(); };
+      probe.src = u;
+    });
+    // a place that never answers doesn't hold the others up
+    setTimeout(() => { got.forEach((g, i) => { if (g === null) got[i] = false; }); settle(); }, 2000);
+  }));
+}
 addEventListener('error', e => {
   const el = e.target;
   if (!(el instanceof HTMLImageElement)) return;
-  const name = el.dataset.want || iconName(el.getAttribute('src') || '');
+  const failed = el.getAttribute('src') || '';
+  const name = el.dataset.want || iconName(failed);
   if (!name) return;
   el.dataset.want = name;
-  if (ICON_AT[name]) delete ICON_AT[name];
-  const tries = [`../install/images/${name}.png`, `../shots/${name}.png`, `https://cfx-nui-${PROPS_RES}/icons/${name}.png`,
-    `https://cfx-nui-ox_inventory/web/images/${name}.png`, `https://cfx-nui-qb-inventory/html/images/${name}.png`];
-  const step = +(el.dataset.fb || 0) + 1;
-  const next = step < tries.length ? tries[step] : name !== 'nz_shoebox' ? '../install/images/nz_shoebox.png' : null;
-  if (!next) return;
-  el.dataset.fb = step;
-  el.dataset.next = next;
-  el.src = next;
+  if (ICON_AT[name] === failed) { delete ICON_AT[name]; delete searching[name]; saveIcons(); }   // a remembered place stopped working
+  findIcon(name).then(url => {
+    if (!url || url === failed || el.dataset.want !== name) return;
+    ICON_AT[name] = url;
+    saveIcons();
+    el.dataset.next = url;
+    el.src = url;
+  });
 }, true);
 // (image load events never reach window, so this listens on the document)
 document.addEventListener('load', e => {
@@ -35,13 +73,13 @@ document.addEventListener('load', e => {
   const src = el.getAttribute('src') || '';
   if (src.startsWith('data:')) return;
   const name = el.dataset.want || iconName(src);
-  if (name) ICON_AT[name] = src;
+  if (name && ICON_AT[name] !== src) { ICON_AT[name] = src; saveIcons(); }
 }, true);
 // a new picture in the same <img> starts a fresh search
 new MutationObserver(list => list.forEach(r => {
   const el = r.target;
   if (r.attributeName !== 'src' || !el.dataset || el.getAttribute('src') === el.dataset.next) return;
-  delete el.dataset.want; delete el.dataset.fb; delete el.dataset.next;
+  delete el.dataset.want; delete el.dataset.next;
 })).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['src'] });
 
 // Windows redraw their lists on every click. A brand-new <img> is blank until it loads, which made every
@@ -119,6 +157,7 @@ async function load() {
   if (!d) return;
   D = d;
   if (d.props) PROPS_RES = d.props;
+  if (d.sources) ICON_SRC = d.sources;
   offset = (d.now || 0) - Math.floor(Date.now() / 1000);
   if (d.deal) d.deal.endsAt = now() + d.deal.left;
   render();

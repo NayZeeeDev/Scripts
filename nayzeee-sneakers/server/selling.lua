@@ -373,6 +373,11 @@ lib.callback.register('nayzeee-sneakers:plugData', function(src)
                     sold = st.sold, earned = st.earned, caught = st.caught, made = st.made, cleaned = st.cleaned },
         hype = Config.Hype.Enabled and hype or {}, trending = Config.Hype.Trending,
         props = Config.Studio.PropsResource,
+        sources = {
+            props = GetResourceState(Config.Studio.PropsResource) == 'started',
+            ox = GetResourceState('ox_inventory') == 'started',
+            qb = GetResourceState('qb-inventory') == 'started',
+        },
         now = os.time(),
     }
 end)
