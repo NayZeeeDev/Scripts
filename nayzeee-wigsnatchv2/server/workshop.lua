@@ -201,7 +201,7 @@ RegisterNetEvent('nz-wig:s:dyeSelf', function(c, h)
     c, h = maxHair(c), maxHair(h)
 
     acting[src] = true
-    TriggerClientEvent('nz-wig:c:actionRun', src, { kind = 'dye', duration = CD.DyeTime, label = L('dyeing') })
+    TriggerClientEvent('nz-wig:c:actionRun', src, { kind = 'dyeSelf', duration = CD.DyeTime, label = L('dyeing') })
     SetTimeout(CD.DyeTime + 100, function()
         acting[src] = nil
         if Players[src] ~= P or P.hair.bald then return end

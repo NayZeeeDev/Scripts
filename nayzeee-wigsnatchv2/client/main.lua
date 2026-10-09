@@ -122,6 +122,18 @@ RegisterNUICallback('dyeWig', function(d, cb)
     TriggerServerEvent('nz-wig:s:dye', d.key, d.c, d.h)
 end)
 
+-- using a hair dye from the inventory: the colour picker for your own hair
+RegisterNetEvent('nz-wig:c:hairDye', function(data)
+    if NUI.app or Snatch.busy then return end
+    data.palette = HairPalette()
+    NUI.Side('dye', data)
+end)
+
+RegisterNUICallback('dyeClose', function(_, cb)
+    NUI.CloseSide()
+    cb(1)
+end)
+
 RegisterNUICallback('dyeSelf', function(d, cb)
     if d then TriggerServerEvent('nz-wig:s:dyeSelf', d.c, d.h) end
     cb(1)

@@ -186,7 +186,39 @@ local ACTION_ANIM = {
     dye     = function() return Config.Anims.Apply end,
 }
 
+-- dyeing your own hair: pour the bottle over your head, then work it in
+local function dyeSelf(d)
+    local me = PlayerPedId()
+    local A = Config.Dye.Anim
+    local female = GetEntityModel(me) == Config.Models.female.model
+    local function anim(a) return a and (female and a.female or a) end
+    Restrain.acting = true
+    NUI.CloseApp()
+    NUI.Send('progress', { label = d.label or L('action_dye'), duration = d.duration })
+    FreezeEntityPosition(me, true)
+    local pour = anim(A.Pour)
+    local bottle = A.Bottle and AttachLocalProp(A.Bottle) or nil
+    if pour then LoopAnim({ dict = pour.dict, clip = pour.clip, flag = A.Pour.flag or 49 }, me) end
+    local fx
+    if A.Drip and bottle and pcall(lib.requestNamedPtfxAsset, A.Drip.asset, 3000) then
+        UseParticleFxAssetNextCall(A.Drip.asset)
+        fx = StartParticleFxLoopedOnEntity(A.Drip.name, bottle, 0.0, 0.0, 0.08, 0.0, 0.0, 0.0, A.Drip.scale or 0.5, false, false, false)
+    end
+    SetTimeout(math.floor(d.duration * (A.PourShare or 0.45)), function()
+        if fx then StopParticleFxLooped(fx, false) end
+        DeleteProp(bottle)
+        local rub = anim(A.Rub)
+        if rub then LoopAnim({ dict = rub.dict, clip = rub.clip, flag = A.Rub.flag or 49 }, PlayerPedId()) end
+    end)
+    SetTimeout(d.duration, function()
+        FreezeEntityPosition(PlayerPedId(), false)
+        ClearPedTasks(PlayerPedId())
+        Restrain.acting = false
+    end)
+end
+
 RegisterNetEvent('nz-wig:c:actionRun', function(d)
+    if d.kind == 'dyeSelf' then return dyeSelf(d) end
     local me = PlayerPedId()
     Restrain.acting = true
     if d.other then

@@ -21,9 +21,11 @@ local function same(a, b)
     return a and b and a.d == b.d and a.t == b.t
 end
 
+local tint = SetPedHairTint or SetPedHairColor   -- the native's current and old name
+
 local function setHair(ped, h)
     SetPedComponentVariation(ped, 2, h.d, h.t or 0, 0)
-    if h.c then SetPedHairColor(ped, h.c, h.h or h.c) end
+    if h.c then tint(ped, h.c, h.h or h.c) end
 end
 
 function Hair.MyModel()

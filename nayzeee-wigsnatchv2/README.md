@@ -81,7 +81,7 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | `wig` | Use it to wear it |
 | `hair_bundle` | Raw hair from cuts. Made into wigs at a wig table (Bundles) |
 | `wig_cap` | Needed to make a wig |
-| `hair_dye` | Dye a wig or your own hair (at a wig table, Dye) |
+| `hair_dye` | Use it to dye your own hair (pick a colour, pour it on, work it in), or dye a wig at a wig table (Dye) |
 | `wigtableblue` / `wigtablepink` / `wigtablepurp` / `wigtablered` | Place a wig table |
 | `hair_weft` / `wig_thread` / `lace_closure` / `lace_frontal` / `lace_full` | Wig making materials (the supplier sells them) |
 | `wig_glue` | Glue your lace down for 20 minutes |

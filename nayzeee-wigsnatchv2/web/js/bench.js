@@ -63,7 +63,8 @@
     side = kind;
     el('skTitle').textContent = title.toUpperCase();
     el('skSub').textContent = sub;
-    el('skBench').hidden = kind !== 'bench';
+    el('skBench').hidden = kind !== 'bench' && kind !== 'dye';
+    el('skBench').classList.toggle('solo', kind === 'dye');
     el('skShop').hidden = kind !== 'shop';
     el('skSide').hidden = false;
     document.body.classList.add('side-open');
@@ -78,7 +79,7 @@
     if (!side) return;
     const kind = side;
     hideSide();
-    post(kind === 'bench' ? 'benchClose' : 'shopClose');
+    post(kind === 'bench' ? 'benchClose' : kind === 'dye' ? 'dyeClose' : 'shopClose');
   }
   el('skClose').addEventListener('click', closeSide);
 
@@ -97,6 +98,10 @@
         'Some stages have a <b>skill check</b>. Clean work can bump the wig a tier; sloppy work costs condition.',
         'Press <b>V</b> to change the camera, <b>X</b> to stop. You keep your materials.']],
       ['Level up', ['Every wig gives XP. Higher levels unlock better lace, faster work and better prices.']],
+    ] },
+    dye: { title: 'HAIR DYE', steps: [
+      ['Pick a colour', ['Any of the city\'s hair colours. The <b>highlight</b> follows it unless you pick one of its own.']],
+      ['Dye it', ['You pour it on and work it in. One hair dye is used up.', 'It stays until you dye it again or <b>rinse</b> it out. A wig on top keeps its own colour.']],
     ] },
     shop: { title: 'HAIR SUPPLY', steps: [
       ['Fill your cart', ['Use <b>+</b> and <b>−</b> on each material. Shift-click adds or removes five.', 'Some materials unlock at higher levels.']],
@@ -119,8 +124,8 @@
   /* ---------------- wig table ---------------- */
   const B = {
     data: null, mode: 'make', view: null, shots: new Set(), pal: [], styles: [],
-    pick: null, mk: { t: 0, length: 18, lace: null, c: 2, h: 2 },
-    sel: new Set(), dye: { target: null, c: 0, h: 0 },
+    pick: null, mk: { t: 0, length: 18, lace: null, c: 2, h: 2, hSame: true },
+    sel: new Set(), dye: { target: null, c: 0, h: 0, hSame: true },
   };
 
   function setViews(v) {
@@ -152,6 +157,17 @@
     if (d.ws && d.ws.craft) out.push(['bundles', 'bundle', 'Bundles']);
     if (d.ws && d.ws.dye) out.push(['dye', 'drop', 'Dye']);
     return out;
+  }
+
+  // using a hair dye from the inventory: just the colour picker for your own hair
+  function openHairDye(d) {
+    B.data = { level: 1, stages: {}, make: d.supplier ? { supplier: d.supplier } : null,
+      ws: { dyes: d.dyes, dyeItem: d.dyeItem, dyeLabel: d.dyeLabel, hair: d.hair || {}, ownHair: true, wigs: [] } };
+    B.pal = arr(d.palette);
+    B.mode = 'dye';
+    B.dye = { target: null, c: 0, h: 0, hSame: true };
+    openSide('dye', 'Hair dye', `${d.dyes} hair dye${d.dyes === 1 ? '' : 's'} · poured on, worked in`);
+    pickDye('self');
   }
 
   function openBench(d) {
@@ -308,6 +324,9 @@
   }
 
   const palRow = (field, cur) => `<div class="pals">${B.pal.map((hex, n) => `<button class="pal ${cur === n ? 'on' : ''}" style="background:${hex}" data-f="${field}" data-n="${n}" title="${n}"></button>`).join('')}</div>`;
+  // colour + highlight. The highlight follows the colour until you pick one of its own
+  const colourRows = (o) => `<div class="pal-l"><span>Colour</span><b>${o.c}</b></div>${palRow('c', o.c)}
+    <div class="pal-l"><span>Highlight</span><span class="pal-same"><button class="${o.hSame ? 'on' : ''}" data-same="1">Same as colour</button><b>${o.hSame ? '' : o.h}</b></span></div>${palRow('h', o.hSame ? -1 : o.h)}`;
 
   function renderMake() {
     const s = B.pick, i = B.data.make, mk = B.mk;
@@ -344,8 +363,7 @@
       <section class="panel">
         <div class="p-head"><div><h2>Colour</h2><p>${natural ? 'A natural colour, no dye needed' : 'Needs a hair dye'}</p></div></div>
         <div class="p-body">
-          <div class="pal-l"><span>Colour</span><b>${mk.c}</b></div>${palRow('c', mk.c)}
-          <div class="pal-l"><span>Highlight</span><b>${mk.h}</b></div>${palRow('h', mk.h)}
+          ${colourRows(mk)}
         </div>
       </section>
       ${mats.html}
@@ -383,7 +401,8 @@
     const w = target === 'self' ? null : arr(ws.wigs).find((x) => x.key === target);
     const c = w ? w.color : ws.hair && ws.hair.dye ? ws.hair.dye.c : null;
     const h = w ? w.highlight : ws.hair && ws.hair.dye ? ws.hair.dye.h : null;
-    if (typeof c === 'number') { B.dye.c = c; B.dye.h = typeof h === 'number' ? h : c; }
+    if (typeof c === 'number') { B.dye.c = c; B.dye.h = typeof h === 'number' ? h : c; B.dye.hSame = B.dye.h === B.dye.c; }
+    else { B.dye.h = B.dye.c; B.dye.hSame = true; }
     el('skPickView').hidden = true;
     el('skDetail').hidden = false;
     el('skBench').scrollTop = 0;
@@ -407,8 +426,7 @@
       <section class="panel">
         <div class="p-head"><div><h2>Colour</h2><p>Any of the city's hair colours</p></div></div>
         <div class="p-body">
-          <div class="pal-l"><span>Colour</span><b>${d.c}</b></div>${palRow('c', d.c)}
-          <div class="pal-l"><span>Highlight</span><b>${d.h}</b></div>${palRow('h', d.h)}
+          ${colourRows(d)}
         </div>
       </section>
       ${mats.html}
@@ -438,7 +456,12 @@
     if (b.dataset.t !== undefined) B.mk.t = Number(b.dataset.t);
     else if (b.dataset.len !== undefined) B.mk.length = Number(b.dataset.len);
     else if (b.dataset.lace !== undefined) B.mk.lace = b.dataset.lace;
-    else if (b.dataset.f) (B.mode === 'dye' ? B.dye : B.mk)[b.dataset.f] = Number(b.dataset.n);
+    else if (b.dataset.f || b.dataset.same) {
+      const o = B.mode === 'dye' ? B.dye : B.mk;
+      if (b.dataset.same) { o.hSame = true; o.h = o.c; }
+      else if (b.dataset.f === 'c') { o.c = Number(b.dataset.n); if (o.hSame) o.h = o.c; }
+      else { o.h = Number(b.dataset.n); o.hSame = false; }
+    }
     else return;
     const sc = el('skBench').scrollTop;
     rerender();
@@ -591,7 +614,7 @@
   }
 
   window.Side = {
-    open: (d) => { if (d.kind === 'shop') openShop(d.data || {}); else openBench(d.data || {}); },
+    open: (d) => { if (d.kind === 'shop') openShop(d.data || {}); else if (d.kind === 'dye') openHairDye(d.data || {}); else openBench(d.data || {}); },
     hide: () => { if (side) hideSide(); },
     stage: showStage,
     result: showResult,

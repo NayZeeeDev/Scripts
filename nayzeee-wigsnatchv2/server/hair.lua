@@ -420,9 +420,19 @@ function Hair.RegisterItems()
     for _, item in ipairs({ Config.Items.Kit }) do
         Bridge.RegisterUsable(item, function(src) TriggerClientEvent('nz-wig:c:openVault', src, 'wigs') end)
     end
-    for _, item in ipairs({ Config.Items.Bundle, Config.Items.Cap, Config.Items.Dye }) do
+    for _, item in ipairs({ Config.Items.Bundle, Config.Items.Cap }) do
         Bridge.RegisterUsable(item, function(src) Notify(src, L('table_needed'), 'info') end)   -- used at a wig table
     end
+    -- a hair dye on its own: dye your own hair (wigs are dyed at a wig table)
+    Bridge.RegisterUsable(Config.Items.Dye, function(src)
+        local P = GetP(src)
+        if not P then return end
+        if not Config.Dye.Enabled or not Config.Dye.OwnHair then return Notify(src, L('table_needed'), 'info') end
+        TriggerClientEvent('nz-wig:c:hairDye', src, {
+            dyes = Inv.Count(src, Config.Items.Dye), dyeItem = Config.Items.Dye, dyeLabel = Crafting.ItemLabel(Config.Items.Dye),
+            hair = Hair.State(P), supplier = Config.Supplier.Enabled and Config.Supplier.Label or nil,
+        })
+    end)
 end
 
 -- my wigs (for the "put a wig on someone" picker)

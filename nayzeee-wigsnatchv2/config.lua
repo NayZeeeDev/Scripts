@@ -655,7 +655,20 @@ Config.Dye = {
     Enabled    = true,
     OwnHair    = true,           -- Players can dye their own hair (stays until they dye it again or rinse it)
     ValueBonus = 0.10,           -- Dyed wigs sell for 10% more
-    DyeTime    = 4000,           -- ms (own hair, and wigs when wig tables are off)
+    DyeTime    = 6000,           -- ms (own hair, and wigs when wig tables are off)
+
+    -- Dyeing your own hair (use a hair dye from your inventory): the bottle is poured over your head,
+    -- then you work it in. female = the anim used on the female freemode ped.
+    Anim = {
+        Pour = { dict = 'mp_safehouseshower@male@', clip = 'male_shower_idle_a', flag = 49,
+                 female = { dict = 'mp_safehouseshower@female@', clip = 'shower_idle_a' } },
+        Rub  = { dict = 'mp_safehouseshower@male@', clip = 'male_shower_idle_b', flag = 49,
+                 female = { dict = 'mp_safehouseshower@female@', clip = 'shower_idle_b' } },
+        PourShare = 0.45,        -- part of DyeTime spent pouring
+        -- the bottle, upside down in your hand while pouring (false = none)
+        Bottle = { model = `nz_wig_dye`, bone = 28422, pos = vec3(0.0, 0.0, 0.07), rot = vec3(180.0, 0.0, 0.0) },
+        Drip = false,            -- or { asset = 'core', name = '<looped particle>', scale = 0.5 } dripping from the bottle
+    },
 }
 
 -- ████████╗ █████╗ ██████╗ ██╗     ███████╗███████╗
@@ -726,6 +739,12 @@ Config.Tables = {
         },
     },
     SpeedPerLevel = 0.04,         -- Each level works 4% faster (up to 40%)
+
+    -- What you do at the table while working: standing, square to the table, hands on the work.
+    -- heading = turn added if an anim of your choice faces a little off. Other standing ones that fit:
+    --   'anim@amb@business@coc@coc_unpack_cut_left@' 'coke_cut_v2_coccutter' ... 'coke_cut_v5_coccutter'
+    --   'mini@repair' 'fixing_a_ped' (leaning in more)
+    WorkAnim = { dict = 'anim@amb@business@coc@coc_unpack_cut_left@', clip = 'coke_cut_v1_coccutter', flag = 1, heading = 0.0 },
 
     -- Skill checks change the result
     CheckUpgrade  = 0.05,         -- Each passed check on a wig: +5% chance to roll a tier higher

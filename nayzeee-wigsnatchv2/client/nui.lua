@@ -48,7 +48,7 @@ function NUI.Side(kind, data)
 end
 
 function NUI.CloseSide()
-    if NUI.app ~= 'bench' and NUI.app ~= 'shop' then return end
+    if NUI.app ~= 'bench' and NUI.app ~= 'shop' and NUI.app ~= 'dye' then return end
     NUI.app = nil
     refocus()
 end

@@ -218,7 +218,7 @@ end)
 
 local PUTDOWN = { dict = 'pickup_object', clip = 'putdown_low', flag = 0 }
 local PICKUP = { dict = 'pickup_object', clip = 'pickup_low', flag = 0 }
-local WORK = { dict = 'anim@amb@clubhouse@tutorial@bkr_tut_ig3@', clip = 'machinic_loop_mechandplayer', flag = 1 }
+local WORK = T.WorkAnim or { dict = 'anim@amb@business@coc@coc_unpack_cut_left@', clip = 'coke_cut_v1_coccutter', flag = 1 }
 
 local function face(ent)
     TaskTurnPedToFaceEntity(PlayerPedId(), ent, 600)
@@ -486,17 +486,27 @@ local function tableProp(model, at, heading, alpha)
     return obj
 end
 
+local workHeading
+
+-- standing at the table, square to it (the anim never turns you sideways: the heading is put back)
 local function playWork()
-    LoopAnim(WORK)
+    local ped = PlayerPedId()
+    if workHeading then SetEntityHeading(ped, workHeading + (WORK.heading or 0.0)) end
+    LoopAnim({ dict = WORK.dict, clip = WORK.clip, flag = WORK.flag or 1 })
 end
 
+-- walk up to the spot, then stand exactly on it facing the work, frozen there while working
 local function walkTo(stand, heading)
     local ped = PlayerPedId()
     TaskGoStraightToCoord(ped, stand.x, stand.y, stand.z, 1.0, 3000, heading, 0.05)
     local timeout = GetGameTimer() + 3000
     while #(GetEntityCoords(ped).xy - stand.xy) > 0.25 and GetGameTimer() < timeout do Wait(50) end
     ClearPedTasks(ped)
+    local at = GetEntityCoords(ped)
+    SetEntityCoordsNoOffset(ped, stand.x, stand.y, at.z, false, false, false)
     SetEntityHeading(ped, heading)
+    FreezeEntityPosition(ped, true)
+    workHeading = heading
 end
 
 local function cancelPressed()
@@ -598,7 +608,9 @@ local function run(ent, kind, req, view)
     if build then DeleteEntity(build) end
     for _, p in ipairs(props) do if p then DeleteEntity(p) end end
     stopCam()
+    FreezeEntityPosition(PlayerPedId(), false)
     ClearPedTasks(PlayerPedId())
+    workHeading = nil
     Tables.busy = false
 end
 

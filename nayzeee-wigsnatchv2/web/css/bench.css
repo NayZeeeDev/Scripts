@@ -362,3 +362,7 @@ body.side-open .toasts{right:calc(2.5vw + 486px)}
 .sk .dye-pv div{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:10.5px;color:var(--ink-3);font-weight:300}
 .sk .pal.on{outline:0}
 .sk .pal:hover{z-index:1}
+.sk .pal-same{display:flex;align-items:center;gap:8px}
+.sk .pal-same button{height:20px;padding:0 8px;border-radius:var(--r-xs);border:1px solid var(--line-soft);background:var(--inset);font-size:10px;color:var(--ink-2)}
+.sk .pal-same button.on{background:var(--teal-wash);border-color:var(--teal-edge);color:var(--teal)}
+.sk #skBench.solo > .stats,.sk #skBench.solo > #skMode,.sk #skBench.solo > #skViewsRow,.sk #skBench.solo > #skPickView,.sk #skBench.solo [data-a="back"]{display:none!important}
