@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ATM</title>
+<link rel="stylesheet" href="css/atm.css">
+</head>
+<body>
+
+<div class="island" id="island">
+<div class="screen" id="screen">
+
+  <!-- boot -->
+  <section class="view up" data-view="boot">
+    <div class="boot">
+      <div class="mark" id="bootMark"></div>
+      <img class="boot-logo hidden" id="bootLogo" alt="">
+      <b id="bootName">BANKING</b>
+      <div class="track"><i></i></div>
+    </div>
+  </section>
+
+  <!-- insert card -->
+  <section class="view" data-view="insert">
+    <div class="center">
+      <svg class="big" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
+        <rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h3"/>
+      </svg>
+      <b>INSERT YOUR CARD</b>
+      <span>Use the slot on the right</span>
+    </div>
+  </section>
+
+  <!-- pin -->
+  <section class="view" data-view="pin">
+    <div class="center">
+      <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2.5 4.5 5.5v6c0 4.4 3.1 8.5 7.5 10 4.4-1.5 7.5-5.6 7.5-10v-6L12 2.5z"/>
+        <circle cx="12" cy="10.5" r="1.6"/><path d="M12 12.1v3"/>
+      </svg>
+      <b>ENTER PIN</b>
+      <span>Use the keypad or your keyboard</span>
+      <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+      <span class="err" id="pinErr"></span>
+    </div>
+  </section>
+
+  <!-- home -->
+  <section class="view" data-view="home">
+    <div class="head">
+      <div class="brand">
+        <img class="brand-logo hidden" id="homeLogo" alt="">
+        <b id="homeBrand">BANKING</b>
+      </div>
+      <div class="card-tag">
+        <span id="homeCardType">DEBIT CARD</span>
+        <em id="homeCardNo">•••• •••• •••• ••••</em>
+      </div>
+    </div>
+    <div class="balance">
+      <span>Account Balance</span>
+      <b id="homeBalance">$0</b>
+      <em class="od hidden" id="homeOverdraft"></em>
+    </div>
+    <div class="opts">
+      <span class="line">Choose an option with the buttons beside the screen</span>
+      <div class="pad-hint" id="padHint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01"/></svg>
+        Or use the keypad
+      </div>
+    </div>
+  </section>
+
+  <!-- statement -->
+  <section class="view" data-view="statement">
+    <div class="head">
+      <div class="brand">
+        <img class="brand-logo hidden" id="stLogo" alt="">
+        <b id="stBrand">STATEMENT</b>
+      </div>
+      <div class="card-tag">
+        <span id="stPeriod">Last 7 days</span>
+        <em id="stAccount">•••• ••••</em>
+      </div>
+    </div>
+
+    <div class="st-top">
+      <div><span>Opening</span><b id="stOpen">$0</b></div>
+      <div><span>Closing</span><b id="stClose">$0</b></div>
+    </div>
+
+    <div class="st-flow">
+      <div class="in"><span>Paid in</span><b id="stIn">$0</b></div>
+      <div class="out"><span>Paid out</span><b id="stOut">$0</b></div>
+    </div>
+
+    <div class="st-rows" id="stRows"></div>
+    <span class="hint">Take your statement from the slot</span>
+  </section>
+
+  <!-- amount -->
+  <section class="view" data-view="amount">
+    <div class="balance small">
+      <span id="amountLabel">Current Balance</span>
+      <b id="amountBalance">$0</b>
+    </div>
+    <div class="field">
+      <span>Enter Amount</span>
+      <div class="input" id="amountInput">0</div>
+    </div>
+    <div class="quick" id="amountQuick"></div>
+  </section>
+
+  <!-- transfer -->
+  <section class="view" data-view="transfer">
+    <div class="field">
+      <span>Account Number</span>
+      <div class="input small-txt" id="transferTo">—</div>
+    </div>
+    <div class="field">
+      <span>Amount</span>
+      <div class="input" id="transferAmount">0</div>
+    </div>
+    <span class="hint" id="transferHint">Type the account number, then press ENTER</span>
+  </section>
+
+  <!-- working -->
+  <section class="view" data-view="busy">
+    <div class="center">
+      <div class="spinner"></div>
+      <b id="busyText">Processing</b>
+      <span>Please wait</span>
+    </div>
+  </section>
+
+  <!-- result -->
+  <section class="view" data-view="done">
+    <div class="center">
+      <div class="badge" id="doneBadge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg>
+      </div>
+      <b id="doneTitle">Done</b>
+      <span id="doneText"></span>
+      <div class="balance small" style="margin-top:18px">
+        <span>New Balance</span>
+        <b id="doneBalance">$0</b>
+      </div>
+    </div>
+  </section>
+
+  <!-- Edge markers. Filled in by the page to match whatever options
+       the current view is showing, rather than fixed heights. -->
+  <div class="rail l" id="railL"></div>
+  <div class="rail r" id="railR"></div>
+
+</div><!-- /screen -->
+</div><!-- /island -->
+
+<script src="js/atm.js"></script>
+</body>
+</html>

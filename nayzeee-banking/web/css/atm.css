@@ -1,0 +1,293 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE BANKING — in-world ATM screen (DUI)
+   Rendered to a texture and drawn on the machine, so everything
+   here is sized for a small panel viewed at an angle: heavy
+   weights, high contrast, no thin strokes.
+   ═══════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
+
+:root{
+  --void:#000; --base:#08090a; --panel:#0e1011; --raise:#15181a;
+  --line:rgba(255,255,255,.12); --line-soft:rgba(255,255,255,.07);
+  --white:#fff; --ink:#f2f4f5; --ink-2:#9ea5aa; --ink-3:#6b7276;
+  --teal:#08afa2; --teal-hi:#0fd4c4; --teal-lo:#067d74;
+  --teal-wash:rgba(8,175,162,.14); --teal-edge:rgba(8,175,162,.4);
+  --red:#e5484d; --red-wash:rgba(229,72,77,.14);
+  --fast:140ms cubic-bezier(.4,0,.2,1);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{
+  font-family:'Lexend',system-ui,sans-serif;
+  background:var(--void);color:var(--ink);
+  font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;
+  user-select:none;cursor:none;
+}
+button{font:inherit;color:inherit;border:0;background:none}
+svg{display:block}
+.hidden{display:none!important}
+
+/* ── the panel ── */
+.screen{
+  position:relative;width:100%;height:100%;overflow:hidden;
+  background:
+    radial-gradient(90% 70% at 50% 0%,rgba(8,175,162,.07),transparent 70%),
+    linear-gradient(180deg,#0b0d0e,#050607);
+}
+/* faint scanlines so it reads as a screen and not a flat overlay */
+.screen::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:50;opacity:.16;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.055) 0 1px,transparent 1px 3px);
+}
+.screen::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:49;
+  background:radial-gradient(120% 90% at 50% 50%,transparent 55%,rgba(0,0,0,.55));
+}
+
+.view{
+  position:absolute;inset:0;padding:34px 92px;
+  display:none;flex-direction:column;justify-content:center;gap:20px;
+}
+.view.up{display:flex;animation:viewIn 240ms cubic-bezier(.16,.84,.3,1) both}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.view.out{animation:viewOut 180ms ease forwards}
+@keyframes viewOut{to{opacity:0;transform:translateY(-8px)}}
+
+/* ── boot ── */
+.boot{display:flex;flex-direction:column;align-items:center;gap:20px;margin:auto}
+.mark{
+  width:64px;height:64px;border-radius:13px;
+  background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
+  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
+  box-shadow:0 4px 26px rgba(8,175,162,.4);position:relative;
+  animation:markIn 460ms cubic-bezier(.16,.84,.3,1) both;
+}
+.mark::after{content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;
+  background:var(--void);opacity:.85;border-radius:2px}
+@keyframes markIn{from{opacity:0;transform:scale(.78)}to{opacity:1;transform:none}}
+.boot-logo{max-width:230px;max-height:78px;object-fit:contain;
+  animation:markIn 460ms cubic-bezier(.16,.84,.3,1) both}
+.boot b{font-size:22px;font-weight:700;letter-spacing:.34em;padding-left:.34em;color:var(--white)}
+.track{width:200px;height:3px;border-radius:99px;background:var(--raise);overflow:hidden}
+.track i{display:block;height:100%;width:0;border-radius:99px;
+  background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));
+  box-shadow:0 0 14px var(--teal);animation:load 1500ms cubic-bezier(.35,0,.2,1) forwards}
+@keyframes load{to{width:100%}}
+
+/* ── centred states ── */
+.center{display:flex;flex-direction:column;align-items:center;gap:12px;margin:auto;text-align:center}
+.center b{font-size:30px;font-weight:700;letter-spacing:.1em;color:var(--white)}
+.center span{font-size:15px;font-weight:300;color:var(--ink-3);letter-spacing:.03em}
+.center .err{color:var(--red);font-weight:500;min-height:20px;letter-spacing:.02em}
+.big{width:66px;height:66px;stroke-width:1.4;color:var(--teal);margin-bottom:6px}
+.shield{width:58px;height:58px;stroke-width:1.5;color:var(--teal);margin-bottom:6px}
+
+.pin-dots{display:flex;gap:22px;margin:12px 0 4px}
+.pin-dots i{
+  width:26px;height:34px;border-radius:6px;background:var(--panel);
+  border:2px solid var(--line);transition:all var(--fast);position:relative;
+}
+.pin-dots i.on{border-color:var(--teal);background:var(--teal-wash)}
+.pin-dots i.on::after{
+  content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:9px;height:9px;border-radius:50%;background:var(--teal);
+  box-shadow:0 0 12px var(--teal);
+}
+.shake{animation:shake 280ms ease}
+@keyframes shake{25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-4px)}}
+
+/* ── home ── */
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.head > b{font-size:19px;font-weight:700;letter-spacing:.2em;color:var(--white)}
+.card-tag{text-align:right}
+.card-tag span{display:block;font-size:12.5px;font-weight:600;letter-spacing:.14em;color:var(--teal)}
+.card-tag em{display:block;font-style:normal;font-size:12px;font-weight:400;
+  letter-spacing:.14em;color:var(--ink-3);margin-top:4px}
+
+.balance{text-align:center;padding:4px 0}
+.balance span{display:block;font-size:14px;font-weight:300;color:var(--ink-3);letter-spacing:.06em}
+.balance b{display:block;font-size:44px;font-weight:700;letter-spacing:-.02em;color:var(--white);margin-top:6px}
+.balance.small b{font-size:30px}
+.balance::after{
+  content:'';display:block;width:120px;height:2px;margin:14px auto 0;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--teal),transparent);opacity:.7;
+}
+
+/* ── option buttons, aligned with the machine's side keys ── */
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.row-1{display:flex;justify-content:center}
+.opt.centred{justify-content:center;min-width:46%}
+.opt{
+  display:flex;align-items:center;gap:12px;height:62px;padding:0 20px;
+  background:var(--panel);border:2px solid var(--line-soft);border-radius:10px;
+  font-size:17px;font-weight:600;color:var(--white);letter-spacing:.02em;
+  transition:all var(--fast);
+}
+.opt[data-side="r"]{justify-content:flex-end;text-align:right}
+.opt svg{width:20px;height:20px;stroke-width:2;color:var(--teal);flex:none}
+.opt.hot,.opt:hover{border-color:var(--teal-edge);background:var(--teal-wash);
+  box-shadow:0 0 0 1px var(--teal-edge),0 0 22px rgba(8,175,162,.2)}
+.opt.ok svg{color:var(--teal-hi)}
+
+/* ── fields ── */
+.field{display:flex;flex-direction:column;align-items:center;gap:9px}
+.field > span{font-size:14px;font-weight:300;color:var(--ink-3);letter-spacing:.08em}
+.input{
+  width:78%;height:62px;display:flex;align-items:center;justify-content:center;
+  background:var(--panel);border:2px solid var(--teal-edge);border-radius:10px;
+  font-size:32px;font-weight:700;color:var(--white);letter-spacing:.04em;
+  box-shadow:0 0 22px rgba(8,175,162,.14) inset;
+}
+.input.small-txt{font-size:20px;letter-spacing:.14em}
+.input.empty{color:var(--ink-3);font-weight:400}
+.hint{text-align:center;font-size:13px;font-weight:300;color:var(--ink-3);letter-spacing:.04em}
+
+.quick{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.quick b{
+  font-size:14px;font-weight:600;padding:7px 15px;border-radius:7px;
+  background:var(--raise);border:1px solid var(--line-soft);color:var(--ink-2);
+}
+
+/* ── busy + done ── */
+.spinner{
+  width:52px;height:52px;border-radius:50%;
+  border:4px solid var(--raise);border-top-color:var(--teal);
+  animation:spin 800ms linear infinite;margin-bottom:8px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.badge{
+  width:74px;height:74px;border-radius:50%;display:grid;place-items:center;
+  background:var(--teal-wash);border:3px solid var(--teal);margin-bottom:8px;
+  animation:pop 340ms cubic-bezier(.16,.84,.3,1) both;
+}
+.badge svg{width:36px;height:36px;stroke-width:2.6;color:var(--teal)}
+.badge.bad{background:var(--red-wash);border-color:var(--red)}
+.badge.bad svg{color:var(--red)}
+@keyframes pop{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+
+/* ── side rails ──
+   Small markers at the screen edge that line up with the ATM's real
+   side buttons, so a player can see which physical key does what. */
+.rail{position:absolute;top:0;bottom:0;width:30%;z-index:40;pointer-events:none;
+  display:flex;flex-direction:column;justify-content:center;gap:2.4%;padding:6% 0}
+.rail.l{left:6px;align-items:flex-start;padding-right:2%}
+.rail.r{right:6px;align-items:flex-end;padding-left:2%}
+
+/* one slot per physical button, so the label sits beside the real one */
+.rail .slot{
+  display:flex;align-items:center;justify-content:flex-start;
+  min-height:11%;width:100%;font-style:normal;
+  opacity:0;transition:opacity var(--fast)
+}
+.rail.r .slot{justify-content:flex-end}
+
+.rail .slot.live{opacity:1}
+.rail .slot b{
+  display:block;position:relative;font-style:normal;
+  padding:10px 18px;border-radius:0 12px 12px 0;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  background:var(--panel);border:1px solid var(--line-soft);border-left:5px solid var(--teal-edge);
+  font-size:17px;font-weight:600;letter-spacing:.01em;color:var(--white);
+  transition:all var(--fast);white-space:nowrap
+}
+.rail.r .slot b{border-radius:12px 0 0 12px;border-left:1px solid var(--line-soft);
+  border-right:5px solid var(--teal-edge)}
+
+/* under the crosshair */
+.rail .slot.hot b{
+  background:var(--teal-wash);border-color:var(--teal);
+  box-shadow:0 0 0 1px var(--teal-edge),0 0 26px rgba(8,175,162,.28);
+  transform:translateX(5px)
+}
+.rail.r .slot.hot b{transform:translateX(-5px)}
+
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}
+
+/* ═══════════════════════════════════════════════════════════
+   OVERDRAFT AND STATEMENTS
+   ═══════════════════════════════════════════════════════════ */
+.balance .od{display:block;margin-top:6px;font-size:15px;font-style:normal;
+  color:var(--ink-2);letter-spacing:.01em}
+#homeBalance.negative{color:var(--red)}
+
+.st-top{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.st-top > div{background:rgba(255,255,255,.04);border:1px solid var(--line);
+  border-radius:12px;padding:14px 16px}
+.st-top span{display:block;font-size:13px;color:var(--ink-3);margin-bottom:5px}
+.st-top b{font-size:26px;font-weight:700;letter-spacing:-.02em}
+
+.st-flow{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.st-flow > div{padding:12px 16px;border-radius:12px}
+.st-flow .in{background:rgba(8,175,162,.12)}
+.st-flow .out{background:rgba(229,72,77,.10)}
+.st-flow span{display:block;font-size:12.5px;color:var(--ink-2);margin-bottom:4px}
+.st-flow b{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.st-flow .in b{color:var(--accent)}
+.st-flow .out b{color:var(--red)}
+
+.st-rows{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:2px}
+.st-row{display:flex;align-items:center;gap:14px;padding:9px 2px;
+  border-bottom:1px solid var(--line)}
+.st-row .txt{flex:1;min-width:0}
+.st-row .txt b{display:block;font-size:15px;font-weight:500;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-row .txt span{display:block;font-size:12px;color:var(--ink-3);margin-top:2px}
+.st-row .amt{font-size:16px;font-weight:600;color:var(--red)}
+.st-row .amt.in{color:var(--accent)}
+.st-empty{padding:26px 0;text-align:center;font-size:14px;color:var(--ink-3)}
+
+
+/* ═══════════════════════════════════════════════════════════
+   THE GLASS IS 5:4
+
+   GTA's ATM screens are taller than they are wide relative to a
+   monitor, so a layout centred in the middle leaves the top and
+   bottom of the real screen empty. The home view spreads itself
+   across the full height instead.
+   ═══════════════════════════════════════════════════════════ */
+.view[data-view="home"]{
+  justify-content:space-between;
+  padding:58px 84px 54px;
+}
+.view[data-view="home"] .balance{padding:0}
+.view[data-view="home"] .opt{height:70px}
+
+/* the same for anything else that would otherwise float */
+.view[data-view="amount"],
+.view[data-view="transfer"]{justify-content:space-evenly;padding:52px 84px}
+
+
+/* ═══════════════════════════════════════════════════════════
+   THE TEXTURE PATCH
+
+   The page is scaled into the part of the prop's texture that is
+   actually the screen. Lua sets the transform; this only makes sure
+   nothing leaks outside it.
+   ═══════════════════════════════════════════════════════════ */
+.island{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#000}
+
+/* ═══════════════════════════════════════════════════════════
+   HOME OPTIONS
+
+   The labels live on the rails now, next to the buttons that press
+   them. What is left in the middle is a quiet summary of what the
+   machine can do, so the screen is not empty between them.
+   ═══════════════════════════════════════════════════════════ */
+.opts{display:flex;flex-direction:column;gap:10px;align-items:center;padding:6px 0}
+.opts .line{font-size:15px;color:var(--ink-3);letter-spacing:.02em}
+.opts .pad-hint{
+  display:flex;align-items:center;gap:10px;margin-top:6px;padding:9px 18px;
+  border-radius:99px;border:1px solid var(--line-soft);background:var(--panel);
+  font-size:14px;color:var(--ink-2);transition:all var(--fast)
+}
+.opts .pad-hint.hot{border-color:var(--teal);color:var(--white);
+  box-shadow:0 0 22px rgba(8,175,162,.22)}
+.opts .pad-hint svg{width:17px;height:17px;stroke-width:2;color:var(--teal)}
+
+
+/* the server's own logo, in place of the wordmark */
+.head .brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-logo{max-height:34px;max-width:240px;object-fit:contain;display:block}

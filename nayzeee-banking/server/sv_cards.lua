@@ -1,0 +1,525 @@
+if BankLocked then return end
+
+-- ═══════════════════════════════════════════════════════════
+--  CARDS
+-- ═══════════════════════════════════════════════════════════
+
+local DEFAULT_CARD_LIMIT = 5000
+
+local function newCardNumber()
+    for _ = 1, 12 do
+        local n = ('%04d %04d %04d %04d'):format(
+            math.random(1000, 9999), math.random(1000, 9999),
+            math.random(1000, 9999), math.random(1000, 9999))
+        if not MySQL.scalar.await('SELECT id FROM nz_bank_cards WHERE card_number = ?', { n }) then
+            return n
+        end
+    end
+    return tostring(os.time())
+end
+
+local function expiryString()
+    local t = os.time() + (Config.Cards.expiryMonths * 2592000)
+    return os.date('%m/%Y', t)
+end
+
+local function serialiseCard(c, includePin)
+    return {
+        id       = c.id,
+        account  = c.account_id,
+        holderId = c.holder_identifier,
+        joint    = c.holder_identifier ~= nil,
+        type     = c.card_type,
+        typeLabel= Bank.cardType(c.card_type).label,
+        kind     = c.kind,
+        credit   = c.credit_limit,
+        balance  = c.balance,
+        available= c.kind ~= 'debit' and math.max(0, c.credit_limit - c.balance) or nil,
+        deposit  = c.deposit,
+        apr      = tonumber(c.apr),
+        minPay   = c.min_payment,
+        dueIn    = c.due_at > 0 and math.max(0, math.floor((c.due_at - os.time()) / 60)) or 0,
+        missed   = c.missed,
+        number   = c.card_number,
+        masked   = ('•••• •••• •••• %s'):format(c.card_number:sub(-4)),
+        holder   = c.holder,
+        status   = c.status,
+        limit    = c.daily_limit,
+        spent    = (tonumber(c.spent_reset) or 0) > os.time() and c.spent_today or 0,
+        spentIn  = math.max(0, math.floor(((tonumber(c.spent_reset) or 0) - os.time()) / 60)),
+        express  = c.express == 1,
+        isDefault= c.is_default == 1,
+        skin     = c.skin,
+        expires  = c.expires,
+        pin      = includePin and c.pin or nil
+    }
+end
+
+--- Every card on every account this player can see.
+--- Joint cards (tied to one member) are visible to that member and,
+--- when true is on, to the account owner.
+function Bank.getCardsForPlayer(identifier, jobs, grade)
+    local accounts = Bank.getAccessible(identifier, jobs, grade)
+    local ids, owned = {}, {}
+    for _, a in ipairs(accounts) do
+        ids[#ids + 1] = a.id
+        if a.owner == identifier or a.type == 'society' or a.role == 'owner' or a.role == 'manager' then
+            owned[a.id] = true
+        end
+    end
+    if #ids == 0 then return {} end
+
+    local placeholders = string.rep('?,', #ids):sub(1, -2)
+    local rows = MySQL.query.await(
+        ('SELECT * FROM nz_bank_cards WHERE account_id IN (%s) ORDER BY is_default DESC, id ASC'):format(placeholders),
+        ids) or {}
+
+    local out = {}
+    for _, c in ipairs(rows) do
+        local mine = (c.holder_identifier == nil) or (c.holder_identifier == identifier)
+        local asOwner = true and owned[c.account_id]
+        if mine or asOwner then out[#out + 1] = serialiseCard(c) end
+    end
+    return out
+end
+
+function Bank.getActiveCard(accountId)
+    return MySQL.single.await(
+        'SELECT * FROM nz_bank_cards WHERE account_id = ? AND status = "active" ORDER BY is_default DESC LIMIT 1',
+        { accountId })
+end
+
+--- Track daily spend, resetting on a new day. Returns false when the limit is hit.
+--- Daily spend on a rolling window rather than a calendar day, so a card
+--- maxed at 23:55 is not free again five minutes later.
+function Bank.spendOnCard(cardId, amount)
+    local c = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
+    if not c then return false, 'no_card' end
+    if c.status ~= 'active' then return false, 'blocked' end
+
+    local window = (Config.Cards.limitResetHours or 24) * 3600
+    local reset = tonumber(c.spent_reset) or 0
+    local spent = c.spent_today or 0
+
+    if os.time() >= reset then
+        spent = 0
+        reset = os.time() + window
+    end
+
+    if c.daily_limit > 0 and (spent + amount) > c.daily_limit then
+        return false, 'limit'
+    end
+
+    MySQL.update.await(
+        'UPDATE nz_bank_cards SET spent_today = ?, spent_reset = ?, spent_day = CURDATE() WHERE id = ?',
+        { spent + amount, reset, cardId })
+    return true
+end
+
+-- ═══════════════════════════════════════════════════════════
+--  CALLBACKS
+-- ═══════════════════════════════════════════════════════════
+Bank.callback('nz_bank:createCard', function(src, accountId, pin, skin, memberIdentifier, typeId, depositAmount)
+    if not Config.Cards.enabled then return { ok = false, msg = 'Cards are disabled.' } end
+
+    local xPlayer = Bank.getPlayer(src)
+    local acc, perms = Bank.access(src, accountId)
+    if not acc then return { ok = false, msg = 'You cannot use this account.' } end
+    if acc.type == 'savings' then return { ok = false, msg = 'Savings accounts do not take cards.' } end
+    if perms.role == 'member' then return { ok = false, msg = 'Only owners and managers can issue cards.' } end
+
+    pin = tostring(pin or ''):gsub('%D', '')
+    if #pin ~= 4 then return { ok = false, msg = 'The PIN must be 4 digits.' } end
+
+    local count = MySQL.scalar.await('SELECT COUNT(*) FROM nz_bank_cards WHERE account_id = ?', { accountId })
+    if count >= Config.Cards.maxPerAccount then
+        return { ok = false, msg = ('This account already holds %s cards.'):format(Config.Cards.maxPerAccount) }
+    end
+
+    -- ── joint card: tied to one member of a shared account ──
+    local holderName, holderId = acc.label, nil
+    if memberIdentifier and memberIdentifier ~= '' then
+        if acc.type ~= 'shared' then
+            return { ok = false, msg = 'Member cards only exist on shared accounts.' }
+        end
+        if perms.role ~= 'owner' then
+            return { ok = false, msg = 'Only the owner can issue a card to a member.' }
+        end
+
+        local member = MySQL.single.await(
+            'SELECT * FROM nz_bank_members WHERE account_id = ? AND identifier = ?',
+            { accountId, memberIdentifier })
+        if not member then return { ok = false, msg = 'They are not on this account.' } end
+
+        local held = MySQL.scalar.await(
+            'SELECT COUNT(*) FROM nz_bank_cards WHERE account_id = ? AND holder_identifier = ?',
+            { accountId, memberIdentifier }) or 0
+        if held >= Config.Cards.member.maxPerMember then
+            return { ok = false, msg = ('%s already holds a card on this account.'):format(member.name) }
+        end
+
+        holderName, holderId = member.name, memberIdentifier
+    end
+
+    -- ── card type ──────────────────────────────────────────
+    local cardType = Bank.cardType(typeId or 'debit')
+    local creditLimit, deposit = 0, 0
+
+    if cardType.kind ~= 'debit' then
+        if acc.type ~= 'personal' then
+            return { ok = false, msg = 'Credit lines are only issued on personal accounts.' }
+        end
+
+        local credit = Bank.getCredit(xPlayer.identifier)
+        if credit.score < (cardType.minCredit or 0) then
+            return { ok = false, msg = ('A %s needs a credit score of %s.'):format(cardType.label, cardType.minCredit) }
+        end
+
+        local bad = MySQL.scalar.await(
+            'SELECT COUNT(*) FROM nz_bank_loans WHERE identifier = ? AND status = "defaulted"',
+            { xPlayer.identifier }) or 0
+        if bad > 0 then
+            return { ok = false, msg = 'Settle your defaulted debt before opening a credit line.' }
+        end
+    end
+
+    if cardType.kind == 'secured' then
+        local rules = cardType.deposit or { min = 1000, max = 50000, multiplier = 1.0 }
+        deposit = Bank.round(depositAmount or rules.min)
+        if deposit < rules.min or deposit > rules.max then
+            return { ok = false, msg = ('The deposit must be between %s%s and %s%s.'):format(
+                Config.Currency, rules.min, Config.Currency, rules.max) }
+        end
+        creditLimit = Bank.round(deposit * (rules.multiplier or 1.0))
+    elseif cardType.kind == 'credit' then
+        creditLimit = cardType.creditLimit or 0
+    end
+
+    local upfront = (cardType.price or 0) + deposit
+    if upfront > 0 then
+        local ok = Bank.debit(accountId, upfront, {
+            category = 'fee',
+            label    = deposit > 0 and ('%s · fee and deposit'):format(cardType.label) or ('%s issued'):format(cardType.label),
+            actor    = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
+        })
+        if not ok then
+            return { ok = false, msg = ('You need %s%s in the account for this card.'):format(Config.Currency, upfront) }
+        end
+    end
+
+    local valid = false
+    for _, s in ipairs(Config.Cards.skins) do if s == skin then valid = true break end end
+    if not valid then skin = Config.Cards.skins[1] end
+
+    local dailyLimit = holderId and Config.Cards.member.limit
+        or cardType.dailyLimit or DEFAULT_CARD_LIMIT
+
+    local id = MySQL.insert.await([[
+        INSERT INTO nz_bank_cards
+          (account_id, card_number, card_type, kind, holder, holder_identifier, pin, daily_limit,
+           credit_limit, deposit, apr, express, is_default, skin, expires, statement_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ]], {
+        accountId, newCardNumber(), cardType.id, cardType.kind, holderName, holderId, pin, dailyLimit,
+        creditLimit, deposit, cardType.apr or 0, 0,
+        (count == 0 and not holderId) and 1 or 0, skin, expiryString(),
+        cardType.kind == 'debit' and 0 or (os.time() + (Config.CreditCards.statementMinutes * 60))
+    })
+
+    if holderId then
+        local xMember = ESX.GetPlayerFromIdentifier(holderId)
+        if xMember then
+            Bank.notify(xMember.source, 'Card issued',
+                ('%s issued you a card on %s.'):format(Bank.fullName(xPlayer), acc.label), 'success')
+            TriggerClientEvent('nz_bank:refresh', xMember.source)
+        end
+    end
+
+    if Config.Cards.physicalItem and cardType.item then
+        local target = holderId and ESX.GetPlayerFromIdentifier(holderId) or xPlayer
+        if target then
+            exports.ox_inventory:AddItem(target.source, cardType.item, 1, {
+                cardId  = id,
+                account = acc.account_number,
+                holder  = holderName,
+                last4   = 'xxxx',
+                type    = cardType.label
+            })
+        end
+    end
+
+    Bank.log('cards', 'Card issued',
+        ('**%s** issued a %s on %s%s'):format(Bank.fullName(xPlayer), cardType.label, acc.label,
+            deposit > 0 and (' · deposit %s%s'):format(Config.Currency, deposit) or ''))
+
+    return { ok = true, id = id, msg = creditLimit > 0
+        and ('%s issued with a %s%s line.'):format(cardType.label, Config.Currency, creditLimit)
+        or ('%s issued.'):format(cardType.label) }
+end)
+
+Bank.callback('nz_bank:updateCard', function(src, cardId, action, value)
+    local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
+    if not card then return { ok = false, msg = 'Card not found.' } end
+
+    local acc, perms = Bank.access(src, card.account_id)
+    if not acc then return { ok = false, msg = 'You cannot use this account.' } end
+
+    local xPlayer = Bank.getPlayer(src)
+    local ownCard = card.holder_identifier == xPlayer.identifier
+
+    if perms.role == 'member' and not ownCard then
+        return { ok = false, msg = 'Only owners and managers can manage cards.' }
+    end
+    -- a member may change the PIN on their own card, nothing else
+    if ownCard and perms.role == 'member' and action ~= 'pin' then
+        return { ok = false, msg = 'The account owner controls this card.' }
+    end
+
+    if action == 'block' then
+        MySQL.update.await('UPDATE nz_bank_cards SET status = "blocked" WHERE id = ?', { cardId })
+        Bank.log('cards', 'Card blocked', ('**%s** blocked a card on %s'):format(Bank.fullName(xPlayer), acc.label))
+        return { ok = true, msg = 'Card blocked.' }
+
+    elseif action == 'unblock' then
+        if card.status == 'stolen' then
+            return { ok = false, msg = 'That card was reported stolen. Order a replacement.' }
+        end
+        if card.kind ~= 'debit' and card.missed >= Config.CreditCards.missedBeforeFreeze and card.balance > 0 then
+            return { ok = false, msg = 'Clear the outstanding balance to unfreeze this card.' }
+        end
+        MySQL.update.await('UPDATE nz_bank_cards SET missed = 0 WHERE id = ?', { cardId })
+        MySQL.update.await('UPDATE nz_bank_cards SET status = "active" WHERE id = ?', { cardId })
+        return { ok = true, msg = 'Card unblocked.' }
+
+    elseif action == 'pin' then
+        local pin = tostring(value or ''):gsub('%D', '')
+        if #pin ~= 4 then return { ok = false, msg = 'The PIN must be 4 digits.' } end
+
+        if (Config.Cards.pinChangePrice or 0) > 0 then
+            local paid = Bank.debit(card.account_id, Config.Cards.pinChangePrice, {
+                category = 'fee', label = 'PIN change',
+                actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
+            })
+            if not paid then
+                return { ok = false, msg = ('Changing the PIN costs %s%s.'):format(
+                    Config.Currency, Config.Cards.pinChangePrice) }
+            end
+        end
+        MySQL.update.await('UPDATE nz_bank_cards SET pin = ? WHERE id = ?', { pin, cardId })
+        Bank.session[src] = Bank.session[src] or { pinOk = {} }
+        Bank.session[src].pinOk = {}
+        return { ok = true, msg = 'PIN changed.' }
+
+    elseif action == 'limit' then
+        local limit = tonumber(value) or DEFAULT_CARD_LIMIT
+        local allowed = false
+        for _, l in ipairs(Config.Cards.limitOptions) do if l == limit then allowed = true break end end
+        if not allowed then return { ok = false, msg = 'That limit is not available.' } end
+        MySQL.update.await('UPDATE nz_bank_cards SET daily_limit = ? WHERE id = ?', { limit, cardId })
+        return { ok = true, msg = ('Daily limit set to %s%s.'):format(Config.Currency, limit) }
+
+    elseif action == 'express' then
+        if not Config.Cards.express.enabled then return { ok = false, msg = 'Express pay is disabled.' } end
+        MySQL.update.await('UPDATE nz_bank_cards SET express = ? WHERE id = ?', { value and 1 or 0, cardId })
+        return { ok = true, msg = value and 'Express pay on.' or 'Express pay off.' }
+
+    elseif action == 'default' then
+        MySQL.update.await('UPDATE nz_bank_cards SET is_default = 0 WHERE account_id = ?', { card.account_id })
+        MySQL.update.await('UPDATE nz_bank_cards SET is_default = 1 WHERE id = ?', { cardId })
+        return { ok = true, msg = 'Set as the default card.' }
+
+    elseif action == 'skin' then
+        local valid = false
+        for _, s in ipairs(Config.Cards.skins) do if s == value then valid = true break end end
+        if not valid then return { ok = false, msg = 'Unknown card style.' } end
+        MySQL.update.await('UPDATE nz_bank_cards SET skin = ? WHERE id = ?', { value, cardId })
+        return { ok = true, msg = 'Card style updated.' }
+
+    elseif action == 'delete' then
+        if perms.role ~= 'owner' and acc.type ~= 'society' then
+            return { ok = false, msg = 'Only the owner can destroy a card.' }
+        end
+        if card.kind ~= 'debit' and card.balance > 0 and Config.CreditCards.closeRequiresZero then
+            return { ok = false, msg = ('Clear the %s%s balance before closing this card.'):format(
+                Config.Currency, card.balance) }
+        end
+
+        if card.deposit and card.deposit > 0 then
+            Bank.credit(card.account_id, card.deposit, {
+                category = 'deposit', label = 'Secured card deposit returned'
+            })
+        end
+
+        MySQL.update.await('DELETE FROM nz_bank_cards WHERE id = ?', { cardId })
+        Bank.log('cards', 'Card closed', ('**%s** closed a card on %s'):format(Bank.fullName(xPlayer), acc.label))
+
+        return { ok = true, msg = card.deposit > 0
+            and ('Card closed. %s%s deposit returned.'):format(Config.Currency, card.deposit)
+            or 'Card closed.' }
+
+    elseif action == 'replace' then
+        if Config.Cards.replacementPrice > 0 then
+            local ok = Bank.debit(card.account_id, Config.Cards.replacementPrice, {
+                category = 'fee', label = 'Card replaced',
+                actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
+            })
+            if not ok then return { ok = false, msg = 'Not enough in the account for a replacement.' } end
+        end
+        MySQL.update.await(
+            'UPDATE nz_bank_cards SET card_number = ?, status = "active", expires = ?, spent_today = 0 WHERE id = ?',
+            { newCardNumber(), expiryString(), cardId })
+        return { ok = true, msg = 'A replacement card has been issued.' }
+    end
+
+    return { ok = false, msg = 'Unknown action.' }
+end)
+
+--- Verify a PIN. Wrong entries eat an attempt and eventually block the card.
+Bank.callback('nz_bank:verifyPin', function(src, cardId, pin)
+    local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
+    if not card then return { ok = false, msg = 'Card not found.' } end
+    if card.status ~= 'active' then return { ok = false, msg = 'This card is not active.' } end
+
+    Bank.session[src] = Bank.session[src] or { pinOk = {}, attempts = {} }
+    local sess = Bank.session[src]
+    sess.attempts = sess.attempts or {}
+
+    if tostring(card.pin) == tostring(pin) then
+        sess.pinOk[cardId] = true
+        sess.attempts[cardId] = nil
+        return { ok = true }
+    end
+
+    sess.attempts[cardId] = (sess.attempts[cardId] or 0) + 1
+    local left = Config.ATM.pinAttempts - sess.attempts[cardId]
+
+    if left <= 0 then
+        MySQL.update.await('UPDATE nz_bank_cards SET status = "blocked" WHERE id = ?', { cardId })
+        Bank.log('cards', 'Card auto-blocked', ('Card on account #%s blocked after failed PIN entries'):format(card.account_id))
+        return { ok = false, msg = 'Too many wrong PINs. The card is now blocked.' }
+    end
+
+    return { ok = false, msg = ('Wrong PIN. %s attempt%s left.'):format(left, left == 1 and '' or 's') }
+end)
+
+Bank.callback('nz_bank:pinRequired', function(src, cardId, amount)
+    if not Config.ATM.requirePin then return false end
+
+    -- with pinEveryUse on, a previous success never counts
+    if not Config.ATM.pinEveryUse then
+        local sess = Bank.session[src]
+        if sess and sess.pinOk and sess.pinOk[cardId] then return false end
+    end
+
+    if Config.Cards.express.enabled and amount and amount <= Config.Cards.express.threshold then
+        local card = MySQL.single.await('SELECT express FROM nz_bank_cards WHERE id = ?', { cardId })
+        if card and card.express == 1 then return false end
+    end
+    return true
+end)
+
+-- ═══════════════════════════════════════════════════════════
+--  STOLEN CARDS
+-- ═══════════════════════════════════════════════════════════
+--- Called by whatever pickpocket / robbery resource you use.
+--- exports['nayzeee-banking']:markCardStolen(cardId, thiefSource)
+exports('markCardStolen', function(cardId, thiefSrc)
+    if not Config.Cards.stealable then return false end
+    local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
+    if not card or card.status ~= 'active' then return false end
+
+    if Config.Cards.physicalItem and thiefSrc then
+        exports.ox_inventory:AddItem(thiefSrc, Config.MoneyItem, 1,
+            { cardId = card.id, stolen = true, account = card.account_id })
+    end
+
+    local acc = Bank.getAccountById(card.account_id)
+    if acc and (acc.type == 'personal' or acc.type == 'shared') then
+        local owner = ESX.GetPlayerFromIdentifier(acc.owner)
+        if owner then
+            Bank.notify(owner.source, 'Card missing',
+                'One of your cards is no longer in your possession. Block it from the bank.', 'error')
+        end
+    end
+    return true
+end)
+
+--- A player reports a card and freezes it permanently.
+Bank.callback('nz_bank:reportCard', function(src, cardId)
+    local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
+    if not card then return { ok = false, msg = 'Card not found.' } end
+
+    local acc = Bank.access(src, card.account_id)
+    if not acc then return { ok = false, msg = 'You cannot use this account.' } end
+
+    MySQL.update.await('UPDATE nz_bank_cards SET status = "stolen" WHERE id = ?', { cardId })
+    Bank.log('cards', 'Card reported stolen', ('Card on %s reported'):format(acc.label))
+    return { ok = true, msg = 'Card reported. It can no longer be used.' }
+end)
+
+
+-- ═══════════════════════════════════════════════════════════
+--  ATM CARD HANDLING
+--  The card physically sits in the machine while it is in use,
+--  so it cannot be handed off or stolen mid-transaction.
+-- ═══════════════════════════════════════════════════════════
+local inMachine = {}   -- [src] = { cardId, item, meta }
+
+local function cardItemSlot(src, cardId)
+    if not Config.UseOxInventory and Config.Inventory ~= 'ox_inventory' then return nil end
+    if GetResourceState('ox_inventory') ~= 'started' then return nil end
+
+    local items = exports.ox_inventory:GetInventoryItems(src)
+    if not items then return nil end
+
+    for _, item in pairs(items) do
+        if item.metadata and item.metadata.cardId == cardId then
+            return item
+        end
+    end
+end
+
+Bank.callback('nz_bank:atmStart', function(src, cardId)
+    if not Config.ATM.holdCard or not Config.Cards.physicalItem then return { ok = true } end
+
+    local item = cardItemSlot(src, cardId)
+    if not item then return { ok = true } end   -- nothing to take, carry on
+
+    local removed = exports.ox_inventory:RemoveItem(src, item.name, 1, item.metadata, item.slot)
+    if removed then
+        inMachine[src] = { cardId = cardId, item = item.name, meta = item.metadata }
+    end
+    return { ok = true, held = removed and true or false }
+end)
+
+--- Hand the card back. Called when the ATM closes, and on disconnect so a
+--- card is never swallowed by a crash.
+local function returnCard(src)
+    local held = inMachine[src]
+    if not held then return end
+    inMachine[src] = nil
+
+    if GetResourceState('ox_inventory') == 'started' then
+        exports.ox_inventory:AddItem(src, held.item, 1, held.meta)
+    end
+end
+
+Bank.callback('nz_bank:atmEnd', function(src)
+    returnCard(src)
+
+    -- forget the PIN so the next visit asks again
+    if Config.ATM.pinEveryUse and Bank.session[src] then
+        Bank.session[src].pinOk = {}
+        Bank.session[src].attempts = {}
+    end
+    return { ok = true }
+end)
+
+AddEventHandler('playerDropped', function()
+    returnCard(source)
+end)
+
+AddEventHandler('onResourceStop', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    for src in pairs(inMachine) do returnCard(src) end
+end)

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banking</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="frame">
+<div class="shell">
+
+  <div class="intro" id="intro">
+    <div class="intro-stack">
+      <div class="mark" id="introMark"></div>
+      <img class="intro-logo hidden" id="introLogo" alt="">
+      <h1 id="introName">BANKING</h1>
+      <p id="introSub">Secure Banking</p>
+      <div class="track"><i id="introBar"></i></div>
+      <span class="step" id="introStep">Connecting</span>
+    </div>
+  </div>
+
+  <div class="bar">
+    <div class="bar-brand">
+      <div class="mark" id="brandMark"></div>
+      <img class="brand-logo hidden" id="brandLogo" alt="">
+      <div>
+        <div class="title-txt">Banking</div>
+        <div class="sub" id="branchName">Los Santos</div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="dot" id="statusDot"></span>
+      <p id="statusLine">Signed in as <b>—</b></p>
+      <span class="ver" id="version">v1.0.0</span>
+    </div>
+    <div class="wallet">Wallet <b id="walletCash">$0</b></div>
+    <button class="pill-close" id="btnClose">Close</button>
+  </div>
+
+  <div class="body">
+    <nav class="side">
+      <div class="who">
+        <div class="av" id="avatar">—</div>
+        <div class="who-txt">
+          <b id="playerName">—</b>
+          <span id="playerJob">—</span>
+        </div>
+      </div>
+      <div class="shift">
+        <span id="clock">00:00</span>
+        <b><span class="dot"></span><span id="creditBand">Normal</span></b>
+      </div>
+
+      <button class="nav on" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Dashboard
+      </button>
+      <button class="nav" data-page="transactions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+        Transactions
+      </button>
+
+      <div class="grp" data-group="accounts">Accounts</div>
+      <button class="nav" data-page="shared">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0M16.5 5.4a3.2 3.2 0 0 1 0 5.9M18 19.5a6.4 6.4 0 0 0-2-4.4"/></svg>
+        Shared <span class="tally" id="tallyShared">0</span>
+      </button>
+      <button class="nav" data-page="cards">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h3"/></svg>
+        Cards <span class="tally" id="tallyCards">0</span>
+      </button>
+      <button class="nav" data-page="society">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
+        Society
+      </button>
+      <button class="nav" data-page="savings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a6 6 0 0 1 6-6h3a6 6 0 0 1 6 6v3a4 4 0 0 1-4 4h-1v2h-3v-2H9a5 5 0 0 1-5-5v-2z"/><path d="M16 10.5v.01"/></svg>
+        Savings
+      </button>
+
+      <div class="grp" data-group="credit">Credit</div>
+      <button class="nav" data-page="loans">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2a3 3 0 0 0-5.2 2c0 2.4 5 2 5 4.2a3 3 0 0 1-5.2 1.5M12 6.5v11"/></svg>
+        Loans
+      </button>
+      <button class="nav" data-page="bills">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9.5 8h5M9.5 12h5"/></svg>
+        Bills <span class="tally" id="tallyBills">0</span>
+      </button>
+      <button class="nav" data-page="scheduled">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+        Scheduled
+      </button>
+
+      <div class="grp" data-group="markets">Markets</div>
+      <button class="nav" data-page="invest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.5 9 11l4 4 8-8.5"/><path d="M15 6.5h6v6"/></svg>
+        Investments
+      </button>
+
+      <div class="grp" data-group="you">You</div>
+      <button class="nav" data-page="statements">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h13v18h-13z"/><path d="M9 8h6M9 12h6M9 16h3.5"/></svg>
+        Statements
+      </button>
+      <button class="nav" data-page="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7.5 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 14a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 3.6V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 21 10a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <main class="main" id="view"></main>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="key">ESC</span>Close</span>
+    <span><span class="key">D</span>Deposit</span>
+    <span><span class="key">W</span>Withdraw</span>
+    <span><span class="key">T</span>Transfer</span>
+  </div>
+
+</div>
+</div>
+
+<div class="pinpad" id="pinpad">
+  <div class="pin-box"><div class="pin-in" id="pinInner">
+    <div class="pin-brand">
+      <div class="mark" id="pinMark"></div>
+      <img class="pin-logo hidden" id="pinLogo" alt="">
+      <b id="pinBrandName">BANKING</b>
+    </div>
+    <div class="pin-head">
+      <div><b>ENTER YOUR PIN</b><span id="pinCard">Card ending ····</span></div>
+    </div>
+    <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+    <div class="pin-msg" id="pinMsg">4-digit card PIN</div>
+    <div class="pin-keys">
+      <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
+      <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
+      <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
+      <button class="alt" data-key="clear">Clear</button>
+      <button data-key="0">0</button>
+      <button class="alt" data-key="cancel">Cancel</button>
+    </div>
+  </div></div>
+</div>
+
+<div class="veil" id="veil"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
