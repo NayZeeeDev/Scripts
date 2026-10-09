@@ -31,10 +31,39 @@ local function findPack(ped)
     end
 end
 
---- Feet drawable number for a clothing entry ({ drawable } or { slot }), or nil
+--- A pack name as the studio keys it: lower case, without the "mp_m_freemode_01_" in front
+function Shoes.PackKey(name)
+    return (tostring(name or ''):lower():gsub('^mp_[mf]_freemode_01_', ''))
+end
+
+local collectionName = {}   -- [model .. '|' .. pack key] = collection name as the game has it
+
+local function findCollection(ped, pack)
+    local model = GetEntityModel(ped)
+    local ck = model .. '|' .. pack
+    if collectionName[ck] then return collectionName[ck] end
+    if not GetPedCollectionsCount then return nil end
+    for i = 1, GetPedCollectionsCount(ped) - 1 do
+        local name = GetPedCollectionName(ped, i)
+        if name and Shoes.PackKey(name) == pack then
+            collectionName[ck] = name
+            return name
+        end
+    end
+end
+
+--- Feet drawable number for a clothing entry ({ drawable }, { slot } or { collection, index }), or nil
 function Shoes.Drawable(ped, c)
     if not c then return nil end
     if c.drawable then return c.drawable end
+    if c.collection ~= nil and c.index then
+        -- base-game slot (or a pack that replaces one): the number is the drawable
+        if c.collection == '' then return c.index end
+        local name = findCollection(ped, Shoes.PackKey(c.collection))
+        if not name then return nil end
+        local d = GetPedDrawableGlobalIndexFromCollection(ped, 6, name, c.index)
+        return d and d >= 0 and d or nil
+    end
     if not c.slot then return nil end
     local pack = findPack(ped)
     if not pack then
@@ -70,7 +99,8 @@ end
 
 function Shoes.Inspect(meta)
     local shoe = Config.Shoes[meta.shoe]
-    if Busy or not shoe or not LoadModel(shoe.prop) then return end
+    local model = ShoeProp(shoe)
+    if Busy or not shoe or not LoadModel(model) then return end
     Busy = true
 
     local ped = PlayerPedId()
@@ -79,11 +109,11 @@ function Shoes.Inspect(meta)
     local dist, yaw, pitch = 0.6, GetEntityHeading(ped) + 120.0, 18.0
     local focus = eye + fwd * dist - vector3(0.0, 0.0, 0.05)
 
-    local obj = CreateObject(shoe.prop, focus.x, focus.y, focus.z, false, false, false)
+    local obj = CreateObject(model, focus.x, focus.y, focus.z, false, false, false)
     SetEntityCollision(obj, false, false)
     FreezeEntityPosition(obj, true)
-    SetModelAsNoLongerNeeded(shoe.prop)
-    local mn, mx = GetModelDimensions(shoe.prop)
+    SetModelAsNoLongerNeeded(model)
+    local mn, mx = GetModelDimensions(model)
     local centre = (mn + mx) / 2
 
     Cam.Create(eye, focus, 50.0)

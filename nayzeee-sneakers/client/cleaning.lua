@@ -25,15 +25,16 @@ end
 
 --- The pair on the ground just in front of the player
 local function placePair(shoe)
-    if not shoe or not LoadModel(shoe.prop) then return end
+    local model = ShoeProp(shoe)
+    if not shoe or not LoadModel(model) then return end
     local ped = PlayerPedId()
     local spot = GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.62, 0.0)
     local found, z = GetGroundZFor_3dCoord(spot.x, spot.y, spot.z + 0.5, false)
-    local obj = CreateObjectNoOffset(shoe.prop, spot.x, spot.y, found and z or spot.z - 0.98, false, false, false)
+    local obj = CreateObjectNoOffset(model, spot.x, spot.y, found and z or spot.z - 0.98, false, false, false)
     SetEntityHeading(obj, GetEntityHeading(ped) + 90.0)
     SetEntityCollision(obj, false, false)
     FreezeEntityPosition(obj, true)
-    SetModelAsNoLongerNeeded(shoe.prop)
+    SetModelAsNoLongerNeeded(model)
     return obj
 end
 

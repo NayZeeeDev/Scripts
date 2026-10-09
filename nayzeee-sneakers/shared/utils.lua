@@ -74,7 +74,7 @@ function Shared.ClothingFor(shoe, gender)
     local c = shoe and shoe.clothing
     if not c then return nil end
     if c[gender] then return c[gender] end
-    if c.drawable ~= nil or c.slot ~= nil then return c end
+    if c.drawable ~= nil or c.slot ~= nil or c.index ~= nil then return c end
     return nil
 end
 
@@ -118,7 +118,9 @@ function Shared.LevelFor(xp)
 end
 
 function Shared.ModelLevel(modelId)
-    local m = Config.Crafting.models[modelId]
+    local over = Config.Crafting.models[modelId]
+    if over and over.level then return over.level end
+    local m = Config.ShoeModels[modelId]
     return m and m.level or 1
 end
 

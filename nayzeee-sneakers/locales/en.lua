@@ -114,6 +114,11 @@ Locales.en = {
     alertFake = 'Caller reports someone selling fake sneakers',
     alertTip = 'Suspicious hand-to-hand deal in a parking lot',
 
+    -- studio (/sneakerstudio)
+    studioAlert = 'Sneaker studio: %d new shoes on the server, %d gone. Open /%s',
+    studioOld = 'Your FiveM build can\'t list clothing packs. Update FiveM to use the studio scan',
+    studioSaved = 'Saved',
+
     -- results banner
     bnSold = 'Pair Sold',
     bnCaught = 'Deal Blown',

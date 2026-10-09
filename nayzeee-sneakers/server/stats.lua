@@ -63,8 +63,10 @@ local board
 
 local function reroll()
     board = { at = os.time(), mult = {} }
-    for id in pairs(Config.ShoeModels) do
-        board.mult[id] = math.floor((H.Range[1] + math.random() * (H.Range[2] - H.Range[1])) * 100 + 0.5) / 100
+    for id, m in pairs(Config.ShoeModels) do
+        if not m.hidden then
+            board.mult[id] = math.floor((H.Range[1] + math.random() * (H.Range[2] - H.Range[1])) * 100 + 0.5) / 100
+        end
     end
     SetResourceKvp('hype', json.encode(board))
 end
@@ -83,9 +85,11 @@ end
 function Hype.Board()
     local out = {}
     for id, m in pairs(Config.ShoeModels) do
-        local first
-        for letter in pairs(m.colourways) do if not first or letter < first then first = letter end end
-        out[#out + 1] = { model = id, label = m.label, mult = Hype.Get(id), image = ('nzs_%s_%s'):format(id, first or 'a') }
+        if not m.hidden then
+            local first
+            for letter in pairs(m.colourways) do if not first or letter < first then first = letter end end
+            out[#out + 1] = { model = id, label = m.label, mult = Hype.Get(id), image = ('nzs_%s_%s'):format(id, first or 'a') }
+        end
     end
     table.sort(out, function(a, b) return a.mult > b.mult end)
     return out

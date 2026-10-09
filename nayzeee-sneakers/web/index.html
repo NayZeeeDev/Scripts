@@ -164,6 +164,85 @@
   <div class="guide-body" id="guideBody"></div>
 </div>
 
+<!-- ═══════════ studio (/sneakerstudio) ═══════════ -->
+<div class="win studio" id="studio" hidden>
+  <div class="frame"><div class="shell">
+    <div class="bar">
+      <div class="bar-brand">
+        <div class="mark"></div>
+        <div><div class="title-txt">SNEAKER STUDIO</div><div class="sub" id="stSub">Shoes on this server</div></div>
+      </div>
+      <div class="bar-mid"></div>
+      <button class="btn-ghost" id="stRescan"><span data-icon="search"></span>Rescan</button>
+      <button class="pill-close" id="stClose">Close</button>
+    </div>
+
+    <div class="main scroll" id="stMain">
+      <div class="st-loading" id="stLoading" hidden><span class="spin"></span>Looking through the clothing on this server...</div>
+
+      <div id="stHome">
+        <div class="st-stats">
+          <div class="stat"><div class="tile" data-icon="check"></div><div class="stat-txt"><span>On sale</span><b id="stOn">0</b></div></div>
+          <div class="stat"><div class="tile grey" data-icon="lock"></div><div class="stat-txt"><span>Off</span><b id="stOff">0</b></div></div>
+          <div class="stat"><div class="tile amber" data-icon="spark"></div><div class="stat-txt"><span>New</span><b id="stNew">0</b></div></div>
+          <div class="stat"><div class="tile red" data-icon="alert"></div><div class="stat-txt"><span>Gone</span><b id="stGone">0</b></div></div>
+        </div>
+        <div class="seg small" id="stTabs">
+          <button data-v="shoes" class="on">Shoes</button><button data-v="fresh">New on server</button><button data-v="gone">Gone</button>
+        </div>
+        <div class="note" id="stNote"></div>
+        <div class="field"><input type="text" id="stSearch" placeholder="Search" autocomplete="off"></div>
+        <div class="list" id="stList"></div>
+      </div>
+
+      <div id="stDetail" hidden>
+        <section class="panel">
+          <div class="p-head">
+            <div><h2 id="stdName"></h2><p id="stdSub"></p></div>
+            <button class="btn-ghost" id="stBack"><span data-icon="back"></span>All shoes</button>
+          </div>
+          <div class="p-body">
+            <div class="st-top">
+              <div class="av big"><img id="stdImg" alt=""></div>
+              <div class="st-tags" id="stdTags"></div>
+            </div>
+            <label class="st-switch"><input type="checkbox" id="stdOn"><span class="sw2"></span><span><b>On sale</b>Players can make it, wear it and sell it</span></label>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="p-head"><div><h2>Details</h2><p>What players see</p></div></div>
+          <div class="p-body">
+            <div class="st-row"><span>Name</span><div class="field"><input type="text" id="stdLabel" maxlength="40"></div></div>
+            <div class="st-row"><span>Price</span><div class="field money"><input type="number" id="stdPrice" min="1" step="10"></div></div>
+            <div class="st-row"><span>Level</span>
+              <div class="stepper"><button id="stdLvlDown">−</button><span id="stdLvl">1</span><button id="stdLvlUp">+</button></div></div>
+            <div class="st-row"><span>Box</span>
+              <div class="seg small" id="stdBox"><button data-v="shoe">Shoe</button><button data-v="heel">Heel</button><button data-v="boot">Boot</button></div></div>
+            <div class="st-row" id="stdGenderRow"><span>For</span>
+              <div class="seg small" id="stdGender"><button data-v="male">Male</button><button data-v="female">Female</button></div></div>
+            <div class="st-row" id="stdLinkRow"><span>Drawable</span>
+              <select id="stdLink"></select></div>
+            <div class="note show warn" id="stdLinkNote">This shoe came from a plain download, so the studio can't tell which drawable it is on your server. Pick it here; the preview shows what you picked.</div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="p-head"><div><h2>Colourways</h2><p>Click one to see it on the preview</p></div></div>
+          <div class="p-body" id="stdColours"></div>
+        </section>
+        <div class="st-actions">
+          <button class="btn-ghost danger" id="stdForget"><span data-icon="x"></span><span id="stdForgetTxt">Forget</span></button>
+          <button class="btn-teal" id="stdSave"><span data-icon="check"></span>Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="statusbar">
+      <span><span class="key">ESC</span>Close</span>
+      <span>The preview ped turns on its own</span>
+    </div>
+  </div></div>
+</div>
+
 <!-- ═══════════ crafting stage ═══════════ -->
 <div class="win hud" id="progress" hidden>
   <div class="frame"><div class="shell">

@@ -67,7 +67,7 @@ end, false)
 CreateThread(function()
     local missing = {}
     for id, m in pairs(Config.ShoeModels) do
-        if not m.drawable and not m.slot then missing[#missing + 1] = id end
+        if not m.drawable and not m.slot and not m.studio then missing[#missing + 1] = id end
     end
     if #missing > 0 then
         table.sort(missing)

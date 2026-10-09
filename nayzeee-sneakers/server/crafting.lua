@@ -66,7 +66,7 @@ lib.callback.register('nayzeee-sneakers:craftStart', function(src, tableId, req)
 
     local m = Config.ShoeModels[req.model]
     local shoeId = ('%s_%s'):format(tostring(req.model), tostring(req.letter))
-    if not m or not Config.Shoes[shoeId] then return false end
+    if not m or m.hidden or not Config.Shoes[shoeId] then return false end
     local size = tostring(req.size)
     local okSize = false
     for _, s in ipairs(Config.Sizes[m.gender == 'female' and 'female' or 'male']) do

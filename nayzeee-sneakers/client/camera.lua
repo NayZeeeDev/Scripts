@@ -11,6 +11,15 @@ function LoadModel(model)
     return IsModelInCdimage(model) and pcall(lib.requestModel, model, 5000) or false
 end
 
+--- The prop to show for a shoe: its own, or the stand-in for its box size when it has none yet
+--- (shoes added in the studio before the app made their props)
+function ShoeProp(shoe)
+    if not shoe then return nil end
+    if IsModelInCdimage(shoe.prop) then return shoe.prop end
+    local name = Config.Studio and Config.Studio.StandIn and Config.Studio.StandIn[shoe.box or 'shoe']
+    return name and GetHashKey(name) or shoe.prop
+end
+
 function LoadAnimDict(dict)
     return (pcall(lib.requestAnimDict, dict, 3000))
 end

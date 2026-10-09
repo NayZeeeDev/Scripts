@@ -3,6 +3,17 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = n => '$' + Math.round(n || 0).toLocaleString('en-US');
 const img = name => name ? `../install/images/${name}.png` : '';
+let PROPS_RES = 'nayzeee-sneakers-props';
+
+// icons of shoes made by the studio app live in the props resource; then a plain box
+addEventListener('error', e => {
+  const el = e.target;
+  if (!(el instanceof HTMLImageElement)) return;
+  const src = el.getAttribute('src') || '';
+  const m = src.match(/install\/images\/([^/]+)\.png$/);
+  if (m) { if (m[1] !== 'nz_shoebox') el.src = `https://cfx-nui-${PROPS_RES}/icons/${m[1]}.png`; return; }
+  if (src.includes('/icons/')) el.src = img('nz_shoebox');
+}, true);
 
 // lb-phone gives custom apps `resourceName`; fall back to the page's own host (https://cfx-nui-<resource>/...)
 const RES = (() => {
@@ -50,6 +61,7 @@ async function load() {
   const d = await call('plug:data');
   if (!d) return;
   D = d;
+  if (d.props) PROPS_RES = d.props;
   offset = (d.now || 0) - Math.floor(Date.now() / 1000);
   if (d.deal) d.deal.endsAt = now() + d.deal.left;
   render();

@@ -237,6 +237,29 @@ Config.Cleaning = {
     XP    = 5,
 }
 
+-- ███████╗████████╗██╗   ██╗██████╗ ██╗ ██████╗
+-- ██╔════╝╚══██╔══╝██║   ██║██╔══██╗██║██╔═══██╗
+-- ███████╗   ██║   ██║   ██║██║  ██║██║██║   ██║
+-- ╚════██║   ██║   ██║   ██║██║  ██║██║██║   ██║
+-- ███████║   ██║   ╚██████╔╝██████╔╝██║╚██████╔╝
+-- ╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
+
+-- Use the shoes already on your server. NayZeee Sneaker Studio (the app) turns your clothing packs
+-- into props and icons; /sneakerstudio in game spots new and removed shoes and lets admins price
+-- them and switch them on. No config editing, no restarts.
+Config.Studio = {
+    Enabled       = true,
+    Command       = 'sneakerstudio',
+    PropsResource = 'nayzeee-sneakers-props',   -- the resource the app makes
+    AutoEnable    = false,      -- true = shoes the app converts go on sale straight away (false = an admin switches them on)
+    BaseGame      = false,      -- also list base-game shoes in the studio (they show as a stand-in prop)
+    AlertAdmins   = true,       -- tell admins when they join if shoes were added to or removed from the server
+    -- the prop shown for a shoe that has no prop of its own yet
+    StandIn = { shoe = 'nzs_cup_a', heel = 'nzs_bianca_a', boot = 'nzs_alice_a' },
+    -- starting price of a new shoe; change it per shoe in the studio
+    Price   = { shoe = 350, heel = 400, boot = 450 },
+}
+
 -- ██╗      ██████╗  ██████╗ ███████╗
 -- ██║     ██╔═══██╗██╔════╝ ██╔════╝
 -- ██║     ██║   ██║██║  ███╗███████╗

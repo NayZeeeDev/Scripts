@@ -73,10 +73,11 @@ end
 local function spawnShoe(base, shoeId)
     local box = boxes[base]
     local shoe = Config.Shoes[shoeId]
-    if not box or not shoe or not LoadModel(shoe.prop) then return end
+    local model = ShoeProp(shoe)
+    if not box or not shoe or not LoadModel(model) then return end
     if not boxes[base] or box.shoeId ~= shoeId or box.shoe then return end
     local c = GetEntityCoords(base)
-    local obj = CreateObject(shoe.prop, c.x, c.y, c.z, false, false, false)
+    local obj = CreateObject(model, c.x, c.y, c.z, false, false, false)
     SetEntityCollision(obj, false, false)
     SetEntityInvincible(obj, true)
     if box.fx then
@@ -86,7 +87,7 @@ local function spawnShoe(base, shoeId)
     else
         attachShoe(base, obj, REST, 0.0, 0.0, 0.0)
     end
-    SetModelAsNoLongerNeeded(shoe.prop)
+    SetModelAsNoLongerNeeded(model)
     box.shoe = obj
 end
 

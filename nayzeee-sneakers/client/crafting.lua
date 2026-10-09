@@ -30,6 +30,7 @@ local function buildCatalogue()
         catalogue.stages[box] = out
     end
     for id, m in pairs(Config.ShoeModels) do
+        if m.hidden then goto next end
         local colours = {}
         for letter, name in pairs(m.colourways) do
             colours[#colours + 1] = { letter = letter, name = name, image = ('nzs_%s_%s'):format(id, letter) }
@@ -48,6 +49,7 @@ local function buildCatalogue()
             stages = #(Config.Crafting.stages[m.box] or Config.Crafting.stages.shoe),
             time = time,
         }
+        ::next::
     end
     table.sort(catalogue.models, function(a, b)
         if a.level ~= b.level then return a.level < b.level end
@@ -55,6 +57,9 @@ local function buildCatalogue()
     end)
     return catalogue
 end
+
+--- Shoes changed (the studio added or switched some): build the list again next time
+function Crafting.Invalidate() catalogue = nil end
 
 -- Workbench menu ----------------------------------------------------------------
 
@@ -165,13 +170,14 @@ function Crafting.Run(ent, req)
     -- the pair builds up on the table as the stages go
     local shoe = Config.Shoes[('%s_%s'):format(req.model, req.letter)]
     local obj
-    if shoe and LoadModel(shoe.prop) then
-        obj = CreateObjectNoOffset(shoe.prop, work.x, work.y, work.z, false, false, false)
+    local model = ShoeProp(shoe)
+    if shoe and LoadModel(model) then
+        obj = CreateObjectNoOffset(model, work.x, work.y, work.z, false, false, false)
         SetEntityHeading(obj, heading + 90.0)
         SetEntityCollision(obj, false, false)
         FreezeEntityPosition(obj, true)
         SetEntityAlpha(obj, 0, false)
-        SetModelAsNoLongerNeeded(shoe.prop)
+        SetModelAsNoLongerNeeded(model)
     end
     local shots = tableShots(stand, work, along, out)
     local s = shots[view]

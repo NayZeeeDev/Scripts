@@ -37,6 +37,7 @@ client_scripts {
     'client/cinematic.lua',
     'client/selling.lua',
     'client/plug.lua',
+    'client/studio.lua',
     'client/main.lua',
 }
 
@@ -55,6 +56,7 @@ server_scripts {
     'server/crafting.lua',
     'server/dirt.lua',
     'server/selling.lua',
+    'server/studio.lua',
     'server/main.lua',
 }
 

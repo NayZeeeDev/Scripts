@@ -372,6 +372,7 @@ lib.callback.register('nayzeee-sneakers:plugData', function(src)
         profile = { level = level, xp = xp, from = from, to = to, rep = st.rep, repMax = R.Max,
                     sold = st.sold, earned = st.earned, caught = st.caught, made = st.made, cleaned = st.cleaned },
         hype = Config.Hype.Enabled and hype or {}, trending = Config.Hype.Trending,
+        props = Config.Studio.PropsResource,
         now = os.time(),
     }
 end)

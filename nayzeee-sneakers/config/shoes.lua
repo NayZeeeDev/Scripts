@@ -187,25 +187,40 @@ Config.ShoeModels = {
     },
 }
 
--- Expand every colourway into Config.Shoes[<model>_<letter>]
-Config.Shoes = {}
-for modelId, m in pairs(Config.ShoeModels) do
-    for letter, colour in pairs(m.colourways) do
-        local id = ('%s_%s'):format(modelId, letter)
-        local prop = ('nzs_%s_%s'):format(modelId, letter)
-        Config.Shoes[id] = {
-            model = modelId,
-            label = m.label,
-            colourway = colour,
-            gender = m.gender,
-            box = m.box,
-            retail = m.retail,
-            prop = GetHashKey(prop),
-            image = prop,
-            clothing = (m.drawable or m.slot) and { drawable = m.drawable, slot = m.slot, texture = letter:byte() - 97 } or nil,
-        }
+-- Expand every colourway into Config.Shoes[<model>_<letter>]. Shoes added in the in-game studio
+-- (/sneakerstudio) join Config.ShoeModels while the server runs, and this runs again.
+function BuildShoes()
+    Config.Shoes = {}
+    for modelId, m in pairs(Config.ShoeModels) do
+        for letter, colour in pairs(m.colourways) do
+            local id = ('%s_%s'):format(modelId, letter)
+            local prop = ('nzs_%s_%s'):format(modelId, letter)
+            local tex = letter:byte() - 97
+            local clothing
+            if m.drawable or m.slot then
+                clothing = { drawable = m.drawable, slot = m.slot, texture = tex }
+            elseif m.collection then
+                -- a shoe from any clothing pack on the server: its pack (collection) and number inside it
+                clothing = { collection = m.collection, index = m.index, texture = tex }
+            end
+            Config.Shoes[id] = {
+                model = modelId,
+                label = m.label,
+                colourway = colour,
+                gender = m.gender,
+                box = m.box,
+                retail = m.retail,
+                prop = GetHashKey(prop),
+                image = prop,
+                clothing = clothing,
+                studio = m.studio,
+                hidden = m.hidden,
+            }
+        end
     end
 end
+
+BuildShoes()
 
 Config.Sizes = {
     male = { '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12', '13' },
