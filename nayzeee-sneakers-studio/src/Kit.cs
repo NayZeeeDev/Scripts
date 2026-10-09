@@ -20,6 +20,27 @@ static class Kit
         Console.Out.Flush();
     }
 
+    /// <summary>Started as tools/sneakerkit (not as the PC app).</summary>
+    public static bool IsKit() =>
+        Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "").StartsWith("sneakerkit", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Someone double-clicked the server copy: say what it is instead of opening the app.</summary>
+    public static int Explain()
+    {
+        Console.WriteLine("sneakerkit - nayzeee-sneakers");
+        Console.WriteLine();
+        Console.WriteLine("You don't need to open this. Your server runs it by itself, in the background:");
+        Console.WriteLine("  - when the server starts (new and changed shoes are built straight away)");
+        Console.WriteLine("  - in game: /sneakerstudio > 3D props > Build");
+        Console.WriteLine();
+        Console.WriteLine("The props go into nayzeee-sneakers-props, next to nayzeee-sneakers.");
+        Console.WriteLine("Want to convert on this PC instead? Run it with: sneakerkit --app");
+        Console.WriteLine();
+        Console.Write("Press Enter to close.");
+        try { Console.ReadLine(); } catch { }
+        return 0;
+    }
+
     public static bool Wants(string[] a) => a.Length > 0 && (a[0] == "scan" || a[0] == "build") && a.Contains("--roots-file");
 
     public static int Run(string[] a)

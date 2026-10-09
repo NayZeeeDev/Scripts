@@ -1,7 +1,8 @@
 SNEAKERKIT - nayzeee-sneakers
 =============================
 
-You do NOT need to run this yourself. The server runs it: /sneakerstudio > 3D props.
+You do NOT need to run this yourself. The server runs it in the background (on start, and from
+/sneakerstudio > 3D props). Double-clicking it only shows this note.
 
 It finds every shoe your clothing packs stream (mp_m_freemode_01_<pack>^feet_007_u.ydd and its
 feet_diff_007_a_uni.ytd colourways) in your started resources, and turns each colourway into a prop
