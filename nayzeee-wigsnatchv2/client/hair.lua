@@ -24,27 +24,6 @@ end
 
 local tint = SetPedHairTint or SetPedHairColor   -- the native's current and old name
 
--- The colour is checked again a few times after it's set: appearance / clothing scripts often put
--- their saved hair colour back right after a hair change. If one keeps doing it, F8 says so.
-local tintToken, warnedTint = 0, false
-local function holdTint(ped, c, h)
-    tintToken = tintToken + 1
-    local token = tintToken
-    CreateThread(function()
-        for _, wait in ipairs({ 0, 250, 750, 1500, 3000 }) do
-            Wait(wait)
-            if token ~= tintToken or not DoesEntityExist(ped) then return end
-            if GetPedHairColor(ped) ~= c or GetPedHairHighlightColor(ped) ~= h then
-                tint(ped, c, h)
-                if wait == 3000 and not warnedTint and GetPedHairColor(ped) ~= c then
-                    warnedTint = true
-                    print(('^3[%s]^7 Hair colour %d didn\'t stick (the game says %d). Another resource keeps setting the hair colour.'):format(RESOURCE, c, GetPedHairColor(ped)))
-                end
-            end
-        end
-    end)
-end
-
 -- The hair's palette: the one your appearance script put on your own hair (ESX skinchanger uses 2,
 -- most others 0). Custom hair, female packs especially, only colours right on the palette it was
 -- made for and turns green on the other one. Config.HairPalette forces one.
@@ -54,13 +33,53 @@ local function paletteFor(h)
 end
 Hair.Palette = paletteFor
 
+-- Putting hair on and colouring it. GTA drops a hair colour that's set while the hairstyle is still
+-- streaming in, or while the head is being re-blended after the hair changed (that's what turned
+-- heavier hair, female hair mostly, green: the colour never landed, while the game still reported
+-- it as set). So: stream the hairstyle in first, set it, wait for the head blend, colour it, then
+-- colour it again a few times over the next seconds no matter what the game says.
+local hairToken, applying = 0, false
 local function setHair(ped, h)
-    SetPedComponentVariation(ped, 2, h.d, h.t or 0, paletteFor(h))
-    if h.c then
-        tint(ped, h.c, h.h or h.c)
-        if ped == PlayerPedId() then holdTint(ped, h.c, h.h or h.c) end
-    end
+    applying = true
+    hairToken = hairToken + 1
+    local token = hairToken
+    local d, t, pal = h.d, h.t or 0, paletteFor(h)
+    local c, hl = h.c, h.h or h.c
+    CreateThread(function()
+        SetPedPreloadVariationData(ped, 2, d, t)
+        local until_ = GetGameTimer() + 2000
+        while not HasPedPreloadVariationDataFinished(ped) and GetGameTimer() < until_ do Wait(0) end
+        if token ~= hairToken or not DoesEntityExist(ped) then return ReleasePedPreloadVariationData(ped) end
+        SetPedComponentVariation(ped, 2, d, t, pal)
+        ReleasePedPreloadVariationData(ped)
+        applying = false
+        if not c then return end
+        tint(ped, c, hl)
+        until_ = GetGameTimer() + 2000
+        while not HasPedHeadBlendFinished(ped) and GetGameTimer() < until_ do Wait(0) end
+        for _, wait in ipairs({ 0, 100, 400, 1000, 2500 }) do
+            Wait(wait)
+            if token ~= hairToken or not DoesEntityExist(ped) then return end
+            tint(ped, c, hl)
+        end
+    end)
 end
+
+-- /wighair: what the game says about your hair right now (for support)
+RegisterCommand('wighair', function()
+    local ped = PlayerPedId()
+    local d = GetPedDrawableVariation(ped, 2)
+    local ok, coll = pcall(GetPedCollectionNameFromDrawable, ped, 2, d)
+    print(('[%s] hair: model %s · drawable %d (%s) · texture %d · palette %d · colour %d / highlight %d · head blend done: %s'):format(
+        RESOURCE, ModelKey(GetEntityModel(ped)) or '?', d, ok and (coll == '' and 'base game' or tostring(coll)) or '?',
+        GetPedTextureVariation(ped, 2), GetPedPaletteVariation(ped, 2), GetPedHairColor(ped), GetPedHairHighlightColor(ped),
+        tostring(HasPedHeadBlendFinished(ped))))
+    if Hair.applied then
+        print(('[%s] this script put on: drawable %s · texture %s · colour %s / %s'):format(RESOURCE,
+            tostring(Hair.applied.d), tostring(Hair.applied.t), tostring(Hair.applied.c), tostring(Hair.applied.h)))
+    end
+    CB.Notify('Hair info printed in F8', 'info')
+end, false)
 
 function Hair.MyModel()
     return ModelKey(GetEntityModel(PlayerPedId()))
@@ -68,6 +87,7 @@ end
 
 -- Whatever the ped shows right now is the "natural" hair, unless it's what we applied.
 local function capture(ped)
+    if applying then return end   -- our own hair is still going on, what's there now isn't "natural"
     local cur = readHair(ped)
     if Hair.applied and same(cur, Hair.applied) then return end
     Hair.natural = cur
