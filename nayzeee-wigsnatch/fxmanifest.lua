@@ -31,6 +31,7 @@ client_scripts {
     'client/cutting.lua',
     'client/interact.lua',
     'client/phone.lua',
+    'client/hairprops.lua',
     'client/studio.lua',
     'client/tables.lua',
     'client/crafting.lua',
@@ -58,6 +59,8 @@ server_scripts {
     'server/vault.lua',
     'server/studio.lua',
     'server/studio.js',
+    'server/hairprops.lua',
+    'server/hairkit.js',
     'server/admin.lua',
     'server/main.lua',
 }

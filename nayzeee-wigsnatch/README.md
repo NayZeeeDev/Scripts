@@ -66,6 +66,10 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
    add_ace group.admin command.wigstudio allow
    # lets the studio copy photos into ox_inventory/web/images (newer FXServer builds)
    add_filesystem_permission nayzeee-wigsnatch write ox_inventory
+   # lets 3D wigs refresh and restart nzw_hairprops after building
+   add_ace resource.nayzeee-wigsnatch command.refresh allow
+   add_ace resource.nayzeee-wigsnatch command.ensure allow
+   add_ace resource.nayzeee-wigsnatch command.restart allow
    ```
 5. Restart. New tables and columns are added on their own (`sql/install.sql` is there if you prefer to run it by hand).
 6. Optional but recommended: `/wigstudio` > **Every hairstyle** for each model, then restart this resource and ox_inventory so the photos are served.
@@ -170,7 +174,16 @@ The tables are **Dragons Lab's Wig Crafting Tables by SasDragon**. They are not 
 - **Use wig table** opens the Workshop at the table. Making a wig (3 bundles + a cap) or dyeing one plays out in stages: you walk up to the table, the bundles are laid out and get used up as the wig takes shape on a foam head, the right tool is in your hand for each stage, and fiddly stages have an ox_lib skill check. `V` switches the camera, `X` stops (nothing is used up if you stop).
 - **Skill checks matter**: every clean check raises the chance of a higher tier wig, every sloppy one costs condition, and a perfect run gives bonus XP. Higher levels work faster.
 - `Config.Tables.RequireTable = false` lets the Workshop make and dye wigs anywhere again.
-- **The wig on the foam head**: every job puts the bald foam head on the table with the wig on it. A hairstyle that has its own prop (`nzw_f_12`, see `INSTALL/HAIR_PROPS.md`) shows that exact hairstyle; anything else shows the generic wig. GTA can't put a hairstyle on an object, so hairstyles have to be turned into props first, the same way the sneakers were.
+- **The wig on the foam head**: every job puts the bald foam head on the table wearing the wig being made or dyed, in its exact hairstyle (see **3D wigs**). A hairstyle without a prop yet shows the generic wig.
+
+## 🧊 3D wigs
+
+GTA can only draw a hairstyle on a ped, so every hairstyle on your server is turned into a prop for the foam head, automatically, by **hairkit** (`tools/hairkit`, ready-to-run for Windows and Linux servers):
+
+- **On server start** it looks through every started resource for hair files, converts new and changed ones into props in `nzw_hairprops` (created next to this resource), removes props whose hair is gone, and restarts `nzw_hairprops`. Your existing hair packs are all it needs: nothing to install.
+- **`/wigstudio` > 3D wigs** shows how many hairstyles have a prop and what's new, changed or gone, with Build, Check again and Rebuild every hairstyle. Hairstyles with a prop get a **3D** tag in the list.
+- Props are matched to hairstyles by pack and slot (the game's collection natives), so they stay right when packs change order.
+- **Base game hair** lives in GTA's own files, which servers don't have: run `hairkit game` once on a PC with GTA and upload `nzw_hairprops`. See `INSTALL/HAIR_PROPS.md`.
 
 ## 💇 Making wigs
 
@@ -204,7 +217,7 @@ Six props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
 
 They were built for this script and compiled to YDR / YTYP with CodeWalker. The source XML and textures are in `INSTALL/props-source/` if you want to open them in CodeWalker or Sollumz, and the generator is in `tools/props/`.
 
-**Hairstyle props**: the foam head shows the exact hairstyle when that hairstyle has been turned into a prop. `tools/convert-hair.sh` converts a hair `.ydd` + `.ytd` in one command (into a separate `nzw_hairprops` resource), and `Config.TableProps.HairPropMap` points a hairstyle number at it. See `INSTALL/HAIR_PROPS.md` and `tools/README.md`. If a prop sits oddly in the hand with your animations, tweak `pos` / `rot` in `Config.Cutting.Props` and `Config.TableProps`.
+See **3D wigs** above for the hairstyles themselves.
 
 ## ⚙️ Config highlights
 
@@ -226,6 +239,7 @@ They were built for this script and compiled to YDR / YTYP with CodeWalker. The 
 | `Config.TableProps` | | The props in your hand and on the table during table work, and the hairstyle prop naming |
 | `Config.Crafting` | | Base items, wefts per inch, lengths, laces (tier, level, items), natural colours, XP |
 | `Config.Supplier` | | Ped, location, blip, account, items, prices and levels |
+| `Config.HairProps` | on | 3D wigs: auto scan / auto build on start, texture size, resources to skip, hairkit paths |
 | `Config.Studio` | `256` px | Photo size, starting backdrop, framing, lights, ox_inventory copy |
 
 Discord webhooks and the admin / studio aces live in `config_server.lua`, which never reaches players.
@@ -239,6 +253,7 @@ Discord webhooks and the admin / studio aces live in `config_server.lua`, which 
 | Studio photos come out black / empty | Start `screenshot-basic` before this resource. If the hair keys out too, switch the backdrop to one the hair doesn't use. |
 | The app isn't on my phone | Check the F8 console for "Could not add the Hair Plug app" or "No supported phone found", and adjust `bridge/phone.lua` for your phone version. |
 | A prop sits oddly in the hand | Different animations hold things differently. Tweak `pos` / `rot` in `Config.Cutting.Props` and `Config.TableProps`. |
+| The foam head shows the generic wig | That hairstyle has no prop yet: `/wigstudio` > 3D wigs > Build. Base game hair needs `hairkit game` on a PC with GTA. If the console says it couldn't start `nzw_hairprops`, add the `add_ace` lines from Installation. |
 | Tables are plain workbenches | SasDragon's pack isn't started. Buy it from her and `ensure` it before this resource. |
 | No third-eye options | Start ox_target / qb-target before this resource, or use the commands and usable items. |
 | Wigs have no tier in the inventory | You're on the plain ESX inventory, which has no metadata. Use ox_inventory. |

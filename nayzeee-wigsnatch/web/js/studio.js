@@ -37,6 +37,8 @@ function studioOpen(d) {
   SD.size = d.size || 256;
   SD.screenshot = d.screenshot !== false;
   SD.saveToInventory = d.saveToInventory !== false;
+  SD.hair = d.hair || null;
+  SD.hk = null;
   SD.textures = !!d.allTextures;
   SD.search = '';
   sdRoot.hidden = false;
@@ -52,7 +54,7 @@ function studioClose(silent) {
 }
 
 // game → studio state. Orbit-only changes don't rebuild the panels (that would drop a slider mid-drag).
-const sdSig = () => JSON.stringify([SD.model, SD.d, SD.t, SD.list.length, SD.chroma, SD.batch, SD.screenshot]);
+const sdSig = () => JSON.stringify([SD.model, SD.d, SD.t, SD.list.length, SD.list.filter((x) => x.three).length, SD.chroma, SD.batch, SD.screenshot]);
 function studioState(d) {
   const before = sdSig();
   if (d.model) SD.model = d.model;
@@ -104,7 +106,7 @@ function sdLeft() {
       return `<button class="sd-row ${x.d === SD.d ? 'on' : ''}" data-sd="pick" data-v="${x.d}" ${SD.batch ? 'disabled' : ''}>
         <span class="sd-th">${sdImg(thumbFor(m, x.d, 0))}</span>
         <span class="sd-rt"><b>${nm ? esc(nm) : `Hairstyle ${x.d}`}</b><span>#${x.d} · ${x.n} texture${x.n === 1 ? '' : 's'}${x.bald ? ' · bald' : ''}</span></span>
-        <span class="dot ${has ? 'on' : ''}"></span></button>`;
+        ${x.three ? '<span class="sd-3d" title="Has a 3D wig prop">3D</span>' : ''}<span class="dot ${has ? 'on' : ''}"></span></button>`;
     }).join('') : '<div class="empty"><i class="fa-solid fa-magnifying-glass"></i>Nothing matches</div>'}</div>
   </div></div>`;
   const list = $('.sd-list', $('#sdLeft'));
@@ -171,6 +173,8 @@ function sdRight() {
           <button class="btn red sm wide" data-sd="cancel"><i class="fa-solid fa-stop"></i>Stop batch <span class="kc">BACKSPACE</span></button></div>` : ''}
       </div>
 
+      ${sdHairCard(busy)}
+
       <div class="card sd-card">
         <div class="sd-ch">Recent <em>${SD.saveToInventory ? 'saved to shots/ and ox_inventory' : 'saved to shots/'}</em></div>
         <div class="sd-shots">${SD.recent.length ? SD.recent.map((r) => `<div class="sd-shot ${r.ok === false ? 'bad' : ''}"><img src="${r.png}" alt=""><span>${esc(r.name)}</span></div>`).join('')
@@ -210,6 +214,7 @@ sdRoot.addEventListener('click', (e) => {
     case 'nobatch': SD.confirm = false; return sdRight();
     case 'gobatch': SD.confirm = false; return post('st:batch', { textures: SD.textures, missing: SD.missing });
     case 'cancel': return post('st:cancel');
+    case 'hk': return post('st:hairkit', { mode: v });
   }
 });
 sdRoot.addEventListener('input', (e) => {
@@ -283,4 +288,39 @@ function studioSaved(d) {
   if (r) r.ok = d.ok;
   if (d.ok && d.key) SD.shots.add(d.key);
   if (SD.on) sdRender();
+}
+
+/* ─────────────── 3D wigs (hairkit) ─────────────── */
+function sdHairCard(busy) {
+  const h = SD.hair;
+  if (!h || !h.enabled) return '';
+  const hk = SD.hk, running = h.running || (hk && hk.running);
+  const todo = (h.new || 0) + (h.changed || 0) + (h.removed || 0);
+  let body;
+  if (!h.kit) body = `<div class="sd-warn-in"><i class="fa-solid fa-triangle-exclamation"></i><span>hairkit isn't installed for this server (${esc(h.platform || '?')}). Put it in <b>tools/hairkit</b>.</span></div>`;
+  else body = `<div class="sd-hk">
+      <div><b>${h.props}</b><span>hairstyle props</span></div>
+      <div class="${h.new ? 'new' : ''}"><b>${h.new}</b><span>new</span></div>
+      <div class="${h.changed ? 'new' : ''}"><b>${h.changed}</b><span>changed</span></div>
+      <div><b>${h.removed}</b><span>gone</span></div></div>
+    ${running && hk && hk.n ? `<div class="sd-prog"><div class="sd-pt"><span>Building ${hk.i} of ${hk.n}</span><b>${Math.round((hk.i / Math.max(1, hk.n)) * 100)}%</b></div>
+      <div class="sd-bar"><i style="width:${(hk.i / Math.max(1, hk.n)) * 100}%"></i></div></div>` : ''}
+    <div class="sd-row2">
+      <button class="btn ${todo ? 'teal' : ''}" data-sd="hk" data-v="build" ${running || busy ? 'disabled' : ''}><i class="fa-solid fa-cube"></i>${running ? 'Working…' : todo ? `Build ${todo}` : 'Up to date'}</button>
+      <button class="btn" data-sd="hk" data-v="scan" ${running || busy ? 'disabled' : ''}><i class="fa-solid fa-arrows-rotate"></i>Check again</button>
+    </div>
+    <button class="btn ghost sm wide" data-sd="hk" data-v="rebuild" ${running || busy ? 'disabled' : ''}>Rebuild every hairstyle</button>`;
+  return `<div class="card sd-card">
+    <div class="sd-ch">3D wigs <em>your server's hair, on the foam head</em></div>
+    ${body}
+    <div class="note" style="margin-top:0">Every hair file your server streams becomes a prop for the wig tables. New and changed hair is found when the server starts.</div>
+  </div>`;
+}
+
+function studioHairkit(d) {
+  SD.hk = SD.hk || {};
+  if (d.kind === 'start') { SD.hk = { running: true }; if (SD.hair) SD.hair.running = d.mode; }
+  if (d.kind === 'progress') Object.assign(SD.hk, { running: true, i: d.i, n: d.n });
+  if (d.kind === 'done' || d.kind === 'status') { SD.hk = null; if (d.status) SD.hair = d.status; }
+  if (SD.on) sdRight();
 }

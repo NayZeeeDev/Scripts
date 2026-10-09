@@ -55,7 +55,8 @@ local function buildList()
     list = {}
     if not ped then return end
     for d = 0, GetNumberOfPedDrawableVariations(ped, HAIR) - 1 do
-        list[#list + 1] = { d = d, n = math.max(1, GetNumberOfPedTextureVariations(ped, HAIR, d)), bald = IsBaldDrawable(model, d) or nil }
+        list[#list + 1] = { d = d, n = math.max(1, GetNumberOfPedTextureVariations(ped, HAIR, d)), bald = IsBaldDrawable(model, d) or nil,
+                            three = HairProps.Has(model, d) or nil }
     end
 end
 
@@ -205,6 +206,7 @@ local function open()
     if Snatch.busy then return CB.Notify(L('busy'), 'error') end
     local data = lib.callback.await('nz-wig:studioOpen', false)
     if not data then return CB.Notify(L('studio_no_access'), 'error') end
+    data.hair = Config.HairProps.Enabled and lib.callback.await('nz-wig:hairkitStatus', false) or nil
     CreateThread(function() enter(data) end)
 end
 
@@ -365,6 +367,18 @@ end)
 on('st:name', function(d)
     if type(d.key) ~= 'string' then return end
     TriggerServerEvent('nz-wig:s:studioNames', { [d.key] = tostring(d.name or '') })
+end)
+
+-- 3D wigs: scan / build the hairstyle props (server runs hairkit)
+on('st:hairkit', function(d)
+    if d.mode == 'scan' or d.mode == 'build' or d.mode == 'rebuild' then TriggerServerEvent('nz-wig:s:hairkit', d.mode) end
+end)
+
+RegisterNetEvent('nz-wig:c:hairkit', function(d)
+    NUI.Send('studio:hairkit', d)
+    if d.kind == 'done' and active then
+        SetTimeout(6000, function() if active then buildList() sendState(true) end end) -- the new props are streamed by now
+    end
 end)
 
 -- the keyer finished: hand the small PNG to the server

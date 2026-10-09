@@ -24,6 +24,7 @@ const HANDLERS = {
   'studio:show': studioShow,
   'studio:process': studioProcess,
   'studio:saved': studioSaved,
+  'studio:hairkit': studioHairkit,
 };
 
 addEventListener('message', (e) => {

@@ -255,6 +255,11 @@ Locales['en'] = {
     bought             = 'Paid $%s',
     supplier_browse    = 'Browse supplies',
 
+    -- 3D wigs
+    hairkit_missing    = "hairkit isn't installed for this server's OS (tools/hairkit)",
+    hairkit_busy       = 'hairkit is already running',
+    hairkit_done       = '3D wigs: built %s hairstyle prop(s)',
+
     -- studio
     studio_no_access   = "You don't have access to the Wig Studio",
     studio_model_fail  = "Couldn't load the freemode model",

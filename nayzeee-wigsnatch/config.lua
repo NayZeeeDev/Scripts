@@ -973,6 +973,22 @@ Config.Studio = {
     },
 }
 
+-- 3D wigs: every hairstyle your server streams is turned into a prop for the foam head at the wig
+-- tables, by hairkit (tools/hairkit). The Wig Studio shows what's new, changed or gone and builds them;
+-- they go into their own resource (nzw_hairprops) next to this one. See README > 3D wigs.
+Config.HairProps = {
+    Enabled     = true,
+    Resource    = 'nzw_hairprops',   -- Created next to this resource the first time
+    AutoScan    = true,              -- Look for new / changed / removed hair files when the server starts
+    AutoBuild   = true,              -- ...and build them straight away (restarts nzw_hairprops)
+    TextureSize = 256,               -- Max texture size of each hair prop (128 / 256 / 512)
+    Skip        = {},                -- Resource names to leave out of the scan, e.g. { 'my_test_pack' }
+    Kit = {                          -- The hairkit program for each server OS (inside this resource)
+        windows = 'tools/hairkit/win-x64/hairkit.exe',
+        linux   = 'tools/hairkit/linux-x64/hairkit',
+    },
+}
+
 -- ███████╗███████╗███████╗██████╗
 -- ██╔════╝██╔════╝██╔════╝██╔══██╗
 -- █████╗  █████╗  █████╗  ██║  ██║

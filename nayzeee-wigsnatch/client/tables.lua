@@ -104,6 +104,8 @@ end
 function Tables.WigModel(hair)
     local TP = Config.TableProps
     if hair and hair.m and hair.d then
+        local built = HairProps.Model(hair.m, hair.d)   -- made by hairkit from the server's own hair
+        if built then return built end
         local mapped = TP.HairPropMap and TP.HairPropMap[('%s:%d'):format(hair.m, hair.d)]
         if mapped and IsModelInCdimage(GetHashKey(mapped)) then return GetHashKey(mapped) end
         if TP.HairProps then
