@@ -113,15 +113,27 @@
 
   <!-- transfer -->
   <section class="view" data-view="transfer">
-    <div class="field">
-      <span>Account Number</span>
-      <div class="input small-txt" id="transferTo">—</div>
+    <!-- step 1: pick a saved payee with the side buttons or its number -->
+    <div class="center hidden" id="payeePick">
+      <svg class="big" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.9-5 5.5-5s4.9 1.8 5.5 5"/>
+        <path d="M16 7.5h5M18.5 5v5"/>
+      </svg>
+      <b>WHO ARE YOU PAYING?</b>
+      <span id="payeeHint">Press the button beside a name, or its number</span>
     </div>
-    <div class="field">
+
+    <!-- step 2: the amount -->
+    <div class="field" id="transferToField">
+      <span>To</span>
+      <div class="input small-txt" id="transferTo">—</div>
+      <em class="sub" id="transferNumber"></em>
+    </div>
+    <div class="field" id="transferAmountField">
       <span>Amount</span>
       <div class="input" id="transferAmount">0</div>
     </div>
-    <span class="hint" id="transferHint">Type the account number, then press ENTER</span>
+    <span class="hint" id="transferHint">Type the amount, then press ENTER</span>
   </section>
 
   <!-- working -->

@@ -353,14 +353,14 @@ Config.ATM = {
 
         default = {
             cash    = { x = -0.110, z = 0.930, inner = 0.060, outer = -0.140, rotation = 90.0 },
-            card    = { x =  0.250, z = 1.190, inner = -0.060, outer = 0.180, rotation = 0.0 },
+            card    = { x =  0.250, z = 1.190, inner = 0.180, outer = -0.060, rotation = 0.0 },
             receipt = { x =  0.170, z = 1.020, inner = 0.000, outer = -0.120, rotation = 0.0 },
         },
 
         models = {
             [`prop_atm_01`] = {
                 cash    = { x = -0.050, z = 0.760, inner = -0.150, outer = -0.340, rotation = 90.0 },
-                card    = { x =  0.200, z = 1.120, inner = -0.240, outer = 0.040, rotation = 0.0 },
+                card    = { x =  0.200, z = 1.120, inner = 0.040, outer = -0.240, rotation = 0.0 },
                 receipt = { x =  0.110, z = 0.960, inner = -0.180, outer = -0.300, rotation = 0.0 },
             },
         },
@@ -377,6 +377,13 @@ Config.ATM = {
 }
 
 Config.ATMModels = { `prop_atm_01`, `prop_atm_02`, `prop_atm_03`, `prop_fleeca_atm` }
+
+-- Cash only moves where the player really is. The server checks the distance on
+-- every deposit and withdrawal, so a menu opened anywhere else can't move cash.
+Config.Security = {
+    branchRange = 12.0,   -- How far from a branch's teller (Config.Banks) still counts as inside
+    atmRange    = 3.5,    -- How far from the machine an ATM session can start
+}
 
 --  █████╗  ██████╗ ██████╗ ██████╗ ██╗   ██╗███╗   ██╗████████╗███████╗
 -- ██╔══██╗██╔════╝██╔════╝██╔═══██╗██║   ██║████╗  ██║╚══██╔══╝██╔════╝

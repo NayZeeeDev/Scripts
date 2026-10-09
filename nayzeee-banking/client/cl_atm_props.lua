@@ -48,6 +48,24 @@ local function slotConfig(model, slot)
     return (per and per[slot]) or (slots.default and slots.default[slot])
 end
 
+--- The slot with `outer` on the player's side of the machine, whichever way
+--- round it was written in config. Swapped values are how the card ended up
+--- coming out of the reader when it was meant to go in.
+local function orientedSlot(entity, model, slot)
+    local spec = slotConfig(model, slot)
+    if not spec or not entity or not DoesEntityExist(entity) then return spec end
+
+    local me = GetEntityCoords(PlayerPedId())
+    local a = GetOffsetFromEntityInWorldCoords(entity, spec.x, spec.inner, spec.z)
+    local b = GetOffsetFromEntityInWorldCoords(entity, spec.x, spec.outer, spec.z)
+    if #(me - b) <= #(me - a) then return spec end
+
+    local fixed = {}
+    for k, v in pairs(spec) do fixed[k] = v end
+    fixed.inner, fixed.outer = spec.outer, spec.inner
+    return fixed
+end
+
 --- Slide a prop from one offset to another along the machine's own axes.
 local function slide(entity, model, spec, opts)
     if not spec or not entity or not DoesEntityExist(entity) then return end
@@ -68,7 +86,7 @@ local function slide(entity, model, spec, opts)
         return
     end
 
-    if not lib.requestModel(propModel, 2000) then return end
+    if not pcall(lib.requestModel, propModel, 2000) then return end
 
     local from = GetOffsetFromEntityInWorldCoords(entity, spec.x, spec.from, spec.z)
     local prop = CreateObject(propModel, from.x, from.y, from.z, false, false, false)
@@ -108,10 +126,18 @@ local function slide(entity, model, spec, opts)
     end
 
     if opts.hold and opts.hold > 0 then Wait(opts.hold) end
-
-    if DoesEntityExist(prop) then DeleteEntity(prop) end
-    for i = #active, 1, -1 do if active[i] == prop then table.remove(active, i) end end
     SetModelAsNoLongerNeeded(propModel)
+
+    -- the caller takes it from here (the card waiting at the slot for a hand)
+    if opts.keep and DoesEntityExist(prop) then return prop end
+
+    Bank.atmDropProp(prop)
+end
+
+--- Delete a prop this file made and stop tracking it.
+function Bank.atmDropProp(prop)
+    if prop and DoesEntityExist(prop) then DeleteEntity(prop) end
+    for i = #active, 1, -1 do if active[i] == prop then table.remove(active, i) end end
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -119,7 +145,7 @@ end
 -- ═══════════════════════════════════════════════════════════
 --- direction 'out' dispenses, 'in' takes a deposit.
 function Bank.atmCashProp(entity, model, direction)
-    local spec = slotConfig(model, 'cash')
+    local spec = orientedSlot(entity, model, 'cash')
     if not spec then return end
 
     CreateThread(function()
@@ -142,35 +168,42 @@ end
 
 -- ═══════════════════════════════════════════════════════════
 --  CARD
+--  There is only ever one card. On the way in it leaves the hand
+--  as it reaches the slot and carries on into the reader. On the
+--  way out it slides back to the mouth of the slot and waits there
+--  (keep = true hands the prop back) until the hand takes it.
 -- ═══════════════════════════════════════════════════════════
-function Bank.atmCardProp(entity, model, direction)
-    local spec = slotConfig(model, 'card')
+function Bank.atmCardSlide(entity, model, direction, keep)
+    local spec = orientedSlot(entity, model, 'card')
     if not spec then return end
     if not Config.ATM.animation or not Config.ATM.animation.enabled then return end
 
-    CreateThread(function()
-        Bank.atmSound('card')
+    Bank.atmSound('card')
 
-        local travel = {
-            x = spec.x, z = spec.z,
-            from = direction == 'in' and spec.outer or spec.inner,
-            to   = direction == 'in' and spec.inner or spec.outer
-        }
+    local travel = {
+        x = spec.x, z = spec.z,
+        from = direction == 'in' and spec.outer or spec.inner,
+        to   = direction == 'in' and spec.inner or spec.outer
+    }
 
-        slide(entity, model, travel, {
-            model    = Config.ATM.animation.cardProp or 'prop_cs_credit_card',
-            duration = 700,
-            hold     = direction == 'out' and 600 or 0,
-            rotation = { x = 90.0, y = 90.0, z = spec.rotation or 0.0 }
-        })
-    end)
+    return slide(entity, model, travel, {
+        model    = Config.ATM.animation.cardProp or 'prop_cs_credit_card',
+        duration = 700,
+        keep     = keep,
+        rotation = { x = 90.0, y = 90.0, z = spec.rotation or 0.0 }
+    })
+end
+
+--- Fire and forget, for anything that doesn't need the hand-off.
+function Bank.atmCardProp(entity, model, direction)
+    CreateThread(function() Bank.atmCardSlide(entity, model, direction) end)
 end
 
 -- ═══════════════════════════════════════════════════════════
 --  RECEIPT
 -- ═══════════════════════════════════════════════════════════
 function Bank.atmReceiptProp(entity, model)
-    local spec = slotConfig(model, 'receipt')
+    local spec = orientedSlot(entity, model, 'receipt')
     if not spec then return end
 
     CreateThread(function()

@@ -27,6 +27,11 @@ local DUI = {
 local TXD_NAME = 'nz_atm_txd'
 local TEX_NAME = 'nz_atm_tex'
 
+-- A runtime texture dictionary can never be freed, so there is one for the
+-- whole session, and each browser gets its own texture name inside it.
+local runtimeTxd, texSerial = nil, 0
+local IDLE_MS = 120000   -- an unused screen browser is closed after this
+
 local KEYS = Config.ATM.keypad or {}
 
 -- ═══════════════════════════════════════════════════════════
@@ -110,6 +115,9 @@ local function buttonsFor(model)
   return (b.models and b.models[model]) or b.default or {}
 end
 
+--- The browser behind the screen. It is kept between visits (and closed
+--- after a couple of idle minutes), so a second use is instant and the
+--- page is already listening when the first message goes in.
 local function createDui()
   if DUI.obj then return true end
 
@@ -120,6 +128,13 @@ local function createDui()
   DUI.obj = CreateDui(url, s.width or 1024, s.height or 820)
   if not DUI.obj then return false end
 
+  -- a page that hasn't loaded yet drops whatever is sent to it
+  local waited = 0
+  while not IsDuiAvailable(DUI.obj) and waited < 3000 do
+    Wait(50)
+    waited = waited + 50
+  end
+
   local handle = GetDuiHandle(DUI.obj)
   if not handle then
     DestroyDui(DUI.obj)
@@ -127,12 +142,16 @@ local function createDui()
     return false
   end
 
-  DUI.txd = CreateRuntimeTxd(TXD_NAME)
+  if not runtimeTxd then
+    runtimeTxd = CreateRuntimeTxd(TXD_NAME)
+    -- the dictionary needs a moment before a texture can be built from
+    -- the browser handle, or it comes out empty
+    Wait(250)
+  end
 
-  -- the dictionary needs a moment before a texture can be built from
-  -- the browser handle, or it comes out empty
-  Wait(250)
-  CreateRuntimeTextureFromDuiHandle(DUI.txd, TEX_NAME, handle)
+  texSerial = texSerial + 1
+  DUI.tex = TEX_NAME .. texSerial
+  CreateRuntimeTextureFromDuiHandle(runtimeTxd, DUI.tex, handle)
 
   Wait(400)
   return true
@@ -164,7 +183,7 @@ local function replaceScreen(cfg)
   for _, dict in ipairs(dicts) do
     if not seen[dict] then
       seen[dict] = true
-      AddReplaceTexture(dict, tex, TXD_NAME, TEX_NAME)
+      AddReplaceTexture(dict, tex, TXD_NAME, DUI.tex)
       DUI.replaced[#DUI.replaced + 1] = { dict = dict, tex = tex }
     end
   end
@@ -173,14 +192,28 @@ local function replaceScreen(cfg)
   return true
 end
 
-local function destroyDui()
+--- Put the machine's own screen back. The browser stays for the next visit.
+local function releaseScreen()
   for _, r in ipairs(DUI.replaced) do
     RemoveReplaceTexture(r.dict, r.tex)
   end
   DUI.replaced = {}
+end
 
+local function destroyDui()
+  releaseScreen()
   if DUI.obj then DestroyDui(DUI.obj) end
-  DUI.obj, DUI.txd = nil, nil
+  DUI.obj = nil
+end
+
+--- Close the browser once nobody has used a machine for a while.
+local function idleLater()
+  DUI.idleSince = GetGameTimer()
+  SetTimeout(IDLE_MS, function()
+    if not DUI.active and DUI.obj and GetGameTimer() - (DUI.idleSince or 0) >= IDLE_MS - 1000 then
+      destroyDui()
+    end
+  end)
 end
 
 local function send(payload)
@@ -299,6 +332,8 @@ local function startScene(entity, cfg)
   SetFocusEntity(entity)
   RenderScriptCams(true, true, 650, true, true)
 
+  -- remember the minimap's state, so a HUD that hides it on foot keeps it hidden
+  DUI.radarHidden = IsRadarHidden()
   if Config.ATM.hideRadar ~= false then DisplayRadar(false) end
   return true
 end
@@ -324,7 +359,10 @@ end
 local function stopScene()
   FreezeEntityPosition(PlayerPedId(), false)
   ClearFocus()
-  if Config.ATM.hideRadar ~= false then DisplayRadar(true) end
+  if Config.ATM.hideRadar ~= false and DUI.radarHidden ~= nil then
+    DisplayRadar(not DUI.radarHidden)
+    DUI.radarHidden = nil
+  end
 
   if DUI.cam then
     local cam = DUI.cam
@@ -354,6 +392,18 @@ local function sidesFor(state)
     if Config.Statements and Config.Statements.enabled then
       map.side_l4 = { act = 'statement', label = 'Statement' }
     end
+    return map
+  end
+
+  -- picking who to pay: one saved payee per button, numbered for the keypad
+  if state == 'transfer' and DUI.stage == 'payee' then
+    local map, list = {}, DUI.pagePayees or {}
+    local slots = { 'side_l1', 'side_l2', 'side_l3', 'side_l4', 'side_r1', 'side_r2' }
+    for i, p in ipairs(list) do
+      map[slots[i]] = { act = 'payee:' .. i, label = ('%d  %s'):format(i, p.label) }
+    end
+    if (DUI.pages or 1) > 1 then map.side_r3 = { act = 'more', label = 'More' } end
+    map.side_r4 = { act = 'cancel', label = 'Cancel' }
     return map
   end
 
@@ -415,15 +465,46 @@ local function goAmount(mode)
   showSides()
 end
 
-local function goTransfer()
-  DUI.state, DUI.stage, DUI.buffer = 'transfer', 'account', ''
-  DUI.payload = { to = '', amount = '' }
+--- The keypad has no letters, so a machine transfer goes to a saved payee.
+local PER_PAGE = 6
 
-  send({ action = 'transfer', stage = 'account', to = '', amount = '' })
+local function showPayees()
+  local all = DUI.data.payees or {}
+  DUI.pages = math.max(1, math.ceil(#all / PER_PAGE))
+  DUI.page = ((DUI.page or 1) - 1) % DUI.pages + 1
+
+  DUI.pagePayees = {}
+  for i = 1, PER_PAGE do
+    DUI.pagePayees[i] = all[(DUI.page - 1) * PER_PAGE + i]
+  end
+
+  send({ action = 'transfer', stage = 'payee', page = DUI.page, pages = DUI.pages })
   showSides()
 end
 
-local function goDone(ok, title, text)
+local goDone   -- defined below, with the other screens
+
+local function goTransfer()
+  if #(DUI.data.payees or {}) == 0 then
+    return goDone(false, 'No saved payees', 'Save someone as a payee in the bank or on your phone first.')
+  end
+
+  DUI.state, DUI.stage, DUI.buffer, DUI.page = 'transfer', 'payee', '', 1
+  DUI.payload = { to = '', toName = '', amount = '' }
+  showPayees()
+end
+
+local function pickPayee(i)
+  local p = DUI.pagePayees and DUI.pagePayees[i]
+  if not p then return end
+
+  DUI.payload.to, DUI.payload.toName = p.account_number, p.label
+  DUI.stage, DUI.buffer = 'amount', ''
+  send({ action = 'transfer', stage = 'amount', to = p.account_number, toName = p.label, amount = '' })
+  showSides()
+end
+
+goDone = function(ok, title, text)
   DUI.state = 'done'
   Bank.atmSound(ok and 'approved' or 'declined')
 
@@ -446,6 +527,7 @@ local function refresh()
   DUI.data.cash = data.player and data.player.cash or 0
   DUI.data.primary = data.primary
   DUI.data.overdraft = data.overdraft
+  DUI.data.payees = data.payees or {}
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -470,6 +552,14 @@ local function runAction(act)
   end
 
   if act == 'cancel' then return goHome() end
+
+  if DUI.state == 'transfer' and DUI.stage == 'payee' then
+    if act == 'more' then DUI.page = (DUI.page or 1) + 1 return showPayees() end
+    local i = tonumber(act:match('^payee:(%d)$'))
+    if i then pickPayee(i) end
+    return
+  end
+
   if act ~= 'confirm' then return end
 
   if DUI.state == 'amount' then
@@ -501,13 +591,6 @@ local function runAction(act)
   end
 
   if DUI.state == 'transfer' then
-    if DUI.stage == 'account' then
-      if DUI.buffer == '' then return end
-      DUI.payload.to = DUI.buffer
-      DUI.stage, DUI.buffer = 'amount', ''
-      return send({ action = 'transfer', stage = 'amount', to = DUI.payload.to, amount = '' })
-    end
-
     local amount = tonumber(DUI.buffer)
     if not amount or amount <= 0 then
       return goDone(false, 'Declined', 'Enter an amount above zero.')
@@ -565,11 +648,10 @@ local function pushBuffer()
       balance = DUI.data.balance or 0, cash = DUI.data.cash or 0,
       amount = DUI.buffer, quick = quickFor(DUI.mode)
     })
-  elseif DUI.state == 'transfer' then
+  elseif DUI.state == 'transfer' and DUI.stage == 'amount' then
     send({
-      action = 'transfer', stage = DUI.stage,
-      to = DUI.stage == 'amount' and DUI.payload.to or DUI.buffer,
-      amount = DUI.stage == 'amount' and DUI.buffer or ''
+      action = 'transfer', stage = 'amount',
+      to = DUI.payload.to, toName = DUI.payload.toName, amount = DUI.buffer
     })
   end
 end
@@ -622,6 +704,12 @@ local function pressKey(key)
 
   if DUI.state == 'statement' or DUI.state == 'done' then return goHome() end
   if DUI.state ~= 'amount' and DUI.state ~= 'transfer' then return end
+
+  if DUI.state == 'transfer' and DUI.stage == 'payee' then
+    local i = tonumber(key)
+    if i and i >= 1 then pickPayee(i) end
+    return
+  end
 
   if key == 'del' then
     DUI.buffer = DUI.buffer:sub(1, -2)
@@ -677,7 +765,8 @@ function Bank.useATMScreen(entity, model, card, data)
     balance   = data.summary and data.summary.balance or 0,
     cash      = data.player and data.player.cash or 0,
     primary   = data.primary,
-    overdraft = data.overdraft
+    overdraft = data.overdraft,
+    payees    = data.payees or {}
   }
   DUI.pin, DUI.buffer, DUI.busy = '', '', false
   DUI.state = 'boot'
@@ -699,19 +788,24 @@ function Bank.useATMScreen(entity, model, card, data)
   if not startScene(entity, cfg) then
     DUI.active = false
     stopScene()
-    destroyDui()
+    releaseScreen()
+    idleLater()
     return false
   end
 
-  Bank.atmEnter(entity)
-  Bank.atmCardProp(entity, model, 'in')
+  -- one card, from the hand into the reader (an error here must not strand the camera)
+  local entered, err = pcall(Bank.atmEnter, entity, model)
+  if not entered then print('^1[nayzeee-banking]^7 ATM insert failed: ' .. tostring(err)) end
 
   Wait(600)
   if not alive() then DUI.active = false end
 
   if DUI.active then
-    local needPin = Config.ATM.requirePin
-      and ask('nz_bank:pinRequired', card.id, nil)
+    -- a server that doesn't answer means asking for the PIN, never skipping it
+    local needPin = false
+    if Config.ATM.requirePin and card then
+      needPin = ask('nz_bank:pinRequired', card.id, nil) ~= false
+    end
 
     if needPin then
       DUI.state = 'pin'
@@ -728,6 +822,13 @@ function Bank.useATMScreen(entity, model, card, data)
   CreateThread(function()
     while DUI.active do
       if not DoesEntityExist(DUI.entity) then DUI.active = false break end
+
+      -- killed, knocked over or pulled away at the machine: the session ends there
+      local me = PlayerPedId()
+      if IsEntityDead(me) or IsPedRagdoll(me) or IsPedInAnyVehicle(me, false) then
+        DUI.active = false
+        break
+      end
 
       -- ESC reaches the pause menu above the control system, so
       -- disabling the control is not enough. Close it again and take
@@ -770,7 +871,7 @@ function Bank.useATMScreen(entity, model, card, data)
         local world = GetOffsetFromEntityInWorldCoords(DUI.entity, o.x, o.y, o.z)
 
         SetDrawOrigin(world.x, world.y, world.z, 0)
-        DrawSprite(TXD_NAME, TEX_NAME, 0.0, 0.0, w, h, 0.0, 255, 255, 255, 255)
+        DrawSprite(TXD_NAME, DUI.tex, 0.0, 0.0, w, h, 0.0, 255, 255, 255, 255)
         ClearDrawOrigin()
       end
 
@@ -816,13 +917,20 @@ function Bank.useATMScreen(entity, model, card, data)
       Wait(0)
     end
 
-    if DUI.entity and DoesEntityExist(DUI.entity) then
-      Bank.atmCardProp(DUI.entity, DUI.model, 'out')
+    -- the card slides back out while the camera is still on the machine,
+    -- then the view comes back as the hand takes it
+    local stopped = false
+    local function handBack()
+      if stopped then return end
+      stopped = true
+      stopScene()
     end
 
-    stopScene()
-    Bank.atmExit()
-    destroyDui()
+    local ok, err = pcall(Bank.atmExit, DUI.entity, DUI.model, handBack)
+    if not ok then print('^1[nayzeee-banking]^7 ATM exit failed: ' .. tostring(err)) end
+    handBack()
+    releaseScreen()
+    idleLater()
 
     DUI.entity, DUI.model, DUI.card, DUI.payload, DUI.cfg = nil, nil, nil, nil, nil
     DUI.buttons, DUI.hover = {}, nil
@@ -836,10 +944,10 @@ function Bank.screenActive() return DUI.active end
 
 AddEventHandler('onResourceStop', function(resource)
   if resource ~= GetCurrentResourceName() then return end
+  Bank.stopping = true
   DUI.active = false
   stopScene()
   destroyDui()
-  DisplayRadar(true)
 end)
 
 -- ═══════════════════════════════════════════════════════════

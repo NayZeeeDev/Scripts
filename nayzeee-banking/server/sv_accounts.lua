@@ -182,9 +182,47 @@ function Bank.buildPayload(src, context)
     }
 end
 
+--- At a machine only the card's own account is on screen, the way a real ATM
+--- works. That is also what lets someone else's card (and its PIN) work there.
+local function atmView(src, payload)
+    local atm = Bank.atmSession(src)
+    if not atm or not atm.accountId then return payload end
+
+    local acc = Bank.getAccountById(atm.accountId)
+    if not acc then return payload end
+    local view = serialiseAccount(acc)
+    if atm.foreign then view.owner, view.role = nil, 'card' end
+
+    -- the overdraft line belongs to the player's personal account; show it only for that one
+    if atm.foreign or acc.id ~= payload.primary then payload.overdraft = nil end
+    payload.accounts = { view }
+    payload.primary = acc.id
+    payload.summary.balance = acc.balance
+    if atm.foreign then payload.cards, payload.payees = {}, {} end
+    return payload
+end
+
 Bank.callback('nz_bank:getData', function(src, context)
-    return Bank.buildPayload(src, context)
+    local payload = Bank.buildPayload(src, context)
+    if not payload then return nil end
+    payload.payees = Bank.getPayees(Bank.getPlayer(src).identifier)
+    if context == 'atm' then payload = atmView(src, payload) end
+    return payload
 end)
+
+--- Who may move this account's money from where the player is standing:
+--- their own access, or the card in the ATM they are at.
+local function moneyAccess(src, accountId, point)
+    local atm = point == 'atm' and Bank.atmSession(src) or nil
+    -- a machine with a card in it only works on that card's account
+    if atm and atm.accountId and Bank.id(accountId) ~= atm.accountId then
+        return nil, nil, 'This machine only works on the card\'s account.'
+    end
+    local acc, perms = Bank.access(src, accountId)
+    if not acc then acc, perms = Bank.cardAccess(src, accountId) end
+    if not acc then return nil, nil, 'You cannot use this account.' end
+    return acc, perms, nil, atm
+end
 
 -- ═══════════════════════════════════════════════════════════
 --  DEPOSIT / WITHDRAW
@@ -194,8 +232,11 @@ Bank.callback('nz_bank:deposit', function(src, accountId, amount)
     amount = Bank.round(amount)
     if not xPlayer or amount <= 0 then return { ok = false, msg = 'Enter a valid amount.' } end
 
-    local acc, perms, err = Bank.access(src, accountId)
-    if not acc then return { ok = false, msg = 'You cannot use this account.' } end
+    local point, why = Bank.cashPoint(src)
+    if not point then return { ok = false, msg = why } end
+
+    local acc, perms, err = moneyAccess(src, accountId, point)
+    if not acc then return { ok = false, msg = err } end
     if not perms.deposit then return { ok = false, msg = 'You do not have deposit rights here.' } end
     if acc.frozen == 1 then return { ok = false, msg = 'This account is frozen.' } end
 
@@ -229,13 +270,18 @@ Bank.callback('nz_bank:deposit', function(src, accountId, amount)
     return { ok = true, msg = ('Deposited %s%s.'):format(Config.Currency, amount) }
 end)
 
-Bank.callback('nz_bank:withdraw', function(src, accountId, amount, fromATM)
+Bank.callback('nz_bank:withdraw', function(src, accountId, amount)
     local xPlayer = Bank.getPlayer(src)
     amount = Bank.round(amount)
     if not xPlayer or amount <= 0 then return { ok = false, msg = 'Enter a valid amount.' } end
 
-    local acc, perms = Bank.access(src, accountId)
-    if not acc then return { ok = false, msg = 'You cannot use this account.' } end
+    -- the ATM fee and cap follow where the player really is, not what the client says
+    local point, why = Bank.cashPoint(src)
+    if not point then return { ok = false, msg = why } end
+    local fromATM = point == 'atm'
+
+    local acc, perms, err, atm = moneyAccess(src, accountId, point)
+    if not acc then return { ok = false, msg = err } end
     if not perms.withdraw then return { ok = false, msg = 'You do not have withdrawal rights here.' } end
     if acc.frozen == 1 then return { ok = false, msg = 'This account is frozen.' } end
 
@@ -255,6 +301,15 @@ Bank.callback('nz_bank:withdraw', function(src, accountId, amount, fromATM)
         fee = fee + Bank.round(amount * Config.Savings.withdrawFee)
     end
 
+    -- someone else's card spends inside that card's daily limit
+    if atm and atm.foreign and atm.cardId then
+        local within, limitWhy = Bank.serial(Bank.cardKey(atm.cardId), Bank.spendOnCard, atm.cardId, amount)
+        if not within then
+            return { ok = false, msg = limitWhy == 'limit' and 'That would break the daily limit on this card.'
+                or 'This card was declined.' }
+        end
+    end
+
     local ok, res = Bank.debit(accountId, amount + fee, {
         category = 'withdraw',
         label    = fromATM and 'ATM withdrawal' or 'Account withdrawal',
@@ -265,7 +320,11 @@ Bank.callback('nz_bank:withdraw', function(src, accountId, amount, fromATM)
         return { ok = false, msg = res == 'insufficient' and 'Not enough in the account.' or 'Withdrawal failed.' }
     end
 
-    Bank.addCash(xPlayer, amount)
+    -- no room for the cash (a full inventory): the money goes back in the account
+    if not Bank.addCash(xPlayer, amount) then
+        Bank.credit(accountId, amount + fee, { category = 'withdraw', label = 'Withdrawal reversed' })
+        return { ok = false, msg = 'You have no room for the cash. Nothing was taken.' }
+    end
 
     if fee > 0 then
         Bank.logTx(accountId, 'out', fee, res, { category = 'fee', label = 'Withdrawal fee' })
@@ -343,11 +402,13 @@ Bank.callback('nz_bank:transfer', function(src, accountId, toNumber, amount, not
     if not xPlayer then return { ok = false, msg = 'Player not found.' } end
 
     local acc, perms = Bank.access(src, accountId)
+    if not acc then acc, perms = Bank.cardAccess(src, accountId) end   -- a card and PIN at an ATM
     if not acc then return { ok = false, msg = 'You cannot use this account.' } end
     if not perms.transfer then return { ok = false, msg = 'You do not have transfer rights here.' } end
 
-    local label = note and note ~= '' and ('Transfer · %s'):format(note:sub(1, 48)) or nil
-    local ok, msg = Bank.doTransfer(accountId, toNumber, amount, xPlayer.identifier, Bank.fullName(xPlayer), label)
+    local label = note and note ~= '' and ('Transfer · %s'):format(tostring(note):sub(1, 48)) or nil
+    local ok, msg = Bank.doTransfer(acc.id, toNumber, amount, xPlayer.identifier, Bank.fullName(xPlayer), label)
+    if ok then Bank.touchPayee(xPlayer.identifier, tostring(toNumber or ''):upper()) end
     return { ok = ok, msg = msg }
 end)
 

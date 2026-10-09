@@ -143,6 +143,7 @@ svg{display:block}
 .input.small-txt{font-size:20px;letter-spacing:.14em}
 .input.empty{color:var(--ink-3);font-weight:400}
 .hint{text-align:center;font-size:13px;font-weight:300;color:var(--ink-3);letter-spacing:.04em}
+.field .sub{font-style:normal;font-size:12px;font-weight:400;letter-spacing:.14em;color:var(--ink-3);min-height:14px}
 
 .quick{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 .quick b{

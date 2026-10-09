@@ -490,8 +490,12 @@ Bank.callback('nz_bank:verifyPin', function(src, cardId, pin)
     cardId = Bank.id(cardId)
     local card = cardId and MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not card then return { ok = false, msg = 'Card not found.' } end
-    -- only someone who can see the card may guess at it, or anyone could lock everyone out
-    if not Bank.access(src, card.account_id) then return { ok = false, msg = 'Card not found.' } end
+    -- only someone who can see the card, or has it in the machine in front of them,
+    -- may guess at it, or anyone could lock everyone out
+    local atm = Bank.atmSession(src)
+    if not Bank.access(src, card.account_id) and not (atm and atm.cardId == cardId) then
+        return { ok = false, msg = 'Card not found.' }
+    end
     if card.status ~= 'active' then return { ok = false, msg = 'This card is not active.' } end
 
     Bank.session[src] = Bank.session[src] or { pinOk = {}, attempts = {} }
@@ -592,41 +596,132 @@ end)
 --  The card physically sits in the machine while it is in use,
 --  so it cannot be handed off or stolen mid-transaction.
 -- ═══════════════════════════════════════════════════════════
-local inMachine = {}   -- [src] = { cardId, item, meta }
+local inMachine = {}   -- [src] = { cardId, item, slot, meta, identifier }
 
-local function cardItemSlot(src, cardId)
-    if Bank.inventory() ~= 'ox_inventory' then return nil end
+-- ── card items in any inventory ───────────────────────────
+--- Every card item the player carries: { name, slot, meta }.
+function CardItems.held(src)
+    local out, names = {}, {}
+    for _, t in ipairs(Config.CardTypes) do if t.item then names[t.item] = true end end
 
-    local items = exports.ox_inventory:GetInventoryItems(src)
-    if not items then return nil end
+    local inv = Bank.inventory()
+    local ok, items = pcall(function()
+        if inv == 'ox_inventory' then return exports.ox_inventory:GetInventoryItems(src) end
+        if inv == 'qs-inventory' then return exports['qs-inventory']:GetInventory(src) end
+        if inv == 'qb-inventory' then
+            local list = {}
+            for name in pairs(names) do
+                for _, it in ipairs(exports['qb-inventory']:GetItemsByName(src, name) or {}) do list[#list + 1] = it end
+            end
+            return list
+        end
+    end)
+    if not ok or type(items) ~= 'table' then return out end
 
-    for _, item in pairs(items) do
-        if item.metadata and item.metadata.cardId == cardId then
-            return item
+    for _, it in pairs(items) do
+        local meta = it.metadata or it.info
+        if it.name and names[it.name] and type(meta) == 'table' and meta.cardId then
+            out[#out + 1] = { name = it.name, slot = it.slot, meta = meta }
         end
     end
+    return out
 end
 
-Bank.callback('nz_bank:atmStart', function(src, cardId)
-    if not Config.ATM.holdCard or not Config.Cards.physicalItem then return { ok = true } end
+function CardItems.removeSlot(src, it)
+    local inv = Bank.inventory()
+    if inv == 'ox_inventory' then return exports.ox_inventory:RemoveItem(src, it.name, 1, it.meta, it.slot) end
+    if inv == 'qs-inventory' then return exports['qs-inventory']:RemoveItem(src, it.name, 1, it.slot) end
+    if inv == 'qb-inventory' then return exports['qb-inventory']:RemoveItem(src, it.name, 1, it.slot, 'nayzeee-banking') end
+    return false
+end
 
-    local item = cardItemSlot(src, cardId)
-    if not item then return { ok = true } end   -- nothing to take, carry on
+function CardItems.giveRaw(src, name, meta)
+    local inv = Bank.inventory()
+    if inv == 'ox_inventory' then return exports.ox_inventory:AddItem(src, name, 1, meta) end
+    if inv == 'qs-inventory' then return exports['qs-inventory']:AddItem(src, name, 1, nil, meta) end
+    if inv == 'qb-inventory' then return exports['qb-inventory']:AddItem(src, name, 1, false, meta, 'nayzeee-banking') end
+    return false
+end
 
-    local removed = exports.ox_inventory:RemoveItem(src, item.name, 1, item.metadata, item.slot)
-    if removed then
-        local xPlayer = Bank.getPlayer(src)
-        inMachine[src] = { cardId = cardId, item = item.name, meta = item.metadata,
-                           identifier = xPlayer and xPlayer.identifier }
+-- ── which cards can go in the machine ─────────────────────
+--- With physical cards on, the cards you can use are the ones in your pockets,
+--- whoever they belong to. Without, it is the cards on your own accounts.
+--- `foreign` marks a card that isn't the player's: it works, with its PIN,
+--- on its own account only, and inside the card's daily limit.
+local function usableCards(src)
+    local xPlayer = Bank.getPlayer(src)
+    if not xPlayer then return {}, nil end
+    local out, declined = {}, nil
+
+    local function add(card, item)
+        if card.status ~= 'active' then
+            declined = card.status == 'stolen' and 'That card was reported stolen.' or 'That card is blocked.'
+            return
+        end
+        local acc = Bank.access(src, card.account_id)
+        local mine = acc ~= nil and (card.holder_identifier == nil or card.holder_identifier == xPlayer.identifier)
+        out[#out + 1] = { row = card, item = item, foreign = not mine }
     end
-    return { ok = true, held = removed and true or false }
+
+    if Config.Cards.physicalItem then
+        local seen = {}
+        for _, it in ipairs(CardItems.held(src)) do
+            local id = Bank.id(it.meta.cardId)
+            if id and not seen[id] then
+                seen[id] = true
+                local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { id })
+                if card and CardItems.current(it.meta, card) then add(card, it)
+                elseif card then declined = 'That card was replaced. Use the new one.' end
+            end
+        end
+        return out, declined
+    end
+
+    local personal = Bank.getPersonal(xPlayer.identifier)
+    local list = Bank.getCardsForPlayer(xPlayer.identifier, Bank.societyJobs(xPlayer))
+    table.sort(list, function(a, b)
+        local pa, pb = personal and a.account == personal.id, personal and b.account == personal.id
+        if pa ~= pb then return pa end
+        return (a.isDefault and 1 or 0) > (b.isDefault and 1 or 0)
+    end)
+    for _, c in ipairs(list) do
+        if c.holderId == nil or c.holderId == xPlayer.identifier then
+            local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { c.id })
+            if card then add(card) end
+        end
+    end
+    return out, declined
+end
+
+local function cardInfo(u)
+    local c = u.row
+    local t = Bank.cardType(c.card_type)
+    return {
+        id        = c.id,
+        account   = c.account_id,
+        kind      = c.kind,
+        typeLabel = t.label,
+        number    = c.card_number,
+        last4     = c.card_number:sub(-4),
+        holder    = c.holder,
+        skin      = c.skin,
+        foreign   = u.foreign or nil,
+        label     = ('%s •%s'):format(t.label, c.card_number:sub(-4)),
+    }
+end
+
+Bank.callback('nz_bank:atmCards', function(src)
+    local list, declined = usableCards(src)
+    local out = {}
+    for _, u in ipairs(list) do out[#out + 1] = cardInfo(u) end
+    return { cards = out, declined = declined }
 end)
 
 --- Hand the card back. Called when the ATM closes, and on disconnect so a
 --- card is never swallowed by a crash.
---- A player who drops mid-session may already be gone from ox_inventory, so their
---- card waits in KVP until they next load in. `quick` skips the database (resource stop
---- and disconnects can't wait on a query).
+--- A player who drops mid-session may already be gone from their inventory, so
+--- their card waits in KVP until they next load in. `quick` skips the database
+--- (resource stop and disconnects can't wait on a query).
 local function returnCard(src, dropped, quick)
     local held = inMachine[src]
     if not held then return end
@@ -643,8 +738,7 @@ local function returnCard(src, dropped, quick)
         end
     end
 
-    local given = not dropped and GetResourceState('ox_inventory') == 'started'
-        and exports.ox_inventory:AddItem(src, held.item, 1, held.meta)
+    local given = not dropped and CardItems.giveRaw(src, held.item, held.meta)
     if not given and held.identifier then
         SetResourceKvp('nzb_card_return:' .. held.identifier, json.encode({ item = held.item, meta = held.meta }))
     end
@@ -655,15 +749,57 @@ AddEventHandler('esx:playerLoaded', function(src, xPlayer)
     local saved = GetResourceKvpString(key)
     if not saved then return end
     local held = json.decode(saved)
-    SetTimeout(5000, function()   -- let ox_inventory load them first
-        if held and GetPlayerName(src) and exports.ox_inventory:AddItem(src, held.item, 1, held.meta) then
+    SetTimeout(5000, function()   -- let the inventory load them first
+        if held and GetPlayerName(src) and CardItems.giveRaw(src, held.item, held.meta) then
             DeleteResourceKvp(key)
         end
     end)
 end)
 
+--- The player stood at a machine and put a card in. The server checks they
+--- are really there and really hold that card, then keeps the card until
+--- they walk away.
+Bank.callback('nz_bank:atmStart', function(src, cardId, coords)
+    returnCard(src)   -- a card left in from a session that never ended
+
+    local chosen
+    if Config.ATM.requireCard then
+        local list, declined = usableCards(src)
+        for _, u in ipairs(list) do
+            if u.row.id == Bank.id(cardId) then chosen = u break end
+        end
+        if not chosen then
+            return { ok = false, msg = declined or (Config.Cards.physicalItem
+                and 'You don\'t have a bank card on you.'
+                or 'You need an active bank card. Order one at any branch.') }
+        end
+    end
+
+    local session = chosen and { id = chosen.row.id, account_id = chosen.row.account_id, foreign = chosen.foreign }
+    if not Bank.startATM(src, coords, session) then
+        return { ok = false, msg = 'Stand at the machine to use it.' }
+    end
+
+    -- a fresh PIN every visit; wrong attempts are kept
+    Bank.session[src] = Bank.session[src] or { pinOk = {}, attempts = {} }
+    if Config.ATM.pinEveryUse then Bank.session[src].pinOk = {} end
+
+    local held = false
+    if chosen and chosen.item and Config.ATM.holdCard and Config.Cards.physicalItem then
+        if CardItems.removeSlot(src, chosen.item) then
+            local xPlayer = Bank.getPlayer(src)
+            inMachine[src] = { cardId = chosen.row.id, item = chosen.item.name, meta = chosen.item.meta,
+                               identifier = xPlayer and xPlayer.identifier }
+            held = true
+        end
+    end
+
+    return { ok = true, held = held, card = chosen and cardInfo(chosen) or nil }
+end)
+
 Bank.callback('nz_bank:atmEnd', function(src)
     returnCard(src)
+    Bank.endATM(src)
 
     -- forget the PIN so the next visit asks again
     if Config.ATM.pinEveryUse and Bank.session[src] then

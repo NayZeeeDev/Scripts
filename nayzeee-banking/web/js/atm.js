@@ -53,8 +53,10 @@ function applyIsland(island, outside) {
 
 /* ── helpers ──────────────────────────────────────────────── */
 const money = (n) => {
-  const v = Math.round(n || 0).toLocaleString('en-US').replace(/,/g, ' ');
-  return A.currencyRight ? `${v}${A.currency}` : `${A.currency}${v}`;
+  const num = Math.round(Number(n) || 0);
+  const v = Math.abs(num).toLocaleString('en-US').replace(/,/g, ' ');
+  const sign = num < 0 ? '−' : '';
+  return A.currencyRight ? `${sign}${v}${A.currency}` : `${sign}${A.currency}${v}`;
 };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
@@ -277,18 +279,29 @@ function renderAmount(d) {
 }
 
 function renderTransfer(d) {
+  const picking = d.stage === 'payee';
+  el('payeePick').classList.toggle('hidden', !picking);
+  el('transferToField').classList.toggle('hidden', picking);
+  el('transferAmountField').classList.toggle('hidden', picking);
+  el('transferHint').classList.toggle('hidden', picking);
+  if (picking) {
+    el('payeeHint').textContent = d.pages > 1
+      ? `Press the button beside a name, or its number · page ${d.page} of ${d.pages}`
+      : 'Press the button beside a name, or its number';
+    return;
+  }
+
   const to = el('transferTo');
-  to.textContent = d.to && d.to !== '' ? d.to : '—';
+  to.textContent = d.toName || d.to || '—';
   to.classList.toggle('empty', !d.to || d.to === '');
+  el('transferNumber').textContent = d.toName && d.to ? d.to : '';
 
   const amt = el('transferAmount');
   const raw = d.amount || '';
   amt.textContent = raw === '' ? '0' : money(parseInt(raw, 10) || 0);
   amt.classList.toggle('empty', raw === '');
 
-  el('transferHint').textContent = d.stage === 'amount'
-    ? 'Type the amount, then press ENTER'
-    : 'Type the account number, then press ENTER';
+  el('transferHint').textContent = 'Type the amount, then press ENTER';
 }
 
 function renderDone(d) {
