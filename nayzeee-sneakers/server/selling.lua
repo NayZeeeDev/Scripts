@@ -91,12 +91,14 @@ local function makeOffer(src, pair)
     if not t then return end
     local shoe = Config.Shoes[pair.meta.shoe]
     local gender = math.random() < 0.5 and 'male' or 'female'
-    local price = round5(Selling.Value(pair.meta, pair.boxed) * rnd(t.offer) * repMult(Stats.Rep(src)))
+    if deals[src] and deals[src].offer.serial == pair.meta.serial then return end   -- already being sold
+    local mult = rnd(t.offer) * repMult(Stats.Rep(src))
+    local price = round5(Selling.Value(pair.meta, pair.boxed) * mult)
     local o = {
         id = newId(), serial = pair.meta.serial, shoe = pair.meta.shoe, size = pair.meta.size, boxed = pair.boxed,
         pair = Shared.ShoeName(pair.meta), image = shoe.image .. (pair.boxed and '_box' or ''),
         buyer = { name = pick(B.Names), type = t.id, label = t.label, gender = gender, check = t.check, drive = math.random() < t.drive },
-        price = price, expires = os.time() + S.OfferLife,
+        price = price, mult = mult, expires = os.time() + S.OfferLife,
     }
     local list = offers[src] or {}
     offers[src] = list
@@ -126,6 +128,7 @@ end
 lib.callback.register('nayzeee-sneakers:plugFind', function(src, serial)
     local pair = findPair(src, serial)
     if not pair then return false, Config.Text.pairGone end
+    if deals[src] and deals[src].offer.serial == serial then return false, Config.Text.dealBusy end
     findWait[src] = findWait[src] or {}
     if (findWait[src][serial] or 0) > os.time() then return false, Config.Text.findCooldown end
     findWait[src][serial] = os.time() + S.FindCooldown
@@ -197,6 +200,7 @@ local function endDeal(src, reason, repLoss)
 end
 
 lib.callback.register('nayzeee-sneakers:plugAccept', function(src, id)
+    if Bridge.Framework == 'none' then return false, 'No framework running: sales can\'t pay out' end
     if deals[src] then return false, Config.Text.dealBusy end
     if (cooldown[src] or 0) > os.time() then return false, Config.Text.dealCooldown end
     local o = offers[src] and offers[src][id]
@@ -269,11 +273,19 @@ lib.callback.register('nayzeee-sneakers:handover', function(src, dealId)
         endDeal(src, 'gone')
         return nil
     end
-    d.settling = true
-
     local t
     for _, x in ipairs(B.Types) do if x.id == o.buyer.type then t = x end end
     t = t or B.Types[1]
+
+    -- the pair has to be what they were offered for: same box state, and still DS for a buyer who only wants DS
+    if pair.boxed ~= o.boxed or (t.ds and pair.meta.condition ~= 'DS') then
+        Bridge.Notify(src, Config.Text.pairChanged, 'error')
+        endDeal(src, 'changed', S.CancelRep)
+        return nil
+    end
+    -- worn or dirtied since the offer: the price only ever goes down
+    o.price = math.min(o.price, round5(Selling.Value(pair.meta, pair.boxed) * (o.mult or 1.0)))
+    d.settling = true
     local fake = pair.meta.real == false
     local checked = math.random() < t.check
     local serialRun = checked and math.random() < t.serial

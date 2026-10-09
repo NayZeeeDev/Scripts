@@ -49,6 +49,8 @@ local function releaseBuyer(leave)
     local b, c = buyer, car
     buyer, car, arrived, spawned = nil, nil, false, false
     if not b or not DoesEntityExist(b) then return end
+    Cine.Control(b, 800)
+    if c then Cine.Control(c, 800) end
     Target.RemoveEntity(b)
     if leave then
         if c and DoesEntityExist(c) then
@@ -94,18 +96,21 @@ end
 
 local function spawnWalker(d, m)
     local hash = GetHashKey(d.ped)
-    if not LoadModel(hash) then return end
+    if not LoadModel(hash) then spawned = false return end   -- try again next second
     buyer = CreatePed(4, hash, m.x, m.y, groundZ(m.x, m.y, m.z), d.meet.w or 0.0, true, false)
     SetModelAsNoLongerNeeded(hash)
     setupPed(buyer)
     TaskStartScenarioInPlace(buyer, d.idle, 0, true)
-    ready(d)
+    -- they're "here" once you walk up (the deal loop calls ready)
 end
 
 local function spawnDriver(d, m)
     local found, node, heading = GetNthClosestVehicleNodeWithHeading(m.x, m.y, m.z, 30, 1, 3.0, 0)
     local carHash, pedHash = GetHashKey(d.car), GetHashKey(d.ped)
-    if not found or not LoadModel(carHash) or not LoadModel(pedHash) then return spawnWalker(d, m) end
+    if not found or not LoadModel(carHash) or not LoadModel(pedHash) then
+        d.car = nil
+        return spawnWalker(d, m)
+    end
     car = CreateVehicle(carHash, node.x, node.y, node.z, heading, true, false)
     SetModelAsNoLongerNeeded(carHash)
     SetEntityAsMissionEntity(car, true, true)
@@ -165,7 +170,9 @@ RegisterNetEvent('nayzeee-sneakers:client:deal', function(d)
 
     CreateThread(function()
         while deal == d do
-            if not spawned and #(GetEntityCoords(PlayerPedId()) - m) < 150.0 then spawnBuyer(d) end
+            local dist = #(GetEntityCoords(PlayerPedId()) - m)
+            if not spawned and dist < 150.0 then spawnBuyer(d) end
+            if spawned and buyer and not d.car and not arrived and dist < 30.0 then ready(d) end
             if not Cine.on then hud(true) end
             Wait(1000)
         end
@@ -202,6 +209,9 @@ local function cinematic(d, res)
     local itemModel = res.boxed and Config.BoxTypes[res.box] and Config.BoxTypes[res.box].base or BAG
     local held
 
+    -- networked: another nearby player may own them by now
+    Cine.Control(b, 1500)
+    if car then Cine.Control(car, 1500) end
     ClearPedTasks(b)
     Cine.Start()
     local cam = Cine.Director()
@@ -311,6 +321,7 @@ end
 --- Quick version when Config.Cinematic.Enabled is off
 local function plain(d, res)
     local ped, b = PlayerPedId(), buyer
+    Cine.Control(b, 1500)
     TaskTurnPedToFaceEntity(ped, b, 700)
     TaskTurnPedToFaceEntity(b, ped, 700)
     Wait(750)

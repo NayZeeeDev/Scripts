@@ -47,7 +47,8 @@ RegisterCommand(Config.Commands.rep, function(src, args)
     if src ~= 0 and not Bridge.IsAdmin(src) then return end
     local target = tonumber(args[1]) or src
     local amount = tonumber(args[2])
-    local rep = amount and Stats.Add(target, { rep = amount }).rep or Stats.Rep(target)
+    local s = amount and Stats.Add(target, { rep = amount })
+    local rep = s and s.rep or Stats.Rep(target)
     local msg = ('Player %d has %d rep'):format(target, rep)
     if src == 0 then print(msg) else Bridge.Notify(src, msg, 'inform') end
 end, false)
@@ -70,7 +71,10 @@ end
 
 function Hype.Get(modelId)
     if not H.Enabled then return 1.0 end
-    if not board then board = json.decode(GetResourceKvpString('hype') or 'null') end
+    if not board then
+        local raw = GetResourceKvpString('hype')
+        board = raw and json.decode(raw) or nil
+    end
     if not board or os.time() - (board.at or 0) > H.Hours * 3600 then reroll() end
     return board.mult[modelId] or 1.0
 end

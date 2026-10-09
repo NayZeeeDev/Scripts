@@ -1,7 +1,8 @@
 Shared = {}
 
 -- Text for the chosen language (locales/*.lua), falling back to English for anything missing
-Config.Text = setmetatable(Locales[Config.Locale] or {}, { __index = Locales.en })
+local chosen = Locales[Config.Locale]
+Config.Text = (chosen and chosen ~= Locales.en) and setmetatable(chosen, { __index = Locales.en }) or Locales.en
 
 local SERIAL_CHARS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 

@@ -91,6 +91,7 @@ Locales.en = {
     dealBusy = 'You already have a deal going',
     dealCooldown = 'Lay low for a bit before the next deal',
     pairGone = 'You don\'t have that pair any more',
+    pairChanged = 'That\'s not the pair they were promised. They walked',
     makeDeal = 'Make the deal',
     buyerArrived = '%s is here',
     buyerOnWay = '%s is pulling up',

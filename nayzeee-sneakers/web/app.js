@@ -481,8 +481,14 @@ function sms(m) {
 /* ---------------- built-in phone ---------------- */
 function phone(open) {
   $('phone').hidden = !open;
-  if (open) $('plugFrame').contentWindow?.postMessage({ type: 'open', host: 'builtin' }, '*');
+  if (open) {
+    $('plugFrame').contentWindow?.postMessage({ type: 'open', host: 'builtin' }, '*');
+    $('plugFrame').focus();
+  }
 }
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('phone').hidden) post('plug:close');
+});
 
 /* ---------------- toasts ---------------- */
 const TOAST_ICON = { success: 'check', error: 'x', warning: 'alert', inform: 'info' };
