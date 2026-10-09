@@ -429,6 +429,8 @@ Config.Cards = {
     expiryMonths     = 24,      -- How long a card lasts
 
     physicalItem = false,       -- Give an inventory item per card type
+    skinImages   = true,        -- ox_inventory: each card item shows its own style (card_<item>_<skin>.png
+                                -- from install/images). Turn off if you add a skin without rendering its images.
     stealable    = true,        -- Cards can be taken off a player by other scripts
 
     -- Contactless: payments under the threshold skip the PIN
@@ -437,6 +439,8 @@ Config.Cards = {
     -- Cards issued to one member of a shared account
     member = { maxPerMember = 1, limit = 2500 },
 
+    -- Card styles. A new one needs .bcard.<name> in web/css/style.css and web/phone/style.css,
+    -- and its item pictures from tools/cardicons.py (see install/items.md)
     skins = { 'teal', 'noir', 'chrome', 'crimson' },
 
     -- Spend limits a player can pick from on their own card

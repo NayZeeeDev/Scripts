@@ -126,7 +126,9 @@ Debit cards route the charge to the account, credit cards to the line. The calle
 
 ## 🎒 Inventory items
 
-Set `Config.Cards.physicalItem = true` and each card type hands out its own item, carrying the card id, holder and account in metadata. `install/items.md` has the block for ox_inventory, qb-inventory, qs-inventory and ESX, and `install/images/` has an image per card type.
+Set `Config.Cards.physicalItem = true` and each card type hands out its own item, carrying the card id, holder, account and last four digits in metadata. `install/items.md` has the block for ox_inventory, qb-inventory, qs-inventory and ESX.
+
+`install/images/` has a 3D icon per card type, plus one for every type in every style (`card_debit_teal.png`, `card_credit_chrome.png` …). On ox_inventory each card shows the style the player picked, and changes when they restyle it (`Config.Cards.skinImages`). Other inventories show the per-type image. The icons are drawn from the same colours as the cards in the app; `tools/cardicons.py` renders them again if you add a style.
 
 Every entry must be non-stackable — the `cardId` in the metadata is what ties an item to a specific card, and two cards sharing a stack would share an identity. The default ESX inventory keeps no metadata, so leave `physicalItem = false` there.
 
@@ -618,7 +620,7 @@ nayzeee-banking/
 │  ├─ install.sql        run this once
 │  ├─ uninstall.sql      drops every table
 │  ├─ items.md           card items for every inventory
-│  ├─ images/            card item images
+│  ├─ images/            card item images (3D, one per type and per style)
 │  └─ REPLACE_paycheck.lua   optional, pre-1.9 ESX only
 ├─ server/
 │  ├─ sv_bridge.lua      open — billing integrations
@@ -731,7 +733,7 @@ TriggerEvent('nz_bank:paycheck', source, amount, 'Police')
 | "The bank did not respond" | A server callback errored; check the server console for the SQL error above it |
 | Society tab missing | The job isn't in `Config.Accounts.societyAccess`, or the grade isn't listed |
 | ATM says you need a card | `Config.ATM.requireCard` is on and the personal account has no active card |
-| Cash doesn't move | Set `Config.UseOxInventory` to match your setup and check `Config.MoneyItem` |
+| Cash doesn't move | Set `Config.Inventory` to match your setup and check `Config.MoneyItem` |
 | Wages paid twice | `Config.Payroll.mode` is `bank` and the `paycheck.lua` patch was applied on top of it — use one or the other |
 | Society balance climbs back after wages | `mirrorSociety` is off, or `esx_addonaccount` is not running |
 | Balance differs between scripts | `mirrorBank` is off, or the other script writes straight to the database |

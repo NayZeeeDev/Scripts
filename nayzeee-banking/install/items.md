@@ -4,7 +4,12 @@ Only needed when `Config.Cards.physicalItem = true`. One item per card type in `
 
 Every entry must be **non-stackable**, because the `cardId` in its metadata is what ties the item to a specific card in the database. Two cards sharing a stack would share an identity.
 
-Images for all four are in `install/images/`. Copy them wherever your inventory serves item images, then restart the inventory resource.
+Images are in `install/images/`. Copy **all** of them wherever your inventory serves item images, then restart the inventory resource:
+
+- `card_debit.png`, `card_secured.png`, `card_credit.png`, `card_platinum.png`: the item's own picture
+- `card_<item>_<style>.png` (16 files): on ox_inventory each card is shown in the style the player picked in the app (teal, noir, chrome, crimson) and updates when they restyle it. Turn this off with `Config.Cards.skinImages = false`.
+
+Added a style to `Config.Cards.skins`? Add its colours to `tools/cardicons.py` and run `python3 tools/cardicons.py` (needs `pip install numpy pillow`) to render its images.
 
 ---
 

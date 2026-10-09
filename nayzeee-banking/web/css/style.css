@@ -442,7 +442,10 @@ tr:last-child td{border-bottom:0}
   .bcard{height:132px}
   .donut{width:136px;height:136px}
   .donut .mid b{font-size:22px}
-  .main{gap:11px;padding:16px 18px}
+  .main{gap:11px;padding:16px 18px;overflow-y:auto}
+  /* 1280x720 / 1366x768: let the sidebar and long pages (Loans, Settings) scroll instead of cutting off */
+  .side{overflow-y:auto}
+  .cols{min-height:auto}
 }
 
 /* checkboxes inside modals */

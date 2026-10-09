@@ -526,7 +526,8 @@ document.getElementById('veil').addEventListener('change', (e) => {
 });
 
 document.getElementById('veil').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
+  // Enter on a focused button or select does its own thing; never fire Confirm over "Keep it"
+  if (e.key === 'Enter' && !['BUTTON', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
     const btn = document.querySelector('[data-modal="confirm"]');
     if (btn) btn.click();
   }
@@ -1759,7 +1760,10 @@ async function loadPanelTx(id, accountId) {
 
 async function loadTransactions() {
   const acc = S.accountId || S.data.primary;
-  S.txResult = await post('nz_bank:getTransactions', acc, S.tx.page, S.tx.search, S.tx.category);
+  const res = await post('nz_bank:getTransactions', acc, S.tx.page, S.tx.search, S.tx.category);
+  // a timeout or server error returns {ok:false}; keep the page drawable instead of throwing on every render
+  S.txResult = (res && Array.isArray(res.rows)) ? res
+    : { rows: [], page: 1, pages: 1, total: 0, income: 0, spending: 0 };
   if (S.page === 'transactions') render2();
 }
 
@@ -1783,13 +1787,15 @@ async function loadPayroll(job) {
 async function loadStatement() {
   const card = visibleCards().find(c => c.id === S.selectedCard);
   if (!card || card.kind === 'debit') { S.statement = []; return; }
-  S.statement = await post('nz_bank:getStatement', card.id) || [];
+  const rows = await post('nz_bank:getStatement', card.id);
+  S.statement = Array.isArray(rows) ? rows : [];
   if (S.page === 'cards') document.getElementById('view').innerHTML = pageCards();
 }
 
 async function loadMembers() {
   if (!S.sharedId) return;
-  S.members = await post('nz_bank:getMembers', S.sharedId) || [];
+  const rows = await post('nz_bank:getMembers', S.sharedId);
+  S.members = Array.isArray(rows) ? rows : [];
   const acc = accountsOfType('shared').find(a => a.id === S.sharedId);
   if (acc && S.page === 'shared') {
     const view = document.getElementById('view');
@@ -2345,7 +2351,9 @@ function loanPayModal(loanId) {
         <button data-fill="${loan.remaining}">Everything</button>
       </div>`,
     onConfirm: async (v) => {
-      const res = await post('nz_bank:payLoan', loanId, parseInt(v.amount, 10));
+      const amount = parseInt(v.amount, 10);
+      if (!(amount > 0)) return toast('Not completed', 'Enter an amount above zero.', true);
+      const res = await post('nz_bank:payLoan', loanId, amount);
       closeModal();
       if (reply(res)) refresh();
     }

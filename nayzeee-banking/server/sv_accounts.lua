@@ -477,20 +477,31 @@ Bank.callback('nz_bank:renameAccount', function(src, accountId, label)
     return { ok = true, msg = 'Renamed.' }
 end)
 
-Bank.callback('nz_bank:closeShared', function(src, accountId)
+local function closeShared(src, accountId)
     local xPlayer = Bank.getPlayer(src)
     local acc, perms = Bank.access(src, accountId)
     if not acc or acc.type ~= 'shared' then return { ok = false, msg = 'Not a shared account.' } end
     if perms.role ~= 'owner' then return { ok = false, msg = 'Only the owner can close it.' } end
+    if acc.frozen == 1 then return { ok = false, msg = 'This account is frozen.' } end
+    if acc.balance < 0 then return { ok = false, msg = 'Clear the negative balance first.' } end
 
     if acc.balance > 0 then
         local personal = Bank.getPersonal(xPlayer.identifier)
-        Bank.debit(acc.id, acc.balance, { category = 'transfer', label = 'Account closed' })
+        local moved = Bank.debit(acc.id, acc.balance, { category = 'transfer', label = 'Account closed' })
+        if not moved then return { ok = false, msg = 'The balance changed. Try again.' } end
         Bank.credit(personal.id, acc.balance, { category = 'transfer', label = ('Closed %s'):format(acc.label) })
     end
 
-    MySQL.update.await('DELETE FROM nz_bank_accounts WHERE id = ?', { accountId })
+    -- money that landed while closing keeps the account open
+    local gone = MySQL.update.await('DELETE FROM nz_bank_accounts WHERE id = ? AND balance = 0', { acc.id })
+    if gone == 0 then return { ok = false, msg = 'Money arrived while closing. Try again.' } end
     return { ok = true, msg = 'Account closed and the balance moved to your personal account.' }
+end
+
+Bank.callback('nz_bank:closeShared', function(src, accountId)
+    local res, busy = Bank.serial('close:' .. tostring(Bank.id(accountId)), closeShared, src, accountId)
+    if res == false then return { ok = false, msg = busy } end
+    return res
 end)
 
 -- ═══════════════════════════════════════════════════════════
@@ -597,29 +608,31 @@ end)
 -- ═══════════════════════════════════════════════════════════
 --  PAYCHECK ROUTING
 -- ═══════════════════════════════════════════════════════════
-if Config.DirectDeposit.enabled then
-    AddEventHandler('esx:setJob', function() end) -- reserved
+-- Hand a paycheck to this resource: TriggerEvent('nz_bank:paycheck', src, amount, jobLabel)
+-- Server-side only. It is deliberately not a net event, or any client could pay itself.
+-- With direct deposit off, wages always land in the bank.
+AddEventHandler('nz_bank:paycheck', function(src, amount, jobLabel)
+    local xPlayer = Bank.getPlayer(src)
+    amount = Bank.round(amount)
+    if not xPlayer or amount <= 0 then return end
 
-    -- Hook the ESX salary payout: route to the bank when the player opted in.
-    AddEventHandler('nz_bank:paycheck', function(src, amount, jobLabel)
-        local xPlayer = Bank.getPlayer(src)
-        if not xPlayer then return end
-
+    local toBank = true
+    if Config.DirectDeposit.enabled then
         local s = MySQL.single.await('SELECT direct_deposit FROM nz_bank_settings WHERE identifier = ?',
             { xPlayer.identifier })
-        local toBank = s and s.direct_deposit == 1 or Config.DirectDeposit.defaultToBank
+        if s then toBank = s.direct_deposit == 1 else toBank = Config.DirectDeposit.defaultToBank end
+    end
 
-        if toBank then
-            local bonus = Bank.round(amount * Config.DirectDeposit.bonus)
-            local acc = Bank.getPersonal(xPlayer.identifier)
-            Bank.credit(acc.id, amount + bonus, {
-                category = 'payroll',
-                label    = ('Paycheck · %s'):format(jobLabel or xPlayer.job.label or 'Work')
-            })
-            Bank.notify(src, 'Paycheck', ('%s%s went into your account.'):format(Config.Currency, amount + bonus), 'success')
-        else
-            Bank.addCash(xPlayer, amount)
-            Bank.notify(src, 'Paycheck', ('%s%s in cash.'):format(Config.Currency, amount), 'success')
-        end
-    end)
-end
+    if toBank then
+        local bonus = Config.DirectDeposit.enabled and Bank.round(amount * Config.DirectDeposit.bonus) or 0
+        local acc = Bank.getPersonal(xPlayer.identifier)
+        Bank.credit(acc.id, amount + bonus, {
+            category = 'payroll',
+            label    = ('Paycheck · %s'):format(jobLabel or xPlayer.job.label or 'Work')
+        })
+        Bank.notify(src, 'Paycheck', ('%s%s went into your account.'):format(Config.Currency, amount + bonus), 'success')
+    else
+        Bank.addCash(xPlayer, amount)
+        Bank.notify(src, 'Paycheck', ('%s%s in cash.'):format(Config.Currency, amount), 'success')
+    end
+end)

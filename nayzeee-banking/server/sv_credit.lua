@@ -26,7 +26,7 @@ end
 
 --- Put a charge on a credit or secured card.
 --- Returns ok, message.
-function Bank.chargeCard(cardId, amount, label)
+local function chargeCardNow(cardId, amount, label)
     local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not card then return false, 'Card not found.' end
     if card.status ~= 'active' then return false, 'This card is not active.' end
@@ -63,7 +63,7 @@ function Bank.chargeCard(cardId, amount, label)
 end
 
 --- Pay a card balance down from an account.
-function Bank.payCard(src, cardId, amount, accountId, auto)
+local function payCardNow(src, cardId, amount, accountId, auto)
     local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not card then return false, 'Card not found.' end
     if card.kind == 'debit' then return false, 'Debit cards carry no balance.' end
@@ -102,6 +102,16 @@ function Bank.payCard(src, cardId, amount, accountId, auto)
     return true, balance > 0
         and ('Paid %s%s. %s%s still owed.'):format(Config.Currency, amount, Config.Currency, balance)
         or 'Card paid off.'
+end
+
+-- One card at a time: two charges racing on the same card would both pass the
+-- credit check, and a payment racing a charge would lose one of them.
+function Bank.chargeCard(cardId, ...)
+    return Bank.serial(Bank.cardKey(cardId), chargeCardNow, cardId, ...)
+end
+
+function Bank.payCard(src, cardId, ...)
+    return Bank.serial(Bank.cardKey(cardId), payCardNow, src, cardId, ...)
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -185,37 +195,46 @@ local function missStatement(card)
     end
 end
 
+--- One card's statement step, under the card's lock and re-read, so a payment
+--- made since the loop's query is counted.
+local function cycleCard(cardId)
+    local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
+    if not card then return end
+    -- a statement falls due
+    if card.due_at > 0 and os.time() >= card.due_at and card.min_payment > 0 then
+        local acc = Bank.getAccountById(card.account_id)
+        local owner = card.holder_identifier or (acc and acc.owner)
+        local paid = false
+
+        if true and owner and owner:find(':') then
+            local s = MySQL.single.await(
+                'SELECT auto_pay_loans FROM nz_bank_settings WHERE identifier = ?', { owner })
+            if s and s.auto_pay_loans == 1 and acc and acc.balance >= card.min_payment then
+                paid = select(1, payCardNow(nil, card.id, card.min_payment, card.account_id, true))
+            end
+        end
+
+        if not paid then missStatement(card) end
+
+    -- time to cut a fresh statement
+    elseif card.balance > 0 and (card.statement_at == 0 or os.time() >= card.statement_at) then
+        cutStatement(card)
+
+    elseif card.balance <= 0 and card.min_payment > 0 then
+        MySQL.update.await('UPDATE nz_bank_cards SET min_payment = 0, due_at = 0 WHERE id = ?', { card.id })
+    end
+end
+
 CreateThread(function()
     while true do
         Wait(60000)
 
         local cards = MySQL.query.await(
-            'SELECT * FROM nz_bank_cards WHERE kind != "debit"') or {}
+            'SELECT id FROM nz_bank_cards WHERE kind != "debit"') or {}
 
-        for _, card in ipairs(cards) do
-            -- a statement falls due
-            if card.due_at > 0 and os.time() >= card.due_at and card.min_payment > 0 then
-                local acc = Bank.getAccountById(card.account_id)
-                local owner = card.holder_identifier or (acc and acc.owner)
-                local paid = false
-
-                if true and owner and owner:find(':') then
-                    local s = MySQL.single.await(
-                        'SELECT auto_pay_loans FROM nz_bank_settings WHERE identifier = ?', { owner })
-                    if s and s.auto_pay_loans == 1 and acc and acc.balance >= card.min_payment then
-                        paid = select(1, Bank.payCard(nil, card.id, card.min_payment, card.account_id, true))
-                    end
-                end
-
-                if not paid then missStatement(card) end
-
-            -- time to cut a fresh statement
-            elseif card.balance > 0 and (card.statement_at == 0 or os.time() >= card.statement_at) then
-                cutStatement(card)
-
-            elseif card.balance <= 0 and card.min_payment > 0 then
-                MySQL.update.await('UPDATE nz_bank_cards SET min_payment = 0, due_at = 0 WHERE id = ?', { card.id })
-            end
+        for _, row in ipairs(cards) do
+            local ok, err = pcall(Bank.serial, Bank.cardKey(row.id), cycleCard, row.id)
+            if not ok then print('^1[nayzeee-banking]^7 card statement failed: ' .. tostring(err)) end
         end
     end
 end)

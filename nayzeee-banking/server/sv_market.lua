@@ -176,7 +176,16 @@ end
 -- ═══════════════════════════════════════════════════════════
 --  TRADING
 -- ═══════════════════════════════════════════════════════════
-Bank.callback('nz_bank:trade', function(src, side, assetId, spend, accountId)
+local trade
+
+-- one order at a time per player, so two sells can't both cash out the same units
+Bank.callback('nz_bank:trade', function(src, ...)
+    local res, busy = Bank.serial('trade:' .. src, trade, src, ...)
+    if res == false then return { ok = false, msg = busy } end
+    return res
+end)
+
+function trade(src, side, assetId, spend, accountId)
     if not Config.Market.enabled then return { ok = false, msg = 'Trading is closed.' } end
     local xPlayer = Bank.getPlayer(src)
     if not xPlayer then return { ok = false, msg = 'Player not found.' } end
@@ -272,7 +281,7 @@ Bank.callback('nz_bank:trade', function(src, side, assetId, spend, accountId)
     end
 
     return { ok = false, msg = 'Unknown order type.' }
-end)
+end
 
 -- ═══════════════════════════════════════════════════════════
 --  EXPORTS — let another market resource drive or read prices

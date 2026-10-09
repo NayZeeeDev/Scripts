@@ -137,8 +137,18 @@ function Bank.debug(...)
     if Config.Debug then print('^3[nayzeee-banking]^7', ...) end
 end
 
+--- NaN and infinity round to 0, so every `amount <= 0` check turns them away.
 function Bank.round(n)
-    return math.floor((tonumber(n) or 0) + 0.5)
+    n = tonumber(n)
+    if not n or n ~= n or n == math.huge or n == -math.huge then return 0 end
+    return math.floor(n + 0.5)
+end
+
+--- A row id as an integer, or nil. '5', '05' and 5.0 are all the same account,
+--- so they have to be the same lock too.
+function Bank.id(v)
+    v = tonumber(v)
+    return v and math.tointeger(v) or nil
 end
 
 function Bank.randomString(len)
@@ -189,6 +199,7 @@ local function inventory()
     end
     return want
 end
+Bank.inventory = inventory
 
 function Bank.getCash(xPlayer)
     local inv = inventory()
@@ -253,6 +264,7 @@ end
 
 -- ── locks: never let two writes race on one account ─────────
 function Bank.lock(id)
+    id = Bank.id(id) or id
     local tries = 0
     while Bank.locks[id] do
         Wait(25)
@@ -264,7 +276,23 @@ function Bank.lock(id)
 end
 
 function Bank.unlock(id)
-    Bank.locks[id] = nil
+    Bank.locks[Bank.id(id) or id] = nil
+end
+
+--- Run fn while holding `key`, so two requests for the same thing (one card, one
+--- player's trades) can't both read the old state and both act on it.
+--- Returns false + a message when the key stays busy.
+function Bank.serial(key, fn, ...)
+    if not Bank.lock(key) then return false, 'The bank is busy. Try again in a moment.' end
+    local res = table.pack(pcall(fn, ...))
+    Bank.unlock(key)
+    if not res[1] then error(res[2], 0) end
+    return table.unpack(res, 2, res.n)
+end
+
+--- Lock key for one card. '05' and 5 are the same card.
+function Bank.cardKey(cardId)
+    return 'card:' .. tostring(Bank.id(cardId))
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -383,6 +411,8 @@ end
 -- ═══════════════════════════════════════════════════════════
 --- @param opts table { category, label, actor, actorName, silent }
 function Bank.credit(accountId, amount, opts)
+    accountId = Bank.id(accountId)
+    if not accountId then return false, 'no_account' end
     amount = Bank.round(amount)
     if amount <= 0 then return false, 'bad_amount' end
     if not Bank.lock(accountId) then return false, 'busy' end
@@ -392,8 +422,9 @@ function Bank.credit(accountId, amount, opts)
     if acc.frozen == 1 then Bank.unlock(accountId) return false, 'frozen' end
 
     local newBal = acc.balance + amount
-    MySQL.update.await('UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
+    local wrote = pcall(MySQL.update.await, 'UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
     Bank.unlock(accountId)
+    if not wrote then return false, 'db_error' end
 
     Bank.logTx(accountId, 'in', amount, newBal, opts)
     Bank.pushRefresh(acc)
@@ -409,6 +440,8 @@ end
 --- @param opts table { category, label, actor, actorName, noOverdraft }
 function Bank.debit(accountId, amount, opts)
     opts = opts or {}
+    accountId = Bank.id(accountId)
+    if not accountId then return false, 'no_account' end
     amount = Bank.round(amount)
     if amount <= 0 then return false, 'bad_amount' end
 
@@ -443,8 +476,9 @@ function Bank.debit(accountId, amount, opts)
     end
 
     local newBal = acc.balance - amount
-    MySQL.update.await('UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
+    local wrote = pcall(MySQL.update.await, 'UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
     Bank.unlock(accountId)
+    if not wrote then return false, 'db_error' end
 
     Bank.logTx(accountId, 'out', amount, newBal, opts)
     Bank.pushRefresh(acc)

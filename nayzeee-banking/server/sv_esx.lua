@@ -223,22 +223,4 @@ AddEventHandler('esx:playerLoaded', function(src, xPlayer)
     end)
 end)
 
---- Hand a paycheck to this resource from anywhere, honouring direct deposit.
---- Useful if you patch paycheck.lua rather than switching modes.
-RegisterNetEvent('nz_bank:paycheck', function(target, amount, jobLabel)
-    local xPlayer = Bank.getPlayer(target or source)
-    if not xPlayer or not amount or amount <= 0 then return end
-
-    local settings = MySQL.single.await(
-        'SELECT direct_deposit FROM nz_bank_settings WHERE identifier = ?', { xPlayer.identifier })
-    local toBank = settings and settings.direct_deposit == 1 or Config.DirectDeposit.defaultToBank
-
-    if toBank then
-        local acc = Bank.getPersonal(xPlayer.identifier)
-        Bank.credit(acc.id, amount, {
-            category = 'payroll', label = ('Paycheck · %s'):format(jobLabel or 'Work')
-        })
-    else
-        Bank.addCash(xPlayer, amount)
-    end
-end)
+-- nz_bank:paycheck is handled in sv_accounts.lua (server-side only, never a net event)

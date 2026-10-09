@@ -55,6 +55,96 @@ local function serialiseCard(c, includePin)
     }
 end
 
+-- ═══════════════════════════════════════════════════════════
+--  PHYSICAL CARD ITEMS
+--  On ox_inventory every card carries its own picture
+--  (metadata.image = card_<type>_<skin>, from install/images)
+--  so the item looks like the card in the app. Other inventories
+--  show the item's default picture for that card type.
+-- ═══════════════════════════════════════════════════════════
+local CardItems = {}
+
+function CardItems.meta(card, accountNumber)
+    local t = Bank.cardType(card.card_type)
+    local last4 = tostring(card.card_number or ''):sub(-4)
+    return {
+        cardId      = card.id,
+        serial      = card.card_number,   -- a replaced card gets a new number, the old plastic stops matching
+        account     = accountNumber,
+        holder      = card.holder,
+        last4       = last4,
+        type        = t.label,
+        label       = ('%s •%s'):format(t.label, last4),
+        description = ('%s · ending %s'):format(card.holder or 'Unknown holder', last4),
+        image       = (Config.Cards.skinImages and t.item and card.skin)
+                      and ('%s_%s'):format(t.item, card.skin) or nil,
+    }
+end
+
+function CardItems.give(src, card, accountNumber, extra)
+    local t = Bank.cardType(card.card_type)
+    if not (Config.Cards.physicalItem and t.item and src) then return false end
+
+    local meta = CardItems.meta(card, accountNumber)
+    for k, v in pairs(extra or {}) do meta[k] = v end
+    local inv = Bank.inventory()
+    if inv == 'ox_inventory' then
+        return exports.ox_inventory:AddItem(src, t.item, 1, meta)
+    elseif inv == 'qs-inventory' then
+        return exports['qs-inventory']:AddItem(src, t.item, 1, nil, meta)
+    elseif inv == 'qb-inventory' then
+        return exports['qb-inventory']:AddItem(src, t.item, 1, false, meta, 'nayzeee-banking')
+    end
+    return false
+end
+
+--- Every copy of a card in an online player's ox_inventory.
+--- Only ox_inventory can be searched by metadata; elsewhere this is empty.
+function CardItems.find(cardId, onlySrc)
+    local found = {}
+    if not Config.Cards.physicalItem or Bank.inventory() ~= 'ox_inventory' then return found end
+
+    local list = onlySrc and { onlySrc } or GetPlayers()
+    for _, id in ipairs(list) do
+        local src = tonumber(id)
+        for _, item in pairs(exports.ox_inventory:GetInventoryItems(src) or {}) do
+            if item.metadata and item.metadata.cardId == cardId then
+                found[#found + 1] = { src = src, slot = item.slot, name = item.name, metadata = item.metadata }
+            end
+        end
+    end
+    return found
+end
+
+--- Repaint the card's items after its style or number changed.
+--- Old plastic from before a replacement is left as it is.
+function CardItems.refresh(card, accountNumber)
+    for _, it in ipairs(CardItems.find(card.id)) do
+        if CardItems.current(it.metadata, card) then
+            local meta = CardItems.meta(card, accountNumber)
+            meta.stolen = it.metadata.stolen
+            exports.ox_inventory:SetMetadata(it.src, it.slot, meta)
+        end
+    end
+end
+
+--- Is this item the card as it is now? Items from before serials existed count as current.
+function CardItems.current(meta, card)
+    return meta.serial == nil or meta.serial == card.card_number
+end
+
+function CardItems.take(it)
+    return exports.ox_inventory:RemoveItem(it.src, it.name, 1, nil, it.slot)
+end
+
+local function holderSource(card, fallback)
+    if card.holder_identifier then
+        local x = ESX.GetPlayerFromIdentifier(card.holder_identifier)
+        return x and x.source or nil
+    end
+    return fallback
+end
+
 --- Every card on every account this player can see.
 --- Joint cards (tied to one member) are visible to that member and,
 --- when true is on, to the account owner.
@@ -237,15 +327,8 @@ Bank.callback('nz_bank:createCard', function(src, accountId, pin, skin, memberId
 
     if Config.Cards.physicalItem and cardType.item then
         local target = holderId and ESX.GetPlayerFromIdentifier(holderId) or xPlayer
-        if target then
-            exports.ox_inventory:AddItem(target.source, cardType.item, 1, {
-                cardId  = id,
-                account = acc.account_number,
-                holder  = holderName,
-                last4   = 'xxxx',
-                type    = cardType.label
-            })
-        end
+        local card = target and MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { id })
+        if card then CardItems.give(target.source, card, acc.account_number) end
     end
 
     Bank.log('cards', 'Card issued',
@@ -257,7 +340,17 @@ Bank.callback('nz_bank:createCard', function(src, accountId, pin, skin, memberId
         or ('%s issued.'):format(cardType.label) }
 end)
 
-Bank.callback('nz_bank:updateCard', function(src, cardId, action, value)
+local updateCard
+
+-- one change at a time per card, so a double-clicked close can't refund the deposit twice
+Bank.callback('nz_bank:updateCard', function(src, cardId, ...)
+    if not Bank.id(cardId) then return { ok = false, msg = 'Card not found.' } end
+    local res, busy = Bank.serial(Bank.cardKey(cardId), updateCard, src, Bank.id(cardId), ...)
+    if res == false then return { ok = false, msg = busy } end
+    return res
+end)
+
+function updateCard(src, cardId, action, value)
     local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not card then return { ok = false, msg = 'Card not found.' } end
 
@@ -287,7 +380,10 @@ Bank.callback('nz_bank:updateCard', function(src, cardId, action, value)
         if card.kind ~= 'debit' and card.missed >= Config.CreditCards.missedBeforeFreeze and card.balance > 0 then
             return { ok = false, msg = 'Clear the outstanding balance to unfreeze this card.' }
         end
-        MySQL.update.await('UPDATE nz_bank_cards SET missed = 0 WHERE id = ?', { cardId })
+        -- blocking and unblocking must not wipe the late-payment count while money is owed
+        if card.balance <= 0 then
+            MySQL.update.await('UPDATE nz_bank_cards SET missed = 0 WHERE id = ?', { cardId })
+        end
         MySQL.update.await('UPDATE nz_bank_cards SET status = "active" WHERE id = ?', { cardId })
         return { ok = true, msg = 'Card unblocked.' }
 
@@ -333,6 +429,8 @@ Bank.callback('nz_bank:updateCard', function(src, cardId, action, value)
         for _, s in ipairs(Config.Cards.skins) do if s == value then valid = true break end end
         if not valid then return { ok = false, msg = 'Unknown card style.' } end
         MySQL.update.await('UPDATE nz_bank_cards SET skin = ? WHERE id = ?', { value, cardId })
+        card.skin = value
+        CardItems.refresh(card, acc.account_number)
         return { ok = true, msg = 'Card style updated.' }
 
     elseif action == 'delete' then
@@ -351,6 +449,7 @@ Bank.callback('nz_bank:updateCard', function(src, cardId, action, value)
         end
 
         MySQL.update.await('DELETE FROM nz_bank_cards WHERE id = ?', { cardId })
+        for _, it in ipairs(CardItems.find(cardId)) do CardItems.take(it) end
         Bank.log('cards', 'Card closed', ('**%s** closed a card on %s'):format(Bank.fullName(xPlayer), acc.label))
 
         return { ok = true, msg = card.deposit > 0
@@ -358,6 +457,9 @@ Bank.callback('nz_bank:updateCard', function(src, cardId, action, value)
             or 'Card closed.' }
 
     elseif action == 'replace' then
+        if card.kind ~= 'debit' and card.missed >= Config.CreditCards.missedBeforeFreeze and card.balance > 0 then
+            return { ok = false, msg = 'Clear the outstanding balance before replacing this card.' }
+        end
         if Config.Cards.replacementPrice > 0 then
             local ok = Bank.debit(card.account_id, Config.Cards.replacementPrice, {
                 category = 'fee', label = 'Card replaced',
@@ -365,19 +467,31 @@ Bank.callback('nz_bank:updateCard', function(src, cardId, action, value)
             })
             if not ok then return { ok = false, msg = 'Not enough in the account for a replacement.' } end
         end
+        card.card_number, card.expires = newCardNumber(), expiryString()
         MySQL.update.await(
             'UPDATE nz_bank_cards SET card_number = ?, status = "active", expires = ?, spent_today = 0 WHERE id = ?',
-            { newCardNumber(), expiryString(), cardId })
+            { card.card_number, card.expires, cardId })
+
+        -- new plastic for the holder; the old card they still carry is swapped out,
+        -- one that is somewhere else keeps the old number and no longer matches
+        local to = holderSource(card, src)
+        if to then
+            for _, it in ipairs(CardItems.find(cardId, to)) do CardItems.take(it) end
+            CardItems.give(to, card, acc.account_number)
+        end
         return { ok = true, msg = 'A replacement card has been issued.' }
     end
 
     return { ok = false, msg = 'Unknown action.' }
-end)
+end
 
 --- Verify a PIN. Wrong entries eat an attempt and eventually block the card.
 Bank.callback('nz_bank:verifyPin', function(src, cardId, pin)
-    local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
+    cardId = Bank.id(cardId)
+    local card = cardId and MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not card then return { ok = false, msg = 'Card not found.' } end
+    -- only someone who can see the card may guess at it, or anyone could lock everyone out
+    if not Bank.access(src, card.account_id) then return { ok = false, msg = 'Card not found.' } end
     if card.status ~= 'active' then return { ok = false, msg = 'This card is not active.' } end
 
     Bank.session[src] = Bank.session[src] or { pinOk = {}, attempts = {} }
@@ -404,6 +518,7 @@ end)
 
 Bank.callback('nz_bank:pinRequired', function(src, cardId, amount)
     if not Config.ATM.requirePin then return false end
+    cardId = Bank.id(cardId)
 
     -- with pinEveryUse on, a previous success never counts
     if not Config.ATM.pinEveryUse then
@@ -428,12 +543,26 @@ exports('markCardStolen', function(cardId, thiefSrc)
     local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not card or card.status ~= 'active' then return false end
 
+    local acc = Bank.getAccountById(card.account_id)
+
+    -- the thief ends up with the card itself: tagged if their script already moved it,
+    -- taken off whoever carries it otherwise, a fresh copy when it can't be found
     if Config.Cards.physicalItem and thiefSrc then
-        exports.ox_inventory:AddItem(thiefSrc, Config.MoneyItem, 1,
-            { cardId = card.id, stolen = true, account = card.account_id })
+        local copies, mine = CardItems.find(card.id), nil
+        for _, it in ipairs(copies) do
+            if it.src == thiefSrc and CardItems.current(it.metadata, card) then mine = it break end
+        end
+        if mine then
+            mine.metadata.stolen = true
+            exports.ox_inventory:SetMetadata(mine.src, mine.slot, mine.metadata)
+        else
+            for _, it in ipairs(copies) do
+                if CardItems.current(it.metadata, card) then CardItems.take(it) break end
+            end
+            CardItems.give(thiefSrc, card, acc and acc.account_number, { stolen = true })
+        end
     end
 
-    local acc = Bank.getAccountById(card.account_id)
     if acc and (acc.type == 'personal' or acc.type == 'shared') then
         local owner = ESX.GetPlayerFromIdentifier(acc.owner)
         if owner then
@@ -466,8 +595,7 @@ end)
 local inMachine = {}   -- [src] = { cardId, item, meta }
 
 local function cardItemSlot(src, cardId)
-    if not Config.UseOxInventory and Config.Inventory ~= 'ox_inventory' then return nil end
-    if GetResourceState('ox_inventory') ~= 'started' then return nil end
+    if Bank.inventory() ~= 'ox_inventory' then return nil end
 
     local items = exports.ox_inventory:GetInventoryItems(src)
     if not items then return nil end
@@ -487,39 +615,68 @@ Bank.callback('nz_bank:atmStart', function(src, cardId)
 
     local removed = exports.ox_inventory:RemoveItem(src, item.name, 1, item.metadata, item.slot)
     if removed then
-        inMachine[src] = { cardId = cardId, item = item.name, meta = item.metadata }
+        local xPlayer = Bank.getPlayer(src)
+        inMachine[src] = { cardId = cardId, item = item.name, meta = item.metadata,
+                           identifier = xPlayer and xPlayer.identifier }
     end
     return { ok = true, held = removed and true or false }
 end)
 
 --- Hand the card back. Called when the ATM closes, and on disconnect so a
 --- card is never swallowed by a crash.
-local function returnCard(src)
+--- A player who drops mid-session may already be gone from ox_inventory, so their
+--- card waits in KVP until they next load in. `quick` skips the database (resource stop
+--- and disconnects can't wait on a query).
+local function returnCard(src, dropped, quick)
     local held = inMachine[src]
     if not held then return end
     inMachine[src] = nil
 
-    if GetResourceState('ox_inventory') == 'started' then
-        exports.ox_inventory:AddItem(src, held.item, 1, held.meta)
+    -- the style or number may have changed while it sat in the machine
+    if not quick then
+        local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { held.cardId })
+        if card and CardItems.current(held.meta, card) then
+            local acc = Bank.getAccountById(card.account_id)
+            local meta = CardItems.meta(card, acc and acc.account_number or held.meta.account)
+            meta.stolen = held.meta.stolen
+            held.meta = meta
+        end
+    end
+
+    local given = not dropped and GetResourceState('ox_inventory') == 'started'
+        and exports.ox_inventory:AddItem(src, held.item, 1, held.meta)
+    if not given and held.identifier then
+        SetResourceKvp('nzb_card_return:' .. held.identifier, json.encode({ item = held.item, meta = held.meta }))
     end
 end
+
+AddEventHandler('esx:playerLoaded', function(src, xPlayer)
+    local key = 'nzb_card_return:' .. xPlayer.identifier
+    local saved = GetResourceKvpString(key)
+    if not saved then return end
+    local held = json.decode(saved)
+    SetTimeout(5000, function()   -- let ox_inventory load them first
+        if held and GetPlayerName(src) and exports.ox_inventory:AddItem(src, held.item, 1, held.meta) then
+            DeleteResourceKvp(key)
+        end
+    end)
+end)
 
 Bank.callback('nz_bank:atmEnd', function(src)
     returnCard(src)
 
     -- forget the PIN so the next visit asks again
     if Config.ATM.pinEveryUse and Bank.session[src] then
-        Bank.session[src].pinOk = {}
-        Bank.session[src].attempts = {}
+        Bank.session[src].pinOk = {}   -- wrong-PIN attempts are kept, or walking away would reset them
     end
     return { ok = true }
 end)
 
 AddEventHandler('playerDropped', function()
-    returnCard(source)
+    returnCard(source, true, true)
 end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    for src in pairs(inMachine) do returnCard(src) end
+    for src in pairs(inMachine) do returnCard(src, false, true) end
 end)
