@@ -27,6 +27,7 @@ Build the programs from source with the .NET 8 SDK:
 
 ```bash
 cd tools/hairkit
-dotnet publish -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o linux-x64
-dotnet publish -c Release -r win-x64   --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o win-x64
+FLAGS="--self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:PublishTrimmed=true -p:TrimMode=partial -p:DebugType=none"
+dotnet publish -c Release -r linux-x64 $FLAGS -o linux-x64
+dotnet publish -c Release -r win-x64   $FLAGS -o win-x64
 ```
