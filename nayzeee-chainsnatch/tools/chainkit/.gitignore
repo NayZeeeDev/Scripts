@@ -1,0 +1,6 @@
+bin/
+obj/
+# the published programs ship in the release zip (dotnet publish, see tools/README.md)
+linux-x64/
+win-x64/
+.roots.txt

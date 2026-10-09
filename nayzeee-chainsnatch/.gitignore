@@ -1,0 +1,6 @@
+# your chains (clothing files) stay on your server, not in git
+chains/*
+!chains/README.md
+# made on your server
+icons/*.png
+data/*.json

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chain Snatch</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="root" class="root">
+
+  <!-- toasts -->
+  <div id="toasts" class="toasts scaled" data-pos="top-right"></div>
+
+  <!-- key hint (holding, placing, picking up) -->
+  <div id="hint" class="hint scaled" hidden><div class="ch-frame"><div class="ch-in"><span class="hint-tx"></span></div></div></div>
+
+  <!-- tug of war -->
+  <div id="tug" class="tug scaled" hidden>
+    <div class="cl-frame"><div class="cl-in">
+      <div class="cl-top">
+        <div class="cl-side me"><span class="cl-role"></span><b class="cl-name"></b></div>
+        <div class="cl-mid">
+          <div class="tug-chain"><span class="tug-th"></span><span class="tug-lbl"></span></div>
+          <div class="cl-clock"><span class="cl-time">5.0</span><i>sec</i></div>
+        </div>
+        <div class="cl-side them"><span class="cl-role"></span><b class="cl-name"></b></div>
+      </div>
+      <div class="rope">
+        <div class="rope-half mine"></div>
+        <div class="rope-half theirs"></div>
+        <div class="rope-mid"></div>
+        <div class="rope-knot" data-icon="gem"></div>
+      </div>
+      <div class="cl-foot">
+        <div class="cl-mods"></div>
+        <div class="tug-mash"><span class="mash-key"><span class="tug-key">SPACE</span></span><span class="tug-say">Mash it</span></div>
+      </div>
+      <div class="cl-result" hidden><b></b><span></span></div>
+    </div></div>
+  </div>
+
+  <!-- chain menu -->
+  <div id="menu" class="menu" hidden></div>
+
+  <!-- chain studio: panels left + right, the character between them -->
+  <div id="studio" class="studio" hidden>
+    <div id="sdOrbit" class="sd-orbit"></div>
+    <div class="sd-guide" id="sdGuide" hidden><i></i><i></i><i></i><i></i></div>
+    <div id="sdLeft" class="sd-panel left scaled"></div>
+    <div id="sdRight" class="sd-panel right scaled"></div>
+    <div id="sdKeys" class="sd-keys scaled"></div>
+  </div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/tug.js"></script>
+<script src="js/menu.js"></script>
+<script src="js/keyer.js"></script>
+<script src="js/studio.js"></script>
+</body>
+</html>
