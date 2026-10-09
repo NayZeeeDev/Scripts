@@ -374,6 +374,42 @@ Admin settings are saved in the server's KVP, so they survive updates to the scr
 
 ---
 
+## 10. Display cases (shoe collections)
+
+Clear acrylic cases for showing pairs off: in a house, a shop, anywhere. Each holds one pair behind a
+side door, and they stack: on top of each other and side by side, as high and wide as you like.
+
+| Item | Holds |
+|---|---|
+| `nz_display` (Shoe display) | sneakers |
+| `nz_display_heel` (Heel display) | heels and ankle boots |
+| `nz_display_boot` (Boot display) | anything, tall boots too |
+
+The supplier sells them. Add the three items (install files, step 3) and copy the new icons
+(`nz_display*.png`) into your inventory's images.
+
+**Placing:** use the item. The see-through case follows where you look; **scroll** turns it, **E** places it.
+Aim at a case you already placed and the new one lines up on top of it (aim at its top) or right next to it
+(aim at a side), fronts flush, so collections stack into neat walls.
+
+**Third eye on a case:**
+- **Open door / Close door**: the side door swings open.
+- **Put a pair in**: pick a pair that fits; the door opens, the pair goes in, the door shuts.
+- **Look at the pair**: the inspect view (turn it, see size, condition and serial).
+- **Take the pair out**, **Pick up case** (only when it's empty, and nothing is stacked on it).
+
+Cases stay where they are after restarts, with the pairs inside, in the same routing bucket they were placed in,
+so instanced houses keep their own. Only the owner (or an admin) can put pairs in, take them out or pick the case
+up; anyone can open the door and look (`Config.Displays.anyoneCanTake` / `anyoneCanOpen`).
+
+For housing scripts that delete houses: `exports['nayzeee-sneakers']:RemovePlayerDisplays(identifier, true)` removes
+a player's cases (`true` gives the pairs inside back to them on their next login).
+
+Settings: `Config.Displays` in `config/config.lua` (sizes, which pairs fit which case, door speed, snapping,
+max per player).
+
+---
+
 ## Notifications and escrow
 
 Every notification goes through **ox_lib** (`lib.notify`), buyers' texts too when no phone takes them.

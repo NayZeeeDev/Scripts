@@ -22,6 +22,8 @@ end
 ---   minNormal = how flat the surface must be (default 0.8),
 ---   heading   = start heading (default: facing the player),
 ---   extra     = { model = hash, offset = vector3, rot = vector3 }  -- e.g. the box lid
+---   snap      = function(entityHit, coords, normal) -> coords, heading | nil: line the ghost up with
+---               something it's aimed at (display cases stack and sit side by side this way)
 ---   keep      = true: leave the ghost standing, solid, where it was placed, until the caller's done()
 ---               (the real object takes a moment to arrive from the server; this hides the wait)
 --- }
@@ -47,9 +49,14 @@ function Place.Ghost(model, opts)
     while true do
         Wait(0)
         for _, c in ipairs(NO_ATTACK) do DisableControlAction(0, c, true) end
-        local hit, _, coords, normal = lib.raycast.cam(opts.flags or 17, 4, range + 4.0)
+        local hit, ent, coords, normal = lib.raycast.cam(opts.flags or 17, 4, range + 4.0)
         if hit then pos = coords end
-        valid = hit and normal.z > (opts.minNormal or 0.8) and #(pos - GetEntityCoords(ped)) < range
+        local snapped = false
+        if hit and opts.snap and ent and ent ~= 0 then
+            local sp, sh = opts.snap(ent, coords, normal)
+            if sp then pos, heading, snapped = sp, sh, true end
+        end
+        valid = hit and (snapped or normal.z > (opts.minNormal or 0.8)) and #(pos - GetEntityCoords(ped)) < range
         SetEntityCoords(ghost, pos.x, pos.y, pos.z, false, false, false, false)
         SetEntityHeading(ghost, heading)
         local a = valid and 200 or 90

@@ -26,3 +26,8 @@ nz_authtag = { name = 'nz_authtag', label = 'Authentic tag', weight = 10, type =
 
 -- Cleaning
 nz_cleaning_kit = { name = 'nz_cleaning_kit', label = 'Cleaning kit', weight = 600, type = 'item', image = 'nz_cleaning_kit.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'Brush, cleaner and a cloth. Good for a few pairs' },
+
+-- Display cases (stackable, for a shoe collection)
+nz_display = { name = 'nz_display', label = 'Shoe display', weight = 1500, type = 'item', image = 'nz_display.png', unique = false, useable = true, shouldClose = true, combinable = nil, description = 'A clear case for one pair of sneakers. Stacks' },
+nz_display_heel = { name = 'nz_display_heel', label = 'Heel display', weight = 1500, type = 'item', image = 'nz_display_heel.png', unique = false, useable = true, shouldClose = true, combinable = nil, description = 'A clear case for one pair of heels or ankle boots. Stacks' },
+nz_display_boot = { name = 'nz_display_boot', label = 'Boot display', weight = 2200, type = 'item', image = 'nz_display_boot.png', unique = false, useable = true, shouldClose = true, combinable = nil, description = 'A big clear case: tall boots, or any pair. Stacks' },

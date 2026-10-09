@@ -172,3 +172,35 @@
     server = { export = 'nayzeee-sneakers.useItem' },
 },
 
+
+-- Display cases (stackable, for a shoe collection)
+
+['nz_display'] = {
+    label = 'Shoe display',
+    weight = 1500,
+    stack = true,
+    close = true,
+    consume = 0,
+    description = 'A clear case for one pair of sneakers. Stacks',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+['nz_display_heel'] = {
+    label = 'Heel display',
+    weight = 1500,
+    stack = true,
+    close = true,
+    consume = 0,
+    description = 'A clear case for one pair of heels or ankle boots. Stacks',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+['nz_display_boot'] = {
+    label = 'Boot display',
+    weight = 2200,
+    stack = true,
+    close = true,
+    consume = 0,
+    description = 'A big clear case: tall boots, or any pair. Stacks',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},

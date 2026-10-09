@@ -33,6 +33,9 @@ static class Scanner
     static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase)
         { ".git", "node_modules", "cache", "server-data-cache", "logs", "nayzeee-sneakers-props" };
 
+    /// <summary>More folder names to leave out (e.g. nayzeee-sneakers itself when scanning a whole server).</summary>
+    public static readonly HashSet<string> ExtraSkip = new(StringComparer.OrdinalIgnoreCase);
+
     static readonly HashSet<string> Generic = new(StringComparer.OrdinalIgnoreCase)
     {
         "stream", "male", "female", "[male]", "[female]", "mp_m_freemode_01", "mp_f_freemode_01", "feet", "shoes",
@@ -82,7 +85,7 @@ static class Scanner
             try { files = Directory.GetFiles(dir); dirs = Directory.GetDirectories(dir); } catch { }
             foreach (var f in files) yield return f;
             foreach (var d in dirs)
-                if (!SkipDirs.Contains(Path.GetFileName(d))) stack.Push(d);
+                if (!SkipDirs.Contains(Path.GetFileName(d)) && !ExtraSkip.Contains(Path.GetFileName(d))) stack.Push(d);
         }
     }
 

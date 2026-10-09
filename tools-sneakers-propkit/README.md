@@ -14,6 +14,8 @@ resource (nothing here ships to customers, and the props are escrow locked).
 | `propkit/specs/` | The debrand settings used for each branded pack, as examples for new ones |
 | `propkit/render_blender.py` | Renders previews and inventory icons |
 | `propkit/material_icons.py` | Models and renders the crafting material icons |
+| `propkit/displays.py` | Models the clear display cases (three sizes, side door, glass_pv acrylic with frosted edges) as CodeWalker XML |
+| `propkit/render_displays.py` | Renders the display case preview and the three item icons |
 | `codewalker/export` | Reads `.ydd` / `.ytd` / `.ytyp` files with CodeWalker.Core: `inspect`, `ydd2xml`, `ytd2dds`, and `ytdreplace` (puts cleaned textures back into a `.ytd`, keeping names and flags) |
 | `codewalker/import` | Runs CodeWalker's own XML importer, turning `.ydr.xml` / `.ytyp.xml` into game files, then loads them back to check them |
 

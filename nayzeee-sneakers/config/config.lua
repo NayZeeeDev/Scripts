@@ -154,6 +154,39 @@ Config.Box = {
     cleanupOnDrop    = true,    -- remove a player's placed boxes when they leave
 }
 
+-- ██████╗ ██╗███████╗██████╗ ██╗      █████╗ ██╗   ██╗
+-- ██╔══██╗██║██╔════╝██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝
+-- ██║  ██║██║███████╗██████╔╝██║     ███████║ ╚████╔╝
+-- ██║  ██║██║╚════██║██╔═══╝ ██║     ██╔══██║  ╚██╔╝
+-- ██████╔╝██║███████║██║     ███████╗██║  ██║   ██║
+-- ╚═════╝ ╚═╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝
+
+-- Clear display cases for a shoe collection: place them anywhere (houses too), stack them as high and
+-- wide as you like, open the side door and put a pair in. They stay where they are after restarts, in
+-- the same routing bucket they were placed in (so instanced houses keep their own).
+Config.Displays = {
+    Enabled          = true,
+    Types = {
+        -- size = outside width x depth x height (m). fits = which pairs (by box size) go in it.
+        shoe = { label = 'Shoe display', item = 'nz_display',      model = `nzs_display`,      door = `nzs_display_door`,
+                 size = vector3(0.37, 0.32, 0.235), fits = { shoe = true } },
+        heel = { label = 'Heel display', item = 'nz_display_heel', model = `nzs_display_heel`, door = `nzs_display_heel_door`,
+                 size = vector3(0.44, 0.33, 0.17),  fits = { heel = true } },
+        boot = { label = 'Boot display', item = 'nz_display_boot', model = `nzs_display_boot`, door = `nzs_display_boot_door`,
+                 size = vector3(0.55, 0.54, 0.21),  fits = { shoe = true, heel = true, boot = true } },
+    },
+    floor            = 0.006,   -- where the pair rests inside
+    openAngle        = 100.0,   -- how far the side door swings
+    openTime         = 550,
+    closeTime        = 450,
+    snap             = true,    -- aiming at a case while placing lines the new one up on top of it or beside it
+    maxPerPlayer     = 60,
+    anyoneCanOpen    = true,    -- anyone can open the door and look at the pair
+    anyoneCanTake    = false,   -- false = only the owner (or admins) can put pairs in, take them out or pick the case up
+    interactDistance = 2.5,
+    streamDistance   = 40.0,
+}
+
 -- The shoes floating in and out of the box
 Config.Float = {
     height  = 0.42,             -- how far above the box they start / finish

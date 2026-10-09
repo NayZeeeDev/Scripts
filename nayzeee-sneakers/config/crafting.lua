@@ -177,5 +177,8 @@ Config.Supplier = {
         nz_heelbox_empty = { label = 'Empty heel box',  price = 15 },
         nz_bootbox_empty = { label = 'Empty boot box',  price = 22 },
         nz_cleaning_kit  = { label = 'Cleaning kit',    price = 120 },
+        nz_display       = { label = 'Shoe display',    price = 85 },
+        nz_display_heel  = { label = 'Heel display',    price = 90 },
+        nz_display_boot  = { label = 'Boot display',    price = 120 },
     },
 }

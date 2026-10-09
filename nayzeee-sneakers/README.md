@@ -12,6 +12,7 @@ Sneaker reselling for FiveM: make pairs (real or fake), wear them, keep them cle
 | 4. Dirt, wear and cleaning | **done** |
 | 5. Selling: Plug app on lb-phone, NPC meetups on foot or by car, legit checks, handover cinematic, dispatch, hype, rep | **done** |
 | 6. Sneaker Studio: the server turns its clothing shoes into props (sneakerkit); `/sneakerstudio` is a chroma-box photo studio like wig snatch's, and spots new and removed shoes and puts them on sale | **done** |
+| 7. Display cases: clear stackable cases for shoe collections (houses too), side door, saved across restarts per routing bucket | **done** |
 
 ## Supported
 

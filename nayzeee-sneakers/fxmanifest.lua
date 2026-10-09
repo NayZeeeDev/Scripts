@@ -29,6 +29,7 @@ client_scripts {
     'client/camera.lua',
     'client/place.lua',
     'client/boxes.lua',
+    'client/displays.lua',
     'client/shoes.lua',
     'client/dirt.lua',
     'client/cleaning.lua',
@@ -49,6 +50,7 @@ server_scripts {
     'bridge/server/dispatch.lua',
     'server/items.lua',
     'server/boxes.lua',
+    'server/displays.lua',
     'server/wear.lua',
     'server/xp.lua',
     'server/stats.lua',
@@ -99,6 +101,7 @@ data_file 'DLC_ITYP_REQUEST' 'stream/nzs_box_boot/nzs_box_boot.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nzs_box_heel/nzs_box_heel.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nzs_court/nzs_court.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nzs_crevis/nzs_crevis.ytyp'
+data_file 'DLC_ITYP_REQUEST' 'stream/nzs_display/nzs_display.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nzs_cup/nzs_cup.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nzs_fang5/nzs_fang5.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nzs_maisie/nzs_maisie.ytyp'
