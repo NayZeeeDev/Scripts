@@ -1,0 +1,8 @@
+tools/nz_cpuchip_builder/preview/node_modules
+tools/nz_cpuchip_builder/preview/renders/
+tools/nz_cpuchip_builder/out/
+__pycache__/
+*.pyc
+tools/CodeWalker/
+tools/cwtool/bin/
+tools/cwtool/obj/

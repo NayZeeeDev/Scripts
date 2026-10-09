@@ -1,0 +1,8 @@
+{
+  "name": "nz-cpuchip-preview",
+  "private": true,
+  "type": "module",
+  "description": "Headless three.js preview renderer for the nz_prop_cpu_chip build output",
+  "scripts": { "render": "node render.mjs --assets ../out/preview --out ../out/renders" },
+  "dependencies": { "three": "0.170.0", "playwright": "1.56.1" }
+}

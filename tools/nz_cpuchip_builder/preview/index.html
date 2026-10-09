@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>nz_prop_cpu_chip preview</title>
+<style>html,body{margin:0;background:#15171b;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const q = new URLSearchParams(location.search);
+const view = q.get('view') || 'iso';
+const transparent = q.get('transparent') === '1';
+const size = parseInt(q.get('size') || '1024', 10);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: transparent, preserveDrawingBuffer: true });
+renderer.setSize(size, size);
+renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+if (!transparent) scene.background = new THREE.Color(0x15171b);
+else { document.documentElement.style.background = 'transparent'; document.body.style.background = 'transparent'; renderer.setClearColor(0x000000, 0); }
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const tl = new THREE.TextureLoader();
+const load = (f, srgb) => new Promise((res, rej) => tl.load(f, t => { t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.flipY = false; t.anisotropy = 8; res(t); }, undefined, rej));
+
+const mesh = await (await fetch('./assets/mesh.json')).json();
+const [map, normalMap, mr] = await Promise.all([
+  load('./assets/nz_prop_cpu_chip_d.png', true),
+  load('./assets/nz_prop_cpu_chip_n.png', false),
+  load('./assets/nz_prop_cpu_chip_mr.png', false),
+]);
+
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.Float32BufferAttribute(mesh.positions, 3));
+geo.setAttribute('normal', new THREE.Float32BufferAttribute(mesh.normals, 3));
+geo.setAttribute('tangent', new THREE.Float32BufferAttribute(mesh.tangents, 4));
+geo.setAttribute('uv', new THREE.Float32BufferAttribute(mesh.uvs, 2));
+geo.setIndex(mesh.indices);
+geo.computeBoundingBox();
+
+const mat = new THREE.MeshStandardMaterial({
+  map, normalMap, roughnessMap: mr, metalnessMap: mr, metalness: 1.0, roughness: 1.0,
+  normalScale: new THREE.Vector2(1, -1),   // DirectX-style (GTA) normal map
+});
+const obj = new THREE.Mesh(geo, mat);
+scene.add(obj);
+
+const bb = geo.boundingBox, c = new THREE.Vector3(); bb.getCenter(c);
+const ext = new THREE.Vector3(); bb.getSize(ext);
+const R = Math.max(ext.x, ext.z) * 0.78;
+
+// a dark "desk" plane so the chip casts a shadow (not in icon mode)
+if (!transparent) {
+  const desk = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.9, metalness: 0 }));
+  desk.rotation.x = -Math.PI / 2; desk.position.y = bb.min.y - 0.0002; desk.receiveShadow = true;
+  if (view !== 'bottom') scene.add(desk);
+}
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(0.3, 0.6, 0.4); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048); key.shadow.camera.left = key.shadow.camera.bottom = -0.05; key.shadow.camera.right = key.shadow.camera.top = 0.05; key.shadow.camera.near = 0.01; key.shadow.camera.far = 2;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xbfd4ff, 0.6); fill.position.set(-0.5, 0.3, -0.2); scene.add(fill);
+scene.add(new THREE.AmbientLight(0xffffff, 0.15));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; obj.castShadow = true; obj.receiveShadow = true;
+
+const cam = new THREE.PerspectiveCamera(28, 1, 0.001, 10);
+const dist = R / Math.tan(THREE.MathUtils.degToRad(14)) * 1.15;
+const views = {
+  iso:    [0.55, 0.75, 0.80],
+  top:    [0.02, 1.00, 0.30],
+  bottom: [0.55, -0.75, 0.80],
+  side:   [0.95, 0.22, 0.75],
+  icon:   [0.50, 0.80, 0.85],
+};
+const dir = new THREE.Vector3(...(views[view] || views.iso)).normalize();
+cam.position.copy(c).addScaledVector(dir, dist);
+cam.lookAt(c);
+renderer.render(scene, cam);
+window.__done = true;
+</script>
+</body>
+</html>
