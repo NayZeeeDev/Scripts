@@ -159,3 +159,25 @@
     close = true,
     description = 'Makes a pair the real thing',
 },
+
+-- Cleaning and the burner phone
+
+['nz_cleaning_kit'] = {
+    label = 'Cleaning kit',
+    weight = 600,
+    stack = false,
+    close = true,
+    consume = 0,
+    description = 'Brush, cleaner and a cloth. Good for a few pairs',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+['nz_burner'] = {
+    label = 'Burner phone',
+    weight = 150,
+    stack = false,
+    close = true,
+    consume = 0,
+    description = 'One contact saved: Plug',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},

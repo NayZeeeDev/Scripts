@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plug</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="plug.css">
+</head>
+<body class="plug">
+<div class="app">
+  <header class="ph-bar">
+    <div class="mark"></div>
+    <div class="ph-title">
+      <div class="title-txt">PLUG</div>
+      <div class="sub" id="pSub"></div>
+    </div>
+    <span class="grow"></span>
+    <span class="tag live" id="pRep"></span>
+    <button class="pill-close" id="pClose" hidden>Close</button>
+  </header>
+
+  <section class="ph-deal" id="pDeal" hidden></section>
+
+  <main class="ph-body" id="pBody"></main>
+
+  <nav class="ph-tabs" id="pTabs">
+    <button data-tab="offers" class="on"><span data-icon="chat"></span>Offers<i class="badge" id="pBadge" hidden></i></button>
+    <button data-tab="stash"><span data-icon="box"></span>Stash</button>
+    <button data-tab="hype"><span data-icon="flame"></span>Hype</button>
+    <button data-tab="me"><span data-icon="user"></span>Profile</button>
+  </nav>
+</div>
+<script src="plug.js"></script>
+</body>
+</html>

@@ -23,3 +23,7 @@ nz_thread = { name = 'nz_thread', label = 'Waxed thread', weight = 50, type = 'i
 nz_glue = { name = 'nz_glue', label = 'Shoe glue', weight = 200, type = 'item', image = 'nz_glue.png', unique = false, useable = false, shouldClose = true, combinable = nil, description = 'Holds a sole on for good' },
 nz_laces = { name = 'nz_laces', label = 'Laces', weight = 20, type = 'item', image = 'nz_laces.png', unique = false, useable = false, shouldClose = true, combinable = nil, description = 'One pair of laces' },
 nz_authtag = { name = 'nz_authtag', label = 'Authentic tag', weight = 10, type = 'item', image = 'nz_authtag.png', unique = false, useable = false, shouldClose = true, combinable = nil, description = 'Makes a pair the real thing' },
+
+-- Cleaning and the burner phone
+nz_cleaning_kit = { name = 'nz_cleaning_kit', label = 'Cleaning kit', weight = 600, type = 'item', image = 'nz_cleaning_kit.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'Brush, cleaner and a cloth. Good for a few pairs' },
+nz_burner = { name = 'nz_burner', label = 'Burner phone', weight = 150, type = 'item', image = 'nz_burner.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'One contact saved: Plug' },

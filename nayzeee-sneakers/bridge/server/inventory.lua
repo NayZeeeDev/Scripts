@@ -102,6 +102,20 @@ else
     Inv.RegisterUsable = CustomInventory.RegisterUsable
 end
 
+--- Replace the metadata of the item in `slot`. Inventories without a way to edit
+--- an item in place get it taken out and put back (it may move slot).
+function Inv.SetMetadata(src, slot, name, metadata)
+    if inv == 'ox' then
+        exports.ox_inventory:SetMetadata(src, slot, metadata)
+        return true
+    end
+    if inv == 'custom' and CustomInventory.SetMetadata then
+        return CustomInventory.SetMetadata(src, slot, metadata)
+    end
+    if not Inv.Remove(src, name, 1, slot) then return false end
+    return Inv.Add(src, name, 1, metadata)
+end
+
 --- First slot holding `name`, or nil
 function Inv.Find(src, name)
     return Inv.List(src, name)[1]

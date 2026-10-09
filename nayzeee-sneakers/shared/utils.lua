@@ -1,5 +1,8 @@
 Shared = {}
 
+-- Text for the chosen language (locales/*.lua), falling back to English for anything missing
+Config.Text = setmetatable(Locales[Config.Locale] or {}, { __index = Locales.en })
+
 local SERIAL_CHARS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 
 local function checksum(body)
@@ -53,6 +56,8 @@ function Shared.Describe(meta)
         ('Serial %s'):format(meta.serial or '—'),
     }
     if dirt >= 5 then lines[#lines + 1] = ('Dirt %d%%'):format(dirt) end
+    local km = tonumber(meta.km) or 0
+    if km >= 0.1 then lines[#lines + 1] = ('Worn %.1f km'):format(km) end
     return table.concat(lines, '\n')
 end
 
@@ -149,6 +154,33 @@ end
 --- Display name for any item this script knows about
 function Shared.ItemLabel(name)
     if Config.Materials[name] then return Config.Materials[name].label end
+    if Config.Supplier.Extra and Config.Supplier.Extra[name] then return Config.Supplier.Extra[name].label end
     if Config.Tables.items[name] then return Config.Tables.items[name].label end
     return name
+end
+
+--------------------------------------------------------------------------------
+-- Wear
+--------------------------------------------------------------------------------
+
+local GRADE = { DS = 1, VNDS = 2, USED = 3, BEAT = 4 }
+
+--- Condition after `km` of wear. A pair never gets better than it already is.
+function Shared.WearCondition(km, current)
+    local grade = 'DS'
+    for _, c in ipairs({ 'VNDS', 'USED', 'BEAT' }) do
+        if km > Config.WearOut[c] then grade = c end
+    end
+    if GRADE[current] and GRADE[current] > GRADE[grade] then return current end
+    return grade
+end
+
+--- Everything the supplier sells: materials plus Config.Supplier.Extra
+function Shared.SupplierGoods()
+    local out = {}
+    for name, m in pairs(Config.Materials) do out[name] = m end
+    for name, m in pairs(Config.Supplier.Extra or {}) do
+        if name ~= Config.Items.burner or Config.Phone.NeedItem then out[name] = m end
+    end
+    return out
 end

@@ -134,6 +134,7 @@ lib.callback.register('nayzeee-sneakers:craftFinish', function(src, token, resul
     local gain = (C.xp[box] or C.xp.shoe) * (s.real and C.xp.realBonus or 1)
     if failed == 0 and passed > 0 then gain = gain + C.xp.perfectBonus end
     XP.Add(src, gain)
+    Stats.Add(src, { made = 1 })
 
     return true, {
         name = Shared.ShoeName(meta),
@@ -166,9 +167,10 @@ end)
 lib.callback.register('nayzeee-sneakers:buy', function(src, cart)
     if not S.enabled or type(cart) ~= 'table' or not nearSupplier(src) then return false end
     local level = XP.Level(src)
+    local goods = Shared.SupplierGoods()
     local total, lines = 0, {}
     for name, qty in pairs(cart) do
-        local m = Config.Materials[name]
+        local m = goods[name]
         qty = math.floor(tonumber(qty) or 0)
         if m and qty > 0 then
             if qty > S.maxPerItem then return false end
@@ -184,7 +186,7 @@ lib.callback.register('nayzeee-sneakers:buy', function(src, cart)
     end
     local refund = 0
     for _, l in ipairs(lines) do
-        if not Inv.Add(src, l.name, l.qty) then refund = refund + Config.Materials[l.name].price * l.qty end
+        if not Inv.Add(src, l.name, l.qty) then refund = refund + goods[l.name].price * l.qty end
     end
     if refund > 0 then
         Bridge.AddMoney(src, S.account, refund, 'nayzeee-sneakers refund')

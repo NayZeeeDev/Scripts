@@ -36,14 +36,37 @@ AddEventHandler('onClientResourceStart', function(res)
     if loaded then fireLoaded() end
 end)
 
-function Bridge.FrameworkNotify(text, kind)
-    if fw == 'qb' then
-        TriggerEvent('QBCore:Notify', text, kind == 'inform' and 'primary' or kind)
-    elseif fw == 'qbx' then
-        exports.qbx_core:Notify(text, kind)
-    elseif fw == 'esx' then
+--------------------------------------------------------------------------------
+-- NOTIFICATIONS   Config.Notify ('nui' is handled in client/ui.lua)
+--------------------------------------------------------------------------------
+
+local function running(r) return GetResourceState(r) == 'started' end
+
+local function notifySystem()
+    local want = Config.Notify
+    if want ~= 'auto' then return want end
+    if running('nayzeee-notify') then return 'nayzeee' end
+    if running('okokNotify') then return 'okok' end
+    return 'ox'
+end
+
+function Bridge.Notify(text, kind, title, duration)
+    kind = kind or 'inform'
+    local sys = notifySystem()
+    if sys == 'nayzeee' then
+        exports['nayzeee-notify']:Notify({ title = title, message = text, type = kind == 'inform' and 'info' or kind, duration = duration })
+    elseif sys == 'okok' then
+        exports['okokNotify']:Alert(title or 'Sneakers', text, duration or 5000, kind == 'inform' and 'info' or kind)
+    elseif sys == 'esx' and fw == 'esx' then
         TriggerEvent('esx:showNotification', text)
+    elseif sys == 'qb' and fw == 'qb' then
+        TriggerEvent('QBCore:Notify', text, kind == 'inform' and 'primary' or kind)
+    elseif sys == 'qb' and fw == 'qbx' then
+        exports.qbx_core:Notify(text, kind)
+    elseif sys == 'custom' then
+        -- put your own notification call here
+        print(('[nayzeee-sneakers] %s'):format(text))
     else
-        lib.notify({ description = text, type = kind })
+        lib.notify({ title = title, description = text, type = kind, duration = duration })
     end
 end

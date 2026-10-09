@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<!-- ═══════════ cinematic letterbox + subtitles ═══════════ -->
+<div id="cine"><i></i><i></i>
+  <div class="cine-sub" id="cineSub"><b id="cineWho"></b><span id="cineText"></span></div>
+  <div class="cine-skip" id="cineSkip"><span class="key">ENTER</span><span id="cineSkipText">Skip</span></div>
+</div>
 
 <!-- ═══════════ action menu / pair picker ═══════════ -->
 <div class="win menu" id="menu" hidden>
@@ -184,6 +187,39 @@
       <div class="meter"><i id="rsBar"></i></div>
     </div>
   </div></div>
+</div>
+
+<!-- ═══════════ deal in progress ═══════════ -->
+<div class="win dealhud" id="dealHud" hidden>
+  <div class="frame"><div class="shell">
+    <div class="bar slim">
+      <div class="bar-brand"><div class="mark sm"></div><div class="title-txt">DEAL</div></div>
+      <span class="chip" id="dhTimer"></span>
+    </div>
+    <div class="main">
+      <div class="who">
+        <div class="av big"><img id="dhImg" alt=""></div>
+        <div class="who-txt"><b id="dhPair"></b><span id="dhSize"></span></div>
+      </div>
+      <table class="facts">
+        <tr><td>Buyer</td><td><b id="dhBuyer"></b></td></tr>
+        <tr><td>Offer</td><td><b id="dhPrice" class="teal"></b></td></tr>
+        <tr><td>Meet</td><td><b id="dhMeet"></b></td></tr>
+      </table>
+      <div class="dh-status"><span class="dot"></span><span id="dhStatus"></span></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ═══════════ results banner ═══════════ -->
+<div id="banner" hidden></div>
+
+<!-- ═══════════ texts (when no phone takes them) ═══════════ -->
+<div id="sms"></div>
+
+<!-- ═══════════ built-in phone: the Plug app ═══════════ -->
+<div class="phone" id="phone" hidden>
+  <div class="frame"><div class="shell"><iframe id="plugFrame" src="plug.html" title="Plug"></iframe></div></div>
 </div>
 
 <!-- key hint -->

@@ -1,19 +1,21 @@
 # nayzeee-sneakers: How To Use It
 
-This covers the shoes themselves (shoe items, shoe boxes, inspecting a pair and wearing it) and
-crafting (tables, materials, the supplier, fakes and XP). Dirt and cleaning, and selling, come next.
+Everything the script does: shoe items and boxes, wearing, crafting real and fake pairs, dirt and
+cleaning, and selling to NPC buyers through a phone app with a handover cinematic.
 
 ---
 
 ## 1. Install
 
 1. Put the `nayzeee-sneakers` folder in your `resources`.
-2. In `server.cfg`, start it **after** ox_lib, your framework, your inventory and ox_target:
+2. In `server.cfg`, start it **after** ox_lib, your framework, your inventory, your target and your phone:
    ```
    ensure ox_lib
    ensure ox_target
+   ensure lb-phone
    ensure nayzeee-sneakers
    ```
+   Target can be ox_target, qb-target or interact (or none: you get a key prompt). The phone is optional.
 3. **Add the items** to your inventory:
    - **ox_inventory** (Qbox, ESX, or QB with ox): paste `install/ox_items.lua` into `ox_inventory/data/items.lua`.
    - **qb-inventory** (also ps-inventory and lj-inventory): paste `install/qb_items.lua` into `qb-core/shared/items.lua`.
@@ -29,6 +31,15 @@ crafting (tables, materials, the supplier, fakes and XP). Dirt and cleaning, and
    ```
 6. **Crafting tables:** install the **Dragons Lab Shoe Table Pack** (see section 5).
 7. Restart the server, then **close FiveM and clear your cache**.
+
+### The config files
+| File | What's in it |
+|---|---|
+| `config/config.lua` | Framework, inventory, notifications, target, **phone**, **dispatch**, admin commands, boxes, wearing, **dirt**, **cleaning**, Discord logs |
+| `config/shoes.lua` | The shoe models, colourways, prices and clothing drawables |
+| `config/crafting.lua` | Tables, materials, recipes, crafting stages, levels, the supplier |
+| `config/selling.lua` | Selling, buyer types, legit checks, meet spots, the cinematic, hype, rep, police |
+| `locales/en.lua` | Every bit of text players see. Copy it to translate |
 
 > **ESX:** you need ox_inventory. ESX's default inventory can't store the per-pair details (size, serial, real/fake).
 
@@ -97,6 +108,7 @@ Use the **Shoes** item and pick from the menu:
 - **Inspect**: the pair appears in front of your eyes. Hold left mouse and drag to turn it, scroll to zoom, and press Backspace to put it away.
 - **Put them on**: you kneel, the camera looks at your feet, and the shoes go on. To take them off, type `/shoesoff`.
 - **Box them up** (needs the right empty box): the box goes down, the lid opens, the shoes float in and the lid closes.
+- **Clean them** (needs a cleaning kit, shows when they're dirty): see section 6.
 
 ### Using a box
 Use **Boxed shoes** or an **empty box** from your inventory to put it on the ground in front of you. Then target it:
@@ -131,8 +143,9 @@ Want a table that's always there, like in a shop? Add it to `Config.Tables.fixed
 
 ### Materials and the supplier
 The **Shoe supplies** guy (clipboard icon on the map, Legion Square by default) sells everything:
-leather, mesh fabric, rubber soles, heel blocks, thread, glue, laces and **authentic tags**.
-Move him with `Config.Supplier.coords`. Prices are in `Config.Materials`.
+leather, mesh fabric, rubber soles, heel blocks, thread, glue, laces and **authentic tags**, plus empty boxes,
+cleaning kits and (if you use it) the burner phone. Move him with `Config.Supplier.coords`.
+Prices are in `Config.Materials` and `Config.Supplier.Extra`.
 
 ### Making a pair
 1. Target your table and pick **Use shoe table**.
@@ -145,7 +158,7 @@ The finished pair goes in your inventory, brand new (Deadstock). Its card shows 
 
 ### Fakes and quality
 Every fake has a **quality** (10–97%): how convincing it is. Higher level, and clean skill checks, make better fakes; a failed check costs quality.
-Real pairs are always 100%. Selling (next phase) uses quality for the NPC legit checks.
+Real pairs are always 100%. Buyers use quality when they check a pair (section 7).
 
 ### XP and levels
 Every pair gives XP (more for real pairs, a bonus for no failed checks). Levels unlock more shoes, real pairs at level 4,
@@ -158,9 +171,99 @@ and make you work faster (4% per level). Tune it all in `config/crafting.lua`.
 
 ---
 
+## 6. Dirt and cleaning
+
+### Shoes wear out
+The pair on your feet gets dirty and wears down as you walk around:
+- **Distance:** dirt builds up per km walked. Running counts more.
+- **Ground:** mud, sand, dirt tracks, grass and gravel are dirtier than pavement.
+- **Rain and water:** walking in the rain is dirtier, and going into water adds a lot at once.
+- **Condition:** any wear at all ends **Deadstock**. After 12 km a pair is **Used**, after 45 km it's **Beat**. A pair never gets better.
+
+You get a heads-up as the dirt passes 25%, 50% and 75%, and when the condition drops. Inspect a pair to see its dirt.
+Boxed and loose pairs don't change; only the pair you're wearing does. Tune it in `Config.Dirt` and `Config.WearOut`.
+
+### Cleaning a pair
+Buy a **Cleaning kit** from the supplier (it cleans 5 pairs). Then either use the kit and pick a pair,
+or use a dirty pair and choose **Clean them**. You kneel down, the pair goes on the ground in front of you and you work through
+the stages with a brush. Missed skill checks leave a little dirt behind. Cleaning takes off dirt, not wear: a Used pair stays Used.
+
+| Command | What it does |
+|---|---|
+| `/sneakerdirt 60` | Set the dirt on the pair you're wearing to 60% (testing) |
+
+---
+
+## 7. Selling
+
+### The Plug app
+Selling goes through the **Plug** app:
+- **lb-phone:** it shows up as an app on the phone automatically.
+- **Everyone else:** type `/plug` to open the built-in phone (add a key with `Config.Phone.Key`, or make it need the
+  **Burner phone** item with `Config.Phone.NeedItem = true`).
+
+| Tab | What's there |
+|---|---|
+| **Offers** | Buyers DM you a price for one of your pairs. Accept or pass. Each one shows how hard they check (●●●) and whether they walk or drive up |
+| **Stash** | Every pair in your pockets, loose or boxed, with what it's worth. **Find buyers** posts it |
+| **Hype** | Which models are hot today (prices go up) and which are cold |
+| **Profile** | Level, XP, reputation, and how much you've sold, earned and made |
+
+### A deal, start to finish
+1. In **Stash**, hit **Find buyers** on a pair. A few seconds later buyers text you and their offers land in **Offers**.
+2. **Accept** one. They text you a meet spot and the GPS is set. You have 12 minutes.
+3. They're waiting when you get there, or they **pull up in a car**. Target them: **Make the deal**.
+4. **The handover cinematic:** you walk up and hand the pair over. They look it over (some run the serial), then either:
+   - **pay you**: an envelope of cash, and they walk or drive off, or
+   - **catch a fake**: they hand it back and storm off. Some call the cops, and some come at you.
+5. A banner shows how it went: offer, paid, rep and XP. Press **ENTER** to skip the cinematic.
+
+### Real or fake
+| Buyer | Checks | Pays |
+|---|---|---|
+| Casual | Rarely looks | 85–100% |
+| Hypebeast | Usually looks, sometimes runs the serial | 100–118% |
+| Reseller | Always looks, often runs the serial | 72–88% |
+| Collector | Almost always runs the serial; only buys boxed Deadstock | 120–145% |
+
+A serial check always catches a fake. A look by eye catches it more often the lower its quality.
+A fake that gets past them is a full sale. Sell fakes to casual buyers and hypebeasts; real pairs to anyone.
+
+### What a pair is worth
+Retail price × today's hype × condition × dirt × box (loose sells for less) × size (popular sizes sell a little higher)
+× the buyer × your rep (up to +20% at max rep). Everything is in `config/selling.lua`.
+
+### Reputation
+Clean sales raise it, getting caught with a fake drops it (−8), and backing out of a deal or missing the meet costs a little.
+More rep means better prices and more buyers.
+
+| Command | What it does |
+|---|---|
+| `/plug` | Open the Plug app (built-in phone) |
+| `/sneakerrep [your id] 50` | Give 50 rep. No amount shows their rep |
+
+### Meet spots
+Ten spots around Los Santos are set up in `Config.Meets`. Add your own: any open spot works, the height snaps to the ground.
+
+---
+
+## 8. Phones, police and logs
+
+**Phone texts** (`Config.Phone.Messages`): buyers text through **lb-phone** or **npwd** automatically. For
+**yseries**, **qs-smartphone** and **gksphone**, fill in their send function in `bridge/server/phone.lua` from your phone's docs
+(the spot is marked). Without a phone, texts pop up on screen.
+
+**Police** (`Config.Dispatch`): caught fakes (and the odd tip-off) go to **ps-dispatch**, **cd_dispatch**, **qs-dispatch** or
+**rcore_dispatch**, whichever is running, or a built-in blip and alert for the jobs in `PoliceJobs`.
+Use `'custom'` and fill in `Bridge.CustomDispatch` in `bridge/server/dispatch.lua` for anything else.
+
+**Discord logs:** paste a webhook into `Config.Logs.Webhook` to log sales and caught fakes.
+
+---
+
 ## Good to know
 
-- **Fakes look identical.** The difference is in the item data and the serial number. Legit checks come with selling.
+- **Fakes look identical.** The difference is in the item data and the serial number, which is what buyers check.
 - **Nothing gets lost.** If a player leaves or the script restarts while shoes are sitting in a placed box, the box goes back to them, now or the next time they log in.
 - **Wearing persists** across logins.
 - **The close-up camera** can be turned off with `Config.FirstPerson = false`.
@@ -176,4 +279,8 @@ and make you work faster (4% per level). Tune it all in `config/crafting.lua`.
 | *These are not made for your character* | The model's `gender` doesn't match your ped. Fix `gender`, or set `Config.GenderLock = false`. |
 | Tables are plain workbenches | The Dragons Lab pack isn't running, or that player's cache is old. `ensure` it and clear the cache. |
 | The shoes float above / sink into the table while crafting | Change `Config.Tables.surface` (the table-top height) in `config/crafting.lua`. |
+| No Plug app in lb-phone | Start lb-phone **before** this script, and make sure `Config.Phone.App` isn't `'builtin'`. `/plug` works either way. |
+| Buyers never text | Your phone isn't lb-phone or npwd: fill in its function in `bridge/server/phone.lua`, or keep `Config.Phone.Fallback = true` for on-screen texts. Offers still show in the app. |
+| The buyer never shows up | They spawn when you're within 150 m of the meet. If a driver gets stuck they're moved to the meet after a minute. |
+| Police never get alerts | Check `Config.Dispatch.PoliceJobs` matches your police job names, and that officers are on duty. |
 | Shoes or box show up invisible or inside-out | Screenshot it and send it to Claude. That's a model-file fix. |

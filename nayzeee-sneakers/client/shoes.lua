@@ -1,4 +1,5 @@
 Shoes = {}
+Shoes.worn = nil   -- metadata of the pair on your feet (nil = none of ours)
 
 local FEET = { 14201, 52301 }   -- SKEL_L_Foot, SKEL_R_Foot
 
@@ -115,9 +116,11 @@ function Shoes.PutOn(slot, meta)
     local prev = { drawable = GetPedDrawableVariation(ped, 6), texture = GetPedTextureVariation(ped, 6) }
     kneelAtFeet()
     Wait(900)
+    Dirt.Flush()   -- the pair coming off keeps its last few seconds of dirt
     local ok, clothing = lib.callback.await('nayzeee-sneakers:wear', false, slot, prev)
     if ok and clothing then
         SetPedComponentVariation(ped, 6, clothing.drawable, clothing.texture or 0, 0)
+        Shoes.worn = meta
         UI.Notify(Config.Text.putOn, 'success')
     end
     standUp()
@@ -129,9 +132,11 @@ function Shoes.TakeOff()
     Busy = true
     kneelAtFeet()
     Wait(700)
+    Dirt.Flush()
     local ok, prev = lib.callback.await('nayzeee-sneakers:takeOff', false)
     if ok and prev then
         SetPedComponentVariation(PlayerPedId(), 6, prev.drawable, prev.texture or 0, 0)
+        Shoes.worn = nil
         UI.Notify(Config.Text.tookOff, 'success')
     end
     standUp()
@@ -143,6 +148,7 @@ RegisterCommand(Config.Wear.takeOffCommand, function() Shoes.TakeOff() end, fals
 --- Put worn shoes back on after spawning
 function Shoes.Reapply()
     local worn = lib.callback.await('nayzeee-sneakers:getWorn', false)
+    Shoes.worn = worn and worn.meta or nil
     if worn and worn.clothing then
         SetPedComponentVariation(PlayerPedId(), 6, worn.clothing.drawable, worn.clothing.texture or 0, 0)
     end
@@ -152,16 +158,21 @@ end
 -- Using the shoes item
 --------------------------------------------------------------------------------
 
-RegisterNetEvent('nayzeee-sneakers:client:useShoes', function(slot, meta, hasEmptyBox)
+RegisterNetEvent('nayzeee-sneakers:client:useShoes', function(slot, meta, hasEmptyBox, hasKit)
     if Busy then return end
     local shoe = Config.Shoes[meta.shoe]
     if not shoe then return end
+    local T = Config.Text
+    local dirt = math.floor(tonumber(meta.dirt) or 0)
     local options = {
-        { id = 'inspect', label = Config.Text.inspect, icon = 'search', description = 'Turn them over and check the details' },
-        { id = 'wear', label = Config.Text.wear, icon = 'shoe', description = 'Swap them onto your feet' },
+        { id = 'inspect', label = T.inspect, icon = 'search', description = T.inspectDesc },
+        { id = 'wear', label = T.wear, icon = 'shoe', description = T.wearDesc },
     }
     if hasEmptyBox then
-        options[#options + 1] = { id = 'box', label = Config.Text.boxUp, icon = 'box', description = 'Put an empty box down and pack them' }
+        options[#options + 1] = { id = 'box', label = T.boxUp, icon = 'box', description = T.boxUpDesc }
+    end
+    if hasKit and dirt > 0 then
+        options[#options + 1] = { id = 'clean', label = T.clean, icon = 'spark', description = T.cleanDesc:format(dirt) }
     end
     local choice = UI.Menu({
         title = Shared.ShoeName(meta),
@@ -171,7 +182,8 @@ RegisterNetEvent('nayzeee-sneakers:client:useShoes', function(slot, meta, hasEmp
     })
     if choice == 'inspect' then Shoes.Inspect(meta)
     elseif choice == 'wear' then Shoes.PutOn(slot, meta)
-    elseif choice == 'box' then Boxes.PackFromInventory(slot) end
+    elseif choice == 'box' then Boxes.PackFromInventory(slot)
+    elseif choice == 'clean' then Cleaning.Run(slot, meta) end
 end)
 
 exports('Inspect', Shoes.Inspect)

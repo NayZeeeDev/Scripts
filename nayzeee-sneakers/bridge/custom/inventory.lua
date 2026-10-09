@@ -40,6 +40,12 @@ CustomInventory = {
         return 0
     end,
 
+    --- Optional: change an item's metadata in place. Without it the script takes the
+    --- item out and puts it back with the new metadata (it may change slot).
+    -- SetMetadata = function(src, slot, metadata)
+    --     return exports['your-inventory']:SetMetadata(src, slot, metadata)
+    -- end,
+
     --- true if the player has room for the item
     CanCarry = function(src, name, count)
         return true

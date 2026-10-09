@@ -15,6 +15,9 @@ local function setWorn(id, data)
     if data then SetResourceKvp(key(id), json.encode(data)) else DeleteResourceKvp(key(id)) end
 end
 
+-- for server/dirt.lua and other server files
+Wear = { Get = getWorn, Set = setWorn }
+
 local function pedGender(src)
     return Shared.PedGender(GetEntityModel(GetPlayerPed(src)))
 end

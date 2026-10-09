@@ -110,6 +110,31 @@ function Bridge.AddMoney(src, account, amount, reason)
     end
 end
 
+function Bridge.GetName(src)
+    if fw == 'qbx' or fw == 'qb' then
+        local p = Bridge.GetQBPlayer(src)
+        local c = p and p.PlayerData.charinfo
+        if c then return ('%s %s'):format(c.firstname or '', c.lastname or '') end
+    elseif fw == 'esx' then
+        local p = ESX.GetPlayerFromId(src)
+        if p and p.getName then return p.getName() end
+    end
+    return GetPlayerName(src) or 'Unknown'
+end
+
+--- job name, on duty
+function Bridge.GetJob(src)
+    if fw == 'qbx' or fw == 'qb' then
+        local p = Bridge.GetQBPlayer(src)
+        local j = p and p.PlayerData.job
+        return j and j.name, j and j.onduty
+    elseif fw == 'esx' then
+        local p = ESX.GetPlayerFromId(src)
+        return p and p.job and p.job.name, true
+    end
+    return nil, false
+end
+
 function Bridge.Notify(src, text, kind)
     TriggerClientEvent('nayzeee-sneakers:notify', src, text, kind or 'inform')
 end

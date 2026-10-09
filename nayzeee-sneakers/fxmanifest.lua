@@ -4,8 +4,8 @@ lua54 'yes'
 
 name 'nayzeee-sneakers'
 author 'NayZeee'
-description 'Sneaker reselling - shoes, shoe boxes, wearing, crafting'
-version '0.3.0'
+description 'Sneaker reselling - shoes, boxes, wearing, crafting, dirt and cleaning, selling'
+version '1.0.0'
 
 dependencies {
     'ox_lib',
@@ -16,18 +16,26 @@ shared_scripts {
     'config/config.lua',
     'config/shoes.lua',
     'config/crafting.lua',
+    'config/selling.lua',
+    'locales/*.lua',
     'shared/utils.lua',
 }
 
 client_scripts {
     'bridge/client/framework.lua',
     'bridge/client/target.lua',
+    'bridge/client/dispatch.lua',
     'client/ui.lua',
     'client/camera.lua',
     'client/boxes.lua',
     'client/shoes.lua',
+    'client/dirt.lua',
+    'client/cleaning.lua',
     'client/tables.lua',
     'client/crafting.lua',
+    'client/cinematic.lua',
+    'client/selling.lua',
+    'client/plug.lua',
     'client/main.lua',
 }
 
@@ -35,12 +43,17 @@ server_scripts {
     'bridge/server/framework.lua',
     'bridge/custom/inventory.lua',
     'bridge/server/inventory.lua',
+    'bridge/server/phone.lua',
+    'bridge/server/dispatch.lua',
     'server/items.lua',
     'server/boxes.lua',
     'server/wear.lua',
     'server/xp.lua',
+    'server/stats.lua',
     'server/tables.lua',
     'server/crafting.lua',
+    'server/dirt.lua',
+    'server/selling.lua',
     'server/main.lua',
 }
 
@@ -50,6 +63,11 @@ files {
     'web/index.html',
     'web/style.css',
     'web/app.js',
+    'web/plug.html',
+    'web/plug.css',
+    'web/plug.js',
+    'web/plug-icon.png',
+    'web/fonts/*.woff2',
     'install/images/*.png',
 }
 

@@ -54,7 +54,8 @@ CreateThread(function()
         if not it.metadata or not Config.Shoes[it.metadata.shoe] then return end
         local boxType = Shared.BoxTypeForShoe(it.metadata.shoe)
         local hasBox = Inv.Find(src, Config.BoxTypes[boxType].item) ~= nil
-        TriggerClientEvent('nayzeee-sneakers:client:useShoes', src, it.slot, Items.Clean(it.metadata), hasBox)
+        local hasKit = Inv.Find(src, Config.Items.cleaningKit) ~= nil
+        TriggerClientEvent('nayzeee-sneakers:client:useShoes', src, it.slot, Items.Clean(it.metadata), hasBox, hasKit)
     end)
 
     Inv.RegisterUsable(Config.Items.boxed, function(src, it)

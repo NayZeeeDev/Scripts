@@ -207,7 +207,7 @@ local supplierPed
 
 local function shopItems()
     local out = {}
-    for name, m in pairs(Config.Materials) do
+    for name, m in pairs(Shared.SupplierGoods()) do
         out[#out + 1] = { name = name, label = m.label, price = m.price, level = m.level or 1 }
     end
     table.sort(out, function(a, b)

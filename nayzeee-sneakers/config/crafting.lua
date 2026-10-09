@@ -1,10 +1,14 @@
 --[[
-    Phase 3: crafting tables, materials, the supplier and XP.
+    nayzeee-sneakers · crafting: tables, materials, recipes, XP and the supplier
 ]]
 
---------------------------------------------------------------------------------
--- Crafting tables
---
+-- ████████╗ █████╗ ██████╗ ██╗     ███████╗███████╗
+-- ╚══██╔══╝██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝
+--    ██║   ███████║██████╔╝██║     █████╗  ███████╗
+--    ██║   ██╔══██║██╔══██╗██║     ██╔══╝  ╚════██║
+--    ██║   ██║  ██║██████╔╝███████╗███████╗███████║
+--    ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
+
 -- The tables are Dragons Lab's "Shoe Table Pack" by SasDragon. They are NOT part
 -- of this script: every server buys them from her and installs her resource
 -- next to this one. The script finds her models by name, so her folder can be
@@ -12,7 +16,6 @@
 --
 -- Without her pack the tables fall back to a plain GTA workbench (or are turned
 -- off, with fallback = false).
---------------------------------------------------------------------------------
 
 Config.Tables = {
     store = 'https://discord.com/invite/KEhZqcuv6m',   -- where to buy her tables (printed in the console)
@@ -39,9 +42,14 @@ Config.Tables = {
     fixed = {},
 }
 
---------------------------------------------------------------------------------
--- Materials. Bought from the supplier, used up by crafting.
---------------------------------------------------------------------------------
+-- ███╗   ███╗ █████╗ ████████╗███████╗██████╗ ██╗ █████╗ ██╗     ███████╗
+-- ████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║██╔══██╗██║     ██╔════╝
+-- ██╔████╔██║███████║   ██║   █████╗  ██████╔╝██║███████║██║     ███████╗
+-- ██║╚██╔╝██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║██╔══██║██║     ╚════██║
+-- ██║ ╚═╝ ██║██║  ██║   ██║   ███████╗██║  ██║██║██║  ██║███████╗███████║
+-- ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚══════╝
+
+-- Bought from the supplier, used up by crafting. level = player level needed to buy it.
 
 Config.Materials = {
     nz_leather  = { label = 'Leather hide',   price = 45 },
@@ -54,6 +62,13 @@ Config.Materials = {
     nz_authtag  = { label = 'Authentic tag',  price = 650, level = 4 },  -- only real pairs use these
 }
 
+-- ██████╗ ███████╗ ██████╗██╗██████╗ ███████╗███████╗
+-- ██╔══██╗██╔════╝██╔════╝██║██╔══██╗██╔════╝██╔════╝
+-- ██████╔╝█████╗  ██║     ██║██████╔╝█████╗  ███████╗
+-- ██╔══██╗██╔══╝  ██║     ██║██╔═══╝ ██╔══╝  ╚════██║
+-- ██║  ██║███████╗╚██████╗██║██║     ███████╗███████║
+-- ╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝╚═╝     ╚══════╝╚══════╝
+
 -- What one pair takes, by box size. A model can override it with Config.Crafting.models[model].recipe.
 Config.Recipes = {
     shoe = { nz_fabric = 2, nz_leather = 1, nz_sole = 1, nz_thread = 1, nz_glue = 1, nz_laces = 1 },
@@ -61,9 +76,12 @@ Config.Recipes = {
     boot = { nz_leather = 3, nz_sole = 1, nz_thread = 2, nz_glue = 1 },
 }
 
---------------------------------------------------------------------------------
--- Crafting
---------------------------------------------------------------------------------
+--  ██████╗██████╗  █████╗ ███████╗████████╗██╗███╗   ██╗ ██████╗
+-- ██╔════╝██╔══██╗██╔══██╗██╔════╝╚══██╔══╝██║████╗  ██║██╔════╝
+-- ██║     ██████╔╝███████║█████╗     ██║   ██║██╔██╗ ██║██║  ███╗
+-- ██║     ██╔══██╗██╔══██║██╔══╝     ██║   ██║██║╚██╗██║██║   ██║
+-- ╚██████╗██║  ██║██║  ██║██║        ██║   ██║██║ ╚████║╚██████╔╝
+--  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝        ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
 
 Config.Crafting = {
     realExtra = { nz_authtag = 1 },   -- added to the recipe for a real pair
@@ -115,18 +133,28 @@ Config.Crafting = {
     xp = { shoe = 20, heel = 25, boot = 30, realBonus = 1.5, perfectBonus = 10 },
 }
 
---------------------------------------------------------------------------------
--- XP. Built in, saved per character.
---------------------------------------------------------------------------------
+-- ██╗     ███████╗██╗   ██╗███████╗██╗     ███████╗
+-- ██║     ██╔════╝██║   ██║██╔════╝██║     ██╔════╝
+-- ██║     █████╗  ██║   ██║█████╗  ██║     ███████╗
+-- ██║     ██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║     ╚════██║
+-- ███████╗███████╗ ╚████╔╝ ███████╗███████╗███████║
+-- ╚══════╝╚══════╝  ╚═══╝  ╚══════╝╚══════╝╚══════╝
+
+-- Built in, saved per character. Crafting, cleaning and selling all give XP.
 
 Config.XP = {
     -- total XP needed for each level (level 1 starts at 0)
     levels = { 0, 120, 300, 560, 900, 1350, 1900, 2600, 3450, 4500 },
 }
 
---------------------------------------------------------------------------------
--- Supplier: an NPC who sells the materials
---------------------------------------------------------------------------------
+-- ███████╗██╗   ██╗██████╗ ██████╗ ██╗     ██╗███████╗██████╗
+-- ██╔════╝██║   ██║██╔══██╗██╔══██╗██║     ██║██╔════╝██╔══██╗
+-- ███████╗██║   ██║██████╔╝██████╔╝██║     ██║█████╗  ██████╔╝
+-- ╚════██║██║   ██║██╔═══╝ ██╔═══╝ ██║     ██║██╔══╝  ██╔══██╗
+-- ███████║╚██████╔╝██║     ██║     ███████╗██║███████╗██║  ██║
+-- ╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
+
+-- An NPC who sells the materials and cleaning kits.
 
 Config.Supplier = {
     enabled = true,
@@ -136,4 +164,13 @@ Config.Supplier = {
     blip = { sprite = 366, colour = 48, scale = 0.75 },   -- false = no blip
     account = 'cash',           -- 'cash' | 'bank'
     maxPerItem = 50,            -- most of one item per purchase
+
+    -- Everything else he sells, next to the materials
+    Extra = {
+        nz_shoebox_empty = { label = 'Empty shoe box',  price = 15 },
+        nz_heelbox_empty = { label = 'Empty heel box',  price = 15 },
+        nz_bootbox_empty = { label = 'Empty boot box',  price = 22 },
+        nz_cleaning_kit  = { label = 'Cleaning kit',    price = 120 },
+        nz_burner        = { label = 'Burner phone',    price = 300 },   -- remove if you don't use Config.Phone.NeedItem
+    },
 }

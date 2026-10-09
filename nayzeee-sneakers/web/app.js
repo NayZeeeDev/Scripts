@@ -414,6 +414,76 @@ function showResult(d) {
   rsTimer = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 300); }, 4500);
 }
 
+/* ---------------- cinematic ---------------- */
+let subTimer = null;
+function cine(on, skip) {
+  $('cine').classList.toggle('on', !!on);
+  document.body.classList.toggle('cine', !!on);
+  $('cineSkip').classList.toggle('show', !!skip);
+  if (skip) $('cineSkipText').textContent = skip;
+  if (!on) subtitle(null);
+}
+function subtitle(who, text) {
+  clearTimeout(subTimer);
+  const el = $('cineSub');
+  if (!text) { el.classList.remove('on'); return; }
+  $('cineWho').textContent = who ? who + ':' : '';
+  $('cineText').textContent = text;
+  el.classList.add('on');
+  subTimer = setTimeout(() => el.classList.remove('on'), 3600);
+}
+
+/* ---------------- deal HUD ---------------- */
+const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function dealHud(d) {
+  $('dealHud').hidden = !d;
+  if (!d) return;
+  $('dhImg').src = img(d.image);
+  $('dhPair').textContent = d.pair;
+  $('dhSize').textContent = `US ${d.size}`;
+  $('dhBuyer').textContent = `${d.buyer} · ${d.type}`;
+  $('dhPrice').textContent = money(d.price);
+  $('dhMeet').textContent = `${d.meet} · ${d.distance >= 1000 ? (d.distance / 1000).toFixed(1) + ' km' : d.distance + ' m'}`;
+  $('dhTimer').textContent = mmss(d.left);
+  $('dhTimer').className = 'chip' + (d.left < 60 ? ' red' : '');
+  $('dhStatus').textContent = d.status;
+}
+
+/* ---------------- results banner ---------------- */
+let bannerTimer = null;
+function banner(b) {
+  const el = $('banner');
+  const words = String(b.title || '').split(' ');
+  const title = words.length > 1 ? `${esc(words.slice(0, -1).join(' '))} <em>${esc(words.slice(-1)[0])}</em>` : `<em>${esc(b.title)}</em>`;
+  const stats = (b.stats || []).map(st => `<div><span>${esc(st[0])}</span><b>${esc(st[1])}</b></div>`).join('');
+  el.innerHTML = `<div class="bn ${b.kind === 'fail' ? 'fail' : ''}"><h2>${title}</h2><div class="s">${esc(b.subtitle || '')}</div>${stats ? `<div class="st">${stats}</div>` : ''}</div>`;
+  el.hidden = false;
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => {
+    el.querySelector('.bn')?.classList.add('out');
+    setTimeout(() => { el.hidden = true; }, 450);
+  }, b.kind === 'fail' ? 5500 : 7000);
+}
+
+/* ---------------- texts ---------------- */
+function sms(m) {
+  const box = $('sms');
+  const el = document.createElement('div');
+  el.className = 'sms';
+  const initials = String(m.from || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  el.innerHTML = `<div class="sav">${esc(initials)}</div><div class="tx"><div class="tp">${icon('info')}Messages<span class="grow"></span>now</div>` +
+    `<b>${esc(m.from || 'Unknown')}</b><p>${esc(m.text || '')}</p></div>`;
+  box.prepend(el);
+  while (box.children.length > 2) box.lastChild.remove();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 8000);
+}
+
+/* ---------------- built-in phone ---------------- */
+function phone(open) {
+  $('phone').hidden = !open;
+  if (open) $('plugFrame').contentWindow?.postMessage({ type: 'open', host: 'builtin' }, '*');
+}
+
 /* ---------------- toasts ---------------- */
 const TOAST_ICON = { success: 'check', error: 'x', warning: 'alert', inform: 'info' };
 function toast(text, kind = 'inform') {
@@ -442,6 +512,13 @@ addEventListener('message', ({ data }) => {
     case 'shop': openShop(data.shop); break;
     case 'progress': showProgress(data.data); break;
     case 'result': showResult(data.data); break;
+    case 'cine': cine(data.on, data.skip); break;
+    case 'subtitle': subtitle(data.who, data.text); break;
+    case 'deal': dealHud(data.data); break;
+    case 'banner': banner(data.data || {}); break;
+    case 'sms': sms(data.data || {}); break;
+    case 'phone': phone(data.open); break;
+    case 'plug': $('plugFrame').contentWindow?.postMessage(data.data, '*'); break;
     case 'hint':
       $('hint').hidden = !data.text;
       $('hint').innerHTML = keyHint(data.text);
