@@ -26,6 +26,12 @@ function PerformCK(identifier, charName, victimId, reason, requesterName, forced
             ('%s has passed away. Rest in peace.'):format(charName), 'inform', 'OBITUARY')
     end
 
+    -- victim relogged since? find them by character so we never wipe a live session
+    if not victimId or not GetPlayerName(victimId) then
+        local xOnline = ESX.GetPlayerFromIdentifier(identifier)
+        victimId = xOnline and xOnline.source or nil
+    end
+
     -- kick FIRST so ESX saves the player before we wipe the rows (otherwise the save can race the delete)
     if victimId and GetPlayerName(victimId) then
         DropPlayer(victimId, Config.CK.KickMessage)
@@ -62,6 +68,8 @@ RegisterCommand('ck', function(src, args)
     lastRequest[src] = now
 
     if not Config.CK.VictimConsent then
+        -- without consent /ck is an instant kill -> staff only
+        if not IsStaff(src) then return Notify(src, 'No permission', 'error', 'CK') end
         PerformCK(xTarget.identifier, xTarget.getName(), targetId, reason, GetCharName(src), false)
         return
     end

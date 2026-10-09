@@ -96,7 +96,9 @@ function IsPlayerDeadServer(id)
     if hook ~= nil then return hook end
 
     local state = Player(id).state
-    if state.dead or state.isDead then return true end              -- wasabi / most ambulance jobs
+    -- if the ambulance script uses a statebag, trust it (it's always up to date)
+    if state.dead ~= nil then return state.dead == true end         -- wasabi
+    if state.isDead ~= nil then return state.isDead == true end     -- most other ambulance jobs
     local ped = GetPlayerPed(id)
     if ped ~= 0 and GetEntityHealth(ped) <= 0 then return true end  -- plain GTA death
     return DeadPlayers[id] == true                                  -- esx_ambulancejob
@@ -208,7 +210,7 @@ end
 function SaveEvidence(kind, coords, sourceName, details)
     if not Config.Evidence.Enabled then return end
     MySQL.insert('INSERT INTO nayzeee_bodybag_evidence (type, coords, source_name, details) VALUES (?, ?, ?, ?)',
-        { kind, json.encode(coords), sourceName, details and json.encode(details) or nil })
+        { kind, json.encode({ x = coords.x, y = coords.y, z = coords.z }), sourceName, details and json.encode(details) or nil })
 end
 
 -- ═══════════════════════════════════════════════════════════════

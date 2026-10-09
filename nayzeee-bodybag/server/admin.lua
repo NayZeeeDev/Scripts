@@ -51,6 +51,7 @@ local function freeBody(type, key)
     elseif type == 'barrel' then
         local b = Barrels[key]
         if b and b.body then
+            if b.burning then TriggerClientEvent('nayzeee-bodybag:client:barrelFire', -1, key, false) end
             ReleaseBody(b.body)
             b.body, b.burning = nil, false
             if DoesEntityExist(b.obj) then

@@ -78,7 +78,10 @@ end
 
 -- The victim is FREE again (body taken out, bag destroyed, revived...)
 function ReleaseBody(body)
-    if not body or not body.victimId then return end
+    if not body then return end
+    -- a freed victim is alive again: this body must never CK / respawn them later
+    body.identifier = nil
+    if not body.victimId then return end
     local id = body.victimId
     body.victimId = nil
     BaggedVictims[id] = nil
@@ -164,6 +167,7 @@ local function resolveBodyRef(src, ref)
         local ped = EntityFromNet(ref.npc)
         if not ped or GetEntityType(ped) ~= 1 or IsPedAPlayer(ped) then return nil, 'Invalid body' end
         if Pending['n' .. ref.npc] then return nil, 'Someone is already dealing with that body' end
+        if GetEntityHealth(ped) > 100 then return nil, 'They\'re still breathing...' end
         if not IsNearEntity(src, ped) then return nil, 'You\'re too far away' end
         return { key = 'n' .. ref.npc, npc = ped, coords = GetEntityCoords(ped), heading = GetEntityHeading(ped) }
     end
@@ -333,7 +337,7 @@ RegisterNetEvent('nayzeee-bodybag:server:dismember', function(victimId, usedPowe
     PoliceAlert(victim.coords, 'Screams Reported', 'Someone heard a power tool and screaming.', 'dismember')
 
     DestroyBody({ victimId = victimId, identifier = victim.identifier, name = victim.name, dismembered = true }, 'dismembered')
-    if Config.CK.OnDisposal ~= 'ck' then
+    if not (Config.CK.Enabled and Config.CK.OnDisposal == 'ck') then
         -- respawn mode: they come back as a new body, so it can be chopped again next death
         SetTimeout(15000, function()
             Chopped[victimId] = nil
@@ -416,12 +420,14 @@ RegisterNetEvent('nayzeee-bodybag:server:barrelLight', function(netId)
         -- a little DNA can survive the fire - it's written on the remains
         local dna = SurvivingDna(body.dna, Config.Cremation.EvidenceDestroyed)
         local meta = #dna > 0 and { description = 'Traces of DNA: ' .. table.concat(dna, ', ') } or nil
-        for _, y in ipairs(Config.Cremation.Yields) do
-            if math.random(100) <= (y.chance or 100) then
-                exports.ox_inventory:AddItem(src, y.item, y.count, meta)
+        if GetPlayerName(src) then -- the lighter may have logged off during the burn
+            for _, y in ipairs(Config.Cremation.Yields) do
+                if math.random(100) <= (y.chance or 100) then
+                    exports.ox_inventory:AddItem(src, y.item, y.count, meta)
+                end
             end
+            Notify(src, 'The fire died down. Only ashes remain.', 'success')
         end
-        Notify(src, 'The fire died down. Only ashes remain.', 'success')
         DestroyBody(body, 'cremated')
         Log(src, 'CREMATED', body.name or 'NPC')
     end)
@@ -514,7 +520,7 @@ RegisterNetEvent('nayzeee-bodybag:server:bury', function(netId)
     end
 
     MySQL.insert('INSERT INTO nayzeee_bodybag_graves (coords, heading, data, cemetery) VALUES (?, ?, ?, ?)', {
-        json.encode(gCoords), gHeading,
+        json.encode({ x = gCoords.x, y = gCoords.y, z = gCoords.z }), gHeading,
         json.encode({ kind = c.kind, name = body.name, identifier = body.identifier, npc = body.npc,
             dna = body.dna, digger = info.digger, date = info.date }),
         cemetery and 1 or 0,
@@ -639,6 +645,7 @@ RegisterNetEvent('nayzeee-bodybag:server:victimRevived', function()
     if not Config.ReleaseOnRevive or not body or IsPlayerDeadServer(src) then return end
 
     local where = body.where or {}
+    if where.type == 'barrel' and Barrels[where.key] and Barrels[where.key].burning then return end -- too late
     if where.type == 'container' then
         local c = RemoveContainer(where.key, true)
         if c and c.kind ~= 'bodybag' and DoesEntityExist(c.obj) then

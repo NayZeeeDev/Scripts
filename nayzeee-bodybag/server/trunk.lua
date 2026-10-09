@@ -14,6 +14,11 @@ local function updateTrunkState(vehNetId)
     end
 end
 
+-- same rule as the client: locked trunks stay shut (police can always open them)
+local function trunkLocked(src, veh)
+    return Config.Trunk.MustBeUnlocked and not IsPolice(src) and GetVehicleDoorLockStatus(veh) >= 2
+end
+
 local function getVehicle(vehNetId)
     local veh = EntityFromNet(vehNetId)
     if not veh or GetEntityType(veh) ~= 2 then return nil end
@@ -55,6 +60,8 @@ lib.callback.register('nayzeee-bodybag:trunkPut', function(src, vehNetId, bagNet
     if not c or c.carrier ~= src or not Config.Trunk.AllowedKinds[c.kind] then return false end
     local veh = getVehicle(vehNetId)
     if not veh or not IsNearEntity(src, veh, 8.0) then return false end
+    if GetVehicleType(veh) ~= 'automobile' then return false end -- bikes, boats, helis have no trunk
+    if trunkLocked(src, veh) then return false end
 
     local t = Trunks[vehNetId] or { veh = veh, items = {} }
     if #t.items >= Config.Trunk.MaxBodies then
@@ -76,7 +83,8 @@ end)
 RegisterNetEvent('nayzeee-bodybag:server:trunkTake', function(vehNetId)
     local src = source
     local t = Trunks[vehNetId]
-    if not t or #t.items == 0 or not IsNearEntity(src, t.veh, 8.0) then return end
+    if not Config.Trunk.Enabled or not t or #t.items == 0 or not IsNearEntity(src, t.veh, 8.0) then return end
+    if trunkLocked(src, t.veh) then return Notify(src, 'The trunk is locked', 'error') end
 
     local item = table.remove(t.items)
     updateTrunkState(vehNetId)
