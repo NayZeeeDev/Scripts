@@ -81,7 +81,6 @@ Locales.en = {
 
     -- selling
     plugTitle = 'Plug',
-    needBurner = 'You need a burner phone',
     offerIn = '%s wants your %s for $%s',
     dealSet = 'Meet %s at %s. GPS is set.',
     dealText = 'Bring the %s (US %s). %s. Don\'t be late.',

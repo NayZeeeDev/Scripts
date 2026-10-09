@@ -194,25 +194,11 @@ def cleaning_kit():
     prim("primitive_cube_add", bristle, loc=(0.04, 0.0, 0.05), rot=(0, 0, 20), scale=(0.05, 0.016, 0.009), bevel=0.002)
 
 
-def burner():
-    body = mat("pbody", (0.08, 0.08, 0.09), 0.35, coat=0.3)
-    screen = mat("pscreen", (0.03, 0.55, 0.5), 0.15)
-    keys = mat("pkeys", (0.25, 0.27, 0.29), 0.5)
-    prim("primitive_cube_add", body, loc=(0, 0, 0.008), scale=(0.028, 0.055, 0.008), bevel=0.006)
-    prim("primitive_cube_add", screen, loc=(0, 0.022, 0.0165), scale=(0.02, 0.017, 0.0008))
-    for r in range(4):
-        for c in range(3):
-            prim("primitive_cube_add", keys, loc=(-0.012 + c * 0.012, -0.004 - r * 0.0105, 0.0165), scale=(0.0045, 0.0035, 0.0012), bevel=0.001)
-    prim("primitive_cylinder_add", body, loc=(0.02, 0.05, 0.03), scale=(0.003, 0.003, 0.02), vertices=16)
-    for o in list(bpy.context.scene.objects):
-        if o.type == "MESH":
-            o.rotation_euler = (math.radians(18), math.radians(-6), math.radians(-28))
-
 
 ICONS = {
     "nz_leather": leather, "nz_fabric": fabric, "nz_sole": sole, "nz_heel": heel,
     "nz_thread": thread, "nz_glue": glue, "nz_laces": laces, "nz_authtag": authtag,
-    "nz_cleaning_kit": cleaning_kit, "nz_burner": burner,
+    "nz_cleaning_kit": cleaning_kit,
 }
 
 

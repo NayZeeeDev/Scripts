@@ -452,11 +452,3 @@ body.cine .toasts,body.cine .dealhud,body.cine #sms{opacity:0;transition:opacity
 .sms b{display:block;font-size:13px;font-weight:600;color:var(--white);margin-top:2px}
 .sms p{margin-top:5px;padding:8px 11px;border-radius:12px 12px 12px 4px;background:rgba(255,255,255,.07);font-size:12px;color:var(--ink);line-height:1.45;font-weight:300}
 
-/* ═══════════════ BUILT-IN PHONE ═══════════════ */
-.phone{position:absolute;right:3vw;bottom:4vh;width:380px;height:min(780px,88vh);z-index:35;
-  filter:drop-shadow(0 10px 24px rgba(0,0,0,.55)) drop-shadow(0 30px 60px rgba(0,0,0,.5));animation:phoneIn .28s cubic-bezier(.2,.9,.3,1.1)}
-.phone .frame{--cut:28px;border-radius:30px}
-.phone .shell{border-radius:29px}
-.phone .shell::before{display:none}
-.phone iframe{width:100%;height:100%;border:0;display:block;background:var(--base)}
-@keyframes phoneIn{from{opacity:0;transform:translateY(30px)}}

@@ -1,18 +1,16 @@
-/* Plug app: runs in lb-phone (custom app) and in the script's own phone. */
+/* Plug app: an lb-phone custom app (added by client/plug.lua with AddCustomApp). */
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = n => '$' + Math.round(n || 0).toLocaleString('en-US');
 const img = name => name ? `../install/images/${name}.png` : '';
 
-// which resource we belong to: https://cfx-nui-<resource>/web/plug.html (or nui://<resource>/...)
+// lb-phone gives custom apps `resourceName`; fall back to the page's own host (https://cfx-nui-<resource>/...)
 const RES = (() => {
+  if (typeof window.resourceName === 'string' && window.resourceName) return window.resourceName;
   const h = location.hostname || '';
   if (h.startsWith('cfx-nui-')) return h.slice(8);
-  if (location.protocol === 'nui:' && h) return h;
   return 'nayzeee-sneakers';
 })();
-// built-in phone = our own page is the parent; inside lb-phone the parent is another resource
-const HOST = (() => { try { return window.parent !== window && window.parent.document.getElementById('plugFrame') ? 'builtin' : 'lb'; } catch (e) { return 'lb'; } })();
 
 async function call(name, data = {}) {
   try {
@@ -54,7 +52,6 @@ async function load() {
   D = d;
   offset = (d.now || 0) - Math.floor(Date.now() / 1000);
   if (d.deal) d.deal.endsAt = now() + d.deal.left;
-  $('pClose').hidden = HOST !== 'builtin';
   render();
 }
 
@@ -82,7 +79,14 @@ function renderHead() {
     <div class="mini" style="margin-top:8px">${icon('pin')}<span><b>${esc(d.meet.label)}</b> · ${o.buyer.drive ? 'pulling up' : 'on foot'}</span></div>
     <div class="acts"><button class="btn-teal" id="dGps">${icon('pin')}Set GPS</button><button class="btn-red" id="dCancel">${icon('x')}Call it off</button></div>`;
   $('dGps').onclick = () => call('plug:gps');
-  $('dCancel').onclick = async () => { if (busy) return; busy = true; await call('plug:cancel'); busy = false; load(); };
+  const cancel = async () => { if (busy) return; busy = true; await call('plug:cancel'); busy = false; load(); };
+  $('dCancel').onclick = () => {
+    // lb-phone's own confirm popup when it's there
+    if (typeof window.setPopUp === 'function') {
+      window.setPopUp({ title: 'Call it off?', description: `${o.buyer.name} won't be happy. You lose a little rep.`,
+        buttons: [{ title: 'Keep the deal' }, { title: 'Call it off', color: 'red', cb: cancel }] });
+    } else cancel();
+  };
 }
 
 /* ---------------- tabs ---------------- */
@@ -195,8 +199,6 @@ $('pBody').addEventListener('click', async e => {
   load();
 });
 
-$('pClose').addEventListener('click', () => call('plug:close'));
-addEventListener('keydown', e => { if (e.key === 'Escape' && HOST === 'builtin') call('plug:close'); });
 
 // timers tick locally between refreshes
 setInterval(() => {
@@ -218,8 +220,8 @@ setInterval(() => {
 }, 1000);
 
 addEventListener('message', ({ data }) => {
-  if (!data || typeof data !== 'object') return;
-  if (data.type === 'refresh' || data.type === 'open') load();
+  if (data === 'componentsLoaded') return load();          // lb-phone finished setting the app up
+  if (data && typeof data === 'object' && data.type === 'refresh') load();
 });
 
 load();

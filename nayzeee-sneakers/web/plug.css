@@ -11,7 +11,7 @@ body.plug{user-select:none}
 
 /* header */
 .ph-bar{
-  flex:none;position:relative;display:flex;align-items:center;gap:11px;padding:20px 16px 14px;
+  flex:none;position:relative;display:flex;align-items:center;gap:11px;padding:54px 18px 14px;   /* clears lb-phone's status bar and notch */
   border-bottom:1px solid var(--line-soft);background:linear-gradient(var(--panel),var(--base));
 }
 .ph-bar::before{content:'';position:absolute;top:0;left:0;right:40%;height:2px;background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
@@ -98,7 +98,7 @@ body.plug{user-select:none}
 .lvl-card .row-l b{color:var(--white);font-weight:600;font-size:13px}
 
 /* tabs */
-.ph-tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line-soft);background:var(--inset);padding:6px 6px 14px}
+.ph-tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line-soft);background:var(--inset);padding:6px 10px 26px}   /* room for the home bar */
 .ph-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 0;border-radius:var(--r-sm);
   font-size:10.5px;color:var(--ink-3);font-weight:300;transition:color var(--fast),background var(--fast)}
 .ph-tabs button svg{width:18px;height:18px;stroke-width:1.5}

@@ -171,6 +171,5 @@ Config.Supplier = {
         nz_heelbox_empty = { label = 'Empty heel box',  price = 15 },
         nz_bootbox_empty = { label = 'Empty boot box',  price = 22 },
         nz_cleaning_kit  = { label = 'Cleaning kit',    price = 120 },
-        nz_burner        = { label = 'Burner phone',    price = 300 },   -- remove if you don't use Config.Phone.NeedItem
     },
 }

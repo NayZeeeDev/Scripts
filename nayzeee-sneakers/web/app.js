@@ -478,17 +478,6 @@ function sms(m) {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 8000);
 }
 
-/* ---------------- built-in phone ---------------- */
-function phone(open) {
-  $('phone').hidden = !open;
-  if (open) {
-    $('plugFrame').contentWindow?.postMessage({ type: 'open', host: 'builtin' }, '*');
-    $('plugFrame').focus();
-  }
-}
-addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !$('phone').hidden) post('plug:close');
-});
 
 /* ---------------- toasts ---------------- */
 const TOAST_ICON = { success: 'check', error: 'x', warning: 'alert', inform: 'info' };
@@ -523,8 +512,6 @@ addEventListener('message', ({ data }) => {
     case 'deal': dealHud(data.data); break;
     case 'banner': banner(data.data || {}); break;
     case 'sms': sms(data.data || {}); break;
-    case 'phone': phone(data.open); break;
-    case 'plug': $('plugFrame').contentWindow?.postMessage(data.data, '*'); break;
     case 'hint':
       $('hint').hidden = !data.text;
       $('hint').innerHTML = keyHint(data.text);

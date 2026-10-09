@@ -15,7 +15,8 @@ cleaning, and selling to NPC buyers through a phone app with a handover cinemati
    ensure lb-phone
    ensure nayzeee-sneakers
    ```
-   Target can be ox_target, qb-target or interact (or none: you get a key prompt). The phone is optional.
+   Target can be ox_target, qb-target or interact (or none: you get a key prompt).
+   **Selling needs lb-phone.** Everything else works without it.
 3. **Add the items** to your inventory:
    - **ox_inventory** (Qbox, ESX, or QB with ox): paste `install/ox_items.lua` into `ox_inventory/data/items.lua`.
    - **qb-inventory** (also ps-inventory and lj-inventory): paste `install/qb_items.lua` into `qb-core/shared/items.lua`.
@@ -144,7 +145,7 @@ Want a table that's always there, like in a shop? Add it to `Config.Tables.fixed
 ### Materials and the supplier
 The **Shoe supplies** guy (clipboard icon on the map, Legion Square by default) sells everything:
 leather, mesh fabric, rubber soles, heel blocks, thread, glue, laces and **authentic tags**, plus empty boxes,
-cleaning kits and (if you use it) the burner phone. Move him with `Config.Supplier.coords`.
+and cleaning kits. Move him with `Config.Supplier.coords`.
 Prices are in `Config.Materials` and `Config.Supplier.Extra`.
 
 ### Making a pair
@@ -196,11 +197,10 @@ the stages with a brush. Missed skill checks leave a little dirt behind. Cleanin
 
 ## 7. Selling
 
-### The Plug app
-Selling goes through the **Plug** app:
-- **lb-phone:** it shows up as an app on the phone automatically.
-- **Everyone else:** type `/plug` to open the built-in phone (add a key with `Config.Phone.Key`, or make it need the
-  **Burner phone** item with `Config.Phone.NeedItem = true`).
+### The Plug app (lb-phone)
+Selling goes through the **Plug** app on **lb-phone**. The script adds it to lb-phone by itself when it starts:
+it's on every phone already (`Config.Phone.DefaultApp = true`), or set that to `false` so players download it from the App Store.
+Start lb-phone **before** this script.
 
 | Tab | What's there |
 |---|---|
@@ -239,7 +239,6 @@ More rep means better prices and more buyers.
 
 | Command | What it does |
 |---|---|
-| `/plug` | Open the Plug app (built-in phone) |
 | `/sneakerrep [your id] 50` | Give 50 rep. No amount shows their rep |
 
 ### Meet spots
@@ -249,9 +248,9 @@ Ten spots around Los Santos are set up in `Config.Meets`. Add your own: any open
 
 ## 8. Phones, police and logs
 
-**Phone texts** (`Config.Phone.Messages`): buyers text through **lb-phone** or **npwd** automatically. For
-**yseries**, **qs-smartphone** and **gksphone**, fill in their send function in `bridge/server/phone.lua` from your phone's docs
-(the spot is marked). Without a phone, texts pop up on screen.
+**Phone texts** (`Config.Phone.Messages`): buyers text you through lb-phone's Messages app, from `Config.Phone.Number`,
+with a phone notification so it pops even with the phone closed. (The bridge also has npwd, and marked spots for yseries,
+qs-smartphone and gksphone texts in `bridge/server/phone.lua`.)
 
 **Police** (`Config.Dispatch`): caught fakes (and the odd tip-off) go to **ps-dispatch**, **cd_dispatch**, **qs-dispatch** or
 **rcore_dispatch**, whichever is running, or a built-in blip and alert for the jobs in `PoliceJobs`.
@@ -279,8 +278,8 @@ Use `'custom'` and fill in `Bridge.CustomDispatch` in `bridge/server/dispatch.lu
 | *These are not made for your character* | The model's `gender` doesn't match your ped. Fix `gender`, or set `Config.GenderLock = false`. |
 | Tables are plain workbenches | The Dragons Lab pack isn't running, or that player's cache is old. `ensure` it and clear the cache. |
 | The shoes float above / sink into the table while crafting | Change `Config.Tables.surface` (the table-top height) in `config/crafting.lua`. |
-| No Plug app in lb-phone | Start lb-phone **before** this script, and make sure `Config.Phone.App` isn't `'builtin'`. `/plug` works either way. |
-| Buyers never text | Your phone isn't lb-phone or npwd: fill in its function in `bridge/server/phone.lua`, or keep `Config.Phone.Fallback = true` for on-screen texts. Offers still show in the app. |
+| No Plug app on the phone | Start lb-phone **before** this script (or restart this script). The F8 console says *could not add the Plug app* with lb-phone's reason if it refused. With `DefaultApp = false` it's in the App Store. |
+| Buyers never text | The player needs a phone with a number equipped. Offers still show in the app either way. |
 | The buyer never shows up | They spawn when you're within 150 m of the meet. If a driver gets stuck they're moved to the meet after a minute. |
 | Police never get alerts | Check `Config.Dispatch.PoliceJobs` matches your police job names, and that officers are on duty. |
 | Shoes or box show up invisible or inside-out | Screenshot it and send it to Claude. That's a model-file fix. |

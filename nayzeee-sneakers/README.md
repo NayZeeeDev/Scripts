@@ -10,14 +10,14 @@ Sneaker reselling for FiveM: make pairs (real or fake), wear them, keep them cle
 | 2. Shoe props: converting clothing YDDs into props | **done**: 10 models, 107 colourways, 3 box sizes, logos removed |
 | 3. Crafting tables (Dragons Lab), materials, supplier, fake quality, XP | **done** |
 | 4. Dirt, wear and cleaning | **done** |
-| 5. Selling: Plug app (lb-phone + built-in phone), NPC meetups on foot or by car, legit checks, handover cinematic, dispatch, hype, rep | **done** |
+| 5. Selling: Plug app on lb-phone, NPC meetups on foot or by car, legit checks, handover cinematic, dispatch, hype, rep | **done** |
 
 ## Supported
 
 - **Frameworks:** Qbox, QBCore and ESX, picked automatically (`Config.Framework`).
 - **Inventories:** ox_inventory and qb-inventory (plus ps-inventory and lj-inventory). Anything else goes through `bridge/custom/inventory.lua`.
 - **Target:** ox_target, qb-target or interact (or a key prompt without one).
-- **Phones:** the Plug app runs inside **lb-phone**, or in the built-in phone for everyone else. Buyer texts go to lb-phone or npwd (yseries, qs-smartphone, gksphone: fill in one function).
+- **Phone:** selling runs on **lb-phone**: the Plug app is a custom app (`AddCustomApp`), buyers text through its Messages app.
 - **Dispatch:** ps-dispatch, cd_dispatch, qs-dispatch, rcore_dispatch, built-in, or your own.
 - **Notifications:** the script's own, or nayzeee-notify, ox_lib, okok, ESX, QB.
 - **Requires** ox_lib.
@@ -36,7 +36,6 @@ Sneaker reselling for FiveM: make pairs (real or fake), wear them, keep them cle
 | `nz_leather` `nz_fabric` `nz_sole` `nz_heel` `nz_thread` `nz_glue` `nz_laces` | Crafting materials (stackable) |
 | `nz_authtag` | Authentic tag: what makes a crafted pair real |
 | `nz_cleaning_kit` | Cleans a pair. Has uses (metadata `uses`) |
-| `nz_burner` | Burner phone: opens the Plug app (only needed with `Config.Phone.NeedItem`) |
 
 With ox_inventory each pair also gets its own `label`, `description` and `image` (the colourway icon), so a Mint pair looks like a Mint pair in the inventory.
 
@@ -133,7 +132,7 @@ bridge/        framework, inventory, target, phone texts and dispatch adapters
 client/        boxes, shoes (inspect/wear), dirt, cleaning, tables, crafting + supplier, selling, cinematic, Plug app, NUI wrapper
 server/        items, boxes, wear, dirt + cleaning, tables, crafting + supplier, selling, XP, stats + hype + logs, admin commands
 web/           NUI (NAYZEEE UI v5): menus, inspect card, workbench, supply shop, progress, cinematic, banner, deal HUD,
-               the built-in phone and the Plug app (plug.html, also loaded by lb-phone). Lexend is bundled, icons are inline SVG
+               and the Plug app (plug.html, loaded inside lb-phone). Lexend is bundled, icons are inline SVG
 stream/        the three boxes and one folder per shoe model
 install/       item definitions for ox / qb, inventory icons
 tools/         propkit (Python) + CodeWalker import/export tools used to build the props (see tools/README.md)

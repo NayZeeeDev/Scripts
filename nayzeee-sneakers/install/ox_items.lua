@@ -160,7 +160,7 @@
     description = 'Makes a pair the real thing',
 },
 
--- Cleaning and the burner phone
+-- Cleaning
 
 ['nz_cleaning_kit'] = {
     label = 'Cleaning kit',
@@ -172,12 +172,3 @@
     server = { export = 'nayzeee-sneakers.useItem' },
 },
 
-['nz_burner'] = {
-    label = 'Burner phone',
-    weight = 150,
-    stack = false,
-    close = true,
-    consume = 0,
-    description = 'One contact saved: Plug',
-    server = { export = 'nayzeee-sneakers.useItem' },
-},

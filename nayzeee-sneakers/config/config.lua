@@ -45,7 +45,6 @@ Config.Items = {
     shoes       = 'nz_shoes',          -- a loose pair
     boxed       = 'nz_shoebox',        -- a pair in its box (any box size)
     cleaningKit = 'nz_cleaning_kit',   -- cleans a pair (has uses, see Config.Cleaning)
-    burner      = 'nz_burner',         -- opens the Plug app when there's no phone app (false = no item)
 }
 
 -- ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗███████╗
@@ -92,23 +91,15 @@ Config.Commands = {
 -- ██║     ██║  ██║╚██████╔╝██║ ╚████║███████╗
 -- ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
 
+-- Selling runs on lb-phone: the Plug app is added to every phone (or the App Store) automatically.
 Config.Phone = {
-    -- Where the Plug app (selling) opens.
-    --   'auto'     = an app inside lb-phone when it's running, otherwise the built-in phone
-    --   'lb-phone' = always the lb-phone app
-    --   'builtin'  = this script's own phone (any server, any phone)
-    App = 'auto',
+    DefaultApp = true,          -- true = already on every phone, false = players download it from the App Store
 
     -- Buyers text the player. 'auto' picks the first phone resource that is running.
     Messages = 'auto',          -- 'auto' | 'lb-phone' | 'npwd' | 'yseries' | 'qs-smartphone' | 'gksphone' | 'none'
     Number   = '5550147',       -- the number texts come from (phones need a real number, not a name)
-    Notify   = true,            -- also push a phone notification (lb-phone) so it pops with the phone closed
+    Notify   = true,            -- also push an lb-phone notification so it pops with the phone closed
     Fallback = true,            -- show a phone-style text on screen when no phone resource takes it
-
-    -- The built-in phone
-    Command  = 'plug',          -- /plug opens it (false = no command)
-    Key      = '',              -- optional keybind, e.g. 'F6' (players can rebind it in settings)
-    NeedItem = false,           -- true = they need Config.Items.burner in their pockets to open it
 }
 
 -- ██████╗ ██╗███████╗██████╗  █████╗ ████████╗ ██████╗██╗  ██╗

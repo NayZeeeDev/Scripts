@@ -181,7 +181,7 @@ function Shared.SupplierGoods()
     local out = {}
     for name, m in pairs(Config.Materials) do out[name] = m end
     for name, m in pairs(Config.Supplier.Extra or {}) do
-        if name ~= Config.Items.burner or Config.Phone.NeedItem then out[name] = m end
+        out[name] = m
     end
     return out
 end

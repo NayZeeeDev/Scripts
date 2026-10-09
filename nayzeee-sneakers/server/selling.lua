@@ -375,18 +375,3 @@ lib.callback.register('nayzeee-sneakers:plugData', function(src)
         now = os.time(),
     }
 end)
-
---------------------------------------------------------------------------------
--- Burner phone (opens the built-in Plug app)
---------------------------------------------------------------------------------
-
-lib.callback.register('nayzeee-sneakers:hasBurner', function(src)
-    return Config.Items.burner and Inv.Find(src, Config.Items.burner) ~= nil or false
-end)
-
-CreateThread(function()
-    if not Config.Items.burner then return end
-    Inv.RegisterUsable(Config.Items.burner, function(src)
-        TriggerClientEvent('nayzeee-sneakers:client:openPlug', src)
-    end)
-end)
