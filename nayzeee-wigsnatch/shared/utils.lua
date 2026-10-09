@@ -172,3 +172,28 @@ function ProductByItem(item)
         if p.Item == item then return id, p end
     end
 end
+
+-- crafting from materials ------------------------------------------------------------------------
+
+function CraftLace(id)
+    for _, l in ipairs(Config.Crafting.Laces) do
+        if l.id == id then return l end
+    end
+end
+
+-- items needed for a wig: { [item] = count }, or nil for a bad request
+function CraftRecipe(length, laceId, colour)
+    local C = Config.Crafting
+    local lace = CraftLace(laceId)
+    length = math.floor(tonumber(length) or 0)
+    if not lace or length < C.Lengths[1] or length > C.Lengths[2] or length % 2 ~= 0 then return nil end
+    local out = {}
+    local function add(item, n) out[item] = (out[item] or 0) + n end
+    for item, n in pairs(C.Base) do add(item, n) end
+    add(C.WeftItem, math.ceil(length / C.WeftInches))
+    for item, n in pairs(lace.items) do add(item, n) end
+    local natural = false
+    for _, c in ipairs(C.NaturalColours) do if c == colour then natural = true end end
+    if not natural then add(Config.Items.Dye, 1) end
+    return out, lace
+end

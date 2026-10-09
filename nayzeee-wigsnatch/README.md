@@ -15,6 +15,8 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | **Hair products** | Hair remover (hair falls out), lye relaxer (burns), a lice jar (itching, flies, spreads), mud (washes out in water), shampoo and regrowth oil. Everyone nearby sees smoke, flies and mud. |
 | **Reactions** | Facepalms, crying, shaking it off, celebrating. Every event has its own list in `Config.Reactions`. |
 | **Wigs + bundles** | Snipping long hair drops hair bundles. Three bundles and a wig cap make a wig of that hairstyle at a wig table. |
+| **Make any wig** | Pick any in-game hairstyle, texture, length, lace and colour in the Workshop and make it from materials at a wig table. The lace sets the tier (closure, frontal, full lace), longer wigs take more wefts, unnatural colours take a dye. |
+| **Hair supplier** | An NPC (on your map) sells wig caps, wefts, thread, lace, dye, glue and kits, with level-gated lace. |
 | **Wig tables** | Dragons Lab's Wig Crafting Tables by SasDragon (sold separately, see below). Place one from your inventory, pick it back up, saved between restarts. Make and dye wigs at it in stages with skill checks, the wig taking shape on a foam head in front of you and a camera you switch with `V` (over the shoulder, first person, close up). Same system as nayzeee-sneakers. |
 | **Dye** | Dye any wig at a wig table (or your own hair anywhere) with the full game palette. Dyed wigs sell for more. |
 | **Props** | Clippers, a straight razor, a hair dye bottle, a foam wig head and a hair bundle, streamed with the script (`stream/`). |
@@ -77,6 +79,7 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | `wig_cap` | Needed to make a wig |
 | `hair_dye` | Dye a wig (at a wig table) or your own hair (Workshop) |
 | `wigtableblue` / `wigtablepink` / `wigtablepurp` / `wigtablered` | Place a wig table |
+| `hair_weft` / `wig_thread` / `lace_closure` / `lace_frontal` / `lace_full` | Wig making materials (the supplier sells them) |
 | `wig_glue` | Glue your lace down for 20 minutes |
 | `wig_kit` | Repair a wig's condition (Vault) |
 | `scissors` / `hair_clippers` / `straight_razor` | First person cutting tools. Use one to cut whoever is in front of you |
@@ -167,20 +170,41 @@ The tables are **Dragons Lab's Wig Crafting Tables by SasDragon**. They are not 
 - **Use wig table** opens the Workshop at the table. Making a wig (3 bundles + a cap) or dyeing one plays out in stages: you walk up to the table, the bundles are laid out and get used up as the wig takes shape on a foam head, the right tool is in your hand for each stage, and fiddly stages have an ox_lib skill check. `V` switches the camera, `X` stops (nothing is used up if you stop).
 - **Skill checks matter**: every clean check raises the chance of a higher tier wig, every sloppy one costs condition, and a perfect run gives bonus XP. Higher levels work faster.
 - `Config.Tables.RequireTable = false` lets the Workshop make and dye wigs anywhere again.
+- **The wig on the foam head**: every job puts the bald foam head on the table with the wig on it. A hairstyle that has its own prop (`nzw_f_12`, see `INSTALL/HAIR_PROPS.md`) shows that exact hairstyle; anything else shows the generic wig. GTA can't put a hairstyle on an object, so hairstyles have to be turned into props first, the same way the sneakers were.
+
+## 💇 Making wigs
+
+**Workshop > Make a wig** (at a wig table): pick any hairstyle in the game (it shows its studio photo and name), the texture, a length from 10" to 30", the lace and the colour. The materials list updates as you go and shows what you're missing.
+
+| Part | Recipe (defaults) |
+| --- | --- |
+| Every wig | 1 wig cap + 1 weaving thread |
+| Length | 1 hair weft per 6 inches (10" = 2, 18" = 3, 30" = 5) |
+| 5x5 HD Closure | 1 closure · Uncommon wig · level 1 |
+| 13x4 HD Frontal | 1 frontal · Rare wig · level 3 |
+| Full Lace | 1 full lace unit · Epic wig · level 5 |
+| Colour | Natural shades are free, anything else uses 1 hair dye |
+
+The wig comes out with exactly that hairstyle, texture, colour and length, your name as the maker, and a tier from the lace: clean skill checks can bump it one tier higher, sloppy ones cost condition. Legendary and mythic wigs still only come from snatching. **From bundles & dye** is the old workshop: three bundles from cuts and a cap, and dyeing wigs.
+
+**Hair Supply** (`Config.Supplier`) sells the materials next to Hair on Hawick by default; move her anywhere. Prices are set so a wig is worth more than its materials when sold through a meet-up, less through quick sell.
 
 ## 🧰 Props
 
-Five props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
+Six props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
 
 | Model | Used for |
 | --- | --- |
 | `nz_wig_clippers` | Clippers in the barber's hand |
 | `nz_wig_razor` | Straight razor in the barber's hand (and the shaping stage at a table) |
 | `nz_wig_dye` | Dye bottle in your hand while dyeing, and on the table |
-| `nz_wig_head` | The foam head the wig takes shape on at a table |
+| `nz_wig_head` | The bald foam head on the table. The wig being made or dyed sits on it |
+| `nz_wig_shell` | A generic long wig for the foam head, used for hairstyles that don't have their own prop yet |
 | `nz_hair_bundle` | The bundles laid out on the table |
 
-They were built for this script and compiled to YDR / YTYP with CodeWalker. The source XML and textures are in `INSTALL/props-source/` if you want to open them in CodeWalker or Sollumz and make changes. If a prop sits oddly in the hand with your animations, tweak `pos` / `rot` in `Config.Cutting.Props` and `Config.TableProps`.
+They were built for this script and compiled to YDR / YTYP with CodeWalker. The source XML and textures are in `INSTALL/props-source/` if you want to open them in CodeWalker or Sollumz, and the generator is in `tools/props/`.
+
+**Hairstyle props**: the foam head shows the exact hairstyle when that hairstyle has been turned into a prop. `tools/convert-hair.sh` converts a hair `.ydd` + `.ytd` in one command (into a separate `nzw_hairprops` resource), and `Config.TableProps.HairPropMap` points a hairstyle number at it. See `INSTALL/HAIR_PROPS.md` and `tools/README.md`. If a prop sits oddly in the hand with your animations, tweak `pos` / `rot` in `Config.Cutting.Props` and `Config.TableProps`.
 
 ## ⚙️ Config highlights
 
@@ -199,7 +223,9 @@ They were built for this script and compiled to YDR / YTYP with CodeWalker. The 
 | `Config.Bundles` / `Workshop` / `Dye` | | Grades, prices, recipe, dye bonus |
 | `Config.Phone` | | App name, which phone, quick sell rate, meet-up, listings, orders |
 | `Config.Tables` | | Her table models, fallback, limits, fixed tables, camera, stages and skill checks |
-| `Config.TableProps` | | The props in your hand and on the table during table work |
+| `Config.TableProps` | | The props in your hand and on the table during table work, and the hairstyle prop naming |
+| `Config.Crafting` | | Base items, wefts per inch, lengths, laces (tier, level, items), natural colours, XP |
+| `Config.Supplier` | | Ped, location, blip, account, items, prices and levels |
 | `Config.Studio` | `256` px | Photo size, starting backdrop, framing, lights, ox_inventory copy |
 
 Discord webhooks and the admin / studio aces live in `config_server.lua`, which never reaches players.

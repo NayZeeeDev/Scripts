@@ -33,6 +33,11 @@ lib.callback.register('nz-wig:studioOpen', function(src)
     }
 end)
 
+-- which hairstyles have a photo (the workshop shows them)
+lib.callback.register('nz-wig:shots', function()
+    return shotList()
+end)
+
 lib.callback.register('nz-wig:studioShots', function(src)
     if not allowed(src) then return {} end
     return shotList()

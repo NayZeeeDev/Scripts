@@ -33,6 +33,7 @@ client_scripts {
     'client/phone.lua',
     'client/studio.lua',
     'client/tables.lua',
+    'client/crafting.lua',
     'client/main.lua',
 }
 
@@ -50,6 +51,7 @@ server_scripts {
     'server/cutting.lua',
     'server/products.lua',
     'server/tables.lua',
+    'server/crafting.lua',
     'server/workshop.lua',
     'server/market.lua',
     'server/social.lua',

@@ -100,6 +100,20 @@ function Tables.Nearest(range)
     return best
 end
 
+-- the wig shown on the foam head: the hairstyle's own prop if it's streamed, else the generic wig
+function Tables.WigModel(hair)
+    local TP = Config.TableProps
+    if hair and hair.m and hair.d then
+        local mapped = TP.HairPropMap and TP.HairPropMap[('%s:%d'):format(hair.m, hair.d)]
+        if mapped and IsModelInCdimage(GetHashKey(mapped)) then return GetHashKey(mapped) end
+        if TP.HairProps then
+            local own = GetHashKey(TP.HairProps:format(hair.m, hair.d))
+            if IsModelInCdimage(own) then return own end
+        end
+    end
+    return TP.Wig and TP.Wig.model or nil
+end
+
 -- the workshop panel was opened at this table
 function Tables.Bench() return bench and DoesEntityExist(bench) and bench or nil end
 
@@ -418,21 +432,27 @@ local function run(ent, kind, req, view)
     if not T.Camera.Switch or not validView(view) then view = getView() end
     setView(view)
 
-    -- what sits on the table while you work: the wig head builds up as the stages go
-    -- (or the bundles you're sewing in), and the dye bottle when you're colouring
+    -- what sits on the table while you work: the bald foam head, the wig taking shape on it,
+    -- the wefts / bundles going in (used up as you go), and the dye bottle when you're colouring
     local props, build = {}, nil
     local TP = Config.TableProps
-    if kind == 'craft' then
-        build = tableProp(TP.Head and TP.Head.model, work + along * 0.02, heading, 0)
-        if TP.Bundle then
-            for i = 1, Config.Workshop.BundlesPerWig do
-                props[#props + 1] = tableProp(TP.Bundle.model, work - along * (0.18 + i * 0.07) - out * 0.02, heading + 70.0 + i * 25.0)
-            end
-        end
-    else
-        props[#props + 1] = tableProp(TP.Head and TP.Head.model, work, heading)
-        if TP.DyeBottle then props[#props + 1] = tableProp(TP.DyeBottle.model, work + along * 0.24 + out * 0.04, heading + 40.0) end
+    local head = TP.Head and tableProp(TP.Head.model, work + along * 0.02, heading + 180.0)   -- the head faces +y, so turn it to the player
+    local wigModel = Tables.WigModel(info)
+    if head and wigModel and loadModel(wigModel) then
+        local p = TP.Head.point
+        build = CreateObject(wigModel, work.x, work.y, work.z + 0.3, false, false, false)
+        SetEntityCollision(build, false, false)
+        AttachEntityToEntity(build, head, 0, p.x, p.y, p.z, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+        SetModelAsNoLongerNeeded(wigModel)
+        if kind ~= 'dye' then SetEntityAlpha(build, 0, false) end
     end
+    if kind ~= 'dye' and TP.Bundle then
+        for i = 1, math.min(6, (info and info.wefts) or Config.Workshop.BundlesPerWig) do
+            props[#props + 1] = tableProp(TP.Bundle.model, work - along * (0.18 + i * 0.07) - out * 0.02, heading + 70.0 + i * 25.0)
+        end
+    end
+    if kind == 'dye' and TP.DyeBottle then props[#props + 1] = tableProp(TP.DyeBottle.model, work + along * 0.24 + out * 0.04, heading + 40.0) end
+    if head then props[#props + 1] = head end
 
     local shots = tableShots(stand, work, along, out)
     local s = shots[view]
@@ -451,11 +471,13 @@ local function run(ent, kind, req, view)
             DisableControlAction(0, 24, true)
             DisableControlAction(0, 25, true)
             local f = ((i - 1) + (GetGameTimer() - t0) / st.time) / #stages
-            if build then SetEntityAlpha(build, math.floor(25 + 210 * f), false) end
-            -- the bundles get used up as the wig takes shape
-            if kind == 'craft' then
-                for n, b in ipairs(props) do
-                    if b then SetEntityAlpha(b, math.floor(255 * math.max(0, math.min(1, (1 - f) * #props - (n - 1)))), false) end
+            -- the wig takes shape on the head while the wefts / bundles get used up
+            if kind ~= 'dye' then
+                if build then SetEntityAlpha(build, math.floor(255 * math.min(1, f * 1.15)), false) end
+                local n = #props - (head and 1 or 0)
+                for k = 1, n do
+                    local b = props[k]
+                    if b then SetEntityAlpha(b, math.floor(255 * math.max(0, math.min(1, (1 - f) * n - (k - 1)))), false) end
                 end
             end
             if cancelPressed() then cancelled = true break end
@@ -489,7 +511,6 @@ local function run(ent, kind, req, view)
     stopCam()
     ClearPedTasks(PlayerPedId())
     Tables.busy = false
-    if info and info.hair then Debug('table job', kind, json.encode(info)) end
 end
 
 -- workshop panel → table jobs

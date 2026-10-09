@@ -246,18 +246,27 @@ lib.callback.register('nz-wig:tableStart', function(src, tableId, kind, req)
     local user = Tables.InUseBy(t)
     if user and user ~= src then return false, L('table_busy') end
 
-    local job
-    if kind == 'craft' then
+    local job, show
+    if kind == 'make' then
+        local why
+        job, why = Crafting.Check(src, P, req)
+        if not job then return false, why end
+        show = { m = job.m, d = job.d, t = job.t, c = job.c, h = job.h, wefts = job.recipe[Config.Crafting.WeftItem] }
+    elseif kind == 'craft' then
         if not CW.Enabled then return false end
         local picked, why = pickBundles(src, req.keys)
         if not picked then return false, why end
         job = { keys = req.keys, model = picked[1].meta.hair.m }
+        show = picked[1].meta.hair and { m = picked[1].meta.hair.m, d = picked[1].meta.hair.d, t = picked[1].meta.hair.t,
+            c = picked[1].meta.hair.c, h = picked[1].meta.hair.h, wefts = #picked } or nil
     elseif kind == 'dye' then
         if not CD.Enabled or not Inv.HasMeta or type(req.key) ~= 'string' then return false end
         local stack = Wigs.Find(src, req.key)
         if not stack or stack.generic or not stack.meta.hair then return false, L('invalid') end
         if Inv.Count(src, Config.Items.Dye) < 1 then return false, L('need_item', Config.Items.Dye) end
         job = { key = req.key, c = maxHair(req.c), h = maxHair(req.h), hair = stack.meta.hair }
+        local hr = stack.meta.hair
+        show = { m = hr.m, d = hr.d, t = hr.t, c = hr.c, h = hr.h, toC = job.c, toH = job.h }
     else
         return false
     end
@@ -271,7 +280,7 @@ lib.callback.register('nz-wig:tableStart', function(src, tableId, kind, req)
     acting[src] = true
     SetBusy(P, true)
     t.user = src
-    return true, token, stages, { hair = job.hair, c = job.c, h = job.h, model = job.model }
+    return true, token, stages, show
 end)
 
 lib.callback.register('nz-wig:tableCancel', function(src)
@@ -299,6 +308,10 @@ lib.callback.register('nz-wig:tableFinish', function(src, token, results)
     end
     local checks = { passed = passed, failed = failed }
 
+    if s.kind == 'make' then
+        local meta = Crafting.Make(src, P, s.job, checks)
+        return meta ~= nil, { label = meta and meta.label, passed = passed, checks = passed + failed }
+    end
     if s.kind == 'craft' then
         local picked, why = pickBundles(src, s.job.keys)
         if not picked then Notify(src, why, 'error') return false end

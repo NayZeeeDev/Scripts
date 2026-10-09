@@ -60,10 +60,10 @@
    <lodDist value="50" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.100493" y="-0.088807" z="0" />
-   <bbMax x="0.098814" y="0.118058" z="0.344" />
-   <bsCentre x="-0.000839" y="0.014625" z="0.172" />
-   <bsRadius value="0.185937" />
+   <bbMin x="-0.06975" y="-0.08215" z="0" />
+   <bbMax x="0.06975" y="0.08215" z="0.336" />
+   <bsCentre x="0" y="0" z="0.168" />
+   <bsRadius value="0.177088" />
    <hdTextureDist value="25" />
    <name>nz_wig_head</name>
    <textureDictionary />
@@ -72,6 +72,24 @@
    <physicsDictionary />
    <assetType>ASSET_TYPE_DRAWABLE</assetType>
    <assetName>nz_wig_head</assetName>
+   <extensions />
+  </Item>
+  <Item type="CBaseArchetypeDef">
+   <lodDist value="50" />
+   <flags value="32" />
+   <specialAttribute value="0" />
+   <bbMin x="-0.100493" y="-0.117081" z="-0.050421" />
+   <bbMax x="0.099125" y="0.088104" z="0.182" />
+   <bsCentre x="-0.000684" y="-0.014488" z="0.065789" />
+   <bsRadius value="0.155335" />
+   <hdTextureDist value="25" />
+   <name>nz_wig_shell</name>
+   <textureDictionary />
+   <clipDictionary />
+   <drawableDictionary />
+   <physicsDictionary />
+   <assetType>ASSET_TYPE_DRAWABLE</assetType>
+   <assetName>nz_wig_shell</assetName>
    <extensions />
   </Item>
   <Item type="CBaseArchetypeDef">

@@ -20,4 +20,9 @@ INSERT IGNORE INTO `items` (`name`, `label`, `weight`, `rare`, `can_remove`) VAL
     ('wigtableblue', 'Blue Wig Table', 1, 0, 1),
     ('wigtablepink', 'Pink Wig Table', 1, 0, 1),
     ('wigtablepurp', 'Purple Wig Table', 1, 0, 1),
-    ('wigtablered', 'Red Wig Table', 1, 0, 1);
+    ('wigtablered', 'Red Wig Table', 1, 0, 1),
+    ('hair_weft', 'Hair Weft', 1, 0, 1),
+    ('wig_thread', 'Weaving Thread', 1, 0, 1),
+    ('lace_closure', '5x5 HD Closure', 1, 0, 1),
+    ('lace_frontal', '13x4 HD Frontal', 1, 0, 1),
+    ('lace_full', 'Full Lace Unit', 1, 0, 1);

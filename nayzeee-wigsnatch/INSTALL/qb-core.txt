@@ -18,6 +18,13 @@ mud_bag        = { name = 'mud_bag', label = 'Bag of Mud', weight = 400, type = 
 shampoo        = { name = 'shampoo', label = 'Shampoo', weight = 200, type = 'item', image = 'shampoo.png', unique = false, useable = true, shouldClose = true, description = "Washes out mud and lice." },
 regrowth_oil   = { name = 'regrowth_oil', label = 'Regrowth Oil', weight = 100, type = 'item', image = 'regrowth_oil.png', unique = false, useable = true, shouldClose = true, description = "Grows hair, eyebrows and beards back and heals burns." },
 
+-- wig making materials (sold by the supplier, Config.Supplier)
+hair_weft      = { name = 'hair_weft', label = 'Hair Weft', weight = 60, type = 'item', image = 'hair_weft.png', unique = false, useable = false, shouldClose = true, description = "A track of hair, sewn into wigs. One per 6 inches." },
+wig_thread     = { name = 'wig_thread', label = 'Weaving Thread', weight = 20, type = 'item', image = 'wig_thread.png', unique = false, useable = false, shouldClose = true, description = "Thread for sewing wefts onto a wig cap." },
+lace_closure   = { name = 'lace_closure', label = '5x5 HD Closure', weight = 30, type = 'item', image = 'lace_closure.png', unique = false, useable = false, shouldClose = true, description = "Lace for an uncommon wig." },
+lace_frontal   = { name = 'lace_frontal', label = '13x4 HD Frontal', weight = 40, type = 'item', image = 'lace_frontal.png', unique = false, useable = false, shouldClose = true, description = "Lace for a rare wig." },
+lace_full      = { name = 'lace_full', label = 'Full Lace Unit', weight = 60, type = 'item', image = 'lace_full.png', unique = false, useable = false, shouldClose = true, description = "Lace for an epic wig." },
+
 -- wig tables (Dragons Lab Wig Crafting Tables by SasDragon, sold separately). Icons: her install-images folder
 wigtableblue   = { name = 'wigtableblue', label = 'Blue Wig Table', weight = 8000, type = 'item', image = 'wigtableblue.png', unique = true, useable = true, shouldClose = true, description = "A wig crafting table by Dragons Lab. Use it to set it up." },
 wigtablepink   = { name = 'wigtablepink', label = 'Pink Wig Table', weight = 8000, type = 'item', image = 'wigtablepink.png', unique = true, useable = true, shouldClose = true, description = "A wig crafting table by Dragons Lab. Use it to set it up." },

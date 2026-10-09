@@ -767,6 +767,65 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .bench-seg{margin:0;flex:none}
 .bench-seg button{height:24px;padding:0 9px;font-size:10.5px}
 
+/* make a wig from materials */
+.ws-seg{display:flex;margin:0 0 12px}
+.ws-seg button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.ws-seg button i{font-size:10px}
+.mk-bar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.mk-bar .seg{margin:0;flex:none}
+.mk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:7px}
+.mk-style{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px 9px;border-radius:var(--r-md);background:var(--panel);border:1px solid var(--line-soft);text-align:center;transition:border-color var(--fast),background var(--fast)}
+.mk-style:hover{border-color:var(--line)}
+.mk-style.on{border-color:var(--teal);background:var(--teal-wash)}
+.mk-style b{font-size:11px;font-weight:500;color:var(--white);width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mk-style small{font-size:9.5px;color:var(--ink-3)}
+.mk-th{width:64px;height:64px;border-radius:var(--r-sm);display:grid;place-items:center;overflow:hidden;
+  background:radial-gradient(70% 80% at 50% 40%,rgba(var(--teal-rgb),.09),transparent 70%),var(--inset);border:1px solid var(--line-hair)}
+.mk-th img{width:100%;height:100%;object-fit:contain}
+.mk-th i{font-size:15px;color:var(--ink-3)}
+.mk-th.lg{width:76px;height:76px;flex:none}
+.mk-card{display:flex;flex-direction:column;gap:2px}
+.mk-card .sub-h{display:flex;align-items:center;gap:6px}
+.mk-card .sub-h em{font-style:normal;color:var(--amber);font-weight:400;text-transform:none;letter-spacing:0}
+.mk-prev{display:flex;gap:12px;align-items:center;margin-bottom:4px}
+.mk-prev b{display:block;font-size:14px;color:var(--white);font-weight:600}
+.mk-prev small{display:block;font-size:10.5px;color:var(--ink-3);margin:2px 0 6px}
+.mk-tex{display:flex;flex-wrap:wrap;gap:4px}
+.mk-tex button{width:24px;height:24px;border-radius:var(--r-xs);font-size:10px;color:var(--ink-2);background:var(--inset);border:1px solid var(--line-soft)}
+.mk-tex button.on{background:var(--teal);border-color:var(--teal);color:var(--on-accent);font-weight:600}
+.mk-len{margin-left:auto;color:var(--white);font-weight:600;letter-spacing:0}
+.mk-lace{margin-top:4px;max-height:none}
+.mk-lace button{gap:9px}
+.mk-lace button.on{border-color:var(--c);background:var(--cw)}
+.mk-lace button[disabled]{opacity:.5;pointer-events:none}
+.mk-mats{display:flex;flex-direction:column;gap:5px}
+.mk-mats div{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-soft);font-size:11.5px;color:var(--ink-2)}
+.mk-mats div span{flex:1}
+.mk-mats div b{color:var(--white);font-weight:600}
+.mk-mats .ok i{color:var(--teal)}
+.mk-mats .no{border-color:var(--red-edge)}
+.mk-mats .no i,.mk-mats .no b{color:var(--red)}
+
+/* supplier */
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:9px}
+.shop-item{display:flex;flex-direction:column;gap:3px;padding:12px;border-radius:var(--r-md);background:var(--panel);border:1px solid var(--line-soft);transition:border-color var(--fast)}
+.shop-item.on{border-color:var(--teal)}
+.shop-item.locked{opacity:.55}
+.shop-item b{font-size:12.5px;color:var(--white);font-weight:600;margin-top:6px}
+.shop-item small{font-size:10.5px;color:var(--ink-3)}
+.shop-img{height:74px;display:grid;place-items:center;border-radius:var(--r-sm);background:radial-gradient(70% 80% at 50% 40%,rgba(var(--teal-rgb),.08),transparent 70%),var(--inset)}
+.shop-img img{max-height:64px;max-width:90%;object-fit:contain}
+.shop-img i{font-size:20px;color:var(--ink-3)}
+.shop-row{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.shop-price{font-size:14px;font-weight:700;color:var(--white)}
+.qty{display:flex;align-items:center;gap:2px;padding:2px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-soft)}
+.qty button{width:24px;height:22px;border-radius:4px;color:var(--ink-2);font-size:13px}
+.qty button:hover{background:var(--raise-2);color:var(--white)}
+.qty span{min-width:20px;text-align:center;font-size:11.5px;color:var(--white);font-weight:600}
+.shop-total{display:flex;justify-content:space-between;align-items:baseline;margin:12px 0 10px;padding-top:10px;border-top:1px solid var(--line-soft)}
+.shop-total span{font-size:11px;color:var(--ink-3)}
+.shop-total b{font-size:20px;font-weight:700;color:var(--white)}
+
 /* small app pickers */
 .app.sm .app-frame{width:720px}
 .cuts{grid-template-columns:repeat(3,1fr)}

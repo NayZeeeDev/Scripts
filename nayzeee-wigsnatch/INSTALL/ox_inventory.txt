@@ -131,6 +131,48 @@
     description = "Grows hair, eyebrows and beards back and heals burns.",
 },
 
+-- wig making materials (sold by the supplier, Config.Supplier)
+
+['hair_weft'] = {
+    label = 'Hair Weft',
+    weight = 60,
+    stack = true,
+    close = true,
+    description = "A track of hair, sewn into wigs. One per 6 inches.",
+},
+
+['wig_thread'] = {
+    label = 'Weaving Thread',
+    weight = 20,
+    stack = true,
+    close = true,
+    description = "Thread for sewing wefts onto a wig cap.",
+},
+
+['lace_closure'] = {
+    label = '5x5 HD Closure',
+    weight = 30,
+    stack = true,
+    close = true,
+    description = "Lace for an uncommon wig.",
+},
+
+['lace_frontal'] = {
+    label = '13x4 HD Frontal',
+    weight = 40,
+    stack = true,
+    close = true,
+    description = "Lace for a rare wig.",
+},
+
+['lace_full'] = {
+    label = 'Full Lace Unit',
+    weight = 60,
+    stack = true,
+    close = true,
+    description = "Lace for an epic wig.",
+},
+
 -- wig tables (Dragons Lab Wig Crafting Tables by SasDragon, sold separately)
 
 ['wigtableblue'] = {

@@ -16,6 +16,11 @@ function setHead(title, sub, status) {
 
 function openApp(view, data) {
   if (view === 'studio') return studioOpen(data || {});
+  if (view === 'shop') {
+    S.view = 'shop'; closeModal(); app.hidden = false; app.classList.remove('sm');
+    S.shop = Object.assign({ cart: {} }, data); renderShop();
+    return;
+  }
   S.view = view;
   closeModal();
   app.hidden = false;
@@ -334,6 +339,7 @@ async function loadWorkshop() {
   const w = await post('workshopFetch');
   S.ws = w || null;
   await palette();
+  if (S.wsMode === 'make') await loadMake();
   if (S.ws) {
     const keys = new Set(arr(S.ws.bundles).map((b) => b.key));
     [...S.wsSel].forEach((k) => { if (!keys.has(k)) S.wsSel.delete(k); });
@@ -358,14 +364,17 @@ function workshopView() {
       ${S.bench.views ? `<div class="seg bench-seg">${arr(S.bench.views.list).map((v) => `<button class="${S.camView === v.id ? 'on' : ''}" data-act="camView" data-v="${v.id}">${esc(v.label)}</button>`).join('')}</div>` : ''}
       ${S.bench.mine ? '<button class="btn sm ghost" data-act="tablePickUp" title="Pick up table"><i class="fa-solid fa-hand-holding"></i></button>' : ''}
     </div>` : away ? `<div class="card note-card" style="margin-bottom:12px"><i class="fa-solid fa-table"></i><span>Wigs are made and dyed at a <b>wig table</b>. Place one from your inventory, or find one in the city.</span></div>` : '';
-  const craft = w.craft ? `${bench}
+  const modes = S.mk && S.mk.off ? '' : `<div class="seg ws-seg">${[['make', 'fa-scissors', 'Make a wig'], ['bundles', 'fa-wind', 'From bundles & dye']].map(([k, ic, l]) =>
+    `<button class="${S.wsMode === k ? 'on' : ''}" data-act="wsMode" data-v="${k}"><i class="fa-solid ${ic}"></i>${l}</button>`).join('')}</div>`;
+  if (S.wsMode === 'make') return makeView(bench + modes, away);
+  const craft = w.craft ? `${bench}${modes}
     <div class="sec-h"><h3>Make a wig</h3><span>Pick ${w.need} bundles · ${w.needCap ? `${w.caps} wig cap${w.caps === 1 ? '' : 's'}` : 'no cap needed'}</span></div>
     ${bundles.length ? `<div class="wig-grid">${bundles.map((b) => goodCard(b, { act: 'wsPick', check: true, checked: S.wsSel.has(b.key) })).join('')}</div>`
       : `<div class="empty"><i class="fa-solid fa-wind"></i>No bundles. Snip long hair with scissors to collect some.</div>`}
     <div class="sellbar"><div class="total"><span>${picked.length} / ${w.need} picked${models.size > 1 ? ' · mixed male / female hair' : ''}</span>
       <b>${picked.length ? esc(`${picked[0].style}${grade ? ' · ' + grade.label : ''}`) : 'Nothing picked'}</b></div>
       <button class="btn teal" data-act="craft" ${ready && !away ? '' : 'disabled'}><i class="fa-solid fa-screwdriver-wrench"></i>${S.bench ? 'Make it at the table' : 'Make wig'}</button></div>` : '';
-  return `<div class="wig-list">${craft || '<div class="empty"><i class="fa-solid fa-lock"></i>Wig making is off on this server</div>'}</div>
+  return `<div class="wig-list">${craft || bench + modes + '<div class="empty"><i class="fa-solid fa-lock"></i>Making wigs from bundles is off on this server</div>'}</div>
     <div class="detail">${w.dye ? dyePanel(w) : ''}</div>`;
 }
 

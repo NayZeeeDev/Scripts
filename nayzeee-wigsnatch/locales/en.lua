@@ -247,6 +247,14 @@ Locales['en'] = {
     view_first         = 'First person',
     view_close         = 'Close up',
 
+    -- crafting from materials + supplier
+    craft_short        = "That hairstyle is too short to make a wig from",
+    craft_missing      = 'You need more %s',
+    materials_gone     = 'Your materials are gone',
+    level_needed       = 'You need level %s for that',
+    bought             = 'Paid $%s',
+    supplier_browse    = 'Browse supplies',
+
     -- studio
     studio_no_access   = "You don't have access to the Wig Studio",
     studio_model_fail  = "Couldn't load the freemode model",

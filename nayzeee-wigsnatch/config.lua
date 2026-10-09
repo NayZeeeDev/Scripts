@@ -578,6 +578,8 @@ Config.Items = {
     Kit      = 'wig_kit',
     Cap      = 'wig_cap',
     Dye      = 'hair_dye',
+    Weft     = 'hair_weft',      -- Crafting from materials (see Config.Crafting)
+    Thread   = 'wig_thread',
 }
 
 Config.Wig = {
@@ -703,7 +705,15 @@ Config.Tables = {
     -- Each job is done in stages. time in ms; check is an ox_lib skill check ('easy' | 'medium' | 'hard' or false).
     -- prop = what's in your hand: 'scissors' | 'razor' | 'clippers' | 'dye' | false
     Stages = {
-        craft = {
+        make = {    -- a wig from materials (Config.Crafting)
+            { label = 'Stretching the wig cap',  time = 3500, check = false,    prop = false },
+            { label = 'Laying the lace',         time = 4000, check = 'easy',   prop = false },
+            { label = 'Sewing in the wefts',     time = 5500, check = 'medium', prop = false },
+            { label = 'Plucking the hairline',   time = 4000, check = 'hard',   prop = false },
+            { label = 'Cutting the lace',        time = 3500, check = 'easy',   prop = 'scissors' },
+            { label = 'Shaping the style',       time = 3500, check = false,    prop = 'razor' },
+        },
+        craft = {   -- a wig from bundles
             { label = 'Stretching the wig cap',  time = 3500, check = false,    prop = false },
             { label = 'Sewing in the wefts',     time = 5000, check = 'medium', prop = false },
             { label = 'Plucking the hairline',   time = 4000, check = 'hard',   prop = false },
@@ -725,15 +735,83 @@ Config.Tables = {
 }
 
 -- Props for the table work and dyeing. All of these ship in stream/ (see INSTALL/props-source to edit them).
--- In your hand: a key used by Config.Tables.Stages[...].prop. On the table: Head, Bundle, DyeBottle (false = none).
+-- In your hand: a key used by Config.Tables.Stages[...].prop. On the table: Head, Wig, Bundle, DyeBottle (false = none).
 Config.TableProps = {
     scissors = { model = `prop_cs_scissors`, bone = 28422, pos = vec3(0.04, 0.0, -0.01), rot = vec3(0.0, 90.0, 0.0) },
     razor    = { model = `nz_wig_razor`,     bone = 28422, pos = vec3(0.0, 0.0, 0.0),   rot = vec3(90.0, 0.0, 0.0) },
     clippers = { model = `nz_wig_clippers`,  bone = 28422, pos = vec3(0.0, 0.0, 0.02),  rot = vec3(90.0, 0.0, 0.0) },
     dye      = { model = `nz_wig_dye`,       bone = 28422, pos = vec3(0.0, 0.0, -0.07), rot = vec3(0.0, 0.0, 0.0) },
-    Head      = { model = `nz_wig_head` },     -- The wig takes shape on this while you make it
-    Bundle    = { model = `nz_hair_bundle` },  -- One per bundle going in, used up as you work
+
+    -- The bald foam head on the table. The wig goes on it at `point` (where a ped's SKEL_Head bone would be).
+    Head      = { model = `nz_wig_head`, point = vec3(0.0, 0.0, 0.162) },
+    -- The wig on the head. Each hairstyle uses its own prop when one is streamed (see INSTALL/HAIR_PROPS.md):
+    --   1. HairPropMap: ['m:150'] = 'nzw_juice_dreads'   (gender:hairstyle number = prop name)
+    --   2. HairProps:   'nzw_%s_%d' -> nzw_f_12 is female hairstyle 12
+    -- Anything else uses the generic wig below.
+    Wig       = { model = `nz_wig_shell` },
+    HairProps = 'nzw_%s_%d',      -- false = only HairPropMap
+    HairPropMap = {
+        -- ['m:150'] = 'nzw_juice_dreads',
+    },
+    Bundle    = { model = `nz_hair_bundle` },  -- One per bundle / weft going in, used up as you work
     DyeBottle = { model = `nz_wig_dye` },
+}
+
+--  ██████╗██████╗  █████╗ ███████╗████████╗██╗███╗   ██╗ ██████╗
+-- ██╔════╝██╔══██╗██╔══██╗██╔════╝╚══██╔══╝██║████╗  ██║██╔════╝
+-- ██║     ██████╔╝███████║█████╗     ██║   ██║██╔██╗ ██║██║  ███╗
+-- ██║     ██╔══██╗██╔══██║██╔══╝     ██║   ██║██║╚██╗██║██║   ██║
+-- ╚██████╗██║  ██║██║  ██║██║        ██║   ██║██║ ╚████║╚██████╔╝
+--  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝        ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
+
+-- Make a wig of any in-game hairstyle from materials (Workshop > Make a wig, at a wig table).
+-- Pick the hairstyle, texture, length, lace and colour; the recipe is worked out from those:
+--   Base items  +  one hair weft per `WeftInches` inches (rounded up)  +  the lace's items
+--   +  one hair dye if the colour isn't in NaturalColours.
+-- The lace decides the wig's tier. Legendary and mythic wigs can only be snatched.
+Config.Crafting = {
+    Enabled    = true,
+    Base       = { wig_cap = 1, wig_thread = 1 },
+    WeftItem   = 'hair_weft',
+    WeftInches = 6,              -- 10" = 2 wefts, 18" = 3, 24" = 4, 30" = 5
+    Lengths    = { 10, 30 },     -- Inches players can pick (steps of 2)
+    Laces = {
+        { id = 'closure', label = '5x5 HD Closure',  tier = 'uncommon', level = 1, items = { lace_closure = 1 } },
+        { id = 'frontal', label = '13x4 HD Frontal', tier = 'rare',     level = 3, items = { lace_frontal = 1 } },
+        { id = 'full',    label = 'Full Lace',       tier = 'epic',     level = 5, items = { lace_full = 1 } },
+    },
+    NaturalColours = { 0, 1, 2, 3, 4, 5 }, -- Hair colours that don't need a dye
+    ShortStyles = false,         -- true = bald / buzz / fade hairstyles can be made too
+    XP = 20,                     -- + Config.Tables.PerfectXP for a clean run
+}
+
+-- ███████╗██╗   ██╗██████╗ ██████╗ ██╗     ██╗███████╗██████╗
+-- ██╔════╝██║   ██║██╔══██╗██╔══██╗██║     ██║██╔════╝██╔══██╗
+-- ███████╗██║   ██║██████╔╝██████╔╝██║     ██║█████╗  ██████╔╝
+-- ╚════██║██║   ██║██╔═══╝ ██╔═══╝ ██║     ██║██╔══╝  ██╔══██╗
+-- ███████║╚██████╔╝██║     ██║     ███████╗██║███████╗██║  ██║
+-- ╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
+
+-- An NPC who sells the wig making materials. level = player level needed to buy it.
+Config.Supplier = {
+    Enabled    = true,
+    Label      = 'Hair Supply',
+    Ped        = `a_f_y_business_02`,
+    Coords     = vector4(-34.6, -155.4, 57.08, 340.0),  -- Next to Hair on Hawick; move it anywhere
+    Blip       = { sprite = 71, colour = 48, scale = 0.75 },  -- false = no blip
+    Account    = 'cash',         -- 'cash' | 'bank'
+    MaxPerItem = 25,             -- Most of one item per purchase
+    Items = {
+        wig_cap      = { label = 'Wig Cap',         price = 15 },
+        wig_thread   = { label = 'Weaving Thread',  price = 5 },
+        hair_weft    = { label = 'Hair Weft',       price = 15 },
+        lace_closure = { label = '5x5 HD Closure',  price = 25 },
+        lace_frontal = { label = '13x4 HD Frontal', price = 50,  level = 3 },
+        lace_full    = { label = 'Full Lace Unit',  price = 120, level = 5 },
+        hair_dye     = { label = 'Hair Dye',        price = 30 },
+        wig_glue     = { label = 'Lace Glue',       price = 40 },
+        wig_kit      = { label = 'Wig Kit',         price = 90,  level = 2 },
+    },
 }
 
 
