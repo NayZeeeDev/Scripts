@@ -11,7 +11,7 @@ Sneaker reselling for FiveM: make pairs (real or fake), wear them, keep them cle
 | 3. Crafting tables (Dragons Lab), materials, supplier, fake quality, XP | **done** |
 | 4. Dirt, wear and cleaning | **done** |
 | 5. Selling: Plug app on lb-phone, NPC meetups on foot or by car, legit checks, handover cinematic, dispatch, hype, rep | **done** |
-| 6. Sneaker Studio: the app turns a server's clothing shoes into props and icons; `/sneakerstudio` spots new and removed shoes and puts them on sale | **done** |
+| 6. Sneaker Studio: the server turns its clothing shoes into props (sneakerkit); `/sneakerstudio` is a chroma-box photo studio like wig snatch's, and spots new and removed shoes and puts them on sale | **done** |
 
 ## Supported
 
@@ -19,14 +19,15 @@ Sneaker reselling for FiveM: make pairs (real or fake), wear them, keep them cle
 - **Inventories:** ox_inventory and qb-inventory (plus ps-inventory and lj-inventory). Anything else goes through `bridge/custom/inventory.lua`.
 - **Target:** ox_target, qb-target or interact (or a key prompt without one).
 - **Phone:** selling runs on **lb-phone**: the Plug app is a custom app (`AddCustomApp`), buyers text through its Messages app.
-- **Your own shoes:** [NayZeee Sneaker Studio](../nayzeee-sneakers-studio/) makes props and icons from the clothing packs on
-  your server; `/sneakerstudio` puts them on sale in game (HOW-TO-USE section 9).
+- **Your own shoes:** the server turns every shoe in your clothing packs into props by itself (`tools/sneakerkit`), and
+  `/sneakerstudio` names, prices and photographs them for the inventory (HOW-TO-USE section 9). The same converter also
+  runs on a PC: [NayZeee Sneaker Studio](../nayzeee-sneakers-studio/).
 - **Clothing:** the shoes you wear come from **[nayzeee-sneakers-clothing](../nayzeee-sneakers-clothing/)**, an addon pack
   (no base-game slots replaced). The script looks up each shoe's real drawable number from the pack at runtime,
   so nobody has to type drawable numbers in.
 - **Dispatch:** ps-dispatch, cd_dispatch, qs-dispatch, rcore_dispatch, built-in, or your own.
-- **Notifications:** the script's own, or nayzeee-notify, ox_lib, okok, ESX, QB.
-- **Requires** ox_lib.
+- **Notifications:** ox_lib (`lib.notify`); nayzeee-notify or okokNotify when one is running.
+- **Requires** ox_lib. The studio's photos use screenshot-basic.
 - **Crafting tables:** the [Dragons Lab Shoe Table Pack](https://discord.com/invite/KEhZqcuv6m) by SasDragon, bought separately from her. Not included; without it the tables fall back to a GTA workbench.
 
 ## Items

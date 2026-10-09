@@ -57,6 +57,9 @@ server_scripts {
     'server/dirt.lua',
     'server/selling.lua',
     'server/studio.lua',
+    'server/shots.js',
+    'server/props.lua',
+    'server/sneakerkit.js',
     'server/main.lua',
 }
 
@@ -66,12 +69,17 @@ files {
     'web/index.html',
     'web/style.css',
     'web/app.js',
+    'web/studio.css',
+    'web/studio.js',
+    'web/keyer.js',
     'web/plug.html',
     'web/plug.css',
     'web/plug.js',
     'web/plug-icon.png',
     'web/fonts/*.woff2',
     'install/images/*.png',
+    'shots/*.png',              -- photos taken in /sneakerstudio
+    'shots/index.json',
 }
 
 -- Escrow (Tebex / Keymaster): everything is locked except these, which owners can edit.

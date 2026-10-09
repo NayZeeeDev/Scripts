@@ -1,5 +1,9 @@
 # NayZeee Sneaker Studio
 
+> **Most servers don't need to run this by hand.** The same program ships inside nayzeee-sneakers as
+> `tools/sneakerkit`, and the server runs it itself when it starts (and from **/sneakerstudio > 3D props**).
+> See *Server mode* below. Use the app when you'd rather convert on your PC.
+
 Turns the shoes already on your server into props for **nayzeee-sneakers**. Point it at your server
 folder and it finds every shoe in your clothing packs, then makes a prop per colourway (packed to sit
 in its shoe box), two inventory icons each (loose and boxed), and a ready-to-start resource:
@@ -58,6 +62,20 @@ nayzeee-sneakers-props/
   everything new or changed without the browser. `scan <server folder>` just lists what it finds.
 - Settings are saved next to the exe in `studio-settings.json`.
 
+## Server mode (sneakerkit)
+
+nayzeee-sneakers starts it from `server/sneakerkit.js` with every started resource listed in a roots file, and reads
+the `@{json}` lines it prints:
+
+```
+sneakerkit scan  --out <props resource> --roots-file <file>          what's new, changed or gone
+sneakerkit build --out <props resource> --roots-file <file> [--all]  convert new + changed (or all), remove gone
+   options: --tex 256|512|1024   --icons <inventory image folder>   --keep <folder of in-game photos>
+```
+
+Plain downloads are skipped in server mode (they aren't on the server as-is). Icons that have an in-game photo
+of the same name in `--keep` are never overwritten in the inventory.
+
 ## Building from source
 
 A .NET 8 console app. It needs CodeWalker.Core (https://github.com/dexyfex/CodeWalker): clone it
@@ -68,6 +86,9 @@ dotnet build -c Release -p:CodeWalkerDir=C:\path\to\CodeWalker
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true ^
   -p:EnableCompressionInSingleFile=true -p:CodeWalkerDir=C:\path\to\CodeWalker -o publish
 ```
+
+For the server builds, publish for `linux-x64` and `win-x64` the same way and rename the output to
+`sneakerkit` / `sneakerkit.exe` (in `nayzeee-sneakers/tools/sneakerkit/<rid>/`).
 
 The web page (`web/`) and the three box props (from `nayzeee-sneakers/stream`, used for the boxed
 icons) are built into the exe. BC7 textures are decoded with a port of bcdec (MIT); mesh reduction

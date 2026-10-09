@@ -9,6 +9,7 @@ static class Program
         Console.OutputEncoding = Encoding.UTF8;
         try
         {
+            if (Kit.Wants(args)) return Kit.Run(args);
             if (args.Length > 0 && args[0] == "scan") return Scan(args);
             if (args.Length > 0 && args[0] == "convert") return ConvertCli(args);
             if (args.Length > 0 && args[0] == "preview") return PreviewCli(args);

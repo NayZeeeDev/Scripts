@@ -244,20 +244,57 @@ Config.Cleaning = {
 -- ███████║   ██║   ╚██████╔╝██████╔╝██║╚██████╔╝
 -- ╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
 
--- Use the shoes already on your server. NayZeee Sneaker Studio (the app) turns your clothing packs
--- into props and icons; /sneakerstudio in game spots new and removed shoes and lets admins price
--- them and switch them on. No config editing, no restarts.
+-- /sneakerstudio (admins): every shoe on the server in one place. Built like the wig snatch and
+-- backpack studios: the shoe floats in a lit chroma box, you frame it with the orbit camera, and each
+-- shot is keyed into a transparent PNG that goes straight into ox_inventory. Name, price and switch
+-- shoes on there too. Needs screenshot-basic for the photos.
 Config.Studio = {
     Enabled       = true,
     Command       = 'sneakerstudio',
-    PropsResource = 'nayzeee-sneakers-props',   -- the resource the app makes
-    AutoEnable    = false,      -- true = shoes the app converts go on sale straight away (false = an admin switches them on)
-    BaseGame      = false,      -- also list base-game shoes in the studio (they show as a stand-in prop)
+    Ace           = 'command.sneakerstudio',   -- who can open it (framework admins can too)
+    PropsResource = 'nayzeee-sneakers-props',   -- made next to this resource by the 3D props builder
+    AutoEnable    = false,      -- true = new shoes go on sale as soon as they have a prop (false = an admin switches them on)
+    BaseGame      = false,      -- also list base-game shoes in the studio
     AlertAdmins   = true,       -- tell admins when they join if shoes were added to or removed from the server
     -- the prop shown for a shoe that has no prop of its own yet
     StandIn = { shoe = 'nzs_cup_a', heel = 'nzs_bianca_a', boot = 'nzs_alice_a' },
     -- starting price of a new shoe; change it per shoe in the studio
     Price   = { shoe = 350, heel = 400, boot = 450 },
+
+    -- photos
+    Size      = 256,            -- PNG size in pixels (square)
+    Padding   = 0.08,           -- empty border around the shoe, as a share of the size
+    Chroma    = 'green',        -- starting backdrop: 'green' | 'magenta' | 'blue' (switch it in the studio)
+    SaveToInventory = true,     -- also copy every photo into ox_inventory/web/images (see HOW-TO-USE)
+    Fov       = 30.0,
+    Orbit     = { yaw = 215.0, elev = 24.0, zoom = 1.0, lift = 0.0 },  -- starting framing (Three quarter)
+    TextureWait = 450,          -- ms a prop gets to stream in before the photo
+    Coords    = vector3(0.0, 0.0, -150.0),    -- under the map, where nothing else renders
+    RoutingBucket = 7178,
+    LatentRate = 4000000,       -- bytes/sec for uploading the finished PNG
+    Lights = {                  -- offsets from the shoe
+        { offset = vector3(0.0, -1.4, 0.8),  range = 5.0, intensity = 3.0 },
+        { offset = vector3(-1.2, -0.5, 0.5), range = 4.0, intensity = 1.8 },
+        { offset = vector3(1.2, -0.5, 0.5),  range = 4.0, intensity = 1.8 },
+        { offset = vector3(0.0, 1.2, 0.6),   range = 4.0, intensity = 1.4 },
+        { offset = vector3(0.0, 0.0, 1.5),   range = 4.0, intensity = 2.0 },
+    },
+}
+
+-- 3D props: every shoe your clothing packs stream is turned into a prop (one per colourway, packed to
+-- sit in its box) with icons, by sneakerkit (tools/sneakerkit). The studio shows what's new, changed
+-- or gone and builds them into their own resource (Config.Studio.PropsResource) next to this one.
+Config.ShoeProps = {
+    Enabled     = true,
+    AutoScan    = true,         -- look for new / changed / removed shoe files when the server starts
+    AutoBuild   = true,         -- ...and build them straight away (restarts the props resource)
+    TextureSize = 512,          -- max texture size of each prop (256 / 512 / 1024)
+    CopyIcons   = true,         -- put the icons it renders into ox_inventory/web/images (photos you take win)
+    Skip        = { 'nayzeee-sneakers-clothing' },  -- resources to leave out (the bundled shoes already have props)
+    Kit = {                     -- the sneakerkit program for each server OS (inside this resource)
+        windows = 'tools/sneakerkit/win-x64/sneakerkit.exe',
+        linux   = 'tools/sneakerkit/linux-x64/sneakerkit',
+    },
 }
 
 -- ██╗      ██████╗  ██████╗ ███████╗

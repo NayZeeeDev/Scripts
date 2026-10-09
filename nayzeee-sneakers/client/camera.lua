@@ -12,7 +12,7 @@ function LoadModel(model)
 end
 
 --- The prop to show for a shoe: its own, or the stand-in for its box size when it has none yet
---- (shoes added in the studio before the app made their props)
+--- (shoes added in the studio before 3D props built theirs)
 function ShoeProp(shoe)
     if not shoe then return nil end
     if IsModelInCdimage(shoe.prop) then return shoe.prop end

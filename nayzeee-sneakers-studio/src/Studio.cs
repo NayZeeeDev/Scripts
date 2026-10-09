@@ -458,8 +458,8 @@ static class Studio
         var fx = new System.Text.StringBuilder();
         fx.AppendLine("--[[");
         fx.AppendLine("    nayzeee-sneakers-props  |  NayZeee Development");
-        fx.AppendLine("    Made by NayZeee Sneaker Studio from the shoes on this server. Re-run the studio after adding or");
-        fx.AppendLine("    removing clothing packs; it rewrites this file. Start it before nayzeee-sneakers.");
+        fx.AppendLine("    Made from the shoes on this server by nayzeee-sneakers (/sneakerstudio > 3D props) or the");
+        fx.AppendLine("    NayZeee Sneaker Studio app. Every build rewrites this file; don't edit it.");
         fx.AppendLine("]]");
         fx.AppendLine();
         fx.AppendLine("fx_version 'cerulean'");
@@ -483,21 +483,17 @@ static class Studio
 $@"nayzeee-sneakers-props
 ======================
 
-Made by NayZeee Sneaker Studio from the shoe clothing on your server: {cat.Shoes.Count} shoes,
-{cat.Shoes.Sum(s => s.Colours.Count)} colourways.
+Shoe props made from the clothing on your server: {cat.Shoes.Count} shoes, {cat.Shoes.Sum(s => s.Colours.Count)} colourways.
 
   stream/<shoe>/      one prop per colourway (nzs_<shoe>_<letter>.ydr) and a .ytyp
   icons/              inventory icons: nzs_<shoe>_<letter>.png and _box.png
   catalogue.json      what nayzeee-sneakers reads: names, colourways, which drawable each shoe is, box size
 
-1. Put this folder in your resources and start it before nayzeee-sneakers:
+nayzeee-sneakers keeps this folder up to date by itself (/sneakerstudio > 3D props) and restarts it
+after every build. If it can't, add this to server.cfg after nayzeee-sneakers:
      ensure nayzeee-sneakers-props
-     ensure nayzeee-sneakers
-2. Copy icons/*.png into your inventory's images folder (the studio can do this for you).
-3. Restart, then open the in-game studio (/sneakerstudio) to price them and switch them on.
 
-Added or removed clothing? Run the studio again. It only converts what's new or changed and
-removes props for shoes that are gone.
+Don't edit anything in here: every build rewrites it.
 ");
     }
 }

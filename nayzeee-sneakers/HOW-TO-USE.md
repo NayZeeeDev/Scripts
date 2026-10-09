@@ -33,7 +33,15 @@ cleaning, and selling to NPC buyers through a phone app with a handover cinemati
    ```
 6. **Wearing:** set up **nayzeee-sneakers-clothing** (section 3) and start it before this script.
 7. **Crafting tables:** install the **Dragons Lab Shoe Table Pack** (see section 5).
-8. **Optional, your own shoes:** run NayZeee Sneaker Studio and `ensure nayzeee-sneakers-props` (section 9).
+8. **Your server's own shoes and the studio** (section 9). In `server.cfg`:
+   ```
+   add_ace group.admin command.sneakerstudio allow
+   add_filesystem_permission nayzeee-sneakers write ox_inventory
+   add_ace resource.nayzeee-sneakers command.refresh allow
+   add_ace resource.nayzeee-sneakers command.ensure allow
+   add_ace resource.nayzeee-sneakers command.restart allow
+   ensure screenshot-basic
+   ```
 9. Restart the server, then **close FiveM and clear your cache**.
 
 ### The config files
@@ -297,54 +305,69 @@ Use `'custom'` and fill in `Bridge.CustomDispatch` in `bridge/server/dispatch.lu
 
 ## 9. Use the shoes already on your server (Sneaker Studio)
 
-You don't have to stick to the ten shoes that come with the script. Any shoe in your clothing packs can be made,
-worn, boxed and sold. There are two parts:
+You don't have to stick to the ten shoes that come with the script. Any shoe your clothing packs stream can be made,
+worn, boxed and sold, with its own prop and icon. It's built like the wig snatch and backpack studios.
 
 | | What it does |
 |---|---|
-| **NayZeee Sneaker Studio** (an app for your PC) | Reads your server folder, finds every shoe in your clothing packs and makes the props (one per colourway, packed for its box) and inventory icons. Out comes a resource: **nayzeee-sneakers-props**. |
-| **/sneakerstudio** (in game, admins) | Lists every shoe (the custom ones that come with the script and the ones from your server), lets you switch them on or off, name and price them, and spots shoes that were added to or removed from the server. |
+| **3D props** (the server does it) | When the server starts, sneakerkit (`tools/sneakerkit`) looks through every started resource for shoes, and turns each new or changed one into props: one per colourway, packed to sit in its box, with icons. They go into **nayzeee-sneakers-props**, made next to this resource and restarted for you. Shoes that are gone are removed. |
+| **/sneakerstudio** (in game, admins) | Every shoe on the server in one list. Name, price, level and box, switch them on sale, and take their inventory photos: the shoe floats in a chroma box, you frame it, and each photo is keyed into a transparent PNG that goes straight into ox_inventory. |
 
 ### Setting it up
-1. On your PC, run **NayZeee Sneaker Studio.exe**. It opens in your browser.
-2. Pick your server's `resources` folder, press **Scan for shoes**, check the names, press **Convert**.
-   With **Copy icons to the inventory** on, the icons go straight into ox_inventory / qb-inventory.
-3. Upload **nayzeee-sneakers-props** to your server's resources and start it before the script:
-   ```
-   ensure nayzeee-sneakers-props
-   ensure nayzeee-sneakers
-   ```
-4. In game type **/sneakerstudio**. Open a shoe, set its price (and level, box, colour names), switch **On sale** on, and **Save**.
-   It's live for everyone straight away: craftable at the tables, wearable, boxable and sellable.
+1. The `server.cfg` lines in Install, step 8. `screenshot-basic` is only needed for the photos.
+2. Restart the server. The console says what it found, e.g. *3D props: 12 new, 0 changed, 0 removed shoe(s)*, builds them
+   and starts **nayzeee-sneakers-props**. (If it can't start it, it tells you the line to add.)
+3. In game type **/sneakerstudio**.
 
-Each shoe you pick shows on a preview ped next to you, turning slowly, so you can check it's the right one.
+### The studio
+- **Left:** every shoe. **All / Male / Female**, and **On sale / Off / New / Gone**. A green dot means it has a photo, **3D** that it has its own prop.
+- **Middle:** the shoe in the chroma box. Drag to orbit, scroll to zoom. The corner marks are what the photo crops to.
+- **Right:**
+  - **Shoe:** on sale, name, price, level, box size. **Save** (or Enter). It's live for everyone straight away: craftable, wearable, boxable and sellable.
+  - **Colourway:** pick one to see it, and rename it.
+  - **Backdrop:** green, magenta or blue. Pick one the shoe doesn't use (green shoes: magenta).
+  - **Framing:** **The pair** or **In its box**, angle presets, zoom and height.
+  - **Capture:** **This photo**, or **Every shoe** (every colourway too, the pair and/or the box, skipping ones that already have a photo).
+    Backspace stops a batch.
+  - **3D props:** how many shoes have props and what's new, changed or gone. **Build**, **Check again**, or **Rebuild every shoe**.
+- Keys: **↑ ↓** shoe, **← →** colourway, **Esc** close.
+
+Photos are saved as `shots/nzs_<shoe>_<colour>.png` (the pair) and `..._box.png` (in its box) in this resource and copied
+into `ox_inventory/web/images`. Restart ox_inventory to see new ones in the inventory. A rebuild never replaces a photo you took.
 
 ### The custom shoes
-The ten shoes that come with the script are in the studio too, marked **Built in**. Change their name, price, level and
-colour names, or switch one off, the same way. Their props and box size stay as they are.
+The ten shoes that come with the script are in the list too (*comes with the script*). Change their name, price, level and
+colour names, switch one off, or take new photos of them, the same way. Their props and box size stay as they are.
 
 ### New and removed shoes
-- Every time an admin opens the studio (and when an admin joins, with `Config.Studio.AlertAdmins`), their game checks
-  every shoe drawable on the server. **New on server** lists shoes nobody has added yet; **Gone** lists shoes whose clothing pack was removed.
-- **Add** a new one to sell it straight away. Until you run the app again it shows as a stand-in prop
-  (`Config.Studio.StandIn`) and a plain box icon; then it gets its own.
+- Every time an admin opens the studio (and when an admin joins, with `Config.Studio.AlertAdmins`), their game checks every
+  shoe drawable on the server. **New** lists shoes the studio doesn't know yet; **Gone** lists shoes whose clothing was removed.
+- New shoes get their props by themselves on the next server start (or press **Build** in **3D props**). To sell one before
+  that, open it and **Add it as a shoe**: it uses a stand-in prop (`Config.Studio.StandIn`) until its own is built.
 - Gone shoes go off sale by themselves. Pairs players already own stay in their inventory, and if the pack comes back the shoe does too.
-- After adding or removing clothing packs, run the app again: it only converts what's new or changed and removes props for shoes that are gone.
 
 Shoes are worn by **pack and drawable number inside the pack**, so adding or reordering other clothing packs never mixes them up.
 
-### Plain downloads
-A shoe that isn't named for streaming (just `feet_000_u.ydd`) converts fine, but the studio can't tell which drawable it is
-on your server. Open it in /sneakerstudio and pick it under **Drawable** (the preview shows what you picked), and set **For** (male or female).
+### Converting on your PC instead
+`nayzeee-sneakers-studio` (NayZeee Sneaker Studio.exe) is the same converter with a window: point it at a server folder on your PC,
+convert, upload the **nayzeee-sneakers-props** it makes. Shoes it finds as plain downloads (just `feet_000_u.ydd`) can be linked to
+their drawable in /sneakerstudio (**Drawable**).
 
-### Settings (`Config.Studio`)
+### Settings
+`Config.Studio` (photos and the studio) and `Config.ShoeProps` (3D props) in `config/config.lua`:
+
 | Setting | What it does |
 |---|---|
-| `AutoEnable` | `true` = shoes the app converts go on sale without an admin switching them on |
-| `BaseGame` | Also list GTA's own shoes in the studio (they use the stand-in prop) |
-| `AlertAdmins` | Tell admins when they join if shoes were added or removed |
-| `StandIn` | The prop shown for a shoe without its own, per box size |
-| `Price` | Starting price of a new shoe, per box size |
+| `Studio.AutoEnable` | `true` = new shoes go on sale as soon as they have a prop, without an admin switching them on |
+| `Studio.BaseGame` | Also list GTA's own shoes |
+| `Studio.AlertAdmins` | Tell admins when they join if shoes were added or removed |
+| `Studio.StandIn` / `Price` | The prop shown for a shoe without its own, and a new shoe's starting price, per box size |
+| `Studio.Size` / `Padding` / `Chroma` | Photo size, empty border, starting backdrop |
+| `Studio.SaveToInventory` | Copy every photo into ox_inventory/web/images |
+| `ShoeProps.AutoScan` / `AutoBuild` | Look for new / changed / removed shoes when the server starts, and build them straight away |
+| `ShoeProps.TextureSize` | Max texture size of each prop (512 is a good default) |
+| `ShoeProps.CopyIcons` | Put the icons it renders into the inventory (photos you take always win) |
+| `ShoeProps.Skip` | Resources to leave out of the scan |
 
 Admin settings are saved in the server's KVP, so they survive updates to the script.
 
@@ -356,8 +379,8 @@ Every notification goes through **ox_lib** (`lib.notify`), buyers' texts too whe
 `Config.Notify = 'auto'` uses nayzeee-notify or okokNotify instead when one is running.
 
 The script is escrow ready: `config/`, `locales/`, `bridge/` and `install/*.lua` stay open for owners, everything else
-(including the shoe and box props) is locked when uploaded through Keymaster. Props made by the Sneaker Studio app
-come from each server's own clothing, so those stay with that server.
+(including the shoe and box props) is locked when uploaded through Keymaster. Props made in
+**3D props** come from each server's own clothing, so those stay with that server.
 
 ---
 
@@ -388,9 +411,12 @@ come from each server's own clothing, so those stay with that server.
 | The buyer never shows up | They spawn when you're within 150 m of the meet. If a driver gets stuck they're moved to the meet after a minute. |
 | Police never get alerts | Check `Config.Dispatch.PoliceJobs` matches your police job names, and that officers are on duty. |
 | Shoes or box show up invisible or inside-out | Screenshot it and send it to Claude. That's a model-file fix. |
-| /sneakerstudio does nothing | You need the admin ace (Install, step 5). |
-| The studio says *nayzeee-sneakers-props isn't running* | Run the app, upload the folder it made, `ensure nayzeee-sneakers-props` before this script. |
-| *Your FiveM build can't list clothing packs* | Update FiveM (the studio scan needs the clothing collection natives). The app still works; link drawables by hand. |
+| /sneakerstudio does nothing | You need `command.sneakerstudio` (or the admin ace). Install, step 8. |
+| **3D props** says *sneakerkit isn't installed* | `tools/sneakerkit/linux-x64` (Linux servers) or `win-x64` (Windows) is missing from the resource. On Linux it also has to be executable: `chmod +x tools/sneakerkit/linux-x64/sneakerkit`. |
+| Props are built but nayzeee-sneakers-props doesn't start | Add the three `add_ace resource.nayzeee-sneakers command...` lines (Install, step 8), or `ensure nayzeee-sneakers-props` after this script. |
+| Photos only go to `shots/` | Add `add_filesystem_permission nayzeee-sneakers write ox_inventory` and restart. You can copy `shots/*.png` into ox_inventory/web/images by hand meanwhile. |
+| **This photo** is greyed out | screenshot-basic isn't running, or the shoe has no 3D prop yet (build it in **3D props**). |
+| The photo has green edges | Pick a backdrop the shoe doesn't use (magenta for green shoes). |
+| *Your FiveM build can't list clothing packs* | Update FiveM (the drawable check needs the clothing collection natives). 3D props still work. |
 | A studio shoe can't be worn | Its drawable isn't on the server (check **Gone**), or it's a plain download that hasn't been linked to its drawable yet. |
-| A studio shoe shows as a different shoe on tables and in boxes | That's the stand-in: it was added in game before the app made its prop. Run the app and restart nayzeee-sneakers-props. |
-| Studio shoe icons are a plain box | Copy `nayzeee-sneakers-props/icons` into your inventory's images folder (the app does it with **Copy icons to the inventory**). |
+| A studio shoe shows as a different shoe on tables and in boxes | That's the stand-in: it was added before its prop was built. Press **Build** in **3D props**. |

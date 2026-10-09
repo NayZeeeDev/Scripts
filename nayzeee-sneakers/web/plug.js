@@ -10,11 +10,11 @@ addEventListener('error', e => {
   const el = e.target;
   if (!(el instanceof HTMLImageElement)) return;
   const src = el.getAttribute('src') || '';
-  const m = src.match(/install\/images\/([^/]+)\.png$/) || src.match(/\/icons\/([^/]+)\.png$/) || src.match(/\/images\/([^/]+)\.png$/);
+  const m = src.match(/install\/images\/([^/]+)\.png$/) || src.match(/shots\/([^/]+)\.png$/) || src.match(/\/icons\/([^/]+)\.png$/) || src.match(/\/images\/([^/]+)\.png$/);
   if (!m) return;
   const name = m[1];
   // where an icon can be: this script, the props resource (studio shoes), then the inventory's own images
-  const tries = [`../install/images/${name}.png`, `https://cfx-nui-${PROPS_RES}/icons/${name}.png`,
+  const tries = [`../install/images/${name}.png`, `../shots/${name}.png`, `https://cfx-nui-${PROPS_RES}/icons/${name}.png`,
     `https://cfx-nui-ox_inventory/web/images/${name}.png`, `https://cfx-nui-qb-inventory/html/images/${name}.png`];
   const step = +(el.dataset.fb || 0) + 1;
   if (step < tries.length) { el.dataset.fb = step; el.src = tries[step]; return; }

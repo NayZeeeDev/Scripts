@@ -3,8 +3,8 @@
 
     Where shoes come from
       built in                    Config.ShoeModels (config/shoes.lua)
-      nayzeee-sneakers-props      catalogue.json, made by the NayZeee Sneaker Studio app: props and icons
-                                  for the clothing packs on this server
+      nayzeee-sneakers-props      catalogue.json, made by sneakerkit (server/props.lua, or the PC app):
+                                  props and icons for the clothing packs on this server
       added in game               a drawable an admin picked in /sneakerstudio; it has no prop of its own
                                   yet, so it shows as the stand-in (Config.Studio.StandIn)
 
@@ -12,7 +12,7 @@
     survives script updates. Shoe keys are gender:pack:drawable, e.g. f:mypack:007 (pack '' = base game).
 
     Admins' games scan the server's shoe drawables (client/studio.lua) and report them here, which is
-    how new and removed shoes are spotted.
+    how new and removed shoes are spotted. Photos taken in the studio are saved at the bottom of this file.
 ]]
 
 Studio = {}
@@ -312,22 +312,42 @@ local function openData()
         builtin = (function() local n = 0 for _ in pairs(builtinKeys) do n = n + 1 end return n end)(),
         maxLevel = #Config.XP.levels,
         prices = S.Price, baseGame = S.BaseGame,
+        shots = Studio.Shots(),
+        kit = ShoeProps and ShoeProps.Status() or nil,
+        size = S.Size,
+        saveToInventory = S.SaveToInventory and GetResourceState('ox_inventory') ~= 'missing',
     }
 end
 
-local function admin(src) return src ~= 0 and Bridge.IsAdmin(src) end
+local function admin(src)
+    if not S.Enabled or not src or src <= 0 then return false end
+    return IsPlayerAceAllowed(tostring(src), S.Ace or 'command.sneakerstudio') or Bridge.IsAdmin(src)
+end
+Studio.Allowed = admin
 
-lib.callback.register('nayzeee-sneakers:studio:isAdmin', function(src) return S.Enabled and admin(src) end)
+function Studio.CatalogueCount()
+    local n = 0
+    for _ in pairs(catalogue) do n = n + 1 end
+    return n
+end
+
+--- Re-reads the props resource's catalogue.json (after a build) and sends the shoes to everyone
+function Studio.Reload()
+    loadCatalogue()
+    Studio.Rebuild(true)
+end
+
+lib.callback.register('nayzeee-sneakers:studio:isAdmin', function(src) return admin(src) end)
 
 lib.callback.register('nayzeee-sneakers:studio:shoes', function() return Studio.Payload() end)
 
 lib.callback.register('nayzeee-sneakers:studio:open', function(src)
-    if not S.Enabled or not admin(src) then return nil end
+    if not admin(src) then return nil end
     return openData()
 end)
 
 lib.callback.register('nayzeee-sneakers:studio:report', function(src, data)
-    if not S.Enabled or not admin(src) then return nil end
+    if not admin(src) then return nil end
     local fresh, gone = takeScan(src, data)
     return { fresh = #fresh, gone = #gone, data = openData() }
 end)
@@ -338,7 +358,7 @@ local function clean(str, max)
 end
 
 lib.callback.register('nayzeee-sneakers:studio:save', function(src, key, f)
-    if not S.Enabled or not admin(src) or type(key) ~= 'string' or type(f) ~= 'table' then return nil end
+    if not admin(src) or type(key) ~= 'string' or type(f) ~= 'table' then return nil end
     local bid = key:match('^b:(.+)$')
     local isBuiltin = bid and Config.ShoeModels[bid] and not Config.ShoeModels[bid].studio
     if not isBuiltin and not catalogue[key] and not (settings[key] and settings[key].manual) then return nil end
@@ -374,7 +394,7 @@ end)
 
 --- Adds a drawable from the scan as a shoe (no prop of its own: it uses the stand-in)
 lib.callback.register('nayzeee-sneakers:studio:add', function(src, key)
-    if not S.Enabled or not admin(src) or type(key) ~= 'string' then return nil end
+    if not admin(src) or type(key) ~= 'string' then return nil end
     local textures = scan and scan.drawables and scan.drawables[key]
     if not textures or catalogue[key] or builtinKeys[key] then return nil end
     local g, col, idx = key:match('^(%a):(.*):(%d+)$')
@@ -391,7 +411,7 @@ end)
 
 --- Forgets a shoe added in game (catalogue shoes can only be switched off)
 lib.callback.register('nayzeee-sneakers:studio:forget', function(src, key)
-    if not S.Enabled or not admin(src) or type(key) ~= 'string' or not settings[key] then return nil end
+    if not admin(src) or type(key) ~= 'string' or not settings[key] then return nil end
     if catalogue[key] then
         settings[key].enabled = false
     else
@@ -403,20 +423,115 @@ lib.callback.register('nayzeee-sneakers:studio:forget', function(src, key)
 end)
 
 lib.callback.register('nayzeee-sneakers:studio:reload', function(src)
-    if not S.Enabled or not admin(src) then return nil end
+    if not admin(src) then return nil end
     loadCatalogue()
     Studio.Rebuild(true)
     return openData()
 end)
 
+-- ------------------------------------------------------------------ photos
+-- Same flow as the wig snatch and backpack studios: the NUI keys each shot into a small PNG,
+-- server/shots.js writes it into shots/, and the copy into ox_inventory/web/images is done here.
+
+local MAX_BYTES = 4 * 1024 * 1024
+local shots = {}        -- [name] = true
+local warned = false
+
+local function loadShots()
+    shots = {}
+    local raw = LoadResourceFile(GetCurrentResourceName(), 'shots/index.json')
+    local ok, list = pcall(json.decode, raw or '[]')
+    for _, n in ipairs(ok and type(list) == 'table' and list or {}) do
+        if type(n) == 'string' then shots[n] = true end
+    end
+end
+
+function Studio.Shots()
+    local out = {}
+    for n in pairs(shots) do out[#out + 1] = n end
+    table.sort(out)
+    return out
+end
+
+AddEventHandler('nzs:shots:indexed', loadShots)
+
+RegisterNetEvent('nayzeee-sneakers:server:studioBucket', function(on)
+    local src = source
+    if not admin(src) then return end
+    SetPlayerRoutingBucket(src, on and S.RoutingBucket or 0)
+end)
+
+AddEventHandler('playerDropped', function()
+    local src = source
+    if GetPlayerRoutingBucket(src) == S.RoutingBucket then SetPlayerRoutingBucket(src, 0) end
+end)
+
+RegisterNetEvent('nayzeee-sneakers:server:studioPhoto', function(name, b64)
+    local src = source
+    if not admin(src) then return end
+    if type(name) ~= 'string' or not name:match('^nzs_[%w_]+$') or #name > 64 or name:lower() ~= name then return end
+    if type(b64) ~= 'string' or #b64 == 0 or #b64 > MAX_BYTES then
+        return TriggerClientEvent('nayzeee-sneakers:client:studioPhoto', src, name, false)
+    end
+    TriggerEvent('nzs:shots:write', src, name, b64)
+end)
+
+-- plain base64 decoder, binary safe
+local B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+local LOOKUP = {}
+for i = 1, #B64 do LOOKUP[B64:byte(i)] = i - 1 end
+
+local function decode(data)
+    data = data:gsub('^data:[^,]*,', ''):gsub('[^%w%+/]', '')
+    local out, n = {}, 0
+    for i = 1, #data, 4 do
+        local a, b, c, d = LOOKUP[data:byte(i)], LOOKUP[data:byte(i + 1)], LOOKUP[data:byte(i + 2)], LOOKUP[data:byte(i + 3)]
+        if not a or not b then break end
+        local v = (a << 18) | (b << 12) | ((c or 0) << 6) | (d or 0)
+        n = n + 1
+        if d then out[n] = string.char((v >> 16) & 255, (v >> 8) & 255, v & 255)
+        elseif c then out[n] = string.char((v >> 16) & 255, (v >> 8) & 255)
+        else out[n] = string.char((v >> 16) & 255) end
+    end
+    return table.concat(out)
+end
+Studio.Decode = decode
+
+local function copyToInventory(name, b64)
+    if GetResourceState('ox_inventory') == 'missing' then return false end
+    local bin = decode(b64)
+    if #bin < 8 or bin:sub(1, 4) ~= '\137PNG' then return false end
+    if SaveResourceFile('ox_inventory', ('web/images/%s.png'):format(name), bin, #bin) then return true end
+    if not warned then
+        warned = true
+        print(('^3[nayzeee-sneakers] could not write into ox_inventory/web/images. Add this to server.cfg and restart:^0'))
+        print(('^3    add_filesystem_permission %s write ox_inventory^0'):format(GetCurrentResourceName()))
+        print(('^3  The photos are still saved in %s/shots/ and you can copy them over by hand.^0'):format(GetCurrentResourceName()))
+    end
+    return false
+end
+
+-- shots.js reports back here
+AddEventHandler('nzs:shots:written', function(src, name, ok, b64)
+    local where = ' > shots/'
+    if ok then
+        shots[name] = true
+        if S.SaveToInventory then
+            where = copyToInventory(name, b64) and ' > shots/ + ox_inventory' or ' > shots/ only (see server console)'
+        end
+    end
+    TriggerClientEvent('nayzeee-sneakers:client:studioPhoto', src, name, ok, where)
+end)
+
 RegisterCommand(S.Command, function(src)
-    if not S.Enabled or not admin(src) then return end
+    if not admin(src) then return end
     TriggerClientEvent('nayzeee-sneakers:client:studioOpen', src)
 end, false)
 
 -- ------------------------------------------------------------------ start
 
 CreateThread(function()
+    loadShots()
     builtinKeySet()
     loadSettings()
     local ok = loadCatalogue()
@@ -431,7 +546,7 @@ CreateThread(function()
     TriggerClientEvent('nayzeee-sneakers:client:studioShoes', -1, Studio.Payload())
 end)
 
--- the app made new props and the owner restarted the props resource: pick them up
+-- the props resource (re)started after a build: pick up its catalogue
 AddEventHandler('onResourceStart', function(res)
     if res ~= S.PropsResource then return end
     SetTimeout(500, function()

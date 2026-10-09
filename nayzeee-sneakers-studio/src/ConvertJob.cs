@@ -23,6 +23,9 @@ sealed class ConvertJob
     readonly Options options;
     readonly Action<string> log;
 
+    /// <summary>Icons with a file of the same name here (photos taken in the in-game studio) are never overwritten.</summary>
+    public string? KeepDir;
+
     public ConvertJob(string root, string outRoot, Options options, Action<string> log)
     {
         this.root = root; this.outRoot = outRoot; this.options = options; this.log = log;
@@ -116,12 +119,13 @@ sealed class ConvertJob
         res.Skipped = plan.Count(p => p.Status == "done" && !keys.Contains(p.Source.Key));
         cat.Shoes = entries.Values.ToList();
         Studio.WriteResource(outRoot, cat);
-        if (copyIconsTo != null) foreach (var e in cat.Shoes) CopyIcons(e, copyIconsTo);
+        // shoes that weren't converted this time: only fill in icons the inventory doesn't have yet
+        if (copyIconsTo != null) foreach (var e in cat.Shoes) CopyIcons(e, copyIconsTo, missingOnly: true);
         progress?.Invoke(todo.Count, todo.Count, "");
         return res;
     }
 
-    void CopyIcons(CatalogueShoe e, string dest)
+    void CopyIcons(CatalogueShoe e, string dest, bool missingOnly = false)
     {
         try
         {
@@ -130,7 +134,10 @@ sealed class ConvertJob
                 foreach (var f in new[] { $"nzs_{e.Id}_{c.Letter}.png", $"nzs_{e.Id}_{c.Letter}_box.png" })
                 {
                     var src = Path.Combine(outRoot, "icons", f);
-                    if (File.Exists(src)) File.Copy(src, Path.Combine(dest, f), true);
+                    var to = Path.Combine(dest, f);
+                    if (!File.Exists(src) || (missingOnly && File.Exists(to))) continue;
+                    if (KeepDir != null && File.Exists(Path.Combine(KeepDir, f))) continue;
+                    File.Copy(src, to, true);
                 }
         }
         catch (Exception ex) { log("  couldn't copy icons: " + ex.Message); }

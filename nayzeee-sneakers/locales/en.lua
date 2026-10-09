@@ -118,6 +118,18 @@ Locales.en = {
     studioAlert = 'Sneaker studio: %d new shoes on the server, %d gone. Open /%s',
     studioOld = 'Your FiveM build can\'t list clothing packs. Update FiveM to use the studio scan',
     studioSaved = 'Saved',
+    studioNoAccess = 'You don\'t have access to the sneaker studio',
+    studioNoScreenshot = 'screenshot-basic is not running',
+    studioNoProp = 'This shoe has no 3D prop yet. Build it in 3D props first',
+    studioPhotoDone = 'Took %s photos. Restart ox_inventory to load the new icons',
+    studioCancelled = 'Batch stopped',
+    studioNothing = 'Every shoe already has a photo',
+    studioPhotoSaved = 'Saved %s.png%s',
+    studioPhotoFailed = 'Could not save %s',
+    studioKeyFailed = 'The photo could not be keyed: %s',
+    kitMissing = 'sneakerkit isn\'t installed for this server\'s OS (tools/sneakerkit)',
+    kitBusy = 'sneakerkit is already running',
+    kitDone = '3D props: built %s shoe(s)',
 
     -- results banner
     bnSold = 'Pair Sold',

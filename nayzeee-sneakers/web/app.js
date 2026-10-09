@@ -480,19 +480,19 @@ function banner(b) {
   }, b.kind === 'fail' ? 5500 : 7000);
 }
 
-/* ---------------- studio (/sneakerstudio) ---------------- */
+/* ---------------- icons ---------------- */
 let PROPS_RES = 'nayzeee-sneakers-props';
 
-// Icons: the script's own first, then the props resource (shoes made by the studio app), then a plain box
+// Icons: the script's own first, then photos taken in /sneakerstudio, then the props resource
+// (icons the 3D props builder rendered), then the inventory's own images, then a plain box
 addEventListener('error', e => {
   const el = e.target;
   if (!(el instanceof HTMLImageElement)) return;
   const src = el.getAttribute('src') || '';
-  const m = src.match(/install\/images\/([^/]+)\.png$/) || src.match(/\/icons\/([^/]+)\.png$/) || src.match(/\/images\/([^/]+)\.png$/);
+  const m = src.match(/install\/images\/([^/]+)\.png$/) || src.match(/shots\/([^/]+)\.png$/) || src.match(/\/icons\/([^/]+)\.png$/) || src.match(/\/images\/([^/]+)\.png$/);
   if (!m) return;
   const name = m[1];
-  // where an icon can be: this script, the props resource (studio shoes), then the inventory's own images
-  const tries = [`../install/images/${name}.png`, `https://cfx-nui-${PROPS_RES}/icons/${name}.png`,
+  const tries = [`../install/images/${name}.png`, `../shots/${name}.png`, `https://cfx-nui-${PROPS_RES}/icons/${name}.png`,
     `https://cfx-nui-ox_inventory/web/images/${name}.png`, `https://cfx-nui-qb-inventory/html/images/${name}.png`];
   const step = +(el.dataset.fb || 0) + 1;
   if (step < tries.length) { el.dataset.fb = step; el.src = tries[step]; return; }
@@ -503,225 +503,11 @@ new MutationObserver(list => list.forEach(r => {
   if (r.attributeName === 'src' && r.target.dataset && /install\/images/.test(r.target.getAttribute('src') || '')) r.target.dataset.fb = 0;
 })).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['src'] });
 
-const ST = { data: null, tab: 'shoes', q: '', cur: null, edit: null, open: false };
-const GL = { male: 'Male', female: 'Female' };
-const BOXL = { shoe: 'Shoe box', heel: 'Heel box', boot: 'Boot box' };
-const packName = p => p ? p : 'Base game';
-const keyParts = k => { const m = /^(\w):(.*):(\d+)$/.exec(k) || []; return { gender: m[1] === 'f' ? 'female' : 'male', collection: m[2] || '', index: +(m[3] || 0) }; };
-
-function studio(msg) {
-  if (msg.close) { ST.open = false; $('studio').hidden = true; document.body.classList.remove('studio-open'); return; }
-  ST.open = true;
-  $('studio').hidden = false;
-  document.body.classList.add('studio-open');
-  $('stLoading').hidden = !msg.loading;
-  if (msg.loading) { $('stHome').hidden = true; $('stDetail').hidden = true; return; }
-  ST.data = msg.data;
-  if (ST.pendingOpen) {
-    const added = ST.data.shoes.find(s => s.key === ST.pendingOpen);
-    ST.pendingOpen = null;
-    if (added) { openStudioShoe(added); return; }
-  }
-  if (ST.cur) {
-    const again = ST.data.shoes.find(s => s.key === ST.cur.key);
-    if (again) { openStudioShoe(again, true); return; }
-    ST.cur = null;
-  }
-  showStudioHome();
-}
-
-function showStudioHome() {
-  const d = ST.data;
-  ST.cur = null;
-  $('stDetail').hidden = true;
-  $('stHome').hidden = false;
-  const on = d.shoes.filter(s => s.enabled && !s.removed).length;
-  $('stOn').textContent = on;
-  $('stOff').textContent = d.shoes.length - on;
-  $('stNew').textContent = d.fresh.length;
-  $('stGone').textContent = d.gone.length;
-  const scanned = d.scan ? `${d.scan.count} shoe drawables found` : 'Not scanned yet';
-  $('stSub').textContent = `${d.catalogueCount} from ${d.propsResource} · ${d.builtin} built in · ${scanned}`;
-  let note = '';
-  if (d.props !== 'started')
-    note = `<b>${esc(d.propsResource)}</b> isn't running. Run <b>NayZeee Sneaker Studio</b> on your PC to make props and icons for the shoes on your server, then start it. Shoes added here show as a stand-in until then.`;
-  else if (ST.tab === 'fresh' && d.fresh.length)
-    note = 'These are on your server but not in the shop. <b>Add</b> one to sell it now with a stand-in prop, or run NayZeee Sneaker Studio to give it its own prop and icons.';
-  else if (ST.tab === 'gone' && d.gone.length)
-    note = 'These shoes\' drawables aren\'t on the server any more (a clothing pack was removed). They\'re off sale; pairs players already own stay in their inventory.';
-  setNote($('stNote'), d.props !== 'started' ? 'warn' : '', note);
-  renderStudioList();
-}
-
-function renderStudioList() {
-  const d = ST.data, q = ST.q;
-  const match = (...t) => !q || t.join(' ').toLowerCase().includes(q);
-  let rows = [];
-  if (ST.tab === 'shoes') {
-    rows = d.shoes.filter(s => match(s.label, s.pack, s.key)).map(s => {
-      const tags = [
-        s.removed ? '<span class="tag hot">Gone</span>' : s.enabled ? '<span class="tag live">On sale</span>' : '<span class="tag off">Off</span>',
-        s.builtin ? '<span class="tag off">Built in</span>' : s.props ? '' : '<span class="tag warn">Stand-in</span>',
-      ].join('');
-      return `<button class="row" data-key="${esc(s.key)}"><span class="av img"><img src="${img(s.colours[0] && s.colours[0].image)}" alt=""></span>
-        <span class="row-txt"><b>${esc(s.label)}</b><span>${GL[s.gender] || '?'} · ${BOXL[s.box]} · ${s.colours.length} colour${s.colours.length === 1 ? '' : 's'} · ${money(s.retail)}</span></span>
-        <span class="tags">${tags}</span></button>`;
-    });
-    if (!rows.length) rows = ['<div class="note show">No studio shoes yet. Check <b>New on server</b>, or run NayZeee Sneaker Studio on your PC.</div>'];
-  } else if (ST.tab === 'fresh') {
-    rows = d.fresh.filter(f => match(f.collection, f.key)).map(f =>
-      `<div class="row" data-fresh="${esc(f.key)}"><span class="av">${icon('shoe')}</span>
-        <span class="row-txt"><b>${esc(packName(f.collection))} · #${String(f.index).padStart(3, '0')}</b><span>${GL[f.gender]} · ${f.textures} colour${f.textures === 1 ? '' : 's'}</span></span>
-        <button class="rbtn" data-add="${esc(f.key)}">Add</button></div>`);
-    if (!rows.length) rows = ['<div class="note show">Nothing new. Every shoe drawable on the server is in the studio.</div>'];
-  } else {
-    const gone = new Set(d.gone);
-    rows = d.shoes.filter(s => gone.has(s.key) && match(s.label, s.key)).map(s =>
-      `<button class="row" data-key="${esc(s.key)}"><span class="av img"><img src="${img(s.colours[0] && s.colours[0].image)}" alt=""></span>
-        <span class="row-txt"><b>${esc(s.label)}</b><span>${esc(packName(s.pack))} · #${String(s.link ? s.link.index : 0).padStart(3, '0')} isn't on the server</span></span>
-        <span class="tags"><span class="tag hot">Gone</span></span></button>`);
-    if (!rows.length) rows = ['<div class="note show">Nothing has gone missing.</div>'];
-  }
-  $('stList').innerHTML = rows.join('');
-}
-
-function studioPreview(gender, collection, index, texture) {
-  post('studioPreview', { gender, collection, index, texture: texture || 0 });
-}
-
-function openStudioShoe(s, keepEdit) {
-  ST.cur = s;
-  if (!keepEdit || !ST.edit || ST.edit.key !== s.key) {
-    ST.edit = {
-      key: s.key, label: s.label, retail: s.retail, level: s.level || 1, box: s.box, gender: s.gender,
-      enabled: s.enabled, link: s.link ? { collection: s.link.collection, index: s.link.index } : null, colours: {},
-    };
-    s.colours.forEach(c => { ST.edit.colours[c.letter] = c.name; });
-  }
-  const e = ST.edit;
-  $('stHome').hidden = true;
-  $('stDetail').hidden = false;
-  $('stdName').textContent = s.label;
-  $('stdSub').textContent = s.builtin ? 'Comes with the script' : s.props ? `Props from ${ST.data.propsResource}` : 'No prop of its own yet: shows as a stand-in';
-  $('stdBoxRow').hidden = !!s.builtin;
-  $('stdImg').src = img(s.colours[0] && s.colours[0].image);
-  $('stdTags').innerHTML = [
-    s.removed ? '<span class="tag hot">Gone from the server</span>' : '',
-    s.builtin ? '<span class="tag live">Built in</span>' : s.props ? '<span class="tag live">Own prop</span>' : '<span class="tag warn">Stand-in prop</span>',
-    s.loose ? '<span class="tag warn">Plain download</span>' : '',
-    `<span class="tag off">${esc(packName(s.pack))}${s.link ? ' #' + String(s.link.index).padStart(3, '0') : ''}</span>`,
-  ].join('');
-  $('stdOn').checked = e.enabled;
-  $('stdLabel').value = e.label;
-  $('stdPrice').value = e.retail;
-  $('stdLvl').textContent = e.level;
-  [...$('stdBox').children].forEach(b => b.classList.toggle('on', b.dataset.v === e.box));
-  [...$('stdGender').children].forEach(b => b.classList.toggle('on', b.dataset.v === e.gender));
-  $('stdGenderRow').hidden = !s.loose;
-  const needLink = s.loose;
-  $('stdLinkRow').hidden = !needLink;
-  $('stdLinkNote').hidden = !needLink;
-  if (needLink) fillLink();
-  $('stdColours').innerHTML = s.colours.map((c, i) =>
-    `<div class="st-col"><span class="lt">${c.letter}</span><button class="sw" data-tex="${i}"><img src="${img(c.image)}" alt=""></button>
-      <input type="text" maxlength="30" data-letter="${c.letter}" value="${esc(e.colours[c.letter] || '')}"></div>`).join('');
-  $('stdForgetTxt').textContent = s.manual ? 'Forget' : 'Switch off';
-  $('stdForget').hidden = !s.manual && !s.enabled;
-  previewCurrent(0);
-}
-
-function fillLink() {
-  const e = ST.edit, g = e.gender === 'female' ? 'f' : 'm';
-  const opts = ST.data.scanList.filter(x => x.key.startsWith(g + ':')).map(x => {
-    const p = keyParts(x.key);
-    return `<option value="${esc(x.key)}">${esc(packName(p.collection))} #${String(p.index).padStart(3, '0')} · ${x.textures} colours</option>`;
-  });
-  const cur = e.link ? `${g}:${e.link.collection}:${String(e.link.index).padStart(3, '0')}` : '';
-  $('stdLink').innerHTML = `<option value="">Pick the drawable</option>` + opts.join('');
-  $('stdLink').value = cur;
-}
-
-function previewCurrent(tex) {
-  const e = ST.edit;
-  if (!e || !e.link) return;
-  studioPreview(e.gender, e.link.collection, e.link.index, tex);
-}
-
-$('stClose').addEventListener('click', () => post('studioClose'));
-$('stRescan').addEventListener('click', () => post('studioRescan'));
-$('stBack').addEventListener('click', () => { ST.edit = null; showStudioHome(); });
-$('stTabs').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  ST.tab = b.dataset.v;
-  [...$('stTabs').children].forEach(x => x.classList.toggle('on', x === b));
-  showStudioHome();
-});
-$('stSearch').addEventListener('input', e => { ST.q = e.target.value.trim().toLowerCase(); renderStudioList(); });
-$('stList').addEventListener('click', e => {
-  const add = e.target.closest('[data-add]');
-  if (add) { ST.pendingOpen = add.dataset.add; post('studioAdd', { key: add.dataset.add }); return; }
-  const row = e.target.closest('[data-key]');
-  if (row) { const s = ST.data.shoes.find(x => x.key === row.dataset.key); if (s) openStudioShoe(s); return; }
-  const fresh = e.target.closest('[data-fresh]');
-  if (fresh) {
-    [...$('stList').children].forEach(x => x.classList.toggle('sel', x === fresh));
-    const p = keyParts(fresh.dataset.fresh);
-    studioPreview(p.gender, p.collection, p.index, 0);
-  }
-});
-$('stdOn').addEventListener('change', e => { ST.edit.enabled = e.target.checked; });
-$('stdLabel').addEventListener('input', e => { ST.edit.label = e.target.value; });
-$('stdPrice').addEventListener('input', e => { ST.edit.retail = Math.max(1, Math.round(+e.target.value || 0)); });
-$('stdLvlDown').addEventListener('click', () => { ST.edit.level = Math.max(1, ST.edit.level - 1); $('stdLvl').textContent = ST.edit.level; });
-$('stdLvlUp').addEventListener('click', () => { ST.edit.level = Math.min(ST.data.maxLevel || 10, ST.edit.level + 1); $('stdLvl').textContent = ST.edit.level; });
-$('stdBox').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  ST.edit.box = b.dataset.v;
-  [...$('stdBox').children].forEach(x => x.classList.toggle('on', x === b));
-});
-$('stdGender').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  ST.edit.gender = b.dataset.v;
-  [...$('stdGender').children].forEach(x => x.classList.toggle('on', x === b));
-  ST.edit.link = null;
-  fillLink();
-});
-$('stdLink').addEventListener('change', e => {
-  const p = e.target.value ? keyParts(e.target.value) : null;
-  ST.edit.link = p ? { collection: p.collection, index: p.index } : null;
-  previewCurrent(0);
-});
-$('stdColours').addEventListener('click', e => {
-  const b = e.target.closest('[data-tex]'); if (!b) return;
-  [...$('stdColours').querySelectorAll('.sw')].forEach(x => x.classList.toggle('on', x === b));
-  previewCurrent(+b.dataset.tex);
-});
-$('stdColours').addEventListener('input', e => {
-  const l = e.target.dataset.letter; if (l) ST.edit.colours[l] = e.target.value;
-});
-$('stdSave').addEventListener('click', () => {
-  const e = ST.edit;
-  const fields = { label: e.label, retail: e.retail, level: e.level, enabled: e.enabled, colours: e.colours };
-  if (!ST.cur.builtin) fields.box = e.box;
-  if (ST.cur.loose) { fields.gender = e.gender; if (e.link) fields.link = e.link; }
-  post('studioSave', { key: e.key, fields });
-});
-$('stdForget').addEventListener('click', () => {
-  if (ST.cur.manual) { post('studioForget', { key: ST.cur.key }); ST.edit = null; ST.cur = null; }
-  else { ST.edit.enabled = false; $('stdOn').checked = false; $('stdSave').click(); }
-});
-addEventListener('keydown', e => {
-  if (!ST.open || e.key !== 'Escape') return;
-  if (document.activeElement && document.activeElement.tagName === 'INPUT') { document.activeElement.blur(); return; }
-  post('studioClose');
-});
-
 /* ---------------- messages ---------------- */
 addEventListener('message', ({ data }) => {
   if (!data || !data.action) return;
   switch (data.action) {
     case 'init': if (data.propsResource) PROPS_RES = data.propsResource; break;
-    case 'studio': studio(data); break;
     case 'menu': showMenu(data.menu || {}); break;
     case 'inspect': showInspect(data.show, data.data, data.hint); break;
     case 'bench':
@@ -745,5 +531,7 @@ addEventListener('message', ({ data }) => {
       $('hint').hidden = !data.text;
       $('hint').innerHTML = keyHint(data.text);
       break;
+    default:
+      if (data.action.startsWith('studio:') && typeof studioMessage === 'function') studioMessage(data);
   }
 });

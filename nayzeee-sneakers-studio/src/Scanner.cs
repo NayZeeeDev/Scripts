@@ -94,14 +94,35 @@ static class Scanner
         return "unknown";
     }
 
-    public static List<ShoeSource> Scan(string root, Action<string>? log = null)
+    public static List<ShoeSource> Scan(string root, Action<string>? log = null) => ScanRoots(new[] { root }, log);
+
+    /// <summary>Scans several folders (the server passes one per started resource) as one server.</summary>
+    public static List<ShoeSource> ScanRoots(IEnumerable<string> roots, Action<string>? log = null)
     {
-        root = Path.GetFullPath(root);
+        var list = roots.Where(r => !string.IsNullOrWhiteSpace(r)).Select(r => Path.GetFullPath(r.Trim()))
+                        .Where(Directory.Exists).Distinct().ToList();
+        var found = new List<ShoeSource>();
+        var seen = new Dictionary<string, ShoeSource>();
+        foreach (var root in list) ScanOne(root, found, seen);
+
+        // labels shared by several shoes get their number, so they can be told apart
+        foreach (var grp in found.GroupBy(f => f.Label).Where(g => g.Count() > 1))
+            foreach (var s in grp) s.Label = $"{s.Label} {s.Drawable:000}";
+        // ids must be unique too
+        foreach (var grp in found.GroupBy(f => f.Id).Where(g => g.Count() > 1))
+        {
+            int n = 1;
+            foreach (var s in grp.Skip(1)) s.Id += "_" + (++n);
+        }
+        log?.Invoke(list.Count == 1 ? $"Found {found.Count} shoe drawables in {list[0]}" : $"Found {found.Count} shoe drawables in {list.Count} resources");
+        return found.OrderBy(f => f.Gender).ThenBy(f => f.Collection).ThenBy(f => f.Drawable).ToList();
+    }
+
+    static void ScanOne(string root, List<ShoeSource> found, Dictionary<string, ShoeSource> seen)
+    {
         var all = Files(root).ToList();
         var ytdsByDir = all.Where(f => f.EndsWith(".ytd", StringComparison.OrdinalIgnoreCase))
                            .GroupBy(f => Path.GetDirectoryName(f)!).ToDictionary(g => g.Key, g => g.ToList());
-        var found = new List<ShoeSource>();
-        var seen = new Dictionary<string, ShoeSource>();
 
         foreach (var ydd in all.Where(f => f.EndsWith(".ydd", StringComparison.OrdinalIgnoreCase)))
         {
@@ -116,7 +137,7 @@ static class Scanner
                 Drawable = int.Parse(m.Groups["num"].Value),
                 Skin = m.Groups["kind"].Value.Equals("r", StringComparison.OrdinalIgnoreCase),
                 Resource = resRoot != null ? Path.GetFileName(resRoot) : Path.GetFileName(dir),
-                Folder = Path.GetRelativePath(root, dir).Replace('\\', '/'),
+                Folder = Path.GetRelativePath(Path.GetDirectoryName(root) ?? root, dir).Replace('\\', '/'),
             };
             var ped = m.Groups["ped"].Value.ToLowerInvariant();
             if (ped.Length > 0)
@@ -130,7 +151,7 @@ static class Scanner
                 // a raw download (feet_000_u.ydd): fine to convert, but the drawable it ends up as on the
                 // server has to be picked in game
                 s.Loose = true;
-                s.Gender = GuessGender(Path.GetRelativePath(root, dir));
+                s.Gender = GuessGender(s.Folder);
                 s.Ped = s.Gender == "male" ? "mp_m_freemode_01" : s.Gender == "female" ? "mp_f_freemode_01" : "";
                 s.Collection = "@" + Slug(s.Folder, 60);
                 s.Notes.Add("Not named for streaming, so it isn't on the server as-is. Link it to its drawable in the in-game studio.");
@@ -182,18 +203,6 @@ static class Scanner
             s.Hash = Convert.ToHexString(sha.ComputeHash(Encoding.UTF8.GetBytes(sig)))[..12].ToLowerInvariant();
             found.Add(s);
         }
-
-        // labels shared by several shoes get their number, so they can be told apart
-        foreach (var grp in found.GroupBy(f => f.Label).Where(g => g.Count() > 1))
-            foreach (var s in grp) s.Label = $"{s.Label} {s.Drawable:000}";
-        // ids must be unique too
-        foreach (var grp in found.GroupBy(f => f.Id).Where(g => g.Count() > 1))
-        {
-            int n = 1;
-            foreach (var s in grp.Skip(1)) s.Id += "_" + (++n);
-        }
-        log?.Invoke($"Found {found.Count} shoe drawables in {root}");
-        return found.OrderBy(f => f.Gender).ThenBy(f => f.Collection).ThenBy(f => f.Drawable).ToList();
     }
 
     /// <summary>The inventory's image folder, if there's one under the scan root.</summary>
