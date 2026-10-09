@@ -782,6 +782,12 @@ function Bank.useATMScreen(entity, model, card, data)
     outside       = cfg.outside
   })
 
+  -- the card that went in, drawn on the PIN screen and beside the balance
+  send({
+    action = 'card',
+    art    = card and card.art and card.skin and ('images/cards/%s_%s.png'):format(card.art, card.skin) or nil
+  })
+
   replaceScreen(cfg)
   cacheButtons(entity, model)
 

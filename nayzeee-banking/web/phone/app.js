@@ -291,7 +291,7 @@ function renderMoney() {
 
   el('chipStrip').innerHTML = cards.map(c => `
     <button class="chip ${c.status !== 'active' ? 'off' : ''}" data-go="cards">
-      <i>${I.card}</i>•• ${esc(String(c.number).slice(-4))}
+      <i class="art">${artImg(c)}</i>•• ${esc(String(c.number).slice(-4))}
       <em>${esc((c.typeLabel || '').split(' ')[0])}</em>
     </button>`).join('') || `
     <button class="chip" data-go="cards"><i>${I.card}</i>Order a card</button>`;
@@ -891,6 +891,20 @@ function renderAccounts() {
       between accounts and people works from here.</p>`;
 }
 
+/* The rendered 3D card for a card's type and style (web/images/cards). */
+const KIND_ART = { debit: 'card_debit', secured: 'card_secured', credit: 'card_credit' };
+function cardArt(c) {
+  const t = ((P.data.config || {}).cardTypes || []).find(x => x.id === c.type) || {};
+  const item = t.item || KIND_ART[c.kind] || 'card_debit';
+  return `../images/cards/${item}_${c.skin}.png`;
+}
+const artImg = (c) => `<img src="${cardArt(c)}" alt=""
+  onerror="this.onerror=null;this.src='../images/cards/card_debit_teal.png'">`;
+
+/* the same badge the renders carry */
+const cardBadge = (c) => c.joint ? 'MEMBER' : c.type === 'platinum' ? 'PLATINUM'
+  : c.kind === 'secured' ? 'SECURED' : c.kind === 'credit' ? 'CREDIT' : 'DEBIT';
+
 function renderCards() {
   if (!ready()) return offline('cardsBody');
   const cards = (P.data.cards || []).filter(c => {
@@ -906,8 +920,6 @@ function renderCards() {
 
   el('cardsBody').innerHTML = cards.map(c => {
     const acc = account(c.account) || { label: '' };
-    const flag = c.joint ? 'MEMBER' : c.kind === 'secured' ? 'SECURED'
-      : c.kind === 'credit' ? 'CREDIT' : c.express ? 'EXPRESS' : '';
 
     const detail = c.kind === 'debit'
       ? `<div class="list-row"><div class="txt"><b>Spend limit</b></div>
@@ -921,16 +933,16 @@ function renderCards() {
            <div class="val">${money(c.minPay)}</div></div>` : ''}`;
 
     return `
-      <div class="bcard ${c.skin} ${c.status !== 'active' ? 'frozen' : ''}">
+      <div class="bcard-stage"><div class="bcard ${c.skin} ${c.status !== 'active' ? 'frozen' : ''}">
         <div class="glare"></div>
-        <div class="row"><div class="emv"></div>
-          ${flag ? `<span class="flag">${flag}</span>` : ''}</div>
+        <div class="row"><div class="emv"></div><svg class="nfc${c.express ? ' on' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8.5 8.5a5 5 0 0 1 0 7"/><path d="M12 6a8.5 8.5 0 0 1 0 12"/><path d="M15.5 3.5a12 12 0 0 1 0 17"/></svg>
+          <span class="flag">${cardBadge(c)}</span></div>
         <div class="num">${esc(c.number)}</div>
         <div class="row foot">
           <div><span>ACCOUNT NAME</span><b>${esc(c.holder)}</b></div>
           <div style="text-align:right"><span>EXPIRES</span><b>${esc(c.expires)}</b></div>
         </div>
-      </div>
+      </div></div>
 
       <div class="list-row"><div class="txt"><b>Linked account</b></div>
         <div class="val">${esc(acc.label)}</div></div>

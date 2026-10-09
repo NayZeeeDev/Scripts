@@ -61,6 +61,7 @@ files {
     'web/phone/icon.png',
 
     'web/images/*.png',
+    'web/images/cards/*.png',     -- the rendered cards the bank, phone and ATM show
 
     'web/sounds/key.ogg',
     'web/sounds/card.ogg',

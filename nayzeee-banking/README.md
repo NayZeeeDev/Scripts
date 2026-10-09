@@ -134,6 +134,8 @@ Set `Config.Cards.physicalItem = true` and each card type hands out its own item
 
 `install/images/` has a 3D icon per card type, plus one for every type in every style (`card_debit_teal.png`, `card_credit_chrome.png` …). On ox_inventory each card shows the style the player picked, and changes when they restyle it (`Config.Cards.skinImages`). Other inventories show the per-type image. The icons are drawn from the same colours as the cards in the app; `tools/cardicons.py` renders them again if you add a style.
 
+The same renders are in the bank itself (`web/images/cards/`): every card in your wallet list shows as its own card, ordering or restyling a card shows a big preview and the four styles to click, the phone's card chips show the card, and the ATM screen shows the card you put in. The live card on the Cards page is drawn to match — gold chip, contactless mark, type badge — and leans toward the mouse.
+
 Every entry must be non-stackable — the `cardId` in the metadata is what ties an item to a specific card, and two cards sharing a stack would share an identity. The default ESX inventory keeps no metadata, so leave `physicalItem = false` there.
 
 Using the item shows the card's details. It also means cards can be stolen, planted or handed over in RP — pair it with `markCardStolen`.

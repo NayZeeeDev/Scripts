@@ -536,6 +536,7 @@ document.getElementById('veil').addEventListener('change', (e) => {
     return;
   }
   if (act !== 'card-type') return;
+  pickerShow(e.target.value);
   const t = (S.data.config.cardTypes || []).find(x => x.id === e.target.value);
   const field = document.getElementById('depositField');
   if (!field || !t) return;
@@ -550,6 +551,12 @@ document.getElementById('veil').addEventListener('keydown', (e) => {
     const btn = document.querySelector('[data-modal="confirm"]');
     if (btn) btn.click();
   }
+});
+
+/* style picker inside modals */
+document.getElementById('veil').addEventListener('click', (e) => {
+  const opt = e.target.closest('.skin-opt');
+  if (opt) pickerShow(null, opt.dataset.skin);
 });
 
 /* quick-amount buttons inside modals */
@@ -858,23 +865,92 @@ function txRow(t) {
 }
 
 /* ── cards ── */
-function cardFace(card) {
-  const badge = card.joint ? 'MEMBER CARD'
-    : card.kind === 'secured' ? 'SECURED'
-    : card.kind === 'credit' ? 'CREDIT'
-    : card.express ? 'EXPRESS' : '';
+const cap = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
 
-  return `<div class="bcard ${card.skin} ${card.status !== 'active' ? 'blocked' : ''}">
-    <div class="glare"></div>
+/* The rendered 3D card (web/images/cards, from tools/cardicons.py) for a card
+   type and style. A type without an item of its own borrows its kind's art. */
+const KIND_ART = { debit: 'card_debit', secured: 'card_secured', credit: 'card_credit' };
+function cardArt(typeId, skin) {
+  const t = (S.data.config.cardTypes || []).find(x => x.id === typeId) || {};
+  const item = t.item || KIND_ART[t.kind] || 'card_debit';
+  return `images/cards/${item}_${skin}.png`;
+}
+// a style added in config without rendered art falls back to the first style
+const artFallback = `onerror="this.onerror=null;this.src='images/cards/card_debit_teal.png'"`;
+const artImg = (typeId, skin) => `<img src="${cardArt(typeId, skin)}" alt="" ${artFallback}>`;
+
+/* the same badge the renders carry */
+function cardBadge(card) {
+  if (card.joint) return 'MEMBER';
+  if (card.type === 'platinum') return 'PLATINUM';
+  return card.kind === 'secured' ? 'SECURED' : card.kind === 'credit' ? 'CREDIT' : 'DEBIT';
+}
+
+function cardFace(card) {
+  const on = card.express ? ' on' : '';
+  return `<div class="bcard-stage"><div class="bcard ${card.skin} ${card.status !== 'active' ? 'blocked' : ''}" data-tilt>
+    <div class="glare"></div><div class="shine"></div>
     <div class="top"><div class="emv"></div>
-      ${badge ? `<span class="chip" style="background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.35);color:#fff">${badge}</span>` : ''}
+      <svg class="nfc${on}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8.5 8.5a5 5 0 0 1 0 7"/><path d="M12 6a8.5 8.5 0 0 1 0 12"/><path d="M15.5 3.5a12 12 0 0 1 0 17"/></svg>
+      <span class="badge">${cardBadge(card)}</span>
     </div>
     <div class="num">${esc(card.number)}</div>
     <div class="foot">
       <div><span>ACCOUNT NAME</span><b>${esc(card.holder)}</b></div>
       <div style="text-align:right"><span>EXPIRES</span><b>${esc(card.expires)}</b></div>
     </div>
-  </div>`;
+  </div></div>`;
+}
+
+/* The card leans toward the mouse and the light follows it. */
+document.addEventListener('mousemove', (e) => {
+  const c = e.target.closest && e.target.closest('[data-tilt]');
+  document.querySelectorAll('[data-tilt].live').forEach(x => {
+    if (x === c) return;
+    x.classList.remove('live');
+    ['--rx', '--ry', '--gx', '--gy'].forEach(v => x.style.removeProperty(v));
+  });
+  if (!c) return;
+  const r = c.getBoundingClientRect();
+  const px = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  const py = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+  c.classList.add('live');
+  c.style.setProperty('--rx', `${((0.5 - py) * 16).toFixed(2)}deg`);
+  c.style.setProperty('--ry', `${((px - 0.5) * 22).toFixed(2)}deg`);
+  c.style.setProperty('--gx', `${(px * 100).toFixed(1)}%`);
+  c.style.setProperty('--gy', `${(py * 100).toFixed(1)}%`);
+});
+
+/* Style picker: the four rendered cards to click, and a big preview above. */
+function stylePicker(typeId, current) {
+  const skins = S.data.config.cardSkins || [];
+  const pick = skins.includes(current) ? current : skins[0];
+  return `
+    <div class="card-preview" id="cardPreview">${artImg(typeId, pick)}</div>
+    <div class="field"><label>Style</label>
+      <div class="skin-pick" data-type="${esc(typeId)}">${skins.map(s => `
+        <button type="button" class="skin-opt ${s === pick ? 'on' : ''}" data-skin="${esc(s)}">
+          ${artImg(typeId, s)}<span>${esc(cap(s))}</span></button>`).join('')}
+      </div>
+      <input type="hidden" data-name="skin" value="${esc(pick)}">
+    </div>`;
+}
+
+function pickerShow(typeId, skin) {
+  const box = document.querySelector('.skin-pick');
+  if (!box) return;
+  if (typeId) {
+    box.dataset.type = typeId;
+    box.querySelectorAll('.skin-opt').forEach(b => {
+      b.querySelector('img').src = cardArt(typeId, b.dataset.skin);
+    });
+  }
+  const input = document.querySelector('[data-name="skin"]');
+  if (skin && input) input.value = skin;
+  const now = input ? input.value : skin;
+  box.querySelectorAll('.skin-opt').forEach(b => b.classList.toggle('on', b.dataset.skin === now));
+  const prev = document.getElementById('cardPreview');
+  if (prev) prev.innerHTML = artImg(box.dataset.type, now);
 }
 
 /* rows shown under a card, different for a credit line vs a debit card */
@@ -938,7 +1014,7 @@ function pageCards() {
   const rows = slice.map(c => `
     <div class="row" data-act="card-select" data-id="${c.id}"
       style="cursor:pointer;${c.id === S.selectedCard ? 'border-color:var(--teal-edge);background:var(--teal-wash)' : ''}">
-      <div class="ic ${c.status === 'active' ? '' : 'out'}">${ICON.card}</div>
+      <div class="card-thumb ${c.status === 'active' ? '' : 'off'}">${artImg(c.type, c.skin)}</div>
       <div class="row-txt"><b>${esc(c.typeLabel || 'Card')} · ${esc(c.number.slice(-4))}</b>
         <span>${esc((account(c.account) || {}).label || '')}${c.joint ? ' · member card' : ''}</span></div>
       ${c.kind === 'debit'
@@ -2167,12 +2243,9 @@ function cardOrderModal() {
         <label>Account</label>
         <select data-name="account">${accountOptions(S.data.primary, a => a.type !== 'savings')}</select>
       </div>
-      <div class="field row2">
-        <div class="field"><label>Choose a PIN</label>
-          <input data-name="pin" type="password" inputmode="numeric" maxlength="4" placeholder="4 digits"></div>
-        <div class="field"><label>Style</label>
-          <select data-name="skin">${skins.map(s => `<option value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}</select></div>
-      </div>
+      <div class="field"><label>Choose a PIN</label>
+        <input data-name="pin" type="password" inputmode="numeric" maxlength="4" placeholder="4 digits"></div>
+      ${stylePicker(first ? first.id : 'debit', skins[0])}
       <div class="field" id="depositField" style="display:${first && first.kind === 'secured' ? 'flex' : 'none'}">
         <label>Security deposit — this becomes your credit limit</label>
         <input data-name="deposit" type="number" placeholder="${first && first.deposit ? first.deposit.min : 2500}"
@@ -2275,11 +2348,7 @@ function cardSettingsModal() {
         <select data-name="limit">${limits.map(l =>
           `<option value="${l}" ${l === card.limit ? 'selected' : ''}>${money(l)}</option>`).join('')}</select>
       </div>
-      <div class="field">
-        <label>Card style</label>
-        <select data-name="skin">${skins.map(s =>
-          `<option value="${s}" ${s === card.skin ? 'selected' : ''}>${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}</select>
-      </div>
+      ${stylePicker(card.type, card.skin)}
       <div class="sw-line">
         <div><b>Express pay</b><span>Skip the PIN on payments under ${money(2500)}.</span></div>
         <input type="checkbox" data-name="express" ${card.express ? 'checked' : ''}>
@@ -2614,12 +2683,9 @@ function memberCardModal(identifier, name) {
     text: `They get their own card on this account with a ${money(S.data.config.jointCardLimit)} daily limit. It costs ${money(S.data.config.cardPrice)} from the account.`,
     confirm: 'Issue card',
     body: `
-      <div class="field row2">
-        <div class="field"><label>Starting PIN</label>
-          <input data-name="pin" type="password" inputmode="numeric" maxlength="4" placeholder="4 digits"></div>
-        <div class="field"><label>Style</label>
-          <select data-name="skin">${skins.map(s => `<option value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}</select></div>
-      </div>`,
+      <div class="field"><label>Starting PIN</label>
+        <input data-name="pin" type="password" inputmode="numeric" maxlength="4" placeholder="4 digits"></div>
+      ${stylePicker('debit', skins[0])}`,
     onConfirm: async (v) => {
       if (!/^\d{4}$/.test(v.pin || '')) return notify('Not completed', 'The PIN must be 4 digits.', 'error');
       const res = await post('nz_bank:createCard', S.sharedId, v.pin, v.skin, identifier, 'debit', 0);

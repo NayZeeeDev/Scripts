@@ -34,7 +34,8 @@
   <!-- pin -->
   <section class="view" data-view="pin">
     <div class="center">
-      <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <img class="pin-art hidden" id="pinArt" alt="">
+      <svg class="shield" id="pinShield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 2.5 4.5 5.5v6c0 4.4 3.1 8.5 7.5 10 4.4-1.5 7.5-5.6 7.5-10v-6L12 2.5z"/>
         <circle cx="12" cy="10.5" r="1.6"/><path d="M12 12.1v3"/>
       </svg>
@@ -53,8 +54,11 @@
         <b id="homeBrand">BANKING</b>
       </div>
       <div class="card-tag">
-        <span id="homeCardType">DEBIT CARD</span>
-        <em id="homeCardNo">•••• •••• •••• ••••</em>
+        <img class="card-art hidden" id="homeCardArt" alt="">
+        <div>
+          <span id="homeCardType">DEBIT CARD</span>
+          <em id="homeCardNo">•••• •••• •••• ••••</em>
+        </div>
       </div>
     </div>
     <div class="balance">

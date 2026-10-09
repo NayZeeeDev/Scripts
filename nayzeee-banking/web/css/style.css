@@ -274,26 +274,69 @@ button:disabled{opacity:.4;pointer-events:none}
 .donut .mid b{font-size:26px;font-weight:700;letter-spacing:-.04em;color:var(--white)}
 .donut .mid span{font-size:10px;color:var(--ink-3);font-weight:400;letter-spacing:.1em;margin-top:2px}
 
-/* bank card */
+/* bank card — drawn like the 3D card renders (tools/cardicons.py): same
+   gradients, gold chip, contactless mark and type badge, a slab edge and a
+   resting tilt that follows the mouse */
+.bcard-stage{perspective:900px;padding:4px 6px 12px}
 .bcard{position:relative;height:150px;border-radius:12px;padding:16px 18px;overflow:hidden;
   display:flex;flex-direction:column;justify-content:space-between;
-  box-shadow:0 8px 24px rgba(0,0,0,.55)}
-.bcard.teal{background:linear-gradient(150deg,#0fd4c4 0%,#08afa2 42%,#046b63 100%)}
-.bcard.noir{background:linear-gradient(150deg,#2a2f33 0%,#141719 50%,#050607 100%)}
-.bcard.chrome{background:linear-gradient(150deg,#e9edf0 0%,#9aa3aa 48%,#4c5359 100%)}
-.bcard.crimson{background:linear-gradient(150deg,#f0666a 0%,#e5484d 45%,#7d1b1e 100%)}
+  --edge:#02423d;
+  transform:rotateX(var(--rx,7deg)) rotateY(var(--ry,-10deg)) rotateZ(-1.2deg);
+  transition:transform 420ms cubic-bezier(.2,.8,.2,1),filter var(--fast);
+  box-shadow:0 1px 0 var(--edge),0 2px 0 var(--edge),0 3px 0 var(--edge),0 4px 0 var(--edge),
+    0 18px 28px -6px rgba(0,0,0,.7),0 8px 24px rgba(0,0,0,.45)}
+.bcard.live{transition:transform 90ms linear,filter var(--fast)}
+.bcard.teal{--edge:#02423d;background:linear-gradient(150deg,#0fd4c4 0%,#08afa2 42%,#046b63 100%)}
+.bcard.noir{--edge:#000;background:linear-gradient(150deg,#2a2f33 0%,#141719 50%,#050607 100%)}
+.bcard.chrome{--edge:#31373b;background:linear-gradient(150deg,#e9edf0 0%,#9aa3aa 48%,#4c5359 100%)}
+.bcard.crimson{--edge:#4c1012;background:linear-gradient(150deg,#f0666a 0%,#e5484d 45%,#7d1b1e 100%)}
 .bcard.blocked{filter:grayscale(.75) brightness(.7)}
-.bcard .glare{position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.22),transparent 46%)}
-.bcard .top{display:flex;align-items:flex-start;justify-content:space-between;position:relative}
-.bcard .emv{width:34px;height:25px;border-radius:4px;background:rgba(255,255,255,.35);
-  border:1px solid rgba(255,255,255,.4)}
+.bcard .glare{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,rgba(255,255,255,.22),transparent 46%)}
+/* the light moves with the tilt */
+.bcard .shine{position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light;
+  background:radial-gradient(260px 160px at var(--gx,24%) var(--gy,18%),rgba(255,255,255,.55),transparent 70%)}
+.bcard::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 0 0 1px rgba(255,255,255,.06)}
+.bcard .top{display:flex;align-items:center;gap:9px;position:relative}
+.bcard .emv{position:relative;width:34px;height:25px;border-radius:5px;flex:none;
+  background:linear-gradient(135deg,#f3dc9a 0%,#c9a24f 50%,#8e6a26 100%);
+  box-shadow:0 1px 2px rgba(0,0,0,.35),inset 0 0 0 1px rgba(110,80,30,.45)}
+.bcard .emv::before{content:'';position:absolute;left:33%;right:33%;top:4px;bottom:4px;
+  border-left:1.2px solid rgba(110,80,30,.7);border-right:1.2px solid rgba(110,80,30,.7)}
+.bcard .emv::after{content:'';position:absolute;left:4px;right:4px;top:50%;
+  border-top:1.2px solid rgba(110,80,30,.7)}
+.bcard .nfc{width:15px;height:15px;color:rgba(255,255,255,.85);flex:none}
+.bcard .nfc.on{color:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.7))}
+.bcard .badge{margin-left:auto;font-size:9px;font-weight:700;letter-spacing:.12em;color:#fff;
+  padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.38)}
 .bcard .num{font-size:15px;font-weight:600;letter-spacing:.06em;color:#fff;position:relative;
   text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .bcard .foot{display:flex;justify-content:space-between;position:relative}
 .bcard .foot span{font-size:8.5px;color:rgba(255,255,255,.72);letter-spacing:.09em;display:block}
 .bcard .foot b{font-size:11.5px;color:#fff;font-weight:600;display:block;margin-top:2px}
-.bcard.chrome .num,.bcard.chrome .foot b{color:#0b0c0d;text-shadow:none}
+.bcard.chrome .num,.bcard.chrome .foot b,.bcard.chrome .badge{color:#0b0c0d;text-shadow:none}
+.bcard.chrome .badge{background:rgba(0,0,0,.08);border-color:rgba(0,0,0,.3)}
+.bcard.chrome .nfc,.bcard.chrome .nfc.on{color:rgba(0,0,0,.7);filter:none}
 .bcard.chrome .foot span{color:rgba(0,0,0,.55)}
+
+/* the rendered card art: list thumbnails, previews and the style picker */
+.card-thumb{width:46px;height:34px;flex:none;display:grid;place-items:center}
+.card-thumb img{max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(0,0,0,.5))}
+.card-thumb.off img{filter:grayscale(.8) brightness(.65)}
+.card-preview{display:grid;place-items:center;height:150px;margin:-4px 0 2px;
+  background:radial-gradient(60% 70% at 50% 45%,var(--teal-wash),transparent 70%)}
+.card-preview img{max-height:146px;max-width:92%;object-fit:contain;
+  filter:drop-shadow(0 14px 18px rgba(0,0,0,.6));animation:cardIn 380ms cubic-bezier(.16,.84,.3,1) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+.skin-pick{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.skin-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 4px 6px;
+  border-radius:var(--r-sm);border:1px solid var(--line-soft);background:var(--inset);
+  font-size:10.5px;color:var(--ink-2);transition:all var(--fast)}
+.skin-opt img{width:100%;height:38px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5))}
+.skin-opt:hover{border-color:var(--line);color:var(--white)}
+.skin-opt.on{border-color:var(--teal-edge);background:var(--teal-wash);color:var(--white);
+  box-shadow:0 0 0 1px var(--teal-edge)}
 .card-nav{display:flex;align-items:center;gap:6px;margin-top:10px}
 .card-nav .count{margin-left:auto;font-size:10.5px;color:var(--ink-3);font-weight:300}
 .icobtn{width:28px;height:28px;border-radius:var(--r-xs);border:1px solid var(--line);display:grid;
@@ -440,6 +483,8 @@ tr:last-child td{border-bottom:0}
   .head h1{font-size:21px}
   .stat-txt b{font-size:18px}
   .bcard{height:132px}
+  .card-preview{height:126px}
+  .card-preview img{max-height:122px}
   .donut{width:136px;height:136px}
   .donut .mid b{font-size:22px}
   .main{gap:11px;padding:16px 18px;overflow-y:auto}

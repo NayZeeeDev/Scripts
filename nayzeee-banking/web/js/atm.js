@@ -203,6 +203,25 @@ function highlight(id) {
   if (pad) pad.classList.toggle('hot', !!(A.hover && A.hover.startsWith('pin_')));
 }
 
+/* ── the card in the machine ─────────────────────────────── */
+/* The same rendered card the bank and the inventory show. Without one
+   (no card needed, or art missing) the shield and plain text stay. */
+function showCardArt(src) {
+  [['pinArt', 'pinShield'], ['homeCardArt', null]].forEach(([id, alt]) => {
+    const img = el(id);
+    if (!img) return;
+    const fallback = () => {
+      img.classList.add('hidden');
+      if (alt) el(alt).classList.remove('hidden');
+    };
+    if (!src) return fallback();
+    img.onerror = fallback;
+    img.src = src;
+    img.classList.remove('hidden');
+    if (alt) el(alt).classList.add('hidden');
+  });
+}
+
 /* ── renderers ────────────────────────────────────────────── */
 function renderPin(length, error) {
   const dots = el('pinDots');
@@ -332,6 +351,10 @@ window.addEventListener('message', (e) => {
       el('bootName').textContent = (m.serverName || 'Banking').toUpperCase();
       applyIsland(m.island, m.outside);
       show('boot');
+      break;
+
+    case 'card':
+      showCardArt(m.art);
       break;
 
     case 'view':

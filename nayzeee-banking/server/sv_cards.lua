@@ -706,6 +706,8 @@ local function cardInfo(u)
         last4     = c.card_number:sub(-4),
         holder    = c.holder,
         skin      = c.skin,
+        -- which rendered card the ATM screen shows (web/images/cards)
+        art       = t.item or ({ debit = 'card_debit', secured = 'card_secured', credit = 'card_credit' })[c.kind],
         foreign   = u.foreign or nil,
         label     = ('%s •%s'):format(t.label, c.card_number:sub(-4)),
     }

@@ -8,6 +8,7 @@ transparent background, 256 px. The face is drawn the same way the bank UI draws
 Writes
     card_<item>.png              one per card type (the image set on the item itself)
     card_<item>_<skin>.png       one per type + skin, picked per card through metadata.image
+    ../web/images/cards/…        the same cards, larger and cropped, for the bank UI and the ATM
     _sheet.png                   contact sheet of everything
 
 Adding a skin: add it to Config.Cards.skins, give .bcard.<skin> a gradient in style.css and
@@ -45,6 +46,7 @@ W, H = 1712, 1080            # face texture, ISO card ratio (85.6 x 54 mm)
 RADIUS = 66                  # 12px on the 150px-tall UI card, scaled
 SS = 4                       # supersampling for the final 256 px icon
 OUT = 256
+UI_SIZE = 384                # the bank UI's copy, before cropping
 
 
 def hex_rgb(h):
@@ -189,9 +191,9 @@ def project(pts, R, size, dist=5.2, zoom=1.0):
     return np.stack([size / 2 + p[:, 0] * f / z, size / 2 - p[:, 1] * f / z], 1)
 
 
-def render(skin, badge):
+def render(skin, badge, out=OUT):
     tex = face(skin, badge)
-    size = OUT * SS
+    size = out * SS
     aspect = W / H
     hw, hh = 1.0, 1.0 / aspect
     thick = 0.03
@@ -236,12 +238,27 @@ def render(skin, badge):
     ImageDraw.Draw(rim).line([tuple(top[0]), tuple(top[1])], fill=(255, 255, 255, 70), width=SS * 2)
     canvas.alpha_composite(rim)
 
-    return canvas.resize((OUT, OUT), Image.LANCZOS)
+    return canvas.resize((out, out), Image.LANCZOS)
+
+
+def ui_image(skin, badge):
+    """The same card for the bank UI: rendered larger and cropped tight, so it
+    can sit in a list row or fill a preview without empty space around it."""
+    img = render(skin, badge, UI_SIZE)
+    box = img.getchannel('A').point(lambda a: 255 if a > 8 else 0).getbbox()
+    if box:
+        pad = 6
+        box = (max(0, box[0] - pad), max(0, box[1] - pad),
+               min(img.width, box[2] + pad), min(img.height, box[3] + pad))
+        img = img.crop(box)
+    return img
 
 
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, '..', 'install', 'images')
+    ui = os.path.join(HERE, '..', 'web', 'images', 'cards')
     os.makedirs(out, exist_ok=True)
+    os.makedirs(ui, exist_ok=True)
     done = []
     for item, (badge, base) in TYPES.items():
         for skin in SKINS:
@@ -250,6 +267,7 @@ def main():
             done.append(icon)
             if skin == base:
                 icon.save(os.path.join(out, f'{item}.png'), optimize=True)
+            ui_image(skin, badge).save(os.path.join(ui, f'{item}_{skin}.png'), optimize=True)
             print('icon', f'{item}_{skin}')
     cols = len(SKINS)
     sheet = Image.new('RGBA', (cols * 260, (len(done) // cols) * 260), (24, 26, 28, 255))

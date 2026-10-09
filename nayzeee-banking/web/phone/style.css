@@ -88,6 +88,11 @@ svg{display:block}
   background:linear-gradient(150deg,var(--accent-hi),var(--accent-lo))}
 .chip i svg{width:13px;height:13px;color:var(--accent-ink);stroke-width:2.4}
 .chip.off i{background:#4a4f54}
+/* the card itself in the chip, instead of a generic icon */
+.chip i.art{width:30px;height:22px;background:none}
+.chip i.art img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.chip.off i.art{background:none}
+.chip.off i.art img{filter:grayscale(.8) brightness(.65)}
 .chip em{font-style:normal;color:var(--ink-3);font-weight:500}
 
 /* ── the balance sheet ── */
@@ -199,27 +204,43 @@ svg{display:block}
 .list-row .chev{width:18px;height:18px;flex:none;color:var(--ink-3);stroke-width:2.4}
 .list-row .val{font-size:15px;font-weight:600}
 
-/* ── bank cards ── */
+/* ── bank cards ── drawn like the 3D card renders: gold chip, contactless,
+   type badge, a slab edge and a resting tilt */
+.bcard-stage{perspective:900px;padding:10px 4px 6px;margin-bottom:12px}
 .bcard{position:relative;height:200px;border-radius:20px;padding:22px;overflow:hidden;
-  display:flex;flex-direction:column;justify-content:space-between;margin-bottom:14px;
-  box-shadow:0 12px 30px rgba(0,0,0,.6)}
-.bcard.teal{background:linear-gradient(150deg,#0fd4c4,#08afa2 42%,#046b63)}
-.bcard.noir{background:linear-gradient(150deg,#2a2f33,#141719 50%,#050607)}
-.bcard.chrome{background:linear-gradient(150deg,#e9edf0,#9aa3aa 48%,#4c5359)}
-.bcard.crimson{background:linear-gradient(150deg,#f0666a,#e5484d 45%,#7d1b1e)}
+  display:flex;flex-direction:column;justify-content:space-between;
+  --edge:#02423d;transform:rotateX(6deg) rotateY(-7deg) rotateZ(-1deg);
+  box-shadow:0 1px 0 var(--edge),0 2px 0 var(--edge),0 3px 0 var(--edge),0 4px 0 var(--edge),0 5px 0 var(--edge),
+    0 22px 30px -8px rgba(0,0,0,.75),0 12px 30px rgba(0,0,0,.45)}
+.bcard::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
+.bcard.teal{--edge:#02423d;background:linear-gradient(150deg,#0fd4c4,#08afa2 42%,#046b63)}
+.bcard.noir{--edge:#000;background:linear-gradient(150deg,#2a2f33,#141719 50%,#050607)}
+.bcard.chrome{--edge:#31373b;background:linear-gradient(150deg,#e9edf0,#9aa3aa 48%,#4c5359)}
+.bcard.crimson{--edge:#4c1012;background:linear-gradient(150deg,#f0666a,#e5484d 45%,#7d1b1e)}
 .bcard.frozen{filter:grayscale(.8) brightness(.66)}
 .bcard .glare{position:absolute;inset:0;
   background:linear-gradient(118deg,rgba(255,255,255,.22),transparent 48%)}
-.bcard .row{display:flex;align-items:flex-start;justify-content:space-between;position:relative}
-.bcard .emv{width:40px;height:30px;border-radius:6px;background:rgba(255,255,255,.34);
-  border:1px solid rgba(255,255,255,.42)}
+.bcard .row{display:flex;align-items:center;gap:10px;position:relative}
+.bcard .row.foot{justify-content:space-between}
+.bcard .emv{position:relative;width:40px;height:30px;border-radius:6px;flex:none;
+  background:linear-gradient(135deg,#f3dc9a 0%,#c9a24f 50%,#8e6a26 100%);
+  box-shadow:0 1px 2px rgba(0,0,0,.35),inset 0 0 0 1px rgba(110,80,30,.45)}
+.bcard .emv::before{content:'';position:absolute;left:33%;right:33%;top:5px;bottom:5px;
+  border-left:1.4px solid rgba(110,80,30,.7);border-right:1.4px solid rgba(110,80,30,.7)}
+.bcard .emv::after{content:'';position:absolute;left:5px;right:5px;top:50%;border-top:1.4px solid rgba(110,80,30,.7)}
+.bcard .nfc{width:18px;height:18px;color:rgba(255,255,255,.85);flex:none}
+.bcard .nfc.on{color:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.7))}
+.bcard .flag{margin-left:auto}
 .bcard .flag{font-size:9.5px;font-weight:800;letter-spacing:.14em;padding:5px 10px;border-radius:7px;
   background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.34);color:#fff}
 .bcard .num{position:relative;font-size:19px;font-weight:600;letter-spacing:.08em;color:#fff;
   text-shadow:0 1px 3px rgba(0,0,0,.34)}
 .bcard .foot span{display:block;font-size:9px;letter-spacing:.11em;color:rgba(255,255,255,.7)}
 .bcard .foot b{display:block;font-size:13px;font-weight:600;color:#fff;margin-top:3px}
-.bcard.chrome .num,.bcard.chrome .foot b{color:#0b0c0d;text-shadow:none}
+.bcard.chrome .num,.bcard.chrome .foot b,.bcard.chrome .flag{color:#0b0c0d;text-shadow:none}
+.bcard.chrome .flag{background:rgba(0,0,0,.08);border-color:rgba(0,0,0,.3)}
+.bcard.chrome .nfc,.bcard.chrome .nfc.on{color:rgba(0,0,0,.7);filter:none}
 .bcard.chrome .foot span{color:rgba(0,0,0,.55)}
 
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 30px}
