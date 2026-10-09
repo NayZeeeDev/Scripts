@@ -21,7 +21,8 @@ nz_cpuchip/
 ## Install
 
 1. Drop the `nz_cpuchip` folder into your server's `resources/` directory.
-2. Add `ensure nz_cpuchip` to `server.cfg`.
+2. Add `ensure nz_cpuchip` to `server.cfg` (anywhere is fine: the usable-item hook
+   re-registers itself whenever qb-core / es_extended starts or restarts).
 3. (Optional) add the inventory item, see below.
 4. In game (while `Config.Debug = true`): `/cpuchip spawn` drops a chip in front of
    you, `/cpuchip hold` puts it in your hand, `/cpuchip drop` releases it,

@@ -71,7 +71,7 @@ R_METAL_SIDE = (520, 584, 1016, 632)
 R_METAL_FLAT = (520, 648, 760, 888)
 R_CAP_BODY = (776, 648, 840, 712)
 R_CAP_END = (856, 648, 920, 712)
-UV_INSET = 2.0         # pixels kept away from region borders (mip bleed)
+UV_INSET = 4.0         # pixels kept away from region borders (mip bleed)
 
 PCB_GREEN = (24, 82, 46)
 PCB_GREEN_DARK = (18, 64, 36)
@@ -84,9 +84,11 @@ CAP_TAN = (156, 118, 82)
 CAP_SILVER = (196, 198, 202)
 SILK_WHITE = (226, 228, 222)
 
-FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT_MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
-FONT_REG = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+# fonts ship in ./fonts (DejaVu, free licence); the system copy is the fallback
+_FONT_DIRS = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts"), "/usr/share/fonts/truetype/dejavu"]
+FONT_BOLD = "DejaVuSans-Bold.ttf"
+FONT_MONO = "DejaVuSansMono.ttf"
+FONT_REG = "DejaVuSans.ttf"
 
 COMPOSITE_FLAGS1 = "MAP_WEAPON, MAP_DYNAMIC, MAP_ANIMAL, MAP_COVER, MAP_VEHICLE"
 COMPOSITE_FLAGS2 = ("VEHICLE_NOT_BVH, VEHICLE_BVH, PED, RAGDOLL, ANIMAL, ANIMAL_RAGDOLL, OBJECT, "
@@ -275,11 +277,22 @@ def cap_footprints():
 # ----------------------------------------------------------------------------
 # textures
 # ----------------------------------------------------------------------------
-def font(path, size):
+_font_warned = set()
+
+
+def font(name, size):
+    for d in _FONT_DIRS:
+        path = os.path.join(d, name)
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    if name not in _font_warned:
+        _font_warned.add(name)
+        print(f"WARNING: font {name} not found in {_FONT_DIRS}; markings will use Pillow's default font "
+              f"and the textures will differ from dist/")
     try:
-        return ImageFont.truetype(path, size)
-    except OSError:
         return ImageFont.load_default(size=size)
+    except TypeError:  # Pillow < 10.1
+        return ImageFont.load_default()
 
 
 def brushed(h, w, rng, window=31, amp=1.0):
@@ -305,6 +318,34 @@ def metres_to_px(rect, x, y, half):
     return x0 + fu * (x1 - x0), y0 + fv * (y1 - y0)
 
 
+ATLAS_REGIONS = [R_IHS_TOP, R_SUB_TOP, R_SUB_BOT, R_PCB_EDGE, R_METAL_SIDE, R_METAL_FLAT, R_CAP_BODY, R_CAP_END]
+
+
+def fill_gutters(arrays, painted):
+    """Flood the unpainted atlas pixels (gutters, unused space) with the nearest painted
+    values so lower mip levels do not average region borders against black."""
+    todo = ~painted
+    if not todo.any():
+        return
+    cur = [a.copy() for a in arrays]
+    done = painted.copy()
+    for _ in range(max(arrays[0].shape[:2])):
+        if not (~done).any():
+            break
+        new_done = done.copy()
+        for shift, axis in ((1, 0), (-1, 0), (1, 1), (-1, 1)):
+            src_done = np.roll(done, shift, axis=axis)
+            take = (~new_done) & src_done
+            if not take.any():
+                continue
+            for a in cur:
+                a[take] = np.roll(a, shift, axis=axis)[take]
+            new_done |= take
+        done = new_done
+    for a, c in zip(arrays, cur):
+        a[...] = c
+
+
 class Atlas:
     def __init__(self, size):
         self.size = size
@@ -313,6 +354,13 @@ class Atlas:
         self.spec = np.zeros((size, size), np.float32)
         self.metal = np.zeros((size, size), np.float32)   # for the glTF preview only
         self.rng = np.random.default_rng(1337)
+
+    def painted_mask(self):
+        m = np.zeros((self.size, self.size), bool)
+        for rect in ATLAS_REGIONS:
+            ys, xs = region_slices(rect)
+            m[ys, xs] = True
+        return m
 
     # helpers -----------------------------------------------------------
     def fill(self, rect, color, spec, metal=0.0):
@@ -518,6 +566,7 @@ def build_textures(atlas: Atlas):
     paint_substrate_top(atlas)
     paint_substrate_bottom(atlas)
     paint_small_regions(atlas)
+    fill_gutters([atlas.diffuse, atlas.spec, atlas.metal], atlas.painted_mask())
 
     diffuse = np.clip(atlas.diffuse, 0, 255).astype(np.uint8)
     n = height_to_normal(atlas.height, strength=2.2)
@@ -553,9 +602,12 @@ def encode_dxt_level(img: Image.Image, fmt: str) -> bytes:
     block = 8 if fmt == "DXT1" else 16
     nblocks = ((w + 3) // 4) * ((h + 3) // 4)
     src = img
-    if w < 4 or h < 4:  # pad tiny levels so the encoder always sees whole blocks
-        src = Image.new("RGBA", (max(4, w), max(4, h)))
-        src.paste(img.resize((max(4, w), max(4, h)), Image.NEAREST))
+    if w < 4 or h < 4:
+        # pad tiny levels to a whole 4x4 block by edge replication: a decoder reads the
+        # real texels from the top-left w x h corner of the block
+        arr = np.asarray(img.convert("RGBA"))
+        arr = np.pad(arr, ((0, max(4, h) - h), (0, max(4, w) - w), (0, 0)), mode="edge")
+        src = Image.fromarray(arr, "RGBA")
     b = io.BytesIO()
     src.save(b, "DDS", pixel_format=fmt)
     data = b.getvalue()[128:]

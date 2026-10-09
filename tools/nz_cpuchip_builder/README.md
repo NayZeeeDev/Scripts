@@ -7,6 +7,7 @@ text, colours, the pad grid, the collision material or the archetype flags.
 ```
 tools/nz_cpuchip_builder/
 ├─ build_cpu_chip.py     generator (numpy + Pillow)
+├─ fonts/                DejaVu Sans / Sans Bold / Sans Mono used for the chip markings (free licence)
 ├─ dist/                 last build: CodeWalker XML + DDS textures + .glb
 │  ├─ source/nz_prop_cpu_chip.ydr.xml
 │  ├─ source/nz_prop_cpu_chip.ytyp.xml
@@ -24,7 +25,10 @@ python3 build_cpu_chip.py --out out --archetype-flags 32 --lod-dist 80
 ```
 
 Tweakables are the constants at the top of the script (dimensions in metres,
-atlas regions, colours) and the text lines in `paint_ihs_top()`.
+atlas regions, colours) and the text lines in `paint_ihs_top()`. The markings are
+rendered with the DejaVu fonts shipped in `fonts/` (Pillow >= 10.1 recommended);
+if they are missing the script warns and falls back to Pillow's default font, which
+changes the look of the text.
 
 ## 2. Convert XML -> .ydr / .ytyp
 
@@ -67,7 +71,9 @@ node render.mjs --assets ../out/preview --out ../out/renders      # iso / top / 
   (DiffuseSampler, BumpSampler, SpecSampler, HardAlphaBlend, useTessellation,
   wetnessMultiplier, bumpiness, specMapIntMask, specularIntensityMult,
   specularFalloffMult, specularFresnel).
-* **Textures** are embedded in the drawable (no separate .ytd needed). Normal
+* **Textures** are embedded in the drawable (no separate .ytd needed). The atlas
+  gutters are flood-filled with the nearest region colour before the mip chain is
+  built, so small mips do not darken at region borders. Normal
   map is DirectX style (green = down), which is what GTA expects; the `.glb`
   gets a green-flipped copy for Blender/glTF viewers. Tangent `w` is chosen so
   `cross(tangent, normal) * w` is the +v direction, matching the game's shader.
