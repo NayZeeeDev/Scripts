@@ -345,18 +345,20 @@ local boxOptions = {
 }
 
 CreateThread(function()
-    for _, t in pairs(Config.BoxTypes) do Target.AddModel(t.base, boxOptions) end
+    for _, t in pairs(Config.BoxTypes) do
+        Target.AddModel(t.base, boxOptions, nil, { offset = vector3(0.0, 0.0, t.hinge.z + 0.08), ignoreLos = true })
+    end
 end)
 
 -- Placing boxes -----------------------------------------------------------------
 
---- Ground spot in front of the player, box front facing them
-local function placementSpot()
-    local ped = PlayerPedId()
-    local spot = GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.75, 0.0)
-    local found, z = GetGroundZFor_3dCoord(spot.x, spot.y, spot.z + 1.0, false)
-    if found then spot = vector3(spot.x, spot.y, z) end
-    return spot, (GetEntityHeading(ped) + 180.0) % 360.0
+--- Pick where the box goes: a see-through box follows where you look
+local function placementSpot(boxType)
+    local t = Config.BoxTypes[boxType] or Config.BoxTypes.shoe
+    return Place.Ghost(t.base, {
+        range = 2.8,
+        extra = { model = t.lid, offset = t.hinge },
+    })
 end
 
 local function waitForEntity(netId)
@@ -368,23 +370,27 @@ local function waitForEntity(netId)
     return NetToObj(netId)
 end
 
-RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind)
+RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind, boxType)
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
-    if not IsModelInCdimage(Config.BoxTypes.shoe.base) then return UI.Notify(Config.Text.modelMissing, 'error') end
+    local t = Config.BoxTypes[boxType] or Config.BoxTypes.shoe
+    if not IsModelInCdimage(t.base) then return UI.Notify(Config.Text.modelMissing, 'error') end
     Busy = true
-    local spot, heading = placementSpot()
-    Anim.PutDown()
-    Wait(600)
-    lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading)
-    Wait(400)
+    local spot, heading = placementSpot(boxType)
+    if spot then
+        Anim.PutDown()
+        Wait(600)
+        lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading)
+        Wait(400)
+    end
     Busy = false
 end)
 
 --- Loose pair + empty box from the inventory: put the box down, shoes float in, lid closes
-function Boxes.PackFromInventory(slot)
+function Boxes.PackFromInventory(slot, meta)
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
     Busy = true
-    local spot, heading = placementSpot()
+    local spot, heading = placementSpot(meta and Shared.BoxTypeForShoe(meta.shoe))
+    if not spot then Busy = false return end
     Anim.PutDown()
     Wait(600)
     local netId, duration = lib.callback.await('nayzeee-sneakers:packShoes', false, slot, spot, heading)

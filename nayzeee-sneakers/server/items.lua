@@ -59,12 +59,15 @@ CreateThread(function()
     end)
 
     Inv.RegisterUsable(Config.Items.boxed, function(src, it)
-        TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'boxed')
+        local shoe = it.metadata and it.metadata.shoe
+        local boxType = (it.metadata and Config.BoxTypes[it.metadata.box] and it.metadata.box)
+            or (shoe and Config.Shoes[shoe] and Shared.BoxTypeForShoe(shoe)) or 'shoe'
+        TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'boxed', boxType)
     end)
 
-    for _, t in pairs(Config.BoxTypes) do
+    for id, t in pairs(Config.BoxTypes) do
         Inv.RegisterUsable(t.item, function(src, it)
-            TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'empty')
+            TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'empty', id)
         end)
     end
 end)

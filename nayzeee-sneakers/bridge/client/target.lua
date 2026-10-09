@@ -93,7 +93,10 @@ end
 
 -- public ------------------------------------------------------------------------
 
-function Target.AddModel(model, options, distance)
+--- extra = { offset = vector3 (where interact draws the prompt), ignoreLos = true (interact: no need
+--- to look straight at it - for low things like boxes on the floor) }
+function Target.AddModel(model, options, distance, extra)
+    extra = extra or {}
     distance = distance or Config.Box.interactDistance
     local sys = system()
     if sys == 'ox_target' then
@@ -128,7 +131,7 @@ function Target.AddModel(model, options, distance)
             end
             exports.interact:AddModelInteraction({
                 model = m, id = ('nzs_%s_%s'):format(m, options[1].name), distance = distance + 6.0,
-                interactDst = distance, options = list,
+                interactDst = distance, options = list, offset = extra.offset, ignoreLos = extra.ignoreLos,
             })
         end
     else

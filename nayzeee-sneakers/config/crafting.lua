@@ -28,6 +28,11 @@ Config.Tables = {
         redshoetable    = { label = 'Red shoe table',    model = `sasdragonslab_red_shoetable` },
     },
     surface = 0.93,               -- height of her table top (metres above the floor)
+    stand   = 0.45,               -- how far from the table edge the player stands
+    workOffset = vector3(0.0, 0.0, 0.0),   -- nudge where the shoes sit (x = along the table, y = across); 0 = the middle
+
+    -- what the player does at the table: an upright "working on the bench" loop
+    anim = { dict = 'anim@amb@business@coc@coc_unpack_cut_left@', clip = 'coke_cut_v1_coccutter' },
 
     fallback = `prop_tool_bench02`,   -- used when her pack isn't installed; false = no tables without it
     fallbackSurface = nil,            -- nil = work it out from the model

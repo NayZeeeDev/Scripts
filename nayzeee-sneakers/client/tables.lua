@@ -94,18 +94,28 @@ function Tables.FromEntity(ent)
     return id, id and list[id]
 end
 
---- Where the player stands and where the work sits, on whichever long side
---- of the table the player is on. Returns stand, work, heading, and two flat
---- directions: `along` the table and `out` from the work towards the player.
+--- Where the player stands and where the work sits. The work is always the middle of
+--- the table top; the player stands at the middle of whichever long side they're on.
+--- Returns stand, work, heading, and two flat directions: `along` the table and
+--- `out` from the work towards the player.
 function Tables.WorkSpot(ent)
     local _, t = Tables.FromEntity(ent)
     local min, max = GetModelDimensions(GetEntityModel(ent))
+    local cx, cy = (min.x + max.x) / 2, (min.y + max.y) / 2
+    local nudge = T.workOffset or vector3(0.0, 0.0, 0.0)
     local rel = GetOffsetFromEntityGivenWorldCoords(ent, GetEntityCoords(PlayerPedId()))
-    local side = rel.y < (min.y + max.y) / 2 and -1 or 1
-    local x = math.max(min.x + 0.45, math.min(max.x - 0.45, rel.x))
-    local edge = side < 0 and min.y or max.y
-    local stand = GetOffsetFromEntityInWorldCoords(ent, x, edge + side * 0.42, 0.0)
-    local work = GetOffsetFromEntityInWorldCoords(ent, x, edge - side * 0.2, (t and t.surface or 0.9) + 0.005)
+    local longX = (max.x - min.x) >= (max.y - min.y)
+    local gap = T.stand or 0.45
+    local stand, work
+    if longX then
+        local side = rel.y < cy and -1 or 1
+        stand = GetOffsetFromEntityInWorldCoords(ent, cx + nudge.x, (side < 0 and min.y or max.y) + side * gap, 0.0)
+        work = GetOffsetFromEntityInWorldCoords(ent, cx + nudge.x, cy + side * nudge.y, (t and t.surface or 0.9) + 0.005)
+    else
+        local side = rel.x < cx and -1 or 1
+        stand = GetOffsetFromEntityInWorldCoords(ent, (side < 0 and min.x or max.x) + side * gap, cy + nudge.x, 0.0)
+        work = GetOffsetFromEntityInWorldCoords(ent, cx + side * nudge.y, cy + nudge.x, (t and t.surface or 0.9) + 0.005)
+    end
     local heading = GetHeadingFromVector_2d(work.x - stand.x, work.y - stand.y)
     local d = stand - work
     local len = math.max(0.01, math.sqrt(d.x * d.x + d.y * d.y))
@@ -151,53 +161,14 @@ end)
 
 -- Placing a table ---------------------------------------------------------------
 
-local NO_ATTACK = { 24, 25, 37, 38, 44, 140, 141, 142, 257, 263, 14, 15, 16, 17, 199, 200 }
-
 RegisterNetEvent('nayzeee-sneakers:client:placeTable', function(slot, item)
     local ped = PlayerPedId()
     if Busy or IsPedInAnyVehicle(ped, false) then return end
     local model = modelFor(item)
     if not model then return UI.Notify(Config.Text.noTableModel, 'error') end
-    if not LoadModel(model) then return end
     Busy = true
-
-    local pos = GetOffsetFromEntityInWorldCoords(ped, 0.0, 1.6, 0.0)
-    local heading = GetEntityHeading(ped)
-    local ghost = CreateObjectNoOffset(model, pos.x, pos.y, pos.z, false, false, false)
-    SetEntityCollision(ghost, false, false)
-    FreezeEntityPosition(ghost, true)
-    SetEntityHeading(ghost, heading)
-    UI.Hint(Config.Text.placeHint)
-
-    local place, valid = false, false
-    while true do
-        Wait(0)
-        for _, c in ipairs(NO_ATTACK) do DisableControlAction(0, c, true) end
-        local hit, _, coords, normal = lib.raycast.cam(1, 4, 7.0)
-        if hit then pos = coords end
-        valid = hit and normal.z > 0.85 and #(pos - GetEntityCoords(ped)) < 5.0
-        SetEntityCoords(ghost, pos.x, pos.y, pos.z, false, false, false, false)
-        SetEntityHeading(ghost, heading)
-        SetEntityAlpha(ghost, valid and 200 or 90, false)
-
-        if IsDisabledControlPressed(0, 15) then heading = heading + 7.5 end   -- scroll up
-        if IsDisabledControlPressed(0, 14) then heading = heading - 7.5 end   -- scroll down
-        if IsDisabledControlPressed(0, 44) then heading = heading + 1.5 end   -- Q
-        if IsDisabledControlPressed(0, 38) then heading = heading - 1.5 end   -- E
-        heading = heading % 360.0
-        if IsDisabledControlJustPressed(0, 24) or IsControlJustPressed(0, 191) then
-            if valid then place = true break end
-            UI.Notify(Config.Text.cantPlace, 'error')
-        end
-        if IsDisabledControlJustPressed(0, 25) or IsControlJustPressed(0, 177) then break end
-    end
-
-    DeleteEntity(ghost)
-    SetModelAsNoLongerNeeded(model)
-    UI.Hint(nil)
-    if place then
-        TaskTurnPedToFaceCoord(ped, pos.x, pos.y, pos.z, 600)
-        Wait(600)
+    local pos, heading = Place.Ghost(model, { range = 5.0, flags = 1, minNormal = 0.85, heading = GetEntityHeading(ped) })
+    if pos then
         Anim.PutDown()
         Wait(700)
         lib.callback.await('nayzeee-sneakers:placeTable', false, slot, pos, heading)

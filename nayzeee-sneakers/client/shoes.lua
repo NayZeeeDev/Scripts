@@ -224,7 +224,7 @@ RegisterNetEvent('nayzeee-sneakers:client:useShoes', function(slot, meta, hasEmp
     })
     if choice == 'inspect' then Shoes.Inspect(meta)
     elseif choice == 'wear' then Shoes.PutOn(slot, meta)
-    elseif choice == 'box' then Boxes.PackFromInventory(slot)
+    elseif choice == 'box' then Boxes.PackFromInventory(slot, meta)
     elseif choice == 'clean' then Cleaning.Run(slot, meta) end
 end)
 

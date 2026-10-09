@@ -27,6 +27,7 @@ client_scripts {
     'bridge/client/dispatch.lua',
     'client/ui.lua',
     'client/camera.lua',
+    'client/place.lua',
     'client/boxes.lua',
     'client/shoes.lua',
     'client/dirt.lua',
