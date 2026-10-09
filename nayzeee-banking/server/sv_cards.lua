@@ -663,7 +663,8 @@ local function usableCards(src)
         out[#out + 1] = { row = card, item = item, foreign = not mine }
     end
 
-    if Config.Cards.physicalItem then
+    -- the default ESX inventory keeps no metadata, so there is no card to carry there
+    if Config.Cards.physicalItem and Bank.inventory() ~= 'esx' then
         local seen = {}
         for _, it in ipairs(CardItems.held(src)) do
             local id = Bank.id(it.meta.cardId)

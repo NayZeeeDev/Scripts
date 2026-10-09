@@ -270,8 +270,10 @@ function Bank.useATM(targeted)
     -- Quietly dropping to a different one because the session
     -- could not start is more confusing than saying so.
     if Config.ATM.screen and Config.ATM.screen.enabled then
+        -- still claimed while the screen spins up, so a second press can't start another
+        local started = Bank.useATMScreen(entity, model, card, data)
         inSession = false
-        if Bank.useATMScreen(entity, model, card, data) then return end
+        if started then return end
 
         lib.callback.await('nz_bank:atmEnd', false)
         return Bank.notify(L('atm_title'), L('atm_busy'), 'error')

@@ -9,6 +9,7 @@ Immersive banking for ESX Legacy — personal, shared, society and savings accou
 | Resource | Required | Notes |
 |---|---|---|
 | `es_extended` | ✅ | ESX Legacy 1.9+ |
+| OneSync | ✅ | The server checks where a player is before cash moves |
 | `oxmysql` | ✅ | Database layer |
 | `ox_lib` | ✅ | Callbacks, notifications, input dialogs |
 | `ox_target` | ⭕ | Optional — falls back to a key press |

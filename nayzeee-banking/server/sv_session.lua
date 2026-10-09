@@ -12,6 +12,8 @@ Bank.where = {}   -- [src] = { kind = 'atm', coords, cardId, accountId, foreign,
 
 local function sec() return Config.Security or {} end
 
+--- Needs OneSync: without it the server has no idea where a ped is, and no
+--- cash would move anywhere. The manifest lists it as a dependency.
 local function pedCoords(src)
     local ped = GetPlayerPed(src)
     if not ped or ped == 0 then return nil end
@@ -83,12 +85,9 @@ function Bank.cashPoint(src)
         return 'atm', atm
     end
 
-    if Bank.nearBranch(src) then
-        if Bank.branchOpen and not Bank.branchOpen() then
-            return nil, 'The bank is closed. Use an ATM.'
-        end
-        return 'bank'
-    end
+    -- opening hours run on the in-game clock, which only the client has;
+    -- it already refuses to open a closed branch
+    if Bank.nearBranch(src) then return 'bank' end
 
     return nil, 'Cash goes in and out at a branch or an ATM.'
 end
@@ -102,6 +101,10 @@ function Bank.cardAccess(src, accountId)
         local s = Bank.session[src]
         if not (s and s.pinOk and s.pinOk[atm.cardId]) then return nil end
     end
+
+    -- re-read, so a card reported or blocked mid-session stops working there and then
+    local status = MySQL.scalar.await('SELECT status FROM nz_bank_cards WHERE id = ?', { atm.cardId })
+    if status ~= 'active' then return nil end
 
     local acc = Bank.getAccountById(atm.accountId)
     if not acc then return nil end

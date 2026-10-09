@@ -72,6 +72,7 @@ files {
 }
 
 dependencies {
+    '/onesync',     -- the server checks where players are before cash moves
     'ox_lib',
     'oxmysql',
     'es_extended'

@@ -223,3 +223,15 @@ CREATE TABLE IF NOT EXISTS `nz_bank_holdings` (
   UNIQUE KEY `holding` (`identifier`,`asset`),
   KEY `identifier` (`identifier`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Saved payees: people a player pays often (and the only way to transfer at an ATM)
+CREATE TABLE IF NOT EXISTS `nz_bank_payees` (
+  `id`             INT(11) NOT NULL AUTO_INCREMENT,
+  `identifier`     VARCHAR(64) NOT NULL,
+  `label`          VARCHAR(32) NOT NULL,
+  `account_number` VARCHAR(24) NOT NULL,
+  `last_used`      BIGINT(20) NOT NULL DEFAULT 0,
+  `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `payee` (`identifier`, `account_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

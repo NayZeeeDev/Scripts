@@ -105,6 +105,19 @@ DELIMITER ;
 CALL nz_bank_add_unique();
 DROP PROCEDURE IF EXISTS nz_bank_add_unique;
 
+-- ── Saved payees ────────────────────────────────────────────
+-- The resource also creates this on start; here for databases where it can't.
+CREATE TABLE IF NOT EXISTS `nz_bank_payees` (
+  `id`             INT(11) NOT NULL AUTO_INCREMENT,
+  `identifier`     VARCHAR(64) NOT NULL,
+  `label`          VARCHAR(32) NOT NULL,
+  `account_number` VARCHAR(24) NOT NULL,
+  `last_used`      BIGINT(20) NOT NULL DEFAULT 0,
+  `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `payee` (`identifier`, `account_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 DROP PROCEDURE IF EXISTS nz_bank_add_column;
 
 -- ── Check it worked ─────────────────────────────────────────

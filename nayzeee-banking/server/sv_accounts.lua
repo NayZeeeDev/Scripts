@@ -196,16 +196,27 @@ local function atmView(src, payload)
     -- the overdraft line belongs to the player's personal account; show it only for that one
     if atm.foreign or acc.id ~= payload.primary then payload.overdraft = nil end
     payload.accounts = { view }
+
+    -- your own card also reaches your own savings, like a real machine;
+    -- someone else's card reaches nothing of yours
+    if atm.foreign then
+        payload.cards, payload.payees = {}, {}
+        payload.savings, payload.savingsId = nil, nil
+        payload.summary.savings = 0
+    elseif payload.savingsId and payload.savingsId ~= acc.id then
+        local sav = Bank.getAccountById(payload.savingsId)
+        if sav then payload.accounts[2] = serialiseAccount(sav) end
+    end
+
     payload.primary = acc.id
     payload.summary.balance = acc.balance
-    if atm.foreign then payload.cards, payload.payees = {}, {} end
     return payload
 end
 
 Bank.callback('nz_bank:getData', function(src, context)
     local payload = Bank.buildPayload(src, context)
     if not payload then return nil end
-    payload.payees = Bank.getPayees(Bank.getPlayer(src).identifier)
+    payload.payees = optional('payees', Bank.getPayees, Bank.getPlayer(src).identifier) or {}
     if context == 'atm' then payload = atmView(src, payload) end
     return payload
 end)
@@ -214,9 +225,14 @@ end)
 --- their own access, or the card in the ATM they are at.
 local function moneyAccess(src, accountId, point)
     local atm = point == 'atm' and Bank.atmSession(src) or nil
-    -- a machine with a card in it only works on that card's account
+    -- a machine with a card in it works on that card's account, plus your own
+    -- savings when the card is yours
     if atm and atm.accountId and Bank.id(accountId) ~= atm.accountId then
-        return nil, nil, 'This machine only works on the card\'s account.'
+        local xPlayer = Bank.getPlayer(src)
+        local sav = not atm.foreign and xPlayer and Bank.getSavings(xPlayer.identifier)
+        if not sav or sav.id ~= Bank.id(accountId) then
+            return nil, nil, 'This machine only works on the card\'s account.'
+        end
     end
     local acc, perms = Bank.access(src, accountId)
     if not acc then acc, perms = Bank.cardAccess(src, accountId) end
@@ -407,9 +423,19 @@ Bank.callback('nz_bank:transfer', function(src, accountId, toNumber, amount, not
     if not xPlayer then return { ok = false, msg = 'Player not found.' } end
 
     local acc, perms = Bank.access(src, accountId)
-    if not acc then acc, perms = Bank.cardAccess(src, accountId) end   -- a card and PIN at an ATM
+    local viaCard
+    if not acc then acc, perms, viaCard = Bank.cardAccess(src, accountId) end   -- a card and PIN at an ATM
     if not acc then return { ok = false, msg = 'You cannot use this account.' } end
     if not perms.transfer then return { ok = false, msg = 'You do not have transfer rights here.' } end
+
+    -- someone else's card sends inside that card's daily limit, like a withdrawal
+    if viaCard and viaCard.cardId then
+        local within, why = Bank.serial(Bank.cardKey(viaCard.cardId), Bank.spendOnCard, viaCard.cardId, Bank.round(amount))
+        if not within then
+            return { ok = false, msg = why == 'limit' and 'That would break the daily limit on this card.'
+                or 'This card was declined.' }
+        end
+    end
 
     local label = note and note ~= '' and ('Transfer · %s'):format(tostring(note):sub(1, 48)) or nil
     local ok, msg = Bank.doTransfer(acc.id, toNumber, amount, xPlayer.identifier, Bank.fullName(xPlayer), label)
@@ -653,6 +679,9 @@ Bank.callback('nz_bank:changeNumber', function(src, accountId)
 
     -- scheduled transfers pointing at the old number would silently fail
     MySQL.update.await('UPDATE nz_bank_scheduled SET to_number = ? WHERE to_number = ?',
+        { number, acc.account_number })
+    -- and so would everyone's saved payees for it
+    MySQL.update.await('UPDATE nz_bank_payees SET account_number = ? WHERE account_number = ?',
         { number, acc.account_number })
 
     return { ok = true, msg = ('Your new number is %s.'):format(number), number = number }
