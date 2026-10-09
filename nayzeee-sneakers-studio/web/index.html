@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NayZeee Sneaker Studio</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+
+<div class="win app">
+  <div class="frame"><div class="shell">
+    <div class="bar">
+      <div class="bar-brand">
+        <div class="mark"></div>
+        <div><div class="title-txt">NAYZEEE SNEAKER STUDIO</div><div class="sub">Your server's shoes, made into props</div></div>
+      </div>
+      <button class="btn-ghost" id="guideBtn"><span data-icon="book"></span>Guide</button>
+      <span class="ref" id="ver"></span>
+    </div>
+
+    <div class="layout">
+      <!-- setup -->
+      <aside class="side">
+        <section class="panel">
+          <div class="p-head"><div><h2>Server</h2><p>Where your clothing packs live</p></div></div>
+          <div class="p-body">
+            <div class="lbl">Server folder</div>
+            <div class="path-row">
+              <div class="field"><input id="root" placeholder="C:\txData\MyServer\resources" spellcheck="false"></div>
+              <button class="btn-ghost" data-pick="root"><span data-icon="folder"></span>Browse</button>
+            </div>
+            <div class="hint">Your <b>resources</b> folder, or any folder with clothing packs in it. Subfolders are searched too.</div>
+
+            <div class="lbl" style="margin-top:8px">Save props to</div>
+            <div class="path-row">
+              <div class="field"><input id="out" placeholder="(server folder)\nayzeee-sneakers-props" spellcheck="false"></div>
+              <button class="btn-ghost" data-pick="out"><span data-icon="folder"></span>Browse</button>
+            </div>
+            <div class="hint">This becomes the <b>nayzeee-sneakers-props</b> resource. Run the studio again later and it picks up where it left off.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="p-head"><div><h2>Quality</h2><p>Smaller is lighter for players to stream</p></div></div>
+          <div class="p-body">
+            <div class="lbl">Texture size</div>
+            <div class="seg small" id="texSize">
+              <button data-v="256">256</button><button data-v="512" class="on">512</button><button data-v="1024">1024</button>
+            </div>
+            <div class="lbl" style="margin-top:6px">Triangles per pair (at most)</div>
+            <div class="seg small" id="maxTris">
+              <button data-v="12000">12k</button><button data-v="24000" class="on">24k</button><button data-v="40000">40k</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="p-head"><div><h2>When converting</h2></div></div>
+          <div class="p-body">
+            <label class="toggle"><input type="checkbox" id="copyIcons" checked><span class="sw2"></span>
+              <span><b>Copy icons to the inventory</b><span id="invPath">Looks for ox_inventory / qb-inventory in the server folder</span></span></label>
+            <label class="toggle"><input type="checkbox" id="removeMissing" checked><span class="sw2"></span>
+              <span><b>Remove shoes that are gone</b>Props for shoes no longer on the server are deleted</span></label>
+          </div>
+        </section>
+
+        <button class="btn-teal wide" id="scanBtn"><span data-icon="search"></span>Scan for shoes</button>
+        <div class="note" id="sideNote"></div>
+      </aside>
+
+      <!-- shoes -->
+      <section class="content">
+        <div class="top">
+          <div class="stats5" id="stats">
+            <div class="stat on" data-f="all"><div class="tile" data-icon="shoe"></div><div class="stat-txt"><span>Found</span><b id="nAll">0</b></div></div>
+            <div class="stat" data-f="new"><div class="tile" data-icon="spark"></div><div class="stat-txt"><span>New</span><b id="nNew">0</b></div></div>
+            <div class="stat" data-f="changed"><div class="tile amber" data-icon="refresh"></div><div class="stat-txt"><span>Changed</span><b id="nChanged">0</b></div></div>
+            <div class="stat" data-f="done"><div class="tile grey" data-icon="check"></div><div class="stat-txt"><span>Up to date</span><b id="nDone">0</b></div></div>
+            <div class="stat" data-f="removed"><div class="tile red" data-icon="trash"></div><div class="stat-txt"><span>Removed</span><b id="nRemoved">0</b></div></div>
+          </div>
+          <div class="filters">
+            <div class="field"><input id="search" placeholder="Search by name, pack or drawable" autocomplete="off"></div>
+            <div class="seg small" id="gender">
+              <button data-v="all" class="on">All</button><button data-v="male">Male</button><button data-v="female">Female</button>
+            </div>
+            <button class="btn-ghost" id="pickAll"><span data-icon="check"></span>Select all</button>
+            <button class="btn-ghost" id="pickNone">Clear</button>
+          </div>
+        </div>
+        <div class="grid-wrap">
+          <div class="grid" id="grid"></div>
+          <div class="empty" id="empty">
+            <div><div class="mark big"></div><b>Point it at your server</b>
+              Pick your server folder on the left and press <b style="display:inline;font-size:12px">Scan for shoes</b>.<br>
+              Every shoe in your clothing packs shows up here, ready to become a prop.</div>
+          </div>
+        </div>
+        <div class="actionbar">
+          <div class="grow">
+            <div class="progress" id="progress" hidden>
+              <div class="ptxt"><span id="pCur"></span><b id="pNum"></b></div>
+              <div class="meter"><i id="pBar"></i></div>
+            </div>
+            <div class="hint" id="pickInfo">Nothing selected</div>
+          </div>
+          <button class="btn-ghost" id="logBtn" hidden><span data-icon="list"></span>Log</button>
+          <button class="btn-ghost" id="openBtn" hidden><span data-icon="folder"></span>Open folder</button>
+          <button class="btn-teal" id="convertBtn" disabled><span data-icon="wand"></span><span id="convertTxt">Convert</span></button>
+        </div>
+      </section>
+    </div>
+
+    <div class="statusbar">
+      <span><span class="key">CLICK</span>Select a shoe</span>
+      <span><span class="key">SHIFT</span>+ click to select a range</span>
+      <span id="statusTxt" style="margin-left:auto"></span>
+    </div>
+  </div></div>
+</div>
+
+<!-- folder picker -->
+<div class="modal" id="picker" hidden>
+  <div class="win">
+    <div class="frame"><div class="shell">
+      <div class="bar slim">
+        <div class="bar-brand"><div class="mark sm"></div><div class="title-txt" id="pickerTitle">CHOOSE A FOLDER</div></div>
+        <button class="pill-close" id="pickerClose">Close</button>
+      </div>
+      <div class="main">
+        <div class="picker-path" id="pickerPath"></div>
+        <div class="picker-list" id="pickerList"></div>
+        <div class="picker-foot">
+          <div class="grow hint" id="pickerHint"></div>
+          <button class="btn-teal" id="pickerUse"><span data-icon="check"></span>Use this folder</button>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- log -->
+<div class="modal" id="logModal" hidden>
+  <div class="win" style="height:min(520px,86vh)">
+    <div class="frame"><div class="shell">
+      <div class="bar slim">
+        <div class="bar-brand"><div class="mark sm"></div><div class="title-txt">LOG</div></div>
+        <button class="pill-close" id="logClose">Close</button>
+      </div>
+      <div class="main"><div class="log" id="log" style="max-height:none;flex:1"></div></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- guide -->
+<div class="scrim" id="scrim"></div>
+<aside class="guide" id="guide">
+  <div class="bar">
+    <div class="bar-brand"><div class="mark"></div><div><div class="title-txt">GUIDE</div><div class="sub">From clothing to props</div></div></div>
+    <button class="pill-close" id="guideClose">Close</button>
+  </div>
+  <div class="guide-body">
+    <div class="gstep"><h3><span class="n">1</span>Scan</h3><ul>
+      <li>Pick your server's <b>resources</b> folder and press <b>Scan for shoes</b>.</li>
+      <li>It finds every shoe in your addon clothing packs: files named like <b>mp_m_freemode_01_mypack^feet_007_u.ydd</b> with their <b>feet_diff_..._a_uni.ytd</b> colourways.</li>
+      <li>Plain downloads (<b>feet_000_u.ydd</b>) show up too. They convert fine, but you link them to their drawable in game.</li>
+    </ul></div>
+    <div class="gstep"><h3><span class="n">2</span>Pick and name</h3><ul>
+      <li>Click a card to select it. <b>New</b> and <b>Changed</b> shoes are selected for you.</li>
+      <li>Give each shoe a name. Names can be changed in game later too.</li>
+      <li>The box size is picked from the shoe's shape: sneakers go upright in a shoe box, heels and tall boots lie on their side in a heel or boot box. Change it if you like.</li>
+    </ul></div>
+    <div class="gstep"><h3><span class="n">3</span>Convert</h3><ul>
+      <li>Each colourway becomes its own prop with the texture built in, packed to sit in its box, with collision.</li>
+      <li>Skin on open-toe heels is cut away, heavy meshes are reduced, and two inventory icons are made per colourway (loose and boxed).</li>
+      <li>With <b>Copy icons to the inventory</b> on, the icons go straight into ox_inventory / qb-inventory.</li>
+    </ul></div>
+    <div class="gstep"><h3><span class="n">4</span>On the server</h3><ul>
+      <li>Put <b>nayzeee-sneakers-props</b> in your resources and start it before the script:<br><b>ensure nayzeee-sneakers-props</b><br><b>ensure nayzeee-sneakers</b></li>
+      <li>Restart, then type <b>/sneakerstudio</b> in game to price the new shoes and switch them on.</li>
+    </ul></div>
+    <div class="gstep"><h3><span class="n">5</span>Later</h3><ul>
+      <li>Added or removed clothing packs? Scan again. Only new and changed shoes are converted, and shoes that are gone are removed.</li>
+      <li>The in-game studio spots new and removed drawables by itself, so it also tells you when it's time to run this again.</li>
+    </ul></div>
+  </div>
+</aside>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
