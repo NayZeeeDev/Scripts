@@ -11,6 +11,7 @@ Sneaker reselling for FiveM: make pairs (real or fake), wear them, keep them cle
 | 3. Crafting tables (Dragons Lab), materials, supplier, fake quality, XP | **done** |
 | 4. Dirt, wear and cleaning | **done** |
 | 5. Selling: Plug app on lb-phone, NPC meetups on foot or by car, legit checks, handover cinematic, dispatch, hype, rep | **done** |
+| 6. Sneaker Studio: the app turns a server's clothing shoes into props and icons; `/sneakerstudio` spots new and removed shoes and puts them on sale | **done** |
 
 ## Supported
 
@@ -18,6 +19,8 @@ Sneaker reselling for FiveM: make pairs (real or fake), wear them, keep them cle
 - **Inventories:** ox_inventory and qb-inventory (plus ps-inventory and lj-inventory). Anything else goes through `bridge/custom/inventory.lua`.
 - **Target:** ox_target, qb-target or interact (or a key prompt without one).
 - **Phone:** selling runs on **lb-phone**: the Plug app is a custom app (`AddCustomApp`), buyers text through its Messages app.
+- **Your own shoes:** [NayZeee Sneaker Studio](../nayzeee-sneakers-studio/) makes props and icons from the clothing packs on
+  your server; `/sneakerstudio` puts them on sale in game (HOW-TO-USE section 9).
 - **Clothing:** the shoes you wear come from **[nayzeee-sneakers-clothing](../nayzeee-sneakers-clothing/)**, an addon pack
   (no base-game slots replaced). The script looks up each shoe's real drawable number from the pack at runtime,
   so nobody has to type drawable numbers in.
