@@ -19,8 +19,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mesh import Part, merge, lathe, loft_y, box, surface, rot, ydr_xml, archetype_xml, ytyp_xml, write_dds, render  # noqa: E402
 
-OUT = sys.argv[1] if len(sys.argv) > 1 else 'out'
-os.makedirs(OUT, exist_ok=True)
+OUT = 'out'   # set by main
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONT = os.path.join(HERE, 'lexend.ttf')
 RNG = np.random.default_rng(7177)
@@ -168,7 +167,7 @@ def clippers():
                      (0.009, 0.0055, 0.0025, 2.5, 0, 0.0172), (0.010, 0.0001, 0.0001, 2.5, 0, 0.0172)],
                     16, (0.75, 0.75, 1.0, 1.0))
     part = merge([body, head, lever, switch])
-    return save('nz_wig_clippers', part, tex, lod=40.0)
+    return ('nz_wig_clippers', part, tex, 40.0, ((35, 20), (215, 15), (110, 60)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════
@@ -268,7 +267,7 @@ def razor():
             T = T[:, ::-1]
         capsP.append(Part(P, [nrm] * len(P), [(0.75, 0.02)] * len(P), T))
     part = merge([handle, blade] + capsP + pins)
-    return save('nz_wig_razor', part, tex, lod=40.0)
+    return ('nz_wig_razor', part, tex, 40.0, ((35, 20), (215, 15), (110, 60)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════
@@ -312,7 +311,7 @@ def dye():
     cap = lathe([(0.0119, 0.111), (0.0121, 0.113), (0.0121, 0.127), (0.0095, 0.131), (0.0058, 0.1335),
                  (0.0046, 0.145), (0.0032, 0.158), (0.0018, 0.1655), (0.0009, 0.1675), (0.0, 0.168)], 32, (0, 0.62, 1, 1))
     part = merge([body, cap])
-    return save('nz_wig_dye', part, tex, lod=50.0, views=((30, 12), (210, 12), (100, 55)))
+    return ('nz_wig_dye', part, tex, 50.0, ((30, 12), (210, 12), (100, 55)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════
@@ -350,7 +349,7 @@ def wig_head():
     pole = lathe([(0.0085, 0.015), (0.0085, 0.098)], 16, (0, 0.25, 0.25, 1))
     foam = lathe(HEAD, 48, (0.25, 0, 1, 1), scale=(0.9, 1.06))
     part = merge([base, pole, foam])
-    return save('nz_wig_head', part, tex, lod=50.0, views=((200, 10), (20, 10), (110, 25)))
+    return ('nz_wig_head', part, tex, 50.0, ((200, 10), (20, 10), (110, 25)))
 
 
 def wig_shell():
@@ -382,7 +381,7 @@ def wig_shell():
     outer = surface(G, (0, 0, 1, 1), closed=True, center=(0, 0, 0), pole_axis=(0, 0, 1))
     inner = outer.flipped(0.0012)
     part = merge([outer, inner])
-    return save('nz_wig_shell', part, tex, lod=50.0, views=((200, 10), (20, 10), (110, 25)))
+    return ('nz_wig_shell', part, tex, 50.0, ((200, 10), (20, 10), (110, 25)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════
@@ -414,11 +413,18 @@ def bundle():
     part = merge([hair, band])
     zmin = part.P[:, 2].min()
     part = part.transformed(t=(0, -0.125, -zmin))
-    return save('nz_hair_bundle', part, tex, lod=30.0, views=((35, 35), (200, 30), (90, 70)))
+    return ('nz_hair_bundle', part, tex, 30.0, ((35, 35), (200, 30), (90, 70)))
 
+
+BUILDERS = [clippers, razor, dye, wig_head, wig_shell, bundle]
 
 if __name__ == '__main__':
-    items = [clippers(), razor(), dye(), wig_head(), wig_shell(), bundle()]
+    OUT = sys.argv[1] if len(sys.argv) > 1 else 'out'
+    os.makedirs(OUT, exist_ok=True)
+    items = []
+    for b in BUILDERS:
+        name, part, tex, lod, views = b()
+        items.append(save(name, part, tex, lod, views))
     with open(os.path.join(OUT, 'nz_wigsnatch_props.ytyp.xml'), 'w') as fh:
         fh.write(ytyp_xml('nz_wigsnatch_props', items))
     print('done ->', OUT)

@@ -4,6 +4,7 @@
 | --- | --- |
 | `hairkit/` | **3D wigs.** Turns every hairstyle your server streams into a prop for the foam head on the wig tables. The Wig Studio runs it for you (server/hairkit.js); you never have to touch it. |
 | `hairkit/linux-x64/hairkit`, `hairkit/win-x64/hairkit.exe` | The ready-to-run programs (in the release zip). No .NET install needed |
+| `props/icons.py` | Renders every item icon in `INSTALL/images` from 3D models (256 px, three-quarter view, studio light): `python3 props/icons.py out` |
 | `props/build.py` + `props/mesh.py` | Builds this script's own props (clippers, razor, dye bottle, foam head, generic wig, hair bundle) as CodeWalker XML + DDS |
 | `cwtool/` | A small CodeWalker.Core tool for prop work: `ydr2xml`, `xml2ydr`, `ydd2xml`, `ytd2dds`, `ytyp2xml`, `xml2ytyp` |
 

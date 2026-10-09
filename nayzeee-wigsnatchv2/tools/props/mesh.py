@@ -491,3 +491,100 @@ def render(part, tex, size=512, yaw=35, pitch=20, fov=30, bg=(18, 20, 22), light
         reg = img[y0:y1 + 1, x0:x1 + 1]
         reg[m] = np.clip(col * shade, 0, 1)
     return Image.fromarray((img * 255).astype(np.uint8))
+
+
+# ----------------------------------------------------------------------------------------------
+# inventory icon renderer: several parts, each with its own texture and material, soft studio light
+
+def render_icon(items, size=256, ss=4, yaw=35, pitch=22, fov=22, pad=0.07, shadow=True):
+    """items: [(Part, texture Image, {'spec':0.3, 'gloss':40, 'emit':0})]. Returns an RGBA icon."""
+    W = size * ss
+    allP = np.vstack([it[0].P for it in items])
+    c = (allP.min(axis=0) + allP.max(axis=0)) / 2
+    r = float(np.max(np.linalg.norm(allP - c, axis=1)))
+    R = rot('x', pitch) @ rot('z', -yaw)   # pitch > 0 looks down on the object
+    dist = r / math.tan(math.radians(fov) / 2) * 1.05
+    fpx = (W / 2) / math.tan(math.radians(fov) / 2)
+    col = np.zeros((W, W, 3)); alpha = np.zeros((W, W)); zb = np.full((W, W), np.inf)
+    lights = [  # view space: x right, y away from the camera, z up
+        (np.array([-0.55, -0.62, 0.62]), 0.95),   # key, upper left front
+        (np.array([0.75, -0.35, 0.15]), 0.35),    # fill, right
+        (np.array([0.15, 0.9, 0.45]), 0.55),      # rim, behind
+    ]
+    lights = [(d / np.linalg.norm(d), k) for d, k in lights]
+    view = np.array([0.0, -1.0, 0.0])
+    for part, tex, mat in items:
+        texa = np.asarray(tex.convert('RGB'), dtype=np.float64) / 255.0
+        texa = texa ** 2.2  # to linear
+        th, tw, _ = texa.shape
+        V = (part.P - c) @ R.T
+        Nv = part.N @ R.T
+        depth = V[:, 1] + dist
+        sx = W / 2 + V[:, 0] / depth * fpx
+        sy = W / 2 - V[:, 2] / depth * fpx
+        spec_k, gloss, emit = mat.get('spec', 0.25), mat.get('gloss', 30), mat.get('emit', 0.0)
+        for t in part.T:
+            x = sx[t]; y = sy[t]; z = depth[t]
+            area = (x[1] - x[0]) * (y[2] - y[0]) - (x[2] - x[0]) * (y[1] - y[0])
+            if area >= 0:
+                continue
+            x0, x1 = int(max(0, math.floor(x.min()))), int(min(W - 1, math.ceil(x.max())))
+            y0, y1 = int(max(0, math.floor(y.min()))), int(min(W - 1, math.ceil(y.max())))
+            if x1 < x0 or y1 < y0:
+                continue
+            xs, ys = np.meshgrid(np.arange(x0, x1 + 1) + 0.5, np.arange(y0, y1 + 1) + 0.5)
+            w0 = ((x[1] - xs) * (y[2] - ys) - (x[2] - xs) * (y[1] - ys)) / area
+            w1 = ((x[2] - xs) * (y[0] - ys) - (x[0] - xs) * (y[2] - ys)) / area
+            w2 = 1 - w0 - w1
+            m = (w0 >= -1e-6) & (w1 >= -1e-6) & (w2 >= -1e-6)
+            if not m.any():
+                continue
+            zz = w0 * z[0] + w1 * z[1] + w2 * z[2]
+            sub = zb[y0:y1 + 1, x0:x1 + 1]
+            m &= zz < sub
+            if not m.any():
+                continue
+            sub[m] = zz[m]
+            u = (w0 * part.UV[t[0], 0] + w1 * part.UV[t[1], 0] + w2 * part.UV[t[2], 0])[m]
+            v = (w0 * part.UV[t[0], 1] + w1 * part.UV[t[1], 1] + w2 * part.UV[t[2], 1])[m]
+            n = (w0[..., None] * Nv[t[0]] + w1[..., None] * Nv[t[1]] + w2[..., None] * Nv[t[2]])[m]
+            n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9)
+            albedo = texa[np.clip((v % 1.0 * th).astype(int), 0, th - 1), np.clip((u % 1.0 * tw).astype(int), 0, tw - 1)]
+            amb = (0.22 + 0.10 * n[:, 2])[:, None]
+            lit = amb.copy()
+            spec = np.zeros((len(n), 1))
+            for i, (L, k) in enumerate(lights):
+                lam = np.clip(n @ L, 0, 1)[:, None]
+                lit += k * lam
+                if i != 1:
+                    H = (L + view) / np.linalg.norm(L + view)
+                    spec += k * np.clip(n @ H, 0, 1)[:, None] ** gloss
+            out = albedo * lit + spec_k * spec + emit * albedo
+            col[y0:y1 + 1, x0:x1 + 1][m] = out
+            alpha[y0:y1 + 1, x0:x1 + 1][m] = 1.0
+    col = np.clip(col, 0, 1) ** (1 / 2.2)
+    img = Image.fromarray(np.uint8(np.dstack([col * 255, alpha * 255]).round()), 'RGBA')
+    # trim to the object, fit it on a square with padding
+    box = img.getbbox()
+    img = img.crop(box)
+    inner = int(W * (1 - 2 * pad))
+    k = inner / max(img.width, img.height)
+    img = img.resize((max(1, int(img.width * k)), max(1, int(img.height * k))), Image.LANCZOS)
+    canvas = Image.new('RGBA', (W, W), (0, 0, 0, 0))
+    canvas.alpha_composite(img, ((W - img.width) // 2, (W - img.height) // 2))
+    if shadow:
+        from PIL import ImageFilter
+        a = canvas.split()[3].filter(ImageFilter.GaussianBlur(W * 0.012))
+        sh = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
+        sh.putalpha(a.point(lambda q: q * 0.38))
+        base = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
+        base.alpha_composite(sh, (0, int(W * 0.012)))
+        base.alpha_composite(canvas)
+        canvas = base
+    return canvas.resize((size, size), Image.LANCZOS)
+
+
+def torus(R, r, segs, rings, uv_rect, a0=0.0, a1=360.0):
+    """Ring around Z (radius R, tube r); partial arcs are open."""
+    prof = [(R + r * math.cos(2 * math.pi * k / rings), r * math.sin(2 * math.pi * k / rings)) for k in range(rings + 1)]
+    return lathe(prof, segs, uv_rect, a0=a0, a1=a1)

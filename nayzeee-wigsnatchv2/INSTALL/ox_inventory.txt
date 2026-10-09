@@ -1,5 +1,5 @@
 -- ox_inventory/data/items.lua
--- Images: copy INSTALL/images/*.png to ox_inventory/web/images/
+-- Images: copy INSTALL/images/*.png to ox_inventory/web/images/ (3D-rendered icons; wig_<tier>.png are for Config.Wig.Images = 'tier')
 -- Wigs get their own picture from the Wig Studio (copied into ox_inventory/web/images), wig.png is the fallback.
 -- Wig tables: the icons are in SasDragon's DragonsLab_WigTables/install-images folder (wigtableblue.png ...).
 

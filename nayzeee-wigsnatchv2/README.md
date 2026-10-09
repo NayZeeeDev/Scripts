@@ -49,7 +49,7 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 ## 🚀 Installation
 
 1. Drop `nayzeee-wigsnatchv2` into your resources, replacing your old copy (the database carries over).
-2. Add the items from `INSTALL/` (`ox_inventory.txt`, `qb-core.txt` or `esx_items.sql`) and copy `INSTALL/images/*.png` into your inventory's image folder. The wig table items use the icons in SasDragon's `install-images` folder.
+2. Add the items from `INSTALL/` (`ox_inventory.txt`, `qb-core.txt` or `esx_items.sql`) and copy `INSTALL/images/*.png` into your inventory's image folder. Every item has a 3D-rendered icon (built from the same models as the props, like the nayzeee-sneakers icons), plus `wig_common.png` … `wig_mythic.png` for `Config.Wig.Images = 'tier'`. The wig table items use the icons in SasDragon's `install-images` folder.
 3. Start it after your framework, inventory, target and phone:
    ```cfg
    ensure ox_lib
