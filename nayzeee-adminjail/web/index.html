@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE Admin Jail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════ ADMIN PANEL ═══════════════ -->
+<div class="panel-wrap hidden" id="panel">
+<div class="frame">
+<div class="shell">
+
+  <header class="bar">
+    <div class="bar-brand">
+      <div class="mark"></div>
+      <div class="bar-name">
+        <div class="title-txt">ADMIN JAIL</div>
+        <div class="sub">NAYZEEE · Corrections</div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="dot"></span>
+      <p><b data-bind="serving">0</b> serving · <b data-bind="offline">0</b> waiting offline</p>
+      <span class="ver" data-bind="version">v2.0.0</span>
+    </div>
+    <button class="pill-close" data-action="close">Close</button>
+  </header>
+
+  <div class="body">
+    <nav class="side">
+      <div class="who">
+        <div class="av" data-bind="adminInitials">--</div>
+        <div class="who-txt"><b data-bind="adminName">Staff</b><span data-bind="adminMeta">Staff</span></div>
+      </div>
+      <div class="shift"><span data-bind="clock">00:00:00</span><b><span class="dot"></span>Live</b></div>
+
+      <button class="nav on" data-view="overview"><i data-icon="grid"></i>Overview</button>
+
+      <div class="grp">Sentencing</div>
+      <button class="nav" data-view="sentence"><i data-icon="gavel"></i>New sentence</button>
+      <button class="nav" data-view="inmates"><i data-icon="users"></i>Inmates <span class="tally" data-bind="tally">0</span></button>
+
+      <div class="grp">Records</div>
+      <button class="nav" data-view="history"><i data-icon="file"></i>History</button>
+
+      <div class="side-note">
+        <i data-icon="shield"></i>
+        <p>Timers live on the server. They pause while a player is offline and pick up again once they've spawned, even after a restart or a spawn selector.</p>
+      </div>
+    </nav>
+
+    <main class="main">
+
+      <!-- OVERVIEW -->
+      <section class="view on" data-view-id="overview">
+        <div class="head">
+          <div>
+            <h1>Overview</h1>
+            <p>Who is serving right now, today's numbers and the latest closed sentences.</p>
+          </div>
+          <div class="clock"><b data-bind="clockShort">00:00</b><span data-bind="date">-</span></div>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="tile"><i data-icon="lock"></i></div>
+            <div class="stat-txt"><span>Serving now</span><b data-bind="serving">0</b></div>
+            <div class="delta muted" data-bind="offlineDelta"></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><i data-icon="gavel"></i></div>
+            <div class="stat-txt"><span>Sentenced today</span><b data-bind="sentenced">0</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile red"><i data-icon="alert"></i></div>
+            <div class="stat-txt"><span>Escape attempts today</span><b data-bind="escapes">0</b></div>
+          </div>
+        </div>
+
+        <div class="cols">
+          <section class="panel">
+            <div class="p-head">
+              <div><h2>Serving now</h2><p>Live timers · paused while offline</p></div>
+              <button class="btn-ghost" data-goto="inmates"><i data-icon="users"></i>Manage</button>
+            </div>
+            <div class="p-body" id="ov-inmates"></div>
+          </section>
+          <section class="panel">
+            <div class="p-head">
+              <div><h2>Recently closed</h2><p>Latest released or served sentences</p></div>
+              <button class="btn-ghost" data-goto="history"><i data-icon="file"></i>History</button>
+            </div>
+            <div class="p-body" id="ov-recent"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- NEW SENTENCE -->
+      <section class="view" data-view-id="sentence">
+        <div class="head">
+          <div>
+            <h1>New sentence</h1>
+            <p>Pick a player, set the length and choose where they serve it.</p>
+          </div>
+        </div>
+
+        <div class="cols cols-sentence">
+          <section class="panel">
+            <div class="p-head">
+              <div><h2>Player</h2><p id="pick-sub">Online now</p></div>
+              <div class="seg">
+                <button class="on" data-source="online">Online <em data-bind="onlineCount">0</em></button>
+                <button data-source="recent">Left recently <em data-bind="recentCount">0</em></button>
+              </div>
+            </div>
+            <label class="search"><i data-icon="search"></i><input id="pick-search" placeholder="Search name, account or ID" autocomplete="off"></label>
+            <div class="p-body" id="pick-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="p-head">
+              <div><h2>Sentence</h2><p>Only counts down while they're in jail</p></div>
+            </div>
+            <div class="p-body form">
+              <div id="picked"></div>
+              <div class="field">
+                <label for="f-minutes">Length in minutes</label>
+                <div class="inline">
+                  <input id="f-minutes" type="number" min="1" placeholder="30">
+                  <div class="chips" id="f-durations"></div>
+                </div>
+              </div>
+              <div class="field">
+                <label for="f-reason">Reason</label>
+                <input id="f-reason" maxlength="255" placeholder="What happened?" autocomplete="off">
+                <div class="chips" id="f-presets"></div>
+              </div>
+              <div class="field">
+                <label>Location</label>
+                <div class="locs" id="f-locs"></div>
+              </div>
+            </div>
+            <div class="p-foot">
+              <span id="f-summary">Select a player to continue</span>
+              <button class="btn-teal" id="f-submit" disabled><i data-icon="gavel"></i>Sentence player</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- INMATES -->
+      <section class="view" data-view-id="inmates">
+        <div class="head">
+          <div>
+            <h1>Inmates</h1>
+            <p>Every open sentence, online or waiting for the player to come back.</p>
+          </div>
+          <div class="head-tools">
+            <label class="search sm"><i data-icon="search"></i><input id="inm-search" placeholder="Filter" autocomplete="off"></label>
+            <button class="btn-ghost" data-refresh><i data-icon="refresh"></i>Refresh</button>
+          </div>
+        </div>
+        <section class="panel grow">
+          <div class="t-head inm-grid"><span>Player</span><span>Location</span><span>Progress</span><span>Remaining</span><span>Status</span></div>
+          <div class="p-body" id="inm-list"></div>
+        </section>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="view" data-view-id="history">
+        <div class="head">
+          <div>
+            <h1>History</h1>
+            <p>Every closed sentence, newest first.</p>
+          </div>
+          <div class="head-tools">
+            <select id="his-field" class="select">
+              <option value="all">Everything</option>
+              <option value="player">Player</option>
+              <option value="admin">Staff</option>
+            </select>
+            <label class="search sm"><i data-icon="search"></i><input id="his-search" placeholder="Search" autocomplete="off"></label>
+          </div>
+        </div>
+        <section class="panel grow">
+          <div class="p-body table-wrap">
+            <table>
+              <thead><tr><th>Player</th><th>Reason</th><th>Served</th><th>Outcome</th><th>Staff</th><th>Date</th></tr></thead>
+              <tbody id="his-body"></tbody>
+            </table>
+            <button class="btn-line more hidden" id="his-more">Load more</button>
+          </div>
+        </section>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="statusbar">
+    <span><span class="key">ESC</span>Close</span>
+    <span><span class="key">/</span>Search</span>
+    <span><span class="key">↵</span>Confirm</span>
+    <span class="sb-right"><span class="dot"></span>Server-verified timers</span>
+  </footer>
+
+  <div class="overlay hidden" id="overlay"></div>
+  <div class="toasts" id="toasts"></div>
+</div>
+</div>
+</div>
+
+<!-- ═══════════════ PLAYER HUD ═══════════════ -->
+<aside class="hud hidden" id="hud">
+<div class="hud-frame">
+<div class="hud-shell">
+
+  <div class="hud-bar">
+    <div class="mark sm"></div>
+    <div class="bar-name">
+      <div class="title-txt">ADMIN JAIL</div>
+      <div class="sub" id="hud-loc">-</div>
+    </div>
+    <span class="tag live" id="hud-status">Serving</span>
+    <b class="hud-mini" id="hud-mini">00:00</b>
+  </div>
+
+  <div class="hud-full">
+    <div class="ring-wrap">
+      <svg viewBox="0 0 140 140">
+        <circle class="ring-bg" cx="70" cy="70" r="62"/>
+        <circle class="ring-fg" id="hud-ring" cx="70" cy="70" r="62"/>
+      </svg>
+      <div class="ring-center">
+        <b id="hud-time">00:00</b>
+        <span id="hud-sub">remaining</span>
+      </div>
+      <div class="flash" id="hud-flash"></div>
+    </div>
+    <div class="hud-meta">
+      <span>Sentence <b id="hud-total">0m</b></span>
+      <span class="sep"></span>
+      <span><b id="hud-escapes">0</b> escape attempts</span>
+    </div>
+
+    <div class="hud-cards">
+      <div class="hcard">
+        <div class="tile sm red"><i data-icon="alert"></i></div>
+        <div class="hcard-txt"><span>Reason</span><b id="hud-reason">-</b></div>
+      </div>
+      <div class="hcard">
+        <div class="tile sm"><i data-icon="shield"></i></div>
+        <div class="hcard-txt"><span>Jailed by</span><b id="hud-admin">-</b></div>
+      </div>
+    </div>
+
+    <div class="hud-work" id="hud-work">
+      <div class="hw-head"><span>Work program</span><span class="tag live" id="hw-tag">Active</span></div>
+      <div class="hw-task"><i data-icon="wrench"></i><span id="hw-task">Waiting for a task…</span></div>
+      <div class="segs" id="hw-segs"></div>
+      <div class="hw-stats">
+        <div><b id="hw-reduced">0m</b><span>Reduced</span></div>
+        <div><b id="hw-cycles">0</b><span>Cycles</span></div>
+        <div><b id="hw-hour">0/10m</b><span>This hour</span></div>
+      </div>
+    </div>
+
+    <div class="hud-rules">
+      <div class="grp">Rules</div>
+      <ul id="hud-rules"></ul>
+    </div>
+  </div>
+
+  <div class="statusbar sm">
+    <span><span class="key">E</span>Work at marker</span>
+    <span><span class="key" id="hud-key">HOME</span>Collapse</span>
+  </div>
+
+</div>
+</div>
+</aside>
+
+<script src="app.js"></script>
+</body>
+</html>

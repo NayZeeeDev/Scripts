@@ -1,0 +1,38 @@
+{
+    "no_permission": "You do not have permission to do that",
+    "player_not_found": "Player not found",
+    "already_jailed": "That player is already serving a sentence",
+    "not_jailed": "That player is not jailed",
+    "invalid_time": "Enter a time between 1 and %s minutes",
+    "invalid_location": "Unknown jail location",
+
+    "jailed_target": "You have been admin jailed for %s minutes",
+    "jailed_admin": "Jailed %s for %s minutes",
+    "jailed_offline_admin": "Sentence queued for %s - it starts when they join",
+    "restored": "You still have %s left on your admin jail sentence",
+    "released": "You have been released from admin jail",
+    "released_admin": "Released %s",
+    "adjusted_target": "Your sentence was changed by %s minutes",
+    "adjusted_admin": "Changed %s's sentence by %s minutes",
+    "transferred_target": "You are being transferred to %s",
+    "transferred_admin": "Moved %s to %s",
+
+    "escape_target": "Escape attempt! +%s minutes",
+    "escape_broadcast": "%s tried to escape admin jail (+%s min)",
+
+    "work_next": "Next task: %s",
+    "work_cycle": "Cycle complete! -%s minutes",
+    "work_limit": "Hourly work limit reached - resets in %s",
+    "work_moved": "You moved away - task cancelled",
+    "work_prompt": "[E] %s",
+
+    "usage_jail": "Usage: /%s [id] [minutes] [reason]",
+    "usage_unjail": "Usage: /%s [id]",
+    "cmd_target": "Player server id",
+    "cmd_minutes": "Minutes",
+    "cmd_reason": "Reason",
+    "cmd_panel": "Open the admin jail panel",
+    "cmd_jail": "Admin jail a player",
+    "cmd_unjail": "Release a player from admin jail",
+    "hud_toggle": "Admin jail: toggle HUD"
+}
