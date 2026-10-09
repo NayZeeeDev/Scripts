@@ -133,8 +133,8 @@ Use the **Shoes** item and pick from the menu:
 - **Clean them** (needs a cleaning kit, shows when they're dirty): see section 6.
 
 ### Using a box
-Use **Boxed shoes** or an **empty box** from your inventory. A see-through box follows where you look: scroll or Q / E turns it,
-left-click puts it down, right-click cancels. It goes on the floor or on a table. **Box them up** works the same way.
+Use **Boxed shoes** or an **empty box** from your inventory. A see-through box follows where you look: scroll turns it,
+**E** puts it down, Backspace (or right-click) cancels. It goes on the floor or on a table. **Box them up** works the same way.
 Then target the box (with **interact** just walk up to it; the prompt sits on top of the box):
 
 | Option | What happens |
@@ -161,7 +161,7 @@ every server buys the **Shoe Table Pack** from her ([her Discord](https://discor
 Without her pack the tables show up as a plain GTA workbench, and the console says where to buy hers.
 Set `Config.Tables.fallback = false` to turn tables off completely without her pack.
 
-**Using a table:** use the table item, aim where you want it (scroll or Q / E turns it), left-click to place, right-click to cancel.
+**Using a table:** use the table item, aim where you want it (scroll turns it), press **E** to place, Backspace (or right-click) to cancel.
 Target it to **Use shoe table** or **Pick up table**. Placed tables stay after a restart.
 Want a table that's always there, like in a shop? Add it to `Config.Tables.fixed` in `config/crafting.lua`.
 
@@ -175,7 +175,8 @@ Prices are in `Config.Materials` and `Config.Supplier.Extra`.
 1. Target your table and pick **Use shoe table**.
 2. At the top choose **Fake** or **Real**. Real pairs need an authentic tag and level 4.
 3. Pick a shoe, a colourway and a size. The panel shows what you have and what you're missing.
-4. **Make this pair.** You walk to the middle of the table's long side and work while the pair appears in the middle of the table top, stage by stage.
+4. **Make this pair.** You step up to the front and centre of the table and work while a ghost of the pair in the middle of the table top fills in, stage by stage.
+   Which side counts as the front is `Config.Tables.side` (`'nearest'`, `'front'` or `'back'`).
    Some stages have a skill check. Press **X** to stop; you keep your materials, since they're only used up when the pair is done.
 
 **Camera views.** Pick one under **Camera** in the table menu, or press **V** while you work to switch. Your pick is remembered,
@@ -184,7 +185,7 @@ and cleaning uses it too:
 | View | What you see |
 |---|---|
 | **3/4 view** (default) | High over your shoulder and off to the side, looking down on you and the whole table |
-| **First person** | Just in front of your face, looking down at the shoes |
+| **First person** | The game's own first-person camera, through your eyes |
 | **Close-up** | Low across the table from the far side: the shoes up front, your hands working behind them |
 
 Set the default in `Config.Camera.Default`, or `Config.Camera.Switch = false` to lock everyone to it.
@@ -302,7 +303,7 @@ worn, boxed and sold. There are two parts:
 | | What it does |
 |---|---|
 | **NayZeee Sneaker Studio** (an app for your PC) | Reads your server folder, finds every shoe in your clothing packs and makes the props (one per colourway, packed for its box) and inventory icons. Out comes a resource: **nayzeee-sneakers-props**. |
-| **/sneakerstudio** (in game, admins) | Lists the shoes, lets you switch them on, name and price them, and spots shoes that were added to or removed from the server. |
+| **/sneakerstudio** (in game, admins) | Lists every shoe (the custom ones that come with the script and the ones from your server), lets you switch them on or off, name and price them, and spots shoes that were added to or removed from the server. |
 
 ### Setting it up
 1. On your PC, run **NayZeee Sneaker Studio.exe**. It opens in your browser.
@@ -317,6 +318,10 @@ worn, boxed and sold. There are two parts:
    It's live for everyone straight away: craftable at the tables, wearable, boxable and sellable.
 
 Each shoe you pick shows on a preview ped next to you, turning slowly, so you can check it's the right one.
+
+### The custom shoes
+The ten shoes that come with the script are in the studio too, marked **Built in**. Change their name, price, level and
+colour names, or switch one off, the same way. Their props and box size stay as they are.
 
 ### New and removed shoes
 - Every time an admin opens the studio (and when an admin joins, with `Config.Studio.AlertAdmins`), their game checks
@@ -342,6 +347,17 @@ on your server. Open it in /sneakerstudio and pick it under **Drawable** (the pr
 | `Price` | Starting price of a new shoe, per box size |
 
 Admin settings are saved in the server's KVP, so they survive updates to the script.
+
+---
+
+## Notifications and escrow
+
+Every notification goes through **ox_lib** (`lib.notify`), buyers' texts too when no phone takes them.
+`Config.Notify = 'auto'` uses nayzeee-notify or okokNotify instead when one is running.
+
+The script is escrow ready: `config/`, `locales/`, `bridge/` and `install/*.lua` stay open for owners, everything else
+(including the shoe and box props) is locked when uploaded through Keymaster. Props made by the Sneaker Studio app
+come from each server's own clothing, so those stay with that server.
 
 ---
 

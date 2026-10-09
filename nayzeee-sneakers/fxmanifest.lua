@@ -74,6 +74,15 @@ files {
     'install/images/*.png',
 }
 
+-- Escrow (Tebex / Keymaster): everything is locked except these, which owners can edit.
+-- The props and boxes in stream/ are locked too.
+escrow_ignore {
+    'config/*.lua',
+    'locales/*.lua',
+    'bridge/**/*.lua',
+    'install/*.lua',
+}
+
 -- Everything in stream/ is streamed automatically; each ytyp needs its line.
 data_file 'DLC_ITYP_REQUEST' 'stream/nzs_alice/nzs_alice.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nzs_bianca/nzs_bianca.ytyp'

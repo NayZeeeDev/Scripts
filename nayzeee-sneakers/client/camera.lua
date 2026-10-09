@@ -69,10 +69,33 @@ function Cam.Create(pos, target, fov)
     return cam
 end
 
+-- GTA's own first-person camera, for the "first person" work view
+local fpPrev
+
+local function leaveFirstPerson()
+    if fpPrev then
+        SetFollowPedCamViewMode(fpPrev)
+        fpPrev = nil
+    end
+end
+
+--- Switches to the game's real first-person camera (drops any scripted camera)
+function Cam.FirstPerson()
+    if not Config.FirstPerson then return end
+    if cam then
+        RenderScriptCams(false, true, 500, true, false)
+        DestroyCam(cam, false)
+        cam = nil
+    end
+    if not fpPrev then fpPrev = GetFollowPedCamViewMode() end
+    SetFollowPedCamViewMode(4)
+end
+
 --- Point the camera at `target` from `pos`. If a camera is already up it glides
 --- over (so switching views mid-work is smooth); otherwise it eases in from gameplay.
 function Cam.Shot(pos, target, fov, ms)
     if not Config.FirstPerson then return end
+    leaveFirstPerson()
     ms = ms or 700
     local old = cam
     local new = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', pos.x, pos.y, pos.z, 0.0, 0.0, 0.0, fov or 50.0, false, 2)
@@ -122,14 +145,20 @@ function Views.Label(v)
     return Config.Text[({ three = 'viewThree', first = 'viewFirst', close = 'viewClose' })[v] or 'viewThree']
 end
 
---- Inside a work loop: V switches to the next view. shots = { three = {pos, look, fov}, ... }
+--- Shows one view. shots = { three = {pos, look, fov}, first = 'native' | {pos, look, fov}, ... }
+function Views.Show(view, shots)
+    local s = shots[view]
+    if s == 'native' then Cam.FirstPerson()
+    elseif s then Cam.Shot(s[1], s[2], s[3]) end
+end
+
+--- Inside a work loop: V switches to the next view
 function Views.Poll(current, shots)
     if not Config.Camera.Switch then return current end
     DisableControlAction(0, 0, true)   -- V (next camera)
     if IsDisabledControlJustPressed(0, 0) then
         current = Views.Next(current)
-        local s = shots[current]
-        if s then Cam.Shot(s[1], s[2], s[3]) end
+        Views.Show(current, shots)
         Views.Set(current)
         UI.Notify(Views.Label(current), 'inform')
     end
@@ -137,6 +166,7 @@ function Views.Poll(current, shots)
 end
 
 function Cam.Stop(instant)
+    leaveFirstPerson()
     if not cam then return end
     RenderScriptCams(false, not instant, instant and 0 or 600, true, false)
     DestroyCam(cam, false)

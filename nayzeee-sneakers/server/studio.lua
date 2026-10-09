@@ -153,6 +153,12 @@ end
 function Studio.Rebuild(broadcast)
     for id in pairs(live) do Config.ShoeModels[id] = nil end
     live = {}
+    local over = {}
+    for key, st in pairs(settings) do
+        local id = key:match('^b:(.+)$')
+        if id then over[id] = st end
+    end
+    Shared.ApplyBuiltinOverrides(over)
     for key in pairs(allKeys()) do
         local m = modelFor(key)
         local st = settings[key] or {}
@@ -166,10 +172,23 @@ function Studio.Rebuild(broadcast)
         end
     end
     BuildShoes()
-    if broadcast then TriggerClientEvent('nayzeee-sneakers:client:studioShoes', -1, live) end
+    if broadcast then TriggerClientEvent('nayzeee-sneakers:client:studioShoes', -1, Studio.Payload()) end
 end
 
 function Studio.Live() return live end
+
+--- What admins changed on the built-in shoes: { [modelId] = settings }
+local function builtinOverrides()
+    local out = {}
+    for key, st in pairs(settings) do
+        local id = key:match('^b:(.+)$')
+        if id and Config.ShoeModels[id] and not Config.ShoeModels[id].studio then out[id] = st end
+    end
+    return out
+end
+
+--- What every client needs: studio shoes plus changes to the built-in ones
+function Studio.Payload() return { models = live, builtin = builtinOverrides() } end
 
 -- ------------------------------------------------------------------ scans
 
@@ -254,11 +273,31 @@ local function entryFor(key)
     }
 end
 
+--- A shoe from config/shoes.lua, as the studio lists it
+local function builtinEntry(id)
+    local m = Config.ShoeModels[id]
+    local st = settings['b:' .. id] or {}
+    local letters = {}
+    for l in pairs(m.colourways) do letters[#letters + 1] = l end
+    table.sort(letters)
+    local colours = {}
+    for _, l in ipairs(letters) do colours[#colours + 1] = { letter = l, name = m.colourways[l], image = ('nzs_%s_%s'):format(id, l) } end
+    return {
+        key = 'b:' .. id, id = id, label = m.label, gender = m.gender, box = m.box, retail = m.retail,
+        level = Shared.ModelLevel(id), colours = colours, props = true, loose = false, manual = false, builtin = true,
+        enabled = st.enabled ~= false, removed = false,
+        link = m.slot and { collection = Config.ClothingPack, index = m.slot } or nil, pack = Config.ClothingPack,
+    }
+end
+
 local function openData()
     local shoes = {}
     for key in pairs(allKeys()) do
         local e = entryFor(key)
         if e then shoes[#shoes + 1] = e end
+    end
+    for id, m in pairs(Config.ShoeModels) do
+        if not m.studio then shoes[#shoes + 1] = builtinEntry(id) end
     end
     table.sort(shoes, function(a, b)
         if a.enabled ~= b.enabled then return a.enabled end
@@ -280,7 +319,7 @@ local function admin(src) return src ~= 0 and Bridge.IsAdmin(src) end
 
 lib.callback.register('nayzeee-sneakers:studio:isAdmin', function(src) return S.Enabled and admin(src) end)
 
-lib.callback.register('nayzeee-sneakers:studio:shoes', function() return live end)
+lib.callback.register('nayzeee-sneakers:studio:shoes', function() return Studio.Payload() end)
 
 lib.callback.register('nayzeee-sneakers:studio:open', function(src)
     if not S.Enabled or not admin(src) then return nil end
@@ -300,7 +339,10 @@ end
 
 lib.callback.register('nayzeee-sneakers:studio:save', function(src, key, f)
     if not S.Enabled or not admin(src) or type(key) ~= 'string' or type(f) ~= 'table' then return nil end
-    if not catalogue[key] and not (settings[key] and settings[key].manual) then return nil end
+    local bid = key:match('^b:(.+)$')
+    local isBuiltin = bid and Config.ShoeModels[bid] and not Config.ShoeModels[bid].studio
+    if not isBuiltin and not catalogue[key] and not (settings[key] and settings[key].manual) then return nil end
+    if isBuiltin then f.box, f.gender, f.link = nil, nil, nil end   -- built-in shoes keep their prop, box and clothing
     local st = settings[key] or {}
     if f.label ~= nil then local l = clean(f.label, 40); st.label = l ~= '' and l or nil end
     if f.retail ~= nil then st.retail = math.max(1, math.min(1000000, math.floor(tonumber(f.retail) or 0))) end
@@ -386,7 +428,7 @@ CreateThread(function()
     elseif n > 0 then
         print(('^2[nayzeee-sneakers]^7 studio: %d shoes added in game'):format(n))
     end
-    TriggerClientEvent('nayzeee-sneakers:client:studioShoes', -1, live)
+    TriggerClientEvent('nayzeee-sneakers:client:studioShoes', -1, Studio.Payload())
 end)
 
 -- the app made new props and the owner restarted the props resource: pick them up

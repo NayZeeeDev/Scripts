@@ -1,6 +1,6 @@
 --[[
     Raycast placement: a see-through copy of the object follows where you look.
-    Scroll or Q / E turns it, LMB (or Enter) places it, RMB (or Backspace) cancels.
+    Scroll turns it, E places it, Backspace (or right-click) cancels.
     Used for tables and shoe boxes.
 ]]
 
@@ -55,10 +55,8 @@ function Place.Ghost(model, opts)
 
         if IsDisabledControlPressed(0, 15) then heading = heading + 7.5 end   -- scroll up
         if IsDisabledControlPressed(0, 14) then heading = heading - 7.5 end   -- scroll down
-        if IsDisabledControlPressed(0, 44) then heading = heading + 1.5 end   -- Q
-        if IsDisabledControlPressed(0, 38) then heading = heading - 1.5 end   -- E
         heading = heading % 360.0
-        if IsDisabledControlJustPressed(0, 24) or IsControlJustPressed(0, 191) then
+        if IsDisabledControlJustPressed(0, 38) then                         -- E
             if valid then placed = true break end
             UI.Notify(Config.Text.cantPlace, 'error')
         end

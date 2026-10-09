@@ -37,13 +37,13 @@ AddEventHandler('onClientResourceStart', function(res)
 end)
 
 --------------------------------------------------------------------------------
--- NOTIFICATIONS   Config.Notify ('nui' is handled in client/ui.lua)
+-- NOTIFICATIONS   Config.Notify ('ox' = ox_lib, the default)
 --------------------------------------------------------------------------------
 
 local function running(r) return GetResourceState(r) == 'started' end
 
 local function notifySystem()
-    local want = Config.Notify
+    local want = Config.Notify or 'ox'
     if want ~= 'auto' then return want end
     if running('nayzeee-notify') then return 'nayzeee' end
     if running('okokNotify') then return 'okok' end

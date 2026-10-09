@@ -361,37 +361,8 @@ button.row:hover,.row.sel{border-color:var(--teal-edge);background:var(--teal-wa
   box-shadow:var(--sh-2);font-size:10.5px;color:var(--ink-2);font-weight:300;white-space:nowrap;
 }
 
-/* ═══════════════ TOASTS ═══════════════ */
-.toasts{position:absolute;top:3vh;right:2vw;transition:right .2s ease;display:flex;flex-direction:column;gap:8px;align-items:flex-end;z-index:90}
-.toast{
-  display:flex;gap:11px;align-items:center;width:330px;padding:11px 13px;
-  background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--teal);
-  border-radius:var(--r-sm);box-shadow:var(--sh-2);position:relative;overflow:hidden;
-  animation:toastIn .2s ease-out;
-}
-.toast .ti{width:26px;height:26px;flex:none;border-radius:var(--r-xs);display:grid;place-items:center;
-  color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
-.toast .ti svg{width:14px;height:14px;stroke-width:1.8}
-.toast b{display:block;font-size:12px;font-weight:500;color:var(--white);line-height:1.45}
-.toast::after{content:'';position:absolute;left:0;bottom:0;height:2px;width:100%;
-  background:var(--teal);transform-origin:left;animation:toastBar var(--life,3.8s) linear forwards}
-.toast.error{border-left-color:var(--red)}
-.toast.error .ti{color:var(--red);background:var(--red-wash);border-color:var(--red-edge)}
-.toast.error::after{background:var(--red)}
-.toast.warning{border-left-color:var(--amber)}
-.toast.warning .ti{color:var(--amber);background:var(--amber-wash);border-color:var(--amber-edge)}
-.toast.warning::after{background:var(--amber)}
-.toast.inform{border-left-color:var(--ink-3)}
-.toast.inform .ti{color:var(--ink-2);background:var(--raise);border-color:var(--line)}
-.toast.inform::after{background:var(--ink-3)}
-.toast.out{animation:toastOut .25s ease-in forwards}
-@keyframes toastBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
-@keyframes toastIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
-@keyframes toastOut{to{opacity:0;transform:translateX(12px)}}
-
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
-body.side-open .toasts{right:calc(2.5vw + 486px)}
 
 /* ═══════════════ CINEMATIC ═══════════════ */
 #cine{position:absolute;inset:0;pointer-events:none;z-index:5}
@@ -407,7 +378,7 @@ body.side-open .toasts{right:calc(2.5vw + 486px)}
 .cine-sub b{color:var(--teal-hi);font-weight:600;margin-right:8px}
 .cine-skip{position:absolute;right:36px;bottom:calc(11vh - 32px);font-size:10.5px;color:var(--ink-3);opacity:0;transition:opacity .2s;display:flex;align-items:center}
 #cine.on .cine-skip.show{opacity:1;transition:opacity .5s .7s}
-body.cine .toasts,body.cine .dealhud,body.cine #sms{opacity:0;transition:opacity .3s}
+body.cine .dealhud{opacity:0;transition:opacity .3s}
 
 /* ═══════════════ DEAL HUD ═══════════════ */
 .dealhud{left:2.2vw;top:38vh;width:290px;--cut:16px;animation:none}
@@ -434,24 +405,6 @@ body.cine .toasts,body.cine .dealhud,body.cine #sms{opacity:0;transition:opacity
 .bn.out{animation:bnOut .45s forwards}
 @keyframes bnIn{from{opacity:0;transform:scale(1.08)}}
 @keyframes bnOut{to{opacity:0;transform:translateY(-10px)}}
-
-/* ═══════════════ TEXTS ═══════════════ */
-/* no backdrop-filter: over the game world FiveM's browser draws it as a black box */
-#sms{position:absolute;left:2.2vw;top:4vh;width:330px;display:flex;flex-direction:column;gap:10px;z-index:20}
-.sms{display:flex;gap:12px;padding:13px 14px;border-radius:16px;background:rgba(14,16,17,.97);border:1px solid var(--line);
-  box-shadow:var(--sh-2);animation:smsIn .35s cubic-bezier(.2,.9,.3,1.2)}
-.sms.out{animation:smsOut .3s forwards}
-@keyframes smsIn{from{opacity:0;transform:translateX(-40px)}}
-@keyframes smsOut{to{opacity:0;transform:translateX(-40px)}}
-.sms .sav{width:38px;height:38px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;
-  background:linear-gradient(160deg,var(--raise-2),var(--base));border:1px solid var(--line);color:var(--teal)}
-.sms .tx{flex:1;min-width:0}
-.sms .tp{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
-.sms .tp .grow{flex:1}
-.sms .tp svg{width:11px;height:11px;stroke-width:1.8}
-.sms b{display:block;font-size:13px;font-weight:600;color:var(--white);margin-top:2px}
-.sms p{margin-top:5px;padding:8px 11px;border-radius:12px 12px 12px 4px;background:rgba(255,255,255,.07);font-size:12px;color:var(--ink);line-height:1.45;font-weight:300}
-
 
 /* workbench camera picker */
 .views{display:flex;align-items:center;gap:10px;margin-top:10px}
@@ -503,4 +456,7 @@ body.cine .toasts,body.cine .dealhud,body.cine #sms{opacity:0;transition:opacity
 .st-actions{display:flex;gap:10px;justify-content:flex-end}
 .st-actions .btn-teal{min-width:140px}
 .btn-ghost.danger:hover{border-color:var(--red-edge);color:var(--red);background:var(--red-wash)}
-body.studio-open .toasts{right:calc(2.5vw + 536px)}
+
+/* nothing in a scrolling pane may be squashed (the shop's Buy button) */
+.main.scroll > *{flex-shrink:0}
+#shop .btn-teal.wide{height:42px;font-size:13px}

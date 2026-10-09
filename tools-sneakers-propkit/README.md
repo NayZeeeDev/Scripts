@@ -1,6 +1,7 @@
 # Build tools
 
-These tools built the props in `stream/` and the debranded clothing pack. You don't need them to run the script.
+These tools built the props in `nayzeee-sneakers/stream/` and the debranded clothing pack. They are not part of the
+resource (nothing here ships to customers, and the props are escrow locked).
 
 | Tool | What it does |
 |---|---|

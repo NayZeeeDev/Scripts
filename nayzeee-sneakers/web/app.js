@@ -480,30 +480,6 @@ function banner(b) {
   }, b.kind === 'fail' ? 5500 : 7000);
 }
 
-/* ---------------- texts ---------------- */
-function sms(m) {
-  const box = $('sms');
-  const el = document.createElement('div');
-  el.className = 'sms';
-  const initials = String(m.from || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  el.innerHTML = `<div class="sav">${esc(initials)}</div><div class="tx"><div class="tp">${icon('info')}Messages<span class="grow"></span>now</div>` +
-    `<b>${esc(m.from || 'Unknown')}</b><p>${esc(m.text || '')}</p></div>`;
-  box.prepend(el);
-  while (box.children.length > 2) box.lastChild.remove();
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 8000);
-}
-
-
-/* ---------------- toasts ---------------- */
-const TOAST_ICON = { success: 'check', error: 'x', warning: 'alert', inform: 'info' };
-function toast(text, kind = 'inform') {
-  const el = document.createElement('div');
-  el.className = 'toast ' + kind;
-  el.innerHTML = `<div class="ti">${icon(TOAST_ICON[kind] || 'info')}</div><div><b>${esc(text)}</b></div>`;
-  $('toasts').appendChild(el);
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, 3800);
-}
-
 /* ---------------- studio (/sneakerstudio) ---------------- */
 let PROPS_RES = 'nayzeee-sneakers-props';
 
@@ -512,10 +488,20 @@ addEventListener('error', e => {
   const el = e.target;
   if (!(el instanceof HTMLImageElement)) return;
   const src = el.getAttribute('src') || '';
-  const m = src.match(/install\/images\/([^/]+)\.png$/);
-  if (m) { if (m[1] !== 'nz_shoebox') el.src = `https://cfx-nui-${PROPS_RES}/icons/${m[1]}.png`; return; }
-  if (src.includes('/icons/')) el.src = img('nz_shoebox');
+  const m = src.match(/install\/images\/([^/]+)\.png$/) || src.match(/\/icons\/([^/]+)\.png$/) || src.match(/\/images\/([^/]+)\.png$/);
+  if (!m) return;
+  const name = m[1];
+  // where an icon can be: this script, the props resource (studio shoes), then the inventory's own images
+  const tries = [`../install/images/${name}.png`, `https://cfx-nui-${PROPS_RES}/icons/${name}.png`,
+    `https://cfx-nui-ox_inventory/web/images/${name}.png`, `https://cfx-nui-qb-inventory/html/images/${name}.png`];
+  const step = +(el.dataset.fb || 0) + 1;
+  if (step < tries.length) { el.dataset.fb = step; el.src = tries[step]; return; }
+  if (name !== 'nz_shoebox') { el.dataset.fb = 0; el.src = img('nz_shoebox'); }
 }, true);
+// a fresh picture starts the search again
+new MutationObserver(list => list.forEach(r => {
+  if (r.attributeName === 'src' && r.target.dataset && /install\/images/.test(r.target.getAttribute('src') || '')) r.target.dataset.fb = 0;
+})).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['src'] });
 
 const ST = { data: null, tab: 'shoes', q: '', cur: null, edit: null, open: false };
 const GL = { male: 'Male', female: 'Female' };
@@ -575,7 +561,7 @@ function renderStudioList() {
     rows = d.shoes.filter(s => match(s.label, s.pack, s.key)).map(s => {
       const tags = [
         s.removed ? '<span class="tag hot">Gone</span>' : s.enabled ? '<span class="tag live">On sale</span>' : '<span class="tag off">Off</span>',
-        s.props ? '' : '<span class="tag warn">Stand-in</span>',
+        s.builtin ? '<span class="tag off">Built in</span>' : s.props ? '' : '<span class="tag warn">Stand-in</span>',
       ].join('');
       return `<button class="row" data-key="${esc(s.key)}"><span class="av img"><img src="${img(s.colours[0] && s.colours[0].image)}" alt=""></span>
         <span class="row-txt"><b>${esc(s.label)}</b><span>${GL[s.gender] || '?'} · ${BOXL[s.box]} · ${s.colours.length} colour${s.colours.length === 1 ? '' : 's'} · ${money(s.retail)}</span></span>
@@ -616,11 +602,12 @@ function openStudioShoe(s, keepEdit) {
   $('stHome').hidden = true;
   $('stDetail').hidden = false;
   $('stdName').textContent = s.label;
-  $('stdSub').textContent = s.props ? `Props from ${ST.data.propsResource}` : 'No prop of its own yet: shows as a stand-in';
+  $('stdSub').textContent = s.builtin ? 'Comes with the script' : s.props ? `Props from ${ST.data.propsResource}` : 'No prop of its own yet: shows as a stand-in';
+  $('stdBoxRow').hidden = !!s.builtin;
   $('stdImg').src = img(s.colours[0] && s.colours[0].image);
   $('stdTags').innerHTML = [
     s.removed ? '<span class="tag hot">Gone from the server</span>' : '',
-    s.props ? '<span class="tag live">Own prop</span>' : '<span class="tag warn">Stand-in prop</span>',
+    s.builtin ? '<span class="tag live">Built in</span>' : s.props ? '<span class="tag live">Own prop</span>' : '<span class="tag warn">Stand-in prop</span>',
     s.loose ? '<span class="tag warn">Plain download</span>' : '',
     `<span class="tag off">${esc(packName(s.pack))}${s.link ? ' #' + String(s.link.index).padStart(3, '0') : ''}</span>`,
   ].join('');
@@ -714,7 +701,8 @@ $('stdColours').addEventListener('input', e => {
 });
 $('stdSave').addEventListener('click', () => {
   const e = ST.edit;
-  const fields = { label: e.label, retail: e.retail, level: e.level, box: e.box, enabled: e.enabled, colours: e.colours };
+  const fields = { label: e.label, retail: e.retail, level: e.level, enabled: e.enabled, colours: e.colours };
+  if (!ST.cur.builtin) fields.box = e.box;
   if (ST.cur.loose) { fields.gender = e.gender; if (e.link) fields.link = e.link; }
   post('studioSave', { key: e.key, fields });
 });
@@ -736,7 +724,6 @@ addEventListener('message', ({ data }) => {
     case 'studio': studio(data); break;
     case 'menu': showMenu(data.menu || {}); break;
     case 'inspect': showInspect(data.show, data.data, data.hint); break;
-    case 'toast': toast(data.text, data.kind); break;
     case 'bench':
       B.stages = (data.catalogue && data.catalogue.stages) || {};
       B.speed = data.speedPerLevel || 0;
@@ -754,7 +741,6 @@ addEventListener('message', ({ data }) => {
     case 'subtitle': subtitle(data.who, data.text); break;
     case 'deal': dealHud(data.data); break;
     case 'banner': banner(data.data || {}); break;
-    case 'sms': sms(data.data || {}); break;
     case 'hint':
       $('hint').hidden = !data.text;
       $('hint').innerHTML = keyHint(data.text);

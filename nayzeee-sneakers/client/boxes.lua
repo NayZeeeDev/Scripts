@@ -204,8 +204,11 @@ local function removeBox(base)
     if box.fx then animating = animating - 1 end
     if DoesEntityExist(box.lid) then DeleteEntity(box.lid) end
     removeShoe(box)
+    Target.RemoveEntity(base)
     boxes[base] = nil
 end
+
+local targetBox   -- set further down, once the box options exist
 
 local function addBox(base)
     local t = typeOf(base)
@@ -219,6 +222,7 @@ local function addBox(base)
     attachLid(base, lid, angle)
     SetModelAsNoLongerNeeded(t.lid)
     syncShoe(base)
+    if targetBox then targetBox(base, t) end
 end
 
 CreateThread(function()
@@ -345,11 +349,11 @@ local boxOptions = {
           canInteract = function(e) return not state(e, 'nzs:busy') end, onSelect = pickUp },
 }
 
-CreateThread(function()
-    for _, t in pairs(Config.BoxTypes) do
-        Target.AddModel(t.base, boxOptions, nil, { offset = vector3(0.0, 0.0, t.hinge.z + 0.08), ignoreLos = true })
-    end
-end)
+-- Options go on each box as it streams in (the same way as the supplier), which every target
+-- resource handles the same, networked or not
+function targetBox(base, t)
+    Target.AddEntity(base, boxOptions, B.interactDistance, { offset = vector3(0.0, 0.0, t.hinge.z + 0.08), ignoreLos = true })
+end
 
 -- Placing boxes -----------------------------------------------------------------
 

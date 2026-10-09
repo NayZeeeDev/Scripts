@@ -119,29 +119,29 @@ local function holdScissors()
     return obj
 end
 
+--- Walks to the work spot, then puts the player exactly on it (front and centre, facing the
+--- table) and holds them there while they work
 local function walkTo(stand, heading)
     local ped = PlayerPedId()
     TaskGoStraightToCoord(ped, stand.x, stand.y, stand.z, 1.0, 3000, heading, 0.05)
     local timeout = GetGameTimer() + 3000
-    while #(GetEntityCoords(ped).xy - stand.xy) > 0.25 and GetGameTimer() < timeout do Wait(50) end
+    while #(GetEntityCoords(ped).xy - stand.xy) > 0.15 and GetGameTimer() < timeout do Wait(50) end
     ClearPedTasks(ped)
+    local z = GetEntityCoords(ped).z
+    SetEntityCoordsNoOffset(ped, stand.x, stand.y, z, false, false, false)
     SetEntityHeading(ped, heading)
+    FreezeEntityPosition(ped, true)
 end
 
 --- The three ways to shoot the work at a table. { pos, look, fov }
 --- `work` is the middle of the table top, `out` points from it to the player.
 local function tableShots(stand, work, along, out)
-    local ped = PlayerPedId()
     local up = vector3(0.0, 0.0, 1.0)
-    -- the player's eye line, worked out from where they stand rather than the head bone,
-    -- which dips while the work animation plays
-    local eyeZ = GetEntityCoords(ped).z + 0.64
-    local eye = vector3(stand.x, stand.y, eyeZ) - out * 0.24
     return {
         -- 3/4: high over your shoulder and off to the side, looking down on you and the whole table
         three = { work + out * 1.55 + along * 0.95 + up * 1.0, work + out * 0.12 + up * 0.04, 52.0 },
-        -- first person: just in front of your face, looking down at the shoes
-        first = { eye, work + up * 0.05, 50.0 },
+        -- first person: the game's own first-person camera, through your eyes
+        first = 'native',
         -- close-up: low across the table, the shoes up front and your hands working behind them
         close = { work - out * 0.6 + along * 0.32 + up * 0.3, work + up * 0.07, 40.0 },
     }
@@ -180,9 +180,8 @@ function Crafting.Run(ent, req)
         SetModelAsNoLongerNeeded(model)
     end
     local shots = tableShots(stand, work, along, out)
-    local s = shots[view]
-    Cam.Shot(s[1], s[2], s[3])
     playWork()
+    Views.Show(view, shots)
 
     local results, cancelled = {}, false
     for i, st in ipairs(stages) do
@@ -194,10 +193,10 @@ function Crafting.Run(ent, req)
             Wait(0)
             DisableControlAction(0, 24, true)
             DisableControlAction(0, 25, true)
-            if obj and i == 1 then
-                -- the pair fades onto the table early in the first stage, then stays solid
-                local f = math.min(1.0, (GetGameTimer() - t0) / math.min(st.time, 1500))
-                if f >= 1.0 then ResetEntityAlpha(obj) else SetEntityAlpha(obj, math.floor(255 * f), false) end
+            if obj then
+                -- a ghost of the pair that fills in stage by stage; solid when it's finished
+                local f = ((i - 1) + (GetGameTimer() - t0) / st.time) / #stages
+                SetEntityAlpha(obj, math.floor(25 + 210 * f), false)
             end
             if cancelPressed() then cancelled = true break end
             view = Views.Poll(view, shots)
@@ -229,6 +228,7 @@ function Crafting.Run(ent, req)
 
     if obj then DeleteEntity(obj) end
     Cam.Stop()
+    FreezeEntityPosition(PlayerPedId(), false)
     ClearPedTasks(PlayerPedId())
     RemoveAnimDict(WORK[1])
     Busy = false

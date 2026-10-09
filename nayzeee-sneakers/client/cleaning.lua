@@ -45,7 +45,7 @@ local function groundShots(ped, pairPos)
     return {
         -- 3/4: in front and to the side, looking back at you kneeling over the pair
         three = { GetOffsetFromEntityInWorldCoords(ped, 1.25, 1.45, 0.25), pairPos + vector3(0.0, 0.0, 0.25) - GetEntityForwardVector(ped) * 0.25, 50.0 },
-        first = { eye, pairPos + up * 0.08, 52.0 },
+        first = 'native',   -- the game's own first-person camera
         close = { GetOffsetFromEntityInWorldCoords(ped, 0.42, 0.9, -0.72), pairPos + up * 0.07, 38.0 },
     }
 end
@@ -63,8 +63,7 @@ function Cleaning.Run(slot, meta)
     local view, shots = Views.Get(), nil
     if pair then
         shots = groundShots(ped, GetEntityCoords(pair))
-        local s = shots[view]
-        Cam.Shot(s[1], s[2], s[3])
+        Views.Show(view, shots)
     end
 
     local results, cancelled = {}, false

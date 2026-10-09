@@ -216,7 +216,7 @@
             <div class="st-row"><span>Price</span><div class="field money"><input type="number" id="stdPrice" min="1" step="10"></div></div>
             <div class="st-row"><span>Level</span>
               <div class="stepper"><button id="stdLvlDown">−</button><span id="stdLvl">1</span><button id="stdLvlUp">+</button></div></div>
-            <div class="st-row"><span>Box</span>
+            <div class="st-row" id="stdBoxRow"><span>Box</span>
               <div class="seg small" id="stdBox"><button data-v="shoe">Shoe</button><button data-v="heel">Heel</button><button data-v="boot">Boot</button></div></div>
             <div class="st-row" id="stdGenderRow"><span>For</span>
               <div class="seg small" id="stdGender"><button data-v="male">Male</button><button data-v="female">Female</button></div></div>
@@ -297,15 +297,11 @@
 <!-- ═══════════ results banner ═══════════ -->
 <div id="banner" hidden></div>
 
-<!-- ═══════════ texts (when no phone takes them) ═══════════ -->
-<div id="sms"></div>
 
 <!-- key hint -->
 <div class="keys-pill" id="hint" hidden></div>
 <div class="keys-pill" id="inspectHint" hidden></div>
 
-<!-- toasts -->
-<div class="toasts" id="toasts"></div>
 
 <script src="app.js"></script>
 </body>

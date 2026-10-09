@@ -118,6 +118,8 @@ function Shared.LevelFor(xp)
 end
 
 function Shared.ModelLevel(modelId)
+    local sm = Config.ShoeModels[modelId]
+    if sm and sm.levelOverride then return sm.levelOverride end
     local over = Config.Crafting.models[modelId]
     if over and over.level then return over.level end
     local m = Config.ShoeModels[modelId]
@@ -186,4 +188,43 @@ function Shared.SupplierGoods()
         out[name] = m
     end
     return out
+end
+
+--------------------------------------------------------------------------------
+-- Studio changes to the built-in shoes (name, price, level, colour names, on/off)
+--------------------------------------------------------------------------------
+
+local builtinOrig
+
+--- over = { [modelId] = { label, retail, level, colours = { a = name }, enabled } }. Puts the built-in
+--- shoes back as config/shoes.lua has them, then applies `over`. Call BuildShoes() after.
+function Shared.ApplyBuiltinOverrides(over)
+    if not builtinOrig then
+        builtinOrig = {}
+        for id, m in pairs(Config.ShoeModels) do
+            if not m.studio then
+                local cw = {}
+                for l, n in pairs(m.colourways) do cw[l] = n end
+                builtinOrig[id] = { label = m.label, retail = m.retail, colourways = cw }
+            end
+        end
+    end
+    for id, o in pairs(builtinOrig) do
+        local m = Config.ShoeModels[id]
+        if m then
+            m.label, m.retail, m.levelOverride, m.hidden = o.label, o.retail, nil, nil
+            m.colourways = {}
+            for l, n in pairs(o.colourways) do m.colourways[l] = n end
+            local v = over and over[id]
+            if type(v) == 'table' then
+                m.label = v.label or m.label
+                m.retail = tonumber(v.retail) or m.retail
+                m.levelOverride = tonumber(v.level)
+                if type(v.colours) == 'table' then
+                    for l, n in pairs(v.colours) do if m.colourways[l] then m.colourways[l] = n end end
+                end
+                if v.enabled == false then m.hidden = true end
+            end
+        end
+    end
 end

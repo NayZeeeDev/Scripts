@@ -56,7 +56,7 @@ Locales.en = {
     -- crafting tables
     useTable = 'Use shoe table',
     pickUpTable = 'Pick up table',
-    placeHint = 'Scroll or Q / E to turn · LMB to place · RMB to cancel',
+    placeHint = 'Scroll to turn · E to place · Backspace to cancel',
     cantPlace = 'You can\'t put it there',
     tableTooClose = 'Too close to another table',
     tableLimit = 'You already have a table out',

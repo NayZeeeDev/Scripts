@@ -29,6 +29,7 @@ Config.Tables = {
     },
     surface = 0.93,               -- height of her table top (metres above the floor)
     stand   = 0.45,               -- how far from the table edge the player stands
+    side    = 'nearest',          -- where they stand: 'nearest' long side | 'front' | 'back' of the table
     workOffset = vector3(0.0, 0.0, 0.0),   -- nudge where the shoes sit (x = along the table, y = across); 0 = the middle
 
     -- what the player does at the table: an upright "working on the bench" loop

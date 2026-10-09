@@ -144,9 +144,11 @@ function Target.AddModel(model, options, distance, extra)
     end
 end
 
---- Options on one (local) entity, e.g. the supplier or a buyer
-function Target.AddEntity(entity, options, distance)
+--- Options on one entity (a handle this client has), e.g. the supplier, a buyer or a placed box.
+--- extra = { offset, ignoreLos } as for Target.AddModel
+function Target.AddEntity(entity, options, distance, extra)
     distance = distance or 2.5
+    extra = extra or {}
     local sys = system()
     if sys == 'ox_target' then
         local list = {}
@@ -180,6 +182,7 @@ function Target.AddEntity(entity, options, distance)
         exports.interact:AddLocalEntityInteraction({
             entity = entity, id = ('nzs_ent_%s'):format(entity), name = options[1].name,
             distance = distance + 6.0, interactDst = distance, options = list,
+            offset = extra.offset, ignoreLos = extra.ignoreLos,
         })
     else
         textEntities[entity] = { options = options, distance = distance }
@@ -194,6 +197,11 @@ function Target.RemoveEntity(entity)
     elseif sys == 'interact' then pcall(function() exports.interact:RemoveLocalEntityInteraction(entity, ('nzs_ent_%s'):format(entity)) end)
     else textEntities[entity] = nil end
 end
+
+CreateThread(function()
+    Wait(2000)
+    print(('^5[nayzeee-sneakers]^7 target: %s'):format(system()))
+end)
 
 AddEventHandler('onResourceStop', function(res)
     if res == GetCurrentResourceName() and system() == 'textui' then UI.Hint(nil) end

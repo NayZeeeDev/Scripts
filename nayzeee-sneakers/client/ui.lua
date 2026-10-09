@@ -42,12 +42,7 @@ function UI.Result(data)
 end
 
 function UI.Notify(text, kind, title)
-    kind = kind or 'inform'
-    if Config.Notify == 'nui' then
-        SendNUIMessage({ action = 'toast', text = text, kind = kind })
-    else
-        Bridge.Notify(text, kind, title)
-    end
+    Bridge.Notify(text, kind or 'inform', title)
 end
 
 RegisterNetEvent('nayzeee-sneakers:notify', UI.Notify)
@@ -56,8 +51,8 @@ AddEventHandler('onResourceStop', function(res)
     if res == GetCurrentResourceName() and pendingMenu then SetNuiFocus(false, false) end
 end)
 
--- On-screen text when no phone resource took it (Config.Phone.Fallback)
+-- A buyer's text when no phone resource took it (Config.Phone.Fallback): an ox_lib notification
 RegisterNetEvent('nayzeee-sneakers:sms', function(m)
-    SendNUIMessage({ action = 'sms', data = m })
+    Bridge.Notify(m.text, 'inform', m.from, 8000)
     PlaySoundFrontend(-1, 'Text_Arrive_Tone', 'Phone_SoundSet_Default', true)
 end)

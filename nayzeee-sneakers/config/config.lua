@@ -54,8 +54,8 @@ Config.Items = {
 -- ███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║███████║
 -- ╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝╚══════╝
 
--- 'nui' uses this script's own notifications. 'auto' picks the first that is running.
-Config.Notify = 'nui'           -- 'nui' | 'auto' | 'nayzeee' | 'ox' | 'okok' | 'esx' | 'qb' | 'custom' (bridge/client/framework.lua)
+-- Notifications go through ox_lib (lib.notify). 'auto' picks nayzeee-notify or okokNotify when running.
+Config.Notify = 'ox'            -- 'ox' | 'auto' | 'nayzeee' | 'okok' | 'esx' | 'qb' | 'custom' (bridge/client/framework.lua)
 Config.Target = 'auto'          -- 'auto' | 'ox_target' | 'qb-target' | 'interact' | 'textui'
 
 -- Used when Config.Target is 'textui' (or no target resource is running)
@@ -99,7 +99,7 @@ Config.Phone = {
     Messages = 'auto',          -- 'auto' | 'lb-phone' | 'npwd' | 'yseries' | 'qs-smartphone' | 'gksphone' | 'none'
     Number   = '5550147',       -- the number texts come from (phones need a real number, not a name)
     Notify   = true,            -- also push an lb-phone notification so it pops with the phone closed
-    Fallback = true,            -- show a phone-style text on screen when no phone resource takes it
+    Fallback = true,            -- show buyers' texts as an ox_lib notification when no phone resource takes them
 }
 
 -- ██████╗ ██╗███████╗██████╗  █████╗ ████████╗ ██████╗██╗  ██╗
@@ -148,7 +148,7 @@ Config.Box = {
     openTime         = 550,
     closeTime        = 500,
     streamDistance   = 40.0,
-    interactDistance = 1.6,
+    interactDistance = 2.0,
     maxPerPlayer     = 4,
     anyoneCanPickUp  = false,   -- false = only the player who placed it (or admins)
     cleanupOnDrop    = true,    -- remove a player's placed boxes when they leave

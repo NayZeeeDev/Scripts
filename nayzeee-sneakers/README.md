@@ -92,10 +92,10 @@ The ten models are listed in [HOW-TO-USE.md](HOW-TO-USE.md#2-the-shoes). Every n
 colourway names were picked from each texture's colours and can be renamed in `config/shoes.lua`.
 
 How they were made:
-- Each shoe was converted from its clothing `.ydd` with the tools in `tools/`: read with CodeWalker.Core,
+- Each shoe was converted from its clothing `.ydd` with the build tools (kept outside the resource, in `tools-sneakers-propkit/` in this repo): read with CodeWalker.Core,
   stripped of bare-foot skin (heels), reduced in Blender with the UV seams locked where needed, then packed
   for its box: sneakers heel-to-toe, heels and boots on their side and nested.
-- Brand logos were removed from the textures (`tools/propkit/debrand.py`) before the props were built. The
+- Brand logos were removed from the textures (`tools-sneakers-propkit/propkit/debrand.py`) before the props were built. The
   same cleaned textures went into the **debranded clothing files**, which go in nayzeee-sneakers-clothing.
 - The boxes were built with `sneaker_box/tools/shoebox-prop-tool.html`.
 - Every `.ydr` and `.ytyp` was compiled by CodeWalker's own XML importer and loaded back to check it.
@@ -141,5 +141,4 @@ web/           NUI (NAYZEEE UI v5): menus, inspect card, workbench, supply shop,
                and the Plug app (plug.html, loaded inside lb-phone). Lexend is bundled, icons are inline SVG
 stream/        the three boxes and one folder per shoe model
 install/       item definitions for ox / qb, inventory icons
-tools/         propkit (Python) + CodeWalker import/export tools used to build the props (see tools/README.md)
 ```

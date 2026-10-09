@@ -1,7 +1,7 @@
 --[[
     PHONE MESSAGES   Config.Phone.Messages
     Buyers text the player. Returns true when a phone resource took the message;
-    otherwise the player gets an on-screen phone-style text (Config.Phone.Fallback).
+    otherwise the player gets it as an ox_lib notification (Config.Phone.Fallback).
 ]]
 
 local P = Config.Phone

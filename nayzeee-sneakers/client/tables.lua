@@ -107,12 +107,17 @@ function Tables.WorkSpot(ent)
     local longX = (max.x - min.x) >= (max.y - min.y)
     local gap = T.stand or 0.45
     local stand, work
+    -- which long side: the one you're on, or always the table's front / back (Config.Tables.side)
+    local function pick(relAxis, centre)
+        if T.side == 'front' then return -1 elseif T.side == 'back' then return 1 end
+        return relAxis < centre and -1 or 1
+    end
     if longX then
-        local side = rel.y < cy and -1 or 1
+        local side = pick(rel.y, cy)
         stand = GetOffsetFromEntityInWorldCoords(ent, cx + nudge.x, (side < 0 and min.y or max.y) + side * gap, 0.0)
         work = GetOffsetFromEntityInWorldCoords(ent, cx + nudge.x, cy + side * nudge.y, (t and t.surface or 0.9) + 0.005)
     else
-        local side = rel.x < cx and -1 or 1
+        local side = pick(rel.x, cx)
         stand = GetOffsetFromEntityInWorldCoords(ent, (side < 0 and min.x or max.x) + side * gap, cy + nudge.x, 0.0)
         work = GetOffsetFromEntityInWorldCoords(ent, cx + side * nudge.y, cy + nudge.x, (t and t.surface or 0.9) + 0.005)
     end

@@ -18,10 +18,13 @@ local isOpen = false
 
 -- ------------------------------------------------------------------ shoe list
 
-local function apply(models)
+local function apply(payload)
+    payload = payload or {}
+    local models = payload.models or {}
     for id in pairs(applied) do Config.ShoeModels[id] = nil end
     applied = {}
-    for id, m in pairs(models or {}) do
+    Shared.ApplyBuiltinOverrides(payload.builtin)
+    for id, m in pairs(models) do
         if not Config.ShoeModels[id] then
             Config.ShoeModels[id] = m
             applied[id] = true
