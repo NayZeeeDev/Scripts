@@ -1,174 +1,328 @@
 /* ═══════════════════════════════════════════════════════════
    CHAIN SNATCH · Jewelry store
-   The chains float over the counter (game side); this is the glass
-   around them: the name above the chain, the tabs, buy / craft / repair.
+   The backpack shop, over the counter: brand + chips up top, wallet
+   in the corner, the name and price floating above the chain, round
+   arrows either side, pills along the bottom. Exclusive chains get
+   the gold "made for" tag above their name.
    ═══════════════════════════════════════════════════════════ */
 'use strict';
 
-const ST = { on: false, d: null, tab: 'buy', i: 0, letter: {}, mode: 'counter', busy: false };
-const stEl = $('#store');
+(function () {
+  const el = $('#store');
+  const money = (n) => '$' + Math.floor(n || 0).toLocaleString('en-US');
+  const ic = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${d}</svg>`;
+  const BAG = ic('<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/>');
+  const PERSON = ic('<circle cx="12" cy="7" r="4"/><path d="M5 21v-1a7 7 0 0 1 14 0v1"/>');
+  const COUNTER = ic('<path d="M3 9l2-5h14l2 5M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9M3 9h18"/>');
 
-const money = (n) => '$' + Math.floor(n || 0).toLocaleString('en-US');
-const stList = () => {
-  const items = arr(ST.d && ST.d.items);
-  return ST.tab === 'craft' ? items.filter((x) => x.recipe) : items;
-};
-const stCur = () => stList()[ST.i];
-const stLetter = (it) => (it ? ST.letter[it.key] || (arr(it.variants)[0] || {}).letter : null);
+  let D = null;
+  let tab = 'buy', index = 0, mode = 'counter', busy = false;
+  let list = [];
+  const chosen = {}; // key -> texture letter
 
-function stSendView(dir) {
-  const list = stList();
-  if (!list.length) return post('store:view', { dir: 0 });
-  const at = (k) => { const it = list[(k + list.length) % list.length]; return it ? { key: it.key, letter: stLetter(it) } : null; };
-  post('store:view', {
-    dir,
-    prev: list.length > 1 ? at(ST.i - 1) : null,
-    cur: at(ST.i),
-    next: list.length > 1 ? at(ST.i + 1) : null,
-  });
-}
-
-function stStep(d) {
-  const n = stList().length;
-  if (n < 2 || ST.busy) return;
-  ST.i = (ST.i + d + n) % n;
-  stSendView(d);
-  stRender();
-}
-
-H['store:open'] = (d) => {
-  ST.on = true; ST.d = d; ST.tab = 'buy'; ST.i = 0; ST.letter = {}; ST.mode = 'counter'; ST.busy = false;
-  stEl.hidden = false;
-  stRender();
-  stSendView(0);
-};
-H['store:close'] = () => { ST.on = false; stEl.hidden = true; stEl.innerHTML = ''; };
-H['store:label'] = (p) => {
-  const el = $('.st-float', stEl);
-  if (!el) return;
-  el.style.left = `${p.x * 100}%`;
-  el.style.top = `${p.y * 100}%`;
-  el.classList.add('show');
-};
-H['store:mode'] = (d) => { ST.mode = d.mode; stRender(); };
-H['store:result'] = (d) => {
-  ST.busy = false;
-  if (d.items) {
-    const key = stCur() && stCur().key;
-    ST.d.items = d.items;
-    const idx = stList().findIndex((x) => x.key === key);
-    ST.i = idx >= 0 ? idx : Math.min(ST.i, Math.max(0, stList().length - 1));
-  }
-  if (d.repairs) ST.d.repairs = d.repairs;
-  if (d.wallet) ST.d.wallet = d.wallet;
-  stRender();
-};
-H['store:working'] = (d) => {
-  ST.busy = true;
-  stRender();
-  const bar = $('.st-work i', stEl);
-  if (bar) bar.animate([{ width: '0%' }, { width: '100%' }], { duration: d.ms || 3000, easing: 'linear', fill: 'forwards' });
-};
-
-function stRender() {
-  if (!ST.on) return;
-  const d = ST.d, t = d.text || {}, it = stCur(), list = stList();
-  const letter = stLetter(it);
-  const v = it && arr(it.variants).find((x) => x.letter === letter);
-  const tabs = [['buy', 'Buy', 'gem'], ...(d.craft ? [['craft', 'Craft', 'wand']] : []), ['repair', `Repair${arr(d.repairs).length ? ` · ${arr(d.repairs).length}` : ''}`, 'rotate']];
-  const tryon = ST.mode === 'tryon';
-  const canCraft = it && it.recipe && it.recipe.every((m) => m.have >= m.count);
-
-  const float = it && ST.tab !== 'repair' && !tryon ? `<div class="st-float">
-      ${it.exclusive ? `<span class="st-excl">${icon('user')}Made for ${esc(it.madeFor || 'you')}</span>` : ''}
-      <b>${esc(it.label)}</b>
-      <span>${v && v.label ? esc(v.label) + ' · ' : ''}${ST.tab === 'craft' ? 'crafted from materials' : money(it.price)}</span>
-    </div>` : '';
-
-  let bottom = '';
-  if (ST.tab === 'repair') {
-    const rows = arr(d.repairs);
-    bottom = `<div class="st-panel scaled"><div class="ch-frame"><div class="ch-in">
-      <div class="sd-ch">Repairs <em>chains that snapped in a snatch</em></div>
-      ${rows.length ? rows.map((r) => `<div class="mn-row"><span class="th">${chainImg(r.image, 'gem')}</span>
-          <div class="mn-rt"><b>${esc(r.label)}</b><span>broken</span></div>
-          <button class="btn sm teal" data-st="repair" data-slot="${r.slot}" ${ST.busy ? 'disabled' : ''}>${icon('rotate')}${money(r.price)}</button></div>`).join('')
-        : `<div class="empty">${icon('check')}Nothing to repair</div>`}
-      ${ST.busy ? '<div class="st-work"><i></i></div>' : ''}
-    </div></div></div>`;
-  } else if (it) {
-    bottom = `<div class="st-bar scaled"><div class="ch-frame"><div class="ch-in">
-      <button class="st-arrow" data-st="prev" ${list.length < 2 ? 'disabled' : ''}>${icon('left')}</button>
-      <div class="st-mid">
-        <div class="st-count">${ST.i + 1} / ${list.length}</div>
-        ${arr(it.variants).length > 1 ? `<div class="sd-tex">${arr(it.variants).map((x) => `<button class="${x.letter === letter ? 'on' : ''}" data-st="variant" data-v="${x.letter}">${esc(x.label || x.letter.toUpperCase())}</button>`).join('')}</div>` : ''}
-        ${ST.tab === 'craft' ? `<div class="st-mats">${it.recipe.map((m) => `<span class="${m.have >= m.count ? 'ok' : 'no'}">${esc(m.label)} <b>${m.have}/${m.count}</b></span>`).join('')}</div>` : ''}
-      </div>
-      <div class="st-acts">
-        <button class="btn" data-st="tryon">${icon('user')}${tryon ? 'Counter' : 'Try on'} <span class="kc">T</span></button>
-        ${ST.tab === 'craft'
-          ? `<button class="btn teal" data-st="craft" ${!canCraft || ST.busy ? 'disabled' : ''}>${icon('wand')}Craft <span class="kc">ENTER</span></button>`
-          : `<button class="btn teal" data-st="buy" ${ST.busy || (d.wallet && d.wallet.amount < it.price) ? 'disabled' : ''}>${icon('gem')}Buy ${money(it.price)} <span class="kc">ENTER</span></button>`}
-      </div>
-      <button class="st-arrow" data-st="next" ${list.length < 2 ? 'disabled' : ''}>${icon('right')}</button>
-      ${ST.busy ? '<div class="st-work"><i></i></div>' : ''}
-    </div></div></div>`;
-  } else {
-    bottom = `<div class="st-bar scaled"><div class="ch-frame"><div class="ch-in"><div class="empty">${icon('gem')}${ST.tab === 'craft' ? 'Nothing can be crafted here' : 'Nothing for sale'}</div></div></div></div>`;
-  }
-
-  stEl.innerHTML = `<div class="st-drag" id="stDrag"></div>
-    <div class="st-top scaled">
-      <div class="st-title"><div class="mark"></div><div><b>${esc(d.title || t.store_title)}</b><span>Fine jewellery · custom pieces</span></div></div>
-      <div class="seg st-tabs">${tabs.map(([k, l, ic]) => `<button class="${ST.tab === k ? 'on' : ''}" data-st="tab" data-v="${k}" ${ST.busy ? 'disabled' : ''}>${icon(ic)}${l}</button>`).join('')}</div>
-      <div class="st-wallet"><span>${esc(d.wallet ? d.wallet.currency : 'Cash')}</span><b>${money(d.wallet && d.wallet.amount)}</b></div>
-      <button class="pill-close" data-st="close">Leave</button>
+  el.innerHTML = `
+    <div class="veil"></div>
+    <div class="st-spin" id="stSpin"></div>
+    <div class="s-top">
+      <div class="s-brand"><div class="mark"></div><b id="stTitle">Jewelry Store</b></div>
+      <div class="s-chips" id="stTabs"></div>
     </div>
-    ${float}${bottom}
-    <div class="sd-keys scaled st-keys"><span><span class="kc">A</span><span class="kc">D</span>browse</span><span><span class="kc">DRAG</span>spin</span><span><span class="kc">T</span>try on</span><span><span class="kc">ENTER</span>${ST.tab === 'craft' ? 'craft' : 'buy'}</span><span><span class="kc">ESC</span>leave</span></div>`;
-}
+    <div class="s-corner">
+      <div class="s-wallet"><span id="stCur">Cash</span> <b id="stWallet">$0</b></div>
+      <button class="pill-close" id="stClose">Leave</button>
+    </div>
+    <div class="s-label" id="stLabel">
+      <div id="stExcl"></div>
+      <div class="l-theme" id="stTheme"></div>
+      <div class="l-name" id="stName"></div>
+      <div class="l-price" id="stPrice"></div>
+      <div class="l-tags" id="stTags"></div>
+    </div>
+    <button class="s-arrow l" id="stPrev">${ic('<path d="M15 6l-6 6 6 6"/>')}</button>
+    <button class="s-arrow r" id="stNext">${ic('<path d="M9 6l6 6-6 6"/>')}</button>
+    <div class="s-toast" id="stToast"></div>
+    <div class="s-bottom">
+      <div class="s-repairs hide" id="stRepairs"></div>
+      <div class="s-swatches" id="stSwatches"></div>
+      <div class="s-actions" id="stActions">
+        <button class="s-btn" id="stTry"></button>
+        <button class="s-btn buy" id="stBuy"></button>
+      </div>
+      <div class="s-work hide" id="stWork"><i></i></div>
+      <div class="s-dots" id="stDots"></div>
+      <div class="s-meta" id="stMeta"></div>
+    </div>`;
+  el.hidden = true;
 
-stEl.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-st]');
-  if (!b || b.disabled) return;
-  const it = stCur();
-  switch (b.dataset.st) {
-    case 'close': return post('store:close');
-    case 'prev': return stStep(-1);
-    case 'next': return stStep(1);
-    case 'tab':
-      ST.tab = b.dataset.v; ST.i = 0;
-      if (ST.mode === 'tryon') post('store:mode', { mode: 'counter' });
-      stRender(); return stSendView(0);
-    case 'variant':
-      ST.letter[it.key] = b.dataset.v;
-      post('store:variant', { key: it.key, letter: b.dataset.v });
-      return stRender();
-    case 'tryon': return post('store:mode', { mode: ST.mode === 'tryon' ? 'counter' : 'tryon' });
-    case 'buy': if (it) { ST.busy = true; stRender(); post('store:buy', { key: it.key, letter: stLetter(it) }); } return;
-    case 'craft': if (it) post('store:craft', { key: it.key, letter: stLetter(it) }); return;
-    case 'repair': return post('store:repair', { slot: +b.dataset.slot });
+  const q = (id) => document.getElementById(id);
+  const cur = () => list[index] || null;
+  const letterOf = (it) => (it ? chosen[it.key] || (arr(it.variants)[0] || {}).letter : null);
+  const entry = (it) => (it ? { key: it.key, letter: letterOf(it) } : null);
+
+  function filtered() {
+    const items = arr(D && D.items);
+    return tab === 'craft' ? items.filter((i) => i.recipe) : items;
   }
-});
 
-let stDrag = null;
-stEl.addEventListener('mousedown', (e) => { if (e.target.id === 'stDrag') stDrag = e.clientX; });
-window.addEventListener('mousemove', (e) => {
-  if (stDrag === null || !ST.on) return;
-  const dx = e.clientX - stDrag;
-  stDrag = e.clientX;
-  if (dx) post('store:spin', { delta: dx * 0.6 });
-});
-window.addEventListener('mouseup', () => { stDrag = null; });
-stEl.addEventListener('wheel', (e) => { if (ST.tab !== 'repair') stStep(e.deltaY > 0 ? 1 : -1); }, { passive: true });
+  /* ---------- tell Lua what should be on the counter ---------- */
+  function sendView(dir) {
+    const n = list.length;
+    const at = (o) => (n === 0 ? null : list[((index + o) % n + n) % n]);
+    const prev = n > 2 ? at(-1) : (n === 2 && index === 1 ? at(-1) : null);
+    const next = n > 2 ? at(1) : (n === 2 && index === 0 ? at(1) : null);
+    post('store:view', { prev: entry(prev), cur: entry(at(0)), next: entry(next), dir: dir || 0 });
+  }
 
-window.addEventListener('keydown', (e) => {
-  if (!ST.on) return;
-  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  if (k === 'Escape' || k === 'Backspace') return post('store:close');
-  if (ST.tab === 'repair') return;
-  if (k === 'a' || k === 'ArrowLeft') return stStep(-1);
-  if (k === 'd' || k === 'ArrowRight') return stStep(1);
-  if (k === 't') return post('store:mode', { mode: ST.mode === 'tryon' ? 'counter' : 'tryon' });
-  if (k === 'Enter') { const b = $(ST.tab === 'craft' ? '[data-st="craft"]' : '[data-st="buy"]', stEl); if (b && !b.disabled) b.click(); }
-});
+  function go(dir) {
+    if (list.length < 2 || busy || tab === 'repair') return;
+    index = (index + dir + list.length) % list.length;
+    sendView(list.length > 2 ? dir : 0);
+    renderItem(true);
+  }
+
+  /* ---------- the chips up top: Buy · Craft · Repair ---------- */
+  function renderTabs() {
+    const repairs = arr(D.repairs).length;
+    const tabs = [['buy', 'Buy'], ...(D.craft ? [['craft', 'Craft']] : []), ['repair', repairs ? `Repair (${repairs})` : 'Repair']];
+    q('stTabs').innerHTML = tabs.map(([k, l]) => `<button class="s-chip ${tab === k ? 'on' : ''}" data-tab="${k}" ${busy ? 'disabled' : ''}>${l}</button>`).join('');
+  }
+
+  function setTab(t) {
+    if (busy || t === tab) return;
+    tab = t;
+    if (mode === 'tryon') post('store:mode', { mode: 'counter' });
+    list = filtered();
+    index = 0;
+    renderTabs();
+    sendView(0);
+    renderItem(true);
+  }
+
+  /* ---------- the featured chain ---------- */
+  let swapTimer = null;
+  function renderItem(animate) {
+    const it = cur();
+    const repairing = tab === 'repair';
+    const letter = letterOf(it);
+    const v = it && arr(it.variants).find((x) => x.letter === letter);
+
+    const fill = () => {
+      q('stExcl').innerHTML = it && it.exclusive && !repairing
+        ? `<span class="st-excl">${icon('user')}Made for ${esc(it.madeFor || 'you')}</span>` : '';
+      if (repairing) {
+        q('stTheme').textContent = 'Repairs';
+        q('stName').textContent = arr(D.repairs).length ? 'Broken chains' : 'Nothing to repair';
+        q('stPrice').innerHTML = '<span style="opacity:.6;font-size:13px">Chains that snapped in a snatch</span>';
+        q('stTags').innerHTML = '';
+        return;
+      }
+      if (!it) {
+        q('stTheme').textContent = '';
+        q('stName').textContent = 'Nothing here';
+        q('stPrice').innerHTML = `<span style="opacity:.6;font-size:13px">${tab === 'craft' ? 'Nothing can be crafted' : 'Nothing for sale'}</span>`;
+        q('stTags').innerHTML = '';
+        return;
+      }
+      q('stTheme').textContent = it.exclusive ? 'Exclusive' : (v && v.label) || 'Jewellery';
+      q('stName').textContent = it.label;
+      if (tab === 'craft') {
+        q('stPrice').innerHTML = '<em>Crafted</em> from materials';
+        q('stTags').innerHTML = arr(it.recipe).map((m) => `<span class="${m.have >= m.count ? 'own' : 'no'}">${esc(m.label)} ${m.have}/${m.count}</span>`).join('');
+      } else {
+        q('stPrice').innerHTML = `<em>${money(it.price)}</em>`;
+        q('stTags').innerHTML = [
+          arr(it.variants).length > 1 ? `<span>${arr(it.variants).length} finishes</span>` : '',
+          it.recipe ? '<span>craftable</span>' : '',
+        ].join('');
+      }
+    };
+
+    clearTimeout(swapTimer);
+    if (animate) {
+      q('stLabel').classList.add('swap');
+      swapTimer = setTimeout(() => { fill(); q('stLabel').classList.remove('swap'); }, 200);
+    } else {
+      fill();
+    }
+
+    // repairs list
+    const rp = q('stRepairs');
+    rp.classList.toggle('hide', !repairing);
+    rp.innerHTML = repairing ? arr(D.repairs).map((r) => `<div class="s-repair">
+        <span class="th">${chainImg(r.image, 'gem')}</span>
+        <div><b>${esc(r.label)}</b><small>broken</small></div>
+        <button class="s-btn buy sm" data-repair="${r.slot}" ${busy || (D.wallet && D.wallet.amount < r.price) ? 'disabled' : ''}>Repair · ${money(r.price)}</button>
+      </div>`).join('') : '';
+
+    // textures
+    const sw = q('stSwatches');
+    sw.innerHTML = !repairing && it && arr(it.variants).length > 1
+      ? arr(it.variants).map((x) => `<button class="${x.letter === letter ? 'on' : ''}" data-letter="${x.letter}">${esc(x.label || 'Finish ' + x.letter.toUpperCase())}</button>`).join('')
+      : '';
+
+    // try on + buy / craft
+    q('stActions').classList.toggle('hide', repairing);
+    const buy = q('stBuy');
+    if (tab === 'craft') {
+      const ready = it && arr(it.recipe).every((m) => m.have >= m.count);
+      buy.innerHTML = `${ic('<path d="M4 20 15 9"/><path d="M15 4v2M19 8h2M18 5l1.5-1.5"/>')}${ready ? 'Craft it' : 'Missing materials'} <span class="key">ENTER</span>`;
+      buy.disabled = !it || !ready || busy;
+    } else {
+      buy.innerHTML = it ? `${BAG}Buy · ${money(it.price)} <span class="key">ENTER</span>` : 'Nothing selected';
+      buy.disabled = !it || busy || (D.wallet && it.price > D.wallet.amount);
+    }
+    q('stTry').innerHTML = mode === 'tryon' ? `${COUNTER}Back to counter <span class="key">T</span>` : `${PERSON}Try on <span class="key">T</span>`;
+    q('stTry').classList.toggle('on', mode === 'tryon');
+
+    // position dots
+    const dots = q('stDots');
+    if (repairing) dots.innerHTML = '';
+    else if (list.length > 1 && list.length <= 16) dots.innerHTML = list.map((_, i) => `<i class="${i === index ? 'on' : ''}"></i>`).join('');
+    else dots.innerHTML = list.length > 16 ? `<span style="font-size:10px;color:rgba(255,255,255,.6)">${index + 1} / ${list.length}</span>` : '';
+
+    q('stMeta').innerHTML = repairing ? '<span><span class="key">ESC</span> leave</span>'
+      : `<span><span class="key">A</span><span class="key">D</span> browse</span><span>drag to spin</span><span><span class="key">T</span> try on</span><span><span class="key">ESC</span> leave</span>`;
+
+    q('stPrev').classList.toggle('hide', list.length < 2 || repairing);
+    q('stNext').classList.toggle('hide', list.length < 2 || repairing);
+  }
+
+  /* ---------- actions ---------- */
+  function buy() {
+    const it = cur();
+    if (!it || busy || q('stBuy').disabled || tab === 'repair') return;
+    busy = true;
+    renderItem(false);
+    post(tab === 'craft' ? 'store:craft' : 'store:buy', { key: it.key, letter: letterOf(it) });
+    setTimeout(() => { if (busy) { busy = false; renderTabs(); renderItem(false); } }, (tab === 'craft' ? 12000 : 4000));
+  }
+
+  function toggleTry() {
+    if (!cur() || tab === 'repair') return;
+    post('store:mode', { mode: mode === 'tryon' ? 'counter' : 'tryon' });
+  }
+
+  let toastTimer = null;
+  function sToast(text, bad) {
+    const t = q('stToast');
+    t.textContent = text;
+    t.classList.toggle('bad', !!bad);
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1400);
+  }
+
+  function close() { post('store:close'); }
+
+  q('stPrev').onclick = () => go(-1);
+  q('stNext').onclick = () => go(1);
+  q('stBuy').onclick = buy;
+  q('stTry').onclick = toggleTry;
+  q('stClose').onclick = close;
+  el.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-tab]');
+    if (t) return setTab(t.dataset.tab);
+    const s = e.target.closest('[data-letter]');
+    if (s) {
+      const it = cur();
+      chosen[it.key] = s.dataset.letter;
+      post('store:variant', { key: it.key, letter: s.dataset.letter });
+      return renderItem(false);
+    }
+    const r = e.target.closest('[data-repair]');
+    if (r && !r.disabled && !busy) {
+      busy = true;
+      renderItem(false);
+      post('store:repair', { slot: +r.dataset.repair });
+    }
+  });
+
+  /* drag to spin, wheel to browse */
+  (function () {
+    const c = q('stSpin');
+    let drag = false, lx = 0, acc = 0, raf = null, lastWheel = 0;
+    const flush = () => { raf = null; if (acc) { post('store:spin', { delta: acc * 0.45 }); acc = 0; } };
+    c.addEventListener('pointerdown', (e) => { drag = true; lx = e.clientX; c.classList.add('drag'); c.setPointerCapture(e.pointerId); });
+    c.addEventListener('pointerup', () => { drag = false; c.classList.remove('drag'); });
+    c.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      acc += e.clientX - lx; lx = e.clientX;
+      if (!raf) raf = requestAnimationFrame(flush);
+    });
+    c.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const now = Date.now();
+      if (now - lastWheel < 280 || mode === 'tryon') return;
+      lastWheel = now;
+      go(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+  })();
+
+  document.addEventListener('keydown', (e) => {
+    if (!D || el.hidden) return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape' || k === 'backspace') { e.preventDefault(); close(); }
+    else if ((k === 'a' || k === 'arrowleft') && mode === 'counter') go(-1);
+    else if ((k === 'd' || k === 'arrowright') && mode === 'counter') go(1);
+    else if (k === 'enter') buy();
+    else if (k === 't') toggleTry();
+  });
+
+  function setWallet(w) {
+    if (!w) return;
+    D.wallet = w;
+    q('stCur').textContent = w.currency || 'Cash';
+    q('stWallet').textContent = money(w.amount);
+  }
+
+  /* ---------- from Lua ---------- */
+  H['store:open'] = (d) => {
+    D = d;
+    tab = 'buy'; index = 0; busy = false; mode = 'counter';
+    q('stTitle').textContent = d.title || (d.text && d.text.store_title) || 'Jewelry Store';
+    setWallet(d.wallet);
+    list = filtered();
+    el.classList.remove('tryon');
+    renderTabs();
+    renderItem(false);
+    q('stLabel').style.left = '50%';
+    q('stLabel').style.top = '34%';
+    el.hidden = false;
+    sendView(0);
+  };
+  H['store:label'] = (p) => {
+    // never let the label ride up into the chips
+    q('stLabel').style.left = Math.min(Math.max(p.x * innerWidth, 260), innerWidth - 260) + 'px';
+    q('stLabel').style.top = Math.max(p.y * innerHeight, 210) + 'px';
+  };
+  H['store:mode'] = (d) => {
+    mode = d.mode;
+    el.classList.toggle('tryon', mode === 'tryon');
+    renderItem(false);
+  };
+  H['store:working'] = (d) => {
+    busy = true;
+    const w = q('stWork');
+    w.classList.remove('hide');
+    w.firstElementChild.animate([{ width: '0%' }, { width: '100%' }], { duration: d.ms || 3000, easing: 'linear', fill: 'forwards' });
+    renderTabs();
+    renderItem(false);
+  };
+  H['store:result'] = (d) => {
+    busy = false;
+    q('stWork').classList.add('hide');
+    if (d.items) {
+      const key = cur() && cur().key;
+      D.items = d.items;
+      list = filtered();
+      const i = list.findIndex((x) => x.key === key);
+      index = i >= 0 ? i : Math.min(index, Math.max(0, list.length - 1));
+    }
+    if (d.repairs) D.repairs = d.repairs;
+    setWallet(d.wallet);
+    sToast(d.ok ? (tab === 'repair' ? 'Good as new' : 'Yours now') : 'Not this time', !d.ok);
+    renderTabs();
+    renderItem(false);
+  };
+  H['store:close'] = () => { el.hidden = true; D = null; };
+})();

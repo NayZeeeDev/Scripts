@@ -325,45 +325,102 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .sd-calib .dot.warn{background:var(--amber);box-shadow:0 0 6px var(--amber)}
 #root:has(.tug:not([hidden])) .hint{bottom:250px}
 
-/* ═══════════════ JEWELRY STORE ═══════════════ */
-.store{position:absolute;inset:0;pointer-events:auto}
-.st-drag{position:absolute;inset:0;cursor:grab}
-.st-top{position:absolute;top:var(--edge);left:var(--edge);right:var(--edge);display:flex;align-items:center;gap:14px}
-.st-title{display:flex;align-items:center;gap:11px;padding:9px 14px 9px 10px;border-radius:var(--r-md);background:rgba(8,9,10,.86);border:1px solid var(--line-soft);filter:var(--ds-1)}
-.st-title b{display:block;font-size:14px;font-weight:600;color:var(--white)}
-.st-title span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px}
-.st-tabs{margin:0 auto;background:rgba(8,9,10,.86);filter:var(--ds-1)}
-.st-tabs svg{font-size:12px}
-.st-wallet{display:flex;flex-direction:column;align-items:flex-end;padding:7px 13px;border-radius:var(--r-md);background:rgba(8,9,10,.86);border:1px solid var(--line-soft);filter:var(--ds-1)}
-.st-wallet span{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
-.st-wallet b{font-size:15px;font-weight:700;color:var(--white)}
-.st-float{position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;pointer-events:none;
-  opacity:0;transition:opacity 260ms,left 300ms var(--ease),top 300ms var(--ease);filter:drop-shadow(0 2px 8px rgba(0,0,0,.85))}
-.st-float.show{opacity:1}
-.st-float b{font-size:22px;font-weight:700;color:var(--white);letter-spacing:-.02em}
-.st-float > span:last-child{font-size:12.5px;color:var(--gold);font-weight:500}
-.st-excl{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-  color:#1a1408;background:linear-gradient(var(--gold),#a8853c);box-shadow:0 0 18px rgba(217,178,95,.45)}
-.st-bar{position:absolute;bottom:72px;left:50%;transform:translateX(-50%);min-width:640px;filter:var(--ds-2);--ch:14px}
-.st-bar .ch-in{display:flex;align-items:center;gap:12px;padding:12px 12px;background:linear-gradient(var(--panel),var(--base))}
-.st-bar .ch-in::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),transparent 70%)}
-.st-arrow{width:38px;height:38px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft);color:var(--ink-2);font-size:15px;transition:all var(--fast)}
-.st-arrow:hover{color:var(--white);border-color:var(--teal-edge);background:var(--teal-wash)}
-.st-arrow[disabled]{opacity:.35;pointer-events:none}
-.st-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
-.st-count{font-size:10px;color:var(--ink-3);letter-spacing:.1em}
-.st-mats{display:flex;flex-wrap:wrap;gap:6px}
-.st-mats span{height:22px;padding:0 8px;border-radius:var(--r-xs);display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink-2);background:var(--inset);border:1px solid var(--line-soft)}
-.st-mats span.ok b{color:var(--teal)}
-.st-mats span.no{border-color:var(--red-edge)}
-.st-mats span.no b{color:var(--red)}
-.st-acts{display:flex;gap:7px}
-.st-acts .kc{height:17px;min-width:17px;padding:0 4px;font-size:8.5px;box-shadow:none;margin-left:2px}
-.st-work{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--inset)}
-.st-work i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--teal-lo),var(--teal));box-shadow:0 0 10px var(--teal)}
-.st-panel{position:absolute;right:var(--edge);top:110px;width:360px;filter:var(--ds-2);--ch:14px}
-.st-panel .ch-in{display:flex;flex-direction:column;gap:8px;padding:14px;background:linear-gradient(var(--panel),var(--base))}
-.st-keys{bottom:var(--edge)}
+/* ═══════════════ JEWELRY STORE ═══════════════
+   the backpack shop, over the counter: no window, just type and pills around the chain */
+.store{position:fixed;inset:0;pointer-events:auto}
+.store .hide{display:none!important}
+.store .key{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:16px;padding:0 4px;margin-right:5px;border-radius:3px;
+  background:var(--raise);border:1px solid var(--line);font-size:9px;color:var(--ink-2);font-weight:500}
+.store .veil{position:fixed;inset:0;pointer-events:none;transition:opacity 300ms;
+  background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 45%,rgba(0,0,0,.55) 100%),
+             linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,0) 22%,rgba(0,0,0,0) 70%,rgba(0,0,0,.6))}
+.st-spin{position:fixed;inset:0;z-index:1;cursor:grab}
+.st-spin.drag{cursor:grabbing}
+
+.s-top{position:fixed;top:22px;left:0;right:0;z-index:3;display:flex;flex-direction:column;align-items:center;gap:11px;pointer-events:none}
+.s-brand{display:flex;align-items:center;gap:10px;pointer-events:auto}
+.s-brand .mark{width:22px;height:22px}
+.s-brand b{font-size:13px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--white);text-shadow:0 2px 12px rgba(0,0,0,.8)}
+.s-chips{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
+.s-chip{height:30px;padding:0 15px;border-radius:999px;font-size:11.5px;font-weight:400;color:rgba(255,255,255,.72);
+  background:rgba(8,9,10,.62);border:1px solid rgba(255,255,255,.12);transition:all var(--fast)}
+.s-chip:hover{color:var(--white);border-color:rgba(255,255,255,.3)}
+.s-chip.on{color:#00201d;background:linear-gradient(var(--teal-hi),var(--teal));border-color:transparent;font-weight:600;box-shadow:0 4px 18px rgba(8,175,162,.35)}
+.s-chip[disabled]{opacity:.45;pointer-events:none}
+
+.s-corner{position:fixed;top:22px;right:26px;z-index:3;display:flex;gap:9px;align-items:center}
+.s-wallet{height:30px;display:flex;align-items:center;gap:8px;padding:0 14px;border-radius:999px;background:rgba(8,9,10,.72);
+  border:1px solid rgba(255,255,255,.12);font-size:11.5px;color:var(--ink-2)}
+.s-wallet b{color:var(--teal-hi);font-weight:600}
+
+/* name + price floating above the chain, no box, just type */
+.s-label{position:fixed;z-index:2;left:50%;top:34%;transform:translate(-50%,-100%);text-align:center;pointer-events:none;
+  transition:opacity 260ms ease,transform 260ms ease;white-space:nowrap}
+.s-label.swap{opacity:0;transform:translate(-50%,calc(-100% + 8px))}
+.s-label .l-theme{font-size:10px;font-weight:500;letter-spacing:.32em;text-transform:uppercase;color:var(--teal-hi);text-shadow:0 1px 10px rgba(0,0,0,.9)}
+.s-label .l-name{font-size:30px;font-weight:600;letter-spacing:-.02em;color:var(--white);line-height:1.15;margin-top:4px;
+  text-shadow:0 2px 2px rgba(0,0,0,.35),0 6px 28px rgba(0,0,0,.75)}
+.s-label .l-price{font-size:19px;font-weight:500;color:var(--white);margin-top:5px;opacity:.92;text-shadow:0 2px 16px rgba(0,0,0,.8)}
+.s-label .l-price em{font-style:normal;color:var(--teal-hi)}
+.s-label .l-tags{display:flex;gap:6px;justify-content:center;margin-top:8px}
+.s-label .l-tags span{font-size:9.5px;font-weight:500;padding:2px 9px;border-radius:999px;color:rgba(255,255,255,.85);
+  border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.18)}
+.s-label .l-tags span.own{color:var(--teal-hi);border-color:var(--teal-edge)}
+.s-label .l-tags span.no{color:var(--red);border-color:var(--red-edge)}
+/* "made for": the one gold thing on the counter */
+.st-excl{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 10px;margin-bottom:6px;border-radius:999px;font-size:10px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:#1a1408;background:linear-gradient(var(--gold),#a8853c);box-shadow:0 0 18px rgba(217,178,95,.45)}
+
+.s-arrow{position:fixed;top:50%;z-index:3;width:54px;height:54px;margin-top:-27px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(8,9,10,.55);border:1px solid rgba(255,255,255,.14);color:var(--white);transition:all var(--fast)}
+.s-arrow svg{width:20px;height:20px;stroke-width:2}
+.s-arrow:hover{background:rgba(8,175,162,.25);border-color:var(--teal-edge);transform:scale(1.06)}
+.s-arrow:active{transform:scale(.97)}
+.s-arrow.l{left:7vw}
+.s-arrow.r{right:7vw}
+
+.s-bottom{position:fixed;left:0;right:0;bottom:26px;z-index:3;display:flex;flex-direction:column;align-items:center;gap:12px;pointer-events:none}
+.s-bottom > *{pointer-events:auto}
+.s-swatches{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.s-swatches button{height:26px;padding:0 12px;border-radius:999px;font-size:10.5px;color:rgba(255,255,255,.8);background:rgba(8,9,10,.6);
+  border:1px solid rgba(255,255,255,.14);transition:all var(--fast)}
+.s-swatches button.on{color:var(--teal-hi);border-color:var(--teal-edge);background:rgba(8,175,162,.16)}
+.s-actions{display:flex;gap:9px;align-items:center}
+.s-btn{height:42px;padding:0 20px;border-radius:999px;font-size:12.5px;font-weight:500;color:var(--white);display:flex;align-items:center;gap:9px;
+  background:rgba(8,9,10,.7);border:1px solid rgba(255,255,255,.16);transition:all var(--fast)}
+.s-btn svg{width:15px;height:15px;stroke-width:1.8}
+.s-btn:hover{border-color:rgba(255,255,255,.35)}
+.s-btn.buy{min-width:220px;justify-content:center;color:#00201d;font-weight:600;border-color:transparent;
+  background:linear-gradient(var(--teal-hi),var(--teal));box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 8px 28px rgba(8,175,162,.35)}
+.s-btn.buy:hover{filter:brightness(1.08)}
+.s-btn.buy:disabled{background:rgba(28,32,35,.8);color:var(--ink-3);box-shadow:none;cursor:not-allowed}
+.s-btn.on{border-color:var(--teal-edge);color:var(--teal-hi)}
+.s-btn .key{background:rgba(0,0,0,.25);border-color:rgba(0,0,0,.2);color:inherit;margin:0 0 0 2px}
+.s-btn.sm{height:34px;padding:0 15px;font-size:11.5px}
+.s-meta{display:flex;gap:16px;font-size:10px;color:rgba(255,255,255,.55);letter-spacing:.02em;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+.s-meta b{color:rgba(255,255,255,.85);font-weight:500}
+.s-dots{display:flex;gap:5px;align-items:center}
+.s-dots i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.25);transition:all var(--fast)}
+.s-dots i.on{width:16px;border-radius:99px;background:var(--teal-hi)}
+.s-work{width:220px;height:3px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
+.s-work i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));box-shadow:0 0 8px var(--teal)}
+
+/* repairs: the same pills, one per broken chain */
+.s-repairs{display:flex;flex-direction:column;gap:8px;align-items:center}
+.s-repair{display:flex;align-items:center;gap:12px;height:52px;padding:0 6px 0 7px;border-radius:999px;background:rgba(8,9,10,.7);border:1px solid rgba(255,255,255,.16)}
+.s-repair .th{width:38px;height:38px;border-radius:50%;border-color:rgba(255,255,255,.1)}
+.s-repair b{font-size:12.5px;font-weight:500;color:var(--white)}
+.s-repair small{display:block;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-top:2px}
+.s-repair .s-btn{margin-left:10px}
+
+.s-toast{position:fixed;left:50%;top:38%;z-index:4;transform:translate(-50%,-50%) scale(.9);opacity:0;pointer-events:none;
+  font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--teal-hi);text-shadow:0 2px 18px rgba(0,0,0,.9);
+  transition:all 300ms cubic-bezier(.2,.9,.3,1.3)}
+.s-toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.s-toast.bad{color:var(--red)}
+
+.store.tryon .s-label,.store.tryon .s-arrow{opacity:0;pointer-events:none}
+.store.tryon .veil{opacity:.5}
 
 /* ═══════════════ OFFER PROMPT ═══════════════ */
 .offer{position:absolute;bottom:150px;left:50%;transform:translateX(-50%);width:380px;filter:var(--ds-2);--ch:14px;animation:cin 260ms var(--ease) both}
@@ -380,3 +437,4 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .mn-row .btn.ghost{width:30px;padding:0}
 .mn-acts.two{grid-template-columns:repeat(3,1fr);margin-top:-5px}
 .mn-broken{font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--red);margin-left:6px}
+.s-btn.buy.sm{min-width:0}
