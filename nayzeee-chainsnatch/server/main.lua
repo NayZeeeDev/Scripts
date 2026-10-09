@@ -22,7 +22,6 @@ Worn.notify = notify
 local function kvpKey(ident) return 'worn:' .. ident end
 
 local function persist(src)
-    if not Config.Wear.KeepOnRelog then return end
     local ident = Worn.ident[src]
     if not ident then return end
     local w = Worn.list[src]
@@ -105,12 +104,14 @@ local function restore(src)
     if Worn.ident[src] == ident and Worn.list[src] then return publish(src) end
     Worn.ident[src] = ident
     Worn.list[src] = nil
-    if Config.Wear.KeepOnRelog then
-        local raw = GetResourceKvpString(kvpKey(ident))
-        local ok, meta = pcall(json.decode, raw or 'null')
-        if ok and type(meta) == 'table' and Chains.fromMeta(meta) then
-            local key, letter = Chains.fromMeta(meta)
+    local raw = GetResourceKvpString(kvpKey(ident))
+    local ok, meta = pcall(json.decode, raw or 'null')
+    if ok and type(meta) == 'table' and Chains.fromMeta(meta) then
+        local key, letter = Chains.fromMeta(meta)
+        if Config.Wear.KeepOnRelog or not Inv.Add(src, Chains.meta(key, letter, meta)) then
             Worn.list[src] = { key = key, letter = letter, meta = Chains.meta(key, letter, meta), holding = false }
+        else
+            DeleteResourceKvp(kvpKey(ident)) -- it went back into the pockets
         end
     end
     publish(src)
@@ -124,6 +125,7 @@ end)
 Bridge.OnLoaded(function(src) SetTimeout(1500, function() restore(src) end) end)
 
 Bridge.OnUnloaded(function(src)
+    if SnatchForfeit then SnatchForfeit(src) end
     Worn.list[src] = nil
     Worn.ident[src] = nil
     if GetPlayerName(src) then Player(src).state:set('nzc_worn', nil, true) end
@@ -131,6 +133,7 @@ end)
 
 AddEventHandler('playerDropped', function()
     local src = source
+    if SnatchForfeit then SnatchForfeit(src) end
     Worn.list[src] = nil
     Worn.ident[src] = nil
 end)
@@ -139,7 +142,14 @@ end)
 -- player actions
 -----------------------------------------------------------------
 
+local function busyNow(src)
+    if SnatchBusy and SnatchBusy(src) then notify(src, T.busy, 'error') return true end
+    return false
+end
+Worn.busy = busyNow
+
 Inv.HookUse(function(src, slot)
+    if busyNow(src) then return end
     local ok, msg = Worn.wearSlot(src, slot)
     if msg then notify(src, msg, ok and 'success' or 'error') end
     if ok then TriggerClientEvent('nzc:c:anim', src, 'wear') end
@@ -147,6 +157,7 @@ end)
 
 RegisterNetEvent('nzc:s:wear', function(slot)
     local src = source
+    if busyNow(src) then return end
     local ok, msg = Worn.wearSlot(src, slot)
     if msg then notify(src, msg, ok and 'success' or 'error') end
     if ok then TriggerClientEvent('nzc:c:anim', src, 'wear') end
@@ -154,6 +165,7 @@ end)
 
 RegisterNetEvent('nzc:s:takeOff', function()
     local src = source
+    if busyNow(src) then return end
     local ok, msg = Worn.takeOff(src)
     if msg then notify(src, msg, ok and 'success' or 'error') end
     if ok then TriggerClientEvent('nzc:c:anim', src, 'wear') end
@@ -161,6 +173,7 @@ end)
 
 RegisterNetEvent('nzc:s:hold', function(on)
     local src = source
+    if on and busyNow(src) then return end
     if not Worn.setHolding(src, on) and on then notify(src, T.no_chain, 'error') end
 end)
 

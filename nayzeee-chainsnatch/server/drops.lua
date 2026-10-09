@@ -18,20 +18,27 @@ local function public(d)
     return { id = d.id, chain = d.chain, variant = d.variant, coords = d.coords, rot = d.rot, owner = d.ownerSrc, thrown = d.thrown, label = d.meta.label }
 end
 
-local function save()
+local orphans = {}     -- saved drops of chains this server doesn't know right now (props missing?): kept as they are
+
+local function flush()
+    dirty = false
+    local out = {}
+    for _, d in pairs(Drops.list) do out[#out + 1] = d end
+    for _, d in ipairs(orphans) do out[#out + 1] = d end
+    local ok, txt = pcall(json.encode, out)
+    if ok then SaveResourceFile(RES, FILE, txt, -1) else print(('^1[%s] could not save %s: %s^0'):format(RES, FILE, tostring(txt))) end
+end
+
+-- adds are saved within 5s; removals at once, so a crash can't leave a picked-up chain on the floor too
+local function save(now)
     if not cfg.Persist then return end
-    dirty = true
+    if now then flush() else dirty = true end
 end
 
 CreateThread(function()
     while true do
         Wait(5000)
-        if dirty then
-            dirty = false
-            local out = {}
-            for _, d in pairs(Drops.list) do out[#out + 1] = d end
-            SaveResourceFile(RES, FILE, json.encode(out), -1)
-        end
+        if dirty then flush() end
     end
 end)
 
@@ -57,7 +64,7 @@ function Drops.remove(id)
     local d = Drops.list[id]
     Drops.list[id] = nil
     TriggerClientEvent('nzc:c:dropRemove', -1, id)
-    save()
+    save(true)
     return d
 end
 
@@ -73,6 +80,8 @@ local function load()
                 Drops.nextId = id + 1
                 d.id, d.chain, d.variant, d.ownerSrc = id, key, letter, nil
                 Drops.list[id] = d
+            else
+                orphans[#orphans + 1] = d
             end
         end
     end
@@ -81,6 +90,7 @@ end
 load()
 
 RegisterNetEvent('nzc:s:drops', function()
+    if Logs.throttle(source, 'drops', 5000) then return end
     local out = {}
     for _, d in pairs(Drops.list) do out[#out + 1] = public(d) end
     TriggerLatentClientEvent('nzc:c:drops', source, 100000, out)
@@ -119,9 +129,12 @@ Drops.pedCoords = pedCoords
 
 RegisterNetEvent('nzc:s:place', function(from, slot, coords, rot)
     local src = source
-    if not Config.Place.Enabled or type(coords) ~= 'table' and type(coords) ~= 'vector3' then return end
+    if not Config.Place.Enabled or Worn.busy(src) then return end
+    local c = Logs.vec(coords, 20000)
+    local r = rot and Logs.vec(rot, 720) or vector3(0.0, 0.0, 0.0)
+    if not c or not r then return end
     local pc = pedCoords(src)
-    if not pc or #(pc - v3(coords)) > (Config.Place.MaxDistance or 3.5) + 2.0 then
+    if not pc or #(pc - c) > (Config.Place.MaxDistance or 3.5) + 2.0 then
         return Worn.notify(src, T.too_far, 'error')
     end
 
@@ -134,11 +147,10 @@ RegisterNetEvent('nzc:s:place', function(from, slot, coords, rot)
     if not meta then return Worn.notify(src, T.no_chain, 'error') end
 
     Drops.add({
-        meta = meta, coords = { x = coords.x, y = coords.y, z = coords.z },
-        rot = type(rot) == 'table' and rot or nil,
+        meta = meta, coords = { x = c.x, y = c.y, z = c.z }, rot = { x = r.x, y = r.y, z = r.z },
         owner = Bridge.GetIdentifier(src), ownerSrc = src, thrown = false,
     })
-    Logs.send('info', 'Chain set down', ('%s put down %s at %.1f, %.1f, %.1f'):format(Logs.who(src), meta.label or '?', coords.x, coords.y, coords.z))
+    Logs.send('info', 'Chain set down', ('%s put down %s at %.1f, %.1f, %.1f'):format(Logs.who(src), meta.label or '?', c.x, c.y, c.z))
 end)
 
 -----------------------------------------------------------------

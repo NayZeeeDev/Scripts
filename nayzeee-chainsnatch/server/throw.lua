@@ -13,7 +13,7 @@ local T = Config.Text
 local last = {}
 local DT = 1 / 30
 
-local function v3(t) return vector3((t.x or t[1] or 0) + 0.0, (t.y or t[2] or 0) + 0.0, (t.z or t[3] or 0) + 0.0) end
+local function flat(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) end
 
 RegisterNetEvent('nzc:s:throw', function(path, rest)
     local src = source
@@ -22,19 +22,24 @@ RegisterNetEvent('nzc:s:throw', function(path, rest)
     if last[src] and now - last[src] < 1000 then return end
     last[src] = now
 
+    if Worn.busy(src) then return end
     local w = Worn.get(src)
     if not w then return end
     local n = #path
     if n < 2 or n > 400 then return end
 
+    -- everything is checked before the chain leaves the player
     local pts = {}
     for i = 1, n do
-        if type(path[i]) ~= 'table' and type(path[i]) ~= 'vector3' then return end
-        pts[i] = v3(path[i])
+        pts[i] = Logs.vec(path[i], 20000)
+        if not pts[i] then return end
     end
+    local r = type(rest) == 'table' and Logs.vec(rest, 720) or vector3(0.0, 0.0, 0.0)
+    if not r then return end
     local pc = Drops.pedCoords(src)
     if not pc or #(pc - pts[1]) > 3.0 then return end
-    if #(pts[1] - pts[n]) > (cfg.MaxDistance or 30.0) then return end
+    -- measured flat, so a throw off a roof can still fall all the way down
+    if flat(pts[1], pts[n]) > (cfg.MaxDistance or 30.0) then return end
     for i = 2, n do
         if #(pts[i] - pts[i - 1]) > 2.5 then return end -- nothing moves that fast in 1/30 s
     end
@@ -44,7 +49,7 @@ RegisterNetEvent('nzc:s:throw', function(path, rest)
 
     local land = pts[n]
     local duration = math.floor((n - 1) * DT * 1000)
-    local fx = { from = src, chain = w.key, variant = w.letter, path = path, dt = DT, rest = rest }
+    local fx = { from = src, chain = w.key, variant = w.letter, path = pts, dt = DT, rest = { x = r.x, y = r.y, z = r.z } }
     for _, id in ipairs(GetPlayers()) do
         local p = tonumber(id)
         local c = Drops.pedCoords(p)
@@ -75,7 +80,7 @@ RegisterNetEvent('nzc:s:throw', function(path, rest)
         end
         Drops.add({
             meta = meta, coords = { x = land.x, y = land.y, z = land.z },
-            rot = type(rest) == 'table' and rest or nil, ownerSrc = src, thrown = true,
+            rot = { x = r.x, y = r.y, z = r.z }, ownerSrc = src, thrown = true,
         })
     end)
 end)

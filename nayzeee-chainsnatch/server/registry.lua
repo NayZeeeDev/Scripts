@@ -105,6 +105,7 @@ function Registry.reload()
 end
 
 RegisterNetEvent('nzc:s:registry', function()
+    if Logs.throttle(source, 'registry', 5000) then return end
     Registry.publish(source)
 end)
 

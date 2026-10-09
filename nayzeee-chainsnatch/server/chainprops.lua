@@ -130,6 +130,7 @@ AddEventHandler('nzc:chainkit:msg', function(src, kind, data)
         if src and src > 0 then Worn.notify(src, ('Converted %d chain(s). Props restart in a moment.'):format(data.built or 0), 'success', 8000) end
         tell(src, { kind = 'done', built = data.built, status = ChainProps.status() })
     elseif kind == 'error' then
+        ChainProps.running = false -- the program may never have started, so no exit will come
         print(('^1[%s]^7 chainkit: %s'):format(SELF, tostring(data.message)))
         if src and src > 0 then Worn.notify(src, tostring(data.message), 'error', 8000) end
     elseif kind == 'busy' then

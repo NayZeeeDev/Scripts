@@ -18,6 +18,40 @@ local nextId = 1
 
 local function ped(src) return GetPlayerPed(src) end
 
+-- A ripped-off clothing chain comes back when the victim reloads their outfit. Remember which
+-- drawable we took, so the same chain can't be snatched again (and again) until it's really changed.
+local RIP_MEMORY = 6 * 3600
+local function ripKey(src)
+    local ident = Bridge.GetIdentifier(src)
+    return ident and ('rip:' .. ident) or nil
+end
+
+local function clothingDrawable(src)
+    local p = ped(src)
+    if not p or p == 0 then return -1 end
+    return GetPedDrawableVariation(p, 7)
+end
+
+local function ripped(src, drawable)
+    local k = ripKey(src)
+    if not k then return true end
+    local ok, r = pcall(json.decode, GetResourceKvpString(k) or 'null')
+    if not ok or type(r) ~= 'table' then return false end
+    if (r.t or 0) + RIP_MEMORY < os.time() or r.d ~= drawable then
+        DeleteResourceKvp(k)
+        return false
+    end
+    return true
+end
+
+local function rememberRip(src, drawable)
+    local k = ripKey(src)
+    if k then SetResourceKvp(k, json.encode({ d = drawable, t = os.time() })) end
+end
+
+--- In a snatch right now (either side)? Other files refuse wear / take off / throw / place then.
+function SnatchBusy(src) return busy[src] ~= nil end
+
 local function protected(src)
     local job, duty = Bridge.GetJob(src)
     if not job or not duty then return false end
@@ -56,6 +90,10 @@ local function take(snatcher, victim, what)
         meta = Worn.strip(victim)
         if not meta then return false end
     else
+        -- the server checks the outfit itself: the drawable must still be on and not already ripped once
+        local d = clothingDrawable(victim)
+        if d <= 0 or d == (cfg.ClothingNone or 0) or d ~= what.drawable or ripped(victim, d) then return false end
+        rememberRip(victim, d)
         meta = Worn.newMeta(what.key, what.letter, victim)
         TriggerClientEvent('nzc:c:ripClothing', victim, cfg.ClothingNone or 0)
     end
@@ -170,11 +208,21 @@ RegisterNetEvent('nzc:s:tugHit', function(id)
     if math.abs(s.rope) >= tug.WinAt then finish(s.id) end
 end)
 
-AddEventHandler('playerDropped', function()
-    local src = source
-    if busy[src] then finish(busy[src], true) end
+--- Called by server/main.lua when a player leaves, BEFORE their worn chain is cleared.
+--- Leaving in the middle of a tug of war forfeits it: the victim's chain goes to the snatcher.
+function SnatchForfeit(src)
+    local id = busy[src]
     cooldown[src] = nil
-end)
+    if not id then return end
+    local s = sessions[id]
+    if not s then busy[src] = nil return end
+    if src == s.victim then
+        s.rope = tug.WinAt
+        finish(id)
+    else
+        finish(id, true)
+    end
+end
 
 -----------------------------------------------------------------
 -- the request
@@ -201,16 +249,20 @@ RegisterNetEvent('nzc:s:snatch', function(target)
     local w = Worn.get(target)
     if w then what = { kind = 'worn', key = w.key, letter = w.letter } end
 
-    busy[src] = 'asking'
-    local report = lib.callback.await('nzc:state', target) or {}
-    busy[src] = nil
+    -- both sides are taken while we ask, so nobody else can grab the same victim meanwhile
+    busy[src], busy[target] = 'asking', 'asking'
+    local ok, report = pcall(lib.callback.await, 'nzc:state', target)
+    busy[src], busy[target] = nil, nil
+    report = ok and type(report) == 'table' and report or {}
+    if not GetPlayerName(src) or not GetPlayerName(target) then return end
     if report.noZone then return Worn.notify(src, T.protected, 'error') end
 
     if not what and cfg.Clothing and type(report.clothing) == 'string' then
         local d = Chains.def(report.clothing)
-        if d and d.origin == 'server' then
+        local drawable = clothingDrawable(target)
+        if d and d.origin == 'server' and drawable > 0 and drawable ~= (cfg.ClothingNone or 0) and not ripped(target, drawable) then
             local v = Chains.variant(report.clothing, report.letter)
-            what = { kind = 'clothing', key = report.clothing, letter = v and v.letter or 'a' }
+            what = { kind = 'clothing', key = report.clothing, letter = v and v.letter or 'a', drawable = drawable }
         end
     end
     if not what then return Worn.notify(src, T.nothing_to_take, 'error') end
@@ -218,7 +270,7 @@ RegisterNetEvent('nzc:s:snatch', function(target)
     cooldown[src] = os.time() + (cfg.Cooldown or 60)
 
     if not tug.Enabled or restrained(target, report) then
-        take(src, target, what)
+        if not take(src, target, what) then Worn.notify(src, T.nothing_to_take, 'error') end
         return
     end
     startTug(src, target, what)

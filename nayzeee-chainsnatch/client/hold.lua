@@ -108,16 +108,19 @@ local function throw()
     local from = GetPedBoneCoords(ped, 57005, 0.0, 0.0, 0.0) + dir * 0.25
     local vel = dir * (TC.Speed or 11.0) + vector3(0.0, 0.0, TC.Lift or 2.2)
     local pts = simulate(from, vel, ped)
-    -- server rejects throws past MaxDistance; clamp so a long one just falls short
+    -- the server refuses throws that land further than MaxDistance (measured flat): cut a long one
+    -- short and let it fall straight down from there, all the way to the ground
     local max = (TC.MaxDistance or 30.0) - 0.5
+    local function flat(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) end
     for i = 2, #pts do
-        if #(pts[i] - pts[1]) > max then
-            local hit, pos = ray(pts[i - 1], pts[i - 1] - vector3(0.0, 0.0, 100.0), ped)
+        if flat(pts[i], pts[1]) > max then
             for j = #pts, i, -1 do pts[j] = nil end
-            if hit and #(pos - pts[1]) <= max then lineTo(pts, pos + vector3(0.0, 0.0, 0.035)) end
+            local hit, pos = ray(pts[#pts], pts[#pts] - vector3(0.0, 0.0, 300.0), ped)
+            if hit then lineTo(pts, pos + vector3(0.0, 0.0, 0.035)) end
             break
         end
     end
+    if #pts > 400 then return CB.Notify(Config.Text.bad_spot, 'error') end
     TriggerServerEvent('nzc:s:throw', pts, { x = 0.0, y = 0.0, z = math.random() * 360.0 })
     -- the server refused it (too far, too fast): it's still ours, back on the neck
     SetTimeout(1500, function()
@@ -133,7 +136,7 @@ end
 local BLOCK = { 24, 25, 37, 44, 45, 47, 58, 140, 141, 142, 143, 257, 263, 264, 177, 194, 200, 38, 51 }
 
 function Hold.start()
-    if holding then return end
+    if holding or Snatch.tug then return end
     local key, letter = WornProps.mine()
     if not key then return CB.Notify(Config.Text.no_chain, 'error') end
     local ped = PlayerPedId()

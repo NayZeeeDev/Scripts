@@ -14,7 +14,7 @@ end
 Menu.close = close
 
 function Menu.show()
-    if Menu.open or (Studio and Studio.open) or Place.active() or Hold.active() then return end
+    if Menu.open or (Studio and Studio.open) or Place.active() or Hold.active() or Snatch.tug then return end
     local ped = PlayerPedId()
     if IsEntityDead(ped) then return end
     local data = lib.callback.await('nzc:menu', false)
