@@ -61,7 +61,7 @@ end
 -- the same photo as a URL any NUI can load (the vault, the phone app, other inventories)
 function Wigs.ShotUrl(hair)
     local name = Wigs.ShotName(hair)
-    return name and ('https://cfx-nui-%s/%s.png'):format(Config.Studio.Resource or 'nzw_shots', name) or nil
+    return name and ('https://cfx-nui-%s/shots/%s.png'):format(RESOURCE, name) or nil
 end
 
 -- creation -------------------------------------------------------------------------------

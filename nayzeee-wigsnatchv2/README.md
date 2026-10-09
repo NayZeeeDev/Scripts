@@ -64,17 +64,16 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
    ```cfg
    add_ace group.admin command.wigadmin allow
    add_ace group.admin command.wigstudio allow
-   # lets the studio save its photos into nzw_shots and copy them into ox_inventory/web/images
-   add_filesystem_permission nayzeee-wigsnatchv2 write nzw_shots
+   # lets the studio copy its photos into ox_inventory/web/images
    add_filesystem_permission nayzeee-wigsnatchv2 write ox_inventory
-   # lets 3D wigs / the studio refresh and restart nzw_hairprops and nzw_shots
+   # lets 3D wigs refresh and restart nzw_hairprops, and the studio restart this script once after an update
    add_ace resource.nayzeee-wigsnatchv2 command.refresh allow
    add_ace resource.nayzeee-wigsnatchv2 command.ensure allow
    add_ace resource.nayzeee-wigsnatchv2 command.restart allow
    ```
 5. Restart. New tables and columns are added on their own (`sql/install.sql` is there if you prefer to run it by hand).
-6. Optional but recommended: `/wigstudio` > **Every hairstyle** for each model. The photos go into **`nzw_shots`**, a resource the studio makes next to this one and restarts by itself; restart ox_inventory so its copies show in the inventory.
-7. **Updating Wig Snatch:** replace the `nayzeee-wigsnatchv2` folder only. Keep `nzw_shots` (your photos) and `nzw_hairprops` (your 3D wigs): they sit next to it.
+6. Optional but recommended: `/wigstudio` > **Every hairstyle** for each model, then restart this resource and ox_inventory so the photos are served.
+7. **Updating Wig Snatch:** replace the `nayzeee-wigsnatchv2` folder. Your studio photos are also kept in the database (`nz_wig_shots`) and are put back by themselves on the next start. Keep `nzw_hairprops` (your 3D wigs), which sits next to it.
 
 ## 🎒 Items
 
@@ -163,7 +162,7 @@ Built the same way as the nayzeee-backpack icon studio. `/wigstudio` puts a plai
 - **This hairstyle** shoots what's on screen. **Every hairstyle** runs the whole list (tick *every texture too* for all textures, *skip* to only shoot missing ones). `Backspace` stops a batch.
 - **Name** a hairstyle and save: every wig made from it uses that name and it joins the catalog (`data/style_names.json`).
 
-Each shot is keyed **in the browser** (the same keyer as the backpack studio): the centre square inside the white corners is cut out, the backdrop removed with soft edges, the hair trimmed and centred on a transparent 256 px square. Only that small PNG (around 10 KB) goes to the server, so nothing lags. It's saved as `nzw_shots/wig_<f|m>_<hairstyle>_<texture>.png` (its own resource, next to this one, so updates never wipe your photos) and copied into `ox_inventory/web/images/` with the same name. Photos from older versions (the old `shots/` folder) and any it finds in `ox_inventory/web/images` are moved into `nzw_shots` on start.
+Each shot is keyed **in the browser** (the same keyer as the backpack studio): the centre square inside the white corners is cut out, the backdrop removed with soft edges, the hair trimmed and centred on a transparent 256 px square. Only that small PNG (around 10 KB) goes to the server, so nothing lags. It's saved as `shots/wig_<f|m>_<hairstyle>_<texture>.png`, kept in the database too (so an update that replaces the folder never loses it: it's put back on the next start), and copied into `ox_inventory/web/images/` with the same name. On the first start, photos from older versions (the old `shots/` folder, `nzw_shots`, or `ox_inventory/web/images`) are gathered into the database.
 
 With `Config.Wig.Images = 'studio'`, every wig gets its photo: on ox_inventory through `metadata.image` (the copied file), on other inventories through `imageurl`. FiveM only serves files that existed when a resource started, so **restart this resource and ox_inventory after shooting**.
 
@@ -250,7 +249,7 @@ Discord webhooks and the admin / studio aces live in `config_server.lua`, which 
 | Issue | Solution |
 | --- | --- |
 | Hair, brows or beard reset after a clothing store | Your appearance script reapplied the skin. Call `exports['nayzeee-wigsnatchv2']:ReapplyHair()` after it loads, or add its event to the list in `client/hair.lua`. |
-| Wig pictures are missing | Run the studio, then restart this resource and ox_inventory. If the console says it couldn't write into ox_inventory, add the `add_filesystem_permission` line from Installation (or copy `nzw_shots/*.png` into `ox_inventory/web/images` by hand). |
+| Wig pictures are missing | Run the studio, then restart this resource and ox_inventory. If the console says it couldn't write into ox_inventory, add the `add_filesystem_permission` line from Installation (or copy `shots/*.png` into `ox_inventory/web/images` by hand). |
 | Studio photos come out black / empty | Start `screenshot-basic` before this resource. If the hair keys out too, switch the backdrop to one the hair doesn't use. |
 | The app isn't on my phone | Check the F8 console for "Could not add the Hair Plug app" or "No supported phone found", and adjust `bridge/phone.lua` for your phone version. |
 | A prop sits oddly in the hand | Different animations hold things differently. Tweak `pos` / `rot` in `Config.Cutting.Props` and `Config.TableProps`. |

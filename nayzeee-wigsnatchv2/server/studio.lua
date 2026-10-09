@@ -1,15 +1,14 @@
 -- Wig Studio (server): permissions, routing bucket, hairstyle names, and saving the photos.
--- Same flow as the nayzeee-backpack icon studio: admin + file name checks here, studio.js writes
--- the PNG into the photo resource (Config.Studio.Resource, default nzw_shots, next to this one, so
--- updates never wipe it), and the copy into ox_inventory/web/images is done here with SaveResourceFile.
+-- Same flow as the nayzeee-backpack icon studio: the NUI keys a small PNG, this file checks it and
+-- saves it into shots/ and the database (so updates never lose it), and copies it into
+-- ox_inventory/web/images with SaveResourceFile.
 
 Studio = {}
 
 local CS = Config.Studio
-local SHOTS = CS.Resource or 'nzw_shots'
-SetConvar('nzwig_shots_resource', SHOTS)
-local index = {}
 local MAX_BYTES = 4 * 1024 * 1024
+local NAME = '^wig_[mf]_%d+_%d+$'
+local index = {}        -- { 'f/12_0', ... }
 local warned = false
 
 local function allowed(src)
@@ -17,32 +16,18 @@ local function allowed(src)
 end
 Studio.Allowed = allowed
 
--- the photo resource is (re)started after new photos, so players can load them
-local restartAt = 0
-local function restartShots(delay)
-    restartAt = GetGameTimer() + (delay or 0)
-    SetTimeout(delay or 0, function()
-        if GetGameTimer() < restartAt then return end   -- more photos came in, a later call does it
-        ExecuteCommand('refresh')
-        if GetResourceState(SHOTS) == 'started' then ExecuteCommand('restart ' .. SHOTS) else ExecuteCommand('ensure ' .. SHOTS) end
-        SetTimeout(4000, function()
-            if GetResourceState(SHOTS) ~= 'started' then
-                print(('^3[%s] Couldn\'t start %s (the Wig Studio photos). In server.cfg:^0'):format(RESOURCE, SHOTS))
-                print(('^3    add_ace resource.%s command.refresh allow^0'):format(RESOURCE))
-                print(('^3    add_ace resource.%s command.ensure allow^0'):format(RESOURCE))
-                print(('^3    add_ace resource.%s command.restart allow^0'):format(RESOURCE))
-                print(('^3  or add "ensure %s" to server.cfg after this resource.^0'):format(SHOTS))
-            end
-        end)
-    end)
+local function keyOf(name)
+    local m, d, t = name:match('^wig_([mf])_(%d+)_(%d+)$')
+    return m and ('%s/%d_%d'):format(m, tonumber(d), tonumber(t)) or nil
 end
 
--- studio.js (re)built the index
-AddEventHandler('nz-wig:studio:indexed', function(keys, moved)
-    index = type(keys) == 'table' and keys or {}
-    Wigs.SetShotIndex(index)
-    if moved or GetResourceState(SHOTS) ~= 'started' then restartShots(1000) end
-end)
+local function addKey(key)
+    if not key then return end
+    for _, k in ipairs(index) do if k == key then return end end
+    index[#index + 1] = key
+    table.sort(index)
+    Wigs.MarkShot(key)
+end
 
 local function shotList()
     return index
@@ -77,16 +62,6 @@ end)
 
 -- saving -------------------------------------------------------------------------------------------
 
-RegisterNetEvent('nz-wig:s:studioSave', function(name, b64)
-    local src = source
-    if not allowed(src) then return end
-    if type(name) ~= 'string' or not name:match('^wig_[mf]_%d+_%d+$') or #name > 32 then return end
-    if type(b64) ~= 'string' or #b64 == 0 or #b64 > MAX_BYTES then
-        return TriggerClientEvent('nz-wig:c:studioSaved', src, name, false)
-    end
-    TriggerEvent('nz-wig:studio:write', src, name, b64)
-end)
-
 -- plain base64 decoder, binary safe
 local B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 local LOOKUP = {}
@@ -112,6 +87,21 @@ local function decode(data)
 end
 Studio.Decode = decode
 
+local function encode(bin)
+    local out, n = {}, 0
+    for i = 1, #bin, 3 do
+        local a, b, c = bin:byte(i, i + 2)
+        local v = (a << 16) | ((b or 0) << 8) | (c or 0)
+        n = n + 1
+        out[n] = B64:sub((v >> 18) + 1, (v >> 18) + 1) .. B64:sub(((v >> 12) & 63) + 1, ((v >> 12) & 63) + 1)
+            .. (b and B64:sub(((v >> 6) & 63) + 1, ((v >> 6) & 63) + 1) or '=')
+            .. (c and B64:sub((v & 63) + 1, (v & 63) + 1) or '=')
+    end
+    return table.concat(out)
+end
+Studio.Encode = encode
+
+
 local function copyToInventory(name, b64)
     if GetResourceState('ox_inventory') == 'missing' then return false end
     local bin = decode(b64)
@@ -121,26 +111,124 @@ local function copyToInventory(name, b64)
         warned = true
         print(('^3[%s] could not write into ox_inventory/web/images. Add this to server.cfg and restart:^0'):format(RESOURCE))
         print(('^3    add_filesystem_permission %s write ox_inventory^0'):format(RESOURCE))
-        print(('^3  The photos are still saved in %s/ and you can copy them over by hand.^0'):format(SHOTS))
+        print(('^3  The photos are still saved in %s/shots/ and you can copy them over by hand.^0'):format(RESOURCE))
     end
     return false
 end
 
--- studio.js reports back here
-AddEventHandler('nz-wig:studio:written', function(src, name, ok, key, b64)
-    local where = ' → ' .. SHOTS
-    if ok then
-        Wigs.MarkShot(key)
-        local found = false
-        for _, k in ipairs(index) do if k == key then found = true break end end
-        if not found then index[#index + 1] = key end
-        restartShots(6000)   -- once the photos stop coming in
-        if CS.SaveToInventory then
-            where = copyToInventory(name, b64) and (' → %s + ox_inventory'):format(SHOTS) or (' → %s only (see server console)'):format(SHOTS)
+-- saving -------------------------------------------------------------------------------------------
+-- Every photo is kept twice: in this resource's shots/ folder (that's what the UI loads) and in the
+-- database. Updating the script replaces the folder; on the next start the photos come back from
+-- the database by themselves.
+
+local function writeFile(name, bin)
+    return SaveResourceFile(RESOURCE, ('shots/%s.png'):format(name), bin, #bin)
+end
+
+local function store(name, bin, b64)
+    MySQL.query.await('INSERT INTO nz_wig_shots (name, png, updated) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE png = VALUES(png), updated = VALUES(updated)',
+        { name, b64 or encode(bin), os.time() })
+end
+
+RegisterNetEvent('nz-wig:s:studioSave', function(name, b64)
+    local src = source
+    if not allowed(src) then return end
+    if type(name) ~= 'string' or not name:match(NAME) or #name > 32 then return end
+    if type(b64) ~= 'string' or #b64 == 0 or #b64 > MAX_BYTES then
+        return TriggerClientEvent('nz-wig:c:studioSaved', src, name, false)
+    end
+    b64 = b64:gsub('^data:[^,]*,', '')
+    local bin = decode(b64)
+    if #bin < 8 or bin:sub(1, 4) ~= '\137PNG' then
+        return TriggerClientEvent('nz-wig:c:studioSaved', src, name, false)
+    end
+    local ok = writeFile(name, bin)
+    local saved = pcall(store, name, bin, b64)
+    if not ok and not saved then
+        print(('^1[%s]^0 wig studio: could not save %s'):format(RESOURCE, name))
+        return TriggerClientEvent('nz-wig:c:studioSaved', src, name, false)
+    end
+    local key = keyOf(name)
+    addKey(key)
+    local where = ' → saved'
+    if CS.SaveToInventory then
+        where = copyToInventory(name, b64) and ' → saved + ox_inventory' or ' → saved (ox_inventory: see server console)'
+    end
+    TriggerClientEvent('nz-wig:c:studioSaved', src, name, true, key, where)
+end)
+
+-- on start: put back any photo the folder lost (an update replaced it), and once, gather the photos
+-- older versions left in shots/, nzw_shots or ox_inventory/web/images into the database
+local function gather(found)
+    local sources = {
+        { RESOURCE, 'shots/%s.png' },
+        { 'nzw_shots', '%s.png' },
+        { 'ox_inventory', 'web/images/%s.png' },
+    }
+    local function load(name)
+        for _, src in ipairs(sources) do
+            if GetResourceState(src[1]) ~= 'missing' then
+                local bin = LoadResourceFile(src[1], src[2]:format(name))
+                if bin and #bin > 8 and bin:sub(1, 4) == '\137PNG' then return bin end
+            end
         end
     end
-    TriggerClientEvent('nz-wig:c:studioSaved', src, name, ok, key, where)
-end)
+    local added = 0
+    for _, m in ipairs({ 'f', 'm' }) do
+        for d = 0, CS.ScanMax or 600 do
+            for t = 0, 15 do
+                local name = StudioShotName(m, d, t)
+                if not found[name] then
+                    local bin = load(name)
+                    if bin then
+                        if pcall(store, name, bin) then found[name] = true added = added + 1 end
+                    elseif t == 0 then
+                        break   -- no first texture: the other textures weren't shot either
+                    end
+                end
+            end
+        end
+    end
+    return added
+end
+
+function Studio.Boot()
+    local rows = MySQL.query.await('SELECT name FROM nz_wig_shots') or {}
+    local found = {}
+    for _, r in ipairs(rows) do found[r.name] = true end
+
+    local added = 0
+    if GetResourceKvpString('nzwig:shots_gathered') ~= '1' then
+        added = gather(found)
+        SetResourceKvp('nzwig:shots_gathered', '1')
+        if added > 0 then print(('^2[%s]^7 wig studio: saved %d photo(s) from older versions into the database'):format(RESOURCE, added)) end
+    end
+
+    local restored = 0
+    index = {}
+    for name in pairs(found) do
+        if not LoadResourceFile(RESOURCE, ('shots/%s.png'):format(name)) then
+            local row = MySQL.single.await('SELECT png FROM nz_wig_shots WHERE name = ?', { name })
+            local bin = row and decode(row.png) or ''
+            if #bin > 8 and writeFile(name, bin) then restored = restored + 1 end
+        end
+        index[#index + 1] = keyOf(name)
+    end
+    table.sort(index)
+    Wigs.SetShotIndex(index)
+
+    -- a file written after the resource started is only served after a restart
+    if restored > 0 then
+        print(('^2[%s]^7 wig studio: put back %d photo(s) after an update, restarting once so players can see them'):format(RESOURCE, restored))
+        SetTimeout(1500, function()
+            ExecuteCommand('refresh')
+            ExecuteCommand('restart ' .. RESOURCE)
+            SetTimeout(3000, function()
+                print(('^3[%s] If the photos still don\'t show, restart %s once (or allow it: add_ace resource.%s command.restart allow)^0'):format(RESOURCE, RESOURCE, RESOURCE))
+            end)
+        end)
+    end
+end
 
 -- names --------------------------------------------------------------------------------------------
 

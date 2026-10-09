@@ -92,6 +92,14 @@ local schema = {
         KEY `idx_status` (`status`, `created`),
         KEY `idx_seller` (`seller`, `status`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;]],
+
+    -- Wig Studio photos (base64 PNG), so updating the script never loses them
+    [[CREATE TABLE IF NOT EXISTS `nz_wig_shots` (
+        `name` VARCHAR(32) NOT NULL,
+        `png` MEDIUMTEXT NOT NULL,
+        `updated` INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (`name`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;]],
 }
 
 -- Newer columns added to tables made by older versions. SHOW COLUMNS keeps this working on MySQL and MariaDB.

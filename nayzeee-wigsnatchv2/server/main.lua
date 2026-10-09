@@ -4,6 +4,7 @@ math.randomseed(os.time() + GetGameTimer())
 
 CreateThread(function()
     DB.Init()
+    Studio.Boot()
     Social.LoadBounties()
     Social.LoadFeed()
     Hair.RegisterItems()

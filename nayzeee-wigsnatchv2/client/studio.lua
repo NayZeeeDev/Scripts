@@ -2,7 +2,7 @@
 --   * a local freemode head floats in a lit chroma box under the map, your own ped never changes
 --   * an orbit camera frames the hair (drag / scroll / angle presets) between the two panels
 --   * screenshot-basic grabs the frame, the NUI keys it into a small PNG (web/js/keyer.js)
---   * the server writes nzw_shots/wig_<m|f>_<drawable>_<texture>.png and copies it into ox_inventory
+--   * the server writes shots/wig_<m|f>_<drawable>_<texture>.png (+ a copy in the database) and copies it into ox_inventory
 -- One hairstyle at a time, or every hairstyle in a batch that waits for each save.
 
 Studio = {}

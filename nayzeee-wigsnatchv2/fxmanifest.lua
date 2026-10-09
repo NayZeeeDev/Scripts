@@ -58,7 +58,6 @@ server_scripts {
     'server/social.lua',
     'server/vault.lua',
     'server/studio.lua',
-    'server/studio.js',
     'server/hairprops.lua',
     'server/hairkit.js',
     'server/admin.lua',
@@ -74,6 +73,7 @@ files {
     'web/sounds/*.ogg',
     'web/phone/*',
     'data/*.json',
+    'shots/*.png',
     'INSTALL/images/*.png',     -- item icons for the wig table and supplier windows
 }
 
