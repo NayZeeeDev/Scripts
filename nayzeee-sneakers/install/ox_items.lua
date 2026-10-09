@@ -27,6 +27,26 @@
     stack = true,
     close = true,
     consume = 0,
-    description = 'Put a pair in it',
+    description = 'For sneakers',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+['nz_heelbox_empty'] = {
+    label = 'Empty heel box',
+    weight = 300,
+    stack = true,
+    close = true,
+    consume = 0,
+    description = 'For heels and ankle boots',
+    server = { export = 'nayzeee-sneakers.useItem' },
+},
+
+['nz_bootbox_empty'] = {
+    label = 'Empty boot box',
+    weight = 500,
+    stack = true,
+    close = true,
+    consume = 0,
+    description = 'For tall boots',
     server = { export = 'nayzeee-sneakers.useItem' },
 },

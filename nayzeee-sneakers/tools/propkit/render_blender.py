@@ -3,7 +3,7 @@ Render prop meshes with Cycles (CPU) for previews and inventory icons.
 
     python render_blender.py scene.json
 
-scene.json:
+scene.json (or a list of these, rendered one after another):
 {
   "out": "icon.png", "size": [256, 256], "transparent": true, "samples": 48,
   "camera": {"location": [x,y,z], "target": [x,y,z], "lens": 50},
@@ -54,7 +54,12 @@ def add_mesh(spec, i):
 
 
 def main():
-    scene_spec = json.load(open(sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else sys.argv[1]))
+    spec = json.load(open(sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else sys.argv[1]))
+    for scene_spec in (spec if isinstance(spec, list) else [spec]):   # a list renders in one Blender session
+        render_one(scene_spec)
+
+
+def render_one(scene_spec):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     for i, spec in enumerate(scene_spec["objects"]):

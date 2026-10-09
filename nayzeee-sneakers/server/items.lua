@@ -52,7 +52,8 @@ end
 CreateThread(function()
     Inv.RegisterUsable(Config.Items.shoes, function(src, it)
         if not it.metadata or not Config.Shoes[it.metadata.shoe] then return end
-        local hasBox = Inv.Find(src, Config.Items.emptyBox) ~= nil
+        local boxType = Shared.BoxTypeForShoe(it.metadata.shoe)
+        local hasBox = Inv.Find(src, Config.BoxTypes[boxType].item) ~= nil
         TriggerClientEvent('nayzeee-sneakers:client:useShoes', src, it.slot, Items.Clean(it.metadata), hasBox)
     end)
 
@@ -60,9 +61,11 @@ CreateThread(function()
         TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'boxed')
     end)
 
-    Inv.RegisterUsable(Config.Items.emptyBox, function(src, it)
-        TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'empty')
-    end)
+    for _, t in pairs(Config.BoxTypes) do
+        Inv.RegisterUsable(t.item, function(src, it)
+            TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'empty')
+        end)
+    end
 end)
 
 --------------------------------------------------------------------------------
@@ -73,10 +76,10 @@ Pending = {}
 
 local function pendingKey(id) return 'pending:' .. id end
 
-function Pending.Add(identifier, meta, boxed)
+function Pending.Add(identifier, meta, boxed, boxType)
     if not identifier then return end
     local list = json.decode(GetResourceKvpString(pendingKey(identifier)) or '[]') or {}
-    list[#list + 1] = { meta = Items.Clean(meta), boxed = boxed }
+    list[#list + 1] = { meta = Items.Clean(meta), boxed = boxed, boxType = boxType }
     SetResourceKvp(pendingKey(identifier), json.encode(list))
 end
 
@@ -89,7 +92,7 @@ function Pending.Deliver(src)
     for _, p in ipairs(list) do
         if p.meta and p.meta.shoe then
             if not Items.GivePair(src, p.meta, p.boxed) then keep[#keep + 1] = p end
-        elseif not Inv.Add(src, Config.Items.emptyBox, 1) then
+        elseif not Inv.Add(src, (Config.BoxTypes[p.boxType] or Config.BoxTypes.shoe).item, 1) then
             keep[#keep + 1] = p
         end
     end

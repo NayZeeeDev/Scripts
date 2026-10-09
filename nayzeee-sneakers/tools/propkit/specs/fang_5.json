@@ -1,0 +1,101 @@
+{
+ "ref": "work/conv/j5/png/a.png",
+ "inputs": {
+  "a": "work/conv/j5/png/a.png",
+  "b": "work/conv/j5/png/b.png",
+  "c": "work/conv/j5/png/c.png",
+  "d": "work/conv/j5/png/d.png",
+  "e": "work/conv/j5/png/e.png",
+  "f": "work/conv/j5/png/f.png",
+  "g": "work/conv/j5/png/g.png",
+  "h": "work/conv/j5/png/h.png",
+  "i": "work/conv/j5/png/i.png",
+  "j": "work/conv/j5/png/j.png",
+  "k": "work/conv/j5/png/k.png",
+  "l": "work/conv/j5/png/l.png",
+  "m": "work/conv/j5/png/m.png",
+  "n": "work/conv/j5/png/n.png",
+  "o": "work/conv/j5/png/o.png"
+ },
+ "out": "work/deb/j5",
+ "regions": [
+  {
+   "rect": [
+    0,
+    530,
+    110,
+    690
+   ],
+   "rule": "black",
+   "thr": 75,
+   "open": 0.5,
+   "minarea": 150,
+   "interior": true,
+   "grow": 2,
+   "mirror": 512,
+   "grain": [
+    68,
+    548,
+    100,
+    588
+   ]
+  },
+  {
+   "rect": [
+    36,
+    750,
+    60,
+    880
+   ],
+   "rule": "rect",
+   "mirror": 512
+  },
+  {
+   "rect": [
+    185,
+    490,
+    262,
+    615
+   ],
+   "rule": "dark",
+   "thr": 0.5,
+   "mirror": 512
+  },
+  {
+   "rect": [
+    46,
+    126,
+    82,
+    176
+   ],
+   "rule": "dark",
+   "thr": 0.6,
+   "mirror": 512
+  },
+  {
+   "rect": [
+    126,
+    146,
+    152,
+    184
+   ],
+   "rule": "rect",
+   "mirror": 512
+  },
+  {
+   "rect": [
+    404,
+    858,
+    472,
+    926
+   ],
+   "rule": "dark",
+   "thr": 0.6,
+   "mirror": 512
+  }
+ ],
+ "normal": {
+  "in": "work/deb/j5_nrm_src.png",
+  "out": "work/deb/j5/normal.png"
+ }
+}

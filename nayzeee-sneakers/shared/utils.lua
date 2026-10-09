@@ -75,3 +75,24 @@ end
 function Shared.Debug(...)
     if Config.Debug then print('^5[nayzeee-sneakers]^7', ...) end
 end
+
+--- Box size id ('shoe' | 'heel' | 'boot') for a placed box's model hash, or nil
+function Shared.BoxTypeOfModel(model)
+    local m = model & 0xFFFFFFFF
+    for id, t in pairs(Config.BoxTypes) do
+        if (t.base & 0xFFFFFFFF) == m then return id end
+    end
+end
+
+--- Box size id for an empty-box item name, or nil
+function Shared.BoxTypeOfItem(name)
+    for id, t in pairs(Config.BoxTypes) do
+        if t.item == name then return id end
+    end
+end
+
+--- The box size a shoe goes in
+function Shared.BoxTypeForShoe(shoeId)
+    local shoe = Config.Shoes[shoeId]
+    return shoe and Config.BoxTypes[shoe.box] and shoe.box or 'shoe'
+end

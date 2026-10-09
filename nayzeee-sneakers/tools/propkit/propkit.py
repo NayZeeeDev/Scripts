@@ -82,19 +82,20 @@ def rotate_z(deg, offset=(0, 0, 0)):
 # ------------------------------------------------------------------------ texture
 
 def dds_dxt5(img):
-    """Image -> DXT5 .dds bytes with a full mip chain (Pillow encodes each level)."""
+    """Image -> DXT5 .dds bytes with a mip chain (Pillow encodes each level). Sides must be powers of two."""
     img = img.convert("RGBA")
     w, h = img.size
-    assert w == h and (w & (w - 1)) == 0, "texture must be square power of two"
-    levels, size = [], w
-    while size >= 4:
-        lvl = img if size == w else img.resize((size, size), Image.LANCZOS)
+    assert (w & (w - 1)) == 0 and (h & (h - 1)) == 0, "texture sides must be powers of two"
+    levels, lw, lh = [], w, h
+    while lw >= 4 and lh >= 4:
+        lvl = img if (lw, lh) == (w, h) else img.resize((lw, lh), Image.LANCZOS)
         buf = io.BytesIO()
         lvl.save(buf, format="DDS", pixel_format="DXT5")
         data = buf.getvalue()
         assert data[84:88] == b"DXT5"
         levels.append(data[128:])
-        size //= 2
+        lw //= 2
+        lh //= 2
     header = bytearray(128)
     struct.pack_into("<4sIIIIIII", header, 0, b"DDS ", 124,
                      0x1 | 0x2 | 0x4 | 0x1000 | 0x80000 | 0x20000, h, w, len(levels[0]), 0, len(levels))
@@ -303,3 +304,19 @@ def write_obj(path, mesh, texture_file):
         for k in range(0, len(mesh.idx), 3):
             a, b, c = (i + 1 for i in mesh.idx[k:k + 3])
             fh.write(f"f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}\n")
+
+
+def crop_to_uvs(uv, image, size, pad_px=6):
+    """Crop the texture to the area the mesh uses and remap UVs onto it, then
+    resize to size x size. Clothing often uses a small part of a big texture.
+    uv: (N, 2) numpy array, top-down, inside [0, 1]."""
+    import numpy as np
+    w, h = image.size
+    lo, hi = uv.min(axis=0), uv.max(axis=0)
+    x0 = max(0, int(lo[0] * w) - pad_px); x1 = min(w, int(np.ceil(hi[0] * w)) + pad_px)
+    y0 = max(0, int(lo[1] * h) - pad_px); y1 = min(h, int(np.ceil(hi[1] * h)) + pad_px)
+    out = image.crop((x0, y0, x1, y1)).resize((size, size), Image.LANCZOS)
+    new = uv.copy()
+    new[:, 0] = (uv[:, 0] * w - x0) / (x1 - x0)
+    new[:, 1] = (uv[:, 1] * h - y0) / (y1 - y0)
+    return new, out

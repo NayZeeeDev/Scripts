@@ -1,0 +1,68 @@
+{
+ "ref": "work/conv/bal/png/a.png",
+ "inputs": {
+  "a": "work/conv/bal/png/a.png",
+  "b": "work/conv/bal/png/b.png",
+  "c": "work/conv/bal/png/c.png"
+ },
+ "out": "work/deb/bal",
+ "regions": [
+  {
+   "rect": [
+    770,
+    515,
+    910,
+    555
+   ],
+   "rule": "light",
+   "thr": 0.15
+  },
+  {
+   "rect": [
+    740,
+    740,
+    870,
+    780
+   ],
+   "rule": "light",
+   "thr": 0.15
+  },
+  {
+   "rect": [
+    260,
+    705,
+    345,
+    755
+   ],
+   "rule": "light",
+   "thr": 0.15
+  },
+  {
+   "rect": [
+    924,
+    722,
+    952,
+    815
+   ],
+   "rule": "dark",
+   "thr": 0.82,
+   "grow": 1,
+   "radius": 4,
+   "only": "diffuse"
+  },
+  {
+   "rect": [
+    912,
+    720,
+    954,
+    818
+   ],
+   "rule": "rect",
+   "only": "normal"
+  }
+ ],
+ "normal": {
+  "in": "work/deb/bal_nrm_src.png",
+  "out": "work/deb/bal/normal.png"
+ }
+}

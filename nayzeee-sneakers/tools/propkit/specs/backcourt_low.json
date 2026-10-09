@@ -1,0 +1,106 @@
+{
+ "ref": "work/conv/ts/png/b.png",
+ "inputs": {
+  "a": "work/conv/ts/png/a.png",
+  "b": "work/conv/ts/png/b.png",
+  "c": "work/conv/ts/png/c.png"
+ },
+ "out": "work/deb/ts",
+ "regions": [
+  {
+   "rect": [
+    85,
+    112,
+    352,
+    312
+   ],
+   "rule": "blue",
+   "thr": 25,
+   "mirror": 512,
+   "grow": 3,
+   "grain": [
+    150,
+    40,
+    280,
+    105
+   ]
+  },
+  {
+   "rect": [
+    348,
+    468,
+    452,
+    782
+   ],
+   "rule": "blue",
+   "thr": 25,
+   "mirror": 512,
+   "grow": 3,
+   "grain": [
+    150,
+    40,
+    280,
+    105
+   ]
+  },
+  {
+   "rect": [
+    356,
+    660,
+    412,
+    738
+   ],
+   "rule": "rect",
+   "mirror": 512
+  },
+  {
+   "rect": [
+    430,
+    678,
+    464,
+    716
+   ],
+   "rule": "rect",
+   "mirror": 512
+  },
+  {
+   "rect": [
+    0,
+    186,
+    36,
+    254
+   ],
+   "rule": "rect",
+   "mirror": 512
+  },
+  {
+   "rect": [
+    262,
+    452,
+    298,
+    534
+   ],
+   "key": [
+    250,
+    440,
+    310,
+    545
+   ],
+   "rule": "dark",
+   "thr": 0.9,
+   "how": "flatten",
+   "blur": 81,
+   "mirror": 512,
+   "grain": [
+    230,
+    560,
+    290,
+    620
+   ]
+  }
+ ],
+ "normal": {
+  "in": "work/deb/ts_nrm_src.png",
+  "out": "work/deb/ts/normal.png"
+ }
+}

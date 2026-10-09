@@ -1,0 +1,64 @@
+{
+ "ref": "work/deb/prada_src_a.png",
+ "inputs": {
+  "a": "work/deb/prada_src_a.png",
+  "b": "work/deb/prada_src_b.png",
+  "c": "work/deb/prada_src_c.png",
+  "d": "work/deb/prada_src_d.png",
+  "e": "work/deb/prada_src_e.png"
+ },
+ "out": "work/deb/prada",
+ "normal": {
+  "in": "work/deb/prada_nrm_src.png",
+  "out": "work/deb/prada/normal.png"
+ },
+ "regions": [
+  {
+   "rect": [
+    212,
+    700,
+    328,
+    726
+   ],
+   "key": [
+    192,
+    688,
+    352,
+    736
+   ],
+   "rule": "red",
+   "how": "flatten",
+   "blur": 81
+  },
+  {
+   "rect": [
+    720,
+    784,
+    816,
+    832
+   ],
+   "rule": "red",
+   "how": "flatten"
+  },
+  {
+   "rect": [
+    864,
+    800,
+    928,
+    912
+   ],
+   "rule": "red",
+   "how": "flatten"
+  },
+  {
+   "rect": [
+    560,
+    0,
+    592,
+    64
+   ],
+   "rule": "red",
+   "how": "flatten"
+  }
+ ]
+}

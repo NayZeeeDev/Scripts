@@ -10,10 +10,13 @@ Boxes = {}
 Busy = false
 
 local B, F = Config.Box, Config.Float
-local boxes = {}        -- [base] = { lid, angle, from, to, start, dur, opening, shoeId, shoe, fx }
+local boxes = {}        -- [base] = { t (box type), lid, angle, from, to, start, dur, opening, shoeId, shoe, fx }
 local animating = 0     -- lids or shoes mid-animation
 
-local function sameModel(a, b) return (a & 0xFFFFFFFF) == (b & 0xFFFFFFFF) end
+--- Box type settings for a placed base entity
+local function typeOf(base)
+    return Config.BoxTypes[Shared.BoxTypeOfModel(GetEntityModel(base)) or 'shoe']
+end
 
 -- Easing ----------------------------------------------------------------------
 
@@ -38,7 +41,7 @@ end
 -- Lid -------------------------------------------------------------------------
 
 local function attachLid(base, lid, angle)
-    local h = B.hinge
+    local h = boxes[base] and boxes[base].t.hinge or typeOf(base).hinge
     AttachEntityToEntity(lid, base, 0, h.x, h.y, h.z, angle, 0.0, 0.0, false, false, false, false, 2, true)
 end
 
@@ -56,7 +59,7 @@ end
 -- Shoes inside ----------------------------------------------------------------
 
 local REST = vector3(0.0, 0.0, B.floor)
-local TOP = vector3(0.0, 0.0, B.hinge.z + F.height)
+local function topOf(box) return vector3(0.0, 0.0, box.t.hinge.z + F.height) end
 
 local function attachShoe(base, obj, pos, pitch, roll, yaw)
     AttachEntityToEntity(obj, base, 0, pos.x, pos.y, pos.z, pitch, roll, yaw, false, false, false, false, 2, true)
@@ -79,7 +82,7 @@ local function spawnShoe(base, shoeId)
     if box.fx then
         -- mid-float: start hidden at the top, the float step takes over next frame
         SetEntityAlpha(obj, 0, false)
-        attachShoe(base, obj, TOP, 0.0, 0.0, 0.0)
+        attachShoe(base, obj, topOf(box), 0.0, 0.0, 0.0)
     else
         attachShoe(base, obj, REST, 0.0, 0.0, 0.0)
     end
@@ -123,7 +126,7 @@ local function stepShoe(base, box, now)
             alpha = t < 0.6 and 1.0 or math.max(0.0, 1.0 - (t - 0.6) / 0.4)
         end
         local lift = 1.0 - e                     -- 1 at the top, 0 resting
-        local pos = REST + (TOP - REST) * lift + vector3(math.sin(lift * math.pi) * 0.03, 0.0, 0.0)
+        local pos = REST + (topOf(box) - REST) * lift + vector3(math.sin(lift * math.pi) * 0.03, 0.0, 0.0)
         local yaw = (fx.kind == 'in' and 35.0 or -35.0) * lift
         local roll = math.sin(lift * math.pi) * 6.0
         attachShoe(base, box.shoe, pos, 0.0, roll, yaw)
@@ -204,28 +207,29 @@ local function removeBox(base)
 end
 
 local function addBox(base)
-    if not LoadModel(B.lid) or not DoesEntityExist(base) or boxes[base] then return end
+    local t = typeOf(base)
+    if not LoadModel(t.lid) or not DoesEntityExist(base) or boxes[base] then return end
     local c = GetEntityCoords(base)
-    local lid = CreateObject(B.lid, c.x, c.y, c.z, false, false, false)
+    local lid = CreateObject(t.lid, c.x, c.y, c.z, false, false, false)
     SetEntityCollision(lid, false, false)
     SetEntityInvincible(lid, true)
     local angle = Entity(base).state['nzs:open'] and B.openAngle or 0.0
+    boxes[base] = { t = t, lid = lid, angle = angle, to = angle }
     attachLid(base, lid, angle)
-    boxes[base] = { lid = lid, angle = angle, to = angle }
-    SetModelAsNoLongerNeeded(B.lid)
+    SetModelAsNoLongerNeeded(t.lid)
     syncShoe(base)
 end
 
 CreateThread(function()
-    if not IsModelInCdimage(B.base) or not IsModelInCdimage(B.lid) then
-        print('^1[nayzeee-sneakers]^7 ' .. Config.Text.modelMissing)
-        return
+    for id, t in pairs(Config.BoxTypes) do
+        if not IsModelInCdimage(t.base) or not IsModelInCdimage(t.lid) then
+            print(('^1[nayzeee-sneakers]^7 %s (%s)'):format(Config.Text.modelMissing, id))
+        end
     end
-    local baseHash = B.base & 0xFFFFFFFF
     while true do
         local me = GetEntityCoords(PlayerPedId())
         for _, obj in ipairs(GetGamePool('CObject')) do
-            if not boxes[obj] and (GetEntityModel(obj) & 0xFFFFFFFF) == baseHash
+            if not boxes[obj] and Shared.BoxTypeOfModel(GetEntityModel(obj))
                 and #(GetEntityCoords(obj) - me) < B.streamDistance then
                 addBox(obj)
             end
@@ -251,7 +255,7 @@ end)
 
 local function state(ent, key) return Entity(ent).state[key] end
 local function netOf(ent) return NetworkGetEntityIsNetworked(ent) and NetworkGetNetworkIdFromEntity(ent) or nil end
-local function boxCentre(ent) return GetOffsetFromEntityInWorldCoords(ent, 0.0, 0.0, B.hinge.z * 0.5) end
+local function boxCentre(ent) return GetOffsetFromEntityInWorldCoords(ent, 0.0, 0.0, typeOf(ent).hinge.z * 0.5) end
 
 --- Kneel at the box, close-up camera on it, run `fn`, wait `fn`'s duration, stand up
 local function atBox(ent, fn)
@@ -271,10 +275,19 @@ local function atBox(ent, fn)
 end
 
 --- Pick a pair from the inventory. Returns the slot, or nil.
-function Boxes.ChoosePair()
-    local list = lib.callback.await('nayzeee-sneakers:myShoes', false)
-    if not list or #list == 0 then
-        UI.Notify(Config.Text.noShoes, 'error')
+--- boxType limits the list to pairs that fit that box size.
+function Boxes.ChoosePair(boxType)
+    local all = lib.callback.await('nayzeee-sneakers:myShoes', false) or {}
+    local list = {}
+    for _, p in ipairs(all) do
+        if not boxType or p.box == boxType then list[#list + 1] = p end
+    end
+    if #list == 0 then
+        if #all > 0 and boxType then
+            UI.Notify(Config.Text.wrongBox:format(Config.BoxTypes[all[1].box].label:lower()), 'error')
+        else
+            UI.Notify(Config.Text.noShoes, 'error')
+        end
         return nil
     end
     if #list == 1 then return list[1].slot end
@@ -298,7 +311,7 @@ end
 
 local function putIn(ent)
     if Busy then return end
-    local slot = Boxes.ChoosePair()
+    local slot = Boxes.ChoosePair(Shared.BoxTypeOfModel(GetEntityModel(ent)))
     if not slot then return end
     atBox(ent, function() return lib.callback.await('nayzeee-sneakers:putIn', false, netOf(ent), slot) end)
 end
@@ -318,8 +331,7 @@ local function pickUp(ent)
     Busy = false
 end
 
-CreateThread(function()
-    Target.AddModel(B.base, {
+local boxOptions = {
         { name = 'nzs_open', label = Config.Text.open, icon = 'fa-solid fa-box-open',
           canInteract = function(e) return not state(e, 'nzs:open') and not state(e, 'nzs:busy') end, onSelect = toggleLid },
         { name = 'nzs_close', label = Config.Text.close, icon = 'fa-solid fa-box',
@@ -330,7 +342,10 @@ CreateThread(function()
           canInteract = function(e) return not state(e, 'nzs:shoe') and not state(e, 'nzs:busy') end, onSelect = putIn },
         { name = 'nzs_pickup', label = Config.Text.pickUp, icon = 'fa-solid fa-hand-holding',
           canInteract = function(e) return not state(e, 'nzs:busy') end, onSelect = pickUp },
-    })
+}
+
+CreateThread(function()
+    for _, t in pairs(Config.BoxTypes) do Target.AddModel(t.base, boxOptions) end
 end)
 
 -- Placing boxes -----------------------------------------------------------------
@@ -355,7 +370,7 @@ end
 
 RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind)
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
-    if not IsModelInCdimage(B.base) then return UI.Notify(Config.Text.modelMissing, 'error') end
+    if not IsModelInCdimage(Config.BoxTypes.shoe.base) then return UI.Notify(Config.Text.modelMissing, 'error') end
     Busy = true
     local spot, heading = placementSpot()
     Anim.PutDown()

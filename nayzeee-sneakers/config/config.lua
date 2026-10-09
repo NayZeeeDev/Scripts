@@ -23,14 +23,27 @@ Config.AdminAce = 'nayzeee-sneakers.admin'
 
 Config.Items = {
     shoes = 'nz_shoes',              -- a loose pair
-    boxed = 'nz_shoebox',            -- a pair in its box
-    emptyBox = 'nz_shoebox_empty',   -- an empty box
+    boxed = 'nz_shoebox',            -- a pair in its box (any box size)
+}
+
+-- Three box sizes. Each shoe model says which one it goes in (config/shoes.lua).
+-- hinge must match the size the box was built at (the prop tool prints it).
+Config.BoxTypes = {
+    shoe = {   -- sneakers, 34 x 29 x 20 cm
+        label = 'Shoe box', item = 'nz_shoebox_empty',
+        base = `nzs_box`, lid = `nzs_box_lid`, hinge = vector3(0.0, -0.145, 0.2),
+    },
+    heel = {   -- heels and ankle boots, 41 x 30 x 12 cm
+        label = 'Heel box', item = 'nz_heelbox_empty',
+        base = `nzs_box_heel`, lid = `nzs_box_heel_lid`, hinge = vector3(0.0, -0.15, 0.12),
+    },
+    boot = {   -- tall boots, 52 x 51 x 16 cm
+        label = 'Boot box', item = 'nz_bootbox_empty',
+        base = `nzs_box_boot`, lid = `nzs_box_boot_lid`, hinge = vector3(0.0, -0.255, 0.16),
+    },
 }
 
 Config.Box = {
-    base = `nzs_box`,
-    lid = `nzs_box_lid`,
-    hinge = vector3(0.0, -0.14, 0.15),   -- matches the 33 x 28 x 15 cm box
     floor = 0.0045,                      -- where the shoes rest inside
     openAngle = 105.0,
     openTime = 550,
@@ -61,7 +74,7 @@ Config.Wear = {
 
 Config.Commands = {
     give = 'givesneakers',       -- /givesneakers [id] [shoe] [size] [fake 0/1] [boxed 0/1]
-    giveBox = 'giveshoebox',     -- /giveshoebox [id] [amount]
+    giveBox = 'giveshoebox',     -- /giveshoebox [id] [amount] [shoe|heel|boot]
 }
 
 Config.Text = {
@@ -76,7 +89,8 @@ Config.Text = {
     cancel = 'Cancel',
     choosePair = 'Which pair?',
     noShoes = 'You have no shoes to put in',
-    noEmptyBox = 'You need an empty shoe box',
+    noEmptyBox = 'You need an empty %s',
+    wrongBox = 'These need a %s',
     boxLimit = 'You already have the max number of boxes out',
     boxBusy = 'Hang on, the box is busy',
     noSpace = 'You have no room for that',

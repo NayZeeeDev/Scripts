@@ -24,11 +24,15 @@ def _geometries(lod_block):
         yield m.group(1), m.group(2)
 
 
-def read_ydd_xml(path, uv_set=0, drawable=0):
+def read_ydd_xml(path, uv_set=0, drawable=0, lods=("High", "Medium", "Low")):
     text = open(path, encoding="utf-8").read()
-    drawables = re.findall(r"<DrawableModelsHigh>([\s\S]*?)</DrawableModelsHigh>", text)
+    drawables = []
+    for lod in lods:     # best LOD the file has
+        drawables = re.findall(rf"<DrawableModels{lod}>([\s\S]*?)</DrawableModels{lod}>", text)
+        if drawables:
+            break
     if not drawables:
-        raise ValueError("no high LOD models in " + path)
+        raise ValueError("no drawable models in " + path)
     meshes = []
     for vb, ib in _geometries(drawables[drawable]):
         layout = re.search(r"<Layout[^>]*>([\s\S]*?)</Layout>", vb).group(1)

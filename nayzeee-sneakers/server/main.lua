@@ -6,7 +6,12 @@ end)
 
 local function shoeList()
     local ids = {}
-    for id in pairs(Config.Shoes) do ids[#ids + 1] = id end
+    for id, m in pairs(Config.ShoeModels) do
+        local letters = {}
+        for l in pairs(m.colourways) do letters[#letters + 1] = l end
+        table.sort(letters)
+        ids[#ids + 1] = ('%s_[%s-%s]'):format(id, letters[1], letters[#letters])
+    end
     table.sort(ids)
     return table.concat(ids, ', ')
 end
@@ -28,21 +33,22 @@ RegisterCommand(Config.Commands.give, function(src, args)
     if src == 0 then print(msg) else Bridge.Notify(src, msg, ok and 'success' or 'error') end
 end, false)
 
--- /giveshoebox [id] [amount]
+-- /giveshoebox [id] [amount] [shoe|heel|boot]
 RegisterCommand(Config.Commands.giveBox, function(src, args)
     if src ~= 0 and not Bridge.IsAdmin(src) then return end
     local target = tonumber(args[1]) or src
     local amount = math.max(1, math.min(50, tonumber(args[2]) or 1))
-    local ok = Inv.Add(target, Config.Items.emptyBox, amount)
-    local msg = ok and ('Gave %d empty box(es) to %d'):format(amount, target) or 'Could not give the item'
+    local boxType = Config.BoxTypes[args[3] or 'shoe'] and (args[3] or 'shoe') or 'shoe'
+    local ok = Inv.Add(target, Config.BoxTypes[boxType].item, amount)
+    local msg = ok and ('Gave %d empty %s(es) to %d'):format(amount, Config.BoxTypes[boxType].label:lower(), target) or 'Could not give the item'
     if src == 0 then print(msg) else Bridge.Notify(src, msg, ok and 'success' or 'error') end
 end, false)
 
--- Shoes with no clothing id yet can't be worn; say so once on start
+-- Shoe models with no clothing id yet can't be worn; say so once on start
 CreateThread(function()
     local missing = {}
-    for id, shoe in pairs(Config.Shoes) do
-        if not Shared.ClothingFor(shoe, shoe.gender == 'female' and 'female' or 'male') then missing[#missing + 1] = id end
+    for id, m in pairs(Config.ShoeModels) do
+        if not m.drawable then missing[#missing + 1] = id end
     end
     if #missing > 0 then
         table.sort(missing)

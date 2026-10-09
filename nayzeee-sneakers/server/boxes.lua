@@ -2,6 +2,7 @@
     Placed shoe boxes.
 
     The base is a networked object. Its state bag drives every client:
+      nzs:type   box size ('shoe' | 'heel' | 'boot')
       nzs:open   lid open?
       nzs:shoe   shoe id resting in the box (false = empty)
       nzs:busy   a sequence is running
@@ -10,11 +11,9 @@
 ]]
 
 Boxes = {}
-local boxes = {}       -- [entity] = { owner, ownerId, contents, busy }
+local boxes = {}       -- [entity] = { owner, ownerId, contents, busy, type }
 local fxCounter = 0
 local B, F = Config.Box, Config.Float
-
-local function sameModel(a, b) return (a & 0xFFFFFFFF) == (b & 0xFFFFFFFF) end
 
 local function nearPlayer(src, coords, dist)
     local ped = GetPlayerPed(src)
@@ -24,7 +23,7 @@ end
 local function boxFromNet(src, netId)
     if type(netId) ~= 'number' then return nil end
     local ent = NetworkGetEntityFromNetworkId(netId)
-    if ent == 0 or not DoesEntityExist(ent) or not sameModel(GetEntityModel(ent), B.base) then return nil end
+    if ent == 0 or not DoesEntityExist(ent) or not Shared.BoxTypeOfModel(GetEntityModel(ent)) then return nil end
     if not boxes[ent] then return nil end
     if not nearPlayer(src, GetEntityCoords(ent), B.interactDistance + 2.0) then return nil end
     return ent, boxes[ent]
@@ -58,8 +57,12 @@ end
 local function inDuration(open) return (open and 0 or B.openTime + 120) + F.inTime + 150 + 250 + B.closeTime end
 local function outDuration(open) return (open and 0 or B.openTime + 120) + F.outTime + 200 end
 
-local function spawnBox(src, coords, heading, contents)
-    local ent = CreateObjectNoOffset(B.base, coords.x, coords.y, coords.z, true, true, false)
+local function emptyItem(boxType) return Config.BoxTypes[boxType or 'shoe'].item end
+local function boxLabel(boxType) return Config.BoxTypes[boxType or 'shoe'].label:lower() end
+
+local function spawnBox(src, coords, heading, contents, boxType)
+    boxType = Config.BoxTypes[boxType] and boxType or 'shoe'
+    local ent = CreateObjectNoOffset(Config.BoxTypes[boxType].base, coords.x, coords.y, coords.z, true, true, false)
     local timeout = GetGameTimer() + 3000
     while not DoesEntityExist(ent) do
         if GetGameTimer() > timeout then return nil end
@@ -68,10 +71,11 @@ local function spawnBox(src, coords, heading, contents)
     SetEntityHeading(ent, heading + 0.0)
     FreezeEntityPosition(ent, true)
     local st = Entity(ent).state
+    st:set('nzs:type', boxType, true)
     st:set('nzs:open', false, true)
     st:set('nzs:busy', false, true)
     st:set('nzs:shoe', contents and contents.shoe or false, true)
-    boxes[ent] = { owner = src, ownerId = src > 0 and Bridge.GetIdentifier(src) or nil, contents = contents, busy = false }
+    boxes[ent] = { owner = src, ownerId = src > 0 and Bridge.GetIdentifier(src) or nil, contents = contents, busy = false, type = boxType }
     return ent
 end
 
@@ -131,19 +135,22 @@ lib.callback.register('nayzeee-sneakers:placeBox', function(src, slot, kind, coo
         Bridge.Notify(src, Config.Text.boxLimit, 'error')
         return false
     end
-    local wanted = kind == 'boxed' and Config.Items.boxed or Config.Items.emptyBox
     local it = Inv.GetSlot(src, slot)
-    if not it or it.name ~= wanted then return false end
+    if not it then return false end
 
-    local contents = nil
+    local contents, boxType = nil, nil
     if kind == 'boxed' then
-        if not Config.Shoes[it.metadata.shoe] then return false end
+        if it.name ~= Config.Items.boxed or not Config.Shoes[it.metadata.shoe] then return false end
         contents = Items.Clean(it.metadata)
+        boxType = Shared.BoxTypeForShoe(contents.shoe)
+    else
+        boxType = Shared.BoxTypeOfItem(it.name)
+        if not boxType then return false end
     end
-    if not Inv.Remove(src, wanted, 1, slot) then return false end
-    local ent = spawnBox(src, coords, heading, contents)
+    if not Inv.Remove(src, it.name, 1, slot) then return false end
+    local ent = spawnBox(src, coords, heading, contents, boxType)
     if not ent then
-        if contents then Items.GivePair(src, contents, true) else Inv.Add(src, Config.Items.emptyBox, 1) end
+        if contents then Items.GivePair(src, contents, true) else Inv.Add(src, emptyItem(boxType), 1) end
         return false
     end
     return NetworkGetNetworkIdFromEntity(ent)
@@ -157,22 +164,23 @@ lib.callback.register('nayzeee-sneakers:packShoes', function(src, shoeSlot, coor
         return false
     end
     local shoes = Inv.GetSlot(src, shoeSlot)
-    local box = Inv.Find(src, Config.Items.emptyBox)
     if not shoes or shoes.name ~= Config.Items.shoes or not Config.Shoes[shoes.metadata.shoe] then return false end
+    local boxType = Shared.BoxTypeForShoe(shoes.metadata.shoe)
+    local box = Inv.Find(src, emptyItem(boxType))
     if not box then
-        Bridge.Notify(src, Config.Text.noEmptyBox, 'error')
+        Bridge.Notify(src, Config.Text.noEmptyBox:format(boxLabel(boxType)), 'error')
         return false
     end
     local meta = Items.Clean(shoes.metadata)
     if not Inv.Remove(src, Config.Items.shoes, 1, shoeSlot) then return false end
-    if not Inv.Remove(src, Config.Items.emptyBox, 1, box.slot) then
+    if not Inv.Remove(src, emptyItem(boxType), 1, box.slot) then
         Items.GivePair(src, meta, false)
         return false
     end
-    local ent = spawnBox(src, coords, heading, nil)
+    local ent = spawnBox(src, coords, heading, nil, boxType)
     if not ent then
         Items.GivePair(src, meta, false)
-        Inv.Add(src, Config.Items.emptyBox, 1)
+        Inv.Add(src, emptyItem(boxType), 1)
         return false
     end
     CreateThread(function() sequenceIn(ent, meta) end)
@@ -194,6 +202,11 @@ lib.callback.register('nayzeee-sneakers:putIn', function(src, netId, shoeSlot)
     if box.contents then return false end
     local shoes = Inv.GetSlot(src, shoeSlot)
     if not shoes or shoes.name ~= Config.Items.shoes or not Config.Shoes[shoes.metadata.shoe] then return false end
+    local need = Shared.BoxTypeForShoe(shoes.metadata.shoe)
+    if need ~= box.type then
+        Bridge.Notify(src, Config.Text.wrongBox:format(boxLabel(need)), 'error')
+        return false
+    end
     local meta = Items.Clean(shoes.metadata)
     if not Inv.Remove(src, Config.Items.shoes, 1, shoeSlot) then return false end
     local wasOpen = Entity(ent).state['nzs:open']
@@ -226,7 +239,7 @@ lib.callback.register('nayzeee-sneakers:pickUp', function(src, netId)
     if box.contents then
         ok = Items.GivePair(src, box.contents, true)
     else
-        ok = Inv.Add(src, Config.Items.emptyBox, 1)
+        ok = Inv.Add(src, emptyItem(box.type), 1)
     end
     if not ok then
         Bridge.Notify(src, Config.Text.noSpace, 'error')
@@ -240,7 +253,7 @@ lib.callback.register('nayzeee-sneakers:myShoes', function(src)
     local out = {}
     for _, it in ipairs(Inv.List(src, Config.Items.shoes)) do
         if Config.Shoes[it.metadata.shoe] then
-            out[#out + 1] = { slot = it.slot, meta = Items.Clean(it.metadata) }
+            out[#out + 1] = { slot = it.slot, meta = Items.Clean(it.metadata), box = Shared.BoxTypeForShoe(it.metadata.shoe) }
         end
     end
     return out
@@ -254,10 +267,10 @@ local function returnBox(ent, box, online)
     if online and GetPlayerPing(box.owner) > 0 then
         local ok
         if box.contents then ok = Items.GivePair(box.owner, box.contents, true)
-        else ok = Inv.Add(box.owner, Config.Items.emptyBox, 1) end
+        else ok = Inv.Add(box.owner, emptyItem(box.type), 1) end
         if ok then return deleteBox(ent) end
     end
-    Pending.Add(box.ownerId, box.contents, box.contents ~= nil)
+    Pending.Add(box.ownerId, box.contents, box.contents ~= nil, box.type)
     deleteBox(ent)
 end
 
@@ -279,8 +292,10 @@ end)
 --------------------------------------------------------------------------------
 
 --- Place a box with `meta` inside (or empty). Returns the net id.
-function Boxes.Spawn(coords, heading, meta, ownerSrc)
-    local ent = spawnBox(ownerSrc or 0, coords, heading or 0.0, meta and Items.Clean(meta))
+--- boxType defaults to the size the shoes need, or 'shoe'.
+function Boxes.Spawn(coords, heading, meta, ownerSrc, boxType)
+    boxType = boxType or (meta and Shared.BoxTypeForShoe(meta.shoe)) or 'shoe'
+    local ent = spawnBox(ownerSrc or 0, coords, heading or 0.0, meta and Items.Clean(meta), boxType)
     return ent and NetworkGetNetworkIdFromEntity(ent)
 end
 
@@ -288,6 +303,7 @@ end
 function Boxes.PackInto(netId, meta)
     local ent = NetworkGetEntityFromNetworkId(netId)
     if ent == 0 or not boxes[ent] or boxes[ent].contents or boxes[ent].busy then return false end
+    if Shared.BoxTypeForShoe(meta.shoe) ~= boxes[ent].type then return false end
     CreateThread(function() sequenceIn(ent, Items.Clean(meta)) end)
     return true
 end

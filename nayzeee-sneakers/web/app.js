@@ -4,7 +4,7 @@ const post = (name, data = {}) =>
   fetch(`https://${RES}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
     .catch(() => {});
 
-const img = name => name ? `images/${name}.png` : '';
+const img = name => name ? `../install/images/${name}.png` : '';   // the inventory icons ship once, in install/images
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ---------------- menu ---------------- */
