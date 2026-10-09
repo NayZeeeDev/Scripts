@@ -373,16 +373,21 @@ document.getElementById('pinpad').addEventListener('click', (e) => {
 
 /* ── helpers ──────────────────────────────────────────────── */
 const cur = () => (S.data && S.data.config.currency) || '$';
+/* the minus goes in front of the symbol: −$1 234, not $-1 234 */
 const money = (n) => {
-  const v = Math.round(n || 0).toLocaleString('en-US').replace(/,/g, ' ');
-  return (S.data && S.data.config.currencyRight) ? `${v}${cur()}` : `${cur()}${v}`;
+  const r = Math.round(n || 0);
+  const v = Math.abs(r).toLocaleString('en-US').replace(/,/g, ' ');
+  const s = (S.data && S.data.config.currencyRight) ? `${v}${cur()}` : `${cur()}${v}`;
+  return r < 0 ? `−${s}` : s;
 };
 const short = (n) => {
   n = Math.round(n || 0);
+  const a = Math.abs(n);
   const right = S.data && S.data.config.currencyRight;
-  const wrap = (v) => right ? v + cur() : cur() + v;
-  if (Math.abs(n) >= 1e6) return wrap((n / 1e6).toFixed(1) + 'm');
-  if (Math.abs(n) >= 1e4) return wrap(Math.round(n / 1e3) + 'k');
+  const wrap = (v) => (n < 0 ? '−' : '') + (right ? v + cur() : cur() + v);
+  // 999 600 would round to 1000k, so it reads as millions instead
+  if (a >= 1e6 || Math.round(a / 1e3) >= 1000) return wrap((a / 1e6).toFixed(1) + 'm');
+  if (a >= 1e4) return wrap(Math.round(a / 1e3) + 'k');
   return money(n);
 };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
@@ -431,8 +436,11 @@ function notify(title, description, kind) {
 
 function toast(title, body, bad) { notify(title, body, bad ? 'error' : 'success'); }
 
+/* Config.Sounds.enabled, passed in by the client with every payload */
+const soundsOn = () => !(S.data && S.data.config && S.data.config.sounds === false);
+
 function reply(res, fallback) {
-  if (res) playSound(res.ok ? 'approved' : 'declined', 0.35);
+  if (res && soundsOn()) playSound(res.ok ? 'approved' : 'declined', 0.35);
   if (!res) { notify('Banking', fallback || 'That did not go through.', 'error'); return false; }
   notify(res.ok ? 'Banking' : 'Not completed', res.msg || fallback, res.ok ? 'success' : 'error');
   return res.ok;
@@ -516,7 +524,18 @@ document.getElementById('veil').addEventListener('click', async (e) => {
 });
 
 document.getElementById('veil').addEventListener('change', (e) => {
-  if (e.target.dataset.act !== 'card-type') return;
+  const act = e.target.dataset.act;
+  if (act === 'payee-pick') {
+    const to = document.querySelector('#veil [data-name="to"]');
+    if (to && e.target.value) to.value = e.target.value;
+    return;
+  }
+  if (act === 'payee-save') {
+    const field = document.getElementById('payeeLabelField');
+    if (field) field.style.display = e.target.checked ? 'flex' : 'none';
+    return;
+  }
+  if (act !== 'card-type') return;
   const t = (S.data.config.cardTypes || []).find(x => x.id === e.target.value);
   const field = document.getElementById('depositField');
   if (!field || !t) return;
@@ -561,7 +580,7 @@ function amountModal(kind) {
     title: isDep ? 'Deposit cash' : 'Withdraw cash',
     text: isDep
       ? `You are carrying ${money(S.data.player.cash)}.`
-      : `${esc(acc.label)} holds ${money(acc.balance)}.`,
+      : `${acc.label} holds ${money(acc.balance)}.`,
     confirm: isDep ? 'Deposit' : 'Withdraw',
     body: `
       <div class="field">
@@ -587,9 +606,38 @@ function amountModal(kind) {
   });
 }
 
+/** Saved payees, most recently used first. null on a server without them. */
+function payeeList() {
+  const list = S.data && S.data.payees;
+  if (!Array.isArray(list)) return null;
+  return list.slice().sort((a, b) =>
+    String(b.last_used || '').localeCompare(String(a.last_used || ''), undefined, { numeric: true }));
+}
+
 function transferModal(prefillNumber) {
   const acc = account(S.accountId) || account(S.data.primary);
   const fee = S.data.config.transferFee;
+  const payees = payeeList();
+
+  // picking a payee fills the number in; the field stays editable
+  const picker = payees && payees.length ? `
+      <div class="field">
+        <label>Saved payee</label>
+        <select data-act="payee-pick">
+          <option value="">Type a number instead</option>
+          ${payees.map(p => `<option value="${esc(p.account_number)}" ${p.account_number === prefillNumber ? 'selected' : ''}>${esc(p.label)} · ${esc(p.account_number)}</option>`).join('')}
+        </select>
+      </div>` : '';
+
+  const saver = payees ? `
+      <div class="sw-line">
+        <div><b>Save as payee</b><span>Keep this number for next time.</span></div>
+        <input type="checkbox" data-name="savePayee" data-act="payee-save">
+      </div>
+      <div class="field" id="payeeLabelField" style="display:none">
+        <label>Payee name</label>
+        <input data-name="payeeLabel" maxlength="32" placeholder="Landlord, mechanic…" autocomplete="off">
+      </div>` : '';
 
   openModal({
     title: 'Send money',
@@ -600,6 +648,7 @@ function transferModal(prefillNumber) {
         <label>From</label>
         <select data-name="account">${accountOptions(acc && acc.id, a => a.can.transfer)}</select>
       </div>
+      ${picker}
       <div class="field">
         <label>Account number</label>
         <input data-name="to" placeholder="NZB-PSL-XXXXXXXX" value="${esc(prefillNumber || '')}" autocomplete="off">
@@ -613,11 +662,38 @@ function transferModal(prefillNumber) {
           <label>Reference</label>
           <input data-name="note" maxlength="40" placeholder="Rent, tools, split…" autocomplete="off">
         </div>
-      </div>`,
+      </div>
+      ${saver}`,
     onConfirm: async (v) => {
+      const to = (v.to || '').trim();
       const amount = parseInt(v.amount, 10);
-      if (!v.to || !amount) return toast('Not completed', 'Add an account number and an amount.', true);
-      const res = await post('nz_bank:transfer', parseInt(v.account, 10), v.to.trim(), amount, v.note);
+      if (!to) return toast('Not completed', 'Add an account number.', true);
+      if (!amount || amount <= 0) return toast('Not completed', 'Enter an amount above zero.', true);
+      const res = await post('nz_bank:transfer', parseInt(v.account, 10), to, amount, v.note);
+      closeModal();
+      if (!reply(res)) return;
+
+      // only after the money went through, and never twice for one number
+      if (v.savePayee && !(payees || []).some(p => p.account_number === to)) {
+        const saved = await post('nz_bank:savePayee', (v.payeeLabel || '').trim() || to, to);
+        if (!saved || !saved.ok) reply(saved, 'The payee was not saved.');
+      }
+      refresh();
+    }
+  });
+}
+
+function payeeDeleteModal(id) {
+  const p = (payeeList() || []).find(x => String(x.id) === String(id));
+  if (!p) return;
+  openModal({
+    title: `Delete ${p.label}?`,
+    text: `${p.account_number} comes off your saved payees. Nothing already sent is affected.`,
+    confirm: 'Delete payee',
+    cancel: 'Keep it',
+    danger: true,
+    onConfirm: async () => {
+      const res = await post('nz_bank:deletePayee', p.id);
       closeModal();
       if (reply(res)) refresh();
     }
@@ -1093,7 +1169,7 @@ function pageShared() {
 
   const members = S.members.map(m => `
     <div class="row">
-      <div class="av">${initials(m.name)}</div>
+      <div class="av">${esc(initials(m.name))}</div>
       <div class="row-txt"><b>${esc(m.name)}</b>
         <span>${m.can_deposit ? 'Deposit' : ''}${m.can_withdraw ? ' · Withdraw' : ''}${m.can_transfer ? ' · Transfer' : ''}</span></div>
       ${m.role === 'owner'
@@ -1463,6 +1539,17 @@ function sparkline(points, up) {
 function pageInvest() {
   const m = S.data.market;
 
+  // the market failed to load server-side; say so rather than crash the page
+  if (!m || !Array.isArray(m.assets)) {
+    return `
+      <div class="head"><div><h1>Investments</h1><p>Buy into listed assets and track how they move.</p></div></div>
+      <section class="panel"><div class="p-body tight">
+        <div class="empty">${ICON.none}<b>The market is not available</b>
+          <span>Prices could not be loaded right now. Close the bank and open it again in a moment.</span></div>
+      </div></section>`;
+  }
+  m.holdings = m.holdings || [];
+
   const assets = m.assets.map(a => {
     const up = a.change >= 0;
     return `<div class="row">
@@ -1515,6 +1602,7 @@ function pageInvest() {
 /* ── settings ── */
 function pageSettings() {
   const s = S.data.settings;
+  const extras = [overdraftPanel(), payeesPanel()].filter(Boolean);
   const line = (key, title, text) => `
     <div class="sw-line">
       <div><b>${esc(title)}</b><span>${esc(text)}</span></div>
@@ -1549,7 +1637,31 @@ function pageSettings() {
       </section>
     </div>
 
-    ${overdraftPanel()}`;
+    ${extras.length ? `<div class="cols even">${extras.join('')}</div>` : ''}`;
+}
+
+/** Saved payees. Not drawn at all on a server that does not send them. */
+function payeesPanel() {
+  const payees = payeeList();
+  if (!payees) return '';
+
+  const rows = payees.map(p => `
+    <div class="row">
+      <div class="av">${esc(initials(p.label))}</div>
+      <div class="row-txt"><b>${esc(p.label)}</b><span>${esc(p.account_number)}</span></div>
+      <button class="icobtn" data-act="payee-send" data-number="${esc(p.account_number)}" title="Send money">${ICON.swap}</button>
+      <button class="icobtn danger" data-act="payee-delete" data-id="${esc(p.id)}" title="Delete payee">${ICON.x}</button>
+    </div>`).join('') || `<div class="empty">${ICON.none}<b>No saved payees</b>
+      <span>Tick Save as payee when you send money and they show up here.</span></div>`;
+
+  return `
+      <section class="panel">
+        <div class="p-head">
+          <div><h2>Saved payees</h2><p>Numbers you send to often</p></div>
+          <span class="tally">${payees.length}</span>
+        </div>
+        <div class="p-body tight scrolls">${rows}</div>
+      </section>`;
 }
 
 /** Only drawn when the server says overdrafts are on offer. */
@@ -1560,7 +1672,6 @@ function overdraftPanel() {
   const overdrawn = od.used > 0;
 
   return `
-    <div class="cols even">
       <section class="panel">
         <div class="p-head">
           <div><h2>Overdraft</h2>
@@ -1588,8 +1699,7 @@ function overdraftPanel() {
           ${overdrawn ? `<p class="note">Pay money in and the overdraft closes itself.
             Until then interest is charged on what you owe.</p>` : ''}
         </div>
-      </section>
-    </div>`;
+      </section>`;
 }
 
 /* ═══════════════ STATEMENTS ═══════════════ */
@@ -1696,6 +1806,7 @@ function render() {
 
   const view = document.getElementById('view');
   view.innerHTML = (PAGES[S.page] || pageDashboard)();
+  view.classList.toggle('long', S.page === 'settings');
   view.scrollTop = 0;
 
   if (S.page === 'dashboard' && introSettled !== false) loadRecent();
@@ -1957,6 +2068,8 @@ document.getElementById('view').addEventListener('click', async (e) => {
       reply(res);
       break;
     }
+    case 'payee-send': transferModal(el.dataset.number); break;
+    case 'payee-delete': payeeDeleteModal(el.dataset.id); break;
 
     /* ── statements ── */
     case 'st-account':
@@ -2098,7 +2211,9 @@ function payCardModal(cardId) {
         <button data-fill="${card.balance}">Everything</button>
       </div>`,
     onConfirm: async (v) => {
-      const res = await post('nz_bank:payCard', card.id, parseInt(v.amount, 10), parseInt(v.account, 10));
+      const amount = parseInt(v.amount, 10);
+      if (!amount || amount <= 0) return toast('Not completed', 'Enter an amount above zero.', true);
+      const res = await post('nz_bank:payCard', card.id, amount, parseInt(v.account, 10));
       closeModal();
       if (reply(res)) { S.statement = null; refresh(); }
     }
@@ -2170,9 +2285,22 @@ function cardSettingsModal() {
         <input type="checkbox" data-name="express" ${card.express ? 'checked' : ''}>
       </div>`,
     onConfirm: async (v) => {
-      await post('nz_bank:updateCard', card.id, 'limit', parseInt(v.limit, 10));
-      await post('nz_bank:updateCard', card.id, 'skin', v.skin);
-      await post('nz_bank:updateCard', card.id, 'express', !!v.express);
+      // only what changed, so a feature switched off server-side
+      // (express pay) does not fail a save that never touched it
+      const steps = [
+        ['limit', parseInt(v.limit, 10), card.limit],
+        ['skin', v.skin, card.skin],
+        ['express', !!v.express, !!card.express]
+      ].filter(([, value, was]) => value !== was);
+      // stop at the first one the bank turns down and say why
+      for (const [action, value] of steps) {
+        const res = await post('nz_bank:updateCard', card.id, action, value);
+        if (!res || !res.ok) {
+          closeModal();
+          reply(res);
+          return refresh();
+        }
+      }
       closeModal();
       toast('Saved', 'Card settings updated.');
       refresh();
@@ -2380,7 +2508,7 @@ function billPayModal(billId) {
   if (!bill) return;
   openModal({
     title: `Pay ${bill.issuer_label}?`,
-    text: `${esc(bill.reason)} — ${money(bill.amount)}`,
+    text: `${bill.reason} — ${money(bill.amount)}`,
     confirm: 'Pay bill',
     body: `<div class="field"><label>Pay from</label>
       <select data-name="account">${accountOptions(S.data.primary, a => a.can.withdraw)}</select></div>`,
@@ -2405,7 +2533,9 @@ function billIssueModal() {
       <div class="field"><label>What is it for</label>
         <input data-name="reason" maxlength="60" placeholder="Repairs on a Sultan"></div>`,
     onConfirm: async (v) => {
-      const res = await post('nz_bank:issueBill', v.target, parseInt(v.amount, 10), v.reason);
+      const amount = parseInt(v.amount, 10);
+      if (!amount || amount <= 0) return toast('Not completed', 'Enter an amount above zero.', true);
+      const res = await post('nz_bank:issueBill', v.target, amount, v.reason);
       closeModal();
       if (reply(res)) refresh();
     }
@@ -2430,8 +2560,10 @@ function schedCreateModal() {
       </div>
       <div class="field"><label>Name it</label><input data-name="label" maxlength="32" placeholder="Garage rent"></div>`,
     onConfirm: async (v) => {
+      const amount = parseInt(v.amount, 10);
+      if (!amount || amount <= 0) return toast('Not completed', 'Enter an amount above zero.', true);
       const res = await post('nz_bank:createScheduled', parseInt(v.account, 10), (v.to || '').trim(),
-        parseInt(v.amount, 10), v.label, v.interval);
+        amount, v.label, v.interval);
       closeModal();
       if (reply(res)) refresh();
     }
@@ -2461,7 +2593,13 @@ function wageModal(grade) {
       <div class="sw-line"><div><b>Paying</b><span>Turn off to pause this grade without losing the amount.</span></div>
         <input type="checkbox" data-name="enabled" ${row.enabled ? 'checked' : ''}></div>`,
     onConfirm: async (v) => {
-      const res = await post('nz_bank:setPayroll', grade, parseInt(v.amount, 10) || 0, v.interval,
+      // 0 is a real wage (the server allows it); an emptied field is not
+      const amount = parseInt(v.amount, 10);
+      if (String(v.amount || '').trim() === '' || !(amount >= 0)) {
+        return toast('Not completed', 'Enter a wage, or 0 to pay nothing.', true);
+      }
+      if (amount > p.maxWage) return toast('Not completed', `The most a wage can be is ${money(p.maxWage)}.`, true);
+      const res = await post('nz_bank:setPayroll', grade, amount, v.interval,
         !!v.enabled, soc && soc.owner);
       closeModal();
       if (reply(res)) { S.payrollData = null; refresh(); }
@@ -2493,9 +2631,9 @@ function memberCardModal(identifier, name) {
 
 function tradeModal(side, assetId) {
   const m = S.data.market;
-  const a = m.assets.find(x => x.id === assetId);
-  if (!a) return;
-  const held = m.holdings.find(h => h.asset === assetId);
+  const a = m && (m.assets || []).find(x => x.id === assetId);
+  if (!a) return notify('Not completed', 'The market is not available right now.', 'error');
+  const held = (m.holdings || []).find(h => h.asset === assetId);
   const buying = side === 'buy';
 
   if (!buying && !held) return notify('Not completed', `You hold no ${a.label}.`, 'error');
@@ -2517,6 +2655,10 @@ function tradeModal(side, assetId) {
     onConfirm: async (v) => {
       const amount = parseInt(v.amount, 10);
       if (!amount || amount <= 0) return notify('Not completed', 'Enter an amount above zero.', 'error');
+      // the server quietly sells everything for an amount over the position
+      if (!buying && amount > Math.ceil(held.value)) {
+        return notify('Not completed', `You only hold ${money(held.value)}.`, 'error');
+      }
       const res = await post('nz_bank:trade', side, assetId, amount, parseInt(v.account, 10));
       closeModal();
       if (reply(res)) refresh();

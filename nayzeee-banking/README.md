@@ -51,6 +51,9 @@ Existing money is not migrated. If you're moving off another banking script, run
 | `Config.Bills.latePenalty` | `0.15` | Added once a bill goes overdue |
 | `Config.Scheduled.intervals` | table | Hourly / daily / weekly standing orders |
 | `Config.DirectDeposit.enabled` | `true` | Players choose bank or cash for wages |
+| `Config.Locale` | `'en'` | Which file in `locales/` the client prompts and notifications come from |
+
+**Translating.** Copy `locales/en.lua` to, say, `locales/de.lua`, change `Locales['en']` to `Locales['de']`, translate the right-hand side and set `Config.Locale = 'de'`. A line you leave out falls back to English, and a key with no English line shows as the key itself rather than breaking anything. So far this covers the branch prompts and target labels, the notifications raised on the client and the phone-store text; messages written by the server scripts are still English in those files. The text inside the bank UI, the ATM screen and the phone app lives in the `web/` files and is edited there.
 
 ---
 
@@ -347,14 +350,30 @@ Place them against a real machine with `/atmslot` (`Config.Debug = true`): a gre
 
 ## 📱 Phone app
 
-`Config.Phone.enabled` registers a banking app on the player's phone. lb-phone is detected and registered on its own, including after an lb-phone restart; if no supported phone is running the app simply is not added and nothing else changes.
+`Config.Phone.enabled` registers a banking app on the player's phone. The supported phones are detected and registered on their own — when this script starts, when the phone starts after it, and again after a phone restart. If no supported phone is running the app simply is not added and nothing else changes. When the app cannot be added, the F8 console says which phone refused it and why.
+
+| Phone | Resource | How it is registered | Live refresh |
+|---|---|---|---|
+| lb-phone | `lb-phone` | `AddCustomApp` / `RemoveCustomApp` ([docs](https://docs.lbscripts.com/phone/custom-apps/), [template](https://github.com/lbphone/lb-phone-app-template)) | Yes, `SendCustomAppMessage` |
+| Quasar Smartphone PRO | `qs-smartphone-pro` | `addCustomApp` / `removeCustomApp` ([docs](https://docs.quasar-store.com/player-systems/smartphone-pro/create-custom-apps), [template](https://github.com/quasar-store-organizations/custom-app-template)) | Each time the app is opened |
+| okokPhone | `okokPhone` | `loadApp` ([custom app template](https://github.com/luxu-gg/okokphone_custom_app)) | No push — catches up when the page is shown again |
+| YSeries (YPhone / YFlip) | `yseries`, `yphone`, `yflip-phone` | `AddCustomApp` / `RemoveCustomApp` ([docs](https://docs.teamsgg.dev/paid-scripts/phone/custom-apps), [template](https://github.com/TeamsGG-Development/yseries-custom-app-templates)) | No push — catches up when the page is shown again |
+
+Every phone loads the same page, `web/phone/index.html?phone=lb|qs|okok|ys`; the query tells the page which bridge it is sitting in. Only lb-phone documents a way to push a message into an open app, so on the others a balance that moves while the app is already on screen shows up the next time it is opened.
+
+Not supported, on purpose:
+
+- **The original qs-smartphone** (not PRO) — its custom apps are files copied into the phone's own `html/apps` and `client/apps` folders, not a page another resource can hand it.
+- **NPWD** — external apps are React modules built against its own toolkit and loaded into its bundle, not an iframe page, so this UI cannot be dropped in as-is.
+- **okokPhone removal** — the template documents no export for taking an app back off, so on okokPhone the icon stays until the phone restarts.
 
 | Setting | Default | Description |
 |---|---|---|
 | `Config.Phone.enabled` | `true` | Register the app at all |
+| `Config.Phone.resource` | `'auto'` | `'auto'` uses the first supported phone that is running; name one (e.g. `'qs-smartphone-pro'`) to pin it |
 | `Config.Phone.appName` | `Banking` | Name on the home screen |
-| `Config.Phone.preinstalled` | `true` | `false` puts it in the phone's app store |
-| `Config.Phone.price` | `0` | Store price when it is not preinstalled |
+| `Config.Phone.preinstalled` | `true` | `false` puts it in the phone's app store (lb-phone, YSeries) |
+| `Config.Phone.price` | `0` | Store price when it is not preinstalled (lb-phone) |
 | `Config.Phone.nearbyRadius` | `12.0` | How far "nearby" reaches, in metres |
 | `Config.Phone.maxRequest` | `25000` | Most one player can ask another for |
 | `Config.Phone.maxOpenRequests` | `3` | Requests you can have waiting with one person |
@@ -372,13 +391,14 @@ Three tabs along the bottom:
 
 ### Sending and requesting
 
-Tapping Send or Request opens a picker with three ways to find somebody:
+Tapping Send or Request opens a picker with these ways to find somebody:
 
 | Tab | Where it comes from | Needs |
 |---|---|---|
 | **Nearby** | Players within `nearbyRadius`, closest first | Nothing |
 | **Recent** | People you have sent money to before | `install/update.sql` |
 | **Contacts** | The player's own phone contacts | `Config.Phone.contacts` |
+| **Saved** | Payees saved from the bank's Send money window | A server that sends `payees` |
 
 An account number can always be typed in instead. A **request** creates a bill the other player pays from their own phone, so it runs through the bills system already in place — limits, overdue penalties and auto-pay all apply to it.
 
@@ -394,7 +414,7 @@ Loans can be taken out from the phone. With no loan it lists the tiers, greying 
 
 Cards, accounts, bills and settings open as sheets over the top. It calls the same server callbacks as the bank UI, so a limit or permission set in config applies on the phone without being configured twice. An open app refreshes itself whenever a balance moves.
 
-The UI lives in `web/phone/` and is deliberately phone-shaped rather than a shrunk desktop layout, so porting it to another phone resource means adding a registration block to `client/cl_phone.lua` — that file is left out of escrow for exactly that reason.
+The UI lives in `web/phone/` and is deliberately phone-shaped rather than a shrunk desktop layout, so porting it to another phone resource means adding one adapter to `client/cl_phone.lua` — that file is left out of escrow for exactly that reason.
 
 ---
 
@@ -541,6 +561,8 @@ The bank UI, the ATM screen and the phone app sit at three different depths in t
 | `Config.Target` | `ox_target` | `ox_target`, `qb-target`, `none` (key press + marker) |
 | `Config.Society` | auto-detect | `addon_account_data`, `management_funds`, `bank_accounts`, or your own table and columns |
 | `Config.CurrencyRight` | `false` | `true` renders `1 500$` |
+
+Branches always have a way in. The target option goes on the teller, or on a small zone where the marker stands when `Config.SpawnPeds = false`. If the configured target resource is not actually running, the key press takes over until it starts, and its options are put back if it restarts.
 
 A wrong `Config.Inventory` value falls back to ESX money rather than eating someone's cash. The society table is probed on first sync and the detected one is printed with `Debug = true`.
 

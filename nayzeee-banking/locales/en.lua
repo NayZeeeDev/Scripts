@@ -44,5 +44,23 @@ Locales['en'] = {
 
     bill_new         = '%s from %s',
     bill_overdue     = 'A late fee of %s was added to your %s bill.',
-    interest_paid    = '%s added to your savings.'
+    interest_paid    = '%s added to your savings.',
+
+    -- branches
+    banking_title    = 'Banking',
+    target_open      = 'Open banking',
+    textui_open      = '[%s]  Open banking',
+    branch_closed    = 'Bank closed',
+    branch_opens     = 'The branch opens at %02d:00.',
+    bank_no_answer   = 'The bank did not answer. Try again in a moment — if it keeps happening, the server console says why.',
+    blocked_request  = 'Blocked request.',
+    tellers_cleared  = 'Cleared %s teller%s within 60m. Restart the resource to respawn them.',
+
+    -- card items
+    card_blank       = 'This card has no details on it.',
+    card_default     = 'Bank card',
+    card_no_holder   = 'Unknown holder',
+
+    -- phone
+    phone_app_description = 'Balance, transfers, cards and bills'
 }

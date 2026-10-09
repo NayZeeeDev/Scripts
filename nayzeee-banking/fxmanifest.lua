@@ -11,7 +11,8 @@ shared_scripts {
     'lock.lua',
     '@ox_lib/init.lua',
     'config.lua',
-    'locales/*.lua'
+    'locales/*.lua',
+    'shared/locale.lua'
 }
 
 client_scripts {
