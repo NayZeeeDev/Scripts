@@ -14,6 +14,32 @@ Locales.en = {
     putIn = 'Put shoes in',
     pickUp = 'Pick up box',
 
+    boxColour = 'Box colour',
+    lastUsed = 'Last used',
+
+    -- limited drops
+    dropFrom = 'Plug Drops',
+    dropAnnounce = 'DROP: %s. Only %d pairs at $%s. The raffle is open for %d minutes: enter in the Plug app or at the drop store.',
+    dropWon = 'You won the %s raffle! Collect and pay at %s within %d minutes.',
+    dropLost = 'No luck on the %s raffle this time.',
+    dropWalkIn = '%d pair(s) of the %s are left: first come, first served at %s.',
+    dropSoldOutAll = 'The %s drop is sold out.',
+    dropOver = 'The %s drop is over.',
+    dropEntered = 'You\'re in the %s raffle. Winners get a text when it closes.',
+    dropAlready = 'You\'re already in this raffle',
+    dropClosed = 'There\'s no drop on right now',
+    dropGoStore = 'Collect it at %s',
+    dropOnePer = 'One pair per person',
+    dropSoldOut = 'Sold out',
+    dropNoMoney = 'You need $%s',
+    dropBought = 'Got the %s',
+    dropEnter = 'Enter the raffle',
+    dropCollect = 'Collect the drop',
+    dropBuyLeft = 'Buy a pair',
+    dropWhat = 'What\'s dropping',
+    dropNone = 'Nothing is dropping right now. You\'ll get a text when something does.',
+    dropSize = 'Your size',
+
     -- display cases
     dispOpen = 'Open door',
     dispClose = 'Close door',

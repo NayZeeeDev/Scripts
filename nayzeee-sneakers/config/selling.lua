@@ -183,3 +183,36 @@ Config.SellPolice = {
     Code   = '10-66',
     Blip   = { sprite = 51, colour = 1 },
 }
+
+-- ██████╗ ██████╗  ██████╗ ██████╗ ███████╗
+-- ██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██╔════╝
+-- ██║  ██║██████╔╝██║   ██║██████╔╝███████╗
+-- ██║  ██║██╔══██╗██║   ██║██╔═══╝ ╚════██║
+-- ██████╔╝██║  ██║╚██████╔╝██║     ███████║
+-- ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚══════╝
+
+-- Limited drops: every so often one colourway drops in a handful of pairs. Everyone gets a text, the
+-- raffle opens (enter in the Plug app or at the drop store), winners are drawn and have a while to
+-- collect and pay at the store; pairs nobody claims go to whoever walks in first. Drop pairs are marked
+-- Limited and sell for more. Admins: /sneakerdrop [shoe_colour] [pairs] starts one now, /sneakerdrop stop ends it.
+Config.Drops = {
+    Enabled    = true,
+    Every      = { 90, 180 },     -- minutes between drops (picked at random in this range)
+    MinPlayers = 4,               -- no drops while fewer players are on
+    Raffle     = 10,              -- minutes the raffle is open after the announcement
+    Claim      = 15,              -- minutes winners have to collect their pair
+    Stock      = { 4, 10 },       -- pairs per drop
+    PriceMult  = 1.0,             -- drop price = the shoe's retail price x this
+    ValueBoost = 1.5,             -- buyers pay this much more for a Limited pair
+    HypeBoost  = 0.25,            -- the dropped model gets this much extra hype until the board rerolls
+    BoxColour  = 'black',         -- drop pairs come in this box colour (Config.BoxColours)
+    Pool       = nil,             -- nil = any shoe on sale, or a list like { 'fang5_c', 'cup_a', 'mia_b' }
+    Account    = 'bank',          -- 'cash' | 'bank'
+    Command    = 'sneakerdrop',   -- admins (Config.AdminAce)
+    Store = {
+        label  = 'Sneaker drop',
+        ped    = `a_m_y_hipster_01`,
+        coords = vector4(127.8, -223.5, 54.56, 70.0),   -- Suburban, Hawick Ave; move it anywhere
+        blip   = { sprite = 617, colour = 27, scale = 0.85 },   -- shown while a drop is on
+    },
+}

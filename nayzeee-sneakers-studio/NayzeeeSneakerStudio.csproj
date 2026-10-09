@@ -29,7 +29,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="web/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
-    <EmbeddedResource Include="../nayzeee-sneakers/stream/nzs_box*/*.ydr" LogicalName="boxes/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../nayzeee-sneakers-boxes/stream/nzs_box/*.ydr;../nayzeee-sneakers-boxes/stream/nzs_box_heel/*.ydr;../nayzeee-sneakers-boxes/stream/nzs_box_boot/*.ydr" LogicalName="boxes/%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

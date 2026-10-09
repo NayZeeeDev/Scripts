@@ -81,6 +81,14 @@ function Hype.Get(modelId)
     return board.mult[modelId] or 1.0
 end
 
+--- A limited drop pushes its model up the board until the next reroll
+function Hype.Boost(modelId, amount)
+    if not H.Enabled or not modelId then return end
+    Hype.Get(modelId)
+    board.mult[modelId] = math.floor(((board.mult[modelId] or 1.0) + (amount or 0)) * 100 + 0.5) / 100
+    SetResourceKvp('hype', json.encode(board))
+end
+
 --- { { model, label, mult, image }, ... } hottest first
 function Hype.Board()
     local out = {}

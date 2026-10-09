@@ -28,6 +28,7 @@ client_scripts {
     'client/ui.lua',
     'client/camera.lua',
     'client/place.lua',
+    'client/stream.lua',
     'client/boxes.lua',
     'client/displays.lua',
     'client/shoes.lua',
@@ -38,6 +39,7 @@ client_scripts {
     'client/cinematic.lua',
     'client/selling.lua',
     'client/plug.lua',
+    'client/drops.lua',
     'client/studio.lua',
     'client/main.lua',
 }
@@ -58,6 +60,7 @@ server_scripts {
     'server/crafting.lua',
     'server/dirt.lua',
     'server/selling.lua',
+    'server/drops.lua',
     'server/studio.lua',
     'server/shots.js',
     'server/props.lua',
@@ -85,26 +88,10 @@ files {
 }
 
 -- Escrow (Tebex / Keymaster): everything is locked except these, which owners can edit.
--- The props and boxes in stream/ are locked too.
+-- The props live in their own resources (nayzeee-sneakers-shoes, nayzeee-sneakers-boxes), locked too.
 escrow_ignore {
     'config/*.lua',
     'locales/*.lua',
     'bridge/**/*.lua',
     'install/*.lua',
 }
-
--- Everything in stream/ is streamed automatically; each ytyp needs its line.
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_alice/nzs_alice.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_bianca/nzs_bianca.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_box/nzs_box.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_box_boot/nzs_box_boot.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_box_heel/nzs_box_heel.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_court/nzs_court.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_crevis/nzs_crevis.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_display/nzs_display.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_cup/nzs_cup.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_fang5/nzs_fang5.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_maisie/nzs_maisie.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_mia/nzs_mia.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_omnia/nzs_omnia.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nzs_stack/nzs_stack.ytyp'

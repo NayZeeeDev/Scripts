@@ -45,6 +45,12 @@ local function spawn(r)
     return ent
 end
 
+local function countAll()
+    local n = 0
+    for _ in pairs(records) do n = n + 1 end
+    GlobalState.nzsDisplays = n
+end
+
 local function despawn(id)
     local ent = ents[id]
     if ent and DoesEntityExist(ent) then DeleteEntity(ent) end
@@ -119,6 +125,7 @@ lib.callback.register('nayzeee-sneakers:placeDisplay', function(src, slot, typeI
     end
     records[r.id] = r
     save(r)
+    countAll()
     return NetworkGetNetworkIdFromEntity(ent)
 end)
 
@@ -201,6 +208,7 @@ lib.callback.register('nayzeee-sneakers:displayPickUp', function(src, netId)
     despawn(r.id)
     records[r.id] = nil
     DeleteResourceKvp(PREFIX .. r.id)
+    countAll()
     return true
 end)
 
@@ -232,6 +240,7 @@ CreateThread(function()
     for _, r in pairs(records) do
         if spawn(r) then n = n + 1 end
     end
+    countAll()
     if n > 0 then print(('^2[nayzeee-sneakers]^7 %d display case(s) put back'):format(n)) end
 end)
 
@@ -252,5 +261,6 @@ exports('RemovePlayerDisplays', function(identifier, giveBack)
             n = n + 1
         end
     end
+    countAll()
     return n
 end)

@@ -32,6 +32,7 @@ function Selling.Value(meta, boxed)
     v = v * (S.Condition[meta.condition] or 0.5)
     v = v * (1.0 - math.min(100, tonumber(meta.dirt) or 0) / 100 * S.DirtPenalty)
     if not boxed then v = v * S.NoBox end
+    if meta.limited and Config.Drops then v = v * (Config.Drops.ValueBoost or 1.0) end
     local popular = false
     for _, size in ipairs(S.PopularSizes[shoe.gender == 'female' and 'female' or 'male']) do
         if size == tostring(meta.size) then popular = true end
@@ -372,6 +373,7 @@ lib.callback.register('nayzeee-sneakers:plugData', function(src)
         profile = { level = level, xp = xp, from = from, to = to, rep = st.rep, repMax = R.Max,
                     sold = st.sold, earned = st.earned, caught = st.caught, made = st.made, cleaned = st.cleaned },
         hype = Config.Hype.Enabled and hype or {}, trending = Config.Hype.Trending,
+        drop = Drops and Drops.View(src) or nil,
         props = Config.Studio.PropsResource,
         sources = {
             props = GetResourceState(Config.Studio.PropsResource) == 'started',

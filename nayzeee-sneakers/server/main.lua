@@ -74,3 +74,14 @@ CreateThread(function()
         print(('^3[nayzeee-sneakers]^7 no clothing slot or drawable set for: %s (config/shoes.lua) - they can be boxed and inspected but not worn yet'):format(table.concat(missing, ', ')))
     end
 end)
+
+-- the props live in their own resources: say so plainly when one isn't running
+CreateThread(function()
+    Wait(2000)
+    for _, res in ipairs({ 'nayzeee-sneakers-shoes', 'nayzeee-sneakers-boxes' }) do
+        local st = GetResourceState(res)
+        if st ~= 'started' and st ~= 'starting' then
+            print(('^1[nayzeee-sneakers]^7 %s is %s: its props won\'t show. Add "ensure %s" to server.cfg before nayzeee-sneakers.'):format(res, st, res))
+        end
+    end
+end)

@@ -103,3 +103,14 @@ relay('plug:gps', function()
     Selling.GPS()
     return { ok = true }
 end)
+
+relay('plug:dropEnter', function()
+    local ok, msg = lib.callback.await('nayzeee-sneakers:dropEnter', false)
+    if msg then UI.Notify(msg, ok and 'success' or 'error') end
+    return { ok = ok == true }
+end)
+
+relay('plug:dropGps', function()
+    Drops.Gps()
+    return { ok = true }
+end)

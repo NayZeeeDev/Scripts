@@ -166,7 +166,7 @@ CreateThread(function()
             end
             Wait(0)
         else
-            Wait(100)
+            Wait(250)
         end
     end
 end)
@@ -212,15 +212,17 @@ local targetBox   -- set further down, once the box options exist
 
 local function addBox(base)
     local t = typeOf(base)
-    if not LoadModel(t.lid) or not DoesEntityExist(base) or boxes[base] then return end
+    local boxType, colour = Shared.BoxTypeOfModel(GetEntityModel(base))
+    local _, lidModel = Shared.BoxModels(boxType, colour)
+    if not LoadModel(lidModel) or not DoesEntityExist(base) or boxes[base] then return end
     local c = GetEntityCoords(base)
-    local lid = CreateObject(t.lid, c.x, c.y, c.z, false, false, false)
+    local lid = CreateObject(lidModel, c.x, c.y, c.z, false, false, false)
     SetEntityCollision(lid, false, false)
     SetEntityInvincible(lid, true)
     local angle = Entity(base).state['nzs:open'] and B.openAngle or 0.0
     boxes[base] = { t = t, lid = lid, angle = angle, to = angle }
     attachLid(base, lid, angle)
-    SetModelAsNoLongerNeeded(t.lid)
+    SetModelAsNoLongerNeeded(lidModel)
     syncShoe(base)
     if targetBox then targetBox(base, t) end
 end
@@ -231,14 +233,15 @@ CreateThread(function()
             print(('^1[nayzeee-sneakers]^7 %s (%s)'):format(Config.Text.modelMissing, id))
         end
     end
+    -- new boxes come from the shared scan (client/stream.lua); this loop only looks after the ones we have
+    local models = {}
+    for id in pairs(Config.BoxTypes) do
+        for _, c in ipairs(Config.BoxColours or { { id = 'orange' } }) do models[#models + 1] = (Shared.BoxModels(id, c.id)) end
+    end
+    Stream.Watch(models, B.streamDistance, 'nzsBoxes', function(e) return boxes[e] ~= nil end, addBox)
     while true do
+        if not next(boxes) then Wait(1000) goto continue end
         local me = GetEntityCoords(PlayerPedId())
-        for _, obj in ipairs(GetGamePool('CObject')) do
-            if not boxes[obj] and Shared.BoxTypeOfModel(GetEntityModel(obj))
-                and #(GetEntityCoords(obj) - me) < B.streamDistance then
-                addBox(obj)
-            end
-        end
         for base in pairs(boxes) do
             if not DoesEntityExist(base) or #(GetEntityCoords(base) - me) > B.streamDistance + 5.0 then
                 removeBox(base)
@@ -246,7 +249,8 @@ CreateThread(function()
                 syncShoe(base)   -- catches anything a state bag event raced past
             end
         end
-        Wait(500)
+        Wait(750)
+        ::continue::
     end
 end)
 
@@ -398,12 +402,29 @@ end, false)
 
 -- Placing boxes -----------------------------------------------------------------
 
+--- Which colour box: a quick menu (the last one used is at the top). nil = cancelled.
+function Boxes.PickColour()
+    local list = Config.BoxColours or {}
+    if not Config.Box.colourPicker or #list < 2 then return Shared.BoxColour(nil) end
+    local last = GetResourceKvpString('nzs:boxcolour')
+    local options = {}
+    for _, c in ipairs(list) do
+        local o = { id = c.id, label = c.label, image = 'nz_boxcolour_' .. c.id, description = c.id == last and Config.Text.lastUsed or nil }
+        if c.id == last then table.insert(options, 1, o) else options[#options + 1] = o end
+    end
+    local pick = UI.Menu({ title = Config.Text.boxColour, options = options })
+    if pick then SetResourceKvp('nzs:boxcolour', pick) end
+    return pick
+end
+
 --- Pick where the box goes: a see-through box follows where you look
-local function placementSpot(boxType)
+local function placementSpot(boxType, colour)
     local t = Config.BoxTypes[boxType] or Config.BoxTypes.shoe
-    return Place.Ghost(t.base, {
+    local base, lid = Shared.BoxModels(boxType, colour)
+    if not IsModelInCdimage(base) then base, lid = t.base, t.lid end   -- an older nayzeee-sneakers-boxes without colours
+    return Place.Ghost(base, {
         range = 2.8,
-        extra = { model = t.lid, offset = t.hinge },
+        extra = { model = lid, offset = t.hinge },
         keep = true,   -- the ghost stays, solid, until the real box is here
     })
 end
@@ -417,15 +438,18 @@ local function waitForEntity(netId)
     return NetToObj(netId)
 end
 
-RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind, boxType)
+RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind, boxType, colour)
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
     local t = Config.BoxTypes[boxType] or Config.BoxTypes.shoe
     if not IsModelInCdimage(t.base) then return UI.Notify(Config.Text.modelMissing, 'error') end
+    -- a boxed pair keeps its box; an empty box gets a colour now
+    if kind ~= 'boxed' or not colour then colour = Boxes.PickColour() end
+    if not colour then return end
     Busy = true
-    local spot, heading, ghostDone = placementSpot(boxType)
+    local spot, heading, ghostDone = placementSpot(boxType, colour)
     if spot then
         Anim.PutDown()
-        local netId = lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading)
+        local netId = lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading, colour)
         local ent = netId and waitForEntity(netId)
         if ent then addBox(ent) end   -- lid and contents now, not on the next streaming pass
         ghostDone()
@@ -436,11 +460,13 @@ end)
 --- Loose pair + empty box from the inventory: put the box down, shoes float in, lid closes
 function Boxes.PackFromInventory(slot, meta)
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
+    local colour = Boxes.PickColour()
+    if not colour then return end
     Busy = true
-    local spot, heading, ghostDone = placementSpot(meta and Shared.BoxTypeForShoe(meta.shoe))
+    local spot, heading, ghostDone = placementSpot(meta and Shared.BoxTypeForShoe(meta.shoe), colour)
     if not spot then Busy = false return end
     Anim.PutDown()
-    local netId, duration = lib.callback.await('nayzeee-sneakers:packShoes', false, slot, spot, heading)
+    local netId, duration = lib.callback.await('nayzeee-sneakers:packShoes', false, slot, spot, heading, colour)
     local ent = netId and waitForEntity(netId)
     if ent then addBox(ent) end
     ghostDone()

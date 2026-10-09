@@ -110,7 +110,7 @@ CreateThread(function()
             end
             Wait(0)
         else
-            Wait(100)
+            Wait(250)
         end
     end
 end)
@@ -261,13 +261,12 @@ end
 
 CreateThread(function()
     if not D.Enabled then return end
+    local models = {}
+    for _, t in pairs(D.Types) do models[#models + 1] = t.model end
+    Stream.Watch(models, D.streamDistance, 'nzsDisplays', function(e) return cases[e] ~= nil end, addCase)
     while true do
+        if not next(cases) then Wait(1000) goto continue end
         local me = GetEntityCoords(PlayerPedId())
-        for _, obj in ipairs(GetGamePool('CObject')) do
-            if not cases[obj] and typeOfModel(GetEntityModel(obj)) and #(GetEntityCoords(obj) - me) < D.streamDistance then
-                addCase(obj)
-            end
-        end
         for base, c in pairs(cases) do
             if not DoesEntityExist(base) or #(GetEntityCoords(base) - me) > D.streamDistance + 5.0 then
                 removeCase(base)
@@ -275,7 +274,8 @@ CreateThread(function()
                 syncShoe(base, false)
             end
         end
-        Wait(500)
+        Wait(750)
+        ::continue::
     end
 end)
 

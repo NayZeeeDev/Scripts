@@ -62,7 +62,7 @@ CreateThread(function()
         local shoe = it.metadata and it.metadata.shoe
         local boxType = (it.metadata and Config.BoxTypes[it.metadata.box] and it.metadata.box)
             or (shoe and Config.Shoes[shoe] and Shared.BoxTypeForShoe(shoe)) or 'shoe'
-        TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'boxed', boxType)
+        TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'boxed', boxType, it.metadata and it.metadata.boxColour)
     end)
 
     for id, t in pairs(Config.BoxTypes) do

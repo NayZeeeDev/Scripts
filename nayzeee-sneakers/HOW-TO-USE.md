@@ -7,15 +7,27 @@ cleaning, and selling to NPC buyers through a phone app with a handover cinemati
 
 ## 1. Install
 
-1. Put the `nayzeee-sneakers` folder in your `resources`.
-2. In `server.cfg`, start it **after** ox_lib, your framework, your inventory, your target and your phone:
+1. Put these folders in your `resources`:
+   | Folder | What it is |
+   |---|---|
+   | `nayzeee-sneakers` | the script |
+   | `nayzeee-sneakers-shoes` | the props of the ten shoes that come with it |
+   | `nayzeee-sneakers-boxes` | the shoe, heel and boot boxes (every colour) and the display cases |
+   | `nayzeee-sneakers-clothing` | the shoes you wear (section 3) |
+
+   **You don't make `nayzeee-sneakers-props`.** The script creates it by itself, next to `nayzeee-sneakers`, the first
+   time it turns your server's own clothing shoes into props (section 9).
+2. In `server.cfg`, start them **after** ox_lib, your framework, your inventory, your target and your phone:
    ```
    ensure ox_lib
    ensure ox_target
    ensure lb-phone
+   ensure nayzeee-sneakers-shoes
+   ensure nayzeee-sneakers-boxes
    ensure nayzeee-sneakers-clothing
    ensure nayzeee-sneakers
    ```
+   If one of the prop resources isn't running, the server console says so when the script starts.
    Target can be ox_target, qb-target or interact (or none: you get a key prompt).
    **Selling needs lb-phone.** Everything else works without it.
 3. **Add the items** to your inventory:
@@ -142,7 +154,12 @@ Use the **Shoes** item and pick from the menu:
 - **Clean them** (needs a cleaning kit, shows when they're dirty): see section 6.
 
 ### Using a box
-Use **Boxed shoes** or an **empty box** from your inventory. A see-through box follows where you look: scroll turns it,
+Use **Boxed shoes** or an **empty box** from your inventory. With an empty box (or **Box them up**) you first pick a
+**colour**: orange, black, white, red, blue, green, pink, purple or teal (your last pick is at the top). A boxed pair keeps
+its colour when you pick it up and put it down again. Change the list in `Config.BoxColours`, or turn the menu off with
+`Config.Box.colourPicker = false`.
+
+A see-through box follows where you look: scroll turns it,
 **E** puts it down, Backspace (or right-click) cancels. It goes on the floor or on a table. **Box them up** works the same way.
 Then target the box (with **interact** just walk up to it; the prompt sits on top of the box):
 
@@ -410,13 +427,43 @@ max per player).
 
 ---
 
+## 11. Limited drops
+
+Every so often (`Config.Drops.Every`, 90 to 180 minutes by default, only with at least `MinPlayers` on) one colourway drops
+in a handful of pairs:
+
+1. **Announced.** Everyone gets a text and a notification: the shoe, how many pairs, the price. The drop store's blip
+   starts flashing on the map.
+2. **Raffle** (10 minutes). Enter in the Plug app (**Drops** tab) or at the drop store (third eye the clerk).
+3. **Draw.** Winners get a text and have 15 minutes to collect and pay at the store (pick your size there). Pairs nobody
+   won, and pairs winners don't come for, go to whoever walks in first.
+4. **Done** when it sells out or the time is up.
+
+Drop pairs are real, deadstock, in a black box, marked **Limited drop**, and buyers pay more for them
+(`ValueBoost`, 1.5x). The dropped model also gets a hype boost. One pair per person per drop.
+
+Admins: `/sneakerdrop` starts one now (a random shoe), `/sneakerdrop fang5_c 6` a chosen one with 6 pairs,
+`/sneakerdrop stop` ends it. Everything else is in `Config.Drops` (`config/selling.lua`): timings, pairs, price,
+which shoes can drop, the store's spot and ped.
+
+---
+
+## Performance
+
+At rest the script costs next to nothing (resmon around 0.00 to 0.02 ms): nothing runs every frame unless something is
+animating or a menu is open. One shared scan looks for placed boxes and display cases every 0.75 s, and it doesn't run at
+all when none are out (the server keeps the counts). Peds (supplier, drop store) only exist while you're near them.
+The heavier moments are short and only for the player doing them: crafting, the cinematic, placing, the studio.
+
+---
+
 ## Notifications and escrow
 
 Every notification goes through **ox_lib** (`lib.notify`), buyers' texts too when no phone takes them.
 `Config.Notify = 'auto'` uses nayzeee-notify or okokNotify instead when one is running.
 
-The script is escrow ready: `config/`, `locales/`, `bridge/` and `install/*.lua` stay open for owners, everything else
-(including the shoe and box props) is locked when uploaded through Keymaster. Props made in
+The script is escrow ready: `config/`, `locales/`, `bridge/` and `install/*.lua` stay open for owners, everything else is
+locked when uploaded through Keymaster, and so are the two prop resources (`nayzeee-sneakers-shoes`, `nayzeee-sneakers-boxes`). Props made in
 **3D props** come from each server's own clothing, so those stay with that server.
 
 ---

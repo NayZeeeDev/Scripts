@@ -56,6 +56,7 @@ function Shared.Describe(meta)
         ('US %s · %s'):format(meta.size or '?', Shared.ConditionLabel(meta.condition)),
         ('Serial %s'):format(meta.serial or '—'),
     }
+    if meta.limited then table.insert(lines, 1, 'Limited drop') end
     if dirt >= 5 then lines[#lines + 1] = ('Dirt %d%%'):format(dirt) end
     local km = tonumber(meta.km) or 0
     if km >= 0.1 then lines[#lines + 1] = ('Worn %.1f km'):format(km) end
@@ -82,12 +83,37 @@ function Shared.Debug(...)
     if Config.Debug then print('^5[nayzeee-sneakers]^7', ...) end
 end
 
---- Box size id ('shoe' | 'heel' | 'boot') for a placed box's model hash, or nil
+local function defaultColour() return Config.BoxColours and Config.BoxColours[1] and Config.BoxColours[1].id or 'orange' end
+
+--- A box colour id from the config, or the default one
+function Shared.BoxColour(id)
+    for _, c in ipairs(Config.BoxColours or {}) do if c.id == id then return id end end
+    return defaultColour()
+end
+
+--- Base and lid model hashes for a box size in a colour (nzs_box_red / nzs_box_red_lid; the default
+--- colour is the plain nzs_box)
+function Shared.BoxModels(boxType, colour)
+    local t = Config.BoxTypes[boxType] or Config.BoxTypes.shoe
+    colour = Shared.BoxColour(colour)
+    if colour == defaultColour() or not t.name then return t.base, t.lid end
+    return GetHashKey(('%s_%s'):format(t.name, colour)), GetHashKey(('%s_%s_lid'):format(t.name, colour))
+end
+
+local modelMap
+--- Box size id ('shoe' | 'heel' | 'boot') and colour for a placed box's model hash, or nil
 function Shared.BoxTypeOfModel(model)
-    local m = model & 0xFFFFFFFF
-    for id, t in pairs(Config.BoxTypes) do
-        if (t.base & 0xFFFFFFFF) == m then return id end
+    if not modelMap then
+        modelMap = {}
+        for id, t in pairs(Config.BoxTypes) do
+            for _, c in ipairs(Config.BoxColours or { { id = 'orange' } }) do
+                local base = Shared.BoxModels(id, c.id)
+                modelMap[base & 0xFFFFFFFF] = { id, c.id }
+            end
+        end
     end
+    local e = modelMap[model & 0xFFFFFFFF]
+    if e then return e[1], e[2] end
 end
 
 --- Box size id for an empty-box item name, or nil

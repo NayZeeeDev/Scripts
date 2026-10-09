@@ -129,20 +129,35 @@ Config.Dispatch = {
 -- hinge must match the size the box was built at (the prop tool prints it).
 Config.BoxTypes = {
     shoe = {   -- sneakers, 34 x 29 x 20 cm
-        label = 'Shoe box', item = 'nz_shoebox_empty',
+        label = 'Shoe box', item = 'nz_shoebox_empty', name = 'nzs_box',
         base = `nzs_box`, lid = `nzs_box_lid`, hinge = vector3(0.0, -0.145, 0.2),
     },
     heel = {   -- heels and ankle boots, 41 x 30 x 12 cm
-        label = 'Heel box', item = 'nz_heelbox_empty',
+        label = 'Heel box', item = 'nz_heelbox_empty', name = 'nzs_box_heel',
         base = `nzs_box_heel`, lid = `nzs_box_heel_lid`, hinge = vector3(0.0, -0.15, 0.12),
     },
     boot = {   -- tall boots, 52 x 51 x 16 cm
-        label = 'Boot box', item = 'nz_bootbox_empty',
+        label = 'Boot box', item = 'nz_bootbox_empty', name = 'nzs_box_boot',
         base = `nzs_box_boot`, lid = `nzs_box_boot_lid`, hinge = vector3(0.0, -0.255, 0.16),
     },
 }
 
+-- Box colours (props in nayzeee-sneakers-boxes). Players pick one when they put a box down or box up a
+-- pair; a boxed pair keeps its colour. The first one is the default. Remove any you don't want.
+Config.BoxColours = {
+    { id = 'orange', label = 'Orange' },
+    { id = 'black',  label = 'Black' },
+    { id = 'white',  label = 'White' },
+    { id = 'red',    label = 'Red' },
+    { id = 'blue',   label = 'Blue' },
+    { id = 'green',  label = 'Green' },
+    { id = 'pink',   label = 'Pink' },
+    { id = 'purple', label = 'Purple' },
+    { id = 'teal',   label = 'Teal' },
+}
+
 Config.Box = {
+    colourPicker     = true,    -- false = every box is the first colour, no menu
     floor            = 0.0045,  -- where the shoes rest inside
     openAngle        = 105.0,
     openTime         = 550,
@@ -323,7 +338,7 @@ Config.ShoeProps = {
     AutoBuild   = true,         -- ...and build them straight away (restarts the props resource)
     TextureSize = 512,          -- max texture size of each prop (256 / 512 / 1024)
     CopyIcons   = true,         -- put the icons it renders into ox_inventory/web/images (photos you take win)
-    Skip        = { 'nayzeee-sneakers-clothing' },  -- resources to leave out (the bundled shoes already have props)
+    Skip        = { 'nayzeee-sneakers-clothing', 'nayzeee-sneakers-shoes', 'nayzeee-sneakers-boxes' },  -- resources to leave out (the bundled shoes already have props)
     Kit = {                     -- the sneakerkit program for each server OS (inside this resource)
         windows = 'tools/sneakerkit/win-x64/sneakerkit.exe',
         linux   = 'tools/sneakerkit/linux-x64/sneakerkit',

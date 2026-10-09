@@ -142,6 +142,8 @@ const PATHS = {
   bolt: '<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>',
   alert: '<path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 2.5 17.5A2 2 0 0 0 4.2 20.5h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
   spark: '<path d="M12 3.5l2.4 5.2 5.6.7-4.1 3.9 1 5.6-4.9-2.7-4.9 2.7 1-5.6L4 9.4l5.6-.7z"/>',
+  ticket: '<path d="M3.5 8.5V6.5a1 1 0 0 1 1-1h15a1 1 0 0 1 1 1v2a2.5 2.5 0 0 0 0 5v2a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-2a2.5 2.5 0 0 0 0-5z"/><path d="M14.5 5.5v13" stroke-dasharray="1.6 2"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
 };
 const icon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${PATHS[n] || ''}</svg>`;
 document.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); });
@@ -175,6 +177,8 @@ function renderHead() {
   const n = (D.offers || []).length;
   $('pBadge').hidden = !n;
   $('pBadge').textContent = n;
+  const dr = D.drop;
+  $('pDropBadge').hidden = !(dr && (dr.phase === 'raffle' && !dr.entered || dr.won && !dr.claimed));
 
   const el = $('pDeal');
   const d = D.deal;
@@ -257,6 +261,38 @@ function renderHype() {
   return h;
 }
 
+function renderDrops() {
+  const d = D.drop;
+  let h = `<div class="ph-h"><h2>Drops</h2><span>${d ? (d.phase === 'raffle' ? 'raffle open' : 'live now') : ''}</span></div>`;
+  if (!d) return h + empty('ticket', 'Nothing dropping', 'Limited pairs drop every so often. You get a text the moment one does.');
+  let status, acts = '';
+  if (d.phase === 'raffle') {
+    status = `<div class="mini">${icon('clock')}<span>Raffle closes in <b data-until="${d.closeAt}">${mmss(d.closeAt - now())}</b> · ${d.entries} entered</span></div>`;
+    acts = d.entered
+      ? `<button class="btn-line" disabled>${icon('check')}You're in. Good luck</button>`
+      : `<button class="btn-teal" data-act="drop-enter">${icon('ticket')}Enter the raffle</button>`;
+  } else if (d.won && !d.claimed) {
+    status = `<div class="mini got">${icon('spark')}<span><b>You won!</b> Collect at ${esc(d.store)} within <b data-until="${d.claimUntil}">${mmss(d.claimUntil - now())}</b></span></div>`;
+    acts = `<button class="btn-teal" data-act="drop-gps">${icon('pin')}Set GPS to the store</button>`;
+  } else if (d.claimed) {
+    status = `<div class="mini">${icon('check')}<span>You got yours. ${d.left} left for everyone else.</span></div>`;
+  } else if (d.walkIn > 0) {
+    status = `<div class="mini">${icon('bolt')}<span><b>${d.walkIn} pair${d.walkIn === 1 ? '' : 's'}</b> left, first come first served at ${esc(d.store)}</span></div>`;
+    acts = `<button class="btn-teal" data-act="drop-gps">${icon('pin')}Set GPS to the store</button>`;
+  } else {
+    status = `<div class="mini">${icon('x')}<span>${d.entered ? 'No luck this time. ' : ''}Every pair is taken.</span></div>`;
+  }
+  return h + `<div class="card drop">
+    <div class="drop-top"><span class="chip">LIMITED</span><span class="ref">${d.stock} pairs</span></div>
+    <div class="drop-img"><img src="${img(d.image + '_box')}" alt=""></div>
+    <div class="pt"><b>${esc(d.label)} '${esc(d.colourway)}'</b><span>Real · deadstock · ${esc(d.store)}</span></div>
+    <div class="val"><span>Price</span><div class="price">${money(d.price)}</div></div>
+    ${status}
+    <div class="acts">${acts}</div>
+  </div>
+  <div class="note-s">Limited pairs sell for more. One per person; pay ${d.account === 'bank' ? 'by card' : 'cash'} when you collect.</div>`;
+}
+
 function renderMe() {
   const p = D.profile || {};
   const max = p.to == null;
@@ -276,7 +312,7 @@ function renderMe() {
     </div>`;
 }
 
-const VIEWS = { offers: renderOffers, stash: renderStash, hype: renderHype, me: renderMe };
+const VIEWS = { offers: renderOffers, stash: renderStash, drops: renderDrops, hype: renderHype, me: renderMe };
 
 function render() {
   if (!D) return;
@@ -303,6 +339,8 @@ $('pBody').addEventListener('click', async e => {
   if (b.dataset.act === 'accept') await call('plug:accept', { id: Number(card.dataset.id) });
   else if (b.dataset.act === 'decline') await call('plug:decline', { id: Number(card.dataset.id) });
   else if (b.dataset.act === 'find') await call('plug:find', { serial: card.dataset.serial });
+  else if (b.dataset.act === 'drop-enter') await call('plug:dropEnter');
+  else if (b.dataset.act === 'drop-gps') await call('plug:dropGps');
   busy = false;
   load();
 });
@@ -325,6 +363,7 @@ setInterval(() => {
     else el.innerHTML = icon('search') + 'Posted · ' + mmss(left);
   });
   if (D.deal && $('dealLeft')) $('dealLeft').textContent = mmss(D.deal.endsAt - now());
+  document.querySelectorAll('[data-until]').forEach(el => { el.textContent = mmss(Number(el.dataset.until) - now()); });
 }, 1000);
 
 addEventListener('message', ({ data }) => {

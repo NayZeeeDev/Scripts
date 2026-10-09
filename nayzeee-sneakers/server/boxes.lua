@@ -11,6 +11,7 @@
 ]]
 
 Boxes = {}
+GlobalState.nzsBoxes = 0   -- nothing survives a restart
 local boxes = {}       -- [entity] = { owner, ownerId, contents, busy, type }
 local fxCounter = 0
 local B, F = Config.Box, Config.Float
@@ -60,9 +61,10 @@ local function outDuration(open) return (open and 0 or B.openTime + 120) + F.out
 local function emptyItem(boxType) return Config.BoxTypes[boxType or 'shoe'].item end
 local function boxLabel(boxType) return Config.BoxTypes[boxType or 'shoe'].label:lower() end
 
-local function spawnBox(src, coords, heading, contents, boxType)
+local function spawnBox(src, coords, heading, contents, boxType, colour)
     boxType = Config.BoxTypes[boxType] and boxType or 'shoe'
-    local ent = CreateObjectNoOffset(Config.BoxTypes[boxType].base, coords.x, coords.y, coords.z, true, true, false)
+    colour = Shared.BoxColour(colour)
+    local ent = CreateObjectNoOffset((Shared.BoxModels(boxType, colour)), coords.x, coords.y, coords.z, true, true, false)
     local timeout = GetGameTimer() + 3000
     while not DoesEntityExist(ent) do
         if GetGameTimer() > timeout then return nil end
@@ -75,13 +77,24 @@ local function spawnBox(src, coords, heading, contents, boxType)
     st:set('nzs:open', false, true)
     st:set('nzs:busy', false, true)
     st:set('nzs:shoe', contents and contents.shoe or false, true)
-    boxes[ent] = { owner = src, ownerId = src > 0 and Bridge.GetIdentifier(src) or nil, contents = contents, busy = false, type = boxType }
+    st:set('nzs:colour', colour, true)
+    if contents then contents.boxColour = nil end
+    boxes[ent] = { owner = src, ownerId = src > 0 and Bridge.GetIdentifier(src) or nil, contents = contents, busy = false, type = boxType, colour = colour }
+    GlobalState.nzsBoxes = (GlobalState.nzsBoxes or 0) + 1
     return ent
+end
+
+--- How many boxes are out (clients skip their world scan when there are none)
+local function countAll()
+    local n = 0
+    for _ in pairs(boxes) do n = n + 1 end
+    GlobalState.nzsBoxes = n
 end
 
 local function deleteBox(ent)
     boxes[ent] = nil
     if DoesEntityExist(ent) then DeleteEntity(ent) end
+    countAll()
 end
 
 --- Shoes float down, lid closes. Runs in its own thread.
@@ -129,7 +142,7 @@ local function validPlacement(src, coords, heading)
     return type(coords) == 'vector3' and type(heading) == 'number' and nearPlayer(src, coords, 3.0)
 end
 
-lib.callback.register('nayzeee-sneakers:placeBox', function(src, slot, kind, coords, heading)
+lib.callback.register('nayzeee-sneakers:placeBox', function(src, slot, kind, coords, heading, colour)
     if not validPlacement(src, coords, heading) then return false end
     if countOwned(src) >= B.maxPerPlayer then
         Bridge.Notify(src, Config.Text.boxLimit, 'error')
@@ -142,22 +155,23 @@ lib.callback.register('nayzeee-sneakers:placeBox', function(src, slot, kind, coo
     if kind == 'boxed' then
         if it.name ~= Config.Items.boxed or not Config.Shoes[it.metadata.shoe] then return false end
         contents = Items.Clean(it.metadata)
+        colour = contents.boxColour or colour
         boxType = Shared.BoxTypeForShoe(contents.shoe)
     else
         boxType = Shared.BoxTypeOfItem(it.name)
         if not boxType then return false end
     end
     if not Inv.Remove(src, it.name, 1, slot) then return false end
-    local ent = spawnBox(src, coords, heading, contents, boxType)
+    local ent = spawnBox(src, coords, heading, contents, boxType, colour)
     if not ent then
-        if contents then Items.GivePair(src, contents, true) else Inv.Add(src, emptyItem(boxType), 1) end
+        if contents then contents.boxColour = colour Items.GivePair(src, contents, true) else Inv.Add(src, emptyItem(boxType), 1) end
         return false
     end
     return NetworkGetNetworkIdFromEntity(ent)
 end)
 
 -- Loose pair -> empty box from the inventory -> placed box with the shoes floating in
-lib.callback.register('nayzeee-sneakers:packShoes', function(src, shoeSlot, coords, heading)
+lib.callback.register('nayzeee-sneakers:packShoes', function(src, shoeSlot, coords, heading, colour)
     if not validPlacement(src, coords, heading) then return false end
     if countOwned(src) >= B.maxPerPlayer then
         Bridge.Notify(src, Config.Text.boxLimit, 'error')
@@ -177,7 +191,7 @@ lib.callback.register('nayzeee-sneakers:packShoes', function(src, shoeSlot, coor
         Items.GivePair(src, meta, false)
         return false
     end
-    local ent = spawnBox(src, coords, heading, nil, boxType)
+    local ent = spawnBox(src, coords, heading, nil, boxType, colour)
     if not ent then
         Items.GivePair(src, meta, false)
         Inv.Add(src, emptyItem(boxType), 1)
@@ -237,6 +251,7 @@ lib.callback.register('nayzeee-sneakers:pickUp', function(src, netId)
     end
     local ok
     if box.contents then
+        box.contents.boxColour = box.colour   -- a boxed pair keeps its box colour
         ok = Items.GivePair(src, box.contents, true)
     else
         ok = Inv.Add(src, emptyItem(box.type), 1)
@@ -266,6 +281,7 @@ end)
 local function returnBox(ent, box, online)
     if online and GetPlayerPing(box.owner) > 0 then
         local ok
+        if box.contents then box.contents.boxColour = box.colour end
         if box.contents then ok = Items.GivePair(box.owner, box.contents, true)
         else ok = Inv.Add(box.owner, emptyItem(box.type), 1) end
         if ok then return deleteBox(ent) end

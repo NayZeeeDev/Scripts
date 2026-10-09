@@ -98,7 +98,7 @@ body.plug{user-select:none}
 .lvl-card .row-l b{color:var(--white);font-weight:600;font-size:13px}
 
 /* tabs */
-.ph-tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line-soft);background:var(--inset);padding:6px 10px 26px}   /* room for the home bar */
+.ph-tabs{flex:none;display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line-soft);background:var(--inset);padding:6px 10px 26px}   /* room for the home bar */
 .ph-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 0;border-radius:var(--r-sm);
   font-size:10.5px;color:var(--ink-3);font-weight:300;transition:color var(--fast),background var(--fast)}
 .ph-tabs button svg{width:18px;height:18px;stroke-width:1.5}
@@ -113,3 +113,18 @@ body.plug{user-select:none}
 .empty svg{width:22px;height:22px;stroke-width:1.4;color:var(--ink-3)}
 .empty b{font-size:12.5px;font-weight:500;color:var(--white)}
 .empty span{font-size:11.5px;color:var(--ink-3);font-weight:300;max-width:30ch;line-height:1.5}
+
+/* drops */
+.badge.dot{min-width:7px;width:7px;height:7px;padding:0;font-size:0}
+.card.drop{display:flex;flex-direction:column;gap:9px}
+.drop-top{display:flex;align-items:center;justify-content:space-between}
+.drop-img{height:150px;border-radius:var(--r-sm);display:grid;place-items:center;
+  background:radial-gradient(60% 70% at 50% 45%,rgba(8,175,162,.16),transparent 70%),var(--inset);border:1px solid var(--line-soft)}
+.drop-img img{max-width:78%;max-height:92%;object-fit:contain}
+.card.drop .pt b{display:block;font-size:14px;color:var(--white);font-weight:600}
+.card.drop .pt span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px}
+.card.drop .val{display:flex;align-items:center;justify-content:space-between}
+.card.drop .mini svg{color:var(--teal)}
+.card.drop .mini.got{color:var(--white);font-size:11px}
+.card.drop .mini.got svg{color:var(--amber)}
+.note-s{font-size:10.5px;color:var(--ink-3);font-weight:300;padding:2px 4px 10px;line-height:1.5}
