@@ -37,6 +37,7 @@ Locales.en = {
     wrongGender = 'These are not made for your character',
     notFreemode = 'Only freemode characters can wear these',
     noClothing = 'This shoe has no clothing set up yet (config/shoes.lua)',
+    noPack = 'The sneaker clothing pack is not running (nayzeee-sneakers-clothing)',
     putOn = 'Shoes on',
     tookOff = 'Shoes off',
     notWearing = 'You are not wearing any boxed shoes',

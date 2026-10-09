@@ -18,6 +18,9 @@ Sneaker reselling for FiveM: make pairs (real or fake), wear them, keep them cle
 - **Inventories:** ox_inventory and qb-inventory (plus ps-inventory and lj-inventory). Anything else goes through `bridge/custom/inventory.lua`.
 - **Target:** ox_target, qb-target or interact (or a key prompt without one).
 - **Phone:** selling runs on **lb-phone**: the Plug app is a custom app (`AddCustomApp`), buyers text through its Messages app.
+- **Clothing:** the shoes you wear come from **[nayzeee-sneakers-clothing](../nayzeee-sneakers-clothing/)**, an addon pack
+  (no base-game slots replaced). The script looks up each shoe's real drawable number from the pack at runtime,
+  so nobody has to type drawable numbers in.
 - **Dispatch:** ps-dispatch, cd_dispatch, qs-dispatch, rcore_dispatch, built-in, or your own.
 - **Notifications:** the script's own, or nayzeee-notify, ox_lib, okok, ESX, QB.
 - **Requires** ox_lib.
@@ -90,7 +93,7 @@ How they were made:
   stripped of bare-foot skin (heels), reduced in Blender with the UV seams locked where needed, then packed
   for its box: sneakers heel-to-toe, heels and boots on their side and nested.
 - Brand logos were removed from the textures (`tools/propkit/debrand.py`) before the props were built. The
-  same cleaned textures went into the **debranded clothing pack**, shipped separately.
+  same cleaned textures went into the **debranded clothing files**, which go in nayzeee-sneakers-clothing.
 - The boxes were built with `sneaker_box/tools/shoebox-prop-tool.html`.
 - Every `.ydr` and `.ytyp` was compiled by CodeWalker's own XML importer and loaded back to check it.
 

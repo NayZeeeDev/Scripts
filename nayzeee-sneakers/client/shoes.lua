@@ -11,6 +11,46 @@ end
 
 local function myGender() return Shared.PedGender(GetEntityModel(PlayerPedId())) end
 
+--------------------------------------------------------------------------------
+-- Clothing pack: turn a shoe's pack slot into this server's real drawable number
+--------------------------------------------------------------------------------
+
+local packName = {}   -- ped model -> collection name of the clothing pack
+
+local function findPack(ped)
+    local model = GetEntityModel(ped)
+    if packName[model] then return packName[model] end
+    if not GetPedCollectionsCount then return nil end
+    local want = Config.ClothingPack:lower()
+    for i = 1, GetPedCollectionsCount(ped) - 1 do   -- 0 is the base game
+        local name = GetPedCollectionName(ped, i)
+        if name and name:lower():find(want, 1, true) then
+            packName[model] = name
+            return name
+        end
+    end
+end
+
+--- Feet drawable number for a clothing entry ({ drawable } or { slot }), or nil
+function Shoes.Drawable(ped, c)
+    if not c then return nil end
+    if c.drawable then return c.drawable end
+    if not c.slot then return nil end
+    local pack = findPack(ped)
+    if not pack then
+        Shared.Debug(('clothing pack "%s" not found on this ped'):format(Config.ClothingPack))
+        return nil
+    end
+    local d = GetPedDrawableGlobalIndexFromCollection(ped, 6, pack, c.slot)
+    return d and d >= 0 and d or nil
+end
+
+local function dress(ped, c)
+    local d = Shoes.Drawable(ped, c)
+    if d then SetPedComponentVariation(ped, 6, d, c.texture or 0, 0) end
+    return d ~= nil
+end
+
 local function cardData(meta)
     local shoe = Config.Shoes[meta.shoe]
     return {
@@ -109,17 +149,19 @@ function Shoes.PutOn(slot, meta)
     if Config.GenderLock and shoe.gender ~= 'unisex' and shoe.gender ~= gender then
         return UI.Notify(Config.Text.wrongGender, 'error')
     end
-    if not Shared.ClothingFor(shoe, gender) then return UI.Notify(Config.Text.noClothing, 'error') end
+    local wanted = Shared.ClothingFor(shoe, gender)
+    if not wanted then return UI.Notify(Config.Text.noClothing, 'error') end
+    local ped = PlayerPedId()
+    if not Shoes.Drawable(ped, wanted) then return UI.Notify(Config.Text.noPack, 'error') end
 
     Busy = true
-    local ped = PlayerPedId()
     local prev = { drawable = GetPedDrawableVariation(ped, 6), texture = GetPedTextureVariation(ped, 6) }
     kneelAtFeet()
     Wait(900)
     Dirt.Flush()   -- the pair coming off keeps its last few seconds of dirt
     local ok, clothing = lib.callback.await('nayzeee-sneakers:wear', false, slot, prev)
     if ok and clothing then
-        SetPedComponentVariation(ped, 6, clothing.drawable, clothing.texture or 0, 0)
+        dress(ped, clothing)
         Shoes.worn = meta
         UI.Notify(Config.Text.putOn, 'success')
     end
@@ -150,7 +192,7 @@ function Shoes.Reapply()
     local worn = lib.callback.await('nayzeee-sneakers:getWorn', false)
     Shoes.worn = worn and worn.meta or nil
     if worn and worn.clothing then
-        SetPedComponentVariation(PlayerPedId(), 6, worn.clothing.drawable, worn.clothing.texture or 0, 0)
+        dress(PlayerPedId(), worn.clothing)
     end
 end
 

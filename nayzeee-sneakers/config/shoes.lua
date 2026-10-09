@@ -5,9 +5,11 @@
     (a = texture 0, b = 1 ...). Every colourway becomes its own shoe id: <model>_<letter>,
     e.g. fang5_c, with the prop nzs_fang5_c and the icons nzs_fang5_c.png / _box.png.
 
-    drawable   the feet drawable id of that shoe on YOUR server. Addon clothing ids depend on
-               your clothing pack's order - find it in your clothing menu (Shoes) and put it here.
-               Until it's set, the shoes can be boxed and inspected but not worn.
+    slot       where the shoe sits in the nayzeee-sneakers-clothing pack (feet_000 = 0, feet_001 = 1 ...).
+               The script turns it into your server's real drawable number by itself, so you never
+               have to look numbers up. Leave these alone unless you change the pack.
+    drawable   only if you DON'T use the clothing pack: the feet drawable number from your clothing
+               menu. When it's set it wins over slot.
     gender     'male' | 'female'. Check these match your clothing pack.
     box        'shoe' | 'heel' | 'boot' (Config.BoxTypes)
     retail     reference price for the selling phase
@@ -18,7 +20,7 @@
 Config.ShoeModels = {
     cup = {
         label = 'Cup Runner', gender = 'male', box = 'shoe', retail = 950,
-        drawable = nil,   -- feet_000_u: use clothing/cup_runner from the debranded clothing pack
+        slot = 0,          -- nayzeee-sneakers-clothing: feet_000
         colourways = {
             a = 'Black',
             b = 'Mint',
@@ -29,7 +31,7 @@ Config.ShoeModels = {
     },
     fang5 = {
         label = 'Fang 5', gender = 'male', box = 'shoe', retail = 420,
-        drawable = nil,   -- feet_003_u: use clothing/fang_5 from the debranded clothing pack
+        slot = 1,          -- nayzeee-sneakers-clothing: feet_001
         colourways = {
             a = 'Maroon',
             b = 'Silver',
@@ -50,7 +52,7 @@ Config.ShoeModels = {
     },
     court = {
         label = 'Backcourt Low', gender = 'male', box = 'shoe', retail = 1100,
-        drawable = nil,   -- feet_004_u: use clothing/backcourt_low from the debranded clothing pack
+        slot = 2,          -- nayzeee-sneakers-clothing: feet_002
         colourways = {
             a = 'Black / Charcoal',
             b = 'Olive / Grey',
@@ -59,7 +61,7 @@ Config.ShoeModels = {
     },
     stack = {
         label = 'Stack Trainer', gender = 'male', box = 'shoe', retail = 980,
-        drawable = nil,   -- feet_023_u: use clothing/stack_trainer from the debranded clothing pack
+        slot = 3,          -- nayzeee-sneakers-clothing: feet_003
         colourways = {
             a = 'Black',
             b = 'Grey',
@@ -67,7 +69,7 @@ Config.ShoeModels = {
     },
     crevis = {
         label = 'Crevis 95', gender = 'male', box = 'shoe', retail = 260,
-        drawable = nil,   -- crevis sneaker by jazlyn13 - feet_003_u
+        slot = 4,          -- nayzeee-sneakers-clothing: feet_004
         colourways = {
             a = 'Tan',
             b = 'Brown',
@@ -82,7 +84,7 @@ Config.ShoeModels = {
     },
     alice = {
         label = 'Alice Western Boot', gender = 'female', box = 'boot', retail = 540,
-        drawable = nil,   -- STRUT Alice Shoes - feet_000_u
+        slot = 0,          -- nayzeee-sneakers-clothing: feet_000
         colourways = {
             a = 'Cream',
             b = 'Black',
@@ -114,7 +116,7 @@ Config.ShoeModels = {
     },
     bianca = {
         label = 'Bianca Heel', gender = 'female', box = 'heel', retail = 480,
-        drawable = nil,   -- STRUT Bianca Shoes - feet_002_r
+        slot = 1,          -- nayzeee-sneakers-clothing: feet_001
         colourways = {
             a = 'Teal',
             b = 'White',
@@ -138,7 +140,7 @@ Config.ShoeModels = {
     },
     maisie = {
         label = 'Maisie Slingback', gender = 'female', box = 'heel', retail = 420,
-        drawable = nil,   -- STRUT Maisie Shoes - feet_014_r
+        slot = 2,          -- nayzeee-sneakers-clothing: feet_002
         colourways = {
             a = 'Black',
             b = 'Silver',
@@ -160,7 +162,7 @@ Config.ShoeModels = {
     },
     omnia = {
         label = 'Omnia Ankle Boot', gender = 'female', box = 'heel', retail = 460,
-        drawable = nil,   -- STRUT Omnia Shoes - feet_014_u
+        slot = 3,          -- nayzeee-sneakers-clothing: feet_003
         colourways = {
             a = 'Maroon / Red',
             b = 'Brown',
@@ -175,7 +177,7 @@ Config.ShoeModels = {
     },
     mia = {
         label = 'Mia Knee Boot', gender = 'female', box = 'boot', retail = 520,
-        drawable = nil,   -- [WM] Mia Colucci Boots - feet_000_u
+        slot = 4,          -- nayzeee-sneakers-clothing: feet_004
         colourways = {
             a = 'Hot Pink',
             b = 'Lime',
@@ -200,7 +202,7 @@ for modelId, m in pairs(Config.ShoeModels) do
             retail = m.retail,
             prop = GetHashKey(prop),
             image = prop,
-            clothing = m.drawable and { drawable = m.drawable, texture = letter:byte() - 97 } or nil,
+            clothing = (m.drawable or m.slot) and { drawable = m.drawable, slot = m.slot, texture = letter:byte() - 97 } or nil,
         }
     end
 end

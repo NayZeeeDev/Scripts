@@ -13,6 +13,7 @@ cleaning, and selling to NPC buyers through a phone app with a handover cinemati
    ensure ox_lib
    ensure ox_target
    ensure lb-phone
+   ensure nayzeee-sneakers-clothing
    ensure nayzeee-sneakers
    ```
    Target can be ox_target, qb-target or interact (or none: you get a key prompt).
@@ -30,14 +31,15 @@ cleaning, and selling to NPC buyers through a phone app with a handover cinemati
    ```
    add_ace group.admin nayzeee-sneakers.admin allow
    ```
-6. **Crafting tables:** install the **Dragons Lab Shoe Table Pack** (see section 5).
-7. Restart the server, then **close FiveM and clear your cache**.
+6. **Wearing:** set up **nayzeee-sneakers-clothing** (section 3) and start it before this script.
+7. **Crafting tables:** install the **Dragons Lab Shoe Table Pack** (see section 5).
+8. Restart the server, then **close FiveM and clear your cache**.
 
 ### The config files
 | File | What's in it |
 |---|---|
 | `config/config.lua` | Framework, inventory, notifications, target, **phone**, **dispatch**, admin commands, boxes, wearing, **dirt**, **cleaning**, Discord logs |
-| `config/shoes.lua` | The shoe models, colourways, prices and clothing drawables |
+| `config/shoes.lua` | The shoe models, colourways, prices and where each one sits in the clothing pack |
 | `config/crafting.lua` | Tables, materials, recipes, crafting stages, levels, the supplier |
 | `config/selling.lua` | Selling, buyer types, legit checks, meet spots, the cinematic, hype, rep, police |
 | `locales/en.lua` | Every bit of text players see. Copy it to translate |
@@ -76,20 +78,38 @@ A pair only fits the size it's made for.
 
 ## 3. Make the shoes wearable
 
-For each model, the script needs to know where that shoe sits in your clothing pack:
+The shoes come as their own addon clothing resource, **nayzeee-sneakers-clothing**. It's already set up: you only drop the shoe files in.
 
-1. **Use the debranded clothing files.** For the four branded packs (Cup Runner, Fang 5, Backcourt Low, Stack Trainer), stream the files from the **debranded clothing pack** instead of the originals. They have the logos removed and keep the same file names, so they replace the originals one for one.
-2. In game, open your clothing menu, go to **Shoes**, find the shoe and note its **drawable number**.
-3. Put that number in `drawable = …` for that model in `config/shoes.lua`:
-   ```lua
-   fang5 = {
-       label = 'Fang 5', gender = 'male', box = 'shoe', retail = 420,
-       drawable = 87,   -- whatever number your clothing menu shows
+1. Put the `nayzeee-sneakers-clothing` folder in your `resources`.
+2. Drop each shoe's files into its folder in `stream/`, exactly as they came:
+
+   | Folder | Shoe | Use these files |
+   |---|---|---|
+   | `[male]/cup_runner` | Cup Runner | debranded clothing pack: `cup_runner` |
+   | `[male]/fang_5` | Fang 5 | debranded clothing pack: `fang_5` |
+   | `[male]/backcourt_low` | Backcourt Low | debranded clothing pack: `backcourt_low` |
+   | `[male]/stack_trainer` | Stack Trainer | debranded clothing pack: `stack_trainer` |
+   | `[male]/crevis_95` | Crevis 95 | crevis sneaker by jazlyn13 |
+   | `[female]/alice` | Alice Western Boot | STRUT Alice Shoes |
+   | `[female]/bianca` | Bianca Heel | STRUT Bianca Shoes (the *Optimised* folder) |
+   | `[female]/maisie` | Maisie Slingback | STRUT Maisie Shoes |
+   | `[female]/omnia` | Omnia Ankle Boot | STRUT Omnia Shoes |
+   | `[female]/mia` | Mia Knee Boot | [WM] Mia Colucci Boots |
+
+   One `.ydd` and all of its `.ytd` files per folder. Only the `.ydd` and `.ytd` files, nothing else.
+3. Double-click **`RENAME-CLOTHING.bat`**. It renames everything to the names the pack needs and tells you if a folder is missing a texture. Every line should say `[ok]`.
+4. In `server.cfg`, start it **before** nayzeee-sneakers:
    ```
-   One number per model is enough. The colourway letters map to the textures automatically.
-4. Check `gender`. The sneakers are set to male and the heels and boots to female. Change any that don't match your pack.
+   ensure nayzeee-sneakers-clothing
+   ensure nayzeee-sneakers
+   ```
+5. Restart, then **close FiveM and clear your cache**.
 
-Until a drawable is set, the server console lists which models can't be worn yet.
+That's it. The script finds the shoes in the pack by itself, so you don't look up or type any drawable numbers. Each shoe's place in the pack is its `slot` in `config/shoes.lua`. Leave those as they are.
+
+The heels already have their heel height and footstep sounds set, using the creators' recommended settings.
+
+**Using your own clothing pack instead?** Put the drawable number from your clothing menu in `drawable = …` for that model in `config/shoes.lua`. A `drawable` always wins over `slot`.
 
 ---
 
@@ -285,7 +305,10 @@ Use `'custom'` and fill in `Bridge.CustomDispatch` in `bridge/server/dispatch.lu
 | Console says *Shoe box model is not streamed* | Make sure the `stream/` folders are in the resource, then clear your client cache. |
 | Using an item does nothing | The item isn't set up in your inventory (Install, step 3), or for ox the `server = { export = 'nayzeee-sneakers.useItem' }` line is missing. |
 | *These need a heel box* (or similar) | That pair fits a different box size. Use the matching empty box. |
-| *This shoe has no clothing set up yet* | Set the model's `drawable` in `config/shoes.lua` (section 3). |
+| *This shoe has no clothing set up yet* | That model has no `slot` (or `drawable`) in `config/shoes.lua`. |
+| *The sneaker clothing pack is not running* | `ensure nayzeee-sneakers-clothing` before this script, then clear your cache. If it still says it, your FiveM build is too old for the pack lookup: put `drawable` numbers in `config/shoes.lua` instead (section 3). |
+| Shoes are invisible or the wrong colour | `RENAME-CLOTHING.bat` didn't say `[ok]` for that shoe. Fix what it says, run it again, clear your cache. |
+| Feet sink into the floor in heels (or float) | The heel heights live in `stream/mp_f_freemode_01_nayzeee_sneakers.ymt`. Open it in YMTEditor or grzyClothTool and adjust that shoe's high-heels value. |
 | *These are not made for your character* | The model's `gender` doesn't match your ped. Fix `gender`, or set `Config.GenderLock = false`. |
 | Tables are plain workbenches | The Dragons Lab pack isn't running, or that player's cache is old. `ensure` it and clear the cache. |
 | The close-up camera ends up inside something on the table | Her props sit at the back of the table: work further along it, or switch view with **V**. |

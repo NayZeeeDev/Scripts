@@ -170,6 +170,7 @@ Config.Float = {
 
 Config.FirstPerson = true       -- close-up camera + animations while packing, unboxing, cleaning and putting shoes on
 Config.GenderLock  = true       -- players can only wear shoes made for their ped (male / female freemode)
+Config.ClothingPack = 'nayzeee_sneakers'   -- dlc name of the nayzeee-sneakers-clothing pack (leave it unless you renamed the pack)
 
 -- How crafting and cleaning are shot. Players can switch while they work (V) and their pick is remembered.
 Config.Camera = {

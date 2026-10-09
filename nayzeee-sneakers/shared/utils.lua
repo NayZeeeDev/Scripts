@@ -74,7 +74,7 @@ function Shared.ClothingFor(shoe, gender)
     local c = shoe and shoe.clothing
     if not c then return nil end
     if c[gender] then return c[gender] end
-    if c.drawable ~= nil then return c end
+    if c.drawable ~= nil or c.slot ~= nil then return c end
     return nil
 end
 

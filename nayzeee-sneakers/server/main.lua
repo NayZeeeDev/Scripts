@@ -67,10 +67,10 @@ end, false)
 CreateThread(function()
     local missing = {}
     for id, m in pairs(Config.ShoeModels) do
-        if not m.drawable then missing[#missing + 1] = id end
+        if not m.drawable and not m.slot then missing[#missing + 1] = id end
     end
     if #missing > 0 then
         table.sort(missing)
-        print(('^3[nayzeee-sneakers]^7 no clothing drawable set for: %s (config/shoes.lua) - they can be boxed and inspected but not worn yet'):format(table.concat(missing, ', ')))
+        print(('^3[nayzeee-sneakers]^7 no clothing slot or drawable set for: %s (config/shoes.lua) - they can be boxed and inspected but not worn yet'):format(table.concat(missing, ', ')))
     end
 end)
