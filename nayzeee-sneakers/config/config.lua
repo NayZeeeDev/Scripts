@@ -94,6 +94,8 @@ Config.Commands = {
 -- Selling runs on lb-phone: the Plug app is added to every phone (or the App Store) automatically.
 Config.Phone = {
     DefaultApp = true,          -- true = already on every phone, false = players download it from the App Store
+    AppColour  = 'orange',      -- the Plug app's Sneaker Co. icon to start with; players pick their own in the app
+                                -- (Profile > App colour). Any id from Config.BoxColours.
 
     -- Buyers text the player. 'auto' picks the first phone resource that is running.
     Messages = 'auto',          -- 'auto' | 'lb-phone' | 'npwd' | 'yseries' | 'qs-smartphone' | 'gksphone' | 'none'

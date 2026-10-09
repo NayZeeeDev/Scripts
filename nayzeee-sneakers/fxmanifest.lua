@@ -80,7 +80,7 @@ files {
     'web/plug.html',
     'web/plug.css',
     'web/plug.js',
-    'web/plug-icon.png',
+    'web/plug-icons/*.png',
     'web/fonts/*.woff2',
     'install/images/*.png',
     'shots/*.png',              -- photos taken in /sneakerstudio

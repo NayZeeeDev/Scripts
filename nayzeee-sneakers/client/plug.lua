@@ -18,6 +18,11 @@ local RES = GetCurrentResourceName()
 
 local function lbRunning() return GetResourceState('lb-phone') == 'started' end
 
+--- The player's app colour (Sneaker Co. icon), kept on their PC
+local function appColour()
+    return Shared.BoxColour(GetResourceKvpString('nzs:appcolour') or Config.Phone.AppColour)
+end
+
 local function addApp()
     if not lbRunning() then return end
     local ok, added, err = pcall(function()
@@ -29,7 +34,7 @@ local function addApp()
             defaultApp = Config.Phone.DefaultApp,   -- true = on every phone already, false = download it from the App Store
             size = 4096,
             ui = RES .. '/web/plug.html',
-            icon = ('https://cfx-nui-%s/web/plug-icon.png'):format(RES),
+            icon = ('https://cfx-nui-%s/web/plug-icons/%s.png'):format(RES, appColour()),
             fixBlur = false,                        -- the app is laid out in px
         })
     end)
@@ -75,7 +80,33 @@ local function relay(name, fn)
 end
 
 relay('plug:data', function()
-    return lib.callback.await('nayzeee-sneakers:plugData', false) or {}
+    local d = lib.callback.await('nayzeee-sneakers:plugData', false) or {}
+    d.appColour = appColour()
+    d.colours = Config.BoxColours
+    return d
+end)
+
+-- a new app colour: the logo in the app changes straight away; the home screen icon once the phone is closed
+local iconPending = false
+relay('plug:colour', function(d)
+    local c = Shared.BoxColour(d.colour)
+    SetResourceKvp('nzs:appcolour', c)
+    if not iconPending and lbRunning() then
+        iconPending = true
+        CreateThread(function()
+            Wait(500)
+            for _ = 1, 600 do
+                local ok, open = pcall(function() return exports['lb-phone']:IsOpen() end)
+                if not ok or not open then break end
+                Wait(1000)
+            end
+            pcall(function() exports['lb-phone']:RemoveCustomApp(APP_ID) end)
+            Wait(250)
+            addApp()
+            iconPending = false
+        end)
+    end
+    return { ok = true, colour = c }
 end)
 
 relay('plug:find', function(d)

@@ -160,6 +160,7 @@ async function load() {
   D = d;
   if (d.props) PROPS_RES = d.props;
   if (d.sources) ICON_SRC = d.sources;
+  if (d.appColour) $('pLogo').src = `plug-icons/${d.appColour}.png`;
   offset = (d.now || 0) - Math.floor(Date.now() / 1000);
   if (d.deal) d.deal.endsAt = now() + d.deal.left;
   render();
@@ -304,6 +305,9 @@ function renderMe() {
     <div class="card lvl-card"><div class="row-l"><span>Reputation</span><b>${p.rep || 0} / ${p.repMax || 100}</b></div>
       <div class="meter"><i style="width:${(p.rep || 0) / (p.repMax || 100) * 100}%"></i></div>
       <div class="row-l" style="margin-top:6px;margin-bottom:0"><span>Better rep, better offers</span></div></div>
+    <div class="card lvl-card"><div class="row-l"><span>App colour</span><b>${esc(((D.colours || []).find(c => c.id === D.appColour) || {}).label || '')}</b></div>
+      <div class="swatches">${(D.colours || []).map(c => `<button class="swatch${c.id === D.appColour ? ' on' : ''}" data-act="colour" data-colour="${esc(c.id)}" title="${esc(c.label)}"><img src="plug-icons/${esc(c.id)}.png" alt=""></button>`).join('')}</div>
+      <div class="row-l" style="margin-top:8px;margin-bottom:0"><span>Your home screen icon changes when you close the phone</span></div></div>
     <div class="pstats">
       <div class="stat"><div class="tile">${icon('cash')}</div><div class="stat-txt"><span>Earned</span><b>${money(p.earned)}</b></div></div>
       <div class="stat"><div class="tile">${icon('check')}</div><div class="stat-txt"><span>Pairs sold</span><b>${p.sold || 0}</b></div></div>
@@ -333,6 +337,13 @@ $('pTabs').addEventListener('click', e => {
 $('pBody').addEventListener('click', async e => {
   const b = e.target.closest('button[data-act]');
   if (!b || b.disabled || busy) return;
+  if (b.dataset.act === 'colour') {
+    D.appColour = b.dataset.colour;
+    $('pLogo').src = `plug-icons/${D.appColour}.png`;
+    render();
+    call('plug:colour', { colour: D.appColour });
+    return;
+  }
   const card = b.closest('.card');
   busy = true;
   b.disabled = true;

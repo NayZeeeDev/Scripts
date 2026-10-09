@@ -263,6 +263,10 @@ Selling goes through the **Plug** app on **lb-phone**. The script adds it to lb-
 it's on every phone already (`Config.Phone.DefaultApp = true`), or set that to `false` so players download it from the App Store.
 Start lb-phone **before** this script.
 
+The app's icon is the **Sneaker Co.** logo. Each player picks its colour in the app (**Profile > App colour**, the same
+nine colours as the boxes); the logo in the app changes at once and the home screen icon when they close the phone.
+`Config.Phone.AppColour` sets the colour everyone starts with.
+
 | Tab | What's there |
 |---|---|
 | **Offers** | Buyers DM you a price for one of your pairs. Accept or pass. Each one shows how hard they check (●●●) and whether they walk or drive up |
