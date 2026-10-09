@@ -85,7 +85,7 @@ lib.callback.register('nz_cargo:workshop:open', function(src, stockId)
 end)
 
 -- Wash & clean: the dirt level is saved on the car
-lib.callback.register('nz_cargo:workshop:wash', function(src, stockId)
+lib.callback.register('nz_cargo:workshop:wash', Server.Once('stock', function(src, stockId)
     local st, w, item = context(src, stockId, 'wash')
     if not st then Server.Notify(src, L('no_perm'), 'error') return false end
     if not Server.Charge(src, W.WashPrice or 0, 'vehiclecargo-wash') then return false end
@@ -95,9 +95,9 @@ lib.callback.register('nz_cargo:workshop:wash', function(src, stockId)
     Server.Notify(src, L('ws_washed'), 'success')
     Warehouse.Refresh(w.id)
     return { ok = true, cash = Bridge.GetMoney(src, Config.Accounts.Purchase) }
-end)
+end))
 
-lib.callback.register('nz_cargo:workshop:buy', function(src, stockId, build, props)
+lib.callback.register('nz_cargo:workshop:buy', Server.Once('stock', function(src, stockId, build, props)
     local st, w, item = context(src, stockId)
     if not st or type(build) ~= 'table' then return false end
     local allowed = Cargo.AllowedGroups(w.upgrades.workshop)
@@ -141,7 +141,7 @@ lib.callback.register('nz_cargo:workshop:buy', function(src, stockId, build, pro
         cost = cost, cash = Bridge.GetMoney(src, Config.Accounts.Purchase),
         baseValue = Cargo.BaseValue(item, w.upgrades.contacts),
     }
-end)
+end))
 
 -----------------------------------------------------------------
 -- External mechanic: another resource did the work (and charged for

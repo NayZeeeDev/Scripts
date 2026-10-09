@@ -220,7 +220,7 @@ lib.callback.register('nz_cargo:shop', function(src)
     }
 end)
 
-lib.callback.register('nz_cargo:buy', function(src, locationId)
+lib.callback.register('nz_cargo:buy', Server.Once('player', function(src, locationId)
     local s = Server.Get(src)
     local l = DB.Locations[tonumber(locationId)]
     if not s or not l or not l.enabled then return false end
@@ -234,7 +234,7 @@ lib.callback.register('nz_cargo:buy', function(src, locationId)
     Server.Webhook('Warehouse purchased', { Player = s.name, Location = l.name, Price = '$' .. lib.math.groupdigits(l.price) })
     TriggerClientEvent('nz_cargo:accessChanged', src, Server.Accessible(src))
     return { id = w.id, door = l.door, name = l.name }
-end)
+end))
 
 -----------------------------------------------------------------
 -- Selling / moving a warehouse at the broker
@@ -495,7 +495,7 @@ lib.callback.register('nz_cargo:upgrade', function(src, track, choice)
     return Warehouse.Payload(src, w.id)
 end)
 
-lib.callback.register('nz_cargo:repair', function(src, stockId)
+lib.callback.register('nz_cargo:repair', Server.Once('stock', function(src, stockId)
     local s, w = ownerCtx(src, 'repair')
     if not s then return false end
     local item = DB.GetStockItem(tonumber(stockId))
@@ -508,7 +508,7 @@ lib.callback.register('nz_cargo:repair', function(src, stockId)
     Server.Notify(src, L('repair_done', lib.math.groupdigits(cost)), 'success')
     Warehouse.Refresh(w.id)
     return Warehouse.Payload(src, w.id)
-end)
+end))
 
 -- Scrap a car for parts (frees the slot, small refund)
 lib.callback.register('nz_cargo:scrap', Server.Once('stock', function(src, stockId)
@@ -598,10 +598,21 @@ end)
 -----------------------------------------------------------------
 -- Associates
 -----------------------------------------------------------------
+-- Standing with you: same warehouse copy (routing bucket) and within talking distance
+local NEAR = 25.0
+function Warehouse.Near(src, other)
+    if GetPlayerRoutingBucket(src) ~= GetPlayerRoutingBucket(other) then return false end
+    local a, b = GetPlayerPed(src), GetPlayerPed(other)
+    if a == 0 or b == 0 then return false end
+    return #(GetEntityCoords(a) - GetEntityCoords(b)) < NEAR
+end
+
 lib.callback.register('nz_cargo:addAssociate', function(src, target)
     local s, w = ownerCtx(src, 'crew')
     target = tonumber(target)
     if not s or not target or target == src then return false end
+    -- only someone actually standing with you (the picker only lists them, a forged request could name anyone)
+    if not Warehouse.Near(src, target) then return false end
     if #w.associates >= Config.Associates.Max then Server.Notify(src, L('assoc_full'), 'error') return false end
     local t = Server.Get(target)
     if not t then return false end
@@ -658,14 +669,10 @@ end)
 
 -- Nearby players for the associate picker
 lib.callback.register('nz_cargo:nearbyPlayers', function(src)
-    local me = GetEntityCoords(GetPlayerPed(src))
     local out = {}
     for _, id in ipairs(GetPlayers()) do
         id = tonumber(id)
-        if id ~= src then
-            local d = #(GetEntityCoords(GetPlayerPed(id)) - me)
-            if d < 25.0 then out[#out + 1] = { id = id, name = Bridge.GetName(id) } end
-        end
+        if id ~= src and Warehouse.Near(src, id) then out[#out + 1] = { id = id, name = Bridge.GetName(id) } end
     end
     return out
 end)
@@ -686,11 +693,11 @@ end)
 -----------------------------------------------------------------
 -- Insurance, claims and prestige
 -----------------------------------------------------------------
-lib.callback.register('nz_cargo:insure', function(src, stockId)
+lib.callback.register('nz_cargo:insure', Server.Once('stock', function(src, stockId)
     local s, w = ownerCtx(src, 'insurance')
     if not s then return false end
     local item = DB.GetStockItem(tonumber(stockId))
-    if not item or item.warehouse ~= w.id or item.status ~= 'stored' then return false end
+    if not item or item.warehouse ~= w.id or item.status ~= 'stored' or item.insured then return false end
     if not Raid.Insurable(item) then Server.Notify(src, L('ins_denied'), 'error') return false end
     local cost = Raid.Premium(w, item)
     if not Server.Charge(src, cost, 'vehiclecargo-insurance') then return false end
@@ -699,7 +706,7 @@ lib.callback.register('nz_cargo:insure', function(src, stockId)
     DB.Log(s.identifier, w.id, 'insure', item.label, item.rarity, -cost)
     Server.Notify(src, L('ins_done', item.label), 'success', 'Insurance')
     return Warehouse.Payload(src, w.id)
-end)
+end))
 
 lib.callback.register('nz_cargo:claims', function(src)
     local s, w = ownerCtx(src, 'owner')
