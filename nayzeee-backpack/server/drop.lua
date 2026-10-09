@@ -31,14 +31,13 @@ function Drop.bag(src, bagKey, coords, skipLog)
         Logs.drop(src, bagKey, metadata, coords or GetEntityCoords(GetPlayerPed(src)), 'death')
     end
 
-    -- wipe the stash first if the server doesn't want contents surviving
-    if not Config.Drop.keepContents and metadata.bagid then
-        local stashId = ('backpack_%s'):format(metadata.bagid)
-        ox:ClearInventory(stashId)
-    end
-
     if not ox:RemoveItem(src, bagKey, 1, metadata, item.slot) then
         return nil
+    end
+
+    -- only wipe once the bag has really left them, never before
+    if not Config.Drop.keepContents and metadata.bagid then
+        ox:ClearInventory(PrepareStash(bagKey, metadata.bagid))
     end
 
     coords = coords or GetEntityCoords(GetPlayerPed(src))

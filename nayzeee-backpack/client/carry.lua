@@ -24,6 +24,7 @@ local SCRIPTED_ANIM_TASK = 134
 
 local current = nil  -- pose table currently looping
 local walkSet = nil  -- clipset we applied, so we only reset our own
+local previewing = nil -- pose the studio / shop try-on is showing
 
 local function wantedPose()
     if Carry.suspended then return nil end
@@ -80,9 +81,11 @@ CreateThread(function()
         local ped = PlayerPedId()
 
         if pose ~= current then
-            -- bag changed, came off, or the player picked another pose
-            stopPose(ped, current)
-            if current and current.dict ~= (pose and pose.dict) then RemoveAnimDict(current.dict) end
+            -- bag changed, came off, or the player picked another pose.
+            -- Leave it alone if a preview is playing the same clip.
+            local shared = previewing and current and previewing.dict == current.dict and previewing.clip == current.clip
+            if not shared then stopPose(ped, current) end
+            if current and not shared and current.dict ~= (pose and pose.dict) then RemoveAnimDict(current.dict) end
             current = pose
             setWalk(ped, pose ~= nil)
         end
@@ -107,8 +110,6 @@ end)
 -----------------------------------------------------------------
 -- studio preview
 -----------------------------------------------------------------
-
-local previewing = nil
 
 function Carry.preview(poseKey)
     local pose = Bags.pose(poseKey)

@@ -36,10 +36,21 @@ end
 
 AddEventHandler('nayzeee-backpack:iconWritten', function(name) imageCache[name] = nil end)
 
+--- With a physical store only, the player has to actually be at one.
+local function atStore(src)
+    if cfg.openMode ~= 'ped' then return true end
+    local pc = GetEntityCoords(GetPlayerPed(src))
+    for _, loc in ipairs(cfg.Locations or {}) do
+        if #(pc - loc.coords) < 12.0 then return true end
+    end
+    return false
+end
+
 -----------------------------------------------------------------
 
 RegisterNetEvent('nayzeee-backpack:buy', function(bagKey, variant)
     local src = source
+    if not atStore(src) then return end
     local price = Bags.price(bagKey)
 
     -- a bag with no price isn't for sale, whatever the client claims
@@ -90,7 +101,7 @@ end)
 
 RegisterNetEvent('nayzeee-backpack:sell', function(bagKey)
     local src = source
-    if not cfg.canSell then return end
+    if not cfg.canSell or not atStore(src) then return end
 
     local price = Bags.price(bagKey)
     if not Config.Backpacks[bagKey] or not price or price <= 0 then return end

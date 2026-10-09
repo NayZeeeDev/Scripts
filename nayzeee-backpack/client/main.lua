@@ -88,7 +88,8 @@ end
 --- Re-attach everything, e.g. after an admin saved a new offset.
 function RefreshAllBags()
     for id in pairs(props) do removeProp(id) end
-    for id in pairs(wanted) do apply(id) end
+    -- each apply may wait on a model, so never block whoever called us
+    for id in pairs(wanted) do CreateThread(function() apply(id) end) end
 end
 
 AddEventHandler('nayzeee-backpack:overridesChanged', RefreshAllBags)
@@ -203,7 +204,7 @@ AddEventHandler('onClientResourceStart', function(res)
         if st then wanted[sid] = st end
     end
     SetTimeout(1000, function()
-        for id in pairs(wanted) do apply(id) end
+        for id in pairs(wanted) do CreateThread(function() apply(id) end) end
         ResyncBackpack()
     end)
 end)
@@ -239,7 +240,11 @@ CreateThread(function()
                 if ped == 0 or not DoesEntityExist(ped) then
                     if p then removeProp(serverId) end
                 elseif not p or not DoesEntityExist(p.entity) or not IsEntityAttachedToEntity(p.entity, ped) then
-                    apply(serverId)
+                    -- own thread: a model load may wait, and we're mid-iteration
+                    if not attaching[serverId] then
+                        local id = serverId
+                        CreateThread(function() apply(id) end)
+                    end
                 elseif not (serverId == myId and localHidden) then
                     local show = Config.ShowInVehicle or not IsPedInAnyVehicle(ped, false)
                     if show ~= IsEntityVisible(p.entity) then

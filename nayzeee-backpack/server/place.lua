@@ -30,6 +30,21 @@ end
 -----------------------------------------------------------------
 
 local hasDb = cfg.persist and GetResourceState('oxmysql') == 'started'
+local ready = not hasDb -- nothing is handed out until saved bags are back
+
+local function listFor(src)
+    local identifier = Framework.getIdentifier(src)
+    local list = {}
+    for _, entry in pairs(placed) do
+        list[#list + 1] = {
+            id = entry.id, bag = entry.bag, coords = entry.coords,
+            heading = entry.heading, variant = entry.variant,
+            access = entry.access,
+            mine = entry.owner == identifier,
+        }
+    end
+    return list
+end
 
 local function saveOne(p)
     if not hasDb then return end
@@ -57,6 +72,7 @@ CreateThread(function()
     local rows = MySQL.query.await('SELECT * FROM nayzeee_placed_bags') or {}
 
     for _, row in ipairs(rows) do
+        if not Config.Backpacks[row.bag] then goto skip end
         local id = tonumber(row.id)
         placed[id] = {
             id = id,
@@ -70,10 +86,18 @@ CreateThread(function()
             at = os.time(),
         }
         if id >= nextId then nextId = id + 1 end
+        ::skip::
     end
 
+    ready = true
     if #rows > 0 then
         print(('[nayzeee-backpack] restored %d placed bag(s)'):format(#rows))
+    end
+
+    -- anyone who asked while we were still loading (a resource restart)
+    for _, playerId in ipairs(GetPlayers()) do
+        local src = tonumber(playerId)
+        TriggerClientEvent('nayzeee-backpack:syncPlaced', src, listFor(src))
     end
 end)
 
@@ -100,6 +124,9 @@ RegisterNetEvent('nayzeee-backpack:place', function(bagKey, coords, heading, acc
     local src = source
     access = (access == 'public') and 'public' or 'private'
 
+    if not ready then
+        return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.busy, 'error')
+    end
     if not bagKey or not Config.Backpacks[bagKey] then return end
     if type(coords) ~= 'vector3' and type(coords) ~= 'table' then return end
     if not tonumber(coords.x) or not tonumber(coords.y) or not tonumber(coords.z) then return end
@@ -232,19 +259,8 @@ end)
 
 RegisterNetEvent('nayzeee-backpack:requestPlaced', function()
     local src = source
-    local identifier = ownerOf(src)
-    local list = {}
-
-    for _, entry in pairs(placed) do
-        list[#list + 1] = {
-            id = entry.id, bag = entry.bag, coords = entry.coords,
-            heading = entry.heading, variant = entry.variant,
-            access = entry.access,
-            mine = entry.owner == identifier,
-        }
-    end
-
-    TriggerClientEvent('nayzeee-backpack:syncPlaced', src, list)
+    if not ready then return end -- the restore pushes to everyone when it's done
+    TriggerClientEvent('nayzeee-backpack:syncPlaced', src, listFor(src))
 end)
 
 -----------------------------------------------------------------
