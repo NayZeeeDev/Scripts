@@ -159,7 +159,21 @@ function Inv.SetMeta(src, slot, meta)
         ox:SetMetadata(src, slot, meta)
         return true
     end
-    if Inv.TakeSlot(src, slot) then return Inv.Add(src, meta) end
+    if Inv.TakeSlot(src, slot) then
+        if Inv.Add(src, meta) then return true end
+        return false, true -- out of the slot but couldn't go back in: the caller has to put it somewhere
+    end
+    return false
+end
+
+--- Give back a plain item (crafting materials)
+function Inv.AddItem(src, item, count)
+    if ox then return ox:AddItem(src, item, count) == true end
+    if qs then return qs:AddItem(src, item, count) ~= false end
+    if INV == 'qb-inventory' then
+        local p = Bridge.GetPlayer(src)
+        return p ~= nil and p.Functions.AddItem(item, count) ~= false
+    end
     return false
 end
 

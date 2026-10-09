@@ -93,7 +93,7 @@ function Registry.build()
         end
     end
 
-    -- exclusive chains: who may buy them is kept here; clients only learn THAT a chain is exclusive
+    -- exclusive chains: the licenses stay here; clients only learn that a chain is exclusive and who it's made for (names)
     Registry.owners = {}
     for key, d in pairs(list) do
         if d.forSale == nil then d.forSale = Config.Store.SellAll ~= false end

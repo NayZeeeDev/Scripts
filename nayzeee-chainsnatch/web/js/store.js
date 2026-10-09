@@ -234,6 +234,7 @@
       busy = true;
       renderItem(false);
       post('store:repair', { slot: +r.dataset.repair });
+      setTimeout(() => { if (busy) { busy = false; renderTabs(); renderItem(false); } }, 10000);
     }
   });
 

@@ -25,7 +25,7 @@ local function repairPrice(key)
 end
 
 local function nearStore(src)
-    if cfg.OpenMode == 'command' or cfg.OpenMode == 'both' then return true end
+    if cfg.OpenMode == 'command' then return true end -- no physical store at all
     local ped = GetPlayerPed(src)
     if not ped or ped == 0 then return false end
     local c = GetEntityCoords(ped)
@@ -137,8 +137,19 @@ RegisterNetEvent('nzc:store:craft', function(key, letter)
         for _, m in ipairs(mats) do
             if Inv.Count(src, m.item) < m.count then busy[src] = nil return done(src, false, T.no_materials) end
         end
-        for _, m in ipairs(mats) do Inv.RemoveItem(src, m.item, m.count) end
+        -- room first, then the materials, then the chain: nothing is taken unless the chain can be handed over
+        if not Inv.CanCarry(src, Chains.meta(key, v.letter)) then busy[src] = nil return done(src, false, T.no_room) end
+        local taken = {}
+        for _, m in ipairs(mats) do
+            if not Inv.RemoveItem(src, m.item, m.count) then
+                for _, t in ipairs(taken) do Inv.AddItem(src, t.item, t.count) end
+                busy[src] = nil
+                return done(src, false, T.no_materials)
+            end
+            taken[#taken + 1] = m
+        end
         local ok = newChain(src, key, v.letter, 'crafted')
+        if not ok then for _, t in ipairs(taken) do Inv.AddItem(src, t.item, t.count) end end
         busy[src] = nil
         done(src, ok, ok and T.crafted:format(Chains.label(key, v.letter)) or T.no_room)
     end)
@@ -146,21 +157,32 @@ end)
 
 RegisterNetEvent('nzc:store:repair', function(slot)
     local src = source
-    if busy[src] or not cfg.Enabled or not nearStore(src) then return end
+    if not cfg.Enabled then return end
+    if busy[src] then return done(src, false, T.busy) end
+    if not nearStore(src) then return done(src, false, T.too_far) end
     local meta = Inv.Peek(src, slot)
     local key = meta and Chains.fromMeta(meta)
-    if not key or not meta.broken then return end
+    if not key or not meta.broken then return done(src, false, T.no_chain) end
     local price = repairPrice(key)
     if Bridge.GetMoney(src, cfg.Currency) < price then return done(src, false, T.no_money) end
     busy[src] = true
     TriggerClientEvent('nzc:store:working', src, cfg.Repair.Time or 3000, 'repair')
     SetTimeout(cfg.Repair.Time or 3000, function()
         local m = GetPlayerName(src) and Inv.Peek(src, slot)
-        if not m or not m.broken or m.chain ~= meta.chain or m.serial ~= meta.serial then busy[src] = nil return end
+        if not m or not m.broken or m.chain ~= meta.chain or m.serial ~= meta.serial then
+            busy[src] = nil
+            return GetPlayerName(src) and done(src, false, T.no_chain)
+        end
         if not Bridge.RemoveMoney(src, price, cfg.Currency, 'jewelry-repair') then busy[src] = nil return done(src, false, T.no_money) end
         m.broken = nil
         local fixed = Chains.meta(m.chain, m.variant, m)
-        local ok = Inv.SetMeta(src, slot, fixed)
+        local ok, lost = Inv.SetMeta(src, slot, fixed)
+        if lost then
+            -- it came out of the pockets but wouldn't go back in: on the counter floor, not gone
+            local c = GetEntityCoords(GetPlayerPed(src))
+            Drops.add({ meta = fixed, coords = { x = c.x, y = c.y, z = c.z - 0.9 }, rot = { x = 0.0, y = 0.0, z = 0.0 }, thrown = true })
+            ok = true
+        end
         busy[src] = nil
         done(src, ok, ok and T.repaired:format(fixed.label) or 'Could not repair it.')
     end)

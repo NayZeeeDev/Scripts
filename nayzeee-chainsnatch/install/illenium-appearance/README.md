@@ -1,9 +1,9 @@
 # illenium-appearance addon
 
-Chains that nayzeee-chainsnatch converted from a clothing pack are **jewellery**: they're sold at the jewelry
+The chains **you list** in `Config.Appearance.Block` (nayzeee-chainsnatch/config.lua) are sold at the jewelry
 store, so the clothing store won't put them on. Trying one shows *"This chain must be purchased at the jewelry
-store."* It covers every way illenium sets clothing: the menu, saved outfits, outfit codes, job outfits and
-loading a skin, because they all go through one function.
+store."* Nothing else in your clothing packs is touched. It covers the clothing menu, saved outfits, outfit
+codes and loading a skin, because they all go through one function.
 
 ## Install (3 steps)
 
@@ -38,9 +38,19 @@ nothing.
 
 ## Which chains are blocked
 
-- every chain chainkit converted from a **clothing resource** (`Config.Convert.ScanResources`)
-- plus every accessory of the collections in `Config.Appearance.BlockCollections`
+Only what's in `Config.Appearance.Block`:
 
-Chains from the `chains/` folder aren't clothing on your server, so there is nothing to block for them.
-Without illenium (or with another clothing script) `Config.Appearance.Enforce` takes a jewellery chain back off
-within two seconds.
+```lua
+Config.Appearance = {
+    Enforce = true,
+    Block = {
+        'm|mp_m_mychains|3',                                     -- one chain (key from /chainlist or the studio)
+        { collection = 'mp_m_mychains', drawables = { 0, 1, 4 } }, -- those numbers of a pack
+        { collection = 'mp_f_mychains' },                          -- a whole pack
+    },
+}
+```
+
+illenium's job outfits set clothing directly (not through `setPedComponent`), and a skin can load a moment
+before the chain list arrives on join: `Enforce` takes a blocked chain back off within two seconds in both cases,
+and with any other clothing script.

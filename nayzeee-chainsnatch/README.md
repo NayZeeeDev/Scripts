@@ -155,10 +155,11 @@ No owners = anyone can buy it. Untick *For sale* to take a chain out of the stor
 
 ## illenium-appearance
 
-Chains converted from a clothing pack are jewellery now: the clothing store won't put them on and says
-*"This chain must be purchased at the jewelry store."* Install the 3-step addon in
+The chains **you list** in `Config.Appearance.Block` are jewellery: the clothing store won't put them on and
+says *"This chain must be purchased at the jewelry store."* Nothing else is blocked. List one chain by its key
+(`/chainlist`, or the studio's Look tab), some numbers of a pack, or a whole pack. Install the 3-step addon in
 [`install/illenium-appearance`](install/illenium-appearance/README.md). Other clothing scripts:
-`Config.Appearance.Enforce` takes a jewellery chain back off within two seconds.
+`Config.Appearance.Enforce` takes a blocked chain back off within two seconds.
 
 ## Exports (server)
 

@@ -242,7 +242,8 @@ Config.Store = {
     Currency      = 'cash',        -- 'cash' | 'bank'
     SellAll       = true,          -- every chain is in the store unless the studio takes it out
     DefaultPrice  = 2500,          -- price of a chain the studio didn't price. The value shown on items too
-    OpenMode      = 'both',        -- 'ped' = walk up to the jeweller, 'command' = /chainstore anywhere, 'both'
+    OpenMode      = 'both',        -- 'ped' = walk up to the jeweller, 'command' = /chainstore from anywhere (no store),
+                                   -- 'both' = the jeweller, or /chainstore while you're standing in the store
     Command       = 'chainstore',
 
     Locations = {
@@ -308,15 +309,25 @@ Config.Give = {
 -- ██║  ██║██║     ██║     ███████╗██║  ██║██║  ██║██║  ██║██║ ╚████║╚██████╗███████╗
 -- ╚═╝  ╚═╝╚═╝     ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝
 
--- Chains converted from a CLOTHING pack (Config.Convert.ScanResources) are jewellery now: they can't be
--- picked in the clothing store any more, players buy them at the jewelry store instead.
--- illenium-appearance: install the addon in install/illenium-appearance (one file + one line).
--- Any other clothing script: Enforce takes the chain back off within a couple of seconds.
+-- Chains you sell at the jewelry store can't be picked in the clothing store too. ONLY what you list in
+-- Block is blocked, nothing else from your clothing packs is touched. Trying one shows
+-- "This chain must be purchased at the jewelry store."
+--   illenium-appearance: install the addon in install/illenium-appearance (one file + one line)
+--   any other clothing script: Enforce takes a blocked chain back off within a couple of seconds
+--
+-- Three ways to list a chain (mix them freely):
+--   'm|mp_m_mychains|3'                                    one chain: its key from /chainlist or the studio (Look tab)
+--   { collection = 'mp_m_mychains', drawables = { 0, 4 } } chains 0 and 4 of that pack (their number inside the pack)
+--   { collection = 'mp_f_mychains' }                       every chain in that pack
+-- The collection is the clothing file's name after mp_m_freemode_01_ (mp_m_freemode_01_mp_m_mychains^teef_003_u.ydd
+-- = collection mp_m_mychains, number 3). Male and female packs are listed separately.
 Config.Appearance = {
-    BlockClothingChains = true,
-    Enforce             = true,
-    -- Also block every accessory (teef) from these clothing collections, converted or not
-    BlockCollections    = {},      -- e.g. { 'mp_m_mychains', 'mp_f_mychains' }
+    Enforce = true,
+    Block = {
+        -- 'm|mp_m_mychains|3',
+        -- { collection = 'mp_m_mychains', drawables = { 0, 1, 4 } },
+        -- { collection = 'mp_f_mychains' },
+    },
 }
 
 -- ███████╗████████╗██╗   ██╗██████╗ ██╗ ██████╗

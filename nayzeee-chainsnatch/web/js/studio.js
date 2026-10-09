@@ -213,7 +213,7 @@ function sdLook(c) {
     <div class="card sd-card">
       <div class="sd-ch">Try it <em>texture ${esc((SD.d.variant || 'a').toUpperCase())}</em></div>
       <button class="btn" data-sd="give">${icon('gift')}Put one in my pockets</button>
-      <div class="sd-note">Key <b>${esc(c.key)}</b> · /givechain id "${esc(c.label)}"</div>
+      <div class="sd-note">Key <b>${esc(c.key)}</b> · /givechain id "${esc(c.label)}"${c.origin === 'server' ? `<br>Sell it only at the jewelry store: add <b>'${esc(c.key)}'</b> to Config.Appearance.Block` : ''}</div>
     </div>`;
 }
 

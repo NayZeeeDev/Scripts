@@ -204,7 +204,6 @@ local function newMeta(key, letter, src)
     return Chains.meta(key, letter, {
         serial = ('NZC-%04d-%04d'):format(math.random(0, 9999), math.random(0, 9999)),
         owner = src and src > 0 and Bridge.GetCharName(src) or nil,
-        license = src and src > 0 and Bridge.GetLicense(src) or nil,
     })
 end
 Worn.newMeta = newMeta
