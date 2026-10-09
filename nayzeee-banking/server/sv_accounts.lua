@@ -347,7 +347,7 @@ function Bank.doTransfer(fromId, toNumber, amount, actorId, actorName, label)
 
     local target = Bank.getAccountByNumber(toNumber)
     if not target then return false, 'No account with that number.' end
-    if target.id == fromId then return false, 'That is the same account.' end
+    if target.id == Bank.id(fromId) then return false, 'That is the same account.' end
     if target.frozen == 1 then return false, 'The receiving account is frozen.' end
 
     -- savings has a ceiling however the money arrives, not just as cash
@@ -699,13 +699,21 @@ AddEventHandler('nz_bank:paycheck', function(src, amount, jobLabel)
 
     if toBank then
         local bonus = Config.DirectDeposit.enabled and Bank.round(amount * Config.DirectDeposit.bonus) or 0
+        Bank.ensurePlayer(xPlayer)
         local acc = Bank.getPersonal(xPlayer.identifier)
-        Bank.credit(acc.id, amount + bonus, {
+        local paid = acc and Bank.credit(acc.id, amount + bonus, {
             category = 'payroll',
             label    = ('Paycheck · %s'):format(jobLabel or xPlayer.job.label or 'Work')
         })
-        Bank.notify(src, 'Paycheck', ('%s%s went into your account.'):format(Config.Currency, amount + bonus), 'success')
-    else
+        if paid then
+            Bank.notify(src, 'Paycheck', ('%s%s went into your account.'):format(Config.Currency, amount + bonus), 'success')
+            return
+        end
+        -- no account, or a frozen one: the wage is paid in cash rather than lost
+        toBank = false
+    end
+
+    if not toBank then
         Bank.addCash(xPlayer, amount)
         Bank.notify(src, 'Paycheck', ('%s%s in cash.'):format(Config.Currency, amount), 'success')
     end

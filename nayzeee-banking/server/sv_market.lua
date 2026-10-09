@@ -101,16 +101,21 @@ CreateThread(function()
 
     while true do
         Wait(Config.Market.tickMinutes * 60000)
-        tick()
 
-        local hour = os.date('%H')
-        if hour ~= lastOpen then
-            lastOpen = hour
-            for id, m in pairs(Bank.market) do
-                m.open = m.price
-                persist(id)
+        -- one bad tick (a database hiccup) must not stop the market for good
+        local ok, err = pcall(function()
+            tick()
+
+            local hour = os.date('%H')
+            if hour ~= lastOpen then
+                lastOpen = hour
+                for id, m in pairs(Bank.market) do
+                    m.open = m.price
+                    persist(id)
+                end
             end
-        end
+        end)
+        if not ok then print('^1[nayzeee-banking]^7 market tick failed: ' .. tostring(err)) end
     end
 end)
 
