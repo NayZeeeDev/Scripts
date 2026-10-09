@@ -30,6 +30,7 @@ Config.ServerName     = 'Los Santos'   -- Shown under the bank title in the UI
 Config.Currency       = '$'            -- Currency symbol
 Config.CurrencyRight  = false          -- true renders 1 500$ instead of $1 500
 Config.Debug          = false          -- Debug prints in the server console
+Config.Locale         = 'en'           -- File in locales/ for notifications and prompts
 
 Config.Inventory = 'ox_inventory'      -- ox_inventory / qs-inventory / qb-inventory / esx
 Config.MoneyItem = 'money'             -- Cash item name, ignored on 'esx'
@@ -737,11 +738,14 @@ Config.Bridge = {
 -- ██║     ██║  ██║╚██████╔╝██║ ╚████║███████╗
 -- ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
 
--- The banking app on the player's phone. lb-phone is detected and
--- registered automatically; if no supported phone is running the app
--- simply is not added and nothing else changes.
+-- The banking app on the player's phone. lb-phone, qs-smartphone-pro,
+-- okokPhone and the YSeries phones (yseries / yphone / yflip-phone) are
+-- detected and registered automatically, including when the phone
+-- starts or restarts after this script. If no supported phone is
+-- running the app simply is not added and nothing else changes.
 Config.Phone = {
     enabled      = true,
+    resource     = 'auto',      -- 'auto' or one phone's resource name, e.g. 'qs-smartphone-pro'
     appName      = 'Banking',   -- Name shown on the home screen
     preinstalled = true,        -- false puts it in the app store instead
     price        = 0,           -- Cost in the store when not preinstalled

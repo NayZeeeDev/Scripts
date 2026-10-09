@@ -1,9 +1,11 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE BANKING — phone app
 
-   lb-phone injects fetchNui() into globalThis when it loads the
-   page. Outside the phone that is missing, so there is a plain NUI
-   fallback and, failing that, the layout still renders.
+   One page for every phone. client/cl_phone.lua loads it with
+   ?phone=lb|qs|okok|ys so it knows which bridge it is sitting in.
+   lb-phone injects fetchNui() into globalThis; every other phone
+   is reached with a plain NUI fetch, which is what their own app
+   templates do. Outside a phone the layout still renders.
 
    Cash never moves here. Depositing and withdrawing need a machine
    or a teller — the phone does everything else.
@@ -28,9 +30,14 @@ const P = {
 
 const RES = 'nayzeee-banking';
 
+/* no ?phone= means an older registration, which was always lb-phone */
+const PHONE = (new URLSearchParams(location.search).get('phone') || 'lb').toLowerCase();
+
 /* ── bridge ───────────────────────────────────────────────── */
 async function call(name, payload) {
-  if (typeof fetchNui === 'function') {
+  // only lb-phone's fetchNui is known to take (name, data); another
+  // phone's global of the same name may not, so it is not trusted
+  if (PHONE === 'lb' && typeof fetchNui === 'function') {
     try { return await fetchNui(name, payload || {}); }
     catch (e) { return { ok: false, msg: 'The bank did not respond.' }; }
   }
@@ -50,9 +57,12 @@ async function call(name, payload) {
 /* ── helpers ──────────────────────────────────────────────── */
 const el = (id) => document.getElementById(id);
 
+/* the minus goes in front of the symbol: −$1,234, not $-1,234 */
 const money = (n) => {
-  const v = Math.round(n || 0).toLocaleString('en-US');
-  return P.currencyRight ? `${v}${P.currency}` : `${P.currency}${v}`;
+  const r = Math.round(n || 0);
+  const v = Math.abs(r).toLocaleString('en-US');
+  const s = P.currencyRight ? `${v}${P.currency}` : `${P.currency}${v}`;
+  return r < 0 ? `−${s}` : s;
 };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
@@ -474,6 +484,11 @@ async function renderWho() {
   el('whoAmount').textContent = money(amount);
   el('whoNumber').value = '';
 
+  // saved payees come with the account data, on servers that have them
+  const hasPayees = Array.isArray(P.data.payees);
+  el('whoPayees').classList.toggle('hidden', !hasPayees);
+  if (!hasPayees && P.who === 'payees') P.who = 'nearby';
+
   document.querySelectorAll('#whoSeg button').forEach(b =>
     b.classList.toggle('on', b.dataset.who === P.who));
 
@@ -487,13 +502,18 @@ async function renderWho() {
 function paintWho() {
   const box = el('whoBody');
   const t = P.targets || {};
-  const list = t[P.who] || [];
+  const list = P.who === 'payees'
+    ? (P.data.payees || []).slice()
+        .sort((a, b) => String(b.last_used || '').localeCompare(String(a.last_used || ''), undefined, { numeric: true }))
+        .map(p => ({ name: p.label, account: p.account_number }))
+    : t[P.who] || [];
 
   if (!list.length) {
     const blank = {
       nearby: ['No one close by', 'Walk up to someone and they will appear here.'],
       recent: ['No one yet', 'People you send money to show up here afterwards.'],
-      contacts: ['No contacts found', 'Save them in your phone first, or type the account number above.']
+      contacts: ['No contacts found', 'Save them in your phone first, or type the account number above.'],
+      payees: ['No saved payees', 'Save one when you send money from the bank and it shows up here.']
     }[P.who];
 
     box.innerHTML = `<div class="empty">${I.none}<b>${blank[0]}</b><span>${blank[1]}</span></div>`;
@@ -689,9 +709,17 @@ function tradeModal(side) {
         ${spendable.map(x => `<option value="${x.id}">${esc(x.label)} · ${money(x.balance)}</option>`).join('')}
       </select>`,
     onConfirm: async (v) => {
+      // an empty sell field means the whole position; anything typed has to be above zero
+      const typed = String(v.amount || '').trim() !== '';
       const amount = parseInt(v.amount, 10) || 0;
       if (buying && amount < m.minTrade) {
         return toast('Not completed', `The smallest order is ${money(m.minTrade)}.`, true);
+      }
+      if (!buying && typed && !(amount > 0)) {
+        return toast('Not completed', 'Enter an amount above zero, or leave it empty to sell it all.', true);
+      }
+      if (!buying && typed && amount > Math.ceil(h ? h.value : 0)) {
+        return toast('Not completed', `You only hold ${money(h ? h.value : 0)}. Leave it empty to sell it all.`, true);
       }
 
       const res = await call('phone:trade', {
@@ -940,7 +968,7 @@ function renderSettings() {
 
   el('settingsBody').innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:8px 0 26px">
-      <div class="avatar" style="width:68px;height:68px;font-size:24px">${initials(d.player.name)}</div>
+      <div class="avatar" style="width:68px;height:68px;font-size:24px">${esc(initials(d.player.name))}</div>
       <b style="font-size:30px;font-weight:700;letter-spacing:-.03em">${esc(d.player.name)}</b>
       <span style="font-size:14px;color:var(--ink-3)">${esc(primary.number)}</span>
     </div>
@@ -1238,14 +1266,25 @@ async function boot() {
   }
 }
 
+/** Fetch again and redraw whatever is on screen. */
+function pull() {
+  refresh().then(() => {
+    if (P.page && RENDER[P.page] && P.page !== 'who') RENDER[P.page]();
+    if (P.tab === 'activity') loadActivity();
+  });
+}
+
 window.addEventListener('message', (e) => {
   const m = e.data || {};
-  if (m.action === 'refresh' || m.type === 'refresh') {
-    refresh().then(() => {
-      if (P.page && RENDER[P.page] && P.page !== 'who') RENDER[P.page]();
-      if (P.tab === 'activity') loadActivity();
-    });
-  }
+  // lb-phone forwards our refresh push; qs-smartphone-pro posts
+  // 'app-opened' each time the app is brought to the front
+  if (m.action === 'refresh' || m.type === 'refresh') return pull();
+  if (PHONE === 'qs' && m === 'app-opened') return pull();
+});
+
+// phones with no documented push: catch up whenever the app is shown again
+document.addEventListener('visibilitychange', () => {
+  if (PHONE !== 'lb' && document.visibilityState === 'visible') pull();
 });
 
 boot();

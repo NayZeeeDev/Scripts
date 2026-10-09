@@ -607,6 +607,10 @@ body.locked .frame{display:none}
 .st-line .amt{font-size:13.5px;font-weight:600;text-align:right;min-width:88px}
 .st-line .run{font-size:12.5px;color:var(--ink-3);text-align:right;min-width:88px}
 
+/* Settings stacks two rows of panels; scroll it at any height instead of squeezing Save off the panel */
+.main.long{overflow-y:auto}
+.main.long .cols{min-height:auto}
+
 .p-body.scrolls{max-height:420px;overflow-y:auto}
 .p-body.scrolls::-webkit-scrollbar{width:4px}
 .p-body.scrolls::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
