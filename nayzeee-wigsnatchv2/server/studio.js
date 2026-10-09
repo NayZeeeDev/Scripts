@@ -4,6 +4,8 @@
 // On start it also moves in photos from older versions (this resource's shots/ folder) and gets back
 // any it can find in ox_inventory/web/images. Plain Node built-ins only.
 // The copy into ox_inventory is done from Lua (server/studio.lua).
+// FXServer runs every server .js of a resource in one shared scope: keep this file's names to itself
+(() => {
 const fs = require('fs');
 const path = require('path');
 
@@ -117,3 +119,4 @@ on('nz-wig:studio:write', (src, name, b64) => {
   }
   emit('nz-wig:studio:written', src, name, ok, key, b64);
 });
+})();

@@ -1,5 +1,7 @@
 // Runs tools/hairkit (the 3D wig builder) for server/hairprops.lua and relays its output.
 // hairkit is a separate program, so the conversion never blocks the server thread.
+// FXServer runs every server .js of a resource in one shared scope: keep this file's names to itself
+(() => {
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -63,3 +65,4 @@ on('nz-wig:hairkit:run', (job) => {
     emit('nz-wig:hairkit:exit', job.src, job.mode, code === null ? -1 : code, tail.slice(-8).join('\n'));
   });
 });
+})();
