@@ -28,7 +28,8 @@ addEventListener('error', e => {
   el.dataset.next = next;
   el.src = next;
 }, true);
-addEventListener('load', e => {
+// (image load events never reach window, so this listens on the document)
+document.addEventListener('load', e => {
   const el = e.target;
   if (!(el instanceof HTMLImageElement)) return;
   const src = el.getAttribute('src') || '';
@@ -42,6 +43,34 @@ new MutationObserver(list => list.forEach(r => {
   if (r.attributeName !== 'src' || !el.dataset || el.getAttribute('src') === el.dataset.next) return;
   delete el.dataset.want; delete el.dataset.fb; delete el.dataset.next;
 })).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['src'] });
+
+// Windows redraw their lists on every click. A brand-new <img> is blank until it loads, which made every
+// picture blink; so when a redraw puts back a picture that was just on screen, the old (already drawn)
+// <img> is moved into its place instead.
+const keepImages = new MutationObserver(list => {
+  const gone = new Map(), added = [];
+  const each = (n, fn) => { if (n.nodeType !== 1) return; if (n.tagName === 'IMG') fn(n); else n.querySelectorAll('img').forEach(fn); };
+  for (const r of list) {
+    r.removedNodes.forEach(n => each(n, i => {
+      if (i.isConnected || !i.complete || !i.naturalWidth) return;
+      const k = i.getAttribute('src');
+      if (!gone.has(k)) gone.set(k, []);
+      gone.get(k).push(i);
+    }));
+    r.addedNodes.forEach(n => each(n, i => added.push(i)));
+  }
+  if (!gone.size) return;
+  added.forEach(i => {
+    const old = i.isConnected && gone.get(i.getAttribute('src'));
+    if (!old || !old.length) return;
+    const o = old.pop();
+    o.className = i.className;
+    if (i.title) o.title = i.title;
+    i.replaceWith(o);
+  });
+  keepImages.takeRecords();   // our own swaps aren't redraws
+});
+keepImages.observe(document.documentElement, { childList: true, subtree: true });
 
 // lb-phone gives custom apps `resourceName`; fall back to the page's own host (https://cfx-nui-<resource>/...)
 const RES = (() => {
