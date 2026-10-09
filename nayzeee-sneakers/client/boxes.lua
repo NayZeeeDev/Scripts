@@ -325,28 +325,43 @@ local function takeOut(ent)
     atBox(ent, function() return lib.callback.await('nayzeee-sneakers:takeOut', false, netOf(ent)) end)
 end
 
+--- Hide a box (base, lid and shoes) on this client, e.g. the moment it's picked up
+local function hideBox(ent, hide)
+    local box = boxes[ent]
+    local list = { ent, box and box.lid, box and box.shoe }
+    for i = 1, 3 do
+        local e = list[i]
+        if e and DoesEntityExist(e) then
+            if hide then SetEntityAlpha(e, 0, false) else ResetEntityAlpha(e) end
+        end
+    end
+    if box then box.gone = hide or nil end
+end
+
 local function pickUp(ent)
     if Busy then return end
     Busy = true
     Anim.Face(ent)
     Anim.PickUp()
-    Wait(500)
-    lib.callback.await('nayzeee-sneakers:pickUp', false, netOf(ent))
-    Wait(400)
+    Wait(300)                                  -- hands reach the box
+    hideBox(ent, true)                         -- gone from view now, the server catches up
+    if not lib.callback.await('nayzeee-sneakers:pickUp', false, netOf(ent)) then hideBox(ent, false) end
     Busy = false
 end
 
+local function going(e) return boxes[e] and boxes[e].gone end
+
 local boxOptions = {
         { name = 'nzs_open', label = Config.Text.open, icon = 'fa-solid fa-box-open',
-          canInteract = function(e) return not state(e, 'nzs:open') and not state(e, 'nzs:busy') end, onSelect = toggleLid },
+          canInteract = function(e) return not going(e) and not state(e, 'nzs:open') and not state(e, 'nzs:busy') end, onSelect = toggleLid },
         { name = 'nzs_close', label = Config.Text.close, icon = 'fa-solid fa-box',
-          canInteract = function(e) return state(e, 'nzs:open') and not state(e, 'nzs:busy') end, onSelect = toggleLid },
+          canInteract = function(e) return not going(e) and state(e, 'nzs:open') and not state(e, 'nzs:busy') end, onSelect = toggleLid },
         { name = 'nzs_takeout', label = Config.Text.takeOut, icon = 'fa-solid fa-hand',
-          canInteract = function(e) return state(e, 'nzs:shoe') and not state(e, 'nzs:busy') end, onSelect = takeOut },
+          canInteract = function(e) return not going(e) and state(e, 'nzs:shoe') and not state(e, 'nzs:busy') end, onSelect = takeOut },
         { name = 'nzs_putin', label = Config.Text.putIn, icon = 'fa-solid fa-shoe-prints',
-          canInteract = function(e) return not state(e, 'nzs:shoe') and not state(e, 'nzs:busy') end, onSelect = putIn },
+          canInteract = function(e) return not going(e) and not state(e, 'nzs:shoe') and not state(e, 'nzs:busy') end, onSelect = putIn },
         { name = 'nzs_pickup', label = Config.Text.pickUp, icon = 'fa-solid fa-hand-holding',
-          canInteract = function(e) return not state(e, 'nzs:busy') end, onSelect = pickUp },
+          canInteract = function(e) return not going(e) and not state(e, 'nzs:busy') end, onSelect = pickUp },
 }
 
 -- Options go on a small sphere around each box as it streams in, so the third eye finds the box
@@ -389,6 +404,7 @@ local function placementSpot(boxType)
     return Place.Ghost(t.base, {
         range = 2.8,
         extra = { model = t.lid, offset = t.hinge },
+        keep = true,   -- the ghost stays, solid, until the real box is here
     })
 end
 
@@ -406,12 +422,13 @@ RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind, boxTyp
     local t = Config.BoxTypes[boxType] or Config.BoxTypes.shoe
     if not IsModelInCdimage(t.base) then return UI.Notify(Config.Text.modelMissing, 'error') end
     Busy = true
-    local spot, heading = placementSpot(boxType)
+    local spot, heading, ghostDone = placementSpot(boxType)
     if spot then
         Anim.PutDown()
-        Wait(600)
-        lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading)
-        Wait(400)
+        local netId = lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading)
+        local ent = netId and waitForEntity(netId)
+        if ent then addBox(ent) end   -- lid and contents now, not on the next streaming pass
+        ghostDone()
     end
     Busy = false
 end)
@@ -420,12 +437,13 @@ end)
 function Boxes.PackFromInventory(slot, meta)
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
     Busy = true
-    local spot, heading = placementSpot(meta and Shared.BoxTypeForShoe(meta.shoe))
+    local spot, heading, ghostDone = placementSpot(meta and Shared.BoxTypeForShoe(meta.shoe))
     if not spot then Busy = false return end
     Anim.PutDown()
-    Wait(600)
     local netId, duration = lib.callback.await('nayzeee-sneakers:packShoes', false, slot, spot, heading)
     local ent = netId and waitForEntity(netId)
+    if ent then addBox(ent) end
+    ghostDone()
     if ent then
         Anim.Kneel()
         Wait(300)

@@ -1,12 +1,13 @@
 --[[
     Raycast placement: a see-through copy of the object follows where you look.
-    Scroll turns it, E places it, Backspace (or right-click) cancels.
+    Scroll turns it, E places it, Backspace, Esc or right-click cancels.
     Used for tables and shoe boxes.
 ]]
 
 Place = {}
 
-local NO_ATTACK = { 24, 25, 37, 38, 44, 140, 141, 142, 257, 263, 14, 15, 16, 17, 199, 200 }
+local NO_ATTACK = { 24, 25, 37, 38, 44, 140, 141, 142, 257, 263, 14, 15, 16, 17, 177, 194, 199, 200, 202, 322 }
+local CANCEL = { 25, 177, 194, 200, 202, 322 }   -- right-click, Backspace, Esc (read while disabled, so the pause menu stays shut)
 
 local function ghostOf(model, pos)
     local obj = CreateObjectNoOffset(model, pos.x, pos.y, pos.z, false, false, false)
@@ -21,8 +22,10 @@ end
 ---   minNormal = how flat the surface must be (default 0.8),
 ---   heading   = start heading (default: facing the player),
 ---   extra     = { model = hash, offset = vector3, rot = vector3 }  -- e.g. the box lid
+---   keep      = true: leave the ghost standing, solid, where it was placed, until the caller's done()
+---               (the real object takes a moment to arrive from the server; this hides the wait)
 --- }
---- Returns coords, heading, or nil if cancelled.
+--- Returns coords, heading, done (call it to remove a kept ghost), or nil if cancelled.
 function Place.Ghost(model, opts)
     opts = opts or {}
     local ped = PlayerPedId()
@@ -60,15 +63,32 @@ function Place.Ghost(model, opts)
             if valid then placed = true break end
             UI.Notify(Config.Text.cantPlace, 'error')
         end
-        if IsDisabledControlJustPressed(0, 25) or IsControlJustPressed(0, 177) then break end
+        local cancel = false
+        for _, c in ipairs(CANCEL) do if IsDisabledControlJustPressed(0, c) then cancel = true break end end
+        if cancel then break end
     end
 
-    if extra then DeleteEntity(extra) end
-    DeleteEntity(ghost)
-    SetModelAsNoLongerNeeded(model)
     UI.Hint(nil)
-    if not placed then return nil end
-    TaskTurnPedToFaceCoord(ped, pos.x, pos.y, pos.z, 600)
-    Wait(600)
-    return pos, heading
+    local function done()
+        if extra and DoesEntityExist(extra) then DeleteEntity(extra) end
+        if DoesEntityExist(ghost) then DeleteEntity(ghost) end
+        SetModelAsNoLongerNeeded(model)
+    end
+    -- keep Esc from opening the pause menu on the frame after cancelling
+    CreateThread(function()
+        local untilT = GetGameTimer() + 300
+        while GetGameTimer() < untilT do DisableControlAction(0, 200, true) DisableControlAction(0, 199, true) Wait(0) end
+    end)
+    if not placed then done() return nil end
+    -- face it straight away (no waiting for a turn)
+    local me = GetEntityCoords(ped)
+    SetEntityHeading(ped, GetHeadingFromVector_2d(pos.x - me.x, pos.y - me.y))
+    if opts.keep then
+        ResetEntityAlpha(ghost)
+        if extra then ResetEntityAlpha(extra) end
+        SetTimeout(5000, done)   -- never leave one behind
+        return pos, heading, done
+    end
+    done()
+    return pos, heading, function() end
 end

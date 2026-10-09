@@ -195,7 +195,13 @@ function Anim.PutDown() play(PUTDOWN, 1000, 0) end
 function Anim.PickUp() play(PICKUP, 1000, 0) end
 function Anim.Stop() ClearPedTasks(PlayerPedId()) end
 
+--- Turn to an entity, only when not already roughly facing it (and quickly)
 function Anim.Face(entity)
-    TaskTurnPedToFaceEntity(PlayerPedId(), entity, 600)
-    Wait(650)
+    local ped = PlayerPedId()
+    local a, b = GetEntityCoords(ped), GetEntityCoords(entity)
+    local want = GetHeadingFromVector_2d(b.x - a.x, b.y - a.y)
+    local diff = math.abs(((GetEntityHeading(ped) - want + 540.0) % 360.0) - 180.0)
+    if diff < 30.0 then return end
+    TaskTurnPedToFaceEntity(ped, entity, 350)
+    Wait(350)
 end

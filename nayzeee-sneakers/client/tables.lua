@@ -76,6 +76,8 @@ Bridge.OnPlayerLoaded(Tables.Refresh)
 
 RegisterNetEvent('nayzeee-sneakers:client:tableAdded', function(t)
     list[t.id] = t
+    -- show it now rather than on the next streaming pass
+    if not spawned[t.id] and #(GetEntityCoords(PlayerPedId()) - t.coords) < T.streamDistance then spawn(t.id) end
 end)
 
 RegisterNetEvent('nayzeee-sneakers:client:tableRemoved', function(id)
@@ -172,11 +174,12 @@ RegisterNetEvent('nayzeee-sneakers:client:placeTable', function(slot, item)
     local model = modelFor(item)
     if not model then return UI.Notify(Config.Text.noTableModel, 'error') end
     Busy = true
-    local pos, heading = Place.Ghost(model, { range = 5.0, flags = 1, minNormal = 0.85, heading = GetEntityHeading(ped) })
+    local pos, heading, ghostDone = Place.Ghost(model, { range = 5.0, flags = 1, minNormal = 0.85, heading = GetEntityHeading(ped), keep = true })
     if pos then
         Anim.PutDown()
-        Wait(700)
         lib.callback.await('nayzeee-sneakers:placeTable', false, slot, pos, heading)
+        Wait(150)   -- the real table spawns from tableAdded, which arrives with the answer
+        ghostDone()
     end
     Busy = false
 end)
