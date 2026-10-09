@@ -793,6 +793,9 @@ Config.Crafting = {
         { id = 'full',    label = 'Full Lace',       tier = 'epic',     level = 5, items = { lace_full = 1 } },
     },
     NaturalColours = { 0, 1, 2, 3, 4, 5 }, -- Hair colours that don't need a dye
+    -- Hair textures that can't be picked at the wig table (texture numbers start at 0). Some hair packs
+    -- replace a texture with a broken one, e.g. every female texture 0 shows green: f = { 0 }
+    SkipTextures = { f = {}, m = {} },
     ShortStyles = false,         -- true = bald / buzz / fade hairstyles can be made too
     XP = 20,                     -- + Config.Tables.PerfectXP for a clean run
 }

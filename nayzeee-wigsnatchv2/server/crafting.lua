@@ -38,6 +38,7 @@ function Crafting.Info(src)
         level = level, have = have, labels = labels, laces = laces, base = CC.Base,
         weft = CC.WeftItem, weftInches = CC.WeftInches, lengths = CC.Lengths, dye = Config.Items.Dye,
         natural = CC.NaturalColours, shortStyles = CC.ShortStyles, supplier = SU.Enabled and SU.Label or nil,
+        skipTextures = { f = (CC.SkipTextures or {}).f or {}, m = (CC.SkipTextures or {}).m or {} },
     }
 end
 
@@ -51,6 +52,9 @@ function Crafting.Check(src, P, req)
     local c, h = Clamp(math.floor(tonumber(req.c) or 0), 0, 63), Clamp(math.floor(tonumber(req.h) or 0), 0, 63)
     if not m or d < 0 or d > 999 or t < 0 or t > 63 then return nil, L('invalid') end
     if not CC.ShortStyles and IsShortDrawable(m, d) then return nil, L('craft_short') end
+    for _, skip in ipairs((CC.SkipTextures or {})[m] or {}) do
+        if skip == t then return nil, L('invalid') end
+    end
     local recipe, lace = CraftRecipe(req.length, req.lace, c)
     if not recipe then return nil, L('invalid') end
     if GetLevel(P.row.xp) < lace.level then return nil, L('level_needed', lace.level) end

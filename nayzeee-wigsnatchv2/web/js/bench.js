@@ -278,7 +278,8 @@
   /* ----- make: detail ----- */
   function pickStyle(s) {
     B.pick = s;
-    B.mk.t = 0;
+    const tex = texturesOf(s);
+    B.mk.t = tex.length ? tex[0] : 0;
     const laces = lacesOf();
     if (!B.mk.lace || !laces.some((l) => l.id === B.mk.lace && !l.locked)) B.mk.lace = (laces.find((l) => !l.locked) || laces[0] || {}).id;
     const [lo, hi] = arr(B.data.make.lengths);
@@ -331,6 +332,14 @@
   const colourRows = (o) => `<div class="pal-l"><span>Colour</span><b>${o.c}</b></div>${palRow('c', o.c)}
     <div class="pal-l"><span>Highlight</span><span class="pal-same"><button class="${o.hSame ? 'on' : ''}" data-same="1">Same as colour</button><b>${o.hSame ? '' : o.h}</b></span></div>${palRow('h', o.hSame ? -1 : o.h)}`;
 
+  // the textures you can pick for a hairstyle (Config.Crafting.SkipTextures takes broken ones out)
+  function texturesOf(s) {
+    const skip = arr(((B.data.make || {}).skipTextures || {})[s.m]).map(Number);
+    const out = [];
+    for (let n = 0; n < Math.min(s.n || 1, 16); n++) if (!skip.includes(n)) out.push(n);
+    return out;
+  }
+
   function renderMake() {
     const s = B.pick, i = B.data.make, mk = B.mk;
     const { items, lace } = recipe();
@@ -341,7 +350,7 @@
     for (let n = lo || 10; n <= (hi || 30); n += 2) lengths.push(n);
     const natural = arr(i.natural).includes(mk.c);
     const mats = matsPanel(items, i.have || {}, i.labels || {}, 'Used up when the wig is finished');
-    const textures = Math.min(s.n || 1, 16);
+    const tex = texturesOf(s);
 
     el('skDetail').innerHTML = `
       <section class="panel">
@@ -351,7 +360,7 @@
         </div>
         <div class="p-body">
           <div class="preview">${hasShot(s.m, s.d, mk.t) ? `<img src="${shot(s.m, s.d, mk.t)}" alt="">` : ph('wig')}<span class="tag off lvl">#${s.d}</span></div>
-          ${textures > 1 ? `<div class="swatches">${Array.from({ length: textures }, (_, n) =>
+          ${tex.length > 1 ? `<div class="swatches">${tex.map((n) =>
             `<button class="sw ${n === mk.t ? 'on' : ''}" data-t="${n}" title="Texture ${n + 1}">${hasShot(s.m, s.d, n) ? `<img src="${shot(s.m, s.d, n)}" alt="">` : n + 1}</button>`).join('')}</div>` : ''}
         </div>
       </section>
@@ -373,7 +382,8 @@
       ${stagesPanel('make', 'Make this wig', 'scissors')}`;
 
     let kind = 'ok', text = `<b>Ready.</b> A ${mk.length}" ${lace ? esc(lace.label.toLowerCase()) : ''} wig.`;
-    if (lace && lace.locked) { kind = 'warn'; text = `<b>${esc(lace.label)}</b> unlocks at level ${lace.level}.`; }
+    if (!tex.length) { kind = 'warn'; text = "This hairstyle's only texture is turned off on this server."; }
+    else if (lace && lace.locked) { kind = 'warn'; text = `<b>${esc(lace.label)}</b> unlocks at level ${lace.level}.`; }
     else if (mats.missing) { kind = 'err'; text = `You're missing <b>${esc(mats.missing)}</b>.${i.supplier ? ` ${esc(i.supplier)} sells it.` : ''}`; }
     setNote(el('skStatus'), kind, text);
     el('skGo').disabled = kind !== 'ok';
