@@ -109,7 +109,7 @@ config/        config.lua (settings, text), shoes.lua (catalogue), crafting.lua 
 bridge/        framework, inventory and target adapters
 client/        boxes, shoes (inspect/wear), tables, crafting + supplier, camera + animations, NUI wrapper
 server/        items, boxes, wear, tables, crafting + supplier, XP, admin commands
-web/           NUI: menus, inspect card, workbench, supply shop, crafting progress, notifications
+web/           NUI (NAYZEEE UI v5): menus, inspect card, workbench, supply shop, crafting progress, notifications. No icon font: icons are inline SVG
 stream/        the three boxes and one folder per shoe model
 install/       item definitions for ox / qb, inventory icons
 tools/         propkit (Python) + CodeWalker import/export tools used to build the props (see tools/README.md)

@@ -157,11 +157,11 @@ RegisterNetEvent('nayzeee-sneakers:client:useShoes', function(slot, meta, hasEmp
     local shoe = Config.Shoes[meta.shoe]
     if not shoe then return end
     local options = {
-        { id = 'inspect', label = Config.Text.inspect, icon = 'fa-solid fa-magnifying-glass', description = 'Turn them over and check the details' },
-        { id = 'wear', label = Config.Text.wear, icon = 'fa-solid fa-shoe-prints', description = 'Swap them onto your feet' },
+        { id = 'inspect', label = Config.Text.inspect, icon = 'search', description = 'Turn them over and check the details' },
+        { id = 'wear', label = Config.Text.wear, icon = 'shoe', description = 'Swap them onto your feet' },
     }
     if hasEmptyBox then
-        options[#options + 1] = { id = 'box', label = Config.Text.boxUp, icon = 'fa-solid fa-box', description = 'Put an empty box down and pack them' }
+        options[#options + 1] = { id = 'box', label = Config.Text.boxUp, icon = 'box', description = 'Put an empty box down and pack them' }
     end
     local choice = UI.Menu({
         title = Shared.ShoeName(meta),

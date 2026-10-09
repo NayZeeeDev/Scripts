@@ -2,149 +2,195 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- action menu / pair picker -->
-<div class="menu" id="menu" hidden>
-  <div class="menu-head">
-    <div class="menu-img" id="menuImg" hidden><img alt=""></div>
-    <div class="menu-titles">
-      <div class="menu-title" id="menuTitle"></div>
-      <div class="menu-sub" id="menuSub"></div>
+<!-- ═══════════ action menu / pair picker ═══════════ -->
+<div class="win menu" id="menu" hidden>
+  <div class="frame"><div class="shell">
+    <div class="bar">
+      <div class="bar-brand">
+        <div class="mark"></div>
+        <div><div class="title-txt">NAYZEEE SNEAKERS</div><div class="sub" id="menuKicker">Pick one</div></div>
+      </div>
+      <button class="pill-close" id="menuClose">Close</button>
     </div>
-  </div>
-  <div class="menu-list" id="menuList"></div>
-  <div class="menu-foot">
-    <span><kbd>↑</kbd><kbd>↓</kbd> choose · <kbd>Enter</kbd> select</span>
-    <button class="closebtn" id="menuClose">Close</button>
-  </div>
+    <div class="main">
+      <div class="who" id="menuWho">
+        <div class="av" id="menuImg"><img alt=""></div>
+        <div class="who-txt"><b id="menuTitle"></b><span id="menuSub"></span></div>
+      </div>
+      <div class="list" id="menuList"></div>
+    </div>
+    <div class="statusbar">
+      <span><span class="key">↑</span><span class="key">↓</span>Choose</span>
+      <span><span class="key">↵</span>Select</span>
+      <span><span class="key">ESC</span>Close</span>
+    </div>
+  </div></div>
 </div>
 
-<!-- inspect card -->
-<div class="inspect" id="inspect" hidden>
-  <div class="ins-head">
-    <div class="ins-img"><img id="insImg" alt=""></div>
-    <div>
-      <div class="ins-name" id="insName"></div>
-      <div class="ins-colour" id="insColour"></div>
+<!-- ═══════════ inspect card ═══════════ -->
+<div class="win inspect" id="inspect" hidden>
+  <div class="frame"><div class="shell">
+    <div class="bar slim">
+      <div class="bar-brand"><div class="mark sm"></div><div class="title-txt">INSPECT</div></div>
+      <span class="chip" id="insColour"></span>
     </div>
-  </div>
-  <div class="ins-rows">
-    <div class="ins-row"><span>Size</span><b id="insSize"></b></div>
-    <div class="ins-row"><span>Condition</span><b id="insCond"></b></div>
-    <div class="ins-row"><span>Serial</span><b id="insSerial" class="mono"></b></div>
-    <div class="ins-row"><span>Dirt</span><b id="insDirtTxt"></b></div>
-    <div class="bar"><i id="insDirt"></i></div>
-  </div>
+    <div class="main">
+      <div class="who">
+        <div class="av big"><img id="insImg" alt=""></div>
+        <div class="who-txt"><b id="insName"></b><span id="insCond"></span></div>
+      </div>
+      <table class="facts">
+        <tr><td>Size</td><td><b id="insSize"></b></td></tr>
+        <tr><td>Serial</td><td><b id="insSerial"></b></td></tr>
+        <tr><td>Dirt</td><td><b id="insDirtTxt"></b></td></tr>
+      </table>
+      <div class="meter"><i id="insDirt"></i></div>
+    </div>
+  </div></div>
 </div>
-<div class="hint" id="inspectHint" hidden></div>
 
-<!-- workbench (crafting table) and supplier shop share the side panel -->
+<!-- ═══════════ workbench + supplier shop ═══════════ -->
 <div class="scrim" id="scrim"></div>
-<div class="side" id="side" hidden>
-  <div class="side-head">
-    <div class="menu-img side-ic"><i id="sideIcon" class="fa-solid fa-scissors"></i></div>
-    <div class="menu-titles">
-      <div class="menu-title" id="sideTitle"></div>
-      <div class="menu-sub" id="sideSub"></div>
+<div class="win side" id="side" hidden>
+  <div class="frame"><div class="shell">
+    <div class="bar">
+      <div class="bar-brand">
+        <div class="mark"></div>
+        <div><div class="title-txt" id="sideTitle"></div><div class="sub" id="sideSub"></div></div>
+      </div>
+      <div class="bar-mid"></div>
+      <button class="btn-ghost" id="guideBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>Guide</button>
+      <button class="pill-close" id="sideClose">Close</button>
     </div>
-    <button class="guidebtn" id="guideBtn"><i class="fa-solid fa-book-open"></i>Guide</button>
-  </div>
 
-  <!-- workbench -->
-  <div class="side-body" id="bench" hidden>
-    <div class="sec">
-      <div class="xp-top"><span>Level <b id="xpLevel">1</b></span><span id="xpText"></span></div>
-      <div class="bar"><i id="xpBar"></i></div>
-      <div class="segmented" id="mode" style="margin-top:14px">
-        <button data-v="fake" class="on"><i class="fa-solid fa-masks-theater"></i> Fake</button>
-        <button data-v="real"><i class="fa-solid fa-certificate"></i> Real</button>
+    <!-- workbench -->
+    <div class="main scroll" id="bench" hidden>
+      <div class="stats">
+        <div class="stat">
+          <div class="tile" data-icon="level"></div>
+          <div class="stat-txt"><span>Level</span><b id="xpLevel">1</b></div>
+        </div>
+        <div class="stat">
+          <div class="tile" data-icon="spark"></div>
+          <div class="stat-txt"><span id="xpLabel">Next level</span><b id="xpText"></b></div>
+          <div class="meter mini"><i id="xpBar"></i></div>
+        </div>
+      </div>
+      <div class="seg" id="mode">
+        <button data-v="fake" class="on"><span data-icon="mask"></span>Fake</button>
+        <button data-v="real"><span data-icon="badge"></span>Real</button>
+      </div>
+
+      <section class="panel" id="pickView">
+        <div class="p-head"><div><h2>Pick a shoe</h2><p id="pickSub"></p></div></div>
+        <div class="p-body">
+          <div class="field"><input type="text" id="search" placeholder="Search by name" autocomplete="off"></div>
+          <div class="list" id="models"></div>
+        </div>
+      </section>
+
+      <div id="detailView" hidden>
+        <section class="panel">
+          <div class="p-head">
+            <div><h2 id="pvName"></h2><p id="pvColour"></p></div>
+            <button class="btn-ghost" id="back"><span data-icon="back"></span>All shoes</button>
+          </div>
+          <div class="p-body">
+            <div class="preview"><img id="pvImg" alt=""><span class="tag off lvl" id="pvLevel"></span></div>
+            <div class="swatches" id="swatches"></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="p-head"><div><h2>Size</h2><p>US sizing</p></div></div>
+          <div class="p-body"><div class="chips" id="sizes"></div></div>
+        </section>
+        <section class="panel">
+          <div class="p-head"><div><h2>Materials</h2><p>Used up when the pair is finished</p></div></div>
+          <div class="p-body" id="mats"></div>
+        </section>
+        <section class="panel">
+          <div class="p-head"><div><h2>Stages</h2><p id="stageTime"></p></div></div>
+          <div class="p-body">
+            <div class="steps" id="stages"></div>
+            <div class="note" id="benchStatus"></div>
+            <button class="btn-teal wide" id="craftBtn"><span data-icon="scissors"></span>Make this pair</button>
+          </div>
+        </section>
       </div>
     </div>
 
-    <div class="sec" id="pickView">
-      <div class="sec-head"><i class="fa-solid fa-shoe-prints"></i>Pick a shoe</div>
-      <input type="text" id="search" placeholder="Search" autocomplete="off">
-      <div class="models" id="models"></div>
+    <!-- supplier shop -->
+    <div class="main scroll" id="shop" hidden>
+      <section class="panel">
+        <div class="p-head"><div><h2>Materials</h2><p>Shift-click to add five</p></div></div>
+        <div class="p-body" id="shopList"></div>
+      </section>
+      <div class="stat total">
+        <div class="tile" data-icon="cart"></div>
+        <div class="stat-txt"><span>Total</span><b id="shopTotal">$0</b></div>
+      </div>
+      <div class="note" id="shopStatus"></div>
+      <button class="btn-teal wide" id="buyBtn"><span data-icon="cart"></span>Buy</button>
     </div>
 
-    <div id="detailView" hidden>
-      <div class="sec">
-        <button class="back" id="back"><i class="fa-solid fa-arrow-left"></i> All shoes</button>
-        <div class="preview"><img id="pvImg" alt=""><span class="lvl" id="pvLevel"></span></div>
-        <div class="pv-name" id="pvName"></div>
-        <div class="pv-colour" id="pvColour"></div>
-        <div class="swatches" id="swatches"></div>
-      </div>
-      <div class="sec">
-        <div class="sec-head"><i class="fa-solid fa-ruler-horizontal"></i>Size (US)</div>
-        <div class="chips" id="sizes"></div>
-      </div>
-      <div class="sec">
-        <div class="sec-head"><i class="fa-solid fa-layer-group"></i>Materials</div>
-        <div class="mats" id="mats"></div>
-      </div>
-      <div class="sec">
-        <div class="sec-head"><i class="fa-solid fa-list-ol"></i>Stages <span class="sec-right" id="stageTime"></span></div>
-        <div class="steps" id="stages"></div>
-        <div class="status" id="benchStatus"></div>
-        <button class="build" id="craftBtn" style="margin-top:14px"><i class="fa-solid fa-scissors"></i>Make this pair</button>
-      </div>
+    <div class="statusbar" id="sideKeys">
+      <span><span class="key">ESC</span>Close</span>
+      <span><span class="key">G</span>Guide</span>
     </div>
-  </div>
-
-  <!-- supplier shop -->
-  <div class="side-body" id="shop" hidden>
-    <div class="sec">
-      <div class="sec-head"><i class="fa-solid fa-layer-group"></i>Materials</div>
-      <div class="shoplist" id="shopList"></div>
-    </div>
-    <div class="sec">
-      <div class="total"><span>Total</span><b id="shopTotal">$0</b></div>
-      <div class="status" id="shopStatus"></div>
-      <button class="build" id="buyBtn" style="margin-top:12px"><i class="fa-solid fa-cart-shopping"></i>Buy</button>
-    </div>
-  </div>
-
-  <div class="side-foot"><button class="closebtn" id="sideClose">Close</button></div>
+  </div></div>
 </div>
 
 <!-- guide drawer -->
 <div class="guide" id="guide">
-  <div class="guide-top">
-    <div><h2 id="guideTitle">Guide</h2><div class="sub">How it works</div></div>
-    <button class="closebtn" id="guideClose">Close</button>
+  <div class="bar">
+    <div class="bar-brand"><div class="mark"></div><div><div class="title-txt" id="guideTitle">GUIDE</div><div class="sub">How it works</div></div></div>
+    <div class="bar-mid"></div>
+    <button class="pill-close" id="guideClose">Close</button>
   </div>
   <div class="guide-body" id="guideBody"></div>
 </div>
 
-<!-- crafting stage bar -->
-<div class="progress" id="progress" hidden>
-  <div class="pg-top"><span id="pgLabel"></span><span id="pgStep"></span></div>
-  <div class="bar"><i id="pgBar"></i></div>
-  <div class="pg-hint" id="pgHint"></div>
+<!-- ═══════════ crafting stage ═══════════ -->
+<div class="win hud" id="progress" hidden>
+  <div class="frame"><div class="shell">
+    <div class="main">
+      <div class="inc-top"><span class="chip" id="pgStep"></span><span class="ref">CRAFTING</span></div>
+      <h3 id="pgLabel"></h3>
+      <div class="meter"><i id="pgBar"></i></div>
+    </div>
+    <div class="statusbar" id="pgHint"></div>
+  </div></div>
 </div>
 
-<!-- finished pair -->
-<div class="result" id="result" hidden>
-  <div class="ins-img rs-img"><img id="rsImg" alt=""></div>
-  <div class="rs-tx">
-    <div class="rs-top"><span class="badge" id="rsBadge"></span><span class="rs-checks" id="rsChecks"></span></div>
-    <div class="ins-name" id="rsName"></div>
-    <div class="rs-q"><span>Quality</span><b id="rsQ"></b></div>
-    <div class="bar"><i id="rsBar"></i></div>
-  </div>
+<!-- ═══════════ finished pair ═══════════ -->
+<div class="win result" id="result" hidden>
+  <div class="frame"><div class="shell">
+    <div class="main">
+      <div class="who">
+        <div class="av big"><img id="rsImg" alt=""></div>
+        <div class="who-txt">
+          <div class="inc-top"><span class="chip" id="rsBadge"></span><span class="ref" id="rsChecks"></span></div>
+          <b id="rsName"></b>
+        </div>
+      </div>
+      <div class="q-row"><span>Quality</span><b id="rsQ"></b></div>
+      <div class="meter"><i id="rsBar"></i></div>
+    </div>
+  </div></div>
 </div>
 
-<div class="hint" id="hint" hidden></div>
+<!-- key hint -->
+<div class="keys-pill" id="hint" hidden></div>
+<div class="keys-pill" id="inspectHint" hidden></div>
 
-<!-- notifications -->
+<!-- toasts -->
 <div class="toasts" id="toasts"></div>
 
 <script src="app.js"></script>

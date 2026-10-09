@@ -104,7 +104,7 @@ Config.Text = {
     tookOff = 'Shoes off',
     notWearing = 'You are not wearing any boxed shoes',
     modelMissing = 'Shoe box model is not streamed. Check nayzeee-sneakers/stream',
-    inspectHint = 'Hold LMB and drag to turn · scroll to zoom · Backspace to put them away',
+    inspectHint = 'Hold LMB and drag to turn · Scroll to zoom · Backspace to put them away',
 
     -- crafting tables
     useTable = 'Use shoe table',
