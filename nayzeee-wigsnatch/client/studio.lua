@@ -1,90 +1,114 @@
--- Wig Studio: photographs every hairstyle on a plain freemode head in front of a chroma
--- background, so every wig item shows its exact hairstyle. Admins only (/wigstudio).
--- Same idea as uz_AutoShot, built in and limited to hair.
+-- Wig Studio (/wigstudio, admins): built the same way as the nayzeee-backpack icon studio.
+--   * a local freemode head floats in a lit chroma box under the map, your own ped never changes
+--   * an orbit camera frames the hair (drag / scroll / angle presets) between the two panels
+--   * screenshot-basic grabs the frame, the NUI keys it into a small PNG (web/js/keyer.js)
+--   * the server writes shots/wig_<m|f>_<drawable>_<texture>.png and copies it into ox_inventory
+-- One hairstyle at a time, or every hairstyle in a batch that waits for each save.
 
-Studio = { running = false, cancel = false }
+Studio = {}
 
 local CS = Config.Studio
 local HAIR = 2
-local saved -- the admin's own look, put back afterwards
-local cam
+local HEAD_BONE = 31086
+local CHROMA = { green = { 0, 177, 64 }, magenta = { 255, 0, 255 }, blue = { 0, 71, 187 } }
 
--- appearance save / restore ------------------------------------------------------------------------
+local active = false
+local ped, cam = nil, nil
+local model, drawable, texture = 'f', 0, 0
+local list = {}                         -- { { d, n, bald } } for the current model
+local centre = vector3(0, 0, 0)         -- head position the camera orbits
+local orbit = { yaw = CS.Orbit.yaw, elev = CS.Orbit.elev, zoom = CS.Orbit.zoom, lift = CS.Orbit.lift }
+local chroma = CHROMA[CS.Chroma] and CS.Chroma or 'green'
+local batch = nil                       -- { i, n } while a batch runs
+local waiting = nil                     -- file name we're waiting on the keyer + server for
 
-local function saveLook(ped)
-    local a = { model = GetEntityModel(ped), coords = GetEntityCoords(ped), heading = GetEntityHeading(ped), comps = {}, props = {}, face = {}, overlays = {} }
-    for i = 0, 11 do a.comps[i] = { GetPedDrawableVariation(ped, i), GetPedTextureVariation(ped, i), GetPedPaletteVariation(ped, i) } end
-    for i = 0, 7 do a.props[i] = { GetPedPropIndex(ped, i), GetPedPropTextureIndex(ped, i) } end
-    local ok, hb = pcall(GetPedHeadBlendData, ped)
-    if ok and type(hb) == 'table' then a.blend = hb end
-    for i = 0, 19 do a.face[i] = GetPedFaceFeature(ped, i) end
-    for i = 0, 12 do
-        local okO, v, ct, c1, c2, o = GetPedHeadOverlayData(ped, i)
-        a.overlays[i] = okO and { v, o, ct, c1, c2 } or { GetPedHeadOverlayValue(ped, i), 1.0, 0, 0, 0 }
-    end
-    a.hairColor = { GetPedHairColor(ped), GetPedHairHighlightColor(ped) }
-    a.eyes = GetPedEyeColor(ped)
-    return a
+local function stage() return CS.Coords end
+local function hasScreenshot() return GetResourceState('screenshot-basic') == 'started' end
+local function fileName(m, d, t) return ('wig_%s_%d_%d'):format(m, d, t) end
+
+local function sendState(full)
+    NUI.Send('studio:state', {
+        model = model, d = drawable, t = texture, list = full and list or nil,
+        chroma = chroma, orbit = orbit, batch = batch, screenshot = hasScreenshot(),
+    })
 end
 
-local function loadModel(hash)
-    return pcall(lib.requestModel, hash, 8000)
+-- the head --------------------------------------------------------------------------------------------
+
+local function deletePed()
+    if ped and DoesEntityExist(ped) then DeleteEntity(ped) end
+    ped = nil
 end
 
-local function restoreLook(a)
-    if not a then return end
-    if loadModel(a.model) then
-        SetPlayerModel(PlayerId(), a.model)
-        Wait(150)
-        SetModelAsNoLongerNeeded(a.model)
+local function applyHair(d, t)
+    if not ped then return end
+    SetPedPreloadVariationData(ped, HAIR, d, t)
+    local timeout = GetGameTimer() + 1500
+    while not HasPedPreloadVariationDataFinished(ped) and GetGameTimer() < timeout do Wait(0) end
+    SetPedComponentVariation(ped, HAIR, d, t, 0)
+    SetPedHairColor(ped, CS.HairColor[1], CS.HairColor[2])
+    ReleasePedPreloadVariationData(ped)
+    drawable, texture = d, t
+end
+
+local function buildList()
+    list = {}
+    if not ped then return end
+    for d = 0, GetNumberOfPedDrawableVariations(ped, HAIR) - 1 do
+        list[#list + 1] = { d = d, n = math.max(1, GetNumberOfPedTextureVariations(ped, HAIR, d)), bald = IsBaldDrawable(model, d) or nil }
     end
-    local ped = PlayerPedId()
-    local c = a.coords
+end
+
+local function spawnPed(m)
+    deletePed()
+    local hash = m == 'm' and Config.Models.male.model or Config.Models.female.model
+    if not pcall(lib.requestModel, hash, 8000) then return false end
+    local s = stage()
+    -- local only: nobody else streams it, and your own character is never touched
+    ped = CreatePed(4, hash, s.x, s.y, s.z, CS.Heading, false, false)
+    SetModelAsNoLongerNeeded(hash)
+    if not ped or ped == 0 then ped = nil return false end
     FreezeEntityPosition(ped, true)
-    SetEntityCoordsNoOffset(ped, c.x, c.y, c.z, false, false, false)
-    SetEntityHeading(ped, a.heading)
-    RequestCollisionAtCoord(c.x, c.y, c.z)
-    local timeout = GetGameTimer() + 5000
-    while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < timeout do
-        RequestCollisionAtCoord(c.x, c.y, c.z)
-        Wait(0)
-    end
-
-    local hb = a.blend
-    if hb then
-        SetPedHeadBlendData(ped, hb.shapeFirst or hb[1] or 0, hb.shapeSecond or hb[2] or 0, hb.shapeThird or hb[3] or 0,
-            hb.skinFirst or hb[4] or 0, hb.skinSecond or hb[5] or 0, hb.skinThird or hb[6] or 0,
-            (hb.shapeMix or hb[7] or 0.0) + 0.0, (hb.skinMix or hb[8] or 0.0) + 0.0, (hb.thirdMix or hb[9] or 0.0) + 0.0, false)
-    end
-    for i = 0, 19 do SetPedFaceFeature(ped, i, a.face[i] or 0.0) end
-    for i = 0, 12 do
-        local o = a.overlays[i]
-        if o and o[1] ~= 255 then
-            SetPedHeadOverlay(ped, i, o[1], o[2] or 1.0)
-            if (o[3] or 0) > 0 then SetPedHeadOverlayColor(ped, i, o[3], o[4] or 0, o[5] or 0) end
-        else
-            SetPedHeadOverlay(ped, i, 255, 0.0)
-        end
-    end
-    for i = 0, 11 do
-        local cp = a.comps[i]
-        SetPedComponentVariation(ped, i, cp[1], cp[2], cp[3])
-    end
-    for i = 0, 7 do
-        local p = a.props[i]
-        if p[1] == -1 then ClearPedProp(ped, i) else SetPedPropIndex(ped, i, p[1], p[2], true) end
-    end
-    SetPedHairColor(ped, a.hairColor[1], a.hairColor[2])
-    if a.eyes then SetPedEyeColor(ped, a.eyes) end
-    FreezeEntityPosition(ped, false)
-    SetEntityCollision(ped, true, true)
-    SetPlayerControl(PlayerId(), true, 0)
-    -- appearance scripts with a reload command can put tattoos etc. back
-    if GetResourceState('illenium-appearance') == 'started' then TriggerEvent('illenium-appearance:client:reloadSkin') end
-    Hair.Reapply(800)
+    SetEntityInvincible(ped, true)
+    SetBlockingOfNonTemporaryEvents(ped, true)
+    SetEntityCollision(ped, false, false)
+    SetEntityLodDist(ped, 1000)
+    SetPedDefaultComponentVariation(ped)
+    SetPedHeadBlendData(ped, CS.Face[1], CS.Face[2], 0, CS.Face[3], CS.Face[4], 0, 0.5, 0.5, 0.0, false)
+    for i = 0, 12 do SetPedHeadOverlay(ped, i, 255, 0.0) end
+    ClearAllPedProps(ped)
+    -- bare shoulders so nothing but the head and hair is in frame
+    for comp, v in pairs(m == 'm' and CS.Clothes.male or CS.Clothes.female) do SetPedComponentVariation(ped, comp, v[1], v[2], 0) end
+    TaskStandStill(ped, -1)
+    model = m
+    buildList()
+    -- let the ped settle so the head bone is where it'll stay
+    Wait(250)
+    centre = GetPedBoneCoords(ped, HEAD_BONE, 0.0, 0.0, 0.0)
+    return true
 end
 
--- studio set ---------------------------------------------------------------------------------------
+-- camera -------------------------------------------------------------------------------------------
+
+local function target()
+    return vector3(centre.x, centre.y, centre.z + CS.HeadOffset + orbit.lift)
+end
+
+local function camDistance()
+    -- the hair's bounding sphere fits inside the 80% guide square
+    return (CS.Radius / math.tan(math.rad(CS.Fov) * 0.5)) * 1.4 * orbit.zoom
+end
+
+local function updateCam()
+    if not cam then return end
+    local c = target()
+    local d = camDistance()
+    local yaw, el = math.rad(orbit.yaw), math.rad(orbit.elev)
+    SetCamCoord(cam, c.x - math.sin(yaw) * math.cos(el) * d, c.y + math.cos(yaw) * math.cos(el) * d, c.z + math.sin(el) * d)
+    PointCamAtCoord(cam, c.x, c.y, c.z)
+end
+
+-- chroma box + lights, every frame -----------------------------------------------------------------
 
 local function quad(x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4, r, g, b)
     DrawPoly(x1, y1, z1, x2, y2, z2, x3, y3, z3, r, g, b, 255)
@@ -93,221 +117,292 @@ local function quad(x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4, r, g, b)
     DrawPoly(x1, y1, z1, x4, y4, z4, x3, y3, z3, r, g, b, 255)
 end
 
-local function drawSet(pos)
-    local r, g, b = 255, 0, 255
-    if CS.Chroma == 'green' then r, g, b = 0, 177, 64 end
-    local box = CS.Box
-    local hw, hd = box.width * 0.5, box.depth * 0.5
-    local fz = pos.z + box.floorOffset
-    local cz = fz + box.height
-    local x1, y1, x2, y2 = pos.x - hw, pos.y - hd, pos.x + hw, pos.y - hd
-    local x3, y3, x4, y4 = pos.x - hw, pos.y + hd, pos.x + hw, pos.y + hd
-    quad(x1, y1, fz, x2, y2, fz, x2, y2, cz, x1, y1, cz, r, g, b)
-    quad(x4, y4, fz, x3, y3, fz, x3, y3, cz, x4, y4, cz, r, g, b)
-    quad(x3, y3, fz, x1, y1, fz, x1, y1, cz, x3, y3, cz, r, g, b)
-    quad(x2, y2, fz, x4, y4, fz, x4, y4, cz, x2, y2, cz, r, g, b)
-    quad(x1, y1, fz, x2, y2, fz, x4, y4, fz, x3, y3, fz, r, g, b)
-    quad(x3, y3, cz, x4, y4, cz, x2, y2, cz, x1, y1, cz, r, g, b)
+local function drawBox()
+    local s = target()
+    local h = math.max(3.0, camDistance() + 1.5)
+    local col = CHROMA[chroma]
+    local r, g, b = col[1], col[2], col[3]
+    local x1, x2, y1, y2, z1, z2 = s.x - h, s.x + h, s.y - h, s.y + h, s.z - h, s.z + h
+    quad(x1, y1, z1, x2, y1, z1, x2, y1, z2, x1, y1, z2, r, g, b)
+    quad(x2, y2, z1, x1, y2, z1, x1, y2, z2, x2, y2, z2, r, g, b)
+    quad(x1, y2, z1, x1, y1, z1, x1, y1, z2, x1, y2, z2, r, g, b)
+    quad(x2, y1, z1, x2, y2, z1, x2, y2, z2, x2, y1, z2, r, g, b)
+    quad(x1, y1, z1, x2, y1, z1, x2, y2, z1, x1, y2, z1, r, g, b)
+    quad(x1, y2, z2, x2, y2, z2, x2, y1, z2, x1, y1, z2, r, g, b)
     for _, l in ipairs(CS.Lights) do
-        DrawLightWithRange(pos.x + l.offset.x, pos.y + l.offset.y, pos.z + l.offset.z, 255, 255, 255, l.range, l.intensity)
+        DrawLightWithRange(s.x + l.offset.x, s.y + l.offset.y, s.z + l.offset.z, 255, 255, 255, l.range, l.intensity)
     end
 end
 
-local function renderLoop()
-    CreateThread(function()
-        while Studio.running do
-            local ped = PlayerPedId()
-            SetVehicleDensityMultiplierThisFrame(0.0)
-            SetPedDensityMultiplierThisFrame(0.0)
-            SetScenarioPedDensityMultiplierThisFrame(0.0, 0.0)
-            HideHudAndRadarThisFrame()
-            drawSet(GetEntityCoords(ped))
-            DisableAllControlActions(0)
-            if IsDisabledControlJustReleased(0, 177) or IsDisabledControlJustReleased(0, 200) or IsDisabledControlJustReleased(0, 322) then
-                Studio.cancel = true
-            end
-            Wait(0)
-        end
-    end)
-end
-
-local function placeCamera(ped)
-    local c = CS.Camera
-    local pos = GetEntityCoords(ped)
-    local ang = math.rad(c.angle)
-    local cx, cy = pos.x + c.dist * math.sin(ang), pos.y - c.dist * math.cos(ang)
-    local cz = pos.z + c.zPos + c.camZ
-    cam = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', cx, cy, cz, 0.0, 0.0, 0.0, c.fov, false, 0)
-    local dx, dy, dz = pos.x - cx, pos.y - cy, (pos.z + c.zPos) - cz
-    SetCamRot(cam, math.deg(math.atan(dz, math.sqrt(dx * dx + dy * dy))), 0.0, -math.deg(math.atan(dx, dy)), 2)
-    SetCamActive(cam, true)
-    RenderScriptCams(true, false, 0, true, true)
-end
-
-local function setupPed(model)
-    local hash = model == 'm' and Config.Models.male.model or Config.Models.female.model
-    if not loadModel(hash) then return nil end
-    SetPlayerModel(PlayerId(), hash)
-    Wait(150)
-    SetModelAsNoLongerNeeded(hash)
-    local ped = PlayerPedId()
-    SetPedDefaultComponentVariation(ped)
-    SetPedHeadBlendData(ped, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, false)
-    for i = 0, 12 do SetPedHeadOverlay(ped, i, 255, 0.0) end
-    for _, p in ipairs({ 0, 1, 2, 6, 7 }) do ClearPedProp(ped, p) end
-    for i = 1, 11 do
-        if i ~= HAIR then SetPedComponentVariation(ped, i, i == 3 and 15 or 0, 0, 0) end
+local function loop()
+    while active do
+        HideHudAndRadarThisFrame()
+        OverrideLodscaleThisFrame(1.0)
+        DisableAllControlActions(0)
+        drawBox()
+        Wait(0)
     end
-    SetEntityCoordsNoOffset(ped, CS.Coords.x, CS.Coords.y, CS.Coords.z, false, false, false)
-    SetEntityHeading(ped, CS.Heading)
-    FreezeEntityPosition(ped, true)
-    SetPlayerControl(PlayerId(), false, 0)
-    return ped
 end
 
-local function applyHair(ped, d, t)
-    SetPedPreloadVariationData(ped, HAIR, d, t)
-    local timeout = GetGameTimer() + 1000
-    while not HasPedPreloadVariationDataFinished(ped) and GetGameTimer() < timeout do Wait(0) end
-    SetPedComponentVariation(ped, HAIR, d, t, 0)
-    SetPedHairColor(ped, CS.HairColor[1], CS.HairColor[2])
-    ReleasePedPreloadVariationData(ped)
-    OverrideLodscaleThisFrame(1.0)
-    SetEntityLodDist(ped, 10000)
-end
+-- enter / leave ---------------------------------------------------------------------------------
 
-local function screenshot()
-    local done, data = false, nil
-    local ok = pcall(function()
-        exports['screenshot-basic']:requestScreenshot({ encoding = 'png' }, function(d) data = d done = true end)
-    end)
-    if not ok then return nil end
-    local timeout = GetGameTimer() + 10000
-    while not done and GetGameTimer() < timeout do Wait(50) end
-    return data
-end
-
--- capture --------------------------------------------------------------------------------------------
-
--- jobs = { { m = 'f', d = 12, t = 0 }, ... } or nil for "everything" on `model`
-local function run(model, mode, list, have)
-    Studio.running, Studio.cancel = true, false
-    NUI.CloseApp()
-    saved = saveLook(PlayerPedId())
+local function enter(data)
     TriggerServerEvent('nz-wig:s:studioBucket', true)
-    DoScreenFadeOut(300)
-    Wait(400)
+    DoScreenFadeOut(250)
+    Wait(300)
 
-    local ped = setupPed(model)
-    if not ped then
-        Studio.running = false
-        DoScreenFadeIn(300)
-        TriggerServerEvent('nz-wig:s:studioBucket', false)
+    local me = PlayerPedId()
+    FreezeEntityPosition(me, true)
+    SetEntityVisible(me, false, false)
+    SetEntityInvincible(me, true)
+
+    local s = stage()
+    SetFocusPosAndVel(s.x, s.y, s.z, 0.0, 0.0, 0.0)
+    if not spawnPed(model) then
+        Studio.Leave()
         return CB.Notify(L('studio_model_fail'), 'error')
     end
-    renderLoop()
-    Wait(300)
-    placeCamera(ped)
+    applyHair(drawable < #list and drawable or 0, 0)
+
+    cam = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', s.x, s.y + 2.0, s.z, 0.0, 0.0, 0.0, CS.Fov, false, 0)
+    updateCam()
+    SetCamActive(cam, true)
+    RenderScriptCams(true, false, 0, true, true)
+
+    active = true
+    CreateThread(loop)
+
+    data.resource = RESOURCE
+    data.screenshot = hasScreenshot()
+    NUI.Open('studio', data)
+    sendState(true)
     DoScreenFadeIn(300)
-
-    local jobs = {}
-    if mode == 'list' then
-        for _, j in ipairs(list or {}) do
-            if j.m == model then jobs[#jobs + 1] = { d = tonumber(j.d) or 0, t = tonumber(j.t) or 0 } end
-        end
-    else
-        for d = 0, GetNumberOfPedDrawableVariations(ped, HAIR) - 1 do
-            local maxT = CS.AllTextures and (GetNumberOfPedTextureVariations(ped, HAIR, d) - 1) or 0
-            for t = 0, math.max(0, maxT) do
-                if mode ~= 'missing' or not have[('%s/%d_%d'):format(model, d, t)] then jobs[#jobs + 1] = { d = d, t = t } end
-            end
-        end
-    end
-
-    NUI.Send('studio:run', { total = #jobs, model = model })
-    for i, j in ipairs(jobs) do
-        if Studio.cancel then break end
-        applyHair(ped, j.d, j.t)
-        Wait(CS.WaitAfterApply)
-        local data = screenshot()
-        if data and data ~= '' then
-            TriggerLatentServerEvent('nz-wig:studioUpload', CS.LatentRate, {
-                key = ('%s/%d_%d'):format(model, j.d, j.t), image = data,
-                width = CS.Width, height = CS.Height, chroma = CS.Chroma, transparent = true,
-            })
-        else
-            NUI.Send('studio:error', { msg = L('studio_no_screenshot') })
-        end
-        NUI.Send('studio:run', { total = #jobs, done = i, model = model, d = j.d, t = j.t })
-        Wait(CS.WaitAfterShot)
-        if i % CS.BatchSize == 0 then
-            collectgarbage('collect')
-            Wait(CS.BatchPause)
-        end
-    end
-
-    DoScreenFadeOut(300)
-    Wait(400)
-    RenderScriptCams(false, false, 0, true, true)
-    if cam then DestroyCam(cam, false) cam = nil end
-    Studio.running = false
-    restoreLook(saved)
-    saved = nil
-    TriggerServerEvent('nz-wig:s:studioBucket', false)
-    DoScreenFadeIn(500)
-    NUI.Send('studio:run', { finished = true, cancelled = Studio.cancel })
-    CB.Notify(Studio.cancel and L('studio_cancelled') or L('studio_done', #jobs), Studio.cancel and 'warning' or 'success', 8000)
 end
 
--- browser ---------------------------------------------------------------------------------------------
+function Studio.Leave()
+    local was = active
+    active = false
+    batch, waiting = nil, nil
+    if NUI.app == 'studio' then NUI.CloseApp() end
+    deletePed()
+    if cam then
+        SetCamActive(cam, false)
+        RenderScriptCams(false, false, 0, true, true)
+        DestroyCam(cam, false)
+        cam = nil
+    end
+    ClearFocus()
+    local me = PlayerPedId()
+    SetEntityVisible(me, true, false)
+    SetEntityInvincible(me, false)
+    FreezeEntityPosition(me, false)
+    TriggerServerEvent('nz-wig:s:studioBucket', false)
+    if was and IsScreenFadedOut() then DoScreenFadeIn(300) end
+end
 
 local function open()
-    if Studio.running then return end
+    if active then return end
     if Snatch.busy then return CB.Notify(L('busy'), 'error') end
     local data = lib.callback.await('nz-wig:studioOpen', false)
     if not data then return CB.Notify(L('studio_no_access'), 'error') end
-    data.resource = RESOURCE
-    data.screenshot = GetResourceState('screenshot-basic') == 'started'
-    NUI.Open('studio', data)
+    CreateThread(function() enter(data) end)
 end
 
 if CS.Enabled and CS.Command then
     RegisterCommand(CS.Command, open, false)
 end
+exports('OpenWigStudio', open)
 
-RegisterNUICallback('studioCapture', function(d, cb)
-    cb(1)
-    if Studio.running or type(d) ~= 'table' then return end
-    local model = d.model == 'm' and 'm' or 'f'
-    local have = {}
-    for _, k in ipairs(d.have or {}) do have[k] = true end
-    CreateThread(function() run(model, d.mode, d.list, have) end)
+-- capture ----------------------------------------------------------------------------------------
+
+local function shoot(name)
+    if not hasScreenshot() then
+        CB.Notify(L('studio_no_screenshot'), 'error')
+        return false
+    end
+    NUI.Send('studio:hide')
+    Wait(0) Wait(0) Wait(0)
+
+    local done = false
+    waiting = name
+    local ok = pcall(function()
+        exports['screenshot-basic']:requestScreenshot({ encoding = 'png' }, function(data)
+            NUI.Send('studio:process', { image = data, name = name, chroma = chroma, size = CS.Size, padding = CS.Padding })
+            done = true
+        end)
+    end)
+    if not ok then waiting = nil end
+    local timeout = GetGameTimer() + 10000
+    while ok and not done and GetGameTimer() < timeout do Wait(50) end
+    NUI.Send('studio:show')
+    if not done then waiting = nil end
+    return done
+end
+
+-- wait for the keyer + server round trip, so a batch never floods anything
+local function awaitSaved(name)
+    local timeout = GetGameTimer() + 20000
+    while waiting == name and active and GetGameTimer() < timeout do Wait(50) end
+end
+
+local function captureCurrent()
+    local name = fileName(model, drawable, texture)
+    if shoot(name) then awaitSaved(name) end
+end
+
+local function runBatch(withTextures, skip)
+    local jobs = {}
+    for _, x in ipairs(list) do
+        if not x.bald then
+            for t = 0, withTextures and (x.n - 1) or 0 do
+                if not skip[('%s/%d_%d'):format(model, x.d, t)] then jobs[#jobs + 1] = { x.d, t } end
+            end
+        end
+    end
+    if #jobs == 0 then return CB.Notify(L('studio_nothing'), 'info') end
+
+    local startD, startT = drawable, texture
+    batch = { i = 0, n = #jobs }
+    for i, j in ipairs(jobs) do
+        if not active or not batch then break end
+        batch.i = i
+        applyHair(j[1], j[2])
+        sendState(false)
+        Wait(CS.TextureWait)
+        captureCurrent()
+        if i % 25 == 0 then collectgarbage('step', 200) end
+    end
+    local finished = batch ~= nil
+    batch = nil
+    if not active then return end
+    applyHair(startD, startT)
+    sendState(false)
+    CB.Notify(finished and L('studio_done', #jobs) or L('studio_cancelled'), finished and 'success' or 'warning', 8000)
+end
+
+-- NUI ------------------------------------------------------------------------------------------------
+
+local busy = false
+local function on(name, fn)
+    RegisterNUICallback(name, function(d, cb)
+        cb(1)
+        if not active then return end
+        CreateThread(function() fn(type(d) == 'table' and d or {}) end)
+    end)
+end
+
+on('st:close', function() if not batch then Studio.Leave() end end)
+
+on('st:model', function(d)
+    if batch or busy then return end
+    local m = d.m == 'm' and 'm' or 'f'
+    if m == model then return end
+    busy = true
+    if spawnPed(m) then applyHair(0, 0) end
+    updateCam()
+    busy = false
+    sendState(true)
 end)
 
-RegisterNUICallback('studioNames', function(d, cb)
-    if type(d) == 'table' and type(d.names) == 'table' then TriggerServerEvent('nz-wig:s:studioNames', d.names) end
-    cb(1)
+on('st:pick', function(d)
+    if batch or busy or not ped then return end
+    local dd, tt = math.floor(tonumber(d.d) or 0), math.floor(tonumber(d.t) or 0)
+    local x = list[dd + 1]
+    if not x then return end
+    busy = true
+    applyHair(dd, math.max(0, math.min(x.n - 1, tt)))
+    busy = false
+    sendState(false)
 end)
 
-RegisterNUICallback('studioDelete', function(d, cb)
-    if d and type(d.key) == 'string' then TriggerServerEvent('nz-wig:studioDelete', d.key) end
-    cb(1)
+on('st:orbit', function(d)
+    orbit.yaw = (orbit.yaw - (tonumber(d.dx) or 0) * 0.4) % 360.0
+    orbit.elev = math.max(-60.0, math.min(75.0, orbit.elev + (tonumber(d.dy) or 0) * 0.3))
+    if d.yaw then orbit.yaw = (tonumber(d.yaw) or 0) % 360.0 end
+    if d.elev then orbit.elev = math.max(-60.0, math.min(75.0, tonumber(d.elev) or 0)) end
+    updateCam()
+    sendState(false)
 end)
 
-RegisterNetEvent('nz-wig:c:studioSaved', function(key, err)
-    NUI.Send('studio:saved', { key = key, err = err })
+on('st:zoom', function(d)
+    if d.set then orbit.zoom = tonumber(d.set) or 1.0 else orbit.zoom = orbit.zoom + (tonumber(d.delta) or 0) end
+    orbit.zoom = math.max(0.4, math.min(3.0, orbit.zoom))
+    updateCam()
+    sendState(false)
+end)
+
+on('st:lift', function(d)
+    orbit.lift = math.max(-0.5, math.min(0.25, tonumber(d.set) or 0))
+    updateCam()
+    sendState(false)
+end)
+
+on('st:chroma', function(d)
+    if CHROMA[d.color] then chroma = d.color end
+    sendState(false)
+end)
+
+on('st:capture', function()
+    if batch or waiting then return end
+    captureCurrent()
+end)
+
+on('st:batch', function(d)
+    if batch or waiting then return end
+    local skip = {}
+    if d.missing ~= false then
+        local have = lib.callback.await('nz-wig:studioShots', false) or {}
+        for _, k in ipairs(have) do skip[k] = true end
+    end
+    runBatch(d.textures == true, skip)
+end)
+
+RegisterNUICallback('st:cancel', function(_, cb)
+    cb(1)
+    if batch then batch = nil end
+end)
+
+on('st:name', function(d)
+    if type(d.key) ~= 'string' then return end
+    TriggerServerEvent('nz-wig:s:studioNames', { [d.key] = tostring(d.name or '') })
+end)
+
+-- the keyer finished: hand the small PNG to the server
+RegisterNUICallback('st:processed', function(d, cb)
+    cb(1)
+    if type(d) ~= 'table' or type(d.png) ~= 'string' or type(d.name) ~= 'string' then
+        waiting = nil
+        return
+    end
+    TriggerLatentServerEvent('nz-wig:s:studioSave', CS.LatentRate, d.name, d.png)
+end)
+
+RegisterNUICallback('st:failed', function(d, cb)
+    cb(1)
+    waiting = nil
+    CB.Notify(L('studio_key_failed', tostring(d and d.reason)), 'error')
+end)
+
+RegisterNetEvent('nz-wig:c:studioSaved', function(name, ok, key, where)
+    if waiting == name then waiting = nil end
+    if not batch then
+        CB.Notify(ok and L('studio_saved', name, where or '') or L('studio_save_failed', name), ok and 'success' or 'error')
+    end
+    NUI.Send('studio:saved', { name = name, ok = ok, key = key })
 end)
 
 RegisterNetEvent('nz-wig:c:styleNames', function(names)
     if type(names) == 'table' then StyleNames = names end
 end)
 
-function Studio.Cleanup()
-    if Studio.running then
-        Studio.running = false
-        RenderScriptCams(false, false, 0, true, true)
-        if cam then DestroyCam(cam, false) end
-        -- the resource is stopping, so the look can't be rebuilt here: relog or reload your skin
-        TriggerServerEvent('nz-wig:s:studioBucket', false)
+-- leave cleanly if something else takes the screen (death, another script opening its UI...)
+CreateThread(function()
+    while true do
+        Wait(1000)
+        if active and not busy and (IsEntityDead(PlayerPedId()) or not DoesEntityExist(ped or 0)) then Studio.Leave() end
     end
+end)
+
+function Studio.Cleanup()
+    if active then Studio.Leave() end
 end

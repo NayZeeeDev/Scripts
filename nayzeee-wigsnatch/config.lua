@@ -13,7 +13,7 @@
     ██████╔╝███████╗ ╚████╔╝ ███████╗███████╗╚██████╔╝██║     ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║
     ╚═════╝ ╚══════╝  ╚═══╝  ╚══════╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝
 
-    WIG SNATCH SCRIPT - 3.0.0
+    WIG SNATCH SCRIPT - 3.1.0
     Discord: discord.gg/nayzeeedev
 
 ]]
@@ -386,8 +386,9 @@ Config.Cutting = {
     Anim = { dict = 'anim@heists@prison_heiststation@cop_reactions', clip = 'cop_b_idle' }, -- What others see the barber doing
     Props = {                   -- Held in the barber's hand for everyone to see. false = none
         scissors = { model = `prop_cs_scissors`, bone = 57005, pos = vec3(0.12, 0.04, 0.01), rot = vec3(-80.0, 0.0, 0.0) },
-        clippers = false,       -- Stream your own model and put it here
-        razor    = false,
+        -- nz_wig_clippers / nz_wig_razor ship in stream/. Tweak pos / rot if your animations hold them differently
+        clippers = { model = `nz_wig_clippers`, bone = 28422, pos = vec3(0.0, 0.0, 0.02), rot = vec3(90.0, 0.0, 0.0) },
+        razor    = { model = `nz_wig_razor`,    bone = 28422, pos = vec3(0.0, 0.0, 0.0),  rot = vec3(90.0, 0.0, 0.0) },
     },
     SoundRange = 12.0,          -- Nearby players hear the tools
     XP = { Cut = 8, Forced = 14, Face = 4 },
@@ -638,11 +639,12 @@ Config.Bundles = {
 --  ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝
 
 -- Vault > Workshop: make wigs from bundles and dye wigs (or your own hair).
+-- With wig tables on (below), making and dyeing wigs happens at a table.
 Config.Workshop = {
     Enabled        = true,
     BundlesPerWig  = 3,
     NeedCap        = true,       -- Uses one Config.Items.Cap per wig
-    CraftTime      = 6000,       -- ms
+    CraftTime      = 6000,       -- ms (only used when wig tables are off)
     CraftAnim      = { dict = 'mini@repair', clip = 'fixing_a_ped' },
     UpgradeChance  = 0.25,       -- Chance the wig rolls one tier above the bundles' grade
 }
@@ -651,8 +653,89 @@ Config.Dye = {
     Enabled    = true,
     OwnHair    = true,           -- Players can dye their own hair (stays until they dye it again or rinse it)
     ValueBonus = 0.10,           -- Dyed wigs sell for 10% more
-    DyeTime    = 4000,
+    DyeTime    = 4000,           -- ms (own hair, and wigs when wig tables are off)
 }
+
+-- ████████╗ █████╗ ██████╗ ██╗     ███████╗███████╗
+-- ╚══██╔══╝██╔══██╗██╔══██╗██║     ██╔════╝██╔════╝
+--    ██║   ███████║██████╔╝██║     █████╗  ███████╗
+--    ██║   ██╔══██║██╔══██╗██║     ██╔══╝  ╚════██║
+--    ██║   ██║  ██║██████╔╝███████╗███████╗███████║
+--    ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚══════╝
+
+-- The wig tables are Dragons Lab's "Wig Crafting Table" pack by SasDragon. They are NOT part
+-- of this script: every server buys them from her and installs her resource next to this one.
+-- The script finds her models by name, so her folder can be called anything.
+--
+-- Players place a table from their inventory, pick it up again, and make / dye wigs at it in
+-- stages (with skill checks and a camera they can switch with V). Tables are saved between restarts.
+-- Without her pack the tables fall back to a plain GTA workbench (or are off, with Fallback = false).
+Config.Tables = {
+    Enabled = true,
+    Store   = 'https://discord.com/invite/KEhZqcuv6m',  -- where to buy her tables (printed in the console)
+
+    -- item name = table. The item names match the icons in her pack's install-images folder.
+    Items = {
+        wigtableblue = { label = 'Blue wig table',   model = `sasdragonslab_blue_wigtable` },
+        wigtablepink = { label = 'Pink wig table',   model = `sasdragonslab_pink_wigtable` },
+        wigtablepurp = { label = 'Purple wig table', model = `sasdragonslab_purple_wigtable` },
+        wigtablered  = { label = 'Red wig table',    model = `sasdragonslab_red_wigtable` },
+    },
+    Surface = nil,                -- Height of her table top in metres. nil = worked out from the model
+
+    Fallback = `prop_tool_bench02`, -- Used when her pack isn't installed. false = no tables without it
+    FallbackSurface = nil,
+
+    MaxPerPlayer     = 1,
+    StreamDistance   = 60.0,
+    InteractDistance = 2.0,
+    AnyoneCanUse     = true,      -- false = only the owner (and admins) can work at a placed table
+    RequireTable     = true,      -- true = wigs can only be made / dyed at a table. false = the vault works anywhere too
+
+    -- Tables that are always there (a salon, a shop). They can't be picked up.
+    -- { item = 'wigtablepink', coords = vector4(x, y, z, heading) },
+    Fixed = {},
+
+    -- How the work is shot: 'three' (over the shoulder) | 'first' (your eyes) | 'close' (across the table)
+    Camera = { Default = 'three', Switch = true },  -- Switch = players can change it with V while working
+    SkillChecks = true,           -- false = stages just run, every check counts as passed
+
+    -- Each job is done in stages. time in ms; check is an ox_lib skill check ('easy' | 'medium' | 'hard' or false).
+    -- prop = what's in your hand: 'scissors' | 'razor' | 'clippers' | 'dye' | false
+    Stages = {
+        craft = {
+            { label = 'Stretching the wig cap',  time = 3500, check = false,    prop = false },
+            { label = 'Sewing in the wefts',     time = 5000, check = 'medium', prop = false },
+            { label = 'Plucking the hairline',   time = 4000, check = 'hard',   prop = false },
+            { label = 'Cutting the lace',        time = 3500, check = 'easy',   prop = 'scissors' },
+            { label = 'Shaping the style',       time = 3500, check = false,    prop = 'razor' },
+        },
+        dye = {
+            { label = 'Mixing the colour',       time = 3000, check = false,    prop = 'dye' },
+            { label = 'Working it through',      time = 4500, check = 'medium', prop = 'dye' },
+            { label = 'Rinsing it out',          time = 3000, check = false,    prop = false },
+        },
+    },
+    SpeedPerLevel = 0.04,         -- Each level works 4% faster (up to 40%)
+
+    -- Skill checks change the result
+    CheckUpgrade  = 0.05,         -- Each passed check on a wig: +5% chance to roll a tier higher
+    FailCondition = 8,            -- Each failed check: the wig starts with 8% less condition
+    PerfectXP     = 10,           -- Extra XP for passing every check
+}
+
+-- Props for the table work and dyeing. All of these ship in stream/ (see INSTALL/props-source to edit them).
+-- In your hand: a key used by Config.Tables.Stages[...].prop. On the table: Head, Bundle, DyeBottle (false = none).
+Config.TableProps = {
+    scissors = { model = `prop_cs_scissors`, bone = 28422, pos = vec3(0.04, 0.0, -0.01), rot = vec3(0.0, 90.0, 0.0) },
+    razor    = { model = `nz_wig_razor`,     bone = 28422, pos = vec3(0.0, 0.0, 0.0),   rot = vec3(90.0, 0.0, 0.0) },
+    clippers = { model = `nz_wig_clippers`,  bone = 28422, pos = vec3(0.0, 0.0, 0.02),  rot = vec3(90.0, 0.0, 0.0) },
+    dye      = { model = `nz_wig_dye`,       bone = 28422, pos = vec3(0.0, 0.0, -0.07), rot = vec3(0.0, 0.0, 0.0) },
+    Head      = { model = `nz_wig_head` },     -- The wig takes shape on this while you make it
+    Bundle    = { model = `nz_hair_bundle` },  -- One per bundle going in, used up as you work
+    DyeBottle = { model = `nz_wig_dye` },
+}
+
 
 -- ██████╗ ██╗  ██╗ ██████╗ ███╗   ██╗███████╗
 -- ██╔══██╗██║  ██║██╔═══██╗████╗  ██║██╔════╝
@@ -661,15 +744,13 @@ Config.Dye = {
 -- ██║     ██║  ██║╚██████╔╝██║ ╚████║███████╗
 -- ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
 
--- Wig selling happens on the phone. The app ships with lb-phone, YSeries and qs-smartphone
--- adapters (bridge/phone.lua). Without a phone, /hairplug opens the same app on screen.
+-- Wig selling happens on the phone. There is no built-in phone: the app is added to your phone
+-- resource (lb-phone, YSeries or qs-smartphone, see bridge/phone.lua). Without one the app is off.
 Config.Phone = {
     Enabled    = true,
-    Phone      = 'auto',         -- 'auto' | 'lb-phone' | 'yseries' | 'qs-smartphone' | 'qs-smartphone-pro' | 'standalone'
+    Phone      = 'auto',         -- 'auto' | 'lb-phone' | 'yseries' | 'qs-smartphone' | 'qs-smartphone-pro'
     AppName    = 'Hair Plug',
     Identifier = 'nz-hairplug',
-    Command    = 'hairplug',     -- Opens the app on screen (works with or without a phone). false to disable
-    Keybind    = false,          -- e.g. 'F6'
 
     -- Instant sale from anywhere, lower price
     QuickSell = { Enabled = true, Rate = 0.65, Account = 'money' },
@@ -776,35 +857,42 @@ Config.Vault = {
 -- ███████║   ██║   ╚██████╔╝██████╔╝██║╚██████╔╝
 -- ╚══════╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝
 
--- Photographs every hairstyle on the server (like uz_AutoShot, built in) so every wig shows
--- a clean picture of its exact hairstyle in the inventory, the vault and the phone app.
--- /wigstudio (ace: command.wigstudio). Needs screenshot-basic (or screencapture).
--- New photos are served after the next resource restart.
+-- Built like the nayzeee-backpack icon studio: a head floats in a lit chroma box under the map,
+-- you frame it with the orbit camera, and every shot is keyed in the browser into a small
+-- transparent PNG named wig_<f|m>_<hairstyle>_<texture>.png. Name hairstyles in the studio too:
+-- every wig made from a hairstyle uses its name and photo in the inventory, vault and phone app.
+-- /wigstudio (ace: command.wigstudio). Needs screenshot-basic.
+-- New photos are served after the next restart of this resource (and ox_inventory).
 Config.Studio = {
     Enabled   = true,
-    Command   = 'wigstudio',
-    Width     = 256,             -- Output size
-    Height    = 256,
-    Chroma    = 'magenta',       -- 'magenta' | 'green' background that gets removed
-    AllTextures = false,         -- true = every texture of every hairstyle (much longer)
+    Command   = 'wigstudio',     -- Admins only (ServerConfig.StudioAce). Needs screenshot-basic
+    Size      = 256,             -- PNG size in pixels (square). 256 is plenty for inventories
+    Padding   = 0.08,            -- Empty border around the hair, as a share of the size
+    Chroma    = 'green',         -- Starting backdrop: 'green' | 'magenta' | 'blue' (switch it in the studio)
+    AllTextures = false,         -- Default for the "every texture too" box
+    SaveToInventory = true,      -- Also copy every photo into ox_inventory/web/images (see INSTALL)
     HairColor = { 2, 2 },        -- Colour / highlight the photos are taken in
-    Coords    = vec3(0.0, 0.0, -150.0),
+    Face      = { 21, 0, 21, 0 },-- Head blend of the model: shape mum, shape dad, skin mum, skin dad
+    Clothes = {                  -- Bare shoulders: [component] = { drawable, texture }
+        male   = { [1] = { 0, 0 }, [3] = { 15, 0 }, [8] = { 15, 0 }, [11] = { 15, 0 } },
+        female = { [1] = { 0, 0 }, [3] = { 15, 0 }, [8] = { 14, 0 }, [11] = { 15, 0 } },
+    },
+    Fov       = 30.0,
+    Radius    = 0.30,            -- How much space around the head the camera fits
+    HeadOffset = -0.04,          -- Camera target relative to the head bone
+    Orbit     = { yaw = 200.0, elev = 8.0, zoom = 1.0, lift = 0.0 }, -- Starting framing (Three quarter)
+    TextureWait = 650,           -- ms a hairstyle gets to stream in before the photo
+    Coords    = vec3(0.0, 0.0, -150.0), -- Under the map, where nothing else renders
     Heading   = 180.0,
     RoutingBucket = 7177,
-    Camera    = { fov = 24.0, zPos = 0.70, dist = 1.15, angle = 180.0, camZ = 0.03 },
-    WaitAfterApply = 450,        -- ms
-    WaitAfterShot  = 250,        -- ms
-    BatchSize      = 10,
-    BatchPause     = 1500,       -- ms
-    LatentRate     = 8000000,    -- bytes/sec for uploads
-    Lights = {
-        { offset = vec3(0.0, 2.5, 1.0),  range = 8.0, intensity = 3.0 },
-        { offset = vec3(-2.5, 0.0, 1.0), range = 5.0, intensity = 2.0 },
-        { offset = vec3(2.5, 0.0, 1.0),  range = 5.0, intensity = 2.0 },
-        { offset = vec3(0.0, -1.5, 1.0), range = 4.0, intensity = 1.5 },
-        { offset = vec3(0.0, 0.0, 3.0),  range = 6.0, intensity = 2.5 },
+    LatentRate = 4000000,        -- bytes/sec for uploading the finished PNG
+    Lights = {                   -- Offsets from the head
+        { offset = vec3(0.0, -1.6, 0.4),  range = 5.0, intensity = 3.0 },
+        { offset = vec3(-1.4, -0.6, 0.3), range = 4.0, intensity = 1.8 },
+        { offset = vec3(1.4, -0.6, 0.3),  range = 4.0, intensity = 1.8 },
+        { offset = vec3(0.0, 1.4, 0.6),   range = 4.0, intensity = 1.5 },
+        { offset = vec3(0.0, 0.0, 1.6),   range = 4.0, intensity = 2.0 },
     },
-    Box = { width = 8.0, depth = 8.0, height = 8.5, floorOffset = -3.0 },
 }
 
 -- ███████╗███████╗███████╗██████╗

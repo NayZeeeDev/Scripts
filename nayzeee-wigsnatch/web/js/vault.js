@@ -1,36 +1,41 @@
 /* ═══════════════════════════════════════════════════════════
    WIG SNATCH V3 · app panel
-   vault · workshop · settings · pickers · studio · phone host
+   vault · workshop · settings · pickers
    ═══════════════════════════════════════════════════════════ */
 'use strict';
 
 const app = $('#app'), body = $('#appBody');
-Object.assign(S, { vault: null, tab: 'profile', lb: 'snatches', sel: null, bountyOpen: null, ws: null, wsSel: new Set(), dye: { target: 'self', c: 0, h: 0 }, studio: null, picker: null });
+Object.assign(S, { vault: null, tab: 'profile', lb: 'snatches', sel: null, bountyOpen: null, ws: null, wsSel: new Set(), dye: { target: 'self', c: 0, h: 0 }, picker: null });
 
 function setHead(title, sub, status) {
   $('#appTitle').textContent = title;
   $('#appSub').textContent = sub || '';
-  $('#appVer').textContent = 'v' + (S.cfg.version || '3.0.0');
+  $('#appVer').textContent = 'v' + (S.cfg.version || '3.1.0');
   $('#appStatus').innerHTML = status || '';
 }
 
 function openApp(view, data) {
-  if (view === 'phone') return openPhone(data);
+  if (view === 'studio') return studioOpen(data || {});
   S.view = view;
   closeModal();
   app.hidden = false;
   app.classList.toggle('sm', view === 'products' || view === 'puton');
   const fr = $('.app-frame'); fr.style.animation = 'none'; void fr.offsetWidth; fr.style.animation = '';
-  if (view === 'vault') { S.tab = (data && data.tab) || 'profile'; S.sel = null; S.bountyOpen = null; body.innerHTML = loading(); loadVault(); }
+  if (view === 'vault') {
+    S.tab = (data && data.tab) || 'profile'; S.sel = null; S.bountyOpen = null;
+    // opened from a wig table: the workshop works at it, with a camera choice
+    S.bench = data && data.bench ? { views: data.views || null, mine: !!data.mine, label: data.label || 'Wig table' } : null;
+    if (S.bench && S.bench.views) S.camView = S.bench.views.current;
+    body.innerHTML = loading(); loadVault();
+  }
   else if (view === 'products') { S.picker = data; renderProducts(); }
   else if (view === 'puton') { S.picker = data; renderPutOn(); }
-  else if (view === 'studio') { S.studio = Object.assign({ model: 'f', sel: new Set(), edits: {} }, data); renderStudio(); }
   clearInterval(S.timer);
   S.timer = setInterval(liveTick, 1000);
 }
 
 function closeApp(silent) {
-  if (S.view === 'phone') return closePhone(silent);
+  if (S.view === 'studio') return studioClose(silent);
   if (!S.view) return;
   S.view = null;
   app.hidden = true;
@@ -50,7 +55,6 @@ app.addEventListener('click', (e) => {
 app.addEventListener('input', (e) => {
   if (e.target.matches('[data-int]')) e.target.value = e.target.value.replace(/[^\d]/g, '').slice(0, 7);
   if (e.target.matches('[data-pref]')) prefInput(e.target);
-  if (e.target.matches('[data-name]')) S.studio.edits[e.target.dataset.name] = e.target.value;
 });
 
 /* live countdowns */
@@ -101,7 +105,6 @@ function renderVault() {
       ${rail}
       <div class="rail-sep"></div>
       <button class="rail-btn ${S.tab === 'settings' ? 'on' : ''}" data-act="tab" data-v="settings"><i class="fa-solid fa-sliders"></i>Settings</button>
-      ${d.appName ? `<button class="rail-btn" data-act="phone"><i class="fa-solid fa-mobile-screen"></i>${esc(d.appName)}</button>` : ''}
       <div class="rail-foot"><b>${num(st.snatches)}</b> snatched · <b>${num(st.defends)}</b> held<br><b>${money(st.earned)}</b> earned</div>
     </div>
     <div class="view ${S.tab === 'wigs' || S.tab === 'workshop' ? 'split' : ''}" id="vview">${(VIEWS[S.tab] || VIEWS.profile)()}</div>`;
@@ -349,13 +352,19 @@ function workshopView() {
     return lo === null || i < lo ? i : lo;
   }, null);
   const grade = lowest !== null ? S.cfg.grades[lowest] : null;
-  const craft = w.craft ? `
+  const away = w.needTable && !S.bench;
+  const bench = S.bench ? `<div class="bench">
+      <div class="bench-t"><i class="fa-solid fa-table"></i><div><b>${esc(S.bench.label)}</b><span>${S.bench.views ? 'Camera while you work' : 'Making and dyeing play out at the table'}</span></div></div>
+      ${S.bench.views ? `<div class="seg bench-seg">${arr(S.bench.views.list).map((v) => `<button class="${S.camView === v.id ? 'on' : ''}" data-act="camView" data-v="${v.id}">${esc(v.label)}</button>`).join('')}</div>` : ''}
+      ${S.bench.mine ? '<button class="btn sm ghost" data-act="tablePickUp" title="Pick up table"><i class="fa-solid fa-hand-holding"></i></button>' : ''}
+    </div>` : away ? `<div class="card note-card" style="margin-bottom:12px"><i class="fa-solid fa-table"></i><span>Wigs are made and dyed at a <b>wig table</b>. Place one from your inventory, or find one in the city.</span></div>` : '';
+  const craft = w.craft ? `${bench}
     <div class="sec-h"><h3>Make a wig</h3><span>Pick ${w.need} bundles · ${w.needCap ? `${w.caps} wig cap${w.caps === 1 ? '' : 's'}` : 'no cap needed'}</span></div>
     ${bundles.length ? `<div class="wig-grid">${bundles.map((b) => goodCard(b, { act: 'wsPick', check: true, checked: S.wsSel.has(b.key) })).join('')}</div>`
       : `<div class="empty"><i class="fa-solid fa-wind"></i>No bundles. Snip long hair with scissors to collect some.</div>`}
     <div class="sellbar"><div class="total"><span>${picked.length} / ${w.need} picked${models.size > 1 ? ' · mixed male / female hair' : ''}</span>
       <b>${picked.length ? esc(`${picked[0].style}${grade ? ' · ' + grade.label : ''}`) : 'Nothing picked'}</b></div>
-      <button class="btn teal" data-act="craft" ${ready ? '' : 'disabled'}><i class="fa-solid fa-screwdriver-wrench"></i>Make wig</button></div>` : '';
+      <button class="btn teal" data-act="craft" ${ready && !away ? '' : 'disabled'}><i class="fa-solid fa-screwdriver-wrench"></i>${S.bench ? 'Make it at the table' : 'Make wig'}</button></div>` : '';
   return `<div class="wig-list">${craft || '<div class="empty"><i class="fa-solid fa-lock"></i>Wig making is off on this server</div>'}</div>
     <div class="detail">${w.dye ? dyePanel(w) : ''}</div>`;
 }
@@ -367,7 +376,8 @@ function dyePanel(w) {
   if (w.ownHair) opts.push(`<button class="${S.dye.target === 'self' ? 'on' : ''}" data-act="dyeTarget" data-v="self"><i class="fa-solid fa-user"></i>My own hair<small>${w.hair && w.hair.bald ? 'bald' : ''}</small></button>`);
   wigs.forEach((x) => opts.push(`<button class="${S.dye.target === x.key ? 'on' : ''}" data-act="dyeTarget" data-v="${esc(x.key)}"><span class="swatch sm" data-hc="${x.color ?? ''}"></span>${esc(goodTitle(x))}<small>${esc(tier(x.tier).label)}</small></button>`));
   const sw = (field) => `<div class="palette">${pal.map((hex, i) => `<button class="pal ${S.dye[field] === i ? 'on' : ''}" style="background:${hex}" data-act="dyePick" data-v="${field}:${i}" title="${i}"></button>`).join('')}</div>`;
-  const canDye = w.dyes > 0 && (S.dye.target !== 'self' || (w.ownHair && !(w.hair && w.hair.bald)));
+  const away = w.needTable && !S.bench && S.dye.target !== 'self';
+  const canDye = !away && w.dyes > 0 && (S.dye.target !== 'self' || (w.ownHair && !(w.hair && w.hair.bald)));
   return `<div class="card">
       <div class="sec-h"><h3>Dye</h3><span>${w.dyes} hair dye${w.dyes === 1 ? '' : 's'} · dyed wigs sell for +${Math.round((w.dyeBonus || 0) * 100)}%</span></div>
       <div class="pick">${opts.join('') || '<div class="empty" style="padding:14px">Nothing to dye</div>'}</div>
@@ -376,7 +386,7 @@ function dyePanel(w) {
       <div class="sub-h">Colour</div>${sw('c')}
       <div class="sub-h">Highlight</div>${sw('h')}
       <div class="actions" style="margin-top:12px">
-        <button class="btn teal wide" data-act="dyeGo" ${canDye ? '' : 'disabled'}><i class="fa-solid fa-paintbrush"></i>Dye it</button>
+        <button class="btn teal wide" data-act="dyeGo" ${canDye ? '' : 'disabled'}><i class="fa-solid fa-paintbrush"></i>${away ? 'Dye wigs at a wig table' : S.bench && S.dye.target !== 'self' ? 'Dye it at the table' : 'Dye it'}</button>
         ${w.hair && w.hair.dye ? `<button class="btn wide ghost" data-act="rinse"><i class="fa-solid fa-shower"></i>Rinse my dye out</button>` : ''}
       </div></div>`;
 }
@@ -460,72 +470,6 @@ function renderPutOn() {
     <div class="note" style="margin-top:12px">They get a prompt to accept. Their old wig goes back into their pockets.</div></div>`;
 }
 
-/* ═══════════════ STUDIO ═══════════════ */
-function shotUrl(key) { return `../shots/${key}.png?v=${S.studio.v || 0}`; }
-function renderStudio() {
-  const st = S.studio, m = st.model;
-  const shots = arr(st.shots).filter((k) => k.startsWith(m + '/'));
-  const named = Object.keys(st.names || {}).filter((k) => k.startsWith(m + ':')).length;
-  setHead('Wig Studio', `${shots.length} ${m === 'm' ? 'male' : 'female'} hairstyles photographed · ${named} named`,
-    `<span><span class="kc">ESC</span>Close</span><span>Captures run on a hidden stage. <b>Backspace</b> stops a run.</span><span class="grow"></span>${st.screenshot ? '<span class="dot on"></span><span>screenshot-basic ready</span>' : '<span class="dot"></span><span style="color:var(--red)">screenshot-basic not running</span>'}`);
-  const editsN = Object.keys(st.edits).length;
-  body.innerHTML = `<div class="view studio">
-    <div class="studio-bar">
-      <div class="seg">${[['f', 'Female'], ['m', 'Male']].map(([k, l]) => `<button class="${m === k ? 'on' : ''}" data-act="stModel" data-v="${k}">${l}</button>`).join('')}</div>
-      <span class="grow"></span>
-      <button class="btn" data-act="stRun" data-v="missing"><i class="fa-solid fa-camera"></i>Shoot missing</button>
-      <button class="btn" data-act="stRun" data-v="all"><i class="fa-solid fa-camera-retro"></i>Shoot all</button>
-      <button class="btn" data-act="stRun" data-v="list" ${st.sel.size ? '' : 'disabled'}><i class="fa-solid fa-rotate"></i>Re-shoot ${st.sel.size || ''}</button>
-      <button class="btn teal" data-act="stSave" ${editsN ? '' : 'disabled'}><i class="fa-solid fa-floppy-disk"></i>Save names${editsN ? ` (${editsN})` : ''}</button>
-    </div>
-    <div class="note">Name a hairstyle and every wig made from it uses that name (and it joins the catalog). New photos show up after the resource restarts.</div>
-    ${shots.length ? `<div class="shot-grid">${shots.map((k) => {
-      const [, d, t] = /\/(\d+)_(\d+)$/.exec(k) || [];
-      const nk = `${m}:${d}`;
-      const val = st.edits[nk] ?? (st.names || {})[nk] ?? '';
-      return `<div class="shot ${st.sel.has(k) ? 'sel' : ''}">
-        <button class="shot-img" data-act="stSel" data-v="${k}"><img src="${shotUrl(k)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'fa-solid fa-image'}))"><span class="check"><i class="fa-solid fa-check"></i></span></button>
-        <div class="shot-meta"><span>#${d}${t !== '0' ? ' · ' + t : ''}</span><input data-name="${nk}" value="${esc(val)}" placeholder="Name this style" maxlength="40"></div>
-      </div>`;
-    }).join('')}</div>` : `<div class="empty"><i class="fa-solid fa-camera"></i>No photos yet. Hit "Shoot all" to photograph every hairstyle.</div>`}
-  </div>`;
-}
-
-let studioHud = null;
-function studioRun(d) {
-  if (!studioHud) { studioHud = document.createElement('div'); studioHud.className = 'studio-hud scaled'; $('#root').appendChild(studioHud); }
-  if (d.finished) { studioHud.remove(); studioHud = null; return; }
-  const p = d.total ? clamp((d.done || 0) / d.total, 0, 1) : 0;
-  studioHud.innerHTML = `<div class="ch-frame"><div class="ch-in"><div class="mark sm"></div>
-    <div class="sh-tx"><b>Wig Studio · ${d.model === 'm' ? 'Male' : 'Female'}</b><span>${d.done || 0} / ${d.total}${d.d !== undefined ? ` · hairstyle ${d.d}` : ''}</span></div>
-    <span class="kc">BACKSPACE</span><span class="sh-stop">Stop</span>
-    <div class="sh-bar"><i style="width:${p * 100}%"></i></div></div></div>`;
-}
-
-/* ═══════════════ PHONE HOST ═══════════════ */
-const phoneHost = $('#phone'), phoneFrame = $('#phoneFrame');
-function openPhone() {
-  S.view = 'phone';
-  if (!phoneFrame.src) phoneFrame.src = 'phone/index.html?host=nui';
-  else phoneFrame.contentWindow && phoneFrame.contentWindow.postMessage({ type: 'refresh' }, '*');
-  phoneHost.hidden = false;
-  const fr = $('.phone-frame'); fr.style.animation = 'none'; void fr.offsetWidth; fr.style.animation = '';
-}
-function closePhone(silent) {
-  S.view = null;
-  phoneHost.hidden = true;
-  if (!silent) post('close');
-}
-phoneHost.addEventListener('click', (e) => {
-  if (e.target.closest('[data-phone="close"]') || e.target.classList.contains('app-shade')) closePhone();
-});
-function phoneMsg(d) { if (phoneFrame.contentWindow) phoneFrame.contentWindow.postMessage(d, '*'); }
-// the app inside the frame asks to close / plays cash sounds
-addEventListener('message', (e) => {
-  const m = e.data || {};
-  if (m && m.__phone === 'close') closePhone();
-  if (m && m.__phone === 'cash') SFX.cash();
-});
 
 /* ═══════════════ MODAL ═══════════════ */
 function modal(html, tint) {
@@ -574,7 +518,6 @@ const ACT = {
     if (v === 'wigs' || v === 'catalog') await palette();
     renderVault();
   },
-  phone: () => post('openPhone'),
   lb: (v) => { S.lb = v; $('#vview').innerHTML = VIEWS.leaders(); },
   wsel: (v) => { S.sel = v; $('#vview').innerHTML = VIEWS.wigs(); paintSwatches(body); },
   wear: (v) => { post('wear', { key: v }); closeApp(true); },
@@ -613,15 +556,17 @@ const ACT = {
   craft: () => {
     const keys = [...S.wsSel];
     S.wsSel.clear();
-    post('craft', { keys });
+    post('craft', { keys, view: S.camView });
     closeApp(true);
   },
+  camView: (v) => { S.camView = v; $('#vview').innerHTML = workshopView(); paintSwatches(body); },
+  tablePickUp: () => { post('tablePickUp'); closeApp(true); },
   dyeTarget: (v) => { S.dye.target = v; $('#vview').innerHTML = workshopView(); paintSwatches(body); },
   dyePick: (v) => { const [f, i] = v.split(':'); S.dye[f] = Number(i); $('#vview').innerHTML = workshopView(); paintSwatches(body); },
   dyeGo: () => {
     const d = S.dye;
     if (d.target === 'self') post('dyeSelf', { c: d.c, h: d.h });
-    else post('dyeWig', { key: d.target, c: d.c, h: d.h });
+    else post('dyeWig', { key: d.target, c: d.c, h: d.h, view: S.camView });
     closeApp(true);
   },
   rinse: () => { post('rinse'); },
@@ -637,25 +582,6 @@ const ACT = {
   // pickers
   useProduct: (v) => { post('productUse', { id: v, target: S.picker.target }); closeApp(true); },
   putOn: (v) => { post('putOn', { key: v, target: S.picker.target }); closeApp(true); },
-  // studio
-  stModel: (v) => { S.studio.model = v; renderStudio(); },
-  stSel: (v) => { S.studio.sel.has(v) ? S.studio.sel.delete(v) : S.studio.sel.add(v); renderStudio(); },
-  stSave: () => {
-    post('studioNames', { names: S.studio.edits });
-    S.studio.names = Object.assign({}, S.studio.names, S.studio.edits);
-    S.studio.edits = {};
-    renderStudio();
-  },
-  stRun: (v) => {
-    const st = S.studio;
-    const go = () => {
-      const list = [...st.sel].map((k) => { const m = /^([mf])\/(\d+)_(\d+)$/.exec(k); return m && { m: m[1], d: Number(m[2]), t: Number(m[3]) }; }).filter(Boolean);
-      post('studioCapture', { model: st.model, mode: v, list, have: arr(st.shots) });
-      closeApp(true);
-    };
-    if (v === 'all') confirmBox('Shoot every hairstyle', 'Your character goes to a hidden stage and every hairstyle for this model gets photographed. It takes a while. Your look comes back afterwards.', 'Start', go);
-    else go();
-  },
 };
 
 // key capture for settings (runs before other key handling)

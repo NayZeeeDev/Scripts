@@ -14,11 +14,13 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | **Hold still** | Grab someone from behind and pin them while a friend snatches, shaves or pranks them. They can struggle out. |
 | **Hair products** | Hair remover (hair falls out), lye relaxer (burns), a lice jar (itching, flies, spreads), mud (washes out in water), shampoo and regrowth oil. Everyone nearby sees smoke, flies and mud. |
 | **Reactions** | Facepalms, crying, shaking it off, celebrating. Every event has its own list in `Config.Reactions`. |
-| **Wigs + bundles** | Snipping long hair drops hair bundles. Three bundles and a wig cap make a wig of that hairstyle in the Workshop. |
-| **Dye** | Dye any wig (or your own hair) with the full game palette. Dyed wigs sell for more. |
+| **Wigs + bundles** | Snipping long hair drops hair bundles. Three bundles and a wig cap make a wig of that hairstyle at a wig table. |
+| **Wig tables** | Dragons Lab's Wig Crafting Tables by SasDragon (sold separately, see below). Place one from your inventory, pick it back up, saved between restarts. Make and dye wigs at it in stages with skill checks, the wig taking shape on a foam head in front of you and a camera you switch with `V` (over the shoulder, first person, close up). Same system as nayzeee-sneakers. |
+| **Dye** | Dye any wig at a wig table (or your own hair anywhere) with the full game palette. Dyed wigs sell for more. |
+| **Props** | Clippers, a straight razor, a hair dye bottle, a foam wig head and a hair bundle, streamed with the script (`stream/`). |
 | **Hair pricing** | Tier base, condition, provenance, dye, burns, market demand and your title. The phone shows the full breakdown. |
-| **Hair Plug phone app** | Quick sell, meet-ups with a buyer who runs to you, a player marketplace (offline sellers get paid on login), and rotating NPC orders that pay extra. lb-phone, YSeries, qs-smartphone, or on screen with `/hairplug`. |
-| **Wig Studio** | uz_AutoShot-style studio built in. Photographs every hairstyle on a plain head with the background keyed out, so every wig shows its exact hairstyle in the inventory, the vault and the phone. Name hairstyles there and every wig of that style uses the name. |
+| **Hair Plug phone app** | Quick sell, meet-ups with a buyer who runs to you, a player marketplace (offline sellers get paid on login), and rotating NPC orders that pay extra. Lives inside lb-phone, YSeries or qs-smartphone. There is no built-in phone. |
+| **Wig Studio** | Built like the nayzeee-backpack icon studio. A head floats in a lit chroma box, you frame it with the orbit camera, and each shot is keyed in the browser into a small transparent PNG that's copied straight into ox_inventory. Shoot one hairstyle or every hairstyle, and name them there: every wig of that style uses the name and the photo. |
 | **Wear / put on / take off** | Wear any wig that fits, put your wig on someone else, or take a wig off them. Both ask first. |
 | **Notifications** | Built-in toasts, ox_lib, ESX, QBCore, Qbox, okokNotify, mythic_notify, pNotify, t-notify, brutal_notify, wasabi_notify, lation_ui or your own. |
 | **Player preferences** | Every player picks their own accent and alert colours, UI size, toast position, sounds, banners and minigame keys (Vault > Settings or `/wigsettings`). Saved on their PC. |
@@ -38,13 +40,14 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | Framework | Yes | ESX Legacy, QBCore or Qbox (auto-detected) |
 | Inventory | Yes | ox_inventory (recommended), qb-inventory and forks, qs-inventory. Plain ESX inventory works without metadata (no tiers, pictures or listings). |
 | ox_target / qb-target | Recommended | Without one, use the commands and usable items |
-| screenshot-basic or screencapture | For the studio | Only needed to take wig photos |
-| A phone | Optional | lb-phone, YSeries or qs-smartphone. Without one, `/hairplug` opens the app on screen |
+| screenshot-basic | For the studio | Only needed to take wig photos |
+| A phone | For selling | lb-phone, YSeries or qs-smartphone. The Hair Plug app is added to it. There is no built-in phone |
+| [Dragons Lab Wig Crafting Tables](https://discord.com/invite/KEhZqcuv6m) | Recommended | SasDragon's table models, bought from her. Without them the tables fall back to a GTA workbench |
 
 ## 🚀 Installation
 
 1. Drop `nayzeee-wigsnatch` into your resources (remove V2 first, the database carries over).
-2. Add the items from `INSTALL/` (`ox_inventory.txt`, `qb-core.txt` or `esx_items.sql`) and copy `INSTALL/images/*.png` into your inventory's image folder.
+2. Add the items from `INSTALL/` (`ox_inventory.txt`, `qb-core.txt` or `esx_items.sql`) and copy `INSTALL/images/*.png` into your inventory's image folder. The wig table items use the icons in SasDragon's `install-images` folder.
 3. Start it after your framework, inventory, target and phone:
    ```cfg
    ensure ox_lib
@@ -52,15 +55,18 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
    ensure ox_target
    ensure screenshot-basic
    ensure lb-phone
+   ensure DragonsLab_WigTables
    ensure nayzeee-wigsnatch
    ```
 4. Give admins the commands:
    ```cfg
    add_ace group.admin command.wigadmin allow
    add_ace group.admin command.wigstudio allow
+   # lets the studio copy photos into ox_inventory/web/images (newer FXServer builds)
+   add_filesystem_permission nayzeee-wigsnatch write ox_inventory
    ```
 5. Restart. New tables and columns are added on their own (`sql/install.sql` is there if you prefer to run it by hand).
-6. Optional but recommended: `/wigstudio` > **Shoot all** for each model, then restart the resource so the photos are served.
+6. Optional but recommended: `/wigstudio` > **Every hairstyle** for each model, then restart this resource and ox_inventory so the photos are served.
 
 ## 🎒 Items
 
@@ -69,7 +75,8 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | `wig` | Use it to wear it |
 | `hair_bundle` | Raw hair from cuts. Opens the Workshop |
 | `wig_cap` | Needed to make a wig |
-| `hair_dye` | Dye a wig or your own hair (Workshop) |
+| `hair_dye` | Dye a wig (at a wig table) or your own hair (Workshop) |
+| `wigtableblue` / `wigtablepink` / `wigtablepurp` / `wigtablered` | Place a wig table |
 | `wig_glue` | Glue your lace down for 20 minutes |
 | `wig_kit` | Repair a wig's condition (Vault) |
 | `scissors` / `hair_clippers` / `straight_razor` | First person cutting tools. Use one to cut whoever is in front of you |
@@ -87,7 +94,6 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | `/wiguntie` · `/wigcut` | Everyone | Untie / cut whoever is in front of you |
 | `/wigs` | Everyone | Wig Vault |
 | `/wigsettings` | Everyone | Your colours, size, sounds and keys |
-| `/hairplug` | Everyone | The phone app on screen |
 | `/wigpassive` | Everyone | Passive mode (if enabled) |
 | `/wigstudio` | Ace `command.wigstudio` | Photograph and name hairstyles |
 | `/wigadmin restore\|givewig\|givebundle\|resetcd\|protect\|xp\|glue\|status\|free <id> [value]` | Ace | Admin tools |
@@ -122,7 +128,8 @@ exports['nayzeee-wigsnatch']:ReapplyHair()   -- call after your appearance scrip
 exports['nayzeee-wigsnatch']:GetHairState()
 exports['nayzeee-wigsnatch']:IsBusy()
 exports['nayzeee-wigsnatch']:OpenVault('wigs')
-exports['nayzeee-wigsnatch']:OpenHairPlug()
+exports['nayzeee-wigsnatch']:HasPhoneApp()   -- client: the Hair Plug app was added to a phone
+exports['nayzeee-wigsnatch']:OpenWigStudio() -- client, admins
 ```
 
 **Statebags** other scripts can read: `nzTied`, `nzHeld`, `nzHolding`, `nzDown`, `nzHairFx`, `nzWigOn`, `nzWigBusy`.
@@ -134,17 +141,46 @@ exports['nayzeee-wigsnatch']:OpenHairPlug()
 | lb-phone | Built in (`AddCustomApp`, push updates, phone notifications) |
 | YSeries | Adapter in `bridge/phone.lua` |
 | qs-smartphone / qs-smartphone-pro | Adapter in `bridge/phone.lua` |
-| Anything else / none | `/hairplug` opens the same app on screen |
+| Anything else | Copy one of the adapters in `bridge/phone.lua` |
 
-The app talks to this resource through NUI callbacks, so it works the same everywhere. If your YSeries or qs version names its custom-app export differently, edit its `register` function in `bridge/phone.lua` (it's open source). The app also polls every few seconds, so phones without push messages still update.
+There is no built-in or on-screen phone: selling happens in the app on the player's own phone. The app talks to this resource through NUI callbacks, so it works the same everywhere. If your YSeries or qs version names its custom-app export differently, edit its `register` function in `bridge/phone.lua` (it's open source). The app also polls every few seconds, so phones without push messages still update.
 
 ## 📸 Wig Studio
 
-`/wigstudio` opens a browser of every photographed hairstyle. **Shoot missing**, **Shoot all** or tick a few and **Re-shoot**. Your character goes to a hidden stage in its own routing bucket, every hairstyle is put on a plain head in front of a magenta screen, photographed, keyed out and saved to `shots/<m|f>/<drawable>_<texture>.png`. Your look is put back afterwards. `Backspace` stops a run.
+Built the same way as the nayzeee-backpack icon studio. `/wigstudio` puts a plain freemode head in a lit chroma box under the map (your own character never changes, it just goes invisible and waits in its own routing bucket). The hairstyle list is on the left, the controls on the right, and the head is in between:
 
-Type a name under any photo and **Save names**: every wig made from that hairstyle uses that name and it joins the catalog. Names live in `data/style_names.json`.
+- **Drag** the middle of the screen to orbit, **scroll** to zoom, or use the angle chips (Three quarter, Front, Side, Back, High) and the Height slider for long hair.
+- **Backdrop**: green, magenta or blue. Pick one the hair doesn't use.
+- **This hairstyle** shoots what's on screen. **Every hairstyle** runs the whole list (tick *every texture too* for all textures, *skip* to only shoot missing ones). `Backspace` stops a batch.
+- **Name** a hairstyle and save: every wig made from it uses that name and it joins the catalog (`data/style_names.json`).
 
-With `Config.Wig.Images = 'studio'`, every wig item gets its photo through ox_inventory's `imageurl` metadata. FiveM only serves files that existed when the resource started, so **restart the resource after a studio run**.
+Each shot is keyed **in the browser** (the same keyer as the backpack studio): the centre square inside the white corners is cut out, the backdrop removed with soft edges, the hair trimmed and centred on a transparent 256 px square. Only that small PNG (around 10 KB) goes to the server, so nothing lags. It's saved as `shots/wig_<f|m>_<hairstyle>_<texture>.png` and copied into `ox_inventory/web/images/` with the same name.
+
+With `Config.Wig.Images = 'studio'`, every wig gets its photo: on ox_inventory through `metadata.image` (the copied file), on other inventories through `imageurl`. FiveM only serves files that existed when a resource started, so **restart this resource and ox_inventory after shooting**.
+
+## 🪑 Wig tables
+
+The tables are **Dragons Lab's Wig Crafting Tables by SasDragon**. They are not included and not made by NayZeee: every server buys them from her ([discord.gg/KEhZqcuv6m](https://discord.com/invite/KEhZqcuv6m)) and starts her resource next to this one. The script finds her models by name (`sasdragonslab_blue_wigtable`, `_pink_`, `_purple_`, `_red_`). Without her pack, tables fall back to a GTA workbench (`Config.Tables.Fallback`) and the console says where to get hers.
+
+- **Place**: use a table item. A ghost follows your aim: scroll or Q / E rotates, left click places, right click cancels.
+- **Pick up**: third eye on your own table (or the button in the workshop). Tables are saved between restarts, `MaxPerPlayer` each, and you can add fixed ones for a salon in `Config.Tables.Fixed`.
+- **Use wig table** opens the Workshop at the table. Making a wig (3 bundles + a cap) or dyeing one plays out in stages: you walk up to the table, the bundles are laid out and get used up as the wig takes shape on a foam head, the right tool is in your hand for each stage, and fiddly stages have an ox_lib skill check. `V` switches the camera, `X` stops (nothing is used up if you stop).
+- **Skill checks matter**: every clean check raises the chance of a higher tier wig, every sloppy one costs condition, and a perfect run gives bonus XP. Higher levels work faster.
+- `Config.Tables.RequireTable = false` lets the Workshop make and dye wigs anywhere again.
+
+## 🧰 Props
+
+Five props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
+
+| Model | Used for |
+| --- | --- |
+| `nz_wig_clippers` | Clippers in the barber's hand |
+| `nz_wig_razor` | Straight razor in the barber's hand (and the shaping stage at a table) |
+| `nz_wig_dye` | Dye bottle in your hand while dyeing, and on the table |
+| `nz_wig_head` | The foam head the wig takes shape on at a table |
+| `nz_hair_bundle` | The bundles laid out on the table |
+
+They were built for this script and compiled to YDR / YTYP with CodeWalker. The source XML and textures are in `INSTALL/props-source/` if you want to open them in CodeWalker or Sollumz and make changes. If a prop sits oddly in the hand with your animations, tweak `pos` / `rot` in `Config.Cutting.Props` and `Config.TableProps`.
 
 ## ⚙️ Config highlights
 
@@ -162,7 +198,9 @@ With `Config.Wig.Images = 'studio'`, every wig item gets its photo through ox_in
 | `Config.Products.List` | 6 products | Item, effect, who it works on, how long it lasts |
 | `Config.Bundles` / `Workshop` / `Dye` | | Grades, prices, recipe, dye bonus |
 | `Config.Phone` | | App name, which phone, quick sell rate, meet-up, listings, orders |
-| `Config.Studio` | | Photo size, chroma colour, camera, lights |
+| `Config.Tables` | | Her table models, fallback, limits, fixed tables, camera, stages and skill checks |
+| `Config.TableProps` | | The props in your hand and on the table during table work |
+| `Config.Studio` | `256` px | Photo size, starting backdrop, framing, lights, ox_inventory copy |
 
 Discord webhooks and the admin / studio aces live in `config_server.lua`, which never reaches players.
 
@@ -171,10 +209,11 @@ Discord webhooks and the admin / studio aces live in `config_server.lua`, which 
 | Issue | Solution |
 | --- | --- |
 | Hair, brows or beard reset after a clothing store | Your appearance script reapplied the skin. Call `exports['nayzeee-wigsnatch']:ReapplyHair()` after it loads, or add its event to the list in `client/hair.lua`. |
-| Wig pictures are missing | Run the studio, then restart the resource. Pictures need ox_inventory (or an inventory that reads `imageurl`). |
-| Studio photos come out black / empty | Start `screenshot-basic` (or screencapture) before this resource. |
-| The app isn't on my phone | Check the F8 console for "Could not add the Hair Plug app". Use `/hairplug`, and adjust `bridge/phone.lua` for your phone version. |
-| Clippers / razor don't show in the barber's hand | Base GTA has no clipper or razor prop. Stream your own and set it in `Config.Cutting.Props`. |
+| Wig pictures are missing | Run the studio, then restart this resource and ox_inventory. If the console says it couldn't write into ox_inventory, add the `add_filesystem_permission` line from Installation (or copy `shots/*.png` into `ox_inventory/web/images` by hand). |
+| Studio photos come out black / empty | Start `screenshot-basic` before this resource. If the hair keys out too, switch the backdrop to one the hair doesn't use. |
+| The app isn't on my phone | Check the F8 console for "Could not add the Hair Plug app" or "No supported phone found", and adjust `bridge/phone.lua` for your phone version. |
+| A prop sits oddly in the hand | Different animations hold things differently. Tweak `pos` / `rot` in `Config.Cutting.Props` and `Config.TableProps`. |
+| Tables are plain workbenches | SasDragon's pack isn't started. Buy it from her and `ensure` it before this resource. |
 | No third-eye options | Start ox_target / qb-target before this resource, or use the commands and usable items. |
 | Wigs have no tier in the inventory | You're on the plain ESX inventory, which has no metadata. Use ox_inventory. |
 | A minigame key doesn't respond | Another resource is holding NUI focus. Players can also rebind keys in `/wigsettings`. |

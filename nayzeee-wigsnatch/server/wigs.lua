@@ -45,15 +45,25 @@ function Wigs.LoadShotIndex()
     for _, k in ipairs(ok and type(list) == 'table' and list or {}) do shots[k] = true end
 end
 
+function Wigs.MarkShot(key)
+    if type(key) == 'string' then shots[key] = true end
+end
+
 function Wigs.HasShot(m, d, t)
     return shots[('%s/%d_%d'):format(m == 'm' and 'm' or 'f', d or 0, t or 0)] == true
 end
 
--- photo for a hairstyle, falling back to texture 0
-function Wigs.ShotUrl(hair)
+-- the studio photo for a hairstyle (falling back to texture 0): file name, or nil
+function Wigs.ShotName(hair)
     if not hair then return nil end
-    if Wigs.HasShot(hair.m, hair.d, hair.t) then return StudioShotUrl(hair.m, hair.d, hair.t) end
-    if Wigs.HasShot(hair.m, hair.d, 0) then return StudioShotUrl(hair.m, hair.d, 0) end
+    if Wigs.HasShot(hair.m, hair.d, hair.t) then return StudioShotName(hair.m, hair.d, hair.t) end
+    if Wigs.HasShot(hair.m, hair.d, 0) then return StudioShotName(hair.m, hair.d, 0) end
+end
+
+-- the same photo as a URL any NUI can load (the vault, the phone app, other inventories)
+function Wigs.ShotUrl(hair)
+    local name = Wigs.ShotName(hair)
+    return name and ('https://cfx-nui-%s/shots/%s.png'):format(RESOURCE, name) or nil
 end
 
 -- creation -------------------------------------------------------------------------------
@@ -104,7 +114,13 @@ function Wigs.Decorate(meta)
     meta.image, meta.imageurl = nil, nil
     local mode = Config.Wig.Images
     if mode == 'studio' then
-        meta.imageurl = Wigs.ShotUrl(meta.hair)
+        -- ox_inventory: the studio copies each photo into ox_inventory/web/images, so the item
+        -- just names it. Other inventories get the URL.
+        if Config.Studio.SaveToInventory and Inv.Name == 'ox_inventory' then
+            meta.image = Wigs.ShotName(meta.hair)
+        else
+            meta.imageurl = Wigs.ShotUrl(meta.hair)
+        end
     elseif mode == 'tier' then
         meta.image = 'wig_' .. meta.tier
     end

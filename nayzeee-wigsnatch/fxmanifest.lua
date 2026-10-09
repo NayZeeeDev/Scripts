@@ -3,10 +3,13 @@ game 'gta5'
 lua54 'yes'
 
 author 'NayZeee Development'
-description 'Wig Snatch V3 - snatching, minigames, first person cuts, restraints, products, wig workshop, phone app, wig studio'
-version '3.0.0'
+description 'Wig Snatch V3 - snatching, minigames, first person cuts, restraints, products, wig tables, phone app, wig studio'
+version '3.1.0'
 
 ui_page 'web/index.html'
+
+-- clippers, straight razor, dye bottle, wig head and hair bundle props (stream/)
+data_file 'DLC_ITYP_REQUEST' 'stream/nz_wigsnatch_props.ytyp'
 
 shared_scripts {
     '@ox_lib/init.lua',
@@ -29,6 +32,7 @@ client_scripts {
     'client/interact.lua',
     'client/phone.lua',
     'client/studio.lua',
+    'client/tables.lua',
     'client/main.lua',
 }
 
@@ -45,6 +49,7 @@ server_scripts {
     'server/restrain.lua',
     'server/cutting.lua',
     'server/products.lua',
+    'server/tables.lua',
     'server/workshop.lua',
     'server/market.lua',
     'server/social.lua',
@@ -64,7 +69,8 @@ files {
     'web/sounds/*.ogg',
     'web/phone/*',
     'data/*.json',
-    'shots/**/*',
+    'shots/*.png',
+    'shots/index.json',
 }
 
 dependencies {

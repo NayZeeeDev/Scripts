@@ -16,14 +16,14 @@ const HANDLERS = {
   'app:close': () => closeApp(true),
   'app:refresh': async () => {
     if (S.view === 'vault') loadVault();
-    if (S.view === 'phone') phoneMsg({ type: 'refresh' });
   },
-  'phone:msg': phoneMsg,
   'prompt:open': promptOpen,
   'prompt:close': promptClose,
-  'studio:run': studioRun,
-  'studio:saved': (d) => { if (S.studio && !d.err && !arr(S.studio.shots).includes(d.key)) S.studio.shots = arr(S.studio.shots).concat(d.key); },
-  'studio:error': (d) => toast({ kind: 'error', message: d.msg }),
+  'studio:state': studioState,
+  'studio:hide': studioHide,
+  'studio:show': studioShow,
+  'studio:process': studioProcess,
+  'studio:saved': studioSaved,
 };
 
 addEventListener('message', (e) => {
@@ -35,6 +35,7 @@ addEventListener('message', (e) => {
 // one keyboard router: settings key capture > minigame > cutting > close
 function onKey(e) {
   if (settingsKey(e)) return;
+  if (studioKey(e)) return;
   if (gameKey(e)) return;
   if (cutKey(e)) return;
   if (e.type !== 'keydown') return;

@@ -1,11 +1,12 @@
 -- Phone app adapters. The app itself (web/phone) talks to this resource through NUI callbacks,
 -- so it works the same inside any phone. Each phone only needs to know how to add the app.
 --
+-- There is no built-in phone: the app only lives inside a phone resource.
 -- lb-phone is fully supported. YSeries and qs-smartphone expose different custom-app exports
 -- between versions: if the app doesn't show up, check your phone's docs and edit the
--- `register` function for it below. /hairplug always works as a fallback.
+-- `register` function for it below.
 
-PhoneBridge = { name = 'standalone' }
+PhoneBridge = { name = 'none' }
 
 local CP = Config.Phone
 local UI_PATH = 'web/phone/index.html'
@@ -81,16 +82,23 @@ end
 ADAPTERS['qs-smartphone-pro'] = { resource = 'qs-smartphone-pro', register = qsRegister('qs-smartphone-pro') }
 ADAPTERS['qs-smartphone']     = { resource = 'qs-smartphone',     register = qsRegister('qs-smartphone') }
 
+-- a phone not listed here: copy one of the adapters above, then add its id to AUTO
+
 local AUTO = { 'lb-phone', 'yseries', 'qs-smartphone-pro', 'qs-smartphone' }
 
 local function pick()
     if not CP.Enabled then return 'none' end
     local p = CP.Phone
-    if p ~= 'auto' then return ADAPTERS[p] and p or 'standalone' end
+    if p ~= 'auto' then
+        if ADAPTERS[p] then return p end
+        print(('^1[%s] Config.Phone.Phone = %s is not a supported phone.^7'):format(RESOURCE, tostring(p)))
+        return 'none'
+    end
     for _, id in ipairs(AUTO) do
         if GetResourceState(ADAPTERS[id].resource) == 'started' then return id end
     end
-    return 'standalone'
+    print(('^3[%s] No supported phone found (lb-phone, yseries, qs-smartphone). The %s app is disabled.^7'):format(RESOURCE, CP.AppName))
+    return 'none'
 end
 
 local function register()
@@ -98,8 +106,8 @@ local function register()
     if not a or not a.register then return end
     local ok, err = pcall(a.register)
     if not ok then
-        print(('^3[%s] Could not add the %s app to %s: %s. /%s still works.^7'):format(
-            RESOURCE, CP.AppName, PhoneBridge.name, tostring(err), tostring(CP.Command)))
+        print(('^3[%s] Could not add the %s app to %s: %s^7'):format(
+            RESOURCE, CP.AppName, PhoneBridge.name, tostring(err)))
     else
         Debug('phone app added to', PhoneBridge.name)
     end
@@ -107,7 +115,7 @@ end
 
 function PhoneBridge.Init()
     PhoneBridge.name = pick()
-    if PhoneBridge.name == 'none' or PhoneBridge.name == 'standalone' then return end
+    if PhoneBridge.name == 'none' then return end
     CreateThread(function()
         Wait(1000) -- let the phone finish its own start
         register()
@@ -122,7 +130,6 @@ end)
 
 -- push a message to the open app (it also polls, so phones without push still update)
 function PhoneBridge.Send(data)
-    if NUI.app == 'phone' then NUI.Send('phone:msg', data) end
     local a = ADAPTERS[PhoneBridge.name]
     if a and a.send then pcall(a.send, data) end
 end

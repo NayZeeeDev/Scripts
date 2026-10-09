@@ -198,9 +198,11 @@ RegisterNetEvent('nz-wig:c:actionRun', function(d)
     FreezeEntityPosition(me, true)
     if a then LoopAnim({ dict = a.dict, clip = a.clip, flag = a.flag or 49 }, me) end
     NUI.Send('progress', { label = d.label or L('action_' .. d.kind), duration = d.duration })
+    local held = d.kind == 'dye' and AttachLocalProp(Config.TableProps.dye) or nil
     SetTimeout(d.duration, function()
         FreezeEntityPosition(PlayerPedId(), false)
         ClearPedSecondaryTask(PlayerPedId())
+        DeleteProp(held)
         Restrain.acting = false
     end)
 end)

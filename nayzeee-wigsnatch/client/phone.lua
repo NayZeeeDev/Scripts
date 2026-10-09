@@ -1,4 +1,4 @@
--- The Hair Plug phone app: NUI callbacks (shared by every phone and the on-screen fallback)
+-- The Hair Plug phone app: NUI callbacks (the app runs inside lb-phone / YSeries / qs-smartphone)
 -- and the meet-up buyer who runs to you.
 
 local CP = Config.Phone
@@ -48,18 +48,12 @@ RegisterNUICallback('phoneOrderFits', function(d, cb)
     cb(lib.callback.await('nz-wig:phoneOrderFits', false, d and d.order) or {})
 end)
 
--- on-screen fallback (and for servers without a phone) -------------------------------------------------
+RegisterNUICallback('phoneCash', function(_, cb)
+    NUI.Send('cash')
+    cb(1)
+end)
 
-local function openApp()
-    if Snatch.busy then return CB.Notify(L('busy'), 'error') end
-    NUI.Open('phone', { name = CP.AppName })
-end
-
-if CP.Enabled and CP.Command then
-    RegisterCommand(CP.Command, openApp, false)
-    if CP.Keybind then RegisterKeyMapping(CP.Command, 'Open ' .. CP.AppName, 'keyboard', CP.Keybind) end
-end
-exports('OpenHairPlug', openApp)
+exports('HasPhoneApp', function() return PhoneBridge.name ~= 'none' end)
 
 -- meet-up buyer -----------------------------------------------------------------------------------------------
 

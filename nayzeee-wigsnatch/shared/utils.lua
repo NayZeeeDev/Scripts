@@ -1,7 +1,7 @@
 -- Shared helpers (client + server)
 
 RESOURCE = GetCurrentResourceName()
-VERSION  = GetResourceMetadata(RESOURCE, 'version', 0) or '3.0.0'
+VERSION  = GetResourceMetadata(RESOURCE, 'version', 0) or '3.1.0'
 IS_SERVER = IsDuplicityVersion()
 
 local locale = Locales and (Locales[Config.Locale] or Locales.en) or {}
@@ -155,12 +155,13 @@ function IsShortDrawable(key, drawable)
 end
 
 -- Studio photo path for a hairstyle (relative to the resource)
-function StudioShotPath(model, drawable, texture)
-    return ('shots/%s/%d_%d.png'):format(model == 'm' and 'm' or 'f', drawable or 0, texture or 0)
+-- wig_f_12_0: the studio photo's file name (also its ox_inventory image name)
+function StudioShotName(model, drawable, texture)
+    return ('wig_%s_%d_%d'):format(model == 'm' and 'm' or 'f', drawable or 0, texture or 0)
 end
 
-function StudioShotUrl(model, drawable, texture)
-    return ('https://cfx-nui-%s/%s'):format(RESOURCE, StudioShotPath(model, drawable, texture))
+function StudioShotPath(model, drawable, texture)
+    return ('shots/%s.png'):format(StudioShotName(model, drawable, texture))
 end
 
 -- all tool names in a stable order

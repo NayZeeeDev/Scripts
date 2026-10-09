@@ -76,7 +76,15 @@
   <!-- reveal -->
   <div id="reveal" class="reveal scaled" hidden></div>
 
-  <!-- app panel (vault / pickers / studio / phone) -->
+  <!-- wig studio: panels left + right, the head between them -->
+  <div id="studio" class="studio" hidden>
+    <div id="sdOrbit" class="sd-orbit"></div>
+    <div class="sd-guide"><i></i><i></i><i></i><i></i></div>
+    <div id="sdLeft" class="sd-panel left scaled"></div>
+    <div id="sdRight" class="sd-panel right scaled"></div>
+  </div>
+
+  <!-- app panel (vault / pickers) -->
   <div id="app" class="app" hidden>
     <div class="app-shade"></div>
     <div class="app-frame scaled">
@@ -94,16 +102,6 @@
     <div id="modal" class="modal" hidden></div>
   </div>
 
-  <!-- phone app on screen (no phone resource) -->
-  <div id="phone" class="phone-host" hidden>
-    <div class="app-shade"></div>
-    <div class="phone-frame scaled">
-      <div class="phone-notch"></div>
-      <iframe id="phoneFrame" title="Hair Plug"></iframe>
-      <button class="phone-home" data-phone="close" title="Close"></button>
-    </div>
-  </div>
-
   <!-- prompt (trade / haircut / wig) -->
   <div id="prompt" class="prompt" hidden></div>
 </div>
@@ -112,6 +110,8 @@
 <script src="js/games.js"></script>
 <script src="js/cut.js"></script>
 <script src="js/vault.js"></script>
+<script src="js/keyer.js"></script>
+<script src="js/studio.js"></script>
 <script src="js/boot.js"></script>
 </body>
 </html>

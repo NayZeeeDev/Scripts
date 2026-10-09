@@ -99,26 +99,29 @@ RegisterNUICallback('vaultPutOn', function(d, cb)
     cb(1)
 end)
 
-RegisterNUICallback('openPhone', function(_, cb)
-    cb(1)
-    NUI.CloseApp()
-    SetTimeout(150, function() ExecuteCommand(Config.Phone.Command or '') end)
-end)
-
 -- workshop ---------------------------------------------------------------------------------------
 
 RegisterNUICallback('workshopFetch', function(_, cb)
     cb(lib.callback.await('nz-wig:workshop', false) or false)
 end)
 
+-- with wig tables on, making and dyeing wigs happens at the table you're standing at
+local function atTable()
+    return Config.Tables.Enabled and (Config.Tables.RequireTable or Tables.Bench() ~= nil)
+end
+
 RegisterNUICallback('craft', function(d, cb)
-    if d and type(d.keys) == 'table' then TriggerServerEvent('nz-wig:s:craft', d.keys) end
     cb(1)
+    if not d or type(d.keys) ~= 'table' then return end
+    if atTable() then return Tables.Job('craft', { keys = d.keys }, d.view) end
+    TriggerServerEvent('nz-wig:s:craft', d.keys)
 end)
 
 RegisterNUICallback('dyeWig', function(d, cb)
-    if d and d.key then TriggerServerEvent('nz-wig:s:dye', d.key, d.c, d.h) end
     cb(1)
+    if not d or not d.key then return end
+    if atTable() then return Tables.Job('dye', { key = d.key, c = d.c, h = d.h }, d.view) end
+    TriggerServerEvent('nz-wig:s:dye', d.key, d.c, d.h)
 end)
 
 RegisterNUICallback('dyeSelf', function(d, cb)

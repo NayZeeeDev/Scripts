@@ -1,6 +1,7 @@
 -- ox_inventory/data/items.lua
 -- Images: copy INSTALL/images/*.png to ox_inventory/web/images/
--- Wigs get their own picture (imageurl) from the Wig Studio, the wig.png is the fallback.
+-- Wigs get their own picture from the Wig Studio (copied into ox_inventory/web/images), wig.png is the fallback.
+-- Wig tables: the icons are in SasDragon's DragonsLab_WigTables/install-images folder (wigtableblue.png ...).
 
 ['wig'] = {
     label = 'Wig',
@@ -128,4 +129,38 @@
     stack = true,
     close = true,
     description = "Grows hair, eyebrows and beards back and heals burns.",
+},
+
+-- wig tables (Dragons Lab Wig Crafting Tables by SasDragon, sold separately)
+
+['wigtableblue'] = {
+    label = 'Blue Wig Table',
+    weight = 8000,
+    stack = false,
+    close = true,
+    description = "A wig crafting table by Dragons Lab. Use it to set it up.",
+},
+
+['wigtablepink'] = {
+    label = 'Pink Wig Table',
+    weight = 8000,
+    stack = false,
+    close = true,
+    description = "A wig crafting table by Dragons Lab. Use it to set it up.",
+},
+
+['wigtablepurp'] = {
+    label = 'Purple Wig Table',
+    weight = 8000,
+    stack = false,
+    close = true,
+    description = "A wig crafting table by Dragons Lab. Use it to set it up.",
+},
+
+['wigtablered'] = {
+    label = 'Red Wig Table',
+    weight = 8000,
+    stack = false,
+    close = true,
+    description = "A wig crafting table by Dragons Lab. Use it to set it up.",
 },

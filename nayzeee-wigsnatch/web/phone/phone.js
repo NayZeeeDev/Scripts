@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
    HAIR PLUG · phone app
-   Runs inside lb-phone / YSeries / qs-smartphone, or on screen through /hairplug.
+   Runs inside lb-phone / YSeries / qs-smartphone.
    Talks to nayzeee-wigsnatch through its NUI callbacks.
    ═══════════════════════════════════════════════════════════ */
 'use strict';
@@ -10,7 +10,6 @@ const RES = (() => {
   if (h.startsWith('cfx-nui-')) return h.slice(8);
   return typeof GetParentResourceName === 'function' ? GetParentResourceName() : null;
 })();
-const STANDALONE = new URLSearchParams(location.search).get('host') === 'nui';
 
 async function post(name, data = {}) {
   if (!RES) return window.Mock ? window.Mock.handle(name, data) : null;
@@ -250,7 +249,7 @@ function phToast(msg, ok) {
   t.hidden = false;
   clearTimeout(tT); tT = setTimeout(() => (t.hidden = true), 3200);
 }
-function cash() { if (STANDALONE) window.parent.postMessage({ __phone: 'cash' }, '*'); }
+function cash() { post('phoneCash'); }
 
 async function act(name, data, keepSel) {
   const r = await post(name, data);
@@ -299,9 +298,7 @@ document.addEventListener('click', async (e) => {
   if (fill) return act('phoneOrder', { order: Number(fill.dataset.oid), key: fill.dataset.fill });
 });
 
-$('#phClose').addEventListener('click', () => window.parent.postMessage({ __phone: 'close' }, '*'));
-
-/* messages pushed from the game (lb-phone SendCustomAppMessage, or the on-screen host) */
+/* messages pushed from the game (lb-phone SendCustomAppMessage) */
 addEventListener('message', (e) => {
   const m = e.data || {};
   if (m.type === 'refresh') load();
@@ -309,7 +306,6 @@ addEventListener('message', (e) => {
 });
 
 (async function boot() {
-  if (STANDALONE) $('#phClose').hidden = false;
   applyPrefs(await post('prefs'));
   await load();
   // phones without push messages: poll while the app is on screen

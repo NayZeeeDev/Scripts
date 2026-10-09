@@ -65,6 +65,19 @@ function AttachProp(p, ped)
     return obj
 end
 
+-- same, but only this client sees it (props during your own table work)
+function AttachLocalProp(p, ped)
+    if not p or not p.model then return nil end
+    ped = ped or PlayerPedId()
+    if not IsModelInCdimage(p.model) or not pcall(lib.requestModel, p.model, 1500) then return nil end
+    local obj = CreateObject(p.model, 0.0, 0.0, 0.0, false, false, false)
+    AttachEntityToEntity(obj, ped, GetPedBoneIndex(ped, p.bone or 28422), p.pos.x, p.pos.y, p.pos.z, p.rot.x, p.rot.y, p.rot.z,
+        true, true, false, true, 1, true)
+    SetEntityCollision(obj, false, false)
+    SetModelAsNoLongerNeeded(p.model)
+    return obj
+end
+
 function DeleteProp(obj)
     if obj and DoesEntityExist(obj) then DeleteEntity(obj) end
     return nil

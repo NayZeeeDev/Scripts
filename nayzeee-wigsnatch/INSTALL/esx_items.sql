@@ -16,4 +16,8 @@ INSERT IGNORE INTO `items` (`name`, `label`, `weight`, `rare`, `can_remove`) VAL
     ('lice_jar', 'Lice Jar', 1, 0, 1),
     ('mud_bag', 'Bag of Mud', 1, 0, 1),
     ('shampoo', 'Shampoo', 1, 0, 1),
-    ('regrowth_oil', 'Regrowth Oil', 1, 0, 1);
+    ('regrowth_oil', 'Regrowth Oil', 1, 0, 1),
+    ('wigtableblue', 'Blue Wig Table', 1, 0, 1),
+    ('wigtablepink', 'Pink Wig Table', 1, 0, 1),
+    ('wigtablepurp', 'Purple Wig Table', 1, 0, 1),
+    ('wigtablered', 'Red Wig Table', 1, 0, 1);

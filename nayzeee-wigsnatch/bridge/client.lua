@@ -93,6 +93,11 @@ function CB.RemoveGlobalPlayer(options)
     elseif TGT == 'qb-target' then exports['qb-target']:RemoveGlobalPlayer(labels) end
 end
 
+function CB.AddModel(models, options)
+    if TGT == 'ox_target' then exports.ox_target:addModel(models, oxOpts(options))
+    elseif TGT == 'qb-target' then exports['qb-target']:AddTargetModel(models, qbOpts(options)) end
+end
+
 function CB.AddLocalEntity(entity, options)
     if TGT == 'ox_target' then exports.ox_target:addLocalEntity(entity, oxOpts(options))
     elseif TGT == 'qb-target' then exports['qb-target']:AddTargetEntity(entity, qbOpts(options)) end

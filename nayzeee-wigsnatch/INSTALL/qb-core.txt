@@ -17,3 +17,9 @@ lice_jar       = { name = 'lice_jar', label = 'Lice Jar', weight = 150, type = '
 mud_bag        = { name = 'mud_bag', label = 'Bag of Mud', weight = 400, type = 'item', image = 'mud_bag.png', unique = false, useable = true, shouldClose = true, description = "Messy. Washes out with water or shampoo." },
 shampoo        = { name = 'shampoo', label = 'Shampoo', weight = 200, type = 'item', image = 'shampoo.png', unique = false, useable = true, shouldClose = true, description = "Washes out mud and lice." },
 regrowth_oil   = { name = 'regrowth_oil', label = 'Regrowth Oil', weight = 100, type = 'item', image = 'regrowth_oil.png', unique = false, useable = true, shouldClose = true, description = "Grows hair, eyebrows and beards back and heals burns." },
+
+-- wig tables (Dragons Lab Wig Crafting Tables by SasDragon, sold separately). Icons: her install-images folder
+wigtableblue   = { name = 'wigtableblue', label = 'Blue Wig Table', weight = 8000, type = 'item', image = 'wigtableblue.png', unique = true, useable = true, shouldClose = true, description = "A wig crafting table by Dragons Lab. Use it to set it up." },
+wigtablepink   = { name = 'wigtablepink', label = 'Pink Wig Table', weight = 8000, type = 'item', image = 'wigtablepink.png', unique = true, useable = true, shouldClose = true, description = "A wig crafting table by Dragons Lab. Use it to set it up." },
+wigtablepurp   = { name = 'wigtablepurp', label = 'Purple Wig Table', weight = 8000, type = 'item', image = 'wigtablepurp.png', unique = true, useable = true, shouldClose = true, description = "A wig crafting table by Dragons Lab. Use it to set it up." },
+wigtablered    = { name = 'wigtablered', label = 'Red Wig Table', weight = 8000, type = 'item', image = 'wigtablered.png', unique = true, useable = true, shouldClose = true, description = "A wig crafting table by Dragons Lab. Use it to set it up." },

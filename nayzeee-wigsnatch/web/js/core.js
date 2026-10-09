@@ -47,7 +47,7 @@ function tintVars(hex) {
 }
 
 const S = {
-  cfg: { version: '3.0.0', tiers: [], grades: [], games: {}, tools: [], statuses: {} },
+  cfg: { version: '3.1.0', tiers: [], grades: [], games: {}, tools: [], statuses: {} },
   tiers: {}, grades: {},
   prefs: { accent: '#08afa2', alert: '#e5484d', scale: 1, toastPos: 'top-right', sounds: true, volume: 0.7, reduceMotion: false, banners: 'all', keyPull: 'Space', keyMashL: 'KeyA', keyMashR: 'KeyD', editable: true, presets: [] },
   skew: 0,
