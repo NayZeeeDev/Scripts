@@ -511,7 +511,7 @@ lib.callback.register('nz_cargo:repair', function(src, stockId)
 end)
 
 -- Scrap a car for parts (frees the slot, small refund)
-lib.callback.register('nz_cargo:scrap', function(src, stockId)
+lib.callback.register('nz_cargo:scrap', Server.Once('stock', function(src, stockId)
     local s, w = ownerCtx(src, 'sell')
     if not s then return false end
     local item = DB.GetStockItem(tonumber(stockId))
@@ -522,7 +522,7 @@ lib.callback.register('nz_cargo:scrap', function(src, stockId)
     DB.Log(s.identifier, w.id, 'scrap', item.label, item.rarity, refund)
     Warehouse.Refresh(w.id)
     return Warehouse.Payload(src, w.id)
-end)
+end))
 
 -----------------------------------------------------------------
 -- Floor layout (owner): preset, custom spots, reset

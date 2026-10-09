@@ -165,7 +165,7 @@ lib.callback.register('nz_cargo:raid:enter', function(src, wid)
     return Warehouse.EnterPayload(src, w, 'police')
 end)
 
-lib.callback.register('nz_cargo:raid:seize', function(src, stockId)
+lib.callback.register('nz_cargo:raid:seize', Server.Once('stock', function(src, stockId)
     local st = Server.Get(src)
     local w = st and st.inside and DB.Warehouses[st.inside]
     if not w or not w.raid or not w.raid.police[st.identifier] then return false end
@@ -177,7 +177,7 @@ lib.callback.register('nz_cargo:raid:seize', function(src, stockId)
     if owner then Server.Notify(owner, L('raid_seized_owner', item.label), 'error', 'Raid') end
     Warehouse.Refresh(w.id)
     return true
-end)
+end))
 
 -- Owner side: pay the heat down
 lib.callback.register('nz_cargo:bribe', function(src, steps)

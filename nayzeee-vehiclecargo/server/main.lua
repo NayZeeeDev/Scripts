@@ -32,11 +32,6 @@ function Server.Profile(src)
     return p
 end
 
-function Server.Level(src)
-    local p = Server.Profile(src)
-    return p and Cargo.LevelFromXp(p.xp) or 1
-end
-
 -- Prestige: permanent bonuses and (optionally) every unlock kept after the reset
 local P = Config.Prestige or {}
 function Server.PrestigeOf(p) return (P.Enabled and p and p.prestige) or 0 end
@@ -76,6 +71,23 @@ function Server.Charge(src, amount, reason)
 end
 
 function Server.Now() return os.time() end
+
+-- Callbacks wait on the database between their checks and the payout, so a
+-- double click (or a spammed event) could pass the same checks twice and pay
+-- twice. Only one request per key runs at a time.
+-- scope 'player' = one per player, anything else = one per first argument (stock id, mission id)
+local running = {}
+function Server.Once(scope, fn)
+    return function(src, id, ...)
+        local key = scope == 'player' and ('player:' .. src) or (scope .. ':' .. tostring(tonumber(id) or id))
+        if running[key] then return false end
+        running[key] = true
+        local res = table.pack(pcall(fn, src, id, ...))
+        running[key] = nil
+        if not res[1] then error(res[2], 0) end
+        return table.unpack(res, 2, res.n)
+    end
+end
 
 -----------------------------------------------------------------
 -- Vehicle pool (config defaults + admin added)
@@ -418,6 +430,6 @@ end)
 lib.callback.register('nz_cargo:ready', function() return DB.Ready end)
 
 -- Exports for other resources
-exports('GetLevel', function(src) return Server.Level(src) end)
+exports('GetLevel', function(src) local p = Server.Profile(src) return p and Server.Level(p) or 1 end)
 exports('AddXp', function(src, amount) return Server.AddXp(src, amount) end)
 exports('IsInWarehouse', function(src) local s = Server.Players[src] return s and s.inside or false end)

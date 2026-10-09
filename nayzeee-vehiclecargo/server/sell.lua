@@ -132,7 +132,7 @@ local function payout(src, st, w, item, amount, kind, extra)
     return amount
 end
 
-lib.callback.register('nz_cargo:sell:quick', function(src, stockId)
+lib.callback.register('nz_cargo:sell:quick', Server.Once('stock', function(src, stockId)
     local st, w, item = sellContext(src, stockId)
     if not st then return false end
     local amount = math.floor(Cargo.BaseValue(item, w.upgrades.contacts) * S.QuickSale)
@@ -141,12 +141,12 @@ lib.callback.register('nz_cargo:sell:quick', function(src, stockId)
     Server.Notify(src, L('sell_quick', item.label, lib.math.groupdigits(amount)), 'success')
     Warehouse.Refresh(w.id)
     return Warehouse.Payload(src, w.id)
-end)
+end))
 
 -----------------------------------------------------------------
 -- Start a delivery sale
 -----------------------------------------------------------------
-lib.callback.register('nz_cargo:sell:start', function(src, stockId, buyerIndex)
+lib.callback.register('nz_cargo:sell:start', Server.Once('stock', function(src, stockId, buyerIndex)
     local st, w, item, loc = sellContext(src, stockId)
     if not st or not loc then return false end
     if st.mission then Server.Notify(src, L('busy'), 'error') return false end
@@ -201,7 +201,7 @@ lib.callback.register('nz_cargo:sell:start', function(src, stockId, buyerIndex)
         cutscene = S.Cutscene.Enabled, buyerModel = S.Cutscene.BuyerModels[math.random(1, #S.Cutscene.BuyerModels)],
         minOffer = math.floor(m.offer * S.MinOffer), condition = item.condition,
     }
-end)
+end))
 
 local function owned(src, id)
     local m = missions[tonumber(id)]
@@ -269,7 +269,7 @@ lib.callback.register('nz_cargo:sell:damage', function(src, id, kind, healthLost
     return { offer = currentOffer(m), counts = m.counts, pct = pct }
 end)
 
-lib.callback.register('nz_cargo:sell:deliver', function(src, id)
+lib.callback.register('nz_cargo:sell:deliver', Server.Once('sellmission', function(src, id)
     local m = owned(src, id)
     if not m then return false end
     local ped = GetPlayerPed(src)
@@ -337,7 +337,7 @@ lib.callback.register('nz_cargo:sell:deliver', function(src, id)
         label = m.label, rarity = m.rarity, buyer = m.buyer, agreed = m.offer, final = total, mine = mine,
         penalty = m.penalty, counts = m.counts, clean = clean, streak = p.clean_streak, xp = xp, cuts = cuts,
     }
-end)
+end))
 
 lib.callback.register('nz_cargo:sell:destroyed', function(src, id)
     local m = owned(src, id)

@@ -223,7 +223,7 @@ end
 -----------------------------------------------------------------
 -- Start
 -----------------------------------------------------------------
-lib.callback.register('nz_cargo:source:start', function(src, contractId)
+lib.callback.register('nz_cargo:source:start', Server.Once('player', function(src, contractId)
     local st = Server.Get(src)
     if not st or not st.inside then return false end
     if st.mission then Server.Notify(src, L('busy'), 'error') return false end
@@ -351,7 +351,7 @@ lib.callback.register('nz_cargo:source:start', function(src, contractId)
     if illegal then SetTimeout(12000, function() if missions[m.id] then Source.Text(src, 'illegal') end end) end
 
     return clientData(m)
-end)
+end))
 
 -----------------------------------------------------------------
 -- In-mission events
@@ -555,7 +555,7 @@ end)
 -----------------------------------------------------------------
 -- Delivery into the warehouse garage
 -----------------------------------------------------------------
-lib.callback.register('nz_cargo:source:deliver', function(src, id, props)
+lib.callback.register('nz_cargo:source:deliver', Server.Once('srcmission', function(src, id, props)
     local m = owned(src, id)
     if not m or m.chopOnly then return false end
     -- driving it, towing it on the flatbed, or it was just dropped by the Cargobob
@@ -617,7 +617,7 @@ lib.callback.register('nz_cargo:source:deliver', function(src, id, props)
                    time = Server.Now() - (m.expires - Config.Sourcing.TimeLimit) },
         enter = Warehouse.EnterPayload(src, w, Server.Access(src, m.wid)),
     }
-end)
+end))
 
 -----------------------------------------------------------------
 -- Chop shop: break any sourced car down for cash
@@ -879,7 +879,7 @@ crewDone = function(m, delivered)
     end
 end
 
-lib.callback.register('nz_cargo:crewjob:start', function(src, jobId)
+lib.callback.register('nz_cargo:crewjob:start', Server.Once('player', function(src, jobId)
     local CJ = Config.CrewJobs
     local job = CJ and CJ.Enabled and crewJob(jobId)
     local st = Server.Get(src)
@@ -955,4 +955,4 @@ lib.callback.register('nz_cargo:crewjob:start', function(src, jobId)
     if g.total == 0 then crews[g.id] = nil return false end
     DB.Log(st.identifier, wid, 'contract', job.label, job.rarity, -job.fee, { crew = #crew })
     return { ok = true }
-end)
+end))
