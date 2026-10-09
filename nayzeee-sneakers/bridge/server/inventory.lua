@@ -32,7 +32,7 @@ if inv == 'ox' then
     function Inv.CanCarry(src, name, count, metadata) return ox:CanCarryItem(src, name, count or 1, metadata) and true or false end
     function Inv.RegisterUsable(name, cb) usable[name] = cb end
 
-    -- Items point here from install/ox_items.lua: server = { export = 'nz_sneakers.useItem' }
+    -- Items point here from install/ox_items.lua: server = { export = 'nayzeee-sneakers.useItem' }
     exports('useItem', function(event, itemData, inventory, slot)
         if event ~= 'usingItem' then return end
         local src = inventory.id
@@ -98,4 +98,4 @@ function Inv.Find(src, name)
     return Inv.List(src, name)[1]
 end
 
-print(('^5[nz_sneakers]^7 inventory: %s'):format(inv))
+print(('^5[nayzeee-sneakers]^7 inventory: %s'):format(inv))

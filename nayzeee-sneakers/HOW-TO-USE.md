@@ -1,4 +1,4 @@
-# nz_sneakers: How To Use It (Phase 1)
+# nayzeee-sneakers: How To Use It (Phase 1)
 
 Phase 1 covers the shoes themselves: shoe items, shoe boxes, inspecting a pair and wearing it.
 Crafting, XP, dirt and cleaning, and selling come in the next phases.
@@ -7,12 +7,12 @@ Crafting, XP, dirt and cleaning, and selling come in the next phases.
 
 ## 1. Install
 
-1. Put the `nz_sneakers` folder in your `resources`.
+1. Put the `nayzeee-sneakers` folder in your `resources`.
 2. In `server.cfg`, start it **after** ox_lib, your framework, your inventory and ox_target:
    ```
    ensure ox_lib
    ensure ox_target
-   ensure nz_sneakers
+   ensure nayzeee-sneakers
    ```
 3. **Add the items** to your inventory:
    - **ox_inventory** (Qbox, ESX, or QB with ox): paste `install/ox_items.lua` into `ox_inventory/data/items.lua`.
@@ -22,7 +22,7 @@ Crafting, XP, dirt and cleaning, and selling come in the next phases.
    - `qb-inventory/html/images/` for qb.
 5. **Let admins use the test commands.** In `server.cfg`:
    ```
-   add_ace group.admin nz_sneakers.admin allow
+   add_ace group.admin nayzeee-sneakers.admin allow
    ```
 6. Restart the server, then **close FiveM and clear your cache**.
 
@@ -93,8 +93,8 @@ Everyone nearby sees the lid and the floating shoes.
 | Problem | Fix |
 |---|---|
 | Console says *Shoe box model is not streamed* | Make sure `stream/nzs_box/` and `stream/nzs_cups/` are in the resource, then clear your client cache. |
-| Using an item does nothing | The item isn't set up in your inventory (step 3 of Install), or for ox the `server = { export = 'nz_sneakers.useItem' }` line is missing. |
+| Using an item does nothing | The item isn't set up in your inventory (step 3 of Install), or for ox the `server = { export = 'nayzeee-sneakers.useItem' }` line is missing. |
 | *This shoe has no clothing set up yet* | Set the `drawable` in `config/shoes.lua` (section 2). |
 | *These are not made for your character* | The shoe's `gender` doesn't match your ped. Fix `gender`, or set `Config.GenderLock = false`. |
-| No target options on the box | ox_target isn't running, or nz_sneakers started before it. |
+| No target options on the box | ox_target isn't running, or nayzeee-sneakers started before it. |
 | Shoes or box show up invisible or inside-out | Screenshot it and send it to Claude. That's a model-file fix. |

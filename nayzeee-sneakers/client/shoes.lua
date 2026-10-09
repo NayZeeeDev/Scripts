@@ -115,7 +115,7 @@ function Shoes.PutOn(slot, meta)
     local prev = { drawable = GetPedDrawableVariation(ped, 6), texture = GetPedTextureVariation(ped, 6) }
     kneelAtFeet()
     Wait(900)
-    local ok, clothing = lib.callback.await('nz_sneakers:wear', false, slot, prev)
+    local ok, clothing = lib.callback.await('nayzeee-sneakers:wear', false, slot, prev)
     if ok and clothing then
         SetPedComponentVariation(ped, 6, clothing.drawable, clothing.texture or 0, 0)
         UI.Notify(Config.Text.putOn, 'success')
@@ -129,7 +129,7 @@ function Shoes.TakeOff()
     Busy = true
     kneelAtFeet()
     Wait(700)
-    local ok, prev = lib.callback.await('nz_sneakers:takeOff', false)
+    local ok, prev = lib.callback.await('nayzeee-sneakers:takeOff', false)
     if ok and prev then
         SetPedComponentVariation(PlayerPedId(), 6, prev.drawable, prev.texture or 0, 0)
         UI.Notify(Config.Text.tookOff, 'success')
@@ -142,7 +142,7 @@ RegisterCommand(Config.Wear.takeOffCommand, function() Shoes.TakeOff() end, fals
 
 --- Put worn shoes back on after spawning
 function Shoes.Reapply()
-    local worn = lib.callback.await('nz_sneakers:getWorn', false)
+    local worn = lib.callback.await('nayzeee-sneakers:getWorn', false)
     if worn and worn.clothing then
         SetPedComponentVariation(PlayerPedId(), 6, worn.clothing.drawable, worn.clothing.texture or 0, 0)
     end
@@ -152,7 +152,7 @@ end
 -- Using the shoes item
 --------------------------------------------------------------------------------
 
-RegisterNetEvent('nz_sneakers:client:useShoes', function(slot, meta, hasEmptyBox)
+RegisterNetEvent('nayzeee-sneakers:client:useShoes', function(slot, meta, hasEmptyBox)
     if Busy then return end
     local shoe = Config.Shoes[meta.shoe]
     if not shoe then return end

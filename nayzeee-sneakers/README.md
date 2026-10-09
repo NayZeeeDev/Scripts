@@ -1,4 +1,4 @@
-# nz_sneakers
+# nayzeee-sneakers
 
 Sneaker reselling for FiveM. This is **Phase 1**: the shoes, the shoe boxes and wearing them.
 
@@ -58,17 +58,17 @@ How they were made:
 **Server**
 
 ```lua
-exports.nz_sneakers:SpawnBox(coords, heading, meta?, ownerSrc?)  -- place a box, returns the net id
-exports.nz_sneakers:PackInto(netId, meta)                        -- shoes float into a placed empty box
-exports.nz_sneakers:GetWorn(src)                                  -- { meta, prev } or nil
-exports.nz_sneakers:SetWornMeta(src, meta)                        -- update the worn pair (e.g. dirt)
+exports['nayzeee-sneakers']:SpawnBox(coords, heading, meta?, ownerSrc?)  -- place a box, returns the net id
+exports['nayzeee-sneakers']:PackInto(netId, meta)                        -- shoes float into a placed empty box
+exports['nayzeee-sneakers']:GetWorn(src)                                  -- { meta, prev } or nil
+exports['nayzeee-sneakers']:SetWornMeta(src, meta)                        -- update the worn pair (e.g. dirt)
 ```
 
 **Client**
 
 ```lua
-exports.nz_sneakers:Inspect(meta)   -- inspect view for any pair
-exports.nz_sneakers:TakeOff()
+exports['nayzeee-sneakers']:Inspect(meta)   -- inspect view for any pair
+exports['nayzeee-sneakers']:TakeOff()
 ```
 
 ## Adding an inventory

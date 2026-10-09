@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'nz_sneakers';
+const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'nayzeee-sneakers';
 const post = (name, data = {}) =>
   fetch(`https://${RES}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
     .catch(() => {});

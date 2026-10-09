@@ -125,7 +125,7 @@ local function validPlacement(src, coords, heading)
     return type(coords) == 'vector3' and type(heading) == 'number' and nearPlayer(src, coords, 3.0)
 end
 
-lib.callback.register('nz_sneakers:placeBox', function(src, slot, kind, coords, heading)
+lib.callback.register('nayzeee-sneakers:placeBox', function(src, slot, kind, coords, heading)
     if not validPlacement(src, coords, heading) then return false end
     if countOwned(src) >= B.maxPerPlayer then
         Bridge.Notify(src, Config.Text.boxLimit, 'error')
@@ -150,7 +150,7 @@ lib.callback.register('nz_sneakers:placeBox', function(src, slot, kind, coords, 
 end)
 
 -- Loose pair -> empty box from the inventory -> placed box with the shoes floating in
-lib.callback.register('nz_sneakers:packShoes', function(src, shoeSlot, coords, heading)
+lib.callback.register('nayzeee-sneakers:packShoes', function(src, shoeSlot, coords, heading)
     if not validPlacement(src, coords, heading) then return false end
     if countOwned(src) >= B.maxPerPlayer then
         Bridge.Notify(src, Config.Text.boxLimit, 'error')
@@ -179,7 +179,7 @@ lib.callback.register('nz_sneakers:packShoes', function(src, shoeSlot, coords, h
     return NetworkGetNetworkIdFromEntity(ent), inDuration(false)
 end)
 
-lib.callback.register('nz_sneakers:toggleLid', function(src, netId)
+lib.callback.register('nayzeee-sneakers:toggleLid', function(src, netId)
     local ent, box = boxFromNet(src, netId)
     if not ent or box.busy then return false end
     local st = Entity(ent).state
@@ -187,7 +187,7 @@ lib.callback.register('nz_sneakers:toggleLid', function(src, netId)
     return true
 end)
 
-lib.callback.register('nz_sneakers:putIn', function(src, netId, shoeSlot)
+lib.callback.register('nayzeee-sneakers:putIn', function(src, netId, shoeSlot)
     local ent, box = boxFromNet(src, netId)
     if not ent then return false end
     if box.busy then Bridge.Notify(src, Config.Text.boxBusy, 'error') return false end
@@ -201,7 +201,7 @@ lib.callback.register('nz_sneakers:putIn', function(src, netId, shoeSlot)
     return true, inDuration(wasOpen)
 end)
 
-lib.callback.register('nz_sneakers:takeOut', function(src, netId)
+lib.callback.register('nayzeee-sneakers:takeOut', function(src, netId)
     local ent, box = boxFromNet(src, netId)
     if not ent then return false end
     if box.busy then Bridge.Notify(src, Config.Text.boxBusy, 'error') return false end
@@ -215,7 +215,7 @@ lib.callback.register('nz_sneakers:takeOut', function(src, netId)
     return true, outDuration(wasOpen)
 end)
 
-lib.callback.register('nz_sneakers:pickUp', function(src, netId)
+lib.callback.register('nayzeee-sneakers:pickUp', function(src, netId)
     local ent, box = boxFromNet(src, netId)
     if not ent or box.busy then return false end
     if not B.anyoneCanPickUp and box.owner ~= src and not Bridge.IsAdmin(src) then
@@ -236,7 +236,7 @@ lib.callback.register('nz_sneakers:pickUp', function(src, netId)
     return true
 end)
 
-lib.callback.register('nz_sneakers:myShoes', function(src)
+lib.callback.register('nayzeee-sneakers:myShoes', function(src)
     local out = {}
     for _, it in ipairs(Inv.List(src, Config.Items.shoes)) do
         if Config.Shoes[it.metadata.shoe] then

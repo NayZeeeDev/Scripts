@@ -53,15 +53,15 @@ CreateThread(function()
     Inv.RegisterUsable(Config.Items.shoes, function(src, it)
         if not it.metadata or not Config.Shoes[it.metadata.shoe] then return end
         local hasBox = Inv.Find(src, Config.Items.emptyBox) ~= nil
-        TriggerClientEvent('nz_sneakers:client:useShoes', src, it.slot, Items.Clean(it.metadata), hasBox)
+        TriggerClientEvent('nayzeee-sneakers:client:useShoes', src, it.slot, Items.Clean(it.metadata), hasBox)
     end)
 
     Inv.RegisterUsable(Config.Items.boxed, function(src, it)
-        TriggerClientEvent('nz_sneakers:client:placeBox', src, it.slot, 'boxed')
+        TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'boxed')
     end)
 
     Inv.RegisterUsable(Config.Items.emptyBox, function(src, it)
-        TriggerClientEvent('nz_sneakers:client:placeBox', src, it.slot, 'empty')
+        TriggerClientEvent('nayzeee-sneakers:client:placeBox', src, it.slot, 'empty')
     end)
 end)
 

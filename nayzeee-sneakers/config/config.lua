@@ -18,8 +18,8 @@ Config.FirstPerson = true
 Config.GenderLock = true
 
 -- Ace for admin commands and picking up anyone's box:
---   add_ace group.admin nz_sneakers.admin allow
-Config.AdminAce = 'nz_sneakers.admin'
+--   add_ace group.admin nayzeee-sneakers.admin allow
+Config.AdminAce = 'nayzeee-sneakers.admin'
 
 Config.Items = {
     shoes = 'nz_shoes',              -- a loose pair
@@ -87,6 +87,6 @@ Config.Text = {
     putOn = 'Shoes on',
     tookOff = 'Shoes off',
     notWearing = 'You are not wearing any boxed shoes',
-    modelMissing = 'Shoe box model is not streamed. Check nz_sneakers/stream',
+    modelMissing = 'Shoe box model is not streamed. Check nayzeee-sneakers/stream',
     inspectHint = 'Hold LMB and drag to turn · scroll to zoom · Backspace to put them away',
 }

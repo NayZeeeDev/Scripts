@@ -1,5 +1,5 @@
 Bridge.OnPlayerLoaded(function()
-    TriggerServerEvent('nz_sneakers:server:loaded')
+    TriggerServerEvent('nayzeee-sneakers:server:loaded')
     Wait(Config.Wear.reapplyDelay)
     Shoes.Reapply()
 end)

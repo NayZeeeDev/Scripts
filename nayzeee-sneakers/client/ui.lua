@@ -37,7 +37,7 @@ function UI.Notify(text, kind)
     end
 end
 
-RegisterNetEvent('nz_sneakers:notify', UI.Notify)
+RegisterNetEvent('nayzeee-sneakers:notify', UI.Notify)
 
 AddEventHandler('onResourceStop', function(res)
     if res == GetCurrentResourceName() and pendingMenu then SetNuiFocus(false, false) end

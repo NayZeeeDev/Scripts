@@ -73,5 +73,5 @@ function Shared.ClothingFor(shoe, gender)
 end
 
 function Shared.Debug(...)
-    if Config.Debug then print('^5[nz_sneakers]^7', ...) end
+    if Config.Debug then print('^5[nayzeee-sneakers]^7', ...) end
 end

@@ -218,7 +218,7 @@ end
 
 CreateThread(function()
     if not IsModelInCdimage(B.base) or not IsModelInCdimage(B.lid) then
-        print('^1[nz_sneakers]^7 ' .. Config.Text.modelMissing)
+        print('^1[nayzeee-sneakers]^7 ' .. Config.Text.modelMissing)
         return
     end
     local baseHash = B.base & 0xFFFFFFFF
@@ -272,7 +272,7 @@ end
 
 --- Pick a pair from the inventory. Returns the slot, or nil.
 function Boxes.ChoosePair()
-    local list = lib.callback.await('nz_sneakers:myShoes', false)
+    local list = lib.callback.await('nayzeee-sneakers:myShoes', false)
     if not list or #list == 0 then
         UI.Notify(Config.Text.noShoes, 'error')
         return nil
@@ -293,18 +293,18 @@ end
 
 local function toggleLid(ent)
     if Busy then return end
-    lib.callback.await('nz_sneakers:toggleLid', false, netOf(ent))
+    lib.callback.await('nayzeee-sneakers:toggleLid', false, netOf(ent))
 end
 
 local function putIn(ent)
     if Busy then return end
     local slot = Boxes.ChoosePair()
     if not slot then return end
-    atBox(ent, function() return lib.callback.await('nz_sneakers:putIn', false, netOf(ent), slot) end)
+    atBox(ent, function() return lib.callback.await('nayzeee-sneakers:putIn', false, netOf(ent), slot) end)
 end
 
 local function takeOut(ent)
-    atBox(ent, function() return lib.callback.await('nz_sneakers:takeOut', false, netOf(ent)) end)
+    atBox(ent, function() return lib.callback.await('nayzeee-sneakers:takeOut', false, netOf(ent)) end)
 end
 
 local function pickUp(ent)
@@ -313,7 +313,7 @@ local function pickUp(ent)
     Anim.Face(ent)
     Anim.PickUp()
     Wait(500)
-    lib.callback.await('nz_sneakers:pickUp', false, netOf(ent))
+    lib.callback.await('nayzeee-sneakers:pickUp', false, netOf(ent))
     Wait(400)
     Busy = false
 end
@@ -353,14 +353,14 @@ local function waitForEntity(netId)
     return NetToObj(netId)
 end
 
-RegisterNetEvent('nz_sneakers:client:placeBox', function(slot, kind)
+RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind)
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
     if not IsModelInCdimage(B.base) then return UI.Notify(Config.Text.modelMissing, 'error') end
     Busy = true
     local spot, heading = placementSpot()
     Anim.PutDown()
     Wait(600)
-    lib.callback.await('nz_sneakers:placeBox', false, slot, kind, spot, heading)
+    lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading)
     Wait(400)
     Busy = false
 end)
@@ -372,7 +372,7 @@ function Boxes.PackFromInventory(slot)
     local spot, heading = placementSpot()
     Anim.PutDown()
     Wait(600)
-    local netId, duration = lib.callback.await('nz_sneakers:packShoes', false, slot, spot, heading)
+    local netId, duration = lib.callback.await('nayzeee-sneakers:packShoes', false, slot, spot, heading)
     local ent = netId and waitForEntity(netId)
     if ent then
         Anim.Kneel()

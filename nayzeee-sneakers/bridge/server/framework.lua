@@ -69,7 +69,7 @@ function Bridge.RegisterUsable(name, cb)
 end
 
 function Bridge.Notify(src, text, kind)
-    TriggerClientEvent('nz_sneakers:notify', src, text, kind or 'inform')
+    TriggerClientEvent('nayzeee-sneakers:notify', src, text, kind or 'inform')
 end
 
-print(('^5[nz_sneakers]^7 framework: %s'):format(fw))
+print(('^5[nayzeee-sneakers]^7 framework: %s'):format(fw))

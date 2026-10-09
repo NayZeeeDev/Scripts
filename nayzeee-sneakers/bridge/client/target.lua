@@ -3,7 +3,7 @@ Target = {}
 --- options: { { name, label, icon, canInteract(entity), onSelect(entity) }, ... }
 function Target.AddModel(model, options)
     if GetResourceState('ox_target') ~= 'started' then
-        print('^1[nz_sneakers]^7 ox_target is not running - box interactions are disabled')
+        print('^1[nayzeee-sneakers]^7 ox_target is not running - box interactions are disabled')
         return
     end
     local list = {}

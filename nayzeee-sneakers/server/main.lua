@@ -1,5 +1,5 @@
 -- Client says its character has loaded: hand back anything left in boxes while offline
-RegisterNetEvent('nz_sneakers:server:loaded', function()
+RegisterNetEvent('nayzeee-sneakers:server:loaded', function()
     local src = source
     SetTimeout(2000, function() Pending.Deliver(src) end)
 end)
@@ -46,6 +46,6 @@ CreateThread(function()
     end
     if #missing > 0 then
         table.sort(missing)
-        print(('^3[nz_sneakers]^7 no clothing drawable set for: %s (config/shoes.lua) - they can be boxed and inspected but not worn yet'):format(table.concat(missing, ', ')))
+        print(('^3[nayzeee-sneakers]^7 no clothing drawable set for: %s (config/shoes.lua) - they can be boxed and inspected but not worn yet'):format(table.concat(missing, ', ')))
     end
 end)

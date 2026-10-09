@@ -19,7 +19,7 @@ local function pedGender(src)
     return Shared.PedGender(GetEntityModel(GetPlayerPed(src)))
 end
 
-lib.callback.register('nz_sneakers:wear', function(src, slot, prev)
+lib.callback.register('nayzeee-sneakers:wear', function(src, slot, prev)
     local id = Bridge.GetIdentifier(src)
     local it = Inv.GetSlot(src, slot)
     if not id or not it or it.name ~= Config.Items.shoes then return false end
@@ -54,7 +54,7 @@ lib.callback.register('nz_sneakers:wear', function(src, slot, prev)
     return true, clothing
 end)
 
-lib.callback.register('nz_sneakers:takeOff', function(src)
+lib.callback.register('nayzeee-sneakers:takeOff', function(src)
     local id = Bridge.GetIdentifier(src)
     local worn = getWorn(id)
     if not worn then
@@ -70,7 +70,7 @@ lib.callback.register('nz_sneakers:takeOff', function(src)
     return true, worn.prev or Config.Wear.barefoot[gender]
 end)
 
-lib.callback.register('nz_sneakers:getWorn', function(src)
+lib.callback.register('nayzeee-sneakers:getWorn', function(src)
     local worn = getWorn(Bridge.GetIdentifier(src))
     if not worn then return nil end
     local shoe = Config.Shoes[worn.meta.shoe]

@@ -8,7 +8,7 @@
     close = true,
     consume = 0,
     description = 'A pair of sneakers',
-    server = { export = 'nz_sneakers.useItem' },
+    server = { export = 'nayzeee-sneakers.useItem' },
 },
 
 ['nz_shoebox'] = {
@@ -18,7 +18,7 @@
     close = true,
     consume = 0,
     description = 'A pair of sneakers in their box',
-    server = { export = 'nz_sneakers.useItem' },
+    server = { export = 'nayzeee-sneakers.useItem' },
 },
 
 ['nz_shoebox_empty'] = {
@@ -28,5 +28,5 @@
     close = true,
     consume = 0,
     description = 'Put a pair in it',
-    server = { export = 'nz_sneakers.useItem' },
+    server = { export = 'nayzeee-sneakers.useItem' },
 },
