@@ -134,6 +134,8 @@ Every entry must be non-stackable — the `cardId` in the metadata is what ties 
 
 Using the item shows the card's details. It also means cards can be stolen, planted or handed over in RP — pair it with `markCardStolen`.
 
+**At an ATM the card you carry is the card that goes in.** With more than one on you, the player picks which. No card on you, no ATM. A card that isn't yours still works — on its own account only, with its PIN, inside its daily limit — so a stolen card is worth something, and the owner should report it. Three wrong PINs block it. Replacing a card swaps the holder's item for the new one; old plastic stops working.
+
 ---
 
 ## 💼 Society payroll
@@ -265,7 +267,7 @@ The page becomes the prop's screen texture, and **the buttons you press are the 
 You look around with the mouse inside a set of limits. A button lights up when it falls under the middle of your view — on the plastic *and* on the screen at the same time — and left click pushes it. The number pad types digits and PINs; the side buttons mean whatever the screen beside them says.
 
 {% hint style="info" %}
-The screen itself has no cursor and no way to reach Lua. The client works out which physical button is being looked at and tells the page which one to light. Every decision — what a button does on a given screen, whether a PIN is right — stays on the client, and **the PIN never exists in the browser at all**, only the number of dots to draw.
+The screen itself has no cursor and no way to reach Lua. The client works out which physical button is being looked at and tells the page which one to light, and **the PIN never exists in the browser at all**, only the number of dots to draw. Whether a PIN is right, and whether cash may move, is decided on the server.
 {% endhint %}
 
 | Setting | Default | Description |
@@ -326,9 +328,24 @@ With the in-world screen on, it **is** the interface: if a session cannot start,
 
 ---
 
+### Transfers at the machine
+
+The keypad has no letters, so a machine transfer goes to a **saved payee**: the side buttons show up to six names (`More` pages through the rest), or press the payee's number on the keypad, then type the amount. Players save payees from the transfer window in the bank or on the phone ("Save as payee"), and manage them in Settings. Up to 12 each; the table (`nz_bank_payees`) is created on start.
+
+### Where cash can move
+
+Deposits and withdrawals only go through **at a branch the player is standing in, or at an ATM the server watched them start a session at** — checked on every request, so a bank menu opened anywhere else can still transfer and pay bills, but can't move cash. The ATM fee, the ATM cap and the PIN come from that session, never from the client.
+
+| Setting | Default | Description |
+|---|---|---|
+| `Config.Security.branchRange` | `12.0` | Metres from a teller in `Config.Banks` that still count as inside |
+| `Config.Security.atmRange` | `3.5` | Metres from the machine a session can start |
+
+---
+
 ## 💵 What comes out of the machine
 
-Cash pushes out of the dispenser on a withdrawal and gets drawn back in on a deposit. The card slides into the reader on the way in and back out on the way out. A statement feeds out of the receipt slot.
+Cash pushes out of the dispenser on a withdrawal and gets drawn back in on a deposit. There is only ever one card: it leaves the hand as it reaches the slot and carries on into the reader, and on the way out it slides back to the mouth of the slot and the hand takes it. A statement feeds out of the receipt slot.
 
 | Setting | Default | Description |
 |---|---|---|
@@ -338,7 +355,7 @@ Cash pushes out of the dispenser on a withdrawal and gets drawn back in on a dep
 | `Config.ATM.slots.default` | table | `cash`, `card` and `receipt` slots |
 | `Config.ATM.slots.models` | table | Per-model overrides |
 
-Each slot is a point on the prop — `x` left and right, `z` up and down — plus `inner` and `outer`, how deep the item sits at each end of its trip. Props ease out rather than sliding at a constant speed, so they decelerate into the slot.
+Each slot is a point on the prop — `x` left and right, `z` up and down — plus `inner` and `outer`, how deep the item sits at each end of its trip. Props ease out rather than sliding at a constant speed, so they decelerate into the slot. `outer` is always taken as the end on the player's side, so a slot written the wrong way round still moves the right way.
 
 Place them against a real machine with `/atmslot` (`Config.Debug = true`): a grey marker shows the inner end and a teal one the outer. Arrows move, `TAB` switches axis, `]` cycles slot, `G` switches which end you are moving, `ENTER` prints a block.
 {% endhint %}
