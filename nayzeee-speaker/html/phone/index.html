@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speaker</title>
+<link rel="stylesheet" href="../css/fa.min.css">
+<style>
+@font-face{font-family:'Lexend';src:url(../fonts/lexend.woff2) format('woff2');font-weight:100 900;font-display:block}
+:root{
+  --base:#000;--panel:#121212;--raise:#1a1a1a;--raise-2:#232323;--inset:#101010;
+  --line:rgba(255,255,255,.10);--line-soft:rgba(255,255,255,.06);--line-hair:rgba(255,255,255,.04);
+  --white:#fff;--ink:#f2f4f5;--ink-2:#a7a7a7;--ink-3:#6a6a6a;
+  --teal:#08afa2;--teal-hi:#0fd4c4;--teal-lo:#067d74;--teal-wash:rgba(8,175,162,.14);--teal-edge:rgba(8,175,162,.36);
+  --red:#e5484d;--red-wash:rgba(229,72,77,.12);
+  --r-sm:8px;--r-md:12px;--fast:140ms cubic-bezier(.4,0,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--base);color:var(--ink);font-family:'Lexend',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;user-select:none;overflow:hidden}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+[hidden]{display:none!important}
+
+.app{display:flex;flex-direction:column;height:100%}
+.top{flex:none;display:flex;align-items:center;gap:10px;padding:16px 16px 12px}
+.mark{width:26px;height:26px;flex:none;border-radius:6px;background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
+  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);position:relative}
+.mark::after{content:'';position:absolute;left:22%;top:24%;width:56%;height:20%;background:#000;opacity:.85;border-radius:1px}
+.mark.custom{background-size:cover;background-position:center;clip-path:none;border-radius:7px}
+.mark.custom::after{display:none}
+.mark.hidden{display:none}
+.top h1{font-size:21px;font-weight:700;letter-spacing:-.035em;flex:1}
+.top .sub{font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px}
+
+.body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:0 14px 18px}
+.body::-webkit-scrollbar{width:0}
+.grp{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin:16px 2px 8px}
+
+/* speaker cards */
+.card{background:var(--panel);border-radius:var(--r-md);padding:13px;margin-bottom:9px;transition:background var(--fast)}
+.card.on{background:linear-gradient(150deg,rgba(8,175,162,.16),var(--panel) 65%)}
+.card-h{display:flex;align-items:center;gap:11px}
+.ico{width:38px;height:38px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;background:var(--raise-2);
+  color:var(--ink-2);font-size:14px}
+.card.on .ico{background:var(--teal-wash);color:var(--teal)}
+.card-t{flex:1;min-width:0}
+.card-t b{display:block;font-size:14px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-t span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:9.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--raise-2);color:var(--ink-2);flex:none}
+.pill.live{background:var(--teal-wash);color:var(--teal)}
+
+.now{display:flex;align-items:center;gap:11px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-hair)}
+.art{width:46px;height:46px;flex:none;border-radius:6px;overflow:hidden;background:var(--raise-2);display:grid;place-items:center;color:var(--ink-3)}
+.art img{width:100%;height:100%;object-fit:cover}
+.now-t{flex:1;min-width:0}
+.now-t b{display:block;font-size:13px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now-t span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.ctrls{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:13px}
+.cbtn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:15px;color:var(--ink);
+  transition:transform var(--fast),color var(--fast)}
+.cbtn:active{transform:scale(.9)}
+.cbtn.main{width:48px;height:48px;background:var(--white);color:#000;font-size:17px}
+.cbtn.red{color:var(--red);font-size:14px}
+.cbtn.sm{width:32px;height:32px;font-size:13px;color:var(--ink-2)}
+
+.vol{display:flex;align-items:center;gap:10px;margin-top:12px}
+.vol i{font-size:11px;color:var(--ink-3);width:14px;text-align:center}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:22px;background:transparent;--p:70%}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:99px;
+  background:linear-gradient(90deg,var(--white) 0,var(--white) var(--p),var(--raise-2) var(--p))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;margin-top:-4px;background:var(--white)}
+
+.search{display:flex;gap:10px;align-items:center;height:42px;padding:0 14px;background:var(--raise);
+  border-radius:999px;margin-bottom:14px}
+.search i{color:var(--ink-3);font-size:13px}
+.search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--white);font:inherit;font-size:14px;user-select:text}
+.search input::placeholder{color:var(--ink-3)}
+
+.row{display:flex;align-items:center;gap:11px;padding:7px 4px;border-radius:var(--r-sm);transition:background var(--fast)}
+.row:active{background:var(--raise)}
+.row .art{width:46px;height:46px;border-radius:4px}
+.row-t{flex:1;min-width:0}
+.row-t b{display:block;font-size:13.5px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-t span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;background:transparent;font-size:13px;color:var(--ink-2)}
+.mini:active{color:var(--white)}
+.mini.on{color:var(--teal)}
+.mini.teal{background:var(--teal);color:#00201d;font-size:11px}
+
+.tile{display:flex;align-items:center;gap:11px;background:var(--raise);border-radius:6px;overflow:hidden;height:56px}
+.tile .tart{width:56px;height:56px;flex:none;display:grid;place-items:center;background:var(--raise-2);color:var(--ink-2);font-size:15px}
+.tile .tart img{width:100%;height:100%;object-fit:cover}
+.tile b{font-size:13px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:10px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.liked .tart{background:linear-gradient(135deg,#4a3bd0,#9ad3c0);color:#fff}
+
+.empty{display:flex;flex-direction:column;align-items:center;gap:9px;padding:46px 18px;text-align:center}
+.empty i{font-size:24px;color:var(--ink-3)}
+.empty b{font-size:14px;font-weight:600;color:var(--white)}
+.empty span{font-size:12px;color:var(--ink-3);font-weight:300;line-height:1.5;max-width:30ch}
+.spin{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--teal);animation:sp .8s linear infinite;margin:34px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.tabs{display:flex;flex:none;padding:6px 10px 10px;background:linear-gradient(transparent,var(--base) 32%)}
+.tab{flex:1;padding:8px 0;font-size:10.5px;font-weight:400;color:var(--ink-3);display:flex;flex-direction:column;
+  align-items:center;gap:5px;transition:color var(--fast)}
+.tab i{font-size:17px}
+.tab.on{color:var(--white);font-weight:500}
+
+.btn{height:34px;padding:0 16px;border-radius:999px;font-size:12.5px;font-weight:600;display:inline-flex;
+  align-items:center;justify-content:center;gap:8px}
+.btn.teal{background:var(--teal);color:#00201d}
+.btn.line{border:1px solid var(--line);color:var(--ink)}
+.btn.red{background:var(--red-wash);color:var(--red)}
+.jam-card{background:linear-gradient(150deg,var(--teal-wash),var(--panel) 70%);border:1px solid var(--teal-edge);
+  border-radius:var(--r-md);padding:14px;display:flex;flex-direction:column;gap:11px;margin-bottom:10px}
+.jam-card b{font-size:15px;font-weight:600;color:var(--white)}
+.jam-card .who{font-size:11px;color:var(--ink-2);font-weight:300}
+.mtags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-size:9.5px;font-weight:500;padding:3px 8px;border-radius:999px;background:var(--raise-2);color:var(--ink-2)}
+.tag.teal{background:var(--teal-wash);color:var(--teal)}
+
+.sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.6);display:flex;align-items:flex-end}
+.sheet-in{width:100%;background:var(--panel);border-radius:16px 16px 0 0;padding:16px 16px 26px;
+  animation:up .22s cubic-bezier(.2,.9,.3,1)}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.sheet h3{font-size:16px;font-weight:600;margin-bottom:4px}
+.sheet p{font-size:11.5px;color:var(--ink-3);font-weight:300;margin-bottom:14px}
+.sheet input{width:100%;height:40px;padding:0 13px;border-radius:var(--r-sm);background:var(--raise);border:0;
+  color:var(--white);font:inherit;font-size:14px;outline:none;margin-bottom:12px;user-select:text}
+.sheet-row{display:flex;gap:8px}
+.sheet-row .btn{flex:1}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line-hair)}
+.opt:last-child{border:0}
+.opt i{width:36px;height:36px;border-radius:50%;background:var(--raise-2);display:grid;place-items:center;font-size:14px;color:var(--ink)}
+.opt-t b{display:block;font-size:13.5px;font-weight:500}
+.opt-t span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px}
+
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:var(--white);color:#000;
+  padding:9px 16px;border-radius:999px;font-size:12px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="mark" id="brandMark"></div>
+    <div style="flex:1;min-width:0">
+      <h1 id="title">Speaker</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <button class="mini" data-a="refresh"><i class="fa-solid fa-rotate"></i></button>
+  </div>
+
+  <div class="body" id="body"><div class="spin"></div></div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-a="tab" data-v="speakers"><i class="fa-solid fa-tower-broadcast"></i>Speakers</button>
+    <button class="tab" data-a="tab" data-v="search"><i class="fa-solid fa-magnifying-glass"></i>Search</button>
+    <button class="tab" data-a="tab" data-v="library"><i class="fa-solid fa-book-bookmark"></i>Library</button>
+    <button class="tab" data-a="tab" data-v="jam"><i class="fa-solid fa-user-group"></i>Jam</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="sheetHost"></div>
+
+<script>
+const RES = 'nayzeee-speaker';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function post(name, data) {
+  return fetch(`https://${RES}/${name}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data||{}) })
+    .then(r => r.json()).catch(() => null);
+}
+const fmt = s => { s = Math.max(0, Math.floor(s||0)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+
+const App = {
+  tab:'speakers', speakers:[], results:null, query:'', target:null,
+  playlists:null, favs:[], jam:null, jams:null, openPl:null, busy:false, brand:null,
+};
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(App.tt); App.tt = setTimeout(() => el.classList.remove('show'), 1700);
+}
+
+const isFav = tr => !!tr && Array.isArray(App.favs) && App.favs.some(f => (f.id || f.url) === (tr.id || tr.url));
+
+/* ─────────── sheets ─────────── */
+function closeSheet() { $('sheetHost').innerHTML = ''; }
+function askText(title, sub, placeholder) {
+  return new Promise(res => {
+    $('sheetHost').innerHTML = `<div class="sheet" id="sheet"><div class="sheet-in">
+      <h3>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ''}
+      <input id="sheetIn" placeholder="${esc(placeholder||'')}" maxlength="60" autocomplete="off">
+      <div class="sheet-row"><button class="btn line" id="sCancel">Cancel</button>
+      <button class="btn teal" id="sOk">Done</button></div></div></div>`;
+    const done = v => { closeSheet(); res(v); };
+    $('sCancel').onclick = () => done(null);
+    $('sOk').onclick = () => done(($('sheetIn').value || '').trim() || null);
+    $('sheetIn').onkeydown = e => { if (e.key === 'Enter') $('sOk').click(); };
+    $('sheet').onclick = e => { if (e.target.id === 'sheet') done(null); };
+    setTimeout(() => $('sheetIn').focus(), 40);
+  });
+}
+function askChoice(title, options) {
+  return new Promise(res => {
+    $('sheetHost').innerHTML = `<div class="sheet" id="sheet"><div class="sheet-in">
+      <h3>${esc(title)}</h3>
+      ${options.map((o,i) => `<div class="opt" data-i="${i}"><i class="fa-solid ${o.icon}"></i>
+        <div class="opt-t"><b>${esc(o.label)}</b><span>${esc(o.sub||'')}</span></div></div>`).join('')}
+      </div></div>`;
+    $('sheetHost').querySelectorAll('.opt').forEach(el => {
+      el.onclick = () => { closeSheet(); res(options[+el.dataset.i]); };
+    });
+    $('sheet').onclick = e => { if (e.target.id === 'sheet') { closeSheet(); res(null); } };
+  });
+}
+
+/* ─────────── loaders ─────────── */
+async function loadSpeakers(quiet) {
+  if (!quiet) $('body').innerHTML = '<div class="spin"></div>';
+  App.speakers = (await post('phoneList')) || [];
+  if (App.tab === 'speakers') draw();
+}
+async function loadLibrary() {
+  const d = await post('phoneLibrary');
+  if (d) { App.favs = Array.isArray(d.favs) ? d.favs : []; App.playlists = d.playlists || { mine: [], shared: [] }; }
+  if (App.tab === 'library') draw();
+}
+async function loadJams() {
+  const d = await post('phoneJams');
+  App.jams = (d && d.list) || [];
+  App.jam = (d && d.mine) || null;
+  if (App.tab === 'jam') draw();
+}
+
+/* ─────────── views ─────────── */
+function speakerCard(s) {
+  const t = s.track;
+  return `<div class="card ${s.playing?'on':''}" data-sp="${esc(s.id)}">
+    <div class="card-h">
+      <div class="ico"><i class="fa-solid fa-${s.kind==='vehicle'?'car':s.kind==='jam'?'user-group':s.turntable?'record-vinyl':'tower-broadcast'}"></i></div>
+      <div class="card-t">
+        <b>${esc(s.label)}${s.groupSize>1?` +${s.groupSize-1}`:''}</b>
+        <span>${s.kind==='vehicle'?'In your car':s.kind==='jam'?'Your jam':`${s.distance}m away`}${s.mine?' · yours':''}${s.queue?` · ${s.queue} queued`:''}</span>
+      </div>
+      <span class="pill ${s.playing?'live':''}">${s.playing?'Playing':'Idle'}</span>
+    </div>
+    ${t?`<div class="now">
+      <div class="art">${t.thumb?`<img src="${esc(t.thumb)}">`:'<i class="fa-solid fa-music"></i>'}</div>
+      <div class="now-t"><b>${esc(t.title)}</b><span>${esc(t.author||'')}</span></div>
+      <button class="mini ${isFav(t)?'on':''}" data-a="favTrack" data-sp2="${esc(s.id)}"><i class="fa-${isFav(t)?'solid':'regular'} fa-heart"></i></button>
+    </div>`:''}
+    <div class="ctrls">
+      <button class="cbtn sm" data-a="sp" data-what="shuffle"><i class="fa-solid fa-shuffle"></i></button>
+      <button class="cbtn" data-a="sp" data-what="prev"><i class="fa-solid fa-backward-step"></i></button>
+      <button class="cbtn main" data-a="sp" data-what="toggle"><i class="fa-solid fa-${s.playing?'pause':'play'}"></i></button>
+      <button class="cbtn" data-a="sp" data-what="next"><i class="fa-solid fa-forward-step"></i></button>
+      <button class="cbtn sm red" data-a="sp" data-what="stop"><i class="fa-solid fa-stop"></i></button>
+    </div>
+    <div class="vol">
+      <i class="fa-solid fa-volume-low"></i>
+      <input type="range" min="0" max="100" value="${Math.round((s.volume??0.7)*100)}" data-vol>
+      <i class="fa-solid fa-volume-high"></i>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:11px">
+      <button class="btn line" style="flex:1" data-a="sendTo" data-sp2="${esc(s.id)}"><i class="fa-solid fa-magnifying-glass"></i>Find a song</button>
+    </div>
+  </div>`;
+}
+
+const VIEWS = {
+  speakers() {
+    $('title').textContent = 'Speaker';
+    $('sub').textContent = App.speakers.length ? `${App.speakers.length} you can control` : '';
+    if (!App.speakers.length) {
+      return `<div class="empty"><i class="fa-solid fa-tower-broadcast"></i><b>Nothing to control</b>
+        <span>Place a boombox, get in a car with CarPlay, or join a jam.</span></div>`;
+    }
+    return App.speakers.map(speakerCard).join('');
+  },
+
+  search() {
+    $('title').textContent = 'Search';
+    const target = App.speakers.find(s => s.id === App.target);
+    $('sub').textContent = target ? `Playing to ${target.label}` : '';
+    let h = `<div class="search"><i class="fa-solid fa-magnifying-glass"></i>
+      <input id="q" placeholder="What do you want to hear?" autocomplete="off" spellcheck="false"></div>`;
+    if (App.busy) h += '<div class="spin"></div>';
+    else if (App.results === null) h += `<div class="empty"><i class="fa-solid fa-music"></i><b>Search for anything</b>
+        <span>Type a song or artist, then press enter.</span></div>`;
+    else if (!App.results.length) h += `<div class="empty"><i class="fa-solid fa-magnifying-glass"></i><b>Nothing found</b>
+        <span>Try different words.</span></div>`;
+    else h += App.results.map((r,i) => `<div class="row">
+        <div class="art">${r.thumb?`<img src="${esc(r.thumb)}">`:'<i class="fa-solid fa-music"></i>'}</div>
+        <div class="row-t"><b>${esc(r.title)}</b><span>${esc(r.author||'')}${r.duration?' · '+fmt(r.duration):''}</span></div>
+        <button class="mini ${isFav(r)?'on':''}" data-a="favResult" data-i="${i}"><i class="fa-${isFav(r)?'solid':'regular'} fa-heart"></i></button>
+        <button class="mini teal" data-a="playResult" data-i="${i}"><i class="fa-solid fa-play"></i></button>
+        <button class="mini" data-a="queueResult" data-i="${i}"><i class="fa-solid fa-plus"></i></button>
+      </div>`).join('');
+    return h;
+  },
+
+  library() {
+    $('title').textContent = 'Your Library';
+    $('sub').textContent = '';
+    if (App.playlists === null) return '<div class="spin"></div>';
+    if (App.openPl !== null) return VIEWS.playlistOne();
+    const d = App.playlists || { mine: [], shared: [] };
+    let h = `<div class="tiles">
+      <div class="tile liked" data-a="openLiked"><div class="tart"><i class="fa-solid fa-heart"></i></div><b>Liked Songs</b></div>
+      <div class="tile" data-a="newPlaylist"><div class="tart"><i class="fa-solid fa-plus"></i></div><b>Create</b></div>
+    </div>`;
+    const all = [...(d.mine||[]), ...(d.shared||[]).filter(p => !p.mine)];
+    if (all.length) {
+      h += `<div class="grp">Playlists</div>` + all.map(p => `<div class="row" data-a="openPl" data-pl="${p.id}">
+        <div class="art"><i class="fa-solid fa-${p.kind==='blend'?'code-merge':p.kind==='collab'?'user-group':p.kind==='prompted'?'wand-magic-sparkles':'rectangle-list'}"></i></div>
+        <div class="row-t"><b>${esc(p.name)}</b><span>${p.count} songs${p.mine?'':' · by '+esc(p.owner)}</span></div>
+        <button class="mini teal" data-a="playPl" data-pl="${p.id}"><i class="fa-solid fa-play"></i></button>
+      </div>`).join('');
+    } else {
+      h += `<div class="empty"><i class="fa-solid fa-rectangle-list"></i><b>No playlists yet</b>
+        <span>Tap Create to make one, or heart songs to fill your library.</span></div>`;
+    }
+    return h;
+  },
+
+  playlistOne() {
+    const liked = App.openPl === 'liked';
+    const d = App.playlists || {};
+    const p = liked ? { name: 'Liked Songs', tracks: App.favs, count: App.favs.length, mine: true }
+      : [...(d.mine||[]), ...(d.shared||[])].find(x => x.id === App.openPl);
+    if (!p) { App.openPl = null; return VIEWS.library(); }
+    $('title').textContent = p.name;
+    $('sub').textContent = `${p.count} songs`;
+    let h = `<div class="row" data-a="backLib" style="margin-bottom:6px"><i class="fa-solid fa-chevron-left" style="width:20px"></i>
+      <div class="row-t"><b>Library</b></div></div>`;
+    h += `<div style="display:flex;gap:8px;margin:4px 0 12px">
+      <button class="btn teal" data-a="${liked?'playLiked':'playPl'}" ${liked?'':`data-pl="${p.id}"`}><i class="fa-solid fa-play"></i>Play</button>
+      ${liked?'':`<button class="btn line" data-a="shufflePl" data-pl="${p.id}"><i class="fa-solid fa-shuffle"></i>Shuffle</button>`}
+    </div>`;
+    h += (p.tracks||[]).length ? p.tracks.map((tr,i) => `<div class="row">
+        <div class="art">${tr.thumb?`<img src="${esc(tr.thumb)}">`:'<i class="fa-solid fa-music"></i>'}</div>
+        <div class="row-t"><b>${esc(tr.title)}</b><span>${esc(tr.author||'')}</span></div>
+        <button class="mini teal" data-a="playTrack" data-i="${i}"><i class="fa-solid fa-play"></i></button>
+      </div>`).join('') : `<div class="empty"><i class="fa-solid fa-music"></i><b>Nothing in here yet</b><span>Heart a song to add it.</span></div>`;
+    return h;
+  },
+
+  jam() {
+    $('title').textContent = 'Jam';
+    $('sub').textContent = 'Listen together from anywhere';
+    if (App.jams === null) return '<div class="spin"></div>';
+    let h = '';
+    if (App.jam) {
+      h += `<div class="jam-card">
+        <div><b>${esc(App.jam.name)}</b><div class="who">Hosted by ${esc(App.jam.host)}</div></div>
+        <div class="mtags">${App.jam.members.map(m => `<span class="tag ${m.host?'teal':''}">${esc(m.name)}${m.host?' ★':''}</span>`).join('')}</div>
+        <button class="btn red" data-a="jamLeave"><i class="fa-solid fa-right-from-bracket"></i>Leave jam</button>
+      </div>`;
+    } else {
+      h += `<button class="btn teal" style="width:100%;margin-bottom:12px" data-a="jamStart"><i class="fa-solid fa-plus"></i>Start a jam</button>`;
+    }
+    const others = (App.jams||[]).filter(j => !j.mine);
+    if (others.length) {
+      h += `<div class="grp">Jams you can join</div>` + others.map(j => `<div class="row">
+        <div class="art"><i class="fa-solid fa-user-group"></i></div>
+        <div class="row-t"><b>${esc(j.name)}</b><span>${esc(j.host)} · ${j.count} listening</span></div>
+        <button class="mini teal" data-a="jamJoin" data-id="${j.id}"><i class="fa-solid fa-right-to-bracket"></i></button>
+      </div>`).join('');
+    } else if (!App.jam) {
+      h += `<div class="empty"><i class="fa-solid fa-user-group"></i><b>No jams running</b>
+        <span>Start one and anyone can listen along with you.</span></div>`;
+    }
+    return h;
+  },
+};
+
+function draw() {
+  const keep = document.activeElement && document.activeElement.id === 'q';
+  const caret = keep ? document.activeElement.selectionStart : null;
+  $('body').innerHTML = (VIEWS[App.tab] || VIEWS.speakers)();
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x.dataset.v === App.tab));
+  const q = $('q');
+  if (q) {
+    q.value = App.query;
+    // only search when they finish typing, so the field never steals a keystroke
+    q.onkeydown = ev => { if (ev.key === 'Enter') { App.query = q.value; q.blur(); runSearch(); } };
+    q.oninput = () => { App.query = q.value; };
+    if (keep) { q.focus(); try { q.setSelectionRange(caret, caret); } catch(_) {} }
+  }
+  $('body').querySelectorAll('input[type=range]').forEach(r => r.style.setProperty('--p', r.value + '%'));
+}
+
+async function runSearch() {
+  const query = (App.query || '').trim();
+  if (query.length < 2) { App.results = null; return draw(); }
+  App.busy = true; App.results = null; draw();
+  const res = await post('phoneSearch', { query });
+  App.busy = false;
+  App.results = Array.isArray(res) ? res : [];
+  draw();
+}
+
+/* pick which speaker a song goes to */
+async function needTarget() {
+  const list = App.speakers;
+  if (!list.length) { toast('No speaker to play on'); return null; }
+  if (App.target && list.some(s => s.id === App.target)) return App.target;
+  if (list.length === 1) { App.target = list[0].id; return App.target; }
+  const pick = await askChoice('Play on which speaker?', list.map(s => ({
+    icon: s.kind === 'vehicle' ? 'fa-car' : s.kind === 'jam' ? 'fa-user-group' : 'fa-tower-broadcast',
+    label: s.label, sub: s.kind === 'vehicle' ? 'Your car' : s.kind === 'jam' ? 'Your jam' : `${s.distance}m away`, id: s.id,
+  })));
+  if (!pick) return null;
+  App.target = pick.id;
+  return App.target;
+}
+
+const ACTIONS = {
+  tab: b => { App.tab = b.dataset.v; draw();
+    if (App.tab === 'speakers') loadSpeakers();
+    if (App.tab === 'library') { App.openPl = null; loadLibrary(); }
+    if (App.tab === 'jam') loadJams();
+  },
+  refresh: () => { if (App.tab === 'speakers') loadSpeakers(); else if (App.tab === 'library') loadLibrary(); else if (App.tab === 'jam') loadJams(); },
+
+  sp: async b => {
+    const card = b.closest('[data-sp]');
+    await post('phoneAction', { id: card.dataset.sp, what: b.dataset.what });
+    setTimeout(() => loadSpeakers(true), 300);
+  },
+  sendTo: b => { App.target = b.dataset.sp2; App.tab = 'search'; draw(); setTimeout(() => { const q = $('q'); if (q) q.focus(); }, 60); },
+  favTrack: async b => {
+    const s = App.speakers.find(x => x.id === b.dataset.sp2);
+    if (!s || !s.track) return;
+    const d = await post('phoneFav', { track: s.track });
+    if (Array.isArray(d)) App.favs = d;
+    toast(isFav(s.track) ? 'Added to Liked Songs' : 'Removed');
+    draw();
+  },
+
+  playResult: async (b, i) => {
+    const r = App.results[i]; if (!r) return;
+    const id = await needTarget(); if (!id) return;
+    post('phonePlay', { id, video: r.id, mode: 'now' });
+    toast('Playing ' + r.title.slice(0, 26));
+  },
+  queueResult: async (b, i) => {
+    const r = App.results[i]; if (!r) return;
+    const id = await needTarget(); if (!id) return;
+    post('phonePlay', { id, video: r.id, mode: 'queue' });
+    toast('Queued');
+  },
+  favResult: async (b, i) => {
+    const r = App.results[i]; if (!r) return;
+    const d = await post('phoneFav', { track: r });
+    if (Array.isArray(d)) App.favs = d;
+    toast(isFav(r) ? 'Added to Liked Songs' : 'Removed');
+    draw();
+  },
+
+  openLiked: () => { App.openPl = 'liked'; draw(); },
+  openPl: b => { App.openPl = +b.dataset.pl; draw(); },
+  backLib: () => { App.openPl = null; draw(); },
+  newPlaylist: async () => {
+    const name = await askText('New playlist', 'Give it a name', 'Playlist name');
+    if (!name) return;
+    const d = await post('phonePlCreate', { name });
+    if (d) App.playlists = d;
+    toast('Created');
+    draw();
+  },
+  playPl: async b => {
+    const id = await needTarget(); if (!id) return;
+    post('phonePlaylistPlay', { id, playlist: +b.dataset.pl, mode: 'now' });
+    toast('Playlist sent');
+  },
+  shufflePl: async b => {
+    const id = await needTarget(); if (!id) return;
+    post('phonePlaylistPlay', { id, playlist: +b.dataset.pl, mode: 'now' });
+    post('phoneAction', { id, what: 'shuffle' });
+    toast('Shuffling');
+  },
+  playLiked: async () => {
+    const id = await needTarget(); if (!id) return;
+    for (const tr of App.favs.slice(0, 25)) post('phonePlaySaved', { id, track: tr, mode: 'queue' });
+    toast('Liked songs queued');
+  },
+  playTrack: async (b, i) => {
+    const liked = App.openPl === 'liked';
+    const d = App.playlists || {};
+    const p = liked ? { tracks: App.favs } : [...(d.mine||[]), ...(d.shared||[])].find(x => x.id === App.openPl);
+    const tr = p && p.tracks[i]; if (!tr) return;
+    const id = await needTarget(); if (!id) return;
+    post('phonePlaySaved', { id, track: tr, mode: 'now' });
+    toast('Playing');
+  },
+
+  jamStart: async () => {
+    const name = await askText('Start a jam', 'Everyone who joins hears your music', "Jam name");
+    if (name === null) return;
+    await post('phoneJamCreate', { name });
+    loadJams(); loadSpeakers(true);
+    toast('Jam started');
+  },
+  jamJoin: async b => { await post('phoneJamJoin', { id: +b.dataset.id }); loadJams(); loadSpeakers(true); toast('Joined'); },
+  jamLeave: async () => { await post('phoneJamLeave'); loadJams(); loadSpeakers(true); },
+};
+
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-a]');
+  if (!b) return;
+  const fn = ACTIONS[b.dataset.a];
+  if (fn) fn(b, +b.dataset.i);
+});
+
+$('body').addEventListener('change', ev => {
+  const vol = ev.target.closest('[data-vol]');
+  if (!vol) return;
+  post('phoneAction', { id: vol.closest('[data-sp]').dataset.sp, what: 'volume', value: vol.value / 100 });
+});
+$('body').addEventListener('input', ev => {
+  const vol = ev.target.closest('[data-vol]');
+  if (vol) vol.style.setProperty('--p', vol.value + '%');
+});
+
+window.addEventListener('message', ({ data: m }) => {
+  if (m && m.action === 'brand' && m.data) {
+    App.brand = m.data;
+    const el = $('brandMark');
+    el.classList.toggle('hidden', m.data.watermark === false);
+    if (m.data.watermark !== false && m.data.logo) { el.style.backgroundImage = `url("${m.data.logo}")`; el.classList.add('custom'); }
+  }
+});
+
+post('phoneBrand').then(d => {
+  if (!d || typeof d !== 'object') return;
+  const el = $('brandMark');
+  el.classList.toggle('hidden', d.watermark === false);
+  if (d.watermark !== false && d.logo) { el.style.backgroundImage = `url("${d.logo}")`; el.classList.add('custom'); }
+});
+
+loadSpeakers();
+loadLibrary();
+setInterval(() => { if (App.tab === 'speakers' && !document.hidden) loadSpeakers(true); }, 5000);
+</script>
+</body>
+</html>

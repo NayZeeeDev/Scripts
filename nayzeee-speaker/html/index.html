@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speaker</title>
+<link rel="stylesheet" href="css/fa.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ═══════════════ PLAYER ═══════════════ -->
+<div class="frame" id="player" hidden>
+<div class="shell">
+
+  <!-- top bar -->
+  <div class="bar">
+    <div class="bar-brand">
+      <div class="mark" id="brandMark"></div>
+      <div class="bar-name">
+        <div class="title-txt" id="ctxTitle">Boombox</div>
+        <div class="sub" id="ctxSub"></div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="dot" id="stDot"></span>
+      <p id="stText"></p>
+      <span class="chip red" id="lockChip" hidden><i class="fa-solid fa-lock"></i> <span data-l="locked"></span></span>
+      <span class="chip" id="groupChip" hidden><i class="fa-solid fa-link"></i> <span id="groupTxt"></span></span>
+      <span class="ver" id="ver"></span>
+    </div>
+    <button class="icon-btn" id="sizeBtn"><i class="fa-solid fa-down-left-and-up-right-to-center"></i></button>
+    <button class="pill-close" id="closeBtn" data-l="close"></button>
+  </div>
+
+  <!-- three columns: nav | content | now playing -->
+  <div class="body">
+    <nav class="nav" id="nav">
+      <div class="nav-grp" data-l="nav_browse"></div>
+      <button class="nav-i on" data-a="go" data-v="queue"><i class="fa-solid fa-list-ul"></i><span data-l="up_next"></span><span class="tally" id="qCount">0</span></button>
+      <button class="nav-i" data-a="go" data-v="search"><i class="fa-solid fa-magnifying-glass"></i><span data-l="search"></span></button>
+      <div class="nav-grp" data-l="nav_library"></div>
+      <button class="nav-i" data-a="go" data-v="liked"><i class="fa-solid fa-heart"></i><span data-l="liked"></span><span class="tally" id="fCount">0</span></button>
+      <button class="nav-i" data-a="go" data-v="recent"><i class="fa-solid fa-clock-rotate-left"></i><span data-l="recent"></span></button>
+      <button class="nav-i" data-a="go" data-v="playlists"><i class="fa-solid fa-rectangle-list"></i><span data-l="playlists"></span></button>
+      <button class="nav-i vt" data-a="go" data-v="records"><i class="fa-solid fa-record-vinyl"></i><span data-l="records"></span></button>
+      <button class="nav-i vt" data-a="go" data-v="tracks"><i class="fa-solid fa-compact-disc"></i><span data-l="tracklist"></span><span class="tally" id="tCount">0</span></button>
+      <div class="nav-grp" data-l="nav_social"></div>
+      <button class="nav-i" data-a="go" data-v="jam"><i class="fa-solid fa-user-group"></i><span data-l="jam"></span></button>
+      <button class="nav-i" data-a="go" data-v="links"><i class="fa-solid fa-tower-broadcast"></i><span data-l="links"></span><span class="tally" id="lCount">0</span></button>
+      <button class="nav-i" data-a="go" data-v="settings"><i class="fa-solid fa-sliders"></i><span data-l="settings"></span></button>
+    </nav>
+
+    <main class="main">
+      <div class="entry" id="entryRow">
+        <div class="field-in">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="urlIn" spellcheck="false" autocomplete="off">
+        </div>
+        <button class="btn-teal" data-a="playInput"><i class="fa-solid fa-play"></i><span data-l="play_now"></span></button>
+        <button class="btn-line" data-a="queueInput"><i class="fa-solid fa-plus"></i><span data-l="add_queue"></span></button>
+      </div>
+      <div class="view" id="list"></div>
+    </main>
+
+    <!-- now playing rail -->
+    <aside class="rail">
+      <div class="art" id="art">
+        <img id="artImg" alt="">
+        <div class="stage">
+          <div class="disc" id="vDisc"><div class="grooves"></div><div class="label"><img id="vLabel" alt=""></div><i class="spindle"></i></div>
+          <div class="sleeve"><img id="vCover" alt=""></div>
+          <div class="arm" id="vArm"></div>
+        </div>
+        <div class="art-empty" id="artEmpty">
+          <div class="mark lg ghost"></div>
+          <b id="emptyT"></b>
+          <span id="emptyS"></span>
+        </div>
+        <div class="art-load" id="artLoad"><div class="spin"></div><span id="loadTxt"></span></div>
+        <canvas id="viz" width="688" height="120"></canvas>
+      </div>
+
+      <div class="meta-row">
+        <div class="meta-txt">
+          <b id="tTitle"></b>
+          <span id="tAuthor"></span>
+        </div>
+        <button class="icon-btn heart" data-a="favNow"><i class="fa-regular fa-heart"></i></button>
+      </div>
+
+      <div class="seek">
+        <span id="tPos">0:00</span>
+        <div class="track-bar" id="seekBar"><div class="fill" id="seekFill"></div><div class="knob" id="seekKnob"></div></div>
+        <span id="tDur">0:00</span>
+      </div>
+
+      <div class="transport">
+        <button class="icon-btn t-sm" id="shuffleBtn" data-a="shuffle"><i class="fa-solid fa-shuffle"></i></button>
+        <button class="icon-btn t-md" data-a="prev"><i class="fa-solid fa-backward-step"></i></button>
+        <button class="play-btn" id="playBtn" data-a="toggle"><i class="fa-solid fa-play"></i></button>
+        <button class="icon-btn t-md" data-a="next"><i class="fa-solid fa-forward-step"></i></button>
+        <button class="icon-btn t-sm" id="loopBtn" data-a="loop"><i class="fa-solid fa-repeat"></i></button>
+      </div>
+
+      <div class="dials">
+        <div class="dial">
+          <i class="fa-solid fa-volume-high" id="volIco"></i>
+          <span class="dial-l" data-l="volume"></span>
+          <input type="range" min="0" max="100" step="1" id="volSlider">
+          <b id="volVal">70%</b>
+        </div>
+        <div class="dial" id="rangeDial">
+          <i class="fa-solid fa-tower-broadcast"></i>
+          <span class="dial-l" data-l="range"></span>
+          <input type="range" min="4" max="30" step="1" id="rangeSlider">
+          <b id="rangeVal">10 m</b>
+        </div>
+      </div>
+
+      <div class="deck-foot" id="deckFoot">
+        <button class="btn-line" id="carryBtn" data-a="carry"><i class="fa-solid fa-person-walking-luggage"></i><span data-l="carry"></span></button>
+        <button class="btn-line" id="ejectBtn" data-a="eject"><i class="fa-solid fa-eject"></i><span data-l="eject"></span></button>
+        <button class="btn-line" id="packBtn" data-a="pack"><i class="fa-solid fa-box"></i><span data-l="pack"></span></button>
+        <button class="btn-red" id="stopBtn" data-a="askStop"><i class="fa-solid fa-stop"></i><span data-l="stop"></span></button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- confirm -->
+  <div class="scrim" id="scrim" hidden>
+    <div class="modal">
+      <div class="modal-b">
+        <div class="warn"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div><h4 id="mTitle"></h4><p id="mText"></p></div>
+      </div>
+      <div class="modal-f">
+        <button class="btn-line" id="mCancel" data-l="cancel"></button>
+        <button class="btn-red solid" id="mOk"></button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════ NOW PLAYING CARD ═══════════════ -->
+<div class="np-wrap" id="npWrap" hidden>
+<div class="np" id="np">
+  <span class="np-grip"><i class="fa-solid fa-up-down-left-right"></i></span>
+  <div class="np-blur" id="npBlur"></div>
+  <div class="np-bar"><i></i><i></i><i></i></div>
+  <div class="np-body">
+    <div class="np-art"><img id="npImg" alt=""></div>
+    <div class="np-txt"><b id="npTitle"></b><span id="npAuthor"></span></div>
+    <div class="np-eq" id="npEq"><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="np-line"><div id="npFill"></div></div>
+</div>
+</div>
+
+<!-- ═══════════════ KEY HINTS ═══════════════ -->
+<div class="hints" id="hints" hidden></div>
+
+<script src="js/engine.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
