@@ -1,4 +1,4 @@
--- Wig Snatch V3 tables. The resource creates (and upgrades) these on its own; this file is only for manual installs.
+-- Wig Snatch V2 tables. The resource creates (and upgrades) these on its own; this file is only for manual installs.
 
 CREATE TABLE IF NOT EXISTS `nz_wig_players` (
         `identifier` VARCHAR(64) NOT NULL,

@@ -17,8 +17,8 @@ local function itemLabel(name)
 end
 Crafting.ItemLabel = itemLabel
 
--- what the workshop needs to show the recipe and what you have
-lib.callback.register('nz-wig:craftInfo', function(src)
+-- what the table window needs to show the recipe and what you have
+function Crafting.Info(src)
     local P = GetP(src)
     if not CC.Enabled or not P then return false end
     local level = GetLevel(P.row.xp)
@@ -39,7 +39,9 @@ lib.callback.register('nz-wig:craftInfo', function(src)
         weft = CC.WeftItem, weftInches = CC.WeftInches, lengths = CC.Lengths, dye = Config.Items.Dye,
         natural = CC.NaturalColours, shortStyles = CC.ShortStyles, supplier = SU.Enabled and SU.Label or nil,
     }
-end)
+end
+
+lib.callback.register('nz-wig:craftInfo', function(src) return Crafting.Info(src) end)
 
 -- validate a make request; returns job or nil, why
 function Crafting.Check(src, P, req)
@@ -107,7 +109,7 @@ RegisterNetEvent('nz-wig:s:make', function(req)
     local src = source
     local P = GetP(src)
     if not P or P.busy or making[src] then return end
-    if Config.Tables.Enabled and Config.Tables.RequireTable then return Notify(src, L('table_needed'), 'error') end
+    if Config.Tables.Enabled then return Notify(src, L('table_needed'), 'error') end
     local job, why = Crafting.Check(src, P, req)
     if not job then return Notify(src, why or L('invalid'), 'error') end
     making[src] = true

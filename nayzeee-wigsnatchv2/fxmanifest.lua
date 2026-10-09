@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'NayZeee Development'
-description 'Wig Snatch V3 - snatching, minigames, first person cuts, restraints, products, wig tables, phone app, wig studio'
-version '3.1.0'
+description 'Wig Snatch V2 - snatching, minigames, first person cuts, restraints, products, wig tables, phone app, wig studio'
+version '2.0.0'
 
 ui_page 'web/index.html'
 
@@ -76,6 +76,7 @@ files {
     'data/*.json',
     'shots/*.png',
     'shots/index.json',
+    'INSTALL/images/*.png',     -- item icons for the wig table and supplier windows
 }
 
 dependencies {
@@ -84,6 +85,7 @@ dependencies {
     'oxmysql',
 }
 
+-- stream/ (the props) is NOT in here, so the escrow encrypts it
 escrow_ignore {
     'config.lua',
     'config_server.lua',

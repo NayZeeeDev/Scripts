@@ -8,11 +8,11 @@ Workshop = {}
 
 local CW, CD, CT = Config.Workshop, Config.Dye, Config.Tables
 local acting = {}
-local useTables = CT.Enabled and CT.RequireTable
+local useTables = CT.Enabled
 
 local function maxHair(v) return Clamp(math.floor(tonumber(v) or 0), 0, 63) end
 
-lib.callback.register('nz-wig:workshop', function(src)
+function Workshop.Info(src)
     local P = GetP(src)
     if not P then return nil end
     local bundles = {}
@@ -35,6 +35,23 @@ lib.callback.register('nz-wig:workshop', function(src)
         hair = Hair.State(P),
         model = Hair.PedModelKey(src),
         needTable = useTables,
+        capItem = Config.Items.Cap, capLabel = Crafting.ItemLabel(Config.Items.Cap),
+        dyeItem = Config.Items.Dye, dyeLabel = Crafting.ItemLabel(Config.Items.Dye),
+    }
+end
+
+lib.callback.register('nz-wig:workshop', function(src) return Workshop.Info(src) end)
+
+-- everything the wig table window shows: your level, making from materials, from bundles, dyeing
+lib.callback.register('nz-wig:bench', function(src)
+    local P = GetP(src)
+    if not P or not CT.Enabled then return false end
+    local level = GetLevel(P.row.xp)
+    local nextL = Config.Levels[level + 1]
+    return {
+        level = level, title = Config.Levels[level].title, xp = P.row.xp, from = Config.Levels[level].xp, to = nextL and nextL.xp or nil,
+        make = Crafting.Info(src) or false,
+        ws = Workshop.Info(src),
     }
 end)
 
@@ -208,6 +225,17 @@ RegisterNetEvent('nz-wig:s:rinse', function()
 end)
 
 
+-- what the result card shows when a job at the table is done
+function Workshop.Result(meta, passed, failed, dyed)
+    if not meta then return nil end
+    local t = GetTier(meta.tier)
+    return {
+        name = meta.label, tier = t and t.label or meta.tier, color = t and t.color, cond = meta.cond or 100,
+        passed = passed, checks = passed + failed, dyed = dyed or nil,
+        hair = meta.hair and { m = meta.hair.m, d = meta.hair.d, t = meta.hair.t } or nil,
+    }
+end
+
 -- jobs at a wig table ---------------------------------------------------------------------------------
 
 local sessions = {}     -- [src] = { token, tableId, kind, req, stages, started, minTime }
@@ -310,20 +338,20 @@ lib.callback.register('nz-wig:tableFinish', function(src, token, results)
 
     if s.kind == 'make' then
         local meta = Crafting.Make(src, P, s.job, checks)
-        return meta ~= nil, { label = meta and meta.label, passed = passed, checks = passed + failed }
+        return meta ~= nil, Workshop.Result(meta, passed, failed)
     end
     if s.kind == 'craft' then
         local picked, why = pickBundles(src, s.job.keys)
         if not picked then Notify(src, why, 'error') return false end
         local meta = makeWig(src, P, picked, checks)
-        return meta ~= nil, { label = meta and meta.label, passed = passed, checks = passed + failed }
+        return meta ~= nil, Workshop.Result(meta, passed, failed)
     end
     local meta = dyeWig(src, P, s.job.key, s.job.c, s.job.h, checks)
     if meta then
         local gain = AddXP(P, failed == 0 and passed > 0 and CT.PerfectXP or 0)
         if gain > 0 then SaveP(P) end
     end
-    return meta ~= nil, { label = meta and meta.label, passed = passed, checks = passed + failed }
+    return meta ~= nil, Workshop.Result(meta, passed, failed, true)
 end)
 
 OnPlayerDrop(function(src)

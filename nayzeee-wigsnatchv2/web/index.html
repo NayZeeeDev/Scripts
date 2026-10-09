@@ -6,6 +6,7 @@
 <title>Wig Snatch</title>
 <link rel="stylesheet" href="css/fa.min.css">
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/bench.css">
 </head>
 <body>
 <div id="root" class="root">
@@ -21,17 +22,6 @@
 
   <!-- buyer speech -->
   <div id="speech" class="speech scaled" hidden></div>
-
-  <!-- small progress -->
-  <div id="progress" class="progress scaled" hidden>
-    <div class="pr-frame"><div class="pr-in">
-      <span class="pr-label"></span><span class="pr-time"></span>
-      <div class="pr-bar"><i></i></div>
-    </div></div>
-  </div>
-
-  <!-- key hint (holding someone) -->
-  <div id="hint" class="hint scaled" hidden></div>
 
   <!-- struggle meter (tied / held) -->
   <div id="struggle" class="struggle scaled" hidden></div>
@@ -92,7 +82,7 @@
         <div class="app-bar">
           <div class="app-brand"><div class="mark"></div></div>
           <div class="app-title"><b id="appTitle">Vault</b><span id="appSub"></span></div>
-          <span class="ver" id="appVer">v3.0.0</span>
+          <span class="ver" id="appVer">v2.0.0</span>
           <button class="pill-close" data-act="close">Close</button>
         </div>
         <div class="app-body" id="appBody"></div>
@@ -106,11 +96,119 @@
   <div id="prompt" class="prompt" hidden></div>
 </div>
 
+<!-- ═══════════ wig table + supplier, crafting HUD, key pill: the sneakers shoe table window ═══════════ -->
+<div class="sk" id="sk">
+  <div class="scrim" id="skScrim"></div>
+  <div class="win side" id="skSide" hidden>
+    <div class="frame"><div class="shell">
+      <div class="bar">
+        <div class="bar-brand">
+          <div class="mark"></div>
+          <div><div class="title-txt" id="skTitle"></div><div class="sub" id="skSub"></div></div>
+        </div>
+        <div class="bar-mid"></div>
+        <button class="btn-ghost" id="skGuideBtn"><span data-icon="book"></span>Guide</button>
+        <button class="pill-close" id="skClose">Close</button>
+      </div>
+
+      <!-- wig table -->
+      <div class="main scroll" id="skBench" hidden>
+        <div class="stats">
+          <div class="stat">
+            <div class="tile" data-icon="level"></div>
+            <div class="stat-txt"><span>Level</span><b id="skLvl">1</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile" data-icon="spark"></div>
+            <div class="stat-txt"><span id="skXpLabel">Next level</span><b id="skXpText"></b></div>
+            <div class="meter mini"><i id="skXpBar"></i></div>
+          </div>
+        </div>
+        <div class="seg" id="skMode"></div>
+        <div class="views" id="skViewsRow" hidden>
+          <span class="views-l"><span data-icon="camera"></span><span id="skViewsLabel">Camera</span></span>
+          <div class="seg small" id="skViews"></div>
+        </div>
+
+        <section class="panel" id="skPickView">
+          <div class="p-head"><div><h2 id="skPickTitle"></h2><p id="skPickSub"></p></div></div>
+          <div class="p-body">
+            <div class="field" id="skSearchWrap"><input type="text" id="skSearch" placeholder="Search by name or number" autocomplete="off"></div>
+            <div class="list" id="skList"></div>
+          </div>
+        </section>
+        <div id="skDetail" hidden></div>
+      </div>
+
+      <!-- supplier -->
+      <div class="main scroll" id="skShop" hidden>
+        <section class="panel">
+          <div class="p-head"><div><h2>Materials</h2><p>Shift-click to add five</p></div></div>
+          <div class="p-body" id="skShopList"></div>
+        </section>
+        <div class="stat total">
+          <div class="tile" data-icon="cart"></div>
+          <div class="stat-txt"><span>Total</span><b id="skShopTotal">$0</b></div>
+        </div>
+        <div class="note" id="skShopStatus"></div>
+        <button class="btn-teal wide" id="skBuy"><span data-icon="cart"></span>Buy</button>
+      </div>
+
+      <div class="statusbar">
+        <span><span class="key">ESC</span>Close</span>
+        <span><span class="key">G</span>Guide</span>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- guide drawer -->
+  <div class="guide" id="skGuide">
+    <div class="bar">
+      <div class="bar-brand"><div class="mark"></div><div><div class="title-txt" id="skGuideTitle">GUIDE</div><div class="sub">How it works</div></div></div>
+      <div class="bar-mid"></div>
+      <button class="pill-close" id="skGuideClose">Close</button>
+    </div>
+    <div class="guide-body" id="skGuideBody"></div>
+  </div>
+
+  <!-- crafting stage -->
+  <div class="win hud" id="skStage" hidden>
+    <div class="frame"><div class="shell">
+      <div class="main">
+        <div class="inc-top"><span class="chip" id="skStStep"></span><span class="ref" id="skStRef">CRAFTING</span></div>
+        <h3 id="skStLabel"></h3>
+        <div class="meter"><i id="skStBar"></i></div>
+      </div>
+      <div class="statusbar" id="skStHint"></div>
+    </div></div>
+  </div>
+
+  <!-- finished wig -->
+  <div class="win result" id="skResult" hidden>
+    <div class="frame"><div class="shell">
+      <div class="main">
+        <div class="who">
+          <div class="av big" id="skRsImg"></div>
+          <div class="who-txt">
+            <div class="inc-top"><span class="chip" id="skRsBadge"></span><span class="ref" id="skRsChecks"></span></div>
+            <b id="skRsName"></b>
+          </div>
+        </div>
+        <div class="q-row"><span>Quality</span><b id="skRsQ"></b></div>
+        <div class="meter"><i id="skRsBar"></i></div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- key hint -->
+  <div class="keys-pill" id="hint" hidden></div>
+</div>
+
 <script src="js/core.js"></script>
 <script src="js/games.js"></script>
 <script src="js/cut.js"></script>
 <script src="js/vault.js"></script>
-<script src="js/craft.js"></script>
+<script src="js/bench.js"></script>
 <script src="js/keyer.js"></script>
 <script src="js/studio.js"></script>
 <script src="js/boot.js"></script>

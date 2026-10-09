@@ -6,6 +6,7 @@
 //   hairkit game  --out <nzw_hairprops> --gta <GTA V folder>          base game + DLC hair (needs GTA)
 //
 // Lines starting with '@' are JSON for the server script; everything else is a log line.
+// Started with no arguments (double-clicked), it asks for the GTA V folder and runs `game`.
 
 using System.Globalization;
 using System.Numerics;
@@ -23,11 +24,18 @@ static class P
     static readonly Regex GameFolder = new(@"^mp_([mf])_freemode_01(?:_(.+))?$", RegexOptions.IgnoreCase);
     static readonly CultureInfo IC = CultureInfo.InvariantCulture;
 
+    static bool human;   // double-clicked: plain progress lines instead of '@' JSON
+
     static int Main(string[] args)
+    {
+        if (args.Length == 0) return Interactive();
+        return Run(args);
+    }
+
+    static int Run(string[] args)
     {
         try
         {
-            if (args.Length == 0) return Usage();
             var cmd = args[0];
             string outDir = null, gta = null, rootsFile = null;
             bool all = false;
@@ -95,8 +103,131 @@ static class P
 
     static void Emit(string kind, JsonNode data)
     {
+        if (human)
+        {
+            if (kind == "progress") Console.WriteLine($"  [{(int)data["i"]}/{(int)data["n"]}] {data["key"]}");
+            else if (kind == "done") Console.WriteLine($"\n  Built {data["built"]} of {data["tried"]} hairstyles. The folder now has {data["props"]} hairstyle props.");
+            else if (kind == "error") Console.WriteLine("\n  Error: " + data["message"]);
+            return;
+        }
         Console.WriteLine("@" + new JsonObject { ["kind"] = kind, ["data"] = data }.ToJsonString());
         Console.Out.Flush();
+    }
+
+    // double-clicked ----------------------------------------------------------------------------------
+
+    static readonly string[] GtaGuesses =
+    {
+        @"C:\Program Files\Rockstar Games\Grand Theft Auto V",
+        @"C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V",
+        @"C:\Program Files\Epic Games\GTAV",
+        @"D:\SteamLibrary\steamapps\common\Grand Theft Auto V",
+        @"D:\Program Files\Rockstar Games\Grand Theft Auto V",
+        @"D:\Epic Games\GTAV",
+        @"E:\SteamLibrary\steamapps\common\Grand Theft Auto V",
+    };
+
+    static bool IsGta(string dir) => !string.IsNullOrEmpty(dir) && File.Exists(Path.Combine(dir, "GTA5.exe"));
+
+    static string FindGta()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            foreach (var key in new[] { @"SOFTWARE\WOW6432Node\Rockstar Games\Grand Theft Auto V", @"SOFTWARE\Rockstar Games\Grand Theft Auto V" })
+            {
+                try
+                {
+                    using var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(key);
+                    var dir = k?.GetValue("InstallFolder") as string;
+                    if (IsGta(dir)) return dir;
+                }
+                catch { }
+            }
+        }
+        return GtaGuesses.FirstOrDefault(IsGta);
+    }
+
+    // next to nayzeee-wigsnatchv2 when hairkit is still inside it (tools/hairkit/win-x64), else next to hairkit
+    static string DefaultOut()
+    {
+        var here = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var res = Path.GetFullPath(Path.Combine(here, "..", "..", ".."));
+        if (File.Exists(Path.Combine(res, "fxmanifest.lua")))
+            return Path.Combine(Path.GetDirectoryName(res) ?? res, "nzw_hairprops");
+        return Path.Combine(here, "nzw_hairprops");
+    }
+
+    static string Ask(string q)
+    {
+        Console.Write(q);
+        return (Console.ReadLine() ?? "").Trim().Trim('"');
+    }
+
+    static int Interactive()
+    {
+        human = true;
+        Console.WriteLine();
+        Console.WriteLine("  HAIRKIT  -  Wig Snatch V2");
+        Console.WriteLine("  ------------------------------------------------------------------");
+        Console.WriteLine("  Makes GTA's own (base game + DLC) hairstyles into props, so the foam");
+        Console.WriteLine("  head on the wig tables can wear them.");
+        Console.WriteLine();
+        Console.WriteLine("  Your server's custom hair packs DON'T need this: the Wig Studio does");
+        Console.WriteLine("  those on the server by itself (/wigstudio > 3D wigs).");
+        Console.WriteLine();
+        int code = 1;
+        try
+        {
+            var gta = FindGta();
+            if (gta != null)
+            {
+                Console.WriteLine("  Found GTA V in: " + gta);
+                var other = Ask("  Press Enter to use it, or paste a different GTA V folder: ");
+                if (other.Length > 0) gta = other;
+            }
+            else
+            {
+                gta = Ask("  Couldn't find GTA V. Paste your GTA V folder (the one with GTA5.exe): ");
+            }
+            while (!IsGta(gta))
+            {
+                if (gta.Length == 0) { Console.WriteLine("  Nothing to do."); return Pause(1); }
+                gta = Ask("  No GTA5.exe in that folder. Try again (or Enter to quit): ");
+            }
+
+            var outDir = DefaultOut();
+            Console.WriteLine();
+            Console.WriteLine("  The props go in: " + outDir);
+            Console.WriteLine("  This reads the game files and takes a few minutes.");
+            Ask("  Press Enter to start...");
+            Console.WriteLine();
+            code = Run(new[] { "game", "--gta", gta, "--out", outDir });
+            if (code == 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("  Done. Next:");
+                Console.WriteLine("   1. Upload the nzw_hairprops folder to your server's resources folder");
+                Console.WriteLine("      (next to nayzeee-wigsnatchv2). Replace the old one if it's there.");
+                Console.WriteLine("   2. Restart the server (or: refresh, then ensure nzw_hairprops).");
+                Console.WriteLine("  The server adds its own hair packs back into it by itself.");
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("\n  Error: " + e.Message);
+        }
+        return Pause(code);
+    }
+
+    static int Pause(int code)
+    {
+        if (!Console.IsInputRedirected)
+        {
+            Console.WriteLine();
+            Console.Write("  Press Enter to close.");
+            Console.ReadLine();
+        }
+        return code;
     }
 
     // finding hair ---------------------------------------------------------------------------------

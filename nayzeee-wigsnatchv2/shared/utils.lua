@@ -1,7 +1,7 @@
 -- Shared helpers (client + server)
 
 RESOURCE = GetCurrentResourceName()
-VERSION  = GetResourceMetadata(RESOURCE, 'version', 0) or '3.1.0'
+VERSION  = GetResourceMetadata(RESOURCE, 'version', 0) or '2.0.0'
 IS_SERVER = IsDuplicityVersion()
 
 local locale = Locales and (Locales[Config.Locale] or Locales.en) or {}

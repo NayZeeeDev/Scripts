@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   WIG SNATCH V3 · Wig Studio
+   WIG SNATCH V2 · Wig Studio
    Built like the nayzeee-backpack icon studio: the head floats in a lit
    chroma box under the map, you frame it with the orbit camera between the
    two panels, and each shot is keyed here (keyer.js) into a small PNG.

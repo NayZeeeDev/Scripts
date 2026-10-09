@@ -1,4 +1,4 @@
--- Boot, vault, workshop and misc events
+-- Boot, vault, wig making / dyeing callbacks and misc events
 
 local registered = false
 
@@ -99,20 +99,17 @@ RegisterNUICallback('vaultPutOn', function(d, cb)
     cb(1)
 end)
 
--- workshop ---------------------------------------------------------------------------------------
-
-RegisterNUICallback('workshopFetch', function(_, cb)
-    cb(lib.callback.await('nz-wig:workshop', false) or false)
-end)
+-- making / dyeing (from the wig table window) ----------------------------------------------------
 
 -- with wig tables on, making and dyeing wigs happens at the table you're standing at
 local function atTable()
-    return Config.Tables.Enabled and (Config.Tables.RequireTable or Tables.Bench() ~= nil)
+    return Config.Tables.Enabled
 end
 
 RegisterNUICallback('craft', function(d, cb)
     cb(1)
     if not d or type(d.keys) ~= 'table' then return end
+    NUI.CloseSide()
     if atTable() then return Tables.Job('craft', { keys = d.keys }, d.view) end
     TriggerServerEvent('nz-wig:s:craft', d.keys)
 end)
@@ -120,6 +117,7 @@ end)
 RegisterNUICallback('dyeWig', function(d, cb)
     cb(1)
     if not d or not d.key then return end
+    NUI.CloseSide()
     if atTable() then return Tables.Job('dye', { key = d.key, c = d.c, h = d.h }, d.view) end
     TriggerServerEvent('nz-wig:s:dye', d.key, d.c, d.h)
 end)
@@ -150,6 +148,7 @@ end
 RegisterNUICallback('hairPalette', function(_, cb) cb(HairPalette()) end)
 
 RegisterNetEvent('nz-wig:c:crafted', function(d)
+    if Tables.busy then return end   -- made at a table: the table shows its own result card
     NUI.Send('reveal', { wig = d.wig, xp = d.xp, crafted = true })
 end)
 

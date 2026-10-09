@@ -421,7 +421,7 @@ function Hair.RegisterItems()
         Bridge.RegisterUsable(item, function(src) TriggerClientEvent('nz-wig:c:openVault', src, 'wigs') end)
     end
     for _, item in ipairs({ Config.Items.Bundle, Config.Items.Cap, Config.Items.Dye }) do
-        Bridge.RegisterUsable(item, function(src) TriggerClientEvent('nz-wig:c:openVault', src, 'workshop') end)
+        Bridge.RegisterUsable(item, function(src) Notify(src, L('table_needed'), 'info') end)   -- used at a wig table
     end
 end
 

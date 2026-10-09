@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   WIG SNATCH V3 · message router + boot
+   WIG SNATCH V2 · message router + boot
    ═══════════════════════════════════════════════════════════ */
 'use strict';
 
@@ -13,7 +13,10 @@ const HANDLERS = {
   'cut:sit': cutSit, 'cut:sitEnd': cutSitEnd,
   reveal,
   'app:open': (d) => openApp(d.view, d.data),
-  'app:close': () => closeApp(true),
+  'app:close': () => { closeApp(true); Side.hide(); },
+  'side:open': (d) => { if (S.view) closeApp(true); Side.open(d); },
+  stage: (d) => Side.stage(d),
+  result: (d) => Side.result(d),
   'app:refresh': async () => {
     if (S.view === 'vault') loadVault();
   },
@@ -36,6 +39,7 @@ addEventListener('message', (e) => {
 // one keyboard router: settings key capture > minigame > cutting > close
 function onKey(e) {
   if (settingsKey(e)) return;
+  if (Side.key(e)) return;
   if (studioKey(e)) return;
   if (gameKey(e)) return;
   if (cutKey(e)) return;

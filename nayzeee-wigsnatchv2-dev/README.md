@@ -1,12 +1,16 @@
-# tools/
+# nayzeee-wigsnatchv2-dev (private, never ship this folder)
+
+The sources behind Wig Snatch V2's props and tools. **None of this goes to customers.** The resource folder
+(`nayzeee-wigsnatchv2/`) only carries the compiled props in `stream/` (encrypted by the Cfx escrow when
+you upload it: they are not in `escrow_ignore`) and the compiled hairkit programs.
 
 | Path | What it does |
 | --- | --- |
-| `hairkit/` | **3D wigs.** Turns every hairstyle your server streams into a prop for the foam head on the wig tables. The Wig Studio runs it for you (server/hairkit.js); you never have to touch it. |
-| `hairkit/linux-x64/hairkit`, `hairkit/win-x64/hairkit.exe` | The ready-to-run programs (in the release zip). No .NET install needed |
+| `props-source/` | CodeWalker XML + DDS of the props in `stream/` (clippers, razor, dye bottle, foam head, generic wig, hair bundle) and their previews |
+| `props/build.py` + `props/mesh.py` | Builds those props: `python3 props/build.py props-source`, then `cwtool xml2ydr` / `xml2ytyp` into `../nayzeee-wigsnatchv2/stream/` |
 | `props/icons.py` | Renders every item icon in `INSTALL/images` from 3D models (256 px, three-quarter view, studio light): `python3 props/icons.py out` |
-| `props/build.py` + `props/mesh.py` | Builds this script's own props (clippers, razor, dye bottle, foam head, generic wig, hair bundle) as CodeWalker XML + DDS |
 | `cwtool/` | A small CodeWalker.Core tool for prop work: `ydr2xml`, `xml2ydr`, `ydd2xml`, `ytd2dds`, `ytyp2xml`, `xml2ytyp` |
+| `hairkit/` | Source of **hairkit** (3D wigs). Publish it into `../nayzeee-wigsnatchv2/tools/hairkit/` (below) |
 
 ## hairkit
 
@@ -24,11 +28,14 @@ hairkit game  --out <nzw_hairprops> --gta "<GTA V folder>"        base game + DL
 - `hairmap.json` records which prop belongs to which hairstyle (`m|mp_m_mypack|3`) and what it was made from,
   so the next run only rebuilds what changed and removes props whose hair is gone.
 
-Build the programs from source with the .NET 8 SDK:
+Double-clicked (no arguments) it asks for the GTA V folder and runs `game` into the `nzw_hairprops` folder
+next to the resource.
+
+Build the programs with the .NET 8 SDK, straight into the resource:
 
 ```bash
-cd tools/hairkit
+cd hairkit
 FLAGS="--self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:PublishTrimmed=true -p:TrimMode=partial -p:DebugType=none"
-dotnet publish -c Release -r linux-x64 $FLAGS -o linux-x64
-dotnet publish -c Release -r win-x64   $FLAGS -o win-x64
+dotnet publish -c Release -r linux-x64 $FLAGS -o ../../nayzeee-wigsnatchv2/tools/hairkit/linux-x64
+dotnet publish -c Release -r win-x64   $FLAGS -o ../../nayzeee-wigsnatchv2/tools/hairkit/win-x64
 ```

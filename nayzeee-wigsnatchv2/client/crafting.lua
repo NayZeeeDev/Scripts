@@ -1,4 +1,4 @@
--- Wig making from materials (Workshop > Make a wig) and the supplier who sells the materials.
+-- Wig making from materials (at a wig table) and the supplier who sells the materials.
 
 local CC, SU = Config.Crafting, Config.Supplier
 
@@ -26,6 +26,7 @@ local function readStyles(m)
     styles[m] = out
     return out
 end
+Crafting = { Styles = readStyles }
 
 RegisterNUICallback('craftInfo', function(d, cb)
     local info = lib.callback.await('nz-wig:craftInfo', false)
@@ -44,8 +45,9 @@ RegisterNUICallback('make', function(d, cb)
     cb(1)
     if type(d) ~= 'table' then return end
     local req = { m = d.m, d = d.d, t = d.t, length = d.length, lace = d.lace, c = d.c, h = d.h }
+    NUI.CloseSide()
     NUI.CloseApp()
-    if Config.Tables.Enabled and (Config.Tables.RequireTable or Tables.Bench()) then
+    if Config.Tables.Enabled then
         return Tables.Job('make', req, d.view)
     end
     TriggerServerEvent('nz-wig:s:make', req)
@@ -60,9 +62,14 @@ local supplierPed
 local function openShop()
     if Snatch.busy or NUI.app then return end
     local data = lib.callback.await('nz-wig:supplier', false)
-    if not data then return end
-    NUI.Open('shop', data)
+    if not data or NUI.app then return end
+    NUI.Side('shop', data)
 end
+
+RegisterNUICallback('shopClose', function(_, cb)
+    NUI.CloseSide()
+    cb(1)
+end)
 
 RegisterNUICallback('shopBuy', function(d, cb)
     local ok, msg, money = lib.callback.await('nz-wig:supplierBuy', false, d and d.cart or {})

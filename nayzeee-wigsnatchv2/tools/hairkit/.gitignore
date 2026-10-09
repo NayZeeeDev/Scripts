@@ -1,6 +1,4 @@
-bin/
-obj/
-# the published programs ship in the release zip (dotnet publish, see tools/README.md)
+# the programs ship in the release zip (built from nayzeee-wigsnatchv2-dev/hairkit)
 linux-x64/
 win-x64/
 .roots.txt

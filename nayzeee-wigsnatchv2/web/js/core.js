@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   WIG SNATCH V3 · NUI core
+   WIG SNATCH V2 · NUI core
    helpers · preferences · audio · toasts · banners · reveal · prompts
    ═══════════════════════════════════════════════════════════ */
 'use strict';
@@ -47,7 +47,7 @@ function tintVars(hex) {
 }
 
 const S = {
-  cfg: { version: '3.1.0', tiers: [], grades: [], games: {}, tools: [], statuses: {} },
+  cfg: { version: '2.0.0', tiers: [], grades: [], games: {}, tools: [], statuses: {} },
   tiers: {}, grades: {},
   prefs: { accent: '#08afa2', alert: '#e5484d', scale: 1, toastPos: 'top-right', sounds: true, volume: 0.7, reduceMotion: false, banners: 'all', keyPull: 'Space', keyMashL: 'KeyA', keyMashR: 'KeyD', editable: true, presets: [] },
   skew: 0,
@@ -245,29 +245,9 @@ function speech(d) {
   clearTimeout(spT); spT = setTimeout(() => (el.hidden = true), 4200);
 }
 
-let prRaf = 0;
-function progress(d) {
-  const el = $('#progress');
-  $('.pr-label', el).textContent = d.label || '';
-  el.hidden = false;
-  const bar = $('.pr-bar i', el), time = $('.pr-time', el);
-  const t0 = performance.now(), dur = d.duration || 3000;
-  cancelAnimationFrame(prRaf);
-  const step = (t) => {
-    const k = clamp((t - t0) / dur, 0, 1);
-    bar.style.width = (k * 100) + '%';
-    time.textContent = Math.max(0, (dur - (t - t0)) / 1000).toFixed(1) + 's';
-    if (k < 1) prRaf = requestAnimationFrame(step); else el.hidden = true;
-  };
-  prRaf = requestAnimationFrame(step);
-}
-
-function hint(d) {
-  const el = $('#hint');
-  if (!d.show) { el.hidden = true; return; }
-  el.innerHTML = `<div class="ch-frame"><div class="ch-in">${arr(d.keys).map((k) => `<span class="kc">${esc(k)}</span>`).join('')}<span>${esc(d.text || '')}</span></div></div>`;
-  el.hidden = false;
-}
+// the small progress bar and the key hint pill are the sneakers-style ones (js/bench.js)
+function progress(d) { window.Side && Side.stage({ label: d.label, time: d.duration || 3000, auto: true }); }
+function hint(d) { window.Side && Side.hint(d); }
 
 function struggle(d) {
   const el = $('#struggle');

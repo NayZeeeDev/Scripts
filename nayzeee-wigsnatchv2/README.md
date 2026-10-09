@@ -1,6 +1,6 @@
-# Wig Snatch V3
+# Wig Snatch V2
 
-Player-vs-player wig snatching. Every snatch is a live minigame between both players, every wig is a unique item with a tier, a style, a picture and a history. V3 adds first person haircuts and shaves, tackles, zip ties, holding people still, hair products, a wig workshop with dye, a phone app for selling, and a built-in studio that photographs every hairstyle on your server.
+Player-vs-player wig snatching. Every snatch is a live minigame between both players, every wig is a unique item with a tier, a style, a picture and a history. V2 adds first person haircuts and shaves, tackles, zip ties, holding people still, hair products, wig tables for making and dyeing wigs, a phone app for selling, and a built-in studio that photographs every hairstyle on your server.
 
 ## ✨ Features
 
@@ -15,7 +15,7 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | **Hair products** | Hair remover (hair falls out), lye relaxer (burns), a lice jar (itching, flies, spreads), mud (washes out in water), shampoo and regrowth oil. Everyone nearby sees smoke, flies and mud. |
 | **Reactions** | Facepalms, crying, shaking it off, celebrating. Every event has its own list in `Config.Reactions`. |
 | **Wigs + bundles** | Snipping long hair drops hair bundles. Three bundles and a wig cap make a wig of that hairstyle at a wig table. |
-| **Make any wig** | Pick any in-game hairstyle, texture, length, lace and colour in the Workshop and make it from materials at a wig table. The lace sets the tier (closure, frontal, full lace), longer wigs take more wefts, unnatural colours take a dye. |
+| **Make any wig** | Pick any in-game hairstyle, texture, length, lace and colour at a wig table and make it from materials. The lace sets the tier (closure, frontal, full lace), longer wigs take more wefts, unnatural colours take a dye. |
 | **Hair supplier** | An NPC (on your map) sells wig caps, wefts, thread, lace, dye, glue and kits, with level-gated lace. |
 | **Wig tables** | Dragons Lab's Wig Crafting Tables by SasDragon (sold separately, see below). Place one from your inventory, pick it back up, saved between restarts. Make and dye wigs at it in stages with skill checks, the wig taking shape on a foam head in front of you and a camera you switch with `V` (over the shoulder, first person, close up). Same system as nayzeee-sneakers. |
 | **Dye** | Dye any wig at a wig table (or your own hair anywhere) with the full game palette. Dyed wigs sell for more. |
@@ -26,11 +26,11 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | **Wear / put on / take off** | Wear any wig that fits, put your wig on someone else, or take a wig off them. Both ask first. |
 | **Notifications** | Built-in toasts, ox_lib, ESX, QBCore, Qbox, okokNotify, mythic_notify, pNotify, t-notify, brutal_notify, wasabi_notify, lation_ui or your own. |
 | **Player preferences** | Every player picks their own accent and alert colours, UI size, toast position, sounds, banners and minigame keys (Vault > Settings or `/wigsettings`). Saved on their PC. |
-| **Wig Vault** | Profile, wigs, workshop, catalog, bounties, leaderboards, city feed and settings. |
-| **Revenge, bounties, tiers, titles, catalog, trades** | Everything from V2 is still here. |
+| **Wig Vault** | Profile, wigs, catalog, bounties, leaderboards, city feed and settings. |
+| **Revenge, bounties, tiers, titles, catalog, trades** | Everything from V1 is still here. |
 | **0.00 resmon** | No loops while idle. Loops only run while something is happening (a cut, a tie, a status). |
 
-> **Removed in V3:** the barber locations and the haircut picker menu. Cuts are first person now, hair grows back on its timer or with Regrowth Oil, and wig repairs use Wig Kits. The `/sellwigs` buyer moved into the phone app (Meet-up).
+> **Removed in V2:** the barber locations and the haircut picker menu. Cuts are first person now, hair grows back on its timer or with Regrowth Oil, and wig repairs use Wig Kits. The `/sellwigs` buyer moved into the phone app (Meet-up).
 
 ## 🧩 Requirements
 
@@ -79,9 +79,9 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | Item | Use |
 | --- | --- |
 | `wig` | Use it to wear it |
-| `hair_bundle` | Raw hair from cuts. Opens the Workshop |
+| `hair_bundle` | Raw hair from cuts. Made into wigs at a wig table (Bundles) |
 | `wig_cap` | Needed to make a wig |
-| `hair_dye` | Dye a wig (at a wig table) or your own hair (Workshop) |
+| `hair_dye` | Dye a wig or your own hair (at a wig table, Dye) |
 | `wigtableblue` / `wigtablepink` / `wigtablepurp` / `wigtablered` | Place a wig table |
 | `hair_weft` / `wig_thread` / `lace_closure` / `lace_frontal` / `lace_full` | Wig making materials (the supplier sells them) |
 | `wig_glue` | Glue your lace down for 20 minutes |
@@ -169,11 +169,11 @@ With `Config.Wig.Images = 'studio'`, every wig gets its photo: on ox_inventory t
 
 The tables are **Dragons Lab's Wig Crafting Tables by SasDragon**. They are not included and not made by NayZeee: every server buys them from her ([discord.gg/KEhZqcuv6m](https://discord.com/invite/KEhZqcuv6m)) and starts her resource next to this one. The script finds her models by name (`sasdragonslab_blue_wigtable`, `_pink_`, `_purple_`, `_red_`). Without her pack, tables fall back to a GTA workbench (`Config.Tables.Fallback`) and the console says where to get hers.
 
-- **Place**: use a table item. A ghost follows your aim: scroll or Q / E rotates, left click places, right click cancels.
-- **Pick up**: third eye on your own table (or the button in the workshop). Tables are saved between restarts, `MaxPerPlayer` each, and you can add fixed ones for a salon in `Config.Tables.Fixed`.
-- **Use wig table** opens the Workshop at the table. Making a wig (3 bundles + a cap) or dyeing one plays out in stages: you walk up to the table, the bundles are laid out and get used up as the wig takes shape on a foam head, the right tool is in your hand for each stage, and fiddly stages have an ox_lib skill check. `V` switches the camera, `X` stops (nothing is used up if you stop).
+- **Place**: use a table item. A ghost follows your aim: scroll or ← / → turns it, **E** places it, right click (or Backspace) cancels.
+- **Pick up**: third eye on your own table. Tables are saved between restarts, `MaxPerPlayer` each, and you can add fixed ones for a salon in `Config.Tables.Fixed`.
+- **Use wig table** opens the table window (the same window as the nayzeee-sneakers shoe table): your level, **Make / Bundles / Dye**, the camera, then pick, set it up, check the materials and stages, and **Make this wig**. The work plays out in stages: you walk up to the table, the wefts or bundles are laid out beside a foam head and get used up as the wig takes shape on it, the right tool is in your hand for each stage, and fiddly stages have an ox_lib skill check. `V` switches the camera (3/4 view, first person, close-up), `X` stops (nothing is used up if you stop). A result card shows the wig, its tier and quality.
+- The table top is found with rays when you start, so the head and hair sit on her table whatever its size; `Config.Tables.Surface` is only the fallback.
 - **Skill checks matter**: every clean check raises the chance of a higher tier wig, every sloppy one costs condition, and a perfect run gives bonus XP. Higher levels work faster.
-- `Config.Tables.RequireTable = false` lets the Workshop make and dye wigs anywhere again.
 - **The wig on the foam head**: every job puts the bald foam head on the table wearing the wig being made or dyed, in its exact hairstyle (see **3D wigs**). A hairstyle without a prop yet shows the generic wig.
 
 ## 🧊 3D wigs
@@ -187,7 +187,7 @@ GTA can only draw a hairstyle on a ped, so every hairstyle on your server is tur
 
 ## 💇 Making wigs
 
-**Workshop > Make a wig** (at a wig table): pick any hairstyle in the game (it shows its studio photo and name), the texture, a length from 10" to 30", the lace and the colour. The materials list updates as you go and shows what you're missing.
+**Wig table > Make**: pick any hairstyle in the game (it shows its studio photo and name), the texture, a length from 10" to 30", the lace and the colour. The materials list updates as you go and shows what you're missing.
 
 | Part | Recipe (defaults) |
 | --- | --- |
@@ -198,9 +198,9 @@ GTA can only draw a hairstyle on a ped, so every hairstyle on your server is tur
 | Full Lace | 1 full lace unit · Epic wig · level 5 |
 | Colour | Natural shades are free, anything else uses 1 hair dye |
 
-The wig comes out with exactly that hairstyle, texture, colour and length, your name as the maker, and a tier from the lace: clean skill checks can bump it one tier higher, sloppy ones cost condition. Legendary and mythic wigs still only come from snatching. **From bundles & dye** is the old workshop: three bundles from cuts and a cap, and dyeing wigs.
+The wig comes out with exactly that hairstyle, texture, colour and length, your name as the maker, and a tier from the lace: clean skill checks can bump it one tier higher, sloppy ones cost condition. Legendary and mythic wigs still only come from snatching. **Bundles** makes a wig from three bundles from cuts and a cap; **Dye** recolours a wig you own, or your own hair.
 
-**Hair Supply** (`Config.Supplier`) sells the materials next to Hair on Hawick by default; move her anywhere. Prices are set so a wig is worth more than its materials when sold through a meet-up, less through quick sell.
+**Hair Supply** (`Config.Supplier`, the same shop window as the sneakers supplier) sells the materials next to Hair on Hawick by default; move her anywhere. Prices are set so a wig is worth more than its materials when sold through a meet-up, less through quick sell.
 
 ## 🧰 Props
 
@@ -215,7 +215,7 @@ Six props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
 | `nz_wig_shell` | A generic long wig for the foam head, used for hairstyles that don't have their own prop yet |
 | `nz_hair_bundle` | The bundles laid out on the table |
 
-They were built for this script and compiled to YDR / YTYP with CodeWalker. The source XML and textures are in `INSTALL/props-source/` if you want to open them in CodeWalker or Sollumz, and the generator is in `tools/props/`.
+They were made for this script and ship compiled in `stream/`, escrowed (encrypted) with the rest of the resource.
 
 See **3D wigs** above for the hairstyles themselves.
 

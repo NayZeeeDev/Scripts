@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   WIG SNATCH V3 · minigames
+   WIG SNATCH V2 · minigames
    Tug of War · Button Mash · Combo · Skill Check · Grip
    Inputs are sent to the server, which moves the rope.
    ═══════════════════════════════════════════════════════════ */

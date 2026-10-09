@@ -13,7 +13,7 @@
     ██████╔╝███████╗ ╚████╔╝ ███████╗███████╗╚██████╔╝██║     ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║
     ╚═════╝ ╚══════╝  ╚═══╝  ╚══════╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝
 
-    WIG SNATCH SCRIPT - 3.1.0
+    WIG SNATCH SCRIPT - 2.0.0
     Discord: discord.gg/nayzeeedev
 
 ]]
@@ -640,7 +640,7 @@ Config.Bundles = {
 -- ╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗███████║██║  ██║╚██████╔╝██║
 --  ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝
 
--- Vault > Workshop: make wigs from bundles and dye wigs (or your own hair).
+-- Wig table > Bundles / Dye: make wigs from bundles and dye wigs (or your own hair).
 -- With wig tables on (below), making and dyeing wigs happens at a table.
 Config.Workshop = {
     Enabled        = true,
@@ -683,7 +683,7 @@ Config.Tables = {
         wigtablepurp = { label = 'Purple wig table', model = `sasdragonslab_purple_wigtable` },
         wigtablered  = { label = 'Red wig table',    model = `sasdragonslab_red_wigtable` },
     },
-    Surface = nil,                -- Height of her table top in metres. nil = worked out from the model
+    Surface = nil,                -- The table top is found with rays when you start working; this (metres) is only the fallback (nil = 0.93)
 
     Fallback = `prop_tool_bench02`, -- Used when her pack isn't installed. false = no tables without it
     FallbackSurface = nil,
@@ -692,7 +692,6 @@ Config.Tables = {
     StreamDistance   = 60.0,
     InteractDistance = 2.0,
     AnyoneCanUse     = true,      -- false = only the owner (and admins) can work at a placed table
-    RequireTable     = true,      -- true = wigs can only be made / dyed at a table. false = the vault works anywhere too
 
     -- Tables that are always there (a salon, a shop). They can't be picked up.
     -- { item = 'wigtablepink', coords = vector4(x, y, z, heading) },
@@ -734,7 +733,7 @@ Config.Tables = {
     PerfectXP     = 10,           -- Extra XP for passing every check
 }
 
--- Props for the table work and dyeing. All of these ship in stream/ (see INSTALL/props-source to edit them).
+-- Props for the table work and dyeing. All of these ship in stream/ (escrowed).
 -- In your hand: a key used by Config.Tables.Stages[...].prop. On the table: Head, Wig, Bundle, DyeBottle (false = none).
 Config.TableProps = {
     scissors = { model = `prop_cs_scissors`, bone = 28422, pos = vec3(0.04, 0.0, -0.01), rot = vec3(0.0, 90.0, 0.0) },
@@ -764,7 +763,7 @@ Config.TableProps = {
 -- ╚██████╗██║  ██║██║  ██║██║        ██║   ██║██║ ╚████║╚██████╔╝
 --  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝        ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝
 
--- Make a wig of any in-game hairstyle from materials (Workshop > Make a wig, at a wig table).
+-- Make a wig of any in-game hairstyle from materials (wig table > Make).
 -- Pick the hairstyle, texture, length, lace and colour; the recipe is worked out from those:
 --   Base items  +  one hair weft per `WeftInches` inches (rounded up)  +  the lace's items
 --   +  one hair dye if the colour isn't in NaturalColours.
@@ -919,7 +918,7 @@ Config.Trading = {
 --  ╚████╔╝ ██║  ██║╚██████╔╝███████╗██║
 --   ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝
 
--- The Wig Vault: profile, wigs, workshop, catalog, bounties, leaderboard, city feed and settings
+-- The Wig Vault: profile, wigs, catalog, bounties, leaderboard, city feed and settings
 Config.Vault = {
     Command  = 'wigs',
     Keybind  = false,            -- e.g. 'F7'

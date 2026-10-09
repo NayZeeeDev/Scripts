@@ -94,7 +94,7 @@ local schema = {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;]],
 }
 
--- V3 columns added to existing V2 tables. SHOW COLUMNS keeps this working on MySQL and MariaDB.
+-- Newer columns added to tables made by older versions. SHOW COLUMNS keeps this working on MySQL and MariaDB.
 local columns = {
     { 'nz_wig_players', 'tackles',     'INT NOT NULL DEFAULT 0' },
     { 'nz_wig_players', 'ties',        'INT NOT NULL DEFAULT 0' },

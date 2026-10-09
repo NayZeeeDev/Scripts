@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   WIG SNATCH V3 · studio keyer
+   WIG SNATCH V2 · studio keyer
    Turns a screenshot of the head in its chroma box into a wig picture:
    crop the centre square (the on-screen guide), key out the backdrop with
    soft edges + despill, trim to the hair, centre it on a transparent square.

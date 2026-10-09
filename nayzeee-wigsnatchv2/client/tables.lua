@@ -1,8 +1,8 @@
 -- Wig tables on this client: the same system as the nayzeee-sneakers crafting tables.
 --   * tables near you spawn as local objects: Dragons Lab's model if you have her pack, else the fallback
---   * place one from your inventory (ghost preview, scroll / Q / E to rotate), pick it back up
---   * "Use wig table" opens the workshop; making / dyeing a wig plays out in stages at the table
---     with skill checks, the hair on the table and a camera you switch with V
+--   * place one from your inventory (ghost preview, scroll or arrow keys to turn, E to place), pick it back up
+--   * "Use wig table" opens the table window (the sneakers shoe table window); making / dyeing a wig plays
+--     out in stages at the table with skill checks, the hair on a foam head and a camera you switch with V
 
 Tables = {}
 
@@ -10,9 +10,9 @@ local T = Config.Tables
 local list = {}        -- [id] = { id, item, coords, heading, fixed, ownerSrc, surface }
 local spawned = {}     -- [id] = entity
 local byEnt = {}       -- [entity] = id
-local surfaces = {}    -- [model] = table-top height
+local surfaces = {}    -- [model] = table-top height (fallback; the real one is found with rays)
 local warned = false
-local bench = nil      -- the table entity the workshop was opened from
+local bench = nil      -- the table entity the table window was opened from
 Tables.busy = false
 
 local function loadModel(model)
@@ -70,27 +70,92 @@ function Tables.FromEntity(ent)
     return id, id and list[id]
 end
 
--- where the player stands and where the work sits, on whichever long side of the table the player
--- is on. Returns stand, work, heading, and two flat directions: `along` the table and `out` from
--- the work towards the player.
-function Tables.WorkSpot(ent)
-    local _, t = Tables.FromEntity(ent)
+-- straight down onto the table: height of whatever of `ent` is under x, y (nil = nothing of it there)
+local function topAt(ent, x, y, z)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(x, y, z + 1.2, x, y, z - 1.4, 511, PlayerPedId(), 0)
+    local _, hit, at, _, e = GetShapeTestResult(ray)
+    if hit == 1 and e == ent then return at.z end
+end
+
+-- walk from `from` along `dir` until the ray finds the table: the near edge and the table-top height there
+local function edgeAlong(ent, from, dir, ground)
+    for i = 1, 70 do
+        local p = from + dir * (i * 0.05)
+        local z = topAt(ent, p.x, p.y, ground + 1.0)
+        if z and z > ground + 0.35 and z < ground + 1.6 then return vector3(p.x, p.y, z) end
+    end
+end
+
+local function flat(v)
+    local len = math.sqrt(v.x * v.x + v.y * v.y)
+    if len < 0.001 then return nil end
+    return vector3(v.x / len, v.y / len, 0.0)
+end
+
+-- old way, from the model's size (used when the table has no collision to find)
+local function workSpotFromModel(ent, t)
     local min, max = GetModelDimensions(GetEntityModel(ent))
+    if #(max - min) < 0.2 then min, max = vector3(-0.9, -0.4, 0.0), vector3(0.9, 0.4, 0.93) end
     local rel = GetOffsetFromEntityGivenWorldCoords(ent, GetEntityCoords(PlayerPedId()))
     local side = rel.y < (min.y + max.y) / 2 and -1 or 1
     local x = math.max(min.x + 0.45, math.min(max.x - 0.45, rel.x))
     local edge = side < 0 and min.y or max.y
-    local stand = GetOffsetFromEntityInWorldCoords(ent, x, edge + side * 0.42, 0.0)
-    local work = GetOffsetFromEntityInWorldCoords(ent, x, edge - side * 0.2, (t and t.surface or 0.9) + 0.005)
-    local heading = GetHeadingFromVector_2d(work.x - stand.x, work.y - stand.y)
-    local d = stand - work
-    local len = math.max(0.01, math.sqrt(d.x * d.x + d.y * d.y))
-    local out = vector3(d.x / len, d.y / len, 0.0)
+    local surface = t and t.surface or T.Surface or 0.93
+    local edgeAt = GetOffsetFromEntityInWorldCoords(ent, x, edge, surface)
+    local inward = flat(GetOffsetFromEntityInWorldCoords(ent, x, edge - side, 0.0) - GetOffsetFromEntityInWorldCoords(ent, x, edge, 0.0))
+    return edgeAt, inward
+end
+
+-- where the player stands and where the work sits, on whichever side of the table the player is on.
+-- The table top is found with rays (so it works whatever her model's size, origin or the things
+-- standing on it). Returns stand, work, heading, and two flat directions: `along` the table and
+-- `out` from the work towards the player.
+function Tables.WorkSpot(ent)
+    local _, t = Tables.FromEntity(ent)
+    local ped = PlayerPedId()
+    local pos = GetEntityCoords(ped)
+    local ground = pos.z - math.max(0.0, GetEntityHeightAboveGround(ped))
+    if ground > pos.z - 0.5 then ground = pos.z - 1.0 end
+
+    -- work from the long side you're on, across from you (at the ends, the nearest spot along it),
+    -- marching in from outside the table until the rays find its edge
+    local min, max = GetModelDimensions(GetEntityModel(ent))
+    local sized = #(max - min) > 0.2
+    local rel = GetOffsetFromEntityGivenWorldCoords(ent, pos)
+    local cy = sized and (min.y + max.y) / 2 or 0.0
+    local side = rel.y < cy and -1 or 1
+    local lo, hi = sized and min.x + 0.45 or -0.5, sized and max.x - 0.45 or 0.5
+    if lo > hi then lo, hi = (lo + hi) / 2, (lo + hi) / 2 end
+    local x = math.max(lo, math.min(hi, rel.x))
+    local from = GetOffsetFromEntityInWorldCoords(ent, x, cy + side * 2.5, 0.0)
+    local tries = {
+        { from, flat(GetOffsetFromEntityInWorldCoords(ent, x, cy, 0.0) - from) },
+        { pos, flat(GetEntityCoords(ent) - pos) },
+        { pos, flat(GetEntityForwardVector(ped)) },
+    }
+
+    local edge, inward
+    for _, try in ipairs(tries) do
+        if try[2] then
+            edge = edgeAlong(ent, try[1], try[2], ground)
+            if edge then inward = try[2] break end
+        end
+    end
+    if not edge then edge, inward = workSpotFromModel(ent, t) end
+
+    -- the work goes a little way in from the edge, at the table-top height found at the edge
+    -- (her tables have things standing on them, so a higher hit further in is ignored)
+    local work = edge + inward * 0.24
+    local z = topAt(ent, work.x, work.y, ground + 1.0)
+    work = vector3(work.x, work.y, ((z and math.abs(z - edge.z) < 0.04) and z or edge.z) + 0.003)
+    local stand = vector3(edge.x - inward.x * 0.42, edge.y - inward.y * 0.42, pos.z)
+    local heading = GetHeadingFromVector_2d(inward.x, inward.y)
+    local out = inward * -1.0
     local along = vector3(-out.y, out.x, 0.0)
     return stand, work, heading, along, out
 end
 
--- the table you're standing at (for the workshop opened from the vault)
+-- the table you're standing at
 function Tables.Nearest(range)
     local pos, best, bestD = GetEntityCoords(PlayerPedId()), nil, range or (T.InteractDistance + 1.0)
     for ent in pairs(byEnt) do
@@ -116,7 +181,7 @@ function Tables.WigModel(hair)
     return TP.Wig and TP.Wig.model or nil
 end
 
--- the workshop panel was opened at this table
+-- the table window was opened at this table
 function Tables.Bench() return bench and DoesEntityExist(bench) and bench or nil end
 
 if not T.Enabled then return end
@@ -183,12 +248,32 @@ local function pickUp(ent)
     Tables.busy = false
 end
 
+-- the stages of every job, for the table window
+local function stageList()
+    local out = {}
+    for kind, list in pairs(T.Stages) do
+        local l = {}
+        for i, st in ipairs(list) do l[i] = { label = st.label, time = st.time, check = T.SkillChecks and st.check and true or false } end
+        out[kind] = l
+    end
+    return out
+end
+
+-- "Use wig table": the table window (the same window as the sneakers shoe table)
 local function open(ent)
     local _, t = Tables.FromEntity(ent)
     if not free() or not t then return end
+    local data = lib.callback.await('nz-wig:bench', false)
+    if not data or not free() then return end
     bench = ent
-    local def = T.Items[t.item]
-    NUI.Open('vault', { tab = 'workshop', bench = true, views = Tables.ViewInfo(), mine = mine(t), label = def and def.label })
+    data.styles = { f = Crafting.Styles('f'), m = Crafting.Styles('m') }
+    data.shots = lib.callback.await('nz-wig:shots', false) or {}
+    data.palette = HairPalette()
+    data.views = Tables.ViewInfo()
+    data.stages = stageList()
+    data.speed = T.SpeedPerLevel
+    data.myModel = GetEntityModel(PlayerPedId()) == Config.Models.male.model and 'm' or 'f'
+    NUI.Side('bench', data)
 end
 
 local options = {
@@ -221,19 +306,19 @@ CreateThread(function()
     end
 end)
 
--- workshop panel: pick the table back up from inside it
+-- pick the table back up from the window
 RegisterNUICallback('tablePickUp', function(_, cb)
     cb(1)
     local ent = Tables.Bench()
     local _, t = Tables.FromEntity(ent or 0)
     if not ent or not mine(t) then return end
-    NUI.CloseApp()
+    NUI.CloseSide()
     pickUp(ent)
 end)
 
 -- placing a table -----------------------------------------------------------------------------------
 
-local NO_ATTACK = { 24, 25, 37, 38, 44, 140, 141, 142, 257, 263, 14, 15, 16, 17, 199, 200 }
+local NO_ATTACK = { 24, 25, 37, 38, 44, 140, 141, 142, 257, 263, 14, 15, 16, 17, 174, 175, 199, 200 }
 
 RegisterNetEvent('nz-wig:c:placeTable', function(item)
     local ped = PlayerPedId()
@@ -249,7 +334,7 @@ RegisterNetEvent('nz-wig:c:placeTable', function(item)
     SetEntityCollision(ghost, false, false)
     FreezeEntityPosition(ghost, true)
     SetEntityHeading(ghost, heading)
-    NUI.Send('hint', { show = true, keys = { 'LMB' }, text = L('table_place_hint') })
+    NUI.Send('hint', { show = true, text = L('table_place_hint') })
 
     local place, valid = false, false
     while true do
@@ -262,16 +347,16 @@ RegisterNetEvent('nz-wig:c:placeTable', function(item)
         SetEntityHeading(ghost, heading)
         SetEntityAlpha(ghost, valid and 200 or 90, false)
 
-        if IsDisabledControlPressed(0, 15) then heading = heading + 7.5 end   -- scroll up
-        if IsDisabledControlPressed(0, 14) then heading = heading - 7.5 end   -- scroll down
-        if IsDisabledControlPressed(0, 44) then heading = heading + 1.5 end   -- Q
-        if IsDisabledControlPressed(0, 38) then heading = heading - 1.5 end   -- E
+        if IsDisabledControlPressed(0, 15) then heading = heading + 7.5 end    -- scroll up
+        if IsDisabledControlPressed(0, 14) then heading = heading - 7.5 end    -- scroll down
+        if IsDisabledControlPressed(0, 174) then heading = heading + 1.5 end   -- arrow left
+        if IsDisabledControlPressed(0, 175) then heading = heading - 1.5 end   -- arrow right
         heading = heading % 360.0
-        if IsDisabledControlJustPressed(0, 24) or IsControlJustPressed(0, 191) then
+        if IsDisabledControlJustPressed(0, 38) then                           -- E places it
             if valid then place = true break end
             CB.Notify(L('table_cant_place'), 'error')
         end
-        if IsDisabledControlJustPressed(0, 25) or IsControlJustPressed(0, 177) then break end
+        if IsDisabledControlJustPressed(0, 25) or IsControlJustPressed(0, 177) then break end   -- RMB / Backspace
     end
 
     DeleteEntity(ghost)
@@ -345,17 +430,18 @@ local function stopCam()
 end
 
 -- the three ways to shoot the work at a table. { pos, look, fov }
+-- (the foam head stands about 34 cm tall, so the shots look at the wig on it, not the table top)
 local function tableShots(stand, work, along, out)
     local ped = PlayerPedId()
     local eye = GetPedBoneCoords(ped, 31086, 0.0, 0.0, 0.0) + GetEntityForwardVector(ped) * 0.14 + vector3(0.0, 0.0, 0.03)
     local up = vector3(0.0, 0.0, 1.0)
     return {
-        -- over your shoulder, a step back and to the side: you and the whole table
-        three = { stand + along * 1.45 + out * 0.6 + up * 1.7, work - along * 0.05 + up * 0.08, 50.0 },
-        -- your own eyes, looking down at your hands
-        first = { eye, work + up * 0.08, 48.0 },
-        -- low across the table from the far side: the hair up front, you working behind it
-        close = { work - out * 0.45 + along * 0.28 + up * 0.22, work + up * 0.1, 40.0 },
+        -- 3/4: over your shoulder, a step back and to the side, so you see yourself and the whole table
+        three = { stand + along * 1.45 + out * 0.6 + up * 1.7, work - along * 0.05 + up * 0.16, 50.0 },
+        -- first person: your own eyes, looking down at your hands and the head
+        first = { eye, work + up * 0.14, 48.0 },
+        -- close-up: across the table from the far side, the head up front and you working behind it
+        close = { work - out * 0.55 + along * 0.3 + up * 0.32, work + up * 0.2, 40.0 },
     }
 end
 
@@ -375,10 +461,10 @@ local function pollView(current, shots)
     return current
 end
 
--- the workshop shows the camera choice when it's opened at a table
+-- the table window shows the camera choice
 function Tables.ViewInfo()
     if not T.Camera.Switch then return nil end
-    local out = { current = getView(), list = {} }
+    local out = { current = getView(), label = L('view_label'), list = {} }
     for _, v in ipairs(VIEWS) do out.list[#out.list + 1] = { id = v, label = viewLabel(v) } end
     return out
 end
@@ -417,7 +503,7 @@ local function cancelPressed()
     return IsControlJustPressed(0, 73) or IsControlJustPressed(0, 177)   -- X / Backspace
 end
 
--- run a job at the table: kind = 'craft' { keys } | 'dye' { key, c, h }
+-- run a job at the table: kind = 'make' { m, d, t, length, lace, c, h } | 'craft' { keys } | 'dye' { key, c, h }
 local function run(ent, kind, req, view)
     if Tables.busy then return end
     local tableId = Tables.FromEntity(ent)
@@ -434,11 +520,11 @@ local function run(ent, kind, req, view)
     if not T.Camera.Switch or not validView(view) then view = getView() end
     setView(view)
 
-    -- what sits on the table while you work: the bald foam head, the wig taking shape on it,
-    -- the wefts / bundles going in (used up as you go), and the dye bottle when you're colouring
+    -- what sits on the table while you work: the bald foam head facing you, the wig taking shape on
+    -- it, the wefts / bundles going in beside it (used up as you go), the dye bottle when colouring
     local props, build = {}, nil
     local TP = Config.TableProps
-    local head = TP.Head and tableProp(TP.Head.model, work + along * 0.02, heading + 180.0)   -- the head faces +y, so turn it to the player
+    local head = TP.Head and tableProp(TP.Head.model, work, heading + 180.0)
     local wigModel = Tables.WigModel(info)
     if head and wigModel and loadModel(wigModel) then
         local p = TP.Head.point
@@ -448,12 +534,15 @@ local function run(ent, kind, req, view)
         SetModelAsNoLongerNeeded(wigModel)
         if kind ~= 'dye' then SetEntityAlpha(build, 0, false) end
     end
+    -- the hair goes on the side of the head towards the middle of the table (her tables have things on the ends)
+    local mid = GetEntityCoords(ent) - work
+    local side = (along.x * mid.x + along.y * mid.y) < -0.1 and -1.0 or 1.0
     if kind ~= 'dye' and TP.Bundle then
         for i = 1, math.min(6, (info and info.wefts) or Config.Workshop.BundlesPerWig) do
-            props[#props + 1] = tableProp(TP.Bundle.model, work - along * (0.18 + i * 0.07) - out * 0.02, heading + 70.0 + i * 25.0)
+            props[#props + 1] = tableProp(TP.Bundle.model, work + along * (side * (0.15 + i * 0.045)) + out * 0.08, heading + (i % 2) * 6.0)
         end
     end
-    if kind == 'dye' and TP.DyeBottle then props[#props + 1] = tableProp(TP.DyeBottle.model, work + along * 0.24 + out * 0.04, heading + 40.0) end
+    if kind == 'dye' and TP.DyeBottle then props[#props + 1] = tableProp(TP.DyeBottle.model, work + along * (side * 0.2) + out * 0.06, heading + 40.0) end
     if head then props[#props + 1] = head end
 
     local shots = tableShots(stand, work, along, out)
@@ -462,11 +551,10 @@ local function run(ent, kind, req, view)
     playWork()
 
     local results, cancelled = {}, false
-    local hint = T.Camera.Switch and { keys = { 'V' }, text = L('table_work_hint_v') } or { keys = { 'X' }, text = L('table_work_hint') }
+    local hint = T.Camera.Switch and L('table_work_hint_v') or L('table_work_hint')
     for i, st in ipairs(stages) do
         local tool = st.prop and handProp(st.prop) or nil
-        NUI.Send('progress', { label = ('%s · %d/%d'):format(st.label, i, #stages), duration = st.time })
-        NUI.Send('hint', { show = true, keys = hint.keys, text = hint.text })
+        NUI.Send('stage', { label = st.label, step = i, steps = #stages, time = st.time, hint = hint })
         local t0 = GetGameTimer()
         while GetGameTimer() - t0 < st.time do
             Wait(0)
@@ -486,7 +574,7 @@ local function run(ent, kind, req, view)
             view = pollView(view, shots)
             if not IsEntityPlayingAnim(PlayerPedId(), WORK.dict, WORK.clip, 3) then playWork() end
         end
-        NUI.Send('hint', { show = false })
+        NUI.Send('stage', { hide = true })
         if tool then DeleteEntity(tool) end
         if cancelled then break end
         if st.check then
@@ -494,7 +582,6 @@ local function run(ent, kind, req, view)
             CB.Notify(results[i] and L('table_check_passed') or L('table_check_failed'), results[i] and 'success' or 'warning', 1500)
         end
     end
-    NUI.Send('progress', { label = '', duration = 1 })
 
     if cancelled then
         lib.callback.await('nz-wig:tableCancel', false)
@@ -503,8 +590,8 @@ local function run(ent, kind, req, view)
         local done, res = lib.callback.await('nz-wig:tableFinish', false, token, results)
         if done and res then
             if build then ResetEntityAlpha(build) end
-            if res.checks > 0 then CB.Notify(L('table_done', res.label or '', res.passed, res.checks), 'success', 5000) end
-            Wait(1500)
+            NUI.Send('result', res)
+            Wait(1800)
         end
     end
 
@@ -515,7 +602,7 @@ local function run(ent, kind, req, view)
     Tables.busy = false
 end
 
--- workshop panel → table jobs
+-- table window → table jobs
 function Tables.Job(kind, req, view)
     local ent = Tables.Bench() or Tables.Nearest()
     if not ent then return CB.Notify(L('table_needed'), 'error') end
@@ -523,8 +610,9 @@ function Tables.Job(kind, req, view)
     CreateThread(function() run(ent, kind, req, view) end)
 end
 
-RegisterNUICallback('benchClosed', function(_, cb)
+RegisterNUICallback('benchClose', function(_, cb)
     bench = nil
+    NUI.CloseSide()
     cb(1)
 end)
 

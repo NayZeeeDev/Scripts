@@ -2,7 +2,8 @@
 
 GTA can only draw a hairstyle on a ped, never on an object. So for the foam head on the wig tables to wear
 the exact hairstyle, every hairstyle is turned into a prop: the same thing that was done by hand for the
-nayzeee-sneakers shoes, but automatic, by **hairkit** (`tools/hairkit`).
+nayzeee-sneakers shoes, but automatic, by **hairkit** (`tools/hairkit`). You don't run it yourself: the
+server does, from the Wig Studio.
 
 ## What happens
 
@@ -17,14 +18,31 @@ nayzeee-sneakers shoes, but automatic, by **hairkit** (`tools/hairkit`).
 Each prop is matched to its hairstyle with the game's collection natives (pack name + slot in the pack), so
 it stays right when packs are added, removed or reordered.
 
-## Base game hairstyles
+## Base game hairstyles (optional, once, on your PC)
 
-The server doesn't have GTA's own files, so base game and Rockstar DLC hair can't be read there. Run this
-once on a PC with GTA V installed and upload the `nzw_hairprops` folder it fills:
+The server doesn't have GTA's own files, so base game and Rockstar DLC hair can't be read there. You make
+those props once on a Windows PC with GTA V installed:
 
-```text
-hairkit.exe game --gta "C:\Program Files\Rockstar Games\Grand Theft Auto V" --out nzw_hairprops
+1. Open `nayzeee-wigsnatchv2\tools\hairkit\win-x64` and **double-click `hairkit.exe`**.
+   (If Windows says "Windows protected your PC": **More info > Run anyway**.)
+2. It finds GTA V by itself: press **Enter**. If it can't, paste your GTA V folder (the one with `GTA5.exe`).
+3. Press **Enter** to start. It reads the game files for a few minutes and lists every hairstyle it makes.
+4. When it says **Done**, there's a `nzw_hairprops` folder next to `nayzeee-wigsnatchv2`.
+5. Upload `nzw_hairprops` to your server's `resources` folder (next to `nayzeee-wigsnatchv2`), replacing the
+   old one, and restart the server. The server puts its own hair packs back into it by itself.
+
+Command Prompt instead (Start > type `cmd` > Enter), with your own paths:
+
+```bat
+cd /d "C:\path\to\nayzeee-wigsnatchv2\tools\hairkit\win-x64"
+hairkit.exe game --gta "C:\Program Files\Rockstar Games\Grand Theft Auto V" --out "C:\path\to\nzw_hairprops"
 ```
+
+| Launcher | GTA V folder |
+| --- | --- |
+| Rockstar | `C:\Program Files\Rockstar Games\Grand Theft Auto V` |
+| Steam | `C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V` |
+| Epic Games | `C:\Program Files\Epic Games\GTAV` |
 
 Until a hairstyle has a prop, the foam head shows the generic wig (`nz_wig_shell`).
 
@@ -38,7 +56,7 @@ add_ace resource.nayzeee-wigsnatchv2 command.ensure allow
 add_ace resource.nayzeee-wigsnatchv2 command.restart allow
 ```
 
-Some hosts don't allow starting programs. Then run hairkit yourself (see `tools/README.md`) and upload
+Some hosts don't allow starting programs. Then run hairkit on your PC (`tools/hairkit/README.txt`) and upload
 `nzw_hairprops`.
 
 ## Good to know

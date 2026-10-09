@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   WIG SNATCH V3 · first person cutting HUD
+   WIG SNATCH V2 · first person cutting HUD
    The cursor is the tool. Lua does the raycast onto the head,
    this file draws the tool, the objective and the progress.
    ═══════════════════════════════════════════════════════════ */

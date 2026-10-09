@@ -40,6 +40,19 @@ function NUI.CloseApp()
     refocus()
 end
 
+-- the side window (wig table / supplier), the same window as the sneakers script's
+function NUI.Side(kind, data)
+    NUI.app = kind
+    NUI.Send('side:open', { kind = kind, data = data })
+    refocus()
+end
+
+function NUI.CloseSide()
+    if NUI.app ~= 'bench' and NUI.app ~= 'shop' then return end
+    NUI.app = nil
+    refocus()
+end
+
 function NUI.Keys(on)
     NUI.keys = on
     refocus()

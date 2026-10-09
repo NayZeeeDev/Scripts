@@ -1,26 +1,21 @@
 /* ═══════════════════════════════════════════════════════════
-   WIG SNATCH V3 · app panel
-   vault · workshop · settings · pickers
+   WIG SNATCH V2 · app panel
+   vault · settings · pickers
    ═══════════════════════════════════════════════════════════ */
 'use strict';
 
 const app = $('#app'), body = $('#appBody');
-Object.assign(S, { vault: null, tab: 'profile', lb: 'snatches', sel: null, bountyOpen: null, ws: null, wsSel: new Set(), dye: { target: 'self', c: 0, h: 0 }, picker: null });
+Object.assign(S, { vault: null, tab: 'profile', lb: 'snatches', sel: null, bountyOpen: null, picker: null });
 
 function setHead(title, sub, status) {
   $('#appTitle').textContent = title;
   $('#appSub').textContent = sub || '';
-  $('#appVer').textContent = 'v' + (S.cfg.version || '3.1.0');
+  $('#appVer').textContent = 'v' + (S.cfg.version || '2.0.0');
   $('#appStatus').innerHTML = status || '';
 }
 
 function openApp(view, data) {
   if (view === 'studio') return studioOpen(data || {});
-  if (view === 'shop') {
-    S.view = 'shop'; closeModal(); app.hidden = false; app.classList.remove('sm');
-    S.shop = Object.assign({ cart: {} }, data); renderShop();
-    return;
-  }
   S.view = view;
   closeModal();
   app.hidden = false;
@@ -28,9 +23,7 @@ function openApp(view, data) {
   const fr = $('.app-frame'); fr.style.animation = 'none'; void fr.offsetWidth; fr.style.animation = '';
   if (view === 'vault') {
     S.tab = (data && data.tab) || 'profile'; S.sel = null; S.bountyOpen = null;
-    // opened from a wig table: the workshop works at it, with a camera choice
-    S.bench = data && data.bench ? { views: data.views || null, mine: !!data.mine, label: data.label || 'Wig table' } : null;
-    if (S.bench && S.bench.views) S.camView = S.bench.views.current;
+    if (!TABS.some(([id]) => id === S.tab) && S.tab !== 'settings') S.tab = 'profile';
     body.innerHTML = loading(); loadVault();
   }
   else if (view === 'products') { S.picker = data; renderProducts(); }
@@ -79,14 +72,12 @@ async function loadVault() {
   if (d.version) S.cfg.version = d.version;
   if (S.sel && !arr(d.wigs).some((w) => w.key === S.sel)) S.sel = null;
   await palette();
-  if (S.tab === 'workshop') await loadWorkshop();
   renderVault();
 }
 
 const TABS = [
   ['profile', 'fa-user', 'Profile'],
   ['wigs', 'fa-box-archive', 'My Wigs'],
-  ['workshop', 'fa-screwdriver-wrench', 'Workshop'],
   ['catalog', 'fa-book-open', 'Catalog'],
   ['bounties', 'fa-crosshairs', 'Bounties'],
   ['leaders', 'fa-ranking-star', 'Leaderboard'],
@@ -97,7 +88,7 @@ function renderVault() {
   const d = S.vault; if (!d) return;
   const me = d.me;
   setHead('Wig Vault', `${me.title} · Level ${me.level} · ${me.name}`, vaultStatus());
-  const tabs = TABS.filter(([id]) => id !== 'workshop' || d.workshop);
+  const tabs = TABS;
   const rail = tabs.map(([id, ic, lb]) => {
     let badge = '';
     if (id === 'wigs' && arr(d.wigs).length) badge = `<span class="badge">${arr(d.wigs).length}</span>`;
@@ -112,7 +103,7 @@ function renderVault() {
       <button class="rail-btn ${S.tab === 'settings' ? 'on' : ''}" data-act="tab" data-v="settings"><i class="fa-solid fa-sliders"></i>Settings</button>
       <div class="rail-foot"><b>${num(st.snatches)}</b> snatched · <b>${num(st.defends)}</b> held<br><b>${money(st.earned)}</b> earned</div>
     </div>
-    <div class="view ${S.tab === 'wigs' || S.tab === 'workshop' ? 'split' : ''}" id="vview">${(VIEWS[S.tab] || VIEWS.profile)()}</div>`;
+    <div class="view ${S.tab === 'wigs' ? 'split' : ''}" id="vview">${(VIEWS[S.tab] || VIEWS.profile)()}</div>`;
   liveTick();
   paintSwatches(body);
 }
@@ -217,7 +208,7 @@ const VIEWS = {
 
   wigs() {
     const d = S.vault, wigs = arr(d.wigs);
-    if (!wigs.length) return `<div class="wig-list"><div class="empty"><i class="fa-solid fa-box-open"></i>No wigs yet. Go take some, or make one in the Workshop.</div></div>`;
+    if (!wigs.length) return `<div class="wig-list"><div class="empty"><i class="fa-solid fa-box-open"></i>No wigs yet. Go take some, or make one at a wig table.</div></div>`;
     const sel = wigs.find((w) => w.key === S.sel) || wigs[0];
     S.sel = sel.key;
     const total = wigs.reduce((a, w) => a + (w.value || 0), 0);
@@ -228,7 +219,6 @@ const VIEWS = {
       <div class="detail">${wigDetail(sel)}</div>`;
   },
 
-  workshop() { return workshopView(); },
 
   catalog() {
     const d = S.vault, styles = arr(d.styles), cat = d.catalog || {};
@@ -332,72 +322,6 @@ function wigDetail(w) {
       ${canRepair ? `<button class="btn wide" data-act="repair" data-v="${esc(w.key)}" ${d.me.kits > 0 ? '' : 'disabled'}><i class="fa-solid fa-wand-magic-sparkles"></i>Use wig kit${d.me.kits > 0 ? ` (${d.me.kits})` : ' (none)'}</button>` : ''}
       ${d.trading ? `<button class="btn wide" data-act="offer" data-v="${esc(w.key)}"><i class="fa-solid fa-handshake"></i>Sell or gift to a player</button>` : ''}
     </div>`;
-}
-
-/* ═══════════════ WORKSHOP ═══════════════ */
-async function loadWorkshop() {
-  const w = await post('workshopFetch');
-  S.ws = w || null;
-  await palette();
-  if (S.wsMode === 'make') await loadMake();
-  if (S.ws) {
-    const keys = new Set(arr(S.ws.bundles).map((b) => b.key));
-    [...S.wsSel].forEach((k) => { if (!keys.has(k)) S.wsSel.delete(k); });
-  }
-}
-
-function workshopView() {
-  const w = S.ws;
-  if (!w) return `<div class="wig-list"><div class="empty"><i class="fa-solid fa-circle-notch fa-spin"></i>Opening the workshop</div></div>`;
-  const bundles = arr(w.bundles);
-  const picked = bundles.filter((b) => S.wsSel.has(b.key));
-  const models = new Set(picked.map((b) => b.fits));
-  const ready = w.craft && picked.length === w.need && models.size === 1 && (!w.needCap || w.caps > 0);
-  const lowest = picked.reduce((lo, b) => {
-    const i = S.cfg.grades.findIndex((g) => g.id === b.grade);
-    return lo === null || i < lo ? i : lo;
-  }, null);
-  const grade = lowest !== null ? S.cfg.grades[lowest] : null;
-  const away = w.needTable && !S.bench;
-  const bench = S.bench ? `<div class="bench">
-      <div class="bench-t"><i class="fa-solid fa-table"></i><div><b>${esc(S.bench.label)}</b><span>${S.bench.views ? 'Camera while you work' : 'Making and dyeing play out at the table'}</span></div></div>
-      ${S.bench.views ? `<div class="seg bench-seg">${arr(S.bench.views.list).map((v) => `<button class="${S.camView === v.id ? 'on' : ''}" data-act="camView" data-v="${v.id}">${esc(v.label)}</button>`).join('')}</div>` : ''}
-      ${S.bench.mine ? '<button class="btn sm ghost" data-act="tablePickUp" title="Pick up table"><i class="fa-solid fa-hand-holding"></i></button>' : ''}
-    </div>` : away ? `<div class="card note-card" style="margin-bottom:12px"><i class="fa-solid fa-table"></i><span>Wigs are made and dyed at a <b>wig table</b>. Place one from your inventory, or find one in the city.</span></div>` : '';
-  const modes = S.mk && S.mk.off ? '' : `<div class="seg ws-seg">${[['make', 'fa-scissors', 'Make a wig'], ['bundles', 'fa-wind', 'From bundles & dye']].map(([k, ic, l]) =>
-    `<button class="${S.wsMode === k ? 'on' : ''}" data-act="wsMode" data-v="${k}"><i class="fa-solid ${ic}"></i>${l}</button>`).join('')}</div>`;
-  if (S.wsMode === 'make') return makeView(bench + modes, away);
-  const craft = w.craft ? `${bench}${modes}
-    <div class="sec-h"><h3>Make a wig</h3><span>Pick ${w.need} bundles · ${w.needCap ? `${w.caps} wig cap${w.caps === 1 ? '' : 's'}` : 'no cap needed'}</span></div>
-    ${bundles.length ? `<div class="wig-grid">${bundles.map((b) => goodCard(b, { act: 'wsPick', check: true, checked: S.wsSel.has(b.key) })).join('')}</div>`
-      : `<div class="empty"><i class="fa-solid fa-wind"></i>No bundles. Snip long hair with scissors to collect some.</div>`}
-    <div class="sellbar"><div class="total"><span>${picked.length} / ${w.need} picked${models.size > 1 ? ' · mixed male / female hair' : ''}</span>
-      <b>${picked.length ? esc(`${picked[0].style}${grade ? ' · ' + grade.label : ''}`) : 'Nothing picked'}</b></div>
-      <button class="btn teal" data-act="craft" ${ready && !away ? '' : 'disabled'}><i class="fa-solid fa-screwdriver-wrench"></i>${S.bench ? 'Make it at the table' : 'Make wig'}</button></div>` : '';
-  return `<div class="wig-list">${craft || bench + modes + '<div class="empty"><i class="fa-solid fa-lock"></i>Making wigs from bundles is off on this server</div>'}</div>
-    <div class="detail">${w.dye ? dyePanel(w) : ''}</div>`;
-}
-
-function dyePanel(w) {
-  const pal = S.palette || [];
-  const wigs = arr(w.wigs).filter((x) => !x.generic);
-  const opts = [];
-  if (w.ownHair) opts.push(`<button class="${S.dye.target === 'self' ? 'on' : ''}" data-act="dyeTarget" data-v="self"><i class="fa-solid fa-user"></i>My own hair<small>${w.hair && w.hair.bald ? 'bald' : ''}</small></button>`);
-  wigs.forEach((x) => opts.push(`<button class="${S.dye.target === x.key ? 'on' : ''}" data-act="dyeTarget" data-v="${esc(x.key)}"><span class="swatch sm" data-hc="${x.color ?? ''}"></span>${esc(goodTitle(x))}<small>${esc(tier(x.tier).label)}</small></button>`));
-  const sw = (field) => `<div class="palette">${pal.map((hex, i) => `<button class="pal ${S.dye[field] === i ? 'on' : ''}" style="background:${hex}" data-act="dyePick" data-v="${field}:${i}" title="${i}"></button>`).join('')}</div>`;
-  const away = w.needTable && !S.bench && S.dye.target !== 'self';
-  const canDye = !away && w.dyes > 0 && (S.dye.target !== 'self' || (w.ownHair && !(w.hair && w.hair.bald)));
-  return `<div class="card">
-      <div class="sec-h"><h3>Dye</h3><span>${w.dyes} hair dye${w.dyes === 1 ? '' : 's'} · dyed wigs sell for +${Math.round((w.dyeBonus || 0) * 100)}%</span></div>
-      <div class="pick">${opts.join('') || '<div class="empty" style="padding:14px">Nothing to dye</div>'}</div>
-      <div class="dye-prev"><span class="swatch lg" style="background:${pal[S.dye.c] || '#222'}"></span><span class="swatch lg hl" style="background:${pal[S.dye.h] || '#222'}"></span>
-        <div><b>Colour ${S.dye.c}</b><small>Highlight ${S.dye.h}</small></div></div>
-      <div class="sub-h">Colour</div>${sw('c')}
-      <div class="sub-h">Highlight</div>${sw('h')}
-      <div class="actions" style="margin-top:12px">
-        <button class="btn teal wide" data-act="dyeGo" ${canDye ? '' : 'disabled'}><i class="fa-solid fa-paintbrush"></i>${away ? 'Dye wigs at a wig table' : S.bench && S.dye.target !== 'self' ? 'Dye it at the table' : 'Dye it'}</button>
-        ${w.hair && w.hair.dye ? `<button class="btn wide ghost" data-act="rinse"><i class="fa-solid fa-shower"></i>Rinse my dye out</button>` : ''}
-      </div></div>`;
 }
 
 /* ═══════════════ SETTINGS ═══════════════ */
@@ -523,7 +447,6 @@ const ACT = {
   mclose: () => closeModal(),
   tab: async (v) => {
     S.tab = v; S.bountyOpen = null; capturing = null;
-    if (v === 'workshop') { renderVault(); await loadWorkshop(); }
     if (v === 'wigs' || v === 'catalog') await palette();
     renderVault();
   },
@@ -556,29 +479,6 @@ const ACT = {
       if (res && res.ok) { S.bountyOpen = null; loadVault(); }
     }, S.prefs.alert);
   },
-  // workshop
-  wsPick: (v) => {
-    if (S.wsSel.has(v)) S.wsSel.delete(v);
-    else if (S.wsSel.size < (S.ws ? S.ws.need : 3)) S.wsSel.add(v);
-    $('#vview').innerHTML = workshopView(); paintSwatches(body);
-  },
-  craft: () => {
-    const keys = [...S.wsSel];
-    S.wsSel.clear();
-    post('craft', { keys, view: S.camView });
-    closeApp(true);
-  },
-  camView: (v) => { S.camView = v; $('#vview').innerHTML = workshopView(); paintSwatches(body); },
-  tablePickUp: () => { post('tablePickUp'); closeApp(true); },
-  dyeTarget: (v) => { S.dye.target = v; $('#vview').innerHTML = workshopView(); paintSwatches(body); },
-  dyePick: (v) => { const [f, i] = v.split(':'); S.dye[f] = Number(i); $('#vview').innerHTML = workshopView(); paintSwatches(body); },
-  dyeGo: () => {
-    const d = S.dye;
-    if (d.target === 'self') post('dyeSelf', { c: d.c, h: d.h });
-    else post('dyeWig', { key: d.target, c: d.c, h: d.h, view: S.camView });
-    closeApp(true);
-  },
-  rinse: () => { post('rinse'); },
   // settings
   prefSet: (v) => {
     const i = v.indexOf(':'), f = v.slice(0, i), val = v.slice(i + 1);
