@@ -6,6 +6,7 @@
      NZ.open(el) / NZ.close(el)
      NZ.preview(fn)        demo data, runs only outside the game
      NZ.icon(name)         inline stroke icon (see ICONS below)
+     NZ.addIcons({name: '<path…/>'})  register extra icons from a theme
      NZ.esc(str)           escape player-supplied text before innerHTML
    ═══════════════════════════════════════════════════════════ */
 (() => {
@@ -116,6 +117,9 @@
     sit:'<circle cx="9" cy="4.5" r="1.8"/><path d="M9 8v6h6l2 6M9 11h5M5 21h14"/>',
   };
 
+  // themes can register extra icons without touching this file
+  const addIcons = map => Object.assign(ICONS, map);
+
   const icon = (name, cls = '') => {
     const p = ICONS[name] || ICONS.box;
     return `<svg class="nz-ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -187,7 +191,7 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-  window.NZ = { inGame, resource, on, post, open, close, escape, preview, icon, hydrate, esc, money, initials, $, $$ };
+  window.NZ = { inGame, resource, on, post, open, close, escape, preview, icon, addIcons, hydrate, esc, money, initials, $, $$ };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => hydrate());
   else hydrate();
