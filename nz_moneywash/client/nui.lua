@@ -8,6 +8,11 @@ local allowed = {
     ['nzmw:books:submit'] = true,
     ['nzmw:audit:start'] = true,
     ['nzmw:dirtySources'] = true,
+    ['nzmw:unit:data'] = true,
+    ['nzmw:unit:addMember'] = true,
+    ['nzmw:unit:removeMember'] = true,
+    ['nzmw:unit:order'] = true,
+    ['nzmw:unit:upgrade'] = true,
 }
 
 function UI.init()

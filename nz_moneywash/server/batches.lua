@@ -101,6 +101,7 @@ function Batches.summary(b)
         stage = b.stage,
         source = b.source,
         reserialized = b.reserialized,
+        counted = b.counted or false,
         handlers = b.handlers,
         createdAt = b.createdAt,
     }

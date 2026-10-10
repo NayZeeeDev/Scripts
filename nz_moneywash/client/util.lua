@@ -95,6 +95,9 @@ function U.hasAccess(d)
                 return g ~= nil and g.name == name
             elseif kind == 'job' then
                 return CBridge.getJob().name == name
+            elseif kind == 'facility' then
+                local unit = LocalPlayer.state.nzmwUnit
+                return unit ~= nil and tostring(unit.id) == name and (unit.role == 'owner' or unit.role == 'member')
             end
         end
         return false

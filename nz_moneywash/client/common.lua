@@ -10,6 +10,7 @@ local zoneShape = {
     printer = { z = 1.00, r = 1.60 },
     cutter  = { z = 0.90, r = 0.95 },
     pallet  = { z = 0.45, r = 0.90 },
+    counter = { z = 0.95, r = 0.70 },
 }
 
 local function collectAnim(d)
@@ -175,6 +176,15 @@ local function typeOptions(s)
               canInteract = function() return st(s).state == 'idle' and access(s) end,
               onSelect = function() Printer.load(id) end },
         }
+    elseif t == 'counter' then
+        return {
+            { name = 'count_stacks', label = 'Count & strap stacks', icon = 'fas fa-money-bill-wave',
+              canInteract = function() return st(s).state == 'idle' and access(s) and CBridge.hasItem(NZ.finalItem()) end,
+              onSelect = function() CounterUI.start(id, 'stacks') end },
+            { name = 'count_cash', label = 'Count my cash', icon = 'fas fa-wallet',
+              canInteract = function() return st(s).state == 'idle' and access(s) end,
+              onSelect = function() CounterUI.start(id, 'cash') end },
+        }
     elseif t == 'pallet' then
         return {
             { name = 'take', label = 'Load into duffel bag', icon = 'fas fa-bag-shopping',
@@ -263,7 +273,7 @@ function Interact.add(s)
     local opts = typeOptions(s)
     local machineOnly = { collect = true, unjam = true, pry = true, repair = true }
     for _, o in ipairs(commonOptions(s)) do
-        if not (d.type == 'pallet' and machineOnly[o.name]) then opts[#opts + 1] = o end
+        if not ((d.type == 'pallet' or d.type == 'counter') and machineOnly[o.name]) then opts[#opts + 1] = o end
     end
     -- never offer anything while another interaction is running
     for _, o in ipairs(opts) do

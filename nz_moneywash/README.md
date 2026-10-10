@@ -22,7 +22,10 @@ Built on the [bzzz_money](https://bzzz.tebex.io/) prop pack. The UI uses NAYZEEE
 | **Mid-cycle heists** | Anyone without keys can pry open someone else's running or finished machine with a crowbar. The owner gets a break-in alert. Cash ripped out mid-cycle comes out half-washed. |
 | **Wear & jams** | Machines wear down. Jams stall the cycle and smoke until someone clears them in a timing minigame; a miss shreds bills. A repair kit resets wear. |
 | **Crew line bonus** | When different people run consecutive stations within 45 minutes, the batch pays up to +15%. |
-| **Set up anywhere** | Players can buy machine crates and place them indoors with a ghost preview, sharing them with their gang or job. Police can seize them, along with any cash inside. |
+| **Private wash units** | Lease a unit through the laundromat's back door: GTA's counterfeit cash factory with all of its own equipment switched off. Each unit is its own routing bucket, so crews only ever see their own floor. Build it out with machine crates, manage it from the unit terminal (machines, crew keys, supplies, upgrades). |
+| **Money counter** | A counting machine with a live screen everyone nearby can read, heist cash-counter sounds and banknotes flicking out. Counted & strapped stacks pay **+3% at the books**; it can also count your cash and dirty money just for show. |
+| **Money pallet** | Finished loads nobody comes back for move onto a pallet that visibly fills with cash. Load them into a duffel, or risk someone grabbing a stack. |
+| **Police raids** | 911 calls from inside a unit point to the door with the unit number. Police can breach any unit, scan and seize what they find. A door alarm upgrade warns the crew. |
 
 ---
 
@@ -40,6 +43,7 @@ Built on the [bzzz_money](https://bzzz.tebex.io/) prop pack. The UI uses NAYZEEE
    ensure ox_lib
    ensure oxmysql
    ensure bzzz_money
+   ensure bob74_ipl        # loads GTA's counterfeit factory interior used by wash units
    ensure lev_laundromat   # the MLO the default operation lives in
    ensure nz_moneywash
    ```
@@ -59,6 +63,31 @@ The positions were worked out from the MLO's own `.ymap`/`.ytyp`, not tested in 
 - **Reset to config spot (admin):** undoes a move.
 
 Admin means the `command.nzmw` ace (`group.admin` by default).
+
+## Wash units
+
+1. **Lease:** at the laundromat's back room (`Config.Facility.entrance`), open **Wash units** and lease one ($250,000 from the bank by default). You're taken straight inside.
+2. **Build:** at the **unit terminal** by the door, order machine crates under *Supplies* (washer, press, guillotine, counter, plus paper, solvent and repair kits). Use a crate inside the unit to place it with the see-through preview. The unit holds 6 machines, 10 with both expansion upgrades.
+3. **Crew:** the leaseholder hands out keys by server ID under *Crew*. Key holders can enter, build and run machines; only the leaseholder renovates and takes keys back.
+4. **Upgrades:**
+   - **Soundproofing** cuts 911 calls from machines by 35% per level.
+   - **Floor expansion** adds 2 machine slots per level.
+   - **Door alarm** warns the crew when police breach.
+5. **Police:** a 911 call from a unit lists it at the door. Police open **Wash units → Breach a unit**, force the door (10 s) and land inside that unit, where they can scan and seize.
+
+Requirements:
+- **The interior must be loaded.** That's GTA's biker counterfeit factory, which `bob74_ipl` loads.
+- **Entity sets get switched off** each time someone enters, so the floor is always empty.
+- **Kits only work inside a unit** by default. Set `Config.Placement.mode = 'world'` or `'both'` to allow building anywhere indoors.
+- **Check the spawn point.** The point inside (`Config.Facility.interior.inside`) is the factory's usual door spot; nudge it if your build differs.
+
+## Money counter
+
+Target the counter:
+- **Count & strap stacks:** feeds every uncounted Clean Stack you carry. The screen ticks up with the heist cash-counter sounds, and the stacks come out strapped (+3% at the books, shown as *strapped* in Cook the Books).
+- **Count my cash:** shows your clean cash and dirty money on the screen. Roleplay only.
+
+The screen is a DUI page (`web/counter.html`) drawn in the world, so everyone within 8 m can read it. The model, table, timings, bonus, sounds and particle effect are all in `Config.Counter`.
 
 ## Configure
 

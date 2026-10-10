@@ -53,7 +53,8 @@ end
 local function batchValue(b, rate, declarer)
     local crew, members = crewBonus(b, declarer)
     local heatCut = (b.heat / 100) * Config.Heat.payoutPenaltyMax
-    local value = b.amount * rate * b.quality * (1 + crew) * (1 - heatCut)
+    local counted = b.counted and Config.Counter.bonus or 0 -- strapped at a money counter
+    local value = b.amount * rate * b.quality * (1 + crew + counted) * (1 - heatCut)
     return math.floor(value), crew, members, heatCut
 end
 

@@ -70,6 +70,11 @@ const I = {
   scissors: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7.5 20 18M8 16.5 20 6"/>',
   layers: '<path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/>',
   mix: '<path d="M4 6h16M7 12h10M10 18h4"/>',
+  door: '<path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18"/><path d="M15 12v.01"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M14.5 8.5l2 2"/>',
+  cart: '<path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 8H6.2"/><circle cx="9.5" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  washer: '<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="13" r="4.5"/><path d="M7 6.5h2"/>',
 };
 const svg = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${I[n] || ''}</svg>`;
 
@@ -390,11 +395,13 @@ Panels.timing = {
 };
 
 /* ─────────────── INSPECT MACHINE ─────────────── */
+const STATE_TXT = { idle: 'Idle', open: 'Door open', loaded: 'Loaded', ready: 'Ready', running: 'Running', jammed: 'Jammed',
+  done: 'Done', cutting: 'Cutting', counting: 'Counting', result: 'Showing total' };
 Panels.inspect = {
   init() { syncClock(this.data.serverNow); },
   render() {
     const d = this.data;
-    const stateTxt = { idle: 'Idle', open: 'Door open', loaded: 'Loaded', ready: 'Ready', running: 'Running', jammed: 'Jammed', done: 'Done', cutting: 'Cutting' }[d.state] || d.state;
+    const stateTxt = STATE_TXT[d.state] || d.state;
     const b = d.batch;
     const main = `
       ${head(esc(d.label), [d.op, d.placed && d.owner ? 'Owner ' + d.owner : null].filter(Boolean).map(esc).join(' · ') || 'Machine diagnostics')}
@@ -499,7 +506,7 @@ Panels.books = {
     const rows = d.batches.length ? d.batches.map((b) => `
       <div class="row pick${st.sel.has(b.id) ? ' sel' : ''}" data-act="pick" data-id="${esc(b.id)}">
         <div class="av">${b.members > 1 ? svg('users') : esc(b.serial.slice(0, 2))}</div>
-        <div class="row-txt"><b>${esc(b.serial)}</b><span>Q ${pct(b.quality)} · heat ${b.heat}${b.crew > 0 ? ` · crew +${pct(b.crew)}` : ''}</span></div>
+        <div class="row-txt"><b>${esc(b.serial)}</b><span>Q ${pct(b.quality)} · heat ${b.heat}${b.crew > 0 ? ` · crew +${pct(b.crew)}` : ''}${b.counted ? ' · <b style="display:inline;color:var(--teal);font-weight:500">strapped</b>' : ''}</span></div>
         <div class="row-end"><b>${money(b.amount)}</b><span>→ ${money(b.value)}</span></div>
         <span class="sw ${st.sel.has(b.id) ? 'on' : ''}"><i></i></span>
       </div>`).join('') : empty('box', 'No clean stacks on you', `Bring ${esc(labels[d.finalItem] || 'banded stacks')} from the guillotine to declare them here.`);
@@ -709,6 +716,156 @@ Panels.scan = {
       <section class="panel" style="flex:1;min-height:200px"><div class="p-head"><div><h2>Findings</h2><p>Serial ranges cross-checked against flagged cash</p></div></div>
         <div class="p-body">${nothing ? empty('scan', 'Nothing glows', 'No marked bills or laundering batches detected.') : dirty + cards}</div></section>`;
     return shell({ width: 820, height: 640, tight: true, main, sub: 'LSPD · financial crimes', status: `UV scanner · <b>${nothing ? 'clean' : 'hits found'}</b>`, dot: nothing ? '' : 'red' });
+  },
+};
+
+
+/* ─────────────── WASH UNITS (the door) ─────────────── */
+Panels.units = {
+  init() { syncClock(this.data.now); },
+  render() {
+    const d = this.data;
+    const rows = (d.units || []).length ? d.units.map((u) => `
+      <div class="row">
+        <div class="av">#${u.id}</div>
+        <div class="row-txt"><b>Unit #${u.id}</b><span>${u.role === 'owner' ? 'Your lease' : 'Key from ' + esc(u.ownerName)} · ${u.machines}/${u.slots} machines</span></div>
+        <span class="tag ${u.role === 'owner' ? 'live' : 'off'}">${u.role === 'owner' ? 'Leaseholder' : 'Crew'}</span>
+        <button class="btn-teal" data-act="enter" data-id="${u.id}">Enter</button>
+      </div>`).join('')
+      : empty('key', 'No keys yet', 'Lease a unit, or get a key from someone who already has one.');
+    const lease = d.canBuy ? `
+      <article class="inc">
+        <div class="inc-top"><span class="chip">Lease</span><span class="ref">one-off · paid from bank</span></div>
+        <h3>A private floor of your own</h3>
+        <p>An empty warehouse floor out of sight. Fit it with your own washers, press, guillotine and money counter. Only you and the people you give keys to can get in.</p>
+        <div class="meta"><span>Price <b>${money(d.price)}</b></span><span>Your bank <b>${money(d.bank)}</b></span></div>
+        <div class="actions" style="margin-top:12px"><button class="btn-teal" data-act="buy" ${d.bank < d.price ? 'disabled' : ''}>Lease a unit · ${money(d.price)}</button></div>
+      </article>` : '';
+    const flagged = (d.flagged || []).map((f) => `
+      <div class="row"><div class="av">#${f.id}</div><div class="row-txt"><b>Unit #${f.id}</b><span>911 call ${Math.max(1, Math.floor((nowS() - f.at) / 60))} min ago</span></div>
+        <span class="tag hot">Flagged</span><button class="btn-red" data-act="breach" data-id="${f.id}">Breach</button></div>`).join('');
+    const police = d.police ? `
+      <section class="panel"><div class="p-head"><div><h2>Breach a unit</h2><p>Units flagged by recent 911 calls, or force any unit by number</p></div></div>
+        <div class="p-body">
+          ${flagged || empty('shield', 'Nothing flagged', 'Calls from machines inside a unit list the unit number here.')}
+          <div class="row"><div class="field" style="flex:1"><input type="number" id="u-num" placeholder="Unit number"></div>
+            <button class="btn-red" data-act="breachNum">Breach</button></div>
+        </div></section>` : '';
+    const main = `
+      ${head('Wash units', 'Private floors out of sight. Each unit is its own space; nobody sees another crew\'s floor.', clockBox((d.units || []).length, 'keys on you'))}
+      <section class="panel"><div class="p-head"><div><h2>Your keys</h2><p>Units you lease or have a key to</p></div></div><div class="p-body">${rows}</div></section>
+      ${lease}${police}`;
+    return shell({ width: 760, tight: true, main, sub: 'Back door', status: '<b>Wash units</b> · back door', keys: [['ESC', 'Close']] });
+  },
+  on(act, el) {
+    if (act === 'enter') finish({ action: 'enter', id: Number(el.dataset.id) });
+    if (act === 'buy') finish({ action: 'buy' });
+    if (act === 'breach') finish({ action: 'breach', id: Number(el.dataset.id) });
+    if (act === 'breachNum') { const v = Number(document.getElementById('u-num').value); if (v > 0) finish({ action: 'breach', id: v }); }
+  },
+};
+
+/* ─────────────── UNIT TERMINAL ─────────────── */
+const MACHINE_ICON = { washer: 'washer', printer: 'layers', cutter: 'scissors', counter: 'cash', pallet: 'box' };
+Panels.unit = {
+  init() { syncClock(this.data.now); this.st.view = 'overview'; this.st.busy = false; },
+  side() {
+    const d = this.data, st = this.st;
+    const nav = (k, icon, label, tally) => `<button class="nav ${st.view === k ? 'on' : ''}" data-act="view" data-k="${k}">${svg(icon)}${label}${tally != null ? `<span class="tally">${tally}</span>` : ''}</button>`;
+    return `
+      <div class="who"><div class="av">${esc(initials(d.name))}</div><div class="who-txt"><b>${esc(d.name)}</b><span>${d.isOwner ? 'Leaseholder' : 'Crew'} · Unit #${d.id}</span></div></div>
+      <div class="shift"><span>Floor space</span><b class="${d.used >= d.slots ? 'red' : ''}"><span class="dot ${d.used >= d.slots ? 'red' : ''}"></span>${d.used}/${d.slots}</b></div>
+      ${nav('overview', 'gauge', 'Overview', d.machines.length)}
+      <div class="grp">Manage</div>
+      ${nav('crew', 'users', 'Crew', d.members.length + 1)}
+      ${nav('supplies', 'cart', 'Supplies')}
+      ${nav('upgrades', 'up', 'Upgrades')}
+      <div class="side-foot">Use a machine crate <b>inside the unit</b> to set it up. The whole crew can build and run machines; only the leaseholder renovates and hands out keys.</div>`;
+  },
+  viewOverview() {
+    const d = this.data;
+    const busy = d.machines.filter((m) => ['running', 'counting', 'cutting', 'open', 'loaded', 'ready'].includes(m.state)).length;
+    const needs = d.machines.filter((m) => m.state === 'jammed' || m.state === 'done').length;
+    const wear = d.machines.length ? d.machines.reduce((a, m) => a + (m.wear || 0), 0) / d.machines.length : 0;
+    const tone = (s) => (s === 'jammed' ? 'hot' : s === 'done' ? 'warm' : s === 'idle' ? 'off' : 'live');
+    const rows = d.machines.length ? d.machines.map((m) => `
+      <div class="row"><div class="av">${svg(MACHINE_ICON[m.type] || 'box')}</div>
+        <div class="row-txt"><b>${esc(m.label)}</b><span>${STATE_TXT[m.state] || m.state}${m.state === 'running' && m.endsAt ? ` · <em style="font-style:normal" data-until="${m.endsAt}">${fmtT(m.endsAt - nowS())}</em> left` : ''} · wear ${Math.floor(m.wear || 0)}%${m.placedBy ? ' · set up by ' + esc(m.placedBy) : ''}</span></div>
+        <span class="tag ${tone(m.state)}">${STATE_TXT[m.state] || m.state}</span></div>`).join('')
+      : empty('box', 'An empty floor', 'Order machine crates under Supplies, then use them in here to set them up.');
+    return `
+      ${head('Unit #' + d.id, `Leased by ${esc(d.ownerName)}. Everything on this floor is invisible to the rest of the city.`, clockBox(money(d.bank), 'your bank'))}
+      <div class="stats four">
+        ${stat('box', 'Machines', `${d.used}/${d.slots}`)}
+        ${stat('spin', 'Busy', busy)}
+        ${stat('alert', 'Need you', needs, needs ? 'amber' : '')}
+        ${stat('wrench', 'Avg wear', Math.floor(wear) + '%', wear >= 60 ? 'red' : '')}
+      </div>
+      <section class="panel" style="flex:1"><div class="p-head"><div><h2>The floor</h2><p>Every machine in this unit</p></div>
+        <button class="btn-ghost" data-act="refresh">${svg('spin')}Refresh</button></div><div class="p-body">${rows}</div></section>`;
+  },
+  viewCrew() {
+    const d = this.data;
+    const rows = [`<div class="row"><div class="av">${esc(initials(d.ownerName))}</div><div class="row-txt"><b>${esc(d.ownerName)}</b><span>Holds the lease</span></div><span class="tag live">Leaseholder</span></div>`]
+      .concat(d.members.map((m) => `<div class="row"><div class="av">${esc(initials(m.name))}</div><div class="row-txt"><b>${esc(m.name)}</b><span>Has a key</span></div>
+        ${d.isOwner ? `<button class="btn-red" data-act="kick" data-cid="${esc(m.cid)}">Take key</button>` : '<span class="tag off">Crew</span>'}</div>`)).join('');
+    return `
+      ${head('Crew', 'Everyone with a key can enter, build and run machines here.')}
+      ${d.isOwner ? `<section class="panel"><div class="p-head"><div><h2>Hand out a key</h2><p>Player's server ID</p></div></div>
+        <div class="p-body pad"><div class="row" style="background:none;border:0;padding:0"><div class="field" style="flex:1"><input type="number" id="c-id" placeholder="Server ID"></div>
+        <button class="btn-teal" data-act="add">Give key</button></div></div></section>` : ''}
+      <section class="panel" style="flex:1"><div class="p-head"><div><h2>Key holders</h2><p>${d.members.length + 1} people</p></div></div><div class="p-body">${rows}</div></section>`;
+  },
+  viewSupplies() {
+    const d = this.data;
+    const rows = (d.shop || []).map((it) => `
+      <div class="row"><div class="av">${svg(['washer', 'printer', 'cutter', 'counter'].includes(it.key) ? (MACHINE_ICON[it.key] || 'box') : 'box')}</div>
+        <div class="row-txt"><b>${esc(it.label)}</b><span>${esc(it.desc)}</span></div>
+        <div class="row-end"><b>${money(it.price)}</b><span>from bank</span></div>
+        <button class="btn-teal" data-act="order" data-k="${esc(it.key)}" ${d.bank < it.price || this.st.busy ? 'disabled' : ''}>Order</button></div>`).join('');
+    return `
+      ${head('Supplies', 'Delivered straight to your pockets. Machine crates get set up wherever you use them inside the unit.', clockBox(money(d.bank), 'your bank'))}
+      <section class="panel" style="flex:1"><div class="p-head"><div><h2>Order</h2><p>Paid from your bank account</p></div></div><div class="p-body">${rows}</div></section>`;
+  },
+  viewUpgrades() {
+    const d = this.data;
+    const cards = (d.upgrades || []).map((u) => {
+      const pips = Array.from({ length: u.max }, (_, i) => `<i class="${i < u.level ? 'perfect' : ''}"></i>`).join('');
+      const maxed = u.level >= u.max;
+      return `<article class="inc">
+        <div class="inc-top"><span class="chip ${maxed ? '' : 'off'}">${maxed ? 'Installed' : `Level ${u.level}/${u.max}`}</span><div class="pips">${pips}</div></div>
+        <h3>${esc(u.label)}</h3><p>${esc(u.desc)}</p>
+        <div class="actions" style="margin-top:10px">${maxed ? '<span class="note">Fully installed.</span>'
+          : `<span class="note">${d.isOwner ? 'Leaseholder only' : 'Only the leaseholder can renovate'}</span><button class="btn-teal" data-act="upgrade" data-k="${esc(u.key)}" ${!d.isOwner || d.bank < u.price || this.st.busy ? 'disabled' : ''}>Install · ${money(u.price)}</button>`}</div>
+      </article>`;
+    }).join('');
+    return `${head('Upgrades', 'Renovations stay with the unit.', clockBox(money(d.bank), 'your bank'))}<div class="p-body" style="padding:0">${cards}</div>`;
+  },
+  render() {
+    const v = this.st.view;
+    const main = v === 'crew' ? this.viewCrew() : v === 'supplies' ? this.viewSupplies() : v === 'upgrades' ? this.viewUpgrades() : this.viewOverview();
+    return shell({ width: 1120, height: 720, side: this.side(), main, sub: 'Unit terminal', status: `<b>Unit #${this.data.id}</b> · terminal`,
+      right: `Floor space <b>${this.data.used}/${this.data.slots}</b>` });
+  },
+  async act(name, ...args) {
+    if (this.st.busy) return;
+    this.st.busy = true; draw();
+    const res = await request(name, ...args);
+    if (cur !== this) return;
+    this.st.busy = false;
+    if (!res || !res.ok) { toast({ title: 'Terminal', message: (res && res.err) || 'Something went wrong.', type: 'error' }); return draw(); }
+    const view = this.st.view;
+    this.data = res; syncClock(res.now); this.st.view = view;
+    if (res.toast) toast({ title: 'Terminal', message: res.toast, type: 'success' });
+    draw();
+  },
+  on(act, el) {
+    if (act === 'view') { this.st.view = el.dataset.k; draw(); }
+    if (act === 'refresh') this.act('nzmw:unit:data');
+    if (act === 'order') this.act('nzmw:unit:order', el.dataset.k);
+    if (act === 'upgrade') this.act('nzmw:unit:upgrade', el.dataset.k);
+    if (act === 'kick') this.act('nzmw:unit:removeMember', el.dataset.cid);
+    if (act === 'add') { const v = Number(document.getElementById('c-id').value); if (v > 0) this.act('nzmw:unit:addMember', v); }
   },
 };
 

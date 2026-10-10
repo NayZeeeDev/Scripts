@@ -23,8 +23,19 @@ local schema = {
         `status` VARCHAR(12) NOT NULL DEFAULT 'pending', PRIMARY KEY (`id`), KEY `status_release` (`status`, `release_at`))]],
 }
 
+schema[#schema + 1] = [[CREATE TABLE IF NOT EXISTS `nzmw_facilities` (
+        `id` INT NOT NULL AUTO_INCREMENT, `owner` VARCHAR(64) NOT NULL, `owner_name` VARCHAR(64) NOT NULL DEFAULT '',
+        `members` LONGTEXT NOT NULL, `upgrades` LONGTEXT NOT NULL,
+        `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`id`), KEY `owner` (`owner`))]]
+
 function DB.init()
     for _, q in ipairs(schema) do MySQL.query.await(q) end
+    -- v1.1: machines can belong to a wash unit
+    local has = MySQL.scalar.await([[SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nzmw_equipment' AND COLUMN_NAME = 'facility']])
+    if tonumber(has) == 0 then
+        MySQL.query.await('ALTER TABLE `nzmw_equipment` ADD COLUMN `facility` INT NULL')
+    end
 end
 
 function DB.saveBatch(b)

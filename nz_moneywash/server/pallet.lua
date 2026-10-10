@@ -131,7 +131,7 @@ lib.callback.register('nzmw:pallet:grab', function(src, id, phase)
             end
         end
         if math.random() < C.theftAlert then
-            Police.alert(vec3(st.x, st.y, st.z), 'Possible burglary', 'Caller saw someone hauling bags of cash out of a back room.', '10-31')
+            Stations.alert(st, 'Possible burglary', 'Caller saw someone hauling bags of cash out of a back room.', '10-31')
         end
         return { ok = true }
     end

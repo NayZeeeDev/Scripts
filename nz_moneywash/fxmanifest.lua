@@ -23,6 +23,8 @@ server_scripts {
     'server/batches.lua',
     'server/stations.lua',
     'server/pallet.lua',
+    'server/facility.lua',
+    'server/counter.lua',
     'server/books.lua',
     'server/police.lua',
     'server/placement.lua',
@@ -39,6 +41,8 @@ client_scripts {
     'client/printer.lua',
     'client/cutter.lua',
     'client/pallet.lua',
+    'client/counter.lua',
+    'client/facility.lua',
     'client/common.lua',
     'client/books.lua',
     'client/police.lua',
@@ -52,6 +56,7 @@ files {
     'web/index.html',
     'web/style.css',
     'web/app.js',
+    'web/counter.html',
 }
 
 dependencies {

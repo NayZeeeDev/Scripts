@@ -17,6 +17,7 @@ CreateThread(function()
     Render.syncIndex(GlobalState['nzmw:index'])
     Render.start()
     FrontDesk.init()
+    FacilityUI.init()
     PoliceUI.init()
 
     for _, op in ipairs(Config.Operations) do

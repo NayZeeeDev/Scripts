@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>counter</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Money counter screen — rendered as a DUI texture onto the machine (512 × 256) */
+:root{ --teal:#08afa2; --teal-hi:#0fd4c4; --red:#e5484d; --ink:#f2f4f5; --ink-3:#63696d; }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:512px;height:256px;overflow:hidden;background:#000}
+body{font-family:'Lexend',system-ui,sans-serif;color:var(--ink);font-variant-numeric:tabular-nums}
+.screen{position:absolute;inset:0;padding:18px 24px;display:flex;flex-direction:column;
+  background:radial-gradient(420px 220px at 50% 0%,#0d1514,#030505 70%);border:3px solid #111}
+.screen::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px)}
+.top{display:flex;align-items:center;justify-content:space-between;font-size:15px;letter-spacing:.14em;color:var(--ink-3);font-weight:500}
+.top b{color:var(--teal);font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal);margin-right:8px;vertical-align:1px}
+.dot.idle{background:#2a3131;box-shadow:none}
+.amount{flex:1;display:flex;align-items:center;justify-content:flex-end;font-size:72px;font-weight:700;letter-spacing:-.02em;
+  color:var(--teal-hi);text-shadow:0 0 18px rgba(15,212,196,.45)}
+.amount small{font-size:34px;color:var(--teal);margin-right:6px;font-weight:600}
+.split{flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px}
+.split div{display:flex;justify-content:space-between;align-items:baseline;font-size:20px;color:var(--ink-3);letter-spacing:.1em}
+.split b{font-size:44px;font-weight:700;color:var(--teal-hi);letter-spacing:-.01em;text-shadow:0 0 14px rgba(15,212,196,.4)}
+.split b.red{color:var(--red);text-shadow:0 0 14px rgba(229,72,77,.4)}
+.bar{height:10px;border-radius:99px;background:#121a19;overflow:hidden;border:1px solid #1d2928}
+.bar i{display:block;height:100%;width:0;background:var(--teal);box-shadow:0 0 12px var(--teal)}
+.foot{display:flex;justify-content:space-between;margin-top:9px;font-size:14px;color:var(--ink-3);letter-spacing:.1em}
+.idle-msg{flex:1;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:600;letter-spacing:.3em;color:#24302f}
+.flash{animation:flash .5s ease 3}
+@keyframes flash{50%{opacity:.35}}
+</style>
+</head>
+<body>
+<div class="screen" id="s">
+  <div class="top"><span><span class="dot idle" id="dot"></span><span id="status">READY</span></span><b id="mode">THE WASH</b></div>
+  <div class="idle-msg" id="idle">INSERT NOTES</div>
+  <div class="amount" id="amount" style="display:none"><small>$</small><span id="num">0</span></div>
+  <div class="split" id="split" style="display:none">
+    <div><span>CLEAN</span><b id="clean">$0</b></div>
+    <div><span>DIRTY</span><b class="red" id="dirty">$0</b></div>
+  </div>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="foot"><span id="bills">0 NOTES</span><span id="pct">0%</span></div>
+</div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString('en-US');
+let st = { state: 'idle' }, start = 0, raf = 0;
+
+function applyTheme(t) {
+  if (!t) return;
+  const r = document.documentElement.style;
+  if (t.teal) r.setProperty('--teal', t.teal);
+  if (t.tealHi) r.setProperty('--teal-hi', t.tealHi);
+  if (t.red) r.setProperty('--red', t.red);
+  if (t.brand) $('mode').textContent = t.brand.toUpperCase();
+}
+
+function frame() {
+  const counting = st.state === 'counting';
+  const p = counting ? Math.min(1, (performance.now() - start) / Math.max(1, st.duration)) : 1;
+  // ease-out so the last notes slow down like a real counter
+  const e = counting ? 1 - Math.pow(1 - p, 2.2) : 1;
+  const total = (st.amount || 0) + (st.amount2 || 0);
+  $('num').textContent = fmt(total * e);
+  $('clean').textContent = '$' + fmt((st.amount || 0) * e);
+  $('dirty').textContent = '$' + fmt((st.amount2 || 0) * e);
+  $('bar').style.width = (p * 100) + '%';
+  $('pct').textContent = Math.floor(p * 100) + '%';
+  $('bills').textContent = fmt((st.bills || 0) * e) + ' NOTES';
+  if (counting && p < 1) raf = requestAnimationFrame(frame);
+}
+
+function render() {
+  cancelAnimationFrame(raf);
+  const idle = st.state === 'idle' || !st.state;
+  const cash = st.mode === 'cash';
+  $('idle').style.display = idle ? 'flex' : 'none';
+  $('amount').style.display = !idle && !cash ? 'flex' : 'none';
+  $('split').style.display = !idle && cash ? 'flex' : 'none';
+  $('dot').className = 'dot' + (idle ? ' idle' : '');
+  $('status').textContent = idle ? 'READY' : st.state === 'counting' ? (cash ? 'COUNTING CASH' : 'COUNTING STACKS') : 'TOTAL';
+  $('s').classList.toggle('flash', st.state === 'result');
+  if (idle) { $('bar').style.width = '0%'; $('pct').textContent = '0%'; $('bills').textContent = '0 NOTES'; return; }
+  start = performance.now() - (st.elapsed || 0);
+  frame();
+}
+
+window.addEventListener('message', (e) => {
+  let m = e.data;
+  if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { return; } }
+  if (!m) return;
+  applyTheme(m.theme);
+  st = m;
+  render();
+});
+render();
+</script>
+</body>
+</html>

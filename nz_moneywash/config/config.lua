@@ -298,7 +298,11 @@ Config.Audit = {
 ----------------------------------------------------------------------------------------------------
 Config.Placement = {
     enabled      = true,
-    kits         = { washer = 'nzmw_washer_kit', printer = 'nzmw_printer_kit', cutter = 'nzmw_cutter_kit' },
+    kits         = { washer = 'nzmw_washer_kit', printer = 'nzmw_printer_kit', cutter = 'nzmw_cutter_kit', counter = 'nzmw_counter_kit' },
+    -- 'unit'  : kits only work inside a wash unit (recommended — see Config.Facility)
+    -- 'world' : kits work anywhere indoors (old behaviour)
+    -- 'both'  : either
+    mode         = 'unit',
     maxPerPlayer = 6,
     interiorOnly = true,     -- must be inside an interior (MLO / shell)
     minSpacing   = 1.4,      -- metres from other machines
@@ -319,4 +323,82 @@ Config.ItemLabels = {
     nzmw_solvent     = 'Dye Solvent',
     nzmw_repair_kit  = 'Machine Repair Kit',
     nzmw_uv_scanner  = 'UV Serial Scanner',
+    nzmw_washer_kit  = 'Industrial Washer (crate)',
+    nzmw_printer_kit = 'Print Press (crate)',
+    nzmw_cutter_kit  = 'Guillotine (crate)',
+    nzmw_counter_kit = 'Money Counter (crate)',
+}
+
+----------------------------------------------------------------------------------------------------
+-- MONEY COUNTER
+-- A counting machine on a small table with a live digital screen (DUI) everyone nearby can read.
+--  · Count stacks: banded Clean Stacks come out strapped & counted → worth more at the books
+--  · Count cash  : shows your clean cash and dirty money on the screen (roleplay)
+----------------------------------------------------------------------------------------------------
+Config.Counter = {
+    label       = 'Money Counter',
+    model       = 'bkr_prop_money_counter',   -- GTA biker DLC counting machine
+    table       = 'prop_table_03',            -- set false if the counter sits on an existing desk (coords = desk top)
+    bonus       = 0.03,                       -- counted stacks are worth +3% at the books
+    baseTime    = 4,                          -- seconds
+    perSecond   = 25000,                      -- $ counted per second on top of the base
+    maxTime     = 20,
+    resultTime  = 10,                         -- seconds the total stays on the screen
+    screen      = { width = 0.34, height = 0.17, lift = 0.12 }, -- metres; floats just above the front edge
+    drawDistance= 8.0,
+    sounds      = {
+        tick   = { name = 'LOCAL_PLYR_CASH_COUNTER_INCREASE', set = 'DLC_HEISTS_GENERAL_FRONTEND_SOUNDS', every = 110 },
+        finish = { name = 'LOCAL_PLYR_CASH_COUNTER_COMPLETE', set = 'DLC_HEISTS_GENERAL_FRONTEND_SOUNDS' },
+    },
+    -- operator animation (biker cash factory counting). Falls back to Config.Anims.machine if missing.
+    anim        = { dict = 'anim@amb@business@cfm@cfm_counting_notes@', clip = 'note_counting_v2_counter' },
+    -- banknote flicks out of the machine while it runs (set false to disable)
+    fx          = { asset = 'core', name = 'ent_brk_banknotes', scale = 0.35, every = 650 },
+}
+
+----------------------------------------------------------------------------------------------------
+-- WASH UNITS (private floors)
+-- GTA's counterfeit cash factory interior with every piece of its own equipment switched off.
+-- Each unit is its own routing bucket: crews only ever see their own floor and machines.
+----------------------------------------------------------------------------------------------------
+Config.Facility = {
+    enabled     = true,
+    price       = 250000,         -- one-off lease, paid from the bank
+    maxOwned    = 1,
+    bucketBase  = 7100,           -- unit #12 lives in routing bucket 7112
+    baseSlots   = 6,              -- machines a unit can hold before expanding
+    -- door players use to reach their unit (the laundromat's back room by default)
+    entrance    = vec4(887.65, -1037.26, 34.25, 90.0),
+    interior    = {
+        ipl    = 'bkr_biker_interior_placement_interior_5_biker_dlc_int_ware04_milo',
+        coords = vec3(1121.897, -3195.338, -40.4025),
+        inside = vec4(1138.09, -3198.97, -39.67, 90.0), -- where you appear / the exit + terminal
+        -- everything GTA puts in the factory; all switched off so crews build their own floor
+        sets   = {
+            'counterfeit_low_security', 'counterfeit_security', 'counterfeit_setup',
+            'counterfeit_standard_equip', 'counterfeit_standard_equip_no_prod',
+            'counterfeit_upgrade_equip', 'counterfeit_upgrade_equip_no_prod',
+            'dryera_off', 'dryera_on', 'dryera_open', 'dryerb_off', 'dryerb_on', 'dryerb_open',
+            'dryerc_off', 'dryerc_on', 'dryerc_open', 'dryerd_off', 'dryerd_on', 'dryerd_open',
+            'money_cutter', 'special_chairs',
+        },
+        cashPiles = true,         -- also switch off counterfeit_cashpile10a … 100d
+    },
+    upgrades = {
+        soundproof = { label = 'Soundproofing', desc = 'Foam walls and rubber mounts. Each level cuts 911 calls from machines by 35%.', max = 2, price = { 60000, 120000 } },
+        expansion  = { label = 'Floor expansion', desc = 'Clear the back of the warehouse. Each level adds 2 machine slots.', max = 2, price = { 80000, 160000 } },
+        alarm      = { label = 'Door alarm', desc = 'Silent alarm on the door. The whole crew is warned the moment police breach.', max = 1, price = { 45000 } },
+    },
+    -- supplies the terminal can order (paid from the bank, delivered to your pockets)
+    shop = {
+        { key = 'paper',   item = 'nzmw_paper_roll',  amount = 5, price = 2500,   label = 'Paper rolls ×5',      desc = 'Feeds the re-serial press.' },
+        { key = 'solvent', item = 'nzmw_solvent',     amount = 3, price = 4500,   label = 'Dye solvent ×3',      desc = 'Lifts dye-pack ink in the wash.' },
+        { key = 'repair',  item = 'nzmw_repair_kit',  amount = 1, price = 6000,   label = 'Repair kit',          desc = 'Resets a machine\'s wear.' },
+        { key = 'washer',  item = 'nzmw_washer_kit',  amount = 1, price = 35000,  label = 'Industrial washer',   desc = 'Crate. Use it inside the unit to set it up.' },
+        { key = 'printer', item = 'nzmw_printer_kit', amount = 1, price = 60000,  label = 'Re-serial press',     desc = 'Crate. Use it inside the unit to set it up.' },
+        { key = 'cutter',  item = 'nzmw_cutter_kit',  amount = 1, price = 25000,  label = 'Guillotine',          desc = 'Crate. Use it inside the unit to set it up.' },
+        { key = 'counter', item = 'nzmw_counter_kit', amount = 1, price = 18000,  label = 'Money counter',       desc = 'Crate. Straps your stacks for a better rate.' },
+    },
+    breachTime  = 10000,          -- ms police spend forcing the door
+    flagMinutes = 30,             -- how long a 911 call keeps a unit on the police list
 }

@@ -23,3 +23,4 @@
 ['nzmw_washer_kit']  = { label = 'Industrial Washer (crate)', weight = 25000, stack = false, consume = 0 },
 ['nzmw_printer_kit'] = { label = 'Print Press (crate)',       weight = 40000, stack = false, consume = 0 },
 ['nzmw_cutter_kit']  = { label = 'Guillotine (crate)',        weight = 18000, stack = false, consume = 0 },
+['nzmw_counter_kit'] = { label = 'Money Counter (crate)',     weight = 9000,  stack = false, consume = 0 },

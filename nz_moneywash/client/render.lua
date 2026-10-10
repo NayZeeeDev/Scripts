@@ -1,12 +1,15 @@
 --[[ Render — every machine is a client-side prop rig driven by the server's GlobalState.
      Same state for everyone → door swings, drum spins, press runs and blade drops in sync. ]]
 
-Render = { stations = {}, decor = {} }
+Render = { stations = {}, decor = {}, bucket = 0 }
 
 local stations = Render.stations
 local P, PA = Config.Props, Config.PropAnims
 
 function Render.get(id) return stations[id] end
+
+-- only machines in the routing bucket you're standing in (world = 0, each wash unit its own)
+function Render.visible(d) return (d.bucket or 0) == Render.bucket end
 function Render.data(id) return stations[id] and stations[id].data end
 
 ---------------------------------------------------------------------------------------------------
@@ -138,6 +141,21 @@ function Visual.cutter(s, prev, fresh)
     end
 end
 
+function Visual.counter(s)
+    local d = s.data
+    local top = d.z
+    if Config.Counter.table then
+        local tbl = setEnt(s, 'main', Config.Counter.table, base(d), d.h)
+        if tbl then
+            local _, mx = GetModelDimensions(GetEntityModel(tbl))
+            top = d.z + mx.z
+        end
+        setEnt(s, 'device', Config.Counter.model, vec3(d.x, d.y, top), d.h)
+    else
+        setEnt(s, 'main', Config.Counter.model, base(d), d.h)
+    end
+end
+
 function Visual.pallet(s)
     local d = s.data
     setEnt(s, 'main', NZ.mainModel('pallet', d.state), base(d), d.h)
@@ -165,7 +183,7 @@ function Render.update(id, value)
     if not s then
         s = { id = id, data = value, ents = {}, spawned = false }
         stations[id] = s
-        Interact.add(s)
+        if Render.visible(value) then Interact.add(s) end
         return
     end
     local prev = s.data
@@ -174,10 +192,24 @@ function Render.update(id, value)
         -- moved by an admin: rebuild the rig and the interaction zone at the new spot
         if s.spawned then despawn(s) end
         Interact.remove(s)
-        Interact.add(s)
+        if Render.visible(value) then Interact.add(s) end
         return
     end
     if s.spawned then apply(s, prev, false) end
+end
+
+-- entering / leaving a wash unit: swap which machines exist for you
+function Render.setBucket(bucket)
+    Render.bucket = bucket or 0
+    for _, s in pairs(stations) do
+        local vis = Render.visible(s.data)
+        if not vis then
+            if s.spawned then despawn(s) end
+            if s.zone then Interact.remove(s) end
+        elseif not s.zone then
+            Interact.add(s)
+        end
+    end
 end
 
 function Render.syncIndex(list)
@@ -193,6 +225,8 @@ end
 
 -- Handlers only queue work; one worker thread applies it so prop spawning never races.
 local queue = {}
+
+function Render.queueBucket(b) queue[#queue + 1] = { bucket = b or 0 } end
 
 AddStateBagChangeHandler(nil, 'global', function(_, key, value)
     if key == 'nzmw:index' then
@@ -229,7 +263,7 @@ function Render.start()
         local pos = GetEntityCoords(PlayerPedId())
         local dist = Config.RenderDistance
         for _, s in pairs(stations) do
-            local near = #(pos - vec3(s.data.x, s.data.y, s.data.z)) < dist
+            local near = Render.visible(s.data) and #(pos - vec3(s.data.x, s.data.y, s.data.z)) < dist
             if near and not s.spawned then
                 s.spawned = true
                 apply(s, nil, true)
@@ -238,7 +272,7 @@ function Render.start()
             end
         end
         for _, dc in ipairs(Render.decor) do
-            local near = #(pos - dc.coords.xyz) < dist
+            local near = Render.bucket == 0 and #(pos - dc.coords.xyz) < dist
             if near and not dc.ent then
                 dc.ent = U.spawnProp(dc.model, dc.coords.xyz, dc.coords.w)
             elseif not near and dc.ent then
@@ -253,7 +287,9 @@ function Render.start()
         while true do
             while #queue > 0 do
                 local q = table.remove(queue, 1)
-                if q.id then Render.update(q.id, q.value) else Render.syncIndex(q.index) end
+                if q.id then Render.update(q.id, q.value)
+                elseif q.bucket then Render.setBucket(q.bucket)
+                else Render.syncIndex(q.index) end
             end
             if GetGameTimer() >= nextStream then
                 stream()
@@ -269,7 +305,7 @@ function Render.start()
                 local sleep = 500
                 local pos = GetEntityCoords(PlayerPedId())
                 for _, s in pairs(stations) do
-                    if s.spawned and s.data.state ~= 'idle' and s.data.type ~= 'pallet' then -- idle machines stay unlabelled (shop floor looks normal)
+                    if s.spawned and s.data.state ~= 'idle' and s.data.type ~= 'pallet' and s.data.type ~= 'counter' then -- idle machines stay unlabelled (shop floor looks normal)
                         local d = s.data
                         local p = vec3(d.x, d.y, d.z + (d.type == 'printer' and 2.05 or d.type == 'washer' and 1.35 or 1.25))
                         if #(pos - p) < Config.StatusText.distance then

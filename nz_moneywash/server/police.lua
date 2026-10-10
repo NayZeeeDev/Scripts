@@ -79,7 +79,7 @@ lib.callback.register('nzmw:scan:station', function(src, id)
     if not canScan(src) then return { ok = false, err = 'You need a UV scanner (police only).' } end
     local st = Stations.list[id]
     if not st then return { ok = false, err = 'Nothing here.' } end
-    if #(GetEntityCoords(GetPlayerPed(src)) - vec3(st.x, st.y, st.z)) > Config.MaxInteractDistance then
+    if not Stations.near(src, st) then
         return { ok = false, err = 'Get closer.' }
     end
     local p = Stations.priv[id]

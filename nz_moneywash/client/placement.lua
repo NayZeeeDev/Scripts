@@ -15,7 +15,7 @@ end
 local function tooClose(pos, ignoreId)
     local spacing = ignoreId and 0.9 or P.minSpacing -- admins may pack config machines tighter
     for id, s in pairs(Render.stations) do
-        if id ~= ignoreId and #(pos - vec3(s.data.x, s.data.y, s.data.z)) < spacing then return true end
+        if id ~= ignoreId and Render.visible(s.data) and #(pos - vec3(s.data.x, s.data.y, s.data.z)) < spacing then return true end
     end
     return false
 end
@@ -110,5 +110,8 @@ end
 
 RegisterNetEvent('nzmw:placement:start', function(stType)
     if Placement.active or U.busy or not Config.Placement.kits[stType] then return end
+    if Config.Placement.mode == 'unit' and Render.bucket == 0 then
+        return UI.toast('Not here', 'Set machines up inside your wash unit (back door of the laundromat).', 'error', 6000)
+    end
     CreateThread(function() Placement.run(stType) end)
 end)

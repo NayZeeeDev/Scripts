@@ -44,7 +44,9 @@ function Stations.add(def, meta)
     local st = {
         id = def.id, type = def.type,
         x = def.x, y = def.y, z = def.z, h = def.h,
-        label = def.label or (Config.Stages[def.type] and Config.Stages[def.type].label) or Config.Pallet.label,
+        label = def.label or (Config.Stages[def.type] and Config.Stages[def.type].label)
+            or (def.type == 'counter' and Config.Counter.label) or Config.Pallet.label,
+        bucket = def.bucket or 0, facility = def.facility,
         op = def.op, opLabel = def.opLabel,
         placed = def.placed or false, owner = def.owner, ownerName = def.ownerName, share = def.share,
         access = def.access,
@@ -77,6 +79,7 @@ function Stations.add(def, meta)
     end
     if def.type == 'pallet' then p.batches = p.batches or {} end
     if st.state == 'open' and not p.batch then st.state = 'idle' end
+    if def.type == 'counter' then st.state = 'idle' end -- a half-finished count doesn't survive a restart
     if st.state == 'done' then p.doneAt = now() end -- restart: the pallet countdown starts over
     Stations.list[st.id], Stations.priv[st.id] = st, p
     index[#index + 1] = st.id
@@ -108,6 +111,8 @@ function Stations.hasAccess(src, st)
                 return g ~= nil and g.name == name
             elseif kind == 'job' then
                 return Bridge.getJob(src).name == name
+            elseif kind == 'facility' then
+                return Facility.isMember(src, tonumber(name))
             end
         end
         return false
@@ -139,6 +144,7 @@ end
 local function near(src, st)
     local ped = GetPlayerPed(src)
     if ped == 0 then return false end
+    if GetPlayerRoutingBucket(src) ~= (st.bucket or 0) then return false end -- other wash units are invisible
     return #(GetEntityCoords(ped) - vec3(st.x, st.y, st.z)) <= Config.MaxInteractDistance
 end
 
@@ -147,6 +153,15 @@ local function lockFree(src, st)
     if st.lockUntil and now() > st.lockUntil then return true end
     if not GetPlayerName(st.user) then return true end -- reserved by someone who left
     return false
+end
+
+-- 911 call from a machine: units point police to the door and name the unit number
+function Stations.alert(st, title, message, code)
+    if st.facility and Facility.get(st.facility) then
+        Facility.flag(st.facility)
+        return Police.alert(Facility.entranceCoords(), title, ('%s (unit #%d)'):format(message, st.facility), code)
+    end
+    Police.alert(vec3(st.x, st.y, st.z), title, message, code)
 end
 
 local function stateIn(state, list)
@@ -190,7 +205,7 @@ local function scheduleRun(st, p, duration, spinKey, noise)
         p.jamAt = t + math.floor(duration * (0.25 + math.random() * 0.5))
     end
     local b = Batches.get(p.batch)
-    local chance = (Config.Heat.alertBase + (b and b.heat or 0) * Config.Heat.alertPerHeat) * (noise or 1.0)
+    local chance = (Config.Heat.alertBase + (b and b.heat or 0) * Config.Heat.alertPerHeat) * (noise or 1.0) * Facility.noiseMult(st)
     if math.random() < chance then
         p.alertAt = t + math.floor(duration * (0.15 + math.random() * 0.7))
     end
@@ -325,7 +340,7 @@ function Stations.startTicker()
                         if owner then Bridge.notify(owner, 'Machine jammed', ('%s at %s needs a hand.'):format(st.label, st.opLabel or 'your op'), 'error') end
                     elseif p.alertAt and t >= p.alertAt then
                         p.alertAt = nil
-                        Police.alert(vec3(st.x, st.y, st.z), 'Suspicious machinery',
+                        Stations.alert(st, 'Suspicious machinery',
                             'Caller reports chemical fumes and industrial noise from a building.', '10-66')
                     elseif st.endsAt and t >= st.endsAt then
                         finish(id)
@@ -336,6 +351,7 @@ function Stations.startTicker()
                     if st.state == 'open' and not p.batch then st.state = 'idle' end
                     Stations.commit(id)
                 end
+                if st.type == 'counter' then Counter.tick(id, st, p, t) end
                 if st.state == 'done' and st.type ~= 'pallet' and p.doneAt and Config.Pallet.enabled
                     and t - p.doneAt >= Config.Pallet.moveAfter then
                     Pallet.tryMove(id)
@@ -618,7 +634,7 @@ lib.callback.register('nzmw:pry', function(src, id, phase)
             end
         end
         if math.random() < Config.Theft.alertChance then
-            Police.alert(vec3(st.x, st.y, st.z), 'Break-in in progress', 'Alarm triggered on industrial equipment.', '10-31')
+            Stations.alert(st, 'Break-in in progress', 'Alarm triggered on industrial equipment.', '10-31')
         end
         return { ok = true }
     end

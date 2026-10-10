@@ -30,6 +30,7 @@ Config.Operations = {
             { type = 'cutter',  coords = vec4(900.75, -1032.26, 29.59, 0.0) },   -- middle of the room
             { type = 'printer', coords = vec4(901.30, -1035.16, 29.59, 180.0) }, -- along the south wall, operator side faces in
             { type = 'pallet',  coords = vec4(902.35, -1031.56, 29.59, 0.0) },   -- money pallet, east of the guillotine
+            { type = 'counter', coords = vec4(899.25, -1031.66, 29.59, 0.0) },   -- money counter on a table, screen faces south
         },
         decor = {},
         -- basement clutter (MLO props) that sits where the machines go — hidden while this resource runs

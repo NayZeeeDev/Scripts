@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS `nzmw_equipment` (
     `owner_name` VARCHAR(64) NOT NULL DEFAULT '',
     `share` VARCHAR(64) NULL,
     `x` FLOAT NOT NULL, `y` FLOAT NOT NULL, `z` FLOAT NOT NULL, `h` FLOAT NOT NULL,
+    `facility` INT NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `owner` (`owner`)
@@ -52,4 +53,15 @@ CREATE TABLE IF NOT EXISTS `nzmw_clearing` (
     `status` VARCHAR(12) NOT NULL DEFAULT 'pending',
     PRIMARY KEY (`id`),
     KEY `status_release` (`status`, `release_at`)
+);
+
+CREATE TABLE IF NOT EXISTS `nzmw_facilities` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `owner` VARCHAR(64) NOT NULL,
+    `owner_name` VARCHAR(64) NOT NULL DEFAULT '',
+    `members` LONGTEXT NOT NULL,
+    `upgrades` LONGTEXT NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `owner` (`owner`)
 );
