@@ -57,7 +57,8 @@ lib.callback.register('nzmw:place', function(src, stType, pos, heading, inInteri
         local g = Bridge.getGang(src)
         share = g and ('gang:' .. g.name) or nil
     elseif P.share == 'job' then
-        share = 'job:' .. (Bridge.getJob(src).name or 'none')
+        local job = Bridge.getJob(src).name
+        if job and job ~= 'unemployed' and job ~= 'none' then share = 'job:' .. job end
     end
 
     if not Inv.remove(src, P.kits[stType], 1) then return { ok = false, err = 'Could not use the kit.' } end
@@ -87,9 +88,11 @@ lib.callback.register('nzmw:pack', function(src, id)
     if #(GetEntityCoords(GetPlayerPed(src)) - vec3(st.x, st.y, st.z)) > Config.MaxInteractDistance then return { ok = false, err = 'Too far.' } end
     local kit = P.kits[st.type]
     if not Inv.canCarry(src, kit, 1) then return { ok = false, err = 'You cannot carry it.' } end
-    MySQL.query.await('DELETE FROM nzmw_equipment WHERE id = ?', { equipmentId(st) })
+    -- remove before awaiting the DB so a second pack / a seize can't race this one
+    local equipId = equipmentId(st)
     Stations.remove(id)
     Inv.add(src, kit, 1)
+    MySQL.query.await('DELETE FROM nzmw_equipment WHERE id = ?', { equipId })
     return { ok = true }
 end)
 
@@ -101,13 +104,14 @@ lib.callback.register('nzmw:seize', function(src, id)
 
     local p = Stations.priv[id]
     local b = p and p.batch and Batches.get(p.batch)
+    local equipId = equipmentId(st)
+    Stations.remove(id) -- before any await, so a racing pack can't hand the kit back
     local seized = 0
     if b then
         seized = b.amount
         Batches.remove(b.id)
     end
-    MySQL.query.await('DELETE FROM nzmw_equipment WHERE id = ?', { equipmentId(st) })
-    Stations.remove(id)
+    MySQL.query.await('DELETE FROM nzmw_equipment WHERE id = ?', { equipId })
 
     local owner = Bridge.getSourceByIdentifier(st.owner)
     if owner then Bridge.notify(owner, 'Raided', ('Police seized your %s.'):format(st.label), 'error', 10000) end

@@ -7,7 +7,7 @@ end)
 
 RegisterNetEvent('nzmw:marketEvent', function(e)
     if not e or CBridge.isPolice() then return end
-    UI.toast('Word on the street · ' .. e.label, ('%s (%+d%% wash rate)'):format(e.note or '', math.floor(e.mod * 100)), e.mod >= 0 and 'success' or 'error', 9000)
+    UI.toast('Word on the street · ' .. e.label, ('%s (%+d%% wash rate)'):format(e.note or '', NZ.round(e.mod * 100)), e.mod >= 0 and 'success' or 'error', 9000)
 end)
 
 CreateThread(function()

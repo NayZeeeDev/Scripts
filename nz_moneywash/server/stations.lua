@@ -577,6 +577,7 @@ lib.callback.register('nzmw:pry', function(src, id, phase)
     if phase == 'start' then
         if st.pryBy and st.pryBy ~= src then return fail('Someone is already on it.') end
         st.pryBy, st.pryAt = src, now()
+        p.pryBatch = b.id
         if Config.Theft.notifyOwner then
             local owner = Bridge.getSourceByIdentifier(b.owner)
             if owner and owner ~= src then
@@ -589,20 +590,24 @@ lib.callback.register('nzmw:pry', function(src, id, phase)
         return { ok = true }
     end
 
-    if st.pryBy ~= src or now() - (st.pryAt or 0) < math.floor(Config.Theft.duration / 1000 * 0.8) then
+    if st.pryBy ~= src or p.pryBatch ~= b.id or now() - (st.pryAt or 0) < math.floor(Config.Theft.duration / 1000 * 0.8) then
         return fail('You were interrupted.')
     end
-    st.pryBy, st.pryAt = nil, nil
+    st.pryBy, st.pryAt, p.pryBatch = nil, nil, nil
 
+    local done = st.state == 'done'
     local item
-    if st.state == 'done' then
+    if done then
         item = Config.Stages[st.type].outputItem
     elseif st.type == 'washer' then
         item = Config.Stages.washer.outputItem -- half-washed: no heat drop, quality hit
-        b.stage = 1
-        Batches.adjustQuality(b, -Config.Theft.runningPenalty)
     else
         item = NZ.inputItem(st.type)        -- ripped out of the press before re-serialising
+    end
+    -- check before touching the batch so a full inventory can't be used to grief quality
+    if not Inv.canCarry(src, item, 1, Batches.metadata(b, item)) then return fail('You cannot carry that.') end
+    if not done then
+        if st.type == 'washer' then b.stage = 1 end
         Batches.adjustQuality(b, -Config.Theft.runningPenalty)
     end
     if not Batches.giveItem(src, b, item) then return fail('You cannot carry that.') end

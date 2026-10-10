@@ -82,7 +82,7 @@ function Books.startAudit(frontId, reason)
     local hit = MySQL.query.await('SELECT id, citizenid, amount FROM nzmw_clearing WHERE front = ? AND status = ?', { frontId, 'pending' }) or {}
     for _, row in ipairs(hit) do
         local seized = math.floor(row.amount * A.seizePct)
-        MySQL.update.await('UPDATE nzmw_clearing SET amount = amount - ?, seized = seized + ? WHERE id = ?', { seized, seized, row.id })
+        MySQL.update.await('UPDATE nzmw_clearing SET amount = amount - ?, seized = seized + ? WHERE id = ? AND status = ?', { seized, seized, row.id, 'pending' })
         local target = Bridge.getSourceByIdentifier(row.citizenid)
         if target then
             Bridge.notify(target, 'Treasury audit', ('%s is being audited. %s of your clearing was frozen.'):format(f.label, NZ.money(seized)), 'error', 10000)
@@ -271,13 +271,23 @@ function Books.start()
     CreateThread(function()
         while true do
             Wait(B.clearingTick * 1000)
-            local due = MySQL.query.await('SELECT id, citizenid, front, amount, seized FROM nzmw_clearing WHERE status = ? AND release_at <= ? LIMIT 50',
-                { 'pending', now() }) or {}
+            -- only rows whose owner is online, so offline backlogs never block anyone
+            local online, args = {}, { 'pending', now() }
+            Bridge.eachPlayer(function(src)
+                local cid = Bridge.getIdentifier(src)
+                if cid then online[#online + 1] = '?'; args[#args + 1] = cid end
+            end)
+            local due = #online == 0 and {} or MySQL.query.await(
+                ('SELECT id, citizenid, front FROM nzmw_clearing WHERE status = ? AND release_at <= ? AND citizenid IN (%s) LIMIT 50')
+                    :format(table.concat(online, ',')), args) or {}
             for _, row in ipairs(due) do
                 local target = Bridge.getSourceByIdentifier(row.citizenid)
                 if target then
                     local changed = MySQL.update.await('UPDATE nzmw_clearing SET status = ? WHERE id = ? AND status = ?', { 'paid', row.id, 'pending' })
-                    if changed and changed > 0 and row.amount > 0 then
+                    -- re-read after claiming the row: an audit may have frozen part of it in between
+                    local fresh = changed and changed > 0 and MySQL.single.await('SELECT amount, seized FROM nzmw_clearing WHERE id = ?', { row.id })
+                    if fresh then row.amount, row.seized = fresh.amount, fresh.seized end
+                    if fresh and row.amount > 0 then
                         Bridge.addMoney(target, B.clearingAccount, row.amount, 'nz_moneywash clearing')
                         local f = NZ.findFront(row.front)
                         Bridge.notify(target, 'Deposit cleared', ('%s from %s landed in your account.%s'):format(

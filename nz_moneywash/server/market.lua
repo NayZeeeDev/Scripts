@@ -56,7 +56,7 @@ function Market.rollEvent()
     local e = M.events[math.random(#M.events)]
     Market.event = { label = e.label, mod = e.mod, note = e.note, endsAt = os.time() + e.minutes * 60 }
     Market.recalc()
-    Bridge.log('Market event', { { 'Event', e.label }, { 'Modifier', ('%+d%%'):format(math.floor(e.mod * 100)) } })
+    Bridge.log('Market event', { { 'Event', e.label }, { 'Modifier', ('%+d%%'):format(NZ.round(e.mod * 100)) } })
     TriggerClientEvent('nzmw:marketEvent', -1, Market.event)
 end
 
