@@ -703,7 +703,7 @@ lib.callback.register('nz_squads:setRanks', function(src, list)
     sq.ranks = result
     for identifier, r in pairs(sq.roster) do
         if identifier == sq.owner then r.rank = newTop
-        elseif r.rank > newTop then r.rank = newTop - 1
+        elseif r.rank >= newTop then r.rank = newTop - 1
         elseif r.rank == oldTop and newTop ~= oldTop then r.rank = newTop - 1 end
         DB.SaveMember(sq.id, identifier, r)
     end
@@ -805,7 +805,7 @@ lib.callback.register('nz_squads:leave', function(src, forget)
     local sq = SquadOf(src)
     if not sq then return false end
     local identifier = sq.online[src]
-    if identifier == sq.owner and rosterCount(sq) > 1 and forget then
+    if sq.persistent and identifier == sq.owner and rosterCount(sq) > 1 and forget then
         return false, 'Transfer the squad to someone else first'
     end
     Webhook.Leave(sq, src)
@@ -1139,8 +1139,8 @@ RegisterNetEvent('nz_squads:menuState', function(open)
     MenuOpen[source] = open == true or nil
 end)
 
-RegisterNetEvent('nz_squads:playerReady', function()
-    local src = source
+--- Puts a connected player back into the saved squad they belong to, if any.
+local function reattach(src)
     if Players[src] then return end
     local identifier = identifierOf(src)
     if not identifier then return end
@@ -1154,6 +1154,13 @@ RegisterNetEvent('nz_squads:playerReady', function()
             return
         end
     end
+end
+
+local Loaded = false
+
+RegisterNetEvent('nz_squads:playerReady', function()
+    -- before the database has loaded there is nothing to attach to; the boot thread sweeps everyone then
+    if Loaded then reattach(source) end
 end)
 
 RegisterNetEvent('nz_squads:setDowned', function(state)
@@ -1331,6 +1338,12 @@ CreateThread(function()
     for id, sq in pairs(stored) do
         sq.online = {}
         Squads[id] = sq
+    end
+    Loaded = true
+    -- players who connected while the database was still loading
+    for _, id in ipairs(GetPlayers()) do
+        local src = tonumber(id)
+        if src and Bridge.CanUse(src) then reattach(src) end
     end
     if Config.Debug then print(('[nayzeee-squads] Framework: %s'):format(Bridge.name)) end
 end)

@@ -307,18 +307,17 @@ function DB.MatchHistory(squadId, limit, cb)
         { squadId, squadId, limit }, function(rows) cb(rows or {}) end)
 end
 
---- Removes stored squads nobody has touched in a while, and old log lines.
+--- Removes stored squads nobody has touched in a while, and old log lines. Waits so LoadAll sees the result.
 function DB.Prune()
     if not DB.On() then return end
     if Config.InactiveDays > 0 then
         local cutoff = os.time() - Config.InactiveDays * 86400
-        MySQL.update('DELETE FROM nz_squads WHERE last_active < ?', { cutoff }, function(affected)
-            if affected and affected > 0 then
-                print(('^3[nayzeee-squads]^7 Removed %d squads inactive for over %d days.'):format(affected, Config.InactiveDays))
-            end
-        end)
+        local affected = MySQL.update.await('DELETE FROM nz_squads WHERE last_active < ?', { cutoff })
+        if affected and affected > 0 then
+            print(('^3[nayzeee-squads]^7 Removed %d squads inactive for over %d days.'):format(affected, Config.InactiveDays))
+        end
     end
     if Config.LogRetentionDays > 0 then
-        MySQL.update('DELETE FROM nz_squad_log WHERE at < ?', { os.time() - Config.LogRetentionDays * 86400 })
+        MySQL.update.await('DELETE FROM nz_squad_log WHERE at < ?', { os.time() - Config.LogRetentionDays * 86400 })
     end
 end
