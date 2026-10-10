@@ -98,6 +98,7 @@ Guard.callback('nzde:phone:data', function(src)
         standards = Config.Standards,
         quality = Config.Quality,
         kinds = Config.Kinds,
+        drugs = Config.Drugs,
     }
 end)
 

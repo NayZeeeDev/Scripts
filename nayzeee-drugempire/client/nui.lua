@@ -26,7 +26,7 @@ RegisterNUICallback('ready', function(_, cb)
     SendNUIMessage({ action = 'init', data = {
         ui = Config.UI, effects = Config.Effects, quality = Config.Quality, standards = Config.Standards,
         items = itemLabels(), ingredients = Config.Ingredients, drugs = Config.Drugs, maxEffects = Config.Mixing.maxEffects,
-        resource = RES, phone = { name = Config.Phone.AppName },
+        resource = RES, phone = { name = Config.Phone.AppName }, mixSeconds = Config.Mixing.seconds,
     } })
     for i = 1, #queue do SendNUIMessage(queue[i]) end
     queue = {}
