@@ -52,7 +52,7 @@
 },
 
 
--- Crafting tables: these icons come with the Dragons Lab Shoe Table Pack (install-images)
+-- Crafting tables: their icons are in install/images too (blueshoetable.png, pinkshoetable.png ...)
 
 ['blueshoetable'] = {
     label = 'Blue shoe table',

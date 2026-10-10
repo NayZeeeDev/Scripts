@@ -8,7 +8,7 @@ nz_heelbox_empty = { name = 'nz_heelbox_empty', label = 'Empty heel box', weight
 nz_bootbox_empty = { name = 'nz_bootbox_empty', label = 'Empty boot box', weight = 500, type = 'item', image = 'nz_bootbox_empty.png', unique = false, useable = true, shouldClose = true, combinable = nil, description = 'For tall boots' },
 
 
--- Crafting tables: these icons come with the Dragons Lab Shoe Table Pack (install-images)
+-- Crafting tables: their icons are in install/images too (blueshoetable.png, pinkshoetable.png ...)
 blueshoetable = { name = 'blueshoetable', label = 'Blue shoe table', weight = 15000, type = 'item', image = 'blueshoetable.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'A crafting table for shoes. Use it to set it up' },
 pinkshoetable = { name = 'pinkshoetable', label = 'Pink shoe table', weight = 15000, type = 'item', image = 'pinkshoetable.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'A crafting table for shoes. Use it to set it up' },
 purpleshoetable = { name = 'purpleshoetable', label = 'Purple shoe table', weight = 15000, type = 'item', image = 'purpleshoetable.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'A crafting table for shoes. Use it to set it up' },
