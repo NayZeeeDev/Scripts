@@ -120,13 +120,5 @@ function FacilityUI.init()
         Render.queueBucket(value or 0)
     end)
     Render.queueBucket(LocalPlayer.state.nzmwBucket or 0)
-
-    -- reconnected inside the factory but back in the world bucket → walk them out the front door
-    CreateThread(function()
-        Wait(2000)
-        local pos = GetEntityCoords(PlayerPedId())
-        if (LocalPlayer.state.nzmwBucket or 0) == 0 and #(pos - F.interior.coords) < 60.0 then
-            teleport({ x = F.entrance.x, y = F.entrance.y, z = F.entrance.z, w = (F.entrance.w + 180.0) % 360 })
-        end
-    end)
+    -- (players stuck in the factory or outside it in a unit bucket are handled by the server watchdog)
 end

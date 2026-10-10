@@ -99,7 +99,8 @@ CreateThread(function()
             ensureDui()
             local d = s.data
             local key = ('%s|%s|%s|%s'):format(s.id, d.state, d.endsAt or 0, d.amount or 0)
-            if key ~= lastKey then
+            -- the page needs a moment to load before it can take messages
+            if key ~= lastKey and IsDuiAvailable(dui) then
                 -- counting just finished on the counter we're looking at → chime
                 if active == s.id and lastKey and lastKey:find('|counting|', 1, true) and d.state == 'result' then
                     PlaySoundFromCoord(-1, C.sounds.finish.name, d.x, d.y, d.z + 1.0, C.sounds.finish.set, false, 10, false)

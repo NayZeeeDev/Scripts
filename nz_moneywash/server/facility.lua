@@ -96,7 +96,10 @@ end
 ---------------------------------------------------------------------------------------------------
 -- entering / leaving
 ---------------------------------------------------------------------------------------------------
+local moving = {} -- src → time of the last enter/leave teleport (watchdog grace)
+
 local function moveIn(src, f, role)
+    moving[src] = now()
     local bucket = Facility.bucket(f.id)
     SetRoutingBucketPopulationEnabled(bucket, false)
     SetPlayerRoutingBucket(src, bucket)
@@ -106,6 +109,7 @@ local function moveIn(src, f, role)
 end
 
 local function moveOut(src)
+    moving[src] = now()
     SetPlayerRoutingBucket(src, 0)
     Player(src).state:set('nzmwBucket', 0, true)
     Player(src).state:set('nzmwUnit', nil, true)
@@ -139,8 +143,18 @@ lib.callback.register('nzmw:unit:list', function(src)
     return res
 end)
 
+local buying = {} -- one lease purchase in flight per player
+
 lib.callback.register('nzmw:unit:buy', function(src)
     if not F.enabled or not nearDoor(src) then return fail('Not here.') end
+    if buying[src] then return fail('Hold on…') end
+    buying[src] = true
+    local res = Facility.buy(src)
+    buying[src] = nil
+    return res
+end)
+
+function Facility.buy(src)
     local cid = Bridge.getIdentifier(src)
     local owned = 0
     for _, f in pairs(Facility.list) do if f.owner == cid then owned = owned + 1 end end
@@ -158,7 +172,7 @@ lib.callback.register('nzmw:unit:buy', function(src)
     Bridge.log('Unit leased', { { 'Player', name .. ' (' .. src .. ')' }, { 'Unit', '#' .. id }, { 'Price', NZ.money(F.price) } })
     moveIn(src, f, 'owner')
     return { ok = true, id = id }
-end)
+end
 
 lib.callback.register('nzmw:unit:enter', function(src, id)
     local f = Facility.get(id)
@@ -174,7 +188,9 @@ lib.callback.register('nzmw:unit:breach', function(src, id, phase)
     if not f then return fail('No unit with that number.') end
     if not NZ.isPoliceJob(Bridge.getJob(src)) then return fail('Police only.') end
     if not nearDoor(src) then return fail('Not here.') end
+    f.breach = f.breach or {}
     if phase == 'start' then
+        f.breach[src] = now()
         if (f.upgrades.alarm or 0) > 0 then
             for _, s in ipairs(crewSources(f)) do
                 Bridge.notify(s, 'Door alarm', ('Police are breaching unit #%d!'):format(f.id), 'error', 12000)
@@ -182,6 +198,9 @@ lib.callback.register('nzmw:unit:breach', function(src, id, phase)
         end
         return { ok = true }
     end
+    local started = f.breach[src]
+    if not started or now() - started < math.floor(F.breachTime / 1000 * 0.8) then return fail('You were interrupted.') end
+    f.breach[src] = nil
     moveIn(src, f, 'police')
     Bridge.log('Unit breached', { { 'Officer', Bridge.getName(src) }, { 'Unit', '#' .. f.id }, { 'Owner', f.ownerName } })
     return { ok = true }
@@ -302,5 +321,32 @@ end)
 -- dropped players reset to the world bucket on reconnect; the client walks them out of the interior
 AddEventHandler('playerDropped', function()
     local src = source
+    moving[src] = nil
     if GetPlayerRoutingBucket(src) ~= 0 then SetPlayerRoutingBucket(src, 0) end
+end)
+
+-- Watchdog: nobody stays in a unit bucket outside the factory (death/respawn, logout, /tp …),
+-- and nobody stands in the factory while in the world bucket (reconnected inside).
+CreateThread(function()
+    if not F.enabled then return end
+    while true do
+        Wait(5000)
+        for _, sid in ipairs(GetPlayers()) do
+            local src = tonumber(sid)
+            local ped = GetPlayerPed(src)
+            if ped ~= 0 and now() - (moving[src] or 0) > 8 then
+                local pos = GetEntityCoords(ped)
+                local dist = #(pos - F.interior.coords)
+                local down = pos.z < F.interior.coords.z + 12.0 -- actually in the interior, not on the docks above it
+                local bucket = GetPlayerRoutingBucket(src)
+                if Facility.byBucket(bucket) and dist > 80.0 then
+                    SetPlayerRoutingBucket(src, 0)
+                    Player(src).state:set('nzmwBucket', 0, true)
+                    Player(src).state:set('nzmwUnit', nil, true)
+                elseif bucket == 0 and down and dist < 45.0 and Bridge.getIdentifier(src) then
+                    moveOut(src)
+                end
+            end
+        end
+    end
 end)

@@ -22,6 +22,8 @@ function Placement.def(row)
     }
 end
 
+local pendingByUnit = {} -- placements awaiting their DB insert, so racing crews can't overfill a unit
+
 local function sameBucket(src, st)
     return GetPlayerRoutingBucket(src) == (st.bucket or 0)
 end
@@ -53,9 +55,10 @@ lib.callback.register('nzmw:place', function(src, stType, pos, heading, inInteri
     if unit then
         -- inside a wash unit: the unit's slots are the limit, the whole crew can build
         if not Facility.isMember(src, unit.id) then return { ok = false, err = 'This isn\'t your unit.' } end
-        if #Facility.machines(unit.id) >= Facility.slots(unit) then
+        if #Facility.machines(unit.id) + (pendingByUnit[unit.id] or 0) >= Facility.slots(unit) then
             return { ok = false, err = 'The unit is full. Expand it at the terminal.' }
         end
+        if #(coords - Config.Facility.interior.coords) > 60.0 then return { ok = false, err = 'Not here.' } end
     else
         if P.mode == 'unit' then return { ok = false, err = 'Set this up inside your wash unit.' } end
         if bucket ~= 0 then return { ok = false, err = 'Not here.' } end
@@ -84,9 +87,11 @@ lib.callback.register('nzmw:place', function(src, stType, pos, heading, inInteri
     end
 
     if not Inv.remove(src, P.kits[stType], 1) then return { ok = false, err = 'Could not use the kit.' } end
+    if unit then pendingByUnit[unit.id] = (pendingByUnit[unit.id] or 0) + 1 end
     local name = Bridge.getName(src)
     local id = MySQL.insert.await('INSERT INTO nzmw_equipment (type, owner, owner_name, share, x, y, z, h, facility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         { stType, cid, name, share, coords.x, coords.y, coords.z, heading, unit and unit.id or nil })
+    if unit then pendingByUnit[unit.id] = math.max(0, (pendingByUnit[unit.id] or 1) - 1) end
     if not id then
         Inv.add(src, P.kits[stType], 1)
         return { ok = false, err = 'Database error.' }

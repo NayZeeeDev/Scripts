@@ -101,7 +101,9 @@ function Placement.run(stType, opts)
             local res = lib.callback.await('nzmw:place', false, stType, { x = pos.x, y = pos.y, z = pos.z }, heading,
                 GetInteriorFromEntity(PlayerPedId()) ~= 0)
             if not res or not res.ok then UI.err(res) else
-                UI.toast('Set up', Config.Stages[stType].label .. ' is ready to run.', 'success')
+                local label = (Config.Stages[stType] and Config.Stages[stType].label)
+                    or (stType == 'counter' and Config.Counter.label) or stType
+                UI.toast('Set up', label .. ' is ready to run.', 'success')
             end
         end
     end

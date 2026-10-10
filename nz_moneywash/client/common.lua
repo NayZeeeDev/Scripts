@@ -248,7 +248,13 @@ local function commonOptions(s)
           canInteract = function() return CBridge.isPolice() and CBridge.hasItem(Config.Heat.scannerItem) end,
           onSelect = function() Common.scan(id) end },
         { name = 'pack', label = 'Pack up equipment', icon = 'fas fa-box',
-          canInteract = function() local x = st(s) return x.placed and x.state == 'idle' and x.owner == CBridge.getIdentifier() end,
+          canInteract = function()
+              local x = st(s)
+              if not x.placed or x.state ~= 'idle' then return false end
+              local unit = LocalPlayer.state.nzmwUnit
+              local leaseholder = unit and unit.role == 'owner' and x.share == ('facility:' .. unit.id)
+              return x.owner == CBridge.getIdentifier() or leaseholder
+          end,
           onSelect = function() Common.pack(id) end },
         { name = 'move', label = 'Move machine (admin)', icon = 'fas fa-up-down-left-right',
           canInteract = function() return U.isAdmin and st(s).state == 'idle' end,

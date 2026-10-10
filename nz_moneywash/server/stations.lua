@@ -512,6 +512,9 @@ lib.callback.register('nzmw:washer:start', function(src, id, temp, spin, useSolv
     if not enoughPolice() then return fail('Too quiet out there... (not enough police on duty)') end
     local b = Batches.get(p.batch)
     if not b then return fail('The drum is empty.') end
+    if Stations.isOpen(st) and b.owner ~= Bridge.getIdentifier(src) then
+        return fail('That load isn\'t yours.')
+    end
 
     p.solvent = false
     if useSolvent and Inv.count(src, Config.Stages.washer.solventItem) > 0 then
