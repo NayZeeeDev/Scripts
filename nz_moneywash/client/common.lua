@@ -6,7 +6,7 @@ Common = {}
 local A = Config.Anims
 
 local zoneShape = {
-    washer  = { z = 0.85, r = 0.75 },
+    washer  = { z = 0.85, r = 0.42 }, -- tight: shop washers stand 0.87 m apart
     printer = { z = 1.00, r = 1.60 },
     cutter  = { z = 0.90, r = 0.95 },
 }

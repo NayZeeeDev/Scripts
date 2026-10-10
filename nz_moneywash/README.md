@@ -49,6 +49,7 @@ Built on the [bzzz_money](https://bzzz.tebex.io/) prop pack. The UI uses NAYZEEE
 Out of the box the operation lives in the **lev_laundromat MLO** (La Mesa, building origin `898.05, -1038.16, 34.25`):
 
 - **Basement → wash room:** 2 washers on the north wall, the guillotine in the middle, the re-serial press along the south wall. Nine pieces of MLO clutter that sat where the machines go are hidden while the resource runs (`hide` in `config/locations.lua`).
+- **Shop floor → 6 working coin washers:** the laundromat's own row of washers is hidden and the script's washers stand in their exact spots. They look like normal machines until someone loads one with dirty cash, and anyone in the shop can see the drum full of money. Delete entries from the `laundromat_shop` operation to keep some originals as decoration.
 - **Back office → front business:** "Cook the books" at the office desk, with revenue lines for self-service machines, wash & fold, dry cleaning and vending.
 
 The positions were worked out from the MLO's own `.ymap`/`.ytyp`, not tested in game. If anything sits a little off, fix it in game:

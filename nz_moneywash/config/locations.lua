@@ -45,6 +45,36 @@ Config.Operations = {
         },
     },
 
+    {
+        -- The laundromat's row of 6 coin washers on the shop floor, swapped for working machines.
+        -- The MLO's own washers are hidden and the script's washers stand in their exact spots, so the
+        -- shop looks normal until someone loads a drum with dirty cash. Anyone walking in can see it.
+        -- Remove entries here (and the matching hide) to keep some of the originals as decoration.
+        id     = 'laundromat_shop',
+        label  = 'Laundromat',
+        blip   = false,
+        access = {},
+        stations = {
+            { type = 'washer', coords = vec4(898.471, -1037.604, 34.247, 0.0) },
+            { type = 'washer', coords = vec4(899.337, -1037.634, 34.247, 0.0) },
+            { type = 'washer', coords = vec4(900.215, -1037.621, 34.247, 0.0) },
+            { type = 'washer', coords = vec4(901.093, -1037.644, 34.247, 0.0) },
+            { type = 'washer', coords = vec4(901.938, -1037.634, 34.247, 0.0) },
+            { type = 'washer', coords = vec4(902.796, -1037.617, 34.247, 0.0) },
+        },
+        decor = {},
+        hide = {
+            { model = 0xc37a9b46, coords = vec3(898.471, -1037.604, 34.247) },
+            { model = 0xc37a9b46, coords = vec3(899.337, -1037.634, 34.247) },
+            { model = 0xc37a9b46, coords = vec3(900.215, -1037.621, 34.247) },
+            { model = 0xc37a9b46, coords = vec3(901.093, -1037.644, 34.247) },
+            { model = 0xc37a9b46, coords = vec3(901.938, -1037.634, 34.247) },
+            { model = 0xc37a9b46, coords = vec3(902.796, -1037.617, 34.247) },
+            { model = 0x58f34c41, coords = vec3(899.371, -1037.820, 34.422) },
+            { model = 0x3392d2bc, coords = vec3(898.487, -1037.720, 34.711) },
+        },
+    },
+
     --[[ Demo layout on the Alta rooftop the prop author tested on (no MLO needed)
     {
         id = 'alta_roof', label = 'Alta Rooftop Plant', access = {},
