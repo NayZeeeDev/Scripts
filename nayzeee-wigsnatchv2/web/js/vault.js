@@ -234,8 +234,17 @@ const VIEWS = {
     const all = arr(d.styles).filter((e) => e && e.key);
     const have = all.filter((e) => cat[e.key]).length;
     const rewards = arr(d.catalogRewards);
-    const max = all.length || 1;
-    const miles = rewards.map((r) => `<div class="mile ${have >= r.count ? 'got' : ''}" style="left:${Math.min(100, (r.count / max) * 100)}%"><i class="fa-solid ${have >= r.count ? 'fa-check' : 'fa-gift'}"></i><span>${r.count} · ${money(r.money)}</span></div>`).join('');
+    // milestones spread evenly along the bar (not by their share of every hairstyle, which bunches
+    // them up at the start), and the bar fills from one milestone to the next
+    const pos = (i) => ((i + 1) / rewards.length) * 100;
+    let fill = 100;
+    for (let i = 0, prev = 0; i < rewards.length; i++) {
+      const c = rewards[i].count;
+      if (have < c) { const p0 = i ? pos(i - 1) : 0; fill = p0 + ((have - prev) / Math.max(1, c - prev)) * (pos(i) - p0); break; }
+      prev = c;
+    }
+    if (!rewards.length) fill = (have / (all.length || 1)) * 100;
+    const miles = rewards.map((r, i) => `<div class="mile ${have >= r.count ? 'got' : ''}" style="left:${pos(i)}%"><i class="fa-solid ${have >= r.count ? 'fa-check' : 'fa-gift'}"></i><span>${r.count} · ${money(r.money)}</span></div>`).join('');
     const C = S.cat || (S.cat = { show: 'all', g: 'all', q: '' });
     const q = C.q.trim().toLowerCase();
     const list = all.filter((e) => (C.show === 'all' || (C.show === 'found') === !!cat[e.key])
@@ -253,7 +262,7 @@ const VIEWS = {
     return `
       <div class="cat-prog">
         <b>${have}<small> / ${all.length}</small></b>
-        <div class="miles"><div class="miles-bar"><i style="width:${(have / max) * 100}%"></i></div>${miles}</div>
+        <div class="miles"><div class="miles-bar"><i style="width:${Math.max(0, Math.min(100, fill))}%"></i></div>${miles}</div>
       </div>
       <div class="note">Every hairstyle in the city is in the book. Snatch it or make it at a wig table to collect it; your best tier for each is kept.</div>
       <div class="cat-bar">${seg('show', [['all', 'All'], ['found', 'Found'], ['missing', 'Missing']])}${seg('g', [['all', 'Everyone'], ['f', 'Female'], ['m', 'Male']])}
