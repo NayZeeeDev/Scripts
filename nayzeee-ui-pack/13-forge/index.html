@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 13 Forge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="forge nz-app nz-frame" id="app">
+<div class="nz-frame-in nz-grain">
+
+  <header class="f-top">
+    <div class="nz-lockup">
+      <div class="nz-mark"></div>
+      <div><div class="nz-title" id="bench">Workbench</div><div class="nz-sub" id="bench-sub">Crafting</div></div>
+    </div>
+    <div class="f-plate"><span>Skill level</span><b id="lvl">1</b></div>
+    <div class="f-plate"><span>Recipes</span><b id="known">0</b></div>
+    <div class="f-plate"><span>Can craft</span><b id="ready">0</b></div>
+    <button class="nz-btn close" data-close>Close</button>
+  </header>
+
+  <div class="f-body">
+    <!-- 01 · recipes -->
+    <section class="zone z-list">
+      <div class="z-head"><span class="step">01</span><b>Recipes</b><span class="z-meta" id="list-meta"></span></div>
+      <div class="z-tools">
+        <label class="search"><i data-ic="search"></i><input class="nz-input" id="q" placeholder="Search recipes"></label>
+        <nav class="drawers" id="tabs"></nav>
+      </div>
+      <div class="ruler"></div>
+      <div class="r-list nz-scroll" id="list"></div>
+    </section>
+
+    <!-- 02 · blueprint -->
+    <section class="zone z-main">
+      <div class="z-head"><span class="step">02</span><b>Blueprint</b><span class="z-meta" id="main-meta"></span></div>
+      <div class="bp" id="bp"></div>
+    </section>
+
+    <!-- 04 · queue -->
+    <section class="zone z-queue">
+      <div class="z-head"><span class="step">04</span><b>Queue</b><span class="z-meta" id="q-meta"></span></div>
+      <div class="ruler"></div>
+      <div class="q-list nz-scroll" id="queue"></div>
+      <div class="q-foot" id="q-foot"></div>
+    </section>
+  </div>
+
+  <footer class="f-foot nz-hints">
+    <span><span class="nz-key">↑↓</span>Recipe</span>
+    <span><span class="nz-key">←→</span>Quantity</span>
+    <span><span class="nz-key">↵</span>Craft</span>
+    <span><span class="nz-key">/</span>Search</span>
+    <span><span class="nz-key">ESC</span>Close</span>
+    <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+  </footer>
+</div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

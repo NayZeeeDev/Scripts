@@ -1,0 +1,186 @@
+/* ═══════════════════════════════════════════════════════════
+   14 · TAILOR — clothing / appearance editor
+   For: clothing stores, barbers, character creator appearance,
+   outfit wardrobes
+   Tall slim panel docked left so the ped stands clear on the
+   right. Icon rail, seam-stitched steppers, light big numerals,
+   floating camera bar.
+   ═══════════════════════════════════════════════════════════ */
+.tailor{position:fixed;inset:0;pointer-events:none;
+  --seam:rgba(255,255,255,.13);
+  --pad:clamp(16px,3.6vh,40px)}
+.tailor > *{pointer-events:auto}
+
+/* ── panel ── */
+.t-panel{--cut:26px;position:absolute;left:var(--pad);top:var(--pad);bottom:var(--pad);width:min(470px,calc(100vw - 32px));
+  border-radius:3px 3px 3px 3px;filter:drop-shadow(0 24px 50px rgba(0,0,0,.6));
+  animation:t-in .35s cubic-bezier(.2,.7,.2,1) both}
+@keyframes t-in{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+.t-panel .nz-frame-in{display:flex;flex-direction:column;background:rgba(8,9,10,.94);border-radius:2px}
+
+.t-head{display:flex;align-items:center;gap:12px;height:66px;padding:0 18px;flex:none;
+  border-bottom:1px dashed var(--seam);background:linear-gradient(var(--panel),transparent)}
+.t-head .nz-lockup{flex:1;min-width:0}
+.t-head .nz-title{font-size:14px;letter-spacing:.02em}
+
+.t-body{flex:1;min-height:0;display:grid;grid-template-columns:68px 1fr}
+
+/* ── rail ── */
+.t-rail{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 0;border-right:1px dashed var(--seam);
+  background:linear-gradient(90deg,var(--inset),transparent);scrollbar-width:none}
+.t-rail::-webkit-scrollbar{display:none}
+.rb{--cut:12px;position:relative;flex:none;width:50px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  color:var(--ink-3);border-radius:4px;transition:color var(--fast),background var(--fast)}
+.rb .nz-ic{width:19px;height:19px;stroke-width:1.5}
+.rb span{font-size:8.5px;font-weight:400;letter-spacing:.02em;max-width:48px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb:hover{color:var(--white);background:var(--lift)}
+.rb.on{color:#00201d;background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.rb.on span{font-weight:600}
+.rb .chg{position:absolute;right:6px;top:6px;width:5px;height:5px;border-radius:50%;background:var(--teal);box-shadow:0 0 6px var(--teal)}
+.rb.on .chg{background:#00201d;box-shadow:none}
+.rail-sep{flex:none;width:28px;border-top:1px dashed var(--seam);margin:6px 0}
+
+/* ── main column ── */
+.t-main{padding:20px 20px 22px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.sec-head{display:flex;align-items:flex-end;gap:12px;flex:none}
+.sec-head .idx{font-size:11px;font-weight:600;color:var(--teal);letter-spacing:.06em;margin-bottom:5px}
+.sec-head h1{font-size:30px;font-weight:200;letter-spacing:-.03em;color:var(--white);line-height:1}
+.sec-head .nz-btn{margin-left:auto;margin-bottom:2px}
+.sec-sub{font-size:11px;color:var(--ink-3);font-weight:300;margin-top:-8px;display:flex;align-items:center;gap:8px}
+.sec-sub b{color:var(--white);font-weight:500}
+
+/* stitched stepper card */
+.stp{position:relative;flex:none;padding:14px 14px 14px;border-radius:3px;background:var(--panel);
+  outline:1px dashed rgba(255,255,255,.09);outline-offset:-5px;border:1px solid var(--line-soft)}
+.stp-top{display:flex;align-items:center;justify-content:space-between;padding:0 4px;font-size:10.5px;color:var(--ink-3);font-weight:400;letter-spacing:.04em}
+.stp-top em{font-style:normal;color:var(--teal);font-weight:500}
+.stp-row{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:8px;margin-top:8px}
+.arr{width:44px;height:44px;display:grid;place-items:center;border-radius:3px;color:var(--ink-2);
+  border:1px solid var(--line);background:var(--inset);transition:all var(--fast)}
+.arr .nz-ic{width:18px;height:18px;stroke-width:1.8}
+.arr:hover{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
+.arr:active{transform:scale(.95)}
+.val{display:flex;align-items:baseline;justify-content:center;gap:8px;min-width:0}
+.val input{width:3.2ch;min-width:0;border:0;background:transparent;text-align:right;color:var(--white);font-family:inherit;
+  font-size:38px;font-weight:200;letter-spacing:-.04em;line-height:1;padding:0;border-bottom:1px dashed transparent;-moz-appearance:textfield}
+.val input::-webkit-inner-spin-button{-webkit-appearance:none}
+.val input:hover{border-bottom-color:var(--seam)}
+.val input:focus{outline:0;border-bottom-color:var(--teal);color:var(--teal-hi)}
+.val .of{font-size:15px;color:var(--ink-3);font-weight:300;white-space:nowrap}
+.val .none{font-size:20px;font-weight:300;color:var(--ink-2)}
+.track{position:relative;height:2px;margin:14px 4px 2px;background:var(--raise)}
+.track i{position:absolute;left:0;top:0;bottom:0;background:var(--teal);width:var(--v,0%)}
+.track b{position:absolute;top:50%;left:var(--v,0%);width:8px;height:8px;margin:-4px 0 0 -4px;background:var(--teal);transform:rotate(45deg);box-shadow:0 0 8px var(--teal)}
+.pips{display:flex;flex-wrap:wrap;gap:4px;margin:12px 4px 0}
+.pip{width:20px;height:20px;border-radius:2px;font-size:9px;font-weight:500;color:var(--ink-3);background:var(--inset);border:1px solid var(--line-soft);transition:all var(--fast)}
+.pip:hover{color:var(--white);border-color:var(--line)}
+.pip.on{color:#00201d;background:var(--teal);border-color:var(--teal);font-weight:700}
+
+/* swatches */
+.sw-block{flex:none}
+.sw-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;font-size:10.5px;color:var(--ink-3);letter-spacing:.04em}
+.sw-label b{color:var(--white);font-weight:500;letter-spacing:0;display:flex;align-items:center;gap:7px}
+.sw-label b i{display:inline-block;width:12px;height:12px;border-radius:2px;border:1px solid var(--line)}
+.sws{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:5px}
+.sw{--cut:7px;position:relative;aspect-ratio:1;border-radius:3px;background:var(--c);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);transition:transform var(--fast)}
+.sw:hover{transform:scale(1.08)}
+.sw.on{box-shadow:inset 0 0 0 2px var(--white),inset 0 0 0 4px rgba(0,0,0,.5)}
+
+/* face sliders */
+.sl{flex:none;display:flex;flex-direction:column;gap:4px;padding:2px 0 8px;border-bottom:1px dashed var(--line-soft)}
+.t-main.face{gap:10px}
+.sl-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-2);font-weight:400}
+.sl-top b{font-weight:600;color:var(--white);min-width:42px;text-align:right}
+.sl-top b.zero{color:var(--ink-3);font-weight:400}
+.rng{position:relative;height:18px}
+.rng::before{content:'';position:absolute;left:50%;top:2px;bottom:2px;width:1px;background:var(--ink-3)}
+.rng input{position:absolute;inset:0;width:100%;height:18px;margin:0;-webkit-appearance:none;appearance:none;background:transparent;cursor:pointer}
+.rng input::-webkit-slider-runnable-track{height:2px;background:var(--fill,var(--raise))}
+.rng input::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-6px;background:var(--white);border:3px solid var(--teal);
+  border-radius:2px;transform:rotate(45deg);box-shadow:0 0 0 3px rgba(0,0,0,.6)}
+.rng input::-moz-range-track{height:2px;background:var(--fill,var(--raise))}
+.rng input::-moz-range-thumb{width:10px;height:10px;background:var(--white);border:3px solid var(--teal);border-radius:2px}
+.rng input:focus{outline:0}
+.rng input:focus::-webkit-slider-thumb{box-shadow:0 0 0 4px var(--teal-wash),0 0 10px var(--teal)}
+
+/* outfit sheet */
+.sheet{flex:none;margin-top:4px}
+.sheet-h{display:flex;align-items:center;gap:10px;font-size:10.5px;color:var(--ink-3);letter-spacing:.04em;margin-bottom:6px}
+.sheet-h::after{content:'';flex:1;border-top:1px dashed var(--seam)}
+.sh-row{display:grid;grid-template-columns:18px 1fr auto auto;align-items:center;gap:10px;width:100%;height:30px;padding:0 6px;border-radius:2px;
+  text-align:left;font-size:11.5px;color:var(--ink-2);font-weight:300;transition:background var(--fast)}
+.sh-row .nz-ic{width:14px;height:14px;color:var(--ink-3)}
+.sh-row:hover{background:var(--lift);color:var(--white)}
+.sh-row .v{font-weight:500;color:var(--white);font-size:11px}
+.sh-row .v i{font-style:normal;color:var(--ink-3);font-weight:300;margin:0 3px}
+.sh-row .c{min-width:42px;text-align:right;font-size:10.5px;color:var(--ink-3)}
+.sh-row.chg .c{color:var(--teal);font-weight:500}
+.sh-row.on{background:var(--teal-wash);color:var(--white)}
+.sh-row.on .nz-ic{color:var(--teal)}
+
+/* ── foot ── */
+.t-foot{position:relative;flex:none;padding:12px 18px 0;border-top:1px dashed var(--seam);background:linear-gradient(transparent,var(--panel))}
+.tally{display:flex;align-items:flex-end;gap:14px;padding-bottom:12px}
+.tally:empty{display:none}
+.tl-lines{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px;align-self:center}
+.tl-lines .nz-chip{border-radius:2px;font-weight:500}
+.tl-lines .none{font-size:10.5px;color:var(--ink-3);font-weight:300}
+.tl-tot{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.tl-tot span{font-size:10px;color:var(--ink-3);font-weight:300;white-space:nowrap}
+.tl-tot b{font-size:24px;font-weight:700;letter-spacing:-.035em;color:var(--white)}
+.t-actions{display:grid;grid-template-columns:auto 1fr 1.4fr;gap:6px}
+.t-actions .nz-btn{height:40px;border-radius:3px}
+.t-actions #confirm{--cut:11px;clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.t-msg{min-height:0;font-size:11px;font-weight:400;display:flex;align-items:center;gap:6px;padding-top:8px}
+.t-msg:empty{display:none}
+.t-msg .nz-ic{width:13px;height:13px}
+.t-msg.ok{color:var(--teal)}
+.t-msg.err{color:var(--red)}
+.t-hints{height:38px;gap:12px;padding-right:18px}
+.t-hints > span{gap:4px}
+.t-hints .nz-sig{margin-left:auto}
+
+.save{position:absolute;left:0;right:0;bottom:0;display:none;padding:16px 18px 18px;box-shadow:0 -20px 40px rgba(0,0,0,.6);background:var(--base);border-top:1px solid var(--teal-edge);z-index:5}
+.save.on{display:block;animation:nz-rise .2s both}
+.save-in{display:flex;flex-direction:column;gap:8px}
+.save-in > b{font-size:14px;font-weight:600;color:var(--white)}
+.save-in > span{font-size:11px;color:var(--ink-3);font-weight:300;margin-top:-3px}
+.save-in .nz-input{height:38px;border-radius:3px;margin-top:4px}
+.save-row{display:grid;grid-template-columns:1fr 1.4fr;gap:6px}
+.save-row .nz-btn{height:36px;border-radius:3px}
+
+/* ── camera bar ── */
+.cam{--cut:20px;position:absolute;right:var(--pad);bottom:var(--pad);display:flex;align-items:center;gap:10px;height:54px;padding:0 20px 0 16px;
+  background:rgba(14,16,17,.94);border-top:2px solid var(--teal);animation:nz-rise .35s .1s both}
+.cam-l{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--ink-3);font-weight:400;letter-spacing:.04em;margin-right:4px}
+.cam-l .nz-ic{width:14px;height:14px}
+.cam-seg{display:flex;padding:3px;gap:2px;border:1px solid var(--line);border-radius:3px;background:var(--inset)}
+.cam-seg button{height:30px;padding:0 15px;font-size:11.5px;color:var(--ink-2);border-radius:2px;transition:all var(--fast)}
+.cam-seg button:hover{color:var(--white)}
+.cam-seg button.on{background:var(--white);color:#000;font-weight:600}
+.cam-div{width:1px;height:24px;border-left:1px dashed var(--seam)}
+.rot{display:flex;align-items:center;gap:7px;height:36px;padding:0 10px;border-radius:3px;color:var(--ink-2);border:1px solid var(--line-soft);transition:all var(--fast)}
+.rot .nz-ic{width:17px;height:17px}
+.rot:hover,.rot.hot{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
+.rot .nz-key{height:18px;min-width:19px}
+
+/* ── shorter screens ── */
+@media (max-height:860px){
+  .t-head{height:56px}
+  .t-main{padding:14px 16px 16px;gap:12px}
+  .sec-head h1{font-size:25px}
+  .t-rail{gap:2px;padding:8px 0}
+  .rb{height:36px;width:44px}
+  .rail-sep{margin:4px 0}
+  .rb span{display:none}
+  .stp{padding:10px 12px}
+  .stp-row{grid-template-columns:38px 1fr 38px;margin-top:6px}
+  .arr{width:38px;height:38px}
+  .val input{font-size:30px}
+  .track{margin-top:10px}
+  .t-actions .nz-btn{height:36px}
+  .tl-tot b{font-size:20px}
+  .t-hints{height:34px}
+}

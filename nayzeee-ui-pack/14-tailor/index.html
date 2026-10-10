@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 14 Tailor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="tailor nz-app" id="app">
+
+  <aside class="t-panel nz-frame">
+  <div class="nz-frame-in nz-grain">
+    <header class="t-head">
+      <div class="nz-lockup">
+        <div class="nz-mark"></div>
+        <div><div class="nz-title" id="title">Clothing store</div><div class="nz-sub" id="sub">Binco · Strawberry</div></div>
+      </div>
+      <span class="nz-tag live" id="mode">Store</span>
+    </header>
+
+    <div class="t-body">
+      <nav class="t-rail nz-scroll" id="rail"></nav>
+      <section class="t-main nz-scroll" id="main"></section>
+    </div>
+
+    <footer class="t-foot">
+      <div class="tally" id="tally"></div>
+      <div class="t-actions">
+        <button class="nz-btn line" id="save-open"><i data-ic="hanger"></i>Save outfit</button>
+        <button class="nz-btn red" id="cancel">Cancel</button>
+        <button class="nz-btn teal" id="confirm">Confirm</button>
+      </div>
+      <div class="t-msg" id="msg"></div>
+      <div class="t-hints nz-hints">
+        <span><span class="nz-key">←→</span>Drawable</span>
+        <span><span class="nz-key">⇧</span><span class="nz-key">←→</span>Texture</span>
+        <span><span class="nz-key">↑↓</span>Section</span>
+        <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+      </div>
+
+      <div class="save" id="save">
+        <div class="save-in">
+          <b>Save outfit</b>
+          <span>Stored in your wardrobe so you can put it on again later.</span>
+          <input class="nz-input" id="save-name" maxlength="32" placeholder="Outfit name, e.g. Vespucci weekend">
+          <div class="save-row"><button class="nz-btn line" id="save-back">Back</button><button class="nz-btn teal" id="save-go">Save</button></div>
+        </div>
+      </div>
+    </footer>
+  </div>
+  </aside>
+
+  <div class="cam nz-cut" id="cam">
+    <span class="cam-l"><i data-ic="camera"></i>Camera</span>
+    <div class="cam-seg" id="views">
+      <button data-v="face">Face</button><button data-v="body" class="on">Body</button><button data-v="feet">Feet</button>
+    </div>
+    <span class="cam-div"></span>
+    <button class="rot" data-r="left" title="Rotate left"><span class="nz-key">Q</span><i data-ic="rot-l"></i></button>
+    <button class="rot" data-r="right" title="Rotate right"><i data-ic="rot-r"></i><span class="nz-key">E</span></button>
+  </div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
