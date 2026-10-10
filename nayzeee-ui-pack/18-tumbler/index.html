@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 18 Tumbler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="tumbler nz-app" id="app">
+  <div class="tb-card nz-grain" id="card">
+    <i class="br br-tl"></i><i class="br br-tr"></i>
+    <header class="tb-head">
+      <div class="nz-mark sm"></div>
+      <div class="tb-ttl"><b id="title">Lockpicking</b><span id="sub">Round 1 of 3</span></div>
+      <span class="tb-diff" id="diff">Medium</span>
+    </header>
+    <div class="tb-stage" id="stage"></div>
+    <div class="tb-pips" id="pips"></div>
+    <footer class="tb-foot nz-hints" id="hints"></footer>
+    <div class="tb-result" id="result"></div>
+  </div>
+</div>
+
+<div class="tb-demo" id="demo">
+  <span>Preview</span>
+  <button class="nz-btn line sm" data-type="circle"><i data-ic="target"></i>Start circle</button>
+  <button class="nz-btn line sm" data-type="sequence"><i data-ic="chip"></i>Start sequence</button>
+  <div class="tb-seg" id="demo-diff"><button data-d="easy">Easy</button><button data-d="medium" class="on">Medium</button><button data-d="hard">Hard</button></div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

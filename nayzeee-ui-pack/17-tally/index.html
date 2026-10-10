@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 17 Tally</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="tally nz-app" id="app">
+  <div class="tl-col nz-grain">
+    <header class="tl-head">
+      <div class="nz-lockup">
+        <div class="nz-mark"></div>
+        <div><div class="nz-title" id="server">Server</div><div class="nz-sub" id="tagline">Online players</div></div>
+      </div>
+      <div class="tl-clock">
+        <div><span>Uptime</span><b id="uptime">00:00</b></div>
+        <div id="restart-wrap"><span>Restart in</span><b id="restart">--:--</b></div>
+      </div>
+    </header>
+
+    <section class="tl-count">
+      <div class="big"><b id="online">0</b><i>/</i><span id="max">0</span></div>
+      <div class="cap">
+        <div class="cap-top"><span>Players online</span><b id="pct">0%</b></div>
+        <div class="cap-bar"><i id="cap-fill"></i><s style="left:25%"></s><s style="left:50%"></s><s style="left:75%"></s></div>
+        <div class="cap-bot" id="queue"></div>
+      </div>
+    </section>
+
+    <section class="tl-jobs" id="jobs"></section>
+
+    <div class="tl-tools">
+      <label class="tl-search"><i data-ic="search"></i><input class="nz-input" id="q" placeholder="Search by name, ID or job" spellcheck="false"></label>
+      <div class="tl-sort" id="sort">
+        <button data-k="id">ID</button><button data-k="name">Name</button><button data-k="ping">Ping</button>
+      </div>
+    </div>
+
+    <div class="tl-cols"><span>ID</span><span>Player</span><span>Job</span><span>Ping</span></div>
+    <div class="tl-me" id="me"></div>
+    <div class="tl-list nz-scroll" id="list"></div>
+
+    <footer class="tl-foot nz-hints">
+      <span><span class="nz-key">TAB</span>Hold to view</span>
+      <span><span class="nz-key">Scroll</span>Browse</span>
+      <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+    </footer>
+  </div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
