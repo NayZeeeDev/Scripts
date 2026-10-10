@@ -51,6 +51,14 @@ app.addEventListener('click', (e) => {
   ACT[act] && ACT[act](v, b, e);
 });
 app.addEventListener('input', (e) => {
+  if (e.target.id === 'catQ') {
+    S.cat.q = e.target.value;
+    const grid = $('.cat-grid'), keep = grid ? grid.closest('.view').scrollTop : 0;
+    $('#vview').innerHTML = VIEWS.catalog();
+    const n = $('#catQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length);
+    const v = $('#vview'); if (v) v.scrollTop = keep;
+    return;
+  }
   if (e.target.matches('[data-int]')) e.target.value = e.target.value.replace(/[^\d]/g, '').slice(0, 7);
   if (e.target.matches('[data-pref]')) prefInput(e.target);
 });
@@ -221,23 +229,36 @@ const VIEWS = {
 
 
   catalog() {
-    const d = S.vault, styles = arr(d.styles), cat = d.catalog || {};
-    const have = styles.filter((s) => cat[s]).length;
+    const d = S.vault, cat = d.catalog || {};
+    // one entry per hairstyle, named and photographed in the Wig Studio
+    const all = arr(d.styles).filter((e) => e && e.key);
+    const have = all.filter((e) => cat[e.key]).length;
     const rewards = arr(d.catalogRewards);
-    const max = styles.length || 1;
+    const max = all.length || 1;
     const miles = rewards.map((r) => `<div class="mile ${have >= r.count ? 'got' : ''}" style="left:${Math.min(100, (r.count / max) * 100)}%"><i class="fa-solid ${have >= r.count ? 'fa-check' : 'fa-gift'}"></i><span>${r.count} · ${money(r.money)}</span></div>`).join('');
+    const C = S.cat || (S.cat = { show: 'all', g: 'all', q: '' });
+    const q = C.q.trim().toLowerCase();
+    const list = all.filter((e) => (C.show === 'all' || (C.show === 'found') === !!cat[e.key])
+      && (C.g === 'all' || e.m === C.g) && (!q || String(e.name).toLowerCase().includes(q) || String(e.d) === q));
+    const seg = (field, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${C[field] === v ? 'on' : ''}" data-act="catSet" data-v="${field}:${v}">${l}</button>`).join('')}</div>`;
+    const card = (e) => {
+      const c = cat[e.key], t = c ? tier(c.tier) : null;
+      const img = e.image ? `<img src="${esc(e.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'fa-solid fa-crown'}))">` : '<i class="fa-solid fa-crown"></i>';
+      return `<div class="cat ${c ? '' : 'locked'}" ${t ? `style="${tintVars(t.color)}"` : ''}>
+        <div class="cat-img">${img}${c ? '' : '<span class="cat-lock"><i class="fa-solid fa-lock"></i></span>'}</div>
+        <b>${esc(e.name)}</b>
+        <span>${c ? `${esc(t.label)}${c.times > 1 ? ' · x' + c.times : ''}` : 'Not found yet'}</span>
+        <small>${e.m === 'm' ? 'Male' : 'Female'} · #${e.d}</small></div>`;
+    };
     return `
       <div class="cat-prog">
-        <b>${have}<small> / ${styles.length}</small></b>
+        <b>${have}<small> / ${all.length}</small></b>
         <div class="miles"><div class="miles-bar"><i style="width:${(have / max) * 100}%"></i></div>${miles}</div>
       </div>
-      <div class="note">Every hairstyle maps to one style name. Snatch different looks or make wigs to fill the book. Your best tier per style is kept.</div>
-      <div class="cat-grid">${styles.map((s) => {
-        const c = cat[s];
-        if (!c) return `<div class="cat locked"><i class="fa-solid fa-lock"></i><b>${esc(s)}</b><span>Not found</span></div>`;
-        const t = tier(c.tier);
-        return `<div class="cat" style="${tintVars(t.color)}"><i class="fa-solid fa-crown"></i><b>${esc(s)}</b><span>${esc(t.label)}${c.times > 1 ? ' · x' + c.times : ''}</span></div>`;
-      }).join('')}</div>`;
+      <div class="note">Every hairstyle in the city is in the book. Snatch it or make it at a wig table to collect it; your best tier for each is kept.</div>
+      <div class="cat-bar">${seg('show', [['all', 'All'], ['found', 'Found'], ['missing', 'Missing']])}${seg('g', [['all', 'Everyone'], ['f', 'Female'], ['m', 'Male']])}
+        <label class="field"><i class="fa-solid fa-magnifying-glass"></i><input id="catQ" placeholder="Search hairstyles" value="${esc(C.q)}"></label></div>
+      <div class="cat-grid">${list.map(card).join('') || `<div class="empty" style="grid-column:1/-1"><i class="fa-solid fa-book-open"></i>${all.length ? 'Nothing matches' : 'No hairstyles yet. An admin fills the book with /wigstudio.'}</div>`}</div>`;
   },
 
   bounties() {
@@ -451,6 +472,7 @@ const ACT = {
     renderVault();
   },
   lb: (v) => { S.lb = v; $('#vview').innerHTML = VIEWS.leaders(); },
+  catSet: (v) => { const [f, val] = v.split(':'); S.cat[f] = val; $('#vview').innerHTML = VIEWS.catalog(); },
   wsel: (v) => { S.sel = v; $('#vview').innerHTML = VIEWS.wigs(); paintSwatches(body); },
   wear: (v) => { post('wear', { key: v }); closeApp(true); },
   unwear: () => { post('unwear'); closeApp(true); },

@@ -383,7 +383,9 @@ local function announce(A, V, meta, tier, kind)
 end
 
 local function catalogCheck(A, meta)
-    local isNew = DB.CatalogAdd(A.id, meta.style, meta.tier)
+    local key = CatalogKey(meta.hair)
+    if not key or meta.generic then return false end
+    local isNew = DB.CatalogAdd(A.id, key, meta.tier)
     if not isNew then return false end
     local count = DB.CatalogCount(A.id)
     for i = (A.row.catalog_rewards or 0) + 1, #Config.CatalogRewards do

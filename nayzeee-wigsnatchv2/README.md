@@ -160,7 +160,8 @@ Built the same way as the nayzeee-backpack icon studio. `/wigstudio` puts a plai
 - **Drag** the middle of the screen to orbit, **scroll** to zoom, or use the angle chips (Three quarter, Front, Side, Back, High) and the Height slider for long hair.
 - **Backdrop**: green, magenta or blue. Pick one the hair doesn't use.
 - **This hairstyle** shoots what's on screen. **Every hairstyle** runs the whole list (tick *every texture too* for all textures, *skip* to only shoot missing ones). `Backspace` stops a batch.
-- **Name** a hairstyle and save: every wig made from it uses that name and it joins the catalog (`data/style_names.json`).
+- **Name** a hairstyle and save: every new wig made from it uses that name (`data/style_names.json`).
+- **The catalog** (Vault > Catalog) is every hairstyle the studio has photographed or named, one entry per hairstyle with its photo and its studio name. Rename a hairstyle and its catalog entry is renamed too. Players see every entry (missing ones greyed out with a lock), so they know what to look for, and can filter Found / Missing, Female / Male, or search.
 
 Each shot is keyed **in the browser** (the same keyer as the backpack studio): the centre square inside the white corners is cut out, the backdrop removed with soft edges, the hair trimmed and centred on a transparent 256 px square. Only that small PNG (around 10 KB) goes to the server, so nothing lags. It's saved as `shots/wig_<f|m>_<hairstyle>_<texture>.png`, kept in the database too (so an update that replaces the folder never loses it: it's put back on the next start), and copied into `ox_inventory/web/images/` with the same name. On the first start, photos from older versions (the old `shots/` folder, `nzw_shots`, or `ox_inventory/web/images`) are gathered into the database.
 

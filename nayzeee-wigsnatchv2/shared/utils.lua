@@ -109,7 +109,13 @@ function StyleNameFor(model, drawable, texture)
     return Config.Styles[(seed % n) + 1]
 end
 
--- Every style name a player can collect (config + studio names, no duplicates)
+-- The catalog key of a hairstyle: one entry per hairstyle (all its textures), 'f:12'
+function CatalogKey(hair)
+    if type(hair) ~= 'table' or not hair.m or not hair.d then return nil end
+    return ('%s:%d'):format(hair.m == 'm' and 'm' or 'f', hair.d)
+end
+
+-- Every style name in the config + studio (no duplicates). Older versions' catalog went by these.
 function CatalogStyles()
     local out, seen = {}, {}
     for _, s in ipairs(Config.Styles) do

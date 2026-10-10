@@ -51,6 +51,37 @@ function Wigs.HasShot(m, d, t)
     return shots[('%s/%d_%d'):format(m == 'm' and 'm' or 'f', d or 0, t or 0)] == true
 end
 
+-- The catalog: every hairstyle the Wig Studio knows (photographed or named), short hair left out.
+-- Names come from the studio as they are right now, so renaming a hairstyle renames its entry.
+function Wigs.CatalogEntries(extra)
+    local keys = {}
+    for k in pairs(shots) do
+        local m, d = k:match('^([mf])/(%d+)_')
+        if m then keys[('%s:%d'):format(m, tonumber(d))] = true end
+    end
+    for k in pairs(StyleNames) do
+        local m, d = k:match('^([mf]):(%d+)')
+        if m then keys[('%s:%d'):format(m, tonumber(d))] = true end
+    end
+    for k in pairs(extra or {}) do
+        if k:match('^[mf]:%d+$') then keys[k] = true end
+    end
+    local out = {}
+    for k in pairs(keys) do
+        local m, d = k:match('^([mf]):(%d+)$')
+        d = tonumber(d)
+        if not IsShortDrawable(m, d) or (extra and extra[k]) then
+            local hair = { m = m, d = d, t = 0 }
+            out[#out + 1] = { key = k, m = m, d = d, name = StyleNameFor(m, d, 0), image = Wigs.ShotUrl(hair) }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.m ~= b.m then return a.m == 'f' end
+        return a.d < b.d
+    end)
+    return out
+end
+
 -- the studio photo for a hairstyle (falling back to texture 0): file name, or nil
 function Wigs.ShotName(hair)
     if not hair then return nil end

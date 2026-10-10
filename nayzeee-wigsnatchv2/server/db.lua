@@ -193,8 +193,40 @@ function DB.HasSnatched(actor, target, since)
     return (n or 0) > 0
 end
 
+-- Older versions kept the catalog by style name. Rows still named that way are moved over to the
+-- hairstyle they belong to (the studio name that matches), or left as they were if nothing matches.
+local function migrateCatalog(identifier, rows)
+    local byName
+    local out, keyed = {}, {}
+    for _, r in ipairs(rows) do if r.style:match('^[mf]:%d+$') then keyed[r.style] = r end end
+    for _, r in ipairs(rows) do
+        if r.style:match('^[mf]:%d+$') then
+            out[#out + 1] = r
+        else
+            if not byName then
+                byName = {}
+                for _, e in ipairs(Wigs.CatalogEntries()) do byName[e.name] = byName[e.name] or e.key end
+            end
+            local key = byName[r.style]
+            if key and not keyed[key] then
+                MySQL.update.await('UPDATE nz_wig_catalog SET style = ? WHERE identifier = ? AND style = ?', { key, identifier, r.style })
+                r.style = key
+                keyed[key] = r
+                out[#out + 1] = r
+            elseif key then
+                MySQL.update.await('DELETE FROM nz_wig_catalog WHERE identifier = ? AND style = ?', { identifier, r.style })
+                keyed[key].times = (keyed[key].times or 1) + (r.times or 1)
+            else
+                out[#out + 1] = r
+            end
+        end
+    end
+    return out
+end
+
 function DB.Catalog(identifier)
-    return MySQL.query.await('SELECT style, tier, times, first_at FROM nz_wig_catalog WHERE identifier = ?', { identifier })
+    local rows = MySQL.query.await('SELECT style, tier, times, first_at FROM nz_wig_catalog WHERE identifier = ?', { identifier }) or {}
+    return migrateCatalog(identifier, rows)
 end
 
 -- returns true when this style is new for the player

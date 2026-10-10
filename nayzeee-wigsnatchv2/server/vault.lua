@@ -34,6 +34,7 @@ lib.callback.register('nz-wig:vault', function(src)
 
     local catalog = {}
     for _, c in ipairs(DB.Catalog(P.id) or {}) do catalog[c.style] = { tier = c.tier, times = c.times, first = c.first_at } end
+    local entries = Wigs.CatalogEntries(catalog)
 
     return {
         version = VERSION,
@@ -64,7 +65,7 @@ lib.callback.register('nz-wig:vault', function(src)
         catalog = catalog,
         catalogRewards = Config.CatalogRewards,
         catalogClaimed = row.catalog_rewards or 0,
-        styles = CatalogStyles(),
+        styles = entries,
         bounties = Social.Board(),
         revenge = Social.RevengeList(P),
         leaderboards = leaderboards(),

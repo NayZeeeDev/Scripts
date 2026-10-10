@@ -71,11 +71,12 @@ local function newOrder()
     if math.random() < 0.7 then
         o.kind = 'wig'
         o.tier = weightedTier()
-        if math.random() < 0.45 then
-            local styles = CatalogStyles()
-            o.style = styles[math.random(1, #styles)]
+        local entries = Wigs.CatalogEntries()
+        if #entries > 0 and math.random() < 0.45 then
+            local e = entries[math.random(1, #entries)]
+            o.styleKey, o.fits = e.key, e.m
         end
-        if math.random() < 0.3 then o.fits = math.random() < 0.5 and 'm' or 'f' end
+        if not o.styleKey and math.random() < 0.3 then o.fits = math.random() < 0.5 and 'm' or 'f' end
     else
         o.kind = 'bundle'
         o.grade = Config.Bundles.Grades[math.random(1, math.min(3, #Config.Bundles.Grades))].id
@@ -92,7 +93,7 @@ local function matches(o, meta)
     end
     if meta.bundle or meta.generic then return false end
     if (TierIndex[meta.tier] or 1) < (TierIndex[o.tier] or 1) then return false end
-    if o.style and meta.style ~= o.style then return false end
+    if o.styleKey and CatalogKey(meta.hair) ~= o.styleKey then return false end
     if o.fits and (not meta.hair or meta.hair.m ~= o.fits) then return false end
     return true
 end
@@ -109,7 +110,12 @@ local function refreshOrders()
 end
 
 local function publicOrder(o)
-    return { id = o.id, kind = o.kind, tier = o.tier, style = o.style, fits = o.fits, grade = o.grade,
+    local style
+    if o.styleKey then
+        local m, d = o.styleKey:match('^([mf]):(%d+)$')
+        style = StyleNameFor(m, tonumber(d), 0)
+    end
+    return { id = o.id, kind = o.kind, tier = o.tier, style = style, fits = o.fits, grade = o.grade,
         length = o.length, mult = o.mult, expires = o.expires, from = o.from }
 end
 
