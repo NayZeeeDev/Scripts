@@ -42,6 +42,8 @@ Change a token in `core/nz-core.css` once and every theme follows.
 
 ## Shapes
 
+![Shapes](preview-shapes.png)
+
 Every cut-corner element (windows, cards, slots, buttons, toasts) follows one shape setting, so a whole UI changes silhouette at once while the mark stays the same.
 
 | Shape | Look |
