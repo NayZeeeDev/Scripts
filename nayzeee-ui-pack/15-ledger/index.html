@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 15 Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="ledger nz-app" id="app">
+<div class="nz-frame">
+<div class="nz-frame-in nz-grain">
+
+  <header class="l-head">
+    <div class="nz-lockup">
+      <div class="nz-mark"></div>
+      <div><div class="nz-title" id="soc-label">Society</div><div class="nz-sub" id="soc-sub"></div></div>
+    </div>
+    <nav class="l-tabs" id="tabs">
+      <button data-tab="overview" class="on"><i data-ic="chart"></i>Overview</button>
+      <button data-tab="employees"><i data-ic="users"></i>Employees<span class="n" id="t-emp">0</span></button>
+      <button data-tab="finances"><i data-ic="bank"></i>Finances</button>
+      <button data-tab="grades"><i data-ic="badge"></i>Grades</button>
+      <i class="ink" id="ink"></i>
+    </nav>
+    <div class="l-mini"><span>Balance</span><b id="mini-bal">$0</b></div>
+    <button class="nz-btn close" data-close>Close</button>
+  </header>
+
+  <main class="l-body">
+
+    <!-- ── overview ── -->
+    <section class="pane ov on" data-pane="overview">
+      <div class="ov-main">
+        <div class="hero">
+          <span class="lbl">Society balance</span>
+          <div class="big" id="ov-bal">$0</div>
+          <div class="delta" id="ov-delta"></div>
+        </div>
+        <div class="kpis" id="kpis"></div>
+        <div class="chart-card">
+          <div class="cc-head">
+            <div><b>Income vs expenses</b><span id="cc-range">Last 14 days</span></div>
+            <div class="legend">
+              <span><i class="sw in"></i>Income</span>
+              <span><i class="sw out"></i>Expenses</span>
+              <span><i class="sw neg"></i>Net loss day</span>
+            </div>
+          </div>
+          <div class="chart" id="chart"></div>
+        </div>
+      </div>
+      <aside class="ov-side">
+        <div class="side-head"><b>Recent transactions</b><button class="link" data-goto="finances">View all<i data-ic="chev-r"></i></button></div>
+        <div class="tx-list nz-scroll" id="ov-tx"></div>
+      </aside>
+    </section>
+
+    <!-- ── employees ── -->
+    <section class="pane emp" data-pane="employees">
+      <div class="bar">
+        <label class="search"><i data-ic="search"></i><input class="nz-input" id="emp-q" placeholder="Search name, ID or grade"></label>
+        <div class="seg" id="emp-f">
+          <button data-f="all" class="on">All</button>
+          <button data-f="duty">On duty</button>
+        </div>
+        <span class="count" id="emp-count"></span>
+        <button class="nz-btn teal" id="hire"><i data-ic="user-plus"></i>Hire nearby player</button>
+      </div>
+      <div class="table">
+        <div class="th er">
+          <span>Employee</span><span>Grade</span><span>Status</span><span>Hired</span><span class="r">Weekly pay</span><span class="r">Actions</span>
+        </div>
+        <div class="tb nz-scroll" id="emp-rows"></div>
+      </div>
+    </section>
+
+    <!-- ── finances ── -->
+    <section class="pane fin" data-pane="finances">
+      <div class="till">
+        <div class="seg wide" id="fin-mode">
+          <button data-m="deposit" class="on"><i data-ic="dep"></i>Deposit</button>
+          <button data-m="withdraw"><i data-ic="wd"></i>Withdraw</button>
+        </div>
+        <div class="amt-box">
+          <label for="amt">Amount</label>
+          <div class="amt-in"><span>$</span><input id="amt" inputmode="numeric" autocomplete="off" placeholder="0"></div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="after">
+          <div><span>Current balance</span><b id="f-now">$0</b></div>
+          <div><span>Balance after</span><b id="f-after">$0</b></div>
+        </div>
+        <div class="f-err" id="f-err"></div>
+        <button class="nz-btn teal lg block" id="f-go">Deposit</button>
+        <div class="f-sum" id="f-sum"></div>
+      </div>
+      <div class="book">
+        <div class="bar">
+          <b class="bk-t">Transaction history</b>
+          <div class="seg" id="tx-f">
+            <button data-f="all" class="on">All</button>
+            <button data-f="in">Income</button>
+            <button data-f="out">Expenses</button>
+          </div>
+          <label class="search sm"><i data-ic="search"></i><input class="nz-input" id="tx-q" placeholder="Filter by label or person"></label>
+        </div>
+        <div class="th hr"><span>Date</span><span>Description</span><span class="r">Amount</span><span class="r">Balance</span></div>
+        <div class="tb nz-scroll" id="tx-rows"></div>
+      </div>
+    </section>
+
+    <!-- ── grades ── -->
+    <section class="pane grd" data-pane="grades">
+      <div class="g-edit">
+        <div class="bar">
+          <div class="g-t"><b>Grades and salaries</b><span>Weekly pay per grade. The highest grade is the boss.</span></div>
+          <span class="nz-tag warn" id="g-dirty" hidden>Unsaved changes</span>
+          <button class="nz-btn line" id="g-reset">Reset</button>
+          <button class="nz-btn teal" id="g-save"><i data-ic="check"></i>Save grades</button>
+        </div>
+        <div class="th gr"><span>Grade</span><span>Name</span><span>Weekly salary</span><span class="r">Staff</span><span></span></div>
+        <div class="tb nz-scroll" id="g-rows"></div>
+        <button class="g-add" id="g-add"><i data-ic="plus"></i>Add grade</button>
+      </div>
+      <aside class="g-side">
+        <b class="gs-t">Payroll preview</b>
+        <span class="gs-s">With the salaries above</span>
+        <div class="gs-list" id="g-cost"></div>
+        <div class="gs-tot"><span>Total per week</span><b id="g-total">$0</b></div>
+        <div class="gs-delta" id="g-delta"></div>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="l-foot nz-hints">
+    <span><span class="nz-key">ESC</span>Close</span>
+    <span><span class="nz-key">1–4</span>Switch tab</span>
+    <span><span class="nz-key">/</span>Search staff</span>
+    <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+  </footer>
+
+  <div class="l-modal" id="modal"></div>
+  <div class="l-toasts" id="toasts"></div>
+</div>
+</div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 16 Beacon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- always-on alert stack: no NUI focus needed, Lua drives it -->
+<div class="beacon nz-app" id="app">
+  <section class="stack" id="stack">
+    <header class="s-head">
+      <span class="nz-mark sm"></span>
+      <div class="s-t"><b>Dispatch</b><span id="s-sub">No active calls</span></div>
+      <span class="s-live"><i></i>Live</span>
+    </header>
+    <div class="s-list" id="s-list"></div>
+    <footer class="s-foot">
+      <span class="s-more" id="s-more"></span>
+      <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+    </footer>
+  </section>
+</div>
+
+<!-- dispatch log: opened with focus -->
+<div class="log nz-app" id="log">
+<div class="log-in nz-frame">
+<div class="nz-frame-in nz-grain">
+  <header class="g-head">
+    <div class="nz-lockup">
+      <div class="nz-mark"></div>
+      <div><div class="nz-title" id="g-title">Dispatch log</div><div class="nz-sub" id="g-sub">Los Santos</div></div>
+    </div>
+    <div class="g-stats" id="g-stats"></div>
+    <button class="nz-btn close" data-close>Close</button>
+  </header>
+  <div class="g-bar">
+    <div class="g-filters" id="g-filters">
+      <button data-f="all" class="on">All<span></span></button>
+      <button data-f="p1">Priority 1<span></span></button>
+      <button data-f="mine">Mine<span></span></button>
+      <button data-f="active">Responding<span></span></button>
+    </div>
+    <label class="g-search"><i data-ic="search"></i><input class="nz-input" id="g-q" placeholder="Search code, street or unit"></label>
+  </div>
+  <div class="g-body">
+    <div class="g-list nz-scroll" id="g-list"></div>
+    <div class="g-detail" id="g-detail"></div>
+  </div>
+  <footer class="g-foot nz-hints">
+    <span><span class="nz-key">ESC</span>Close</span>
+    <span><span class="nz-key">↑</span><span class="nz-key">↓</span>Select call</span>
+    <span><span class="nz-key">G</span>Respond</span>
+    <span><span class="nz-key">W</span>Waypoint</span>
+    <span class="nz-sig"><em>made by</em> NAYZEEE</span>
+  </footer>
+</div>
+</div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
