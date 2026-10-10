@@ -236,8 +236,8 @@ function showShell(mode) {
 }
 function hideShell() {
     $('#frame').classList.add('hidden');
+    S.mode = null; // before closing modals so a receipt's onClose doesn't send another close
     closeAllModals();
-    S.mode = null;
 }
 function setBar(title, sub, midHtml) {
     $('#barTitle').textContent = title;
@@ -1286,7 +1286,7 @@ function renderDisplay() {
     let foot = '';
     if (d.stage === 'order') {
         foot = `<div class="totals"><div><span>Subtotal</span><b>${money(t.subtotal)}</b></div>${num(t.discount) > 0 ? `<div class="neg"><span>Discount</span><b>−${money(t.discount)}</b></div>` : ''}<div><span>Tax</span><b>${money(t.tax)}</b></div><div class="grand"><span>Total</span><b>${money(t.total)}</b></div></div>
-            <div class="dhint"><span class="key">BACKSPACE</span>&nbsp;Leave the counter</div>`;
+            <div class="dhint"><span class="key">BACKSPACE</span>&nbsp;Leave the counter (rebindable)</div>`;
     } else if (d.stage === 'checkout') {
         const inv = d.invoice;
         const st = S.ctx?.settings;
@@ -1443,7 +1443,7 @@ const A = {
     },
     posCharge: async () => {
         const btn = $('[data-act="posCharge"]'); if (btn) btn.disabled = true;
-        const res = await call('register:charge', { registerId: S.pos.register.id });
+        const res = await call('register:charge', { registerId: S.pos.register.id, items: S.pos.items.map((i) => ({ productId: i.productId, quantity: i.quantity })), discount: num(S.pos.discount) });
         if (!res) { if (btn) btn.disabled = false; return; }
         S.pos.invoiceId = res.invoiceId; S.pos.status = 'checkout'; renderPos();
     },

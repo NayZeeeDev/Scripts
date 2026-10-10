@@ -94,21 +94,15 @@ RegisterNUICallback('displayDone', function(_, cb)
     cb('ok')
 end)
 
--- Dismiss the passive display
-CreateThread(function()
-    while true do
-        if UI.display and not UI.open then
-            if IsControlJustReleased(0, Config.CashRegister.DismissKey or 177) then
-                Rpc('display:decline')
-                UI.display = false
-                UI.Send('displayClose')
-            end
-            Wait(0)
-        else
-            Wait(500)
-        end
+-- Leave the counter (hide the passive display). Rebindable in GTA settings > Key Bindings > FiveM
+RegisterCommand('billing_leave_counter', function()
+    if UI.display and not UI.open then
+        Rpc('display:decline')
+        UI.display = false
+        UI.Send('displayClose')
     end
-end)
+end, false)
+RegisterKeyMapping('billing_leave_counter', 'Billing: leave the register counter', 'keyboard', Config.CashRegister.DismissKey or 'BACK')
 
 -- ███████╗ ██████╗ ███╗   ██╗███████╗███████╗
 -- ╚══███╔╝██╔═══██╗████╗  ██║██╔════╝██╔════╝

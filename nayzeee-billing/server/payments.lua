@@ -29,6 +29,18 @@ function PayIdentifier(identifier, amount, reason, invoiceId, requiresCollection
     return nil
 end
 
+-- Deletes payout rows one at a time and returns the sum of rows this call actually removed,
+-- so two overlapping runs can never pay the same row twice
+local function ClaimPayouts(rows)
+    local total = 0
+    for _, row in ipairs(rows) do
+        if (MySQL.update.await('DELETE FROM nayzeee_billing_pending_payouts WHERE id = ?', { row.id }) or 0) == 1 then
+            total = total + (tonumber(row.amount) or 0)
+        end
+    end
+    return Shared.Round(total)
+end
+
 local function DeliverPendingPayouts(source)
     local identifier = Bridge.GetIdentifier(source)
     if not identifier then return end
@@ -39,15 +51,8 @@ local function DeliverPendingPayouts(source)
     ]], { identifier }) or {}
 
     if #rows > 0 then
-        local total, ids = 0, {}
-        for _, row in ipairs(rows) do
-            total = total + (tonumber(row.amount) or 0)
-            ids[#ids + 1] = row.id
-        end
-        -- Delete first so a crash can't double-pay
-        local deleted = MySQL.update.await(('DELETE FROM nayzeee_billing_pending_payouts WHERE id IN (%s)')
-            :format(table.concat(ids, ',')))
-        if (deleted or 0) > 0 then
+        local total = ClaimPayouts(rows)
+        if total > 0 then
             Bridge.AddMoney(source, 'bank', total, 'Billing payouts')
             Notify(source, 'Pending payments', 'Received ' .. Shared.FormatCurrency(total) .. ' from paid invoices', 'success')
         end
@@ -326,10 +331,14 @@ end)
 -- ██║  ██║███████╗██║     ╚██████╔╝██║ ╚████║██████╔╝███████║
 -- ╚═╝  ╚═╝╚══════╝╚═╝      ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚══════╝
 
+RefundableStatuses = { paid = true, partial = true, overdue = true, disputed = true }
+
+-- Refunds everything paid so far. The full amount comes out of the company account
+-- (commission already paid to the employee and tax already routed are not clawed back).
 function RefundInvoice(row, actorSource, reason)
     local company = ResolveCompany(row)
     if not company then return nil, 'Only company invoices can be refunded' end
-    if not (row.status == 'paid' or row.status == 'partial') then return nil, 'Only paid invoices can be refunded' end
+    if not RefundableStatuses[row.status] then return nil, 'This invoice cannot be refunded' end
 
     local amount = Shared.Round(tonumber(row.amount_paid) or 0)
     if amount <= 0 then return nil, 'Nothing to refund' end
@@ -342,7 +351,7 @@ function RefundInvoice(row, actorSource, reason)
 
     local affected = MySQL.update.await([[
         UPDATE nayzeee_billing_invoices SET status = 'refunded', cancel_reason = ?
-        WHERE invoice_id = ? AND status IN ('paid', 'partial') AND amount_paid = ?
+        WHERE invoice_id = ? AND status IN ('paid', 'partial', 'overdue', 'disputed') AND amount_paid = ?
     ]], { reason, row.invoice_id, row.amount_paid })
     if (affected or 0) == 0 then
         Banking.AddSociety(account, amount, 'Refund reverted · ' .. row.invoice_id)
@@ -390,14 +399,8 @@ RPC('collectCash', function(source)
         { identifier }) or {}
     if #rows == 0 then return { amount = 0 } end
 
-    local total, ids = 0, {}
-    for _, row in ipairs(rows) do
-        total = total + (tonumber(row.amount) or 0)
-        ids[#ids + 1] = row.id
-    end
-
-    local deleted = MySQL.update.await(('DELETE FROM nayzeee_billing_pending_payouts WHERE id IN (%s)'):format(table.concat(ids, ',')))
-    if (deleted or 0) == 0 then return { amount = 0 } end
+    local total = ClaimPayouts(rows)
+    if total <= 0 then return { amount = 0 } end
 
     Bridge.AddMoney(source, 'cash', total, 'Collected invoice cash')
     Log(source, 'cash_collected', { amount = total })

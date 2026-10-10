@@ -14,12 +14,21 @@ local CustomerSessions = {}  -- [customerSource] = registerId
 -- ██║  ██║███████╗╚██████╔╝██║███████║   ██║   ███████╗██║  ██║███████║
 -- ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝
 
+function CompanyJobs(company)
+    local jobs = {}
+    if company.job and company.job ~= '' then jobs[#jobs + 1] = company.job end
+    for _, job in ipairs(type(company.jobs) == 'table' and company.jobs or {}) do
+        if not Shared.TableContains(jobs, job) then jobs[#jobs + 1] = job end
+    end
+    return jobs
+end
+
 local function PublicRegister(r)
     local company = Companies[r.company]
     return {
         id = r.id, label = r.label, company = r.company,
         companyLabel = company and company.label or r.company,
-        jobs = company and (company.jobs or { company.job }) or {},
+        jobs = company and CompanyJobs(company) or {},
         coords = r.coords, radius = r.radius, source = r.source,
     }
 end
@@ -135,13 +144,23 @@ local function ReleaseCustomer(session, closeDisplay)
     session.invoiceId = nil
 end
 
+local EndSession
+
+-- Returns the caller's session; ends it if they no longer work there or the register is gone
 local function OwnSession(source, registerId)
     local session = Sessions[registerId]
     if not session or session.employee ~= source then return nil end
-    return session, Registers[registerId], Companies[Registers[registerId].company]
+    local register = Registers[registerId]
+    local company = register and Companies[register.company]
+    local ctx = GetCtx(source)
+    if not register or not company or not ctx or not ctx.canBill or not ctx.company or ctx.company.id ~= company.id then
+        EndSession(registerId, 'Register closed')
+        return nil
+    end
+    return session, register, company
 end
 
-local function EndSession(registerId, reason)
+function EndSession(registerId, reason)
     local session = Sessions[registerId]
     if not session then return end
     if session.invoiceId then
@@ -236,6 +255,16 @@ RPC('register:charge', function(source, payload)
     if not session then return Err('Register session expired') end
     if not session.customer then return Err('Select a customer first') end
     if session.invoiceId then return Err('Already waiting on payment') end
+
+    -- Charge exactly what the cashier sees (the debounced sync may not have landed yet)
+    if type(payload.items) == 'table' then
+        if #payload.items == 0 then return Err('Add items first') end
+        local built, buildErr = BuildItems(company, payload.items)
+        if not built then return Err(buildErr) end
+        session.items = built
+        session.discount = (company and company.allowDiscounts) and Shared.Clamp(payload.discount, 0, company.maxDiscount or 100) or 0
+        PushDisplay(session, register, company)
+    end
     if #session.items == 0 then return Err('Add items first') end
 
     local ctx = GetCtx(source)
@@ -372,6 +401,13 @@ AddEventHandler('playerDropped', function()
         if session.employee == src then
             EndSession(registerId, 'Cashier left')
         elseif session.customer == src then
+            -- Don't leave a silent register invoice hanging on a player who left mid-checkout
+            if session.invoiceId then
+                local row = GetInvoiceRow(session.invoiceId)
+                if row and row.status == 'pending' and (tonumber(row.amount_paid) or 0) == 0 then
+                    CancelInvoice(row, 'Customer left during checkout', session.employee)
+                end
+            end
             PosState(session, { status = 'left' })
             CustomerSessions[src] = nil
             session.customer, session.invoiceId = nil, nil

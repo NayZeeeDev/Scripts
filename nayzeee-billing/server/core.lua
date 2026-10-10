@@ -78,6 +78,8 @@ local SettingKeys = {
     'allowTips', 'commission', 'dueDays', 'webhook',
 }
 
+BoolSettings = { allowCustomItems = true, allowTips = true }
+
 local function NormalizeCompany(id, c)
     c.id = id
     c.label = c.label or id
@@ -120,13 +122,18 @@ function LoadCompanies()
         c.shortName = row.short_name
         c.job = row.job
         c.taxRate = tonumber(row.tax_rate)
-        c.allowDiscounts = tonumber(row.allow_discounts) == 1
+        c.allowDiscounts = row.allow_discounts == true or tonumber(row.allow_discounts) == 1
         c.categories = decode(row.categories, base.categories)
         c.products = decode(row.products, base.products)
         c.quickBills = decode(row.quick_bills, base.quickBills)
         local settings = decode(row.settings, {})
         for _, key in ipairs(SettingKeys) do
-            if settings[key] ~= nil then c[key] = settings[key] end
+            local value = settings[key]
+            if value ~= nil then
+                -- false = explicitly cleared in-game (except real boolean settings)
+                if value == false and not BoolSettings[key] then value = nil end
+                c[key] = value
+            end
         end
         Companies[row.id] = NormalizeCompany(row.id, c)
         Companies[row.id].isConfig = base.isConfig == true
@@ -141,7 +148,11 @@ function SaveCompany(id)
     local c = Companies[id]
     if not c then return false end
     local settings = {}
-    for _, key in ipairs(SettingKeys) do settings[key] = c[key] end
+    for _, key in ipairs(SettingKeys) do
+        local value = c[key]
+        if value == nil then value = false end -- json can't store nil; false marks "cleared"
+        settings[key] = value
+    end
 
     MySQL.query.await([[
         INSERT INTO nayzeee_billing_companies (id, label, short_name, job, tax_rate, allow_discounts, categories, products, quick_bills, settings)

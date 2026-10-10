@@ -177,7 +177,12 @@ RPC('boss:resolveDispute', function(source, payload)
 
     local targetSrc = Bridge.GetSourceFromIdentifier(row.target_identifier)
     if payload.action == 'cancel' then
-        if not CancelInvoice(row, 'Dispute accepted: ' .. (row.dispute_reason or ''), source) then
+        local reason = 'Dispute accepted: ' .. (row.dispute_reason or '')
+        if (tonumber(row.amount_paid) or 0) > 0 then
+            -- Money was already paid: refund it (status becomes refunded)
+            local amount, err = RefundInvoice(row, source, reason)
+            if not amount then return Err(err) end
+        elseif not CancelInvoice(row, reason, source) then
             return Err('Could not cancel invoice')
         end
     elseif payload.action == 'reinstate' then
@@ -249,7 +254,8 @@ end
 local function finish(source, company, action, data)
     SaveCompany(company.id)
     Log(source, action, data, company.id)
-    return PublicCompany(company, true)
+    -- Only admins get webhook / account details back
+    return PublicCompany(company, Bridge.IsAdmin(source))
 end
 
 RPC('catalog:saveProduct', function(source, payload)

@@ -119,7 +119,8 @@ RegisterNUICallback('rpc', function(data, cb)
 end)
 
 RegisterNUICallback('close', function(_, cb)
-    UI.Focus(nil)
+    -- A late close (e.g. from a receipt that was open) must not steal focus from a register checkout
+    if UI.mode ~= 'checkout' then UI.Focus(nil) end
     cb('ok')
 end)
 

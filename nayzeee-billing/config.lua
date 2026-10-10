@@ -289,7 +289,7 @@ Config.CashRegister = {
 
     MaxCustomerDistance = 5.0,   -- Customer must be this close to the register to be rung up
     DeclineCancelsInvoice = true, -- If the customer declines at the register, the invoice is cancelled
-    DismissKey = 177,            -- BACKSPACE: hide the customer display
+    DismissKey = 'BACK',         -- Key mapping to leave the counter / hide the customer display (players can rebind)
 
     Blip = {
         Enabled = false,

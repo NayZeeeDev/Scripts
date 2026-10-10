@@ -27,7 +27,7 @@ Discord: discord.gg/nayzeeedev
 
 **For bosses**
 - Company dashboard: today / 7 days / 30 days revenue, outstanding balance, 7-day revenue chart, top employees, live company account balance
-- Company invoice list: cancel, **refund** (out of the company account), resolve disputes
+- Company invoice list: cancel, **refund** and resolve disputes. A refund returns everything the customer paid and comes fully out of the company account (commission already paid out and routed tax are not clawed back). Accepting a dispute on a partly paid invoice refunds it.
 - Manage the company's own products, categories and quick bills in-game
 
 **For admins** (`/billingadmin`)

@@ -280,7 +280,7 @@ RPC('getInvoice', function(source, payload)
     ]], { row.invoice_id }) or {}
     invoice.footer = Config.Receipts.FooterText
     invoice.canCancel = CanCancel(ctx, row)
-    invoice.canRefund = row.status == 'paid' and row.company_id ~= nil
+    invoice.canRefund = RefundableStatuses[row.status] and (tonumber(row.amount_paid) or 0) > 0 and row.company_id ~= nil
         and (ctx.isAdmin or (Config.Boss.CanRefund and IsBossOf(ctx, row.company_id)))
     invoice.canResolve = row.status == 'disputed' and row.company_id ~= nil
         and (ctx.isAdmin or (Config.Boss.CanResolveDisputes and IsBossOf(ctx, row.company_id)))
@@ -356,11 +356,18 @@ RPC('disputeInvoice', function(source, payload)
         return Err('This invoice cannot be disputed')
     end
 
+    if row.dispute_reason and row.dispute_reason ~= '' then
+        return Err('This invoice was already disputed and reviewed')
+    end
+
     local reason = Shared.Sanitize(payload.reason, 250)
     if #reason < 5 then return Err('Tell them why you are disputing this invoice') end
 
-    MySQL.update.await("UPDATE nayzeee_billing_invoices SET status = 'disputed', dispute_reason = ? WHERE invoice_id = ?",
-        { reason, row.invoice_id })
+    local affected = MySQL.update.await([[
+        UPDATE nayzeee_billing_invoices SET status = 'disputed', dispute_reason = ?
+        WHERE invoice_id = ? AND status IN ('pending', 'partial', 'overdue')
+    ]], { reason, row.invoice_id })
+    if (affected or 0) == 0 then return Err('This invoice cannot be disputed') end
 
     local msg = ('%s disputed %s (%s)'):format(ctx.name, row.invoice_id, Shared.FormatCurrency(row.total))
     local senderSrc = Bridge.GetSourceFromIdentifier(row.sender_identifier)
