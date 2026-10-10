@@ -36,7 +36,9 @@ end)
 -- vault -------------------------------------------------------------------------------------
 
 local function openVault(tab)
-    if Snatch.busy then return CB.Notify(L('busy'), 'error') end
+    if Snatch.busy or Tables.busy or Restrain.acting or Restrain.tied or Restrain.held or (NUI.app and NUI.app ~= 'vault') then
+        return CB.Notify(L('busy'), 'error')
+    end
     NUI.Open('vault', { tab = tab or 'profile' })
 end
 

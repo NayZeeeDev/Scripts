@@ -1,6 +1,7 @@
 -- Wig making from materials (at a wig table) and the supplier who sells the materials.
 
 local CC, SU = Config.Crafting, Config.Supplier
+local textShown = false   -- our [E] prompt is up (ox_lib owns it, so it's hidden on stop)
 
 -- every hairstyle of a model, read off a hidden local ped once and cached -------------------------
 
@@ -92,23 +93,24 @@ CreateThread(function()
         AddTextComponentSubstringPlayerName(SU.Label)
         EndTextCommandSetBlipName(b)
     end
-    local shown = false
     while true do
         local d = #(GetEntityCoords(PlayerPedId()) - SU.Coords.xyz)
         if d < 80.0 and not supplierPed then spawnSupplier()
         elseif d > 90.0 and supplierPed then DeleteEntity(supplierPed) supplierPed = nil end
         -- no target resource: [E] at the supplier
         if CB.Target == 'none' and supplierPed and d < 2.2 and not NUI.app then
-            if not shown then lib.showTextUI('[E] ' .. OPT[1].label) shown = true end
+            if not textShown then lib.showTextUI('[E] ' .. OPT[1].label) textShown = true end
             if IsControlJustReleased(0, 38) then openShop() end
             Wait(0)
         else
-            if shown then lib.hideTextUI() shown = false end
+            if textShown then lib.hideTextUI() textShown = false end
             Wait(d < 10.0 and 250 or 1500)
         end
     end
 end)
 
 AddEventHandler('onResourceStop', function(res)
-    if res == RESOURCE and supplierPed then DeleteEntity(supplierPed) end
+    if res ~= RESOURCE then return end
+    if supplierPed then DeleteEntity(supplierPed) end
+    if textShown then lib.hideTextUI() end
 end)

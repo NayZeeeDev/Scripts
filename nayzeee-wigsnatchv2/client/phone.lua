@@ -102,19 +102,18 @@ end
 
 local function keyLoop(ped)
     CreateThread(function()
-        local shown = false
         while Phone.ped == ped and DoesEntityExist(ped) do
             local d = #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(ped))
             if d < 2.2 and not NUI.app then
-                if not shown then lib.showTextUI('[E] ' .. HAND_OPT[1].label) shown = true end
+                if not Phone.textShown then lib.showTextUI('[E] ' .. HAND_OPT[1].label) Phone.textShown = true end
                 if IsControlJustReleased(0, 38) then handOver() end
                 Wait(0)
             else
-                if shown then lib.hideTextUI() shown = false end
+                if Phone.textShown then lib.hideTextUI() Phone.textShown = false end
                 Wait(400)
             end
         end
-        if shown then lib.hideTextUI() end
+        if Phone.textShown then lib.hideTextUI() end
     end)
 end
 
@@ -170,4 +169,5 @@ end)
 
 function Phone.Cleanup()
     if Phone.ped and DoesEntityExist(Phone.ped) then DeleteEntity(Phone.ped) end
+    if Phone.textShown then lib.hideTextUI() end
 end

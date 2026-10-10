@@ -5,6 +5,8 @@
 --     out in stages at the table with skill checks, the hair on a foam head and a camera you switch with V
 
 Tables = {}
+local textShown = false   -- our [E] prompt is up (ox_lib owns it, so it's hidden on stop)
+local live = {}           -- what's out right now (ghost, props, wig, tool), deleted if the script stops
 
 local T = Config.Tables
 local list = {}        -- [id] = { id, item, coords, heading, fixed, ownerSrc, surface }
@@ -74,7 +76,7 @@ end
 local function topAt(ent, x, y, z)
     local ray = StartExpensiveSynchronousShapeTestLosProbe(x, y, z + 1.2, x, y, z - 1.4, 511, PlayerPedId(), 0)
     local _, hit, at, _, e = GetShapeTestResult(ray)
-    if hit == 1 and e == ent then return at.z end
+    if (hit == 1 or hit == true) and e == ent then return at.z end
 end
 
 -- walk from `from` along `dir` until the ray finds the table: the near edge and the table-top height there
@@ -292,15 +294,14 @@ CreateThread(function()
         return
     end
     -- no target resource: [E] at the table
-    local shown = false
     while true do
         local ent = free() and Tables.Nearest(T.InteractDistance) or nil
         if ent then
-            if not shown then lib.showTextUI('[E] ' .. L('table_use')) shown = true end
+            if not textShown then lib.showTextUI('[E] ' .. L('table_use')) textShown = true end
             if IsControlJustReleased(0, 38) then open(ent) end
             Wait(0)
         else
-            if shown then lib.hideTextUI() shown = false end
+            if textShown then lib.hideTextUI() textShown = false end
             Wait(500)
         end
     end
@@ -321,6 +322,7 @@ RegisterNetEvent('nz-wig:c:placeTable', function(item)
     local pos = GetOffsetFromEntityInWorldCoords(ped, 0.0, 1.6, 0.0)
     local heading = GetEntityHeading(ped)
     local ghost = CreateObjectNoOffset(model, pos.x, pos.y, pos.z, false, false, false)
+    live.ghost = ghost
     SetEntityCollision(ghost, false, false)
     FreezeEntityPosition(ghost, true)
     SetEntityHeading(ghost, heading)
@@ -350,6 +352,7 @@ RegisterNetEvent('nz-wig:c:placeTable', function(item)
     end
 
     DeleteEntity(ghost)
+    live.ghost = nil
     SetModelAsNoLongerNeeded(model)
     NUI.Send('hint', { show = false })
     if place then
@@ -523,12 +526,14 @@ local function run(ent, kind, req, view)
     -- what sits on the table while you work: the bald foam head facing you, the wig taking shape on
     -- it, the wefts / bundles going in beside it (used up as you go), the dye bottle when colouring
     local props, build = {}, nil
+    live.props = props
     local TP = Config.TableProps
     local head = TP.Head and tableProp(TP.Head.model, work, heading + 180.0)
     local wigModel = Tables.WigModel(info)
     if head and wigModel and loadModel(wigModel) then
         local p = TP.Head.point
         build = CreateObject(wigModel, work.x, work.y, work.z + 0.3, false, false, false)
+        live.build = build
         SetEntityCollision(build, false, false)
         AttachEntityToEntity(build, head, 0, p.x, p.y, p.z, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
         SetModelAsNoLongerNeeded(wigModel)
@@ -554,6 +559,7 @@ local function run(ent, kind, req, view)
     local hint = T.Camera.Switch and L('table_work_hint_v') or L('table_work_hint')
     for i, st in ipairs(stages) do
         local tool = st.prop and handProp(st.prop) or nil
+        live.tool = tool
         NUI.Send('stage', { label = st.label, step = i, steps = #stages, time = st.time, hint = hint })
         local t0 = GetGameTimer()
         while GetGameTimer() - t0 < st.time do
@@ -576,6 +582,7 @@ local function run(ent, kind, req, view)
         end
         NUI.Send('stage', { hide = true })
         if tool then DeleteEntity(tool) end
+        live.tool = nil
         if cancelled then break end
         if st.check then
             results[i] = lib.skillCheck(st.check) == true
@@ -597,6 +604,7 @@ local function run(ent, kind, req, view)
 
     if build then DeleteEntity(build) end
     for _, p in ipairs(props) do if p then DeleteEntity(p) end end
+    live.props, live.build = nil, nil
     stopCam()
     FreezeEntityPosition(PlayerPedId(), false)
     ClearPedTasks(PlayerPedId())
@@ -618,7 +626,18 @@ RegisterNUICallback('benchClose', function(_, cb)
     cb(1)
 end)
 
+-- the script stopped mid-job or mid-placing: nothing left behind, nobody left frozen
 AddEventHandler('onResourceStop', function(res)
     if res ~= RESOURCE then return end
     if cam then RenderScriptCams(false, false, 0, true, false) DestroyCam(cam, false) end
+    for _, k in ipairs({ 'ghost', 'build', 'tool' }) do
+        local e = live[k]
+        if e and DoesEntityExist(e) then DeleteEntity(e) end
+    end
+    for _, e in ipairs(live.props or {}) do if e and DoesEntityExist(e) then DeleteEntity(e) end end
+    if Tables.busy then
+        FreezeEntityPosition(PlayerPedId(), false)
+        ClearPedTasks(PlayerPedId())
+    end
+    if textShown then lib.hideTextUI() end
 end)

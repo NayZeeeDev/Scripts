@@ -49,7 +49,10 @@ local function setHair(ped, h)
         SetPedPreloadVariationData(ped, 2, d, t)
         local until_ = GetGameTimer() + 2000
         while not HasPedPreloadVariationDataFinished(ped) and GetGameTimer() < until_ do Wait(0) end
-        if token ~= hairToken or not DoesEntityExist(ped) then return ReleasePedPreloadVariationData(ped) end
+        if token ~= hairToken or not DoesEntityExist(ped) then
+            if token == hairToken then applying = false end
+            return ReleasePedPreloadVariationData(ped)
+        end
         SetPedComponentVariation(ped, 2, d, t, pal)
         ReleasePedPreloadVariationData(ped)
         applying = false

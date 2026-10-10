@@ -198,7 +198,8 @@ function Studio.Leave()
     SetEntityInvincible(me, false)
     FreezeEntityPosition(me, false)
     TriggerServerEvent('nz-wig:s:studioBucket', false)
-    if was and IsScreenFadedOut() then DoScreenFadeIn(300) end
+    -- also when entering failed half way (the head couldn't load): never leave the screen black
+    if was or IsScreenFadedOut() or IsScreenFadingOut() then DoScreenFadeIn(300) end
 end
 
 local function open()

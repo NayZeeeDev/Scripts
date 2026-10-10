@@ -74,9 +74,12 @@ RegisterNetEvent('nz-wig:c:tied', function(on, d)
     local me = PlayerPedId()
     if not on then
         NUI.Send('struggle', { hide = true })
+        -- still held by someone: their bar stays up
+        if Restrain.held then NUI.Send('struggle', { value = 1, kind = 'held', show = true }) end
         ClearPedTasks(me)
         return
     end
+    Restrain.tiedShow = d and d.struggle
     NUI.Send('struggle', { value = 1, kind = 'tied', show = d and d.struggle })
     lastTok = nil
     CreateThread(function()
@@ -165,7 +168,11 @@ RegisterNetEvent('nz-wig:c:holdEnd', function(d)
         NUI.Send('struggle', { hide = true })
         DetachEntity(me, true, false)
         ClearPedTasks(me)
-        if Restrain.tied then lastTok = nil end
+        if Restrain.tied then
+            lastTok = nil
+            -- still tied up: the tied bar comes back
+            NUI.Send('struggle', { value = 1, kind = 'tied', show = Restrain.tiedShow })
+        end
     end
 end)
 
