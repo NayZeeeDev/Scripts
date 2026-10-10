@@ -586,3 +586,13 @@ Guard.callback('nzde:panel:rackTake', function(src, oid, idx)
 end)
 
 AddEventHandler('nzde:server:unload', function(src) claims[src] = nil end)
+
+-- how many of each (known) item the player carries, for the client's choice lists
+Guard.callback('nzde:inv:counts', function(src, items)
+    local out = {}
+    if type(items) ~= 'table' or #items > 40 then return out end
+    for _, item in ipairs(items) do
+        if type(item) == 'string' and Config.Items[item] then out[item] = Inv.count(src, item) end
+    end
+    return out
+end)

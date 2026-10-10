@@ -29,7 +29,9 @@ local KEY_LABELS = { 'E', 'G', 'H' }
 local function entryCoords(e)
     if e.kind == 'zone' then return e.coords end
     if e.kind == 'entity' then
-        return DoesEntityExist(e.entity) and GetEntityCoords(e.entity) or nil
+        if not DoesEntityExist(e.entity) then return nil end
+        if e.offset then return GetOffsetFromEntityInWorldCoords(e.entity, e.offset.x, e.offset.y, e.offset.z) end
+        return GetEntityCoords(e.entity)
     end
     if e.kind == 'model' then
         local pc = GetEntityCoords(cache.ped)
@@ -162,7 +164,8 @@ function Target.removeZone(handle)
     end
 end
 
-function Target.addEntity(entity, options)
+--- offset (built-in prompts only): the prompt sits at this offset from the entity instead of its centre
+function Target.addEntity(entity, options, offset)
     if Target.name == 'ox' then
         exports.ox_target:addLocalEntity(entity, oxOptions(options))
         return { entity = entity, names = (function() local n = {} for i = 1, #options do n[i] = options[i].name end return n end)() }
@@ -170,7 +173,7 @@ function Target.addEntity(entity, options)
         exports['qb-target']:AddTargetEntity(entity, { options = qbOptions(options), distance = 2.5 })
         return { entity = entity, labels = (function() local n = {} for i = 1, #options do n[i] = options[i].label end return n end)() }
     end
-    return addEntry({ kind = 'entity', entity = entity, radius = 2.2, options = options })
+    return addEntry({ kind = 'entity', entity = entity, radius = offset and 1.6 or 2.2, offset = offset, options = options })
 end
 
 function Target.removeEntity(handle)

@@ -252,6 +252,35 @@ Guard.callback('nzde:rv:pickup', function(src, id)
     return true
 end)
 
+-- equipment the player is carrying (the "Set up equipment" menu inside the RV)
+Guard.callback('nzde:rv:placeables', function(src)
+    local P = Profile.get(src)
+    if not P then return {} end
+    local level, out = Profile.level(P), {}
+    for kind, st in pairs(Config.Stations) do
+        local n = Inv.count(src, st.item)
+        if n > 0 then
+            out[#out + 1] = { item = st.item, kind = kind, label = st.label, icon = st.icon, n = n, locked = level < (st.unlock or 1), rank = Utils.rankLabel(st.unlock or 1) }
+        end
+    end
+    table.sort(out, function(a, b) return a.label < b.label end)
+    return out
+end)
+
+-- using an equipment item from the inventory starts placement (inside your RV)
+CreateThread(function()
+    for _, st in pairs(Config.Stations) do
+        FW.registerUsable(st.item, function(src)
+            local rec = inside[src]
+            if not rec or rec.owner ~= src then
+                TriggerClientEvent('nzde:notify', src, 'Set this up inside your RV', 'error')
+                return
+            end
+            TriggerClientEvent('nzde:place', src, st.item)
+        end)
+    end
+end)
+
 AddEventHandler('nzde:server:unload', function(src)
     inside[src] = nil
     RV.store(src)

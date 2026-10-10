@@ -20,8 +20,8 @@ Config.Stations = {
     -- the zipped bag / closed jar goes in the drawer underneath
     packer    = { item = 'nz_packer',       label = 'Packaging Station',  model = 'nz_packbench',             top = 0.92, unlock = 1,  icon = 'box',
                   fallback = 'bkr_prop_weed_table_01a',
-                  lid = { model = 'nz_packbench_lid', offset = vec3(0.56, 0.0, 0.905), hinge = 'x', open = -78.0 },
-                  anchors = { bag = vec3(-0.12, -0.08, 0.92), drawer = vec3(0.56, 0.0, 0.86), product = vec3(-0.45, 0.02, 0.92) },
+                  lid = { model = 'nz_packbench_lid', offset = vec3(0.565, 0.375, 0.9), open = -78.0 },   -- origin on the back hinge
+                  anchors = { bag = vec3(-0.12, -0.08, 0.9), drawer = vec3(0.565, 0.0, 0.69), product = vec3(-0.45, 0.02, 0.9) },
                   cam = { offset = vec3(0.05, -1.0, 1.62), look = vec3(0.12, 0.0, 0.9), fov = 52 } },
     rack      = { item = 'nz_rack',         label = 'Drying Rack',        model = 'bkr_prop_weed_drying_02a', top = 1.2,  unlock = 4,  icon = 'rack',
                   cam = { offset = vec3(0.0, -1.4, 1.5), look = vec3(0.0, 0.0, 1.0), fov = 50 } },
@@ -45,6 +45,7 @@ Config.FallbackModel = 'prop_cs_cardbox_01'
 Config.PackProps = {
     bag = 'nz_zipbag', bagFallback = 'prop_meth_bag_01',
     jar = 'nz_jar', jarFallback = 'prop_cs_script_bottle_01',
+    jarLid = 'nz_jar_lid',
     bud = 'bkr_prop_weed_bud_02b',
 }
 
@@ -133,7 +134,7 @@ Config.Actions = {
     -- packaging: the first bag of a batch is done by hand, the rest play out automatically
     pack_baggie = { minSeconds = 3, steps = {
         { type = 'drop',  text = 'Drop the product into the bag', prop = 'bkr_prop_weed_bud_02b', from = 'product', target = 'bag', height = 1.02, radius = 0.08 },
-        { type = 'cut',   text = 'Click and drag to zip the bag', anchor = 'bag', at = vec3(0.0, 0.06, 0.045), width = 0.16, zip = true },
+        { type = 'cut',   text = 'Click and drag to zip the bag', anchor = 'bag', at = vec3(0.0, 0.056, 0.016), width = 0.1, zip = true },
         { type = 'anim',  text = 'Open the drawer', lid = 'open' },
         { type = 'drop',  text = 'Put the bag in the drawer', prop = 'held:bag', target = 'drawer', height = 1.04, radius = 0.12 },
         { type = 'anim',  text = 'Close the drawer', lid = 'close' },
