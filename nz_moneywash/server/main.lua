@@ -28,6 +28,7 @@ local function boot()
         end
     end
 
+    Pallet.build()
     Market.start()
     Books.start()
     Stations.startTicker()

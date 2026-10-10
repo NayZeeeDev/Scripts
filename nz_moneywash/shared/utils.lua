@@ -133,5 +133,7 @@ function NZ.mainModel(stType, state)
         return state == 'running' and Config.Props.printerRunning or Config.Props.printerIdle
     elseif stType == 'cutter' then
         return Config.Props.cutter
+    elseif stType == 'pallet' then
+        return state == 'done' and Config.Props.palletFull or Config.Props.palletEmpty
     end
 end

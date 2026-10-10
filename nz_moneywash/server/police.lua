@@ -87,6 +87,14 @@ lib.callback.register('nzmw:scan:station', function(src, id)
         ok = true, kind = 'station', subject = st.label .. (st.opLabel and (' · ' .. st.opLabel) or ''),
         state = st.state, wear = NZ.round(st.wear, 1), owner = st.placed and mask(st.ownerName) or nil, batches = {},
     }
+    for _, bid in ipairs(p.batches or {}) do
+        local pb = Batches.get(bid)
+        if pb then
+            local t = trace(pb)
+            t.item = 'On the pallet'
+            res.batches[#res.batches + 1] = t
+        end
+    end
     local b = p.batch and Batches.get(p.batch)
     if b then
         local t = trace(b)
@@ -96,7 +104,7 @@ lib.callback.register('nzmw:scan:station', function(src, id)
             local e = b.trail[i]
             t.trail[#t.trail + 1] = { t = e.t, text = e.text:gsub('by (.+)$', function(n) return 'by ' .. mask(n) end) }
         end
-        res.batches[1] = t
+        table.insert(res.batches, 1, t)
     end
     return res
 end)

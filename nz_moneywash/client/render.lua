@@ -138,6 +138,11 @@ function Visual.cutter(s, prev, fresh)
     end
 end
 
+function Visual.pallet(s)
+    local d = s.data
+    setEnt(s, 'main', NZ.mainModel('pallet', d.state), base(d), d.h)
+end
+
 local function apply(s, prev, fresh)
     local fn = Visual[s.data.type]
     if fn then fn(s, prev, fresh) end
@@ -264,7 +269,7 @@ function Render.start()
                 local sleep = 500
                 local pos = GetEntityCoords(PlayerPedId())
                 for _, s in pairs(stations) do
-                    if s.spawned and s.data.state ~= 'idle' then -- idle machines stay unlabelled (shop floor looks normal)
+                    if s.spawned and s.data.state ~= 'idle' and s.data.type ~= 'pallet' then -- idle machines stay unlabelled (shop floor looks normal)
                         local d = s.data
                         local p = vec3(d.x, d.y, d.z + (d.type == 'printer' and 2.05 or d.type == 'washer' and 1.35 or 1.25))
                         if #(pos - p) < Config.StatusText.distance then

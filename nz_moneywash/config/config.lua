@@ -70,7 +70,9 @@ Config.Props = {
     paperRoll     = 'bzzz_money_rollpaper_a',
     cutter        = 'bzzz_money_cutter_a',
     sheets        = { 'bzzz_money_moneycut_a', 'bzzz_money_moneycut_b', 'bzzz_money_moneycut_c' },
-    crates        = { 'bzzz_money_crate_a', 'bzzz_money_crate_b', 'bzzz_money_crate_c' },
+    crates        = { 'bzzz_money_crate_a', 'bzzz_money_crate_b', 'bzzz_money_crate_c' }, -- empty · paper rolls · money stacks
+    palletEmpty   = 'bzzz_money_crate_a',
+    palletFull    = 'bzzz_money_crate_c',
 }
 
 -- Offsets relative to each machine (taken from the prop author's reference + tuned)
@@ -93,6 +95,7 @@ Config.Anims = {
     machine    = { dict = 'anim@amb@clubhouse@tutorial@bkr_tut_ig3@', clip = 'machinic_loop_mechandplayer' },
     pry        = { dict = 'missheistfbi3b_ig7', clip = 'lift_fibagent_loop' },
     fix        = { dict = 'mini@repair', clip = 'fixing_a_ped' },
+    grab       = { dict = 'anim@heists@ornate_bank@grab_cash', clip = 'grab' }, -- loading the duffel at the pallet
     scan       = { dict = 'weapons@first_person@aim_rng@generic@projectile@thermal_charge@', clip = 'plant_floor' },
 }
 
@@ -216,6 +219,23 @@ Config.Theft = {
     runningPenalty = 0.20, -- quality lost when ripped out mid-cycle (and no heat drop)
     alertChance  = 0.65,
     notifyOwner  = true,
+}
+
+----------------------------------------------------------------------------------------------------
+-- MONEY PALLET
+-- A finished load nobody comes back for gets moved onto the operation's pallet, so the machine
+-- frees up. The pallet shows stacks of money while it holds anything; load it into a duffel to take it.
+----------------------------------------------------------------------------------------------------
+Config.Pallet = {
+    enabled      = true,
+    label        = 'Money Pallet',
+    moveAfter    = 180,   -- seconds a finished load waits in the machine…
+    ownerRadius  = 15.0,  -- …and only moves if its owner isn't this close
+    capacity     = 10,    -- loads per pallet
+    loadTime     = 6000,  -- ms to fill the duffel
+    theft        = true,  -- people without access can grab one load
+    theftTime    = 12000,
+    theftAlert   = 0.5,   -- chance a grab calls the police
 }
 
 ----------------------------------------------------------------------------------------------------

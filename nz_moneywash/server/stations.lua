@@ -31,7 +31,7 @@ function Stations.persist(id)
         state = st.state, endsAt = st.endsAt, total = st.total, cut = st.cut, seq = st.seq, wear = st.wear,
         pos = st.moved and { x = st.x, y = st.y, z = st.z, h = st.h } or nil,
         priv = { batch = p.batch, remaining = p.remaining, settings = p.settings, solvent = p.solvent,
-                 jamAt = p.jamAt, alertAt = p.alertAt, startedBy = p.startedBy },
+                 jamAt = p.jamAt, alertAt = p.alertAt, startedBy = p.startedBy, batches = p.batches },
     })
 end
 
@@ -44,12 +44,12 @@ function Stations.add(def, meta)
     local st = {
         id = def.id, type = def.type,
         x = def.x, y = def.y, z = def.z, h = def.h,
-        label = def.label or Config.Stages[def.type].label,
+        label = def.label or (Config.Stages[def.type] and Config.Stages[def.type].label) or Config.Pallet.label,
         op = def.op, opLabel = def.opLabel,
         placed = def.placed or false, owner = def.owner, ownerName = def.ownerName, share = def.share,
         access = def.access,
         state = 'idle', user = nil, lockUntil = nil, endsAt = nil, total = nil,
-        cut = 0, seq = 0, wear = 0.0, hasBatch = false,
+        cut = 0, seq = 0, wear = 0.0, hasBatch = false, count = 0,
     }
     local p = {}
     if meta then
@@ -66,8 +66,18 @@ function Stations.add(def, meta)
             p.jamAt, p.alertAt, p.startedBy = mp.jamAt, mp.alertAt, mp.startedBy
             st.hasBatch = true
         end
+        if def.type == 'pallet' and mp.batches then
+            p.batches = {}
+            for _, bid in ipairs(mp.batches) do
+                if Batches.get(bid) then p.batches[#p.batches + 1] = bid end
+            end
+            st.count = #p.batches
+            st.state, st.hasBatch = st.count > 0 and 'done' or 'idle', st.count > 0
+        end
     end
+    if def.type == 'pallet' then p.batches = p.batches or {} end
     if st.state == 'open' and not p.batch then st.state = 'idle' end
+    if st.state == 'done' then p.doneAt = now() end -- restart: the pallet countdown starts over
     Stations.list[st.id], Stations.priv[st.id] = st, p
     index[#index + 1] = st.id
     Stations.publish(st.id)
@@ -118,6 +128,12 @@ function Stations.hasAccess(src, st)
         end
     end
     return false
+end
+
+-- open operation = no access rules, so anyone can run the machines but only the owner collects a load
+function Stations.isOpen(st)
+    local a = st.access
+    return not st.placed and (not a or (not a.jobs and not a.gangs and not a.items))
 end
 
 local function near(src, st)
@@ -277,9 +293,11 @@ local function finish(id)
     st.wear = NZ.clamp(st.wear + Config.Stages[st.type].wearPerRun, 0, 100)
     st.state, st.endsAt, st.total = 'done', nil, nil
     p.jamAt, p.alertAt, p.remaining = nil, nil, nil
+    p.doneAt = now()
     Stations.commit(id)
 
-    local owner = b.owner and Bridge.getSourceByIdentifier(b.owner)
+    local runner = p.startedBy or b.owner -- whoever ran this machine gets the ping
+    local owner = runner and Bridge.getSourceByIdentifier(runner)
     if owner then
         Bridge.notify(owner, Config.Stages[st.type].label .. ' finished', ('%s is ready to collect at %s.'):format(b.serial, st.opLabel or st.label), 'success')
     end
@@ -302,7 +320,8 @@ function Stations.startTicker()
                         st.state, st.endsAt = 'jammed', nil
                         Stations.commit(id)
                         local b = Batches.get(p.batch)
-                        local owner = b and Bridge.getSourceByIdentifier(b.owner)
+                        local runner = p.startedBy or (b and b.owner)
+                        local owner = runner and Bridge.getSourceByIdentifier(runner)
                         if owner then Bridge.notify(owner, 'Machine jammed', ('%s at %s needs a hand.'):format(st.label, st.opLabel or 'your op'), 'error') end
                     elseif p.alertAt and t >= p.alertAt then
                         p.alertAt = nil
@@ -316,6 +335,10 @@ function Stations.startTicker()
                     release(st)
                     if st.state == 'open' and not p.batch then st.state = 'idle' end
                     Stations.commit(id)
+                end
+                if st.state == 'done' and st.type ~= 'pallet' and p.doneAt and Config.Pallet.enabled
+                    and t - p.doneAt >= Config.Pallet.moveAfter then
+                    Pallet.tryMove(id)
                 end
                 if st.pryBy and st.pryAt and t - st.pryAt > 45 then
                     st.pryBy, st.pryAt = nil, nil
@@ -381,18 +404,22 @@ end)
 lib.callback.register('nzmw:collect', function(src, id)
     local st, p, err = guard(src, id, { state = 'done' })
     if not st then return err end
+    if st.type == 'pallet' then return fail('Use the duffel bag.') end
     local b = Batches.get(p.batch)
     if not b then
         st.state, st.hasBatch, p.batch = 'idle', false, nil
         Stations.commit(id)
         return fail('The machine was empty.')
     end
+    if Stations.isOpen(st) and (p.startedBy or b.owner) ~= Bridge.getIdentifier(src) then
+        return fail('That load isn\'t yours. You\'d have to pry it out.')
+    end
     local item = Config.Stages[st.type].outputItem
     if not Batches.giveItem(src, b, item) then return fail('You cannot carry that.') end
     Batches.trail(b, ('Collected from %s by %s'):format(st.label, Bridge.getName(src)))
     Batches.save(b)
     st.state, st.hasBatch, st.cut = 'idle', false, 0
-    p.batch, p.settings, p.solvent, p.startedBy = nil, nil, nil, nil
+    p.batch, p.settings, p.solvent, p.startedBy, p.doneAt = nil, nil, nil, nil, nil
     release(st)
     Stations.commit(id)
     return { ok = true, item = item, batch = Batches.summary(b) }
@@ -547,6 +574,7 @@ lib.callback.register('nzmw:cutter:cut', function(src, id, result)
     reserve(st, src)
     if st.cut >= cfg.cuts then
         st.state = 'done'
+        p.doneAt = now()
         st.wear = NZ.clamp(st.wear + cfg.wearPerRun, 0, 100)
         release(st)
         if b then
@@ -567,8 +595,8 @@ lib.callback.register('nzmw:pry', function(src, id, phase)
     if not Config.Theft.enabled then return fail('Disabled.') end
     local st, p, err = guard(src, id, { state = { 'running', 'done', 'jammed' }, access = false })
     if not st then return err end
-    if st.type == 'cutter' then return fail('Nothing to pry here.') end
-    if Stations.hasAccess(src, st) then return fail('Just use your keys.') end
+    if st.type == 'cutter' or st.type == 'pallet' then return fail('Nothing to pry here.') end
+    if not Stations.isOpen(st) and Stations.hasAccess(src, st) then return fail('Just use your keys.') end
     local tool = false
     for _, item in ipairs(Config.Theft.items) do
         if Inv.count(src, item) > 0 then tool = true break end
@@ -577,6 +605,7 @@ lib.callback.register('nzmw:pry', function(src, id, phase)
 
     local b = Batches.get(p.batch)
     if not b then return fail('It is empty.') end
+    if (p.startedBy or b.owner) == Bridge.getIdentifier(src) then return fail('It\'s your own load.') end
 
     if phase == 'start' then
         if st.pryBy and st.pryBy ~= src then return fail('Someone is already on it.') end
@@ -619,10 +648,13 @@ lib.callback.register('nzmw:pry', function(src, id, phase)
     Batches.save(b)
 
     st.state, st.endsAt, st.total, st.hasBatch = 'idle', nil, nil, false
-    p.batch, p.jamAt, p.alertAt, p.remaining, p.settings, p.solvent = nil, nil, nil, nil, nil, nil
+    p.batch, p.jamAt, p.alertAt, p.remaining, p.settings, p.solvent, p.doneAt = nil, nil, nil, nil, nil, nil, nil
     release(st)
     Stations.commit(id)
     Bridge.log('Machine robbed', { { 'Thief', Bridge.getName(src) .. ' (' .. src .. ')' }, { 'Victim', b.ownerName },
         { 'Serial', b.serial }, { 'Amount', NZ.money(b.amount) } })
     return { ok = true, item = item }
 end)
+
+-- shared with server/pallet.lua
+Stations.guard, Stations.fail, Stations.near = guard, fail, near
