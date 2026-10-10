@@ -1,8 +1,9 @@
 # NAYZEEE UI Pack
 
-![All ten themes](preview.png)
+![Themes 1–10](preview.png)
+![Themes 11–20](preview-2.png)
 
-Ten FiveM NUI styles that each look different but are all clearly NAYZEEE. Open `index.html` in a browser to see every theme live.
+Twenty FiveM NUI styles that each look different but are all clearly NAYZEEE. Open `index.html` in a browser to see every theme live.
 
 | # | Theme | Use it for |
 |---|-------|-----------|
@@ -16,6 +17,16 @@ Ten FiveM NUI styles that each look different but are all clearly NAYZEEE. Open 
 | 08 | **Dialog** | Cinematic NPC conversations |
 | 09 | **Slate** | Tablet / laptop with apps (Bank and Notes included) |
 | 10 | **Signal** | Notifications, announcements, progress bar, key prompt, input and confirm dialogs |
+| 11 | **Roster** | Multicharacter select (play, create, delete with typed confirm) |
+| 12 | **Atlas** | Spawn selector on a drafted map |
+| 13 | **Forge** | Crafting benches, labs, cooking (materials, queue) |
+| 14 | **Tailor** | Clothing store, barber, character creator appearance |
+| 15 | **Ledger** | Boss / society menu: funds chart, staff, payroll, grades |
+| 16 | **Beacon** | Police / EMS dispatch alerts and a dispatch log |
+| 17 | **Tally** | TAB scoreboard with job counters |
+| 18 | **Tumbler** | Lockpick / hacking skill-check minigames |
+| 19 | **Teller** | ATM with PIN pad, cash dispenser and receipt |
+| 20 | **Arrival** | Server loading screen (FiveM `loadscreen`) |
 
 ## What stays the same in every theme
 
@@ -86,6 +97,16 @@ The exact `data` shape and the callbacks for each theme are documented in a comm
 | Dialog | `open`, `node` | `select`, `close` |
 | Slate | `open`, `bank` | `app`, `bank`, `note`, `close` |
 | Signal | `notify`, `announce`, `textui`, `progress`, `progressCancel`, `input`, `confirm` | `progress`, `input`, `confirm` |
+| Roster | `open`, `close` | `preview`, `play`, `delete`, `create` (return `{ ok, cid }`) |
+| Atlas | `open` (`closable` to allow ESC), `close` | `preview`, `spawn`, `close` |
+| Forge | `open`, `inventory`, `queue`, `close` | `craft`, `cancel`, `collect`, `close` |
+| Tailor | `open`, `close` | `change`, `hair`, `face`, `camera`, `rotate`, `save`, `confirm`, `cancel` |
+| Ledger | `open`, `update`, `close` | `hire`, `fire`, `setGrade`, `deposit`, `withdraw`, `saveGrades` (return `{ ok = false, error }` to roll back) |
+| Beacon | `alert`, `cycle`, `respond`, `hide`, `log`, `close` | `respond`, `waypoint`, `close` (stack needs no focus) |
+| Tally | `open`, `update`, `close` | none (hold-to-show, no focus) |
+| Tumbler | `start`, `close` | `result { success, hits, cancelled }` |
+| Teller | `open`, `result`, `close` | `pin`, `withdraw`, `deposit`, `transfer` (each returns `{ ok, error, balance, cash }`) |
+| Arrival | FiveM loadscreen events + `window.nuiHandoverData` | none — see the header of `20-arrival/app.js` for the `loadscreen` manifest lines |
 
 Example: Market checkout
 

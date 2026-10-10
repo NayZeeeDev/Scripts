@@ -61,10 +61,10 @@ footer code{font-family:inherit;color:var(--ink-2);background:var(--raise);paddi
     <div class="nz-mark xl"></div>
     <div>
       <h1>NAYZEEE <span>UI Pack</span></h1>
-      <p>Ten interface styles for FiveM scripts. Each one looks different, but they all share the same mark, type, colours and corner cut, so players can tell a NAYZEEE script on sight.</p>
+      <p>Twenty interface styles for FiveM scripts. Each one looks different, but they all share the same mark, type, colours and corner cut, so players can tell a NAYZEEE script on sight.</p>
     </div>
   </div>
-  <span class="nz-ver">v1.0.0 · 10 themes</span>
+  <span class="nz-ver">v1.1.0 · 20 themes</span>
 </header>
 
 <section class="wrap">
@@ -100,6 +100,16 @@ const THEMES = [
   ['08-dialog', 'Dialog', 'Cinematic letterbox conversation with typed text and numbered replies.', ['NPC talk', 'Quest giver', 'Tutorial']],
   ['09-slate', 'Slate', 'Tablet with a home screen, dock, and working Bank and Notes apps.', ['Tablet', 'Phone', 'Laptop']],
   ['10-signal', 'Signal', 'Overlay kit: notifications, announcements, progress bar, key prompt and dialogs.', ['Notify', 'Progress', 'Input']],
+  ['11-roster', 'Roster', 'Cinematic character select with editorial names, a facts block and tall slot cards.', ['Multicharacter', 'Join screen', 'Profiles']],
+  ['12-atlas', 'Atlas', 'Spawn selector on a drafted map with pins, a crosshair and a grouped location list.', ['Spawn select', 'Housing', 'Respawn']],
+  ['13-forge', 'Forge', 'Crafting bench with recipes, have / need materials and a live craft queue.', ['Crafting', 'Labs', 'Cooking']],
+  ['14-tailor', 'Tailor', 'Slim appearance editor with drawable / texture steppers, hair swatches and face sliders.', ['Clothing', 'Barber', 'Creator']],
+  ['15-ledger', 'Ledger', 'Society management with a balance chart, staff table, deposits and grade editor.', ['Boss menu', 'Gangs', 'Payroll']],
+  ['16-beacon', 'Beacon', 'Always-on dispatch alert stack with priority stripes, plus a dispatch log.', ['Dispatch', 'Panic', '911']],
+  ['17-tally', 'Tally', 'Hold-to-show scoreboard with player count, on-duty job tiles and ping bars.', ['Scoreboard', 'Player list', 'Jobs']],
+  ['18-tumbler', 'Tumbler', 'Skill-check minigames: a timing ring and a timed hex-code hacking grid.', ['Lockpick', 'Hacking', 'Skill check']],
+  ['19-teller', 'Teller', 'A full ATM: PIN pad, soft keys, cash dispenser and a printed receipt.', ['ATM', 'Bank', 'Card terminal']],
+  ['20-arrival', 'Arrival', 'Loading screen: huge mark, rotating tips, changelog, staff and a segmented progress bar.', ['Loadscreen', 'Server join']],
 ];
 const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 document.getElementById('grid').innerHTML = THEMES.map(([dir, name, desc, tags], i) => `

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 20 Arrival</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="arrival nz-app nz-grain" id="app">
+  <!-- backdrop: pure CSS -->
+  <div class="bg" aria-hidden="true">
+    <i class="glow g1"></i><i class="glow g2"></i><i class="glow g3"></i>
+    <i class="grid"></i>
+    <svg class="giant" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0.5,0.5 99.5,0.5 99.5,56 56,99.5 0.5,99.5"/></svg>
+    <i class="vignette"></i>
+  </div>
+
+  <header class="top">
+    <div class="nz-lockup">
+      <div class="nz-mark sm"></div>
+      <div><div class="nz-title" id="top-name">Server</div><div class="nz-sub" id="top-sub">Connecting</div></div>
+    </div>
+    <nav class="socials" id="socials"></nav>
+    <button class="music" id="music-btn" title="Toggle music">
+      <span class="eq"><i></i><i></i><i></i><i></i></span>
+      <span class="m-lbl"><b id="music-state">Music off</b><small id="music-track">Lobby theme</small></span>
+    </button>
+  </header>
+
+  <main class="stage">
+    <section class="hero">
+      <div class="hero-mark"><div class="nz-mark"></div><i class="ring"></i></div>
+      <div class="kicker"><span class="nz-dot"></span><span id="kicker">You are joining</span></div>
+      <h1 id="name">Server</h1>
+      <p class="tagline" id="tagline"></p>
+      <div class="facts" id="facts"></div>
+    </section>
+
+    <aside class="cards">
+      <article class="card nz-frame tip-card">
+        <div class="nz-frame-in">
+          <div class="c-head"><span><i data-ic="info"></i>Tip</span><span class="c-count" id="tip-count">01 / 01</span></div>
+          <p class="tip" id="tip"></p>
+          <div class="tip-dots" id="tip-dots"></div>
+          <i class="tip-timer" id="tip-timer"></i>
+        </div>
+      </article>
+
+      <article class="card nz-frame up-card">
+        <div class="nz-frame-in">
+          <div class="c-head"><span><i data-ic="note"></i>Latest updates</span><span class="nz-tag live" id="up-ver">v1.0</span></div>
+          <div class="updates" id="updates"></div>
+        </div>
+      </article>
+
+      <article class="card nz-frame staff-card">
+        <div class="nz-frame-in">
+          <div class="c-head"><span><i data-ic="users"></i>Staff team</span><span class="c-count" id="staff-count"></span></div>
+          <div class="staff" id="staff"></div>
+        </div>
+      </article>
+    </aside>
+  </main>
+
+  <footer class="load">
+    <div class="load-row">
+      <div class="pct"><b id="pct">0</b><span>%</span></div>
+      <div class="step">
+        <div class="step-lbl"><span class="nz-chip" id="phase">Phase 1</span><b id="step">Preparing</b></div>
+        <small id="log">Waiting for the game</small>
+      </div>
+      <div class="clock"><span>Elapsed</span><b id="elapsed">00:00</b></div>
+    </div>
+    <div class="bar" id="bar"></div>
+    <div class="load-foot">
+      <div class="nz-hints">
+        <span><span class="nz-key">M</span>Music</span>
+        <span><span class="nz-key">Space</span>Next tip</span>
+      </div>
+      <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+    </div>
+  </footer>
+
+  <!-- music hook: drop a file next to index.html and uncomment the source -->
+  <audio id="music" loop preload="none">
+    <!-- <source src="music.mp3" type="audio/mpeg"> -->
+  </audio>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

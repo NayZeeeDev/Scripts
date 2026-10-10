@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 19 Teller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="atm nz-app" id="app">
+  <div class="housing">
+    <div class="led-strip"></div>
+
+    <!-- brand plate -->
+    <header class="plate">
+      <div class="bank">
+        <i class="bar"></i>
+        <div><b id="bank">Fleeca</b><span id="where">24h banking</span></div>
+      </div>
+      <div class="plate-r">
+        <span class="svc"><span class="nz-dot"></span>In service</span>
+        <div class="nz-mark sm"></div>
+      </div>
+    </header>
+
+    <!-- screen + soft keys -->
+    <section class="bay">
+      <div class="sk-col" id="sk-l">
+        <button class="sk" data-slot="L1"></button><button class="sk" data-slot="L2"></button>
+        <button class="sk" data-slot="L3"></button><button class="sk" data-slot="L4"></button>
+      </div>
+      <div class="bezel">
+        <div class="screen nz-grain" id="screen">
+          <div class="scr-top">
+            <span class="scr-bank"><span class="nz-mark xs"></span><b id="scr-bank">Fleeca</b></span>
+            <span class="scr-clock" id="clock">00:00</span>
+          </div>
+          <div class="view" id="view"></div>
+          <div class="slots" id="slots"></div>
+          <div class="scr-foot"><span id="scr-loc">Fleeca</span><span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span></div>
+          <i class="scan"></i>
+        </div>
+      </div>
+      <div class="sk-col" id="sk-r">
+        <button class="sk" data-slot="R1"></button><button class="sk" data-slot="R2"></button>
+        <button class="sk" data-slot="R3"></button><button class="sk" data-slot="R4"></button>
+      </div>
+    </section>
+
+    <!-- deck: keypad + slots -->
+    <section class="deck">
+      <div class="pad-wrap">
+        <div class="hood-note"><i data-ic="eye"></i>Shield the keypad when entering your PIN</div>
+        <div class="keypad" id="keypad">
+          <button class="k" data-k="1">1</button><button class="k" data-k="2">2</button><button class="k" data-k="3">3</button>
+          <button class="k fn cancel" data-k="cancel"><i data-ic="x"></i>Cancel</button>
+          <button class="k" data-k="4">4</button><button class="k" data-k="5">5</button><button class="k" data-k="6">6</button>
+          <button class="k fn clear" data-k="clear"><i data-ic="arrow-l"></i>Clear</button>
+          <button class="k" data-k="7">7</button><button class="k" data-k="8">8</button><button class="k" data-k="9">9</button>
+          <button class="k fn blank" tabindex="-1" aria-hidden="true"></button>
+          <button class="k" data-k="00">00</button><button class="k" data-k="0">0</button><button class="k blank" tabindex="-1" aria-hidden="true"></button>
+          <button class="k fn enter" data-k="enter"><i data-ic="check"></i>Enter</button>
+        </div>
+        <div class="dispenser" id="dispenser">
+          <span><i><i data-ic="cash"></i>Cash dispenser</i><em></em></span>
+          <div class="disp-slot"><div class="notes" id="notes"><i></i><i></i><i></i></div></div>
+        </div>
+      </div>
+
+      <div class="side" id="side">
+        <div class="card-unit">
+          <span class="lbl"><i data-ic="card"></i>Card</span>
+          <div class="card-slot" id="card-slot"><i class="glow"></i></div>
+          <div class="card-port"><div class="mini-card" id="mini-card"><span class="nz-mark xs mono"></span><b id="mini-last4">0000</b></div></div>
+        </div>
+        <div class="rcpt-unit">
+          <span class="lbl"><i data-ic="receipt"></i>Receipt</span>
+          <div class="rcpt-slot" id="rcpt-slot"></div>
+        </div>
+        <div class="contactless">
+          <i data-ic="wifi"></i>
+          <span>Fleeca network<br>No fee for Fleeca cards</span>
+        </div>
+        <div class="serial"><span class="nz-mark xs mono"></span>Teller · NZ-19</div>
+        <div class="rcpt-hang" id="rcpt-hang"><div class="paper" id="paper"></div></div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div class="nz-hints">
+        <span><span class="nz-key">0-9</span>Keypad</span>
+        <span><span class="nz-key">⌫</span>Clear</span>
+        <span><span class="nz-key">↵</span>Enter</span>
+        <span><span class="nz-key">ESC</span>Walk away</span>
+      </div>
+      <span class="nz-sig"><em>made by</em> NAYZEEE</span>
+    </footer>
+  </div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
