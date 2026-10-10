@@ -185,7 +185,7 @@ svg{display:block}
 .amt.red{color:var(--red)} .amt.teal{color:var(--teal)} .amt.muted{color:var(--ink-3)}
 .rank{width:20px;font-size:11px;color:var(--ink-3);font-weight:500;text-align:center;flex:none}
 
-.tag{font-size:10px;font-weight:500;padding:3px 9px;border-radius:999px;border:1px solid;white-space:nowrap;text-transform:capitalize}
+.tag{align-self:center;line-height:1.3;font-size:10px;font-weight:500;padding:3px 9px;border-radius:999px;border:1px solid;white-space:nowrap;text-transform:capitalize}
 .tag.live{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
 .tag.hot{color:var(--red);border-color:var(--red-edge);background:var(--red-wash)}
 .tag.warn{color:var(--amber);border-color:var(--amber-edge);background:var(--amber-wash)}
@@ -232,6 +232,9 @@ svg{display:block}
 .search input{height:30px;width:100%;padding:0 10px 0 31px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-xs);color:var(--white);font-size:12px}
 .search input:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
 .search input::placeholder{color:var(--ink-3)}
+.ref-find{flex:0 0 230px;min-width:0;margin-left:auto}
+.ref-find input{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.ref-find input:focus{text-transform:uppercase}
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 
 .sw{width:38px;height:21px;padding:2px;border-radius:999px;flex:none;display:flex;background:var(--inset);border:1px solid var(--line-soft);transition:all var(--fast);cursor:pointer}

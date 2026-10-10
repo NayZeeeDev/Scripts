@@ -17,6 +17,10 @@ function PayIdentifier(identifier, amount, reason, invoiceId, requiresCollection
     amount = Shared.Round(amount)
     if not identifier or amount <= 0 then return end
 
+    if not requiresCollection and Banking.HasPersonal() and Banking.AddPersonal(identifier, amount, reason) then
+        return Bridge.GetSourceFromIdentifier(identifier)
+    end
+
     local src = (not requiresCollection) and Bridge.GetSourceFromIdentifier(identifier) or nil
     if src and Bridge.AddMoney(src, 'bank', amount, reason) then
         return src
@@ -237,7 +241,7 @@ function ProcessPayment(opts)
         if not opts.allowNegative and Bridge.GetMoney(source, method) < charge then
             return nil, ('Insufficient %s (%s needed)'):format(method == 'cash' and 'cash' or 'funds', Shared.FormatCurrency(charge))
         end
-        if not Bridge.RemoveMoney(source, method, charge, 'Invoice ' .. invoiceId) then
+        if not Bridge.RemoveMoney(source, method, charge, ('Invoice %s · %s'):format(invoiceId, row.company_name or row.sender_name)) then
             return nil, 'Payment declined'
         end
 
@@ -270,7 +274,7 @@ function ProcessPayment(opts)
             DistributePersonal(row, amount, tip, method, payerName)
         end
 
-        if method == 'bank' then
+        if method == 'bank' and not Banking.HasPersonal() then
             Banking.Log({
                 identifier = identifier, name = payerName, amount = charge, type = 'withdraw',
                 title = 'Invoice ' .. invoiceId, description = 'Paid to ' .. (row.company_name or row.sender_name),

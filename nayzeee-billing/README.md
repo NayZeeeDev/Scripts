@@ -15,6 +15,7 @@ Discord: discord.gg/nayzeeedev
 - **Tips** on company invoices (preset %), sent to the employee or the company
 - **Dispute** an invoice; the company's managers review it and accept or reject it
 - Full history with search and filters, plus receipts with a barcode and a receipt item
+- **Reference numbers** per company (`BS-000142`, `LSPD-000031`): find any invoice by typing its reference in the title bar or with `/invoice BS-142`, and copy it with one click
 - Notifications on login for unpaid invoices and payouts
 
 **For employees**
@@ -90,7 +91,7 @@ receipt = { name = 'receipt', label = 'Receipt', weight = 10, type = 'item', ima
 
 | System | Company money | Balance on dashboard | Statements |
 |---|---|---|---|
-| nayzeee-banking | ✓ | ✓ | ✓ |
+| nayzeee-banking (ESX) | ✓ | ✓ | ✓ (personal + company ledger) |
 | Renewed-Banking | ✓ | ✓ | ✓ (`handleTransaction`) |
 | okokBanking | ✓ | ✓ | – |
 | fd_banking | ✓ | ✓ | – |
@@ -103,16 +104,11 @@ If no banking system is found, company payments go to the employee who sent the 
 
 ### nayzeee-banking integration
 
-Billing calls these server exports on `nayzeee-banking`. The names can be changed in `Config.Banking.Nayzeee`:
+nayzeee-banking (ESX) owns the real bank balances, so billing goes through it instead of the ESX `bank` account:
 
-| Export | Signature | Returns |
-|---|---|---|
-| `AddSocietyMoney` | `(account, amount, reason)` | `true` on success |
-| `RemoveSocietyMoney` | `(account, amount, reason)` | `true` only if the account had the funds |
-| `GetSocietyBalance` | `(account)` | number |
-| `AddTransaction` | `(data)` where `data = { identifier?, name?, account?, amount, type = 'deposit'\|'withdraw', title, description }` | anything |
-
-`account` is the company's `account` field, or its job name if `account` isn't set.
+- **Company money** uses `addSocietyMoney`, `removeSocietyMoney` and `getSocietyBalance`. The company's job (or its `account` field) must be listed in nayzeee-banking's `Config.Accounts.societyAccess`, otherwise the society account doesn't exist and payments fall back to the employee.
+- **Personal bank payments** use `getBalance`, `removeMoney` and `addMoney`, so the customer's statement shows `Invoice BS-000142 · Burgershot` under the **Bill** category, frozen accounts can't pay, and payouts to offline employees land in their account immediately.
+- Turn the personal part off with `Config.Banking.Nayzeee.UsePersonalAccounts = false`.
 
 Your banking app can also read and pay bills through billing's exports (see below). For example, a "Bills" tab in nayzeee-banking can call `GetPlayerInvoices` and `PayInvoice`.
 
@@ -163,6 +159,17 @@ exports['nayzeee-billing']:IsOpen()
 ```
 
 ---
+
+## Reference numbers
+
+Every invoice gets a reference players can quote, search and type:
+
+- `Config.Invoices.ReferenceFormat = 'company'` gives each company its own counter: `BS-000001`, `BS-000002`, ... The prefix is the company's **Reference prefix** (set in `/billingadmin`) or its short name. Personal invoices and invoices from other scripts use `Config.Invoices.PersonalPrefix` (`INV`).
+- `'random'` uses codes like `INV-7KQ2MZ4P` instead.
+- Find an invoice from the box in the title bar or with `/invoice BS-000142`. The short form `/invoice bs-142` works too. You only get a result for invoices you're allowed to see (sender, recipient, the company's bosses, admins, or holding the receipt), and "not found" looks the same either way so references can't be guessed.
+- Every invoice and receipt has a copy button next to its reference.
+
+Existing invoices keep their old references.
 
 ## Previewing the UI
 

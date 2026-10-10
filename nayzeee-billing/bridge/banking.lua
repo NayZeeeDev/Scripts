@@ -34,25 +34,31 @@ local Adapters = {}
 -- ██║ ╚████║██║  ██║   ██║   ███████╗███████╗███████╗███████╗
 -- ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝╚══════╝╚══════╝
 
+-- Every movement is written to nayzeee-banking's own ledger with our label, so no separate log call
+local function nz() return exports[Config.Banking.Nayzeee.Resource or 'nayzeee-banking'] end
+
 Adapters['nayzeee-banking'] = {
     resource = function() return Config.Banking.Nayzeee.Resource or 'nayzeee-banking' end,
     add = function(account, amount, reason)
-        local cfg, res = Config.Banking.Nayzeee, exports[Config.Banking.Nayzeee.Resource]
-        return res[cfg.AddSocietyMoney](res, account, amount, reason) ~= false
+        return nz():addSocietyMoney(account, amount, reason) == true
     end,
     remove = function(account, amount, reason)
-        local cfg, res = Config.Banking.Nayzeee, exports[Config.Banking.Nayzeee.Resource]
-        return res[cfg.RemoveSocietyMoney](res, account, amount, reason) == true
+        return nz():removeSocietyMoney(account, amount, reason) == true
     end,
     balance = function(account)
-        local cfg, res = Config.Banking.Nayzeee, exports[Config.Banking.Nayzeee.Resource]
-        return tonumber(res[cfg.GetSocietyBalance](res, account))
+        return tonumber(nz():getSocietyBalance(account))
     end,
-    log = function(data)
-        local cfg, res = Config.Banking.Nayzeee, exports[Config.Banking.Nayzeee.Resource]
-        if not cfg.AddTransaction then return end
-        res[cfg.AddTransaction](res, data)
-    end,
+    -- Personal accounts (keyed by identifier, work for offline players too)
+    personal = {
+        enabled = function() return Config.Banking.Nayzeee.UsePersonalAccounts ~= false end,
+        balance = function(identifier) return tonumber(nz():getBalance(identifier)) or 0 end,
+        add = function(identifier, amount, reason)
+            return nz():addMoney(identifier, amount, reason, 'deposit') == true
+        end,
+        remove = function(identifier, amount, reason)
+            return nz():removeMoney(identifier, amount, reason, Config.Banking.Nayzeee.BillCategory or 'bill') == true
+        end,
+    },
 }
 
 -- ██████╗ ███████╗███╗   ██╗███████╗██╗    ██╗███████╗██████╗
@@ -286,6 +292,37 @@ function Banking.GetSocietyBalance(account)
     local a = adapter()
     if not a or not account then return nil end
     return safe(a.balance, account)
+end
+
+--@@ PERSONAL
+
+-- Banking scripts that own personal balances (nayzeee-banking). nil = use the framework's bank account
+local function personal()
+    local a = adapter()
+    if a and a.personal and a.personal.enabled() then return a.personal end
+    return nil
+end
+
+function Banking.HasPersonal()
+    return personal() ~= nil
+end
+
+function Banking.PersonalBalance(identifier)
+    local p = personal()
+    if not p or not identifier then return nil end
+    return safe(p.balance, identifier)
+end
+
+function Banking.AddPersonal(identifier, amount, reason)
+    local p = personal()
+    if not p or not identifier or amount <= 0 then return false end
+    return safe(p.add, identifier, Shared.Round(amount), reason or 'Billing') == true
+end
+
+function Banking.RemovePersonal(identifier, amount, reason)
+    local p = personal()
+    if not p or not identifier or amount <= 0 then return false end
+    return safe(p.remove, identifier, Shared.Round(amount), reason or 'Billing') == true
 end
 
 -- data = { identifier, name, account?, amount, type = 'deposit'|'withdraw', title, description }

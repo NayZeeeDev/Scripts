@@ -101,6 +101,27 @@ const isOpen = (inv) => ['pending', 'partial', 'overdue'].includes(inv.status);
 const itemSummary = (items) => (items || []).map((i) => `${i.quantity}× ${i.name}`).join(', ');
 const imgUrl = (name) => S.imagePath.replace('%s', encodeURIComponent(name));
 
+// Clipboard: CEF in FiveM blocks navigator.clipboard, execCommand still works
+function copyText(text, label = 'Reference copied') {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove();
+    if (!ok && navigator.clipboard) { navigator.clipboard.writeText(text).catch(() => {}); ok = true; }
+    toast(ok ? label : 'Copy failed', ok ? text : 'Select the reference and copy it manually', ok ? 'success' : 'error');
+}
+const copyBtn = (ref) => `<button class="icon-btn" title="Copy reference" data-act="copyRef" data-ref="${esc(ref)}">${ic('copy')}</button>`;
+const findBox = () => `<label class="search ref-find" title="Find an invoice by its reference">${ic('hash')}<input data-ref-find maxlength="20" placeholder="Find reference · BS-000142" spellcheck="false"></label>`;
+
+async function findByReference(value) {
+    const reference = String(value || '').trim();
+    if (!reference) return;
+    const data = await call('findInvoice', { reference });
+    if (data && data.invoiceId) openInvoice(data.invoiceId);
+}
+
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 function greeting() { const h = new Date().getHours(); return h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
 function firstName(n) { return String(n || '').split(' ')[0]; }
@@ -152,6 +173,8 @@ const P = {
     store: '<path d="M4 10v10h16V10M3 10l2-6h14l2 6M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M10 20v-5h4v5"/>',
     percent: '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
     note: '<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4M9 9h6M9 13h4"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+    hash: '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>',
 };
 const ic = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${P[name] || P.box}</svg>`;
 const faIcon = (cls) => /^fa-[\w-]+$/.test(cls || '') ? `<i class="fa-solid ${cls}"></i>` : '';
@@ -284,6 +307,7 @@ function openBilling(ctx) {
     S.tab = ctx.tab || 'home';
     showShell('billing');
     renderBilling();
+    if (ctx.openInvoice) openInvoice(ctx.openInvoice);
 }
 
 function canCreate() { const p = S.ctx?.perms || {}; return p.canBill || p.canPersonal; }
@@ -295,7 +319,7 @@ function renderBilling() {
     const overdue = ctx.invoices.filter((i) => i.status === 'overdue').length;
 
     setBar(company ? company.label : 'Billing', company ? `${ctx.player.job} · ${ctx.player.grade || 'Employee'}` : 'Personal account',
-        `<span class="dot ${overdue ? 'red' : ''}"></span><p>Signed in as <b>${esc(ctx.player.name)}</b> · ${ctx.stats.open} unpaid ${ctx.stats.open === 1 ? 'bill' : 'bills'}</p><span class="ver">v${esc(ctx.settings.version)}</span>`);
+        `<span class="dot ${overdue ? 'red' : ''}"></span><p>Signed in as <b>${esc(ctx.player.name)}</b> · ${ctx.stats.open} unpaid ${ctx.stats.open === 1 ? 'bill' : 'bills'}</p><span class="ver">v${esc(ctx.settings.version)}</span>${findBox()}`);
 
     let side = `<div class="who"><div class="av">${initials(ctx.player.name)}</div><div class="who-txt"><b>${esc(ctx.player.name)}</b><span>${esc(ctx.player.job || 'Citizen')}${ctx.player.grade ? ' · ' + esc(ctx.player.grade) : ''}</span></div></div>
         <div class="shift"><span>Bank</span><b>${money(ctx.player.bank)}</b></div>
@@ -636,7 +660,7 @@ async function sendInvoice() {
     });
     if (btn) btn.disabled = false;
     if (!data) return;
-    toast('Invoice sent', `${data.invoiceId} · ${money(data.total)} to ${data.targetName}`, 'success');
+    toast('Invoice sent', `Reference ${data.invoiceId} · ${money(data.total)} to ${data.targetName}`, 'success');
     const keep = { personal: order.personal, nearby: order.nearby };
     S.order = Object.assign(newOrder(), keep);
     refreshContext();
@@ -881,7 +905,7 @@ async function openInvoice(id) {
     if (!right.length) right.push(`<button class="btn-line" data-act="modalClose">Close</button>`);
 
     const m = openModal(`<div class="modal xwide">
-        ${modalHead('receipt', `${esc(inv.id)} &nbsp;${statusTag(inv.status)}`, `${esc(inv.company)} · ${esc(fmtDate(inv.createdAt))}`)}
+        ${modalHead('receipt', `<span style="display:inline-flex;align-items:center;gap:8px">${esc(inv.id)} ${copyBtn(inv.id)} ${statusTag(inv.status)}</span>`, `${esc(inv.company)} · ${esc(fmtDate(inv.createdAt))} · quote this reference when contacting ${esc(inv.company === 'Personal' ? inv.senderName : inv.company)}`)}
         <div class="modal-b"><div class="kv">${kv.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
             ${items}${totals}${notes}${payments}</div>
         <div class="modal-f"><div class="left">${left.join('')}</div>${right.join('')}</div></div>`);
@@ -961,7 +985,7 @@ function showReceipt(inv, onClose) {
     const stamp = { paid: ['PAID', ''], partial: ['PARTIAL', 'amber'], refunded: ['REFUNDED', 'red'], cancelled: ['VOID', 'red'], overdue: ['OVERDUE', 'red'], pending: ['UNPAID', 'amber'], disputed: ['DISPUTED', 'amber'] }[inv.status] || ['', ''];
     openModal(`<div class="receipt"><div class="receipt-paper">
         ${stamp[0] ? `<div class="stamp ${stamp[1]}">${stamp[0]}</div>` : ''}
-        <div class="r-head"><div class="mark"></div><h3>${esc(inv.company)}</h3><p>${esc(inv.id)}</p><p>${esc(fmtDate(inv.paidAt || inv.createdAt))}</p></div>
+        <div class="r-head"><div class="mark"></div><h3>${esc(inv.company)}</h3><p style="display:flex;align-items:center;gap:6px">REF ${esc(inv.id)} ${copyBtn(inv.id)}</p><p>${esc(fmtDate(inv.paidAt || inv.createdAt))}</p></div>
         <div class="r-items">${(inv.items || []).map((i) => `<div class="r-item"><span>${esc(i.quantity)}× ${esc(i.name)}</span><b>${money(i.price * i.quantity)}</b></div>`).join('')}</div>
         <div class="r-tot"><div><span>Subtotal</span><b>${money(inv.subtotal)}</b></div>
             ${inv.discount > 0 ? `<div><span>Discount</span><b>−${money(inv.discount)}</b></div>` : ''}
@@ -989,7 +1013,7 @@ function openAdmin(data) {
 
 function renderAdmin() {
     const d = S.admin.data;
-    setBar('Billing Admin', 'Server management', `<span class="dot"></span><p><b>${d.companies.length}</b> companies · <b>${d.registers.length}</b> registers · banking <b>${esc(d.system.banking)}</b></p><span class="ver">v${esc(d.system.version)}</span>`);
+    setBar('Billing Admin', 'Server management', `<span class="dot"></span><p><b>${d.companies.length}</b> companies · <b>${d.registers.length}</b> registers · banking <b>${esc(d.system.banking)}</b></p><span class="ver">v${esc(d.system.version)}</span>${findBox()}`);
     $('#side').innerHTML = `<div class="who"><div class="av" style="color:var(--teal)">${ic('shield')}</div><div class="who-txt"><b>Administrator</b><span>Full billing access</span></div></div>
         ${navBtn('overview', 'grid', 'Overview', S.tab === 'overview')}
         <div class="grp">Setup</div>
@@ -1070,7 +1094,8 @@ function companyModal(c) {
             <div class="grid3"><div class="field"><label>Min grade to bill</label><input id="fMin" type="number" min="0" value="${esc(c.minGrade || 0)}"></div>
                 <div class="field"><label>Boss grade (blank = framework boss)</label><input id="fBoss" type="number" min="0" value="${c.bossGrade !== undefined && c.bossGrade !== null ? esc(c.bossGrade) : ''}"></div>
                 <div class="field"><label>Max discount %</label><input id="fMaxDisc" type="number" min="0" max="100" value="${esc(c.maxDiscount ?? 100)}"></div></div>
-            <div class="field"><label>Discord webhook (this company only)</label><input id="fHook" value="${esc(c.webhook)}" placeholder="https://discord.com/api/webhooks/..."></div>
+            <div style="display:grid;grid-template-columns:200px 1fr;gap:12px"><div class="field"><label>Reference prefix</label><input id="fRef" maxlength="6" value="${esc(c.refPrefix)}" placeholder="${esc(c.shortName || 'BS')}"><span class="hint">Invoices become ${esc((c.refPrefix || c.shortName || 'BS').toUpperCase())}-000001</span></div>
+            <div class="field"><label>Discord webhook (this company only)</label><input id="fHook" value="${esc(c.webhook)}" placeholder="https://discord.com/api/webhooks/..."></div></div>
             <div class="grid3">${sw('fDisc', c.allowDiscounts, 'Allow discounts')}${sw('fCustom', c.allowCustomItems, 'Custom items')}${sw('fTips', c.allowTips, 'Allow tips')}</div>
         </div>
         <div class="modal-f"><button class="btn-line" data-act="modalClose">Cancel</button><button class="btn-teal" data-act="modalOk">${ic('check')}${isNew ? 'Create company' : 'Save changes'}</button></div></div>`);
@@ -1080,7 +1105,7 @@ function companyModal(c) {
         const list = await call('admin:saveCompany', { isNew, company: {
             id: v('fId'), label: v('fLabel'), shortName: v('fShort'), job: v('fJob'), jobs: v('fJobs'), account: v('fAccount'),
             taxRate: num(v('fTax')), commission: v('fComm'), dueDays: v('fDue'), minGrade: num(v('fMin')), bossGrade: v('fBoss'),
-            maxDiscount: num(v('fMaxDisc'), 100), webhook: v('fHook'), allowDiscounts: on('fDisc'), allowCustomItems: on('fCustom'), allowTips: on('fTips'),
+            maxDiscount: num(v('fMaxDisc'), 100), webhook: v('fHook'), refPrefix: v('fRef'), allowDiscounts: on('fDisc'), allowCustomItems: on('fCustom'), allowTips: on('fTips'),
         } });
         if (!list) return;
         S.admin.data.companies = list; m.close(); toast('Saved', 'Company saved', 'success'); renderAdmin();
@@ -1353,6 +1378,7 @@ const A = {
         if (!ok) return;
         if (await call('boss:resolveDispute', { invoiceId: d.id, action: d.a })) { toast('Dispute resolved', accept ? 'Invoice cancelled' : 'Invoice reinstated', 'success'); afterInvoiceAction(); }
     },
+    copyRef: (d) => copyText(d.ref),
     receiptFromDetail: () => { const m = modalStack.find((x) => x.invoice); if (m) showReceipt(m.invoice, () => {}); },
 
     // history
@@ -1568,6 +1594,13 @@ function closeCurrent() {
 
 document.addEventListener('keydown', (e) => {
     const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+    if (e.key === 'Enter' && e.target?.dataset && 'refFind' in e.target.dataset) {
+        e.preventDefault();
+        findByReference(e.target.value);
+        e.target.value = '';
+        e.target.blur();
+        return;
+    }
     if (e.key === 'Escape') {
         e.preventDefault();
         if (topModal()) { topModal().close(null); return; }
@@ -1603,6 +1636,7 @@ window.addEventListener('message', (event) => {
             if (!S.mode) { S.mode = 'receipt'; S.receiptClose = 'close'; }
             showReceipt(data);
             break;
+        case 'openInvoice': if (S.mode === 'billing' || S.mode === 'admin') openInvoice(data); break;
         case 'posOpen': openPos(data); break;
         case 'posState': onPosState(data); break;
         case 'displayOpen': displayOpen(data); break;
@@ -1630,14 +1664,14 @@ const Mock = (() => {
     };
     const inv = (id, o) => Object.assign({ id, company: 'Los Santos Customs', companyId: 'mechanic', senderName: 'Theo Kane', targetName: 'John Doe', direction: 'received', items: [{ name: 'Full Repair', price: 1500, quantity: 1 }], subtotal: 1500, tax: 120, discount: 0, total: 1620, lateFee: 0, amountPaid: 0, tip: 0, remaining: 1620, status: 'pending', createdAt: now - 5 * H, dueDate: now + 50 * H, tipsAllowed: true }, o);
     const invoices = [
-        inv('INV-7KQ2MZ4P', { status: 'overdue', lateFee: 162, remaining: 1782, dueDate: now - 20 * H, createdAt: now - 80 * H }),
-        inv('INV-H3XN8W2D', { company: 'Los Santos Police Department', companyId: 'police', senderName: 'Maya Reyes', items: [{ name: 'Speeding Violation', price: 500, quantity: 1 }, { name: 'Illegal Parking', price: 200, quantity: 1 }], subtotal: 700, tax: 0, total: 700, remaining: 450, amountPaid: 250, status: 'partial', notes: 'Plate 46EEK572 · Vinewood Blvd', tipsAllowed: false }),
-        inv('INV-P9TR4LBC', { company: 'Pillbox Medical Center', companyId: 'ambulance', senderName: 'Sam Brooks', items: [{ name: 'Medical Examination', price: 200, quantity: 1 }], subtotal: 200, tax: 0, total: 200, remaining: 200, status: 'disputed', disputeReason: 'I was never treated', tipsAllowed: false }),
+        inv('LSC-000142', { status: 'overdue', lateFee: 162, remaining: 1782, dueDate: now - 20 * H, createdAt: now - 80 * H }),
+        inv('LSPD-000031', { company: 'Los Santos Police Department', companyId: 'police', senderName: 'Maya Reyes', items: [{ name: 'Speeding Violation', price: 500, quantity: 1 }, { name: 'Illegal Parking', price: 200, quantity: 1 }], subtotal: 700, tax: 0, total: 700, remaining: 450, amountPaid: 250, status: 'partial', notes: 'Plate 46EEK572 · Vinewood Blvd', tipsAllowed: false }),
+        inv('PMC-000007', { company: 'Pillbox Medical Center', companyId: 'ambulance', senderName: 'Sam Brooks', items: [{ name: 'Medical Examination', price: 200, quantity: 1 }], subtotal: 200, tax: 0, total: 200, remaining: 200, status: 'disputed', disputeReason: 'I was never treated', tipsAllowed: false }),
     ];
     const recent = [
-        inv('INV-B2WQ7ZK4', { direction: 'sent', company: 'Burgershot', targetName: 'Rafael Salas', total: 25.88, status: 'paid', createdAt: now - 0.4 * H }),
+        inv('BS-000318', { direction: 'sent', company: 'Burgershot', targetName: 'Rafael Salas', total: 25.88, status: 'paid', createdAt: now - 0.4 * H }),
         invoices[0], invoices[1],
-        inv('INV-M8DD2KXA', { direction: 'sent', company: 'Burgershot', targetName: 'Jenny Pork', total: 41.20, status: 'pending', createdAt: now - 7 * H }),
+        inv('BS-000317', { direction: 'sent', company: 'Burgershot', targetName: 'Jenny Pork', total: 41.20, status: 'pending', createdAt: now - 7 * H }),
     ];
     const ctx = {
         player: { name: 'John Doe', job: 'Burgershot', jobName: 'burgershot', grade: 'Manager', cash: 820, bank: 15240.55 },
@@ -1663,10 +1697,11 @@ const Mock = (() => {
         searchPlayers: () => ok([{ type: 'online', id: 12, name: 'Rafael Salas' }]),
         getHistory: () => ok({ rows: recent.concat(invoices), hasMore: false }), getInvoice: (p) => ok(Object.assign({ payments: [], canCancel: false }, [...invoices, ...recent].find((i) => i.id === p.invoiceId))),
         'boss:getDashboard': () => ok(dash), 'boss:getInvoices': () => ok({ rows: dash.recent, hasMore: false }),
-        'admin:getData': () => ok(admin), 'admin:getInvoices': () => ok({ rows: invoices, hasMore: false }), 'admin:getLogs': () => ok({ rows: [{ timestamp: now, player: 'John Doe', action: 'invoice_paid', data: { invoice: 'INV-7KQ2MZ4P', amount: 1620 } }], hasMore: false }),
-        createInvoice: () => ok({ invoiceId: 'INV-NEW12345', total: 10, targetName: 'Rafael Salas' }),
+        'admin:getData': () => ok(admin), 'admin:getInvoices': () => ok({ rows: invoices, hasMore: false }), 'admin:getLogs': () => ok({ rows: [{ timestamp: now, player: 'John Doe', action: 'invoice_paid', data: { invoice: 'LSC-000142', amount: 1620 } }], hasMore: false }),
+        createInvoice: () => ok({ invoiceId: 'BS-000319', total: 10, targetName: 'Rafael Salas' }),
         payInvoice: (p) => ok({ amount: 100, tip: 0, charged: 100, method: p.method, status: 'paid', remaining: 0 }),
         getItems: () => ok([{ name: 'burger', label: 'Burger' }]),
+        findInvoice: (p) => { const hit = [...invoices, ...recent].find((i) => i.id.toLowerCase() === String(p.reference).toLowerCase()); return hit ? ok({ invoiceId: hit.id }) : { ok: false, error: 'No invoice found with that reference' }; },
     };
     return {
         nui: async (event, data) => {
@@ -1680,7 +1715,7 @@ const Mock = (() => {
             else if (view === 'pos') { openPos({ register: admin.registers[0], company, nearby: [{ id: 12, name: 'Rafael Salas', distance: 1.4 }] }); }
             else if (view === 'display') {
                 displayOpen({ company: 'Burgershot', register: 'Front Counter', employee: 'John Doe' });
-                displayCheckout({ invoice: Object.assign(inv('INV-B2WQ7ZK4', {}), { company: 'Burgershot', items: [{ name: 'Bleeder Burger', price: 8.99, quantity: 2 }, { name: 'Fries', price: 3.99, quantity: 1 }], subtotal: 21.97, tax: 1.76, total: 23.73 }), allowTips: true });
+                displayCheckout({ invoice: Object.assign(inv('BS-000318', {}), { company: 'Burgershot', items: [{ name: 'Bleeder Burger', price: 8.99, quantity: 2 }, { name: 'Fries', price: 3.99, quantity: 1 }], subtotal: 21.97, tax: 1.76, total: 23.73 }), allowTips: true });
             } else openBilling(Object.assign({}, ctx, { tab: new URLSearchParams(location.search).get('tab') || 'home' }));
         },
     };

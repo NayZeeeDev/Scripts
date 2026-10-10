@@ -75,7 +75,7 @@ end
 
 local SettingKeys = {
     'jobs', 'account', 'minGrade', 'bossGrade', 'maxDiscount', 'allowCustomItems',
-    'allowTips', 'commission', 'dueDays', 'webhook',
+    'allowTips', 'commission', 'dueDays', 'webhook', 'refPrefix',
 }
 
 BoolSettings = { allowCustomItems = true, allowTips = true }
@@ -199,6 +199,7 @@ function PublicCompany(c, full)
         out.bossGrade = c.bossGrade
         out.commission = c.commission
         out.webhook = c.webhook
+        out.refPrefix = c.refPrefix
         out.isConfig = c.isConfig
         out.hasOverride = c.hasOverride
     end

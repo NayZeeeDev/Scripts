@@ -78,6 +78,14 @@ Config.Invoices = {
     AllowCustomDueDays = true,    -- Senders can pick 1..MaxDueDays
     MaxDueDays = 14,
 
+    -- Reference numbers players quote and search for
+    -- 'company' = per-company counters: BS-000142, LSPD-000031 (prefix = company refPrefix or shortName)
+    -- 'random'  = INV-7KQ2MZ4P
+    ReferenceFormat = 'company',
+    PersonalPrefix = 'INV',       -- prefix for personal invoices / invoices from other scripts
+    ReferenceDigits = 6,
+    InvoiceCommand = 'invoice',   -- /invoice BS-000142 opens that invoice. false to disable
+
     -- Disputes: recipients can dispute an invoice. The company's bosses get notified and resolve it
     AllowDisputes = true,
 
@@ -193,13 +201,14 @@ Config.Banking = {
     -- Write statements / transaction history into the banking script when supported
     LogTransactions = true,
 
-    -- nayzeee-banking export names (change these if your nayzeee-banking version uses different names)
+    -- nayzeee-banking (ESX). Company jobs must be listed in nayzeee-banking's
+    -- Config.Accounts.societyAccess so their society account exists.
     Nayzeee = {
         Resource = 'nayzeee-banking',
-        AddSocietyMoney = 'AddSocietyMoney',         -- (account, amount, reason) -> bool
-        RemoveSocietyMoney = 'RemoveSocietyMoney',   -- (account, amount, reason) -> bool
-        GetSocietyBalance = 'GetSocietyBalance',     -- (account) -> number
-        AddTransaction = 'AddTransaction',           -- (data) -> any  (data = { identifier, account, amount, type, title, description })
+        -- Charge / pay personal bank money through nayzeee-banking so statements show
+        -- "Invoice BS-000142 · Burgershot" under the Bill category, and payouts reach offline players instantly
+        UsePersonalAccounts = true,
+        BillCategory = 'bill',
     },
 
     -- ESX society accounts are usually prefixed: society_police

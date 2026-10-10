@@ -61,14 +61,64 @@ end
 -- ╚██████╗██║  ██║███████╗██║  ██║   ██║   ███████╗
 --  ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
-local function newInvoiceId()
-    for _ = 1, 5 do
-        local id = Shared.GenerateInvoiceId()
-        if not MySQL.scalar.await('SELECT 1 FROM nayzeee_billing_invoices WHERE invoice_id = ?', { id }) then
-            return id
+-- Reference numbers ─────────────────────────────────────────────
+-- Counters live in memory (one server process, so incrementing is race-free once loaded)
+-- and are persisted with GREATEST() so a restart never reuses a number.
+local Sequences = {}
+
+function ReferencePrefix(company)
+    local raw = company and (company.refPrefix or company.shortName or company.id) or Config.Invoices.PersonalPrefix or 'INV'
+    local prefix = tostring(raw):upper():gsub('[^%w]', ''):sub(1, 6)
+    return prefix ~= '' and prefix or 'INV'
+end
+
+local function nextSequence(prefix)
+    if Sequences[prefix] == nil then
+        local stored = tonumber(MySQL.scalar.await('SELECT value FROM nayzeee_billing_sequences WHERE prefix = ?', { prefix })) or 0
+        Sequences[prefix] = math.max(Sequences[prefix] or 0, stored) -- another call may have loaded it while we waited
+    end
+    Sequences[prefix] = Sequences[prefix] + 1
+    local n = Sequences[prefix]
+    MySQL.insert('INSERT INTO nayzeee_billing_sequences (prefix, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = GREATEST(value, VALUES(value))',
+        { prefix, n })
+    return n
+end
+
+local function invoiceExists(id)
+    return MySQL.scalar.await('SELECT 1 FROM nayzeee_billing_invoices WHERE invoice_id = ?', { id }) ~= nil
+end
+
+local function referenceDigits()
+    return math.floor(Shared.Clamp(Config.Invoices.ReferenceDigits or 6, 3, 10))
+end
+
+local function newInvoiceId(company)
+    if Config.Invoices.ReferenceFormat == 'company' then
+        local prefix = ReferencePrefix(company)
+        for _ = 1, 25 do
+            local id = ('%s-%0' .. referenceDigits() .. 'd'):format(prefix, nextSequence(prefix))
+            if #id <= 20 and not invoiceExists(id) then return id end
         end
     end
+    for _ = 1, 5 do
+        local id = Shared.GenerateInvoiceId()
+        if not invoiceExists(id) then return id end
+    end
     return Shared.GenerateInvoiceId() .. tostring(math.random(0, 9))
+end
+
+-- Accepts "bs-142", " BS-000142 ", "inv-7kq2mz4p" and returns the stored reference if it exists
+function NormalizeReference(input)
+    if type(input) ~= 'string' then return nil end
+    local ref = input:upper():gsub('%s+', '')
+    if ref == '' or #ref > 20 or ref:find('[^%w%-]') then return nil end
+    if invoiceExists(ref) then return ref end
+    local prefix, num = ref:match('^(%w+)%-(%d+)$')
+    if prefix and num then
+        local padded = ('%s-%0' .. referenceDigits() .. 'd'):format(prefix, tonumber(num))
+        if #padded <= 20 and invoiceExists(padded) then return padded end
+    end
+    return nil
 end
 
 --[[
@@ -89,7 +139,7 @@ function CreateInvoice(opts)
     end
 
     local dueDays = math.floor(Shared.Clamp(opts.dueDays or (company and company.dueDays) or Config.Invoices.DueDays, 0, 365))
-    local invoiceId = newInvoiceId()
+    local invoiceId = newInvoiceId(company)
     local notes = opts.notes and Shared.Sanitize(opts.notes, Config.Billing.MaxNoteLength or 250) or nil
     if notes == '' then notes = nil end
     local companyName = company and company.label or 'Personal'
@@ -267,6 +317,16 @@ function CanViewInvoice(source, ctx, row)
     if row.company_id and IsBossOf(ctx, row.company_id) then return true end
     return Inventory.HasReceipt(source, row.invoice_id)
 end
+
+RPC('findInvoice', function(source, payload)
+    if Throttle(source, 'find', 0.5) then return Err('Slow down a little') end
+    local ref = NormalizeReference(payload.reference)
+    local ctx = GetCtx(source)
+    local row = ref and GetInvoiceRow(ref)
+    -- Same answer whether it doesn't exist or you can't see it, so references can't be probed
+    if not row or not CanViewInvoice(source, ctx, row) then return Err('No invoice found with that reference') end
+    return { invoiceId = row.invoice_id }
+end)
 
 RPC('getInvoice', function(source, payload)
     local ctx = GetCtx(source)

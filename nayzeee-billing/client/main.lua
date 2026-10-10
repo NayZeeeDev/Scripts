@@ -55,7 +55,7 @@ end
 -- ╚██████╔╝██║     ███████╗██║ ╚████║
 --  ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝
 
-function OpenBilling(tab)
+function OpenBilling(tab, invoiceId)
     if UI.open then return end
     local ok, ctx = Rpc('getContext')
     if not ok then
@@ -63,6 +63,7 @@ function OpenBilling(tab)
         return
     end
     ctx.tab = tab
+    ctx.openInvoice = invoiceId
     UI.Focus('billing')
     UI.Send('open', ctx)
 end
@@ -88,6 +89,31 @@ if Config.OpenKey then
 end
 RegisterCommand(Config.AdminCommand, function() OpenAdmin() end, false)
 
+-- /invoice BS-000142 → opens that invoice (if you're allowed to see it)
+local invoiceCommand = Config.Invoices.InvoiceCommand
+if invoiceCommand then
+    RegisterCommand(invoiceCommand, function(_, args)
+        local reference = args[1]
+        if not reference then
+            OpenBilling('history')
+            return
+        end
+        local ok, data = Rpc('findInvoice', { reference = reference })
+        if not ok then
+            ClientBridge.Notify('Billing', data, 'error')
+            return
+        end
+        if UI.open and UI.mode == 'billing' then
+            UI.Send('openInvoice', data.invoiceId)
+        elseif not UI.open then
+            OpenBilling(nil, data.invoiceId)
+        end
+    end, false)
+    TriggerEvent('chat:addSuggestion', '/' .. invoiceCommand, 'Open an invoice by its reference number', {
+        { name = 'reference', help = 'e.g. BS-000142 or BS-142' },
+    })
+end
+
 --  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗
 -- ██╔════╝██╔══██╗██║     ██║     ██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝
 -- ██║     ███████║██║     ██║     ██████╔╝███████║██║     █████╔╝ ███████╗
@@ -98,7 +124,7 @@ RegisterCommand(Config.AdminCommand, function() OpenAdmin() end, false)
 -- Allowed server RPCs from the UI (server re-checks every permission anyway)
 local AllowedRpc = {}
 for _, name in ipairs({
-    'getContext', 'getNearby', 'searchPlayers', 'getItems', 'createInvoice', 'payInvoice', 'getHistory',
+    'getContext', 'getNearby', 'searchPlayers', 'getItems', 'createInvoice', 'payInvoice', 'getHistory', 'findInvoice',
     'getInvoice', 'cancelInvoice', 'disputeInvoice',
     'boss:getDashboard', 'boss:getInvoices', 'boss:refund', 'boss:resolveDispute',
     'catalog:saveProduct', 'catalog:deleteProduct', 'catalog:saveCategory', 'catalog:deleteCategory',

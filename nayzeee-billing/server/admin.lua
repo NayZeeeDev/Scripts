@@ -118,6 +118,9 @@ AdminRPC('saveCompany', function(source, payload)
     c.commission = (data.commission ~= nil and data.commission ~= '') and Shared.Round(Shared.Clamp(data.commission, 0, 100) / 100, 4) or nil
     c.dueDays = (data.dueDays ~= nil and data.dueDays ~= '') and math.floor(Shared.Clamp(data.dueDays, 0, 365)) or nil
 
+    local refPrefix = tostring(data.refPrefix or ''):upper():gsub('[^%w]', ''):sub(1, 6)
+    c.refPrefix = refPrefix ~= '' and refPrefix or nil
+
     local webhook = Shared.Sanitize(data.webhook, 255)
     c.webhook = webhook:match('^https://') and webhook or nil
 

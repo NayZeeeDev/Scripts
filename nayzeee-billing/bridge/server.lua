@@ -97,6 +97,9 @@ end
 function Bridge.GetMoney(source, account)
     local player = Bridge.GetPlayer(source)
     if not player then return 0 end
+    if account == 'bank' and Banking.HasPersonal() then
+        return Banking.PersonalBalance(Bridge.GetIdentifier(source)) or 0
+    end
     if fwName == 'esx' then
         local acc = player.getAccount(account == 'cash' and 'money' or account)
         return acc and tonumber(acc.money) or 0
@@ -109,6 +112,9 @@ function Bridge.RemoveMoney(source, account, amount, reason)
     if not player then return false end
     amount = Shared.Round(amount)
     if amount <= 0 then return true end
+    if account == 'bank' and Banking.HasPersonal() then
+        return Banking.RemovePersonal(Bridge.GetIdentifier(source), amount, reason)
+    end
 
     if fwName == 'esx' then
         local accName = account == 'cash' and 'money' or account
@@ -125,6 +131,9 @@ function Bridge.AddMoney(source, account, amount, reason)
     if not player then return false end
     amount = Shared.Round(amount)
     if amount <= 0 then return true end
+    if account == 'bank' and Banking.HasPersonal() then
+        return Banking.AddPersonal(Bridge.GetIdentifier(source), amount, reason)
+    end
 
     if fwName == 'esx' then
         player.addAccountMoney(account == 'cash' and 'money' or account, amount, reason)

@@ -95,6 +95,14 @@ CreateThread(function()
     -- Paid 1.x invoices had no amount_paid
     MySQL.query.await("UPDATE `nayzeee_billing_invoices` SET `amount_paid` = `total` WHERE `status` = 'paid' AND `amount_paid` = 0")
 
+    -- Per-prefix reference counters (BS-000142)
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS `nayzeee_billing_sequences` (
+            `prefix` VARCHAR(10) PRIMARY KEY,
+            `value` INT NOT NULL DEFAULT 0
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ]])
+
     -- ██████╗  █████╗ ██╗   ██╗███╗   ███╗███████╗███╗   ██╗████████╗███████╗
     -- ██╔══██╗██╔══██╗╚██╗ ██╔╝████╗ ████║██╔════╝████╗  ██║╚══██╔══╝██╔════╝
     -- ██████╔╝███████║ ╚████╔╝ ██╔████╔██║█████╗  ██╔██╗ ██║   ██║   ███████╗
