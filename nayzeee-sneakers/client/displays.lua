@@ -288,7 +288,9 @@ end)
 
 --- Aiming at a case: on top of it (aiming at its lid), or beside / behind it (aiming at a side)
 local function snap(hitEnt, _, normal)
-    local _, o = typeOfModel(GetEntityModel(hitEnt))
+    local model = Place.ModelOf(hitEnt)
+    if not model then return nil end
+    local _, o = typeOfModel(model)
     if not o then return nil end
     return o, normal
 end
@@ -306,40 +308,40 @@ RegisterNetEvent('nayzeee-sneakers:client:placeDisplay', function(slot, typeId)
     local t = D.Types[typeId]
     if not t or Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
     if not IsModelInCdimage(t.model) then return UI.Notify(Config.Text.modelMissing, 'error') end
-    Busy = true
-    local w, d = t.size.x, t.size.y
-    local spot, heading, ghostDone = Place.Ghost(t.model, {
-        range = 3.0,
-        extra = { model = t.door, offset = hinge(t) },
-        keep = true,
-        snap = D.snap and function(hitEnt, _, normal)
-            local o, nrm = snap(hitEnt, nil, normal)
-            if not o then return nil end
-            local hh = GetEntityHeading(hitEnt)
-            -- the normal in the other case's own frame
-            local r = math.rad(-hh)
-            local lx = nrm.x * math.cos(r) - nrm.y * math.sin(r)
-            local ly = nrm.x * math.sin(r) + nrm.y * math.cos(r)
-            local front = (o.size.y - d) * 0.5     -- keep the fronts flush
-            local ox, oy, oz
-            if nrm.z > 0.7 then
-                ox, oy, oz = 0.0, front, o.size.z + 0.001
-            elseif math.abs(lx) >= math.abs(ly) then
-                local sx = lx > 0 and 1 or -1
-                ox, oy, oz = sx * ((o.size.x + w) * 0.5 + 0.002), front, 0.0
-            else
-                local sy = ly > 0 and 1 or -1
-                ox, oy, oz = 0.0, sy * ((o.size.y + d) * 0.5 + 0.002), 0.0
-            end
-            return GetOffsetFromEntityInWorldCoords(hitEnt, ox, oy, oz), hh
-        end or nil,
-    })
-    if spot then
-        Anim.PutDown()
-        local netId = lib.callback.await('nayzeee-sneakers:placeDisplay', false, slot, typeId, spot, heading)
-        local ent = netId and waitForEntity(netId)
-        if ent then addCase(ent) end
-        ghostDone()
-    end
-    Busy = false
+    Place.Run(function()
+        local w, d = t.size.x, t.size.y
+        local spot, heading, ghostDone = Place.Ghost(t.model, {
+            range = 3.0,
+            extra = { model = t.door, offset = hinge(t) },
+            keep = true,
+            snap = D.snap and function(hitEnt, _, normal)
+                local o, nrm = snap(hitEnt, nil, normal)
+                if not o then return nil end
+                local hh = GetEntityHeading(hitEnt)
+                -- the normal in the other case's own frame
+                local r = math.rad(-hh)
+                local lx = nrm.x * math.cos(r) - nrm.y * math.sin(r)
+                local ly = nrm.x * math.sin(r) + nrm.y * math.cos(r)
+                local front = (o.size.y - d) * 0.5     -- keep the fronts flush
+                local ox, oy, oz
+                if nrm.z > 0.7 then
+                    ox, oy, oz = 0.0, front, o.size.z + 0.001
+                elseif math.abs(lx) >= math.abs(ly) then
+                    local sx = lx > 0 and 1 or -1
+                    ox, oy, oz = sx * ((o.size.x + w) * 0.5 + 0.002), front, 0.0
+                else
+                    local sy = ly > 0 and 1 or -1
+                    ox, oy, oz = 0.0, sy * ((o.size.y + d) * 0.5 + 0.002), 0.0
+                end
+                return GetOffsetFromEntityInWorldCoords(hitEnt, ox, oy, oz), hh
+            end or nil,
+        })
+        if spot then
+            Anim.PutDown()
+            local netId = lib.callback.await('nayzeee-sneakers:placeDisplay', false, slot, typeId, spot, heading)
+            local ent = netId and waitForEntity(netId)
+            if ent then addCase(ent) end
+            ghostDone()
+        end
+    end)
 end)

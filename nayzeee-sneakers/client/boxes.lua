@@ -396,13 +396,25 @@ RegisterCommand('nzsboxes', function()
     end
     print(('  %d box(es) set up for the third eye, %d box base(s) within 50m'):format(n, seen))
     local hit, ent = lib.raycast.fromCamera(511, 4, 20)
-    print(('  aiming at: %s'):format(hit and ent ~= 0 and ('entity %d, model %s, is a box: %s'):format(ent, GetEntityModel(ent),
-        tostring(Shared.BoxTypeOfModel(GetEntityModel(ent)) ~= nil)) or 'nothing / the world'))
+    local model = hit and Place.ModelOf(ent)
+    print(('  aiming at: %s'):format(model and ('entity %d, model %s, is a box: %s'):format(ent, model,
+        tostring(Shared.BoxTypeOfModel(model) ~= nil)) or 'nothing / the world'))
 end, false)
 
 -- Placing boxes -----------------------------------------------------------------
 
 --- Which colour box: a quick menu (the last one used is at the top). nil = cancelled.
+--- Starts loading a colour's box models (they're ready by the time the preview needs them)
+local function warm(colour)
+    for id in pairs(Config.BoxTypes) do
+        local base, lid = Shared.BoxModels(id, colour)
+        if IsModelInCdimage(base) then RequestModel(base) end
+        if IsModelInCdimage(lid) then RequestModel(lid) end
+    end
+end
+
+CreateThread(function() warm(GetResourceKvpString('nzs:boxcolour')) end)
+
 function Boxes.PickColour()
     local list = Config.BoxColours or {}
     if not Config.Box.colourPicker or #list < 2 then return Shared.BoxColour(nil) end
@@ -413,7 +425,7 @@ function Boxes.PickColour()
         if c.id == last then table.insert(options, 1, o) else options[#options + 1] = o end
     end
     local pick = UI.Menu({ title = Config.Text.boxColour, options = options })
-    if pick then SetResourceKvp('nzs:boxcolour', pick) end
+    if pick then SetResourceKvp('nzs:boxcolour', pick) warm(pick) end
     return pick
 end
 
@@ -445,16 +457,16 @@ RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind, boxTyp
     -- a boxed pair keeps its box; an empty box gets a colour now
     if kind ~= 'boxed' or not colour then colour = Boxes.PickColour() end
     if not colour then return end
-    Busy = true
-    local spot, heading, ghostDone = placementSpot(boxType, colour)
-    if spot then
-        Anim.PutDown()
-        local netId = lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading, colour)
-        local ent = netId and waitForEntity(netId)
-        if ent then addBox(ent) end   -- lid and contents now, not on the next streaming pass
-        ghostDone()
-    end
-    Busy = false
+    Place.Run(function()
+        local spot, heading, ghostDone = placementSpot(boxType, colour)
+        if spot then
+            Anim.PutDown()
+            local netId = lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading, colour)
+            local ent = netId and waitForEntity(netId)
+            if ent then addBox(ent) end   -- lid and contents now, not on the next streaming pass
+            ghostDone()
+        end
+    end)
 end)
 
 --- Loose pair + empty box from the inventory: put the box down, shoes float in, lid closes
@@ -462,22 +474,22 @@ function Boxes.PackFromInventory(slot, meta)
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
     local colour = Boxes.PickColour()
     if not colour then return end
-    Busy = true
-    local spot, heading, ghostDone = placementSpot(meta and Shared.BoxTypeForShoe(meta.shoe), colour)
-    if not spot then Busy = false return end
-    Anim.PutDown()
-    local netId, duration = lib.callback.await('nayzeee-sneakers:packShoes', false, slot, spot, heading, colour)
-    local ent = netId and waitForEntity(netId)
-    if ent then addBox(ent) end
-    ghostDone()
-    if ent then
-        Anim.Kneel()
-        Wait(300)
-        Cam.LookAt(boxCentre(ent))
-        Wait(duration or 3000)
-        Wait(300)
-        Cam.Stop()
-        Anim.Stop()
-    end
-    Busy = false
+    Place.Run(function()
+        local spot, heading, ghostDone = placementSpot(meta and Shared.BoxTypeForShoe(meta.shoe), colour)
+        if not spot then return end
+        Anim.PutDown()
+        local netId, duration = lib.callback.await('nayzeee-sneakers:packShoes', false, slot, spot, heading, colour)
+        local ent = netId and waitForEntity(netId)
+        if ent then addBox(ent) end
+        ghostDone()
+        if ent then
+            Anim.Kneel()
+            Wait(300)
+            Cam.LookAt(boxCentre(ent))
+            Wait(duration or 3000)
+            Wait(300)
+            Cam.Stop()
+            Anim.Stop()
+        end
+    end)
 end

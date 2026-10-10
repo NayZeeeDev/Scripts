@@ -173,13 +173,13 @@ RegisterNetEvent('nayzeee-sneakers:client:placeTable', function(slot, item)
     if Busy or IsPedInAnyVehicle(ped, false) then return end
     local model = modelFor(item)
     if not model then return UI.Notify(Config.Text.noTableModel, 'error') end
-    Busy = true
-    local pos, heading, ghostDone = Place.Ghost(model, { range = 5.0, flags = 1, minNormal = 0.85, heading = GetEntityHeading(ped), keep = true })
-    if pos then
-        Anim.PutDown()
-        lib.callback.await('nayzeee-sneakers:placeTable', false, slot, pos, heading)
-        Wait(150)   -- the real table spawns from tableAdded, which arrives with the answer
-        ghostDone()
-    end
-    Busy = false
+    Place.Run(function()
+        local pos, heading, ghostDone = Place.Ghost(model, { range = 5.0, flags = 1, minNormal = 0.85, heading = GetEntityHeading(ped), keep = true })
+        if pos then
+            Anim.PutDown()
+            lib.callback.await('nayzeee-sneakers:placeTable', false, slot, pos, heading)
+            Wait(150)   -- the real table spawns from tableAdded, which arrives with the answer
+            ghostDone()
+        end
+    end)
 end)

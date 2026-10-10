@@ -9,11 +9,48 @@ Place = {}
 local NO_ATTACK = { 24, 25, 37, 38, 44, 140, 141, 142, 257, 263, 14, 15, 16, 17, 177, 194, 199, 200, 202, 322 }
 local CANCEL = { 25, 177, 194, 200, 202, 322 }   -- right-click, Backspace, Esc (read while disabled, so the pause menu stays shut)
 
+--- Where the camera looks, answered this same frame (ox_lib's raycast waits a frame for its result,
+--- which made the preview lag and could miss a quick E or Backspace)
+local function camRay(flags, dist, ignore)
+    local from = GetFinalRenderedCamCoord()
+    local rot = GetFinalRenderedCamRot(2)
+    local rx, rz = math.rad(rot.x), math.rad(rot.z)
+    local c = math.abs(math.cos(rx))
+    local to = from + vector3(-math.sin(rz) * c, math.cos(rz) * c, math.sin(rx)) * dist
+    local h = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, flags, ignore, 4)
+    local _, hit, coords, normal, ent = GetShapeTestResult(h)
+    return hit == 1 or hit == true, ent, coords, normal
+end
+
+--- The model of whatever a ray hit, or nil (the ground and buildings aren't entities, and asking
+--- for their model crashes the native)
+function Place.ModelOf(ent)
+    if not ent or ent == 0 then return nil end
+    local ok, exists = pcall(DoesEntityExist, ent)
+    if not ok or not exists then return nil end
+    local okT, kind = pcall(GetEntityType, ent)
+    if not okT or kind ~= 3 then return nil end   -- objects only
+    local okM, model = pcall(GetEntityModel, ent)
+    return okM and model or nil
+end
+
 local function ghostOf(model, pos)
     local obj = CreateObjectNoOffset(model, pos.x, pos.y, pos.z, false, false, false)
     SetEntityCollision(obj, false, false)
     FreezeEntityPosition(obj, true)
     return obj
+end
+
+--- Runs a placing flow with Busy set, and always clears it again, even if something in the flow errors
+function Place.Run(fn, ...)
+    if Busy then return end
+    Busy = true
+    local ok, err = pcall(fn, ...)
+    Busy = false
+    if not ok then
+        UI.Hint(nil)
+        print(('^1[nayzeee-sneakers]^7 placing failed: %s'):format(err))
+    end
 end
 
 --- opts = {
@@ -45,42 +82,47 @@ function Place.Ghost(model, opts)
     end
     UI.Hint(Config.Text.placeHint)
 
-    local placed, valid = false, false
-    while true do
-        Wait(0)
-        for _, c in ipairs(NO_ATTACK) do DisableControlAction(0, c, true) end
-        local hit, ent, coords, normal = lib.raycast.cam(opts.flags or 17, 4, range + 4.0)
-        if hit then pos = coords end
-        local snapped = false
-        if hit and opts.snap and ent and ent ~= 0 then
-            local sp, sh = opts.snap(ent, coords, normal)
-            if sp then pos, heading, snapped = sp, sh, true end
-        end
-        valid = hit and (snapped or normal.z > (opts.minNormal or 0.8)) and #(pos - GetEntityCoords(ped)) < range
-        SetEntityCoords(ghost, pos.x, pos.y, pos.z, false, false, false, false)
-        SetEntityHeading(ghost, heading)
-        local a = valid and 200 or 90
-        SetEntityAlpha(ghost, a, false)
-        if extra then SetEntityAlpha(extra, a, false) end
-
-        if IsDisabledControlPressed(0, 15) then heading = heading + 7.5 end   -- scroll up
-        if IsDisabledControlPressed(0, 14) then heading = heading - 7.5 end   -- scroll down
-        heading = heading % 360.0
-        if IsDisabledControlJustPressed(0, 38) then                         -- E
-            if valid then placed = true break end
-            UI.Notify(Config.Text.cantPlace, 'error')
-        end
-        local cancel = false
-        for _, c in ipairs(CANCEL) do if IsDisabledControlJustPressed(0, c) then cancel = true break end end
-        if cancel then break end
-    end
-
-    UI.Hint(nil)
     local function done()
         if extra and DoesEntityExist(extra) then DeleteEntity(extra) end
         if DoesEntityExist(ghost) then DeleteEntity(ghost) end
         SetModelAsNoLongerNeeded(model)
     end
+
+    local placed, valid = false, false
+    -- if anything in the loop errors, the ghost still goes and the player isn't left stuck
+    local ok, err = pcall(function()
+        while true do
+            Wait(0)
+            for _, c in ipairs(NO_ATTACK) do DisableControlAction(0, c, true) end
+            local hit, ent, coords, normal = camRay(opts.flags or 17, range + 4.0, ped)
+            if hit then pos = coords end
+            local snapped = false
+            if hit and opts.snap and Place.ModelOf(ent) then
+                local ok, sp, sh = pcall(opts.snap, ent, coords, normal)
+                if ok and sp then pos, heading, snapped = sp, sh, true end
+            end
+            valid = hit and (snapped or normal.z > (opts.minNormal or 0.8)) and #(pos - GetEntityCoords(ped)) < range
+            SetEntityCoords(ghost, pos.x, pos.y, pos.z, false, false, false, false)
+            SetEntityHeading(ghost, heading)
+            local a = valid and 200 or 90
+            SetEntityAlpha(ghost, a, false)
+            if extra then SetEntityAlpha(extra, a, false) end
+
+            if IsDisabledControlPressed(0, 15) then heading = heading + 7.5 end   -- scroll up
+            if IsDisabledControlPressed(0, 14) then heading = heading - 7.5 end   -- scroll down
+            heading = heading % 360.0
+            if IsDisabledControlJustPressed(0, 38) then                         -- E
+                if valid then placed = true break end
+                UI.Notify(Config.Text.cantPlace, 'error')
+            end
+            local cancel = false
+            for _, c in ipairs(CANCEL) do if IsDisabledControlJustPressed(0, c) then cancel = true break end end
+            if cancel then break end
+        end
+    end)
+
+    UI.Hint(nil)
+    if not ok then done() error(err, 0) end
     -- keep Esc from opening the pause menu on the frame after cancelling
     CreateThread(function()
         local untilT = GetGameTimer() + 300
