@@ -81,6 +81,10 @@ svg{display:block}
 .bar-ic svg{width:16px;height:16px;stroke-width:1.6}
 .bar-ic.sm{width:24px;height:24px;border-radius:5px}
 .bar-ic.sm svg{width:13px;height:13px}
+/* a logo instead of an icon (the box colour picker shows the Sneaker Co logo in the colour you're on) */
+.bar-ic.logo{background:none;border:0;overflow:hidden}
+.bar-ic.logo img,.av.logo img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.av.logo{overflow:hidden;padding:0}
 
 .title-txt{font-size:12.5px;font-weight:600;color:var(--white);letter-spacing:.055em;line-height:1}
 .sub{font-size:10px;color:var(--ink-3);font-weight:300;letter-spacing:.055em;margin-top:5px}

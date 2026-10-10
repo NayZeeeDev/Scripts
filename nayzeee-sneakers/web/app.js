@@ -55,11 +55,23 @@ function keyHint(text) {
 }
 
 /* ---------------- menu ---------------- */
-let options = [], sel = 0, open = false;
+let options = [], sel = 0, open = false, follow = false;
+
+// menus that preview the highlighted option (box colours): the window icon and the header picture
+// show its image, so the Sneaker Co logo changes colour as you move down the list
+function showFollow() {
+  const o = options[sel];
+  if (!follow || !o || !o.image) return;
+  const src = img(o.image);
+  const ic = $('menuIc'), av = $('menuImg');
+  if (ic.dataset.src !== src) { ic.dataset.src = src; ic.innerHTML = `<img src="${src}" alt="">`; }
+  if (av.dataset.src !== src) { av.dataset.src = src; av.innerHTML = `<img src="${src}" alt="">`; }
+}
 
 function renderSel() {
   [...$('menuList').children].forEach((el, i) => el.classList.toggle('sel', i === sel));
   $('menuList').children[sel]?.scrollIntoView({ block: 'nearest' });
+  showFollow();
 }
 
 function showMenu(menu) {
@@ -69,8 +81,12 @@ function showMenu(menu) {
   $('menuSub').textContent = menu.subtitle || '';
   $('menuSub').hidden = !menu.subtitle;
   $('menuKicker').textContent = menu.kicker || (menu.image ? 'Your pair' : 'Pick one');
-  $('menuIc').innerHTML = icon(menu.windowIcon || 'shoe');
-  const av = $('menuImg');
+  follow = !!menu.follow;
+  const ic = $('menuIc'), av = $('menuImg');
+  ic.classList.toggle('logo', follow);
+  av.classList.toggle('logo', follow);
+  delete ic.dataset.src; delete av.dataset.src;
+  ic.innerHTML = icon(menu.windowIcon || 'shoe');
   av.innerHTML = menu.image ? `<img src="${img(menu.image)}" alt="">` : icon(menu.windowIcon || 'shoe');
 
   $('menuList').innerHTML = '';
