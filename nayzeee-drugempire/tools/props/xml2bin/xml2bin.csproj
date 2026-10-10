@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- XML (CodeWalker / Sollumz) to binary GTA V assets. Needs a CodeWalker checkout:
+       dotnet run -p:CodeWalkerCore=/path/to/CodeWalker/CodeWalker.Core, then: xml2bin in_dir out_dir -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <CodeWalkerCore Condition="'$(CodeWalkerCore)' == ''">../../../../CodeWalker/CodeWalker.Core</CodeWalkerCore>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CodeWalkerCore)/CodeWalker.Core.csproj" />
+  </ItemGroup>
+</Project>
