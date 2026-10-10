@@ -306,16 +306,6 @@ CreateThread(function()
     end
 end)
 
--- pick the table back up from the window
-RegisterNUICallback('tablePickUp', function(_, cb)
-    cb(1)
-    local ent = Tables.Bench()
-    local _, t = Tables.FromEntity(ent or 0)
-    if not ent or not mine(t) then return end
-    NUI.CloseSide()
-    pickUp(ent)
-end)
-
 -- placing a table -----------------------------------------------------------------------------------
 
 local NO_ATTACK = { 24, 25, 37, 38, 44, 140, 141, 142, 257, 263, 14, 15, 16, 17, 174, 175, 199, 200 }

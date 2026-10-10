@@ -461,6 +461,9 @@ Config.Reactions = {
         { dict = 'move_m@_idles@shake_off', clip = 'shakeoff_1', duration = 2200 },
         { dict = 'misscarsteal4@actor', clip = 'actor_berating_loop', duration = 2600, flag = 49 },
     },
+    regrow = { -- hair grew back from Regrowth Oil
+        { dict = 'mp_player_int_upperpeace_sign', clip = 'mp_player_int_peace_sign', duration = 2000 },
+    },
     lice = {
         { dict = 'move_m@_idles@shake_off', clip = 'shakeoff_1', duration = 2200 },
     },

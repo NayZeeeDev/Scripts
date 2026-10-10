@@ -40,8 +40,6 @@ function Workshop.Info(src)
     }
 end
 
-lib.callback.register('nz-wig:workshop', function(src) return Workshop.Info(src) end)
-
 -- everything the wig table window shows: your level, making from materials, from bundles, dyeing
 lib.callback.register('nz-wig:bench', function(src)
     local P = GetP(src)

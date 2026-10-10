@@ -24,7 +24,7 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | **Hair Plug phone app** | Quick sell, meet-ups with a buyer who runs to you, a player marketplace (offline sellers get paid on login), and rotating NPC orders that pay extra. Lives inside lb-phone, YSeries or qs-smartphone. There is no built-in phone. |
 | **Wig Studio** | Built like the nayzeee-backpack icon studio. A head floats in a lit chroma box, you frame it with the orbit camera, and each shot is keyed in the browser into a small transparent PNG that's copied straight into ox_inventory. Shoot one hairstyle or every hairstyle, and name them there: every wig of that style uses the name and the photo. |
 | **Wear / put on / take off** | Wear any wig that fits, put your wig on someone else, or take a wig off them. Both ask first. |
-| **Notifications** | Built-in toasts, ox_lib, ESX, QBCore, Qbox, okokNotify, mythic_notify, pNotify, t-notify, brutal_notify, wasabi_notify, lation_ui or your own. |
+| **Notifications** | ox_lib (`lib.notify`). Each player picks where they pop up in Vault > Settings (default `Config.UI.ToastPosition`). |
 | **Player preferences** | Every player picks their own accent and alert colours, UI size, toast position, sounds, banners and minigame keys (Vault > Settings or `/wigsettings`). Saved on their PC. |
 | **Wig Vault** | Profile, wigs, catalog, bounties, leaderboards, city feed and settings. |
 | **Revenge, bounties, tiers, titles, catalog, trades** | Everything from V1 is still here. |
@@ -123,6 +123,9 @@ exports['nayzeee-wigsnatchv2']:GiveBundle(source, 'virgin')
 exports['nayzeee-wigsnatchv2']:SetHairStatus(source, 'lice', 10)
 exports['nayzeee-wigsnatchv2']:GetStats(source)
 exports['nayzeee-wigsnatchv2']:IsInClash(source)
+
+-- client event when your hair changes (wig on/off, cut, dye, regrow):
+-- AddEventHandler('nz-wig:hairChanged', function(state, reason) end)
 exports['nayzeee-wigsnatchv2']:IsTied(source)
 exports['nayzeee-wigsnatchv2']:Untie(source)
 exports['nayzeee-wigsnatchv2']:IsBeingCut(source)

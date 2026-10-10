@@ -75,7 +75,6 @@ lib.callback.register('nz-wig:vault', function(src)
         bountyCfg = { enabled = Config.Bounty.Enabled, min = Config.Bounty.Min, max = Config.Bounty.Max, fee = Config.Bounty.Fee, onlyRevenge = Config.Bounty.OnlyRevenge },
         trading = Config.Trading.Enabled,
         putOn = Config.Wig.PutOnOthers,
-        workshop = Config.Workshop.Enabled or Config.Dye.Enabled,
         hasMeta = Inv.HasMeta,
         appName = Config.Phone.Enabled and Config.Phone.AppName or nil,
     }

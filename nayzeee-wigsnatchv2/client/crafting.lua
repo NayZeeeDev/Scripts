@@ -28,18 +28,6 @@ local function readStyles(m)
 end
 Crafting = { Styles = readStyles }
 
-RegisterNUICallback('craftInfo', function(d, cb)
-    local info = lib.callback.await('nz-wig:craftInfo', false)
-    if not info then return cb(false) end
-    local m = d and d.m == 'm' and 'm' or 'f'
-    info.m = m
-    info.styles = readStyles(m)
-    info.shots = lib.callback.await('nz-wig:shots', false) or {}
-    info.palette = HairPalette()
-    info.myModel = GetEntityModel(PlayerPedId()) == Config.Models.male.model and 'm' or 'f'
-    cb(info)
-end)
-
 -- make it: at the table you're at (or anywhere when wig tables aren't required)
 RegisterNUICallback('make', function(d, cb)
     cb(1)

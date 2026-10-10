@@ -42,7 +42,6 @@ function Crafting.Info(src)
     }
 end
 
-lib.callback.register('nz-wig:craftInfo', function(src) return Crafting.Info(src) end)
 
 -- validate a make request; returns job or nil, why
 function Crafting.Check(src, P, req)
