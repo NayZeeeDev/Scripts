@@ -250,7 +250,7 @@ local function runPayroll(row)
 
     if short then
         for _, xBoss in pairs(ESX.GetExtendedPlayers('job', row.job)) do
-            if Bank.canUseSociety(xBoss.job.name, xBoss.job.grade_name) then
+            if Bank.canUseSociety(xBoss.job.name, xBoss.job.grade_name, xBoss.job.isboss) then
                 Bank.notify(xBoss.source, 'Payroll failed',
                     ('%s does not have enough to cover wages.'):format(soc.label), 'error')
             end

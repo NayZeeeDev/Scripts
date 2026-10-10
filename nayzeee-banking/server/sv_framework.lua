@@ -31,6 +31,8 @@ local function detect()
     if started('qbx_core') then return 'qbox' end
     if started('qb-core') then return 'qbcore' end
     if started('es_extended') then return 'esx' end
+    print('^1[nayzeee-banking]^7 no framework is running yet. Start this resource after ' ..
+          'es_extended, qb-core or qbx_core, or set Config.Framework.')
     return 'esx'
 end
 
@@ -57,7 +59,7 @@ if FW == 'esx' then
         if not row then return nil end
         local jobs = ESX.GetJobs()
         local g = jobs and jobs[row.job] and jobs[row.job].grades and jobs[row.job].grades[tostring(row.job_grade)]
-        return row.job, tonumber(row.job_grade) or 0, g and g.name
+        return row.job, tonumber(row.job_grade) or 0, g and g.name, false
     end
 
     function Framework.stopPaycheck(xPlayer)
@@ -92,13 +94,14 @@ local function rawPlayers()
     return QBCore.Functions.GetQBPlayers() or {}
 end
 
---- Every job in ESX's shape: jobs[name] = { name, label, grades = { ['0'] = { grade, name, label, salary } } }.
---- A boss grade is named 'boss', the same word ESX uses, so Config.Accounts.societyAccess
---- reads the same on every framework; everything else is the grade's name in lower case.
+--- Every job in ESX's shape: jobs[name] = { name, label, grades = { ['0'] = { grade, name, label, salary, isboss } } }.
+--- Grade names are lower-cased so Config.Accounts.societyAccess reads the same on every
+--- framework, and isboss rides along so 'boss' in a rule covers any boss grade.
 local jobCache, jobCacheAt = nil, 0
 local function sharedJobs()
     if jobCache and GetGameTimer() - jobCacheAt < 60000 then return jobCache end
-    local src = qbx and qbx:GetJobs() or (QBCore.Shared and QBCore.Shared.Jobs) or {}
+    -- fetched fresh, so jobs added at runtime (qb-core's AddJob) are seen
+    local src = qbx and qbx:GetJobs() or (exports['qb-core']:GetCoreObject().Shared.Jobs) or {}
 
     local out = {}
     for name, job in pairs(src) do
@@ -107,7 +110,7 @@ local function sharedJobs()
             local n = tonumber(level) or 0
             grades[tostring(n)] = {
                 grade  = n,
-                name   = g.isboss and 'boss' or tostring(g.name or n):lower(),
+                name   = tostring(g.name or n):lower(),
                 label  = g.name or tostring(n),
                 salary = g.payment or 0,
                 isboss = g.isboss or false,
@@ -127,7 +130,7 @@ local function jobOf(pd)
         name        = job.name or 'unemployed',
         label       = job.label or job.name or 'Unemployed',
         grade       = level,
-        grade_name  = job.isboss and 'boss' or tostring(grade.name or level):lower(),
+        grade_name  = tostring(grade.name or level):lower(),
         grade_label = grade.name or tostring(level),
         isboss      = job.isboss or false,
         onduty      = job.onduty,
@@ -165,6 +168,7 @@ local function wrap(P)
         local c = P.PlayerData.charinfo or {}
         if key == 'firstName' then return c.firstname end
         if key == 'lastName' then return c.lastname end
+        if key == 'duty' then return P.PlayerData.job and P.PlayerData.job.onduty end
         return P.PlayerData[key]
     end
     function x.getName()
@@ -175,9 +179,9 @@ local function wrap(P)
     --- The first of Config.Admin.allowGroups this player holds. QBCore keeps
     --- permissions as ACE groups (group.admin, group.god), Qbox the same.
     function x.getGroup()
+        -- both frameworks grant plain ACEs (admin, god, mod) as well as group.<name>
         for _, group in ipairs((Config.Admin and Config.Admin.allowGroups) or {}) do
-            if IsPlayerAceAllowed(src, 'group.' .. group) then return group end
-            if QBCore and QBCore.Functions.HasPermission and QBCore.Functions.HasPermission(src, group) then return group end
+            if IsPlayerAceAllowed(src, group) or IsPlayerAceAllowed(src, 'group.' .. group) then return group end
         end
         return 'user'
     end
@@ -231,14 +235,29 @@ function Framework.allJobs(xPlayer)
     return #list > 0 and list or nil
 end
 
-function Framework.offlineJob(cid)
+--- name, grade number, grade name, isboss. `wanted`: a job to look for among
+--- Qbox's other jobs when it isn't the primary one.
+function Framework.offlineJob(cid, wanted)
     local row = MySQL.single.await('SELECT job FROM players WHERE citizenid = ?', { cid })
-    if not row or not row.job then return nil end
-    local ok, job = pcall(json.decode, row.job)
-    if not ok or type(job) ~= 'table' then return nil end
-    local level = tonumber(job.grade and job.grade.level) or 0
-    local gname = job.isboss and 'boss' or tostring(job.grade and job.grade.name or level):lower()
-    return job.name, level, gname
+    local ok, job = pcall(json.decode, row and row.job or '')
+    if ok and type(job) == 'table' and (not wanted or job.name == wanted) then
+        local level = tonumber(job.grade and job.grade.level) or 0
+        return job.name, level, tostring(job.grade and job.grade.name or level):lower(), job.isboss or false
+    end
+
+    if qbx and wanted then
+        local g = MySQL.scalar.await(
+            'SELECT grade FROM player_groups WHERE citizenid = ? AND type = ? AND `group` = ?', { cid, 'job', wanted })
+        if g then
+            local info = (sharedJobs()[wanted] or { grades = {} }).grades[tostring(g)] or {}
+            return wanted, tonumber(g) or 0, info.name or tostring(g), info.isboss or false
+        end
+    end
+
+    if ok and type(job) == 'table' then
+        local level = tonumber(job.grade and job.grade.level) or 0
+        return job.name, level, tostring(job.grade and job.grade.name or level):lower(), job.isboss or false
+    end
 end
 
 --- QBCore and Qbox pay salaries from their own loop for everyone at once;

@@ -132,7 +132,7 @@ end, false)
 RegisterCommand('paysociety', function(src, args)
     local xPlayer = Bank.getPlayer(src)
     if not xPlayer then return end
-    if not Bank.canUseSociety(xPlayer.job.name, xPlayer.job.grade_name) then
+    if not Bank.canUseSociety(xPlayer.job.name, xPlayer.job.grade_name, xPlayer.job.isboss) then
         return Bank.notify(src, 'Banking', 'You cannot move society funds.', 'error')
     end
 

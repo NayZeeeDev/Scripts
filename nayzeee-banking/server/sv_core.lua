@@ -356,14 +356,16 @@ function Bank.getAccessible(identifier, jobs, grade)
     return list
 end
 
-function Bank.canUseSociety(job, grade)
+--- `isboss`: QBCore / Qbox flag a boss grade, and 'boss' in a rule means any of them.
+function Bank.canUseSociety(job, grade, isboss)
     local rule = Config.Accounts.societyAccess[job]
     if not rule then return false end
     if rule == true then return true end
     -- QBCore grade names are labels ('Chief'), ESX's are keys ('chief')
     grade = tostring(grade or ''):lower()
     for _, g in ipairs(rule) do
-        if tostring(g):lower() == grade then return true end
+        g = tostring(g):lower()
+        if g == grade or (isboss and g == 'boss') then return true end
     end
     return false
 end
@@ -441,9 +443,9 @@ function Bank.accessByIdentifier(identifier, accountId)
             end
         else
             -- offline: their saved job, from whichever framework is running
-            local ok, job, _, gradeName = pcall(Framework.offlineJob, identifier)
+            local ok, job, _, gradeName, isboss = pcall(Framework.offlineJob, identifier, acc.owner)
             if ok and job == acc.owner then
-                allowed = Bank.canUseSociety(job, gradeName)
+                allowed = Bank.canUseSociety(job, gradeName, isboss)
             end
         end
         if not allowed then return nil, nil, 'no_rank' end

@@ -30,7 +30,9 @@ Immersive banking for **ESX Legacy, QBCore and Qbox** — personal, shared, soci
 5. Restart the server. Personal and society accounts are created automatically.
 
 {% hint style="warning" %}
-**On QBCore or Qbox, remove `qb-banking` / `Renewed-Banking` / any other banking script** — two banks mirroring the same `bank` money fight each other. Boss menu money in `qb-management` (or its `management_funds` table) is kept in step automatically.
+**On QBCore or Qbox this replaces the bank UI and ATMs of `qb-banking` / `Renewed-Banking`.** Remove them — or, if other scripts on your server read society money from them, keep them running with their bank and ATM locations turned off. Their society balances (qb-banking on current QBCore, Renewed-Banking on Qbox, qb-management or `management_funds` on older QBCore) are kept in step automatically, through their own exports.
+
+Start this resource **after** your framework: `ensure qb-core` (or `qbx_core`), then your inventory, then `ensure nayzeee-banking`.
 {% endhint %}
 
 {% hint style="info" %}
@@ -653,13 +655,15 @@ The card limit is a rolling window, not a calendar day. A card maxed at 23:55 is
 | | ESX | QBCore | Qbox |
 |---|---|---|---|
 | Player bank money mirrored | `bank` account | `PlayerData.money.bank` | `PlayerData.money.bank` |
-| Society money mirrored | `esx_addonaccount` / `addon_account_data` | `qb-management` / `management_funds` | `management_funds` |
-| Offline job (scheduled transfers, society rights) | `users.job` | `players.job` | `players.job` |
+| Society money mirrored | `esx_addonaccount` / `addon_account_data` | `qb-banking` (or older `qb-management` / `management_funds`) | `Renewed-Banking` (or `management_funds`) |
+| Offline job (scheduled transfers, society rights) | `users.job` | `players.job` | `players.job` + `player_groups` |
 | Multi-job | a multi-job resource | `qb-multijob` | built in (`PlayerData.jobs`) |
 | Card items usable | ox export / `RegisterUsableItem` | ox export / `CreateUseableItem` | ox export |
 | Admins | ESX group or ACE | ACE (`group.admin`) or QB permission | ACE (`group.admin`) |
 
-QBCore grade names are labels ("Chief"), so `Config.Accounts.societyAccess` is matched without caring about case, and a grade marked `isboss` counts as `'boss'` — the same list works on every framework.
+QBCore grade names are labels ("Chief"), so `Config.Accounts.societyAccess` is matched without caring about case — `police = { 'chief' }` matches QBCore's "Chief" — and `'boss'` in a list also covers any grade marked `isboss`. The same list works on every framework.
+
+Overdrawn accounts show **0** in the framework's own `bank` money (QBCore and Qbox refuse a negative figure); the overdraft itself lives in this bank. On QBCore, cash is money rather than an item, so set `Config.Inventory = 'framework'` unless your inventory turns cash into an item.
 
 ### ESX details
 

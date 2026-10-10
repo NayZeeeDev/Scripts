@@ -85,13 +85,13 @@ local function fromTable(identifier)
     return jobs
 end
 
---- Grade name for a job and grade number, from ESX.
+--- Grade name for a job and grade number (and whether it is a boss grade), from the framework.
 local function gradeName(job, grade)
     local jobs = ESX.GetJobs()
     local data = jobs and jobs[job]
     if not data or not data.grades then return tostring(grade) end
     local g = data.grades[tostring(grade)]
-    return g and (g.name or g.label) or tostring(grade)
+    return g and (g.name or g.label) or tostring(grade), g and g.isboss or false
 end
 
 --- Every job this player holds, active one first.
@@ -102,6 +102,7 @@ function Bank.jobsFor(xPlayer)
         name       = xPlayer.job.name,
         grade      = xPlayer.job.grade,
         grade_name = xPlayer.job.grade_name,
+        isboss     = xPlayer.job.isboss,
         active     = true
     }
 
@@ -120,10 +121,12 @@ function Bank.jobsFor(xPlayer)
     if found then
         for _, j in ipairs(found) do
             if j.name ~= active.name then
+                local gname, boss = gradeName(j.name, j.grade)
                 jobs[#jobs + 1] = {
                     name       = j.name,
                     grade      = j.grade,
-                    grade_name = j.label or gradeName(j.name, j.grade),
+                    grade_name = j.label or gname,
+                    isboss     = boss,
                     active     = false
                 }
             end
@@ -139,7 +142,7 @@ function Bank.societyJobs(xPlayer)
     local out = {}
     for _, job in ipairs(Bank.jobsFor(xPlayer)) do
         if job.active or Config.MultiJob.allowInactiveJobs then
-            if Bank.canUseSociety(job.name, job.grade_name) then
+            if Bank.canUseSociety(job.name, job.grade_name, job.isboss) then
                 out[#out + 1] = job.name
             end
         end

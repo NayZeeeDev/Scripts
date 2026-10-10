@@ -36,6 +36,8 @@ Config.Locale         = 'en'           -- File in locales/ for notifications and
 Config.Framework = 'auto'              -- auto / esx / qbcore / qbox
 
 Config.Inventory = 'ox_inventory'      -- ox_inventory / qs-inventory / qb-inventory / framework (the framework's own cash)
+                                       -- QBCore keeps cash as money, not an item: use 'framework' there unless your
+                                       -- inventory turns cash into an item (ox_inventory on Qbox does)
 Config.MoneyItem = 'money'             -- Cash item name, ignored on 'esx'
 Config.AccountPrefix = 'NZB'           -- Account numbers read NZB-PSL-A1B2C3D4
 

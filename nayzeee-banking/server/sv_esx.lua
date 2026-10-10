@@ -86,10 +86,14 @@ local function syncPlayerNow(xPlayer)
         if not acc then return end
     end
 
-    if esxMoney ~= acc.balance then
-        xPlayer.setAccountMoney('bank', acc.balance, 'nayzeee-banking')
+    -- the frameworks refuse a negative figure (QBCore/Qbox say so, ESX may not),
+    -- so an overdrawn account shows 0 there; remembering the real negative would
+    -- read the refused write as money coming in next pass
+    local pushed = math.max(acc.balance, 0)
+    if esxMoney ~= pushed then
+        xPlayer.setAccountMoney('bank', pushed, 'nayzeee-banking')
     end
-    lastBank[identifier] = acc.balance
+    lastBank[identifier] = pushed
 end
 
 --- One sync per player at a time, so the loop and a balanceChanged
@@ -115,8 +119,9 @@ AddEventHandler('nz_bank:balanceChanged', function(identifier, balance)
         return
     end
 
-    xPlayer.setAccountMoney('bank', balance, 'nayzeee-banking')
-    lastBank[identifier] = balance
+    local pushed = math.max(balance, 0)
+    xPlayer.setAccountMoney('bank', pushed, 'nayzeee-banking')
+    lastBank[identifier] = pushed
 end)
 
 -- take the first reading straight away, so a purchase in the first few
@@ -140,7 +145,7 @@ end)
 local DETECT = {
     { table = 'addon_account_data', jobColumn = 'account_name', amountColumn = 'money' },
     { table = 'management_funds',   jobColumn = 'job_name',     amountColumn = 'amount',          prefix = '' },
-    { table = 'bank_accounts',      jobColumn = 'job_name',     amountColumn = 'account_balance', prefix = '' }
+    { table = 'bank_accounts',      jobColumn = 'account_name', amountColumn = 'account_balance', prefix = '' }
 }
 local societyTable = nil
 
@@ -154,8 +159,8 @@ local function resolveTable()
 
     for _, candidate in ipairs(DETECT) do
         local ok = pcall(function()
-            MySQL.scalar.await(('SELECT `%s` FROM `%s` LIMIT 1'):format(
-                candidate.amountColumn, candidate.table))
+            MySQL.scalar.await(('SELECT `%s`, `%s` FROM `%s` LIMIT 1'):format(
+                candidate.amountColumn, candidate.jobColumn, candidate.table))
         end)
         if ok then
             candidate.prefix = candidate.prefix or Config.Society.prefix
@@ -187,7 +192,38 @@ local function frameworkSociety(job)
         end
     end
 
-    -- QBCore's qb-management keeps boss menu money behind its exports
+    -- current QBCore: society money lives in qb-banking, keyed by the bare job name.
+    -- Its exports go through qb-banking's own cache, which a raw SQL write would miss.
+    if GetResourceState('qb-banking') == 'started' then
+        local ok, money = pcall(function() return exports['qb-banking']:GetAccountBalance(job) end)
+        if ok and tonumber(money) then
+            return tonumber(money), function(value)
+                local delta = value - tonumber(money)
+                if delta > 0 then
+                    exports['qb-banking']:AddMoney(job, delta, 'nayzeee-banking')
+                elseif delta < 0 then
+                    exports['qb-banking']:RemoveMoney(job, -delta, 'nayzeee-banking')
+                end
+            end
+        end
+    end
+
+    -- Qbox's default society money
+    if GetResourceState('Renewed-Banking') == 'started' then
+        local ok, money = pcall(function() return exports['Renewed-Banking']:getAccountMoney(job) end)
+        if ok and tonumber(money) then
+            return tonumber(money), function(value)
+                local delta = value - tonumber(money)
+                if delta > 0 then
+                    exports['Renewed-Banking']:addAccountMoney(job, delta)
+                elseif delta < 0 then
+                    exports['Renewed-Banking']:removeAccountMoney(job, -delta)
+                end
+            end
+        end
+    end
+
+    -- older QBCore: qb-management kept boss menu money behind its own exports
     if GetResourceState('qb-management') == 'started' then
         local ok, money = pcall(function() return exports['qb-management']:GetAccount(job) end)
         if ok and tonumber(money) then
