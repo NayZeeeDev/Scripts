@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nayzeee-squads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════ MENU ═══════════════ -->
+<div id="panel" class="frame hidden">
+  <div class="shell">
+    <div class="bar">
+      <div class="bar-brand">
+        <div class="mark"></div>
+        <div class="bar-name">
+          <div class="title-txt">Squads</div>
+          <div class="sub" id="barSub">NayZeee</div>
+        </div>
+      </div>
+      <div class="bar-mid">
+        <span class="dot" id="barDot"></span>
+        <p id="barText">Loading</p>
+        <span class="ver" id="ver">v3.0.0</span>
+      </div>
+      <button class="pill-close" data-act="close">Close</button>
+    </div>
+
+    <div class="body">
+      <nav class="side" id="side"></nav>
+      <main class="main" id="view"></main>
+    </div>
+
+    <div class="statusbar" id="keys"></div>
+    <div class="overlay hidden" id="modal"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ HUD LAYER ═══════════════ -->
+<div id="compass" class="compass hidden">
+  <div class="cp-bar">
+    <div class="cp-strip" id="cpStrip"></div>
+    <div class="cp-fade l"></div><div class="cp-fade r"></div>
+    <div class="cp-notch"></div>
+  </div>
+  <div class="cp-lane" id="cpMarks"></div>
+  <div class="cp-read"><b id="cpDir">N</b><span id="cpDeg">0°</span></div>
+  <div class="cp-street" id="cpStreet"></div>
+</div>
+
+<div id="hud" class="hud hidden"></div>
+
+<div id="hudEdit" class="hud-edit hidden">
+  <span class="dot"></span>
+  <p>Drag the team HUD where you want it</p>
+  <button class="btn-line sm" data-act="hudReset">Default spot</button>
+  <button class="btn-line sm" data-act="hudCancel">Cancel</button>
+  <button class="btn-teal sm" data-act="hudSave">Save position</button>
+</div>
+
+<div id="wheel" class="wheel hidden"></div>
+<div id="promptBox"></div>
+<div id="matchBox"></div>
+<div id="feed" class="feed"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
