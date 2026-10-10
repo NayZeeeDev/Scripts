@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAYZEEE Billing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome is only used for category icons defined in companies.lua -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Billing tablet / admin panel / register POS all render into this shell -->
+    <div id="root">
+        <div class="frame hidden" id="frame">
+            <div class="shell" id="shell">
+                <div class="bar">
+                    <div class="bar-brand">
+                        <div class="mark"></div>
+                        <div class="bar-name">
+                            <div class="title-txt" id="barTitle">Billing</div>
+                            <div class="sub" id="barSub">Personal account</div>
+                        </div>
+                    </div>
+                    <div class="bar-mid" id="barMid"></div>
+                    <button class="pill-close" id="closeBtn">Close</button>
+                </div>
+                <div class="body" id="body">
+                    <nav class="side" id="side"></nav>
+                    <main class="main" id="main"></main>
+                </div>
+                <div class="statusbar" id="statusbar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer display (cash register) -->
+    <div id="display" class="hidden"></div>
+
+    <div id="modals"></div>
+    <div id="toasts"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
