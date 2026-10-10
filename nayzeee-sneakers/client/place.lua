@@ -11,15 +11,23 @@ local CANCEL = { 25, 177, 194, 200, 202, 322 }   -- right-click, Backspace, Esc 
 
 --- Where the camera looks, answered this same frame (ox_lib's raycast waits a frame for its result,
 --- which made the preview lag and could miss a quick E or Backspace)
-local function camRay(flags, dist, ignore)
+--- skip = { [entity] = true }: things the ray goes straight through (the player, the see-through preview
+--- itself, which would otherwise catch the aim and climb on top of itself)
+local function camRay(flags, dist, ignore, skip)
     local from = GetFinalRenderedCamCoord()
     local rot = GetFinalRenderedCamRot(2)
     local rx, rz = math.rad(rot.x), math.rad(rot.z)
     local c = math.abs(math.cos(rx))
-    local to = from + vector3(-math.sin(rz) * c, math.cos(rz) * c, math.sin(rx)) * dist
-    local h = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, flags, ignore, 4)
-    local _, hit, coords, normal, ent = GetShapeTestResult(h)
-    return hit == 1 or hit == true, ent, coords, normal
+    local dir = vector3(-math.sin(rz) * c, math.cos(rz) * c, math.sin(rx))
+    local to = from + dir * dist
+    for _ = 1, 4 do
+        local h = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, flags, ignore, 4)
+        local _, hit, coords, normal, ent = GetShapeTestResult(h)
+        hit = hit == 1 or hit == true
+        if not hit or not (skip and skip[ent]) then return hit, ent, coords, normal end
+        from = coords + dir * 0.02   -- carry on past it
+    end
+    return false
 end
 
 --- The model of whatever a ray hit, or nil (the ground and buildings aren't entities, and asking
@@ -88,13 +96,16 @@ function Place.Ghost(model, opts)
         SetModelAsNoLongerNeeded(model)
     end
 
+    local skip = { [ped] = true }
+    if extra then skip[extra] = true end
+
     local placed, valid = false, false
     -- if anything in the loop errors, the ghost still goes and the player isn't left stuck
     local ok, err = pcall(function()
         while true do
             Wait(0)
             for _, c in ipairs(NO_ATTACK) do DisableControlAction(0, c, true) end
-            local hit, ent, coords, normal = camRay(opts.flags or 17, range + 4.0, ped)
+            local hit, ent, coords, normal = camRay(opts.flags or 17, range + 4.0, ghost, skip)
             if hit then pos = coords end
             local snapped = false
             if hit and opts.snap then

@@ -211,11 +211,28 @@ local function pickUp(e)
 end
 
 local T = Config.Text
+--- Another case standing on this one (it can't be picked up until that one's moved)
+local function hasCaseOnTop(base)
+    local c = cases[base]
+    if not c then return false end
+    local top = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, c.t.size.z)
+    for other in pairs(cases) do
+        if other ~= base and DoesEntityExist(other) then
+            local p = GetEntityCoords(other)
+            if math.abs(p.z - top.z) < 0.06 and #(vector2(p.x, p.y) - vector2(top.x, top.y)) < math.max(c.t.size.x, c.t.size.y) * 0.5 then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- an empty case: put a pair in, pick it up. A case with a pair: look at it, take it out.
 local options = {
     { name = 'nzs_d_open', label = T.dispOpen, icon = 'fa-solid fa-door-open',
-      canInteract = function(e) return not going(e) and not st(e, 'nzs:dopen') and not st(e, 'nzs:dbusy') end, onSelect = toggleDoor },
+      canInteract = function(e) return D.doorOptions and not going(e) and not st(e, 'nzs:dopen') and not st(e, 'nzs:dbusy') end, onSelect = toggleDoor },
     { name = 'nzs_d_close', label = T.dispClose, icon = 'fa-solid fa-door-closed',
-      canInteract = function(e) return not going(e) and st(e, 'nzs:dopen') and not st(e, 'nzs:dbusy') end, onSelect = toggleDoor },
+      canInteract = function(e) return D.doorOptions and not going(e) and st(e, 'nzs:dopen') and not st(e, 'nzs:dbusy') end, onSelect = toggleDoor },
     { name = 'nzs_d_look', label = T.dispLook, icon = 'fa-solid fa-magnifying-glass',
       canInteract = function(e) return not going(e) and st(e, 'nzs:dshoe') and not st(e, 'nzs:dbusy') end, onSelect = look },
     { name = 'nzs_d_take', label = T.dispTake, icon = 'fa-solid fa-hand',
@@ -223,7 +240,7 @@ local options = {
     { name = 'nzs_d_put', label = T.dispPut, icon = 'fa-solid fa-shoe-prints',
       canInteract = function(e) return not going(e) and not st(e, 'nzs:dshoe') and not st(e, 'nzs:dbusy') end, onSelect = putIn },
     { name = 'nzs_d_pickup', label = T.dispPickUp, icon = 'fa-solid fa-hand-holding',
-      canInteract = function(e) return not going(e) and not st(e, 'nzs:dshoe') and not st(e, 'nzs:dbusy') end, onSelect = pickUp },
+      canInteract = function(e) return not going(e) and not st(e, 'nzs:dshoe') and not st(e, 'nzs:dbusy') and not hasCaseOnTop(e) end, onSelect = pickUp },
 }
 
 -- streaming ----------------------------------------------------------------------------------------
@@ -254,9 +271,11 @@ local function addCase(base)
     cases[base] = { t = t, door = door, angle = angle, to = angle }
     attachDoor(base, cases[base])
     syncShoe(base, false)
-    local centre = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, t.size.z * 0.5)
-    local radius = math.max(0.4, math.min(t.size.x, t.size.y) * 0.5 + 0.12)
-    Target.AddSpot(base, centre, radius, options, D.interactDistance)
+    -- a box the size of the case, so in a stack each case answers only for itself. It runs from just
+    -- above the case's floor to just above its lid; the case on top starts above that.
+    local h = t.size.z
+    local centre = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, (0.004 + h + 0.006) * 0.5)
+    Target.AddBox(base, centre, vector3(t.size.x + 0.03, t.size.y + 0.03, h + 0.002), GetEntityHeading(base), options, D.interactDistance)
 end
 
 CreateThread(function()

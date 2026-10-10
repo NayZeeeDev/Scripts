@@ -36,6 +36,20 @@ local function spawn(r)
     SetEntityHeading(ent, r.h + 0.0)
     FreezeEntityPosition(ent, true)
     SetEntityRoutingBucket(ent, r.bucket or 0)
+    -- a case set down on another one can get nudged by physics in the moment before it's frozen,
+    -- leaving it floating above the stack; put it back where it belongs
+    CreateThread(function()
+        for _, wait in ipairs({ 250, 750, 2000 }) do
+            Wait(wait)
+            if not DoesEntityExist(ent) or byEnt[ent] ~= r.id then return end
+            local p = GetEntityCoords(ent)
+            if math.abs(p.x - r.x) > 0.004 or math.abs(p.y - r.y) > 0.004 or math.abs(p.z - r.z) > 0.004 then
+                FreezeEntityPosition(ent, true)
+                SetEntityCoords(ent, r.x, r.y, r.z, false, false, false, false)
+                SetEntityHeading(ent, r.h + 0.0)
+            end
+        end
+    end)
     if SetEntityOrphanMode then pcall(SetEntityOrphanMode, ent, 2) end   -- keep it with nobody around
     setState(ent, 'nzs:display', r.type)
     setState(ent, 'nzs:dopen', false)
@@ -79,6 +93,35 @@ local function countOwned(src)
     return n
 end
 
+--- A spot just above a case lines up on top of it: same heading, fronts flush, resting on its lid.
+--- Catches a case that was aimed a little off, or set down while the client couldn't snap it.
+local function settleOnStack(typeId, coords, heading, bucket)
+    local t = D.Types[typeId]
+    local best
+    for _, o in pairs(records) do
+        local ot = D.Types[o.type]
+        if ot and (o.bucket or 0) == bucket then
+            local top = o.z + ot.size.z
+            if coords.z > o.z + ot.size.z * 0.5 and coords.z < top + 0.3 and (not best or top > best.top) then
+                local r = math.rad(-o.h)
+                local dx, dy = coords.x - o.x, coords.y - o.y
+                local lx = dx * math.cos(r) - dy * math.sin(r)
+                local ly = dx * math.sin(r) + dy * math.cos(r)
+                if math.abs(lx) <= ot.size.x * 0.5 + 0.03 and math.abs(ly) <= ot.size.y * 0.5 + 0.03 then
+                    best = { o = o, ot = ot, top = top }
+                end
+            end
+        end
+    end
+    if not best then return coords, heading end
+    local o, ot = best.o, best.ot
+    local front = (ot.size.y - t.size.y) * 0.5
+    local r = math.rad(o.h)
+    local x = o.x - front * math.sin(r)
+    local y = o.y + front * math.cos(r)
+    return vector3(x, y, best.top + 0.001), o.h
+end
+
 --- Something sitting on top of this case (in the same bucket)?
 local function hasOnTop(r)
     local t = D.Types[r.type]
@@ -111,6 +154,7 @@ lib.callback.register('nayzeee-sneakers:placeDisplay', function(src, slot, typeI
         Bridge.Notify(src, Config.Text.dispLimit, 'error')
         return false
     end
+    if D.snap then coords, heading = settleOnStack(typeId, coords, heading, GetPlayerRoutingBucket(src)) end
     local it = Inv.GetSlot(src, slot)
     if not it or it.name ~= t.item then it = Inv.Find(src, t.item) end
     if not it or not Inv.Remove(src, t.item, 1, it.slot) then return false end

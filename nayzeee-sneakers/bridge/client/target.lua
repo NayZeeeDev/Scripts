@@ -237,6 +237,45 @@ function Target.AddSpot(entity, coords, radius, options, distance, extra)
     end
 end
 
+--- Like AddSpot, but the zone is a box the size of the prop (width x depth x height, turned with it),
+--- so props stacked on top of each other each answer only for themselves.
+--- coords = the box's centre, size = vector3(width, depth, height), heading in degrees.
+function Target.AddBox(entity, coords, size, heading, options, distance, extra)
+    distance = distance or 2.5
+    local sys = system()
+    Target.RemoveSpot(entity)
+    if sys == 'ox_target' then
+        local list = {}
+        for _, o in ipairs(options) do
+            list[#list + 1] = {
+                name = o.name, label = o.label, icon = o.icon, distance = distance,
+                canInteract = function() return DoesEntityExist(entity) and allowed(o, entity) end,
+                onSelect = function() o.onSelect(entity) end,
+            }
+        end
+        spots[entity] = exports.ox_target:addBoxZone({ coords = coords, size = size, rotation = heading,
+            debug = Config.Debug == true, options = list })
+    elseif sys == 'qb-target' then
+        local list = {}
+        for _, o in ipairs(options) do
+            list[#list + 1] = {
+                type = 'client', icon = o.icon, label = o.label,
+                action = function() o.onSelect(entity) end,
+                canInteract = function() return DoesEntityExist(entity) and allowed(o, entity) end,
+            }
+        end
+        local name = ('nzs_spot_%s'):format(entity)
+        -- PolyZone boxes: width runs along x, length along y
+        exports['qb-target']:AddBoxZone(name, coords, size.y, size.x, { name = name, heading = heading,
+            minZ = coords.z - size.z * 0.5, maxZ = coords.z + size.z * 0.5, debugPoly = Config.Debug == true },
+            { options = list, distance = distance })
+        spots[entity] = name
+    else
+        Target.AddEntity(entity, options, distance, extra)
+        spots[entity] = true
+    end
+end
+
 function Target.RemoveSpot(entity)
     local id = spots[entity]
     if not id then return end
