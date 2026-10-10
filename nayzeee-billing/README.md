@@ -91,7 +91,7 @@ receipt = { name = 'receipt', label = 'Receipt', weight = 10, type = 'item', ima
 
 | System | Company money | Balance on dashboard | Statements |
 |---|---|---|---|
-| nayzeee-banking (ESX) | ✓ | ✓ | ✓ (personal + company ledger) |
+| nayzeee-banking (ESX / QBCore / Qbox) | ✓ | ✓ | ✓ (personal + company ledger) |
 | Renewed-Banking | ✓ | ✓ | ✓ (`handleTransaction`) |
 | okokBanking | ✓ | ✓ | – |
 | fd_banking | ✓ | ✓ | – |
@@ -104,7 +104,9 @@ If no banking system is found, company payments go to the employee who sent the 
 
 ### nayzeee-banking integration
 
-nayzeee-banking (ESX) owns the real bank balances, so billing goes through it instead of the ESX `bank` account:
+nayzeee-banking (ESX, QBCore or Qbox) owns the real bank balances, so billing goes through it instead of the framework's `bank` money. Both resources key players the same way (ESX identifier, or `citizenid` on QBCore/Qbox), so no mapping is needed.
+
+On QBCore/Qbox, if you keep `qb-banking` or `Renewed-Banking` running next to nayzeee-banking, leave `Config.Banking.System = 'auto'`: it picks nayzeee-banking first, and nayzeee-banking keeps their society balances in step. Pointing billing at qb-banking/Renewed directly would bypass the bank's ledger.
 
 - **Company money** uses `addSocietyMoney`, `removeSocietyMoney` and `getSocietyBalance`. The company's job (or its `account` field) must be listed in nayzeee-banking's `Config.Accounts.societyAccess`, otherwise the society account doesn't exist and payments fall back to the employee.
 - **Personal bank payments** use `getBalance`, `removeMoney` and `addMoney`, so the customer's statement shows `Invoice BS-000142 · Burgershot` under the **Bill** category, frozen accounts can't pay, and payouts to offline employees land in their account immediately.

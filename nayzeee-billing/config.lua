@@ -201,8 +201,9 @@ Config.Banking = {
     -- Write statements / transaction history into the banking script when supported
     LogTransactions = true,
 
-    -- nayzeee-banking (ESX). Company jobs must be listed in nayzeee-banking's
-    -- Config.Accounts.societyAccess so their society account exists.
+    -- nayzeee-banking (ESX / QBCore / Qbox). Company jobs must be listed in nayzeee-banking's
+    -- Config.Accounts.societyAccess so their society account exists. If qb-banking / Renewed-Banking
+    -- are still running next to it, 'auto' still picks nayzeee-banking (it keeps their balances in step).
     Nayzeee = {
         Resource = 'nayzeee-banking',
         -- Charge / pay personal bank money through nayzeee-banking so statements show
