@@ -1,9 +1,9 @@
 if BankLocked then return end
 
 -- ═══════════════════════════════════════════════════════════
---  ESX BRIDGE
+--  FRAMEWORK MIRROR (ESX, QBCore, Qbox)
 --
---  Our tables are the source of truth. ESX's own `bank` account and
+--  Our tables are the source of truth. The framework's own `bank` money and
 --  the esx_addonaccount society balances are kept equal to them, in
 --  both directions:
 --
@@ -121,7 +121,7 @@ end)
 
 -- take the first reading straight away, so a purchase in the first few
 -- seconds after joining is not written over by the first sync
-AddEventHandler('esx:playerLoaded', function(src, xPlayer)
+Framework.onPlayerLoaded(function(src, xPlayer)
     CreateThread(function()
         Wait(1000)
         local ok, err = pcall(syncPlayer, xPlayer)
@@ -136,10 +136,11 @@ end)
 --  paying wages out of thin air.
 -- ═══════════════════════════════════════════════════════════
 --- Read the framework's society balance, whichever table it lives in.
+-- ESX keeps 'society_police'; QBCore's qb-management and the qb-banking table keep 'police'
 local DETECT = {
     { table = 'addon_account_data', jobColumn = 'account_name', amountColumn = 'money' },
-    { table = 'management_funds',   jobColumn = 'job_name',     amountColumn = 'amount' },
-    { table = 'bank_accounts',      jobColumn = 'job_name',     amountColumn = 'account_balance' }
+    { table = 'management_funds',   jobColumn = 'job_name',     amountColumn = 'amount',          prefix = '' },
+    { table = 'bank_accounts',      jobColumn = 'job_name',     amountColumn = 'account_balance', prefix = '' }
 }
 local societyTable = nil
 
@@ -157,7 +158,7 @@ local function resolveTable()
                 candidate.amountColumn, candidate.table))
         end)
         if ok then
-            candidate.prefix = Config.Society.prefix
+            candidate.prefix = candidate.prefix or Config.Society.prefix
             societyTable = candidate
             Bank.debug('society table detected: ' .. candidate.table)
             return societyTable
@@ -181,6 +182,21 @@ local function frameworkSociety(job)
                     exports.bcs_companymanager:AddCompanyMoney(job, 'money', delta, nil, 'Bank sync')
                 elseif delta < 0 then
                     exports.bcs_companymanager:RemoveCompanyMoney(job, 'money', -delta, nil, 'Bank sync')
+                end
+            end
+        end
+    end
+
+    -- QBCore's qb-management keeps boss menu money behind its exports
+    if GetResourceState('qb-management') == 'started' then
+        local ok, money = pcall(function() return exports['qb-management']:GetAccount(job) end)
+        if ok and tonumber(money) then
+            return tonumber(money), function(value)
+                local delta = value - tonumber(money)
+                if delta > 0 then
+                    exports['qb-management']:AddMoney(job, delta)
+                elseif delta < 0 then
+                    exports['qb-management']:RemoveMoney(job, -delta)
                 end
             end
         end
@@ -277,18 +293,24 @@ end)
 --  ESX's own paycheck is switched off per player so nobody is paid
 --  twice. sv_payroll handles it from there.
 -- ═══════════════════════════════════════════════════════════
-AddEventHandler('esx:playerLoaded', function(src, xPlayer)
+Framework.onPlayerLoaded(function(src, xPlayer)
     if Config.Payroll.mode ~= 'bank' then return end
 
     CreateThread(function()
         Wait(2000)
-        if xPlayer.togglePaycheck then
-            xPlayer.togglePaycheck(false)
-        else
+        if Framework.stopPaycheck(xPlayer) then return end
+        if Framework.name == 'esx' then
             print('^3[nayzeee-banking]^7 xPlayer.togglePaycheck is missing on this ESX build. ' ..
                   'Set Config.Payroll.mode = "esx" or patch paycheck.lua (see README).')
         end
+        -- QBCore / Qbox: the framework's own salary loop has to be off (README),
+        -- which is said once on start rather than for every player
     end)
 end)
 
 -- nz_bank:paycheck is handled in sv_accounts.lua (server-side only, never a net event)
+
+if Config.Payroll.mode == 'bank' and Framework.name ~= 'esx' then
+    print(('^3[nayzeee-banking]^7 Payroll mode is "bank" on %s: turn off the framework\'s own paychecks ' ..
+           'or wages are paid twice (see README, Who pays wages).'):format(Framework.name))
+end

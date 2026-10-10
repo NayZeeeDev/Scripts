@@ -770,7 +770,7 @@ local function returnCard(src, dropped, quick)
     end
 end
 
-AddEventHandler('esx:playerLoaded', function(src, xPlayer)
+Framework.onPlayerLoaded(function(src, xPlayer)
     local key = 'nzb_card_return:' .. xPlayer.identifier
     local saved = GetResourceKvpString(key)
     if not saved then return end

@@ -1,6 +1,6 @@
 # 🏦 NAYZEEE Banking
 
-Immersive banking for ESX Legacy — personal, shared, society and savings accounts, physical cards with PINs and limits, credit-scored loans, bills, and scheduled transfers. Built on the NAYZEEE v5 design language (black · white · teal `#08afa2` · red `#e5484d`, Lexend).
+Immersive banking for **ESX Legacy, QBCore and Qbox** — personal, shared, society and savings accounts, physical cards with PINs and limits, credit-scored loans, bills, and scheduled transfers. Built on the NAYZEEE v5 design language (black · white · teal `#08afa2` · red `#e5484d`, Lexend).
 
 ---
 
@@ -8,7 +8,7 @@ Immersive banking for ESX Legacy — personal, shared, society and savings accou
 
 | Resource | Required | Notes |
 |---|---|---|
-| `es_extended` | ✅ | ESX Legacy 1.9+ |
+| A framework | ✅ | `es_extended` (ESX Legacy 1.9+), `qb-core` or `qbx_core` — `Config.Framework = 'auto'` finds it |
 | OneSync | ✅ | The server checks where a player is before cash moves |
 | `oxmysql` | ✅ | Database layer |
 | `ox_lib` | ✅ | Callbacks, notifications, input dialogs |
@@ -21,13 +21,17 @@ Immersive banking for ESX Legacy — personal, shared, society and savings accou
 
 1. Import `install/install.sql` into your database. Already running an earlier build? Run `install/update.sql` as well.
 2. Drop the folder in `resources/[nayzeee]/nayzeee-banking`. **The folder must be named exactly `nayzeee-banking`** — every export, event and NUI callback is namespaced to it. Rename it and the resource prints the reason and stops itself rather than half-working.
-3. Add to `server.cfg` **after** `es_extended`:
+3. Add to `server.cfg` **after** your framework (`es_extended`, `qb-core` or `qbx_core`) and your inventory:
    ```cfg
    ensure nayzeee-banking
    add_ace group.admin nayzeee.banking allow
    ```
 4. Open `config.lua` and set your bank locations, society jobs and log webhooks.
 5. Restart the server. Personal and society accounts are created automatically.
+
+{% hint style="warning" %}
+**On QBCore or Qbox, remove `qb-banking` / `Renewed-Banking` / any other banking script** — two banks mirroring the same `bank` money fight each other. Boss menu money in `qb-management` (or its `management_funds` table) is kept in step automatically.
+{% endhint %}
 
 {% hint style="info" %}
 Existing money is not migrated. If you're moving off another banking script, run a one-off query to copy `users.accounts` bank balances into `nz_bank_accounts.balance`.
@@ -642,7 +646,23 @@ The card limit is a rolling window, not a calendar day. A card maxed at 23:55 is
 
 ---
 
-## 🔗 ESX integration
+## 🔗 Framework integration (ESX · QBCore · Qbox)
+
+`server/sv_framework.lua` is the only file that knows which framework is running. Everything else works on one player shape — identifier (the ESX identifier, or the QBCore/Qbox `citizenid`), job and grade, cash and the framework's `bank` money — so every feature behaves the same on all three.
+
+| | ESX | QBCore | Qbox |
+|---|---|---|---|
+| Player bank money mirrored | `bank` account | `PlayerData.money.bank` | `PlayerData.money.bank` |
+| Society money mirrored | `esx_addonaccount` / `addon_account_data` | `qb-management` / `management_funds` | `management_funds` |
+| Offline job (scheduled transfers, society rights) | `users.job` | `players.job` | `players.job` |
+| Multi-job | a multi-job resource | `qb-multijob` | built in (`PlayerData.jobs`) |
+| Card items usable | ox export / `RegisterUsableItem` | ox export / `CreateUseableItem` | ox export |
+| Admins | ESX group or ACE | ACE (`group.admin`) or QB permission | ACE (`group.admin`) |
+
+QBCore grade names are labels ("Chief"), so `Config.Accounts.societyAccess` is matched without caring about case, and a grade marked `isboss` counts as `'boss'` — the same list works on every framework.
+
+### ESX details
+
 
 Our tables are the source of truth, so ESX's own `bank` account and the `esx_addonaccount` society balances are mirrored against them — in both directions. Our balance is pushed out the moment it changes, and anything that moves ESX's figure behind our back is folded into our ledger on the next sync. Nothing on the server has to be patched.
 
@@ -662,6 +682,8 @@ Config.Payroll.mode = 'bank'  -- this resource pays instead
 On `esx`, the Payroll panel in the Society tab just says so, and everything else in `Config.Payroll` is ignored.
 
 On `bank`, each player's ESX paycheck is switched off with `xPlayer.togglePaycheck(false)` so nobody is paid twice, bosses set a wage per grade from the Society tab, and direct deposit is honoured.
+
+On **QBCore and Qbox** `esx` mode means "the framework pays": its own salary loop keeps paying into the `bank` money and it lands in this bank through the mirror. Those frameworks pay everyone from one loop with no per-player switch, so for `bank` mode **turn the framework's paycheck off in its own config** — the resource prints a reminder on start.
 
 {% hint style="warning" %}
 `togglePaycheck` is ESX Legacy 1.9+. On an older build the resource prints a warning — either stay on `esx` mode, or patch the pay line in `es_extended/server/paycheck.lua`:

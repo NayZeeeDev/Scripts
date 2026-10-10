@@ -25,6 +25,7 @@ client_scripts {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
+    'server/sv_framework.lua',     -- ESX / QBCore / Qbox, before anything else
     'server/sv_core.lua',
     'server/sv_multijob.lua',
     'server/sv_accounts.lua',
@@ -76,7 +77,7 @@ dependencies {
     '/onesync',     -- the server checks where players are before cash moves
     'ox_lib',
     'oxmysql',
-    'es_extended'
+    -- and one of es_extended, qb-core or qbx_core (Config.Framework)
 }
 
 -- Left open so server owners can configure, translate and wire this into

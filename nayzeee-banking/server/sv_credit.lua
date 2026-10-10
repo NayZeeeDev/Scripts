@@ -94,7 +94,7 @@ local function payCardNow(src, cardId, amount, accountId, auto)
         MySQL.update.await('UPDATE nz_bank_cards SET missed = 0 WHERE id = ?', { cardId })
         local acc = Bank.getAccountById(card.account_id)
         local owner = card.holder_identifier or (acc and acc.owner)
-        if owner and owner:find(':') then
+        if Bank.isCharacterId(owner) then
             Bank.moveCredit(owner, Config.Credit.cardOnTime, 'on_time')
         end
     end
@@ -148,7 +148,7 @@ local function cutStatement(card)
     -- running the line hot quietly costs score
     if card.credit_limit > 0 then
         local use = card.balance / card.credit_limit
-        if use >= Config.Credit.highUtilisation.threshold and owner and owner:find(':') then
+        if use >= Config.Credit.highUtilisation.threshold and Bank.isCharacterId(owner) then
             Bank.moveCredit(owner, Config.Credit.highUtilisation.score)
         end
     end
@@ -181,7 +181,7 @@ local function missStatement(card)
 
     local acc = Bank.getAccountById(card.account_id)
     local owner = card.holder_identifier or (acc and acc.owner)
-    if owner and owner:find(':') then
+    if Bank.isCharacterId(owner) then
         Bank.moveCredit(owner, freeze and Config.Credit.cardFrozen or Config.Credit.cardLate, 'late')
     end
 
@@ -208,7 +208,7 @@ local function cycleCard(cardId)
         local owner = card.holder_identifier or (acc and acc.owner)
         local paid = false
 
-        if true and owner and owner:find(':') then
+        if true and Bank.isCharacterId(owner) then
             local s = MySQL.single.await(
                 'SELECT auto_pay_loans FROM nz_bank_settings WHERE identifier = ?', { owner })
             if s and s.auto_pay_loans == 1 and acc and acc.balance >= card.min_payment then

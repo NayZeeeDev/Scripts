@@ -11,7 +11,7 @@ if BankLocked then return end
 -- ═══════════════════════════════════════════════════════════
 
 local function resolveIdentifier(target)
-    if type(target) == 'string' and target:find(':') then return target end
+    if type(target) == 'string' and not tonumber(target) and Bank.isCharacterId(target) then return target end
 
     local xTarget = ESX.GetPlayerFromId(tonumber(target))
     if xTarget then return xTarget.identifier end
@@ -114,7 +114,7 @@ local function canBill(xPlayer, job)
 end
 
 local function onlineTarget(target)
-    if type(target) == 'string' and target:find(':') then
+    if type(target) == 'string' and not tonumber(target) and Bank.isCharacterId(target) then
         return ESX.GetPlayerFromIdentifier(target)
     end
     local id = tonumber(target)

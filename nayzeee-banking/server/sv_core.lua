@@ -1,8 +1,8 @@
 if BankLocked then return end
 
-ESX = exports['es_extended']:getSharedObject()
-
+-- ESX (or the QBCore / Qbox stand-in) comes from sv_framework.lua, loaded first
 Bank = {}
+Bank.FW = Framework
 Bank.locks = {}          -- [accountId] = true while a write is in flight
 Bank.session = {}        -- [src] = { pinOk = {}, atm = false }
 
@@ -360,10 +360,20 @@ function Bank.canUseSociety(job, grade)
     local rule = Config.Accounts.societyAccess[job]
     if not rule then return false end
     if rule == true then return true end
+    -- QBCore grade names are labels ('Chief'), ESX's are keys ('chief')
+    grade = tostring(grade or ''):lower()
     for _, g in ipairs(rule) do
-        if g == grade then return true end
+        if tostring(g):lower() == grade then return true end
     end
     return false
+end
+
+--- Is this owner a character (an ESX identifier or a QBCore citizenid) rather than a job?
+function Bank.isCharacterId(id)
+    if type(id) ~= 'string' or id == '' then return false end
+    if id:find(':') then return true end   -- ESX
+    local jobs = ESX.GetJobs and ESX.GetJobs() or {}
+    return jobs[id] == nil and Config.Accounts.societyAccess[id] == nil
 end
 
 --- Permission check for an account+player pair. Returns account, role table or nil, reason.
@@ -430,13 +440,10 @@ function Bank.accessByIdentifier(identifier, accountId)
                 if jobName == acc.owner then allowed = true break end
             end
         else
-            local ok, row = pcall(MySQL.single.await,
-                'SELECT job, job_grade FROM users WHERE identifier = ?', { identifier })
-            if ok and row and row.job == acc.owner then
-                local jobs = ESX.GetJobs()
-                local grades = jobs and jobs[row.job] and jobs[row.job].grades
-                local g = grades and grades[tostring(row.job_grade)]
-                allowed = Bank.canUseSociety(row.job, g and g.name)
+            -- offline: their saved job, from whichever framework is running
+            local ok, job, _, gradeName = pcall(Framework.offlineJob, identifier)
+            if ok and job == acc.owner then
+                allowed = Bank.canUseSociety(job, gradeName)
             end
         end
         if not allowed then return nil, nil, 'no_rank' end
@@ -704,7 +711,7 @@ function Bank.ensurePlayer(xPlayer)
     return acc or Bank.getPersonal(xPlayer.identifier)
 end
 
-AddEventHandler('esx:playerLoaded', function(src, xPlayer)
+Framework.onPlayerLoaded(function(src, xPlayer)
     CreateThread(function()
         Bank.ensurePlayer(xPlayer)
     end)

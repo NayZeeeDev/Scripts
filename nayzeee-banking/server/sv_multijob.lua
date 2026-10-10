@@ -112,7 +112,9 @@ function Bank.jobsFor(xPlayer)
         return hit.jobs
     end
 
-    local found = fromExport(xPlayer.identifier, xPlayer.source) or fromTable(xPlayer.identifier)
+    -- Qbox holds every job itself; elsewhere a multi-job resource does
+    local found = (Framework.allJobs and Framework.allJobs(xPlayer))
+        or fromExport(xPlayer.identifier, xPlayer.source) or fromTable(xPlayer.identifier)
     local jobs = { active }
 
     if found then
@@ -173,7 +175,7 @@ local function invalidate(identifier)
     cache[identifier] = nil
 end
 
-AddEventHandler('esx:setJob', function(src, job)
+Framework.onJobChanged(function(src)
     local xPlayer = Bank.getPlayer(src)
     if not xPlayer then return end
     invalidate(xPlayer.identifier)

@@ -1,7 +1,5 @@
 if BankLocked then return end
 
-ESX = exports['es_extended']:getSharedObject()
-
 Bank = { isOpen = false, context = 'bank', peds = {} }
 
 --- Console noise, only when Config.Debug is on.
@@ -92,8 +90,13 @@ function Bank.notify(title, description, kind)
         end
     end
 
-    if Config.Notify == 'esx' then
-        return ESX.ShowNotification(('%s: %s'):format(title, description or ''))
+    -- the framework's own notification, when asked for and running
+    if Config.Notify == 'esx' and GetResourceState('es_extended') == 'started' then
+        return exports['es_extended']:getSharedObject().ShowNotification(('%s: %s'):format(title, description or ''))
+    end
+    if Config.Notify == 'qb' and GetResourceState('qb-core') == 'started' and GetResourceState('qbx_core') ~= 'started' then
+        local kinds = { success = 'success', error = 'error', inform = 'primary', warning = 'warning' }
+        return exports['qb-core']:GetCoreObject().Functions.Notify(('%s: %s'):format(title, description or ''), kinds[kind] or 'primary')
     end
 
     lib.notify({ title = title, description = description, type = kind, position = 'top-right' })

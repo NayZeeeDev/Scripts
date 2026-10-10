@@ -32,7 +32,10 @@ Config.CurrencyRight  = false          -- true renders 1 500$ instead of $1 500
 Config.Debug          = false          -- Debug prints in the server console
 Config.Locale         = 'en'           -- File in locales/ for notifications and prompts
 
-Config.Inventory = 'ox_inventory'      -- ox_inventory / qs-inventory / qb-inventory / esx
+-- ESX, QBCore or Qbox. 'auto' uses whichever is running (Qbox first, then QBCore, then ESX).
+Config.Framework = 'auto'              -- auto / esx / qbcore / qbox
+
+Config.Inventory = 'ox_inventory'      -- ox_inventory / qs-inventory / qb-inventory / framework (the framework's own cash)
 Config.MoneyItem = 'money'             -- Cash item name, ignored on 'esx'
 Config.AccountPrefix = 'NZB'           -- Account numbers read NZB-PSL-A1B2C3D4
 
@@ -40,7 +43,7 @@ Config.Target         = 'ox_target'    -- ox_target / qb-target / none (key pres
 Config.TargetDistance = 2.0            -- How close you have to be to interact
 Config.OpenKey        = 'E'            -- Used when Target = 'none'
 
-Config.Notify = 'ox_lib'               -- ox_lib / esx / custom
+Config.Notify = 'ox_lib'               -- ox_lib / esx / qb / custom  (Qbox uses ox_lib)
 Config.CustomNotify = {                -- Only read when Notify = 'custom'
     event  = 'nayzeee-notify:client:notify',
     export = nil,                      -- { resource = 'nayzeee-notify', method = 'notify' }
@@ -695,7 +698,7 @@ Config.Society = {
 -- ESX only knows the job a player is clocked into. This resolves the
 -- rest of the roster so a second job keeps its society access.
 Config.MultiJob = {
-    enabled  = true,     -- false uses the active ESX job only
+    enabled  = true,     -- false uses the active job only. Qbox's own multi-job is read with no extra resource
     resource = 'auto',   -- auto / none / a resource name
     export   = nil,      -- Override the export name on that resource
 
