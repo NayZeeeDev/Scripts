@@ -229,7 +229,7 @@ lib.callback.register('nz-wig:phoneMeetup', function(src, keys)
     if #picked == 0 then return false, L('invalid') end
 
     P.meetupCd = now() + MU.Cooldown
-    P.deal = { keys = picked, total = total, expires = now() + 75 + MU.WaitTime, arrived = false }
+    P.deal = { keys = picked, total = total, expires = now() + 75 + MU.WaitTime, arrived = false, started = now() }
     TriggerClientEvent('nz-wig:c:meetupStart', src, { total = total, count = #picked })
     return true, L('buyer_coming')
 end)
@@ -252,6 +252,8 @@ lib.callback.register('nz-wig:meetupHandover', function(src)
     if not P then return false end
     local d = P.deal
     if not d or not d.arrived or now() > d.expires then return false, L('buyer_session') end
+    -- the buyer is a local ped the server can't see: he can't have run in faster than this
+    if now() - (d.started or 0) < math.max(3, math.floor((MU.SpawnDistance or 35) / 8)) then return false, L('buyer_session') end
     if P.busy then return false, L('busy') end
     P.deal = nil
     local count, total = sellKeys(P, d.keys, MU.Rate, MU.Account, 'meet-up')
@@ -266,7 +268,7 @@ lib.callback.register('nz-wig:phoneList', function(src, key, price)
     if not P or not LS.Enabled or type(key) ~= 'string' then return false, L('invalid') end
     if not Inv.HasMeta then return false, L('listing_no_meta') end
     if P.busy then return false, L('busy') end
-    price = math.floor(tonumber(price) or 0)
+    price = math.floor(SafeNumber(price) or 0)
     if price < LS.MinPrice or price > LS.MaxPrice then return false, L('listing_price', LS.MinPrice, LS.MaxPrice) end
     if DB.ListingCount(P.id) >= LS.MaxPerPlayer then return false, L('listing_max', LS.MaxPerPlayer) end
     local s = Wigs.FindGood(src, key)

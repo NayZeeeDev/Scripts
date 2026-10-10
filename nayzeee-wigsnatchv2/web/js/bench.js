@@ -165,6 +165,7 @@
       ws: { dyes: d.dyes, dyeItem: d.dyeItem, dyeLabel: d.dyeLabel, hair: d.hair || {}, ownHair: true, wigs: [] } };
     B.pal = arr(d.palette);
     B.mode = 'dye';
+    B.fromDye = true;
     B.dye = { target: null, c: 0, h: 0, hSame: true };
     openSide('dye', 'Hair dye', `${d.dyes} hair dye${d.dyes === 1 ? '' : 's'} · poured on, worked in`);
     pickDye('self');
@@ -180,6 +181,7 @@
     B.styles.sort((a, b) => (a.m === d.myModel ? 0 : 1) - (b.m === d.myModel ? 0 : 1) || a.d - b.d);
     B.view = d.views ? d.views.current : null;
     const ms = modes();
+    if (B.fromDye) { B.mode = 'make'; B.fromDye = false; }   // the hair dye window left it on Dye
     if (!ms.some(([k]) => k === B.mode)) B.mode = ms.length ? ms[0][0] : 'make';
     openSide('bench', 'Wig table', '');
     setXP(d);
@@ -187,6 +189,15 @@
     el('skMode').hidden = ms.length < 2;
     el('skMode').innerHTML = ms.map(([k, ic, l]) => `<button data-v="${k}" class="${k === B.mode ? 'on' : ''}">${icon(ic)}${l}</button>`).join('');
     el('skSearch').value = '';
+    if (!ms.length) {   // making, bundles and dyeing all turned off on this server
+      el('skPickView').hidden = false;
+      el('skDetail').hidden = true;
+      el('skSearchWrap').hidden = true;
+      el('skPickTitle').textContent = 'Nothing to do here';
+      el('skPickSub').textContent = '';
+      el('skList').innerHTML = '<div class="note show">Making and dyeing wigs is turned off on this server.</div>';
+      return;
+    }
     showList();
   }
 

@@ -149,11 +149,10 @@ function cutSit(d) {
   el.innerHTML = `<div class="ch-frame"><div class="ch-in">
     <div class="ti ${d.forced ? 't-error' : 't-success'}"><i class="fa-solid fa-scissors"></i></div>
     <div class="cs-tx"><b>${esc(d.name)} is ${d.forced ? 'going at your head' : 'cutting your hair'}</b><span>${d.forced ? "You can't move. Hope they're good." : 'Hold still.'}</span></div>
-    ${d.forced ? '' : '<button class="btn sm ghost" data-cutsit="leave">Get up</button>'}</div></div>`;
+    ${d.forced ? '' : '<span class="cs-key"><span class="kc">X</span>Get up</span>'}</div></div>`;
   el.hidden = false;
 }
 function cutSitEnd() { $('#cutsit').hidden = true; }
-$('#cutsit').addEventListener('click', (e) => { if (e.target.closest('[data-cutsit]')) post('cutLeave'); });
 
 /* ─────────────── input ─────────────── */
 ke.root.addEventListener('mousemove', (e) => {

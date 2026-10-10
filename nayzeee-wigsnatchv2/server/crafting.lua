@@ -47,8 +47,8 @@ end
 function Crafting.Check(src, P, req)
     if not CC.Enabled or type(req) ~= 'table' then return nil end
     local m = req.m == 'm' and 'm' or req.m == 'f' and 'f' or nil
-    local d, t = math.floor(tonumber(req.d) or -1), math.floor(tonumber(req.t) or 0)
-    local c, h = Clamp(math.floor(tonumber(req.c) or 0), 0, 63), Clamp(math.floor(tonumber(req.h) or 0), 0, 63)
+    local d, t = math.floor(SafeNumber(req.d) or -1), math.floor(SafeNumber(req.t) or 0)
+    local c, h = Clamp(math.floor(SafeNumber(req.c) or 0), 0, 63), Clamp(math.floor(SafeNumber(req.h) or 0), 0, 63)
     if not m or d < 0 or d > 999 or t < 0 or t > 63 then return nil, L('invalid') end
     if not CC.ShortStyles and IsShortDrawable(m, d) then return nil, L('craft_short') end
     for _, skip in ipairs((CC.SkipTextures or {})[m] or {}) do
@@ -60,7 +60,7 @@ function Crafting.Check(src, P, req)
     for item, n in pairs(recipe) do
         if Inv.Count(src, item) < n then return nil, L('craft_missing', itemLabel(item)) end
     end
-    return { m = m, d = d, t = t, c = c, h = h, length = math.floor(tonumber(req.length)), lace = lace, recipe = recipe }
+    return { m = m, d = d, t = t, c = c, h = h, length = math.floor(SafeNumber(req.length) or 0), lace = lace, recipe = recipe }
 end
 
 -- takes every material or none

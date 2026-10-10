@@ -45,6 +45,7 @@ function onKey(e) {
   if (cutKey(e)) return;
   if (e.type !== 'keydown') return;
   if (e.key === 'Escape') {
+    if (pqId !== null && !S.view) return promptReply(false);   // ESC says no to a trade / haircut / wig ask
     if (!$('#modal').hidden) return closeModal();
     if (S.view) return closeApp();
   }

@@ -141,7 +141,7 @@ end
 lib.callback.register('nz-wig:placeBounty', function(src, targetId, amount)
     local P = GetP(src)
     if not P or not Config.Bounty.Enabled or type(targetId) ~= 'string' then return false, L('invalid') end
-    amount = math.floor(tonumber(amount) or 0)
+    amount = math.floor(SafeNumber(amount) or 0)
     if amount < Config.Bounty.Min or amount > Config.Bounty.Max then
         return false, L('bounty_bad_amount', Config.Bounty.Min, Config.Bounty.Max)
     end
@@ -189,7 +189,9 @@ lib.callback.register('nz-wig:offer', function(src, target, key, price)
     local T = target and GetP(target)
     if not P or not T or T == P or not Config.Trading.Enabled then return false, L('invalid') end
     if P.busy then return false, L('busy') end
-    price = math.floor(tonumber(price) or 0)
+    price = SafeNumber(price)
+    if not price then return false, L('invalid') end
+    price = math.floor(price)
     if price < 0 or price > Config.Trading.MaxPrice then return false, L('invalid') end
     if PedDistance(src, target) > Config.Trading.Range then return false, L('trade_too_far') end
     if Offers[target] then return false, L('trade_pending') end

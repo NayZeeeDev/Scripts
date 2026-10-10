@@ -158,6 +158,8 @@ end
 function CanAttack(P, opts)
     opts = opts or {}
     if P.busy and not opts.ignoreBusy then return false, 'busy' end
+    -- tied up, held, cuffed or down: hands aren't free
+    if Restrain.IsTied(P.src) or Restrain.HeldBy(P.src) or IsRestrainedSrc(P.src) then return false, 'self_restrained' end
     if shielded(P) then return false, 'self_protected' end
     if onProtectedJob(P.src) then return false, 'self_job' end
     if opts.cooldown then

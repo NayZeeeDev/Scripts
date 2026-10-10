@@ -211,7 +211,7 @@ RegisterNetEvent('nz-wig:s:cutWork', function(id, batch)
     local soundTool, region
     for i = 1, math.min(#batch, 8) do
         local e = batch[i]
-        local r, tool, w = type(e) == 'table' and e.r, type(e) == 'table' and e.t, tonumber(type(e) == 'table' and e.w)
+        local r, tool, w = type(e) == 'table' and e.r, type(e) == 'table' and e.t, SafeNumber(type(e) == 'table' and e.w)
         local def = CC.Tools[tool]
         if s.regions[r] and def and s.tools[tool] and def.Regions[r] and w and w > 0 then
             -- razor on the top only after the clippers (or on hair that's already short)
@@ -280,6 +280,8 @@ function Cutting.Finish(s, why)
     if not s.regions.top then hair = nil end
     local g = GenderKey(s.model)
     local changed = {}
+    -- hair that's already been cut (and hasn't grown back) gives no bundles: no farming the same head
+    local alreadyCut = C.hair.cut ~= nil or C.hair.bald ~= nil
 
     if hair == 'bald' then
         Hair.SetBald(C, s.model, CC.BuzzMinutes > 0 and CC.BuzzMinutes or nil)
@@ -301,7 +303,7 @@ function Cutting.Finish(s, why)
 
     -- bundles from long hair that was snipped
     local bundles = 0
-    if CC.Bundles.Enabled and not s.short and snipped > 0 then
+    if CC.Bundles.Enabled and not s.short and not alreadyCut and snipped > 0 then
         local n = math.min(CC.Bundles.Max, snipped * CC.Bundles.PerRegion)
         for _ = 1, n do
             local meta = Wigs.CreateBundle(s.hair, C.name)

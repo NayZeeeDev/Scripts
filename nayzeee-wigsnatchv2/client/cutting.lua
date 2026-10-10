@@ -366,11 +366,16 @@ RegisterNetEvent('nz-wig:c:cutSit', function(d)
         TaskStandStill(me, -1)
     end
     NUI.Send('cut:sit', { name = d.name, forced = d.forced })
-end)
-
-RegisterNUICallback('cutLeave', function(_, cb)
-    if Cutting.sitting then TriggerServerEvent('nz-wig:s:cutCancel', Cutting.sitting) end
-    cb(1)
+    -- an agreed haircut: X gets you up (the overlay has no mouse, so it's a key)
+    if not d.forced then
+        local id = d.id
+        CreateThread(function()
+            while Cutting.sitting == id do
+                if IsControlJustPressed(0, 73) then TriggerServerEvent('nz-wig:s:cutCancel', id) break end
+                Wait(0)
+            end
+        end)
+    end
 end)
 
 RegisterNetEvent('nz-wig:c:cutEnd', function(r)

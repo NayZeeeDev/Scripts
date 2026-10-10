@@ -85,6 +85,7 @@ function Bridge.GetMoney(src, acc)
 end
 
 function Bridge.AddMoney(src, amount, acc, reason)
+    if type(amount) ~= 'number' or amount ~= amount or amount == math.huge or amount == -math.huge then return false end
     amount = math.floor(amount)
     if amount <= 0 then return true end
     local p = getPlayer(src)
@@ -97,6 +98,7 @@ function Bridge.AddMoney(src, amount, acc, reason)
 end
 
 function Bridge.RemoveMoney(src, amount, acc, reason)
+    if type(amount) ~= 'number' or amount ~= amount or amount == math.huge or amount == -math.huge then return false end
     amount = math.floor(amount)
     if amount <= 0 then return true end
     local p = getPlayer(src)

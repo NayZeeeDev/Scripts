@@ -14,6 +14,7 @@ Locales['en'] = {
     target_job         = "You can't do that to someone on duty",
     target_busy        = 'They are busy',
     self_protected     = "You can't do that while protected",
+    self_restrained    = "You can't do that while you're restrained",
     self_job           = "You can't do that while on duty",
     in_vehicle         = "Can't do that from a vehicle",
     pockets_full       = 'Your pockets are full',

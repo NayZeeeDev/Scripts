@@ -139,7 +139,8 @@ GAMES.sequence = {
     }
   },
   update(s) {
-    this.set(s.seq, s.idx || 0, s.done ? 'fresh' : s.miss ? 'bad' : '');
+    // the server counts the keys from 1, this list from 0
+    this.set(s.seq, Math.max(0, (s.idx || 1) - 1), s.done ? 'fresh' : s.miss ? 'bad' : '');
   },
 };
 

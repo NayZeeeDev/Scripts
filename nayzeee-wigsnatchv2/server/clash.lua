@@ -17,7 +17,7 @@ local function now() return os.time() end
 -- victim hair query ------------------------------------------------------------------------
 
 local function int(v, lo, hi)
-    v = math.floor(tonumber(v) or 0)
+    v = math.floor(SafeNumber(v) or 0)
     if v < lo then return lo end
     if v > hi then return hi end
     return v
@@ -452,8 +452,16 @@ end
 
 function Clash.Resolve(c, win)
     local A, V = Players[c.a], Players[c.v]
-    release(c.a, c.v)
     local t = now()
+    -- the database lookup runs while both are still busy: nothing (taking the wig off, a friend
+    -- pulling it off) can change the victim's hair until the result is applied
+    local revenge, bountyOpen
+    if A and V and win and not c.steal then
+        revenge = DB.HasSnatched(V.id, A.id, t - Config.Bounty.RevengeHours * 3600)
+        bountyOpen = Social.HasBounty(V.id)
+        A, V = Players[c.a], Players[c.v]
+    end
+    release(c.a, c.v)
 
     if not A or not V then
         -- someone vanished before anything could happen
@@ -482,11 +490,15 @@ function Clash.Resolve(c, win)
     if c.steal then return resolveSteal(c, A, V) end
 
     -- snatcher wins ---------------------------------------------------------------
-    local revenge = DB.HasSnatched(V.id, A.id, t - Config.Bounty.RevengeHours * 3600)
-    local bountyOpen = Social.HasBounty(V.id)
     local meta
+    if c.layer == 'wig' and not V.hair.wig then
+        -- the wig they went for isn't on any more: no wig appears out of thin air
+        cancelBoth(c)
+        return
+    end
+    local before = { bald = V.hair.bald, cut = V.hair.cut, dye = V.hair.dye }
 
-    if c.layer == 'wig' and V.hair.wig then
+    if c.layer == 'wig' then
         meta = V.hair.wig
         V.hair.wig = nil
         Wigs.Hop(meta, V.name, A.name)
@@ -500,8 +512,10 @@ function Clash.Resolve(c, win)
     local tier = GetTier(meta.tier)
 
     if not Wigs.Give(c.a, meta) then
-        -- inventory changed during the fight: put everything back
-        if c.layer == 'wig' then V.hair.wig = meta else Hair.ClearBald(V) end
+        -- inventory changed during the fight: put everything back as it was
+        if c.layer == 'wig' then V.hair.wig = meta end
+        V.hair.bald, V.hair.cut, V.hair.dye = before.bald, before.cut, before.dye
+        Hair.Schedule(V)
         cancelBoth(c)
         Notify(c.a, L('pockets_full'), 'error')
         return

@@ -86,6 +86,7 @@ end)
 lib.callback.register('nz-wig:placeTable', function(src, item, coords, heading)
     if type(item) ~= 'string' or not T.Items[item] then return false end
     if type(coords) ~= 'vector3' or type(heading) ~= 'number' then return false end
+    if not (SafeNumber(coords.x) and SafeNumber(coords.y) and SafeNumber(coords.z) and SafeNumber(heading)) then return false end
     local ped = GetPlayerPed(src)
     if ped == 0 or #(GetEntityCoords(ped) - coords) > 6.0 then return false end
     if Inv.Count(src, item) < 1 then return false end

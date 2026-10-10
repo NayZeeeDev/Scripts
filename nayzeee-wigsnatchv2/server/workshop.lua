@@ -10,7 +10,7 @@ local CW, CD, CT = Config.Workshop, Config.Dye, Config.Tables
 local acting = {}
 local useTables = CT.Enabled
 
-local function maxHair(v) return Clamp(math.floor(tonumber(v) or 0), 0, 63) end
+local function maxHair(v) return Clamp(math.floor(SafeNumber(v) or 0), 0, 63) end
 
 function Workshop.Info(src)
     local P = GetP(src)
@@ -316,6 +316,11 @@ lib.callback.register('nz-wig:tableStart', function(src, tableId, kind, req)
     for _, st in ipairs(stages) do total = total + st.time end
     local token = ('%d-%d'):format(src, math.random(100000, 999999))
     sessions[src] = { token = token, tableId = tableId, kind = kind, job = job, stages = stages, started = GetGameTimer(), minTime = total }
+    -- a job nobody finishes (crash, modified client) mustn't keep the player busy, and so untouchable, forever
+    SetTimeout(total * 2 + 15000, function()
+        local cur = sessions[src]
+        if cur and cur.token == token then release(src) end
+    end)
     acting[src] = true
     SetBusy(P, true)
     t.user = src

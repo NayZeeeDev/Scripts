@@ -87,6 +87,13 @@ function GetPerks(xp)
     }
 end
 
+-- a number from a client, or nil: NaN and infinity get past < / > checks, so they're refused here
+function SafeNumber(v)
+    v = tonumber(v)
+    if not v or v ~= v or v == math.huge or v == -math.huge then return nil end
+    return v
+end
+
 -- styles ------------------------------------------------------------------
 
 -- Names given to hairstyles in the Wig Studio: StyleNames['m:12'] = 'Knotless Braids'

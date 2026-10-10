@@ -171,7 +171,8 @@ function Hair.Regrow(P, minutes)
         Hair.ClearStatus(P, 'burn')
     else
         local cut = minutes * 60
-        for _, part in ipairs({ h.bald, h.cut, h.face }) do
+        for _, k in ipairs({ 'bald', 'cut', 'face' }) do   -- by name: a list with holes stops ipairs early
+            local part = h[k]
             if part and (part.u or 0) > 0 then part.u = part.u - cut end
             if part and (part.u or 0) == 0 then part.u = now() + 1 end -- "never" timers start counting
         end

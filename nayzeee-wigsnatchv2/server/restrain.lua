@@ -173,7 +173,9 @@ RegisterNetEvent('nz-wig:s:hold', function(target)
         local q = Clash.QueryHair(V.src, 2000)
         if not (q and (q.handsUp or q.restrained)) then return Notify(src, L('hold_behind'), 'error') end
     end
-    if Players[src] ~= A or Players[V.src] ~= V or heldBy[V.src] then return end
+    -- the question above waits on the target's client: check everything again after it
+    if Players[src] ~= A or Players[V.src] ~= V then return end
+    if holds[src] or heldBy[src] or ties[src] or heldBy[V.src] or holds[V.src] then return end
 
     local h = { held = V.src, grip = CH.Grip, last = 0, token = math.random(1, 1e9) }
     holds[src], heldBy[V.src] = h, src

@@ -474,6 +474,7 @@ body.calm *{animation-duration:1ms!important;transition-duration:1ms!important}
 .who-tx span{display:block;font-size:10px;color:var(--ink-3);margin-top:2px;font-weight:300}
 
 /* struggle ─────────────────────────────────────────── */
+.cs-key{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-3);white-space:nowrap}
 .struggle{position:absolute;bottom:120px;left:50%;transform:translateX(-50%);width:320px;filter:var(--ds-1);--ch:10px}
 .struggle .ch-in{padding:11px 14px 13px;background:linear-gradient(var(--panel),var(--base))}
 .struggle .ch-in::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--red),transparent 70%)}

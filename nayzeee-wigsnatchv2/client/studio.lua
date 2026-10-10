@@ -293,7 +293,7 @@ local function on(name, fn)
     end)
 end
 
-on('st:close', function() if not batch then Studio.Leave() end end)
+on('st:close', function() Studio.Leave() end)   -- also stops a batch that's running
 
 on('st:model', function(d)
     if batch or busy then return end
