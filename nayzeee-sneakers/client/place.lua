@@ -97,7 +97,7 @@ function Place.Ghost(model, opts)
             local hit, ent, coords, normal = camRay(opts.flags or 17, range + 4.0, ped)
             if hit then pos = coords end
             local snapped = false
-            if hit and opts.snap and Place.ModelOf(ent) then
+            if hit and opts.snap then
                 local ok, sp, sh = pcall(opts.snap, ent, coords, normal)
                 if ok and sp then pos, heading, snapped = sp, sh, true end
             end

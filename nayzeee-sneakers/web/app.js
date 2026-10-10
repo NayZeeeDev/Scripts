@@ -32,6 +32,9 @@ const PATHS = {
   minus: '<path d="M5 12h14"/>',
   target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
   camera: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  bag: '<path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 10.5V7a3 3 0 0 1 6 0v3.5"/>',
+  bench: '<path d="M3 9h18M5 9v11M19 9v11M5 14h14"/><path d="M8 9V6.5h3V9M14 9V5h2.5v4"/>',
+  cash: '<rect x="3" y="6.5" width="18" height="11" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v.01M17.5 14.5v.01"/>',
   hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L2.8 16a1.6 1.6 0 0 1 2.4-2.1L8 16.5"/>',
 };
 // Older menu callers pass Font Awesome class names
@@ -65,9 +68,10 @@ function showMenu(menu) {
   $('menuTitle').textContent = menu.title || '';
   $('menuSub').textContent = menu.subtitle || '';
   $('menuSub').hidden = !menu.subtitle;
-  $('menuKicker').textContent = menu.image ? 'Your pair' : 'Pick one';
+  $('menuKicker').textContent = menu.kicker || (menu.image ? 'Your pair' : 'Pick one');
+  $('menuIc').innerHTML = icon(menu.windowIcon || 'shoe');
   const av = $('menuImg');
-  av.innerHTML = menu.image ? `<img src="${img(menu.image)}" alt="">` : icon('shoe');
+  av.innerHTML = menu.image ? `<img src="${img(menu.image)}" alt="">` : icon(menu.windowIcon || 'shoe');
 
   $('menuList').innerHTML = '';
   options.forEach((o, i) => {
@@ -138,6 +142,7 @@ const fmtTime = ms => (ms / 1000).toFixed(1).replace(/\.0$/, '') + 's';
 function openSide(kind, title, sub) {
   side = kind;
   $('sideTitle').textContent = title.toUpperCase();
+  $('sideIc').innerHTML = icon(kind === 'shop' ? 'bag' : 'bench');
   $('sideSub').textContent = sub;
   $('bench').hidden = kind !== 'bench';
   $('shop').hidden = kind !== 'shop';

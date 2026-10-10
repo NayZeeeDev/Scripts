@@ -192,10 +192,20 @@ function Studio.Payload() return { models = live, builtin = builtinOverrides() }
 
 -- ------------------------------------------------------------------ scans
 
+--- Collections sneakerkit found in the server's resources: real clothing packs, never "Default GTA"
+local function packSet()
+    local set = { [tostring(Config.ClothingPack or ''):lower()] = true }
+    for _, c in pairs(catalogue) do
+        if c.collection and c.collection ~= '' then set[tostring(c.collection):lower()] = true end
+    end
+    return set
+end
+
 --- New drawables (not in any catalogue) and shoes whose drawable is gone, from the last scan
 local function diff()
     local fresh, gone = {}, {}
     if not scan or type(scan.drawables) ~= 'table' then return fresh, gone end
+    local packs = packSet()
     local keys = allKeys()
     -- drawables plain downloads were linked to are known too
     local linked = {}
@@ -207,7 +217,8 @@ local function diff()
         if not keys[key] and not linked[key] and not builtinKeys[key] and not catalogue[key] then
             local g, col, idx = key:match('^(%a):(.*):(%d+)$')
             if g and (col ~= '' or S.BaseGame) then
-                fresh[#fresh + 1] = { key = key, gender = g == 'f' and 'female' or 'male', collection = col, index = tonumber(idx), textures = textures }
+                fresh[#fresh + 1] = { key = key, gender = g == 'f' and 'female' or 'male', collection = col, index = tonumber(idx), textures = textures,
+                    gta = Shared.IsGtaCollection(col, packs) }
             end
         end
     end
@@ -255,7 +266,7 @@ end
 
 -- ------------------------------------------------------------------ admin api
 
-local function entryFor(key)
+local function entryFor(key, packs)
     local m = modelFor(key)
     if not m then return nil end
     local c, st = catalogue[key], settings[key] or {}
@@ -270,6 +281,7 @@ local function entryFor(key)
         colours = colours, props = c ~= nil, loose = c and c.loose or false, manual = st.manual or false,
         enabled = enabledOf(key), removed = st.removed == true, link = link,
         source = c and c.source or nil, pack = link and link.collection or (c and c.collection) or '',
+        gta = link ~= nil and Shared.IsGtaCollection(link.collection, packs),
     }
 end
 
@@ -292,8 +304,9 @@ end
 
 local function openData()
     local shoes = {}
+    local packs = packSet()
     for key in pairs(allKeys()) do
-        local e = entryFor(key)
+        local e = entryFor(key, packs)
         if e then shoes[#shoes + 1] = e end
     end
     for id, m in pairs(Config.ShoeModels) do

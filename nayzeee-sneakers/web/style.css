@@ -73,6 +73,15 @@ svg{display:block}
 .mark::after{content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;background:var(--void);opacity:.85;border-radius:1px}
 .mark.sm{width:22px;height:22px;border-radius:5px}
 
+/* window icon: what the window is for (supplies, table, deal ...), in the stat-tile style */
+.bar-ic{
+  flex:none;width:32px;height:32px;border-radius:var(--r-sm);display:grid;place-items:center;
+  color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);
+}
+.bar-ic svg{width:16px;height:16px;stroke-width:1.6}
+.bar-ic.sm{width:24px;height:24px;border-radius:5px}
+.bar-ic.sm svg{width:13px;height:13px}
+
 .title-txt{font-size:12.5px;font-weight:600;color:var(--white);letter-spacing:.055em;line-height:1}
 .sub{font-size:10px;color:var(--ink-3);font-weight:300;letter-spacing:.055em;margin-top:5px}
 
@@ -88,7 +97,6 @@ svg{display:block}
   height:100%;flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:11px;
   padding-left:16px;position:relative;
 }
-.bar-brand::before{content:'';position:absolute;top:0;left:0;right:30%;height:2px;background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
 .bar-brand .title-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar-mid{flex:0 1 auto}
 
@@ -123,13 +131,7 @@ svg{display:block}
 /* body */
 .main{position:relative;padding:14px;display:flex;flex-direction:column;gap:12px;flex:1 1 auto;min-height:0}
 .main.scroll{overflow-y:auto}
-.shell::before{ /* watermark: the silhouette again, at scale */
-  content:'';position:absolute;right:-40px;bottom:-16px;z-index:0;pointer-events:none;
-  width:200px;height:200px;border-radius:22px;opacity:.03;background:var(--white);
-  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
-}
 .main{z-index:1}
-.hud .shell::before,.result .shell::before,.inspect .shell::before,.menu .shell::before,.dealhud .shell::before{display:none}
 .scroll::-webkit-scrollbar,.list::-webkit-scrollbar,.guide-body::-webkit-scrollbar{width:8px}
 .scroll::-webkit-scrollbar-thumb,.list::-webkit-scrollbar-thumb,.guide-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--base)}
 

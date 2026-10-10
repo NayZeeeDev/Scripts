@@ -424,7 +424,7 @@ function Boxes.PickColour()
         local o = { id = c.id, label = c.label, image = 'nz_boxcolour_' .. c.id, description = c.id == last and Config.Text.lastUsed or nil }
         if c.id == last then table.insert(options, 1, o) else options[#options + 1] = o end
     end
-    local pick = UI.Menu({ title = Config.Text.boxColour, options = options })
+    local pick = UI.Menu({ title = Config.Text.boxColourPick or Config.Text.boxColour, kicker = Config.Text.boxColour, windowIcon = 'box', options = options })
     if pick then SetResourceKvp('nzs:boxcolour', pick) warm(pick) end
     return pick
 end

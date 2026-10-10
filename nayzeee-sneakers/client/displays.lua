@@ -286,13 +286,90 @@ end)
 
 -- placing ------------------------------------------------------------------------------------------
 
---- Aiming at a case: on top of it (aiming at its lid), or beside / behind it (aiming at a side)
-local function snap(hitEnt, _, normal)
-    local model = Place.ModelOf(hitEnt)
-    if not model then return nil end
-    local _, o = typeOfModel(model)
-    if not o then return nil end
-    return o, normal
+--- The case a ray hit: the case itself, or its door (the door is a separate local object)
+local function caseOf(ent)
+    if not ent or ent == 0 then return nil end
+    if cases[ent] then return ent end
+    for base, c in pairs(cases) do
+        if c.door == ent or c.shoe == ent then return base end
+    end
+end
+
+--- A case already standing at this spot (so stacking climbs past it)
+local function caseAt(pos)
+    for base in pairs(cases) do
+        if DoesEntityExist(base) and #(GetEntityCoords(base) - pos) < 0.08 then return base end
+    end
+end
+
+--- Lines a new case (type t) up with the cases already placed. Aim at a case's top (or anywhere over
+--- it) and it goes on top of that stack; aim at a side, or at the floor just beside one, and it sits
+--- flush against it. Works from where the cases are, not only from what the aim touched, so the glass,
+--- the door and the gap beside a case all count. Returns coords, heading or nil.
+local function snapTo(t, hitEnt, coords, normal)
+    local w, d = t.size.x, t.size.y
+    local function spot(base, o, ox, oy, oz)
+        return GetOffsetFromEntityInWorldCoords(base, ox, oy, oz), GetEntityHeading(base)
+    end
+    local function onTop(base)
+        -- climb the stack to its top case
+        for _ = 1, 20 do
+            local o = cases[base].t.size
+            local up = GetOffsetFromEntityInWorldCoords(base, 0.0, (o.y - d) * 0.5, o.z + 0.001)
+            local above = caseAt(up)
+            if not above or not cases[above] then return spot(base, o, 0.0, (o.y - d) * 0.5, o.z + 0.001) end
+            base = above
+        end
+    end
+    local function beside(base, sx, sy)
+        local o = cases[base].t.size
+        local front = (o.y - d) * 0.5     -- keep the fronts flush
+        local ox = sx ~= 0 and sx * ((o.x + w) * 0.5 + 0.002) or 0.0
+        local oy = sy ~= 0 and sy * ((o.y + d) * 0.5 + 0.002) or front
+        local p, h = spot(base, o, ox, oy, 0.0)
+        if caseAt(p) then return nil end    -- that side is taken
+        return p, h
+    end
+
+    -- 1. aimed right at a case (or its door): the face decides
+    local hitBase = caseOf(hitEnt)
+    if hitBase and normal then
+        local hh = math.rad(-GetEntityHeading(hitBase))
+        local lx = normal.x * math.cos(hh) - normal.y * math.sin(hh)
+        local ly = normal.x * math.sin(hh) + normal.y * math.cos(hh)
+        if normal.z > 0.7 then return onTop(hitBase) end
+        if math.abs(lx) >= math.abs(ly) then
+            local p, h = beside(hitBase, lx > 0 and 1 or -1, 0)
+            if p then return p, h end
+        else
+            local p, h = beside(hitBase, 0, ly > 0 and 1 or -1)
+            if p then return p, h end
+        end
+        return onTop(hitBase)
+    end
+
+    -- 2. aimed near one: over its footprint = on top, just off a side = beside it
+    local best, bestGap
+    for base, c in pairs(cases) do
+        if DoesEntityExist(base) and #(GetEntityCoords(base) - coords) < 3.0 then
+            local o = c.t.size
+            local l = GetOffsetFromEntityGivenWorldCoords(base, coords.x, coords.y, coords.z)
+            local inX, inY = math.abs(l.x) <= o.x * 0.5 + 0.02, math.abs(l.y) <= o.y * 0.5 + 0.02
+            if inX and inY and l.z > -0.2 then
+                return onTop(base)
+            end
+            if math.abs(l.z) < 0.3 then
+                local gapX = math.abs(l.x) - o.x * 0.5
+                local gapY = math.abs(l.y) - o.y * 0.5
+                if inY and gapX > 0 and gapX < w * 0.75 and (not bestGap or gapX < bestGap) then
+                    best, bestGap = { base, l.x > 0 and 1 or -1, 0 }, gapX
+                elseif inX and gapY > 0 and gapY < d * 0.75 and (not bestGap or gapY < bestGap) then
+                    best, bestGap = { base, 0, l.y > 0 and 1 or -1 }, gapY
+                end
+            end
+        end
+    end
+    if best then return beside(best[1], best[2], best[3]) end
 end
 
 local function waitForEntity(netId)
@@ -309,32 +386,11 @@ RegisterNetEvent('nayzeee-sneakers:client:placeDisplay', function(slot, typeId)
     if not t or Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
     if not IsModelInCdimage(t.model) then return UI.Notify(Config.Text.modelMissing, 'error') end
     Place.Run(function()
-        local w, d = t.size.x, t.size.y
         local spot, heading, ghostDone = Place.Ghost(t.model, {
             range = 3.0,
             extra = { model = t.door, offset = hinge(t) },
             keep = true,
-            snap = D.snap and function(hitEnt, _, normal)
-                local o, nrm = snap(hitEnt, nil, normal)
-                if not o then return nil end
-                local hh = GetEntityHeading(hitEnt)
-                -- the normal in the other case's own frame
-                local r = math.rad(-hh)
-                local lx = nrm.x * math.cos(r) - nrm.y * math.sin(r)
-                local ly = nrm.x * math.sin(r) + nrm.y * math.cos(r)
-                local front = (o.size.y - d) * 0.5     -- keep the fronts flush
-                local ox, oy, oz
-                if nrm.z > 0.7 then
-                    ox, oy, oz = 0.0, front, o.size.z + 0.001
-                elseif math.abs(lx) >= math.abs(ly) then
-                    local sx = lx > 0 and 1 or -1
-                    ox, oy, oz = sx * ((o.size.x + w) * 0.5 + 0.002), front, 0.0
-                else
-                    local sy = ly > 0 and 1 or -1
-                    ox, oy, oz = 0.0, sy * ((o.size.y + d) * 0.5 + 0.002), 0.0
-                end
-                return GetOffsetFromEntityInWorldCoords(hitEnt, ox, oy, oz), hh
-            end or nil,
+            snap = D.snap and function(hitEnt, coords, normal) return snapTo(t, hitEnt, coords, normal) end or nil,
         })
         if spot then
             Anim.PutDown()

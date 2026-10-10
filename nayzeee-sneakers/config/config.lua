@@ -305,6 +305,10 @@ Config.Studio = {
     PropsResource = 'nayzeee-sneakers-props',   -- made next to this resource by the 3D props builder
     AutoEnable    = false,      -- true = new shoes go on sale as soon as they have a prop (false = an admin switches them on)
     BaseGame      = false,      -- also list base-game shoes in the studio
+    -- Rockstar's own clothing DLCs (heists, biker, tuner ...) show under "Default GTA" in the studio, away
+    -- from your clothing packs. They're found by name; add any the studio still lists as a pack here,
+    -- e.g. { 'mp_m_somedlc_01' }. A pack sneakerkit found in your resources is never counted as GTA.
+    GtaPacks      = {},
     AlertAdmins   = true,       -- tell admins when they join if shoes were added to or removed from the server
     -- the prop shown for a shoe that has no prop of its own yet
     StandIn = { shoe = 'nzs_cup_a', heel = 'nzs_bianca_a', boot = 'nzs_alice_a' },

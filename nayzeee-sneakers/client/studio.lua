@@ -433,7 +433,7 @@ local function runBatch(opts)
     if opts.box then subs[#subs + 1] = 'box' end
     local jobs = {}
     for _, e in ipairs(data.shoes or {}) do
-        if not e.removed and e.props and (opts.gender == 'all' or e.gender == opts.gender) then
+        if not e.removed and not e.gta and e.props and (opts.gender == 'all' or e.gender == opts.gender) then
             for i, c in ipairs(e.colours or {}) do
                 if i == 1 or opts.colours then
                     for _, sub in ipairs(subs) do

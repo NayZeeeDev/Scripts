@@ -180,5 +180,10 @@ Config.Supplier = {
         nz_display       = { label = 'Shoe display',    price = 85 },
         nz_display_heel  = { label = 'Heel display',    price = 90 },
         nz_display_boot  = { label = 'Boot display',    price = 120 },
+        -- crafting tables (Dragons Lab models; without her pack they place the fallback bench)
+        blueshoetable    = { label = 'Blue shoe table',   price = 2500 },
+        pinkshoetable    = { label = 'Pink shoe table',   price = 2500 },
+        purpleshoetable  = { label = 'Purple shoe table', price = 2500 },
+        redshoetable     = { label = 'Red shoe table',    price = 2500 },
     },
 }

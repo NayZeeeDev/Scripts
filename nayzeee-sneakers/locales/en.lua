@@ -15,6 +15,7 @@ Locales.en = {
     pickUp = 'Pick up box',
 
     boxColour = 'Box colour',
+    boxColourPick = 'Pick a colour for the box',
     lastUsed = 'Last used',
 
     -- limited drops

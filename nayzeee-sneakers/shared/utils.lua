@@ -207,6 +207,31 @@ function Shared.WearCondition(km, current)
 end
 
 --- Everything the supplier sells: materials plus Config.Supplier.Extra
+-- Rockstar's clothing DLC names, without the mp_m_ / mp_f_ and the numbers (mp_m_heist3, mp_m_sum2_01 ...).
+-- Their files are named like any pack's (mp_m_freemode_01_mp_m_airraces_01^feet_000_u), so it goes by name.
+local GTA_DLC = {}
+for _, n in ipairs({
+    'airraces', 'apartment', 'arena', 'assault', 'battle', 'beach', 'biker', 'bikerdlc', 'business', 'casino',
+    'christmas', 'cnc', 'executive', 'g9ec', 'gen9', 'gunrunning', 'halloween', 'heist', 'hipster',
+    'importexport', 'independence', 'island', 'lowrider', 'lts', 'luxe', 'pilot', 'security', 'smuggler',
+    'stunt', 'sum', 'summer', 'tuner', 'valentines', 'vinewood', 'xmas', 'fixer', 'chopshop', 'bounty',
+}) do GTA_DLC[n] = true end
+
+--- Is a clothing collection one of GTA's own (base game or a Rockstar DLC)? packs = set of collections
+--- known to be clothing packs on this server (from sneakerkit's scan); they're never GTA.
+function Shared.IsGtaCollection(collection, packs)
+    local col = tostring(collection or ''):lower()
+    if col == '' then return true end
+    if col:sub(1, 1) == '@' or (packs and packs[col]) then return false end
+    for _, extra in ipairs(Config.Studio and Config.Studio.GtaPacks or {}) do
+        if tostring(extra):lower() == col then return true end
+    end
+    local rest = col:match('^mp_[mf]_(.+)$')
+    if not rest then return false end
+    local stem = rest:gsub('[_%d]+$', '')
+    return stem == '' or GTA_DLC[stem] == true
+end
+
 function Shared.SupplierGoods()
     local out = {}
     for name, m in pairs(Config.Materials) do out[name] = m end

@@ -14,7 +14,6 @@ body.plug{user-select:none}
   flex:none;position:relative;display:flex;align-items:center;gap:11px;padding:54px 18px 14px;   /* clears lb-phone's status bar and notch */
   border-bottom:1px solid var(--line-soft);background:linear-gradient(var(--panel),var(--base));
 }
-.ph-bar::before{content:'';position:absolute;top:0;left:0;right:40%;height:2px;background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
 .ph-title .title-txt{font-size:14px}
 
 /* active deal */

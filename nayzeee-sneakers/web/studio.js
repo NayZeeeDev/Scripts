@@ -22,7 +22,7 @@ Object.assign(PATHS, {
 const SD = {
   on: false, data: null, entries: {}, list: [], key: null, letter: 'a', subject: 'loose', mode: 'none',
   chroma: 'green', orbit: { yaw: 215, elev: 24, zoom: 1, lift: 0 }, batch: null, screenshot: true,
-  size: 256, search: '', gender: 'all', filter: 'all', shots: new Set(), thumbs: {}, recent: [],
+  size: 256, search: '', gender: 'all', filter: 'all', source: 'packs', shots: new Set(), thumbs: {}, recent: [],
   kit: null, kitRun: null, confirm: false, edit: null, saveToInventory: true, version: '1.0.0',
   opts: { colours: false, loose: true, box: false, missing: true },
 };
@@ -40,7 +40,9 @@ function thumb(e, l) {
   const n = shotName(e, l || 'a');
   return `<img src="${SD.thumbs[n] || img(n)}" alt="" loading="lazy">`;
 }
-const packOf = (e) => (e.link ? (e.link.collection || 'base game') : (e.pack || ''));
+const packOf = (e) => (e.gta ? 'Default GTA' : e.link ? (e.link.collection || 'base game') : (e.pack || ''));
+// where a shoe comes from: one of your clothing packs, or GTA itself (base game and Rockstar's DLCs)
+const sourceOf = (e) => (e.gta ? 'gta' : 'packs');
 const numOf = (e) => (e.link && e.link.index != null ? `#${e.link.index}` : '');
 
 /* ─────────────── data ─────────────── */
@@ -51,8 +53,8 @@ function sdIndex() {
   (d.shoes || []).forEach((e) => { SD.entries[e.key] = e; SD.list.push(e); });
   (d.fresh || []).forEach((f) => {
     const colours = Array.from({ length: Math.min(26, f.textures || 1) }, (_, i) => ({ letter: String.fromCharCode(97 + i), name: `Texture ${i + 1}` }));
-    const e = { key: f.key, fresh: true, gender: f.gender, colours, link: { collection: f.collection, index: f.index },
-      label: `${f.collection || 'Base game'} ${String(f.index).padStart(3, '0')}` };
+    const e = { key: f.key, fresh: true, gta: !!f.gta, gender: f.gender, colours, link: { collection: f.collection, index: f.index },
+      label: f.gta ? `GTA shoe ${String(f.index).padStart(3, '0')}` : `${f.collection || 'Base game'} ${String(f.index).padStart(3, '0')}` };
     SD.entries[e.key] = e;
     SD.list.push(e);
   });
@@ -142,6 +144,7 @@ function sdRows() {
   const q = SD.search.trim().toLowerCase();
   return SD.list.filter((e) => {
     if (SD.gender !== 'all' && e.gender !== SD.gender) return false;
+    if (sourceOf(e) !== SD.source) return false;
     if (SD.filter === 'on' && !(e.enabled && !e.removed && !e.fresh)) return false;
     if (SD.filter === 'off' && (e.enabled || e.fresh || e.removed)) return false;
     if (SD.filter === 'new' && !e.fresh) return false;
@@ -154,9 +157,10 @@ function sdRows() {
 function sdLeft() {
   const prev = sdEl('.sd-list', $('sdLeft'));
   if (prev) sdLeft.top = prev.scrollTop;
-  const shoes = SD.list.filter((e) => !e.fresh);
+  const shoes = SD.list.filter((e) => !e.fresh && !e.gta);
   const photographed = shoes.filter((e) => hasShot(e, 'a')).length;
-  const n = (f) => SD.list.filter((e) => (SD.gender === 'all' || e.gender === SD.gender) && f(e)).length;
+  const bySource = (s) => SD.list.filter((e) => (SD.gender === 'all' || e.gender === SD.gender) && sourceOf(e) === s).length;
+  const n = (f) => SD.list.filter((e) => (SD.gender === 'all' || e.gender === SD.gender) && sourceOf(e) === SD.source && f(e)).length;
   const counts = {
     all: n(() => true), on: n((e) => e.enabled && !e.removed && !e.fresh), off: n((e) => !e.enabled && !e.fresh && !e.removed),
     new: n((e) => e.fresh), gone: n((e) => e.removed),
@@ -166,12 +170,16 @@ function sdLeft() {
   $('sdLeft').innerHTML = `<div class="ch-frame"><div class="ch-in sd-in">
     <div class="sd-head"><div class="mark sm"></div><div class="sd-ht"><b>Sneaker Studio</b><span>${shoes.length} shoes · ${photographed} photographed</span></div><span class="ver">v${esc(SD.version)}</span></div>
     <div class="seg sd-seg">${[['all', 'All'], ['male', 'Male'], ['female', 'Female']].map(([k, l]) => `<button class="${SD.gender === k ? 'on' : ''}" data-sd="gender" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="sd-src">${[['packs', 'Clothing packs'], ['gta', 'Default GTA']].map(([k, l]) =>
+      `<button class="${SD.source === k ? 'on' : ''} ${k}" data-sd="source" data-v="${k}"><b>${l}</b><em>${bySource(k)}</em></button>`).join('')}</div>
+    ${SD.source === 'gta' ? `<div class="sd-gta-note"><span class="ic">${icon('alert')}</span><span>Shoes that come with GTA. Customers' packs are under <b>Clothing packs</b>; these are kept apart so they aren't photographed or put on sale by mistake.</span></div>` : ''}
     <div class="sd-filters">${[['all', 'All'], ['on', 'On sale'], ['off', 'Off'], ['new', 'New'], ['gone', 'Gone']].map(([k, l]) =>
       `<button class="sd-chip sm ${SD.filter === k ? 'on' : ''} ${k === 'new' && counts.new ? 'hot' : ''}" data-sd="filter" data-v="${k}">${l}<em>${counts[k]}</em></button>`).join('')}</div>
     <label class="field"><span class="ic">${icon('search')}</span><input id="sdSearch" placeholder="Search by name or pack" value="${esc(SD.search)}" autocomplete="off"></label>
     <div class="sd-list">${rows.length ? rows.map((e) => {
       const tags = [];
-      if (e.fresh) tags.push('<span class="sd-tag new">NEW</span>');
+      if (e.gta) tags.push('<span class="sd-tag gta">GTA</span>');
+      else if (e.fresh) tags.push('<span class="sd-tag new">NEW</span>');
       if (e.removed) tags.push('<span class="sd-tag red">GONE</span>');
       if (!e.fresh && !e.removed && !e.enabled) tags.push('<span class="sd-tag">OFF</span>');
       if (e.props) tags.push('<span class="sd-3d" title="Has a 3D prop">3D</span>');
@@ -180,7 +188,7 @@ function sdLeft() {
         <span class="sd-th">${thumb(e)}</span>
         <span class="sd-rt"><b>${esc(e.label || 'Shoe')}</b><span>${esc(sub)}</span></span>
         ${tags.join('')}<span class="dot ${hasShot(e, 'a') ? 'on' : ''}"></span></button>`;
-    }).join('') : `<div class="empty"><span class="ic">${icon('search')}</span>${SD.filter === 'new' ? 'Nothing new. Every shoe on the server is in the studio.' : 'Nothing matches'}</div>`}</div>
+    }).join('') : `<div class="empty"><span class="ic">${icon('search')}</span>${SD.source === 'gta' && SD.filter === 'all' ? 'No GTA shoes listed.' : SD.filter === 'new' ? 'Nothing new. Every shoe on the server is in the studio.' : 'Nothing matches'}</div>`}</div>
     <button class="btn sm wide" data-sd="rescan" ${dis}><span class="ic">${icon('refresh')}</span>Look for new shoes again</button>
   </div></div>`;
   const list = sdEl('.sd-list', $('sdLeft'));
@@ -191,6 +199,13 @@ function sdLeft() {
 
 function sdShoeCard(e, busy) {
   const dis = busy ? 'disabled' : '';
+  if (e.fresh && e.gta) {
+    return `<div class="card sd-card">
+      <div class="sd-ch">Default GTA shoe <em>${esc(numOf(e))}</em></div>
+      <div class="sd-gta-note"><span class="ic">${icon('alert')}</span><span>This shoe comes with GTA, not from a clothing pack. You can still add it, but it won't have its own 3D prop.</span></div>
+      <button class="btn wide" data-sd="add" ${dis}><span class="ic">${icon('plus')}</span>Add it anyway</button>
+    </div>`;
+  }
   if (e.fresh) {
     return `<div class="card sd-card">
       <div class="sd-ch">New on the server <em>${esc(packOf(e))} ${esc(numOf(e))}</em></div>
@@ -202,7 +217,7 @@ function sdShoeCard(e, busy) {
   const max = (SD.data && SD.data.maxLevel) || 10;
   const looseLike = e.manual || e.loose;
   return `<div class="card sd-card">
-    <div class="sd-ch">Shoe <em>${e.builtin ? 'comes with the script' : e.manual ? 'added in game' : 'from your clothing'}</em></div>
+    <div class="sd-ch">Shoe <em>${e.builtin ? 'comes with the script' : e.gta ? 'Default GTA shoe' : e.manual ? 'added in game' : 'from your clothing'}</em></div>
     ${e.removed ? `<div class="sd-warn-in red"><span class="ic">${icon('alert')}</span><span>Its clothing isn't on the server any more. Pairs players own keep working.</span></div>` : ''}
     <label class="sd-switch"><input type="checkbox" id="sdOn" ${ed.enabled ? 'checked' : ''} ${dis}><span class="sw2"></span><span><b>On sale</b>Players can make it, wear it and sell it</span></label>
     <label class="field"><span class="ic">${icon('pen')}</span><input id="sdLabel" maxlength="40" placeholder="Name this shoe" value="${esc(ed.label)}" ${dis}></label>
@@ -399,6 +414,7 @@ sdRoot.addEventListener('click', (ev) => {
     case 'close': return studioClose();
     case 'gender': SD.gender = v; sdLeft.top = 0; return sdLeft();
     case 'filter': SD.filter = v; sdLeft.top = 0; return sdLeft();
+    case 'source': SD.source = v; SD.filter = 'all'; sdLeft.top = 0; return sdLeft();
     case 'pick': return post('st:pick', { key: v, letter: 'a' });
     case 'tex': return post('st:pick', { key: SD.key, letter: v });
     case 'step': return sdStep(Number(v));

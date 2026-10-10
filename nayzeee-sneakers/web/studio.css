@@ -103,6 +103,22 @@ body.shooting *{visibility:hidden!important;animation:none!important;transition:
 .sd-tag{color:var(--ink-2);background:var(--raise-2);border:1px solid var(--line)}
 .sd-tag.new{color:var(--amber);background:var(--amber-wash);border-color:var(--amber-edge)}
 .sd-tag.red{color:var(--red);background:var(--red-wash);border-color:var(--red-edge)}
+.sd-tag.gta{color:var(--ink-3);background:var(--inset);border-color:var(--line-soft)}
+/* where shoes come from: your clothing packs | GTA's own */
+.sd-src{display:grid;grid-template-columns:1fr 1fr;gap:5px;flex:none}
+.sd-src button{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border-radius:var(--r-sm);
+  border:1px solid var(--line-soft);background:var(--inset);color:var(--ink-2);font-size:11px;transition:all var(--fast)}
+.sd-src button b{font-weight:500;white-space:nowrap}
+.sd-src button em{font-style:normal;font-size:10px;color:var(--ink-3)}
+.sd-src button:hover{color:var(--white);border-color:var(--line)}
+.sd-src button.on{color:var(--white);background:var(--teal-wash);border-color:var(--teal-edge)}
+.sd-src button.on em{color:var(--teal)}
+.sd-src button.gta.on{background:var(--raise);border-color:var(--line)}
+.sd-src button.gta.on em{color:var(--ink-2)}
+.sd-gta-note{display:flex;gap:8px;align-items:flex-start;flex:none;padding:8px 10px;border-radius:var(--r-sm);
+  background:var(--amber-wash);border:1px solid var(--amber-edge);color:var(--ink-2);font-size:10.5px;line-height:1.45;font-weight:300}
+.sd-gta-note .ic{color:var(--amber);flex:none;margin-top:1px}
+.sd-gta-note b{color:var(--white);font-weight:500}
 
 /* right: the controls */
 .sd-scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:9px;margin:0 -4px;padding:0 4px}

@@ -197,11 +197,11 @@ Config.SellPolice = {
 -- Limited and sell for more. Admins: /sneakerdrop [shoe_colour] [pairs] starts one now, /sneakerdrop stop ends it.
 Config.Drops = {
     Enabled    = true,
-    Every      = { 90, 180 },     -- minutes between drops (picked at random in this range)
-    MinPlayers = 4,               -- no drops while fewer players are on
+    Every      = { 45, 90 },      -- minutes between drops (picked at random in this range)
+    MinPlayers = 2,               -- no drops while fewer players are on
     Raffle     = 10,              -- minutes the raffle is open after the announcement
     Claim      = 15,              -- minutes winners have to collect their pair
-    Stock      = { 4, 10 },       -- pairs per drop
+    Stock      = { 6, 12 },       -- pairs per drop
     PriceMult  = 1.0,             -- drop price = the shoe's retail price x this
     ValueBoost = 1.5,             -- buyers pay this much more for a Limited pair
     HypeBoost  = 0.25,            -- the dropped model gets this much extra hype until the board rerolls
