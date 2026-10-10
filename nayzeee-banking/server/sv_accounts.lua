@@ -151,6 +151,7 @@ function Bank.buildPayload(src, context)
                 market  = Config.Market.enabled,
                 overdraft  = Config.Overdraft and Config.Overdraft.enabled or false,
                 statements = Config.Statements and Config.Statements.enabled or false,
+                business   = not Config.Phone or Config.Phone.business ~= false,
             },
             currency        = Config.Currency,
             currencyRight   = Config.CurrencyRight or false,

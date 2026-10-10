@@ -25,6 +25,8 @@ const P = {
   targets: null,
   asset: null,
   period: 'week',
+  biz: null,        // the society account open on the Business page
+  from: null,       // the account a Send starts from, when not your own
   busy: false
 };
 
@@ -204,6 +206,7 @@ function goTab(tab) {
 }
 
 const RENDER = {
+  business: renderBusiness,
   cards: renderCards, accounts: renderAccounts, bills: renderBills,
   settings: renderSettings, invest: renderInvest, borrow: renderBorrow,
   asset: renderAsset, who: renderWho, statement: renderStatement
@@ -378,6 +381,21 @@ function renderMoney() {
           ${I.clock}<span>${money(loan.payment)} due in ${countdown(loan.nextIn)}</span></div>` : ''}
       </div>`);
   }
+
+  // the job's account, straight from the phone, for whoever can use it
+  societies().forEach(a => {
+    blocks.push(`
+      <div class="block" data-go="business" data-biz="${a.id}">
+        <div class="b-head">
+          <div>
+            <span class="b-title">Business</span>
+            <b class="b-amount">${P.hidden ? '••••' : money(a.balance)}</b>
+            <span class="b-sub">${esc(a.label)}</span>
+          </div>
+          <div class="b-icon">${I.bank}</div>
+        </div>
+      </div>`);
+  });
 
   if (d.config.features.bills && d.bills.count) {
     blocks.push(`
@@ -564,7 +582,7 @@ function confirmPerson(accountNumber, name) {
     fields: `
       ${sending ? `<select data-name="from">
         ${(d.accounts || []).filter(a => a.can.transfer)
-          .map(a => `<option value="${a.id}">${esc(a.label)} · ${money(a.balance)}</option>`).join('')}
+          .map(a => `<option value="${a.id}" ${a.id === P.from ? 'selected' : ''}>${esc(a.label)} · ${money(a.balance)}</option>`).join('')}
       </select>` : ''}
       <input data-name="note" maxlength="40" placeholder="What for? (optional)">
       ${canSave ? `<input data-name="saveAs" maxlength="32"
@@ -583,6 +601,7 @@ function confirmPerson(accountNumber, name) {
       if (canSave && saveAs) await call('phone:savePayee', { label: saveAs, number: accountNumber });
 
       P.amount = '';
+      P.from = null;
       renderPay();
       await refresh();
       closePage();
@@ -880,6 +899,90 @@ async function loadActivity() {
 }
 
 /* ═══════════════ SUB PAGES ═══════════════ */
+/* ═══════════════ BUSINESS ═══════════════ */
+const societies = () => (P.data.config.features || {}).business === false ? []
+  : (P.data.accounts || []).filter(a => a.type === 'society');
+
+async function renderBusiness() {
+  if (!ready()) return offline('bizBody');
+  const list = societies();
+  const biz = list.find(a => a.id === P.biz) || list[0];
+  if (!biz) {
+    el('bizBody').innerHTML = `<div class="empty">${I.bank}<b>No business account</b>
+      <span>Your job's account shows up here once your rank can use it.</span></div>`;
+    return;
+  }
+  P.biz = biz.id;
+  el('bizTitle').textContent = biz.label;
+
+  // payroll comes for your main job; show it on that business only
+  const pay = P.data.payroll;
+  const wages = pay && pay.mode === 'bank' && (!pay.job || pay.job === biz.owner)
+    && (pay.rows || []).filter(r => r.enabled && r.amount > 0);
+  const every = (id) => ((pay && pay.intervals) || []).find(i => i.id === id);
+
+  el('bizBody').innerHTML = `
+    ${list.length > 1 ? `<div class="seg biz-seg">${list.map(a =>
+      `<button class="${a.id === biz.id ? 'on' : ''}" data-biz-pick="${a.id}">${esc(a.label)}</button>`).join('')}</div>` : ''}
+
+    <div class="biz-head">
+      <span>${esc(biz.number)}</span>
+      <b class="huge">${money(biz.balance)}</b>
+    </div>
+
+    <div class="pair">
+      <button class="pill" data-biz-move="in">Add money</button>
+      <button class="pill" data-biz-move="out">Take out</button>
+    </div>
+    <button class="pill solid wide" data-biz-send="${biz.id}">Send from ${esc(biz.label)}</button>
+
+    ${wages && wages.length ? `<h3 class="sec">Payroll</h3>
+      ${wages.map(r => `<div class="list-row">${I.coin}
+        <div class="txt"><b>${esc(r.label)}</b><span>${esc((every(r.interval) || {}).label || r.interval)}</span></div>
+        <div class="val">${money(r.amount)}</div></div>`).join('')}
+      <p class="fine">${pay.onShift || 0} on shift · next run in ${countdown(pay.nextIn || 0)}.
+        Set wages at a branch.</p>` : ''}
+
+    <h3 class="sec">Activity</h3>
+    <div id="bizActivity"><div class="skel"></div><div class="skel"></div></div>`;
+
+  const res = await call('phone:transactions', { account: biz.id, page: 1 });
+  const box = el('bizActivity');
+  if (!box || P.biz !== biz.id) return;
+  const rows = (res && res.rows) || [];
+  box.innerHTML = rows.length ? rows.slice(0, 12).map(entry).join('')
+    : `<div class="empty small">${I.none}<b>Nothing yet</b><span>Money moving through the business shows up here.</span></div>`;
+}
+
+/* between the business and your own account, in either direction */
+function bizMoveModal(dir) {
+  const d = P.data;
+  const biz = account(P.biz);
+  const mine = account(d.primary);
+  if (!biz || !mine) return;
+  const into = dir === 'in';
+
+  openModal({
+    title: into ? `Add to ${biz.label}` : `Take out of ${biz.label}`,
+    text: into ? `From your account · ${money(mine.balance)} available`
+               : `Into your account · ${money(biz.balance)} in the business`,
+    confirm: into ? 'Add' : 'Take out',
+    fields: `<input data-name="amount" type="number" inputmode="numeric" min="1" placeholder="Amount">
+      <input data-name="note" maxlength="40" placeholder="What for? (optional)">`,
+    onConfirm: async (v) => {
+      const amount = parseInt(v.amount, 10);
+      if (!(amount > 0)) return toast('Not completed', 'Enter an amount above zero.', true);
+      const res = await call('phone:transfer', into
+        ? { from: mine.id, to: biz.number, amount, note: v.note }
+        : { from: biz.id, to: mine.number, amount, note: v.note });
+      closeModal();
+      if (!reply(res)) return;
+      await refresh();
+      renderBusiness();
+    }
+  });
+}
+
 function renderAccounts() {
   if (!ready()) return offline('accountsBody');
   el('accountsBody').innerHTML = (P.data.accounts || []).map(a => `
@@ -1105,9 +1208,26 @@ document.addEventListener('click', async (e) => {
 
   if (e.target.closest('[data-back]')) return closePage();
 
+  const bizPick = e.target.closest('[data-biz-pick]');
+  if (bizPick) { P.biz = Number(bizPick.dataset.bizPick); return renderBusiness(); }
+
+  const bizMove = e.target.closest('[data-biz-move]');
+  if (bizMove) return bizMoveModal(bizMove.dataset.bizMove);
+
+  const bizSend = e.target.closest('[data-biz-send]');
+  if (bizSend) {
+    P.from = Number(bizSend.dataset.bizSend);
+    P.flow = 'send';
+    closePage();
+    return goTab('pay');
+  }
+
   const nav = e.target.closest('[data-go]');
   if (nav) {
+    if (nav.dataset.biz) P.biz = Number(nav.dataset.biz);
     const where = nav.dataset.go;
+    // a Send that isn't from the business starts from your own account again
+    if (where === 'send') P.from = null;
     if (where === 'send' || where === 'request') {
       P.flow = where;
       return goTab('pay');

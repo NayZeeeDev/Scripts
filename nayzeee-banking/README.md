@@ -409,6 +409,10 @@ Three tabs along the bottom:
 **Cash never moves on the phone.** There is no Add money and no Withdraw — putting notes in and taking them out needs an ATM or a teller, which is what keeps machines and branches worth walking to. Everything that is just numbers moving works from the phone.
 {% endhint %}
 
+### Business
+
+Anyone whose job and grade can use a society account at a branch also gets it on the phone (`Config.Phone.business`): a **Business** card on the home screen, and a page with the balance, **Add money** and **Take out** between the business and their own account, **Send from** the business, the payroll and the latest activity. Every move goes through the same server checks as the bank, so a rank that can't touch society money at a branch can't on the phone either. Works on every supported phone, YSeries included.
+
 ### Sending and requesting
 
 Tapping Send or Request opens a picker with these ways to find somebody:

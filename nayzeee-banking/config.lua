@@ -761,6 +761,11 @@ Config.Phone = {
     preinstalled = true,        -- false puts it in the app store instead
     price        = 0,           -- Cost in the store when not preinstalled
 
+    -- Your job's account on the phone: balance, activity, payroll, sending from it
+    -- and moving money between it and your own account. Shown only to players whose
+    -- job and grade can already use that society account at a branch.
+    business     = true,
+
     -- Cash cannot be moved on the phone. Depositing and withdrawing
     -- need a machine or a teller, which is what keeps ATMs and
     -- branches worth walking to.

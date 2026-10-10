@@ -245,6 +245,14 @@ svg{display:block}
 
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 30px}
 
+/* ── business ── */
+.biz-seg{margin:0 0 14px}
+.biz-head{padding:6px 0 4px}
+.biz-head span{display:block;font-size:13px;font-weight:400;color:var(--ink-3);letter-spacing:.06em}
+.biz-head .huge{font-size:52px;margin-top:6px}
+.biz-head + .pair{margin:18px 0 10px}
+.pill.wide{width:100%;margin-bottom:26px}
+
 /* ── modal ── */
 .modal{position:absolute;inset:0;z-index:80;display:none;align-items:flex-end;
   background:rgba(0,0,0,.6)}

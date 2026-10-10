@@ -77,6 +77,7 @@ function Bank.getPayroll(job)
 
     return {
         mode      = 'bank',
+        job       = job,
         rows      = rows,
         nextIn    = soonest and math.max(0, math.floor((soonest - os.time()) / 60)) or 0,
         onShift   = staff,
