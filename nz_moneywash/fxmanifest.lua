@@ -25,6 +25,7 @@ server_scripts {
     'server/books.lua',
     'server/police.lua',
     'server/placement.lua',
+    'server/admin.lua',
     'server/main.lua',
 }
 

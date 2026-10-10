@@ -40,8 +40,23 @@ Built on the [bzzz_money](https://bzzz.tebex.io/) prop pack. The UI uses NAYZEEE
    ensure ox_lib
    ensure oxmysql
    ensure bzzz_money
+   ensure lev_laundromat   # the MLO the default operation lives in
    ensure nz_moneywash
    ```
+
+## The laundromat (default setup)
+
+Out of the box the operation lives in the **lev_laundromat MLO** (La Mesa, building origin `898.05, -1038.16, 34.25`):
+
+- **Basement → wash room:** 2 washers on the north wall, the guillotine in the middle, the re-serial press along the south wall. Nine pieces of MLO clutter that sat where the machines go are hidden while the resource runs (`hide` in `config/locations.lua`).
+- **Back office → front business:** "Cook the books" at the office desk, with revenue lines for self-service machines, wash & fold, dry cleaning and vending.
+
+The positions were worked out from the MLO's own `.ymap`/`.ytyp`, not tested in game. If anything sits a little off, fix it in game:
+
+- **Move machine (admin):** target any idle machine, place it with the see-through preview (scroll to rotate, Shift for fine steps, E to confirm). The new spot is saved and survives restarts, and the server console prints the config line if you want to make it permanent.
+- **Reset to config spot (admin):** undoes a move.
+
+Admin means the `command.nzmw` ace (`group.admin` by default).
 
 ## Configure
 
@@ -68,6 +83,7 @@ Built on the [bzzz_money](https://bzzz.tebex.io/) prop pack. The UI uses NAYZEEE
 | `/nzmw rate` | admin | Print the current rate & saturation |
 | `/uvscan` | police | Scan the nearest player (only when no target resource is running) |
 | `/nzmw_offsets` | debug | Toggle offset markers |
+| Move machine / Reset (target) | admin | Reposition any machine in game |
 
 ## Flow cheat-sheet
 

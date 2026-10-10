@@ -1,6 +1,6 @@
 --[[ Placement — ghost preview, scroll to rotate, [E] to bolt it down ]]
 
-local Placement = { active = false }
+Placement = { active = false }
 local P = Config.Placement
 
 local raycast = lib.raycast.fromCamera or lib.raycast.cam
@@ -12,25 +12,30 @@ local function blacklisted(pos)
     return false
 end
 
-local function tooClose(pos)
-    for _, s in pairs(Render.stations) do
-        if #(pos - vec3(s.data.x, s.data.y, s.data.z)) < P.minSpacing then return true end
+local function tooClose(pos, ignoreId)
+    local spacing = ignoreId and 0.9 or P.minSpacing -- admins may pack config machines tighter
+    for id, s in pairs(Render.stations) do
+        if id ~= ignoreId and #(pos - vec3(s.data.x, s.data.y, s.data.z)) < spacing then return true end
     end
     return false
 end
 
-local function validate(hit, pos, normal)
+local function validate(hit, pos, normal, opts)
     local ped = PlayerPedId()
     if not hit then return false, 'Aim at the floor.' end
     if normal and normal.z < 0.85 then return false, 'The floor needs to be flat.' end
-    if #(GetEntityCoords(ped) - pos) > P.maxDistance then return false, 'Too far away.' end
-    if P.interiorOnly and GetInteriorFromEntity(ped) == 0 then return false, 'Set this up indoors.' end
-    if blacklisted(pos) then return false, 'Way too much attention here.' end
-    if tooClose(pos) then return false, 'Too close to another machine.' end
+    if #(GetEntityCoords(ped) - pos) > (opts.moveId and 12.0 or P.maxDistance) then return false, 'Too far away.' end
+    if not opts.moveId then -- admins can put config machines anywhere
+        if P.interiorOnly and GetInteriorFromEntity(ped) == 0 then return false, 'Set this up indoors.' end
+        if blacklisted(pos) then return false, 'Way too much attention here.' end
+    end
+    if tooClose(pos, opts.moveId) then return false, 'Too close to another machine.' end
     return true
 end
 
-function Placement.run(stType)
+-- opts.moveId: admin move of an existing machine instead of placing a kit
+function Placement.run(stType, opts)
+    opts = opts or {}
     Placement.active = true
     local model = U.hash(NZ.mainModel(stType, 'idle'))
     lib.requestModel(model, 10000)
@@ -43,14 +48,16 @@ function Placement.run(stType)
     SetModelAsNoLongerNeeded(model)
 
     local heading = GetEntityHeading(ped)
+    local moving = opts.moveId and Render.data(opts.moveId)
+    if moving then heading = moving.h end
     local pos, valid, reason = start, false, nil
     UI.hint('[E] Place   ·   [Scroll] Rotate   ·   [Shift] Fine   ·   [Backspace] Cancel')
 
     local confirmed = false
     while true do
-        local hit, _, endCoords, normal = raycast(1 | 16, 4, P.maxDistance + 2.0) -- ghost has no collision, rays pass through it
+        local hit, _, endCoords, normal = raycast(1 | 16, 4, (opts.moveId and 12.0 or P.maxDistance) + 2.0) -- ghost has no collision, rays pass through it
         if hit then pos = endCoords end
-        valid, reason = validate(hit, pos, normal)
+        valid, reason = validate(hit, pos, normal, opts)
 
         SetEntityCoordsNoOffset(ghost, pos.x, pos.y, pos.z, false, false, false)
         SetEntityHeading(ghost, heading)
@@ -83,7 +90,12 @@ function Placement.run(stType)
     U.deleteEnt(ghost)
     UI.hint(nil)
 
-    if confirmed then
+    if confirmed and opts.moveId then
+        local res = lib.callback.await('nzmw:admin:move', false, opts.moveId, { x = pos.x, y = pos.y, z = pos.z }, heading)
+        if not res or not res.ok then UI.err(res) else
+            UI.toast('Machine moved', 'Saved. The config line is in the server console.', 'success', 7000)
+        end
+    elseif confirmed then
         local ok = UI.progress('Bolting the machine down', 6000)
         if ok then
             local res = lib.callback.await('nzmw:place', false, stType, { x = pos.x, y = pos.y, z = pos.z }, heading,

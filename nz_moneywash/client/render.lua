@@ -165,6 +165,13 @@ function Render.update(id, value)
     end
     local prev = s.data
     s.data = value
+    if prev.x ~= value.x or prev.y ~= value.y or prev.z ~= value.z or prev.h ~= value.h then
+        -- moved by an admin: rebuild the rig and the interaction zone at the new spot
+        if s.spawned then despawn(s) end
+        Interact.remove(s)
+        Interact.add(s)
+        return
+    end
     if s.spawned then apply(s, prev, false) end
 end
 
@@ -193,10 +200,23 @@ end)
 ---------------------------------------------------------------------------------------------------
 -- streaming loop
 ---------------------------------------------------------------------------------------------------
+local hidden = {}
+
+local function signed(h)
+    h = U.hash(h) & 0xFFFFFFFF
+    return h >= 0x80000000 and h - 0x100000000 or h
+end
+
 function Render.start()
     for _, op in ipairs(Config.Operations) do
         for _, dcr in ipairs(op.decor or {}) do
             Render.decor[#Render.decor + 1] = { model = dcr.model, coords = dcr.coords }
+        end
+        -- MLO props that sit where the machines go
+        for _, hd in ipairs(op.hide or {}) do
+            local c = hd.coords
+            CreateModelHide(c.x, c.y, c.z, hd.radius or 0.35, signed(hd.model), true)
+            hidden[#hidden + 1] = hd
         end
     end
 
@@ -303,4 +323,7 @@ AddEventHandler('onResourceStop', function(res)
     if res ~= NZ.Resource then return end
     for _, s in pairs(stations) do despawn(s) end
     for _, dc in ipairs(Render.decor) do U.deleteEnt(dc.ent) end
+    for _, hd in ipairs(hidden) do
+        RemoveModelHide(hd.coords.x, hd.coords.y, hd.coords.z, hd.radius or 0.35, signed(hd.model), false)
+    end
 end)

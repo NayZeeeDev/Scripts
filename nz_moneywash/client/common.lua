@@ -222,6 +222,15 @@ local function commonOptions(s)
         { name = 'pack', label = 'Pack up equipment', icon = 'fas fa-box',
           canInteract = function() local x = st(s) return x.placed and x.state == 'idle' and x.owner == CBridge.getIdentifier() end,
           onSelect = function() Common.pack(id) end },
+        { name = 'move', label = 'Move machine (admin)', icon = 'fas fa-up-down-left-right',
+          canInteract = function() return U.isAdmin and st(s).state == 'idle' end,
+          onSelect = function() if not Placement.active then CreateThread(function() Placement.run(s.data.type, { moveId = id }) end) end end },
+        { name = 'reset', label = 'Reset to config spot (admin)', icon = 'fas fa-rotate-left',
+          canInteract = function() return U.isAdmin and not st(s).placed and st(s).state == 'idle' end,
+          onSelect = function()
+              local res = lib.callback.await('nzmw:admin:reset', false, id)
+              if not res or not res.ok then UI.err(res) else UI.toast('Reset', 'Back to its config position.', 'success') end
+          end },
         { name = 'seize', label = 'Seize equipment', icon = 'fas fa-handcuffs',
           canInteract = function() return st(s).placed and CBridge.isPolice() end,
           onSelect = function() Common.seize(id) end },

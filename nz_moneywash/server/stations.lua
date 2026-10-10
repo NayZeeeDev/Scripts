@@ -29,6 +29,7 @@ function Stations.persist(id)
     if not st then return end
     DB.saveStation(id, {
         state = st.state, endsAt = st.endsAt, total = st.total, cut = st.cut, seq = st.seq, wear = st.wear,
+        pos = st.moved and { x = st.x, y = st.y, z = st.z, h = st.h } or nil,
         priv = { batch = p.batch, remaining = p.remaining, settings = p.settings, solvent = p.solvent,
                  jamAt = p.jamAt, alertAt = p.alertAt, startedBy = p.startedBy },
     })
@@ -52,6 +53,9 @@ function Stations.add(def, meta)
     }
     local p = {}
     if meta then
+        if meta.pos then -- moved in game with the admin tool
+            st.x, st.y, st.z, st.h, st.moved = meta.pos.x, meta.pos.y, meta.pos.z, meta.pos.h, true
+        end
         st.wear = meta.wear or 0.0
         st.seq = meta.seq or 0
         local mp = meta.priv or {}

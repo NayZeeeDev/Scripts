@@ -78,8 +78,9 @@ Config.Props = {
 Config.Offsets = {
     washer  = { ped = vec4(-0.380, -0.832, 0.0, -85.028), bag = vec4(0.016, -0.832, 0.0, -85.028) },
     cutter  = { ped = vec4(0.0, -0.7, 0.0, 0.0), sheet = vec3(0.0, 0.062, 0.755) },
-    -- printer offsets are a starting point, tune with /nzmw_offsets (Debug) if your placement differs
-    printer = { ped = vec4(0.95, -1.25, 0.0, 0.0), paper = vec4(-1.35, 0.35, 0.0, 0.0), sheets = vec4(0.0, -1.55, 0.80, 0.0) },
+    -- the press is 4.0 x 1.9 m (pivot centred, on the floor). Ped/sheet spots are a best guess —
+    -- tune with /nzmw_offsets (Debug) if they look off
+    printer = { ped = vec4(0.95, -1.25, 0.0, 0.0), paper = vec4(-2.45, -0.45, 0.31, 0.0), sheets = vec4(1.10, 0.0, 0.93, 0.0) },
 }
 
 -- Ped animations (bzzz custom dicts + vanilla)

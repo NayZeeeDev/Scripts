@@ -13,6 +13,7 @@ end)
 CreateThread(function()
     while not NetworkIsPlayerActive(PlayerId()) do Wait(250) end
     UI.init()
+    U.isAdmin = lib.callback.await('nzmw:isAdmin', false) == true
     Render.syncIndex(GlobalState['nzmw:index'])
     Render.start()
     FrontDesk.init()
