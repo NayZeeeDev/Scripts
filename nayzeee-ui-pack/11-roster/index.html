@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 11 Roster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="roster nz-app" id="app">
+  <div class="ro-stage" aria-hidden="true"><span>Character preview</span></div>
+
+  <header class="ro-top">
+    <div class="nz-lockup">
+      <div class="nz-mark lg"></div>
+      <div>
+        <div class="nz-title">Choose your character</div>
+        <div class="nz-sub" id="server">Los Santos Roleplay</div>
+      </div>
+    </div>
+    <div class="ro-usage">
+      <div class="ro-usage-txt"><b id="used">0</b> of <span id="allowed">0</span> slots used</div>
+      <div class="ro-segs" id="segs"></div>
+    </div>
+  </header>
+
+  <section class="ro-hero" id="hero"></section>
+
+  <div class="ro-bottom">
+    <section class="ro-slots" id="slots"></section>
+    <div class="ro-acts" id="acts"></div>
+  </div>
+
+  <footer class="ro-foot">
+    <div class="nz-hints">
+      <span><span class="nz-key">←</span><span class="nz-key">→</span>Switch slot</span>
+      <span><span class="nz-key">↵</span>Play</span>
+      <span><span class="nz-key">Del</span>Delete</span>
+    </div>
+    <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+  </footer>
+
+  <div class="ro-modal" id="modal" hidden></div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

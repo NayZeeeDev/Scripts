@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 12 Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="atlas nz-app" id="app">
+
+  <!-- the chart -->
+  <section class="chart nz-frame">
+  <div class="nz-frame-in">
+    <header class="ch-head">
+      <div class="nz-lockup">
+        <div class="nz-mark"></div>
+        <div><div class="nz-title" id="title">Choose a spawn point</div><div class="nz-sub" id="subtitle">Los Santos · San Andreas</div></div>
+      </div>
+      <div class="ch-read">
+        <div><span>Grid</span><b id="r-grid">—</b></div>
+        <div><span>X</span><b id="r-x">—</b></div>
+        <div><span>Y</span><b id="r-y">—</b></div>
+      </div>
+    </header>
+
+    <div class="ch-body">
+      <div class="ticks top" id="t-top"></div>
+      <div class="ticks left" id="t-left"></div>
+      <div class="surface" id="surface">
+        <svg class="geo" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <pattern id="hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <path d="M0 0v10" stroke="rgba(8,175,162,.10)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <!-- water -->
+          <path class="sea" d="M0 120 C60 150 92 210 96 280 S118 420 140 500 S170 600 150 700 L0 700 Z"/>
+          <path class="sea" d="M150 700 C260 690 340 660 430 668 S560 690 600 700 Z"/>
+          <path class="coast" d="M0 120 C60 150 92 210 96 280 S118 420 140 500 S170 600 150 700"/>
+          <path class="coast" d="M150 700 C260 690 340 660 430 668 S560 690 600 700"/>
+          <!-- districts -->
+          <path class="dist" d="M104 250 L250 236 L300 300 L292 430 L232 470 L132 470 C122 400 108 330 104 250 Z"/>
+          <path class="dist" d="M250 236 L300 150 L430 168 L438 270 L300 300 Z"/>
+          <path class="dist" d="M300 150 L340 30 L560 18 L760 60 L740 170 L600 196 L430 168 Z"/>
+          <path class="dist" d="M438 270 L430 168 L600 196 L640 226 L640 372 L460 380 Z"/>
+          <path class="dist" d="M300 300 L438 270 L460 380 L440 452 L292 430 Z"/>
+          <path class="dist" d="M460 380 L640 372 L652 500 L560 528 L448 512 L440 452 Z"/>
+          <path class="dist" d="M640 226 L740 170 L900 150 L940 300 L880 400 L652 400 L640 372 Z"/>
+          <path class="dist" d="M652 400 L880 400 L890 540 L700 556 L652 500 Z"/>
+          <path class="dist" d="M600 556 L700 556 L890 540 L960 620 L940 700 L600 700 Z"/>
+          <path class="dist" d="M190 540 L440 540 L480 650 L430 668 C340 660 260 690 170 694 C176 640 184 590 190 540 Z"/>
+          <!-- roads -->
+          <path class="road hw" d="M120 300 C300 286 450 298 640 300 S880 262 1000 220"/>
+          <path class="road hw" d="M480 0 C486 150 500 300 520 520 S560 640 600 700"/>
+          <path class="road hw" d="M140 520 C300 506 420 520 560 540 S820 528 1000 486"/>
+          <path class="road hw" d="M640 300 C700 380 760 450 800 560 S880 650 900 700"/>
+          <path class="road" d="M300 300 L310 470 L330 560"/>
+          <path class="road" d="M380 160 L392 520"/>
+          <path class="road" d="M438 270 L700 268"/>
+          <path class="road" d="M440 340 L640 336"/>
+          <path class="road" d="M448 420 L650 430"/>
+          <path class="road" d="M560 200 L572 520"/>
+          <path class="road" d="M610 196 L620 500"/>
+          <path class="road" d="M200 380 L300 376 L440 400"/>
+          <path class="road" d="M700 250 L760 410 L780 540"/>
+          <path class="road" d="M820 180 L840 420"/>
+          <path class="road" d="M360 90 C420 110 520 96 620 120 S720 140 760 120"/>
+          <path class="road" d="M250 600 L460 600"/>
+          <path class="road" d="M680 610 L940 610"/>
+        </svg>
+        <div class="dlabels" id="dlabels"></div>
+        <div class="xh v" id="xh-v"></div>
+        <div class="xh h" id="xh-h"></div>
+        <div class="pins" id="pins"></div>
+        <i class="reg tl"></i><i class="reg tr"></i><i class="reg br"></i>
+        <div class="legend">
+          <span><i class="lg last"></i>Last location</span>
+          <span><i class="lg apt"></i>Apartments</span>
+          <span><i class="lg pub"></i>Public</span>
+          <span><i class="lg job"></i>Job</span>
+          <span class="scale"><i></i>1 km</span>
+        </div>
+      </div>
+      <div class="ticks right" id="t-right"></div>
+      <div class="ticks bottom" id="t-bottom"></div>
+    </div>
+  </div>
+  </section>
+
+  <!-- the rail -->
+  <aside class="side nz-frame">
+  <div class="nz-frame-in nz-rail">
+    <div class="sd-head">
+      <h2>Locations</h2><span class="nz-tag off" id="count">0</span>
+    </div>
+    <div class="sd-list nz-scroll" id="list"></div>
+    <div class="sd-detail" id="detail"></div>
+    <div class="sd-go">
+      <button class="go" id="spawn"><span class="gi"><i data-ic="pin"></i></span><span class="gt"><b>Spawn here</b><small id="go-sub">Select a location</small></span><span class="nz-key">↵</span></button>
+    </div>
+    <footer class="sd-foot">
+      <div class="nz-hints">
+        <span><span class="nz-key">↑</span><span class="nz-key">↓</span>Browse</span>
+        <span><span class="nz-key">↵</span>Spawn</span>
+      </div>
+      <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+    </footer>
+  </div>
+  </aside>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
