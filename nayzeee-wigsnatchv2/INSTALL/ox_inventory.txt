@@ -1,0 +1,208 @@
+-- ox_inventory/data/items.lua
+-- Images: copy INSTALL/images/*.png to ox_inventory/web/images/ (3D-rendered icons; wig_<tier>.png are for Config.Wig.Images = 'tier')
+-- Wigs get their own picture from the Wig Studio (copied into ox_inventory/web/images), wig.png is the fallback.
+-- Wig tables: the icons are in SasDragon's DragonsLab_WigTables/install-images folder (wigtableblue.png ...).
+
+['wig'] = {
+    label = 'Wig',
+    weight = 150,
+    stack = false,
+    close = true,
+    description = "Somebody is missing this.",
+},
+
+['hair_bundle'] = {
+    label = 'Hair Bundle',
+    weight = 120,
+    stack = false,
+    close = true,
+    description = "Raw hair. Three of these and a wig cap make a wig.",
+},
+
+['wig_cap'] = {
+    label = 'Wig Cap',
+    weight = 40,
+    stack = true,
+    close = true,
+    description = "The base every handmade wig starts on.",
+},
+
+['hair_dye'] = {
+    label = 'Hair Dye',
+    weight = 150,
+    stack = true,
+    close = true,
+    description = "Change the colour of a wig, or your own hair.",
+},
+
+['wig_glue'] = {
+    label = 'Lace Glue',
+    weight = 100,
+    stack = true,
+    close = true,
+    description = "Glue your lace down. Much harder to snatch for a while.",
+},
+
+['wig_kit'] = {
+    label = 'Wig Kit',
+    weight = 250,
+    stack = true,
+    close = true,
+    description = "Brings a beat-up wig back to life.",
+},
+
+['scissors'] = {
+    label = 'Scissors',
+    weight = 150,
+    stack = false,
+    close = true,
+    description = "Section and snip. Cut hair, eyebrows and beards.",
+},
+
+['hair_clippers'] = {
+    label = 'Hair Clippers',
+    weight = 250,
+    stack = false,
+    close = true,
+    description = "Fades and buzz cuts, with or without permission.",
+},
+
+['straight_razor'] = {
+    label = 'Straight Razor',
+    weight = 120,
+    stack = false,
+    close = true,
+    description = "Sharp lines, clean shaves, bald heads.",
+},
+
+['zip_ties'] = {
+    label = 'Zip Ties',
+    weight = 50,
+    stack = true,
+    close = true,
+    description = "Keep someone still.",
+},
+
+['hair_remover'] = {
+    label = 'Hair Remover',
+    weight = 200,
+    stack = true,
+    close = true,
+    description = "Makes hair fall right out. Not yours, hopefully.",
+},
+
+['relaxer'] = {
+    label = 'Lye Relaxer',
+    weight = 300,
+    stack = true,
+    close = true,
+    description = "Leave it in too long and it burns.",
+},
+
+['lice_jar'] = {
+    label = 'Lice Jar',
+    weight = 150,
+    stack = true,
+    close = true,
+    description = "Itchy. Very itchy. Spreads.",
+},
+
+['mud_bag'] = {
+    label = 'Bag of Mud',
+    weight = 400,
+    stack = true,
+    close = true,
+    description = "Messy. Washes out with water or shampoo.",
+},
+
+['shampoo'] = {
+    label = 'Shampoo',
+    weight = 200,
+    stack = true,
+    close = true,
+    description = "Washes out mud and lice.",
+},
+
+['regrowth_oil'] = {
+    label = 'Regrowth Oil',
+    weight = 100,
+    stack = true,
+    close = true,
+    description = "Grows hair, eyebrows and beards back and heals burns.",
+},
+
+-- wig making materials (sold by the supplier, Config.Supplier)
+
+['hair_weft'] = {
+    label = 'Hair Weft',
+    weight = 60,
+    stack = true,
+    close = true,
+    description = "A track of hair, sewn into wigs. One per 6 inches.",
+},
+
+['wig_thread'] = {
+    label = 'Weaving Thread',
+    weight = 20,
+    stack = true,
+    close = true,
+    description = "Thread for sewing wefts onto a wig cap.",
+},
+
+['lace_closure'] = {
+    label = '5x5 HD Closure',
+    weight = 30,
+    stack = true,
+    close = true,
+    description = "Lace for an uncommon wig.",
+},
+
+['lace_frontal'] = {
+    label = '13x4 HD Frontal',
+    weight = 40,
+    stack = true,
+    close = true,
+    description = "Lace for a rare wig.",
+},
+
+['lace_full'] = {
+    label = 'Full Lace Unit',
+    weight = 60,
+    stack = true,
+    close = true,
+    description = "Lace for an epic wig.",
+},
+
+-- wig tables (Dragons Lab Wig Crafting Tables by SasDragon, sold separately)
+
+['wigtableblue'] = {
+    label = 'Blue Wig Table',
+    weight = 8000,
+    stack = false,
+    close = true,
+    description = "A wig crafting table by Dragons Lab. Use it to set it up.",
+},
+
+['wigtablepink'] = {
+    label = 'Pink Wig Table',
+    weight = 8000,
+    stack = false,
+    close = true,
+    description = "A wig crafting table by Dragons Lab. Use it to set it up.",
+},
+
+['wigtablepurp'] = {
+    label = 'Purple Wig Table',
+    weight = 8000,
+    stack = false,
+    close = true,
+    description = "A wig crafting table by Dragons Lab. Use it to set it up.",
+},
+
+['wigtablered'] = {
+    label = 'Red Wig Table',
+    weight = 8000,
+    stack = false,
+    close = true,
+    description = "A wig crafting table by Dragons Lab. Use it to set it up.",
+},
