@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 09 Slate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="device nz-app" id="app">
+  <span class="cam"></span>
+  <div class="screen">
+    <div class="wall"><div class="nz-mark"></div></div>
+    <div class="sbar">
+      <span id="sb-time">16:10</span>
+      <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+      <span class="r"><i data-ic="signal"></i><i data-ic="wifi"></i><span id="sb-bat">82%</span><i data-ic="battery"></i></span>
+    </div>
+
+    <section class="view home" id="home">
+      <div class="hello">
+        <div><div class="time" id="h-time">16:10</div><div class="date" id="h-date">Sunday, 8 February</div></div>
+        <div class="widgets" id="widgets"></div>
+      </div>
+      <div class="apps" id="apps"></div>
+      <div class="dock" id="dock"></div>
+    </section>
+
+    <section class="view" id="appview" hidden></section>
+
+    <div class="homebar" id="homebar" title="Home"></div>
+  </div>
+  <span class="engrave">NAYZEEE</span>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

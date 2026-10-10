@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 05 Market</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="market nz-app nz-frame" id="app">
+<div class="nz-frame-in nz-grain">
+  <header class="m-head nz-rail">
+    <div class="nz-lockup">
+      <div class="nz-mark"></div>
+      <div><div class="nz-title" id="store">24/7 Supermarket</div><div class="nz-sub" id="where">Innocence Blvd · Open 24h</div></div>
+    </div>
+    <label class="search"><i data-ic="search"></i><input class="nz-input" id="q" placeholder="Search products"></label>
+    <div class="wallet">
+      <div><i data-ic="cash"></i><span id="w-cash">$0</span></div>
+      <div><i data-ic="bank"></i><span id="w-bank">$0</span></div>
+    </div>
+    <button class="nz-btn close" data-close>Close</button>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <div class="m-body">
+    <section class="grid nz-scroll" id="grid"></section>
+
+    <aside class="cart">
+      <div class="c-head">
+        <h2>Basket</h2><span class="nz-tag live" id="c-count">0 items</span>
+        <button class="nz-btn ghost sm icon" id="clear" title="Empty basket"><i data-ic="trash"></i></button>
+      </div>
+      <div class="c-list nz-scroll" id="lines"></div>
+      <div class="sum">
+        <div class="ln"><span>Subtotal</span><b id="sub">$0</b></div>
+        <div class="ln"><span>Sales tax <span id="tax-pct"></span></span><b id="tax">$0</b></div>
+        <div class="tot"><span>Total</span><b id="total">$0</b></div>
+        <div class="pay" id="pay">
+          <button data-m="cash" class="on"><span><i data-ic="cash"></i>Cash</span><small id="p-cash"></small></button>
+          <button data-m="bank"><span><i data-ic="card"></i>Card</span><small id="p-bank"></small></button>
+        </div>
+        <button class="nz-btn teal block" id="checkout">Pay now</button>
+        <div id="msg"></div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="m-foot nz-hints">
+    <span><span class="nz-key">ESC</span>Close</span>
+    <span><span class="nz-key">/</span>Search</span>
+    <span class="nz-sig"><em>made by</em> NAYZEEE</span>
+  </footer>
+</div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

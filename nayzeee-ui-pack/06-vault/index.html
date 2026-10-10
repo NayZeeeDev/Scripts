@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 06 Vault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="vault nz-app" id="app">
+  <section class="pane" data-inv="player">
+    <div class="p-head">
+      <div class="nz-tile"><i data-ic="user"></i></div>
+      <div><h2 data-label>Pockets</h2><p data-sub>John Doe</p></div>
+      <div class="w"><b data-w>0</b> / <span data-max>0</span> kg</div>
+    </div>
+    <div class="nz-meter" data-meter><i></i></div>
+    <div class="slots nz-scroll" data-slots></div>
+  </section>
+
+  <div class="mid">
+    <div class="brand"><div class="nz-mark lg"></div><span class="nz-sig">NAYZEEE</span></div>
+    <div class="amt"><label for="amount">Amount · 0 moves the full stack</label><input class="nz-input" id="amount" type="number" min="0" value="0"></div>
+    <button class="nz-btn teal" id="use"><i data-ic="hand"></i>Use</button>
+    <button class="nz-btn line" id="give"><i data-ic="send"></i>Give</button>
+    <div class="detail" id="detail"></div>
+  </div>
+
+  <section class="pane" data-inv="other">
+    <div class="p-head">
+      <div class="nz-tile mute"><i data-ic="box"></i></div>
+      <div><h2 data-label>Glovebox</h2><p data-sub></p></div>
+      <div class="w"><b data-w>0</b> / <span data-max>0</span> kg</div>
+    </div>
+    <div class="nz-meter white" data-meter><i></i></div>
+    <div class="slots nz-scroll" data-slots></div>
+  </section>
+
+  <div class="hint nz-hints">
+    <span><span class="nz-key">LMB</span>Drag to move</span>
+    <span><span class="nz-key">RMB</span>Quick transfer</span>
+    <span><span class="nz-key">2×</span>Use</span>
+    <span><span class="nz-key">ESC</span>Close</span>
+  </div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

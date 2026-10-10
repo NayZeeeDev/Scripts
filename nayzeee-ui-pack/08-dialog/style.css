@@ -1,0 +1,61 @@
+/* ═══════════════════════════════════════════════════════════
+   08 · DIALOG — cinematic conversation
+   For: NPC talk, job start/quest givers, shop keepers, tutorials
+   Letterbox bars + typewriter text + numbered replies.
+   ═══════════════════════════════════════════════════════════ */
+.dialog{position:fixed;inset:0;pointer-events:none;--lb:11vh}
+.dialog > *{pointer-events:auto}
+
+.lb{position:absolute;left:0;right:0;height:var(--lb);background:#000;display:flex;align-items:center;padding:0 48px;
+  transition:transform .55s cubic-bezier(.2,.7,.2,1)}
+.lb.top{top:0;transform:translateY(-100%);justify-content:space-between}
+.lb.bot{bottom:0;transform:translateY(100%);justify-content:center}
+.dialog.in .lb{transform:none}
+.lb.top::after{content:'';position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,var(--teal-edge),transparent)}
+.lb.bot::before{content:'';position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+.lb .ctx{display:flex;align-items:center;gap:12px}
+.lb .ctx span{font-size:11px;color:var(--ink-3);letter-spacing:.18em;font-weight:400}
+.lb .ctx b{font-size:11px;color:var(--white);letter-spacing:.18em;font-weight:600}
+
+.shade{position:absolute;left:0;right:0;bottom:var(--lb);height:52vh;pointer-events:none;
+  background:linear-gradient(to top,rgba(0,0,0,.86),rgba(0,0,0,.5) 45%,transparent)}
+
+.talk{position:absolute;left:0;right:0;margin:0 auto;bottom:calc(var(--lb) + 40px);
+  width:min(1240px,calc(100% - 96px));display:grid;grid-template-columns:1fr 420px;gap:64px;align-items:end;
+  animation:nz-rise .5s .25s both}
+
+.who{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.who .nz-av{width:46px;height:46px;font-size:14px;border-radius:var(--r-md);color:var(--white);
+  background:linear-gradient(155deg,var(--raise-2),var(--inset));border-color:var(--teal-edge);box-shadow:0 0 18px rgba(8,175,162,.2)}
+.who h2{font-size:26px;font-weight:600;letter-spacing:-.03em;color:var(--white);line-height:1}
+.who p{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-2);font-weight:300;margin-top:7px}
+.rep{display:flex;align-items:center;gap:8px;margin-left:auto;align-self:flex-start;font-size:10.5px;color:var(--ink-3)}
+.rep .nz-meter{width:90px}
+
+.line{font-size:19px;font-weight:300;line-height:1.6;color:var(--ink);max-width:62ch;min-height:3.2em;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.line em{font-style:normal;color:var(--teal-hi);font-weight:400}
+.caret{display:inline-block;width:2px;height:1em;margin-left:3px;vertical-align:-2px;background:var(--teal);animation:nz-pulse .9s steps(1) infinite}
+.skip{margin-top:14px;font-size:10.5px;color:var(--ink-3);display:flex;align-items:center;gap:7px;transition:opacity var(--fast)}
+.skip.gone{opacity:0}
+
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{--cut:12px;position:relative;display:flex;align-items:center;gap:13px;width:100%;padding:13px 16px 13px 13px;text-align:left;
+  border-radius:var(--r-sm);background:rgba(8,9,10,.78);box-shadow:0 0 0 1px var(--line-soft) inset;backdrop-filter:blur(8px);
+  font-size:13px;color:var(--ink-2);font-weight:400;transition:all var(--fast);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  opacity:0;transform:translateX(12px);animation:optIn .35s forwards}
+@keyframes optIn{to{opacity:1;transform:none}}
+.opt .nz-key{min-width:22px;height:22px;font-size:11px;flex:none}
+.opt .tx{flex:1}
+.opt .tx small{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:3px}
+.opt .nz-ic{width:14px;height:14px;color:var(--ink-3)}
+.opt:hover,.opt.on{color:var(--white);background:linear-gradient(90deg,rgba(8,175,162,.2),rgba(8,9,10,.78));box-shadow:0 0 0 1px var(--teal-edge) inset}
+.opt:hover .nz-key,.opt.on .nz-key{background:var(--teal);color:#00201d;border-color:var(--teal)}
+.opt.leave{color:var(--ink-3)}
+.opt.leave:hover,.opt.leave.on{color:var(--white);background:linear-gradient(90deg,rgba(229,72,77,.2),rgba(8,9,10,.78));box-shadow:0 0 0 1px var(--red-edge) inset}
+.opt.leave:hover .nz-key,.opt.leave.on .nz-key{background:var(--red);border-color:var(--red);color:#fff}
+.opt.locked{pointer-events:none}
+.opt.locked .tx{opacity:.45}
+.opt.locked small{color:var(--amber)}
+.opt.locked small{opacity:1}
+.opts.wait .opt{animation:none;opacity:0}

@@ -1,0 +1,94 @@
+/* ═══════════════════════════════════════════════════════════
+   10 · SIGNAL — overlay kit
+   Notifications, announcements, progress bar, key prompt,
+   input dialog and confirm. One resource, used by every script.
+   ═══════════════════════════════════════════════════════════ */
+.signal{position:fixed;inset:0;pointer-events:none}
+.signal .live{pointer-events:auto}
+
+/* ── notifications ── */
+.toasts{position:absolute;right:28px;top:28px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:350px}
+.toast{--cut:12px;--c:var(--teal);position:relative;display:grid;grid-template-columns:30px 1fr;gap:12px;width:100%;padding:13px 16px 15px 13px;
+  background:rgba(14,16,17,.94);border-radius:var(--r-sm);box-shadow:0 0 0 1px var(--line) inset,var(--sh-2);overflow:hidden;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  animation:tIn .35s cubic-bezier(.2,.7,.2,1) both}
+.toast.out{animation:tOut .25s ease-in both}
+@keyframes tIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+@keyframes tOut{to{opacity:0;transform:translateX(30px)}}
+.toast::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--c)}
+.toast .nz-tile{width:30px;height:30px;border-radius:var(--r-xs)}
+.toast .nz-tile .nz-ic{width:15px;height:15px}
+.toast b{display:block;font-size:12.5px;font-weight:600;color:var(--white);margin-top:1px}
+.toast p{font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.5;margin-top:3px}
+.toast .t{position:absolute;right:14px;top:13px;font-size:9.5px;color:var(--ink-3)}
+.toast .timer{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--c);opacity:.7;transform-origin:left;animation:drain linear forwards}
+@keyframes drain{to{transform:scaleX(0)}}
+.toast.err{--c:var(--red)}
+.toast.warn{--c:var(--amber)}
+.toast.info{--c:var(--white)}
+
+/* ── announcement ── */
+.announce{position:absolute;left:50%;top:26px;transform:translateX(-50%);display:flex;align-items:center;gap:16px;min-width:520px;max-width:760px;
+  padding:14px 22px 14px 16px;border-radius:var(--r-md);background:rgba(8,9,10,.94);box-shadow:0 0 0 1px var(--red-edge) inset,var(--sh-2);
+  animation:aIn .45s cubic-bezier(.2,.7,.2,1) both;overflow:hidden}
+.announce.out{animation:aOut .3s ease-in both}
+@keyframes aIn{from{opacity:0;transform:translate(-50%,-20px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes aOut{to{opacity:0;transform:translate(-50%,-20px)}}
+.announce::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(-45deg,rgba(229,72,77,.07) 0 10px,transparent 10px 20px);
+  -webkit-mask:linear-gradient(90deg,#000,transparent 40%);mask:linear-gradient(90deg,#000,transparent 40%)}
+.announce .nz-mark{position:relative}
+.announce .tx{position:relative;flex:1}
+.announce small{display:block;font-size:9.5px;letter-spacing:.22em;color:var(--red);font-weight:600}
+.announce b{display:block;font-size:15px;font-weight:600;color:var(--white);margin-top:4px;letter-spacing:-.01em}
+.announce p{font-size:11.5px;color:var(--ink-2);font-weight:300;margin-top:3px}
+.announce .count{position:relative;font-size:24px;font-weight:700;color:var(--white);letter-spacing:-.03em}
+
+/* ── text ui / key prompt ── */
+.textui{position:absolute;left:34px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:14px;
+  padding:8px 22px 8px 8px;border-radius:var(--r-md);background:rgba(8,9,10,.9);box-shadow:0 0 0 1px var(--line) inset,var(--sh-2);
+  animation:uIn .3s cubic-bezier(.2,.7,.2,1) both}
+.textui.out{animation:uOut .2s ease-in both}
+@keyframes uIn{from{opacity:0;transform:translate(-20px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
+@keyframes uOut{to{opacity:0;transform:translate(-20px,-50%)}}
+.textui .k{--cut:10px;width:42px;height:42px;display:grid;place-items:center;border-radius:var(--r-sm);
+  background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d;font-size:17px;font-weight:700;box-shadow:0 1px 0 rgba(255,255,255,.3) inset;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.textui b{display:block;font-size:13.5px;font-weight:500;color:var(--white)}
+.textui span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;font-weight:300}
+
+/* ── progress ── */
+.progress{position:absolute;left:0;right:0;margin:0 auto;bottom:110px;width:420px;animation:nz-rise .3s both}
+.progress.out{animation:nz-fade .2s reverse both}
+.progress .top{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:9px;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.progress .top b{font-size:13px;font-weight:500;color:var(--white);display:flex;align-items:center;gap:8px}
+.progress .top b .nz-ic{width:15px;height:15px;color:var(--teal)}
+.progress .top span{font-size:12px;font-weight:600;color:var(--white)}
+.progress .track{--cut:8px;position:relative;height:12px;padding:2px;border-radius:3px;background:rgba(8,9,10,.85);box-shadow:0 0 0 1px var(--line) inset;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.progress .fill{height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));box-shadow:0 0 12px rgba(8,175,162,.5);position:relative;overflow:hidden}
+.progress .fill::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.14) 0 6px,transparent 6px 12px);
+  animation:stripe .8s linear infinite}
+@keyframes stripe{to{background-position:17px 0}}
+.progress.cancelled .fill{background:var(--red);box-shadow:0 0 12px rgba(229,72,77,.5)}
+.progress .foot{display:flex;justify-content:space-between;margin-top:8px}
+
+/* ── dialogs ── */
+.scrim{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);animation:nz-fade .2s both}
+.dlg{--cut:20px;width:420px;background:var(--panel);border-radius:var(--r-lg);box-shadow:0 0 0 1px var(--line) inset,var(--sh-3);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);animation:nz-rise .3s both}
+.dlg .hd{display:flex;gap:13px;padding:20px 20px 4px}
+.dlg .hd h3{font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.012em}
+.dlg .hd p{font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.55;margin-top:4px}
+.dlg form{display:flex;flex-direction:column;gap:13px;padding:16px 20px 20px}
+.dlg .check{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:var(--ink-2);font-weight:300}
+.dlg .ft{display:flex;align-items:center;gap:8px;padding:13px 20px;background:var(--inset);border-top:1px solid var(--line-hair)}
+.dlg .ft .nz-sig{margin-right:auto}
+.dlg .err{font-size:10.5px;color:var(--red)}
+.nz-input.bad{border-color:var(--red);box-shadow:0 0 0 3px var(--red-wash)}
+
+/* ── preview controls (browser only) ── */
+.demo{position:fixed;left:24px;bottom:24px;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:var(--r-md);
+  background:rgba(8,9,10,.9);box-shadow:0 0 0 1px var(--line) inset;pointer-events:auto;z-index:50}
+.demo b{font-size:10.5px;color:var(--ink-3);font-weight:400}
+.demo div{display:flex;flex-wrap:wrap;gap:6px;max-width:330px}

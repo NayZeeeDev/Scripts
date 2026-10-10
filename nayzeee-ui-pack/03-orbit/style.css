@@ -1,0 +1,55 @@
+/* ═══════════════════════════════════════════════════════════
+   03 · ORBIT — radial wheel
+   For: interaction / third-eye menus, emotes, vehicle controls,
+   quick actions. Mouse-angle selection like a weapon wheel.
+   ═══════════════════════════════════════════════════════════ */
+body{display:grid;place-items:center}
+
+.orbit{display:flex;flex-direction:column;align-items:center;gap:26px}
+.wheel{--size:540px;position:relative;width:var(--size);height:var(--size)}
+
+/* frosted ring behind the svg — masked so only the band blurs */
+.glass{position:absolute;inset:0;border-radius:50%;
+  background:rgba(8,9,10,.62);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  -webkit-mask:radial-gradient(circle,transparent 104px,#000 105px,#000 226px,transparent 227px);
+          mask:radial-gradient(circle,transparent 104px,#000 105px,#000 226px,transparent 227px)}
+.wheel > svg{position:absolute;inset:0;overflow:visible}
+
+.seg{fill:rgba(255,255,255,.012);stroke:var(--line);stroke-width:1;transition:fill var(--fast),stroke var(--fast)}
+.seg.on{fill:rgba(8,175,162,.16);stroke:var(--teal-edge)}
+.seg.danger.on{fill:rgba(229,72,77,.16);stroke:var(--red-edge)}
+.halo{fill:none;stroke:var(--teal);stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 6px var(--teal));
+  transition:opacity var(--fast)}
+.halo.danger{stroke:var(--red);filter:drop-shadow(0 0 6px var(--red))}
+.ticks{stroke:rgba(255,255,255,.08);stroke-width:1}
+.dash{fill:none;stroke:rgba(255,255,255,.07);stroke-width:1;stroke-dasharray:2 7;
+  transform-origin:center;animation:nz-spin 60s linear infinite}
+
+.segs{transform-origin:center;animation:pop var(--slow) both}
+@keyframes pop{from{opacity:0;transform:scale(.94) rotate(-6deg)}to{opacity:1;transform:none}}
+
+/* labels sit in html for crisp type */
+.labs{position:absolute;inset:0;pointer-events:none;animation:pop var(--slow) both}
+.lab{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:7px;
+  width:96px;text-align:center;color:var(--ink-2);transition:color var(--fast),transform var(--fast)}
+.lab .nz-ic{width:22px;height:22px;stroke-width:1.5}
+.lab span{font-size:11px;font-weight:400;letter-spacing:.01em;line-height:1.2}
+.lab.on{color:var(--white);transform:translate(-50%,-50%) scale(1.06)}
+.lab.on .nz-ic{color:var(--teal)}
+.lab.danger.on .nz-ic{color:var(--red)}
+.lab .num{position:absolute;top:-14px;font-size:9px;color:var(--ink-3);font-weight:500}
+
+/* hub */
+.hub{position:absolute;left:50%;top:50%;width:184px;height:184px;margin:-92px 0 0 -92px;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;text-align:center;padding:22px;
+  background:radial-gradient(circle at 50% 30%,#14181a,var(--base) 70%);
+  border:1px solid var(--line);box-shadow:0 0 0 6px rgba(0,0,0,.35),0 1px 0 var(--lift) inset,var(--sh-2);cursor:pointer}
+.hub b{font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.012em;line-height:1.15}
+.hub p{font-size:10.5px;color:var(--ink-3);font-weight:300;line-height:1.45}
+.hub .back{display:none;align-items:center;gap:4px;font-size:10px;color:var(--teal);font-weight:500}
+.hub .back .nz-ic{width:12px;height:12px}
+.hub.sub .back{display:flex}
+.hub.sub .nz-mark{display:none}
+
+.o-foot{display:flex;align-items:center;gap:22px;padding:9px 16px;border-radius:999px;
+  background:rgba(8,9,10,.72);border:1px solid var(--line-soft);backdrop-filter:blur(10px)}

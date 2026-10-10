@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════════════════
+   06 · VAULT — inventory
+   For: player inventory, stashes, trunks, gloveboxes, drops
+   Frosted panes; every slot carries the brand chamfer.
+   ═══════════════════════════════════════════════════════════ */
+body{display:grid;place-items:center;padding:24px}
+
+.vault{display:grid;grid-template-columns:auto 228px auto;align-items:start;gap:18px}
+
+.pane{--cut:20px;position:relative;padding:16px;border-radius:var(--r-lg);
+  background:rgba(8,9,10,.66);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  box-shadow:0 0 0 1px var(--line) inset,var(--sh-3);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.p-head{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+.p-head .nz-tile{width:32px;height:32px}
+.p-head .nz-tile .nz-ic{width:15px;height:15px}
+.p-head h2{font-size:13.5px;font-weight:600;color:var(--white);letter-spacing:-.01em;line-height:1.1}
+.p-head p{font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:3px}
+.p-head .w{margin-left:auto;text-align:right;font-size:11px;color:var(--ink-3)}
+.p-head .w b{color:var(--white);font-weight:600}
+.pane > .nz-meter{margin-bottom:14px}
+
+.slots{--slot:80px;display:grid;grid-template-columns:repeat(5,var(--slot));gap:7px;max-height:calc(var(--slot) * 5 + 28px);padding-right:2px}
+
+.slot{--cut:11px;position:relative;width:var(--slot);height:var(--slot);border-radius:var(--r-sm);
+  background:linear-gradient(160deg,rgba(255,255,255,.035),rgba(0,0,0,.25)),rgba(11,12,13,.8);
+  box-shadow:0 0 0 1px var(--line-soft) inset;transition:box-shadow var(--fast),background var(--fast);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.slot.has{cursor:grab}
+.slot:hover{box-shadow:0 0 0 1px var(--line) inset}
+.slot.sel{box-shadow:0 0 0 1px var(--teal) inset,0 0 18px rgba(8,175,162,.18) inset;background:linear-gradient(160deg,rgba(8,175,162,.14),rgba(0,0,0,.2)),rgba(11,12,13,.8)}
+.slot.over{box-shadow:0 0 0 1px var(--teal-hi) inset;background:var(--teal-wash)}
+.slot.drag{opacity:.35}
+.slot .ico{position:absolute;inset:0 0 14px;display:grid;place-items:center;color:var(--ink)}
+.slot .ico .nz-ic{width:28px;height:28px;stroke-width:1.35}
+.slot .cnt{position:absolute;right:6px;top:5px;font-size:10px;font-weight:600;color:var(--white)}
+.slot .wt{position:absolute;left:6px;top:5px;font-size:9px;color:var(--ink-3)}
+.slot .nm{position:absolute;left:6px;right:10px;bottom:6px;font-size:9.5px;color:var(--ink-2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot .dur{position:absolute;left:6px;right:14px;bottom:3px;height:2px;border-radius:2px;background:rgba(255,255,255,.08)}
+.slot .dur i{display:block;height:100%;width:var(--v);border-radius:inherit;background:var(--teal)}
+.slot .dur.low i{background:var(--red)}
+.slot.hot::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;background:var(--teal);opacity:.7}
+.slot .key{position:absolute;left:5px;top:5px;font-size:9px;font-weight:600;color:#00201d;background:var(--teal);
+  width:14px;height:14px;border-radius:3px;display:grid;place-items:center}
+.slot.hot .wt{display:none}
+
+/* ── centre column ── */
+.mid{display:flex;flex-direction:column;gap:12px;padding-top:4px}
+.brand{display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px 0 4px}
+.brand .nz-sig{font-size:10px}
+.amt{display:flex;flex-direction:column;gap:6px}
+.amt label{font-size:10.5px;color:var(--ink-3);text-align:center}
+.amt .nz-input{text-align:center;font-size:16px;font-weight:600;height:42px;background:rgba(11,12,13,.85)}
+.mid .nz-btn{height:38px;width:100%}
+.detail{--cut:16px;padding:14px;border-radius:var(--r-md);background:rgba(8,9,10,.66);backdrop-filter:blur(16px);
+  box-shadow:0 0 0 1px var(--line) inset;clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.detail .big{height:84px;display:grid;place-items:center;color:var(--teal-hi);border-radius:var(--r-sm);
+  background:radial-gradient(70% 80% at 50% 40%,rgba(8,175,162,.16),transparent);margin-bottom:10px}
+.detail .big .nz-ic{width:40px;height:40px;stroke-width:1.2}
+.detail b{display:block;font-size:13px;font-weight:600;color:var(--white)}
+.detail p{font-size:11px;color:var(--ink-2);font-weight:300;line-height:1.5;margin-top:5px}
+.kv{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);padding-top:7px;margin-top:7px;border-top:1px solid var(--line-hair)}
+.kv b{display:inline;font-size:10.5px;font-weight:500;color:var(--ink-2)}
+.detail .none{font-size:11px;color:var(--ink-3);text-align:center;line-height:1.5;padding:16px 4px}
+
+.hint{grid-column:1/-1;justify-self:center;margin-top:4px;padding:8px 16px;border-radius:999px;background:rgba(8,9,10,.7);border:1px solid var(--line-soft)}
+
+/* ── drag ghost + tooltip ── */
+.ghost{position:fixed;z-index:1000;pointer-events:none;width:80px;height:80px;margin:-40px 0 0 -40px;border-radius:var(--r-sm);
+  display:grid;place-items:center;color:var(--white);background:rgba(8,175,162,.18);box-shadow:0 0 0 1px var(--teal) inset,var(--sh-2);
+  backdrop-filter:blur(6px)}
+.ghost .nz-ic{width:30px;height:30px}
+.ghost span{position:absolute;right:6px;top:5px;font-size:10px;font-weight:600}
+.tip{position:fixed;z-index:999;pointer-events:none;width:220px;padding:11px 13px;border-radius:var(--r-sm);
+  background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--teal);box-shadow:var(--sh-2);animation:nz-fade .12s both}
+.tip b{display:block;font-size:12.5px;font-weight:600;color:var(--white)}
+.tip p{font-size:11px;color:var(--ink-2);font-weight:300;line-height:1.5;margin-top:4px}
+.tip .kv{margin-top:6px;padding-top:6px}

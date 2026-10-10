@@ -1,0 +1,99 @@
+/* ═══════════════════════════════════════════════════════════
+   04 · PULSE — in-game HUD
+   Status capsules, location strip, speedometer, wallet.
+   No panels: floating shapes with soft shadows for legibility.
+   ═══════════════════════════════════════════════════════════ */
+.hud{position:fixed;inset:0;pointer-events:none;--map-w:300px}
+.hud *{text-shadow:0 1px 2px rgba(0,0,0,.6)}
+
+/* ── status capsules (beside the minimap) ── */
+.status{position:absolute;left:calc(var(--map-w) + 36px);bottom:30px;display:flex;align-items:flex-end;gap:8px}
+.cap{--v:100;--c:var(--teal);--cw:rgba(8,175,162,.38);--cut:9px;position:relative;width:38px;height:58px;
+  background:rgba(8,9,10,.72);border-radius:var(--r-sm);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  box-shadow:0 0 0 1px var(--line) inset}
+.cap::before{ /* level */
+  content:'';position:absolute;left:0;right:0;bottom:0;height:calc(var(--v) * 1%);
+  background:linear-gradient(to top,var(--cw),transparent 140%);
+  border-top:1px solid var(--c);transition:height var(--slow)}
+.cap .nz-ic{position:absolute;left:50%;top:9px;transform:translateX(-50%);width:16px;height:16px;color:var(--white);stroke-width:1.7;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.cap b{position:absolute;left:0;right:0;bottom:7px;text-align:center;font-size:10px;font-weight:600;color:var(--white)}
+.cap.armor{--c:#d9dee1;--cw:rgba(217,222,225,.30)}
+.cap.food{--c:var(--amber);--cw:rgba(229,165,10,.36)}
+.cap.water{--c:#3fb6e8;--cw:rgba(63,182,232,.36)}
+.cap.stamina{--c:var(--teal-hi);--cw:rgba(15,212,196,.32)}
+.cap.stress{--c:var(--red);--cw:rgba(229,72,77,.36)}
+.cap.low{--c:var(--red);--cw:rgba(229,72,77,.42)}
+.cap.low .nz-ic{color:var(--red);animation:nz-pulse 1s ease-in-out infinite}
+.cap.hide{display:none}
+
+.voice{display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:6px;
+  width:38px;height:58px;padding:9px 0 9px;border-radius:var(--r-sm);background:rgba(8,9,10,.72);box-shadow:0 0 0 1px var(--line) inset}
+.voice .nz-ic{width:16px;height:16px;color:var(--ink-2)}
+.voice .lv{display:flex;gap:3px}
+.voice .lv i{width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+.voice .lv i.on{background:var(--teal);box-shadow:0 0 6px var(--teal)}
+.voice.talk{box-shadow:0 0 0 1px var(--teal-edge) inset,0 0 18px rgba(8,175,162,.35)}
+.voice.talk .nz-ic{color:var(--teal)}
+.voice.radio .nz-ic{color:var(--red)}
+
+/* preview only: where the game draws the minimap */
+.mapghost{position:absolute;left:24px;bottom:30px;width:var(--map-w);height:190px;border-radius:var(--r-sm);
+  border:1px dashed rgba(255,255,255,.12);display:grid;place-items:center;font-size:10px;color:var(--ink-3);letter-spacing:.2em}
+html.nz-nui .mapghost{display:none}
+
+/* ── location strip ── */
+.loc{position:absolute;left:calc(var(--map-w) + 36px);bottom:104px;display:flex;align-items:center;gap:16px;
+  padding:8px 40px 8px 2px;background:linear-gradient(90deg,rgba(0,0,0,.42),transparent);white-space:nowrap}
+.heading{display:flex;flex-direction:column;align-items:center;min-width:44px;padding-left:8px}
+.heading b{font-size:26px;font-weight:700;letter-spacing:-.02em;color:var(--white);line-height:1}
+.heading span{font-size:9.5px;color:var(--teal);font-weight:500;letter-spacing:.12em;margin-top:3px}
+.loc .sep{width:1px;height:30px;background:linear-gradient(transparent,var(--line),transparent)}
+.street b{display:block;font-size:14px;font-weight:600;color:var(--white);letter-spacing:-.01em}
+.street span{display:block;font-size:11px;color:var(--ink-2);font-weight:300;margin-top:3px}
+.when{text-align:right}
+.when b{display:block;font-size:14px;font-weight:500;color:var(--white)}
+.when span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:3px}
+
+/* ── wallet / identity ── */
+.wallet{position:absolute;right:32px;top:30px;display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.wallet .id{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.wallet .id .nz-sig{color:var(--ink-2)}
+.wallet .id .pid{font-size:10px;font-weight:600;color:var(--white);background:rgba(8,9,10,.72);
+  border:1px solid var(--line);padding:3px 8px;border-radius:var(--r-xs);text-shadow:none}
+.money{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:600;color:var(--white);letter-spacing:-.02em}
+.money .nz-ic{width:17px;height:17px;color:var(--teal);filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.money.bank{font-size:15px;font-weight:500;color:var(--ink)}
+.money.bank .nz-ic{color:var(--ink-2);width:15px;height:15px}
+.money .flash{font-size:12px;font-weight:600;color:var(--teal);animation:nz-rise .3s both}
+.money .flash.neg{color:var(--red)}
+.job{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:11.5px;color:var(--ink-2);font-weight:300}
+.job b{color:var(--white);font-weight:500}
+
+/* ── speedometer ── */
+.speedo{position:absolute;right:40px;bottom:26px;width:250px;height:230px;transition:opacity var(--slow),transform var(--slow)}
+.speedo.off{opacity:0;transform:translateY(16px)}
+.speedo > svg{position:absolute;inset:0}
+.track{fill:none;stroke:rgba(0,0,0,.45);stroke-width:12}
+.tick{stroke:rgba(255,255,255,.14);stroke-width:2.2;stroke-linecap:round;transition:stroke .08s}
+.tick.on{stroke:var(--teal)}
+.tick.hot{stroke:var(--red)}
+.needle-arc{fill:none;stroke:var(--teal);stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 5px var(--teal))}
+.readout{position:absolute;left:0;right:0;top:66px;text-align:center}
+.readout .spd{font-size:54px;font-weight:700;letter-spacing:-.04em;line-height:1;color:var(--white)}
+.readout .spd i{font-style:normal;color:rgba(255,255,255,.16)}
+.readout .unit{font-size:10px;color:var(--ink-2);letter-spacing:.24em;font-weight:500;margin-top:4px}
+.gear{position:absolute;left:50%;top:146px;transform:translateX(-50%);width:30px;height:30px;display:grid;place-items:center;
+  font-size:14px;font-weight:700;color:var(--white);background:rgba(8,9,10,.72);border:1px solid var(--line);border-radius:var(--r-xs);text-shadow:none}
+.gauges{position:absolute;left:24px;right:24px;bottom:0;display:flex;align-items:center;gap:10px}
+.gauges .fuel{flex:1;display:flex;align-items:center;gap:8px}
+.gauges .fuel .nz-ic{width:14px;height:14px;color:var(--ink-2)}
+.segbar{flex:1;display:flex;gap:3px}
+.segbar i{flex:1;height:5px;border-radius:1px;background:rgba(255,255,255,.12)}
+.segbar i.on{background:var(--white)}
+.segbar.low i.on{background:var(--red)}
+.ind{width:24px;height:24px;display:grid;place-items:center;border-radius:var(--r-xs);color:rgba(255,255,255,.2)}
+.ind .nz-ic{width:15px;height:15px}
+.ind.on{color:var(--teal)}
+.ind.warn{color:var(--red);animation:nz-pulse .8s ease-in-out infinite}

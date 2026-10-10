@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 01 Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="console nz-app nz-frame" id="app">
+<div class="nz-frame-in nz-grain">
+
+  <div class="bar">
+    <div class="bar-brand nz-rail">
+      <div class="nz-mark"></div>
+      <div>
+        <div class="nz-title" id="title">Emergency Services</div>
+        <div class="nz-sub" id="subtitle">Station 04 · Los Santos</div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="nz-dot"></span>
+      <p>Connected to <b>dispatch</b> · <span id="onduty">4</span> units on duty</p>
+      <span class="nz-ver">v2.4.1</span>
+    </div>
+    <button class="nz-btn close" data-close>Close</button>
+  </div>
+
+  <div class="body">
+    <nav class="side">
+      <div class="who">
+        <div class="nz-av" id="who-av">JD</div>
+        <div class="who-txt"><b id="who-name">John Doe</b><span id="who-role">Chief · Badge 01</span></div>
+      </div>
+      <div class="shift"><span id="shift">04:12:38</span><b><span class="nz-dot"></span>On duty</b></div>
+
+      <button class="nav on" data-page="dashboard"><i data-ic="grid"></i>Dashboard</button>
+      <div class="grp">Operations</div>
+      <button class="nav" data-page="dispatch"><i data-ic="map"></i>Dispatch <span class="tally">3</span></button>
+      <button class="nav" data-page="triage"><i data-ic="pulse"></i>Triage</button>
+      <div class="grp">Records</div>
+      <button class="nav" data-page="patients"><i data-ic="medkit"></i>Patients <span class="tally">862</span></button>
+      <button class="nav" data-page="incidents"><i data-ic="file"></i>Incidents</button>
+      <button class="nav" data-page="reports"><i data-ic="clipboard"></i>Call reports</button>
+      <div class="grp">Station</div>
+      <button class="nav" data-page="personnel"><i data-ic="user"></i>Personnel</button>
+      <button class="nav" data-page="garage"><i data-ic="car"></i>Garage</button>
+
+      <div class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</div>
+    </nav>
+
+    <main class="main">
+      <div class="head">
+        <div>
+          <h1>Dashboard</h1>
+          <p>Live station activity, on-duty roster and the latest incident reports.</p>
+        </div>
+        <div class="clock"><b id="clock">16:10</b><span id="date">Sunday, 8 February</span></div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="nz-tile"><i data-ic="plus"></i></div>
+          <div class="stat-txt"><span>Patients treated</span><b>862</b></div>
+          <div class="delta"><i data-ic="arrow-up"></i>14</div>
+        </div>
+        <div class="stat">
+          <div class="nz-tile"><i data-ic="file"></i></div>
+          <div class="stat-txt"><span>Incidents logged</span><b>312</b></div>
+          <div class="delta"><i data-ic="arrow-up"></i>6</div>
+        </div>
+        <div class="stat">
+          <div class="nz-tile red"><i data-ic="alert"></i></div>
+          <div class="stat-txt"><span>Open calls</span><b>3</b></div>
+          <div class="delta dn"><i data-ic="arrow-up"></i>2</div>
+        </div>
+      </div>
+
+      <div class="cols">
+        <section class="panel">
+          <div class="p-head">
+            <div><h2>On duty</h2><p>Medics currently signed in</p></div>
+            <button class="nz-btn ghost sm" data-post="refresh"><i data-ic="refresh"></i>Refresh</button>
+          </div>
+          <div class="p-body nz-scroll" id="roster"></div>
+        </section>
+
+        <section class="panel">
+          <div class="p-head">
+            <div><h2>Recent incidents</h2><p>Last six hours</p></div>
+            <button class="nz-btn ghost sm" data-post="filter"><i data-ic="filter"></i>Filter</button>
+          </div>
+          <div class="p-body nz-scroll" id="incidents"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="statusbar nz-hints">
+    <span><span class="nz-key">ESC</span>Close</span>
+    <span><span class="nz-key">F</span>Filter</span>
+    <span><span class="nz-key">↵</span>Open record</span>
+    <span class="nz-sig"><em>made by</em> NAYZEEE</span>
+  </div>
+</div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE UI Pack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="core/nz-core.css">
+<style>
+/* gallery page only — scrolls, unlike the in-game themes */
+body{overflow:auto;user-select:auto;background:radial-gradient(1100px 640px at 50% -8%,#131718 0%,transparent 62%),var(--void);
+  padding:56px 28px 96px;display:flex;flex-direction:column;align-items:center;gap:44px}
+.wrap{width:min(1320px,100%)}
+
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;flex-wrap:wrap}
+.hero .nz-lockup{gap:18px}
+.hero h1{font-size:34px;font-weight:700;letter-spacing:-.035em;color:var(--white);line-height:1}
+.hero h1 span{color:var(--teal)}
+.hero p{font-size:13px;color:var(--ink-3);font-weight:300;margin-top:10px;max-width:60ch;line-height:1.6}
+
+.dna{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:var(--r-md);overflow:hidden}
+.dna > div{background:var(--base);padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-height:118px}
+.dna b{font-size:11px;color:var(--ink-3);font-weight:400}
+.dna .demo{flex:1;display:flex;align-items:center;gap:10px}
+.dna .sw{width:26px;height:26px;border-radius:var(--r-xs);box-shadow:0 0 0 1px var(--line) inset}
+.dna .type{font-size:26px;font-weight:600;letter-spacing:-.03em;color:var(--white)}
+.dna .type i{font-style:normal;font-weight:200}
+.dna .cut{--cut:16px;width:70px;height:44px;background:var(--raise-2);border-radius:var(--r-sm)}
+.dna small{font-size:10.5px;color:var(--ink-3);font-weight:300;line-height:1.5}
+
+.sec{display:flex;align-items:center;gap:12px;color:var(--ink-3);font-size:12px;font-weight:300;margin-bottom:16px}
+.sec::after{content:'';flex:1;height:1px;background:var(--line)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px}
+.card{--cut:20px;display:flex;flex-direction:column;background:var(--panel);border-radius:var(--r-lg);text-decoration:none;color:inherit;
+  box-shadow:0 0 0 1px var(--line-soft) inset;transition:box-shadow var(--fast),transform var(--fast)}
+.card:hover{box-shadow:0 0 0 1px var(--teal-edge) inset,0 20px 40px rgba(0,0,0,.5);transform:translateY(-3px)}
+.thumb{position:relative;aspect-ratio:16/9;margin:6px 6px 0;border-radius:10px;overflow:hidden;background:#000}
+.thumb iframe{position:absolute;left:0;top:0;width:1920px;height:1080px;border:0;transform-origin:0 0;pointer-events:none}
+.meta{display:flex;gap:14px;padding:16px 18px 18px}
+.num{font-size:28px;font-weight:200;color:var(--teal);letter-spacing:-.04em;line-height:1;min-width:38px}
+.meta h2{font-size:16px;font-weight:600;color:var(--white);letter-spacing:-.015em}
+.meta p{font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.55;margin-top:5px}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.meta .go{margin-left:auto;align-self:center;color:var(--ink-3);transition:color var(--fast),transform var(--fast)}
+.card:hover .go{color:var(--teal);transform:translateX(3px)}
+.go svg{width:18px;height:18px}
+
+footer{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;color:var(--ink-3);font-size:11px;font-weight:300}
+footer code{font-family:inherit;color:var(--ink-2);background:var(--raise);padding:2px 6px;border-radius:var(--r-xs)}
+
+@media (max-width:900px){.dna{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="wrap hero">
+  <div class="nz-lockup">
+    <div class="nz-mark xl"></div>
+    <div>
+      <h1>NAYZEEE <span>UI Pack</span></h1>
+      <p>Ten interface styles for FiveM scripts. Each one looks different, but they all share the same mark, type, colours and corner cut, so players can tell a NAYZEEE script on sight.</p>
+    </div>
+  </div>
+  <span class="nz-ver">v1.0.0 · 10 themes</span>
+</header>
+
+<section class="wrap">
+  <div class="sec">What never changes</div>
+  <div class="dna">
+    <div><b>The mark</b><div class="demo"><div class="nz-mark lg"></div><div class="nz-mark"></div><div class="nz-mark sm"></div></div><small>Same chamfer as every window.</small></div>
+    <div><b>Type</b><div class="demo"><span class="type">Lexend <i>Aa</i></span></div><small>200 to 800, tabular numbers.</small></div>
+    <div><b>Colour</b><div class="demo"><span class="sw" style="background:#000"></span><span class="sw" style="background:#0e1011"></span><span class="sw" style="background:#08afa2"></span><span class="sw" style="background:#e5484d"></span><span class="sw" style="background:#fff"></span></div><small>Black, teal #08afa2, red #e5484d, white.</small></div>
+    <div><b>The cut</b><div class="demo"><div class="cut nz-cut"></div></div><small>Bottom-right chamfer on every container.</small></div>
+    <div><b>Signature</b><div class="demo"><span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span></div><small>In every theme, so customers know who made it.</small></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="sec">The themes · click any to open the live preview</div>
+  <div class="grid" id="grid"></div>
+</section>
+
+<footer class="wrap">
+  <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE <em>· UI pack</em></span>
+  <span>To use a theme, copy <code>core/</code> and the theme folder into your resource's <code>html/</code> folder. See README.md for details.</span>
+</footer>
+
+<script>
+const THEMES = [
+  ['01-console', 'Console', 'Sidebar dashboard with stats, roster and record cards.', ['MDT', 'EMS / PD', 'Boss menu', 'Admin']],
+  ['02-rail', 'Rail', 'Side menu docked to the right, driven by the arrow keys, with submenus, toggles and pickers.', ['Garage', 'Job menu', 'Context menu']],
+  ['03-orbit', 'Orbit', 'Radial wheel that selects by mouse angle, with sub-rings.', ['Interaction', 'Emotes', 'Vehicle', 'Quick actions']],
+  ['04-pulse', 'Pulse', 'In-game HUD: status capsules, voice, location, wallet and speedometer.', ['HUD', 'Speedo', 'Status']],
+  ['05-market', 'Market', 'Shop with categories, search, product cards and a working basket.', ['24/7', 'Ammu-Nation', 'Job shop']],
+  ['06-vault', 'Vault', 'Two-pane inventory with drag and drop, splitting, hotbar and weight.', ['Inventory', 'Stash', 'Trunk']],
+  ['07-showroom', 'Showroom', 'Full-screen catalogue that leaves the centre clear for the 3D model.', ['Dealership', 'Boats / Air', 'Clothing']],
+  ['08-dialog', 'Dialog', 'Cinematic letterbox conversation with typed text and numbered replies.', ['NPC talk', 'Quest giver', 'Tutorial']],
+  ['09-slate', 'Slate', 'Tablet with a home screen, dock, and working Bank and Notes apps.', ['Tablet', 'Phone', 'Laptop']],
+  ['10-signal', 'Signal', 'Overlay kit: notifications, announcements, progress bar, key prompt and dialogs.', ['Notify', 'Progress', 'Input']],
+];
+const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+document.getElementById('grid').innerHTML = THEMES.map(([dir, name, desc, tags], i) => `
+  <a class="card nz-cut" href="${dir}/index.html">
+    <div class="thumb"><iframe src="${dir}/index.html" tabindex="-1" title="${name} preview"></iframe></div>
+    <div class="meta">
+      <span class="num">${String(i + 1).padStart(2, '0')}</span>
+      <div><h2>${name}</h2><p>${desc}</p><div class="tags">${tags.map(t => `<span class="nz-tag off">${t}</span>`).join('')}</div></div>
+      <span class="go">${arrow}</span>
+    </div>
+  </a>`).join('');
+
+const fit = () => document.querySelectorAll('.thumb').forEach(t => { t.firstElementChild.style.transform = `scale(${t.clientWidth / 1920})`; });
+new ResizeObserver(fit).observe(document.getElementById('grid'));
+fit();
+</script>
+</body>
+</html>

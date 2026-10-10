@@ -1,0 +1,103 @@
+/* ═══════════════════════════════════════════════════════════
+   05 · MARKET — storefront
+   For: 24/7s, ammu-nation, hardware, black market, job shops
+   Softer radius, product cards, live basket.
+   ═══════════════════════════════════════════════════════════ */
+body{display:grid;place-items:center;padding:24px}
+
+.market{--cut:28px;width:min(1180px,100%);height:min(720px,calc(100vh - 48px));border-radius:18px;
+  filter:drop-shadow(0 30px 60px rgba(0,0,0,.65))}
+.market .nz-frame-in{display:flex;flex-direction:column;background:var(--base);border-radius:17px}
+
+/* ── header ── */
+.m-head{display:flex;align-items:center;gap:16px;height:68px;padding:0 18px 0 20px;flex:none;
+  border-bottom:1px solid var(--line-soft);background:linear-gradient(var(--panel),var(--base))}
+.m-head .nz-lockup{min-width:220px}
+.m-head .nz-title{font-size:14px;letter-spacing:.02em}
+.search{position:relative;flex:1;max-width:380px}
+.search .nz-ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--ink-3)}
+.search .nz-input{height:36px;padding-left:34px;border-radius:999px;background:var(--inset)}
+.wallet{margin-left:auto;display:flex;gap:18px}
+.wallet div{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--white)}
+.wallet .nz-ic{width:15px;height:15px;color:var(--ink-3)}
+
+/* ── category tabs ── */
+.tabs{display:flex;gap:6px;padding:14px 20px 0;flex:none}
+.tab{display:flex;align-items:center;gap:8px;height:32px;padding:0 14px;border-radius:999px;
+  font-size:12px;color:var(--ink-2);font-weight:400;border:1px solid var(--line-soft);transition:all var(--fast)}
+.tab .nz-ic{width:14px;height:14px}
+.tab span{font-size:10px;color:var(--ink-3)}
+.tab:hover{color:var(--white);border-color:var(--line)}
+.tab.on{background:var(--white);color:#000;border-color:var(--white);font-weight:600}
+.tab.on span{color:rgba(0,0,0,.45)}
+
+/* ── layout ── */
+.m-body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 330px}
+.grid{padding:16px 20px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;align-content:start;grid-auto-rows:max-content}
+
+.card{position:relative;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line-soft);
+  border-radius:14px;overflow:hidden;transition:border-color var(--fast),transform var(--fast);animation:nz-rise .3s both}
+.card:hover{border-color:var(--teal-edge);transform:translateY(-2px)}
+.vis{--cut:16px;position:relative;flex:none;height:118px;margin:6px 6px 0;border-radius:10px;display:grid;place-items:center;
+  background:radial-gradient(90% 90% at 30% 20%,var(--raise-2),var(--inset));color:var(--ink-2);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);transition:color var(--fast)}
+.vis .nz-ic{width:40px;height:40px;stroke-width:1.2}
+.card:hover .vis{color:var(--teal-hi);background:radial-gradient(90% 90% at 30% 20%,rgba(8,175,162,.16),var(--inset))}
+.vis .nz-tag{position:absolute;left:8px;top:8px}
+.info{padding:12px 13px 4px}
+.info b{display:block;font-size:13px;font-weight:600;color:var(--white);letter-spacing:-.01em}
+.info span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:4px;line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.buy{flex:none;display:flex;align-items:center;justify-content:space-between;padding:10px 8px 8px 13px;margin-top:auto}
+.buy .price{font-size:17px;font-weight:700;letter-spacing:-.03em;color:var(--white)}
+.add{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d;box-shadow:0 1px 0 rgba(255,255,255,.3) inset;transition:filter var(--fast),transform var(--fast)}
+.add:hover{filter:brightness(1.12)}
+.add:active{transform:scale(.94)}
+.add .nz-ic{width:16px;height:16px;stroke-width:2.2}
+.card.out > *{opacity:.45}
+.card.out .add{background:var(--raise);color:var(--ink-3);pointer-events:none;box-shadow:none}
+.grid .nz-empty{grid-column:1/-1;margin-top:20px}
+
+/* ── basket ── */
+.cart{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line-soft);background:linear-gradient(180deg,var(--panel),var(--base))}
+.c-head{display:flex;align-items:center;gap:10px;padding:18px 18px 14px}
+.c-head h2{font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.014em}
+.c-head .nz-btn{margin-left:auto}
+.c-list{flex:1;padding:0 12px;display:flex;flex-direction:column;gap:6px}
+.line{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:11px;padding:9px 10px;border-radius:var(--r-md);
+  background:var(--inset);border:1px solid var(--line-hair);animation:nz-rise .2s both}
+.line .nz-tile{width:34px;height:34px}
+.line .nz-tile .nz-ic{width:16px;height:16px}
+.line .t b{display:block;font-size:12px;font-weight:500;color:var(--white)}
+.line .t span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;font-weight:300}
+.step{display:flex;align-items:center;gap:2px;background:var(--raise);border:1px solid var(--line-soft);border-radius:999px;padding:2px}
+.step button{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2)}
+.step button:hover{background:var(--raise-2);color:var(--white)}
+.step button .nz-ic{width:12px;height:12px;stroke-width:2}
+.step b{min-width:18px;text-align:center;font-size:11.5px;font-weight:600;color:var(--white)}
+.c-list .nz-empty{margin-top:6px}
+
+.sum{padding:14px 18px 18px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:9px}
+.sum .ln{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-3);font-weight:300}
+.sum .ln b{color:var(--ink-2);font-weight:500}
+.sum .tot{display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;border-top:1px dashed var(--line)}
+.sum .tot span{font-size:12px;color:var(--ink-2)}
+.sum .tot b{font-size:26px;font-weight:700;letter-spacing:-.035em;color:var(--white)}
+.pay{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
+.pay button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:9px 11px;border-radius:var(--r-md);
+  border:1px solid var(--line-soft);background:var(--inset);text-align:left;transition:all var(--fast)}
+.pay button span{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);font-weight:500}
+.pay button span .nz-ic{width:13px;height:13px}
+.pay button small{font-size:10px;color:var(--ink-3);font-weight:300}
+.pay button.on{border-color:var(--teal-edge);background:var(--teal-wash)}
+.pay button.on span{color:var(--white)}
+.pay button.on span .nz-ic{color:var(--teal)}
+.pay button.short small{color:var(--red)}
+.sum .nz-btn.teal{height:44px;font-size:13.5px;border-radius:var(--r-md);margin-top:4px}
+.done{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--teal);animation:nz-rise .25s both}
+.done.err{color:var(--red)}
+.done .nz-ic{width:14px;height:14px}
+
+.m-foot{display:flex;align-items:center;height:32px;padding:0 40px 0 20px;flex:none;border-top:1px solid var(--line-soft);background:var(--inset)}
+.m-foot .nz-sig{margin-left:auto}

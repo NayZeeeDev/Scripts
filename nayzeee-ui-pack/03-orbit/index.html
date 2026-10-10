@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 03 Orbit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="orbit nz-app" id="app">
+  <div class="wheel" id="wheel">
+    <div class="glass"></div>
+    <svg viewBox="-270 -270 540 540" id="svg"></svg>
+    <div class="labs" id="labs"></div>
+    <div class="hub" id="hub">
+      <div class="nz-mark"></div>
+      <span class="back"><i data-ic="chev-l"></i>Back</span>
+      <b id="hub-title">Interact</b>
+      <p id="hub-desc">Move your mouse to choose</p>
+    </div>
+  </div>
+  <div class="o-foot nz-hints">
+    <span><span class="nz-key">LMB</span>Select</span>
+    <span><span class="nz-key">RMB</span>Back</span>
+    <span><span class="nz-key">1-8</span>Quick pick</span>
+    <span><span class="nz-key">ESC</span>Close</span>
+    <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>
+  </div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

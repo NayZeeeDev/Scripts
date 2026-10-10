@@ -1,0 +1,279 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE UI PACK · core
+   The shared brand layer. Every theme in the pack loads this
+   file first, so the mark, type, palette and the chamfer cut
+   stay identical no matter which layout a script uses.
+   Palette: black · white · teal #08afa2 · red #e5484d
+   Type: Lexend
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  /* surfaces — true neutral black, no blue cast */
+  --void:    #000000;
+  --base:    #08090a;
+  --panel:   #0e1011;
+  --raise:   #15181a;
+  --raise-2: #1c2023;
+  --inset:   #0b0c0d;
+  --glass:   rgba(8,9,10,.74);
+
+  /* lines — neutral white at low alpha, three weights */
+  --line:      rgba(255,255,255,.10);
+  --line-soft: rgba(255,255,255,.06);
+  --line-hair: rgba(255,255,255,.035);
+  --lift:      rgba(255,255,255,.055);
+
+  /* ink */
+  --white: #ffffff;
+  --ink:   #f2f4f5;
+  --ink-2: #9ea5aa;
+  --ink-3: #63696d;
+
+  /* accents */
+  --teal:      #08afa2;
+  --teal-hi:   #0fd4c4;
+  --teal-lo:   #067d74;
+  --teal-wash: rgba(8,175,162,.11);
+  --teal-edge: rgba(8,175,162,.34);
+  --red:       #e5484d;
+  --red-lo:    #b8262b;
+  --red-wash:  rgba(229,72,77,.11);
+  --red-edge:  rgba(229,72,77,.34);
+  --amber:     #e5a50a;
+  --amber-wash:rgba(229,165,10,.12);
+  --amber-edge:rgba(229,165,10,.34);
+
+  /* radius scale */
+  --r-xs:4px; --r-sm:6px; --r-md:10px; --r-lg:14px;
+
+  /* the signature corner */
+  --cut:22px;
+
+  /* depth */
+  --sh-1:0 1px 2px rgba(0,0,0,.6);
+  --sh-2:0 2px 6px rgba(0,0,0,.5),0 10px 28px rgba(0,0,0,.45);
+  --sh-3:0 10px 24px rgba(0,0,0,.6),0 40px 80px rgba(0,0,0,.7);
+
+  --font:'Lexend',system-ui,sans-serif;
+  --fast:130ms cubic-bezier(.4,0,.2,1);
+  --slow:280ms cubic-bezier(.2,.7,.2,1);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased}
+body{
+  font-family:var(--font);color:var(--ink);font-variant-numeric:tabular-nums;
+  min-height:100vh;overflow:hidden;user-select:none;-webkit-user-select:none;
+}
+html.nz-nui,html.nz-nui body{background:transparent!important}
+button,input,select,textarea{font:inherit;color:inherit}
+button{border:0;background:none;cursor:pointer}
+input,textarea{user-select:text;-webkit-user-select:text}
+svg{display:block}
+.nz-ic{width:16px;height:16px;flex:none}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* open / close — every theme root carries .nz-app */
+.nz-app:not(.nz-open){display:none!important}
+.nz-app.nz-open{animation:nz-fade var(--slow) both}
+@keyframes nz-fade{from{opacity:0}to{opacity:1}}
+@keyframes nz-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes nz-pulse{50%{opacity:.35}}
+@keyframes nz-spin{to{transform:rotate(360deg)}}
+
+/* ═══════════════ BRAND ═══════════════ */
+/* The mark IS the window silhouette — the same chamfer at every scale. */
+.nz-mark{
+  position:relative;flex:none;display:block;width:30px;height:30px;
+  background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
+  border-radius:var(--r-sm);
+  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
+}
+.nz-mark::after{ /* inner cut — the negative space reads as a bar */
+  content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;
+  background:var(--void);opacity:.85;border-radius:1px;
+}
+.nz-mark.xl{width:64px;height:64px;border-radius:12px}
+.nz-mark.lg{width:46px;height:46px;border-radius:9px}
+.nz-mark.sm{width:22px;height:22px;border-radius:5px}
+.nz-mark.xs{width:14px;height:14px;border-radius:3px}
+.nz-mark.mono{background:var(--white)}
+
+/* signature — so every customer knows who made the script */
+.nz-sig{
+  display:inline-flex;align-items:center;gap:7px;line-height:1;
+  font-size:9.5px;font-weight:600;letter-spacing:.24em;color:var(--ink-3);
+}
+.nz-sig .nz-mark{opacity:.9}
+.nz-sig em{font-style:normal;font-weight:300;letter-spacing:.06em;color:var(--ink-3);opacity:.8}
+
+.nz-title{font-size:12.5px;font-weight:600;color:var(--white);letter-spacing:.055em;line-height:1}
+.nz-sub{font-size:10px;color:var(--ink-3);font-weight:300;letter-spacing:.055em;margin-top:5px;line-height:1}
+.nz-lockup{display:flex;align-items:center;gap:11px}
+.nz-ver{
+  font-size:9.5px;font-weight:500;color:var(--teal);line-height:1.4;
+  border:1px solid var(--teal-edge);background:var(--teal-wash);
+  padding:2px 6px;border-radius:var(--r-xs);letter-spacing:.02em;
+}
+
+/* the chamfer — bottom-right corner cut. Use .nz-cut on a solid box,
+   or .nz-frame > .nz-frame-in when the box needs a visible border. */
+.nz-cut{clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.nz-frame{
+  background:var(--line);padding:1px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+}
+.nz-frame-in{
+  position:relative;height:100%;overflow:hidden;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut) + 1px),calc(100% - var(--cut) + 1px) 100%,0 100%);
+}
+.nz-grain::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:80;opacity:.03;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.nz-rail{position:relative}
+.nz-rail::before{ /* teal top rail */
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;z-index:5;
+  background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0));
+}
+
+/* ═══════════════ COMPONENTS ═══════════════ */
+.nz-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;
+  height:32px;padding:0 15px;border-radius:var(--r-xs);
+  font-size:12px;font-weight:500;letter-spacing:.005em;
+  transition:filter var(--fast),transform var(--fast),background var(--fast),border-color var(--fast),color var(--fast);
+}
+.nz-btn .nz-ic{width:14px;height:14px}
+.nz-btn:active{transform:translateY(1px)}
+.nz-btn.sm{height:27px;padding:0 11px;font-size:11.5px}
+.nz-btn.lg{height:40px;padding:0 20px;font-size:13px}
+.nz-btn.block{width:100%}
+.nz-btn.teal{background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d;font-weight:600;
+  box-shadow:0 1px 0 rgba(255,255,255,.3) inset,var(--sh-1)}
+.nz-btn.teal:hover{filter:brightness(1.12)}
+.nz-btn.white{background:var(--white);color:#000;font-weight:600}
+.nz-btn.white:hover{filter:brightness(.9)}
+.nz-btn.line{border:1px solid var(--line);color:var(--ink-2);font-weight:300}
+.nz-btn.line:hover{border-color:var(--ink-3);color:var(--white)}
+.nz-btn.ghost{border:1px solid var(--line);color:var(--ink-2);font-weight:300}
+.nz-btn.ghost:hover{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash)}
+.nz-btn.red{border:1px solid rgba(229,72,77,.4);background:var(--red-wash);color:var(--red)}
+.nz-btn.red:hover{background:rgba(229,72,77,.2)}
+.nz-btn.close{height:27px;padding:0 17px;border-radius:999px;
+  background:linear-gradient(var(--red),var(--red-lo));color:var(--white);font-size:11.5px;font-weight:600;
+  box-shadow:0 1px 0 rgba(255,255,255,.28) inset,var(--sh-1)}
+.nz-btn.close:hover{filter:brightness(1.14)}
+.nz-btn.icon{width:32px;padding:0}
+.nz-btn.sm.icon{width:27px}
+.nz-btn:disabled{opacity:.4;pointer-events:none}
+
+.nz-key{
+  display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:16px;
+  padding:0 4px;border-radius:3px;background:var(--raise);border:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(0,0,0,.6);
+  font-size:9px;color:var(--ink-2);font-weight:500;line-height:1;
+}
+.nz-hints{display:flex;align-items:center;gap:16px;font-size:10px;color:var(--ink-3);font-weight:300;letter-spacing:.02em}
+.nz-hints > span{display:inline-flex;align-items:center;gap:6px}
+
+.nz-dot{display:inline-block;flex:none;width:6px;height:6px;border-radius:50%;background:var(--teal);
+  box-shadow:0 0 0 3px var(--teal-wash),0 0 8px var(--teal)}
+.nz-dot.red{background:var(--red);box-shadow:0 0 0 3px var(--red-wash),0 0 8px var(--red)}
+.nz-dot.amber{background:var(--amber);box-shadow:0 0 0 3px var(--amber-wash)}
+.nz-dot.off{background:var(--ink-3);box-shadow:none}
+
+.nz-tag{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;line-height:1.4;
+  padding:2px 9px;border-radius:999px;border:1px solid;white-space:nowrap}
+.nz-tag.live{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
+.nz-tag.hot{color:var(--red);border-color:var(--red-edge);background:var(--red-wash)}
+.nz-tag.warn{color:var(--amber);border-color:var(--amber-edge);background:var(--amber-wash)}
+.nz-tag.off{color:var(--ink-3);border-color:var(--line-soft);background:var(--raise)}
+
+.nz-chip{display:inline-flex;align-items:center;font-size:9.5px;font-weight:600;letter-spacing:.03em;line-height:1.4;
+  padding:2px 8px;border-radius:var(--r-xs);color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+.nz-chip.red{color:var(--red);background:var(--red-wash);border-color:var(--red-edge)}
+.nz-chip.white{color:var(--white);background:rgba(255,255,255,.07);border-color:var(--line)}
+
+.nz-av{width:34px;height:34px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;
+  background:var(--raise);border:1px solid var(--line);font-size:11px;font-weight:600;color:var(--ink-2)}
+
+.nz-tile{width:36px;height:36px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;
+  color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+.nz-tile .nz-ic{width:17px;height:17px}
+.nz-tile.red{color:var(--red);background:var(--red-wash);border-color:var(--red-edge)}
+.nz-tile.amber{color:var(--amber);background:var(--amber-wash);border-color:var(--amber-edge)}
+.nz-tile.mute{color:var(--ink-2);background:var(--raise);border-color:var(--line)}
+
+.nz-field{display:flex;flex-direction:column;gap:6px}
+.nz-field > label{font-size:11px;color:var(--ink-3);font-weight:300}
+.nz-input{height:34px;width:100%;padding:0 11px;background:var(--inset);
+  border:1px solid var(--line-soft);border-radius:var(--r-xs);color:var(--white);
+  font-family:inherit;font-size:12.5px;transition:border-color var(--fast),box-shadow var(--fast)}
+textarea.nz-input{height:auto;min-height:84px;padding:9px 11px;resize:none;line-height:1.55}
+.nz-input::placeholder{color:var(--ink-3)}
+.nz-input[type=number]{-moz-appearance:textfield}
+.nz-input::-webkit-inner-spin-button,.nz-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.nz-input:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
+select.nz-input{appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2363696d' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:13px;padding-right:30px}
+select.nz-input option{background:var(--panel)}
+
+.nz-sw{width:38px;height:21px;padding:2px;border-radius:999px;flex:none;display:flex;cursor:pointer;
+  background:var(--inset);border:1px solid var(--line-soft);transition:all var(--fast)}
+.nz-sw i{width:15px;height:15px;border-radius:50%;background:var(--ink-3);transition:all var(--fast)}
+.nz-sw.on{background:var(--teal-wash);border-color:var(--teal-edge);justify-content:flex-end}
+.nz-sw.on i{background:var(--teal);box-shadow:0 0 9px var(--teal)}
+
+.nz-meter{height:4px;border-radius:99px;background:var(--raise);overflow:hidden}
+.nz-meter > i{display:block;height:100%;width:var(--v,50%);border-radius:inherit;background:var(--teal);
+  transition:width var(--slow)}
+.nz-meter.red > i{background:var(--red)}
+.nz-meter.amber > i{background:var(--amber)}
+.nz-meter.white > i{background:var(--white)}
+
+.nz-toast{
+  position:relative;display:flex;gap:11px;align-items:flex-start;width:330px;padding:12px 14px;overflow:hidden;
+  background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--teal);
+  border-radius:var(--r-sm);box-shadow:var(--sh-2);
+}
+.nz-toast .nz-tile{width:26px;height:26px;border-radius:var(--r-xs)}
+.nz-toast .nz-tile .nz-ic{width:14px;height:14px}
+.nz-toast b{display:block;font-size:12.5px;font-weight:600;color:var(--white);margin-bottom:3px}
+.nz-toast p{font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.5}
+.nz-toast.err{border-left-color:var(--red)}
+.nz-toast.warn{border-left-color:var(--amber)}
+.nz-toast.info{border-left-color:var(--white)}
+
+.nz-empty{display:flex;flex-direction:column;align-items:center;gap:9px;padding:28px 16px;
+  text-align:center;border:1px dashed var(--line);border-radius:var(--r-sm)}
+.nz-empty .nz-ic{width:22px;height:22px;color:var(--ink-3)}
+.nz-empty b{font-size:12.5px;font-weight:500;color:var(--white)}
+.nz-empty span{font-size:11.5px;color:var(--ink-3);font-weight:300;max-width:34ch;line-height:1.5}
+
+.nz-scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.nz-scroll::-webkit-scrollbar{width:8px}
+.nz-scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+
+/* ═══════════════ BROWSER PREVIEW ONLY ═══════════════ */
+/* A stand-in for the game world so transparent themes read correctly.
+   Never shown in game: the core only injects it outside FiveM. */
+.nz-scene{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;
+  background:
+    radial-gradient(55% 30% at 28% 62%,rgba(255,146,72,.11),transparent 70%),
+    radial-gradient(40% 30% at 78% 60%,rgba(80,150,255,.14),transparent 70%),
+    linear-gradient(180deg,#121820 0%,#1d2530 38%,#33333a 58%,#141517 60%,#0b0c0d 100%)}
+.nz-scene::before{content:'';position:absolute;left:0;right:0;bottom:40%;height:24%;opacity:.7;filter:blur(1.5px);
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 300' preserveAspectRatio='none'%3E%3Cpath fill='%23171b21' d='M0 300V170h70v-50h55v70h45V80h80v110h35v-60h65v90h55V50h45V20h45v30h35v150h65v-80h55v50h80V30h90v170h45v-70h65v100h55V90h80v160h45v-50h65v70h55V110h70v110h55v-80h80v-60h55v190h45V160h90v140z'/%3E%3Cpath fill='%230f1215' d='M0 300V230h90v-40h60v60h80v-90h50v70h90v-50h70v80h60v-60h100v40h70v-110h60v120h90v-30h80v60h70v-90h60v70h90v-40h70v60h80v-70h60v80h80v-50h80v80z'/%3E%3C/svg%3E") bottom/100% 100% no-repeat}
+.nz-scene::after{content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(3px 3px at 12% 70%,rgba(255,190,120,.9),transparent),
+    radial-gradient(3px 3px at 31% 72%,rgba(255,190,120,.8),transparent),
+    radial-gradient(3px 3px at 52% 69%,rgba(255,210,150,.8),transparent),
+    radial-gradient(3px 3px at 71% 71%,rgba(160,200,255,.8),transparent),
+    radial-gradient(3px 3px at 89% 70%,rgba(255,190,120,.8),transparent),
+    radial-gradient(120% 90% at 50% 45%,transparent 55%,rgba(0,0,0,.65) 100%)}
+.nz-reopen{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999;
+  display:flex;flex-direction:column;align-items:center;gap:14px;animation:nz-fade var(--slow) both}
+.nz-reopen p{font-size:11px;color:var(--ink-3);font-weight:300;letter-spacing:.04em}

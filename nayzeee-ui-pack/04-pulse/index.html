@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE · 04 Pulse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="hud nz-app" id="app">
+
+  <div class="mapghost">MINIMAP</div>
+
+  <div class="status" id="status">
+    <div class="cap" data-k="health"><i data-ic="heart"></i><b>100</b></div>
+    <div class="cap armor" data-k="armor"><i data-ic="shield"></i><b>100</b></div>
+    <div class="cap food" data-k="hunger"><i data-ic="food"></i><b>100</b></div>
+    <div class="cap water" data-k="thirst"><i data-ic="drop"></i><b>100</b></div>
+    <div class="cap stamina" data-k="stamina"><i data-ic="bolt"></i><b>100</b></div>
+    <div class="cap stress" data-k="stress"><i data-ic="brain"></i><b>0</b></div>
+    <div class="voice" id="voice"><i data-ic="mic"></i><span class="lv"><i></i><i></i><i></i></span></div>
+  </div>
+
+  <div class="loc">
+    <div class="heading"><b id="dir">NW</b><span id="deg">315°</span></div>
+    <span class="sep"></span>
+    <div class="street"><b id="street">Vespucci Blvd</b><span id="zone">Del Perro · Los Santos</span></div>
+    <span class="sep"></span>
+    <div class="when"><b id="time">16:10</b><span id="day">Sunday</span></div>
+  </div>
+
+  <div class="wallet">
+    <div class="id"><span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span><span class="pid" id="pid">ID 12</span></div>
+    <div class="money" id="cash-row"><i data-ic="cash"></i><span id="cash">$0</span></div>
+    <div class="money bank" id="bank-row"><i data-ic="bank"></i><span id="bank">$0</span></div>
+    <div class="job"><span class="nz-dot"></span><span id="job"><b>EMS</b> · Paramedic</span></div>
+  </div>
+
+  <div class="speedo off" id="speedo">
+    <svg viewBox="0 0 250 230" id="dial"></svg>
+    <div class="readout"><div class="spd" id="spd">000</div><div class="unit" id="unit">MPH</div></div>
+    <div class="gear" id="gear">N</div>
+    <div class="gauges">
+      <div class="fuel"><i data-ic="fuel"></i><div class="segbar" id="fuel"></div></div>
+      <span class="ind" id="belt"><i data-ic="seat"></i></span>
+      <span class="ind" id="engine"><i data-ic="engine"></i></span>
+      <span class="ind" id="lights"><i data-ic="light"></i></span>
+    </div>
+  </div>
+</div>
+
+<script src="../core/nz-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

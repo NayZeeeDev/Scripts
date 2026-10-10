@@ -1,0 +1,77 @@
+/* ═══════════════════════════════════════════════════════════
+   02 · RAIL — keyboard side menu
+   For: garages, job actions, admin menus, any list-driven menu
+   Docked right, dense, built for arrow keys.
+   ═══════════════════════════════════════════════════════════ */
+.rail{
+  --cut:18px;
+  position:fixed;right:56px;top:50%;transform:translateY(-50%);
+  width:372px;border-radius:var(--r-md);
+  filter:drop-shadow(0 18px 40px rgba(0,0,0,.6));
+}
+.rail .nz-frame-in{background:var(--base);border-radius:calc(var(--r-md) - 1px);display:flex;flex-direction:column}
+
+/* ── head ── */
+.r-head{display:flex;align-items:center;gap:12px;padding:16px 16px 14px;
+  background:linear-gradient(var(--panel),var(--base));border-bottom:1px solid var(--line-soft)}
+.r-head .nz-lockup{flex:1;min-width:0}
+.r-count{font-size:10.5px;color:var(--ink-3);font-weight:500;letter-spacing:.04em}
+.r-count b{color:var(--white);font-weight:600}
+
+.r-crumb{display:flex;align-items:center;gap:6px;height:34px;padding:0 16px;
+  font-size:11px;color:var(--ink-3);font-weight:300;border-bottom:1px solid var(--line-hair);background:var(--inset)}
+.r-crumb .nz-ic{width:12px;height:12px;opacity:.6}
+.r-crumb b{color:var(--teal);font-weight:500}
+.r-crumb button{display:flex;align-items:center;gap:5px;color:var(--ink-2);margin-right:4px;
+  padding:3px 7px 3px 5px;border-radius:var(--r-xs);border:1px solid var(--line-soft);font-size:10.5px}
+.r-crumb button:hover{color:var(--white);border-color:var(--line)}
+
+/* ── list ── */
+.r-list{max-height:440px;padding:6px;display:flex;flex-direction:column;gap:2px}
+.it{
+  position:relative;display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:12px;
+  min-height:50px;padding:8px 12px 8px 10px;border-radius:var(--r-sm);text-align:left;width:100%;
+  color:var(--ink-2);transition:background var(--fast),color var(--fast);
+}
+.it .ico{width:30px;height:30px;border-radius:var(--r-xs);display:grid;place-items:center;
+  background:var(--raise);border:1px solid var(--line-soft);color:var(--ink-2);transition:all var(--fast)}
+.it .ico .nz-ic{width:15px;height:15px}
+.it .lbl{min-width:0}
+.it .lbl b{display:block;font-size:12.5px;font-weight:400;color:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .lbl span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .end{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)}
+.it .end .nz-ic{width:14px;height:14px}
+
+.it.on{background:linear-gradient(90deg,var(--teal-wash),rgba(8,175,162,.02));color:var(--white)}
+.it.on::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:2px;background:var(--teal);
+  border-radius:0 2px 2px 0;box-shadow:0 0 9px var(--teal)}
+.it.on .lbl b{font-weight:500}
+.it.on .ico{color:var(--teal);background:var(--teal-wash);border-color:var(--teal-edge)}
+.it.danger .ico{color:var(--red)}
+.it.danger.on{background:linear-gradient(90deg,var(--red-wash),rgba(229,72,77,.02))}
+.it.danger.on::before{background:var(--red);box-shadow:0 0 9px var(--red)}
+.it.danger.on .ico{color:var(--red);background:var(--red-wash);border-color:var(--red-edge)}
+.it.locked{opacity:.38}
+
+.price{font-weight:600;color:var(--white);font-size:12px}
+.pick{display:flex;align-items:center;gap:6px;color:var(--white);font-weight:500}
+.pick .nz-ic{color:var(--ink-3)}
+.it.on .pick .nz-ic{color:var(--teal)}
+.cnt{font-size:10px;color:var(--ink-2);background:var(--raise);border:1px solid var(--line-soft);
+  padding:1px 7px;border-radius:var(--r-xs)}
+
+/* ── detail ── */
+.r-detail{padding:14px 16px 16px;border-top:1px solid var(--line-soft);background:var(--panel);
+  display:flex;flex-direction:column;gap:11px}
+.r-detail:empty{display:none}
+.r-detail p{font-size:11.5px;line-height:1.55;color:var(--ink-2);font-weight:300}
+.stat-ln{display:grid;grid-template-columns:62px 1fr 34px;align-items:center;gap:10px;font-size:10.5px;color:var(--ink-3)}
+.stat-ln b{text-align:right;color:var(--white);font-weight:500}
+.plate{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;color:var(--ink-3)}
+.plate b{font-size:11px;letter-spacing:.14em;color:var(--white);font-weight:600;
+  background:var(--inset);border:1px solid var(--line);padding:3px 8px;border-radius:3px}
+
+/* ── foot ── */
+.r-foot{display:flex;align-items:center;gap:14px;height:34px;padding:0 30px 0 16px;
+  border-top:1px solid var(--line-soft);background:var(--inset)}
+.r-foot .nz-sig{margin-left:auto}
