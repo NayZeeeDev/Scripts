@@ -78,6 +78,7 @@ function StartPlacing(bagKey, access)
 
     FreezeEntityPosition(ghost, true)
     SetEntityAlpha(ghost, 200, false)
+    SetEntityVisible(ghost, false, false) -- shown once the first raycast lands
 
     local centre, mn = Util.modelCentre(hash)
     local cx, cy, minZ = centre.x, centre.y, mn.z
@@ -142,6 +143,7 @@ function StartPlacing(bagKey, access)
                 local ox, oy, oz = originFor(hx, hy, hz, heading, cx, cy, minZ)
                 SetEntityCoordsNoOffset(ghost, ox, oy, oz, false, false, false)
                 SetEntityHeading(ghost, heading)
+                if not IsEntityVisible(ghost) then SetEntityVisible(ghost, true, false) end
             end
 
             if valid ~= shownValid then

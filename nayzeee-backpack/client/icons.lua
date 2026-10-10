@@ -59,11 +59,18 @@ local function placeProp()
     SetEntityRotation(prop, 0.0, 0.0, 0.0, 2, false)
 end
 
+local session = 0 -- bumped on stop, so a model that finishes loading late is thrown away
+
 local function spawnProp(k, v)
     Util.delete(prop)
     prop = nil
+    local mine = session
     local entity, hash = Util.spawnBag(k, v, stage())
     if not entity then return false end
+    if mine ~= session then
+        Util.delete(entity)
+        return false
+    end
     FreezeEntityPosition(entity, true)
     SetEntityLodDist(entity, 1000)
     prop, key, variant = entity, k, v
@@ -160,6 +167,7 @@ end
 function Icons.stop()
     if not active then return end
     active = false
+    session = session + 1
     batch, waiting = nil, nil
     Util.delete(prop)
     prop = nil
@@ -228,6 +236,7 @@ local function captureOne(k, v)
     if not spawnProp(k, v) then return false end
     updateCam()
     Wait(cfg.textureWait or 700)
+    if not active then return false end
     local name = filenameFor(k, v)
     if not shoot(name) then return false end
     awaitSaved(name)
