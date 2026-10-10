@@ -26,7 +26,7 @@ for _, f in ipairs({
     'shared/utils.lua', 'shared/mixing.lua', 'shared/grow.lua',
     'config/server.lua', 'bridge/framework/server.lua', 'bridge/inventory/server.lua', 'bridge/dispatch/server.lua',
     'server/guard.lua', 'server/db.lua', 'server/profile.lua', 'server/products.lua', 'server/story.lua',
-    'server/labs.lua', 'server/stations.lua', 'server/shop.lua', 'server/admin.lua', 'server/main.lua',
+    'server/labs.lua', 'server/stations.lua', 'server/shop.lua', 'server/selling.lua', 'server/admin.lua', 'server/main.lua',
 }) do load(f) end
 
 --[[ fake framework money + metadata inventory ]]
@@ -280,7 +280,7 @@ local okp, done = call('nzwl:st:finish', { done = 3 })
 ok(okp and done == 3, 'only the 3 that went in the hatch are paid')
 ok(Inv.count(A, 'nzw_baggie') == 3 and Inv.count(A, 'nzw_weed') == buds - 3 and Inv.count(A, 'nzw_baggie_empty') == 17, 'inventory adds up')
 ok(metaOf(A, 'nzw_baggie').units == 1 and metaOf(A, 'nzw_baggie').pid == 'ogkush', 'baggie metadata')
-ok(stage() == 'done', 'story done after the first package')
+ok(stage() == 'sell', 'next: sell it')
 ok(call('nzwl:st:claim', 'pack', pack, { pid = 'ogkush', q = 2, kind = 'baggie', n = 1 }), 'claim')
 S.advance(4000)
 ok(not call('nzwl:st:finish', { done = 0 }), 'nothing packed = nothing paid')
@@ -381,6 +381,48 @@ ok(grow == 5, 'the warehouse fits more than the RV')
 ok(Utils.count(P().labs.rv.objects) > 0, 'the RV keeps its own equipment')
 S.move(B, vec3(sc.origin.x, sc.origin.y, sc.origin.z + 1.0))
 ok(not S.call(B, 'nzwl:lab:place', 'nzw_pot', 0.0, 2.0, 0.0, 0.0), 'someone who isn\'t inside their lab can\'t place')
+
+--[[ ─────────────────────────────── selling ─────────────────────────────── ]]
+section('selling')
+local C = Config.Selling.corner
+call('nzwl:lab:exit')
+local street = vec3(200.0, -900.0, 30.0)
+S.move(A, street)
+local guy = S.npc(vec3(street.x + 1.0, street.y, street.z))
+local far = S.npc(vec3(street.x + 30.0, street.y, street.z))
+ok(not call('nzwl:sell:offer', far), 'can\'t sell to someone across the street')
+S.advance(C.cooldown * 1000)
+ok(not call('nzwl:sell:offer', NetworkGetNetworkIdFromEntity(GetPlayerPed(B))), 'can\'t sell to another player')
+S.advance(C.cooldown * 1000)
+local acc = C.accept
+C.accept = { base = 1, perQuality = 0, min = 1, max = 1 }
+local cash0, bags0 = money[A].cash, Inv.count(A, 'nzw_baggie') + Inv.count(A, 'nzw_jar')
+local oks, sale = call('nzwl:sell:offer', guy)
+ok(oks and sale.accepted and sale.price > 0, 'sold to a local for $' .. tostring(sale and sale.price))
+ok(money[A].cash == cash0 + sale.price, 'paid in cash')
+ok(Inv.count(A, 'nzw_baggie') + Inv.count(A, 'nzw_jar') == bags0 - sale.n, 'the product is gone')
+ok(stage() == 'done', 'story done after the first sale')
+local again, why = call('nzwl:sell:offer', guy)
+ok(not again, 'no second offer straight away')
+S.advance(C.cooldown * 1000)
+again, why = call('nzwl:sell:offer', guy)
+ok(not again and why and why:find('already'), 'the same person won\'t buy again for a while')
+C.accept = { base = 0, perQuality = 0, min = 0, max = 0 }
+S.advance(C.cooldown * 1000)
+local okr, refused = call('nzwl:sell:offer', S.npc(vec3(street.x, street.y + 1.0, street.z)))
+ok(okr and refused.accepted == false, 'people can say no')
+C.accept = acc
+
+section('brick buyer')
+local BB = Config.Selling.bulk
+ok(not call('nzwl:bulk:open'), 'the buyer is only at his spot')
+S.move(A, BB.ped)
+local bulk = call('nzwl:bulk:open')
+ok(bulk and #bulk.bricks == 1 and bulk.left == BB.perDay, 'he sees the brick')
+local cash1 = money[A].cash
+local okb3, resb = call('nzwl:bulk:sell', bulk.bricks[1].slot, 1)
+ok(okb3 and resb.total == bulk.bricks[1].price and money[A].cash == cash1 + resb.total, 'brick sold for $' .. tostring(resb and resb.total))
+ok(Inv.count(A, 'nzw_brick') == 0 and resb.panel.left == BB.perDay - 1, 'brick gone, daily limit counts down')
 
 --[[ ─────────────────────────────── save ─────────────────────────────── ]]
 section('saving')

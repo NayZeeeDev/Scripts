@@ -58,6 +58,7 @@
         } }),
         labs: () => { show.tablet(); },
         unlocks: () => { show.tablet(); setTimeout(() => document.querySelector('[data-tab="unlocks"]').click(), 50); },
+        bulk: () => send('panel', { type: 'bulk', data: { left: 7, perDay: 10, bricks: [{ slot: 4, n: 3, pid: 'ogkush', q: 3, units: 20, name: 'OG Kush', bud: 'green', price: 1326 }, { slot: 9, n: 1, pid: 'mx1', q: 2, units: 20, name: 'Blue Cheese Kush', bud: 'lime', price: 1037 }] } }),
         levelup: () => send('levelup', { level: 6, title: 'Grower', unlocks: ['Small Warehouse', 'Premium Potting Soil'] }),
     };
     const go = () => {

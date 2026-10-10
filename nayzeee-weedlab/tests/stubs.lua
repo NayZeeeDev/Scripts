@@ -177,6 +177,18 @@ function SetEntityOrphanMode() end
 function GetVehicleEngineHealth(e) return S.entities[e] and S.entities[e].health or -4000.0 end
 function SetPlayerRoutingBucket(src, b) S.buckets[src] = b end
 
+function GetEntityType(e)
+    local x = S.entities[e]
+    if not x then for _, p in pairs(S.peds) do if p == e then return 1 end end return 0 end
+    return (x.kind == 'ped' or x.kind == 'npc') and 1 or (x.kind == 'veh' and 2 or 3)
+end
+function IsPedAPlayer(e) for _, p in pairs(S.peds) do if p == e then return true end end return false end
+--- an ambient person on the street; returns its net id
+function S.npc(pos)
+    local e = newEnt('npc', pos.x, pos.y, pos.z)
+    return NetworkGetNetworkIdFromEntity(e)
+end
+
 function S.join(src, pos)
     S.peds[src] = newEnt('ped', 0, 0, 0)
     S.pos[src] = pos or vec3(0, 0, 0)

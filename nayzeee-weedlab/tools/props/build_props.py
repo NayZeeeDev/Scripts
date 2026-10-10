@@ -69,6 +69,7 @@ MAT = {
     "bud_purple":  ("normal_spec.sps", "nzw_bud_purple", dict(spec=0.5, falloff=20, bump=1.2)),
     "bud_lime":    ("normal_spec.sps", "nzw_bud_lime", dict(spec=0.5, falloff=20, bump=1.2)),
     "bud_golden":  ("normal_spec.sps", "nzw_bud_golden", dict(spec=0.5, falloff=20, bump=1.2)),
+    "bud_red":     ("normal_spec.sps", "nzw_bud_red", dict(spec=0.5, falloff=20, bump=1.2)),
     "leaf":        ("normal_spec.sps", "nzw_leaf", dict(spec=0.25, falloff=15, bump=0.8)),
     "compressed":  ("normal_spec.sps", "nzw_compressed", dict(spec=0.3, falloff=15, bump=1.0)),
     "seed":        ("normal_spec.sps", "nzw_seed", dict(spec=0.4, falloff=30, bump=0.6)),
@@ -505,8 +506,8 @@ def grow_tent():
 
 
 # ── suspension rack ─────────────────────────────────────────────
-RACK_W, RACK_D, RACK_H = 0.78, 0.36, 2.25
-RACK_HANG = (0.0, 0.0, 1.86)   # where a light's hook goes (light origin)
+RACK_W, RACK_D, RACK_H = 0.78, 0.36, 2.3
+RACK_HANG = (0.0, 0.0, 2.2)    # highest point a light's hook can go (the script raises lights as plants grow)
 
 
 def suspension_rack():
@@ -527,11 +528,10 @@ def suspension_rack():
     # top crossbar + a second rail for ratchet hangers
     m.beam((-W - 0.04, 0, H - 0.02), (W + 0.04, 0, H - 0.02), 0.05, 0.05, "galv")
     m.beam((-W + 0.05, 0, H - 0.09), (W - 0.05, 0, H - 0.09), 0.03, 0.03, "black")
-    # ratchet hangers down to the light hook
-    for x in (-0.18, 0.18):
-        m.rod((x, 0, H - 0.1), (x * 0.35, 0, RACK_HANG[2] + 0.06), 0.0025, "black", 6)
-        m.box((x * 0.6 - 0.012, -0.008, RACK_HANG[2] + 0.14), (x * 0.6 + 0.012, 0.008, RACK_HANG[2] + 0.2), "black", 0.003)
-    m.torus((0, 0, RACK_HANG[2] + 0.05), 0.02, 0.003, "chrome", 16, 6, axis="y")
+    # two ratchet hangers on the rail: the script draws their wires down to the light
+    for x in (-0.11, 0.11):
+        m.box((x - 0.014, -0.01, H - 0.2), (x + 0.014, 0.01, H - 0.105), "black", 0.003)
+        m.torus((x, 0, H - 0.105), 0.008, 0.0025, "chrome", 12, 6, axis="y")
     boxes = []
     for sx in (-1, 1):
         boxes.append(((sx * W - 0.03, -D, 0), (sx * W + 0.03, D, H)))
@@ -1048,7 +1048,7 @@ jar_lid()
 baggie("nzw_baggie", True)
 baggie("nzw_baggie_sealed", False)
 brick()
-for color, seed in (("green", 1), ("purple", 2), ("lime", 3), ("golden", 4)):
+for color, seed in (("green", 1), ("purple", 2), ("lime", 3), ("golden", 4), ("red", 5)):
     bud("nzw_bud_" + color, "bud_" + color, seed)
 bottle_speed()
 bottle_pgr()

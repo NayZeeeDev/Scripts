@@ -5,7 +5,7 @@ use_experimental_fxv2_oal 'yes'
 
 name 'nayzeee-weedlab'
 author 'nayzeee'
-version '0.1.0'
+version '0.2.0'
 description 'nayzeee weed lab - Schedule I inspired weed production: Uncle Benson, the Ballas RV, first person growing, packaging, drying, mixing, brick press, levels and three lab tiers'
 
 ui_page 'web/index.html'
@@ -35,6 +35,7 @@ server_scripts {
     'server/labs.lua',
     'server/stations.lua',
     'server/shop.lua',
+    'server/selling.lua',
     'server/admin.lua',
     'server/main.lua',
 }
@@ -54,6 +55,7 @@ client_scripts {
     'client/packaging.lua',
     'client/processing.lua',
     'client/shop.lua',
+    'client/selling.lua',
     'client/main.lua',
 }
 
@@ -69,6 +71,9 @@ files {
 
 -- custom props: stream/*.ydr + the shared texture dictionary stream/nzw_weedlab.ytd
 data_file 'DLC_ITYP_REQUEST' 'stream/nzw_weedlab.ytyp'
+
+-- the strain plants come from the nextgen_weedprops pack: ensure it before this resource
+-- (without it the base-game weed plants are used)
 
 dependencies {
     '/onesync',

@@ -49,42 +49,73 @@ local function worldPos(d) return Util.rel(Labs.origin, d) end
 
 local function strainCfg(st) return Config.Strains[st.strain or ''] end
 
-local function plantModel(st)
-    local stage = Grow.stage(st)
-    if stage == 0 then return nil end
-    local s = strainCfg(st)
-    local list = s and s.plant or Config.Strains.ogkush.plant
-    return list[math.min(stage, 3)]
+--- a strain's growth steps: the nextgen pack if it's streamed, otherwise the base-game plants
+local sets = {}
+local function plantSet(strain)
+    if sets[strain] then return sets[strain] end
+    local s = Config.Strains[strain]
+    local list = Config.PlantModels(strain)
+    local streamed = true
+    for _, m in ipairs(list) do
+        if not IsModelInCdimage(joaat(m)) then streamed = false break end
+    end
+    local set
+    if streamed then
+        set = { models = list, pot = (s and s.plant) and s.plantPot == true or (not (s and s.plant) and Config.Plants.includesPot), scale = 1.0 }
+    else
+        print(('^3[%s] plants for %s are not streamed (is nextgen_weedprops started?), using base-game plants^7'):format(RES, tostring(strain)))
+        set = { models = Config.Plants.fallback, pot = false, scale = Config.Plants.fallbackScale, grows = true }
+    end
+    sets[strain] = set
+    return set
 end
 
-local function plantScaleOf(o, st)
-    local c = cfgOf(o)
-    -- sprouts start small and fill out as they grow
+--- which growth step to show (the last one = ready to harvest)
+local function plantStep(st, set)
+    if not st.seed then return nil end
+    local n = #set.models
+    local g = st.growth or 0
+    if g >= 1.0 then return n end
+    return math.min(n - 1, math.floor(g * (n - 1)) + 1)
+end
+
+local function plantScaleOf(o, st, set)
+    local base = (cfgOf(o).plantScale or 1.0) * set.scale
+    if not set.grows then return base end
+    -- 3-step fallback plants also fill out a little as they grow
     local g = Utils.clamp(st.growth or 0, 0, 1)
-    return (c.plantScale or 1.0) * (0.75 + 0.25 * math.min(1.0, g / 0.67))
+    return base * (0.75 + 0.25 * math.min(1.0, g / 0.67))
 end
 
 local function refreshGrow(o)
     local d, c = o.data, cfgOf(o)
     local st = view(o)
     local base = worldPos(d)
-    -- soil surface
-    local wantSoil = (st.soil or 0) > 0
+    local set = st.seed and plantSet(st.strain) or nil
+    local step = set and plantStep(st, set)
+    local want = step and set.models[step] or nil
+    local ownPot = want ~= nil and set.pot
+    -- soil surface (hidden once a plant with its own pot + gravel stands there)
+    local wantSoil = (st.soil or 0) > 0 and not ownPot
     if wantSoil and not o.soil then
         o.soil = Util.prop(Config.Props.soil, base + vec3(0.0, 0.0, c.soilZ), d.h, { noCollision = true, fallback = false })
     elseif not wantSoil and o.soil then
         Util.delete(o.soil) o.soil = nil
     end
-    -- plant by stage
-    local want = plantModel(st)
-    local scale = plantScaleOf(o, st)
+    if c.hidePot and o.ent then
+        local hide = ownPot == true
+        if o.potHidden ~= hide then
+            SetEntityVisible(o.ent, not hide, false)
+            o.potHidden = hide
+        end
+    end
+    -- the plant
+    local scale = set and plantScaleOf(o, st, set) or 1.0
     if o.plantModel ~= want then
         Util.delete(o.plant)
-        o.plant = nil
+        o.plant, o.plantTop = nil, nil
         if want then
-            local s = strainCfg(st)
-            local z = c.plantZ + (s and s.plantOffset or Config.PlantOffset)
-            o.plantPos = base + vec3(0.0, 0.0, z)
+            o.plantPos = base + vec3(0.0, 0.0, set.pot and c.plantZ or c.soilZ + 0.02)
             o.plant = Util.prop(want, o.plantPos, d.h, { noCollision = true, fallback = false, scale = scale })
         end
         o.plantModel, o.plantScale = want, scale
@@ -92,6 +123,27 @@ local function refreshGrow(o)
         Util.transform(o.plant, o.plantPos, d.h, scale)
         o.plantScale = scale
     end
+    if o.plant then
+        local _, mx = GetModelDimensions(GetEntityModel(o.plant))
+        o.plantTop = o.plantPos.z + mx.z * (o.plantScale or 1.0)
+    end
+end
+
+--- the light rides on the rack's ratchet hangers: just above the tallest plant under it
+local function lightHook(o)
+    local r, area = E.rack, E.rack.area
+    local l = LIGHTS[o.data.st.light]
+    local origin = worldPos(o.data)
+    local tallest
+    for _, x in pairs(objs) do
+        if x.plantTop then
+            local lx, ly = Utils.rotate(x.data.x - o.data.x, x.data.y - o.data.y, -(o.data.h or 0.0))
+            if math.abs(lx) <= area.x and math.abs(ly) <= area.y then tallest = math.max(tallest or 0, x.plantTop) end
+        end
+    end
+    local z = r.hangMin
+    if tallest then z = (tallest - origin.z) + 0.06 + (l.drop or 0.4) end
+    return Utils.clamp(z, r.hangMin, r.hang.z)
 end
 
 local function refreshRack(o)
@@ -99,12 +151,19 @@ local function refreshRack(o)
     local want = d.st.light and LIGHTS[d.st.light].model or nil
     if o.lightModel ~= want then
         Util.delete(o.light)
-        o.light = nil
+        o.light, o.hookZ = nil, nil
         if want then
-            local h = E.rack.hang
-            o.light = Util.prop(want, Util.off(o.ent, h), d.h, { noCollision = true, fallback = 'prop_worklight_03b' })
+            o.light = Util.prop(want, Util.off(o.ent, E.rack.hang), d.h, { noCollision = true, fallback = 'prop_worklight_03b' })
         end
         o.lightModel = want
+    end
+    if o.light then
+        local z = lightHook(o)
+        if not o.hookZ or math.abs(o.hookZ - z) > 0.01 then
+            o.hookZ = z
+            local p = Util.off(o.ent, vec3(0.0, 0.0, z))
+            SetEntityCoordsNoOffset(o.light, p.x, p.y, p.z, false, false, false)
+        end
     end
 end
 
@@ -238,6 +297,11 @@ local function drawLights()
         local d = o.data
         if d.type == 'rack' and d.st.light and o.light then
             local l = LIGHTS[d.st.light]
+            local hook = GetEntityCoords(o.light)
+            for _, r in ipairs(E.rack.ratchets) do
+                local q = Util.off(o.ent, r)
+                DrawLine(hook.x, hook.y, hook.z, q.x, q.y, q.z, 30, 30, 32, 255)
+            end
             local p = Util.off(o.light, l.glow)
             DrawLightWithRange(p.x, p.y, p.z - 0.1, l.color[1], l.color[2], l.color[3], l.range, l.intensity)
             DrawSpotLight(p.x, p.y, p.z, 0.0, 0.0, -1.0, l.color[1], l.color[2], l.color[3], 3.5, l.intensity * 1.5, 0.0, 70.0, 1.0)
@@ -263,6 +327,7 @@ local function startLoop()
             if GetGameTimer() - lastVisual > 4000 then
                 lastVisual = GetGameTimer()
                 for _, o in pairs(objs) do if isGrow(o) then refreshGrow(o) end end
+                for _, o in pairs(objs) do if o.data.type == 'rack' then refreshRack(o) end end
             end
             Wait(0)
         end
@@ -319,7 +384,15 @@ local run = Stations.run
 -- pots + tents: camera on the pot, A / D spins the plant
 local function potCfg(o)
     local c = cfgOf(o)
-    return { cam = c.cam, top = c.soilZ + 0.03 }
+    local top = c.soilZ + 0.03
+    if o.plant and o.plantTop and o.data.type == 'pot' then
+        -- frame the whole plant: back off and up as it gets taller
+        local h = o.plantTop - worldPos(o.data).z
+        if h > 0.9 then
+            return { top = top, cam = { offset = vec3(0.0, -(0.55 + h * 0.6), 0.45 + h * 0.55), look = vec3(0.0, 0.0, h * 0.55), fov = 52 } }
+        end
+    end
+    return { cam = c.cam, top = top }
 end
 
 local function potSpin(o)
@@ -333,8 +406,9 @@ end
 local function plantCtx(o, st)
     local ctx = {}
     if o.plant then
-        local _, mx = GetModelDimensions(GetEntityModel(o.plant))
+        local mn, mx = GetModelDimensions(GetEntityModel(o.plant))
         ctx.plantHeight = mx.z * (o.plantScale or 1.0)
+        ctx.plantRadius = math.min(mx.x - mn.x, mx.y - mn.y) * 0.5 * (o.plantScale or 1.0)
         ctx.plantBase = o.plantPos
         ctx.plantScale = o.plantScale
     end
@@ -482,6 +556,8 @@ function Stations.load(list, serverNow)
     Stations.unload()
     skew = (serverNow or Utils.now()) - Utils.now()
     for _, d in pairs(list) do spawnObj(d) end
+    -- lights take their height from the plants, which are all up now
+    for _, o in pairs(objs) do if o.data.type == 'rack' then refreshRack(o) end end
     startLoop()
 end
 
@@ -507,7 +583,10 @@ RegisterNetEvent('nzwl:lab:obj', function(d, removed, serverNow)
         spawnObj(d)
     end
     -- a light changed: every pot's boost may have too
-    if d.type == 'rack' then for _, x in pairs(objs) do if isGrow(x) then refreshGrow(x) end end end
+    if d.type == 'rack' or E[d.type].grow then
+        for _, x in pairs(objs) do if isGrow(x) then refreshGrow(x) end end
+        for _, x in pairs(objs) do if x.data.type == 'rack' then refreshRack(x) end end
+    end
 end)
 
 RegisterNetEvent('nzwl:water', function(w)

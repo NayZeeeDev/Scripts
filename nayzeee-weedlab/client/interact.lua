@@ -363,7 +363,9 @@ local function budLayout(S, n)
         local t = (i - 0.5) / n
         local a = (i * 2.39996 + rs * 0.37) % (math.pi * 2)
         local z = h * (0.42 + t * 0.52)
-        local r = (0.06 + 0.12 * (1.0 - t)) * (S.ctx.plantScale or 1.0) + 0.02
+        -- out on the branches: wide at the bottom, the cola on top
+        local R = S.ctx.plantRadius or 0.25
+        local r = math.max(0.03, R * (0.75 - 0.6 * t))
         list[i] = { a = a, r = r, z = z }
     end
     return list

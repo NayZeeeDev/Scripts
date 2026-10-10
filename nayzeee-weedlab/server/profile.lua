@@ -124,6 +124,10 @@ local OBJECTIVES = {
     hardware = function() return { title = 'Gear up', text = 'Buy pots, soil, a watering can, trimmers and a packaging station at a hardware store.' } end,
     setup = function() return { title = 'Start growing', text = 'Go in the RV: place a pot, add soil, plant a seed and water it. Then harvest it.' } end,
     pack = function() return { title = 'Package it', text = 'Bag your harvest at the packaging station.' } end,
+    sell = function()
+        local key = Config.Selling.corner.key
+        return { title = 'Sell it', text = ('Press %s (/%s) and offer your baggies to people on the street.'):format(key or '', Config.Selling.corner.command) }
+    end,
 }
 
 function Profile.objective(P)

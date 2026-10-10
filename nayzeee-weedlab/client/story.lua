@@ -41,6 +41,8 @@ local TIPS = {
     "A grow tent is fast, but the plants come out small.",
     "Mix your product with the right stuff and it sells for a lot more.",
     "You start in the RV. Prove yourself and you'll outgrow it. Warehouses come later.",
+    "Nobody pays top dollar for trash. Better quality, more buyers, better prices.",
+    "Press it into bricks and Leon down at the docks buys them by the stack. He doesn't deal with beginners.",
 }
 
 local benson = { ped = nil, chair = nil, target = nil, point = nil, spot = nil }

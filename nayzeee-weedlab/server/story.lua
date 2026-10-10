@@ -2,7 +2,7 @@
     Story: find Uncle Benson -> steal the RV from the Ballas -> lose them -> collect the seeds
     from a dead drop -> gear up at a hardware store -> first harvest -> first package.
 
-    stage: none -> steal -> escape -> deaddrop -> hardware -> setup -> pack -> done
+    stage: none -> steal -> escape -> deaddrop -> hardware -> setup -> pack -> sell -> done
 ]]
 
 Story = {}
@@ -181,7 +181,8 @@ end)
 local NEXT = {
     buy = { from = 'hardware', to = 'setup', lines = { "Good. Get in the RV and set up. Pot, soil, seed, water. Don't drown it." } },
     harvest = { from = 'setup', to = 'pack', lines = { "Smells like money. Bag it up at the packaging station." } },
-    pack = { from = 'pack', to = 'done', lines = { "That's a real product now. Keep growing, keep learning. Bigger places come with time." } },
+    pack = { from = 'pack', to = 'sell', lines = { "That's a real product now. Go sell it. Walk up to people on the street, they'll tell you if they want it." } },
+    sell = { from = 'sell', to = 'done', lines = { "First money. Keep growing, keep learning. Bigger places come with time." } },
 }
 
 function Story.progress(src, event)

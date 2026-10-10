@@ -12,14 +12,18 @@ Config.Equipment = {
     pot = {
         item = 'nzw_pot', label = 'Plastic Pot', model = 'nzw_pot', fallback = 'bkr_prop_weed_bucket_01a', level = 0, icon = 'pot',
         grow = true, footprint = 0.36,
-        soilZ = 0.26, plantZ = 0.285, plantScale = 0.82, top = 0.32,
+        soilZ = 0.26, top = 0.32,
+        -- strain plants: their own pot (0.6 x 0.47 m) takes this pot's place
+        plantZ = 0.0, plantScale = 0.6, hidePot = true,
         cam = { offset = vec3(0.0, -0.95, 1.05), look = vec3(0.0, 0.0, 0.45), fov = 48 },
     },
     tent = {
         -- small grow tent with a built-in light and pot: faster but smaller plants
         item = 'nzw_growtent', label = 'Grow Tent', model = 'nzw_growtent', fallback = 'prop_cs_cardbox_01', level = 3, icon = 'tent',
         grow = true, footprint = 0.9, boost = 1.35, yieldMult = 0.75,
-        soilZ = 0.23, plantZ = 0.255, plantScale = 0.62, top = 0.3,
+        soilZ = 0.23, top = 0.3,
+        -- strain plants stand inside the tent's fabric pot (their pot hides below its rim)
+        plantZ = 0.04, plantScale = 0.48,
         light = { offset = vec3(0.0, 0.0, 1.42), color = { 255, 238, 214 }, range = 2.2, intensity = 4.0 },
         cam = { offset = vec3(0.0, -0.98, 1.05), look = vec3(0.0, 0.0, 0.5), fov = 50 },
     },
@@ -27,7 +31,11 @@ Config.Equipment = {
         -- grow lights hang from this. Pots under it get the light's growth boost
         item = 'nzw_rack', label = 'Suspension Rack', model = 'nzw_suspension_rack', fallback = 'prop_worklight_03b', level = 1, icon = 'rack',
         overlap = true, footprint = 0.3,
-        hang = vec3(0.0, 0.0, 1.86),
+        -- the light rides on two ratchet hangers: it hangs just above the tallest plant under it,
+        -- between hangMin and hang (the light's hook height, relative to the rack)
+        hang = vec3(0.0, 0.0, 2.2),
+        hangMin = 1.3,
+        ratchets = { vec3(-0.11, 0.0, 2.19), vec3(0.11, 0.0, 2.19) },
         area = { x = 0.85, y = 0.62 },        -- light covers this half-size box under the rack
         top = 2.3,
     },
@@ -89,17 +97,17 @@ Config.FallbackModel = 'prop_cs_cardbox_01'
 --[[ grow lights: hung on a suspension rack. boost = growth speed multiplier ]]
 Config.Lights = {
     halogen  = { item = 'nzw_light_halogen',  label = 'Halogen Grow Light',       model = 'nzw_light_halogen',  level = 1,  boost = 1.25,
-                 color = { 255, 196, 120 }, range = 3.2, intensity = 7.0, glow = vec3(0.0, 0.0, -0.46) },
+                 color = { 255, 196, 120 }, range = 3.2, intensity = 7.0, glow = vec3(0.0, 0.0, -0.46), drop = 0.5 },
     led      = { item = 'nzw_light_led',      label = 'LED Grow Light',           model = 'nzw_light_led',      level = 5,  boost = 1.25 * 1.15,
-                 color = { 196, 70, 255 }, range = 3.2, intensity = 8.0, glow = vec3(0.0, 0.0, -0.42) },
+                 color = { 196, 70, 255 }, range = 3.2, intensity = 8.0, glow = vec3(0.0, 0.0, -0.42), drop = 0.41 },
     fullspec = { item = 'nzw_light_fullspec', label = 'Full Spectrum Grow Light', model = 'nzw_light_fullspec', level = 11, boost = 1.25 * 1.30,
-                 color = { 255, 246, 232 }, range = 3.4, intensity = 9.0, glow = vec3(0.0, 0.0, -0.36) },
+                 color = { 255, 246, 232 }, range = 3.4, intensity = 9.0, glow = vec3(0.0, 0.0, -0.36), drop = 0.36 },
 }
 
 --[[ props used while things grow / get packed ]]
 Config.Props = {
     soil = 'nzw_soil',                                        -- soil surface spawned into pots
-    bud = { green = 'nzw_bud_green', purple = 'nzw_bud_purple', lime = 'nzw_bud_lime', golden = 'nzw_bud_golden' },
+    bud = { green = 'nzw_bud_green', purple = 'nzw_bud_purple', lime = 'nzw_bud_lime', golden = 'nzw_bud_golden', red = 'nzw_bud_red' },
     budFallback = 'bkr_prop_weed_bud_02b',
     baggie = 'nzw_baggie', baggieSealed = 'nzw_baggie_sealed', baggieFallback = 'prop_meth_bag_01',
     jar = 'nzw_jar', jarLid = 'nzw_jar_lid', jarFallback = 'prop_cs_script_bottle_01',

@@ -263,11 +263,11 @@ place("nzw_brickpress_lever", (0.36, -0.05, 0.98), (-18, 0, 0))
 shoot(os.path.join(OUT, "nzw_brickpress.png"), ["nzw_brickpress", "nzw_brickpress_plate", "nzw_brickpress_lever"])
 
 # product: bud per strain colour, a sealed baggie with a bud, a jar with buds + lid
-for color in ("green", "purple", "lime", "golden"):
+for color in ("green", "purple", "lime", "golden", "red"):
     place("nzw_bud_" + color)
     shoot(os.path.join(OUT, "nzw_bud_" + color + ".png"), ["nzw_bud_" + color], pitch=12)
 
-for color in ("green", "purple", "lime", "golden"):
+for color in ("green", "purple", "lime", "golden", "red"):
     place("nzw_baggie_sealed")
     place("nzw_bud_" + color, (-0.024, 0.0, 0.032), (0, 90, 0))
     shoot(os.path.join(OUT, "nzw_baggie_" + color + ".png"), ["nzw_baggie_sealed", "nzw_bud_" + color], pitch=10, yaw=-20)

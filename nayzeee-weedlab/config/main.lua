@@ -67,10 +67,10 @@ Config.Benson = {
 Config.Story = {
     rv = {
         model = 'journey',
-        spots = {       -- rough (Ballas turf)
-            { vehicle = vec4(-14.50, -1824.00, 25.60, 230.0), label = 'Davis, Carson Ave' },
-            { vehicle = vec4(255.00, -1857.00, 26.80, 50.0),  label = 'Davis, Brouge Ave' },
-            { vehicle = vec4(482.00, -1780.00, 28.50, 270.0), label = 'Rancho, Jamestown St' },
+        spots = {       -- placeholders around Grove Street, set the real ones when testing
+            { vehicle = vec4(105.86, -1939.92, 20.80, 50.0),  label = 'Grove Street' },
+            { vehicle = vec4(86.40, -1966.20, 20.75, 320.0),  label = 'Grove Street, by the courts' },
+            { vehicle = vec4(127.60, -1929.40, 20.65, 120.0), label = 'Grove Street, east end' },
         },
         -- guard positions relative to the RV (x right, y forward, heading relative)
         guards = {
@@ -244,6 +244,44 @@ Config.Levels = {
         mix = 60,              -- new product discovered
         mixUnit = 1,           -- per unit mixed
         brick = 45,            -- per brick pressed
+    },
+}
+
+--[[ ─────────────────────────────── SELLING ───────────────────────────────
+    Corner sales: /sellweed (or the key) turns selling on. Walk up to people on the street
+    and offer them baggies or jars. Price = product value x quality x a little haggling.
+    Bulk: a buyer takes pressed bricks (level gated, a few per day).
+]]
+Config.Selling = {
+    account = 'cash',              -- 'cash' | 'bank' | 'black_money' | 'markedbills' | 'item'
+    item = 'cash',                 -- when account = 'item'
+    markedbillsItem = 'markedbills',
+    minPolice = 0,                 -- cops on duty needed to sell
+    quality = { [0] = 0.5, [1] = 0.75, [2] = 1.0, [3] = 1.3, [4] = 1.7 },  -- price multiplier per quality
+
+    corner = {
+        enabled = true,
+        command = 'sellweed', key = 'G',     -- toggles selling mode (key false = command only)
+        radius = 2.2,                        -- how close a person has to be
+        cooldown = 7,                        -- seconds between offers
+        remember = 900,                      -- seconds before the same person buys again
+        wants = { nzw_baggie = { 1, 3 }, nzw_jar = { 1, 1 } }, -- how many a customer takes
+        accept = { base = 0.55, perQuality = 0.1, min = 0.15, max = 0.92 },
+        haggle = { 0.9, 1.15 },
+        alertChance = 25,                    -- % a refusal turns into a call to the police
+        xpPerUnit = 4,
+    },
+
+    bulk = {
+        enabled = true,
+        level = 12,
+        label = 'Leon',
+        model = 'g_m_m_armboss_01',
+        ped = vec4(1240.50, -3168.30, 7.10, 270.0),   -- placeholder: Elysian Island docks
+        blip = { sprite = 500, color = 2, scale = 0.75, label = 'Brick buyer' },
+        rate = 0.85,                  -- of the bricks' street value
+        perDay = 10,                  -- bricks per player per day
+        xpPerBrick = 30,
     },
 }
 

@@ -10,10 +10,10 @@ A weed production script for FiveM, inspired by Schedule I. Players find a hidde
 ## How a player starts
 
 1. **Find Uncle Benson.** He has no blip. He sits in his wheelchair at one of the spots in `Config.Benson.spots`, and with `rotate = true` he moves to a new random spot every time the server restarts. Everyone sees him at the same spot.
-2. **The RV.** He sends them to take an RV from a Ballas crew: 8 armed guards around it, on Ballas turf. They get in, and the crew opens fire. They have to lose the Ballas (`escapeDistance` from the spot), and then the RV is theirs. That RV is their first lab.
+2. **The RV.** He sends them to take an RV from a Ballas crew: 8 armed guards around it, on Grove Street (placeholder spots). They get in, and the crew opens fire. They have to lose the Ballas (`escapeDistance` from the spot), and then the RV is theirs. That RV is their first lab.
 3. **The seeds.** Benson texts them a dead drop pin. They search it and find 2-3 OG Kush seeds.
 4. **The hardware store.** They buy pots, soil, a watering can, trimmers and a packaging station with their own money. There are three stores, all with blips.
-5. **First grow.** They go in through the RV's side door. Inside is Trevor's trailer (or the empty K4MB1 `shell_trevor` if it's streamed). They set up, grow, harvest and bag their first product. The HUD (top left) walks them through every step.
+5. **First grow.** They go in through the RV's side door. Inside is Trevor's trailer (or the empty K4MB1 `shell_trevor` if it's streamed). They set up, grow, harvest and bag their first product, then sell it on the street. The HUD (top left) walks them through every step.
 
 ## Labs
 
@@ -35,20 +35,19 @@ Players start at level 0. XP comes from the story, harvesting (per plant and per
 |---|---|
 | 0 | Pots, soil, watering can, trimmers, fertilizer, baggies, packaging station, OG Kush |
 | 1 | Suspension rack, halogen grow light |
-| 2 | Speed Growth, Sour Diesel |
+| 2 | Speed Growth, Acapulco Gold |
 | 3 | Grow tent, jars |
 | 4 | Drying rack, PGR |
-| 5 | LED grow light |
+| 5 | LED grow light, Lemon Skunk |
 | 6 | Small Warehouse, premium soil |
-| 7 | Green Crack |
+| 7 | Colombian Gold |
 | 8 | Mixing station, first ingredients |
-| 9 | Granddaddy Purple |
+| 10 | Northern Lights |
 | 11 | Full spectrum grow light |
-| 12 | Brick press |
-| 13 | Lemon Haze |
+| 12 | Brick press, the brick buyer |
+| 13 | Do-Si-Dos |
 | 15 | Weed Warehouse |
-| 16 | Purple Punch |
-| 20 | Gold Leaf |
+| 17 | Rainbow Belts |
 
 Titles go from Seedling to Mastermind. The tablet (`/weedlab` or `F6`) shows your level, every unlock by level, and your labs (buy, GPS, tow the RV).
 
@@ -78,23 +77,26 @@ When you use a station, a fixed camera points at it and you work with the mouse.
 ## Growing
 
 - Growth only happens while the soil is wet, and a watering lasts 14 minutes. Nothing ticks on a timer: growth is worked out from timestamps.
-- Lights only work on a **suspension rack**. Place the rack over your pots, then use "Hang a grow light" on it. Every pot inside the rack's footprint gets the boost, and the placement ghost shows the footprint.
+- Lights only work on a **suspension rack**. Place the rack over your pots, then use "Hang a grow light" on it. Every pot inside the rack's footprint gets the boost, and the placement ghost shows the footprint. The light hangs on two ratchet hangers and rides up by itself to stay just above the tallest plant under it.
   - Halogen: 1.25×
   - LED: 15% faster than halogen
   - Full spectrum: 30% faster than halogen
 - The **grow tent** has its own light and pot: 1.35× faster, but 0.75× the yield.
 - Quality: the soil sets the start, fertilizer and drying raise it, and PGR and Speed Growth lower it. Trash, Poor, Standard, Premium, Heavenly.
-- Strains: OG Kush, Sour Diesel, Green Crack, Granddaddy Purple, Lemon Haze, Purple Punch, Gold Leaf. Each one has its own bud colour, price, effect, growth time and yield.
+- Strains (the coloured plants of the `nextgen_weedprops` pack): OG Kush, Acapulco Gold, Lemon Skunk, Colombian Gold, Northern Lights, Do-Si-Dos, Rainbow Belts. Each one has its own plant colour, bud colour, price, effect, growth time and yield.
 
-### Your plant props
+### The strain plants
 
-Every strain has a `plant` list in `config/strains.lua` with one model per growth stage. They default to the base-game weed plants. When you send the coloured plants, put their names there (and add the files to `stream/` or your own resource):
+The plants come from the **nextgen_weedprops** pack (not included here): `ensure nextgen_weedprops` before this resource.
 
-```lua
-gdp = { ..., plant = { 'nzw_plant_gdp_small', 'nzw_plant_gdp_med', 'nzw_plant_gdp_large' }, plantOffset = 0.0 },
-```
-
-`plantScale` per pot type (`config/equipment.lua`) shrinks plants in the tent and under the lights.
+- Every strain has 7 growth steps: 3 small, 2 medium, 2 big. The last one is "ready to harvest".
+- The plants bring their own pot and gravel. Once a seed sprouts, the script hides its own pot and soil under the plant's pot.
+  - In a pot, plants show at 0.6 scale, about 1.7 m at harvest.
+  - In the tent, they show at 0.48 scale, inside the tent's fabric pot.
+  - Change these with `plantScale` / `plantZ` in `config/equipment.lua`.
+- `ng` in `config/strains.lua` is the strain's name in the pack (`ng_prop_weed_<s|m|b>_<ng>_<a|b|c>`). Give a strain a `plant = { ... }` list to use other models (any number of steps). Add `plantPot = true` if those models have their own pot.
+- Without the pack, the base-game weed plants are used and the console says so.
+- In the pack, the Do-Si-Dos models use the Colombian Gold texture, so they look the same in game. The Do-Si-Dos texture is in the pack's `.ytd`, it just isn't used.
 
 ## Custom props
 
@@ -131,7 +133,7 @@ Everything in `stream/` was built for this script:
 
 ### Item images
 
-`install/images/` has a 512px render of every item except the 16 mixing ingredients. Copy them into your inventory's image folder:
+`install/images/` has a 512px render of every item except the 16 mixing ingredients (see "Images still needed" below). Every seed uses the same vial image for now. Copy them into your inventory's image folder:
 
 - ox_inventory: `web/images`
 - qb-inventory: `html/images`
@@ -157,8 +159,8 @@ PY=<python 3.13 with bpy==5.1.2 szio==1.4.0.dev2 numpy pillow> SOLLUMZ=<Sollumz 
 
 ## Install
 
-1. Dependencies: [ox_lib](https://github.com/overextended/ox_lib), [oxmysql](https://github.com/overextended/oxmysql) and OneSync.
-2. Drop `nayzeee-weedlab` into `resources` and add `ensure nayzeee-weedlab` **after** your framework, inventory and target.
+1. Dependencies: [ox_lib](https://github.com/overextended/ox_lib), [oxmysql](https://github.com/overextended/oxmysql), OneSync, and the `nextgen_weedprops` plant pack.
+2. Drop `nayzeee-weedlab` into `resources` and add `ensure nayzeee-weedlab` **after** your framework, inventory, target and `nextgen_weedprops`.
 3. Add the items:
    - ox_inventory: `install/items_ox_inventory.lua` (recommended, because products carry metadata)
    - qb-core: `install/items_qb.lua`
@@ -199,13 +201,24 @@ The UI uses the **NAYZEEE UI** style:
 
 Every accent comes from `Config.UI.theme`. To preview every screen in a browser, serve the resource folder (`python3 -m http.server`) and open `web/index.html#shop`. The other screens are `#tablet`, `#unlocks`, `#pack`, `#dry`, `#mix`, `#press`, `#place`, `#choose`, `#dialogue`, `#ix`, `#hud`, `#text` and `#levelup`.
 
+## Selling
+
+- **On the street:** `/sellweed` (or `G`) turns selling on. Walk up to anyone on foot and press `E`. They stop and either take some of your baggies or jars, or walk off. Refusals sometimes turn into a call to the police.
+  - Price = the product's value × quality (Trash 0.5× up to Heavenly 1.7×) × a little haggling.
+  - Better quality gets more buyers to say yes.
+  - The same person won't buy again for 15 minutes, and there's a cooldown between offers.
+- **Bricks:** Leon (placeholder spot at the docks) buys pressed bricks from level 12 at 85% of their street value, 10 a day per player.
+- Pay goes to `Config.Selling.account`: cash, bank, black money, marked bills or an item.
+- The first sale finishes the tutorial.
+
 ## Commands
 
 - `/weedlab` (or `F6`): the lab tablet
+- `/sellweed` (or `G`): selling on / off
 - `/nzwlcoords`: copy your position
 - `/weedlabadmin`:
   - `benson`: where Benson is this restart
-  - `stage <id> <none|steal|deaddrop|hardware|setup|done>`
+  - `stage <id> <none|steal|deaddrop|hardware|setup|pack|sell|done>`
   - `level <id> <level>`, `xp <id> <amount>`
   - `rv <id>`, `lab <id> <small|warehouse> [entrance]`
   - `kit <id>`, `water <id>`, `info <id>`, `reset <id>`
@@ -216,6 +229,8 @@ Every action is claimed, played out, then finished. On finish the server checks 
 
 A finish that comes faster than the action allows is logged or kicked. That covers harvesting, packaging (per package), drying, mixing, pressing and searching the dead drop.
 
+Sales name only the person you're talking to. The server checks that it's a nearby ped (not a player), then picks the product, the answer and the price itself.
+
 ## Performance
 
 Nothing loops while you aren't doing something:
@@ -223,21 +238,35 @@ Nothing loops while you aren't doing something:
 - Benson, the store clerks, dead drops and lab doors use ox_lib points, so they only exist up close.
 - The labels and the grow-light drawing run only while you're inside a lab.
 - The first person camera loop runs only while it's open.
+- Selling mode scans for people only while it's on.
 - The server has one heartbeat per minute, plus a 2 second escape check that runs only while somebody is mid RV job.
 
 ## Tests
 
-Run `tests/run.sh` (needs `lua5.4` and `node`). It syntax-checks every file, then loads the real server code with stubbed natives and plays a character through everything (113 checks):
+Run `tests/run.sh` (needs `lua5.4` and `node`). It syntax-checks every file, then loads the real server code with stubbed natives and plays a character through everything (126 checks):
 
 - **Story:** Benson, the Ballas RV, the dead drop
 - **Setup:** the store, the RV lab and its 3-pot limit
 - **Growing:** soil, seed, the tap, watering, fertilizer, growth, harvest
 - **Processing:** packaging (with partial batches), lights on a rack, drying, mixing, the brick press
 - **Labs:** buying a warehouse
+- **Selling:** street sales (yes, no, the same person twice), the brick buyer
 - **Exploits:** instant finishes, someone else's plant, out-of-bounds placement, locked items
 
 `lua5.4 tests/gen_install.lua .` regenerates the install item files.
 
+## Images still needed
+
+Item images for the 16 mixing ingredients: square PNGs, at least 256 px, ideally on a transparent background, named after the item:
+
+`nzw_ing_cuke.png`, `nzw_ing_banana.png`, `nzw_ing_paracetamol.png`, `nzw_ing_donut.png`, `nzw_ing_energydrink.png`, `nzw_ing_mouthwash.png`, `nzw_ing_flumedicine.png`, `nzw_ing_gasoline.png`, `nzw_ing_viagra.png`, `nzw_ing_motoroil.png`, `nzw_ing_megabean.png`, `nzw_ing_chili.png`, `nzw_ing_battery.png`, `nzw_ing_iodine.png`, `nzw_ing_addy.png`, `nzw_ing_horsesemen.png`
+
+They go in `install/images/`.
+
+Optional: one image per seed (`nzw_seed_<strain>.png`) if you want each seed to look different.
+
 ## Not in yet
 
-Selling, customers and the larger warehouse "foundation" building come next. The script only produces product for now. The coloured strain plants (your props) and images for the mixing ingredients are still to come.
+The larger warehouse "foundation" building comes next.
+
+Every coordinate is a placeholder. Set them when testing with `/nzwlcoords`.

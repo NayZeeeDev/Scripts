@@ -1,6 +1,6 @@
 --[[ Staff commands: /weedlabadmin <sub> <id> [value]  (ace: Config.Admin.ace) ]]
 
-local USAGE = 'stage <id> <none|steal|deaddrop|hardware|setup|done> | xp <id> <amount> | level <id> <level> | rv <id> | lab <id> <small|warehouse> [entrance] | kit <id> | water <id> | reset <id> | info <id> | benson'
+local USAGE = 'stage <id> <none|steal|deaddrop|hardware|setup|pack|sell|done> | xp <id> <amount> | level <id> <level> | rv <id> | lab <id> <small|warehouse> [entrance] | kit <id> | water <id> | reset <id> | info <id> | benson'
 
 local function reply(src, msg)
     if src == 0 then print('[nzwl] ' .. msg) else TriggerClientEvent('nzwl:notify', src, msg, 'info') end

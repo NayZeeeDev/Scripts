@@ -118,6 +118,19 @@ function Inv.label(name)
     return label
 end
 
+--- pays `amount` the way Config.Selling.account says (cash, bank, black money, marked bills or an item)
+function Inv.payMoney(src, amount, reason)
+    amount = math.floor(amount)
+    if amount <= 0 then return true end
+    local mode = Config.Selling.account
+    if mode == 'item' then
+        return Inv.add(src, Config.Selling.item, amount)
+    elseif mode == 'markedbills' then
+        return Inv.add(src, Config.Selling.markedbillsItem, 1, { worth = amount })
+    end
+    return FW.addMoney(src, mode, amount, reason or 'weedlab')
+end
+
 --[[ metadata-aware helpers (products carry { pid, label, quality, units }) ]]
 
 local function qbInventory(src)

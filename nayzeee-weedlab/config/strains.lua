@@ -2,11 +2,10 @@
     Strains, quality, effects and mixing.
 
     Strains
-      bud    = colour of the bud props (green | purple | lime | golden), see stream/nzw_bud_*.ydr
-      plant  = the plant models for growth stages 1-3. They default to the base-game weed plants.
-               When you have custom plants for a strain, put the model names here
-               (and stream the files), e.g. plant = { 'my_gdp_small', 'my_gdp_med', 'my_gdp_big' }
-      plantOffset = height of the plant's origin above the soil
+      bud    = colour of the bud props (green | lime | golden | purple | red), see stream/nzw_bud_*.ydr
+      ng     = the strain's name in the nextgen_weedprops pack (ng_prop_weed_<size>_<ng>_<variant>).
+               Those plants come in 7 growth steps and carry their own pot + gravel.
+      plant  = optional: your own model list instead (any number of growth steps, small to big)
       grow   = growth time multiplier (1.0 = Config.Grow.minutes), yield = bud range at harvest
       price  = base value of one unit (mixing multiplies this)
       level  = level needed to plant it (the store only sells unlocked seeds)
@@ -17,20 +16,36 @@
       (unless the result is already there), then the ingredient's own effect is added.
 ]]
 
-local BASE_PLANTS = { 'bkr_prop_weed_01_small_01b', 'bkr_prop_weed_med_01b', 'bkr_prop_weed_lrg_01b' }
-local BASE_PLANTS_A = { 'bkr_prop_weed_01_small_01a', 'bkr_prop_weed_med_01a', 'bkr_prop_weed_lrg_01a' }
+Config.Plants = {
+    -- the nextgen_weedprops pack: 3 small, 2 medium, 2 big steps per strain. The last one is "ready to harvest"
+    steps = { 's_%s_a', 's_%s_b', 's_%s_c', 'm_%s_a', 'm_%s_b', 'b_%s_a', 'b_%s_b' },
+    prefix = 'ng_prop_weed_',
+    includesPot = true,     -- these plants bring their own pot + gravel: the script hides its pot / soil under them
+    -- when the pack isn't streamed: base-game plants (no pot of their own)
+    fallback = { 'bkr_prop_weed_01_small_01b', 'bkr_prop_weed_med_01b', 'bkr_prop_weed_lrg_01b' },
+    fallbackScale = 0.7,
+}
 
 Config.Strains = {
-    ogkush     = { label = 'OG Kush',           seed = 'nzw_seed_ogkush',     level = 0,  price = 40, effects = { 'calming' },    color = '#3fb950', bud = 'green',  plant = BASE_PLANTS,   grow = 1.0,  yield = { 6, 9 } },
-    sourdiesel = { label = 'Sour Diesel',       seed = 'nzw_seed_sourdiesel', level = 2,  price = 46, effects = { 'refreshing' }, color = '#a3d900', bud = 'lime',   plant = BASE_PLANTS_A, grow = 1.05, yield = { 6, 9 } },
-    greencrack = { label = 'Green Crack',       seed = 'nzw_seed_greencrack', level = 7,  price = 52, effects = { 'energizing' }, color = '#2fd47f', bud = 'green',  plant = BASE_PLANTS,   grow = 1.1,  yield = { 7, 10 } },
-    gdp        = { label = 'Granddaddy Purple', seed = 'nzw_seed_gdp',        level = 9,  price = 58, effects = { 'sedating' },   color = '#a371f7', bud = 'purple', plant = BASE_PLANTS_A, grow = 1.15, yield = { 7, 10 } },
-    lemonhaze  = { label = 'Lemon Haze',        seed = 'nzw_seed_lemonhaze',  level = 13, price = 64, effects = { 'focused' },    color = '#e3c341', bud = 'golden', plant = BASE_PLANTS,   grow = 1.2,  yield = { 8, 11 } },
-    purplepunch = { label = 'Purple Punch',     seed = 'nzw_seed_purplepunch', level = 16, price = 72, effects = { 'euphoric' },  color = '#c46bff', bud = 'purple', plant = BASE_PLANTS_A, grow = 1.25, yield = { 8, 12 } },
-    goldleaf   = { label = 'Gold Leaf',         seed = 'nzw_seed_goldleaf',   level = 20, price = 85, effects = { 'glowing' },    color = '#f0b429', bud = 'golden', plant = BASE_PLANTS,   grow = 1.35, yield = { 9, 13 } },
+    ogkush     = { label = 'OG Kush',          ng = 'ogkush',    seed = 'nzw_seed_ogkush',     level = 0,  price = 40, effects = { 'calming' },    color = '#3fb950', bud = 'green',  grow = 1.0,  yield = { 6, 9 } },
+    acagold    = { label = 'Acapulco Gold',    ng = 'acagold',   seed = 'nzw_seed_acagold',    level = 2,  price = 46, effects = { 'refreshing' }, color = '#b5e61d', bud = 'lime',   grow = 1.05, yield = { 6, 9 } },
+    lemonskunk = { label = 'Lemon Skunk',      ng = 'lgreen',    seed = 'nzw_seed_lemonskunk', level = 5,  price = 52, effects = { 'focused' },    color = '#e3d341', bud = 'lime',   grow = 1.1,  yield = { 7, 10 } },
+    colomgold  = { label = 'Colombian Gold',   ng = 'colomgold', seed = 'nzw_seed_colomgold',  level = 7,  price = 58, effects = { 'energizing' }, color = '#e0902a', bud = 'golden', grow = 1.15, yield = { 7, 10 } },
+    nlights    = { label = 'Northern Lights',  ng = 'nlights',   seed = 'nzw_seed_nlights',    level = 10, price = 66, effects = { 'sedating' },   color = '#a371f7', bud = 'purple', grow = 1.2,  yield = { 8, 11 } },
+    dosidos    = { label = 'Do-Si-Dos',        ng = 'dosidos',   seed = 'nzw_seed_dosidos',    level = 13, price = 74, effects = { 'euphoric' },   color = '#a8763e', bud = 'golden', grow = 1.25, yield = { 8, 12 } },
+    rainbowb   = { label = 'Rainbow Belts',    ng = 'rainbowb',  seed = 'nzw_seed_rainbowb',   level = 17, price = 88, effects = { 'glowing' },    color = '#d23c5a', bud = 'red',    grow = 1.35, yield = { 9, 13 } },
 }
-Config.StrainOrder = { 'ogkush', 'sourdiesel', 'greencrack', 'gdp', 'lemonhaze', 'purplepunch', 'goldleaf' }
-Config.PlantOffset = 0.0   -- default height of a plant's origin above the soil surface
+Config.StrainOrder = { 'ogkush', 'acagold', 'lemonskunk', 'colomgold', 'nlights', 'dosidos', 'rainbowb' }
+
+-- the growth steps of a strain (model names, small to big)
+function Config.PlantModels(id)
+    local s = Config.Strains[id]
+    if not s then return Config.Plants.fallback end
+    if s.plant then return s.plant end
+    local out = {}
+    for i, fmt in ipairs(Config.Plants.steps) do out[i] = Config.Plants.prefix .. fmt:format(s.ng) end
+    return out
+end
 
 --[[ Quality. Soil sets the start, fertilizer and the drying rack raise it, PGR and Speed Growth lower it. ]]
 Config.Quality = {

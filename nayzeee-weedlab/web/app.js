@@ -417,7 +417,25 @@ function panelTablet(d) {
     $$('[data-buy]', el).forEach((b) => b.onclick = () => panelClose({ buy: b.dataset.buy, entrance: panel.ent[b.dataset.buy] || 1, account: panel.account }));
 }
 
-const PANELS = { choose: panelChoose, place: panelPlace, pack: panelPack, dry: panelDry, mix: panelMix, press: panelPress, shop: panelShop, tablet: panelTablet };
+/* bulk: { bricks: [{ slot, n, pid, q, units, name, bud, price }], left, perDay } */
+function panelBulk(d) {
+    const list = arr(d.bricks);
+    panel.sel = list.find((x) => x.slot === panel.sel) ? panel.sel : (list[0] && list[0].slot);
+    const s = list.find((x) => x.slot === panel.sel);
+    const max = s ? Math.min(s.n, d.left) : 0;
+    panel.n = clamp(panel.n || max, max ? 1 : 0, max);
+    const body = list.length ? `<div class="list">${list.map((x) => { const q = qualityOf(x.q); return `<button class="row ${x.slot === panel.sel ? 'on' : ''}" data-slot="${x.slot}">${img('nzw_brick', 'press')}
+            <div class="row-txt"><b>${esc(x.name)} <span class="chip" style="--c:${q.color}">${esc(q.label)}</span></b><span>${x.units} units · ${money(x.price)} a brick</span></div><div class="end">x${x.n}</div></button>`; }).join('')}</div>`
+        : `<div class="empty">${I('press')}<b>No bricks</b><span>Press 20 units into a brick at the brick press first.</span></div>`;
+    const el = mountPanel(shell('Brick Buyer', `Takes ${d.left} more today (${d.perDay} a day)`, body,
+        `<div class="grow"><div class="qty"><button data-q="-1">−</button><b>${panel.n}</b><button data-q="1">+</button></div><span class="money">${s ? money(s.price * panel.n) : ''}</span></div><button class="btn-teal" data-go ${max ? '' : 'disabled'}>${I('cash')}Sell</button>`));
+    $$('[data-slot]', el).forEach((b) => b.onclick = () => { panel.sel = +b.dataset.slot; panel.n = 0; panelBulk(d); });
+    $$('[data-q]', el).forEach((b) => b.onclick = () => { panel.n += +b.dataset.q; panelBulk(d); });
+    const go = $('[data-go]', el);
+    if (go && s) go.onclick = () => panelClose({ slot: s.slot, n: panel.n });
+}
+
+const PANELS = { bulk: panelBulk, choose: panelChoose, place: panelPlace, pack: panelPack, dry: panelDry, mix: panelMix, press: panelPress, shop: panelShop, tablet: panelTablet };
 function openPanel(d) {
     if (!d) return hidePanel();
     panel = { type: d.type, data: d.data };
