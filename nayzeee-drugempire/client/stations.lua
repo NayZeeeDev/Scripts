@@ -87,6 +87,7 @@ local function spawnObj(d)
     if not c then return end
     local o = { data = d }
     o.ent = Util.prop(c.model, worldPos(d), d.h, { fallback = c.fallback })
+    if d.type == 'pot' then o.potModel = c.model end
     if d.type == 'packer' and c.lid and GetEntityModel(o.ent) == joaat(c.model) then
         local l = c.lid.offset
         local lp = GetOffsetFromEntityInWorldCoords(o.ent, l.x, l.y, l.z)

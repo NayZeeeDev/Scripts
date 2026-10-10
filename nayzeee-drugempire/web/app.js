@@ -119,7 +119,7 @@ function text(d) {
         <div class="card-body"><div class="bubbles">${arr(d.lines).map((l) => `<div class="bub">${esc(l)}</div>`).join('')}</div>
             <div class="pin"><div class="tile">${I('pin')}</div><div><b>Shared a location</b>Somewhere out of town</div></div></div>
         <div class="timer"><i style="animation-duration:${d.timeout || 40}s"></i></div>
-        <div class="card-foot"><div class="grow"><span><span class="key teal">Y</span> ${esc(d.yes || 'Go')}</span><span><span class="key">N</span> ${esc(d.no || 'Ignore')}</span></div></div>
+        <div class="card-foot"><div class="grow"><span><span class="key teal">${esc(d.yesKey || 'Y')}</span> ${esc(d.yes || 'Go')}</span><span><span class="key">${esc(d.noKey || 'Backspace')}</span> ${esc(d.no || 'Ignore')}</span></div></div>
     </div></div>`;
     el.classList.remove('hidden');
 }

@@ -17,13 +17,13 @@ local function answer(go)
 end
 
 lib.addKeybind({ name = 'nzde_yes', description = 'Drug empire: answer yes', defaultKey = 'Y', onPressed = function() answer(true) end })
-lib.addKeybind({ name = 'nzde_no', description = 'Drug empire: answer no', defaultKey = 'N', onPressed = function() answer(false) end })
+lib.addKeybind({ name = 'nzde_no', description = 'Drug empire: answer no', defaultKey = 'BACK', onPressed = function() answer(false) end })
 
 RegisterNetEvent('nzde:story:text', function(data)
     if GetInvokingResource() then return end
     textOpen = true
     PlaySoundFrontend(-1, 'Text_Arrive_Tone', 'Phone_SoundSet_Default', true)
-    UI.send('text', { from = data.from, lines = data.lines, timeout = data.timeout, yes = 'Go', no = 'Ignore' })
+    UI.send('text', { from = data.from, lines = data.lines, timeout = data.timeout, yes = 'Go', no = 'Ignore', yesKey = 'Y', noKey = 'Backspace' })
     SetTimeout(data.timeout * 1000, function()
         if textOpen then
             textOpen = false
