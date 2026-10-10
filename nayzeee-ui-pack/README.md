@@ -35,10 +35,43 @@ These are fixed in `core/nz-core.css`, so every script carries your brand:
 - **The mark**: the teal chamfered tile (`.nz-mark`, sizes `xs` `sm` `lg` `xl`)
 - **Type**: Lexend
 - **Colour**: black surfaces, teal `#08afa2`, red `#e5484d`, white
-- **The cut**: a chamfered bottom-right corner on every container (`.nz-cut`, or `.nz-frame` + `.nz-frame-in` when it needs a border)
+- **The shape family**: every container uses a cut-corner silhouette from one family of 10 (see Shapes below)
 - **Signature**: `<span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>`, which appears in every theme
 
 Change a token in `core/nz-core.css` once and every theme follows.
+
+## Shapes
+
+Every cut-corner element (windows, cards, slots, buttons, toasts) follows one shape setting, so a whole UI changes silhouette at once while the mark stays the same.
+
+| Shape | Look |
+|-------|------|
+| `cut` | bottom-right chamfer (the original) |
+| `twin` | top-left + bottom-right |
+| `mirror` | top-right + bottom-left |
+| `bevel` | all four corners (octagon) |
+| `crest` | both top corners |
+| `flip` | bottom-left |
+| `step` | stepped bottom-right |
+| `blade` | long top-left + small bottom-right |
+| `notch` | V notches on the left and right sides |
+| `round` | soft rounded corners |
+
+Each theme ships with its own default (Console `cut`, Rail `mirror`, Vault `bevel`, Forge `step`…). Change it in any of these ways:
+
+```html
+<html lang="en" data-shape="bevel">            <!-- per script default -->
+<div class="panel" data-shape="round">…</div>  <!-- one panel only -->
+```
+
+```lua
+SendNUIMessage({ action = 'shape', data = { shape = 'bevel' } })      -- at runtime
+SendNUIMessage({ action = 'open', data = { shape = 'twin', ... } })   -- any message can carry it
+```
+
+In a browser preview a small shape picker sits at the top of every theme, and `?shape=notch` in the URL works too. The gallery (`index.html`) can switch all 20 previews at once.
+
+Corner sizes scale with each element's `--cut`, and the extra corners are capped, so they stay clear of padded content. If you build your own clipped element, use `clip-path: var(--nz-shape)` (or `var(--nz-shape-in)` inside a `.nz-frame`) instead of writing a polygon.
 
 ## Using a theme in a resource
 
@@ -136,7 +169,7 @@ Open any theme's `index.html` directly. Outside the game the core detects that i
 2. Keep `../core/nz-core.css` and `../core/nz-core.js` linked first.
 3. Give the root element the `nz-app` class (it stays hidden until `NZ.open(el)`).
 4. Use `NZ.on`, `NZ.post`, `NZ.open`, `NZ.close`, `NZ.icon` and `NZ.esc` from the core.
-5. Keep the brand visible: put the mark or `.nz-sig` somewhere, and the cut on the main container.
+5. Keep the brand visible: put the mark or `.nz-sig` somewhere, and use `clip-path: var(--nz-shape)` on the main container so it follows the shape setting.
 
 Always pass player-supplied text through `NZ.esc()` before putting it in `innerHTML`. The themes already do this.
 

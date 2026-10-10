@@ -118,14 +118,14 @@ svg{display:block}
 
 /* the chamfer — bottom-right corner cut. Use .nz-cut on a solid box,
    or .nz-frame > .nz-frame-in when the box needs a visible border. */
-.nz-cut{clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.nz-cut{clip-path:var(--nz-shape)}
 .nz-frame{
   background:var(--line);padding:1px;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
 }
 .nz-frame-in{
   position:relative;height:100%;overflow:hidden;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut) + 1px),calc(100% - var(--cut) + 1px) 100%,0 100%);
+  clip-path:var(--nz-shape-in);
 }
 .nz-grain::after{
   content:'';position:absolute;inset:0;pointer-events:none;z-index:80;opacity:.03;
@@ -135,6 +135,98 @@ svg{display:block}
 .nz-rail::before{ /* teal top rail */
   content:'';position:absolute;top:0;left:0;right:0;height:2px;z-index:5;
   background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0));
+}
+
+/* ═══════════════ SHAPES ═══════════════
+   One silhouette for every cut-corner element in a theme.
+   Pick it with <html data-shape="twin">, ?shape=twin in the URL,
+   NZ.shape('twin'), any message carrying data.shape, or
+   SendNUIMessage({ action = 'shape', data = { shape = 'twin' } }).
+   Every element computes its own --nz-shape from its own --cut, so
+   big windows and small slots keep matching proportions. Cuts only
+   touch corners (or side midpoints for notch), clear of padded content.
+   Shapes: cut · twin · mirror · bevel · crest · flip · step · blade · notch · round */
+/* page-wide: <html data-shape="…"> */
+*,*::before,*::after{
+  --nz-shape:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  --nz-shape-in:polygon(0 0,100% 0,100% calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(var(--cut) - 1px)) 100%,0 100%);
+}
+html[data-shape="twin"] *,html[data-shape="twin"] *::before,html[data-shape="twin"] *::after{
+  --nz-shape:polygon(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px));
+  --nz-shape-in:polygon(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) 0,100% 0,100% calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(var(--cut) - 1px)) 100%,0 100%,0 clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px));
+}
+html[data-shape="mirror"] *,html[data-shape="mirror"] *::before,html[data-shape="mirror"] *::after{
+  --nz-shape:polygon(0 0,calc(100% - clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px)) 0,100% clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px),100% 100%,clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) 100%,0 calc(100% - clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px)));
+  --nz-shape-in:polygon(0 0,calc(100% - clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px)) 0,100% clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px),100% 100%,clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) 100%,0 calc(100% - clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px)));
+}
+html[data-shape="bevel"] *,html[data-shape="bevel"] *::before,html[data-shape="bevel"] *::after{
+  --nz-shape:polygon(calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8) 0,calc(100% - calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8)) 0,100% calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8),100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8) 100%,0 calc(100% - calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8)),0 calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8));
+  --nz-shape-in:polygon(calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8) 0,calc(100% - calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8)) 0,100% calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8),100% calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(var(--cut) - 1px)) 100%,calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8) 100%,0 calc(100% - calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8)),0 calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8));
+}
+html[data-shape="crest"] *,html[data-shape="crest"] *::before,html[data-shape="crest"] *::after{
+  --nz-shape:polygon(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) 0,calc(100% - clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px)) 0,100% clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px),100% 100%,0 100%,0 clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px));
+  --nz-shape-in:polygon(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) 0,calc(100% - clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px)) 0,100% clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px),100% 100%,0 100%,0 clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px));
+}
+html[data-shape="flip"] *,html[data-shape="flip"] *::before,html[data-shape="flip"] *::after{
+  --nz-shape:polygon(0 0,100% 0,100% 100%,clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) 100%,0 calc(100% - clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px)));
+  --nz-shape-in:polygon(0 0,100% 0,100% 100%,clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) 100%,0 calc(100% - clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px)));
+}
+html[data-shape="step"] *,html[data-shape="step"] *::before,html[data-shape="step"] *::after{
+  --nz-shape:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - calc(var(--cut) * .5)) calc(100% - var(--cut)),calc(100% - calc(var(--cut) * .5)) calc(100% - calc(var(--cut) * .5)),calc(100% - var(--cut)) calc(100% - calc(var(--cut) * .5)),calc(100% - var(--cut)) 100%,0 100%);
+  --nz-shape-in:polygon(0 0,100% 0,100% calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(calc(var(--cut) - 1px) * .5)) calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(calc(var(--cut) - 1px) * .5)) calc(100% - calc(calc(var(--cut) - 1px) * .5)),calc(100% - calc(var(--cut) - 1px)) calc(100% - calc(calc(var(--cut) - 1px) * .5)),calc(100% - calc(var(--cut) - 1px)) 100%,0 100%);
+}
+html[data-shape="blade"] *,html[data-shape="blade"] *::before,html[data-shape="blade"] *::after{
+  --nz-shape:polygon(clamp(calc(var(--cut) * .5), calc(var(--cut) * 2.2 - 20px), 26px) 0,100% 0,100% calc(100% - calc(var(--cut) * .5)),calc(100% - calc(var(--cut) * .5)) 100%,0 100%,0 clamp(calc(var(--cut) * .5), calc(var(--cut) * 2.2 - 20px), 26px));
+  --nz-shape-in:polygon(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 2.2 - 20px), 25px) 0,100% 0,100% calc(100% - calc(calc(var(--cut) - 1px) * .5)),calc(100% - calc(calc(var(--cut) - 1px) * .5)) 100%,0 100%,0 clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 2.2 - 20px), 25px));
+}
+html[data-shape="notch"] *,html[data-shape="notch"] *::before,html[data-shape="notch"] *::after{
+  --nz-shape:polygon(0 0,100% 0,100% calc(50% - var(--cut)),calc(100% - calc(var(--cut) * .4)) 50%,100% calc(50% + var(--cut)),100% 100%,0 100%,0 calc(50% + var(--cut)),calc(var(--cut) * .4) 50%,0 calc(50% - var(--cut)));
+  --nz-shape-in:polygon(0 0,100% 0,100% calc(50% - calc(var(--cut) - 1px)),calc(100% - calc(calc(var(--cut) - 1px) * .4)) 50%,100% calc(50% + calc(var(--cut) - 1px)),100% 100%,0 100%,0 calc(50% + calc(var(--cut) - 1px)),calc(calc(var(--cut) - 1px) * .4) 50%,0 calc(50% - calc(var(--cut) - 1px)));
+}
+html[data-shape="round"] *,html[data-shape="round"] *::before,html[data-shape="round"] *::after{
+  --nz-shape:inset(0 round var(--cut));
+  --nz-shape-in:inset(0 round calc(var(--cut) - 1px));
+}
+/* one element (and its children) can override the page: <div data-shape="round"> */
+:root [data-shape="cut"],:root [data-shape="cut"] *,:root [data-shape="cut"]::before,:root [data-shape="cut"]::after,:root [data-shape="cut"] *::before,:root [data-shape="cut"] *::after{
+  --nz-shape:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  --nz-shape-in:polygon(0 0,100% 0,100% calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(var(--cut) - 1px)) 100%,0 100%);
+}
+:root [data-shape="twin"],:root [data-shape="twin"] *,:root [data-shape="twin"]::before,:root [data-shape="twin"]::after,:root [data-shape="twin"] *::before,:root [data-shape="twin"] *::after{
+  --nz-shape:polygon(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px));
+  --nz-shape-in:polygon(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) 0,100% 0,100% calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(var(--cut) - 1px)) 100%,0 100%,0 clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px));
+}
+:root [data-shape="mirror"],:root [data-shape="mirror"] *,:root [data-shape="mirror"]::before,:root [data-shape="mirror"]::after,:root [data-shape="mirror"] *::before,:root [data-shape="mirror"] *::after{
+  --nz-shape:polygon(0 0,calc(100% - clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px)) 0,100% clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px),100% 100%,clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) 100%,0 calc(100% - clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px)));
+  --nz-shape-in:polygon(0 0,calc(100% - clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px)) 0,100% clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px),100% 100%,clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) 100%,0 calc(100% - clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px)));
+}
+:root [data-shape="bevel"],:root [data-shape="bevel"] *,:root [data-shape="bevel"]::before,:root [data-shape="bevel"]::after,:root [data-shape="bevel"] *::before,:root [data-shape="bevel"] *::after{
+  --nz-shape:polygon(calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8) 0,calc(100% - calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8)) 0,100% calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8),100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8) 100%,0 calc(100% - calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8)),0 calc(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) * .8));
+  --nz-shape-in:polygon(calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8) 0,calc(100% - calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8)) 0,100% calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8),100% calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(var(--cut) - 1px)) 100%,calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8) 100%,0 calc(100% - calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8)),0 calc(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) * .8));
+}
+:root [data-shape="crest"],:root [data-shape="crest"] *,:root [data-shape="crest"]::before,:root [data-shape="crest"]::after,:root [data-shape="crest"] *::before,:root [data-shape="crest"] *::after{
+  --nz-shape:polygon(clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) 0,calc(100% - clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px)) 0,100% clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px),100% 100%,0 100%,0 clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px));
+  --nz-shape-in:polygon(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) 0,calc(100% - clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px)) 0,100% clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px),100% 100%,0 100%,0 clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px));
+}
+:root [data-shape="flip"],:root [data-shape="flip"] *,:root [data-shape="flip"]::before,:root [data-shape="flip"]::after,:root [data-shape="flip"] *::before,:root [data-shape="flip"] *::after{
+  --nz-shape:polygon(0 0,100% 0,100% 100%,clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px) 100%,0 calc(100% - clamp(calc(var(--cut) * .5), calc(var(--cut) * 1.4 - 8px), 20px)));
+  --nz-shape-in:polygon(0 0,100% 0,100% 100%,clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px) 100%,0 calc(100% - clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 1.4 - 8px), 19px)));
+}
+:root [data-shape="step"],:root [data-shape="step"] *,:root [data-shape="step"]::before,:root [data-shape="step"]::after,:root [data-shape="step"] *::before,:root [data-shape="step"] *::after{
+  --nz-shape:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - calc(var(--cut) * .5)) calc(100% - var(--cut)),calc(100% - calc(var(--cut) * .5)) calc(100% - calc(var(--cut) * .5)),calc(100% - var(--cut)) calc(100% - calc(var(--cut) * .5)),calc(100% - var(--cut)) 100%,0 100%);
+  --nz-shape-in:polygon(0 0,100% 0,100% calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(calc(var(--cut) - 1px) * .5)) calc(100% - calc(var(--cut) - 1px)),calc(100% - calc(calc(var(--cut) - 1px) * .5)) calc(100% - calc(calc(var(--cut) - 1px) * .5)),calc(100% - calc(var(--cut) - 1px)) calc(100% - calc(calc(var(--cut) - 1px) * .5)),calc(100% - calc(var(--cut) - 1px)) 100%,0 100%);
+}
+:root [data-shape="blade"],:root [data-shape="blade"] *,:root [data-shape="blade"]::before,:root [data-shape="blade"]::after,:root [data-shape="blade"] *::before,:root [data-shape="blade"] *::after{
+  --nz-shape:polygon(clamp(calc(var(--cut) * .5), calc(var(--cut) * 2.2 - 20px), 26px) 0,100% 0,100% calc(100% - calc(var(--cut) * .5)),calc(100% - calc(var(--cut) * .5)) 100%,0 100%,0 clamp(calc(var(--cut) * .5), calc(var(--cut) * 2.2 - 20px), 26px));
+  --nz-shape-in:polygon(clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 2.2 - 20px), 25px) 0,100% 0,100% calc(100% - calc(calc(var(--cut) - 1px) * .5)),calc(100% - calc(calc(var(--cut) - 1px) * .5)) 100%,0 100%,0 clamp(calc(calc(var(--cut) - 1px) * .5), calc(calc(var(--cut) - 1px) * 2.2 - 20px), 25px));
+}
+:root [data-shape="notch"],:root [data-shape="notch"] *,:root [data-shape="notch"]::before,:root [data-shape="notch"]::after,:root [data-shape="notch"] *::before,:root [data-shape="notch"] *::after{
+  --nz-shape:polygon(0 0,100% 0,100% calc(50% - var(--cut)),calc(100% - calc(var(--cut) * .4)) 50%,100% calc(50% + var(--cut)),100% 100%,0 100%,0 calc(50% + var(--cut)),calc(var(--cut) * .4) 50%,0 calc(50% - var(--cut)));
+  --nz-shape-in:polygon(0 0,100% 0,100% calc(50% - calc(var(--cut) - 1px)),calc(100% - calc(calc(var(--cut) - 1px) * .4)) 50%,100% calc(50% + calc(var(--cut) - 1px)),100% 100%,0 100%,0 calc(50% + calc(var(--cut) - 1px)),calc(calc(var(--cut) - 1px) * .4) 50%,0 calc(50% - calc(var(--cut) - 1px)));
+}
+:root [data-shape="round"],:root [data-shape="round"] *,:root [data-shape="round"]::before,:root [data-shape="round"]::after,:root [data-shape="round"] *::before,:root [data-shape="round"] *::after{
+  --nz-shape:inset(0 round var(--cut));
+  --nz-shape-in:inset(0 round calc(var(--cut) - 1px));
 }
 
 /* ═══════════════ COMPONENTS ═══════════════ */
@@ -277,3 +369,13 @@ select.nz-input option{background:var(--panel)}
 .nz-reopen{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999;
   display:flex;flex-direction:column;align-items:center;gap:14px;animation:nz-fade var(--slow) both}
 .nz-reopen p{font-size:11px;color:var(--ink-3);font-weight:300;letter-spacing:.04em}
+
+/* preview-only shape picker (core injects it outside the game) */
+.nz-shapes{position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:9998;display:flex;align-items:center;gap:3px;
+  padding:3px;border-radius:999px;background:rgba(8,9,10,.86);box-shadow:0 0 0 1px var(--line) inset;backdrop-filter:blur(8px);
+  font-size:10px;color:var(--ink-3);opacity:.55;transition:opacity var(--fast)}
+.nz-shapes:hover{opacity:1}
+.nz-shapes span{padding:0 8px 0 10px;letter-spacing:.04em}
+.nz-shapes button{height:20px;padding:0 9px;border-radius:999px;font-size:10px;color:var(--ink-2)}
+.nz-shapes button:hover{color:var(--white);background:var(--raise)}
+.nz-shapes button.on{background:var(--teal-wash);color:var(--teal);box-shadow:0 0 0 1px var(--teal-edge) inset}

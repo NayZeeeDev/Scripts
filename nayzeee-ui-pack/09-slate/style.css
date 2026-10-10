@@ -8,7 +8,7 @@ body{display:grid;place-items:center;padding:24px}
 .device{--cut:54px;position:relative;width:min(1120px,100%);height:min(720px,calc(100vh - 48px));padding:14px;border-radius:38px;
   background:linear-gradient(150deg,#1a1d1f,#060707 40%,#0d0f10);
   box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 1px 0 rgba(255,255,255,.12) inset;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
   filter:drop-shadow(0 40px 80px rgba(0,0,0,.7))}
 .device .cam{position:absolute;left:50%;top:5px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:#1f2427;box-shadow:0 0 0 1px #000}
 .device .engrave{position:absolute;left:30px;bottom:-1px;font-size:8px;letter-spacing:.4em;font-weight:600;color:rgba(255,255,255,.12)}
@@ -18,7 +18,7 @@ body{display:grid;place-items:center;padding:24px}
     radial-gradient(60% 70% at 85% 110%,rgba(8,175,162,.32),transparent 60%),
     radial-gradient(50% 60% at 0% 0%,rgba(255,255,255,.05),transparent 60%),
     #050607;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .wall{position:absolute;right:64px;bottom:64px;pointer-events:none}
 .wall .nz-mark{width:300px;height:300px;border-radius:40px;opacity:.07}
 
@@ -40,7 +40,7 @@ body{display:grid;place-items:center;padding:24px}
 .hello .date{font-size:14px;color:var(--ink-2);font-weight:300;margin-top:10px}
 .widgets{display:flex;gap:12px}
 .widget{--cut:14px;width:200px;padding:14px 16px;border-radius:18px;background:rgba(255,255,255,.045);backdrop-filter:blur(14px);
-  box-shadow:0 0 0 1px rgba(255,255,255,.07) inset;clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  box-shadow:0 0 0 1px rgba(255,255,255,.07) inset;clip-path:var(--nz-shape)}
 .widget span{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--ink-3)}
 .widget span .nz-ic{width:13px;height:13px;color:var(--teal)}
 .widget b{display:block;font-size:22px;font-weight:600;letter-spacing:-.03em;color:var(--white);margin-top:8px}
@@ -51,13 +51,15 @@ body{display:grid;place-items:center;padding:24px}
 .app:hover .ico{transform:translateY(-3px)}
 .ico{--cut:20px;position:relative;width:66px;height:66px;border-radius:18px;display:grid;place-items:center;color:#fff;
   background:var(--bg,linear-gradient(155deg,#2a2f33,#121516));box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 8px 18px rgba(0,0,0,.4);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);transition:transform var(--fast)}
+  clip-path:var(--nz-shape);transition:transform var(--fast)}
 .ico .nz-ic{width:28px;height:28px;stroke-width:1.6}
-.ico .badge{position:absolute;right:4px;top:4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);
+.app{position:relative}
+/* badge lives outside the clipped icon so no shape can cut it off */
+.app > .badge{position:absolute;left:calc(50% + 20px);top:-6px;z-index:2;box-shadow:0 0 0 2px #050607;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);
   font-size:10px;font-weight:600;display:grid;place-items:center}
 .dock{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);display:flex;gap:18px;padding:12px 18px;border-radius:28px;
   background:rgba(255,255,255,.06);backdrop-filter:blur(18px);box-shadow:0 0 0 1px rgba(255,255,255,.08) inset}
-.dock .app > span:not(.ico){display:none}
+.dock .app > span:not(.ico):not(.badge){display:none}
 .dock .ico{width:58px;height:58px;--cut:17px;border-radius:16px}
 
 .homebar{position:absolute;left:50%;bottom:9px;transform:translateX(-50%);z-index:6;width:130px;height:5px;border-radius:3px;background:rgba(255,255,255,.4);cursor:pointer}
@@ -77,7 +79,7 @@ body{display:grid;place-items:center;padding:24px}
 .bank{display:grid;grid-template-columns:380px 1fr;gap:20px;height:100%}
 .bcard{--cut:30px;position:relative;height:220px;padding:22px 24px;border-radius:22px;overflow:hidden;
   background:linear-gradient(140deg,#0c3b37,#08afa2 130%);box-shadow:0 0 0 1px rgba(255,255,255,.12) inset;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .bcard::after{content:'';position:absolute;right:-30px;top:-40px;width:200px;height:200px;border-radius:30px;background:#fff;opacity:.06;
   clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%)}
 .bcard .top{display:flex;justify-content:space-between;align-items:center}

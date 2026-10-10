@@ -10,7 +10,7 @@ body{display:grid;place-items:center;padding:24px}
 .pane{--cut:20px;position:relative;padding:16px;border-radius:var(--r-lg);
   background:rgba(8,9,10,.66);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   box-shadow:0 0 0 1px var(--line) inset,var(--sh-3);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .p-head{display:flex;align-items:center;gap:11px;margin-bottom:12px}
 .p-head .nz-tile{width:32px;height:32px}
 .p-head .nz-tile .nz-ic{width:15px;height:15px}
@@ -25,7 +25,7 @@ body{display:grid;place-items:center;padding:24px}
 .slot{--cut:11px;position:relative;width:var(--slot);height:var(--slot);border-radius:var(--r-sm);
   background:linear-gradient(160deg,rgba(255,255,255,.035),rgba(0,0,0,.25)),rgba(11,12,13,.8);
   box-shadow:0 0 0 1px var(--line-soft) inset;transition:box-shadow var(--fast),background var(--fast);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .slot.has{cursor:grab}
 .slot:hover{box-shadow:0 0 0 1px var(--line) inset}
 .slot.sel{box-shadow:0 0 0 1px var(--teal) inset,0 0 18px rgba(8,175,162,.18) inset;background:linear-gradient(160deg,rgba(8,175,162,.14),rgba(0,0,0,.2)),rgba(11,12,13,.8)}
@@ -54,7 +54,7 @@ body{display:grid;place-items:center;padding:24px}
 .amt .nz-input{text-align:center;font-size:16px;font-weight:600;height:42px;background:rgba(11,12,13,.85)}
 .mid .nz-btn{height:38px;width:100%}
 .detail{--cut:16px;padding:14px;border-radius:var(--r-md);background:rgba(8,9,10,.66);backdrop-filter:blur(16px);
-  box-shadow:0 0 0 1px var(--line) inset;clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  box-shadow:0 0 0 1px var(--line) inset;clip-path:var(--nz-shape)}
 .detail .big{height:84px;display:grid;place-items:center;color:var(--teal-hi);border-radius:var(--r-sm);
   background:radial-gradient(70% 80% at 50% 40%,rgba(8,175,162,.16),transparent);margin-bottom:10px}
 .detail .big .nz-ic{width:40px;height:40px;stroke-width:1.2}

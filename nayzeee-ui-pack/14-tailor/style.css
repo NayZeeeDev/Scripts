@@ -35,7 +35,7 @@
 .rb span{font-size:8.5px;font-weight:400;letter-spacing:.02em;max-width:48px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rb:hover{color:var(--white);background:var(--lift)}
 .rb.on{color:#00201d;background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .rb.on span{font-weight:600}
 .rb .chg{position:absolute;right:6px;top:6px;width:5px;height:5px;border-radius:50%;background:var(--teal);box-shadow:0 0 6px var(--teal)}
 .rb.on .chg{background:#00201d;box-shadow:none}
@@ -84,7 +84,7 @@
 .sw-label b i{display:inline-block;width:12px;height:12px;border-radius:2px;border:1px solid var(--line)}
 .sws{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:5px}
 .sw{--cut:7px;position:relative;aspect-ratio:1;border-radius:3px;background:var(--c);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);transition:transform var(--fast)}
+  clip-path:var(--nz-shape);transition:transform var(--fast)}
 .sw:hover{transform:scale(1.08)}
 .sw.on{box-shadow:inset 0 0 0 2px var(--white),inset 0 0 0 4px rgba(0,0,0,.5)}
 
@@ -132,7 +132,7 @@
 .tl-tot b{font-size:24px;font-weight:700;letter-spacing:-.035em;color:var(--white)}
 .t-actions{display:grid;grid-template-columns:auto 1fr 1.4fr;gap:6px}
 .t-actions .nz-btn{height:40px;border-radius:3px}
-.t-actions #confirm{--cut:11px;clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.t-actions #confirm{--cut:11px;clip-path:var(--nz-shape)}
 .t-msg{min-height:0;font-size:11px;font-weight:400;display:flex;align-items:center;gap:6px;padding-top:8px}
 .t-msg:empty{display:none}
 .t-msg .nz-ic{width:13px;height:13px}

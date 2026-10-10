@@ -42,7 +42,7 @@
 .opt{--cut:12px;position:relative;display:flex;align-items:center;gap:13px;width:100%;padding:13px 16px 13px 13px;text-align:left;
   border-radius:var(--r-sm);background:rgba(8,9,10,.78);box-shadow:0 0 0 1px var(--line-soft) inset;backdrop-filter:blur(8px);
   font-size:13px;color:var(--ink-2);font-weight:400;transition:all var(--fast);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
   opacity:0;transform:translateX(12px);animation:optIn .35s forwards}
 @keyframes optIn{to{opacity:1;transform:none}}
 .opt .nz-key{min-width:22px;height:22px;font-size:11px;flex:none}

@@ -11,7 +11,7 @@
   --cut:24px;position:relative;width:min(400px,100%);
   display:flex;flex-direction:column;align-items:center;
   background:var(--void);box-shadow:0 0 0 1px rgba(255,255,255,.14) inset;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
   animation:tb-in .3s cubic-bezier(.2,.7,.2,1) both;
 }
 .tb-card.seq{width:min(470px,100%)}
@@ -70,7 +70,7 @@
 .sq-target{display:flex;gap:6px}
 .sq-slot{--cut:7px;width:50px;height:42px;display:grid;place-items:center;font-size:15px;font-weight:600;letter-spacing:.08em;
   color:var(--ink-3);background:var(--panel);box-shadow:0 0 0 1px var(--line-soft) inset;transition:all var(--fast);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .sq-slot.cur{color:var(--white);background:var(--raise-2);box-shadow:0 0 0 1px var(--white) inset}
 .sq-slot.done{color:#00201d;background:var(--teal);box-shadow:none}
 .sq-time{width:100%;display:flex;align-items:center;gap:10px}
@@ -95,7 +95,7 @@
 /* ── pips ── */
 .tb-pips{flex:none;display:flex;gap:6px;padding:14px 0 18px}
 .tb-pips i{--cut:4px;width:30px;height:6px;background:rgba(255,255,255,.1);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .tb-pips i.cur{background:var(--white);animation:nz-pulse 1s infinite}
 .tb-pips i.ok{background:var(--teal)}
 .tb-pips i.no{background:var(--red)}
@@ -110,7 +110,7 @@
   background:rgba(0,0,0,.86)}
 .tb-result.on{display:flex;animation:nz-fade .2s both}
 .tb-result .ic{width:64px;height:64px;display:grid;place-items:center;color:#00201d;background:var(--teal);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%);animation:tb-pop .35s cubic-bezier(.2,1.4,.4,1) both}
+  --cut:16px;clip-path:var(--nz-shape);animation:tb-pop .35s cubic-bezier(.2,1.4,.4,1) both}
 .tb-result .ic .nz-ic{width:30px;height:30px;stroke-width:2.2}
 .tb-result h2{font-size:30px;font-weight:300;letter-spacing:-.01em;color:var(--teal-hi);line-height:1;margin-top:6px}
 .tb-result p{font-size:11.5px;color:var(--ink-2);font-weight:300}

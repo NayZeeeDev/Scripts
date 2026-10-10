@@ -8,6 +8,7 @@
      NZ.icon(name)         inline stroke icon (see ICONS below)
      NZ.addIcons({name: '<path…/>'})  register extra icons from a theme
      NZ.esc(str)           escape player-supplied text before innerHTML
+     NZ.shape('twin')      switch the theme's silhouette (see SHAPES in nz-core.css)
    ═══════════════════════════════════════════════════════════ */
 (() => {
   const inGame = typeof window.GetParentResourceName === 'function';
@@ -129,13 +130,29 @@
     root.querySelectorAll('[data-ic]').forEach(el => { el.outerHTML = icon(el.dataset.ic, el.className); });
   };
 
+  /* ── shapes ── */
+  const SHAPES = ['cut', 'twin', 'mirror', 'bevel', 'crest', 'flip', 'step', 'blade', 'notch', 'round'];
+  const root = document.documentElement;
+  const shape = name => {
+    if (!SHAPES.includes(name)) return root.dataset.shape || 'cut';
+    root.dataset.shape = name;
+    document.querySelectorAll('.nz-shapes button').forEach(b => b.classList.toggle('on', b.dataset.s === name));
+    return name;
+  };
+  const urlShape = new URLSearchParams(location.search).get('shape');
+  if (urlShape) shape(urlShape);
+
   /* ── NUI bridge ── */
   const handlers = {};
   const on = (action, fn) => { handlers[action] = fn; };
   window.addEventListener('message', e => {
     const d = e.data;
-    if (!d || typeof d !== 'object' || !handlers[d.action]) return;
-    handlers[d.action](d.data !== undefined ? d.data : d);
+    if (!d || typeof d !== 'object') return;
+    const data = d.data !== undefined ? d.data : d;
+    // any message may carry a shape, e.g. open { shape = 'bevel', ... }
+    if (data && typeof data === 'object' && typeof data.shape === 'string') shape(data.shape);
+    if (d.action === 'shape') return;
+    if (handlers[d.action]) handlers[d.action](data);
   });
 
   async function post(name, data = {}) {
@@ -174,6 +191,17 @@
     document.body.appendChild(reopenEl);
   }
 
+  function shapePicker() {
+    const bar = document.createElement('div');
+    bar.className = 'nz-shapes';
+    bar.innerHTML = '<span>Shape</span>' + SHAPES.map(n => `<button data-s="${n}">${n}</button>`).join('');
+    bar.onclick = e => { const b = e.target.closest('button'); if (b) shape(b.dataset.s); };
+    // keep picker clicks away from themes that listen on window (orbit, vault…)
+    ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'click', 'contextmenu'].forEach(t => bar.addEventListener(t, e => e.stopPropagation()));
+    document.body.appendChild(bar);
+    shape(root.dataset.shape || 'cut');
+  }
+
   // Runs fn with demo data in a browser, never in game.
   const preview = fn => {
     if (inGame) return;
@@ -181,6 +209,7 @@
     const scene = document.createElement('div');
     scene.className = 'nz-scene';
     document.body.prepend(scene);
+    if (window.top === window) shapePicker();
     fn();
   };
 
@@ -191,7 +220,7 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-  window.NZ = { inGame, resource, on, post, open, close, escape, preview, icon, addIcons, hydrate, esc, money, initials, $, $$ };
+  window.NZ = { inGame, resource, on, post, open, close, escape, preview, icon, addIcons, hydrate, esc, money, initials, shape, SHAPES, $, $$ };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => hydrate());
   else hydrate();

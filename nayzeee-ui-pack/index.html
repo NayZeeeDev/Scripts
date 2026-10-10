@@ -27,7 +27,21 @@ body{overflow:auto;user-select:auto;background:radial-gradient(1100px 640px at 5
 .dna .sw{width:26px;height:26px;border-radius:var(--r-xs);box-shadow:0 0 0 1px var(--line) inset}
 .dna .type{font-size:26px;font-weight:600;letter-spacing:-.03em;color:var(--white)}
 .dna .type i{font-style:normal;font-weight:200}
-.dna .cut{--cut:16px;width:70px;height:44px;background:var(--raise-2);border-radius:var(--r-sm)}
+.dna .cut{--cut:12px;width:44px;height:44px;background:var(--raise-2);border-radius:var(--r-sm)}
+
+.shapes{display:grid;grid-template-columns:repeat(11,1fr);gap:10px}
+.shp{display:flex;flex-direction:column;align-items:center;gap:9px;padding:12px 6px 10px;border-radius:var(--r-md);color:var(--ink-2);font-size:11.5px;
+  transition:background var(--fast),color var(--fast)}
+.shp:hover{background:var(--panel);color:var(--white)}
+.shp.on{background:var(--teal-wash);color:var(--teal);box-shadow:0 0 0 1px var(--teal-edge) inset}
+.shp i{--cut:18px;display:block;width:72px;height:56px;padding:1px;background:var(--teal-edge);border-radius:var(--r-sm);clip-path:var(--nz-shape)}
+.shp i::after{content:'';display:block;height:100%;background:linear-gradient(150deg,var(--raise-2),var(--inset));border-radius:calc(var(--r-sm) - 1px);clip-path:var(--nz-shape-in)}
+.shp.on i{background:var(--teal)}
+.shp.def i{background:linear-gradient(90deg,var(--teal-edge),var(--red-edge))}
+.shapes-note{font-size:11.5px;color:var(--ink-3);font-weight:300;margin-top:12px;line-height:1.6}
+.shapes-note code{font-family:inherit;color:var(--ink-2);background:var(--raise);padding:2px 6px;border-radius:var(--r-xs)}
+.meta .tags .shape-tag{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
+@media (max-width:1100px){.shapes{grid-template-columns:repeat(6,1fr)}}
 .dna small{font-size:10.5px;color:var(--ink-3);font-weight:300;line-height:1.5}
 
 .sec{display:flex;align-items:center;gap:12px;color:var(--ink-3);font-size:12px;font-weight:300;margin-bottom:16px}
@@ -73,9 +87,15 @@ footer code{font-family:inherit;color:var(--ink-2);background:var(--raise);paddi
     <div><b>The mark</b><div class="demo"><div class="nz-mark lg"></div><div class="nz-mark"></div><div class="nz-mark sm"></div></div><small>Same chamfer as every window.</small></div>
     <div><b>Type</b><div class="demo"><span class="type">Lexend <i>Aa</i></span></div><small>200 to 800, tabular numbers.</small></div>
     <div><b>Colour</b><div class="demo"><span class="sw" style="background:#000"></span><span class="sw" style="background:#0e1011"></span><span class="sw" style="background:#08afa2"></span><span class="sw" style="background:#e5484d"></span><span class="sw" style="background:#fff"></span></div><small>Black, teal #08afa2, red #e5484d, white.</small></div>
-    <div><b>The cut</b><div class="demo"><div class="cut nz-cut"></div></div><small>Bottom-right chamfer on every container.</small></div>
+    <div><b>The shape</b><div class="demo"><div class="cut nz-cut"></div><div class="cut nz-cut" data-shape="twin"></div><div class="cut nz-cut" data-shape="notch"></div></div><small>Ten cut-corner silhouettes from one family.</small></div>
     <div><b>Signature</b><div class="demo"><span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span></div><small>In every theme, so customers know who made it.</small></div>
   </div>
+</section>
+
+<section class="wrap">
+  <div class="sec">Shapes · pick one to preview every theme in it</div>
+  <div class="shapes" id="shapes"></div>
+  <p class="shapes-note">Each theme has its own default. Change it per script with <code>&lt;html data-shape="bevel"&gt;</code>, at runtime with <code>SendNUIMessage({ action = 'shape', data = { shape = 'bevel' } })</code>, or pass <code>shape</code> in any open data. One panel can differ with <code>data-shape</code> on that element.</p>
 </section>
 
 <section class="wrap">
@@ -111,16 +131,38 @@ const THEMES = [
   ['19-teller', 'Teller', 'A full ATM: PIN pad, soft keys, cash dispenser and a printed receipt.', ['ATM', 'Bank', 'Card terminal']],
   ['20-arrival', 'Arrival', 'Loading screen: huge mark, rotating tips, changelog, staff and a segmented progress bar.', ['Loadscreen', 'Server join']],
 ];
+const DEFAULT_SHAPE = {"01":"cut","02":"mirror","03":"bevel","04":"twin","05":"round","06":"bevel","07":"blade","08":"notch","09":"flip","10":"notch",
+  "11":"twin","12":"crest","13":"step","14":"blade","15":"crest","16":"mirror","17":"round","18":"bevel","19":"step","20":"cut"};
+const SHAPES = ['cut', 'twin', 'mirror', 'bevel', 'crest', 'flip', 'step', 'blade', 'notch', 'round'];
 const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 document.getElementById('grid').innerHTML = THEMES.map(([dir, name, desc, tags], i) => `
   <a class="card nz-cut" href="${dir}/index.html">
     <div class="thumb"><iframe src="${dir}/index.html" tabindex="-1" title="${name} preview"></iframe></div>
     <div class="meta">
       <span class="num">${String(i + 1).padStart(2, '0')}</span>
-      <div><h2>${name}</h2><p>${desc}</p><div class="tags">${tags.map(t => `<span class="nz-tag off">${t}</span>`).join('')}</div></div>
+      <div><h2>${name}</h2><p>${desc}</p><div class="tags"><span class="nz-tag shape-tag" data-def="${DEFAULT_SHAPE[dir.slice(0, 2)]}">${DEFAULT_SHAPE[dir.slice(0, 2)]}</span>${tags.map(t => `<span class="nz-tag off">${t}</span>`).join('')}</div></div>
       <span class="go">${arrow}</span>
     </div>
   </a>`).join('');
+
+/* shape picker: '' = each theme's own default */
+let picked = '';
+function pick(sh) {
+  picked = sh;
+  document.documentElement.dataset.shape = sh || 'cut';
+  document.querySelectorAll('.shp').forEach(b => b.classList.toggle('on', b.dataset.s === sh));
+  document.querySelectorAll('.card').forEach(c => {
+    const dir = c.getAttribute('href').split('/')[0];
+    const q = sh ? `?shape=${sh}` : '';
+    c.querySelector('iframe').src = `${dir}/index.html${q}`;
+    c.href = `${dir}/index.html${q}`;
+    const tag = c.querySelector('.shape-tag'); tag.textContent = sh || tag.dataset.def;
+  });
+}
+document.getElementById('shapes').innerHTML =
+  `<button class="shp def on" data-s=""><i data-shape="cut"></i>Theme default</button>` +
+  SHAPES.map(n => `<button class="shp" data-s="${n}"><i data-shape="${n}"></i>${n}</button>`).join('');
+document.querySelectorAll('.shp').forEach(b => b.onclick = () => pick(b.dataset.s));
 
 const fit = () => document.querySelectorAll('.thumb').forEach(t => { t.firstElementChild.style.transform = `scale(${t.clientWidth / 1920})`; });
 new ResizeObserver(fit).observe(document.getElementById('grid'));

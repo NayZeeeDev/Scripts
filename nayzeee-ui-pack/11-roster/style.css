@@ -23,7 +23,7 @@
 .ro-usage-txt b{color:var(--white);font-weight:600}
 .ro-segs{display:flex;gap:4px}
 .ro-segs i{--cut:4px;width:26px;height:6px;background:rgba(255,255,255,.12);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .ro-segs i.used{background:var(--teal);box-shadow:0 0 8px var(--teal)}
 .ro-segs i.lock{background:repeating-linear-gradient(135deg,rgba(255,255,255,.14) 0 2px,transparent 2px 4px)}
 
@@ -71,13 +71,13 @@
   --cut:26px;position:relative;flex:none;display:block;text-align:left;
   width:clamp(136px,9.2vw,176px);height:clamp(184px,23vh,250px);padding:1px;
   background:rgba(255,255,255,.12);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
   transition:transform var(--slow),background var(--fast);
 }
 .slot-in{
   position:relative;display:flex;flex-direction:column;height:100%;padding:8px 8px 12px;
   background:linear-gradient(180deg,rgba(21,24,26,.94),rgba(8,9,10,.96));
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut) + 1px),calc(100% - var(--cut) + 1px) 100%,0 100%);
+  clip-path:var(--nz-shape-in);
   animation:nz-rise .36s cubic-bezier(.2,.7,.2,1) both;
 }
 .slot:hover{background:rgba(255,255,255,.24)}
@@ -91,7 +91,7 @@
     repeating-linear-gradient(135deg,rgba(255,255,255,.028) 0 1px,transparent 1px 7px),
     radial-gradient(80% 70% at 50% 100%,rgba(255,255,255,.06),transparent 70%),
     var(--inset);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .portrait > .nz-ic.sil{position:absolute;left:50%;bottom:-18%;width:118%;height:auto;aspect-ratio:1;margin-left:-59%;
   color:rgba(255,255,255,.05);stroke-width:.9}
 .mono{position:relative;font-size:clamp(34px,4.6vh,50px);font-weight:800;letter-spacing:-.05em;color:var(--ink-2);line-height:1;transition:color var(--fast)}
@@ -139,7 +139,7 @@
 .ro-play{
   --cut:18px;position:relative;display:flex;align-items:center;gap:16px;height:66px;min-width:270px;padding:0 20px 0 14px;text-align:left;
   background:linear-gradient(180deg,var(--teal-hi),var(--teal) 45%,var(--teal-lo));color:#00201d;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
   transition:filter var(--fast),transform var(--fast);
 }
 .ro-play:hover{filter:brightness(1.1)}

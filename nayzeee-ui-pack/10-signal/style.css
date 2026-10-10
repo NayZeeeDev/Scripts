@@ -10,7 +10,7 @@
 .toasts{position:absolute;right:28px;top:28px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:350px}
 .toast{--cut:12px;--c:var(--teal);position:relative;display:grid;grid-template-columns:30px 1fr;gap:12px;width:100%;padding:13px 16px 15px 13px;
   background:rgba(14,16,17,.94);border-radius:var(--r-sm);box-shadow:0 0 0 1px var(--line) inset,var(--sh-2);overflow:hidden;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
   animation:tIn .35s cubic-bezier(.2,.7,.2,1) both}
 .toast.out{animation:tOut .25s ease-in both}
 @keyframes tIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
@@ -53,7 +53,7 @@
 @keyframes uOut{to{opacity:0;transform:translate(-20px,-50%)}}
 .textui .k{--cut:10px;width:42px;height:42px;display:grid;place-items:center;border-radius:var(--r-sm);
   background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d;font-size:17px;font-weight:700;box-shadow:0 1px 0 rgba(255,255,255,.3) inset;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .textui b{display:block;font-size:13.5px;font-weight:500;color:var(--white)}
 .textui span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;font-weight:300}
 
@@ -65,7 +65,7 @@
 .progress .top b .nz-ic{width:15px;height:15px;color:var(--teal)}
 .progress .top span{font-size:12px;font-weight:600;color:var(--white)}
 .progress .track{--cut:8px;position:relative;height:12px;padding:2px;border-radius:3px;background:rgba(8,9,10,.85);box-shadow:0 0 0 1px var(--line) inset;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .progress .fill{height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));box-shadow:0 0 12px rgba(8,175,162,.5);position:relative;overflow:hidden}
 .progress .fill::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.14) 0 6px,transparent 6px 12px);
   animation:stripe .8s linear infinite}
@@ -76,7 +76,7 @@
 /* ── dialogs ── */
 .scrim{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);animation:nz-fade .2s both}
 .dlg{--cut:20px;width:420px;background:var(--panel);border-radius:var(--r-lg);box-shadow:0 0 0 1px var(--line) inset,var(--sh-3);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);animation:nz-rise .3s both}
+  clip-path:var(--nz-shape);animation:nz-rise .3s both}
 .dlg .hd{display:flex;gap:13px;padding:20px 20px 4px}
 .dlg .hd h3{font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.012em}
 .dlg .hd p{font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.55;margin-top:4px}

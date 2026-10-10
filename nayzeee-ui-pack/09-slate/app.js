@@ -16,7 +16,7 @@ const BG = {
   dark: 'linear-gradient(155deg,#2a2f33,#121516)', blue: 'linear-gradient(155deg,#4b8de0,#1f3a68)',
 };
 const appIcon = a => `<button class="app" data-app="${NZ.esc(a.id)}">
-  <span class="ico" style="--bg:${BG[a.color] || BG.dark};${a.color === 'white' ? 'color:#000' : ''}">${NZ.icon(a.icon)}${a.badge ? `<span class="badge">${NZ.esc(a.badge)}</span>` : ''}</span>
+  <span class="ico" style="--bg:${BG[a.color] || BG.dark};${a.color === 'white' ? 'color:#000' : ''}">${NZ.icon(a.icon)}</span>${a.badge ? `<span class="badge">${NZ.esc(a.badge)}</span>` : ''}
   <span>${NZ.esc(a.label)}</span></button>`;
 
 function clock() {

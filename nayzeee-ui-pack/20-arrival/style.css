@@ -128,7 +128,7 @@
 .member{display:flex;align-items:center;gap:10px;min-width:0}
 .member .nz-av{--cut:7px;position:relative;width:34px;height:34px;font-size:11px;color:var(--white);
   background:linear-gradient(150deg,var(--raise-2),var(--panel));
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .member .nz-av.lead{background:linear-gradient(150deg,var(--teal-hi),var(--teal-lo));color:#00201d;border-color:transparent}
 .member > div{min-width:0}
 .member b{display:block;font-size:12px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -151,7 +151,7 @@
 .clock b{display:block;font-size:clamp(15px,2vh,20px);font-weight:500;color:var(--white);margin-top:6px}
 
 .bar{--cut:12px;display:grid;grid-template-columns:repeat(var(--n,60),1fr);gap:4px;height:clamp(12px,1.7vh,18px);margin-top:clamp(14px,2.2vh,22px);padding:0 4px;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .seg{position:relative;overflow:hidden;background:rgba(255,255,255,.07);transform:skewX(-24deg)}
 .seg > i{position:absolute;inset:0;background:linear-gradient(180deg,var(--teal-hi),var(--teal) 60%,var(--teal-lo));transform-origin:left;transform:scaleX(var(--f,0))}
 .seg.full > i{transform:none}

@@ -13,11 +13,12 @@
   background:linear-gradient(180deg,rgba(14,16,17,.82),rgba(8,9,10,.74) 30%,rgba(8,9,10,.7));
   -webkit-backdrop-filter:blur(22px) saturate(1.15);backdrop-filter:blur(22px) saturate(1.15);
   box-shadow:0 0 0 1px var(--line) inset;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
   animation:tl-in .32s cubic-bezier(.2,.7,.2,1) both;
 }
 @keyframes tl-in{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
-/* hairline along the chamfer, so the cut reads as an edge */
+/* hairline along the chamfer, so the cut reads as an edge (cut shape only) */
+html[data-shape]:not([data-shape="cut"]) .tl-col::before{display:none}
 .tl-col::before{content:'';position:absolute;right:0;bottom:0;width:var(--cut);height:var(--cut);pointer-events:none;z-index:3;
   background:linear-gradient(to top left,transparent calc(50% - 1px),var(--line) 50%,transparent calc(50% + 1px))}
 
@@ -63,7 +64,7 @@
 .tl-jobs:empty{display:none}
 .job{--cut:10px;position:relative;display:flex;flex-direction:column;gap:6px;padding:9px 10px 9px;min-width:0;
   background:rgba(255,255,255,.04);box-shadow:0 0 0 1px var(--line-soft) inset;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .job .row{display:flex;align-items:center;justify-content:space-between;gap:6px}
 .job .nz-ic{width:15px;height:15px;color:var(--teal)}
 .job .row b{font-size:18px;font-weight:600;color:var(--white);line-height:1;letter-spacing:-.02em}
@@ -102,7 +103,7 @@
 
 .pid{--cut:6px;width:46px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--white);
   letter-spacing:.1em;font-feature-settings:'tnum' 1,'zero' 1;background:rgba(0,0,0,.45);box-shadow:0 0 0 1px var(--line-soft) inset;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .pid i{font-style:normal;color:var(--ink-3);opacity:.6}
 .pn{display:flex;align-items:center;gap:8px;min-width:0}
 .pn b{font-size:12.5px;font-weight:400;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}

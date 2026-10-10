@@ -44,7 +44,7 @@ body{display:grid;place-items:center;padding:24px}
 .z-meta em{font-style:normal;color:var(--white);font-weight:600}
 .step{--cut:6px;display:inline-grid;place-items:center;min-width:26px;height:18px;padding:0 5px;
   font-size:10px;font-weight:700;letter-spacing:.04em;color:#00201d;background:var(--teal);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .ruler{height:8px;flex:none;border-bottom:1px solid var(--line-hair);
   background:var(--tick-lg),var(--tick);background-size:100% 8px,100% 4px;background-repeat:no-repeat}
 
@@ -95,7 +95,7 @@ body{display:grid;place-items:center;padding:24px}
     linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px) 0 0/20px 20px,
     var(--inset);
   border:1px solid var(--line);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .stage > svg{width:44%;height:44%;stroke-width:1.1;filter:drop-shadow(0 0 18px rgba(8,175,162,.45));animation:nz-rise .35s both}
 .stage .tk{position:absolute;pointer-events:none}
 .stage .tk.x{left:10px;right:10px;top:0;height:6px;background:var(--tick);background-size:100% 4px;background-repeat:no-repeat}
@@ -162,7 +162,7 @@ body{display:grid;place-items:center;padding:24px}
 .sum div b{display:block;margin-top:5px;font-size:18px;font-weight:700;color:var(--white);letter-spacing:-.02em;white-space:nowrap}
 .craft{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:210px}
 .craft .nz-btn{height:46px;font-size:13.5px;border-radius:2px;--cut:12px;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+  clip-path:var(--nz-shape)}
 .craft .nz-btn .nz-ic{width:16px;height:16px}
 .reason{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);font-weight:300;min-height:14px;justify-content:flex-end}
 .reason .nz-ic{width:12px;height:12px}

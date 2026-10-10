@@ -10,7 +10,7 @@
 .status{position:absolute;left:calc(var(--map-w) + 36px);bottom:30px;display:flex;align-items:flex-end;gap:8px}
 .cap{--v:100;--c:var(--teal);--cw:rgba(8,175,162,.38);--cut:9px;position:relative;width:38px;height:58px;
   background:rgba(8,9,10,.72);border-radius:var(--r-sm);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%);
+  clip-path:var(--nz-shape);
   box-shadow:0 0 0 1px var(--line) inset}
 .cap::before{ /* level */
   content:'';position:absolute;left:0;right:0;bottom:0;height:calc(var(--v) * 1%);
