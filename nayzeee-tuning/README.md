@@ -166,10 +166,11 @@ Built-in hooks make it instant (`Config.Garages.Hooks`, each one only runs when 
 | `qbx` | `qbx_garages` and anything spawning cars with ox_lib's `setVehicleProperties` |
 | `qb` | `qb-garages` |
 | `jg` | JG Advanced Garages (`jg-advancedgarages:client:TakeOutVehicle:config`) |
-| `keys` | garages that give keys with `vehiclekeys:client:SetOwner` (most QBCore / Qbox garages) |
+| `keys` | garages that give keys right after the spawn: every client event in `Config.Garages.PlateEvents` (first argument = the plate), `vehiclekeys:client:SetOwner` by default (most QBCore / Qbox garages) |
 
 Using something else (cd_garage, okokGarage, loaf, codem...)?
 - **It fires a client "vehicle taken out" event**: add the event name to `Config.Garages.Events` (first argument must be the vehicle).
+- **It fires a client event with the plate right after spawning (e.g. to give keys)**: add it to `Config.Garages.PlateEvents`.
 - **Otherwise** add one line to its client code, right after it sets the vehicle properties / plate:
   ```lua
   exports['nayzeee-tuning']:VehicleSpawned(vehicle)

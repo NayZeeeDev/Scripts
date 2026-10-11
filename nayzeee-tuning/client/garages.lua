@@ -43,24 +43,28 @@ if H.jg then
     AddEventHandler('jg-advancedgarages:client:TakeOutVehicle:config', function(vehicle) Garages.Spawned(vehicle) end)
 end
 
--- most QBCore / Qbox garages hand out keys for the plate right after spawning the car
-if H.keys then
-    RegisterNetEvent('vehiclekeys:client:SetOwner', function(plate)
-        if type(plate) ~= 'string' then return end
-        plate = NZ.TrimPlate(plate)
-        CreateThread(function()
-            -- the car (or its plate) can reach this client a moment after the event
-            for _ = 1, 15 do
-                local me = GetEntityCoords(cache.ped)
-                for _, veh in ipairs(GetGamePool('CVehicle')) do
-                    if NZ.TrimPlate(GetVehicleNumberPlateText(veh)) == plate and #(GetEntityCoords(veh) - me) < 60.0 then
-                        return Garages.Spawned(veh)
-                    end
+-- the car with this plate near the player (it, or its plate, can reach this client a moment after the event)
+local function byPlate(plate)
+    if type(plate) ~= 'string' then return end
+    plate = NZ.TrimPlate(plate)
+    CreateThread(function()
+        for _ = 1, 15 do
+            local me = GetEntityCoords(cache.ped)
+            for _, veh in ipairs(GetGamePool('CVehicle')) do
+                if NZ.TrimPlate(GetVehicleNumberPlateText(veh)) == plate and #(GetEntityCoords(veh) - me) < 60.0 then
+                    return Garages.Spawned(veh)
                 end
-                Wait(200)
             end
-        end)
+            Wait(200)
+        end
     end)
+end
+
+-- most garages hand out keys for the plate right after spawning the car
+if H.keys then
+    for _, name in ipairs(G.PlateEvents or {}) do
+        RegisterNetEvent(name, byPlate)
+    end
 end
 
 -- any other garage: its client "vehicle taken out" event, first argument = the vehicle

@@ -126,10 +126,13 @@ Config.Garages = {
         qbx     = true,     -- qbx_garages (and anything spawning with ox_lib's setVehicleProperties)
         qb      = true,     -- qb-garages
         jg      = true,     -- JG Advanced Garages
-        keys    = true,     -- garages that hand out keys with 'vehiclekeys:client:SetOwner' (most QBCore / Qbox garages)
+        keys    = true,     -- garages that hand out keys right after spawning (PlateEvents below)
     },
-    Events = {
+    Events = {              -- client "vehicle taken out" events, first argument = the vehicle
         -- 'my_garage:client:vehicleSpawned',
+    },
+    PlateEvents = {         -- client events fired with the plate right after a spawn (usually "give keys")
+        'vehiclekeys:client:SetOwner',                      -- qb-vehiclekeys / qbx_vehiclekeys (most QBCore / Qbox garages)
     },
 }
 
