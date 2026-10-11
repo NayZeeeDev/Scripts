@@ -261,7 +261,7 @@ Item images for the 16 mixing ingredients: square PNGs, at least 256 px, ideally
 
 `nzw_ing_cuke.png`, `nzw_ing_banana.png`, `nzw_ing_paracetamol.png`, `nzw_ing_donut.png`, `nzw_ing_energydrink.png`, `nzw_ing_mouthwash.png`, `nzw_ing_flumedicine.png`, `nzw_ing_gasoline.png`, `nzw_ing_viagra.png`, `nzw_ing_motoroil.png`, `nzw_ing_megabean.png`, `nzw_ing_chili.png`, `nzw_ing_battery.png`, `nzw_ing_iodine.png`, `nzw_ing_addy.png`, `nzw_ing_horsesemen.png`
 
-They go in `install/images/`.
+They go in `install/images/`. Until then, those files are labelled placeholders, so nothing shows a broken image. Overwrite them with yours, using the same names.
 
 Optional: one image per seed (`nzw_seed_<strain>.png`) if you want each seed to look different.
 
