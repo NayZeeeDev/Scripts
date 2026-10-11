@@ -309,7 +309,7 @@ $('#reveal').addEventListener('click', hideReveal);
 let pqT = 0, pqId = null;
 function promptOpen(d) {
   pqId = d.id;
-  const icons = { haircut: 'fa-scissors', cut: 'fa-scissors', puton: 'fa-hat-wizard', takeoff: 'fa-hand-sparkles', trade: 'fa-handshake' };
+  const icons = { haircut: 'fa-scissors', cut: 'fa-scissors', puton: 'fa-hat-wizard', takeoff: 'fa-hand-sparkles', trade: d.price ? 'fa-hand-holding-dollar' : 'fa-gift' };
   let wig = '';
   if (d.wig) wig = `<div class="pq-wig">${goodCard(Object.assign({}, d.wig, { key: 'pq' }), { plain: true })}</div>`;
   const box = $('#prompt');

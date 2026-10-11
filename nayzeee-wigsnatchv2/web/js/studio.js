@@ -98,7 +98,7 @@ function sdLeft() {
     return String(x.d) === q || styleName(m, x.d, 0).toLowerCase().includes(q);
   });
   $('#sdLeft').innerHTML = `<div class="ch-frame"><div class="ch-in sd-in">
-    <div class="sd-head"><div class="mark sm"></div><div class="sd-ht"><b>Wig Studio</b><span>${SD.list.length} hairstyles · ${done} photographed</span></div><span class="ver">v${esc(S.cfg.version)}</span></div>
+    <div class="sd-head"><div class="mark sm"><i class="fa-solid fa-camera"></i></div><div class="sd-ht"><b>Wig Studio</b><span>${SD.list.length} hairstyles · ${done} photographed</span></div><span class="ver">v${esc(S.cfg.version)}</span></div>
     <div class="seg sd-seg">${[['f', 'Female'], ['m', 'Male']].map(([k, l]) => `<button class="${m === k ? 'on' : ''}" data-sd="model" data-v="${k}" ${SD.batch ? 'disabled' : ''}>${l}</button>`).join('')}</div>
     <label class="field"><i class="fa-solid fa-magnifying-glass"></i><input id="sdSearch" placeholder="Search by name or number" value="${esc(SD.search)}"></label>
     <div class="sd-list">${rows.length ? rows.map((x) => {

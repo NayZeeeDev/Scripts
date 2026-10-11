@@ -37,7 +37,7 @@ function toolDef(id) { return arr(K.d && K.d.tools).find((t) => t.id === id) || 
 function cutStart(d) {
   Object.assign(K, { on: true, d, tool: d.tool, holding: false, hover: null, ends: Date.now() + (d.max || 120) * 1000, work: d.work || {} });
   ke.top.innerHTML = `<div class="ch-frame"><div class="ch-in">
-      <div class="mark sm"></div>
+      <div class="mark sm"><i class="fa-solid fa-scissors"></i></div>
       <div class="ct-tx"><small>${d.forced ? 'Forced cut' : 'Haircut'}</small><b>${esc(d.name)}</b></div>
       ${d.forced ? `<span class="chip t-error"><i class="fa-solid fa-user-slash"></i>Restrained</span>` : `<span class="chip t-success"><i class="fa-solid fa-handshake"></i>Agreed</span>`}
       <div class="ct-clock"><i class="fa-regular fa-clock"></i><span id="cutClock">2:00</span></div></div></div>`;

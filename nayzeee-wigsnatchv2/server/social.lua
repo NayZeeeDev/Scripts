@@ -204,7 +204,7 @@ lib.callback.register('nz-wig:offer', function(src, target, key, price)
     local pub = Wigs.Public(stack.meta, Wigs.Value(stack.meta, 0))
     SendPrompt(target, {
         kind = 'trade', id = offer.id, timeout = Config.Trading.Timeout,
-        title = L('trade_prompt_title'),
+        title = pub.kind == 'bundle' and L('trade_prompt_title_bundle') or L('trade_prompt_title'),
         body = price > 0 and L('trade_prompt_sell', P.name, price) or L('trade_prompt_gift', P.name),
         wig = pub, price = price,
     })

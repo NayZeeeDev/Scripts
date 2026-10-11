@@ -17,6 +17,7 @@
     spark: '<path d="M12 3.5l2.4 5.2 5.6.7-4.1 3.9 1 5.6-4.9-2.7-4.9 2.7 1-5.6L4 9.4l5.6-.7z"/>',
     back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
     scissors: '<circle cx="6" cy="7" r="2.8"/><circle cx="6" cy="17" r="2.8"/><path d="M8.3 8.6 20 19M8.3 15.4 20 5"/>',
+    bag: '<path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 10V6.5a3 3 0 0 1 6 0V10"/>',
     cart: '<path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="20" r="1.2"/><circle cx="17" cy="20" r="1.2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     minus: '<path d="M5 12h14"/>',
@@ -65,6 +66,9 @@
   function openSide(kind, title, sub) {
     side = kind;
     el('skTitle').textContent = title.toUpperCase();
+    const ic = kind === 'dye' ? 'drop' : 'table';
+    el('skMark').innerHTML = icon(ic);
+    el('skWm').innerHTML = icon(ic);
     el('skSub').textContent = sub;
     el('skBench').hidden = kind !== 'bench' && kind !== 'dye';
     el('skBench').classList.toggle('solo', kind === 'dye');

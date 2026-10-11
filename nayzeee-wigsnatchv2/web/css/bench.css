@@ -34,15 +34,15 @@
 @keyframes skWinIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .sk .win:not([hidden]){animation:skWinIn .18s ease-out}
 
-/* brand mark: the window silhouette at small scale */
+/* window mark: the window's own icon on the chamfered teal tile */
 .sk .mark{
-  position:relative;flex:none;width:30px;height:30px;
+  position:relative;flex:none;width:30px;height:30px;display:grid;place-items:center;color:#00201d;
   background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
   border-radius:var(--r-sm);
   clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
   box-shadow:0 2px 12px rgba(8,175,162,.3);
 }
-.sk .mark::after{content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;background:var(--void);opacity:.85;border-radius:1px}
+.sk .mark svg{width:16px;height:16px;stroke-width:2}
 .sk .mark.sm{width:22px;height:22px;border-radius:5px}
 
 .sk .title-txt{font-size:12.5px;font-weight:600;color:var(--white);letter-spacing:.055em;line-height:1}
@@ -60,7 +60,6 @@
   height:100%;flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:11px;
   padding-left:16px;position:relative;
 }
-.sk .bar-brand::before{content:'';position:absolute;top:0;left:0;right:30%;height:2px;background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
 .sk .bar-brand .title-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sk .bar-mid{flex:0 1 auto}
 
@@ -95,13 +94,11 @@
 /* body */
 .sk .main{position:relative;padding:14px;display:flex;flex-direction:column;gap:12px;flex:1 1 auto;min-height:0}
 .sk .main.scroll{overflow-y:auto}
-.sk .shell::before{ /* watermark: the silhouette again, at scale */
-  content:'';position:absolute;right:-40px;bottom:-16px;z-index:0;pointer-events:none;
-  width:200px;height:200px;border-radius:22px;opacity:.03;background:var(--white);
-  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
+.sk .wm{ /* watermark: the window's icon again, at scale */
+  position:absolute;right:-30px;bottom:-24px;z-index:0;pointer-events:none;width:210px;height:210px;color:var(--white);opacity:.035;
 }
+.sk .wm svg{width:100%;height:100%;stroke-width:1.2}
 .sk .main{z-index:1}
-.sk .hud .shell::before,.sk .result .shell::before,.sk .inspect .shell::before,.sk .menu .shell::before,.sk .dealhud .shell::before{display:none}
 .sk .scroll::-webkit-scrollbar,.sk .list::-webkit-scrollbar,.sk .guide-body::-webkit-scrollbar{width:8px}
 .sk .scroll::-webkit-scrollbar-thumb,.sk .list::-webkit-scrollbar-thumb,.sk .guide-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--base)}
 
@@ -372,7 +369,6 @@
 .sk .store.wide{width:min(1360px,96vw)}
 @keyframes skStoreIn{from{opacity:0;transform:translate(-50%,calc(-50% + 6px))}to{opacity:1;transform:translate(-50%,-50%)}}
 .sk .store .frame{width:100%}
-.sk .store .shell::before{display:none}
 .sk .x-close{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);
   background:var(--raise);border:1px solid var(--line);transition:all var(--fast)}
 .sk .x-close:hover{color:var(--white);border-color:var(--red-edge);background:var(--red-wash)}

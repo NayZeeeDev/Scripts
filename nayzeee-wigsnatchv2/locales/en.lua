@@ -212,7 +212,8 @@ Locales['en'] = {
 
     -- trade
     trade_sent         = 'Offer sent to %s',
-    trade_prompt_title = 'Hair offer',
+    trade_prompt_title = 'Wig Deal',
+    trade_prompt_title_bundle = 'Bundle Deal',
     trade_prompt_sell  = '%s wants to sell you this for $%s',
     trade_prompt_gift  = '%s wants to give you this',
     trade_accepted     = '%s accepted your offer',
