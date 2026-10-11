@@ -166,7 +166,7 @@ Built-in hooks make it instant (`Config.Garages.Hooks`, each one only runs when 
 | `qbx` | `qbx_garages` and anything spawning cars with ox_lib's `setVehicleProperties` |
 | `qb` | `qb-garages` |
 | `jg` | JG Advanced Garages (`jg-advancedgarages:client:TakeOutVehicle:config`) |
-| `keys` | garages that give keys right after the spawn: every client event in `Config.Garages.PlateEvents` (first argument = the plate), `vehiclekeys:client:SetOwner` by default (most QBCore / Qbox garages) |
+| `keys` | garages that give keys right after the spawn: client events in `Config.Garages.PlateEvents` (`vehiclekeys:client:SetOwner`, most QBCore / Qbox garages) and server events in `Config.Garages.ServerPlateEvents` (`okokGarage:GiveKeys`); first argument = the plate |
 
 Using something else (cd_garage, okokGarage, loaf, codem...)?
 - **It fires a client "vehicle taken out" event**: add the event name to `Config.Garages.Events` (first argument must be the vehicle).

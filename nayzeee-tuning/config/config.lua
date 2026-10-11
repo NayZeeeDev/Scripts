@@ -134,6 +134,9 @@ Config.Garages = {
     PlateEvents = {         -- client events fired with the plate right after a spawn (usually "give keys")
         'vehiclekeys:client:SetOwner',                      -- qb-vehiclekeys / qbx_vehiclekeys (most QBCore / Qbox garages)
     },
+    ServerPlateEvents = {   -- same, but sent to the server (TriggerServerEvent(name, plate))
+        'okokGarage:GiveKeys',                              -- okokGarage keys
+    },
 }
 
 -- ██████╗ ██╗███████╗ ██████╗ ██████╗ ██╗   ██╗███╗   ██╗████████╗     ██████╗ ██████╗ ██████╗ ███████╗███████╗

@@ -35,6 +35,28 @@ if H.qbx then
     end)
 end
 
+-- garages / key scripts that send the plate to the server right after a spawn (Config.Garages.ServerPlateEvents)
+-- the plate is only a hint: the car must carry it on the server before anything is pushed
+if H.keys then
+    for _, name in ipairs(Config.Garages.ServerPlateEvents or {}) do
+        RegisterNetEvent(name, function(plate)
+            if type(plate) ~= 'string' or not Core.Throttle(source, 'garage', 500) then return end
+            local hint, ped = NZ.TrimPlate(plate), GetPlayerPed(source)
+            CreateThread(function()
+                -- the plate can reach the server a moment after the event
+                for _ = 1, 15 do
+                    local veh = Vehicles.FindByPlate(hint)
+                    if veh then
+                        if #(GetEntityCoords(veh) - GetEntityCoords(ped)) < 80.0 then Vehicles.Watch(veh, hint) end
+                        return
+                    end
+                    Wait(200)
+                end
+            end)
+        end)
+    end
+end
+
 -- qb-garages: the client reports the car as out once its props are on
 if H.qb then
     RegisterNetEvent('qb-garages:server:updateVehicleState', function(state, plate)
