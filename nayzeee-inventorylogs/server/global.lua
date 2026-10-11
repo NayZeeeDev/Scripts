@@ -107,6 +107,10 @@ NZ.Route('global:remove', 'global', function(src, d)
     if item == '' then NZ.Fail('Pick an item first.') end
     local scope = d.scope or { online = true }
     local per = tonumber(d.amount)   -- nil = every copy
+    if per then
+        per = math.floor(per)
+        if per < 1 then NZ.Fail('Amount has to be at least 1.') end
+    end
     local done = { online = 0, offline = 0, stashes = 0, vehicles = 0, inventories = 0 }
 
     if scope.online ~= false then
@@ -201,8 +205,13 @@ NZ.Route('global:give', 'global', function(src, d)
         if not ok or type(v) ~= 'table' then NZ.Fail('Metadata must be valid JSON.') end
         meta = v
     end
-    local jobs = {}
-    for _, j in ipairs(type(d.jobs) == 'table' and d.jobs or {}) do jobs[tostring(j):lower()] = true end
+    local jobs, jobList = {}, {}
+    for _, j in ipairs(type(d.jobs) == 'table' and d.jobs or {}) do
+        if type(j) == 'string' or type(j) == 'number' then
+            jobs[tostring(j):lower()] = true
+            jobList[#jobList + 1] = tostring(j)
+        end
+    end
     local exclude = {}
     for _, id in ipairs(type(d.exclude) == 'table' and d.exclude or {}) do exclude[tonumber(id) or -1] = true end
     local only
@@ -226,7 +235,7 @@ NZ.Route('global:give', 'global', function(src, d)
             if ok then
                 res.given = res.given + count
                 res.players = res.players + 1
-                if d.message and d.message ~= '' then NZ.Notify(id, d.message, 'success') end
+                if type(d.message) == 'string' and d.message ~= '' then NZ.Notify(id, d.message, 'success') end
             else
                 res.full[#res.full + 1] = { id = id, name = GetPlayerName(id) }
             end
@@ -234,7 +243,7 @@ NZ.Route('global:give', 'global', function(src, d)
     end
 
     local me = NZ.Actor(src)
-    local details = ('%s gave %s x%s to %d players%s'):format(me.name, info.label, count, res.players, next(jobs) and (' (jobs: ' .. table.concat(d.jobs, ', ') .. ')') or '')
+    local details = ('%s gave %s x%s to %d players%s'):format(me.name, info.label, count, res.players, next(jobs) and (' (jobs: ' .. table.concat(jobList, ', ') .. ')') or '')
     InsertLog({ type = 'global_give', source_name = me.name, source_identifier = me.identifier, source_id = me.id,
         item_name = item, item_label = info.label, item_count = res.given, metadata = meta, coords = me.coords, details = details, resource = NZ.Resource })
     local fullNames = {}
@@ -243,12 +252,12 @@ NZ.Route('global:give', 'global', function(src, d)
         extra = {
             { 'Players', NZ.Comma(res.players), true },
             { 'Total given', NZ.Comma(res.given), true },
-            { 'Only jobs', next(jobs) and table.concat(d.jobs, ', ') or nil, true },
+            { 'Only jobs', next(jobs) and table.concat(jobList, ', ') or nil, true },
             { 'Skipped', res.skipped > 0 and NZ.Comma(res.skipped) or nil, true },
             { ('Couldn\'t carry it (%d)'):format(#res.full), #res.full > 0 and table.concat(fullNames, '\n') or nil, false },
-            { 'Message to players', d.message ~= '' and d.message or nil, false },
+            { 'Message to players', type(d.message) == 'string' and d.message ~= '' and d.message or nil, false },
         } })
-    NZ.Audit(src, 'global_give', item, { count = count, jobs = d.jobs, only = d.only, exclude = d.exclude, result = { players = res.players, full = #res.full } })
+    NZ.Audit(src, 'global_give', item, { count = count, jobs = jobList, only = d.only, exclude = d.exclude, result = { players = res.players, full = #res.full } })
     NZ.NotifyStaff(details, 'success', 'staff', src)
     return res
 end)

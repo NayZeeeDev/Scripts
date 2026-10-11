@@ -12,7 +12,7 @@
     ██║██║ ╚████║ ╚████╔╝ ███████╗██║ ╚████║   ██║   ╚██████╔╝██║  ██║   ██║
     ╚═╝╚═╝  ╚═══╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
-    Inventory Manager · v3.1.1
+    Inventory Manager · v3.2.0
     Discord: discord.gg/nayzeeedev
 ]]
 
@@ -383,6 +383,12 @@ Config.Editor = {
     liveApply = true,           -- push edits to the running server and every player right away
     backups = 25,               -- automatic backups kept per file (restorable from the panel)
     imageMaxKB = 256,           -- largest PNG you can upload for an item
+
+    -- Edits made OUTSIDE the game (FTP, txAdmin file editor, VS Code...) are picked up and applied live.
+    -- A broken file is never applied: staff get the error and the old version keeps running.
+    watchFiles = true,          -- watch the data files (items.lua, weapons.lua, shops.lua...)
+    watchImages = true,         -- new or replaced pictures in the image folder show for players without a restart (ox_inventory + bridge)
+    watchSeconds = 3,           -- how often to look for changes
 }
 
 -- ██████╗ ██╗███████╗ ██████╗ ██████╗ ██████╗ ██████╗

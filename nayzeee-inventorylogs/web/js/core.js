@@ -168,7 +168,20 @@ function infoBox(title, body, o = {}) { return form({ title, sub: o.sub, icon: o
 const A = {};   // click: data-a
 const IN = {};  // input: data-in
 const CH = {};  // change: data-ch
-A.modalOk = () => { const o = S.modalOpts || {}; const vals = modalValues(); if (o.validate) { const err = o.validate(vals); if (err) return toast(err, 'error'); } closeModal(vals); };
+A.modalOk = async () => {
+  const o = S.modalOpts || {}; const vals = modalValues();
+  if (o.validate) { const err = o.validate(vals); if (err) return toast(err, 'error'); }
+  // onOk: async work done while the pop-up stays open; it closes only when that returns true
+  if (o.onOk) {
+    const b = $('#modal [data-a="modalOk"]');
+    if (!b || b.disabled) return;
+    b.disabled = true;
+    let done = false;
+    try { done = await o.onOk(vals); } finally { if (b.isConnected) b.disabled = false; }
+    if (!done || S.modalOpts !== o) return;
+  }
+  closeModal(vals);
+};
 A.modalCancel = () => closeModal(null);
 A.modalBack = (v, el, e) => { if (e.target === el) closeModal(null); };
 A.preset = (v, el) => { const f = $(`#modal [name="${el.dataset.f}"]`); if (f) { f.value = v; f.dispatchEvent(new Event('input', { bubbles: true })); } };
@@ -241,7 +254,7 @@ function panelHtml() {
     <div class="body">
       <div class="side">
         <div class="who">${av(b.me.name, '', true)}<div class="who-txt"><b>${esc(b.me.name)}</b><span>${esc(Object.keys(b.me.perms).filter(k => b.me.perms[k] && k !== 'view').join(', ') || 'view only')}</span></div></div>
-        <div class="nav-scroll">${navs}</div>
+        <div class="nav-scroll" data-scroll="nav">${navs}</div>
       </div>
       <div class="main" id="main"></div>
     </div>
@@ -250,10 +263,18 @@ function panelHtml() {
   </div></div></div>`;
 }
 
+/* Lists and editors are rebuilt on every change, so anything marked data-scroll="key" remembers how far
+   it was scrolled and goes back there after a re-render (picking an item no longer jumps to the top). */
+const SCROLL = {};
+document.addEventListener('scroll', e => { const t = e.target; if (t && t.dataset && t.dataset.scroll) SCROLL[t.dataset.scroll] = t.scrollTop; }, true);
+function keepScroll(root) {
+  $$('[data-scroll]', root).forEach(el => { const y = SCROLL[el.dataset.scroll]; if (y) el.scrollTop = y; });
+}
 function renderApp() {
   const app = $('#app');
   if (!S.open || !S.boot) { app.innerHTML = ''; return; }
   app.innerHTML = panelHtml();
+  keepScroll(app);
   renderMain();
 }
 function renderMain() {
@@ -261,6 +282,9 @@ function renderMain() {
   const p = PAGES[S.page];
   if (!pageAllowed(p)) { main.innerHTML = empty('fas fa-lock', 'No access', 'Your group cannot open this page.'); return; }
   main.innerHTML = p.render();
+  // plain pages remember their scroll too (refreshing the dashboard no longer jumps up)
+  $$('.content:not(.flush):not([data-scroll])', main).forEach(el => { el.dataset.scroll = 'page:' + S.page; });
+  keepScroll(main);
   if (p.mounted) p.mounted();
 }
 const rerender = () => { if (S.open) renderMain(); };

@@ -581,6 +581,36 @@ function LuaDoc.addEntry(doc, collectionPath, key, snippet)
     return insertField(doc, node, text, LuaDoc.detectIndentUnit(doc.src), usesBlankGaps(doc, node))
 end
 
+--- Add many keyed entries in one splice (imports). list = { { key = 'name', snippet = '{ ... }' }, ... }
+--- Snippets must already be indented for the collection. Existing keys are left to the caller.
+function LuaDoc.addEntries(doc, collectionPath, list)
+    local node = LuaDoc.nodeAt(doc, collectionPath)
+    if not node then return nil, 'collection not found' end
+    if #list == 0 then return doc.src end
+    local indent = LuaDoc.entryIndent(doc, collectionPath)
+    local gap = usesBlankGaps(doc, node) and '\n' or ''
+    local bracket = usesBracketKeys(node)
+    local parts = {}
+    for i, e in ipairs(list) do parts[i] = LuaDoc.keyText(e.key, bracket) .. ' = ' .. e.snippet end
+    return insertField(doc, node, table.concat(parts, ',\n' .. gap .. indent), LuaDoc.detectIndentUnit(doc.src), gap ~= '')
+end
+
+--- Replace the values of many entries in one pass. map = { [key] = snippet }
+function LuaDoc.replaceEntries(doc, collectionPath, map)
+    local node = LuaDoc.nodeAt(doc, collectionPath)
+    if not node then return nil, 'collection not found' end
+    local hits = {}
+    for key, snippet in pairs(map) do
+        local f = fieldByKey(node, key)
+        if f then hits[#hits + 1] = { s = doc.toks[f.vstart].s, e = doc.toks[f.vend].e, text = snippet } end
+    end
+    -- splice from the end of the file backwards so earlier positions stay valid
+    table.sort(hits, function(a, b) return a.s > b.s end)
+    local src = doc.src
+    for _, h in ipairs(hits) do src = splice(src, h.s, h.e, h.text) end
+    return src
+end
+
 --- Indentation that a new entry in the collection will sit at.
 function LuaDoc.entryIndent(doc, collectionPath)
     local node = LuaDoc.nodeAt(doc, collectionPath)

@@ -157,6 +157,31 @@ add_filesystem_permission nayzeee-inventorylogs write ox_inventory
 
 Players who join after an edit get the latest version automatically. Everything resets to the files on disk the next time ox_inventory starts, which are the same edits anyway.
 
+## 📥 Installing a new script without a restart
+
+Most scripts (drugs, jobs, heists...) come with a folder of item pictures and a list of items to paste into `items.lua`. There are two ways to add them, and neither needs a restart once the bridge above is installed.
+
+**From the panel**
+
+1. Open **Items** and press **Import a new script's items & pictures**.
+2. Drop the script's files onto the window: its pictures, its item list (`.lua` or `.txt`), or the whole folder at once. You can also paste the item list into the box.
+3. The window tells you what will happen ("Adds 12 new items, skips 2 that already exist"). Tick **Replace items that already exist** to overwrite those instead.
+4. Press **Import**. The items are added to `items.lua` (a backup is made first), the pictures are saved to `ox_inventory/web/images`, and both are live for every player.
+
+Pictures are matched to items by file name (`weed_bag.png` → `weed_bag`). Any picture type works; they're converted to PNG and sized to fit.
+
+**Straight into the files (FTP, txAdmin, VS Code...)**
+
+Edit `items.lua` (or any other data file) and save it, or drop new pictures into `ox_inventory/web/images`. Within a few seconds the panel picks it up and applies it, the same as a save from the panel:
+
+- the file is checked first, and a file with an error is **never applied**: staff with editor access get the error and the line, and the old version keeps running
+- the old version is kept under **Code & backups → Backups** (marked "Edited outside the game")
+- staff with the panel open see the change straight away, and get a notice if they have unsaved edits in that file
+
+Settings live in `Config.Editor` (`watchFiles`, `watchImages`, `watchSeconds`).
+
+> 💡 New pictures dropped on disk show live on ox_inventory with the bridge. On qb-inventory, new items in `qb-core/shared/items.lua` go live through qb-core, but pictures added on disk show after qb-inventory restarts (qb-inventory has no way to swap pictures live). Pictures uploaded from the panel are written for you either way.
+
 ## 💰 Money sources (framework bridge)
 
 ESX, QBCore and Qbox move money inside their own resource, so without this every dollar shows as coming from the framework. The bridge notes which script called the framework, so the **Economy** page and every money log show the real source (for example `nayzeee-drugs` paid $2.8M, `nayzeee-garages` took $1.8M).
@@ -296,6 +321,9 @@ exports['nayzeee-inventorylogs']:HasPermission(source, 'manage')
 | Editor says "FiveM blocks scripts from writing into other resources" | FiveM's sandbox only lets a resource write inside its own folder. Make sure `ox_inventory/nayzeee/server.lua` is the latest one from this download (bridge v3 does the save from inside ox_inventory). Without the bridge, add `add_filesystem_permission nayzeee-inventorylogs write ox_inventory` to `server.cfg` instead. |
 | Editor says the file has an error and won't open the form | Something in that data file doesn't load. Open **Code & backups**, press **Check**, fix the line it names, or restore a backup. |
 | "This file changed since you opened it" | Another admin saved first, or the file was edited on disk. Press reload and redo your change. |
+| A file I saved over FTP didn't apply | Check the console: a file with an error is never applied, and the message names the line. Fix it and save again. The watcher can be turned off with `Config.Editor.watchFiles = false`. |
+| A picture I dropped into `web/images` doesn't show | The file name has to match the item (`weed_bag.png`), or the item's `client.image`. It has to be a real PNG under `Config.Editor.imageMaxKB`; bigger ones show after ox_inventory restarts. Live pictures need the bridge. |
+| Import says "No items found" | Each item needs its name in front of it, like `['weed_bag'] = { label = 'Weed bag', weight = 100 },`. Paste the part of the script's guide that goes inside `items.lua`. |
 | Crafting edits show for players but crafting still uses old recipes | Add the crafting export (bridge step 3) and restart ox_inventory once. |
 | Picture upload says it didn't save | FiveM blocked the write. On ox_inventory, update the bridge (`ox_inventory/nayzeee/server.lua`). Otherwise add `add_filesystem_permission nayzeee-inventorylogs write <resource>` to `server.cfg`, using the resource named in the message. |
 | Uploaded image doesn't show after an ox_inventory restart | The PNG is saved as `ox_inventory/web/images/<item>.png`. If you use a custom `inventory:imagepath` (CDN), upload the file there too. |

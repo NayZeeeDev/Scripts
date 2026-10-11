@@ -277,7 +277,7 @@ page('players', {
     }
     const left = `<div class="pane-l"><div class="pane-h">${seg([['online', `Online (${(st.online || []).length})`], ['search', 'All characters']], st.mode, 'plMode')}
       <div class="search"><i class="fas fa-magnifying-glass"></i><input class="inp" id="pl-q" data-in="plQ" ${st.mode === 'search' ? 'data-enter="plSearch"' : ''} value="${esc(st.q || '')}" placeholder="${st.mode === 'online' ? 'Filter by name, id, job' : 'Name, character id or license'}"></div></div>
-      <div class="pane-b">${list}</div></div>`;
+      <div class="pane-b" data-scroll="pl:${st.mode}">${list}</div></div>`;
     return `<div class="content flush"><div class="split">${left}<div class="pane-r">${playerPane()}</div></div></div>`;
   },
 });
@@ -340,7 +340,7 @@ function playerPane() {
     const tl = st.timeline;
     body = !tl ? loading() : tl.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>Type</th><th>Item</th><th class="num">Amount</th><th>What happened</th></tr></thead><tbody>${tl.map(l => `<tr class="click" data-a="tlOpen" data-v="${l.id}"><td>${esc(date(l.time))}</td><td>${badge(l.type)}</td><td><b>${esc(l.item_label || l.item_name)}</b></td><td class="num">${num(l.item_count)}</td><td class="wrap">${esc(l.details || '')}</td></tr>`).join('')}</tbody></table></div>` : empty('fas fa-timeline', 'No logged activity');
   }
-  return head + tabs([['inv', 'Inventory', 'fas fa-box-open'], ['act', 'Activity', 'fas fa-timeline']], st.ptab || 'inv', 'plTab') + `<div class="content" style="padding-top:14px">${body}</div>`;
+  return head + tabs([['inv', 'Inventory', 'fas fa-box-open'], ['act', 'Activity', 'fas fa-timeline']], st.ptab || 'inv', 'plTab') + `<div class="content" style="padding-top:14px" data-scroll="plpane:${esc(t.charId || t.id || '')}:${st.ptab || 'inv'}">${body}</div>`;
 }
 A.tlOpen = v => { const l = (pd('players').timeline || []).find(x => String(x.id) === String(v)); if (l) openLog(l); };
 A.plTab = async v => { const st = pd('players'); st.ptab = v; rerender(); if (v === 'act') { st.timeline = null; const r = await rpc('player:timeline', { identifier: st.inv.target.charId }); st.timeline = r.ok ? r.data : []; rerender(); } };
@@ -502,7 +502,7 @@ page('rollback', {
     const st = pd('rb');
     const list = st.list;
     const left = `<div class="pane-l"><div class="pane-h">${seg([['inventory', 'Inventories'], ['money', 'Money']], st.kind, 'rbKind')}${btn('Take a snapshot now', 'rbTake', 'sm btn-ghost full', { icon: 'fas fa-camera' })}</div>
-      <div class="pane-b">${!list ? loading() : list.length ? list.map(s => `<div class="li click ${st.snap && st.snap.id === s.id ? 'on' : ''}" data-a="rbOpen" data-v="${s.id}"><div class="av sm"><i class="fas fa-camera"></i></div><div class="tx"><b>${esc(date(s.time))}</b><span>${s.players} characters · ${ago(s.time)}</span></div></div>`).join('') : empty('fas fa-camera', 'No snapshots yet', 'They are taken automatically every few minutes while players are online.')}</div></div>`;
+      <div class="pane-b" data-scroll="rb:${st.kind}">${!list ? loading() : list.length ? list.map(s => `<div class="li click ${st.snap && st.snap.id === s.id ? 'on' : ''}" data-a="rbOpen" data-v="${s.id}"><div class="av sm"><i class="fas fa-camera"></i></div><div class="tx"><b>${esc(date(s.time))}</b><span>${s.players} characters · ${ago(s.time)}</span></div></div>`).join('') : empty('fas fa-camera', 'No snapshots yet', 'They are taken automatically every few minutes while players are online.')}</div></div>`;
     let right = empty('fas fa-clock-rotate-left', 'Pick a snapshot', 'Compare a character with how they were, then roll back one character or everyone.');
     const s = st.snap;
     if (s) {
@@ -510,7 +510,7 @@ page('rollback', {
       const rows = s.players.filter(p => !q || [p.name, p.player, p.charId].join(' ').toLowerCase().includes(q));
       right = `<div class="prof-h"><div class="av lg"><i class="fas fa-camera"></i></div><div class="tx"><h2>${s.kind === 'money' ? 'Money' : 'Inventories'} at ${esc(date(s.time))}</h2><p><span>${s.players.length} characters</span><span>${ago(s.time)}</span></p></div>
         <div class="r">${btn('Roll back everyone', 'rbAll', 'btn-red sm', { icon: 'fas fa-rotate-left' })}</div></div>
-        <div class="content" style="padding-top:14px"><div class="toolbar"><div class="search" style="max-width:300px"><i class="fas fa-magnifying-glass"></i><input class="inp" data-in="rbQ" value="${esc(st.q || '')}" placeholder="Filter characters"></div></div>
+        <div class="content" style="padding-top:14px" data-scroll="rbsnap:${s.id}"><div class="toolbar"><div class="search" style="max-width:300px"><i class="fas fa-magnifying-glass"></i><input class="inp" data-in="rbQ" value="${esc(st.q || '')}" placeholder="Filter characters"></div></div>
         <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Character</th><th>Id</th><th class="num">${s.kind === 'money' ? 'Total money' : 'Stacks'}</th><th></th><th></th></tr></thead><tbody>${rows.map(p => `<tr><td><b>${esc(p.name)}</b> <span class="muted">${esc(p.player || '')}</span></td><td class="mono">${esc(p.charId)}</td><td class="num"><b>${s.kind === 'money' ? '$' + num(p.summary) : num(p.summary)}</b></td><td>${p.online ? chip('Online', 'teal') : chip('Offline')}</td>
           <td class="act"><div class="row-btns" style="flex-wrap:nowrap">${btn('Compare', 'rbCompare', 'xs', { v: p.charId, icon: 'fas fa-code-compare' })}${btn('Roll back', 'rbOne', 'xs btn-red', { v: p.charId, disabled: s.kind === 'money' && !p.online })}</div></td></tr>`).join('')}</tbody></table></div></div>`;
     }
@@ -542,7 +542,7 @@ A.rbOne = async v => {
   const s = pd('rb').snap; const p = s.players.find(x => x.charId === v);
   if (!await confirmBox(`Roll back ${p.name}?`, s.kind === 'money' ? `Their accounts are set back to how they were at ${date(s.time)}.` : `Their current inventory is replaced with the one from ${date(s.time)}.`, { ok: 'Roll back' })) return;
   const r = await call('snapshots:rollback', { id: s.id, charId: v });
-  if (r) toast(`Rolled back ${p.name}`, 'success');
+  if (r) toast(`Rolled back ${p.name}${r.lost ? `, but ${r.lost} stacks couldn't be given back` : ''}`, r.lost ? 'warning' : 'success');
 };
 A.rbAll = async () => {
   const s = pd('rb').snap;
@@ -550,5 +550,5 @@ A.rbAll = async () => {
   if (!v) return;
   if (v.confirm.trim().toUpperCase() !== 'ROLLBACK') return toast('Confirmation did not match, nothing changed.', 'error');
   const r = await call('snapshots:rollback', { id: s.id });
-  if (r) toast(`Rolled back ${r.restored} characters${r.skipped ? `, ${r.skipped} skipped` : ''}`, 'success');
+  if (r) toast(`Rolled back ${r.restored} characters${r.skipped ? `, ${r.skipped} skipped` : ''}${r.lost ? `. ${r.lost} stacks couldn't be given back (check the rollback log)` : ''}`, r.lost ? 'warning' : 'success', r.lost ? 8000 : undefined);
 };

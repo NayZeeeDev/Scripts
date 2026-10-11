@@ -38,7 +38,9 @@ local function take(kind)
         local charId = NZ.CharId(id)
         if charId then
             local info = NZ.CharInfo(id)
-            local data = kind == 'money' and moneyOf(id) or itemsOf(id)
+            -- not `a and b or c`: a character with no money data must not get their items saved as money
+            local data
+            if kind == 'money' then data = moneyOf(id) else data = itemsOf(id) end
             if data then
                 players[charId] = { name = info.char or info.name, player = GetPlayerName(id), data = data }
                 n = n + 1
@@ -82,12 +84,15 @@ local function restoreMoney(charId, money)
         local x = exports.es_extended:getSharedObject().GetPlayerFromId(src)
         if not x then return false, 'not loaded' end
         for acc, amount in pairs(money) do pcall(x.setAccountMoney, acc, amount, 'nz-rollback') end
+    elseif NZ.Framework == 'qbx' or NZ.Framework == 'qbcore' then
+        local ok, p = pcall(function()
+            if NZ.Framework == 'qbx' then return exports.qbx_core:GetPlayer(src) end
+            return exports['qb-core']:GetCoreObject().Functions.GetPlayer(src)
+        end)
+        if not ok or not p then return false, 'not loaded' end
+        for acc, amount in pairs(money) do pcall(p.Functions.SetMoney, acc, amount, 'nz-rollback') end
     else
-        local p
-        if NZ.Framework == 'qbx' then p = exports.qbx_core:GetPlayer(src)
-        else p = exports['qb-core']:GetCoreObject().Functions.GetPlayer(src) end
-        if not p then return false, 'not loaded' end
-        for acc, amount in pairs(money) do p.Functions.SetMoney(acc, amount, 'nz-rollback') end
+        return false, 'no supported framework'
     end
     return true
 end
@@ -103,8 +108,7 @@ local function restoreItems(charId, items)
         end
         return true, bad
     end
-    OfflineWrite(charId, items)
-    return true, 0
+    return OfflineWrite(charId, items) ~= false, 0
 end
 
 NZ.Route('snapshots:list', 'rollback', function(src, d)
@@ -155,16 +159,18 @@ NZ.Route('snapshots:rollback', 'rollback', function(src, d)
     else
         targets = snap.data
     end
-    local okCount, skipped = 0, 0
+    local okCount, skipped, lost = 0, 0, 0
     for charId, p in pairs(targets) do
-        local ok
+        local ok, bad
         if snap.kind == 'money' then ok = restoreMoney(charId, p.data)
-        else ok = restoreItems(charId, p.data) end
+        else ok, bad = restoreItems(charId, p.data) end
         if ok then okCount = okCount + 1 else skipped = skipped + 1 end
+        lost = lost + (tonumber(bad) or 0)
     end
     local me = NZ.Actor(src)
     local details = ('%s rolled back %s for %d character%s to %s%s'):format(me.name, snap.kind, okCount, okCount == 1 and '' or 's',
-        os.date('%Y-%m-%d %H:%M', snap.time), skipped > 0 and (' (%d offline skipped)'):format(skipped) or '')
+        os.date('%Y-%m-%d %H:%M', snap.time), skipped > 0 and (' (%d skipped)'):format(skipped) or '')
+        .. (lost > 0 and (', %d stack%s could not be given back (item no longer exists or no room)'):format(lost, lost == 1 and '' or 's') or '')
     InsertLog({ type = 'rollback', source_name = me.name, source_identifier = me.identifier, source_id = me.id,
         item_name = snap.kind, item_label = snap.kind == 'money' and 'Money rollback' or 'Inventory rollback', item_count = okCount,
         target_identifier = d.charId, coords = me.coords, details = details, resource = NZ.Resource })
@@ -174,12 +180,13 @@ NZ.Route('snapshots:rollback', 'rollback', function(src, d)
         extra = {
             { 'Snapshot', ('#%s · %s'):format(snap.id, os.date('%Y-%m-%d %H:%M', snap.time)), true },
             { 'Restored', ('%s character%s'):format(okCount, okCount == 1 and '' or 's'), true },
-            { 'Skipped (offline)', skipped > 0 and tostring(skipped) or nil, true },
+            { 'Skipped', skipped > 0 and tostring(skipped) or nil, true },
+            { 'Stacks not given back', lost > 0 and tostring(lost) or nil, true },
             { 'Who', not d.charId and 'Everyone in the snapshot' or nil, true },
         } })
     NZ.Audit(src, 'rollback_' .. snap.kind, d.charId or 'everyone', { snapshot = snap.id, restored = okCount, skipped = skipped })
     NZ.NotifyStaff(details, 'warning', 'staff', src)
-    return { restored = okCount, skipped = skipped }
+    return { restored = okCount, skipped = skipped, lost = lost }
 end)
 
 NZ.Route('snapshots:take', 'rollback', function(src, d)

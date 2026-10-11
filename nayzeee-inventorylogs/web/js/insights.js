@@ -109,7 +109,7 @@ function incomeHtml(d) {
     const st = pd('players');
     let html = basePane();
     html = html.replace(/(<div class="tabs">[\s\S]*?)(<\/div>)/, (m, a, b) => a + `<button class="${st.ptab === 'inc' ? 'on' : ''}" data-a="plTab" data-v="inc"><i class="fas fa-sack-dollar"></i>Income</button>` + b);
-    if (st.ptab === 'inc' && st.inv && !st.inv.error) html = html.replace(/<div class="content" style="padding-top:14px">[\s\S]*$/, `<div class="content" style="padding-top:14px">${incomeHtml(st.income)}</div>`);
+    if (st.ptab === 'inc' && st.inv && !st.inv.error) html = html.replace(/<div class="content" style="padding-top:14px"[^>]*>[\s\S]*$/, `<div class="content" style="padding-top:14px" data-scroll="plpane:${esc(st.inv.target.charId || st.inv.target.id || '')}:inc">${incomeHtml(st.income)}</div>`);
     return html;
   };
 }

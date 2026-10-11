@@ -48,7 +48,7 @@ input,select,textarea{font:inherit;color:var(--ink);user-select:text}
 .pill-close:active{transform:scale(.97)}
 
 /* ── frame / shell ───────────────────────────────────────────────────── */
-.frame{background:var(--line);padding:1px;border-radius:var(--r-lg);box-shadow:var(--sh-3);clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%);animation:rise .22s cubic-bezier(.2,.8,.2,1)}
+.frame{background:var(--line);padding:1px;border-radius:var(--r-lg);clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%);animation:rise .22s cubic-bezier(.2,.8,.2,1)}
 .shell{position:relative;background:var(--base);overflow:hidden;border-radius:calc(var(--r-lg) - 1px);height:100%;display:flex;flex-direction:column;clip-path:polygon(0 0,100% 0,100% calc(100% - 21px),calc(100% - 21px) 100%,0 100%)}
 .shell::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:80;opacity:.03;background-image:var(--grain)}
 @keyframes rise{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
@@ -430,3 +430,17 @@ input,select,textarea{font:inherit;color:var(--ink);user-select:text}
 #ie-view{display:block;width:256px;height:256px;cursor:grab;touch-action:none}
 #ie-view:active{cursor:grabbing}
 .imged input[type=range]{accent-color:var(--teal)}
+
+/* import (new script's items + pictures) */
+.imp-drop{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:var(--r-md);border:1px dashed var(--line);background:linear-gradient(180deg,var(--raise),var(--inset));transition:border-color var(--fast),background var(--fast)}
+.imp-drop > i{font-size:22px;color:var(--teal)}
+.imp-drop > div{flex:1;min-width:0}
+.imp-drop b{display:block;font-size:12.5px;font-weight:500;color:var(--white)}
+.imp-drop span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:4px;line-height:1.45}
+.imp-drop.drag{border-color:var(--teal);background:var(--teal-wash)}
+.imp-pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;max-height:190px;overflow-y:auto}
+.imp-pic{display:flex;align-items:center;gap:8px;padding:4px 4px 4px 6px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-soft);min-width:0}
+.imp-pic img{width:26px;height:26px;object-fit:contain;flex:none}
+.imp-pic span{flex:1;min-width:0;font-size:10.5px;color:var(--ink-2)}
+.imp-pic.miss{border-color:var(--amber-edge);background:var(--amber-wash)}
+.imp-pic.miss span{color:#f5c451}

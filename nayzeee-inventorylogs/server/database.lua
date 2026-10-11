@@ -94,6 +94,7 @@ CreateThread(function()
 
     ready = true
     NZ.Print('Database ready.')
+    TriggerEvent('nzinv:dbReady') -- write anything logged while the tables were being set up
 
     -- retention runs once at start and then every 6 hours
     while true do
@@ -114,6 +115,19 @@ end)
 local COLS = { 'type', 'source_name', 'source_identifier', 'source_id', 'target_name', 'target_identifier', 'target_id',
     'item_name', 'item_label', 'item_count', 'metadata', 'inventory_from', 'inventory_to', 'coords', 'details', 'resource' }
 local flushing = false
+-- column widths from sql/install.sql: one value that doesn't fit fails the whole batched insert
+local WIDTH = { type = 32, resource = 64, source_name = 128, source_identifier = 128, target_name = 128, target_identifier = 128,
+    item_name = 128, item_label = 128, inventory_from = 128, inventory_to = 128, coords = 128, details = 1000 }
+local INT_MAX = 2147483647
+
+--- Cut to n characters without splitting a multi-byte character
+local function fit(v, n)
+    v = tostring(v)
+    local len = utf8.len(v)
+    if not len then v = v:gsub('[\128-\255]', '?') len = #v end
+    if len <= n then return v end
+    return v:sub(1, utf8.offset(v, n + 1) - 1)
+end
 
 local function flush()
     if #queue == 0 or not ready then return end
@@ -127,8 +141,9 @@ local function flush()
             local v = l[c]
             if c == 'metadata' then v = (type(v) == 'table' and next(v)) and json.encode(v) or nil end
             if c == 'item_label' then v = v or l.item_name end
-            if c == 'item_count' then v = math.floor(tonumber(v) or 1) end
-            if type(v) == 'string' and c ~= 'metadata' and #v > 1000 then v = v:sub(1, 1000) end
+            if c == 'item_count' then v = math.max(-INT_MAX, math.min(INT_MAX, math.floor(tonumber(v) or 1))) end
+            if (c == 'source_id' or c == 'target_id') and v ~= nil then v = tonumber(v) and math.floor(tonumber(v)) or nil end
+            if WIDTH[c] and v ~= nil then v = fit(v, WIDTH[c]) end
             if v == nil then ph[j] = 'NULL'
             else ph[j] = '?'; params[#params + 1] = v end
         end
@@ -142,6 +157,7 @@ function InsertLog(l)
     if not l or not l.type or not l.item_name then return end
     if Config.Logs.Enabled[l.type] == false then return end
     queue[#queue + 1] = l
+    if #queue > 5000 then table.remove(queue, 1) end -- the database never came up: don't grow forever
     if not flushing then
         flushing = true
         SetTimeout(1000, function() flushing = false flush() end)
@@ -149,6 +165,7 @@ function InsertLog(l)
 end
 
 AddEventHandler('onResourceStop', function(r) if r == NZ.Resource then flush() end end)
+AddEventHandler('nzinv:dbReady', function() flush() end)
 
 -- ─── queries ────────────────────────────────────────────────────────────────
 local function buildWhere(f)
@@ -206,7 +223,7 @@ local SELECT = 'SELECT `id`, `type`, `source_name`, `source_identifier`, `source
 
 function FetchLogs(filters, page, perPage)
     perPage = perPage or Config.Logs.PerPage or 50
-    page = math.max(1, tonumber(page) or 1)
+    page = math.max(1, math.floor(tonumber(page) or 1))
     local where, params = buildWhere(filters)
     local total = MySQL.scalar.await('SELECT COUNT(*) FROM `' .. TABLE .. '`' .. where, params) or 0
     local p2 = { table.unpack(params) }
@@ -233,7 +250,7 @@ NZ.Route('logs:since', 'view', function(src, d)
 end)
 
 NZ.Route('logs:export', 'view', function(src, d)
-    local limit = math.min(tonumber(d.limit) or 5000, Config.Logs.ExportLimit or 10000)
+    local limit = math.max(1, math.floor(math.min(tonumber(d.limit) or 5000, Config.Logs.ExportLimit or 10000)))
     return FetchLogsRaw(d.filters or {}, limit)
 end)
 

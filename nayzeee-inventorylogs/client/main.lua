@@ -55,6 +55,16 @@ RegisterNetEvent('nzinv:imageDone', function(id, ok, msg, extra)
     cb({ ok = ok, msg = msg, data = extra })
 end)
 
+-- a data file or picture was changed outside the game and picked up by the server
+RegisterNetEvent('nzinv:dataChanged', function(info)
+    if type(info) ~= 'table' then return end
+    if open then
+        SendNUIMessage({ action = 'dataChanged', data = info })
+    elseif info.notify and info.msg then
+        lib.notify({ title = 'Inventory Manager', description = info.msg, type = info.ok == false and 'error' or 'inform', duration = 7000 })
+    end
+end)
+
 -- ─── point capture ─────────────────────────────────────────────────────────
 -- The panel hides, the player aims at a spot in the world and presses E. Runs only while capturing.
 local capturing = false

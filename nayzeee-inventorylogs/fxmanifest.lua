@@ -5,7 +5,7 @@ lua54 'yes'
 name 'nayzeee-inventorylogs'
 author 'NAYZEEE Development'
 description 'Inventory Manager: logs, player inventories, server-wide actions, rollbacks and a live inventory data editor (ox_inventory, qb-inventory or your own)'
-version '3.1.1'
+version '3.2.0'
 
 dependencies {
     'oxmysql',

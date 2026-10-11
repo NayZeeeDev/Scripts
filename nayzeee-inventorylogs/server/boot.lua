@@ -22,6 +22,7 @@ NZ.Route('boot', 'view', function(src)
         liveSeconds = Config.Logs.LiveRefreshSeconds,
         imagepath = Inv.ImagePath(),
         editor = Config.Editor.enabled and type(Inv.a.editor) == 'table',
+        imageMaxKB = Config.Editor.imageMaxKB or 256,
         rollback = Config.Rollback.enabled,
         globalMax = Config.GlobalActions.maxGive,
         ui = Config.UI,

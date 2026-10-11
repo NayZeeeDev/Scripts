@@ -32,10 +32,9 @@ function OfflineAdd(items, name, count, metadata)
     local info = ItemInfo(name)
     if not info then return nil, 'That item does not exist.' end
     metadata = type(metadata) == 'table' and metadata or {}
-    if info.weapon and not next(metadata) then
-        metadata = Inv.NewWeaponMeta(serial())
-    end
-    local stack = info.stack ~= false and not next(metadata)
+    -- weapons without metadata get their own serial each (one shared table would be a "dupe")
+    local autoMeta = info.weapon and not next(metadata)
+    local stack = info.stack ~= false and not next(metadata) and not autoMeta
     local used = {}
     for _, it in pairs(items) do if it.slot then used[it.slot] = it end end
     if stack then
@@ -52,7 +51,8 @@ function OfflineAdd(items, name, count, metadata)
         local free
         for s = 1, slotLimit() do if not used[s] then free = s break end end
         if not free then return nil, 'Their inventory is out of free slots.' end
-        local entry = { name = name, count = perSlot, slot = free, metadata = next(metadata) and metadata or nil }
+        local meta = autoMeta and Inv.NewWeaponMeta(serial()) or (next(metadata) and metadata or nil)
+        local entry = { name = name, count = perSlot, slot = free, metadata = meta }
         items[#items + 1] = entry
         used[free] = entry
     end
@@ -85,7 +85,8 @@ local function resolve(t)
     if t.charId and t.charId ~= '' then
         local online = NZ.OnlineByCharId(t.charId)
         if online then return resolve({ id = online }) end
-        return { online = false, charId = t.charId, name = t.name or t.charId }
+        local name = type(t.name) == 'string' and t.name ~= '' and t.name:sub(1, 64) or tostring(t.charId)
+        return { online = false, charId = tostring(t.charId):sub(1, 128), name = name }
     end
     NZ.Fail('That player could not be found.')
 end

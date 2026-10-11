@@ -340,9 +340,9 @@ A.edArmedDel = v => {
 };
 
 /* ═══ page factory ══════════════════════════════════════════════════════ */
-function codeBox(value, id = 'ed-code') {
+function codeBox(value, id = 'ed-code', scrollKey = '') {
   const lines = String(value || '').split('\n').length;
-  return `<div class="code" id="${id}-wrap"><div class="gut" id="${id}-gut">${Array.from({ length: lines }, (_, i) => i + 1).join('\n')}</div><textarea id="${id}" spellcheck="false" data-in="codeIn">${esc(value || '')}</textarea></div>`;
+  return `<div class="code" id="${id}-wrap"><div class="gut" id="${id}-gut">${Array.from({ length: lines }, (_, i) => i + 1).join('\n')}</div><textarea id="${id}" spellcheck="false" data-in="codeIn"${scrollKey ? ` data-scroll="${esc(scrollKey)}"` : ''}>${esc(value || '')}</textarea></div>`;
 }
 IN.codeIn = (v, el) => {
   const g = $('#' + el.id + '-gut'); if (g) { const n = v.split('\n').length; if (g.childNodes.length !== n) g.textContent = Array.from({ length: n }, (_, i) => i + 1).join('\n'); }
@@ -400,10 +400,12 @@ function editorPane(file) {
   const KEYPH = { item: 'goldbar', qbitem: 'goldbar', weapon: 'WEAPON_NAME', qbweapon: 'weapon_name', qbshop: 'gold_dealer', qbproducts: 'jeweler' };
   const keyField = keyed ? `<div class="fgrid" style="margin-bottom:16px"><div class="field"><label>${KEYLABEL[kind] || 'Name'}<small>${st.creating ? 'lowercase, used by scripts' : 'renaming breaks scripts that use the old name'}</small></label><input class="inp mono" data-in="edKey" value="${esc(bareKey(st.keyDraft || ''))}" placeholder="${KEYPH[kind] || 'Name'}"></div></div>` : '';
   const resNote = res ? (res.ok === false ? note(`Saved to the file, but applying it live failed: ${esc(res.err)}`, 'red', 'fas fa-triangle-exclamation') : res.live ? note(`Saved and live for every player${res.changed !== undefined ? ` (${res.changed} changed)` : ''}.${res.note ? ' ' + esc(res.note) : ''}`, '', 'fas fa-circle-check') : note(esc(res.note || 'Saved.'), 'amber', 'fas fa-clock')) : '';
+  // each entry remembers its own scroll position, so adding a row or picking a picture doesn't jump to the top
+  const where = `${file}:${st.collection || ''}:${st.creating ? '+new' : bareKey(st.sel)}`;
   let body;
-  if (mode === 'form') body = `<div class="ed-body">${resNote ? resNote + '<div style="height:14px"></div>' : ''}${keyField}<div id="ed-form">${FORMS[kind]()}</div></div>`;
+  if (mode === 'form') body = `<div class="ed-body" data-scroll="edbody:${esc(where)}">${resNote ? resNote + '<div style="height:14px"></div>' : ''}${keyField}<div id="ed-form">${FORMS[kind]()}</div></div>`;
   else body = `<div class="ed-body codemode">${resNote ? resNote + '<div style="height:10px"></div>' : ''}${keyed && st.creating ? keyField : ''}
-    ${codeBox(st.code ?? '{\n}')}
+    ${codeBox(st.code ?? '{\n}', 'ed-code', 'edcode:' + where)}
     <div class="codebar">${btn('Check', 'edCheck', 'sm', { icon: 'fas fa-spell-check' })}<span class="msg" id="ed-check">This is the entry's Lua table exactly as it sits in ${esc(st.list.name || file + '.lua')}.</span></div></div>`;
   const modeTabs = hasForm ? tabs([['form', 'Form', 'fas fa-sliders'], ['code', 'Lua code', 'fas fa-code']], mode, 'edMode') : '';
   return head + modeTabs + body;
@@ -446,8 +448,9 @@ function edPage(key, label, icon) {
       const rows = (st.list.entries || []).filter(e => !q || [e.key, e.label, e.name, e.description].join(' ').toLowerCase().includes(q));
       const cats = st.list.collections ? seg(st.list.collections.map(c => [c.id, `${c.id} (${c.count})`]), st.collection, 'edCat') : '';
       const warn = bridge ? '' : `<div class="note amber" style="padding:8px 10px"><i class="fas fa-clock"></i><div>Bridge not installed, saves apply after ${esc(inv.resource || 'the inventory')} restarts.</div></div>`;
-      const left = `<div class="pane-l wide ed-list"><div class="pane-h">${extraHead()}${cats}${warn}<div style="display:flex;gap:6px"><div class="search"><i class="fas fa-magnifying-glass"></i><input class="inp" data-in="edQ" value="${esc(st.q || '')}" placeholder="Search ${rows.length} of ${(st.list.entries || []).length}"></div>${btn('', 'edReload', 'btn-ghost ico', { icon: 'fas fa-rotate', title: 'Reload from disk' })}${btn('New', 'edNew', 'btn-teal', { icon: 'fas fa-plus' })}</div></div>
-        <div class="pane-b" id="ed-list">${rows.map(e => listRow(file, e, st)).join('') || empty('fas fa-magnifying-glass', 'Nothing matches')}</div></div>`;
+      const left = `<div class="pane-l wide ed-list"><div class="pane-h">${extraHead()}${cats}${warn}<div style="display:flex;gap:6px"><div class="search"><i class="fas fa-magnifying-glass"></i><input class="inp" data-in="edQ" value="${esc(st.q || '')}" placeholder="Search ${rows.length} of ${(st.list.entries || []).length}"></div>${btn('', 'edReload', 'btn-ghost ico', { icon: 'fas fa-rotate', title: 'Reload from disk' })}${btn('New', 'edNew', 'btn-teal', { icon: 'fas fa-plus' })}</div>
+        ${IMPORT_KINDS[st.list.kind] ? btn('Import a new script\'s items & pictures', 'edImport', 'sm btn-ghost full', { icon: 'fas fa-file-import', title: 'Installing a new script? Drop its pictures and item list here, no restart needed' }) : ''}</div>
+        <div class="pane-b" id="ed-list" data-scroll="edlist:${esc(file)}:${esc(st.collection || '')}">${rows.map(e => listRow(file, e, st)).join('') || empty('fas fa-magnifying-glass', 'Nothing matches')}</div></div>`;
       return `<div class="content flush"><div class="split">${left}<div class="pane-r">${editorPane(file)}</div></div></div>`;
     },
   });
@@ -585,7 +588,7 @@ function imgPicker() {
 function loadImage(src) {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('bad image')); i.src = src; });
 }
-const imgMaxBytes = () => ((S.d.files && S.d.files.status && S.d.files.status.imageMaxKB) || 256) * 1024;
+const imgMaxBytes = () => ((S.boot && S.boot.imageMaxKB) || (S.d.files && S.d.files.status && S.d.files.status.imageMaxKB) || 256) * 1024;
 const dataBytes = d => Math.round((d.length - 22) * 0.75);
 
 /* ─── picture editor: size, framing, zoom, drag, white background removal → PNG ─── */
@@ -741,9 +744,15 @@ A.edImgPick = () => {
   document.body.appendChild(f);
   f.click();
 };
-document.addEventListener('dragover', e => { const z = e.target.closest && e.target.closest('[data-drop="img"]'); if (z) { e.preventDefault(); z.classList.add('drag'); } });
-document.addEventListener('dragleave', e => { const z = e.target.closest && e.target.closest('[data-drop="img"]'); if (z) z.classList.remove('drag'); });
+const importOpen = () => !!$('#modal [data-drop="import"]');
+document.addEventListener('dragover', e => {
+  if (importOpen()) { e.preventDefault(); const z = $('#modal [data-drop="import"]'); if (z) z.classList.add('drag'); return; }
+  const z = e.target.closest && e.target.closest('[data-drop="img"]'); if (z) { e.preventDefault(); z.classList.add('drag'); }
+});
+document.addEventListener('dragleave', e => { const z = e.target.closest && e.target.closest('[data-drop]'); if (z) z.classList.remove('drag'); });
 document.addEventListener('drop', e => {
+  // the Import window takes anything dropped anywhere on it: pictures, item lists, whole folders
+  if (importOpen()) { e.preventDefault(); const z = $('#modal [data-drop="import"]'); if (z) z.classList.remove('drag'); importDrop(e.dataTransfer); return; }
   const z = e.target.closest && e.target.closest('[data-drop="img"]');
   if (!z) return;
   e.preventDefault(); z.classList.remove('drag');
@@ -751,6 +760,11 @@ document.addEventListener('drop', e => {
   if (f) useImageFile(f); else toast('Drop a picture file (PNG, JPG, WEBP or GIF).', 'error');
 });
 document.addEventListener('paste', e => {
+  if (importOpen()) {
+    const files = [...(e.clipboardData && e.clipboardData.items || [])].filter(x => x.kind === 'file').map(x => x.getAsFile()).filter(Boolean);
+    if (files.length) { e.preventDefault(); importFiles(files); }
+    return;
+  }
   if (!$('[data-drop="img"]')) return;
   const it = [...(e.clipboardData && e.clipboardData.items || [])].find(x => x.kind === 'file' && IMG_OK.test(x.type));
   if (!it) return;
@@ -851,11 +865,11 @@ page('ed_files', {
         ${b ? `<div class="status-live"><span class="livechip on"><span class="dot"></span>Live editing on</span></div><div class="muted" style="font-size:10.5px;margin-top:8px;line-height:1.5">${b.version ? `Bridge v${esc(b.version)}${b.crafting !== undefined ? ` · crafting ${b.crafting ? 'live' : 'needs the export from INSTALL.md'}` : ''}` : `Applied through ${esc(b.via || s.resource)}`}</div>`
           : `<div class="status-live"><span class="livechip warn"><span class="dot"></span>Bridge not installed</span></div><div class="muted" style="font-size:10.5px;margin-top:8px;line-height:1.5">Edits save to disk and apply after ${esc(s.resource)} restarts. Follow INSTALL.md to make them live.</div>`}
         <div class="muted" style="font-size:10.5px;margin-top:6px">${esc(s.inventory || s.resource)} ${esc(s.oxVersion || '')}</div></div></div></div>
-      <div class="pane-b">${s.files.map(f => `<div class="li click ${st.file === f.id ? 'on' : ''}" data-a="rawPick" data-v="${f.id}"><div class="thumb"><i class="fas fa-file-code"></i></div><div class="tx"><b>${esc(f.label || f.name)}</b><span><span class="mono">${esc(f.name)}</span> · ${f.exists ? num(Math.round(f.size / 102.4) / 10) + ' KB' : 'missing'}</span></div></div>`).join('')}</div>
+      <div class="pane-b" data-scroll="rawfiles">${s.files.map(f => `<div class="li click ${st.file === f.id ? 'on' : ''}" data-a="rawPick" data-v="${f.id}"><div class="thumb"><i class="fas fa-file-code"></i></div><div class="tx"><b>${esc(f.label || f.name)}</b><span><span class="mono">${esc(f.name)}</span> · ${f.exists ? num(Math.round(f.size / 102.4) / 10) + ' KB' : 'missing'}</span></div></div>`).join('')}</div>
       <div class="pane-f">${(s.restartable || []).map(r => btn(`Restart ${r}`, 'rawRestart', 'btn-red sm full', { v: r, icon: 'fas fa-power-off' })).join('')}</div></div>`;
     const right = st.src === undefined ? loading() : `<div class="ed-head"><div><h2>${esc(cur.name || st.file)} <span id="raw-dirty" class="dirty-dot ${st.dirty ? '' : 'hide'}" style="display:inline-block;vertical-align:middle;margin-left:6px"></span></h2><p>${esc(cur.path || '')}</p></div>
         <div class="r">${btn('Save', 'rawSave', 'btn-teal sm', { icon: 'fas fa-floppy-disk' })}${btn('Backups', 'rawBackups', 'sm', { icon: 'fas fa-clock-rotate-left' })}${btn('', 'rawApply', 'sm', { icon: 'fas fa-bolt', title: 'Apply the file on disk again' })}${btn('', 'rawReload', 'sm btn-ghost', { icon: 'fas fa-rotate', title: 'Reload from disk' })}</div></div>
-      <div class="ed-body codemode">${codeBox(st.src, 'raw-code')}<div class="codebar">${btn('Check', 'rawCheck', 'sm', { icon: 'fas fa-spell-check' })}<span class="msg" id="raw-check">Saving checks the whole file first. A file with an error is never written.</span></div></div>`;
+      <div class="ed-body codemode">${codeBox(st.src, 'raw-code', 'rawcode:' + st.file)}<div class="codebar">${btn('Check', 'rawCheck', 'sm', { icon: 'fas fa-spell-check' })}<span class="msg" id="raw-check">Saving checks the whole file first. A file with an error is never written.</span></div></div>`;
     return `<div class="content flush"><div class="split">${left}<div class="pane-r">${right}</div></div></div>`;
   },
 });
@@ -941,3 +955,207 @@ A.qbShopDelivery = async () => {
 A.qbpAdd = () => { const st = ed(curFile); const list = (Array.isArray(st.draft) ? st.draft : []).filter(Boolean); list.push({ name: '', price: 1, amount: 50 }); st.draft = list; markDirty(); rerender(); };
 A.qbpDel = v => { const st = ed(curFile); const list = (Array.isArray(st.draft) ? st.draft : []).slice(); list.splice(+v, 1); st.draft = list.filter(Boolean); markDirty(); rerender(); };
 IN.qbpJobs = (v, el) => { const st = ed(curFile); const i = +el.dataset.i; const list = v.split(',').map(x => x.trim()).filter(Boolean); if (st.draft[i]) { if (list.length) st.draft[i].requiredJob = list; else delete st.draft[i].requiredJob; } markDirty(); };
+
+/* ═══ IMPORT: a new script's items and pictures in one go ═══════════════
+   Server owners installing a script (drugs, jobs, heists...) get a folder of pictures and a list of
+   items to paste into items.lua. Drop all of it here: the items are added to the file, the pictures
+   are uploaded, and with the bridge installed everything is live without a restart. */
+const IMPORT_KINDS = { item: 1, qbitem: 1 };
+const IMP = { pics: [], plan: null };
+const IMP_TEXT = /\.(lua|txt|json|md)$/i;
+const picName = f => String(f.name || '').replace(/\.[^.]+$/, '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
+
+/** Any picture -> PNG data URL under the upload limit (largest side 256px, smaller if needed) */
+async function toPng(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(url);
+    for (const max of [256, 128, 100, 64]) {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height);
+      const d = c.toDataURL('image/png');
+      if (dataBytes(d) <= imgMaxBytes()) return d;
+    }
+  } catch (e) { /* unreadable */ } finally { URL.revokeObjectURL(url); }
+  return null;
+}
+const readText = f => new Promise(res => { const r = new FileReader(); r.onload = () => res(String(r.result || '')); r.onerror = () => res(''); r.readAsText(f); });
+
+/** Files from a drop, including everything inside dropped folders */
+async function importDrop(dt) {
+  if (!dt) return;
+  // entries must be read during the drop event, before any await
+  const entries = [...(dt.items || [])].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (!entries.length) return importFiles([...(dt.files || [])]);
+  const out = [];
+  const walk = async (en, depth) => {
+    if (en.isFile) { const f = await new Promise(r => en.file(r, () => r(null))); if (f) out.push(f); return; }
+    if (en.isDirectory && depth < 6) {
+      const rd = en.createReader();
+      let batch;
+      do { batch = await new Promise(r => rd.readEntries(r, () => r([]))); for (const c of batch) await walk(c, depth + 1); } while (batch.length);
+    }
+  };
+  for (const en of entries) await walk(en, 0);
+  importFiles(out);
+}
+
+async function importFiles(files) {
+  const pics = files.filter(f => IMG_OK.test(f.type || '') || /\.(png|jpe?g|webp|gif|bmp)$/i.test(f.name || ''));
+  const texts = files.filter(f => IMP_TEXT.test(f.name || '') && f.size < 2 * 1024 * 1024);
+  if (!pics.length && !texts.length) return toast('Nothing to import in that. Drop pictures, a .lua or .txt item list, or the script\'s folder.', 'error');
+  const area = $('#modal [name="source"]');
+  for (const f of texts) {
+    const t = (await readText(f)).trim();
+    // README-style files: only take them when they actually contain item tables
+    if (!t || (/\.md$/i.test(f.name) && !/=\s*\{/.test(t))) continue;
+    if (area) { area.value = area.value.trim() ? area.value.trimEnd() + '\n' + t : t; }
+  }
+  if (pics.length) impStatus(`Reading ${pics.length} picture${pics.length === 1 ? '' : 's'}…`);
+  let skipped = 0;
+  for (const f of pics.slice(0, 400)) {
+    const name = picName(f);
+    const data = name && await toPng(f);
+    if (!data) { skipped++; continue; }
+    IMP.pics = IMP.pics.filter(p => p.name !== name).concat({ name, data });
+  }
+  if (skipped) toast(`${skipped} picture${skipped === 1 ? '' : 's'} couldn't be read or stayed too big.`, 'warning');
+  impPics();
+  impCheck();
+}
+
+function impStatus(html, cls = '') { const el = $('#imp-plan'); if (el) el.outerHTML = `<div id="imp-plan">${html ? note(html, cls, cls === 'red' ? 'fas fa-triangle-exclamation' : 'fas fa-circle-info') : ''}</div>`; }
+function impKnown() {
+  const st = ed(curFile);
+  const names = new Set(((st.list && st.list.entries) || []).map(e => bareKey(e.key)));
+  const pl = IMP.plan;
+  if (pl) [...pl.added, ...pl.replaced, ...pl.skipped].forEach(n => names.add(n));
+  return names;
+}
+function impPics() {
+  const box = $('#imp-pics'); if (!box) return;
+  if (!IMP.pics.length) { box.innerHTML = ''; return; }
+  const known = impKnown();
+  const miss = IMP.pics.filter(p => !known.has(p.name)).length;
+  box.innerHTML = `<div class="field"><label>Pictures (${IMP.pics.length})<small>${miss ? `${miss} have no item with that name yet` : 'each one matches an item'}</small></label>
+    <div class="imp-pics">${IMP.pics.map((p, i) => `<div class="imp-pic ${known.has(p.name) ? '' : 'miss'}" title="${known.has(p.name) ? esc(p.name) + '.png' : 'No item called ' + esc(p.name) + '. It is still uploaded, rename the file to match the item if this is wrong.'}">
+      <img src="${p.data}"><span class="mono ell">${esc(p.name)}</span><button class="btn xs ico btn-ghost" data-a="impPicDel" data-v="${i}" title="Leave this one out"><i class="fas fa-xmark"></i></button></div>`).join('')}</div></div>`;
+}
+const impCheck = debounce(async () => {
+  const area = $('#modal [name="source"]'); if (!area) return;
+  const source = area.value.trim();
+  if (!source) { IMP.plan = null; impPics(); return impStatus(IMP.pics.length ? `Only pictures this time: <b>${IMP.pics.length}</b> will be uploaded.` : ''); }
+  const rep = $('#modal [name="replace"]');
+  const r = await rpc('ed:import:check', { file: curFile, source, replace: !!(rep && rep.checked) });
+  if (!$('#modal [name="source"]')) return;
+  if (!r.ok) { IMP.plan = null; impPics(); return impStatus(esc(r.err), 'red'); }
+  IMP.plan = r.data;
+  const p = r.data;
+  const list = (a, n = 6) => a.slice(0, n).map(x => `<span class="mono">${esc(x)}</span>`).join(', ') + (a.length > n ? ` +${a.length - n} more` : '');
+  const parts = [];
+  if (p.added.length) parts.push(`Adds <b>${p.added.length}</b> new item${p.added.length === 1 ? '' : 's'}: ${list(p.added)}`);
+  if (p.replaced.length) parts.push(`Replaces <b>${p.replaced.length}</b>: ${list(p.replaced)}`);
+  if (p.skipped.length) parts.push(`Skips <b>${p.skipped.length}</b> that already exist${rep && rep.checked ? '' : ' (tick Replace to overwrite them)'}: ${list(p.skipped)}`);
+  if (p.invalid.length) parts.push(`<span class="tred">Leaves out ${p.invalid.length} with names that aren't allowed: ${list(p.invalid)}</span>`);
+  if (IMP.pics.length) parts.push(`Uploads <b>${IMP.pics.length}</b> picture${IMP.pics.length === 1 ? '' : 's'}`);
+  impStatus(parts.join('<br>') || 'Nothing new in that list.', p.added.length || p.replaced.length ? '' : 'amber');
+  impPics();
+}, 350);
+IN.impSrc = () => impCheck();
+CH.impReplace = () => impCheck();
+A.impPicDel = v => { IMP.pics.splice(+v, 1); impPics(); impCheck(); };
+A.impPick = () => {
+  document.querySelectorAll('input.imp-pick').forEach(x => x.remove());
+  const f = document.createElement('input');
+  f.type = 'file'; f.multiple = true; f.className = 'imp-pick';
+  f.accept = 'image/png,image/jpeg,image/webp,image/gif,image/bmp,.lua,.txt,.json';
+  f.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0';
+  f.addEventListener('change', () => { const files = [...(f.files || [])]; f.remove(); importFiles(files); });
+  document.body.appendChild(f);
+  f.click();
+};
+
+async function runImport(vals) {
+  const st = ed(curFile);
+  const source = (vals.source || '').trim();
+  if (!source && !IMP.pics.length) { toast('Drop or paste something to import first.', 'error'); return false; }
+  let res = null;
+  if (source) {
+    impStatus('Adding the items…');
+    const r = await rpc('ed:import', { file: curFile, source, replace: !!vals.replace });
+    if (!r.ok) { impStatus(esc(r.err), 'red'); toast(r.err, 'error', 9000); return false; }
+    res = r.data;
+  }
+  let up = 0; const bad = [];
+  for (let i = 0; i < IMP.pics.length; i++) {
+    const p = IMP.pics[i];
+    impStatus(`Uploading pictures… <b>${i + 1}</b> of ${IMP.pics.length}`);
+    const r = await post('upload', { item: p.name, data: p.data });
+    if (r && r.ok) { up++; S.img[p.name] = p.data; } else bad.push(`${p.name}: ${(r && (r.msg || r.err)) || 'failed'}`);
+  }
+  const parts = [];
+  if (res) parts.push(`${num(res.added.length)} item${res.added.length === 1 ? '' : 's'} added${res.replaced.length ? `, ${num(res.replaced.length)} replaced` : ''}`);
+  if (IMP.pics.length) parts.push(`${num(up)} picture${up === 1 ? '' : 's'} uploaded`);
+  const a = res && res.apply;
+  const how = !a ? '' : a.ok === false ? `. Applying it live failed: ${a.err}` : a.live ? '. Live for every player now.' : `. ${a.note || ''}`;
+  toast(parts.join(' and ') + how, a && (a.ok === false || !a.live) ? 'warning' : 'success', 8000);
+  if (bad.length) toast(`Some pictures didn't upload: ${bad.slice(0, 3).join(' · ')}${bad.length > 3 ? ` +${bad.length - 3} more` : ''}`, 'error', 10000);
+  IMP.pics = []; IMP.plan = null;
+  st.sel = undefined; st.creating = false;
+  edLoadList(curFile);
+  loadItems(true);
+  return true;
+}
+
+A.edImport = async () => {
+  const st = ed(curFile);
+  if (st.dirty && !(await confirmBox('Discard unsaved changes?', 'Importing reloads the list.', { ok: 'Discard', tone: 'amber' }))) return;
+  st.dirty = false;
+  IMP.pics = []; IMP.plan = null;
+  const kind = st.list.kind;
+  const example = kind === 'qbitem'
+    ? `weed_bag = { name = 'weed_bag', label = 'Weed bag', weight = 100, type = 'item', image = 'weed_bag.png', unique = false, useable = true, shouldClose = true, description = 'A bag of weed' },`
+    : `['weed_bag'] = {\n    label = 'Weed bag',\n    weight = 100,\n},`;
+  const body = `<div class="imp-drop" data-drop="import">
+      <i class="fas fa-cloud-arrow-up"></i>
+      <div><b>Drop the new script's files here</b><span>Its pictures (PNG, JPG, WEBP), its item list (.lua or .txt), or the whole folder at once</span></div>
+      ${btn('Choose files', 'impPick', 'sm', { icon: 'fas fa-folder-open' })}
+    </div>
+    <div class="field"><label>Item list<small>paste it from the script's install guide</small></label>
+      <textarea class="txt mono" name="source" rows="8" spellcheck="false" data-in="impSrc" placeholder="${esc(example)}"></textarea></div>
+    <label class="chk"><input type="checkbox" name="replace" data-ch="impReplace"><span class="box"></span>Replace items that already exist</label>
+    <div id="imp-plan"></div>
+    <div id="imp-pics"></div>
+    ${S.boot.bridge ? '' : note(`The bridge isn't installed, so new items save to the file and show up after ${esc((S.boot.inventory && S.boot.inventory.resource) || 'the inventory')} restarts.`, 'amber', 'fas fa-clock')}`;
+  await form({ title: 'Import items & pictures', sub: `Adds a new script's items to ${st.list.name || 'the item list'} and uploads its pictures. A backup is made first.`, icon: 'fas fa-file-import', size: 'lg', ok: 'Import', body, focus: false, onOk: runImport });
+  IMP.pics = []; IMP.plan = null;
+};
+
+/* ═══ edits made outside the game ═══════════════════════════════════════
+   The server watches the data files and the picture folder. When someone saves items.lua over FTP
+   (or drops new pictures in), the panel reloads what it shows instead of working on a stale copy. */
+window.addEventListener('message', e => {
+  const m = e.data || {};
+  if (m.action !== 'dataChanged' || !S.open || !S.boot) return;
+  const d = m.data || {};
+  Object.entries(d.images || {}).forEach(([k, v]) => { S.img[k] = v; });
+  if (d.msg) toast(d.msg, d.ok === false ? 'error' : d.live ? 'success' : 'warning', 8000);
+  if (d.ok === false) return;
+  const files = d.files || [];
+  let stale = false;
+  files.forEach(f => { const st = ED[f]; if (!st) return; if (st.dirty) stale = true; else st.list = null; });
+  if (stale) toast('A file you have unsaved changes in was just changed outside the game. Copy your changes, then reload before saving.', 'warning', 10000);
+  if (files.length) loadItems(true);
+  const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+  const P = PAGES[S.page];
+  if (P && P.tier === 'editor' && S.page !== 'ed_files' && curFile && files.includes(curFile) && !ED[curFile].dirty) {
+    const st = ED[curFile];
+    edLoadList(curFile).then(() => { if (st.sel !== undefined && !st.creating) edOpen(curFile, st.sel); });
+  } else if (S.page === 'ed_files' && files.includes(pd('files').file) && !pd('files').dirty) {
+    rawLoad(pd('files').file);
+  } else if (d.images && !typing && !$('#modal').innerHTML) {
+    rerender();
+  }
+});

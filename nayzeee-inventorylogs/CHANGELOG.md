@@ -1,4 +1,27 @@
 **Resource:** nayzeee-inventorylogs (Inventory Manager)
+**Version:** 3.2.0
+**Changes:**
+
+🟢 **New**
+- **Import a new script's items & pictures**: on the Items page, drop a script's pictures, its item list (`.lua` / `.txt`) or its whole folder onto one window. It shows what will be added or skipped, adds the items to `items.lua` with a backup, uploads every picture, and it's all live without a restart
+- **Edits made outside the game go live**: save `items.lua` (or any data file) over FTP, txAdmin or VS Code, or drop pictures into `ox_inventory/web/images`, and the panel applies it within a few seconds. Broken files are never applied (staff get the error and line), the old version is kept as a backup, and open panels refresh by themselves
+- `Config.Editor.watchFiles`, `watchImages` and `watchSeconds`
+- Rollbacks report stacks that couldn't be given back (item no longer exists or no room) instead of saying everything was restored
+
+🟠 **Fixed**
+- Scrolling down a list (Items, Weapons, Shops, Stashes, Crafting, Other data, Code & backups) and clicking an entry jumped back to the top of the list. Lists, the editor form and the code view now stay where you left them, also after adding a row, capturing a location or saving
+- Small blurry black corners showed at the top-left and bottom-left of the panel (and pop-ups): the panel's drop shadow leaked out around the rounded corners
+- qb-core money bridge never switched on for online players, so money always showed as coming from `qb-core`
+- Money snapshots could save a character's items instead of their money on servers without ESX/QBCore/Qbox, and a money rollback could stop halfway on one bad account
+- Giving a weapon to an offline character several times gave every copy the same serial, which then showed up as a duplicate in anti-dupe
+- One log with an over-long value (a long item label, name or resource from another script) made the database drop every log written in the same second
+- Logs written while the database was still being set up waited for the next log, and could pile up forever if the database never came up
+- Server-wide remove accepted 0, negative or fractional amounts
+- Server-wide give could hand out items and then fail before writing the log, audit entry and webhook
+- Picture size limit in the panel now follows `Config.Editor.imageMaxKB` everywhere (it only did after opening Code & backups)
+
+---
+
 **Version:** 3.1.1
 **Changes:**
 

@@ -213,13 +213,15 @@ local function backup(src, file, content, action)
     idx.n = (idx.n or 0) + 1
     local slot = idx.n % keep
     SaveResourceFile(NZ.Resource, ('backups/%s_%d.lua'):format(key, slot), content, -1)
-    table.insert(idx.list, 1, { id = idx.n, slot = slot, key = key, time = os.time(), admin = GetPlayerName(src) or 'Console', action = action, size = #content })
+    local admin = type(src) == 'string' and src or GetPlayerName(src) or 'Console'
+    table.insert(idx.list, 1, { id = idx.n, slot = slot, key = key, time = os.time(), admin = admin, action = action, size = #content })
     while #idx.list > keep do table.remove(idx.list) end
     SetResourceKvp('nzinv:bk:' .. key, json.encode(idx))
 end
 
 -- ─── commit ────────────────────────────────────────────────────────────────
 local locked = false
+local onDisk = {}   -- '<resource>/<path>' -> file text as we last saw or wrote it (outside-edit watcher)
 
 local function apply(file, before, after)
     local e = ED()
@@ -245,12 +247,13 @@ local function commit(src, file, newSrc, action, detail)
     backup(src, file, cur, action)
     local ok, werr = writeFile(resOf(d), d.path, newSrc)
     if not ok then locked = false NZ.Fail(werr) end
+    onDisk[where(d)] = newSrc
     local res = apply(file, before, after)
     locked = false
     if ITEM_KINDS[d.kind] then TriggerEvent('nzinv:catalogueChanged') end
     NZ.Audit(src, 'editor_' .. action, nameOf(file), detail)
     local me = NZ.Actor(src)
-    local ACTION = { update = 'Changed', create = 'Added', delete = 'Deleted', code = 'Code edited', restore = 'Backup restored' }
+    local ACTION = { update = 'Changed', create = 'Added', delete = 'Deleted', code = 'Code edited', restore = 'Backup restored', import = 'Imported' }
     local dt = type(detail) == 'table' and detail or {}
     SendWebhook('editor', ('%s: %s'):format(ACTION[action] or action, dt.entry and tostring(dt.entry) or nameOf(file)), {
         admin = me, details = ('%s %s in %s'):format(me.name, (ACTION[action] or action):lower(), where(d)),
@@ -259,6 +262,7 @@ local function commit(src, file, newSrc, action, detail)
             { 'Entry', dt.entry and ('`%s`'):format(tostring(dt.entry)) or nil, true },
             { 'Category', dt.collection, true },
             { 'Renamed from', dt.renamedFrom and ('`%s`'):format(dt.renamedFrom) or nil, true },
+            { 'Imported', dt.added and ('%s new, %s replaced'):format(NZ.Comma(dt.added), NZ.Comma(dt.replaced or 0)) or nil, true },
             { 'Fields changed', dt.ops and tostring(dt.ops) or nil, true },
             { 'File size', dt.bytes and ('%s → %s bytes'):format(NZ.Comma(dt.before or 0), NZ.Comma(dt.bytes)) or nil, true },
             { 'Picture', dt.image and ('`%s`'):format(dt.image) or nil, true },
@@ -610,6 +614,138 @@ NZ.Route('ed:restart', 'editor', function(src, d)
     return true
 end)
 
+-- ─── import: paste or drop a new script's item list ────────────────────────
+-- Accepts what script authors ship: loose entries (`['weed_bag'] = { ... },`), a full table
+-- `{ ... }`, a whole items.lua (`return { ... }`) or a qb-core style `QBShared.Items = { ... }`.
+local function importEntries(file, text)
+    local d = def(file)
+    text = tostring(text or ''):gsub('^\239\187\191', '')
+    if NZ.Trim(text) == '' then return nil, 'Paste or drop the item list first.' end
+    local env = sandbox()
+    local doc, data, err
+    local rootAt = d.root and text:find(d.root:gsub('%p', '%%%0') .. '%s*=%s*{')
+    if rootAt or text:find('return%s*{') then
+        doc, err = LuaDoc.parse(text, rootAt and d.root or nil)
+        if not doc then return nil, err end
+        local fn, cerr = load(text, '=import', 't', env)
+        if not fn then return nil, cerr end
+        local ok, res = pcall(fn)
+        if not ok then return nil, res end
+        data = rootAt and walk(env, d.root) or res
+    else
+        -- drop blank lines around it but keep the first line's indentation (it lines up the rest)
+        local body = text:gsub('^%s*\n', ''):gsub('%s+$', ''):gsub(',$', '')
+        local wrapped = '{\n' .. body .. '\n}'
+        -- already wrapped in braces? use it as is when its fields are named tables
+        if NZ.Trim(body):sub(1, 1) == '{' then
+            local inner = LuaDoc.parseSnippet(body)
+            local named = inner and #inner.root.fields > 0
+            for _, f in ipairs(inner and inner.root.fields or {}) do
+                if f.positional or not f.table then named = false break end
+            end
+            if named then wrapped = body end
+        end
+        doc, err = LuaDoc.parseSnippet(wrapped)
+        if not doc then return nil, err end
+        local fn, cerr = load('return ' .. wrapped, '=import', 't', env)
+        if not fn then return nil, (tostring(cerr):gsub('^import:', 'line ')) end
+        local ok, res = pcall(fn)
+        if not ok then return nil, res end
+        data = res
+    end
+    if type(data) ~= 'table' then return nil, 'That is not an item list.' end
+    local list = {}
+    for _, f in ipairs(doc.root.fields) do
+        if not f.positional and type(lookup(data, f.key)) == 'table' then
+            list[#list + 1] = { key = f.key, snippet = LuaDoc.valueText(doc, f), from = LuaDoc.indentOf(doc.src, doc.toks[f.first].s) }
+        end
+    end
+    if #list == 0 then return nil, 'No items found. Each one needs its name, like  [\'weed_bag\'] = { label = \'Weed bag\', weight = 100 },' end
+    return list, LuaDoc.detectIndentUnit(doc.src)
+end
+
+--- Move a pasted entry to the file's indentation and indent style (tabs or spaces)
+local function fitIndent(snippet, from, to, fromUnit, toUnit)
+    local esc = from:gsub('%p', '%%%0')
+    return (snippet:gsub('\n([ \t]*)', function(lead)
+        local rest = lead:match('^' .. esc .. '(.*)$')
+        if not rest then return '\n' .. to .. lead end
+        if fromUnit ~= toUnit then
+            local n = 0
+            while rest:sub(1, #fromUnit) == fromUnit do rest = rest:sub(#fromUnit + 1) n = n + 1 end
+            rest = toUnit:rep(n) .. rest
+        end
+        return '\n' .. to .. rest
+    end))
+end
+
+local function importPlan(src, d)
+    local file = d.file
+    local f = def(file)
+    if f.raw or not f.keyed or f.categories then NZ.Fail('Import works on item lists.') end
+    local list, perr = importEntries(file, d.source)
+    if not list then NZ.Fail('Can\'t read that list: ' .. tostring(perr)) end
+    local fromUnit = perr
+    local doc = openDoc(file, d.hash)
+    local toUnit = LuaDoc.detectIndentUnit(doc.src)
+    local existing = {}
+    for _, k in ipairs(LuaDoc.entryKeys(doc, {})) do existing[tostring(k)] = true end
+    local toIndent = LuaDoc.entryIndent(doc, {})
+    local plan = { add = {}, replace = {}, out = { added = {}, replaced = {}, skipped = {}, invalid = {}, total = #list } }
+    local seen = {}
+    for _, e in ipairs(list) do
+        local ok, key = pcall(newKey, file, bare(e.key))
+        local name = bare(ok and key or e.key)
+        if not ok then plan.out.invalid[#plan.out.invalid + 1] = name
+        elseif seen[key] then plan.out.skipped[#plan.out.skipped + 1] = name
+        else
+            seen[key] = true
+            local snippet = fitIndent(e.snippet, e.from, toIndent, fromUnit, toUnit)
+            if existing[key] then
+                if d.replace then
+                    plan.replace[key] = snippet
+                    plan.out.replaced[#plan.out.replaced + 1] = name
+                else
+                    plan.out.skipped[#plan.out.skipped + 1] = name
+                end
+            else
+                plan.add[#plan.add + 1] = { key = key, snippet = snippet }
+                plan.out.added[#plan.out.added + 1] = name
+            end
+        end
+    end
+    return plan, doc, f
+end
+
+NZ.Route('ed:import:check', 'editor', function(src, d)
+    return (importPlan(src, d)).out
+end)
+
+NZ.Route('ed:import', 'editor', function(src, d)
+    local plan, doc, f = importPlan(src, d)
+    local out = plan.out
+    if #out.added == 0 and #out.replaced == 0 then
+        NZ.Fail(#out.skipped > 0 and 'Every item in that list already exists. Tick "Replace items that already exist" to overwrite them.' or 'Nothing to import.')
+    end
+    local text = doc.src
+    if next(plan.replace) then
+        local err
+        text, err = LuaDoc.replaceEntries(doc, {}, plan.replace)
+        if not text then NZ.Fail(err) end
+        local perr
+        doc, perr = LuaDoc.parse(text, f.root)
+        if not doc then NZ.Fail(perr) end
+    end
+    if #plan.add > 0 then
+        local err
+        text, err = LuaDoc.addEntries(doc, {}, plan.add)
+        if not text then NZ.Fail(err) end
+    end
+    local res = commit(src, d.file, text, 'import', { entry = ('%d items'):format(#out.added + #out.replaced), added = #out.added, replaced = #out.replaced })
+    out.hash, out.apply = res.hash, res.apply
+    return out
+end)
+
 -- ─── item images (latent event, PNG only) ──────────────────────────────────
 local B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 local B64MAP = {}
@@ -629,6 +765,21 @@ local function b64decode(s)
     end
     return table.concat(out)
 end
+
+local B64C = {}
+for i = 1, 64 do B64C[i - 1] = B64:sub(i, i) end
+local function b64encode(s)
+    local out, n = {}, 0
+    for i = 1, #s, 3 do
+        local a, b, c = s:byte(i, i + 2)
+        local v = (a << 16) | ((b or 0) << 8) | (c or 0)
+        n = n + 1
+        out[n] = B64C[v >> 18] .. B64C[(v >> 12) & 63] .. (b and B64C[(v >> 6) & 63] or '=') .. (c and B64C[v & 63] or '=')
+    end
+    return table.concat(out)
+end
+
+local imgSeen   -- picture file -> size on disk, filled by the picture watcher below
 
 RegisterNetEvent('nzinv:image', function(reqId, item, b64)
     local src = source
@@ -654,6 +805,7 @@ RegisterNetEvent('nzinv:image', function(reqId, item, b64)
     if not back or #back ~= #bin then
         return done(false, ('The picture was sent but %s/%s did not save. Check the server console and folder permissions.'):format(res, filePath))
     end
+    if imgSeen then imgSeen[filePath] = #bin end -- the watcher shouldn't push it a second time
     -- point the item at its picture when the inventory keeps the file name in the item
     local changed = false
     if img.field then
@@ -685,4 +837,175 @@ RegisterNetEvent('nzinv:image', function(reqId, item, b64)
     end
     NZ.Audit(src, 'editor_image', item, { bytes = #bin, file = filePath })
     done(true, live and 'Picture saved and shown to players now.' or ('Picture saved to %s. Players see it after %s restarts.'):format(filePath, res), { file = filePath:match('[^/]+$'), live = live, changed = changed })
+end)
+
+
+-- ─── edits made outside the game ───────────────────────────────────────────
+-- Someone saves items.lua over FTP or in a text editor, or drops new pictures into the image
+-- folder: the watcher notices, checks the file, keeps a backup of the old copy and applies it
+-- the same way a panel save does, so nobody has to restart the inventory.
+local function tellEditors(payload)
+    for _, id in ipairs(NZ.OnlineStaff('editor')) do
+        local p = NZ.GetPrefs(id)
+        payload.notify = Config.NotifyStaff ~= false and p.notify and p.staff ~= false
+        TriggerClientEvent('nzinv:dataChanged', id, payload)
+    end
+end
+
+local function applyText(res)
+    if type(res) ~= 'table' then return 'saved' end
+    if res.ok == false then return 'saved, but applying it failed: ' .. tostring(res.err) end
+    if res.live then return 'live for every player' .. (res.note and ('. ' .. res.note) or '') end
+    return res.note and res.note:gsub('^Saved%.%s*', '') or 'saved'
+end
+
+local function diskChanged(ids, d, before, after)
+    local id = ids[1]
+    local name = d.path:match('[^/]+$') or d.path
+    local data, err = evaluate(after, id)
+    if not data then
+        local msg = ('%s was changed outside the game but has an error, so it was not applied: %s'):format(name, tostring(err))
+        NZ.Print(msg, 'warn')
+        tellEditors({ files = ids, ok = false, msg = msg })
+        return
+    end
+    if before then backup('Edited outside the game', id, before, 'disk') end
+    local res = apply(id, before and evaluate(before, id) or nil, data)
+    local kinds = false
+    for _, x in ipairs(ids) do if ITEM_KINDS[ED().files[x].kind] then kinds = true end end
+    if kinds then TriggerEvent('nzinv:catalogueChanged') end
+    local result = applyText(res)
+    NZ.Print(('%s was changed outside the game: %s'):format(where(d), result))
+    NZ.Audit(0, 'editor_disk', name, { bytes = #after, before = before and #before or nil })
+    SendWebhook('editor', ('Edited outside the game: %s'):format(name), {
+        details = ('%s was changed on disk (FTP or a text editor) and picked up by the panel.'):format(where(d)),
+        extra = {
+            { 'File', ('`%s`'):format(where(d)), true },
+            { 'File size', ('%s → %s bytes'):format(NZ.Comma(before and #before or 0), NZ.Comma(#after)), true },
+            { 'Applied', result, false },
+        } })
+    tellEditors({ files = ids, ok = type(res) ~= 'table' or res.ok ~= false, live = type(res) == 'table' and res.live == true,
+        msg = ('%s changed outside the game: %s'):format(name, result) })
+end
+
+local function scanFiles()
+    local e = ED()
+    local groups, order = {}, {}
+    for _, id in ipairs(e.order or {}) do
+        local d = e.files[id]
+        if d and (not d.when or d.when()) then
+            local at = where(d)
+            if not groups[at] then groups[at] = { d = d, ids = {} } order[#order + 1] = at end
+            local g = groups[at]
+            g.ids[#g.ids + 1] = id
+        end
+    end
+    for _, at in ipairs(order) do
+        local g = groups[at]
+        local text = LoadResourceFile(resOf(g.d), g.d.path)
+        local last = onDisk[at]
+        if text and last == nil then
+            onDisk[at] = text
+        elseif text and text ~= last and not locked then
+            onDisk[at] = text
+            diskChanged(g.ids, g.d, last, text)
+        end
+    end
+end
+
+local hasIO = type(io) == 'table' and type(io.open) == 'function'
+--- Size of a file without reading it (nil when the server can't tell cheaply)
+local function fileSize(res, path)
+    if not hasIO then return nil end
+    local base = GetResourcePath(res)
+    if not base or base == '' then return nil end
+    local ok, f = pcall(io.open, base .. '/' .. path, 'rb')
+    if not ok then hasIO = false return nil end
+    if not f then return false end
+    local n = f:seek('end')
+    f:close()
+    return n or false
+end
+
+local function scanImages()
+    local e = ED()
+    local img = e.image
+    if not img or not img.live or not img.path then return end
+    local res = img.resource or e.resource or Inv.resource
+    if GetResourceState(res) ~= 'started' then return end
+    local dir = img.path('x'):match('^(.*)/') or ''
+    -- picture file -> items that use it
+    local files, order = {}, {}
+    for _, it in ipairs(Inv.Items() or {}) do
+        local name, pic = it.name, it.image
+        local path
+        if type(pic) == 'string' and pic ~= '' then
+            if pic:match('^[%w_%-%.]+%.png$') then path = (dir ~= '' and (dir .. '/') or '') .. pic end
+        elseif type(name) == 'string' and name:match('^[%w_%-]+$') then
+            path = img.path(name)
+        end
+        if path then
+            if not files[path] then files[path] = {} order[#order + 1] = path end
+            files[path][#files[path] + 1] = name
+        end
+    end
+    local first = imgSeen == nil
+    imgSeen = imgSeen or {}
+    local limit = (E.imageMaxKB or 256) * 1024
+    local live, tooBig, uris = {}, {}, {}
+    for i, path in ipairs(order) do
+        local was = imgSeen[path]
+        local size = fileSize(res, path)
+        local bin
+        if size == nil then
+            -- no file sizes on this server: only look again for pictures that were missing
+            if was == nil or was == false then
+                bin = LoadResourceFile(res, path)
+                size = bin and #bin or false
+            else
+                size = was
+            end
+        end
+        imgSeen[path] = size
+        if not first and size and size ~= was then
+            bin = bin or LoadResourceFile(res, path)
+            if bin and bin:sub(1, 8) == '\137PNG\r\n\26\n' then
+                if #bin > limit then
+                    tooBig[#tooBig + 1] = path:match('[^/]+$')
+                else
+                    local uri = 'data:image/png;base64,' .. b64encode(bin)
+                    for _, name in ipairs(files[path]) do
+                        local ok, r = pcall(img.live, name, uri)
+                        if ok and r ~= false then live[#live + 1] = name uris[name] = uri end
+                    end
+                end
+            end
+        end
+        if i % 100 == 0 then Wait(0) end
+    end
+    if #tooBig > 0 then
+        NZ.Print(('New pictures over %d KB can\'t be shown live (players see them after %s restarts): %s'):format(E.imageMaxKB or 256, res, table.concat(tooBig, ', ')), 'warn')
+    end
+    if #live > 0 then
+        local list = table.concat(live, ', ', 1, math.min(#live, 8)) .. (#live > 8 and (' +%d more'):format(#live - 8) or '')
+        NZ.Print(('New pictures are live for every player: %s'):format(list))
+        tellEditors({ images = uris, ok = true, live = true, msg = ('New picture%s live for every player: %s'):format(#live == 1 and ' is' or 's are', list) })
+    end
+end
+
+CreateThread(function()
+    Wait(10000)
+    while true do
+        Wait(math.max(1, tonumber(E.watchSeconds) or 3) * 1000)
+        if E.enabled and type(Inv.a.editor) == 'table' then
+            if E.watchFiles ~= false then
+                local ok, err = pcall(scanFiles)
+                if not ok then NZ.Debug('File watcher: ' .. tostring(type(err) == 'table' and err.msg or err)) end
+            end
+            if E.watchImages ~= false then
+                local ok, err = pcall(scanImages)
+                if not ok then NZ.Debug('Picture watcher: ' .. tostring(type(err) == 'table' and err.msg or err)) end
+            end
+        end
+    end
 end)

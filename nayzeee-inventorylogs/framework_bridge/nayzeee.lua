@@ -60,9 +60,19 @@ end
 if QBCore and QBCore.Player and type(QBCore.Player.CreatePlayer) == 'function' then
     local METHODS = { 'AddMoney', 'RemoveMoney', 'SetMoney' }
     local create = QBCore.Player.CreatePlayer
-    QBCore.Player.CreatePlayer = function(...)
-        local p = create(...)
-        if type(p) ~= 'table' then return p end
+    QBCore.Player.CreatePlayer = function(PlayerData, Offline, ...)
+        local ret = create(PlayerData, Offline, ...)
+        -- qb-core only returns the player for offline loads; online ones go into QBCore.Players
+        local p = ret
+        if type(p) ~= 'table' and not Offline and type(PlayerData) == 'table' and type(QBCore.Players) == 'table' then
+            p = PlayerData.source and QBCore.Players[PlayerData.source]
+            if not p then
+                for _, x in pairs(QBCore.Players) do
+                    if type(x) == 'table' and x.PlayerData and x.PlayerData.citizenid == PlayerData.citizenid then p = x break end
+                end
+            end
+        end
+        if type(p) ~= 'table' then return ret end
         -- class-style players (player:AddMoney)
         local mt = getmetatable(p)
         local cls = mt and type(mt.__index) == 'table' and mt.__index
@@ -88,7 +98,7 @@ if QBCore and QBCore.Player and type(QBCore.Player.CreatePlayer) == 'function' t
                 end
             end
         end
-        return p
+        return ret
     end
     print('^2[nayzeee]^0 money source tracking active (qb-core)')
     return
