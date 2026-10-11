@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAYZEEE MDT Tablet</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         TABLET
+         ═══════════════════════════════════════════════════════════════════ -->
+    <div id="app" class="hidden">
+        <div class="tablet-container">
+            <div class="tablet-frame" id="frame">
+                <div class="tablet-btn vol"></div>
+                <div class="tablet-btn power"></div>
+                <div class="tablet-cam"></div>
+
+                <div class="tablet-content" id="screen">
+                    <img class="tablet-wallpaper blur" id="wallpaper" src="img/wallpaper.svg" alt="">
+                    <div class="tablet-dim"></div>
+
+                    <!-- Lock screen -->
+                    <div class="tablet-login-container" id="lockScreen">
+                        <div class="lock-clock">
+                            <b id="lockTime">00:00</b>
+                            <span id="lockDate">—</span>
+                        </div>
+                        <div class="tablet-login-icon-container" id="lockAvatar">
+                            <i class="fas fa-user-shield tablet-login-icon"></i>
+                        </div>
+                        <span class="tablet-login-username" id="lockName">Officer</span>
+                        <span class="tablet-login-dept" id="lockDept">Mobile Data Terminal</span>
+                        <input class="tablet-login-password" id="lockPassword" type="password" readonly tabindex="-1">
+                        <span class="tablet-login-hint">click to skip</span>
+                    </div>
+
+                    <!-- Desktop -->
+                    <div class="tablet-desktop hidden" id="desktop">
+                        <div class="home" id="home"></div>
+
+                        <div class="window-container hidden" id="windowWrap">
+                            <div class="window" id="appWindow">
+                                <div class="window-header">
+                                    <i class="fas fa-server window-header-icon" id="winIcon"></i>
+                                    <span class="window-header-title" id="winTitle">root://user/app.exe</span>
+                                    <div class="window-controls">
+                                        <button class="window-btn refresh" id="winRefresh" title="Refresh"><i class="fas fa-rotate-right"></i></button>
+                                        <button class="window-btn minimize" id="winMin" title="Minimise"><i class="fas fa-minus"></i></button>
+                                        <button class="window-btn close" id="winClose" title="Close"><i class="fas fa-times"></i></button>
+                                    </div>
+                                </div>
+                                <div class="window-body" id="view"></div>
+                                <div class="window-footer">
+                                    <span id="winFooter">NAYZEEE Services | MDT | v2.0.0</span>
+                                    <span class="right" id="winFooterRight"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Taskbar -->
+                        <div class="tablet-taskbar">
+                            <div class="taskbar-left">
+                                <button class="taskbar-btn power" id="btnPower" title="Lock and put away"><i class="fas fa-power-off"></i></button>
+                                <button class="taskbar-btn" id="btnHome" title="Home"><i class="fas fa-table-cells-large"></i></button>
+                                <button class="taskbar-btn" id="btnSearch" title="Search ( / )"><i class="fas fa-magnifying-glass"></i></button>
+                            </div>
+                            <div class="taskbar-center" id="dock"></div>
+                            <div class="taskbar-right">
+                                <span class="taskbar-location" id="taskLocation">Los Santos</span>
+                                <button class="taskbar-status off" id="taskStatus" title="Unit status"><i class="fas fa-circle"></i><span>Off duty</span></button>
+                                <span class="taskbar-duty" id="taskDuty" title="Toggle duty">DUTY: OFF</span>
+                                <div class="taskbar-icons">
+                                    <i class="fas fa-signal"></i>
+                                    <i class="fas fa-wifi"></i>
+                                    <i class="fas fa-battery-three-quarters"></i>
+                                </div>
+                                <div class="taskbar-clock">
+                                    <b id="taskTime">00:00</b>
+                                    <span id="taskDate">—</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="popover"></div>
+                    </div>
+
+                    <!-- Boot console -->
+                    <div class="console-window hidden" id="console">
+                        <div class="window-header">
+                            <i class="fas fa-terminal window-header-icon"></i>
+                            <span class="window-header-title">NAYZEEE Command Prompt (<span id="consoleApp">mdt.exe</span>)</span>
+                        </div>
+                        <div class="console-output" id="consoleOutput"></div>
+                    </div>
+
+                    <div class="veil" id="veil"></div>
+
+                    <div class="spotlight" id="spotlight">
+                        <div class="spot-box">
+                            <div class="spot-input">
+                                <i class="fas fa-magnifying-glass"></i>
+                                <input id="omni" placeholder="Search citizens, plates, serials, reports, warrants" autocomplete="off" spellcheck="false">
+                                <span class="kbd">ESC</span>
+                            </div>
+                            <div class="spot-results" id="omniDrop"></div>
+                            <div class="spot-foot">
+                                <span><span class="kbd">↑</span><span class="kbd">↓</span> move</span>
+                                <span><span class="kbd">ENTER</span> open</span>
+                                <span><span class="kbd">ESC</span> close</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lightbox" id="lightbox"></div>
+
+                    <div class="notification-container" id="notifications"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         ON-SCREEN DISPATCH CARD  (shown while the tablet is put away)
+         ═══════════════════════════════════════════════════════════════════ -->
+    <div id="widget">
+        <div class="wwin">
+            <div class="whead">
+                <i class="fas fa-tower-broadcast"></i>
+                <b>dispatch.exe</b>
+                <span class="wpage" id="wPage">0 / 0</span>
+            </div>
+            <div class="wbody" id="wBody"></div>
+            <div class="wfoot" id="wFoot"></div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

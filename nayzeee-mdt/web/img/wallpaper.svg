@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101827"/>
+      <stop offset=".5" stop-color="#0a0f1a"/>
+      <stop offset="1" stop-color="#05070b"/>
+    </linearGradient>
+    <radialGradient id="g1" cx=".22" cy=".28" r=".55">
+      <stop offset="0" stop-color="#08afa2" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#08afa2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx=".86" cy=".82" r=".5">
+      <stop offset="0" stop-color="#1b5c92" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#1b5c92" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g3" cx=".7" cy=".18" r=".3">
+      <stop offset="0" stop-color="#0fd4c4" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#0fd4c4" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#ffffff" stroke-opacity=".035" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#08afa2" stop-opacity="0"/>
+      <stop offset=".45" stop-color="#08afa2" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#0fd4c4" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#grid)"/>
+  <rect width="1600" height="1000" fill="url(#g1)"/>
+  <rect width="1600" height="1000" fill="url(#g2)"/>
+  <rect width="1600" height="1000" fill="url(#g3)"/>
+  <g fill="none" stroke="url(#wave)" stroke-linecap="round">
+    <path d="M-50 640 C 260 520, 520 760, 820 620 S 1380 470, 1680 600" stroke-width="2.2"/>
+    <path d="M-50 680 C 280 570, 540 800, 840 660 S 1400 520, 1680 640" stroke-width="1.2" stroke-opacity=".6"/>
+    <path d="M-50 720 C 300 620, 560 840, 860 700 S 1420 570, 1680 690" stroke-width=".8" stroke-opacity=".4"/>
+  </g>
+  <g transform="translate(1300 700) scale(.7)" opacity=".045">
+    <path d="M0 0H260V146L146 260H0Z" fill="#ffffff"/>
+    <rect x="57" y="57" width="146" height="57" fill="#0a0f1a"/>
+  </g>
+</svg>
