@@ -6,6 +6,10 @@ local function applyLuaSettings(s)
     if type(s.map) == 'table' and s.map.mode then
         NHUD.settings.minimap = s.map.mode
     end
+    -- status under the minimap: lift the radar so the row fits beneath it
+    local under = type(s.status) == 'table' and s.status.place ~= 'side' and s.status.enabled ~= false
+    local shape = type(s.map) == 'table' and s.map.shape or Config.Minimap.shape
+    NHUD.setMinimapLayout(shape, under and Config.Minimap.raiseForStatus or 0.0)
     NHUD.updateRadar(nil, true)
     NHUD.flush()
 end
@@ -35,7 +39,7 @@ end
 RegisterNUICallback('ready', function(_, cb)
     NHUD.ready = true
     local saved = loadSettings()
-    applyLuaSettings(saved)
+    applyLuaSettings(saved or { status = { place = 'under' }, map = { shape = Config.Minimap.shape } })
     NHUD.send('init', {
         settings = saved,
         defaults = Config.Defaults,

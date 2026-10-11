@@ -42,7 +42,6 @@
 
   // ---- static previews ----
   const PV = {
-    clock: (style) => `<div class="clk ${style === 'text' ? 'text' : 'pill panel'}"><div class="clk-t"><b>11:27 PM</b><small>Friday</small></div><svg class="wx" viewBox="0 0 24 24">${NH.weatherIcon('CLEAR', true)}</svg></div>`,
     sign: (s) => `<div class="sgn ${s}"><small>SPEED<br>LIMIT</small><b>30</b></div>`,
     compass: (s) => s === 'tape'
       ? `<div class="pv-cmp"><i></i><i></i><b>NW</b><i></i><small>330</small><i></i><b class="main">N</b><i></i><small>30</small><i></i><b>NE</b><i></i></div>`
@@ -79,6 +78,7 @@
   R.status = () =>
     sec('Display', toggle('status.enabled', 'Show player status') + toggle('status.autoHide', 'Smart hide', 'Hide armor & stress at 0 and stamina when full') +
       seg('status.color', [['vibrant', 'Vibrant'], ['accent', 'Accent'], ['mono', 'Mono']], 'Colours') +
+      seg('status.place', [['under', 'Under the minimap'], ['side', 'Beside the minimap']], 'Position', 'Under lifts the minimap a little so the row fits below it') +
       seg('status.dir', [['row', 'Row'], ['col', 'Column']], 'Direction') + scaleRange('status')) +
     sec('Style', cards('status.style', Object.keys(NH.STATUS_STYLES).map(k => ({ v: k, l: NH.STATUS_STYLES[k].label, pv: 'status:' + k })), 'c4')) +
     sec('Shown stats', chips(NH.STATS.map(s => [`status.show.${s.k}`, s.label, NH.fic(s.icon)])));
@@ -96,9 +96,12 @@
       toggle('boat.info', 'Heading & trim display', 'Heading and how far the bow is up or down') + `<div class="cards c2"><div class="card on pv-static"><div class="pv" data-pv="boat:info"></div><span>Boat display</span></div></div>` + scaleRange('boat')) +
     sec('Bicycles', cards('cycle.style', [{ v: 'smartwatch', l: 'Smart Watch', pv: 'speedo:smartwatch' }, { v: 'watch', l: 'Fitness Watch', pv: 'speedo:watch' }, { v: 'car', l: 'Car speedometer', html: `<span class="pv-off">${ic('car')}</span>` }], 'c3 tall'));
 
+  const MAP_FRAMES = [['glass', 'Glass'], ['accent', 'Accent'], ['panel', 'Panel'], ['corners', 'Corners'], ['shadow', 'Shadow'], ['none', 'None']];
   R.map = () =>
     sec('Minimap', seg('map.mode', [['vehicle', 'In vehicles'], ['always', 'Always'], ['never', 'Never']], 'Show minimap') +
-      toggle('map.frame', 'Minimap frame', 'Glass border around the radar')) +
+      toggle('map.frame', 'Minimap frame', 'Drawn around the radar (default shape only)') +
+      cards('map.frameStyle', MAP_FRAMES.map(([v, l]) => ({ v, l, html: `<div class="pv-map"><div class="pv-radar"></div><div class="mf" data-style="${v}"><i></i><i></i><i></i><i></i></div></div>` })), 'c3') +
+      seg('map.shape', [['default', 'Default'], ['square', 'Square'], ['circle', 'Circle']], 'Shape', 'Square and circle need squaremap.ytd / circlemap.ytd in the stream folder')) +
     sec('Street bar', toggle('map.street', 'Street bar', 'Direction, road, zone and postal') + toggle('map.streetOnFoot', 'Show on foot') + scaleRange('street')) +
     sec('Speed limit', toggle('map.sign', 'Speed limit sign') + toggle('map.blink', 'Blink when speeding') +
       cards('map.signStyle', [{ v: 'us', l: 'US', html: PV.sign('us') }, { v: 'eu', l: 'European', html: PV.sign('eu') }], 'c2') + scaleRange('sign')) +
@@ -122,7 +125,7 @@
   R.clock = () =>
     sec('Display', toggle('clock.enabled', 'Show clock') + toggle('clock.day', 'Show day') + toggle('clock.h24', '24 hour clock') + toggle('clock.weather', 'Weather icon') +
       seg('clock.source', [['game', 'Game time'], ['real', 'Real time']], 'Time source') + scaleRange('clock')) +
-    sec('Style', cards('clock.style', [{ v: 'pill', l: 'Pill', html: PV.clock('pill') }, { v: 'text', l: 'Text and icon', html: PV.clock('text') }], 'c2'));
+    sec('Style', cards('clock.style', Object.keys(NH.CLOCK_STYLES).map(k => ({ v: k, l: NH.CLOCK_STYLES[k].label, pv: 'clock:' + k })), 'c3'));
 
   R.watermark = () =>
     sec('Display', toggle('watermark.enabled', 'Show watermark', 'Text and logo are set by the server in config.lua') + scaleRange('watermark')) +
@@ -153,6 +156,8 @@
         wrap.className = 'pv-speedo';
         wrap.appendChild(inst.el);
         pv.appendChild(wrap);
+      } else if (type === 'clock') {
+        pv.appendChild(NH.clockPreview(style));
       } else if (type === 'info') {
         pv.appendChild(NH.infoPreview(style));
       } else if (type === 'boat') {
@@ -282,7 +287,7 @@
       NH.setPath(NH.cur, path, value);
       this.markDirty();
       NH.applySettings();
-      if (path.startsWith('map.')) NH.post('preview', NH.cur);
+      if (path.startsWith('map.') || path.startsWith('status.')) NH.post('preview', NH.cur);
       if (rerender) this.render();
     },
 

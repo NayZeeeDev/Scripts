@@ -19,14 +19,14 @@
     accent: '#08afa2', panelAlpha: 0.78, scale: 1, units: 'mph', cinematic: false,
     sound: true, volume: 0.6,
     status: {
-      enabled: true, style: 'ring', color: 'vibrant', dir: 'row', autoHide: true,
+      enabled: true, style: 'ring', color: 'vibrant', dir: 'row', place: 'under', autoHide: true,
       show: { health: true, armor: true, hunger: true, thirst: true, stamina: true, stress: true, oxygen: true, voice: true },
     },
     speedo: { style: 'modern', lights: true, chime: true, tick: true, fuelWarn: true },
     air: { style: 'pfd' },
     boat: { units: 'kts', info: true },
     cycle: { style: 'smartwatch' },
-    map: { mode: 'vehicle', frame: true, street: true, streetOnFoot: true, sign: true, signStyle: 'us', blink: true, compass: true, compassStyle: 'tape', compassWhen: 'always' },
+    map: { mode: 'vehicle', frame: true, frameStyle: 'glass', shape: 'default', street: true, streetOnFoot: true, sign: true, signStyle: 'us', blink: true, compass: true, compassStyle: 'tape', compassWhen: 'always' },
     info: {
       enabled: true, style: 'pills', job: true, gang: true, name: true, cash: true, bank: true, dirty: true, id: true, players: true, time: true,
       headshot: true, avatar: 'discord', animated: true, popups: true,

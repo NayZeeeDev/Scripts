@@ -33,7 +33,11 @@ Config.Watermark = {
 }
 
 Config.Minimap = {
-    hideHealthBars = true, -- hides GTA's health/armour bars under the radar
+    hideHealthBars = true,   -- hides GTA's health/armour bars under the radar
+    raiseForStatus = 0.045,  -- how far the radar moves up when player status sits under it (screen height, 0-1)
+    -- 'default' | 'square' | 'circle' (players pick in /hud). Square and circle need squaremap.ytd /
+    -- circlemap.ytd in a stream/ folder in this resource; without them the default shape is used.
+    shape = 'default',
 }
 
 -- Hides native GTA HUD text (vehicle name, area, street, cash).

@@ -17,7 +17,9 @@
   // ---------------- Status ----------------
   def('status', {
     label: 'Player Status', anchor: [0, 1],
-    pos: c => c.radar ? [c.map.l + c.map.w + 0.7, c.map.b] : [1.4, 98.2],
+    pos: c => NH.cur.status.place === 'side'
+      ? (c.radar ? [c.map.l + c.map.w + 0.7, c.map.b] : [1.4, 98.2])
+      : [Math.max(1.2, c.map.l + 0.2), 98.4], // under the minimap (the radar is lifted to make room)
     visible: () => NH.cur.status.enabled,
     build(el) { NH.status.build(el); el.insertAdjacentHTML('beforeend', '<span class="deco"></span>'); },
     apply() { NH.status.apply(); },
@@ -48,8 +50,9 @@
   // ---------------- Minimap frame ----------------
   def('mapframe', {
     label: 'Minimap Frame', fixed: true,
-    visible: () => NH.cur.map.frame && (NH.S.radar || NH.editing),
-    build(el) { el.innerHTML = '<div class="mf"></div>'; },
+    visible: () => NH.cur.map.frame && NH.cur.map.frameStyle !== 'none' && (c => !c.shape || c.shape === 'default')(NH.map) && (NH.S.radar || NH.editing),
+    build(el) { el.innerHTML = '<div class="mf"><i></i><i></i><i></i><i></i></div>'; this.mf = el.firstChild; },
+    apply() { this.mf.dataset.style = NH.cur.map.frameStyle || 'glass'; },
     place(c) {
       const s = this.el.style;
       s.left = c.map.l + '%'; s.top = (c.map.b - c.map.h) + '%';
@@ -216,45 +219,88 @@
   });
 
   // ---------------- Clock & weather ----------------
+  const WX_LABEL = { EXTRASUNNY: 'Sunny', CLEAR: 'Clear', NEUTRAL: 'Clear', CLOUDS: 'Cloudy', OVERCAST: 'Overcast', CLEARING: 'Clearing', RAIN: 'Rain', RAIN_HALLOWEEN: 'Rain',
+    THUNDER: 'Thunder', SMOG: 'Smog', FOGGY: 'Foggy', HALLOWEEN: 'Foggy', SNOW: 'Snow', SNOWLIGHT: 'Light snow', BLIZZARD: 'Blizzard', XMAS: 'Snow', SNOW_HALLOWEEN: 'Snow' };
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const wxIcon = (cls = '') => `<svg class="wx ${cls}" viewBox="0 0 24 24" data-c="icon"></svg>`;
+
+  NH.CLOCK_STYLES = {
+    pill:  { label: 'Pill',          html: () => `<div class="clk pill panel"><div class="clk-t"><b data-c="time"></b><small class="c-day" data-c="day"></small></div>${wxIcon()}</div>` },
+    text:  { label: 'Text and icon', html: () => `<div class="clk text"><div class="clk-t"><b data-c="time"></b><small class="c-day" data-c="day"></small></div>${wxIcon()}</div>` },
+    card:  { label: 'Weather Card',  html: () => `<div class="clk card panel">${wxIcon('lg')}<div class="clk-t"><b data-c="time"></b><small class="c-day" data-c="full"></small><small class="c-wx" data-c="wxl"></small></div></div>` },
+    line:  { label: 'Line',          html: () => `<div class="clk line">${wxIcon('sm')}<span class="c-day" data-c="date"></span><b data-c="time"></b></div>` },
+    big:   { label: 'Big Clock',     html: () => `<div class="clk big"><div class="clk-t"><b data-c="time"></b><small class="c-day" data-c="full"></small></div>${wxIcon('lg')}</div>` },
+    split: { label: 'Split Pills',   html: () => `<div class="clk split"><span class="panel">${ic('clock')}<b data-c="time"></b></span><span class="panel c-wx">${wxIcon('sm')}<b data-c="wxl"></b></span></div>` },
+  };
+
+  NH.clockValues = (S, c) => {
+    let h, m, dow, dom, mon;
+    if (c.source === 'real') { const d = new Date(); h = d.getHours(); m = d.getMinutes(); dow = d.getDay(); dom = d.getDate(); mon = d.getMonth(); }
+    else { h = S.hr ?? 12; m = S.mn ?? 0; dow = S.dow ?? 5; dom = S.dom ?? 1; mon = S.mon ?? 0; }
+    const mm = String(m).padStart(2, '0');
+    const wx = S.wx || 'CLEAR';
+    return {
+      time: c.h24 ? `${String(h).padStart(2, '0')}:${mm}` : `${(h % 12) || 12}:${mm} ${h < 12 ? 'AM' : 'PM'}`,
+      day: DAYS[dow] || '',
+      full: `${DAYS[dow] || ''}, ${dom} ${MONTHS[mon] || ''}`,
+      date: `${dom} ${MONTHS[mon] || ''} ${(DAYS[dow] || '').slice(0, 3)}`,
+      wxl: WX_LABEL[wx] || 'Clear',
+      icon: wx + (h < 6 || h >= 20 ? '|n' : '|d'),
+    };
+  };
+
+  NH.fillClock = (refs, v, last = {}) => {
+    for (const k in refs) {
+      if (v[k] === undefined || last[k] === v[k]) continue;
+      last[k] = v[k];
+      for (const n of refs[k]) {
+        if (k === 'icon') { const [wx, n2] = v.icon.split('|'); n.innerHTML = NH.weatherIcon(wx, n2 === 'n'); }
+        else n.textContent = v[k];
+      }
+    }
+    return last;
+  };
+
+  NH.clockPreview = (style) => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = (NH.CLOCK_STYLES[style] || NH.CLOCK_STYLES.pill).html();
+    const refs = {};
+    wrap.querySelectorAll('[data-c]').forEach(n => (refs[n.dataset.c] = refs[n.dataset.c] || []).push(n));
+    NH.fillClock(refs, NH.clockValues({ hr: 23, mn: 27, dow: 5, dom: 6, mon: 7, wx: 'CLEAR' }, Object.assign({}, NH.cur.clock, { source: 'game' })));
+    return wrap.firstElementChild;
+  };
+
   def('clock', {
     label: 'Weather & Time', anchor: [1, 0],
     pos: () => [98.6, 1.6],
     visible: () => NH.cur.clock.enabled,
-    build(el) {
-      el.innerHTML = `<div class="clk"><div class="clk-t"><b>00:00</b><small>Monday</small></div><svg class="wx" viewBox="0 0 24 24"></svg></div><span class="deco"></span>`;
-      this.box = el.firstChild; this.t = $(el, 'b'); this.d = $(el, 'small'); this.wx = $(el, '.wx');
-      this.timer = null;
-    },
+    build() { this.style = null; this.timer = null; },
     apply() {
       const c = NH.cur.clock;
-      this.box.className = 'clk ' + (c.style === 'text' ? 'text' : 'pill panel');
-      this.d.style.display = c.day ? '' : 'none';
-      this.wx.style.display = c.weather ? '' : 'none';
+      if (c.style !== this.style) {
+        this.style = c.style;
+        this.el.innerHTML = (NH.CLOCK_STYLES[c.style] || NH.CLOCK_STYLES.pill).html() + '<span class="deco"></span>';
+        this.box = this.el.firstChild;
+        this.refs = {};
+        this.el.querySelectorAll('[data-c]').forEach(n => (this.refs[n.dataset.c] = this.refs[n.dataset.c] || []).push(n));
+        this.last = {};
+      }
+      this.box.classList.toggle('no-day', !c.day);
+      this.box.classList.toggle('no-wx', !c.weather);
       clearInterval(this.timer);
       if (c.source === 'real') this.timer = setInterval(() => this.render({ clk: 1 }), 10000);
       this.render({ clk: 1 });
     },
     render(g) {
       if (!g.clk && !g.edit) return;
-      const c = NH.cur.clock, S = NH.S;
-      let h, m, dow;
-      if (c.source === 'real') { const d = new Date(); h = d.getHours(); m = d.getMinutes(); dow = d.getDay(); }
-      else { h = S.hr ?? 12; m = S.mn ?? 0; dow = S.dow ?? 5; }
-      const mm = String(m).padStart(2, '0');
-      const txt = c.h24 ? `${String(h).padStart(2, '0')}:${mm}` : `${(h % 12) || 12}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
-      if (this.t.textContent !== txt) this.t.textContent = txt;
-      const day = DAYS[dow] || '';
-      if (this.d.textContent !== day) this.d.textContent = day;
-      const night = h < 6 || h >= 20;
-      const key = (S.wx || 'CLEAR') + night;
-      if (key !== this.wxKey) { this.wxKey = key; this.wx.innerHTML = NH.weatherIcon(S.wx || 'CLEAR', night); }
+      NH.fillClock(this.refs, NH.clockValues(NH.S, NH.cur.clock), this.last);
     },
   });
 
   // ---------------- Player info ----------------
   def('info', {
     label: 'Player Info', anchor: [1, 0],
-    pos: () => [98.6, 7.2],
+    pos: c => [98.6, NH.cur.clock.enabled && !NH.cur.layout.clock ? 1.6 + (c.clockH || 4.6) + 0.9 : 7.2],
     visible: () => NH.cur.info.enabled,
     build(el) { this.style = null; },
     apply() {
@@ -357,9 +403,11 @@
   // ---------------- Layout ----------------
   NH.layoutCtx = () => ({
     radar: !!NH.S.radar || (NH.editing && NH.cur.map.mode !== 'never'),
-    map: NH.map,
+    // in the browser preview there is no Lua to lift the radar, so mimic it
+    map: NH.IS_GAME ? NH.map : Object.assign({}, NH.map, { b: NH.map.b - (NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 4.5 : 0) }),
     statusH: W.status.el ? pxH(W.status.el) * (NH.cur.layout.status?.s || 1) * NH.cur.scale : 4.6,
     speedoH: W.speedo.el && W.speedo.el.offsetHeight ? pxH(W.speedo.el) * (NH.cur.layout.speedo?.s || 1) * NH.cur.scale : 22,
+    clockH: W.clock.el && W.clock.el.offsetHeight ? pxH(W.clock.el) * (NH.cur.layout.clock?.s || 1) * NH.cur.scale : 4.6,
   });
 
   NH.place = () => {

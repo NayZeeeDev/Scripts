@@ -19,12 +19,13 @@ It replaces **qb-hud**, **esx_hud** and **nayzeee-squads**. Remove those from `s
 - **Vehicle control panel** (`F7`): engine, lock, hood, trunk, indicators, hazards, lights, cruise, neon, each door, each window and seat switching.
 - **Built-in seatbelt** (`B`) with windscreen-ejection protection, a buckle sound and a chime when driving unbuckled.
 - **Cruise / speed limiter** (`Y`) and **indicators** (`←` / `→`).
+- **Minimap:** player status sits **under** the minimap (the radar is lifted to make room) or beside it. Six frame styles: Glass, Accent, Panel, Corners, Shadow and None. Square and Circle shapes work when `squaremap.ytd` / `circlemap.ytd` are in a `stream/` folder (qb-hud ships them, GPL-3.0, so they aren't bundled here).
 - **Map and location:** minimap frame, street bar (direction, street, zone, postal), live speed-limit sign (US or EU) that blinks when speeding, and a compass (tape or ribbon).
 - **Player info (8 styles):** Pills, Stacked, Compact, List, Sections, Grid, Tiles and Profile Card. Shows job, gang, character name, cash, dirty money, bank, server ID, players online, date and time, and a profile picture with a talking ring. Every element can be switched off.
 - **Discord profile pictures:** the player's Discord avatar (server avatar first), animated GIFs included, falling back to the character headshot. Needs `set nhud_discord_token "..."` in `server.cfg` (or the squads `nz_squads_bot_token`) and `Config.Discord.guildId`.
 - **NayZeee teal (`#08afa2`)** is the accent across the HUD, settings and squads. Seasons keep their particles and decorations without changing it, unless a player turns on "Use season colours".
 - **Weapon display:** image, name and clip/reserve ammo. Card, Minimal or Pill styles.
-- **Weather and time:** game or real time, 12h or 24h, day, and a weather icon that changes for night.
+- **Weather and time (6 styles):** Pill, Text and icon, Weather Card, Line, Big Clock and Split Pills. Game or real time, 12h or 24h, day and date, a weather icon that changes for night, and the weather name.
 - **Server watermark:** Stack, Badge or Minimal styles, with None, Pulse, Gloss or Float effects.
 - **Seasonal styles:** Auto by date, Winter, Christmas, New Year, Valentine, St. Patrick's, Spring, Summer, Independence, Autumn and Halloween. Each season sets theme colours, CSS-only particles (snow, leaves, hearts, confetti, bats and more) and little decorations on HUD elements.
 - **Edit layout:** drag any element, scroll to resize, right-click to reset it.

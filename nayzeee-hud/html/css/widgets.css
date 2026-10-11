@@ -5,9 +5,23 @@
 .sb-s { font-size: 14px; font-weight: 700; }
 .sb-z { font-size: 11px; color: var(--muted); }
 
-/* ---------- Minimap frame ---------- */
+/* ---------- Minimap frame (6 styles) ---------- */
 .w-mapframe { pointer-events: none; }
-.mf { position: absolute; inset: -4px; border-radius: 12px; border: 2px solid rgba(255, 255, 255, .16); box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 8px 24px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(var(--accent-rgb), .15); }
+.mf { position: absolute; inset: -4px; border-radius: 12px; }
+.mf > i { display: none; position: absolute; width: 18px; height: 18px; border: 0 solid var(--accent); }
+.mf[data-style="glass"] { border: 2px solid rgba(255, 255, 255, .16); box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 8px 24px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(var(--accent-rgb), .15); }
+.mf[data-style="accent"] { border: 2px solid var(--accent); box-shadow: 0 0 14px rgba(var(--accent-rgb), .45), inset 0 0 10px rgba(var(--accent-rgb), .25); }
+.mf[data-style="panel"] { inset: -9px; border-radius: 16px; border: 7px solid rgba(12, 13, 16, calc(var(--pa) + .1)); box-shadow: 0 0 0 1px var(--line2), 0 10px 28px rgba(0, 0, 0, .35); }
+.mf[data-style="corners"] > i { display: block; }
+.mf[data-style="corners"] > i:nth-child(1) { left: -2px; top: -2px; border-width: 3px 0 0 3px; border-radius: 8px 0 0 0; }
+.mf[data-style="corners"] > i:nth-child(2) { right: -2px; top: -2px; border-width: 3px 3px 0 0; border-radius: 0 8px 0 0; }
+.mf[data-style="corners"] > i:nth-child(3) { left: -2px; bottom: -2px; border-width: 0 0 3px 3px; border-radius: 0 0 0 8px; }
+.mf[data-style="corners"] > i:nth-child(4) { right: -2px; bottom: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 8px 0; }
+.mf[data-style="shadow"] { box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 26px 6px rgba(0, 0, 0, .45); }
+.pv-map { position: relative; width: 120px; height: 72px; }
+.pv-radar { position: absolute; inset: 0; border-radius: 8px; background: repeating-linear-gradient(45deg, #3d4a3a 0 10px, #46553f 10px 20px); }
+.pv-map .mf { inset: -4px; }
+.pv-map .mf[data-style="panel"] { inset: -8px; }
 
 /* ---------- Speed limit sign ---------- */
 .sgn { display: grid; place-items: center; text-align: center; transition: transform .2s; }
@@ -57,15 +71,31 @@
 .pv-cmp small { font-size: 9px; color: var(--muted); }
 .pv-cmp .main { color: var(--accent); font-size: 15px; }
 
-/* ---------- Clock ---------- */
+/* ---------- Clock (6 styles) ---------- */
 .clk { display: flex; align-items: center; gap: 10px; }
 .clk.pill { padding: 7px 10px 7px 16px; border-radius: 99px; }
 .clk-t { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
 .clk-t b { font-size: 16px; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; }
-.clk-t small { font-size: 11px; color: var(--muted); }
-.clk.text .clk-t b, .clk.text .clk-t small { text-shadow: 0 1px 6px rgba(0,0,0,.75); }
+.clk-t small { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.clk.text .clk-t b, .clk.text .clk-t small, .clk.line, .clk.big { text-shadow: 0 1px 6px rgba(0,0,0,.75); }
 .clk.text .clk-t small { color: rgba(255,255,255,.75); }
-.clk .wx { width: 26px; height: 26px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+.clk .wx { width: 26px; height: 26px; flex: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+.clk .wx.lg { width: 40px; height: 40px; }
+.clk .wx.sm { width: 18px; height: 18px; }
+.clk.card { padding: 10px 16px 10px 12px; border-radius: 14px; gap: 12px; flex-direction: row-reverse; }
+.clk.card .clk-t { align-items: flex-start; gap: 2px; }
+.clk.card .clk-t b { font-size: 22px; }
+.clk.card .c-wx { color: var(--accent); font-weight: 700; }
+.clk.line { gap: 7px; font-size: 13px; font-weight: 600; }
+.clk.line b { font-weight: 800; color: var(--accent); }
+.clk.big { gap: 14px; }
+.clk.big .clk-t b { font-size: 46px; font-weight: 300; letter-spacing: -.03em; line-height: 1; }
+.clk.big .clk-t small { font-size: 12px; color: rgba(255,255,255,.8); margin-top: 3px; }
+.clk.split { gap: 6px; }
+.clk.split > span { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 10px; }
+.clk.split > span > .ic { font-size: 15px; color: var(--accent); }
+.clk.split b { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.clk.no-day .c-day, .clk.no-wx .wx, .clk.no-wx .c-wx { display: none !important; }
 
 /* ---------- Player info ---------- */
 .inf.pills { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }

@@ -11,6 +11,65 @@ local function hideHealthBars()
 end
 NHUD.hideHealthBars = hideHealthBars
 
+-- Minimap shape + height. Positive Y moves a component up from the bottom of the screen.
+-- 'square' / 'circle' need the squaremap.ytd / circlemap.ytd textures in this resource's stream/ folder.
+local SHAPES = {
+    default = { clip = 0, map = { -0.0045, 0.002, 0.150, 0.188 }, mask = { 0.020, 0.032, 0.111, 0.159 }, blur = { -0.03, 0.022, 0.266, 0.237 } },
+    square  = { dict = 'squaremap', clip = 0, map = { 0.0, -0.047, 0.1638, 0.183 }, mask = { 0.0, 0.0, 0.128, 0.20 }, blur = { -0.01, 0.025, 0.262, 0.300 } },
+    circle  = { dict = 'circlemap', clip = 1, map = { -0.0100, -0.030, 0.180, 0.258 }, mask = { 0.200, 0.0, 0.065, 0.20 }, blur = { -0.00, 0.015, 0.252, 0.338 } },
+}
+local layout = { shape = 'default', raise = 0.0 }
+local applied = nil
+
+local function hasTextures(dict)
+    if not dict then return true end
+    RequestStreamedTextureDict(dict, false)
+    local timeout = GetGameTimer() + 1500
+    while not HasStreamedTextureDictLoaded(dict) do
+        if GetGameTimer() > timeout then return false end
+        Wait(50)
+    end
+    return true
+end
+
+function NHUD.setMinimapLayout(shape, raise)
+    shape = SHAPES[shape] and shape or 'default'
+    raise = tonumber(raise) or 0.0
+    local key = shape .. raise
+    if key == applied then return end
+    applied = key
+    CreateThread(function()
+        local def = SHAPES[shape]
+        if def.dict and not hasTextures(def.dict) then
+            print(('^3[nayzeee-hud]^7 Minimap shape "%s" needs stream/%s.ytd. Using the default shape.'):format(shape, def.dict))
+            shape, def = 'default', SHAPES.default
+        end
+        layout.shape, layout.raise = shape, raise
+        local resX, resY = GetActiveScreenResolution()
+        local aspect = resX / resY
+        local offset = aspect > (1920 / 1080) and (((1920 / 1080) - aspect) / 3.6) - 0.008 or 0.0
+        if def.dict then
+            AddReplaceTexture('platform:/textures/graphics', 'radarmasksm', def.dict, 'radarmasksm')
+            AddReplaceTexture('platform:/textures/graphics', 'radarmask1g', def.dict, 'radarmasksm')
+            SetBlipAlpha(GetNorthRadarBlip(), 0)
+        else
+            RemoveReplaceTexture('platform:/textures/graphics', 'radarmasksm')
+            RemoveReplaceTexture('platform:/textures/graphics', 'radarmask1g')
+            SetBlipAlpha(GetNorthRadarBlip(), 255)
+        end
+        SetMinimapClipType(def.clip)
+        for _, part in ipairs({ { 'minimap', def.map }, { 'minimap_mask', def.mask }, { 'minimap_blur', def.blur } }) do
+            local v = part[2]
+            SetMinimapComponentPosition(part[1], 'L', 'B', v[1] + offset, v[2] + raise, v[3], v[4])
+        end
+        SetRadarBigmapEnabled(true, false)
+        Wait(50)
+        SetRadarBigmapEnabled(false, false)
+        hideHealthBars()
+        NHUD.sendMap(true)
+    end)
+end
+
 -- Screen-space rectangle of the radar (percent), so the UI can frame it and dock the street bar / speed sign.
 local function anchor()
     local safe = GetSafeZoneSize()
@@ -21,8 +80,8 @@ local function anchor()
     local h = ys * (resY / 5.674)
     local margin = math.abs(safe - 1.0) * 10
     local left = xs * (resX * ((1.0 / 20.0) * margin))
-    local bottom = 1.0 - ys * (resY * ((1.0 / 20.0) * margin))
-    return { l = left * 100, b = bottom * 100, w = w * 100, h = h * 100 }
+    local bottom = 1.0 - ys * (resY * ((1.0 / 20.0) * margin)) - layout.raise
+    return { l = left * 100, b = bottom * 100, w = w * 100, h = h * 100, shape = layout.shape }
 end
 
 function NHUD.sendMap(force)
