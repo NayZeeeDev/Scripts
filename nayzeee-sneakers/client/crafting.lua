@@ -99,7 +99,7 @@ end)
 
 RegisterNetEvent('nayzeee-sneakers:client:xp', function(info)
     SendNUIMessage({ action = 'xp', data = info })
-    if info.gained > 0 then UI.Notify(Config.Text.xpGained:format(info.gained), 'success') end
+    if info.gained > 0 then UI.Notify(Config.Text.xpGained:format(math.floor(info.gained + 0.5)), 'success') end
     if info.levelUp then UI.Notify(Config.Text.levelUp:format(info.level), 'success') end
 end)
 
@@ -270,7 +270,7 @@ end
 
 RegisterNUICallback('buy', function(d, cb)
     local ok, spent, money = Place.Await('nayzeee-sneakers:buy', false, d.cart or {}, d.account)
-    if ok then UI.Notify(Config.Text.bought:format(spent), 'success') end
+    if ok then UI.Notify(Config.Text.bought:format(math.floor((tonumber(spent) or 0) + 0.5)), 'success') end
     cb({ ok = ok == true, money = money })
 end)
 

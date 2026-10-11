@@ -57,7 +57,7 @@ function Shared.Describe(meta)
         ('Serial %s'):format(meta.serial or '—'),
     }
     if meta.limited then table.insert(lines, 1, 'Limited drop') end
-    if dirt >= 5 then lines[#lines + 1] = ('Dirt %d%%'):format(dirt) end
+    if dirt >= 5 then lines[#lines + 1] = ('Dirt %d%%'):format(math.floor(dirt)) end   -- dirt builds up in fractions
     local km = tonumber(meta.km) or 0
     if km >= 0.1 then lines[#lines + 1] = ('Worn %.1f km'):format(km) end
     return table.concat(lines, '\n')

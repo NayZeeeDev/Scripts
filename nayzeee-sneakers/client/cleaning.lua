@@ -93,7 +93,7 @@ function Cleaning.Run(slot, meta)
         Place.Await('nayzeee-sneakers:cleanCancel', false)
     else
         local done, dirt = Place.Await('nayzeee-sneakers:cleanFinish', false, results)
-        if done then UI.Notify(Config.Text.cleaned:format(dirt), 'success') end
+        if done then UI.Notify(Config.Text.cleaned:format(math.floor(tonumber(dirt) or 0)), 'success') end
     end
 
     Wait(300)
