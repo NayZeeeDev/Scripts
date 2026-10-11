@@ -91,7 +91,9 @@ Corner sizes scale with each element's `--cut`, and the extra corners are capped
 
 Duotone: set `--nzi-accent: #08afa2` (or add `nzi-duo`) on any parent and each icon's accent detail turns teal. Works with `NZ.icon`, the sprite and the SVG files; the `nzi` classes are single-colour.
 
-To add or change an icon, edit `icons/src/icons.js` and run `node icons/build.js` (no installs needed). It regenerates every format, including the icons built into `core/nz-core.js`.
+**Using the icons in other scripts:** `dist/nz_icons.zip` is a ready FiveM resource. Bundle its files inside a script (best for scripts you sell) or run it as a shared `nz_icons` resource and link `nui://nz_icons/nz-icons.css`. Its README covers both. `nz-icons.js` in there gives scripts without the UI pack `<i data-nzi="car"></i>` and `NZI.svg('car')`.
+
+To add or change an icon, edit `icons/src/icons.js` and run `node icons/build.js` (no installs needed). It regenerates every format, including the icons built into `core/nz-core.js`. Then `node icons/package.js` rebuilds `dist/nz_icons.zip`.
 
 ## Using a theme in a resource
 
