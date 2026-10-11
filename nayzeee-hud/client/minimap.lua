@@ -2,9 +2,12 @@ local radarShown = nil
 local minimapMovie = nil
 local lastResX, lastResY, lastSafe = 0, 0, 0
 
+-- stream/minimap.gfx (from qb-hud) already removes GTA's health / armour bars under the radar;
+-- this scaleform call is the backup for when that file isn't there.
 local function hideHealthBars()
     if not Config.Minimap.hideHealthBars then return end
     if not minimapMovie then minimapMovie = RequestScaleformMovie('minimap') end
+    if not HasScaleformMovieLoaded(minimapMovie) then return end
     BeginScaleformMovieMethod(minimapMovie, 'SETUP_HEALTH_ARMOUR')
     ScaleformMovieMethodAddParamInt(3)
     EndScaleformMovieMethod()
@@ -98,7 +101,9 @@ local function anchor()
     end
     local left = xs * (resX * ((1.0 / 20.0) * margin)) + layout.offset
     local bottom = 1.0 - ys * (resY * ((1.0 / 20.0) * margin)) - layout.raise
-    return { l = left * 100, b = bottom * 100, w = w * 100, h = h * 100, shape = layout.shape }
+    -- lifted for the status row: the radar's bottom edge ends a touch higher than the frame's, so trim the frame
+    local trim = layout.raise > 0 and (Config.Minimap.raisedFrameTrim or 0.0) or 0.0
+    return { l = left * 100, b = (bottom - trim) * 100, w = w * 100, h = (h - trim) * 100, shape = layout.shape }
 end
 
 function NHUD.sendMap(force)
@@ -118,6 +123,16 @@ function NHUD.updateRadar(inVehicle, force)
         DisplayRadar(show)
         NHUD.set('radar', show)
         if show then hideHealthBars() end
+    end
+end
+
+-- Other scripts (frameworks, phones, older HUDs) like to call DisplayRadar(true). One cheap check on the
+-- main loop puts it back to what the player picked.
+function NHUD.enforceRadar()
+    if radarShown == nil then return end
+    if IsRadarHidden() == radarShown then
+        DisplayRadar(radarShown)
+        if radarShown then hideHealthBars() end
     end
 end
 
@@ -149,6 +164,11 @@ end
 
 CreateThread(function()
     SetRadarBigmapEnabled(false, false)
+    if Config.Minimap.hideHealthBars then
+        minimapMovie = RequestScaleformMovie('minimap')
+        local t = GetGameTimer() + 3000
+        while not HasScaleformMovieLoaded(minimapMovie) and GetGameTimer() < t do Wait(50) end
+    end
     hideHealthBars()
     NHUD.updateRadar(nil, true) -- right after a (re)start, before the UI has loaded: hide it on foot in 'vehicle' mode
     if Config.HideNativeHud == 'always' then NHUD.burstHide(0) end

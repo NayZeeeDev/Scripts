@@ -27,7 +27,7 @@ It replaces **qb-hud**, **esx_hud** and **nayzeee-squads**. Remove those from `s
 - **Vehicle control panel** (`F7`): engine, lock, hood, trunk, indicators, hazards, lights, cruise, neon, each door, each window and seat switching.
 - **Built-in seatbelt** (`B`) with windscreen-ejection protection, a buckle sound and a chime when driving unbuckled.
 - **Cruise / speed limiter** (`Y`) and **indicators** (`←` / `→`).
-- **Minimap:** player status sits **under** the minimap (the radar is lifted to make room) or beside it. Six frame styles: Glass, Accent, Panel, Corners, Shadow and None, each with a bezel that covers the radar's square corners. If the frame doesn't sit exactly on the radar on your screen, nudge it in `/hud` → Map & Compass → **Frame fit** (or for everyone with `Config.Minimap.frameFit`); the street bar and speed sign move with it. Default, Square and Circle shapes; the frame follows the shape. The square and circle masks (`stream/squaremap.ytd`, `stream/circlemap.ytd`) come from qb-hud (GPL-3.0, credit to its authors); if you remove them the shapes still work with GTA's own mask.
+- **Minimap:** player status sits **under** the minimap (the radar is lifted to make room) or beside it. Six frame styles: Glass, Accent, Panel, Corners, Shadow and None, each with a bezel that covers the radar's square corners. If the frame doesn't sit exactly on the radar on your screen, nudge it in `/hud` → Map & Compass → **Frame fit** (or for everyone with `Config.Minimap.frameFit`); the street bar and speed sign move with it. Default, Square and Circle shapes; the frame follows the shape. The square and circle masks (`stream/squaremap.ytd`, `stream/circlemap.ytd`) and `stream/minimap.gfx` (removes GTA's health / armour bars under the radar) come from qb-hud (GPL-3.0, credit to its authors). Without the masks the shapes still work with GTA's own mask; delete `minimap.gfx` if you want GTA's bars back.
 - **Map and location:** minimap frame, street bar (direction, street, zone, postal), live speed-limit sign (US or EU) that blinks when speeding, and a compass (tape or ribbon).
 - **Player info (8 styles):** Pills, Stacked, Compact, List, Sections, Grid, Tiles and Profile Card. Shows job, gang, character name, cash, dirty money, bank, server ID, players online, date and time, and a profile picture with a talking ring. Every element can be switched off.
 - **Discord profile pictures:** the player's Discord avatar (server avatar first), animated GIFs included, falling back to the character headshot. Needs `set nhud_discord_token "..."` in `server.cfg` (or the squads `nz_squads_bot_token`) and `Config.Discord.guildId`.
@@ -44,7 +44,7 @@ It replaces **qb-hud**, **esx_hud** and **nayzeee-squads**. Remove those from `s
 
 ## Install
 
-1. Drop `nayzeee-hud` in your resources folder and remove `qb-hud`, `esx_hud` and `nayzeee-squads` if you had them.
+1. Drop `nayzeee-hud` in your resources folder and remove `qb-hud`, `esx_hud` and `nayzeee-squads` if you had them (squads are built in now; if the old `nayzeee-squads` is still started, the built-in squads switch off and the console tells you).
 2. In `server.cfg`, start it after `ox_lib`, `oxmysql` and your framework:
 
    ```cfg

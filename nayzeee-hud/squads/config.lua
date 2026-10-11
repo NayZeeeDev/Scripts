@@ -585,3 +585,25 @@ SquadsConfig.Strings = {
     rally_set     = '%s set a rally point',
     rally_clear   = 'Rally point cleared',
 }
+
+-- The old standalone nayzeee-squads resource running next to this one would fight over every callback and event.
+-- If it's started, the built-in squads module stays off and the console says so; remove `ensure nayzeee-squads`.
+do
+    local me = GetCurrentResourceName()
+    if SquadsConfig.Enabled and me ~= 'nayzeee-squads' then
+        local state = GetResourceState('nayzeee-squads')
+        local running = state == 'started' or state == 'starting'
+        if running and IsDuplicityVersion() then
+            -- `provide 'nayzeee-squads'` can make the name resolve to us; only a different folder is a real clash
+            running = GetResourcePath('nayzeee-squads') ~= GetResourcePath(me)
+            GlobalState.nhud_squadsClash = running
+        elseif running then
+            running = GlobalState.nhud_squadsClash == true
+        end
+        if running then
+            SquadsConfig.Enabled = false
+            print('^1[nayzeee-hud]^7 The old ^3nayzeee-squads^7 resource is running. Squads are built into nayzeee-hud now, so the'
+                .. ' built-in squads are turned off. Remove ^3ensure nayzeee-squads^7 from server.cfg (and delete that folder), then restart.')
+        end
+    end
+end

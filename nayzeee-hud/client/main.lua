@@ -306,6 +306,7 @@ CreateThread(function()
         if NHUD.visible and HudBridge.loaded then
             local now = GetGameTimer()
             tickFast(now)
+            NHUD.enforceRadar()
             if now >= nextStatus then nextStatus = now + T.status tickStatus() end
             if now >= nextLoc then nextLoc = now + T.location tickLocation() end
             if now >= nextSlow then nextSlow = now + T.slow tickSlow() end
@@ -316,6 +317,7 @@ CreateThread(function()
             ped = PlayerPedId()
             local v = GetVehiclePedIsIn(ped, false)
             if v ~= veh then onVehicleChange(v, GetGameTimer()) end
+            NHUD.enforceRadar()
             Wait(500)
         end
     end
