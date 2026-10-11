@@ -23,7 +23,7 @@ end
 
 lib.callback.register('nayzeee-tuning:tablet:open', function(src, viaItem)
     if not T.Enabled then return false end
-    if not viaItem and T.Item and T.CommandNeedsItem and Bridge.ItemCount(src, T.Item) < 1 then
+    if T.Item and T.CommandNeedsItem and Bridge.ItemCount(src, T.Item) < 1 then
         -- the boss desk opens it without the item
         local shopId = rankOf(src)
         local nearDesk = shopId and Config.Shops[shopId].boss and #(GetEntityCoords(GetPlayerPed(src)) - Config.Shops[shopId].boss) < 4.0
@@ -53,7 +53,7 @@ lib.callback.register('nayzeee-tuning:tablet:open', function(src, viaItem)
         storage = Config.Storage.Enabled and shopId ~= nil,
         partSource = shopId and NZ.PartSource(shopId) or nil,
         bays = shopId and NZ.BayClaims(shopId) or false,
-        supplyRuns = Config.SupplyRuns.Enabled and { discount = Config.SupplyRuns.Discount, max = Config.SupplyRuns.MaxCrates * Config.SupplyRuns.ItemsPerCrate,
+        supplyRuns = Config.SupplyRuns.Enabled and Config.Storage.Enabled and { discount = Config.SupplyRuns.Discount, max = Config.SupplyRuns.MaxCrates * Config.SupplyRuns.ItemsPerCrate,
             minutes = Config.SupplyRuns.TimeLimit } or nil,
     }
 end)
@@ -162,7 +162,10 @@ lib.callback.register('nayzeee-tuning:tablet:send', function(src, orderId, body)
         local mech = o.mechanic and Bridge.GetSourceFromIdentifier(o.mechanic)
         if mech then targets[#targets + 1] = mech
         else
-            for _, t in ipairs(Bridge.GetPlayersWithJob(Config.Shops[o.shop].job, true)) do targets[#targets + 1] = t end
+            local shopCfg = Config.Shops[o.shop]
+            if shopCfg and shopCfg.job then
+                for _, t in ipairs(Bridge.GetPlayersWithJob(shopCfg.job, true)) do targets[#targets + 1] = t end
+            end
         end
     end
     for _, t in ipairs(targets) do
@@ -196,8 +199,10 @@ lib.callback.register('nayzeee-tuning:tablet:buy', function(src, cart)
     local total, lines, n = 0, {}, 0
     for item, qty in pairs(cart) do
         local it = supplierIndex[item]
-        qty = math.floor(tonumber(qty) or 0)
+        qty = NZ.Int(qty, 0)
         if not it or qty < 1 or qty > Config.Supplier.MaxPerOrder then return false, L('amount_invalid') end
+        -- storage caps at Storage.Max: don't charge for parts that wouldn't fit
+        if Config.Storage.Enabled and Stock.Count(shopId, item) + qty > Config.Storage.Max then return false, L('storage_full') end
         total = total + it.price * qty
         lines[item] = qty
         n = n + 1
@@ -249,7 +254,7 @@ lib.callback.register('nayzeee-tuning:tablet:ecuFlash', function(src, netId, cel
     local stockMap = cells == false
     if not stockMap and not NZ.ValidMap(cells) then return false end
     if params ~= false and params ~= nil and not NZ.ValidEcuParams(params) then return false end
-    fuel = NZ.Clamp(math.floor(tonumber(fuel) or 0), 0, 100)
+    fuel = NZ.Clamp(NZ.Int(fuel, 0), 0, 100)
     local gain, knock = 0, 0
     if not stockMap then gain, knock = NZ.EcuMap(cells, fuel) end
     Vehicles.Update(plate, veh, function(x)

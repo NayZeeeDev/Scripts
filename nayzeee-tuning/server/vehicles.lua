@@ -29,6 +29,7 @@ end
 function Vehicles.Save(plate, data, model)
     plate = NZ.TrimPlate(plate)
     local c = Vehicles.Load(plate)
+    if not c then return end   -- blank plate
     c.data = data
     c.model = model or c.model
     c.exists = true
@@ -118,7 +119,7 @@ RegisterNetEvent('nayzeee-tuning:requestData', function(netId)
     if not veh then return end
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
     local c = Vehicles.Load(plate)
-    if c.exists then Vehicles.Push(veh, plate) end
+    if c and c.exists then Vehicles.Push(veh, plate) end
 end)
 
 AddEventHandler('onResourceStart', function(res)
@@ -148,7 +149,7 @@ RegisterNetEvent('nayzeee-tuning:telemetry', function(netId, km, hardKm, hasTurb
     if not Core.Throttle(src, 'telemetry', 20000) then return end
     local veh = Core.VehicleFromNet(netId)
     if not veh or not isDriver(src, veh) then return end
-    km, hardKm = tonumber(km) or 0, tonumber(hardKm) or 0
+    km, hardKm = NZ.Num(km) or 0, NZ.Num(hardKm) or 0
     -- a car can't honestly do more than ~ 6 km in the sync window
     local maxKm = Config.Wear.SyncEvery * 0.1 + 1.0
     if km <= 0 or km > maxKm then return end
@@ -178,7 +179,7 @@ end)
 RegisterNetEvent('nayzeee-tuning:nitrousUsed', function(netId, used)
     local src = source
     local veh = Core.VehicleFromNet(netId)
-    used = tonumber(used)
+    used = NZ.Num(used)
     if not veh or not used or used <= 0 or not isDriver(src, veh) then return end
     if not Core.Throttle(src, 'nitro', 250) then return end
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
@@ -221,7 +222,7 @@ RegisterNetEvent('nayzeee-tuning:airRide', function(netId, preset)
     local veh = Core.VehicleFromNet(netId)
     if not veh or not isDriver(src, veh) then return end
     if not Core.Throttle(src, 'airride', 600) then return end
-    preset = tonumber(preset)
+    preset = NZ.Int(preset)
     if not preset or not Config.AirRide.Presets[preset] then return end
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
     local d = Vehicles.Get(plate)

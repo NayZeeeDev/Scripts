@@ -9,9 +9,28 @@ function Pricing.FindCode(code, shopId)
     return row
 end
 
+-- reserves one use before the charge; false when another checkout used the last one first
 function Pricing.UseCode(code)
-    MySQL.update.await('UPDATE nz_tuning_codes SET uses = uses - 1 WHERE code = ? AND uses > 0', { code })
+    return (MySQL.update.await('UPDATE nz_tuning_codes SET uses = uses - 1 WHERE code = ? AND uses > 0', { code }) or 0) > 0
+end
+
+-- gives the use back when the charge failed
+function Pricing.ReturnCode(code)
+    MySQL.update('UPDATE nz_tuning_codes SET uses = uses + 1 WHERE code = ?', { code })
+end
+
+-- after a successful charge
+function Pricing.PurgeCode(code)
     MySQL.update('DELETE FROM nz_tuning_codes WHERE code = ? AND uses <= 0', { code })
+end
+
+-- reserve the code, charge, and give the code back if the charge fails
+function Pricing.Pay(src, method, res, reason)
+    if res.code and not Pricing.UseCode(res.code) then return false, nil, L('code_invalid') end
+    local paid, paidWith = Core.Charge(src, method, res.totals.total, reason)
+    if not res.code then return paid, paidWith end
+    if paid then Pricing.PurgeCode(res.code) else Pricing.ReturnCode(res.code) end
+    return paid, paidWith
 end
 
 --[[

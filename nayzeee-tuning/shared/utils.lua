@@ -22,6 +22,20 @@ function NZ.Round(n, dp)
     return math.floor(n * m + 0.5) / m
 end
 
+-- finite number or nil (rejects NaN / inf that would slip past every range check)
+function NZ.Num(v)
+    v = tonumber(v)
+    if not v or v ~= v or v == math.huge or v == -math.huge then return nil end
+    return v
+end
+
+-- floored finite number, or the fallback
+function NZ.Int(v, fallback)
+    v = NZ.Num(v)
+    if not v then return fallback end
+    return math.floor(v)
+end
+
 function NZ.Clamp(n, lo, hi)
     if n < lo then return lo end
     if n > hi then return hi end

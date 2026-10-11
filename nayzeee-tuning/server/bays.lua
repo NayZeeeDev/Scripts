@@ -47,7 +47,7 @@ end)
 lib.callback.register('nayzeee-tuning:bayClaim', function(src, bay, shopId)
     if not Core.Throttle(src, 'bay', 800) then return false, L('slow_down') end
     local shop = shopId or Tablet.RankOf(src)
-    bay = math.floor(tonumber(bay) or 0)
+    bay = NZ.Int(bay, 0)
     if not shop or not NZ.BayClaims(shop) or not Core.HasShopRank(src, shop, B.MinRank) then return false, L('no_permission') end
     local s = Config.Shops[shop]
     if not s.bays[bay] then return false end
@@ -63,7 +63,7 @@ end)
 
 lib.callback.register('nayzeee-tuning:bayRelease', function(src, bay, shopId)
     local shop = shopId or Tablet.RankOf(src)
-    bay = math.floor(tonumber(bay) or 0)
+    bay = NZ.Int(bay, 0)
     if not shop or not claims[shop] or not claims[shop][bay] then return false end
     local c = claims[shop][bay]
     local mine = c.id == Bridge.GetIdentifier(src)

@@ -56,7 +56,7 @@ for _, t in ipairs(Config.PerfTest.Tests) do testIds[t.id] = t end
 
 lib.callback.register('nayzeee-tuning:perfSubmit', function(src, test, time, netId, label)
     if not Config.PerfTest.Enabled or not Core.Throttle(src, 'perf', 4000) then return false end
-    time = tonumber(time)
+    time = NZ.Num(time)
     if not testIds[test] or not time or time < (Config.PerfTest.MinTimes[test] or 0) or time > Config.PerfTest.Timeout then return false, L('perf_rejected') end
     local veh = Core.VehicleFromNet(netId)
     if not veh or GetPedInVehicleSeat(veh, -1) ~= GetPlayerPed(src) then return false end

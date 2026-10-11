@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS `nz_tuning_shops` (
     `balance` INT NOT NULL DEFAULT 0,
     `margin` INT NOT NULL DEFAULT 0,
     `commission` INT NULL,
+    `labour` INT NULL,
     `upgrades` LONGTEXT NULL,
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -132,6 +133,8 @@ CREATE TABLE IF NOT EXISTS `nz_tuning_tablet` (
     `accent` VARCHAR(16) NULL,
     `wallpaper` VARCHAR(255) NULL,
     `data` LONGTEXT NULL,
+    `avatar` VARCHAR(255) NULL,
+    `avatar_at` INT NULL,
     PRIMARY KEY (`identifier`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

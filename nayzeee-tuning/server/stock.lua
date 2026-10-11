@@ -10,6 +10,7 @@ local ST = Config.Storage
 local cache = {}          -- [shop] = { [item] = qty }
 local labels = {}
 for _, it in ipairs(Config.Supplier.Items) do labels[it.item] = it end
+local loaded = false   -- nothing may write stock before the saved counts are in the cache
 
 CreateThread(function()
     while not DB.Ready do Wait(250) end
@@ -17,6 +18,7 @@ CreateThread(function()
         cache[r.shop] = cache[r.shop] or {}
         cache[r.shop][r.item] = r.qty
     end
+    loaded = true
 end)
 
 function Stock.Count(shop, item) return (cache[shop] or {})[item] or 0 end
@@ -38,7 +40,7 @@ end
 Stock.Ping = ping
 
 function Stock.Add(shop, item, n)
-    n = math.floor(tonumber(n) or 0)
+    n = NZ.Int(n, 0)
     if n <= 0 then return 0 end
     local now = Stock.Count(shop, item)
     local add = math.min(n, ST.Max - now)
@@ -92,7 +94,7 @@ local function arrive(row)
 end
 
 CreateThread(function()
-    while not DB.Ready do Wait(500) end
+    while not DB.Ready or not loaded do Wait(500) end
     while true do
         local rows = MySQL.query.await("SELECT id, shop, items FROM nz_tuning_supply WHERE status = 'transit' AND eta <= ?", { os.time() }) or {}
         for _, r in ipairs(rows) do arrive(r) end
@@ -142,9 +144,10 @@ end)
 lib.callback.register('nayzeee-tuning:stock:take', function(src, item, qty)
     if not Core.Throttle(src, 'stock', 600) then return false, L('slow_down') end
     local shop = Tablet.RankOf(src)
-    qty = math.floor(tonumber(qty) or 0)
+    qty = NZ.Int(qty, 0)
     if not ST.Enabled or not shop or not Core.HasShopRank(src, shop, ST.TakeRank) then return false, L('no_permission') end
-    if type(item) ~= 'string' or qty < 1 or qty > 50 then return false, L('amount_invalid') end
+    if not loaded then return false, L('slow_down') end
+    if type(item) ~= 'string' or not labels[item] or qty < 1 or qty > 50 then return false, L('amount_invalid') end
     if not nearStorage(src, shop) then return false, L('storage_too_far') end
     if Stock.Count(shop, item) < qty then return false, L('storage_not_enough') end
     if not Bridge.AddItem(src, item, qty) then return false, L('pockets_full') end
@@ -157,9 +160,11 @@ end)
 lib.callback.register('nayzeee-tuning:stock:put', function(src, item, qty)
     if not Core.Throttle(src, 'stock', 600) then return false, L('slow_down') end
     local shop = Tablet.RankOf(src)
-    qty = math.floor(tonumber(qty) or 0)
+    qty = NZ.Int(qty, 0)
     if not ST.Enabled or not ST.PutBack or not shop then return false, L('no_permission') end
-    if type(item) ~= 'string' or qty < 1 or qty > 50 then return false, L('amount_invalid') end
+    if not loaded then return false, L('slow_down') end
+    -- only supplier parts: storing anything else would let items lose / reset their metadata
+    if type(item) ~= 'string' or not labels[item] or qty < 1 or qty > 50 then return false, L('amount_invalid') end
     if not nearStorage(src, shop) then return false, L('storage_too_far') end
     if Bridge.ItemCount(src, item) < qty then return false, L('missing_item') end
     if Stock.Count(shop, item) + qty > ST.Max then return false, L('storage_full') end

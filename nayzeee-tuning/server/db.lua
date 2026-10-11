@@ -170,11 +170,19 @@ local columns = {
     { 'nz_tuning_supply', 'eta', 'INT NULL' },
 }
 
+-- a database user without CREATE / ALTER rights (sql/install.sql run by hand) must not stop the boot
+local function try(fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok then print(('^3[nayzeee-tuning] database setup: %s^7'):format(tostring(err))) end
+end
+
 function DB.Init()
-    for _, q in ipairs(schema) do MySQL.query.await(q) end
+    for _, q in ipairs(schema) do try(MySQL.query.await, q) end
     for _, c in ipairs(columns) do
-        local exists = MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', { c[1], c[2] })
-        if (tonumber(exists) or 0) == 0 then MySQL.query.await(('ALTER TABLE `%s` ADD COLUMN `%s` %s'):format(c[1], c[2], c[3])) end
+        try(function()
+            local exists = MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', { c[1], c[2] })
+            if (tonumber(exists) or 0) == 0 then MySQL.query.await(('ALTER TABLE `%s` ADD COLUMN `%s` %s'):format(c[1], c[2], c[3])) end
+        end)
     end
     DB.Ready = true
     NZ.Debug('database ready')

@@ -132,12 +132,14 @@ function Bridge.GetEmployees(job)
             list[#list + 1] = { identifier = r.citizenid, name = ((ci.firstname or '') .. ' ' .. (ci.lastname or '')), grade = jb.grade and jb.grade.level or 0 }
         end
     end
-    for _, e in ipairs(list) do
+    for i = #list, 1, -1 do
+        local e = list[i]
         e.source = Bridge.GetSourceFromIdentifier(e.identifier)
         e.online = e.source ~= nil
         if e.online then
             local j = Bridge.GetJob(e.source)
-            e.grade, e.onDuty = j.grade, j.onDuty
+            -- the DB job column lags behind (saved on an interval): trust the live job for online players
+            if j.name ~= job then table.remove(list, i) else e.grade, e.onDuty = j.grade, j.onDuty end
         end
     end
     return list
@@ -187,14 +189,17 @@ function Bridge.GetMoney(src, account)
 end
 
 function Bridge.RemoveMoney(src, account, amount, reason)
+    if not NZ.Num(amount) or not accountMap[account] then return false end
     if amount <= 0 then return true end
     if Bridge.GetMoney(src, account) < amount then return false end
     local p = Bridge.GetPlayer(src)
+    if not p then return false end
     if fw == 'esx' then p.removeAccountMoney(accountMap[account].esx, amount, reason) return true end
     return p.Functions.RemoveMoney(accountMap[account].qb, amount, reason) ~= false
 end
 
 function Bridge.AddMoney(src, account, amount, reason)
+    if not NZ.Num(amount) or not accountMap[account] then return false end
     if amount <= 0 then return true end
     local p = Bridge.GetPlayer(src)
     if not p then return false end
@@ -340,7 +345,8 @@ function Bridge.SaveVehicleProps(plate, props)
 end
 
 function Bridge.PlateExists(plate)
-    return MySQL.scalar.await(('SELECT 1 FROM %s WHERE plate = ? LIMIT 1'):format(vehTable), { plate }) ~= nil
+    plate = NZ.TrimPlate(plate)
+    return MySQL.scalar.await(('SELECT 1 FROM %s WHERE plate = ? OR plate = ? LIMIT 1'):format(vehTable), { plate, ('%-8s'):format(plate) }) ~= nil
 end
 
 function Bridge.UpdatePlate(oldPlate, newPlate)

@@ -73,6 +73,7 @@ lib.callback.register('nayzeee-tuning:takeCallout', function(src, shopId, id)
     if not c or not Core.IsEmployee(src, shopId) then return false, L('no_permission') end
     if c.taken and c.taken ~= src then return false, L('callout_taken') end
     if findTaken(src) and not c.taken then return false, L('callout_busy') end
+    if not c.taken then c.takenAt = os.time() end
     c.taken, c.takenName = src, Bridge.GetName(src)
     local shop = Config.Shops[shopId]
     return true, { id = c.id, kind = c.kind, coords = { x = c.coords.x, y = c.coords.y, z = c.coords.z, w = c.coords.w },
@@ -85,6 +86,10 @@ lib.callback.register('nayzeee-tuning:finishCallout', function(src, id)
     if not c or c.id ~= tonumber(id) or c.kind == 'tow' then return false end
     local ped = GetPlayerPed(src)
     if #(GetEntityCoords(ped) - c.coords.xyz) > 30.0 then return false, L('too_far') end
+    -- the repair itself takes RepairTime; still on the payroll?
+    if not Core.IsEmployee(src, shopId) or os.time() - (c.takenAt or 0) < math.floor((Config.Missions.RepairTime or 0) / 1000) then
+        return false, L('no_permission')
+    end
     Callouts[shopId][c.id] = nil
     local shopCut = math.floor(c.reward * Config.Missions.ShopCut / 100)
     Bridge.AddMoney(src, 'bank', c.reward - shopCut, 'Roadside callout')
@@ -101,6 +106,13 @@ lib.callback.register('nayzeee-tuning:finishTow', function(src, id, netId)
     local drop = Missions_DropOf(shopId)
     local wreck = Core.VehicleFromNet(netId)
     if not drop or not wreck then return false, L('tow_no_wreck') end
+    -- it has to be the callout's wreck (right model, nobody's car, nobody driving) and the trip has to be possible
+    local wplate = NZ.TrimPlate(GetVehicleNumberPlateText(wreck))
+    local minTrip = math.floor(#(c.coords.xyz - drop) / 45.0)
+    if GetEntityModel(wreck) ~= joaat(c.vehicle) or GetPedInVehicleSeat(wreck, -1) ~= 0 or Bridge.GetVehicleOwner(wplate)
+        or os.time() - (c.takenAt or os.time()) < minTrip then
+        return false, L('tow_no_wreck')
+    end
     if #(GetEntityCoords(GetPlayerPed(src)) - drop) > TW.DropRadius + 10.0 or #(GetEntityCoords(wreck) - drop) > TW.DropRadius + 6.0 then
         return false, L('tow_not_at_drop')
     end
@@ -110,16 +122,25 @@ lib.callback.register('nayzeee-tuning:finishTow', function(src, id, netId)
     Core.ShopAdd(shopId, shopCut, 'tow', Bridge.GetName(src), ('Recovered %s'):format(c.vehicle))
     Core.AddStats(shopId, c.reward, 1)
     Core.AddMechanicStats(src, shopId, 1, c.reward - shopCut)
-    Core.Log('order', 'Tow job delivered', { Shop = Config.Shops[shopId].label, Paid = '$' .. (c.reward - shopCut) }, src)
+    Core.Log('order', 'Tow job delivered', { Shop = Config.Shops[shopId] and Config.Shops[shopId].label or shopId, Paid = '$' .. (c.reward - shopCut) }, src)
     SetTimeout(TW.WreckDespawn * 1000, function() if DoesEntityExist(wreck) then DeleteEntity(wreck) end end)
     return true, { paid = c.reward - shopCut }
 end)
 
 -- work trucks (tow jobs / supply runs) get keys like any car you own
+local workModels = {}
+for model in pairs(Config.Towing.Trucks or {}) do workModels[joaat(model)] = true end
+if Config.Towing.TruckModel then workModels[joaat(Config.Towing.TruckModel)] = true end
+if Config.SupplyRuns.TruckModel then workModels[joaat(Config.SupplyRuns.TruckModel)] = true end
+for _, model in ipairs(Config.SupplyRuns.TruckModels or {}) do workModels[joaat(model)] = true end
+
 lib.callback.register('nayzeee-tuning:workTruck', function(src, netId)
     local veh = Core.VehicleFromNet(netId)
-    if not veh or not Shops_IsAnyEmployee(src) then return false end
-    Bridge.GiveKeys(src, NZ.TrimPlate(GetVehicleNumberPlateText(veh)), netId)
+    if not veh or not Shops_IsAnyEmployee(src) or not workModels[GetEntityModel(veh)] then return false end
+    local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
+    -- only spare trucks, never someone's owned vehicle
+    if Bridge.GetVehicleOwner(plate) then return false end
+    Bridge.GiveKeys(src, plate, netId)
     return true
 end)
 
@@ -150,17 +171,22 @@ lib.callback.register('nayzeee-tuning:scrapStart', function(src, netId)
     if cfg.MinPolice > 0 and Bridge.CountJobs(Config.Police.Jobs) < cfg.MinPolice then return false, L('need_police') end
     local veh = Core.VehicleFromNet(netId)
     if not veh then return false, L('no_vehicle') end
+    if GetPedInVehicleSeat(veh, -1) ~= 0 then return false, L('no_vehicle') end
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
     if Bridge.GetVehicleOwner(plate) then return false, L('scrap_owned') end
     local s = Scrapping[netId]
+    -- net ids get reused: a different car is a fresh start
+    if s and s.model ~= GetEntityModel(veh) then s = nil end
     if s and s.src ~= src and GetPlayerName(s.src) then return false, L('scrap_busy') end
-    Scrapping[netId] = s and s.src == src and s or { src = src, done = {}, last = 0 }
+    Scrapping[netId] = s and s.src == src and s or { src = src, done = {}, last = 0, model = GetEntityModel(veh) }
     return true, Scrapping[netId].done
 end)
 
 lib.callback.register('nayzeee-tuning:scrapPart', function(src, netId, index)
     local s = Scrapping[netId]
-    local part = Config.Scrapyard.Parts[tonumber(index) or -1]
+    -- one key per part: '1', '01' and 1.0 must not count as different parts
+    index = math.tointeger(NZ.Num(index))
+    local part = index and Config.Scrapyard.Parts[index]
     if not s or s.src ~= src or not part or s.done[index] then return false end
     local now = GetGameTimer()
     if now - s.last < part.time - 500 then return false end
@@ -179,4 +205,9 @@ lib.callback.register('nayzeee-tuning:scrapPart', function(src, netId, index)
         SetTimeout(1500, function() if DoesEntityExist(veh) then DeleteEntity(veh) end end)
     end
     return true, { amount = amount, finished = part.last == true }
+end)
+
+AddEventHandler('playerDropped', function()
+    local src = source
+    for k, v in pairs(Scrapping) do if v.src == src then Scrapping[k] = nil end end
 end)

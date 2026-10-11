@@ -69,7 +69,7 @@ lib.callback.register('nayzeee-tuning:lighting', function(src, netId, data)
     if not veh or not isDriver(src, veh) then return false, L('must_drive') end
     if type(data) ~= 'table' or type(data.color) ~= 'table' then return false end
     local c = data.color
-    local rgb = { NZ.Clamp(math.floor(tonumber(c.r) or 255), 0, 255), NZ.Clamp(math.floor(tonumber(c.g) or 255), 0, 255), NZ.Clamp(math.floor(tonumber(c.b) or 255), 0, 255) }
+    local rgb = { NZ.Clamp(NZ.Int(c.r, 255), 0, 255), NZ.Clamp(NZ.Int(c.g, 255), 0, 255), NZ.Clamp(NZ.Int(c.b, 255), 0, 255) }
     local sides = { data.l == true, data.r == true, data.f == true, data.b == true }
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
     local d = Vehicles.Get(plate)
@@ -79,7 +79,7 @@ lib.callback.register('nayzeee-tuning:lighting', function(src, netId, data)
         if data.pattern ~= 'static' and not NZ.PatternIds[data.pattern] then return false end
         Vehicles.Update(plate, veh, function(x)
             if data.pattern == 'static' then x.neonPattern = nil
-            else x.neonPattern = { id = data.pattern, speed = NZ.Clamp(math.floor(tonumber(data.speed) or 5), 1, 10), color2 = x.neonPattern and x.neonPattern.color2 } end
+            else x.neonPattern = { id = data.pattern, speed = NZ.Clamp(NZ.Int(data.speed, 5), 1, 10), color2 = x.neonPattern and x.neonPattern.color2 } end
         end)
     end
 

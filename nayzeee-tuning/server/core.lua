@@ -141,7 +141,7 @@ end
 
 function Core.ShopAdd(shopId, amount, kind, actor, note)
     local s, shop = Core.Shops[shopId], Config.Shops[shopId]
-    if not s or not shop or not shop.job or amount == 0 then return end
+    if not s or not shop or not shop.job or not NZ.Num(amount) or amount == 0 then return end
     if Config.Business.UseBuiltInBalance then
         s.balance = s.balance + amount
         MySQL.update('UPDATE nz_tuning_shops SET balance = balance + ? WHERE id = ?', { amount, shopId })
@@ -160,13 +160,24 @@ function Core.ShopBalance(shopId)
     return Bridge.SocietyGet(shop.society)
 end
 
+local taking = {}   -- [shopId] = true while a society balance check + removal is in flight
+
 function Core.ShopTake(shopId, amount, kind, actor, note)
-    if Core.ShopBalance(shopId) < amount then return false end
+    if not NZ.Num(amount) or amount < 0 or not Config.Shops[shopId] then return false end
     if Config.Business.UseBuiltInBalance then
+        if Core.ShopBalance(shopId) < amount then return false end
         Core.ShopAdd(shopId, -amount, kind, actor, note)
         return true
     end
-    if not Bridge.SocietyRemove(Config.Shops[shopId].society, amount) then return false end
+    -- society reads yield, so two payouts at once could both pass the balance check
+    if taking[shopId] then return false end
+    taking[shopId] = true
+    local ok = pcall(function()
+        if Core.ShopBalance(shopId) < amount then error('funds', 0) end
+        if not Bridge.SocietyRemove(Config.Shops[shopId].society, amount) then error('funds', 0) end
+    end)
+    taking[shopId] = nil
+    if not ok then return false end
     MySQL.insert('INSERT INTO nz_tuning_tx (shop, kind, amount, actor, note) VALUES (?, ?, ?, ?, ?)', { shopId, kind, -amount, actor, note })
     return true
 end
@@ -202,8 +213,9 @@ function Core.Refund(identifier, amount, paidWith)
     if amount <= 0 then return end
     local src = Bridge.GetSourceFromIdentifier(identifier)
     if paidWith == 'components' and src then
-        Bridge.AddItem(src, Config.Economy.Components.Item, math.floor(amount / Config.Economy.Components.Value))
-        return
+        -- Charge took math.ceil components, give the same number back
+        local n = math.ceil(amount / Config.Economy.Components.Value)
+        if Bridge.AddItem(src, Config.Economy.Components.Item, n) then return end
     end
     if src then Bridge.AddMoney(src, paidWith == 'cash' and 'cash' or 'bank', amount, 'nayzeee-tuning refund')
     else Bridge.AddBankOffline(identifier, amount) end

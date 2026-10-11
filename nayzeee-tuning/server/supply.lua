@@ -29,7 +29,8 @@ local function close(src, status, refundPct)
 end
 
 lib.callback.register('nayzeee-tuning:supply:start', function(src, cart)
-    if not SR.Enabled or not Config.Supplier.Enabled then return false, L('no_permission') end
+    -- the run's parts go into supply storage, so it needs storage on
+    if not SR.Enabled or not Config.Supplier.Enabled or not Config.Storage.Enabled then return false, L('no_permission') end
     if not Core.Throttle(src, 'supply', 2000) then return false, L('slow_down') end
     local shopId = Tablet.RankOf(src)
     if not shopId or not Core.HasShopRank(src, shopId, SR.MinRank) then return false, L('no_permission') end
@@ -38,8 +39,9 @@ lib.callback.register('nayzeee-tuning:supply:start', function(src, cart)
     local full, qtyTotal, lines = 0, 0, {}
     for item, qty in pairs(cart) do
         local it = items[item]
-        qty = math.floor(tonumber(qty) or 0)
+        qty = NZ.Int(qty, 0)
         if not it or qty < 1 or qty > Config.Supplier.MaxPerOrder then return false, L('amount_invalid') end
+        if Stock.Count(shopId, item) + qty > Config.Storage.Max then return false, L('storage_full') end
         full = full + it.price * qty
         qtyTotal = qtyTotal + qty
         lines[item] = qty

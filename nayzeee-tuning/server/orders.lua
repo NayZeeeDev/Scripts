@@ -77,6 +77,19 @@ function Orders.PartPlan(src, o, line)
     return plan, missing, source
 end
 
+-- atomic status change: only one caller wins when two requests race (double refund / payout)
+local function claim(o, from, fields)
+    local sets, vals = { '`status` = ?' }, { fields.status }
+    for k, v in pairs(fields) do
+        if k ~= 'status' then sets[#sets + 1] = ('`%s` = ?'):format(k) vals[#vals + 1] = v end
+    end
+    vals[#vals + 1] = o.id
+    local n = MySQL.update.await(('UPDATE nz_tuning_orders SET %s WHERE id = ? AND status IN %s'):format(table.concat(sets, ', '), from), vals)
+    if (n or 0) == 0 then return false end
+    for k, v in pairs(fields) do o[k] = v end
+    return true
+end
+
 local function assignedTo(o, src)
     return o.mechanic ~= nil and o.mechanic == Bridge.GetIdentifier(src)
 end
@@ -118,7 +131,9 @@ lib.callback.register('nayzeee-tuning:orderAccept', function(src, id)
     if not o or not Core.IsEmployee(src, o.shop) then return false, L('no_permission') end
     if o.status ~= 'open' and not assignedTo(o, src) then return false, L('order_taken') end
     if o.status == 'open' then
-        save(o, { status = 'accepted', mechanic = Bridge.GetIdentifier(src), mechanic_name = Bridge.GetName(src) })
+        if not claim(o, "('open')", { status = 'accepted', mechanic = Bridge.GetIdentifier(src), mechanic_name = Bridge.GetName(src) }) then
+            return false, L('order_taken')
+        end
         Orders.Broadcast(o.shop, 'accepted', o.id, Bridge.GetName(src))
         local cust = Bridge.GetSourceFromIdentifier(o.customer)
         if cust then Core.Notify(cust, L('order_accepted_customer', o.id, Bridge.GetName(src)), 'inform') end
@@ -129,7 +144,8 @@ end)
 lib.callback.register('nayzeee-tuning:orderRelease', function(src, id)
     local o = load(id)
     if not o or not assignedTo(o, src) or o.status == 'done' or o.status == 'cancelled' then return false end
-    MySQL.update.await("UPDATE nz_tuning_orders SET status = 'open', mechanic = NULL, mechanic_name = NULL WHERE id = ?", { o.id })
+    local n = MySQL.update.await("UPDATE nz_tuning_orders SET status = 'open', mechanic = NULL, mechanic_name = NULL WHERE id = ? AND status IN ('accepted','working') AND mechanic = ?", { o.id, o.mechanic })
+    if (n or 0) == 0 then return false end
     Orders.Broadcast(o.shop, 'released', o.id, o.plate)
     return true
 end)
@@ -150,8 +166,9 @@ lib.callback.register('nayzeee-tuning:orderStart', function(src, id, netId)
     if o.status ~= 'accepted' and o.status ~= 'working' then return false, L('order_closed') end
     local veh, err = orderVehicle(src, o, netId)
     if not veh then return false, err end
-    if o.status ~= 'working' then save(o, { status = 'working' }) end
     local shop = Config.Shops[o.shop]
+    if not shop then return false, L('order_closed') end
+    if o.status ~= 'working' then save(o, { status = 'working' }) end
     return true, { order = public(o), stockpiles = shop.stockpiles or {}, parts = shop.parts or {}, booths = shop.booths or {},
         physical = Config.Orders.PhysicalInstall and shop.stockpiles ~= nil, source = NZ.PartSource(o.shop),
         storage = NZ.Plain(NZ.StorageOf(o.shop)) }
@@ -191,6 +208,13 @@ lib.callback.register('nayzeee-tuning:orderComplete', function(src, id, netId)
     end
     local veh, err = orderVehicle(src, o, netId)
     if not veh then return false, err end
+    for _, it in ipairs(o.items) do
+        if it.id == 'plateText' and tostring(it.value):upper() ~= NZ.TrimPlate(o.plate) and Checkout_PlateTaken(tostring(it.value):upper()) then
+            return false, L('plate_taken')
+        end
+    end
+    -- mark it done first so a second (raced) call can't pay out again
+    if not claim(o, "('working')", { status = 'done' }) then return false, L('order_closed') end
 
     local owned = Bridge.GetVehicleOwner(o.plate) ~= nil
     local custSrc = Bridge.GetSourceFromIdentifier(o.customer)
@@ -202,13 +226,13 @@ lib.callback.register('nayzeee-tuning:orderComplete', function(src, id, netId)
     -- repair / clean / service happen on the car now
     TriggerClientEvent('nayzeee-tuning:serviceActions', -1, NetworkGetNetworkIdFromEntity(veh), lines)
 
-    local commission = math.floor(o.total * (Core.Shops[o.shop].commission or Config.Business.MechanicCommission) / 100)
+    local commission = math.floor(o.total * ((Core.Shops[o.shop] or {}).commission or Config.Business.MechanicCommission) / 100)
     if commission > 0 then Bridge.AddMoney(src, 'bank', commission, 'Tuning commission') end
     Core.ShopAdd(o.shop, o.total - commission, 'order', Bridge.GetName(src), ('Order #%d %s'):format(o.id, newPlate))
     Core.AddStats(o.shop, o.total, 1)
     Core.AddMechanicStats(src, o.shop, #o.items, commission)
 
-    save(o, { status = 'done', plate = newPlate })
+    save(o, { plate = newPlate })
     MySQL.insert('INSERT INTO nz_tuning_history (plate, shop, kind, customer, customer_name, mechanic, mechanic_name, items, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         { newPlate, o.shop, 'order', o.customer, o.customer_name, o.mechanic, o.mechanic_name, json.encode(lines), o.total })
 
@@ -220,12 +244,13 @@ end)
 
 --------------------------------------------------------------------- cancel / refund
 
-local function cancel(o, why)
-    save(o, { status = 'cancelled' })
+local function cancel(o, why, from)
+    if not claim(o, from or ACTIVE, { status = 'cancelled' }) then return false end
     Core.Refund(o.customer, o.total, o.paid_with)
     local cust = Bridge.GetSourceFromIdentifier(o.customer)
     if cust then Core.Notify(cust, L('order_refunded', o.id, o.total), 'inform') end
     Orders.Broadcast(o.shop, 'cancelled', o.id, why or '')
+    return true
 end
 
 lib.callback.register('nayzeee-tuning:orderCancel', function(src, id)
@@ -233,7 +258,10 @@ lib.callback.register('nayzeee-tuning:orderCancel', function(src, id)
     if not o or o.status == 'done' or o.status == 'cancelled' then return false end
     local isCustomer = o.customer == Bridge.GetIdentifier(src) and o.status == 'open'
     if not isCustomer and not Core.HasShopRank(src, o.shop, 'manager') then return false, L('no_permission') end
-    cancel(o, Bridge.GetName(src))
+    -- a customer may only cancel while nobody has taken the job yet
+    if not cancel(o, Bridge.GetName(src), isCustomer and not Core.HasShopRank(src, o.shop, 'manager') and "('open')" or nil) then
+        return false, L('order_closed')
+    end
     return true
 end)
 

@@ -33,6 +33,11 @@ lib.callback.register('nayzeee-tuning:open', function(src, shopId, netId, class,
     if not veh or not nearEntity(src, veh, 10.0) then return false, L('no_vehicle') end
     if blacklisted(veh) and not free then return false, L('vehicle_blocked') end
     if Config.Ownership.BlockedClasses[tonumber(class) or -1] and not free then return false, L('vehicle_blocked') end
+    -- class comes from the client: check the entity type on the server too (boats, helis, planes, trains)
+    local vt = GetVehicleType(veh)
+    if not free and (vt == 'heli' or vt == 'plane' or vt == 'boat' or vt == 'submarine' or vt == 'train' or vt == 'blimp') then
+        return false, L('vehicle_blocked')
+    end
 
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
     local identifier = Bridge.GetIdentifier(src)
@@ -95,6 +100,40 @@ local function plateTaken(newPlate)
     if Vehicles.FindByPlate(newPlate) then return true end
     return false
 end
+Checkout_PlateTaken = plateTaken
+
+-- GTA mod slot -> vehicle props key (same names in ESX, QBCore and ox_lib)
+local MOD_KEYS = {
+    [0] = 'modSpoilers', 'modFrontBumper', 'modRearBumper', 'modSideSkirt', 'modExhaust', 'modFrame', 'modGrille', 'modHood',
+    'modFender', 'modRightFender', 'modRoof', 'modEngine', 'modBrakes', 'modTransmission', 'modHorns', 'modSuspension', 'modArmor',
+    [18] = 'modTurbo', [22] = 'modXenon', [23] = 'modFrontWheels', [24] = 'modBackWheels', [25] = 'modPlateHolder',
+    [26] = 'modVanityPlate', [27] = 'modTrimA', [28] = 'modOrnaments', [29] = 'modDashboard', [30] = 'modDial',
+    [31] = 'modDoorSpeaker', [32] = 'modSeats', [33] = 'modSteeringWheel', [34] = 'modShifterLeavers', [35] = 'modAPlate',
+    [36] = 'modSpeakers', [37] = 'modTrunk', [38] = 'modHydrolic', [39] = 'modEngineBlock', [40] = 'modAirFilter',
+    [41] = 'modStruts', [42] = 'modArchCover', [43] = 'modAerials', [44] = 'modTrimB', [45] = 'modTank', [46] = 'modWindows',
+    [48] = 'modLivery',
+}
+
+-- the client sends the whole props table: only let the mod slots that were paid for change
+-- (and never the model), everything else keeps what the garage has stored
+local function sanitizeProps(plate, props, lines)
+    local stored = Bridge.GetVehicleProps(plate)
+    if type(stored) ~= 'table' or next(stored) == nil then return props end
+    local paid = {}
+    for _, l in ipairs(lines) do
+        local part = Config.Parts[l.id]
+        if part and part.slot then paid[part.slot] = true end
+        if l.id == 'wheels' then paid[23], paid[24] = true, true end
+        if l.id == 'rearWheels' then paid[24] = true end
+        if l.id == 'livery' then paid[48] = true end
+    end
+    for slot, key in pairs(MOD_KEYS) do
+        if not paid[slot] and props[key] ~= stored[key] then props[key] = stored[key] end
+    end
+    if not paid[23] then props.wheels = stored.wheels end
+    if stored.model ~= nil then props.model = stored.model end
+    return props
+end
 
 -- write GTA props + extras for a finished job. Returns the final plate.
 function Checkout_Persist(veh, plate, lines, props, owned, src)
@@ -106,8 +145,9 @@ function Checkout_Persist(veh, plate, lines, props, owned, src)
     local data = NZ.Copy(Vehicles.Get(plate))
     for _, l in ipairs(lines) do NZ.ApplyToExtras(data, l.id, l.value) end
 
+    local dbPlate = newPlate
     if newPlate ~= plate then
-        if owned then Bridge.UpdatePlate(plate, newPlate) end
+        if owned and Config.Plates.UpdateOwnedTable ~= false then Bridge.UpdatePlate(plate, newPlate) else dbPlate = plate end
         MySQL.update.await('DELETE FROM nz_tuning_vehicles WHERE plate = ?', { plate })
         Vehicles.cache[plate] = nil
         MySQL.update('UPDATE nz_tuning_history SET plate = ? WHERE plate = ?', { newPlate, plate })
@@ -116,8 +156,9 @@ function Checkout_Persist(veh, plate, lines, props, owned, src)
     end
 
     if type(props) == 'table' then
+        if owned then sanitizeProps(dbPlate, props, lines) end
         props.plate = newPlate
-        if owned then Bridge.SaveVehicleProps(newPlate, props) end
+        if owned then Bridge.SaveVehicleProps(dbPlate, props) end
     end
 
     Vehicles.Save(newPlate, data, Core.ModelName(GetEntityModel(veh)))
@@ -146,7 +187,8 @@ lib.callback.register('nayzeee-tuning:checkout', function(src, p)
     if not s.free and not Core.NearShop(src, shopId) then return false, L('not_in_shop') end
 
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
-    if plate ~= s.plate then return false, L('session_expired') end
+    if plate == '' or plate ~= s.plate then return false, L('session_expired') end
+    local label = type(p.label) == 'string' and p.label:sub(1, 100) or nil
     local identifier = Bridge.GetIdentifier(src)
     local owner = Bridge.GetVehicleOwner(plate)
     local owned = owner ~= nil
@@ -154,6 +196,7 @@ lib.callback.register('nayzeee-tuning:checkout', function(src, p)
 
     local modes = s.free and { 'self' } or Core.ShopModes(shopId)
     local mode = NZ.InList(modes, p.mode) and p.mode or modes[1]
+    if mode == 'order' and not (Config.Shops[shopId] and Config.Shops[shopId].job) then mode = 'self' end
 
     local ok, res = Pricing.Cart(shopId, veh, p.items, { class = p.class, code = p.code, free = s.free, mode = mode })
     if not ok then return false, res end
@@ -176,18 +219,25 @@ lib.callback.register('nayzeee-tuning:checkout', function(src, p)
     if total > 0 and not NZ.InList(Config.Economy.PaymentMethods, method) and not (method == 'components' and Config.Economy.Components.Enabled) then
         return false, L('payment_invalid')
     end
-    local paid, paidWith = Core.Charge(src, method, total, 'Vehicle tuning')
-    if not paid then return false, method == 'components' and L('not_enough_components') or L('not_enough_money') end
-    if res.code then Pricing.UseCode(res.code) end
+    -- self-service parts come out of the pockets before paying, so they can't be dropped mid-checkout
+    local taken = {}
+    local function giveBack() for item, count in pairs(taken) do Bridge.AddItem(src, item, count) end end
+    if mode == 'self' and Config.PartItems.Mode == 'all' and Config.PartItems.Consume and not s.free then
+        for item, count in pairs(res.required) do
+            if not Bridge.RemoveItem(src, item, count) then giveBack() return false, L('missing_part', Bridge.ItemLabel(item), count) end
+            taken[item] = count
+        end
+    end
+    local paid, paidWith, err = Pricing.Pay(src, method, res, 'Vehicle tuning')
+    if not paid then
+        giveBack()
+        return false, err or (method == 'components' and L('not_enough_components') or L('not_enough_money'))
+    end
 
     local name = Bridge.GetName(src)
-    if mode == 'order' and not (Config.Shops[shopId] and Config.Shops[shopId].job) then mode = 'self' end
     local shop = Config.Shops[shopId]
 
     if mode == 'self' then
-        if Config.PartItems.Mode == 'all' and Config.PartItems.Consume and not s.free then
-            for item, count in pairs(res.required) do Bridge.RemoveItem(src, item, count) end
-        end
         local newPlate = Checkout_Persist(veh, plate, res.lines, p.props, owned, src)
         MySQL.insert('INSERT INTO nz_tuning_history (plate, shop, kind, customer, customer_name, items, total) VALUES (?, ?, ?, ?, ?, ?, ?)',
             { newPlate, shopId or 'admin', s.free and 'admin' or 'self', identifier, name, json.encode(summary(res.lines)), total })
@@ -209,9 +259,9 @@ lib.callback.register('nayzeee-tuning:checkout', function(src, p)
     local orderId = MySQL.insert.await([[INSERT INTO nz_tuning_orders
         (shop, plate, model, label, customer, customer_name, items, props, extras, totals, total, paid_with, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')]],
-        { shopId, plate, res.model, p.label, identifier, name, json.encode(items), json.encode(p.props or {}), json.encode(extras),
+        { shopId, plate, res.model, label, identifier, name, json.encode(items), json.encode(type(p.props) == 'table' and p.props or {}), json.encode(extras),
           json.encode(res.totals), total, paidWith })
-    Orders.Broadcast(shopId, 'new', orderId, ('%s - %s'):format(p.label or res.model, plate))
+    Orders.Broadcast(shopId, 'new', orderId, ('%s - %s'):format(label or res.model, plate))
     Core.Log('order', 'Tuning order placed', { Shop = shop.label, Order = '#' .. orderId, Plate = plate, Total = '$' .. total }, src)
     return true, { mode = 'order', orderId = orderId, total = total }
 end)
@@ -250,16 +300,17 @@ lib.callback.register('nayzeee-tuning:sendQuote', function(src, p)
 
     local ok, res = Pricing.Cart(s.shop, veh, p.items, { class = p.class })
     if not ok then return false, res end
+    local label = type(p.label) == 'string' and p.label:sub(1, 100) or nil
 
     quoteSeq = quoteSeq + 1
     Quotes[quoteSeq] = {
-        id = quoteSeq, shop = s.shop, netId = p.netId, plate = res.plate, model = res.model, label = p.label,
-        items = p.items, props = p.props, class = p.class, mechanic = src, target = target,
+        id = quoteSeq, shop = s.shop, netId = p.netId, plate = res.plate, model = res.model, label = label,
+        items = p.items, props = type(p.props) == 'table' and p.props or nil, class = p.class, mechanic = src, target = target,
         expires = os.time() + Config.Orders.QuoteTimeout,
     }
     TriggerClientEvent('nayzeee-tuning:quote', target, {
         id = quoteSeq, shop = Config.Shops[s.shop].label, mechanic = Bridge.GetName(src), plate = res.plate,
-        label = p.label, lines = summary(res.lines), totals = res.totals, payments = Config.Economy.PaymentMethods,
+        label = label, lines = summary(res.lines), totals = res.totals, payments = Config.Economy.PaymentMethods,
         components = Config.Economy.Components.Enabled and Config.Economy.Components.Value or nil,
         timeout = Config.Orders.QuoteTimeout, shopId = s.shop,
     })
@@ -283,13 +334,20 @@ lib.callback.register('nayzeee-tuning:answerQuote', function(src, id, accept, pa
     local identifier = Bridge.GetIdentifier(src)
     local ok, res = Pricing.Cart(q.shop, veh, q.items, { class = q.class, code = code })
     if not ok then return false, res end
-    local paid, paidWith = Core.Charge(src, payment, res.totals.total, 'Vehicle tuning')
+    -- same rules as a normal checkout
+    if Config.Ownership.OnlyOwnerCanTune and Bridge.GetVehicleOwner(res.plate) ~= identifier then return false, L('not_owner') end
+    if res.totals.total > 0 and not NZ.InList(Config.Economy.PaymentMethods, payment) and not (payment == 'components' and Config.Economy.Components.Enabled) then
+        return false, L('payment_invalid')
+    end
+    for _, l in ipairs(res.lines) do
+        if l.id == 'plateText' and l.value:upper() ~= res.plate and plateTaken(l.value:upper()) then return false, L('plate_taken') end
+    end
+    local paid, paidWith, err = Pricing.Pay(src, payment, res, 'Vehicle tuning')
     if not paid then
         Core.Notify(q.mechanic, L('quote_no_money'), 'error')
         TriggerClientEvent('nayzeee-tuning:quoteAnswered', q.mechanic, false)
-        return false, L('not_enough_money')
+        return false, err or L('not_enough_money')
     end
-    if res.code then Pricing.UseCode(res.code) end
 
     local extras = NZ.Copy(Vehicles.Get(res.plate))
     for _, l in ipairs(res.lines) do NZ.ApplyToExtras(extras, l.id, l.value) end

@@ -125,6 +125,8 @@ lib.callback.register('nayzeee-tuning:hire', function(src, shopId, target)
     target = tonumber(target)
     if not target or not GetPlayerName(target) then return false, L('player_gone') end
     if #(GetEntityCoords(GetPlayerPed(target)) - GetEntityCoords(GetPlayerPed(src))) > 10.0 then return false, L('player_gone') end
+    -- "hiring" someone who already works here would reset them to grade 0
+    if Bridge.GetJob(target).name == Config.Shops[shopId].job then return false, L('no_permission') end
     Bridge.SetJob(target, Config.Shops[shopId].job, 0)
     Core.Notify(target, L('hired', Config.Shops[shopId].label), 'success')
     Core.Log('hire', 'Employee hired', { Shop = Config.Shops[shopId].label, Employee = Bridge.GetName(target) }, src)
@@ -143,6 +145,7 @@ lib.callback.register('nayzeee-tuning:fire', function(src, shopId, identifier)
     if not Core.HasShopRank(src, shopId, 'boss') then return false, L('no_permission') end
     local e, err = targetEmployee(src, shopId, identifier)
     if not e then return false, err end
+    if (e.grade or 0) > Bridge.GetJob(src).grade then return false, L('no_permission') end
     if e.source then Bridge.SetJob(e.source, 'unemployed', 0) Core.Notify(e.source, L('fired', Config.Shops[shopId].label), 'error')
     else Bridge.SetJobOffline(identifier, 'unemployed', 0) end
     Core.Log('fire', 'Employee fired', { Shop = Config.Shops[shopId].label, Employee = e.name }, src)
@@ -151,11 +154,12 @@ end)
 
 lib.callback.register('nayzeee-tuning:setGrade', function(src, shopId, identifier, grade)
     if not Core.HasShopRank(src, shopId, 'boss') then return false, L('no_permission') end
-    grade = tonumber(grade)
+    grade = NZ.Int(grade)
     local myGrade = Bridge.GetJob(src).grade
     if not grade or grade < 0 or grade > myGrade then return false, L('grade_too_high') end
     local e, err = targetEmployee(src, shopId, identifier)
     if not e then return false, err end
+    if (e.grade or 0) > myGrade then return false, L('no_permission') end
     local job = Config.Shops[shopId].job
     if e.source then Bridge.SetJob(e.source, job, grade) Core.Notify(e.source, L('grade_changed'), 'inform')
     else Bridge.SetJobOffline(identifier, job, grade) end
@@ -165,7 +169,7 @@ end)
 
 lib.callback.register('nayzeee-tuning:bonus', function(src, shopId, identifier, amount)
     if not Core.HasShopRank(src, shopId, 'boss') then return false, L('no_permission') end
-    amount = math.floor(tonumber(amount) or 0)
+    amount = NZ.Int(amount, 0)
     if amount <= 0 or amount > Config.Business.MaxBonus then return false, L('amount_invalid') end
     local e, err = targetEmployee(src, shopId, identifier)
     if not e then return false, err end
@@ -180,7 +184,7 @@ end)
 
 lib.callback.register('nayzeee-tuning:withdraw', function(src, shopId, amount)
     if not Core.HasShopRank(src, shopId, 'boss') then return false, L('no_permission') end
-    amount = math.floor(tonumber(amount) or 0)
+    amount = NZ.Int(amount, 0)
     if amount <= 0 then return false, L('amount_invalid') end
     if not Core.ShopTake(shopId, amount, 'withdraw', Bridge.GetName(src), nil) then return false, L('shop_no_money') end
     Bridge.AddMoney(src, 'cash', amount, 'Shop withdraw')
@@ -190,7 +194,7 @@ end)
 
 lib.callback.register('nayzeee-tuning:deposit', function(src, shopId, amount)
     if not Core.HasShopRank(src, shopId, 'boss') then return false, L('no_permission') end
-    amount = math.floor(tonumber(amount) or 0)
+    amount = NZ.Int(amount, 0)
     if amount <= 0 then return false, L('amount_invalid') end
     if not Bridge.RemoveMoney(src, 'cash', amount, 'Shop deposit') then return false, L('not_enough_money') end
     Core.ShopAdd(shopId, amount, 'deposit', Bridge.GetName(src), nil)
@@ -201,8 +205,8 @@ end)
 lib.callback.register('nayzeee-tuning:setRates', function(src, shopId, margin, commission, labour)
     if not Core.HasShopRank(src, shopId, 'boss') then return false, L('no_permission') end
     local mr, cr, lr = Config.Business.MarginRange, Config.Business.CommissionRange, Config.Business.LabourRateRange
-    margin, commission = math.floor(tonumber(margin) or 0), math.floor(tonumber(commission) or 0)
-    labour = math.floor(tonumber(labour) or Core.LabourRate(shopId))
+    margin, commission = NZ.Int(margin, 0), NZ.Int(commission, 0)
+    labour = NZ.Int(labour, Core.LabourRate(shopId))
     if margin < mr[1] or margin > mr[2] or commission < cr[1] or commission > cr[2] then return false, L('amount_invalid') end
     if labour < lr[1] or labour > lr[2] then return false, L('amount_invalid') end
     local s = Core.Shops[shopId]
@@ -223,9 +227,9 @@ end
 
 lib.callback.register('nayzeee-tuning:createCode', function(src, shopId, percent, uses)
     if not Config.Discounts.Enabled or not Core.HasShopRank(src, shopId, 'manager') then return false, L('no_permission') end
-    percent, uses = tonumber(percent), tonumber(uses)
+    percent, uses = NZ.Num(percent), NZ.Num(uses)
     if not NZ.InList(Config.Discounts.Percentages, percent) or not NZ.InList(Config.Discounts.Uses, uses) then return false, L('amount_invalid') end
-    local active = MySQL.scalar.await('SELECT COUNT(*) FROM nz_tuning_codes WHERE shop = ?', { shopId }) or 0
+    local active = MySQL.scalar.await('SELECT COUNT(*) FROM nz_tuning_codes WHERE shop = ? AND uses > 0', { shopId }) or 0
     if active >= Config.Discounts.MaxActivePerShop then return false, L('too_many_codes') end
     local code = Business.CreateCode(shopId, percent, uses, Bridge.GetName(src))
     Core.Log('code', 'Discount code created', { Shop = Config.Shops[shopId].label, Code = code, Percent = percent .. '%', Uses = uses }, src)
