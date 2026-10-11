@@ -400,6 +400,9 @@
 .sk .scard small{margin-top:4px;font-size:10.5px;line-height:1.4;color:var(--ink-3);font-weight:300;height:2.8em;overflow:hidden;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .sk .sc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+/* FiveM's CEF doesn't stretch flex children inside a <button>: pin the card rows to full width, + to the right edge */
+.sk .scard > .sc-img,.sk .scard > b,.sk .scard > small,.sk .scard > .sc-foot{width:100%;box-sizing:border-box;align-self:stretch}
+.sk .sc-add{margin-left:auto}
 .sk .sc-price{font-size:13px;font-weight:600;color:var(--white)}
 .sk .sc-add{width:24px;height:24px;border-radius:var(--r-xs);display:grid;place-items:center;color:var(--ink-2);background:var(--raise);border:1px solid var(--line)}
 .sk .scard:hover:not(:disabled) .sc-add{color:#00201d;background:var(--teal);border-color:var(--teal)}
@@ -418,7 +421,7 @@
 .sk .bk-h b{display:block;font-size:13px;font-weight:600;color:var(--white)}
 .sk .bk-h span{display:block;margin-top:3px;font-size:11px;color:var(--ink-3);font-weight:300}
 .sk .bk-pay{display:flex;gap:4px;padding:3px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-soft)}
-.sk .bk-pay button{flex:1;height:30px;border-radius:var(--r-xs);font-size:11.5px;color:var(--ink-2);transition:all var(--fast);white-space:nowrap}
+.sk .bk-pay button{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;padding:0 6px;height:30px;border-radius:var(--r-xs);font-size:11.5px;color:var(--ink-2);transition:all var(--fast);white-space:nowrap}
 .sk .bk-pay button:hover{color:var(--white)}
 .sk .bk-pay button.on{color:var(--white);font-weight:600;background:var(--teal-wash);box-shadow:0 0 0 1px var(--teal-edge) inset}
 .sk .bk-lines{display:flex;flex-direction:column;gap:6px;max-height:34vh;overflow-y:auto}

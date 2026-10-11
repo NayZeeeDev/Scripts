@@ -519,6 +519,13 @@
   /* ---------------- supplier store ---------------- */
   // A centred store: category tabs, picture cards (all on screen, no scrolling), a basket on the right.
   const SH = { shop: null, cart: {}, tab: 'all', acc: null };
+  // big balances shortened so the pay chips stay one line: $1.2M, $999.9B
+  const shortMoney = (n) => {
+    n = Number(n) || 0;
+    const a = Math.abs(n);
+    for (const [v, u] of [[1e12, 'T'], [1e9, 'B'], [1e6, 'M']]) if (a >= v) return `$${(Math.floor(n / v * 10) / 10).toFixed(1).replace(/\.0$/, '')}${u}`;
+    return money(n);
+  };
   const accLabel = (id) => (id === 'bank' ? 'bank' : id === 'black_money' ? 'dirty' : 'cash');
 
   function openShop(shop) {
@@ -571,7 +578,7 @@
       </button>`;
     }).join('');
 
-    el('stPay').innerHTML = arr(sh.accounts).map((a) => `<button class="${a.id === SH.acc ? 'on' : ''}" data-acc="${esc(a.id)}">${accLabel(a.id)} · ${money(a.money)}</button>`).join('');
+    el('stPay').innerHTML = arr(sh.accounts).map((a) => `<button class="${a.id === SH.acc ? 'on' : ''}" data-acc="${esc(a.id)}" title="${money(a.money)}">${accLabel(a.id)} · ${shortMoney(a.money)}</button>`).join('');
 
     let total = 0;
     const lines = Object.keys(SH.cart).map((name) => {
