@@ -154,6 +154,7 @@ RegisterNUICallback('sq_ready', function(_, cb)
             nicknames = { enabled = SquadsConfig.Nicknames.Enabled, max = SquadsConfig.Nicknames.MaxLength,
                           min = SquadsConfig.Nicknames.MinLength, temp = SquadsConfig.Nicknames.AllowInTemporary },
             autoRadio = SquadsConfig.Voice.AutoJoin and SquadsConfig.Voice.PlayerCanOptOut,
+            weaponImages = Config and Config.WeaponImages or false,
         },
     })
 end)
@@ -312,7 +313,11 @@ end)
 RegisterNetEvent('nz_squads:vitals', function(changed)
     if not Squad then return end
     Squad.vitals = Squad.vitals or {}
-    for id, v in pairs(changed) do Squad.vitals[id] = v end
+    for id, v in pairs(changed) do
+        -- the server sends the weapon hash; the cards want its name (for the picture) and label
+        if v.w ~= nil then v.w, v.wl = SquadWeapon(v.w) end
+        Squad.vitals[id] = v
+    end
     NUI('vitals', changed)
 end)
 

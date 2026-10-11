@@ -1022,6 +1022,8 @@ AddEventHandler('playerDropped', function()
 end)
 
 -- ─── vitals sync (only sends what changed) ─────────────────
+local UNARMED = `WEAPON_UNARMED`
+
 CreateThread(function()
     local tick = 0
     local hasMax = GetEntityMaxHealth ~= nil
@@ -1040,11 +1042,13 @@ CreateThread(function()
                         local max = hasMax and GetEntityMaxHealth(ped) or 200
                         local pct = max > 100 and floor(math.max(0, math.min(1, (hp - 100) / (max - 100))) * 100) or 0
                         local ar = GetPedArmour(ped)
+                        local wp = GetSelectedPedWeapon(ped)
+                        if wp == UNARMED then wp = 0 end
                         local v = Vitals[src]
-                        if not v then v = { h = -1, a = -1 }; Vitals[src] = v end
+                        if not v then v = { h = -1, a = -1, w = 0 }; Vitals[src] = v end
 
-                        local dirty = v.h ~= pct or v.a ~= ar
-                        v.h, v.a = pct, ar
+                        local dirty = v.h ~= pct or v.a ~= ar or v.w ~= wp
+                        v.h, v.a, v.w = pct, ar, wp
 
                         if withCoords then
                             local c = GetEntityCoords(ped)
@@ -1065,6 +1069,29 @@ CreateThread(function()
         end
     end
 end)
+
+-- ─── shot feed ─────────────────────────────────────────────
+-- The shooter's client batches its shots ({ ms offsets inside a burst }); this relays them to the rest of the squad
+-- so every card flashes in time with the gunfire. The weapon comes from the server's own view of the ped.
+local ShotCfg = SquadsConfig.TeamHudShots or {}
+if SquadsConfig.Features.Hud and ShotCfg.Enabled ~= false then
+    RegisterNetEvent('nz_squads:shots', function(burst, offsets)
+        local src = source
+        local sq = SquadOf(src)
+        if not sq or type(offsets) ~= 'table' then return end
+        if cooldown(src, 'shots', 40) then return end
+        local list = {}
+        for i = 1, math.min(#offsets, 30) do
+            local o = tonumber(offsets[i])
+            if o then list[#list + 1] = floor(math.max(0, math.min(o, 60000))) end
+        end
+        if #list == 0 then return end
+        burst = floor(tonumber(burst) or 0) % 65536
+        for id in pairs(sq.online) do
+            if id ~= src then TriggerClientEvent('nz_squads:shots', id, src, burst, list) end
+        end
+    end)
+end
 
 -- ─── temporary squad expiry ────────────────────────────────
 if SquadsConfig.SquadTypes.TempMaxHours > 0 then

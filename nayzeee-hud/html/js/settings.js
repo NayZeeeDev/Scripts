@@ -33,8 +33,8 @@
     return `<div class="opt col"><div class="opt-t"><b>${label}</b>${desc ? `<small>${desc}</small>` : ''}</div><div class="rng"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-rng="${path}" data-fmt="${fmt}"/><span>${fmtVal(v, fmt)}</span></div></div>`;
   };
   const fmtVal = (v, fmt) => fmt === 'pct' ? Math.round(v * 100) + '%' : fmt === 'raw%' ? v + '%' : String(v);
-  const cards = (path, items, cls = '') =>
-    `<div class="cards ${cls}" data-cards="${path}">${items.map(it => `<button class="card${String(g(path)) === it.v ? ' on' : ''}" data-val="${it.v}"><div class="pv"${it.pv ? ` data-pv="${it.pv}"` : ''}>${it.html || ''}</div><span>${it.l}</span>${it.sub ? `<small>${it.sub}</small>` : ''}</button>`).join('')}</div>`;
+  const cards = (path, items, cls = '', sel = g(path)) =>
+    `<div class="cards ${cls}" data-cards="${path}">${items.map(it => `<button class="card${String(sel) === it.v ? ' on' : ''}" data-val="${it.v}"><div class="pv"${it.pv ? ` data-pv="${it.pv}"` : ''}>${it.html || ''}</div><span>${it.l}</span>${it.sub ? `<small>${it.sub}</small>` : ''}</button>`).join('')}</div>`;
   const chips = (items) => `<div class="chips">${items.map(([path, label, icon]) => `<button class="chip${g(path) ? ' on' : ''}" data-tog="${path}">${icon || ''}${label}</button>`).join('')}</div>`;
   const scaleRange = (id, label = 'Scale') => {
     const v = NH.cur.layout[id]?.s || 1;
@@ -140,8 +140,7 @@
   };
 
   // ---- squads player settings (stored by the squads module, edited here) ----
-  const TEAM_STYLES = [['cards', 'Cards'], ['bars', 'Flat Bars'], ['pills', 'Pills'], ['glass', 'Glass'], ['minimal', 'Minimal'],
-    ['stripe', 'Stripe'], ['rings', 'Rings'], ['tiles', 'Tiles'], ['heads', 'Heads']];
+  const TEAM_STYLES = window.TeamHud ? TeamHud.STYLES : [];
   const TEAM_COLORS = ['#ffffff', '#08afa2', '#58a6ff', '#e5484d', '#e5a50a', '#a078ff', '#8bd35a', '#ff7ad9'];
   const sqSw = (key, list) => `<div class="swatches">${list.map(([hex, id]) => {
     const val = id === undefined ? hex : id;
@@ -156,24 +155,8 @@
   };
   const T = (key, label, desc) => toggle('squads.' + key, label, desc);
 
-  // team HUD preview cards (same markup and CSS as the live ones in the squads frame)
-  NH.teamPreview = (style, st = NH.cur.squads || {}) => {
-    const wrap = document.createElement('div');
-    wrap.className = `hud tpv s-${style}${style === 'bars' ? ' bars' : ''}${st.hudMinimized ? ' min' : ''}${st.hudAccent === 'none' ? ' no-accent' : ''}`;
-    wrap.style.setProperty('--hud-health', st.hudHealth || '#fff');
-    wrap.style.setProperty('--hud-armor', st.hudArmor || '#58a6ff');
-    wrap.style.setProperty('--hud-bg', `rgba(8,9,10,${(st.hudOpacity ?? 86) / 100})`);
-    const people = [['You', 'NZ', 92, 60, 'Leader', true, false], ['Tay Brooks', 'TB', 64, 25, 'Officer', false, false], ['Marcus Hill', 'MH', 0, 0, 'Member', false, true]];
-    const edge = (h) => st.hudAccent === 'teal' ? '#08afa2' : st.hudAccent === 'health' ? (h <= 25 ? '#e5484d' : h <= 60 ? '#e5a50a' : '#08afa2') : '#08afa2';
-    wrap.innerHTML = people.map(([name, ini, h, a, rank, self, down], i) => `
-      <div class="hm${down ? ' down' : ''}${self ? ' self' : ''}" style="--h:${h};--accent:${edge(h)}">
-        ${st.hudAvatars !== false ? `<div class="av${i === 1 && st.hudTalking !== false ? ' talk' : ''}">${ini}</div>` : ''}
-        <div class="hm-txt"><div class="hm-top"><b>${name}</b>${self ? '<span class="hm-you">You</span>' : ''}${st.hudRank ? `<span class="hm-rank">${rank}</span>` : ''}
-          ${st.hudKda ? `<span class="kda"><b class="k">${12 - i * 4}</b><s>/</s><b class="d">${3 + i}</b></span>` : ''}<span class="down-tag">Down</span><em class="hm-pct">${h}</em></div>
-          <div class="hm-bars"><div class="hb"><i style="width:${h}%"></i></div>${st.hudArmorBar !== false ? `<div class="ha">${[0, 1, 2, 3].map(k => `<span><i style="width:${Math.max(0, Math.min(25, a - k * 25)) * 4}%"></i></span>`).join('')}</div>` : ''}</div>
-        </div></div>`).join('');
-    return wrap;
-  };
+  // team HUD preview cards: the same renderer and CSS as the live ones in the squads frame
+  NH.teamPreview = (style, st = NH.cur.squads || {}) => TeamHud.preview(style, { ...st, imgTpl: NH.cfg.weaponImages });
 
   R.squads = () => {
     const d = NH.cfg.squadsData;
@@ -183,8 +166,8 @@
     let html = '';
     if (f.Hud !== false) {
       html += sec('Team HUD', T('hud', 'Show team HUD', 'Your squad\u2019s health and armour on screen') +
-        `<div class="opt"><div class="opt-t"><b>Position</b><small>Drag the cards where you want them</small></div><button class="btn-line" data-act="sqMove">${ic('move')}Move team HUD</button></div>`);
-      html += sec('Style', cards('squads.hudStyle', TEAM_STYLES.map(([v, l]) => ({ v, l, pv: 'team:' + v })), 'c3 tall'));
+        `<div class="opt"><div class="opt-t"><b>Position</b><small>Moves with the rest of the HUD in Edit layout</small></div><button class="btn-line" data-act="edit">${ic('move')}Edit layout</button></div>`);
+      html += sec('Style', cards('squads.hudStyle', TEAM_STYLES.map(([v, l]) => ({ v, l, pv: 'team:' + v })), 'c3 tall', TeamHud.norm(st.hudStyle)));
       html += sec('Look',
         sqSeg('hudAccent', [['squad', 'Squad'], ['teal', 'Teal'], ['health', 'Health'], ['none', 'None']], 'Edge colour', 'Colour on each card\u2019s edge') +
         sqRange('hudScale', 'Size', 70, 130, 5) + sqRange('hudOpacity', 'Background', 0, 100, 5) +
@@ -193,7 +176,9 @@
         `<div class="opt col"><div class="opt-t"><b>Armour bar colour</b></div>${sqSw('hudArmor', TEAM_COLORS.map(h => [h]))}</div>`);
       html += sec('Cards', T('hudShowSelf', 'Show your own card', 'Your health and armour at the top') + T('hudAvatars', 'Profile pictures') +
         T('animatedAvatars', 'Animated pictures', 'Play animated Discord avatars') + T('hudArmorBar', 'Armour bar') + T('hudRank', 'Rank name') +
-        T('hudKda', 'Kills and deaths') + T('hudTalking', 'Voice indicator', 'Glow when a squadmate is talking') + T('hudMinimized', 'Compact cards', 'Smaller cards with less detail'));
+        T('hudKda', 'Kills and deaths') + T('hudWeapon', 'Weapon in hand', 'A picture of the gun each squadmate is holding') +
+        T('hudShots', 'Shot flashes', 'Cards flash in time with every shot a squadmate fires, so you can tell who is shooting') +
+        T('hudTalking', 'Voice indicator', 'Shows who is talking, and whether it\u2019s over the radio') + T('hudMinimized', 'Compact cards', 'Smaller cards with less detail'));
     }
     if (f.Tags !== false) {
       html += sec('Nametags', T('tags', 'Show nametags', 'Over your squadmates\u2019 heads') +
@@ -253,6 +238,7 @@
         pv.appendChild(wrap);
       }
     });
+    if (window.TeamHud && root.querySelector('.hud.tpv')) TeamHud.demo(root);
     // shrink previews to fit their card
     requestAnimationFrame(() => root.querySelectorAll('.pv').forEach(pv => {
       const inner = pv.firstElementChild;
@@ -295,12 +281,17 @@
       el.addEventListener('change', e => this.onChange(e));
 
       const bar = document.getElementById('editbar');
-      bar.innerHTML = `<div class="eb panel"><span class="eb-i">${ic('move')}</span><div><b>Edit layout</b><small>Drag to move · Scroll to resize · Right-click to reset an element</small></div>
+      bar.innerHTML = `<div class="eb panel"><span class="eb-i">${ic('move')}</span><div><b>Edit layout</b><small>Drag to move · Scroll to resize · Right-click to reset · Team HUD included</small></div>
         <button class="btn-line" data-act="layout-reset">${ic('reset')}Reset layout</button><button class="btn-teal" data-act="layout-done">${ic('check')}Done</button></div>`;
       bar.addEventListener('click', e => {
         const b = e.target.closest('[data-act]');
         if (!b) return;
-        if (b.dataset.act === 'layout-reset') { NH.cur.layout = {}; NH.place(); this.markDirty(); }
+        if (b.dataset.act === 'layout-reset') {
+          NH.cur.layout = {};
+          if (NH.cur.squads) { NH.cur.squads.hudPos = false; NH.cur.squads.hudScale = 100; }
+          NH.applySettings();
+          this.markDirty();
+        }
         if (b.dataset.act === 'layout-done') this.editLayout(false);
       });
     },
@@ -377,11 +368,6 @@
       if (rerender) this.render();
     },
 
-    moveDone() {
-      this.el.classList.remove('hidden');
-      document.body.classList.remove('editing-team');
-    },
-
     editLayout(on) {
       NH.editing = on;
       document.body.classList.toggle('editing', on);
@@ -405,13 +391,6 @@
       const act = e.target.closest('[data-act]');
       if (!act) return;
       const a = act.dataset.act;
-      if (a === 'sqMove') {
-        this.el.classList.add('hidden');
-        document.body.classList.add('editing-team');
-        NH.sqFocus?.(true);
-        NH.toSquads?.('hudMove');
-        return;
-      }
       if (a === 'save') this.save();
       else if (a === 'close') this.close();
       else if (a === 'revert') this.revert();

@@ -1006,63 +1006,41 @@ function viewAdmin() {
 }
 
 // ─── team HUD ──────────────────────────────────────────────
-// The left edge of each card: the squad's own colour, a fixed teal, health-driven, or nothing.
-function hudAccentColor(m) {
+// Cards come from team-hud.js (shared with the /hud settings previews). This file feeds them live data.
+function hudAccentColor(m, h) {
   const mode = state.settings.hudAccent;
   if (mode === 'none') return null;
   if (mode === 'teal') return '#08afa2';
   if (mode === 'health') {
-    const h = ((m.id === state.me ? state.selfVitals : vit(m.id)) || { h: 100 }).h;
+    if (h === undefined) h = ((m.id === state.me ? state.selfVitals : vit(m.id)) || { h: 100 }).h;
     return h <= 25 ? '#e5484d' : h <= 60 ? '#e5a50a' : '#08afa2';
   }
   return state.squad && state.squad.blipColor !== undefined ? blipHex(state.squad.blipColor) : '#08afa2';
 }
 
+const hudOpts = () => ({ ...state.settings, imgTpl: state.cfg && state.cfg.weaponImages });
+
 function applyHudStyle() {
-  const st = state.settings, hud = $('#hud'), root = document.documentElement;
-  root.style.setProperty('--hud-health', st.hudHealth);
-  root.style.setProperty('--hud-armor', st.hudArmor);
-  root.style.setProperty('--hud-scale', (st.hudScale || 100) / 100);
-  root.style.setProperty('--hud-bg', `rgba(8,9,10,${(st.hudOpacity ?? 86) / 100})`);
-  hud.classList.toggle('min', !!st.hudMinimized);
-  hud.className = hud.className.replace(/\bs-[a-z]+\b/g, '').trim();
-  hud.classList.add('s-' + (st.hudStyle || 'cards'));
-  hud.classList.toggle('bars', st.hudStyle === 'bars');
-  hud.classList.toggle('no-accent', st.hudAccent === 'none');
+  const st = state.settings, hud = $('#hud');
+  const hidden = hud.classList.contains('hidden'), editing = hud.classList.contains('editing');
+  hud.className = TeamHud.hudClass(st) + (hidden ? ' hidden' : '') + (editing ? ' editing' : '');
+  TeamHud.applyVars(hud, st);
   if (st.hudPos && typeof st.hudPos.x === 'number') {
-    Object.assign(hud.style, { left: `${st.hudPos.x}%`, top: `${st.hudPos.y}%`, right: 'auto', bottom: 'auto' });
+    Object.assign(hud.style, { left: `${st.hudPos.x}%`, top: `${st.hudPos.y}%`, right: 'auto', bottom: 'auto', transformOrigin: 'top left' });
   } else {
-    Object.assign(hud.style, { left: '', top: '', right: '', bottom: '' });
+    Object.assign(hud.style, { left: '', top: '', right: '', bottom: '', transformOrigin: '' });
   }
 }
 
-function hudCard(m, self, vOverride) {
-  const st = state.settings;
-  const v = vOverride || (self ? state.selfVitals : vit(m.id)) || { h: 100, a: 0 };
-  const down = isDown(m);
-  const accent = hudAccentColor(m);
-  const armor = st.hudArmorBar
-    ? `<div class="ha">${[0, 1, 2, 3].map((i) => `<span><i style="width:${Math.max(0, Math.min(25, v.a - i * 25)) * 4}%"></i></span>`).join('')}</div>`
-    : '';
-  const meta = [];
-  if (st.hudRank && m.rankName) meta.push(`<span class="hm-rank">${esc(m.rankName)}</span>`);
-  if (st.hudKda) meta.push(`<span class="kda"><b class="k">${m.kills || 0}</b><s>/</s><b class="d">${m.deaths || 0}</b></span>`);
-
-  return `<div class="hm ${down ? 'down' : ''} ${self ? 'self' : ''}" data-hm="${self ? 'self' : m.id}" style="--h:${v.h}${accent ? `;--accent:${accent}` : ''}">
-    ${st.hudAvatars ? avatar(m.name, m.avatar, state.talking[m.id] ? 'talk' : '') : ''}
-    <div class="hm-txt">
-      <div class="hm-top">${m.owner ? '<i class="fa-solid fa-crown"></i>' : ''}<b>${esc(m.name)}</b>${self ? '<span class="hm-you">You</span>' : ''}
-        ${meta.join('')}
-        <span class="down-tag">Down</span><i class="fa-solid fa-microphone mic ${state.talking[m.id] && st.hudTalking ? 'on' : ''}"></i><em class="hm-pct">${v.h}</em></div>
-      <div class="hm-bars"><div class="hb"><i style="width:${v.h}%"></i></div>${armor}</div>
-    </div></div>`;
+function hudCard(m, self) {
+  const v = (self ? state.selfVitals : vit(m.id)) || { h: 100, a: 0 };
+  const data = { ...v, talk: state.talking[m.id] || false };
+  const mm = { id: m.id, name: m.name, avatar: safeImg(pickImg(m.avatar)), owner: m.owner, rank: m.rankName,
+    kills: m.kills, deaths: m.deaths, down: isDown(m) };
+  return TeamHud.card(mm, data, { ...hudOpts(), self, accent: hudAccentColor(m, v.h) });
 }
 
-const HUD_PREVIEW = [
-  { m: { id: 'pv0', name: 'You', owner: true, rankName: 'Leader', kills: 12, deaths: 4 }, v: { h: 92, a: 60 } },
-  { m: { id: 'pv1', name: 'Tay Brooks', rankName: 'Officer', kills: 9, deaths: 6 }, v: { h: 64, a: 25 } },
-  { m: { id: 'pv2', name: 'Marcus Hill', rankName: 'Member', kills: 3, deaths: 7, downed: true }, v: { h: 0, a: 0 } },
-];
+const cardOf = (id) => document.querySelector(`#hud [data-hm="${Number(id) === state.me ? 'self' : id}"]`);
 
 function renderHud() {
   const hud = $('#hud');
@@ -1071,9 +1049,10 @@ function renderHud() {
   const me = state.squad ? state.squad.members.find((m) => m.id === state.me) : null;
   const showSelf = st.hudShowSelf !== false && me;
 
+  // the /hud Squads tab is open and you're not in a squad: show sample cards so changes are visible
   if (state.previewHud && !state.squad) {
     hud.classList.remove('hidden');
-    hud.innerHTML = HUD_PREVIEW.map((p, i) => hudCard(p.m, i === 0, p.v)).join('');
+    hud.innerHTML = TeamHud.preview(st.hudStyle, hudOpts()).innerHTML;
     return;
   }
 
@@ -1087,32 +1066,25 @@ function renderHud() {
   const max = st.hudMax > 0 ? st.hudMax : others.length;
   const list = others.slice(0, max);
   const extra = others.length - list.length;
-  const selfCard = showSelf ? hudCard(me, true) : '';
-
-  hud.innerHTML = selfCard + list.map((m) => hudCard(m, false)).join('')
-    + (!selfCard && !list.length ? `<div class="hm"><div class="av">--</div><div class="hm-txt"><div class="hm-top"><b>Squadmate</b></div><div class="hm-bars"><div class="hb"><i style="width:70%"></i></div><div class="ha"><span><i style="width:100%"></i></span><span><i style="width:40%"></i></span><span></span><span></span></div></div></div></div>` : '')
+  hud.innerHTML = (showSelf ? hudCard(me, true) : '') + list.map((m) => hudCard(m, false)).join('')
     + (extra > 0 ? `<div class="hud-more">+${extra} more</div>` : '');
 }
 
 function patchVitals(changed) {
+  const o = hudOpts();
   for (const id of Object.keys(changed)) {
     const m = state.squad.members.find((x) => String(x.id) === id);
-    const card = document.querySelector(`[data-hm="${id}"]`);
+    const v = changed[id];
+    const card = cardOf(id);
     if (card && m) {
-      const v = changed[id];
-      card.querySelector('.hb i').style.width = `${v.h}%`;
-      card.style.setProperty('--h', v.h);
-      const pct = card.querySelector('.hm-pct');
-      if (pct) pct.textContent = v.h;
-      card.querySelectorAll('.ha span i').forEach((el, i) => { el.style.width = `${Math.max(0, Math.min(25, v.a - i * 25)) * 4}%`; });
-      card.classList.toggle('down', isDown(m));
-      if (state.settings.hudAccent === 'health') {
-        const c = hudAccentColor(m);
-        if (c) card.style.setProperty('--accent', c);
-      }
+      const down = isDown(m);
+      if (card.classList.contains('down') !== down) { renderHud(); return; }
+      TeamHud.patch(card, v, o);
+      const c = state.settings.hudAccent === 'health' ? hudAccentColor(m, v.h) : null;
+      if (c) card.style.setProperty('--accent', c);
     }
     const row = document.querySelector(`[data-member="${id}"] .bar-mini i`);
-    if (row) { row.style.width = `${changed[id].h}%`; row.classList.toggle('low', changed[id].h <= 25); }
+    if (row) { row.style.width = `${v.h}%`; row.classList.toggle('low', v.h <= 25); }
   }
 }
 
@@ -1694,25 +1666,23 @@ const handlers = {
   },
   talking(diff) {
     for (const id of Object.keys(diff)) {
-      state.talking[id] = diff[id];
-      const card = document.querySelector(`[data-hm="${Number(id) === state.me ? 'self' : id}"]`);
-      if (card) {
-        card.querySelector('.av')?.classList.toggle('talk', diff[id]);
-        card.querySelector('.mic')?.classList.toggle('on', diff[id]);
-      }
+      const t = diff[id] === true ? 'mic' : diff[id] || false;
+      state.talking[id] = t;
+      TeamHud.talk(cardOf(id), t, state.settings);
     }
+  },
+  // shots a squadmate fired: { id, b (burst), o (ms offsets inside the burst) }
+  shots(d) {
+    if (!d || state.settings.hudShots === false) return;
+    TeamHud.shots(cardOf(d.id), String(d.id), d.b, d.o);
   },
   hudHidden(v) { state.hudHidden = v; renderHud(); },
   selfVitals(v) {
-    state.selfVitals = v;
-    const card = document.querySelector('[data-hm="self"]');
+    state.selfVitals = { ...(state.selfVitals || {}), ...v };
+    const card = cardOf(state.me);
     if (!card) return renderHud();
-    card.querySelector('.hb i').style.width = `${v.h}%`;
-    card.querySelectorAll('.ha span i').forEach((el, i) => { el.style.width = `${Math.max(0, Math.min(25, v.a - i * 25)) * 4}%`; });
-    if (state.settings.hudAccent === 'health') {
-      const c = v.h <= 25 ? '#e5484d' : v.h <= 60 ? '#e5a50a' : '#08afa2';
-      card.style.setProperty('--accent', c);
-    }
+    TeamHud.patch(card, state.selfVitals, hudOpts());
+    if (state.settings.hudAccent === 'health') card.style.setProperty('--accent', hudAccentColor({ id: state.me }, state.selfVitals.h));
   },
   invite(inv) {
     state.invites = [inv, ...state.invites.filter((i) => i.id !== inv.id)];
@@ -1789,7 +1759,7 @@ const Dev = {
         settings: { hud: true, hudMinimized: false, hudTalking: true, hudKda: true, hudMax: 0,
           hudHealth: '#ffffff', hudArmor: '#58a6ff', hudPos: false, hudAvatars: true, hudRank: false,
           hudArmorBar: true, hudAccent: 'squad', hudStyle: 'cards', hudScale: 100, hudOpacity: 86, hudShowSelf: true,
-          animatedAvatars: true,
+          hudWeapon: true, hudShots: true, animatedAvatars: true,
           tags: true, tagColor: 18, tagName: true, tagSquadTag: true, tagRole: true, tagHealth: true, tagAllies: true,
           blips: true, blipUseSquad: true, blipColor: 2, blipAllies: true,
           chatNotify: true, chatSound: true, pingNotify: true, pingSound: true, reviveAlerts: true,
@@ -1903,7 +1873,7 @@ const Dev = {
         { id: 31, identifier: 'char:kei', name: 'Keisha Moore', avatar: Dev.av('keisha'), rank: 2, rankName: 'Member', rankIcon: 'fa-user-check', owner: false, online: true, kills: 14, deaths: 9, assists: 6, revives: 4 },
         { id: null, identifier: 'char:dee', name: 'Dee Carter', avatar: null, rank: 1, rankName: 'Recruit', rankIcon: 'fa-user', owner: false, online: false, kills: 3, deaths: 4, assists: 0, revives: 0 },
       ],
-      vitals: { 14: { h: 82, a: 60 }, 22: { h: 0, a: 0 }, 31: { h: 45, a: 100 } },
+      vitals: { 14: { h: 82, a: 60, w: 'WEAPON_PISTOL50', wl: 'Pistol .50' }, 22: { h: 0, a: 0 }, 31: { h: 21, a: 100, w: 'WEAPON_PUMPSHOTGUN', wl: 'Pump Shotgun' } },
     };
   },
   list: [

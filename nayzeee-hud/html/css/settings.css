@@ -163,6 +163,13 @@ kbd { font: 700 11px var(--font); padding: 4px 9px; border-radius: 6px; backgrou
 .eb { background: var(--nz-panel); border-color: var(--nz-line); }
 
 /* team HUD previews (squads tab) */
-.hud.tpv { position: static; transform: none; width: 230px; z-index: auto; pointer-events: none; }
-.hud.tpv.s-tiles, .hud.tpv.s-heads { width: auto; max-width: 260px; }
-body.editing-team #hud { opacity: .35; }
+.hud.tpv { position: static; transform: none; z-index: auto; pointer-events: none; }
+.card .pv .hud.tpv { flex: none; }
+/* Edit layout: the team HUD stand-in moves with everything else; the live one hides meanwhile */
+body.editing #squads { opacity: 0; }
+#teamProxy { z-index: 20; pointer-events: auto; cursor: grab; outline: 1.5px dashed rgba(var(--accent-rgb), .55); outline-offset: 6px; border-radius: 6px; }
+#teamProxy:hover { outline-style: solid; outline-color: var(--accent); background: rgba(var(--accent-rgb), .06); }
+#teamProxy.dragging { cursor: grabbing; }
+#teamProxy::after { content: attr(data-label); position: absolute; left: 0; top: -26px; font: 600 11px Inter, sans-serif; color: var(--accent);
+  white-space: nowrap; opacity: 0; transition: opacity .15s; }
+#teamProxy:hover::after { opacity: 1; }

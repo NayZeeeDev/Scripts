@@ -140,6 +140,14 @@ SquadsConfig.Features = {
 SquadsConfig.VitalsIntervalMs = 750     -- server HUD sync rate (only sends changes)
 SquadsConfig.CoordsEveryTicks = 2       -- include coords for off-scope blips every N vitals ticks
 
+-- Shot feed for the team HUD: each player's client times the shots they fire and sends them in small batches,
+-- so squadmates' cards flash in step with the gunfire (about 10 tiny events a second per player while firing).
+SquadsConfig.TeamHudShots = {
+    Enabled    = true,
+    BatchMs    = 100,   -- batch window; the HUD keeps a matching jitter buffer so the rhythm stays exact
+    BurstGapMs = 700,   -- a pause longer than this starts a new burst
+}
+
 -- ███╗   ██╗██╗ ██████╗██╗  ██╗███╗   ██╗ █████╗ ███╗   ███╗███████╗███████╗
 -- ████╗  ██║██║██╔════╝██║ ██╔╝████╗  ██║██╔══██╗████╗ ████║██╔════╝██╔════╝
 -- ██╔██╗ ██║██║██║     █████╔╝ ██╔██╗ ██║███████║██╔████╔██║█████╗  ███████╗
@@ -481,7 +489,9 @@ SquadsConfig.DefaultSettings = {
     hudRank         = false,        -- rank name on cards
     hudArmorBar     = true,         -- show the armour bar at all
     hudAccent       = 'squad',      -- left edge: 'squad' | 'teal' | 'health' | 'none'
-    hudStyle        = 'cards',      -- 'cards' (boxed) | 'bars' (flat, no card background)
+    hudStyle        = 'cards',      -- cards | slim | frost | loadout | tactical | arena | rings | heads | tiles | minimal
+    hudWeapon       = true,         -- picture of the gun each squadmate is holding
+    hudShots        = true,         -- cards flash in time with every shot a squadmate fires
     hudScale        = 100,          -- 70-130%
     hudOpacity      = 86,           -- card background opacity
     hudShowSelf     = true,         -- your own card at the top (keeps the HUD visible when you're alone)

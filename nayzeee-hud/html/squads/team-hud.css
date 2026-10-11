@@ -1,133 +1,306 @@
 /* Team HUD cards. Shared by the squads frame (live cards) and the nayzeee-hud settings (previews),
-   so every rule is scoped under .hud and carries its own tokens. */
+   so every rule is scoped under .hud and carries its own tokens. Markup comes from team-hud.js. */
 .hud{
-  --line-soft:rgba(255,255,255,.06);--line:rgba(255,255,255,.10);--sh-1:0 1px 2px rgba(0,0,0,.6);--r-sm:8px;
-  --white:#fff;--ink-2:#9ea5aa;--ink-3:#63696d;--raise:#15181a;--fast:130ms cubic-bezier(.4,0,.2,1);
-  --red:#e5484d;--red-edge:rgba(229,72,77,.34);--red-wash:rgba(229,72,77,.11);
-  --sq-teal:#08afa2;--sq-teal-wash:rgba(8,175,162,.11);--sq-teal-edge:rgba(8,175,162,.34);
-  --hud-health:#fff;--hud-armor:#58a6ff;
-  font-family:'Inter','Segoe UI',system-ui,sans-serif;color:#f2f4f5;font-variant-numeric:tabular-nums;
+  --teal:#08afa2;--teal-wash:rgba(8,175,162,.14);--red:#e5484d;--amber:#e5a50a;
+  --fire:#ffb03a;--fire-2:#ff6a2b;
+  --ink:#f2f4f5;--ink-2:#9ea5aa;--ink-3:#63696d;--line:rgba(255,255,255,.08);
+  --hud-health:#fff;--hud-armor:#58a6ff;--bg-a:.86;--accent:var(--teal);
+  --panel:rgba(14,16,17,var(--bg-a));--ease:cubic-bezier(.2,.8,.3,1);
+  position:fixed;right:24px;bottom:23vh;width:276px;display:flex;flex-direction:column;align-items:stretch;gap:6px;z-index:10;
+  transform:scale(var(--hud-scale,1));transform-origin:bottom right;
+  font-family:'Inter','Segoe UI',system-ui,sans-serif;color:var(--ink);font-variant-numeric:tabular-nums;text-align:left;
+  -webkit-font-smoothing:antialiased;
 }
-.hud .av{position:relative;width:34px;height:34px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;overflow:hidden;
-  background:var(--raise);border:1px solid var(--line);font-size:11px;font-weight:600;color:var(--ink-2)}
-.hud .av img{width:100%;height:100%;object-fit:cover;display:block}
-.hud .kda{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:600;white-space:nowrap}
-.hud .kda s{text-decoration:none;color:var(--ink-3);font-weight:300}
-.hud .kda .k{color:var(--sq-teal)}.hud .kda .d{color:var(--red)}
-.hud .hm-pct{display:none;font-style:normal;font-size:11px;font-weight:700;color:var(--hud-health);min-width:26px;text-align:right}
-.hud .fa-solid{font-size:9px}
-
-/* ─── team HUD ─── */
-.hud{position:fixed;right:24px;bottom:23vh;width:250px;display:flex;flex-direction:column;gap:5px;z-index:10;
-  transform:scale(var(--hud-scale,1));transform-origin:bottom right}
-.hud.editing{outline:1px dashed var(--sq-teal);outline-offset:6px;cursor:grab;z-index:90}
+.hud.hidden{display:none}
+.hud.editing{outline:1px dashed var(--teal);outline-offset:6px;cursor:grab;z-index:90}
 .hud.editing:active{cursor:grabbing}
-.hud .hm{position:relative;display:flex;align-items:center;gap:9px;padding:7px 9px;
-  background:var(--hud-bg,rgba(8,9,10,.86));border:1px solid var(--line-soft);
-  border-left:2px solid var(--accent,var(--sq-teal));
-  border-radius:var(--r-sm);box-shadow:var(--sh-1);transition:border-color var(--fast),opacity var(--fast)}
-/* no accent: drop the coloured edge entirely */
-.hud.no-accent .hm{border-left:1px solid var(--line-soft)}
-/* flat style: no card, just the name and bars over the world */
-.hud.bars .hm{background:none;border:0;border-left:2px solid var(--accent,var(--sq-teal));
-  box-shadow:none;padding:3px 0 3px 9px;border-radius:0}
-.hud.bars.no-accent .hm{border-left:0;padding-left:0}
-.hud.bars .hm-top b{text-shadow:0 1px 3px rgba(0,0,0,.95)}
-.hud.bars .hb,.hud.bars .ha span{background:rgba(0,0,0,.55)}
-.hud .hm .av{width:32px;height:32px;font-size:10px;border-radius:var(--r-sm);transition:box-shadow var(--fast),border-color var(--fast)}
-.hud .hm .av.talk{border-color:var(--sq-teal);box-shadow:0 0 0 2px var(--sq-teal-wash),0 0 10px rgba(8,175,162,.5)}
-.hud .hm.down .av img{filter:grayscale(1) brightness(.55)}
-.hud .hm.down .av{border-color:var(--red-edge)}
-.hud .hm-txt{flex:1;min-width:0}
-.hud .hm-top{display:flex;align-items:center;gap:6px}
-.hud .hm-top > b{flex:1;min-width:0;font-size:11px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hud .hm-top .fa-crown{font-size:8.5px;color:var(--sq-teal)}
-.hud .hm-top .mic{font-size:9px;color:var(--sq-teal);opacity:0;transition:opacity var(--fast)}
-.hud .hm-top .mic.on{opacity:1}
-.hud .hm-top .kda{font-size:9.5px;flex:0 0 auto;white-space:nowrap}
-.hud .hm-you{flex:none;font-size:8.5px;font-weight:600;letter-spacing:.04em;color:var(--sq-teal);padding:1px 5px;border-radius:3px;
-  background:var(--sq-teal-wash);border:1px solid var(--sq-teal-edge)}
-.hud .hm.self{margin-bottom:3px}
-.hud .hm-rank{flex:none;font-size:9px;font-weight:400;color:var(--ink-3);padding:1px 5px;border-radius:3px;
-  background:rgba(255,255,255,.06);white-space:nowrap}
-.hud.bars .hm-rank{background:rgba(0,0,0,.5)}
-.hud .hm.down .hm-top .kda{display:none}
-.hud .hm-bars{display:flex;flex-direction:column;gap:3px;margin-top:5px}
-.hb{height:4px;background:rgba(255,255,255,.07);border-radius:1px;overflow:hidden}
-.hb i{display:block;height:100%;background:var(--hud-health);transition:width 280ms ease}
-.ha{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
-.ha span{height:3px;background:rgba(255,255,255,.07);border-radius:1px;overflow:hidden}
-.ha span i{display:block;height:100%;background:var(--hud-armor);transition:width 280ms ease}
-.hud .hm.down{border-left-color:var(--red)}
-.hud .hm.down .hb i{background:var(--red)}
-.hud .hm .down-tag{display:none;font-size:9px;font-weight:600;color:var(--red);padding:1px 6px;border-radius:999px;border:1px solid var(--red-edge);background:var(--red-wash)}
-.hud .hm.down .down-tag{display:inline-block}
-.hud.min .hm{padding:5px 8px;gap:7px}
-.hud.min .hm .av{width:22px;height:22px;font-size:8px}
-.hud.min .ha{display:none}
-.hud.min .hm-bars{margin-top:3px}
-.hud.min .hb{height:3px}
+.hud *{box-sizing:border-box}
 .hud-more{font-size:10px;color:var(--ink-3);text-align:right;padding-right:2px}
 
+/* ─── shared parts ─── */
+.hud .hm{position:relative;display:flex;align-items:center;gap:10px;min-width:0;
+  transition:opacity .2s,filter .2s,background .2s,border-color .2s}
+.hud .hm-fire{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,transparent 30%,rgba(255,150,40,.16) 75%,rgba(255,176,58,.32));}
+.hud .hm-pic{position:relative;flex:none;display:grid;place-items:center}
+.hud .av{position:relative;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;overflow:hidden;
+  background:#15181a;border:1px solid var(--line);font-size:11px;font-weight:700;color:var(--ink-2);letter-spacing:.02em;
+  transition:box-shadow .2s,border-color .2s,filter .2s}
+.hud .av img{width:100%;height:100%;object-fit:cover;display:block}
+.hud .hm-ring{display:none}
+.hud .hm-pic > .hm-eq{display:none}
+.hud .hm-body{flex:1;min-width:0}
+.hud .hm-top{display:flex;align-items:center;gap:6px;min-width:0;height:16px}
+.hud .hm-name{flex:0 1 auto;min-width:46px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud .hm-crown{flex:none;width:11px;height:11px;color:var(--amber)}
+.hud .hm-you{flex:none;font-size:8.5px;font-weight:700;letter-spacing:.08em;color:var(--teal);padding:1px 5px;border-radius:4px;background:var(--teal-wash)}
+.hud .hm-rank{flex:none;font-size:9px;color:var(--ink-2);padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.06);white-space:nowrap}
+.hud .hm-kda{flex:none;display:inline-flex;gap:2px;font-size:9.5px;font-weight:700;white-space:nowrap}
+.hud .hm-kda b:first-child{color:var(--teal)}.hud .hm-kda b:last-child{color:var(--red)}
+.hud .hm-kda s{text-decoration:none;color:var(--ink-3);font-weight:400}
+.hud .hm-voice,.hud .hm-shots,.hud .hm-down{display:none;flex:none;align-items:center;gap:3px;height:15px;padding:0 5px;border-radius:5px;font-size:9px;font-weight:700}
+.hud .hm-voice{color:var(--teal);background:var(--teal-wash)}
+.hud .hm-voice svg,.hud .hm-shots svg{width:10px;height:10px}
+.hud .hm-shots{color:var(--fire);background:rgba(255,150,40,.14);padding:0 4px}
+.hud .hm-shots em{display:none}
+.hud .hm-voice{padding:0 4px}
+.hud .hm:not(.radio) .hm-voice > svg{display:none}
+.hud .hm-down{color:var(--red);background:rgba(229,72,77,.14);letter-spacing:.06em;font-size:8.5px}
+.hud .hm-pct{display:none;margin-left:auto;font-style:normal;font-size:11px;font-weight:700;color:var(--hud-health);min-width:22px;text-align:right}
+.hud .hm-top > .hm-pct:first-child{margin-left:0}
+.hud .hm-wl{display:none;font-size:9.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ─── extra styles ─── */
-/* pills */
-.hud.s-pills .hm{border-radius:999px;padding:4px 14px 4px 4px;border-left:1px solid var(--line-soft);box-shadow:inset 3px 0 0 var(--accent,var(--sq-teal)),var(--sh-1)}
-.hud.s-pills .hm .av{border-radius:50%}
-.hud.s-pills .hb{height:3px;border-radius:3px}
-.hud.s-pills .ha span{height:2px}
+/* talking: eq bars bounce while someone has their mic or radio open */
+.hud .hm-eq{display:inline-flex;align-items:flex-end;gap:1.5px;height:9px}
+.hud .hm-eq i{width:2px;height:30%;border-radius:1px;background:currentColor}
+.hud .hm.talk .hm-voice{display:inline-flex}
+.hud .hm.talk .hm-eq i{animation:hm-eq .62s ease-in-out infinite alternate}
+.hud .hm.talk .hm-eq i:nth-child(2){animation-duration:.44s;animation-delay:-.2s}
+.hud .hm.talk .hm-eq i:nth-child(3){animation-duration:.53s;animation-delay:-.35s}
+@keyframes hm-eq{0%{height:25%}100%{height:100%}}
+.hud .hm.talk .av{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-wash),0 0 12px rgba(8,175,162,.45)}
+.hud .hm.radio .hm-voice{color:#ffd166;background:rgba(255,209,102,.13)}
+.hud .hm.radio .av{border-color:#ffd166;box-shadow:0 0 0 2px rgba(255,209,102,.16),0 0 12px rgba(255,209,102,.35)}
 
-/* minimal: name and a hairline */
-.hud.s-minimal .hm{background:none;border:0;box-shadow:none;padding:2px 0;gap:0}
-.hud.s-minimal .hm .av{display:none}
-.hud.s-minimal .hm-top b{text-shadow:0 1px 3px rgba(0,0,0,.95)}
+/* bars: health with a lagging damage trail, armour in four plates */
+.hud .hm-bars{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.hud .hb{position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.hud .hb i{position:absolute;left:0;top:0;bottom:0;width:calc(var(--h) * 1%);border-radius:inherit}
+.hud .hb .g{background:rgba(229,72,77,.75);transition:width .55s ease .35s}
+.hud .hb .f{background:var(--hud-health);transition:width .22s var(--ease),background .2s}
+.hud .ha{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
+.hud .ha span{height:3px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
+.hud .ha i{display:block;height:100%;width:clamp(0%,calc((var(--a) - var(--i) * 25) * 4%),100%);background:var(--hud-armor);transition:width .25s var(--ease)}
+.hud .hm.low .hb .f{background:var(--red);animation:hm-low 1s ease-in-out infinite}
+@keyframes hm-low{50%{opacity:.45}}
+
+/* weapon picture; any source image is turned into a clean white silhouette */
+.hud .hm-gun{position:relative;flex:none;width:58px;height:22px;display:grid;place-items:center;color:#fff;transform-origin:30% 60%}
+.hud .hm-gun > *{grid-area:1/1}
+.hud .hm-gun .wsil{width:100%;height:100%;opacity:.82}
+.hud .hm-gun .wimg{max-width:100%;max-height:100%;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}
+.hud .hm-gun.img .wsil{display:none}
+.hud .hm-gun.no-w{opacity:0}
+.hud .hm-flash{position:absolute;right:-9px;top:50%;width:22px;height:22px;border-radius:50%;opacity:0;pointer-events:none;transform:translateY(-50%);
+  background:radial-gradient(circle,#fff 0 12%,#ffe2a0 22%,rgba(255,150,40,.75) 42%,rgba(255,106,43,0) 70%);mix-blend-mode:screen}
+.hud.no-gun .hm-gun,.hud.no-gun .hm-wl{display:none}
+
+/* firing: the card lights up warm and shows the shot count */
+.hud .hm.firing .hm-shots{display:inline-flex}
+.hud .hm.firing .hm-gun{color:#ffe7c2;filter:drop-shadow(0 0 4px rgba(255,150,40,.7))}
+.hud .hm.firing .hm-gun .wimg{filter:brightness(0) invert(1) sepia(.5) saturate(4) hue-rotate(-12deg)}
+
+/* down */
+.hud .hm.down .hm-down{display:inline-flex}
+.hud .hm.down .av{filter:grayscale(1) brightness(.55);border-color:rgba(229,72,77,.4)}
+.hud .hm.down .hb .f,.hud .hm.down .hb .g{background:var(--red)}
+.hud .hm.down .hm-name{color:var(--ink-2)}
+.hud .hm.down .hm-kda,.hud .hm.down .hm-voice{display:none}
+.hud .hm.down{--accent:var(--red)}
+
+/* round picture with health and armour rings (rings, heads, arena) */
+.hud .round .hm-ring,.hud.s-rings .hm-ring,.hud.s-heads .hm-ring{display:block}
+.hud .hm-ring{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible;pointer-events:none}
+.hud .hm-ring circle{fill:none;stroke-linecap:round}
+.hud .hm-ring .tr{stroke:rgba(255,255,255,.12);stroke-width:3}
+.hud .hm-ring .hr{stroke:var(--hud-health);stroke-width:3;stroke-dasharray:calc(var(--h) * 1px) 200px;transition:stroke-dasharray .3s var(--ease),stroke .2s}
+.hud .hm-ring .ar{stroke:var(--hud-armor);stroke-width:1.6;stroke-dasharray:calc(var(--a) * 1px) 200px;transition:stroke-dasharray .3s var(--ease)}
+.hud .hm.low .hm-ring .hr{stroke:var(--red)}
+.hud .hm.down .hm-ring .hr{stroke:var(--red);stroke-dasharray:100px 200px;opacity:.6}
+.hud .hm.firing .hm-ring .hr{stroke:var(--fire)}
+
+
+/* ═══ 1 · Classic ═══ */
+.hud.s-cards .hm{padding:8px 10px 8px 9px;border-radius:12px;background:linear-gradient(90deg,var(--panel),rgba(14,16,17,calc(var(--bg-a) * .9)));
+  border:1px solid var(--line);box-shadow:0 8px 20px rgba(0,0,0,.28);overflow:hidden}
+.hud.s-cards .hm::before{content:'';position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--accent);
+  box-shadow:0 0 10px var(--accent);transition:background .15s,box-shadow .15s}
+.hud.s-cards .hm.firing::before{background:var(--fire);box-shadow:0 0 12px var(--fire)}
+.hud.s-cards .hm.firing{border-color:rgba(255,176,58,.35)}
+.hud.s-cards .hm.self{margin-bottom:4px}
+
+/* ═══ 2 · Slim: a single line fading into the world ═══ */
+.hud.s-slim{gap:3px}
+.hud.s-slim .hm{gap:8px;padding:5px 8px 7px 6px;border-radius:8px;
+  background:linear-gradient(270deg,rgba(8,9,10,calc(var(--bg-a) * .85)) 0%,rgba(8,9,10,calc(var(--bg-a) * .55)) 60%,rgba(8,9,10,0));}
+.hud.s-slim .av{width:22px;height:22px;border-radius:6px;font-size:8px}
+.hud.s-slim .hm-name{font-size:11.5px;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.hud.s-slim .hm-pct{display:block}
+.hud.s-slim .hm-bars{position:absolute;left:36px;right:8px;bottom:3px;margin:0;gap:1px}
+.hud.s-slim .hb{height:2px;background:rgba(255,255,255,.1)}
+.hud.s-slim .ha{gap:1px}.hud.s-slim .ha span{height:1px}
+.hud.s-slim .hm-gun{width:40px;height:15px}
+.hud.s-slim .hm.firing{background:linear-gradient(270deg,rgba(60,30,6,calc(var(--bg-a) * .8)),rgba(8,9,10,calc(var(--bg-a) * .5)) 60%,rgba(8,9,10,0))}
+.hud.s-slim .hm.self .hm-name{color:var(--teal)}
+.hud.s-slim .hm-you{display:none}
+
+/* ═══ 3 · Frost: blurred glass ═══ */
+.hud.s-frost{gap:7px}
+.hud.s-frost .hm{padding:9px 12px 10px 9px;border-radius:16px;background:rgba(255,255,255,calc(var(--bg-a) * .09));
+  border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 10px 26px rgba(0,0,0,.25);
+  backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);overflow:hidden}
+.hud.s-frost .av{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.22)}
+.hud.s-frost .hm-name{font-size:12.5px;font-weight:700}
+.hud.s-frost .hb{height:6px;border-radius:6px;background:rgba(0,0,0,.28)}
+.hud.s-frost .hb .f{box-shadow:0 0 8px rgba(255,255,255,.35)}
+.hud.s-frost .ha span{height:3px;background:rgba(0,0,0,.28)}
+.hud.s-frost .hm-gun{width:58px;height:22px}
+.hud.s-frost .hm::after{content:'';position:absolute;left:-30px;top:-30px;width:80px;height:80px;border-radius:50%;
+  background:radial-gradient(circle,var(--accent),transparent 70%);opacity:.22;pointer-events:none}
+.hud.s-frost.no-accent .hm::after{display:none}
+.hud.s-frost .hm.firing{border-color:rgba(255,176,58,.45)}
+.hud.s-frost .hm.down .hm-name{color:rgba(255,255,255,.7)}
+.hud.s-frost .hm-name,.hud.s-frost .hm-wl{text-shadow:0 1px 2px rgba(0,0,0,.35)}
+
+/* ═══ 4 · Loadout: the gun gets its own panel ═══ */
+.hud.s-loadout{width:300px;gap:5px}
+.hud.s-loadout .hm{padding:0 0 0 9px;gap:9px;height:52px;border-radius:10px;background:var(--panel);border:1px solid var(--line);
+  box-shadow:0 8px 20px rgba(0,0,0,.28);overflow:hidden}
+.hud.s-loadout .hm::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.hud.s-loadout .hm.firing::before{background:var(--fire)}
+.hud.s-loadout .av{width:34px;height:34px;border-radius:8px}
+.hud.s-loadout .hm-bars{margin-top:5px}
+.hud.s-loadout .hm-gun{align-self:stretch;width:92px;height:auto;padding:6px 12px 14px;
+  background:linear-gradient(90deg,rgba(255,255,255,.015),rgba(255,255,255,.05));border-left:1px solid var(--line)}
+.hud.s-loadout .hm-gun.no-w{opacity:1}
+.hud.s-loadout .hm-gun.no-w::after{content:'UNARMED';font-size:8.5px;font-weight:700;letter-spacing:.12em;color:var(--ink-3)}
+.hud.s-loadout .hm-wl{display:block;position:absolute;right:0;bottom:5px;width:92px;text-align:center;font-size:8.5px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:0 6px}
+.hud.s-loadout .hm-flash{right:2px}
+.hud.s-loadout .hm.firing .hm-gun{background:linear-gradient(90deg,rgba(255,150,40,.04),rgba(255,150,40,.16))}
+.hud.s-loadout .hm.firing .hm-wl{color:var(--fire)}
+.hud.s-loadout .hm.self{margin-bottom:3px}
+
+/* ═══ 5 · Tactical: cut corners, segmented health ═══ */
+.hud.s-tactical{gap:5px;width:296px}
+.hud.s-tactical .hm{padding:7px 12px 8px 10px;background:linear-gradient(90deg,var(--panel),rgba(14,16,17,calc(var(--bg-a) * .75)));
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px))}
+.hud.s-tactical .hm::before{content:'';position:absolute;left:0;top:0;bottom:12px;width:3px;background:var(--accent)}
+.hud.s-tactical .hm::after{content:'';position:absolute;right:0;top:0;width:12px;height:12px;background:linear-gradient(225deg,var(--accent) 0 50%,transparent 50%);opacity:.9}
+.hud.s-tactical .hm.firing::before{background:var(--fire)}
+.hud.s-tactical .hm.firing::after{background:linear-gradient(225deg,var(--fire) 0 50%,transparent 50%)}
+.hud.s-tactical .av{width:32px;height:32px;border-radius:0;clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)}
+.hud.s-tactical .hm-name{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.hud.s-tactical .hm-pct{display:block;font-family:'Share Tech Mono',ui-monospace,monospace;font-size:12px}
+.hud.s-tactical .hm-you,.hud.s-tactical .hm-rank,.hud.s-tactical .hm-voice,.hud.s-tactical .hm-shots,.hud.s-tactical .hm-down{border-radius:0}
+.hud.s-tactical .hb{height:6px;border-radius:0;background:none;
+  -webkit-mask:repeating-linear-gradient(90deg,#000 0 calc(10% - 2px),transparent calc(10% - 2px) 10%);mask:repeating-linear-gradient(90deg,#000 0 calc(10% - 2px),transparent calc(10% - 2px) 10%)}
+.hud.s-tactical .hb::before{content:'';position:absolute;inset:0;background:rgba(255,255,255,.1)}
+.hud.s-tactical .hb i{border-radius:0}
+.hud.s-tactical .ha{gap:3px}
+.hud.s-tactical .ha span{height:4px;border-radius:0;transform:skewX(-30deg)}
+.hud.s-tactical .hm-gun{width:54px}
+
+/* ═══ 6 · Arena: big skewed bars, armour on top ═══ */
+.hud.s-arena{gap:8px}
+.hud.s-arena .hm{padding:0;gap:10px;align-items:flex-end}
+.hud.s-arena .hm-pic{width:40px;height:40px}
+.hud.s-arena .av{width:34px;height:34px;border-radius:50%;border-width:2px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.hud.s-arena .hm-name{font-size:12px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.hud.s-arena .hm-top{gap:5px}
+.hud.s-arena .hm-bars{flex-direction:column-reverse;gap:3px;margin-top:4px;padding-left:4px}
+.hud.s-arena .hb{height:8px;border-radius:2px;transform:skewX(-18deg);background:rgba(8,9,10,calc(.35 + var(--bg-a) * .45));
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.hud.s-arena .hb i{border-radius:1px}
+.hud.s-arena .ha{gap:3px}
+.hud.s-arena .ha span{height:5px;border-radius:1px;transform:skewX(-18deg);background:rgba(8,9,10,calc(.35 + var(--bg-a) * .45));box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+.hud.s-arena .hm-gun{width:52px;height:20px;margin-bottom:2px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.8))}
+.hud.s-arena .hm::before{content:'';position:absolute;left:44px;right:0;bottom:-4px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--accent),transparent);opacity:.8}
+.hud.s-arena.no-accent .hm::before{display:none}
+.hud.s-arena .hm.firing::before{background:linear-gradient(90deg,var(--fire),transparent)}
+.hud.s-arena .hm-fire{inset:-4px -6px;border-radius:10px}
+
+/* ═══ 7 · Rings: health ring around a round picture ═══ */
+.hud.s-rings{gap:7px}
+.hud.s-rings .hm{padding:0;gap:10px}
+.hud.s-rings .hm-pic{width:46px;height:46px}
+.hud.s-rings .av{width:36px;height:36px;border-radius:50%;border:0}
+.hud.s-rings .hm-name{font-size:12px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.95)}
+.hud.s-rings .hm-bars{display:none}
+.hud.s-rings .hm-you{display:none}
+.hud.s-rings .hm-wl{display:block;margin-top:3px;font-size:10px;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.hud.s-rings .hm-gun{width:54px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85))}
+.hud.s-rings .hm-fire{inset:-3px -8px;border-radius:30px;background:radial-gradient(circle at 23px 50%,rgba(255,150,40,.35),transparent 40px)}
+.hud.s-rings .hm.talk .av,.hud.s-heads .hm.talk .av{box-shadow:0 0 0 2px var(--teal)}
+.hud.s-rings .hm.radio .av,.hud.s-heads .hm.radio .av{box-shadow:0 0 0 2px #ffd166}
+
+/* ═══ 8 · Heads: a row of pictures ═══ */
+.hud.s-heads{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start;gap:10px;width:auto;max-width:360px}
+.hud.s-heads .hm{flex-direction:column;align-items:center;gap:4px;padding:0;width:58px}
+.hud.s-heads .hm-pic{width:52px;height:52px}
+.hud.s-heads .av{width:42px;height:42px;border-radius:50%;border:0;font-size:12px}
+.hud.s-heads .hm-body{width:100%}
+.hud.s-heads .hm-top{justify-content:center;height:auto}
+.hud.s-heads .hm-top > :not(.hm-name){display:none !important}
+.hud.s-heads .hm-name{font-size:10px;font-weight:600;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.95)}
+.hud.s-heads .hm-bars{display:none}
+.hud.s-heads .hm-gun{width:44px;height:15px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85))}
+.hud.s-heads .hm-pic > .hm-eq{display:flex;position:absolute;right:-1px;bottom:1px;height:16px;padding:0 4px;border-radius:8px;
+  align-items:center;color:#08090a;background:var(--teal);opacity:0;transform:scale(.6);transition:opacity .15s,transform .15s}
+.hud.s-heads .hm-pic > .hm-eq i{height:30%;max-height:8px}
+.hud.s-heads .hm.talk .hm-pic > .hm-eq{opacity:1;transform:none}
+.hud.s-heads .hm.radio .hm-pic > .hm-eq{background:#ffd166}
+.hud.s-heads .hm.down .hm-pic::after{content:'DOWN';position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);font-size:7.5px;font-weight:800;
+  letter-spacing:.08em;color:#fff;background:var(--red);padding:1px 5px;border-radius:5px}
+.hud.s-heads .hm-fire{inset:-4px;border-radius:50%;width:60px;height:60px;left:-1px;
+  background:radial-gradient(circle,rgba(255,150,40,.45),transparent 65%)}
+.hud.s-heads .hm.self{margin:0}
+
+/* ═══ 9 · Tiles: square cards in a row ═══ */
+.hud.s-tiles{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start;gap:6px;width:auto;max-width:380px}
+.hud.s-tiles .hm{flex-direction:column;align-items:stretch;gap:6px;width:86px;padding:9px 8px 8px;border-radius:12px;
+  background:var(--panel);border:1px solid var(--line);box-shadow:0 8px 20px rgba(0,0,0,.28);overflow:hidden}
+.hud.s-tiles .hm::before{content:'';position:absolute;left:12px;right:12px;top:0;height:2px;border-radius:0 0 2px 2px;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+.hud.s-tiles .hm.firing::before{background:var(--fire);box-shadow:0 0 10px var(--fire)}
+.hud.s-tiles .hm-pic{align-self:center}
+.hud.s-tiles .av{width:44px;height:44px;border-radius:12px}
+.hud.s-tiles .hm-top{justify-content:center}
+.hud.s-tiles .hm-top > :not(.hm-name):not(.hm-crown){display:none !important}
+.hud.s-tiles .hm-name{font-size:10.5px;text-align:center}
+.hud.s-tiles .hm-bars{margin-top:5px}
+.hud.s-tiles .hm-gun{order:1;align-self:center;width:62px;height:20px}
+.hud.s-tiles .hm-body{order:2}
+.hud.s-tiles .hm.down::after{content:'DOWN';position:absolute;left:50%;top:44px;transform:translateX(-50%);font-size:8px;font-weight:800;letter-spacing:.08em;
+  color:#fff;background:var(--red);padding:1px 6px;border-radius:5px}
+.hud.s-tiles .hm.talk .hm-pic::after{content:'';position:absolute;inset:-3px;border-radius:14px;border:2px solid var(--teal);animation:hm-ping 1.2s ease-out infinite}
+.hud.s-tiles .hm.radio .hm-pic::after{border-color:#ffd166}
+@keyframes hm-ping{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.18)}}
+.hud.s-tiles .hm.self{margin:0}
+
+/* ═══ 10 · Minimal: text over the world ═══ */
+.hud.s-minimal{gap:4px;width:220px}
+.hud.s-minimal .hm{padding:2px 0 3px;gap:8px}
+.hud.s-minimal .hm-pic{display:none}
+.hud.s-minimal .hm-name{font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.95)}
+.hud.s-minimal .hm-name::before{content:'';display:inline-block;width:6px;height:6px;margin:0 7px 1px 0;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
+.hud.s-minimal.no-accent .hm-name::before{display:none}
+.hud.s-minimal .hm.firing .hm-name::before{background:var(--fire);box-shadow:0 0 6px var(--fire)}
+.hud.s-minimal .hm-pct{display:block;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+.hud.s-minimal .hm-bars{margin-top:3px}
 .hud.s-minimal .hb{height:2px;background:rgba(0,0,0,.45)}
 .hud.s-minimal .ha{display:none}
-.hud.s-minimal .hm-bars{margin-top:3px}
+.hud.s-minimal .hm-gun{width:42px;height:16px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
+.hud.s-minimal .hm-you{display:none}
+.hud.s-minimal .hm-fire{inset:-2px -6px;border-radius:6px}
 
-/* rings: health ring around a round picture */
-.hud.s-rings .hm{background:none;border:0;box-shadow:none;padding:2px 0}
-.hud.s-rings .hm .av{width:40px;height:40px;border-radius:50%;padding:3px;border:0;
-  background:radial-gradient(closest-side,#15181a calc(100% - 3px),transparent calc(100% - 2.5px)),conic-gradient(var(--hud-health) calc(var(--h,100) * 1%),rgba(255,255,255,.14) 0)}
-.hud.s-rings .hm .av img{border-radius:50%}
-.hud.s-rings .hm .av.talk{box-shadow:0 0 0 2px var(--sq-teal),0 0 12px rgba(8,175,162,.6)}
-.hud.s-rings .hb{display:none}
-.hud.s-rings .hm-top b{text-shadow:0 1px 3px rgba(0,0,0,.95)}
-.hud.s-rings .hm.down .av{background:radial-gradient(closest-side,#15181a calc(100% - 3px),transparent calc(100% - 2.5px)),conic-gradient(var(--red) 100%,transparent 0)}
+/* ─── compact ─── */
+.hud.min{gap:4px}
+.hud.min .hm{gap:7px}
+.hud.min.s-cards .hm,.hud.min.s-frost .hm,.hud.min.s-tactical .hm{padding-top:5px;padding-bottom:6px}
+.hud.min .av{width:24px;height:24px;font-size:8px}
+.hud.min.s-loadout .hm{height:40px}
+.hud.min .ha{display:none}
+.hud.min .hm-bars{margin-top:4px}
+.hud.min .hb{height:3px}
+.hud.min.s-tactical .hb,.hud.min.s-arena .hb{height:5px}
+.hud.min .hm-gun{width:44px;height:16px}
+.hud.min.s-rings .hm-pic{width:36px;height:36px}.hud.min.s-rings .av{width:28px;height:28px}
+.hud.min.s-heads .hm-pic{width:40px;height:40px}.hud.min.s-heads .av{width:32px;height:32px}.hud.min.s-heads .hm{width:48px}
+.hud.min.s-tiles .hm{width:72px}.hud.min.s-tiles .av{width:34px;height:34px}
+.hud.min .hm-rank{display:none}
 
-/* tiles: a row of square cards */
-.hud.s-tiles{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;width:auto;max-width:330px}
-.hud.s-tiles .hm{flex-direction:column;align-items:center;width:74px;padding:8px 6px 7px;gap:6px;border-left:1px solid var(--line-soft);
-  border-top:2px solid var(--accent,var(--sq-teal));border-radius:10px}
-.hud.s-tiles .hm .av{width:42px;height:42px;border-radius:10px}
-.hud.s-tiles .hm-txt{width:100%}
-.hud.s-tiles .hm-top{justify-content:center}
-.hud.s-tiles .hm-top > b{flex:0 1 auto;font-size:10px;text-align:center}
-.hud.s-tiles .hm-top .kda,.hud.s-tiles .hm-rank,.hud.s-tiles .hm-you,.hud.s-tiles .fa-crown,.hud.s-tiles .mic{display:none}
-.hud.s-tiles .hm-bars{margin-top:4px}
-.hud.s-tiles .hm.self{margin-bottom:0}
-
-/* glass: the HUD's own panel look */
-.hud.s-glass .hm{padding:9px 12px;border-radius:12px;background:rgba(12,13,16,var(--glass-a,.8));border:1px solid rgba(255,255,255,.08);
-  border-left:3px solid var(--accent,var(--sq-teal));box-shadow:0 8px 22px rgba(0,0,0,.3),-6px 0 14px -8px var(--accent,var(--sq-teal))}
-.hud.s-glass .hm .av{width:36px;height:36px;border-radius:10px}
-.hud.s-glass .hm-top > b{font-size:12px;font-weight:700}
-.hud.s-glass .hb{height:5px;border-radius:3px}
-
-/* stripe: one line with the health number */
-.hud.s-stripe .hm{padding:5px 10px;gap:8px;border-radius:6px}
-.hud.s-stripe .hm .av{width:22px;height:22px;font-size:8px;border-radius:5px}
-.hud.s-stripe .hm-bars{display:none}
-.hud.s-stripe .hm-pct{display:inline-block}
-.hud.s-stripe .hm.down .hm-pct{color:var(--red)}
-
-/* heads: just pictures in a row, ring shows health */
-.hud.s-heads{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;gap:8px;width:auto;max-width:330px}
-.hud.s-heads .hm{background:none;border:0;box-shadow:none;padding:0}
-.hud.s-heads .hm-txt{display:none}
-.hud.s-heads .hm .av{width:44px;height:44px;border-radius:50%;padding:3px;border:0;
-  background:radial-gradient(closest-side,#15181a calc(100% - 3px),transparent calc(100% - 2.5px)),conic-gradient(var(--hud-health) calc(var(--h,100) * 1%),rgba(255,255,255,.14) 0)}
-.hud.s-heads .hm .av img{border-radius:50%}
-.hud.s-heads .hm.down .av{background:radial-gradient(closest-side,#15181a calc(100% - 3px),transparent calc(100% - 2.5px)),conic-gradient(var(--red) 100%,transparent 0)}
-.hud.s-heads .hm .av.talk{box-shadow:0 0 0 2px var(--sq-teal),0 0 12px rgba(8,175,162,.6)}
-.hud.s-heads .hm.self{margin-bottom:0}
+/* ─── no accent ─── */
+.hud.no-accent.s-cards .hm::before,.hud.no-accent.s-loadout .hm::before,.hud.no-accent.s-tactical .hm::before,
+.hud.no-accent.s-tactical .hm::after,.hud.no-accent.s-tiles .hm::before{display:none}
+.hud.no-accent .hm.firing::before{display:block}

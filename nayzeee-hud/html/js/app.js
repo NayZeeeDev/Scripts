@@ -120,7 +120,71 @@
     for (const id in W) if (W[id].apply) W[id].apply();
     renderAll();
     if (NH.syncSquadsSettings) NH.syncSquadsSettings();
+    teamProxy();
   };
+
+  // ---------------- Team HUD in Edit layout ----------------
+  // A stand-in for the squads team HUD, so it moves and resizes with the rest of the layout and saves with it.
+  let proxy = null, pdrag = null;
+  const placeTeam = (el, pos) => {
+    const set = pos && typeof pos.x === 'number';
+    Object.assign(el.style, set
+      ? { left: `${pos.x}%`, top: `${pos.y}%`, right: 'auto', bottom: 'auto', transformOrigin: 'top left' }
+      : { left: '', top: '', right: '', bottom: '', transformOrigin: '' });
+  };
+  function teamProxy() {
+    const d = NH.cfg.squadsData, st = NH.cur.squads;
+    const show = NH.editing && window.TeamHud && d && st && st.hud !== false && (d.features || {}).Hud !== false;
+    if (!show) { if (proxy) { proxy.remove(); proxy = null; } return; }
+    if (pdrag) return;
+    const el = TeamHud.preview(st.hudStyle, { ...st, imgTpl: NH.cfg.weaponImages });
+    el.classList.remove('tpv');
+    el.id = 'teamProxy';
+    el.dataset.label = 'Team HUD';
+    placeTeam(el, st.hudPos);
+    if (proxy) proxy.replaceWith(el); else document.body.appendChild(el);
+    proxy = el;
+  }
+  document.addEventListener('pointerdown', (e) => {
+    const el = NH.editing && e.target.closest('#teamProxy');
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    pdrag = { dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width, h: r.height };
+    el.classList.add('dragging');
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+  document.addEventListener('pointermove', (e) => {
+    if (!pdrag || !proxy) return;
+    const x = Math.max(0, Math.min(window.innerWidth - pdrag.w, e.clientX - pdrag.dx));
+    const y = Math.max(0, Math.min(window.innerHeight - pdrag.h, e.clientY - pdrag.dy));
+    placeTeam(proxy, { x: x / window.innerWidth * 100, y: y / window.innerHeight * 100 });
+  });
+  document.addEventListener('pointerup', () => {
+    if (!pdrag || !proxy) return;
+    pdrag = null;
+    proxy.classList.remove('dragging');
+    const r = proxy.getBoundingClientRect();
+    NH.cur.squads.hudPos = { x: +(r.left / window.innerWidth * 100).toFixed(2), y: +(r.top / window.innerHeight * 100).toFixed(2) };
+    NH.syncSquadsSettings();
+    NH.settingsUI?.markDirty();
+  });
+  document.addEventListener('wheel', (e) => {
+    if (!NH.editing || !e.target.closest('#teamProxy')) return;
+    const st = NH.cur.squads;
+    st.hudScale = Math.max(70, Math.min(130, (st.hudScale || 100) + (e.deltaY < 0 ? 5 : -5)));
+    TeamHud.applyVars(proxy, st);
+    NH.syncSquadsSettings();
+    NH.settingsUI?.markDirty();
+    NH.toast?.(`Team HUD: ${st.hudScale}%`);
+  }, { passive: true });
+  document.addEventListener('contextmenu', (e) => {
+    if (!NH.editing || !e.target.closest('#teamProxy')) return;
+    e.preventDefault();
+    NH.cur.squads.hudPos = false;
+    NH.applySettings();
+    NH.settingsUI?.markDirty();
+  });
 
   function renderMode() {
     const S = NH.S;
@@ -185,12 +249,6 @@
   window.addEventListener('message', (e) => {
     const m = e.data;
     if (!m) return;
-    if (m.nhud === 'hudMoveDone' && sqFrame && e.source === sqFrame.contentWindow) {
-      for (const o of [NH.saved, NH.cur]) if (o.squads) o.squads.hudPos = m.hudPos;
-      sqFocus(false);
-      NH.settingsUI.moveDone();
-      return;
-    }
     if (!m.t) { // squads messages use { action, data }
       if (m.action && sqFrame && e.source !== sqFrame.contentWindow) sqFrame.contentWindow.postMessage(m, '*');
       return;

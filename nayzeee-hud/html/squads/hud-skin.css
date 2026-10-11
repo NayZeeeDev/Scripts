@@ -86,6 +86,4 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--t
 /* ─── overlays on the game screen: HUD panels ─── */
 .toast,.feed-row,.ready,.match,.picker-card,.hud-edit,.revive-prompt{border-radius:var(--r-md);background:rgba(12,13,16,.92)}
 .toast{border-left-width:3px}
-.hud .hm{border-radius:10px;background:var(--hud-bg,rgba(12,13,16,.78));border-color:rgba(255,255,255,.08)}
-.hud .hm-top > b{font-weight:600}
 .wheel-core{background:rgba(12,13,16,.95)}

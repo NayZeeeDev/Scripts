@@ -13,7 +13,7 @@
     if (!NH.cfg.squadsData) { // sample squads data so the Squads settings tab shows in the browser preview
       NH.setSquadsData({
         defaults: { hud: true, hudMinimized: false, hudTalking: true, hudMax: 0, hudHealth: '#ffffff', hudArmor: '#58a6ff', hudPos: false, hudKda: false,
-          hudAvatars: true, hudRank: false, hudArmorBar: true, hudAccent: 'squad', hudStyle: 'cards', hudScale: 100, hudOpacity: 86, hudShowSelf: true,
+          hudAvatars: true, hudRank: false, hudArmorBar: true, hudAccent: 'squad', hudStyle: 'cards', hudScale: 100, hudOpacity: 86, hudShowSelf: true, hudWeapon: true, hudShots: true,
           animatedAvatars: true, tags: true, tagColor: 18, tagName: true, tagSquadTag: true, tagRole: true, tagHealth: true, tagAllies: true,
           blips: true, blipUseSquad: true, blipColor: 2, blipAllies: true, chatNotify: true, chatSound: true, pingNotify: true, pingSound: true,
           reviveAlerts: true, killfeed: true, matchBanner: true, radio: true },
