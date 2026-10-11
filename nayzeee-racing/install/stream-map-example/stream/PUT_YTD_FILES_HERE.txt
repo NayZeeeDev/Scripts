@@ -1,0 +1,5 @@
+Drop your map files here, for example:
+  minimap_sea_0_0.ytd   minimap_sea_0_1.ytd
+  minimap_sea_1_0.ytd   minimap_sea_1_1.ytd
+  minimap_sea_2_0.ytd   minimap_sea_2_1.ytd
+  (+ any minimap_*.ydd / minimap_*.ytd files that came with the map)
