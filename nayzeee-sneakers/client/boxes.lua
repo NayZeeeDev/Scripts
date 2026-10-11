@@ -211,6 +211,9 @@ end
 local targetBox   -- set further down, once the box options exist
 
 local function addBox(base)
+    -- real boxes are networked; the see-through preview while placing (and the studio's box) use the
+    -- same models but aren't boxes
+    if not NetworkGetEntityIsNetworked(base) then return end
     local t = typeOf(base)
     local boxType, colour = Shared.BoxTypeOfModel(GetEntityModel(base))
     local _, lidModel = Shared.BoxModels(boxType, colour)

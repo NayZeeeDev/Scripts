@@ -279,7 +279,21 @@ local function removeCase(base)
     cases[base] = nil
 end
 
+--- The third-eye box around a case, where the case is now
+local function zoneFor(base, c)
+    local t = c.t
+    local h = t.size.z
+    local centre = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, h * 0.5)
+    -- a box around the case. Neighbours' boxes can touch; the options check which case the aim is
+    -- on (going), so only that one answers.
+    Target.AddBox(base, centre, vector3(t.size.x + 0.04, t.size.y + 0.04, h + 0.04), GetEntityHeading(base), options, D.interactDistance)
+    c.zoneAt = GetEntityCoords(base)
+end
+
 local function addCase(base)
+    -- real cases are networked; the see-through preview while placing uses the same model but isn't
+    -- one, and must not get a door, a zone or be stacked onto
+    if not NetworkGetEntityIsNetworked(base) then return end
     local _, t = typeOfModel(GetEntityModel(base))
     if not t or cases[base] or not DoesEntityExist(base) or not LoadModel(t.door) then return end
     local p = GetEntityCoords(base)
@@ -291,11 +305,7 @@ local function addCase(base)
     cases[base] = { t = t, door = door, angle = angle, to = angle }
     attachDoor(base, cases[base])
     syncShoe(base, false)
-    -- a box around the case. Neighbours' boxes can touch; the options check which case the aim is
-    -- on (going), so only that one answers.
-    local h = t.size.z
-    local centre = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, h * 0.5)
-    Target.AddBox(base, centre, vector3(t.size.x + 0.04, t.size.y + 0.04, h + 0.04), GetEntityHeading(base), options, D.interactDistance)
+    zoneFor(base, cases[base])
 end
 
 CreateThread(function()
@@ -309,6 +319,9 @@ CreateThread(function()
         for base, c in pairs(cases) do
             if not DoesEntityExist(base) or #(GetEntityCoords(base) - me) > D.streamDistance + 5.0 then
                 removeCase(base)
+            elseif c.zoneAt and #(GetEntityCoords(base) - c.zoneAt) > 0.02 then
+                -- the case moved (the server settles a case that physics nudged): its zone goes with it
+                zoneFor(base, c)
             elseif not c.start then
                 syncShoe(base, false)
             end

@@ -401,14 +401,14 @@ function renderShop() {
   $('stGrid').innerHTML = tabItems(SH.tab).map(it => {
     const qty = SH.cart[it.name] || 0;
     const lock = sh.level < it.level;
-    return `<button class="st-card${lock ? ' locked' : ''}${qty ? ' in' : ''}" data-name="${esc(it.name)}" ${lock ? 'disabled' : ''}>
+    return `<div class="st-card${lock ? ' locked' : ''}${qty ? ' in' : ''}" data-name="${esc(it.name)}" role="button">
       <span class="st-img"><img src="${img(it.name)}" alt=""></span>
       ${lock ? `<span class="st-lock">${icon('lock')}Level ${it.level}</span>` : ''}
       ${qty ? `<span class="st-qty">${qty}</span>` : ''}
       <b>${esc(it.label)}</b>
       <p>${esc(it.description || '')}</p>
-      <span class="st-foot"><span class="st-price">${money(it.price)}</span><span class="st-add">${icon('plus')}</span></span>
-    </button>`;
+      <div class="st-foot"><span class="st-price">${money(it.price)}</span><span class="st-add">${icon('plus')}</span></div>
+    </div>`;
   }).join('');
 
   $('stAcct').innerHTML = sh.accounts.map(a =>
@@ -437,7 +437,7 @@ $('stTabs').addEventListener('click', e => {
 });
 $('stGrid').addEventListener('click', e => {
   const b = e.target.closest('.st-card');
-  if (b && !b.disabled) addToCart(b.dataset.name, e.shiftKey ? 5 : 1);
+  if (b && !b.classList.contains('locked')) addToCart(b.dataset.name, e.shiftKey ? 5 : 1);
 });
 $('stLines').addEventListener('click', e => {
   const b = e.target.closest('.stepper button');

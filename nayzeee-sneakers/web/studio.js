@@ -21,7 +21,7 @@ Object.assign(PATHS, {
 
 const SD = {
   on: false, data: null, entries: {}, list: [], key: null, letter: 'a', subject: 'loose', mode: 'none',
-  chroma: 'green', orbit: { yaw: 215, elev: 24, zoom: 1, lift: 0 }, batch: null, screenshot: true,
+  chroma: 'green', orbit: { yaw: 340, elev: 33, zoom: 1, lift: 0 }, batch: null, screenshot: true,
   size: 256, search: '', gender: 'all', filter: 'all', source: 'packs', shots: new Set(), thumbs: {}, recent: [],
   kit: null, kitRun: null, confirm: false, edit: null, saveToInventory: true, version: '1.0.0',
   opts: { colours: false, loose: true, box: false, missing: true },
@@ -303,7 +303,7 @@ function sdRight() {
         <div class="seg sd-seg">${[['loose', 'The pair'], ['box', 'In its box']].map(([k, l]) =>
           `<button class="${SD.subject === k ? 'on' : ''}" data-sd="subject" data-v="${k}" ${busy || SD.mode === 'feet' ? 'disabled' : ''}>${l}</button>`).join('')}</div>
         <div class="sd-chips">
-          ${chip(`data-sd="angle" data-yaw="215" data-elev="24" ${SD.standard ? 'disabled' : ''}`, 'Three quarter', sdNear(215, 24))}
+          ${chip(`data-sd="angle" data-yaw="340" data-elev="33" ${SD.standard ? 'disabled' : ''}`, 'Three quarter', sdNear(340, 33))}
           ${chip(`data-sd="angle" data-yaw="270" data-elev="6" ${SD.standard ? 'disabled' : ''}`, 'Side', sdNear(270, 6))}
           ${chip(`data-sd="angle" data-yaw="180" data-elev="10" ${SD.standard ? 'disabled' : ''}`, 'Front', sdNear(180, 10))}
           ${chip(`data-sd="angle" data-yaw="235" data-elev="55" ${SD.standard ? 'disabled' : ''}`, 'High', sdNear(235, 55))}
