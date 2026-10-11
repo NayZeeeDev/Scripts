@@ -22,18 +22,52 @@ function U.Model(hash)
     return pcall(lib.requestModel, hash, 8000)
 end
 
+-- Anim dicts stay loaded while the selection is open (unloading right after TaskPlayAnim
+-- lets the game evict the dict before the task starts, so the pose silently never plays)
+local dicts, poseSeq = {}, {}
+
+local function playing(ped, def)
+    if def.scenario then return IsPedUsingScenario(ped, def.scenario) or IsPedActiveInScenario(ped) end
+    return IsEntityPlayingAnim(ped, def.dict, def.clip, 3)
+end
+
+local function start(ped, def)
+    ClearPedTasksImmediately(ped)
+    if def.scenario then
+        TaskStartScenarioInPlace(ped, def.scenario, 0, false)
+    else
+        TaskPlayAnim(ped, def.dict, def.clip, 8.0, -8.0, -1, def.flag or 1, 0.0, false, false, false)
+    end
+end
+
 -- Plays an anim or scenario definition on a ped. def = { dict, clip, flag } | { scenario }
 function U.Pose(ped, def)
     if not def or not DoesEntityExist(ped) then return end
-    ClearPedTasksImmediately(ped)
-    if def.scenario then
-        TaskStartScenarioInPlace(ped, def.scenario, 0, true)
-    elseif def.dict and def.clip then
-        if pcall(lib.requestAnimDict, def.dict, 5000) then
-            TaskPlayAnim(ped, def.dict, def.clip, 8.0, -8.0, -1, def.flag or 1, 0.0, false, false, false)
-            RemoveAnimDict(def.dict)
+    if not def.scenario then
+        if not (def.dict and def.clip) then return end
+        if not dicts[def.dict] then
+            if not pcall(lib.requestAnimDict, def.dict, 5000) then return end
+            dicts[def.dict] = true
         end
     end
+    local my = (poseSeq[ped] or 0) + 1
+    poseSeq[ped] = my
+    start(ped, def)
+    -- Freshly created / just-cleared peds sometimes drop the first task: verify and retry
+    CreateThread(function()
+        for _ = 1, 5 do
+            Wait(120)
+            if poseSeq[ped] ~= my or not DoesEntityExist(ped) then return end
+            if playing(ped, def) then return end
+            start(ped, def)
+        end
+    end)
+end
+
+-- Selection closed: let the game unload every pose dict again
+function U.ReleasePoses()
+    for dict in pairs(dicts) do RemoveAnimDict(dict) end
+    dicts, poseSeq = {}, {}
 end
 
 function U.PoseById(id)
@@ -62,6 +96,7 @@ function U.PreviewPed(model, coords)
 end
 
 function U.Delete(ent)
+    if ent then poseSeq[ent] = nil end
     if ent and DoesEntityExist(ent) then
         SetEntityAsMissionEntity(ent, true, true)
         DeleteEntity(ent)

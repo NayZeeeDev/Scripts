@@ -19,6 +19,9 @@
         coords    vec4 (entity coords + heading, as printed by /mc_coords)
         anim      { dict, clip, flag } or { scenario } - default pose for this spot
         lockPose  true = keep this anim even if the player picked another pose (seated spots etc.)
+        ground    false = never snap this spot to the floor (Config.Scene.snapToGround). Seated (lockPose) spots
+                  keep their own height unless they are clearly sunk; set ground = true to always snap them.
+        groundOffset  optional height tweak after snapping, e.g. 0.05
         camera    optional focus camera override { coords, pointAt, fov }. Leave out to auto-frame the ped.
     props     { model, coords = vec4 }
     vehicles  { model, coords = vec4, color = {primary, secondary}, lights = true, doors = { 0, 1 } (open doors) }

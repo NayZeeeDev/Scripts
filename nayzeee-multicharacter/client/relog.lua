@@ -6,6 +6,23 @@ if not cfg.points or #cfg.points == 0 then return end
 
 local function relog() TriggerServerEvent('nzm:server:relog') end
 
+local inside = 0
+local key
+if cfg.interact ~= 'target' or GetResourceState('ox_target') == 'missing' then
+    key = lib.addKeybind({
+        name = 'nzm_relog',
+        description = NZ.T('relog_target'),
+        defaultKey = 'E',
+        disabled = true,
+        onReleased = function()
+            if inside == 0 or Main.open then return end
+            lib.hideTextUI()
+            relog()
+        end,
+    })
+    key:disable(true)
+end
+
 CreateThread(function()
     for i, p in ipairs(cfg.points) do
         if p.blip then
@@ -25,18 +42,18 @@ CreateThread(function()
                 options = { { name = 'nzm_relog_' .. i, icon = 'fa-solid fa-people-arrows', label = p.label or NZ.T('relog_target'), onSelect = relog } },
             })
         else
-            local shown = false
+            -- Enter/exit only: no per-frame "nearby" loop. E is a key mapping that is disabled away from the point.
             lib.points.new({
                 coords = p.coords,
                 distance = cfg.distance,
-                onEnter = function() shown = true lib.showTextUI(NZ.T('relog_prompt'), { icon = 'people-arrows' }) end,
-                onExit = function() if shown then lib.hideTextUI() shown = false end end,
-                nearby = function()
-                    if IsControlJustReleased(0, 38) and not Main.open then
-                        lib.hideTextUI()
-                        shown = false
-                        relog()
-                    end
+                onEnter = function()
+                    inside = inside + 1
+                    key:disable(false)
+                    lib.showTextUI(NZ.T('relog_prompt'), { icon = 'people-arrows' })
+                end,
+                onExit = function()
+                    inside = math.max(inside - 1, 0)
+                    if inside == 0 then key:disable(true) lib.hideTextUI() end
                 end,
             })
         end

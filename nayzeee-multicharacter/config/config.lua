@@ -217,6 +217,8 @@ Config.Scene = {
     ghostAlpha  = 110,           -- 0-255
     lockedAlpha = 45,
     distance    = { close = 1.55, normal = 2.1, far = 2.9 },   -- focus shot distance per Settings choice
+    snapToGround = true,         -- stand every lineup ped on the real floor (fixes peds sunk into / floating over the ground)
+    footHeight  = 1.0,           -- ped root height above the floor; nudge (e.g. 0.98 / 1.02) only if feet clip or float
 }
 
 -- Poses players can pick per character (Pose button). Positions with lockPose = true keep their scene animation.

@@ -1,6 +1,6 @@
 if not NAYZEEE_LOCK_OK then return end
 
-Scene = { def = nil, peds = {}, entities = {}, page = 0, partner = nil, shots = {}, shotUrl = {} }
+Scene = { def = nil, peds = {}, entities = {}, page = 0, partner = nil, shots = {}, shotUrl = {}, ground = {}, interior = 0 }
 
 local S = Config.Scene
 
@@ -12,6 +12,43 @@ function Scene.Pick()
     if S.pick == 'first' then return Config.Scenes[1] end
     if byId[S.pick] then return byId[S.pick] end
     return Config.Scenes[math.random(1, #Config.Scenes)]
+end
+
+-- ── ground snapping ──────────────────────────────────────────────────────
+-- Ped coords are the root (≈ hips), which sits S.footHeight above the surface the feet stand on.
+-- Positions captured at floor level (or slightly off) would otherwise leave peds half in the ground.
+local WORLD, WORLD_OBJECTS = 1, 1 | 16
+
+local function probe(x, y, from, to, flags)
+    local h = StartExpensiveSynchronousShapeTestLosProbe(x, y, from, x, y, to, flags, PlayerPedId(), 7)
+    local _, hit, at = GetShapeTestResult(h)
+    if hit == true or hit == 1 then return at.z end
+end
+
+-- Top surface under x,y near z (nil when nothing solid was found)
+local function surfaceZ(x, y, z, flags)
+    local found = probe(x, y, z + 1.2, z - 3.0, flags) or probe(x, y, z + 4.0, z - 3.0, flags)
+    if found then return found end
+    local ok, gz = GetGroundZFor_3dCoord(x, y, z + 1.2, false)
+    if ok and gz > z - 3.0 then return gz end
+end
+
+-- Where a position's ped really goes. Cached per scene build.
+local function grounded(pos)
+    local cached = Scene.ground[pos]
+    if cached then return cached end
+    local c = pos.coords
+    local out = vec4(c.x, c.y, c.z, c.w or 0.0)
+    if S.snapToGround ~= false and pos.ground ~= false then
+        -- Seated / scripted spots (lockPose) keep their hand-tuned height unless they are clearly sunk
+        local seated = pos.lockPose and pos.ground ~= true
+        local floor = surfaceZ(c.x, c.y, c.z, seated and WORLD or WORLD_OBJECTS)
+        if floor and not (seated and c.z - floor > 0.5) then
+            out = vec4(c.x, c.y, floor + (S.footHeight or 1.0) + (pos.groundOffset or 0.0), c.w or 0.0)
+        end
+    end
+    Scene.ground[pos] = out
+    return out
 end
 
 function Scene.Weather()
@@ -51,7 +88,25 @@ function Scene.Build(def)
     local deadline = GetGameTimer() + 6000
     while not IsNewLoadSceneLoaded() and GetGameTimer() < deadline do Wait(50) end
     NewLoadSceneStop()
-    RequestCollisionAtCoord(a.x, a.y, a.z)
+
+    -- Interiors (penthouses, MLOs) must be fully streamed before peds are placed or they drop through the floor
+    local interior = GetInteriorAtCoords(a.x, a.y, a.z)
+    Scene.interior = interior
+    if interior ~= 0 then
+        PinInteriorInMemory(interior)
+        deadline = GetGameTimer() + 5000
+        while not IsInteriorReady(interior) and GetGameTimer() < deadline do Wait(50) end
+    end
+
+    -- Collision under every position, so ground snapping and vehicles find the floor
+    deadline = GetGameTimer() + 5000
+    repeat
+        RequestCollisionAtCoord(a.x, a.y, a.z)
+        for _, p in ipairs(def.positions) do RequestCollisionAtCoord(p.coords.x, p.coords.y, p.coords.z) end
+        Wait(50)
+    until HasCollisionLoadedAroundEntity(ped) or GetGameTimer() > deadline
+    Wait(150)
+    Scene.ground = {}
 
     Scene.Weather()
     Scene.Filter()
@@ -108,14 +163,15 @@ function Scene.Page(page, chars, total, shown)
         local slot = (page - 1) * n + i
         if slot > shown then break end
         local pos = positions[i]
+        local at = grounded(pos)
         local char = chars[slot]
         local ped
         if char then
-            ped = U.PreviewPed(Appearance.Model(char.model, char.gender), pos.coords)
+            ped = U.PreviewPed(Appearance.Model(char.model, char.gender), at)
             Appearance.ApplyPed(ped, char.skin)
             if char.locked or char.disabled then SetEntityAlpha(ped, 170, false) end
         elseif S.ghostEmpty then
-            ped = U.PreviewPed(slot % 2 == 0 and `mp_f_freemode_01` or `mp_m_freemode_01`, pos.coords)
+            ped = U.PreviewPed(slot % 2 == 0 and `mp_f_freemode_01` or `mp_m_freemode_01`, at)
             SetPedHeadBlendData(ped, 21, 0, 0, 21, 0, 0, 0.5, 0.5, 0.0, false)
             SetEntityAlpha(ped, slot > total and S.lockedAlpha or S.ghostAlpha, false)
         end
@@ -135,7 +191,12 @@ function Scene.Partner(slot)
     local o = Config.Partner.offset
     local at = GetOffsetFromEntityInWorldCoords(entry.ped, o.x, o.y, o.z)
     local h = GetEntityHeading(entry.ped)
-    local ped = U.PreviewPed(Appearance.Model(p.model, p.gender), vec4(at.x, at.y, at.z, h))
+    local z = at.z
+    if S.snapToGround ~= false then
+        local floor = surfaceZ(at.x, at.y, at.z, WORLD_OBJECTS)
+        if floor then z = floor + (S.footHeight or 1.0) + o.z end
+    end
+    local ped = U.PreviewPed(Appearance.Model(p.model, p.gender), vec4(at.x, at.y, z, h))
     Appearance.ApplyPed(ped, p.skin)
     U.Pose(ped, Config.Partner.poses[p.type] or Config.Partner.poses.friend)
     Scene.partner = { ped = ped, slot = slot }
@@ -153,7 +214,7 @@ function Scene.CreatorPed(slot, gender)
     local e = Scene.peds[slot]
     if not e then return nil end
     U.Delete(e.ped)
-    local ped = U.PreviewPed(gender == 'f' and `mp_f_freemode_01` or `mp_m_freemode_01`, e.pos.coords)
+    local ped = U.PreviewPed(gender == 'f' and `mp_f_freemode_01` or `mp_m_freemode_01`, grounded(e.pos))
     SetPedHeadBlendData(ped, gender == 'f' and 21 or 0, gender == 'f' and 21 or 0, 0, gender == 'f' and 21 or 0, gender == 'f' and 21 or 0, 0, 0.5, 0.5, 0.0, false)
     for c = 0, 11 do if c ~= 2 then SetPedComponentVariation(ped, c, 0, 0, 0) end end
     U.Pose(ped, e.pos.lockPose and e.pos.anim or (U.PoseById('relaxed') or e.pos.anim))
@@ -206,7 +267,9 @@ function Scene.Teardown()
     Scene.entities = {}
     for _, h in ipairs(Scene.shots) do UnregisterPedheadshot(h) end
     Scene.shots, Scene.shotUrl = {}, {}
+    U.ReleasePoses()
+    if Scene.interior ~= 0 then UnpinInterior(Scene.interior) end
     ClearTimecycleModifier()
     ClearFocus()
-    Scene.def, Scene.page = nil, 0
+    Scene.def, Scene.page, Scene.ground, Scene.interior = nil, 0, {}, 0
 end

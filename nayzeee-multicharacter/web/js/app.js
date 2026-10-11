@@ -166,6 +166,7 @@ function setView(v) {
   $('#shop').classList.toggle('on', v === 'shop');
   $('#plates').hidden = !sel;
   if (v !== 'select') closeModal();
+  applyBars();
   renderKeys();
 }
 
@@ -635,8 +636,13 @@ function saveSettings(now) {
   const go = async () => { const r = await post('settings', { settings: st.settings }); if (r && typeof r === 'object') st.settings = r; };
   if (now) go(); else saveT = setTimeout(go, 250);
 }
+// Letterbox bars only while our own cameras are on screen (never over the editor, shop or the game)
+function applyBars() {
+  const cine = st.view === 'select' || st.view === 'create' || st.view === 'spawn';
+  $('#bars').classList.toggle('on', !!st.settings?.bars && cine);
+}
 function applyLocalSettings() {
-  $('#bars').classList.toggle('on', !!st.settings.bars);
+  applyBars();
   fit();
 }
 

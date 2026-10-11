@@ -21,7 +21,7 @@ local function groundAt(c)
     end
     local found, z = GetGroundZFor_3dCoord(c.x, c.y, c.z + 2.0, false)
     if found and math.abs(z - c.z) < 5.0 then
-        SetEntityCoordsNoOffset(ped, c.x, c.y, z + 0.02, false, false, false)
+        SetEntityCoordsNoOffset(ped, c.x, c.y, z + (Config.Scene.footHeight or 1.0), false, false, false)
     end
 end
 
