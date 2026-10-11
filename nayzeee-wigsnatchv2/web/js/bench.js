@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   WIG SNATCH V2 · wig table + supplier side window
+   WIG SNATCH V2 · wig table side window + supplier store
    the same window, order and HUD as the nayzeee-sneakers shoe table
    ═══════════════════════════════════════════════════════════ */
 'use strict';
@@ -26,6 +26,8 @@
     bundle: '<path d="M7 3c-1 6 0 12 2 18M12 3v18M17 3c1 6 0 12-2 18"/><path d="M6.5 7.5h11"/>',
     drop: '<path d="M12 3.5c3.5 4.4 6 7.6 6 10.6a6 6 0 0 1-12 0c0-3 2.5-6.2 6-10.6z"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
+    layers: '<path d="M12 3.5 3 8l9 4.5L21 8z"/><path d="M3 12.5 12 17l9-4.5M3 16.5 12 21l9-4.5"/>',
+    grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
     box: '<path d="M3.5 7.5 12 3.5l8.5 4v9L12 20.5l-8.5-4z"/><path d="M3.5 7.5 12 11.5l8.5-4M12 11.5v9"/>',
   };
   const icon = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${PATHS[n] || PATHS.chevron}</svg>`;
@@ -65,7 +67,6 @@
     el('skSub').textContent = sub;
     el('skBench').hidden = kind !== 'bench' && kind !== 'dye';
     el('skBench').classList.toggle('solo', kind === 'dye');
-    el('skShop').hidden = kind !== 'shop';
     el('skSide').hidden = false;
     document.body.classList.add('side-open');
   }
@@ -73,6 +74,7 @@
     side = null;
     showGuide(false);
     el('skSide').hidden = true;
+    el('skStore').hidden = true;
     document.body.classList.remove('side-open');
   }
   function closeSide() {
@@ -513,52 +515,94 @@
     }
   }
 
-  /* ---------------- supplier ---------------- */
-  const SH = { shop: null, cart: {} };
+  /* ---------------- supplier store ---------------- */
+  // A centred store: category tabs, picture cards (all on screen, no scrolling), a basket on the right.
+  const SH = { shop: null, cart: {}, tab: 'all', acc: null };
+  const accLabel = (id) => (id === 'bank' ? 'bank' : id === 'black_money' ? 'dirty' : 'cash');
 
   function openShop(shop) {
-    SH.shop = shop; SH.cart = {};
-    openSide('shop', shop.title || 'Hair Supply', '');
+    SH.shop = shop; SH.cart = {}; SH.tab = 'all';
+    const accs = arr(shop.accounts);
+    if (!accs.some((a) => a.id === SH.acc)) SH.acc = accs.length ? accs[0].id : 'cash';
+    side = 'shop';
+    showGuide(false);
+    el('skSide').hidden = true;
+    el('stTitle').textContent = String(shop.title || 'Hair Supply').toUpperCase();
+    el('stSub').textContent = `Level ${shop.level} · higher levels unlock more stock`;
+    el('skStore').hidden = false;
+    renderShop();
+  }
+  el('stClose').addEventListener('click', closeSide);
+
+  const wallet = () => arr(SH.shop.accounts).find((a) => a.id === SH.acc) || { id: SH.acc, money: 0 };
+  const itemOf = (name) => arr(SH.shop.items).find((it) => it.name === name);
+
+  function add(name, n) {
+    const it = itemOf(name);
+    if (!it || it.locked) return;
+    const q = Math.max(0, Math.min(SH.shop.max || 25, (SH.cart[name] || 0) + n));
+    if (q) SH.cart[name] = q; else delete SH.cart[name];
     renderShop();
   }
 
   function renderShop() {
     const sh = SH.shop;
-    el('skSub').textContent = `${sh.account === 'bank' ? 'Bank' : 'Cash'} ${money(sh.money)} · Level ${sh.level}`;
-    const list = el('skShopList');
-    list.innerHTML = '';
+    const cats = arr(sh.categories);
+    const tabs = [{ id: 'all', label: 'All', icon: 'grid' }].concat(cats.filter((c) => arr(sh.items).some((it) => it.cat === c.id)));
+    if (!tabs.some((t) => t.id === SH.tab)) SH.tab = 'all';
+    el('stTabs').innerHTML = tabs.map((t) => `<button class="${t.id === SH.tab ? 'on' : ''}" data-tab="${esc(t.id)}">${icon(t.icon || 'box')}${esc(t.label)}</button>`).join('');
+
+    const items = arr(sh.items).filter((it) => SH.tab === 'all' || it.cat === SH.tab);
+    const grid = el('stGrid');
+    // as few rows as fit: up to 5 across, so every item is on screen without scrolling
+    const n = items.length;
+    grid.style.setProperty('--cols', n <= 3 ? 3 : n <= 4 ? 4 : n <= 6 ? 3 : n <= 8 ? 4 : 5);
+    grid.innerHTML = items.map((it) => {
+      const q = SH.cart[it.name] || 0;
+      return `<button class="scard ${it.locked ? 'locked' : ''} ${q ? 'in' : ''}" data-item="${esc(it.name)}" ${it.locked ? 'disabled' : ''}>
+        ${it.locked ? `<span class="sc-lock">${icon('lock')}Level ${it.level}</span>` : q ? `<span class="sc-qty">${q}</span>` : ''}
+        <span class="sc-img">${imgTag(it.name)}</span>
+        <b>${esc(it.label)}</b>
+        <small>${esc(it.desc || (it.have ? `You have ${it.have}` : ''))}</small>
+        <span class="sc-foot"><span class="sc-price">${money(it.price)}</span><span class="sc-add">${icon('plus')}</span></span>
+      </button>`;
+    }).join('');
+
+    el('stPay').innerHTML = arr(sh.accounts).map((a) => `<button class="${a.id === SH.acc ? 'on' : ''}" data-acc="${esc(a.id)}">${accLabel(a.id)} · ${money(a.money)}</button>`).join('');
+
     let total = 0;
-    arr(sh.items).forEach((it) => {
-      const qty = SH.cart[it.name] || 0;
-      total += qty * it.price;
-      const locked = it.locked || sh.level < it.level;
-      const row = document.createElement('div');
-      row.className = 'row' + (qty ? ' sel' : '');
-      row.innerHTML = `<span class="av img">${imgTag(it.name)}</span>` +
-        `<span class="row-txt"><b>${esc(it.label)}</b><span><span class="price">${money(it.price)}</span> each${it.have ? ` · you have ${it.have}` : ''}</span></span>` +
-        (locked ? `<span class="tag warn">${icon('lock')}Lv ${it.level}</span>` :
-          `<span class="stepper"><button data-d="-1">${icon('minus')}</button><span>${qty}</span><button data-d="1">${icon('plus')}</button></span>`);
-      row.querySelectorAll('.stepper button').forEach((b) => b.addEventListener('click', (e) => {
-        const n = Math.max(0, Math.min(sh.max, qty + Number(b.dataset.d) * (e.shiftKey ? 5 : 1)));
-        if (n) SH.cart[it.name] = n; else delete SH.cart[it.name];
-        renderShop();
-      }));
-      list.appendChild(row);
-    });
-    el('skShopTotal').textContent = money(total);
-    const broke = total > sh.money;
-    setNote(el('skShopStatus'), 'err', broke ? `That's more than you have (<b>${money(sh.money)}</b>).` : '');
-    el('skBuy').disabled = total === 0 || broke;
+    const lines = Object.keys(SH.cart).map((name) => {
+      const it = itemOf(name), q = SH.cart[name];
+      if (!it) return '';
+      total += it.price * q;
+      return `<div class="bk-line"><span class="bk-img">${imgTag(name)}</span><span class="bk-name"><b>${esc(it.label)}</b><small>${money(it.price)} each</small></span>
+        <span class="stepper"><button data-step="${esc(name)}:-1">${icon('minus')}</button><span>${q}</span><button data-step="${esc(name)}:1">${icon('plus')}</button></span>
+        <span class="bk-sum">${money(it.price * q)}</span></div>`;
+    }).join('');
+    el('stLines').innerHTML = lines || '<div class="bk-empty">Nothing in the basket yet</div>';
+    el('stTotal').textContent = money(total);
+    const broke = total > wallet().money;
+    setNote(el('stStatus'), 'err', broke ? `That's more than you have in ${accLabel(SH.acc)} (<b>${money(wallet().money)}</b>).` : '');
+    el('stBuy').disabled = total === 0 || broke;
   }
 
-  el('skBuy').addEventListener('click', async () => {
-    if (el('skBuy').disabled) return;
-    el('skBuy').disabled = true;
-    const res = await post('shopBuy', { cart: SH.cart });
+  el('skStore').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    if (b.dataset.tab) { SH.tab = b.dataset.tab; return renderShop(); }
+    if (b.dataset.acc) { SH.acc = b.dataset.acc; return renderShop(); }
+    if (b.dataset.item) return add(b.dataset.item, e.shiftKey ? 5 : 1);
+    if (b.dataset.step) { const [name, d] = b.dataset.step.split(':'); return add(name, Number(d) * (e.shiftKey ? 5 : 1)); }
+  });
+
+  el('stBuy').addEventListener('click', async () => {
+    if (el('stBuy').disabled) return;
+    el('stBuy').disabled = true;
+    const res = await post('shopBuy', { cart: SH.cart, account: SH.acc });
     if (res && res.ok) {
       arr(SH.shop.items).forEach((it) => { it.have = (it.have || 0) + (SH.cart[it.name] || 0); });
       SH.cart = {};
-      if (typeof res.money === 'number') SH.shop.money = res.money;
+      if (Array.isArray(res.accounts)) SH.shop.accounts = res.accounts;
     }
     if (side === 'shop') renderShop();
   });

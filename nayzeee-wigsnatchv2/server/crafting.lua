@@ -135,29 +135,44 @@ local function nearSupplier(src)
     return ped ~= 0 and #(GetEntityCoords(ped) - SU.Coords.xyz) < 6.0
 end
 
+-- what the player can pay with (Config.Supplier.Accounts, or the older single Account)
+local function accounts()
+    local list = SU.Accounts or { SU.Account or 'cash' }
+    return #list > 0 and list or { 'cash' }
+end
+
+local function payWith(acc)
+    for _, a in ipairs(accounts()) do if a == acc then return a end end
+    return accounts()[1]
+end
+
 lib.callback.register('nz-wig:supplier', function(src)
     local P = GetP(src)
     if not SU.Enabled or not P or not nearSupplier(src) then return false end
     local level = GetLevel(P.row.xp)
     local items = {}
     for name, it in pairs(SU.Items) do
-        items[#items + 1] = { name = name, label = it.label, price = it.price, level = it.level or 1, locked = level < (it.level or 1), have = Inv.Count(src, name) }
+        items[#items + 1] = { name = name, label = it.label, desc = it.desc, cat = it.cat, price = it.price, level = it.level or 1,
+                              locked = level < (it.level or 1), have = Inv.Count(src, name) }
     end
     table.sort(items, function(a, b)
         if a.level ~= b.level then return a.level < b.level end
         return a.price < b.price
     end)
-    return { title = SU.Label, level = level, money = Bridge.GetMoney(src, SU.Account), account = SU.Account, max = SU.MaxPerItem, items = items }
+    local wallets = {}
+    for i, a in ipairs(accounts()) do wallets[i] = { id = a, money = Bridge.GetMoney(src, a) } end
+    return { title = SU.Label, level = level, accounts = wallets, max = SU.MaxPerItem, items = items, categories = SU.Categories or {} }
 end)
 
-lib.callback.register('nz-wig:supplierBuy', function(src, cart)
+lib.callback.register('nz-wig:supplierBuy', function(src, cart, acc)
     local P = GetP(src)
     if not SU.Enabled or not P or type(cart) ~= 'table' or not nearSupplier(src) then return false end
+    acc = payWith(acc)
     local level = GetLevel(P.row.xp)
     local total, lines = 0, {}
     for name, qty in pairs(cart) do
         local it = SU.Items[name]
-        qty = math.floor(tonumber(qty) or 0)
+        qty = math.floor(SafeNumber(qty) or 0)
         if it and qty > 0 then
             if qty > SU.MaxPerItem then return false end
             if level < (it.level or 1) then return false, L('level_needed', it.level) end
@@ -167,14 +182,16 @@ lib.callback.register('nz-wig:supplierBuy', function(src, cart)
         end
     end
     if #lines == 0 then return false end
-    if Bridge.GetMoney(src, SU.Account) < total or not Bridge.RemoveMoney(src, total, SU.Account, 'wig supplies') then
+    if Bridge.GetMoney(src, acc) < total or not Bridge.RemoveMoney(src, total, acc, 'wig supplies') then
         return false, L('no_money')
     end
     local refund = 0
     for _, l in ipairs(lines) do
         if not Inv.Add(src, l.name, l.qty) then refund = refund + SU.Items[l.name].price * l.qty end
     end
-    if refund > 0 then Bridge.AddMoney(src, refund, SU.Account, 'wig supplies refund') end
-    Log('workshop', 'Supplies bought', ('**%s** spent $%d at %s'):format(P.name, total - refund, SU.Label))
-    return true, L('bought', total - refund), Bridge.GetMoney(src, SU.Account)
+    if refund > 0 then Bridge.AddMoney(src, refund, acc, 'wig supplies refund') end
+    Log('workshop', 'Supplies bought', ('**%s** spent $%d (%s) at %s'):format(P.name, total - refund, acc, SU.Label))
+    local wallets = {}
+    for i, a in ipairs(accounts()) do wallets[i] = { id = a, money = Bridge.GetMoney(src, a) } end
+    return true, L('bought', total - refund), wallets
 end)

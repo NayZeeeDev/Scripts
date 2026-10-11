@@ -61,10 +61,10 @@ RegisterNUICallback('shopClose', function(_, cb)
 end)
 
 RegisterNUICallback('shopBuy', function(d, cb)
-    local ok, msg, money = lib.callback.await('nz-wig:supplierBuy', false, d and d.cart or {})
+    local ok, msg, wallets = lib.callback.await('nz-wig:supplierBuy', false, d and d.cart or {}, d and d.account)
     if msg then CB.Notify(msg, ok and 'success' or 'error') end
     if ok then NUI.Send('cash') end
-    cb({ ok = ok == true, money = money })
+    cb({ ok = ok == true, accounts = wallets })
 end)
 
 local OPT = { { name = 'nzwig_supplier', label = L('supplier_browse'), icon = 'fa-solid fa-box-open', distance = 2.5, onSelect = openShop } }

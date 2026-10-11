@@ -817,18 +817,25 @@ Config.Supplier = {
     Ped        = `a_f_y_business_02`,
     Coords     = vector4(-34.6, -155.4, 57.08, 340.0),  -- Next to Hair on Hawick; move it anywhere
     Blip       = { sprite = 71, colour = 48, scale = 0.75 },  -- false = no blip
-    Account    = 'cash',         -- 'cash' | 'bank'
+    Accounts   = { 'cash', 'bank' }, -- What players can pay with ('cash' | 'bank'), first one is picked by default
     MaxPerItem = 25,             -- Most of one item per purchase
+    -- The tabs in the store, in order (items show under their cat; "All" is always there)
+    Categories = {
+        { id = 'making', label = 'Wig making', icon = 'scissors' },
+        { id = 'lace',   label = 'Lace',       icon = 'layers' },
+        { id = 'care',   label = 'Dye & care', icon = 'drop' },
+    },
+    -- level = player level needed to buy it
     Items = {
-        wig_cap      = { label = 'Wig Cap',         price = 15 },
-        wig_thread   = { label = 'Weaving Thread',  price = 5 },
-        hair_weft    = { label = 'Hair Weft',       price = 15 },
-        lace_closure = { label = '5x5 HD Closure',  price = 25 },
-        lace_frontal = { label = '13x4 HD Frontal', price = 50,  level = 3 },
-        lace_full    = { label = 'Full Lace Unit',  price = 120, level = 5 },
-        hair_dye     = { label = 'Hair Dye',        price = 30 },
-        wig_glue     = { label = 'Lace Glue',       price = 40 },
-        wig_kit      = { label = 'Wig Kit',         price = 90,  level = 2 },
+        wig_cap      = { label = 'Wig Cap',         price = 15,  cat = 'making', desc = 'The base every wig is sewn onto.' },
+        wig_thread   = { label = 'Weaving Thread',  price = 5,   cat = 'making', desc = 'Sews the wefts onto the cap.' },
+        hair_weft    = { label = 'Hair Weft',       price = 15,  cat = 'making', desc = 'Six inches of hair. Longer wigs take more.' },
+        lace_closure = { label = '5x5 HD Closure',  price = 25,  cat = 'lace',   desc = 'Makes an uncommon wig.' },
+        lace_frontal = { label = '13x4 HD Frontal', price = 50,  cat = 'lace',   desc = 'Makes a rare wig.', level = 3 },
+        lace_full    = { label = 'Full Lace Unit',  price = 120, cat = 'lace',   desc = 'Makes an epic wig.', level = 5 },
+        hair_dye     = { label = 'Hair Dye',        price = 30,  cat = 'care',   desc = 'Any colour. Your hair, or a wig at a table.' },
+        wig_glue     = { label = 'Lace Glue',       price = 40,  cat = 'care',   desc = 'Holds your wig on tighter for a while.' },
+        wig_kit      = { label = 'Wig Kit',         price = 90,  cat = 'care',   desc = 'Brings a worn wig back to full condition.', level = 2 },
     },
 }
 
