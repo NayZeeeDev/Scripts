@@ -221,11 +221,30 @@ setInterval(tickTimers, 1000);
 function setBleed(s) { bleedSecs = Math.max(0, Number(s) || 0); tickTimers(); }
 
 // someone is reviving this card's player: { by, ms } or false to stop
+const active = {}; // [card key] = { by, until, ms } so a re-render keeps the ring going
+function restoreRevives(root) {
+  const now = performance.now();
+  for (const key of Object.keys(active)) {
+    const r = active[key], left = r.until - now;
+    const el = root.querySelector(`[data-hm="${key}"]`);
+    if (left <= 0 || (el && !el.classList.contains('down'))) { delete active[key]; continue; }
+    if (!el) continue;
+    const done = 1 - left / Math.max(500, r.ms || 5000);
+    el.classList.add('reviving');
+    const tag = el.querySelector('.hm-down b');
+    if (tag) tag.textContent = r.by ? `REVIVING · ${r.by}` : 'REVIVING';
+    const ring = el.querySelector('.hm-rv circle');
+    if (ring) ring.animate([{ strokeDasharray: `${done * 100} 100` }, { strokeDasharray: '100 100' }], { duration: left, fill: 'forwards' });
+    clearTimeout(el._rvT);
+    el._rvT = setTimeout(() => reviving(el, false), left + 1500);
+  }
+}
 function reviving(el, data) {
   if (!el) return;
   const ring = el.querySelector('.hm-rv circle');
   clearTimeout(el._rvT);
   if (!data) {
+    delete active[el.dataset.hm];
     el.classList.remove('reviving');
     if (ring) ring.getAnimations().forEach((a) => a.cancel());
     const tag = el.querySelector('.hm-down b');
@@ -233,6 +252,7 @@ function reviving(el, data) {
     return;
   }
   el.classList.add('reviving');
+  active[el.dataset.hm] = { by: data.by, until: performance.now() + Math.max(500, data.ms || 5000), ms: data.ms };
   const tag = el.querySelector('.hm-down b');
   if (tag) tag.textContent = data.by ? `REVIVING · ${data.by}` : 'REVIVING';
   if (ring) {
@@ -305,7 +325,7 @@ const DEMO = [
   { m: { id: 'pv0', name: 'NayZeee', owner: true, rank: 'Leader', kills: 31, deaths: 14 }, v: { h: 92, a: 75, w: 'WEAPON_CARBINERIFLE', wl: 'Carbine Rifle', c: 24, m: 30, t: 144 }, self: true },
   { m: { id: 'pv1', name: 'Tay Brooks', rank: 'Officer', kills: 27, deaths: 18 }, v: { h: 58, a: 25, w: 'WEAPON_PISTOL50', wl: 'Pistol .50', talk: 'radio', c: 2, m: 9, t: 20 } },
   { m: { id: 'pv2', name: 'Keisha Moore', rank: 'Member', kills: 14, deaths: 9 }, v: { h: 21, a: 0, vk: 'car', vn: 'Sultan RS', vs: 'd' } },
-  { m: { id: 'pv3', name: 'Marcus Hill', rank: 'Member', kills: 19, deaths: 16, down: true, downAt: Date.now() - 42000 }, v: { h: 0, a: 0 } },
+  { m: { id: 'pv3', name: 'Marcus Hill', rank: 'Member', kills: 19, deaths: 16, down: true, downFor: 42 }, v: { h: 0, a: 0 } },
 ];
 // a short firefight that loops in the previews: rifle bursts, pistol taps and a shotgun blast
 const DEMO_FIRE = [
@@ -317,7 +337,8 @@ function preview(style, o) {
   const opts = { ...o, hudStyle: style };
   wrap.className = hudClass(opts) + ' tpv';
   applyVars(wrap, opts);
-  wrap.innerHTML = DEMO.map((p) => card(p.m, p.v, { ...opts, self: !!p.self, accent: accentFor(opts, p.v.h, p.m.down), imgTpl: o.imgTpl })).join('');
+  const now = Date.now();
+  wrap.innerHTML = DEMO.map((p) => card(p.m.downFor ? { ...p.m, downAt: now - p.m.downFor * 1000 } : p.m, p.v, { ...opts, self: !!p.self, accent: accentFor(opts, p.v.h, p.m.down), imgTpl: o.imgTpl })).join('');
   return wrap;
 }
 
@@ -331,7 +352,7 @@ let demoTimer = 0;
 function demo(root) {
   clearInterval(demoTimer);
   const run = () => {
-    if (!root.isConnected) { clearInterval(demoTimer); return; }
+    if (!root.isConnected || !root.querySelector('.hud.tpv')) { clearInterval(demoTimer); return; }
     root.querySelectorAll('.hud.tpv').forEach((hud) => {
       for (const [key, at, offs] of DEMO_FIRE) {
         const el = hud.querySelector(`[data-hm="${key}"]`);
@@ -347,6 +368,6 @@ function demo(root) {
   demoTimer = setInterval(run, 3200);
 }
 
-window.TeamHud = { STYLES, norm, card, hudClass, applyVars, patch, talk, shots, flash, hit, reviving, setBleed, tickTimers,
+window.TeamHud = { STYLES, norm, card, hudClass, applyVars, patch, talk, shots, flash, hit, reviving, restoreRevives, setBleed, tickTimers,
   weaponClass, weaponLabel, preview, demo, accentFor };
 })();

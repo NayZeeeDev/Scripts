@@ -61,7 +61,7 @@
       const n = (Number(dup.dataset.n) || 1) + 1;
       dup.dataset.n = n;
       let b = dup.querySelector('.nt-n');
-      if (!b) { b = document.createElement('em'); b.className = 'nt-n'; dup.firstElementChild.appendChild(b); }
+      if (!b) { b = document.createElement('em'); b.className = 'nt-n'; dup.appendChild(b); }
       b.textContent = `×${n}`;
       clearTimeout(dup._t);
       dup._t = setTimeout(() => out(dup), d.duration);
@@ -76,7 +76,8 @@
     const bottom = ui().notifyPos.startsWith('bottom');
     if (bottom) stack.appendChild(el); else stack.prepend(el);
     while (stack.children.length > 5) (bottom ? stack.firstElementChild : stack.lastElementChild).remove();
-    requestAnimationFrame(() => el.classList.add('in'));
+    void el.offsetWidth; // start from the off-screen style so it slides in
+    el.classList.add('in');
     el._t = setTimeout(() => out(el), d.duration);
     if (ui().notifySound) NH.sfx(d.kind === 'error' ? 'nerr' : 'note');
   };

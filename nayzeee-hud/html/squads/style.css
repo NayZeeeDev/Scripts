@@ -142,13 +142,14 @@ input,select{font-family:inherit}
 
 /* tier badge + elo */
 .tier{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;letter-spacing:.02em;padding:3px 8px;border-radius:999px;
-  color:var(--tier);border:1px solid color-mix(in srgb,var(--tier) 36%,transparent);background:color-mix(in srgb,var(--tier) 11%,transparent)}
+  color:var(--tier);border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);
+  border-color:color-mix(in srgb,var(--tier) 36%,transparent);background:color-mix(in srgb,var(--tier) 11%,transparent)}
 .tier i{font-size:9px}
 .elo-wrap{margin-top:9px}
 .elo-top{display:flex;align-items:baseline;justify-content:space-between;font-size:10px;color:var(--ink-3);font-weight:300;margin-bottom:5px}
 .elo-top b{font-size:13px;font-weight:600;color:var(--white);letter-spacing:-.02em}
 .elo-bar{height:4px;border-radius:2px;background:var(--raise-2);overflow:hidden}
-.elo-bar i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,color-mix(in srgb,var(--tier) 55%,transparent),var(--tier));
+.elo-bar i{display:block;height:100%;border-radius:2px;background:var(--tier);background:linear-gradient(90deg,color-mix(in srgb,var(--tier) 55%,transparent),var(--tier));
   box-shadow:0 0 8px color-mix(in srgb,var(--tier) 60%,transparent);transition:width 400ms cubic-bezier(.2,.8,.2,1)}
 
 /* K/D/A inline */

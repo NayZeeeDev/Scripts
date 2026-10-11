@@ -346,6 +346,9 @@
       this.isOpen = true;
       const sqNav = this.el.querySelector('.nav[data-tab="squads"]');
       if (sqNav) sqNav.style.display = NH.cfg.squadsData ? '' : 'none';
+      const xNav = this.el.querySelector('.nav[data-tab="crosshair"]');
+      if (xNav) xNav.style.display = NH.cfg.crosshair === false ? 'none' : '';
+      if (this.tab === 'crosshair' && NH.cfg.crosshair === false) this.tab = 'general';
       if (this.tab === 'squads' && !NH.cfg.squadsData) this.tab = 'general';
       NH.cur = NH.clone(NH.saved);
       this.dirty = false;

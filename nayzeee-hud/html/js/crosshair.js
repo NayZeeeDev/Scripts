@@ -32,7 +32,7 @@
     if (!el) return;
     const c = NH.cur.crosshair;
     const settingsOnCross = NH.settingsUI?.isOpen && NH.settingsUI.tab === 'crosshair';
-    el.classList.toggle('on', c.enabled && (!!NH.S.ch || settingsOnCross));
+    el.classList.toggle('on', NH.cfg.crosshair !== false && c.enabled && (!!NH.S.ch || settingsOnCross));
   };
 
   NH.crossPreview = (style, c) => {

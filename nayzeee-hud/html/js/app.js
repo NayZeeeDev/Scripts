@@ -139,7 +139,7 @@
   function teamProxy() {
     const d = NH.cfg.squadsData, st = NH.cur.squads;
     const show = NH.editing && window.TeamHud && d && st && st.hud !== false && (d.features || {}).Hud !== false;
-    if (!show) { if (proxy) { proxy.remove(); proxy = null; } return; }
+    if (!show) { pdrag = null; if (proxy) { proxy.remove(); proxy = null; } return; }
     if (pdrag) return;
     const el = TeamHud.preview(st.hudStyle, { ...st, imgTpl: NH.cfg.weaponImages });
     el.classList.remove('tpv');
@@ -165,8 +165,9 @@
     placeTeam(proxy, { x: x / window.innerWidth * 100, y: y / window.innerHeight * 100 });
   });
   document.addEventListener('pointerup', () => {
-    if (!pdrag || !proxy) return;
+    if (!pdrag) return;
     pdrag = null;
+    if (!proxy) return;
     proxy.classList.remove('dragging');
     const r = proxy.getBoundingClientRect();
     NH.cur.squads.hudPos = { x: +(r.left / window.innerWidth * 100).toFixed(2), y: +(r.top / window.innerHeight * 100).toFixed(2) };
@@ -264,6 +265,7 @@
         NH.applyServerDefaults(m.defaults);
         if (m.watermark) NH.cfg.watermark = Object.assign(NH.cfg.watermark, m.watermark);
         if (m.weaponImages !== undefined) NH.cfg.weaponImages = m.weaponImages;
+        NH.cfg.crosshair = m.crosshair !== false;
         if (m.keys) NH.cfg.keys = m.keys;
         NH.cfg.belt = m.belt;
         if (m.squadsData) NH.setSquadsData(m.squadsData);

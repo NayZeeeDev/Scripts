@@ -1068,6 +1068,8 @@ function renderHud() {
   const extra = others.length - list.length;
   hud.innerHTML = (showSelf ? hudCard(me, true) : '') + list.map((m) => hudCard(m, false)).join('')
     + (extra > 0 ? `<div class="hud-more">+${extra} more</div>` : '');
+  TeamHud.restoreRevives(hud);
+  TeamHud.tickTimers();
 }
 
 function patchVitals(changed) {
