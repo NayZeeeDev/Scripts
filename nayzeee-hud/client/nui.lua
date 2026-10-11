@@ -47,6 +47,7 @@ RegisterNUICallback('ready', function(_, cb)
         watermark = Config.Watermark,
         weaponImages = Config.WeaponImages,
         crosshair = Config.Crosshair.enabled,
+        mapFit = Config.Minimap.frameFit,
         belt = NHUD.builtinBelt,
         keys = keyList(),
         framework = HudBridge.framework,

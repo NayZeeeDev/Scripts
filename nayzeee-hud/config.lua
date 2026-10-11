@@ -67,6 +67,9 @@ Config.Minimap = {
     -- 'default' | 'square' | 'circle' (players pick in /hud). Square and circle need squaremap.ytd /
     -- circlemap.ytd in a stream/ folder in this resource; without them the default shape is used.
     shape = 'default',
+    -- Nudge the minimap frame for everyone, in 1080p pixels (players can fine-tune on top in /hud > Map & Compass > Frame fit).
+    -- x: + right, y: + down, w / h: + bigger.
+    frameFit = { x = 0, y = 0, w = 0, h = 0 },
 }
 
 -- Hides native GTA HUD text (vehicle name, area, street, cash).

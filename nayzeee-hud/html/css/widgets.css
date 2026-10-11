@@ -8,6 +8,8 @@
 /* ---------- Minimap frame (6 styles) ---------- */
 .w-mapframe { pointer-events: none; }
 .mf { position: absolute; inset: -4px; border-radius: 12px; }
+/* bezel: the radar is square, so a solid ring with rounded inner corners covers its corners under every frame style */
+.mf-bz { position: absolute; inset: 0; border-radius: 9px; box-shadow: 0 0 0 5px rgba(10, 11, 13, .94); }
 .mf > i { display: none; position: absolute; width: 18px; height: 18px; border: 0 solid var(--accent); }
 .mf[data-style="glass"] { border: 2px solid rgba(255, 255, 255, .16); box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 8px 24px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(var(--accent-rgb), .15); }
 .mf[data-style="accent"] { border: 2px solid var(--accent); box-shadow: 0 0 14px rgba(var(--accent-rgb), .45), inset 0 0 10px rgba(var(--accent-rgb), .25); }
@@ -21,6 +23,7 @@
 .pv-map { position: relative; width: 120px; height: 72px; }
 .pv-radar { position: absolute; inset: 0; border-radius: 8px; background: repeating-linear-gradient(45deg, #3d4a3a 0 10px, #46553f 10px 20px); }
 .pv-map .mf { inset: -4px; }
+.pv-map .mf-bz { border-radius: 7px; box-shadow: 0 0 0 4px rgba(10, 11, 13, .94); }
 .pv-map .mf[data-style="panel"] { inset: -8px; }
 
 /* ---------- Speed limit sign ---------- */

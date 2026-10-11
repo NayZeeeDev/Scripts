@@ -26,7 +26,7 @@
     air: { style: 'pfd' },
     boat: { units: 'kts', info: true },
     cycle: { style: 'smartwatch' },
-    map: { mode: 'vehicle', frame: true, frameStyle: 'glass', shape: 'default', street: true, streetOnFoot: true, sign: true, signStyle: 'us', blink: true, compass: true, compassStyle: 'tape', compassWhen: 'always' },
+    map: { mode: 'vehicle', frame: true, frameStyle: 'glass', shape: 'default', fit: { x: 0, y: 0, w: 0, h: 0 }, street: true, streetOnFoot: true, sign: true, signStyle: 'us', blink: true, compass: true, compassStyle: 'tape', compassWhen: 'always' },
     info: {
       enabled: true, style: 'pills', job: true, gang: true, name: true, cash: true, bank: true, dirty: true, id: true, players: true, time: true,
       headshot: true, avatar: 'discord', animated: true, popups: true,

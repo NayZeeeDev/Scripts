@@ -106,8 +106,12 @@
   R.map = () =>
     sec('Minimap', seg('map.mode', [['vehicle', 'In vehicles'], ['always', 'Always'], ['never', 'Never']], 'Show minimap') +
       toggle('map.frame', 'Minimap frame', 'Drawn around the radar (default shape only)') +
-      cards('map.frameStyle', MAP_FRAMES.map(([v, l]) => ({ v, l, html: `<div class="pv-map"><div class="pv-radar"></div><div class="mf" data-style="${v}"><i></i><i></i><i></i><i></i></div></div>` })), 'c3') +
+      cards('map.frameStyle', MAP_FRAMES.map(([v, l]) => ({ v, l, html: `<div class="pv-map"><div class="pv-radar"></div>${v === 'none' ? '' : '<b class="mf-bz"></b>'}<div class="mf" data-style="${v}"><i></i><i></i><i></i><i></i></div></div>` })), 'c3') +
       seg('map.shape', [['default', 'Default'], ['square', 'Square'], ['circle', 'Circle']], 'Shape', 'Square and circle need squaremap.ytd / circlemap.ytd in the stream folder')) +
+    sec('Frame fit', range('map.fit.x', 'Left / right', -40, 40, 1, 'px') + range('map.fit.y', 'Up / down', -40, 40, 1, 'px') +
+      range('map.fit.w', 'Width', -40, 40, 1, 'px') + range('map.fit.h', 'Height', -40, 40, 1, 'px') +
+      `<div class="opt"><div class="opt-t"><b>Reset fit</b></div><button class="btn-line" data-act="fit-reset">${ic('reset')}Reset</button></div>`,
+      'Nudge the frame until it sits exactly on your radar (open Edit layout or get in a car to see it). The street bar and speed sign follow.') +
     sec('Street bar', toggle('map.street', 'Street bar', 'Direction, road, zone and postal') + toggle('map.streetOnFoot', 'Show on foot') + scaleRange('street')) +
     sec('Speed limit', toggle('map.sign', 'Speed limit sign') + toggle('map.blink', 'Blink when speeding') +
       cards('map.signStyle', [{ v: 'us', l: 'US', html: PV.sign('us') }, { v: 'eu', l: 'European', html: PV.sign('eu') }], 'c2') + scaleRange('sign')) +
@@ -444,6 +448,7 @@
       const act = e.target.closest('[data-act]');
       if (!act) return;
       const a = act.dataset.act;
+      if (a === 'fit-reset') { this.change('map.fit', { x: 0, y: 0, w: 0, h: 0 }); NH.place(); return; }
       if (a === 'test-notify') {
         NH.notify({ kind: 'success', title: 'Garage', message: 'Your vehicle is ready at Legion Square.', duration: 5000 });
         setTimeout(() => NH.notify({ kind: 'error', message: 'You do not have enough cash.', duration: 5000 }), 250);
@@ -504,6 +509,7 @@
         const v = +t.value;
         t.nextElementSibling.textContent = fmtVal(v, t.dataset.fmt);
         this.change(t.dataset.rng, v, false);
+        if (t.dataset.rng.startsWith('map.fit.')) NH.place();
       } else if (t.dataset.scale) {
         const v = +t.value;
         t.nextElementSibling.textContent = Math.round(v * 100) + '%';

@@ -51,7 +51,7 @@
   def('mapframe', {
     label: 'Minimap Frame', fixed: true,
     visible: () => NH.cur.map.frame && NH.cur.map.frameStyle !== 'none' && (c => !c.shape || c.shape === 'default')(NH.map) && (NH.S.radar || NH.editing),
-    build(el) { el.innerHTML = '<div class="mf"><i></i><i></i><i></i><i></i></div>'; this.mf = el.firstChild; },
+    build(el) { el.innerHTML = '<b class="mf-bz"></b><div class="mf"><i></i><i></i><i></i><i></i></div>'; this.mf = el.querySelector('.mf'); },
     apply() { this.mf.dataset.style = NH.cur.map.frameStyle || 'glass'; },
     place(c) {
       const s = this.el.style;
@@ -503,10 +503,20 @@
   });
 
   // ---------------- Layout ----------------
+  // Frame fit: server (Config.Minimap.frameFit) + player (/hud > Map) nudges in 1080p pixels, so the frame
+  // and everything docked to the radar line up exactly on any screen.
+  const fitMap = (m) => {
+    const f = NH.cur.map.fit || {}, g = NH.cfg.mapFit || {};
+    const n = (k) => (Number(f[k]) || 0) + (Number(g[k]) || 0);
+    return Object.assign({}, m, {
+      l: m.l + n('x') / 19.2, w: m.w + n('w') / 19.2,
+      b: m.b + n('y') / 10.8, h: m.h + n('h') / 10.8,
+    });
+  };
   NH.layoutCtx = () => ({
     radar: !!NH.S.radar || (NH.editing && NH.cur.map.mode !== 'never'),
     // in the browser preview there is no Lua to lift the radar, so mimic it
-    map: NH.IS_GAME ? NH.map : Object.assign({}, NH.map, { b: NH.map.b - (NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 4.5 : 0) }),
+    map: fitMap(NH.IS_GAME ? NH.map : Object.assign({}, NH.map, { b: NH.map.b - (NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 4.5 : 0) })),
     statusH: W.status.el ? pxH(W.status.el) * (NH.cur.layout.status?.s || 1) * NH.cur.scale : 4.6,
     statusW: W.status.el ? W.status.el.offsetWidth / window.innerWidth * 100 * (NH.cur.layout.status?.s || 1) * NH.cur.scale : 20,
     speedoH: W.speedo.el && W.speedo.el.offsetHeight ? pxH(W.speedo.el) * (NH.cur.layout.speedo?.s || 1) * NH.cur.scale : 22,

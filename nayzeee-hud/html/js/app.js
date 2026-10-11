@@ -269,6 +269,7 @@
         }
         if (m.weaponImages !== undefined) NH.cfg.weaponImages = m.weaponImages;
         NH.cfg.crosshair = m.crosshair !== false;
+        if (m.mapFit) NH.cfg.mapFit = m.mapFit;
         if (m.keys) NH.cfg.keys = m.keys;
         NH.cfg.belt = m.belt;
         if (m.squadsData) NH.setSquadsData(m.squadsData);
