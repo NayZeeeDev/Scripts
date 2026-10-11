@@ -343,7 +343,20 @@ function Apply.ResetNeonBase(veh) neonBase[veh] = nil end
 
 AddStateBagChangeHandler('nzTune', nil, function(bagName)
     local ent = GetEntityFromStateBagName(bagName)
-    if ent == 0 then return end
+    if ent == 0 then
+        -- data can land a moment before the car exists here (fresh garage spawn): apply it as soon as it does
+        CreateThread(function()
+            for _ = 1, 20 do
+                Wait(100)
+                local e = GetEntityFromStateBagName(bagName)
+                if e ~= 0 then
+                    if DoesEntityExist(e) and not preview[e] then lastSig[e] = nil Apply.Refresh(e) end
+                    return
+                end
+            end
+        end)
+        return
+    end
     SetTimeout(0, function()
         if DoesEntityExist(ent) and not preview[ent] then
             lastSig[ent] = nil

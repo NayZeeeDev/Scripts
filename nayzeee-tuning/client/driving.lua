@@ -414,9 +414,16 @@ local function onDriver(veh)
     if driving == veh then return end
     driving = veh
     readData(veh)
+    -- fresh from a garage the plate may not have reached the server yet: keep asking for a few seconds
     if not Entity(veh).state.nzTune and not requested[veh] then
         requested[veh] = true
-        TriggerServerEvent('nayzeee-tuning:requestData', VehToNet(veh))
+        CreateThread(function()
+            for _ = 1, 8 do
+                if driving ~= veh or not DoesEntityExist(veh) or Entity(veh).state.nzTune then break end
+                if NetworkGetEntityIsNetworked(veh) then TriggerServerEvent('nayzeee-tuning:requestData', VehToNet(veh)) end
+                Wait(1000)
+            end
+        end)
     end
     applyHandling(veh)
     nitroHud()

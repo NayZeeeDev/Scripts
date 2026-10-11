@@ -85,18 +85,23 @@ end
 
 --------------------------------------------------------------------- attach data to spawned cars
 
+-- garages spawn the car first and set the real plate a moment later (and it takes a sync to reach
+-- the server): check often early on so the sound / nitrous / stance are there as soon as the plate is
+local ATTACH_DELAYS = { 150, 250, 250, 250, 250, 250, 500, 500, 500, 1000, 1000, 2000, 4000 }
 local pending = {}
 local function attach(veh)
     if pending[veh] then return end
     pending[veh] = true
     CreateThread(function()
-        for _, delay in ipairs({ 800, 2500, 6000 }) do
+        local checked
+        for _, delay in ipairs(ATTACH_DELAYS) do
             Wait(delay)
             if not DoesEntityExist(veh) then break end
             local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
-            if plate ~= '' then
+            if plate ~= '' and plate ~= checked then
+                checked = plate
                 local c = Vehicles.Load(plate)
-                if c.exists then
+                if c and c.exists then
                     Vehicles.Push(veh, plate)
                     break
                 end
@@ -114,7 +119,7 @@ end)
 -- a driver found a car with no data yet (plate changed after spawn, resource restart, ...)
 RegisterNetEvent('nayzeee-tuning:requestData', function(netId)
     local src = source
-    if not Core.Throttle(src, 'reqdata', 1500) then return end
+    if not Core.Throttle(src, 'reqdata', 900) then return end
     local veh = Core.VehicleFromNet(netId)
     if not veh then return end
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
@@ -268,4 +273,12 @@ exports('SetVehicleData', function(plate, data)
     local veh = Vehicles.FindByPlate(plate)
     if veh then Vehicles.Push(veh, plate) end
 end)
-exports('RefreshVehicle', function(veh) attach(veh) end)
+-- call right after a garage has set the plate: pushes the data now (falls back to watching the car)
+exports('RefreshVehicle', function(veh)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return false end
+    local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
+    local c = plate ~= '' and Vehicles.Load(plate)
+    if c and c.exists then Vehicles.Push(veh, plate) return true end
+    attach(veh)
+    return false
+end)
