@@ -116,15 +116,25 @@ AddEventHandler('entityCreated', function(ent)
     attach(ent)
 end)
 
--- a driver found a car with no data yet (plate changed after spawn, resource restart, ...)
-RegisterNetEvent('nayzeee-tuning:requestData', function(netId)
+-- a client has a car with no data yet (fresh from a garage, plate changed after spawn, resource restart, ...)
+-- seen: the plate that client sees. Only a hint: the data is looked up by the plate the server sees,
+-- we just wait (briefly) for the server's copy to catch up with the garage's plate change
+RegisterNetEvent('nayzeee-tuning:requestData', function(netId, seen)
     local src = source
     if not Core.Throttle(src, 'reqdata', 900) then return end
     local veh = Core.VehicleFromNet(netId)
     if not veh then return end
-    local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
-    local c = Vehicles.Load(plate)
-    if c and c.exists then Vehicles.Push(veh, plate) end
+    seen = type(seen) == 'string' and NZ.TrimPlate(seen) or nil
+    for _ = 1, 30 do
+        local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
+        if not seen or plate == seen then
+            local c = Vehicles.Load(plate)
+            if c and c.exists then Vehicles.Push(veh, plate) end
+            return
+        end
+        Wait(100)
+        if not DoesEntityExist(veh) then return end
+    end
 end)
 
 AddEventHandler('onResourceStart', function(res)

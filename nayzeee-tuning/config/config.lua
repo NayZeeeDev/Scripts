@@ -115,6 +115,16 @@ Config.Plates = {
     GiveKeys         = true,            -- hand out keys for the new plate (see bridge/server.lua)
 }
 
+-- Garages: tuning (engine sound, nitrous, stance...) is applied as soon as a garage hands the car over.
+-- Works with any garage on its own; the events below make it instant for the ones that announce a take-out.
+-- Your garage not listed? Add its client "vehicle taken out" event (first argument = the vehicle),
+-- or call exports['nayzeee-tuning']:VehicleSpawned(vehicle) on the client right after it sets the plate.
+Config.Garages = {
+    Events = {
+        'jg-advancedgarages:client:TakeOutVehicle:config',  -- JG Advanced Garages
+    },
+}
+
 -- ██████╗ ██╗███████╗ ██████╗ ██████╗ ██╗   ██╗███╗   ██╗████████╗     ██████╗ ██████╗ ██████╗ ███████╗███████╗
 -- ██╔══██╗██║██╔════╝██╔════╝██╔═══██╗██║   ██║████╗  ██║╚══██╔══╝    ██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔════╝
 -- ██║  ██║██║███████╗██║     ██║   ██║██║   ██║██╔██╗ ██║   ██║       ██║     ██║   ██║██║  ██║█████╗  ███████╗

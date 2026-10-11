@@ -154,6 +154,21 @@ All keys are ox_lib keybinds and can be rebound in the FiveM settings.
 
 ---
 
+## 🅿️ Garages
+
+Tuning (engine sound, nitrous, stance, ECU...) is stored per plate and lands on the car the moment a garage hands it over. Garages set the plate on the client first and the server sees it a sync later; the script follows the car until both agree, so it works with any garage (ESX, QBCore, Qbox, JG, cd, okok...) out of the box.
+
+For an instant hand-over:
+- **JG Advanced Garages** is hooked automatically (`jg-advancedgarages:client:TakeOutVehicle:config`).
+- **Any garage with a "vehicle taken out" client event**: add its name to `Config.Garages.Events` in `config/config.lua` (the event's first argument must be the vehicle).
+- **Any other garage**: one line in its client code, right after it sets the vehicle properties / plate:
+  ```lua
+  exports['nayzeee-tuning']:VehicleSpawned(vehicle)
+  ```
+  (server side: `exports['nayzeee-tuning']:RefreshVehicle(vehicle)`)
+
+---
+
 ## 🔌 Exports
 
 ```lua
@@ -161,6 +176,9 @@ All keys are ox_lib keybinds and can be rebound in the FiveM settings.
 exports['nayzeee-tuning']:GetVehicleData(plate)            -- custom data table
 exports['nayzeee-tuning']:SetVehicleData(plate, data)
 exports['nayzeee-tuning']:RefreshVehicle(vehicle)          -- re-attach data after a garage spawn
+
+-- client
+exports['nayzeee-tuning']:VehicleSpawned(vehicle)          -- a garage just handed this car over
 exports['nayzeee-tuning']:GetIllegalParts(plate, props)
 exports['nayzeee-tuning']:GetWear(plate)  /  SetWear(plate, wear)
 exports['nayzeee-tuning']:GetMileage(plate)
@@ -224,7 +242,7 @@ Idle cost is one 1-second vehicle scan on the client. Stance is only applied per
 | Job says *Take from supply storage* | `PartSource = 'inventory'`: go to the storage point (waypoint set), `E`, take the parts |
 | No supply storage point | Set one with `/mechaniceditor` (Workshop › Supply storage) or `storage = vec3(...)` in `config.shops.lua` |
 | Menu says you don't own the car | `Config.Ownership.OnlyOwnerCanTune = true` checks `owned_vehicles` / `player_vehicles`. Buy a car properly or turn it off. |
-| Stance / wheel size resets after garage | Your garage spawns the car before setting the plate. Call `exports['nayzeee-tuning']:RefreshVehicle(vehicle)` after spawning, or just drive it (the driver requests data automatically). |
+| Stance / sound / nitrous late after garage | See **🅿️ Garages** above: add your garage's take-out event to `Config.Garages.Events`, or call `exports['nayzeee-tuning']:VehicleSpawned(vehicle)` after it sets the plate. |
 | Rim diameter does nothing | GTA only resizes custom rims. Fit any non-stock rim first. |
 | Chameleon paints show as black | Your server doesn't stream the gen9 paint ramps. Keep `Config.ChameleonPaints.Enabled = false`. |
 | No prices on vehicles | Add the model to `Config.VehiclePrices` or set `PriceSource = 'both'`. |

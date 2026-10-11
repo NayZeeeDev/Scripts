@@ -25,6 +25,7 @@ shared_scripts {
 client_scripts {
     'bridge/client.lua',
     'client/core.lua',
+    'client/garages.lua',
     'client/apply.lua',
     'client/camera.lua',
     'client/menu.lua',
