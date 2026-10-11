@@ -261,29 +261,14 @@
       const c = NH.cur.info;
       if (c.style !== this.style) {
         this.style = c.style;
-        const row = (k, icon, label) => c.style === 'stack'
-          ? `<div class="ir i-${k}"><div><small>${label}</small><b data-i="${k}"></b></div><span class="cic">${ic(icon)}</span></div>`
-          : `<span class="pill i-${k}">${ic(icon)}<b data-i="${k}"></b></span>`;
-        let html;
-        if (c.style === 'stack') {
-          html = `<div class="inf stack">${row('job', 'briefcase', 'Job')}${row('cash', 'cash', 'Cash')}${row('dirty', 'cash', 'Dirty')}${row('bank', 'bank', 'Bank')}${row('id', 'idcard', 'Server ID')}</div>`;
-        } else if (c.style === 'compact') {
-          html = `<div class="inf compact panel"><div class="ic-hd i-headshot"><img data-i="hs" alt=""/><div><b data-i="job"></b><small data-i="id"></small></div></div>
-            <div class="ic-row i-cash">${ic('cash')}<b data-i="cash"></b></div><div class="ic-row i-dirty">${ic('cash')}<b data-i="dirty"></b></div><div class="ic-row i-bank">${ic('bank')}<b data-i="bank"></b></div></div>`;
-        } else {
-          html = `<div class="inf pills"><div class="r">${row('job', 'briefcase')}</div><div class="r">${row('bank', 'bank')}${row('cash', 'cash')}</div><div class="r">${row('dirty', 'cash')}</div>
-            <div class="r"><span class="pill hs i-headshot">${NH.fic('mic', 'mic')}<img data-i="hs" alt=""/></span>${row('id', 'idcard')}</div></div>`;
-        }
-        this.el.innerHTML = html + '<span class="deco"></span><div class="mpops"></div>';
+        this.el.innerHTML = (NH.INFO_STYLES[c.style] || NH.INFO_STYLES.pills).html() + '<span class="deco"></span><div class="mpops"></div>';
         this.pops = this.el.querySelector('.mpops');
-        this.refs = {};
-        this.el.querySelectorAll('[data-i]').forEach(n => (this.refs[n.dataset.i] = this.refs[n.dataset.i] || []).push(n));
+        this.refs = NH.collectInfo(this.el);
         this.box = this.el.firstChild;
         this.last = {};
+        this.hiddenKey = '';
       }
-      for (const k of ['job', 'cash', 'bank', 'id', 'headshot']) this.box.classList.toggle('no-' + k, !c[k]);
-      this.box.classList.toggle('no-dirty', !c.dirty || NH.S.dm === false || NH.S.dm === undefined);
-      this.render({ info: 1, st: 1 });
+      this.render({ info: 1, st: 1, clk: 1 });
     },
     pop(kind, delta, total) {
       if (!this.pops) return;
@@ -295,32 +280,24 @@
       while (this.pops.children.length > 4) this.pops.firstChild.remove();
       setTimeout(() => el.remove(), neutral ? 4200 : 2800);
     },
-    set(k, v) {
-      if (this.last[k] === v || !this.refs[k]) return;
-      this.last[k] = v;
-      for (const n of this.refs[k]) {
-        if (n.tagName === 'IMG') { if (v) n.src = v; n.parentNode.classList.toggle('noimg', !v); }
-        else n.textContent = v;
-      }
-    },
     render(g) {
-      if (!g.info && !g.st && !g.edit) return;
-      const S = NH.S;
-      this.set('job', S.grd ? `${S.job || 'Civilian'} (${S.grd})` : (S.job || 'Civilian'));
-      this.set('cash', NH.money(S.cash));
-      this.set('bank', NH.money(S.bank));
-      this.set('dirty', NH.money(S.dm || 0));
-      this.box.classList.toggle('no-dirty', !NH.cur.info.dirty || S.dm === false || S.dm === undefined);
+      if (!g.info && !g.st && !g.clk && !g.edit) return;
+      const S = NH.S, c = NH.cur.info;
+      NH.fillInfo(this.refs, NH.infoValues(S), this.last);
+      const hidden = NH.infoHidden(S, c);
+      const key = JSON.stringify(hidden);
+      if (key !== this.hiddenKey) {
+        this.hiddenKey = key;
+        for (const k in hidden) this.box.classList.toggle('no-' + k, hidden[k]);
+      }
       // +$/-$ popups: only for real changes, never for the first value or right after login
       this.prevMoney = this.prevMoney || {};
       for (const k of ['cash', 'bank']) {
         if (S[k] === undefined) continue;
         const v = Number(S[k]) || 0, prev = this.prevMoney[k];
-        if (prev !== undefined && v !== prev && NH.cur.info.popups && Date.now() > (NH.popsAfter || 0)) this.pop(k, v - prev);
+        if (prev !== undefined && v !== prev && c.popups && Date.now() > (NH.popsAfter || 0)) this.pop(k, v - prev);
         this.prevMoney[k] = v;
       }
-      this.set('id', this.style === 'compact' ? `ID #${S.id ?? 0}` : `#${S.id ?? 0}`);
-      this.set('hs', S.hs ? `https://nui-img/${S.hs}/${S.hs}?t=${S.hs}` : '');
       this.box.classList.toggle('talk', !!S.tk);
     },
   });

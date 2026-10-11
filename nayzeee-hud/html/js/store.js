@@ -15,8 +15,8 @@
 
   NH.DEFAULTS = {
     v: 1,
-    season: 'auto', particles: true, decor: true, seasonAccent: true,
-    accent: '#b8f02a', panelAlpha: 0.78, scale: 1, units: 'mph', cinematic: false,
+    season: 'auto', particles: true, decor: true, seasonAccent: false,
+    accent: '#08afa2', panelAlpha: 0.78, scale: 1, units: 'mph', cinematic: false,
     sound: true, volume: 0.6,
     status: {
       enabled: true, style: 'ring', color: 'vibrant', dir: 'row', autoHide: true,
@@ -27,7 +27,10 @@
     boat: { units: 'kts', info: true },
     cycle: { style: 'smartwatch' },
     map: { mode: 'vehicle', frame: true, street: true, streetOnFoot: true, sign: true, signStyle: 'us', blink: true, compass: true, compassStyle: 'tape', compassWhen: 'always' },
-    info: { enabled: true, style: 'pills', job: true, cash: true, bank: true, dirty: true, id: true, headshot: true, popups: true },
+    info: {
+      enabled: true, style: 'pills', job: true, gang: true, name: true, cash: true, bank: true, dirty: true, id: true, players: true, time: true,
+      headshot: true, avatar: 'discord', animated: true, popups: true,
+    },
     weapon: { enabled: true, style: 'card', image: true },
     clock: { enabled: true, style: 'pill', day: true, h24: false, source: 'game', weather: true },
     watermark: { enabled: true, style: 'stack', effect: 'gloss' },

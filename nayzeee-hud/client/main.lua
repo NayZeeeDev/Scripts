@@ -226,10 +226,14 @@ local function tickStatus()
     set('dm', D.dirty)
     set('job', D.job)
     set('grd', D.grade)
+    set('gng', D.gang)
+    set('pn', D.name)
 
     set('hr', GetClockHours())
     set('mn', GetClockMinutes())
     set('dow', GetClockDayOfWeek())
+    set('dom', GetClockDayOfMonth())
+    set('mon', GetClockMonth())
 end
 
 local function tickLocation()
@@ -322,6 +326,21 @@ CreateThread(function()
         set('rd', (value and value ~= 0) and value or false)
         flush()
     end)
+end)
+
+-- players online (kept in GlobalState by the server, so no polling)
+CreateThread(function()
+    set('pl', GlobalState.nhud_players or false)
+    set('plm', GlobalState.nhud_maxPlayers or false)
+    AddStateBagChangeHandler('nhud_players', 'global', function(_, _, value) set('pl', value or false) flush() end)
+    AddStateBagChangeHandler('nhud_maxPlayers', 'global', function(_, _, value) set('plm', value or false) flush() end)
+end)
+
+-- Discord picture (static + animated), fetched once by the server
+RegisterNetEvent('nhud:client:avatar', function(data)
+    set('av', type(data) == 'table' and data.static or false)
+    set('ava', type(data) == 'table' and data.anim or false)
+    flush()
 end)
 
 AddEventHandler('pma-voice:setTalkingMode', function(index)

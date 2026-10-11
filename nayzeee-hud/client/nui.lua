@@ -50,6 +50,7 @@ RegisterNUICallback('ready', function(_, cb)
     NHUD.sendMap(true)
     NHUD.resend()
     NHUD.send('vis', { v = NHUD.visible and HudBridge.loaded })
+    if Config.Discord.enabled then TriggerServerEvent('nhud:server:avatar') end
     cb('ok')
 end)
 

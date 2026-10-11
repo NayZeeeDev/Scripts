@@ -3,11 +3,11 @@
 @property --rpm { syntax: '<number>'; inherits: true; initial-value: 0; }
 
 :root {
-  --accent: #b8f02a;
-  --accent-rgb: 184, 240, 42;
+  --accent: #08afa2;
+  --accent-rgb: 8, 175, 162;
   --accent2: #7ee0a0;
-  --base-accent: #b8f02a;
-  --ink: #0b0f02;
+  --base-accent: #08afa2;
+  --ink: #00201d;
   --pa: .78;
   --panel: rgba(12, 13, 16, var(--pa));
   --panel-2: rgba(255, 255, 255, .05);

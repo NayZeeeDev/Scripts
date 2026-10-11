@@ -6,6 +6,7 @@ HudBridge = {
     loaded = true, -- false while on character select / after logout (frameworks only)
     data = {
         cash = 0, bank = 0, dirty = false, job = 'Civilian', jobName = 'unemployed', jobType = false, grade = false,
+        gang = false, name = GetPlayerName(PlayerId()),
         hunger = 100, thirst = 100, stress = 0,
     },
 }
@@ -46,6 +47,17 @@ local function fromQB(pd)
         D.jobType = pd.job.type or false
         D.grade = pd.job.grade and (pd.job.grade.name or pd.job.grade.label) or false
     end
+    if pd.gang then
+        if pd.gang.name and pd.gang.name ~= 'none' then
+            local grade = pd.gang.grade and (pd.gang.grade.name or pd.gang.grade.label)
+            D.gang = grade and ('%s - %s'):format(pd.gang.label or pd.gang.name, grade) or (pd.gang.label or pd.gang.name)
+        else
+            D.gang = 'No Gang'
+        end
+    end
+    if pd.charinfo and pd.charinfo.firstname then
+        D.name = ('%s %s'):format(pd.charinfo.firstname, pd.charinfo.lastname or '')
+    end
     local m = pd.metadata
     if m then
         D.hunger = num(m.hunger, D.hunger)
@@ -75,6 +87,7 @@ local function setupQB(fw)
     RegisterNetEvent('QBCore:Client:OnPlayerUnload', function() setLoaded(false) end)
     RegisterNetEvent('QBCore:Player:SetPlayerData', fromQB)
     RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job) fromQB({ job = job }) end)
+    RegisterNetEvent('QBCore:Client:OnGangUpdate', function(gang) fromQB({ gang = gang }) end)
     RegisterNetEvent('hud:client:UpdateNeeds', function(hunger, thirst)
         D.hunger = num(hunger, D.hunger)
         D.thirst = num(thirst, D.thirst)
@@ -107,18 +120,24 @@ local function fromESXJob(job)
     D.grade = job.grade_label or false
 end
 
+local function fromESXName(pd)
+    if type(pd) == 'table' and pd.firstName then D.name = ('%s %s'):format(pd.firstName, pd.lastName or '') end
+end
+
 local function setupESX()
     local ESX = exports['es_extended']:getSharedObject()
     local pd = ESX.GetPlayerData()
     if pd then
         fromESXAccounts(pd.accounts)
         fromESXJob(pd.job)
+        fromESXName(pd)
     end
     setLoaded(ESX.IsPlayerLoaded and ESX.IsPlayerLoaded() or false)
 
     RegisterNetEvent('esx:playerLoaded', function(xPlayer)
         fromESXAccounts(xPlayer.accounts)
         fromESXJob(xPlayer.job)
+        fromESXName(xPlayer)
         setLoaded(true)
     end)
     RegisterNetEvent('esx:onPlayerLogout', function() setLoaded(false) end)
@@ -155,6 +174,9 @@ exports('SetMoney', function(account, value)
     if account == 'cash' or account == 'bank' then D[account] = num(value, D[account])
     elseif account == 'dirty' or account == 'black_money' then D.dirty = num(value, 0) end
 end)
+
+exports('SetGang', function(label) D.gang = label or false end)
+exports('SetName', function(name) D.name = name or D.name end)
 
 exports('SetJob', function(label, grade)
     D.job = label or D.job

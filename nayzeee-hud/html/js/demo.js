@@ -25,7 +25,7 @@
 
     NH.update({
       h: 78, a: 54, hu: 66, th: 41, st: 88, sr: 22, ox: false, tk: false, vr: 2, rd: false,
-      cash: 10000024, bank: 98957647, job: 'Law Enforcement', grd: 'Recruit', id: 1, hs: false,
+      cash: 10000024, bank: 98957647, job: 'Law Enforcement', grd: 'Recruit', id: 7, hs: false, gng: 'Families - Shotcaller', pn: 'Nay Zeee', pl: 42, plm: 128, dom: 6, mon: 7,
       hr: 23, mn: 27, dow: 5, wx: 'CLEAR', hdg: 312, dir: 312,
       str: 'Vespucci Boulevard', crs: 'Palomino Ave', zn: 'Vespucci Beach', pst: '1046', lim: 30,
       wp: q.has('weapon') ? 'WEAPON_HEAVYPISTOL' : false, wl: 'Heavy Pistol', clip: 30, ammo: 36,

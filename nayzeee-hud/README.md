@@ -20,7 +20,9 @@ It replaces **qb-hud**, **esx_hud** and **nayzeee-squads**. Remove those from `s
 - **Built-in seatbelt** (`B`) with windscreen-ejection protection, a buckle sound and a chime when driving unbuckled.
 - **Cruise / speed limiter** (`Y`) and **indicators** (`←` / `→`).
 - **Map and location:** minimap frame, street bar (direction, street, zone, postal), live speed-limit sign (US or EU) that blinks when speeding, and a compass (tape or ribbon).
-- **Player info:** job and grade, cash, bank, server ID, ped headshot and a talking indicator. Pills, Stacked or Compact styles.
+- **Player info (8 styles):** Pills, Stacked, Compact, List, Sections, Grid, Tiles and Profile Card. Shows job, gang, character name, cash, dirty money, bank, server ID, players online, date and time, and a profile picture with a talking ring. Every element can be switched off.
+- **Discord profile pictures:** the player's Discord avatar (server avatar first), animated GIFs included, falling back to the character headshot. Needs `set nhud_discord_token "..."` in `server.cfg` (or the squads `nz_squads_bot_token`) and `Config.Discord.guildId`.
+- **NayZeee teal (`#08afa2`)** is the accent across the HUD, settings and squads. Seasons keep their particles and decorations without changing it, unless a player turns on "Use season colours".
 - **Weapon display:** image, name and clip/reserve ammo. Card, Minimal or Pill styles.
 - **Weather and time:** game or real time, 12h or 24h, day, and a weather icon that changes for night.
 - **Server watermark:** Stack, Badge or Minimal styles, with None, Pulse, Gloss or Float effects.
@@ -38,7 +40,7 @@ It replaces **qb-hud**, **esx_hud** and **nayzeee-squads**. Remove those from `s
    ensure oxmysql
    ensure qbx_core        # or qb-core / es_extended
    ensure nayzeee-hud
-   set nz_squads_bot_token "YOUR_BOT_TOKEN"     # optional, Discord avatars for squads
+   set nhud_discord_token "YOUR_BOT_TOKEN"      # optional, Discord pictures (HUD + squads can share one bot)
    add_ace group.admin nz_squads.admin allow    # squads admin menu
    ```
 3. Edit `config.lua` (HUD) and `squads/config.lua` (squads) if you need to. Set `SquadsConfig.Enabled = false` to run the HUD without squads.

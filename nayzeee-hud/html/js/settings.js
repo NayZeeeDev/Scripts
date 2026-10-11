@@ -48,11 +48,6 @@
       ? `<div class="pv-cmp"><i></i><i></i><b>NW</b><i></i><small>330</small><i></i><b class="main">N</b><i></i><small>30</small><i></i><b>NE</b><i></i></div>`
       : `<div class="cmp-rib panel"><b class="cmp-l">NW</b><i></i><span class="cmp-d">312°</span></div>`,
     weapon: (s) => `<div class="wpn w-${s} ${s === 'card' ? 'panel' : ''} pv-wpn"><span class="pv-gun">${ic('crosshair')}</span><b class="wn">Heavy Pistol</b><div class="am">${ic('bullets')}<b class="clip">30</b><i></i><span class="res">36</span></div></div>`,
-    info: (s) => {
-      if (s === 'stack') return `<div class="inf stack"><div class="ir"><div><small>Cash</small><b>$150</b></div><span class="cic">${ic('cash')}</span></div><div class="ir"><div><small>Bank</small><b>$14,850</b></div><span class="cic">${ic('bank')}</span></div></div>`;
-      if (s === 'compact') return `<div class="inf compact panel"><div class="ic-hd"><span class="pv-av"></span><div><b>Police (Recruit)</b><small>ID #1</small></div></div><div class="ic-row">${ic('cash')}<b>$10,024</b></div></div>`;
-      return `<div class="inf pills"><div class="r"><span class="pill i-job">${ic('briefcase')}<b>Law Enforcement</b></span></div><div class="r"><span class="pill">${ic('bank')}<b>$98,957</b></span><span class="pill">${ic('idcard')}<b>#1</b></span></div></div>`;
-    },
     watermark: (style, effect) => {
       const w = NH.cfg.watermark;
       return `<div class="wm wm-${style} fx-${effect}">${w.logo ? `<img src="${w.logo}" alt=""/>` : ''}<div class="wm-t"><b data-text="${w.title}">${w.title}</b>${w.subtitle ? `<small>${w.subtitle}</small>` : ''}</div></div>`;
@@ -112,9 +107,13 @@
 
   R.info = () =>
     sec('Display', toggle('info.enabled', 'Show player info') + scaleRange('info')) +
-    sec('Style', cards('info.style', [{ v: 'pills', l: 'Pills', html: PV.info('pills') }, { v: 'stack', l: 'Stacked', html: PV.info('stack') }, { v: 'compact', l: 'Compact', html: PV.info('compact') }], 'c3 tall')) +
+    sec('Style', cards('info.style', Object.keys(NH.INFO_STYLES).map(k => ({ v: k, l: NH.INFO_STYLES[k].label, pv: 'info:' + k })), 'c4 tall')) +
+    sec('Picture', seg('info.avatar', [['discord', 'Discord'], ['headshot', 'Character'], ['none', 'None']], 'Profile picture', 'Discord uses your server avatar when you have one, and falls back to your character') +
+      toggle('info.animated', 'Animated Discord pictures', 'Plays animated (GIF) avatars')) +
     sec('Money', toggle('info.popups', 'Money change popups', 'Shows +$ / -$ under your info when cash or bank changes')) +
-    sec('Elements', chips([['info.job', 'Job', ic('briefcase')], ['info.cash', 'Cash', ic('cash')], ['info.dirty', 'Dirty money', ic('cash')], ['info.bank', 'Bank', ic('bank')], ['info.id', 'Server ID', ic('idcard')], ['info.headshot', 'Headshot & voice', ic('user')]]));
+    sec('Elements', chips([['info.job', 'Job', ic('briefcase')], ['info.gang', 'Gang', ic('users')], ['info.name', 'Name', ic('user')], ['info.cash', 'Cash', ic('cash')],
+      ['info.dirty', 'Dirty money', ic('cash')], ['info.bank', 'Bank', ic('bank')], ['info.id', 'Server ID', ic('idcard')], ['info.players', 'Players online', ic('users')],
+      ['info.time', 'Date & time', ic('clock')], ['info.headshot', 'Picture & voice', ic('image2')]]));
 
   R.weapon = () =>
     sec('Display', toggle('weapon.enabled', 'Show weapon') + toggle('weapon.image', 'Weapon image') + scaleRange('weapon')) +
@@ -154,6 +153,8 @@
         wrap.className = 'pv-speedo';
         wrap.appendChild(inst.el);
         pv.appendChild(wrap);
+      } else if (type === 'info') {
+        pv.appendChild(NH.infoPreview(style));
       } else if (type === 'boat') {
         const inst = NH.createBoat();
         NH.updateBoat(inst, NH.DEMO_BOAT);

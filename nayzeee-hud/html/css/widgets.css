@@ -85,15 +85,84 @@
 .inf.stack b { display: block; white-space: nowrap; font-size: 20px; font-weight: 800; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
 .inf.stack .cic { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: rgba(12,13,16,.7); border: 2px solid var(--accent); color: var(--accent); }
 .inf.stack .cic .ic { font-size: 18px; }
-.inf.compact { width: 230px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.inf.compact { width: 240px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
 .inf.compact .ic-hd { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-.inf.compact img, .pv-av { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; background: rgba(var(--accent-rgb), .25); flex: none; }
-.inf.compact .ic-hd.noimg img { display: none; }
-.inf.compact .ic-hd b { display: block; font-size: 13px; }
-.inf.compact .ic-hd small { display: block; font-size: 11px; color: var(--accent); font-weight: 700; }
+.inf.compact .ic-hd > div { flex: 1; min-width: 0; }
+.inf.compact .ic-hd b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inf.compact .ic-hd small { display: block; font-size: 11px; color: var(--accent); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inf.compact .ic-id { font-size: 11px; font-weight: 800; padding: 3px 7px; border-radius: 6px; background: rgba(var(--accent-rgb), .15); color: var(--accent); }
 .inf.compact .ic-row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 700; padding: 2px 2px; }
 .inf.compact .ic-row .ic { color: var(--accent); font-size: 16px; }
-.inf.no-job .i-job, .inf.no-cash .i-cash, .inf.no-dirty .i-dirty, .inf.no-bank .i-bank, .inf.no-id .i-id, .inf.no-headshot .i-headshot { display: none !important; }
+
+/* pictures (Discord or character) */
+.ic-pic, .pf-pic, .gx-pic, .sx-pic { position: relative; flex: none; display: block; overflow: hidden; background: rgba(var(--accent-rgb), .18); }
+.ic-pic img, .pf-pic img, .gx-pic img, .sx-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.noimg img { visibility: hidden; }
+.ic-pic { width: 40px; height: 40px; border-radius: 10px; }
+.inf.talk .ic-pic, .inf.talk .pf-pic, .inf.talk .gx-pic, .inf.talk .sx-pic { box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(var(--accent-rgb), .6); }
+.pill.hs.noimg img { display: none; }
+
+/* list (plain lines, right aligned) */
+.inf.list, .inf.sections { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.inf .ln { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.85); white-space: nowrap; }
+.inf .ln span { display: flex; gap: 6px; }
+.inf .ln .ic { font-size: 13px; color: var(--accent); filter: drop-shadow(0 1px 3px rgba(0,0,0,.7)); }
+.inf.list .ln.i-time b + b { color: var(--accent); }
+
+/* sections (labelled groups) */
+.inf.sections { gap: 4px; }
+.inf .sx-top { display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.85); }
+.inf .sx-top > span { display: flex; align-items: center; gap: 5px; }
+.inf .sx-top .ic { font-size: 13px; color: var(--accent); }
+.inf .sx-pic { width: 30px; height: 30px; border-radius: 8px; }
+.inf .sx-h { margin-top: 6px; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.6); text-shadow: 0 1px 4px rgba(0,0,0,.85); }
+
+/* grid (two glass panels) */
+.inf.grid { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 290px; }
+.inf .gx { padding: 9px 12px; border-radius: 10px; }
+.inf .gx-top { display: flex; align-items: center; gap: 12px; }
+.inf .gx-c { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 700; }
+.inf .gx-c > span { display: flex; align-items: center; gap: 6px; }
+.inf .gx-c .ic { font-size: 13px; color: var(--accent); }
+.inf .gx-t { flex-direction: row; align-items: center; gap: 7px; flex: 1; }
+.inf .gx-t b { display: block; font-size: 13px; }
+.inf .gx-t small { display: block; font-size: 10px; color: var(--muted); font-weight: 500; }
+.inf .gx-sep { width: 1px; height: 26px; background: var(--line2); }
+.inf .gx-pic { width: 34px; height: 34px; border-radius: 8px; }
+.inf .gx-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 12px; }
+.inf .gx-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.inf .gx-cell.r { justify-content: flex-end; text-align: right; }
+.inf .gx-cell > div { min-width: 0; }
+.inf .gx-cell small { display: block; font-size: 9.5px; color: var(--muted); font-weight: 500; }
+.inf .gx-cell b { display: block; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inf .gx-cell .ic { font-size: 14px; color: var(--accent); }
+
+/* tiles (text panel + square icon tile) */
+.inf.tiles { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.inf .tl { display: flex; align-items: stretch; gap: 4px; }
+.inf .tl-t { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; min-width: 120px; padding: 5px 11px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.inf .tl-t small { font-size: 9.5px; color: var(--muted); font-weight: 500; }
+.inf .tl-t b { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.inf .tl-i { width: 36px; display: grid; place-items: center; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); color: var(--accent); }
+.inf .tl-i .ic { font-size: 15px; }
+
+/* profile card (Discord picture) */
+.inf.profile { width: 260px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.inf .pf-hd { display: flex; align-items: center; gap: 11px; }
+.inf .pf-pic { width: 46px; height: 46px; border-radius: 50%; }
+.inf .pf-n { flex: 1; min-width: 0; }
+.inf .pf-n b { display: block; font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inf .pf-n small { display: block; font-size: 11px; font-weight: 600; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inf .pf-id { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 99px; background: rgba(var(--accent-rgb), .15); color: var(--accent); }
+.inf .pf-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.inf .pf-row > span, .inf .pf-ft > span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid var(--line); font-size: 12.5px; font-weight: 700; }
+.inf .pf-row .ic, .inf .pf-ft .ic { font-size: 14px; color: var(--accent); }
+.inf .pf-ft { display: flex; justify-content: space-between; gap: 6px; }
+.inf .pf-ft > span { background: none; border: 0; padding: 0; font-size: 11px; color: var(--muted); font-weight: 600; }
+
+.inf.no-job .i-job, .inf.no-gang .i-gang, .inf.no-name .i-name, .inf.no-cash .i-cash, .inf.no-dirty .i-dirty, .inf.no-bank .i-bank,
+.inf.no-id .i-id, .inf.no-players .i-players, .inf.no-time .i-time, .inf.no-pic .i-pic { display: none !important; }
+.pv-info { position: static; }
 
 /* ---------- Weapon ---------- */
 .wpn { display: flex; flex-direction: column; align-items: center; gap: 4px; }

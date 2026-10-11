@@ -7,6 +7,7 @@ Discord = {}
 
 local cfg     = SquadsConfig.Discord
 local token   = GetConvar('nz_squads_bot_token', '')
+if token == '' then token = GetConvar('nhud_discord_token', '') end -- nayzeee-hud: one bot for HUD + squads
 local cache   = {}   -- [discordId] = { data, expires }
 local waiting = {}   -- [discordId] = { callbacks }
 local API     = 'https://discord.com/api/v10'
@@ -14,7 +15,7 @@ local CDN     = 'https://cdn.discordapp.com'
 
 local enabled = cfg.Enabled and token ~= ''
 if cfg.Enabled and token == '' then
-    print('^3[nayzeee-hud:squads]^7 Discord avatars are on but ^3nz_squads_bot_token^7 is not set. Initials will be used.')
+    print('^3[nayzeee-hud:squads]^7 Discord avatars are on but neither ^3nz_squads_bot_token^7 nor ^3nhud_discord_token^7 is set. Initials will be used.')
 end
 
 local function discordId(src)

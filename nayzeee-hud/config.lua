@@ -18,7 +18,7 @@ Config.Ticks = {
 -- Server defaults. Every player can change these in /hud and it's saved per player (client KVP).
 Config.Defaults = {
     season = 'auto',        -- 'auto' picks by date | 'default' | 'winter' | 'christmas' | 'newyear' | 'valentine' | 'stpatrick' | 'spring' | 'summer' | 'independence' | 'autumn' | 'halloween'
-    accent = '#b8f02a',
+    accent = '#08afa2',     -- NayZeee teal
     units = 'mph',          -- 'mph' | 'kmh'
     statusStyle = 'ring',   -- see /hud > Player Status
     speedoStyle = 'modern', -- see /hud > Cars & Bikes
@@ -66,6 +66,18 @@ Config.Stress = {
     noStressWeapons = { 'WEAPON_PETROLCAN', 'WEAPON_HAZARDCAN', 'WEAPON_FIREEXTINGUISHER', 'WEAPON_STUNGUN', 'WEAPON_SNOWBALL' },
     noStressClasses = { [13] = true, [14] = true, [15] = true, [16] = true, [18] = true, [19] = true, [20] = true, [21] = true },
     notify = true,             -- small "Feeling more stressed" text when it goes up
+}
+
+-- Discord profile pictures (static + animated) for the player info widget.
+-- Needs a bot token in server.cfg (never here, this file is sent to clients):
+--   set nhud_discord_token "YOUR_BOT_TOKEN"     (the squads token nz_squads_bot_token also works)
+-- guildId: your Discord server id, so server-specific avatars are used. The bot must be in that server.
+Config.Discord = {
+    enabled = true,
+    guildId = '',
+    preferServerAvatar = true,
+    size = 128,
+    cacheMinutes = 60,
 }
 
 -- /cash and /bank show your balance on the HUD for a few seconds ('' to disable)

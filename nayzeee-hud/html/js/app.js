@@ -5,7 +5,7 @@
   // Which widgets care about which keys from Lua
   const GROUP = {
     h: 'st', a: 'st', st: 'st', ox: 'st', tk: 'st', hu: 'st', th: 'st', sr: 'st', vr: 'st', rd: 'st',
-    cash: 'info', bank: 'info', dm: 'info', rt: 'st', vrc: 'st', hn: 'veh', nos: 'veh', nosOn: 'veh', job: 'info', grd: 'info', hs: 'info', id: 'info',
+    cash: 'info', bank: 'info', dm: 'info', gng: 'info', pn: 'info', pl: 'info', plm: 'info', av: 'info', ava: 'info', dom: 'clk', mon: 'clk', rt: 'st', vrc: 'st', hn: 'veh', nos: 'veh', nosOn: 'veh', job: 'info', grd: 'info', hs: 'info', id: 'info',
     hr: 'clk', mn: 'clk', dow: 'clk', wx: 'clk',
     hdg: 'cmp', str: 'loc', crs: 'loc', zn: 'loc', pst: 'loc', dir: 'loc', lim: 'loc',
     spd: 'veh', rpm: 'veh', gr: 'veh', fu: 'veh', en: 'veh', li: 'veh', lk: 'veh', ind: 'veh', eng: 'veh', bl: 'veh', cr: 'veh', hb: 'veh', odo: 'veh',
