@@ -16,6 +16,11 @@ It replaces **qb-hud**, **esx_hud** and **nayzeee-squads**. Remove those from `s
   - **Weapon in hand**: while a squadmate has a weapon out, their card shows it (nothing at all when unarmed) (picture from `Config.WeaponImages`, turned into a white silhouette; a built-in silhouette per weapon class is used when no picture loads). The weapon comes from the server's view of the ped, in the existing vitals sync.
   - **Shot flashes**: every shot a squadmate fires flashes their card, in the same rhythm as the gunfire. The shooter's client times each shot and sends small batches (`SquadsConfig.TeamHudShots`); the HUD keeps a matching 120 ms buffer so bursts play back evenly. Flash size and length follow the weapon class (a sniper crack is bigger than an SMG rattle). Idle cost is one native every 250 ms; per-frame checks only run while you aim or fire.
   - **Talking**: bouncing voice bars on whoever is talking, in yellow with a radio icon when it's over pma-voice radio (radio works at any distance; proximity talk needs the player in range).
+  - **Ammo**: clip / reserve under the gun, amber when the clip is low, `RELOAD` or `EMPTY` in red. Each player's client sends it only when it changes (at most every 600 ms) and it rides the vitals sync.
+  - **Damage flashes**: a card jolts and flashes red the moment that squadmate gets hurt (bigger hits shake harder).
+  - **Vehicle**: what they're in, with a car, truck, bike, bicycle, boat, plane, helicopter or train icon, the vehicle's name and Driver / Passenger. Picture styles (Heads, Tiles, Rings, Arena, Slim) show the icon as a badge on the picture.
+  - **Downed**: a bleed-out countdown on the card (`SquadsConfig.Revive.BleedOut`, 0 counts up instead), red for the last 30 s. When someone starts reviving, the picture gets a ring that fills as the revive progresses and the tag reads `REVIVING · name`.
+  - **Revives** use the HUD's progress bar. With `SquadsConfig.Revive.Hold = true` you hold `G`; letting go stops the revive.
 - **Stress** (qb-hud compatible): gains from shooting and speeding, screen blur and, at 100, a stumble. Other scripts keep using `hud:server:GainStress` / `hud:server:RelieveStress`.
 - **Money:** `+$` / `-$` popups when cash or bank changes, `/cash` and `/bank`, and ESX dirty money.
 - **Dashboard lights:** seatbelt, headlights (low and high), cruise, lock, engine warning and indicators.
@@ -28,8 +33,11 @@ It replaces **qb-hud**, **esx_hud** and **nayzeee-squads**. Remove those from `s
 - **Discord profile pictures:** the player's Discord avatar (server avatar first), animated GIFs included, falling back to the character headshot. Needs `set nhud_discord_token "..."` in `server.cfg` (or the squads `nz_squads_bot_token`) and `Config.Discord.guildId`.
 - **NayZeee teal (`#08afa2`)** is the accent across the HUD, settings and squads. Seasons keep their particles and decorations without changing it, unless a player turns on "Use season colours".
 - **Weapon display:** image, name and clip/reserve ammo. Card, Minimal or Pill styles.
+- **Crosshair (8 styles):** Dot, Cross, Cross + Dot, T, Plus, Circle, Circle + Dot and Chevron, with colour, length, thickness, gap, opacity and an outline. It replaces GTA's aim dot only while you aim a gun (sniper scopes keep their own), or whenever you hold one. `Config.Crosshair.enabled = false` leaves GTA's reticle alone.
+- **Voice & radio (4 styles):** Pill, Bars, Card and Minimal. Shows your voice range (pma-voice's own names such as Whisper / Normal / Shouting and the distance, or SaltyChat's range), a bouncing mic while you talk, your radio channel and a yellow glow while you transmit. Show it always, only while talking, or only when you're on a radio. It sits next to the player status by default.
+- **Notifications, progress bars and prompts** in the HUD's style, each with a player-picked style: notifications (Card, Glass, Pill, Stripe, Minimal; right, left, top or bottom; repeated messages stack as ×2, ×3), progress bars (Bar, Ring, Line, Pill) and interaction prompts (Key, Card, Minimal). See **Notifications** below.
 - **Weather and time (6 styles):** Pill, Text and icon, Weather Card, Line, Big Clock and Split Pills. Game or real time, 12h or 24h, day and date, a weather icon that changes for night, and the weather name.
-- **Server watermark:** Stack, Badge or Minimal styles, with None, Pulse, Gloss or Float effects.
+- **Server watermark:** Stack, Badge or Minimal styles, with None, Pulse, Gloss or Float effects. For the logo, drop `logo.png` (or `.webp`, `.gif`, `.svg`) into `nayzeee-hud/html/logo/` and restart; no link needed. `Config.Watermark.logo` can also name another file in that folder or still be a link, and `showText = false` shows the logo on its own.
 - **Seasonal styles:** Auto by date, Winter, Christmas, New Year, Valentine, St. Patrick's, Spring, Summer, Independence, Autumn and Halloween. Each season sets theme colours, CSS-only particles (snow, leaves, hearts, confetti, bats and more) and little decorations on HUD elements.
 - **Edit layout:** drag any element, scroll to resize, right-click to reset it.
 - **Import / Export:** share a whole HUD setup as a code.
@@ -76,8 +84,9 @@ Framework is auto-detected: **qbx_core**, **qb-core**, **es_extended** or standa
 | Hazards | unbound |
 | Squads menu | `/squads` |
 | Ping / ping wheel (squads) | middle mouse tap / hold |
-| Revive squadmate | `G` |
+| Revive squadmate | hold `G` |
 | Show balance | `/cash`, `/bank` |
+| Test notifications / progress / prompt | `/hudtest notify`, `/hudtest progress`, `/hudtest text` |
 
 Keys are FiveM key mappings, so players can rebind them in **GTA Settings → Key Bindings → FiveM**.
 
@@ -97,7 +106,42 @@ exports['nayzeee-hud']:SetNitrous(80, true)    -- level 0-100, active
 exports['nayzeee-hud']:HudToggle(false)        -- esx_hud name
 ```
 
-Server: `exports['nayzeee-hud']:GainStress(src, 5)` / `RelieveStress(src, 5)`.
+Server: `exports['nayzeee-hud']:GainStress(src, 5)` / `RelieveStress(src, 5)` / `Notify(src, { ... })`.
+
+## Notifications
+
+```lua
+-- client
+exports['nayzeee-hud']:Notify({ title = 'Garage', message = 'Your car is ready', type = 'success', duration = 5000 })
+exports['nayzeee-hud']:Notify('Not enough cash', 'error')                -- text, type, duration, title
+local done = exports['nayzeee-hud']:Progress({                          -- blocks; true when finished, false when cancelled
+    label = 'Picking the lock', duration = 5000, canCancel = true,
+    disable = { move = true, car = true, combat = true },
+    anim = { dict = 'mp_arresting', clip = 'a_uncuff' },               -- or { scenario = 'PROP_HUMAN_BUM_BIN' }
+    prop = { model = 'prop_tool_screwdriver', bone = 60309, pos = vec3(0, 0, 0), rot = vec3(0, 0, 0) },
+})
+exports['nayzeee-hud']:ShowTextUI('Open the stash', { key = 'E' })      -- '[E] Open the stash' works too
+exports['nayzeee-hud']:HideTextUI()
+
+-- server
+exports['nayzeee-hud']:Notify(source, { message = 'Paid $500', type = 'success' })
+TriggerClientEvent('nhud:notify', source, 'Paid $500', 'success')
+```
+
+Types: `success`, `error`, `warning`, `info` (also `inform`, `primary`). GTA colour codes like `~r~` are stripped. `Progress` also accepts qb-core progressbar tables with a callback: `exports['nayzeee-hud']:Progress(data, function(cancelled) end)`. qb-core's `qb-core:client:DrawText` / `HideText` / `ChangeText` / `KeyPressed` events show the prompt automatically (`Config.UI.TextUI.QBEvents`). Try it with `/hudtest notify`, `/hudtest progress` or `/hudtest text`.
+
+To send **every** framework notification through the HUD, point the framework's notify function at it (one line each):
+
+```lua
+-- qb-core: client/functions.lua, at the top of QBCore.Functions.Notify
+return exports['nayzeee-hud']:Notify({ message = type(text) == 'table' and text.text or text, title = type(text) == 'table' and text.caption or nil, type = texttype, duration = length })
+
+-- es_extended: client/functions.lua, at the top of ESX.ShowNotification
+return exports['nayzeee-hud']:Notify({ message = message, type = notifyType, duration = length })
+
+-- ox_lib: in any resource, before it calls lib.notify
+lib.notify = function(d) exports['nayzeee-hud']:Notify({ title = d.title, message = d.description, type = d.type, duration = d.duration }) end
+```
 
 Squads exports work under both names (`exports['nayzeee-squads']` and `exports['nayzeee-hud']`). See [`squads/README.md`](squads/README.md).
 
@@ -110,7 +154,9 @@ The target is **0.00–0.01 ms** in resmon.
 - **One loop thread.** It wakes every 250 ms on foot and every 125 ms in a vehicle. Slower data runs on its own timers inside that loop: status every 500 ms, location every 1 s, misc every 2.5 s.
 - **No per-frame code at idle.** The only per-frame code runs:
   - for a few seconds when GTA would show its own street or vehicle name (`Config.HideNativeHud = 'smart'`)
-  - while the vehicle control panel is open.
+  - while the vehicle control panel is open
+  - while you aim a gun (the crosshair hides GTA's reticle for those frames)
+  - while a progress bar is running (control blocking and cancel key).
 - **Diff-only UI updates.** Values are cached and only *changed* keys are sent to the UI, batched into one message per tick.
 - **Event driven.** Framework data, pma-voice and the seatbelt use events and state bags, not polling.
 - **Natives are localized.** Street and zone lookups are skipped unless you moved more than 2 m, and speed limits are cached per street.
