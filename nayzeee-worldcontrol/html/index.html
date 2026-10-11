@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAYZEEE WorldControl</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- ═══════════════ CONTROL PANEL ═══════════════ -->
+    <div class="wc-container" id="app">
+        <div class="wc-panel">
+            <!-- Header -->
+            <div class="panel-header">
+                <div class="header-left">
+                    <div class="header-icon">
+                        <i class="fas fa-earth-americas"></i>
+                    </div>
+                    <div class="header-info">
+                        <h1>World Control</h1>
+                        <span class="header-subtitle">Weather • Time • Traffic</span>
+                    </div>
+                </div>
+                <div class="header-status">
+                    <div class="status-chip" title="Current weather">
+                        <i class="fas fa-sun" id="chipWeatherIcon"></i>
+                        <span id="chipWeather">--</span>
+                    </div>
+                    <div class="status-chip" title="Server time">
+                        <i class="fas fa-clock"></i>
+                        <span id="chipTime">--:--</span>
+                    </div>
+                    <div class="status-chip" title="Players online">
+                        <i class="fas fa-users"></i>
+                        <span id="chipPlayers">0</span>
+                    </div>
+                </div>
+                <button class="close-btn" id="closeBtn">Close</button>
+            </div>
+
+            <div class="panel-body">
+                <!-- Sidebar -->
+                <nav class="sidebar">
+                    <button class="nav-btn active" data-tab="weather"><i class="fas fa-cloud-sun"></i><span>Weather</span></button>
+                    <button class="nav-btn" data-tab="time"><i class="fas fa-clock"></i><span>Time</span></button>
+                    <button class="nav-btn" data-tab="traffic"><i class="fas fa-traffic-light"></i><span>Traffic</span></button>
+                    <button class="nav-btn" data-tab="events"><i class="fas fa-wand-magic-sparkles"></i><span>Events</span></button>
+                    <button class="nav-btn" data-tab="log"><i class="fas fa-list-ul"></i><span>Activity</span></button>
+                    <div class="sidebar-footer">
+                        <span id="versionLabel">v2.0.0</span>
+                        <span>discord.gg/nayzeeedev</span>
+                    </div>
+                </nav>
+
+                <!-- Content -->
+                <div class="content">
+
+                    <!-- ═════ WEATHER ═════ -->
+                    <section class="tab active" id="tab-weather">
+                        <div class="hero">
+                            <div class="hero-icon weather" id="weatherHeroIcon"><i class="fas fa-sun"></i></div>
+                            <div class="hero-info">
+                                <span class="hero-kicker">Current Weather</span>
+                                <span class="hero-title" id="weatherHeroLabel">--</span>
+                                <span class="hero-sub" id="weatherHeroSub">--</span>
+                            </div>
+                            <div class="hero-badge" id="weatherMethodBadge">Game</div>
+                        </div>
+
+                        <div class="section" id="forecastSection">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-calendar-days"></i><span>Forecast</span></div>
+                                <div class="section-actions">
+                                    <button class="mini-btn" id="rerollBtn" title="Reroll forecast"><i class="fas fa-dice"></i></button>
+                                    <button class="mini-btn" id="skipBtn" title="Skip to next weather"><i class="fas fa-forward"></i> Skip</button>
+                                </div>
+                            </div>
+                            <div class="forecast-row" id="forecastRow"></div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-bolt"></i><span>Set Weather</span></div>
+                                <span class="section-hint">Click to apply for everyone</span>
+                            </div>
+                            <div class="grid grid-5" id="weatherGrid"></div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-sliders"></i><span>Weather Options</span></div>
+                            </div>
+                            <div class="toggle-grid">
+                                <div class="toggle-item">
+                                    <div class="toggle-info"><span class="toggle-label">Dynamic Weather</span><span class="toggle-desc">Cycle naturally over time</span></div>
+                                    <label class="switch"><input type="checkbox" id="optDynamic"><span></span></label>
+                                </div>
+                                <div class="toggle-item">
+                                    <div class="toggle-info"><span class="toggle-label">Instant Changes</span><span class="toggle-desc">Skip the smooth transition</span></div>
+                                    <label class="switch"><input type="checkbox" id="optWeatherInstant"><span></span></label>
+                                </div>
+                                <div class="toggle-item" id="realWeatherItem">
+                                    <div class="toggle-info"><span class="toggle-label">Real-World Weather</span><span class="toggle-desc" id="realWeatherDesc">Needs an API key in config</span></div>
+                                    <label class="switch"><input type="checkbox" id="optRealWeather"><span></span></label>
+                                </div>
+                            </div>
+                            <div class="slider-item">
+                                <div class="slider-header">
+                                    <div class="slider-icon accent"><i class="fas fa-hourglass-half"></i></div>
+                                    <div class="slider-info"><span class="slider-label">Change Interval</span><span class="slider-desc">Minutes between dynamic changes</span></div>
+                                    <span class="slider-value" id="intervalValue">15m</span>
+                                </div>
+                                <input type="range" class="slider" id="interval" min="1" max="60" value="15">
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-mountain-sun"></i><span>Atmosphere</span></div>
+                            </div>
+                            <div class="toggle-grid">
+                                <div class="toggle-item">
+                                    <div class="toggle-info"><span class="toggle-label">City Blackout</span><span class="toggle-desc">Kill all artificial lights</span></div>
+                                    <label class="switch danger"><input type="checkbox" id="optBlackout"><span></span></label>
+                                </div>
+                                <div class="toggle-item">
+                                    <div class="toggle-info"><span class="toggle-label">Snow on Ground</span><span class="toggle-desc">Snow + tyre & footstep tracks</span></div>
+                                    <label class="switch"><input type="checkbox" id="optSnow"><span></span></label>
+                                </div>
+                            </div>
+
+                            <div class="slider-item">
+                                <div class="slider-header">
+                                    <div class="slider-icon blue"><i class="fas fa-wind"></i></div>
+                                    <div class="slider-info"><span class="slider-label">Wind Speed</span><span class="slider-desc">Auto follows the weather</span></div>
+                                    <button class="auto-btn" data-auto="wind">Auto</button>
+                                    <span class="slider-value" id="windValue">Auto</span>
+                                </div>
+                                <input type="range" class="slider" id="wind" min="0" max="120" value="0">
+                            </div>
+
+                            <div class="slider-item">
+                                <div class="slider-header">
+                                    <div class="slider-icon purple"><i class="fas fa-compass"></i></div>
+                                    <div class="slider-info"><span class="slider-label">Wind Direction</span><span class="slider-desc">Compass heading</span></div>
+                                    <span class="slider-value" id="windDirectionValue">0°</span>
+                                </div>
+                                <input type="range" class="slider" id="windDirection" min="0" max="359" value="0">
+                            </div>
+
+                            <div class="slider-item">
+                                <div class="slider-header">
+                                    <div class="slider-icon cyan"><i class="fas fa-cloud-showers-heavy"></i></div>
+                                    <div class="slider-info"><span class="slider-label">Rain Intensity</span><span class="slider-desc">Auto follows the weather</span></div>
+                                    <button class="auto-btn" data-auto="rain">Auto</button>
+                                    <span class="slider-value" id="rainValue">Auto</span>
+                                </div>
+                                <input type="range" class="slider" id="rain" min="0" max="100" value="0">
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ═════ TIME ═════ -->
+                    <section class="tab" id="tab-time">
+                        <div class="hero clock-hero">
+                            <div class="hero-icon time" id="clockHeroIcon"><i class="fas fa-sun"></i></div>
+                            <div class="hero-info">
+                                <span class="hero-kicker">Server Time</span>
+                                <span class="hero-clock" id="clockHero">--:--</span>
+                                <span class="hero-sub" id="clockHeroSub">--</span>
+                            </div>
+                            <div class="hero-badge" id="timeStateBadge">Running</div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-bolt"></i><span>Quick Time</span></div>
+                            </div>
+                            <div class="grid grid-6" id="quickTimeGrid"></div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-clock-rotate-left"></i><span>Set Time</span></div>
+                                <span class="section-preview" id="timePreview">08:00</span>
+                            </div>
+                            <div class="slider-item">
+                                <div class="slider-header">
+                                    <div class="slider-icon warning"><i class="fas fa-h"></i></div>
+                                    <div class="slider-info"><span class="slider-label">Hour</span><span class="slider-desc">0 - 23</span></div>
+                                    <span class="slider-value" id="hourValue">08</span>
+                                </div>
+                                <input type="range" class="slider" id="hour" min="0" max="23" value="8">
+                            </div>
+                            <div class="slider-item">
+                                <div class="slider-header">
+                                    <div class="slider-icon warning"><i class="fas fa-m"></i></div>
+                                    <div class="slider-info"><span class="slider-label">Minute</span><span class="slider-desc">0 - 59</span></div>
+                                    <span class="slider-value" id="minuteValue">00</span>
+                                </div>
+                                <input type="range" class="slider" id="minute" min="0" max="59" value="0">
+                            </div>
+                            <button class="action-btn save-btn full" id="applyTimeBtn"><i class="fas fa-check"></i><span>Apply Time</span></button>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-sliders"></i><span>Time Options</span></div>
+                            </div>
+                            <div class="toggle-grid">
+                                <div class="toggle-item">
+                                    <div class="toggle-info"><span class="toggle-label">Freeze Time</span><span class="toggle-desc">Stop the clock for everyone</span></div>
+                                    <label class="switch"><input type="checkbox" id="optFreeze"><span></span></label>
+                                </div>
+                                <div class="toggle-item">
+                                    <div class="toggle-info"><span class="toggle-label">Instant Changes</span><span class="toggle-desc">Skip the sky roll animation</span></div>
+                                    <label class="switch"><input type="checkbox" id="optTimeInstant"><span></span></label>
+                                </div>
+                                <div class="toggle-item">
+                                    <div class="toggle-info"><span class="toggle-label">Real-World Time</span><span class="toggle-desc">Follow the real clock</span></div>
+                                    <label class="switch"><input type="checkbox" id="optRealTime"><span></span></label>
+                                </div>
+                            </div>
+                            <div class="slider-item">
+                                <div class="slider-header">
+                                    <div class="slider-icon accent"><i class="fas fa-gauge-high"></i></div>
+                                    <div class="slider-info"><span class="slider-label">Day Length</span><span class="slider-desc">Real minutes per in-game day (GTA default 48)</span></div>
+                                    <span class="slider-value" id="dayLengthValue">48m</span>
+                                </div>
+                                <input type="range" class="slider" id="dayLength" min="6" max="480" step="6" value="48">
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ═════ TRAFFIC ═════ -->
+                    <section class="tab" id="tab-traffic">
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-bolt"></i><span>Quick Presets</span></div>
+                                <span class="section-hint" id="densityModeHint"></span>
+                            </div>
+                            <div class="grid grid-3" id="presetsGrid"></div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-sliders"></i><span>Fine Controls</span></div>
+                            </div>
+                            <div id="densitySliders"></div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-tower-broadcast"></i><span>Ambient Services</span></div>
+                            </div>
+                            <div class="toggle-grid" id="servicesGrid"></div>
+                        </div>
+
+                        <div class="actions-row">
+                            <button class="action-btn warn-btn" id="purgeBtn"><i class="fas fa-broom"></i><span>Clear Area Now</span></button>
+                            <button class="action-btn reset-btn" id="resetTrafficBtn"><i class="fas fa-rotate-left"></i><span>Reset</span></button>
+                        </div>
+                    </section>
+
+                    <!-- ═════ EVENTS ═════ -->
+                    <section class="tab" id="tab-events">
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-clapperboard"></i><span>Scenes</span></div>
+                                <span class="section-hint">Weather + time + atmosphere in one click</span>
+                            </div>
+                            <div class="grid grid-4" id="scenesGrid"></div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-bolt-lightning"></i><span>Effects</span></div>
+                            </div>
+                            <div class="effect-card">
+                                <div class="slider-icon warning"><i class="fas fa-bolt-lightning"></i></div>
+                                <div class="slider-info"><span class="slider-label">Lightning Strike</span><span class="slider-desc">Flash the sky for every player</span></div>
+                                <button class="mini-btn accent" id="lightningBtn"><i class="fas fa-bolt"></i> Strike</button>
+                            </div>
+                        </div>
+
+                        <div class="section" id="restartSection">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-triangle-exclamation"></i><span>Restart Warning</span></div>
+                                <span class="section-hint">Storm → blackout → siren countdown</span>
+                            </div>
+                            <div class="restart-card" id="restartCard">
+                                <div class="restart-state" id="restartState">
+                                    <i class="fas fa-water"></i>
+                                    <div>
+                                        <span class="slider-label" id="restartStateLabel">Inactive</span>
+                                        <span class="slider-desc" id="restartStateDesc">Auto-starts on txAdmin scheduled restarts</span>
+                                    </div>
+                                </div>
+                                <div class="restart-controls">
+                                    <div class="number-input">
+                                        <button data-step="-1"><i class="fas fa-minus"></i></button>
+                                        <input type="number" id="restartMinutes" min="1" max="60" value="5">
+                                        <span>min</span>
+                                        <button data-step="1"><i class="fas fa-plus"></i></button>
+                                    </div>
+                                    <button class="action-btn danger-btn" id="restartStartBtn"><i class="fas fa-play"></i><span>Start</span></button>
+                                    <button class="action-btn reset-btn hidden" id="restartCancelBtn"><i class="fas fa-stop"></i><span>Cancel</span></button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ═════ ACTIVITY ═════ -->
+                    <section class="tab" id="tab-log">
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-title"><i class="fas fa-list-ul"></i><span>Recent Changes</span></div>
+                                <span class="section-hint">Live across all admins</span>
+                            </div>
+                            <div class="log-list" id="logList"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm modal -->
+        <div class="modal hidden" id="confirmModal">
+            <div class="modal-card">
+                <div class="modal-icon"><i class="fas fa-triangle-exclamation"></i></div>
+                <h2 id="confirmTitle">Are you sure?</h2>
+                <p id="confirmText"></p>
+                <div class="actions-row">
+                    <button class="action-btn reset-btn" id="confirmNo"><span>Cancel</span></button>
+                    <button class="action-btn danger-btn" id="confirmYes"><span>Confirm</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ ALWAYS-ON OVERLAYS (no focus needed) ═══════════════ -->
+    <div class="restart-banner hidden" id="restartBanner">
+        <div class="banner-icon"><i class="fas fa-house-tsunami"></i></div>
+        <div class="banner-info">
+            <span class="banner-title" id="bannerTitle">Tsunami Warning</span>
+            <span class="banner-text" id="bannerText"></span>
+        </div>
+        <div class="banner-timer" id="bannerTimer">05:00</div>
+    </div>
+
+    <div class="toast-stack" id="toastStack"></div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
