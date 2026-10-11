@@ -1,0 +1,31 @@
+-- Quick locations show as buttons. The full list is searchable in Teleport.
+Teleports = {
+    quick = {
+        { name = 'Mission Row PD',   coords = vector4(432.76, -982.06, 30.70, 274.96),   icon = 'fa-shield-halved' },
+        { name = 'Pillbox Hospital', coords = vector4(298.00, -583.85, 43.25, 240.94),   icon = 'fa-house-medical' },
+        { name = 'Legion Square',    coords = vector4(195.17, -933.77, 30.69, 144.50),   icon = 'fa-city' },
+        { name = 'LS Customs',       coords = vector4(-360.66, -132.96, 38.67, 249.45),  icon = 'fa-wrench' },
+        { name = 'Airport',          coords = vector4(-997.00, -2941.64, 13.95, 201.26), icon = 'fa-plane' },
+        { name = 'Bolingbroke',      coords = vector4(1848.13, 2586.09, 45.66, 90.71),   icon = 'fa-lock' },
+        { name = 'Vespucci Beach',   coords = vector4(-1570.98, -990.92, 13.00, 181.42), icon = 'fa-umbrella-beach' },
+        { name = 'Mount Chiliad',    coords = vector4(501.77, 5604.53, 797.91, 174.70),  icon = 'fa-mountain' },
+    },
+    full = {
+        { name = 'Vanilla Unicorn',       coords = vector3(126.13, -1278.58, 29.27) },
+        { name = 'Paleto Bank',           coords = vector3(-109.30, 6464.03, 31.62) },
+        { name = 'Pacific Standard',      coords = vector3(235.28, 216.64, 106.28) },
+        { name = 'Fleeca Legion',         coords = vector3(149.46, -1040.53, 29.37) },
+        { name = 'Humane Labs',           coords = vector3(3525.49, 3705.30, 20.99) },
+        { name = 'Sandy Shores Airfield', coords = vector3(1747.05, 3273.66, 41.13) },
+        { name = 'Fort Zancudo',          coords = vector3(-2360.00, 3249.00, 32.80) },
+        { name = 'Del Perro Pier',        coords = vector3(-1850.00, -1231.00, 13.00) },
+        { name = 'Maze Bank Roof',        coords = vector3(-75.00, -818.00, 326.00) },
+        { name = 'Vinewood Sign',         coords = vector3(711.00, 1198.00, 348.00) },
+        { name = 'Grove Street',          coords = vector3(-40.60, -1834.30, 26.10) },
+        { name = 'Diamond Casino',        coords = vector3(924.00, 46.00, 81.10) },
+        { name = 'Paleto PD',             coords = vector3(-448.00, 6012.00, 31.70) },
+        { name = 'Sandy PD',              coords = vector3(1853.00, 3686.00, 34.30) },
+        { name = 'Mirror Park',           coords = vector3(1112.00, -645.00, 56.80) },
+        { name = 'Cayo Perico Airstrip',  coords = vector3(4494.00, -4525.00, 4.40) },
+    },
+}
