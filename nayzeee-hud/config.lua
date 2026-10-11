@@ -1,6 +1,7 @@
 Config = {}
 
 -- 'auto' | 'qbx' | 'qb' | 'esx' | 'standalone'
+-- With a framework the HUD hides on character select / logout and comes back when you load in.
 Config.Framework = 'auto'
 
 -- Update intervals in ms. These are what keep resmon at ~0.00-0.01ms.
@@ -42,11 +43,33 @@ Config.Minimap = {
 Config.HideNativeHud = 'smart'
 
 Config.Seatbelt = {
-    enabled = true,          -- built-in seatbelt. Set false if you use another seatbelt script (use exports.SetSeatbelt)
+    -- true: built-in seatbelt. false: use another script (qb-smallresources' seatbelt is picked up
+    -- automatically through 'seatbelt:client:ToggleSeatbelt', or call exports.SetSeatbelt).
+    -- 'auto': built-in unless qb-smallresources is running.
+    enabled = 'auto',
     ejectProtection = true,  -- buckled players can't fly through the windscreen
 }
 
 Config.Cruise = { enabled = true }
+
+-- Stress (qb-hud compatible). Other scripts can keep using
+-- TriggerServerEvent('hud:server:GainStress', amount) and 'hud:server:RelieveStress'.
+-- qb/qbx: saved in player metadata. esx: esx_status 'stress' if it exists. standalone: kept in memory.
+Config.Stress = {
+    enabled = true,
+    shootingChance = 0.1,      -- chance per shot to gain stress
+    speedUnbuckled = 50,       -- mph; driving faster than this unbuckled adds stress
+    speedBuckled = 100,        -- mph; buckled
+    speedCheckMs = 10000,
+    blurFrom = 50,             -- stress level where the screen starts to blur
+    whitelistedJobs = { police = true, ambulance = true, leo = true, ems = true },
+    noStressWeapons = { 'WEAPON_PETROLCAN', 'WEAPON_HAZARDCAN', 'WEAPON_FIREEXTINGUISHER', 'WEAPON_STUNGUN', 'WEAPON_SNOWBALL' },
+    noStressClasses = { [13] = true, [14] = true, [15] = true, [16] = true, [18] = true, [19] = true, [20] = true, [21] = true },
+    notify = true,             -- small "Feeling more stressed" text when it goes up
+}
+
+-- /cash and /bank show your balance on the HUD for a few seconds ('' to disable)
+Config.MoneyCommands = { cash = 'cash', bank = 'bank' }
 
 -- Default keys. Players can rebind them in GTA Settings > Key Bindings > FiveM.
 Config.Keys = {

@@ -27,7 +27,7 @@ local function keyList()
         { label = 'Right indicator', key = k.indicatorRight },
         { label = 'Hazard lights', key = k.hazard },
     }
-    if Config.Seatbelt.enabled then table.insert(list, 3, { label = 'Seatbelt', key = k.seatbelt }) end
+    if NHUD.builtinBelt then table.insert(list, 3, { label = 'Seatbelt', key = k.seatbelt }) end
     if Config.Cruise.enabled then table.insert(list, 4, { label = 'Cruise / limiter', key = k.cruise }) end
     return list
 end
@@ -41,12 +41,15 @@ RegisterNUICallback('ready', function(_, cb)
         defaults = Config.Defaults,
         watermark = Config.Watermark,
         weaponImages = Config.WeaponImages,
-        belt = Config.Seatbelt.enabled,
+        belt = NHUD.builtinBelt,
         keys = keyList(),
-        framework = Bridge.framework,
+        framework = HudBridge.framework,
+        squads = SquadsConfig ~= nil and SquadsConfig.Enabled == true,
+        stressNotify = Config.Stress.enabled and Config.Stress.notify,
     })
     NHUD.sendMap(true)
     NHUD.resend()
+    NHUD.send('vis', { v = NHUD.visible and HudBridge.loaded })
     cb('ok')
 end)
 
@@ -79,7 +82,7 @@ RegisterNUICallback('vehAction', function(data, cb)
 end)
 
 local function openSettings()
-    if settingsOpen or NHUD.focus then return end
+    if settingsOpen or NHUD.focus or MenuOpen then return end
     settingsOpen = true
     NHUD.focus = true
     SetNuiFocus(true, true)
@@ -88,9 +91,15 @@ end
 
 local function setVisible(state)
     NHUD.visible = state
-    NHUD.send('vis', { v = state })
+    NHUD.send('vis', { v = state and HudBridge.loaded })
     NHUD.updateRadar(nil, true)
     NHUD.flush()
+end
+
+-- framework login / logout
+function NHUD.setLoaded(state)
+    if not NHUD.ready then return end
+    setVisible(NHUD.visible)
 end
 
 RegisterCommand(Config.Commands.settings, openSettings, false)
@@ -105,3 +114,19 @@ exports('ToggleHud', function(state)
     setVisible(state)
 end)
 exports('IsHudVisible', function() return NHUD.visible end)
+
+-- /cash and /bank (qb-hud) + the event other scripts fire to show a balance
+local function showAccount(kind, amount)
+    NHUD.send('accounts', { kind = kind, amount = math.floor(tonumber(amount) or 0) })
+end
+RegisterNetEvent('hud:client:ShowAccounts', showAccount)
+if Config.MoneyCommands.cash ~= '' then
+    RegisterCommand(Config.MoneyCommands.cash, function() showAccount('cash', HudBridge.data.cash) end, false)
+end
+if Config.MoneyCommands.bank ~= '' then
+    RegisterCommand(Config.MoneyCommands.bank, function() showAccount('bank', HudBridge.data.bank) end, false)
+end
+
+-- esx_hud compatibility
+RegisterNetEvent('esx_hud:HudToggle', function(state) setVisible(state ~= false) end)
+exports('HudToggle', function(state) setVisible(state ~= false) end)

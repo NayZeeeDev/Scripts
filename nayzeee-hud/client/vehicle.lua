@@ -5,6 +5,11 @@ local belt, cruise, interior = false, false, false
 local windows = {}
 local panelOpen = false
 
+-- built-in seatbelt, or mirror another script (qb-smallresources) through its events
+local sb = Config.Seatbelt.enabled
+local builtinBelt = sb == true or (sb == 'auto' and GetResourceState('qb-smallresources') == 'missing')
+NHUD.builtinBelt = builtinBelt
+
 local function myVehicle()
     local ped = PlayerPedId()
     return ped, GetVehiclePedIsIn(ped, false)
@@ -18,7 +23,7 @@ local function setBelt(state)
     local ped, veh = myVehicle()
     if veh == 0 or not NHUD.hasBelt then state = false end
     belt = state and true or false
-    if Config.Seatbelt.ejectProtection then
+    if builtinBelt and Config.Seatbelt.ejectProtection then
         SetPedConfigFlag(ped, 32, not belt) -- 32 = can fly through windscreen
     end
     NHUD.set('bl', belt)
@@ -28,8 +33,8 @@ end
 
 function NHUD.vehicleEntered(veh, mode)
     belt, cruise, interior = false, false, false
-    NHUD.hasBelt = Config.Seatbelt.enabled and mode == 'car'
-    SetPedConfigFlag(PlayerPedId(), 32, true)
+    NHUD.hasBelt = mode == 'car'
+    if builtinBelt then SetPedConfigFlag(PlayerPedId(), 32, true) end
     NHUD.set('bl', false)
     NHUD.set('cr', false)
     NHUD.set('hb', NHUD.hasBelt)
@@ -39,7 +44,7 @@ function NHUD.vehicleLeft(veh)
     if cruise and DoesEntityExist(veh) then SetVehicleMaxSpeed(veh, 0.0) end
     belt, cruise = false, false
     NHUD.hasBelt = false
-    SetPedConfigFlag(PlayerPedId(), 32, true)
+    if builtinBelt then SetPedConfigFlag(PlayerPedId(), 32, true) end
     NHUD.set('bl', false)
     NHUD.set('cr', false)
     NHUD.set('hb', false)
@@ -215,7 +220,7 @@ end
 function NHUD.isPanelOpen() return panelOpen end
 
 -- Commands + default keys (rebindable in GTA settings)
-if Config.Seatbelt.enabled then
+if builtinBelt then
     RegisterCommand('nhud_seatbelt', function()
         if not NHUD.hasBelt then return end
         setBelt(not belt)
@@ -245,6 +250,33 @@ exports('SetSeatbelt', setBelt)
 exports('IsSeatbeltOn', function() return belt end)
 exports('IsCruiseOn', function() return cruise end)
 RegisterNetEvent('nayzeee-hud:client:setSeatbelt', setBelt)
+
+-- qb-hud / qb-smallresources compatibility
+RegisterNetEvent('seatbelt:client:ToggleSeatbelt', function()
+    if builtinBelt then return end
+    setBelt(not belt)
+end)
+RegisterNetEvent('seatbelt:client:ToggleCruise', function()
+    if Config.Cruise.enabled then return end
+    cruise = not cruise
+    NHUD.set('cr', cruise)
+    NHUD.flush()
+end)
+RegisterNetEvent('hud:client:ToggleShowSeatbelt', function() end) -- accepted, nothing to do
+RegisterNetEvent('hud:client:UpdateHarness', function(harnessHp)
+    NHUD.set('hn', (tonumber(harnessHp) or 0) > 0)
+    NHUD.flush()
+end)
+RegisterNetEvent('hud:client:UpdateNitrous', function(level, active)
+    NHUD.set('nos', math.floor(tonumber(level) or 0))
+    NHUD.set('nosOn', active == true)
+    NHUD.flush()
+end)
+exports('SetNitrous', function(level, active)
+    NHUD.set('nos', math.floor(tonumber(level) or 0))
+    NHUD.set('nosOn', active == true)
+    NHUD.flush()
+end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end

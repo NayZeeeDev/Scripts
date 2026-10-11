@@ -90,6 +90,8 @@
 .st[data-k="voice"].talk .ico, .st[data-k="voice"].talk .ico.c { color: var(--accent); }
 .st[data-k="voice"].talk .fil, .st[data-k="voice"].talk .liq { filter: drop-shadow(0 0 6px var(--accent)); }
 .st[data-k="voice"].talk { --c: var(--accent) !important; }
+.st[data-k="voice"].rtalk { --c: #f97316 !important; }
+.st[data-k="voice"].rtalk .ico, .st[data-k="voice"].rtalk .ico.c { color: #f97316; }
 .st[data-k="voice"].radio::before {
   content: ''; position: absolute; right: -2px; top: -2px; width: 9px; height: 9px; border-radius: 50%;
   background: #f97316; border: 2px solid rgba(12, 13, 16, .9); z-index: 2;

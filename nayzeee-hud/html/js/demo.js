@@ -3,6 +3,7 @@
 //         status=<style> speedo=<style> units=kmh
 (() => {
   const NH = window.NH;
+  const W_pop = () => NH.W.info.pop('cash', 0, 10000524);
   NH.demo = () => {
     document.body.classList.add('demo');
     const q = new URLSearchParams(location.search);
@@ -39,6 +40,8 @@
     if (q.has('settings')) { NH.settingsUI.tab = q.get('tab') || 'general'; NH.settingsUI.open(); }
     if (q.has('edit')) { NH.settingsUI.open(); NH.settingsUI.editLayout(true); }
     if (q.has('panel')) NH.panel.open();
+    if (q.has('squads')) NH.squadsFrame();
+    if (q.has('money')) setTimeout(() => { NH.update({ cash: 10000524 }); NH.update({ bank: 98955147 }); W_pop(); }, 50);
     if (still) return;
 
     let t = 0;

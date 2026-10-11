@@ -1,11 +1,16 @@
--- Framework bridge. Everything here is event driven: no polling of framework data.
+-- Framework bridge: qbx_core, qb-core, es_extended or standalone.
+-- Everything here is event driven: no polling of framework data.
 
-Bridge = {
+HudBridge = {
     framework = 'standalone',
-    data = { cash = 0, bank = 0, job = 'Civilian', grade = false, hunger = 100, thirst = 100, stress = 0 },
+    loaded = true, -- false while on character select / after logout (frameworks only)
+    data = {
+        cash = 0, bank = 0, dirty = false, job = 'Civilian', jobName = 'unemployed', jobType = false, grade = false,
+        hunger = 100, thirst = 100, stress = 0,
+    },
 }
 
-local D = Bridge.data
+local D = HudBridge.data
 
 local function num(v, fallback)
     v = tonumber(v)
@@ -13,13 +18,22 @@ local function num(v, fallback)
 end
 
 local function detect()
-    if Config.Framework ~= 'auto' then return Config.Framework end
+    local f = Config.Framework
+    if f == 'qbcore' then f = 'qb' end
+    if f ~= 'auto' then return f end
     if GetResourceState('qbx_core') == 'started' then return 'qbx' end
     if GetResourceState('qb-core') == 'started' then return 'qb' end
     if GetResourceState('es_extended') == 'started' then return 'esx' end
     return 'standalone'
 end
 
+local function setLoaded(state)
+    if HudBridge.loaded == state then return end
+    HudBridge.loaded = state
+    if NHUD.setLoaded then NHUD.setLoaded(state) end
+end
+
+-- qb-core / qbx --------------------------------------------------------------
 local function fromQB(pd)
     if type(pd) ~= 'table' then return end
     if pd.money then
@@ -28,6 +42,8 @@ local function fromQB(pd)
     end
     if pd.job then
         D.job = pd.job.label or pd.job.name or D.job
+        D.jobName = pd.job.name or D.jobName
+        D.jobType = pd.job.type or false
         D.grade = pd.job.grade and (pd.job.grade.name or pd.job.grade.label) or false
     end
     local m = pd.metadata
@@ -36,20 +52,6 @@ local function fromQB(pd)
         D.thirst = num(m.thirst, D.thirst)
         D.stress = num(m.stress, D.stress)
     end
-end
-
-local function fromESXAccounts(accounts)
-    if type(accounts) ~= 'table' then return end
-    for _, a in pairs(accounts) do
-        if a.name == 'money' then D.cash = num(a.money, D.cash)
-        elseif a.name == 'bank' then D.bank = num(a.money, D.bank) end
-    end
-end
-
-local function fromESXJob(job)
-    if type(job) ~= 'table' then return end
-    D.job = job.label or job.name or D.job
-    D.grade = job.grade_label or false
 end
 
 local function setupQB(fw)
@@ -63,18 +65,20 @@ local function setupQB(fw)
 
     local ok, pd = pcall(getPD)
     if ok then fromQB(pd) end
+    setLoaded(LocalPlayer.state.isLoggedIn == true)
 
     RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
         local ok2, p = pcall(getPD)
         if ok2 then fromQB(p) end
+        setLoaded(true)
     end)
+    RegisterNetEvent('QBCore:Client:OnPlayerUnload', function() setLoaded(false) end)
     RegisterNetEvent('QBCore:Player:SetPlayerData', fromQB)
     RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job) fromQB({ job = job }) end)
     RegisterNetEvent('hud:client:UpdateNeeds', function(hunger, thirst)
         D.hunger = num(hunger, D.hunger)
         D.thirst = num(thirst, D.thirst)
     end)
-    RegisterNetEvent('hud:client:UpdateStress', function(stress) D.stress = num(stress, D.stress) end)
 
     -- qbx keeps needs in player state bags
     local bag = ('player:%s'):format(GetPlayerServerId(PlayerId()))
@@ -83,6 +87,24 @@ local function setupQB(fw)
         if current then D[key] = num(current, D[key]) end
         AddStateBagChangeHandler(key, bag, function(_, _, value) D[key] = num(value, D[key]) end)
     end
+    AddStateBagChangeHandler('isLoggedIn', bag, function(_, _, value) setLoaded(value == true) end)
+end
+
+-- es_extended ----------------------------------------------------------------
+local function fromESXAccounts(accounts)
+    if type(accounts) ~= 'table' then return end
+    for _, a in pairs(accounts) do
+        if a.name == 'money' then D.cash = num(a.money, D.cash)
+        elseif a.name == 'bank' then D.bank = num(a.money, D.bank)
+        elseif a.name == 'black_money' then D.dirty = num(a.money, 0) end
+    end
+end
+
+local function fromESXJob(job)
+    if type(job) ~= 'table' then return end
+    D.job = job.label or job.name or D.job
+    D.jobName = job.name or D.jobName
+    D.grade = job.grade_label or false
 end
 
 local function setupESX()
@@ -92,10 +114,14 @@ local function setupESX()
         fromESXAccounts(pd.accounts)
         fromESXJob(pd.job)
     end
+    setLoaded(ESX.IsPlayerLoaded and ESX.IsPlayerLoaded() or false)
+
     RegisterNetEvent('esx:playerLoaded', function(xPlayer)
         fromESXAccounts(xPlayer.accounts)
         fromESXJob(xPlayer.job)
+        setLoaded(true)
     end)
+    RegisterNetEvent('esx:onPlayerLogout', function() setLoaded(false) end)
     RegisterNetEvent('esx:setAccountMoney', function(account) fromESXAccounts({ account }) end)
     RegisterNetEvent('esx:setJob', fromESXJob)
     AddEventHandler('esx_status:onTick', function(list)
@@ -107,9 +133,12 @@ local function setupESX()
     end)
 end
 
+-- stress pushed by any server (qb-hud compatible event)
+RegisterNetEvent('hud:client:UpdateStress', function(stress) D.stress = num(stress, D.stress) end)
+
 CreateThread(function()
     local fw = detect()
-    Bridge.framework = fw
+    HudBridge.framework = fw
     if fw == 'qb' or fw == 'qbx' then
         setupQB(fw)
     elseif fw == 'esx' then
@@ -123,10 +152,13 @@ exports('SetStatus', function(name, value)
 end)
 
 exports('SetMoney', function(account, value)
-    if account == 'cash' or account == 'bank' then D[account] = num(value, D[account]) end
+    if account == 'cash' or account == 'bank' then D[account] = num(value, D[account])
+    elseif account == 'dirty' or account == 'black_money' then D.dirty = num(value, 0) end
 end)
 
 exports('SetJob', function(label, grade)
     D.job = label or D.job
     D.grade = grade or false
 end)
+
+exports('SetLoaded', setLoaded)

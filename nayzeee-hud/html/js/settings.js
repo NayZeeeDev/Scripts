@@ -17,7 +17,7 @@
     { id: 'keys', label: 'Keybinds', icon: 'keyboard', title: 'Keybinds', sub: 'Change keys in GTA Settings > Key Bindings > FiveM' },
   ];
 
-  const ACCENTS = ['#b8f02a', '#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#fb7185', '#f97316', '#facc15', '#34d399', '#f5f5f5'];
+  const ACCENTS = ['#08afa2', '#b8f02a', '#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#fb7185', '#f97316', '#facc15', '#34d399', '#f5f5f5'];
 
   const g = (p) => NH.getPath(NH.cur, p);
 
@@ -70,7 +70,7 @@
         <div class="swatches">${ACCENTS.map(c => `<button class="swatch${NH.cur.accent === c ? ' on' : ''}" data-accent="${c}" style="--sw:${c}"></button>`).join('')}
         <input class="hex" data-hex="accent" value="${NH.cur.accent}" maxlength="7" spellcheck="false"/></div></div>`) +
     sec('Sound', toggle('sound', 'HUD sounds', 'Seatbelt click, chime and indicator tick') + range('volume', 'Volume', 0, 1, 0.05, 'pct')) +
-    sec('Layout', `<div class="opt"><div class="opt-t"><b>Edit sizes & positions</b><small>Drag any element, scroll to resize, right-click to reset it</small></div><button class="btn" data-act="edit">${ic('move')}Edit layout</button></div>` +
+    sec('Layout', `<div class="opt"><div class="opt-t"><b>Edit sizes & positions</b><small>Drag any element, scroll to resize, right-click to reset it</small></div><button class="btn-line" data-act="edit">${ic('move')}Edit layout</button></div>` +
       toggle('cinematic', 'Cinematic mode', 'Black bars and no HUD, for screenshots and clips'));
 
   R.seasons = () =>
@@ -89,7 +89,7 @@
     sec('Shown stats', chips(NH.STATS.map(s => [`status.show.${s.k}`, s.label, NH.fic(s.icon)])));
 
   R.vehicle = () =>
-    sec('Speedometer', cards('speedo.style', Object.keys(NH.SPEEDO_STYLES).map(k => ({ v: k, l: NH.SPEEDO_STYLES[k].label, pv: 'speedo:' + k })), 'c3 tall') + scaleRange('speedo')) +
+    sec('Speedometer', cards('speedo.style', Object.keys(NH.SPEEDO_STYLES).filter(k => !NH.CYCLE_ONLY.includes(k)).map(k => ({ v: k, l: NH.SPEEDO_STYLES[k].label, pv: 'speedo:' + k })), 'c3 tall') + scaleRange('speedo')) +
     sec('Dashboard', toggle('speedo.lights', 'Dashboard lights', 'Seatbelt, lights, cruise, lock, engine and indicators') +
       toggle('speedo.chime', 'Seatbelt chime', 'Chimes when driving unbuckled') +
       toggle('speedo.tick', 'Indicator tick sound') +
@@ -97,8 +97,9 @@
 
   R.other = () =>
     sec('Aircraft', cards('air.style', [{ v: 'pfd', l: 'Flight PFD', pv: 'air:pfd' }, { v: 'cards', l: 'Info Cards', pv: 'air:cards' }, { v: 'off', l: 'Off', html: `<span class="pv-off">${ic('x')}</span>` }], 'c3 tall') + scaleRange('air')) +
-    sec('Boats', seg('boat.units', [['kts', 'Knots'], ['main', 'Same as cars']], 'Boat speed units')) +
-    sec('Bicycles', cards('cycle.style', [{ v: 'watch', l: 'Fitness Watch', pv: 'speedo:watch' }, { v: 'car', l: 'Car speedometer', html: `<span class="pv-off">${ic('car')}</span>` }], 'c3 tall'));
+    sec('Boats', seg('boat.units', [['kts', 'Knots'], ['main', 'Same as cars']], 'Boat speed units') +
+      toggle('boat.info', 'Heading & trim display', 'Heading and how far the bow is up or down') + `<div class="cards c2"><div class="card on pv-static"><div class="pv" data-pv="boat:info"></div><span>Boat display</span></div></div>` + scaleRange('boat')) +
+    sec('Bicycles', cards('cycle.style', [{ v: 'smartwatch', l: 'Smart Watch', pv: 'speedo:smartwatch' }, { v: 'watch', l: 'Fitness Watch', pv: 'speedo:watch' }, { v: 'car', l: 'Car speedometer', html: `<span class="pv-off">${ic('car')}</span>` }], 'c3 tall'));
 
   R.map = () =>
     sec('Minimap', seg('map.mode', [['vehicle', 'In vehicles'], ['always', 'Always'], ['never', 'Never']], 'Show minimap') +
@@ -112,7 +113,8 @@
   R.info = () =>
     sec('Display', toggle('info.enabled', 'Show player info') + scaleRange('info')) +
     sec('Style', cards('info.style', [{ v: 'pills', l: 'Pills', html: PV.info('pills') }, { v: 'stack', l: 'Stacked', html: PV.info('stack') }, { v: 'compact', l: 'Compact', html: PV.info('compact') }], 'c3 tall')) +
-    sec('Elements', chips([['info.job', 'Job', ic('briefcase')], ['info.cash', 'Cash', ic('cash')], ['info.bank', 'Bank', ic('bank')], ['info.id', 'Server ID', ic('idcard')], ['info.headshot', 'Headshot & voice', ic('user')]]));
+    sec('Money', toggle('info.popups', 'Money change popups', 'Shows +$ / -$ under your info when cash or bank changes')) +
+    sec('Elements', chips([['info.job', 'Job', ic('briefcase')], ['info.cash', 'Cash', ic('cash')], ['info.dirty', 'Dirty money', ic('cash')], ['info.bank', 'Bank', ic('bank')], ['info.id', 'Server ID', ic('idcard')], ['info.headshot', 'Headshot & voice', ic('user')]]));
 
   R.weapon = () =>
     sec('Display', toggle('weapon.enabled', 'Show weapon') + toggle('weapon.image', 'Weapon image') + scaleRange('weapon')) +
@@ -130,8 +132,8 @@
 
   R.io = () => {
     const code = btoa(unescape(encodeURIComponent(JSON.stringify(NH.cur))));
-    return sec('Export', `<p class="desc">Copy this code and share it. Includes layout, styles and colours.</p><textarea class="code" readonly id="nh-export">${code}</textarea><div class="btns"><button class="btn" data-act="copy">${ic('copy')}Copy code</button></div>`) +
-      sec('Import', `<textarea class="code" id="nh-import" placeholder="Paste a HUD code here"></textarea><div class="btns"><button class="btn acc" data-act="import">${ic('download')}Import</button><span class="io-msg" id="nh-io-msg"></span></div>`);
+    return sec('Export', `<p class="desc">Copy this code and share it. Includes layout, styles and colours.</p><textarea class="code" readonly id="nh-export">${code}</textarea><div class="btns"><button class="btn-line" data-act="copy">${ic('copy')}Copy code</button></div>`) +
+      sec('Import', `<textarea class="code" id="nh-import" placeholder="Paste a HUD code here"></textarea><div class="btns"><button class="btn-teal" data-act="import">${ic('download')}Import</button><span class="io-msg" id="nh-io-msg"></span></div>`);
   };
 
   R.keys = () => sec('Keys & commands', `<div class="keys">${(NH.cfg.keys.length ? NH.cfg.keys : [
@@ -152,6 +154,10 @@
         wrap.className = 'pv-speedo';
         wrap.appendChild(inst.el);
         pv.appendChild(wrap);
+      } else if (type === 'boat') {
+        const inst = NH.createBoat();
+        NH.updateBoat(inst, NH.DEMO_BOAT);
+        pv.appendChild(inst.el);
       } else if (type === 'air') {
         const inst = NH.createAir(style);
         NH.updateAir(inst, NH.DEMO_AIR);
@@ -183,16 +189,16 @@
           <aside class="st-side">
             <div class="brand"><span class="brand-i">${ic('cog')}</span><div><b>NAYZEEE HUD</b><small>Customize your HUD</small></div></div>
             <nav>${TABS.map(t => `<button class="nav" data-tab="${t.id}">${ic(t.icon)}<span>${t.label}</span></button>`).join('')}</nav>
-            <button class="nav reset-all" data-act="reset">${ic('reset')}<span>Reset to default</span></button>
+            <button class="btn-red reset-all" data-act="reset">${ic('reset')}<span>Reset to default</span></button>
           </aside>
           <main class="st-main">
             <header class="st-hd">
               <div><h3 id="st-title"></h3><small id="st-sub"></small></div>
               <div class="st-act"><span class="unsaved">Unsaved changes</span>
-                <button class="btn" data-act="edit">${ic('move')}Edit layout</button>
-                <button class="btn" data-act="revert">Discard</button>
-                <button class="btn acc" data-act="save">${ic('check')}Save</button>
-                <button class="btn icon" data-act="close">${ic('x')}</button></div>
+                <button class="btn-line" data-act="edit">${ic('move')}Edit layout</button>
+                <button class="btn-line" data-act="revert">Discard</button>
+                <button class="btn-teal" data-act="save">${ic('check')}Save changes</button>
+                <button class="pill-close" data-act="close">Close</button></div>
             </header>
             <div class="st-body" id="st-body"></div>
           </main>
@@ -204,7 +210,7 @@
 
       const bar = document.getElementById('editbar');
       bar.innerHTML = `<div class="eb panel"><span class="eb-i">${ic('move')}</span><div><b>Edit layout</b><small>Drag to move · Scroll to resize · Right-click to reset an element</small></div>
-        <button class="btn" data-act="layout-reset">${ic('reset')}Reset layout</button><button class="btn acc" data-act="layout-done">${ic('check')}Done</button></div>`;
+        <button class="btn-line" data-act="layout-reset">${ic('reset')}Reset layout</button><button class="btn-teal" data-act="layout-done">${ic('check')}Done</button></div>`;
       bar.addEventListener('click', e => {
         const b = e.target.closest('[data-act]');
         if (!b) return;

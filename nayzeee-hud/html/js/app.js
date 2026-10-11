@@ -5,7 +5,7 @@
   // Which widgets care about which keys from Lua
   const GROUP = {
     h: 'st', a: 'st', st: 'st', ox: 'st', tk: 'st', hu: 'st', th: 'st', sr: 'st', vr: 'st', rd: 'st',
-    cash: 'info', bank: 'info', job: 'info', grd: 'info', hs: 'info', id: 'info',
+    cash: 'info', bank: 'info', dm: 'info', rt: 'st', vrc: 'st', hn: 'veh', nos: 'veh', nosOn: 'veh', job: 'info', grd: 'info', hs: 'info', id: 'info',
     hr: 'clk', mn: 'clk', dow: 'clk', wx: 'clk',
     hdg: 'cmp', str: 'loc', crs: 'loc', zn: 'loc', pst: 'loc', dir: 'loc', lim: 'loc',
     spd: 'veh', rpm: 'veh', gr: 'veh', fu: 'veh', en: 'veh', li: 'veh', lk: 'veh', ind: 'veh', eng: 'veh', bl: 'veh', cr: 'veh', hb: 'veh', odo: 'veh',
@@ -41,7 +41,7 @@
     bpm += ((70 + sp * 2.1) - bpm) * 0.15;
     const now = new Date();
     const v = {
-      sp, sr: Math.min(1, sp / max), rpm: (S.rpm || 0) / 100, gear: String(S.gr ?? 'N'),
+      sp1: ((S.spd || 0) / 10 * MUL[u]).toFixed(1), sp, sr: Math.min(1, sp / max), rpm: (S.rpm || 0) / 100, gear: String(S.gr ?? 'N'),
       fuel: S.fu ?? 100, eng: S.en ?? 100, unit: LABEL[u],
       odo: String(Math.floor(dist)).padStart(6, '0') + (km ? ' KM' : ' MI'),
       belt: !!S.bl, hb: !!S.hb, li: S.li || 0, lk: !!S.lk, ind: S.ind || 0, cr: !!S.cr, running: !!S.eng,
@@ -76,12 +76,17 @@
     tick: () => tone(2400, 0.018, 0.12, 'square'),
     tock: () => tone(1700, 0.018, 0.1, 'square'),
     click: () => tone(1800, 0.02, 0.1, 'square'),
+    fuel: () => { tone(740, 0.18, 0.14); tone(740, 0.18, 0.14, 'sine', 0.25); },
   };
   NH.sfx = n => SFX[n] && SFX[n]();
 
-  let chimeT = null, tickT = null, lastBelt = null, tickFlip = false;
+  let chimeT = null, tickT = null, lastBelt = null, tickFlip = false, lastFuel = null;
   function vehSounds() {
     const S = NH.S;
+    if (S.vm && S.fu !== undefined) {
+      if (NH.cur.speedo.fuelWarn && lastFuel !== null && lastFuel >= 15 && S.fu < 15) NH.sfx('fuel');
+      lastFuel = S.fu;
+    } else lastFuel = null;
     if (S.bl !== lastBelt) {
       if (lastBelt !== null && S.vm && S.hb) NH.sfx(S.bl ? 'buckle' : 'unbuckle');
       lastBelt = S.bl;
@@ -135,6 +140,7 @@
 
   NH.update = (d) => {
     const groups = {};
+    if ('sr' in d && NH.cfg.stressNotify && NH.S.sr !== undefined && d.sr > NH.S.sr) NH.toast('Feeling more stressed');
     for (const k in d) {
       NH.S[k] = d[k];
       groups[GROUP[k] || 'x'] = 1;
@@ -150,9 +156,30 @@
   };
 
   // ---------------- Messages from Lua ----------------
+  // ---------------- Squads (own page in a frame, so its styles never touch the HUD) ----------------
+  let sqFrame = null, sqFocused = false;
+  NH.squadsFrame = () => {
+    if (sqFrame) return sqFrame;
+    sqFrame = document.createElement('iframe');
+    sqFrame.id = 'squads';
+    sqFrame.src = 'squads/index.html';
+    sqFrame.setAttribute('allowtransparency', 'true');
+    document.body.appendChild(sqFrame);
+    return sqFrame;
+  };
+  const sqFocus = (on) => {
+    sqFocused = on;
+    document.body.classList.toggle('squads-focus', on);
+    if (on && sqFrame) { sqFrame.focus(); try { sqFrame.contentWindow.focus(); } catch (_) { /* ignore */ } }
+  };
+
   window.addEventListener('message', (e) => {
     const m = e.data;
-    if (!m || !m.t) return;
+    if (!m) return;
+    if (!m.t) { // squads messages use { action, data }
+      if (m.action && sqFrame && e.source !== sqFrame.contentWindow) sqFrame.contentWindow.postMessage(m, '*');
+      return;
+    }
     switch (m.t) {
       case 'u': NH.update(m.d); break;
       case 'init':
@@ -161,18 +188,30 @@
         if (m.weaponImages !== undefined) NH.cfg.weaponImages = m.weaponImages;
         if (m.keys) NH.cfg.keys = m.keys;
         NH.cfg.belt = m.belt;
+        NH.cfg.stressNotify = !!m.stressNotify;
+        NH.popsAfter = Date.now() + 5000;
+        if (m.squads) NH.squadsFrame();
         NH.saved = NH.merge(NH.clone(NH.DEFAULTS), m.settings || {});
         NH.cur = NH.saved;
         NH.applySettings();
         break;
       case 'map': NH.map = m.m; NH.place(); break;
-      case 'vis': document.body.classList.toggle('hidden', !m.v); break;
+      case 'sqfocus': sqFocus(!!m.on); break;
+      case 'accounts': W.info.pop(m.kind, 0, m.amount); break;
+      case 'vis':
+        document.body.classList.toggle('hidden', !m.v);
+        if (m.v) NH.popsAfter = Date.now() + 5000; // character just loaded: balances jump, don't pop
+        break;
       case 'settings': if (m.open) NH.settingsUI.open(); else NH.settingsUI.close(); break;
       case 'panel': if (m.open) NH.panel.open(m.s); else NH.panel.close(false); break;
     }
   });
 
   document.addEventListener('keydown', (e) => {
+    if (sqFocused && sqFrame) { // keys pressed before the frame took focus still reach the squads menu
+      sqFrame.contentWindow.document.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, shiftKey: e.shiftKey, bubbles: true }));
+      return;
+    }
     if (e.key !== 'Escape' && e.key !== 'Backspace' && e.key !== 'F7') return;
     if (e.key === 'Backspace' && /INPUT|TEXTAREA/.test(document.activeElement?.tagName)) return;
     if (NH.editing) { NH.settingsUI.editLayout(false); return; }

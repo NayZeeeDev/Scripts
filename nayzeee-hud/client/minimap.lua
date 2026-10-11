@@ -36,7 +36,7 @@ end
 function NHUD.updateRadar(inVehicle, force)
     if inVehicle == nil then inVehicle = GetVehiclePedIsIn(PlayerPedId(), false) ~= 0 end
     local mode = NHUD.settings.minimap
-    local show = NHUD.visible and (mode == 'always' or (mode == 'vehicle' and inVehicle))
+    local show = NHUD.visible and HudBridge.loaded and (mode == 'always' or (mode == 'vehicle' and inVehicle))
     if show ~= radarShown or force then
         radarShown = show
         DisplayRadar(show)

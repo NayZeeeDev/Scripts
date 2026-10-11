@@ -199,7 +199,19 @@
       <i class="strap"></i>`,
   };
 
+  STY.smartwatch = {
+    label: 'Smart Watch',
+    html: o => `
+      <i class="sw-crown"></i><i class="sw-btn"></i>
+      <div class="swf">
+        <div class="sw-top"><small>Train</small>${ic('bike')}</div>
+        <div class="sw-mid"><small>Speed</small><div class="sw-spd"><b data-r="sp1">0.0</b><span class="sw-u" data-r="unitv">MPH</span></div></div>
+        <div class="sw-bot"><div><small>Heart</small><b data-r="bpm">80</b>${NH.fic('heart', 'sw-heart')}</div><div><small>Cadence</small><b data-r="cad">0</b><em>RPM</em></div></div>
+      </div>`,
+  };
+
   NH.SPEEDO_STYLES = STY;
+  NH.CYCLE_ONLY = ['watch', 'smartwatch'];
 
   // ---- Instances ----
   const MAX = { MPH: 180, KMH: 300, KTS: 160 };
@@ -245,6 +257,12 @@
     setTxt(inst, 'fuelv', String(s.fuel));
     setTxt(inst, 'engp', s.eng + '%');
     setTxt(inst, 'odo', s.odo);
+    if (inst.style === 'smartwatch') {
+      setTxt(inst, 'sp1', s.sp1);
+      setTxt(inst, 'unitv', s.unit);
+      setTxt(inst, 'bpm', String(s.bpm));
+      setTxt(inst, 'cad', String(s.cad));
+    }
     if (inst.style === 'watch') {
       setTxt(inst, 'time', s.time);
       setTxt(inst, 'bpm', String(s.bpm));
@@ -269,7 +287,7 @@
     }
   };
 
-  NH.DEMO_SPEEDO = { sp: 60, sr: 0.42, rpm: 0.62, gear: '4', fuel: 68, eng: 92, odo: '012480 MI', unit: 'MPH', belt: true, hb: true, li: 1, lk: false, ind: 0, cr: false, time: '14:32', bpm: 131, cad: 78, dist: '3.99', dunit: 'MI' };
+  NH.DEMO_SPEEDO = { sp1: '13.0', sp: 60, sr: 0.42, rpm: 0.62, gear: '4', fuel: 68, eng: 92, odo: '012480 MI', unit: 'MPH', belt: true, hb: true, li: 1, lk: false, ind: 0, cr: false, time: '14:32', bpm: 131, cad: 78, dist: '3.99', dunit: 'MI' };
 
   // ---- Aircraft ----
   const AIR = {};
@@ -318,6 +336,24 @@
     setTxt(inst, 'altf', a.alt.toLocaleString('en-US') + ' ft');
     setTxt(inst, 'vsf', (a.vs > 0 ? '+' : '') + a.vs + ' ft/m');
   };
+
+  // ---- Boats ----
+  NH.createBoat = () => {
+    const el = document.createElement('div');
+    el.className = 'boat';
+    el.innerHTML = `
+      <div class="bc hdg">${ic('crosshair')}<div><b data-r="hdg">0°</b><small data-r="dir">N</small></div></div>
+      <div class="bc trim"><div class="tr-ind"><i class="tr-base"></i><i class="tr-line"><b></b></i></div><div><b class="tr-l" data-r="trim">LEVEL</b><small data-r="deg">0°</small></div></div>`;
+    return { el, refs: collect(el), last: {}, vars: {} };
+  };
+  NH.updateBoat = (inst, b) => {
+    setVar(inst, '--trim', b.pt);
+    setTxt(inst, 'hdg', b.hdg + '°');
+    setTxt(inst, 'dir', NH.dirOf(b.hdg));
+    setTxt(inst, 'trim', b.pt > 2 ? 'BOW UP' : b.pt < -2 ? 'BOW DOWN' : 'LEVEL');
+    setTxt(inst, 'deg', Math.abs(b.pt) + '°');
+  };
+  NH.DEMO_BOAT = { pt: 37, hdg: 175 };
 
   NH.DEMO_AIR = { pt: 6, rl: -14, ias: 128, alt: 3250, agl: 1180, vs: 640, hdg: 82, gearDown: true };
 })();

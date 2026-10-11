@@ -44,3 +44,10 @@ function NHUD.send(t, data)
     data.t = t
     SendNUIMessage(data)
 end
+
+-- The squads UI lives in a frame inside the HUD page. Squads code calls this instead of
+-- SetNuiFocus so the page knows when that frame needs the mouse and keyboard.
+function SquadsFocus(focus, cursor)
+    SetNuiFocus(focus, cursor)
+    SendNUIMessage({ t = 'sqfocus', on = focus and true or false })
+end

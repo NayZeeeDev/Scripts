@@ -82,7 +82,7 @@
     visible: () => (inVeh() && NH.S.vm !== 'train') || NH.editing,
     build(el) { this.inst = null; },
     effectiveStyle() {
-      if (NH.S.vm === 'cycle' && NH.cur.cycle.style === 'watch') return 'watch';
+      if (NH.S.vm === 'cycle' && NH.cur.cycle.style !== 'car') return NH.cur.cycle.style;
       return NH.cur.speedo.style;
     },
     apply() {
@@ -108,7 +108,7 @@
     pos: () => [50, 98.4],
     visible: () => NH.cur.speedo.lights && ((inVeh() && ['car', 'moto'].includes(NH.S.vm)) || NH.editing),
     build(el) {
-      el.innerHTML = `<div class="dash panel">${['belt', 'light', 'gauge', 'lock', 'warn', 'arrowL', 'arrowR'].map(i => `<span class="dl dl-${i}">${ic(i)}</span>`).join('')}</div><span class="deco"></span>`;
+      el.innerHTML = `<div class="dash panel">${['belt', 'light', 'gauge', 'lock', 'warn', 'bolt', 'arrowL', 'arrowR'].map(i => `<span class="dl dl-${i}">${ic(i)}</span>`).join('')}</div><span class="deco"></span>`;
       this.box = el.firstChild;
     },
     render(g) {
@@ -122,6 +122,8 @@
       if (s.eng < 35) cls += ' eng-warn';
       if (s.ind & 1) cls += ' ind-l';
       if (s.ind & 2) cls += ' ind-r';
+      if (NH.S.hn) cls += ' hn';
+      if (NH.S.nos > 0) cls += NH.S.nosOn ? ' nos nos-on' : ' nos';
       if (this.box.className !== cls) this.box.className = cls;
     },
   });
@@ -148,6 +150,19 @@
         alt: S.alt || 0, agl: S.agl || 0, vs: S.vs || 0, hdg: S.vh || 0, gearDown: !S.lg,
       } : NH.DEMO_AIR;
       NH.updateAir(this.inst, a);
+    },
+  });
+
+  // ---------------- Boat ----------------
+  def('boat', {
+    label: 'Boat Display', anchor: [1, 1],
+    pos: c => NH.editing && !NH.S.vm ? [80, 97.8] : [98.6, 97.8 - (c.speedoH || 22) - 1.2],
+    visible: () => NH.cur.boat.info !== false && (NH.S.vm === 'boat' || NH.editing),
+    build(el) { this.inst = NH.createBoat(); el.appendChild(this.inst.el); },
+    render(g) {
+      if (!g.air && !g.veh && !g.edit) return;
+      const S = NH.S;
+      NH.updateBoat(this.inst, S.vm === 'boat' ? { pt: S.pt || 0, hdg: S.vh || 0 } : NH.DEMO_BOAT);
     },
   });
 
@@ -251,22 +266,34 @@
           : `<span class="pill i-${k}">${ic(icon)}<b data-i="${k}"></b></span>`;
         let html;
         if (c.style === 'stack') {
-          html = `<div class="inf stack">${row('job', 'briefcase', 'Job')}${row('cash', 'cash', 'Cash')}${row('bank', 'bank', 'Bank')}${row('id', 'idcard', 'Server ID')}</div>`;
+          html = `<div class="inf stack">${row('job', 'briefcase', 'Job')}${row('cash', 'cash', 'Cash')}${row('dirty', 'cash', 'Dirty')}${row('bank', 'bank', 'Bank')}${row('id', 'idcard', 'Server ID')}</div>`;
         } else if (c.style === 'compact') {
           html = `<div class="inf compact panel"><div class="ic-hd i-headshot"><img data-i="hs" alt=""/><div><b data-i="job"></b><small data-i="id"></small></div></div>
-            <div class="ic-row i-cash">${ic('cash')}<b data-i="cash"></b></div><div class="ic-row i-bank">${ic('bank')}<b data-i="bank"></b></div></div>`;
+            <div class="ic-row i-cash">${ic('cash')}<b data-i="cash"></b></div><div class="ic-row i-dirty">${ic('cash')}<b data-i="dirty"></b></div><div class="ic-row i-bank">${ic('bank')}<b data-i="bank"></b></div></div>`;
         } else {
-          html = `<div class="inf pills"><div class="r">${row('job', 'briefcase')}</div><div class="r">${row('bank', 'bank')}${row('cash', 'cash')}</div>
+          html = `<div class="inf pills"><div class="r">${row('job', 'briefcase')}</div><div class="r">${row('bank', 'bank')}${row('cash', 'cash')}</div><div class="r">${row('dirty', 'cash')}</div>
             <div class="r"><span class="pill hs i-headshot">${NH.fic('mic', 'mic')}<img data-i="hs" alt=""/></span>${row('id', 'idcard')}</div></div>`;
         }
-        this.el.innerHTML = html + '<span class="deco"></span>';
+        this.el.innerHTML = html + '<span class="deco"></span><div class="mpops"></div>';
+        this.pops = this.el.querySelector('.mpops');
         this.refs = {};
         this.el.querySelectorAll('[data-i]').forEach(n => (this.refs[n.dataset.i] = this.refs[n.dataset.i] || []).push(n));
         this.box = this.el.firstChild;
         this.last = {};
       }
       for (const k of ['job', 'cash', 'bank', 'id', 'headshot']) this.box.classList.toggle('no-' + k, !c[k]);
+      this.box.classList.toggle('no-dirty', !c.dirty || NH.S.dm === false || NH.S.dm === undefined);
       this.render({ info: 1, st: 1 });
+    },
+    pop(kind, delta, total) {
+      if (!this.pops) return;
+      const el = document.createElement('div');
+      const neutral = total !== undefined;
+      el.className = 'mpop ' + (neutral ? 'acc' : delta < 0 ? 'neg' : 'pos');
+      el.innerHTML = `${ic(kind === 'bank' ? 'bank' : 'cash')}${neutral ? `<small>${kind === 'bank' ? 'Bank' : 'Cash'}</small><b>${NH.money(total)}</b>` : `<b>${delta < 0 ? '-' : '+'}${NH.money(Math.abs(delta))}</b>`}`;
+      this.pops.appendChild(el);
+      while (this.pops.children.length > 4) this.pops.firstChild.remove();
+      setTimeout(() => el.remove(), neutral ? 4200 : 2800);
     },
     set(k, v) {
       if (this.last[k] === v || !this.refs[k]) return;
@@ -282,6 +309,16 @@
       this.set('job', S.grd ? `${S.job || 'Civilian'} (${S.grd})` : (S.job || 'Civilian'));
       this.set('cash', NH.money(S.cash));
       this.set('bank', NH.money(S.bank));
+      this.set('dirty', NH.money(S.dm || 0));
+      this.box.classList.toggle('no-dirty', !NH.cur.info.dirty || S.dm === false || S.dm === undefined);
+      // +$/-$ popups: only for real changes, never for the first value or right after login
+      this.prevMoney = this.prevMoney || {};
+      for (const k of ['cash', 'bank']) {
+        if (S[k] === undefined) continue;
+        const v = Number(S[k]) || 0, prev = this.prevMoney[k];
+        if (prev !== undefined && v !== prev && NH.cur.info.popups && Date.now() > (NH.popsAfter || 0)) this.pop(k, v - prev);
+        this.prevMoney[k] = v;
+      }
       this.set('id', this.style === 'compact' ? `ID #${S.id ?? 0}` : `#${S.id ?? 0}`);
       this.set('hs', S.hs ? `https://nui-img/${S.hs}/${S.hs}?t=${S.hs}` : '');
       this.box.classList.toggle('talk', !!S.tk);

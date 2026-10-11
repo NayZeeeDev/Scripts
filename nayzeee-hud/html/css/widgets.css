@@ -93,7 +93,7 @@
 .inf.compact .ic-hd small { display: block; font-size: 11px; color: var(--accent); font-weight: 700; }
 .inf.compact .ic-row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 700; padding: 2px 2px; }
 .inf.compact .ic-row .ic { color: var(--accent); font-size: 16px; }
-.inf.no-job .i-job, .inf.no-cash .i-cash, .inf.no-bank .i-bank, .inf.no-id .i-id, .inf.no-headshot .i-headshot { display: none !important; }
+.inf.no-job .i-job, .inf.no-cash .i-cash, .inf.no-dirty .i-dirty, .inf.no-bank .i-bank, .inf.no-id .i-id, .inf.no-headshot .i-headshot { display: none !important; }
 
 /* ---------- Weapon ---------- */
 .wpn { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -164,3 +164,21 @@
 /* ---------- Seasonal decoration slot ---------- */
 .deco { display: none; position: absolute; right: -8px; top: -12px; width: 20px; height: 20px; background: var(--deco) center / contain no-repeat; transform: rotate(14deg); pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); z-index: 3; }
 body.decor .deco { display: block; }
+
+/* money popups */
+.mpops { position: absolute; right: 0; top: 100%; margin-top: 8px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+.mpop { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 9px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 14px; font-weight: 800; white-space: nowrap; animation: mpop 2.8s ease forwards; }
+.mpop .ic { font-size: 15px; }
+.mpop.pos { color: #4ade80; border-color: rgba(74, 222, 128, .35); }
+.mpop.neg { color: #f87171; border-color: rgba(248, 113, 113, .35); }
+.mpop.acc .ic { color: var(--accent); }
+.mpop.acc small { font-size: 11px; font-weight: 600; color: var(--muted); }
+.mpop.acc { animation-duration: 4.2s; }
+@keyframes mpop { 0% { opacity: 0; transform: translateY(-6px); } 8%, 82% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(6px); } }
+.pill.i-dirty .ic { color: #f87171; }
+
+/* harness + nitrous */
+.dash.hn .dl-belt { color: #fff; background: #2563eb; border-color: #60a5fa; box-shadow: 0 0 12px rgba(96, 165, 250, .5); animation: none; }
+.dl-bolt { display: none !important; }
+.dash.nos .dl-bolt { display: grid !important; color: #60a5fa; }
+.dash.nos-on .dl-bolt { color: #fff; background: #0891b2; border-color: #22d3ee; box-shadow: 0 0 14px rgba(34, 211, 238, .7); }

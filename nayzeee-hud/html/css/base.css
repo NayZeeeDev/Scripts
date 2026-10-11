@@ -100,3 +100,8 @@ body.demo {
     linear-gradient(180deg, #5d93c9 0%, #9cc1e3 42%, #d8cfb8 43%, #b59f7c 60%, #6f5f48 100%);
 }
 body.demo.radar .w-mapframe .mf { background: repeating-linear-gradient(45deg, #3d4a3a 0 12px, #46553f 12px 24px); }
+
+/* ---------- Squads frame ---------- */
+#squads { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; pointer-events: none; z-index: 15; transition: opacity .3s; }
+body.squads-focus #squads { pointer-events: auto; z-index: 40; }
+body.hidden:not(.squads-focus) #squads, body.cinematic:not(.squads-focus) #squads { opacity: 0; }

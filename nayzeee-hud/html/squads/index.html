@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nayzeee-squads</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Menu panel -->
+<div id="panel" class="frame hidden">
+  <div class="shell">
+    <div class="bar">
+      <span class="dot" id="barDot"></span>
+      <p id="barText">Squads</p>
+      <span id="barTier"></span>
+      <span class="ver" id="ver">v2.0.0</span>
+      <button class="pill-close" data-act="close">Close</button>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+    <main class="main" id="view"></main>
+    <div class="statusbar" id="keys"></div>
+    <div class="overlay hidden" id="modal"></div>
+  </div>
+</div>
+
+<!-- Compass -->
+<div id="compass" class="compass hidden">
+  <div class="cp-bar">
+    <div class="cp-strip" id="cpStrip"></div>
+    <div class="cp-fade l"></div><div class="cp-fade r"></div>
+    <div class="cp-notch"></div>
+  </div>
+  <div class="cp-lane" id="cpMarks"></div>
+  <div class="cp-read"><b id="cpDir">N</b><span id="cpDeg">0°</span></div>
+  <div class="cp-street" id="cpStreet"></div>
+</div>
+
+<!-- Team HUD -->
+<div id="hud" class="hud hidden"></div>
+
+<!-- HUD move bar -->
+<div id="hudEdit" class="hud-edit hidden">
+  <span class="dot"></span>
+  <p>Drag the team HUD where you want it</p>
+  <button class="btn-line sm" data-act="hudReset">Default spot</button>
+  <button class="btn-line sm" data-act="hudCancel">Cancel</button>
+  <button class="btn-teal sm" data-act="hudSave">Save position</button>
+</div>
+
+<!-- Ping wheel -->
+<div id="wheel" class="wheel hidden"></div>
+
+<!-- Ready check -->
+<div id="readyBox"></div>
+
+<!-- Revive prompt + item picker -->
+<div id="revivePrompt"></div>
+<div id="revivePicker"></div>
+
+<!-- Match result -->
+<div id="matchBox"></div>
+
+<!-- Toasts + killfeed share the top-right column so they never overlap -->
+<div class="right-stack">
+  <div id="toasts" class="toasts"></div>
+  <div id="feed" class="feed"></div>
+</div>
+
+<script>
+/* nayzeee-hud: this page runs in a frame inside the HUD. Borrow the parent's resource name and
+   send squad callbacks with the sq_ prefix so they never collide with the HUD's own callbacks. */
+(function () {
+  try {
+    if (window.parent === window || typeof window.parent.GetParentResourceName !== 'function') return;
+    var res = window.parent.GetParentResourceName();
+    var base = 'https://' + res + '/';
+    var parentFetch = window.parent.fetch.bind(window.parent);
+    window.GetParentResourceName = function () { return res; };
+    window.fetch = function (url, opts) {
+      if (typeof url === 'string' && url.indexOf(base) === 0) url = base + 'sq_' + url.slice(base.length);
+      return parentFetch(url, opts);
+    };
+  } catch (e) { /* not inside the HUD */ }
+})();
+</script>
+<script src="app.js"></script>
+</body>
+</html>

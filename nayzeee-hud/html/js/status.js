@@ -119,8 +119,9 @@
         let flags = '';
         if (stat.k === 'voice') {
           const range = S.vr || 2;
-          v = Math.min(100, Math.round(range / 3 * 100));
+          v = Math.min(100, Math.round(range / (S.vrc || 3) * 100));
           if (S.tk) flags += ' talk';
+          if (S.rt) flags += ' talk rtalk';
           if (S.rd) flags += ' radio';
         } else if (stat.k === 'oxygen') {
           if (v === false || v === undefined) { v = 100; if (!edit) hide = true; }

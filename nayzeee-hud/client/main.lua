@@ -165,6 +165,10 @@ local function tickVehicle(now)
     else
         local g = GetVehicleCurrentGear(veh)
         set('gr', (not running and 'P') or (g == 0 and 'R') or (speed < 0.3 and 'N') or g)
+        if mode == 'boat' then
+            set('pt', floor(GetEntityPitch(veh)))
+            set('vh', floor((360.0 - GetEntityHeading(veh)) % 360.0))
+        end
     end
 
     if now >= nextVehSlow then
@@ -174,6 +178,7 @@ local function tickVehicle(now)
 end
 
 -- Player ----------------------------------------------------------------------
+local lastWeapon, lastAmmo = 0, 0
 local function tickWeapon()
     local w = GetSelectedPedWeapon(ped)
     if w == UNARMED then
@@ -190,6 +195,9 @@ local function tickWeapon()
         local total = GetAmmoInPedWeapon(ped, w)
         set('clip', clip)
         set('ammo', max(0, total - clip))
+        -- shots fired since the last tick (for stress) without a per-frame IsPedShooting loop
+        if w == lastWeapon and total < lastAmmo and NHUD.onShots then NHUD.onShots(w, lastAmmo - total) end
+        lastWeapon, lastAmmo = w, total
     end
 end
 
@@ -209,12 +217,13 @@ local function tickStatus()
 
     set('tk', NetworkIsPlayerTalking(pid))
 
-    local D = Bridge.data
+    local D = HudBridge.data
     set('hu', floor(D.hunger))
     set('th', floor(D.thirst))
     set('sr', floor(D.stress))
     set('cash', D.cash)
     set('bank', D.bank)
+    set('dm', D.dirty)
     set('job', D.job)
     set('grd', D.grade)
 
@@ -286,7 +295,7 @@ end
 CreateThread(function()
     set('id', GetPlayerServerId(pid))
     while true do
-        if NHUD.visible then
+        if NHUD.visible and HudBridge.loaded then
             local now = GetGameTimer()
             tickFast(now)
             if now >= nextStatus then nextStatus = now + T.status tickStatus() end
@@ -317,5 +326,25 @@ end)
 
 AddEventHandler('pma-voice:setTalkingMode', function(index)
     set('vr', index)
+    flush()
+end)
+
+AddEventHandler('pma-voice:radioActive', function(talking)
+    set('rt', talking == true)
+    flush()
+end)
+
+-- SaltyChat
+AddEventHandler('SaltyChat_VoiceRangeChanged', function(_, index, count)
+    set('vr', (tonumber(index) or 1) + 1)
+    set('vrc', tonumber(count) or 3)
+    flush()
+end)
+AddEventHandler('SaltyChat_RadioTrafficStateChanged', function(_, primaryTransmit, _, secondaryTransmit)
+    set('rt', primaryTransmit == true or secondaryTransmit == true)
+    flush()
+end)
+AddEventHandler('SaltyChat_RadioChannelChanged', function(channel)
+    set('rd', channel or false)
     flush()
 end)
