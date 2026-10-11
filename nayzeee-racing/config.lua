@@ -11,7 +11,7 @@
     ██╔══██╗██╔══██║██║     ██║██║╚██╗██║██║   ██║
     ██║  ██║██║  ██║╚██████╗██║██║ ╚████║╚██████╔╝
     ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝╚═╝  ╚═══╝ ╚═════╝
-    nayzeee-racing · v1.0.0
+    nayzeee-racing · v1.1.0
     Discord: discord.gg/nayzeeedev  ·  Docs: nayzeee-dev.gitbook.io/docs
 ]]
 
@@ -90,6 +90,8 @@ Config.Trackbuilder = {
     DistanceBetweenCheckpoints = 20.0,                       -- Minimum metres between two checkpoints
     CircuitMinimumDistanceBetweenFirstAndLastCheckpoint = 30.0, -- Circuits: last checkpoint must be within this of the start
     DefaultWidth     = 6.0,                                  -- Starting gate width (metres)
+    CrewTracks       = true,                                 -- Crew-only tracks + crew records boards
+    CrewCanBuild     = true,                                 -- Crew members with "Manage crew" may build crew-only tracks (even when AdminOnly)
 }
 
 -- ======================================================================
@@ -120,6 +122,11 @@ Config.Races = {
     ResultsTime          = 12000,                            -- How long the results card stays on screen (ms)
     MaxCheckpointSpeed   = 150.0,                            -- Anti-cheat: highest average m/s allowed between two checkpoints
     CheckpointTolerance  = 30.0,                             -- Anti-cheat: extra metres allowed from a gate when it is crossed
+
+    Elimination = {                                          -- Elimination mode: last place is out at the end of every lap
+        MinRacers = 3,                                       -- Ready racers needed to start
+        MinLaps   = 2,                                       -- Circuits only, at least this many laps
+    },
 
     Respawn = {                                              -- Reset to your last checkpoint while racing
         Enabled  = true,                                     -- Enable the respawn key
@@ -165,6 +172,127 @@ Config.Races = {
 Config.Events = {
     AllowCreation = false,                                   -- true = everyone may create featured lobbies
     AcePermission = 'nayzeee.racing.events',                 -- ACE needed when AllowCreation = false (admins always can)
+}
+
+-- ======================================================================
+--   PRACTICE · SPECTATE · SPLITS · QUICK RACE
+-- ======================================================================
+Config.Practice = {                                          -- Solo run of any track. No lobby, no wager. Sets PBs and world records
+    Enabled        = true,
+    MobilizeTimer  = 3000,                                   -- ms before the countdown
+    MaxLaps        = 10,                                     -- Highest lap count for circuit practice
+    CountsForStats = false,                                  -- false = practice runs never add races / wins to profiles and boards
+    RetryKey       = 38,                                     -- Key to race again after a practice run (38 = E, false = off)
+}
+
+Config.Spectate = {                                          -- Watch a live race through a chase camera
+    Enabled      = true,
+    AutoOnFinish = true,                                     -- Watch the rest of the field after you finish or DNF
+    Anyone       = true,                                     -- Anyone can watch a live lobby from the tablet (false = racers + host only)
+    HostOnly     = true,                                     -- Hosts may run a lobby without racing in it and watch instead
+    CullingRadius = 4000.0,                                  -- Racers stay visible to spectators within this many metres (OneSync)
+    Camera       = { distance = 7.5, height = 2.4, smooth = 6.0 },
+    Keys         = { next = 175, prev = 174, exit = 177 },   -- Right arrow, left arrow, backspace
+}
+
+Config.Splits = {                                            -- +/- against your PB and the world record at every checkpoint
+    Enabled         = true,
+    AnnounceRecords = true,                                  -- Tell everyone with a profile when a world record falls
+}
+
+Config.QuickRace = {                                         -- One tap: join the best open lobby for your car's class, or create one
+    Enabled     = true,
+    AllowWagers = false,                                     -- May join lobbies that take a wager
+    Create = {                                               -- Lobby created when nothing fits
+        Max         = 8,
+        Laps        = 2,                                     -- Circuits (sprints ignore it)
+        Ghost       = true,
+        MaxDistance = 2500.0,                                -- Picks the closest public track within this range, else the most played one
+    },
+}
+
+-- ======================================================================
+--   PINK SLIPS · BETTING
+-- ======================================================================
+Config.PinkSlips = {                                         -- Race for the car itself. The winner takes every loser's title
+    Enabled     = true,                                      -- false = nobody can create pink slip lobbies
+    MaxRacers   = 2,                                         -- Highest lobby size for pink slips
+    AllowRanked = false,                                     -- Allow pink slips on ranked lobbies
+    DnfLoses    = true,                                      -- Leaving / disconnecting / DNF after the start still hands the car over
+}
+
+Config.Betting = {                                           -- Non-racers bet on a racer in a waiting lobby. Pool is split between winning bets
+    Enabled  = true,
+    Currency = 'money',                                      -- 'money' | 'crypto'
+    Min      = 100,
+    Max      = 50000,
+    HouseCut = 0.05,                                         -- Share of the pool removed (money sink). 0.05 = 5%
+    RefundIfNoWinner = true,                                 -- Nobody backed the winner / nobody finished: refund every bet (false = house keeps it)
+}
+
+-- ======================================================================
+--   SEASONS · CHALLENGES
+-- ======================================================================
+Config.Seasons = {                                           -- ELO resets on a schedule, top racers get paid and a badge
+    Enabled          = true,
+    LengthDays       = 30,
+    Reset            = 'soft',                               -- 'soft' = pulled towards StartingElo by SoftFactor | 'hard' = back to StartingElo
+    SoftFactor       = 0.5,                                  -- soft: keeps this share of the distance from StartingElo
+    MinRankedRaces   = 5,                                    -- Ranked races in the season needed to place
+    ResetRankRewards = false,                                -- true = rank-up rewards can be earned again every season
+    Rewards = {                                              -- Placement rewards, sent to the inbox
+        { from = 1, to = 1,  badge = 'champion', money = 50000 },
+        { from = 2, to = 3,  badge = 'podium',   money = 25000 },
+        { from = 4, to = 10, badge = 'top10',    money = 10000 },
+    },
+    Badges = {
+        champion = { label = 'Champion', icon = 'crown',        color = '#e8c35a' },
+        podium   = { label = 'Podium',   icon = 'medal',        color = '#c9d0d6' },
+        top10    = { label = 'Top 10',   icon = 'ranking-star', color = '#08afa2' },
+    },
+}
+
+-- Daily and weekly challenges, the same for everyone. Rewards land in the inbox.
+-- event: race | finish | win | podium | distance (metres). Filters: mode, type, track ('circuit' | 'sprint'), practice = true
+Config.Challenges = {
+    Enabled   = true,
+    MinRacers = 2,                                           -- Racers a race needs to count (stops solo farming). Practice only counts with practice = true
+    Daily = {
+        Count = 3,
+        Pool = {
+            { id = 'd_finish',  label = 'Finish %d races',         event = 'finish',   goal = 3,     reward = { type = 'money', amount = 1000 } },
+            { id = 'd_win',     label = 'Win a race',              event = 'win',      goal = 1,     reward = { type = 'money', amount = 1500 } },
+            { id = 'd_podium',  label = 'Finish on the podium %d times', event = 'podium', goal = 2, reward = { type = 'money', amount = 1250 } },
+            { id = 'd_drift',   label = 'Finish %d drift races',   event = 'finish',   goal = 2,     mode = 'drift', reward = { type = 'money', amount = 1250 } },
+            { id = 'd_circuit', label = 'Finish %d circuit races', event = 'finish',   goal = 2,     track = 'circuit', reward = { type = 'money', amount = 1000 } },
+            { id = 'd_dist',    label = 'Race 25 km',              event = 'distance', goal = 25000, reward = { type = 'money', amount = 1000 } },
+            { id = 'd_practice', label = 'Finish %d practice runs', event = 'finish',   goal = 3,     practice = true, reward = { type = 'money', amount = 500 } },
+        },
+    },
+    Weekly = {
+        Count = 3,
+        Pool = {
+            { id = 'w_drift',   label = 'Win %d drift races',      event = 'win',      goal = 3,     mode = 'drift', reward = { type = 'money', amount = 7500 } },
+            { id = 'w_circuit', label = 'Finish %d circuits',      event = 'finish',   goal = 5,     track = 'circuit', reward = { type = 'money', amount = 5000 } },
+            { id = 'w_ranked',  label = 'Finish %d ranked races',  event = 'finish',   goal = 5,     type = 'ranked', reward = { type = 'money', amount = 7500 } },
+            { id = 'w_wins',    label = 'Win %d races',            event = 'win',      goal = 5,     reward = { type = 'money', amount = 10000 } },
+            { id = 'w_elim',    label = 'Top 3 in %d elimination races', event = 'podium', goal = 2,  mode = 'elimination', reward = { type = 'money', amount = 6000 } },
+            { id = 'w_dist',    label = 'Race 150 km',             event = 'distance', goal = 150000, reward = { type = 'item', item = 'repairkit', amount = 3 } },
+        },
+    },
+}
+
+-- ======================================================================
+--   ANTI-CHEAT
+-- ======================================================================
+Config.AntiCheat = {
+    ModdedVehicles  = true,                                  -- Compare the car's power / top speed with its base handling at the start and during the race
+    AccelTolerance  = 1.35,                                  -- Allowed acceleration vs base (engine upgrades fit inside this)
+    SpeedTolerance  = 1.15,                                  -- Allowed estimated top speed vs base
+    MaxTopSpeedModifier = 0.0,                               -- Highest ModifyVehicleTopSpeed value allowed (raise it if a tuning script uses it)
+    IgnoreModels    = {},                                    -- Models never checked, e.g. { `sultanrs` }
+    SwapDetection   = true,                                  -- DNF when the racer's car (model or plate) changes mid-race
+    Action          = 'dq',                                  -- 'dq' = disqualify from the race | 'kick' = drop from the server
 }
 
 -- ======================================================================
@@ -254,6 +382,10 @@ Config.Logs = {
     Wagers  = true,                                          -- Wagers taken / paid
     Tracks  = true,                                          -- Tracks created / deleted
     Crews   = true,                                          -- Crews created / deleted
+    Bets    = true,                                          -- Bets placed / paid
+    PinkSlips = true,                                        -- Cars that changed owner
+    Seasons = true,                                          -- Season results
+    AntiCheat = true,                                        -- Modded / swapped vehicles
 }
 
 -- ======================================================================
@@ -265,11 +397,21 @@ Config.Logs = {
 Config.Vehicles = {}
 Config.Vehicles.Classes = { 'D', 'C', 'B', 'A', 'S', 'S+', 'M-', 'M', 'M+' } -- Lobby classes ('Open' is always available)
 
--- Return the class of a vehicle model. Return nil to hide the vehicle from the picker, 'All' to allow it in every class.
--- Runs on client and server. Example: return exports['my-dealer']:GetClassByHash(hash)
+-- Return the class of a vehicle model. Return nil to hide the vehicle from the picker, 'All' to allow it in every class,
+-- 'auto' to work the class out from the car's handling (see AutoClass below).
+-- Runs on client and server. Example: return exports['my-dealer']:GetClassByHash(hash) or 'auto'
 Config.Vehicles.GetClass = function(hash)
-    return 'All'
+    return 'auto'
 end
+
+-- Automatic class from the handling file (top speed, acceleration, braking, traction).
+-- Use /racingclass in a car to see its performance index, then tune the thresholds.
+Config.Vehicles.AutoClass = {
+    Cars  = { { class = 'D', min = 0 }, { class = 'C', min = 640 }, { class = 'B', min = 720 }, { class = 'A', min = 780 }, { class = 'S', min = 840 }, { class = 'S+', min = 900 } },
+    Bikes = { { class = 'M-', min = 0 }, { class = 'M', min = 760 }, { class = 'M+', min = 860 } },
+    Hidden  = { 13, 14, 15, 16, 21 },                        -- GTA vehicle classes never offered: cycles, boats, helicopters, planes, trains
+    Command = 'racingclass',                                 -- Prints the performance index + class of your car (false = off)
+}
 
 -- Return true to block a vehicle from racing
 Config.Vehicles.IsBlacklisted = function(hash)

@@ -11,7 +11,7 @@ local DICT, ANIM, BONE = 'amb@code_human_in_bus_passenger_idles@female@tablet@ba
 local OFFSET, ROT = vec3(0.05, -0.005, -0.04), vec3(0.0, 0.0, 0.0)
 local mine, others = nil, {}
 
-local function attach(ped, local_)
+local function attach(ped)
     if not lib.requestModel(Config.General.Tablet, 3000) then return nil end
     local c = GetEntityCoords(ped)
     local obj = CreateObject(Config.General.Tablet, c.x, c.y, c.z - 5.0, false, false, false)
@@ -49,30 +49,40 @@ function Tablet.Stop()
     LocalPlayer.state:set('nzrTablet', false, true)
 end
 
+-- Clean up props of players who left scope. Only runs while someone else holds a tablet.
+local sweeping = false
+local function sweep()
+    if sweeping then return end
+    sweeping = true
+    CreateThread(function()
+        while next(others) do
+            Wait(5000)
+            for sid, obj in pairs(others) do
+                if GetPlayerFromServerId(sid) == -1 or not DoesEntityExist(obj) or not IsEntityAttached(obj) then
+                    remove(obj)
+                    others[sid] = nil
+                end
+            end
+        end
+        sweeping = false
+    end)
+end
+
 AddStateBagChangeHandler('nzrTablet', nil, function(bag, _, value)
     local sid = tonumber(bag:match('player:(%d+)'))
     if not sid or sid == cache.serverId then return end
-    remove(others[sid])
-    others[sid] = nil
-    if not value or not Config.General.TabletProp then return end
-    local player = GetPlayerFromServerId(sid)
-    if player == -1 then return end
-    local ped = GetPlayerPed(player)
-    if ped == 0 then return end
-    others[sid] = attach(ped)
-end)
-
--- Clean up props of players who left scope
-CreateThread(function()
-    while true do
-        Wait(5000)
-        for sid, obj in pairs(others) do
-            if GetPlayerFromServerId(sid) == -1 or not DoesEntityExist(obj) or not IsEntityAttached(obj) then
-                remove(obj)
-                others[sid] = nil
-            end
-        end
-    end
+    -- model loading waits, so it runs in its own thread (state bag handlers can't yield)
+    CreateThread(function()
+        remove(others[sid])
+        others[sid] = nil
+        if not value or not Config.General.TabletProp then return end
+        local player = GetPlayerFromServerId(sid)
+        if player == -1 then return end
+        local ped = GetPlayerPed(player)
+        if ped == 0 then return end
+        others[sid] = attach(ped)
+        if others[sid] then sweep() end
+    end)
 end)
 
 AddEventHandler('onResourceStop', function(res)

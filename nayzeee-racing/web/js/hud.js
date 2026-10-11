@@ -11,6 +11,17 @@ const H = { on: false };
 let clockRaf = null, bannerTimer = null, resTimer = null, toastTimer = null;
 
 function hudSpeedUnit() { return (H.settings || S.settings).units === 'mph' ? 'MPH' : 'KM/H'; }
+// +/- seconds for split deltas (negative = faster)
+function splitTxt(ms) { const v = Math.abs(ms) / 1000; return `${ms <= 0 ? '−' : '+'}${v.toFixed(v < 10 ? 2 : 1)}`; }
+function splitRow(label, ms) {
+  if (ms == null) return '';
+  return `<div class="${ms <= 0 ? 'fast' : 'slow'}"><span>${esc(label)}</span><b>${splitTxt(ms)}</b></div>`;
+}
+function boardRows(rows, hi) {
+  return rows.map(r => `<div class="h-row ${r.id === hi ? 'me' : ''} ${r.status === 'disqualified' ? 'out' : ''}" style="--c:${esc(r.color)}">
+    ${posBadge(r.pos, r.status === 'disqualified' && !r.out ? 'dnf' : null)}<i class="c"></i><b>${esc(r.alias)}</b>
+    <span>${r.status === 'finished' ? '<i class="fas fa-flag-checkered"></i>' : r.out ? `<em class="out">${esc(t('HUD_OUT'))}</em>` : r.status === 'disqualified' ? 'DNF' : H.mode === 'drift' && r.drift != null ? num(r.drift) : r.lap && H.circuit ? `L${r.lap}` : ''}</span></div>`).join('');
+}
 function raceMs() { return H.start ? Date.now() - H.start + (H.penalty || 0) : 0; }
 
 function renderHud() {
@@ -28,7 +39,7 @@ function renderHud() {
         ${H.circuit ? `<div class="hbox"><small>${esc(t('HUD_LAP'))}</small><b>${H.lap || 1}<em> / ${H.laps}</em></b></div>` : ''}
         <div class="hbox" ${H.circuit ? '' : 'style="grid-column:span 2"'}><small>${esc(t('HUD_CHECKPOINT'))}</small><b>${H.k || 0}<em> / ${H.total}</em></b></div>
       </div></div>`;
-    html += `<div class="hbox h-clock"><div class="t" id="h-time">${esc(clock(raceMs(), true))}</div>
+    html += `<div class="h-right"><div class="hbox h-clock"><div class="t" id="h-time">${esc(clock(raceMs(), true))}</div>
       <div class="rows">
         ${H.circuit ? `<div><span>${esc(t('HUD_LAST_LAP'))}</span><b>${esc(H.lastLap ? clock(H.lastLap) : '—')}</b></div>
         <div><span>${esc(t('HUD_BEST_LAP'))}</span><b class="best">${esc(H.bestLap ? clock(H.bestLap) : '—')}</b></div>` : ''}
@@ -36,14 +47,32 @@ function renderHud() {
         ${H.track && H.track.worldRecord ? `<div><span>${esc(t('HUD_WR'))}</span><b>${esc(clock(H.track.worldRecord.time))}</b></div>` : ''}
         ${H.penalty ? `<div><span>${esc(t('HUD_PENALTY'))}</span><b style="color:var(--red)">+${(H.penalty / 1000).toFixed(1)}s</b></div>` : ''}
       </div>
+      ${H.split && (H.split.pb != null || H.split.wr != null) ? `<div class="h-split" data-k="${H.split.k}">${splitRow(t('HUD_VS_PB'), H.split.pb)}${splitRow(t('HUD_VS_WR'), H.split.wr)}</div>` : ''}
       ${H.mode === 'drift' ? `<div class="drift"><small>${esc(t('HUD_DRIFT'))}</small><b id="h-drift">${num(H.drift || 0)}</b></div>` : ''}</div>`;
+    let board = '';
     if (set.showBoard && H.board && H.board.length > 1) {
       const sorted = [...H.board].sort((a, b) => a.pos - b.pos);
       let rows = sorted.slice(0, 8);
       if (!rows.some(r => r.id === H.me)) { const mine = sorted.find(r => r.id === H.me); if (mine) rows = [...rows.slice(0, 7), mine]; }
-      html += `<div class="h-board">${rows.map(r => `<div class="h-row ${r.id === H.me ? 'me' : ''} ${r.status === 'disqualified' ? 'out' : ''}" style="--c:${esc(r.color)}">
-        ${posBadge(r.pos, r.status === 'disqualified' ? 'dnf' : null)}<i class="c"></i><b>${esc(r.alias)}</b>
-        <span>${r.status === 'finished' ? '<i class="fas fa-flag-checkered"></i>' : r.status === 'disqualified' ? 'DNF' : H.mode === 'drift' && r.drift != null ? num(r.drift) : ''}</span></div>`).join('')}</div>`;
+      board = `<div class="h-board">${boardRows(rows, H.me)}</div>`;
+    }
+    html += `${board}</div>`;
+    if (set.showSpeed) html += `<div class="h-speed"><b id="h-speed">${H.speed || 0}</b><span>${hudSpeedUnit()}</span></div>`;
+    // elimination: last of the racers still in = out at the end of the lap
+    if (H.mode === 'elimination' && H.phase === 'racing' && H.board && typeof H.pos === 'number') {
+      const left = H.board.filter(r => r.status === 'racing').length;
+      if (left > 1 && H.pos === left && (H.lap || 1) < H.laps) html += `<div class="hbox h-danger"><i class="fas fa-skull"></i>${esc(t('HUD_LAST_PLACE'))}</div>`;
+    }
+  }
+
+  if (H.phase === 'spectate') {
+    const w = H.watch || {};
+    html += `<div class="hbox h-banner h-spec"><div class="tile"><i class="fas fa-video"></i></div>
+      <div><span>${esc(t('HUD_SPECTATING'))}</span><b style="--c:${esc(w.color || 'var(--teal)')}">${w.pos ? `<em>P${w.pos}</em>` : ''}${esc(w.alias || '—')}</b></div>
+      <div class="keys"><span class="key">←</span><span class="key">→</span>${esc(t('HUD_SPEC_SWITCH'))}<span class="key">⌫</span>${esc(t('HUD_SPEC_EXIT'))}</div></div>`;
+    if (set.showBoard && H.board && H.board.length) {
+      const rows = [...H.board].sort((a, b) => a.pos - b.pos).slice(0, 10);
+      html += `<div class="h-right"><div class="h-board">${boardRows(rows, w.id)}</div></div>`;
     }
     if (set.showSpeed) html += `<div class="h-speed"><b id="h-speed">${H.speed || 0}</b><span>${hudSpeedUnit()}</span></div>`;
   }
@@ -65,11 +94,15 @@ function renderHud() {
   if (H.toast) html += `<div class="hbox h-toast ${H.toast.red ? 'red' : ''}">${esc(H.toast.text)}</div>`;
   if (H.phase === 'finished') {
     const r = H.result || {};
-    html += `<div class="hbox h-center"><small>${esc(t('HUD_FINISHED'))}</small><h2 class="teal">${typeof H.pos === 'number' ? esc(ordinal(H.pos)) : esc(t('HUD_FINISH'))}</h2>
-      <p>${H.mode === 'drift' ? esc(t('HUD_DRIFT')) + ' ' + num(r.drift) : esc(clock(r.time))}${r.bestLap ? ` · ${esc(t('HUD_BEST_LAP'))} ${esc(clock(r.bestLap))}` : ''}</p><p class="hint">${esc(t('HUD_WAIT_RESULTS'))}</p></div>`;
+    const pos = H.practice ? esc(t('HUD_FINISH')) : typeof H.pos === 'number' ? esc(ordinal(H.pos)) : esc(t('HUD_FINISH'));
+    html += `<div class="hbox h-center"><small>${esc(t('HUD_FINISHED'))}</small><h2 class="teal">${pos}</h2>
+      <p>${H.mode === 'drift' ? esc(t('HUD_DRIFT')) + ' ' + num(r.drift) : esc(clock(r.time))}${r.bestLap ? ` · ${esc(t('HUD_BEST_LAP'))} ${esc(clock(r.bestLap))}` : ''}</p>
+      ${r.newWr || r.newPb ? `<div class="h-records">${r.newWr ? `<span class="chip amber"><i class="fas fa-trophy"></i>${esc(t('HUD_NEW_WR'))}</span>` : ''}${r.newPb ? `<span class="chip"><i class="fas fa-user"></i>${esc(t('HUD_NEW_PB'))}</span>` : ''}</div>` : ''}
+      <p class="hint">${esc(t(H.practice ? 'HUD_WAIT_PRACTICE' : 'HUD_WAIT_RESULTS'))}</p></div>`;
   }
   if (H.phase === 'dnf') {
-    html += `<div class="hbox h-center"><small>${esc(t('HUD_DNF_SMALL'))}</small><h2 class="red">${esc(t('HUD_DNF'))}</h2><p>${esc(t('DNF_' + (H.reason || 'left')))}</p></div>`;
+    const out = H.reason === 'eliminated';
+    html += `<div class="hbox h-center"><small>${esc(t(out ? 'HUD_OUT_SMALL' : 'HUD_DNF_SMALL'))}</small><h2 class="red">${esc(t(out ? 'HUD_OUT' : 'HUD_DNF'))}</h2><p>${esc(t('DNF_' + (H.reason || 'left')))}</p></div>`;
   }
   $hud.innerHTML = html;
 }
@@ -102,8 +135,9 @@ function hudToast(text, red, ms = 2200) {
 const RACE = {
   mobilize(d) {
     Object.assign(H, { on: true, phase: 'mobilize', name: d.name, track: d.track, mode: d.mode, laps: d.laps, circuit: d.circuit, total: d.total,
-      racers: d.racers, me: d.me, pb: d.pb, settings: d.settings, k: 0, lap: 1, pos: null, board: null, lastLap: null, bestLap: null,
-      start: null, penalty: 0, drift: 0, speed: 0, deadlineEnd: null, hold: 0, toast: null, go: false, result: null, reason: null, mobEnd: Date.now() + d.ms });
+      racers: d.racers, me: d.me, pb: d.pb, settings: d.settings, k: 0, lap: 1, pos: null, board: null, lastLap: null, bestLap: null, split: null,
+      start: null, penalty: 0, drift: 0, speed: 0, deadlineEnd: null, hold: 0, toast: null, go: false, result: null, reason: null, mobEnd: Date.now() + d.ms,
+      practice: !!d.practice, watch: null });
     renderHud();
     startClock();
   },
@@ -136,7 +170,7 @@ const RACE = {
   },
   positions(d) {
     H.board = d.board;
-    const mine = d.board.find(r => r.id === H.me);
+    const mine = H.phase !== 'spectate' && d.board.find(r => r.id === H.me);
     if (mine) H.pos = mine.pos;
     renderHud();
   },
@@ -150,6 +184,15 @@ const RACE = {
     if (dr && d.drift != null) dr.textContent = num(d.drift);
   },
   hold(d) { H.hold = d.pct; renderHud(); },
+  split(d) { H.split = { k: d.k, pb: d.pb, wr: d.wr }; renderHud(); },
+  eliminated(d) { hudToast(t('HUD_ELIMINATED', d.alias, d.lap), true, 3000); },
+  spectate(d) {
+    Object.assign(H, { on: true, phase: 'spectate', name: d.name, track: { name: d.track }, mode: d.mode, laps: d.laps, circuit: d.circuit, total: d.total,
+      racers: d.racers, board: d.board || null, settings: d.settings, speed: 0, watch: null, toast: null, hold: 0, go: false, deadlineEnd: null });
+    cancelAnimationFrame(clockRaf);
+    renderHud();
+  },
+  watch(d) { H.watch = { id: d.id, alias: d.alias, color: d.color, pos: d.pos }; if (H.phase === 'spectate') renderHud(); },
   cooldown() { hudToast(t('HUD_RESPAWN_COOLDOWN'), true); },
   respawned(d) { H.penalty = (H.penalty || 0) + (d.penalty || 0); hudToast(d.penalty ? t('HUD_RESPAWNED_PENALTY', (d.penalty / 1000).toFixed(1)) : t('HUD_RESPAWNED'), !!d.penalty); },
   finished(d) { H.phase = 'finished'; H.result = d.result; H.deadlineEnd = null; renderHud(); },
@@ -170,8 +213,11 @@ function renderResults(d) {
       ${mine && mine.eloDelta ? `<div style="text-align:right"><div class="hint">${esc(t('UI_ELO'))}</div>${eloDelta(mine.eloDelta)}</div>` : ''}</div>
     ${crews}
     <div class="res-list">${list.slice(0, 10).map(r => `<div class="res-row ${r.id === d.me ? 'me' : ''}">${posBadge(r.position, r.status)}${avatar(r, 'sm')}<b>${esc(r.alias)}</b>
+      ${r.newWr ? `<span class="chip amber" title="${esc(t('HUD_NEW_WR'))}"><i class="fas fa-trophy"></i>WR</span>` : r.newPb ? `<span class="chip">PB</span>` : ''}
+      ${r.pinkWon ? `<span class="chip red" title="${esc(r.pinkWon)}"><i class="fas fa-file-signature"></i></span>` : ''}
       ${r.payout ? `<span class="chip amber">${esc(money(r.payout))}</span>` : ''}${eloDelta(r.eloDelta)}
-      <span class="tm">${r.status !== 'finished' ? esc(t('P_DNF')) : drift ? num(r.score) : esc(clock(res.mode === 'time_trial' ? r.score : r.time))}</span></div>`).join('')}</div>
+      <span class="tm">${r.status === 'eliminated' ? esc(t('HUD_OUT')) : r.status !== 'finished' ? esc(t('P_DNF')) : drift ? num(r.score) : esc(clock(res.mode === 'time_trial' ? r.score : r.time))}</span></div>`).join('')}</div>
+    ${d.practice && d.retryKey ? `<div class="res-retry"><span class="key">E</span>${esc(t('RES_PRACTICE_RETRY'))}</div>` : ''}
     <div class="res-bar"></div></div>`;
   $res.className = 'on';
   clearTimeout(resTimer);
@@ -203,7 +249,8 @@ const BUILD = {
   help() { B.help = !B.help; renderBuilder(); },
   stop() { B.on = false; renderBuilder(); if (MODAL && MODAL.builder) closeModal(); },
   save(d) {
-    const f = { name: '', description: '', private: false, type: d.type };
+    const f = { name: '', description: '', visibility: d.crewOnly ? 'crew' : 'public', type: d.type };
+    const vis = d.crewOnly ? ['crew'] : ['public', 'private', ...(d.crewTracks && d.hasCrew ? ['crew'] : [])];
     openModal({
       builder: true, sticky: true,
       render: () => `<div class="modal wide"><div class="modal-h"><div class="grow"><h4>${esc(t('TB_SAVE_TITLE'))}</h4><p>${esc(t('TB_SAVE_SUB', d.count, dist(d.length)))}</p></div></div>
@@ -211,17 +258,18 @@ const BUILD = {
           <div class="field"><label>${esc(t('TRACKS_NAME'))}</label><input id="tb-name" maxlength="60" value="${esc(f.name)}" oninput="window.__tb.name=this.value" placeholder="${esc(t('TB_NAME_PH'))}"></div>
           <div class="field"><label>${esc(t('TRACKS_DESC'))}</label><textarea id="tb-desc" maxlength="500" oninput="window.__tb.description=this.value">${esc(f.description)}</textarea></div>
           <div class="field"><label>${esc(t('CREATE_TYPE'))}</label><div class="seg"><button class="${f.type === 'sprint' ? 'on' : ''}" data-a="tbType" data-v="sprint">${esc(t('TRACK_sprint'))}</button><button class="${f.type === 'circuit' ? 'on' : ''}" data-a="tbType" data-v="circuit">${esc(t('TRACK_circuit'))}</button></div></div>
-          <button class="sw-line" data-a="tbPriv"><div><b>${esc(t('TRACKS_PRIVATE'))}</b><span>${esc(t('TRACKS_PRIVATE_DESC'))}</span></div><span class="sw ${f.private ? 'on' : ''}"><i></i></span></button>
+          <div class="field"><label>${esc(t('TRACKS_VISIBILITY'))}<em>${esc(t('TRACKS_VIS_' + f.visibility + '_DESC'))}</em></label>
+            <div class="seg">${vis.map(v => `<button class="${f.visibility === v ? 'on' : ''}" data-a="tbVis" data-v="${v}"><i class="${visIcon(v)}"></i>${esc(t('TRACKS_VIS_' + v))}</button>`).join('')}</div></div>
         </div>
         <div class="modal-f">${btn(t('TB_KEEP_BUILDING'), 'tbBack', 'btn-line', { free: true })}${btn(t('TB_SAVE'), 'tbSave', 'btn-teal', { icon: 'fas fa-check', busyKey: 'tbsave' })}</div></div>`,
       on: {
         tbType: e => { f.type = e.v; post('builder:type', { type: e.v }); renderModal(); },
-        tbPriv: () => { f.private = !f.private; renderModal(); },
+        tbVis: e => { f.visibility = e.v; renderModal(); },
         tbBack: () => { closeModal(); post('builder:cancelSave'); },
         tbSave: async () => {
           if (!f.name.trim()) return toast(t('TRACK_NAME_REQUIRED'), true);
           S.busy = 'tbsave'; renderModal();
-          const r = await post('builder:save', { name: f.name, description: f.description, private: f.private });
+          const r = await post('builder:save', { name: f.name, description: f.description, visibility: f.visibility });
           S.busy = null;
           if (!r || r.error) { toast(t((r && r.error) || 'ERR_GENERIC'), true); renderModal(); return; }
           closeModal();

@@ -1,6 +1,8 @@
 # 🏁 nayzeee-racing
 
-Street racing tablet for FiveM: lobbies, ranked ELO, crews, crew battles, wagers, drift and time trials, track builder, leaderboards and racer profiles.
+Street racing tablet for FiveM: lobbies, ranked ELO with seasons, crews, crew battles, wagers, pink slips, betting, practice runs, spectating, sector splits, elimination, drift and time trials, daily / weekly challenges, track builder, leaderboards and racer profiles.
+
+Client resmon is **0.00 ms** when you are not racing: no thread runs until a race, the track builder, the tablet or the spectator camera is active.
 
 ## 📦 Dependencies
 
@@ -37,6 +39,29 @@ Tracks are admin only by default (`Config.Trackbuilder.AdminOnly`). Admins are E
 | `Config.Notifications.NewLobby` | `profiles` | `all`, `profiles` or `false` |
 | `Config.Env.Accounts` | `money / bank` | Wager and payout accounts |
 | `Config.Logs.Webhook` | `''` | Discord webhook for results, wagers, tracks, crews |
+
+## 🆕 1.1 features
+
+| Feature | Where | Config |
+|---|---|---|
+| **Practice** | Tracks → a track → *Practice*. Solo run in the car you drive, sets PBs and world records. Press **E** on the results card to go again | `Config.Practice` |
+| **Spectate** | Lobby → *Watch live*, or automatically after you finish / DNF. ← → switch racer, Backspace leaves | `Config.Spectate` |
+| **Host only** | Create lobby → *Host only*. Run an event without racing and watch it | `Config.Spectate.HostOnly` |
+| **Sector splits** | Race HUD: +/- vs your PB and the WR at every checkpoint. New WRs are announced | `Config.Splits` |
+| **Elimination** | Race mode (circuits). Last place is out at the end of every lap | `Config.Races.Elimination` |
+| **Quick race** | Sidebar / Lobbies → *Quick race*. Joins the best open lobby for your car's class or creates one | `Config.QuickRace` |
+| **Auto-accept** | Create lobby toggle. Joiners skip the host's approval | — |
+| **Pink slips** | Create lobby toggle. Winner takes every other car's title. Needs owned cars | `Config.PinkSlips` + `Bridge.OwnsVehicle / TransferVehicle / OnPinkSlip` |
+| **Seasons** | ELO resets every `LengthDays`, top racers get paid + a badge on their profile. `racingseason end` in the console ends one now | `Config.Seasons` |
+| **Challenges** | Home → Challenges. Same daily / weekly picks for everyone, rewards in the inbox | `Config.Challenges` |
+| **Direct invites** | Lobby → *Invite*, or a racer's profile → *Invite to my lobby*. Invites skip the password and the queue | — |
+| **Betting** | Waiting lobby → *Place a bet*. Parimutuel pool, house cut, refunds when the racer leaves | `Config.Betting` |
+| **Crew tracks / records** | Track visibility *Crew*; Crew → Records; track Top 10 → *Crew* | `Config.Trackbuilder.CrewTracks / CrewCanBuild` |
+| **Auto vehicle class** | `Config.Vehicles.GetClass` returns `'auto'` → class from handling. Return your own class to override. `/racingclass` shows a car's index | `Config.Vehicles.AutoClass` |
+| **Modded vehicle check** | Power / top speed vs base handling at the start and every 5 s | `Config.AntiCheat` |
+| **Vehicle swap detection** | Model or plate change mid-race = DNF | `Config.AntiCheat.SwapDetection` |
+
+Practice runs never count as races / wins (`Config.Practice.CountsForStats`). New tables and columns are added automatically on start.
 
 ## 🗺️ Maps
 
@@ -95,6 +120,9 @@ The bounds are GTA's own minimap grid, so they're the same for every streamed ma
 | `/dnf` | Give up your current race |
 | Hold `X` | Respawn at your last checkpoint (rebindable) |
 | `/racing` | Open the tablet (only with `OpenByCommand`) |
+| `/racingclass` | Performance index + class of your car (tune `Config.Vehicles.AutoClass`) |
+| `racingseason [end]` | Console / admin: show the season, or end it now |
+| ← → / Backspace | Spectating: switch racer / leave |
 
 **Track builder:** ← → gate width · ↑ ↓ rotate · Shift/Ctrl + arrows move one post · Enter add gate · Delete remove last · Z circuit/sprint · Shift+Enter save · F10 help · Esc cancel.
 
@@ -110,8 +138,8 @@ exports['nayzeee-racing']:isInRace()
 
 | File | What to edit |
 |---|---|
-| `bridge/server.lua` | Money, identifiers, owned vehicles, items, `GiveXp` |
-| `config.lua` → `Config.Vehicles.GetClass` | Your vehicle class system |
+| `bridge/server.lua` | Money, identifiers, owned vehicles, items, `GiveXp`, pink slip ownership / transfer / keys |
+| `config.lua` → `Config.Vehicles.GetClass` | Your vehicle class system (`'auto'` = from handling) |
 | `config.lua` → `Config.Hud` | Hide your HUD while racing |
 | `config.lua` → `Config.Notify` | Your notification resource |
 
@@ -124,3 +152,6 @@ exports['nayzeee-racing']:isInRace()
 | "Not in the chosen vehicle" on start | Every racer must drive the car they picked (plate is checked) |
 | Checkpoints not counting | Drive through the gate between the posts. Rejected gates are logged with `Config.LogLevel = 'warn'` |
 | Wager not taken | Check `Config.Env.Accounts.wager` matches your account name |
+| Classes look wrong | Run `/racingclass` in a few cars and adjust `Config.Vehicles.AutoClass` thresholds, or return your own class from `GetClass` |
+| Honest racers flagged as modded | A tuning / nitro script changes handling: raise `AccelTolerance` / `MaxTopSpeedModifier`, add the model to `IgnoreModels`, or set `ModdedVehicles = false` |
+| Pink slip didn't move the car | Your garage table differs: edit `Bridge.OwnsVehicle` and `Bridge.TransferVehicle` |

@@ -129,11 +129,26 @@ function CanCreateEvents(src)
 end
 
 -- ── boot data for the tablet ────────────────────────────────────────────
+-- Crew members with "Manage crew" may build crew-only tracks
+function CanBuildCrewTracks(p)
+    return Config.Trackbuilder.CrewTracks and Config.Trackbuilder.CrewCanBuild and p ~= nil and Crews.Can(p, CrewPerm.MANAGE)
+end
+
+-- The vehicle a player is driving: entity, model, clean plate (nil when not the driver)
+function DrivenVehicle(src)
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return nil end
+    local veh = GetVehiclePedIsIn(ped, false)
+    if veh == 0 or GetPedInVehicleSeat(veh, -1) ~= ped then return nil end
+    return veh, GetEntityModel(veh), NZR.CleanPlate(GetVehicleNumberPlateText(veh))
+end
+
 Handle('boot', function(src)
     local profile = Profiles.SignIn(src)
     return {
         profile = profile and Profiles.Dto(profile) or nil,
-        canTracks = CanManageTracks(src),
+        canTracks = CanManageTracks(src) or CanBuildCrewTracks(profile),
+        season = Seasons and Seasons.Public() or nil,
         canEvents = CanCreateEvents(src),
         activeLobby = profile and Core.Active[profile.id] or nil,
         config = NZR.PublicConfig(),
@@ -162,6 +177,7 @@ local function dropped(src)
         subs[src] = nil
         if not next(subs) then Rooms[room] = nil end
     end
+    for _, lobby in pairs(Core.Lobbies) do lobby.spectators[src] = nil end
     local pid = Core.Sessions[src]
     if pid then
         local lid = Core.Active[pid]
@@ -174,9 +190,8 @@ end
 AddEventHandler('playerDropped', function() dropped(source) end)
 Bridge.OnLogout(dropped)
 
+-- Restart / stop: every unfinished lobby gives wagers and bets back through the inbox
 AddEventHandler('onResourceStop', function(res)
     if res ~= NZR.Resource then return end
-    for _, lobby in pairs(Core.Lobbies) do
-        if lobby.status == LobbyStatus.PENDING then lobby:Disband('LOBBY_DISBANDED', true) end
-    end
+    for _, lobby in pairs(Core.Lobbies) do lobby:Abort() end
 end)

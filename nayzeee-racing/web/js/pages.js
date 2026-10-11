@@ -35,7 +35,7 @@ function enterPage(page, fresh) {
   if (page === 'lobby' && S.lobbyId) keep.push('lobby:' + S.lobbyId);
   leaveRooms(keep);
   if (!S.profile) return;
-  if (page === 'home') { joinRoom('lobbies'); loadLobbies(); loadMe(); if (!S.board) loadBoard(); }
+  if (page === 'home') { joinRoom('lobbies'); loadLobbies(); loadMe(); if (!S.board) loadBoard(); S.challenges = null; }
   if (page === 'lobbies') { joinRoom('lobbies'); loadLobbies(); }
   if (page === 'lobby') { joinRoom('lobby:' + S.lobbyId); loadLobby(S.lobbyId); }
   if (page === 'tracks') loadTracks();
@@ -78,8 +78,9 @@ PUSH.lobby = d => {
     return;
   }
   const l = d.lobby;
-  if (S.lobby && S.lobby.id === l.id) S.lobby = l;
-  const mine = S.profile && l.participants.some(p => p.id === S.profile.id);
+  // pushed updates are shared: keep our own bet from the last personal fetch
+  if (S.lobby && S.lobby.id === l.id) { if (l.myBet === undefined || l.myBet === null) l.myBet = S.lobby.myBet; S.lobby = l; }
+  const mine = S.profile && (l.participants.some(p => p.id === S.profile.id) || (l.hostOnly && l.owner.id === S.profile.id));
   if (mine && ['pending', 'mobilizing', 'countdown', 'racing'].includes(l.status)) S.activeLobby = l.id;
   else if (S.activeLobby === l.id && (!mine || l.status === 'finished' || l.status === 'cancelled')) S.activeLobby = null;
   render();
@@ -121,6 +122,7 @@ function sidebar() {
     <div class="grp">${esc(t('UI_MENU'))}</div>
     ${navs}
     <div class="side-foot">
+      ${S.cfg.QuickRace.Enabled ? btn(t('QUICK_RACE'), 'quickRace', 'btn-ghost', { full: true, icon: 'fas fa-bolt', disabled: !!S.activeLobby, busyKey: 'quickrace' }) : ''}
       ${btn(t('LOBBIES_CREATE'), 'createLobby', 'btn-teal', { full: true, icon: 'fas fa-plus', disabled: !!S.activeLobby })}
     </div>
   </div>`;
@@ -284,7 +286,9 @@ function lobbyRow(l) {
     <div class="tile ${l.type === 'ranked' ? 'amber' : l.type === 'crew' ? '' : 'mute'}"><i class="${typeIcon(l.type)}"></i></div>
     <div class="row-txt"><b>${l.featured ? '<i class="fas fa-star" style="color:var(--amber);font-size:10px"></i>' : ''}${l.star ? '<i class="fas fa-crown" style="color:var(--gold);font-size:10px"></i>' : ''}${esc(l.name)}${l.hasPassword ? ' <i class="fas fa-lock" style="font-size:9px;color:var(--ink-3)"></i>' : ''}</b>
       <span>${esc(l.track.name)} · ${esc(t('MODE_' + l.mode))} · ${l.laps > 0 ? esc(t('UI_N_LAPS', l.laps)) : esc(t('TRACK_sprint'))} · ${esc(l.class === 'Open' ? t('CLASS_OPEN') : t('UI_CLASS', l.class))}</span></div>
-    <div class="row-r">${l.wager ? `<span class="chip amber"><i class="fas fa-coins"></i>${esc(money(l.wager, l.currency))}</span>` : ''}
+    <div class="row-r">${l.pinkSlip ? `<span class="chip red"><i class="fas fa-file-signature"></i>${esc(t('PINK_SHORT'))}</span>` : ''}
+      ${l.bets && l.bets.pool ? `<span class="chip mute" title="${esc(t('BET_POOL'))}"><i class="fas fa-sack-dollar"></i>${esc(money(l.bets.pool, l.bets.currency))}</span>` : ''}
+      ${l.wager ? `<span class="chip amber"><i class="fas fa-coins"></i>${esc(money(l.wager, l.currency))}</span>` : ''}
       <span class="chip mute"><i class="fas fa-user"></i>${count}/${l.max}</span>${statusTag(l.status)}</div>
   </div>`;
 }
@@ -302,7 +306,7 @@ function pageHome() {
       <div class="grow"><h3>${esc(rank.name)} ${p.crew ? crewTag(p.crew) : ''}</h3>
         <p>${next ? esc(t('HOME_NEXT_RANK', num(next.min - p.elo), next.name)) : esc(t('HOME_MAX_RANK'))}${next && next.rewards ? ` · <span class="chip"><i class="fas fa-gift"></i>${esc(t('ELO_REWARDS'))}</span>` : ''}</p>
         <div class="track" style="margin-top:10px;max-width:420px"><div class="bar-fill" style="width:${rankProgress(p.elo)}%"></div></div></div>
-      <div class="hero-r"><b>${num(p.elo)}</b><span>${esc(t('UI_ELO'))}</span></div>
+      <div class="hero-r"><b>${num(p.elo)}</b><span>${esc(t('UI_ELO'))}</span>${S.season ? `<div class="season-chip"><i class="fas fa-calendar"></i>${esc(t('SEASON_N', S.season.number))} · ${esc(t('SEASON_ENDS', timeLeft(S.season.ends)))}</div>` : ''}</div>
     </div>
     <div class="stats">
       ${stat(t('STAT_RACES'), st ? num(st.races) : '—', 'fas fa-flag-checkered')}
@@ -315,10 +319,43 @@ function pageHome() {
         ${btn(t('HOME_VIEW_ALL'), 'nav', 'btn-ghost', { size: 'sm', data: { v: 'lobbies' }, free: true })}</div>
         <div class="p-body" data-scroll="hl">${!S.lobbies ? skeleton(4) : lobbies.length ? lobbies.map(lobbyRow).join('') :
           empty('fas fa-flag', t('HOME_NO_LOBBIES'), t('HOME_NO_LOBBIES_SUB'), `<div style="margin-top:6px">${btn(t('LOBBIES_CREATE'), 'createLobby', 'btn-teal', { size: 'sm', icon: 'fas fa-plus', disabled: !!S.activeLobby })}</div>`)}</div></div>
-      <div class="panel"><div class="p-head"><div><h2><i class="fas fa-ranking-star"></i>${esc(t('BOARD_ELO'))}</h2><p>${esc(t('BOARD_ELO_SUB'))}</p></div></div>
-        <div class="p-body" data-scroll="hb">${!board ? skeleton(5) : board.length ? board.map((r, i) => boardRow(r, i + 1, 'elo')).join('') : empty('fas fa-ranking-star', t('BOARD_EMPTY'))}</div></div>
+      ${homeSide(board)}
     </div>`;
 }
+
+// Right column on home: challenges or the ELO board
+function homeSide(board) {
+  const ch = S.cfg.Challenges.Enabled;
+  S.homeTab = S.homeTab || (ch ? 'challenges' : 'board');
+  const tab = ch ? S.homeTab : 'board';
+  const seg = ch ? `<div class="seg"><button class="${tab === 'challenges' ? 'on' : ''}" data-a="homeTab" data-v="challenges">${esc(t('CH_TITLE_SHORT'))}</button><button class="${tab === 'board' ? 'on' : ''}" data-a="homeTab" data-v="board">${esc(t('BOARD_ELO_SHORT'))}</button></div>` : '';
+  if (tab === 'challenges') {
+    if (!S.challenges && !S.chLoading) { S.chLoading = true; req('challenges').then(r => { S.challenges = r.data || []; S.chLoading = false; render(); }); }
+    const list = S.challenges;
+    const group = kind => {
+      const items = (list || []).filter(c => c.kind === kind);
+      if (!items.length) return '';
+      return `<div class="grp" style="margin:2px 2px 0">${esc(t('CH_' + kind))} · ${esc(t('CH_RESETS', timeLeft(items[0].ends)))}</div>${items.map(challengeRow).join('')}`;
+    };
+    return `<div class="panel"><div class="p-head"><div><h2><i class="fas fa-list-check"></i>${esc(t('CH_TITLE'))}</h2><p>${esc(t('CH_SUB'))}</p></div>${seg}</div>
+      <div class="p-body" data-scroll="hc">${!list ? skeleton(5) : list.length ? group('daily') + group('weekly') : empty('fas fa-list-check', t('CH_NONE'))}</div></div>`;
+  }
+  return `<div class="panel"><div class="p-head"><div><h2><i class="fas fa-ranking-star"></i>${esc(t('BOARD_ELO'))}</h2><p>${esc(t('BOARD_ELO_SUB'))}</p></div>${seg}</div>
+    <div class="p-body" data-scroll="hb">${!board ? skeleton(5) : board.length ? board.map((r, i) => boardRow(r, i + 1, 'elo')).join('') : empty('fas fa-ranking-star', t('BOARD_EMPTY'))}</div></div>`;
+}
+function rewardLabel(r) {
+  if (!r) return '';
+  if (r.type === 'item') return `${r.amount || 1}x ${r.item}`;
+  return money(r.amount, r.type);
+}
+function challengeRow(c) {
+  const pct = Math.min(100, c.progress / c.goal * 100);
+  const prog = c.event === 'distance' ? `${dist(c.progress)} / ${dist(c.goal)}` : `${num(c.progress)} / ${num(c.goal)}`;
+  return `<div class="row ch ${c.done ? 'done' : ''}"><div class="tile ${c.done ? '' : 'mute'}"><i class="fas ${c.done ? 'fa-check' : c.kind === 'weekly' ? 'fa-calendar-week' : 'fa-calendar-day'}"></i></div>
+    <div class="row-txt"><b>${esc(c.label)}</b><div class="track" style="margin-top:6px"><div class="bar-fill" style="width:${pct}%"></div></div></div>
+    <div class="row-r" style="flex-direction:column;align-items:flex-end;gap:4px"><span class="chip amber"><i class="fas fa-gift"></i>${esc(rewardLabel(c.reward))}</span><span class="hint">${esc(prog)}</span></div></div>`;
+}
+ACT.homeTab = d => { S.homeTab = d.v; if (d.v === 'challenges') S.challenges = null; render(); };
 
 function boardRow(r, pos, kind) {
   const val = kind === 'wins' ? `${num(r.wins)} <small style="color:var(--ink-3);font-weight:300">${esc(t('STAT_WINS'))}</small>`
@@ -352,10 +389,11 @@ function pageLobbies() {
   const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${f[key] === v ? 'on' : ''}" data-a="lf" data-k="${key}" data-v="${v}">${esc(l)}</button>`).join('')}</div>`;
   return `<div class="head"><div><h1>${esc(t('LOBBIES_TITLE'))}</h1><p>${esc(t('LOBBIES_SUB'))}</p></div>
       <div class="head-r"><div class="search" style="width:260px"><i class="fas fa-magnifying-glass"></i><input class="input" id="lb-q" data-m="lf.q" data-r value="${esc(f.q)}" placeholder="${esc(t('LOBBIES_SEARCH'))}"></div>
+      ${S.cfg.QuickRace.Enabled ? btn(t('QUICK_RACE'), 'quickRace', 'btn-ghost', { icon: 'fas fa-bolt', disabled: !!S.activeLobby, busyKey: 'quickrace' }) : ''}
       ${btn(t('LOBBIES_CREATE'), 'createLobby', 'btn-teal', { icon: 'fas fa-plus', disabled: !!S.activeLobby })}</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;flex:none">
       ${seg('status', [['all', t('F_ALL')], ['pending', t('LOBBY_STATUS_pending')], ['active', t('F_ACTIVE')], ['finished', t('LOBBY_STATUS_finished')]])}
-      ${seg('mode', [['all', t('F_ALL')], ['standard', t('MODE_standard')], ['drift', t('MODE_drift')], ['time_trial', t('MODE_time_trial')], ['crew', t('TYPE_crew')]])}
+      ${seg('mode', [['all', t('F_ALL')], ['standard', t('MODE_standard')], ['drift', t('MODE_drift')], ['time_trial', t('MODE_time_trial')], ['elimination', t('MODE_elimination')], ['crew', t('TYPE_crew')]])}
       ${seg('track', [['all', t('F_ALL')], ['circuit', t('TRACK_circuit')], ['sprint', t('TRACK_sprint')]])}
       <div class="field" style="width:150px"><select data-m="lf.size" data-r><option value="all">${esc(t('F_ANY_SIZE'))}</option>
         ${Object.keys(sizes).map(k => `<option value="${k}" ${f.size === k ? 'selected' : ''}>${esc(t('F_SIZE_' + k))}</option>`).join('')}</select></div>
@@ -404,12 +442,28 @@ function pickVehicle(cls) {
   });
 }
 
+// ── quick race ──────────────────────────────────────────────────────────
+// Uses the car you are sitting in, otherwise asks for one
+ACT.quickRace = async () => {
+  if (S.activeLobby) return toast(t('LOBBY_ALREADY_IN'), true);
+  const list = (await post('vehicles')) || [];
+  let v = list.find(x => x.seated);
+  if (!v) v = await pickVehicle('Open');
+  if (!v) return;
+  const r = await call('quickrace', { vehicle: v }, { busy: 'quickrace' });
+  if (!r) return;
+  S.activeLobby = r.lobby.id;
+  toast(t(r.created ? 'QUICK_CREATED' : 'QUICK_JOINED', r.lobby.name));
+  go('lobby', { lobbyId: r.lobby.id, lobby: r.lobby });
+};
+
 // ── create lobby ────────────────────────────────────────────────────────
 ACT.createLobby = d => {
   if (S.activeLobby) return toast(t('LOBBY_ALREADY_IN'), true);
   go('create');
   S.f = { name: '', trackId: d && d.track ? Number(d.track) : null, type: 'unranked', mode: 'standard', class: 'Open', laps: 1, max: 8,
-    wager: '', currency: (S.cfg.Races.WagerCurrencies || [])[0], ghost: true, password: '', featured: false, vehicle: null, tq: '', balance: null };
+    wager: '', currency: (S.cfg.Races.WagerCurrencies || [])[0], ghost: true, password: '', featured: false, vehicle: null, tq: '', balance: null,
+    autoAccept: false, hostOnly: false, pinkSlip: false };
   if (!S.tracks) loadTracks();
   render();
   refreshBalance();
@@ -429,17 +483,28 @@ function pageCreate() {
   const tlist = tracks.filter(x => !q || x.name.toLowerCase().includes(q) || (x.owner.alias || '').toLowerCase().includes(q)).slice(0, 30);
   const p = S.profile;
   const canCrew = p.crew && (p.crew.owner === p.id || (p.crewPerms || []).includes(3));
-  const minR = f.type === 'ranked' ? R.RequiredParticipantsForRankedLobby : f.type === 'crew' ? R.MinCrewSize * 2 : 1;
+  const E = R.Elimination || { MinRacers: 3, MinLaps: 2 };
+  const PS = S.cfg.PinkSlips;
+  if (f.mode === 'elimination' && !circuit) f.mode = 'standard';
+  const pinkOk = PS.Enabled && !f.hostOnly && f.type !== 'crew' && (f.type !== 'ranked' || PS.AllowRanked);
+  if (!pinkOk) f.pinkSlip = false;
+  let minR = f.type === 'ranked' ? R.RequiredParticipantsForRankedLobby : f.type === 'crew' ? R.MinCrewSize * 2 : 1;
+  if (f.mode === 'elimination') minR = Math.max(minR, E.MinRacers);
+  const maxR = f.pinkSlip ? Math.max(2, PS.MaxRacers) : R.MaxParticipants;
+  minR = Math.min(minR, maxR);
   if (f.max < minR) f.max = minR;
+  if (f.max > maxR) f.max = maxR;
+  if (f.mode === 'elimination' && f.laps < E.MinLaps) f.laps = E.MinLaps;
   const need = f.type === 'ranked' ? (S.cfg.ELO.ClassRestrictions[f.class] || 0) : 0;
   const eloOk = p.elo >= need;
   const wager = Number(f.wager) || 0;
   const broke = wager > 0 && f.balance != null && wager > f.balance;
   const classFits = !f.vehicle || f.class === 'Open' || f.vehicle.class === 'All' || f.vehicle.class === f.class;
-  const ready = track && f.vehicle && eloOk && !broke && classFits && (f.type !== 'crew' || canCrew);
+  const ready = track && (f.vehicle || f.hostOnly) && eloOk && !broke && classFits && (f.type !== 'crew' || canCrew);
 
   const typeCard = (k, icon, desc, dis) => `<button class="ccard ${f.type === k ? 'on' : ''}" data-a="cf" data-k="type" data-v="${k}" ${dis ? 'disabled' : ''}><i class="${icon}"></i><b>${esc(t('TYPE_' + k))}</b><span>${esc(desc)}</span></button>`;
-  const modeOpt = k => `<button class="opt ${f.mode === k ? 'on' : ''}" data-a="cf" data-k="mode" data-v="${k}"><i class="${modeIcon(k)}"></i>${esc(t('MODE_' + k))}</button>`;
+  const modeOpt = (k, dis) => `<button class="opt ${f.mode === k ? 'on' : ''}" data-a="cf" data-k="mode" data-v="${k}" ${dis ? `disabled title="${esc(t('CREATE_ELIM_CIRCUIT'))}"` : ''}><i class="${modeIcon(k)}"></i>${esc(t('MODE_' + k))}</button>`;
+  const toggle = (k, label, desc, cls = '') => `<button class="sw-line ${cls}" data-a="cfToggle" data-k="${k}"><div><b>${esc(t(label))}</b><span>${esc(desc)}</span></div><span class="sw ${f[k] ? 'on' : ''}"><i></i></span></button>`;
   const classes = ['Open', ...S.cfg.Classes];
   return `<div class="head"><div><button class="back" data-a="nav" data-v="lobbies"><i class="fas fa-arrow-left"></i>${esc(t('UI_BACK'))}</button><h1>${esc(t('CREATE_TITLE'))}</h1><p>${esc(t('CREATE_SUB'))}</p></div></div>
     <div class="cols c12 fill-y">
@@ -459,25 +524,29 @@ function pageCreate() {
             ${typeCard('unranked', 'fas fa-road', t('CREATE_UNRANKED_DESC'))}
             ${typeCard('ranked', 'fas fa-trophy', t('CREATE_RANKED_DESC', R.RequiredParticipantsForRankedLobby))}
             ${typeCard('crew', 'fas fa-people-group', canCrew ? t('CREATE_CREW_DESC') : t('CREATE_CREW_LOCKED'), !canCrew)}</div></div>
-          <div class="field"><label>${esc(t('CREATE_MODE'))}</label><div class="opts">${modeOpt('standard')}${modeOpt('drift')}${modeOpt('time_trial')}</div></div>
+          <div class="field"><label>${esc(t('CREATE_MODE'))}</label><div class="opts">${modeOpt('standard')}${modeOpt('drift')}${modeOpt('time_trial')}${modeOpt('elimination', !circuit)}</div>
+            ${f.mode === 'elimination' ? `<div class="hint">${esc(t('CREATE_ELIM_DESC', E.MinRacers))}</div>` : ''}</div>
           <div class="grid2">
             <div class="field"><label>${esc(t('CREATE_CLASS'))}${need ? `<em class="${eloOk ? 'ok' : 'bad'}">${esc(t('CREATE_CLASS_ELO', num(need)))}</em>` : ''}</label>
               <select data-m="f.class" data-r>${classes.map(c => `<option value="${esc(c)}" ${f.class === c ? 'selected' : ''}>${esc(c === 'Open' ? t('CLASS_OPEN') : c)}</option>`).join('')}</select></div>
             <div class="field"><label>${esc(t('CREATE_RACERS'))}<em>${esc(t('CREATE_RACERS_HINT', minR, R.MaxParticipants))}</em></label>
-              <div class="range"><input type="range" min="${minR}" max="${R.MaxParticipants}" value="${f.max}" data-m="f.max" data-t="num" data-r><b>${f.max}</b></div></div>
+              <div class="range"><input type="range" min="${minR}" max="${maxR}" value="${f.max}" data-m="f.max" data-t="num" data-r><b>${f.max}</b></div></div>
           </div>
           ${circuit ? `<div class="field"><label>${esc(t('CREATE_LAPS'))}<em>${f.laps == 0 ? esc(t('CREATE_LAPS_SPRINT')) : ''}</em></label>
-            <div class="range"><input type="range" min="0" max="${R.MaxLaps}" value="${f.laps}" data-m="f.laps" data-t="num" data-r><b>${f.laps}</b></div></div>` : ''}
+            <div class="range"><input type="range" min="${f.mode === 'elimination' ? E.MinLaps : 0}" max="${R.MaxLaps}" value="${f.laps}" data-m="f.laps" data-t="num" data-r><b>${f.laps}</b></div></div>` : ''}
           ${R.WagerCurrencies.length ? `<div class="grid2">
             <div class="field"><label>${esc(t('CREATE_WAGER'))}${f.balance != null ? `<em class="${broke ? 'bad' : ''}">${esc(t('CREATE_BALANCE', money(f.balance, f.currency)))}</em>` : ''}</label>
               <input id="cr-wager" type="number" min="0" max="${R.MaxWager}" data-m="f.wager" data-t="num" data-r value="${esc(f.wager)}" placeholder="0"></div>
             ${R.WagerCurrencies.length > 1 ? `<div class="field"><label>${esc(t('CREATE_CURRENCY'))}</label><select data-m="f.currency" data-on="currency" data-r>${R.WagerCurrencies.map(c => `<option value="${c}" ${f.currency === c ? 'selected' : ''}>${esc((S.cfg.Rewards.Currencies[c] || {}).label || c)}</option>`).join('')}</select></div>`
               : `<div class="hint" style="align-self:end;padding-bottom:8px">${esc(t('CREATE_WAGER_DESC'))}</div>`}</div>` : ''}
           <button class="sw-line" data-a="cfToggle" data-k="ghost"><div><b>${esc(t('CREATE_GHOST'))}</b><span>${esc(t('CREATE_GHOST_DESC'))}</span></div><span class="sw ${f.ghost ? 'on' : ''}"><i></i></span></button>
+          ${toggle('autoAccept', 'CREATE_AUTO_ACCEPT', t('CREATE_AUTO_ACCEPT_DESC'))}
           ${S.canEvents ? `<button class="sw-line" data-a="cfToggle" data-k="featured"><div><b>${esc(t('CREATE_FEATURED'))}</b><span>${esc(t('CREATE_FEATURED_DESC'))}</span></div><span class="sw ${f.featured ? 'on' : ''}"><i></i></span></button>` : ''}
-          <div class="field"><label>${esc(t('CREATE_VEHICLE'))}${f.vehicle && !classFits ? `<em class="bad">${esc(t('PICK_WRONG_CLASS'))}</em>` : ''}</label>
+          ${S.cfg.Spectate.Enabled && S.cfg.Spectate.HostOnly ? toggle('hostOnly', 'CREATE_HOST_ONLY', t('CREATE_HOST_ONLY_DESC')) : ''}
+          ${pinkOk ? toggle('pinkSlip', 'CREATE_PINK', t('CREATE_PINK_DESC', Math.max(2, PS.MaxRacers)), 'pink') : ''}
+          ${f.hostOnly ? '' : `<div class="field"><label>${esc(t('CREATE_VEHICLE'))}${f.vehicle && !classFits ? `<em class="bad">${esc(t('PICK_WRONG_CLASS'))}</em>` : ''}</label>
             <button class="pick-v ${f.vehicle ? 'set' : ''}" data-a="cfVehicle"><div class="vimg">${f.vehicle ? vImage(f.vehicle) : '<i class="fas fa-plus"></i>'}</div>
-              <div class="row-txt"><b>${esc(f.vehicle ? f.vehicle.label : t('CREATE_PICK_VEHICLE'))}</b><span>${f.vehicle ? `<span class="plate">${esc(f.vehicle.plate)}</span>` : esc(t('CREATE_PICK_VEHICLE_SUB'))}</span></div></button></div>
+              <div class="row-txt"><b>${esc(f.vehicle ? f.vehicle.label : t('CREATE_PICK_VEHICLE'))}</b><span>${f.vehicle ? `<span class="plate">${esc(f.vehicle.plate)}</span>` : esc(t(f.pinkSlip ? 'CREATE_PICK_VEHICLE_PINK' : 'CREATE_PICK_VEHICLE_SUB'))}</span></div></button></div>`}
         </div>
         <div class="modal-f">${btn(t('UI_CANCEL'), 'nav', 'btn-line', { data: { v: 'lobbies' } })}${btn(t('CREATE_BUTTON'), 'cfCreate', 'btn-teal', { icon: 'fas fa-flag-checkered', busyKey: 'lobby:create', disabled: !ready })}</div>
       </div></div>`;
@@ -491,7 +560,8 @@ ACT.cfCreate = async () => {
   const f = S.f;
   const l = await call('lobby:create', {
     trackId: f.trackId, name: f.name, type: f.type, mode: f.mode, class: f.class, laps: f.laps, max: f.max,
-    wager: Number(f.wager) || 0, currency: f.currency, ghost: f.ghost, password: f.password, featured: f.featured, vehicle: f.vehicle,
+    wager: Number(f.wager) || 0, currency: f.currency, ghost: f.ghost, password: f.password, featured: f.featured, vehicle: f.hostOnly ? null : f.vehicle,
+    autoAccept: f.autoAccept, hostOnly: f.hostOnly, pinkSlip: f.pinkSlip,
   });
   if (!l) return;
   S.activeLobby = l.id;
@@ -523,8 +593,8 @@ function resultsTable(res, me) {
       <div class="${res.crews.winner === (res.crews[0].crew || {}).id ? 'w' : ''}"><b>${res.crews[0].score}</b>${crewTag(res.crews[0].crew)}</div><span style="color:var(--ink-3)">vs</span>
       <div class="${res.crews.winner === (res.crews[1].crew || {}).id ? 'w' : ''}"><b>${res.crews[1].score}</b>${crewTag(res.crews[1].crew)}</div></div>` : '';
   return `${crews}<table><thead><tr><th>#</th><th>${esc(t('UI_RACER'))}</th><th>${esc(t('UI_VEHICLE'))}</th><th class="r">${esc(drift ? t('RES_SCORE') : res.mode === 'time_trial' ? t('RES_BEST_LAP') : t('RES_TIME'))}</th><th class="r">${esc(t('UI_ELO'))}</th></tr></thead><tbody>
-    ${res.list.map(r => `<tr class="${r.id === me ? 'me' : ''}"><td>${posBadge(r.position, r.status)}</td><td><b>${esc(r.alias)}</b> ${crewTag(r.crew)}</td><td>${esc(r.vehicle || '—')}</td>
-      <td class="r"><b>${r.status !== 'finished' ? esc(t('P_DNF')) : drift ? num(r.score) : esc(clock(res.mode === 'time_trial' ? r.score : r.time))}</b>${r.payout ? ` <span class="chip amber">${esc(money(r.payout))}</span>` : ''}</td>
+    ${res.list.map(r => `<tr class="${r.id === me ? 'me' : ''}"><td>${posBadge(r.position, r.status)}</td><td><b>${esc(r.alias)}</b> ${crewTag(r.crew)}${r.newWr ? ' <span class="chip amber">WR</span>' : ''}${r.pinkWon ? ` <span class="chip red" title="${esc(r.pinkWon)}"><i class="fas fa-file-signature"></i>${esc(r.pinkWon)}</span>` : ''}</td><td>${esc(r.vehicle || '—')}</td>
+      <td class="r"><b>${r.status === 'eliminated' ? esc(t('HUD_OUT')) : r.status !== 'finished' ? esc(t('P_DNF')) : drift ? num(r.score) : esc(clock(res.mode === 'time_trial' ? r.score : r.time))}</b>${r.payout ? ` <span class="chip amber">${esc(money(r.payout))}</span>` : ''}</td>
       <td class="r">${eloDelta(r.eloDelta) || '—'}</td></tr>`).join('')}</tbody></table>`;
 }
 
@@ -535,18 +605,27 @@ function pageLobby() {
   const mine = l.participants.find(x => x.id === p.id);
   const owner = l.owner.id === p.id;
   const accepted = l.participants.filter(x => x.status === 'accepted').length;
+  const live = ['mobilizing', 'countdown', 'racing'].includes(l.status);
   const tr = l.track;
   const wr = tr.worldRecord;
+  const SP = S.cfg.Spectate;
+  const canWatch = SP.Enabled && live && !(mine && ['mobilizing', 'countdown', 'racing'].includes(mine.status)) && (SP.Anyone || mine || owner);
+  const canInvite = l.status === 'pending' && (owner || (mine && mine.status === 'accepted')) && l.participants.length < l.max;
   let actions = '';
   if (l.status === 'pending') {
     if (owner) actions = `${btn(t('LOBBY_DISBAND'), 'lDisband', 'btn-red', { icon: 'fas fa-trash' })}${btn(t('LOBBY_START'), 'lStart', 'btn-teal', { icon: 'fas fa-play', busyKey: 'lobby:start' })}`;
     else if (mine) actions = btn(t('LOBBY_LEAVE'), 'lLeave', 'btn-red', { icon: 'fas fa-right-from-bracket' });
     else if (l.participants.length >= l.max) actions = btn(t('LOBBY_FULL'), 'noop', 'btn-line', { disabled: true });
     else if (S.activeLobby) actions = btn(t('LOBBY_IN_OTHER'), 'noop', 'btn-line', { disabled: true });
-    else actions = btn(t('LOBBY_JOIN'), 'lJoin', 'btn-teal', { icon: 'fas fa-right-to-bracket', busyKey: 'lobby:join' });
-  } else if (mine && ['mobilizing', 'countdown', 'racing'].includes(l.status) && ['mobilizing', 'countdown', 'racing'].includes(mine.status)) {
+    else if (l.myBet) actions = btn(t('BET_CANT_JOIN'), 'noop', 'btn-line', { disabled: true });
+    else actions = btn(t(l.pinkSlip ? 'LOBBY_JOIN_PINK' : 'LOBBY_JOIN'), 'lJoin', l.pinkSlip ? 'btn-red' : 'btn-teal', { icon: l.pinkSlip ? 'fas fa-file-signature' : 'fas fa-right-to-bracket', busyKey: 'lobby:join' });
+    if (canInvite) actions = btn(t('INVITE_BUTTON'), 'lInvite', 'btn-ghost', { icon: 'fas fa-user-plus' }) + actions;
+  } else if (mine && live && ['mobilizing', 'countdown', 'racing'].includes(mine.status)) {
     actions = btn(t('LOBBY_DNF'), 'lLeave', 'btn-red', { icon: 'fas fa-flag' });
   }
+  if (canWatch) actions += btn(t('SPECTATE_BUTTON'), 'lWatch', 'btn-teal', { icon: 'fas fa-video', busyKey: 'spectate' });
+  if (owner && l.hostOnly && live) actions = btn(t('LOBBY_LEAVE'), 'lLeave', 'btn-line', { icon: 'fas fa-right-from-bracket' }) + actions;
+
   let parts;
   if (l.type === 'crew') {
     const groups = {};
@@ -555,14 +634,22 @@ function pageLobby() {
     parts = crews.map(c => `<div class="grp" style="margin:4px 2px">${crewTag(c)} ${esc(c.name)}</div>${(groups[c.id] || []).map(x => partRow(l, x, owner)).join('')}`).join('')
       + (crews.length < 2 ? `<div class="empty" style="padding:16px"><i class="fas fa-people-group"></i><span>${esc(t('LOBBY_WAITING_CREW'))}</span></div>` : '');
   } else parts = l.participants.map(x => partRow(l, x, owner)).join('');
+
+  const notes = [];
+  if (l.pinkSlip) notes.push(`<div class="note red"><i class="fas fa-file-signature"></i><span>${esc(t('LOBBY_PINK_NOTE'))}</span></div>`);
+  if (l.mode === 'elimination') notes.push(`<div class="note amber"><i class="fas fa-skull"></i><span>${esc(t('LOBBY_ELIM_NOTE'))}</span></div>`);
+  if (l.hostOnly) notes.push(`<div class="note"><i class="fas fa-video"></i><span>${esc(t('LOBBY_HOST_ONLY_NOTE', l.owner.alias))}</span></div>`);
+
   return `<div class="head"><div><button class="back" data-a="nav" data-v="lobbies"><i class="fas fa-arrow-left"></i>${esc(t('UI_BACK'))}</button>
-      <h1>${l.featured ? '<i class="fas fa-star" style="color:var(--amber);font-size:16px"></i>' : ''}${esc(l.name)} ${statusTag(l.status)}${l.star ? `<span class="chip amber"><i class="fas fa-crown"></i>${esc(t('LOBBY_STARRED'))}</span>` : ''}</h1>
+      <h1>${l.featured ? '<i class="fas fa-star" style="color:var(--amber);font-size:16px"></i>' : ''}${esc(l.name)} ${statusTag(l.status)}${l.star ? `<span class="chip amber"><i class="fas fa-crown"></i>${esc(t('LOBBY_STARRED'))}</span>` : ''}
+        ${l.pinkSlip ? `<span class="chip red"><i class="fas fa-file-signature"></i>${esc(t('PINK_SHORT'))}</span>` : ''}${l.autoAccept ? `<span class="chip mute"><i class="fas fa-bolt"></i>${esc(t('LOBBY_AUTO'))}</span>` : ''}</h1>
       <p>${esc(t('LOBBY_HOSTED', l.owner.alias))} · ${esc(t('TYPE_' + l.type))} · ${esc(t('MODE_' + l.mode))} · #${esc(l.id)}</p></div>
       <div class="head-r">${btn(t('LOBBY_WAYPOINT'), 'lWaypoint', 'btn-ghost', { icon: 'fas fa-location-dot', size: 'sm', free: true })}</div></div>
     <div class="cols c12 fill-y">
       <div class="panel"><div class="p-body" data-scroll="li" style="padding:12px;gap:12px">
         ${trackSvg(tr.preview, l.laps > 0, 170)}
         <div><b style="font-size:14px;color:var(--white)">${esc(tr.name)}</b><div class="hint" style="margin-top:3px">${esc(tr.description || t('TRACK_NO_DESC'))}</div></div>
+        ${notes.join('')}
         <div class="kv">
           <span>${esc(t('LOBBY_TRACK_TYPE'))}</span><b>${l.laps > 0 ? esc(t('TRACK_circuit')) + ' · ' + esc(t('UI_N_LAPS', l.laps)) : esc(t('TRACK_sprint'))}</b>
           <span>${esc(t('LOBBY_DISTANCE'))}</span><b>${esc(dist(tr.length * Math.max(1, l.laps)))}</b>
@@ -573,6 +660,7 @@ function pageLobby() {
           ${l.type === 'ranked' ? `<span>${esc(t('LOBBY_AVG_ELO'))}</span><b>${num(l.avgElo)}</b>` : ''}
           <span>${esc(t('TRACK_WR'))}</span><b>${wr ? `${esc(clock(wr.time))} · ${esc(wr.holder.alias)}` : '—'}</b>
         </div>
+        ${betPanel(l, mine, owner)}
       </div></div>
       <div class="panel"><div class="p-head"><div><h2><i class="fas fa-users"></i>${esc(t('LOBBY_RACERS', l.participants.length, l.max))}</h2>
         <p>${l.status === 'pending' ? esc(t('LOBBY_ACCEPTED_N', accepted)) : l.status === 'finished' ? esc(t('LOBBY_RESULTS')) : esc(t('LOBBY_STATUS_' + l.status))}</p></div>
@@ -581,6 +669,86 @@ function pageLobby() {
         ${actions ? `<div class="modal-f">${l.status === 'pending' && l.type === 'ranked' ? `<span class="hint sp">${esc(t('LOBBY_RANKED_NEED', S.cfg.Races.RequiredParticipantsForRankedLobby))}</span>` : ''}${actions}</div>` : ''}
       </div></div>`;
 }
+
+// ── bets ────────────────────────────────────────────────────────────────
+function betPanel(l, mine, owner) {
+  const b = l.bets;
+  if (!b || !S.cfg.Betting.Enabled) return '';
+  const canBet = l.status === 'pending' && !mine && !l.myBet;
+  const racer = id => l.participants.find(x => x.id === id);
+  const odds = id => { const on = (b.racers.find(r => r.id === id) || {}).amount || 0; return on > 0 ? (b.pool * (1 - b.cut)) / on : null; };
+  const my = l.myBet;
+  return `<div class="betbox"><div class="betbox-h"><i class="fas fa-sack-dollar"></i><b>${esc(t('BET_TITLE'))}</b><span>${esc(t('BET_POOL_N', money(b.pool, b.currency), b.count))}</span></div>
+    ${b.racers.length ? `<div class="betbox-l">${b.racers.sort((x, y) => y.amount - x.amount).map(r => { const pr = racer(r.id); const o = odds(r.id);
+      return `<div><span>${esc(pr ? pr.alias : '?')}</span><b>${esc(money(r.amount, b.currency))}</b><em>${o ? 'x' + num(o, 2) : ''}</em></div>`; }).join('')}</div>` : `<div class="hint">${esc(t('BET_EMPTY'))}</div>`}
+    ${my ? `<div class="betbox-my"><span>${esc(t('BET_MINE', money(my.amount, b.currency), (racer(my.racer) || {}).alias || '?'))}</span>${l.status === 'pending' ? btn(t('BET_CANCEL'), 'betCancel', 'btn-line', { size: 'sm', busyKey: 'bet:cancel' }) : ''}</div>` : ''}
+    ${canBet ? btn(t('BET_PLACE'), 'betOpen', 'btn-ghost', { size: 'sm', icon: 'fas fa-coins', full: true }) : ''}</div>`;
+}
+ACT.betOpen = () => {
+  const l = S.lobby, B = S.cfg.Betting;
+  const st = { racer: null, amount: B.Min };
+  const field = () => l.participants.filter(x => x.status === 'accepted');
+  openModal({
+    render: () => {
+      const b = S.lobby.bets || { pool: 0, racers: [], cut: B.HouseCut };
+      const on = id => (b.racers.find(r => r.id === id) || {}).amount || 0;
+      const amt = Number(st.amount) || 0;
+      const win = st.racer ? Math.floor((b.pool + amt) * (1 - b.cut) * amt / (on(st.racer) + amt)) : 0;
+      const ok = st.racer && amt >= B.Min && amt <= B.Max;
+      return `<div class="modal wide"><div class="modal-h"><div class="grow"><h4>${esc(t('BET_PLACE'))}</h4><p>${esc(t('BET_SUB', Math.round(b.cut * 100)))}</p></div></div>
+        <div class="modal-body">
+          <div class="p-body" style="padding:0;max-height:240px">${field().map(x => `<div class="row click ${st.racer === x.id ? 'on' : ''}" data-a="betPick" data-v="${x.id}">${avatar(x, 'sm')}
+            <div class="row-txt"><b>${esc(x.alias)} ${crewTag(x.crew)}</b><span>${esc(x.vehicle ? x.vehicle.label : '')} · ${num(x.elo)} ${esc(t('UI_ELO'))}</span></div>
+            <span class="chip mute">${esc(money(on(x.id), b.currency))}</span></div>`).join('') || empty('fas fa-users', t('BET_NO_RACERS'))}</div>
+          <div class="grid2"><div class="field"><label>${esc(t('BET_AMOUNT'))}<em>${esc(money(B.Min, B.Currency))} - ${esc(money(B.Max, B.Currency))}</em></label>
+            <input id="bet-amt" type="number" min="${B.Min}" max="${B.Max}" value="${esc(st.amount)}" oninput="window.__bet(this.value)"></div>
+            <div class="field"><label>${esc(t('BET_WIN'))}</label><div class="bet-win">${st.racer ? esc(money(win, B.Currency)) : '—'}</div></div></div>
+        </div>
+        <div class="modal-f">${btn(t('UI_CANCEL'), 'modalNo', 'btn-line', { free: true })}${btn(t('BET_CONFIRM'), 'betSend', 'btn-teal', { icon: 'fas fa-coins', disabled: !ok, busyKey: 'bet:place' })}</div></div>`;
+    },
+    on: {
+      modalNo: () => closeModal(),
+      betPick: e => { st.racer = Number(e.v); renderModal(); },
+      betSend: async () => {
+        const r = await call('bet:place', { id: l.id, racer: st.racer, amount: Number(st.amount) }, { success: t('BET_PLACED') });
+        if (r) { S.lobby = r; closeModal(); render(); }
+      },
+    },
+  });
+  window.__bet = v => { st.amount = v; debounce('betamt', 200, renderModal); };
+};
+ACT.betCancel = async () => {
+  const r = await call('bet:cancel', { id: S.lobby.id }, { success: t('BET_CANCELLED') });
+  if (r) { S.lobby = r; render(); }
+};
+
+// ── spectate / invite ───────────────────────────────────────────────────
+ACT.lWatch = async () => {
+  if (S.busy) return;
+  S.busy = 'spectate'; render();
+  const r = await post('spectate', { id: S.lobby.id });
+  S.busy = null;
+  if (!r || r.error) { toast(t((r && r.error) || 'ERR_GENERIC'), true); render(); }
+};
+function racerPicker(title, sub, onPick) {
+  const st = { q: '', list: null };
+  const search = () => debounce('rp', 300, async () => { const r = await req('profile:search', { q: st.q }); st.list = (r.data || []).filter(x => x.id !== S.profile.id); renderModal(); });
+  window.__rpq = v => { st.q = v; search(); };
+  openModal({
+    render: () => `<div class="modal wide"><div class="modal-h"><div class="grow"><h4>${esc(title)}</h4><p>${esc(sub)}</p></div></div>
+      <div class="modal-body">
+        <div class="search"><i class="fas fa-magnifying-glass"></i><input class="input" id="rp-q" value="${esc(st.q)}" oninput="window.__rpq(this.value)" placeholder="${esc(t('RACERS_SEARCH_PH'))}"></div>
+        <div class="p-body" style="padding:0;max-height:280px" data-scroll="rp">${!st.list ? empty('fas fa-magnifying-glass', t('RACERS_SEARCH_PROMPT')) : st.list.length ? st.list.map(x => `<div class="row">
+          ${avatar(x, 'sm', { online: x.online })}<div class="row-txt"><b>${esc(x.alias)} ${crewTag(x.crew)}</b><span>${num(x.elo)} ${esc(t('UI_ELO'))} · ${esc(x.online ? t('UI_ONLINE') : t('UI_OFFLINE'))}</span></div>
+          ${btn(t('INVITE_SEND'), 'rpPick', 'btn-teal', { size: 'sm', icon: 'fas fa-paper-plane', data: { v: x.id } })}</div>`).join('') : empty('fas fa-user', t('RACERS_NO_RESULTS', st.q))}</div></div>
+      <div class="modal-f">${btn(t('UI_CLOSE'), 'modalNo', 'btn-line', { free: true })}</div></div>`,
+    on: { modalNo: () => closeModal(), rpPick: e => onPick(Number(e.v)) },
+  });
+  document.getElementById('rp-q').focus();
+}
+ACT.lInvite = () => racerPicker(t('INVITE_TITLE'), t('INVITE_SUB'), async id => { await call('lobby:invite', { profileId: id }, { success: t('INVITE_SENT') }); });
+ACT.profileInvite = async d => { await call('lobby:invite', { profileId: Number(d.v) }, { success: t('INVITE_SENT') }); };
+
 ACT.noop = () => {};
 ACT.lWaypoint = () => {
   const pt = S.lobby && S.lobby.track.preview && S.lobby.track.preview[0];
@@ -590,6 +758,7 @@ ACT.lJoin = async () => {
   const l = S.lobby;
   const v = await pickVehicle(l.class);
   if (!v) return;
+  if (l.pinkSlip && !(await confirmBox({ title: t('PINK_CONFIRM_TITLE'), text: t('PINK_CONFIRM_TEXT', v.label, v.plate), ok: t('LOBBY_JOIN_PINK'), icon: 'fas fa-file-signature' }))) return;
   let password = '';
   if (l.hasPassword) {
     password = await promptBox({ title: t('LOBBY_PASSWORD'), text: t('LOBBY_PASSWORD_SUB'), max: 20, ok: t('LOBBY_JOIN'), type: 'password' });
@@ -600,7 +769,7 @@ ACT.lJoin = async () => {
 };
 ACT.lLeave = async () => {
   const l = S.lobby;
-  const racing = l.status !== 'pending';
+  const racing = l.status !== 'pending' && !(l.hostOnly && l.owner.id === S.profile.id);
   if (!(await confirmBox({ title: racing ? t('LOBBY_DNF') : t('LOBBY_LEAVE'), text: racing ? t('LOBBY_DNF_CONFIRM') : t('LOBBY_LEAVE_CONFIRM') }))) return;
   const r = await call('lobby:leave', { id: l.id });
   if (r) { S.activeLobby = null; go('lobbies'); }
@@ -632,7 +801,7 @@ function pageTracks() {
     && (!o || (x.owner.alias || '').toLowerCase().includes(o)));
   const cards = list.map(x => `<div class="tcard" data-a="trackOpen" data-v="${x.id}">
     ${trackSvg(x.preview, x.type === 'circuit', 120)}
-    <div class="tcard-b"><b>${esc(x.name)}${x.private ? ' <i class="fas fa-lock" style="font-size:10px;color:var(--ink-3)"></i>' : ''}</b>
+    <div class="tcard-b"><b>${esc(x.name)}${x.private ? ` <i class="${visIcon(x.visibility)}" style="font-size:10px;color:var(--ink-3)"></i>` : ''}${x.crew ? crewTag(x.crew) : ''}</b>
       <span>${esc(t('TRACK_BY', x.owner.alias || '—'))} · ${esc(dist(x.length))} · ${esc(t('UI_N_CPS', x.checkpoints))}</span>
       <div class="tcard-f"><span class="chip ${x.type === 'circuit' ? '' : 'mute'}">${esc(t('TRACK_' + x.type))}</span>
         ${x.worldRecord ? `<span class="chip amber"><i class="fas fa-trophy"></i>${esc(clock(x.worldRecord.time, true))}</span>` : ''}
@@ -656,19 +825,26 @@ ACT.trackBuild = async () => {
 };
 ACT.trackOpen = async d => {
   const id = Number(d.v);
-  const base = (S.tracks || []).find(x => x.id === id);
-  const st = { tr: base, full: null, edit: false };
+  let base = (S.tracks || []).find(x => x.id === id);
+  if (!base) {
+    const r0 = await req('track:get', { id });
+    if (!r0.data) return toast(t(r0.error || 'TRACK_NOT_FOUND'), true);
+    base = r0.data;
+  }
+  const st = { tr: base, full: null, edit: false, board: 'city' };
   openModal({
     render: () => {
       const x = st.full || st.tr;
-      const top = st.full ? st.full.top : null;
+      const top = st.full ? (st.board === 'crew' ? st.full.crewTop : st.full.top) : null;
+      const boardSeg = st.full && st.full.crewTop ? `<div class="seg"><button class="${st.board !== 'crew' ? 'on' : ''}" data-a="teBoard" data-v="city">${esc(t('TRACK_TOP_CITY'))}</button><button class="${st.board === 'crew' ? 'on' : ''}" data-a="teBoard" data-v="crew">${esc(t('TRACK_TOP_CREW'))}</button></div>` : '';
       const circuit = x.type === 'circuit';
       if (st.edit) {
         return `<div class="modal wide"><div class="modal-h"><div class="grow"><h4>${esc(t('TRACKS_EDIT'))}</h4><p>${esc(x.name)}</p></div></div>
           <div class="modal-body">
             <div class="field"><label>${esc(t('TRACKS_NAME'))}</label><input id="te-name" maxlength="60" data-m="f.tname" value="${esc(S.f.tname)}"></div>
             <div class="field"><label>${esc(t('TRACKS_DESC'))}</label><textarea id="te-desc" maxlength="500" data-m="f.tdesc">${esc(S.f.tdesc)}</textarea></div>
-            <button class="sw-line" data-a="tePriv"><div><b>${esc(t('TRACKS_PRIVATE'))}</b><span>${esc(t('TRACKS_PRIVATE_DESC'))}</span></div><span class="sw ${S.f.tpriv ? 'on' : ''}"><i></i></span></button>
+            <div class="field"><label>${esc(t('TRACKS_VISIBILITY'))}<em>${esc(t('TRACKS_VIS_' + S.f.tvis + '_DESC'))}</em></label>
+              <div class="seg">${visOpts().map(v => `<button class="${S.f.tvis === v ? 'on' : ''}" data-a="teVis" data-v="${v}"><i class="${visIcon(v)}"></i>${esc(t('TRACKS_VIS_' + v))}</button>`).join('')}</div></div>
           </div>
           <div class="modal-f">${btn(t('TRACKS_DELETE'), 'teDel', 'btn-red sp', { icon: 'fas fa-trash' })}<span style="flex:1"></span>${btn(t('UI_CANCEL'), 'teCancel', 'btn-line', { free: true })}${btn(t('UI_SAVE'), 'teSave', 'btn-teal', { icon: 'fas fa-check', busyKey: 'track:update' })}</div></div>`;
       }
@@ -681,19 +857,23 @@ ACT.trackOpen = async d => {
               <span>${esc(t('TRACKS_PLAYS'))}</span><b>${num(x.plays)}</b>
               <span>${esc(t('TRACK_WR'))}</span><b>${x.worldRecord ? `${esc(clock(x.worldRecord.time))} · ${esc(x.worldRecord.holder.alias)}` : esc(t('TRACK_NO_WR'))}</b>
               <span>${esc(t('TRACK_PB'))}</span><b>${x.personalBest ? esc(clock(circuit ? (x.personalBest.lap || x.personalBest.time) : x.personalBest.time)) : '—'}</b></div></div>
-          <div class="panel"><div class="p-head"><div><h2><i class="fas fa-trophy"></i>${esc(t('TRACK_TOP'))}</h2><p>${esc(circuit ? t('RES_BEST_LAP') : t('RES_TIME'))}</p></div></div>
+          <div class="panel"><div class="p-head"><div><h2><i class="fas fa-trophy"></i>${esc(t('TRACK_TOP'))}</h2><p>${esc(circuit ? t('RES_BEST_LAP') : t('RES_TIME'))}</p></div>${boardSeg}</div>
             <div class="p-body" style="max-height:300px">${!top ? skeleton(4) : top.length ? top.map((r, i) => `<div class="row ${r.id === S.profile.id ? 'on' : ''}">${posBadge(i + 1)}
               <div class="row-txt"><b>${esc(r.alias)}</b></div><b style="font-size:12px;color:var(--white)">${esc(clock(circuit ? (r.lap || r.time) : r.time))}</b></div>`).join('') : empty('fas fa-stopwatch', t('TRACK_NO_TIMES'))}</div></div>
         </div></div>
-        <div class="modal-f">${btn(t('UI_CLOSE'), 'modalNo', 'btn-line', { free: true })}${btn(t('TRACK_RACE_THIS'), 'teRace', 'btn-teal', { icon: 'fas fa-flag-checkered', disabled: !!S.activeLobby, free: true })}</div></div>`;
+        <div class="modal-f">${btn(t('UI_CLOSE'), 'modalNo', 'btn-line', { free: true })}
+          ${S.cfg.Practice.Enabled ? btn(t('PRACTICE_BUTTON'), 'tePractice', 'btn-ghost', { icon: 'fas fa-stopwatch', disabled: !!S.activeLobby, free: true }) : ''}
+          ${btn(t('TRACK_RACE_THIS'), 'teRace', 'btn-teal', { icon: 'fas fa-flag-checkered', disabled: !!S.activeLobby, free: true })}</div></div>`;
     },
     on: {
       modalNo: () => closeModal(),
-      teOpen: () => { const x = st.full || st.tr; S.f.tname = x.name; S.f.tdesc = x.description || ''; S.f.tpriv = !!x.private; st.edit = true; renderModal(); },
+      teOpen: () => { const x = st.full || st.tr; S.f.tname = x.name; S.f.tdesc = x.description || ''; S.f.tvis = x.visibility || (x.private ? 'private' : 'public'); st.edit = true; renderModal(); },
       teCancel: () => { st.edit = false; renderModal(); },
-      tePriv: () => { S.f.tpriv = !S.f.tpriv; renderModal(); },
+      teVis: e => { S.f.tvis = e.v; renderModal(); },
+      teBoard: e => { st.board = e.v; renderModal(); },
+      tePractice: () => { const x = st.full || st.tr; closeModal(); practiceModal(x); },
       teSave: async () => {
-        const r = await call('track:update', { id, name: S.f.tname, description: S.f.tdesc, private: S.f.tpriv }, { success: t('TRACKS_SAVED') });
+        const r = await call('track:update', { id, name: S.f.tname, description: S.f.tdesc, visibility: S.f.tvis }, { success: t('TRACKS_SAVED') });
         if (r) { closeModal(); loadTracks(); }
       },
       teDel: async () => {
@@ -708,6 +888,46 @@ ACT.trackOpen = async d => {
   const r = await req('track:get', { id });
   if (r.data && MODAL) { st.full = Object.assign({}, base, r.data); renderModal(); }
 };
+
+// Visibility choices for the current racer
+function visOpts() {
+  const crew = S.cfg.Trackbuilder.CrewTracks && S.profile.crewId;
+  return ['public', 'private', ...(crew ? ['crew'] : [])];
+}
+
+// ── practice ────────────────────────────────────────────────────────────
+function practiceModal(x) {
+  const circuit = x.type === 'circuit';
+  const st = { laps: circuit ? 1 : 0, mode: 'standard' };
+  const max = S.cfg.Practice.MaxLaps;
+  openModal({
+    render: () => `<div class="modal"><div class="modal-h"><div class="tile"><i class="fas fa-stopwatch"></i></div><div class="grow"><h4>${esc(t('PRACTICE_TITLE'))}</h4><p>${esc(x.name)}</p></div></div>
+      <div class="modal-body">
+        <div class="note"><i class="fas fa-circle-info"></i><span>${esc(t('PRACTICE_INFO'))}</span></div>
+        ${circuit ? `<div class="field"><label>${esc(t('CREATE_LAPS'))}</label><div class="range"><input type="range" min="1" max="${max}" value="${st.laps}" oninput="window.__pl(+this.value)"><b id="pl-v">${st.laps}</b></div></div>` : ''}
+        <div class="field"><label>${esc(t('CREATE_MODE'))}</label><div class="seg">${['standard', 'time_trial'].map(m => `<button class="${st.mode === m ? 'on' : ''}" data-a="prMode" data-v="${m}"><i class="${modeIcon(m)}"></i>${esc(t('MODE_' + m))}</button>`).join('')}</div></div>
+        ${x.personalBest ? `<div class="kv"><span>${esc(t('TRACK_PB'))}</span><b>${esc(clock(circuit ? (x.personalBest.lap || x.personalBest.time) : x.personalBest.time))}</b>
+          ${x.worldRecord ? `<span>${esc(t('TRACK_WR'))}</span><b>${esc(clock(x.worldRecord.time))} · ${esc(x.worldRecord.holder.alias)}</b>` : ''}</div>` : ''}
+      </div>
+      <div class="modal-f">${btn(t('UI_CANCEL'), 'modalNo', 'btn-line', { free: true })}${btn(t('PRACTICE_START'), 'prGo', 'btn-teal', { icon: 'fas fa-flag-checkered', busyKey: 'practice' })}</div></div>`,
+    on: {
+      modalNo: () => closeModal(),
+      prMode: e => { st.mode = e.v; renderModal(); },
+      prGo: async () => {
+        S.busy = 'practice'; renderModal();
+        const r = await post('practice', { trackId: x.id, laps: st.laps, mode: st.mode });
+        S.busy = null;
+        if (!r || r.error) {
+          let msg = t((r && r.error) || 'ERR_GENERIC');
+          if (r && Array.isArray(r.extra) && r.extra.length) msg += ` — ${r.extra.join(', ')}`;
+          toast(msg, true); renderModal(); return;
+        }
+        closeModal();
+      },
+    },
+  });
+  window.__pl = v => { st.laps = v; const b = document.getElementById('pl-v'); if (b) b.textContent = v; };
+}
 
 // ════════════════════════════════════════════════════════════════════════
 //  CREW
@@ -726,11 +946,13 @@ function pageCrew() {
   const c = S.crew;
   if (!c) return `<div class="scroll">${skeleton(6)}</div>`;
   S.crewTab = S.crewTab || 'overview';
-  const tabs = [['overview', 'fas fa-gauge', 'CREW_OVERVIEW'], ['members', 'fas fa-users', 'CREW_MEMBERS'], ['activity', 'fas fa-clock-rotate-left', 'CREW_ACTIVITY']]
+  const tabs = [['overview', 'fas fa-gauge', 'CREW_OVERVIEW'], ['members', 'fas fa-users', 'CREW_MEMBERS'], ['activity', 'fas fa-clock-rotate-left', 'CREW_ACTIVITY'],
+    ...(S.cfg.Trackbuilder.CrewTracks ? [['records', 'fas fa-stopwatch', 'CREW_RECORDS']] : [])]
     .map(([k, i, l]) => `<button class="${S.crewTab === k ? 'on' : ''}" data-a="crewTab" data-v="${k}"><i class="${i}"></i>${esc(t(l))}${k === 'members' ? ` <span class="tally">${c.members.length}</span>` : ''}</button>`).join('');
   let body = '';
   if (S.crewTab === 'members') body = crewMembers(c);
   else if (S.crewTab === 'activity') body = `<div class="panel fill-y"><div class="p-body" data-scroll="ca">${crewActivity(c.activity)}</div></div>`;
+  else if (S.crewTab === 'records') body = crewRecords();
   else body = crewOverview(c);
   return `<div class="hero" style="--c:${esc(c.color)}">${crewAvatar(c)}
       <div class="grow"><h3>${esc(c.name)} ${crewTag(c)}</h3><p>${esc(c.description || t('CREW_NO_DESC'))}</p></div>
@@ -777,7 +999,18 @@ function crewMembers(c) {
   return `<div class="cols c21 fill-y"><div class="panel"><div class="p-head"><div><h2><i class="fas fa-users"></i>${esc(t('CREW_MEMBERS'))}</h2></div></div><div class="p-body" data-scroll="cm">${rows}</div></div>
     <div class="panel"><div class="p-head"><div><h2><i class="fas fa-envelope"></i>${esc(t('CREW_PENDING'))}</h2></div></div><div class="p-body" data-scroll="cp">${inv || empty('fas fa-envelope-open', t('CREW_NO_INVITES'))}</div></div></div>`;
 }
-ACT.crewTab = d => { S.crewTab = d.v; render(); };
+ACT.crewTab = d => { S.crewTab = d.v; if (d.v === 'records') S.crewRecords = null; render(); };
+function crewRecords() {
+  if (!S.crewRecords && !S.crLoading) { S.crLoading = true; req('crew:records', {}).then(r => { S.crewRecords = r.data || []; S.crLoading = false; render(); }); }
+  const list = S.crewRecords;
+  const rows = !list ? skeleton(5) : list.length ? `<table><thead><tr><th>${esc(t('UI_TRACK'))}</th><th>${esc(t('TRACKS_VISIBILITY'))}</th><th class="r">${esc(t('CREW_RECORD'))}</th><th>${esc(t('UI_RACER'))}</th></tr></thead><tbody>
+    ${list.map(r => `<tr class="click" data-a="trackOpen" data-v="${r.track.id}"><td><b>${esc(r.track.name)}</b> <span class="hint">${esc(t('TRACK_' + r.track.type))} · ${esc(dist(r.track.length))}</span></td>
+      <td><i class="${visIcon(r.track.visibility)}" style="color:var(--ink-3)"></i> ${esc(t('TRACKS_VIS_' + r.track.visibility))}</td>
+      <td class="r">${r.record ? `<b>${esc(clock(r.record.time))}</b>${r.isWr ? ' <span class="chip amber"><i class="fas fa-trophy"></i>WR</span>' : ''}` : '—'}</td>
+      <td>${r.record ? esc(r.record.holder.alias) : `<span class="hint">${esc(t('TRACK_NO_TIMES'))}</span>`}</td></tr>`).join('')}</tbody></table>`
+    : empty('fas fa-stopwatch', t('CREW_NO_RECORDS'), t('CREW_NO_RECORDS_SUB'));
+  return `<div class="panel fill-y"><div class="p-head"><div><h2><i class="fas fa-stopwatch"></i>${esc(t('CREW_RECORDS'))}</h2><p>${esc(t('CREW_RECORDS_SUB'))}</p></div></div><div class="p-body" data-scroll="crr">${rows}</div></div>`;
+}
 
 function pageCrewSearch() {
   S.cs = S.cs || { q: '', list: null };
@@ -921,7 +1154,7 @@ function pageRacers() {
   const boards = [['elo', 'BOARD_ELO', 'fas fa-chart-line'], ['wins', 'BOARD_WINS', 'fas fa-trophy'], ['winRate', 'BOARD_WINRATE', 'fas fa-percent']];
   const rows = S.board ? S.board[b.board] : null;
   return `<div class="head"><div><h1>${esc(t('RACERS_TITLE'))}</h1><p>${esc(t('RACERS_SUB'))}</p></div>
-      <div class="head-r">${btn(t('RACERS_MY_PROFILE'), 'openProfile', 'btn-ghost', { icon: 'fas fa-id-card', data: { v: S.profile.id }, free: true })}</div></div>
+      <div class="head-r">${S.season ? `<span class="chip"><i class="fas fa-calendar"></i>${esc(t('SEASON_N', S.season.number))} · ${esc(t('SEASON_ENDS', timeLeft(S.season.ends)))}</span>` : ''}${btn(t('RACERS_MY_PROFILE'), 'openProfile', 'btn-ghost', { icon: 'fas fa-id-card', data: { v: S.profile.id }, free: true })}</div></div>
     <div class="stats c5">
       ${stat(t('STAT_ELO'), num(S.profile.elo), 'fas fa-chart-line')}
       ${stat(t('STAT_WIN_RATE'), st ? num(st.winRate, 1) : '—', 'fas fa-percent', '', st ? '%' : '')}
@@ -995,7 +1228,7 @@ function pageProfile() {
   let body;
   if (S.profileTab === 'log') {
     body = `<div class="panel fill-y"><div class="p-body" data-scroll="plog">${s.recent.length ? `<table><thead><tr><th>#</th><th>${esc(t('UI_TRACK'))}</th><th>${esc(t('UI_MODE'))}</th><th>${esc(t('UI_VEHICLE'))}</th><th class="r">${esc(t('RES_TIME'))}</th><th class="r">${esc(t('RES_BEST_LAP'))}</th><th class="r">${esc(t('UI_ELO'))}</th><th class="r">${esc(t('UI_DATE'))}</th></tr></thead><tbody>
-      ${s.recent.map(r => `<tr><td>${posBadge(r.position, r.status)}</td><td><b>${esc(r.track || '—')}</b></td><td>${esc(t('MODE_' + r.mode))}${r.type === 'ranked' ? ' <i class="fas fa-trophy" style="color:var(--amber);font-size:9px"></i>' : ''}</td><td>${esc(r.vehicle || '—')}</td>
+      ${s.recent.map(r => `<tr><td>${posBadge(r.position, r.status)}</td><td><b>${esc(r.track || '—')}</b></td><td>${esc(t('MODE_' + r.mode))}${r.type === 'ranked' ? ' <i class="fas fa-trophy" style="color:var(--amber);font-size:9px"></i>' : ''}${r.type === 'practice' ? ` <span class="chip mute">${esc(t('TYPE_practice'))}</span>` : ''}</td><td>${esc(r.vehicle || '—')}</td>
         <td class="r">${r.status === 'finished' ? esc(clock(r.time)) : '—'}</td><td class="r">${r.bestLap ? esc(clock(r.bestLap)) : '—'}</td><td class="r">${eloDelta(r.eloDelta) || '—'}</td><td class="r">${esc(ago(r.date))}</td></tr>`).join('')}</tbody></table>`
       : empty('fas fa-flag-checkered', t('PROFILE_NO_RACES'))}</div></div>`;
   } else if (S.profileTab === 'achievements') {
@@ -1022,8 +1255,9 @@ function pageProfile() {
   }
   return `<div class="hero" style="--c:${esc(v.color)}">${avatar(v, 'xl', { online: v.online })}
       <div class="grow"><button class="back" data-a="nav" data-v="racers"><i class="fas fa-arrow-left"></i>${esc(t('UI_BACK'))}</button>
-        <h3>${esc(v.alias)} ${crewTag(v.crew)}</h3><p>${esc(rank.name)}${next ? ` · ${esc(t('HOME_NEXT_RANK', num(next.min - v.elo), next.name))}` : ''} · ${esc(v.online ? t('UI_ONLINE') : t('UI_OFFLINE'))}</p></div>
-      <div class="hero-r"><b>${num(v.elo)}</b><span>${esc(t('UI_ELO'))}</span>${me ? `<div style="margin-top:8px">${btn(t('UI_EDIT_PROFILE'), 'editProfile', 'btn-ghost', { size: 'sm', icon: 'fas fa-pen' })}</div>` : ''}</div></div>
+        <h3>${esc(v.alias)} ${crewTag(v.crew)}</h3>${v.badges && v.badges.length ? `<div class="sbadges">${v.badges.map(badge).join('')}</div>` : ''}<p>${esc(rank.name)}${next ? ` · ${esc(t('HOME_NEXT_RANK', num(next.min - v.elo), next.name))}` : ''} · ${esc(v.online ? t('UI_ONLINE') : t('UI_OFFLINE'))}</p></div>
+      <div class="hero-r"><b>${num(v.elo)}</b><span>${esc(t('UI_ELO'))}</span>${me ? `<div style="margin-top:8px">${btn(t('UI_EDIT_PROFILE'), 'editProfile', 'btn-ghost', { size: 'sm', icon: 'fas fa-pen' })}</div>`
+        : S.activeLobby ? `<div style="margin-top:8px">${btn(t('INVITE_PROFILE'), 'profileInvite', 'btn-ghost', { size: 'sm', icon: 'fas fa-user-plus', data: { v: v.id }, busyKey: 'lobby:invite' })}</div>` : ''}</div></div>
     <div class="stats c6">
       ${stat(t('STAT_RACES'), num(s.races), 'fas fa-flag-checkered')}${stat(t('STAT_WINS'), num(s.wins), 'fas fa-trophy', 'amber')}
       ${stat(t('STAT_PODIUMS'), num(s.podiums), 'fas fa-medal')}${stat(t('STAT_WIN_RATE'), num(s.winRate, 1), 'fas fa-percent', '', '%')}
@@ -1047,7 +1281,9 @@ function pageSettings() {
         <div class="range" style="width:220px"><input type="range" min="25" max="120" value="${s.checkpointDuiScale}" data-a="noop" oninput="window.__set('checkpointDuiScale',+this.value)"><b>${s.checkpointDuiScale}%</b></div></div>
       <div class="sw-line" style="cursor:default"><div><b>${esc(t('SET_DUI_COUNT'))}</b><span>${esc(t('SET_DUI_COUNT_DESC'))}</span></div>
         <div class="seg">${[1, 2, 3, 4, 5].map(n => `<button class="${s.checkpointDuiCount === n ? 'on' : ''}" data-a="setVal" data-k="checkpointDuiCount" data-v="${n}" data-n="1">${n}</button>`).join('')}</div></div>
-      ${toggle('showBoard', 'SET_BOARD', 'SET_BOARD_DESC')}${toggle('showSpeed', 'SET_SPEED', 'SET_SPEED_DESC')}`;
+      ${toggle('showBoard', 'SET_BOARD', 'SET_BOARD_DESC')}${toggle('showSpeed', 'SET_SPEED', 'SET_SPEED_DESC')}
+      ${S.cfg.Splits.Enabled ? toggle('showSplits', 'SET_SPLITS', 'SET_SPLITS_DESC') : ''}
+      ${S.cfg.Spectate.Enabled ? toggle('autoSpectate', 'SET_AUTOSPEC', 'SET_AUTOSPEC_DESC') : ''}`;
   } else if (S.setTab === 'notifications') {
     body = [['all', 'fas fa-bell', 'SET_N_ALL'], ['muted', 'fas fa-bell-slash', 'SET_N_MUTED'], ['none', 'fas fa-ban', 'SET_N_NONE']].map(([k, i, l]) =>
       `<button class="ccard ${s.notifications === k ? 'on' : ''}" data-a="setVal" data-k="notifications" data-v="${k}" style="flex-direction:row;align-items:center;gap:12px"><i class="${i}"></i><div><b>${esc(t(l))}</b><span style="display:block">${esc(t(l + '_DESC'))}</span></div></button>`).join('');
@@ -1104,9 +1340,10 @@ ACT.inbox = () => {
       const list = INBOX;
       const body = !list ? skeleton(4) : list.length ? list.map(m => {
         const md = m.metadata || {};
-        const icon = m.type === 'reward' ? ['fas fa-gift', 'amber'] : m.type === 'crew_invite' ? ['fas fa-people-group', ''] : ['fas fa-envelope', 'mute'];
+        const icon = m.type === 'reward' ? ['fas fa-gift', 'amber'] : m.type === 'crew_invite' ? ['fas fa-people-group', ''] : m.type === 'lobby_invite' ? ['fas fa-flag-checkered', ''] : ['fas fa-envelope', 'mute'];
         let actions = '';
         if (m.type === 'reward') actions = btn(t('INBOX_CLAIM', rewardText(m)), 'ibClaim', 'btn-teal', { size: 'sm', icon: 'fas fa-hand-holding-dollar', data: { v: m.id }, busyKey: 'inbox:claim' });
+        else if (m.type === 'lobby_invite') actions = `${btn(t('INBOX_VIEW_LOBBY'), 'ibLobby', 'btn-teal', { size: 'sm', icon: 'fas fa-eye', data: { v: m.id, l: md.lobbyId } })}${btn(t('INBOX_DECLINE'), 'ibDelete', 'btn-line', { size: 'sm', data: { v: m.id } })}`;
         else if (m.type === 'crew_invite') actions = `${btn(t('INBOX_JOIN'), 'ibJoin', 'btn-teal', { size: 'sm', icon: 'fas fa-check', data: { v: m.id } })}${btn(t('INBOX_DECLINE'), 'ibDecline', 'btn-line', { size: 'sm', data: { v: m.id } })}`;
         else actions = btn(t('INBOX_DELETE'), 'ibDelete', 'btn-line', { size: 'sm', icon: 'fas fa-trash', data: { v: m.id } });
         return `<div class="msg ${m.read ? '' : 'unread'}"><div class="tile ${icon[1]}"><i class="${icon[0]}"></i></div>
@@ -1124,6 +1361,7 @@ ACT.inbox = () => {
       ibJoin: async d => { if (await call('crew:respond', { messageId: Number(d.v), accept: true }, { success: t('INBOX_JOINED') })) { loadInbox(); } },
       ibDecline: async d => { if (await call('crew:respond', { messageId: Number(d.v), accept: false })) loadInbox(); },
       ibDelete: async d => { if (await call('inbox:delete', { id: Number(d.v) })) loadInbox(); },
+      ibLobby: d => { req('inbox:delete', { id: Number(d.v) }); closeModal(); go('lobby', { lobbyId: d.l, lobby: null }); },
     },
   });
   loadInbox().then(() => { req('inbox:read', { id: 0 }); S.inbox = 0; render(); });

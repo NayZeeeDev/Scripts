@@ -113,6 +113,8 @@ function Crews.Disband(crewId)
     local c = Crews.Brief(crewId)
     local members = MySQL.query.await('SELECT id FROM nayzeee_racing_profiles WHERE crew_id = ?', { crewId }) or {}
     MySQL.update.await('DELETE FROM nayzeee_racing_crews WHERE id = ?', { crewId })
+    -- crew tracks fall back to their creator (private)
+    MySQL.update('UPDATE nayzeee_racing_tracks SET crew_id = NULL WHERE crew_id = ?', { crewId })
     for _, m in ipairs(members) do
         local cp = Profiles.cache[m.id]
         if cp then
@@ -162,7 +164,7 @@ end)
 
 function Crews.Stats(crewId)
     local s = MySQL.single.await([[SELECT COUNT(h.id) AS races, IFNULL(SUM(h.position = 1 AND h.status = 'finished'), 0) AS wins
-        FROM nayzeee_racing_history h JOIN nayzeee_racing_profiles p ON p.id = h.profile_id WHERE p.crew_id = ?]], { crewId }) or {}
+        FROM nayzeee_racing_history h JOIN nayzeee_racing_profiles p ON p.id = h.profile_id WHERE p.crew_id = ?]] .. Profiles.REAL_H, { crewId }) or {}
     local e = MySQL.single.await('SELECT AVG(elo) AS avg, MAX(elo) AS top FROM nayzeee_racing_profiles WHERE crew_id = ?', { crewId }) or {}
     local cw = MySQL.single.await([[SELECT SUM(type = 'WON_RACE') AS won, SUM(type = 'LOST_RACE') AS lost
         FROM nayzeee_racing_crew_activity WHERE crew_id = ?]], { crewId }) or {}
@@ -178,8 +180,9 @@ function Crews.Extended(id)
     local r = row(id)
     if not r then return nil end
     local members = MySQL.query.await([[SELECT p.id, p.alias, p.avatar, p.color, p.elo, p.crew_perms AS perms, UNIX_TIMESTAMP(p.crew_joined) AS joined,
-        (SELECT COUNT(*) FROM nayzeee_racing_history h WHERE h.profile_id = p.id) AS races,
-        (SELECT COUNT(*) FROM nayzeee_racing_history h WHERE h.profile_id = p.id AND h.position = 1 AND h.status = 'finished') AS wins
+        (SELECT COUNT(*) FROM nayzeee_racing_history h WHERE h.profile_id = p.id]] .. Profiles.REAL_H .. [[) AS races,
+        (SELECT COUNT(*) FROM nayzeee_racing_history h WHERE h.profile_id = p.id AND h.position = 1 AND h.status = 'finished'
+            ]] .. Profiles.REAL_H .. [[) AS wins
         FROM nayzeee_racing_profiles p WHERE p.crew_id = ? ORDER BY p.elo DESC]], { id }) or {}
     for _, m in ipairs(members) do
         m.perms = DB.Decode(m.perms, {})
@@ -266,6 +269,9 @@ Handle('crew:kick', function(_, p, d)
     local target = Profiles.Get(tonumber(d.profileId) or 0)
     if not target or target.crewId ~= c.id then return nil, 'PROFILE_NOT_FOUND' end
     if target.id == c.owner or target.id == p.id then return nil, 'ERR_NO_PERMISSION' end
+    local lid = Core.Active[target.id]
+    local lobby = lid and Core.Lobbies[lid]
+    if lobby and lobby.type == LobbyType.CREW then return nil, 'CREW_IN_RACE' end
     setMember(target.id, nil)
     Crews.Activity(c.id, 'CREW_KICKED', L('ACT_CREW_KICKED', p.alias, target.alias))
     Profiles.Message(target.id, MsgType.STANDARD, L('MSG_CREW_KICKED', c.name))

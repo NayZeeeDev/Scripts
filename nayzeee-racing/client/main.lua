@@ -10,7 +10,7 @@ App = { open = false, ready = false, profile = nil }
 local DEFAULTS = {
     checkpointDui = true, checkpointDuiShowNext = true, checkpointDuiScale = 60, checkpointDuiCount = 3,
     soundEnabled = true, notifications = 'all', language = Config.UI.DefaultLocale, units = 'kmh',
-    showBoard = true, showSpeed = true, mapStyle = '',
+    showBoard = true, showSpeed = true, showSplits = true, autoSpectate = true, mapStyle = '',
 }
 
 Settings = {}
@@ -66,6 +66,7 @@ function OpenApp()
     if Race and Race.Busy() then return end
     if Builder and Builder.active then return end
     if IsPauseMenuActive() then return end
+    if Spectate and Spectate.on then return end
     App.open = true
     LoadStreamMaps()
     SetNuiFocus(true, true)
@@ -133,7 +134,7 @@ end)
 
 local function vehicleEntry(plate, model, seated)
     if Config.Vehicles.IsBlacklisted(model) then return nil end
-    local class = Config.Vehicles.GetClass(model)
+    local class = VehicleClass(model)
     if not class then return nil end
     local name = GetDisplayNameFromVehicleModel(model)
     if not name or name == 'CARNOTFOUND' then return nil end
@@ -174,11 +175,41 @@ RegisterNUICallback('waypoint', function(d, cb)
 end)
 
 RegisterNUICallback('builder', function(d, cb)
+    if Race and Race.Busy() then return cb({ error = 'LOBBY_ALREADY_IN' }) end
     local res = req('builder:start', {})
     if not res or res.error then return cb(res or { error = 'ERR_GENERIC' }) end
     CloseApp()
-    Builder.Start()
+    Builder.Start(res.data and res.data.crewOnly)
     cb({ data = true })
+end)
+
+-- Watch a live lobby (the server answers with a 'spectate' race event)
+RegisterNUICallback('spectate', function(d, cb)
+    local res = req('lobby:spectate', { id = d.id })
+    if res and res.data then CloseApp() end
+    cb(res or { error = 'ERR_GENERIC' })
+end)
+
+-- Solo practice in the car you are driving
+function StartPractice(d)
+    local veh = cache.vehicle
+    if veh then
+        local name = GetDisplayNameFromVehicleModel(GetEntityModel(veh))
+        local label = GetLabelText(name)
+        d.label = (label and label ~= 'NULL') and label or name
+        d.name = name:lower()
+    end
+    local res = req('practice:start', d)
+    if res and res.error == 'PRACTICE_GO_TO_START' and type(res.extra) == 'table' and res.extra.x then
+        SetNewWaypoint(res.extra.x + 0.0, res.extra.y + 0.0)
+    end
+    return res
+end
+
+RegisterNUICallback('practice', function(d, cb)
+    local res = StartPractice({ trackId = d.trackId, laps = d.laps, mode = d.mode })
+    if res and res.data then CloseApp() end
+    cb(res or { error = 'ERR_GENERIC' })
 end)
 
 -- ── server pushes ───────────────────────────────────────────────────────

@@ -6,9 +6,9 @@ NZR.Resource = GetCurrentResourceName()
 LobbyStatus = { PENDING = 'pending', MOBILIZING = 'mobilizing', COUNTDOWN = 'countdown', RACING = 'racing', FINISHED = 'finished', CANCELLED = 'cancelled' }
 PStatus     = { QUEUING = 'queuing', ACCEPTED = 'accepted', MOBILIZING = 'mobilizing', COUNTDOWN = 'countdown', RACING = 'racing', FINISHED = 'finished', DISQUALIFIED = 'disqualified' }
 TrackType   = { CIRCUIT = 'circuit', SPRINT = 'sprint' }
-LobbyType   = { UNRANKED = 'unranked', RANKED = 'ranked', CREW = 'crew' }
-RaceMode    = { STANDARD = 'standard', DRIFT = 'drift', TIME_TRIAL = 'time_trial' }
-MsgType     = { STANDARD = 'standard', REWARD = 'reward', CREW_INVITE = 'crew_invite' }
+LobbyType   = { UNRANKED = 'unranked', RANKED = 'ranked', CREW = 'crew', PRACTICE = 'practice' }
+RaceMode    = { STANDARD = 'standard', DRIFT = 'drift', TIME_TRIAL = 'time_trial', ELIMINATION = 'elimination' }
+MsgType     = { STANDARD = 'standard', REWARD = 'reward', CREW_INVITE = 'crew_invite', LOBBY_INVITE = 'lobby_invite' }
 CrewPerm    = { MEMBERS = 1, MANAGE = 2, RACES = 3 }
 
 local levels = { debug = 1, info = 2, warn = 3, error = 4 }
@@ -75,6 +75,16 @@ function NZR.RankFor(elo)
     return ranks[1], 1
 end
 
+-- m:ss.mmm
+function NZR.Clock(ms)
+    ms = math.max(0, math.floor(tonumber(ms) or 0))
+    return ('%d:%02d.%03d'):format(ms // 60000, (ms % 60000) // 1000, ms % 1000)
+end
+
+-- Challenge periods (UTC). Day / week numbers since the epoch, weeks start on Monday.
+function NZR.DayIndex(t) return (t or os.time()) // 86400 end
+function NZR.WeekIndex(t) return ((t or os.time()) // 86400 + 3) // 7 end
+
 function NZR.ClassFits(lobbyClass, vehicleClass)
     if not lobbyClass or lobbyClass == 'Open' then return true end
     if vehicleClass == 'All' then return true end
@@ -98,13 +108,22 @@ function NZR.PublicConfig()
         General = { VehicleImagesUrl = Config.General.VehicleImagesUrl },
         Profiles = strip(Config.Profiles, 1),
         Crews = strip(Config.Crews, 1),
-        Trackbuilder = { MinCheckpoints = Config.Trackbuilder.MinCheckpoints, MaxCheckpoints = Config.Trackbuilder.MaxCheckpoints },
+        Trackbuilder = { MinCheckpoints = Config.Trackbuilder.MinCheckpoints, MaxCheckpoints = Config.Trackbuilder.MaxCheckpoints, CrewTracks = Config.Trackbuilder.CrewTracks },
         Races = {
             WagerCurrencies = Config.Races.WagerCurrencies, MaxWager = Config.Races.MaxWager, MaxParticipants = Config.Races.MaxParticipants,
             MaxLaps = Config.Races.MaxLaps, RequiredParticipantsForRankedLobby = Config.Races.RequiredParticipantsForRankedLobby,
             MinCrewSize = Config.Races.MinCrewSize, ResultsTime = Config.Races.ResultsTime,
             Respawn = { Enabled = Config.Races.Respawn.Enabled, Penalty = Config.Races.Respawn.Penalty },
+            Elimination = Config.Races.Elimination,
         },
+        Practice = { Enabled = Config.Practice.Enabled, MaxLaps = Config.Practice.MaxLaps },
+        Spectate = { Enabled = Config.Spectate.Enabled, Anyone = Config.Spectate.Anyone, HostOnly = Config.Spectate.HostOnly },
+        Splits = { Enabled = Config.Splits.Enabled },
+        QuickRace = { Enabled = Config.QuickRace.Enabled },
+        PinkSlips = { Enabled = Config.PinkSlips.Enabled, MaxRacers = Config.PinkSlips.MaxRacers, AllowRanked = Config.PinkSlips.AllowRanked },
+        Betting = { Enabled = Config.Betting.Enabled, Currency = Config.Betting.Currency, Min = Config.Betting.Min, Max = Config.Betting.Max, HouseCut = Config.Betting.HouseCut },
+        Seasons = { Enabled = Config.Seasons.Enabled, Badges = strip(Config.Seasons.Badges, 1) },
+        Challenges = { Enabled = Config.Challenges.Enabled },
         Rewards = { Currencies = strip(Config.Rewards.Currencies, 1), Winners = Config.Rewards.Winners },
         ELO = { Ranks = strip(Config.ELO.Ranks, 1), ClassRestrictions = Config.ELO.ClassRestrictions },
         Achievements = strip(Config.Achievements, 1),

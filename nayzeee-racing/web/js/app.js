@@ -160,6 +160,7 @@ function crewTag(c) {
   return `<span class="crewtag" style="color:${esc(c.color)};border-color:${esc(c.color)}55;background:${esc(c.color)}18">${esc(c.tag)}</span>`;
 }
 function posBadge(pos, status) {
+  if (status === 'eliminated') return `<div class="pos out">${pos}</div>`;
   if (status && status !== 'finished') return `<div class="pos dnf">DNF</div>`;
   return `<div class="pos ${pos <= 3 ? 'p' + pos : ''}">${pos}</div>`;
 }
@@ -182,8 +183,19 @@ function statusTag(status) {
   const map = { pending: 'live', mobilizing: 'warn', countdown: 'warn', racing: 'hot', finished: 'off', cancelled: 'off' };
   return `<span class="tag ${map[status] || 'off'}">${esc(t('LOBBY_STATUS_' + status))}</span>`;
 }
-function modeIcon(m) { return { standard: 'fas fa-flag-checkered', drift: 'fas fa-wind', time_trial: 'fas fa-stopwatch' }[m] || 'fas fa-flag-checkered'; }
-function typeIcon(ty) { return { ranked: 'fas fa-trophy', crew: 'fas fa-people-group', unranked: 'fas fa-road' }[ty] || 'fas fa-road'; }
+function modeIcon(m) { return { standard: 'fas fa-flag-checkered', drift: 'fas fa-wind', time_trial: 'fas fa-stopwatch', elimination: 'fas fa-skull' }[m] || 'fas fa-flag-checkered'; }
+function typeIcon(ty) { return { ranked: 'fas fa-trophy', crew: 'fas fa-people-group', unranked: 'fas fa-road', practice: 'fas fa-stopwatch' }[ty] || 'fas fa-road'; }
+function visIcon(v) { return { public: 'fas fa-globe', private: 'fas fa-lock', crew: 'fas fa-people-group' }[v] || 'fas fa-globe'; }
+// "2d 4h" / "3h 10m" until a unix time
+function timeLeft(ts) {
+  const s = Math.max(0, Number(ts) - Date.now() / 1000);
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function badge(b) {
+  const def = ((S.cfg && S.cfg.Seasons && S.cfg.Seasons.Badges) || {})[b.badge] || { label: b.badge, icon: 'medal', color: '#08afa2' };
+  return `<span class="sbadge" style="color:${esc(def.color)};border-color:${esc(def.color)}66;background:${esc(def.color)}1c" title="${esc(t('SEASON_BADGE_TIP', b.season, b.position))}"><i class="fas fa-${esc(def.icon)}"></i>S${esc(b.season)} · ${esc(def.label)}</span>`;
+}
 function vImage(v) {
   const url = v && (v.image || (S.cfg && S.cfg.General.VehicleImagesUrl && v.name ? S.cfg.General.VehicleImagesUrl.replace('{car}', v.name) : null));
   return url ? `<img src="${esc(url)}" onerror="this.outerHTML='<i class=&quot;fas fa-car-side&quot;></i>'">` : '<i class="fas fa-car-side"></i>';
@@ -393,6 +405,7 @@ async function openApp(d) {
     S.canTracks = res.data.canTracks;
     S.canEvents = res.data.canEvents;
     S.activeLobby = res.data.activeLobby || null;
+    S.season = res.data.season || null;
     if (!S.profile) S.page = 'signup';
     else if (S.page === 'signup') S.page = 'home';
     if (S.profile) req('inbox:count').then(r => { S.inbox = r.data || 0; render(); });

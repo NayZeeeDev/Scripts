@@ -8,6 +8,7 @@ if not NAYZEEE_LOCK_OK then return end
 
 Race = { phase = nil }   -- nil | mobilize | countdown | racing | done
 local R = nil            -- current race data
+local holding = false    -- respawn key held
 
 local accent = { 8, 175, 162 }
 do
@@ -190,20 +191,63 @@ end
 local onRoad = {}
 for _, m in ipairs(Config.Races.Cleanup.OnRoadModels or {}) do onRoad[m] = true end
 
+-- Spread over frames (40 objects per frame) so a big object pool never causes a spike
+local pool, poolIdx = nil, 1
 local function cleanup()
+    if not pool then pool, poolIdx = GetGamePool('CObject'), 1 end
     local pos = GetEntityCoords(cache.ped)
-    local radius = Config.Races.Cleanup.Radius
-    for _, obj in ipairs(GetGamePool('CObject')) do
-        if not NetworkGetEntityIsNetworked(obj) and not IsEntityAttached(obj) and not IsEntityAMissionEntity(obj) then
+    local r2 = Config.Races.Cleanup.Radius ^ 2
+    local last = math.min(#pool, poolIdx + 39)
+    for i = poolIdx, last do
+        local obj = pool[i]
+        if DoesEntityExist(obj) then
             local c = GetEntityCoords(obj)
-            if #(c - pos) < radius then
-                local model = GetEntityModel(obj)
-                if (onRoad[model] and IsPointOnRoad(c.x, c.y, c.z, 0)) or HasObjectBeenBroken(obj) then
+            local dx, dy = c.x - pos.x, c.y - pos.y
+            if dx * dx + dy * dy < r2 and not NetworkGetEntityIsNetworked(obj) and not IsEntityAttached(obj) and not IsEntityAMissionEntity(obj) then
+                if (onRoad[GetEntityModel(obj)] and IsPointOnRoad(c.x, c.y, c.z, 0)) or HasObjectBeenBroken(obj) then
                     SetEntityAsMissionEntity(obj, true, true)
                     DeleteObject(obj)
                 end
             end
         end
+    end
+    poolIdx = last + 1
+    if poolIdx > #pool then pool = nil return true end
+    return false
+end
+
+-- ── modded vehicle check ────────────────────────────────────────────────
+-- Live power / top speed against the model's base handling. Returns reason, info or nil
+local ignoreModels = {}
+for _, m in ipairs(Config.AntiCheat.IgnoreModels or {}) do ignoreModels[m] = true end
+
+local function modded(veh)
+    local AC = Config.AntiCheat
+    local model = GetEntityModel(veh)
+    if ignoreModels[model] then return nil end
+    if GetVehicleCheatPowerIncrease then
+        local p = GetVehicleCheatPowerIncrease(veh)
+        if p and p > 1.01 then return 'power', ('x%.2f'):format(p) end
+    end
+    if GetVehicleTopSpeedModifier then
+        local m = GetVehicleTopSpeedModifier(veh)
+        if m and m > (AC.MaxTopSpeedModifier or 0.0) + 0.01 then return 'topspeed', ('+%.1f'):format(m) end
+    end
+    local baseSpeed, speed = GetVehicleModelEstimatedMaxSpeed(model), GetVehicleEstimatedMaxSpeed(veh)
+    if baseSpeed and baseSpeed > 0 and speed > baseSpeed * AC.SpeedTolerance then return 'speed', ('%.1f/%.1f'):format(speed, baseSpeed) end
+    local baseAcc, acc = GetVehicleModelAcceleration(model), GetVehicleAcceleration(veh)
+    if baseAcc and baseAcc > 0 and acc > baseAcc * AC.AccelTolerance then return 'accel', ('%.3f/%.3f'):format(acc, baseAcc) end
+    return nil
+end
+
+local function modCheck()
+    if not Config.AntiCheat.ModdedVehicles or not R or R.flagged then return end
+    local veh = cache.vehicle
+    if not veh or GetPedInVehicleSeat(veh, -1) ~= cache.ped then return end
+    local reason, info = modded(veh)
+    if reason then
+        R.flagged = true
+        TriggerServerEvent('nzr:race:flag', reason, info)
     end
 end
 
@@ -224,13 +268,16 @@ end
 local function vec(t) return vector3(t.x + 0.0, t.y + 0.0, t.z + 0.0) end
 
 local function stopRace(keepHud)
-    if not R then return end
+    if not R or Race.phase == 'done' then return end
     Race.phase = 'done'
+    holding = false
+    pool = nil
     clearAllGates()
     ghostClear()
     duiSend({})
-    local veh = cache.vehicle
-    if veh then FreezeEntityPosition(veh, false) end
+    -- unfreeze the car frozen for the countdown, even if we are no longer in it
+    if R.frozen and DoesEntityExist(R.frozen) then FreezeEntityPosition(R.frozen, false) end
+    R.frozen = nil
     if R.driftVeh and DoesEntityExist(R.driftVeh) then SetDriftTyresEnabled(R.driftVeh, false) end
     ClearLobbyMarkers()
     pcall(Config.Hud.OnRaceEnd)
@@ -261,31 +308,39 @@ local function passGate()
     UI('race', { phase = 'progress', k = k, total = #R.route, lap = R.lap, laps = R.laps })
 end
 
+-- Own thread so the race loop (billboards, crossing) keeps running during the fade
 local function respawn()
-    local k = R.lastGate or 0
-    local fromIdx = k > 0 and R.route[k] or 1
-    local toIdx = R.route[k + 1] or R.route[#R.route]
-    local from, to = R.gates[fromIdx].center, R.gates[toIdx].center
+    if R.respawning then return end
     local veh = cache.vehicle
     if not veh or GetPedInVehicleSeat(veh, -1) ~= cache.ped then return end
-    DoScreenFadeOut(250)
-    local t = GetGameTimer() + 600
-    while not IsScreenFadedOut() and GetGameTimer() < t do Wait(0) end
-    local heading = math.deg(math.atan(to.y - from.y, to.x - from.x)) - 90.0
-    SetEntityCoords(veh, from.x, from.y, from.z + 0.5, false, false, false, false)
-    SetEntityHeading(veh, heading)
-    SetVehicleOnGroundProperly(veh)
-    SetEntityVelocity(veh, 0.0, 0.0, 0.0)
-    SetVehicleFixed(veh)
-    R.lastPos = GetEntityCoords(veh)
-    Wait(250)
-    DoScreenFadeIn(350)
-    TriggerServerEvent('nzr:race:respawn')
-    UI('race', { phase = 'respawned', penalty = Config.Races.Respawn.Penalty })
+    local race = R
+    race.respawning = true
+    CreateThread(function()
+        local k = race.lastGate or 0
+        local fromIdx = k > 0 and race.route[k] or 1
+        local toIdx = race.route[k + 1] or race.route[#race.route]
+        local from, to = race.gates[fromIdx].center, race.gates[toIdx].center
+        DoScreenFadeOut(250)
+        local t = GetGameTimer() + 600
+        while not IsScreenFadedOut() and GetGameTimer() < t do Wait(0) end
+        if R == race and Race.phase == 'racing' and DoesEntityExist(veh) then
+            local heading = math.deg(math.atan(to.y - from.y, to.x - from.x)) - 90.0
+            SetEntityCoords(veh, from.x, from.y, from.z + 0.5, false, false, false, false)
+            SetEntityHeading(veh, heading)
+            SetVehicleOnGroundProperly(veh)
+            SetEntityVelocity(veh, 0.0, 0.0, 0.0)
+            SetVehicleFixed(veh)
+            race.lastPos = GetEntityCoords(veh)
+            Wait(250)
+            TriggerServerEvent('nzr:race:respawn')
+            UI('race', { phase = 'respawned', penalty = Config.Races.Respawn.Penalty })
+        end
+        DoScreenFadeIn(350)
+        race.respawning = false
+    end)
 end
 
 -- Respawn key (hold)
-local holding = false
 if Config.Races.Respawn.Enabled then
     RegisterCommand('+nzr_respawn', function() if Race.phase == 'racing' then holding = true end end, false)
     RegisterCommand('-nzr_respawn', function() holding = false end, false)
@@ -294,8 +349,9 @@ end
 
 local function mainThread()
     CreateThread(function()
-        local lastScan, lastClean, lastHud, lastDrift, lastWatch = 0, 0, 0, 0, 0
-        local holdStart, lastRespawn = nil, 0
+        local lastScan, lastClean, lastHud, lastDrift, lastWatch, lastMod = 0, 0, 0, 0, 0, 0
+        local holdStart, lastRespawn, holdSent = nil, 0, 0
+        local cleaning = false
         local lastFrame = GetGameTimer()
         local camRight = vector3(1.0, 0.0, 0.0)
         while R and Race.phase ~= 'done' do
@@ -355,11 +411,14 @@ local function mainThread()
 
                 if R.mode == RaceMode.DRIFT then driftTick(veh, dt) end
 
-                -- respawn hold
+                -- respawn hold (HUD updated at most every 50ms, not every frame)
                 if holding then
                     holdStart = holdStart or now
                     local pct = (now - holdStart) / Config.Races.Respawn.HoldMs
-                    UI('race', { phase = 'hold', pct = math.min(1, pct) })
+                    if now - holdSent >= 50 or pct >= 1 then
+                        holdSent = now
+                        UI('race', { phase = 'hold', pct = math.min(1, pct) })
+                    end
                     if pct >= 1 then
                         holding, holdStart = false, nil
                         UI('race', { phase = 'hold', pct = 0 })
@@ -393,9 +452,13 @@ local function mainThread()
                 lastWatch = now
                 if IsEntityDead(cache.ped) then TriggerServerEvent('nzr:race:dq', 'dead') end
             end
-            if racing and Config.Races.Cleanup.Enable and now - lastClean > 1500 then
+            if racing and Config.Races.Cleanup.Enable and (cleaning or now - lastClean > 1500) then
                 lastClean = now
-                cleanup()
+                cleaning = not cleanup()
+            end
+            if (racing or Race.phase == 'countdown') and now - lastMod > 5000 then
+                lastMod = now
+                modCheck()
             end
             Wait(0)
         end
@@ -407,12 +470,14 @@ local handlers = {}
 
 function handlers.mobilize(d)
     if App.open then CloseApp() end
+    if Spectate and Spectate.on then Spectate.Stop(true) end
+    if Builder and Builder.active then Builder.Stop(false) end
     ClearLobbyMarkers()
     local gates = {}
     for i, g in ipairs(d.gates) do gates[i] = { left = vec(g.left), center = vec(g.center), right = vec(g.right) } end
     R = {
         id = d.id, mode = d.mode, circuit = d.circuit, laps = d.circuit and d.laps or 1, lap = 1, gates = gates, route = d.route,
-        k = 0, drift = 0, ghost = d.ghost, myNet = d.myNet,
+        k = 0, drift = 0, ghost = d.ghost, myNet = d.myNet, practice = d.practice,
     }
     Race.phase = 'mobilize'
     pcall(Config.Hud.OnRaceStart)
@@ -420,7 +485,7 @@ function handlers.mobilize(d)
     refreshGates()
     UI('race', {
         phase = 'mobilize', name = d.name, track = d.track, mode = d.mode, type = d.type, laps = R.laps, circuit = d.circuit,
-        total = #d.route, racers = d.racers, me = d.me, pb = d.pb, ms = d.mobilizeMs, settings = Settings,
+        total = #d.route, racers = d.racers, me = d.me, pb = d.pb, ms = d.mobilizeMs, settings = Settings, practice = d.practice, pinkSlip = d.pinkSlip,
     })
     mainThread()
 end
@@ -428,7 +493,10 @@ end
 function handlers.countdown(ms)
     if not R then return end
     Race.phase = 'countdown'
-    if Config.Races.FreezeDuringCountdown and cache.vehicle then FreezeEntityPosition(cache.vehicle, true) end
+    if Config.Races.FreezeDuringCountdown and cache.vehicle then
+        FreezeEntityPosition(cache.vehicle, true)
+        R.frozen = cache.vehicle
+    end
     UI('race', { phase = 'countdown', ms = ms })
     CreateThread(function()
         local steps = math.floor(ms / 1000)
@@ -442,9 +510,10 @@ end
 
 function handlers.start()
     if not R then return end
+    if R.frozen and DoesEntityExist(R.frozen) then FreezeEntityPosition(R.frozen, false) end
+    R.frozen = nil
     local veh = cache.vehicle
     if veh then
-        FreezeEntityPosition(veh, false)
         if R.mode == RaceMode.DRIFT and Config.Races.ToggleVehicleDrift and not GetDriftTyresEnabled(veh) then
             SetDriftTyresEnabled(veh, true)
             R.driftVeh = veh
@@ -457,8 +526,9 @@ function handlers.start()
 end
 
 function handlers.lap(d) UI('race', { phase = 'lap', time = d.time, best = d.best, lap = d.lap }) end
-function handlers.positions(board) if R then UI('race', { phase = 'positions', board = board }) end end
 function handlers.deadline(ms) UI('race', { phase = 'deadline', ms = ms }) end
+function handlers.split(d) if R and Settings.showSplits then UI('race', { phase = 'split', k = d.k, pb = d.pb, wr = d.wr }) end end
+function handlers.eliminated(d) UI('race', { phase = 'eliminated', alias = d.alias, lap = d.lap }) end
 
 function handlers.resync(k)
     if not R then return end
@@ -467,14 +537,17 @@ function handlers.resync(k)
     UI('race', { phase = 'progress', k = k, total = #R.route, lap = R.lap, laps = R.laps })
 end
 
--- Banner for a few seconds, then the HUD goes away (results card arrives when everyone is done)
+-- Banner for a few seconds, then watch the rest of the field (or the HUD goes away).
+-- The results card arrives when everyone is done.
 local function wrapUp()
     local mine = R
-    SetTimeout(5000, function()
-        if R == mine and Race.phase == 'done' then
-            UI('race', { phase = 'hide' })
-            endRace()
-        end
+    SetTimeout(3500, function()
+        if R ~= mine or Race.phase ~= 'done' then return end
+        local id = R.id
+        endRace()
+        local watch = Config.Spectate.Enabled and Config.Spectate.AutoOnFinish and Settings.autoSpectate and not mine.practice and not mine.results
+        local res = watch and lib.callback.await('nzr:req', false, 'lobby:spectate', { id = id })
+        if not (res and res.data) and not (Spectate and Spectate.on) and not mine.results then UI('race', { phase = 'hide' }) end
     end)
 end
 
@@ -493,13 +566,42 @@ function handlers.dq(reason)
     wrapUp()
 end
 
+-- Practice: press the retry key while the results card is up to run it again
+local function practiceRetry(p)
+    local key = Config.Practice.RetryKey
+    if not key then return end
+    CreateThread(function()
+        local untilT = GetGameTimer() + Config.Races.ResultsTime
+        while GetGameTimer() < untilT and not Race.Busy() do
+            if IsControlJustPressed(0, key) and not App.open then
+                local res = StartPractice({ trackId = p.trackId, laps = p.laps, mode = p.mode })
+                if res and res.error then Config.Notify(L(res.error), 'error') end
+                return
+            end
+            Wait(0)
+        end
+    end)
+end
+
 function handlers.results(d)
-    if R and Race.phase ~= 'done' then stopRace(true) end
-    UI('results', { results = d.results, me = d.me, track = d.track, lobby = d.lobby, ms = Config.Races.ResultsTime })
+    if R then
+        R.results = true
+        if Race.phase ~= 'done' then stopRace(true) end
+    end
+    if Spectate and Spectate.on then Spectate.Stop(true) end
+    UI('race', { phase = 'hide' })
+    UI('results', { results = d.results, me = d.me, track = d.track, lobby = d.lobby, ms = Config.Races.ResultsTime,
+        practice = d.practice ~= nil, retryKey = Config.Practice.RetryKey and true or false })
+    if d.practice then practiceRetry(d.practice) end
+end
+
+function handlers.positions(board)
+    if R then UI('race', { phase = 'positions', board = board }) end
+    if Spectate and Spectate.on then Spectate.Board(board) end
 end
 
 RegisterNetEvent('nzr:race', function(event, data)
-    local fn = handlers[event] or LobbyEvents[event]
+    local fn = handlers[event] or LobbyEvents[event] or (SpectateEvents and SpectateEvents[event])
     if fn then fn(data) end
 end)
 

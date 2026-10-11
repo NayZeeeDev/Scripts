@@ -125,6 +125,50 @@ local tables = {
         KEY k_profile (profile_id),
         CONSTRAINT fk_nzr_msg_profile FOREIGN KEY (profile_id) REFERENCES nayzeee_racing_profiles (id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+    [[CREATE TABLE IF NOT EXISTS nayzeee_racing_seasons (
+        id INT NOT NULL AUTO_INCREMENT,
+        number INT NOT NULL,
+        started TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        ends TIMESTAMP NULL DEFAULT NULL,
+        ended TINYINT(1) NOT NULL DEFAULT 0,
+        PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+    [[CREATE TABLE IF NOT EXISTS nayzeee_racing_season_results (
+        id INT NOT NULL AUTO_INCREMENT,
+        season_id INT NOT NULL,
+        profile_id INT NOT NULL,
+        position INT NOT NULL,
+        elo INT NOT NULL,
+        badge VARCHAR(32) DEFAULT NULL,
+        PRIMARY KEY (id),
+        KEY k_profile (profile_id),
+        CONSTRAINT fk_nzr_sr_season FOREIGN KEY (season_id) REFERENCES nayzeee_racing_seasons (id) ON DELETE CASCADE,
+        CONSTRAINT fk_nzr_sr_profile FOREIGN KEY (profile_id) REFERENCES nayzeee_racing_profiles (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+    [[CREATE TABLE IF NOT EXISTS nayzeee_racing_challenges (
+        profile_id INT NOT NULL,
+        period VARCHAR(16) NOT NULL,
+        challenge_id VARCHAR(32) NOT NULL,
+        progress INT NOT NULL DEFAULT 0,
+        done TINYINT(1) NOT NULL DEFAULT 0,
+        PRIMARY KEY (profile_id, period, challenge_id),
+        CONSTRAINT fk_nzr_ch_profile FOREIGN KEY (profile_id) REFERENCES nayzeee_racing_profiles (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+}
+
+-- Columns / indexes added after 1.0.0 (checked on every start, added once)
+local columns = {
+    { 'nayzeee_racing_history', 'splits', 'ALTER TABLE nayzeee_racing_history ADD COLUMN splits TEXT NULL DEFAULT NULL' },
+    { 'nayzeee_racing_history', 'laps', 'ALTER TABLE nayzeee_racing_history ADD COLUMN laps TINYINT UNSIGNED NULL DEFAULT NULL' },
+    { 'nayzeee_racing_tracks', 'crew_id', 'ALTER TABLE nayzeee_racing_tracks ADD COLUMN crew_id INT NULL DEFAULT NULL' },
+}
+local indexes = {
+    { 'nayzeee_racing_history', 'k_track_profile', 'ALTER TABLE nayzeee_racing_history ADD KEY k_track_profile (track_id, profile_id)' },
+    { 'nayzeee_racing_history', 'k_type_created', 'ALTER TABLE nayzeee_racing_history ADD KEY k_type_created (type, created)' },
+    { 'nayzeee_racing_tracks', 'k_crew', 'ALTER TABLE nayzeee_racing_tracks ADD KEY k_crew (crew_id)' },
 }
 
 local seeds = {
@@ -134,6 +178,20 @@ local seeds = {
 
 local function tableExists(name)
     return MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?', { name }) > 0
+end
+
+local function migrate()
+    for _, c in ipairs(columns) do
+        local n = MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?', { c[1], c[2] })
+        if n == 0 then
+            local ok, err = pcall(MySQL.query.await, c[3])
+            if not ok then Log('error', 'Migration %s.%s failed: %s', c[1], c[2], tostring(err)) end
+        end
+    end
+    for _, i in ipairs(indexes) do
+        local n = MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?', { i[1], i[2] })
+        if n == 0 then pcall(MySQL.query.await, i[3]) end
+    end
 end
 
 -- One time copy of bablo-racing data (ids preserved so history / crews line up)
@@ -193,10 +251,12 @@ MySQL.ready(function()
         local ok, err = pcall(MySQL.query.await, q)
         if not ok then Log('error', 'Table setup failed: %s', tostring(err)) return end
     end
+    migrate()
     importBablo()
     seedTracks()
     DB.ready = true
     Log('info', 'Database ready')
+    TriggerEvent('nzr:dbReady')
 end)
 
 -- JSON helpers used by every module

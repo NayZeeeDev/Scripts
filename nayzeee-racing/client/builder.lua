@@ -13,6 +13,7 @@ local gates, posts, blips = {}, {}, {}
 local preview = {}
 local trackType = TrackType.SPRINT
 local saving = false
+local crewOnly = false
 
 local function post(model, p)
     local obj = CreateObjectNoOffset(model, p.x, p.y, p.z, false, false, false)
@@ -102,7 +103,8 @@ local function trySave()
     end
     saving = true
     SetNuiFocus(true, true)
-    UI('builder', { phase = 'save', count = #gates, length = length(), type = trackType })
+    UI('builder', { phase = 'save', count = #gates, length = length(), type = trackType, crewOnly = crewOnly,
+        hasCrew = App.profile and App.profile.crewId ~= nil, crewTracks = Config.Trackbuilder.CrewTracks })
 end
 
 RegisterNUICallback('builder:save', function(d, cb)
@@ -116,7 +118,7 @@ RegisterNUICallback('builder:save', function(d, cb)
         }
     end
     local res = lib.callback.await('nzr:req', false, 'track:create', {
-        name = d.name, description = d.description, private = d.private == true, type = trackType, checkpoints = cps,
+        name = d.name, description = d.description, visibility = d.visibility, type = trackType, checkpoints = cps,
     })
     if res and res.data then
         Config.Notify(L('TB_SAVED'), 'success')
@@ -137,9 +139,10 @@ RegisterNUICallback('builder:type', function(d, cb)
     cb(true)
 end)
 
-function Builder.Start()
+function Builder.Start(crew)
     if Builder.active then return end
     Builder.active = true
+    crewOnly = crew == true
     LoadStreamMaps()
     trackType = TrackType.SPRINT
     clearAll()

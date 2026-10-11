@@ -4,8 +4,8 @@ lua54 'yes'
 
 name 'nayzeee-racing'
 author 'NAYZEEE Development'
-description 'Street racing tablet: lobbies, ranked ELO, crews, track builder, wagers, drift and time trials'
-version '1.0.0'
+description 'Street racing tablet: lobbies, ranked ELO, seasons, crews, track builder, wagers, pink slips, betting, practice, spectate, elimination, drift and time trials'
+version '1.1.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
@@ -16,10 +16,12 @@ shared_scripts {
 
 client_scripts {
     'bridge/client.lua',
+    'client/classes.lua',
     'client/main.lua',
     'client/tablet.lua',
     'client/race.lua',
     'client/builder.lua',
+    'client/spectate.lua',
 }
 
 server_scripts {
@@ -33,6 +35,8 @@ server_scripts {
     'server/lobby.lua',
     'server/lobbies.lua',
     'server/rewards.lua',
+    'server/seasons.lua',
+    'server/challenges.lua',
 }
 
 ui_page 'web/index.html'

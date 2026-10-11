@@ -80,7 +80,8 @@ function Rewards.Elo(lobby, ordered)
         expected = expected / (n - 1)
         local actual = (n - a.position) / (n - 1)
         local delta = math.floor(K * (actual - expected) + 0.5)
-        if a.status == PStatus.DISQUALIFIED and delta >= 0 then delta = -1 end
+        -- a real DNF never gains ELO (being eliminated is a placing, not a DNF)
+        if a.status == PStatus.DISQUALIFIED and a.dqReason ~= 'eliminated' and delta >= 0 then delta = -1 end
         deltas[i] = delta
     end
     for i, part in ipairs(ordered) do
@@ -116,6 +117,64 @@ function Rewards.CrewScore(lobby, ordered)
         Crews.Activity(b.id, 'DRAW_RACE', L('ACT_DRAW_RACE', a.name, sb))
     end
     return { { crew = a, score = sa }, { crew = b, score = sb }, winner = winner and winner.id or nil }
+end
+
+-- Pink slips: the winner takes the title of every other racer's car
+function Rewards.PinkSlips(lobby, ordered)
+    if not lobby.pinkSlip then return end
+    local winner = ordered[1]
+    if not winner or winner.status ~= PStatus.FINISHED then return end
+    local wSrc = Core.Online[winner.id]
+    local won = {}
+    for i = 2, #ordered do
+        local part = ordered[i]
+        local lost = part.started and (part.status == PStatus.FINISHED or Config.PinkSlips.DnfLoses)
+        if lost and part.vehicle then
+            local lSrc = Core.Online[part.id]
+            local ok = Bridge.TransferVehicle(part.profile.identifier, winner.profile.identifier, part.vehicle.plate)
+            if ok then
+                won[#won + 1] = part.vehicle.label
+                part.pinkLost = part.vehicle.label
+                pcall(Bridge.OnPinkSlip, wSrc, lSrc, part.vehicle.plate, part.netId)
+                Profiles.Message(part.id, MsgType.STANDARD, L('MSG_PINK_LOST', part.vehicle.label, part.vehicle.plate, winner.profile.alias))
+                Profiles.Message(winner.id, MsgType.STANDARD, L('MSG_PINK_WON', part.vehicle.label, part.vehicle.plate, part.profile.alias))
+                if lSrc then Notify(lSrc, L('N_PINK_LOST', part.vehicle.label), 'error') end
+                if wSrc then Notify(wSrc, L('N_PINK_WON', part.vehicle.label), 'success') end
+                DiscordLog('PinkSlips', L('LOG_PINK'), { ('%s → %s'):format(part.profile.alias, winner.profile.alias), ('%s [%s] · %s'):format(part.vehicle.label, part.vehicle.plate, lobby.name) })
+            else
+                Log('warn', 'Pink slip transfer failed: %s (%s) -> %s', part.vehicle.plate, part.profile.alias, winner.profile.alias)
+            end
+        end
+    end
+    if #won > 0 then winner.pinkWon = table.concat(won, ', ') end
+end
+
+-- Bets: parimutuel pool on the winner, minus the house cut
+function Rewards.Bets(lobby, ordered)
+    if #lobby.bets == 0 then return end
+    local cfg = Config.Betting
+    local winner = ordered[1]
+    local wid = winner and winner.status == PStatus.FINISHED and winner.id or nil
+    local pool, stake = 0, 0
+    for _, b in ipairs(lobby.bets) do
+        pool = pool + b.amount
+        if b.racer == wid then stake = stake + b.amount end
+    end
+    if stake == 0 then
+        if cfg.RefundIfNoWinner then lobby:RefundBets(nil, 'MSG_BET_REFUND_NOWIN') else lobby.bets = {} end
+        return
+    end
+    local payout = math.floor(pool * (1 - (cfg.HouseCut or 0)))
+    for _, b in ipairs(lobby.bets) do
+        if b.racer == wid then
+            local amount = math.floor(payout * b.amount / stake)
+            Profiles.Message(b.pid, MsgType.REWARD, L('MSG_BET_WON', winner.profile.alias, lobby.name), { rewardType = cfg.Currency, amount = amount })
+            DiscordLog('Bets', L('LOG_BET_PAID'), { ('%s · %s'):format(b.alias, lobby.name), ('%d %s'):format(amount, cfg.Currency) })
+        else
+            Profiles.Message(b.pid, MsgType.STANDARD, L('MSG_BET_LOST', lobby.name))
+        end
+    end
+    lobby.bets = {}
 end
 
 -- ── claiming ────────────────────────────────────────────────────────────

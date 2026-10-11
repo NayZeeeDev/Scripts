@@ -7,6 +7,11 @@ if not NAYZEEE_LOCK_OK then return end
 Profiles = { cache = {}, stats = {} }
 local board = { at = 0, data = nil }
 
+-- Practice runs stay out of races / wins / podiums unless Config.Practice.CountsForStats
+local REAL = Config.Practice.CountsForStats and '1 = 1' or "type <> 'practice'"
+local REAL_H = Config.Practice.CountsForStats and '' or " AND h.type <> 'practice'"
+Profiles.REAL, Profiles.REAL_H = REAL, REAL_H
+
 local function mapRow(r)
     return {
         id = r.id, identifier = r.identifier, alias = r.alias, avatar = r.avatar or '', color = r.color or '#08afa2',
@@ -41,7 +46,13 @@ function Profiles.SignIn(src)
     if not identifier then return nil end
     local r = MySQL.single.await('SELECT * FROM nayzeee_racing_profiles WHERE identifier = ?', { identifier })
     if not r then return nil end
-    local p = mapRow(r)
+    -- keep one object per profile: lobbies hold a reference to it
+    local p = Profiles.cache[r.id]
+    if p then
+        for k, v in pairs(mapRow(r)) do p[k] = v end
+    else
+        p = mapRow(r)
+    end
     p.source = src
     Profiles.cache[p.id] = p
     Core.Sessions[src] = p.id
@@ -173,18 +184,18 @@ end
 function Profiles.Stats(id)
     local c = Profiles.stats[id]
     if c then return c end
-    local s = MySQL.single.await([[
-        SELECT COUNT(*) AS races,
-            SUM(position = 1 AND status = 'finished') AS wins,
-            SUM(position <= 3 AND status = 'finished') AS podiums,
-            AVG(CASE WHEN status = 'finished' THEN position END) AS avgPos,
+    local s = MySQL.single.await(([[
+        SELECT SUM(%s) AS races,
+            SUM(%s AND position = 1 AND status = 'finished') AS wins,
+            SUM(%s AND position <= 3 AND status IN ('finished', 'eliminated')) AS podiums,
+            AVG(CASE WHEN %s AND status IN ('finished', 'eliminated') THEN position END) AS avgPos,
             SUM(IFNULL(distance, 0)) AS distance,
             SUM(IFNULL(time_ms, 0)) AS timeMs,
             MIN(NULLIF(best_lap_ms, 0)) AS bestLap,
-            SUM(status = 'disqualified') AS dnfs,
+            SUM(%s AND status = 'disqualified') AS dnfs,
             SUM(type = 'ranked') AS ranked,
-            SUM(created >= DATE_FORMAT(NOW(), '%Y-%m-01')) AS thisMonth
-        FROM nayzeee_racing_history WHERE profile_id = ?]], { id }) or {}
+            SUM(%s AND created >= DATE_FORMAT(NOW(), '%%Y-%%m-01')) AS thisMonth
+        FROM nayzeee_racing_history WHERE profile_id = ?]]):format(REAL, REAL, REAL, REAL, REAL, REAL), { id }) or {}
     local recent = MySQL.query.await([[
         SELECT h.id, h.position, h.status, h.time_ms AS time, h.best_lap_ms AS bestLap, h.mode, h.type, h.vehicle, h.elo_delta AS eloDelta,
             UNIX_TIMESTAMP(h.created) AS date, t.name AS track
@@ -192,20 +203,25 @@ function Profiles.Stats(id)
         WHERE h.profile_id = ? ORDER BY h.id DESC LIMIT 100]], { id }) or {}
     local monthly = MySQL.query.await([[
         SELECT DATE_FORMAT(created, '%Y-%m') AS month, COUNT(*) AS races, SUM(position = 1 AND status = 'finished') AS wins
-        FROM nayzeee_racing_history WHERE profile_id = ? AND created >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        FROM nayzeee_racing_history WHERE profile_id = ? AND created >= DATE_SUB(NOW(), INTERVAL 12 MONTH) AND ]] .. REAL .. [[
         GROUP BY month ORDER BY month]], { id }) or {}
     local elo = MySQL.query.await([[
         SELECT elo, UNIX_TIMESTAMP(created) AS date FROM (
             SELECT elo, created, id FROM nayzeee_racing_elo_history WHERE profile_id = ? ORDER BY id DESC LIMIT 40
         ) x ORDER BY id]], { id }) or {}
 
+    -- streaks + finishing positions use real races only (no practice)
+    local real = {}
+    for _, r in ipairs(recent) do
+        if r.type ~= 'practice' or Config.Practice.CountsForStats then real[#real + 1] = r end
+    end
     local positions = {}
-    for i, r in ipairs(recent) do positions[i] = r.status == 'finished' and r.position or 99 end
+    for i, r in ipairs(real) do positions[i] = r.status == 'finished' and r.position or 99 end
     local current, best = streaks(positions)
 
     local dist = { first = 0, podium = 0, mid = 0, rest = 0 }
-    for _, r in ipairs(recent) do
-        if r.status == 'finished' then
+    for _, r in ipairs(real) do
+        if r.status == 'finished' or r.status == 'eliminated' then
             if r.position == 1 then dist.first = dist.first + 1
             elseif r.position <= 3 then dist.podium = dist.podium + 1
             elseif r.position <= 5 then dist.mid = dist.mid + 1
@@ -253,6 +269,7 @@ Handle('profile:get', function(_, me, d)
     local dto = Profiles.Dto(p)
     dto.stats = Profiles.Stats(id)
     dto.online = Core.Online[id] ~= nil
+    dto.badges = Seasons and Seasons.Badges(id) or {}
     return dto
 end)
 
@@ -275,9 +292,9 @@ local function boardQuery(order, having)
         SELECT p.id, p.alias, p.avatar, p.color, p.elo, p.crew_id AS crewId,
             COUNT(h.id) AS races, IFNULL(SUM(h.position = 1 AND h.status = 'finished'), 0) AS wins,
             IFNULL(ROUND(SUM(h.position = 1 AND h.status = 'finished') / NULLIF(COUNT(h.id), 0) * 100, 1), 0) AS winRate
-        FROM nayzeee_racing_profiles p LEFT JOIN nayzeee_racing_history h ON h.profile_id = p.id
+        FROM nayzeee_racing_profiles p LEFT JOIN nayzeee_racing_history h ON h.profile_id = p.id%s
         WHERE p.identifier <> 'SYSTEM'
-        GROUP BY p.id %s ORDER BY %s LIMIT %d]]):format(having or '', order, Config.Leaderboard.Size)
+        GROUP BY p.id %s ORDER BY %s LIMIT %d]]):format(REAL_H, having or '', order, Config.Leaderboard.Size)
 end
 
 function Profiles.Leaderboard()
@@ -310,12 +327,13 @@ function Profiles.AddElo(p, delta)
 end
 
 -- ── inbox ───────────────────────────────────────────────────────────────
+-- Async on purpose: finishing a race sends many messages and must never wait on them
 function Profiles.Message(profileId, kind, message, metadata)
-    local id = MySQL.insert.await('INSERT INTO nayzeee_racing_messages (profile_id, type, message, metadata) VALUES (?, ?, ?, ?)',
-        { profileId, kind, message, metadata and json.encode(metadata) or nil })
-    local src = Core.Online[profileId]
-    if src then Push(src, 'inbox', { new = true }) end
-    return id
+    MySQL.insert('INSERT INTO nayzeee_racing_messages (profile_id, type, message, metadata) VALUES (?, ?, ?, ?)',
+        { profileId, kind, message, metadata and json.encode(metadata) or nil }, function()
+            local src = Core.Online[profileId]
+            if src then Push(src, 'inbox', { new = true }) end
+        end)
 end
 
 Handle('inbox:list', function(_, p)

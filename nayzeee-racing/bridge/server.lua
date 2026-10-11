@@ -159,7 +159,7 @@ function Bridge.RegisterUsableItem(name, cb)
             while GetResourceState(Bridge.inventory) ~= 'started' do Wait(250) end
         end
         if Bridge.inventory == 'ox_inventory' and Bridge.framework == 'standalone' then
-            exports('racing_tablet', function(event, _, inventory)
+            exports(name, function(event, _, inventory)
                 if event == 'usedItem' then cb(inventory.id) end
             end)
         elseif Bridge.inventory == 'qs-inventory' then
@@ -200,11 +200,53 @@ function Bridge.GiveItem(src, item, amount, metadata)
     return false
 end
 
+-- ── pink slips ──────────────────────────────────────────────────────────
+-- Plates are compared without spaces (garages often store padded plates)
+
+-- Does this player own the vehicle with this plate?
+function Bridge.OwnsVehicle(src, plate)
+    local id = Bridge.GetIdentifier(src)
+    if not id then return false end
+    plate = NZR.CleanPlate(plate)
+    if Bridge.framework == 'esx' then
+        return MySQL.scalar.await("SELECT 1 FROM owned_vehicles WHERE owner = ? AND UPPER(REPLACE(plate, ' ', '')) = ? LIMIT 1", { id, plate }) ~= nil
+    elseif Bridge.framework == 'qbcore' or Bridge.framework == 'qbox' then
+        return MySQL.scalar.await("SELECT 1 FROM player_vehicles WHERE citizenid = ? AND UPPER(REPLACE(plate, ' ', '')) = ? LIMIT 1", { id, plate }) ~= nil
+    end
+    return false
+end
+
+-- Move a vehicle title from one identifier to another. Returns true when a row changed.
+function Bridge.TransferVehicle(fromId, toId, plate)
+    plate = NZR.CleanPlate(plate)
+    if Bridge.framework == 'esx' then
+        return (MySQL.update.await("UPDATE owned_vehicles SET owner = ? WHERE owner = ? AND UPPER(REPLACE(plate, ' ', '')) = ?", { toId, fromId, plate }) or 0) > 0
+    elseif Bridge.framework == 'qbcore' or Bridge.framework == 'qbox' then
+        local license = MySQL.scalar.await('SELECT license FROM players WHERE citizenid = ?', { toId })
+        return (MySQL.update.await("UPDATE player_vehicles SET citizenid = ?, license = IFNULL(?, license) WHERE citizenid = ? AND UPPER(REPLACE(plate, ' ', '')) = ?",
+            { toId, license, fromId, plate }) or 0) > 0
+    end
+    return false
+end
+
+-- Called after a pink slip changed hands. Give keys / update your garage here.
+-- winnerSrc / loserSrc can be nil when the player is offline. netId = the race car (may be nil)
+function Bridge.OnPinkSlip(winnerSrc, loserSrc, plate, netId)
+    if not winnerSrc then return end
+    if GetResourceState('qbx_vehiclekeys') == 'started' and netId then
+        local veh = NetworkGetEntityFromNetworkId(netId)
+        if veh and veh ~= 0 then pcall(function() exports.qbx_vehiclekeys:GiveKeys(winnerSrc, veh) end) end
+    elseif GetResourceState('qb-vehiclekeys') == 'started' then
+        TriggerClientEvent('vehiclekeys:client:SetOwner', winnerSrc, plate)
+    end
+end
+
 -- ── logout hooks ────────────────────────────────────────────────────────
+-- Server-side events only: a client must never be able to sign someone else out
 function Bridge.OnLogout(fn)
     if Bridge.framework == 'esx' then
-        AddEventHandler('esx:playerLogout', function(src) fn(src) end)
+        AddEventHandler('esx:playerLogout', function(src) fn(tonumber(src) or source) end)
     elseif Bridge.framework == 'qbcore' or Bridge.framework == 'qbox' then
-        RegisterNetEvent('QBCore:Server:OnPlayerUnload', function(src) fn(src or source) end)
+        AddEventHandler('QBCore:Server:OnPlayerUnload', function(src) if tonumber(src) then fn(tonumber(src)) end end)
     end
 end
