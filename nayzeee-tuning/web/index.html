@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tuning</title>
+<link rel="stylesheet" href="css/fontawesome.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="stage" id="stage">
+
+  <!-- ═════════ TUNING ═════════ -->
+  <section id="tune" hidden>
+    <div class="drag" id="drag"></div>
+    <div class="vignette"></div>
+    <div class="hotspots" id="hotspots"></div>
+
+    <!-- workshop name -->
+    <div class="brand anim-up"><small id="tpTag">Tuning</small><b id="tpShop">Workshop</b></div>
+
+    <div class="leftcol">
+    <!-- parts catalog: category rail + part list -->
+    <aside class="fr catbox anim-in-l" id="catbox">
+      <div class="edge"><div class="shell">
+        <div class="cat-wrap">
+          <nav class="rail scroll" id="rail"></nav>
+          <div class="plist">
+            <header class="plh"><b id="plTitle">-</b><span id="plSub">-</span></header>
+            <div class="pl scroll" id="plist"></div>
+          </div>
+        </div>
+        <div class="quick" id="quick">
+          <button data-q="max" title="Best performance parts"><i class="fa-solid fa-gauge-high"></i>Max</button>
+          <button data-q="random" title="Random body kit"><i class="fa-solid fa-dice"></i>Surprise</button>
+          <button data-q="testdrive" title="Test drive"><i class="fa-solid fa-road"></i>Drive</button>
+          <button data-q="clear" title="Clear cart"><i class="fa-solid fa-eraser"></i>Reset</button>
+        </div>
+      </div></div>
+    </aside>
+
+    <!-- performance card -->
+    <aside class="fr sm stats anim-up" id="stats">
+      <div class="edge"><div class="shell">
+        <div class="vh"><small id="stClass">Vehicle</small><b id="stName">-</b>
+          <div class="pl"><span class="tag" id="stPlate">-</span><span class="tag t" id="stRole" hidden></span></div></div>
+        <div class="kpis">
+          <div class="kpi"><small>Power</small><b id="kHp">-</b><em id="kHpD"></em></div>
+          <div class="kpi"><small>0-60</small><b id="k060">-</b><em id="k060D"></em></div>
+          <div class="kpi"><small>Top</small><b id="kTop">-</b><em id="kTopD"></em></div>
+        </div>
+        <div class="bars" id="stBars"></div>
+        <div class="wear" id="stWear"></div>
+      </div></div>
+    </aside>
+    </div>
+
+    <!-- spotlight search -->
+    <div class="spot" id="spot" hidden>
+      <div class="spot-in"><i class="fa-solid fa-magnifying-glass"></i><input id="spotIn" placeholder="Search parts and options" spellcheck="false"><button class="x" id="spotX"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="spot-res scroll" id="spotRes"></div>
+    </div>
+
+    <!-- toolbar -->
+    <div class="toolbar anim-up" id="toolbar">
+      <div class="modes" id="modes"></div>
+      <div class="tgroup">
+        <button class="tb" data-t="stats" title="Performance card"><i class="fa-solid fa-chart-simple"></i></button>
+        <button class="tb" data-t="search" title="Search (F)"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button class="tb" data-t="builds" title="Builds"><i class="fa-regular fa-folder-open"></i></button>
+        <button class="tb" data-t="save" title="Save build"><i class="fa-regular fa-floppy-disk"></i></button>
+        <button class="tb" data-t="lab" title="Performance lab"><i class="fa-solid fa-stopwatch"></i></button>
+        <button class="tb" data-t="history" title="Service history"><i class="fa-solid fa-clock-rotate-left"></i></button>
+        <button class="tb" data-t="undo" id="undo" title="Undo (Z)"><i class="fa-solid fa-rotate-left"></i></button>
+        <button class="tb" data-t="redo" id="redo" title="Redo (Shift+Z)"><i class="fa-solid fa-rotate-right"></i></button>
+      </div>
+      <button class="cartbtn" data-t="cart" id="cartBtn" title="Cart (C)"><i class="fa-solid fa-bag-shopping"></i><span id="cartTotal">$0</span><b class="dot" id="cartN" hidden>0</b></button>
+      <div class="acct"><i class="fa-solid fa-wallet"></i><div><small>Bank</small><b id="tBal">$0</b></div><span class="vsep"></span><div><small>Vehicle</small><b id="tVeh">-</b></div></div>
+      <button class="pill-close" id="tpClose">Close</button>
+    </div>
+
+    <!-- right editor (complex items / option list) -->
+    <aside class="fr editor" id="editor" hidden>
+      <div class="edge"><div class="shell">
+        <header class="bar"><div class="ttl"><b id="edTitle">-</b><span id="edSub">-</span></div><button class="ibtn" id="edClose"><i class="fa-solid fa-xmark"></i></button></header>
+        <div class="body scroll" id="view"></div>
+      </div></div>
+    </aside>
+
+    <!-- option dock -->
+    <div class="odock anim-up" id="odock">
+      <div class="odh"><span class="crumb" id="crumb"></span><span class="ost" id="oState"></span></div>
+      <div class="otr"><h1 class="otitle" id="oTitle">-</h1><div class="oprice" id="oPrice"></div></div>
+      <div class="odesc" id="oDesc"></div>
+      <div class="browse" id="browse" hidden>
+        <button class="bnav" id="bPrev" title="Previous (←)"><i class="fa-solid fa-angle-left"></i></button>
+        <div class="ticks" id="bTicks"></div>
+        <span class="bcount" id="bCount">0 / 0</span>
+        <button class="bnav" id="bNext" title="Next (→)"><i class="fa-solid fa-angle-right"></i></button>
+        <button class="bnav" id="bList" title="Show all options"><i class="fa-solid fa-table-list"></i></button>
+        <button class="btn pri" id="bAdd"><i class="fa-solid fa-cart-plus"></i>Add to cart</button>
+      </div>
+    </div>
+
+    <div class="hints anim-up" id="hints">
+      <button data-h="compare" title="Hold to see stock"><span class="kc">H</span>Stock</button>
+      <button data-h="turntable"><span class="kc">T</span>Rotate</button>
+      <button data-h="lights"><span class="kc">L</span>Lights</button>
+      <button data-h="doors"><span class="kc">O</span>Doors</button>
+      <button data-h="rev"><span class="kc">R</span>Rev</button>
+      <span class="sep"></span>
+      <span class="info"><span class="kc">Q</span><span class="kc">E</span>Category <span class="kc">↑</span><span class="kc">↓</span>Part <span class="kc">←</span><span class="kc">→</span>Option <span class="kc">↵</span>Add</span>
+    </div>
+    <div class="compare-badge" id="cmpBadge" hidden><i class="fa-solid fa-code-compare"></i> Showing stock</div>
+
+    <!-- slide-in drawer: cart / builds / lab / history -->
+    <aside class="fr drawer" id="drawer">
+      <div class="edge"><div class="shell">
+        <header class="bar"><div class="ttl"><b id="dTitle">Cart</b><span id="dSub">-</span></div><button class="btn sm ghost" id="dClear"><i class="fa-solid fa-trash"></i>Clear</button><button class="ibtn" id="dBack"><i class="fa-solid fa-xmark"></i></button></header>
+        <div class="db scroll" id="dList"></div>
+        <div class="df" id="dFoot"></div>
+      </div></div>
+    </aside>
+
+    <div class="toasts" id="toasts"></div>
+  </section>
+
+  <!-- ═════════ TABLET ═════════ -->
+  <section id="tablet" hidden>
+    <div class="dim-bg"></div>
+    <div class="tab-wrap anim-up">
+      <img class="tab-frame" src="img/tablet.webp" alt="">
+      <div class="screen" id="screen">
+        <div class="wall" id="wall"></div>
+        <div class="stbar"><b id="tClock">00:00</b><span class="stbar-mid" id="tCarrier">NZ-OS</span><span class="stbar-r"><i class="fa-solid fa-signal"></i><i class="fa-solid fa-wifi"></i><span id="tBatt">87%</span><i class="fa-solid fa-battery-three-quarters"></i></span></div>
+        <div class="os" id="os"></div>
+        <button class="homebar" id="homeBar" title="Home"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ REMOTE (lighting / stancer) ═════════ -->
+  <aside class="fr remote anim-in" id="remote" hidden>
+    <div class="edge"><div class="shell">
+      <header class="bar"><div class="ttl"><b id="rTitle">Remote</b><span id="rSub">-</span></div><button class="pill-close" id="rClose">Close</button></header>
+      <div class="body scroll" id="rBody"></div>
+      <div class="actions" id="rFoot"></div>
+    </div></div>
+  </aside>
+
+  <!-- ═════════ SHOP EDITOR (/mechaniceditor) ═════════ -->
+  <aside class="fr editorx anim-in" id="editorx" hidden>
+    <div class="edge"><div class="shell">
+      <header class="bar"><div class="ttl"><b>Shop editor</b><span id="exSub">Walk to a spot, then set it</span></div><button class="btn sm" id="exWalkBtn" title="Hide the editor and walk (F2)"><i class="fa-solid fa-person-walking"></i>Walk</button><button class="pill-close" id="exClose">Close</button></header>
+      <div class="body scroll" id="exBody"></div>
+      <div class="actions" id="exFoot"></div>
+    </div></div>
+  </aside>
+
+  <div id="exWalk" hidden><i class="fa-solid fa-person-walking"></i><span>Walking around · press <span class="kc" id="exWalkKey">F2</span> to edit again</span></div>
+
+  <!-- ═════════ MODALS ═════════ -->
+  <section id="modal" hidden>
+    <div class="dim-bg"></div>
+    <div class="center"><div class="fr dialog anim-up" id="dlg"></div></div>
+  </section>
+
+  <!-- ═════════ INSTALL TRACKER ═════════ -->
+  <aside class="fr sm anim-up" id="inst" hidden>
+    <div class="edge"><div class="shell">
+      <header class="bar"><div class="ttl"><b id="instTitle">Work order</b><span id="instSub">-</span></div><span class="ver" id="instCount">0/0</span></header>
+      <div class="step"><i class="fa-solid fa-location-arrow"></i><div><span id="instStep">-</span><p id="instHelp"></p></div></div>
+      <div class="miss" id="instMiss" hidden></div>
+      <div class="list scroll" id="instList"></div>
+      <div class="ft"><span class="kc">Backspace</span>Pause<div class="bar2"><i id="instBar" style="width:0"></i></div></div>
+    </div></div>
+  </aside>
+
+  <!-- ═════════ OBJECTIVES (supply runs, tow jobs) ═════════ -->
+  <aside class="fr sm anim-in" id="obj" hidden>
+    <div class="edge"><div class="shell">
+      <div class="oh"><span class="oi"><i id="objIc" class="fa-solid fa-list-check"></i></span><b id="objTitle">-</b><span class="ot" id="objTime"></span></div>
+      <ol id="objList"></ol>
+    </div></div>
+  </aside>
+
+  <!-- ═════════ HUD ═════════ -->
+  <div id="hud">
+    <div class="fr sm nos" id="nos" hidden><div class="edge"><div class="shell">
+      <div class="h"><i class="fa-solid fa-fire-flame-simple"></i>Nitrous<b id="nosPct">0%</b></div>
+      <div class="cells" id="nosCells"></div>
+    </div></div></div>
+    <div class="gear" id="gear" hidden><small id="gearMode">MANUAL</small><b id="gearN">N</b><span><span class="kc">↑</span><span class="kc">↓</span></span></div>
+    <div class="fr sm perf" id="perf" hidden><div class="edge"><div class="shell">
+      <small id="perfLabel">0-60 mph</small><b id="perfTime">0.00</b><div class="st" id="perfState"></div>
+      <div class="pb"><i id="perfBar" style="width:0"></i></div><div class="res" id="perfRes"></div>
+    </div></div></div>
+    <div class="fr sm td" id="td" hidden><div class="edge"><div class="shell">
+      <i class="fa-solid fa-road teal"></i><div><b id="tdLeft">0s</b></div><span id="tdDist">-</span>
+    </div></div></div>
+    <div class="toast" id="toast" hidden><i class="fa-solid fa-wind" id="toastIc"></i><span id="toastTx"></span></div>
+  </div>
+  <div id="flashes"></div>
+</div>
+<script src="js/app.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/tablet.js"></script>
+<script src="js/editor.js"></script>
+</body>
+</html>
