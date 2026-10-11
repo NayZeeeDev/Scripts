@@ -51,6 +51,7 @@ server_scripts {
     'server/core.lua',
     'server/pricing.lua',
     'server/vehicles.lua',
+    'server/garages.lua',
     'server/checkout.lua',
     'server/orders.lua',
     'server/business.lua',

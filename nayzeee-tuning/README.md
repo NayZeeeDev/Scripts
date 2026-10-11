@@ -156,12 +156,21 @@ All keys are ox_lib keybinds and can be rebound in the FiveM settings.
 
 ## 🅿️ Garages
 
-Tuning (engine sound, nitrous, stance, ECU...) is stored per plate and lands on the car the moment a garage hands it over. Garages set the plate on the client first and the server sees it a sync later; the script follows the car until both agree, so it works with any garage (ESX, QBCore, Qbox, JG, cd, okok...) out of the box.
+Tuning (engine sound, nitrous, stance, ECU...) is stored per plate and lands on the car the moment a garage hands it over. Garages usually set the plate on the client first and the server only sees it a sync later; the script follows the car until both agree, so **any garage works out of the box**.
 
-For an instant hand-over:
-- **JG Advanced Garages** is hooked automatically (`jg-advancedgarages:client:TakeOutVehicle:config`).
-- **Any garage with a "vehicle taken out" client event**: add its name to `Config.Garages.Events` in `config/config.lua` (the event's first argument must be the vehicle).
-- **Any other garage**: one line in its client code, right after it sets the vehicle properties / plate:
+Built-in hooks make it instant (`Config.Garages.Hooks`, each one only runs when that garage / framework is running):
+
+| Hook | Covers |
+|---|---|
+| `esx` | ESX Legacy `esx_garage` and any garage using `ESX.CreateExtendedVehicle` / `ESX.OneSync.SpawnVehicle` |
+| `qbx` | `qbx_garages` and anything spawning cars with ox_lib's `setVehicleProperties` |
+| `qb` | `qb-garages` |
+| `jg` | JG Advanced Garages (`jg-advancedgarages:client:TakeOutVehicle:config`) |
+| `keys` | garages that give keys with `vehiclekeys:client:SetOwner` (most QBCore / Qbox garages) |
+
+Using something else (cd_garage, okokGarage, loaf, codem...)?
+- **It fires a client "vehicle taken out" event**: add the event name to `Config.Garages.Events` (first argument must be the vehicle).
+- **Otherwise** add one line to its client code, right after it sets the vehicle properties / plate:
   ```lua
   exports['nayzeee-tuning']:VehicleSpawned(vehicle)
   ```

@@ -111,6 +111,35 @@ local function attach(veh)
     end)
 end
 
+-- a garage just spawned this car: push its data as soon as the server sees the plate
+-- hint: the plate the garage is setting (only waited for, never trusted on its own)
+-- trusted: the hint comes from server code (the garage's own DB plate), push it right away
+local watching = {}
+function Vehicles.Watch(veh, hint, trusted)
+    if not veh or veh == 0 or not DoesEntityExist(veh) then return end
+    hint = type(hint) == 'string' and NZ.TrimPlate(hint) or nil
+    if trusted and hint and hint ~= '' then
+        local c = Vehicles.Load(hint)
+        if c and c.exists then Vehicles.Push(veh, hint) end
+        return
+    end
+    if watching[veh] then return end
+    watching[veh] = true
+    CreateThread(function()
+        for _ = 1, 50 do
+            if not DoesEntityExist(veh) then break end
+            local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
+            if plate ~= '' and (not hint or plate == hint) then
+                local c = Vehicles.Load(plate)
+                if c and c.exists then Vehicles.Push(veh, plate) break end
+                if hint then break end
+            end
+            Wait(100)
+        end
+        watching[veh] = nil
+    end)
+end
+
 AddEventHandler('entityCreated', function(ent)
     if not DoesEntityExist(ent) or GetEntityType(ent) ~= 2 then return end
     attach(ent)
@@ -289,6 +318,6 @@ exports('RefreshVehicle', function(veh)
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
     local c = plate ~= '' and Vehicles.Load(plate)
     if c and c.exists then Vehicles.Push(veh, plate) return true end
-    attach(veh)
+    Vehicles.Watch(veh)
     return false
 end)

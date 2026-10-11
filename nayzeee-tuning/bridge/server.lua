@@ -344,6 +344,15 @@ function Bridge.SaveVehicleProps(plate, props)
     return MySQL.update.await(('UPDATE %s SET %s = ? WHERE plate = ? OR plate = ?'):format(vehTable, propsCol), { json.encode(props), plate, ('%-8s'):format(plate) }) > 0
 end
 
+-- ESX Legacy extended vehicles (esx_garage): the entity a plate was spawned as
+function Bridge.ExtendedVehicleEntity(plate)
+    if not ESX or not ESX.GetExtendedVehicleFromPlate then return nil end
+    local ok, xVehicle = pcall(ESX.GetExtendedVehicleFromPlate, plate)
+    if not ok or not xVehicle or not xVehicle.getEntity then return nil end
+    local ok2, ent = pcall(xVehicle.getEntity, xVehicle)
+    return ok2 and ent or nil
+end
+
 function Bridge.PlateExists(plate)
     plate = NZ.TrimPlate(plate)
     return MySQL.scalar.await(('SELECT 1 FROM %s WHERE plate = ? OR plate = ? LIMIT 1'):format(vehTable), { plate, ('%-8s'):format(plate) }) ~= nil

@@ -35,6 +35,35 @@ end
 exports('VehicleSpawned', Garages.Spawned)
 AddEventHandler('nayzeee-tuning:vehicleSpawned', Garages.Spawned)
 
-for _, name in ipairs(Config.Garages and Config.Garages.Events or {}) do
+local G = Config.Garages or {}
+local H = G.Hooks or {}
+
+-- JG Advanced Garages: fired on the client once the car is out (vehicle, vehicleDbData, type)
+if H.jg then
+    AddEventHandler('jg-advancedgarages:client:TakeOutVehicle:config', function(vehicle) Garages.Spawned(vehicle) end)
+end
+
+-- most QBCore / Qbox garages hand out keys for the plate right after spawning the car
+if H.keys then
+    RegisterNetEvent('vehiclekeys:client:SetOwner', function(plate)
+        if type(plate) ~= 'string' then return end
+        plate = NZ.TrimPlate(plate)
+        CreateThread(function()
+            -- the car (or its plate) can reach this client a moment after the event
+            for _ = 1, 15 do
+                local me = GetEntityCoords(cache.ped)
+                for _, veh in ipairs(GetGamePool('CVehicle')) do
+                    if NZ.TrimPlate(GetVehicleNumberPlateText(veh)) == plate and #(GetEntityCoords(veh) - me) < 60.0 then
+                        return Garages.Spawned(veh)
+                    end
+                end
+                Wait(200)
+            end
+        end)
+    end)
+end
+
+-- any other garage: its client "vehicle taken out" event, first argument = the vehicle
+for _, name in ipairs(G.Events or {}) do
     AddEventHandler(name, function(vehicle) Garages.Spawned(vehicle) end)
 end

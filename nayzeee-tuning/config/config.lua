@@ -116,12 +116,20 @@ Config.Plates = {
 }
 
 -- Garages: tuning (engine sound, nitrous, stance...) is applied as soon as a garage hands the car over.
--- Works with any garage on its own; the events below make it instant for the ones that announce a take-out.
--- Your garage not listed? Add its client "vehicle taken out" event (first argument = the vehicle),
+-- Works with any garage on its own; the hooks below make it instant. Each hook only does something
+-- when that garage / framework is running, so leaving them all on is fine.
+-- Your garage not covered? Add its client "vehicle taken out" event to Events (first argument = the vehicle),
 -- or call exports['nayzeee-tuning']:VehicleSpawned(vehicle) on the client right after it sets the plate.
 Config.Garages = {
+    Hooks = {
+        esx     = true,     -- ESX Legacy: esx_garage and anything using ESX.CreateExtendedVehicle / ESX.OneSync.SpawnVehicle
+        qbx     = true,     -- qbx_garages (and anything spawning with ox_lib's setVehicleProperties)
+        qb      = true,     -- qb-garages
+        jg      = true,     -- JG Advanced Garages
+        keys    = true,     -- garages that hand out keys with 'vehiclekeys:client:SetOwner' (most QBCore / Qbox garages)
+    },
     Events = {
-        'jg-advancedgarages:client:TakeOutVehicle:config',  -- JG Advanced Garages
+        -- 'my_garage:client:vehicleSpawned',
     },
 }
 
