@@ -324,6 +324,12 @@ Config.Studio = {
     SaveToInventory = true,     -- also copy every photo into ox_inventory/web/images (see HOW-TO-USE)
     Fov       = 30.0,
     Orbit     = { yaw = 215.0, elev = 24.0, zoom = 1.0, lift = 0.0 },  -- starting framing (Three quarter)
+    -- Standard photo angle: every shoe is photographed from exactly this angle and zoom (the camera
+    -- still fits each shoe to the frame), so all the pictures match like inventory icons. Admins can
+    -- switch it off in the studio (Framing) to frame a shot themselves.
+    StandardAngle = true,
+    PhotoAngle    = { yaw = 215.0, elev = 24.0, zoom = 1.0, lift = 0.0 },
+    BoxAngle      = { yaw = 215.0, elev = 28.0, zoom = 1.0, lift = 0.0 },  -- the same, for "In its box" photos
     TextureWait = 450,          -- ms a prop gets to stream in before the photo
     Coords    = vector3(0.0, 0.0, -150.0),    -- under the map, where nothing else renders
     RoutingBucket = 7178,

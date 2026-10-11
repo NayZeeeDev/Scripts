@@ -160,12 +160,26 @@ local function nearSupplier(src)
     return ped ~= 0 and #(GetEntityCoords(ped) - S.coords.xyz) < 6.0
 end
 
+--- The accounts players can pay the supplier from
+local function accounts()
+    local list = type(S.accounts) == 'table' and #S.accounts > 0 and S.accounts or { S.account or 'cash' }
+    return list
+end
+
+local function allowedAccount(account)
+    for _, a in ipairs(accounts()) do if a == account then return true end end
+    return false
+end
+
 lib.callback.register('nayzeee-sneakers:supplierData', function(src)
-    return { level = XP.Level(src), money = Bridge.GetMoney(src, S.account) }
+    local money = {}
+    for _, a in ipairs(accounts()) do money[a] = Bridge.GetMoney(src, a) end
+    return { level = XP.Level(src), money = money, accounts = accounts() }
 end)
 
-lib.callback.register('nayzeee-sneakers:buy', function(src, cart)
+lib.callback.register('nayzeee-sneakers:buy', function(src, cart, account)
     if not S.enabled or type(cart) ~= 'table' or not nearSupplier(src) then return false end
+    account = allowedAccount(account) and account or accounts()[1]
     local level = XP.Level(src)
     local goods = Shared.SupplierGoods()
     local total, lines = 0, {}
@@ -181,7 +195,7 @@ lib.callback.register('nayzeee-sneakers:buy', function(src, cart)
         end
     end
     if #lines == 0 then return false end
-    if not Bridge.RemoveMoney(src, S.account, total, 'nayzeee-sneakers supplies') then
+    if not Bridge.RemoveMoney(src, account, total, 'nayzeee-sneakers supplies') then
         return fail(src, Config.Text.noMoney)
     end
     local refund = 0
@@ -189,8 +203,8 @@ lib.callback.register('nayzeee-sneakers:buy', function(src, cart)
         if not Inv.Add(src, l.name, l.qty) then refund = refund + goods[l.name].price * l.qty end
     end
     if refund > 0 then
-        Bridge.AddMoney(src, S.account, refund, 'nayzeee-sneakers refund')
+        Bridge.AddMoney(src, account, refund, 'nayzeee-sneakers refund')
         Bridge.Notify(src, Config.Text.noSpace, 'error')
     end
-    return true, total - refund, Bridge.GetMoney(src, S.account)
+    return true, total - refund, Bridge.GetMoney(src, account)
 end)

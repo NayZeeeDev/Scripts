@@ -58,14 +58,15 @@ Config.Tables = {
 -- Bought from the supplier, used up by crafting. level = player level needed to buy it.
 
 Config.Materials = {
-    nz_leather  = { label = 'Leather hide',   price = 45 },
-    nz_fabric   = { label = 'Mesh fabric',    price = 25 },
-    nz_sole     = { label = 'Rubber sole',    price = 35 },
-    nz_heel     = { label = 'Heel block',     price = 40 },
-    nz_thread   = { label = 'Waxed thread',   price = 12 },
-    nz_glue     = { label = 'Shoe glue',      price = 18 },
-    nz_laces    = { label = 'Laces',          price = 8 },
-    nz_authtag  = { label = 'Authentic tag',  price = 650, level = 4 },  -- only real pairs use these
+    -- description = the line under it in the Shoe Supplies store
+    nz_leather  = { label = 'Leather hide',   price = 45,  description = 'Uppers for sneakers, heels and boots.' },
+    nz_fabric   = { label = 'Mesh fabric',    price = 25,  description = 'Light panels for runners and trainers.' },
+    nz_sole     = { label = 'Rubber sole',    price = 35,  description = 'The base of every sneaker.' },
+    nz_heel     = { label = 'Heel block',     price = 40,  description = 'Gives a heel its height.' },
+    nz_thread   = { label = 'Waxed thread',   price = 12,  description = 'Stitches the panels together.' },
+    nz_glue     = { label = 'Shoe glue',      price = 18,  description = 'Bonds the sole to the upper.' },
+    nz_laces    = { label = 'Laces',          price = 8,   description = 'Finishes a laced pair.' },
+    nz_authtag  = { label = 'Authentic tag',  price = 650, level = 4, description = 'Makes a pair real. Fakes skip it.' },
 }
 
 -- ██████╗ ███████╗ ██████╗██╗██████╗ ███████╗███████╗
@@ -168,22 +169,31 @@ Config.Supplier = {
     ped = `s_m_m_linecook`,
     coords = vector4(195.17, -933.77, 30.69, 145.0),  -- Legion Square; move it anywhere
     blip = { sprite = 366, colour = 48, scale = 0.75 },   -- false = no blip
-    account = 'cash',           -- 'cash' | 'bank'
+    account = 'cash',           -- what the store starts on: 'cash' | 'bank'
+    accounts = { 'cash', 'bank' },   -- what players can pay with (switch in the basket)
     maxPerItem = 50,            -- most of one item per purchase
+
+    -- The store's tabs, in order. Materials go under 'materials'; everything in Extra names its tab.
+    Tabs = {
+        { id = 'materials', label = 'Materials',    icon = 'scissors' },
+        { id = 'boxes',     label = 'Boxes & care', icon = 'box' },
+        { id = 'displays',  label = 'Displays',     icon = 'display' },
+        { id = 'tables',    label = 'Tables',       icon = 'bench' },
+    },
 
     -- Everything else he sells, next to the materials
     Extra = {
-        nz_shoebox_empty = { label = 'Empty shoe box',  price = 15 },
-        nz_heelbox_empty = { label = 'Empty heel box',  price = 15 },
-        nz_bootbox_empty = { label = 'Empty boot box',  price = 22 },
-        nz_cleaning_kit  = { label = 'Cleaning kit',    price = 120 },
-        nz_display       = { label = 'Shoe display',    price = 85 },
-        nz_display_heel  = { label = 'Heel display',    price = 90 },
-        nz_display_boot  = { label = 'Boot display',    price = 120 },
+        nz_shoebox_empty = { label = 'Empty shoe box', price = 15,   tab = 'boxes',    description = 'Fits sneakers. Keeps a pair deadstock.' },
+        nz_heelbox_empty = { label = 'Empty heel box', price = 15,   tab = 'boxes',    description = 'Fits heels and ankle boots.' },
+        nz_bootbox_empty = { label = 'Empty boot box', price = 22,   tab = 'boxes',    description = 'Fits tall boots.' },
+        nz_cleaning_kit  = { label = 'Cleaning kit',   price = 120,  tab = 'boxes',    description = 'Takes the dirt off a worn pair.' },
+        nz_display       = { label = 'Shoe display',   price = 85,   tab = 'displays', description = 'Clear case for one pair of sneakers. Stacks.' },
+        nz_display_heel  = { label = 'Heel display',   price = 90,   tab = 'displays', description = 'Clear case for one pair of heels. Stacks.' },
+        nz_display_boot  = { label = 'Boot display',   price = 120,  tab = 'displays', description = 'Clear case for boots, or any pair. Stacks.' },
         -- crafting tables (Dragons Lab models; without her pack they place the fallback bench)
-        blueshoetable    = { label = 'Blue shoe table',   price = 2500 },
-        pinkshoetable    = { label = 'Pink shoe table',   price = 2500 },
-        purpleshoetable  = { label = 'Purple shoe table', price = 2500 },
-        redshoetable     = { label = 'Red shoe table',    price = 2500 },
+        blueshoetable    = { label = 'Blue shoe table',   price = 2500, tab = 'tables', description = 'Your own crafting table. Place it anywhere.' },
+        pinkshoetable    = { label = 'Pink shoe table',   price = 2500, tab = 'tables', description = 'Your own crafting table. Place it anywhere.' },
+        purpleshoetable  = { label = 'Purple shoe table', price = 2500, tab = 'tables', description = 'Your own crafting table. Place it anywhere.' },
+        redshoetable     = { label = 'Red shoe table',    price = 2500, tab = 'tables', description = 'Your own crafting table. Place it anywhere.' },
     },
 }

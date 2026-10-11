@@ -98,7 +98,7 @@ function studioClose(silent) {
 // game → studio state. Orbit-only changes don't rebuild the panels (that would drop a slider mid-drag).
 // what each panel shows, so a click only redraws the panel that changed
 const sdLeftSig = () => JSON.stringify([SD.key, !!SD.batch]);
-const sdSig = () => JSON.stringify([SD.key, SD.letter, SD.subject, SD.mode, SD.chroma, SD.batch, SD.screenshot]);
+const sdSig = () => JSON.stringify([SD.key, SD.letter, SD.subject, SD.mode, SD.chroma, SD.batch, SD.screenshot, SD.standard]);
 function studioState(s) {
   const before = sdSig(), beforeLeft = sdLeftSig();
   const keyChanged = s.key !== undefined && s.key !== SD.key;
@@ -106,6 +106,7 @@ function studioState(s) {
     key: s.key ?? SD.key, letter: s.letter || SD.letter, subject: s.subject || SD.subject, mode: s.mode || SD.mode,
     chroma: s.chroma || SD.chroma, orbit: s.orbit || SD.orbit, batch: s.batch || null,
     screenshot: s.screenshot !== undefined ? s.screenshot : SD.screenshot,
+    standard: s.standard !== undefined ? s.standard : SD.standard,
   });
   if (keyChanged || !SD.edit || SD.edit.key !== SD.key) SD.edit = sdEditFor(cur());
   if (!SD.on) return;
@@ -297,18 +298,19 @@ function sdRight() {
       </div>
 
       <div class="card sd-card">
-        <div class="sd-ch">Framing <em>drag to orbit · scroll to zoom</em></div>
+        <div class="sd-ch">Framing <em>${SD.standard ? 'standard angle' : 'drag to orbit · scroll to zoom'}</em></div>
+        <label class="sd-switch"><input type="checkbox" id="sdStd" ${SD.standard ? 'checked' : ''} ${busy ? 'disabled' : ''}><span class="sw2"></span><span><b>Standard photo angle</b>Every shoe photographed the same way, like inventory icons. Switch off to frame your own.</span></label>
         <div class="seg sd-seg">${[['loose', 'The pair'], ['box', 'In its box']].map(([k, l]) =>
           `<button class="${SD.subject === k ? 'on' : ''}" data-sd="subject" data-v="${k}" ${busy || SD.mode === 'feet' ? 'disabled' : ''}>${l}</button>`).join('')}</div>
         <div class="sd-chips">
-          ${chip('data-sd="angle" data-yaw="215" data-elev="24"', 'Three quarter', sdNear(215, 24))}
-          ${chip('data-sd="angle" data-yaw="270" data-elev="6"', 'Side', sdNear(270, 6))}
-          ${chip('data-sd="angle" data-yaw="180" data-elev="10"', 'Front', sdNear(180, 10))}
-          ${chip('data-sd="angle" data-yaw="235" data-elev="55"', 'High', sdNear(235, 55))}
-          ${chip('data-sd="angle" data-yaw="180" data-elev="85"', 'Top', sdNear(180, 85))}
+          ${chip(`data-sd="angle" data-yaw="215" data-elev="24" ${SD.standard ? 'disabled' : ''}`, 'Three quarter', sdNear(215, 24))}
+          ${chip(`data-sd="angle" data-yaw="270" data-elev="6" ${SD.standard ? 'disabled' : ''}`, 'Side', sdNear(270, 6))}
+          ${chip(`data-sd="angle" data-yaw="180" data-elev="10" ${SD.standard ? 'disabled' : ''}`, 'Front', sdNear(180, 10))}
+          ${chip(`data-sd="angle" data-yaw="235" data-elev="55" ${SD.standard ? 'disabled' : ''}`, 'High', sdNear(235, 55))}
+          ${chip(`data-sd="angle" data-yaw="180" data-elev="85" ${SD.standard ? 'disabled' : ''}`, 'Top', sdNear(180, 85))}
         </div>
-        <div class="sd-axis"><span>Zoom</span><input type="range" id="sdZoom" min="0.4" max="3" step="0.02" value="${o.zoom}" ${dis}><b id="sdZoomV">${(+o.zoom).toFixed(2)}</b></div>
-        <div class="sd-axis"><span>Height</span><input type="range" id="sdLift" min="-0.3" max="0.3" step="0.01" value="${o.lift}" ${dis}><b id="sdLiftV">${(+o.lift).toFixed(2)}</b></div>
+        <div class="sd-axis"><span>Zoom</span><input type="range" id="sdZoom" min="0.4" max="3" step="0.02" value="${o.zoom}" ${dis || (SD.standard ? 'disabled' : '')}><b id="sdZoomV">${(+o.zoom).toFixed(2)}</b></div>
+        <div class="sd-axis"><span>Height</span><input type="range" id="sdLift" min="-0.3" max="0.3" step="0.01" value="${o.lift}" ${dis || (SD.standard ? 'disabled' : '')}><b id="sdLiftV">${(+o.lift).toFixed(2)}</b></div>
       </div>
 
       <div class="card sd-card">
@@ -459,6 +461,7 @@ sdRoot.addEventListener('change', (ev) => {
   const t = ev.target;
   if (t.dataset.opt) SD.opts[t.dataset.opt] = t.checked;
   if (t.id === 'sdOn' && SD.edit) { SD.edit.enabled = t.checked; SD.edit.dirty = true; }
+  if (t.id === 'sdStd') post('st:standard', { on: t.checked });
   if (t.id === 'sdLink' && SD.edit && t.value) {
     const [collection, index] = t.value.split('|');
     SD.edit.link = { collection, index: Number(index) };
@@ -485,13 +488,13 @@ sdRoot.addEventListener('keydown', (ev) => {
   c.addEventListener('pointerdown', (e) => { drag = true; lx = e.clientX; ly = e.clientY; c.classList.add('drag'); c.setPointerCapture(e.pointerId); });
   c.addEventListener('pointerup', () => { drag = false; c.classList.remove('drag'); });
   c.addEventListener('pointermove', (e) => {
-    if (!drag || SD.batch) return;
+    if (!drag || SD.batch || SD.standard) return;
     ax += e.clientX - lx; ay += e.clientY - ly; lx = e.clientX; ly = e.clientY;
     if (!raf) raf = requestAnimationFrame(flush);
   });
   c.addEventListener('wheel', (e) => {
     e.preventDefault();
-    if (!SD.batch) post('st:zoom', { delta: e.deltaY * 0.001 });
+    if (!SD.batch && !SD.standard) post('st:zoom', { delta: e.deltaY * 0.001 });
   }, { passive: false });
 })();
 

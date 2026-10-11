@@ -120,6 +120,7 @@ local mode = 'none'                     -- what's in the box right now: 'loose' 
 local objs, ped, cam = {}, nil, nil
 local centre, radius = vector3(0.0, 0.0, 0.0), 0.3
 local orbit = { yaw = S.Orbit.yaw, elev = S.Orbit.elev, zoom = S.Orbit.zoom, lift = S.Orbit.lift }
+local standard = S.StandardAngle ~= false   -- photos at the standard angle (Config.Studio.PhotoAngle)
 local chroma = CHROMA[S.Chroma] and S.Chroma or 'green'
 local batch = nil                       -- { i, n } while a batch runs
 local waiting = nil                     -- file name we're waiting on the keyer + server for
@@ -155,7 +156,7 @@ end
 
 local function sendState()
     SendNUIMessage({ action = 'studio:state', state = {
-        key = cur.key, letter = cur.letter, subject = subject, mode = mode, chroma = chroma, orbit = orbit,
+        key = cur.key, letter = cur.letter, subject = subject, mode = mode, chroma = chroma, orbit = orbit, standard = standard,
         batch = batch, screenshot = hasScreenshot(),
     } })
 end
@@ -263,8 +264,15 @@ local function camDistance()
     return (radius / math.tan(math.rad(S.Fov) * 0.5)) * 1.25 * orbit.zoom
 end
 
+--- The standard angle for what's on the stand (the pair, or the pair in its box)
+local function standardAngle()
+    local a = (subject == 'box' and S.BoxAngle) or S.PhotoAngle or S.Orbit
+    return { yaw = a.yaw + 0.0, elev = a.elev + 0.0, zoom = (a.zoom or 1.0) + 0.0, lift = (a.lift or 0.0) + 0.0 }
+end
+
 local function updateCam()
     if not cam then return end
+    if standard then orbit = standardAngle() end
     local c = target()
     local d = camDistance()
     local yaw, el = math.rad(orbit.yaw), math.rad(orbit.elev)
@@ -519,7 +527,15 @@ on('st:subject', function(d)
     sendState()
 end)
 
+-- while the standard angle is on, the camera stays put (what you see is what every photo looks like)
+on('st:standard', function(d)
+    standard = d.on == true
+    updateCam()
+    sendState()
+end)
+
 on('st:orbit', function(d)
+    if standard then return end
     orbit.yaw = (orbit.yaw - (tonumber(d.dx) or 0) * 0.4) % 360.0
     orbit.elev = math.max(-60.0, math.min(85.0, orbit.elev + (tonumber(d.dy) or 0) * 0.3))
     if d.yaw then orbit.yaw = (tonumber(d.yaw) or 0) % 360.0 end
@@ -529,6 +545,7 @@ on('st:orbit', function(d)
 end)
 
 on('st:zoom', function(d)
+    if standard then return end
     if d.set then orbit.zoom = tonumber(d.set) or 1.0 else orbit.zoom = orbit.zoom + (tonumber(d.delta) or 0) end
     orbit.zoom = math.max(0.4, math.min(3.0, orbit.zoom))
     updateCam()
@@ -536,6 +553,7 @@ on('st:zoom', function(d)
 end)
 
 on('st:lift', function(d)
+    if standard then return end
     orbit.lift = math.max(-0.3, math.min(0.3, tonumber(d.set) or 0))
     updateCam()
     sendState()

@@ -35,6 +35,7 @@ const PATHS = {
   bag: '<path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 10.5V7a3 3 0 0 1 6 0v3.5"/>',
   bench: '<path d="M3 9h18M5 9v11M19 9v11M5 14h14"/><path d="M8 9V6.5h3V9M14 9V5h2.5v4"/>',
   cash: '<rect x="3" y="6.5" width="18" height="11" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v.01M17.5 14.5v.01"/>',
+  display: '<rect x="4" y="5" width="16" height="13" rx="1.5"/><path d="M4 18v2M20 18v2M8 13.5h8"/><path d="M8 13.5c.4-1.6 1.8-2.5 3.3-2.5h1.4c1.5 0 2.9.9 3.3 2.5"/>',
   hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L2.8 16a1.6 1.6 0 0 1 2.4-2.1L8 16.5"/>',
 };
 // Older menu callers pass Font Awesome class names
@@ -161,7 +162,6 @@ function openSide(kind, title, sub) {
   $('sideIc').innerHTML = icon(kind === 'shop' ? 'bag' : 'bench');
   $('sideSub').textContent = sub;
   $('bench').hidden = kind !== 'bench';
-  $('shop').hidden = kind !== 'shop';
   $('side').hidden = false;
   document.body.classList.add('side-open');
 }
@@ -171,6 +171,7 @@ function closeSide() {
   side = null;
   showGuide(false);
   $('side').hidden = true;
+  $('store').hidden = true;
   document.body.classList.remove('side-open');
   post(kind === 'bench' ? 'benchClose' : 'shopClose');
 }
@@ -350,54 +351,120 @@ $('craftBtn').addEventListener('click', () => {
   post('craft', { model: m.id, letter: m.colours[B.colour].letter, size: B.size, real: B.mode === 'real', view: B.view });
 });
 
-/* shop */
-const SH = { shop: null, cart: {} };
+/* shop: the Shoe Supplies store (tabs + item grid, basket on the right) */
+const SH = { shop: null, cart: {}, tab: null, account: 'cash' };
+const ACCOUNT = { cash: 'Cash', bank: 'Bank' };
 
 function openShop(shop) {
+  // older client scripts send one balance; newer ones send { cash, bank }
+  if (typeof shop.money === 'number') shop.money = { [shop.account || 'cash']: shop.money };
+  shop.accounts = (shop.accounts && shop.accounts.length) ? shop.accounts : Object.keys(shop.money);
   SH.shop = shop; SH.cart = {};
-  openSide('shop', shop.title, '');
+  SH.account = shop.accounts.includes(shop.account) ? shop.account : shop.accounts[0];
+  // the tabs that have something in them, in config order; items naming no known tab go under Other
+  const known = (shop.tabs || []).map(t => t.id);
+  const tabs = (shop.tabs || []).filter(t => shop.items.some(it => it.tab === t.id));
+  if (shop.items.some(it => !known.includes(it.tab))) tabs.push({ id: 'other', label: 'Other', icon: 'box' });
+  if (!tabs.length) tabs.push({ id: 'all', label: 'Everything', icon: 'bag' });
+  SH.tabs = tabs;
+  SH.tab = tabs[0].id;
+  side = 'shop';
+  $('stTitle').textContent = (shop.title || 'Shoe supplies').toUpperCase();
+  $('store').hidden = false;
+  document.body.classList.add('side-open');
+  renderShop();
+}
+
+const tabItems = id => SH.shop.items.filter(it =>
+  id === 'all' || it.tab === id || (id === 'other' && !SH.tabs.some(t => t.id === it.tab && t.id !== 'other')));
+const shopTotal = () => SH.shop.items.reduce((n, it) => n + (SH.cart[it.name] || 0) * it.price, 0);
+
+function addToCart(name, d) {
+  const sh = SH.shop;
+  const it = sh.items.find(x => x.name === name);
+  if (!it || sh.level < it.level) return;
+  const n = Math.max(0, Math.min(sh.max, (SH.cart[name] || 0) + d));
+  if (n) SH.cart[name] = n; else delete SH.cart[name];
   renderShop();
 }
 
 function renderShop() {
   const sh = SH.shop;
-  $('sideSub').textContent = `${sh.account === 'bank' ? 'Bank' : 'Cash'} ${money(sh.money)} · Level ${sh.level}`;
-  $('shopList').innerHTML = '';
-  let total = 0;
-  sh.items.forEach(it => {
+  const locked = sh.items.filter(it => sh.level < it.level).length;
+  $('stSub').textContent = `Level ${sh.level}` + (locked ? ' · higher levels unlock more stock' : '');
+
+  $('stTabs').innerHTML = SH.tabs.map(t => {
+    const n = tabItems(t.id).reduce((c, it) => c + (SH.cart[it.name] || 0), 0);
+    return `<button class="${t.id === SH.tab ? 'on' : ''}" data-tab="${esc(t.id)}">${icon(t.icon || 'box')}<span>${esc(t.label)}</span>${n ? `<em>${n}</em>` : ''}</button>`;
+  }).join('');
+
+  $('stGrid').innerHTML = tabItems(SH.tab).map(it => {
     const qty = SH.cart[it.name] || 0;
-    total += qty * it.price;
-    const locked = sh.level < it.level;
-    const row = document.createElement('div');
-    row.className = 'row' + (qty ? ' sel' : '');
-    row.innerHTML = `<span class="av img"><img src="${img(it.name)}" alt=""></span>` +
-      `<span class="row-txt"><b>${esc(it.label)}</b><span><span class="price">${money(it.price)}</span> each</span></span>` +
-      (locked ? `<span class="tag warn">${icon('lock')}Lv ${it.level}</span>` :
-        `<span class="stepper"><button data-d="-1">${icon('minus')}</button><span>${qty}</span><button data-d="1">${icon('plus')}</button></span>`);
-    row.querySelectorAll('.stepper button').forEach(b => b.addEventListener('click', e => {
-      const n = Math.max(0, Math.min(sh.max, qty + Number(b.dataset.d) * (e.shiftKey ? 5 : 1)));
-      if (n) SH.cart[it.name] = n; else delete SH.cart[it.name];
-      renderShop();
-    }));
-    $('shopList').appendChild(row);
-  });
-  $('shopTotal').textContent = money(total);
-  const broke = total > sh.money;
-  setNote($('shopStatus'), 'err', broke ? `That's more than you have (<b>${money(sh.money)}</b>).` : '');
-  $('buyBtn').disabled = total === 0 || broke;
+    const lock = sh.level < it.level;
+    return `<button class="st-card${lock ? ' locked' : ''}${qty ? ' in' : ''}" data-name="${esc(it.name)}" ${lock ? 'disabled' : ''}>
+      <span class="st-img"><img src="${img(it.name)}" alt=""></span>
+      ${lock ? `<span class="st-lock">${icon('lock')}Level ${it.level}</span>` : ''}
+      ${qty ? `<span class="st-qty">${qty}</span>` : ''}
+      <b>${esc(it.label)}</b>
+      <p>${esc(it.description || '')}</p>
+      <span class="st-foot"><span class="st-price">${money(it.price)}</span><span class="st-add">${icon('plus')}</span></span>
+    </button>`;
+  }).join('');
+
+  $('stAcct').innerHTML = sh.accounts.map(a =>
+    `<button class="${a === SH.account ? 'on' : ''}" data-acct="${esc(a)}">${esc(ACCOUNT[a] || a)} · ${money(sh.money[a] || 0)}</button>`).join('');
+
+  const lines = sh.items.filter(it => SH.cart[it.name]);
+  $('stLines').innerHTML = lines.length ? lines.map(it => `<div class="st-line" data-name="${esc(it.name)}">
+      <span class="av img"><img src="${img(it.name)}" alt=""></span>
+      <span class="st-lt"><b>${esc(it.label)}</b><span>${money(it.price * SH.cart[it.name])}</span></span>
+      <span class="stepper"><button data-d="-1">${icon('minus')}</button><span>${SH.cart[it.name]}</span><button data-d="1">${icon('plus')}</button></span>
+    </div>`).join('') : `<div class="st-empty">${icon('cart')}<span>Nothing in your basket yet</span></div>`;
+
+  const total = shopTotal();
+  const have = sh.money[SH.account] || 0;
+  $('stTotal').textContent = money(total);
+  const broke = total > have;
+  setNote($('stNote'), 'err', broke ? `That's more than you have in ${(ACCOUNT[SH.account] || SH.account).toLowerCase()} (<b>${money(have)}</b>).` : '');
+  $('stBuy').disabled = total === 0 || broke;
 }
 
-$('buyBtn').addEventListener('click', async () => {
-  if ($('buyBtn').disabled) return;
-  $('buyBtn').disabled = true;
+$('stTabs').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]');
+  if (!b) return;
+  SH.tab = b.dataset.tab;
+  renderShop();
+});
+$('stGrid').addEventListener('click', e => {
+  const b = e.target.closest('.st-card');
+  if (b && !b.disabled) addToCart(b.dataset.name, e.shiftKey ? 5 : 1);
+});
+$('stLines').addEventListener('click', e => {
+  const b = e.target.closest('.stepper button');
+  if (!b) return;
+  addToCart(b.closest('.st-line').dataset.name, Number(b.dataset.d) * (e.shiftKey ? 5 : 1));
+});
+$('stAcct').addEventListener('click', e => {
+  const b = e.target.closest('button[data-acct]');
+  if (!b) return;
+  SH.account = b.dataset.acct;
+  renderShop();
+});
+$('stClose').addEventListener('click', closeSide);
+$('stGuide').addEventListener('click', () => showGuide(true));
+
+$('stBuy').addEventListener('click', async () => {
+  if ($('stBuy').disabled) return;
+  $('stBuy').disabled = true;
   let res = null;
   try {
-    const r = await fetch(`https://${RES}/buy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cart: SH.cart }) });
+    const r = await fetch(`https://${RES}/buy`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cart: SH.cart, account: SH.account }) });
     res = await r.json();
   } catch (e) { /* closed, or a browser preview */ }
   if (res && res.ok) {
     SH.cart = {};
-    if (typeof res.money === 'number') SH.shop.money = res.money;
+    if (typeof res.money === 'number') SH.shop.money[SH.account] = res.money;
   }
   if (side === 'shop') renderShop();
 });

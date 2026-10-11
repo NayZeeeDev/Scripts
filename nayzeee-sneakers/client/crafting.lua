@@ -246,7 +246,8 @@ local supplierPed
 local function shopItems()
     local out = {}
     for name, m in pairs(Shared.SupplierGoods()) do
-        out[#out + 1] = { name = name, label = m.label, price = m.price, level = m.level or 1 }
+        out[#out + 1] = { name = name, label = m.label, price = m.price, level = m.level or 1, description = m.description,
+            tab = m.tab or (Config.Materials[name] and 'materials') or 'other' }
     end
     table.sort(out, function(a, b)
         if a.level ~= b.level then return a.level < b.level end
@@ -261,13 +262,13 @@ local function openShop()
     if not data then return end
     SetNuiFocus(true, true)
     SendNUIMessage({ action = 'shop', shop = {
-        title = S.label, money = data.money, level = data.level, account = S.account,
-        max = S.maxPerItem, items = shopItems(),
+        title = S.label, money = data.money, level = data.level, account = S.account, accounts = data.accounts,
+        max = S.maxPerItem, items = shopItems(), tabs = S.Tabs,
     } })
 end
 
 RegisterNUICallback('buy', function(d, cb)
-    local ok, spent, money = lib.callback.await('nayzeee-sneakers:buy', false, d.cart or {})
+    local ok, spent, money = lib.callback.await('nayzeee-sneakers:buy', false, d.cart or {}, d.account)
     if ok then UI.Notify(Config.Text.bought:format(spent), 'success') end
     cb({ ok = ok == true, money = money })
 end)

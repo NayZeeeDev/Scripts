@@ -135,22 +135,42 @@
     </div>
 
     <!-- supplier shop -->
-    <div class="main scroll" id="shop" hidden>
-      <section class="panel">
-        <div class="p-head"><div><h2>Materials</h2><p>Shift-click to add five</p></div></div>
-        <div class="p-body" id="shopList"></div>
-      </section>
-      <div class="stat total">
-        <div class="tile" data-icon="cart"></div>
-        <div class="stat-txt"><span>Total</span><b id="shopTotal">$0</b></div>
-      </div>
-      <div class="note" id="shopStatus"></div>
-      <button class="btn-teal wide" id="buyBtn"><span data-icon="cart"></span>Buy</button>
-    </div>
-
     <div class="statusbar" id="sideKeys">
       <span><span class="key">ESC</span>Close</span>
       <span><span class="key">G</span>Guide</span>
+    </div>
+  </div></div>
+</div>
+
+<!-- ═══════════ Shoe Supplies store: tabs + item grid, basket on the right ═══════════ -->
+<div class="win store" id="store" hidden>
+  <div class="frame"><div class="shell">
+    <div class="bar">
+      <div class="bar-brand">
+        <div class="bar-ic" data-icon="bag"></div>
+        <div><div class="title-txt" id="stTitle">SHOE SUPPLIES</div><div class="sub" id="stSub"></div></div>
+      </div>
+      <button class="btn-ghost" id="stGuide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>Guide</button>
+      <button class="pill-close" id="stClose">Close</button>
+    </div>
+    <div class="st-body">
+      <div class="st-left">
+        <div class="st-tabs" id="stTabs"></div>
+        <div class="st-grid" id="stGrid"></div>
+      </div>
+      <aside class="st-basket">
+        <div class="st-bh"><b>Basket</b><span>Click items to add them.</span></div>
+        <div class="st-acct" id="stAcct"></div>
+        <div class="st-lines" id="stLines"></div>
+        <div class="st-total"><span>Total</span><b id="stTotal">$0</b></div>
+        <div class="note" id="stNote"></div>
+        <button class="btn-teal wide" id="stBuy"><span data-icon="cart"></span>Buy</button>
+      </aside>
+    </div>
+    <div class="statusbar">
+      <span><span class="key">ESC</span>Close</span>
+      <span><span class="key">G</span>Guide</span>
+      <span><span class="key">SHIFT</span>Click adds five</span>
     </div>
   </div></div>
 </div>
