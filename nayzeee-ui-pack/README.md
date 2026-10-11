@@ -75,6 +75,24 @@ In a browser preview a small shape picker sits at the top of every theme, and `?
 
 Corner sizes scale with each element's `--cut`, and the extra corners are capped, so they stay clear of padded content. If you build your own clipped element, use `clip-path: var(--nz-shape)` (or `var(--nz-shape-in)` inside a `.nz-frame`) instead of writing a polygon.
 
+## Icons
+
+![NAYZEEE icons](preview-icons.png)
+
+`icons/` holds 211 original NAYZEEE icons (plus 34 aliases) drawn in the brand style: chamfered corners, the bigger bottom-right cut on container shapes, a 1.75 stroke, and an optional teal accent. Open `icons/index.html` to search them and click to copy.
+
+| Use it as | How |
+|-----------|-----|
+| Icon font style | `<link rel="stylesheet" href="icons/nz-icons.css">` then `<i class="nzi nzi-car"></i>` (sizes `nzi-sm` `nzi-lg` `nzi-2x`…, `nzi-spin`) |
+| Font Awesome drop-in | load `icons/nz-icons-fa.css` after Font Awesome, and existing `<i class="fa-solid fa-car">` markup shows the NAYZEEE icon. 344 FA names are covered; anything else keeps coming from Font Awesome |
+| UI pack | already built in: `NZ.icon('car')` or `<i data-ic="car"></i>` |
+| Sprite | `<svg class="nzi-svg"><use href="icons/nz-icons.svg#car"/></svg>` (works in game; browsers block it when you open the page straight from disk) |
+| Files | `icons/svg/car.svg` |
+
+Duotone: set `--nzi-accent: #08afa2` (or add `nzi-duo`) on any parent and each icon's accent detail turns teal. Works with `NZ.icon`, the sprite and the SVG files; the `nzi` classes are single-colour.
+
+To add or change an icon, edit `icons/src/icons.js` and run `node icons/build.js` (no installs needed). It regenerates every format, including the icons built into `core/nz-core.js`.
+
 ## Using a theme in a resource
 
 Copy `core/` and one theme folder into your resource's `html/` folder, keeping both side by side:

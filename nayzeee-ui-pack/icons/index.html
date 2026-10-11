@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE Icons</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="nz-icons.css">
+<style>
+/* cheatsheet page only */
+body{overflow:auto;user-select:auto;background:radial-gradient(1100px 640px at 50% -8%,#131718 0%,transparent 62%),var(--void);padding:48px 28px 96px}
+.wrap{width:min(1320px,100%);margin:0 auto}
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:28px}
+.hero .nz-lockup{gap:16px}
+.hero h1{font-size:32px;font-weight:700;letter-spacing:-.035em;color:var(--white);line-height:1}
+.hero h1 span{color:var(--teal)}
+.hero p{font-size:13px;color:var(--ink-3);font-weight:300;margin-top:9px;max-width:62ch;line-height:1.6}
+
+.bar{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 0;margin-bottom:6px;
+  background:linear-gradient(var(--void) 80%,transparent)}
+.search{position:relative;flex:1;min-width:220px;max-width:360px}
+.search .nzi{position:absolute;left:12px;top:50%;margin-top:-7px;font-size:14px;color:var(--ink-3)}
+.search .nz-input{height:38px;padding-left:34px;border-radius:999px}
+.seg{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--panel);box-shadow:0 0 0 1px var(--line-soft) inset}
+.seg button{height:30px;padding:0 12px;border-radius:999px;font-size:11.5px;color:var(--ink-2)}
+.seg button:hover{color:var(--white)}
+.seg button.on{background:var(--white);color:#000;font-weight:600}
+.size{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-3)}
+.size input{accent-color:var(--teal);width:110px}
+.tog{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-2);cursor:pointer}
+
+.cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.cat{height:28px;padding:0 12px;border-radius:999px;font-size:11.5px;color:var(--ink-2);border:1px solid var(--line-soft)}
+.cat span{color:var(--ink-3);margin-left:5px;font-size:10px}
+.cat:hover{color:var(--white);border-color:var(--line)}
+.cat.on{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
+
+.layout{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.ic{--cut:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;height:104px;padding:10px 6px;
+  background:var(--panel);box-shadow:0 0 0 1px var(--line-soft) inset;border-radius:var(--r-md);color:var(--ink);clip-path:var(--nz-shape);
+  transition:background var(--fast),box-shadow var(--fast),color var(--fast)}
+.ic svg{width:var(--sz,28px);height:var(--sz,28px)}
+.ic span{font-size:10.5px;color:var(--ink-3);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic:hover{background:var(--raise);color:var(--white)}
+.ic.on{background:var(--teal-wash);box-shadow:0 0 0 1px var(--teal-edge) inset;color:var(--white)}
+.ic.on span{color:var(--teal)}
+.duo .ic svg{--nzi-accent:var(--teal)}
+.grid .nz-empty{grid-column:1/-1}
+
+/* detail */
+.detail{--cut:20px;position:sticky;top:64px;padding:20px;background:var(--base);box-shadow:0 0 0 1px var(--line) inset;border-radius:var(--r-lg);clip-path:var(--nz-shape)}
+.big{display:grid;place-items:center;height:150px;border-radius:var(--r-md);color:var(--white);
+  background:radial-gradient(70% 80% at 50% 40%,rgba(8,175,162,.14),transparent),var(--inset);box-shadow:0 0 0 1px var(--line-hair) inset}
+.big svg{width:84px;height:84px}
+.duo .big svg{--nzi-accent:var(--teal)}
+.sizes{display:flex;align-items:flex-end;justify-content:center;gap:18px;margin:14px 0 4px;color:var(--ink-2)}
+.sizes svg{display:block}
+.detail h2{font-size:18px;font-weight:600;color:var(--white);letter-spacing:-.02em;margin-top:14px}
+.detail .meta{font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.6}
+.detail .meta b{color:var(--ink-2);font-weight:500}
+.snips{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.snip{display:flex;flex-direction:column;gap:5px}
+.snip small{font-size:10px;color:var(--ink-3);letter-spacing:.04em}
+.snip code{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r-sm);background:var(--inset);box-shadow:0 0 0 1px var(--line-soft) inset;
+  font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);word-break:break-all;cursor:pointer}
+.snip code:hover{box-shadow:0 0 0 1px var(--teal-edge) inset}
+.snip code .nzi{margin-left:auto;flex:none;color:var(--ink-3)}
+
+.how{margin-top:40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.how > div{--cut:16px;padding:18px;background:var(--panel);box-shadow:0 0 0 1px var(--line-soft) inset;border-radius:var(--r-md);clip-path:var(--nz-shape)}
+.how h3{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600;color:var(--white)}
+.how h3 .nz-chip{margin-left:auto}
+.how p{font-size:11.5px;color:var(--ink-3);line-height:1.6;margin:8px 0 10px}
+.how pre{padding:10px 12px;border-radius:var(--r-sm);background:var(--inset);box-shadow:0 0 0 1px var(--line-soft) inset;
+  font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.how pre em{font-style:normal;color:var(--teal)}
+
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:999px;
+  background:var(--panel);box-shadow:0 0 0 1px var(--teal-edge) inset,var(--sh-2);font-size:12px;color:var(--white);opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+.toast .nzi{color:var(--teal)}
+footer{margin-top:40px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;font-size:11px;color:var(--ink-3)}
+@media (max-width:980px){.layout{grid-template-columns:1fr}.detail{position:static}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="nz-lockup">
+      <div class="nz-mark xl"></div>
+      <div>
+        <h1>NAYZEEE <span>Icons</span></h1>
+        <p>Original icons for NAYZEEE scripts. Chamfered corners, the bigger cut on container shapes, a 1.75 stroke and an optional teal accent. Use them like an icon font, as SVG, or straight through <b style="color:var(--ink-2);font-weight:500">NZ.icon()</b>. Click any icon to copy it.</p>
+      </div>
+    </div>
+    <span class="nz-ver" id="count"></span>
+  </header>
+
+  <div class="bar">
+    <label class="search"><i class="nzi nzi-search"></i><input class="nz-input" id="q" placeholder="Search 200+ icons, or a Font Awesome name"></label>
+    <div class="seg" id="fmt">
+      <button data-f="class" class="on">Class</button><button data-f="nz">NZ.icon</button><button data-f="sprite">Sprite</button><button data-f="svg">SVG</button><button data-f="fa">FA name</button>
+    </div>
+    <label class="size">Size <input type="range" id="sz" min="16" max="48" value="28"></label>
+    <label class="tog"><span class="nz-sw" id="duo"><i></i></span>Teal accent</label>
+  </div>
+  <div class="cats" id="cats"></div>
+
+  <div class="layout">
+    <section class="grid" id="grid"></section>
+    <aside class="detail" id="detail"></aside>
+  </div>
+
+  <section class="how">
+    <div><h3><i class="nzi nzi-code"></i>Icon font style<span class="nz-chip">easiest</span></h3>
+      <p>Load one stylesheet, then use classes like Font Awesome. Icons take the text colour and font size.</p>
+      <pre>&lt;link rel="stylesheet" href="<em>icons/nz-icons.css</em>"&gt;
+
+&lt;i class="nzi <em>nzi-car</em>"&gt;&lt;/i&gt;
+&lt;i class="nzi <em>nzi-cash</em> nzi-lg"&gt;&lt;/i&gt;</pre></div>
+    <div><h3><i class="nzi nzi-swap"></i>Keep your Font Awesome markup</h3>
+      <p>Load this after Font Awesome. Any FA name we cover shows the NAYZEEE icon instead; everything else keeps working from Font Awesome.</p>
+      <pre>&lt;link rel="stylesheet" href="fontawesome.css"&gt;
+&lt;link rel="stylesheet" href="<em>icons/nz-icons-fa.css</em>"&gt;
+
+&lt;i class="fa-solid <em>fa-car</em>"&gt;&lt;/i&gt;  → NAYZEEE car</pre></div>
+    <div><h3><i class="nzi nzi-grid"></i>In the UI pack</h3>
+      <p>Every theme already uses this set through the core. Duotone: set <b>--nzi-accent</b> on any parent.</p>
+      <pre>&lt;i data-ic="<em>car</em>"&gt;&lt;/i&gt;
+el.innerHTML = NZ.icon('<em>car</em>');
+
+.panel { --nzi-accent: var(--teal); }</pre></div>
+    <div><h3><i class="nzi nzi-file"></i>SVG files and sprite</h3>
+      <p>One file per icon in <b>icons/svg/</b>, or a sprite with every icon. The sprite keeps the teal accent option.</p>
+      <pre>&lt;img src="<em>icons/svg/car.svg</em>"&gt;
+
+&lt;svg class="nzi-svg"&gt;&lt;use href="<em>icons/nz-icons.svg#car</em>"/&gt;&lt;/svg&gt;</pre></div>
+  </section>
+
+  <footer>
+    <span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE <em>· icons</em></span>
+    <span>Edit <b>icons/src/icons.js</b>, then run <b>node icons/build.js</b> to regenerate every format.</span>
+  </footer>
+</div>
+<div class="toast" id="toast"><i class="nzi nzi-check"></i><span></span></div>
+
+<script src="nz-icons.data.js"></script>
+<script>
+const { icons, alias } = window.NZ_ICON_DATA;
+const $ = s => document.querySelector(s);
+const SVG = (inner, size = 24) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="miter">${inner}</svg>`;
+const aliasesOf = n => Object.keys(alias).filter(a => alias[a] === n);
+let cat = 'All', fmt = 'class', sel = icons[0].name;
+
+$('#count').textContent = `${icons.length} icons · ${Object.keys(alias).length} aliases`;
+
+const cats = ['All', ...new Set(icons.map(i => i.cat))];
+function drawCats() {
+  $('#cats').innerHTML = cats.map(c => `<button class="cat ${c === cat ? 'on' : ''}" data-c="${c}">${c}<span>${c === 'All' ? icons.length : icons.filter(i => i.cat === c).length}</span></button>`).join('');
+  document.querySelectorAll('.cat').forEach(b => b.onclick = () => { cat = b.dataset.c; drawCats(); draw(); });
+}
+
+function snippet(name, f = fmt) {
+  const i = icons.find(x => x.name === name);
+  return {
+    class: `<i class="nzi nzi-${name}"></i>`,
+    nz: `NZ.icon('${name}')`,
+    sprite: `<svg class="nzi-svg"><use href="icons/nz-icons.svg#${name}"/></svg>`,
+    svg: SVG(i.svg).replace(' width="24" height="24"', ''),
+    fa: i.fa.length ? `<i class="fa-solid fa-${i.fa[0]}"></i>` : `<i class="nzi nzi-${name}"></i>`,
+  }[f];
+}
+
+function draw() {
+  const q = $('#q').value.trim().toLowerCase();
+  const list = icons.filter(i => (cat === 'All' || i.cat === cat) &&
+    (!q || i.name.includes(q) || i.tags.includes(q) || i.fa.some(f => f.includes(q)) || aliasesOf(i.name).some(a => a.includes(q))));
+  $('#grid').innerHTML = list.length ? list.map(i => `<button class="ic ${i.name === sel ? 'on' : ''}" data-n="${i.name}" title="${i.name}${i.fa.length ? ' · fa-' + i.fa.join(', fa-') : ''}">${SVG(i.svg)}<span>${i.name}</span></button>`).join('')
+    : `<div class="nz-empty"><i class="nzi nzi-search"></i><b>No icon matches “${q.replace(/[<>&"]/g, '')}”</b><span>Try a shorter word or a Font Awesome name like “car-side”.</span></div>`;
+  document.querySelectorAll('.ic').forEach(b => b.onclick = () => { sel = b.dataset.n; copy(snippet(sel)); draw(); detail(); });
+}
+
+function detail() {
+  const i = icons.find(x => x.name === sel);
+  const al = aliasesOf(i.name);
+  $('#detail').innerHTML = `<div class="big">${SVG(i.svg, 84)}</div>
+    <div class="sizes">${[14, 16, 20, 24, 32].map(s => SVG(i.svg, s)).join('')}</div>
+    <h2>${i.name}</h2>
+    <div class="meta">${i.cat}${al.length ? ` · also <b>${al.join(', ')}</b>` : ''}${i.fa.length ? `<br>Replaces Font Awesome <b>fa-${i.fa.join(', fa-')}</b>` : ''}</div>
+    <div class="snips">${[['class', 'Icon font class'], ['nz', 'UI pack (JS)'], ['sprite', 'Sprite'], ['fa', 'Font Awesome markup (with nz-icons-fa.css)']]
+      .map(([f, l]) => `<div class="snip"><small>${l}</small><code data-f="${f}">${snippet(i.name, f).replace(/</g, '&lt;')}<i class="nzi nzi-copy"></i></code></div>`).join('')}</div>`;
+  document.querySelectorAll('.snip code').forEach(c => c.onclick = () => copy(snippet(sel, c.dataset.f)));
+}
+
+function copy(text) {
+  const done = () => { const t = $('#toast'); t.querySelector('span').textContent = 'Copied ' + (text.length > 48 ? text.slice(0, 46) + '…' : text); t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1600); };
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch {} ta.remove(); done(); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+}
+
+$('#q').oninput = draw;
+document.querySelectorAll('#fmt button').forEach(b => b.onclick = () => { fmt = b.dataset.f; document.querySelectorAll('#fmt button').forEach(x => x.classList.toggle('on', x === b)); });
+$('#sz').oninput = e => document.documentElement.style.setProperty('--sz', e.target.value + 'px');
+$('#duo').onclick = () => { $('#duo').classList.toggle('on'); document.body.classList.toggle('duo', $('#duo').classList.contains('on')); };
+document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== $('#q')) { e.preventDefault(); $('#q').focus(); } });
+
+drawCats(); draw(); detail();
+</script>
+</body>
+</html>

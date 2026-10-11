@@ -1,0 +1,247 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+<symbol id="arrow-up" viewBox="0 0 24 24"><path d="M12 20V4M5.5 10.5 12 4l6.5 6.5"/></symbol>
+<symbol id="arrow-down" viewBox="0 0 24 24"><path d="M12 4v16M5.5 13.5 12 20l6.5-6.5"/></symbol>
+<symbol id="arrow-l" viewBox="0 0 24 24"><path d="M20 12H4M10.5 5.5 4 12l6.5 6.5"/></symbol>
+<symbol id="arrow-r" viewBox="0 0 24 24"><path d="M4 12h16M13.5 5.5 20 12l-6.5 6.5"/></symbol>
+<symbol id="arrow-ur" viewBox="0 0 24 24"><path d="M6 18 18 6M8 6h10v10"/></symbol>
+<symbol id="chev-u" viewBox="0 0 24 24"><path d="m5 15 7-7 7 7"/></symbol>
+<symbol id="chev-d" viewBox="0 0 24 24"><path d="m5 9 7 7 7-7"/></symbol>
+<symbol id="chev-l" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+<symbol id="chev-r" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path class="a" d="m15.5 15.5 5 5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+<symbol id="funnel" viewBox="0 0 24 24"><path d="M3.5 4.5h17l-6.5 8v6l-4 2v-8z"/></symbol>
+<symbol id="sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle class="a" cx="16" cy="7" r="2" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="10" cy="17" r="2"/></symbol>
+<symbol id="menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+<symbol id="more-v" viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.5" fill="currentColor" stroke="none"/></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><path d="M4.2 3H9.3L10.5 4.2V9.3L9.3 10.5H4.2L3 9.3V4.2Z"/><path d="M14.7 3H19.8L21 4.2V9.3L19.8 10.5H14.7L13.5 9.3V4.2Z"/><path d="M4.2 13.5H9.3L10.5 14.7V19.8L9.3 21H4.2L3 19.8V14.7Z"/><path class="a" d="M14.7 13.5H19.8L21 14.7V17.8L17.8 21H14.7L13.5 19.8V14.7Z" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/><path d="M9 6h11M9 12h11M9 18h7"/></symbol>
+<symbol id="edit" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L9 20H4v-5z"/><path class="a" d="M12.5 6.5l5 5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M4 6.5h16M9 6.5V4h6v2.5M6 6.5l1 13.5h10l1-13.5"/><path class="a" d="M10 10.5v6M14 10.5v6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><path d="M9.5 8H18.5L20 9.5V16.5L16.5 20H9.5L8 18.5V9.5Z"/><path d="M16 8V5.5L14.5 4H5.5L4 5.5v9L5.5 16H8"/></symbol>
+<symbol id="save" viewBox="0 0 24 24"><path d="M4 5.5 5.5 4H16l4 4v10.5L18.5 20h-13L4 18.5z"/><path d="M8 4v4.5h7V4"/><path class="a" d="M7.5 20v-6h9v6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="download" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5"/><path class="a" d="M4 20h16" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="upload" viewBox="0 0 24 24"><path d="M12 15V4M7 8.5l5-5 5 5"/><path class="a" d="M4 20h16" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="lock" viewBox="0 0 24 24"><path d="M6.5 10.5H17.5L19 12V17L15.5 20.5H6.5L5 19V12Z"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><path class="a" d="M12 14.5v2.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="unlock" viewBox="0 0 24 24"><path d="M6.5 10.5H17.5L19 12V17L15.5 20.5H6.5L5 19V12Z"/><path d="M8 10.5V8a4 4 0 0 1 7.7-1.5"/><path class="a" d="M12 14.5v2.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle class="a" cx="12" cy="12" r="3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="eye-off" viewBox="0 0 24 24"><path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4M6.2 7.2A16 16 0 0 0 2.5 12s3.5 6.5 9.5 6.5a9 9 0 0 0 4.8-1.4M10 10a3 3 0 0 0 4 4"/><path class="a" d="M4 4l16 16" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path class="a" d="M10 21h4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="info" viewBox="0 0 24 24"><path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path class="a" d="M12 11v5.5" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M10.3 4 2.6 17.5A1.9 1.9 0 0 0 4.3 20.5h15.4a1.9 1.9 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z"/><path class="a" d="M12 9.5v4.5" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="12" cy="17" r="1.1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="error" viewBox="0 0 24 24"><path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path class="a" d="M12 7.5v5.5" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="12" cy="16.3" r="1.1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="help" viewBox="0 0 24 24"><path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path class="a" d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="12" cy="16.8" r="1.1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="success" viewBox="0 0 24 24"><path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path class="a" d="M8 12.2l2.8 2.8L16 9.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h5v-5.5h3V20h5V9.5"/></symbol>
+<symbol id="refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></symbol>
+<symbol id="rot-l" viewBox="0 0 24 24"><path d="M4 4v5h5M4.6 9A8 8 0 1 1 6 17"/></symbol>
+<symbol id="rot-r" viewBox="0 0 24 24"><path d="M20 4v5h-5M19.4 9A8 8 0 1 0 18 17"/></symbol>
+<symbol id="history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4v4.5H8"/><path class="a" d="M12 7.5V12l3 2" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="external" viewBox="0 0 24 24"><path d="M13.5 4H20v6.5M20 4l-9 9"/><path d="M18 14v4.5L16.5 20h-11L4 18.5v-11L5.5 6H10"/></symbol>
+<symbol id="link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+<symbol id="login" viewBox="0 0 24 24"><path d="M14 4h4.5L20 5.5v13L18.5 20H14"/><path class="a" d="M10 16l4-4-4-4M14 12H4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="logout" viewBox="0 0 24 24"><path d="M10 4H5.5L4 5.5v13L5.5 20H10"/><path class="a" d="M16 16l4-4-4-4M20 12H9" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="power" viewBox="0 0 24 24"><path d="M7 6a7.5 7.5 0 1 0 10 0"/><path class="a" d="M12 3v8" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path class="a" d="M12 7v5l3.5 2" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="timer" viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="7.5"/><path d="M9.5 2.5h5"/><path class="a" d="M12 9.5v4l2.5 1.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="calendar" viewBox="0 0 24 24"><path d="M5 5H19L20.5 6.5V17L17 20.5H5L3.5 19V6.5Z"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path class="a" d="M7.5 13H9.5L10 13.5V15.5L9.5 16H7.5L7 15.5V13.5Z" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+<symbol id="cog" viewBox="0 0 24 24"><path d="M10.3 3h3.4l.6 2.4 1.6.9 2.4-.7 1.7 2.9-1.8 1.7v1.6l1.8 1.7-1.7 2.9-2.4-.7-1.6.9-.6 2.4h-3.4l-.6-2.4-1.6-.9-2.4.7-1.7-2.9 1.8-1.7v-1.6L3.6 8.5l1.7-2.9 2.4.7 1.6-.9z"/><circle class="a" cx="12" cy="12" r="3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></symbol>
+<symbol id="sortd" viewBox="0 0 24 24"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5"/><path class="a" d="M13 6h8M13 12h6M13 18h3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="sortu" viewBox="0 0 24 24"><path d="M7 20V4M3.5 7.5 7 4l3.5 3.5"/><path class="a" d="M13 6h3M13 12h6M13 18h8" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+<symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+<symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle class="a" cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+<symbol id="flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path class="a" d="M5 4h12l-2.5 4.5L17 13H5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="ruler" viewBox="0 0 24 24"><path d="M4 8H20L21.5 9.5V13L18.5 16H4L2.5 14.5V9.5Z"/><path class="a" d="M7 8v3.5M10.5 8v2M14 8v3.5M17.5 8v2" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="percent" viewBox="0 0 24 24"><path d="M5 19 19 5"/><circle cx="7" cy="7" r="2.5"/><circle class="a" cx="17" cy="17" r="2.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="keyboard" viewBox="0 0 24 24"><path d="M4 6H20L21.5 7.5V15L18.5 18H4L2.5 16.5V7.5Z"/><path class="a" d="M7 14.5h10" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="6.5" cy="10" r="0.9" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="0.9" fill="currentColor" stroke="none"/><circle cx="13.5" cy="10" r="0.9" fill="currentColor" stroke="none"/><circle cx="17" cy="10" r="0.9" fill="currentColor" stroke="none"/></symbol>
+<symbol id="mouse" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 1 6 6v6a6 6 0 0 1-12 0V9a6 6 0 0 1 6-6z"/><path class="a" d="M12 7v3.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></symbol>
+<symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path class="a" d="M15.5 4.8a3.2 3.2 0 0 1 0 6.4M17.5 14.2A6 6 0 0 1 21 20" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="user-plus" viewBox="0 0 24 24"><circle cx="9.5" cy="8" r="3.8"/><path d="M3 20.5a6.5 6.5 0 0 1 13 0"/><path class="a" d="M19 8v6M16 11h6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="user-x" viewBox="0 0 24 24"><circle cx="9.5" cy="8" r="3.8"/><path d="M3 20.5a6.5 6.5 0 0 1 13 0"/><path class="a" d="M17 8.5l4 4M21 8.5l-4 4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="person" viewBox="0 0 24 24"><circle cx="12" cy="4.8" r="2.2"/><path d="M12 7.5v7M7.5 10.5h9"/><path class="a" d="M12 14.5 9 21M12 14.5l3 6.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="id" viewBox="0 0 24 24"><path d="M4 5H20L21.5 6.5V15.5L18 19H4L2.5 17.5V6.5Z"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16.2a3 3 0 0 1 6 0"/><path class="a" d="M14 10h4.5M14 13.5h3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="badge" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/><path class="a" d="m12 8.5 1.1 2.2 2.4.4-1.7 1.7.4 2.4-2.2-1.1-2.2 1.1.4-2.4-1.7-1.7 2.4-.4z" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="crown" viewBox="0 0 24 24"><path d="M3.5 8 7.5 12 12 5l4.5 7 4-4-1.5 10.5h-14z"/><path class="a" d="M5.5 21h13" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="face" viewBox="0 0 24 24"><path d="M12 3C8 3 5.5 6 5.5 10.5c0 5 3 10.5 6.5 10.5s6.5-5.5 6.5-10.5C18.5 6 16 3 12 3z"/><circle cx="9.5" cy="10.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="14.5" cy="10.5" r="0.9" fill="currentColor" stroke="none"/><path class="a" d="M10 15.5c1.2.8 2.8.8 4 0" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="9.8" r="0.9" fill="currentColor" stroke="none"/><circle cx="15" cy="9.8" r="0.9" fill="currentColor" stroke="none"/><path class="a" d="M8.5 14a4.5 4.5 0 0 0 7 0" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="hand" viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v7c0 4.5-2.5 8-6.5 8-2.5 0-4-1.3-5.5-3.5L3.5 14a1.5 1.5 0 0 1 2.5-1.5L8 15"/></symbol>
+<symbol id="wave" viewBox="0 0 24 24"><path d="M7 11V6.5a1.5 1.5 0 0 1 3 0V11M10 10.5V4.5a1.5 1.5 0 0 1 3 0V11M13 11V6a1.5 1.5 0 0 1 3 0v7c0 4.5-2.5 8-6 8-2.5 0-4-1.3-5.5-3.5L3 14.5M18 3.5c1.5.8 2.5 2.2 2.8 4"/></symbol>
+<symbol id="walk" viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="1.8"/><path d="m9 21 2.5-6 2.5 2.5V21M8 12l2-4.5 3.5 1 2 3.5 2.5 1M11.5 15 13 8.5"/></symbol>
+<symbol id="sit" viewBox="0 0 24 24"><circle cx="9" cy="4.5" r="1.8"/><path d="M9 8v6h6l2 6M9 11h5"/><path class="a" d="M5 21h14" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="dance" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="1.8"/><path d="M6 9l6 1 5-3M12 10v5l-3 6M12 15l4 2 1 4"/></symbol>
+<symbol id="heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"/></symbol>
+<symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12.5h3.5l2-5 3.5 10 2.5-7 1.5 2H21"/></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="M12 3 4.5 5.5v6c0 4.6 3.2 8 7.5 9.5 4.3-1.5 7.5-4.9 7.5-9.5v-6z"/></symbol>
+<symbol id="shield-check" viewBox="0 0 24 24"><path d="M12 3 4.5 5.5v6c0 4.6 3.2 8 7.5 9.5 4.3-1.5 7.5-4.9 7.5-9.5v-6z"/><path class="a" d="m8.5 12 2.5 2.5 4.5-5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="food" viewBox="0 0 24 24"><path d="M4 11a8 6 0 0 1 16 0z"/><path class="a" d="M3.5 14.5h17" style="stroke:var(--nzi-accent,currentColor)"/><path d="M5 18.5h14l1-1.5H4z"/></symbol>
+<symbol id="drop" viewBox="0 0 24 24"><path d="M12 3.5s6 6.6 6 11a6 6 0 0 1-12 0c0-4.4 6-11 6-11z"/></symbol>
+<symbol id="bolt" viewBox="0 0 24 24"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/></symbol>
+<symbol id="brain" viewBox="0 0 24 24"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1.5V6a2 2 0 0 0-3-1.5zM15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1.5"/></symbol>
+<symbol id="thermo" viewBox="0 0 24 24"><path d="M10 4.5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path class="a" d="M12 10v7" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="wind" viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-3-3"/><path class="a" d="M3 12h15a3 3 0 1 1-3 3" style="stroke:var(--nzi-accent,currentColor)"/><path d="M3 16h7"/></symbol>
+<symbol id="mic" viewBox="0 0 24 24"><path d="M11.5 3H12.5L15 5.5V11.5L12.5 14H11.5L9 11.5V5.5Z"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path class="a" d="M12 17.5V21" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="mic-off" viewBox="0 0 24 24"><path d="M15 9.5V5.5a3 3 0 0 0-5.9-.8M9 9v2a3 3 0 0 0 5 2.2M5.5 11a6.5 6.5 0 0 0 10.6 5M18.5 11a6.5 6.5 0 0 1-.6 2.7M12 17.5V21"/><path class="a" d="M4 4l16 16" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="volume" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="a" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="a" d="M16 9.5l5 5M21 9.5l-5 5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="seat" viewBox="0 0 24 24"><path d="M5.5 3h4.5l2 10h6.5L20 14.5V20H7.5z"/><path class="a" d="M7 7.5l11 6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="signal" viewBox="0 0 24 24"><path d="M5 19v-3M10 19v-6M15 19v-9"/><path class="a" d="M20 19V6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="wifi" viewBox="0 0 24 24"><path d="M3 9a13 13 0 0 1 18 0M6 12.5a8.5 8.5 0 0 1 12 0M9 16a4 4 0 0 1 6 0"/><circle class="a" cx="12" cy="19.5" r="1.2" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="battery" viewBox="0 0 24 24"><path d="M3.7 8H18.3L19.5 9.2V13.5L17 16H3.7L2.5 14.8V9.2Z"/><path d="M21.5 11v2"/><path class="a" d="M5.5 11v2M8.5 11v2M11.5 11v2" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="gauge" viewBox="0 0 24 24"><path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><path class="a" d="m12 13 4-4" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="12" cy="13" r="1.3" fill="currentColor" stroke="none"/></symbol>
+<symbol id="car" viewBox="0 0 24 24"><path d="M5 16.5H2.5V13l2.8-1.2 3.2-4.3h6.8l3.7 4.3 2.5.9v3.8H19M9 16.5h6M5.3 11.8h13.5M12 7.5v4.3"/><circle class="a" cx="7" cy="16.5" r="2" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="17" cy="16.5" r="2"/></symbol>
+<symbol id="taxi" viewBox="0 0 24 24"><path d="M5 16.5H2.5V13l2.8-1.2 3.2-4.3h6.8l3.7 4.3 2.5.9v3.8H19M9 16.5h6M5.3 11.8h13.5M12 7.5v4.3"/><path class="a" d="M10.5 4H13.5L14 4.5V5.9L13.5 6.4H10.5L10 5.9V4.5Z" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="7" cy="16.5" r="2"/><circle cx="17" cy="16.5" r="2"/></symbol>
+<symbol id="truck" viewBox="0 0 24 24"><path d="M3.5 6H12.5L13.5 7V15.5L12.5 16.5H3.5L2.5 15.5V7Z"/><path d="M13.5 9.5h4l3 3.5v3.5h-7"/><circle class="a" cx="6.5" cy="17.5" r="2" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="17" cy="17.5" r="2"/></symbol>
+<symbol id="motorbike" viewBox="0 0 24 24"><circle cx="5.5" cy="16.5" r="3.2"/><circle class="a" cx="18.5" cy="16.5" r="3.2" style="stroke:var(--nzi-accent,currentColor)"/><path d="M5.5 16.5h6l3-5.5H8l-2 2.5M14.5 11l4 5.5M14.5 11l-1-3.5h3"/></symbol>
+<symbol id="bicycle" viewBox="0 0 24 24"><circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path class="a" d="M5.5 16.5H12L9.5 9H16l2.5 7.5M5.5 16.5 9.5 9M12 16.5 16 9" style="stroke:var(--nzi-accent,currentColor)"/><path d="M9.5 9 9 7M7.5 7h3M16 9l-.8-2.5H17"/></symbol>
+<symbol id="boat" viewBox="0 0 24 24"><path d="M3 15h18l-2.5 4.5h-13z"/><path class="a" d="M12 3v12M12 4l6 8h-6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="heli" viewBox="0 0 24 24"><path d="M5 4.5h15M12.5 4.5v3"/><path d="M8.5 7.5h6.5a5 5 0 0 1 5 5V15h-8.5a3 3 0 0 1-3-3z"/><path class="a" d="M15 7.5V11h5" style="stroke:var(--nzi-accent,currentColor)"/><path d="M8.5 10.5H3M3 8.5v4M10.5 19h10M12.5 15v4M18 15v4"/></symbol>
+<symbol id="plane" viewBox="0 0 24 24"><path d="M21 12c0-1-1-1.5-2-1.5h-5L9 3H7l2.5 7.5H5L3.5 8.5H2l1 3.5-1 3.5h1.5L5 13.5h4.5L7 21h2l5-7.5h5c1 0 2-.5 2-1.5z"/></symbol>
+<symbol id="fuel" viewBox="0 0 24 24"><path d="M5 20V5.5L6.5 4h7L15 5.5V20M3.5 20h13"/><path class="a" d="M5 10h10" style="stroke:var(--nzi-accent,currentColor)"/><path d="M15 8h1.5L18.5 10v6.5a1.5 1.5 0 0 0 3 0V9l-3-3"/></symbol>
+<symbol id="key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path class="a" d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="engine" viewBox="0 0 24 24"><path d="M4 10v6M4 13h2M6 9h3V7h5v2h2l2 2h2v6h-2l-2 2H8l-2-2V9z"/></symbol>
+<symbol id="wheel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle class="a" cx="12" cy="12" r="3" style="stroke:var(--nzi-accent,currentColor)"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></symbol>
+<symbol id="wrench" viewBox="0 0 24 24"><path d="M15 4.5a4.5 4.5 0 0 0-5.6 5.6L4 15.5V20h4.5l5.4-5.4a4.5 4.5 0 0 0 5.6-5.6L17 11.5 13.5 11 13 7.5z"/></symbol>
+<symbol id="garage" viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5V20H3z"/><path class="a" d="M7 20v-7h10v7M7 15.5h10M7 18h10" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="light" viewBox="0 0 24 24"><path d="M14 6c-4 0-6 2.5-6 6s2 6 6 6h2V6zM3 8h3M3 12h3M3 16h3"/></symbol>
+<symbol id="door" viewBox="0 0 24 24"><path d="M6 21V4.5L7.5 3h9L18 4.5V21M3.5 21h17"/><path class="a" d="M14.5 12v.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="window" viewBox="0 0 24 24"><path d="M5.5 4H18.5L20 5.5V17L17 20H5.5L4 18.5V5.5Z"/><path class="a" d="M4 12h16M12 4v16" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="hood" viewBox="0 0 24 24"><path d="M3.5 13.5 6 8h12l2.5 5.5V18h-17z"/><path class="a" d="M6 8 9 3.5h6L18 8" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="7" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="17" cy="14.5" r="1.1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="trunk" viewBox="0 0 24 24"><path d="M3 10h18v8H3zM5 10l2-4h10l2 4"/><path class="a" d="M10 14h4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="nav" viewBox="0 0 24 24"><path d="M12 3 19 20l-7-4-7 4z"/></symbol>
+<symbol id="route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle class="a" cx="18" cy="6" r="2.5" style="stroke:var(--nzi-accent,currentColor)"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
+<symbol id="siren" viewBox="0 0 24 24"><path d="M6 17v-5a6 6 0 0 1 12 0v5"/><path d="M5 17H19L20 18V19.5L19 20.5H5L4 19.5V18Z"/><path class="a" d="M12 2.5V4M4.5 5.5l1 1M19.5 5.5l-1 1M2.5 11.5H4M20 11.5h1.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="medkit" viewBox="0 0 24 24"><path d="M5 6H19L20.5 7.5V17L17 20.5H5L3.5 19V7.5Z"/><path d="M9 6V4h6v2"/><path class="a" d="M12 10v6.5M8.75 13.25h6.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="cuff" viewBox="0 0 24 24"><circle cx="7" cy="14" r="4"/><circle cx="17" cy="14" r="4"/><path class="a" d="M10.5 12.5h3" style="stroke:var(--nzi-accent,currentColor)"/><path d="M7 10V7.5L8.5 6h7L17 7.5V10"/></symbol>
+<symbol id="flame" viewBox="0 0 24 24"><path d="M12 21a6 6 0 0 0 6-6c0-4.5-4-6.5-4.5-11-2.5 2-4.5 4.5-4.5 7.5a3 3 0 0 1-1.5-2.5C6.5 10.5 6 13 6 15a6 6 0 0 0 6 6z"/></symbol>
+<symbol id="box" viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path class="a" d="M3.5 7.5 12 12l8.5-4.5M12 12v9" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="crate" viewBox="0 0 24 24"><path d="M4.5 3.5H19.5L20.5 4.5V17L17 20.5H4.5L3.5 19.5V4.5Z"/><path class="a" d="M3.5 9.5h17M3.5 14.5h17" style="stroke:var(--nzi-accent,currentColor)"/><path d="M9 3.5v6M15 14.5v6"/></symbol>
+<symbol id="fish" viewBox="0 0 24 24"><path d="M3 12c3-4.5 9-6 13.5-2L21 7v10l-4.5-3C12 18 6 16.5 3 12z"/><circle class="a" cx="7.5" cy="11" r="1" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="pickaxe" viewBox="0 0 24 24"><path d="M4 9.5C8.5 4.5 15.5 4 20 8"/><path class="a" d="M13 6.3 5.5 21" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="leaf" viewBox="0 0 24 24"><path d="M5 19C5 10 10 5 20 4c-1 10-6 15-15 15z"/><path class="a" d="M5 19 13 11" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="chef" viewBox="0 0 24 24"><path d="M7 13.5A4 4 0 0 1 8 5.7a4.5 4.5 0 0 1 8 0 4 4 0 0 1 1 7.8V20H7z"/><path class="a" d="M7 17h10" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="pan" viewBox="0 0 24 24"><path d="M2.5 10.5h14a6 6 0 0 1-6 6h-2a6 6 0 0 1-6-6z"/><path class="a" d="M16.5 11.5H22" style="stroke:var(--nzi-accent,currentColor)"/><path d="M7 4.5c0 1.5 1 1.5 1 3M11 4.5c0 1.5 1 1.5 1 3"/></symbol>
+<symbol id="gavel" viewBox="0 0 24 24"><path d="M14.5 3 21 9.5l-3 3L11.5 6z"/><path class="a" d="M14 9.5 4 19.5" style="stroke:var(--nzi-accent,currentColor)"/><path d="M3 21h9"/></symbol>
+<symbol id="hammer" viewBox="0 0 24 24"><path d="M14 4l6 6-2.5 2.5-6-6z"/><path class="a" d="M12.7 8.8 3.5 18a1.8 1.8 0 0 0 2.5 2.5l9.2-9.2" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="scissors" viewBox="0 0 24 24"><circle cx="6" cy="6.5" r="2.5"/><circle cx="6" cy="17.5" r="2.5"/><path class="a" d="M8 8.2 20 18M8 15.8 20 6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="briefcase" viewBox="0 0 24 24"><path d="M4.5 7H19.5L21 8.5V16.5L17.5 20H4.5L3 18.5V8.5Z"/><path d="M8.5 7V5.5L10 4h4l1.5 1.5V7"/><path class="a" d="M3 12.5h18" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3v9.5L18.5 19h-14.5z"/><circle class="a" cx="12" cy="13" r="3.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5.5 9.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path class="a" d="M7 15h10" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="ingot" viewBox="0 0 24 24"><path d="M3.5 18.5h17l-3-8h-11z"/><path class="a" d="M7.5 10.5l1-3.5h7l1 3.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="spring" viewBox="0 0 24 24"><path d="M7 4h10M7 20h10"/><path class="a" d="M17 4 7 7.5l10 3.5-10 3.5 10 3.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="chip" viewBox="0 0 24 24"><path d="M7.5 6H16.5L18 7.5V15L15 18H7.5L6 16.5V7.5Z"/><path class="a" d="M10.3 9.5H13.7L14.5 10.3V13.7L13.7 14.5H10.3L9.5 13.7V10.3Z" style="stroke:var(--nzi-accent,currentColor)"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></symbol>
+<symbol id="scale" viewBox="0 0 24 24"><path d="M12 4v16M8 20h8M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0z"/><path class="a" d="M19 7l-3 6a3 3 0 0 0 6 0z" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="barrel" viewBox="0 0 24 24"><path d="M6 3.5h12c1 3 1.5 5.5 1.5 8.5s-.5 5.5-1.5 8.5H6C5 17.5 4.5 15 4.5 12S5 6.5 6 3.5z"/><path class="a" d="M5 8h14M5 16h14" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="ammo" viewBox="0 0 24 24"><path d="M5 20V10a2 2 0 0 1 4 0v10M10 20V8a2 2 0 0 1 4 0v12M15 20V10a2 2 0 0 1 4 0v10"/><path class="a" d="M3.5 20.5h17" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="powder" viewBox="0 0 24 24"><path d="M9 3h6M10 3v3.5L6 11v8.5L7.5 21h9l1.5-1.5V11l-4-4.5V3"/><path class="a" d="M6 14h12" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="drill" viewBox="0 0 24 24"><path d="M4 7H14L15 8V13L14 14H4L3 13V8Z"/><path d="M15 9h4M15 12h4"/><path class="a" d="M19 10.5h2.5" style="stroke:var(--nzi-accent,currentColor)"/><path d="M6 14l-1 7h4l1-7"/></symbol>
+<symbol id="cash" viewBox="0 0 24 24"><path d="M4 6H20L21.5 7.5V15L18.5 18H4L2.5 16.5V7.5Z"/><circle class="a" cx="12" cy="12" r="2.5" style="stroke:var(--nzi-accent,currentColor)"/><circle cx="6" cy="9.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="18" cy="14.5" r="0.9" fill="currentColor" stroke="none"/></symbol>
+<symbol id="card" viewBox="0 0 24 24"><path d="M4 5H20L21.5 6.5V15.5L18 19H4L2.5 17.5V6.5Z"/><path d="M2.5 10h19"/><path class="a" d="M6.5 15h4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="bank" viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5"/><path class="a" d="M4.5 10v8M9.5 10v8M14.5 10v8M19.5 10v8" style="stroke:var(--nzi-accent,currentColor)"/><path d="M3 20.5h18"/></symbol>
+<symbol id="wallet" viewBox="0 0 24 24"><path d="M18 7.5V5.5L16.5 4h-11L4 5.5v13L5.5 20h12.5l2-2v-9L18.5 7.5H5.5"/><circle class="a" cx="16" cy="13.75" r="1.2" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path class="a" d="M12 6.5v11M14.5 8.8h-3.3a1.7 1.7 0 0 0 0 3.4h1.6a1.7 1.7 0 0 1 0 3.4H9.5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="receipt" viewBox="0 0 24 24"><path d="M6 3h12v18l-2.5-1.5L13 21l-2.5-1.5L8 21l-2-1.5z"/><path class="a" d="M9 8h6M9 12h6M9 16h3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="chart" viewBox="0 0 24 24"><path d="M4 20.5h16"/><path d="M6.1 12H7.9L8.5 12.6V19.9L7.9 20.5H6.1L5.5 19.9V12.6Z"/><path class="a" d="M11.1 6H12.9L13.5 6.6V19.9L12.9 20.5H11.1L10.5 19.9V6.6Z" style="stroke:var(--nzi-accent,currentColor)"/><path d="M16.1 14H17.9L18.5 14.6V19.9L17.9 20.5H16.1L15.5 19.9V14.6Z"/></symbol>
+<symbol id="trend-up" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path class="a" d="M15 7h6v6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="trend-down" viewBox="0 0 24 24"><path d="M3 7l6 6 4-4 8 8"/><path class="a" d="M15 17h6v-6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="dep" viewBox="0 0 24 24"><path d="M12 3v11M7.5 9.5 12 14l4.5-4.5"/><path class="a" d="M4 14v4.5L5.5 20h13l1.5-1.5V14" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="wd" viewBox="0 0 24 24"><path d="M12 14V3M7.5 7.5 12 3l4.5 4.5"/><path class="a" d="M4 14v4.5L5.5 20h13l1.5-1.5V14" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="cart" viewBox="0 0 24 24"><path d="M3 4h2.2l2.1 10.5a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6"/><circle class="a" cx="9.5" cy="19.5" r="1.4" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/><circle cx="17" cy="19.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
+<symbol id="bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12.5H6z"/><path class="a" d="M9 8V6.5a3 3 0 0 1 6 0V8" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="tag" viewBox="0 0 24 24"><path d="M3.5 12.5V4h8.5l8.5 8.5-8.5 8.5z"/><circle class="a" cx="8" cy="8.5" r="1.3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="gem" viewBox="0 0 24 24"><path d="M7 4h10l4 5-9 11L3 9z"/><path class="a" d="M3 9h18M9.5 4 8 9l4 11 4-11-1.5-5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="store" viewBox="0 0 24 24"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M5.5 12v8.5h13V12"/><path class="a" d="M10 20.5v-5h4v5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="phone" viewBox="0 0 24 24"><path d="M8 2.5H16L17.5 4V18.5L14.5 21.5H8L6.5 20V4Z"/><path class="a" d="M10.5 18.5h3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="call" viewBox="0 0 24 24"><path d="M5 4h4l1.5 4.5-2.5 1.5a11 11 0 0 0 6 6l1.5-2.5L20 15v4a1.5 1.5 0 0 1-1.5 1.5A16.5 16.5 0 0 1 3.5 5.5 1.5 1.5 0 0 1 5 4z"/></symbol>
+<symbol id="radio" viewBox="0 0 24 24"><path d="M6.5 8H17.5L19 9.5V18L16 21H6.5L5 19.5V9.5Z"/><path d="M8 8l7-5"/><path class="a" d="M9 12h6M9 15.5h2" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="pistol" viewBox="0 0 24 24"><path d="M3 7h15.5L20 8.5V11h-5.5l-1.5 2.5h-3l-1.5 6H4.5l1.8-8.5H3z"/><path class="a" d="M10 13.5h3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="knife" viewBox="0 0 24 24"><path class="a" d="M3.5 20.5 10 14" style="stroke:var(--nzi-accent,currentColor)"/><path d="M10 14 20.5 3.5c.5 4-2.5 8.5-6.5 11.5z"/></symbol>
+<symbol id="bandage" viewBox="0 0 24 24"><path d="m4.9 13.4 8.5-8.5a3.5 3.5 0 0 1 5 5l-8.5 8.5a3.5 3.5 0 0 1-5-5z"/><path class="a" d="M10.5 10.5h.01M13.5 13.5h.01M10.5 13.5h.01M13.5 10.5h.01" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="pill" viewBox="0 0 24 24"><path d="m5.5 18.5-.5-.5a4.2 4.2 0 0 1 0-6L12 5a4.2 4.2 0 0 1 6 6l-7 7a4.2 4.2 0 0 1-5.5.5z"/><path class="a" d="m8.5 8.5 7 7" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="syringe" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5M17 7l-9.5 9.5H5v-2.5L14.5 4.5"/><path class="a" d="M11 8l1.5 1.5M8.5 10.5 10 12" style="stroke:var(--nzi-accent,currentColor)"/><path d="M5 19l-2 2"/></symbol>
+<symbol id="bottle" viewBox="0 0 24 24"><path d="M10 2.5h4M10.5 2.5v4L8 10v10.5L9.5 21h5l1.5-1.5V10l-2.5-3.5v-4"/><path class="a" d="M8 14h8" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="coffee" viewBox="0 0 24 24"><path d="M5 9h11v6.5A4.5 4.5 0 0 1 11.5 20h-2A4.5 4.5 0 0 1 5 15.5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path class="a" d="M8.5 3.5V6M12.5 3.5V6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="laptop" viewBox="0 0 24 24"><path d="M5.5 4.5H18.5L19.5 5.5V13L17 15.5H5.5L4.5 14.5V5.5Z"/><path class="a" d="M2 19.5h20" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="usb" viewBox="0 0 24 24"><path d="M8 9H16L17 10V18.5L14.5 21H8L7 20V10Z"/><path d="M9.6 3H14.4L15 3.6V8.4L14.4 9H9.6L9 8.4V3.6Z"/><path class="a" d="M10.5 5.5h.01M13.5 5.5h.01" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="keycard" viewBox="0 0 24 24"><path d="M7.5 2.5H16.5L18 4V18L14.5 21.5H7.5L6 20V4Z"/><path d="M10 6.5h4"/><path class="a" d="M9.6 11H14.4L15 11.6V14.9L14.4 15.5H9.6L9 14.9V11.6Z" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="backpack" viewBox="0 0 24 24"><path d="M8 7V5.5L9.5 4h5L16 5.5V7"/><path d="M7 7H17L19 9V17L15 21H7L5 19V9Z"/><path class="a" d="M9.3 13H14.7L15.5 13.8V16.7L14.7 17.5H9.3L8.5 16.7V13.8Z" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="dice" viewBox="0 0 24 24"><path d="M6 4H18L20 6V16L16 20H6L4 18V6Z"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/><circle class="a" cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/></symbol>
+<symbol id="note" viewBox="0 0 24 24"><path d="M5 4h14v11l-5 5H5z"/><path class="a" d="M14 20v-5h5" style="stroke:var(--nzi-accent,currentColor)"/><path d="M9 9h6M9 12.5h4"/></symbol>
+<symbol id="file" viewBox="0 0 24 24"><path d="M14 3H6.5L5 4.5v15L6.5 21h11l1.5-1.5V8z"/><path class="a" d="M14 3v5h5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="clipboard" viewBox="0 0 24 24"><path d="M6.5 4H17.5L19 5.5V18L16 21H6.5L5 19.5V5.5Z"/><path d="M9 3h6v3H9z"/><path class="a" d="M9 12h6M9 16h4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="palette" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.2-1.6-1.2-2.8 0-.9.7-1.5 1.6-1.5h2.3a4 4 0 0 0 4-4C20.5 6.8 16.7 3.5 12 3.5z"/><circle class="a" cx="7.5" cy="11" r="1.1" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/><circle cx="10" cy="7.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="7.5" r="1.1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="shirt" viewBox="0 0 24 24"><path d="M8.5 3.5 4 6l1.5 4.5L7 10v10.5h10V10l1.5.5L20 6l-4.5-2.5a3.5 3.5 0 0 1-7 0z"/></symbol>
+<symbol id="tank" viewBox="0 0 24 24"><path d="M8.5 3v3.5a3.5 3.5 0 0 0 7 0V3M8.5 3 6 4.5V21h12V4.5L15.5 3"/></symbol>
+<symbol id="pants" viewBox="0 0 24 24"><path d="M6 3h12l1.5 18h-5L12 10l-2.5 11h-5z"/><path class="a" d="M6.3 6.5h11.4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="shoe" viewBox="0 0 24 24"><path d="M3 17v-6l3-1 3 3 5 1 6 1.5a2 2 0 0 1 1 1.5H3z"/><path class="a" d="M3 19.5h18" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="hat" viewBox="0 0 24 24"><path d="M6 16.5 7.5 8a2 2 0 0 1 2-1.5h5a2 2 0 0 1 2 1.5L18 16.5"/><path class="a" d="M3 17c3-1.5 15-1.5 18 0" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="glasses" viewBox="0 0 24 24"><circle cx="6.5" cy="14" r="3.5"/><circle class="a" cx="17.5" cy="14" r="3.5" style="stroke:var(--nzi-accent,currentColor)"/><path d="M10 14h4M3 14l1-5M21 14l-1-5"/></symbol>
+<symbol id="mask" viewBox="0 0 24 24"><path d="M4 8c3-2 13-2 16 0v4c0 4-4 7-8 7s-8-3-8-7z"/><path class="a" d="M8 11.5h2M14 11.5h2" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="glove" viewBox="0 0 24 24"><path d="M7 21v-5.5L4.6 11.7a1.5 1.5 0 0 1 2.5-1.6L8 11.5V5.5a1.5 1.5 0 0 1 3 0V10V4.5a1.5 1.5 0 0 1 3 0V10V6a1.5 1.5 0 0 1 3 0v9l-2 6z"/></symbol>
+<symbol id="chain" viewBox="0 0 24 24"><path d="M5 4c0 7 3 11 7 11s7-4 7-11"/><path class="a" d="m12 15-2 2.5 2 3 2-3z" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="hanger" viewBox="0 0 24 24"><path d="M12 7.5a2 2 0 1 0-2-2"/><path class="a" d="M12 7.5V9L3.4 15.2a1 1 0 0 0 .6 1.8h16a1 1 0 0 0 .6-1.8L12 9" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle class="a" cx="12" cy="10" r="2.3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="map" viewBox="0 0 24 24"><path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5z"/><path class="a" d="M9 4v13M15 6.5v13" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path class="a" d="m15.5 8.5-2 5-5 2 2-5z" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="building" viewBox="0 0 24 24"><path d="M5 3H13L14 4V20L13 21H5L4 20V4Z"/><path d="M14 9h5.5L21 10.5V21M2.5 21h19"/><path class="a" d="M7.5 7h3M7.5 11h3M7.5 15h3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="hospital" viewBox="0 0 24 24"><path d="M5.5 6H18.5L20 7.5V17.5L16.5 21H5.5L4 19.5V7.5Z"/><path d="M9 6V3h6v3"/><path class="a" d="M12 10v6M9 13h6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="sun" viewBox="0 0 24 24"><circle class="a" cx="12" cy="12" r="4" style="stroke:var(--nzi-accent,currentColor)"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+<symbol id="moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></symbol>
+<symbol id="cloud" viewBox="0 0 24 24"><path d="M7 18.5h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 18.5z"/></symbol>
+<symbol id="rain" viewBox="0 0 24 24"><path d="M7 14.5h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 14.5z"/><path class="a" d="M8 17.5 7 20M12 17.5 11 20M16 17.5 15 20" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="tree" viewBox="0 0 24 24"><path d="M12 3 5.5 12.5H9L5 17h14l-4-4.5h3.5z"/><path class="a" d="M12 17v4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="mail" viewBox="0 0 24 24"><path d="M4.5 5.5H19.5L21 7V15.5L18 18.5H4.5L3 17V7Z"/><path class="a" d="m3.5 7 8.5 6 8.5-6" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="message" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path class="a" d="M8 9.5h8M8 12.5h5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z"/></symbol>
+<symbol id="broadcast" viewBox="0 0 24 24"><circle class="a" cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.5 18.5a9 9 0 0 1 0-13M18.5 5.5a9 9 0 0 1 0 13"/></symbol>
+<symbol id="bell-ring" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path class="a" d="M10 21h4M3 9a7 7 0 0 1 2-4M21 9a7 7 0 0 0-2-4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="terminal" viewBox="0 0 24 24"><path d="M4 4H20L21.5 5.5V16.5L18 20H4L2.5 18.5V5.5Z"/><path d="M6.5 9.5l3 2.5-3 2.5"/><path class="a" d="M12 15h5" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="code" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/><path class="a" d="M14 4.5l-4 15" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="bug" viewBox="0 0 24 24"><path d="M8 9a4 4 0 0 1 8 0v5a4 4 0 0 1-8 0z"/><path class="a" d="M12 9v9" style="stroke:var(--nzi-accent,currentColor)"/><path d="M9 5.5 7.5 4M15 5.5 16.5 4M4 12h4M16 12h4M4.5 17.5 8 16M19.5 17.5 16 16M4.5 7 8 9M19.5 7 16 9"/></symbol>
+<symbol id="database" viewBox="0 0 24 24"><path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path class="a" d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="server" viewBox="0 0 24 24"><path d="M4 3.5H20L21 4.5V9.5L20 10.5H4L3 9.5V4.5Z"/><path d="M4 13.5H20L21 14.5V17.5L18 20.5H4L3 19.5V14.5Z"/><circle class="a" cx="7" cy="7" r="1.1" fill="currentColor" stroke="none" style="fill:var(--nzi-accent,currentColor)"/><circle cx="7" cy="17" r="1.1" fill="currentColor" stroke="none"/><path d="M11 7h6M11 17h6"/></symbol>
+<symbol id="ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path class="a" d="M5.6 5.6l12.8 12.8" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="teleport" viewBox="0 0 24 24"><path d="M4 18.5c0-1.4 3.6-2.5 8-2.5s8 1.1 8 2.5-3.6 2.5-8 2.5-8-1.1-8-2.5z"/><path class="a" d="M12 14V3M8 7l4-4 4 4" style="stroke:var(--nzi-accent,currentColor)"/></symbol>
+<symbol id="arrow-left" viewBox="0 0 24 24"><use href="#arrow-l"/></symbol>
+<symbol id="arrow-right" viewBox="0 0 24 24"><use href="#arrow-r"/></symbol>
+<symbol id="chevron-up" viewBox="0 0 24 24"><use href="#chev-u"/></symbol>
+<symbol id="chevron-down" viewBox="0 0 24 24"><use href="#chev-d"/></symbol>
+<symbol id="chevron-left" viewBox="0 0 24 24"><use href="#chev-l"/></symbol>
+<symbol id="chevron-right" viewBox="0 0 24 24"><use href="#chev-r"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><use href="#x"/></symbol>
+<symbol id="settings" viewBox="0 0 24 24"><use href="#cog"/></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><use href="#cog"/></symbol>
+<symbol id="delete" viewBox="0 0 24 24"><use href="#trash"/></symbol>
+<symbol id="health" viewBox="0 0 24 24"><use href="#heart"/></symbol>
+<symbol id="armor" viewBox="0 0 24 24"><use href="#shield"/></symbol>
+<symbol id="hunger" viewBox="0 0 24 24"><use href="#food"/></symbol>
+<symbol id="thirst" viewBox="0 0 24 24"><use href="#drop"/></symbol>
+<symbol id="stamina" viewBox="0 0 24 24"><use href="#bolt"/></symbol>
+<symbol id="stress" viewBox="0 0 24 24"><use href="#brain"/></symbol>
+<symbol id="money" viewBox="0 0 24 24"><use href="#cash"/></symbol>
+<symbol id="ems" viewBox="0 0 24 24"><use href="#medkit"/></symbol>
+<symbol id="police" viewBox="0 0 24 24"><use href="#badge"/></symbol>
+<symbol id="mechanic" viewBox="0 0 24 24"><use href="#wrench"/></symbol>
+<symbol id="warning" viewBox="0 0 24 24"><use href="#alert"/></symbol>
+<symbol id="spectate" viewBox="0 0 24 24"><use href="#eye"/></symbol>
+<symbol id="location" viewBox="0 0 24 24"><use href="#pin"/></symbol>
+<symbol id="vehicle" viewBox="0 0 24 24"><use href="#car"/></symbol>
+<symbol id="weapon" viewBox="0 0 24 24"><use href="#pistol"/></symbol>
+<symbol id="inventory" viewBox="0 0 24 24"><use href="#backpack"/></symbol>
+<symbol id="job" viewBox="0 0 24 24"><use href="#briefcase"/></symbol>
+<symbol id="fire" viewBox="0 0 24 24"><use href="#flame"/></symbol>
+<symbol id="water" viewBox="0 0 24 24"><use href="#drop"/></symbol>
+<symbol id="gold" viewBox="0 0 24 24"><use href="#ingot"/></symbol>
+<symbol id="speed" viewBox="0 0 24 24"><use href="#gauge"/></symbol>
+<symbol id="seatbelt" viewBox="0 0 24 24"><use href="#seat"/></symbol>
+<symbol id="voice" viewBox="0 0 24 24"><use href="#mic"/></symbol>
+<symbol id="notify" viewBox="0 0 24 24"><use href="#bell"/></symbol>
+</svg>
