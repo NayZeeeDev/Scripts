@@ -6,7 +6,6 @@ local function boot()
     MySQL.query.await('DELETE FROM nzmw_batches WHERE updated_at < (NOW() - INTERVAL 7 DAY)')
 
     Batches.list = DB.loadBatches()
-    Facility.start()
     local meta = DB.loadStationMeta()
 
     for _, op in ipairs(Config.Operations) do
@@ -29,7 +28,6 @@ local function boot()
         end
     end
 
-    Pallet.build()
     Market.start()
     Books.start()
     Stations.startTicker()

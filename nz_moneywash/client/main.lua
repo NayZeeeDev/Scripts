@@ -13,11 +13,9 @@ end)
 CreateThread(function()
     while not NetworkIsPlayerActive(PlayerId()) do Wait(250) end
     UI.init()
-    U.isAdmin = lib.callback.await('nzmw:isAdmin', false) == true
     Render.syncIndex(GlobalState['nzmw:index'])
     Render.start()
     FrontDesk.init()
-    FacilityUI.init()
     PoliceUI.init()
 
     for _, op in ipairs(Config.Operations) do

@@ -6,11 +6,9 @@ Common = {}
 local A = Config.Anims
 
 local zoneShape = {
-    washer  = { z = 0.85, r = 0.42 }, -- tight: shop washers stand 0.87 m apart
+    washer  = { z = 0.85, r = 0.75 },
     printer = { z = 1.00, r = 1.60 },
     cutter  = { z = 0.90, r = 0.95 },
-    pallet  = { z = 0.45, r = 0.90 },
-    counter = { z = 0.95, r = 0.70 },
 }
 
 local function collectAnim(d)
@@ -176,31 +174,6 @@ local function typeOptions(s)
               canInteract = function() return st(s).state == 'idle' and access(s) end,
               onSelect = function() Printer.load(id) end },
         }
-    elseif t == 'counter' then
-        return {
-            { name = 'count_stacks', label = 'Count & strap stacks', icon = 'fas fa-money-bill-wave',
-              canInteract = function() return st(s).state == 'idle' and access(s) and CBridge.hasItem(NZ.finalItem()) end,
-              onSelect = function() CounterUI.start(id, 'stacks') end },
-            { name = 'count_cash', label = 'Count my cash', icon = 'fas fa-wallet',
-              canInteract = function() return st(s).state == 'idle' and access(s) end,
-              onSelect = function() CounterUI.start(id, 'cash') end },
-        }
-    elseif t == 'pallet' then
-        return {
-            { name = 'take', label = 'Load into duffel bag', icon = 'fas fa-bag-shopping',
-              canInteract = function() return st(s).state == 'done' and access(s) end,
-              onSelect = function() PalletUI.take(id) end },
-            { name = 'grab', label = 'Grab a stack', icon = 'fas fa-user-ninja',
-              canInteract = function()
-                  local x = st(s)
-                  local open = not x.placed and (not x.access or (not x.access.jobs and not x.access.gangs and not x.access.items))
-                  return Config.Pallet.theft and x.state == 'done' and (open or not access(s))
-              end,
-              onSelect = function() PalletUI.grab(id) end },
-            { name = 'pseize', label = 'Seize the cash', icon = 'fas fa-handcuffs',
-              canInteract = function() return st(s).state == 'done' and CBridge.isPolice() end,
-              onSelect = function() PalletUI.seize(id) end },
-        }
     elseif t == 'cutter' then
         return {
             { name = 'feed', label = 'Feed sheets', icon = 'fas fa-layer-group',
@@ -229,10 +202,9 @@ local function commonOptions(s)
         { name = 'pry', label = 'Pry it open', icon = 'fas fa-user-ninja',
           canInteract = function()
               local x = st(s)
-              local open = not x.placed and (not x.access or (not x.access.jobs and not x.access.gangs and not x.access.items))
               return Config.Theft.enabled and x.type ~= 'cutter' and x.hasBatch
                   and (x.state == 'running' or x.state == 'done' or x.state == 'jammed')
-                  and (open or not access(s)) and CBridge.hasAny(Config.Theft.items)
+                  and not access(s) and CBridge.hasAny(Config.Theft.items)
           end,
           onSelect = function() Common.pry(id) end },
         { name = 'inspect', label = 'Inspect machine', icon = 'fas fa-gauge-high',
@@ -248,23 +220,8 @@ local function commonOptions(s)
           canInteract = function() return CBridge.isPolice() and CBridge.hasItem(Config.Heat.scannerItem) end,
           onSelect = function() Common.scan(id) end },
         { name = 'pack', label = 'Pack up equipment', icon = 'fas fa-box',
-          canInteract = function()
-              local x = st(s)
-              if not x.placed or x.state ~= 'idle' then return false end
-              local unit = LocalPlayer.state.nzmwUnit
-              local leaseholder = unit and unit.role == 'owner' and x.share == ('facility:' .. unit.id)
-              return x.owner == CBridge.getIdentifier() or leaseholder
-          end,
+          canInteract = function() local x = st(s) return x.placed and x.state == 'idle' and x.owner == CBridge.getIdentifier() end,
           onSelect = function() Common.pack(id) end },
-        { name = 'move', label = 'Move machine (admin)', icon = 'fas fa-up-down-left-right',
-          canInteract = function() return U.isAdmin and st(s).state == 'idle' end,
-          onSelect = function() if not Placement.active then CreateThread(function() Placement.run(s.data.type, { moveId = id }) end) end end },
-        { name = 'reset', label = 'Reset to config spot (admin)', icon = 'fas fa-rotate-left',
-          canInteract = function() return U.isAdmin and not st(s).placed and st(s).state == 'idle' end,
-          onSelect = function()
-              local res = lib.callback.await('nzmw:admin:reset', false, id)
-              if not res or not res.ok then UI.err(res) else UI.toast('Reset', 'Back to its config position.', 'success') end
-          end },
         { name = 'seize', label = 'Seize equipment', icon = 'fas fa-handcuffs',
           canInteract = function() return st(s).placed and CBridge.isPolice() end,
           onSelect = function() Common.seize(id) end },
@@ -277,10 +234,7 @@ function Interact.add(s)
     local d = s.data
     local shape = zoneShape[d.type] or { z = 0.9, r = 1.0 }
     local opts = typeOptions(s)
-    local machineOnly = { collect = true, unjam = true, pry = true, repair = true }
-    for _, o in ipairs(commonOptions(s)) do
-        if not ((d.type == 'pallet' or d.type == 'counter') and machineOnly[o.name]) then opts[#opts + 1] = o end
-    end
+    for _, o in ipairs(commonOptions(s)) do opts[#opts + 1] = o end
     -- never offer anything while another interaction is running
     for _, o in ipairs(opts) do
         local inner = o.canInteract
