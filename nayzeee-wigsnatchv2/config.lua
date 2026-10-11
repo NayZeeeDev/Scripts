@@ -824,8 +824,10 @@ Config.Supplier = {
         { id = 'making', label = 'Wig making', icon = 'scissors' },
         { id = 'lace',   label = 'Lace',       icon = 'layers' },
         { id = 'care',   label = 'Dye & care', icon = 'drop' },
+        { id = 'tables', label = 'Tables',     icon = 'table' },
     },
-    -- level = player level needed to buy it
+    -- level = player level needed to buy it, max = most per purchase (default MaxPerItem).
+    -- The tables need Dragons Lab's pack (see Config.Tables); remove them here if you sell them elsewhere.
     Items = {
         wig_cap      = { label = 'Wig Cap',         price = 15,  cat = 'making', desc = 'The base every wig is sewn onto.' },
         wig_thread   = { label = 'Weaving Thread',  price = 5,   cat = 'making', desc = 'Sews the wefts onto the cap.' },
@@ -836,6 +838,10 @@ Config.Supplier = {
         hair_dye     = { label = 'Hair Dye',        price = 30,  cat = 'care',   desc = 'Any colour. Your hair, or a wig at a table.' },
         wig_glue     = { label = 'Lace Glue',       price = 40,  cat = 'care',   desc = 'Holds your wig on tighter for a while.' },
         wig_kit      = { label = 'Wig Kit',         price = 90,  cat = 'care',   desc = 'Brings a worn wig back to full condition.', level = 2 },
+        wigtablered  = { label = 'Red Wig Table',    price = 750, cat = 'tables', desc = 'Place it anywhere and make wigs at it.', max = 1 },
+        wigtableblue = { label = 'Blue Wig Table',   price = 750, cat = 'tables', desc = 'Place it anywhere and make wigs at it.', max = 1 },
+        wigtablepink = { label = 'Pink Wig Table',   price = 750, cat = 'tables', desc = 'Place it anywhere and make wigs at it.', max = 1 },
+        wigtablepurp = { label = 'Purple Wig Table', price = 750, cat = 'tables', desc = 'Place it anywhere and make wigs at it.', max = 1 },
     },
 }
 

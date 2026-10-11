@@ -27,6 +27,7 @@
     drop: '<path d="M12 3.5c3.5 4.4 6 7.6 6 10.6a6 6 0 0 1-12 0c0-3 2.5-6.2 6-10.6z"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
     layers: '<path d="M12 3.5 3 8l9 4.5L21 8z"/><path d="M3 12.5 12 17l9-4.5M3 16.5 12 21l9-4.5"/>',
+    table: '<path d="M3 8.5h18M5 8.5V20M19 8.5V20M7 8.5V14h10V8.5"/><path d="M8 8.5V5.5h3v3M14.5 8.5 16 4.5l2.5 1-1.2 3"/>',
     grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
     box: '<path d="M3.5 7.5 12 3.5l8.5 4v9L12 20.5l-8.5-4z"/><path d="M3.5 7.5 12 11.5l8.5-4M12 11.5v9"/>',
   };
@@ -540,7 +541,7 @@
   function add(name, n) {
     const it = itemOf(name);
     if (!it || it.locked) return;
-    const q = Math.max(0, Math.min(SH.shop.max || 25, (SH.cart[name] || 0) + n));
+    const q = Math.max(0, Math.min(it.max || SH.shop.max || 25, (SH.cart[name] || 0) + n));
     if (q) SH.cart[name] = q; else delete SH.cart[name];
     renderShop();
   }
@@ -554,9 +555,11 @@
 
     const items = arr(sh.items).filter((it) => SH.tab === 'all' || it.cat === SH.tab);
     const grid = el('stGrid');
-    // as few rows as fit: up to 5 across, so every item is on screen without scrolling
+    // as few rows as fit, so every item is on screen without scrolling: 2 rows up to 14 items, then 3
     const n = items.length;
-    grid.style.setProperty('--cols', n <= 3 ? 3 : n <= 4 ? 4 : n <= 6 ? 3 : n <= 8 ? 4 : 5);
+    const cols = n <= 4 ? Math.max(3, n) : n <= 14 ? Math.ceil(n / 2) : Math.ceil(n / 3);
+    grid.style.setProperty('--cols', cols);
+    el('skStore').classList.toggle('wide', cols >= 6);
     grid.innerHTML = items.map((it) => {
       const q = SH.cart[it.name] || 0;
       return `<button class="scard ${it.locked ? 'locked' : ''} ${q ? 'in' : ''}" data-item="${esc(it.name)}" ${it.locked ? 'disabled' : ''}>

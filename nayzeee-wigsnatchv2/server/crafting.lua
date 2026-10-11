@@ -152,12 +152,18 @@ lib.callback.register('nz-wig:supplier', function(src)
     local level = GetLevel(P.row.xp)
     local items = {}
     for name, it in pairs(SU.Items) do
-        items[#items + 1] = { name = name, label = it.label, desc = it.desc, cat = it.cat, price = it.price, level = it.level or 1,
+        items[#items + 1] = { name = name, label = it.label, desc = it.desc, cat = it.cat, price = it.price, level = it.level or 1, max = it.max,
                               locked = level < (it.level or 1), have = Inv.Count(src, name) }
     end
+    -- in tab order, then by level and price
+    local catIndex = {}
+    for i, c in ipairs(SU.Categories or {}) do catIndex[c.id] = i end
     table.sort(items, function(a, b)
+        local ca, cb = catIndex[a.cat] or 99, catIndex[b.cat] or 99
+        if ca ~= cb then return ca < cb end
         if a.level ~= b.level then return a.level < b.level end
-        return a.price < b.price
+        if a.price ~= b.price then return a.price < b.price end
+        return a.label < b.label
     end)
     local wallets = {}
     for i, a in ipairs(accounts()) do wallets[i] = { id = a, money = Bridge.GetMoney(src, a) } end
@@ -174,7 +180,7 @@ lib.callback.register('nz-wig:supplierBuy', function(src, cart, acc)
         local it = SU.Items[name]
         qty = math.floor(SafeNumber(qty) or 0)
         if it and qty > 0 then
-            if qty > SU.MaxPerItem then return false end
+            if qty > (it.max or SU.MaxPerItem) then return false end
             if level < (it.level or 1) then return false, L('level_needed', it.level) end
             if not Inv.CanCarry(src, name, qty) then return false, L('pockets_full') end
             total = total + it.price * qty

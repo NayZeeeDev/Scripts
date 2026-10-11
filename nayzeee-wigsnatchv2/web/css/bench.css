@@ -369,6 +369,7 @@
 /* ═══════════════ SUPPLIER STORE ═══════════════ */
 .sk .store{left:50%;top:50%;transform:translate(-50%,-50%);width:min(1120px,94vw);max-height:94vh;display:flex}
 .sk .store:not([hidden]){animation:skStoreIn .18s ease-out}
+.sk .store.wide{width:min(1360px,96vw)}
 @keyframes skStoreIn{from{opacity:0;transform:translate(-50%,calc(-50% + 6px))}to{opacity:1;transform:translate(-50%,-50%)}}
 .sk .store .frame{width:100%}
 .sk .store .shell::before{display:none}

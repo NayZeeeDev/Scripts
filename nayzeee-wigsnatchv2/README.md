@@ -205,7 +205,7 @@ GTA can only draw a hairstyle on a ped, so every hairstyle on your server is tur
 
 The wig comes out with exactly that hairstyle, texture, colour and length, your name as the maker, and a tier from the lace: clean skill checks can bump it one tier higher, sloppy ones cost condition. Legendary and mythic wigs still only come from snatching. **Bundles** makes a wig from three bundles from cuts and a cap; **Dye** recolours a wig you own, or your own hair.
 
-**Hair Supply** (`Config.Supplier`) sells the materials next to Hair on Hawick by default; move her anywhere. The store shows every item at once in a card grid with category tabs (`Categories`, and a `cat` and `desc` on each item). Click a card to put it in the basket, or shift-click to add five. Items above the player's level show as locked. Players pay from cash or bank (`Accounts`). Prices are set so a wig is worth more than its materials when sold through a meet-up, less through quick sell.
+**Hair Supply** (`Config.Supplier`) sells the materials next to Hair on Hawick by default; move her anywhere. The store shows every item at once in a card grid with category tabs (`Categories`, and a `cat` and `desc` on each item). Click a card to put it in the basket, or shift-click to add five. Items above the player's level show as locked. Players pay from cash or bank (`Accounts`). The four wig tables are sold under a **Tables** tab for $750 each, one per purchase (an item's `max`). Their store icons come from the install images in Dragons Lab's pack, once they're in `ox_inventory/web/images`. Prices are set so a wig is worth more than its materials when sold through a meet-up, less through quick sell.
 
 ## 🧰 Props
 
