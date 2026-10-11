@@ -228,6 +228,32 @@ function Place.Ghost(model, opts)
 
     local skip = { [ped] = true }
     if extra then skip[extra] = true end
+    local skipPreview = { [ghost] = true }
+    if extra then skipPreview[extra] = true end
+
+    -- nothing may be holding the view while placing: a close-up camera left on by something earlier,
+    -- or a cursor no menu let go of, would freeze the aim (and the preview with it)
+    if Cam and Cam.Stop then pcall(Cam.Stop, true) end
+    if not (UI.MenuOpen and UI.MenuOpen()) then SetNuiFocus(false, false) end
+
+    --- Where the preview goes this frame: the aim, else the older aim (ignoring the player instead of the
+    --- preview), else the ground just in front of the player, so it always follows you somehow
+    local misses = 0
+    local function spot()
+        local hit, ent, coords, normal = camRay(opts.flags or 17, range + 4.0, ghost, skip)
+        if not hit then hit, ent, coords, normal = camRay(opts.flags or 17, range + 4.0, ped, skipPreview) end
+        if hit then misses = 0 return true, ent, coords, normal end
+        misses = misses + 1
+        if misses == 120 then
+            local cam = GetFinalRenderedCamCoord()
+            print(('^3[nayzeee-sneakers]^7 placing: the aim isn\'t finding anything (camera at %.1f %.1f %.1f, script camera %s, cursor %s). The preview follows you instead; /nzsreset if your view is stuck.')
+                :format(cam.x, cam.y, cam.z, tostring(GetRenderingCam() ~= -1), tostring(IsNuiFocused and IsNuiFocused() or false)))
+        end
+        local front = GetOffsetFromEntityInWorldCoords(ped, 0.0, 1.0, 0.0)
+        local found, z = GetGroundZFor_3dCoord(front.x, front.y, front.z + 1.0, false)
+        if found then return true, 0, vector3(front.x, front.y, z), vector3(0.0, 0.0, 1.0) end
+        return false
+    end
 
     local placed, valid = false, false
     -- if anything in the loop errors, the ghost still goes and the player isn't left stuck
@@ -235,7 +261,7 @@ function Place.Ghost(model, opts)
         while true do
             Wait(0)
             for _, c in ipairs(NO_ATTACK) do DisableControlAction(0, c, true) end
-            local hit, ent, coords, normal = camRay(opts.flags or 17, range + 4.0, ghost, skip)
+            local hit, ent, coords, normal = spot()
             if hit then pos = coords end
             local snapped = false
             if hit and opts.snap then

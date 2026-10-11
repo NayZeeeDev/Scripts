@@ -37,6 +37,8 @@ local function finishMenu(id)
     if p then p:resolve(id) end
 end
 
+function UI.MenuOpen() return pendingMenu ~= nil end
+
 --- Closes whatever menu is open (nothing chosen)
 function UI.CloseMenu()
     SendNUIMessage({ action = 'menuHide' })
