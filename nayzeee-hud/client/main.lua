@@ -267,7 +267,11 @@ local function refreshHeadshot()
         local h = RegisterPedheadshotTransparent(ped)
         local timeout = GetGameTimer() + 5000
         while not IsPedheadshotReady(h) or not IsPedheadshotValid(h) do
-            if GetGameTimer() > timeout then return end
+            if GetGameTimer() > timeout then
+                UnregisterPedheadshot(h)
+                headshotPed = 0 -- try again on the next slow tick
+                return
+            end
             Wait(100)
         end
         headshotHandle = h
@@ -308,6 +312,10 @@ CreateThread(function()
             flush()
             Wait(veh ~= 0 and T.vehicle or T.foot)
         else
+            -- HUD hidden: still track getting in and out so the seatbelt, eject protection and cruise keep working
+            ped = PlayerPedId()
+            local v = GetVehiclePedIsIn(ped, false)
+            if v ~= veh then onVehicleChange(v, GetGameTimer()) end
             Wait(500)
         end
     end

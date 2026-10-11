@@ -1075,7 +1075,8 @@ function patchVitals(changed) {
   for (const id of Object.keys(changed)) {
     const m = state.squad.members.find((x) => String(x.id) === id);
     const v = changed[id];
-    const card = cardOf(id);
+    // your own card runs on the fresher local feed (selfVitals); the sync's copy of you is up to 750 ms old
+    const card = Number(id) === state.me ? null : cardOf(id);
     if (card && m) {
       const down = isDown(m);
       if (card.classList.contains('down') !== down) { renderHud(); return; }

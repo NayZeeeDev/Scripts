@@ -50,20 +50,28 @@ local function playAnim(ped)
     end
 end
 
-local function doRevive(option)
+local function doRevive(option, viaKey)
     if busy or not nearest then return end
     busy = true
 
     local target = nearest.member
     local startCoords = GetEntityCoords(cache.ped)
+    local holdMode = R.Hold and viaKey
     playAnim(cache.ped)
+
+    -- let go while the animation loaded
+    if holdMode and not holding then
+        ClearPedTasks(cache.ped)
+        busy = false
+        return
+    end
 
     -- their card (and everyone else's view of it) shows a ring filling up while you work
     TriggerServerEvent('nz_squads:reviving', target.id, option.time)
 
     -- hold mode: letting go of the key cancels
     local watcher
-    if R.Hold and holding then
+    if holdMode then
         watcher = true
         CreateThread(function()
             while watcher do
@@ -79,7 +87,9 @@ local function doRevive(option)
         icon = 'heart',
         useWhileDead = false,
         canCancel = true,
-        disable = { move = R.CancelOnMove, car = true, combat = true },
+        -- CancelOnMove: walking away (over 1 m) stops the revive; otherwise movement is blocked while you work
+        maxMove = R.CancelOnMove and 1.0 or nil,
+        disable = { move = not R.CancelOnMove, car = true, combat = true },
     })
     watcher = false
 
@@ -88,15 +98,19 @@ local function doRevive(option)
 
     if not ok then
         busy = false
-        return Toast('Revive stopped', R.Hold and 'You let go before it finished.' or 'You moved away before finishing.', 'error')
+        return Toast('Revive stopped', holdMode and not holding and 'You let go before it finished.' or 'You stopped before it finished.', 'error')
     end
     if #(GetEntityCoords(cache.ped) - startCoords) > 3.0 then
         busy = false
+        TriggerServerEvent('nz_squads:reviving', target.id, false)
         return Toast('Revive stopped', 'You moved too far from them.', 'error')
     end
 
     local done, msg = lib.callback.await('nz_squads:revive', false, target.id, option.item or nil)
-    if not done then Toast('Revive failed', msg or 'Try again.', 'error') end
+    if not done then
+        TriggerServerEvent('nz_squads:reviving', target.id, false)
+        Toast('Revive failed', msg or 'Try again.', 'error')
+    end
 
     busy = false
 end
@@ -110,7 +124,7 @@ local function startRevive()
     end
     if #options == 1 then
         if R.Hold and not holding then return end -- let go while the item list loaded
-        return doRevive(options[1])
+        return doRevive(options[1], true)
     end
 
     pickerOpen = true

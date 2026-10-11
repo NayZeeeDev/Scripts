@@ -33,6 +33,7 @@ AddEventHandler('nayzeee-hud:notify', NHUD.notify)  -- client scripts: TriggerEv
 
 -- ─── progress bar ──────────────────────────────────────────
 local progress = nil
+local progressOk = false
 
 local DISABLE = {
     move = { 21, 22, 30, 31, 36, 44 },
@@ -84,13 +85,18 @@ end
 
 --- Blocks until done. Returns true when it finished, false when cancelled.
 --- { label, duration, canCancel, useWhileDead, allowRagdoll, icon,
----   disable = { move, car, combat, mouse }, anim = { dict, clip, flag } | { scenario }, prop = { model, bone, pos, rot }, prop2 }
+---   maxMove (cancel when the ped walks further than this many metres), disable = { move, car, combat, mouse }, anim = { dict, clip, flag } | { scenario }, prop = { model, bone, pos, rot }, prop2 }
 function NHUD.progress(d, cb)
     if type(d) ~= 'table' or progress then
         if cb then cb(true) end
         return false
     end
     if d.controlDisables or d.animation or (d.name and d.label and cb) then d = fromQB(d) end
+    -- with a callback (qb style) return straight away like qb's progressbar does; without one, block and return the result
+    if cb then
+        CreateThread(function() NHUD.progress(d, nil) cb(not progressOk) end)
+        return
+    end
 
     local duration = math.max(100, tonumber(d.duration) or 1000)
     local ped = cache.ped
@@ -120,7 +126,10 @@ function NHUD.progress(d, cb)
     end
 
     local endAt = GetGameTimer() + duration
+    local start, maxMove, frame = GetEntityCoords(ped), tonumber(d.maxMove), 0
     while GetGameTimer() < endAt and not state.cancelled do
+        frame = frame + 1
+        if maxMove and frame % 10 == 0 and #(GetEntityCoords(ped) - start) > maxMove then state.cancelled = true end
         for i = 1, #disable do DisableControlAction(0, disable[i], true) end
         if d.canCancel and IsControlJustPressed(0, cancelKey) then state.cancelled = true end
         if not d.useWhileDead and IsEntityDead(ped) then state.cancelled = true end
@@ -137,8 +146,8 @@ function NHUD.progress(d, cb)
 
     NHUD.send('progress', { done = true, cancelled = state.cancelled })
     progress = nil
-    if cb then cb(state.cancelled) end -- qb style: callback(cancelled)
-    return not state.cancelled
+    progressOk = not state.cancelled
+    return progressOk
 end
 
 function NHUD.progressActive() return progress ~= nil end
@@ -170,10 +179,10 @@ exports('IsTextUIOpen', function() return textOpen end)
 
 -- qb-core DrawText events, for scripts that trigger them directly
 if UI.TextUI.QBEvents then
-    AddEventHandler('qb-core:client:DrawText', function(text, position) NHUD.showText(text, { position = position }) end)
-    AddEventHandler('qb-core:client:ChangeText', function(text, position) NHUD.showText(text, { position = position }) end)
-    AddEventHandler('qb-core:client:HideText', NHUD.hideText)
-    AddEventHandler('qb-core:client:KeyPressed', NHUD.hideText)
+    RegisterNetEvent('qb-core:client:DrawText', function(text, position) NHUD.showText(text, { position = position }) end)
+    RegisterNetEvent('qb-core:client:ChangeText', function(text, position) NHUD.showText(text, { position = position }) end)
+    RegisterNetEvent('qb-core:client:HideText', NHUD.hideText)
+    RegisterNetEvent('qb-core:client:KeyPressed', NHUD.hideText)
 end
 
 -- quick test: /hudtest notify | progress | text

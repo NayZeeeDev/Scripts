@@ -130,7 +130,7 @@ local function loop()
             end
 
             if Settings.hud and not p then
-                -- your own card: read locally, the server doesn't send your vitals back to you
+                -- your own card: read locally every 250 ms (the squad sync also carries yours, but it's older)
                 local ped = cache.ped
                 local h, a, w = healthPct(ped), GetPedArmour(ped), GetSelectedPedWeapon(ped)
                 local veh = cache.vehicle or 0
@@ -196,12 +196,12 @@ local function shotLoop()
 
         -- squadmates see your clip / reserve (and RELOAD / EMPTY); sent when it changes, at most every 600 ms
         local function reportAmmo(now, ped, w)
-            if now - ammoAt < 600 then return end
+            if now - ammoAt < 600 or not othersOnline() then return end
             local clip, max, total = ammoOf(ped, w)
             local key = clip and ('%d:%d:%d'):format(clip, max, total) or 'none'
             if key == sentAmmo then return end
             ammoAt, sentAmmo = now, key
-            if othersOnline() then TriggerServerEvent('nz_squads:ammo', clip or 0, max or 0, total or 0) end
+            TriggerServerEvent('nz_squads:ammo', clip or 0, max or 0, total or 0)
         end
 
         local function flush(now)
@@ -237,7 +237,9 @@ local function shotLoop()
                 local w = GetSelectedPedWeapon(ped)
                 if w ~= lastW then lastW, lastAmmo = w, GetAmmoInPedWeapon(ped, w) end
 
-                if IsPlayerFreeAiming(playerId) or IsControlPressed(0, 24) or IsControlPressed(0, 69) or IsControlPressed(0, 92) then
+                -- per-frame shot timing only matters when someone will see it (your own card, or squadmates online)
+                if (Settings.hud or othersOnline())
+                    and (IsPlayerFreeAiming(playerId) or IsControlPressed(0, 24) or IsControlPressed(0, 69) or IsControlPressed(0, 92)) then
                     hotUntil = now + 900
                 end
 
@@ -260,9 +262,9 @@ local function shotLoop()
                 end
                 if now < hotUntil then reportAmmo(now, ped, w) end
             else
-                if sentAmmo ~= 'none' and sentAmmo ~= '' then
-                    sentAmmo = 'none'
-                    if othersOnline() then TriggerServerEvent('nz_squads:ammo', 0, 0, 0) end
+                if sentAmmo ~= 'none' and sentAmmo ~= '' and othersOnline() then
+                    sentAmmo, ammoAt = 'none', GetGameTimer()
+                    TriggerServerEvent('nz_squads:ammo', 0, 0, 0)
                 end
                 lastW, lastAmmo = 0, -1
                 if #pending > 0 then flush(GetGameTimer()) end

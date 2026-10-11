@@ -17,19 +17,23 @@ end
 
 Bridge.SetDowned = setDowned
 
+local frameworkHook = false
 if GetResourceState('es_extended') ~= 'missing' then
+    frameworkHook = true
     AddEventHandler('esx:onPlayerDeath', function() setDowned(true) end)
     AddEventHandler('esx:onPlayerSpawn', function() setDowned(false) end)
     RegisterNetEvent('esx_ambulancejob:revive', function() setDowned(false) end)
 elseif GetResourceState('qbx_core') ~= 'missing' or GetResourceState('qb-core') ~= 'missing' then
+    frameworkHook = true
     RegisterNetEvent('QBCore:Player:SetPlayerData', function(data)
         local md = data and data.metadata
         if md then setDowned(md.isdead or md.inlaststand) end
     end)
 end
 
--- fallback for servers with no ambulance job wired in
-CreateThread(function()
+-- fallback for servers with no framework hook (ESX / QB set the state above; their last stand keeps the ped alive,
+-- so a health check here would clear the downed flag while they're still waiting for a revive)
+if not frameworkHook then CreateThread(function()
     while true do
         Wait(1000)
         if IsPedDeadOrDying(PlayerPedId(), true) then
@@ -38,7 +42,7 @@ CreateThread(function()
             setDowned(false)
         end
     end
-end)
+end) end
 
 --- Called by the server once a revive is approved.
 RegisterNetEvent('nz_squads:client:revive', function(health)

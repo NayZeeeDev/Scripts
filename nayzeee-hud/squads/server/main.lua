@@ -7,6 +7,7 @@ Players = {}   -- [src] = squadId
 
 local MenuOpen  = {}   -- [src] = true while the menu is open
 local Vitals    = {}   -- [src] = { h, a, x, y, z }
+local Reviving  = {}   -- [src] = { target, started } while that player runs a revive
 local Cooldowns = {}
 local nextId, nextMsg = 0, 0
 -- temporary squads live above this offset so their ids can never collide with database ids
@@ -894,7 +895,11 @@ lib.callback.register('nz_squads:revive', function(src, target, item)
     if not sq then return false, 'You are not in a squad' end
     target = tonumber(target)
     if not target or target == src or not sq.online[target] then return false, 'They are not in your squad' end
-    if cooldown(src, 'revive', SquadsConfig.Revive.Cooldown * 1000) then return false, 'Wait before reviving again' end
+    local me, them = sq.roster[sq.online[src]], sq.roster[sq.online[target]]
+    if not them or not them.downed then return false, 'They are not down' end
+    if me and me.downed then return false, 'You are down yourself' end
+    local c = Cooldowns[src]
+    if c and c.revive and GetGameTimer() - c.revive < SquadsConfig.Revive.Cooldown * 1000 then return false, 'Wait before reviving again' end
 
     local srcPed, tgtPed = GetPlayerPed(src), GetPlayerPed(target)
     if srcPed == 0 or tgtPed == 0 then return false, 'They are too far away' end
@@ -914,14 +919,20 @@ lib.callback.register('nz_squads:revive', function(src, target, item)
         def = SquadsConfig.Revive.Bare
     end
 
+    -- the revive has to have actually run for the item's time (the client announced it with nz_squads:reviving)
+    local run = Reviving[src]
+    Reviving[src] = nil
+    if not run or run.target ~= target or GetGameTimer() - run.started < (def.time or 0) - 1500 then
+        return false, 'Revive was interrupted'
+    end
+
     if def.remove and not Bridge.RemoveItem(src, def.item, 1) then return false, 'You do not have that item' end
+    cooldown(src, 'revive', 0) -- stamp the cooldown only once a revive goes through
 
     Bridge.Revive(target, def.health)
     Combat.AddRevive(sq, src)
 
-    local me  = sq.roster[sq.online[src]]
-    local them = sq.roster[sq.online[target]]
-    if them then them.downed, them.downedAt = false, nil end
+    them.downed, them.downedAt = false, nil
     system(sq, S.revived:format(Nick(me), Nick(them)))
     Broadcast(sq, 'nz_squads:revived', { by = Nick(me), target = target, item = def.label })
     SyncSquad(sq)
@@ -977,7 +988,7 @@ RegisterNetEvent('nz_squads:setDowned', function(state)
     rec.downedAt = state and os.time() or nil
     Broadcast(sq, 'nz_squads:downed', src, state)
 
-    if state and SquadsConfig.Features.DownedAlert then
+    if state and SquadsConfig.Features.DownedAlert and not cooldown(src, 'downedPing', 10000) then
         local ped = GetPlayerPed(src)
         if ped ~= 0 then
             local c = GetEntityCoords(ped)
@@ -1018,7 +1029,7 @@ AddEventHandler('playerDropped', function()
     local src = source
     local sq = SquadOf(src)
     if sq then removeMember(sq, src, 'left', not sq.persistent) end
-    MenuOpen[src], Vitals[src], Cooldowns[src] = nil, nil, nil
+    MenuOpen[src], Vitals[src], Cooldowns[src], Reviving[src] = nil, nil, nil, nil
     Roles.Forget(src)
     for _, s in pairs(Squads) do s.invites[src] = nil end
 end)
@@ -1126,15 +1137,24 @@ if SquadsConfig.Features.Hud then
     end)
 end
 
--- the reviver's client says when a revive starts (ms) and stops (false), so the downed card shows a progress ring
+-- the reviver's client says when a revive starts (ms) and stops (false), so the downed card shows a progress ring.
+-- The start time is also what nz_squads:revive checks, so a revive can't skip its progress bar.
 RegisterNetEvent('nz_squads:reviving', function(target, ms)
     local src = source
     local sq = SquadOf(src)
     target = tonumber(target)
-    if not sq or not target or not sq.online[target] or cooldown(src, 'reviving', 200) then return end
+    if not sq or not target or target == src or not sq.online[target] then return end
+    local them = sq.roster[sq.online[target]]
+    if ms then
+        if not them or not them.downed or cooldown(src, 'reviving', 500) then return end
+        ms = floor(math.max(500, math.min(tonumber(ms) or 0, 60000)))
+        Reviving[src] = { target = target, started = GetGameTimer() }
+    else
+        if not Reviving[src] or Reviving[src].target ~= target then return end
+        Reviving[src] = nil
+    end
     local me = sq.roster[sq.online[src]]
-    ms = ms and floor(math.max(500, math.min(tonumber(ms) or 0, 60000))) or false
-    Broadcast(sq, 'nz_squads:reviving', target, me and Nick(me) or '', ms)
+    Broadcast(sq, 'nz_squads:reviving', target, me and Nick(me) or '', ms or false)
 end)
 
 -- ─── temporary squad expiry ────────────────────────────────

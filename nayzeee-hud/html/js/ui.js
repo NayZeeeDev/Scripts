@@ -31,8 +31,14 @@
     if (!root) return;
     const c = ui();
     stack.className = `nt-stack at-${c.notifyPos} ns-${c.notify}`;
-    prog.className = `pg ps-${c.progress}${prog.classList.contains('on') ? ' on' : ''}`;
-    text.className = `tx ts-${c.text} at-${text.dataset.pos || c.textPos}${text.classList.contains('on') ? ' on' : ''}`;
+    // swap only the style / position classes so a running progress bar or open prompt keeps its state
+    const swap = (el, prefix, cls) => {
+      [...el.classList].filter((k) => k.startsWith(prefix)).forEach((k) => el.classList.remove(k));
+      el.classList.add(cls);
+    };
+    swap(prog, 'ps-', `ps-${c.progress}`);
+    swap(text, 'ts-', `ts-${c.text}`);
+    swap(text, 'at-', `at-${text.dataset.pos || c.textPos}`);
   };
 
   // ─── notifications ───────────────────────────────────────

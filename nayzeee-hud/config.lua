@@ -94,6 +94,7 @@ Config.Stress = {
     speedUnbuckled = 50,       -- mph; driving faster than this unbuckled adds stress
     speedBuckled = 100,        -- mph; buckled
     speedCheckMs = 10000,
+    maxRelief = 50,            -- most stress one hud:server:RelieveStress call can remove (limited to once a second)
     blurFrom = 50,             -- stress level where the screen starts to blur
     whitelistedJobs = { police = true, ambulance = true, leo = true, ems = true },
     noStressWeapons = { 'WEAPON_PETROLCAN', 'WEAPON_HAZARDCAN', 'WEAPON_FIREEXTINGUISHER', 'WEAPON_STUNGUN', 'WEAPON_SNOWBALL' },

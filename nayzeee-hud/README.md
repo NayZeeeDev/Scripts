@@ -128,7 +128,7 @@ exports['nayzeee-hud']:Notify(source, { message = 'Paid $500', type = 'success' 
 TriggerClientEvent('nhud:notify', source, 'Paid $500', 'success')
 ```
 
-Types: `success`, `error`, `warning`, `info` (also `inform`, `primary`). GTA colour codes like `~r~` are stripped. `Progress` also accepts qb-core progressbar tables with a callback: `exports['nayzeee-hud']:Progress(data, function(cancelled) end)`. qb-core's `qb-core:client:DrawText` / `HideText` / `ChangeText` / `KeyPressed` events show the prompt automatically (`Config.UI.TextUI.QBEvents`). Try it with `/hudtest notify`, `/hudtest progress` or `/hudtest text`.
+Types: `success`, `error`, `warning`, `info` (also `inform`, `primary`). GTA colour codes like `~r~` are stripped. `Progress` also accepts qb-core progressbar tables with a callback: `exports['nayzeee-hud']:Progress(data, function(cancelled) end)`. qb-core's `qb-core:client:DrawText` / `HideText` / `ChangeText` / `KeyPressed` events show the prompt automatically (`Config.UI.TextUI.QBEvents`); qb-core still draws its own prompt too, so either point `exports['qb-core']:DrawText` at `ShowTextUI` or turn `QBEvents` off. Try it with `/hudtest notify`, `/hudtest progress` or `/hudtest text`.
 
 To send **every** framework notification through the HUD, point the framework's notify function at it (one line each):
 

@@ -62,13 +62,19 @@ RegisterNetEvent('hud:server:GainStress', function(amount)
     changeStress(source, math.min(100, math.floor(amount)))
 end)
 
+-- relieving is what a cheater would spam, so it's capped per call and limited to once a second
+local lastRelief = {}
 RegisterNetEvent('hud:server:RelieveStress', function(amount)
+    local src = source
     amount = tonumber(amount)
     if not amount or amount <= 0 then return end
-    changeStress(source, -math.min(100, math.floor(amount)))
+    local now = GetGameTimer()
+    if lastRelief[src] and now - lastRelief[src] < 1000 then return end
+    lastRelief[src] = now
+    changeStress(src, -math.min(Config.Stress.maxRelief or 50, math.floor(amount)))
 end)
 
-AddEventHandler('playerDropped', function() memory[source] = nil end)
+AddEventHandler('playerDropped', function() memory[source], lastRelief[source] = nil, nil end)
 
 -- server-side scripts can use these directly
 exports('GainStress', function(src, amount) changeStress(src, math.abs(tonumber(amount) or 0)) end)
@@ -147,7 +153,9 @@ RegisterNetEvent('nhud:server:avatar', function()
     local now = os.time()
     if lastAsk[src] and now - lastAsk[src] < 30 then return end -- one lookup per player per 30s
     lastAsk[src] = now
-    local fetch = (Discord and Discord.Get) or ownFetch -- squads module cache when it's running
+    -- share the squads module's cache when it's running with Discord on; otherwise use our own lookup
+    local shared = Discord and Discord.Get and SquadsConfig and SquadsConfig.Discord and SquadsConfig.Discord.Enabled
+    local fetch = shared and Discord.Get or ownFetch
     fetch(src, function(data)
         if GetPlayerName(src) then TriggerClientEvent('nhud:client:avatar', src, data or false) end
     end)

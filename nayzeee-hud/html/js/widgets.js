@@ -477,12 +477,18 @@
     label: 'Watermark', anchor: [0, 0],
     pos: () => [1.4, 1.6],
     visible: () => NH.cur.watermark.enabled && NH.cfg.watermark.enabled !== false,
-    build(el) { this.key = null; this.logo = undefined; },
+    build(el) { this.key = null; this.logo = null; this.logoFor = undefined; },
     apply() {
       const c = NH.cur.watermark, w = NH.cfg.watermark;
-      if (this.logo === undefined) {
+      // look the logo up again whenever the configured value changes (the server's config arrives after boot)
+      if (this.logoFor !== w.logo) {
+        const want = this.logoFor = w.logo;
         this.logo = null;
-        NH.findLogo(w.logo, (src) => { this.logo = src; NH.logoSrc = src; this.key = null; this.apply(); NH.place?.(); });
+        NH.logoSrc = null;
+        NH.findLogo(want, (src) => {
+          if (this.logoFor !== want) return;
+          this.logo = src; NH.logoSrc = src; this.key = null; this.apply(); NH.place?.();
+        });
       }
       const key = [c.style, c.effect, w.title, w.subtitle, this.logo, w.showText].join('|');
       if (key === this.key) return;
