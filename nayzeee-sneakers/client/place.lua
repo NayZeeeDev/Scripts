@@ -37,9 +37,36 @@ function Place.Aim()
     local f = GetFrameCount()
     if aim.frame ~= f then
         local hit, ent, coords = camRay(17, 10.0, PlayerPedId())
-        aim = { frame = f, hit = hit, ent = ent, coords = coords }
+        local from = GetFinalRenderedCamCoord()
+        local rot = GetFinalRenderedCamRot(2)
+        local rx, rz = math.rad(rot.x), math.rad(rot.z)
+        local c = math.abs(math.cos(rx))
+        aim = { frame = f, hit = hit, ent = ent, coords = coords,
+            from = from, dir = vector3(-math.sin(rz) * c, math.cos(rz) * c, math.sin(rx)) }
     end
     return aim.hit, aim.ent, aim.coords
+end
+
+--- How far along the camera's line of sight it enters an entity's box (local min/max corners), or nil
+local function rayIntoBox(e, mn, mx, from, dir, maxT)
+    local o = GetOffsetFromEntityGivenWorldCoords(e, from.x, from.y, from.z)
+    local tip = from + dir
+    local q = GetOffsetFromEntityGivenWorldCoords(e, tip.x, tip.y, tip.z)
+    local d = { x = q.x - o.x, y = q.y - o.y, z = q.z - o.z }
+    local lo, hi = 0.0, maxT
+    for _, k in ipairs({ 'x', 'y', 'z' }) do
+        local ok, dk, a, b = o[k], d[k], mn[k], mx[k]
+        if math.abs(dk) < 1e-6 then
+            if ok < a or ok > b then return nil end
+        else
+            local t1, t2 = (a - ok) / dk, (b - ok) / dk
+            if t1 > t2 then t1, t2 = t2, t1 end
+            if t1 > lo then lo = t1 end
+            if t2 < hi then hi = t2 end
+            if lo > hi then return nil end
+        end
+    end
+    return lo
 end
 
 --- Does the third eye aim (ox_target, qb-target)? interact and the key prompt go by distance instead,
@@ -49,19 +76,30 @@ function Place.Aims()
     return sys == 'ox_target' or sys == 'qb-target'
 end
 
---- Of a set of props, the one the aim is on: the one it hit, or the one whose box the hit point is
---- in or nearest to. list = { [entity] = entry }, sizeOf(entity, entry) -> local min, max corners,
---- partOf(entity) -> the prop a hit part (lid, door, shoe) belongs to. Used so that props side by side
---- or stacked, whose third-eye zones overlap, only ever show the options of the one you look at.
+--- Of a set of props, the one you're looking at: the first one the camera's line of sight passes
+--- into, worked out from where the props are and how big (sizeOf(entity, entry) -> local min, max
+--- corners), so it doesn't matter whether a ray can hit them (see-through glass cases let it through).
+--- If the line of sight misses them all, the one a ray hit, or whose box the hit point is right at.
+--- Used so that props side by side or stacked, whose third-eye zones overlap, only ever show the
+--- options of the one you look at.
 function Place.Aimed(list, sizeOf, partOf)
     local hit, ent, coords = Place.Aim()
+    local from, dir = aim.from, aim.dir
+    local best, bestT
+    for e, entry in pairs(list) do
+        if DoesEntityExist(e) and #(GetEntityCoords(e) - from) < 15.0 then
+            local mn, mx = sizeOf(e, entry)
+            local t = rayIntoBox(e, mn, mx, from, dir, 15.0)
+            if t and (not bestT or t < bestT) then best, bestT = e, t end
+        end
+    end
+    if best then return best end
     if not hit then return nil end
     if ent and ent ~= 0 then
         if list[ent] then return ent end
         local owner = partOf and partOf(ent)
         if owner then return owner end
     end
-    local best, bestD
     for e, entry in pairs(list) do
         if DoesEntityExist(e) then
             local mn, mx = sizeOf(e, entry)
@@ -69,11 +107,10 @@ function Place.Aimed(list, sizeOf, partOf)
             local dx = math.max(mn.x - l.x, l.x - mx.x, 0.0)
             local dy = math.max(mn.y - l.y, l.y - mx.y, 0.0)
             local dz = math.max(mn.z - l.z, l.z - mx.z, 0.0)
-            local d = dx * dx + dy * dy + dz * dz
-            if not bestD or d < bestD then best, bestD = e, d end
+            if dx * dx + dy * dy + dz * dz < 0.0025 then return e end
         end
     end
-    return best
+    return nil
 end
 
 --- The model of whatever a ray hit, or nil (the ground and buildings aren't entities, and asking

@@ -148,6 +148,8 @@ end
 --- should answer
 local function going(e)
     if cases[e] and cases[e].gone then return true end
+    -- the zone is wide, so how close you are is measured to the case itself
+    if #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(e)) > D.interactDistance + 0.5 then return true end
     return Place.Aims() and Place.Aimed(cases, caseSize, caseOf) ~= e
 end
 
@@ -284,9 +286,10 @@ local function zoneFor(base, c)
     local t = c.t
     local h = t.size.z
     local centre = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, h * 0.5)
-    -- a box around the case. Neighbours' boxes can touch; the options check which case the aim is
-    -- on (going), so only that one answers.
-    Target.AddBox(base, centre, vector3(t.size.x + 0.04, t.size.y + 0.04, h + 0.04), GetEntityHeading(base), options, D.interactDistance)
+    -- A wide zone around the case. The third eye's ray goes straight through the clear cases and lands
+    -- on whatever is behind them, so the zone has to reach there; which case actually answers is
+    -- decided by the line of sight (going -> Place.Aimed), so overlapping zones never mix cases up.
+    Target.AddSpot(base, centre, D.zoneRadius or 1.6, options, D.interactDistance + 1.5)
     c.zoneAt = GetEntityCoords(base)
 end
 
@@ -444,3 +447,19 @@ RegisterNetEvent('nayzeee-sneakers:client:placeDisplay', function(slot, typeId)
         end
     end)
 end)
+
+-- /nzscases: what the third eye should be seeing (paste the F8 output if a case still can't be targeted)
+RegisterCommand('nzscases', function()
+    local me = GetEntityCoords(PlayerPedId())
+    local hit, ent, coords = Place.Aim()
+    local aimed = Place.Aimed(cases, caseSize, caseOf)
+    print(('^5[nayzeee-sneakers]^7 target system: %s, cases nearby: %d'):format(Target.System(), (function() local n = 0 for _ in pairs(cases) do n = n + 1 end return n end)()))
+    print(('  aim ray: hit=%s entity=%s (%s) at %s'):format(tostring(hit), tostring(ent), caseOf(ent) and 'a case' or 'not a case',
+        coords and ('%.2f %.2f %.2f'):format(coords.x, coords.y, coords.z) or '-'))
+    print(('  looking at case: %s'):format(tostring(aimed)))
+    for base, c in pairs(cases) do
+        local p = GetEntityCoords(base)
+        print(('  case %d %s at %.2f %.2f %.2f  %.1fm away  zone at %s'):format(base, c.t.label, p.x, p.y, p.z, #(p - me),
+            c.zoneAt and ('%.2f %.2f %.2f'):format(c.zoneAt.x, c.zoneAt.y, c.zoneAt.z) or '-'))
+    end
+end, false)
