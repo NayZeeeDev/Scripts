@@ -41,6 +41,13 @@ end
 function Apply.ClearPreview(veh)
     preview[veh] = nil
     lastSig[veh] = nil
+    -- the per-frame threads read 'tracked': drop the preview table there too, or its stance / pattern comes back
+    local st = Entity(veh).state.nzTune
+    for i = #tracked, 1, -1 do
+        if tracked[i].veh == veh then
+            if st then tracked[i].data = st else table.remove(tracked, i) end
+        end
+    end
     Apply.Refresh(veh)
 end
 
@@ -340,7 +347,13 @@ AddStateBagChangeHandler('nzTune', nil, function(bagName)
     SetTimeout(0, function()
         if DoesEntityExist(ent) and not preview[ent] then
             lastSig[ent] = nil
-            neonBase[ent] = nil
+            -- put the real colour back before forgetting it, or the next capture takes an animated frame
+            local b = neonBase[ent]
+            if b then
+                SetVehicleNeonLightsColour(ent, b.r, b.g, b.b)
+                for i = 0, 3 do SetVehicleNeonLightEnabled(ent, i, b.sides[i] == true) end
+                neonBase[ent] = nil
+            end
             Apply.Refresh(ent)
         end
     end)

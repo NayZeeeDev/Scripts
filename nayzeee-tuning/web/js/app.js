@@ -31,12 +31,14 @@ const T = (k, fb) => (CFG && CFG.strings && CFG.strings[k]) || fb;
 
 function throttle(fn, ms) {
   let last = 0, timer = null, args = null;
-  return (...a) => {
+  const t = (...a) => {
     args = a;
     const now = Date.now();
     if (now - last >= ms) { last = now; fn(...args); }
     else if (!timer) timer = setTimeout(() => { last = Date.now(); timer = null; fn(...args); }, ms - (now - last));
   };
+  t.cancel = () => { clearTimeout(timer); timer = null; };  // drop a pending trailing call
+  return t;
 }
 
 function el(html) {
@@ -173,6 +175,7 @@ Tune.hide = function () {
   Drawer.close();
   Spot.close();
   Tune.s = null;
+  Drawer.waiting = false;
   $('#hotspots').innerHTML = '';
   if (Tune.cmp) { Tune.cmp = false; $('#cmpBadge').hidden = true; }
   $$('#hints button').forEach((b) => b.classList.remove('on'));
@@ -233,7 +236,7 @@ Tune.setCart = async function (id, value, label) {
 
 /* ---------- selection ---------- */
 Tune.leave = function () {
-  if (Tune.cur) { post('restore', { id: Tune.cur.id }); post('leaveItem'); }
+  if (Tune.cur) { preview.cancel(); post('restore', { id: Tune.cur.id }); post('leaveItem'); }
   Tune.cur = null;
 };
 
@@ -298,6 +301,7 @@ Tune.hover = function (i, scroll) {
 Tune.unhover = function () {
   const c = Tune.cur;
   if (!c || !c.opts) return;
+  preview.cancel();
   post('restore', { id: c.id });
   c.idx = Math.max(0, c.opts.findIndex((o) => same(o.value, Tune.valueOf(c.id, c.d.installed))));
   if (c.draw) c.draw();
@@ -678,7 +682,7 @@ Items.color = (view, d) => {
       (c) => preview(d.id, { mode: 'index', index: c[0] }),
       (c) => Tune.setCart(d.id, { mode: 'index', index: c[0] }),
       name, () => (gid === 'chameleon' ? d.prices.chameleon : d.prices.index));
-    grid.onmouseleave = () => post('restore', { id: d.id });
+    grid.onmouseleave = () => { preview.cancel(); post('restore', { id: d.id }); };
     body.appendChild(grid);
     body.appendChild(name);
     Tune.item.refresh = () => grid.redraw();
@@ -740,7 +744,7 @@ Items.xenonColor = (view, d) => {
   const name = el('<div class="swname"><b>&nbsp;</b></div>');
   const grid = swatchGrid(d.colors, (c) => cur().mode === 'index' && cur().index === c[0], (c) => d.installed.mode === 'index' && d.installed.index === c[0],
     (c) => preview(d.id, { mode: 'index', index: c[0] }), (c) => Tune.setCart(d.id, { mode: 'index', index: c[0] }), name, () => d.prices.index);
-  grid.onmouseleave = () => post('restore', { id: d.id });
+  grid.onmouseleave = () => { preview.cancel(); post('restore', { id: d.id }); };
   view.appendChild(grid);
   view.appendChild(name);
   Tune.item.refresh = () => grid.redraw();
@@ -991,7 +995,7 @@ Tabs.builds = async function (view) {
   };
   $('#bLoad').onclick = () => { const c = $('#bCode').value.trim(); if (c) load(c); };
   const list = (await post('builds')) || [];
-  const box = $('#bList');
+  const box = $('#bList', view);   // scoped: the option dock has its own #bList button
   if (!box) return;
   box.innerHTML = list.length ? `<div class="rows">${list.map((b) => `
     <div class="row"><span class="ic"><i class="fa-solid fa-layer-group"></i></span><span class="tx"><b>${esc(b.name)}</b><span>${esc(b.code)} · ${b.count} parts · ${esc(b.model || 'any')} · used ${b.uses}x</span></span>

@@ -551,6 +551,7 @@ end
 
 function Menu.Open(shopId, asMechanic, resume)
     if Menu.open then return end
+    if not UI.ready then return Notify(L('cannot_open'), 'error') end   -- NUI drops menu:open before init: focus would stick
     local vehicle
     if asMechanic then vehicle = VehUtil.Closest(5.0) else vehicle = cache.vehicle end
     if not vehicle or vehicle == 0 then return Notify(L('no_vehicle'), 'error') end
@@ -634,10 +635,10 @@ RegisterNetEvent('nayzeee-tuning:openAdmin', function()
     Menu.Open(nil, false)
 end)
 
--- leaving the car / vehicle vanished closes the menu
+-- leaving the car / vehicle vanished / dying closes the menu
 CreateThread(function()
     while true do
-        if Menu.open and (not veh or not DoesEntityExist(veh) or (S and S.role ~= 'mechanic' and S.role ~= 'admin' and cache.vehicle ~= veh)) then
+        if Menu.open and (not veh or not DoesEntityExist(veh) or IsEntityDead(cache.ped) or (S and S.role ~= 'mechanic' and S.role ~= 'admin' and cache.vehicle ~= veh)) then
             Menu.Close(false)
         end
         Wait(Menu.open and 500 or 2000)
@@ -698,6 +699,12 @@ UI.On('preview', function(d)
     elseif d.value ~= nil then
         Apply.Item(veh, d.id, d.value)
         if part.slot == 14 then StartVehicleHorn(veh, 1500, joaat('HELDDOWN'), false) end
+        -- headlight RGB lives in extras (and masks the index colours), so preview it there too
+        if part.kind == 'xenonColor' then
+            local ex = currentExtras()
+            NZ.ApplyToExtras(ex, d.id, d.value)
+            Apply.SetPreview(veh, ex)
+        end
     end
     return true
 end)
@@ -710,6 +717,7 @@ UI.On('restore', function(d)
     else
         local v = valueOf(d.id)
         if v ~= nil then Apply.Item(veh, d.id, v) end
+        if part.kind == 'xenonColor' then Apply.SetPreview(veh, currentExtras()) end
     end
     return true
 end)
@@ -830,6 +838,7 @@ UI.On('checkout', function(d)
     if not Menu.open then return false end
     local items = cartItems()
     if #items == 0 then return { ok = false, error = L('cart_empty') } end
+    reapply()                                    -- only original + cart: drop hover / browse / compare previews
     local props = Bridge.GetProps(veh)
     local ok, res = lib.callback.await('nayzeee-tuning:checkout', false, {
         netId = VehToNet(veh), items = items, props = props, payment = d.payment, code = code, mode = mode,
@@ -858,6 +867,7 @@ UI.On('sendQuote', function(d)
     if not Menu.open or S.role ~= 'mechanic' then return false end
     local items = cartItems()
     if #items == 0 then return { ok = false, error = L('cart_empty') } end
+    reapply()                                    -- only original + cart: drop hover / browse / compare previews
     local ok, res = lib.callback.await('nayzeee-tuning:sendQuote', false, {
         netId = VehToNet(veh), items = items, props = Bridge.GetProps(veh), target = d.target,
         class = GetVehicleClass(veh), label = S.label,
@@ -952,7 +962,7 @@ UI.On('randomize', function()
         end
     end
     local group = Config.Paints[math.random(1, 2)].colors
-    setCart('color1', { mode = 'index', index = group[math.random(1, #group)][1] })
+    if available('color1') then setCart('color1', { mode = 'index', index = group[math.random(1, #group)][1] }) end
     local accent = Config.Paints[3].colors
     if available('pearl') then setCart('pearl', { mode = 'index', index = accent[math.random(1, #accent)][1] }) end
     if available('wheels') then
@@ -983,7 +993,7 @@ UI.On('testDrive', function()
     local heading = GetEntityHeading(veh)
     TestDrive.Start(veh, bay, heading, function()
         testDriving = false
-        if veh and DoesEntityExist(veh) and cache.vehicle == veh then
+        if veh and DoesEntityExist(veh) and cache.vehicle == veh and not IsEntityDead(cache.ped) then
             Menu.Open(S.shop.id, false, true)
         else
             local v = veh

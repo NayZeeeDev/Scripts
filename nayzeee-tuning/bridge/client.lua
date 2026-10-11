@@ -71,7 +71,10 @@ function Bridge.SetProps(veh, props)
     if not props then return end
     if fw == 'esx' then return ESX.Game.SetVehicleProperties(veh, props) end
     if fw == 'qb' then return QB.Functions.SetVehicleProperties(veh, props) end
-    return lib.setVehicleProperties(veh, props)
+    -- ox_lib refuses vehicles this client doesn't own (mechanic on a customer's car): never abort the caller
+    local ok, err = pcall(lib.setVehicleProperties, veh, props)
+    if not ok then NZ.Debug('SetProps: ' .. tostring(err)) end
+    return ok
 end
 
 --------------------------------------------------------------------- feedback

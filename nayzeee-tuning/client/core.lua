@@ -106,6 +106,8 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
+    -- undo previews, camera, freeze and HUD of an open menu / test drive (no server event while stopping)
+    if Menu and Menu.Close and (Menu.open or (Menu.IsTestDriving and Menu.IsTestDriving())) then pcall(Menu.Close, false, true) end
     if UI.focus then SetNuiFocus(false, false) end
     Bridge.TextUI(false)
 end)
