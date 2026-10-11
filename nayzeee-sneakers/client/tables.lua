@@ -69,7 +69,7 @@ end)
 function Tables.Refresh()
     for id in pairs(spawned) do despawn(id) end
     list = {}
-    for _, t in ipairs(lib.callback.await('nayzeee-sneakers:tables', false) or {}) do list[t.id] = t end
+    for _, t in ipairs(Place.Await('nayzeee-sneakers:tables', false) or {}) do list[t.id] = t end
 end
 
 Bridge.OnPlayerLoaded(Tables.Refresh)
@@ -145,10 +145,11 @@ local function pickUp(ent)
     Anim.Face(ent)
     Anim.PickUp()
     Wait(600)
-    lib.callback.await('nayzeee-sneakers:pickUpTable', false, id)
+    Place.Await('nayzeee-sneakers:pickUpTable', false, id)
     Wait(400)
     Busy = false
 end
+pickUp = Place.Guard('picking up a table', pickUp)   -- an error half way never leaves Busy on
 
 local tableOptions = {
     { name = 'nzs_table_use', label = Config.Text.useTable, icon = 'fa-solid fa-scissors',
@@ -177,7 +178,7 @@ RegisterNetEvent('nayzeee-sneakers:client:placeTable', function(slot, item)
         local pos, heading, ghostDone = Place.Ghost(model, { range = 5.0, flags = 1, minNormal = 0.85, heading = GetEntityHeading(ped), keep = true })
         if pos then
             Anim.PutDown()
-            lib.callback.await('nayzeee-sneakers:placeTable', false, slot, pos, heading)
+            Place.Await('nayzeee-sneakers:placeTable', false, slot, pos, heading)
             Wait(150)   -- the real table spawns from tableAdded, which arrives with the answer
             ghostDone()
         end

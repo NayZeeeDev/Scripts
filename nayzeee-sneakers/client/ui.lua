@@ -5,18 +5,42 @@ local pendingMenu
 --- Shows a menu and waits for a choice. Returns the option id, or nil if closed.
 --- menu = { title, subtitle, image, options = { { id, label, description, icon, disabled } } }
 function UI.Menu(menu)
-    if pendingMenu then return nil end
-    pendingMenu = promise.new()
+    -- a menu that's somehow still open (e.g. it lost the cursor) is closed, never left blocking every
+    -- later menu: wearing shoes, box colours ...
+    if pendingMenu then
+        local old = pendingMenu
+        pendingMenu = nil
+        old:resolve(nil)
+    end
+    local p = promise.new()
+    pendingMenu = p
     SetNuiFocus(true, true)
     SendNUIMessage({ action = 'menu', menu = menu })
-    local choice = Citizen.Await(pendingMenu)
-    pendingMenu = nil
+    -- items are used from the inventory, which lets go of the cursor a moment after it closes and can
+    -- take it from the menu: hold on to it for a little while
+    CreateThread(function()
+        for _ = 1, 8 do
+            Wait(100)
+            if pendingMenu ~= p then return end
+            SetNuiFocus(true, true)
+        end
+    end)
+    local choice = Citizen.Await(p)
+    if pendingMenu == p then pendingMenu = nil end
     return choice
 end
 
 local function finishMenu(id)
     SetNuiFocus(false, false)
-    if pendingMenu then pendingMenu:resolve(id) end
+    local p = pendingMenu
+    pendingMenu = nil
+    if p then p:resolve(id) end
+end
+
+--- Closes whatever menu is open (nothing chosen)
+function UI.CloseMenu()
+    SendNUIMessage({ action = 'menuHide' })
+    finishMenu(nil)
 end
 
 RegisterNUICallback('menuSelect', function(data, cb) cb('ok'); finishMenu(data.id) end)

@@ -330,7 +330,7 @@ Config.Studio = {
     StandardAngle = true,
     -- (the same angles the script's own inventory icons were rendered from)
     PhotoAngle    = { yaw = 340.0, elev = 33.0, zoom = 1.0, lift = 0.0 },
-    BoxAngle      = { yaw = 327.0, elev = 36.0, zoom = 1.0, lift = 0.0 },  -- the same, for "In its box" photos: from the front, looking in
+    BoxAngle      = { yaw = 327.0, elev = 36.0, zoom = 1.35, lift = 0.0 },  -- the same, for "In its box" photos: from the front, looking in
     TextureWait = 450,          -- ms a prop gets to stream in before the photo
     Coords    = vector3(0.0, 0.0, -150.0),    -- under the map, where nothing else renders
     RoutingBucket = 7178,

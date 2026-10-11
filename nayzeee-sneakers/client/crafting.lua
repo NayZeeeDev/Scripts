@@ -69,7 +69,7 @@ function Crafting.Open(ent)
     if Busy then return end
     local id = Tables.FromEntity(ent)
     if not id then return end
-    local data = lib.callback.await('nayzeee-sneakers:craftData', false)
+    local data = Place.Await('nayzeee-sneakers:craftData', false)
     if not data then return end
     benchEnt = ent
     SetNuiFocus(true, true)
@@ -155,7 +155,7 @@ function Crafting.Run(ent, req)
     if Busy then return end
     local tableId = Tables.FromEntity(ent)
     if not tableId then return end
-    local ok, token, stages = lib.callback.await('nayzeee-sneakers:craftStart', false, tableId, {
+    local ok, token, stages = Place.Await('nayzeee-sneakers:craftStart', false, tableId, {
         model = req.model, letter = req.letter, size = req.size, real = req.real == true,
     })
     if not ok then return end
@@ -212,10 +212,10 @@ function Crafting.Run(ent, req)
     end
 
     if cancelled then
-        lib.callback.await('nayzeee-sneakers:craftCancel', false)
+        Place.Await('nayzeee-sneakers:craftCancel', false)
         UI.Notify(Config.Text.craftCancelled, 'inform')
     else
-        local done, info = lib.callback.await('nayzeee-sneakers:craftFinish', false, token, results)
+        local done, info = Place.Await('nayzeee-sneakers:craftFinish', false, token, results)
         if done and info then
             if obj then ResetEntityAlpha(obj) end
             UI.Result({
@@ -233,6 +233,7 @@ function Crafting.Run(ent, req)
     RemoveAnimDict(WORK[1])
     Busy = false
 end
+Crafting.Run = Place.Guard('crafting', Crafting.Run)   -- an error half way never leaves Busy on
 
 AddEventHandler('onResourceStop', function(res)
     if res == GetCurrentResourceName() and benchEnt then SetNuiFocus(false, false) end
@@ -258,7 +259,7 @@ end
 
 local function openShop()
     if Busy then return end
-    local data = lib.callback.await('nayzeee-sneakers:supplierData', false)
+    local data = Place.Await('nayzeee-sneakers:supplierData', false)
     if not data then return end
     SetNuiFocus(true, true)
     SendNUIMessage({ action = 'shop', shop = {
@@ -268,7 +269,7 @@ local function openShop()
 end
 
 RegisterNUICallback('buy', function(d, cb)
-    local ok, spent, money = lib.callback.await('nayzeee-sneakers:buy', false, d.cart or {}, d.account)
+    local ok, spent, money = Place.Await('nayzeee-sneakers:buy', false, d.cart or {}, d.account)
     if ok then UI.Notify(Config.Text.bought:format(spent), 'success') end
     cb({ ok = ok == true, money = money })
 end)

@@ -20,12 +20,12 @@ local function camRay(flags, dist, ignore, skip)
     local c = math.abs(math.cos(rx))
     local dir = vector3(-math.sin(rz) * c, math.cos(rz) * c, math.sin(rx))
     local to = from + dir * dist
-    for _ = 1, 4 do
+    for _ = 1, 12 do
         local h = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, flags, ignore, 4)
         local _, hit, coords, normal, ent = GetShapeTestResult(h)
         hit = hit == 1 or hit == true
         if not hit or not (skip and skip[ent]) then return hit, ent, coords, normal end
-        from = coords + dir * 0.02   -- carry on past it
+        from = coords + dir * 0.08   -- carry on past it
     end
     return false
 end
@@ -132,17 +132,64 @@ local function ghostOf(model, pos)
     return obj
 end
 
+--- Clean up after a flow that broke half way: whatever it had going (busy, camera, animation, key hint)
+local function recover(what, err)
+    Busy = false
+    pcall(UI.Hint, nil)
+    if Cam and Cam.Stop then pcall(Cam.Stop, true) end
+    if Anim and Anim.Stop then pcall(Anim.Stop) end
+    print(('^1[nayzeee-sneakers]^7 %s failed: %s'):format(what, tostring(err)))
+end
+
 --- Runs a placing flow with Busy set, and always clears it again, even if something in the flow errors
 function Place.Run(fn, ...)
     if Busy then return end
     Busy = true
     local ok, err = pcall(fn, ...)
     Busy = false
-    if not ok then
-        UI.Hint(nil)
-        print(('^1[nayzeee-sneakers]^7 placing failed: %s'):format(err))
+    if not ok then recover('placing', err) end
+end
+
+--- Wraps a flow that sets Busy itself (wearing, boxes, cases, crafting, cleaning ...): if it errors
+--- anywhere, Busy is cleared and the camera / animation put back, instead of Busy staying on and every
+--- other flow (wearing, placing) refusing to start until a restart.
+function Place.Guard(what, fn)
+    return function(...)
+        local res = table.pack(pcall(fn, ...))
+        if not res[1] then recover(what, res[2]) return nil end
+        return table.unpack(res, 2, res.n)
     end
 end
+
+--- lib.callback.await that gives up after 15 s (answers nil) instead of waiting for ever, so a server
+--- that never answers can't leave a flow, and Busy, hanging
+function Place.Await(name, delay, ...)
+    local p, done = promise.new(), false
+    lib.callback(name, delay, function(...)
+        if done then return end
+        done = true
+        p:resolve(table.pack(...))
+    end, ...)
+    SetTimeout(15000, function()
+        if done then return end
+        done = true
+        print(('^3[nayzeee-sneakers]^7 no answer from the server for %s'):format(name))
+        p:resolve({ n = 0 })
+    end)
+    local r = Citizen.Await(p)
+    return table.unpack(r, 1, r.n)
+end
+
+--- /nzsreset: frees you if anything ever leaves you stuck (busy, camera, animation, cursor)
+RegisterCommand('nzsreset', function()
+    Busy = false
+    pcall(UI.Hint, nil)
+    if Cam and Cam.Stop then pcall(Cam.Stop, true) end
+    if Anim and Anim.Stop then pcall(Anim.Stop) end
+    pcall(UI.CloseMenu)
+    SetNuiFocus(false, false)
+    print('^2[nayzeee-sneakers]^7 reset')
+end, false)
 
 --- opts = {
 ---   range     = max distance from the player (default 2.8),

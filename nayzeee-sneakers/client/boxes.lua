@@ -285,11 +285,12 @@ local function atBox(ent, fn)
     Busy = false
     return ok
 end
+atBox = Place.Guard('box', atBox)   -- an error half way never leaves Busy on
 
 --- Pick a pair from the inventory. Returns the slot, or nil.
 --- boxType limits the list to pairs that fit that box size.
 function Boxes.ChoosePair(boxType)
-    local all = lib.callback.await('nayzeee-sneakers:myShoes', false) or {}
+    local all = Place.Await('nayzeee-sneakers:myShoes', false) or {}
     local list = {}
     for _, p in ipairs(all) do
         if not boxType or p.box == boxType then list[#list + 1] = p end
@@ -318,18 +319,18 @@ end
 
 local function toggleLid(ent)
     if Busy then return end
-    lib.callback.await('nayzeee-sneakers:toggleLid', false, netOf(ent))
+    Place.Await('nayzeee-sneakers:toggleLid', false, netOf(ent))
 end
 
 local function putIn(ent)
     if Busy then return end
     local slot = Boxes.ChoosePair(Shared.BoxTypeOfModel(GetEntityModel(ent)))
     if not slot then return end
-    atBox(ent, function() return lib.callback.await('nayzeee-sneakers:putIn', false, netOf(ent), slot) end)
+    atBox(ent, function() return Place.Await('nayzeee-sneakers:putIn', false, netOf(ent), slot) end)
 end
 
 local function takeOut(ent)
-    atBox(ent, function() return lib.callback.await('nayzeee-sneakers:takeOut', false, netOf(ent)) end)
+    atBox(ent, function() return Place.Await('nayzeee-sneakers:takeOut', false, netOf(ent)) end)
 end
 
 --- Hide a box (base, lid and shoes) on this client, e.g. the moment it's picked up
@@ -352,9 +353,10 @@ local function pickUp(ent)
     Anim.PickUp()
     Wait(300)                                  -- hands reach the box
     hideBox(ent, true)                         -- gone from view now, the server catches up
-    if not lib.callback.await('nayzeee-sneakers:pickUp', false, netOf(ent)) then hideBox(ent, false) end
+    if not Place.Await('nayzeee-sneakers:pickUp', false, netOf(ent)) then hideBox(ent, false) end
     Busy = false
 end
+pickUp = Place.Guard('picking up a box', pickUp)   -- an error half way never leaves Busy on
 
 --- The box a ray hit: the box itself, or its lid / the pair in it (separate local objects)
 local function boxOf(ent)
@@ -475,14 +477,15 @@ RegisterNetEvent('nayzeee-sneakers:client:placeBox', function(slot, kind, boxTyp
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
     local t = Config.BoxTypes[boxType] or Config.BoxTypes.shoe
     if not IsModelInCdimage(t.base) then return UI.Notify(Config.Text.modelMissing, 'error') end
-    -- a boxed pair keeps its box; an empty box gets a colour now
-    if kind ~= 'boxed' or not colour then colour = Boxes.PickColour() end
+    -- a boxed pair keeps its box (one without a colour, e.g. fresh from crafting, is the plain box);
+    -- only an empty box gets a colour picked now
+    if kind == 'boxed' then colour = Shared.BoxColour(colour) else colour = Boxes.PickColour() end
     if not colour then return end
     Place.Run(function()
         local spot, heading, ghostDone = placementSpot(boxType, colour)
         if spot then
             Anim.PutDown()
-            local netId = lib.callback.await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading, colour)
+            local netId = Place.Await('nayzeee-sneakers:placeBox', false, slot, kind, spot, heading, colour)
             local ent = netId and waitForEntity(netId)
             if ent then addBox(ent) end   -- lid and contents now, not on the next streaming pass
             ghostDone()
@@ -499,7 +502,7 @@ function Boxes.PackFromInventory(slot, meta)
         local spot, heading, ghostDone = placementSpot(meta and Shared.BoxTypeForShoe(meta.shoe), colour)
         if not spot then return end
         Anim.PutDown()
-        local netId, duration = lib.callback.await('nayzeee-sneakers:packShoes', false, slot, spot, heading, colour)
+        local netId, duration = Place.Await('nayzeee-sneakers:packShoes', false, slot, spot, heading, colour)
         local ent = netId and waitForEntity(netId)
         if ent then addBox(ent) end
         ghostDone()

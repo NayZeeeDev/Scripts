@@ -53,7 +53,7 @@ end
 function Cleaning.Run(slot, meta)
     local ped = PlayerPedId()
     if Busy or IsPedInAnyVehicle(ped, false) then return end
-    local ok, stages = lib.callback.await('nayzeee-sneakers:cleanStart', false, slot)
+    local ok, stages = Place.Await('nayzeee-sneakers:cleanStart', false, slot)
     if not ok then return end
     Busy = true
 
@@ -90,9 +90,9 @@ function Cleaning.Run(slot, meta)
     end
 
     if cancelled then
-        lib.callback.await('nayzeee-sneakers:cleanCancel', false)
+        Place.Await('nayzeee-sneakers:cleanCancel', false)
     else
-        local done, dirt = lib.callback.await('nayzeee-sneakers:cleanFinish', false, results)
+        local done, dirt = Place.Await('nayzeee-sneakers:cleanFinish', false, results)
         if done then UI.Notify(Config.Text.cleaned:format(dirt), 'success') end
     end
 
@@ -103,12 +103,13 @@ function Cleaning.Run(slot, meta)
     RemoveAnimDict(WASH[1])
     Busy = false
 end
+Cleaning.Run = Place.Guard('cleaning', Cleaning.Run)   -- an error half way never leaves Busy on
 
 -- Using the kit from the inventory: pick a dirty pair
 RegisterNetEvent('nayzeee-sneakers:client:useKit', function()
     if Busy then return end
     local list = {}
-    for _, p in ipairs(lib.callback.await('nayzeee-sneakers:myShoes', false) or {}) do
+    for _, p in ipairs(Place.Await('nayzeee-sneakers:myShoes', false) or {}) do
         if (tonumber(p.meta.dirt) or 0) > 0 then list[#list + 1] = p end
     end
     if #list == 0 then return UI.Notify(Config.Text.alreadyClean, 'inform') end

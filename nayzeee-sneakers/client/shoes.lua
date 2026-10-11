@@ -154,6 +154,7 @@ function Shoes.Inspect(meta)
     DeleteEntity(obj)
     Busy = false
 end
+Shoes.Inspect = Place.Guard('inspecting', Shoes.Inspect)   -- an error half way never leaves Busy on
 
 --------------------------------------------------------------------------------
 -- Wearing
@@ -189,7 +190,7 @@ function Shoes.PutOn(slot, meta)
     kneelAtFeet()
     Wait(900)
     Dirt.Flush()   -- the pair coming off keeps its last few seconds of dirt
-    local ok, clothing = lib.callback.await('nayzeee-sneakers:wear', false, slot, prev)
+    local ok, clothing = Place.Await('nayzeee-sneakers:wear', false, slot, prev)
     if ok and clothing then
         dress(ped, clothing)
         Shoes.worn = meta
@@ -198,6 +199,7 @@ function Shoes.PutOn(slot, meta)
     standUp()
     Busy = false
 end
+Shoes.PutOn = Place.Guard('putting shoes on', Shoes.PutOn)   -- an error half way never leaves Busy on
 
 function Shoes.TakeOff()
     if Busy or IsPedInAnyVehicle(PlayerPedId(), false) then return end
@@ -205,7 +207,7 @@ function Shoes.TakeOff()
     kneelAtFeet()
     Wait(700)
     Dirt.Flush()
-    local ok, prev = lib.callback.await('nayzeee-sneakers:takeOff', false)
+    local ok, prev = Place.Await('nayzeee-sneakers:takeOff', false)
     if ok and prev then
         SetPedComponentVariation(PlayerPedId(), 6, prev.drawable, prev.texture or 0, 0)
         Shoes.worn = nil
@@ -214,12 +216,13 @@ function Shoes.TakeOff()
     standUp()
     Busy = false
 end
+Shoes.TakeOff = Place.Guard('taking shoes off', Shoes.TakeOff)   -- an error half way never leaves Busy on
 
 RegisterCommand(Config.Wear.takeOffCommand, function() Shoes.TakeOff() end, false)
 
 --- Put worn shoes back on after spawning
 function Shoes.Reapply()
-    local worn = lib.callback.await('nayzeee-sneakers:getWorn', false)
+    local worn = Place.Await('nayzeee-sneakers:getWorn', false)
     Shoes.worn = worn and worn.meta or nil
     if worn and worn.clothing then
         dress(PlayerPedId(), worn.clothing)

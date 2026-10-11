@@ -156,7 +156,7 @@ end
 --- A loose pair from the inventory that fits this case, or nil
 local function choosePair(t)
     local list = {}
-    for _, p in ipairs(lib.callback.await('nayzeee-sneakers:myShoes', false) or {}) do
+    for _, p in ipairs(Place.Await('nayzeee-sneakers:myShoes', false) or {}) do
         if t.fits[p.box] then list[#list + 1] = p end
     end
     if #list == 0 then UI.Notify(Config.Text.dispNoFit:format(t.label:lower()), 'error') return nil end
@@ -179,10 +179,11 @@ local function busyWhile(fn)
     if not ok then print(('^1[nayzeee-sneakers]^7 display: %s'):format(err)) end
     Busy = false
 end
+busyWhile = Place.Guard('display case', busyWhile)   -- an error half way never leaves Busy on
 
 local function toggleDoor(e)
     if Busy then return end
-    lib.callback.await('nayzeee-sneakers:displayDoor', false, netOf(e))
+    Place.Await('nayzeee-sneakers:displayDoor', false, netOf(e))
 end
 
 local function putIn(e)
@@ -193,7 +194,7 @@ local function putIn(e)
     busyWhile(function()
         Anim.Face(e)
         Anim.PutDown()
-        local dur = lib.callback.await('nayzeee-sneakers:displayPut', false, netOf(e), slot)
+        local dur = Place.Await('nayzeee-sneakers:displayPut', false, netOf(e), slot)
         if dur then Wait(math.min(dur, 2500)) end
     end)
 end
@@ -202,13 +203,13 @@ local function takeOut(e)
     busyWhile(function()
         Anim.Face(e)
         Anim.PickUp()
-        local dur = lib.callback.await('nayzeee-sneakers:displayTake', false, netOf(e))
+        local dur = Place.Await('nayzeee-sneakers:displayTake', false, netOf(e))
         if dur then Wait(math.min(dur, 2000)) end
     end)
 end
 
 local function look(e)
-    local meta = lib.callback.await('nayzeee-sneakers:displayPair', false, netOf(e))
+    local meta = Place.Await('nayzeee-sneakers:displayPair', false, netOf(e))
     if meta then Shoes.Inspect(meta) end
 end
 
@@ -228,7 +229,7 @@ local function pickUp(e)
         Anim.PickUp()
         Wait(300)
         hideCase(e, true)
-        if not lib.callback.await('nayzeee-sneakers:displayPickUp', false, netOf(e)) then hideCase(e, false) end
+        if not Place.Await('nayzeee-sneakers:displayPickUp', false, netOf(e)) then hideCase(e, false) end
     end)
 end
 
@@ -440,7 +441,7 @@ RegisterNetEvent('nayzeee-sneakers:client:placeDisplay', function(slot, typeId)
         })
         if spot then
             Anim.PutDown()
-            local netId = lib.callback.await('nayzeee-sneakers:placeDisplay', false, slot, typeId, spot, heading)
+            local netId = Place.Await('nayzeee-sneakers:placeDisplay', false, slot, typeId, spot, heading)
             local ent = netId and waitForEntity(netId)
             if ent then addCase(ent) end
             ghostDone()

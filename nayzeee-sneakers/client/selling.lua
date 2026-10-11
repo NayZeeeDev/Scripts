@@ -333,7 +333,7 @@ function Selling.Handover()
     if Busy or not deal or not buyer then return end
     Busy = true
     local d = deal
-    local res = lib.callback.await('nayzeee-sneakers:handover', false, d.id)
+    local res = Place.Await('nayzeee-sneakers:handover', false, d.id)
     if not res then Busy = false return end
 
     hud(false)
@@ -370,6 +370,7 @@ function Selling.Handover()
     end
     Busy = false
 end
+Selling.Handover = Place.Guard('the hand-over', Selling.Handover)   -- an error half way never leaves Busy on
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end

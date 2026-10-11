@@ -37,7 +37,7 @@ RegisterNetEvent('nayzeee-sneakers:client:dropNews', function(_, text)
 end)
 
 local function enter()
-    local ok, msg = lib.callback.await('nayzeee-sneakers:dropEnter', false)
+    local ok, msg = Place.Await('nayzeee-sneakers:dropEnter', false)
     if msg then UI.Notify(msg, ok and 'success' or 'error') end
 end
 
@@ -50,14 +50,14 @@ local function buy()
     for _, s in ipairs(sizes) do options[#options + 1] = { id = s, label = 'US ' .. s } end
     local size = UI.Menu({ title = T.dropSize, subtitle = ("%s '%s' · $%s"):format(d.label, d.colourway, d.price), image = d.image, options = options })
     if not size then return end
-    local ok, msg = lib.callback.await('nayzeee-sneakers:dropBuy', false, size)
+    local ok, msg = Place.Await('nayzeee-sneakers:dropBuy', false, size)
     if msg then UI.Notify(msg, ok and 'success' or 'error') end
 end
 
 local function whatsOn()
     local d = drop()
     if not d then return UI.Notify(T.dropNone, 'inform', T.dropFrom) end
-    local v = lib.callback.await('nayzeee-sneakers:dropView', false) or d
+    local v = Place.Await('nayzeee-sneakers:dropView', false) or d
     local line = ("%s '%s' · $%s · %d of %d left"):format(v.label, v.colourway, v.price, v.left, v.stock)
     UI.Notify(line, 'inform', T.dropFrom)
 end

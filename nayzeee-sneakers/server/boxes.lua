@@ -279,9 +279,9 @@ end)
 --------------------------------------------------------------------------------
 
 local function returnBox(ent, box, online)
+    if box.contents then box.contents.boxColour = box.colour end   -- a boxed pair keeps its box colour
     if online and GetPlayerPing(box.owner) > 0 then
         local ok
-        if box.contents then box.contents.boxColour = box.colour end
         if box.contents then ok = Items.GivePair(box.owner, box.contents, true)
         else ok = Inv.Add(box.owner, emptyItem(box.type), 1) end
         if ok then return deleteBox(ent) end

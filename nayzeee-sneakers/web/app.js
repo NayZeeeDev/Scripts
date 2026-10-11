@@ -688,6 +688,7 @@ addEventListener('message', ({ data }) => {
       if (data.sources) ICON_SRC = data.sources;
       break;
     case 'menu': showMenu(data.menu || {}); break;
+    case 'menuHide': hideMenu(); break;
     case 'inspect': showInspect(data.show, data.data, data.hint); break;
     case 'bench':
       B.stages = (data.catalogue && data.catalogue.stages) || {};
