@@ -73,7 +73,7 @@ local function resolveSystem()
     local want = N.System
     if want ~= 'auto' then return want end
     if GetResourceState(N.NayzeeeResource) == 'started' then return 'nayzeee' end
-    return 'builtin'
+    return 'ox_lib' -- nayzeee-hud: the squad UI's own toast box is off unless System = 'builtin'
 end
 
 local adapters = {
@@ -116,6 +116,9 @@ local adapters = {
         local map = { info = 'inform', success = 'success', error = 'error', warning = 'error' }
         exports['mythic_notify']:DoHudText(map[kind] or 'inform', ('%s: %s'):format(title, text))
     end,
+
+    -- no squad notifications at all
+    none = function() end,
 
     -- Your own system: replace the body of this function.
     custom = function(title, text, kind, duration)

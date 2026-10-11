@@ -1783,7 +1783,7 @@ const Dev = {
             { id: 303, label: 'Target', icon: 'fa-crosshairs' }, { id: 487, label: 'Shield', icon: 'fa-shield-halved' },
             { id: 491, label: 'Star', icon: 'fa-star' }, { id: 310, label: 'Crown', icon: 'fa-crown' },
             { id: 437, label: 'Flame', icon: 'fa-fire' }, { id: 442, label: 'Diamond', icon: 'fa-gem' }],
-          allyMax: 2, allyShareChat: false, autoRadio: true, notify: 'builtin', compass: true,
+          allyMax: 2, allyShareChat: false, autoRadio: true, notify: 'ox_lib', compass: true,
           nicknames: { enabled: true, max: 20, min: 2, temp: true },
           nametag: { Name: true, Tag: true, Role: true, Health: true, Allies: true },
           blipColors: [['#08afa2', 2], ['#e5484d', 1], ['#58a6ff', 3], ['#e5a50a', 5], ['#a078ff', 27], ['#ffffff', 0]],

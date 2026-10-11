@@ -1,8 +1,8 @@
 /* nayzeee-hud skin for the squads menu.
    Loads after style.css and only re-dresses it: same window, sidebar, fonts, toggles, segmented
-   controls and accent as the HUD settings. The accent is pushed in live by the HUD (seasons too). */
+   controls as the HUD settings, in the NayZeee teal. */
 :root{
-  --accent:#b8f02a;--accent-rgb:184,240,42;--accent-ink:#0b0f02;
+  --accent:#08afa2;--accent-rgb:8,175,162;--accent-ink:#00201d;
   --teal:var(--accent);--teal-hi:var(--accent);--teal-lo:var(--accent);
   --teal-wash:rgba(var(--accent-rgb),.12);--teal-edge:rgba(var(--accent-rgb),.4);
   --nz-teal:#08afa2;--nz-teal-lo:#067d74;

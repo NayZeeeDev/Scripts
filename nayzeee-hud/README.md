@@ -132,7 +132,7 @@ index.html?squads                      squads menu preview
 ## Notes
 
 - Settings buttons use the NayZeee UI palette: teal **Save changes**, red **Close** pill, line and red buttons.
-- The squads menu runs in its own frame inside the HUD page and wears the HUD settings look (`html/squads/hud-skin.css` on top of its original `style.css`), including the live accent and seasons. Its NUI callbacks are prefixed `sq_` internally.
+- The squads menu runs in its own frame inside the HUD page and wears the HUD settings look in the NayZeee teal (`html/squads/hud-skin.css` on top of its original `style.css`). Its NUI callbacks are prefixed `sq_` internally.
 
 - Speed limits are a built-in table of major LS roads plus street-suffix rules (`shared/data.lua`). Edit or extend it freely. Values are in MPH and converted for km/h players.
 - Postal codes: `Config.GetPostal` calls `nearest-postal` if it's running. Point it at your postal resource.

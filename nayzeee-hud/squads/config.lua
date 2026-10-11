@@ -279,8 +279,9 @@ SquadsConfig.Nametag = {
 -- ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝
 
 -- Which system squad notifications use.
---   'auto'    NayZeee Notify when it's running, otherwise the squad UI's own toasts
---   'builtin' the squad UI's own toasts
+--   'auto'    NayZeee Notify when it's running, otherwise ox_lib's notify
+--   'builtin' the squad UI's own toast box (top right)
+--   'none'    no squad notifications at all
 --   'nayzeee' | 'ox_lib' | 'esx' | 'qb' | 'qbx' | 'okok' | 'mythic' | 'custom'
 -- 'custom' runs the function at the bottom of bridge/client.lua — put your own call there.
 -- The killfeed, fight results, ready checks and revive prompts always use the squad UI.
