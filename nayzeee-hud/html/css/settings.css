@@ -161,3 +161,8 @@ kbd { font: 700 11px var(--font); padding: 4px 9px; border-radius: 6px; backgrou
 .btn-red.reset-all.armed { background: rgba(229,72,77,.28); color: #fff; }
 #settings:not(.dirty) [data-act="revert"] { display: none; }
 .eb { background: var(--nz-panel); border-color: var(--nz-line); }
+
+/* team HUD previews (squads tab) */
+.hud.tpv { position: static; transform: none; width: 230px; z-index: auto; pointer-events: none; }
+.hud.tpv.s-tiles, .hud.tpv.s-heads { width: auto; max-width: 260px; }
+body.editing-team #hud { opacity: .35; }

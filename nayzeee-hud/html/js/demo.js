@@ -10,6 +10,20 @@
     const veh = q.get('veh');
     const still = q.has('static');
 
+    if (!NH.cfg.squadsData) { // sample squads data so the Squads settings tab shows in the browser preview
+      NH.setSquadsData({
+        defaults: { hud: true, hudMinimized: false, hudTalking: true, hudMax: 0, hudHealth: '#ffffff', hudArmor: '#58a6ff', hudPos: false, hudKda: false,
+          hudAvatars: true, hudRank: false, hudArmorBar: true, hudAccent: 'squad', hudStyle: 'cards', hudScale: 100, hudOpacity: 86, hudShowSelf: true,
+          animatedAvatars: true, tags: true, tagColor: 18, tagName: true, tagSquadTag: true, tagRole: true, tagHealth: true, tagAllies: true,
+          blips: true, blipUseSquad: true, blipColor: 2, blipAllies: true, chatNotify: true, chatSound: true, pingNotify: true, pingSound: true,
+          reviveAlerts: true, killfeed: true, matchBanner: true, radio: true },
+        features: { Hud: true, Tags: true, Blips: true, Pings: true, Revive: true, Combat: true, Affiliations: true, SquadBlips: true },
+        nametag: { Name: true, Tag: true, Role: true, Health: true, Allies: true }, maxMembers: 8, autoRadio: true,
+        tagColors: [['#72cc72', 18], ['#e5484d', 6], ['#58a6ff', 9], ['#e5a50a', 12], ['#a078ff', 21], ['#ff7ad9', 26], ['#ffffff', 0], ['#08afa2', 28]],
+        blipColors: [['#08afa2', 2], ['#e5484d', 1], ['#58a6ff', 3], ['#e5a50a', 5], ['#a078ff', 27], ['#ff7ad9', 8], ['#ffffff', 0], ['#8bd35a', 25]],
+      });
+      NH.saved.squads = NH.clone(NH.DEFAULTS.squads);
+    }
     const c = NH.saved;
     if (q.get('season')) c.season = q.get('season');
     if (q.get('status')) c.status.style = q.get('status');

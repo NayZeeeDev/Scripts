@@ -35,6 +35,7 @@
     clock: { enabled: true, style: 'pill', day: true, h24: false, source: 'game', weather: true },
     watermark: { enabled: true, style: 'stack', effect: 'gloss' },
     layout: {},
+    squads: {}, // squads player settings (team HUD, nametags, blips, alerts); filled from the squads module
   };
 
   NH.clone = o => JSON.parse(JSON.stringify(o));

@@ -129,8 +129,8 @@ function tabsFor() {
     ? [['squad', 'fa-users', 'Squad'], ['chat', 'fa-message', 'Chat'],
        ...(allies && !temp ? [['allies', 'fa-handshake', 'Allies']] : []),
        ...(temp ? [] : [['stats', 'fa-chart-simple', 'Stats']]),
-       ['settings', 'fa-sliders', 'Settings']]
-    : [['browse', 'fa-magnifying-glass', 'Browse'], ...(f.Leaderboard ? [['board', 'fa-ranking-star', 'Ranks']] : []), ['create', 'fa-plus', 'Create'], ['settings', 'fa-sliders', 'Settings']];
+      ]
+    : [['browse', 'fa-magnifying-glass', 'Browse'], ...(f.Leaderboard ? [['board', 'fa-ranking-star', 'Ranks']] : []), ['create', 'fa-plus', 'Create']];
   if (state.isAdmin) t.push(['admin', 'fa-user-shield', 'Staff']);
   return t;
 }
@@ -1025,6 +1025,8 @@ function applyHudStyle() {
   root.style.setProperty('--hud-scale', (st.hudScale || 100) / 100);
   root.style.setProperty('--hud-bg', `rgba(8,9,10,${(st.hudOpacity ?? 86) / 100})`);
   hud.classList.toggle('min', !!st.hudMinimized);
+  hud.className = hud.className.replace(/\bs-[a-z]+\b/g, '').trim();
+  hud.classList.add('s-' + (st.hudStyle || 'cards'));
   hud.classList.toggle('bars', st.hudStyle === 'bars');
   hud.classList.toggle('no-accent', st.hudAccent === 'none');
   if (st.hudPos && typeof st.hudPos.x === 'number') {
@@ -1034,9 +1036,9 @@ function applyHudStyle() {
   }
 }
 
-function hudCard(m, self) {
+function hudCard(m, self, vOverride) {
   const st = state.settings;
-  const v = (self ? state.selfVitals : vit(m.id)) || { h: 100, a: 0 };
+  const v = vOverride || (self ? state.selfVitals : vit(m.id)) || { h: 100, a: 0 };
   const down = isDown(m);
   const accent = hudAccentColor(m);
   const armor = st.hudArmorBar
@@ -1046,15 +1048,21 @@ function hudCard(m, self) {
   if (st.hudRank && m.rankName) meta.push(`<span class="hm-rank">${esc(m.rankName)}</span>`);
   if (st.hudKda) meta.push(`<span class="kda"><b class="k">${m.kills || 0}</b><s>/</s><b class="d">${m.deaths || 0}</b></span>`);
 
-  return `<div class="hm ${down ? 'down' : ''} ${self ? 'self' : ''}" data-hm="${self ? 'self' : m.id}"${accent ? ` style="--accent:${accent}"` : ''}>
+  return `<div class="hm ${down ? 'down' : ''} ${self ? 'self' : ''}" data-hm="${self ? 'self' : m.id}" style="--h:${v.h}${accent ? `;--accent:${accent}` : ''}">
     ${st.hudAvatars ? avatar(m.name, m.avatar, state.talking[m.id] ? 'talk' : '') : ''}
     <div class="hm-txt">
       <div class="hm-top">${m.owner ? '<i class="fa-solid fa-crown"></i>' : ''}<b>${esc(m.name)}</b>${self ? '<span class="hm-you">You</span>' : ''}
         ${meta.join('')}
-        <span class="down-tag">Down</span><i class="fa-solid fa-microphone mic ${state.talking[m.id] && st.hudTalking ? 'on' : ''}"></i></div>
+        <span class="down-tag">Down</span><i class="fa-solid fa-microphone mic ${state.talking[m.id] && st.hudTalking ? 'on' : ''}"></i><em class="hm-pct">${v.h}</em></div>
       <div class="hm-bars"><div class="hb"><i style="width:${v.h}%"></i></div>${armor}</div>
     </div></div>`;
 }
+
+const HUD_PREVIEW = [
+  { m: { id: 'pv0', name: 'You', owner: true, rankName: 'Leader', kills: 12, deaths: 4 }, v: { h: 92, a: 60 } },
+  { m: { id: 'pv1', name: 'Tay Brooks', rankName: 'Officer', kills: 9, deaths: 6 }, v: { h: 64, a: 25 } },
+  { m: { id: 'pv2', name: 'Marcus Hill', rankName: 'Member', kills: 3, deaths: 7, downed: true }, v: { h: 0, a: 0 } },
+];
 
 function renderHud() {
   const hud = $('#hud');
@@ -1062,6 +1070,12 @@ function renderHud() {
   const others = online().filter((m) => m.id !== state.me);
   const me = state.squad ? state.squad.members.find((m) => m.id === state.me) : null;
   const showSelf = st.hudShowSelf !== false && me;
+
+  if (state.previewHud && !state.squad) {
+    hud.classList.remove('hidden');
+    hud.innerHTML = HUD_PREVIEW.map((p, i) => hudCard(p.m, i === 0, p.v)).join('');
+    return;
+  }
 
   // shown whenever you're in a squad; your own card keeps it visible even when you're alone
   const show = state.cfg && state.cfg.features.Hud && st.hud && state.squad
@@ -1087,6 +1101,9 @@ function patchVitals(changed) {
     if (card && m) {
       const v = changed[id];
       card.querySelector('.hb i').style.width = `${v.h}%`;
+      card.style.setProperty('--h', v.h);
+      const pct = card.querySelector('.hm-pct');
+      if (pct) pct.textContent = v.h;
       card.querySelectorAll('.ha span i').forEach((el, i) => { el.style.width = `${Math.max(0, Math.min(25, v.a - i * 25)) * 4}%`; });
       card.classList.toggle('down', isDown(m));
       if (state.settings.hudAccent === 'health') {
@@ -1137,6 +1154,7 @@ function hudEdit(on, save) {
   }
   applyHudStyle();
   renderHud();
+  if (!on && window.parent !== window) window.parent.postMessage({ nhud: 'hudMoveDone', hudPos: state.settings.hudPos || false }, '*');
 }
 
 // ─── ready check ───────────────────────────────────────────
@@ -1739,6 +1757,11 @@ const handlers = {
       <button class="btn-line full" data-revive="-1" style="margin-top:4px">Cancel</button></div></div>`;
   },
 };
+
+// nayzeee-hud: the HUD settings edit these settings, preview the cards and start the move tool
+handlers.settings = (d) => { if (d && typeof d === 'object') { state.settings = { ...state.settings, ...d }; applyHudStyle(); renderHud(); } };
+handlers.hudPreview = (on) => { state.previewHud = !!on; applyHudStyle(); renderHud(); };
+handlers.hudMove = () => { state.previewHud = true; hudEdit(true); };
 
 window.addEventListener('message', (e) => {
   const { action, data } = e.data || {};

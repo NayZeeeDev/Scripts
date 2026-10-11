@@ -119,6 +119,7 @@
     document.body.classList.toggle('cinematic', !!c.cinematic && !NH.editing);
     for (const id in W) if (W[id].apply) W[id].apply();
     renderAll();
+    if (NH.syncSquadsSettings) NH.syncSquadsSettings();
   };
 
   function renderMode() {
@@ -167,6 +168,14 @@
     document.body.appendChild(sqFrame);
     return sqFrame;
   };
+  // squads player settings are edited in the HUD settings; the squads frame draws the team HUD
+  NH.setSquadsData = (d) => {
+    NH.cfg.squadsData = d;
+    NH.DEFAULTS.squads = NH.clone(d.defaults || {});
+  };
+  NH.toSquads = (action, data) => { if (sqFrame) sqFrame.contentWindow.postMessage({ action, data }, '*'); };
+  NH.syncSquadsSettings = () => { if (NH.cfg.squadsData && NH.cur.squads) NH.toSquads('settings', NH.cur.squads); };
+  NH.sqFocus = (on) => sqFocus(on);
   const sqFocus = (on) => {
     sqFocused = on;
     document.body.classList.toggle('squads-focus', on);
@@ -176,6 +185,12 @@
   window.addEventListener('message', (e) => {
     const m = e.data;
     if (!m) return;
+    if (m.nhud === 'hudMoveDone' && sqFrame && e.source === sqFrame.contentWindow) {
+      for (const o of [NH.saved, NH.cur]) if (o.squads) o.squads.hudPos = m.hudPos;
+      sqFocus(false);
+      NH.settingsUI.moveDone();
+      return;
+    }
     if (!m.t) { // squads messages use { action, data }
       if (m.action && sqFrame && e.source !== sqFrame.contentWindow) sqFrame.contentWindow.postMessage(m, '*');
       return;
@@ -188,10 +203,12 @@
         if (m.weaponImages !== undefined) NH.cfg.weaponImages = m.weaponImages;
         if (m.keys) NH.cfg.keys = m.keys;
         NH.cfg.belt = m.belt;
+        if (m.squadsData) NH.setSquadsData(m.squadsData);
         NH.cfg.stressNotify = !!m.stressNotify;
         NH.popsAfter = Date.now() + 5000;
         if (m.squads) NH.squadsFrame();
         NH.saved = NH.merge(NH.clone(NH.DEFAULTS), m.settings || {});
+        if (NH.cfg.squadsData) NH.saved.squads = NH.merge(NH.clone(NH.DEFAULTS.squads), NH.cfg.squadsData.settings || {}); // the squads module owns these
         NH.cur = NH.saved;
         NH.applySettings();
         break;

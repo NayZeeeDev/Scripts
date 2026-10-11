@@ -20,6 +20,7 @@ files {
     'html/js/*.js',
     'html/squads/index.html',
     'html/squads/style.css',
+    'html/squads/team-hud.css',
     'html/squads/hud-skin.css',
     'html/squads/app.js',
 }

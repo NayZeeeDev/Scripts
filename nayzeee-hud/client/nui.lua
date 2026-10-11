@@ -49,6 +49,16 @@ RegisterNUICallback('ready', function(_, cb)
         keys = keyList(),
         framework = HudBridge.framework,
         squads = SquadsConfig ~= nil and SquadsConfig.Enabled == true,
+        squadsData = (SquadsConfig and SquadsConfig.Enabled) and {
+            settings = Settings,
+            defaults = SquadsConfig.DefaultSettings,
+            features = SquadsConfig.Features,
+            nametag = SquadsConfig.Nametag,
+            tagColors = SquadsConfig.TagColors,
+            blipColors = SquadsConfig.BlipColors,
+            maxMembers = SquadsConfig.MaxMembers,
+            autoRadio = SquadsConfig.Voice.Enabled and SquadsConfig.Voice.AutoJoin and SquadsConfig.Voice.PlayerCanOptOut,
+        } or false,
         stressNotify = Config.Stress.enabled and Config.Stress.notify,
     })
     NHUD.sendMap(true)

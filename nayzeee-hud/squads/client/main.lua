@@ -258,6 +258,7 @@ RegisterNUICallback('sq_saveSettings', function(data, cb)
     if prev.hudAccent ~= Settings.hudAccent or prev.hudStyle ~= Settings.hudStyle then
         NUI('squad', Squad)
     end
+    NUI('settings', Settings) -- nayzeee-hud: settings are edited from /hud, keep the squads frame in sync
     cb(1)
 end)
 

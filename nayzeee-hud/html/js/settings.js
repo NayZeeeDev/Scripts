@@ -14,6 +14,7 @@
     { id: 'clock', label: 'Weather & Time', icon: 'cloudsun', title: 'Weather & Time', sub: 'Clock, day and weather icon' },
     { id: 'watermark', label: 'Watermark', icon: 'image', title: 'Watermark', sub: 'Server logo and effect' },
     { id: 'io', label: 'Import & Export', icon: 'swap', title: 'Import & Export', sub: 'Share your HUD setup with a code' },
+    { id: 'squads', label: 'Squads', icon: 'users', title: 'Squads', sub: 'Team HUD, nametags, map blips and alerts' },
     { id: 'keys', label: 'Keybinds', icon: 'keyboard', title: 'Keybinds', sub: 'Change keys in GTA Settings > Key Bindings > FiveM' },
   ];
 
@@ -31,7 +32,7 @@
     const v = g(path) ?? 1;
     return `<div class="opt col"><div class="opt-t"><b>${label}</b>${desc ? `<small>${desc}</small>` : ''}</div><div class="rng"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-rng="${path}" data-fmt="${fmt}"/><span>${fmtVal(v, fmt)}</span></div></div>`;
   };
-  const fmtVal = (v, fmt) => fmt === 'pct' ? Math.round(v * 100) + '%' : String(v);
+  const fmtVal = (v, fmt) => fmt === 'pct' ? Math.round(v * 100) + '%' : fmt === 'raw%' ? v + '%' : String(v);
   const cards = (path, items, cls = '') =>
     `<div class="cards ${cls}" data-cards="${path}">${items.map(it => `<button class="card${String(g(path)) === it.v ? ' on' : ''}" data-val="${it.v}"><div class="pv"${it.pv ? ` data-pv="${it.pv}"` : ''}>${it.html || ''}</div><span>${it.l}</span>${it.sub ? `<small>${it.sub}</small>` : ''}</button>`).join('')}</div>`;
   const chips = (items) => `<div class="chips">${items.map(([path, label, icon]) => `<button class="chip${g(path) ? ' on' : ''}" data-tog="${path}">${icon || ''}${label}</button>`).join('')}</div>`;
@@ -138,6 +139,83 @@
       sec('Import', `<textarea class="code" id="nh-import" placeholder="Paste a HUD code here"></textarea><div class="btns"><button class="btn-teal" data-act="import">${ic('download')}Import</button><span class="io-msg" id="nh-io-msg"></span></div>`);
   };
 
+  // ---- squads player settings (stored by the squads module, edited here) ----
+  const TEAM_STYLES = [['cards', 'Cards'], ['bars', 'Flat Bars'], ['pills', 'Pills'], ['glass', 'Glass'], ['minimal', 'Minimal'],
+    ['stripe', 'Stripe'], ['rings', 'Rings'], ['tiles', 'Tiles'], ['heads', 'Heads']];
+  const TEAM_COLORS = ['#ffffff', '#08afa2', '#58a6ff', '#e5484d', '#e5a50a', '#a078ff', '#8bd35a', '#ff7ad9'];
+  const sqSw = (key, list) => `<div class="swatches">${list.map(([hex, id]) => {
+    const val = id === undefined ? hex : id;
+    return `<button class="swatch${String(g('squads.' + key)) === String(val) ? ' on' : ''}" style="--sw:${hex}" data-setval="squads.${key}" data-val="${val}"${id === undefined ? '' : ' data-num="1"'}></button>`;
+  }).join('')}</div>`;
+  const sqSeg = (key, opts, label, desc, num) =>
+    `<div class="opt"><div class="opt-t"><b>${label}</b>${desc ? `<small>${desc}</small>` : ''}</div><div class="segc" data-seg="squads.${key}">${opts.map(([v, l]) =>
+      `<button data-val="${v}"${num ? ' data-num="1"' : ''} class="${String(g('squads.' + key)) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div></div>`;
+  const sqRange = (key, label, min, max, step) => {
+    const v = g('squads.' + key) ?? min;
+    return `<div class="opt col"><div class="opt-t"><b>${label}</b></div><div class="rng"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-rng="squads.${key}" data-fmt="raw%"/><span>${v}%</span></div></div>`;
+  };
+  const T = (key, label, desc) => toggle('squads.' + key, label, desc);
+
+  // team HUD preview cards (same markup and CSS as the live ones in the squads frame)
+  NH.teamPreview = (style, st = NH.cur.squads || {}) => {
+    const wrap = document.createElement('div');
+    wrap.className = `hud tpv s-${style}${style === 'bars' ? ' bars' : ''}${st.hudMinimized ? ' min' : ''}${st.hudAccent === 'none' ? ' no-accent' : ''}`;
+    wrap.style.setProperty('--hud-health', st.hudHealth || '#fff');
+    wrap.style.setProperty('--hud-armor', st.hudArmor || '#58a6ff');
+    wrap.style.setProperty('--hud-bg', `rgba(8,9,10,${(st.hudOpacity ?? 86) / 100})`);
+    const people = [['You', 'NZ', 92, 60, 'Leader', true, false], ['Tay Brooks', 'TB', 64, 25, 'Officer', false, false], ['Marcus Hill', 'MH', 0, 0, 'Member', false, true]];
+    const edge = (h) => st.hudAccent === 'teal' ? '#08afa2' : st.hudAccent === 'health' ? (h <= 25 ? '#e5484d' : h <= 60 ? '#e5a50a' : '#08afa2') : '#08afa2';
+    wrap.innerHTML = people.map(([name, ini, h, a, rank, self, down], i) => `
+      <div class="hm${down ? ' down' : ''}${self ? ' self' : ''}" style="--h:${h};--accent:${edge(h)}">
+        ${st.hudAvatars !== false ? `<div class="av${i === 1 && st.hudTalking !== false ? ' talk' : ''}">${ini}</div>` : ''}
+        <div class="hm-txt"><div class="hm-top"><b>${name}</b>${self ? '<span class="hm-you">You</span>' : ''}${st.hudRank ? `<span class="hm-rank">${rank}</span>` : ''}
+          ${st.hudKda ? `<span class="kda"><b class="k">${12 - i * 4}</b><s>/</s><b class="d">${3 + i}</b></span>` : ''}<span class="down-tag">Down</span><em class="hm-pct">${h}</em></div>
+          <div class="hm-bars"><div class="hb"><i style="width:${h}%"></i></div>${st.hudArmorBar !== false ? `<div class="ha">${[0, 1, 2, 3].map(k => `<span><i style="width:${Math.max(0, Math.min(25, a - k * 25)) * 4}%"></i></span>`).join('')}</div>` : ''}</div>
+        </div></div>`).join('');
+    return wrap;
+  };
+
+  R.squads = () => {
+    const d = NH.cfg.squadsData;
+    if (!d) return sec('Squads', '<p class="desc">The squads module is turned off on this server.</p>');
+    const f = d.features || {}, nt = d.nametag || {}, st = NH.cur.squads || {};
+    const maxOpts = [[0, 'All'], ...[3, 4, 6, 8].filter(n => n < (d.maxMembers || 8)).map(n => [n, String(n)])];
+    let html = '';
+    if (f.Hud !== false) {
+      html += sec('Team HUD', T('hud', 'Show team HUD', 'Your squad\u2019s health and armour on screen') +
+        `<div class="opt"><div class="opt-t"><b>Position</b><small>Drag the cards where you want them</small></div><button class="btn-line" data-act="sqMove">${ic('move')}Move team HUD</button></div>`);
+      html += sec('Style', cards('squads.hudStyle', TEAM_STYLES.map(([v, l]) => ({ v, l, pv: 'team:' + v })), 'c3 tall'));
+      html += sec('Look',
+        sqSeg('hudAccent', [['squad', 'Squad'], ['teal', 'Teal'], ['health', 'Health'], ['none', 'None']], 'Edge colour', 'Colour on each card\u2019s edge') +
+        sqRange('hudScale', 'Size', 70, 130, 5) + sqRange('hudOpacity', 'Background', 0, 100, 5) +
+        sqSeg('hudMax', maxOpts, 'Cards shown', '', true) +
+        `<div class="opt col"><div class="opt-t"><b>Health bar colour</b></div>${sqSw('hudHealth', TEAM_COLORS.map(h => [h]))}</div>` +
+        `<div class="opt col"><div class="opt-t"><b>Armour bar colour</b></div>${sqSw('hudArmor', TEAM_COLORS.map(h => [h]))}</div>`);
+      html += sec('Cards', T('hudShowSelf', 'Show your own card', 'Your health and armour at the top') + T('hudAvatars', 'Profile pictures') +
+        T('animatedAvatars', 'Animated pictures', 'Play animated Discord avatars') + T('hudArmorBar', 'Armour bar') + T('hudRank', 'Rank name') +
+        T('hudKda', 'Kills and deaths') + T('hudTalking', 'Voice indicator', 'Glow when a squadmate is talking') + T('hudMinimized', 'Compact cards', 'Smaller cards with less detail'));
+    }
+    if (f.Tags !== false) {
+      html += sec('Nametags', T('tags', 'Show nametags', 'Over your squadmates\u2019 heads') +
+        (nt.Name !== false ? T('tagName', 'Player name') : '') + (nt.Tag !== false ? T('tagSquadTag', 'Squad tag') : '') +
+        (nt.Role !== false ? T('tagRole', 'Rank name') : '') + (nt.Health !== false ? T('tagHealth', 'Health and armour bar') : '') +
+        (f.Affiliations && nt.Allies !== false ? T('tagAllies', 'Allied squads', 'Show tags over allied players too') : '') +
+        `<div class="opt col"><div class="opt-t"><b>Tag colour</b></div>${sqSw('tagColor', d.tagColors || [])}</div>`);
+    }
+    if (f.Blips !== false) {
+      html += sec('Map blips', T('blips', 'Show blips', 'Squadmates on your map and radar') +
+        (f.SquadBlips ? T('blipUseSquad', 'Use squad colours', 'Each squad shows in the colour it picked') : '') +
+        (f.Affiliations ? T('blipAllies', 'Allied squads', 'Show allied players on your map') : '') +
+        `<div class="opt col"><div class="opt-t"><b>Blip colour</b><small>Used when squad colours are off</small></div>${sqSw('blipColor', d.blipColors || [])}</div>`);
+    }
+    html += sec('Alerts', T('chatNotify', 'Chat pop-ups', 'A notification for new squad messages') + T('chatSound', 'Chat sound') +
+      (f.Pings !== false ? T('pingNotify', 'Ping pop-ups') + T('pingSound', 'Ping sound') : '') +
+      (f.Revive !== false ? T('reviveAlerts', 'Downed alerts', 'Alert and map ping when a squadmate goes down') : '') +
+      (f.Combat !== false ? T('killfeed', 'Killfeed', 'Kills against other squads') + T('matchBanner', 'Fight results', 'Banner when a fight is scored') : ''));
+    if (d.autoRadio) html += sec('Voice', T('radio', 'Join squad radio automatically', 'You go on your squad\u2019s channel when you join, and back to your old one when you leave'));
+    return html;
+  };
+
   R.keys = () => sec('Keys & commands', `<div class="keys">${(NH.cfg.keys.length ? NH.cfg.keys : [
     { label: 'HUD settings', key: '/hud' }, { label: 'Toggle HUD', key: '/togglehud' }, { label: 'Seatbelt', key: 'B' }, { label: 'Cruise / limiter', key: 'Y' },
     { label: 'Vehicle control panel', key: 'F7' }, { label: 'Left indicator', key: 'LEFT' }, { label: 'Right indicator', key: 'RIGHT' }, { label: 'Hazard lights', key: '' }])
@@ -156,6 +234,8 @@
         wrap.className = 'pv-speedo';
         wrap.appendChild(inst.el);
         pv.appendChild(wrap);
+      } else if (type === 'team') {
+        pv.appendChild(NH.teamPreview(style));
       } else if (type === 'clock') {
         pv.appendChild(NH.clockPreview(style));
       } else if (type === 'info') {
@@ -228,6 +308,9 @@
     open() {
       if (this.isOpen) return;
       this.isOpen = true;
+      const sqNav = this.el.querySelector('.nav[data-tab="squads"]');
+      if (sqNav) sqNav.style.display = NH.cfg.squadsData ? '' : 'none';
+      if (this.tab === 'squads' && !NH.cfg.squadsData) this.tab = 'general';
       NH.cur = NH.clone(NH.saved);
       this.dirty = false;
       this.el.classList.add('open');
@@ -242,6 +325,7 @@
       this.isOpen = false;
       if (this.dirty) { NH.cur = NH.saved; NH.applySettings(); NH.post('preview', NH.saved); }
       NH.cur = NH.saved;
+      NH.toSquads?.('hudPreview', false);
       this.el.classList.remove('open');
       document.body.classList.remove('settings-open');
       NH.post('close');
@@ -250,6 +334,7 @@
     save() {
       NH.saved = NH.clone(NH.cur);
       NH.post('save', NH.saved);
+      if (NH.cfg.squadsData && NH.saved.squads) NH.post('sq_saveSettings', NH.saved.squads);
       this.dirty = false;
       this.updateDirty();
       NH.toast('Settings saved');
@@ -268,6 +353,7 @@
 
     setTab(id) {
       this.tab = id;
+      NH.toSquads?.('hudPreview', id === 'squads');
       this.el.querySelectorAll('.nav[data-tab]').forEach(n => n.classList.toggle('on', n.dataset.tab === id));
       const t = TABS.find(x => x.id === id);
       this.el.querySelector('#st-title').textContent = t.title;
@@ -291,6 +377,11 @@
       if (rerender) this.render();
     },
 
+    moveDone() {
+      this.el.classList.remove('hidden');
+      document.body.classList.remove('editing-team');
+    },
+
     editLayout(on) {
       NH.editing = on;
       document.body.classList.toggle('editing', on);
@@ -304,7 +395,9 @@
       const tog = e.target.closest('[data-tog]');
       if (tog) return this.change(tog.dataset.tog, !g(tog.dataset.tog));
       const sb = e.target.closest('[data-seg] button');
-      if (sb) return this.change(sb.closest('[data-seg]').dataset.seg, sb.dataset.val);
+      if (sb) return this.change(sb.closest('[data-seg]').dataset.seg, sb.dataset.num ? Number(sb.dataset.val) : sb.dataset.val);
+      const sv = e.target.closest('[data-setval]');
+      if (sv) return this.change(sv.dataset.setval, sv.dataset.num ? Number(sv.dataset.val) : sv.dataset.val);
       const card = e.target.closest('[data-cards] .card');
       if (card) return this.change(card.closest('[data-cards]').dataset.cards, card.dataset.val);
       const sw = e.target.closest('[data-accent]');
@@ -312,6 +405,13 @@
       const act = e.target.closest('[data-act]');
       if (!act) return;
       const a = act.dataset.act;
+      if (a === 'sqMove') {
+        this.el.classList.add('hidden');
+        document.body.classList.add('editing-team');
+        NH.sqFocus?.(true);
+        NH.toSquads?.('hudMove');
+        return;
+      }
       if (a === 'save') this.save();
       else if (a === 'close') this.close();
       else if (a === 'revert') this.revert();

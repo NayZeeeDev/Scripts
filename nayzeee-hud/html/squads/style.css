@@ -464,58 +464,7 @@ input:focus,select:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px
 .picker-opt b{display:block;font-size:12.5px;font-weight:500;color:var(--white)}
 .picker-opt span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:2px}
 
-/* ─── team HUD ─── */
-.hud{position:fixed;right:24px;bottom:23vh;width:250px;display:flex;flex-direction:column;gap:5px;z-index:10;
-  transform:scale(var(--hud-scale,1));transform-origin:bottom right}
-.hud.editing{outline:1px dashed var(--teal);outline-offset:6px;cursor:grab;z-index:90}
-.hud.editing:active{cursor:grabbing}
-.hm{position:relative;display:flex;align-items:center;gap:9px;padding:7px 9px;
-  background:var(--hud-bg,rgba(8,9,10,.86));border:1px solid var(--line-soft);
-  border-left:2px solid var(--accent,var(--teal));
-  border-radius:var(--r-sm);box-shadow:var(--sh-1);transition:border-color var(--fast),opacity var(--fast)}
-/* no accent: drop the coloured edge entirely */
-.hud.no-accent .hm{border-left:1px solid var(--line-soft)}
-/* flat style: no card, just the name and bars over the world */
-.hud.bars .hm{background:none;border:0;border-left:2px solid var(--accent,var(--teal));
-  box-shadow:none;padding:3px 0 3px 9px;border-radius:0}
-.hud.bars.no-accent .hm{border-left:0;padding-left:0}
-.hud.bars .hm-top b{text-shadow:0 1px 3px rgba(0,0,0,.95)}
-.hud.bars .hb,.hud.bars .ha span{background:rgba(0,0,0,.55)}
-.hm .av{width:32px;height:32px;font-size:10px;border-radius:var(--r-sm);transition:box-shadow var(--fast),border-color var(--fast)}
-.hm .av.talk{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-wash),0 0 10px rgba(8,175,162,.5)}
-.hm.down .av img{filter:grayscale(1) brightness(.55)}
-.hm.down .av{border-color:var(--red-edge)}
-.hm-txt{flex:1;min-width:0}
-.hm-top{display:flex;align-items:center;gap:6px}
-.hm-top > b{flex:1;min-width:0;font-size:11px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hm-top .fa-crown{font-size:8.5px;color:var(--teal)}
-.hm-top .mic{font-size:9px;color:var(--teal);opacity:0;transition:opacity var(--fast)}
-.hm-top .mic.on{opacity:1}
-.hm-top .kda{font-size:9.5px;flex:0 0 auto;white-space:nowrap}
-.hm-you{flex:none;font-size:8.5px;font-weight:600;letter-spacing:.04em;color:var(--teal);padding:1px 5px;border-radius:3px;
-  background:var(--teal-wash);border:1px solid var(--teal-edge)}
-.hm.self{margin-bottom:3px}
-.hm-rank{flex:none;font-size:9px;font-weight:400;color:var(--ink-3);padding:1px 5px;border-radius:3px;
-  background:rgba(255,255,255,.06);white-space:nowrap}
-.hud.bars .hm-rank{background:rgba(0,0,0,.5)}
-.hm.down .hm-top .kda{display:none}
-.hm-bars{display:flex;flex-direction:column;gap:3px;margin-top:5px}
-.hb{height:4px;background:rgba(255,255,255,.07);border-radius:1px;overflow:hidden}
-.hb i{display:block;height:100%;background:var(--hud-health);transition:width 280ms ease}
-.ha{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
-.ha span{height:3px;background:rgba(255,255,255,.07);border-radius:1px;overflow:hidden}
-.ha span i{display:block;height:100%;background:var(--hud-armor);transition:width 280ms ease}
-.hm.down{border-left-color:var(--red)}
-.hm.down .hb i{background:var(--red)}
-.hm .down-tag{display:none;font-size:9px;font-weight:600;color:var(--red);padding:1px 6px;border-radius:999px;border:1px solid var(--red-edge);background:var(--red-wash)}
-.hm.down .down-tag{display:inline-block}
-.hud.min .hm{padding:5px 8px;gap:7px}
-.hud.min .hm .av{width:22px;height:22px;font-size:8px}
-.hud.min .ha{display:none}
-.hud.min .hm-bars{margin-top:3px}
-.hud.min .hb{height:3px}
-.hud-more{font-size:10px;color:var(--ink-3);text-align:right;padding-right:2px}
-
+/* team HUD cards live in team-hud.css (shared with the HUD settings previews) */
 .hud-edit{position:fixed;top:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 14px;z-index:95;
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-2)}
 .hud-edit p{font-size:12px;color:var(--ink-2);font-weight:300;margin-right:6px}
