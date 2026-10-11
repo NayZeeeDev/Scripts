@@ -353,7 +353,25 @@ local function pickUp(ent)
     Busy = false
 end
 
-local function going(e) return boxes[e] and boxes[e].gone end
+--- The box a ray hit: the box itself, or its lid / the pair in it (separate local objects)
+local function boxOf(ent)
+    if boxes[ent] then return ent end
+    for base, box in pairs(boxes) do
+        if box.lid == ent or box.shoe == ent then return base end
+    end
+end
+
+local function boxSize(base, box)
+    if not box.mn then box.mn, box.mx = GetModelDimensions(GetEntityModel(base)) end
+    return box.mn, box.mx
+end
+
+--- Hide a box's options while it's being picked up, and whenever the aim is on another box: boxes
+--- side by side or stacked have overlapping third-eye zones, and only the one you look at should answer
+local function going(e)
+    if boxes[e] and boxes[e].gone then return true end
+    return Place.Aims() and Place.Aimed(boxes, boxSize, boxOf) ~= e
+end
 
 local boxOptions = {
         { name = 'nzs_open', label = Config.Text.open, icon = 'fa-solid fa-box-open',

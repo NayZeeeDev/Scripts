@@ -197,8 +197,8 @@ Config.Displays = {
     openTime         = 550,
     closeTime        = 450,
     snap             = true,    -- aiming at a case while placing lines the new one up on top of it or beside it
-    doorOptions      = false,   -- true = also "Open door" / "Close door" on the third eye (the door opens on its own
-                                -- when a pair goes in or comes out, so it's off to keep the list short)
+    doorOptions      = true,    -- "Open door" / "Close door" on the third eye (the door also opens on its own when a
+                                -- pair goes in or comes out)
     maxPerPlayer     = 60,
     anyoneCanOpen    = true,    -- anyone can open the door and look at the pair
     anyoneCanTake    = false,   -- false = only the owner (or admins) can put pairs in, take them out or pick the case up

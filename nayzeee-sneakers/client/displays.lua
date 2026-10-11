@@ -129,7 +129,27 @@ end)
 
 local function st(e, k) return Entity(e).state[k] end
 local function netOf(e) return NetworkGetEntityIsNetworked(e) and NetworkGetNetworkIdFromEntity(e) or nil end
-local function going(e) return cases[e] and cases[e].gone end
+--- The case a ray hit: the case itself, or its door / the pair inside (separate local objects)
+local function caseOf(ent)
+    if not ent or ent == 0 then return nil end
+    if cases[ent] then return ent end
+    for base, c in pairs(cases) do
+        if c.door == ent or c.shoe == ent then return base end
+    end
+end
+
+local function caseSize(_, c)
+    local s = c.t.size
+    return vector3(-s.x * 0.5, -s.y * 0.5, 0.0), vector3(s.x * 0.5, s.y * 0.5, s.z)
+end
+
+--- Hide a case's options while it's being picked up, and whenever the aim is on another case:
+--- cases side by side or stacked have overlapping third-eye zones, and only the one you look at
+--- should answer
+local function going(e)
+    if cases[e] and cases[e].gone then return true end
+    return Place.Aims() and Place.Aimed(cases, caseSize, caseOf) ~= e
+end
 
 --- A loose pair from the inventory that fits this case, or nil
 local function choosePair(t)
@@ -219,7 +239,7 @@ local function hasCaseOnTop(base)
     for other in pairs(cases) do
         if other ~= base and DoesEntityExist(other) then
             local p = GetEntityCoords(other)
-            if math.abs(p.z - top.z) < 0.06 and #(vector2(p.x, p.y) - vector2(top.x, top.y)) < math.max(c.t.size.x, c.t.size.y) * 0.5 then
+            if math.abs(p.z - top.z) < 0.06 and math.sqrt((p.x - top.x) ^ 2 + (p.y - top.y) ^ 2) < math.max(c.t.size.x, c.t.size.y) * 0.5 then
                 return true
             end
         end
@@ -271,11 +291,11 @@ local function addCase(base)
     cases[base] = { t = t, door = door, angle = angle, to = angle }
     attachDoor(base, cases[base])
     syncShoe(base, false)
-    -- a box the size of the case, so in a stack each case answers only for itself. It runs from just
-    -- above the case's floor to just above its lid; the case on top starts above that.
+    -- a box around the case. Neighbours' boxes can touch; the options check which case the aim is
+    -- on (going), so only that one answers.
     local h = t.size.z
-    local centre = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, (0.004 + h + 0.006) * 0.5)
-    Target.AddBox(base, centre, vector3(t.size.x + 0.03, t.size.y + 0.03, h + 0.002), GetEntityHeading(base), options, D.interactDistance)
+    local centre = GetOffsetFromEntityInWorldCoords(base, 0.0, 0.0, h * 0.5)
+    Target.AddBox(base, centre, vector3(t.size.x + 0.04, t.size.y + 0.04, h + 0.04), GetEntityHeading(base), options, D.interactDistance)
 end
 
 CreateThread(function()
@@ -304,15 +324,6 @@ AddEventHandler('onResourceStop', function(res)
 end)
 
 -- placing ------------------------------------------------------------------------------------------
-
---- The case a ray hit: the case itself, or its door (the door is a separate local object)
-local function caseOf(ent)
-    if not ent or ent == 0 then return nil end
-    if cases[ent] then return ent end
-    for base, c in pairs(cases) do
-        if c.door == ent or c.shoe == ent then return base end
-    end
-end
 
 --- A case already standing at this spot (so stacking climbs past it)
 local function caseAt(pos)

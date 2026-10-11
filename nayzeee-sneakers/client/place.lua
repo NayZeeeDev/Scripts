@@ -30,6 +30,52 @@ local function camRay(flags, dist, ignore, skip)
     return false
 end
 
+--- What the player is aiming at right now: hit, entity, coords. Worked out once a frame, however many
+--- third-eye options ask.
+local aim = { frame = -1 }
+function Place.Aim()
+    local f = GetFrameCount()
+    if aim.frame ~= f then
+        local hit, ent, coords = camRay(17, 10.0, PlayerPedId())
+        aim = { frame = f, hit = hit, ent = ent, coords = coords }
+    end
+    return aim.hit, aim.ent, aim.coords
+end
+
+--- Does the third eye aim (ox_target, qb-target)? interact and the key prompt go by distance instead,
+--- so there's no "the one you look at" to pick.
+function Place.Aims()
+    local sys = Target and Target.System and Target.System()
+    return sys == 'ox_target' or sys == 'qb-target'
+end
+
+--- Of a set of props, the one the aim is on: the one it hit, or the one whose box the hit point is
+--- in or nearest to. list = { [entity] = entry }, sizeOf(entity, entry) -> local min, max corners,
+--- partOf(entity) -> the prop a hit part (lid, door, shoe) belongs to. Used so that props side by side
+--- or stacked, whose third-eye zones overlap, only ever show the options of the one you look at.
+function Place.Aimed(list, sizeOf, partOf)
+    local hit, ent, coords = Place.Aim()
+    if not hit then return nil end
+    if ent and ent ~= 0 then
+        if list[ent] then return ent end
+        local owner = partOf and partOf(ent)
+        if owner then return owner end
+    end
+    local best, bestD
+    for e, entry in pairs(list) do
+        if DoesEntityExist(e) then
+            local mn, mx = sizeOf(e, entry)
+            local l = GetOffsetFromEntityGivenWorldCoords(e, coords.x, coords.y, coords.z)
+            local dx = math.max(mn.x - l.x, l.x - mx.x, 0.0)
+            local dy = math.max(mn.y - l.y, l.y - mx.y, 0.0)
+            local dz = math.max(mn.z - l.z, l.z - mx.z, 0.0)
+            local d = dx * dx + dy * dy + dz * dz
+            if not bestD or d < bestD then best, bestD = e, d end
+        end
+    end
+    return best
+end
+
 --- The model of whatever a ray hit, or nil (the ground and buildings aren't entities, and asking
 --- for their model crashes the native)
 function Place.ModelOf(ent)
