@@ -517,7 +517,7 @@
   // browser preview: no Lua to place the radar, so mimic what client/minimap.lua reports
   const SHAPE_FRAMES = { square: [2.87, 6.37, 29.0, 18.5], circle: [4.07, 7.37, 27.3, 22.9] };
   const browserMap = () => {
-    const raise = NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 4.5 : 0;
+    const raise = NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 6.5 : 0;
     const f = SHAPE_FRAMES[NH.cur.map.shape], hw = window.innerHeight / window.innerWidth;
     if (f) return { l: f[0] * hw, b: 100 - f[1] - raise, w: f[2] * hw, h: f[3], shape: NH.cur.map.shape };
     return Object.assign({}, NH.map, { b: NH.map.b - raise });
