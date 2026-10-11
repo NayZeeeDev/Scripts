@@ -116,7 +116,7 @@ function Rewards.CrewScore(lobby, ordered)
         Crews.Activity(a.id, 'DRAW_RACE', L('ACT_DRAW_RACE', b.name, sa))
         Crews.Activity(b.id, 'DRAW_RACE', L('ACT_DRAW_RACE', a.name, sb))
     end
-    return { { crew = a, score = sa }, { crew = b, score = sb }, winner = winner and winner.id or nil }
+    return { list = { { crew = a, score = sa }, { crew = b, score = sb } }, winner = winner and winner.id or nil }
 end
 
 -- Pink slips: the winner takes the title of every other racer's car

@@ -203,9 +203,9 @@ const RACE = {
 function renderResults(d) {
   const res = d.results, list = res.list, drift = res.mode === 'drift';
   const mine = list.find(r => r.id === d.me);
-  const crews = res.crews ? `<div class="res-crews">
-      <div class="${res.crews.winner === (res.crews[0].crew || {}).id ? 'w' : ''}"><b>${res.crews[0].score}</b>${crewTag(res.crews[0].crew)}</div><span style="color:var(--ink-3)">vs</span>
-      <div class="${res.crews.winner === (res.crews[1].crew || {}).id ? 'w' : ''}"><b>${res.crews[1].score}</b>${crewTag(res.crews[1].crew)}</div></div>` : '';
+  const crews = res.crews && res.crews.list ? `<div class="res-crews">
+      <div class="${res.crews.winner === (res.crews.list[0].crew || {}).id ? 'w' : ''}"><b>${res.crews.list[0].score}</b>${crewTag(res.crews.list[0].crew)}</div><span style="color:var(--ink-3)">vs</span>
+      <div class="${res.crews.winner === (res.crews.list[1].crew || {}).id ? 'w' : ''}"><b>${res.crews.list[1].score}</b>${crewTag(res.crews.list[1].crew)}</div></div>` : '';
   $res.style.setProperty('--dur', d.ms + 'ms');
   $res.innerHTML = `<div class="hbox">
     <div class="res-h"><div class="tile ${mine && mine.position === 1 && mine.status === 'finished' ? 'amber' : ''}"><i class="fas fa-flag-checkered"></i></div>

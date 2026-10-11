@@ -589,9 +589,9 @@ function partRow(l, part, owner) {
 function resultsTable(res, me) {
   if (!res) return '';
   const drift = res.mode === 'drift';
-  const crews = res.crews ? `<div class="res-crews" style="padding:4px 0 10px">
-      <div class="${res.crews.winner === (res.crews[0].crew || {}).id ? 'w' : ''}"><b>${res.crews[0].score}</b>${crewTag(res.crews[0].crew)}</div><span style="color:var(--ink-3)">vs</span>
-      <div class="${res.crews.winner === (res.crews[1].crew || {}).id ? 'w' : ''}"><b>${res.crews[1].score}</b>${crewTag(res.crews[1].crew)}</div></div>` : '';
+  const crews = res.crews && res.crews.list ? `<div class="res-crews" style="padding:4px 0 10px">
+      <div class="${res.crews.winner === (res.crews.list[0].crew || {}).id ? 'w' : ''}"><b>${res.crews.list[0].score}</b>${crewTag(res.crews.list[0].crew)}</div><span style="color:var(--ink-3)">vs</span>
+      <div class="${res.crews.winner === (res.crews.list[1].crew || {}).id ? 'w' : ''}"><b>${res.crews.list[1].score}</b>${crewTag(res.crews.list[1].crew)}</div></div>` : '';
   return `${crews}<table><thead><tr><th>#</th><th>${esc(t('UI_RACER'))}</th><th>${esc(t('UI_VEHICLE'))}</th><th class="r">${esc(drift ? t('RES_SCORE') : res.mode === 'time_trial' ? t('RES_BEST_LAP') : t('RES_TIME'))}</th><th class="r">${esc(t('UI_ELO'))}</th></tr></thead><tbody>
     ${res.list.map(r => `<tr class="${r.id === me ? 'me' : ''}"><td>${posBadge(r.position, r.status)}</td><td><b>${esc(r.alias)}</b> ${crewTag(r.crew)}${r.newWr ? ' <span class="chip amber">WR</span>' : ''}${r.pinkWon ? ` <span class="chip red" title="${esc(r.pinkWon)}"><i class="fas fa-file-signature"></i>${esc(r.pinkWon)}</span>` : ''}</td><td>${esc(r.vehicle || '—')}</td>
       <td class="r"><b>${r.status === 'eliminated' ? esc(t('HUD_OUT')) : r.status !== 'finished' ? esc(t('P_DNF')) : drift ? num(r.score) : esc(clock(res.mode === 'time_trial' ? r.score : r.time))}</b>${r.payout ? ` <span class="chip amber">${esc(money(r.payout))}</span>` : ''}</td>

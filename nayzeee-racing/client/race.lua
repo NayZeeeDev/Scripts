@@ -584,6 +584,11 @@ local function practiceRetry(p)
 end
 
 function handlers.results(d)
+    -- results of an earlier race while we are already racing the next one: just the card
+    if R and d.id and R.id ~= d.id and Race.Busy() then
+        UI('results', { results = d.results, me = d.me, track = d.track, lobby = d.lobby, ms = Config.Races.ResultsTime })
+        return
+    end
     if R then
         R.results = true
         if Race.phase ~= 'done' then stopRace(true) end

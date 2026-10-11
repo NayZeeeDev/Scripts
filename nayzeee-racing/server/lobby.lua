@@ -86,8 +86,11 @@ function Lobby:Send(part, event, data)
     if src then TriggerClientEvent('nzr:race', src, event, data) end
 end
 
+-- Racers who already finished here and moved on to another race don't get this lobby's broadcasts
 function Lobby:SendAll(event, data, filter)
     self:Each(function(part)
+        local other = Core.Active[part.id]
+        if other and other ~= self.id then return end
         if not filter or filter(part) then self:Send(part, event, data) end
     end)
 end
@@ -426,17 +429,23 @@ function Lobby:Start()
     self:Each(function(part) queued[#queued + 1] = part.id end, PStatus.QUEUING)
     for _, pid in ipairs(queued) do self:Drop(pid, 'LOBBY_NOT_ACCEPTED') end
 
+    -- split references (world record + each racer's PB) are loaded before anything changes state,
+    -- so nobody can leave halfway through the start
+    local refs = self.mode ~= RaceMode.DRIFT
+    self.wrRef = refs and Tracks.Reference(self.track.id, self.circuit) or nil
+    self:Each(function(part)
+        part.ref = refs and Tracks.Reference(self.track.id, self.circuit, part.id) or nil
+    end, PStatus.ACCEPTED)
+    if self.status ~= LobbyStatus.PENDING then return nil, 'LOBBY_ALREADY_STARTED' end
+    if not self:CanStart() then return nil, 'LOBBY_NO_RACERS' end
+
     self.status = LobbyStatus.MOBILIZING
     if not self.practice then MySQL.update('UPDATE nayzeee_racing_tracks SET plays = plays + 1 WHERE id = ?', { self.track.id }) end
 
-    -- split references: world record + each racer's personal best on this layout
-    local refs = self.mode ~= RaceMode.DRIFT
-    self.wrRef = refs and Tracks.Reference(self.track.id, self.circuit) or nil
     local netIds, racers = {}, {}
     self:Each(function(part)
         part.status = PStatus.MOBILIZING
         part.started = true
-        part.ref = refs and Tracks.Reference(self.track.id, self.circuit, part.id) or nil
         netIds[#netIds + 1] = part.netId
         racers[#racers + 1] = { id = part.id, alias = part.profile.alias, color = part.profile.color }
     end)
@@ -658,7 +667,7 @@ function Lobby:Disqualify(pid, reason)
         self:CheckDone()
     else
         -- disqualified before the start: the race still runs for everyone else
-        local left = self:Count(PStatus.MOBILIZING) + self:Count(PStatus.COUNTDOWN)
+        local left = self:Count(PStatus.MOBILIZING) + self:Count(PStatus.COUNTDOWN) + self:Count(PStatus.ACCEPTED)
         if left == 0 then self:Finalize() end
     end
 end
@@ -933,7 +942,7 @@ function Lobby:Finalize()
     self:Persist(ordered)
 
     local practice = self.practice and { trackId = self.track.id, laps = self.laps, mode = self.mode } or nil
-    local payload = { results = self.results, track = self.track.name, lobby = self.name, practice = practice }
+    local payload = { id = self.id, results = self.results, track = self.track.name, lobby = self.name, practice = practice }
     self:Each(function(part)
         if Core.Active[part.id] == self.id then Core.Active[part.id] = nil end
         payload.me = part.id
