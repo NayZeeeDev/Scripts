@@ -105,9 +105,9 @@
   const MAP_FRAMES = [['glass', 'Glass'], ['accent', 'Accent'], ['panel', 'Panel'], ['corners', 'Corners'], ['shadow', 'Shadow'], ['none', 'None']];
   R.map = () =>
     sec('Minimap', seg('map.mode', [['vehicle', 'In vehicles'], ['always', 'Always'], ['never', 'Never']], 'Show minimap') +
-      toggle('map.frame', 'Minimap frame', 'Drawn around the radar (default shape only)') +
+      toggle('map.frame', 'Minimap frame', 'Drawn around the radar; follows the shape you pick below') +
       cards('map.frameStyle', MAP_FRAMES.map(([v, l]) => ({ v, l, html: `<div class="pv-map"><div class="pv-radar"></div>${v === 'none' ? '' : '<b class="mf-bz"></b>'}<div class="mf" data-style="${v}"><i></i><i></i><i></i><i></i></div></div>` })), 'c3') +
-      seg('map.shape', [['default', 'Default'], ['square', 'Square'], ['circle', 'Circle']], 'Shape', 'Square and circle need squaremap.ytd / circlemap.ytd in the stream folder')) +
+      seg('map.shape', [['default', 'Default'], ['square', 'Square'], ['circle', 'Circle']], 'Shape', 'The shape of the minimap itself')) +
     sec('Frame fit', range('map.fit.x', 'Left / right', -40, 40, 1, 'px') + range('map.fit.y', 'Up / down', -40, 40, 1, 'px') +
       range('map.fit.w', 'Width', -40, 40, 1, 'px') + range('map.fit.h', 'Height', -40, 40, 1, 'px') +
       `<div class="opt"><div class="opt-t"><b>Reset fit</b></div><button class="btn-line" data-act="fit-reset">${ic('reset')}Reset</button></div>`,

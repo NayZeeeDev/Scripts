@@ -50,11 +50,12 @@
   // ---------------- Minimap frame ----------------
   def('mapframe', {
     label: 'Minimap Frame', fixed: true,
-    visible: () => NH.cur.map.frame && NH.cur.map.frameStyle !== 'none' && (c => !c.shape || c.shape === 'default')(NH.map) && (NH.S.radar || NH.editing),
+    visible: () => NH.cur.map.frame && NH.cur.map.frameStyle !== 'none' && (NH.S.radar || NH.editing),
     build(el) { el.innerHTML = '<b class="mf-bz"></b><div class="mf"><i></i><i></i><i></i><i></i></div>'; this.mf = el.querySelector('.mf'); },
     apply() { this.mf.dataset.style = NH.cur.map.frameStyle || 'glass'; },
     place(c) {
       const s = this.el.style;
+      this.el.dataset.shape = c.map.shape || 'default'; // square / circle frames follow the radar's shape
       s.left = c.map.l + '%'; s.top = (c.map.b - c.map.h) + '%';
       s.width = c.map.w + '%'; s.height = c.map.h + '%';
     },
@@ -513,10 +514,18 @@
       b: m.b + n('y') / 10.8, h: m.h + n('h') / 10.8,
     });
   };
+  // browser preview: no Lua to place the radar, so mimic what client/minimap.lua reports
+  const SHAPE_FRAMES = { square: [2.87, 6.37, 29.0, 18.5], circle: [4.07, 7.37, 27.3, 22.9] };
+  const browserMap = () => {
+    const raise = NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 4.5 : 0;
+    const f = SHAPE_FRAMES[NH.cur.map.shape], hw = window.innerHeight / window.innerWidth;
+    if (f) return { l: f[0] * hw, b: 100 - f[1] - raise, w: f[2] * hw, h: f[3], shape: NH.cur.map.shape };
+    return Object.assign({}, NH.map, { b: NH.map.b - raise });
+  };
   NH.layoutCtx = () => ({
     radar: !!NH.S.radar || (NH.editing && NH.cur.map.mode !== 'never'),
     // in the browser preview there is no Lua to lift the radar, so mimic it
-    map: fitMap(NH.IS_GAME ? NH.map : Object.assign({}, NH.map, { b: NH.map.b - (NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 4.5 : 0) })),
+    map: fitMap(NH.IS_GAME ? NH.map : browserMap()),
     statusH: W.status.el ? pxH(W.status.el) * (NH.cur.layout.status?.s || 1) * NH.cur.scale : 4.6,
     statusW: W.status.el ? W.status.el.offsetWidth / window.innerWidth * 100 * (NH.cur.layout.status?.s || 1) * NH.cur.scale : 20,
     speedoH: W.speedo.el && W.speedo.el.offsetHeight ? pxH(W.speedo.el) * (NH.cur.layout.speedo?.s || 1) * NH.cur.scale : 22,

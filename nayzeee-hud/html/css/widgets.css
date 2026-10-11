@@ -20,6 +20,12 @@
 .mf[data-style="corners"] > i:nth-child(3) { left: -2px; bottom: -2px; border-width: 0 0 3px 3px; border-radius: 0 0 0 8px; }
 .mf[data-style="corners"] > i:nth-child(4) { right: -2px; bottom: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 8px 0; }
 .mf[data-style="shadow"] { box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 26px 6px rgba(0, 0, 0, .45); }
+/* square and circle minimap shapes */
+.w-mapframe[data-shape="square"] .mf, .w-mapframe[data-shape="square"] .mf-bz { border-radius: 4px; }
+.w-mapframe[data-shape="square"] .mf[data-style="panel"] { border-radius: 8px; }
+.w-mapframe[data-shape="circle"] .mf, .w-mapframe[data-shape="circle"] .mf-bz { border-radius: 50%; }
+.w-mapframe[data-shape="circle"] .mf > i { display: none !important; }
+.w-mapframe[data-shape="circle"] .mf[data-style="corners"] { border: 3px solid var(--accent); }
 .pv-map { position: relative; width: 120px; height: 72px; }
 .pv-radar { position: absolute; inset: 0; border-radius: 8px; background: repeating-linear-gradient(45deg, #3d4a3a 0 10px, #46553f 10px 20px); }
 .pv-map .mf { inset: -4px; }
