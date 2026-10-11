@@ -28,7 +28,7 @@
 
   // ---------------- Street bar ----------------
   def('street', {
-    label: 'Street Bar', anchor: [0, 1],
+    label: 'Street Bar', anchor: [0, 1], dock: true,
     // above the radar when it's showing, otherwise right above the player status (wherever that sits)
     pos: c => {
       if (c.radar) return [c.map.l, c.map.b - c.map.h - 0.9];
@@ -69,7 +69,7 @@
 
   // ---------------- Speed limit sign ----------------
   def('sign', {
-    label: 'Speed Limit', anchor: [1, 0],
+    label: 'Speed Limit', anchor: [1, 0], dock: true,
     pos: c => c.radar ? [c.map.l + c.map.w - 0.4, c.map.b - c.map.h + 0.8] : [16, 80],
     visible: () => NH.cur.map.sign && ((inVeh() && ['car', 'moto'].includes(NH.S.vm)) || NH.editing),
     build(el) { el.innerHTML = '<div class="sgn"><small>SPEED<br>LIMIT</small><b>30</b></div>'; this.b = $(el, 'b'); this.box = el.firstChild; },
@@ -545,7 +545,15 @@
       if (!w.el) continue;
       if (w.fixed) { w.place(ctx); continue; }
       const saved = NH.cur.layout[id];
-      const [x, y] = saved && saved.x != null ? [saved.x, saved.y] : w.pos(ctx);
+      // docked widgets (street bar, speed sign) follow the radar / status and keep a dragged offset;
+      // everything else is pinned where it was dropped
+      let x, y;
+      if (w.dock) {
+        [x, y] = w.pos(ctx);
+        if (saved) { x += saved.dx || 0; y += saved.dy || 0; }
+      } else {
+        [x, y] = saved && saved.x != null ? [saved.x, saved.y] : w.pos(ctx);
+      }
       const s = (saved?.s || 1) * NH.cur.scale;
       const [ax, ay] = w.anchor;
       const st = w.el.style;
@@ -585,7 +593,7 @@
     const el = e.target.closest('.w');
     if (!el || W[el.dataset.id]?.fixed) return;
     const w = W[el.dataset.id];
-    drag = { w, sx: e.clientX, sy: e.clientY, x: w.x, y: w.y };
+    drag = { w, sx: e.clientX, sy: e.clientY, x: w.x, y: w.y, base: w.dock ? w.pos(NH.layoutCtx()) : null };
     el.classList.add('dragging');
     el.setPointerCapture?.(e.pointerId);
     e.preventDefault();
@@ -595,7 +603,8 @@
     const x = Math.max(0, Math.min(100, drag.x + (e.clientX - drag.sx) / window.innerWidth * 100));
     const y = Math.max(0, Math.min(100, drag.y + (e.clientY - drag.sy) / window.innerHeight * 100));
     const L = NH.cur.layout[drag.w.id] = NH.cur.layout[drag.w.id] || {};
-    L.x = +x.toFixed(2); L.y = +y.toFixed(2);
+    if (drag.base) { L.dx = +(x - drag.base[0]).toFixed(2); L.dy = +(y - drag.base[1]).toFixed(2); delete L.x; delete L.y; }
+    else { L.x = +x.toFixed(2); L.y = +y.toFixed(2); }
     NH.place();
   });
   document.addEventListener('pointerup', () => {

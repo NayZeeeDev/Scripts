@@ -278,6 +278,10 @@
         if (m.squads) NH.squadsFrame();
         NH.saved = NH.merge(NH.clone(NH.DEFAULTS), m.settings || {});
         if (NH.cfg.squadsData) NH.saved.squads = NH.merge(NH.clone(NH.DEFAULTS.squads), NH.cfg.squadsData.settings || {}); // the squads module owns these
+        for (const id of ['street', 'sign']) {
+          const L = NH.saved.layout && NH.saved.layout[id];
+          if (L && L.x != null) { delete L.x; delete L.y; } // older pinned spot: let it dock again (keeps its size)
+        }
         NH.cur = NH.saved;
         NH.applySettings();
         break;
