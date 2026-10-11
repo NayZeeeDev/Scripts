@@ -51,7 +51,7 @@ const SIL = {
 
 function gunHtml(name, tpl) {
   const wc = weaponClass(name);
-  if (!wc) return '<div class="hm-gun no-w"><i class="hm-flash"></i></div>';
+  if (!wc) return ''; // nothing equipped: no gun slot at all
   const src = tpl && /^[A-Z0-9_]+$/i.test(name) ? tpl.replace('%s', String(name).toUpperCase()) : '';
   return `<div class="hm-gun" data-wc="${wc}"><svg class="wsil" viewBox="0 0 64 24" fill="currentColor">${SIL[wc] || SIL.pistol}</svg>${src
     ? `<img class="wimg" src="${esc(src)}" alt="" draggable="false" onload="this.parentNode.classList.add('img')" onerror="this.remove()">` : ''}<i class="hm-flash"></i></div>`;
@@ -128,8 +128,9 @@ function patch(el, v, o) {
   el.classList.toggle('low', h <= 25 && !el.classList.contains('down'));
   if (v.w !== undefined && (v.w || '') !== el.dataset.w && o.hudWeapon !== false) {
     el.dataset.w = v.w || '';
-    const old = el.querySelector('.hm-gun');
-    if (old) old.outerHTML = gunHtml(el.classList.contains('down') ? null : v.w, o.imgTpl);
+    el.querySelector('.hm-gun')?.remove();
+    const html = gunHtml(el.classList.contains('down') ? null : v.w, o.imgTpl);
+    if (html) el.insertAdjacentHTML('beforeend', html);
     const wl = el.querySelector('.hm-wl');
     if (wl) wl.textContent = weaponClass(v.w) ? (v.wl || weaponLabel(v.w)) : '';
   }
@@ -197,12 +198,12 @@ function shots(el, key, b, offsets) {
 const DEMO = [
   { m: { id: 'pv0', name: 'NayZeee', owner: true, rank: 'Leader', kills: 31, deaths: 14 }, v: { h: 92, a: 75, w: 'WEAPON_CARBINERIFLE', wl: 'Carbine Rifle' }, self: true },
   { m: { id: 'pv1', name: 'Tay Brooks', rank: 'Officer', kills: 27, deaths: 18 }, v: { h: 58, a: 25, w: 'WEAPON_PISTOL50', wl: 'Pistol .50', talk: 'radio' } },
-  { m: { id: 'pv2', name: 'Keisha Moore', rank: 'Member', kills: 14, deaths: 9 }, v: { h: 21, a: 0, w: 'WEAPON_PUMPSHOTGUN', wl: 'Pump Shotgun' } },
+  { m: { id: 'pv2', name: 'Keisha Moore', rank: 'Member', kills: 14, deaths: 9 }, v: { h: 21, a: 0 } },
   { m: { id: 'pv3', name: 'Marcus Hill', rank: 'Member', kills: 19, deaths: 16, down: true }, v: { h: 0, a: 0 } },
 ];
 // a short firefight that loops in the previews: rifle bursts, pistol taps and a shotgun blast
 const DEMO_FIRE = [
-  ['self', 0, [0, 92, 184, 276, 368]], ['pv1', 650, [0, 260, 520]], ['pv2', 1500, [0]], ['self', 1900, [0, 92, 184]],
+  ['self', 0, [0, 92, 184, 276, 368]], ['pv1', 650, [0, 260, 520]], ['self', 1900, [0, 92, 184]],
 ];
 
 function preview(style, o) {
