@@ -155,6 +155,7 @@ RegisterNUICallback('sq_ready', function(_, cb)
                           min = SquadsConfig.Nicknames.MinLength, temp = SquadsConfig.Nicknames.AllowInTemporary },
             autoRadio = SquadsConfig.Voice.AutoJoin and SquadsConfig.Voice.PlayerCanOptOut,
             weaponImages = Config and Config.WeaponImages or false,
+            bleedOut = SquadsConfig.Revive.BleedOut or 0,
         },
     })
 end)
@@ -316,6 +317,8 @@ RegisterNetEvent('nz_squads:vitals', function(changed)
     for id, v in pairs(changed) do
         -- the server sends the weapon hash; the cards want its name (for the picture) and label
         if v.w ~= nil then v.w, v.wl = SquadWeapon(v.w) end
+        -- vehicle model -> icon kind + name; false when on foot so the card drops it
+        if v.vm ~= nil then v.vk, v.vn = SquadVehicle(v.vm) end
         Squad.vitals[id] = v
     end
     NUI('vitals', changed)
@@ -326,7 +329,7 @@ RegisterNetEvent('nz_squads:downed', function(id, state)
     for i = 1, #Squad.members do
         if Squad.members[i].id == id then Squad.members[i].downed = state break end
     end
-    NUI('downed', { id = id, state = state })
+    NUI('downed', { id = id, state = state, since = 0 })
 end)
 
 RegisterNetEvent('nz_squads:invite', function(inv)

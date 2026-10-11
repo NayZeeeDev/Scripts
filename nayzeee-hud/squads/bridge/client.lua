@@ -72,14 +72,18 @@ local system
 local function resolveSystem()
     local want = N.System
     if want ~= 'auto' then return want end
-    if GetResourceState(N.NayzeeeResource) == 'started' then return 'nayzeee' end
-    return 'ox_lib' -- nayzeee-hud: the squad UI's own toast box is off unless System = 'builtin'
+    return 'hud' -- nayzeee-hud: squad alerts use the HUD's own notifications
 end
 
 local adapters = {
     -- the squad UI's own toasts
     builtin = function(title, text, kind, duration)
         SendNUIMessage({ action = 'toast', data = { title = title, text = text, kind = kind, duration = duration, native = true } })
+    end,
+
+    -- the HUD's notifications (same resource)
+    hud = function(title, text, kind, duration)
+        NHUD.notify({ title = title, message = text, type = kind, duration = duration })
     end,
 
     -- NayZeee Notify. Change this call if your notify resource exposes a different export.

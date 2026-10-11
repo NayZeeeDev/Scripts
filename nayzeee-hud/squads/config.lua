@@ -234,7 +234,11 @@ SquadsConfig.Elo = {
 SquadsConfig.Revive = {
     RequireItem  = true,      -- false: squadmates can revive bare-handed
     Distance     = 2.0,
-    Key          = 'G',       -- hold to revive the nearest downed squadmate
+    Key          = 'G',       -- revive the nearest downed squadmate
+    Hold         = true,      -- true: keep the key held down; letting go stops the revive
+    -- Seconds until a downed player bleeds out, shown as a countdown on their team HUD card.
+    -- Match your ambulance job (qb-ambulancejob laststand is 300 by default). 0 = count up how long they've been down.
+    BleedOut     = 300,
     CancelOnMove = true,
     Cooldown     = 15,        -- seconds between revives per player
     Animation    = { dict = 'mini@cpr@char_a@cpr_str', clip = 'cpr_pumpchest' },
@@ -287,10 +291,10 @@ SquadsConfig.Nametag = {
 -- ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝
 
 -- Which system squad notifications use.
---   'auto'    NayZeee Notify when it's running, otherwise ox_lib's notify
+--   'auto'    the HUD's own notifications (same as 'hud')
 --   'builtin' the squad UI's own toast box (top right)
 --   'none'    no squad notifications at all
---   'nayzeee' | 'ox_lib' | 'esx' | 'qb' | 'qbx' | 'okok' | 'mythic' | 'custom'
+--   'hud' | 'nayzeee' | 'ox_lib' | 'esx' | 'qb' | 'qbx' | 'okok' | 'mythic' | 'custom'
 -- 'custom' runs the function at the bottom of bridge/client.lua — put your own call there.
 -- The killfeed, fight results, ready checks and revive prompts always use the squad UI.
 SquadsConfig.Notify = {
@@ -492,6 +496,9 @@ SquadsConfig.DefaultSettings = {
     hudStyle        = 'cards',      -- cards | slim | frost | loadout | tactical | arena | rings | heads | tiles | minimal
     hudWeapon       = true,         -- picture of the gun each squadmate is holding
     hudShots        = true,         -- cards flash in time with every shot a squadmate fires
+    hudAmmo         = true,         -- clip / reserve under the gun, RELOAD and EMPTY warnings
+    hudVehicle      = true,         -- what they're driving or riding in (car, truck, bike, boat, plane, heli)
+    hudHits         = true,         -- cards jolt red when that squadmate takes damage
     hudScale        = 100,          -- 70-130%
     hudOpacity      = 86,           -- card background opacity
     hudShowSelf     = true,         -- your own card at the top (keeps the HUD visible when you're alone)

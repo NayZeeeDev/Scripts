@@ -385,18 +385,112 @@
   });
 
   // ---------------- Watermark ----------------
+  // ---------------- Voice & radio ----------------
+  // Range (whisper / normal / shout or the voice resource's own names), talking, radio channel and transmit.
+  const RANGE3 = ['Whisper', 'Normal', 'Shouting'];
+  NH.VOICE_STYLES = [['pill', 'Pill'], ['bars', 'Bars'], ['card', 'Card'], ['minimal', 'Minimal']];
+  NH.voiceValues = (S) => {
+    const count = Math.max(1, Math.min(6, S.vrc || 3));
+    const idx = Math.max(1, Math.min(count, S.vr || 2));
+    const name = S.vrn || (count === 3 ? RANGE3[idx - 1] : `Range ${idx}`);
+    const dist = typeof S.vrd === 'number' && S.vrd > 0 ? `${+S.vrd.toFixed(1)}m` : '';
+    const rd = S.rd ? (/^\d+(\.\d+)?$/.test(String(S.rd)) ? `CH ${S.rd}` : String(S.rd)) : '';
+    return { count, idx, name, dist, rd, talk: !!S.tk, rt: !!S.rt };
+  };
+  NH.voiceHtml = (style) => `<div class="vc vs-${style}${style === 'minimal' ? '' : ' panel'}">
+      <span class="vc-mic">${ic('mic')}<span class="vc-eq"><i></i><i></i><i></i></span></span>
+      <div class="vc-r"><div class="vc-bars"></div><div class="vc-t"><b class="vc-n"></b><small class="vc-d"></small></div></div>
+      <span class="vc-radio">${ic('radio')}<b class="vc-ch"></b></span></div>`;
+  NH.fillVoice = (box, v) => {
+    const bars = box.querySelector('.vc-bars');
+    if (bars.childElementCount !== v.count) bars.innerHTML = '<i></i>'.repeat(v.count);
+    [...bars.children].forEach((b, i) => b.classList.toggle('on', i < v.idx));
+    box.querySelector('.vc-n').textContent = v.name;
+    box.querySelector('.vc-d').textContent = v.dist;
+    box.querySelector('.vc-ch').textContent = v.rd;
+    box.classList.toggle('talk', v.talk);
+    box.classList.toggle('has-rd', !!v.rd);
+    box.classList.toggle('rt', v.rt);
+  };
+
+  def('voice', {
+    label: 'Voice & Radio', anchor: [0, 1],
+    // right of the player status row, same baseline
+    pos: c => NH.cur.status.enabled && W.status.x != null ? [W.status.x + (c.statusW || 20) + 0.7, W.status.y] : [1.4, 98.4],
+    visible: () => {
+      const c = NH.cur.voice;
+      if (!c.enabled) return false;
+      if (NH.editing || c.when === 'always') return true;
+      if (c.when === 'radio') return !!NH.S.rd;
+      return !!(NH.S.tk || NH.S.rt); // 'talking'
+    },
+    build() {
+      this.style = null;
+      // the status row grows and shrinks as rings auto-hide; keep sitting right next to it
+      if (window.ResizeObserver && W.status.el) {
+        let last = 0;
+        new ResizeObserver(([e]) => {
+          const w = Math.round(e.contentRect.width);
+          if (w !== last) { last = w; if (NH.cur && NH.cur.voice && NH.cur.voice.enabled) NH.place(); }
+        }).observe(W.status.el);
+      }
+    },
+    apply() {
+      const c = NH.cur.voice;
+      if (c.style !== this.style) {
+        this.style = c.style;
+        this.el.innerHTML = NH.voiceHtml(c.style) + '<span class="deco"></span>';
+        this.box = this.el.firstElementChild;
+      }
+      this.box.classList.toggle('no-name', !c.label);
+      this.render({ st: 1 });
+    },
+    render(g) {
+      if (!g.st && !g.edit) return;
+      const v = NH.voiceValues(NH.editing && !NH.S.vr ? { vr: 2, vrc: 3, rd: 12, tk: true } : NH.S);
+      NH.fillVoice(this.box, v);
+    },
+  });
+
+  // Server logo: a file dropped into html/logo/ (or a link). 'auto' takes the first logo.* that loads.
+  const esc = NH.esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const LOGO_AUTO = ['logo/logo.png', 'logo/logo.webp', 'logo/logo.gif', 'logo/logo.svg'];
+  NH.logoCandidates = (logo) => {
+    if (!logo) return [];
+    if (logo === 'auto') return LOGO_AUTO;
+    if (/^https?:\/\//i.test(logo) || /^nui:\/\//i.test(logo)) return [logo];
+    return /^[\w.-]+$/.test(logo) ? ['logo/' + logo] : [];
+  };
+  NH.findLogo = (logo, done) => {
+    const list = NH.logoCandidates(logo);
+    const next = (i) => {
+      if (i >= list.length) return done(null);
+      const img = new Image();
+      img.onload = () => done(list[i]);
+      img.onerror = () => next(i + 1);
+      img.src = list[i];
+    };
+    next(0);
+  };
+
   def('watermark', {
     label: 'Watermark', anchor: [0, 0],
     pos: () => [1.4, 1.6],
     visible: () => NH.cur.watermark.enabled && NH.cfg.watermark.enabled !== false,
-    build(el) { this.key = null; },
+    build(el) { this.key = null; this.logo = undefined; },
     apply() {
       const c = NH.cur.watermark, w = NH.cfg.watermark;
-      const key = c.style + c.effect + w.title + w.subtitle + w.logo;
+      if (this.logo === undefined) {
+        this.logo = null;
+        NH.findLogo(w.logo, (src) => { this.logo = src; NH.logoSrc = src; this.key = null; this.apply(); NH.place?.(); });
+      }
+      const key = [c.style, c.effect, w.title, w.subtitle, this.logo, w.showText].join('|');
       if (key === this.key) return;
       this.key = key;
-      const logo = w.logo ? `<img src="${w.logo}" alt=""/>` : '';
-      this.el.innerHTML = `<div class="wm wm-${c.style} fx-${c.effect}">${logo}<div class="wm-t"><b data-text="${w.title}">${w.title}</b>${w.subtitle ? `<small>${w.subtitle}</small>` : ''}</div></div><span class="deco"></span>`;
+      const logo = this.logo ? `<img src="${esc(this.logo)}" alt=""/>` : '';
+      const text = this.logo && w.showText === false ? ''
+        : `<div class="wm-t"><b data-text="${esc(w.title)}">${esc(w.title)}</b>${w.subtitle ? `<small>${esc(w.subtitle)}</small>` : ''}</div>`;
+      this.el.innerHTML = `<div class="wm wm-${c.style} fx-${c.effect}">${logo}${text}</div><span class="deco"></span>`;
     },
   });
 
@@ -406,6 +500,7 @@
     // in the browser preview there is no Lua to lift the radar, so mimic it
     map: NH.IS_GAME ? NH.map : Object.assign({}, NH.map, { b: NH.map.b - (NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 4.5 : 0) }),
     statusH: W.status.el ? pxH(W.status.el) * (NH.cur.layout.status?.s || 1) * NH.cur.scale : 4.6,
+    statusW: W.status.el ? W.status.el.offsetWidth / window.innerWidth * 100 * (NH.cur.layout.status?.s || 1) * NH.cur.scale : 20,
     speedoH: W.speedo.el && W.speedo.el.offsetHeight ? pxH(W.speedo.el) * (NH.cur.layout.speedo?.s || 1) * NH.cur.scale : 22,
     clockH: W.clock.el && W.clock.el.offsetHeight ? pxH(W.clock.el) * (NH.cur.layout.clock?.s || 1) * NH.cur.scale : 4.6,
   });

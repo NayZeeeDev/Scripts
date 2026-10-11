@@ -317,10 +317,17 @@ end)
 CreateThread(function()
     local bag = ('player:%s'):format(GetPlayerServerId(pid))
     local prox = LocalPlayer.state.proximity
-    set('vr', prox and prox.index or 2)
+    local function proximity(p)
+        if type(p) ~= 'table' then return end
+        set('vr', p.index or 2)
+        set('vrd', tonumber(p.distance) or false)
+        set('vrn', type(p.mode) == 'string' and p.mode or false)
+    end
+    set('vr', 2)
+    proximity(prox)
     set('rd', LocalPlayer.state.radioChannel or false)
     AddStateBagChangeHandler('proximity', bag, function(_, _, value)
-        if type(value) == 'table' then set('vr', value.index or 2) flush() end
+        if type(value) == 'table' then proximity(value) flush() end
     end)
     AddStateBagChangeHandler('radioChannel', bag, function(_, _, value)
         set('rd', (value and value ~= 0) and value or false)
@@ -354,8 +361,10 @@ AddEventHandler('pma-voice:radioActive', function(talking)
 end)
 
 -- SaltyChat
-AddEventHandler('SaltyChat_VoiceRangeChanged', function(_, index, count)
+AddEventHandler('SaltyChat_VoiceRangeChanged', function(range, index, count)
     set('vr', (tonumber(index) or 1) + 1)
+    set('vrd', tonumber(range) or false)
+    set('vrn', false)
     set('vrc', tonumber(count) or 3)
     flush()
 end)

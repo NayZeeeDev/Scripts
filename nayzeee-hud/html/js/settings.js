@@ -6,11 +6,14 @@
     { id: 'general', label: 'General', icon: 'sliders', title: 'General', sub: 'Units, scale, colours and sound' },
     { id: 'seasons', label: 'Seasons', icon: 'sparkles', title: 'Seasonal Styles', sub: 'Holiday themes, particles and decorations' },
     { id: 'status', label: 'Player Status', icon: 'heart', title: 'Player Status', sub: 'Health, armor, hunger, thirst, stamina, stress, oxygen & voice' },
+    { id: 'voice', label: 'Voice & Radio', icon: 'mic', title: 'Voice & Radio', sub: 'Voice range, talking and your radio channel' },
     { id: 'vehicle', label: 'Cars & Bikes', icon: 'car', title: 'Cars & Bikes', sub: 'Speedometer style and dashboard' },
     { id: 'other', label: 'Air, Sea & Cycles', icon: 'plane', title: 'Air, Sea & Bicycles', sub: 'Flight display, boat units and bicycle computer' },
     { id: 'map', label: 'Map & Compass', icon: 'map', title: 'Map & Compass', sub: 'Minimap, street bar, speed limits and compass' },
     { id: 'info', label: 'Player Info', icon: 'user', title: 'Player Info', sub: 'Job, money, server ID and headshot' },
-    { id: 'weapon', label: 'Weapon', icon: 'crosshair', title: 'Weapon', sub: 'Weapon name and ammo' },
+    { id: 'weapon', label: 'Weapon', icon: 'bullets', title: 'Weapon', sub: 'Weapon name and ammo' },
+    { id: 'crosshair', label: 'Crosshair', icon: 'crosshair', title: 'Crosshair', sub: 'Shape, colour and size of your aim' },
+    { id: 'notify', label: 'Notifications', icon: 'bell', title: 'Notifications & Prompts', sub: 'Notifications, progress bars and interaction prompts' },
     { id: 'clock', label: 'Weather & Time', icon: 'cloudsun', title: 'Weather & Time', sub: 'Clock, day and weather icon' },
     { id: 'watermark', label: 'Watermark', icon: 'image', title: 'Watermark', sub: 'Server logo and effect' },
     { id: 'io', label: 'Import & Export', icon: 'swap', title: 'Import & Export', sub: 'Share your HUD setup with a code' },
@@ -32,7 +35,7 @@
     const v = g(path) ?? 1;
     return `<div class="opt col"><div class="opt-t"><b>${label}</b>${desc ? `<small>${desc}</small>` : ''}</div><div class="rng"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-rng="${path}" data-fmt="${fmt}"/><span>${fmtVal(v, fmt)}</span></div></div>`;
   };
-  const fmtVal = (v, fmt) => fmt === 'pct' ? Math.round(v * 100) + '%' : fmt === 'raw%' ? v + '%' : String(v);
+  const fmtVal = (v, fmt) => fmt === 'pct' ? Math.round(v * 100) + '%' : fmt === 'raw%' ? v + '%' : fmt === 'px' ? v + 'px' : String(v);
   const cards = (path, items, cls = '', sel = g(path)) =>
     `<div class="cards ${cls}" data-cards="${path}">${items.map(it => `<button class="card${String(sel) === it.v ? ' on' : ''}" data-val="${it.v}"><div class="pv"${it.pv ? ` data-pv="${it.pv}"` : ''}>${it.html || ''}</div><span>${it.l}</span>${it.sub ? `<small>${it.sub}</small>` : ''}</button>`).join('')}</div>`;
   const chips = (items) => `<div class="chips">${items.map(([path, label, icon]) => `<button class="chip${g(path) ? ' on' : ''}" data-tog="${path}">${icon || ''}${label}</button>`).join('')}</div>`;
@@ -49,8 +52,9 @@
       : `<div class="cmp-rib panel"><b class="cmp-l">NW</b><i></i><span class="cmp-d">312°</span></div>`,
     weapon: (s) => `<div class="wpn w-${s} ${s === 'card' ? 'panel' : ''} pv-wpn"><span class="pv-gun">${ic('crosshair')}</span><b class="wn">Heavy Pistol</b><div class="am">${ic('bullets')}<b class="clip">30</b><i></i><span class="res">36</span></div></div>`,
     watermark: (style, effect) => {
-      const w = NH.cfg.watermark;
-      return `<div class="wm wm-${style} fx-${effect}">${w.logo ? `<img src="${w.logo}" alt=""/>` : ''}<div class="wm-t"><b data-text="${w.title}">${w.title}</b>${w.subtitle ? `<small>${w.subtitle}</small>` : ''}</div></div>`;
+      const w = NH.cfg.watermark, e = NH.esc, logo = NH.logoSrc;
+      const text = logo && w.showText === false ? '' : `<div class="wm-t"><b data-text="${e(w.title)}">${e(w.title)}</b>${w.subtitle ? `<small>${e(w.subtitle)}</small>` : ''}</div>`;
+      return `<div class="wm wm-${style} fx-${effect}">${logo ? `<img src="${e(logo)}" alt=""/>` : ''}${text}</div>`;
     },
   };
 
@@ -123,13 +127,41 @@
     sec('Display', toggle('weapon.enabled', 'Show weapon') + toggle('weapon.image', 'Weapon image') + scaleRange('weapon')) +
     sec('Style', cards('weapon.style', [{ v: 'card', l: 'Card', html: PV.weapon('card') }, { v: 'minimal', l: 'Minimal', html: PV.weapon('minimal') }, { v: 'pill', l: 'Pill', html: PV.weapon('pill') }], 'c3 tall'));
 
+  R.voice = () =>
+    sec('Display', toggle('voice.enabled', 'Show voice & radio', 'Your voice range, when you’re talking, and your radio channel') +
+      seg('voice.when', [['always', 'Always'], ['talking', 'While talking'], ['radio', 'On a radio']], 'Show', 'When the widget is on screen') +
+      toggle('voice.label', 'Range name', 'Whisper, Normal, Shouting (or your voice script’s own names)') + scaleRange('voice')) +
+    sec('Style', cards('voice.style', NH.VOICE_STYLES.map(([v, l]) => ({ v, l, pv: 'voice:' + v })), 'c4'),
+      'Works with pma-voice and SaltyChat. Moves in Edit layout like everything else.');
+
+  R.crosshair = () => {
+    if (NH.cfg.crosshair === false) return sec('Crosshair', '<p class="desc">The custom crosshair is turned off on this server.</p>');
+    const c = NH.cur.crosshair;
+    return sec('Display', toggle('crosshair.enabled', 'Custom crosshair', 'Replaces GTA’s aim dot while you aim a gun (sniper scopes keep their own)') +
+        toggle('crosshair.always', 'Show while holding a gun', 'Not just while aiming') + toggle('crosshair.outline', 'Dark outline', 'Easier to see on bright backgrounds')) +
+      sec('Style', cards('crosshair.style', NH.CROSS_STYLES.map(([v, l]) => ({ v, l, pv: 'cross:' + v })), 'c4')) +
+      sec('Colour', `<div class="swatches">${NH.CROSS_COLORS.map(col => `<button class="swatch${c.color === col ? ' on' : ''}" style="--sw:${col === 'accent' ? 'var(--accent)' : col}" data-setval="crosshair.color" data-val="${col}" title="${col === 'accent' ? 'HUD accent' : col}"></button>`).join('')}</div>`) +
+      sec('Size', range('crosshair.size', 'Length', 2, 20, 1, 'px') + range('crosshair.thick', 'Thickness', 1, 5, 1, 'px') +
+        range('crosshair.gap', 'Gap', 0, 12, 1, 'px') + range('crosshair.opacity', 'Opacity', 20, 100, 5, 'raw%'));
+  };
+
+  R.notify = () =>
+    sec('Notifications', cards('ui.notify', NH.NOTIFY_STYLES.map(([v, l]) => ({ v, l, pv: 'notify:' + v })), 'c3 tall') +
+      seg('ui.notifyPos', [['right', 'Right'], ['left', 'Left'], ['top', 'Top'], ['bottom', 'Bottom']], 'Position') +
+      toggle('ui.notifySound', 'Sound', 'A soft chime when one arrives') +
+      `<div class="opt"><div class="opt-t"><b>Try it</b><small>Shows one of each kind</small></div><button class="btn-line" data-act="test-notify">${ic('bell')}Test</button></div>`) +
+    sec('Progress bar', cards('ui.progress', NH.PROGRESS_STYLES.map(([v, l]) => ({ v, l, pv: 'progress:' + v })), 'c4') +
+      `<div class="opt"><div class="opt-t"><b>Try it</b></div><button class="btn-line" data-act="test-progress">${ic('clock')}Test</button></div>`) +
+    sec('Interaction prompt', cards('ui.text', NH.TEXT_STYLES.map(([v, l]) => ({ v, l, pv: 'text:' + v })), 'c3') +
+      seg('ui.textPos', [['left', 'Left'], ['right', 'Right'], ['top', 'Top'], ['bottom', 'Bottom']], 'Position', 'Scripts can still pick their own'));
+
   R.clock = () =>
     sec('Display', toggle('clock.enabled', 'Show clock') + toggle('clock.day', 'Show day') + toggle('clock.h24', '24 hour clock') + toggle('clock.weather', 'Weather icon') +
       seg('clock.source', [['game', 'Game time'], ['real', 'Real time']], 'Time source') + scaleRange('clock')) +
     sec('Style', cards('clock.style', Object.keys(NH.CLOCK_STYLES).map(k => ({ v: k, l: NH.CLOCK_STYLES[k].label, pv: 'clock:' + k })), 'c3'));
 
   R.watermark = () =>
-    sec('Display', toggle('watermark.enabled', 'Show watermark', 'Text and logo are set by the server in config.lua') + scaleRange('watermark')) +
+    sec('Display', toggle('watermark.enabled', 'Show watermark', 'Text is set in config.lua; the logo is the image in nayzeee-hud/html/logo/') + scaleRange('watermark')) +
     sec('Logo', cards('watermark.style', ['stack', 'badge', 'minimal'].map(s => ({ v: s, l: s[0].toUpperCase() + s.slice(1), html: PV.watermark(s, 'none') })), 'c3')) +
     sec('Effect', cards('watermark.effect', ['none', 'pulse', 'gloss', 'float'].map(e => ({ v: e, l: e[0].toUpperCase() + e.slice(1), html: PV.watermark(NH.cur.watermark.style, e) })), 'c4'));
 
@@ -178,6 +210,9 @@
         T('animatedAvatars', 'Animated pictures', 'Play animated Discord avatars') + T('hudArmorBar', 'Armour bar') + T('hudRank', 'Rank name') +
         T('hudKda', 'Kills and deaths') + T('hudWeapon', 'Weapon in hand', 'A picture of the gun each squadmate is holding') +
         T('hudShots', 'Shot flashes', 'Cards flash in time with every shot a squadmate fires, so you can tell who is shooting') +
+        T('hudAmmo', 'Ammo', 'Clip and reserve under the gun, with RELOAD and EMPTY warnings') +
+        T('hudHits', 'Damage flashes', 'Cards jolt red when that squadmate gets hurt') +
+        T('hudVehicle', 'Vehicle', 'What they\u2019re driving or riding in, and which seat') +
         T('hudTalking', 'Voice indicator', 'Shows who is talking, and whether it\u2019s over the radio') + T('hudMinimized', 'Compact cards', 'Smaller cards with less detail'));
     }
     if (f.Tags !== false) {
@@ -221,6 +256,16 @@
         pv.appendChild(wrap);
       } else if (type === 'team') {
         pv.appendChild(NH.teamPreview(style));
+      } else if (type === 'voice') {
+        const d = document.createElement('div');
+        d.innerHTML = NH.voiceHtml(style);
+        NH.fillVoice(d.firstElementChild, NH.voiceValues({ vr: 2, vrc: 3, rd: 12, tk: true, rt: style === 'card' }));
+        d.firstElementChild.classList.toggle('no-name', !NH.cur.voice.label);
+        pv.appendChild(d.firstElementChild);
+      } else if (type === 'cross') {
+        pv.appendChild(NH.crossPreview(style, NH.cur.crosshair));
+      } else if (type === 'notify' || type === 'progress' || type === 'text') {
+        pv.innerHTML = NH.uiPreview[type](style);
       } else if (type === 'clock') {
         pv.appendChild(NH.clockPreview(style));
       } else if (type === 'info') {
@@ -319,6 +364,7 @@
       NH.toSquads?.('hudPreview', false);
       this.el.classList.remove('open');
       document.body.classList.remove('settings-open');
+      NH.renderCrosshair?.();
       NH.post('close');
     },
 
@@ -344,6 +390,7 @@
 
     setTab(id) {
       this.tab = id;
+      NH.renderCrosshair?.();
       NH.toSquads?.('hudPreview', id === 'squads');
       this.el.querySelectorAll('.nav[data-tab]').forEach(n => n.classList.toggle('on', n.dataset.tab === id));
       const t = TABS.find(x => x.id === id);
@@ -364,7 +411,7 @@
       NH.setPath(NH.cur, path, value);
       this.markDirty();
       NH.applySettings();
-      if (path.startsWith('map.') || path.startsWith('status.')) NH.post('preview', NH.cur);
+      if (path.startsWith('map.') || path.startsWith('status.') || path.startsWith('crosshair.')) NH.post('preview', NH.cur);
       if (rerender) this.render();
     },
 
@@ -391,6 +438,18 @@
       const act = e.target.closest('[data-act]');
       if (!act) return;
       const a = act.dataset.act;
+      if (a === 'test-notify') {
+        NH.notify({ kind: 'success', title: 'Garage', message: 'Your vehicle is ready at Legion Square.', duration: 5000 });
+        setTimeout(() => NH.notify({ kind: 'error', message: 'You do not have enough cash.', duration: 5000 }), 250);
+        setTimeout(() => NH.notify({ kind: 'warning', title: 'Storm warning', message: 'Heavy rain coming in from the coast.', duration: 5000 }), 500);
+        setTimeout(() => NH.notify({ kind: 'info', title: 'Tip', message: 'Press F1 to open your phone.', duration: 5000 }), 750);
+        return;
+      }
+      if (a === 'test-progress') {
+        NH.progress({ label: 'Picking the lock', duration: 4000, cancel: 'X' });
+        setTimeout(() => NH.progress({ done: true }), 4000);
+        return;
+      }
       if (a === 'save') this.save();
       else if (a === 'close') this.close();
       else if (a === 'revert') this.revert();

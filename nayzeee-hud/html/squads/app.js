@@ -10,7 +10,7 @@ const state = {
   cfg: null, me: 0, settings: {}, squad: null, chat: [],
   list: null, invites: [], open: false,
   view: 'browse', preview: null, search: '',
-  unread: 0, talking: {}, hudHidden: false, editingHud: false, hudPrevPos: null,
+  unread: 0, talking: {}, downAt: {}, hudHidden: false, editingHud: false, hudPrevPos: null,
   nameCheck: { value: '', ok: null, msg: '' }, form: null, ranksDraft: null,
   stats: null, board: null, boardTab: 'squads', admin: null, adminOpen: null, isAdmin: false,
   ready: null,
@@ -1036,7 +1036,7 @@ function hudCard(m, self) {
   const v = (self ? state.selfVitals : vit(m.id)) || { h: 100, a: 0 };
   const data = { ...v, talk: state.talking[m.id] || false };
   const mm = { id: m.id, name: m.name, avatar: safeImg(pickImg(m.avatar)), owner: m.owner, rank: m.rankName,
-    kills: m.kills, deaths: m.deaths, down: isDown(m) };
+    kills: m.kills, deaths: m.deaths, down: isDown(m), downAt: state.downAt[m.id] };
   return TeamHud.card(mm, data, { ...hudOpts(), self, accent: hudAccentColor(m, v.h) });
 }
 
@@ -1631,6 +1631,13 @@ const handlers = {
   squad(sq) {
     const prevId = state.squad && state.squad.id;
     state.squad = sq || null;
+    // bleed-out timers: the server says how long each downed member has been down
+    if (sq) {
+      for (const m of sq.members) {
+        if (m.downed && m.downedFor != null) state.downAt[m.id] = state.downAt[m.id] || Date.now() - m.downedFor * 1000;
+        else if (!m.downed) delete state.downAt[m.id];
+      }
+    } else state.downAt = {};
     if (!sq) { state.chat = []; state.unread = 0; state.talking = {}; state.stats = null; state.ready = null; renderReady(); }
     if (sq && prevId !== sq.id) { state.unread = 0; state.stats = null; }
     renderHud();
@@ -1657,10 +1664,11 @@ const handlers = {
     Object.assign(state.squad.vitals, changed);
     patchVitals(changed);
   },
-  downed({ id, state: down }) {
+  downed({ id, state: down, since }) {
     if (!state.squad) return;
     const m = state.squad.members.find((x) => x.id === id);
     if (m) m.downed = down;
+    if (down) state.downAt[id] = Date.now() - (Number(since) || 0) * 1000; else delete state.downAt[id];
     renderHud();
     if (state.open && state.view === 'squad') render(); else if (state.open) renderChrome();
   },
@@ -1670,6 +1678,16 @@ const handlers = {
       state.talking[id] = t;
       TeamHud.talk(cardOf(id), t, state.settings);
     }
+  },
+  // a squadmate took damage: { id, d (damage) }
+  hit(d) {
+    if (!d || state.settings.hudHits === false) return;
+    TeamHud.hit(cardOf(d.id), d.d);
+  },
+  // someone started (ms) or stopped (false) reviving a downed squadmate: { id, by, ms }
+  reviving(d) {
+    if (!d) return;
+    TeamHud.reviving(cardOf(d.id), d.ms ? { by: d.by, ms: d.ms } : false);
   },
   // shots a squadmate fired: { id, b (burst), o (ms offsets inside the burst) }
   shots(d) {
@@ -1714,7 +1732,7 @@ const handlers = {
     const box = $('#revivePrompt');
     if (!d) { box.innerHTML = ''; return; }
     box.innerHTML = `<div class="revive-prompt"><i class="fa-solid fa-kit-medical" style="color:var(--red)"></i>
-      <span>Hold <span class="key">${esc(d.key)}</span> to revive <b>${esc(d.name)}</b></span></div>`;
+      <span>${d.hold === false ? 'Press' : 'Hold'} <span class="key">${esc(d.key)}</span> to revive <b>${esc(d.name)}</b></span></div>`;
   },
   revivePicker({ name, options }) {
     state.revive = { options };
@@ -1743,6 +1761,7 @@ async function boot() {
   const r = await nui('ready');
   if (!r) return setTimeout(boot, 500);
   state.cfg = r.config; state.me = r.me; state.settings = r.settings; state.squad = r.squad || null; state.chat = r.chat || [];
+  TeamHud.setBleed(state.cfg.bleedOut);
   $('#ver').textContent = `v${state.cfg.version}`;
   applyHudStyle();
   renderHud();
@@ -1759,7 +1778,7 @@ const Dev = {
         settings: { hud: true, hudMinimized: false, hudTalking: true, hudKda: true, hudMax: 0,
           hudHealth: '#ffffff', hudArmor: '#58a6ff', hudPos: false, hudAvatars: true, hudRank: false,
           hudArmorBar: true, hudAccent: 'squad', hudStyle: 'cards', hudScale: 100, hudOpacity: 86, hudShowSelf: true,
-          hudWeapon: true, hudShots: true, animatedAvatars: true,
+          hudWeapon: true, hudShots: true, hudAmmo: true, hudHits: true, hudVehicle: true, animatedAvatars: true,
           tags: true, tagColor: 18, tagName: true, tagSquadTag: true, tagRole: true, tagHealth: true, tagAllies: true,
           blips: true, blipUseSquad: true, blipColor: 2, blipAllies: true,
           chatNotify: true, chatSound: true, pingNotify: true, pingSound: true, reviveAlerts: true,
@@ -1776,7 +1795,7 @@ const Dev = {
             { id: 303, label: 'Target', icon: 'fa-crosshairs' }, { id: 487, label: 'Shield', icon: 'fa-shield-halved' },
             { id: 491, label: 'Star', icon: 'fa-star' }, { id: 310, label: 'Crown', icon: 'fa-crown' },
             { id: 437, label: 'Flame', icon: 'fa-fire' }, { id: 442, label: 'Diamond', icon: 'fa-gem' }],
-          allyMax: 2, allyShareChat: false, autoRadio: true, notify: 'ox_lib', compass: true,
+          allyMax: 2, allyShareChat: false, autoRadio: true, notify: 'ox_lib', compass: true, bleedOut: 300,
           nicknames: { enabled: true, max: 20, min: 2, temp: true },
           nametag: { Name: true, Tag: true, Role: true, Health: true, Allies: true },
           blipColors: [['#08afa2', 2], ['#e5484d', 1], ['#58a6ff', 3], ['#e5a50a', 5], ['#a078ff', 27], ['#ffffff', 0]],
@@ -1869,11 +1888,11 @@ const Dev = {
       members: [
         { id: 1, identifier: 'char:nay', name: 'NayZeee', avatar: Dev.av('nay'), rank: 4, rankName: 'Leader', rankIcon: 'fa-crown', owner: true, online: true, kills: 31, deaths: 14, assists: 9, revives: 6 },
         { id: 14, identifier: 'char:tay', name: 'Tay', realName: 'Taylor Brooks', nick: 'Tay', avatar: Dev.av('tay'), rank: 3, rankName: 'Officer', rankIcon: 'fa-user-shield', owner: false, online: true, kills: 27, deaths: 18, assists: 12, revives: 3 },
-        { id: 22, identifier: 'char:mar', name: 'Marcus Hill', avatar: Dev.av('marcus'), rank: 2, rankName: 'Member', rankIcon: 'fa-user-check', owner: false, online: true, downed: true, kills: 19, deaths: 16, assists: 11, revives: 1 },
+        { id: 22, identifier: 'char:mar', name: 'Marcus Hill', avatar: Dev.av('marcus'), rank: 2, rankName: 'Member', rankIcon: 'fa-user-check', owner: false, online: true, downed: true, downedFor: 42, kills: 19, deaths: 16, assists: 11, revives: 1 },
         { id: 31, identifier: 'char:kei', name: 'Keisha Moore', avatar: Dev.av('keisha'), rank: 2, rankName: 'Member', rankIcon: 'fa-user-check', owner: false, online: true, kills: 14, deaths: 9, assists: 6, revives: 4 },
         { id: null, identifier: 'char:dee', name: 'Dee Carter', avatar: null, rank: 1, rankName: 'Recruit', rankIcon: 'fa-user', owner: false, online: false, kills: 3, deaths: 4, assists: 0, revives: 0 },
       ],
-      vitals: { 14: { h: 82, a: 60, w: 'WEAPON_PISTOL50', wl: 'Pistol .50' }, 22: { h: 0, a: 0 }, 31: { h: 21, a: 100, w: 'WEAPON_PUMPSHOTGUN', wl: 'Pump Shotgun' } },
+      vitals: { 14: { h: 82, a: 60, w: 'WEAPON_PISTOL50', wl: 'Pistol .50', c: 2, m: 9, t: 27 }, 22: { h: 0, a: 0 }, 31: { h: 21, a: 100, vk: 'heli', vn: 'Maverick', vs: 'p' } },
     };
   },
   list: [

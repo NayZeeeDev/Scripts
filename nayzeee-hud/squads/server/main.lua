@@ -155,6 +155,7 @@ local function memberList(sq)
             id = r.src, identifier = identifier, name = Nick(r), realName = r.name, nick = r.nick, avatar = r.avatar,
             rank = r.rank, rankName = Ranks.Name(sq, r.rank), rankIcon = sq.ranks[r.rank] and sq.ranks[r.rank].icon or 'fa-user',
             owner = identifier == sq.owner, online = r.src ~= nil, downed = r.downed or false,
+            downedFor = r.downed and r.downedAt and (os.time() - r.downedAt) or nil,
             kills = r.kills or 0, deaths = r.deaths or 0, assists = r.assists or 0, revives = r.revives or 0,
             joined = r.joined,
         }
@@ -920,7 +921,7 @@ lib.callback.register('nz_squads:revive', function(src, target, item)
 
     local me  = sq.roster[sq.online[src]]
     local them = sq.roster[sq.online[target]]
-    if them then them.downed = false end
+    if them then them.downed, them.downedAt = false, nil end
     system(sq, S.revived:format(Nick(me), Nick(them)))
     Broadcast(sq, 'nz_squads:revived', { by = Nick(me), target = target, item = def.label })
     SyncSquad(sq)
@@ -973,6 +974,7 @@ RegisterNetEvent('nz_squads:setDowned', function(state)
     state = state == true
     if rec.downed == state then return end
     rec.downed = state
+    rec.downedAt = state and os.time() or nil
     Broadcast(sq, 'nz_squads:downed', src, state)
 
     if state and SquadsConfig.Features.DownedAlert then
@@ -1047,8 +1049,15 @@ CreateThread(function()
                         local v = Vitals[src]
                         if not v then v = { h = -1, a = -1, w = 0 }; Vitals[src] = v end
 
-                        local dirty = v.h ~= pct or v.a ~= ar or v.w ~= wp
-                        v.h, v.a, v.w = pct, ar, wp
+                        local veh = GetVehiclePedIsIn(ped, false)
+                        local vm, vs = 0, false
+                        if veh ~= 0 then
+                            vm = GetEntityModel(veh)
+                            vs = GetPedInVehicleSeat(veh, -1) == ped and 'd' or 'p'
+                        end
+
+                        local dirty = v.h ~= pct or v.a ~= ar or v.w ~= wp or v.vm ~= vm or v.vs ~= vs or v.ad
+                        v.h, v.a, v.w, v.vm, v.vs, v.ad = pct, ar, wp, vm, vs, nil
 
                         if withCoords then
                             local c = GetEntityCoords(ped)
@@ -1092,6 +1101,41 @@ if SquadsConfig.Features.Hud and ShotCfg.Enabled ~= false then
         end
     end)
 end
+
+-- ─── team HUD extras: ammo, hits, revive progress ──────────
+if SquadsConfig.Features.Hud then
+    -- the client reports its clip / clip size / total when they change; it rides the next vitals sync
+    RegisterNetEvent('nz_squads:ammo', function(clip, max, total)
+        local src = source
+        if not SquadOf(src) or cooldown(src, 'ammo', 300) then return end
+        local function n(x) return floor(math.max(0, math.min(tonumber(x) or 0, 99999))) end
+        local v = Vitals[src]
+        if not v then v = { h = -1, a = -1, w = 0 }; Vitals[src] = v end
+        v.c, v.m, v.t, v.ad = n(clip), n(max), n(total), true
+    end)
+
+    -- taking damage: relayed straight away so the card flashes while the bar is still catching up
+    RegisterNetEvent('nz_squads:hit', function(dmg)
+        local src = source
+        local sq = SquadOf(src)
+        if not sq or cooldown(src, 'hit', 150) then return end
+        dmg = floor(math.max(0, math.min(tonumber(dmg) or 0, 400)))
+        for id in pairs(sq.online) do
+            if id ~= src then TriggerClientEvent('nz_squads:hit', id, src, dmg) end
+        end
+    end)
+end
+
+-- the reviver's client says when a revive starts (ms) and stops (false), so the downed card shows a progress ring
+RegisterNetEvent('nz_squads:reviving', function(target, ms)
+    local src = source
+    local sq = SquadOf(src)
+    target = tonumber(target)
+    if not sq or not target or not sq.online[target] or cooldown(src, 'reviving', 200) then return end
+    local me = sq.roster[sq.online[src]]
+    ms = ms and floor(math.max(500, math.min(tonumber(ms) or 0, 60000))) or false
+    Broadcast(sq, 'nz_squads:reviving', target, me and Nick(me) or '', ms)
+end)
 
 -- ─── temporary squad expiry ────────────────────────────────
 if SquadsConfig.SquadTypes.TempMaxHours > 0 then

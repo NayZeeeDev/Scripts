@@ -18,6 +18,7 @@ files {
     'html/index.html',
     'html/css/*.css',
     'html/js/*.js',
+    'html/logo/*',
     'html/squads/index.html',
     'html/squads/style.css',
     'html/squads/team-hud.css',
@@ -41,6 +42,8 @@ client_scripts {
     'client/main.lua',
     'client/stress.lua',
     'client/nui.lua',
+    'client/ui.lua',
+    'client/crosshair.lua',
 
     'squads/bridge/client.lua',
     'squads/client/main.lua',

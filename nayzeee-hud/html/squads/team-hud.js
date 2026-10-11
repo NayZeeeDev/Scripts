@@ -49,13 +49,48 @@ const SIL = {
   melee: '<path d="M4 10h14v3.6H4z"/><path d="M18 8.6h2.4v6.4H18z"/><path d="M20.4 10.2L56 9.2l5 2.5-5 2.3-35.6-.6z"/>',
 };
 
-function gunHtml(name, tpl) {
+// ammo: c = rounds in the clip, m = clip size, t = total rounds carried (clip included)
+function ammoState(v) {
+  const m = Number(v.m) || 0;
+  if (m <= 0 || v.c == null) return null;
+  const c = Math.max(0, Number(v.c) || 0), t = Math.max(c, Number(v.t) || 0);
+  const reserve = t - c;
+  const low = c <= Math.max(1, Math.floor(m * 0.25));
+  const tag = c === 0 ? (reserve > 0 ? 'RELOAD' : 'EMPTY') : '';
+  return { c, m, reserve, low, tag };
+}
+function ammoHtml(v) {
+  const s = ammoState(v);
+  if (!s) return '<span class="hm-ammo"></span>';
+  return `<span class="hm-ammo${s.low ? ' low' : ''}${s.tag ? ' out' : ''}" style="--ac:${Math.round(s.c / s.m * 100)}">${s.tag
+    ? `<b>${s.tag}</b>` : `<b>${s.c}</b><s>/</s>${s.reserve}`}<i></i></span>`;
+}
+
+function gunHtml(name, tpl, v) {
   const wc = weaponClass(name);
   if (!wc) return ''; // nothing equipped: no gun slot at all
   const src = tpl && /^[A-Z0-9_]+$/i.test(name) ? tpl.replace('%s', String(name).toUpperCase()) : '';
   return `<div class="hm-gun" data-wc="${wc}"><svg class="wsil" viewBox="0 0 64 24" fill="currentColor">${SIL[wc] || SIL.pistol}</svg>${src
-    ? `<img class="wimg" src="${esc(src)}" alt="" draggable="false" onload="this.parentNode.classList.add('img')" onerror="this.remove()">` : ''}<i class="hm-flash"></i></div>`;
+    ? `<img class="wimg" src="${esc(src)}" alt="" draggable="false" onload="this.parentNode.classList.add('img')" onerror="this.remove()">` : ''}<i class="hm-flash"></i>${ammoHtml(v || {})}</div>`;
 }
+
+// ─── vehicles ──────────────────────────────────────────────
+const VEH = {
+  car: '<path d="M3 15.5l1.8-5A2 2 0 0 1 6.7 9h10.6a2 2 0 0 1 1.9 1.5l1.8 5V18a1 1 0 0 1-1 1h-1.5a1 1 0 0 1-1-1v-1H6.5v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 13.5h18"/>',
+  truck: '<path d="M2 6h11v10H2zM13 9h4.5l3.5 3.5V16h-8z"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+  bike: '<circle cx="5.5" cy="16" r="3.5"/><circle cx="18.5" cy="16" r="3.5"/><path d="M5.5 16l4-6h5l4 6M9.5 10l-1-3H6M14.5 10l1.5-3h2.5"/>',
+  bicycle: '<circle cx="5.5" cy="16" r="3.5"/><circle cx="18.5" cy="16" r="3.5"/><path d="M5.5 16l3.5-7h6l3.5 7M9 9l3 7H5.5M15 9l-1.5-3H11"/>',
+  boat: '<path d="M3 15l2 4h14l2-4zM6 15V9h9l3 6M10 9V5"/>',
+  plane: '<path d="M21 12.5c0-.8-.7-1.5-1.5-1.5H15L10 4H8l2.5 7H6L4.5 9H3l1 3.5L3 16h1.5L6 14h4.5L8 21h2l5-7h4.5c.8 0 1.5-.7 1.5-1.5z"/>',
+  heli: '<path d="M3 5h16M11 5v3M6 12a4 4 0 0 1 4-4h3a5 5 0 0 1 5 5v1H8a2 2 0 0 1-2-2zM18 12h3M10 17v2M15 17v2M8 19h9"/>',
+  train: '<path d="M6 3h12a2 2 0 0 1 2 2v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a2 2 0 0 1 2-2zM4 10h16M8 18l-2 3M16 18l2 3"/>',
+};
+const vIcon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${VEH[k] || VEH.car}</svg>`;
+function vehHtml(v) {
+  if (!v.vk) return '<div class="hm-veh"></div>';
+  return `<div class="hm-veh on" data-vk="${esc(v.vk)}">${vIcon(v.vk)}<b>${esc(v.vn || '')}</b><span>${v.vs === 'd' ? 'Driver' : 'Passenger'}</span></div>`;
+}
+const vehBadge = (v) => `<span class="hm-vb${v.vk ? ' on' : ''}">${v.vk ? vIcon(v.vk) : ''}</span>`;
 
 // ─── icons ─────────────────────────────────────────────────
 const IC = {
@@ -67,7 +102,8 @@ const IC = {
 
 // ─── cards ─────────────────────────────────────────────────
 // m: { id, name, avatar (url), owner, rank, kills, deaths, down }
-// v: { h, a, w (weapon name), wl (label), talk (false | 'mic' | 'radio') }
+// v: { h, a, w (weapon name), wl (label), talk (false | 'mic' | 'radio'), c/m/t (ammo), vk/vn/vs (vehicle kind, name, seat) }
+// m.downAt: ms timestamp when they went down (for the bleed-out timer)
 // o: settings plus { self, accent, imgTpl }
 function card(m, v, o) {
   v = v || {};
@@ -85,19 +121,21 @@ function card(m, v, o) {
   const meta = [];
   if (o.hudRank && m.rank) meta.push(`<span class="hm-rank">${esc(m.rank)}</span>`);
   if (o.hudKda) meta.push(`<span class="hm-kda"><b>${m.kills || 0}</b><s>/</s><b>${m.deaths || 0}</b></span>`);
-  const gun = o.hudWeapon !== false ? gunHtml(down ? null : v.w, o.imgTpl) : '';
+  const gun = o.hudWeapon !== false ? gunHtml(down ? null : v.w, o.imgTpl, v) : '';
   const wl = o.hudWeapon !== false && !down && weaponClass(v.w) ? esc(v.wl || weaponLabel(v.w)) : '';
 
-  return `<div class="${cls}" data-hm="${o.self ? 'self' : esc(m.id)}" data-w="${esc(v.w || '')}" style="--h:${h};--a:${a}${down ? ";--accent:#e5484d" : o.accent ? `;--accent:${o.accent}` : ''}">
-  <i class="hm-fire"></i>
+  return `<div class="${cls}${v.vk ? ' in-veh' : ''}" data-hm="${o.self ? 'self' : esc(m.id)}" data-w="${esc(v.w || '')}" data-vk="${esc(v.vk || '')}"${down && m.downAt ? ` data-dt="${Number(m.downAt)}"` : ''} style="--h:${h};--a:${a}${down ? ";--accent:#e5484d" : o.accent ? `;--accent:${o.accent}` : ''}">
+  <i class="hm-fire"></i><i class="hm-hurt"></i>
   <div class="hm-pic">${pic}<svg class="hm-ring" viewBox="0 0 48 48"><circle class="tr" cx="24" cy="24" r="21" pathLength="100"/><circle class="hr" cx="24" cy="24" r="21" pathLength="100"/><circle class="ar" cx="24" cy="24" r="23.4" pathLength="100"/></svg>
-    <span class="hm-eq"><i></i><i></i><i></i></span></div>
+    <span class="hm-eq"><i></i><i></i><i></i></span>${vehBadge(v)}
+    <svg class="hm-rv" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" pathLength="100"/></svg></div>
   <div class="hm-body">
     <div class="hm-top">${m.owner ? IC.crown : ''}<b class="hm-name">${esc(m.name)}</b>${o.self ? '<span class="hm-you">YOU</span>' : ''}${meta.join('')}
       <span class="hm-voice">${talk === 'radio' ? IC.radio : IC.mic}<span class="hm-eq"><i></i><i></i><i></i></span></span>
-      <span class="hm-shots">${IC.shots}<em>0</em></span><span class="hm-down">DOWN</span><em class="hm-pct">${down ? 0 : h}</em></div>
+      <span class="hm-shots">${IC.shots}<em>0</em></span><span class="hm-down"><b>DOWN</b><em class="hm-timer"></em></span><em class="hm-pct">${down ? 0 : h}</em></div>
     <div class="hm-bars"><div class="hb"><i class="g"></i><i class="f"></i></div>${armor}</div>
     <div class="hm-wl">${wl}</div>
+    ${vehHtml(v)}
   </div>
   ${gun}
 </div>`;
@@ -107,7 +145,7 @@ function card(m, v, o) {
 function hudClass(o) {
   const s = norm(o.hudStyle);
   return ['hud', 's-' + s, o.hudMinimized && 'min', o.hudAccent === 'none' && 'no-accent',
-    o.hudWeapon === false && 'no-gun'].filter(Boolean).join(' ');
+    o.hudWeapon === false && 'no-gun', o.hudAmmo === false && 'no-ammo', o.hudVehicle === false && 'no-veh'].filter(Boolean).join(' ');
 }
 
 function applyVars(el, o) {
@@ -129,11 +167,79 @@ function patch(el, v, o) {
   if (v.w !== undefined && (v.w || '') !== el.dataset.w && o.hudWeapon !== false) {
     el.dataset.w = v.w || '';
     el.querySelector('.hm-gun')?.remove();
-    const html = gunHtml(el.classList.contains('down') ? null : v.w, o.imgTpl);
+    const html = gunHtml(el.classList.contains('down') ? null : v.w, o.imgTpl, v);
     if (html) el.insertAdjacentHTML('beforeend', html);
     const wl = el.querySelector('.hm-wl');
     if (wl) wl.textContent = weaponClass(v.w) ? (v.wl || weaponLabel(v.w)) : '';
+  } else if (v.c !== undefined || v.m !== undefined) {
+    const am = el.querySelector('.hm-ammo');
+    if (am) am.outerHTML = ammoHtml(v);
   }
+  if (v.vk !== undefined && (v.vk || '') !== el.dataset.vk) {
+    el.dataset.vk = v.vk || '';
+    el.classList.toggle('in-veh', !!v.vk);
+    el.querySelector('.hm-veh').outerHTML = vehHtml(v);
+    el.querySelector('.hm-vb').outerHTML = vehBadge(v);
+  } else if (v.vk && v.vs !== undefined) {
+    const seat = el.querySelector('.hm-veh span');
+    if (seat) seat.textContent = v.vs === 'd' ? 'Driver' : 'Passenger';
+  }
+}
+
+// ─── hits ──────────────────────────────────────────────────
+// A squadmate took damage: the card jolts and flashes red, harder for bigger hits.
+function hit(el, dmg) {
+  if (!el || !el.isConnected) return;
+  const big = Number(dmg) >= 25;
+  el.classList.remove('hit', 'hit-big');
+  void el.offsetWidth;
+  el.classList.add('hit');
+  if (big) el.classList.add('hit-big');
+  clearTimeout(el._hitT);
+  el._hitT = setTimeout(() => el.classList.remove('hit', 'hit-big'), 650);
+}
+
+// ─── downed: bleed-out timer and revive progress ───────────
+let bleedSecs = 0;
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function tickTimers() {
+  const now = Date.now();
+  document.querySelectorAll('.hud .hm.down[data-dt]').forEach((el) => {
+    const gone = Math.max(0, (now - Number(el.dataset.dt)) / 1000);
+    const t = el.querySelector('.hm-timer');
+    if (!t) return;
+    if (bleedSecs > 0) {
+      const left = Math.max(0, bleedSecs - gone);
+      t.textContent = fmtTime(left);
+      el.classList.toggle('urgent', left <= 30);
+    } else {
+      t.textContent = fmtTime(gone);
+    }
+  });
+}
+setInterval(tickTimers, 1000);
+function setBleed(s) { bleedSecs = Math.max(0, Number(s) || 0); tickTimers(); }
+
+// someone is reviving this card's player: { by, ms } or false to stop
+function reviving(el, data) {
+  if (!el) return;
+  const ring = el.querySelector('.hm-rv circle');
+  clearTimeout(el._rvT);
+  if (!data) {
+    el.classList.remove('reviving');
+    if (ring) ring.getAnimations().forEach((a) => a.cancel());
+    const tag = el.querySelector('.hm-down b');
+    if (tag) tag.textContent = 'DOWN';
+    return;
+  }
+  el.classList.add('reviving');
+  const tag = el.querySelector('.hm-down b');
+  if (tag) tag.textContent = data.by ? `REVIVING · ${data.by}` : 'REVIVING';
+  if (ring) {
+    ring.getAnimations().forEach((a) => a.cancel());
+    ring.animate([{ strokeDasharray: '0 100' }, { strokeDasharray: '100 100' }], { duration: Math.max(500, data.ms || 5000), fill: 'forwards' });
+  }
+  el._rvT = setTimeout(() => reviving(el, false), Math.max(500, data.ms || 5000) + 1500);
 }
 
 function talk(el, t, o) {
@@ -196,10 +302,10 @@ function shots(el, key, b, offsets) {
 
 // ─── settings previews ─────────────────────────────────────
 const DEMO = [
-  { m: { id: 'pv0', name: 'NayZeee', owner: true, rank: 'Leader', kills: 31, deaths: 14 }, v: { h: 92, a: 75, w: 'WEAPON_CARBINERIFLE', wl: 'Carbine Rifle' }, self: true },
-  { m: { id: 'pv1', name: 'Tay Brooks', rank: 'Officer', kills: 27, deaths: 18 }, v: { h: 58, a: 25, w: 'WEAPON_PISTOL50', wl: 'Pistol .50', talk: 'radio' } },
-  { m: { id: 'pv2', name: 'Keisha Moore', rank: 'Member', kills: 14, deaths: 9 }, v: { h: 21, a: 0 } },
-  { m: { id: 'pv3', name: 'Marcus Hill', rank: 'Member', kills: 19, deaths: 16, down: true }, v: { h: 0, a: 0 } },
+  { m: { id: 'pv0', name: 'NayZeee', owner: true, rank: 'Leader', kills: 31, deaths: 14 }, v: { h: 92, a: 75, w: 'WEAPON_CARBINERIFLE', wl: 'Carbine Rifle', c: 24, m: 30, t: 144 }, self: true },
+  { m: { id: 'pv1', name: 'Tay Brooks', rank: 'Officer', kills: 27, deaths: 18 }, v: { h: 58, a: 25, w: 'WEAPON_PISTOL50', wl: 'Pistol .50', talk: 'radio', c: 2, m: 9, t: 20 } },
+  { m: { id: 'pv2', name: 'Keisha Moore', rank: 'Member', kills: 14, deaths: 9 }, v: { h: 21, a: 0, vk: 'car', vn: 'Sultan RS', vs: 'd' } },
+  { m: { id: 'pv3', name: 'Marcus Hill', rank: 'Member', kills: 19, deaths: 16, down: true, downAt: Date.now() - 42000 }, v: { h: 0, a: 0 } },
 ];
 // a short firefight that loops in the previews: rifle bursts, pistol taps and a shotgun blast
 const DEMO_FIRE = [
@@ -231,11 +337,16 @@ function demo(root) {
         const el = hud.querySelector(`[data-hm="${key}"]`);
         if (el && !el.classList.contains('down')) setTimeout(() => shots(el, '', -1, offs), at);
       }
+      const hurt = hud.querySelector('[data-hm="pv2"]');
+      if (hurt) setTimeout(() => hit(hurt, 30), 2500);
+      const down = hud.querySelector('[data-hm="pv3"]');
+      if (down && !down.classList.contains('reviving')) setTimeout(() => reviving(down, { by: 'Tay', ms: 2600 }), 400);
     });
   };
   run();
   demoTimer = setInterval(run, 3200);
 }
 
-window.TeamHud = { STYLES, norm, card, hudClass, applyVars, patch, talk, shots, flash, weaponClass, weaponLabel, preview, demo, accentFor };
+window.TeamHud = { STYLES, norm, card, hudClass, applyVars, patch, talk, shots, flash, hit, reviving, setBleed, tickTimers,
+  weaponClass, weaponLabel, preview, demo, accentFor };
 })();

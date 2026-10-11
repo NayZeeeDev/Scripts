@@ -24,6 +24,67 @@ function SquadWeapon(hash)
     return weaponNames[h] or false, weaponLabels[h]
 end
 
+-- vehicle model -> kind (for the icon) and display name
+local vehicles = {}
+local KIND = { [8] = 'bike', [13] = 'bicycle', [14] = 'boat', [15] = 'heli', [16] = 'plane', [10] = 'truck', [11] = 'truck', [20] = 'truck', [21] = 'train' }
+
+--- Vehicle kind ('car' | 'truck' | 'bike' | 'bicycle' | 'boat' | 'plane' | 'heli' | 'train') and name for a model, or false.
+function SquadVehicle(model)
+    model = tonumber(model)
+    if not model or model == 0 then return false, nil end
+    local c = vehicles[model]
+    if not c then
+        local disp = GetDisplayNameFromVehicleModel(model)
+        local label = GetLabelText(disp)
+        if not label or label == 'NULL' or label == '' then
+            label = disp ~= 'CARNOTFOUND' and (disp:sub(1, 1):upper() .. disp:sub(2):lower()) or 'Vehicle'
+        end
+        c = { KIND[GetVehicleClassFromName(model)] or 'car', label }
+        vehicles[model] = c
+    end
+    return c[1], c[2]
+end
+
+--- Clip, clip size and total rounds for the weapon in hand (nil when it doesn't use ammo).
+local function ammoOf(ped, w)
+    if not w or w == 0 or not IsPedArmed(ped, 4) then return nil end
+    local max = GetMaxAmmoInClip(ped, w, true)
+    if not max or max <= 0 then return nil end
+    local _, clip = GetAmmoInClip(ped, w)
+    return clip or 0, max, GetAmmoInPedWeapon(ped, w)
+end
+
+-- ─── hits ──────────────────────────────────────────────────
+-- Taking damage flashes your card on everyone's team HUD. Throttled; one tiny event per hit burst.
+local lastHit, hitSent = 0, 0
+local function hit(dmg)
+    local now = GetGameTimer()
+    if now - lastHit < 150 then return end
+    lastHit = now
+    if Settings.hud and Settings.hudHits ~= false and Settings.hudShowSelf ~= false then
+        NUI('hit', { id = Me(), d = dmg })
+    end
+    if now - hitSent >= 200 then
+        hitSent = now
+        TriggerServerEvent('nz_squads:hit', math.floor(dmg or 0))
+    end
+end
+
+AddEventHandler('gameEventTriggered', function(name, args)
+    if name ~= 'CEventNetworkEntityDamage' or not Squad or args[1] ~= cache.ped then return end
+    hit(10)
+end)
+
+RegisterNetEvent('nz_squads:hit', function(src, dmg)
+    if not Squad or not Settings.hud or Settings.hudHits == false then return end
+    NUI('hit', { id = src, d = dmg })
+end)
+
+RegisterNetEvent('nz_squads:reviving', function(target, by, ms)
+    if not Squad or not Settings.hud then return end
+    NUI('reviving', { id = target, by = by, ms = ms })
+end)
+
 local function healthPct(ped)
     local hp, max = GetEntityHealth(ped), GetEntityMaxHealth(ped)
     if max <= 100 then return hp > 0 and 100 or 0 end
@@ -59,7 +120,7 @@ local function loop()
     running = true
     CreateThread(function()
         local paused = nil
-        local selfH, selfA, selfW = -1, -1, -1
+        local selfH, selfA, selfW, selfVeh, selfSeat, selfClip, selfMax, selfTotal = -1, -1, -1, -1, nil, -1, -1, -1
 
         while Squad and SquadsConfig.Features.Hud do
             local p = IsPauseMenuActive()
@@ -72,10 +133,23 @@ local function loop()
                 -- your own card: read locally, the server doesn't send your vitals back to you
                 local ped = cache.ped
                 local h, a, w = healthPct(ped), GetPedArmour(ped), GetSelectedPedWeapon(ped)
-                if h ~= selfH or a ~= selfA or w ~= selfW then
-                    selfH, selfA, selfW = h, a, w
+                local veh = cache.vehicle or 0
+                local model = veh ~= 0 and GetEntityModel(veh) or 0
+                local seat = veh ~= 0 and (GetPedInVehicleSeat(veh, -1) == ped and 'd' or 'p') or nil
+                local clip, max, total = ammoOf(ped, w)
+                clip, max, total = clip or 0, max or 0, total or 0
+
+                -- lost health or armour since the last look (falls, fire, bullets the damage event missed)
+                if selfH >= 0 and (h < selfH or a < selfA) then hit((selfH - h) + (selfA - a)) end
+
+                if h ~= selfH or a ~= selfA or w ~= selfW or model ~= selfVeh or seat ~= selfSeat
+                    or clip ~= selfClip or max ~= selfMax or total ~= selfTotal then
+                    selfH, selfA, selfW, selfVeh, selfSeat = h, a, w, model, seat
+                    selfClip, selfMax, selfTotal = clip, max, total
                     local name, label = SquadWeapon(w)
-                    NUI('selfVitals', { h = h, a = a, w = name, wl = label })
+                    local kind, vname = SquadVehicle(model)
+                    NUI('selfVitals', { h = h, a = a, w = name, wl = label, c = clip, m = max, t = total,
+                        vk = kind, vn = vname, vs = seat or false })
                 end
 
                 if Settings.hudTalking then
@@ -118,6 +192,17 @@ local function shotLoop()
         local pending = {}
         local hotUntil, lastW, lastAmmo = 0, 0, -1
         local playerId = PlayerId()
+        local sentAmmo, ammoAt = '', 0
+
+        -- squadmates see your clip / reserve (and RELOAD / EMPTY); sent when it changes, at most every 600 ms
+        local function reportAmmo(now, ped, w)
+            if now - ammoAt < 600 then return end
+            local clip, max, total = ammoOf(ped, w)
+            local key = clip and ('%d:%d:%d'):format(clip, max, total) or 'none'
+            if key == sentAmmo then return end
+            ammoAt, sentAmmo = now, key
+            if othersOnline() then TriggerServerEvent('nz_squads:ammo', clip or 0, max or 0, total or 0) end
+        end
 
         local function flush(now)
             if #pending == 0 then return end
@@ -170,9 +255,15 @@ local function shotLoop()
                     if lastAmmo > ammo and ammo >= 0 then record(now, math.min(lastAmmo - ammo, 6), w) end
                     lastAmmo = ammo
                     flush(now)
+                    reportAmmo(now, ped, w)
                     Wait(100)
                 end
+                if now < hotUntil then reportAmmo(now, ped, w) end
             else
+                if sentAmmo ~= 'none' and sentAmmo ~= '' then
+                    sentAmmo = 'none'
+                    if othersOnline() then TriggerServerEvent('nz_squads:ammo', 0, 0, 0) end
+                end
                 lastW, lastAmmo = 0, -1
                 if #pending > 0 then flush(GetGameTimer()) end
                 Wait(250)

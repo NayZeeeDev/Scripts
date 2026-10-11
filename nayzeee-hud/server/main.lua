@@ -154,3 +154,9 @@ RegisterNetEvent('nhud:server:avatar', function()
 end)
 
 AddEventHandler('playerDropped', function() lastAsk[source] = nil end)
+
+-- Notifications from the server: exports['nayzeee-hud']:Notify(source, { title, message, type, duration })
+-- or Notify(source, 'text', 'success', 5000). Same as TriggerClientEvent('nhud:notify', source, ...).
+exports('Notify', function(src, data, kind, duration, title)
+    TriggerClientEvent('nhud:notify', src, data, kind, duration, title)
+end)

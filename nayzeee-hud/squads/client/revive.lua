@@ -6,6 +6,7 @@ if not SquadsConfig.Features.Revive then return end
 
 local R = SquadsConfig.Revive
 local nearest, prompting, busy, pickerOpen = nil, false, false, false
+local holding = false -- the revive key is down (R.Hold)
 
 local function downedMembers()
     local out = {}
@@ -57,19 +58,37 @@ local function doRevive(option)
     local startCoords = GetEntityCoords(cache.ped)
     playAnim(cache.ped)
 
-    local ok = lib.progressBar({
+    -- their card (and everyone else's view of it) shows a ring filling up while you work
+    TriggerServerEvent('nz_squads:reviving', target.id, option.time)
+
+    -- hold mode: letting go of the key cancels
+    local watcher
+    if R.Hold and holding then
+        watcher = true
+        CreateThread(function()
+            while watcher do
+                if not holding then NHUD.cancelProgress() break end
+                Wait(50)
+            end
+        end)
+    end
+
+    local ok = NHUD.progress({
         duration = option.time,
         label = ('%s %s'):format(option.label, target.name),
+        icon = 'heart',
         useWhileDead = false,
         canCancel = true,
         disable = { move = R.CancelOnMove, car = true, combat = true },
     })
+    watcher = false
 
     ClearPedTasks(cache.ped)
+    if not ok then TriggerServerEvent('nz_squads:reviving', target.id, false) end
 
     if not ok then
         busy = false
-        return Toast('Revive stopped', 'You moved away before finishing.', 'error')
+        return Toast('Revive stopped', R.Hold and 'You let go before it finished.' or 'You moved away before finishing.', 'error')
     end
     if #(GetEntityCoords(cache.ped) - startCoords) > 3.0 then
         busy = false
@@ -90,6 +109,7 @@ local function startRevive()
         return Toast('No supplies', 'You need a medical item to revive them.', 'error')
     end
     if #options == 1 then
+        if R.Hold and not holding then return end -- let go while the item list loaded
         return doRevive(options[1])
     end
 
@@ -121,7 +141,7 @@ local function promptLoop()
 
             if want and not showing then
                 showing = true
-                NUI('revivePrompt', { name = nearest.member.name, key = R.Key })
+                NUI('revivePrompt', { name = nearest.member.name, key = R.Key, hold = R.Hold })
             elseif not want and showing then
                 showing = false
                 NUI('revivePrompt', false)
@@ -148,6 +168,8 @@ lib.addKeybind({
     description = 'Squads: revive a downed squadmate',
     defaultKey = R.Key,
     onPressed = function()
+        holding = true
         if nearest and not busy and not pickerOpen and not MenuOpen then startRevive() end
     end,
+    onReleased = function() holding = false end,
 })

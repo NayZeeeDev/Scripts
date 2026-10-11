@@ -34,6 +34,9 @@
     weapon: { enabled: true, style: 'card', image: true },
     clock: { enabled: true, style: 'pill', day: true, h24: false, source: 'game', weather: true },
     watermark: { enabled: true, style: 'stack', effect: 'gloss' },
+    voice: { enabled: true, style: 'pill', when: 'always', label: true },
+    crosshair: { enabled: true, style: 'crossdot', color: '#ffffff', size: 7, thick: 2, gap: 4, outline: true, opacity: 100, always: false },
+    ui: { notify: 'card', notifyPos: 'right', notifySound: true, progress: 'bar', text: 'key', textPos: 'left' },
     layout: {},
     squads: {}, // squads player settings (team HUD, nametags, blips, alerts); filled from the squads module
   };
@@ -68,6 +71,13 @@
     if (d.statusStyle) D.status.style = d.statusStyle;
     if (d.speedoStyle) D.speedo.style = d.speedoStyle;
     if (d.minimap) D.map.mode = d.minimap;
+    if (d.notifyStyle) D.ui.notify = d.notifyStyle;
+    if (d.notifyPosition) D.ui.notifyPos = d.notifyPosition;
+    if (d.progressStyle) D.ui.progress = d.progressStyle;
+    if (d.textStyle) D.ui.text = d.textStyle;
+    if (d.crosshairStyle) D.crosshair.style = d.crosshairStyle;
+    if (d.crosshair === false) D.crosshair.enabled = false;
+    if (d.voiceStyle) D.voice.style = d.voiceStyle;
   };
 
   NH.hexToRgb = (hex) => {
@@ -79,7 +89,7 @@
 
   NH.S = {};        // raw state pushed from Lua
   NH.cfg = {
-    watermark: { enabled: true, title: 'NAYZEEE', subtitle: 'ROLEPLAY', logo: '' },
+    watermark: { enabled: true, title: 'NAYZEEE', subtitle: 'ROLEPLAY', logo: 'auto', showText: true },
     weaponImages: 'https://docs.fivem.net/weapons/%s.png',
     belt: true, keys: [], framework: 'standalone',
   };

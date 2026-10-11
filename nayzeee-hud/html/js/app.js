@@ -5,7 +5,7 @@
   // Which widgets care about which keys from Lua
   const GROUP = {
     h: 'st', a: 'st', st: 'st', ox: 'st', tk: 'st', hu: 'st', th: 'st', sr: 'st', vr: 'st', rd: 'st',
-    cash: 'info', bank: 'info', dm: 'info', gng: 'info', pn: 'info', pl: 'info', plm: 'info', av: 'info', ava: 'info', dom: 'clk', mon: 'clk', rt: 'st', vrc: 'st', hn: 'veh', nos: 'veh', nosOn: 'veh', job: 'info', grd: 'info', hs: 'info', id: 'info',
+    cash: 'info', bank: 'info', dm: 'info', gng: 'info', pn: 'info', pl: 'info', plm: 'info', av: 'info', ava: 'info', dom: 'clk', mon: 'clk', rt: 'st', vrc: 'st', vrn: 'st', vrd: 'st', ch: 'xh', hn: 'veh', nos: 'veh', nosOn: 'veh', job: 'info', grd: 'info', hs: 'info', id: 'info',
     hr: 'clk', mn: 'clk', dow: 'clk', wx: 'clk',
     hdg: 'cmp', str: 'loc', crs: 'loc', zn: 'loc', pst: 'loc', dir: 'loc', lim: 'loc',
     spd: 'veh', rpm: 'veh', gr: 'veh', fu: 'veh', en: 'veh', li: 'veh', lk: 'veh', ind: 'veh', eng: 'veh', bl: 'veh', cr: 'veh', hb: 'veh', odo: 'veh',
@@ -77,6 +77,8 @@
     tock: () => tone(1700, 0.018, 0.1, 'square'),
     click: () => tone(1800, 0.02, 0.1, 'square'),
     fuel: () => { tone(740, 0.18, 0.14); tone(740, 0.18, 0.14, 'sine', 0.25); },
+    note: () => { tone(1320, 0.07, 0.08); tone(1760, 0.1, 0.07, 'sine', 0.06); },
+    nerr: () => { tone(420, 0.09, 0.1, 'triangle'); tone(320, 0.14, 0.09, 'triangle', 0.08); },
   };
   NH.sfx = n => SFX[n] && SFX[n]();
 
@@ -120,6 +122,8 @@
     for (const id in W) if (W[id].apply) W[id].apply();
     renderAll();
     if (NH.syncSquadsSettings) NH.syncSquadsSettings();
+    NH.applyUI();
+    NH.applyCrosshair();
     teamProxy();
   };
 
@@ -218,6 +222,7 @@
       if (groups.mode) requestAnimationFrame(NH.place); // after the speedometer is in the DOM
     }
     if (groups.veh || groups.mode) vehSounds();
+    if (groups.xh) NH.renderCrosshair();
   };
 
   // ---------------- Messages from Lua ----------------
@@ -278,6 +283,9 @@
         if (m.v) NH.popsAfter = Date.now() + 5000; // character just loaded: balances jump, don't pop
         break;
       case 'settings': if (m.open) NH.settingsUI.open(); else NH.settingsUI.close(); break;
+      case 'notify': NH.notify(m); break;
+      case 'progress': NH.progress(m); break;
+      case 'textui': NH.textUI(m); break;
       case 'panel': if (m.open) NH.panel.open(m.s); else NH.panel.close(false); break;
     }
   });
@@ -298,6 +306,8 @@
 
   // ---------------- Boot ----------------
   NH.buildWidgets();
+  NH.buildUI();
+  NH.buildCrosshair();
   NH.panel.build();
   NH.settingsUI.build();
   NH.applySettings();

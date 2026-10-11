@@ -10,6 +10,7 @@ local function applyLuaSettings(s)
     local under = type(s.status) == 'table' and s.status.place ~= 'side' and s.status.enabled ~= false
     local shape = type(s.map) == 'table' and s.map.shape or Config.Minimap.shape
     NHUD.setMinimapLayout(shape, under and Config.Minimap.raiseForStatus or 0.0)
+    if NHUD.setCrosshair then NHUD.setCrosshair(s.crosshair) end
     NHUD.updateRadar(nil, true)
     NHUD.flush()
 end
@@ -45,6 +46,7 @@ RegisterNUICallback('ready', function(_, cb)
         defaults = Config.Defaults,
         watermark = Config.Watermark,
         weaponImages = Config.WeaponImages,
+        crosshair = Config.Crosshair.enabled,
         belt = NHUD.builtinBelt,
         keys = keyList(),
         framework = HudBridge.framework,

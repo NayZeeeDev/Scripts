@@ -23,13 +23,42 @@ Config.Defaults = {
     statusStyle = 'ring',   -- see /hud > Player Status
     speedoStyle = 'modern', -- see /hud > Cars & Bikes
     minimap = 'vehicle',    -- 'vehicle' | 'always' | 'never'
+    notifyStyle = 'card',   -- 'card' | 'glass' | 'pill' | 'stripe' | 'minimal'
+    notifyPosition = 'right', -- 'right' | 'left' | 'top' | 'bottom'
+    progressStyle = 'bar',  -- 'bar' | 'ring' | 'line' | 'pill'
+    textStyle = 'key',      -- interaction prompt: 'key' | 'card' | 'minimal'
+    crosshairStyle = 'crossdot', -- 'dot' | 'cross' | 'crossdot' | 'tee' | 'plus' | 'circle' | 'circledot' | 'chevron'
+    voiceStyle = 'pill',    -- 'pill' | 'bars' | 'card' | 'minimal'
 }
+
+-- Notifications, progress bars and interaction prompts (exports Notify / Progress / ShowTextUI / HideTextUI).
+-- See README > Notifications for how to send qb-core, ESX and ox_lib notifications here too.
+Config.UI = {
+    Notify = { Duration = 5000 },
+    Progress = {
+        CancelKey = 73,        -- X (control index)
+        CancelLabel = 'X',     -- shown on the bar
+    },
+    TextUI = {
+        QBEvents = true,       -- also listen to qb-core:client:DrawText / HideText / ChangeText / KeyPressed
+    },
+    TestCommand = true,        -- /hudtest notify | progress | text
+}
+
+-- Custom crosshair while aiming. false: never touch GTA's own reticle (the Crosshair tab disappears).
+Config.Crosshair = { enabled = true }
 
 Config.Watermark = {
     enabled = true,
     title = 'NAYZEEE',
     subtitle = 'ROLEPLAY',
-    logo = '', -- optional image url (png/webp). Leave empty for text only.
+    -- Server logo. Drop your image into nayzeee-hud/html/logo/ and restart the resource.
+    --   'auto'        uses logo.png, logo.webp, logo.gif or logo.svg from that folder (the first one found)
+    --   'mylogo.png'  a specific file from that folder
+    --   'https://...' an image link still works too
+    --   ''            no logo, text only
+    logo = 'auto',
+    showText = true, -- false: only the logo (when one is found)
 }
 
 Config.Minimap = {

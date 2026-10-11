@@ -159,9 +159,9 @@
 .hud.s-loadout .hm.firing::before{background:var(--fire)}
 .hud.s-loadout .av{width:34px;height:34px;border-radius:8px}
 .hud.s-loadout .hm-bars{margin-top:5px}
-.hud.s-loadout .hm-gun{align-self:stretch;width:92px;margin-right:-12px;height:auto;padding:6px 12px 14px;
+.hud.s-loadout .hm-gun{align-self:stretch;width:104px;margin-right:-12px;height:auto;padding:6px 12px 14px;
   background:linear-gradient(90deg,rgba(255,255,255,.015),rgba(255,255,255,.05));border-left:1px solid var(--line)}
-.hud.s-loadout .hm-wl{display:block;position:absolute;right:0;bottom:5px;width:92px;text-align:center;font-size:8.5px;font-weight:600;
+.hud.s-loadout .hm-wl{display:block;position:absolute;right:0;bottom:5px;width:104px;text-align:center;font-size:8.5px;font-weight:600;
   letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:0 6px}
 .hud.s-loadout .hm-flash{right:2px}
 .hud.s-loadout .hm.firing .hm-gun{background:linear-gradient(90deg,rgba(255,150,40,.04),rgba(255,150,40,.16))}
@@ -238,8 +238,6 @@
 .hud.s-heads .hm-pic > .hm-eq i{height:30%;max-height:8px}
 .hud.s-heads .hm.talk .hm-pic > .hm-eq{opacity:1;transform:none}
 .hud.s-heads .hm.radio .hm-pic > .hm-eq{background:#ffd166}
-.hud.s-heads .hm.down .hm-pic::after{content:'DOWN';position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);font-size:7.5px;font-weight:800;
-  letter-spacing:.08em;color:#fff;background:var(--red);padding:1px 5px;border-radius:5px}
 .hud.s-heads .hm-fire{inset:-4px;border-radius:50%;width:60px;height:60px;left:-1px;
   background:radial-gradient(circle,rgba(255,150,40,.45),transparent 65%)}
 .hud.s-heads .hm.self{margin:0}
@@ -258,8 +256,6 @@
 .hud.s-tiles .hm-bars{margin-top:5px}
 .hud.s-tiles .hm-gun{order:1;align-self:center;width:62px;height:20px}
 .hud.s-tiles .hm-body{order:2}
-.hud.s-tiles .hm.down::after{content:'DOWN';position:absolute;left:50%;top:44px;transform:translateX(-50%);font-size:8px;font-weight:800;letter-spacing:.08em;
-  color:#fff;background:var(--red);padding:1px 6px;border-radius:5px}
 .hud.s-tiles .hm.talk .hm-pic::after{content:'';position:absolute;inset:-3px;border-radius:14px;border:2px solid var(--teal);animation:hm-ping 1.2s ease-out infinite}
 .hud.s-tiles .hm.radio .hm-pic::after{border-color:#ffd166}
 @keyframes hm-ping{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.18)}}
@@ -301,3 +297,73 @@
 .hud.no-accent.s-cards .hm::before,.hud.no-accent.s-loadout .hm::before,.hud.no-accent.s-tactical .hm::before,
 .hud.no-accent.s-tactical .hm::after,.hud.no-accent.s-tiles .hm::before{display:none}
 .hud.no-accent .hm.firing::before{display:block}
+
+/* ─── ammo ─── */
+.hud .hm-gun .hm-ammo{position:absolute;right:0;top:100%;margin-top:1px;display:none;align-items:baseline;gap:1px;font-size:9px;font-weight:600;
+  color:var(--ink-2);white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.hud .hm-gun .hm-ammo:not(:empty){display:inline-flex}
+.hud .hm-ammo b{color:#fff;font-weight:800}
+.hud .hm-ammo s{text-decoration:none;color:var(--ink-3);margin:0 1px}
+.hud .hm-ammo i{display:none}
+.hud .hm-ammo.low b{color:var(--amber)}
+.hud .hm-ammo.out b{color:var(--red);letter-spacing:.06em;font-size:8.5px;animation:hm-low .8s ease-in-out infinite}
+.hud.s-loadout .hm-gun .hm-ammo{top:5px;right:7px;margin:0}
+.hud.s-slim .hm-gun .hm-ammo,.hud.s-minimal .hm-gun .hm-ammo{top:50%;right:auto;left:calc(100% + 5px);transform:translateY(-50%);margin:0}
+.hud.s-slim .hm-gun,.hud.s-minimal .hm-gun{margin-right:34px}
+.hud.s-heads .hm-gun .hm-ammo,.hud.s-tiles .hm-gun .hm-ammo{left:50%;right:auto;transform:translateX(-50%)}
+.hud.s-heads .hm-gun{margin-bottom:10px}
+.hud.s-tiles .hm-gun{margin-bottom:9px}
+
+/* ─── vehicle ─── */
+.hud .hm-veh{display:none;align-items:center;gap:5px;margin-top:5px;font-size:9.5px;color:var(--ink-3);white-space:nowrap;min-width:0}
+.hud .hm-veh.on{display:flex}
+.hud .hm-veh svg{flex:none;width:12px;height:12px;color:var(--teal)}
+.hud .hm-veh b{font-weight:600;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hud .hm-veh span{flex:none;padding:0 4px;border-radius:3px;background:rgba(255,255,255,.06);font-size:8.5px}
+.hud .hm-vb{display:none;position:absolute;right:-4px;bottom:-4px;width:17px;height:17px;border-radius:50%;place-items:center;
+  color:#08090a;background:var(--teal);box-shadow:0 0 0 2px rgba(8,9,10,.85);z-index:2}
+.hud .hm-vb svg{width:11px;height:11px}
+.hud.s-heads .hm-vb.on,.hud.s-tiles .hm-vb.on,.hud.s-slim .hm-vb.on,.hud.s-rings .hm-vb.on,.hud.s-arena .hm-vb.on{display:grid}
+.hud.s-heads .hm-veh.on,.hud.s-tiles .hm-veh.on,.hud.s-slim .hm-veh.on{display:none}
+.hud.s-slim .hm-vb{width:13px;height:13px;right:-5px;bottom:-5px}.hud.s-slim .hm-vb svg{width:8px;height:8px}
+.hud.s-frost .hm-veh,.hud.s-rings .hm-veh,.hud.s-minimal .hm-veh,.hud.s-arena .hm-veh{text-shadow:0 1px 2px rgba(0,0,0,.7)}
+.hud.s-tactical .hm-veh b{text-transform:uppercase;letter-spacing:.06em}
+.hud.min .hm-veh span{display:none}
+
+/* ─── taking damage ─── */
+.hud .hm-hurt{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,rgba(229,72,77,.42),rgba(229,72,77,.08) 60%);box-shadow:inset 0 0 0 1.5px rgba(229,72,77,.7)}
+.hud .hm.hit .hm-hurt{animation:hm-hurt .55s ease-out}
+.hud .hm.hit{animation:hm-shake .32s cubic-bezier(.36,.07,.19,.97)}
+.hud .hm.hit-big{animation:hm-shake-big .45s cubic-bezier(.36,.07,.19,.97)}
+.hud .hm.hit .hm-ring .hr{stroke:var(--red)}
+.hud .hm.hit .av{box-shadow:0 0 0 2px var(--red),0 0 14px rgba(229,72,77,.6)}
+@keyframes hm-hurt{0%{opacity:1}100%{opacity:0}}
+@keyframes hm-shake{20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(1px)}}
+@keyframes hm-shake-big{15%{transform:translate(-5px,1px)}30%{transform:translate(5px,-1px)}45%{transform:translate(-4px,1px)}60%{transform:translate(3px,0)}80%{transform:translate(-1px,0)}}
+.hud.s-heads .hm-hurt,.hud.s-rings .hm-hurt{display:none}
+
+/* ─── downed: bleed-out timer, revive ring ─── */
+.hud .hm-down b{font-weight:800}
+.hud .hm-down .hm-timer{font-style:normal;font-weight:700;margin-left:4px;opacity:.85}
+.hud .hm-down .hm-timer:empty{display:none}
+.hud .hm.urgent .hm-down{color:#fff;background:var(--red);animation:hm-low .9s ease-in-out infinite}
+.hud .hm-rv{position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px);transform:rotate(-90deg);pointer-events:none;display:none;overflow:visible}
+.hud .hm-rv circle{fill:none;stroke:var(--teal);stroke-width:3;stroke-linecap:round;stroke-dasharray:0 100;filter:drop-shadow(0 0 3px rgba(8,175,162,.8))}
+.hud .hm.reviving .hm-rv{display:block}
+.hud .hm.reviving .hm-down{color:var(--teal);background:var(--teal-wash);animation:none}
+.hud .hm.reviving{--accent:var(--teal) !important}
+.hud .hm.reviving .av{filter:grayscale(.4) brightness(.8)}
+/* heads and tiles: the down tag (with its timer) sits on the picture */
+.hud.s-heads .hm.down .hm-top > .hm-down,.hud.s-tiles .hm.down .hm-top > .hm-down{display:inline-flex !important;position:absolute;left:50%;transform:translateX(-50%);
+  z-index:3;height:14px;padding:0 5px;font-size:7.5px;color:#fff;background:var(--red);white-space:nowrap}
+.hud.s-heads .hm.down .hm-top > .hm-down{top:42px}
+.hud.s-tiles .hm.down .hm-top > .hm-down{top:46px}
+.hud.s-heads .hm.reviving .hm-top > .hm-down,.hud.s-tiles .hm.reviving .hm-top > .hm-down{background:var(--teal);color:#08090a}
+.hud.no-ammo .hm-ammo{display:none !important}
+.hud.no-veh .hm-veh,.hud.no-veh .hm-vb{display:none !important}
+/* loadout: label bottom-left of the gun panel, ammo bottom-right */
+.hud.s-loadout .hm-gun .hm-ammo{top:auto;bottom:4px;right:7px}
+.hud.s-loadout .hm-wl{text-align:left;padding:0 36px 0 9px}
+.hud.s-heads .hm.reviving .hm-down b,.hud.s-tiles .hm.reviving .hm-down b{display:none}
+.hud.s-heads .hm.reviving .hm-down .hm-timer,.hud.s-tiles .hm.reviving .hm-down .hm-timer{margin-left:0}
