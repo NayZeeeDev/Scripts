@@ -271,5 +271,9 @@ RegisterCommand('cancelsupply', function()
 end, false)
 
 AddEventHandler('onResourceStop', function(res)
-    if res == GetCurrentResourceName() and Supply.active then cleanup() end
+    if res ~= GetCurrentResourceName() or not Supply.active then return end
+    local truck = Supply.active.ownTruck
+    cleanup()
+    -- cleanup() parks the van from a thread, which never runs while the resource stops
+    if truck and DoesEntityExist(truck) and GetVehiclePedIsIn(cache.ped, false) ~= truck then DeleteEntity(truck) end
 end)

@@ -77,7 +77,7 @@ Dialogs.police = function (d) {
     d.canStrip && d.illegal.length ? '<button class="btn warn" id="pStrip"><i class="fa-solid fa-screwdriver-wrench"></i>Remove selected parts</button>' : ''));
   $$('#dlg .chk').forEach((c) => (c.onclick = () => { const id = c.dataset.id; if (sel.has(id)) sel.delete(id); else sel.add(id); c.classList.toggle('on', sel.has(id)); }));
   const strip = $('#pStrip');
-  if (strip) strip.onclick = () => { if (!sel.size) return; $('#modal').hidden = true; post('police:strip', { ids: Array.from(sel) }); };
+  if (strip) strip.onclick = () => { if (!sel.size) return; Modal.hide(true); post('police:strip', { ids: Array.from(sel) }); };
 };
 
 Dialogs.locator = function (d) {
@@ -125,7 +125,8 @@ Dialogs.quote = function (q) {
   const timer = setInterval(() => {
     left -= 1;
     const e = $('#qLeft');
-    if (e) e.textContent = left + 's';
+    if (!e) return clearInterval(timer);   // closed with Escape or replaced by another dialog
+    e.textContent = left + 's';
     if (left <= 0) { clearInterval(timer); Modal.hide(); }
   }, 1000);
 };

@@ -8,29 +8,36 @@ Tablet = { open = false }
 
 local T = Config.Tablet
 local prop, shopId, holding = nil, nil, false
+local holdGen = 0
 
 --------------------------------------------------------------------- holding the tablet
 
+-- each hold owns its prop: closing and reopening quickly must not orphan the previous one
 local function hold()
     if holding then return end
     holding = true
+    holdGen = holdGen + 1
+    local gen = holdGen
     CreateThread(function()
         local dict, clip = T.Anim[1], T.Anim[2]
         lib.requestAnimDict(dict)
         lib.requestModel(T.Prop)
-        prop = CreateObject(joaat(T.Prop), GetEntityCoords(cache.ped), true, true, false)
-        AttachEntityToEntity(prop, cache.ped, GetPedBoneIndex(cache.ped, 28422), 0.0, -0.03, 0.0, 20.0, -90.0, 0.0, true, true, false, true, 1, true)
+        local obj = CreateObject(joaat(T.Prop), GetEntityCoords(cache.ped), true, true, false)
+        prop = obj
+        AttachEntityToEntity(obj, cache.ped, GetPedBoneIndex(cache.ped, 28422), 0.0, -0.03, 0.0, 20.0, -90.0, 0.0, true, true, false, true, 1, true)
         SetModelAsNoLongerNeeded(joaat(T.Prop))
-        while holding do
+        while holding and holdGen == gen do
             if not IsEntityPlayingAnim(cache.ped, dict, clip, 3) and not cache.vehicle then
                 TaskPlayAnim(cache.ped, dict, clip, 3.0, 3.0, -1, 49, 0, false, false, false)
             end
             Wait(500)
         end
-        StopAnimTask(cache.ped, dict, clip, 1.0)
-        RemoveAnimDict(dict)
-        if prop and DoesEntityExist(prop) then DeleteEntity(prop) end
-        prop = nil
+        if holdGen == gen then
+            StopAnimTask(cache.ped, dict, clip, 1.0)
+            RemoveAnimDict(dict)
+        end
+        if DoesEntityExist(obj) then DeleteEntity(obj) end
+        if prop == obj then prop = nil end
     end)
 end
 
@@ -288,4 +295,11 @@ CreateThread(function()
         if Tablet.open and (IsPedRagdoll(cache.ped) or IsEntityDead(cache.ped) or IsPedSwimming(cache.ped)) then Tablet.Close() end
         Wait(Tablet.open and 400 or 1500)
     end
+end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    holding = false
+    if prop and DoesEntityExist(prop) then DeleteEntity(prop) end
+    if Tablet.open then StopAnimTask(cache.ped, T.Anim[1], T.Anim[2], 1.0) end
 end)

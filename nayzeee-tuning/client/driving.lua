@@ -95,12 +95,13 @@ local function nitroHud()
     end
 end
 
-local function readData(veh)
+-- value: the new bag value from a change handler (the bag itself still holds the old one then)
+local function readData(veh, value)
     local st = Entity(veh).state
-    data = (st and st.nzTune) or {}
+    data = value or (st and st.nzTune) or {}
     if data.nitrous then
         local lvl = Config.Nitrous.Levels[data.nitrous.level] or Config.Nitrous.Levels[1]
-        if not nitro.boosting then nitro.amount = data.nitrous.amount or 0 end
+        if not nitro.boosting and not nitro.purging then nitro.amount = data.nitrous.amount or 0 end
         nitro.capacity, nitro.power = lvl.capacity, lvl.power
     else
         nitro.amount, nitro.capacity = 0, 0
@@ -112,8 +113,21 @@ end
 local function flushNitro()
     if nitro.used > 0.5 and driving then
         TriggerServerEvent('nayzeee-tuning:nitrousUsed', VehToNet(driving), NZ.Round(nitro.used, 1))
+        nitro.flushedAt = GetGameTimer()
     end
     nitro.used = 0
+end
+
+-- report usage while still in the seat (the server drops it once you're out), at most once a second
+local function flushSoon(now)
+    if now - (nitro.flushedAt or 0) > 1000 then flushNitro() end
+end
+
+-- the server throttles reports to one per 250 ms: don't let the final one land inside that window
+local function flushLast()
+    local gap = GetGameTimer() - (nitro.flushedAt or 0)
+    if gap < 260 then Wait(260 - gap) end
+    flushNitro()
 end
 
 local function flames(veh, bones)
@@ -144,11 +158,12 @@ local function startBoost()
             nitro.used = nitro.used + use
             if now - lastFx > 110 then lastFx = now flames(veh, bones) end
             if now - lastHud > 100 then lastHud = now nitroHud() end
+            flushSoon(now)
             Wait(0)
         end
         nitro.boosting = false
         if Config.Nitrous.ScreenEffect then AnimpostfxStop('RaceTurbo') end
-        flushNitro()
+        flushLast()
         nitroHud()
     end)
 end
@@ -174,13 +189,14 @@ local function startPurge()
             last = now
             nitro.amount = math.max(0, nitro.amount - use)
             nitro.used = nitro.used + use
+            flushSoon(now)
             Wait(100)
             nitroHud()
         end
         for _, fx in ipairs(fxs) do StopParticleFxLooped(fx, false) end
         UI.Send('sound', { name = 'purge', stop = true })
         nitro.purging = false
-        flushNitro()
+        flushLast()
         nitroHud()
     end)
 end
@@ -221,10 +237,14 @@ end
 
 --------------------------------------------------------------------- anti-lag / BOV / launch control
 
+-- called on entry and again whenever the car's data changes (late sync, parts bought while seated)
+local fxVeh
 local function driveFx(veh)
+    if fxVeh == veh then return end
     local hasTurbo = Config.Turbo.BlowOff and IsToggleModOn(veh, 18)
     local knocky = data.ecu and (data.ecu.knock or 0) >= Config.ECU.Map.KnockDamage
     if not data.antilag and not data.launch and not hasTurbo and not knocky then return end
+    fxVeh = veh
     CreateThread(function()
         local bones = exhaustBones(veh)
         local prevThrottle, prevRpm = 0.0, 0.0
@@ -277,6 +297,7 @@ local function driveFx(veh)
             prevThrottle, prevRpm = throttle, rpm
             Wait(60)
         end
+        if fxVeh == veh then fxVeh = nil end
     end)
 end
 
@@ -416,6 +437,7 @@ local function onDriver(veh)
                 sig = s
                 applyHandling(veh)
                 nitroHud()
+                driveFx(veh)
             end
         end
     end)
@@ -437,8 +459,13 @@ lib.onCache('seat', function(seat)
     local veh = GetVehiclePedIsIn(cache.ped, false)
     if seat == -1 and veh ~= 0 then onDriver(veh) else offDriver() end
 end)
+-- warped straight from one driver seat into another (/car, garage swaps): the seat never changes
 lib.onCache('vehicle', function(veh)
-    if not veh then offDriver() end
+    if not veh then return offDriver() end
+    if driving and driving ~= veh then
+        offDriver()
+        if GetPedInVehicleSeat(veh, -1) == cache.ped then onDriver(veh) end
+    end
 end)
 
 CreateThread(function()
@@ -456,10 +483,23 @@ AddStateBagChangeHandler('nzTune', nil, function(bagName, _, value)
     if not driving then return end
     local ent = GetEntityFromStateBagName(bagName)
     if ent ~= driving then return end
-    data = value or {}
-    readData(ent)
+    readData(ent, value or {})
     applyHandling(ent)
     nitroHud()
+    driveFx(ent)
+end)
+
+-- put handling back to stock so a restart doesn't stack the tune on top of itself
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    AnimpostfxStop('RaceTurbo')
+    for veh, b in pairs(base) do
+        if DoesEntityExist(veh) then
+            for f, v in pairs(b) do hset(veh, f, v) end
+            SetVehicleMaxSpeed(veh, 0.0)
+        end
+    end
+    if driving and DoesEntityExist(driving) then SetVehicleHighGear(driving, topGear(driving)) end
 end)
 
 -- /testsound <audio name> (admins): try a sound pack on your car before adding it to Config.SoundPacks

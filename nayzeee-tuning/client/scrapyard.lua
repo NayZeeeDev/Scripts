@@ -29,13 +29,14 @@ local function dismantle(veh)
     working = true
     CreateThread(function()
         for i, part in ipairs(cfg.Parts) do
-            if not working or not DoesEntityExist(veh) then break end
+            -- walking out of the yard abandons the job (it resumes from the server's list next time)
+            if not working or not inYard or not DoesEntityExist(veh) then break end
             if not (done and (done[i] or done[tostring(i)])) then
-                local idx = GetEntityBoneIndexByName(veh, part.bone)
-                if idx ~= -1 then
-                    local pos = GetWorldPositionOfEntityBone(veh, idx)
+                -- models without the bone (bikes, no boot...) are worked at the car itself: the server needs every part before the last
+                do
+                    local pos = VehUtil.BoneCoords(veh, { part.bone })
                     local shown = false
-                    while working and DoesEntityExist(veh) do
+                    while working and inYard and DoesEntityExist(veh) do
                         DrawMarker(21, pos.x, pos.y, pos.z + 0.4, 0, 0, 0, 180.0, 0, 0, 0.25, 0.25, 0.25, 229, 72, 77, 200, true, true, 2, false, nil, nil, false)
                         if #(GetEntityCoords(cache.ped) - pos) < 1.8 then
                             if not shown then Bridge.TextUI(L('prompt_scrap', part.label)) shown = true end
@@ -59,6 +60,7 @@ local function dismantle(veh)
                         elseif shown then Bridge.TextUI(false) shown = false end
                         Wait(0)
                     end
+                    if shown then Bridge.TextUI(false) end
                 end
             end
         end

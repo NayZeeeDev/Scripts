@@ -203,7 +203,7 @@ local function work(label, time, anim, sound, keepProp)
     if sound then sfx(sound) end
     local ok = Bridge.Progress(label, time, anim and { anim[1], anim[2], 1 } or nil, nil, true)
     stopAnim()
-    return ok
+    return ok and not cancelled
 end
 
 --------------------------------------------------------------------- axle stands
@@ -265,6 +265,13 @@ local function ensureLifted(veh)
         end
     end
     if not raise(veh, true) then return false end
+    -- paused while the car went up: bring it straight back down
+    if cancelled or not active then
+        raise(veh, false)
+        SetVehicleOnGroundProperly(veh)
+        clearPlaced()
+        return false
+    end
     lift = { veh = veh }
     return true
 end
@@ -291,7 +298,7 @@ local function fetch(item, def, carryAnim)
         setStep(L('step_fetch', item.label), item.id, L('help_fetch', item.label))
         SetNewWaypoint(pile.x, pile.y)
         if not waitAt(pile, L('prompt_grab', item.label), 1.6) then return false end
-        if not Bridge.Progress(L('grabbing', item.label), 1400, { 'mini@repair', 'fixing_a_ped', 1 }) then return false end
+        if not Bridge.Progress(L('grabbing', item.label), 1400, { 'mini@repair', 'fixing_a_ped', 1 }) or cancelled then return false end
     end
     hold(def, carryAnim)
     return true
@@ -489,7 +496,9 @@ local function needParts(item)
     local pinged = false
     while active and not cancelled do
         local ok, missing, source = lib.callback.await('nayzeee-tuning:orderNeeds', false, active.order.id, item.id)
-        if not ok or not missing or #missing == 0 then active.missing = nil tracker() return true end
+        -- false = the order was refunded / handed to someone else
+        if not ok or not active or cancelled then return false end
+        if not missing or #missing == 0 then active.missing = nil tracker() return true end
         active.missing = missing
         local names, inStock = {}, true
         for _, m in ipairs(missing) do
@@ -517,13 +526,15 @@ local function fitItem(item)
     local def = defFor(item, veh)
     local fn = Types[def.type] or Types.tool
     if not fn(item, def, veh) then return false end
+    if not active or cancelled then return false end
 
+    -- the part only goes on the car once the server signed the step off
+    local ok, err = lib.callback.await('nayzeee-tuning:orderStep', false, active.order.id, item.id, VehToNet(veh))
+    if not ok then Notify(err or L('install_failed'), 'error') return false end
     local part = Config.Parts[item.id]
     if part and not NZ.ExtrasKinds[part.kind] and part.kind ~= 'plateText' then
         if VehUtil.Control(veh, 2000) then Apply.Item(veh, item.id, item.value) end
     end
-    local ok, err = lib.callback.await('nayzeee-tuning:orderStep', false, active.order.id, item.id, VehToNet(veh))
-    if not ok then Notify(err or L('install_failed'), 'error') return false end
     item.done = true
     tracker()
     return true
@@ -539,6 +550,7 @@ end
 function Install.Stop(reason)
     if not active then return end
     cancelled = true
+    if lib.progressActive() then lib.cancelProgress() end
     clearHeld()
     stopAnim()
     lowerCar()

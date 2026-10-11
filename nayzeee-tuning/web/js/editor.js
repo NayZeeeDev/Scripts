@@ -107,7 +107,7 @@ Ed.render = function () {
   if (d) {
     bind('#exId', (v) => (d.id = v.toLowerCase().replace(/[^a-z0-9_]/g, '_')));
     bind('#exLabel', (v) => (d.label = v));
-    bind('#exJob', (v) => { const had = !!d.job; d.job = v.trim(); if (had !== !!d.job) Ed.render(); });
+    bind('#exJob', (v) => { const had = !!d.job; d.job = v.trim(); if (had !== !!d.job) { Ed.render(); const j = $('#exJob'); if (j) { j.focus(); j.setSelectionRange(j.value.length, j.value.length); } } });
     bind('#exMode', (v) => (d.mode = v));
     const cl = $('#exClaim', body); if (cl) cl.onchange = () => (d.claimBays = cl.value === 'on' ? true : cl.value === 'off' ? false : 'auto');
     const sr = $('#exSrc', body); if (sr) sr.onchange = () => (d.partSource = sr.value);

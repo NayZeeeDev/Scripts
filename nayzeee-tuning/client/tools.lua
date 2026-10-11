@@ -7,9 +7,14 @@ local function openModal(action, data)
     UI.Focus(true)
 end
 
-UI.On('modal:close', function()
+-- a modal shown over the open tablet must leave the tablet usable
+local function releaseFocus()
     modalOpen = false
-    UI.Focus(false)
+    if not (Tablet and Tablet.open) then UI.Focus(false) end
+end
+
+UI.On('modal:close', function()
+    releaseFocus()
     return true
 end)
 
@@ -117,14 +122,13 @@ if Config.Police.Enabled then
     })
 end
 
+-- the dialog is already closed (panels.js), so focus goes back to the game on every path
 UI.On('police:strip', function(d)
+    releaseFocus()
     if not inspectVeh or not DoesEntityExist(inspectVeh) or type(d.ids) ~= 'table' then return false end
-    UI.Focus(false)
-    if not Bridge.Progress(L('stripping'), Config.Police.StripTime, { 'mini@repair', 'fixing_a_ped', 1 }) then UI.Focus(true) return false end
+    if not Bridge.Progress(L('stripping'), Config.Police.StripTime, { 'mini@repair', 'fixing_a_ped', 1 }) then return false end
     local ok, err = lib.callback.await('nayzeee-tuning:strip', false, VehToNet(inspectVeh), d.ids)
     Notify(ok and L('stripped') or (err or L('failed')), ok and 'success' or 'error')
-    modalOpen = false
-    UI.Send('modal:hide')
     return ok
 end)
 
@@ -171,7 +175,7 @@ end)
 
 UI.On('quote:answer', function(d)
     local ok, res = lib.callback.await('nayzeee-tuning:answerQuote', false, d.id, d.accept == true, d.payment, d.code)
-    if ok or not d.accept then modalOpen = false UI.Focus(false) end
+    if ok or not d.accept then releaseFocus() end
     if ok and d.accept then Notify(L('quote_paid', res.orderId), 'success') end
     return { ok = ok, error = not ok and res or nil }
 end)

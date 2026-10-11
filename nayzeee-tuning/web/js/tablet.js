@@ -680,6 +680,9 @@ TabApps.messages = async function (pg, id, keep) {
   if (Tab.app !== 'messages') return;
   Tab.unread = 0;
   const cur = id != null ? id : threads[0] && threads[0].id;
+  // a refresh of the open chat (new message arrived) keeps what you were typing
+  const draftIn = $('#msgIn');
+  const draft = keep && cur === Tab.arg && draftIn ? draftIn.value : '';
   Tab.arg = cur;
   pg.innerHTML = `<div class="chat">
     <div class="threads scroll">${threads.length ? threads.map((t) => `<button class="thr ${t.id === cur ? 'on' : ''}" data-t="${t.id}">${av(t.avatar, t.mine ? t.mechanic_name || t.shopLabel : t.customer_name)}<div class="tx"><b>${esc(t.label || t.model || t.plate)} · ${t.id}</b><span>${esc(t.mine ? t.shopLabel : t.customer_name || '')} · ${esc(t.last || (STATUS[t.status] || [t.status])[0])}</span></div></button>`).join('')
@@ -712,6 +715,7 @@ TabApps.messages = async function (pg, id, keep) {
   };
   $('#msgGo').onclick = send;
   $('#msgIn').onkeydown = (e) => { if (e.key === 'Enter') send(); };
+  $('#msgIn').value = draft;
   $('#msgIn').focus();
 };
 

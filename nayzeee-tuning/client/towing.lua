@@ -221,5 +221,9 @@ function Tow.Start(c)
 end
 
 AddEventHandler('onResourceStop', function(res)
-    if res == GetCurrentResourceName() and Tow.active then cleanup(true) end
+    if res ~= GetCurrentResourceName() or not Tow.active then return end
+    local truck = Tow.active.ownTruck
+    cleanup(true)
+    -- cleanup() parks the truck from a thread, which never runs while the resource stops
+    if truck and DoesEntityExist(truck) and GetVehiclePedIsIn(cache.ped, false) ~= truck then DeleteEntity(truck) end
 end)
