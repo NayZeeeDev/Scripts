@@ -180,8 +180,10 @@ RegisterNetEvent('nayzeee-tuning:nitrousUsed', function(netId, used)
     local src = source
     local veh = Core.VehicleFromNet(netId)
     used = NZ.Num(used)
-    if not veh or not used or used <= 0 or not isDriver(src, veh) then return end
-    if not Core.Throttle(src, 'nitro', 250) then return end
+    -- the last flush can arrive just after the driver got out, so being next to the car is enough
+    if not veh or not used or used <= 0 then return end
+    if not isDriver(src, veh) and #(GetEntityCoords(GetPlayerPed(src)) - GetEntityCoords(veh)) > 8.0 then return end
+    if not Core.Throttle(src, 'nitro', 100) then return end
     local plate = NZ.TrimPlate(GetVehicleNumberPlateText(veh))
     Vehicles.Update(plate, veh, function(d)
         if d.nitrous then d.nitrous.amount = NZ.Round(math.max(0, (d.nitrous.amount or 0) - used), 1) end

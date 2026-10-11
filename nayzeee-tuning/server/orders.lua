@@ -192,8 +192,18 @@ lib.callback.register('nayzeee-tuning:orderStep', function(src, id, itemId, netI
         return false, L('missing_part', m.label, m.need - m.have)
     end
     if Config.PartItems.Consume then
-        for item, count in pairs(plan.pockets) do Bridge.RemoveItem(src, item, count) end
-        if next(plan.stock) and not Stock.Take(o.shop, plan.stock) then return false, L('storage_not_enough') end
+        local taken = {}
+        for item, count in pairs(plan.pockets) do
+            if not Bridge.RemoveItem(src, item, count) then
+                for it, n in pairs(taken) do Bridge.AddItem(src, it, n) end
+                return false, L('missing_part', Bridge.ItemLabel(item), count)
+            end
+            taken[item] = count
+        end
+        if next(plan.stock) and not Stock.Take(o.shop, plan.stock) then
+            for it, n in pairs(taken) do Bridge.AddItem(src, it, n) end
+            return false, L('storage_not_enough')
+        end
     end
     o.progress[itemId] = true
     save(o, { progress = o.progress })
