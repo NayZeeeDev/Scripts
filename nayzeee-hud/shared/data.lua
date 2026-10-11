@@ -1,0 +1,68 @@
+Data = {}
+
+Data.Weapons = {
+    'WEAPON_KNIFE', 'WEAPON_NIGHTSTICK', 'WEAPON_HAMMER', 'WEAPON_BAT', 'WEAPON_GOLFCLUB', 'WEAPON_CROWBAR',
+    'WEAPON_BOTTLE', 'WEAPON_DAGGER', 'WEAPON_HATCHET', 'WEAPON_KNUCKLE', 'WEAPON_MACHETE', 'WEAPON_FLASHLIGHT',
+    'WEAPON_SWITCHBLADE', 'WEAPON_POOLCUE', 'WEAPON_WRENCH', 'WEAPON_BATTLEAXE', 'WEAPON_STONE_HATCHET',
+    'WEAPON_PISTOL', 'WEAPON_PISTOL_MK2', 'WEAPON_COMBATPISTOL', 'WEAPON_APPISTOL', 'WEAPON_STUNGUN',
+    'WEAPON_PISTOL50', 'WEAPON_SNSPISTOL', 'WEAPON_SNSPISTOL_MK2', 'WEAPON_HEAVYPISTOL', 'WEAPON_VINTAGEPISTOL',
+    'WEAPON_FLAREGUN', 'WEAPON_MARKSMANPISTOL', 'WEAPON_REVOLVER', 'WEAPON_REVOLVER_MK2', 'WEAPON_DOUBLEACTION',
+    'WEAPON_CERAMICPISTOL', 'WEAPON_NAVYREVOLVER', 'WEAPON_GADGETPISTOL', 'WEAPON_PISTOLXM3',
+    'WEAPON_MICROSMG', 'WEAPON_SMG', 'WEAPON_SMG_MK2', 'WEAPON_ASSAULTSMG', 'WEAPON_COMBATPDW',
+    'WEAPON_MACHINEPISTOL', 'WEAPON_MINISMG', 'WEAPON_TECPISTOL',
+    'WEAPON_PUMPSHOTGUN', 'WEAPON_PUMPSHOTGUN_MK2', 'WEAPON_SAWNOFFSHOTGUN', 'WEAPON_ASSAULTSHOTGUN',
+    'WEAPON_BULLPUPSHOTGUN', 'WEAPON_MUSKET', 'WEAPON_HEAVYSHOTGUN', 'WEAPON_DBSHOTGUN', 'WEAPON_AUTOSHOTGUN',
+    'WEAPON_COMBATSHOTGUN',
+    'WEAPON_ASSAULTRIFLE', 'WEAPON_ASSAULTRIFLE_MK2', 'WEAPON_CARBINERIFLE', 'WEAPON_CARBINERIFLE_MK2',
+    'WEAPON_ADVANCEDRIFLE', 'WEAPON_SPECIALCARBINE', 'WEAPON_SPECIALCARBINE_MK2', 'WEAPON_BULLPUPRIFLE',
+    'WEAPON_BULLPUPRIFLE_MK2', 'WEAPON_COMPACTRIFLE', 'WEAPON_MILITARYRIFLE', 'WEAPON_HEAVYRIFLE', 'WEAPON_TACTICALRIFLE',
+    'WEAPON_MG', 'WEAPON_COMBATMG', 'WEAPON_COMBATMG_MK2', 'WEAPON_GUSENBERG',
+    'WEAPON_SNIPERRIFLE', 'WEAPON_HEAVYSNIPER', 'WEAPON_HEAVYSNIPER_MK2', 'WEAPON_MARKSMANRIFLE',
+    'WEAPON_MARKSMANRIFLE_MK2', 'WEAPON_PRECISIONRIFLE',
+    'WEAPON_RPG', 'WEAPON_GRENADELAUNCHER', 'WEAPON_MINIGUN', 'WEAPON_FIREWORK', 'WEAPON_RAILGUN',
+    'WEAPON_HOMINGLAUNCHER', 'WEAPON_COMPACTLAUNCHER',
+    'WEAPON_GRENADE', 'WEAPON_BZGAS', 'WEAPON_SMOKEGRENADE', 'WEAPON_FLARE', 'WEAPON_MOLOTOV',
+    'WEAPON_STICKYBOMB', 'WEAPON_PROXMINE', 'WEAPON_SNOWBALL', 'WEAPON_PIPEBOMB', 'WEAPON_BALL',
+    'WEAPON_PETROLCAN', 'WEAPON_FIREEXTINGUISHER', 'WEAPON_HAZARDCAN',
+}
+
+-- Optional label overrides. Anything not listed is auto-formatted (WEAPON_COMBATPISTOL -> Combat Pistol).
+Data.WeaponLabels = {
+    WEAPON_PISTOL_MK2 = 'Pistol Mk II', WEAPON_SNSPISTOL_MK2 = 'SNS Pistol Mk II', WEAPON_REVOLVER_MK2 = 'Revolver Mk II',
+    WEAPON_SMG_MK2 = 'SMG Mk II', WEAPON_PUMPSHOTGUN_MK2 = 'Pump Shotgun Mk II', WEAPON_ASSAULTRIFLE_MK2 = 'Assault Rifle Mk II',
+    WEAPON_CARBINERIFLE_MK2 = 'Carbine Rifle Mk II', WEAPON_SPECIALCARBINE_MK2 = 'Special Carbine Mk II',
+    WEAPON_BULLPUPRIFLE_MK2 = 'Bullpup Rifle Mk II', WEAPON_COMBATMG_MK2 = 'Combat MG Mk II',
+    WEAPON_HEAVYSNIPER_MK2 = 'Heavy Sniper Mk II', WEAPON_MARKSMANRIFLE_MK2 = 'Marksman Rifle Mk II',
+    WEAPON_PISTOL50 = 'Pistol .50', WEAPON_SNSPISTOL = 'SNS Pistol', WEAPON_APPISTOL = 'AP Pistol',
+    WEAPON_MICROSMG = 'Micro SMG', WEAPON_SMG = 'SMG', WEAPON_MINISMG = 'Mini SMG', WEAPON_ASSAULTSMG = 'Assault SMG',
+    WEAPON_COMBATPDW = 'Combat PDW', WEAPON_MG = 'MG', WEAPON_COMBATMG = 'Combat MG', WEAPON_RPG = 'RPG',
+    WEAPON_DBSHOTGUN = 'Double Barrel', WEAPON_BZGAS = 'BZ Gas', WEAPON_STUNGUN = 'Taser',
+    WEAPON_PISTOLXM3 = 'WM 29 Pistol', WEAPON_TECPISTOL = 'Tactical SMG', WEAPON_KNUCKLE = 'Brass Knuckles',
+    WEAPON_PETROLCAN = 'Jerry Can', WEAPON_HAZARDCAN = 'Hazardous Jerry Can',
+}
+
+Data.Weather = {
+    'EXTRASUNNY', 'CLEAR', 'NEUTRAL', 'SMOG', 'FOGGY', 'OVERCAST', 'CLOUDS', 'CLEARING', 'RAIN', 'THUNDER',
+    'SNOW', 'BLIZZARD', 'SNOWLIGHT', 'XMAS', 'HALLOWEEN', 'RAIN_HALLOWEEN', 'SNOW_HALLOWEEN',
+}
+
+-- Speed limits in MPH (converted for km/h players). Exact street names win over suffix rules.
+Data.SpeedLimits = {
+    ['Los Santos Freeway'] = 70, ['Del Perro Fwy'] = 70, ['Olympic Fwy'] = 70, ['Palomino Fwy'] = 70,
+    ['Senora Fwy'] = 70, ['La Puerta Fwy'] = 70, ['Elysian Fields Fwy'] = 60, ['Great Ocean Hwy'] = 60,
+    ['Route 68'] = 55, ['Route 68 Approach'] = 45, ['Senora Rd'] = 50, ['Joshua Rd'] = 50, ['Baytree Canyon Rd'] = 45,
+    ['Marina Dr'] = 40, ['Algonquin Blvd'] = 45, ['Panorama Dr'] = 45, ['Vinewood Blvd'] = 40,
+    ['Del Perro Blvd'] = 40, ['Vespucci Blvd'] = 40, ['Rockford Dr'] = 40, ['Mirror Park Blvd'] = 35,
+    ['San Andreas Ave'] = 35, ['Strawberry Ave'] = 35, ['Grove St'] = 25, ['Forum Dr'] = 25,
+    ['Elgin Ave'] = 35, ['Power St'] = 30, ['Alta St'] = 30, ['Integrity Way'] = 35, ['Peaceful St'] = 30,
+    ['Innocence Blvd'] = 40, ['Davis Ave'] = 35, ['Carson Ave'] = 35, ['Capital Blvd'] = 40,
+    ['North Rockford Dr'] = 45, ['Banham Canyon Dr'] = 45, ['Tongva Dr'] = 40, ['Mt Haan Dr'] = 40,
+    ['Paleto Blvd'] = 40, ['Cascabel Ave'] = 35, ['Pyrite Ave'] = 30, ['Procopio Dr'] = 35,
+}
+
+Data.SpeedLimitSuffix = {
+    Fwy = 70, Freeway = 70, Hwy = 60, Highway = 60, Pkwy = 45, Rd = 45, Road = 45, Blvd = 40, Bridge = 50,
+    Tunnel = 45, Ave = 35, Dr = 30, St = 30, Way = 30, Trl = 35, Ln = 25, Pl = 25, Ct = 25, Cir = 25, Ter = 25,
+}
+
+Data.DefaultSpeedLimit = 35

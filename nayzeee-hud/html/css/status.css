@@ -1,0 +1,99 @@
+/* ---------- Player status (all 16 styles) ---------- */
+.w-status .row { display: flex; align-items: flex-end; gap: 8px; }
+.w-status.col .row { flex-direction: column; align-items: flex-start; }
+
+.st {
+  --c: #fff; --cr: 255, 255, 255; --v: 100;
+  position: relative; width: 40px; height: 40px; flex: none;
+  transition: --v .45s ease, opacity .25s, width .25s, margin .25s, transform .2s;
+}
+.st.hide { opacity: 0; width: 0 !important; margin-right: -8px; pointer-events: none; overflow: hidden; }
+.w-status.col .st.hide { height: 0 !important; margin: 0 0 -8px; }
+.st .ico { position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; color: #fff; }
+.st .ico.sm { font-size: 13px; }
+.st .ico.c { position: static; color: var(--c); }
+.st .val { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 800; letter-spacing: -.02em; }
+
+/* svg shape styles */
+.st .sv { width: 100%; height: 100%; overflow: visible; }
+.st .bgc { fill: rgba(12, 13, 16, calc(var(--pa) + .05)); stroke: none; }
+.st .trk { fill: none; stroke: rgba(var(--cr), .18); stroke-width: 3.4; }
+.st .fil {
+  fill: none; stroke: var(--c); stroke-width: 3.4; stroke-linecap: round;
+  stroke-dasharray: 100px 200px; stroke-dashoffset: calc((100 - var(--v)) * 1px);
+  filter: drop-shadow(0 0 3px rgba(var(--cr), .55));
+}
+.st.zero .fil { opacity: 0; }
+.st-squircle .trk, .st-squircle .fil, .st-hexagon .trk, .st-hexagon .fil, .st-diamond .trk, .st-diamond .fil { stroke-linejoin: round; }
+.st-segmented .w { stroke-width: 4.6; stroke-linecap: butt; filter: none; }
+.st-segmented .trk.w { stroke: rgba(var(--cr), .2); }
+.st-arc .bgc { fill: rgba(12, 13, 16, calc(var(--pa) - .1)); }
+.st-arc .ico { padding-top: 2px; }
+
+/* liquid */
+.st-liquid { width: 34px; height: 34px; }
+.st-liquid .liq {
+  position: absolute; inset: 0;
+  -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;
+  background: linear-gradient(to top, var(--c) calc(var(--v) * 1%), rgba(255, 255, 255, .16) 0);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35));
+}
+
+/* hex fill (flat top) */
+.st-hexfill { width: 46px; height: 40px; }
+.st-hexfill .hx { position: absolute; inset: 0; background: var(--c); clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); opacity: .95; }
+.st-hexfill .hxi { position: absolute; inset: 3px; clip-path: inherit; background: rgba(14, 15, 18, .88); overflow: hidden; clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); }
+.st-hexfill .lf, .st-circlefill .lf, .st-squarefill .lf { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--v) * 1%); background: rgba(var(--cr), .45); }
+
+/* circle / square fill */
+.st-circlefill .cf, .st-squarefill .sqf {
+  position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--c); overflow: hidden;
+  background: rgba(14, 15, 18, .85); box-shadow: 0 0 10px rgba(var(--cr), .35);
+}
+.st-squarefill .sqf { border-radius: 10px; }
+
+/* icon + bar */
+.st-bars { width: 46px; height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 7px; }
+.st-bars .ico.c { font-size: 22px; filter: drop-shadow(0 0 6px rgba(var(--cr), .5)); }
+.st-bars .bar, .st-minimal .ml { width: 100%; height: 7px; border-radius: 9px; background: rgba(var(--cr), .22); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.st-bars .bar span, .st-minimal .ml span, .st-dots .dt span { display: block; height: 100%; width: calc(var(--v) * 1%); background: var(--c); border-radius: inherit; }
+
+/* pill */
+.st-pill { width: 86px; height: 30px; }
+.st-pill .pl { position: absolute; inset: 0; border-radius: 99px; background: rgba(12, 13, 16, var(--pa)); border: 1px solid var(--line); overflow: hidden; display: flex; align-items: center; gap: 6px; padding: 0 10px; }
+.st-pill .pf { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--v) * 1%); background: linear-gradient(90deg, rgba(var(--cr), .15), rgba(var(--cr), .45)); }
+.st-pill .ico { position: relative; inset: auto; color: var(--c); font-size: 14px; }
+.st-pill .val { position: relative; inset: auto; font-size: 12px; }
+
+/* vertical */
+.st-vertical { width: 22px; height: 64px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.st-vertical .vb { flex: 1; width: 8px; border-radius: 9px; background: rgba(var(--cr), .2); position: relative; overflow: hidden; }
+.st-vertical .vb span { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--v) * 1%); background: var(--c); border-radius: inherit; box-shadow: 0 0 8px rgba(var(--cr), .6); }
+.st-vertical .ico.c { font-size: 15px; }
+
+/* minimal */
+.st-minimal { width: 30px; height: 30px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; }
+.st-minimal .ico.c { font-size: 17px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.6)); }
+.st-minimal .ml { height: 3px; }
+
+/* dots */
+.st-dots { width: 44px; height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; }
+.st-dots .ico.c { font-size: 18px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.6)); }
+.st-dots .dt { width: 100%; height: 5px; background: rgba(var(--cr), .2);
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 7px, transparent 7px 9px); mask: repeating-linear-gradient(90deg, #000 0 7px, transparent 7px 9px); }
+.st-dots .dt span { border-radius: 0; }
+
+/* states */
+.st.low { animation: lowPulse 1.1s ease-in-out infinite; }
+@keyframes lowPulse { 50% { transform: scale(1.08); filter: drop-shadow(0 0 8px rgba(var(--cr), .9)); } }
+.st[data-k="voice"].talk { transform: scale(1.08); }
+.st[data-k="voice"].talk .ico, .st[data-k="voice"].talk .ico.c { color: var(--accent); }
+.st[data-k="voice"].talk .fil, .st[data-k="voice"].talk .liq { filter: drop-shadow(0 0 6px var(--accent)); }
+.st[data-k="voice"].talk { --c: var(--accent) !important; }
+.st[data-k="voice"].radio::before {
+  content: ''; position: absolute; right: -2px; top: -2px; width: 9px; height: 9px; border-radius: 50%;
+  background: #f97316; border: 2px solid rgba(12, 13, 16, .9); z-index: 2;
+}
+
+/* preview inside settings cards */
+.pv-status .row { display: flex; gap: 8px; align-items: flex-end; }

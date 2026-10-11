@@ -1,0 +1,51 @@
+/* ---------- Seasonal particles (CSS only, ~5-14 elements, GPU transforms) ---------- */
+#fx { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; transition: opacity .3s; }
+#fx i {
+  position: absolute; left: var(--x); top: 0; width: var(--s); height: var(--s);
+  background: center / contain no-repeat; opacity: .75; will-change: transform;
+  animation: var(--anim) var(--d) linear var(--dl) infinite;
+}
+#fx.fx-fall i { --anim: fxFall; top: -40px; }
+#fx.fx-confetti i { --anim: fxConfetti; top: -40px; }
+#fx.fx-rise i { --anim: fxRise; top: auto; bottom: -40px; opacity: .55; }
+#fx.fx-twinkle i { --anim: fxTwinkle; top: var(--y); }
+#fx.fx-fly i { --anim: fxFly; left: -60px; top: var(--y); opacity: .85; }
+
+@keyframes fxFall {
+  0% { transform: translate3d(0, 0, 0) rotate(var(--r)); }
+  50% { transform: translate3d(var(--sw), 55vh, 0) rotate(calc(var(--r) + 180deg)); }
+  100% { transform: translate3d(0, 112vh, 0) rotate(calc(var(--r) + 360deg)); }
+}
+@keyframes fxConfetti {
+  0% { transform: translate3d(0, 0, 0) rotateX(0) rotate(var(--r)); }
+  100% { transform: translate3d(var(--sw), 112vh, 0) rotateX(1080deg) rotate(calc(var(--r) + 540deg)); }
+}
+@keyframes fxRise {
+  0% { transform: translate3d(0, 0, 0) scale(.7); opacity: 0; }
+  10% { opacity: .55; }
+  100% { transform: translate3d(var(--sw), -112vh, 0) scale(1.1); opacity: 0; }
+}
+@keyframes fxTwinkle {
+  0%, 100% { transform: scale(0) rotate(0); opacity: 0; }
+  50% { transform: scale(1) rotate(90deg); opacity: .9; }
+}
+@keyframes fxFly {
+  0% { transform: translate3d(0, 0, 0) scaleY(1); }
+  25% { transform: translate3d(28vw, -4vh, 0) scaleY(.6); }
+  50% { transform: translate3d(56vw, 3vh, 0) scaleY(1); }
+  75% { transform: translate3d(84vw, -3vh, 0) scaleY(.6); }
+  100% { transform: translate3d(112vw, 0, 0) scaleY(1); }
+}
+
+/* ---------- Seasonal panel accents ---------- */
+body[data-season="winter"] .panel, body[data-season="christmas"] .panel { box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .28); }
+body[data-season="halloween"] .panel { box-shadow: var(--shadow), 0 0 18px rgba(168, 85, 247, .18), inset 0 1px 0 rgba(251, 146, 60, .25); }
+body[data-season="valentine"] .panel { box-shadow: var(--shadow), inset 0 1px 0 rgba(251, 113, 133, .35); }
+body[data-season="newyear"] .panel { box-shadow: var(--shadow), inset 0 1px 0 rgba(250, 204, 21, .35); }
+body[data-season="christmas"] .w-street .sb::before {
+  content: ''; position: absolute; left: 10px; right: 10px; top: -5px; height: 8px;
+  background: radial-gradient(circle, #ef4444 2.5px, transparent 3px) 0 0 / 24px 8px, radial-gradient(circle, #22c55e 2.5px, transparent 3px) 12px 0 / 24px 8px;
+  animation: lights 1.4s steps(2) infinite;
+}
+body[data-season="christmas"] .w-street .sb { position: relative; }
+@keyframes lights { 50% { filter: hue-rotate(120deg) brightness(1.3); } }
