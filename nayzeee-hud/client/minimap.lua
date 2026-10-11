@@ -74,6 +74,8 @@ function NHUD.setMinimapLayout(shape, raise)
         SetRadarBigmapEnabled(false, false)
         hideHealthBars()
         NHUD.sendMap(true)
+        -- the big-map toggle above turns the radar back on; put it back to what the player's setting says
+        NHUD.updateRadar(nil, true)
     end)
 end
 
@@ -148,5 +150,6 @@ end
 CreateThread(function()
     SetRadarBigmapEnabled(false, false)
     hideHealthBars()
+    NHUD.updateRadar(nil, true) -- right after a (re)start, before the UI has loaded: hide it on foot in 'vehicle' mode
     if Config.HideNativeHud == 'always' then NHUD.burstHide(0) end
 end)

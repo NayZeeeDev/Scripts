@@ -29,7 +29,13 @@
   // ---------------- Street bar ----------------
   def('street', {
     label: 'Street Bar', anchor: [0, 1],
-    pos: c => c.radar ? [c.map.l, c.map.b - c.map.h - 0.9] : [1.4, 98.2 - (c.statusH || 4.6) - 0.9],
+    // above the radar when it's showing, otherwise right above the player status (wherever that sits)
+    pos: c => {
+      if (c.radar) return [c.map.l, c.map.b - c.map.h - 0.9];
+      const s = W.status;
+      if (NH.cur.status.enabled && s.x != null) return [s.x, s.y - (c.statusH || 4.6) - 0.9];
+      return [1.4, 98.2];
+    },
     visible: () => NH.cur.map.street && (inVeh() || NH.cur.map.streetOnFoot),
     build(el) {
       el.innerHTML = `<div class="sb panel"><b class="sb-dir">N</b><div class="sb-t"><b class="sb-s">-</b><small class="sb-z">-</small></div></div><span class="deco"></span>`;
