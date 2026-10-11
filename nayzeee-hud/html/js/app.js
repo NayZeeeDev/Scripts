@@ -119,6 +119,7 @@
     document.body.classList.toggle('cinematic', !!c.cinematic && !NH.editing);
     for (const id in W) if (W[id].apply) W[id].apply();
     renderAll();
+    if (NH.syncSquadsTheme) NH.syncSquadsTheme();
   };
 
   function renderMode() {
@@ -164,8 +165,22 @@
     sqFrame.id = 'squads';
     sqFrame.src = 'squads/index.html';
     sqFrame.setAttribute('allowtransparency', 'true');
+    sqFrame.addEventListener('load', () => NH.syncSquadsTheme());
     document.body.appendChild(sqFrame);
     return sqFrame;
+  };
+  // the squads menu wears the HUD's accent (seasons included)
+  NH.syncSquadsTheme = () => {
+    if (!sqFrame) return;
+    try {
+      const dst = sqFrame.contentDocument && sqFrame.contentDocument.documentElement;
+      if (!dst) return;
+      const src = getComputedStyle(document.documentElement);
+      for (const k of ['--accent', '--accent-rgb']) {
+        const v = src.getPropertyValue(k).trim();
+        if (v) dst.style.setProperty(k, v);
+      }
+    } catch (_) { /* frame not ready */ }
   };
   const sqFocus = (on) => {
     sqFocused = on;

@@ -6,7 +6,7 @@
   const W_pop = () => NH.W.info.pop('cash', 0, 10000524);
   NH.demo = () => {
     document.body.classList.add('demo');
-    const q = new URLSearchParams(location.search);
+    const q = new URLSearchParams(window.NH_DEMO_QUERY || location.search); // NH_DEMO_QUERY: preset used by standalone previews
     const veh = q.get('veh');
     const still = q.has('static');
 
@@ -40,7 +40,7 @@
     if (q.has('settings')) { NH.settingsUI.tab = q.get('tab') || 'general'; NH.settingsUI.open(); }
     if (q.has('edit')) { NH.settingsUI.open(); NH.settingsUI.editLayout(true); }
     if (q.has('panel')) NH.panel.open();
-    if (q.has('squads')) NH.squadsFrame();
+    if (q.has('squads')) { NH.squadsFrame(); document.body.classList.add('squads-focus'); }
     if (q.has('money')) setTimeout(() => { NH.update({ cash: 10000524 }); NH.update({ bank: 98955147 }); W_pop(); }, 50);
     if (still) return;
 

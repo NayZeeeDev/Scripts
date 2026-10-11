@@ -1,0 +1,91 @@
+/* nayzeee-hud skin for the squads menu.
+   Loads after style.css and only re-dresses it: same window, sidebar, fonts, toggles, segmented
+   controls and accent as the HUD settings. The accent is pushed in live by the HUD (seasons too). */
+:root{
+  --accent:#b8f02a;--accent-rgb:184,240,42;--accent-ink:#0b0f02;
+  --teal:var(--accent);--teal-hi:var(--accent);--teal-lo:var(--accent);
+  --teal-wash:rgba(var(--accent-rgb),.12);--teal-edge:rgba(var(--accent-rgb),.4);
+  --nz-teal:#08afa2;--nz-teal-lo:#067d74;
+  --r-sm:8px;--r-md:12px;--r-lg:18px;
+  --line-2:rgba(255,255,255,.14);
+}
+body{font-family:'Inter','Segoe UI',system-ui,sans-serif;letter-spacing:0}
+.fa-solid,.fa-regular{letter-spacing:0}
+
+/* ─── window ─── */
+.frame{width:min(1120px,94vw);height:min(740px,88vh);padding:0;clip-path:none;border-radius:var(--r-lg);
+  background:var(--base);border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.shell{clip-path:none;border-radius:calc(var(--r-lg) - 1px);display:grid;grid-template-columns:222px minmax(0,1fr);flex-direction:initial}
+.shell::after{display:none}
+
+/* ─── sidebar ─── */
+.side{display:flex;flex-direction:column;gap:4px;min-height:0;padding:16px 12px;
+  background:linear-gradient(180deg,var(--base),#050607);border-right:1px solid var(--line-soft)}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 6px 16px}
+.brand-i{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:10px;background:var(--accent);color:var(--accent-ink);
+  box-shadow:0 0 18px rgba(var(--accent-rgb),.35)}
+.brand-i svg{width:20px;height:20px}
+.brand b{display:block;white-space:nowrap;font-family:'Unbounded','Inter',sans-serif;font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--white)}
+.brand small{display:block;font-size:10px;color:var(--ink-3);margin-top:2px}
+.tabs{flex:1;min-height:0;flex-direction:column;gap:2px;padding:0;border:0;background:none;overflow-y:auto}
+.tab{min-width:0;height:auto;justify-content:flex-start;gap:11px;padding:9px 10px;border-radius:9px;
+  font-size:13px;font-weight:600;color:var(--ink-2);text-align:left}
+.tab i{width:16px;font-size:14px;text-align:center;opacity:1}
+.tab:hover{background:var(--raise);color:var(--white)}
+.tab.on{background:var(--teal-wash);color:var(--white);font-weight:600}
+.tab.on i{color:var(--accent)}
+.tab.on::before{display:none}
+.tab .tally{margin-left:auto}
+.side .ver{align-self:flex-start;margin:6px 6px 0}
+
+/* ─── header ─── */
+.body{display:flex;flex-direction:column;min-width:0;min-height:0}
+.bar{height:auto;min-height:62px;padding:14px 20px;gap:10px;background:linear-gradient(var(--panel),var(--base))}
+.bar::after{display:none}
+.bar p{font-size:13px;font-weight:400}
+.main::before{display:none}
+.page{padding:18px 20px 20px}
+
+/* ─── type ─── */
+.head h1{font-size:19px;font-weight:700;letter-spacing:-.02em}
+.head p{font-size:12px}
+.p-head h2{font-size:13px;font-weight:700}
+.p-head p,.row-txt > span,.muted,.stat span,.field label,.sw-line > div span,.notice span,.pick-t span{font-weight:400}
+.stat b,.lb-end b,.match-score b,.elo-top b{font-weight:800;letter-spacing:-.03em}
+
+/* ─── surfaces ─── */
+.panel,.hero,.stat{border-radius:var(--r-md)}
+.row,.lb-row,.blip-preview,.skel,.picker-opt{border-radius:10px}
+.pick{border-radius:var(--r-md);background:var(--panel)}
+.pick:hover{background:var(--raise)}
+.pick.on{border-color:rgba(255,255,255,.85);background:var(--raise)}
+.row.on,.lb-row.me{border-color:var(--teal-edge);background:var(--teal-wash)}
+
+/* ─── controls (same as the HUD settings) ─── */
+.sw{position:relative;width:40px;height:22px;padding:0;border:0;border-radius:99px;background:rgba(255,255,255,.14)}
+.sw i{position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:none;transition:transform var(--fast)}
+.sw.on{background:var(--accent);border:0}
+.sw.on i{transform:translateX(18px);background:var(--accent-ink);box-shadow:none}
+.sw.mini{width:34px;height:19px}
+.sw.mini i{width:13px;height:13px}
+.sw.mini.on i{transform:translateX(15px)}
+.seg{padding:3px;border-radius:99px;background:var(--inset);border:1px solid var(--line-soft)}
+.seg button{height:28px;border-radius:99px;font-size:12px;font-weight:600;color:var(--ink-2)}
+.seg button:hover{background:transparent}
+.seg button.on{background:#f5f6f2;color:#111;box-shadow:none;font-weight:600}
+.input input,.field input,.field select{border-radius:8px;font-size:13px}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--teal-wash)}
+.range::-webkit-slider-thumb{background:#fff;border:3px solid var(--accent);box-shadow:none}
+.swatch.on{box-shadow:0 0 0 2px var(--base),0 0 0 3px #fff}
+.icon-pick button.on{color:var(--accent)}
+
+/* buttons: the HUD settings use the NayZeee set */
+.btn-teal{background:linear-gradient(var(--nz-teal),var(--nz-teal-lo));color:#00201d}
+.btn-ghost:hover,.icon-btn:hover{color:var(--accent);border-color:var(--teal-edge);background:var(--teal-wash)}
+
+/* ─── overlays on the game screen: HUD panels ─── */
+.toast,.feed-row,.ready,.match,.picker-card,.hud-edit,.revive-prompt{border-radius:var(--r-md);background:rgba(12,13,16,.92)}
+.toast{border-left-width:3px}
+.hm{border-radius:10px;background:var(--hud-bg,rgba(12,13,16,.78));border-color:rgba(255,255,255,.08)}
+.hm-top > b{font-weight:600}
+.wheel-core{background:rgba(12,13,16,.95)}
