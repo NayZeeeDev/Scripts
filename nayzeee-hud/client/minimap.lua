@@ -11,7 +11,8 @@ local function hideHealthBars()
 end
 NHUD.hideHealthBars = hideHealthBars
 
--- Minimap shape + height. Positive Y moves a component up from the bottom of the screen.
+-- Minimap shape + height. With 'B' alignment a bigger Y moves a component DOWN the screen,
+-- so lifting the radar for the status row subtracts the raise.
 -- 'square' / 'circle' need the squaremap.ytd / circlemap.ytd textures in this resource's stream/ folder.
 -- frame: where the visible radar sits for that shape at 16:9, in vh (left, bottom gap, width, height),
 -- taken from qb-hud's border positions for the same component values.
@@ -66,7 +67,7 @@ function NHUD.setMinimapLayout(shape, raise)
         SetMinimapClipType(def.clip)
         for _, part in ipairs({ { 'minimap', def.map }, { 'minimap_mask', def.mask }, { 'minimap_blur', def.blur } }) do
             local v = part[2]
-            SetMinimapComponentPosition(part[1], 'L', 'B', v[1] + offset, v[2] + raise, v[3], v[4])
+            SetMinimapComponentPosition(part[1], 'L', 'B', v[1] + offset, v[2] - raise, v[3], v[4])
         end
         SetRadarBigmapEnabled(true, false)
         Wait(50)
