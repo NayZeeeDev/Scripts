@@ -368,7 +368,7 @@ input:focus,select:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px
   background:var(--raise);border:1px solid var(--line);font-size:9px;color:var(--ink-2);font-weight:500}
 
 /* ─── modal ─── */
-.overlay{position:absolute;inset:0;z-index:60;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.62);backdrop-filter:blur(2px);animation:fade 120ms ease}
+.overlay{position:absolute;inset:0;z-index:60;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.66);animation:fade 120ms ease}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 .modal{width:100%;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);box-shadow:var(--sh-2);overflow:hidden;animation:pop 140ms cubic-bezier(.2,.8,.2,1)}
 @keyframes pop{from{transform:scale(.97);opacity:0}to{transform:none;opacity:1}}
@@ -453,7 +453,7 @@ input:focus,select:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px
   box-shadow:var(--sh-2);animation:matchIn 160ms cubic-bezier(.2,.8,.2,1);font-size:12px;color:var(--ink-2);font-weight:300}
 .revive-prompt b{color:var(--white);font-weight:500}
 .revive-prompt .key{height:19px;min-width:20px;font-size:10px;margin:0}
-.revive-picker{position:fixed;inset:0;z-index:98;display:grid;place-items:center;background:rgba(0,0,0,.5);backdrop-filter:blur(2px)}
+.revive-picker{position:fixed;inset:0;z-index:98;display:grid;place-items:center;background:rgba(0,0,0,.45)}
 .picker-card{width:330px;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-3);animation:pop 140ms cubic-bezier(.2,.8,.2,1)}
 .picker-card h4{font-size:13.5px;font-weight:600;color:var(--white)}
 .picker-card > p{font-size:11px;color:var(--ink-3);font-weight:300;margin-top:3px;margin-bottom:12px}

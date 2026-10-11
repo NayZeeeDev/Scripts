@@ -1,5 +1,5 @@
 -- Seatbelt, cruise (speed limiter), indicators and the vehicle control panel.
--- Nothing in here runs on a loop except the control-disable thread while the panel is open.
+-- Nothing in here runs on a loop except the control-disable threads while the panel is open or you're buckled in.
 
 local belt, cruise, interior = false, false, false
 local windows = {}
@@ -19,6 +19,25 @@ local function isDriver(ped, veh)
     return GetPedInVehicleSeat(veh, -1) == ped
 end
 
+-- Buckled in: the exit key does nothing until you unbuckle (one cheap check per frame, only while belted).
+local exitBlock = false
+local function blockExit()
+    if exitBlock or not builtinBelt or Config.Seatbelt.blockExit == false then return end
+    exitBlock = true
+    CreateThread(function()
+        local warned = 0
+        while belt do
+            DisableControlAction(0, 75, true) -- INPUT_VEH_EXIT
+            if IsDisabledControlJustPressed(0, 75) and GetGameTimer() - warned > 2500 then
+                warned = GetGameTimer()
+                NHUD.notify({ message = ('Take your seatbelt off first (%s)'):format(Config.Keys.seatbelt), type = 'warning', duration = 2500 })
+            end
+            Wait(0)
+        end
+        exitBlock = false
+    end)
+end
+
 local function setBelt(state)
     local ped, veh = myVehicle()
     if veh == 0 or not NHUD.hasBelt then state = false end
@@ -26,6 +45,7 @@ local function setBelt(state)
     if builtinBelt and Config.Seatbelt.ejectProtection then
         SetPedConfigFlag(ped, 32, not belt) -- 32 = can fly through windscreen
     end
+    if belt then blockExit() end
     NHUD.set('bl', belt)
     NHUD.flush()
     TriggerEvent('nayzeee-hud:seatbelt', belt)
@@ -113,14 +133,11 @@ local function panelState(ped, veh)
         s.doors[i + 1] = valid and ((GetVehicleDoorAngleRatio(veh, i) > 0.05) and 1 or 0) or -1
         if i < 4 then s.windows[i + 1] = valid and (w[i] and 1 or 0) or -1 end
     end
-    local seats = GetVehicleModelNumberOfSeats(GetEntityModel(veh))
-    for i = -1, 2 do
-        if i + 2 > seats then
-            s.seats[i + 2] = -1
-        else
-            local occ = GetPedInVehicleSeat(veh, i)
-            s.seats[i + 2] = occ == ped and 2 or (occ ~= 0 and 1 or 0)
-        end
+    -- every seat the vehicle has (vans, SUVs and buses go past 4), capped at 12 for the panel
+    local seats = math.max(1, math.min(GetVehicleModelNumberOfSeats(GetEntityModel(veh)), 12))
+    for i = -1, seats - 2 do
+        local occ = GetPedInVehicleSeat(veh, i)
+        s.seats[i + 2] = occ == ped and 2 or (occ ~= 0 and 1 or 0)
     end
     return s
 end

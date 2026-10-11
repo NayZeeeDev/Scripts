@@ -263,7 +263,10 @@
       case 'u': NH.update(m.d); break;
       case 'init':
         NH.applyServerDefaults(m.defaults);
-        if (m.watermark) NH.cfg.watermark = Object.assign(NH.cfg.watermark, m.watermark);
+        if (m.watermark) {
+          NH.cfg.watermark = Object.assign(NH.cfg.watermark, m.watermark);
+          if (m.watermark.showText === false) NH.DEFAULTS.watermark.show = 'logo';
+        }
         if (m.weaponImages !== undefined) NH.cfg.weaponImages = m.weaponImages;
         NH.cfg.crosshair = m.crosshair !== false;
         if (m.keys) NH.cfg.keys = m.keys;

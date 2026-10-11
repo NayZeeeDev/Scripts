@@ -52,8 +52,9 @@
       : `<div class="cmp-rib panel"><b class="cmp-l">NW</b><i></i><span class="cmp-d">312°</span></div>`,
     weapon: (s) => `<div class="wpn w-${s} ${s === 'card' ? 'panel' : ''} pv-wpn"><span class="pv-gun">${ic('crosshair')}</span><b class="wn">Heavy Pistol</b><div class="am">${ic('bullets')}<b class="clip">30</b><i></i><span class="res">36</span></div></div>`,
     watermark: (style, effect) => {
-      const w = NH.cfg.watermark, e = NH.esc, logo = NH.logoSrc;
-      const text = logo && w.showText === false ? '' : `<div class="wm-t"><b data-text="${e(w.title)}">${e(w.title)}</b>${w.subtitle ? `<small>${e(w.subtitle)}</small>` : ''}</div>`;
+      const w = NH.cfg.watermark, e = NH.esc, show = NH.cur.watermark.show || 'both';
+      const logo = show === 'text' ? null : NH.logoSrc;
+      const text = logo && show === 'logo' ? '' : `<div class="wm-t"><b data-text="${e(w.title)}">${e(w.title)}</b>${w.subtitle ? `<small>${e(w.subtitle)}</small>` : ''}</div>`;
       return `<div class="wm wm-${style} fx-${effect}">${logo ? `<img src="${e(logo)}" alt=""/>` : ''}${text}</div>`;
     },
   };
@@ -161,7 +162,9 @@
     sec('Style', cards('clock.style', Object.keys(NH.CLOCK_STYLES).map(k => ({ v: k, l: NH.CLOCK_STYLES[k].label, pv: 'clock:' + k })), 'c3'));
 
   R.watermark = () =>
-    sec('Display', toggle('watermark.enabled', 'Show watermark', 'Text is set in config.lua; the logo is the image in nayzeee-hud/html/logo/') + scaleRange('watermark')) +
+    sec('Display', toggle('watermark.enabled', 'Show watermark', 'Text is set in config.lua; the logo is the image in nayzeee-hud/html/logo/') +
+      seg('watermark.show', [['both', 'Logo & text'], ['logo', 'Logo only'], ['text', 'Text only']], 'Show', NH.logoSrc ? '' : 'No logo found yet: drop logo.png into html/logo/') +
+      scaleRange('watermark')) +
     sec('Logo', cards('watermark.style', ['stack', 'badge', 'minimal'].map(s => ({ v: s, l: s[0].toUpperCase() + s.slice(1), html: PV.watermark(s, 'none') })), 'c3')) +
     sec('Effect', cards('watermark.effect', ['none', 'pulse', 'gloss', 'float'].map(e => ({ v: e, l: e[0].toUpperCase() + e.slice(1), html: PV.watermark(NH.cur.watermark.style, e) })), 'c4'));
 

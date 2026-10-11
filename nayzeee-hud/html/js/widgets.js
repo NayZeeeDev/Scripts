@@ -490,11 +490,13 @@
           this.logo = src; NH.logoSrc = src; this.key = null; this.apply(); NH.place?.();
         });
       }
-      const key = [c.style, c.effect, w.title, w.subtitle, this.logo, w.showText].join('|');
+      const show = c.show || 'both';
+      const key = [c.style, c.effect, w.title, w.subtitle, this.logo, show].join('|');
       if (key === this.key) return;
       this.key = key;
-      const logo = this.logo ? `<img src="${esc(this.logo)}" alt=""/>` : '';
-      const text = this.logo && w.showText === false ? ''
+      // 'logo' hides the words (when there is a logo), 'text' hides the logo
+      const logo = this.logo && show !== 'text' ? `<img src="${esc(this.logo)}" alt=""/>` : '';
+      const text = this.logo && show === 'logo' ? ''
         : `<div class="wm-t"><b data-text="${esc(w.title)}">${esc(w.title)}</b>${w.subtitle ? `<small>${esc(w.subtitle)}</small>` : ''}</div>`;
       this.el.innerHTML = `<div class="wm wm-${c.style} fx-${c.effect}">${logo}${text}</div><span class="deco"></span>`;
     },

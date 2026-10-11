@@ -33,7 +33,7 @@
     },
     weapon: { enabled: true, style: 'card', image: true },
     clock: { enabled: true, style: 'pill', day: true, h24: false, source: 'game', weather: true },
-    watermark: { enabled: true, style: 'stack', effect: 'gloss' },
+    watermark: { enabled: true, style: 'stack', effect: 'gloss', show: 'both' },
     voice: { enabled: true, style: 'pill', when: 'always', label: true },
     crosshair: { enabled: true, style: 'crossdot', color: '#ffffff', size: 7, thick: 2, gap: 4, outline: true, opacity: 100, always: false },
     ui: { notify: 'card', notifyPos: 'right', notifySound: true, progress: 'bar', text: 'key', textPos: 'left' },

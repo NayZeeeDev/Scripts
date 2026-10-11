@@ -58,7 +58,7 @@ Config.Watermark = {
     --   'https://...' an image link still works too
     --   ''            no logo, text only
     logo = 'auto',
-    showText = true, -- false: only the logo (when one is found)
+    showText = true, -- false: logo only by default (players can still pick Logo & text / Logo only / Text only in /hud)
 }
 
 Config.Minimap = {
@@ -81,6 +81,7 @@ Config.Seatbelt = {
     -- 'auto': built-in unless qb-smallresources is running.
     enabled = 'auto',
     ejectProtection = true,  -- buckled players can't fly through the windscreen
+    blockExit = true,        -- buckled players can't get out until they unbuckle
 }
 
 Config.Cruise = { enabled = true }

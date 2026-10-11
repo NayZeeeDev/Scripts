@@ -36,8 +36,10 @@ body.paused #ui { opacity: 0; }
 @keyframes nt-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 /* glass */
-.ns-glass .nt { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.14); border-radius: 16px;
-  backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); }
+.ns-glass .nt { border-radius: 16px; border-color: rgba(255,255,255,.16);
+  /* no backdrop-filter: FiveM's NUI draws it as a solid black box over the game */
+  background: linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,.05) 45%, rgba(255,255,255,.08)), rgba(16,19,21,.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 10px 26px rgba(0,0,0,.25); }
 .ns-glass .nt::before { display: none; }
 .ns-glass .nt-i { border-radius: 50%; }
 .ns-glass .nt-bar { left: 14px; right: 14px; width: auto; bottom: 5px; border-radius: 2px; }
