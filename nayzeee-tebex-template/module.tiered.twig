@@ -149,7 +149,7 @@
   <section class="sub-hero">
     {% if (config('hero-ghost-toggle') ?: 'Show') != 'Hide' %}<span class="ghost hero-ghost" aria-hidden="true"></span>{% endif %}
     <div class="kick">{{ config('tier-eyebrow') ?: 'Subscription' }}</div>
-    <h1>{{ config('tier-title') ?: 'All scripts. <em>One subscription.</em>'|raw }}</h1>
+    <h1>{{ (config('tier-title') ?: 'All scripts. <em>One subscription.</em>')|raw }}</h1>
     <p>{% if category.description %}{{ category.description|replace({'<p>': ' ', '</p>': ' ', '<li>': ' ', '</li>': ' · ', '<ul>': '', '</ul>': ' ', '<ol>': '', '</ol>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' ', '<strong>': '', '</strong>': '', '<b>': '', '</b>': '', '<em>': '', '</em>': '', '<i>': '', '</i>': '', '<u>': '', '</u>': '', '<h1>': ' ', '</h1>': ' ', '<h2>': ' ', '</h2>': ' ', '<h3>': ' ', '</h3>': ' ', '<h4>': ' ', '</h4>': ' ', '<div>': ' ', '</div>': ' ', '<span>': '', '</span>': '', '</a>': '', '&nbsp;': ' ', '&amp;': '&'}) }}{% else %}{{ config('tier-sub') ?: 'Every script on the store, every future release, and priority support for as long as you subscribe.' }}{% endif %}</p>
     <div class="perks">
       {% for i in [1, 2, 3, 4] %}{% set perk = config('tier-perk-' ~ i) ?: (i == 1 ? '{n} premium scripts' : (i == 2 ? 'All future releases' : (i == 3 ? 'Priority support' : 'Regular updates'))) %}

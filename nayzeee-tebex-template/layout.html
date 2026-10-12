@@ -103,9 +103,10 @@ input,select,textarea{font:inherit;color:inherit}
 .lnk.on .ic{color:var(--teal);opacity:1}
 .lnk.on::before{content:'';position:absolute;left:8px;right:8px;bottom:-15px;height:2px;background:var(--teal);border-radius:2px 2px 0 0;box-shadow:0 0 9px var(--teal)}
 .dd{position:relative}
+.dd::after{content:'';position:absolute;left:0;right:0;top:100%;height:14px}
 .dd-m{position:absolute;top:calc(100% + 10px);left:0;min-width:236px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-2);opacity:0;visibility:hidden;transform:translateY(-4px);transition:all var(--fast);z-index:5}
 .dd-m.r{left:auto;right:0}
-.dd:hover .dd-m,.dd:focus-within .dd-m{opacity:1;visibility:visible;transform:none}
+.dd:hover .dd-m,.dd:focus-within .dd-m,.dd.open .dd-m{opacity:1;visibility:visible;transform:none}
 .dd-i{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-sm);font-size:12.5px;font-weight:300;color:var(--ink-2);width:100%;text-align:left;white-space:nowrap}
 .dd-i:hover{background:var(--raise);color:var(--white)}
 .dd-i .ti{width:28px;height:28px;border-radius:var(--r-xs);display:grid;place-items:center;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);flex:none}
@@ -485,8 +486,8 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
     {% set storeUrl = '' %}{% set tierUrl = '' %}{% set scriptCount = 0 %}{% set scriptTotal = 0 %}{% set curTier = false %}{% set bundleUrl = '' %}{% set curBundle = false %}
     {% set bCat = (config('bundle-category-id') ?: '')|replace({' ': ''}) %}
     {% set tierExc = (config('tier-exclude-cats') ?: '')|replace({' ': ''})|split(',') %}
-    {% for cat in store.categories %}{% set cn = cat.name|lower %}{% set isT = (tierCat and (cat.id ~ '') == tierCat) or (not tierCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn)) %}{% set isB = not isT and ((bCat and (cat.id ~ '') == bCat) or (not bCat and 'bundle' in cn)) %}{% if isT %}{% if not tierUrl %}{% set tierUrl = '/category/' ~ cat.id %}{% endif %}{% if category is defined and category and category.id == cat.id %}{% set curTier = true %}{% endif %}{% elseif isB %}{% if not bundleUrl %}{% set bundleUrl = '/category/' ~ cat.id %}{% endif %}{% if category is defined and category and category.id == cat.id %}{% set curBundle = true %}{% endif %}{% else %}{% if not storeUrl %}{% set storeUrl = '/category/' ~ cat.id %}{% endif %}{% if (cat.id ~ '') not in tierExc %}{% set scriptCount = scriptCount + cat.packages|length %}{% for p in cat.packages %}{% set scriptTotal = scriptTotal + (p.discount.applied ? p.discount.original : p.price) %}{% endfor %}{% endif %}{% endif %}{% endfor %}
-    {% if category is defined and category and not curTier %}{% set ccn = category.name|lower %}{% if (tierCat and (category.id ~ '') == tierCat) or (not tierCat and ('subscri' in ccn or 'membership' in ccn or 'all access' in ccn)) %}{% set curTier = true %}{% endif %}{% endif %}
+    {% for cat in store.categories %}{% set cn = cat.name|lower %}{% set isT = (tierCat and (cat.id ~ '') == tierCat) or (not tierCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn)) %}{% set isB = not isT and ((bCat and (cat.id ~ '') == bCat) or (not bCat and 'bundle' in cn)) %}{% if isT %}{% if not tierUrl %}{% set tierUrl = '/category/' ~ cat.id %}{% endif %}{% if category is defined and category and category.id == cat.id %}{% set curTier = true %}{% endif %}{% elseif isB %}{% if not bundleUrl %}{% set bundleUrl = '/category/' ~ cat.id %}{% endif %}{% if category is defined and category and (category.id == cat.id or category.name == cat.name) %}{% set curBundle = true %}{% endif %}{% else %}{% if not storeUrl %}{% set storeUrl = '/category/' ~ cat.id %}{% endif %}{% if (cat.id ~ '') not in tierExc %}{% set scriptCount = scriptCount + cat.packages|length %}{% for p in cat.packages %}{% set scriptTotal = scriptTotal + (p.discount.applied ? p.discount.original : p.price) %}{% endfor %}{% endif %}{% endif %}{% endfor %}
+    {% if category is defined and category and not curTier %}{% set ccn = category.name|lower %}{% if (tierCat and (category.id ~ '') == tierCat) or (not tierCat and ('subscri' in ccn or 'membership' in ccn or 'all access' in ccn)) %}{% set curTier = true %}{% elseif (bCat and (category.id ~ '') == bCat) or (not bCat and 'bundle' in ccn) %}{% set curBundle = true %}{% endif %}{% endif %}
     {% set l1 = config('nav-link-1-url') ?: '' %}{% if l1 and l1|slice(0, 4) != 'http' and l1|slice(0, 1) != '/' and l1|slice(0, 1) != '#' %}{% set l1 = '/' ~ l1 %}{% endif %}
     {% set l2 = config('nav-link-2-url') ?: '' %}{% if l2 and l2|slice(0, 4) != 'http' and l2|slice(0, 1) != '/' and l2|slice(0, 1) != '#' %}{% set l2 = '/' ~ l2 %}{% endif %}
     {% set navStore = config('nav-store-url') ?: (storeUrl ?: '/') %}
@@ -521,7 +522,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       </select>
       {% endif %}
       <button class="ibtn" id="openSearch" aria-label="Search"><svg class="ic"><use href="#i-search"/></svg></button>
-      {% if (config('wl-toggle') ?: 'Enabled') != 'Disabled' %}<button class="ibtn" id="openWish" aria-label="Wishlist"><svg class="ic"><use href="#i-heart"/></svg><span class="n hide" id="wishN">0</span></button>{% endif %}
+      
       <button class="ibtn" id="openCart" aria-label="Cart"><svg class="ic"><use href="#i-cart"/></svg><span class="n{% if cartCount == 0 %} hide{% endif %}" id="cartN">{{ cartCount }}</span></button>
       {% if loggedIn %}
       <div class="dd">
@@ -801,6 +802,20 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
     if (btn) btn.classList.add('busy');
     fetch('/checkout/packages/remove/' + id, { credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { reconcile(function () { toast(T.removed); }); });
   }
+  window.nzAddMany = function (ids, done) {
+    if (!LOGGED) { toast(T.login, T.loginSub, true); setTimeout(function () { location.href = '/login'; }, 500); return; }
+    var frame = $('#optFrame'), modal = $('#optW'), i = 0;
+    function next() {
+      if (i >= ids.length) { frame.onload = null; modal.classList.remove('on'); lock(false); setTimeout(function () { frame.src = 'about:blank'; }, 250); reconcile(function () { if (done) done(); }); return; }
+      frame.src = '/checkout/packages/add/' + ids[i++];
+    }
+    frame.onload = function () {
+      var loc = ''; try { loc = frame.contentWindow.location.href; } catch (e) { loc = ''; }
+      if (loc && loc.indexOf('/checkout/packages/add') !== -1) { modal.classList.add('on'); lock(true); return; }
+      modal.classList.remove('on'); lock(false); next();
+    };
+    next();
+  };
   window.nzAdd = addToCart; window.nzRemove = removeFromCart;
   window.nzBuyNow = function (id) {
     if (!LOGGED) { try { sessionStorage.setItem('nz_intent', id); sessionStorage.setItem('nz_intent_buy', '1'); } catch (e) {} location.href = '/login'; return; }
@@ -898,7 +913,6 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       if (badges) {
         if (isBest) badges.insertAdjacentHTML('afterbegin', '<span class="bs">' + ico('flame') + BEST_T + '</span>');
         if (isNew) badges.insertAdjacentHTML(isBest ? 'beforeend' : 'afterbegin', '<span class="nt">' + ico('sparkle') + NEW_T + '</span>');
-        m.tags.filter(function (t) { return !/best|^new$/i.test(t); }).slice(0, 2).forEach(function (t) { badges.insertAdjacentHTML('beforeend', '<span class="chip grey">' + esc(t) + '</span>'); });
       }
       if (top && m.version) top.insertAdjacentHTML('beforeend', '<span class="vtag">v' + esc(m.version) + '</span>');
       if (meta) {
@@ -919,6 +933,8 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
     if (t.closest('#openCart')) { openDrawer(); }
     if (t.closest('#openSearch')) { openModal('srchW'); doSearch(); }
     if (t.closest('#openWish') || t.closest('#openWish2')) { if (window.nzWishOpen) window.nzWishOpen(); }
+    var ddBtn = t.closest('.dd > .user, .dd > .lnk'); if (ddBtn && ddBtn.tagName === 'BUTTON') { var dd = ddBtn.parentNode; dd.classList.toggle('open'); }
+    else if (!t.closest('.dd')) $$('.dd.open').forEach(function (d) { d.classList.remove('open'); });
     if (t.closest('#burger')) { $('#mnav').classList.add('on'); $('#scrim').classList.add('on'); lock(true); }
     var add = t.closest('[data-add]'); if (add && !add.classList.contains('busy')) { e.preventDefault(); e.stopPropagation(); addToCart(add.getAttribute('data-add'), add); return; }
     var rm = t.closest('[data-remove]'); if (rm && !rm.classList.contains('busy')) { e.preventDefault(); e.stopPropagation(); removeFromCart(rm.getAttribute('data-remove'), rm); return; }

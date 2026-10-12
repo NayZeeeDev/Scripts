@@ -137,7 +137,8 @@
       <p class="lead">{{ config('hero-subtitle') ?: 'HUDs, MDTs, inventory, garages and more, all built in one design language and tested on ESX, QBCore and Qbox. Escrowed or open source, delivered to your Keymaster the second you pay.' }}</p>
       <div class="hero-cta">
         <a class="btn-teal btn-lg" href="{{ config('hero-cta-url') ?: catFirst }}"><svg class="ic"><use href="#i-bag"/></svg>{{ config('hero-cta-text') ?: 'Browse scripts' }}</a>
-        {% if config('hero-cta2-text') %}<a class="btn-line btn-lg" href="{{ config('hero-cta2-url') ?: catFirst }}"><svg class="ic"><use href="#i-box"/></svg>{{ config('hero-cta2-text') }}</a>{% endif %}
+        {% set cta2 = config('hero-cta2-text') ?: (bundleUrl is defined and bundleUrl ? 'See bundles' : '') %}
+        {% if cta2|replace({' ': ''}) %}<a class="btn-line btn-lg" href="{{ config('hero-cta2-url') ?: (bundleUrl is defined and bundleUrl ? bundleUrl : catFirst) }}"><svg class="ic"><use href="#i-box"/></svg>{{ cta2 }}</a>{% endif %}
       </div>
       {% if (config('hero-proof-toggle') ?: 'Show') != 'Hide' %}
       <div class="hero-proof">
@@ -198,7 +199,7 @@
 {% else %}
 <div id="modSlot" hidden>{{ modules|raw }}</div>
 {% endif %}
-<script>(function(){function go(){var s=document.getElementById('modSlot');if(!s)return;Array.prototype.forEach.call(s.querySelectorAll('.nz-mod-payments,.gcb'),function(m){var slot=document.getElementById(m.classList.contains('gcb')?'gcbSlot':'paySlot');if(slot)slot.appendChild(m);else m.remove();});Array.prototype.forEach.call(Array.prototype.slice.call(s.children),function(c){if(!c.classList||!c.classList.contains('pk'))c.remove();});if(!s.querySelector('.pk')&&s.closest('section'))s.closest('section').remove();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();})();</script>
+<script>(function(){function go(){var s=document.getElementById('modSlot');if(!s)return;Array.prototype.forEach.call(s.querySelectorAll('.nz-mod-payments,.gcb'),function(m){var slot=document.getElementById(m.classList.contains('gcb')?'gcbSlot':'paySlot');if(slot)slot.appendChild(m);else m.remove();});Array.prototype.forEach.call(Array.prototype.slice.call(s.children),function(c){if(/^(STYLE|SCRIPT)$/.test(c.tagName))return;if(!c.classList||!c.classList.contains('pk'))c.remove();});if(!s.querySelector('.pk')&&s.closest('section'))s.closest('section').remove();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();})();</script>
 
 {% if (config('cats-section') ?: 'Hide') == 'Show' %}
 <section class="section wrap">
@@ -215,7 +216,7 @@
 
 {% if (config('whyus-toggle') ?: 'Show') != 'Hide' %}
 <section class="section wrap">
-  <div class="sec-c"><h2>{{ config('whyus-heading') ?: 'Why <em>choose us</em>'|raw }}</h2><p>{{ config('whyus-tagline') ?: 'Optimised, reliable scripts that drop into your server and keep performing.' }}</p></div>
+  <div class="sec-c"><h2>{{ (config('whyus-heading') ?: 'Why <em>choose us</em>')|raw }}</h2><p>{{ config('whyus-tagline') ?: 'Optimised, reliable scripts that drop into your server and keep performing.' }}</p></div>
   <div class="why">
     {% set wIc = ['discord', 'layers', 'bolt', 'shield'] %}
     {% set wTi = ['Support & community', 'Quality & performance', 'Easy to use', 'Tebex security'] %}
@@ -261,7 +262,7 @@
 {% endif %}
 
 <section class="section wrap" id="paySection">
-  <div class="sec-c"><h2>{{ config('pay-heading') ?: 'Recent <em>payments</em>'|raw }}</h2><p>{{ config('pay-tagline') ?: 'Trusted by server owners worldwide. Checkout is handled securely by <b>Tebex</b>.'|raw }}</p></div>
+  <div class="sec-c"><h2>{{ (config('pay-heading') ?: 'Recent <em>payments</em>')|raw }}</h2><p>{{ (config('pay-tagline') ?: 'Trusted by server owners worldwide. Checkout is handled securely by <b>Tebex</b>.')|raw }}</p></div>
   <div id="paySlot"></div>
   {% if (config('pay-methods-row') ?: 'Hide') == 'Show' %}<div class="pay-row">{% for n in (config('pay-methods') ?: 'Visa,Mastercard,PayPal,Apple Pay,Google Pay,Paysafecard,iDEAL,Klarna')|split(',') %}{% if n|replace({' ': ''}) %}<span class="pay"><i>{{ n|slice(0, 2)|upper }}</i>{{ n }}</span>{% endif %}{% endfor %}</div>{% endif %}
 </section>

@@ -20,7 +20,7 @@
   <section class="bp-hero">
     {% if (config('hero-ghost-toggle') ?: 'Show') != 'Hide' %}<span class="ghost hero-ghost" aria-hidden="true"></span>{% endif %}
     <div class="kick">{{ config('bundlepage-eyebrow') ?: 'Bundle & save' }}</div>
-    <h1>{{ config('bundlepage-title') ?: 'Build your own <em>bundle.</em>'|raw }}</h1>
+    <h1>{{ (config('bundlepage-title') ?: 'Build your own <em>bundle.</em>')|raw }}</h1>
     <p>{% if category.description %}{{ category.description|replace({'<p>': ' ', '</p>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' ', '&nbsp;': ' '}) }}{% else %}{{ config('bundlepage-sub') ?: 'Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.' }}{% endif %}</p>
   </section>
 </div>

@@ -11,15 +11,15 @@
 {% set tsCount = tsPick ? tsN : (tsAll < tsMax ? tsAll : tsMax) %}
 <style>
   .ts-wrap{position:relative;overflow:hidden;padding:6px 0 12px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
-  .ts-track{display:flex;gap:14px;width:max-content;animation:tsm {{ config('topsell-speed') ?: '45' }}s linear infinite}
+  .ts-track{display:flex;gap:0;width:max-content;animation:tsm {{ config('topsell-speed') ?: '45' }}s linear infinite}
   .ts-wrap:hover .ts-track{animation-play-state:paused}
-  .ts-track .pk{width:290px;flex:none;animation:none;opacity:1;transform:none}
+  .ts-track .pk{width:290px;margin-right:14px;flex:none;animation:none;opacity:1;transform:none}
   @keyframes tsm{from{transform:translateX(0)}to{transform:translateX(-50%)}}
   @media (max-width:600px){.ts-track .pk{width:240px}}
   @media (prefers-reduced-motion:reduce){.ts-track{animation:none}}
 </style>
 <section class="section wrap" id="topsellers">
-  <div class="sec-c"><h2>{{ config('topsell-title') ?: 'Top-selling <em>products</em>'|raw }}</h2>{% if (config('topsell-sub') ?: ' ')|replace({' ': ''}) %}<p>{{ config('topsell-sub') }}</p>{% endif %}</div>
+  <div class="sec-c"><h2>{{ (config('topsell-title') ?: 'Top-selling <em>products</em>')|raw }}</h2>{% if (config('topsell-sub') ?: ' ')|replace({' ': ''}) %}<p>{{ config('topsell-sub') }}</p>{% endif %}</div>
   <div class="ts-wrap"><div class="ts-track" id="tsTrack" data-ids="{{ (config('bestseller-ids') ?: '')|replace({' ': ''}) }}" data-max="{{ tsMax }}">
     {% for pass in (tsCount < 5 ? [1, 2, 3, 4] : [1, 2]) %}{% set tsI = 0 %}
     {% for cat in store.categories %}{% set cn = cat.name|lower %}{% if not ((tsCat and (cat.id ~ '') == tsCat) or (not tsCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn))) %}{% for p in cat.packages %}
