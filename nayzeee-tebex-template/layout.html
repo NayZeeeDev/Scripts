@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>window.nzS = function (s) { var t = document.createElement('textarea'); t.innerHTML = s == null ? '' : String(s); return t.value; };</script>
   {{ header|raw }}
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -663,20 +664,20 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var LOGGED = {% if loggedIn %}true{% else %}false{% endif %};
-  var CSYM = "{{ csym|e('js') }}";
+  var CSYM = nzS("{{ csym|replace({'\\': '/', "\n": ' ', "\r": ''}) }}");
   var T = {
-    added: "{{ (config('toast-added') ?: 'Added to cart')|e('js') }}",
-    removed: "{{ (config('toast-removed') ?: 'Removed from cart')|e('js') }}",
-    copied: "{{ (config('toast-copied') ?: 'Copied')|e('js') }}",
-    login: "{{ (config('toast-login') ?: 'Sign in first')|e('js') }}",
-    loginSub: "{{ (config('toast-login-sub') ?: 'We need your account so the asset lands in your Keymaster.')|e('js') }}",
-    wishOn: "{{ (config('toast-wish-on') ?: 'Saved to wishlist')|e('js') }}",
-    wishOff: "{{ (config('toast-wish-off') ?: 'Removed from wishlist')|e('js') }}",
-    noResults: "{{ (config('search-none') ?: 'No results')|e('js') }}",
-    noResultsSub: "{{ (config('search-none-sub') ?: 'Try a script or category name.')|e('js') }}"
+    added: nzS("{{ (config('toast-added') ?: 'Added to cart')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    removed: nzS("{{ (config('toast-removed') ?: 'Removed from cart')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    copied: nzS("{{ (config('toast-copied') ?: 'Copied')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    login: nzS("{{ (config('toast-login') ?: 'Sign in first')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    loginSub: nzS("{{ (config('toast-login-sub') ?: 'We need your account so the asset lands in your Keymaster.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    wishOn: nzS("{{ (config('toast-wish-on') ?: 'Saved to wishlist')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    wishOff: nzS("{{ (config('toast-wish-off') ?: 'Removed from wishlist')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    noResults: nzS("{{ (config('search-none') ?: 'No results')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    noResultsSub: nzS("{{ (config('search-none-sub') ?: 'Try a script or category name.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}")
   };
   window.NZ_INDEX = [
-    {% for cat in store.categories %}{% for pkg in cat.packages %}{ id: {{ pkg.id }}, n: "{{ pkg.name|e('js') }}", c: "{{ cat.name|e('js') }}", p: {{ pkg.price|number_format(2) }}, i: "{{ (pkg.image.url ?: '')|e('js') }}" },{% endfor %}{% endfor %}
+    {% for cat in store.categories %}{% for pkg in cat.packages %}{ id: {{ pkg.id }}, n: nzS("{{ pkg.name|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), c: nzS("{{ cat.name|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), p: {{ pkg.price|number_format(2) }}, i: nzS("{{ (pkg.image.url ?: '')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") },{% endfor %}{% endfor %}
   ];
 
   function ico(n) { return '<svg class="ic"><use href="#i-' + n + '"/></svg>'; }
@@ -774,7 +775,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       if (window.Tebex && Tebex.checkout) {
         Tebex.checkout.init({ ident: "{{ basket.ident }}", theme: "dark", colors: [{ name: "primary", color: "{{ config('accent-colour') ?: '#08afa2' }}" }, { name: "secondary", color: "#0e1011" }] });
         try { Tebex.checkout.on('payment:complete', function () { setTimeout(function () { location.href = '/?paid=1'; }, 800); }); } catch (e) {}
-        try { Tebex.checkout.on('payment:error', function () { if (window.nzToast) window.nzToast("{{ (config('toast-payment-error') ?: 'Payment failed. Nothing was charged, try again or pick another method.')|e('js') }}", 'err'); }); } catch (e) {}
+        try { Tebex.checkout.on('payment:error', function () { if (window.nzToast) window.nzToast(nzS("{{ (config('toast-payment-error') ?: 'Payment failed. Nothing was charged, try again or pick another method.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), 'err'); }); } catch (e) {}
       }
     } catch (e) {}
     {% endif %}
@@ -829,9 +830,9 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
   }
   function stars(score) { var n = Math.round(parseFloat(score) || 0); return '<span class="st">' + '★★★★★'.slice(0, n) + '<span style="opacity:.25">' + '★★★★★'.slice(n) + '</span></span>'; }
   window.nzMarkers = markers; window.nzFwChip = fwChip; window.nzStars = stars;
-  var BEST = "{{ (config('bestseller-ids') ?: '')|replace({' ': ''})|e('js') }}".split(',').filter(Boolean);
-  var BEST_T = "{{ (config('bestseller-text') ?: 'Best seller')|e('js') }}", NEW_T = "{{ (config('new-text') ?: 'New')|e('js') }}";
-  var NEWS = "{{ (config('new-ids') ?: '')|replace({' ': ''})|e('js') }}".split(',').filter(Boolean);
+  var BEST = nzS("{{ (config('bestseller-ids') ?: '')|replace({' ': ''})|replace({'\\': '/', "\n": ' ', "\r": ''}) }}").split(',').filter(Boolean);
+  var BEST_T = nzS("{{ (config('bestseller-text') ?: 'Best seller')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), NEW_T = nzS("{{ (config('new-text') ?: 'New')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}");
+  var NEWS = nzS("{{ (config('new-ids') ?: '')|replace({' ': ''})|replace({'\\': '/', "\n": ' ', "\r": ''}) }}").split(',').filter(Boolean);
   function enrichCards(root) {
     $$('.pk[data-src]', root).forEach(function (card) {
       var tpl = card.querySelector('template.pk-src'), srcTxt = '', parts = [];
@@ -899,7 +900,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
   });
 
   /* Discord live member count (Server Settings → Widget must be enabled) */
-  var GUILD = "{{ (config('discord-guild-id') ?: '')|replace({' ': ''})|e('js') }}";
+  var GUILD = nzS("{{ (config('discord-guild-id') ?: '')|replace({' ': ''})|replace({'\\': '/', "\n": ' ', "\r": ''}) }}");
   if (GUILD) fetch('https://discord.com/api/guilds/' + GUILD + '/widget.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
     if (!j) return; var n = j.presence_count || 0;
     $$('[data-discord-online]').forEach(function (el) { el.textContent = n.toLocaleString(); });
@@ -908,14 +909,14 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
   /* purchase toasts: recent payments from the Tebex "Recent payments" module, one every ~25s */
   if ({{ ((config('purchase-toasts') ?: 'On') != 'Off') ? 'true' : 'false' }}) {
     var buys = $$('.nz-mod-payments .np').slice(0, 12).map(function (el) { var b = el.querySelector('b'), s = el.querySelector('span:not(.av):not(.pr)'); return { who: (b ? b.childNodes[0].textContent : '').trim(), what: (b ? b.textContent.replace(/^[^·]*?(bought|purchased|kaufte)\s*/i, '') : '').trim(), when: s ? s.textContent.trim() : '' }; }).filter(function (b) { return b.who; });
-    if (buys.length) { var bi = 0; setTimeout(function show() { var b = buys[bi++ % buys.length]; toast(b.who + ' ' + "{{ (config('pay-verb') ?: 'bought')|e('js') }}" + ' ' + b.what, b.when); setTimeout(show, 22000 + Math.random() * 12000); }, 9000); }
+    if (buys.length) { var bi = 0; setTimeout(function show() { var b = buys[bi++ % buys.length]; toast(b.who + ' ' + nzS("{{ (config('pay-verb') ?: 'bought')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") + ' ' + b.what, b.when); setTimeout(show, 22000 + Math.random() * 12000); }, 9000); }
   }
 
   /* boot */
   wlBadge();
   var qs = new URLSearchParams(location.search);
   if (qs.get('cart') === 'open') { history.replaceState(null, '', location.pathname); openDrawer(); }
-  if (qs.get('paid') === '1') { history.replaceState(null, '', location.pathname); toast("{{ (config('toast-paid') ?: 'Payment complete')|e('js') }}", "{{ (config('toast-paid-sub') ?: 'Your assets are being granted to your Keymaster now.')|e('js') }}"); }
+  if (qs.get('paid') === '1') { history.replaceState(null, '', location.pathname); toast(nzS("{{ (config('toast-paid') ?: 'Payment complete')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), nzS("{{ (config('toast-paid-sub') ?: 'Your assets are being granted to your Keymaster now.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}")); }
   try {
     if (LOGGED) {
       var it = sessionStorage.getItem('nz_intent'), gi = sessionStorage.getItem('nz_intent_gift');

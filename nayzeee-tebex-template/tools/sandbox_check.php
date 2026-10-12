@@ -7,7 +7,7 @@ $data = json_decode(file_get_contents('../twigtest/ctx.json'), true); $cfg = $da
 $twig = new \Twig\Environment(new \Twig\Loader\FilesystemLoader($dir), ['strict_variables' => false]);
 $policy = new \Twig\Sandbox\SecurityPolicy(
   ['if', 'for', 'set', 'include', 'extends', 'block'],
-  ['replace', 'lower', 'raw', 'number_format', 'length', 'slice', 'split', 'upper', 'e', 'escape'],
+  ['replace', 'lower', 'raw', 'number_format', 'length', 'slice', 'split', 'upper', 'escape'],
   [], [], ['config', 'url']);
 $twig->addExtension(new \Twig\Extension\SandboxExtension($policy, true));
 $twig->addFunction(new \Twig\TwigFunction('config', fn($k) => $cfg[$k] ?? ''));

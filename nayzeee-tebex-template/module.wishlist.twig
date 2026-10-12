@@ -13,8 +13,8 @@
 <script>
 (function () {
   var list = document.getElementById('wlList'), sub = document.getElementById('wlSub');
-  var EMPTY_T = "{{ (config('wl-empty-title') ?: 'Nothing saved yet')|e('js') }}", EMPTY_S = "{{ (config('wl-empty-text') ?: 'Tap the heart on any script to keep it here.')|e('js') }}";
-  var ADD = "{{ (config('card-add') ?: 'Add to cart')|e('js') }}", ONE = "{{ (config('wl-count-one') ?: 'saved script')|e('js') }}", MANY = "{{ (config('wl-count-many') ?: 'saved scripts')|e('js') }}";
+  var EMPTY_T = nzS("{{ (config('wl-empty-title') ?: 'Nothing saved yet')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), EMPTY_S = nzS("{{ (config('wl-empty-text') ?: 'Tap the heart on any script to keep it here.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}");
+  var ADD = nzS("{{ (config('card-add') ?: 'Add to cart')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), ONE = nzS("{{ (config('wl-count-one') ?: 'saved script')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), MANY = nzS("{{ (config('wl-count-many') ?: 'saved scripts')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}");
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function render() {
     var w = window.nzWish ? window.nzWish() : [];

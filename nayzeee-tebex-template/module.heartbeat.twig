@@ -38,13 +38,13 @@
 <script>
 (function () {
   var C = {
-    url: "{{ (config('heartbeat-url') ?: 'https://heartbeat.re/api/v1/resources/{resource}?period=current')|e('js') }}", home: "{{ (config('heartbeat-home-url') ?: 'https://heartbeat.re/api/v1/resources?q={prefix}&limit=50&period=current')|e('js') }}", prefix: "{{ (config('heartbeat-prefix') ?: 'nayzeee')|e('js') }}",
-    key: "{{ (config('heartbeat-key') ?: '')|e('js') }}", auth: "{{ (config('heartbeat-auth') ?: 'Authorization: Bearer')|e('js') }}",
-    sp: "{{ (config('heartbeat-servers-path') ?: 'data.servers')|e('js') }}", pp: "{{ (config('heartbeat-players-path') ?: 'data.playerReach')|e('js') }}", rp: "{{ (config('heartbeat-rank-path') ?: '')|e('js') }}",
-    refresh: Math.max(60, parseInt("{{ (config('heartbeat-refresh') ?: '300')|e('js') }}", 10) || 300),
-    t: { servers: "{{ (config('heartbeat-servers-text') ?: 'Servers using this script')|e('js') }}", players: "{{ (config('heartbeat-players-text') ?: 'Players enjoying this script')|e('js') }}",
-         hs: "{{ (config('heartbeat-home-servers-text') ?: 'Servers running our scripts')|e('js') }}", hp: "{{ (config('heartbeat-home-players-text') ?: 'Players on them right now')|e('js') }}", hr: "{{ (config('heartbeat-home-scripts-text') ?: 'Scripts tracked')|e('js') }}",
-         via: "{{ (config('heartbeat-via-text') ?: 'Live usage via Heartbeat')|e('js') }}", rank: "{{ (config('heartbeat-rank-text') ?: 'Rank #{n} of all resources')|e('js') }}", upd: "{{ (config('heartbeat-updated-text') ?: 'updated {t}')|e('js') }}" }
+    url: nzS("{{ (config('heartbeat-url') ?: 'https://heartbeat.re/api/v1/resources/{resource}?period=current')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), home: nzS("{{ (config('heartbeat-home-url') ?: 'https://heartbeat.re/api/v1/resources?q={prefix}&limit=50&period=current')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), prefix: nzS("{{ (config('heartbeat-prefix') ?: 'nayzeee')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    key: nzS("{{ (config('heartbeat-key') ?: '')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), auth: nzS("{{ (config('heartbeat-auth') ?: 'Authorization: Bearer')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    sp: nzS("{{ (config('heartbeat-servers-path') ?: 'data.servers')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), pp: nzS("{{ (config('heartbeat-players-path') ?: 'data.playerReach')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), rp: nzS("{{ (config('heartbeat-rank-path') ?: '')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+    refresh: Math.max(60, parseInt(nzS("{{ (config('heartbeat-refresh') ?: '300')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), 10) || 300),
+    t: { servers: nzS("{{ (config('heartbeat-servers-text') ?: 'Servers using this script')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), players: nzS("{{ (config('heartbeat-players-text') ?: 'Players enjoying this script')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+         hs: nzS("{{ (config('heartbeat-home-servers-text') ?: 'Servers running our scripts')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), hp: nzS("{{ (config('heartbeat-home-players-text') ?: 'Players on them right now')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), hr: nzS("{{ (config('heartbeat-home-scripts-text') ?: 'Scripts tracked')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"),
+         via: nzS("{{ (config('heartbeat-via-text') ?: 'Live usage via Heartbeat')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), rank: nzS("{{ (config('heartbeat-rank-text') ?: 'Rank #{n} of all resources')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), upd: nzS("{{ (config('heartbeat-updated-text') ?: 'updated {t}')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") }
   };
   var demo = /[?&]hb=demo/.test(location.search);
   function get(o, p) { if (!p) return null; var v = p.split('.').reduce(function (a, k) { return a == null ? a : a[k]; }, o); return typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' && !isNaN(v) ? parseFloat(v) : null); }

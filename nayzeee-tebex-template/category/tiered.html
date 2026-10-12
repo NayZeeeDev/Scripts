@@ -224,7 +224,7 @@
 <script>
 (function () {
   var sw = document.getElementById('subSw'); if (!sw) return;
-  var B = { m: "{{ billed.m|e('js') }}", q: "{{ billed.q|e('js') }}", y: "{{ billed.y|e('js') }}" };
+  var B = { m: nzS("{{ billed.m|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), q: nzS("{{ billed.q|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), y: nzS("{{ billed.y|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") };
   sw.addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return; var k = b.dataset.p;
     Array.prototype.forEach.call(sw.querySelectorAll('button'), function (x) { x.classList.toggle('on', x === b); });

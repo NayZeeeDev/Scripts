@@ -53,7 +53,7 @@ Tebex's classic Webstore editor has no zip upload: files are pasted one by one. 
 
 ## Tebex's Twig whitelist
 
-Tebex runs templates in a Twig sandbox that only allows a handful of filters: `replace`, `lower`, `raw`, `number_format`, `length`, `slice`, `split`, `upper`, `e`. Anything else ("Filter X not found") breaks the page, and numeric ranges (`1..4`) are out too because they compile to the `range()` function. `tools/sandbox_check.php` renders every page with that exact policy enforced; run it after any template edit.
+Tebex runs templates in a Twig sandbox that only allows a handful of filters: `replace`, `lower`, `raw`, `number_format`, `length`, `slice`, `split`, `upper`. Not even `e`. Anything else ("Filter X not found") breaks the page, and numeric ranges (`1..4`) are out too because they compile to the `range()` function. `tools/sandbox_check.php` renders every page with that exact policy enforced; run it after any template edit.
 
 ## Package description markers
 

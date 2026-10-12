@@ -31,8 +31,8 @@
 <script>
 (function () {
   var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
-  var HOOK = "{{ config('review-webhook')|e('js') }}", STORE = "{{ store.name|e('js') }}";
-  var T = { thanks: "{{ (config('review-thanks') ?: 'Thanks! Your review is on its way to the team.')|e('js') }}", fail: "{{ (config('review-fail') ?: 'Could not send right now. Try again in a minute or ping us on Discord.')|e('js') }}", wait: "{{ (config('review-wait') ?: 'You already sent a review a moment ago.')|e('js') }}" };
+  var HOOK = nzS("{{ config('review-webhook')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), STORE = nzS("{{ store.name|replace({'\\': '/', "\n": ' ', "\r": ''}) }}");
+  var T = { thanks: nzS("{{ (config('review-thanks') ?: 'Thanks! Your review is on its way to the team.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), fail: nzS("{{ (config('review-fail') ?: 'Could not send right now. Try again in a minute or ping us on Discord.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), wait: nzS("{{ (config('review-wait') ?: 'You already sent a review a moment ago.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") };
   $$('#rvStars button').forEach(function (b) { b.addEventListener('click', function () { var v = +b.dataset.v; $('#reviewForm [name=rating]').value = v; $$('#rvStars button').forEach(function (x) { x.classList.toggle('on', +x.dataset.v <= v); }); }); });
   document.addEventListener('click', function (e) { if (e.target.closest('[data-review]')) { var sel = $('#rvPkg'), want = e.target.closest('[data-review]').getAttribute('data-review'); if (sel && want) { Array.prototype.forEach.call(sel.options, function (o) { if (o.value === want) sel.value = want; }); } if (window.nzOpenModal) window.nzOpenModal('reviewW'); } });
   $('#reviewForm').addEventListener('submit', function (e) {
