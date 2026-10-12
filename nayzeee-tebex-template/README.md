@@ -43,7 +43,7 @@ Tebex's classic Webstore editor has no zip upload: files are pasted one by one. 
 - **Accent colours** (01): `accent-colour`, `accent-hi-colour`, `accent-lo-colour` and `accent-rgb`. Keep all four in sync when you change the accent.
 - **Hero** (03): `hero-ghost-toggle` hides the floating ghost. `release-package-id` shows a full-thumbnail "Latest release" card. `hero-video` shows a YouTube showcase instead. `hero-bg` replaces the built-in banner behind the hero, `hero-bg-opacity` tunes it.
 - **Sale countdown** (03): `sale-toggle` Show, then `sale-end`, `sale-code`, `sale-text`. Optional `sale-start` counts down to the start first.
-- **Bundle builder** (04): set `bundle-tier-1-count` / `-pct` / `-code` (and tiers 2, 3). Create each code as a Tebex coupon with a minimum package count. Exclude your subscription and bundle categories with `bundle-exclude-cats`. Scripts show with their full-width thumbnails.
+- **Bundle builder** (06 · Bundles): tiers are by basket value, the one rule a Tebex coupon can enforce. Set `bundle-tier-1-min` / `-pct` / `-code` (and tiers 2, 3), then create each code as a Tebex coupon with the same number as its **Minimum basket value**. The code is visible in the page like any coupon, but it cannot be used below that subtotal. Exclude categories with `bundle-exclude-cats`.
 - **Reviews** (04): paste a Discord webhook into `review-webhook`. Visitors get a Write a review button on the homepage and every package page. Reviews land in your channel; publish the good ones by pasting them into `review-1..3-*`.
 - **Top sellers + recent payments** (04): `bestseller-ids` feeds the top-selling marquee. Add Tebex's Recent Payments module in Webstore → Sidebar to fill the Recent payments marquee (it also drives the purchase toasts).
 - **Updates feed, trusted-by, Discord live count** (04 / 02): `update-1..6-*`, `trusted-logos` or `trusted-names`, `discord-guild-id` (enable the widget in Discord).
@@ -69,7 +69,7 @@ Hero → Top-selling products (marquee) → Heartbeat totals → holiday event �
 
 ## Bundles page
 
-Create a category called Bundles (it can stay empty) or set `bundle-category-id`. Its page shows the bundle builder with a hero and three steps, and a Bundles link appears in the navbar. Discount tiers: `bundle-tier-1-count` / `-pct` / `-code` (+ tiers 2 and 3) with matching coupons in Tebex. Without tiers the builder still adds the picked scripts to the cart in one go.
+Create a category called Bundles (it can stay empty) or set `bundle-category-id`. Its page shows the bundle builder with a hero and three steps, and a Bundles link appears in the navbar. Discount tiers by basket value: `bundle-tier-1-min` / `-pct` / `-code` (+ tiers 2 and 3), each matched by a Tebex coupon whose Minimum basket value equals the tier minimum. Without tiers the builder still adds the picked scripts to the cart in one go.
 
 ## Package description markers
 

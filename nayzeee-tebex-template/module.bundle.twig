@@ -1,9 +1,10 @@
 {# ─── NAYZEEE · module.bundle.twig · "Build your bundle"
    Pick scripts, see the discount tier unlock, add them all to the cart with the coupon applied.
-   Settings: bundle-toggle, bundle-title, bundle-sub, bundle-tier-1..3-count / -pct / -code,
+   Tiers are by basket value, because that is the only rule a Tebex coupon can enforce (Minimum basket value):
+   Settings: bundle-title, bundle-sub, bundle-tier-1..3-min / -pct / -code,
              bundle-exclude-cats (category IDs to leave out, e.g. subscriptions), bundle-max (default 10).
    The codes are coupons you create in Tebex (e.g. "15% off, minimum 3 packages"). ─── #}
-{% if bundle_page is defined or config('bundle-tier-1-count') %}
+{% if bundle_page is defined or config('bundle-tier-1-min') %}
 {% set bx = (config('bundle-exclude-cats') ?: '')|replace({' ': ''})|split(',') %}
 <style>
   .bb{display:grid;grid-template-columns:1.25fr .75fr;gap:0;overflow:hidden}
@@ -71,10 +72,10 @@
       </div>
     </div>
     <div class="bb-r">
-      {% if config('bundle-tier-1-count') %}
+      {% if config('bundle-tier-1-min') %}
       <div class="bb-tiers" id="bbTiers">
-        {% for i in [1, 2, 3] %}{% if config('bundle-tier-' ~ i ~ '-count') %}
-        <div class="bt" data-count="{{ config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) }}" data-pct="{{ config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) }}" data-code="{{ config('bundle-tier-' ~ i ~ '-code')|replace({' ': ''}) }}"><i>{{ config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) }}</i>{{ config('bundle-tier-label')|replace({'{n}': config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''})}) ?: (config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) ~ ' ' ~ (config('bundle-scripts-word') ?: 'scripts')) }}<b>-{{ config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) }}%</b></div>
+        {% for i in [1, 2, 3] %}{% if config('bundle-tier-' ~ i ~ '-min') %}{% set tmin = config('bundle-tier-' ~ i ~ '-min')|replace({' ': '', '$': '', '€': '', '£': '', ',': ''}) %}{% set tpct = config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) %}
+        <div class="bt" data-min="{{ tmin }}" data-pct="{{ tpct }}" data-code="{{ config('bundle-tier-' ~ i ~ '-code')|replace({' ': ''}) }}"><i>{{ i }}</i>{{ (config('bundle-tier-label') ?: 'Spend {amt} or more')|replace({'{amt}': csym ~ tmin}) }}<b>-{{ tpct }}%</b></div>
         {% endif %}{% endfor %}
       </div>
       <div class="bb-bar"><i id="bbBar"></i></div>
@@ -95,8 +96,8 @@
 (function () {
   var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var CS = nzS("{{ csym|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), MAX = parseInt(nzS("{{ (config('bundle-max') ?: '10')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), 10) || 10, LOGGED = {{ loggedIn ? 'true' : 'false' }};
-  var T = { next: nzS("{{ (config('bundle-next') ?: 'Add {n} more for {pct}% off')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), top: nzS("{{ (config('bundle-top') ?: 'Top discount unlocked: {pct}% off')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), max: nzS("{{ (config('bundle-max-text') ?: 'Bundle is full')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), adding: nzS("{{ (config('bundle-adding') ?: 'Adding {i} / {n}…')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), none: nzS("{{ (config('bundle-none') ?: 'Pick at least one script')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") };
-  var tiers = $$('#bbTiers .bt').map(function (t) { return { n: parseInt(t.dataset.count, 10) || 0, pct: parseFloat(t.dataset.pct) || 0, code: t.dataset.code || '', el: t }; }).filter(function (t) { return t.n > 0; }).sort(function (a, b) { return a.n - b.n; });
+  var T = { next: nzS("{{ (config('bundle-next') ?: 'Add {amt} more for {pct}% off')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), top: nzS("{{ (config('bundle-top') ?: 'Top discount unlocked: {pct}% off')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), max: nzS("{{ (config('bundle-max-text') ?: 'Bundle is full')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), adding: nzS("{{ (config('bundle-adding') ?: 'Adding {i} / {n}…')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), none: nzS("{{ (config('bundle-none') ?: 'Pick at least one script')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") };
+  var tiers = $$('#bbTiers .bt').map(function (t) { return { min: parseFloat(t.dataset.min) || 0, pct: parseFloat(t.dataset.pct) || 0, code: t.dataset.code || '', el: t }; }).filter(function (t) { return t.min > 0; }).sort(function (a, b) { return a.min - b.min; });
   var sel = {}, BX = nzS("{{ (config('bundle-exclude-cats') ?: '')|replace({' ': ''}) }}").split(',');
   function fillFromCatalog(done) {
     if ($$('#bbList .bi').length) { done(); return; }
@@ -117,14 +118,14 @@
   function fmt(n) { return CS + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   function update() {
     var ids = Object.keys(sel), n = ids.length, sub = ids.reduce(function (s, id) { return s + sel[id].price; }, 0);
-    var cur = null, next = null; tiers.forEach(function (t) { if (n >= t.n) cur = t; else if (!next) next = t; });
-    tiers.forEach(function (t) { t.el.classList.toggle('on', n >= t.n); });
+    var cur = null, next = null; tiers.forEach(function (t) { if (sub >= t.min) cur = t; else if (!next) next = t; });
+    tiers.forEach(function (t) { t.el.classList.toggle('on', sub >= t.min); });
     var pct = cur ? cur.pct : 0, disc = sub * pct / 100;
     $('#bbSub').textContent = fmt(sub); $('#bbDisc').textContent = '−' + fmt(disc); $('#bbTot').textContent = fmt(sub - disc);
     $('#bbDiscL').textContent = (nzS("{{ (config('cart-discount-label') ?: 'Discount')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}")) + (cur ? ' · ' + cur.pct + '%' : '');
-    var top = tiers.length ? tiers[tiers.length - 1].n : 1;
-    if ($('#bbBar')) $('#bbBar').style.width = Math.min(100, n / top * 100) + '%';
-    if (tiers.length) $('#bbNext').innerHTML = next ? T.next.replace('{n}', '<b>' + (next.n - n) + '</b>').replace('{pct}', '<b>' + next.pct + '</b>') : (cur ? T.top.replace('{pct}', '<b>' + cur.pct + '</b>') : '');
+    var top = tiers.length ? tiers[tiers.length - 1].min : 1;
+    if ($('#bbBar')) $('#bbBar').style.width = Math.min(100, sub / top * 100) + '%';
+    if (tiers.length) $('#bbNext').innerHTML = next ? T.next.replace('{amt}', '<b>' + fmt(next.min - sub) + '</b>').replace('{n}', '<b>' + fmt(next.min - sub) + '</b>').replace('{pct}', '<b>' + next.pct + '</b>') : (cur ? T.top.replace('{pct}', '<b>' + cur.pct + '</b>') : '');
     $('#bbSel').innerHTML = n ? ids.map(function (id) { return '<span>' + sel[id].name.replace(/[<>]/g, '') + '<button type="button" data-rm="' + id + '"><svg class="ic"><use href="#i-x"/></svg></button></span>'; }).join('') : '<em>' + nzS("{{ (config('bundle-empty') ?: 'Nothing picked yet. Tap a script on the left.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") + '</em>';
     $('#bbAdd').disabled = !n;
     $$('#bbList .bi').forEach(function (b) { b.classList.toggle('on', !!sel[b.dataset.id]); });
@@ -141,7 +142,7 @@
     run(ids);
   });
   function run(ids) {
-    var btn = $('#bbAdd'), n = ids.length, cur = null; tiers.forEach(function (t) { if (n >= t.n) cur = t; });
+    var btn = $('#bbAdd'), n = ids.length, sub = ids.reduce(function (s, id) { return s + sel[id].price; }, 0), cur = null; tiers.forEach(function (t) { if (sub >= t.min) cur = t; });
     btn.disabled = true; btn.innerHTML = '<svg class="ic"><use href="#i-refresh"/></svg>' + T.adding.replace('{i}', 1).replace('{n}', n);
     var finish = function () { try { sessionStorage.removeItem('nz_bundle_sel'); } catch (e) {} location.href = location.pathname + '?cart=open'; };
     var go = function () { if (cur && cur.code) fetch('/checkout/coupons/add', { method: 'POST', body: new URLSearchParams({ coupon: cur.code }), credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(finish); else finish(); };

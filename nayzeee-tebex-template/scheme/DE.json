@@ -2578,8 +2578,8 @@
           "id": "bundle-next",
           "name": "Bundle next",
           "type": "textarea",
-          "default": "Add {n} more for {pct}% off",
-          "description": "Text im Shop. Leer lassen für den Standard: Add {n} more for {pct}% off"
+          "default": "Add {amt} more for {pct}% off",
+          "description": "Text im Shop. Leer lassen für den Standard: Add {amt} more for {pct}% off"
         },
         {
           "id": "bundle-no-tiers",
@@ -2604,13 +2604,6 @@
           "description": "Text im Shop. Leer lassen für den Standard: The coupon is applied for you. Scripts that need options open one by one."
         },
         {
-          "id": "bundle-scripts-word",
-          "name": "Bundle scripts word",
-          "type": "textarea",
-          "default": "scripts",
-          "description": "Text im Shop. Leer lassen für den Standard: scripts"
-        },
-        {
           "id": "bundle-search",
           "name": "Bundle search",
           "type": "textarea",
@@ -2629,70 +2622,71 @@
           "name": "Bundle tier 1 code",
           "type": "textarea",
           "default": "",
-          "description": "Coupon code created in Tebex for tier 1 (set a minimum basket of that many packages on the coupon)."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
-          "id": "bundle-tier-1-count",
-          "name": "Bundle tier 1 count",
+          "id": "bundle-tier-1-min",
+          "name": "Bundle tier 1 min",
           "type": "textarea",
           "default": "",
-          "description": "Anzahl Scripts für Stufe 1, z. B. 3. Leer lassen, um den Bundle-Builder auszublenden."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
           "id": "bundle-tier-1-pct",
           "name": "Bundle tier 1 pct",
           "type": "textarea",
           "default": "",
-          "description": "Percent off at tier 1, e.g. 15."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
           "id": "bundle-tier-2-code",
           "name": "Bundle tier 2 code",
           "type": "textarea",
           "default": "",
-          "description": "Bundle-Stufe: count = Anzahl Scripts, pct = Prozent Rabatt, code = der Tebex-Gutschein."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
-          "id": "bundle-tier-2-count",
-          "name": "Bundle tier 2 count",
+          "id": "bundle-tier-2-min",
+          "name": "Bundle tier 2 min",
           "type": "textarea",
           "default": "",
-          "description": "Bundle-Stufe: count = Anzahl Scripts, pct = Prozent Rabatt, code = der Tebex-Gutschein."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
           "id": "bundle-tier-2-pct",
           "name": "Bundle tier 2 pct",
           "type": "textarea",
           "default": "",
-          "description": "Bundle-Stufe: count = Anzahl Scripts, pct = Prozent Rabatt, code = der Tebex-Gutschein."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
           "id": "bundle-tier-3-code",
           "name": "Bundle tier 3 code",
           "type": "textarea",
           "default": "",
-          "description": "Bundle-Stufe: count = Anzahl Scripts, pct = Prozent Rabatt, code = der Tebex-Gutschein."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
-          "id": "bundle-tier-3-count",
-          "name": "Bundle tier 3 count",
+          "id": "bundle-tier-3-min",
+          "name": "Bundle tier 3 min",
           "type": "textarea",
           "default": "",
-          "description": "Bundle-Stufe: count = Anzahl Scripts, pct = Prozent Rabatt, code = der Tebex-Gutschein."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
           "id": "bundle-tier-3-pct",
           "name": "Bundle tier 3 pct",
           "type": "textarea",
           "default": "",
-          "description": "Bundle-Stufe: count = Anzahl Scripts, pct = Prozent Rabatt, code = der Tebex-Gutschein."
+          "description": "Bundle tier by basket value: min = subtotal needed (e.g. 40), pct = percent off, code = the coupon. In Tebex create that coupon with the SAME number as its Minimum basket value, so the code is useless below it even if someone reads it from the page."
         },
         {
           "id": "bundle-tier-label",
           "name": "Bundle tier label",
-          "type": "textarea",
-          "default": "",
-          "description": "Bundle-Stufe: count = Anzahl Scripts, pct = Prozent Rabatt, code = der Tebex-Gutschein."
+          "type": "select",
+          "values": "Tier row text. {amt} = the minimum subtotal with currency symbol.",
+          "default": "Spend {amt} or more",
+          "description": "Tier row text. {amt} = the minimum subtotal with currency symbol."
         },
         {
           "id": "bundle-title",
