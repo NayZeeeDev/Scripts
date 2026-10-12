@@ -25,7 +25,7 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 | `module.bundle.twig` | Build-your-own-bundle section |
 | `module.reviews.twig` | Write-a-review modal that posts to a Discord webhook |
 | `module.heartbeat.twig` | Live usage cards powered by Heartbeat (servers / players per script, store totals on the homepage) |
-| `module.cursor.twig` | Custom cursor: the feather arrow in the accent colour, glowing over links and buttons. Mouse devices only |
+| `module.cursor.twig` | Custom cursor: the feather arrow, and the Deku character over links and buttons, recoloured to the accent. Mouse devices only |
 | `scheme/EN.json` `DE.json` `FR.json` `NL.json` | Every setting shown in Tebex → Webstore → Templates → Settings, in four languages |
 
 ## Install
