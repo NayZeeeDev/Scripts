@@ -155,7 +155,7 @@
     {% endif %}
   </div>
 
-  {% set totalPk = 0 %}{% for cat in store.categories %}{% set totalPk = totalPk + cat.packages|length %}{% endfor %}
+  {% set totalPk = scriptCount ?? 0 %}
   {% if (config('stats-toggle') ?: 'Show') != 'Hide' %}
   <div class="stats">
     <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-users"/></svg></div><div class="stat-txt"><span>{{ config('stat-1-label') ?: 'Servers running our scripts' }}</span><b>{{ config('stat-1-value') ?: '3,200+' }}</b></div></div>

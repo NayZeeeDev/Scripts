@@ -475,8 +475,10 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       {% if (config('brand-text') ?: 'Show') == 'Show' %}<div class="brand-t">{{ config('brand-name') ?: 'NayZeee' }}<span class="brand-s">{{ config('brand-sub') ?: 'Development' }}</span></div>{% endif %}
     </a>
     {% set tierCat = (config('tier-category-id') ?: '')|replace({' ': ''}) %}
-    {% set storeUrl = '' %}{% set tierUrl = '' %}
-    {% for cat in store.categories %}{% set cn = cat.name|lower %}{% set isT = (tierCat and (cat.id ~ '') == tierCat) or (not tierCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn)) %}{% if isT %}{% if not tierUrl %}{% set tierUrl = '/category/' ~ cat.id %}{% endif %}{% elseif not storeUrl %}{% set storeUrl = '/category/' ~ cat.id %}{% endif %}{% endfor %}
+    {% set storeUrl = '' %}{% set tierUrl = '' %}{% set scriptCount = 0 %}{% set scriptTotal = 0 %}{% set curTier = false %}
+    {% set tierExc = (config('tier-exclude-cats') ?: '')|replace({' ': ''})|split(',') %}
+    {% for cat in store.categories %}{% set cn = cat.name|lower %}{% set isT = (tierCat and (cat.id ~ '') == tierCat) or (not tierCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn)) %}{% if isT %}{% if not tierUrl %}{% set tierUrl = '/category/' ~ cat.id %}{% endif %}{% if category is defined and category and category.id == cat.id %}{% set curTier = true %}{% endif %}{% else %}{% if not storeUrl %}{% set storeUrl = '/category/' ~ cat.id %}{% endif %}{% if (cat.id ~ '') not in tierExc %}{% set scriptCount = scriptCount + cat.packages|length %}{% for p in cat.packages %}{% set scriptTotal = scriptTotal + (p.discount.applied ? p.discount.original : p.price) %}{% endfor %}{% endif %}{% endif %}{% endfor %}
+    {% if category is defined and category and not curTier %}{% set ccn = category.name|lower %}{% if (tierCat and (category.id ~ '') == tierCat) or (not tierCat and ('subscri' in ccn or 'membership' in ccn or 'all access' in ccn)) %}{% set curTier = true %}{% endif %}{% endif %}
     {% set l1 = config('nav-link-1-url') ?: '' %}{% if l1 and l1|slice(0, 4) != 'http' and l1|slice(0, 1) != '/' and l1|slice(0, 1) != '#' %}{% set l1 = '/' ~ l1 %}{% endif %}
     {% set l2 = config('nav-link-2-url') ?: '' %}{% if l2 and l2|slice(0, 4) != 'http' and l2|slice(0, 1) != '/' and l2|slice(0, 1) != '#' %}{% set l2 = '/' ~ l2 %}{% endif %}
     {% set navStore = config('nav-store-url') ?: (storeUrl ?: '/') %}
@@ -495,9 +497,9 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
         </div>
       </div>
       {% else %}
-      <a class="lnk{% if (seoTyp == 'category' or seoTyp == 'package') and not (category is defined and category and tierUrl == '/category/' ~ category.id) %} on{% endif %}" href="{{ navStore }}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Store' }}</a>
+      <a class="lnk{% if (seoTyp == 'category' or seoTyp == 'package') and not curTier %} on{% endif %}" href="{{ navStore }}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Store' }}</a>
       {% endif %}
-      {% if config('nav-link-1-label') and l1 %}<a class="lnk{% if category is defined and category and l1 == '/category/' ~ category.id %} on{% endif %}" href="{{ l1 }}"><svg class="ic"><use href="#i-crown"/></svg>{{ config('nav-link-1-label') }}</a>{% endif %}
+      {% if config('nav-link-1-label') and l1 %}<a class="lnk{% if curTier and ('subscri' in l1|lower or 'member' in l1|lower or l1 == tierUrl) %} on{% endif %}" href="{{ l1 }}"><svg class="ic"><use href="#i-crown"/></svg>{{ config('nav-link-1-label') }}</a>{% endif %}
       {% if config('nav-link-2-label') and l2 %}<a class="lnk" href="{{ l2 }}"><svg class="ic"><use href="#i-book"/></svg>{{ config('nav-link-2-label') }}</a>{% endif %}
       {% if config('docs-url') and (config('nav-docs-toggle') ?: 'Show') != 'Hide' %}<a class="lnk" href="{{ config('docs-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-book"/></svg>{{ config('docs-label') ?: 'Docs' }}</a>{% endif %}
       {% if config('discord-url') %}<a class="lnk" href="{{ config('discord-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-discord"/></svg>{{ config('nav-support-label') ?: 'Support' }}</a>{% endif %}
