@@ -38,11 +38,11 @@
   .connect{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-sm)}
   .connect code{flex:1;font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;color:var(--teal)}
   .connect span{font-size:10.5px;color:var(--ink-3);font-weight:300}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:40px}
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:40px}
   .stat{position:relative;display:flex;align-items:center;gap:13px;padding:15px 16px}
   .stat-txt span{display:block;font-size:11.5px;color:var(--ink-3);font-weight:300}
   .stat-txt b{display:block;font-size:24px;font-weight:600;letter-spacing:-.035em;line-height:1.14;margin-top:2px;color:var(--white)}
-  .cats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .cat{display:flex;align-items:center;gap:13px;padding:14px 15px;transition:border-color var(--fast),background var(--fast)}
   .cat:hover{border-color:var(--teal-edge);background:var(--raise)}
   .cat:hover .arrow{color:var(--teal);transform:translateX(3px)}
@@ -51,7 +51,7 @@
   .cat-t b{display:block;font-size:13.5px;font-weight:600;color:var(--white);letter-spacing:-.01em}
   .cat-t span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .arrow{color:var(--ink-3);transition:all var(--fast)}
-  .why{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .why{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .why .panel{padding:18px}
   .why .tile{margin-bottom:14px}
   .why b{display:block;font-size:14px;font-weight:600;color:var(--white);margin-bottom:6px;letter-spacing:-.012em}
@@ -64,7 +64,7 @@
   .disc-t p{font-size:12.5px;color:var(--ink-2);font-weight:300;margin-top:5px;max-width:60ch}
   .disc .online{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3);font-weight:300;margin-right:8px}
   .disc .online b{font-size:12px;color:var(--white);font-weight:500}
-  .reviews{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .rev{padding:16px;display:flex;flex-direction:column;gap:10px}
   .rev-h{display:flex;align-items:center;gap:10px}
   .rev-h .av{width:30px;height:30px}
@@ -93,7 +93,7 @@
   #modSlot:empty{display:none}
   .hero-video{aspect-ratio:16/10;border-radius:var(--r-md);border:1px solid var(--line-soft);overflow:hidden;box-shadow:var(--sh-2);position:relative;background:var(--inset)}
   .hero-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-  .upd{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .upd{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .upd .panel{padding:16px;display:flex;flex-direction:column;gap:8px}
   .upd .h{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .upd .h b{font-size:13.5px;font-weight:600;color:var(--white)}
@@ -106,7 +106,7 @@
   .trusted span{font-size:12.5px;color:var(--ink-2);font-weight:500;padding:8px 14px;border:1px solid var(--line-soft);border-radius:var(--r-sm);background:var(--panel)}
   @media (max-width:860px){.upd{grid-template-columns:1fr 1fr}}
   @media (max-width:600px){.upd{grid-template-columns:1fr}}
-  @media (max-width:1040px){.stats{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:1040px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:860px){.hero-ghost{left:auto;right:-14px;top:-30px;width:96px;height:127px;opacity:.3}.hero-g{grid-template-columns:1fr}.hero h1{font-size:38px}.cats,.why,.reviews,.faq{grid-template-columns:1fr 1fr}.disc{flex-wrap:wrap}}
   @media (max-width:600px){.cats,.why,.reviews,.faq,.stats{grid-template-columns:1fr}.hero h1{font-size:32px}}
 </style>
@@ -155,8 +155,8 @@
     {% endif %}
   </div>
 
-  {% if (config('stats-toggle') ?: 'Show') != 'Hide' %}
   {% set totalPk = 0 %}{% for cat in store.categories %}{% set totalPk = totalPk + cat.packages|length %}{% endfor %}
+  {% if (config('stats-toggle') ?: 'Show') != 'Hide' %}
   <div class="stats">
     <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-users"/></svg></div><div class="stat-txt"><span>{{ config('stat-1-label') ?: 'Servers running our scripts' }}</span><b>{{ config('stat-1-value') ?: '3,200+' }}</b></div></div>
     <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-box"/></svg></div><div class="stat-txt"><span>{{ config('stat-2-label') ?: 'Scripts in the store' }}</span><b>{{ config('stat-2-value') ?: totalPk }}</b></div></div>
@@ -165,6 +165,8 @@
   </div>
   {% endif %}
   {% include 'module.sale.twig' ignore missing %}
+  <div class="panel live home hide wrap" id="homeLive"></div>
+  <script>if (window.nzHeartbeatHome) nzHeartbeatHome(document.getElementById('homeLive'), {{ totalPk ?? 0 }});</script>
   <div id="holEvent"></div>
 </section>
 

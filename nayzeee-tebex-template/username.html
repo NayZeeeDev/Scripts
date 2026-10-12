@@ -48,7 +48,7 @@
   </style>
 </head>
 <body>
-  {% set hol_quiet = true %}{% include 'module.holiday.twig' ignore missing %}
+  {% set hol_quiet = true %}{% include 'module.holiday.twig' ignore missing %}{% include 'module.cursor.twig' ignore missing %}
   <div class="card"{% if external %} data-external-url="{{ url }}"{% endif %}>
     <div class="head">{% set lm = config('logo-mode') ?: 'Ghost' %}{% if lm == 'Logo' and store.logo %}<img class="logo" src="{{ store.logo }}" alt="{{ store.name }}" />{% elseif lm == 'Mark' %}<div class="mark"></div>{% else %}<span class="ghost"></span>{% endif %}<div><div class="brand-t">{{ store.name }}</div><div class="brand-s">{{ config('brand-sub') ?: 'FiveM scripts & UI' }}</div></div></div>
 

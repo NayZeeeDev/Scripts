@@ -3066,6 +3066,154 @@
       ]
     },
     {
+      "header": "06 · Live usage (Heartbeat)",
+      "options": [
+        {
+          "id": "heartbeat-auth",
+          "name": "Heartbeat auth",
+          "type": "select",
+          "values": [
+            "Authorization: Bearer",
+            "X-API-Key",
+            "Query ?api_key=",
+            "None"
+          ],
+          "default": "Authorization: Bearer",
+          "description": "How the key is sent with the request."
+        },
+        {
+          "id": "heartbeat-home-players-text",
+          "name": "Heartbeat home players text",
+          "type": "textarea",
+          "default": "Players on them right now",
+          "description": "Text im Shop. Leer lassen für den Standard: Players on them right now"
+        },
+        {
+          "id": "heartbeat-home-scripts-text",
+          "name": "Heartbeat home scripts text",
+          "type": "textarea",
+          "default": "Scripts tracked",
+          "description": "Text im Shop. Leer lassen für den Standard: Scripts tracked"
+        },
+        {
+          "id": "heartbeat-home-servers-text",
+          "name": "Heartbeat home servers text",
+          "type": "textarea",
+          "default": "Servers running our scripts",
+          "description": "Text im Shop. Leer lassen für den Standard: Servers running our scripts"
+        },
+        {
+          "id": "heartbeat-home-url",
+          "name": "Heartbeat home url",
+          "type": "textarea",
+          "default": "https://heartbeat.re/api/v1/resources?q={prefix}&limit=50&period=current",
+          "description": "Homepage totals endpoint. Default: https://heartbeat.re/api/v1/resources?q={prefix}&limit=50&period=current. The card adds up every resource starting with the prefix."
+        },
+        {
+          "id": "heartbeat-key",
+          "name": "Heartbeat key",
+          "type": "textarea",
+          "default": "",
+          "description": "Your Heartbeat key (hb_live_…). Nothing to add to your scripts: Heartbeat crawls servers and counts your resource names. The key is visible in the page source like every template setting; free keys are rate-limited (60/min) and can be created by anyone, so that is fine. Leave empty to hide the cards."
+        },
+        {
+          "id": "heartbeat-players-path",
+          "name": "Heartbeat players path",
+          "type": "textarea",
+          "default": "data.playerReach",
+          "description": "Dotted JSON path to the player count (default data.playerReach)."
+        },
+        {
+          "id": "heartbeat-players-text",
+          "name": "Heartbeat players text",
+          "type": "textarea",
+          "default": "Players enjoying this script",
+          "description": "Text im Shop. Leer lassen für den Standard: Players enjoying this script"
+        },
+        {
+          "id": "heartbeat-prefix",
+          "name": "Heartbeat prefix",
+          "type": "textarea",
+          "default": "nayzeee",
+          "description": "Resource name prefix of your scripts, used for the homepage totals (default nayzeee)."
+        },
+        {
+          "id": "heartbeat-rank-path",
+          "name": "Heartbeat rank path",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional: where a ranking number sits in the JSON, e.g. data.rank. Shows \"Rank #N of all resources\"."
+        },
+        {
+          "id": "heartbeat-rank-text",
+          "name": "Heartbeat rank text",
+          "type": "textarea",
+          "default": "Rank #{n} of all resources",
+          "description": "Text im Shop. Leer lassen für den Standard: Rank #{n} of all resources"
+        },
+        {
+          "id": "heartbeat-refresh",
+          "name": "Heartbeat refresh",
+          "type": "textarea",
+          "default": "300",
+          "description": "Seconds a visitor's browser keeps the numbers before asking again (default 300, minimum 60). Keeps you inside the 60 requests/minute of a free key."
+        },
+        {
+          "id": "heartbeat-resource-PACKAGEID",
+          "name": "Heartbeat resource packageid",
+          "type": "textarea",
+          "default": "",
+          "description": "Resource name for this package ID (or put HEARTBEAT: resource-name in the package description)."
+        },
+        {
+          "id": "heartbeat-servers-path",
+          "name": "Heartbeat servers path",
+          "type": "textarea",
+          "default": "data.servers",
+          "description": "Dotted JSON path to the server count (default data.servers)."
+        },
+        {
+          "id": "heartbeat-servers-text",
+          "name": "Heartbeat servers text",
+          "type": "textarea",
+          "default": "Servers using this script",
+          "description": "Text im Shop. Leer lassen für den Standard: Servers using this script"
+        },
+        {
+          "id": "heartbeat-toggle",
+          "name": "Heartbeat toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Live usage cards: \"Servers using this script / Players enjoying this script\" on package pages, totals on the homepage."
+        },
+        {
+          "id": "heartbeat-updated-text",
+          "name": "Heartbeat updated text",
+          "type": "textarea",
+          "default": "updated {t}",
+          "description": "Text im Shop. Leer lassen für den Standard: updated {t}"
+        },
+        {
+          "id": "heartbeat-url",
+          "name": "Heartbeat url",
+          "type": "textarea",
+          "default": "https://heartbeat.re/api/v1/resources/{resource}?period=current",
+          "description": "Per-script endpoint. Default: https://heartbeat.re/api/v1/resources/{resource}?period=current ({resource} = the resource folder name)."
+        },
+        {
+          "id": "heartbeat-via-text",
+          "name": "Heartbeat via text",
+          "type": "textarea",
+          "default": "Live usage via Heartbeat",
+          "description": "Text im Shop. Leer lassen für den Standard: Live usage via Heartbeat"
+        }
+      ]
+    },
+    {
       "header": "07 · Produktseite",
       "options": [
         {
@@ -4164,6 +4312,20 @@
           "description": "Copyright-Zeile im Footer. Leer = Standard."
         },
         {
+          "id": "footer-built",
+          "name": "Footer built",
+          "type": "textarea",
+          "default": "Built by",
+          "description": "First part of the credit line at the bottom (default: Built by)."
+        },
+        {
+          "id": "footer-built-name",
+          "name": "Footer built name",
+          "type": "textarea",
+          "default": "NayZeee Dev",
+          "description": "Bold name in the credit line at the bottom (default: NayZeee Dev)."
+        },
+        {
           "id": "footer-cart-label",
           "name": "Footer cart label",
           "type": "textarea",
@@ -4252,6 +4414,31 @@
     {
       "header": "11 · Weitere Texte",
       "options": [
+        {
+          "id": "cursor-pointer-url",
+          "name": "Cursor pointer url",
+          "type": "textarea",
+          "default": "data:image/png;base64,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",
+          "description": "Your own pointer image for links and buttons. Leave empty for the built-in glowing arrow."
+        },
+        {
+          "id": "cursor-toggle",
+          "name": "Cursor toggle",
+          "type": "select",
+          "values": [
+            "On",
+            "Off"
+          ],
+          "default": "On",
+          "description": "Custom cursor: the NayZeee feather arrow in the accent colour, with a glowing version over links and buttons. Mouse devices only."
+        },
+        {
+          "id": "cursor-url",
+          "name": "Cursor url",
+          "type": "textarea",
+          "default": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFZklEQVR4nO3XbWwcRx3H8e/s7Nzt7TmOc37CNYkbklzinG2FuBEOiggiqCA1UhTcmL4pRU3biJyl0MalrYQEKu+ogKBGIQgoIDVtcBBFLeoLxENa00JECQppnSZpWiVqGseNW+fOd7c3uzvDCzt2K7UqPeyKF/xfrbS7v/9ndmf2Af5XanH/tkq6b8NvARdrBeB8FH3daxuJrjVy0fabtlEoHS4JcQvWxgjhAGYhAbOjDMfGBa3NccO9+f50T8+vEcLBWssCX4nZcKM1plCUcV06XHL3rm3pnu4jHwViNjg2BqM1TiVQoVJh4317tvvduQVHzIUmk+jJSdzGDOHlcWXq/LDpvj3b/e6uYYQQC4WYDXT8lNClMkZXSVzXSun0GeV8rDVsGsp/KT2HeDd6PgHWWm1dSTA2TqK5GZJJSmfOKrm0Pczs3d2f7sr9CiGYQYh5B8TlcsVZXE8wNm5jrfGWd1CdmKB6aUw57W1h41D+5rrc2sMzCDFfiDnA1UI9foqoGgh9eRzheXifWE7x7DlMcUqJttYwMzS4o27t2scRws4XYm4ZVjVGh4jWZkpnXoE4RmWWkGhtoTD6MmitRFtLmLl3cMDv7HwMIcx8IObmgDFEV68iW1vQlQrV1y9irMW7fhkkExRGT0MUKdHWEjYN5W9Jr1nz8/lAzAFcl7gwhcHiXL+M4slRACKtSXfniKKQ4qkz04j2tjAzlP9qavXqnyKEYXjYqRUxt6R8j7hQIK4EiKZGooSicnIU6aeIg4C63nXoIKDw4ilEGCq5rD1sGsrv9LMrDzIwENeKmAO4LraqMVMlbBThdmYpnnuV6M0riITCVDWLNqwnBt7+5wlMqazc5cvCzN27d/krVz5cK+IdDxUBXhIzdhkcAa6E7EomR/4GxoLjYKpV6j7ZjbOkgbf+fhw98ZZK9OSqmXu+Nuh1dLwTUQMgCGBJA/HlNzE6xOgQp7WJqLGBwtG/4CSTIARxJSC1agVedydv//EZis8dSybWddHy4AOD6Wz2IQYG4toAOgQ/BY5DfOF1TDKJqQTI1auoYCmOPI+TSmGFICpXUNe1Wa+5ObrywHf2T+w7+EI0OUnDXbcN+V25I7UBBFDVsLQd++p5bKWCkZI4CHB6cpSKRYojzyP9FMKVmOJUrD613vV6uiauDj+x4Y099/cVnnz660LKydoAUk7fhobF4KesPXsuRrnWYjFaI9b3UCqXKfzpWYRSYI3ET9nkxt5vAB8HjhWffe6HpRP/urM2gOtCGIHWljWrhHPytLQXLgqbTFqswWqNWNdF2RFMPvk0tqqFQETJGz+b8rq79gGwY0eKzZvd9+n1AQDlTjdPeTjHT+L+eeQe+dTvLxEEwrqusRZsJUB0ria4MsHEI4cIXjqlRGMmXrT79n63vj7PkSMVjh6tcRIiLL5vnGPHhfzN73ZqrX/gHnvhVjn8VAiAlAZrsXGE6MxiX3lNF75/cHRy30FplKR+b36/l83eTy6nPgxg9qHh5HdWrbEJ+ZNDu6Oo+iM6OjzOnw8UfDm+6cbD5uatBkBEsYMQsTj8BOoPz2ytwhXHr9uS2vKZtebipRuil09/JSyX//FhENMD3LLZyhUrHgSgt/faKFwAhXOr/OLnLT/+nhW/eDgSv9wfiW/utbK9feQ9omr7YnJh43sGzEwqBQNy08ay+O63LI8eCDl0QDv9W62Lkwegry9VU+N31fSr9X18oKBXZlf91dl1m+Vn+yyPHgjlpr4pFz49c5z8b9p/0MnX9kulknc6N6w/IQbvsDz0bSs3bSy6nrcJy4L/0s2G94JKwDbZnXtEfuFzF9ylS98A6mYQ/6//uP4Npr5Q6ylKwcEAAAAASUVORK5CYII=",
+          "description": "Your own cursor image URL (PNG, 32x32 max, tip at the top-left). Leave empty for the built-in arrow."
+        },
         {
           "id": "purchase-toasts",
           "name": "Purchase toasts",

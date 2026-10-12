@@ -21,7 +21,7 @@
   <div class="pk-b">
     <div class="pk-top">{% if fp_cat %}<span class="pk-cat">{{ fp_cat }}</span>{% else %}<span></span>{% endif %}</div>
     <h3><a href="/package/{{ fp.id }}">{{ fp.name }}</a></h3>
-    {% if fp_desc and (config('card-desc') ?: 'Show') != 'Hide' %}<p>{{ fp_desc|replace({'FRAMEWORKS:': '|', 'TAGS:': '|', 'IMAGES:': '|', 'VIDEO:': '|', 'VERSION:': '|', 'RATING:': '|', 'DEPENDENCIES:': '|', 'CHANGELOG:': '|'})|split('|')|first|slice(0, 140) }}</p>{% endif %}
+    {% if fp_desc and (config('card-desc') ?: 'Show') != 'Hide' %}<p>{{ fp_desc|replace({'FRAMEWORKS:': '|', 'TAGS:': '|', 'IMAGES:': '|', 'VIDEO:': '|', 'VERSION:': '|', 'RATING:': '|', 'DEPENDENCIES:': '|', 'CHANGELOG:': '|', 'HEARTBEAT:': '|'})|split('|')|first|slice(0, 140) }}</p>{% endif %}
     <div class="pk-meta"></div>
     <div class="pk-f">
       <div class="price">

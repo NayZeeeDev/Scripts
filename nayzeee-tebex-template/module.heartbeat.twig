@@ -1,0 +1,96 @@
+{# ─── NAYZEEE · module.heartbeat.twig · Live usage stats via Heartbeat (heartbeat.re)
+   Heartbeat crawls FiveM servers and their resource lists, so nothing has to be added to your scripts:
+   a script is counted by its resource folder name (e.g. nayzeee-inventorylogs).
+   Package page: "Servers using this script / Players enjoying this script".  Homepage: totals across every nayzeee-* resource.
+   The browser calls the API directly (Heartbeat allows CORS from any origin). Results are cached in the visitor's browser
+   for heartbeat-refresh seconds to stay well inside the 60 requests/minute of a free key.
+
+   Settings (06 · Live usage):
+     heartbeat-toggle        Show / Hide
+     heartbeat-key           Your key (hb_live_…). It is visible in the page source like any template setting; free keys are
+                             rate-limited and can be made by anyone, so that is acceptable. Ask Heartbeat for an unlimited key if the
+                             store gets busy.
+     heartbeat-prefix        Resource name prefix for the homepage totals (default nayzeee)
+     heartbeat-url           Default https://heartbeat.re/api/v1/resources/{resource}?period=current
+     heartbeat-home-url      Default https://heartbeat.re/api/v1/resources?q={prefix}&limit=50&period=current  (a list: the card sums it)
+     heartbeat-auth          Authorization: Bearer (default) | X-API-Key | Query ?api_key= | None
+     heartbeat-servers-path  data.servers      heartbeat-players-path  data.playerReach      heartbeat-rank-path  (optional)
+     heartbeat-refresh       Seconds between refreshes (default 300, minimum 60)
+   Per script: add "HEARTBEAT: resource-name" to the package description, or set heartbeat-resource-<packageId>.
+   Preview: add ?hb=demo to the URL to see the cards with sample numbers. ─── #}
+{% if (config('heartbeat-toggle') ?: 'Show') != 'Hide' %}
+<style>
+  .live{position:relative;overflow:hidden;padding:22px 20px 16px}
+  .live::before{content:'';position:absolute;inset:0;background:radial-gradient(60% 80% at 50% 0%,rgba(var(--teal-rgb),.12),transparent 70%);pointer-events:none}
+  .live-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;text-align:center}
+  .live-g b{display:block;font-size:38px;font-weight:700;letter-spacing:-.045em;line-height:1;color:var(--white);font-variant-numeric:tabular-nums;text-shadow:0 0 24px rgba(var(--teal-rgb),.25)}
+  .live-g span{display:block;margin-top:8px;font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.4}
+  .live-f{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line-hair);font-size:11px;color:var(--ink-3);font-weight:300;flex-wrap:wrap}
+  .live-f .dot{width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 rgba(229,72,77,.6);animation:live-pulse 1.8s ease-out infinite;display:inline-block;margin-right:7px;vertical-align:1px}
+  .live-f .ok .dot{background:var(--teal);box-shadow:0 0 0 0 rgba(var(--teal-rgb),.6)}
+  .live-f .rank{display:inline-flex;align-items:center;gap:5px;color:var(--ink-2)}
+  .live-f .rank .ic{width:12px;height:12px;color:#e5a50a}
+  .live.home{margin-top:18px}
+  .live.home .live-g{grid-template-columns:repeat(3,minmax(0,1fr))}
+  @keyframes live-pulse{0%{box-shadow:0 0 0 0 rgba(var(--teal-rgb),.55)}100%{box-shadow:0 0 0 9px rgba(var(--teal-rgb),0)}}
+  @media (max-width:600px){.live-g b{font-size:30px}.live.home .live-g{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<script>
+(function () {
+  var C = {
+    url: {{ (config('heartbeat-url') ?: 'https://heartbeat.re/api/v1/resources/{resource}?period=current')|json_encode|raw }}, home: {{ (config('heartbeat-home-url') ?: 'https://heartbeat.re/api/v1/resources?q={prefix}&limit=50&period=current')|json_encode|raw }}, prefix: {{ (config('heartbeat-prefix') ?: 'nayzeee')|json_encode|raw }},
+    key: {{ (config('heartbeat-key') ?: '')|json_encode|raw }}, auth: {{ (config('heartbeat-auth') ?: 'Authorization: Bearer')|json_encode|raw }},
+    sp: {{ (config('heartbeat-servers-path') ?: 'data.servers')|json_encode|raw }}, pp: {{ (config('heartbeat-players-path') ?: 'data.playerReach')|json_encode|raw }}, rp: {{ (config('heartbeat-rank-path') ?: '')|json_encode|raw }},
+    refresh: Math.max(60, parseInt({{ (config('heartbeat-refresh') ?: '300')|json_encode|raw }}, 10) || 300),
+    t: { servers: {{ (config('heartbeat-servers-text') ?: 'Servers using this script')|json_encode|raw }}, players: {{ (config('heartbeat-players-text') ?: 'Players enjoying this script')|json_encode|raw }},
+         hs: {{ (config('heartbeat-home-servers-text') ?: 'Servers running our scripts')|json_encode|raw }}, hp: {{ (config('heartbeat-home-players-text') ?: 'Players on them right now')|json_encode|raw }}, hr: {{ (config('heartbeat-home-scripts-text') ?: 'Scripts tracked')|json_encode|raw }},
+         via: {{ (config('heartbeat-via-text') ?: 'Live usage via Heartbeat')|json_encode|raw }}, rank: {{ (config('heartbeat-rank-text') ?: 'Rank #{n} of all resources')|json_encode|raw }}, upd: {{ (config('heartbeat-updated-text') ?: 'updated {t}')|json_encode|raw }} }
+  };
+  var demo = /[?&]hb=demo/.test(location.search);
+  function get(o, p) { if (!p) return null; var v = p.split('.').reduce(function (a, k) { return a == null ? a : a[k]; }, o); return typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' && !isNaN(v) ? parseFloat(v) : null); }
+  function fmt(n) { return n == null ? '–' : Math.round(n).toLocaleString('en-US'); }
+  function countUp(el, to) { var from = parseFloat((el.textContent || '0').replace(/[^0-9.]/g, '')) || 0, t0 = performance.now(), d = 900; if (to == null) { el.textContent = '–'; return; } (function f(t) { var k = Math.min(1, (t - t0) / d); k = 1 - Math.pow(1 - k, 3); el.textContent = fmt(from + (to - from) * k); if (k < 1) requestAnimationFrame(f); })(t0); }
+  function build(el, labels, withRank) {
+    el.innerHTML = '<div class="live-g"><div><b data-k="s">0</b><span>' + labels[0] + '</span></div><div><b data-k="p">0</b><span>' + labels[1] + '</span></div>' + (labels[2] ? '<div><b data-k="r">0</b><span>' + labels[2] + '</span></div>' : '') + '</div>' +
+      '<div class="live-f"><span class="via"><i class="dot"></i>' + C.t.via + '</span>' + (withRank ? '<span class="rank hide"><svg class="ic"><use href="#i-crown"/></svg><em></em></span>' : '') + '<span class="upd"></span></div>';
+  }
+  function request(url, resource) {
+    url = url.replace('{resource}', encodeURIComponent(resource || '')).replace('{prefix}', encodeURIComponent(C.prefix)).replace('{key}', encodeURIComponent(C.key));
+    var ck = 'nz_hb_' + url, now = Date.now();
+    try { var c = JSON.parse(localStorage.getItem(ck) || 'null'); if (c && now - c.t < C.refresh * 1000) return Promise.resolve(c.d); } catch (e) {}
+    var h = {}, a = C.auth;
+    if (C.key && /bearer/i.test(a)) h['Authorization'] = 'Bearer ' + C.key;
+    else if (C.key && /x-api-key/i.test(a)) h['X-API-Key'] = C.key;
+    else if (C.key && /query/i.test(a) && url.indexOf('{key}') < 0 && url.indexOf('api_key=') < 0) url += (url.indexOf('?') > -1 ? '&' : '?') + 'api_key=' + encodeURIComponent(C.key);
+    return fetch(url, { headers: h, mode: 'cors', credentials: 'omit' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (d) {
+      // a list response (homepage totals): add up every resource that starts with the prefix
+      if (d && Array.isArray(d.data)) { var sum = { servers: 0, playerReach: 0, count: 0 }; d.data.forEach(function (x) { if (!C.prefix || String(x.name || '').toLowerCase().indexOf(C.prefix.toLowerCase()) === 0) { sum.servers += x.servers || 0; sum.playerReach += x.playerReach || 0; sum.count++; } }); d = { data: sum, list: true }; }
+      try { localStorage.setItem(ck, JSON.stringify({ t: now, d: d })); } catch (e) {}
+      return d;
+    });
+  }
+  function run(el, url, resource, extra) {
+    var isHome = !!extra;
+    build(el, isHome ? [C.t.hs, C.t.hp, C.t.hr] : [C.t.servers, C.t.players], !isHome);
+    var apply = function (d) {
+      var s = get(d, C.sp), p = get(d, C.pp), r = get(d, C.rp);
+      if (s == null && p == null) { el.classList.add('hide'); return; }
+      el.classList.remove('hide');
+      countUp(el.querySelector('[data-k=s]'), s); countUp(el.querySelector('[data-k=p]'), p);
+      if (isHome) countUp(el.querySelector('[data-k=r]'), d && d.list && d.data && d.data.count ? d.data.count : extra.count);
+      var rk = el.querySelector('.rank'); if (rk) { if (r != null) { rk.classList.remove('hide'); rk.querySelector('em').textContent = C.t.rank.replace('{n}', fmt(r)); } else rk.classList.add('hide'); }
+      el.querySelector('.via').classList.add('ok');
+      el.querySelector('.upd').textContent = C.t.upd.replace('{t}', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    };
+    var tick = function () {
+      if (demo) { var seed = (resource || 'x').length; apply({ data: { servers: 840 + seed * 37, playerReach: 3900 + seed * 210 } }); return; }
+      if (!url) { el.classList.add('hide'); return; }
+      request(url, resource).then(apply).catch(function () { el.classList.add('hide'); });
+    };
+    tick(); setInterval(tick, Math.max(15, C.refresh) * 1000);
+  }
+  window.nzHeartbeat = function (el, resource) { if (el && (resource || demo)) run(el, C.url, resource); };
+  window.nzHeartbeatHome = function (el, count) { if (el && (C.home || demo)) run(el, C.home, '', { count: count }); };
+})();
+</script>
+{% endif %}

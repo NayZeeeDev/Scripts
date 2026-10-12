@@ -24,6 +24,8 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 | `module.sale.twig` | Store-wide discount banner with countdown |
 | `module.bundle.twig` | Build-your-own-bundle section |
 | `module.reviews.twig` | Write-a-review modal that posts to a Discord webhook |
+| `module.heartbeat.twig` | Live usage cards powered by Heartbeat (servers / players per script, store totals on the homepage) |
+| `module.cursor.twig` | Custom cursor: the NayZeee feather arrow in the accent colour, glowing over links. Mouse devices only |
 | `scheme/EN.json` `DE.json` `FR.json` `NL.json` | Every setting shown in Tebex → Webstore → Templates → Settings, in four languages |
 
 ## Install
@@ -44,6 +46,8 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 - **Tags** (06): `bestseller-ids` and `new-ids` are comma-separated package IDs. Descriptions can also carry `TAGS: Best seller` or `TAGS: New`.
 - **Subscription page** (06): create three packages in your tiered category named Monthly, Quarterly and Yearly (or set `tier-monthly-id` / `tier-quarterly-id` / `tier-yearly-id`). The switch shows the percent saved vs monthly automatically. The script count and total value are counted from the store, so they grow as you release scripts. Put your Bundles category ID in `tier-exclude-cats` so bundles are not counted. `tier-perk-1..4` is the checklist, `tier-feat-1..4-*` the four feature tiles, `tier-faq-1..4-*` the FAQ.
 - **Volume discount** (08): turn on, then `volume-tier-1-at`, `-pct`, `-code`.
+- **Cursor** (01): `cursor-toggle` Off restores the normal cursor. `cursor-url` / `cursor-pointer-url` swap in your own 32px PNGs.
+- **Footer credit** (10): `footer-built` + `footer-built-name` (default "Built by NayZeee Dev").
 
 ## Package description markers
 
@@ -59,6 +63,16 @@ VIDEO: https://www.youtube.com/watch?v=XXXX    → Preview tab + gallery thumb
 DEPENDENCIES: ox_lib https://github.com/overextended/ox_lib, ox_target   → Dependencies tab (URL optional)
 CHANGELOG: v2.4.1 - New compass styles | v2.4.0 - Qbox support   → Changelog tab, entries separated by |
 ```
+
+## Live usage (Heartbeat)
+
+Heartbeat (heartbeat.re) crawls FiveM servers and their resource lists, so **nothing has to be added to your scripts**. A script is counted by its resource folder name.
+
+1. Paste your key into `heartbeat-key` (tab 06 · Live usage).
+2. Add `HEARTBEAT: nayzeee-inventorylogs` (the resource name) to each package description, or set `heartbeat-resource-<packageId>`.
+3. The package page shows "Servers using this script / Players enjoying this script". The homepage shows totals for every resource starting with `heartbeat-prefix` (default `nayzeee`).
+
+Numbers are fetched by the visitor's browser (Heartbeat allows CORS), use `?period=current` for live figures, and are cached for `heartbeat-refresh` seconds (default 5 min) to stay inside the free key's 60 requests/minute. Add `?hb=demo` to any URL to preview the cards with sample numbers. Rate-limit or network errors simply hide the card.
 
 ## Gifting
 

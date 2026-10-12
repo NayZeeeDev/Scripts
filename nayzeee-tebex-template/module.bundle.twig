@@ -11,7 +11,7 @@
   .bb-tools{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
   .bb-tools .inp{height:32px;width:220px}
   .bb-tools .segc{margin-left:auto}
-  .bb-list{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:540px;overflow-y:auto;padding-right:4px}
+  .bb-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:540px;overflow-y:auto;padding-right:4px}
   .bb-list::-webkit-scrollbar{width:8px}.bb-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--panel)}
   .bi{position:relative;display:flex;flex-direction:column;background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);cursor:pointer;transition:all var(--fast);user-select:none;overflow:hidden}
   .bi:hover{border-color:var(--line)}
@@ -49,8 +49,8 @@
   .bb-sel span button{display:grid;place-items:center;color:var(--ink-3)}.bb-sel span button:hover{color:var(--red)}
   .bb-sel span button .ic{width:11px;height:11px}
   .bb-sel em{font-style:normal;font-size:11.5px;color:var(--ink-3);font-weight:300}
-  @media (max-width:1040px){.bb-list{grid-template-columns:repeat(2,1fr)}}
-  @media (max-width:860px){.bb{grid-template-columns:1fr}.bb-l{border-right:0;border-bottom:1px solid var(--line-hair)}.bb-list{grid-template-columns:repeat(2,1fr);max-height:380px}}
+  @media (max-width:1040px){.bb-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:860px){.bb{grid-template-columns:1fr}.bb-l{border-right:0;border-bottom:1px solid var(--line-hair)}.bb-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:380px}}
   @media (max-width:420px){.bb-list{grid-template-columns:1fr}}
 </style>
 <section class="section wrap" id="bundle">
