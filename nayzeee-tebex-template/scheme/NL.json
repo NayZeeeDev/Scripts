@@ -2671,13 +2671,6 @@
           "description": "Tekst in de winkel. Leeg laten voor de standaard: Your plan"
         },
         {
-          "id": "tier-default-desc",
-          "name": "Tier default desc",
-          "type": "textarea",
-          "default": "Every script in the store",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Every script in the store"
-        },
-        {
           "id": "tier-default-period",
           "name": "Tier default period",
           "type": "select",
@@ -2688,6 +2681,24 @@
           ],
           "default": "Monthly",
           "description": "Which billing period is selected when the page opens."
+        },
+        {
+          "id": "tier-details-label",
+          "name": "Tier details label",
+          "type": "textarea",
+          "default": "Plan details",
+          "description": "Label of the folded description panel on each plan card."
+        },
+        {
+          "id": "tier-details-toggle",
+          "name": "Tier details toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Show the Tebex package description under the checklist, folded into a \"Plan details\" panel. Hide it to show the checklist only."
         },
         {
           "id": "tier-empty-text",
@@ -2990,6 +3001,34 @@
           "type": "textarea",
           "default": "",
           "description": "Checklist line 4."
+        },
+        {
+          "id": "tier-perks",
+          "name": "Tier perks",
+          "type": "textarea",
+          "default": "Every script in the store|All future releases|Updates while subscribed|Priority Discord support",
+          "description": "Checklist shown on every plan card. One line per perk, separated by | . The template adds the tick icons, so no emoji needed."
+        },
+        {
+          "id": "tier-perks-m",
+          "name": "Tier perks m",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist for the Monthly card only (overrides tier-perks). Perks separated by | ."
+        },
+        {
+          "id": "tier-perks-q",
+          "name": "Tier perks q",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist for the Quarterly card only (overrides tier-perks)."
+        },
+        {
+          "id": "tier-perks-y",
+          "name": "Tier perks y",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist for the Yearly card only (overrides tier-perks)."
         },
         {
           "id": "tier-plan-sub",
