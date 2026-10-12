@@ -447,6 +447,20 @@
           "description": "Show or hide the floating, glowing ghost logo on the homepage hero and the subscription page."
         },
         {
+          "id": "hero-headline-1",
+          "name": "Hero headline 1",
+          "type": "textarea",
+          "default": "Take your server beyond limits with",
+          "description": "First part of the hero headline (white)."
+        },
+        {
+          "id": "hero-headline-2",
+          "name": "Hero headline 2",
+          "type": "textarea",
+          "default": "NayZeee Resources.",
+          "description": "Second part of the hero headline, in the accent colour."
+        },
+        {
           "id": "hero-image",
           "name": "Hero image",
           "type": "textarea",
@@ -484,20 +498,6 @@
           "type": "textarea",
           "default": "HUDs, MDTs, inventory, garages and more, all built in one design language and tested on ESX, QBCore and Qbox. Escrowed or open source, delivered to your Keymaster the second you pay.",
           "description": "Text im Shop. Leer lassen für den Standard: HUDs, MDTs, inventory, garages and more, all built in one design language and tested on ESX, QBCore and Qbox. Escrowed or open source, delivered to your Keymaster the second you pay."
-        },
-        {
-          "id": "hero-title-line1",
-          "name": "Hero title line1",
-          "type": "textarea",
-          "default": "Take your server beyond limits with",
-          "description": "Text im Shop. Leer lassen für den Standard: Take your server beyond limits with"
-        },
-        {
-          "id": "hero-title-line2",
-          "name": "Hero title line2",
-          "type": "textarea",
-          "default": "NayZeee Resources.",
-          "description": "Text im Shop. Leer lassen für den Standard: NayZeee Resources."
         },
         {
           "id": "hero-video",
@@ -700,15 +700,15 @@
           "description": "Text im Shop. Leer lassen für den Standard: < 1h"
         },
         {
-          "id": "stats-toggle",
-          "name": "Stats toggle",
+          "id": "stats-row",
+          "name": "Stats row",
           "type": "select",
           "values": [
-            "Show",
-            "Hide"
+            "Hide",
+            "Show"
           ],
           "default": "Hide",
-          "description": "The four stat tiles under the hero (hidden by default)."
+          "description": "Optional four stat tiles under the hero (hidden by default)."
         },
         {
           "id": "trusted-kicker",
@@ -958,6 +958,17 @@
           "description": "Text im Shop. Leer lassen für den Standard: Browse"
         },
         {
+          "id": "cats-section",
+          "name": "Cats section",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Optional \"Shop by category\" tiles (hidden by default)."
+        },
+        {
           "id": "cats-sub",
           "name": "Cats sub",
           "type": "textarea",
@@ -1169,20 +1180,6 @@
           "description": "FAQ-Antwort (HTML erlaubt). Frage leer lassen, um den Eintrag auszublenden."
         },
         {
-          "id": "featured-cta",
-          "name": "Featured cta",
-          "type": "textarea",
-          "default": "View all",
-          "description": "Text im Shop. Leer lassen für den Standard: View all"
-        },
-        {
-          "id": "featured-cta-url",
-          "name": "Featured cta url",
-          "type": "textarea",
-          "default": "",
-          "description": "Link. Leer lassen, um den Button auszublenden."
-        },
-        {
           "id": "featured-kicker",
           "name": "Featured kicker",
           "type": "textarea",
@@ -1190,18 +1187,15 @@
           "description": "Text im Shop. Leer lassen für den Standard: Featured"
         },
         {
-          "id": "featured-max",
-          "name": "Featured max",
-          "type": "textarea",
-          "default": "8",
-          "description": "Wie viele Pakete im Featured-Raster erscheinen, wenn keine Featured-Module gesetzt sind (Standard 8)."
-        },
-        {
-          "id": "featured-sub",
-          "name": "Featured sub",
-          "type": "textarea",
-          "default": "What server owners are picking up right now.",
-          "description": "Text im Shop. Leer lassen für den Standard: What server owners are picking up right now."
+          "id": "featured-section",
+          "name": "Featured section",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Optional \"Featured\" grid fed by Tebex sidebar modules (hidden by default, the top-sellers marquee replaces it)."
         },
         {
           "id": "featured-title",
@@ -1225,6 +1219,17 @@
           "description": "Namen für die Kompatibilitäts-Laufschrift, kommagetrennt."
         },
         {
+          "id": "framework-section",
+          "name": "Framework section",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Optional \"Works with your stack\" marquee (hidden by default)."
+        },
+        {
           "id": "framework-speed",
           "name": "Framework speed",
           "type": "textarea",
@@ -1239,11 +1244,29 @@
           "description": "Text im Shop. Leer lassen für den Standard: Works with your stack"
         },
         {
+          "id": "pay-heading",
+          "name": "Pay heading",
+          "type": "textarea",
+          "default": "Recent <em>payments</em>",
+          "description": "Recent payments headline, HTML allowed: <em>word</em> = accent colour."
+        },
+        {
           "id": "pay-methods",
           "name": "Pay methods",
           "type": "textarea",
           "default": "Visa,Mastercard,PayPal,Apple Pay,Google Pay,Paysafecard,iDEAL,Klarna",
           "description": "Zahlungsarten als Chips, kommagetrennt."
+        },
+        {
+          "id": "pay-methods-row",
+          "name": "Pay methods row",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Optional payment method chips under Recent payments (hidden by default)."
         },
         {
           "id": "pay-speed",
@@ -1253,18 +1276,11 @@
           "description": "Text im Shop. Leer lassen für den Standard: 40"
         },
         {
-          "id": "pay-sub",
-          "name": "Pay sub",
+          "id": "pay-tagline",
+          "name": "Pay tagline",
           "type": "textarea",
           "default": "Trusted by server owners worldwide. Checkout is handled securely by <b>Tebex</b>.",
-          "description": "Text im Shop. Leer lassen für den Standard: Trusted by server owners worldwide. Checkout is handled securely by <b>Tebex</b>."
-        },
-        {
-          "id": "pay-title",
-          "name": "Pay title",
-          "type": "textarea",
-          "default": "Recent <em>payments</em>",
-          "description": "Text im Shop. Leer lassen für den Standard: Recent <em>payments</em>"
+          "description": "Line under the Recent payments headline (HTML allowed)."
         },
         {
           "id": "pay-verb",
@@ -1772,18 +1788,18 @@
           "description": "Text im Shop. Leer lassen für den Standard: View script"
         },
         {
-          "id": "whyus-1-desc",
-          "name": "Whyus 1 desc",
+          "id": "whyus-1-head",
+          "name": "Whyus 1 head",
           "type": "textarea",
           "default": "",
-          "description": "Text im Shop. Leer lassen für den Standard: (none)"
+          "description": "Title of this Why-choose-us card (1 Support, 2 Quality, 3 Easy to use, 4 Tebex security)."
         },
         {
           "id": "whyus-1-link-text",
           "name": "Whyus 1 link text",
           "type": "textarea",
           "default": "",
-          "description": "Text of the link at the bottom of this card. Leave the URL empty to hide it."
+          "description": "Paragraph of this Why-choose-us card."
         },
         {
           "id": "whyus-1-link-url",
@@ -1793,25 +1809,25 @@
           "description": "Link at the bottom of this Why-choose-us card. Card 1 defaults to your Discord, card 2 to your docs."
         },
         {
-          "id": "whyus-1-title",
-          "name": "Whyus 1 title",
+          "id": "whyus-1-text",
+          "name": "Whyus 1 text",
           "type": "textarea",
           "default": "",
-          "description": "Text im Shop. Leer lassen für den Standard: (none)"
+          "description": "Paragraph of this Why-choose-us card."
         },
         {
-          "id": "whyus-2-desc",
-          "name": "Whyus 2 desc",
+          "id": "whyus-2-head",
+          "name": "Whyus 2 head",
           "type": "textarea",
           "default": "",
-          "description": "Text im Shop. Leer lassen für den Standard: (none)"
+          "description": "Title of this Why-choose-us card (1 Support, 2 Quality, 3 Easy to use, 4 Tebex security)."
         },
         {
           "id": "whyus-2-link-text",
           "name": "Whyus 2 link text",
           "type": "textarea",
           "default": "",
-          "description": "Text of the link at the bottom of this card. Leave the URL empty to hide it."
+          "description": "Paragraph of this Why-choose-us card."
         },
         {
           "id": "whyus-2-link-url",
@@ -1821,25 +1837,25 @@
           "description": "Link at the bottom of this Why-choose-us card. Card 1 defaults to your Discord, card 2 to your docs."
         },
         {
-          "id": "whyus-2-title",
-          "name": "Whyus 2 title",
+          "id": "whyus-2-text",
+          "name": "Whyus 2 text",
           "type": "textarea",
           "default": "",
-          "description": "Text im Shop. Leer lassen für den Standard: (none)"
+          "description": "Paragraph of this Why-choose-us card."
         },
         {
-          "id": "whyus-3-desc",
-          "name": "Whyus 3 desc",
+          "id": "whyus-3-head",
+          "name": "Whyus 3 head",
           "type": "textarea",
           "default": "",
-          "description": "Text im Shop. Leer lassen für den Standard: (none)"
+          "description": "Title of this Why-choose-us card (1 Support, 2 Quality, 3 Easy to use, 4 Tebex security)."
         },
         {
           "id": "whyus-3-link-text",
           "name": "Whyus 3 link text",
           "type": "textarea",
           "default": "",
-          "description": "Text of the link at the bottom of this card. Leave the URL empty to hide it."
+          "description": "Paragraph of this Why-choose-us card."
         },
         {
           "id": "whyus-3-link-url",
@@ -1849,25 +1865,25 @@
           "description": "Link at the bottom of this Why-choose-us card. Card 1 defaults to your Discord, card 2 to your docs."
         },
         {
-          "id": "whyus-3-title",
-          "name": "Whyus 3 title",
+          "id": "whyus-3-text",
+          "name": "Whyus 3 text",
           "type": "textarea",
           "default": "",
-          "description": "Text im Shop. Leer lassen für den Standard: (none)"
+          "description": "Paragraph of this Why-choose-us card."
         },
         {
-          "id": "whyus-4-desc",
-          "name": "Whyus 4 desc",
+          "id": "whyus-4-head",
+          "name": "Whyus 4 head",
           "type": "textarea",
           "default": "",
-          "description": "Text im Shop. Leer lassen für den Standard: (none)"
+          "description": "Title of this Why-choose-us card (1 Support, 2 Quality, 3 Easy to use, 4 Tebex security)."
         },
         {
           "id": "whyus-4-link-text",
           "name": "Whyus 4 link text",
           "type": "textarea",
           "default": "",
-          "description": "Text of the link at the bottom of this card. Leave the URL empty to hide it."
+          "description": "Paragraph of this Why-choose-us card."
         },
         {
           "id": "whyus-4-link-url",
@@ -1877,25 +1893,25 @@
           "description": "Link at the bottom of this Why-choose-us card. Card 1 defaults to your Discord, card 2 to your docs."
         },
         {
-          "id": "whyus-4-title",
-          "name": "Whyus 4 title",
+          "id": "whyus-4-text",
+          "name": "Whyus 4 text",
           "type": "textarea",
           "default": "",
-          "description": "Text im Shop. Leer lassen für den Standard: (none)"
+          "description": "Paragraph of this Why-choose-us card."
         },
         {
-          "id": "whyus-sub",
-          "name": "Whyus sub",
-          "type": "textarea",
-          "default": "Optimised, reliable scripts that drop into your server and keep performing.",
-          "description": "Text im Shop. Leer lassen für den Standard: Optimised, reliable scripts that drop into your server and keep performing."
-        },
-        {
-          "id": "whyus-title",
-          "name": "Whyus title",
+          "id": "whyus-heading",
+          "name": "Whyus heading",
           "type": "textarea",
           "default": "Why <em>choose us</em>",
-          "description": "Text im Shop. Leer lassen für den Standard: Why <em>choose us</em>"
+          "description": "Why choose us headline, HTML allowed: <em>word</em> = accent colour."
+        },
+        {
+          "id": "whyus-tagline",
+          "name": "Whyus tagline",
+          "type": "textarea",
+          "default": "Optimised, reliable scripts that drop into your server and keep performing.",
+          "description": "Line under the Why choose us headline."
         },
         {
           "id": "whyus-toggle",

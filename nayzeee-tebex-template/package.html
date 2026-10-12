@@ -118,12 +118,10 @@
 
   {% set relN = 0 %}
   {% for cat in store.categories %}{% if cat.id == catId %}{% for p in cat.packages %}{% if p.id != package.id %}{% set relN = relN + 1 %}{% endif %}{% endfor %}{% endif %}{% endfor %}
-  {% if relN > 0 %}
-  <section class="section">
+  <section class="section{% if relN == 0 %} hide{% endif %}" id="relSection">
     <div class="sec-h"><div><div class="kick">{{ config('package-related-kicker') ?: 'More like this' }}</div><h2>{{ config('package-related-title') ?: 'You may also like' }}</h2></div><a class="btn-ghost" href="/category/{{ catId }}">{{ config('package-related-all') ?: 'All' }} {{ catName }} <svg class="ic"><use href="#i-chev"/></svg></a></div>
-    <div class="grid">{% set relI = 0 %}{% for cat in store.categories %}{% if cat.id == catId %}{% for p in cat.packages %}{% if p.id != package.id and relI < 4 %}{% set relI = relI + 1 %}{% include 'module.featuredpackage.html' with { 'module': { 'package': p }, 'fb_cat': catName, 'card_index': relI - 1 } %}{% endif %}{% endfor %}{% endif %}{% endfor %}</div>
+    <div class="grid" id="relGrid" data-cat="{{ catId }}" data-self="{{ package.id }}">{% set relI = 0 %}{% for cat in store.categories %}{% if cat.id == catId %}{% for p in cat.packages %}{% if p.id != package.id and relI < 4 %}{% set relI = relI + 1 %}{% include 'module.featuredpackage.html' with { 'module': { 'package': p }, 'fb_cat': catName, 'card_index': relI - 1 } %}{% endif %}{% endfor %}{% endif %}{% endfor %}</div>
   </section>
-  {% endif %}
 </div>
 <div class="lightbox" id="lightbox"><img src="" alt="" /></div>
 <div class="sticky" id="stickyBar"><div class="wrap in"><div class="art">{% if package.image.url %}<img src="{{ package.image.url }}" alt="" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-layers"/></svg>{% endif %}</div><b>{{ package.name }}</b><span class="pr">{% if package.price == 0 %}{{ config('free-text') ?: 'Free' }}{% else %}{{ csym }}{{ package.price|number_format(2) }}{% endif %}</span>{% if in_basket %}<a class="btn-line" href="/checkout/packages/remove/{{ package.id }}" data-remove="{{ package.id }}" data-add-text="{{ config('package-add-to-cart') ?: 'Add to cart' }}" data-in-text="{{ config('package-added-text') ?: 'In cart · remove' }}"><svg class="ic"><use href="#i-check"/></svg><span class="lbl">{{ config('package-added-text') ?: 'In cart · remove' }}</span></a>{% else %}<a class="btn-teal" href="/checkout/packages/add/{{ package.id }}" data-add="{{ package.id }}" data-add-text="{{ config('package-add-to-cart') ?: 'Add to cart' }}" data-in-text="{{ config('package-added-text') ?: 'In cart · remove' }}"><svg class="ic"><use href="#i-cart"/></svg><span class="lbl">{{ config('package-add-to-cart') ?: 'Add to cart' }}</span></a>{% endif %}</div></div>
@@ -181,5 +179,6 @@ function nzPackageInit() {
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('#lightbox').classList.remove('on'); });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', nzPackageInit); else nzPackageInit();
+(function () { function run() { var sec = document.getElementById('relSection'), g = document.getElementById('relGrid'); if (!sec || !g || !sec.classList.contains('hide') || !window.nzCatalog) return; nzCatalog(function (items) { var rel = items.filter(function (x) { return String(x.catId) === String(g.dataset.cat) && String(x.id) !== String(g.dataset.self); }).slice(0, 4); if (!rel.length) return; nzCatalogCards(rel, g); sec.classList.remove('hide'); }); } if (window.nzCatalog) run(); else document.addEventListener('DOMContentLoaded', run); })();
 </script>
 {% endblock %}

@@ -133,7 +133,7 @@
       {% if (config('hero-eyebrow-toggle') ?: 'Show') != 'Hide' %}
       <div class="hero-eye"><span class="dot"></span><b>{{ config('hero-eyebrow-bold') ?: (relPkg ? relPkg.name ~ ' ' ~ (config('release-version') ?: '') : 'New release') }}</b> {{ config('hero-eyebrow') ?: 'just shipped' }}</div>
       {% endif %}
-      <h1>{{ config('hero-title-line1') ?: 'Take your server beyond limits with' }} <em>{{ config('hero-title-line2') ?: 'NayZeee Resources.' }}</em></h1>
+      <h1>{{ config('hero-headline-1') ?: 'Take your server beyond limits with' }} <em>{{ config('hero-headline-2') ?: 'NayZeee Resources.' }}</em></h1>
       <p class="lead">{{ config('hero-subtitle') ?: 'HUDs, MDTs, inventory, garages and more, all built in one design language and tested on ESX, QBCore and Qbox. Escrowed or open source, delivered to your Keymaster the second you pay.' }}</p>
       <div class="hero-cta">
         <a class="btn-teal btn-lg" href="{{ config('hero-cta-url') ?: catFirst }}"><svg class="ic"><use href="#i-bag"/></svg>{{ config('hero-cta-text') ?: 'Browse scripts' }}</a>
@@ -167,10 +167,10 @@
   </div>
 
   {% set totalPk = scriptCount ?? 0 %}
-  {% if (config('stats-toggle') ?: 'Hide') != 'Hide' %}
+  {% if (config('stats-row') ?: 'Hide') == 'Show' %}
   <div class="stats">
     <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-users"/></svg></div><div class="stat-txt"><span>{{ config('stat-1-label') ?: 'Servers running our scripts' }}</span><b>{{ config('stat-1-value') ?: '3,200+' }}</b></div></div>
-    <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-box"/></svg></div><div class="stat-txt"><span>{{ config('stat-2-label') ?: 'Scripts in the store' }}</span><b>{{ config('stat-2-value') ?: totalPk }}</b></div></div>
+    <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-box"/></svg></div><div class="stat-txt"><span>{{ config('stat-2-label') ?: 'Scripts in the store' }}</span><b{% if not config('stat-2-value') %} data-script-count{% endif %}>{{ config('stat-2-value') ?: totalPk }}</b></div></div>
     <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-bolt"/></svg></div><div class="stat-txt"><span>{{ config('stat-3-label') ?: 'Delivery' }}</span><b>{{ config('stat-3-value') ?: 'Instant' }}</b></div></div>
     <div class="panel stat"><div class="tile red"><svg class="ic"><use href="#i-clock"/></svg></div><div class="stat-txt"><span>{{ config('stat-4-label') ?: 'Support reply' }}</span><b>{{ config('stat-4-value') ?: '< 1h' }}</b></div></div>
   </div>
@@ -189,19 +189,18 @@
 </section>
 {% endif %}
 
-{# Featured: Tebex "Featured package" modules render here (module.featuredpackage.html). Falls back to the first packages. #}
+{# Tebex sidebar modules land here. Recent payments / gift card modules are moved to their sections; anything else stays only in the optional Featured section. #}
+{% if (config('featured-section') ?: 'Hide') == 'Show' %}
 <section class="section wrap" id="featured">
-  <div class="sec-h"><div><div class="kick">{{ config('featured-kicker') ?: 'Featured' }}</div><h2>{{ config('featured-title') ?: 'Most popular this week' }}</h2><p>{{ config('featured-sub') ?: 'What server owners are picking up right now.' }}</p></div><a class="btn-ghost" href="{{ config('featured-cta-url') ?: catFirst }}">{{ config('featured-cta') ?: 'View all' }} <svg class="ic"><use href="#i-chev"/></svg></a></div>
+  <div class="sec-h"><div><div class="kick">{{ config('featured-kicker') ?: 'Featured' }}</div><h2>{{ config('featured-title') ?: 'Most popular this week' }}</h2></div></div>
   <div class="grid" id="modSlot">{{ modules|raw }}</div>
-  <div class="grid" id="featFallback">
-    {% set shown = 0 %}{% set maxF = (config('featured-max') ?: '8') + 0 %}
-    {% for cat in store.categories %}{% for package in cat.packages %}{% if shown < maxF %}{% set shown = shown + 1 %}
-      {% include 'module.featuredpackage.html' with { 'module': { 'package': package }, 'fb_cat': cat.name } %}
-    {% endif %}{% endfor %}{% endfor %}
-  </div>
 </section>
-<script>(function(){function go(){var s=document.getElementById('modSlot'),f=document.getElementById('featFallback');if(!s||!f)return;var pay=s.querySelectorAll('.nz-mod-payments,.gcb');pay.forEach(function(m){var slot=document.getElementById('paySlot');if(slot)slot.appendChild(m);else m.remove();});if(s.querySelector('.pk'))f.remove();else s.remove();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();})();</script>
+{% else %}
+<div id="modSlot" hidden>{{ modules|raw }}</div>
+{% endif %}
+<script>(function(){function go(){var s=document.getElementById('modSlot');if(!s)return;Array.prototype.forEach.call(s.querySelectorAll('.nz-mod-payments,.gcb'),function(m){var slot=document.getElementById(m.classList.contains('gcb')?'gcbSlot':'paySlot');if(slot)slot.appendChild(m);else m.remove();});Array.prototype.forEach.call(Array.prototype.slice.call(s.children),function(c){if(!c.classList||!c.classList.contains('pk'))c.remove();});if(!s.querySelector('.pk')&&s.closest('section'))s.closest('section').remove();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();})();</script>
 
+{% if (config('cats-section') ?: 'Hide') == 'Show' %}
 <section class="section wrap">
   <div class="sec-h"><div><div class="kick">{{ config('cats-kicker') ?: 'Browse' }}</div><h2>{{ config('cats-title') ?: 'Shop by category' }}</h2><p>{{ config('cats-sub') ?: 'Every script ships with docs, a config and framework bridges.' }}</p></div></div>
   <div class="cats">
@@ -210,25 +209,26 @@
     {% endfor %}
   </div>
 </section>
+{% endif %}
 
 {% include 'module.bundle.twig' ignore missing %}
 
 {% if (config('whyus-toggle') ?: 'Show') != 'Hide' %}
 <section class="section wrap">
-  <div class="sec-c"><h2>{{ config('whyus-title') ?: 'Why <em>choose us</em>'|raw }}</h2><p>{{ config('whyus-sub') ?: 'Optimised, reliable scripts that drop into your server and keep performing.' }}</p></div>
+  <div class="sec-c"><h2>{{ config('whyus-heading') ?: 'Why <em>choose us</em>'|raw }}</h2><p>{{ config('whyus-tagline') ?: 'Optimised, reliable scripts that drop into your server and keep performing.' }}</p></div>
   <div class="why">
     {% set wIc = ['discord', 'layers', 'bolt', 'shield'] %}
     {% set wTi = ['Support & community', 'Quality & performance', 'Easy to use', 'Tebex security'] %}
     {% set wDe = ['Join the Discord for setup help, tips and release news. Real answers from the developer, not a bot.', 'Every script is built in one design language, tested on ESX, QBCore and Qbox, and kept lean on resmon.', 'Drop-in configs and docs for every script. Install in minutes, no code changes needed.', 'Escrowed by Cfx.re and delivered through Tebex straight to your Keymaster, so your purchase is protected.'] %}
     {% set wLt = ['Join our Discord', 'Read our docs', '', ''] %}
     {% for k in [1, 2, 3, 4] %}{% set wi = k - 1 %}
-    {% set wTitle = config('whyus-' ~ k ~ '-title') ?: wTi[wi] %}
+    {% set wTitle = config('whyus-' ~ k ~ '-head') ?: wTi[wi] %}
     {% if wTitle|replace({' ': ''}) %}
     {% set wUrl = config('whyus-' ~ k ~ '-link-url') ?: (k == 1 ? config('discord-url') : (k == 2 ? config('docs-url') : '')) %}
     {% set wTxt = config('whyus-' ~ k ~ '-link-text') ?: wLt[wi] %}
     <div class="panel view">
       <div class="wh"><div class="tile"><svg class="ic"><use href="#i-{{ wIc[wi] }}"/></svg></div><b>{{ wTitle }}</b></div>
-      <p>{{ config('whyus-' ~ k ~ '-desc') ?: wDe[wi] }}</p>
+      <p>{{ config('whyus-' ~ k ~ '-text') ?: wDe[wi] }}</p>
       {% if wUrl and wTxt|replace({' ': ''}) %}<a class="wl" href="{{ wUrl }}"{% if 'http' in wUrl %} target="_blank" rel="noopener"{% endif %}>{{ wTxt }}<svg class="ic"><use href="#i-arrow"/></svg></a>{% endif %}
     </div>
     {% endif %}{% endfor %}
@@ -247,16 +247,7 @@
 </section>
 {% endif %}
 
-{% if config('discord-url') and (config('discord-cta-toggle') ?: 'Show') != 'Hide' %}
-<section class="section wrap">
-  <div class="panel disc">
-    <span class="ghost lg"></span>
-    <div class="disc-t"><b>{{ config('discord-cta-title') ?: 'Join the Discord' }}</b><p>{{ config('discord-cta-sub') ?: 'Release notes, previews, config help and support tickets. Most questions get answered within the hour.' }}</p></div>
-    {% if config('discord-online') or config('discord-guild-id') %}<div class="online{% if not config('discord-online') %} hide{% endif %}" data-discord-online-wrap><span class="dot"></span><b data-discord-online>{{ config('discord-online') }}</b> {{ config('discord-online-label') ?: 'online' }}</div>{% endif %}
-    <a class="btn-white" href="{{ config('discord-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-discord"/></svg>{{ config('discord-cta-btn') ?: 'Join Discord' }}</a>
-  </div>
-</section>
-{% endif %}
+
 
 {% if (config('reviews-toggle') ?: 'Show') != 'Hide' and (config('review-1-text') or config('review-2-text') or config('review-3-text')) %}
 <section class="section wrap">
@@ -270,12 +261,12 @@
 {% endif %}
 
 <section class="section wrap" id="paySection">
-  <div class="sec-c"><h2>{{ config('pay-title') ?: 'Recent <em>payments</em>'|raw }}</h2><p>{{ config('pay-sub') ?: 'Trusted by server owners worldwide. Checkout is handled securely by <b>Tebex</b>.'|raw }}</p></div>
+  <div class="sec-c"><h2>{{ config('pay-heading') ?: 'Recent <em>payments</em>'|raw }}</h2><p>{{ config('pay-tagline') ?: 'Trusted by server owners worldwide. Checkout is handled securely by <b>Tebex</b>.'|raw }}</p></div>
   <div id="paySlot"></div>
-  <div class="pay-row">{% for n in (config('pay-methods') ?: 'Visa,Mastercard,PayPal,Apple Pay,Google Pay,Paysafecard,iDEAL,Klarna')|split(',') %}{% if n|replace({' ': ''}) %}<span class="pay"><i>{{ n|slice(0, 2)|upper }}</i>{{ n }}</span>{% endif %}{% endfor %}</div>
+  {% if (config('pay-methods-row') ?: 'Hide') == 'Show' %}<div class="pay-row">{% for n in (config('pay-methods') ?: 'Visa,Mastercard,PayPal,Apple Pay,Google Pay,Paysafecard,iDEAL,Klarna')|split(',') %}{% if n|replace({' ': ''}) %}<span class="pay"><i>{{ n|slice(0, 2)|upper }}</i>{{ n }}</span>{% endif %}{% endfor %}</div>{% endif %}
 </section>
 
-{% if config('framework-list') ?: 'ESX,QBCore,Qbox,ox_lib,ox_inventory,ox_target,qb-inventory,pma-voice,txAdmin,Cfx.re Escrow' %}
+{% if (config('framework-section') ?: 'Hide') == 'Show' %}
 {% set fws = (config('framework-list') ?: 'ESX,QBCore,Qbox,ox_lib,ox_inventory,ox_target,qb-inventory,pma-voice,txAdmin,Cfx.re Escrow')|split(',') %}
 <section class="section wrap">
   <div class="sec-h"><div><div class="kick">{{ config('framework-kicker') ?: 'Compatibility' }}</div><h2>{{ config('framework-title') ?: 'Works with your stack' }}</h2></div></div>
@@ -290,6 +281,17 @@
     {% for i in [1, 2, 3, 4, 5, 6, 7, 8] %}{% if config('faq-' ~ i ~ '-q') %}
     <details class="panel q"{% if i == 1 %} open{% endif %}><summary>{{ config('faq-' ~ i ~ '-q') }}<svg class="ic"><use href="#i-plus"/></svg></summary><div>{{ config('faq-' ~ i ~ '-a')|raw }}</div></details>
     {% endif %}{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if config('discord-url') and (config('discord-cta-toggle') ?: 'Show') != 'Hide' %}
+<section class="section wrap">
+  <div class="panel disc">
+    <span class="ghost lg"></span>
+    <div class="disc-t"><b>{{ config('discord-cta-title') ?: 'Join the Discord' }}</b><p>{{ config('discord-cta-sub') ?: 'Release notes, previews, config help and support tickets. Most questions get answered within the hour.' }}</p></div>
+    {% if config('discord-online') or config('discord-guild-id') %}<div class="online{% if not config('discord-online') %} hide{% endif %}" data-discord-online-wrap><span class="dot"></span><b data-discord-online>{{ config('discord-online') }}</b> {{ config('discord-online-label') ?: 'online' }}</div>{% endif %}
+    <a class="btn-white" href="{{ config('discord-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-discord"/></svg>{{ config('discord-cta-btn') ?: 'Join Discord' }}</a>
   </div>
 </section>
 {% endif %}

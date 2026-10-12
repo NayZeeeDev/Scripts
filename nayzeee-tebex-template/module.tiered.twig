@@ -153,15 +153,15 @@
     <p>{% if category.description %}{{ category.description|replace({'<p>': ' ', '</p>': ' ', '<li>': ' ', '</li>': ' · ', '<ul>': '', '</ul>': ' ', '<ol>': '', '</ol>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' ', '<strong>': '', '</strong>': '', '<b>': '', '</b>': '', '<em>': '', '</em>': '', '<i>': '', '</i>': '', '<u>': '', '</u>': '', '<h1>': ' ', '</h1>': ' ', '<h2>': ' ', '</h2>': ' ', '<h3>': ' ', '</h3>': ' ', '<h4>': ' ', '</h4>': ' ', '<div>': ' ', '</div>': ' ', '<span>': '', '</span>': '', '</a>': '', '&nbsp;': ' ', '&amp;': '&'}) }}{% else %}{{ config('tier-sub') ?: 'Every script on the store, every future release, and priority support for as long as you subscribe.' }}{% endif %}</p>
     <div class="perks">
       {% for i in [1, 2, 3, 4] %}{% set perk = config('tier-perk-' ~ i) ?: (i == 1 ? '{n} premium scripts' : (i == 2 ? 'All future releases' : (i == 3 ? 'Priority support' : 'Regular updates'))) %}
-      {% if perk|replace({' ': ''}) %}<div><i><svg class="ic"><use href="#i-check"/></svg></i>{{ perk|replace({'{n}': n}) }}</div>{% endif %}{% endfor %}
+      {% if perk|replace({' ': ''}) %}<div><i><svg class="ic"><use href="#i-check"/></svg></i>{{ perk|replace({'{n}': '<b class="sub-n">' ~ n ~ '</b>'})|raw }}</div>{% endif %}{% endfor %}
     </div>
   </section>
 
   {% if (config('tier-stats-toggle') ?: 'Show') != 'Hide' %}
   <div class="sub-stats view">
-    <div><b>{{ n }}</b><span>{{ config('tier-stat-1-label') ?: 'Scripts' }}</span></div>
+    <div><b class="sub-n">{{ n }}</b><span>{{ config('tier-stat-1-label') ?: 'Scripts' }}</span></div>
     <div><b>{{ config('tier-stat-2-value') ?: '∞' }}</b><span>{{ config('tier-stat-2-label') ?: 'Future releases' }}</span></div>
-    <div><b><small>{{ totalTx|slice(0, 1) }}</small>{{ totalTx|slice(1) }}</b><span>{{ config('tier-stat-3-label') ?: 'Total value' }}</span></div>
+    <div><b class="sub-total"{% if not config('tier-stat-total') %} data-auto="1"{% endif %}><small>{{ totalTx|slice(0, 1) }}</small>{{ totalTx|slice(1) }}</b><span>{{ config('tier-stat-3-label') ?: 'Total value' }}</span></div>
   </div>
   {% endif %}
 
@@ -219,13 +219,11 @@
   </section>
   {% endif %}
 
-  {% if incN > 0 %}
-  <section class="section">
+  <section class="section{% if incN == 0 %} hide{% endif %}" id="incSection" data-exc="{{ (config('tier-exclude-cats') ?: '')|replace({' ': ''}) }}" data-cat="{{ category.id }}" data-all="{{ config('tier-included-all') == 'Show' ? 1 : 0 }}" data-chip="{{ config('tier-included-chip') ?: 'Included' }}" data-more="{{ config('tier-included-more') ?: '+{n} more scripts' }}" data-more-url="{{ config('tier-included-url') ?: '/' }}">
     <div class="sec-h"><div><div class="kick">{{ config('tier-included-kicker') ?: 'Included' }}</div><h2>{{ config('tier-included-title') ?: 'Every script in the store, included' }}</h2><p>{{ config('tier-included-sub') ?: 'New releases are added to your plan the day they come out.' }}</p></div></div>
-    <div class="inc">{% set ii = 0 %}{% for cat in store.categories %}{% if cat.id != category.id and (cat.id ~ '') not in exc and (not inc or (cat.id ~ '') in inc|split(',')) %}{% for p in cat.packages %}{% if p.price > 0 %}{% set ii = ii + 1 %}{% if ii <= 12 or config('tier-included-all') == 'Show' %}<a href="/package/{{ p.id }}" class="view" style="animation-delay:{{ (ii - 1) * 30 }}ms"><div class="art"><span class="chip">{{ config('tier-included-chip') ?: 'Included' }}</span>{% if p.image.url %}<img src="{{ p.image.url }}" alt="" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div><div class="t"><div><b>{{ p.name }}</b><span>{{ cat.name }}</span></div><s>{{ csym }}{{ p.price|number_format(2) }}</s></div></a>{% endif %}{% endif %}{% endfor %}{% endif %}{% endfor %}</div>
+    <div class="inc" id="incGrid">{% set ii = 0 %}{% for cat in store.categories %}{% if cat.id != category.id and (cat.id ~ '') not in exc and (not inc or (cat.id ~ '') in inc|split(',')) %}{% for p in cat.packages %}{% if p.price > 0 %}{% set ii = ii + 1 %}{% if ii <= 12 or config('tier-included-all') == 'Show' %}<a href="/package/{{ p.id }}" class="view" style="animation-delay:{{ (ii - 1) * 30 }}ms"><div class="art"><span class="chip">{{ config('tier-included-chip') ?: 'Included' }}</span>{% if p.image.url %}<img src="{{ p.image.url }}" alt="" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div><div class="t"><div><b>{{ p.name }}</b><span>{{ cat.name }}</span></div><s>{{ csym }}{{ p.price|number_format(2) }}</s></div></a>{% endif %}{% endif %}{% endfor %}{% endif %}{% endfor %}</div>
     {% if incN > 12 and config('tier-included-all') != 'Show' %}<div class="inc-more"><a class="btn-line" href="{{ config('tier-included-url') ?: '/' }}">{{ (config('tier-included-more') ?: '+{n} more scripts')|replace({'{n}': incN - 12}) }}<svg class="ic"><use href="#i-arrow"/></svg></a></div>{% endif %}
   </section>
-  {% endif %}
 
   {% if config('tier-faq-1-q') %}
   <section class="section">
@@ -234,4 +232,10 @@
   </section>
   {% endif %}
 </div>
-
+<script>(function(){function run(){var sec=document.getElementById('incSection'),ns=document.querySelectorAll('.sub-n');if(!window.nzCatalog)return;var need=(sec&&sec.classList.contains('hide'))||(ns.length&&ns[0].textContent.trim()==='0');if(!need)return;
+nzCatalog(function(items){var exc=(sec?sec.dataset.exc:'').split(',').filter(Boolean),self=sec?sec.dataset.cat:'';var list=items.filter(function(x){return String(x.catId)!==String(self)&&exc.indexOf(String(x.catId))<0;});if(!list.length)return;
+var paid=list.filter(function(x){return x.price>0;}),total=paid.reduce(function(s,x){return s+x.price;},0),CS=nzS("{{ csym }}");
+Array.prototype.forEach.call(ns,function(n){if(n.textContent.trim()==='0')n.textContent=list.length;});
+var tt=document.querySelector('.sub-total[data-auto]');if(tt)tt.innerHTML='<small>'+CS.charAt(0)+'</small>'+CS.slice(1)+total.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')+'+';
+if(sec&&sec.classList.contains('hide')){var g=document.getElementById('incGrid');if(!g)return;var show=sec.dataset.all==='1'?paid:paid.slice(0,12);g.innerHTML='';show.forEach(function(x,i){var a=document.createElement('a');a.href='/package/'+x.id;a.className='view';a.style.animationDelay=(i*30)+'ms';var art=document.createElement('div');art.className='art';var ch=document.createElement('span');ch.className='chip';ch.textContent=sec.dataset.chip;art.appendChild(ch);if(x.img){var im=document.createElement('img');im.src=x.img;im.alt='';im.loading='lazy';art.appendChild(im);}else art.insertAdjacentHTML('beforeend','<svg class="big"><use href="#i-box"/></svg>');var tb=document.createElement('div');tb.className='t';var d=document.createElement('div');var b=document.createElement('b');b.textContent=x.name;var sp=document.createElement('span');sp.textContent=x.cat;d.appendChild(b);d.appendChild(sp);var s=document.createElement('s');s.textContent=CS+x.price.toFixed(2);tb.appendChild(d);tb.appendChild(s);a.appendChild(art);a.appendChild(tb);g.appendChild(a);});
+var old=sec.querySelector('.inc-more');if(old)old.remove();if(paid.length>show.length){var mw=document.createElement('div');mw.className='inc-more';var ma=document.createElement('a');ma.className='btn-line';ma.href=sec.dataset.moreUrl;ma.textContent=sec.dataset.more.replace('{n}',paid.length-show.length);mw.appendChild(ma);sec.appendChild(mw);}sec.classList.remove('hide');}});}if(window.nzCatalog)run();else document.addEventListener('DOMContentLoaded',run);})();</script>

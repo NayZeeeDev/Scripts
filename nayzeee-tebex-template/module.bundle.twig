@@ -95,7 +95,23 @@
   var CS = nzS("{{ csym|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), MAX = parseInt(nzS("{{ (config('bundle-max') ?: '10')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), 10) || 10, LOGGED = {{ loggedIn ? 'true' : 'false' }};
   var T = { next: nzS("{{ (config('bundle-next') ?: 'Add {n} more for {pct}% off')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), top: nzS("{{ (config('bundle-top') ?: 'Top discount unlocked: {pct}% off')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), max: nzS("{{ (config('bundle-max-text') ?: 'Bundle is full')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), adding: nzS("{{ (config('bundle-adding') ?: 'Adding {i} / {n}…')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"), none: nzS("{{ (config('bundle-none') ?: 'Pick at least one script')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") };
   var tiers = $$('#bbTiers .bt').map(function (t) { return { n: parseInt(t.dataset.count, 10) || 0, pct: parseFloat(t.dataset.pct) || 0, code: t.dataset.code || '', el: t }; }).filter(function (t) { return t.n > 0; }).sort(function (a, b) { return a.n - b.n; });
-  var sel = {};
+  var sel = {}, BX = nzS("{{ (config('bundle-exclude-cats') ?: '')|replace({' ': ''}) }}").split(',');
+  function fillFromCatalog(done) {
+    if ($$('#bbList .bi').length) { done(); return; }
+    if (!window.nzCatalog) { document.addEventListener('DOMContentLoaded', function () { fillFromCatalog(done); }); return; }
+    nzCatalog(function (items) {
+      var cats = $('#bbCats'), seen = {};
+      items.filter(function (x) { return x.price > 0 && BX.indexOf(String(x.catId)) < 0; }).forEach(function (x) {
+        var d = document.createElement('div'); d.className = 'bi'; d.dataset.id = x.id; d.dataset.cat = x.catId; d.dataset.name = x.name; d.dataset.price = x.price;
+        var art = document.createElement('div'); art.className = 'art'; art.innerHTML = '<span class="cb">' + '<svg class="ic"><use href="#i-check"/></svg></span>' + (x.img ? '' : '<svg class="big"><use href="#i-box"/></svg>');
+        if (x.img) { var im = document.createElement('img'); im.src = x.img; im.alt = ''; im.loading = 'lazy'; art.appendChild(im); }
+        var bb = document.createElement('div'); bb.className = 'bi-b'; var bt = document.createElement('div'); bt.className = 'bi-t'; var nb = document.createElement('b'); nb.textContent = x.name; var cs = document.createElement('span'); cs.textContent = x.cat; bt.appendChild(nb); bt.appendChild(cs); var pr = document.createElement('span'); pr.className = 'pr'; pr.textContent = fmt(x.price); bb.appendChild(bt); bb.appendChild(pr);
+        d.appendChild(art); d.appendChild(bb); $('#bbList').appendChild(d);
+        if (cats && !seen[x.catId]) { seen[x.catId] = 1; var btn = document.createElement('button'); btn.type = 'button'; btn.dataset.c = x.catId; btn.textContent = x.cat; cats.appendChild(btn); }
+      });
+      done();
+    });
+  }
   function fmt(n) { return CS + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   function update() {
     var ids = Object.keys(sel), n = ids.length, sub = ids.reduce(function (s, id) { return s + sel[id].price; }, 0);
@@ -131,8 +147,10 @@
       fetch('/checkout/packages/add/' + ids[i], { credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { i++; step(); });
     })();
   }
+  fillFromCatalog(function () {
   try { var saved = JSON.parse(sessionStorage.getItem('nz_bundle_sel') || '[]'); saved.forEach(function (id) { var el = $('#bbList .bi[data-id="' + id + '"]'); if (el) sel[id] = { name: el.dataset.name, price: parseFloat(el.dataset.price) || 0 }; }); if (LOGGED && sessionStorage.getItem('nz_bundle_go') === '1') { sessionStorage.removeItem('nz_bundle_go'); if (Object.keys(sel).length) setTimeout(function () { run(Object.keys(sel)); }, 400); } } catch (e) {}
   update();
+  });
 })();
 </script>
 {% endif %}

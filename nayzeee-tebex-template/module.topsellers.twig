@@ -9,7 +9,6 @@
 {% for cat in store.categories %}{% set cn = cat.name|lower %}{% if not ((tsCat and (cat.id ~ '') == tsCat) or (not tsCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn))) %}{% for p in cat.packages %}{% if (p.id ~ '') in tsIds and tsIds|length > 0 and tsIds[0] != '' %}{% set tsN = tsN + 1 %}{% endif %}{% if p.price > 0 %}{% set tsAll = tsAll + 1 %}{% endif %}{% endfor %}{% endif %}{% endfor %}
 {% set tsPick = tsN > 0 %}
 {% set tsCount = tsPick ? tsN : (tsAll < tsMax ? tsAll : tsMax) %}
-{% if tsCount > 0 %}
 <style>
   .ts-wrap{position:relative;overflow:hidden;padding:6px 0 12px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
   .ts-track{display:flex;gap:14px;width:max-content;animation:tsm {{ config('topsell-speed') ?: '45' }}s linear infinite}
@@ -21,7 +20,7 @@
 </style>
 <section class="section wrap" id="topsellers">
   <div class="sec-c"><h2>{{ config('topsell-title') ?: 'Top-selling <em>products</em>'|raw }}</h2>{% if (config('topsell-sub') ?: ' ')|replace({' ': ''}) %}<p>{{ config('topsell-sub') }}</p>{% endif %}</div>
-  <div class="ts-wrap"><div class="ts-track">
+  <div class="ts-wrap"><div class="ts-track" id="tsTrack" data-ids="{{ (config('bestseller-ids') ?: '')|replace({' ': ''}) }}" data-max="{{ tsMax }}">
     {% for pass in (tsCount < 5 ? [1, 2, 3, 4] : [1, 2]) %}{% set tsI = 0 %}
     {% for cat in store.categories %}{% set cn = cat.name|lower %}{% if not ((tsCat and (cat.id ~ '') == tsCat) or (not tsCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn))) %}{% for p in cat.packages %}
       {% if (tsPick and (p.id ~ '') in tsIds) or (not tsPick and p.price > 0 and tsI < tsMax) %}{% set tsI = tsI + 1 %}{% include 'module.featuredpackage.html' with { 'module': { 'package': p }, 'fb_cat': cat.name } %}{% endif %}
@@ -29,5 +28,5 @@
     {% endfor %}
   </div></div>
 </section>
-{% endif %}
+<script>(function(){function run(){var t=document.getElementById('tsTrack');if(!t||t.querySelector('.pk')||!window.nzCatalog)return;nzCatalog(function(items){var ids=(t.dataset.ids||'').split(',').filter(Boolean),max=parseInt(t.dataset.max,10)||8;var pick=ids.length?ids.map(function(id){return items.filter(function(x){return String(x.id)===id;})[0];}).filter(Boolean):[];if(!pick.length)pick=items.filter(function(x){return x.price>0;}).slice(0,max);if(!pick.length){var s=t.closest('section');if(s)s.remove();return;}var passes=pick.length<5?4:2,all=[];for(var p=0;p<passes;p++)all=all.concat(pick);nzCatalogCards(all,t);});}if(window.nzCatalog)run();else document.addEventListener('DOMContentLoaded',run);})();</script>
 {% endif %}

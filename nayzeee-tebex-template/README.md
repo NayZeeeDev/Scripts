@@ -58,12 +58,20 @@ Tebex's classic Webstore editor has no zip upload: files are pasted one by one. 
 
 Tebex runs templates in a Twig sandbox that only allows a handful of filters: `replace`, `lower`, `raw`, `number_format`, `length`, `slice`, `split`, `upper`. Not even `e`. Anything else ("Filter X not found") breaks the page, and numeric ranges (`1..4`) are out too because they compile to the `range()` function. `tools/sandbox_check.php` renders every page with that exact policy enforced; run it after any template edit.
 
+## Where package lists come from
+
+Tebex only hands package lists to category pages. On the homepage, the subscription page and the package page the template loads the catalogue in the visitor's browser from the category pages (cached 10 minutes), so the top-sellers marquee, the bundle builder, the search, the script count, the included-scripts grid and the related scripts all fill themselves. `layout.html` emits `window.NZ_CATS` and `nzCatalog()` for this.
+
+## Homepage sections (top to bottom)
+
+Hero → Top-selling products (marquee) → Heartbeat totals → holiday event → Bundle builder → Why choose us → Latest updates → Reviews → Recent payments → FAQ → Discord. Optional and hidden by default: stat tiles (`stats-row`), Featured grid (`featured-section`), Shop by category (`cats-section`), Works-with-your-stack marquee (`framework-section`), payment method chips (`pay-methods-row`).
+
 ## Package description markers
 
 Put these on their own lines at the end of a package description in Tebex. They are hidden on the page and turned into UI on the cards and the package page:
 
 ```
-FRAMEWORKS: ESX, QBCore, Qbox          → logo chips (ESX, QBCore, QBox, ox, Standalone are recognised)
+FRAMEWORKS: ESX, QBCore, Qbox          → logo chips (ESX, QBCore, QBox, ox, Standalone are recognised). A TAGS value that names a framework becomes a logo too; a "FiveM" tag is dropped
 VERSION: 2.4.1                         → version tag on the card and next to the title
 RATING: 4.9 (124)                      → stars + review count
 TAGS: New, Lifetime updates            → badges (New = teal NEW pill, Best seller = gold pill)
