@@ -209,6 +209,8 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 .fwc svg{width:22px;height:14px;display:block}
 .fwc img{height:15px;width:auto;display:block}
 .fwc.sm img{height:13px}
+.fwc img.esx{height:11px}
+.fwc.sm img.esx{height:9.5px}
 .fwc.sm{height:24px;padding:0 7px;gap:0;font-size:0}
 .fwc.sm svg{width:20px;height:12px}
 .fw-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -808,7 +810,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
   function fwChip(name, small) {
     var hit = null; FW.forEach(function (f) { if (!hit && f[0].test(name)) hit = f; });
     var label = hit ? hit[2] : name;
-    var logo = hit ? (FWIMG[hit[1]] ? '<img src="' + FWIMG[hit[1]] + '" alt="">' : '<svg><use href="#fw-' + hit[1] + '"/></svg>') : '';
+    var logo = hit ? (FWIMG[hit[1]] ? '<img class="' + hit[1] + '" src="' + FWIMG[hit[1]] + '" alt="">' : '<svg><use href="#fw-' + hit[1] + '"/></svg>') : '';
     return '<span class="fwc' + (small ? ' sm' : '') + '" title="' + esc(label) + '">' + logo + (small ? '' : esc(label)) + '</span>';
   }
   function stars(score) { var n = Math.round(parseFloat(score) || 0); return '<span class="st">' + '★★★★★'.slice(0, n) + '<span style="opacity:.25">' + '★★★★★'.slice(n) + '</span></span>'; }
