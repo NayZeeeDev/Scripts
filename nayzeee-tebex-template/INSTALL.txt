@@ -1,0 +1,32 @@
+NAYZEEE TEMPLATE - PASTE INSTALL (Tebex classic Webstore editor)
+
+The Tebex editor has no zip upload. You paste files. Every extra module is already folded into these files,
+so you only touch the files the editor already lists. Nothing needs to be created.
+
+1. In the editor click "Change Schema". Select all (Ctrl+A), delete, paste the whole of scheme/EN.json. Save.
+   (DE.json / FR.json / NL.json are the same settings with translated labels - pick one language.)
+2. For each file below: click it in the editor's file list, Ctrl+A, delete, paste the file from this pack, then
+   use "Save As Draft".
+
+   CLICK IN EDITOR                  PASTE FROM THIS PACK
+   layout.html                      layout.html
+   index.html                       index.html
+   category.html                    category.html
+   package.html                     package.html
+   checkout.html                    checkout.html
+   cms/page.html                    cms/page.html
+   username.html                    username.html
+   options.html                     options.html
+   category/tiered.html             category/tiered.html
+   module.featuredpackage.html      module.featuredpackage.html
+   module.payments.html             module.payments.html
+   module.giftcardbalance.html      module.giftcardbalance.html
+
+   Files the editor lists that are NOT in this pack (module.communitygoal.html, module.goal.html,
+   module.serverstatus.html, sidebar.twig, package-entry.twig ...) can stay as they are. The template never uses them.
+
+3. Open the Save As Draft dropdown and Publish. Then back in Appearance > Change Template, Activate NAYZEEE.
+4. Template settings: the tabs 01-06 come from the schema. Fill accent colours, Discord/docs links, the release
+   package ID, bestseller/new IDs, the Heartbeat key and the subscription package IDs. Publish again.
+
+Tip from Tebex: an emptied field keeps its old value. To clear one, type a single space.

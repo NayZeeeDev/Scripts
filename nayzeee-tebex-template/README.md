@@ -30,8 +30,10 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 
 ## Install
 
-1. Zip the contents of this folder (the files, not the folder itself) and upload it in Tebex → Webstore → Templates → Upload.
-2. Open the template settings and fill tabs 01 to 04. Everything has a default, so the store works before you touch anything.
+Tebex's classic Webstore editor has no zip upload: files are pasted one by one. Run `python3 tools/build_paste.py` (or use the NAYZEEE_PASTE_PACK zip) to get the 12 files the editor lists with every `module.*.twig` folded in, then follow `INSTALL.txt`: paste `scheme/EN.json` under Change Schema, paste each file over the matching one in the editor, Publish, Activate.
+
+1. Appearance → Change Template → Create Custom Template (any base) → Edit opens the editor.
+2. Open the template settings and fill tabs 01 to 06. Everything has a default, so the store works before you touch anything.
 3. Logo: the ghost is built in (`logo-mode` Ghost) and floats with a teal glow. The name next to it reads "NayZeee Development" (`brand-name` + `brand-sub`). Switch to Logo to use the one uploaded in Tebex, or Mark for the chamfer mark.
 
 ## Settings worth knowing
