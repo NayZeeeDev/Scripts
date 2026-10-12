@@ -59,10 +59,10 @@
     <div class="bb-l">
       <div class="bb-tools">
         <div class="inp-wrap"><svg class="ic"><use href="#i-search"/></svg><input class="inp" id="bbQ" placeholder="{{ config('bundle-search') ?: 'Find a script…' }}"></div>
-        <div class="segc" id="bbCats"><button class="on" data-c="">{{ config('bundle-all') ?: 'All' }}</button>{% for cat in store.categories %}{% if (cat.id ~ '') not in bx and cat.packages|length > 0 %}<button data-c="{{ cat.id }}">{{ cat.name }}</button>{% endif %}{% endfor %}</div>
+        <div class="segc" id="bbCats"><button class="on" data-c="">{{ config('bundle-all') ?: 'All' }}</button>{% for cat in store.categories %}{% if (cat.id ~ '') not in bx and 'bundle' not in cat.name|lower and cat.packages|length > 0 %}<button data-c="{{ cat.id }}">{{ cat.name }}</button>{% endif %}{% endfor %}</div>
       </div>
       <div class="bb-list" id="bbList">
-        {% for cat in store.categories %}{% if (cat.id ~ '') not in bx %}{% for p in cat.packages %}{% if p.price > 0 %}
+        {% for cat in store.categories %}{% if (cat.id ~ '') not in bx and 'bundle' not in cat.name|lower %}{% for p in cat.packages %}{% if p.price > 0 %}
         <div class="bi" data-id="{{ p.id }}" data-cat="{{ cat.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}">
           <div class="art"><span class="cb"><svg class="ic"><use href="#i-check"/></svg></span>{% if p.image.url %}<img src="{{ p.image.url }}" alt="" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div>
           <div class="bi-b"><div class="bi-t"><b>{{ p.name }}</b><span>{{ cat.name }}</span></div><span class="pr">{{ csym }}{{ p.price|number_format(2) }}</span></div>
