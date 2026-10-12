@@ -7,10 +7,12 @@
   .hero-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,var(--void) 0%,transparent 35%,transparent 65%,var(--void) 100%)}
   .hero-g{display:grid;grid-template-columns:1.2fr .8fr;gap:28px;align-items:center}
   .hero-txt{position:relative;z-index:1}
+  .hero-side{display:grid;place-items:center;min-height:380px}
+  .hero-ghost.big{position:static;width:min(330px,24vw);height:min(435px,31.6vw);filter:drop-shadow(0 0 60px rgba(var(--teal-rgb),.5));animation:nz-ghost-lg 6s ease-in-out infinite}
   .hero-ghost{position:absolute;left:calc(60% - 210px);top:-6px;width:150px;height:198px;z-index:0;filter:drop-shadow(0 0 40px rgba(var(--teal-rgb),.45));animation:nz-ghost-lg 6s ease-in-out infinite;pointer-events:none}
   .hero-eye{display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px 0 6px;border-radius:999px;background:var(--panel);border:1px solid var(--line-soft);font-size:11px;color:var(--ink-2);font-weight:300;margin-bottom:22px}
   .hero-eye b{color:var(--white);font-weight:500}
-  .hero h1{font-size:50px;font-weight:700;letter-spacing:-.04em;line-height:1.02;color:var(--white);max-width:13ch}
+  .hero h1{font-size:46px;font-weight:700;letter-spacing:-.04em;line-height:1.04;color:var(--white);max-width:17ch}
   .hero h1 em{font-style:normal;color:var(--teal)}
   .hero p.lead{font-size:14.5px;color:var(--ink-2);font-weight:300;line-height:1.6;max-width:50ch;margin:20px 0 26px}
   .hero-cta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -51,11 +53,17 @@
   .cat-t b{display:block;font-size:13.5px;font-weight:600;color:var(--white);letter-spacing:-.01em}
   .cat-t span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .arrow{color:var(--ink-3);transition:all var(--fast)}
-  .why{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-  .why .panel{padding:18px}
-  .why .tile{margin-bottom:14px}
-  .why b{display:block;font-size:14px;font-weight:600;color:var(--white);margin-bottom:6px;letter-spacing:-.012em}
-  .why p{font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.6}
+  .why{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .why .panel{padding:26px 28px;display:flex;flex-direction:column;gap:14px;transition:border-color var(--fast),transform var(--fast)}
+  .why .panel:hover{border-color:var(--teal-edge);transform:translateY(-2px)}
+  .why .wh{display:flex;align-items:center;gap:14px}
+  .why .tile{width:46px;height:46px;border-radius:var(--r-md)}
+  .why .tile .ic{width:21px;height:21px}
+  .why b{display:block;font-size:19px;font-weight:600;color:var(--white);letter-spacing:-.02em}
+  .why p{font-size:13.5px;color:var(--ink-2);font-weight:300;line-height:1.65}
+  .why a.wl{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--teal);margin-top:auto}
+  .why a.wl .ic{width:13px;height:13px}
+  .why a.wl:hover{text-decoration:underline;text-underline-offset:3px}
   .disc{display:flex;align-items:center;gap:22px;padding:24px 26px;position:relative;overflow:hidden}
   .disc::after{content:'';position:absolute;right:-50px;top:-70px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba(var(--teal-rgb),.16),transparent 65%);pointer-events:none}
   .disc .mark.lg{box-shadow:0 2px 24px rgba(var(--teal-rgb),.4)}
@@ -74,7 +82,7 @@
   .rev p{font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.6}
   .rev .meta{font-size:10.5px;color:var(--ink-3);font-weight:300;padding-top:9px;border-top:1px solid var(--line-hair);display:flex;gap:6px;align-items:center}
   .rev .meta .ic{width:12px;height:12px;color:var(--teal)}
-  .pay-row{display:flex;flex-wrap:wrap;gap:8px}
+  .pay-row{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:18px}
   .pay{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px 0 10px;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-sm);font-size:12px;font-weight:500;color:var(--ink-2)}
   .pay i{width:22px;height:15px;border-radius:3px;background:var(--raise);border:1px solid var(--line-soft);display:grid;place-items:center;font-style:normal;font-size:7.5px;font-weight:800;letter-spacing:.02em;color:var(--white)}
   .fw-wrap{position:relative;overflow:hidden;padding:4px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
@@ -107,7 +115,7 @@
   @media (max-width:860px){.upd{grid-template-columns:1fr 1fr}}
   @media (max-width:600px){.upd{grid-template-columns:1fr}}
   @media (max-width:1040px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media (max-width:860px){.hero-ghost{left:auto;right:-14px;top:-30px;width:96px;height:127px;opacity:.3}.hero-g{grid-template-columns:1fr}.hero h1{font-size:38px}.cats,.why,.reviews,.faq{grid-template-columns:1fr 1fr}.disc{flex-wrap:wrap}}
+  @media (max-width:860px){.hero-side{min-height:0;margin-top:-10px}.hero-ghost.big{width:180px;height:237px;opacity:1}.hero-ghost:not(.big){left:auto;right:-14px;top:-30px;width:96px;height:127px;opacity:.3}.hero-g{grid-template-columns:1fr}.hero h1{font-size:38px}.cats,.why,.reviews,.faq{grid-template-columns:1fr 1fr}.disc{flex-wrap:wrap}}
   @media (max-width:600px){.cats,.why,.reviews,.faq,.stats{grid-template-columns:1fr}.hero h1{font-size:32px}}
 </style>
 
@@ -119,12 +127,13 @@
 <section class="hero wrap view">
   {% if (config('hero-bg-toggle') ?: 'Show') != 'Hide' %}<div class="hero-bg"></div>{% endif %}
   <div class="hero-g">
-    {% if (config('hero-ghost-toggle') ?: 'Show') != 'Hide' %}<span class="ghost hero-ghost" aria-hidden="true"></span>{% endif %}
+    {% set heroSide = config('hero-video') or config('hero-image') or relPkg %}
+    {% if heroSide and (config('hero-ghost-toggle') ?: 'Show') != 'Hide' %}<span class="ghost hero-ghost" aria-hidden="true"></span>{% endif %}
     <div class="hero-txt">
       {% if (config('hero-eyebrow-toggle') ?: 'Show') != 'Hide' %}
       <div class="hero-eye"><span class="dot"></span><b>{{ config('hero-eyebrow-bold') ?: (relPkg ? relPkg.name ~ ' ' ~ (config('release-version') ?: '') : 'New release') }}</b> {{ config('hero-eyebrow') ?: 'just shipped' }}</div>
       {% endif %}
-      <h1>{{ config('hero-title-line1') ?: 'FiveM scripts that' }} <em>{{ config('hero-title-line2') ?: 'feel native.' }}</em></h1>
+      <h1>{{ config('hero-title-line1') ?: 'Take your server beyond limits with' }} <em>{{ config('hero-title-line2') ?: 'NayZeee Resources.' }}</em></h1>
       <p class="lead">{{ config('hero-subtitle') ?: 'HUDs, MDTs, inventory, garages and more, all built in one design language and tested on ESX, QBCore and Qbox. Escrowed or open source, delivered to your Keymaster the second you pay.' }}</p>
       <div class="hero-cta">
         <a class="btn-teal btn-lg" href="{{ config('hero-cta-url') ?: catFirst }}"><svg class="ic"><use href="#i-bag"/></svg>{{ config('hero-cta-text') ?: 'Browse scripts' }}</a>
@@ -152,11 +161,13 @@
           <div class="connect"><code>{% if relPkg.price == 0 %}{{ config('free-text') ?: 'Free' }}{% else %}{{ config('release-from') ?: 'from' }} {{ csym }}{{ relPkg.price|number_format(2) }}{% endif %}</code><span>{{ config('release-note') ?: 'lifetime updates' }}</span><a class="btn-teal btn-sm" href="/package/{{ relPkg.id }}">{{ config('release-btn') ?: 'View' }}</a></div>
         </div>
       </aside>
+    {% elseif (config('hero-ghost-toggle') ?: 'Show') != 'Hide' %}
+      <div class="hero-side"><span class="ghost hero-ghost big" aria-hidden="true"></span></div>
     {% endif %}
   </div>
 
   {% set totalPk = scriptCount ?? 0 %}
-  {% if (config('stats-toggle') ?: 'Show') != 'Hide' %}
+  {% if (config('stats-toggle') ?: 'Hide') != 'Hide' %}
   <div class="stats">
     <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-users"/></svg></div><div class="stat-txt"><span>{{ config('stat-1-label') ?: 'Servers running our scripts' }}</span><b>{{ config('stat-1-value') ?: '3,200+' }}</b></div></div>
     <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-box"/></svg></div><div class="stat-txt"><span>{{ config('stat-2-label') ?: 'Scripts in the store' }}</span><b>{{ config('stat-2-value') ?: totalPk }}</b></div></div>
@@ -165,6 +176,7 @@
   </div>
   {% endif %}
   {% include 'module.sale.twig' ignore missing %}
+  {% include 'module.topsellers.twig' ignore missing %}
   <div class="panel live home hide wrap" id="homeLive"></div>
   <script>if (window.nzHeartbeatHome) nzHeartbeatHome(document.getElementById('homeLive'), {{ totalPk ?? 0 }});</script>
   <div id="holEvent"></div>
@@ -188,7 +200,7 @@
     {% endif %}{% endfor %}{% endfor %}
   </div>
 </section>
-<script>(function(){var s=document.getElementById('modSlot'),f=document.getElementById('featFallback');if(!s||!f)return;var pay=s.querySelectorAll('.nz-mod-payments,.gcb');pay.forEach(function(m){var slot=document.getElementById('paySlot');if(slot)slot.appendChild(m);else m.remove();});if(s.querySelector('.pk'))f.remove();else s.remove();})();</script>
+<script>(function(){function go(){var s=document.getElementById('modSlot'),f=document.getElementById('featFallback');if(!s||!f)return;var pay=s.querySelectorAll('.nz-mod-payments,.gcb');pay.forEach(function(m){var slot=document.getElementById('paySlot');if(slot)slot.appendChild(m);else m.remove();});if(s.querySelector('.pk'))f.remove();else s.remove();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();})();</script>
 
 <section class="section wrap">
   <div class="sec-h"><div><div class="kick">{{ config('cats-kicker') ?: 'Browse' }}</div><h2>{{ config('cats-title') ?: 'Shop by category' }}</h2><p>{{ config('cats-sub') ?: 'Every script ships with docs, a config and framework bridges.' }}</p></div></div>
@@ -203,11 +215,23 @@
 
 {% if (config('whyus-toggle') ?: 'Show') != 'Hide' %}
 <section class="section wrap">
-  <div class="sec-h"><div><div class="kick">{{ config('whyus-kicker') ?: 'Why us' }}</div><h2>{{ config('whyus-title') ?: 'One design language, three frameworks' }}</h2><p>{{ config('whyus-sub') ?: 'Everything in the store looks like it belongs together and runs where you already are.' }}</p></div></div>
+  <div class="sec-c"><h2>{{ config('whyus-title') ?: 'Why <em>choose us</em>'|raw }}</h2><p>{{ config('whyus-sub') ?: 'Optimised, reliable scripts that drop into your server and keep performing.' }}</p></div>
   <div class="why">
-    <div class="panel"><div class="tile"><svg class="ic"><use href="#i-layers"/></svg></div><b>{{ config('whyus-1-title') ?: 'Matched UI' }}</b><p>{{ config('whyus-1-desc') ?: 'Every script uses NAYZEEE UI: same surfaces, same accent, same motion. Mix and match and it still looks like one server.' }}</p></div>
-    <div class="panel"><div class="tile"><svg class="ic"><use href="#i-shield"/></svg></div><b>{{ config('whyus-2-title') ?: 'Escrow or open source' }}</b><p>{{ config('whyus-2-desc') ?: 'Pick escrowed for the lowest price and Cfx.re protection, or open source when you want to dig into the code. Same updates either way.' }}</p></div>
-    <div class="panel"><div class="tile"><svg class="ic"><use href="#i-refresh"/></svg></div><b>{{ config('whyus-3-title') ?: 'Lifetime updates' }}</b><p>{{ config('whyus-3-desc') ?: 'Buy once, keep getting updates in your Keymaster. Changelogs are posted in Discord with every release.' }}</p></div>
+    {% set wIc = ['discord', 'layers', 'bolt', 'shield'] %}
+    {% set wTi = ['Support & community', 'Quality & performance', 'Easy to use', 'Tebex security'] %}
+    {% set wDe = ['Join the Discord for setup help, tips and release news. Real answers from the developer, not a bot.', 'Every script is built in one design language, tested on ESX, QBCore and Qbox, and kept lean on resmon.', 'Drop-in configs and docs for every script. Install in minutes, no code changes needed.', 'Escrowed by Cfx.re and delivered through Tebex straight to your Keymaster, so your purchase is protected.'] %}
+    {% set wLt = ['Join our Discord', 'Read our docs', '', ''] %}
+    {% for k in [1, 2, 3, 4] %}{% set wi = k - 1 %}
+    {% set wTitle = config('whyus-' ~ k ~ '-title') ?: wTi[wi] %}
+    {% if wTitle|replace({' ': ''}) %}
+    {% set wUrl = config('whyus-' ~ k ~ '-link-url') ?: (k == 1 ? config('discord-url') : (k == 2 ? config('docs-url') : '')) %}
+    {% set wTxt = config('whyus-' ~ k ~ '-link-text') ?: wLt[wi] %}
+    <div class="panel view">
+      <div class="wh"><div class="tile"><svg class="ic"><use href="#i-{{ wIc[wi] }}"/></svg></div><b>{{ wTitle }}</b></div>
+      <p>{{ config('whyus-' ~ k ~ '-desc') ?: wDe[wi] }}</p>
+      {% if wUrl and wTxt|replace({' ': ''}) %}<a class="wl" href="{{ wUrl }}"{% if 'http' in wUrl %} target="_blank" rel="noopener"{% endif %}>{{ wTxt }}<svg class="ic"><use href="#i-arrow"/></svg></a>{% endif %}
+    </div>
+    {% endif %}{% endfor %}
   </div>
 </section>
 {% endif %}
@@ -246,7 +270,7 @@
 {% endif %}
 
 <section class="section wrap" id="paySection">
-  <div class="sec-h"><div><div class="kick">{{ config('pay-kicker') ?: 'Payments' }}</div><h2>{{ config('pay-title') ?: 'Pay your way' }}</h2><p>{{ config('pay-sub') ?: 'Checkout is handled securely by Tebex.' }}</p></div></div>
+  <div class="sec-c"><h2>{{ config('pay-title') ?: 'Recent <em>payments</em>'|raw }}</h2><p>{{ config('pay-sub') ?: 'Trusted by server owners worldwide. Checkout is handled securely by <b>Tebex</b>.'|raw }}</p></div>
   <div id="paySlot"></div>
   <div class="pay-row">{% for n in (config('pay-methods') ?: 'Visa,Mastercard,PayPal,Apple Pay,Google Pay,Paysafecard,iDEAL,Klarna')|split(',') %}{% if n|replace({' ': ''}) %}<span class="pay"><i>{{ n|slice(0, 2)|upper }}</i>{{ n }}</span>{% endif %}{% endfor %}</div>
 </section>

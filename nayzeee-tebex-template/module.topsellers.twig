@@ -1,0 +1,33 @@
+{# ─── NAYZEEE · module.topsellers.twig · "Top-selling products" marquee (cards scroll left, pause on hover).
+   Cards come from bestseller-ids (comma-separated package IDs). With none set, the first topsell-max scripts are used.
+   Settings: topsell-toggle, topsell-title (HTML, <em> = accent), topsell-sub, topsell-speed (seconds), topsell-max. ─── #}
+{% if (config('topsell-toggle') ?: 'Show') != 'Hide' %}
+{% set tsIds = (config('bestseller-ids') ?: '')|replace({' ': ''})|split(',') %}
+{% set tsMax = (config('topsell-max') ?: '8') + 0 %}
+{% set tsCat = (config('tier-category-id') ?: '')|replace({' ': ''}) %}
+{% set tsN = 0 %}{% set tsAll = 0 %}
+{% for cat in store.categories %}{% set cn = cat.name|lower %}{% if not ((tsCat and (cat.id ~ '') == tsCat) or (not tsCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn))) %}{% for p in cat.packages %}{% if (p.id ~ '') in tsIds and tsIds|length > 0 and tsIds[0] != '' %}{% set tsN = tsN + 1 %}{% endif %}{% if p.price > 0 %}{% set tsAll = tsAll + 1 %}{% endif %}{% endfor %}{% endif %}{% endfor %}
+{% set tsPick = tsN > 0 %}
+{% set tsCount = tsPick ? tsN : (tsAll < tsMax ? tsAll : tsMax) %}
+{% if tsCount > 0 %}
+<style>
+  .ts-wrap{position:relative;overflow:hidden;padding:6px 0 12px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+  .ts-track{display:flex;gap:14px;width:max-content;animation:tsm {{ config('topsell-speed') ?: '45' }}s linear infinite}
+  .ts-wrap:hover .ts-track{animation-play-state:paused}
+  .ts-track .pk{width:290px;flex:none;animation:none;opacity:1;transform:none}
+  @keyframes tsm{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  @media (max-width:600px){.ts-track .pk{width:240px}}
+  @media (prefers-reduced-motion:reduce){.ts-track{animation:none}}
+</style>
+<section class="section wrap" id="topsellers">
+  <div class="sec-c"><h2>{{ config('topsell-title') ?: 'Top-selling <em>products</em>'|raw }}</h2>{% if (config('topsell-sub') ?: ' ')|replace({' ': ''}) %}<p>{{ config('topsell-sub') }}</p>{% endif %}</div>
+  <div class="ts-wrap"><div class="ts-track">
+    {% for pass in (tsCount < 5 ? [1, 2, 3, 4] : [1, 2]) %}{% set tsI = 0 %}
+    {% for cat in store.categories %}{% set cn = cat.name|lower %}{% if not ((tsCat and (cat.id ~ '') == tsCat) or (not tsCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn))) %}{% for p in cat.packages %}
+      {% if (tsPick and (p.id ~ '') in tsIds) or (not tsPick and p.price > 0 and tsI < tsMax) %}{% set tsI = tsI + 1 %}{% include 'module.featuredpackage.html' with { 'module': { 'package': p }, 'fb_cat': cat.name } %}{% endif %}
+    {% endfor %}{% endif %}{% endfor %}
+    {% endfor %}
+  </div></div>
+</section>
+{% endif %}
+{% endif %}

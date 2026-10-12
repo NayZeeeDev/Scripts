@@ -24,6 +24,7 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 | `module.sale.twig` | Store-wide discount banner with countdown |
 | `module.bundle.twig` | Build-your-own-bundle section |
 | `module.reviews.twig` | Write-a-review modal that posts to a Discord webhook |
+| `module.topsellers.twig` | Top-selling products marquee under the hero (cards scroll left, pause on hover), fed by `bestseller-ids` |
 | `module.heartbeat.twig` | Live usage cards powered by Heartbeat (servers / players per script, store totals on the homepage) |
 | `module.cursor.twig` | Custom cursor: the feather arrow, and the Deku character over links and buttons, recoloured to the accent. Mouse devices only |
 | `scheme/EN.json` `DE.json` `FR.json` `NL.json` | Every setting shown in Tebex → Webstore → Templates → Settings, in four languages |
@@ -43,6 +44,7 @@ Tebex's classic Webstore editor has no zip upload: files are pasted one by one. 
 - **Sale countdown** (03): `sale-toggle` Show, then `sale-end`, `sale-code`, `sale-text`. Optional `sale-start` counts down to the start first.
 - **Bundle builder** (04): set `bundle-tier-1-count` / `-pct` / `-code` (and tiers 2, 3). Create each code as a Tebex coupon with a minimum package count. Exclude your subscription and bundle categories with `bundle-exclude-cats`. Scripts show with their full-width thumbnails.
 - **Reviews** (04): paste a Discord webhook into `review-webhook`. Visitors get a Write a review button on the homepage and every package page. Reviews land in your channel; publish the good ones by pasting them into `review-1..3-*`.
+- **Top sellers + recent payments** (04): `bestseller-ids` feeds the top-selling marquee. Add Tebex's Recent Payments module in Webstore → Sidebar to fill the Recent payments marquee (it also drives the purchase toasts).
 - **Updates feed, trusted-by, Discord live count** (04 / 02): `update-1..6-*`, `trusted-logos` or `trusted-names`, `discord-guild-id` (enable the widget in Discord).
 - **Seasonal themes** (05): `holiday-mode` Auto switches on the 1st of each month. Each theme has its own scene, particles, nav countdown and homepage event panel. Fill `event-<theme>-days` for the daily gift calendar. Preview with `?holiday=christmas` in the URL, `?holiday=off` to preview without a theme.
 - **Tags** (06): `bestseller-ids` and `new-ids` are comma-separated package IDs. Descriptions can also carry `TAGS: Best seller` or `TAGS: New`.

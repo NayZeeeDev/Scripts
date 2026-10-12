@@ -119,7 +119,7 @@ input,select,textarea{font:inherit;color:inherit}
 .cur:hover{border-color:var(--line);color:var(--white)}
 .user{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px 0 4px;border-radius:var(--r-sm);border:1px solid var(--line-soft);background:var(--panel);transition:border-color var(--fast)}
 .user:hover{border-color:var(--line)}
-.av{width:26px;height:26px;flex:none;border-radius:var(--r-xs);display:grid;place-items:center;background:var(--raise);border:1px solid var(--line);font-size:10px;font-weight:600;color:var(--ink-2);text-transform:uppercase;overflow:hidden}
+.av{position:relative;overflow:hidden;width:26px;height:26px;flex:none;border-radius:var(--r-xs);display:grid;place-items:center;background:var(--raise);border:1px solid var(--line);font-size:10px;font-weight:600;color:var(--ink-2);text-transform:uppercase;overflow:hidden}
 .av img{width:100%;height:100%;object-fit:cover}
 .user b{font-size:11.5px;font-weight:500;color:var(--white);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:block}
 .user span{display:block;font-size:9.5px;color:var(--ink-3);font-weight:300}
@@ -175,6 +175,13 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 .p-head p{font-size:11px;color:var(--ink-3);font-weight:300;margin-top:3px}
 .p-body{padding:14px 16px}
 .sec-h{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:18px}
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.sec-c{text-align:center;max-width:640px;margin:0 auto 26px}
+.sec-c h2{font-size:30px;font-weight:700;letter-spacing:-.03em;color:var(--white);line-height:1.1;text-shadow:0 0 30px rgba(255,255,255,.12)}
+.sec-c h2 em{font-style:normal;color:var(--teal);text-shadow:0 0 30px rgba(var(--teal-rgb),.45)}
+.sec-c p{margin-top:10px;font-size:13.5px;color:var(--ink-2);font-weight:300;line-height:1.6}
+.sec-c p b{color:var(--white);font-weight:500}
+@media (max-width:600px){.sec-c h2{font-size:24px}}
 .sec-h .kick{display:flex;align-items:center;gap:9px;font-size:10.5px;color:var(--teal);font-weight:500;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
 .sec-h .kick::before{content:'';width:14px;height:2px;background:var(--teal);border-radius:2px}
 .sec-h h2{font-size:22px;font-weight:600;letter-spacing:-.028em;line-height:1.1;color:var(--white)}
@@ -486,7 +493,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       <a class="lnk{% if seoTyp == 'home' %} on{% endif %}" href="/"><svg class="ic"><use href="#i-home"/></svg>{{ config('nav-home-label') ?: 'Home' }}</a>
       {% if (config('nav-store-mode') ?: 'Link') == 'Dropdown' %}
       <div class="dd">
-        <a class="lnk{% if seoTyp == 'category' or seoTyp == 'package' %} on{% endif %}" href="{{ navStore }}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Store' }} <svg class="ic" style="width:12px;height:12px;opacity:.6"><use href="#i-down"/></svg></a>
+        <a class="lnk{% if seoTyp == 'category' or seoTyp == 'package' %} on{% endif %}" href="{{ navStore }}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Scripts' }} <svg class="ic" style="width:12px;height:12px;opacity:.6"><use href="#i-down"/></svg></a>
         <div class="dd-m">
           {% for cat in store.categories %}
             <a class="dd-i" href="/category/{{ cat.id }}"><span class="ti"><svg class="ic"><use href="#i-{{ loop.index0 % 2 == 0 ? 'layers' : 'box' }}"/></svg></span>{{ cat.name }}<span class="tally">{{ cat.packages|length }}</span></a>
@@ -497,7 +504,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
         </div>
       </div>
       {% else %}
-      <a class="lnk{% if (seoTyp == 'category' or seoTyp == 'package') and not curTier %} on{% endif %}" href="{{ navStore }}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Store' }}</a>
+      <a class="lnk{% if (seoTyp == 'category' or seoTyp == 'package') and not curTier %} on{% endif %}" href="{{ navStore }}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Scripts' }}</a>
       {% endif %}
       {% if config('nav-link-1-label') and l1 %}<a class="lnk{% if curTier and ('subscri' in l1|lower or 'member' in l1|lower or l1 == tierUrl) %} on{% endif %}" href="{{ l1 }}"><svg class="ic"><use href="#i-crown"/></svg>{{ config('nav-link-1-label') }}</a>{% endif %}
       {% if config('nav-link-2-label') and l2 %}<a class="lnk" href="{{ l2 }}"><svg class="ic"><use href="#i-book"/></svg>{{ config('nav-link-2-label') }}</a>{% endif %}
@@ -515,7 +522,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       <button class="ibtn" id="openCart" aria-label="Cart"><svg class="ic"><use href="#i-cart"/></svg><span class="n{% if cartCount == 0 %} hide{% endif %}" id="cartN">{{ cartCount }}</span></button>
       {% if loggedIn %}
       <div class="dd">
-        <button class="user"><span class="av">{{ basket.ign|slice(0, 2) }}</span><div style="text-align:left"><b>{{ basket.ign }}</b><span>{{ config('account-sub') ?: 'Cfx.re account' }}</span></div></button>
+        {% set avUrl = (config('avatar-url') ?: 'https://forum.cfx.re/user_avatar/forum.cfx.re/{ign}/96/1.png')|replace({'{ign}': basket.ign|lower}) %}<button class="user"><span class="av">{% if avUrl %}<img src="{{ avUrl }}" alt="" loading="lazy" onerror="this.remove()" />{% endif %}{{ basket.ign|slice(0, 2) }}</span><div style="text-align:left"><b>{{ basket.ign }}</b><span>{{ config('account-sub') ?: 'Cfx.re account' }}</span></div></button>
         <div class="dd-m r" style="min-width:200px">
           {% if (config('wl-toggle') ?: 'Enabled') != 'Disabled' %}<button class="dd-i" id="openWish2"><svg class="ic"><use href="#i-heart"/></svg>{{ config('wl-nav-text') ?: 'Wishlist' }}</button>{% endif %}
           {% if config('keymaster-url') %}<a class="dd-i" href="{{ config('keymaster-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-key"/></svg>{{ config('keymaster-label') ?: 'Keymaster' }}</a>{% endif %}
@@ -626,7 +633,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 <aside class="mnav" id="mnav">
   <div style="display:flex;align-items:center;gap:11px;padding:4px 6px 14px;border-bottom:1px solid var(--line-soft);margin-bottom:8px">{% set lm = config('logo-mode') ?: 'Ghost' %}{% if lm == 'Logo' and store.logo %}<img class="logo" src="{{ store.logo }}" alt="" />{% elseif lm == 'Mark' %}<div class="mark"></div>{% else %}<span class="ghost" role="img" aria-label=""></span>{% endif %}<div class="brand-t">{{ config('brand-name') ?: 'NayZeee' }}<span class="brand-s">{{ config('brand-sub') ?: 'Development' }}</span></div><button class="pill-close" data-close style="margin-left:auto">{{ config('close-label') ?: 'Close' }}</button></div>
   <a class="nav-i" href="/"><svg class="ic"><use href="#i-home"/></svg>{{ config('nav-home-label') ?: 'Home' }}</a>
-  <div class="grp">{{ config('nav-store-label') ?: 'Store' }}</div>
+  <div class="grp">{{ config('nav-store-label') ?: 'Scripts' }}</div>
   {% for cat in store.categories %}<a class="nav-i{% if category is defined and category and category.id == cat.id %} on{% endif %}" href="/category/{{ cat.id }}"><svg class="ic"><use href="#i-box"/></svg>{{ cat.name }}</a>{% endfor %}
   <div class="grp">{{ config('account-sub') ?: 'Account' }}</div>
   {% if loggedIn %}<a class="nav-i" href="/checkout/logout"><svg class="ic"><use href="#i-logout"/></svg>{{ config('logout-label') ?: 'Sign out' }}</a>{% else %}<a class="nav-i" href="/login"><svg class="ic"><use href="#i-user"/></svg>{{ config('login-label') ?: 'Sign in' }}</a>{% endif %}
