@@ -29,7 +29,7 @@
   .live-f .dot{width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 rgba(229,72,77,.6);animation:live-pulse 1.8s ease-out infinite;display:inline-block;margin-right:7px;vertical-align:1px}
   .live-f .ok .dot{background:var(--teal);box-shadow:0 0 0 0 rgba(var(--teal-rgb),.6)}
   .live-f .rank{display:inline-flex;align-items:center;gap:5px;color:var(--ink-2)}
-  .live-f .upd{margin-left:auto;text-align:right}
+  .live-f .hb-upd{margin-left:auto;text-align:right}
   .live-f .rank .ic{width:12px;height:12px;color:#e5a50a}
   .live.home{margin-top:18px}
   .live.home .live-g{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -53,7 +53,7 @@
   function countUp(el, to) { var from = parseFloat((el.textContent || '0').replace(/[^0-9.]/g, '')) || 0, t0 = performance.now(), d = 900; if (to == null) { el.textContent = '–'; return; } (function f(t) { var k = Math.min(1, (t - t0) / d); k = 1 - Math.pow(1 - k, 3); el.textContent = fmt(from + (to - from) * k); if (k < 1) requestAnimationFrame(f); })(t0); }
   function build(el, labels, withRank) {
     el.innerHTML = '<div class="live-g"><div><b data-k="s">0</b><span>' + labels[0] + '</span></div><div><b data-k="p">0</b><span>' + labels[1] + '</span></div>' + (labels[2] ? '<div><b data-k="r">0</b><span>' + labels[2] + '</span></div>' : '') + '</div>' +
-      '<div class="live-f"><span class="via"><i class="dot"></i>' + C.t.via + '</span>' + (withRank ? '<span class="rank hide"><svg class="ic"><use href="#i-crown"/></svg><em></em></span>' : '') + '<span class="upd"></span></div>';
+      '<div class="live-f"><span class="via"><i class="dot"></i>' + C.t.via + '</span>' + (withRank ? '<span class="rank hide"><svg class="ic"><use href="#i-crown"/></svg><em></em></span>' : '') + '<span class="hb-upd"></span></div>';
   }
   function request(url, resource) {
     url = url.replace('{resource}', encodeURIComponent(resource || '')).replace('{prefix}', encodeURIComponent(C.prefix)).replace('{key}', encodeURIComponent(C.key));
@@ -81,7 +81,7 @@
       if (isHome) countUp(el.querySelector('[data-k=r]'), d && d.list && d.data && d.data.count ? d.data.count : extra.count);
       var rk = el.querySelector('.rank'); if (rk) { if (r != null) { rk.classList.remove('hide'); rk.querySelector('em').textContent = C.t.rank.replace('{n}', fmt(r)); } else rk.classList.add('hide'); }
       el.querySelector('.via').classList.add('ok');
-      el.querySelector('.upd').textContent = C.t.upd.replace('{t}', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      el.querySelector('.hb-upd').textContent = C.t.upd.replace('{t}', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     };
     var tick = function () {
       if (demo) { var seed = (resource || 'x').length; apply({ data: { servers: 840 + seed * 37, playerReach: 3900 + seed * 210 } }); return; }

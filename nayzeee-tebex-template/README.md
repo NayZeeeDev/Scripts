@@ -80,7 +80,7 @@ FRAMEWORKS: ESX, QBCore, Qbox          → logo chips (ESX, QBCore, QBox, ox, St
 VERSION: 2.4.1                         → version tag on the card and next to the title
 RATING: 4.9 (124)                      → stars + review count
 TAGS: New, Lifetime updates            → badges (New = teal NEW pill, Best seller = gold pill)
-IMAGES: https://cdn/1.png, https://cdn/2.png   → gallery thumbnails
+IMAGES: https://cdn/1.png, https://cdn/2.png   → extra gallery thumbnails (the screenshots and videos uploaded under Media in the Tebex package editor show up by themselves)
 VIDEO: https://www.youtube.com/watch?v=XXXX    → Preview tab + gallery thumb
 DEPENDENCIES: ox_lib https://github.com/overextended/ox_lib, ox_target   → Dependencies tab (URL optional)
 CHANGELOG: v2.4.1 - New compass styles | v2.4.0 - Qbox support   → Changelog tab, entries separated by |
