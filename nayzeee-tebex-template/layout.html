@@ -528,7 +528,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       <div class="dd">
         {% set avUrl = (config('avatar-url') ?: 'https://forum.cfx.re/user_avatar/forum.cfx.re/{ign}/96/1.png')|replace({'{ign}': basket.ign|lower}) %}<button class="user"><span class="av">{% if avUrl %}<img src="{{ avUrl }}" alt="" loading="lazy" onerror="this.remove()" />{% endif %}{{ basket.ign|slice(0, 2) }}</span><div style="text-align:left"><b>{{ basket.ign }}</b><span>{{ config('account-sub') ?: 'Cfx.re account' }}</span></div></button>
         <div class="dd-m r" style="min-width:200px">
-          {% if (config('wl-toggle') ?: 'Enabled') != 'Disabled' %}<button class="dd-i" id="openWish2"><svg class="ic"><use href="#i-heart"/></svg>{{ config('wl-nav-text') ?: 'Wishlist' }}</button>{% endif %}
+          {% if (config('wl-toggle') ?: 'Enabled') != 'Disabled' %}<button class="dd-i" id="openWish2"><svg class="ic"><use href="#i-heart"/></svg>{{ config('wl-nav-text') ?: 'Wishlist' }}<span class="tally hide" id="wishN">0</span></button>{% endif %}
           {% if config('keymaster-url') %}<a class="dd-i" href="{{ config('keymaster-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-key"/></svg>{{ config('keymaster-label') ?: 'Keymaster' }}</a>{% endif %}
           <a class="dd-i" href="/checkout/logout" style="color:var(--red)"><svg class="ic"><use href="#i-logout"/></svg>{{ config('logout-label') ?: 'Sign out' }}</a>
         </div>
