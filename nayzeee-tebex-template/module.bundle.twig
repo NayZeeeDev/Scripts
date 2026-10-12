@@ -3,7 +3,7 @@
    Settings: bundle-toggle, bundle-title, bundle-sub, bundle-tier-1..3-count / -pct / -code,
              bundle-exclude-cats (category IDs to leave out, e.g. subscriptions), bundle-max (default 10).
    The codes are coupons you create in Tebex (e.g. "15% off, minimum 3 packages"). ─── #}
-{% if (config('bundle-toggle') ?: 'Show') != 'Hide' and config('bundle-tier-1-count') %}
+{% if bundle_page is defined or config('bundle-tier-1-count') %}
 {% set bx = (config('bundle-exclude-cats') ?: '')|replace({' ': ''})|split(',') %}
 <style>
   .bb{display:grid;grid-template-columns:1.25fr .75fr;gap:0;overflow:hidden}
@@ -53,8 +53,8 @@
   @media (max-width:860px){.bb{grid-template-columns:1fr}.bb-l{border-right:0;border-bottom:1px solid var(--line-hair)}.bb-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:380px}}
   @media (max-width:420px){.bb-list{grid-template-columns:1fr}}
 </style>
-<section class="section wrap" id="bundle">
-  <div class="sec-h"><div><div class="kick">{{ config('bundle-kicker') ?: 'Bundle & save' }}</div><h2>{{ config('bundle-title') ?: 'Build your own bundle' }}</h2><p>{{ config('bundle-sub') ?: 'Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.' }}</p></div></div>
+<section class="{% if bundle_page is defined %}wrap{% else %}section wrap{% endif %}" id="bundle">
+  {% if bundle_page is not defined %}<div class="sec-h"><div><div class="kick">{{ config('bundle-kicker') ?: 'Bundle & save' }}</div><h2>{{ config('bundle-title') ?: 'Build your own bundle' }}</h2><p>{{ config('bundle-sub') ?: 'Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.' }}</p></div></div>{% endif %}
   <div class="panel bb">
     <div class="bb-l">
       <div class="bb-tools">
@@ -71,6 +71,7 @@
       </div>
     </div>
     <div class="bb-r">
+      {% if config('bundle-tier-1-count') %}
       <div class="bb-tiers" id="bbTiers">
         {% for i in [1, 2, 3] %}{% if config('bundle-tier-' ~ i ~ '-count') %}
         <div class="bt" data-count="{{ config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) }}" data-pct="{{ config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) }}" data-code="{{ config('bundle-tier-' ~ i ~ '-code')|replace({' ': ''}) }}"><i>{{ config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) }}</i>{{ config('bundle-tier-label')|replace({'{n}': config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''})}) ?: (config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) ~ ' ' ~ (config('bundle-scripts-word') ?: 'scripts')) }}<b>-{{ config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) }}%</b></div>
@@ -78,6 +79,7 @@
       </div>
       <div class="bb-bar"><i id="bbBar"></i></div>
       <div class="bb-next" id="bbNext"></div>
+      {% else %}<div class="bb-tiers" id="bbTiers" hidden></div><div class="bb-next" id="bbNext">{{ config('bundle-no-tiers') ?: 'Pick the scripts you want and add them all to the cart in one go.' }}</div>{% endif %}
       <div class="bb-sel" id="bbSel"><em>{{ config('bundle-empty') ?: 'Nothing picked yet. Tap a script on the left.' }}</em></div>
       <div class="bb-sum">
         <div><span>{{ config('cart-subtotal-label') ?: 'Subtotal' }}</span><span id="bbSub">{{ csym }}0.00</span></div>
@@ -121,8 +123,8 @@
     $('#bbSub').textContent = fmt(sub); $('#bbDisc').textContent = '−' + fmt(disc); $('#bbTot').textContent = fmt(sub - disc);
     $('#bbDiscL').textContent = (nzS("{{ (config('cart-discount-label') ?: 'Discount')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}")) + (cur ? ' · ' + cur.pct + '%' : '');
     var top = tiers.length ? tiers[tiers.length - 1].n : 1;
-    $('#bbBar').style.width = Math.min(100, n / top * 100) + '%';
-    $('#bbNext').innerHTML = next ? T.next.replace('{n}', '<b>' + (next.n - n) + '</b>').replace('{pct}', '<b>' + next.pct + '</b>') : (cur ? T.top.replace('{pct}', '<b>' + cur.pct + '</b>') : '');
+    if ($('#bbBar')) $('#bbBar').style.width = Math.min(100, n / top * 100) + '%';
+    if (tiers.length) $('#bbNext').innerHTML = next ? T.next.replace('{n}', '<b>' + (next.n - n) + '</b>').replace('{pct}', '<b>' + next.pct + '</b>') : (cur ? T.top.replace('{pct}', '<b>' + cur.pct + '</b>') : '');
     $('#bbSel').innerHTML = n ? ids.map(function (id) { return '<span>' + sel[id].name.replace(/[<>]/g, '') + '<button type="button" data-rm="' + id + '"><svg class="ic"><use href="#i-x"/></svg></button></span>'; }).join('') : '<em>' + nzS("{{ (config('bundle-empty') ?: 'Nothing picked yet. Tap a script on the left.')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}") + '</em>';
     $('#bbAdd').disabled = !n;
     $$('#bbList .bi').forEach(function (b) { b.classList.toggle('on', !!sel[b.dataset.id]); });

@@ -4,7 +4,9 @@
 {% set tierCat = (config('tier-category-id') ?: '')|replace({' ': ''}) %}
 {% set cn = category.name|lower %}
 {% set isTier = (tierCat and (category.id ~ '') == tierCat) or (not tierCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn)) %}
-{% if isTier %}{% include 'module.tiered.twig' %}{% else %}
+{% set bCat = (config('bundle-category-id') ?: '')|replace({' ': ''}) %}
+{% set isBundle = not isTier and ((bCat and (category.id ~ '') == bCat) or (not bCat and 'bundle' in cn)) %}
+{% if isTier %}{% include 'module.tiered.twig' %}{% elseif isBundle %}{% include 'module.bundlepage.twig' %}{% else %}
 <style>
   .subcats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
 </style>

@@ -1,0 +1,37 @@
+{# ─── NAYZEEE · module.bundlepage.twig · "Bundles" category page: hero + the bundle builder + three steps.
+   category.html renders this for the category named Bundles (or bundle-category-id). The category can stay empty in Tebex.
+   Settings: bundlepage-eyebrow, bundlepage-title (HTML, <em> = accent), bundlepage-sub, bundlepage-step-1..3-title / -text. ─── #}
+<style>
+  .bp-hero{position:relative;text-align:center;padding:48px 0 30px}
+  .bp-hero .kick{display:inline-flex;align-items:center;gap:9px;font-size:10.5px;color:var(--teal);font-weight:500;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px}
+  .bp-hero .kick::before,.bp-hero .kick::after{content:'';width:14px;height:2px;background:var(--teal);border-radius:2px}
+  .bp-hero h1{font-size:46px;font-weight:700;letter-spacing:-.04em;line-height:1.04;color:var(--white)}
+  .bp-hero h1 em{font-style:normal;color:var(--teal)}
+  .bp-hero p{font-size:14px;color:var(--ink-2);font-weight:300;line-height:1.6;max-width:56ch;margin:16px auto 0}
+  .bp-hero .ghost.hero-ghost{position:absolute;right:max(2%,10px);top:-4px;width:120px;height:158px;filter:drop-shadow(0 0 36px rgba(var(--teal-rgb),.45));animation:nz-ghost-lg 6s ease-in-out infinite;pointer-events:none;opacity:.9}
+  .bp-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:40px}
+  .bp-step{display:flex;gap:14px;align-items:flex-start;padding:20px}
+  .bp-step i{width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:13px;font-weight:700;color:var(--on-teal);background:linear-gradient(var(--teal),var(--teal-lo))}
+  .bp-step b{display:block;font-size:14px;font-weight:600;color:var(--white);letter-spacing:-.012em}
+  .bp-step span{display:block;font-size:12.5px;color:var(--ink-2);font-weight:300;line-height:1.55;margin-top:4px}
+  @media (max-width:860px){.bp-hero h1{font-size:36px}.bp-hero .ghost.hero-ghost{width:80px;height:105px;top:-20px;right:-10px;opacity:.35}.bp-steps{grid-template-columns:1fr}}
+</style>
+<div class="wrap view">
+  <section class="bp-hero">
+    {% if (config('hero-ghost-toggle') ?: 'Show') != 'Hide' %}<span class="ghost hero-ghost" aria-hidden="true"></span>{% endif %}
+    <div class="kick">{{ config('bundlepage-eyebrow') ?: 'Bundle & save' }}</div>
+    <h1>{{ config('bundlepage-title') ?: 'Build your own <em>bundle.</em>'|raw }}</h1>
+    <p>{% if category.description %}{{ category.description|replace({'<p>': ' ', '</p>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' ', '&nbsp;': ' '}) }}{% else %}{{ config('bundlepage-sub') ?: 'Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.' }}{% endif %}</p>
+  </section>
+</div>
+{% set bundle_page = true %}
+{% include 'module.bundle.twig' %}
+<div class="wrap">
+  <div class="bp-steps">
+    {% set st = ['Pick your scripts', 'Watch the discount unlock', 'One checkout'] %}
+    {% set sx = ['Tick any scripts from the list. Search or filter by category.', 'Every tier you reach takes a bigger cut off the whole bundle.', 'Add the bundle to the cart and the coupon is applied for you.'] %}
+    {% for k in [1, 2, 3] %}
+    <div class="panel bp-step view"><i>{{ k }}</i><div><b>{{ config('bundlepage-step-' ~ k ~ '-title') ?: st[k - 1] }}</b><span>{{ config('bundlepage-step-' ~ k ~ '-text') ?: sx[k - 1] }}</span></div></div>
+    {% endfor %}
+  </div>
+</div>

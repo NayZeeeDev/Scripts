@@ -191,6 +191,25 @@
           "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Sign in"
         },
         {
+          "id": "nav-bundle-label",
+          "name": "Nav bundle label",
+          "type": "select",
+          "values": "Text of the Bundles navbar link.",
+          "default": "Bundles",
+          "description": "Text of the Bundles navbar link."
+        },
+        {
+          "id": "nav-bundle-toggle",
+          "name": "Nav bundle toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Show a Bundles link in the navbar when a bundle category exists."
+        },
+        {
           "id": "nav-docs-toggle",
           "name": "Nav docs toggle",
           "type": "select",
@@ -732,6 +751,17 @@
           "description": "Comma-separated names shown as text chips in the \"Trusted by\" row (use when you have no logos)."
         },
         {
+          "id": "trusted-section",
+          "name": "Trusted section",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Optional \"Trusted by\" logo strip (hidden by default)."
+        },
+        {
           "id": "trusted-title",
           "name": "Trusted title",
           "type": "textarea",
@@ -743,199 +773,6 @@
     {
       "header": "04 · Accueil · Sections",
       "options": [
-        {
-          "id": "bundle-add",
-          "name": "Bundle add",
-          "type": "textarea",
-          "default": "Add bundle to cart",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Add bundle to cart"
-        },
-        {
-          "id": "bundle-adding",
-          "name": "Bundle adding",
-          "type": "textarea",
-          "default": "Adding {i} / {n}…",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Adding {i} / {n}…"
-        },
-        {
-          "id": "bundle-all",
-          "name": "Bundle all",
-          "type": "textarea",
-          "default": "All",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : All"
-        },
-        {
-          "id": "bundle-empty",
-          "name": "Bundle empty",
-          "type": "textarea",
-          "default": "Nothing picked yet. Tap a script on the left.",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Nothing picked yet. Tap a script on the left."
-        },
-        {
-          "id": "bundle-exclude-cats",
-          "name": "Bundle exclude cats",
-          "type": "textarea",
-          "default": "",
-          "description": "IDs de catégories à exclure du créateur de bundle (ex. abonnements), séparés par des virgules."
-        },
-        {
-          "id": "bundle-kicker",
-          "name": "Bundle kicker",
-          "type": "textarea",
-          "default": "Bundle & save",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Bundle & save"
-        },
-        {
-          "id": "bundle-max",
-          "name": "Bundle max",
-          "type": "textarea",
-          "default": "10",
-          "description": "Maximum scripts in one bundle (default 10)."
-        },
-        {
-          "id": "bundle-max-text",
-          "name": "Bundle max text",
-          "type": "textarea",
-          "default": "Bundle is full",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Bundle is full"
-        },
-        {
-          "id": "bundle-next",
-          "name": "Bundle next",
-          "type": "textarea",
-          "default": "Add {n} more for {pct}% off",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Add {n} more for {pct}% off"
-        },
-        {
-          "id": "bundle-none",
-          "name": "Bundle none",
-          "type": "textarea",
-          "default": "Pick at least one script",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Pick at least one script"
-        },
-        {
-          "id": "bundle-note",
-          "name": "Bundle note",
-          "type": "textarea",
-          "default": "The coupon is applied for you. Scripts that need options open one by one.",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : The coupon is applied for you. Scripts that need options open one by one."
-        },
-        {
-          "id": "bundle-scripts-word",
-          "name": "Bundle scripts word",
-          "type": "textarea",
-          "default": "scripts",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : scripts"
-        },
-        {
-          "id": "bundle-search",
-          "name": "Bundle search",
-          "type": "textarea",
-          "default": "Find a script…",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Find a script…"
-        },
-        {
-          "id": "bundle-sub",
-          "name": "Bundle sub",
-          "type": "textarea",
-          "default": "Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout."
-        },
-        {
-          "id": "bundle-tier-1-code",
-          "name": "Bundle tier 1 code",
-          "type": "textarea",
-          "default": "",
-          "description": "Coupon code created in Tebex for tier 1 (set a minimum basket of that many packages on the coupon)."
-        },
-        {
-          "id": "bundle-tier-1-count",
-          "name": "Bundle tier 1 count",
-          "type": "textarea",
-          "default": "",
-          "description": "Nombre de scripts pour le palier 1, ex. 3. Laissez vide pour masquer le créateur de bundle."
-        },
-        {
-          "id": "bundle-tier-1-pct",
-          "name": "Bundle tier 1 pct",
-          "type": "textarea",
-          "default": "",
-          "description": "Percent off at tier 1, e.g. 15."
-        },
-        {
-          "id": "bundle-tier-2-code",
-          "name": "Bundle tier 2 code",
-          "type": "textarea",
-          "default": "",
-          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
-        },
-        {
-          "id": "bundle-tier-2-count",
-          "name": "Bundle tier 2 count",
-          "type": "textarea",
-          "default": "",
-          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
-        },
-        {
-          "id": "bundle-tier-2-pct",
-          "name": "Bundle tier 2 pct",
-          "type": "textarea",
-          "default": "",
-          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
-        },
-        {
-          "id": "bundle-tier-3-code",
-          "name": "Bundle tier 3 code",
-          "type": "textarea",
-          "default": "",
-          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
-        },
-        {
-          "id": "bundle-tier-3-count",
-          "name": "Bundle tier 3 count",
-          "type": "textarea",
-          "default": "",
-          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
-        },
-        {
-          "id": "bundle-tier-3-pct",
-          "name": "Bundle tier 3 pct",
-          "type": "textarea",
-          "default": "",
-          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
-        },
-        {
-          "id": "bundle-tier-label",
-          "name": "Bundle tier label",
-          "type": "textarea",
-          "default": "",
-          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
-        },
-        {
-          "id": "bundle-title",
-          "name": "Bundle title",
-          "type": "textarea",
-          "default": "Build your own bundle",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Build your own bundle"
-        },
-        {
-          "id": "bundle-toggle",
-          "name": "Bundle toggle",
-          "type": "select",
-          "values": [
-            "Show",
-            "Hide"
-          ],
-          "default": "Show",
-          "description": "Show the \"Build your own bundle\" section on the homepage."
-        },
-        {
-          "id": "bundle-top",
-          "name": "Bundle top",
-          "type": "textarea",
-          "default": "Top discount unlocked: {pct}% off",
-          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Top discount unlocked: {pct}% off"
-        },
         {
           "id": "cat-item-many",
           "name": "Cat item many",
@@ -1758,6 +1595,17 @@
           "type": "textarea",
           "default": "Changelog",
           "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Changelog"
+        },
+        {
+          "id": "updates-section",
+          "name": "Updates section",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Optional \"Latest updates\" changelog feed (hidden by default)."
         },
         {
           "id": "updates-sub",
@@ -2645,6 +2493,284 @@
           "type": "textarea",
           "default": "New",
           "description": "Text on the white NEW tag. A package gets it when its description contains \"TAGS: New\"."
+        }
+      ]
+    },
+    {
+      "header": "06 · Category & cards · Bundles",
+      "options": [
+        {
+          "id": "bundle-add",
+          "name": "Bundle add",
+          "type": "textarea",
+          "default": "Add bundle to cart",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Add bundle to cart"
+        },
+        {
+          "id": "bundle-adding",
+          "name": "Bundle adding",
+          "type": "textarea",
+          "default": "Adding {i} / {n}…",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Adding {i} / {n}…"
+        },
+        {
+          "id": "bundle-all",
+          "name": "Bundle all",
+          "type": "textarea",
+          "default": "All",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : All"
+        },
+        {
+          "id": "bundle-category-id",
+          "name": "Bundle category id",
+          "type": "select",
+          "values": "Category ID of your Bundles category. Leave empty to detect it by name (a category whose name contains \"bundle\"). That category page shows the bundle builder; it can stay empty in Tebex.",
+          "default": "",
+          "description": "Category ID of your Bundles category. Leave empty to detect it by name (a category whose name contains \"bundle\"). That category page shows the bundle builder; it can stay empty in Tebex."
+        },
+        {
+          "id": "bundle-empty",
+          "name": "Bundle empty",
+          "type": "textarea",
+          "default": "Nothing picked yet. Tap a script on the left.",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Nothing picked yet. Tap a script on the left."
+        },
+        {
+          "id": "bundle-exclude-cats",
+          "name": "Bundle exclude cats",
+          "type": "textarea",
+          "default": "",
+          "description": "IDs de catégories à exclure du créateur de bundle (ex. abonnements), séparés par des virgules."
+        },
+        {
+          "id": "bundle-home",
+          "name": "Bundle home",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Also show the bundle builder on the homepage (hidden by default: it lives on the Bundles category page)."
+        },
+        {
+          "id": "bundle-kicker",
+          "name": "Bundle kicker",
+          "type": "textarea",
+          "default": "Bundle & save",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Bundle & save"
+        },
+        {
+          "id": "bundle-max",
+          "name": "Bundle max",
+          "type": "textarea",
+          "default": "10",
+          "description": "Maximum scripts in one bundle (default 10)."
+        },
+        {
+          "id": "bundle-max-text",
+          "name": "Bundle max text",
+          "type": "textarea",
+          "default": "Bundle is full",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Bundle is full"
+        },
+        {
+          "id": "bundle-next",
+          "name": "Bundle next",
+          "type": "textarea",
+          "default": "Add {n} more for {pct}% off",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Add {n} more for {pct}% off"
+        },
+        {
+          "id": "bundle-no-tiers",
+          "name": "Bundle no tiers",
+          "type": "select",
+          "values": "Text shown in the builder while no discount tiers are set up yet.",
+          "default": "Pick the scripts you want and add them all to the cart in one go.",
+          "description": "Text shown in the builder while no discount tiers are set up yet."
+        },
+        {
+          "id": "bundle-none",
+          "name": "Bundle none",
+          "type": "textarea",
+          "default": "Pick at least one script",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Pick at least one script"
+        },
+        {
+          "id": "bundle-note",
+          "name": "Bundle note",
+          "type": "textarea",
+          "default": "The coupon is applied for you. Scripts that need options open one by one.",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : The coupon is applied for you. Scripts that need options open one by one."
+        },
+        {
+          "id": "bundle-scripts-word",
+          "name": "Bundle scripts word",
+          "type": "textarea",
+          "default": "scripts",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : scripts"
+        },
+        {
+          "id": "bundle-search",
+          "name": "Bundle search",
+          "type": "textarea",
+          "default": "Find a script…",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Find a script…"
+        },
+        {
+          "id": "bundle-sub",
+          "name": "Bundle sub",
+          "type": "textarea",
+          "default": "Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout."
+        },
+        {
+          "id": "bundle-tier-1-code",
+          "name": "Bundle tier 1 code",
+          "type": "textarea",
+          "default": "",
+          "description": "Coupon code created in Tebex for tier 1 (set a minimum basket of that many packages on the coupon)."
+        },
+        {
+          "id": "bundle-tier-1-count",
+          "name": "Bundle tier 1 count",
+          "type": "textarea",
+          "default": "",
+          "description": "Nombre de scripts pour le palier 1, ex. 3. Laissez vide pour masquer le créateur de bundle."
+        },
+        {
+          "id": "bundle-tier-1-pct",
+          "name": "Bundle tier 1 pct",
+          "type": "textarea",
+          "default": "",
+          "description": "Percent off at tier 1, e.g. 15."
+        },
+        {
+          "id": "bundle-tier-2-code",
+          "name": "Bundle tier 2 code",
+          "type": "textarea",
+          "default": "",
+          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
+        },
+        {
+          "id": "bundle-tier-2-count",
+          "name": "Bundle tier 2 count",
+          "type": "textarea",
+          "default": "",
+          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
+        },
+        {
+          "id": "bundle-tier-2-pct",
+          "name": "Bundle tier 2 pct",
+          "type": "textarea",
+          "default": "",
+          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
+        },
+        {
+          "id": "bundle-tier-3-code",
+          "name": "Bundle tier 3 code",
+          "type": "textarea",
+          "default": "",
+          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
+        },
+        {
+          "id": "bundle-tier-3-count",
+          "name": "Bundle tier 3 count",
+          "type": "textarea",
+          "default": "",
+          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
+        },
+        {
+          "id": "bundle-tier-3-pct",
+          "name": "Bundle tier 3 pct",
+          "type": "textarea",
+          "default": "",
+          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
+        },
+        {
+          "id": "bundle-tier-label",
+          "name": "Bundle tier label",
+          "type": "textarea",
+          "default": "",
+          "description": "Palier de bundle : count = nombre de scripts, pct = pourcentage, code = le coupon Tebex."
+        },
+        {
+          "id": "bundle-title",
+          "name": "Bundle title",
+          "type": "textarea",
+          "default": "Build your own bundle",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Build your own bundle"
+        },
+        {
+          "id": "bundle-top",
+          "name": "Bundle top",
+          "type": "textarea",
+          "default": "Top discount unlocked: {pct}% off",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Top discount unlocked: {pct}% off"
+        },
+        {
+          "id": "bundlepage-eyebrow",
+          "name": "Bundlepage eyebrow",
+          "type": "textarea",
+          "default": "Bundle & save",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Bundle & save"
+        },
+        {
+          "id": "bundlepage-step-1-text",
+          "name": "Bundlepage step 1 text",
+          "type": "textarea",
+          "default": "",
+          "description": "One of the three steps under the bundle builder (title / text)."
+        },
+        {
+          "id": "bundlepage-step-1-title",
+          "name": "Bundlepage step 1 title",
+          "type": "textarea",
+          "default": "",
+          "description": "One of the three steps under the bundle builder (title / text)."
+        },
+        {
+          "id": "bundlepage-step-2-text",
+          "name": "Bundlepage step 2 text",
+          "type": "textarea",
+          "default": "",
+          "description": "One of the three steps under the bundle builder (title / text)."
+        },
+        {
+          "id": "bundlepage-step-2-title",
+          "name": "Bundlepage step 2 title",
+          "type": "textarea",
+          "default": "",
+          "description": "One of the three steps under the bundle builder (title / text)."
+        },
+        {
+          "id": "bundlepage-step-3-text",
+          "name": "Bundlepage step 3 text",
+          "type": "textarea",
+          "default": "",
+          "description": "One of the three steps under the bundle builder (title / text)."
+        },
+        {
+          "id": "bundlepage-step-3-title",
+          "name": "Bundlepage step 3 title",
+          "type": "textarea",
+          "default": "",
+          "description": "One of the three steps under the bundle builder (title / text)."
+        },
+        {
+          "id": "bundlepage-sub",
+          "name": "Bundlepage sub",
+          "type": "textarea",
+          "default": "Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.",
+          "description": "Texte affiché dans la boutique. Laissez vide pour la valeur par défaut : Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout."
+        },
+        {
+          "id": "bundlepage-title",
+          "name": "Bundlepage title",
+          "type": "select",
+          "values": "Bundles page headline, HTML allowed: <em>word</em> = accent colour.",
+          "default": "Build your own <em>bundle.</em>",
+          "description": "Bundles page headline, HTML allowed: <em>word</em> = accent colour."
         }
       ]
     },

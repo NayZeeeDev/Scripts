@@ -182,7 +182,7 @@
   <div id="holEvent"></div>
 </section>
 
-{% if config('trusted-logos') or config('trusted-names') %}
+{% if (config('trusted-section') ?: 'Hide') == 'Show' and (config('trusted-logos') or config('trusted-names')) %}
 <section class="section wrap" style="padding-top:40px">
   <div class="sec-h" style="margin-bottom:12px"><div><div class="kick">{{ config('trusted-kicker') ?: 'Trusted by' }}</div><h2 style="font-size:16px">{{ config('trusted-title') ?: 'Servers already running NAYZEEE scripts' }}</h2></div></div>
   <div class="trusted">{% for u in (config('trusted-logos') ?: '')|split(',') %}{% if u|replace({' ': ''}) %}<img src="{{ u }}" alt="" loading="lazy" onerror="this.remove()" />{% endif %}{% endfor %}{% for n in (config('trusted-names') ?: '')|split(',') %}{% if n|replace({' ': ''}) %}<span>{{ n }}</span>{% endif %}{% endfor %}</div>
@@ -211,7 +211,7 @@
 </section>
 {% endif %}
 
-{% include 'module.bundle.twig' ignore missing %}
+{% if (config('bundle-home') ?: 'Hide') == 'Show' %}{% include 'module.bundle.twig' ignore missing %}{% endif %}
 
 {% if (config('whyus-toggle') ?: 'Show') != 'Hide' %}
 <section class="section wrap">
@@ -236,7 +236,7 @@
 </section>
 {% endif %}
 
-{% if config('update-1-name') %}
+{% if (config('updates-section') ?: 'Hide') == 'Show' and config('update-1-name') %}
 <section class="section wrap">
   <div class="sec-h"><div><div class="kick">{{ config('updates-kicker') ?: 'Changelog' }}</div><h2>{{ config('updates-title') ?: 'Latest updates' }}</h2><p>{{ config('updates-sub') ?: 'Every script keeps getting better. Updates land in your Keymaster automatically.' }}</p></div>{% if config('updates-url') %}<a class="btn-ghost" href="{{ config('updates-url') }}" target="_blank" rel="noopener">{{ config('updates-cta') ?: 'Full changelog' }} <svg class="ic"><use href="#i-chev"/></svg></a>{% endif %}</div>
   <div class="upd">

@@ -22,7 +22,8 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 | `module.volume-discount.twig` | "Spend X more for Y% off" bar in the cart |
 | `module.holiday.twig` | Seasonal themes, scenes, countdowns and daily gift events |
 | `module.sale.twig` | Store-wide discount banner with countdown |
-| `module.bundle.twig` | Build-your-own-bundle section |
+| `module.bundle.twig` | Build-your-own-bundle builder (used by the Bundles page, optionally on the homepage) |
+| `module.bundlepage.twig` | Bundles category page: hero, builder, three steps. Rendered by `category.html` for the category named Bundles |
 | `module.reviews.twig` | Write-a-review modal that posts to a Discord webhook |
 | `module.topsellers.twig` | Top-selling products marquee under the hero (cards scroll left, pause on hover), fed by `bestseller-ids` |
 | `module.heartbeat.twig` | Live usage cards powered by Heartbeat (servers / players per script, store totals on the homepage) |
@@ -64,7 +65,11 @@ Tebex only hands package lists to category pages. On the homepage, the subscript
 
 ## Homepage sections (top to bottom)
 
-Hero → Top-selling products (marquee) → Heartbeat totals → holiday event → Bundle builder → Why choose us → Latest updates → Reviews → Recent payments → FAQ → Discord. Optional and hidden by default: stat tiles (`stats-row`), Featured grid (`featured-section`), Shop by category (`cats-section`), Works-with-your-stack marquee (`framework-section`), payment method chips (`pay-methods-row`).
+Hero → Top-selling products (marquee) → Heartbeat totals → holiday event → Why choose us → Reviews → Recent payments → FAQ → Discord. Optional and hidden by default: stat tiles (`stats-row`), Featured grid (`featured-section`), Shop by category (`cats-section`), Trusted-by strip (`trusted-section`), Latest updates (`updates-section`), bundle builder on the homepage (`bundle-home`), Works-with-your-stack marquee (`framework-section`), payment method chips (`pay-methods-row`).
+
+## Bundles page
+
+Create a category called Bundles (it can stay empty) or set `bundle-category-id`. Its page shows the bundle builder with a hero and three steps, and a Bundles link appears in the navbar. Discount tiers: `bundle-tier-1-count` / `-pct` / `-code` (+ tiers 2 and 3) with matching coupons in Tebex. Without tiers the builder still adds the picked scripts to the cart in one go.
 
 ## Package description markers
 
