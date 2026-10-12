@@ -198,8 +198,8 @@
 
   /* scene */
   if (SCENE && !reduced) {
-    var sc = document.getElementById('holScene'), html = '', parts = th.scene, pal = th.pal || ['#ffffff'];
-    var has = function (k) { return parts.indexOf(k) > -1; };
+    var sc = document.getElementById('holScene'), html = '', sp = th.scene, pal = th.pal || ['#ffffff'];
+    var has = function (k) { return sp.indexOf(k) > -1; };
     if (has('vign')) html += '<div class="hol-vign"></div>';
     if (has('moon')) html += '<div class="hol-moon"></div><div class="hol-fog"></div>';
     if (has('sun')) html += '<div class="hol-sun"></div>';
