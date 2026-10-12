@@ -738,6 +738,13 @@
           "description": "Text shown in the store. Leave empty to use the default: Show"
         },
         {
+          "id": "discord-guild-id",
+          "name": "Discord guild id",
+          "type": "textarea",
+          "default": "",
+          "description": "Your Discord server ID. Enable Server Settings → Widget in Discord and the homepage shows the live online count."
+        },
+        {
           "id": "discord-online",
           "name": "Discord online",
           "type": "textarea",
@@ -3459,6 +3466,22 @@
           "type": "textarea",
           "default": "",
           "description": "Open Graph image used when the page is shared (defaults to the hero image)."
+        }
+      ]
+    },
+    {
+      "header": "11 · Other text",
+      "options": [
+        {
+          "id": "purchase-toasts",
+          "name": "Purchase toasts",
+          "type": "select",
+          "values": [
+            "On",
+            "Off"
+          ],
+          "default": "On",
+          "description": "Show small \"X bought Y\" toasts from the Recent payments module while browsing (On/Off)."
         }
       ]
     }

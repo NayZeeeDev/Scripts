@@ -51,7 +51,35 @@
   @keyframes holBlink{from{opacity:.35;box-shadow:0 0 4px 0 var(--c)}to{opacity:1;box-shadow:0 0 12px 3px var(--c)}}
   html[data-holiday="christmas"] .nav{border-bottom-color:rgba(255,255,255,.18)}
   html[data-holiday="christmas"] .pk .art::before,html[data-holiday="christmas"] .panel.spot::before{content:'';position:absolute;inset:0 0 auto 0;height:9px;z-index:3;background:radial-gradient(9px 9px at 10% 0,#fff 60%,transparent 62%),radial-gradient(12px 12px at 32% 0,#fff 60%,transparent 62%),radial-gradient(8px 8px at 52% 0,#fff 60%,transparent 62%),radial-gradient(13px 13px at 74% 0,#fff 60%,transparent 62%),radial-gradient(9px 9px at 94% 0,#fff 60%,transparent 62%);opacity:.9}
-  @media (prefers-reduced-motion:reduce){.hol-layer,.hol-fw,.hol-fog{display:none}}
+  /* extra decorations */
+  .hol-web{position:absolute;top:calc(var(--nav-h) + 34px);width:170px;height:170px;opacity:.16;color:#fff}
+  .hol-web.l{left:0}.hol-web.r{right:0;transform:scaleX(-1)}
+  .hol-web svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1}
+  .hol-pile{position:absolute;left:-5vw;right:-5vw;bottom:-30px;height:120px;opacity:.5;filter:blur(1px);
+    background:radial-gradient(180px 70px at 8% 100%,var(--p1),transparent 70%),radial-gradient(240px 80px at 28% 100%,var(--p2),transparent 70%),radial-gradient(200px 70px at 50% 100%,var(--p3),transparent 70%),radial-gradient(260px 85px at 72% 100%,var(--p1),transparent 70%),radial-gradient(180px 70px at 92% 100%,var(--p2),transparent 70%)}
+  .hol-wave{position:absolute;left:0;right:0;bottom:-6px;height:110px;opacity:.5}
+  .hol-wave svg{position:absolute;bottom:0;left:0;width:200%;height:100%;fill:rgba(var(--teal-rgb),.16);animation:holWave 14s linear infinite}
+  .hol-wave svg.b{fill:rgba(var(--teal-rgb),.09);animation-duration:22s;animation-direction:reverse;height:80%}
+  @keyframes holWave{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .hol-rainbow{position:absolute;top:calc(var(--nav-h) + 20px);left:-120px;width:620px;height:310px;opacity:.14;
+    background:radial-gradient(circle at 50% 100%,transparent 54%,#ff5a5a 54.5% 58%,#ffb020 58.5% 62%,#f5c451 62.5% 66%,#2ecc71 66.5% 70%,#3fb6ff 70.5% 74%,#b48cff 74.5% 78%,transparent 78.5%);filter:blur(1.5px)}
+  .hol-bokeh{position:absolute;bottom:-60px;border-radius:50%;filter:blur(6px);opacity:0;animation:holBokeh var(--d,16s) linear var(--dl,0s) infinite}
+  @keyframes holBokeh{0%{transform:translateY(0) scale(.8);opacity:0}10%{opacity:var(--o,.25)}90%{opacity:var(--o,.25)}100%{transform:translateY(-110vh) scale(1.15);opacity:0}}
+  .hol-garland{position:absolute;top:100%;left:0;right:0;height:26px;display:flex;justify-content:space-around;padding:0 1vw;z-index:2;pointer-events:none}
+  .hol-garland::before{content:'';position:absolute;top:4px;left:0;right:0;height:2px;background:rgba(255,255,255,.08)}
+  .hol-garland span{width:18px;height:18px;margin-top:2px;color:var(--c);transform:rotate(var(--r,0deg));animation:holSway 4s ease-in-out var(--dl,0s) infinite alternate;transform-origin:50% 0}
+  .hol-garland span svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+  @keyframes holSway{from{transform:rotate(calc(var(--r,0deg) - 6deg))}to{transform:rotate(calc(var(--r,0deg) + 6deg))}}
+  .hol-drift{position:absolute;left:0;right:0;bottom:0;height:70px;opacity:.28;background:radial-gradient(60% 120% at 20% 110%,#fff,transparent 60%),radial-gradient(50% 110% at 60% 115%,#fff,transparent 60%),radial-gradient(45% 100% at 92% 110%,#fff,transparent 60%)}
+  .hol-year{position:absolute;right:3vw;bottom:2vh;font-family:'Lexend',system-ui,sans-serif;font-size:min(22vw,260px);font-weight:800;letter-spacing:-.06em;line-height:1;color:var(--teal);opacity:.05;user-select:none}
+  .hol-stars{position:absolute;top:100%;left:0;right:0;height:22px;display:flex;justify-content:space-around;padding:0 1vw;z-index:2;pointer-events:none}
+  .hol-stars span{width:12px;height:12px;margin-top:5px;color:var(--c);animation:holTwinkle 2.2s ease-in-out var(--dl,0s) infinite alternate}
+  .hol-stars span svg{width:100%;height:100%;display:block}
+  @keyframes holTwinkle{from{opacity:.3;transform:scale(.8)}to{opacity:1;transform:scale(1.1)}}
+  .hol-corner{position:absolute;bottom:3vh;right:2vw;width:110px;height:110px;opacity:.55;color:var(--teal);animation:holPulse 5s ease-in-out infinite alternate}
+  .hol-corner svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 18px rgba(var(--teal-rgb),.45))}
+  @media (max-width:860px){.hol-web,.hol-rainbow,.hol-corner{display:none}.hol-year{font-size:28vw}}
+  @media (prefers-reduced-motion:reduce){.hol-layer,.hol-fw,.hol-fog,.hol-bokeh,.hol-wave svg{display:none}}
 
   /* nav badge + countdown */
   .hol-chip{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px 0 7px;border-radius:999px;background:var(--teal-wash);border:1px solid var(--teal-edge);font-size:10.5px;font-weight:500;color:var(--teal);white-space:nowrap;margin-left:4px}
@@ -138,18 +166,18 @@
   function nth(y, m, dow, n) { var d = new Date(y, m, 1), add = (dow - d.getDay() + 7) % 7; return new Date(y, m, 1 + add + (n - 1) * 7); }
   function easter(y) { var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451), mo = Math.floor((h + l - 7 * m + 114) / 31) - 1, da = ((h + l - 7 * m + 114) % 31) + 1; return new Date(y, mo, da); }
   var TH = {
-    newyear: { g: [G.sparkle, G.star, G.confetti], m: 'fall', s: [8, 16], pal: ['#f5c451', '#ffffff', '#ff5a5a', '#3fb6ff'], scene: 'fireworks', label: 'New Year', when: function (y) { return new Date(y, 0, 1); }, title: 'New Year drop', sub: 'Fresh year, fresh scripts. A new gift unlocks every day until the countdown hits zero.' },
-    valentine: { g: [G.heart], m: 'rise', s: [10, 22], pal: ['#ff4d8d', '#ff8fb8', '#ffffff'], scene: 'vign', label: "Valentine's", when: function (y) { return new Date(y, 1, 14); }, title: "Valentine's week", sub: 'Gift a script to a server you love. Daily codes until the 14th.' },
-    stpatrick: { g: [G.clover, G.coin], m: 'fall', s: [12, 22], pal: ['#2ecc71', '#5ee39a', '#f5c451'], scene: 'vign', label: "St. Patrick's", when: function (y) { return new Date(y, 2, 17); }, title: 'Lucky week', sub: 'Pots of gold, daily. A new code every day until the 17th.' },
-    easter: { g: [G.egg, G.flower], m: 'fall', s: [10, 18], pal: ['#b48cff', '#ff8fb8', '#7bcdff', '#9fe683', '#ffd97a'], scene: 'vign', label: 'Easter', when: function (y) { return easter(y); }, title: 'Egg hunt', sub: 'Crack an egg every day. Each one hides a discount.' },
-    spring: { g: [G.flower], m: 'fall', s: [10, 18], pal: ['#7ad15a', '#ff8fb8', '#ffd97a', '#7bcdff'], scene: 'vign', label: 'Spring', when: function (y) { return new Date(y, 4, 31); }, title: 'Spring release week', sub: 'New releases and daily deals all month.' },
-    summer: { g: [G.bubble], m: 'rise', s: [8, 22], pal: null, scene: 'sun', label: 'Summer', when: function (y) { return new Date(y, 5, 21); }, title: 'Summer kickoff', sub: 'Longest days, biggest drops.' },
-    july4: { g: [G.star, G.sparkle], m: 'fall', s: [8, 16], pal: ['#ff5a5a', '#ffffff', '#3fb6ff'], scene: 'fireworks', label: '4th of July', when: function (y) { return new Date(y, 6, 4); }, title: 'Independence week', sub: 'Fireworks and daily codes until the 4th.' },
-    summersale: { g: [G.sun, G.sparkle], m: 'rise', s: [10, 20], pal: null, scene: 'sun', label: 'Summer sale', when: function (y) { return new Date(y, 7, 31); }, title: 'Summer sale', sub: 'Every script on sale before the season ends.' },
-    autumn: { g: [G.leaf], m: 'fall', s: [12, 24], pal: ['#e0872b', '#c2410c', '#f5c451', '#9a3412'], scene: 'vign', label: 'Autumn', when: function (y) { return new Date(y, 8, 22); }, title: 'Autumn drop', sub: 'Leaves fall, prices too.' },
-    halloween: { g: [G.bat, G.pumpkin, G.bat, G.ghost], m: 'fall', s: [14, 26], pal: ['#ff7a1a', '#b48cff', '#ffffff'], scene: 'moon', label: 'Halloween', when: function (y) { return new Date(y, 9, 31); }, title: 'Nights of frights', sub: 'A new trick or treat every night until Halloween. Open today\'s box for the code.' },
-    thanksgiving: { g: [G.leaf, G.turkey, G.leaf, G.leaf], m: 'fall', s: [12, 24], pal: ['#d98c3a', '#c2410c', '#f5c451', '#7c2d12'], scene: 'vign', label: 'Thanksgiving', when: function (y) { return nth(y, 10, 4, 4); }, title: 'Thankful week', sub: 'A thank-you to every server running our scripts. Daily codes until Thanksgiving.' },
-    christmas: { g: [G.snow, G.snow, G.gift], m: 'fall', s: [8, 20], pal: ['#ffffff', '#dff5ff', '#22c55e', '#ff5a5a'], scene: 'lights', label: 'Christmas', when: function (y) { return new Date(y, 11, 25); }, title: 'Advent calendar', sub: 'Open a door every day until Christmas. Every door hides a discount or a free script.' }
+    newyear: { g: [G.sparkle, G.star, G.confetti], m: 'fall', s: [8, 16], pal: ['#f5c451', '#ffffff', '#ff5a5a', '#3fb6ff'], scene: ['fireworks', 'year', 'bokeh'], label: 'New Year', when: function (y) { return new Date(y, 0, 1); }, title: 'New Year drop', sub: 'Fresh year, fresh scripts. A new gift unlocks every day until the countdown hits zero.' },
+    valentine: { g: [G.heart], m: 'rise', s: [10, 22], pal: ['#ff4d8d', '#ff8fb8', '#ffffff'], scene: ['vign', 'bokeh'], label: "Valentine's", when: function (y) { return new Date(y, 1, 14); }, title: "Valentine's week", sub: 'Gift a script to a server you love. Daily codes until the 14th.' },
+    stpatrick: { g: [G.clover, G.coin], m: 'fall', s: [12, 22], pal: ['#2ecc71', '#5ee39a', '#f5c451'], scene: ['vign', 'rainbow', 'pile'], label: "St. Patrick's", when: function (y) { return new Date(y, 2, 17); }, title: 'Lucky week', sub: 'Pots of gold, daily. A new code every day until the 17th.' },
+    easter: { g: [G.egg, G.flower], m: 'fall', s: [10, 18], pal: ['#b48cff', '#ff8fb8', '#7bcdff', '#9fe683', '#ffd97a'], scene: ['vign', 'bokeh', 'pile'], label: 'Easter', when: function (y) { return easter(y); }, title: 'Egg hunt', sub: 'Crack an egg every day. Each one hides a discount.' },
+    spring: { g: [G.flower], m: 'fall', s: [10, 18], pal: ['#7ad15a', '#ff8fb8', '#ffd97a', '#7bcdff'], scene: ['vign', 'pile', 'bokeh', 'garland'], label: 'Spring', when: function (y) { return new Date(y, 4, 31); }, title: 'Spring release week', sub: 'New releases and daily deals all month.' },
+    summer: { g: [G.bubble], m: 'rise', s: [8, 22], pal: null, scene: ['sun', 'wave'], label: 'Summer', when: function (y) { return new Date(y, 5, 21); }, title: 'Summer kickoff', sub: 'Longest days, biggest drops.' },
+    july4: { g: [G.star, G.sparkle], m: 'fall', s: [8, 16], pal: ['#ff5a5a', '#ffffff', '#3fb6ff'], scene: ['fireworks', 'stars'], label: '4th of July', when: function (y) { return new Date(y, 6, 4); }, title: 'Independence week', sub: 'Fireworks and daily codes until the 4th.' },
+    summersale: { g: [G.sun, G.sparkle], m: 'rise', s: [10, 20], pal: null, scene: ['sun', 'wave', 'bokeh'], label: 'Summer sale', when: function (y) { return new Date(y, 7, 31); }, title: 'Summer sale', sub: 'Every script on sale before the season ends.' },
+    autumn: { g: [G.leaf], m: 'fall', s: [12, 24], pal: ['#e0872b', '#c2410c', '#f5c451', '#9a3412'], scene: ['vign', 'pile', 'garland'], label: 'Autumn', when: function (y) { return new Date(y, 8, 22); }, title: 'Autumn drop', sub: 'Leaves fall, prices too.' },
+    halloween: { g: [G.bat, G.pumpkin, G.bat, G.ghost], m: 'fall', s: [14, 26], pal: ['#ff7a1a', '#b48cff', '#ffffff'], scene: ['moon', 'web', 'pumpkin'], label: 'Halloween', when: function (y) { return new Date(y, 9, 31); }, title: 'Nights of frights', sub: 'A new trick or treat every night until Halloween. Open today\'s box for the code.' },
+    thanksgiving: { g: [G.leaf, G.turkey, G.leaf, G.leaf], m: 'fall', s: [12, 24], pal: ['#d98c3a', '#c2410c', '#f5c451', '#7c2d12'], scene: ['vign', 'garland', 'pile'], label: 'Thanksgiving', when: function (y) { return nth(y, 10, 4, 4); }, title: 'Thankful week', sub: 'A thank-you to every server running our scripts. Daily codes until Thanksgiving.' },
+    christmas: { g: [G.snow, G.snow, G.gift], m: 'fall', s: [8, 20], pal: ['#ffffff', '#dff5ff', '#22c55e', '#ff5a5a'], scene: ['lights', 'drift', 'vign'], label: 'Christmas', when: function (y) { return new Date(y, 11, 25); }, title: 'Advent calendar', sub: 'Open a door every day until Christmas. Every door hides a discount or a free script.' }
   };
   var BY_MONTH = ['newyear', 'valentine', 'stpatrick', 'easter', 'spring', 'summer', 'july4', 'summersale', 'autumn', 'halloween', 'thanksgiving', 'christmas'];
   var qs = new URLSearchParams(location.search);
@@ -170,13 +198,24 @@
 
   /* scene */
   if (SCENE && !reduced) {
-    var sc = document.getElementById('holScene'), html = '';
-    if (th.scene === 'moon') html = '<div class="hol-moon"></div><div class="hol-fog"></div>';
-    if (th.scene === 'sun') html = '<div class="hol-sun"></div>';
-    if (th.scene === 'vign') html = '<div class="hol-vign"></div>';
-    if (th.scene === 'fireworks') { html = '<div class="hol-vign"></div>'; for (var f = 0; f < 7; f++) html += '<span class="hol-fw" style="left:' + (8 + Math.random() * 84) + 'vw;top:' + (8 + Math.random() * 40) + 'vh;--c:' + pick(th.pal) + ';--d:' + (2.6 + Math.random() * 2).toFixed(1) + 's;--dl:' + (-Math.random() * 6).toFixed(1) + 's;--s:' + (1.6 + Math.random() * 1.4).toFixed(1) + '"></span>'; }
-    if (th.scene === 'lights') { html = '<div class="hol-vign"></div>'; var lights = '<div class="hol-lights">'; var cols = ['#ff5a5a', '#22c55e', '#3fb6ff', '#f5c451', '#ff8fb8']; for (var b = 0; b < 36; b++) lights += '<span class="hol-bulb" style="--c:' + cols[b % cols.length] + ';--dl:' + (-Math.random() * 2).toFixed(2) + 's"></span>'; lights += '</div>'; onReady(function () { var nav = document.querySelector('header.nav'); if (nav) nav.insertAdjacentHTML('beforeend', lights); }); }
+    var sc = document.getElementById('holScene'), html = '', parts = th.scene, pal = th.pal || ['#ffffff'];
+    var has = function (k) { return parts.indexOf(k) > -1; };
+    if (has('vign')) html += '<div class="hol-vign"></div>';
+    if (has('moon')) html += '<div class="hol-moon"></div><div class="hol-fog"></div>';
+    if (has('sun')) html += '<div class="hol-sun"></div>';
+    if (has('rainbow')) html += '<div class="hol-rainbow"></div>';
+    if (has('pile')) html += '<div class="hol-pile" style="--p1:' + pal[0] + ';--p2:' + (pal[1] || pal[0]) + ';--p3:' + (pal[2] || pal[0]) + '"></div>';
+    if (has('drift')) html += '<div class="hol-drift"></div>';
+    if (has('wave')) html += '<div class="hol-wave"><svg viewBox="0 0 1200 110" preserveAspectRatio="none"><path d="M0 60c100-40 200-40 300 0s200 40 300 0 200-40 300 0 200 40 300 0v50H0z"/></svg><svg class="b" viewBox="0 0 1200 110" preserveAspectRatio="none"><path d="M0 70c120-50 240-50 360 0s240 50 360 0 240-50 360 0 120 0 120 0v40H0z"/></svg></div>';
+    if (has('year')) html += '<div class="hol-year">' + when.getFullYear() + '</div>';
+    if (has('web')) { var web = '<svg viewBox="0 0 100 100"><path d="M0 0L100 100M0 0L100 55M0 0L55 100M0 0L100 20M0 0L20 100M0 0H100M0 0V100"/><path d="M18 0Q18 10 0 18M34 0Q34 22 0 34M52 0Q50 38 0 52M72 0Q66 54 0 72M92 0Q82 72 0 92"/></svg>'; html += '<div class="hol-web l">' + web + '</div><div class="hol-web r">' + web + '</div>'; }
+    if (has('pumpkin')) html += '<div class="hol-corner">' + G.pumpkin + '</div>';
+    if (has('fireworks')) { for (var f = 0; f < 7; f++) html += '<span class="hol-fw" style="left:' + (8 + Math.random() * 84) + 'vw;top:' + (8 + Math.random() * 40) + 'vh;--c:' + pick(pal) + ';--d:' + (2.6 + Math.random() * 2).toFixed(1) + 's;--dl:' + (-Math.random() * 6).toFixed(1) + 's;--s:' + (1.6 + Math.random() * 1.4).toFixed(1) + '"></span>'; }
+    if (has('bokeh')) { for (var k = 0; k < 14; k++) { var sz = 40 + Math.random() * 110; html += '<span class="hol-bokeh" style="left:' + (Math.random() * 100) + 'vw;width:' + sz.toFixed(0) + 'px;height:' + sz.toFixed(0) + 'px;background:' + pick(pal) + ';--d:' + (14 + Math.random() * 14).toFixed(1) + 's;--dl:' + (-Math.random() * 28).toFixed(1) + 's;--o:' + (0.08 + Math.random() * 0.14).toFixed(2) + '"></span>'; } }
     sc.innerHTML = html;
+    if (has('lights')) { var lights = '<div class="hol-lights">'; var cols = ['#ff5a5a', '#22c55e', '#3fb6ff', '#f5c451', '#ff8fb8']; for (var b = 0; b < 36; b++) lights += '<span class="hol-bulb" style="--c:' + cols[b % cols.length] + ';--dl:' + (-Math.random() * 2).toFixed(2) + 's"></span>'; lights += '</div>'; onReady(function () { var nav = document.querySelector('header.nav'); if (nav) nav.insertAdjacentHTML('beforeend', lights); }); }
+    if (has('garland')) { var gl = '<div class="hol-garland">', gg = has('garland') && key === 'spring' ? G.flower : G.leaf; for (var g2 = 0; g2 < 30; g2++) gl += '<span style="--c:' + pick(pal) + ';--r:' + (Math.random() * 60 - 30).toFixed(0) + 'deg;--dl:' + (-Math.random() * 4).toFixed(1) + 's">' + gg + '</span>'; gl += '</div>'; onReady(function () { var nav = document.querySelector('header.nav'); if (nav) nav.insertAdjacentHTML('beforeend', gl); }); }
+    if (has('stars')) { var st = '<div class="hol-stars">'; for (var s2 = 0; s2 < 40; s2++) st += '<span style="--c:' + pick(pal) + ';--dl:' + (-Math.random() * 2).toFixed(1) + 's">' + G.star + '</span>'; st += '</div>'; onReady(function () { var nav = document.querySelector('header.nav'); if (nav) nav.insertAdjacentHTML('beforeend', st); }); }
   }
   /* particles */
   if (PARTICLES && !reduced) {

@@ -881,6 +881,19 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
     a.addEventListener('click', function (e) { e.preventDefault(); fetch(a.getAttribute('href'), { credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { location.href = location.pathname + '?cart=open'; }); });
   });
 
+  /* Discord live member count (Server Settings → Widget must be enabled) */
+  var GUILD = {{ (config('discord-guild-id') ?: '')|replace({' ': ''})|json_encode|raw }};
+  if (GUILD) fetch('https://discord.com/api/guilds/' + GUILD + '/widget.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    if (!j) return; var n = j.presence_count || 0;
+    $$('[data-discord-online]').forEach(function (el) { el.textContent = n.toLocaleString(); });
+    $$('[data-discord-online-wrap]').forEach(function (el) { el.classList.remove('hide'); });
+  }).catch(function () {});
+  /* purchase toasts: recent payments from the Tebex "Recent payments" module, one every ~25s */
+  if ({{ ((config('purchase-toasts') ?: 'On') != 'Off') ? 'true' : 'false' }}) {
+    var buys = $$('.nz-mod-payments .np').slice(0, 12).map(function (el) { var b = el.querySelector('b'), s = el.querySelector('span:not(.av):not(.pr)'); return { who: (b ? b.childNodes[0].textContent : '').trim(), what: (b ? b.textContent.replace(/^[^·]*?(bought|purchased|kaufte)\s*/i, '') : '').trim(), when: s ? s.textContent.trim() : '' }; }).filter(function (b) { return b.who; });
+    if (buys.length) { var bi = 0; setTimeout(function show() { var b = buys[bi++ % buys.length]; toast(b.who + ' ' + {{ (config('pay-verb') ?: 'bought')|json_encode|raw }} + ' ' + b.what, b.when); setTimeout(show, 22000 + Math.random() * 12000); }, 9000); }
+  }
+
   /* boot */
   wlBadge();
   var qs = new URLSearchParams(location.search);

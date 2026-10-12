@@ -218,7 +218,7 @@
   <div class="panel disc">
     <div class="mark lg"></div>
     <div class="disc-t"><b>{{ config('discord-cta-title') ?: 'Join the Discord' }}</b><p>{{ config('discord-cta-sub') ?: 'Release notes, previews, config help and support tickets. Most questions get answered within the hour.' }}</p></div>
-    {% if config('discord-online') %}<div class="online"><span class="dot"></span><b>{{ config('discord-online') }}</b> {{ config('discord-online-label') ?: 'online' }}</div>{% endif %}
+    {% if config('discord-online') or config('discord-guild-id') %}<div class="online{% if not config('discord-online') %} hide{% endif %}" data-discord-online-wrap><span class="dot"></span><b data-discord-online>{{ config('discord-online') }}</b> {{ config('discord-online-label') ?: 'online' }}</div>{% endif %}
     <a class="btn-white" href="{{ config('discord-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-discord"/></svg>{{ config('discord-cta-btn') ?: 'Join Discord' }}</a>
   </div>
 </section>
