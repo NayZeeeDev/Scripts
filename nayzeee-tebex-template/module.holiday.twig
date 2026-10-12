@@ -128,19 +128,19 @@
 <div class="hol-layer" id="holLayer" aria-hidden="true"></div>
 <script>
 (function () {
-  var MODE = {{ holMode|json_encode|raw }};
+  var MODE = "{{ holMode|e('js') }}";
   var RECOLOR = {{ ((config('holiday-recolor') ?: 'On') != 'Off') ? 'true' : 'false' }};
   var PARTICLES = {{ ((config('holiday-particles') ?: 'On') != 'Off' and hol_quiet is not defined) ? 'true' : 'false' }};
   var SCENE = {{ ((config('holiday-scene') ?: 'On') != 'Off' and hol_quiet is not defined) ? 'true' : 'false' }};
   var CHIP = {{ ((config('holiday-chip') ?: 'Show') != 'Hide') ? 'true' : 'false' }};
   var EVENT = {{ ((config('holiday-event') ?: 'Show') != 'Hide') ? 'true' : 'false' }};
-  var DENSITY = parseInt({{ (config('holiday-density') ?: '28')|json_encode|raw }}, 10) || 28;
+  var DENSITY = parseInt("{{ (config('holiday-density') ?: '28')|e('js') }}", 10) || 28;
   var CFG = {
     {% for k in ['newyear','valentine','stpatrick','easter','spring','summer','july4','summersale','autumn','halloween','thanksgiving','christmas'] %}
-    {{ k }}: { label: {{ (config('holiday-label-' ~ k) ?: '')|json_encode|raw }}, title: {{ (config('event-' ~ k ~ '-title') ?: '')|json_encode|raw }}, sub: {{ (config('event-' ~ k ~ '-sub') ?: '')|json_encode|raw }}, days: {{ (config('event-' ~ k ~ '-days') ?: '')|json_encode|raw }}, end: {{ (config('event-' ~ k ~ '-end') ?: '')|json_encode|raw }} }{% if not loop.last %},{% endif %}
+    {{ k }}: { label: "{{ (config('holiday-label-' ~ k) ?: '')|e('js') }}", title: "{{ (config('event-' ~ k ~ '-title') ?: '')|e('js') }}", sub: "{{ (config('event-' ~ k ~ '-sub') ?: '')|e('js') }}", days: "{{ (config('event-' ~ k ~ '-days') ?: '')|e('js') }}", end: "{{ (config('event-' ~ k ~ '-end') ?: '')|e('js') }}" }{% if not loop.last %},{% endif %}
     {% endfor %}
   };
-  var T = { until: {{ (config('event-until-text') ?: 'until')|json_encode|raw }}, ends: {{ (config('event-ends-text') ?: 'sale ends in')|json_encode|raw }}, today: {{ (config('event-today-text') ?: "Today's gift")|json_encode|raw }}, locked: {{ (config('event-locked-text') ?: 'Unlocks on')|json_encode|raw }}, opened: {{ (config('event-opened-text') ?: 'Opened')|json_encode|raw }}, copy: {{ (config('event-copy-text') ?: 'Copy code')|json_encode|raw }}, calendar: {{ (config('event-calendar-text') ?: 'Daily gifts')|json_encode|raw }}, days: ['Days', 'Hours', 'Min', 'Sec'], noGift: {{ (config('event-nogift-text') ?: 'Check back tomorrow for the next gift.')|json_encode|raw }}, over: {{ (config('event-over-text') ?: 'The event has ended. See you next year!')|json_encode|raw }}, view: {{ (config('event-view-text') ?: 'View')|json_encode|raw }} };
+  var T = { until: "{{ (config('event-until-text') ?: 'until')|e('js') }}", ends: "{{ (config('event-ends-text') ?: 'sale ends in')|e('js') }}", today: "{{ (config('event-today-text') ?: "Today's gift")|e('js') }}", locked: "{{ (config('event-locked-text') ?: 'Unlocks on')|e('js') }}", opened: "{{ (config('event-opened-text') ?: 'Opened')|e('js') }}", copy: "{{ (config('event-copy-text') ?: 'Copy code')|e('js') }}", calendar: "{{ (config('event-calendar-text') ?: 'Daily gifts')|e('js') }}", days: ['Days', 'Hours', 'Min', 'Sec'], noGift: "{{ (config('event-nogift-text') ?: 'Check back tomorrow for the next gift.')|e('js') }}", over: "{{ (config('event-over-text') ?: 'The event has ended. See you next year!')|e('js') }}", view: "{{ (config('event-view-text') ?: 'View')|e('js') }}" };
 
   var G = {
     star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 6 6.5.7-4.9 4.4 1.4 6.4L12 17l-5.8 3.3 1.4-6.4L2.7 9.5l6.5-.7z"/></svg>',
@@ -283,7 +283,7 @@
       return '<div class="hol-gift' + (i < idx ? ' locked' : '') + '"><div class="tile">' + G.gift + '</div><div><b>' + d.title + '</b><span>' + state + (d.pkg ? ' · <a href="/package/' + d.pkg + '" style="color:var(--teal)">' + T.view + '</a>' : '') + '</span></div>' + (d.code ? '<button type="button" class="code" data-copy="' + d.code + '">' + d.code + ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button>' : '') + '</div>';
     };
     var cdLabel = isOver ? '' : (now < when ? T.until + ' ' + label : T.ends);
-    slot.innerHTML = '<section class="panel hol-ev view"><div class="hol-ev-l"><div class="kick">' + G.sparkle + label + ' · ' + {{ (config('event-kicker') ?: 'Event')|json_encode|raw }} + '</div><h2>' + (cfg.title || th.title) + '</h2><p>' + (cfg.sub || th.sub) + '</p>' +
+    slot.innerHTML = '<section class="panel hol-ev view"><div class="hol-ev-l"><div class="kick">' + G.sparkle + label + ' · ' + "{{ (config('event-kicker') ?: 'Event')|e('js') }}" + '</div><h2>' + (cfg.title || th.title) + '</h2><p>' + (cfg.sub || th.sub) + '</p>' +
       (isOver ? '' : '<div class="hol-cd" id="holCd"><div><b>00</b><span>' + T.days[0] + '</span></div><div><b>00</b><span>' + T.days[1] + '</span></div><div><b>00</b><span>' + T.days[2] + '</span></div><div><b>00</b><span>' + T.days[3] + '</span></div><em>' + cdLabel + '</em></div>') +
       '</div><div class="hol-ev-r">' + (N ? '<div class="ttl">' + T.calendar + '<span>' + Math.max(0, Math.min(N, idx + 1)) + ' / ' + N + '</span></div><div class="hol-days" id="holDays">' + tiles + '</div>' : '') + '<div id="holGift">' + giftHtml(idx) + '</div></div></section>';
     var cd = document.getElementById('holCd');

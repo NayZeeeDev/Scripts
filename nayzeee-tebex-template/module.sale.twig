@@ -33,10 +33,10 @@
 (function () {
   var p = document.getElementById('salePanel'); if (!p) return;
   function dt(s) { s = String(s || '').trim().replace(' ', 'T'); if (!s) return null; if (s.length <= 10) s += 'T00:00:00'; var d = new Date(s); return isNaN(d) ? null : d; }
-  var start = dt({{ (config('sale-start') ?: '')|json_encode|raw }}), end = dt({{ (config('sale-end') ?: '')|json_encode|raw }});
+  var start = dt("{{ (config('sale-start') ?: '')|e('js') }}"), end = dt("{{ (config('sale-end') ?: '')|e('js') }}");
   if (!end) return;
-  var SOON = {{ (config('sale-soon-title') ?: 'Discount starts soon')|json_encode|raw }}, SOON_T = {{ (config('sale-soon-text') ?: 'Get ready, the discount unlocks when the timer hits zero.')|json_encode|raw }};
-  var STARTED = {{ (config('sale-started-title') ?: config('sale-title') ?: 'Discount started')|json_encode|raw }}, STARTED_T = {{ (config('sale-text') ?: 'The discount is now valid on all scripts.')|json_encode|raw }};
+  var SOON = "{{ (config('sale-soon-title') ?: 'Discount starts soon')|e('js') }}", SOON_T = "{{ (config('sale-soon-text') ?: 'Get ready, the discount unlocks when the timer hits zero.')|e('js') }}";
+  var STARTED = "{{ (config('sale-started-title') ?: config('sale-title') ?: 'Discount started')|e('js') }}", STARTED_T = "{{ (config('sale-text') ?: 'The discount is now valid on all scripts.')|e('js') }}";
   var bs = p.querySelectorAll('.sale-cd b'), title = document.getElementById('saleTitle'), text = document.getElementById('saleText'), code = p.querySelector('.sale-code');
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function tick() {

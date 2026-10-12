@@ -51,6 +51,10 @@ Tebex's classic Webstore editor has no zip upload: files are pasted one by one. 
 - **Cursor** (01): `cursor-toggle` Off restores the normal cursor. `cursor-url` / `cursor-pointer-url` swap in your own 32px PNGs. The built-in ones are the 32px frames from your .cur files with their original hotspots.
 - **Footer credit** (10): `footer-built` + `footer-built-name` (default "Built by NayZeee Dev").
 
+## Tebex's Twig whitelist
+
+Tebex runs templates in a Twig sandbox that only allows a handful of filters: `replace`, `lower`, `raw`, `number_format`, `length`, `slice`, `split`, `upper`, `e`. Anything else ("Filter X not found") breaks the page, and numeric ranges (`1..4`) are out too because they compile to the `range()` function. `tools/sandbox_check.php` renders every page with that exact policy enforced; run it after any template edit.
+
 ## Package description markers
 
 Put these on their own lines at the end of a package description in Tebex. They are hidden on the page and turned into UI on the cards and the package page:

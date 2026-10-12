@@ -90,44 +90,44 @@
 </style>
 
 {# ── match the three plans ── #}
-{% set ids = { 'm': (config('tier-monthly-id') ?: '')|trim, 'q': (config('tier-quarterly-id') ?: '')|trim, 'y': (config('tier-yearly-id') ?: '')|trim } %}
-{% set plans = {} %}{% set used = [] %}
+{% set mId = (config('tier-monthly-id') ?: '')|replace({' ': ''}) %}
+{% set qId = (config('tier-quarterly-id') ?: '')|replace({' ': ''}) %}
+{% set yId = (config('tier-yearly-id') ?: '')|replace({' ': ''}) %}
 {% for package in category.packages %}
-  {% set pid = package.id ~ '' %}{% set nm = package.name|lower %}{% set key = '' %}
-  {% if pid == ids.m %}{% set key = 'm' %}{% elseif pid == ids.q %}{% set key = 'q' %}{% elseif pid == ids.y %}{% set key = 'y' %}
-  {% elseif 'year' in nm or 'annual' in nm or '12 month' in nm %}{% set key = 'y' %}
-  {% elseif 'quarter' in nm or '3 month' in nm or '3-month' in nm or 'season' in nm %}{% set key = 'q' %}
-  {% elseif 'month' in nm %}{% set key = 'm' %}{% endif %}
-  {% if key and plans[key] is not defined %}{% set plans = plans|merge({ (key): package }) %}{% set used = used|merge([pid]) %}{% endif %}
-{% endfor %}
-{% for package in category.packages %}{% set pid = package.id ~ '' %}
-  {% if pid not in used %}
-    {% if plans.m is not defined %}{% set plans = plans|merge({ 'm': package }) %}{% set used = used|merge([pid]) %}
-    {% elseif plans.q is not defined %}{% set plans = plans|merge({ 'q': package }) %}{% set used = used|merge([pid]) %}
-    {% elseif plans.y is not defined %}{% set plans = plans|merge({ 'y': package }) %}{% set used = used|merge([pid]) %}{% endif %}
+  {% set pid = package.id ~ '' %}{% set nm = package.name|lower %}
+  {% if pid != mId and pid != qId and pid != yId %}
+    {% if yId == '' and ('year' in nm or 'annual' in nm or '12 month' in nm) %}{% set yId = pid %}
+    {% elseif qId == '' and ('quarter' in nm or '3 month' in nm or '3-month' in nm or 'season' in nm) %}{% set qId = pid %}
+    {% elseif mId == '' and 'month' in nm %}{% set mId = pid %}{% endif %}
   {% endif %}
 {% endfor %}
+{% for package in category.packages %}{% set pid = package.id ~ '' %}
+  {% if pid != mId and pid != qId and pid != yId %}
+    {% if mId == '' %}{% set mId = pid %}{% elseif qId == '' %}{% set qId = pid %}{% elseif yId == '' %}{% set yId = pid %}{% endif %}
+  {% endif %}
+{% endfor %}
+{% set mPk = null %}{% set qPk = null %}{% set yPk = null %}
+{% for package in category.packages %}{% set pid = package.id ~ '' %}
+  {% if pid == mId %}{% set mPk = package %}{% elseif pid == qId %}{% set qPk = package %}{% elseif pid == yId %}{% set yPk = package %}{% endif %}
+{% endfor %}
+{% set nPlans = (mPk ? 1 : 0) + (qPk ? 1 : 0) + (yPk ? 1 : 0) %}
 {% set order = ['m', 'q', 'y'] %}
 {% set months = { 'm': 1, 'q': 3, 'y': 12 } %}
 {% set labels = { 'm': config('tier-monthly') ?: 'Monthly', 'q': config('tier-quarterly') ?: 'Quarterly', 'y': config('tier-yearly') ?: 'Yearly' } %}
 {% set periods = { 'm': config('tier-period-m') ?: '/ month', 'q': config('tier-period-q') ?: '/ 3 months', 'y': config('tier-period-y') ?: '/ year' } %}
 {% set billed = { 'm': config('tier-billed-m') ?: 'Cancel anytime · billed monthly', 'q': config('tier-billed-q') ?: 'Cancel anytime · billed every 3 months', 'y': config('tier-billed-y') ?: 'Cancel anytime · billed once a year' } %}
-{% set mprice = plans.m is defined ? plans.m.price : 0 %}
-{% set saves = {} %}
-{% for k in order %}{% if plans[k] is defined and k != 'm' and mprice > 0 and plans[k].price > 0 %}
-  {% set pct = ((1 - plans[k].price / (mprice * months[k])) * 100)|round %}
-  {% if pct > 0 %}{% set saves = saves|merge({ (k): pct }) %}{% endif %}
-{% endif %}{% endfor %}
-{% set first = '' %}{% for k in order %}{% if plans[k] is defined and not first %}{% set first = k %}{% endif %}{% endfor %}
+{% set mprice = mPk ? mPk.price : 0 %}
+{% set first = mPk ? 'm' : (qPk ? 'q' : (yPk ? 'y' : '')) %}
 {% set def = (config('tier-default-period') ?: 'Monthly')|lower|slice(0, 1) %}
-{% if plans[def] is not defined %}{% set def = first %}{% endif %}
+{% set defPk = def == 'm' ? mPk : (def == 'q' ? qPk : (def == 'y' ? yPk : null)) %}
+{% if not defPk %}{% set def = first %}{% endif %}
 
 {# ── count the scripts the plan includes ── #}
 {% set exc = (config('tier-exclude-cats') ?: '')|replace({' ': ''})|split(',') %}
 {% set inc = (config('tier-included-cats') ?: '')|replace({' ': ''}) %}
-{% set n = 0 %}{% set total = 0 %}{% set incList = [] %}
+{% set n = 0 %}{% set total = 0 %}{% set incN = 0 %}
 {% for cat in store.categories %}{% if cat.id != category.id and (cat.id ~ '') not in exc and (not inc or (cat.id ~ '') in inc|split(',')) %}{% for p in cat.packages %}{% if p.price > 0 %}
-  {% set n = n + 1 %}{% set total = total + (p.discount.applied ? p.discount.original : p.price) %}{% set incList = incList|merge([{ p: p, c: cat.name }]) %}
+  {% set n = n + 1 %}{% set incN = incN + 1 %}{% set total = total + (p.discount.applied ? p.discount.original : p.price) %}
 {% endif %}{% endfor %}{% endif %}{% endfor %}
 {% if config('tier-stat-count') %}{% set n = config('tier-stat-count') %}{% endif %}
 {% set totalTx = config('tier-stat-total') ?: (csym ~ total|number_format(2) ~ '+') %}
@@ -137,14 +137,14 @@
     {% if (config('hero-ghost-toggle') ?: 'Show') != 'Hide' %}<span class="ghost hero-ghost" aria-hidden="true"></span>{% endif %}
     <div class="kick">{{ config('tier-eyebrow') ?: 'Subscription' }}</div>
     <h1>{{ config('tier-title') ?: 'All scripts. <em>One subscription.</em>'|raw }}</h1>
-    <p>{% if category.description %}{{ category.description|striptags }}{% else %}{{ config('tier-sub') ?: 'Every script on the store, every future release, and priority support for as long as you subscribe.' }}{% endif %}</p>
-    {% if plans|length > 1 %}
-    <div class="sub-sw"><div class="segc" id="subSw">{% for k in order %}{% if plans[k] is defined %}<button type="button"{% if k == def %} class="on"{% endif %} data-p="{{ k }}">{{ labels[k] }}{% set sv = saves[k] ?? 0 %}{% if sv > 0 %}<span class="sv">-{{ sv }}%</span>{% endif %}</button>{% endif %}{% endfor %}</div></div>
+    <p>{% if category.description %}{{ category.description|replace({'<p>': ' ', '</p>': ' ', '<li>': ' ', '</li>': ' · ', '<ul>': '', '</ul>': ' ', '<ol>': '', '</ol>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' ', '<strong>': '', '</strong>': '', '<b>': '', '</b>': '', '<em>': '', '</em>': '', '<i>': '', '</i>': '', '<u>': '', '</u>': '', '<h1>': ' ', '</h1>': ' ', '<h2>': ' ', '</h2>': ' ', '<h3>': ' ', '</h3>': ' ', '<h4>': ' ', '</h4>': ' ', '<div>': ' ', '</div>': ' ', '<span>': '', '</span>': '', '</a>': '', '&nbsp;': ' ', '&amp;': '&'}) }}{% else %}{{ config('tier-sub') ?: 'Every script on the store, every future release, and priority support for as long as you subscribe.' }}{% endif %}</p>
+    {% if nPlans > 1 %}
+    <div class="sub-sw"><div class="segc" id="subSw">{% for k in order %}{% set package = k == 'm' ? mPk : (k == 'q' ? qPk : yPk) %}{% if package %}{% set sv = 0 %}{% if k != 'm' and mprice > 0 and package.price > 0 %}{% set sv = ((1 - package.price / (mprice * months[k])) * 100)|number_format(0) %}{% endif %}<button type="button"{% if k == def %} class="on"{% endif %} data-p="{{ k }}">{{ labels[k] }}{% if sv > 0 %}<span class="sv">-{{ sv }}%</span>{% endif %}</button>{% endif %}{% endfor %}</div></div>
     {% endif %}
     <div class="sub-billed" id="subBilled">{{ billed[def] ?? '' }}</div>
     <div class="perks">
-      {% for i in 1..4 %}{% set perk = config('tier-perk-' ~ i) ?: (i == 1 ? '{n} premium scripts' : (i == 2 ? 'All future releases' : (i == 3 ? 'Priority support' : 'Regular updates'))) %}
-      {% if perk|trim %}<div><i><svg class="ic"><use href="#i-check"/></svg></i>{{ perk|replace({'{n}': n}) }}</div>{% endif %}{% endfor %}
+      {% for i in [1, 2, 3, 4] %}{% set perk = config('tier-perk-' ~ i) ?: (i == 1 ? '{n} premium scripts' : (i == 2 ? 'All future releases' : (i == 3 ? 'Priority support' : 'Regular updates'))) %}
+      {% if perk|replace({' ': ''}) %}<div><i><svg class="ic"><use href="#i-check"/></svg></i>{{ perk|replace({'{n}': n}) }}</div>{% endif %}{% endfor %}
     </div>
   </section>
 
@@ -156,9 +156,9 @@
   </div>
   {% endif %}
 
-  {% if plans|length > 0 %}
+  {% if nPlans > 0 %}
   <div class="plans">
-    {% for k in order %}{% if plans[k] is defined %}{% set package = plans[k] %}
+    {% for k in order %}{% set package = k == 'm' ? mPk : (k == 'q' ? qPk : yPk) %}{% if package %}
       {% set pid = package.identifier ?? package.id %}
       {% set is_subscribed = tier is defined and tier and tier.package_id == pid %}
       {% set is_downgrade = tier is defined and tier and tier.downgrade_package_id == pid %}
@@ -174,7 +174,7 @@
           {% if has_disc %}<span class="was"><s>{{ csym }}{{ package.discount.original|number_format(2) }}</s></span>
           {% elseif k != 'm' and mprice > 0 %}<span class="was"><s>{{ csym }}{{ (mprice * months[k])|number_format(2) }}</s> {{ config('tier-vs-monthly') ?: 'paying monthly' }}</span>{% endif %}{% endif %}
         </div>
-        {% set sv = saves[k] ?? 0 %}{% if sv > 0 %}{% set perMo = package.price / months[k] %}{% set perTx = csym ~ perMo|number_format(2) ~ ' / mo' %}<span class="save"><svg class="ic"><use href="#i-sparkle"/></svg>{{ (config('tier-save-text') ?: 'Save {pct}% · works out to {per}')|replace({'{pct}': sv, '{per}': perTx}) }}</span>{% endif %}
+        {% set sv = 0 %}{% if k != 'm' and mprice > 0 and package.price > 0 %}{% set sv = ((1 - package.price / (mprice * months[k])) * 100)|number_format(0) %}{% endif %}{% if sv > 0 %}{% set perMo = package.price / months[k] %}{% set perTx = csym ~ perMo|number_format(2) ~ ' / mo' %}<span class="save"><svg class="ic"><use href="#i-sparkle"/></svg>{{ (config('tier-save-text') ?: 'Save {pct}% · works out to {per}')|replace({'{pct}': sv, '{per}': perTx}) }}</span>{% endif %}
         <div class="prose">{% if package.description %}{{ package.description|raw }}{% else %}<ul><li>{{ config('tier-default-desc') ?: 'Every script in the store' }}</li><li>All future releases</li><li>Updates while subscribed</li><li>Priority Discord support</li></ul>{% endif %}</div>
         {% if is_subscribed %}
           <div class="tier-cur"><svg class="ic"><use href="#i-check"/></svg>{{ config('tier-subscribed-text') ?: 'Subscribed' }}</div>
@@ -199,32 +199,32 @@
       {% set fi = ['box', 'refresh', 'shield', 'discord'] %}
       {% set ft = ['Instant access', 'Always updated', 'Secure', 'Priority support'] %}
       {% set fs = ['Ready in your Keymaster', 'Latest versions, automatically', 'Escrowed and protected', 'Fast answers on Discord'] %}
-      {% for i in 0..3 %}
+      {% for i in [0, 1, 2, 3] %}
       <div class="panel feat view"><div class="tile"><svg class="ic"><use href="#i-{{ fi[i] }}"/></svg></div><div><b>{{ config('tier-feat-' ~ (i + 1) ~ '-title') ?: ft[i] }}</b><span>{{ config('tier-feat-' ~ (i + 1) ~ '-sub') ?: fs[i] }}</span></div></div>
       {% endfor %}
     </div>
   </section>
   {% endif %}
 
-  {% if incList|length > 0 %}
+  {% if incN > 0 %}
   <section class="section">
     <div class="sec-h"><div><div class="kick">{{ config('tier-included-kicker') ?: 'Included' }}</div><h2>{{ config('tier-included-title') ?: 'Every script in the store, included' }}</h2><p>{{ config('tier-included-sub') ?: 'New releases are added to your plan the day they come out.' }}</p></div></div>
-    <div class="inc">{% for it in incList %}{% if loop.index <= 12 or config('tier-included-all') == 'Show' %}<a href="/package/{{ it.p.id }}" class="view" style="animation-delay:{{ loop.index0 * 30 }}ms"><div class="art"><span class="chip">{{ config('tier-included-chip') ?: 'Included' }}</span>{% if it.p.image.url %}<img src="{{ it.p.image.url }}" alt="" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div><div class="t"><div><b>{{ it.p.name }}</b><span>{{ it.c }}</span></div><s>{{ csym }}{{ it.p.price|number_format(2) }}</s></div></a>{% endif %}{% endfor %}</div>
-    {% if incList|length > 12 and config('tier-included-all') != 'Show' %}<div class="inc-more"><a class="btn-line" href="{{ config('tier-included-url') ?: '/' }}">{{ (config('tier-included-more') ?: '+{n} more scripts')|replace({'{n}': incList|length - 12}) }}<svg class="ic"><use href="#i-arrow"/></svg></a></div>{% endif %}
+    <div class="inc">{% set ii = 0 %}{% for cat in store.categories %}{% if cat.id != category.id and (cat.id ~ '') not in exc and (not inc or (cat.id ~ '') in inc|split(',')) %}{% for p in cat.packages %}{% if p.price > 0 %}{% set ii = ii + 1 %}{% if ii <= 12 or config('tier-included-all') == 'Show' %}<a href="/package/{{ p.id }}" class="view" style="animation-delay:{{ (ii - 1) * 30 }}ms"><div class="art"><span class="chip">{{ config('tier-included-chip') ?: 'Included' }}</span>{% if p.image.url %}<img src="{{ p.image.url }}" alt="" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div><div class="t"><div><b>{{ p.name }}</b><span>{{ cat.name }}</span></div><s>{{ csym }}{{ p.price|number_format(2) }}</s></div></a>{% endif %}{% endif %}{% endfor %}{% endif %}{% endfor %}</div>
+    {% if incN > 12 and config('tier-included-all') != 'Show' %}<div class="inc-more"><a class="btn-line" href="{{ config('tier-included-url') ?: '/' }}">{{ (config('tier-included-more') ?: '+{n} more scripts')|replace({'{n}': incN - 12}) }}<svg class="ic"><use href="#i-arrow"/></svg></a></div>{% endif %}
   </section>
   {% endif %}
 
   {% if config('tier-faq-1-q') %}
   <section class="section">
     <div class="sec-h"><div><div class="kick">{{ config('faq-kicker') ?: 'FAQ' }}</div><h2>{{ config('tier-faq-title') ?: 'Subscription questions' }}</h2></div></div>
-    <div class="faq">{% for i in 1..4 %}{% if config('tier-faq-' ~ i ~ '-q') %}<details class="panel q"{% if i == 1 %} open{% endif %}><summary>{{ config('tier-faq-' ~ i ~ '-q') }}<svg class="ic"><use href="#i-plus"/></svg></summary><div>{{ config('tier-faq-' ~ i ~ '-a')|raw }}</div></details>{% endif %}{% endfor %}</div>
+    <div class="faq">{% for i in [1, 2, 3, 4] %}{% if config('tier-faq-' ~ i ~ '-q') %}<details class="panel q"{% if i == 1 %} open{% endif %}><summary>{{ config('tier-faq-' ~ i ~ '-q') }}<svg class="ic"><use href="#i-plus"/></svg></summary><div>{{ config('tier-faq-' ~ i ~ '-a')|raw }}</div></details>{% endif %}{% endfor %}</div>
   </section>
   {% endif %}
 </div>
 <script>
 (function () {
   var sw = document.getElementById('subSw'); if (!sw) return;
-  var B = {{ billed|json_encode|raw }};
+  var B = { m: "{{ billed.m|e('js') }}", q: "{{ billed.q|e('js') }}", y: "{{ billed.y|e('js') }}" };
   sw.addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return; var k = b.dataset.p;
     Array.prototype.forEach.call(sw.querySelectorAll('button'), function (x) { x.classList.toggle('on', x === b); });

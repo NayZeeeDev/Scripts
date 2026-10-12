@@ -60,7 +60,7 @@
       <a class="btn" href="{{ url }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M13 10l3 3"/></svg>{{ config('login-redirect-btn') ?: 'Continue' }}</a>
       <a class="back" href="/">← {{ config('login-back-text') ?: 'Back to store' }}</a>
     </div>
-    <script>setTimeout(function () { window.location.replace({{ url|json_encode|raw }}); }, 400);</script>
+    <script>setTimeout(function () { window.location.replace("{{ url|e('js') }}"); }, 400);</script>
 
     {% else %}
     <div class="body">

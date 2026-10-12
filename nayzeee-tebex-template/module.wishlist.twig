@@ -13,8 +13,8 @@
 <script>
 (function () {
   var list = document.getElementById('wlList'), sub = document.getElementById('wlSub');
-  var EMPTY_T = {{ (config('wl-empty-title') ?: 'Nothing saved yet')|json_encode|raw }}, EMPTY_S = {{ (config('wl-empty-text') ?: 'Tap the heart on any script to keep it here.')|json_encode|raw }};
-  var ADD = {{ (config('card-add') ?: 'Add to cart')|json_encode|raw }}, ONE = {{ (config('wl-count-one') ?: 'saved script')|json_encode|raw }}, MANY = {{ (config('wl-count-many') ?: 'saved scripts')|json_encode|raw }};
+  var EMPTY_T = "{{ (config('wl-empty-title') ?: 'Nothing saved yet')|e('js') }}", EMPTY_S = "{{ (config('wl-empty-text') ?: 'Tap the heart on any script to keep it here.')|e('js') }}";
+  var ADD = "{{ (config('card-add') ?: 'Add to cart')|e('js') }}", ONE = "{{ (config('wl-count-one') ?: 'saved script')|e('js') }}", MANY = "{{ (config('wl-count-many') ?: 'saved scripts')|e('js') }}";
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function render() {
     var w = window.nzWish ? window.nzWish() : [];

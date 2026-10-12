@@ -16,7 +16,7 @@
 </style>
 <div class="nz-mod-payments">
   <div class="np-wrap"><div class="np-track">
-    {% for pass in 1..2 %}{% for payment in module.payments %}
+    {% for pass in [1, 2] %}{% for payment in module.payments %}
     <div class="np">
       <span class="av">{% if payment.skin %}<img src="{{ payment.skin }}" alt="" onerror="this.remove()" />{% else %}{{ payment.ign|slice(0, 2) }}{% endif %}</span>
       <div><b>{{ payment.ign }} <em>{{ config('pay-verb') ?: 'bought' }}</em>{% if module.displayPackage != false %} {{ payment.name }}{% endif %}</b>{% if module.displayTime != false %}<span>{{ payment.time }}</span>{% endif %}</div>

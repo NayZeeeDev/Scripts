@@ -148,7 +148,7 @@
         <div class="p-head"><h2><span class="dot"></span>{{ config('release-title') ?: 'Latest release' }}</h2>{% if config('release-version') %}<span class="tag live">{{ config('release-version') }}</span>{% endif %}</div>
         <a class="art cover" href="/package/{{ relPkg.id }}">{% if relPkg.image.url %}<img src="{{ relPkg.image.url }}" alt="{{ relPkg.name }}" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-layers"/></svg>{% endif %}<div class="ov"><div><b>{{ relPkg.name }}</b><span>{{ config('release-date') }}{% if config('release-meta') %} · {{ config('release-meta') }}{% endif %}</span></div>{% if config('release-version') %}<span class="vtag">{{ config('release-version') }}</span>{% endif %}</div></a>
         <div class="p-body">
-          {% if config('release-notes') %}<ul>{% for n in config('release-notes')|split('|') %}{% if n|trim %}<li><svg class="ic"><use href="#i-check"/></svg><span>{{ n|trim }}</span></li>{% endif %}{% endfor %}</ul>{% endif %}
+          {% if config('release-notes') %}<ul>{% for n in config('release-notes')|split('|') %}{% if n|replace({' ': ''}) %}<li><svg class="ic"><use href="#i-check"/></svg><span>{{ n }}</span></li>{% endif %}{% endfor %}</ul>{% endif %}
           <div class="connect"><code>{% if relPkg.price == 0 %}{{ config('free-text') ?: 'Free' }}{% else %}{{ config('release-from') ?: 'from' }} {{ csym }}{{ relPkg.price|number_format(2) }}{% endif %}</code><span>{{ config('release-note') ?: 'lifetime updates' }}</span><a class="btn-teal btn-sm" href="/package/{{ relPkg.id }}">{{ config('release-btn') ?: 'View' }}</a></div>
         </div>
       </aside>
@@ -173,7 +173,7 @@
 {% if config('trusted-logos') or config('trusted-names') %}
 <section class="section wrap" style="padding-top:40px">
   <div class="sec-h" style="margin-bottom:12px"><div><div class="kick">{{ config('trusted-kicker') ?: 'Trusted by' }}</div><h2 style="font-size:16px">{{ config('trusted-title') ?: 'Servers already running NAYZEEE scripts' }}</h2></div></div>
-  <div class="trusted">{% for u in (config('trusted-logos') ?: '')|split(',') %}{% if u|trim %}<img src="{{ u|trim }}" alt="" loading="lazy" onerror="this.remove()" />{% endif %}{% endfor %}{% for n in (config('trusted-names') ?: '')|split(',') %}{% if n|trim %}<span>{{ n|trim }}</span>{% endif %}{% endfor %}</div>
+  <div class="trusted">{% for u in (config('trusted-logos') ?: '')|split(',') %}{% if u|replace({' ': ''}) %}<img src="{{ u }}" alt="" loading="lazy" onerror="this.remove()" />{% endif %}{% endfor %}{% for n in (config('trusted-names') ?: '')|split(',') %}{% if n|replace({' ': ''}) %}<span>{{ n }}</span>{% endif %}{% endfor %}</div>
 </section>
 {% endif %}
 
@@ -194,7 +194,7 @@
   <div class="sec-h"><div><div class="kick">{{ config('cats-kicker') ?: 'Browse' }}</div><h2>{{ config('cats-title') ?: 'Shop by category' }}</h2><p>{{ config('cats-sub') ?: 'Every script ships with docs, a config and framework bridges.' }}</p></div></div>
   <div class="cats">
     {% for cat in store.categories %}
-    <a class="panel cat" href="/category/{{ cat.id }}"><div class="tile"><svg class="ic"><use href="#i-{{ loop.index0 % 3 == 0 ? 'layers' : (loop.index0 % 3 == 1 ? 'box' : 'bolt') }}"/></svg></div><div class="cat-t"><b>{{ cat.name }}</b><span>{{ cat.packages|length }} {{ cat.packages|length == 1 ? (config('cat-item-one') ?: 'script') : (config('cat-item-many') ?: 'scripts') }}{% if cat.description %} · {{ cat.description|striptags }}{% endif %}</span></div><svg class="ic arrow"><use href="#i-arrow"/></svg></a>
+    <a class="panel cat" href="/category/{{ cat.id }}"><div class="tile"><svg class="ic"><use href="#i-{{ loop.index0 % 3 == 0 ? 'layers' : (loop.index0 % 3 == 1 ? 'box' : 'bolt') }}"/></svg></div><div class="cat-t"><b>{{ cat.name }}</b><span>{{ cat.packages|length }} {{ cat.packages|length == 1 ? (config('cat-item-one') ?: 'script') : (config('cat-item-many') ?: 'scripts') }}{% if cat.description %} · {{ cat.description|replace({'<p>': ' ', '</p>': ' ', '<li>': ' ', '</li>': ' · ', '<ul>': '', '</ul>': ' ', '<ol>': '', '</ol>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' ', '<strong>': '', '</strong>': '', '<b>': '', '</b>': '', '<em>': '', '</em>': '', '<i>': '', '</i>': '', '<u>': '', '</u>': '', '<h1>': ' ', '</h1>': ' ', '<h2>': ' ', '</h2>': ' ', '<h3>': ' ', '</h3>': ' ', '<h4>': ' ', '</h4>': ' ', '<div>': ' ', '</div>': ' ', '<span>': '', '</span>': '', '</a>': '', '&nbsp;': ' ', '&amp;': '&'}) }}{% endif %}</span></div><svg class="ic arrow"><use href="#i-arrow"/></svg></a>
     {% endfor %}
   </div>
 </section>
@@ -216,7 +216,7 @@
 <section class="section wrap">
   <div class="sec-h"><div><div class="kick">{{ config('updates-kicker') ?: 'Changelog' }}</div><h2>{{ config('updates-title') ?: 'Latest updates' }}</h2><p>{{ config('updates-sub') ?: 'Every script keeps getting better. Updates land in your Keymaster automatically.' }}</p></div>{% if config('updates-url') %}<a class="btn-ghost" href="{{ config('updates-url') }}" target="_blank" rel="noopener">{{ config('updates-cta') ?: 'Full changelog' }} <svg class="ic"><use href="#i-chev"/></svg></a>{% endif %}</div>
   <div class="upd">
-    {% for i in 1..6 %}{% if config('update-' ~ i ~ '-name') %}
+    {% for i in [1, 2, 3, 4, 5, 6] %}{% if config('update-' ~ i ~ '-name') %}
     <div class="panel"><div class="h"><b>{{ config('update-' ~ i ~ '-name') }}</b>{% if config('update-' ~ i ~ '-version') %}<span class="vtag">v{{ config('update-' ~ i ~ '-version')|replace({'v': ''}) }}</span>{% endif %}</div><span style="font-size:10.5px;color:var(--ink-3);font-weight:300">{{ config('update-' ~ i ~ '-date') }}</span><p>{{ config('update-' ~ i ~ '-text') }}</p>{% if config('update-' ~ i ~ '-package') %}<a class="more" href="/package/{{ config('update-' ~ i ~ '-package')|replace({' ': ''}) }}">{{ config('updates-view') ?: 'View script' }} <svg class="ic" style="width:12px;height:12px"><use href="#i-arrow"/></svg></a>{% endif %}</div>
     {% endif %}{% endfor %}
   </div>
@@ -238,7 +238,7 @@
 <section class="section wrap">
   <div class="sec-h"><div><div class="kick">{{ config('reviews-kicker') ?: 'Reviews' }}</div><h2>{{ config('reviews-title') ?: 'What owners say' }}</h2></div><div style="display:flex;gap:8px;align-items:center"><span class="tag live">{{ config('reviews-tag') ?: 'Verified purchases' }}</span>{% if config('review-webhook') and (config('review-toggle') ?: 'Show') != 'Hide' %}<button class="btn-ghost" type="button" data-review=""><svg class="ic"><use href="#i-star"/></svg>{{ config('review-btn-long') ?: 'Write a review' }}</button>{% endif %}</div></div>
   <div class="reviews">
-    {% for i in 1..3 %}{% if config('review-' ~ i ~ '-text') %}
+    {% for i in [1, 2, 3] %}{% if config('review-' ~ i ~ '-text') %}
     <div class="panel rev"><div class="rev-h"><span class="av">{{ (config('review-' ~ i ~ '-name') ?: 'A')|slice(0, 2) }}</span><div><b>{{ config('review-' ~ i ~ '-name') ?: 'Customer' }}</b><span>{{ config('review-' ~ i ~ '-when') }}</span></div><span class="stars">★★★★★</span></div><p>{{ config('review-' ~ i ~ '-text') }}</p>{% if config('review-' ~ i ~ '-pkg') %}<div class="meta"><svg class="ic"><use href="#i-check"/></svg>{{ config('reviews-bought') ?: 'Purchased' }} <b style="color:var(--ink-2);font-weight:500">{{ config('review-' ~ i ~ '-pkg') }}</b></div>{% endif %}</div>
     {% endif %}{% endfor %}
   </div>
@@ -248,14 +248,14 @@
 <section class="section wrap" id="paySection">
   <div class="sec-h"><div><div class="kick">{{ config('pay-kicker') ?: 'Payments' }}</div><h2>{{ config('pay-title') ?: 'Pay your way' }}</h2><p>{{ config('pay-sub') ?: 'Checkout is handled securely by Tebex.' }}</p></div></div>
   <div id="paySlot"></div>
-  <div class="pay-row">{% for n in (config('pay-methods') ?: 'Visa,Mastercard,PayPal,Apple Pay,Google Pay,Paysafecard,iDEAL,Klarna')|split(',') %}{% if n|trim %}<span class="pay"><i>{{ n|trim|slice(0, 2)|upper }}</i>{{ n|trim }}</span>{% endif %}{% endfor %}</div>
+  <div class="pay-row">{% for n in (config('pay-methods') ?: 'Visa,Mastercard,PayPal,Apple Pay,Google Pay,Paysafecard,iDEAL,Klarna')|split(',') %}{% if n|replace({' ': ''}) %}<span class="pay"><i>{{ n|slice(0, 2)|upper }}</i>{{ n }}</span>{% endif %}{% endfor %}</div>
 </section>
 
 {% if config('framework-list') ?: 'ESX,QBCore,Qbox,ox_lib,ox_inventory,ox_target,qb-inventory,pma-voice,txAdmin,Cfx.re Escrow' %}
 {% set fws = (config('framework-list') ?: 'ESX,QBCore,Qbox,ox_lib,ox_inventory,ox_target,qb-inventory,pma-voice,txAdmin,Cfx.re Escrow')|split(',') %}
 <section class="section wrap">
   <div class="sec-h"><div><div class="kick">{{ config('framework-kicker') ?: 'Compatibility' }}</div><h2>{{ config('framework-title') ?: 'Works with your stack' }}</h2></div></div>
-  <div class="fw-wrap"><div class="fw-track">{% for pass in 1..2 %}{% for n in fws %}{% if n|trim %}<span class="fw"><i>{{ n|trim|replace({'_': '', '-': '', '.': '', ' ': ''})|slice(0, 2)|upper }}</i>{{ n|trim }}</span>{% endif %}{% endfor %}{% endfor %}</div></div>
+  <div class="fw-wrap"><div class="fw-track">{% for pass in [1, 2] %}{% for n in fws %}{% if n|replace({' ': ''}) %}<span class="fw"><i>{{ n|replace({'_': '', '-': '', '.': '', ' ': ''})|slice(0, 2)|upper }}</i>{{ n }}</span>{% endif %}{% endfor %}{% endfor %}</div></div>
 </section>
 {% endif %}
 
@@ -263,7 +263,7 @@
 <section class="section wrap">
   <div class="sec-h"><div><div class="kick">{{ config('faq-kicker') ?: 'FAQ' }}</div><h2>{{ config('faq-title') ?: 'Questions, answered' }}</h2></div>{% if config('discord-url') %}<a class="btn-ghost" href="{{ config('discord-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-discord"/></svg>{{ config('faq-cta') ?: 'Open a ticket' }}</a>{% endif %}</div>
   <div class="faq">
-    {% for i in 1..8 %}{% if config('faq-' ~ i ~ '-q') %}
+    {% for i in [1, 2, 3, 4, 5, 6, 7, 8] %}{% if config('faq-' ~ i ~ '-q') %}
     <details class="panel q"{% if i == 1 %} open{% endif %}><summary>{{ config('faq-' ~ i ~ '-q') }}<svg class="ic"><use href="#i-plus"/></svg></summary><div>{{ config('faq-' ~ i ~ '-a')|raw }}</div></details>
     {% endif %}{% endfor %}
   </div>

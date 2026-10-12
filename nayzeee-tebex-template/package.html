@@ -62,7 +62,7 @@
 {% for item in basket.packages %}{% if item.id == package.id %}{% set in_basket = true %}{% endif %}{% endfor %}
 {% set catId = package.category is defined and package.category ? package.category.id : '' %}
 {% set catName = package.category is defined and package.category ? package.category.name : '' %}
-{% set short = package.description ? package.description|replace({'</li>': ' · ', '</p>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' '})|striptags|replace({'&nbsp;': ' '})|trim : '' %}
+{% set short = package.description ? package.description|replace({'<p>': ' ', '</p>': ' ', '<li>': ' ', '</li>': ' · ', '<ul>': '', '</ul>': ' ', '<ol>': '', '</ol>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' ', '<strong>': '', '</strong>': '', '<b>': '', '</b>': '', '<em>': '', '</em>': '', '<i>': '', '</i>': '', '<u>': '', '</u>': '', '<h1>': ' ', '</h1>': ' ', '<h2>': ' ', '</h2>': ' ', '<h3>': ' ', '</h3>': ' ', '<h4>': ' ', '</h4>': ' ', '<div>': ' ', '</div>': ' ', '<span>': '', '</span>': '', '</a>': '', '&nbsp;': ' ', '&amp;': '&'})|replace({'  ': ' '}) : '' %}
 
 <div class="wrap view">
   <div class="crumb"><a href="/">{{ config('nav-home-label') ?: 'Home' }}</a><svg class="ic"><use href="#i-chev"/></svg>{% if catId %}<a href="/category/{{ catId }}">{{ catName }}</a><svg class="ic"><use href="#i-chev"/></svg>{% endif %}<b>{{ package.name }}</b></div>
@@ -116,12 +116,12 @@
   <div class="tab-b prose" data-tb="desc" id="pkgDesc">{% if package.description %}{{ package.description|raw }}{% else %}<p>{{ config('package-no-desc') ?: 'No description yet.' }}</p>{% endif %}</div>
   <div class="tab-b prose hide" data-tb="terms">{{ (config('package-terms') ?: '<p>All purchases are digital goods delivered instantly and are non-refundable unless delivery fails. Assets are bound to the Cfx.re account used at checkout and licensed for one server. Redistributing open-source code or chargebacks result in a store ban.</p>')|raw }}</div>
 
-  {% set related = [] %}
-  {% for cat in store.categories %}{% if cat.id == catId %}{% for p in cat.packages %}{% if p.id != package.id and related|length < 4 %}{% set related = related|merge([p]) %}{% endif %}{% endfor %}{% endif %}{% endfor %}
-  {% if related|length > 0 %}
+  {% set relN = 0 %}
+  {% for cat in store.categories %}{% if cat.id == catId %}{% for p in cat.packages %}{% if p.id != package.id %}{% set relN = relN + 1 %}{% endif %}{% endfor %}{% endif %}{% endfor %}
+  {% if relN > 0 %}
   <section class="section">
     <div class="sec-h"><div><div class="kick">{{ config('package-related-kicker') ?: 'More like this' }}</div><h2>{{ config('package-related-title') ?: 'You may also like' }}</h2></div><a class="btn-ghost" href="/category/{{ catId }}">{{ config('package-related-all') ?: 'All' }} {{ catName }} <svg class="ic"><use href="#i-chev"/></svg></a></div>
-    <div class="grid">{% for p in related %}{% include 'module.featuredpackage.html' with { 'module': { 'package': p }, 'fb_cat': catName, 'card_index': loop.index0 } %}{% endfor %}</div>
+    <div class="grid">{% set relI = 0 %}{% for cat in store.categories %}{% if cat.id == catId %}{% for p in cat.packages %}{% if p.id != package.id and relI < 4 %}{% set relI = relI + 1 %}{% include 'module.featuredpackage.html' with { 'module': { 'package': p }, 'fb_cat': catName, 'card_index': relI - 1 } %}{% endif %}{% endfor %}{% endif %}{% endfor %}</div>
   </section>
   {% endif %}
 </div>
@@ -150,14 +150,14 @@ function nzPackageInit() {
   var mk = window.nzMarkers ? window.nzMarkers(raw) : { frameworks: [], tags: [], images: [], video: [], version: '', rating: null, deps: [], changelog: [] };
   var hb = document.getElementById('pkgLive'); if (hb && window.nzHeartbeat) window.nzHeartbeat(hb, mk.heartbeat || hb.dataset.resource || '');
   ['FRAMEWORKS', 'TAGS', 'IMAGES', 'VIDEO', 'VERSION', 'RATING', 'DEPENDENCIES', 'CHANGELOG'].forEach(function (l) { grab(l); });
-  var BEST = {{ (config('bestseller-ids') ?: '')|replace({' ': ''})|json_encode|raw }}.split(',').filter(Boolean);
-  if (BEST.indexOf('{{ package.id }}') > -1 || mk.tags.some(function (t) { return /best/i.test(t); })) chips.insertAdjacentHTML('afterbegin', '<span class="bs"><svg class="ic"><use href="#i-flame"/></svg>' + {{ (config('bestseller-text') ?: 'Best seller')|json_encode|raw }} + '</span>');
-  var NEWS = {{ (config('new-ids') ?: '')|replace({' ': ''})|json_encode|raw }}.split(',').filter(Boolean);
+  var BEST = "{{ (config('bestseller-ids') ?: '')|replace({' ': ''})|e('js') }}".split(',').filter(Boolean);
+  if (BEST.indexOf('{{ package.id }}') > -1 || mk.tags.some(function (t) { return /best/i.test(t); })) chips.insertAdjacentHTML('afterbegin', '<span class="bs"><svg class="ic"><use href="#i-flame"/></svg>' + "{{ (config('bestseller-text') ?: 'Best seller')|e('js') }}" + '</span>');
+  var NEWS = "{{ (config('new-ids') ?: '')|replace({' ': ''})|e('js') }}".split(',').filter(Boolean);
   if (NEWS.indexOf('{{ package.id }}') > -1 && !mk.tags.some(function (t) { return /^new$/i.test(t); })) mk.tags.unshift('New');
   mk.tags.forEach(function (f) { if (/best/i.test(f)) return; chips.insertAdjacentHTML('beforeend', /^new$/i.test(f) ? '<span class="nt"><svg class="ic"><use href="#i-sparkle"/></svg>' + f.replace(/[<>]/g, '') + '</span>' : '<span class="chip grey">' + f.replace(/[<>]/g, '') + '</span>'); });
   if (mk.frameworks.length && window.nzFwChip) $('#pkgFw').innerHTML = mk.frameworks.map(function (f) { return window.nzFwChip(f, false); }).join('');
   if (mk.version) $('#pkgVer').innerHTML = '<span class="vtag">v' + mk.version.replace(/[<>]/g, '') + '</span>';
-  if (mk.rating && window.nzStars) $('#pkgRate').innerHTML = '<span class="rate">' + window.nzStars(mk.rating.score) + '<b>' + mk.rating.score + '</b>' + (mk.rating.count ? ' · ' + mk.rating.count + ' ' + {{ (config('package-reviews-text') ?: 'reviews')|json_encode|raw }} : '') + '</span>';
+  if (mk.rating && window.nzStars) $('#pkgRate').innerHTML = '<span class="rate">' + window.nzStars(mk.rating.score) + '<b>' + mk.rating.score + '</b>' + (mk.rating.count ? ' · ' + mk.rating.count + ' ' + "{{ (config('package-reviews-text') ?: 'reviews')|e('js') }}" : '') + '</span>';
   mk.images.forEach(function (u) { if (/^https?:\/\//.test(u)) media.push({ t: 'img', u: u }); });
   mk.video.forEach(function (u) { var m = u.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/); if (m) media.push({ t: 'yt', u: 'https://www.youtube-nocookie.com/embed/' + m[1] + '?rel=0', id: m[1] }); });
   var vids = media.filter(function (m) { return m.t === 'yt'; });

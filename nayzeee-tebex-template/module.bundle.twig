@@ -72,7 +72,7 @@
     </div>
     <div class="bb-r">
       <div class="bb-tiers" id="bbTiers">
-        {% for i in 1..3 %}{% if config('bundle-tier-' ~ i ~ '-count') %}
+        {% for i in [1, 2, 3] %}{% if config('bundle-tier-' ~ i ~ '-count') %}
         <div class="bt" data-count="{{ config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) }}" data-pct="{{ config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) }}" data-code="{{ config('bundle-tier-' ~ i ~ '-code')|replace({' ': ''}) }}"><i>{{ config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) }}</i>{{ config('bundle-tier-label')|replace({'{n}': config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''})}) ?: (config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) ~ ' ' ~ (config('bundle-scripts-word') ?: 'scripts')) }}<b>-{{ config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) }}%</b></div>
         {% endif %}{% endfor %}
       </div>
@@ -92,8 +92,8 @@
 <script>
 (function () {
   var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
-  var CS = {{ csym|json_encode|raw }}, MAX = parseInt({{ (config('bundle-max') ?: '10')|json_encode|raw }}, 10) || 10, LOGGED = {{ loggedIn ? 'true' : 'false' }};
-  var T = { next: {{ (config('bundle-next') ?: 'Add {n} more for {pct}% off')|json_encode|raw }}, top: {{ (config('bundle-top') ?: 'Top discount unlocked: {pct}% off')|json_encode|raw }}, max: {{ (config('bundle-max-text') ?: 'Bundle is full')|json_encode|raw }}, adding: {{ (config('bundle-adding') ?: 'Adding {i} / {n}…')|json_encode|raw }}, none: {{ (config('bundle-none') ?: 'Pick at least one script')|json_encode|raw }} };
+  var CS = "{{ csym|e('js') }}", MAX = parseInt("{{ (config('bundle-max') ?: '10')|e('js') }}", 10) || 10, LOGGED = {{ loggedIn ? 'true' : 'false' }};
+  var T = { next: "{{ (config('bundle-next') ?: 'Add {n} more for {pct}% off')|e('js') }}", top: "{{ (config('bundle-top') ?: 'Top discount unlocked: {pct}% off')|e('js') }}", max: "{{ (config('bundle-max-text') ?: 'Bundle is full')|e('js') }}", adding: "{{ (config('bundle-adding') ?: 'Adding {i} / {n}…')|e('js') }}", none: "{{ (config('bundle-none') ?: 'Pick at least one script')|e('js') }}" };
   var tiers = $$('#bbTiers .bt').map(function (t) { return { n: parseInt(t.dataset.count, 10) || 0, pct: parseFloat(t.dataset.pct) || 0, code: t.dataset.code || '', el: t }; }).filter(function (t) { return t.n > 0; }).sort(function (a, b) { return a.n - b.n; });
   var sel = {};
   function fmt(n) { return CS + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
@@ -103,11 +103,11 @@
     tiers.forEach(function (t) { t.el.classList.toggle('on', n >= t.n); });
     var pct = cur ? cur.pct : 0, disc = sub * pct / 100;
     $('#bbSub').textContent = fmt(sub); $('#bbDisc').textContent = '−' + fmt(disc); $('#bbTot').textContent = fmt(sub - disc);
-    $('#bbDiscL').textContent = ({{ (config('cart-discount-label') ?: 'Discount')|json_encode|raw }}) + (cur ? ' · ' + cur.pct + '%' : '');
+    $('#bbDiscL').textContent = ("{{ (config('cart-discount-label') ?: 'Discount')|e('js') }}") + (cur ? ' · ' + cur.pct + '%' : '');
     var top = tiers.length ? tiers[tiers.length - 1].n : 1;
     $('#bbBar').style.width = Math.min(100, n / top * 100) + '%';
     $('#bbNext').innerHTML = next ? T.next.replace('{n}', '<b>' + (next.n - n) + '</b>').replace('{pct}', '<b>' + next.pct + '</b>') : (cur ? T.top.replace('{pct}', '<b>' + cur.pct + '</b>') : '');
-    $('#bbSel').innerHTML = n ? ids.map(function (id) { return '<span>' + sel[id].name.replace(/[<>]/g, '') + '<button type="button" data-rm="' + id + '"><svg class="ic"><use href="#i-x"/></svg></button></span>'; }).join('') : '<em>' + {{ (config('bundle-empty') ?: 'Nothing picked yet. Tap a script on the left.')|json_encode|raw }} + '</em>';
+    $('#bbSel').innerHTML = n ? ids.map(function (id) { return '<span>' + sel[id].name.replace(/[<>]/g, '') + '<button type="button" data-rm="' + id + '"><svg class="ic"><use href="#i-x"/></svg></button></span>'; }).join('') : '<em>' + "{{ (config('bundle-empty') ?: 'Nothing picked yet. Tap a script on the left.')|e('js') }}" + '</em>';
     $('#bbAdd').disabled = !n;
     $$('#bbList .bi').forEach(function (b) { b.classList.toggle('on', !!sel[b.dataset.id]); });
     try { sessionStorage.setItem('nz_bundle_sel', JSON.stringify(ids)); } catch (e) {}
