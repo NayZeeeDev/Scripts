@@ -9,7 +9,7 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 | `layout.html` | Shared shell: head/SEO, nav, cart drawer, gift modal, options modal, search, wishlist, review modal, footer, Tebex.js checkout, all shared CSS/JS, framework logos |
 | `index.html` | Homepage: hero + latest release card, stats, sale countdown, holiday event, trusted-by, featured, bundle builder, categories, why us, updates feed, Discord, reviews, payments, compatibility marquee, FAQ |
 | `category.html` | Category page with filter + sort |
-| `category/tiered.html` | Subscription page: hero with monthly/yearly switch, plan cards, comparison table, included scripts, FAQ |
+| `category/tiered.html` | Subscription page: Monthly / Quarterly / Yearly switch, live script count and total value, one plan card, feature tiles, included scripts, FAQ |
 | `package.html` | Package page: gallery, buy box, logo chips, version, rating, add to cart, buy now, gift, wishlist, share, review, tabs (Description, Preview, Dependencies, Changelog, Terms), related, sticky buy bar |
 | `checkout.html` | Basket page (`/checkout/basket`) |
 | `username.html` | Login page (auto-redirects to Cfx.re when Tebex gives an external login URL) |
@@ -30,19 +30,19 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 
 1. Zip the contents of this folder (the files, not the folder itself) and upload it in Tebex → Webstore → Templates → Upload.
 2. Open the template settings and fill tabs 01 to 04. Everything has a default, so the store works before you touch anything.
-3. Logo: the ghost is built in (`logo-mode` Ghost). Switch to Logo to use the one uploaded in Tebex, or Mark for the chamfer mark.
+3. Logo: the ghost is built in (`logo-mode` Ghost) and floats with a teal glow. The name next to it reads "NayZeee Development" (`brand-name` + `brand-sub`). Switch to Logo to use the one uploaded in Tebex, or Mark for the chamfer mark.
 
 ## Settings worth knowing
 
 - **Accent colours** (01): `accent-colour`, `accent-hi-colour`, `accent-lo-colour` and `accent-rgb`. Keep all four in sync when you change the accent.
-- **Hero** (03): `release-package-id` shows a full-thumbnail "Latest release" card. `hero-video` shows a YouTube showcase instead. `hero-bg` replaces the built-in banner behind the hero, `hero-bg-opacity` tunes it.
+- **Hero** (03): `hero-ghost-toggle` hides the floating ghost. `release-package-id` shows a full-thumbnail "Latest release" card. `hero-video` shows a YouTube showcase instead. `hero-bg` replaces the built-in banner behind the hero, `hero-bg-opacity` tunes it.
 - **Sale countdown** (03): `sale-toggle` Show, then `sale-end`, `sale-code`, `sale-text`. Optional `sale-start` counts down to the start first.
-- **Bundle builder** (04): set `bundle-tier-1-count` / `-pct` / `-code` (and tiers 2, 3). Create each code as a Tebex coupon with a minimum package count. Exclude your subscription category with `bundle-exclude-cats`.
+- **Bundle builder** (04): set `bundle-tier-1-count` / `-pct` / `-code` (and tiers 2, 3). Create each code as a Tebex coupon with a minimum package count. Exclude your subscription and bundle categories with `bundle-exclude-cats`. Scripts show with their full-width thumbnails.
 - **Reviews** (04): paste a Discord webhook into `review-webhook`. Visitors get a Write a review button on the homepage and every package page. Reviews land in your channel; publish the good ones by pasting them into `review-1..3-*`.
 - **Updates feed, trusted-by, Discord live count** (04 / 02): `update-1..6-*`, `trusted-logos` or `trusted-names`, `discord-guild-id` (enable the widget in Discord).
 - **Seasonal themes** (05): `holiday-mode` Auto switches on the 1st of each month. Each theme has its own scene, particles, nav countdown and homepage event panel. Fill `event-<theme>-days` for the daily gift calendar. Preview with `?holiday=christmas` in the URL, `?holiday=off` to preview without a theme.
 - **Tags** (06): `bestseller-ids` and `new-ids` are comma-separated package IDs. Descriptions can also carry `TAGS: Best seller` or `TAGS: New`.
-- **Subscription page** (06): `tier-featured-id` highlights a plan. `tier-yearly-map` (`monthlyId:yearlyId,…`) enables the Monthly / Yearly switch. `tier-compare-rows` builds the comparison table. `tier-faq-1..4-*` for the FAQ.
+- **Subscription page** (06): create three packages in your tiered category named Monthly, Quarterly and Yearly (or set `tier-monthly-id` / `tier-quarterly-id` / `tier-yearly-id`). The switch shows the percent saved vs monthly automatically. The script count and total value are counted from the store, so they grow as you release scripts. Put your Bundles category ID in `tier-exclude-cats` so bundles are not counted. `tier-perk-1..4` is the checklist, `tier-feat-1..4-*` the four feature tiles, `tier-faq-1..4-*` the FAQ.
 - **Volume discount** (08): turn on, then `volume-tier-1-at`, `-pct`, `-code`.
 
 ## Package description markers
@@ -77,4 +77,4 @@ The package page has a Send as gift button. It opens a modal that POSTs the reci
 
 ## Docs site
 
-`../nayzeee-docs` is a static documentation site in the same style. Edit `content.js` (Markdown), host the folder anywhere.
+`../nayzeee-docs/index.html` is the docs site (docs.nayzeeedev.com). It is a single self-contained file: scripts, pages and images live in the `SCRIPTS` array inside it.

@@ -44,10 +44,17 @@
           "description": "Je accent als R,G,B (standaard 8,175,162). Nodig voor doorzichtige vlakken. Voor #ff7a1a: 255,122,26."
         },
         {
+          "id": "brand-name",
+          "name": "Brand name",
+          "type": "textarea",
+          "default": "NayZeee",
+          "description": "Bold part of the name at the top of the site (default NayZeee). The store name from Tebex is still used for page titles and SEO."
+        },
+        {
           "id": "brand-sub",
           "name": "Brand sub",
           "type": "textarea",
-          "default": "FiveM scripts & UI",
+          "default": "Development",
           "description": "Kleine grijze regel onder de winkelnaam."
         },
         {
@@ -398,6 +405,17 @@
           ],
           "default": "Show",
           "description": "Tekst in de winkel. Leeg laten voor de standaard: Show"
+        },
+        {
+          "id": "hero-ghost-toggle",
+          "name": "Hero ghost toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Show or hide the floating, glowing ghost logo on the homepage hero and the subscription page."
         },
         {
           "id": "hero-image",
@@ -2533,74 +2551,25 @@
       "header": "06 · Categorie, kaarten & abonnement",
       "options": [
         {
-          "id": "tier-billed-monthly",
-          "name": "Tier billed monthly",
+          "id": "tier-billed-m",
+          "name": "Tier billed m",
           "type": "textarea",
-          "default": "Billed monthly · cancel any time",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Billed monthly · cancel any time"
+          "default": "Cancel anytime · billed monthly",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Cancel anytime · billed monthly"
         },
         {
-          "id": "tier-billed-yearly",
-          "name": "Tier billed yearly",
+          "id": "tier-billed-q",
+          "name": "Tier billed q",
           "type": "textarea",
-          "default": "Billed once a year · cancel any time",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Billed once a year · cancel any time"
+          "default": "Cancel anytime · billed every 3 months",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Cancel anytime · billed every 3 months"
         },
         {
-          "id": "tier-card-sub-1",
-          "name": "Tier card sub 1",
+          "id": "tier-billed-y",
+          "name": "Tier billed y",
           "type": "textarea",
-          "default": "",
-          "description": "Kleine regel onder de plannaam op kaart 1, 2, 3 of 4."
-        },
-        {
-          "id": "tier-card-sub-2",
-          "name": "Tier card sub 2",
-          "type": "textarea",
-          "default": "",
-          "description": "Kleine regel onder de plannaam op kaart 1, 2, 3 of 4."
-        },
-        {
-          "id": "tier-card-sub-3",
-          "name": "Tier card sub 3",
-          "type": "textarea",
-          "default": "",
-          "description": "Kleine regel onder de plannaam op kaart 1, 2, 3 of 4."
-        },
-        {
-          "id": "tier-card-sub-4",
-          "name": "Tier card sub 4",
-          "type": "textarea",
-          "default": "",
-          "description": "Kleine regel onder de plannaam op kaart 1, 2, 3 of 4."
-        },
-        {
-          "id": "tier-compare-feature",
-          "name": "Tier compare feature",
-          "type": "textarea",
-          "default": "Feature",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Feature"
-        },
-        {
-          "id": "tier-compare-kicker",
-          "name": "Tier compare kicker",
-          "type": "textarea",
-          "default": "Compare",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Compare"
-        },
-        {
-          "id": "tier-compare-rows",
-          "name": "Tier compare rows",
-          "type": "textarea",
-          "default": "",
-          "description": "Vergelijkingstabel. Eén rij per feature, rijen gescheiden door | , cellen door ; . Eerste cel = feature, daarna één cel per plan: ✓ of yes, - of no, of tekst."
-        },
-        {
-          "id": "tier-compare-title",
-          "name": "Tier compare title",
-          "type": "textarea",
-          "default": "What each plan includes",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: What each plan includes"
+          "default": "Cancel anytime · billed once a year",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Cancel anytime · billed once a year"
         },
         {
           "id": "tier-current-badge",
@@ -2613,8 +2582,20 @@
           "id": "tier-default-desc",
           "name": "Tier default desc",
           "type": "textarea",
-          "default": "Every script, updates while subscribed, Discord support.",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Every script, updates while subscribed, Discord support."
+          "default": "Every script in the store",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Every script in the store"
+        },
+        {
+          "id": "tier-default-period",
+          "name": "Tier default period",
+          "type": "select",
+          "values": [
+            "Monthly",
+            "Quarterly",
+            "Yearly"
+          ],
+          "default": "Monthly",
+          "description": "Which billing period is selected when the page opens."
         },
         {
           "id": "tier-empty-text",
@@ -2629,6 +2610,13 @@
           "type": "textarea",
           "default": "No plans available",
           "description": "Tekst in de winkel. Leeg laten voor de standaard: No plans available"
+        },
+        {
+          "id": "tier-exclude-cats",
+          "name": "Tier exclude cats",
+          "type": "textarea",
+          "default": "",
+          "description": "Category IDs to leave out of the script count, total value and included grid, e.g. your Bundles category: 5,9"
         },
         {
           "id": "tier-eyebrow",
@@ -2701,18 +2689,89 @@
           "description": "FAQ-item op de abonnementspagina. Vraag leeg laten om te verbergen."
         },
         {
-          "id": "tier-featured-id",
-          "name": "Tier featured id",
+          "id": "tier-feat-1-sub",
+          "name": "Tier feat 1 sub",
           "type": "textarea",
           "default": "",
-          "description": "Pakket-ID van het plan dat als \"Populairst\" wordt uitgelicht."
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-1-title",
+          "name": "Tier feat 1 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-2-sub",
+          "name": "Tier feat 2 sub",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-2-title",
+          "name": "Tier feat 2 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-3-sub",
+          "name": "Tier feat 3 sub",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-3-title",
+          "name": "Tier feat 3 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-4-sub",
+          "name": "Tier feat 4 sub",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-4-title",
+          "name": "Tier feat 4 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feats-toggle",
+          "name": "Tier feats toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Show"
         },
         {
           "id": "tier-fine",
           "name": "Tier fine",
           "type": "textarea",
-          "default": "Secured by Tebex · keys land in your Keymaster",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Secured by Tebex · keys land in your Keymaster"
+          "default": "Secured by Tebex · keys land in your Keymaster · cancel anytime",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Secured by Tebex · keys land in your Keymaster · cancel anytime"
+        },
+        {
+          "id": "tier-included-all",
+          "name": "Tier included all",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Show every included script, or only the first 12 with a \"+N more\" button."
         },
         {
           "id": "tier-included-cats",
@@ -2722,6 +2781,13 @@
           "description": "Category IDs to show in \"Every script included\" (default: all non-subscription categories)."
         },
         {
+          "id": "tier-included-chip",
+          "name": "Tier included chip",
+          "type": "textarea",
+          "default": "Included",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Included"
+        },
+        {
           "id": "tier-included-kicker",
           "name": "Tier included kicker",
           "type": "textarea",
@@ -2729,18 +2795,18 @@
           "description": "Tekst in de winkel. Leeg laten voor de standaard: Included"
         },
         {
+          "id": "tier-included-more",
+          "name": "Tier included more",
+          "type": "textarea",
+          "default": "+{n} more scripts",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: +{n} more scripts"
+        },
+        {
           "id": "tier-included-sub",
           "name": "Tier included sub",
           "type": "textarea",
-          "default": "New releases are added to every plan the day they ship.",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: New releases are added to every plan the day they ship."
-        },
-        {
-          "id": "tier-included-tag",
-          "name": "Tier included tag",
-          "type": "textarea",
-          "default": "included",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: included"
+          "default": "New releases are added to your plan the day they come out.",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: New releases are added to your plan the day they come out."
         },
         {
           "id": "tier-included-title",
@@ -2750,11 +2816,25 @@
           "description": "Tekst in de winkel. Leeg laten voor de standaard: Every script in the store, included"
         },
         {
+          "id": "tier-included-url",
+          "name": "Tier included url",
+          "type": "textarea",
+          "default": "/",
+          "description": "Where the \"+N more scripts\" button goes (default: homepage)."
+        },
+        {
           "id": "tier-monthly",
           "name": "Tier monthly",
           "type": "textarea",
           "default": "Monthly",
           "description": "Tekst in de winkel. Leeg laten voor de standaard: Monthly"
+        },
+        {
+          "id": "tier-monthly-id",
+          "name": "Tier monthly id",
+          "type": "textarea",
+          "default": "",
+          "description": "Package ID of the Monthly plan in the subscription category. Leave empty to match by name (month / quarter / year) or by order (1st, 2nd, 3rd)."
         },
         {
           "id": "tier-pending-badge",
@@ -2771,32 +2851,168 @@
           "description": "Tekst in de winkel. Leeg laten voor de standaard: Pending downgrade"
         },
         {
-          "id": "tier-period",
-          "name": "Tier period",
+          "id": "tier-period-m",
+          "name": "Tier period m",
           "type": "textarea",
           "default": "/ month",
           "description": "Tekst in de winkel. Leeg laten voor de standaard: / month"
         },
         {
-          "id": "tier-period-yearly",
-          "name": "Tier period yearly",
+          "id": "tier-period-q",
+          "name": "Tier period q",
+          "type": "textarea",
+          "default": "/ 3 months",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: / 3 months"
+        },
+        {
+          "id": "tier-period-y",
+          "name": "Tier period y",
           "type": "textarea",
           "default": "/ year",
           "description": "Tekst in de winkel. Leeg laten voor de standaard: / year"
         },
         {
+          "id": "tier-perk-1",
+          "name": "Tier perk 1",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist line 1 under the headline. {n} is replaced by the script count. Leave empty to hide."
+        },
+        {
+          "id": "tier-perk-2",
+          "name": "Tier perk 2",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist line 2."
+        },
+        {
+          "id": "tier-perk-3",
+          "name": "Tier perk 3",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist line 3."
+        },
+        {
+          "id": "tier-perk-4",
+          "name": "Tier perk 4",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist line 4."
+        },
+        {
+          "id": "tier-plan-name",
+          "name": "Tier plan name",
+          "type": "textarea",
+          "default": "",
+          "description": "Override the plan name shown on the card (default: the package name)."
+        },
+        {
+          "id": "tier-plan-sub",
+          "name": "Tier plan sub",
+          "type": "textarea",
+          "default": "every script, every update",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: every script, every update"
+        },
+        {
+          "id": "tier-popular",
+          "name": "Tier popular",
+          "type": "select",
+          "values": [
+            "Yearly",
+            "Quarterly",
+            "Monthly",
+            "None"
+          ],
+          "default": "Yearly",
+          "description": "Which plan gets the Best value badge."
+        },
+        {
           "id": "tier-popular-badge",
           "name": "Tier popular badge",
           "type": "textarea",
-          "default": "Most popular",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Most popular"
+          "default": "Best value",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Best value"
+        },
+        {
+          "id": "tier-quarterly",
+          "name": "Tier quarterly",
+          "type": "textarea",
+          "default": "Quarterly",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Quarterly"
+        },
+        {
+          "id": "tier-quarterly-id",
+          "name": "Tier quarterly id",
+          "type": "textarea",
+          "default": "",
+          "description": "Package ID of the Quarterly (every 3 months) plan."
+        },
+        {
+          "id": "tier-save-text",
+          "name": "Tier save text",
+          "type": "textarea",
+          "default": "Save {pct}% · works out to {per}",
+          "description": "Savings badge on the quarterly and yearly card. {pct} = percent saved vs monthly, {per} = the per-month price it works out to."
+        },
+        {
+          "id": "tier-stat-1-label",
+          "name": "Tier stat 1 label",
+          "type": "textarea",
+          "default": "Scripts",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Scripts"
+        },
+        {
+          "id": "tier-stat-2-label",
+          "name": "Tier stat 2 label",
+          "type": "textarea",
+          "default": "Future releases",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Future releases"
+        },
+        {
+          "id": "tier-stat-2-value",
+          "name": "Tier stat 2 value",
+          "type": "textarea",
+          "default": "∞",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: ∞"
+        },
+        {
+          "id": "tier-stat-3-label",
+          "name": "Tier stat 3 label",
+          "type": "textarea",
+          "default": "Total value",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Total value"
+        },
+        {
+          "id": "tier-stat-count",
+          "name": "Tier stat count",
+          "type": "textarea",
+          "default": "",
+          "description": "Override the script count. Leave empty to count the scripts in the store automatically (it goes up as you release more)."
+        },
+        {
+          "id": "tier-stat-total",
+          "name": "Tier stat total",
+          "type": "textarea",
+          "default": "",
+          "description": "Override the total value stat. Leave empty to add up the prices of every included script automatically."
+        },
+        {
+          "id": "tier-stats-toggle",
+          "name": "Tier stats toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Show"
         },
         {
           "id": "tier-sub",
           "name": "Tier sub",
           "type": "textarea",
-          "default": "All current and future scripts, updates while you subscribe, and priority support. Cancel any time from your Tebex account.",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: All current and future scripts, updates while you subscribe, and priority support. Cancel any time from your Tebex account."
+          "default": "Every script on the store, every future release, and priority support for as long as you subscribe.",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Every script on the store, every future release, and priority support for as long as you subscribe."
         },
         {
           "id": "tier-subscribe-text",
@@ -2816,15 +3032,22 @@
           "id": "tier-switch-text",
           "name": "Tier switch text",
           "type": "textarea",
-          "default": "Switch plan",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Switch plan"
+          "default": "Switch to this plan",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Switch to this plan"
         },
         {
           "id": "tier-title",
           "name": "Tier title",
           "type": "textarea",
-          "default": "Every script. <em>One plan.</em>",
+          "default": "All scripts. <em>One subscription.</em>",
           "description": "Subscription page headline, HTML allowed, e.g. Every script. <em>One plan.</em>"
+        },
+        {
+          "id": "tier-vs-monthly",
+          "name": "Tier vs monthly",
+          "type": "textarea",
+          "default": "paying monthly",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: paying monthly"
         },
         {
           "id": "tier-yearly",
@@ -2834,18 +3057,11 @@
           "description": "Tekst in de winkel. Leeg laten voor de standaard: Yearly"
         },
         {
-          "id": "tier-yearly-map",
-          "name": "Tier yearly map",
+          "id": "tier-yearly-id",
+          "name": "Tier yearly id",
           "type": "textarea",
           "default": "",
-          "description": "Zet de Maandelijks/Jaarlijks-schakelaar aan. Paren maandId:jaarId, gescheiden door komma's, bv. 601:611,602:612."
-        },
-        {
-          "id": "tier-yearly-save",
-          "name": "Tier yearly save",
-          "type": "textarea",
-          "default": "Save 2 months",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: Save 2 months"
+          "description": "Package ID of the Yearly plan."
         }
       ]
     },
@@ -3100,6 +3316,13 @@
           "type": "textarea",
           "default": "Your assets are being granted to your Keymaster now.",
           "description": "Tekst in de winkel. Leeg laten voor de standaard: Your assets are being granted to your Keymaster now."
+        },
+        {
+          "id": "toast-payment-error",
+          "name": "Toast payment error",
+          "type": "textarea",
+          "default": "Payment failed. Nothing was charged, try again or pick another method.",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: Payment failed. Nothing was charged, try again or pick another method."
         },
         {
           "id": "toast-removed",
@@ -3993,8 +4216,8 @@
           "id": "footer-sub",
           "name": "Footer sub",
           "type": "textarea",
-          "default": "",
-          "description": "Tekst in de winkel. Leeg laten voor de standaard: (none)"
+          "default": "FiveM scripts & UI",
+          "description": "Tekst in de winkel. Leeg laten voor de standaard: FiveM scripts & UI"
         },
         {
           "id": "footer-terms-label",

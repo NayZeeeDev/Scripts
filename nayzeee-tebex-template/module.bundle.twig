@@ -11,19 +11,21 @@
   .bb-tools{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
   .bb-tools .inp{height:32px;width:220px}
   .bb-tools .segc{margin-left:auto}
-  .bb-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-height:420px;overflow-y:auto;padding-right:4px}
+  .bb-list{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:540px;overflow-y:auto;padding-right:4px}
   .bb-list::-webkit-scrollbar{width:8px}.bb-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--panel)}
-  .bi{display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);cursor:pointer;transition:all var(--fast);user-select:none}
+  .bi{position:relative;display:flex;flex-direction:column;background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);cursor:pointer;transition:all var(--fast);user-select:none;overflow:hidden}
   .bi:hover{border-color:var(--line)}
-  .bi.on{border-color:var(--teal-edge);background:var(--teal-wash)}
+  .bi.on{border-color:var(--teal-edge);background:var(--teal-wash);box-shadow:0 0 0 1px var(--teal-edge)}
+  .bi.on .art::after{content:'';position:absolute;inset:0;z-index:2;background:rgba(var(--teal-rgb),.12)}
   .bi.hid{display:none}
-  .bi .art{width:44px;aspect-ratio:1;border-radius:var(--r-xs);border:1px solid var(--line-soft);flex:none}
-  .bi .art .big{width:18px;height:18px}
+  .bi .art{width:100%;aspect-ratio:16/9;border:0;border-bottom:1px solid var(--line-hair);border-radius:0}
+  .bi .art .big{width:26px;height:26px}
+  .bi-b{display:flex;align-items:center;gap:8px;padding:9px 10px}
   .bi-t{flex:1;min-width:0}
   .bi-t b{display:block;font-size:12.5px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bi-t span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300}
   .bi .pr{font-size:12.5px;font-weight:600;color:var(--white);white-space:nowrap}
-  .bi .cb{width:18px;height:18px;flex:none;border-radius:4px;border:1px solid var(--line);background:var(--inset);display:grid;place-items:center;transition:all var(--fast)}
+  .bi .cb{position:absolute;left:8px;top:8px;z-index:3;width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:grid;place-items:center;transition:all var(--fast)}
   .bi .cb .ic{width:12px;height:12px;stroke-width:3;color:var(--on-teal);opacity:0}
   .bi.on .cb{background:var(--teal);border-color:var(--teal)}.bi.on .cb .ic{opacity:1}
   .bb-r{padding:18px;display:flex;flex-direction:column;gap:12px;background:linear-gradient(180deg,var(--panel),var(--inset))}
@@ -47,7 +49,9 @@
   .bb-sel span button{display:grid;place-items:center;color:var(--ink-3)}.bb-sel span button:hover{color:var(--red)}
   .bb-sel span button .ic{width:11px;height:11px}
   .bb-sel em{font-style:normal;font-size:11.5px;color:var(--ink-3);font-weight:300}
-  @media (max-width:860px){.bb{grid-template-columns:1fr}.bb-l{border-right:0;border-bottom:1px solid var(--line-hair)}.bb-list{grid-template-columns:1fr;max-height:320px}}
+  @media (max-width:1040px){.bb-list{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:860px){.bb{grid-template-columns:1fr}.bb-l{border-right:0;border-bottom:1px solid var(--line-hair)}.bb-list{grid-template-columns:repeat(2,1fr);max-height:380px}}
+  @media (max-width:420px){.bb-list{grid-template-columns:1fr}}
 </style>
 <section class="section wrap" id="bundle">
   <div class="sec-h"><div><div class="kick">{{ config('bundle-kicker') ?: 'Bundle & save' }}</div><h2>{{ config('bundle-title') ?: 'Build your own bundle' }}</h2><p>{{ config('bundle-sub') ?: 'Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.' }}</p></div></div>
@@ -60,10 +64,8 @@
       <div class="bb-list" id="bbList">
         {% for cat in store.categories %}{% if (cat.id ~ '') not in bx %}{% for p in cat.packages %}{% if p.price > 0 %}
         <div class="bi" data-id="{{ p.id }}" data-cat="{{ cat.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}">
-          <span class="cb"><svg class="ic"><use href="#i-check"/></svg></span>
-          <div class="art">{% if p.image.url %}<img src="{{ p.image.url }}" alt="" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div>
-          <div class="bi-t"><b>{{ p.name }}</b><span>{{ cat.name }}</span></div>
-          <span class="pr">{{ csym }}{{ p.price|number_format(2) }}</span>
+          <div class="art"><span class="cb"><svg class="ic"><use href="#i-check"/></svg></span>{% if p.image.url %}<img src="{{ p.image.url }}" alt="" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div>
+          <div class="bi-b"><div class="bi-t"><b>{{ p.name }}</b><span>{{ cat.name }}</span></div><span class="pr">{{ csym }}{{ p.price|number_format(2) }}</span></div>
         </div>
         {% endif %}{% endfor %}{% endif %}{% endfor %}
       </div>

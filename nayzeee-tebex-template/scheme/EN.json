@@ -44,11 +44,18 @@
           "description": "Your accent as R,G,B numbers (default 8,175,162). Needed for the translucent washes and edges. For #ff7a1a enter 255,122,26."
         },
         {
+          "id": "brand-name",
+          "name": "Brand name",
+          "type": "textarea",
+          "default": "NayZeee",
+          "description": "Bold part of the name at the top of the site (default NayZeee). The store name from Tebex is still used for page titles and SEO."
+        },
+        {
           "id": "brand-sub",
           "name": "Brand sub",
           "type": "textarea",
-          "default": "FiveM scripts & UI",
-          "description": "Small grey line under the store name in the navbar."
+          "default": "Development",
+          "description": "Light part of the name next to it (default Development), so the navbar reads \"NayZeee Development\"."
         },
         {
           "id": "brand-text",
@@ -398,6 +405,17 @@
           ],
           "default": "Show",
           "description": "Text shown in the store. Leave empty to use the default: Show"
+        },
+        {
+          "id": "hero-ghost-toggle",
+          "name": "Hero ghost toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Show or hide the floating, glowing ghost logo on the homepage hero and the subscription page."
         },
         {
           "id": "hero-image",
@@ -2533,74 +2551,25 @@
       "header": "06 · Category & cards · Subscription",
       "options": [
         {
-          "id": "tier-billed-monthly",
-          "name": "Tier billed monthly",
+          "id": "tier-billed-m",
+          "name": "Tier billed m",
           "type": "textarea",
-          "default": "Billed monthly · cancel any time",
-          "description": "Text shown in the store. Leave empty to use the default: Billed monthly · cancel any time"
+          "default": "Cancel anytime · billed monthly",
+          "description": "Text shown in the store. Leave empty to use the default: Cancel anytime · billed monthly"
         },
         {
-          "id": "tier-billed-yearly",
-          "name": "Tier billed yearly",
+          "id": "tier-billed-q",
+          "name": "Tier billed q",
           "type": "textarea",
-          "default": "Billed once a year · cancel any time",
-          "description": "Text shown in the store. Leave empty to use the default: Billed once a year · cancel any time"
+          "default": "Cancel anytime · billed every 3 months",
+          "description": "Text shown in the store. Leave empty to use the default: Cancel anytime · billed every 3 months"
         },
         {
-          "id": "tier-card-sub-1",
-          "name": "Tier card sub 1",
+          "id": "tier-billed-y",
+          "name": "Tier billed y",
           "type": "textarea",
-          "default": "",
-          "description": "Small line under the plan name on card 1, 2, 3 or 4."
-        },
-        {
-          "id": "tier-card-sub-2",
-          "name": "Tier card sub 2",
-          "type": "textarea",
-          "default": "",
-          "description": "Small line under the plan name on card 1, 2, 3 or 4."
-        },
-        {
-          "id": "tier-card-sub-3",
-          "name": "Tier card sub 3",
-          "type": "textarea",
-          "default": "",
-          "description": "Small line under the plan name on card 1, 2, 3 or 4."
-        },
-        {
-          "id": "tier-card-sub-4",
-          "name": "Tier card sub 4",
-          "type": "textarea",
-          "default": "",
-          "description": "Small line under the plan name on card 1, 2, 3 or 4."
-        },
-        {
-          "id": "tier-compare-feature",
-          "name": "Tier compare feature",
-          "type": "textarea",
-          "default": "Feature",
-          "description": "Text shown in the store. Leave empty to use the default: Feature"
-        },
-        {
-          "id": "tier-compare-kicker",
-          "name": "Tier compare kicker",
-          "type": "textarea",
-          "default": "Compare",
-          "description": "Text shown in the store. Leave empty to use the default: Compare"
-        },
-        {
-          "id": "tier-compare-rows",
-          "name": "Tier compare rows",
-          "type": "textarea",
-          "default": "",
-          "description": "Comparison table. One row per feature, rows separated by | , cells by ; . First cell is the feature, then one cell per plan in order: ✓ or yes, - or no, or any text. Example: Server keys;1;3;Unlimited|Open-source access;no;yes;yes"
-        },
-        {
-          "id": "tier-compare-title",
-          "name": "Tier compare title",
-          "type": "textarea",
-          "default": "What each plan includes",
-          "description": "Text shown in the store. Leave empty to use the default: What each plan includes"
+          "default": "Cancel anytime · billed once a year",
+          "description": "Text shown in the store. Leave empty to use the default: Cancel anytime · billed once a year"
         },
         {
           "id": "tier-current-badge",
@@ -2613,8 +2582,20 @@
           "id": "tier-default-desc",
           "name": "Tier default desc",
           "type": "textarea",
-          "default": "Every script, updates while subscribed, Discord support.",
-          "description": "Text shown in the store. Leave empty to use the default: Every script, updates while subscribed, Discord support."
+          "default": "Every script in the store",
+          "description": "Text shown in the store. Leave empty to use the default: Every script in the store"
+        },
+        {
+          "id": "tier-default-period",
+          "name": "Tier default period",
+          "type": "select",
+          "values": [
+            "Monthly",
+            "Quarterly",
+            "Yearly"
+          ],
+          "default": "Monthly",
+          "description": "Which billing period is selected when the page opens."
         },
         {
           "id": "tier-empty-text",
@@ -2629,6 +2610,13 @@
           "type": "textarea",
           "default": "No plans available",
           "description": "Text shown in the store. Leave empty to use the default: No plans available"
+        },
+        {
+          "id": "tier-exclude-cats",
+          "name": "Tier exclude cats",
+          "type": "textarea",
+          "default": "",
+          "description": "Category IDs to leave out of the script count, total value and included grid, e.g. your Bundles category: 5,9"
         },
         {
           "id": "tier-eyebrow",
@@ -2701,18 +2689,89 @@
           "description": "Subscription page FAQ entry. Leave the question empty to hide it."
         },
         {
-          "id": "tier-featured-id",
-          "name": "Tier featured id",
+          "id": "tier-feat-1-sub",
+          "name": "Tier feat 1 sub",
           "type": "textarea",
           "default": "",
-          "description": "Package ID of the plan to highlight as Most popular on tiered category pages."
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-1-title",
+          "name": "Tier feat 1 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-2-sub",
+          "name": "Tier feat 2 sub",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-2-title",
+          "name": "Tier feat 2 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-3-sub",
+          "name": "Tier feat 3 sub",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-3-title",
+          "name": "Tier feat 3 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-4-sub",
+          "name": "Tier feat 4 sub",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feat-4-title",
+          "name": "Tier feat 4 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Feature tile under the plan card (title / sub line). Defaults: Instant access, Always updated, Secure, Priority support."
+        },
+        {
+          "id": "tier-feats-toggle",
+          "name": "Tier feats toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Text shown in the store. Leave empty to use the default: Show"
         },
         {
           "id": "tier-fine",
           "name": "Tier fine",
           "type": "textarea",
-          "default": "Secured by Tebex · keys land in your Keymaster",
-          "description": "Text shown in the store. Leave empty to use the default: Secured by Tebex · keys land in your Keymaster"
+          "default": "Secured by Tebex · keys land in your Keymaster · cancel anytime",
+          "description": "Text shown in the store. Leave empty to use the default: Secured by Tebex · keys land in your Keymaster · cancel anytime"
+        },
+        {
+          "id": "tier-included-all",
+          "name": "Tier included all",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Show every included script, or only the first 12 with a \"+N more\" button."
         },
         {
           "id": "tier-included-cats",
@@ -2722,6 +2781,13 @@
           "description": "Category IDs to show in \"Every script included\" (default: all non-subscription categories)."
         },
         {
+          "id": "tier-included-chip",
+          "name": "Tier included chip",
+          "type": "textarea",
+          "default": "Included",
+          "description": "Text shown in the store. Leave empty to use the default: Included"
+        },
+        {
           "id": "tier-included-kicker",
           "name": "Tier included kicker",
           "type": "textarea",
@@ -2729,18 +2795,18 @@
           "description": "Text shown in the store. Leave empty to use the default: Included"
         },
         {
+          "id": "tier-included-more",
+          "name": "Tier included more",
+          "type": "textarea",
+          "default": "+{n} more scripts",
+          "description": "Text shown in the store. Leave empty to use the default: +{n} more scripts"
+        },
+        {
           "id": "tier-included-sub",
           "name": "Tier included sub",
           "type": "textarea",
-          "default": "New releases are added to every plan the day they ship.",
-          "description": "Text shown in the store. Leave empty to use the default: New releases are added to every plan the day they ship."
-        },
-        {
-          "id": "tier-included-tag",
-          "name": "Tier included tag",
-          "type": "textarea",
-          "default": "included",
-          "description": "Text shown in the store. Leave empty to use the default: included"
+          "default": "New releases are added to your plan the day they come out.",
+          "description": "Text shown in the store. Leave empty to use the default: New releases are added to your plan the day they come out."
         },
         {
           "id": "tier-included-title",
@@ -2750,11 +2816,25 @@
           "description": "Text shown in the store. Leave empty to use the default: Every script in the store, included"
         },
         {
+          "id": "tier-included-url",
+          "name": "Tier included url",
+          "type": "textarea",
+          "default": "/",
+          "description": "Where the \"+N more scripts\" button goes (default: homepage)."
+        },
+        {
           "id": "tier-monthly",
           "name": "Tier monthly",
           "type": "textarea",
           "default": "Monthly",
           "description": "Text shown in the store. Leave empty to use the default: Monthly"
+        },
+        {
+          "id": "tier-monthly-id",
+          "name": "Tier monthly id",
+          "type": "textarea",
+          "default": "",
+          "description": "Package ID of the Monthly plan in the subscription category. Leave empty to match by name (month / quarter / year) or by order (1st, 2nd, 3rd)."
         },
         {
           "id": "tier-pending-badge",
@@ -2771,32 +2851,168 @@
           "description": "Text shown in the store. Leave empty to use the default: Pending downgrade"
         },
         {
-          "id": "tier-period",
-          "name": "Tier period",
+          "id": "tier-period-m",
+          "name": "Tier period m",
           "type": "textarea",
           "default": "/ month",
           "description": "Text shown in the store. Leave empty to use the default: / month"
         },
         {
-          "id": "tier-period-yearly",
-          "name": "Tier period yearly",
+          "id": "tier-period-q",
+          "name": "Tier period q",
+          "type": "textarea",
+          "default": "/ 3 months",
+          "description": "Text shown in the store. Leave empty to use the default: / 3 months"
+        },
+        {
+          "id": "tier-period-y",
+          "name": "Tier period y",
           "type": "textarea",
           "default": "/ year",
           "description": "Text shown in the store. Leave empty to use the default: / year"
         },
         {
+          "id": "tier-perk-1",
+          "name": "Tier perk 1",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist line 1 under the headline. {n} is replaced by the script count. Leave empty to hide."
+        },
+        {
+          "id": "tier-perk-2",
+          "name": "Tier perk 2",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist line 2."
+        },
+        {
+          "id": "tier-perk-3",
+          "name": "Tier perk 3",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist line 3."
+        },
+        {
+          "id": "tier-perk-4",
+          "name": "Tier perk 4",
+          "type": "textarea",
+          "default": "",
+          "description": "Checklist line 4."
+        },
+        {
+          "id": "tier-plan-name",
+          "name": "Tier plan name",
+          "type": "textarea",
+          "default": "",
+          "description": "Override the plan name shown on the card (default: the package name)."
+        },
+        {
+          "id": "tier-plan-sub",
+          "name": "Tier plan sub",
+          "type": "textarea",
+          "default": "every script, every update",
+          "description": "Text shown in the store. Leave empty to use the default: every script, every update"
+        },
+        {
+          "id": "tier-popular",
+          "name": "Tier popular",
+          "type": "select",
+          "values": [
+            "Yearly",
+            "Quarterly",
+            "Monthly",
+            "None"
+          ],
+          "default": "Yearly",
+          "description": "Which plan gets the Best value badge."
+        },
+        {
           "id": "tier-popular-badge",
           "name": "Tier popular badge",
           "type": "textarea",
-          "default": "Most popular",
-          "description": "Text shown in the store. Leave empty to use the default: Most popular"
+          "default": "Best value",
+          "description": "Text shown in the store. Leave empty to use the default: Best value"
+        },
+        {
+          "id": "tier-quarterly",
+          "name": "Tier quarterly",
+          "type": "textarea",
+          "default": "Quarterly",
+          "description": "Text shown in the store. Leave empty to use the default: Quarterly"
+        },
+        {
+          "id": "tier-quarterly-id",
+          "name": "Tier quarterly id",
+          "type": "textarea",
+          "default": "",
+          "description": "Package ID of the Quarterly (every 3 months) plan."
+        },
+        {
+          "id": "tier-save-text",
+          "name": "Tier save text",
+          "type": "textarea",
+          "default": "Save {pct}% · works out to {per}",
+          "description": "Savings badge on the quarterly and yearly card. {pct} = percent saved vs monthly, {per} = the per-month price it works out to."
+        },
+        {
+          "id": "tier-stat-1-label",
+          "name": "Tier stat 1 label",
+          "type": "textarea",
+          "default": "Scripts",
+          "description": "Text shown in the store. Leave empty to use the default: Scripts"
+        },
+        {
+          "id": "tier-stat-2-label",
+          "name": "Tier stat 2 label",
+          "type": "textarea",
+          "default": "Future releases",
+          "description": "Text shown in the store. Leave empty to use the default: Future releases"
+        },
+        {
+          "id": "tier-stat-2-value",
+          "name": "Tier stat 2 value",
+          "type": "textarea",
+          "default": "∞",
+          "description": "Text shown in the store. Leave empty to use the default: ∞"
+        },
+        {
+          "id": "tier-stat-3-label",
+          "name": "Tier stat 3 label",
+          "type": "textarea",
+          "default": "Total value",
+          "description": "Text shown in the store. Leave empty to use the default: Total value"
+        },
+        {
+          "id": "tier-stat-count",
+          "name": "Tier stat count",
+          "type": "textarea",
+          "default": "",
+          "description": "Override the script count. Leave empty to count the scripts in the store automatically (it goes up as you release more)."
+        },
+        {
+          "id": "tier-stat-total",
+          "name": "Tier stat total",
+          "type": "textarea",
+          "default": "",
+          "description": "Override the total value stat. Leave empty to add up the prices of every included script automatically."
+        },
+        {
+          "id": "tier-stats-toggle",
+          "name": "Tier stats toggle",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Text shown in the store. Leave empty to use the default: Show"
         },
         {
           "id": "tier-sub",
           "name": "Tier sub",
           "type": "textarea",
-          "default": "All current and future scripts, updates while you subscribe, and priority support. Cancel any time from your Tebex account.",
-          "description": "Text shown in the store. Leave empty to use the default: All current and future scripts, updates while you subscribe, and priority support. Cancel any time from your Tebex account."
+          "default": "Every script on the store, every future release, and priority support for as long as you subscribe.",
+          "description": "Text shown in the store. Leave empty to use the default: Every script on the store, every future release, and priority support for as long as you subscribe."
         },
         {
           "id": "tier-subscribe-text",
@@ -2816,15 +3032,22 @@
           "id": "tier-switch-text",
           "name": "Tier switch text",
           "type": "textarea",
-          "default": "Switch plan",
-          "description": "Text shown in the store. Leave empty to use the default: Switch plan"
+          "default": "Switch to this plan",
+          "description": "Text shown in the store. Leave empty to use the default: Switch to this plan"
         },
         {
           "id": "tier-title",
           "name": "Tier title",
           "type": "textarea",
-          "default": "Every script. <em>One plan.</em>",
+          "default": "All scripts. <em>One subscription.</em>",
           "description": "Subscription page headline, HTML allowed, e.g. Every script. <em>One plan.</em>"
+        },
+        {
+          "id": "tier-vs-monthly",
+          "name": "Tier vs monthly",
+          "type": "textarea",
+          "default": "paying monthly",
+          "description": "Text shown in the store. Leave empty to use the default: paying monthly"
         },
         {
           "id": "tier-yearly",
@@ -2834,18 +3057,11 @@
           "description": "Text shown in the store. Leave empty to use the default: Yearly"
         },
         {
-          "id": "tier-yearly-map",
-          "name": "Tier yearly map",
+          "id": "tier-yearly-id",
+          "name": "Tier yearly id",
           "type": "textarea",
           "default": "",
-          "description": "Enables the Monthly / Yearly switch. Pairs of monthlyId:yearlyId separated by commas, e.g. 601:611,602:612,603:613."
-        },
-        {
-          "id": "tier-yearly-save",
-          "name": "Tier yearly save",
-          "type": "textarea",
-          "default": "Save 2 months",
-          "description": "Text shown in the store. Leave empty to use the default: Save 2 months"
+          "description": "Package ID of the Yearly plan."
         }
       ]
     },
@@ -3100,6 +3316,13 @@
           "type": "textarea",
           "default": "Your assets are being granted to your Keymaster now.",
           "description": "Text shown in the store. Leave empty to use the default: Your assets are being granted to your Keymaster now."
+        },
+        {
+          "id": "toast-payment-error",
+          "name": "Toast payment error",
+          "type": "textarea",
+          "default": "Payment failed. Nothing was charged, try again or pick another method.",
+          "description": "Text shown in the store. Leave empty to use the default: Payment failed. Nothing was charged, try again or pick another method."
         },
         {
           "id": "toast-removed",
@@ -3993,8 +4216,8 @@
           "id": "footer-sub",
           "name": "Footer sub",
           "type": "textarea",
-          "default": "",
-          "description": "Text shown in the store. Leave empty to use the default: (none)"
+          "default": "FiveM scripts & UI",
+          "description": "Text shown in the store. Leave empty to use the default: FiveM scripts & UI"
         },
         {
           "id": "footer-terms-label",

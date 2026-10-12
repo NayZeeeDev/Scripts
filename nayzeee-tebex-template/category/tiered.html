@@ -1,148 +1,216 @@
 {% extends "layout.html" %}
 {% block content %}
 {# ─── NAYZEEE · category/tiered.html · Subscription page
-   Plans come from the tiered category's packages (description = perk list).
-   Settings: tier-featured-id, tier-yearly-map ("monthlyId:yearlyId,…" to enable the Monthly/Yearly switch),
-             tier-compare-rows ("Feature;✓;✓;✓|…", one column per plan in order), tier-included-cats,
-             tier-faq-1..4-q/-a, tier-eyebrow, tier-sub, tier-period. ─── #}
+   One subscription, three billing periods: Monthly, Quarterly, Yearly.
+   The three plans are the packages in this tiered category. They are matched by
+   tier-monthly-id / tier-quarterly-id / tier-yearly-id, or by name ("month", "quarter" / "3 month", "year"),
+   or simply in order (1st = monthly, 2nd = quarterly, 3rd = yearly).
+   Script count and total value are counted from the store's other categories (tier-exclude-cats to skip bundles etc.).
+   Settings: tier-eyebrow, tier-title, tier-sub, tier-perk-1..4, tier-stat-*, tier-feat-1..4-*, tier-included-*, tier-faq-1..4-q/-a. ─── #}
 <style>
-  .sub-hero{position:relative;text-align:center;padding:48px 0 30px}
+  .sub-hero{position:relative;text-align:center;padding:48px 0 0}
   .sub-hero .kick{display:inline-flex;align-items:center;gap:9px;font-size:10.5px;color:var(--teal);font-weight:500;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px}
   .sub-hero .kick::before,.sub-hero .kick::after{content:'';width:14px;height:2px;background:var(--teal);border-radius:2px}
-  .sub-hero h1{font-size:44px;font-weight:700;letter-spacing:-.04em;line-height:1.04;color:var(--white)}
+  .sub-hero h1{font-size:46px;font-weight:700;letter-spacing:-.04em;line-height:1.04;color:var(--white)}
   .sub-hero h1 em{font-style:normal;color:var(--teal)}
   .sub-hero p{font-size:14px;color:var(--ink-2);font-weight:300;line-height:1.6;max-width:56ch;margin:16px auto 0}
-  .sub-sw{display:inline-flex;align-items:center;gap:10px;margin-top:24px}
-  .sub-sw .segc button{height:30px;padding:0 16px;font-size:12px}
-  .sub-sw .save{font-size:10.5px;font-weight:600;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);padding:3px 8px;border-radius:999px;letter-spacing:.03em;text-transform:uppercase}
-  .tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:stretch;margin-top:34px}
-  .tier{position:relative;display:flex;flex-direction:column;gap:14px;padding:24px 22px;overflow:hidden}
-  .tier::before{content:'';position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
-  .tier.pop{border-color:var(--teal-edge);box-shadow:0 1px 0 var(--lift) inset,0 0 0 1px var(--teal-edge),0 20px 50px rgba(var(--teal-rgb),.14);transform:translateY(-6px)}
-  .tier.pop::before{background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi),var(--teal-lo))}
-  .tier .pop-tag{position:absolute;top:14px;right:14px}
+  .sub-hero .ghost.hero-ghost{position:absolute;right:max(2%,10px);top:-4px;width:120px;height:158px;filter:drop-shadow(0 0 36px rgba(var(--teal-rgb),.45));animation:nz-ghost-lg 6s ease-in-out infinite;pointer-events:none;opacity:.9}
+  .sub-sw{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:26px;flex-wrap:wrap}
+  .sub-sw .segc button{height:32px;padding:0 18px;font-size:12.5px;gap:7px}
+  .sub-sw .segc button .sv{font-size:9.5px;font-weight:600;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);padding:1px 6px;border-radius:999px;letter-spacing:.02em}
+  .sub-sw .segc button.on .sv{background:rgba(0,0,0,.08);color:#000;border-color:transparent}
+  .sub-billed{font-size:12px;color:var(--ink-3);font-weight:300;margin-top:12px}
+  .perks{display:grid;grid-template-columns:1fr 1fr;gap:12px 28px;max-width:560px;margin:26px auto 0;text-align:left}
+  .perks div{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--ink);font-weight:400}
+  .perks i{width:30px;height:30px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--teal);font-style:normal}
+  .perks i .ic{width:13px;height:13px;stroke-width:2.6}
+  .sub-stats{display:grid;grid-template-columns:repeat(3,1fr);margin-top:40px;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-md);box-shadow:0 1px 0 var(--lift) inset,var(--sh-1);overflow:hidden}
+  .sub-stats div{padding:26px 16px;text-align:center;border-left:1px solid var(--line-hair)}
+  .sub-stats div:first-child{border-left:0}
+  .sub-stats b{display:block;font-size:40px;font-weight:700;letter-spacing:-.045em;line-height:1;color:var(--teal);text-shadow:0 0 24px rgba(var(--teal-rgb),.35)}
+  .sub-stats b small{font-size:26px;font-weight:600;letter-spacing:-.02em}
+  .sub-stats span{display:block;margin-top:9px;font-size:12.5px;color:var(--ink-2);font-weight:300}
+  .plans{max-width:560px;margin:34px auto 0}
+  .tier{position:relative;display:none;flex-direction:column;gap:16px;padding:26px 26px 22px;overflow:hidden;border-color:var(--teal-edge);box-shadow:0 1px 0 var(--lift) inset,0 0 0 1px var(--teal-edge),0 24px 60px rgba(var(--teal-rgb),.14)}
+  .tier.on{display:flex}
+  .tier::before{content:'';position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi),var(--teal-lo))}
+  .tier::after{content:'';position:absolute;right:-30px;bottom:-30px;width:150px;height:198px;opacity:.05;background:var(--ghost-mask-bg,none)}
+  .tier .pop-tag{position:absolute;top:16px;right:16px}
   .tier-h{display:flex;align-items:center;gap:12px}
-  .tier-h .tile{width:44px;height:44px;overflow:hidden}
+  .tier-h .tile{width:46px;height:46px;overflow:hidden}
   .tier-h .tile img{width:100%;height:100%;object-fit:cover}
-  .tier-h b{display:block;font-size:18px;font-weight:600;color:var(--white);letter-spacing:-.018em}
+  .tier-h b{display:block;font-size:19px;font-weight:600;color:var(--white);letter-spacing:-.018em}
   .tier-h span{display:block;font-size:11.5px;color:var(--ink-3);font-weight:300;margin-top:2px}
-  .tier .price{align-items:flex-end;gap:8px}
-  .tier .price b{font-size:38px;letter-spacing:-.045em;line-height:1}
+  .tier .price{align-items:flex-end;gap:8px;flex-wrap:wrap}
+  .tier .price b{font-size:44px;letter-spacing:-.045em;line-height:1}
   .tier .price small{padding-bottom:6px}
-  .tier .bill{font-size:11px;color:var(--ink-3);font-weight:300;margin-top:-6px}
-  .tier .prose{padding-top:14px;border-top:1px solid var(--line-hair);flex:1;font-size:12.5px}
-  .tier .prose ul{list-style:none;padding:0;display:flex;flex-direction:column;gap:9px}
+  .tier .price .was{padding-bottom:7px;font-size:12px;color:var(--ink-3);font-weight:300}
+  .tier .price .was s{color:var(--ink-3)}
+  .tier .save{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;height:22px;padding:0 9px;border-radius:999px;font-size:10.5px;font-weight:600;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);letter-spacing:.03em;text-transform:uppercase;margin-top:-6px}
+  .tier .save .ic{width:11px;height:11px}
+  .tier .prose{padding-top:16px;border-top:1px solid var(--line-hair);font-size:13px}
+  .tier .prose ul{list-style:none;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}
   .tier .prose li{position:relative;padding-left:24px;margin:0;line-height:1.45;color:var(--ink-2)}
   .tier .prose li::before{content:'';position:absolute;left:0;top:3px;width:14px;height:14px;border-radius:50%;background:var(--teal-wash);border:1px solid var(--teal-edge)}
-  .tier .prose li::after{content:'';position:absolute;left:3px;top:6px;width:8px;height:8px;background:var(--teal);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5L9 17.5 20 6.5'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5L9 17.5 20 6.5'/%3E%3C/svg%3E") center/contain no-repeat}
+  .tier .prose li::after{content:'';position:absolute;left:3px;top:6px;width:8px;height:8px;background:var(--teal);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5L9 17.5 20 6.5'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5L9 17.5 20 6.5'/%3E%3C/svg%3E") center/contain no-repeat}
   .tier .prose p{margin:0 0 .6em;color:var(--ink-3)}
-  .tier-cur{display:flex;align-items:center;justify-content:center;gap:7px;height:40px;border-radius:var(--r-xs);background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--teal);font-size:12.5px;font-weight:500}
-  .tier .fine{font-size:10.5px;color:var(--ink-3);font-weight:300;text-align:center}
-  .cmp{overflow-x:auto}
-  .cmp table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:620px}
-  .cmp th,.cmp td{padding:12px 14px;border-bottom:1px solid var(--line-hair);text-align:center;color:var(--ink-2);font-weight:300}
-  .cmp th{font-size:12.5px;font-weight:600;color:var(--white);background:var(--raise)}
-  .cmp th:first-child,.cmp td:first-child{text-align:left;width:40%}
-  .cmp th.pop{color:var(--teal)}
-  .cmp td.pop{background:var(--teal-wash)}
-  .cmp tr:last-child td{border-bottom:0}
-  .cmp .ok{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--teal)}
-  .cmp .ok .ic{width:11px;height:11px;stroke-width:3}
-  .cmp .no{display:inline-block;width:12px;height:2px;border-radius:2px;background:var(--line)}
-  .inc{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  .inc a{display:flex;align-items:center;gap:10px;padding:10px;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-sm);transition:border-color var(--fast)}
-  .inc a:hover{border-color:var(--teal-edge)}
-  .inc .art{width:42px;aspect-ratio:1;border-radius:var(--r-xs);border:1px solid var(--line-soft);flex:none}
-  .inc .art .big{width:16px;height:16px}
+  .tier-cur{display:flex;align-items:center;justify-content:center;gap:7px;height:42px;border-radius:var(--r-xs);background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--teal);font-size:12.5px;font-weight:500}
+  .tier .btn-lg{height:44px;font-size:13.5px}
+  .tier .fine{font-size:10.5px;color:var(--ink-3);font-weight:300;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px}
+  .tier .fine .ic{width:11px;height:11px}
+  .feats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .feat{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:26px 16px}
+  .feat .tile{width:50px;height:50px;border-radius:var(--r-md)}
+  .feat .tile .ic{width:22px;height:22px}
+  .feat b{display:block;font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.015em}
+  .feat span{display:block;font-size:12px;color:var(--ink-3);font-weight:300;margin-top:4px}
+  .inc{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .inc a{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-sm);overflow:hidden;transition:border-color var(--fast),transform var(--fast)}
+  .inc a:hover{border-color:var(--teal-edge);transform:translateY(-2px)}
+  .inc .art{aspect-ratio:16/9;border:0;border-bottom:1px solid var(--line-hair);border-radius:0}
+  .inc .art img{width:100%;height:100%;object-fit:cover}
+  .inc .art .big{width:26px;height:26px}
+  .inc .art .chip{position:absolute;left:8px;top:8px;z-index:2}
+  .inc .t{padding:11px 12px 12px;display:flex;align-items:center;gap:10px}
+  .inc .t > div{flex:1;min-width:0}
   .inc b{display:block;font-size:12.5px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .inc span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300}
+  .inc span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:2px}
+  .inc s{font-size:12px;color:var(--ink-3);font-weight:300;flex:none}
+  .inc-more{display:flex;justify-content:center;margin-top:16px}
   .faq{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .q{padding:0;overflow:hidden}
   .q summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;font-size:13px;font-weight:500;color:var(--white);cursor:pointer}
   .q summary::-webkit-details-marker{display:none}
   .q summary .ic{color:var(--ink-3);transition:transform var(--fast)}.q[open] summary .ic{transform:rotate(45deg);color:var(--teal)}
   .q div{padding:0 16px 14px;font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.6}
-  @media (max-width:1040px){.inc{grid-template-columns:repeat(2,1fr)}}
-  @media (max-width:860px){.sub-hero h1{font-size:34px}.tier.pop{transform:none}.faq{grid-template-columns:1fr}}
-  @media (max-width:600px){.inc{grid-template-columns:1fr}}
+  @media (max-width:1040px){.inc{grid-template-columns:repeat(3,1fr)}.feats{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:860px){.sub-hero h1{font-size:36px}.sub-hero .ghost.hero-ghost{width:80px;height:105px;top:-20px;right:-10px;opacity:.35}.faq{grid-template-columns:1fr}.inc{grid-template-columns:repeat(2,1fr)}.sub-stats b{font-size:32px}.sub-stats b small{font-size:20px}.tier .prose ul{grid-template-columns:1fr}}
+  @media (max-width:600px){.sub-stats{grid-template-columns:1fr 1fr}.sub-stats div:last-child{grid-column:1/-1;border-left:0;border-top:1px solid var(--line-hair)}.perks{grid-template-columns:1fr}.tier{padding:22px 18px}.tier .price b{font-size:38px}}
+  @media (max-width:400px){.inc{grid-template-columns:1fr}.feats{grid-template-columns:1fr}}
 </style>
 
-{% set ymap = {} %}{% set yids = [] %}
-{% set yraw = (config('tier-yearly-map') ?: '')|replace({' ': ''}) %}
-{% if yraw %}{% for pair in yraw|split(',') %}{% set kv = pair|split(':') %}{% if kv|length == 2 %}{% set ymap = ymap|merge({ (kv[0]): kv[1] }) %}{% set yids = yids|merge([kv[1]]) %}{% endif %}{% endfor %}{% endif %}
-{% set allpk = {} %}
-{% for cat in store.categories %}{% for p in cat.packages %}{% set allpk = allpk|merge({ (p.id ~ ''): p }) %}{% endfor %}{% endfor %}
-{% set featId = (config('tier-featured-id') ?: '')|replace({' ': ''}) %}
+{# ── match the three plans ── #}
+{% set ids = { 'm': (config('tier-monthly-id') ?: '')|trim, 'q': (config('tier-quarterly-id') ?: '')|trim, 'y': (config('tier-yearly-id') ?: '')|trim } %}
+{% set plans = {} %}{% set used = [] %}
+{% for package in category.packages %}
+  {% set pid = package.id ~ '' %}{% set nm = package.name|lower %}{% set key = '' %}
+  {% if pid == ids.m %}{% set key = 'm' %}{% elseif pid == ids.q %}{% set key = 'q' %}{% elseif pid == ids.y %}{% set key = 'y' %}
+  {% elseif 'year' in nm or 'annual' in nm or '12 month' in nm %}{% set key = 'y' %}
+  {% elseif 'quarter' in nm or '3 month' in nm or '3-month' in nm or 'season' in nm %}{% set key = 'q' %}
+  {% elseif 'month' in nm %}{% set key = 'm' %}{% endif %}
+  {% if key and plans[key] is not defined %}{% set plans = plans|merge({ (key): package }) %}{% set used = used|merge([pid]) %}{% endif %}
+{% endfor %}
+{% for package in category.packages %}{% set pid = package.id ~ '' %}
+  {% if pid not in used %}
+    {% if plans.m is not defined %}{% set plans = plans|merge({ 'm': package }) %}{% set used = used|merge([pid]) %}
+    {% elseif plans.q is not defined %}{% set plans = plans|merge({ 'q': package }) %}{% set used = used|merge([pid]) %}
+    {% elseif plans.y is not defined %}{% set plans = plans|merge({ 'y': package }) %}{% set used = used|merge([pid]) %}{% endif %}
+  {% endif %}
+{% endfor %}
+{% set order = ['m', 'q', 'y'] %}
+{% set months = { 'm': 1, 'q': 3, 'y': 12 } %}
+{% set labels = { 'm': config('tier-monthly') ?: 'Monthly', 'q': config('tier-quarterly') ?: 'Quarterly', 'y': config('tier-yearly') ?: 'Yearly' } %}
+{% set periods = { 'm': config('tier-period-m') ?: '/ month', 'q': config('tier-period-q') ?: '/ 3 months', 'y': config('tier-period-y') ?: '/ year' } %}
+{% set billed = { 'm': config('tier-billed-m') ?: 'Cancel anytime · billed monthly', 'q': config('tier-billed-q') ?: 'Cancel anytime · billed every 3 months', 'y': config('tier-billed-y') ?: 'Cancel anytime · billed once a year' } %}
+{% set mprice = plans.m is defined ? plans.m.price : 0 %}
+{% set saves = {} %}
+{% for k in order %}{% if plans[k] is defined and k != 'm' and mprice > 0 and plans[k].price > 0 %}
+  {% set pct = ((1 - plans[k].price / (mprice * months[k])) * 100)|round %}
+  {% if pct > 0 %}{% set saves = saves|merge({ (k): pct }) %}{% endif %}
+{% endif %}{% endfor %}
+{% set first = '' %}{% for k in order %}{% if plans[k] is defined and not first %}{% set first = k %}{% endif %}{% endfor %}
+{% set def = (config('tier-default-period') ?: 'Monthly')|lower|slice(0, 1) %}
+{% if plans[def] is not defined %}{% set def = first %}{% endif %}
+
+{# ── count the scripts the plan includes ── #}
+{% set exc = (config('tier-exclude-cats') ?: '')|replace({' ': ''})|split(',') %}
 {% set inc = (config('tier-included-cats') ?: '')|replace({' ': ''}) %}
+{% set n = 0 %}{% set total = 0 %}{% set incList = [] %}
+{% for cat in store.categories %}{% if cat.id != category.id and (cat.id ~ '') not in exc and (not inc or (cat.id ~ '') in inc|split(',')) %}{% for p in cat.packages %}{% if p.price > 0 %}
+  {% set n = n + 1 %}{% set total = total + (p.discount.applied ? p.discount.original : p.price) %}{% set incList = incList|merge([{ p: p, c: cat.name }]) %}
+{% endif %}{% endfor %}{% endif %}{% endfor %}
+{% if config('tier-stat-count') %}{% set n = config('tier-stat-count') %}{% endif %}
+{% set totalTx = config('tier-stat-total') ?: (csym ~ total|number_format(2) ~ '+') %}
 
 <div class="wrap view">
   <section class="sub-hero">
+    {% if (config('hero-ghost-toggle') ?: 'Show') != 'Hide' %}<span class="ghost hero-ghost" aria-hidden="true"></span>{% endif %}
     <div class="kick">{{ config('tier-eyebrow') ?: 'Subscription' }}</div>
-    <h1>{{ config('tier-title') ?: 'Every script. <em>One plan.</em>'|raw }}</h1>
-    <p>{% if category.description %}{{ category.description|striptags }}{% else %}{{ config('tier-sub') ?: 'All current and future scripts, updates while you subscribe, and priority support. Cancel any time from your Tebex account.' }}{% endif %}</p>
-    {% if ymap|length > 0 %}
-    <div class="sub-sw"><div class="segc" id="subSw"><button class="on" data-p="m">{{ config('tier-monthly') ?: 'Monthly' }}</button><button data-p="y">{{ config('tier-yearly') ?: 'Yearly' }}</button></div><span class="save">{{ config('tier-yearly-save') ?: 'Save 2 months' }}</span></div>
+    <h1>{{ config('tier-title') ?: 'All scripts. <em>One subscription.</em>'|raw }}</h1>
+    <p>{% if category.description %}{{ category.description|striptags }}{% else %}{{ config('tier-sub') ?: 'Every script on the store, every future release, and priority support for as long as you subscribe.' }}{% endif %}</p>
+    {% if plans|length > 1 %}
+    <div class="sub-sw"><div class="segc" id="subSw">{% for k in order %}{% if plans[k] is defined %}<button type="button"{% if k == def %} class="on"{% endif %} data-p="{{ k }}">{{ labels[k] }}{% set sv = saves[k] ?? 0 %}{% if sv > 0 %}<span class="sv">-{{ sv }}%</span>{% endif %}</button>{% endif %}{% endfor %}</div></div>
     {% endif %}
+    <div class="sub-billed" id="subBilled">{{ billed[def] ?? '' }}</div>
+    <div class="perks">
+      {% for i in 1..4 %}{% set perk = config('tier-perk-' ~ i) ?: (i == 1 ? '{n} premium scripts' : (i == 2 ? 'All future releases' : (i == 3 ? 'Priority support' : 'Regular updates'))) %}
+      {% if perk|trim %}<div><i><svg class="ic"><use href="#i-check"/></svg></i>{{ perk|replace({'{n}': n}) }}</div>{% endif %}{% endfor %}
+    </div>
   </section>
 
-  {% if category.packages|length > 0 %}
-  <div class="tiers">
-    {% for package in category.packages %}{% if (package.id ~ '') not in yids %}
+  {% if (config('tier-stats-toggle') ?: 'Show') != 'Hide' %}
+  <div class="sub-stats view">
+    <div><b>{{ n }}</b><span>{{ config('tier-stat-1-label') ?: 'Scripts' }}</span></div>
+    <div><b>{{ config('tier-stat-2-value') ?: '∞' }}</b><span>{{ config('tier-stat-2-label') ?: 'Future releases' }}</span></div>
+    <div><b><small>{{ totalTx|slice(0, 1) }}</small>{{ totalTx|slice(1) }}</b><span>{{ config('tier-stat-3-label') ?: 'Total value' }}</span></div>
+  </div>
+  {% endif %}
+
+  {% if plans|length > 0 %}
+  <div class="plans">
+    {% for k in order %}{% if plans[k] is defined %}{% set package = plans[k] %}
       {% set pid = package.identifier ?? package.id %}
       {% set is_subscribed = tier is defined and tier and tier.package_id == pid %}
       {% set is_downgrade = tier is defined and tier and tier.downgrade_package_id == pid %}
-      {% set is_featured = featId and featId == (package.id ~ '') %}
       {% set has_disc = package.discount.applied %}
-      {% set yid = ymap[(package.id ~ '')] ?? '' %}
-      {% set yp = yid and allpk[yid] is defined ? allpk[yid] : null %}
-      <article class="panel tier view{% if is_featured %} pop{% endif %}" data-m="{{ package.id }}" data-y="{{ yp ? yp.id : '' }}" data-mp="{{ package.price|number_format(2) }}" data-yp="{{ yp ? yp.price|number_format(2) : '' }}" style="animation-delay:{{ loop.index0 * 60 }}ms">
+      <article class="panel tier view{% if k == def %} on{% endif %}" data-p="{{ k }}">
         {% if is_subscribed %}<span class="chip pop-tag">{{ config('tier-current-badge') ?: 'Your plan' }}</span>
         {% elseif is_downgrade %}<span class="chip grey pop-tag">{{ config('tier-pending-badge') ?: 'Pending' }}</span>
-        {% elseif is_featured %}<span class="bs pop-tag"><svg class="ic"><use href="#i-flame"/></svg>{{ config('tier-popular-badge') ?: 'Most popular' }}</span>{% endif %}
-        <div class="tier-h"><div class="tile{% if loop.last and not is_featured %} red{% elseif loop.first and not is_featured %} grey{% endif %}">{% if package.image.url %}<img src="{{ package.image.url }}" alt="" onerror="this.remove()" />{% else %}<svg class="ic"><use href="#i-crown"/></svg>{% endif %}</div><div><b>{{ package.name }}</b><span>{{ config('tier-card-sub-' ~ loop.index) ?: '' }}</span></div></div>
+        {% elseif k == (config('tier-popular') ?: 'Yearly')|lower|slice(0, 1) %}<span class="bs pop-tag"><svg class="ic"><use href="#i-flame"/></svg>{{ config('tier-popular-badge') ?: 'Best value' }}</span>{% endif %}
+        <div class="tier-h"><div class="tile">{% if package.image.url %}<img src="{{ package.image.url }}" alt="" onerror="this.remove()" />{% else %}<svg class="ic"><use href="#i-crown"/></svg>{% endif %}</div><div><b>{{ config('tier-plan-name') ?: package.name }}</b><span>{{ labels[k] }} · {{ config('tier-plan-sub') ?: 'every script, every update' }}</span></div></div>
         <div class="price">
           {% if package.price == 0 %}<b>{{ config('free-text') ?: 'Free' }}</b>
-          {% else %}<b class="amt">{{ csym }}{{ package.price|number_format(2) }}</b>{% if has_disc %}<s>{{ csym }}{{ package.discount.original|number_format(2) }}</s>{% endif %}<small class="per">{{ config('tier-period') ?: '/ month' }}</small>{% endif %}
+          {% else %}<b>{{ csym }}{{ package.price|number_format(2) }}</b><small>{{ periods[k] }}</small>
+          {% if has_disc %}<span class="was"><s>{{ csym }}{{ package.discount.original|number_format(2) }}</s></span>
+          {% elseif k != 'm' and mprice > 0 %}<span class="was"><s>{{ csym }}{{ (mprice * months[k])|number_format(2) }}</s> {{ config('tier-vs-monthly') ?: 'paying monthly' }}</span>{% endif %}{% endif %}
         </div>
-        <div class="bill"><span class="bill-m">{{ config('tier-billed-monthly') ?: 'Billed monthly · cancel any time' }}</span><span class="bill-y hide">{{ config('tier-billed-yearly') ?: 'Billed once a year · cancel any time' }}</span></div>
-        <div class="prose">{% if package.description %}{{ package.description|raw }}{% else %}<ul><li>{{ config('tier-default-desc') ?: 'Every script, updates while subscribed, Discord support.' }}</li></ul>{% endif %}</div>
+        {% set sv = saves[k] ?? 0 %}{% if sv > 0 %}{% set perMo = package.price / months[k] %}{% set perTx = csym ~ perMo|number_format(2) ~ ' / mo' %}<span class="save"><svg class="ic"><use href="#i-sparkle"/></svg>{{ (config('tier-save-text') ?: 'Save {pct}% · works out to {per}')|replace({'{pct}': sv, '{per}': perTx}) }}</span>{% endif %}
+        <div class="prose">{% if package.description %}{{ package.description|raw }}{% else %}<ul><li>{{ config('tier-default-desc') ?: 'Every script in the store' }}</li><li>All future releases</li><li>Updates while subscribed</li><li>Priority Discord support</li></ul>{% endif %}</div>
         {% if is_subscribed %}
           <div class="tier-cur"><svg class="ic"><use href="#i-check"/></svg>{{ config('tier-subscribed-text') ?: 'Subscribed' }}</div>
         {% elseif is_downgrade %}
           <div class="tier-cur" style="color:var(--ink-2);border-color:var(--line-soft);background:var(--raise)">{{ config('tier-pending-text') ?: 'Pending downgrade' }}</div>
         {% elseif tier is defined and tier %}
-          <a class="btn-line btn-lg btn-full" href="/tier/quote/{{ pid }}">{{ config('tier-switch-text') ?: 'Switch plan' }}<svg class="ic"><use href="#i-arrow"/></svg></a>
+          <a class="btn-line btn-lg btn-full" href="/tier/quote/{{ pid }}">{{ config('tier-switch-text') ?: 'Switch to this plan' }}<svg class="ic"><use href="#i-arrow"/></svg></a>
         {% else %}
-          <a class="{% if is_featured %}btn-teal{% else %}btn-line{% endif %} btn-lg btn-full sub-cta" href="/checkout/packages/add/{{ package.id }}" data-add="{{ package.id }}" data-add-text="{{ config('tier-subscribe-text') ?: 'Subscribe' }}" data-in-text="{{ config('card-in-cart') ?: 'In cart' }}"><svg class="ic"><use href="#i-cart"/></svg><span class="lbl">{{ config('tier-subscribe-text') ?: 'Subscribe' }}</span></a>
+          <a class="btn-teal btn-lg btn-full sub-cta" href="/checkout/packages/add/{{ package.id }}" data-add="{{ package.id }}" data-add-text="{{ config('tier-subscribe-text') ?: 'Subscribe' }}"><svg class="ic"><use href="#i-crown"/></svg>{{ config('tier-subscribe-text') ?: 'Subscribe' }} · {{ labels[k]|lower }}</a>
         {% endif %}
-        <div class="fine">{{ config('tier-fine') ?: 'Secured by Tebex · keys land in your Keymaster' }}</div>
+        <div class="fine"><svg class="ic"><use href="#i-lock"/></svg>{{ config('tier-fine') ?: 'Secured by Tebex · keys land in your Keymaster · cancel anytime' }}</div>
       </article>
     {% endif %}{% endfor %}
   </div>
   {% else %}
-  <div class="empty"><svg class="ic"><use href="#i-crown"/></svg><b>{{ config('tier-empty-title') ?: 'No plans available' }}</b><span>{{ config('tier-empty-text') ?: 'Check back soon.' }}</span></div>
+  <div class="empty" style="margin-top:34px"><svg class="ic"><use href="#i-crown"/></svg><b>{{ config('tier-empty-title') ?: 'No plans available' }}</b><span>{{ config('tier-empty-text') ?: 'Check back soon.' }}</span></div>
   {% endif %}
 
-  {% if config('tier-compare-rows') %}
+  {% if (config('tier-feats-toggle') ?: 'Show') != 'Hide' %}
   <section class="section">
-    <div class="sec-h"><div><div class="kick">{{ config('tier-compare-kicker') ?: 'Compare' }}</div><h2>{{ config('tier-compare-title') ?: 'What each plan includes' }}</h2></div></div>
-    <div class="panel cmp"><table>
-      <thead><tr><th>{{ config('tier-compare-feature') ?: 'Feature' }}</th>{% for package in category.packages %}{% if (package.id ~ '') not in yids %}<th{% if featId == (package.id ~ '') %} class="pop"{% endif %}>{{ package.name }}</th>{% endif %}{% endfor %}</tr></thead>
-      <tbody>
-      {% for row in config('tier-compare-rows')|split('|') %}{% set cells = row|split(';') %}{% if cells[0]|trim %}
-        <tr><td>{{ cells[0]|trim }}</td>{% set ci = 0 %}{% for package in category.packages %}{% if (package.id ~ '') not in yids %}{% set ci = ci + 1 %}{% set v = cells[ci] is defined ? cells[ci]|trim : '' %}<td{% if featId == (package.id ~ '') %} class="pop"{% endif %}>{% if v in ['✓', 'yes', 'y', 'true', 'x'] %}<span class="ok"><svg class="ic"><use href="#i-check"/></svg></span>{% elseif v in ['', '-', '—', 'no', 'n', '0', 'false'] %}<span class="no"></span>{% else %}{{ v }}{% endif %}</td>{% endif %}{% endfor %}</tr>
-      {% endif %}{% endfor %}
-      </tbody>
-    </table></div>
+    <div class="feats">
+      {% set fi = ['box', 'refresh', 'shield', 'discord'] %}
+      {% set ft = ['Instant access', 'Always updated', 'Secure', 'Priority support'] %}
+      {% set fs = ['Ready in your Keymaster', 'Latest versions, automatically', 'Escrowed and protected', 'Fast answers on Discord'] %}
+      {% for i in 0..3 %}
+      <div class="panel feat view"><div class="tile"><svg class="ic"><use href="#i-{{ fi[i] }}"/></svg></div><div><b>{{ config('tier-feat-' ~ (i + 1) ~ '-title') ?: ft[i] }}</b><span>{{ config('tier-feat-' ~ (i + 1) ~ '-sub') ?: fs[i] }}</span></div></div>
+      {% endfor %}
+    </div>
   </section>
   {% endif %}
 
-  {% set incList = [] %}
-  {% for cat in store.categories %}{% if cat.id != category.id and (not inc or (cat.id ~ '') in inc|split(',')) %}{% for p in cat.packages %}{% if p.price > 0 and incList|length < 16 %}{% set incList = incList|merge([{ p: p, c: cat.name }]) %}{% endif %}{% endfor %}{% endif %}{% endfor %}
   {% if incList|length > 0 %}
   <section class="section">
-    <div class="sec-h"><div><div class="kick">{{ config('tier-included-kicker') ?: 'Included' }}</div><h2>{{ config('tier-included-title') ?: 'Every script in the store, included' }}</h2><p>{{ config('tier-included-sub') ?: 'New releases are added to every plan the day they ship.' }}</p></div><a class="btn-ghost" href="{% if store.categories|length > 0 %}/category/{{ store.categories[0].id }}{% else %}/{% endif %}">{{ config('featured-cta') ?: 'View all' }} <svg class="ic"><use href="#i-chev"/></svg></a></div>
-    <div class="inc">{% for it in incList %}<a href="/package/{{ it.p.id }}"><div class="art">{% if it.p.image.url %}<img src="{{ it.p.image.url }}" alt="" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div><div style="min-width:0"><b>{{ it.p.name }}</b><span>{{ it.c }} · <s style="color:var(--ink-3)">{{ csym }}{{ it.p.price|number_format(2) }}</s> <em style="font-style:normal;color:var(--teal)">{{ config('tier-included-tag') ?: 'included' }}</em></span></div></a>{% endfor %}</div>
+    <div class="sec-h"><div><div class="kick">{{ config('tier-included-kicker') ?: 'Included' }}</div><h2>{{ config('tier-included-title') ?: 'Every script in the store, included' }}</h2><p>{{ config('tier-included-sub') ?: 'New releases are added to your plan the day they come out.' }}</p></div></div>
+    <div class="inc">{% for it in incList %}{% if loop.index <= 12 or config('tier-included-all') == 'Show' %}<a href="/package/{{ it.p.id }}" class="view" style="animation-delay:{{ loop.index0 * 30 }}ms"><div class="art"><span class="chip">{{ config('tier-included-chip') ?: 'Included' }}</span>{% if it.p.image.url %}<img src="{{ it.p.image.url }}" alt="" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div><div class="t"><div><b>{{ it.p.name }}</b><span>{{ it.c }}</span></div><s>{{ csym }}{{ it.p.price|number_format(2) }}</s></div></a>{% endif %}{% endfor %}</div>
+    {% if incList|length > 12 and config('tier-included-all') != 'Show' %}<div class="inc-more"><a class="btn-line" href="{{ config('tier-included-url') ?: '/' }}">{{ (config('tier-included-more') ?: '+{n} more scripts')|replace({'{n}': incList|length - 12}) }}<svg class="ic"><use href="#i-arrow"/></svg></a></div>{% endif %}
   </section>
   {% endif %}
 
@@ -156,18 +224,15 @@
 <script>
 (function () {
   var sw = document.getElementById('subSw'); if (!sw) return;
-  var CS = {{ csym|json_encode|raw }}, PM = {{ (config('tier-period') ?: '/ month')|json_encode|raw }}, PY = {{ (config('tier-period-yearly') ?: '/ year')|json_encode|raw }};
+  var B = {{ billed|json_encode|raw }};
   sw.addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b) return; var y = b.dataset.p === 'y';
+    var b = e.target.closest('button'); if (!b) return; var k = b.dataset.p;
     Array.prototype.forEach.call(sw.querySelectorAll('button'), function (x) { x.classList.toggle('on', x === b); });
-    Array.prototype.forEach.call(document.querySelectorAll('.tier'), function (t) {
-      var id = y && t.dataset.y ? t.dataset.y : t.dataset.m, price = y && t.dataset.yp ? t.dataset.yp : t.dataset.mp;
-      var amt = t.querySelector('.amt'), per = t.querySelector('.per'), cta = t.querySelector('.sub-cta');
-      if (amt) amt.textContent = CS + price; if (per) per.textContent = y && t.dataset.y ? PY : PM;
-      t.querySelector('.bill-m').classList.toggle('hide', y && !!t.dataset.y); t.querySelector('.bill-y').classList.toggle('hide', !(y && t.dataset.y));
-      if (cta) { cta.setAttribute('href', '/checkout/packages/add/' + id); if (cta.hasAttribute('data-add')) cta.setAttribute('data-add', id); }
-    });
+    Array.prototype.forEach.call(document.querySelectorAll('.tier'), function (t) { t.classList.toggle('on', t.dataset.p === k); });
+    var bl = document.getElementById('subBilled'); if (bl) bl.textContent = B[k] || '';
+    try { sessionStorage.setItem('nz_sub_period', k); } catch (e) {}
   });
+  try { var s = sessionStorage.getItem('nz_sub_period'), btn = s && sw.querySelector('button[data-p="' + s + '"]'); if (btn && !btn.classList.contains('on')) btn.click(); } catch (e) {}
 })();
 </script>
 {% endblock %}
