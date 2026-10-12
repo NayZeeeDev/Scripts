@@ -1,6 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
-{# ─── NAYZEEE · category.html ─── #}
+{# ─── NAYZEEE · category.html. The subscription category renders the subscription layout (module.tiered.twig) instead. ─── #}
+{% set tierCat = (config('tier-category-id') ?: '')|replace({' ': ''}) %}
+{% set cn = category.name|lower %}
+{% set isTier = (tierCat and (category.id ~ '') == tierCat) or (not tierCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn)) %}
+{% if isTier %}{% include 'module.tiered.twig' %}{% else %}
 <style>
   .subcats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
 </style>
@@ -57,4 +61,5 @@
   q.addEventListener('input', apply); s.addEventListener('change', apply);
 })();
 </script>
+{% endif %}
 {% endblock %}

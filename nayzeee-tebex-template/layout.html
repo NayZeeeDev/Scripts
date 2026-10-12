@@ -474,10 +474,17 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       {% set lm = config('logo-mode') ?: 'Ghost' %}{% if lm == 'Logo' and store.logo %}<img class="logo" src="{{ store.logo }}" alt="{{ store.name }}" />{% elseif lm == 'Mark' %}<div class="mark"></div>{% else %}<span class="ghost" role="img" aria-label="{{ store.name }}"></span>{% endif %}
       {% if (config('brand-text') ?: 'Show') == 'Show' %}<div class="brand-t">{{ config('brand-name') ?: 'NayZeee' }}<span class="brand-s">{{ config('brand-sub') ?: 'Development' }}</span></div>{% endif %}
     </a>
+    {% set tierCat = (config('tier-category-id') ?: '')|replace({' ': ''}) %}
+    {% set storeUrl = '' %}{% set tierUrl = '' %}
+    {% for cat in store.categories %}{% set cn = cat.name|lower %}{% set isT = (tierCat and (cat.id ~ '') == tierCat) or (not tierCat and ('subscri' in cn or 'membership' in cn or 'all access' in cn)) %}{% if isT %}{% if not tierUrl %}{% set tierUrl = '/category/' ~ cat.id %}{% endif %}{% elseif not storeUrl %}{% set storeUrl = '/category/' ~ cat.id %}{% endif %}{% endfor %}
+    {% set l1 = config('nav-link-1-url') ?: '' %}{% if l1 and l1|slice(0, 4) != 'http' and l1|slice(0, 1) != '/' and l1|slice(0, 1) != '#' %}{% set l1 = '/' ~ l1 %}{% endif %}
+    {% set l2 = config('nav-link-2-url') ?: '' %}{% if l2 and l2|slice(0, 4) != 'http' and l2|slice(0, 1) != '/' and l2|slice(0, 1) != '#' %}{% set l2 = '/' ~ l2 %}{% endif %}
+    {% set navStore = config('nav-store-url') ?: (storeUrl ?: '/') %}
     <nav class="links">
       <a class="lnk{% if seoTyp == 'home' %} on{% endif %}" href="/"><svg class="ic"><use href="#i-home"/></svg>{{ config('nav-home-label') ?: 'Home' }}</a>
+      {% if (config('nav-store-mode') ?: 'Link') == 'Dropdown' %}
       <div class="dd">
-        <a class="lnk{% if seoTyp == 'category' or seoTyp == 'package' %} on{% endif %}" href="{% if store.categories|length > 0 %}/category/{{ store.categories[0].id }}{% else %}/{% endif %}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Store' }} <svg class="ic" style="width:12px;height:12px;opacity:.5"><use href="#i-down"/></svg></a>
+        <a class="lnk{% if seoTyp == 'category' or seoTyp == 'package' %} on{% endif %}" href="{{ navStore }}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Store' }} <svg class="ic" style="width:12px;height:12px;opacity:.6"><use href="#i-down"/></svg></a>
         <div class="dd-m">
           {% for cat in store.categories %}
             <a class="dd-i" href="/category/{{ cat.id }}"><span class="ti"><svg class="ic"><use href="#i-{{ loop.index0 % 2 == 0 ? 'layers' : 'box' }}"/></svg></span>{{ cat.name }}<span class="tally">{{ cat.packages|length }}</span></a>
@@ -487,8 +494,12 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
           {% endfor %}
         </div>
       </div>
-      {% if config('nav-link-1-label') and config('nav-link-1-url') %}<a class="lnk" href="{{ config('nav-link-1-url') }}"><svg class="ic"><use href="#i-crown"/></svg>{{ config('nav-link-1-label') }}</a>{% endif %}
-      {% if config('nav-link-2-label') and config('nav-link-2-url') %}<a class="lnk" href="{{ config('nav-link-2-url') }}"><svg class="ic"><use href="#i-book"/></svg>{{ config('nav-link-2-label') }}</a>{% endif %}
+      {% else %}
+      <a class="lnk{% if (seoTyp == 'category' or seoTyp == 'package') and not (category is defined and category and tierUrl == '/category/' ~ category.id) %} on{% endif %}" href="{{ navStore }}"><svg class="ic"><use href="#i-grid"/></svg>{{ config('nav-store-label') ?: 'Store' }}</a>
+      {% endif %}
+      {% if config('nav-link-1-label') and l1 %}<a class="lnk{% if category is defined and category and l1 == '/category/' ~ category.id %} on{% endif %}" href="{{ l1 }}"><svg class="ic"><use href="#i-crown"/></svg>{{ config('nav-link-1-label') }}</a>{% endif %}
+      {% if config('nav-link-2-label') and l2 %}<a class="lnk" href="{{ l2 }}"><svg class="ic"><use href="#i-book"/></svg>{{ config('nav-link-2-label') }}</a>{% endif %}
+      {% if config('docs-url') and (config('nav-docs-toggle') ?: 'Show') != 'Hide' %}<a class="lnk" href="{{ config('docs-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-book"/></svg>{{ config('docs-label') ?: 'Docs' }}</a>{% endif %}
       {% if config('discord-url') %}<a class="lnk" href="{{ config('discord-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-discord"/></svg>{{ config('nav-support-label') ?: 'Support' }}</a>{% endif %}
     </nav>
     <div class="nav-r">
@@ -617,8 +628,9 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
   {% for cat in store.categories %}<a class="nav-i{% if category is defined and category and category.id == cat.id %} on{% endif %}" href="/category/{{ cat.id }}"><svg class="ic"><use href="#i-box"/></svg>{{ cat.name }}</a>{% endfor %}
   <div class="grp">{{ config('account-sub') ?: 'Account' }}</div>
   {% if loggedIn %}<a class="nav-i" href="/checkout/logout"><svg class="ic"><use href="#i-logout"/></svg>{{ config('logout-label') ?: 'Sign out' }}</a>{% else %}<a class="nav-i" href="/login"><svg class="ic"><use href="#i-user"/></svg>{{ config('login-label') ?: 'Sign in' }}</a>{% endif %}
-  {% if config('nav-link-1-label') and config('nav-link-1-url') %}<a class="nav-i" href="{{ config('nav-link-1-url') }}"><svg class="ic"><use href="#i-crown"/></svg>{{ config('nav-link-1-label') }}</a>{% endif %}
-  {% if config('nav-link-2-label') and config('nav-link-2-url') %}<a class="nav-i" href="{{ config('nav-link-2-url') }}"><svg class="ic"><use href="#i-book"/></svg>{{ config('nav-link-2-label') }}</a>{% endif %}
+  {% if config('nav-link-1-label') and l1 %}<a class="nav-i" href="{{ l1 }}"><svg class="ic"><use href="#i-crown"/></svg>{{ config('nav-link-1-label') }}</a>{% endif %}
+  {% if config('nav-link-2-label') and l2 %}<a class="nav-i" href="{{ l2 }}"><svg class="ic"><use href="#i-book"/></svg>{{ config('nav-link-2-label') }}</a>{% endif %}
+  {% if config('docs-url') and (config('nav-docs-toggle') ?: 'Show') != 'Hide' %}<a class="nav-i" href="{{ config('docs-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-book"/></svg>{{ config('docs-label') ?: 'Docs' }}</a>{% endif %}
   {% if config('discord-url') %}<a class="nav-i" href="{{ config('discord-url') }}"><svg class="ic"><use href="#i-discord"/></svg>{{ config('nav-support-label') ?: 'Support' }}</a>{% endif %}
 </aside>
 
