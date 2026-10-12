@@ -145,7 +145,7 @@
     btn.disabled = true; btn.innerHTML = '<svg class="ic"><use href="#i-refresh"/></svg>' + T.adding.replace('{i}', 1).replace('{n}', n);
     var finish = function () { try { sessionStorage.removeItem('nz_bundle_sel'); } catch (e) {} location.href = location.pathname + '?cart=open'; };
     var go = function () { if (cur && cur.code) fetch('/checkout/coupons/add', { method: 'POST', body: new URLSearchParams({ coupon: cur.code }), credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(finish); else finish(); };
-    if (window.nzAddMany) nzAddMany(ids, go); else { (function step(i) { if (i >= n) { go(); return; } fetch('/checkout/packages/add/' + ids[i], { credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { step(i + 1); }); })(0); }
+    if (window.nzAddMany) nzAddMany(ids, go, { code: cur && cur.code ? cur.code : '' }); else { (function step(i) { if (i >= n) { go(); return; } fetch('/checkout/packages/add/' + ids[i], { credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { step(i + 1); }); })(0); }
   }
   fillFromCatalog(function () {
   try { var saved = JSON.parse(sessionStorage.getItem('nz_bundle_sel') || '[]'); saved.forEach(function (id) { var el = $('#bbList .bi[data-id="' + id + '"]'); if (el) sel[id] = { name: el.dataset.name, price: parseFloat(el.dataset.price) || 0 }; }); if (LOGGED && sessionStorage.getItem('nz_bundle_go') === '1') { sessionStorage.removeItem('nz_bundle_go'); if (Object.keys(sel).length) setTimeout(function () { run(Object.keys(sel)); }, 400); } } catch (e) {}

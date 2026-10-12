@@ -104,9 +104,9 @@ input,select,textarea{font:inherit;color:inherit}
 .lnk.on::before{content:'';position:absolute;left:8px;right:8px;bottom:-15px;height:2px;background:var(--teal);border-radius:2px 2px 0 0;box-shadow:0 0 9px var(--teal)}
 .dd{position:relative}
 .dd::after{content:'';position:absolute;left:0;right:0;top:100%;height:14px}
-.dd-m{position:absolute;top:calc(100% + 10px);left:0;min-width:236px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-2);opacity:0;visibility:hidden;transform:translateY(-4px);transition:all var(--fast);z-index:5}
+.dd-m{position:absolute;top:calc(100% + 10px);left:0;z-index:70;pointer-events:none;min-width:236px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-2);opacity:0;visibility:hidden;transform:translateY(-4px);transition:all var(--fast);z-index:5}
 .dd-m.r{left:auto;right:0}
-.dd:hover .dd-m,.dd:focus-within .dd-m,.dd.open .dd-m{opacity:1;visibility:visible;transform:none}
+.dd:hover .dd-m,.dd:focus-within .dd-m,.dd.open .dd-m{opacity:1;visibility:visible;transform:none;pointer-events:auto}
 .dd-i{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-sm);font-size:12.5px;font-weight:300;color:var(--ink-2);width:100%;text-align:left;white-space:nowrap}
 .dd-i:hover{background:var(--raise);color:var(--white)}
 .dd-i .ti{width:28px;height:28px;border-radius:var(--r-xs);display:grid;place-items:center;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);flex:none}
@@ -802,11 +802,13 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
     if (btn) btn.classList.add('busy');
     fetch('/checkout/packages/remove/' + id, { credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { reconcile(function () { toast(T.removed); }); });
   }
-  window.nzAddMany = function (ids, done) {
+  var CART_IDS = [{% for p in basket.packages %}"{{ p.id }}",{% endfor %}], QKEY = 'nz_bundle_queue';
+  window.nzAddMany = function (ids, done, meta) {
     if (!LOGGED) { toast(T.login, T.loginSub, true); setTimeout(function () { location.href = '/login'; }, 500); return; }
-    var frame = $('#optFrame'), modal = $('#optW'), i = 0;
+    var frame = $('#optFrame'), modal = $('#optW'), i = 0, code = (meta && meta.code) || '';
     function next() {
-      if (i >= ids.length) { frame.onload = null; modal.classList.remove('on'); lock(false); setTimeout(function () { frame.src = 'about:blank'; }, 250); reconcile(function () { if (done) done(); }); return; }
+      if (i >= ids.length) { try { sessionStorage.removeItem(QKEY); } catch (e) {} frame.onload = null; modal.classList.remove('on'); lock(false); setTimeout(function () { frame.src = 'about:blank'; }, 250); reconcile(function () { if (done) done(); }); return; }
+      try { sessionStorage.setItem(QKEY, JSON.stringify({ ids: ids.slice(i), code: code })); } catch (e) {}
       frame.src = '/checkout/packages/add/' + ids[i++];
     }
     frame.onload = function () {
@@ -845,6 +847,17 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
     {% endif %}
   }
   if (window.Tebex) initTebex(); else window.addEventListener('load', initTebex);
+
+  /* a bundle interrupted by a Discord link or an options page picks up where it left off */
+  (function () {
+    var q = null; try { q = JSON.parse(sessionStorage.getItem(QKEY) || 'null'); } catch (e) {}
+    if (!q || !q.ids || !LOGGED) return;
+    var rest = q.ids.filter(function (id) { return CART_IDS.indexOf(String(id)) < 0; });
+    var finish = function () { try { sessionStorage.removeItem(QKEY); sessionStorage.removeItem('nz_bundle_sel'); } catch (e) {} var go = function () { location.href = location.pathname + '?cart=open'; }; if (q.code) fetch('/checkout/coupons/add', { method: 'POST', body: new URLSearchParams({ coupon: q.code }), credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(go); else go(); };
+    if (!rest.length) { if (/[?&]cart=open/.test(location.search)) { try { sessionStorage.removeItem(QKEY); } catch (e) {} return; } finish(); return; }
+    if (document.querySelector('#optW.on')) return;
+    setTimeout(function () { window.nzAddMany(rest, finish, { code: q.code }); }, 400);
+  })();
 
   /* wishlist (localStorage) */
   var WL_KEY = 'nz_wish';

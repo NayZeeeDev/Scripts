@@ -112,6 +112,9 @@
       {% endif %}
       <div class="note">{{ config('options-note') ?: 'Secured by Tebex' }}</div>
     </form>
+    {% if (config('options-auto') ?: 'On') != 'Off' %}
+    <script>(function () { var f = document.querySelector('form'); if (!f) return; var needs = f.querySelector('select[required], input[required]:not([type=hidden])'), dcLink = f.querySelector('a.btn.dc'), btn = f.querySelector('button[type=submit]'); if (needs || dcLink || !btn) return; btn.disabled = true; btn.textContent = nzS("{{ (config('options-auto-text') ?: 'Adding to cart…')|replace({'\\': '/', "\n": ' ', "\r": ''}) }}"); setTimeout(function () { btn.disabled = false; btn.click(); }, 350); })();</script>
+    {% endif %}
   </div>
 </body>
 </html>

@@ -91,10 +91,14 @@ CHANGELOG: v2.4.1 - New compass styles | v2.4.0 - Qbox support   → Changelog t
 Heartbeat (heartbeat.re) crawls FiveM servers and their resource lists, so **nothing has to be added to your scripts**. A script is counted by its resource folder name.
 
 1. Paste your key into `heartbeat-key` (tab 06 · Live usage).
-2. Add `HEARTBEAT: nayzeee-inventorylogs` (the resource name) to each package description, or set `heartbeat-resource-<packageId>`.
+2. Package pages match a Heartbeat resource to the package name automatically (the resource whose name shares the most words). To pin one, add `HEARTBEAT: nayzeee-inventorylogs` to the description or set `heartbeat-resource-<packageId>`.
 3. The package page shows "Servers using this script / Players enjoying this script". The homepage shows totals for every resource starting with `heartbeat-prefix` (default `nayzeee`).
 
 Numbers are fetched by the visitor's browser (Heartbeat allows CORS), use `?period=current` for live figures, and are cached for `heartbeat-refresh` seconds (default 5 min) to stay inside the free key's 60 requests/minute. Add `?hb=demo` to any URL to preview the cards with sample numbers. Rate-limit or network errors simply hide the card.
+
+## Discord-linked packages and bundles
+
+Tebex asks for a Discord link only on packages that deliver a Discord role. The link is remembered for the session, and `options-auto` lets the options step continue by itself once Discord is verified and nothing else is required. A bundle interrupted by that step keeps its queue in the browser and resumes on the next page, skipping scripts already in the cart. Packages without a Discord role action never prompt.
 
 ## Gifting
 

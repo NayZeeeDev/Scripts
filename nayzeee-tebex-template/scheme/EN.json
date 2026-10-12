@@ -3380,7 +3380,7 @@
           "name": "Heartbeat key",
           "type": "textarea",
           "default": "",
-          "description": "Your Heartbeat key (hb_live_…). Nothing to add to your scripts: Heartbeat crawls servers and counts your resource names. The key is visible in the page source like every template setting; free keys are rate-limited (60/min) and can be created by anyone, so that is fine. Leave empty to hide the cards."
+          "description": "Your Heartbeat key (hb_live_…). Nothing to add to your scripts: Heartbeat crawls servers and counts your resource names. Package pages match a resource by name automatically (or use HEARTBEAT: resource in the description to pin one). The key is visible in the page source like every template setting; free keys are rate-limited (60/min) and can be created by anyone, so that is fine. Leave empty to hide the cards."
         },
         {
           "id": "heartbeat-players-path",
@@ -4240,6 +4240,24 @@
           "type": "textarea",
           "default": "This gift card has been cancelled.",
           "description": "Text shown in the store. Leave empty to use the default: This gift card has been cancelled."
+        },
+        {
+          "id": "options-auto",
+          "name": "Options auto",
+          "type": "select",
+          "values": [
+            "On",
+            "Off"
+          ],
+          "default": "On",
+          "description": "When a package only needs an already-verified Discord account (no server pick, no variables), the options step continues by itself instead of asking for a click."
+        },
+        {
+          "id": "options-auto-text",
+          "name": "Options auto text",
+          "type": "textarea",
+          "default": "Adding to cart…",
+          "description": "Text shown in the store. Leave empty to use the default: Adding to cart…"
         },
         {
           "id": "options-continue-btn",

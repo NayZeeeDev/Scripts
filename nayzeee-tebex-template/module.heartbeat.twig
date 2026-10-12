@@ -65,7 +65,7 @@
     else if (C.key && /query/i.test(a) && url.indexOf('{key}') < 0 && url.indexOf('api_key=') < 0) url += (url.indexOf('?') > -1 ? '&' : '?') + 'api_key=' + encodeURIComponent(C.key);
     return fetch(url, { headers: h, mode: 'cors', credentials: 'omit' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (d) {
       // a list response (homepage totals): add up every resource that starts with the prefix
-      if (d && Array.isArray(d.data)) { var sum = { servers: 0, playerReach: 0, count: 0 }; d.data.forEach(function (x) { if (!C.prefix || String(x.name || '').toLowerCase().indexOf(C.prefix.toLowerCase()) === 0) { sum.servers += x.servers || 0; sum.playerReach += x.playerReach || 0; sum.count++; } }); d = { data: sum, list: true }; }
+      if (d && Array.isArray(d.data)) { var sum = { servers: 0, playerReach: 0, count: 0 }, names = []; d.data.forEach(function (x) { if (!C.prefix || String(x.name || '').toLowerCase().indexOf(C.prefix.toLowerCase()) === 0) { sum.servers += x.servers || 0; sum.playerReach += x.playerReach || 0; sum.count++; names.push(String(x.name || '')); } }); d = { data: sum, list: true, names: names }; }
       try { localStorage.setItem(ck, JSON.stringify({ t: now, d: d })); } catch (e) {}
       return d;
     });
@@ -90,7 +90,20 @@
     };
     tick(); setInterval(tick, Math.max(15, C.refresh) * 1000);
   }
-  window.nzHeartbeat = function (el, resource) { if (el && (resource || demo)) run(el, C.url, resource); };
+  /* no HEARTBEAT marker: pick the resource whose name shares the most words with the package name */
+  function matchName(name, names) {
+    var stop = { the: 1, and: 1, script: 1, scripts: 1, system: 1, pack: 1, for: 1, fivem: 1, esx: 1, qbcore: 1, qbox: 1 }, pre = (C.prefix || '').toLowerCase();
+    var toks = String(name || '').toLowerCase().replace(pre, ' ').split(/[^a-z0-9]+/).filter(function (t) { return t.length > 2 && !stop[t]; });
+    var best = '', bestScore = 0;
+    names.forEach(function (n) { var k = n.toLowerCase().replace(/[^a-z0-9]/g, ''), score = 0; toks.forEach(function (t) { if (k.indexOf(t) > -1) score += t.length; }); if (score > bestScore) { bestScore = score; best = n; } });
+    return best;
+  }
+  window.nzHeartbeat = function (el, resource, name) {
+    if (!el) return;
+    if (resource || demo) { run(el, C.url, resource); return; }
+    if (!name || !C.home || !C.key) return;
+    request(C.home, '').then(function (d) { var best = matchName(name, (d && d.names) || []); if (best) run(el, C.url, best); }).catch(function () {});
+  };
   window.nzHeartbeatHome = function (el, count) { if (el && (C.home || demo)) run(el, C.home, '', { count: count }); };
 })();
 </script>
