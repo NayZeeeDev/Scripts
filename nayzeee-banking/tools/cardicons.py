@@ -4,6 +4,9 @@ transparent background, 256 px. The face is drawn the same way the bank UI draws
 
     pip install numpy pillow
     python3 cardicons.py [out_dir]       # default: ../install/images
+    python3 cardicons.py --press out/ 2048
+                                         # thumbnails / print: every card in 3D at that size and
+                                         # flat front-on, transparent, cropped to the card
 
 Writes
     card_<item>.png              one per card type (the image set on the item itself)
@@ -191,9 +194,9 @@ def project(pts, R, size, dist=5.2, zoom=1.0):
     return np.stack([size / 2 + p[:, 0] * f / z, size / 2 - p[:, 1] * f / z], 1)
 
 
-def render(skin, badge, out=OUT):
+def render(skin, badge, out=OUT, ss=SS):
     tex = face(skin, badge)
-    size = out * SS
+    size = out * ss
     aspect = W / H
     hw, hh = 1.0, 1.0 / aspect
     thick = 0.03
@@ -241,6 +244,26 @@ def render(skin, badge, out=OUT):
     return canvas.resize((out, out), Image.LANCZOS)
 
 
+def cropped(img, pad=6):
+    box = img.getchannel('A').point(lambda a: 255 if a > 8 else 0).getbbox()
+    if not box:
+        return img
+    return img.crop((max(0, box[0] - pad), max(0, box[1] - pad),
+                     min(img.width, box[2] + pad), min(img.height, box[3] + pad)))
+
+
+def press(out, size):
+    """Every card, big and transparent: the 3D render, and the flat face front-on."""
+    os.makedirs(out, exist_ok=True)
+    for item, (badge, _) in TYPES.items():
+        for skin in SKINS:
+            name = f'{item}_{skin}'
+            # the face texture is ~1700 px wide; 2x supersampling is plenty at this size
+            cropped(render(skin, badge, size, ss=2), pad=12).save(os.path.join(out, f'{name}_3d.png'), optimize=True)
+            face(skin, badge).save(os.path.join(out, f'{name}_flat.png'), optimize=True)
+            print('press', name)
+
+
 def ui_image(skin, badge):
     """The same card for the bank UI: rendered larger and cropped tight, so it
     can sit in a list row or fill a preview without empty space around it."""
@@ -255,6 +278,8 @@ def ui_image(skin, badge):
 
 
 def main():
+    if len(sys.argv) > 2 and sys.argv[1] == '--press':
+        return press(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 2048)
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, '..', 'install', 'images')
     ui = os.path.join(HERE, '..', 'web', 'images', 'cards')
     os.makedirs(out, exist_ok=True)
