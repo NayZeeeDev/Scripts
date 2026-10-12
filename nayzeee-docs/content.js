@@ -14,7 +14,7 @@ window.DOCS = {
   site: {
     name: 'NAYZEEE DEV',
     tagline: 'Documentation',
-    logo: '',                                  // optional logo URL, replaces the mark
+    logo: 'logos/ghost.png',                   // your ghost; set '' for the chamfer mark
     store: 'https://www.nayzeeedev.com',
     discord: 'https://discord.gg/nayzeee',
     footer: '© 2026 NAYZEEE DEV · Not affiliated with Cfx.re',

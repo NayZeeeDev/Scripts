@@ -181,7 +181,9 @@
   };
   var BY_MONTH = ['newyear', 'valentine', 'stpatrick', 'easter', 'spring', 'summer', 'july4', 'summersale', 'autumn', 'halloween', 'thanksgiving', 'christmas'];
   var qs = new URLSearchParams(location.search);
-  var key = qs.get('holiday') && TH[qs.get('holiday')] ? qs.get('holiday') : (MODE === 'Auto' ? BY_MONTH[new Date().getMonth()] : (TH[MODE] ? MODE : null));
+  var qh = (qs.get('holiday') || '').toLowerCase();
+  if (qh === 'off' || qh === 'none') return;
+  var key = qh && TH[qh] ? qh : (MODE === 'Auto' ? BY_MONTH[new Date().getMonth()] : (TH[MODE] ? MODE : null));
   if (!key) return;
   var th = TH[key], cfg = CFG[key], root = document.documentElement, now = new Date();
   var label = cfg.label || th.label;

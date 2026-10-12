@@ -1,0 +1,53 @@
+{# ─── NAYZEEE · module.reviews.twig · "Write a review"
+   A modal that posts the review to a Discord webhook (config review-webhook) so you can approve it,
+   then paste it into the homepage review settings. No backend needed.
+   Settings: review-toggle, review-webhook, review-title, review-sub, review-thanks. ─── #}
+{% if (config('review-toggle') ?: 'Show') != 'Hide' and config('review-webhook') %}
+<style>
+  .rv-stars{display:flex;gap:4px}
+  .rv-stars button{width:32px;height:32px;display:grid;place-items:center;border-radius:var(--r-xs);color:var(--ink-3);border:1px solid var(--line-soft);background:var(--inset);transition:all var(--fast)}
+  .rv-stars button svg{width:16px;height:16px}
+  .rv-stars button.on{color:var(--amber);border-color:rgba(229,165,10,.4);background:rgba(229,165,10,.1)}
+  .rv-hp{position:absolute;left:-9999px;opacity:0}
+</style>
+<div class="modal-w" id="reviewW">
+  <div class="modal">
+    <div class="m-head"><div><b>{{ config('review-title') ?: 'Write a review' }}</b><span>{{ config('review-sub') ?: 'Reviews are checked by a human before they go live' }}</span></div><button class="pill-close" data-close>{{ config('close-label') ?: 'Close' }}</button></div>
+    <form id="reviewForm" autocomplete="off">
+      <div class="m-body">
+        <div class="field"><label>{{ config('review-name-label') ?: 'Your name or server' }}</label><input class="inp" name="who" required maxlength="60" placeholder="{{ config('review-name-ph') ?: 'e.g. Theo · Nova City RP' }}"{% if loggedIn %} value="{{ basket.ign }}"{% endif %}></div>
+        <div class="field"><label>{{ config('review-script-label') ?: 'Which script?' }}</label>
+          <select class="inp" name="pkg" id="rvPkg">{% for cat in store.categories %}{% for p in cat.packages %}<option value="{{ p.name }}"{% if package is defined and package and package.id == p.id %} selected{% endif %}>{{ p.name }}</option>{% endfor %}{% endfor %}</select>
+        </div>
+        <div class="field"><label>{{ config('review-rating-label') ?: 'Rating' }}</label><div class="rv-stars" id="rvStars">{% for i in 1..5 %}<button type="button" data-v="{{ i }}" class="{% if i <= 5 %}on{% endif %}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 6 6.5.7-4.9 4.4 1.4 6.4L12 17l-5.8 3.3 1.4-6.4L2.7 9.5l6.5-.7z"/></svg></button>{% endfor %}</div><input type="hidden" name="rating" value="5"></div>
+        <div class="field"><label>{{ config('review-text-label') ?: 'Your review' }}</label><textarea class="inp" name="text" required minlength="20" maxlength="600" placeholder="{{ config('review-text-ph') ?: 'What did it fix for your server? How was support?' }}"></textarea></div>
+        <input class="rv-hp" name="website" tabindex="-1" autocomplete="off">
+        <div style="font-size:10.5px;color:var(--ink-3);font-weight:300">{{ config('review-note') ?: 'Only verified buyers are published. We may shorten long reviews.' }}</div>
+      </div>
+      <div class="m-foot"><button class="btn-line" type="button" data-close>{{ config('cancel-label') ?: 'Cancel' }}</button><button class="btn-teal" type="submit" id="rvSend"><svg class="ic" style="width:14px;height:14px"><use href="#i-check"/></svg>{{ config('review-submit') ?: 'Send review' }}</button></div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var HOOK = {{ config('review-webhook')|json_encode|raw }}, STORE = {{ store.name|json_encode|raw }};
+  var T = { thanks: {{ (config('review-thanks') ?: 'Thanks! Your review is on its way to the team.')|json_encode|raw }}, fail: {{ (config('review-fail') ?: 'Could not send right now. Try again in a minute or ping us on Discord.')|json_encode|raw }}, wait: {{ (config('review-wait') ?: 'You already sent a review a moment ago.')|json_encode|raw }} };
+  $$('#rvStars button').forEach(function (b) { b.addEventListener('click', function () { var v = +b.dataset.v; $('#reviewForm [name=rating]').value = v; $$('#rvStars button').forEach(function (x) { x.classList.toggle('on', +x.dataset.v <= v); }); }); });
+  document.addEventListener('click', function (e) { if (e.target.closest('[data-review]')) { var sel = $('#rvPkg'), want = e.target.closest('[data-review]').getAttribute('data-review'); if (sel && want) { Array.prototype.forEach.call(sel.options, function (o) { if (o.value === want) sel.value = want; }); } if (window.nzOpenModal) window.nzOpenModal('reviewW'); } });
+  $('#reviewForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = e.target, d = Object.fromEntries(new FormData(f).entries());
+    if (d.website) return;
+    try { var last = +localStorage.getItem('nz_review_at') || 0; if (Date.now() - last < 60000) { window.nzToast(T.wait, '', true); return; } } catch (x) {}
+    var stars = '★★★★★'.slice(0, +d.rating) + '☆☆☆☆☆'.slice(+d.rating);
+    var payload = { username: STORE + ' reviews', embeds: [{ title: stars + ' · ' + d.pkg, description: d.text.slice(0, 600), color: 571298, fields: [{ name: 'From', value: d.who.slice(0, 60), inline: true }, { name: 'Page', value: location.href.slice(0, 200), inline: true }], footer: { text: 'Paste into Settings → 04 Reviews to publish' }, timestamp: new Date().toISOString() }] };
+    var btn = $('#rvSend'); btn.disabled = true;
+    fetch(HOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function (r) {
+      if (!r.ok) throw 0; try { localStorage.setItem('nz_review_at', String(Date.now())); } catch (x) {}
+      f.reset(); if (window.nzCloseAll) window.nzCloseAll(); window.nzToast(T.thanks);
+    }).catch(function () { window.nzToast(T.fail, '', true); }).then(function () { btn.disabled = false; });
+  });
+})();
+</script>
+{% endif %}

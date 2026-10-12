@@ -1,42 +1,49 @@
 # NAYZEEE Tebex Template
 
-A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layered surfaces, one accent, red Close pill). Same file set as the Carbide bundle, so it drops into Tebex the same way.
+A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layered surfaces, one accent, red Close pill). Same file set as the Carbide bundle, so it drops into Tebex the same way. The NayZeee ghost logo and lightning banner are built in.
 
 ## Files
 
 | File | What it is |
 | --- | --- |
-| `layout.html` | Shared shell: head/SEO, nav, cart drawer, gift modal, options modal, search, wishlist, footer, Tebex.js checkout, all shared CSS/JS |
-| `index.html` | Homepage: hero + latest release card, stats, featured, categories, why us, Discord, reviews, payments, compatibility marquee, FAQ |
+| `layout.html` | Shared shell: head/SEO, nav, cart drawer, gift modal, options modal, search, wishlist, review modal, footer, Tebex.js checkout, all shared CSS/JS, framework logos |
+| `index.html` | Homepage: hero + latest release card, stats, sale countdown, holiday event, trusted-by, featured, bundle builder, categories, why us, updates feed, Discord, reviews, payments, compatibility marquee, FAQ |
 | `category.html` | Category page with filter + sort |
-| `category/tiered.html` | Subscription tiers (Tebex "tiered" category) |
-| `package.html` | Package page: gallery, buy box, add to cart, buy now, gift, wishlist, share, tabs, related |
+| `category/tiered.html` | Subscription page: hero with monthly/yearly switch, plan cards, comparison table, included scripts, FAQ |
+| `package.html` | Package page: gallery, buy box, logo chips, version, rating, add to cart, buy now, gift, wishlist, share, review, tabs (Description, Preview, Dependencies, Changelog, Terms), related, sticky buy bar |
 | `checkout.html` | Basket page (`/checkout/basket`) |
 | `username.html` | Login page (auto-redirects to Cfx.re when Tebex gives an external login URL) |
 | `options.html` | Package options (server pick, variables, custom price, Discord link). Opens inside a modal |
 | `cms-page.html` | Custom pages you create in Tebex |
 | `module.featuredpackage.html` | The package card. Tebex Featured Package modules use it, and every grid in the store includes it |
-| `module.payments.html` | Recent payments marquee (Tebex module) |
+| `module.payments.html` | Recent payments marquee (Tebex module), also feeds the purchase toasts |
 | `module.giftcardbalance.html` | Gift card balance checker (Tebex module) |
 | `module.wishlist.twig` | Wishlist modal (saved in the visitor's browser) |
 | `module.volume-discount.twig` | "Spend X more for Y% off" bar in the cart |
-| `module.holiday.twig` | Seasonal themes, switch automatically each month |
-| `scheme/EN.json` | Every setting shown in Tebex → Webstore → Templates → Settings |
+| `module.holiday.twig` | Seasonal themes, scenes, countdowns and daily gift events |
+| `module.sale.twig` | Store-wide discount banner with countdown |
+| `module.bundle.twig` | Build-your-own-bundle section |
+| `module.reviews.twig` | Write-a-review modal that posts to a Discord webhook |
+| `scheme/EN.json` `DE.json` `FR.json` `NL.json` | Every setting shown in Tebex → Webstore → Templates → Settings, in four languages |
 
 ## Install
 
 1. Zip the contents of this folder (the files, not the folder itself) and upload it in Tebex → Webstore → Templates → Upload.
-2. Upload your logo in Tebex → Webstore → Settings. The template picks it up automatically.
-3. Open the template settings and fill tab 01 to 04. Everything has a default, so the store works before you touch anything.
+2. Open the template settings and fill tabs 01 to 04. Everything has a default, so the store works before you touch anything.
+3. Logo: the ghost is built in (`logo-mode` Ghost). Switch to Logo to use the one uploaded in Tebex, or Mark for the chamfer mark.
 
 ## Settings worth knowing
 
 - **Accent colours** (01): `accent-colour`, `accent-hi-colour`, `accent-lo-colour` and `accent-rgb`. Keep all four in sync when you change the accent.
-- **Latest release card** (03): set `release-package-id` to a package ID and the hero shows a changelog card for it. Set `hero-image` instead to show an image.
-- **Reviews, FAQ, Why us** (04): plain text fields. Leave a review text or FAQ question empty to hide it.
-- **Seasonal themes** (05): `holiday-mode` Auto switches on the 1st of each month. Jan New Year, Feb Valentine's, Mar St. Patrick's, Apr Easter, May Spring, Jun Summer, Jul 4th of July, Aug Summer sale, Sep Autumn, Oct Halloween, Nov Thanksgiving, Dec Christmas. `holiday-recolor` Off keeps your accent and only adds particles and the badge.
-- **Tiered category**: set `tier-featured-id` to highlight a plan.
-- **Volume discount** (08): turn on, then set `volume-tier-1-at` (subtotal), `-pct` (percent) and `-code` (a coupon you created in Tebex). The bar in the cart applies the code with one click.
+- **Hero** (03): `release-package-id` shows a full-thumbnail "Latest release" card. `hero-video` shows a YouTube showcase instead. `hero-bg` replaces the built-in banner behind the hero, `hero-bg-opacity` tunes it.
+- **Sale countdown** (03): `sale-toggle` Show, then `sale-end`, `sale-code`, `sale-text`. Optional `sale-start` counts down to the start first.
+- **Bundle builder** (04): set `bundle-tier-1-count` / `-pct` / `-code` (and tiers 2, 3). Create each code as a Tebex coupon with a minimum package count. Exclude your subscription category with `bundle-exclude-cats`.
+- **Reviews** (04): paste a Discord webhook into `review-webhook`. Visitors get a Write a review button on the homepage and every package page. Reviews land in your channel; publish the good ones by pasting them into `review-1..3-*`.
+- **Updates feed, trusted-by, Discord live count** (04 / 02): `update-1..6-*`, `trusted-logos` or `trusted-names`, `discord-guild-id` (enable the widget in Discord).
+- **Seasonal themes** (05): `holiday-mode` Auto switches on the 1st of each month. Each theme has its own scene, particles, nav countdown and homepage event panel. Fill `event-<theme>-days` for the daily gift calendar. Preview with `?holiday=christmas` in the URL, `?holiday=off` to preview without a theme.
+- **Tags** (06): `bestseller-ids` and `new-ids` are comma-separated package IDs. Descriptions can also carry `TAGS: Best seller` or `TAGS: New`.
+- **Subscription page** (06): `tier-featured-id` highlights a plan. `tier-yearly-map` (`monthlyId:yearlyId,…`) enables the Monthly / Yearly switch. `tier-compare-rows` builds the comparison table. `tier-faq-1..4-*` for the FAQ.
+- **Volume discount** (08): turn on, then `volume-tier-1-at`, `-pct`, `-code`.
 
 ## Package description markers
 
@@ -44,42 +51,30 @@ Put these on their own lines at the end of a package description in Tebex. They 
 
 ```
 FRAMEWORKS: ESX, QBCore, Qbox          → logo chips (ESX, QBCore, QBox, ox, Standalone are recognised)
-VERSION: 2.4.1                         → clean version tag on the card and next to the title
+VERSION: 2.4.1                         → version tag on the card and next to the title
 RATING: 4.9 (124)                      → stars + review count
-TAGS: New, Lifetime updates            → badges ("Best seller" here also triggers the gold tag)
+TAGS: New, Lifetime updates            → badges (New = teal NEW pill, Best seller = gold pill)
 IMAGES: https://cdn/1.png, https://cdn/2.png   → gallery thumbnails
 VIDEO: https://www.youtube.com/watch?v=XXXX    → Preview tab + gallery thumb
 DEPENDENCIES: ox_lib https://github.com/overextended/ox_lib, ox_target   → Dependencies tab (URL optional)
 CHANGELOG: v2.4.1 - New compass styles | v2.4.0 - Qbox support   → Changelog tab, entries separated by |
 ```
 
-**Best seller tag.** Gold gradient pill with a flame icon, top-left of the card and in the package header. Set `bestseller-ids` in settings (comma-separated package IDs) or add `Best seller` to a package's TAGS.
-
-## Seasonal themes and events
-
-`holiday-mode` Auto switches on the 1st of each month. Every theme recolours the accent, adds a background scene (moon and fog for Halloween, string lights and snow caps for Christmas, fireworks for New Year and 4th of July, sun for summer) and particles, and shows a badge in the nav with a live countdown to the holiday.
-
-The homepage gets an **event panel** with the countdown and a **daily gift calendar**. Fill `event-<theme>-days` with one entry per day, `Title;CODE;packageId`, separated by `|`. The last entry lands on the holiday, so 24 entries for Christmas gives you a 1 to 24 December advent calendar. Codes are coupons you create in Tebex. Visitors see locked doors for future days, today's gift with a copy button, and can reopen past days.
-
-Preview any theme by adding `?holiday=christmas` (or newyear, valentine, stpatrick, easter, spring, summer, july4, summersale, autumn, halloween, thanksgiving) to the store URL.
-
-## Also on the homepage
-
-- `hero-video`: YouTube showcase in the hero instead of the release card.
-- `trusted-logos` / `trusted-names`: a "Trusted by" row of servers.
-- `update-1..6-*`: a Latest updates feed with version tags.
-
 ## Gifting
 
-The package page has a Send as gift button. It opens a modal that POSTs the recipient username to Tebex's gift endpoint (`/checkout/packages/add/{id}/gift`). Carbide fetched `…/single/gift?username=` with a GET, which does not add the gift to the basket. If a package has gifting disabled in Tebex, the button is hidden. Gifted items show "Gift to NAME" in the cart.
+The package page has a Send as gift button. It opens a modal that POSTs the recipient username to Tebex's gift endpoint (`/checkout/packages/add/{id}/gift`). If a package has gifting disabled in Tebex, the button is hidden. Gifted items show "Gift to NAME" in the cart.
 
 ## How the cart works
 
 - Add to cart loads Tebex's add route in a hidden iframe. If the package needs options (server, variables, Discord), the options page appears in a modal. Otherwise the drawer refreshes and opens.
-- Not signed in: the visitor goes to `/login` (Cfx.re), then the add is replayed automatically.
+- Not signed in: the visitor goes to `/login` (Cfx.re), then the add is replayed automatically. The bundle builder remembers the selection the same way.
 - Checkout opens Tebex.js hosted checkout, with `/checkout/basket` as the fallback.
 - Coupons, gift cards and creator codes post to the standard Tebex routes.
 
-## Demo
+## Languages
 
-`../nayzeee-store/index.html` is a static single-file demo of the same design with placeholder products. The template folder is the real thing.
+`scheme/DE.json`, `FR.json` and `NL.json` translate the settings dashboard: tab names, the quick-start note and the descriptions of the settings you touch most. Field names stay English because they match the keys. Descriptions without a translation show the English text.
+
+## Docs site
+
+`../nayzeee-docs` is a static documentation site in the same style. Edit `content.js` (Markdown), host the folder anywhere.

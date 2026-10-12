@@ -1,0 +1,136 @@
+{# ─── NAYZEEE · module.bundle.twig · "Build your bundle"
+   Pick scripts, see the discount tier unlock, add them all to the cart with the coupon applied.
+   Settings: bundle-toggle, bundle-title, bundle-sub, bundle-tier-1..3-count / -pct / -code,
+             bundle-exclude-cats (category IDs to leave out, e.g. subscriptions), bundle-max (default 10).
+   The codes are coupons you create in Tebex (e.g. "15% off, minimum 3 packages"). ─── #}
+{% if (config('bundle-toggle') ?: 'Show') != 'Hide' and config('bundle-tier-1-count') %}
+{% set bx = (config('bundle-exclude-cats') ?: '')|replace({' ': ''})|split(',') %}
+<style>
+  .bb{display:grid;grid-template-columns:1.25fr .75fr;gap:0;overflow:hidden}
+  .bb-l{padding:18px;border-right:1px solid var(--line-hair)}
+  .bb-tools{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .bb-tools .inp{height:32px;width:220px}
+  .bb-tools .segc{margin-left:auto}
+  .bb-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-height:420px;overflow-y:auto;padding-right:4px}
+  .bb-list::-webkit-scrollbar{width:8px}.bb-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--panel)}
+  .bi{display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);cursor:pointer;transition:all var(--fast);user-select:none}
+  .bi:hover{border-color:var(--line)}
+  .bi.on{border-color:var(--teal-edge);background:var(--teal-wash)}
+  .bi.hid{display:none}
+  .bi .art{width:44px;aspect-ratio:1;border-radius:var(--r-xs);border:1px solid var(--line-soft);flex:none}
+  .bi .art .big{width:18px;height:18px}
+  .bi-t{flex:1;min-width:0}
+  .bi-t b{display:block;font-size:12.5px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bi-t span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300}
+  .bi .pr{font-size:12.5px;font-weight:600;color:var(--white);white-space:nowrap}
+  .bi .cb{width:18px;height:18px;flex:none;border-radius:4px;border:1px solid var(--line);background:var(--inset);display:grid;place-items:center;transition:all var(--fast)}
+  .bi .cb .ic{width:12px;height:12px;stroke-width:3;color:var(--on-teal);opacity:0}
+  .bi.on .cb{background:var(--teal);border-color:var(--teal)}.bi.on .cb .ic{opacity:1}
+  .bb-r{padding:18px;display:flex;flex-direction:column;gap:12px;background:linear-gradient(180deg,var(--panel),var(--inset))}
+  .bb-tiers{display:flex;flex-direction:column;gap:6px}
+  .bt{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-hair);font-size:12px;color:var(--ink-2);font-weight:300;transition:all var(--fast)}
+  .bt i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:600;background:var(--raise);border:1px solid var(--line);color:var(--ink-3)}
+  .bt b{margin-left:auto;font-weight:600;color:var(--ink-3)}
+  .bt.on{border-color:var(--teal-edge);background:var(--teal-wash);color:var(--white)}
+  .bt.on i{background:var(--teal);border-color:var(--teal);color:var(--on-teal)}
+  .bt.on b{color:var(--teal)}
+  .bb-bar{height:5px;border-radius:99px;background:var(--raise);overflow:hidden}
+  .bb-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));box-shadow:0 0 10px var(--teal);transition:width var(--slow)}
+  .bb-next{font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.5}
+  .bb-next b{color:var(--white);font-weight:500}
+  .bb-sum{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-2);font-weight:300;padding-top:10px;border-top:1px solid var(--line-hair)}
+  .bb-sum div{display:flex;justify-content:space-between}
+  .bb-sum .disc-l{color:var(--teal)}
+  .bb-sum .tot{padding-top:8px;margin-top:3px;border-top:1px solid var(--line-hair);font-size:16px;color:var(--white);font-weight:600}
+  .bb-sel{display:flex;flex-wrap:wrap;gap:6px;min-height:26px}
+  .bb-sel span{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:var(--r-xs);background:var(--raise);border:1px solid var(--line-soft);font-size:11px;color:var(--ink-2)}
+  .bb-sel span button{display:grid;place-items:center;color:var(--ink-3)}.bb-sel span button:hover{color:var(--red)}
+  .bb-sel span button .ic{width:11px;height:11px}
+  .bb-sel em{font-style:normal;font-size:11.5px;color:var(--ink-3);font-weight:300}
+  @media (max-width:860px){.bb{grid-template-columns:1fr}.bb-l{border-right:0;border-bottom:1px solid var(--line-hair)}.bb-list{grid-template-columns:1fr;max-height:320px}}
+</style>
+<section class="section wrap" id="bundle">
+  <div class="sec-h"><div><div class="kick">{{ config('bundle-kicker') ?: 'Bundle & save' }}</div><h2>{{ config('bundle-title') ?: 'Build your own bundle' }}</h2><p>{{ config('bundle-sub') ?: 'Pick the scripts you want. The more you add, the bigger the discount, applied automatically at checkout.' }}</p></div></div>
+  <div class="panel bb">
+    <div class="bb-l">
+      <div class="bb-tools">
+        <div class="inp-wrap"><svg class="ic"><use href="#i-search"/></svg><input class="inp" id="bbQ" placeholder="{{ config('bundle-search') ?: 'Find a script…' }}"></div>
+        <div class="segc" id="bbCats"><button class="on" data-c="">{{ config('bundle-all') ?: 'All' }}</button>{% for cat in store.categories %}{% if (cat.id ~ '') not in bx and cat.packages|length > 0 %}<button data-c="{{ cat.id }}">{{ cat.name }}</button>{% endif %}{% endfor %}</div>
+      </div>
+      <div class="bb-list" id="bbList">
+        {% for cat in store.categories %}{% if (cat.id ~ '') not in bx %}{% for p in cat.packages %}{% if p.price > 0 %}
+        <div class="bi" data-id="{{ p.id }}" data-cat="{{ cat.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}">
+          <span class="cb"><svg class="ic"><use href="#i-check"/></svg></span>
+          <div class="art">{% if p.image.url %}<img src="{{ p.image.url }}" alt="" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div>
+          <div class="bi-t"><b>{{ p.name }}</b><span>{{ cat.name }}</span></div>
+          <span class="pr">{{ csym }}{{ p.price|number_format(2) }}</span>
+        </div>
+        {% endif %}{% endfor %}{% endif %}{% endfor %}
+      </div>
+    </div>
+    <div class="bb-r">
+      <div class="bb-tiers" id="bbTiers">
+        {% for i in 1..3 %}{% if config('bundle-tier-' ~ i ~ '-count') %}
+        <div class="bt" data-count="{{ config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) }}" data-pct="{{ config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) }}" data-code="{{ config('bundle-tier-' ~ i ~ '-code')|replace({' ': ''}) }}"><i>{{ config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) }}</i>{{ config('bundle-tier-label')|replace({'{n}': config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''})}) ?: (config('bundle-tier-' ~ i ~ '-count')|replace({' ': ''}) ~ ' ' ~ (config('bundle-scripts-word') ?: 'scripts')) }}<b>-{{ config('bundle-tier-' ~ i ~ '-pct')|replace({' ': '', '%': ''}) }}%</b></div>
+        {% endif %}{% endfor %}
+      </div>
+      <div class="bb-bar"><i id="bbBar"></i></div>
+      <div class="bb-next" id="bbNext"></div>
+      <div class="bb-sel" id="bbSel"><em>{{ config('bundle-empty') ?: 'Nothing picked yet. Tap a script on the left.' }}</em></div>
+      <div class="bb-sum">
+        <div><span>{{ config('cart-subtotal-label') ?: 'Subtotal' }}</span><span id="bbSub">{{ csym }}0.00</span></div>
+        <div class="disc-l"><span id="bbDiscL">{{ config('cart-discount-label') ?: 'Discount' }}</span><span id="bbDisc">−{{ csym }}0.00</span></div>
+        <div class="tot"><span>{{ config('cart-total-label') ?: 'Total' }}</span><span id="bbTot">{{ csym }}0.00</span></div>
+      </div>
+      <button class="btn-teal btn-lg btn-full" id="bbAdd" disabled><svg class="ic"><use href="#i-cart"/></svg>{{ config('bundle-add') ?: 'Add bundle to cart' }}</button>
+      <div style="font-size:10.5px;color:var(--ink-3);font-weight:300;text-align:center">{{ config('bundle-note') ?: 'The coupon is applied for you. Scripts that need options open one by one.' }}</div>
+    </div>
+  </div>
+</section>
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var CS = {{ csym|json_encode|raw }}, MAX = parseInt({{ (config('bundle-max') ?: '10')|json_encode|raw }}, 10) || 10, LOGGED = {{ loggedIn ? 'true' : 'false' }};
+  var T = { next: {{ (config('bundle-next') ?: 'Add {n} more for {pct}% off')|json_encode|raw }}, top: {{ (config('bundle-top') ?: 'Top discount unlocked: {pct}% off')|json_encode|raw }}, max: {{ (config('bundle-max-text') ?: 'Bundle is full')|json_encode|raw }}, adding: {{ (config('bundle-adding') ?: 'Adding {i} / {n}…')|json_encode|raw }}, none: {{ (config('bundle-none') ?: 'Pick at least one script')|json_encode|raw }} };
+  var tiers = $$('#bbTiers .bt').map(function (t) { return { n: parseInt(t.dataset.count, 10) || 0, pct: parseFloat(t.dataset.pct) || 0, code: t.dataset.code || '', el: t }; }).filter(function (t) { return t.n > 0; }).sort(function (a, b) { return a.n - b.n; });
+  var sel = {};
+  function fmt(n) { return CS + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function update() {
+    var ids = Object.keys(sel), n = ids.length, sub = ids.reduce(function (s, id) { return s + sel[id].price; }, 0);
+    var cur = null, next = null; tiers.forEach(function (t) { if (n >= t.n) cur = t; else if (!next) next = t; });
+    tiers.forEach(function (t) { t.el.classList.toggle('on', n >= t.n); });
+    var pct = cur ? cur.pct : 0, disc = sub * pct / 100;
+    $('#bbSub').textContent = fmt(sub); $('#bbDisc').textContent = '−' + fmt(disc); $('#bbTot').textContent = fmt(sub - disc);
+    $('#bbDiscL').textContent = ({{ (config('cart-discount-label') ?: 'Discount')|json_encode|raw }}) + (cur ? ' · ' + cur.pct + '%' : '');
+    var top = tiers.length ? tiers[tiers.length - 1].n : 1;
+    $('#bbBar').style.width = Math.min(100, n / top * 100) + '%';
+    $('#bbNext').innerHTML = next ? T.next.replace('{n}', '<b>' + (next.n - n) + '</b>').replace('{pct}', '<b>' + next.pct + '</b>') : (cur ? T.top.replace('{pct}', '<b>' + cur.pct + '</b>') : '');
+    $('#bbSel').innerHTML = n ? ids.map(function (id) { return '<span>' + sel[id].name.replace(/[<>]/g, '') + '<button type="button" data-rm="' + id + '"><svg class="ic"><use href="#i-x"/></svg></button></span>'; }).join('') : '<em>' + {{ (config('bundle-empty') ?: 'Nothing picked yet. Tap a script on the left.')|json_encode|raw }} + '</em>';
+    $('#bbAdd').disabled = !n;
+    $$('#bbList .bi').forEach(function (b) { b.classList.toggle('on', !!sel[b.dataset.id]); });
+    try { sessionStorage.setItem('nz_bundle_sel', JSON.stringify(ids)); } catch (e) {}
+  }
+  function toggle(id, el) { if (sel[id]) delete sel[id]; else { if (Object.keys(sel).length >= MAX) { if (window.nzToast) window.nzToast(T.max); return; } sel[id] = { name: el.dataset.name, price: parseFloat(el.dataset.price) || 0 }; } update(); }
+  $('#bbList').addEventListener('click', function (e) { var b = e.target.closest('.bi'); if (b) toggle(b.dataset.id, b); });
+  $('#bbSel').addEventListener('click', function (e) { var r = e.target.closest('[data-rm]'); if (r) { delete sel[r.dataset.rm]; update(); } });
+  $('#bbQ').addEventListener('input', filter); $('#bbCats').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; $$('#bbCats button').forEach(function (x) { x.classList.toggle('on', x === b); }); filter(); });
+  function filter() { var q = $('#bbQ').value.trim().toLowerCase(), c = ($('#bbCats .on') || {}).dataset ? $('#bbCats .on').dataset.c : ''; $$('#bbList .bi').forEach(function (b) { b.classList.toggle('hid', (q && b.dataset.name.toLowerCase().indexOf(q) < 0) || (c && b.dataset.cat !== c)); }); }
+  $('#bbAdd').addEventListener('click', function () {
+    var ids = Object.keys(sel); if (!ids.length) { if (window.nzToast) window.nzToast(T.none); return; }
+    if (!LOGGED) { try { sessionStorage.setItem('nz_bundle_go', '1'); } catch (e) {} location.href = '/login'; return; }
+    run(ids);
+  });
+  function run(ids) {
+    var btn = $('#bbAdd'), i = 0, n = ids.length, cur = null; tiers.forEach(function (t) { if (n >= t.n) cur = t; });
+    btn.disabled = true;
+    (function step() {
+      if (i >= n) { var done = function () { location.href = location.pathname + '?cart=open'; }; if (cur && cur.code) fetch('/checkout/coupons/add', { method: 'POST', body: new URLSearchParams({ coupon: cur.code }), credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(done); else done(); return; }
+      btn.innerHTML = '<svg class="ic"><use href="#i-refresh"/></svg>' + T.adding.replace('{i}', i + 1).replace('{n}', n);
+      fetch('/checkout/packages/add/' + ids[i], { credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { i++; step(); });
+    })();
+  }
+  try { var saved = JSON.parse(sessionStorage.getItem('nz_bundle_sel') || '[]'); saved.forEach(function (id) { var el = $('#bbList .bi[data-id="' + id + '"]'); if (el) sel[id] = { name: el.dataset.name, price: parseFloat(el.dataset.price) || 0 }; }); if (LOGGED && sessionStorage.getItem('nz_bundle_go') === '1') { sessionStorage.removeItem('nz_bundle_go'); if (Object.keys(sel).length) setTimeout(function () { run(Object.keys(sel)); }, 400); } } catch (e) {}
+  update();
+})();
+</script>
+{% endif %}
