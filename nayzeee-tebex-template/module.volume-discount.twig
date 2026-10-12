@@ -1,0 +1,68 @@
+{# ─── NAYZEEE · module.volume-discount.twig
+   "Spend X more for Y% off" bar in the cart. Same settings as Carbide:
+   volume-discount-enabled, volume-tier-1..3-pct / -at / -code, volume-spend-text, volume-maxed-text. ─── #}
+{% set vd_an = (config('volume-discount-enabled') ?: 'Off') == 'On' %}
+{% if vd_an and basket.packages|length > 0 %}
+  {% set vd_ziffer = {'0':1,'1':1,'2':1,'3':1,'4':1,'5':1,'6':1,'7':1,'8':1,'9':1} %}
+  {% set vd_r = (config('volume-tier-1-pct') ?: '0')|replace({' ':'', ',':'.'}) %}{% set vd_p1 = (vd_ziffer[vd_r|slice(0,1)] ?? 0) ? vd_r + 0 : 0 %}
+  {% set vd_r = (config('volume-tier-1-at') ?: '0')|replace({' ':'', ',':'.'}) %}{% set vd_a1 = (vd_ziffer[vd_r|slice(0,1)] ?? 0) ? vd_r + 0 : 0 %}
+  {% set vd_r = (config('volume-tier-2-pct') ?: '0')|replace({' ':'', ',':'.'}) %}{% set vd_p2 = (vd_ziffer[vd_r|slice(0,1)] ?? 0) ? vd_r + 0 : 0 %}
+  {% set vd_r = (config('volume-tier-2-at') ?: '0')|replace({' ':'', ',':'.'}) %}{% set vd_a2 = (vd_ziffer[vd_r|slice(0,1)] ?? 0) ? vd_r + 0 : 0 %}
+  {% set vd_r = (config('volume-tier-3-pct') ?: '0')|replace({' ':'', ',':'.'}) %}{% set vd_p3 = (vd_ziffer[vd_r|slice(0,1)] ?? 0) ? vd_r + 0 : 0 %}
+  {% set vd_r = (config('volume-tier-3-at') ?: '0')|replace({' ':'', ',':'.'}) %}{% set vd_a3 = (vd_ziffer[vd_r|slice(0,1)] ?? 0) ? vd_r + 0 : 0 %}
+  {% set vd_cap = 0 %}
+  {% if vd_a1 > vd_cap %}{% set vd_cap = vd_a1 %}{% endif %}{% if vd_a2 > vd_cap %}{% set vd_cap = vd_a2 %}{% endif %}{% if vd_a3 > vd_cap %}{% set vd_cap = vd_a3 %}{% endif %}
+  {% if vd_cap > 0 %}
+    {% set vd_sub = (basket.price + basket.discount) + 0 %}
+    {% set vd_sym = csym is defined ? csym : basket.currency %}
+    {% set vd_cur = 0 %}{% set vd_code = '' %}
+    {% if vd_a1 > 0 and vd_sub >= vd_a1 %}{% set vd_cur = vd_p1 %}{% set vd_code = config('volume-tier-1-code') %}{% endif %}
+    {% if vd_a2 > 0 and vd_sub >= vd_a2 %}{% set vd_cur = vd_p2 %}{% set vd_code = config('volume-tier-2-code') %}{% endif %}
+    {% if vd_a3 > 0 and vd_sub >= vd_a3 %}{% set vd_cur = vd_p3 %}{% set vd_code = config('volume-tier-3-code') %}{% endif %}
+    {% set vd_next_at = 0 %}{% set vd_next_pct = 0 %}
+    {% if vd_a3 > 0 and vd_sub < vd_a3 %}{% set vd_next_at = vd_a3 %}{% set vd_next_pct = vd_p3 %}{% endif %}
+    {% if vd_a2 > 0 and vd_sub < vd_a2 %}{% set vd_next_at = vd_a2 %}{% set vd_next_pct = vd_p2 %}{% endif %}
+    {% if vd_a1 > 0 and vd_sub < vd_a1 %}{% set vd_next_at = vd_a1 %}{% set vd_next_pct = vd_p1 %}{% endif %}
+    {% set vd_treffer %}{% if vd_code and basket.coupons is defined %}{% for c in basket.coupons %}{% if c.code|upper == vd_code|upper %}1{% endif %}{% endfor %}{% endif %}{% endset %}
+    {% set vd_applied = vd_treffer|replace({' ':''}) == '1' %}
+    {% set vd_fill = (vd_sub / vd_cap) * 100 %}
+    {% if vd_fill > 100 %}{% set vd_fill = 100 %}{% endif %}{% if vd_fill < 0 %}{% set vd_fill = 0 %}{% endif %}
+    {% set vd_hi = '<b style="color:var(--white);font-weight:600">' %}
+    {% if vd_next_at > 0 %}
+      {% set vd_satz = (config('volume-spend-text') ?: 'Spend {amount} more for {pct} off')|replace({ '{amount}': vd_hi ~ vd_sym ~ (vd_next_at - vd_sub)|number_format(2) ~ '</b>', '{pct}': vd_hi ~ vd_next_pct ~ '%</b>' }) %}
+    {% else %}
+      {% set vd_satz = (config('volume-maxed-text') ?: 'Top tier reached · {pct} off')|replace({ '{pct}': vd_hi ~ vd_cur ~ '%</b>' }) %}
+    {% endif %}
+<style>
+  .vd{margin-top:4px;padding:12px 12px 10px;background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);display:flex;flex-direction:column;gap:10px}
+  .vd-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.45}
+  .vd-code{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:var(--r-xs);font-size:10px;font-weight:600;letter-spacing:.05em;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);white-space:nowrap;cursor:pointer}
+  .vd-code.on{color:var(--on-teal);background:var(--teal)}
+  .vd-code .ic{width:11px;height:11px;stroke-width:2.6}
+  .vd-bar{position:relative;height:4px;border-radius:99px;background:var(--raise);overflow:visible}
+  .vd-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));box-shadow:0 0 10px var(--teal)}
+  .vd-bar s{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--line);transform:translateX(-50%)}
+  .vd-ticks{position:relative;height:12px;font-size:9.5px;color:var(--ink-3);font-weight:300}
+  .vd-ticks span{position:absolute;top:0;white-space:nowrap}
+  .vd-ticks span.ok{color:var(--teal)}
+</style>
+<div class="vd">
+  <div class="vd-top"><span>{{ vd_satz|raw }}</span>
+    {% if vd_code %}
+      <button type="button" class="vd-code{% if vd_applied %} on{% endif %}" data-vd-code="{{ vd_code }}" title="{{ config('volume-code-hint') ?: 'Click to apply' }}"><svg class="ic"><use href="#i-check"/></svg>{{ vd_code }} <span style="opacity:.7;font-weight:400">{{ vd_applied ? (config('volume-code-applied') ?: 'applied') : (config('volume-code-apply') ?: 'apply') }}</span></button>
+    {% elseif vd_cur > 0 %}<span class="tag live">{{ (config('volume-status-unlocked') ?: '{pct}% unlocked')|replace({'{pct}': vd_cur}) }}</span>
+    {% else %}<span class="tag off">{{ config('volume-status-none') ?: 'No discount yet' }}</span>{% endif %}
+  </div>
+  {% set vd_stufen = [ [vd_p1, vd_a1], [vd_p2, vd_a2], [vd_p3, vd_a3] ] %}
+  <div class="vd-bar"><i style="width:{{ vd_fill|number_format(2, '.', '') }}%"></i>{% for s in vd_stufen %}{% if s[1] > 0 %}<s style="left:{{ ((s[1] / vd_cap) * 100)|number_format(2, '.', '') }}%"></s>{% endif %}{% endfor %}</div>
+  <div class="vd-ticks">
+    {% for s in vd_stufen %}{% if s[1] > 0 %}
+      {% set vd_pos = (s[1] / vd_cap) * 100 %}
+      {% if vd_pos >= 99.5 %}{% set vd_anker = 'right:0' %}{% elseif vd_pos > 62 %}{% set vd_anker = 'right:' ~ (100 - vd_pos)|number_format(2, '.', '') ~ '%' %}{% elseif vd_pos < 13 %}{% set vd_anker = 'left:' ~ vd_pos|number_format(2, '.', '') ~ '%' %}{% else %}{% set vd_anker = 'left:' ~ vd_pos|number_format(2, '.', '') ~ '%;transform:translateX(-50%)' %}{% endif %}
+      <span class="{{ vd_sub >= s[1] ? 'ok' : '' }}" style="{{ vd_anker }}">{{ vd_sym }}{{ s[1]|number_format(0) }} · {{ s[0] }}%</span>
+    {% endif %}{% endfor %}
+  </div>
+</div>
+<script>document.addEventListener('click',function(e){var b=e.target.closest('[data-vd-code]');if(!b)return;var f=document.getElementById('couponForm');if(!f)return;f.querySelector('input').value=b.getAttribute('data-vd-code');f.requestSubmit?f.requestSubmit():f.dispatchEvent(new Event('submit',{cancelable:true}));});</script>
+  {% endif %}
+{% endif %}

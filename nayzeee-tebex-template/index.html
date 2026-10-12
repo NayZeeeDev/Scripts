@@ -1,0 +1,224 @@
+{% extends "layout.html" %}
+{% block content %}
+{# ─── NAYZEEE · index.html (homepage) ─── #}
+<style>
+  .hero{position:relative;padding:56px 0 0}
+  .hero-g{display:grid;grid-template-columns:1.2fr .8fr;gap:28px;align-items:center}
+  .hero-eye{display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px 0 6px;border-radius:999px;background:var(--panel);border:1px solid var(--line-soft);font-size:11px;color:var(--ink-2);font-weight:300;margin-bottom:22px}
+  .hero-eye b{color:var(--white);font-weight:500}
+  .hero h1{font-size:50px;font-weight:700;letter-spacing:-.04em;line-height:1.02;color:var(--white);max-width:13ch}
+  .hero h1 em{font-style:normal;color:var(--teal)}
+  .hero p.lead{font-size:14.5px;color:var(--ink-2);font-weight:300;line-height:1.6;max-width:50ch;margin:20px 0 26px}
+  .hero-cta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .hero-proof{display:flex;align-items:center;gap:16px;margin-top:28px;font-size:11.5px;color:var(--ink-3);font-weight:300}
+  .hero-proof .stack{display:flex}
+  .hero-proof .stack .av{margin-left:-7px;box-shadow:0 0 0 2px var(--void)}
+  .hero-proof .stack .av:first-child{margin-left:0}
+  .hero-proof .stars{color:var(--teal);letter-spacing:.05em;font-size:12px}
+  .hero-proof b{color:var(--ink-2);font-weight:500}
+  .spot{position:relative;overflow:hidden;clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%)}
+  .spot::before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--teal),rgba(var(--teal-rgb),0));z-index:2}
+  .spot::after{content:'';position:absolute;right:-40px;bottom:-46px;width:190px;height:190px;border-radius:22px;opacity:.035;background:var(--white);clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);pointer-events:none}
+  .spot .p-head h2{display:flex;align-items:center;gap:10px}
+  .spot .p-body{display:flex;flex-direction:column;gap:12px}
+  .spot .art{width:76px;aspect-ratio:1;border-radius:var(--r-sm);border:1px solid var(--line-soft);flex:none}
+  .spot .art .big{width:30px;height:30px}
+  .spot ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+  .spot li{display:flex;gap:8px;font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.45}
+  .spot li .ic{color:var(--teal);stroke-width:2;width:14px;height:14px;margin-top:2px}
+  .hero-img{aspect-ratio:4/3;border-radius:var(--r-md);border:1px solid var(--line-soft);overflow:hidden;box-shadow:var(--sh-2)}
+  .hero-img img{width:100%;height:100%;object-fit:cover}
+  .connect{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-sm)}
+  .connect code{flex:1;font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;color:var(--teal)}
+  .connect span{font-size:10.5px;color:var(--ink-3);font-weight:300}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:40px}
+  .stat{position:relative;display:flex;align-items:center;gap:13px;padding:15px 16px}
+  .stat-txt span{display:block;font-size:11.5px;color:var(--ink-3);font-weight:300}
+  .stat-txt b{display:block;font-size:24px;font-weight:600;letter-spacing:-.035em;line-height:1.14;margin-top:2px;color:var(--white)}
+  .cats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .cat{display:flex;align-items:center;gap:13px;padding:14px 15px;transition:border-color var(--fast),background var(--fast)}
+  .cat:hover{border-color:var(--teal-edge);background:var(--raise)}
+  .cat:hover .arrow{color:var(--teal);transform:translateX(3px)}
+  .cat .tile{width:40px;height:40px}
+  .cat-t{flex:1;min-width:0}
+  .cat-t b{display:block;font-size:13.5px;font-weight:600;color:var(--white);letter-spacing:-.01em}
+  .cat-t span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .arrow{color:var(--ink-3);transition:all var(--fast)}
+  .why{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .why .panel{padding:18px}
+  .why .tile{margin-bottom:14px}
+  .why b{display:block;font-size:14px;font-weight:600;color:var(--white);margin-bottom:6px;letter-spacing:-.012em}
+  .why p{font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.6}
+  .disc{display:flex;align-items:center;gap:22px;padding:24px 26px;position:relative;overflow:hidden}
+  .disc::after{content:'';position:absolute;right:-50px;top:-70px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba(var(--teal-rgb),.16),transparent 65%);pointer-events:none}
+  .disc .mark.lg{box-shadow:0 2px 24px rgba(var(--teal-rgb),.4)}
+  .disc-t{flex:1}
+  .disc-t b{display:block;font-size:17px;font-weight:600;color:var(--white);letter-spacing:-.02em}
+  .disc-t p{font-size:12.5px;color:var(--ink-2);font-weight:300;margin-top:5px;max-width:60ch}
+  .disc .online{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3);font-weight:300;margin-right:8px}
+  .disc .online b{font-size:12px;color:var(--white);font-weight:500}
+  .reviews{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .rev{padding:16px;display:flex;flex-direction:column;gap:10px}
+  .rev-h{display:flex;align-items:center;gap:10px}
+  .rev-h .av{width:30px;height:30px}
+  .rev-h b{display:block;font-size:12.5px;font-weight:500;color:var(--white)}
+  .rev-h span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:1px}
+  .stars{color:var(--teal);font-size:11px;letter-spacing:.08em;margin-left:auto}
+  .rev p{font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.6}
+  .rev .meta{font-size:10.5px;color:var(--ink-3);font-weight:300;padding-top:9px;border-top:1px solid var(--line-hair);display:flex;gap:6px;align-items:center}
+  .rev .meta .ic{width:12px;height:12px;color:var(--teal)}
+  .pay-row{display:flex;flex-wrap:wrap;gap:8px}
+  .pay{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px 0 10px;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-sm);font-size:12px;font-weight:500;color:var(--ink-2)}
+  .pay i{width:22px;height:15px;border-radius:3px;background:var(--raise);border:1px solid var(--line-soft);display:grid;place-items:center;font-style:normal;font-size:7.5px;font-weight:800;letter-spacing:.02em;color:var(--white)}
+  .fw-wrap{position:relative;overflow:hidden;padding:4px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
+  .fw-track{display:flex;gap:10px;width:max-content;animation:marquee {{ config('framework-speed') ?: '32' }}s linear infinite}
+  .fw-wrap:hover .fw-track{animation-play-state:paused}
+  .fw{display:inline-flex;align-items:center;gap:9px;height:38px;padding:0 16px 0 10px;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-sm);font-size:12.5px;font-weight:500;color:var(--ink-2);white-space:nowrap}
+  .fw i{width:20px;height:20px;border-radius:5px;background:var(--teal-wash);border:1px solid var(--teal-edge);display:grid;place-items:center;font-style:normal;font-size:9px;font-weight:700;color:var(--teal)}
+  @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .faq{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .q{padding:0;overflow:hidden}
+  .q summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;font-size:13px;font-weight:500;color:var(--white);cursor:pointer}
+  .q summary::-webkit-details-marker{display:none}
+  .q summary .ic{color:var(--ink-3);transition:transform var(--fast)}
+  .q[open] summary .ic{transform:rotate(45deg);color:var(--teal)}
+  .q div{padding:0 16px 14px;font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.6}
+  #modSlot:empty{display:none}
+  @media (max-width:1040px){.stats{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:860px){.hero-g{grid-template-columns:1fr}.hero h1{font-size:38px}.cats,.why,.reviews,.faq{grid-template-columns:1fr 1fr}.disc{flex-wrap:wrap}}
+  @media (max-width:600px){.cats,.why,.reviews,.faq,.stats{grid-template-columns:1fr}.hero h1{font-size:32px}}
+</style>
+
+{% set catFirst = store.categories|length > 0 ? '/category/' ~ store.categories[0].id : '/' %}
+{% set relId = config('release-package-id')|replace({' ': ''}) %}
+{% set relPkg = null %}
+{% if relId %}{% for cat in store.categories %}{% for p in cat.packages %}{% if (p.id ~ '') == relId %}{% set relPkg = p %}{% endif %}{% endfor %}{% endfor %}{% endif %}
+
+<section class="hero wrap view">
+  <div class="hero-g">
+    <div>
+      {% if (config('hero-eyebrow-toggle') ?: 'Show') != 'Hide' %}
+      <div class="hero-eye"><span class="dot"></span><b>{{ config('hero-eyebrow-bold') ?: (relPkg ? relPkg.name ~ ' ' ~ (config('release-version') ?: '') : 'New release') }}</b> {{ config('hero-eyebrow') ?: 'just shipped' }}</div>
+      {% endif %}
+      <h1>{{ config('hero-title-line1') ?: 'FiveM scripts that' }} <em>{{ config('hero-title-line2') ?: 'feel native.' }}</em></h1>
+      <p class="lead">{{ config('hero-subtitle') ?: 'HUDs, MDTs, inventory, garages and more, all built in one design language and tested on ESX, QBCore and Qbox. Escrowed or open source, delivered to your Keymaster the second you pay.' }}</p>
+      <div class="hero-cta">
+        <a class="btn-teal btn-lg" href="{{ config('hero-cta-url') ?: catFirst }}"><svg class="ic"><use href="#i-bag"/></svg>{{ config('hero-cta-text') ?: 'Browse scripts' }}</a>
+        {% if config('hero-cta2-text') %}<a class="btn-line btn-lg" href="{{ config('hero-cta2-url') ?: catFirst }}"><svg class="ic"><use href="#i-box"/></svg>{{ config('hero-cta2-text') }}</a>{% endif %}
+      </div>
+      {% if (config('hero-proof-toggle') ?: 'Show') != 'Hide' %}
+      <div class="hero-proof">
+        <div class="stack"><span class="av">TK</span><span class="av">MR</span><span class="av">SB</span><span class="av">+</span></div>
+        <span><span class="stars">★★★★★</span> <b>{{ config('hero-proof-score') ?: '4.9' }}</b> {{ config('hero-proof-text') ?: 'from verified buyers' }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if config('hero-image') %}
+      <div class="hero-img"><img src="{{ config('hero-image') }}" alt="{{ store.name }}" /></div>
+    {% elseif relPkg %}
+      <aside class="panel spot">
+        <div class="p-head"><h2><span class="dot"></span>{{ config('release-title') ?: 'Latest release' }}</h2>{% if config('release-version') %}<span class="tag live">{{ config('release-version') }}</span>{% endif %}</div>
+        <div class="p-body">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="art">{% if relPkg.image.url %}<img src="{{ relPkg.image.url }}" alt="" />{% else %}<svg class="big"><use href="#i-layers"/></svg>{% endif %}</div>
+            <div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.014em">{{ relPkg.name }}</b><span style="display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:3px">{{ config('release-date') }}{% if config('release-meta') %} · {{ config('release-meta') }}{% endif %}</span></div>
+          </div>
+          {% if config('release-notes') %}<ul>{% for n in config('release-notes')|split('|') %}{% if n|trim %}<li><svg class="ic"><use href="#i-check"/></svg><span>{{ n|trim }}</span></li>{% endif %}{% endfor %}</ul>{% endif %}
+          <div class="connect"><code>{% if relPkg.price == 0 %}{{ config('free-text') ?: 'Free' }}{% else %}{{ config('release-from') ?: 'from' }} {{ csym }}{{ relPkg.price|number_format(2) }}{% endif %}</code><span>{{ config('release-note') ?: 'lifetime updates' }}</span><a class="btn-teal btn-sm" href="/package/{{ relPkg.id }}">{{ config('release-btn') ?: 'View' }}</a></div>
+        </div>
+      </aside>
+    {% endif %}
+  </div>
+
+  {% if (config('stats-toggle') ?: 'Show') != 'Hide' %}
+  {% set totalPk = 0 %}{% for cat in store.categories %}{% set totalPk = totalPk + cat.packages|length %}{% endfor %}
+  <div class="stats">
+    <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-users"/></svg></div><div class="stat-txt"><span>{{ config('stat-1-label') ?: 'Servers running our scripts' }}</span><b>{{ config('stat-1-value') ?: '3,200+' }}</b></div></div>
+    <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-box"/></svg></div><div class="stat-txt"><span>{{ config('stat-2-label') ?: 'Scripts in the store' }}</span><b>{{ config('stat-2-value') ?: totalPk }}</b></div></div>
+    <div class="panel stat"><div class="tile"><svg class="ic"><use href="#i-bolt"/></svg></div><div class="stat-txt"><span>{{ config('stat-3-label') ?: 'Delivery' }}</span><b>{{ config('stat-3-value') ?: 'Instant' }}</b></div></div>
+    <div class="panel stat"><div class="tile red"><svg class="ic"><use href="#i-clock"/></svg></div><div class="stat-txt"><span>{{ config('stat-4-label') ?: 'Support reply' }}</span><b>{{ config('stat-4-value') ?: '< 1h' }}</b></div></div>
+  </div>
+  {% endif %}
+</section>
+
+{# Featured: Tebex "Featured package" modules render here (module.featuredpackage.html). Falls back to the first packages. #}
+<section class="section wrap" id="featured">
+  <div class="sec-h"><div><div class="kick">{{ config('featured-kicker') ?: 'Featured' }}</div><h2>{{ config('featured-title') ?: 'Most popular this week' }}</h2><p>{{ config('featured-sub') ?: 'What server owners are picking up right now.' }}</p></div><a class="btn-ghost" href="{{ config('featured-cta-url') ?: catFirst }}">{{ config('featured-cta') ?: 'View all' }} <svg class="ic"><use href="#i-chev"/></svg></a></div>
+  <div class="grid" id="modSlot">{{ modules|raw }}</div>
+  <div class="grid" id="featFallback">
+    {% set shown = 0 %}{% set maxF = (config('featured-max') ?: '8') + 0 %}
+    {% for cat in store.categories %}{% for package in cat.packages %}{% if shown < maxF %}{% set shown = shown + 1 %}
+      {% include 'module.featuredpackage.html' with { 'module': { 'package': package }, 'fb_cat': cat.name } %}
+    {% endif %}{% endfor %}{% endfor %}
+  </div>
+</section>
+<script>(function(){var s=document.getElementById('modSlot'),f=document.getElementById('featFallback');if(!s||!f)return;var pay=s.querySelectorAll('.nz-mod-payments,.gcb');pay.forEach(function(m){var slot=document.getElementById('paySlot');if(slot)slot.appendChild(m);else m.remove();});if(s.querySelector('.pk'))f.remove();else s.remove();})();</script>
+
+<section class="section wrap">
+  <div class="sec-h"><div><div class="kick">{{ config('cats-kicker') ?: 'Browse' }}</div><h2>{{ config('cats-title') ?: 'Shop by category' }}</h2><p>{{ config('cats-sub') ?: 'Every script ships with docs, a config and framework bridges.' }}</p></div></div>
+  <div class="cats">
+    {% for cat in store.categories %}
+    <a class="panel cat" href="/category/{{ cat.id }}"><div class="tile"><svg class="ic"><use href="#i-{{ loop.index0 % 3 == 0 ? 'layers' : (loop.index0 % 3 == 1 ? 'box' : 'bolt') }}"/></svg></div><div class="cat-t"><b>{{ cat.name }}</b><span>{{ cat.packages|length }} {{ cat.packages|length == 1 ? (config('cat-item-one') ?: 'script') : (config('cat-item-many') ?: 'scripts') }}{% if cat.description %} · {{ cat.description|striptags }}{% endif %}</span></div><svg class="ic arrow"><use href="#i-arrow"/></svg></a>
+    {% endfor %}
+  </div>
+</section>
+
+{% if (config('whyus-toggle') ?: 'Show') != 'Hide' %}
+<section class="section wrap">
+  <div class="sec-h"><div><div class="kick">{{ config('whyus-kicker') ?: 'Why us' }}</div><h2>{{ config('whyus-title') ?: 'One design language, three frameworks' }}</h2><p>{{ config('whyus-sub') ?: 'Everything in the store looks like it belongs together and runs where you already are.' }}</p></div></div>
+  <div class="why">
+    <div class="panel"><div class="tile"><svg class="ic"><use href="#i-layers"/></svg></div><b>{{ config('whyus-1-title') ?: 'Matched UI' }}</b><p>{{ config('whyus-1-desc') ?: 'Every script uses NAYZEEE UI: same surfaces, same accent, same motion. Mix and match and it still looks like one server.' }}</p></div>
+    <div class="panel"><div class="tile"><svg class="ic"><use href="#i-shield"/></svg></div><b>{{ config('whyus-2-title') ?: 'Escrow or open source' }}</b><p>{{ config('whyus-2-desc') ?: 'Pick escrowed for the lowest price and Cfx.re protection, or open source when you want to dig into the code. Same updates either way.' }}</p></div>
+    <div class="panel"><div class="tile"><svg class="ic"><use href="#i-refresh"/></svg></div><b>{{ config('whyus-3-title') ?: 'Lifetime updates' }}</b><p>{{ config('whyus-3-desc') ?: 'Buy once, keep getting updates in your Keymaster. Changelogs are posted in Discord with every release.' }}</p></div>
+  </div>
+</section>
+{% endif %}
+
+{% if config('discord-url') and (config('discord-cta-toggle') ?: 'Show') != 'Hide' %}
+<section class="section wrap">
+  <div class="panel disc">
+    <div class="mark lg"></div>
+    <div class="disc-t"><b>{{ config('discord-cta-title') ?: 'Join the Discord' }}</b><p>{{ config('discord-cta-sub') ?: 'Release notes, previews, config help and support tickets. Most questions get answered within the hour.' }}</p></div>
+    {% if config('discord-online') %}<div class="online"><span class="dot"></span><b>{{ config('discord-online') }}</b> {{ config('discord-online-label') ?: 'online' }}</div>{% endif %}
+    <a class="btn-white" href="{{ config('discord-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-discord"/></svg>{{ config('discord-cta-btn') ?: 'Join Discord' }}</a>
+  </div>
+</section>
+{% endif %}
+
+{% if (config('reviews-toggle') ?: 'Show') != 'Hide' and (config('review-1-text') or config('review-2-text') or config('review-3-text')) %}
+<section class="section wrap">
+  <div class="sec-h"><div><div class="kick">{{ config('reviews-kicker') ?: 'Reviews' }}</div><h2>{{ config('reviews-title') ?: 'What owners say' }}</h2></div><span class="tag live">{{ config('reviews-tag') ?: 'Verified purchases' }}</span></div>
+  <div class="reviews">
+    {% for i in 1..3 %}{% if config('review-' ~ i ~ '-text') %}
+    <div class="panel rev"><div class="rev-h"><span class="av">{{ (config('review-' ~ i ~ '-name') ?: 'A')|slice(0, 2) }}</span><div><b>{{ config('review-' ~ i ~ '-name') ?: 'Customer' }}</b><span>{{ config('review-' ~ i ~ '-when') }}</span></div><span class="stars">★★★★★</span></div><p>{{ config('review-' ~ i ~ '-text') }}</p>{% if config('review-' ~ i ~ '-pkg') %}<div class="meta"><svg class="ic"><use href="#i-check"/></svg>{{ config('reviews-bought') ?: 'Purchased' }} <b style="color:var(--ink-2);font-weight:500">{{ config('review-' ~ i ~ '-pkg') }}</b></div>{% endif %}</div>
+    {% endif %}{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section wrap" id="paySection">
+  <div class="sec-h"><div><div class="kick">{{ config('pay-kicker') ?: 'Payments' }}</div><h2>{{ config('pay-title') ?: 'Pay your way' }}</h2><p>{{ config('pay-sub') ?: 'Checkout is handled securely by Tebex.' }}</p></div></div>
+  <div id="paySlot"></div>
+  <div class="pay-row">{% for n in (config('pay-methods') ?: 'Visa,Mastercard,PayPal,Apple Pay,Google Pay,Paysafecard,iDEAL,Klarna')|split(',') %}{% if n|trim %}<span class="pay"><i>{{ n|trim|slice(0, 2)|upper }}</i>{{ n|trim }}</span>{% endif %}{% endfor %}</div>
+</section>
+
+{% if config('framework-list') ?: 'ESX,QBCore,Qbox,ox_lib,ox_inventory,ox_target,qb-inventory,pma-voice,txAdmin,Cfx.re Escrow' %}
+{% set fws = (config('framework-list') ?: 'ESX,QBCore,Qbox,ox_lib,ox_inventory,ox_target,qb-inventory,pma-voice,txAdmin,Cfx.re Escrow')|split(',') %}
+<section class="section wrap">
+  <div class="sec-h"><div><div class="kick">{{ config('framework-kicker') ?: 'Compatibility' }}</div><h2>{{ config('framework-title') ?: 'Works with your stack' }}</h2></div></div>
+  <div class="fw-wrap"><div class="fw-track">{% for pass in 1..2 %}{% for n in fws %}{% if n|trim %}<span class="fw"><i>{{ n|trim|replace({'_': '', '-': '', '.': '', ' ': ''})|slice(0, 2)|upper }}</i>{{ n|trim }}</span>{% endif %}{% endfor %}{% endfor %}</div></div>
+</section>
+{% endif %}
+
+{% if (config('faq-toggle') ?: 'Show') != 'Hide' and (config('faq-1-q') or config('faq-2-q')) %}
+<section class="section wrap">
+  <div class="sec-h"><div><div class="kick">{{ config('faq-kicker') ?: 'FAQ' }}</div><h2>{{ config('faq-title') ?: 'Questions, answered' }}</h2></div>{% if config('discord-url') %}<a class="btn-ghost" href="{{ config('discord-url') }}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-discord"/></svg>{{ config('faq-cta') ?: 'Open a ticket' }}</a>{% endif %}</div>
+  <div class="faq">
+    {% for i in 1..8 %}{% if config('faq-' ~ i ~ '-q') %}
+    <details class="panel q"{% if i == 1 %} open{% endif %}><summary>{{ config('faq-' ~ i ~ '-q') }}<svg class="ic"><use href="#i-plus"/></svg></summary><div>{{ config('faq-' ~ i ~ '-a')|raw }}</div></details>
+    {% endif %}{% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

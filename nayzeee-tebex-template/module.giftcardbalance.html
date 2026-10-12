@@ -1,0 +1,29 @@
+{# ─── NAYZEEE · module.giftcardbalance.html (Tebex "Gift card balance" module) ─── #}
+<style>
+  .gcb{grid-column:1/-1;display:flex;flex-direction:column;gap:12px;padding:16px;margin-bottom:14px}
+  .gcb-h{display:flex;align-items:center;gap:12px}
+  .gcb-h b{display:block;font-size:13.5px;font-weight:600;color:var(--white)}
+  .gcb-h span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px}
+  .gcb form{display:flex;gap:6px}
+  .gcb form .inp{flex:1;letter-spacing:.08em}
+  .gcb-r{display:flex;align-items:center;gap:9px;font-size:12px;padding:10px 12px;border-radius:var(--r-sm);border:1px solid}
+  .gcb-r.ok{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
+  .gcb-r.bad{color:var(--red);border-color:var(--red-edge);background:var(--red-wash)}
+  .gcb-r b{margin-left:auto;font-size:14px;font-weight:600;color:var(--white)}
+</style>
+<div class="panel gcb widget widget-gift-card" id="giftcardbalance">
+  <div class="gcb-h"><div class="tile"><svg class="ic"><use href="#i-card"/></svg></div><div><b>{{ config('gcb-title') ?: (module.header ?? 'Gift card balance') }}</b><span>{{ config('gcb-subtitle') ?: 'Enter your card number to see what is left on it.' }}</span></div></div>
+  <form action="#giftcardbalance" method="post">
+    <input type="text" class="inp gift-card-input" name="card_number" autocomplete="off" placeholder="{{ config('gcb-placeholder') ?: '0000 0000 0000 0000' }}" value="{{ search }}">
+    <button type="submit" class="btn-line check">{{ config('gcb-button') ?: 'Check' }}</button>
+  </form>
+  {% if search %}
+    {% if giftcard == false or giftcard.card_number == false %}
+      <div class="gcb-r bad"><svg class="ic"><use href="#i-info"/></svg>{{ config('gcb-none') ?: 'No card found with that number.' }}</div>
+    {% elseif giftcard.void == 1 %}
+      <div class="gcb-r bad"><svg class="ic"><use href="#i-info"/></svg>{{ config('gcb-void') ?: 'This gift card has been cancelled.' }}</div>
+    {% else %}
+      <div class="gcb-r ok"><svg class="ic"><use href="#i-check"/></svg>{{ config('gcb-balance-label') ?: 'Remaining balance' }}<b>{{ giftcard.remaining_balance }} {{ store.currency }}</b></div>
+    {% endif %}
+  {% endif %}
+</div>

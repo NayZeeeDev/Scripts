@@ -1,0 +1,116 @@
+{% set discordLogin = null %}
+{% set discordRequired = false %}
+{% for variable in options.variables %}
+  {% if variable.id == "discord_id" %}
+    {% set discordLogin = variable %}
+    {% if variable.required and variable.value == false %}{% set discordRequired = true %}{% endif %}
+  {% endif %}
+{% endfor %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {{ header|raw }}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ options.package.name }} · {{ store.name }}</title>
+  {# ─── NAYZEEE · options.html (package options: server pick, variables, custom price, Discord link).
+     Opens inside the store's options modal (iframe) or as a full page. ─── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--void:#000;--base:#08090a;--panel:#0e1011;--raise:#15181a;--inset:#0b0c0d;--line:rgba(255,255,255,.10);--line-soft:rgba(255,255,255,.06);--line-hair:rgba(255,255,255,.035);--white:#fff;--ink:#f2f4f5;--ink-2:#9ea5aa;--ink-3:#63696d;--teal:{{ config('accent-colour') ?: '#08afa2' }};--teal-lo:{{ config('accent-lo-colour') ?: '#067d74' }};--teal-rgb:{{ config('accent-rgb') ?: '8,175,162' }};--teal-wash:rgba(var(--teal-rgb),.11);--teal-edge:rgba(var(--teal-rgb),.34);--on-teal:#00201d;--red:#e5484d;--discord:#5865F2;--r-xs:4px;--r-sm:6px;--r-md:10px;--sh-1:0 1px 2px rgba(0,0,0,.6);--fast:130ms cubic-bezier(.4,0,.2,1)}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{background:var(--panel)}
+    body{font-family:'Lexend',system-ui,sans-serif;color:var(--ink);padding:18px;-webkit-font-smoothing:antialiased}
+    .wrap{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+    .eyebrow{font-size:10.5px;color:var(--teal);font-weight:500;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+    .eyebrow::before{content:'';width:14px;height:2px;background:var(--teal);border-radius:2px}
+    h1{font-size:19px;font-weight:600;letter-spacing:-.02em;color:var(--white);margin-top:6px}
+    .sub{font-size:12px;color:var(--ink-3);font-weight:300;margin-top:4px}
+    form{display:flex;flex-direction:column;gap:12px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    label{font-size:11px;color:var(--ink-3);font-weight:300}
+    label .req{color:var(--red)}
+    .inp{height:36px;width:100%;padding:0 11px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-xs);color:var(--white);font:inherit;font-size:12.5px;transition:border-color var(--fast),box-shadow var(--fast)}
+    .inp:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
+    select.inp{-webkit-appearance:none;appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2363696d' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+    .price{position:relative}
+    .price .cur{position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--ink-3)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:0;border-radius:var(--r-xs);background:linear-gradient(var(--teal),var(--teal-lo));color:var(--on-teal);font:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 1px 0 rgba(255,255,255,.3) inset,var(--sh-1);transition:filter var(--fast);text-decoration:none}
+    .btn:hover{filter:brightness(1.12)}
+    .btn svg{width:15px;height:15px}
+    .btn.dc{background:var(--discord);color:#fff}
+    .btn.line{background:none;border:1px solid var(--line);color:var(--ink-2);font-weight:300;box-shadow:none}
+    .dc-box{display:flex;flex-direction:column;gap:10px;padding:14px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-sm)}
+    .dc-box b{font-size:13px;font-weight:600;color:var(--white)}
+    .dc-box p{font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.5}
+    .ok{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--teal)}
+    .ok i{width:22px;height:22px;border-radius:50%;background:var(--teal-wash);border:1px solid var(--teal-edge);display:grid;place-items:center;font-style:normal}
+    .ok i svg{width:12px;height:12px}
+    .note{font-size:10.5px;color:var(--ink-3);font-weight:300;text-align:center;padding-top:6px;border-top:1px solid var(--line-hair)}
+  </style>
+</head>
+<body>
+  {% set hol_quiet = true %}{% include 'module.holiday.twig' ignore missing %}
+  <style>html[data-holiday] body{background:var(--panel)}</style>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">{{ config('options-eyebrow') ?: 'Package options' }}</div>
+      <h1>{{ options.package.name }}</h1>
+      <div class="sub">{{ config('options-sub') ?: 'This package needs a little more info before it goes in the cart.' }}</div>
+    </div>
+
+    <form method="post">
+      {% if options.package.chooseServer %}
+      <div class="field">
+        <label for="opt-server">{{ config('options-server-label') ?: 'Choose your server' }} <span class="req">*</span></label>
+        <select class="inp" id="opt-server" name="server" required>
+          <option value="" disabled selected>{{ config('options-server-placeholder') ?: 'Select a server…' }}</option>
+          {% for server in options.servers %}<option value="{{ server.id }}">{{ server.name }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      {% if options.package.customPrice %}
+      <div class="field">
+        <label for="opt-price">{{ config('options-price-label') ?: 'Enter an amount' }} <span class="req">*</span></label>
+        <div class="price"><input class="inp" type="number" id="opt-price" name="price" step="0.01" min="{{ options.package.price }}" value="{{ options.package.price }}" required /><span class="cur">{{ store.currency }}</span></div>
+      </div>
+      {% endif %}
+
+      {% for variable in options.variables %}
+        {% if variable.type == "dropdown" %}
+          <div class="field">
+            <label for="opt-var-{{ variable.id }}">{{ variable.description }}{% if variable.required %} <span class="req">*</span>{% endif %}</label>
+            <select class="inp" id="opt-var-{{ variable.id }}" name="variables[{{ variable.id }}]"{% if variable.required %} required{% endif %}>
+              {% for option in variable.options %}<option value="{{ option.id }}"{% if option.default %} selected{% endif %}>{{ option.name }}{% if option.price and option.price > 0 %} (+{{ option.price|number_format(2) }} {{ store.currency }}){% endif %}</option>{% endfor %}
+            </select>
+          </div>
+        {% elseif variable.id == "discord_id" %}
+          <div class="dc-box">
+            <b>{{ config('options-discord-title') ?: 'Link your Discord' }}</b>
+            {% if variable.value %}
+              <div class="ok"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5L9 17.5 20 6.5"/></svg></i>{{ config('options-discord-verified') ?: 'Verified' }}{% if variable.discord_tag %} · {{ variable.discord_tag }}{% endif %}</div>
+              <a class="btn line" href="https://ident.tebex.io/discord/?return={{ url(['fivem_id'])|replace({'popup%3D1': ''}) }}" target="_top">{{ config('options-discord-switch') ?: 'Switch account' }}</a>
+              <input type="hidden" name="variables[discord_id]" value="{{ variable.value }}" />
+            {% else %}
+              <p>{% if variable.required %}{{ config('options-discord-required') ?: 'This package requires a verified Discord account for role delivery.' }}{% else %}{{ config('options-discord-optional') ?: 'Optional: link Discord to receive roles with this package.' }}{% endif %}</p>
+              <a class="btn dc" href="https://ident.tebex.io/discord/?return={{ url(['fivem_id'])|replace({'popup%3D1': ''}) }}" target="_top"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.6 5.3A17 17 0 0 0 15.4 4l-.2.4a15.6 15.6 0 0 1 3.9 1.9 13.5 13.5 0 0 0-14.2 0A15.6 15.6 0 0 1 8.8 4.4L8.6 4a17 17 0 0 0-4.2 1.3C1.7 9.3 1 13.2 1.3 17a17 17 0 0 0 5.2 2.6l1.1-1.8a11 11 0 0 1-1.7-.8l.4-.3a12.2 12.2 0 0 0 11.4 0l.4.3a11 11 0 0 1-1.7.8l1.1 1.8a17 17 0 0 0 5.2-2.6c.4-4.4-.7-8.3-3.1-11.7zM8.5 14.7c-1 0-1.9-1-1.9-2.1s.8-2.1 1.9-2.1 1.9 1 1.9 2.1-.8 2.1-1.9 2.1zm7 0c-1 0-1.9-1-1.9-2.1s.8-2.1 1.9-2.1 1.9 1 1.9 2.1-.8 2.1-1.9 2.1z"/></svg>{{ config('options-discord-btn') ?: 'Link Discord account' }}</a>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="field">
+            <label for="opt-var-{{ variable.id }}">{{ variable.description }}{% if variable.required %} <span class="req">*</span>{% endif %}</label>
+            <input class="inp" type="text" id="opt-var-{{ variable.id }}" name="variables[{{ variable.id }}]" value="{{ variable.value }}"{% if variable.required %} required{% endif %} autocomplete="off" />
+          </div>
+        {% endif %}
+      {% endfor %}
+
+      {% if not discordRequired %}
+      <button class="btn" type="submit" name="submit" value="Continue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5L9 17.5 20 6.5"/></svg>{{ config('options-continue-btn') ?: 'Add to cart' }}</button>
+      {% endif %}
+      <div class="note">{{ config('options-note') ?: 'Secured by Tebex' }}</div>
+    </form>
+  </div>
+</body>
+</html>

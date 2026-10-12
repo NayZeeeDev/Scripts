@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NayZeee Store</title>
-<meta name="description" content="FiveM webstore built in the NayZeee UI style. Memberships, vehicles, queue priority and more.">
+<title>NayZeeeDev Store</title>
+<meta name="description" content="NayZeeeDev: premium FiveM scripts and UI for ESX, QBCore and Qbox. Escrowed or open source, lifetime updates.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -34,6 +34,7 @@ body{font-family:'Lexend',system-ui,sans-serif;background:radial-gradient(1100px
 body.lock{overflow:hidden}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 a{color:inherit;text-decoration:none}
+header.nav,main,footer.foot{position:relative;z-index:1}
 svg{display:block}
 img{display:block;max-width:100%}
 input,select,textarea{font:inherit;color:inherit}
@@ -49,6 +50,8 @@ input,select,textarea{font:inherit;color:inherit}
 .mark::after{content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;background:var(--void);opacity:.85;border-radius:1px}
 .mark.sm{width:22px;height:22px;border-radius:5px}
 .mark.lg{width:46px;height:46px;border-radius:9px}
+.logo{height:30px;width:auto;flex:none}
+.logo.lg{height:46px}
 
 /* ═══ ANNOUNCEMENT ═══ */
 .ann{position:relative;z-index:60;display:flex;align-items:center;justify-content:center;gap:12px;height:34px;padding:0 44px 0 16px;font-size:11.5px;color:var(--ink-2);font-weight:300;background:var(--inset);border-bottom:1px solid var(--line-soft)}
@@ -586,8 +589,8 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 
 <!-- ═══ ANNOUNCEMENT ═══ -->
 <div class="ann" id="ann">
-  <span><b>Season 4 sale</b> · 20% off every membership this week</span>
-  <button class="code" data-copy="SEASON4" title="Copy code">SEASON4</button>
+  <span><b>Launch week</b> · 20% off every script with code</span>
+  <button class="code" data-copy="LAUNCH20" title="Copy code">LAUNCH20</button>
   <button class="ann-x" onclick="document.getElementById('ann').remove()" aria-label="Dismiss"><svg class="ic" style="width:13px;height:13px"><use href="#i-x"/></svg></button>
 </div>
 
@@ -597,7 +600,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
     <button class="ibtn burger" id="burger" aria-label="Menu"><svg class="ic"><use href="#i-menu"/></svg></button>
     <a class="brand" href="#/">
       <div class="mark"></div>
-      <div><div class="brand-t" id="brandName">NAYZEEE RP</div><div class="brand-s">Official store · Los Santos</div></div>
+      <div><div class="brand-t" id="brandName">NAYZEEE DEV</div><div class="brand-s">FiveM scripts &amp; UI</div></div>
     </a>
     <nav class="links" id="links">
       <a class="lnk" href="#/" data-route="home"><svg class="ic"><use href="#i-home"/></svg>Home</a>
@@ -605,7 +608,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
         <a class="lnk" href="#/store" data-route="store"><svg class="ic"><use href="#i-grid"/></svg>Store <svg class="ic" style="width:12px;height:12px;opacity:.5"><use href="#i-down"/></svg></a>
         <div class="dd-m" id="catMenu"></div>
       </div>
-      <a class="lnk" href="#/store/memberships" data-route="memberships"><svg class="ic"><use href="#i-crown"/></svg>Memberships</a>
+      <a class="lnk" href="#/store/access" data-route="access"><svg class="ic"><use href="#i-crown"/></svg>All Access</a>
       <a class="lnk" href="#/faq" data-route="faq"><svg class="ic"><use href="#i-info"/></svg>Support</a>
     </nav>
     <div class="nav-r">
@@ -626,8 +629,8 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
   <div class="wrap">
     <div class="foot-g">
       <div>
-        <div style="display:flex;align-items:center;gap:11px"><div class="mark"></div><div><div class="brand-t">NAYZEEE RP</div><div class="brand-s">Official store · Los Santos</div></div></div>
-        <p>Every purchase goes straight back into the server: hosting, development and new content for the city. Thank you for supporting us.</p>
+        <div style="display:flex;align-items:center;gap:11px"><div class="mark"></div><div><div class="brand-t">NAYZEEE DEV</div><div class="brand-s">nayzeeedev.com</div></div></div>
+        <p>Premium FiveM scripts and UI for ESX, QBCore and Qbox. Escrowed or open source, lifetime updates, support on Discord.</p>
         <div style="display:flex;gap:8px;margin-top:16px"><a class="btn-ghost" href="#"><svg class="ic" style="width:13px;height:13px"><use href="#i-discord"/></svg>Discord</a><a class="btn-ghost" href="#/faq">Support</a></div>
       </div>
       <div><h5>Store</h5><ul id="footCats"></ul></div>
@@ -635,7 +638,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
         <li><button data-nav="login">Sign in with Cfx.re</button></li>
         <li><a href="#/wishlist">Wishlist</a></li>
         <li><a href="#/checkout">Cart &amp; checkout</a></li>
-        <li><a href="#/faq">Purchase history</a></li>
+        <li><a href="#/faq">Keymaster &amp; downloads</a></li>
       </ul></div>
       <div><h5>Legal</h5><ul>
         <li><a href="#/page/terms">Terms of service</a></li>
@@ -645,7 +648,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       </ul></div>
     </div>
     <div class="foot-b">
-      <span>© 2026 <b>NAYZEEE RP</b> · Not affiliated with Rockstar Games or Take-Two Interactive.</span>
+      <span>© 2026 <b>NAYZEEE DEV</b> · nayzeeedev.com · Not affiliated with Rockstar Games, Take-Two Interactive or Cfx.re.</span>
       <div class="r"><span>Payments by <b>Tebex</b></span><span>Built on <b>NAYZEEE UI</b></span></div>
     </div>
   </div>
@@ -661,7 +664,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 </aside>
 
 <aside class="mnav" id="mnav">
-  <div style="display:flex;align-items:center;gap:11px;padding:4px 6px 14px;border-bottom:1px solid var(--line-soft);margin-bottom:8px"><div class="mark"></div><div><div class="brand-t">NAYZEEE RP</div><div class="brand-s">Official store</div></div><button class="pill-close" data-close style="margin-left:auto">Close</button></div>
+  <div style="display:flex;align-items:center;gap:11px;padding:4px 6px 14px;border-bottom:1px solid var(--line-soft);margin-bottom:8px"><div class="mark"></div><div><div class="brand-t">NAYZEEE DEV</div><div class="brand-s">FiveM scripts &amp; UI</div></div><button class="pill-close" data-close style="margin-left:auto">Close</button></div>
   <a class="nav-i" href="#/"><svg class="ic"><use href="#i-home"/></svg>Home</a>
   <a class="nav-i" href="#/store"><svg class="ic"><use href="#i-grid"/></svg>Store</a>
   <div class="grp">Categories</div>
@@ -673,10 +676,10 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 
 <div class="modal-w" id="loginW">
   <div class="modal">
-    <div class="m-head"><div><b>Sign in</b><span>We need your Cfx.re account to deliver items in game</span></div><button class="pill-close" data-close>Close</button></div>
+    <div class="m-head"><div><b>Sign in</b><span>Assets are granted to the Cfx.re account linked to your Keymaster</span></div><button class="pill-close" data-close>Close</button></div>
     <div class="m-body">
-      <div class="cfx"><div class="tile"><svg class="ic"><use href="#i-key"/></svg></div><div><b>Continue with Cfx.re</b><span>You will be redirected to forum.cfx.re to authorize. We only read your username and ID.</span></div></div>
-      <div class="field"><label for="ign">Or enter your in-game name (demo)</label><input class="inp" id="ign" placeholder="e.g. NayZeee" autocomplete="off"></div>
+      <div class="cfx"><div class="tile"><svg class="ic"><use href="#i-key"/></svg></div><div><b>Continue with Cfx.re</b><span>You will be redirected to forum.cfx.re to authorize. We only read your username and ID, so the asset lands in your Keymaster.</span></div></div>
+      <div class="field"><label for="ign">Or enter your Cfx.re username (demo)</label><input class="inp" id="ign" placeholder="e.g. NayZeee" autocomplete="off"></div>
     </div>
     <div class="m-foot"><button class="btn-line" data-close>Cancel</button><button class="btn-teal" id="doLogin"><svg class="ic" style="width:14px;height:14px"><use href="#i-check"/></svg>Continue</button></div>
   </div>
@@ -684,10 +687,11 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 
 <div class="modal-w" id="giftW">
   <div class="modal">
-    <div class="m-head"><div><b>Gift this package</b><span>Delivered to another player instead of you</span></div><button class="pill-close" data-close>Close</button></div>
+    <div class="m-head"><div><b>Send as a gift</b><span>Granted to another server owner's Keymaster instead of yours</span></div><button class="pill-close" data-close>Close</button></div>
     <div class="m-body">
+      <div class="cfx"><div class="tile"><svg class="ic"><use href="#i-gift"/></svg></div><div><b id="giftPkg">—</b><span>Enter the recipient's Cfx.re username exactly. The asset goes straight to them after checkout.</span></div></div>
       <div class="field"><label for="giftTo">Recipient's Cfx.re username</label><input class="inp" id="giftTo" placeholder="Their forum username" autocomplete="off"></div>
-      <div class="field"><label for="giftMsg">Message (optional)</label><textarea class="inp" id="giftMsg" placeholder="Enjoy the city!"></textarea></div>
+      <div class="field"><label for="giftMsg">Message (optional)</label><textarea class="inp" id="giftMsg" placeholder="Enjoy the scripts!"></textarea></div>
     </div>
     <div class="m-foot"><button class="btn-line" data-close>Cancel</button><button class="btn-teal" id="doGift"><svg class="ic" style="width:14px;height:14px"><use href="#i-gift"/></svg>Add as gift</button></div>
   </div>
@@ -702,77 +706,199 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 </div>
 
 <div class="toasts" id="toasts"></div>
+<!-- ═══ HOLIDAY THEMES (auto by month; add ?holiday=christmas to preview) ═══ -->
+<style>
+  /* each theme only overrides the accent tokens + the page glow; everything else stays NAYZEEE UI */
+  html[data-hol-recolor="1"][data-holiday="newyear"]{--teal:#f5c451;--teal-hi:#ffd97a;--teal-lo:#b8902e;--teal-rgb:245,196,81;--on-teal:#201700;--hol-glow:#1a1707}
+  html[data-hol-recolor="1"][data-holiday="valentine"]{--teal:#ff4d8d;--teal-hi:#ff7fae;--teal-lo:#c22a62;--teal-rgb:255,77,141;--on-teal:#2a0012;--hol-glow:#1c0c13}
+  html[data-hol-recolor="1"][data-holiday="stpatrick"]{--teal:#2ecc71;--teal-hi:#5ee39a;--teal-lo:#1f8f4e;--teal-rgb:46,204,113;--on-teal:#002a12;--hol-glow:#0c1a10}
+  html[data-hol-recolor="1"][data-holiday="easter"]{--teal:#b48cff;--teal-hi:#cbb0ff;--teal-lo:#7f5fd1;--teal-rgb:180,140,255;--on-teal:#14002e;--hol-glow:#141020}
+  html[data-hol-recolor="1"][data-holiday="spring"]{--teal:#7ad15a;--teal-hi:#9fe683;--teal-lo:#4f9a38;--teal-rgb:122,209,90;--on-teal:#0f2600;--hol-glow:#101a0c}
+  html[data-hol-recolor="1"][data-holiday="summer"]{--teal:#3fb6ff;--teal-hi:#7bcdff;--teal-lo:#1d7fbd;--teal-rgb:63,182,255;--on-teal:#001a2b;--hol-glow:#0b1620}
+  html[data-hol-recolor="1"][data-holiday="july4"]{--teal:#ff5a5a;--teal-hi:#ff8a8a;--teal-lo:#c03030;--teal-rgb:255,90,90;--on-teal:#2b0000;--hol-glow:#1a0d12}
+  html[data-hol-recolor="1"][data-holiday="summersale"]{--teal:#ffb020;--teal-hi:#ffc95c;--teal-lo:#c27f0a;--teal-rgb:255,176,32;--on-teal:#2a1a00;--hol-glow:#1c1608}
+  html[data-hol-recolor="1"][data-holiday="autumn"]{--teal:#e0872b;--teal-hi:#f3a758;--teal-lo:#a85f17;--teal-rgb:224,135,43;--on-teal:#2a1400;--hol-glow:#1c1309}
+  html[data-hol-recolor="1"][data-holiday="halloween"]{--teal:#ff7a1a;--teal-hi:#ffa04d;--teal-lo:#c25a0a;--teal-rgb:255,122,26;--on-teal:#2a1000;--hol-glow:#1a0f1c}
+  html[data-hol-recolor="1"][data-holiday="thanksgiving"]{--teal:#d98c3a;--teal-hi:#f0ad5c;--teal-lo:#a2651f;--teal-rgb:217,140,58;--on-teal:#2a1600;--hol-glow:#1b140c}
+  html[data-hol-recolor="1"][data-holiday="christmas"]{--teal:#22c55e;--teal-hi:#5ee08a;--teal-lo:#15803d;--teal-rgb:34,197,94;--on-teal:#00230c;--hol-glow:#0c1a12}
+  html[data-holiday] body{background:radial-gradient(1100px 640px at 50% -8%,var(--hol-glow,#131718) 0%,transparent 62%),var(--void)}
+
+  .hol-layer{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .hol-p{position:absolute;top:-8vh;opacity:0;will-change:transform;color:var(--teal)}
+  .hol-p svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 6px rgba(var(--teal-rgb),.35))}
+  .hol-p.fall{animation:holFall var(--d,14s) linear var(--dl,0s) infinite}
+  .hol-p.rise{top:auto;bottom:-8vh;animation:holRise var(--d,14s) linear var(--dl,0s) infinite}
+  @keyframes holFall{0%{transform:translate3d(0,0,0) rotate(0deg);opacity:0}6%{opacity:var(--o,.45)}50%{transform:translate3d(var(--sx,30px),55vh,0) rotate(180deg)}94%{opacity:var(--o,.45)}100%{transform:translate3d(0,118vh,0) rotate(360deg);opacity:0}}
+  @keyframes holRise{0%{transform:translate3d(0,0,0);opacity:0}6%{opacity:var(--o,.4)}50%{transform:translate3d(var(--sx,30px),-55vh,0)}94%{opacity:var(--o,.4)}100%{transform:translate3d(0,-118vh,0);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.hol-layer{display:none}}
+
+  .hol-chip{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px 0 7px;border-radius:999px;background:var(--teal-wash);border:1px solid var(--teal-edge);font-size:10.5px;font-weight:500;color:var(--teal);white-space:nowrap;margin-left:4px}
+  .hol-chip svg{width:14px;height:14px;display:block}
+  @media (max-width:860px){.hol-chip span{display:none}.hol-chip{padding:0 7px}}
+</style>
+<div class="hol-layer" id="holLayer" aria-hidden="true"></div>
+<script>
+(function () {
+  var MODE = (new URLSearchParams(location.search).get('holiday')) || 'Auto';
+  var RECOLOR = true;
+  var PARTICLES = true;
+  var CHIP = true;
+  var DENSITY = 28 || 28;
+  var LABELS = {
+    newyear: 'New Year',
+    valentine: "Valentine's",
+    stpatrick: "St. Patrick's",
+    easter: 'Easter',
+    spring: 'Spring',
+    summer: 'Summer',
+    july4: '4th of July',
+    summersale: 'Summer sale',
+    autumn: 'Autumn',
+    halloween: 'Halloween',
+    thanksgiving: 'Thanksgiving',
+    christmas: 'Christmas'
+  };
+  var BY_MONTH = ['newyear', 'valentine', 'stpatrick', 'easter', 'spring', 'summer', 'july4', 'summersale', 'autumn', 'halloween', 'thanksgiving', 'christmas'];
+  /* glyphs: [svg path markup, motion, size px, extra glyph] */
+  var G = {
+    star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 6 6.5.7-4.9 4.4 1.4 6.4L12 17l-5.8 3.3 1.4-6.4L2.7 9.5l6.5-.7z"/></svg>',
+    sparkle: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5l-7.2-7.3A4.6 4.6 0 0 1 11.3 6.7L12 7.4l.7-.7a4.6 4.6 0 0 1 6.5 6.5z"/></svg>',
+    clover: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="4"/><circle cx="16" cy="8" r="4"/><circle cx="8" cy="16" r="4"/><circle cx="16" cy="16" r="4"/><path d="M12 12l2 9h-4z"/></svg>',
+    egg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c4 0 7 6 7 11a7 7 0 0 1-14 0C5 8 8 2 12 2z"/><path d="M6.5 13h11" stroke="#000" stroke-opacity=".25" stroke-width="1.5"/></svg>',
+    flower: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="3.2"/><circle cx="12" cy="18" r="3.2"/><circle cx="6" cy="12" r="3.2"/><circle cx="18" cy="12" r="3.2"/><circle cx="12" cy="12" r="2.4" fill="#000" fill-opacity=".35"/></svg>',
+    bubble: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M8 9a4 4 0 0 1 3-3" stroke-linecap="round"/></svg>',
+    sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
+    leaf: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4c-9 0-15 5-16 14 2-1 4-1 6-1 7 0 10-7 10-13zM4 18c3-5 7-8 12-10" stroke="#000" stroke-opacity=".3" stroke-width="1.2" fill="none"/><path d="M20 4c-9 0-15 5-16 14 2-1 4-1 6-1 7 0 10-7 10-13z"/></svg>',
+    bat: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c-1.5-2-4-3-7-2 1 2 .5 4-1 5 3 0 5 1 6 3l2-1 2 1c1-2 3-3 6-3-1.5-1-2-3-1-5-3-1-5.5 0-7 2z"/></svg>',
+    pumpkin: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5c-1 0-1.5-2-1-3 .5.5 1.5 1 1.5 2M7 7c-3 0-5 3-5 7s2 6 5 6c1 0 2-.5 2.5-1 1 .7 2 1 2.5 1s1.5-.3 2.5-1c.5.5 1.5 1 2.5 1 3 0 5-2 5-6s-2-7-5-7c-1 0-2 .3-2.5 1C14 7.3 13 7 12 7s-2 .3-2.5 1C9 7.3 8 7 7 7z"/><path d="M8 12l1.5 2h-3zM16 12l1.5 2h-3zM8 16.5c2.5 1.5 5.5 1.5 8 0l-1 2c-2 1-4 1-6 0z" fill="#000" fill-opacity=".45"/></svg>',
+    snow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19M12 2l-2 3M12 2l2 3M12 22l-2-3M12 22l2-3M2 12l3-2M2 12l3 2M22 12l-3-2M22 12l-3 2"/></svg>',
+    gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 7v14M12 7s-1.5-4-4-4a2 2 0 0 0 0 4M12 7s1.5-4 4-4a2 2 0 0 1 0 4"/></svg>',
+    turkey: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4c-4 0-7 3-7 7 0 3 2 5 4 6v3h6v-3c2-1 4-3 4-6 0-4-3-7-7-7z"/><path d="M5 9L2 6M8 6L6 2M12 5l0-3M16 6l2-4M19 9l3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="10" r="1" fill="#000" fill-opacity=".5"/></svg>'
+  };
+  var THEMES = {
+    newyear: { g: [G.sparkle, G.star], m: 'fall', s: [8, 16], chip: G.sparkle },
+    valentine: { g: [G.heart], m: 'rise', s: [10, 20], chip: G.heart },
+    stpatrick: { g: [G.clover], m: 'fall', s: [12, 22], chip: G.clover },
+    easter: { g: [G.egg, G.flower], m: 'fall', s: [10, 18], chip: G.egg },
+    spring: { g: [G.flower], m: 'fall', s: [10, 18], chip: G.flower },
+    summer: { g: [G.bubble], m: 'rise', s: [8, 22], chip: G.sun },
+    july4: { g: [G.star, G.sparkle], m: 'fall', s: [8, 16], chip: G.star },
+    summersale: { g: [G.sun, G.sparkle], m: 'rise', s: [10, 20], chip: G.sun },
+    autumn: { g: [G.leaf], m: 'fall', s: [12, 24], chip: G.leaf },
+    halloween: { g: [G.bat, G.pumpkin, G.bat], m: 'fall', s: [14, 26], chip: G.pumpkin },
+    thanksgiving: { g: [G.leaf, G.turkey, G.leaf, G.leaf], m: 'fall', s: [12, 24], chip: G.turkey },
+    christmas: { g: [G.snow, G.snow, G.gift], m: 'fall', s: [8, 20], chip: G.gift }
+  };
+  var key = MODE === 'Auto' ? BY_MONTH[new Date().getMonth()] : (THEMES[MODE] ? MODE : null);
+  if (!key) return;
+  var root = document.documentElement;
+  root.setAttribute('data-holiday', key);
+  if (RECOLOR) root.setAttribute('data-hol-recolor', '1');
+  var th = THEMES[key];
+
+  if (CHIP) {
+    var brand = document.querySelector('.nav .brand');
+    if (brand) {
+      var chip = document.createElement('span'); chip.className = 'hol-chip'; chip.title = LABELS[key];
+      chip.innerHTML = th.chip + '<span>' + LABELS[key] + '</span>';
+      brand.parentNode.insertBefore(chip, brand.nextSibling);
+    }
+  }
+  if (PARTICLES && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+    var layer = document.getElementById('holLayer');
+    var n = Math.min(80, Math.max(0, DENSITY)), frag = document.createDocumentFragment();
+    for (var i = 0; i < n; i++) {
+      var p = document.createElement('span');
+      var size = th.s[0] + Math.random() * (th.s[1] - th.s[0]);
+      p.className = 'hol-p ' + th.m;
+      p.style.left = (Math.random() * 100) + 'vw';
+      p.style.width = p.style.height = size.toFixed(1) + 'px';
+      p.style.setProperty('--d', (11 + Math.random() * 14).toFixed(1) + 's');
+      p.style.setProperty('--dl', (-Math.random() * 25).toFixed(1) + 's');
+      p.style.setProperty('--sx', ((Math.random() - .5) * 120).toFixed(0) + 'px');
+      p.style.setProperty('--o', (0.18 + Math.random() * 0.32).toFixed(2));
+      p.innerHTML = th.g[Math.floor(Math.random() * th.g.length)];
+      frag.appendChild(p);
+    }
+    layer.appendChild(frag);
+  }
+  window.NZ_HOLIDAY = key;
+})();
+</script>
+
 
 <script>
 /* ═══════════════════════════════════════════════════════════
    DATA — swap for Tebex Headless once the public token is set.
    ═══════════════════════════════════════════════════════════ */
 const STORE = {
-  name: 'NAYZEEE RP',
-  connect: 'connect play.nayzeee.gg',
+  name: 'NAYZEEE DEV',
+  tagline: 'FiveM scripts & UI',
+  site: 'nayzeeedev.com',
+  logo: '',          // paste your logo URL here to replace the mark, e.g. 'https://nayzeeedev.com/logo.png'
   discord: 'https://discord.gg/nayzeee',
   currency: 'USD',
   rates: { USD: 1, EUR: 0.92, GBP: 0.79 },
   symbols: { USD: '$', EUR: '€', GBP: '£' },
-  server: { online: true, players: 184, slots: 256, queue: 12, uptime: '99.8%' },
-  coupons: { SEASON4: { type: 'pct', value: 20, scope: 'memberships', label: '20% off memberships' }, WELCOME5: { type: 'flat', value: 5, label: '$5 off your order' } },
+  release: { pkg: 1001, version: 'v2.4.1', date: '8 Oct 2026', notes: ['New compass and street-name styles', 'Qbox support out of the box', 'Settings menu rebuilt in NAYZEEE UI v3', 'Fixed vehicle HUD flicker on seat swap'] },
+  coupons: { LAUNCH20: { type: 'pct', value: 20, label: '20% off everything' }, BUNDLE10: { type: 'pct', value: 10, scope: 'bundles', label: '10% off bundles' } },
   creators: ['NAYZEEE', 'KANE', 'MAYA'],
   categories: [
-    { id: 'memberships', name: 'Memberships', icon: 'crown', desc: 'Monthly tiers with queue priority, vehicle slots and perks.', tiered: true },
-    { id: 'vehicles',    name: 'Vehicles',    icon: 'car',   desc: 'Imports and exclusive rides delivered to your garage.' },
-    { id: 'queue',       name: 'Queue Priority', icon: 'queue', desc: 'Skip the line when the city is full.' },
-    { id: 'cash',        name: 'Cash & Credits', icon: 'cash', desc: 'In-game bank credits and store coins.' },
-    { id: 'properties',  name: 'Properties', icon: 'home', desc: 'Apartments, houses and business leases.' },
-    { id: 'cosmetics',   name: 'Plates & Cosmetics', icon: 'plate', desc: 'Custom plates, phone skins, chat colours.' },
-    { id: 'bundles',     name: 'Bundles', icon: 'box', desc: 'Best value starter and veteran packs.' },
+    { id: 'hud',      name: 'HUD & UI',          icon: 'layers', desc: 'HUDs, menus, phones and notifications built in one design language.' },
+    { id: 'jobs',     name: 'Jobs & MDT',        icon: 'shield', desc: 'Emergency services, dispatch and job systems.' },
+    { id: 'vehicles', name: 'Vehicles & Garage', icon: 'car',    desc: 'Garages, keys, fuel and vehicle handling.' },
+    { id: 'utility',  name: 'Utility',           icon: 'bolt',   desc: 'Inventory, banking, targeting and admin tools.' },
+    { id: 'bundles',  name: 'Bundles',           icon: 'box',    desc: 'Save big on matched sets of scripts.' },
+    { id: 'access',   name: 'All Access',        icon: 'crown',  desc: 'Monthly plans with every script, updates and priority support.', tiered: true },
   ],
+  // image: set a URL per package to show a real screenshot instead of the icon art.
+  // open: price of the open-source (unescrowed) variant; omit for escrow-only.
   packages: [
-    { id: 101, cat: 'memberships', name: 'Bronze', tier: 1, price: 9.99, period: 'month', art: 'crown', tone: 'white', desc: 'Entry tier. Priority queue and a little extra each week.', featured: false,
-      perks: ['Queue priority · Level 1', '1 extra vehicle slot', '$50,000 weekly paycheck bonus', 'Bronze Discord role', 'Custom plate', 'Exclusive vehicle', 'Property discount'], perkOn: 4 },
-    { id: 102, cat: 'memberships', name: 'Silver', tier: 2, price: 19.99, period: 'month', art: 'crown', tone: 'white', desc: 'More slots, bigger paycheck, custom plate included.', featured: true,
-      perks: ['Queue priority · Level 2', '3 extra vehicle slots', '$120,000 weekly paycheck bonus', 'Silver Discord role', 'Custom plate', 'Exclusive vehicle', 'Property discount'], perkOn: 5 },
-    { id: 103, cat: 'memberships', name: 'Gold', tier: 3, price: 34.99, period: 'month', art: 'crown', tone: 'teal', desc: 'Our most popular tier. Front of the queue, exclusive import.', featured: true, popular: true,
-      perks: ['Queue priority · Level 3', '6 extra vehicle slots', '$250,000 weekly paycheck bonus', 'Gold Discord role', 'Custom plate', 'Exclusive vehicle', 'Property discount'], perkOn: 6 },
-    { id: 104, cat: 'memberships', name: 'Diamond', tier: 4, price: 59.99, period: 'month', art: 'crown', tone: 'red', desc: 'Everything. Instant join, every perk, 10% off the whole store.', featured: false,
-      perks: ['Queue priority · Instant', '10 extra vehicle slots', '$500,000 weekly paycheck bonus', 'Diamond Discord role', 'Custom plate', 'Exclusive vehicle', '15% property discount'], perkOn: 7 },
+    { id: 1001, cat: 'hud', name: 'NayZeee HUD', price: 24.99, open: 59.99, art: 'layers', tone: 'teal', featured: true, popular: true, fw: ['ESX', 'QBCore', 'Qbox'], tags: ['Best seller'],
+      desc: 'Player status, vehicle HUD, compass and a full in-game settings menu. Ring, squircle, pill and minimal styles.', image: '',
+      perks: ['Health, armour, hunger, thirst, stamina, stress, voice', 'Vehicle speedo, fuel, seatbelt, cruise and nitro', 'Compass with street names', 'In-game settings menu with layout editor', 'Zero-config ESX, QBCore and Qbox'] },
+    { id: 1002, cat: 'hud', name: 'NayZeee Notify', price: 9.99, open: 24.99, art: 'sparkle', tone: 'white', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Drop-in notification system with success, error, info and progress styles. Replaces ox_lib and framework notifies.', perks: ['Four styles, six positions', 'Progress bars and action prompts', 'Export-compatible with ox_lib notify'] },
+    { id: 1003, cat: 'hud', name: 'NayZeee Pause Menu', price: 14.99, open: 34.99, art: 'grid', tone: 'white', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Replaces the default pause menu with a server-branded panel: map, settings, player card, quick links.', perks: ['Server logo and links', 'Player card with job and cash', 'Map, settings, disconnect'] },
+    { id: 1004, cat: 'hud', name: 'NayZeee Scoreboard', price: 9.99, open: 24.99, art: 'users', tone: 'teal', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Player list with job counts, duty status and staff indicators.', perks: ['Job counts and on-duty EMS/PD', 'Staff and streamer badges', 'Configurable columns'] },
+    { id: 1005, cat: 'hud', name: 'NayZeee Loading Screen', price: 12.99, art: 'sparkle', tone: 'red', fw: ['Standalone'], desc: 'Animated loading screen with music, rules carousel and staff list. Standalone.', perks: ['Video or image background', 'Rules and staff carousel', 'Music with volume control'] },
+    { id: 1006, cat: 'hud', name: 'NayZeee Phone', price: 34.99, old: 44.99, open: 79.99, art: 'grid', tone: 'teal', featured: true, fw: ['ESX', 'QBCore', 'Qbox'], tags: ['New'], desc: 'Full smartphone with messages, calls, bank, garage, camera and app framework.', perks: ['Messages, calls, contacts', 'Bank, garage, camera, gallery', 'Add your own apps with the SDK'] },
 
-    { id: 201, cat: 'vehicles', name: 'Pegassi Zentorno', price: 24.99, old: 34.99, art: 'car', tone: 'teal', desc: 'Hypercar import. Fully upgraded, delivered to your garage with insurance.', featured: true, tags: ['Hypercar','Insured'] },
-    { id: 202, cat: 'vehicles', name: 'Übermacht Sentinel Classic', price: 14.99, art: 'car', tone: 'white', desc: 'Retro coupe with a tuned engine. Comes with a custom plate.', featured: false },
-    { id: 203, cat: 'vehicles', name: 'Nagasaki Shotaro', price: 19.99, art: 'car', tone: 'red', desc: 'The light-cycle. Limited to 50 in the city.', featured: true, tags: ['Limited'] },
-    { id: 204, cat: 'vehicles', name: 'Vapid Sandking XL', price: 12.99, art: 'car', tone: 'white', desc: 'Off-road truck with extended fuel tank and winch.', featured: false },
-    { id: 205, cat: 'vehicles', name: 'Buckingham Luxor Jet', price: 89.99, old: 119.99, art: 'car', tone: 'teal', desc: 'Private jet with a hangar slot at LSIA. Whitelisted pilot licence included.', featured: false, tags: ['Aircraft'] },
+    { id: 2001, cat: 'jobs', name: 'Emergency Services MDT', price: 29.99, open: 69.99, art: 'shield', tone: 'teal', featured: true, fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Dashboard, dispatch, triage, patient records and incident reports for EMS and PD.', perks: ['Dispatch board with live units', 'Incident and patient records', 'Call reports with search', 'Roster, duty timer and garage'] },
+    { id: 2002, cat: 'jobs', name: 'Police Dispatch', price: 19.99, open: 49.99, art: 'queue', tone: 'red', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Call system with blips, unit assignment and radio alerts. Works with the MDT.', perks: ['10-codes and priorities', 'Unit assignment and blips', 'Shots fired and vehicle alerts'] },
+    { id: 2003, cat: 'jobs', name: 'Mechanic Job', price: 24.99, open: 59.99, art: 'car', tone: 'white', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Repairs, tuning menu, parts ordering and a business ledger for mechanic shops.', perks: ['Tuning and cosmetic menu', 'Parts stock and ordering', 'Shop ledger and payroll'] },
 
-    { id: 301, cat: 'queue', name: 'Priority · 30 days', price: 7.99, art: 'queue', tone: 'teal', desc: 'Skip ahead of regular players for 30 days.' },
-    { id: 302, cat: 'queue', name: 'Priority · 90 days', price: 19.99, old: 23.97, art: 'queue', tone: 'teal', desc: 'Three months of priority queue at a discount.', featured: true },
-    { id: 303, cat: 'queue', name: 'Reserved slot · 30 days', price: 24.99, art: 'bolt', tone: 'red', desc: 'A slot held for you. Join instantly even when the city is full.' },
+    { id: 3001, cat: 'vehicles', name: 'Advanced Garage', price: 19.99, open: 49.99, art: 'car', tone: 'teal', featured: true, fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Public, house and job garages with impound, transfer and a clean vehicle list.', perks: ['Public, private and job garages', 'Impound and transfers', 'Vehicle preview and stats'] },
+    { id: 3002, cat: 'vehicles', name: 'Vehicle Keys', price: 9.99, open: 24.99, art: 'key', tone: 'white', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Keys as items, lockpicking, hotwiring and key sharing.', perks: ['Key items with give and copy', 'Lockpick and hotwire minigames', 'Engine and lock states synced'] },
+    { id: 3003, cat: 'vehicles', name: 'Fuel', price: 7.99, open: 19.99, art: 'bolt', tone: 'white', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Fuel stations, jerry cans and electric charging with a HUD-matching pump UI.', perks: ['Petrol and electric', 'Jerry cans', 'Per-vehicle consumption'] },
 
-    { id: 401, cat: 'cash', name: '$250,000 Cash', price: 4.99, art: 'cash', tone: 'white', desc: 'Deposited straight to your bank account.' },
-    { id: 402, cat: 'cash', name: '$1,000,000 Cash', price: 14.99, old: 19.96, art: 'cash', tone: 'teal', desc: 'Best value cash pack. Deposited instantly.', featured: true },
-    { id: 403, cat: 'cash', name: '5,000 Store Coins', price: 9.99, art: 'sparkle', tone: 'teal', desc: 'Spend on cosmetics in the in-game shop.' },
+    { id: 4001, cat: 'utility', name: 'Inventory', price: 39.99, old: 49.99, open: 89.99, art: 'box', tone: 'teal', featured: true, fw: ['ESX', 'QBCore', 'Qbox'], tags: ['-20%'], desc: 'Grid inventory with weight, hotbar, crafting, stashes, shops and vehicle trunks.', perks: ['Hotbar and drag-drop', 'Stashes, trunks, gloveboxes', 'Shops and crafting', 'Item metadata and durability'] },
+    { id: 4002, cat: 'utility', name: 'Banking', price: 19.99, open: 49.99, art: 'cash', tone: 'white', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Accounts, shared business accounts, transfers, ATMs and statements.', perks: ['Personal and business accounts', 'Transfers and statements', 'ATM and bank peds'] },
+    { id: 4003, cat: 'utility', name: 'Admin Menu', price: 14.99, open: 34.99, art: 'shield', tone: 'red', fw: ['ESX', 'QBCore', 'Qbox'], desc: 'Player management, teleports, vehicle spawner, noclip and reports in one panel.', perks: ['Player list with actions', 'Reports and warnings', 'Vehicle and weapon tools'] },
+    { id: 4004, cat: 'utility', name: 'Target', price: 0, art: 'bolt', tone: 'teal', fw: ['Standalone'], tags: ['Free'], desc: 'Lightweight eye targeting with ox_target compatible exports. Free.', perks: ['ox_target compatible', 'Entity, zone and model targets'] },
 
-    { id: 501, cat: 'properties', name: 'Eclipse Towers Penthouse', price: 39.99, art: 'home', tone: 'teal', desc: 'Top-floor penthouse with a 10-car garage and helipad access.', featured: true },
-    { id: 502, cat: 'properties', name: 'Vinewood Hills Villa', price: 29.99, art: 'home', tone: 'white', desc: 'Pool, 6-car garage, private driveway.' },
-    { id: 503, cat: 'properties', name: 'Business lease · Mechanic', price: 49.99, art: 'home', tone: 'red', desc: 'Own a tuning shop. Includes staff slots and stock.' },
+    { id: 5001, cat: 'bundles', name: 'UI Bundle', price: 69.99, old: 97.95, open: 169.99, art: 'box', tone: 'teal', featured: true, fw: ['ESX', 'QBCore', 'Qbox'], tags: ['Save 29%'], desc: 'NayZeee HUD, Notify, Pause Menu, Scoreboard and Loading Screen in one matched set.', perks: ['NayZeee HUD', 'NayZeee Notify', 'NayZeee Pause Menu', 'NayZeee Scoreboard', 'NayZeee Loading Screen'] },
+    { id: 5002, cat: 'bundles', name: 'Complete Server Pack', price: 199.99, old: 289.84, open: 449.99, art: 'box', tone: 'red', fw: ['ESX', 'QBCore', 'Qbox'], tags: ['Save 31%'], desc: 'Every script in the store today. Includes the UI Bundle, MDT, Inventory, Garage and more.', perks: ['All 16 scripts', 'Priority Discord support', 'Future releases for 12 months'] },
 
-    { id: 601, cat: 'cosmetics', name: 'Custom plate', price: 4.99, art: 'plate', tone: 'white', desc: 'Any 8-character plate, subject to approval.' },
-    { id: 602, cat: 'cosmetics', name: 'Chat colour', price: 2.99, art: 'sparkle', tone: 'teal', desc: 'Stand out in city chat with a teal name.' },
-    { id: 603, cat: 'cosmetics', name: 'Phone theme pack', price: 3.99, art: 'sparkle', tone: 'red', desc: 'Six exclusive phone themes.' },
-
-    { id: 701, cat: 'bundles', name: 'Starter Pack', price: 19.99, old: 29.97, art: 'box', tone: 'teal', desc: 'Sentinel Classic, $250k cash and 30 days priority. Everything a new citizen needs.', featured: true, tags: ['Best value'] },
-    { id: 702, cat: 'bundles', name: 'Veteran Pack', price: 69.99, old: 94.97, art: 'box', tone: 'red', desc: 'Zentorno, $1M cash, villa and 90 days priority.', tags: ['Save 26%'] },
+    { id: 6001, cat: 'access', name: 'Solo', tier: 1, price: 14.99, period: 'month', art: 'crown', tone: 'white', desc: 'One server. Every escrowed script, updates included.',
+      perks: ['All escrowed scripts', '1 server key', 'Updates while subscribed', 'Discord support', 'Open-source access', 'Priority support', 'Custom branding'], perkOn: 4 },
+    { id: 6002, cat: 'access', name: 'Studio', tier: 2, price: 29.99, period: 'month', art: 'crown', tone: 'teal', popular: true, featured: true, desc: 'Up to 3 servers with open-source access.',
+      perks: ['All scripts, escrowed or open', '3 server keys', 'Updates while subscribed', 'Discord support', 'Open-source access', 'Priority support', 'Custom branding'], perkOn: 6 },
+    { id: 6003, cat: 'access', name: 'Network', tier: 3, price: 59.99, period: 'month', art: 'crown', tone: 'red', desc: 'Unlimited servers, custom branding and a direct line.',
+      perks: ['All scripts, escrowed or open', 'Unlimited server keys', 'Updates while subscribed', 'Discord support', 'Open-source access', 'Priority support', 'Custom branding'], perkOn: 7 },
   ],
   reviews: [
-    { who: 'Theo K.', when: '2 days ago', pkg: 'Gold membership', text: 'Delivered before I even tabbed back into the game. The queue skip alone is worth it on a Friday night.' },
-    { who: 'Maya R.', when: '1 week ago', pkg: 'Pegassi Zentorno', text: 'Car showed up in my garage fully upgraded with insurance like it said. Support answered a plate question in minutes.' },
-    { who: 'Sam B.', when: '3 weeks ago', pkg: 'Starter Pack', text: 'Clean store, no weird upsells. Starter pack is genuinely the best way to get going in the city.' },
+    { who: 'Theo K.', when: '2 days ago', pkg: 'NayZeee HUD', text: 'Dropped it into a Qbox server and it just worked. The settings menu is the cleanest I have seen in FiveM, my players actually use it.' },
+    { who: 'Maya R.', when: '1 week ago', pkg: 'Emergency Services MDT', text: 'Our EMS went from spreadsheets to this in one night. Dispatch board plus patient records is exactly what we needed.' },
+    { who: 'Sam B.', when: '3 weeks ago', pkg: 'UI Bundle', text: 'Everything matches. HUD, notify, pause menu, all one style. Support answered a config question in under an hour.' },
   ],
   faq: [
-    ['How fast is delivery?', 'Instant. Items are delivered the moment payment clears. If you are in the city, you will get a notification; if not, they will be waiting when you join.'],
-    ['Do I need to be online?', 'No. Purchases are tied to your Cfx.re account and delivered on your next join if you are offline.'],
-    ['Can I gift a package?', 'Yes. On any package page, switch on "Gift to another player" and enter their Cfx.re username.'],
-    ['What is your refund policy?', 'Digital goods are delivered instantly, so refunds are only offered when an item could not be delivered. Open a ticket in Discord.'],
-    ['Which payment methods do you accept?', 'Cards, PayPal, Apple Pay, Google Pay and Paysafecard, all handled securely by Tebex.'],
-    ['Will my membership auto-renew?', 'Memberships are monthly subscriptions and renew automatically. Cancel any time from your Tebex account page.'],
+    ['How do I receive my scripts?', 'Instantly. Escrowed assets are granted to the Cfx.re account you sign in with and appear in your Keymaster. Open-source variants are also delivered as a download link.'],
+    ['Which frameworks are supported?', 'ESX, QBCore and Qbox out of the box. Standalone scripts work on any server. Framework bridges are open so you can adapt them.'],
+    ['Escrow or open source?', 'Escrowed is cheaper and protected by Cfx.re asset escrow. Open source gives you the full code to edit. Both get the same updates.'],
+    ['How many servers can I use a script on?', 'One server per purchase. All Access plans include multiple server keys. Need more, open a ticket.'],
+    ['Do I get updates?', 'Yes, for life on one-time purchases. Updates show up in Keymaster and in the Discord changelog.'],
+    ['What is your refund policy?', 'Digital goods are delivered instantly, so refunds are only offered when an asset cannot be delivered. Open a ticket in Discord within 7 days.'],
   ],
 };
 
@@ -835,6 +961,8 @@ const pkg = id => STORE.packages.find(p => p.id === +id);
 const cat = id => STORE.categories.find(c => c.id === id);
 const catOf = p => cat(p.cat);
 const pctOff = p => p.old ? Math.round((1 - p.price / p.old) * 100) : 0;
+const price = n => n === 0 ? 'Free' : money(n);
+const itemPrice = i => i.src === 'open' && i.p.open ? i.p.open : i.p.price;
 
 /* ═══════════════════════════════════════════════════════════
    RENDER HELPERS
@@ -860,7 +988,7 @@ function card(p) {
       <h3>${esc(p.name)}</h3>
       <p>${esc(p.desc)}</p>
       <div class="pk-f">
-        <div class="price"><b>${money(p.price)}</b>${p.old ? `<s>${money(p.old)}</s>` : ''}${p.period ? `<small>/ ${p.period}</small>` : ''}</div>
+        <div class="price"><b>${price(p.price)}</b>${p.old ? `<s>${money(p.old)}</s>` : ''}${p.period ? `<small>/ ${p.period}</small>` : p.open ? `<small>escrow</small>` : ''}</div>
         <button class="add" data-add="${p.id}" aria-label="Add to cart">${ico('plus')}</button>
       </div>
     </div>
@@ -888,77 +1016,75 @@ function sectionHead(kick, title, sub, right = '') {
    ═══════════════════════════════════════════════════════════ */
 const views = {
   home() {
-    const s = STORE.server;
+    const r = STORE.release, rp = pkg(r.pkg);
     const featured = STORE.packages.filter(p => p.featured).slice(0, 8);
-    const pct = Math.round(s.players / s.slots * 100);
     return `
     <section class="hero wrap view">
       <div class="hero-g">
         <div>
-          <div class="hero-eye"><span class="dot"></span><b>${s.players} players</b> in the city right now</div>
-          <h1>Support the city. <em>Unlock more.</em></h1>
-          <p class="lead">Memberships, imports, queue priority and properties. Every purchase is delivered instantly to your Cfx.re account and goes straight back into keeping the server running.</p>
+          <div class="hero-eye"><span class="dot"></span><b>${rp ? esc(rp.name) + ' ' + esc(r.version) : 'New release'}</b> just shipped</div>
+          <h1>FiveM scripts that <em>feel native.</em></h1>
+          <p class="lead">HUDs, MDTs, inventory, garages and more, all built in one design language and tested on ESX, QBCore and Qbox. Escrowed or open source, delivered to your Keymaster the second you pay.</p>
           <div class="hero-cta">
-            <a class="btn-teal btn-lg" href="#/store">${ico('bag')} Browse the store</a>
-            <a class="btn-line btn-lg" href="#/store/memberships">${ico('crown')} Compare memberships</a>
+            <a class="btn-teal btn-lg" href="#/store">${ico('bag')} Browse scripts</a>
+            <a class="btn-line btn-lg" href="#/store/bundles">${ico('box')} See bundles</a>
           </div>
           <div class="hero-proof">
             <div class="stack"><span class="av">TK</span><span class="av">MR</span><span class="av">SB</span><span class="av">+</span></div>
-            <span><span class="stars">★★★★★</span> <b>4.9</b> from 1,240 reviews</span>
+            <span><span class="stars">★★★★★</span> <b>4.9</b> from 1,240 verified buyers</span>
           </div>
         </div>
-        <aside class="panel server">
-          <div class="p-head"><h2><span class="dot ${s.online ? '' : 'red'}"></span>Server status</h2><span class="tag ${s.online ? 'live' : 'hot'}">${s.online ? 'Online' : 'Offline'}</span></div>
+        ${rp ? `<aside class="panel server">
+          <div class="p-head"><h2><span class="dot"></span>Latest release</h2><span class="tag live">${esc(r.version)}</span></div>
           <div class="p-body">
-            <div class="srv-stat">
-              <div><span>Players</span><b>${s.players}<small>/${s.slots}</small></b></div>
-              <div><span>In queue</span><b>${s.queue}</b></div>
-              <div><span>Uptime</span><b>${s.uptime}</b></div>
+            <div style="display:flex;gap:12px;align-items:center">
+              ${art(rp, '')}
+              <div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.014em">${esc(rp.name)}</b><span style="display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:3px">${esc(r.date)} · ${(rp.fw || []).join(' · ')}</span></div>
             </div>
-            <div class="bar-w"><i style="width:${pct}%"></i></div>
-            <div class="connect"><code>${esc(STORE.connect)}</code><span>F8</span><button class="btn-ghost" data-copy="${esc(STORE.connect)}">${ico('copy')} Copy</button></div>
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:6px">${r.notes.map(n => `<li style="display:flex;gap:8px;font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.45">${ico('check', 'ic')}<span>${esc(n)}</span></li>`).join('')}</ul>
+            <div class="connect"><code>from ${money(rp.price)}</code><span>${rp.open ? 'open source ' + money(rp.open) : ''}</span><a class="btn-teal btn-sm" href="#/package/${rp.id}">View</a></div>
           </div>
-        </aside>
+        </aside>` : ''}
       </div>
       <div class="stats">
-        <div class="panel stat"><div class="tile">${ico('users')}</div><div class="stat-txt"><span>Citizens</span><b>12,480</b></div><div class="delta">${ico('up')}312</div></div>
-        <div class="panel stat"><div class="tile">${ico('bag')}</div><div class="stat-txt"><span>Orders this month</span><b>1,208</b></div><div class="delta">${ico('up')}9%</div></div>
-        <div class="panel stat"><div class="tile">${ico('bolt')}</div><div class="stat-txt"><span>Avg. delivery</span><b>4s</b></div></div>
-        <div class="panel stat"><div class="tile red">${ico('heart')}</div><div class="stat-txt"><span>Wishlisted today</span><b>96</b></div></div>
+        <div class="panel stat"><div class="tile">${ico('users')}</div><div class="stat-txt"><span>Servers running our scripts</span><b>3,200+</b></div><div class="delta">${ico('up')}140</div></div>
+        <div class="panel stat"><div class="tile">${ico('box')}</div><div class="stat-txt"><span>Scripts in the store</span><b>${STORE.packages.filter(p => !p.period).length}</b></div></div>
+        <div class="panel stat"><div class="tile">${ico('bolt')}</div><div class="stat-txt"><span>Delivery</span><b>Instant</b></div></div>
+        <div class="panel stat"><div class="tile red">${ico('clock')}</div><div class="stat-txt"><span>Support reply</span><b>&lt; 1h</b></div></div>
       </div>
     </section>
 
     <section class="section wrap">
-      ${sectionHead('Featured', 'Hand-picked this week', 'The packages citizens are buying most right now.', `<a class="btn-ghost" href="#/store">View all ${ico('chev')}</a>`)}
+      ${sectionHead('Featured', 'Most popular this week', 'What server owners are picking up right now.', `<a class="btn-ghost" href="#/store">View all ${ico('chev')}</a>`)}
       <div class="grid">${featured.map(card).join('')}</div>
     </section>
 
     <section class="section wrap">
-      ${sectionHead('Browse', 'Shop by category', 'Everything is delivered instantly to your Cfx.re account.')}
-      <div class="cats">${STORE.categories.map(c => `<a class="panel cat" href="#/store/${c.id}"><div class="tile">${ico(c.icon)}</div><div class="cat-t"><b>${esc(c.name)}</b><span>${STORE.packages.filter(p => p.cat === c.id).length} packages · ${esc(c.desc)}</span></div>${ico('arrow', 'ic arrow')}</a>`).join('')}</div>
+      ${sectionHead('Browse', 'Shop by category', 'Every script ships with docs, a config and framework bridges.')}
+      <div class="cats">${STORE.categories.map(c => `<a class="panel cat" href="#/store/${c.id}"><div class="tile">${ico(c.icon)}</div><div class="cat-t"><b>${esc(c.name)}</b><span>${STORE.packages.filter(p => p.cat === c.id).length} ${c.tiered ? 'plans' : 'scripts'} · ${esc(c.desc)}</span></div>${ico('arrow', 'ic arrow')}</a>`).join('')}</div>
     </section>
 
     <section class="section wrap">
-      ${sectionHead('Why us', 'Built for citizens, not whales', 'Fair pricing, instant delivery and a team that actually answers.')}
+      ${sectionHead('Why us', 'One design language, three frameworks', 'Everything in the store looks like it belongs together and runs where you already are.')}
       <div class="why">
-        <div class="panel"><div class="tile">${ico('bolt')}</div><b>Instant delivery</b><p>Items land in your account the second payment clears. Online or offline, it is waiting for you on your next join.</p></div>
-        <div class="panel"><div class="tile">${ico('shield')}</div><b>Secure checkout</b><p>Payments are handled by Tebex. We never see or store your card details, and every order is tied to your Cfx.re ID.</p></div>
-        <div class="panel"><div class="tile">${ico('users')}</div><b>Funds the city</b><p>Hosting, development and events. Nothing leaves the project. You can see what we are building in the Discord changelog.</p></div>
+        <div class="panel"><div class="tile">${ico('layers')}</div><b>Matched UI</b><p>Every script uses NAYZEEE UI: same surfaces, same teal, same motion. Mix and match and it still looks like one server.</p></div>
+        <div class="panel"><div class="tile">${ico('shield')}</div><b>Escrow or open source</b><p>Pick escrowed for the lowest price and Cfx.re protection, or open source when you want to dig into the code. Same updates either way.</p></div>
+        <div class="panel"><div class="tile">${ico('refresh')}</div><b>Lifetime updates</b><p>Buy once, keep getting updates in your Keymaster. Changelogs are posted in Discord with every release.</p></div>
       </div>
     </section>
 
     <section class="section wrap">
       <div class="panel disc">
         <div class="mark lg"></div>
-        <div class="disc-t"><b>Join 9,400 citizens on Discord</b><p>Patch notes, giveaways and support tickets. If you have a delivery issue, open a ticket and a staff member will sort it fast.</p></div>
-        <div class="online"><span class="dot"></span><b>1,862</b> online</div>
+        <div class="disc-t"><b>Join 4,100 server owners on Discord</b><p>Release notes, previews, config help and support tickets. Most questions get answered within the hour.</p></div>
+        <div class="online"><span class="dot"></span><b>612</b> online</div>
         <a class="btn-white" href="${esc(STORE.discord)}" target="_blank" rel="noopener">${ico('discord')} Join Discord</a>
       </div>
     </section>
 
     <section class="section wrap">
-      ${sectionHead('Reviews', 'What citizens say', '', '<span class="tag live">Verified purchases</span>')}
-      <div class="reviews">${STORE.reviews.map(r => `<div class="panel rev"><div class="rev-h"><span class="av">${esc(r.who.split(' ').map(x => x[0]).join(''))}</span><div><b>${esc(r.who)}</b><span>${esc(r.when)}</span></div><span class="stars">★★★★★</span></div><p>${esc(r.text)}</p><div class="meta">${ico('check')}Purchased <b style="color:var(--ink-2);font-weight:500">${esc(r.pkg)}</b></div></div>`).join('')}</div>
+      ${sectionHead('Reviews', 'What owners say', '', '<span class="tag live">Verified purchases</span>')}
+      <div class="reviews">${STORE.reviews.map(r => `<div class="panel rev"><div class="rev-h"><span class="av">${esc(initials(r.who))}</span><div><b>${esc(r.who)}</b><span>${esc(r.when)}</span></div><span class="stars">★★★★★</span></div><p>${esc(r.text)}</p><div class="meta">${ico('check')}Purchased <b style="color:var(--ink-2);font-weight:500">${esc(r.pkg)}</b></div></div>`).join('')}</div>
     </section>
 
     <section class="section wrap">
@@ -967,11 +1093,10 @@ const views = {
     </section>
 
     <section class="section wrap">
-      ${sectionHead('Stack', 'Built on the best', '')}
-      <div class="fw-wrap"><div class="fw-track">${[1, 2].map(() => ['QBCore', 'ox_lib', 'ox_inventory', 'qbx_core', 'ox_target', 'NayZeee HUD', 'Renewed Scripts', 'pma-voice', 'Tebex', 'txAdmin'].map(n => `<span class="fw"><i>${esc(n.replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase())}</i>${esc(n)}</span>`).join('')).join('')}</div></div>
+      ${sectionHead('Compatibility', 'Works with your stack', '')}
+      <div class="fw-wrap"><div class="fw-track">${[1, 2].map(() => ['ESX', 'QBCore', 'Qbox', 'ox_lib', 'ox_inventory', 'ox_target', 'qb-inventory', 'pma-voice', 'txAdmin', 'Cfx.re Escrow'].map(n => `<span class="fw"><i>${esc(n.replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase())}</i>${esc(n)}</span>`).join('')).join('')}</div></div>
     </section>`;
   },
-
   store(catId, q = {}) {
     const c = catId ? cat(catId) : null;
     if (catId && !c) return views.notFound();
@@ -990,7 +1115,7 @@ const views = {
     <div class="wrap view">
       <div class="crumb"><a href="#/">Home</a>${ico('chev')}<a href="#/store">Store</a>${c ? `${ico('chev')}<b>${esc(c.name)}</b>` : ''}</div>
       <div class="page-h">
-        <div><h1>${c ? esc(c.name) : 'All packages'}</h1><p>${c ? esc(c.desc) : 'Everything in the store, delivered instantly to your Cfx.re account.'} · ${list.length} ${list.length === 1 ? 'package' : 'packages'}</p></div>
+        <div><h1>${c ? esc(c.name) : 'All scripts'}</h1><p>${c ? esc(c.desc) : 'Everything in the store. Escrowed or open source, granted to your Keymaster instantly.'} · ${list.length} ${list.length === 1 ? (c && c.tiered ? 'plan' : 'script') : (c && c.tiered ? 'plans' : 'scripts')}</p></div>
         <div class="toolbar">
           <div class="inp-wrap">${ico('search')}<input class="inp" id="fq" placeholder="Filter…" value="${esc(q.q || '')}"></div>
           <select class="inp" id="fsort">
@@ -1023,25 +1148,26 @@ const views = {
           <div class="thumbs">${[0, 1, 2, 3].map(i => `<div class="art ${p.tone} ${i === 0 ? 'on' : ''}">${ico(p.art, 'big')}</div>`).join('')}</div>
         </div>
         <div class="panel buy">
-          <div class="top"><span class="chip grey">${esc(c.name)}</span>${p.old ? `<span class="chip red">Save ${pctOff(p)}%</span>` : ''}${p.popular ? '<span class="chip">Most popular</span>' : ''}${(p.tags || []).map(t => `<span class="chip grey">${esc(t)}</span>`).join('')}</div>
+          <div class="top"><span class="chip grey">${esc(c.name)}</span>${(p.fw || []).map(f => `<span class="chip">${esc(f)}</span>`).join('')}${p.old ? `<span class="chip red">Save ${pctOff(p)}%</span>` : ''}${p.popular ? '<span class="chip">Most popular</span>' : ''}${(p.tags || []).map(t => `<span class="chip grey">${esc(t)}</span>`).join('')}</div>
           <h1>${esc(p.name)}</h1>
           <p style="font-size:13px;color:var(--ink-2);font-weight:300;line-height:1.6">${esc(p.desc)}</p>
-          <div class="big-price"><b>${money(p.price)}</b>${p.old ? `<s>${money(p.old)}</s>` : ''}<small>${p.period ? `Billed every ${p.period}<br>cancel any time` : 'One-time purchase<br>instant delivery'}</small></div>
+          <div class="big-price"><b id="bigPrice">${price(p.price)}</b>${p.old ? `<s>${money(p.old)}</s>` : ''}<small>${p.period ? `Billed every ${p.period}<br>cancel any time` : 'One-time purchase<br>lifetime updates'}</small></div>
+          ${p.open ? `<div class="opt"><div><b>Licence</b><small>Escrowed is Cfx.re protected. Open source includes the full code.</small></div><div class="segc" id="srcSw"><button class="on" data-src="escrow">${ico('lock')}Escrowed · ${money(p.price)}</button><button data-src="open">${ico('key')}Open source · ${money(p.open)}</button></div></div>` : ''}
           ${p.period ? '' : `<div class="row"><span style="font-size:12px;color:var(--ink-3);font-weight:300">Quantity</span><div class="qty"><button data-q="-1">${ico('minus')}</button><b id="qtyV">1</b><button data-q="1">${ico('plus')}</button></div></div>`}
-          <div class="opt"><div><b>Gift to another player</b><small>Deliver this to a friend's Cfx.re account instead of yours</small></div><button class="sw" id="giftSw" aria-label="Gift"><i></i></button></div>
           <div class="row">
-            <button class="btn-teal btn-lg" style="flex:1" id="buyBtn" data-add="${p.id}">${ico('cart')} Add to cart · <span id="buyTotal">${money(p.price)}</span></button>
+            <button class="btn-teal btn-lg" style="flex:1" id="buyBtn" data-add="${p.id}">${ico('cart')} ${p.price === 0 ? 'Get it free' : 'Add to cart'} · <span id="buyTotal">${price(p.price)}</span></button>
             <button class="btn-line btn-lg ${w ? 'is-on' : ''}" data-wish="${p.id}" style="${w ? 'color:var(--red);border-color:var(--red-edge)' : ''}">${ico(w ? 'heart-f' : 'heart')}</button>
           </div>
-          <div class="trust"><div>${ico('bolt')}Instant delivery</div><div>${ico('shield')}Secured by Tebex</div><div>${ico('lock')}Tied to your Cfx.re ID</div></div>
+          <div class="row"><button class="btn-line" id="giftBtn">${ico('gift')} Send as gift</button><span style="font-size:11px;color:var(--ink-3);font-weight:300">Grant it to another server owner's Keymaster instead of yours</span></div>
+          <div class="trust"><div>${ico('bolt')}Instant Keymaster grant</div><div>${ico('shield')}Secured by Tebex</div><div>${ico('refresh')}Lifetime updates</div></div>
         </div>
       </div>
       <div class="tabs" id="ptabs"><button class="tab on" data-t="desc">Description</button><button class="tab" data-t="inc">What's included</button><button class="tab" data-t="terms">Terms</button></div>
       <div class="tab-b" data-tb="desc">
-        ${p.html || `<p>${esc(p.desc)} Delivered automatically to your Cfx.re account. If you are in the city you will get a notification straight away; otherwise it will be waiting on your next join.</p><h4>Good to know</h4><ul><li>${ico('check')}Linked to your Cfx.re account, not your character</li><li>${ico('check')}Support via Discord ticket if anything fails to deliver</li>${p.period ? `<li>${ico('check')}Renews every ${p.period}, cancel any time from your Tebex account</li>` : `<li>${ico('check')}One-time purchase, no subscription</li>`}</ul>`}
+        ${p.html || `<p>${esc(p.desc)} Granted to your Cfx.re Keymaster the moment payment clears, with docs and a config file included. ${p.fw ? 'Tested on ' + p.fw.join(', ') + '.' : ''}</p><h4>Good to know</h4><ul><li>${ico('check')}One server per purchase, transferable in Keymaster</li><li>${ico('check')}Lifetime updates, changelog posted in Discord</li><li>${ico('check')}Support via Discord ticket, usually under an hour</li>${p.period ? `<li>${ico('check')}Renews every ${p.period}, cancel any time from your Tebex account</li>` : `<li>${ico('check')}One-time purchase, no subscription</li>`}</ul>`}
       </div>
-      <div class="tab-b hide" data-tb="inc">${perks.length ? `<ul>${perks.map(t => `<li>${ico('check')}${esc(t)}</li>`).join('')}</ul>` : `<ul><li>${ico('check')}${esc(p.name)}</li><li>${ico('check')}Instant delivery</li>${c.id === 'vehicles' ? `<li>${ico('check')}Insurance and a garage slot</li><li>${ico('check')}Full performance upgrades</li>` : ''}</ul>`}</div>
-      <div class="tab-b hide" data-tb="terms"><p>All purchases are digital goods delivered instantly and are non-refundable unless delivery fails. Items are bound to the Cfx.re account used at checkout. Chargebacks result in a store and server ban. By purchasing you agree to the server rules and the <a href="#/page/terms" style="color:var(--ink);text-decoration:underline;text-underline-offset:2px">terms of service</a>.</p></div>
+      <div class="tab-b hide" data-tb="inc">${perks.length ? `<ul>${perks.map(t => `<li>${ico('check')}${esc(t)}</li>`).join('')}</ul>` : `<ul><li>${ico('check')}${esc(p.name)}</li><li>${ico('check')}Docs and config</li><li>${ico('check')}Lifetime updates</li></ul>`}</div>
+      <div class="tab-b hide" data-tb="terms"><p>All purchases are digital goods delivered instantly and are non-refundable unless delivery fails. Assets are bound to the Cfx.re account used at checkout and licensed for one server. Redistributing open-source code or chargebacks result in a store ban. By purchasing you agree to the server rules and the <a href="#/page/terms" style="color:var(--ink);text-decoration:underline;text-underline-offset:2px">terms of service</a>.</p></div>
       ${related.length ? `<section class="section">${sectionHead('More like this', 'You may also like', '', `<a class="btn-ghost" href="#/store/${c.id}">All ${esc(c.name)} ${ico('chev')}</a>`)}<div class="grid">${related.map(card).join('')}</div></section>` : ''}
     </div>`;
   },
@@ -1049,7 +1175,7 @@ const views = {
   checkout() {
     const items = state.cart.map(i => ({ ...i, p: pkg(i.id) })).filter(i => i.p);
     const t = totals();
-    if (items.length === 0) return `<div class="wrap view"><div class="crumb"><a href="#/">Home</a>${ico('chev')}<b>Checkout</b></div><div class="page-h"><div><h1>Your cart</h1><p>Nothing in here yet.</p></div></div><div class="empty">${ico('cart')}<b>Your cart is empty</b><span>Browse the store and add something to get started.</span><a class="btn-teal" href="#/store" style="margin-top:6px">${ico('bag')} Browse the store</a></div></div>`;
+    if (items.length === 0) return `<div class="wrap view"><div class="crumb"><a href="#/">Home</a>${ico('chev')}<b>Checkout</b></div><div class="page-h"><div><h1>Your cart</h1><p>Nothing in here yet.</p></div></div><div class="empty">${ico('cart')}<b>Your cart is empty</b><span>Browse the scripts and add something to get started.</span><a class="btn-teal" href="#/store" style="margin-top:6px">${ico('bag')} Browse the store</a></div></div>`;
     return `
     <div class="wrap view">
       <div class="crumb"><a href="#/">Home</a>${ico('chev')}<b>Checkout</b></div>
@@ -1064,10 +1190,10 @@ const views = {
             <div class="p-body" style="display:flex;flex-direction:column;gap:8px">${items.map(cartItem).join('')}</div>
           </div>
           <div class="panel">
-            <div class="p-head"><div><h2>Deliver to</h2><p>Items are delivered to this Cfx.re account</p></div>${state.user ? `<button class="btn-ghost" data-nav="logout">${ico('logout')} Switch</button>` : ''}</div>
+            <div class="p-head"><div><h2>Deliver to</h2><p>Assets are granted to this Cfx.re account's Keymaster</p></div>${state.user ? `<button class="btn-ghost" data-nav="logout">${ico('logout')} Switch</button>` : ''}</div>
             <div class="p-body">${state.user
               ? `<div class="cfx"><span class="av" style="width:38px;height:38px;font-size:12px">${esc(initials(state.user.name))}</span><div><b>${esc(state.user.name)}</b><span>Cfx.re ID ${esc(state.user.id)} · signed in</span></div><span class="tag live" style="margin-left:auto">Verified</span></div>`
-              : `<div class="cfx"><div class="tile red">${ico('user')}</div><div><b>You are not signed in</b><span>Sign in with Cfx.re so we know where to deliver your items.</span></div><button class="btn-teal" data-nav="login" style="margin-left:auto">Sign in</button></div>`}</div>
+              : `<div class="cfx"><div class="tile red">${ico('user')}</div><div><b>You are not signed in</b><span>Sign in with Cfx.re so the assets land in your Keymaster.</span></div><button class="btn-teal" data-nav="login" style="margin-left:auto">Sign in</button></div>`}</div>
           </div>
           <div class="panel">
             <div class="p-head"><div><h2>Codes</h2><p>Coupons and creator codes</p></div></div>
@@ -1130,10 +1256,10 @@ function cartItem(i) {
   const p = i.p;
   return `<div class="ci" data-ci="${i.key}">
     ${art(p)}
-    <div class="ci-t"><b>${esc(p.name)}</b><span>${esc(catOf(p).name)}${p.period ? ` · renews every ${p.period}` : ''}</span>${i.gift ? `<span class="gift">${ico('gift')}Gift to ${esc(i.gift)}</span>` : ''}
+    <div class="ci-t"><b>${esc(p.name)}</b><span>${esc(catOf(p).name)}${p.period ? ` · renews every ${p.period}` : ''}${p.open ? (i.src === 'open' ? ' · open source' : ' · escrowed') : ''}</span>${i.gift ? `<span class="gift">${ico('gift')}Gift to ${esc(i.gift)}</span>` : ''}
       ${p.period ? '' : `<div class="qty sm" style="margin-top:4px"><button data-ci-q="-1">${ico('minus')}</button><b>${i.qty}</b><button data-ci-q="1">${ico('plus')}</button></div>`}
     </div>
-    <div class="ci-r"><button class="rm" data-ci-rm aria-label="Remove">${ico('x')}</button><b>${p.old ? `<s>${money(p.old * i.qty)}</s>` : ''}${money(p.price * i.qty)}</b></div>
+    <div class="ci-r"><button class="rm" data-ci-rm aria-label="Remove">${ico('x')}</button><b>${p.old && i.src !== 'open' ? `<s>${money(p.old * i.qty)}</s>` : ''}${price(itemPrice(i) * i.qty)}</b></div>
   </div>`;
 }
 
@@ -1143,25 +1269,26 @@ function cartItem(i) {
 function cartCount() { return state.cart.reduce((n, i) => n + i.qty, 0); }
 function totals() {
   const items = state.cart.map(i => ({ ...i, p: pkg(i.id) })).filter(i => i.p);
-  const sub = items.reduce((n, i) => n + i.p.price * i.qty, 0);
+  const sub = items.reduce((n, i) => n + itemPrice(i) * i.qty, 0);
   let disc = 0;
   const c = state.coupon && STORE.coupons[state.coupon];
   if (c) {
-    const base = c.scope ? items.filter(i => i.p.cat === c.scope).reduce((n, i) => n + i.p.price * i.qty, 0) : sub;
+    const base = c.scope ? items.filter(i => i.p.cat === c.scope).reduce((n, i) => n + itemPrice(i) * i.qty, 0) : sub;
     disc = c.type === 'pct' ? base * c.value / 100 : Math.min(c.value, sub);
   }
   return { sub, disc, total: Math.max(0, sub - disc) };
 }
-function addToCart(id, qty = 1, gift = null) {
+function addToCart(id, qty = 1, gift = null, src = 'escrow') {
   const p = pkg(id); if (!p) return;
   if (p.period) qty = 1;
-  const key = id + (gift ? ':' + gift.toLowerCase() : '');
+  if (!p.open) src = 'escrow';
+  const key = id + (src === 'open' ? ':os' : '') + (gift ? ':' + gift.toLowerCase() : '');
   const ex = state.cart.find(i => i.key === key);
   if (ex) { if (p.period) { toast('Already in your cart', p.name + ' is a subscription, one per account.', true); return; } ex.qty += qty; }
-  else state.cart.push({ key, id, qty, gift });
+  else state.cart.push({ key, id, qty, gift, src });
   save('cart', state.cart);
   if (Tebex.on && state.basketIdent) Tebex.addPackage(state.basketIdent, id, qty, gift ? { type: 'gift', target_username_id: gift } : {}).catch(e => toast('Tebex basket', e.message, true));
-  toast(gift ? 'Added as a gift' : 'Added to cart', `${p.name} ${gift ? 'for ' + gift : ''} · ${money(p.price * qty)}`);
+  toast(gift ? 'Added as a gift' : 'Added to cart', `${p.name}${src === 'open' ? ' (open source)' : ''} ${gift ? 'for ' + gift : ''} · ${price((src === 'open' ? p.open : p.price) * qty)}`);
   renderCart(); openDrawer();
 }
 function setQty(key, d) {
@@ -1265,9 +1392,9 @@ function render() {
     case 'page': v.innerHTML = views.page(route.slug); break;
     default: v.innerHTML = views.notFound();
   }
-  const active = route.name === 'store' && route.cat === 'memberships' ? 'memberships' : route.name === 'package' ? 'store' : route.name;
+  const active = route.name === 'store' && route.cat === 'access' ? 'access' : route.name === 'package' ? 'store' : route.name;
   $$('.lnk').forEach(l => l.classList.toggle('on', l.dataset.route === active));
-  const titles = { home: 'Store', store: route.cat ? (cat(route.cat) || {}).name : 'All packages', package: (pkg(route.id) || {}).name, checkout: 'Checkout', wishlist: 'Wishlist', faq: 'Support' };
+  const titles = { home: 'FiveM scripts & UI', store: route.cat ? (cat(route.cat) || {}).name : 'All scripts', package: (pkg(route.id) || {}).name, checkout: 'Checkout', wishlist: 'Wishlist', faq: 'Support' };
   document.title = (titles[route.name] ? titles[route.name] + ' · ' : '') + STORE.name;
   bindView();
 }
@@ -1276,9 +1403,9 @@ window.addEventListener('hashchange', () => { render(); window.scrollTo({ top: 0
 /* ═══════════════════════════════════════════════════════════
    VIEW BINDINGS
    ═══════════════════════════════════════════════════════════ */
-let pkgQty = 1, pkgGift = false;
+let pkgQty = 1, pkgSrc = 'escrow';
 function bindView() {
-  pkgQty = 1; pkgGift = false;
+  pkgQty = 1; pkgSrc = 'escrow';
   // store filters
   const fq = $('#fq'), fs = $('#fsort'), fl = $('#flayout');
   const upd = (patch) => { const q = { ...route.q, ...patch }; Object.keys(q).forEach(k => !q[k] && delete q[k]); const qs = new URLSearchParams(q).toString(); location.hash = `#/store${route.cat ? '/' + route.cat : ''}${qs ? '?' + qs : ''}`; };
@@ -1288,9 +1415,10 @@ function bindView() {
   // package page
   const p = route.name === 'package' && pkg(route.id);
   if (p) {
-    const total = () => { $('#buyTotal').textContent = money(p.price * pkgQty); };
+    const total = () => { const u = pkgSrc === 'open' && p.open ? p.open : p.price; $('#buyTotal').textContent = price(u * pkgQty); $('#bigPrice').textContent = price(u); };
+    const ss = $('#srcSw'); if (ss) ss.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; pkgSrc = b.dataset.src; $$('button', ss).forEach(x => x.classList.toggle('on', x === b)); total(); });
     $$('[data-q]').forEach(b => b.addEventListener('click', () => { pkgQty = Math.max(1, Math.min(10, pkgQty + +b.dataset.q)); $('#qtyV').textContent = pkgQty; total(); }));
-    $('#giftSw').addEventListener('click', e => { pkgGift = !pkgGift; e.currentTarget.classList.toggle('on', pkgGift); });
+    $('#giftBtn').addEventListener('click', () => { giftFor = { id: p.id, qty: pkgQty, src: pkgSrc }; $('#giftPkg').textContent = p.name; openModal('giftW'); });
     $('#ptabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (!b) return; $$('.tab').forEach(x => x.classList.toggle('on', x === b)); $$('[data-tb]').forEach(x => x.classList.toggle('hide', x.dataset.tb !== b.dataset.t)); });
     $$('.thumbs .art').forEach(t => t.addEventListener('click', () => $$('.thumbs .art').forEach(x => x.classList.toggle('on', x === t))));
   }
@@ -1303,7 +1431,7 @@ function bindView() {
 }
 
 async function pay() {
-  if (!state.user) { toast('Sign in first', 'We need your Cfx.re account to deliver your items.', true); openModal('loginW'); return; }
+  if (!state.user) { toast('Sign in first', 'We need your Cfx.re account to grant the assets in Keymaster.', true); openModal('loginW'); return; }
   const b = $('#payBtn'); b.disabled = true; b.innerHTML = `${ico('refresh')} Redirecting to Tebex…`;
   if (Tebex.on) {
     try {
@@ -1317,7 +1445,7 @@ async function pay() {
   setTimeout(() => {
     toast('Demo checkout', 'With a Tebex token set, this redirects to the hosted Tebex checkout.');
     state.cart = []; state.coupon = null; save('cart', []); save('coupon', null); renderCart();
-    location.hash = '#/'; setTimeout(() => toast('Order complete', 'Your items have been delivered to ' + state.user.name + '.'), 400);
+    location.hash = '#/'; setTimeout(() => toast('Order complete', 'Assets granted to ' + state.user.name + '. Check your Keymaster.'), 400);
   }, 900);
 }
 
@@ -1339,7 +1467,7 @@ function doSearch() {
   const q = $('#srchI').value.trim().toLowerCase();
   const list = (q ? STORE.packages.filter(p => (p.name + ' ' + p.desc + ' ' + catOf(p).name).toLowerCase().includes(q)) : STORE.packages.filter(p => p.featured)).slice(0, 7);
   srchIdx = 0;
-  $('#srchR').innerHTML = list.length ? list.map((p, i) => `<a class="sr ${i === 0 ? 'on' : ''}" href="#/package/${p.id}">${art(p)}<div class="sr-t"><b>${esc(p.name)}</b><span>${esc(catOf(p).name)}</span></div><div class="price"><b>${money(p.price)}</b></div></a>`).join('') : `<div class="empty" style="margin:6px">${ico('search')}<b>No results</b><span>Try a package or category name.</span></div>`;
+  $('#srchR').innerHTML = list.length ? list.map((p, i) => `<a class="sr ${i === 0 ? 'on' : ''}" href="#/package/${p.id}">${art(p)}<div class="sr-t"><b>${esc(p.name)}</b><span>${esc(catOf(p).name)}</span></div><div class="price"><b>${price(p.price)}</b></div></a>`).join('') : `<div class="empty" style="margin:6px">${ico('search')}<b>No results</b><span>Try a package or category name.</span></div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1364,8 +1492,7 @@ document.addEventListener('click', e => {
     e.preventDefault(); e.stopPropagation();
     const id = +add.dataset.add;
     const onPkg = route.name === 'package' && +route.id === id;
-    if (onPkg && pkgGift) { giftFor = { id, qty: pkgQty }; openModal('giftW'); return; }
-    addToCart(id, onPkg ? pkgQty : 1); return;
+    addToCart(id, onPkg ? pkgQty : 1, null, onPkg ? pkgSrc : 'escrow'); return;
   }
   const wish = t.closest('[data-wish]'); if (wish) { e.preventDefault(); e.stopPropagation(); toggleWish(wish.dataset.wish); return; }
   if (t.closest('[data-wish-all]')) { state.wish.forEach(id => { const p = pkg(id); if (p && !state.cart.find(i => i.key === String(id))) state.cart.push({ key: String(id), id, qty: 1, gift: null }); }); save('cart', state.cart); renderCart(); openDrawer(); return; }
@@ -1389,8 +1516,9 @@ document.addEventListener('click', e => {
   }
   if (t.closest('#doGift')) {
     const to = $('#giftTo').value.trim();
-    if (!to) { toast('Recipient needed', 'Enter the Cfx.re username of the player you want to gift to.', true); return; }
-    closeAll(); addToCart(giftFor.id, giftFor.qty, to); $('#giftTo').value = ''; $('#giftMsg').value = '';
+    if (!to) { toast('Recipient needed', 'Enter the Cfx.re username of the person you want to gift to.', true); $('#giftTo').focus(); return; }
+    if (!giftFor) { toast('Pick a script first', 'Open a script page and press Send as gift.', true); return; }
+    closeAll(); addToCart(giftFor.id, giftFor.qty, to, giftFor.src); giftFor = null; $('#giftTo').value = ''; $('#giftMsg').value = '';
   }
 });
 document.addEventListener('keydown', e => {
@@ -1420,6 +1548,8 @@ async function boot() {
       if (cats.length) { STORE.categories = cats; STORE.packages = pkgs; }
     } catch (e) { toast('Tebex offline', 'Could not load the live catalogue, showing demo data. ' + e.message, true); }
   }
+  if (STORE.logo) $$('.brand .mark, .foot .mark, .mnav .mark').forEach(m => { const i = document.createElement('img'); i.className = 'logo'; i.src = STORE.logo; i.alt = STORE.name; m.replaceWith(i); });
+  if (STORE.name) { $$('.brand-t').forEach(b => b.textContent = STORE.name); }
   renderMenus(); renderUser(); renderCart(); render();
 }
 boot();

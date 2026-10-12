@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {{ header|raw }}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ config('login-page-title') ?: 'Sign in' }} · {{ store.name }}</title>
+  {# ─── NAYZEEE · username.html (login page). FiveM stores: Tebex sets `external` + `url` → we redirect to Cfx.re. ─── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--void:#000;--base:#08090a;--panel:#0e1011;--raise:#15181a;--inset:#0b0c0d;--line:rgba(255,255,255,.10);--line-soft:rgba(255,255,255,.06);--line-hair:rgba(255,255,255,.035);--lift:rgba(255,255,255,.055);--white:#fff;--ink:#f2f4f5;--ink-2:#9ea5aa;--ink-3:#63696d;--teal:{{ config('accent-colour') ?: '#08afa2' }};--teal-hi:{{ config('accent-hi-colour') ?: '#0fd4c4' }};--teal-lo:{{ config('accent-lo-colour') ?: '#067d74' }};--teal-rgb:{{ config('accent-rgb') ?: '8,175,162' }};--teal-wash:rgba(var(--teal-rgb),.11);--teal-edge:rgba(var(--teal-rgb),.34);--on-teal:#00201d;--red:#e5484d;--red-lo:#b8262b;--r-xs:4px;--r-sm:6px;--r-md:10px;--sh-1:0 1px 2px rgba(0,0,0,.6);--sh-3:0 10px 24px rgba(0,0,0,.6),0 40px 80px rgba(0,0,0,.7);--fast:130ms cubic-bezier(.4,0,.2,1)}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Lexend',system-ui,sans-serif;background:radial-gradient(900px 500px at 50% -10%,#131718 0%,transparent 62%),var(--void);color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:24px;-webkit-font-smoothing:antialiased}
+    .card{width:min(420px,100%);background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-3);overflow:hidden;animation:in .25s cubic-bezier(.4,0,.2,1) both}
+    @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    .head{display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid var(--line-soft);background:linear-gradient(var(--panel),var(--base));position:relative}
+    .head::before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--teal),rgba(var(--teal-rgb),0))}
+    .mark{position:relative;flex:none;width:30px;height:30px;background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));border-radius:var(--r-sm);clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);box-shadow:0 2px 12px rgba(var(--teal-rgb),.3)}
+    .mark::after{content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;background:var(--void);opacity:.85;border-radius:1px}
+    .logo{height:30px;width:auto;object-fit:contain}
+    .brand-t{font-size:12.5px;font-weight:600;color:var(--white);letter-spacing:.055em;line-height:1}
+    .brand-s{font-size:10px;color:var(--ink-3);font-weight:300;letter-spacing:.055em;margin-top:5px}
+    .body{padding:20px 18px;display:flex;flex-direction:column;gap:14px}
+    h1{font-size:20px;font-weight:600;letter-spacing:-.025em;color:var(--white)}
+    p{font-size:12.5px;color:var(--ink-2);font-weight:300;line-height:1.55}
+    .cfx{display:flex;align-items:center;gap:12px;padding:12px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-sm)}
+    .tile{width:38px;height:38px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+    .tile svg{width:17px;height:17px}
+    .cfx b{display:block;font-size:12.5px;font-weight:500;color:var(--white)}
+    .cfx span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px;line-height:1.45}
+    .msg{padding:10px 12px;border-radius:var(--r-sm);background:rgba(229,72,77,.11);border:1px solid rgba(229,72,77,.34);color:var(--ink);font-size:12px}
+    label{font-size:11px;color:var(--ink-3);font-weight:300;display:block;margin-bottom:6px}
+    .inp{height:38px;width:100%;padding:0 11px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-xs);color:var(--white);font:inherit;font-size:13px}
+    .inp:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:0;border-radius:var(--r-xs);background:linear-gradient(var(--teal),var(--teal-lo));color:var(--on-teal);font:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 1px 0 rgba(255,255,255,.3) inset,var(--sh-1);transition:filter var(--fast)}
+    .btn:hover{filter:brightness(1.12)}
+    .btn svg{width:15px;height:15px}
+    .back{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);text-decoration:none}
+    .back:hover{color:var(--white)}
+    .foot{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:var(--inset);border-top:1px solid var(--line-hair);font-size:10.5px;color:var(--ink-3);font-weight:300}
+    .foot b{color:var(--ink-2);font-weight:500}
+    .spin{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--teal);animation:sp .8s linear infinite;margin:6px auto}
+    @keyframes sp{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  {% set hol_quiet = true %}{% include 'module.holiday.twig' ignore missing %}
+  <div class="card"{% if external %} data-external-url="{{ url }}"{% endif %}>
+    <div class="head">{% if store.logo %}<img class="logo" src="{{ store.logo }}" alt="{{ store.name }}" />{% else %}<div class="mark"></div>{% endif %}<div><div class="brand-t">{{ store.name }}</div><div class="brand-s">{{ config('brand-sub') ?: 'FiveM scripts & UI' }}</div></div></div>
+
+    {% if external %}
+    <div class="body" style="text-align:center">
+      <div class="spin"></div>
+      <h1>{{ config('login-redirect-title') ?: 'Taking you to Cfx.re…' }}</h1>
+      <p>{{ config('login-redirect-text') ?: 'Sign in with your Cfx.re account so purchases land in your Keymaster.' }} {% if provider %}({{ provider }}){% endif %}</p>
+      <a class="btn" href="{{ url }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M13 10l3 3"/></svg>{{ config('login-redirect-btn') ?: 'Continue' }}</a>
+      <a class="back" href="/">← {{ config('login-back-text') ?: 'Back to store' }}</a>
+    </div>
+    <script>setTimeout(function () { window.location.replace({{ url|json_encode|raw }}); }, 400);</script>
+
+    {% else %}
+    <div class="body">
+      <h1>{{ config('login-page-title') ?: 'Sign in to continue' }}</h1>
+      <p>{{ config('login-subtitle') ?: 'Enter the username of the account that should receive the purchase.' }}</p>
+      {% if page.message.display %}<div class="msg">{{ page.message.text }}</div>{% endif %}
+      <div class="cfx"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></div><div><b>{{ config('login-box-title') ?: 'Your account' }}</b><span>{{ config('login-box-text') ?: 'Purchases are tied to this username. Double-check the spelling.' }}</span></div></div>
+      <form method="post">
+        <label for="ign">{{ config('login-username-label') ?: 'Username' }}</label>
+        <input type="text" id="ign" name="ign" class="inp" required autofocus autocomplete="username" spellcheck="false" placeholder="{{ config('login-placeholder') ?: 'e.g. NayZeee' }}" />
+        <button type="submit" class="btn" style="margin-top:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5L9 17.5 20 6.5"/></svg>{{ config('login-btn-text') ?: 'Continue' }}</button>
+      </form>
+      {% if config('login-hint') %}<p style="font-size:11.5px;color:var(--ink-3)">{{ config('login-hint') }}</p>{% endif %}
+      <a class="back" href="/">← {{ config('login-back-text') ?: 'Back to store' }}</a>
+    </div>
+    {% endif %}
+    <div class="foot"><span>{{ config('login-secure-text') ?: 'Secured by' }} <b>Tebex</b></span><span>{{ store.name }}</span></div>
+  </div>
+</body>
+</html>

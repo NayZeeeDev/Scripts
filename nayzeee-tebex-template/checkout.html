@@ -1,0 +1,114 @@
+{% extends "layout.html" %}
+{% block content %}
+{# ─── NAYZEEE · checkout.html (basket page, /checkout/basket) ─── #}
+<style>
+  .co{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
+  .co-l{display:flex;flex-direction:column;gap:12px}
+  .co .ci{padding:12px}.co .ci .art{width:76px}
+  .co-r{position:sticky;top:calc(var(--nav-h) + 20px);display:flex;flex-direction:column;gap:10px}
+  .codes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .terms{display:flex;gap:9px;align-items:flex-start;font-size:11px;color:var(--ink-3);font-weight:300;line-height:1.5}
+  .terms a{color:var(--ink-2);text-decoration:underline;text-underline-offset:2px}
+  .steps{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--ink-3);font-weight:300}
+  .steps b{display:inline-flex;align-items:center;gap:7px;color:var(--ink-2);font-weight:500}
+  .steps b i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:9.5px;background:var(--raise);border:1px solid var(--line)}
+  .steps b.on{color:var(--white)}.steps b.on i{background:var(--teal);color:var(--on-teal);border-color:var(--teal)}
+  .steps .ic{width:12px;height:12px;opacity:.5}
+  @media (max-width:860px){.co{grid-template-columns:1fr}.co-r{position:static}.codes{grid-template-columns:1fr}}
+</style>
+{% set n = basket.packages|length %}
+<div class="wrap view">
+  <div class="crumb"><a href="/">{{ config('nav-home-label') ?: 'Home' }}</a><svg class="ic"><use href="#i-chev"/></svg><b>{{ config('checkout-title') ?: 'Checkout' }}</b></div>
+  <div class="page-h">
+    <div><h1>{{ config('checkout-title') ?: 'Checkout' }}</h1><p>{% if n > 0 %}{{ n }} {{ n == 1 ? (config('cart-item-one') ?: 'item') : (config('cart-item-many') ?: 'items') }} · {{ config('checkout-sub') ?: 'review your order, then pay securely through Tebex.' }}{% else %}{{ config('checkout-empty-sub') ?: 'Nothing in here yet.' }}{% endif %}</p></div>
+    {% if n > 0 %}<div class="steps"><b class="on"><i>1</i>{{ config('checkout-step-1') ?: 'Cart' }}</b><svg class="ic"><use href="#i-chev"/></svg><b class="on"><i>2</i>{{ config('checkout-step-2') ?: 'Details' }}</b><svg class="ic"><use href="#i-chev"/></svg><b><i>3</i>{{ config('checkout-step-3') ?: 'Pay' }}</b></div>{% endif %}
+  </div>
+
+  {% if n > 0 %}
+  <div class="co">
+    <div class="co-l">
+      <div class="panel">
+        <div class="p-head"><div><h2>{{ config('checkout-items-title') ?: 'Items' }}</h2><p>{{ config('checkout-items-sub') ?: 'Remove anything you do not want' }}</p></div><a class="btn-ghost" href="{% if store.categories|length > 0 %}/category/{{ store.categories[0].id }}{% else %}/{% endif %}"><svg class="ic"><use href="#i-plus"/></svg>{{ config('checkout-add-more') ?: 'Add more' }}</a></div>
+        <div class="p-body" style="display:flex;flex-direction:column;gap:8px" id="coItems">
+          {% for item in basket.packages %}
+          <div class="ci co-item" data-pkg="{{ item.id }}">
+            <div class="art">{% if item.image.url %}<img src="{{ item.image.url }}" alt="" />{% else %}<svg class="big"><use href="#i-box"/></svg>{% endif %}</div>
+            <div class="ci-t"><b>{{ item.name }}</b><span>{{ config('cart-item-meta') ?: 'Granted to your Keymaster instantly' }}</span>
+              {% set gift_name = (item.gift_username is defined and item.gift_username) ? item.gift_username : '' %}
+              {% if gift_name %}<span class="gift"><svg class="ic"><use href="#i-gift"/></svg>{{ config('cart-gift-to') ?: 'Gift to' }} {{ gift_name }}</span>{% endif %}
+            </div>
+            <div class="ci-r"><a class="rm" href="/checkout/packages/remove/{{ item.id }}" data-remove="{{ item.id }}" aria-label="Remove"><svg class="ic"><use href="#i-x"/></svg></a><b>{% if item.discount.applied %}<s>{{ csym }}{{ item.discount.original|number_format(2) }}</s>{% endif %}{{ csym }}{{ item.price|number_format(2) }}</b></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="p-head"><div><h2>{{ config('checkout-deliver-title') ?: 'Deliver to' }}</h2><p>{{ config('checkout-deliver-sub') ?: "Assets are granted to this account's Keymaster" }}</p></div>{% if loggedIn %}<a class="btn-ghost" href="/checkout/logout"><svg class="ic"><use href="#i-logout"/></svg>{{ config('checkout-switch') ?: 'Switch' }}</a>{% endif %}</div>
+        <div class="p-body">
+          {% if loggedIn %}
+          <div class="cfx"><span class="av" style="width:38px;height:38px;font-size:12px">{{ basket.ign|slice(0, 2) }}</span><div><b>{{ basket.ign }}</b><span>{{ config('checkout-signed-in') ?: 'Signed in' }}</span></div><span class="tag live" style="margin-left:auto">{{ config('checkout-verified') ?: 'Verified' }}</span></div>
+          {% else %}
+          <div class="cfx"><div class="tile red"><svg class="ic"><use href="#i-user"/></svg></div><div><b>{{ config('checkout-not-signed') ?: 'You are not signed in' }}</b><span>{{ config('checkout-not-signed-sub') ?: 'Sign in so the assets land in your Keymaster.' }}</span></div><a class="btn-teal" href="/login" style="margin-left:auto">{{ config('login-label') ?: 'Sign in' }}</a></div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="p-head"><div><h2>{{ config('checkout-codes-title') ?: 'Codes' }}</h2><p>{{ config('checkout-codes-sub') ?: 'Coupons, gift cards and creator codes' }}</p></div></div>
+        <div class="p-body codes">
+          <div class="field"><label>{{ config('checkout-coupon-label') ?: 'Coupon or gift card' }}</label>
+            {% if basket.coupons is defined and basket.coupons|length > 0 %}<div class="applied-row">{% for coupon in basket.coupons %}<span class="applied">{{ coupon.code }}{% if coupon.description %}<small>· {{ coupon.description }}</small>{% endif %}<a href="/checkout/coupons/remove/{{ coupon.code }}" aria-label="Remove"><svg class="ic"><use href="#i-x"/></svg></a></span>{% endfor %}</div>{% endif %}
+            <form class="coupon" method="post" action="/checkout/coupons/add"><input class="inp" name="coupon" placeholder="{{ config('cart-coupon-placeholder') ?: 'Coupon or gift card' }}" autocomplete="off" /><button class="btn-line" type="submit">{{ config('cart-coupon-btn') ?: 'Apply' }}</button></form>
+          </div>
+          {% if (config('cart-creator-toggle') ?: 'Enabled') != 'Disabled' %}
+          <div class="field"><label>{{ config('checkout-creator-label') ?: 'Creator code' }}</label>
+            {% if basket.creator_code is defined and basket.creator_code %}<span class="applied">{{ basket.creator_code }}<small>· {{ config('cart-creator-tag') ?: 'Creator' }}</small><button type="button" data-creator-remove aria-label="Remove"><svg class="ic"><use href="#i-x"/></svg></button></span>
+            {% else %}<form class="coupon" method="post" action="/creator-code/add"><input class="inp" name="code" placeholder="{{ config('cart-creator-placeholder') ?: 'Support a creator' }}" autocomplete="off" /><button class="btn-line" type="submit">{{ config('cart-coupon-btn') ?: 'Apply' }}</button></form>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="co-r">
+      <div class="panel">
+        <div class="p-head"><div><h2>{{ config('checkout-summary-title') ?: 'Summary' }}</h2></div><span class="tag off">{{ basket.currency }}</span></div>
+        <div class="p-body" style="display:flex;flex-direction:column;gap:14px" id="coSummary">
+          {% set dhSaved = 0 %}
+          {% for it in basket.packages %}{% if it.discount.applied %}{% set dhSaved = dhSaved + (it.discount.original - it.price) %}{% endif %}{% endfor %}
+          <div class="sum">
+            <div><span>{{ config('cart-subtotal-label') ?: 'Subtotal' }}</span><span>{{ csym }}{{ (basket.price + basket.discount)|number_format(2) }}</span></div>
+            {% if dhSaved >= 0.01 %}<div class="disc-l"><span>{{ config('cart-saved-label') ?: 'You save' }}</span><span>−{{ csym }}{{ dhSaved|number_format(2) }}</span></div>{% endif %}
+            {% if basket.discount >= 0.01 %}<div class="disc-l"><span>{{ config('cart-discount-label') ?: 'Discount' }}</span><span>−{{ csym }}{{ basket.discount|number_format(2) }}</span></div>{% endif %}
+            <div><span>{{ config('checkout-tax-label') ?: 'Tax' }}</span><span style="color:var(--ink-3)">{{ config('checkout-tax-note') ?: 'at checkout' }}</span></div>
+            <div class="tot"><span>{{ config('cart-total-label') ?: 'Total' }}</span><span>{{ csym }}{{ basket.price|number_format(2) }}</span></div>
+          </div>
+          <div class="terms"><svg class="ic" style="width:14px;height:14px;color:var(--teal);flex:none;margin-top:1px"><use href="#i-shield"/></svg><span>{{ (config('checkout-terms') ?: 'By paying you agree to the <a href="/terms/checkout">terms of service</a>. Digital items are delivered instantly and are non-refundable.')|raw }}</span></div>
+          <button class="btn-teal btn-lg btn-full" type="button" id="checkout-pay-btn" onclick="window.nzCheckout()"><svg class="ic"><use href="#i-lock"/></svg>{{ config('checkout-pay-btn') ?: 'Pay' }} {{ csym }}{{ basket.price|number_format(2) }} {{ config('checkout-pay-with') ?: 'with Tebex' }}</button>
+          <div style="display:flex;justify-content:center;gap:8px;font-size:10.5px;color:var(--ink-3);font-weight:300"><svg class="ic" style="width:12px;height:12px"><use href="#i-lock"/></svg><span>{{ config('checkout-note') ?: '256-bit encrypted · processed by Tebex Ltd' }}</span></div>
+        </div>
+      </div>
+      <div class="panel" style="padding:12px 14px;display:flex;gap:10px;align-items:center">
+        <div class="tile"><svg class="ic"><use href="#i-key"/></svg></div>
+        <div style="font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.5">{{ (config('checkout-keymaster-note') ?: 'Escrowed assets appear in your <b style="color:var(--white);font-weight:500">Cfx.re Keymaster</b> a few seconds after payment.')|raw }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="empty"><svg class="ic"><use href="#i-cart"/></svg><b>{{ config('checkout-empty-title') ?: 'Your cart is empty' }}</b><span>{{ config('checkout-empty-text') ?: 'Browse the scripts and add something to get started.' }}</span><a class="btn-teal" href="{% if store.categories|length > 0 %}/category/{{ store.categories[0].id }}{% else %}/{% endif %}" style="margin-top:6px"><svg class="ic"><use href="#i-bag"/></svg>{{ config('checkout-browse-btn') ?: 'Browse the store' }}</a></div>
+  {% endif %}
+</div>
+<script>
+(function () {
+  /* coupon / creator forms on this page post via fetch, then reload */
+  document.querySelectorAll('.codes form.coupon').forEach(function (f) {
+    f.addEventListener('submit', function (e) { e.preventDefault(); fetch(f.action, { method: 'POST', body: new URLSearchParams(new FormData(f)), credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { location.reload(); }); });
+  });
+  document.querySelectorAll('.codes .applied a[href^="/checkout/coupons/remove"]').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); fetch(a.getAttribute('href'), { credentials: 'same-origin', redirect: 'follow' }).catch(function () {}).then(function () { location.reload(); }); });
+  });
+})();
+</script>
+{% endblock %}

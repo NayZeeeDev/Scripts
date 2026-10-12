@@ -1,0 +1,30 @@
+{# ─── NAYZEEE · module.wishlist.twig (wishlist modal, saved in the visitor's browser) ─── #}
+<style>
+  .wl-list{display:flex;flex-direction:column;gap:8px;max-height:min(60vh,520px);overflow-y:auto}
+  .wl-list::-webkit-scrollbar{width:8px}.wl-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--panel)}
+</style>
+<div class="modal-w" id="wishW">
+  <div class="modal wide">
+    <div class="m-head"><div><b>{{ config('wl-title') ?: 'Wishlist' }}</b><span id="wlSub">{{ config('wl-sub') ?: 'Saved in this browser' }}</span></div><button class="pill-close" data-close>{{ config('close-label') ?: 'Close' }}</button></div>
+    <div class="m-body"><div class="wl-list" id="wlList"></div></div>
+    <div class="m-foot"><button class="btn-line" type="button" id="wlClear">{{ config('wl-clear') ?: 'Clear all' }}</button></div>
+  </div>
+</div>
+<script>
+(function () {
+  var list = document.getElementById('wlList'), sub = document.getElementById('wlSub');
+  var EMPTY_T = {{ (config('wl-empty-title') ?: 'Nothing saved yet')|json_encode|raw }}, EMPTY_S = {{ (config('wl-empty-text') ?: 'Tap the heart on any script to keep it here.')|json_encode|raw }};
+  var ADD = {{ (config('card-add') ?: 'Add to cart')|json_encode|raw }}, ONE = {{ (config('wl-count-one') ?: 'saved script')|json_encode|raw }}, MANY = {{ (config('wl-count-many') ?: 'saved scripts')|json_encode|raw }};
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function render() {
+    var w = window.nzWish ? window.nzWish() : [];
+    sub.textContent = w.length + ' ' + (w.length === 1 ? ONE : MANY);
+    list.innerHTML = w.length ? w.map(function (p) {
+      return '<div class="ci"><a class="art" href="/package/' + esc(p.id) + '">' + (p.image ? '<img src="' + esc(p.image) + '" alt="">' : '<svg class="big"><use href="#i-box"/></svg>') + '</a><div class="ci-t"><b><a href="/package/' + esc(p.id) + '">' + esc(p.name) + '</a></b><span>' + esc(p.cat) + '</span></div><div class="ci-r"><button class="rm" type="button" data-wl="' + esc(p.id) + '" data-wl-name="' + esc(p.name) + '" aria-label="Remove"><svg class="ic"><use href="#i-x"/></svg></button><div style="display:flex;align-items:center;gap:8px"><b>' + esc(p.price) + '</b><a class="add" href="/checkout/packages/add/' + esc(p.id) + '" data-add="' + esc(p.id) + '" title="' + esc(ADD) + '"><svg class="ic"><use href="#i-plus"/></svg></a></div></div></div>';
+    }).join('') : '<div class="empty"><svg class="ic"><use href="#i-heart"/></svg><b>' + esc(EMPTY_T) + '</b><span>' + esc(EMPTY_S) + '</span></div>';
+  }
+  window.nzWishRender = render;
+  window.nzWishOpen = function () { render(); if (window.nzOpenModal) window.nzOpenModal('wishW'); };
+  document.getElementById('wlClear').addEventListener('click', function () { if (window.nzWishSave) window.nzWishSave([]); });
+})();
+</script>

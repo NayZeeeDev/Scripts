@@ -1,0 +1,38 @@
+{# ─── NAYZEEE · module.featuredpackage.html
+   Renders one package card. Used by Tebex "Featured package" modules on the homepage
+   AND included by index/category/package for every card so they all match. ─── #}
+{% set fp = (module is defined and module.package is defined) ? module.package : null %}
+{% if csym is not defined %}{% set dh_currency_symbols = { 'EUR':'€','USD':'$','GBP':'£','TRY':'₺','AUD':'A$','BRL':'R$','CAD':'CA$','DKK':'kr','NOK':'kr','NZD':'NZ$','PLN':'zł','SEK':'kr','CHF':'CHF','JPY':'¥','CNY':'¥','KRW':'₩','INR':'₹','RUB':'₽','MXN':'MX$','CZK':'Kč','HUF':'Ft' } %}{% set csym = dh_currency_symbols[basket.currency] ?? (basket.currency ~ ' ') %}{% endif %}
+{% if fp %}
+{% set fp_disc = fp.discount is defined and fp.discount.applied %}
+{% set fp_desc = fp.description is defined ? fp.description|replace({'</li>': ' · ', '</p>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' '})|striptags|replace({'&nbsp;': ' '})|trim : '' %}
+{% set fp_cat = fb_cat is defined ? fb_cat : (fp.category is defined and fp.category ? fp.category.name : '') %}
+{% set fp_in = fp.basket is defined and fp.basket %}
+<article class="pk view" data-open="{{ fp.id }}" data-name="{{ fp.name }}" data-desc="{{ fp_desc|slice(0, 160) }}" data-price="{{ fp.price }}" data-sale="{{ fp_disc ? 1 : 0 }}"{% if card_index is defined %} style="animation-delay:{{ card_index * 35 }}ms"{% endif %}>
+  <a class="art" href="/package/{{ fp.id }}" aria-label="{{ fp.name }}">
+    <div class="badges">
+      {% if fp_disc %}<span class="chip red">-{{ fp.discount.percentage|number_format(0) }}%</span>{% endif %}
+      {% if fp.price == 0 %}<span class="chip">{{ config('free-text') ?: 'Free' }}</span>{% endif %}
+      {% if config('card-badge-' ~ fp.id) %}<span class="chip">{{ config('card-badge-' ~ fp.id) }}</span>{% endif %}
+    </div>
+    {% if (config('wl-toggle') ?: 'Enabled') != 'Disabled' %}<button class="wish" type="button" data-wl="{{ fp.id }}" data-wl-name="{{ fp.name }}" data-wl-image="{{ fp.image.url }}" data-wl-price="{% if fp.price == 0 %}{{ config('free-text') ?: 'Free' }}{% else %}{{ csym }}{{ fp.price|number_format(2) }}{% endif %}" data-wl-cat="{{ fp_cat }}" aria-label="Wishlist"><svg class="ic"><use href="#i-heart"/></svg></button>{% endif %}
+    {% if fp.image.url %}<img src="{{ fp.image.url }}" alt="{{ fp.name }}" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-{{ (card_index is defined and card_index % 2 == 1) ? 'box' : 'layers' }}"/></svg>{% endif %}
+  </a>
+  <div class="pk-b">
+    {% if fp_cat %}<span class="pk-cat">{{ fp_cat }}</span>{% endif %}
+    <h3><a href="/package/{{ fp.id }}">{{ fp.name }}</a></h3>
+    {% if fp_desc and (config('card-desc') ?: 'Show') != 'Hide' %}<p>{{ fp_desc|slice(0, 140) }}</p>{% endif %}
+    <div class="pk-f">
+      <div class="price">
+        {% if fp.price == 0 %}<b>{{ config('free-text') ?: 'Free' }}</b>
+        {% else %}<b>{{ csym }}{{ fp.price|number_format(2) }}</b>{% if fp_disc %}<s>{{ csym }}{{ fp.discount.original|number_format(2) }}</s>{% endif %}{% endif %}
+      </div>
+      {% if fp_in %}
+      <a class="add in" href="/checkout/packages/remove/{{ fp.id }}" data-remove="{{ fp.id }}" aria-label="{{ config('card-in-cart') ?: 'In cart' }}" title="{{ config('card-in-cart') ?: 'In cart' }}"><svg class="ic"><use href="#i-check"/></svg></a>
+      {% else %}
+      <a class="add" href="/checkout/packages/add/{{ fp.id }}" data-add="{{ fp.id }}" aria-label="{{ config('card-add') ?: 'Add to cart' }}" title="{{ config('card-add') ?: 'Add to cart' }}"><svg class="ic"><use href="#i-plus"/></svg></a>
+      {% endif %}
+    </div>
+  </div>
+</article>
+{% endif %}

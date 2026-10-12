@@ -1,0 +1,145 @@
+{% extends "layout.html" %}
+{% block content %}
+{# ─── NAYZEEE · package.html
+   Optional markers you can put at the END of a package description in Tebex (they are hidden on the page):
+     FRAMEWORKS: ESX, QBCore, Qbox        → framework chips
+     TAGS: Best seller, New               → extra badges
+     IMAGES: https://…/1.png, https://…/2.png → extra gallery images
+     VIDEO: https://www.youtube.com/watch?v=XXXX → video thumb in the gallery
+   ─── #}
+<style>
+  .pp{display:grid;grid-template-columns:1.05fr .95fr;gap:22px;align-items:start;margin-top:22px}
+  .gal{position:sticky;top:calc(var(--nav-h) + 20px)}
+  .gal .art{aspect-ratio:16/11;border-radius:var(--r-md);border:1px solid var(--line-soft);cursor:zoom-in}
+  .gal .art .big{width:110px;height:110px;stroke-width:1}
+  .gal .art iframe{position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1}
+  .thumbs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px}
+  .thumbs:empty{display:none}
+  .thumbs .art{aspect-ratio:16/10;border-radius:var(--r-sm);cursor:pointer;opacity:.6;transition:all var(--fast)}
+  .thumbs .art .big{width:24px;height:24px}
+  .thumbs .art:hover,.thumbs .art.on{opacity:1;border-color:var(--teal-edge)}
+  .buy{display:flex;flex-direction:column;gap:16px;padding:20px}
+  .buy h1{font-size:26px;font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--white)}
+  .buy .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .buy .big-price{display:flex;align-items:baseline;gap:10px;padding:14px 0;border-top:1px solid var(--line-hair);border-bottom:1px solid var(--line-hair)}
+  .buy .big-price b{font-size:34px;font-weight:600;letter-spacing:-.045em;color:var(--white)}
+  .buy .big-price s{font-size:14px;color:var(--ink-3);font-weight:300}
+  .buy .big-price small{font-size:11.5px;color:var(--ink-3);font-weight:300;margin-left:auto;text-align:right;line-height:1.4}
+  .buy .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .buy .row .btn-lg{flex:1}
+  .sq{width:40px;height:40px;padding:0;flex:none}
+  .trust{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .trust div{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--ink-3);font-weight:300;padding:9px 10px;background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm)}
+  .trust .ic{width:14px;height:14px;color:var(--teal)}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line-soft);margin-top:28px}
+  .tab{height:38px;padding:0 14px;font-size:12.5px;font-weight:300;color:var(--ink-2);position:relative}
+  .tab:hover{color:var(--white)}.tab.on{color:var(--white);font-weight:500}
+  .tab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--teal);box-shadow:0 0 9px var(--teal)}
+  .tab-b{padding:20px 0;max-width:76ch}
+  .lightbox{position:fixed;inset:0;z-index:110;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:30px;opacity:0;visibility:hidden;transition:all var(--slow);cursor:zoom-out}
+  .lightbox.on{opacity:1;visibility:visible}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:var(--r-md);border:1px solid var(--line)}
+  @media (max-width:860px){.pp{grid-template-columns:1fr}.gal{position:static}}
+  @media (max-width:600px){.trust{grid-template-columns:1fr}.thumbs{grid-template-columns:repeat(4,1fr)}}
+</style>
+
+{% set has_disc = package.discount.applied %}
+{% set in_basket = false %}
+{% for item in basket.packages %}{% if item.id == package.id %}{% set in_basket = true %}{% endif %}{% endfor %}
+{% set catId = package.category is defined and package.category ? package.category.id : '' %}
+{% set catName = package.category is defined and package.category ? package.category.name : '' %}
+{% set short = package.description ? package.description|replace({'</li>': ' · ', '</p>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' '})|striptags|replace({'&nbsp;': ' '})|trim : '' %}
+
+<div class="wrap view">
+  <div class="crumb"><a href="/">{{ config('nav-home-label') ?: 'Home' }}</a><svg class="ic"><use href="#i-chev"/></svg>{% if catId %}<a href="/category/{{ catId }}">{{ catName }}</a><svg class="ic"><use href="#i-chev"/></svg>{% endif %}<b>{{ package.name }}</b></div>
+
+  <div class="pp">
+    <div class="gal">
+      <div class="art" id="galMain" data-src="{{ package.image.url }}">{% if package.image.url %}<img src="{{ package.image.url }}" alt="{{ package.name }}" onerror="this.parentNode.setAttribute('data-src','');this.outerHTML='<svg class=&quot;big&quot;><use href=&quot;#i-layers&quot;/></svg>'" />{% else %}<svg class="big"><use href="#i-layers"/></svg>{% endif %}</div>
+      <div class="thumbs" id="galThumbs"></div>
+    </div>
+
+    <div class="panel buy">
+      <div class="top">
+        {% if catName %}<span class="chip grey">{{ catName }}</span>{% endif %}
+        {% if has_disc %}<span class="chip red">{{ config('package-save-text') ?: 'Save' }} {{ package.discount.percentage|number_format(0) }}%</span>{% endif %}
+        {% if package.price == 0 %}<span class="chip">{{ config('free-text') ?: 'Free' }}</span>{% endif %}
+        <span id="pkgChips" style="display:contents"></span>
+      </div>
+      <h1>{{ package.name }}</h1>
+      {% if short %}<p style="font-size:13px;color:var(--ink-2);font-weight:300;line-height:1.6" id="pkgShort">{{ short|slice(0, 220) }}{% if short|length > 220 %}…{% endif %}</p>{% endif %}
+      <div class="big-price">
+        {% if package.price == 0 %}<b>{{ config('free-text') ?: 'Free' }}</b>{% else %}<b>{{ csym }}{{ package.price|number_format(2) }}</b>{% if has_disc %}<s>{{ csym }}{{ package.discount.original|number_format(2) }}</s>{% endif %}{% endif %}
+        <small>{{ (config('package-price-note') ?: 'One-time purchase<br>lifetime updates')|raw }}</small>
+      </div>
+
+      <div class="row">
+        {% if in_basket %}
+        <a class="btn-line btn-lg on" href="/checkout/packages/remove/{{ package.id }}" data-remove="{{ package.id }}" data-add-text="{{ config('package-add-to-cart') ?: 'Add to cart' }}" data-in-text="{{ config('package-added-text') ?: 'In cart · remove' }}"><svg class="ic"><use href="#i-check"/></svg><span class="lbl">{{ config('package-added-text') ?: 'In cart · remove' }}</span></a>
+        {% else %}
+        <a class="btn-teal btn-lg" href="/checkout/packages/add/{{ package.id }}" data-add="{{ package.id }}" data-add-text="{{ config('package-add-to-cart') ?: 'Add to cart' }}" data-in-text="{{ config('package-added-text') ?: 'In cart · remove' }}"><svg class="ic"><use href="#i-cart"/></svg><span class="lbl">{{ config('package-add-to-cart') ?: 'Add to cart' }}</span></a>
+        {% endif %}
+        {% if (config('package-buy-now-toggle') ?: 'Show') != 'Hide' %}<a class="btn-white btn-lg" href="/checkout/packages/add/{{ package.id }}/single" data-buy="{{ package.id }}"><svg class="ic"><use href="#i-bolt"/></svg>{{ config('package-buy-now') ?: 'Buy now' }}</a>{% endif %}
+      </div>
+      <div class="row" style="gap:8px">
+        {% if not package.disable_gifting %}<button class="btn-line" type="button" data-gift="{{ package.id }}" data-gift-name="{{ package.name }}"><svg class="ic"><use href="#i-gift"/></svg>{{ config('package-gift-btn') ?: 'Send as gift' }}</button>{% endif %}
+        {% if (config('wl-toggle') ?: 'Enabled') != 'Disabled' %}<button class="btn-line sq" type="button" data-wl="{{ package.id }}" data-wl-name="{{ package.name }}" data-wl-image="{{ package.image.url }}" data-wl-price="{% if package.price == 0 %}{{ config('free-text') ?: 'Free' }}{% else %}{{ csym }}{{ package.price|number_format(2) }}{% endif %}" data-wl-cat="{{ catName }}" aria-label="Wishlist" style="height:34px;width:34px"><svg class="ic"><use href="#i-heart"/></svg></button>{% endif %}
+        <button class="btn-line sq" type="button" data-copy-url aria-label="Share" style="height:34px;width:34px"><svg class="ic"><use href="#i-share"/></svg></button>
+        {% if config('package-docs-url') %}<a class="btn-ghost" href="{{ config('package-docs-url') }}" target="_blank" rel="noopener" style="margin-left:auto;height:34px"><svg class="ic" style="width:13px;height:13px"><use href="#i-book"/></svg>{{ config('docs-label') ?: 'Docs' }}</a>{% endif %}
+      </div>
+      <div class="trust"><div><svg class="ic"><use href="#i-bolt"/></svg>{{ config('package-trust-1') ?: 'Instant Keymaster grant' }}</div><div><svg class="ic"><use href="#i-shield"/></svg>{{ config('package-trust-2') ?: 'Secured by Tebex' }}</div><div><svg class="ic"><use href="#i-refresh"/></svg>{{ config('package-trust-3') ?: 'Lifetime updates' }}</div></div>
+    </div>
+  </div>
+
+  <div class="tabs" id="ptabs"><button class="tab on" data-t="desc">{{ config('package-tab-desc') ?: 'Description' }}</button><button class="tab" data-t="terms">{{ config('package-tab-terms') ?: 'Terms' }}</button></div>
+  <div class="tab-b prose" data-tb="desc" id="pkgDesc">{% if package.description %}{{ package.description|raw }}{% else %}<p>{{ config('package-no-desc') ?: 'No description yet.' }}</p>{% endif %}</div>
+  <div class="tab-b prose hide" data-tb="terms">{{ (config('package-terms') ?: '<p>All purchases are digital goods delivered instantly and are non-refundable unless delivery fails. Assets are bound to the Cfx.re account used at checkout and licensed for one server. Redistributing open-source code or chargebacks result in a store ban.</p>')|raw }}</div>
+
+  {% set related = [] %}
+  {% for cat in store.categories %}{% if cat.id == catId %}{% for p in cat.packages %}{% if p.id != package.id and related|length < 4 %}{% set related = related|merge([p]) %}{% endif %}{% endfor %}{% endif %}{% endfor %}
+  {% if related|length > 0 %}
+  <section class="section">
+    <div class="sec-h"><div><div class="kick">{{ config('package-related-kicker') ?: 'More like this' }}</div><h2>{{ config('package-related-title') ?: 'You may also like' }}</h2></div><a class="btn-ghost" href="/category/{{ catId }}">{{ config('package-related-all') ?: 'All' }} {{ catName }} <svg class="ic"><use href="#i-chev"/></svg></a></div>
+    <div class="grid">{% for p in related %}{% include 'module.featuredpackage.html' with { 'module': { 'package': p }, 'fb_cat': catName, 'card_index': loop.index0 } %}{% endfor %}</div>
+  </section>
+  {% endif %}
+</div>
+<div class="lightbox" id="lightbox"><img src="" alt="" /></div>
+
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  /* tabs */
+  $('#ptabs').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (!b) return; document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x === b); }); document.querySelectorAll('[data-tb]').forEach(function (x) { x.classList.toggle('hide', x.getAttribute('data-tb') !== b.getAttribute('data-t')); }); });
+  /* markers in description → chips / gallery (then hidden) */
+  var desc = $('#pkgDesc'), chips = $('#pkgChips'), thumbs = $('#galThumbs'), main = $('#galMain');
+  var media = []; if (main.getAttribute('data-src')) media.push({ t: 'img', u: main.getAttribute('data-src') });
+  function grab(label) {
+    var out = null;
+    Array.prototype.slice.call(desc.querySelectorAll('p,li,div,span,h1,h2,h3,h4')).forEach(function (el) {
+      if (out || el.children.length > 1) return;
+      var m = (el.textContent || '').trim().match(new RegExp('^' + label + ':\\s*(.+)$', 'i'));
+      if (m) { out = m[1]; el.remove(); }
+    });
+    if (!out) { var txt = desc.innerHTML, m2 = txt.match(new RegExp(label + ':\\s*([^<\\n]+)', 'i')); if (m2) { out = m2[1]; desc.innerHTML = txt.replace(m2[0], ''); } }
+    return out ? out.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+  }
+  grab('FRAMEWORKS').forEach(function (f) { chips.insertAdjacentHTML('beforeend', '<span class="chip">' + f.replace(/[<>]/g, '') + '</span>'); });
+  grab('TAGS').forEach(function (f) { chips.insertAdjacentHTML('beforeend', '<span class="chip grey">' + f.replace(/[<>]/g, '') + '</span>'); });
+  grab('IMAGES').forEach(function (u) { if (/^https?:\/\//.test(u)) media.push({ t: 'img', u: u }); });
+  grab('VIDEO').forEach(function (u) { var m = u.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/); if (m) media.push({ t: 'yt', u: 'https://www.youtube-nocookie.com/embed/' + m[1] + '?rel=0', id: m[1] }); });
+  var short = $('#pkgShort'); if (short) { var parts = Array.prototype.slice.call(desc.querySelectorAll('p,li,h1,h2,h3,h4')).map(function (el) { return (el.textContent || '').trim(); }).filter(Boolean); var clean = (parts.length ? parts.join(' · ') : (desc.textContent || '')).replace(/\s+/g, ' ').trim(); if (clean) short.textContent = clean.slice(0, 220) + (clean.length > 220 ? '…' : ''); }
+  if (media.length > 1) {
+    media.forEach(function (m, i) {
+      var d = document.createElement('div'); d.className = 'art' + (i === 0 ? ' on' : '');
+      d.innerHTML = m.t === 'img' ? '<img src="' + m.u + '" alt="">' : '<img src="https://i.ytimg.com/vi/' + m.id + '/hqdefault.jpg" alt=""><svg class="big" style="position:absolute;width:22px;height:22px;z-index:2;color:#fff"><use href="#i-bolt"/></svg>';
+      d.addEventListener('click', function () { thumbs.querySelectorAll('.art').forEach(function (x) { x.classList.toggle('on', x === d); }); main.innerHTML = m.t === 'img' ? '<img src="' + m.u + '" alt="">' : '<iframe src="' + m.u + '" allow="autoplay; fullscreen" allowfullscreen></iframe>'; main.setAttribute('data-src', m.t === 'img' ? m.u : ''); });
+      thumbs.appendChild(d);
+    });
+  }
+  main.addEventListener('click', function () { var u = main.getAttribute('data-src'); if (!u) return; var lb = $('#lightbox'); lb.querySelector('img').src = u; lb.classList.add('on'); });
+  $('#lightbox').addEventListener('click', function () { this.classList.remove('on'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('#lightbox').classList.remove('on'); });
+})();
+</script>
+{% endblock %}

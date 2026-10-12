@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block content %}
+{# ─── NAYZEEE · cms-page.html (Tebex custom pages: /{slug}) ─── #}
+{% set cms_content = metaData is defined and metaData and metaData.content ? metaData.content : (page is defined and page and page.metaData is defined and page.metaData.content ? page.metaData.content : (page is defined and page ? page.content : '')) %}
+{% set cms_title = title is defined and title ? title : (page is defined and page ? page.title : '') %}
+<style>.cms{max-width:820px}.cms .prose{padding:22px 24px}</style>
+<div class="wrap view">
+  <div class="crumb"><a href="/">{{ config('nav-home-label') ?: 'Home' }}</a><svg class="ic"><use href="#i-chev"/></svg><b>{{ cms_title }}</b></div>
+  <div class="cms">
+    <div class="page-h"><div>{% if page is defined and page and page.category %}<div class="kick" style="display:flex;align-items:center;gap:9px;font-size:10.5px;color:var(--teal);font-weight:500;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">{{ page.category }}</div>{% endif %}<h1>{{ cms_title }}</h1></div></div>
+    <div class="panel prose">{% if cms_content %}{{ cms_content|raw }}{% else %}<p>{{ config('cms-empty-text') ?: 'This page has no content yet.' }}</p>{% endif %}</div>
+  </div>
+</div>
+{% endblock %}

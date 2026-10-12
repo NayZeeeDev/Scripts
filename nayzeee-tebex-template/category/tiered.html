@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block content %}
+{# ─── NAYZEEE · category/tiered.html (subscription tiers / "All Access") ─── #}
+<style>
+  .tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:stretch;max-width:1180px}
+  .tier{position:relative;display:flex;flex-direction:column;gap:14px;padding:20px 18px}
+  .tier.pop{border-color:var(--teal-edge);box-shadow:0 1px 0 var(--lift) inset,0 0 0 1px var(--teal-edge),0 12px 36px rgba(var(--teal-rgb),.1)}
+  .tier .pop-tag{position:absolute;top:-10px;left:50%;transform:translateX(-50%)}
+  .tier-h .tile{margin-bottom:12px;overflow:hidden}
+  .tier-h .tile img{width:100%;height:100%;object-fit:cover}
+  .tier-h b{display:block;font-size:16px;font-weight:600;color:var(--white);letter-spacing:-.016em}
+  .tier .price b{font-size:28px;letter-spacing:-.04em}
+  .tier .prose{padding-top:12px;border-top:1px solid var(--line-hair);flex:1;font-size:12px}
+  .tier .prose ul{list-style:none;padding:0;display:flex;flex-direction:column;gap:8px}
+  .tier .prose li{position:relative;padding-left:22px;margin:0;line-height:1.45}
+  .tier .prose li::before{content:'';position:absolute;left:0;top:4px;width:12px;height:12px;background:var(--teal);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5L9 17.5 20 6.5'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5L9 17.5 20 6.5'/%3E%3C/svg%3E") center/contain no-repeat}
+  .tier-cur{display:flex;align-items:center;justify-content:center;gap:7px;height:34px;border-radius:var(--r-xs);background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--teal);font-size:12px;font-weight:500}
+</style>
+<div class="wrap view">
+  <div class="crumb"><a href="/">{{ config('nav-home-label') ?: 'Home' }}</a><svg class="ic"><use href="#i-chev"/></svg><b>{{ category.name }}</b></div>
+  <div class="page-h">
+    <div><h1>{{ category.name }}</h1><p>{% if category.description %}{{ category.description|striptags }}{% else %}{{ config('tier-sub') ?: 'Monthly plans. Cancel any time from your Tebex account.' }}{% endif %}</p></div>
+    <span class="tag live">{{ config('tier-eyebrow') ?: 'Subscription' }}</span>
+  </div>
+
+  {% if category.packages|length > 0 %}
+  <div class="tiers">
+    {% for package in category.packages %}
+      {% set pid = package.identifier ?? package.id %}
+      {% set is_subscribed = tier is defined and tier and tier.package_id == pid %}
+      {% set is_downgrade = tier is defined and tier and tier.downgrade_package_id == pid %}
+      {% set is_featured = config('tier-featured-id') and config('tier-featured-id')|replace({' ': ''}) == (package.id ~ '') %}
+      {% set has_disc = package.discount.applied %}
+      <article class="panel tier view{% if is_featured %} pop{% endif %}" style="animation-delay:{{ loop.index0 * 50 }}ms">
+        {% if is_subscribed %}<span class="chip pop-tag">{{ config('tier-current-badge') ?: 'Your plan' }}</span>
+        {% elseif is_downgrade %}<span class="chip grey pop-tag">{{ config('tier-pending-badge') ?: 'Pending' }}</span>
+        {% elseif is_featured %}<span class="chip pop-tag">{{ config('tier-popular-badge') ?: 'Most popular' }}</span>{% endif %}
+        <div class="tier-h"><div class="tile{% if loop.last %} red{% elseif loop.first %} grey{% endif %}">{% if package.image.url %}<img src="{{ package.image.url }}" alt="" />{% else %}<svg class="ic"><use href="#i-crown"/></svg>{% endif %}</div><b>{{ package.name }}</b></div>
+        <div class="price">
+          {% if package.price == 0 %}<b>{{ config('free-text') ?: 'Free' }}</b>
+          {% else %}<b>{{ csym }}{{ package.price|number_format(2) }}</b>{% if has_disc %}<s>{{ csym }}{{ package.discount.original|number_format(2) }}</s>{% endif %}<small>{{ config('tier-period') ?: '/ month' }}</small>{% endif %}
+        </div>
+        <div class="prose">{% if package.description %}{{ package.description|raw }}{% else %}<p>{{ config('tier-default-desc') ?: 'Every script, updates while subscribed, Discord support.' }}</p>{% endif %}</div>
+        {% if is_subscribed %}
+          <div class="tier-cur"><svg class="ic"><use href="#i-check"/></svg>{{ config('tier-subscribed-text') ?: 'Subscribed' }}</div>
+        {% elseif is_downgrade %}
+          <div class="tier-cur" style="color:var(--ink-2);border-color:var(--line-soft);background:var(--raise)">{{ config('tier-pending-text') ?: 'Pending downgrade' }}</div>
+        {% elseif tier is defined and tier %}
+          <a class="btn-line btn-full" href="/tier/quote/{{ pid }}">{{ config('tier-switch-text') ?: 'Switch plan' }}<svg class="ic"><use href="#i-arrow"/></svg></a>
+        {% else %}
+          <a class="{% if is_featured %}btn-teal{% else %}btn-line{% endif %} btn-full" href="/checkout/packages/add/{{ package.id }}" data-add="{{ package.id }}" data-add-text="{{ config('tier-subscribe-text') ?: 'Subscribe' }}" data-in-text="{{ config('card-in-cart') ?: 'In cart' }}"><svg class="ic"><use href="#i-cart"/></svg><span class="lbl">{{ config('tier-subscribe-text') ?: 'Subscribe' }}</span></a>
+        {% endif %}
+        <a class="btn-ghost btn-full" href="/package/{{ package.id }}">{{ config('tier-details-text') ?: 'Details' }}</a>
+      </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty"><svg class="ic"><use href="#i-crown"/></svg><b>{{ config('tier-empty-title') ?: 'No plans available' }}</b><span>{{ config('tier-empty-text') ?: 'Check back soon.' }}</span></div>
+  {% endif %}
+</div>
+{% endblock %}

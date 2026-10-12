@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+{% block content %}
+{# ─── NAYZEEE · category.html ─── #}
+<style>
+  .subcats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+</style>
+<div class="wrap view">
+  <div class="crumb"><a href="/">{{ config('nav-home-label') ?: 'Home' }}</a><svg class="ic"><use href="#i-chev"/></svg><a href="{% if store.categories|length > 0 %}/category/{{ store.categories[0].id }}{% else %}/{% endif %}">{{ config('nav-store-label') ?: 'Store' }}</a><svg class="ic"><use href="#i-chev"/></svg><b>{{ category.name }}</b></div>
+  <div class="page-h">
+    <div><h1>{{ category.name }}</h1><p>{% if category.description %}{{ category.description|striptags }} · {% endif %}<span id="catCount">{{ category.packages|length }}</span> {{ category.packages|length == 1 ? (config('cat-item-one') ?: 'script') : (config('cat-item-many') ?: 'scripts') }}</p></div>
+    <div class="toolbar">
+      <div class="inp-wrap"><svg class="ic"><use href="#i-search"/></svg><input class="inp" id="catSearch" placeholder="{{ config('category-search-ph') ?: 'Filter…' }}"></div>
+      <select class="inp" id="catSort" aria-label="{{ config('category-sort-label') ?: 'Sort by' }}">
+        <option value="default">{{ config('category-sort-default') ?: 'Featured first' }}</option>
+        <option value="low">{{ config('category-sort-price-asc') ?: 'Price: low to high' }}</option>
+        <option value="high">{{ config('category-sort-price-desc') ?: 'Price: high to low' }}</option>
+        <option value="name">{{ config('category-sort-name') ?: 'Name A–Z' }}</option>
+      </select>
+    </div>
+  </div>
+
+  {% if store.categories|length > 1 %}
+  <div class="subcats">
+    {% for cat in store.categories %}<a class="btn-ghost{% if cat.id == category.id %} on{% endif %}" href="/category/{{ cat.id }}"{% if cat.id == category.id %} style="border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash)"{% endif %}>{{ cat.name }}</a>{% endfor %}
+    {% if category.subcategories is defined %}{% for sub in category.subcategories %}<a class="btn-ghost" href="/category/{{ sub.id }}">{{ sub.name }}</a>{% endfor %}{% endif %}
+  </div>
+  {% endif %}
+
+  {% if category.packages|length > 0 %}
+  <div class="grid" id="catGrid">
+    {% for package in category.packages %}
+      {% include 'module.featuredpackage.html' with { 'module': { 'package': package }, 'fb_cat': category.name, 'card_index': loop.index0 } %}
+    {% endfor %}
+  </div>
+  <div class="empty hide" id="catEmpty"><svg class="ic"><use href="#i-search"/></svg><b>{{ config('category-none-title') ?: 'Nothing matches' }}</b><span>{{ config('category-none-text') ?: 'Try a different search.' }}</span></div>
+  {% else %}
+  <div class="empty"><svg class="ic"><use href="#i-box"/></svg><b>{{ config('category-empty-title') ?: 'Nothing here yet' }}</b><span>{{ config('category-empty-text') ?: 'Packages added to this category in Tebex will show up here.' }}</span></div>
+  {% endif %}
+</div>
+<script>
+(function () {
+  var grid = document.getElementById('catGrid'); if (!grid) return;
+  var q = document.getElementById('catSearch'), s = document.getElementById('catSort'), empty = document.getElementById('catEmpty'), count = document.getElementById('catCount');
+  var cards = Array.prototype.slice.call(grid.querySelectorAll('.pk'));
+  cards.forEach(function (c, i) { c.dataset.i = i; });
+  function apply() {
+    var term = (q.value || '').trim().toLowerCase(), n = 0;
+    cards.forEach(function (c) { var hit = !term || (c.dataset.name + ' ' + (c.dataset.desc || '')).toLowerCase().indexOf(term) > -1; c.classList.toggle('hid', !hit); if (hit) n++; });
+    var mode = s.value, list = cards.slice();
+    if (mode === 'low') list.sort(function (a, b) { return a.dataset.price - b.dataset.price; });
+    if (mode === 'high') list.sort(function (a, b) { return b.dataset.price - a.dataset.price; });
+    if (mode === 'name') list.sort(function (a, b) { return a.dataset.name.localeCompare(b.dataset.name); });
+    if (mode === 'default') list.sort(function (a, b) { return (b.dataset.sale - a.dataset.sale) || (a.dataset.i - b.dataset.i); });
+    list.forEach(function (c) { grid.appendChild(c); });
+    empty.classList.toggle('hide', n > 0); count.textContent = n;
+  }
+  q.addEventListener('input', apply); s.addEventListener('change', apply);
+})();
+</script>
+{% endblock %}
