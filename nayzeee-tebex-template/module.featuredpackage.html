@@ -8,7 +8,7 @@
 {% set fp_desc = fp.description is defined ? fp.description|replace({'</li>': ' · ', '</p>': ' ', '<br>': ' ', '<br/>': ' ', '<br />': ' '})|striptags|replace({'&nbsp;': ' '})|trim : '' %}
 {% set fp_cat = fb_cat is defined ? fb_cat : (fp.category is defined and fp.category ? fp.category.name : '') %}
 {% set fp_in = fp.basket is defined and fp.basket %}
-<article class="pk view" data-open="{{ fp.id }}" data-name="{{ fp.name }}" data-desc="{{ fp_desc|slice(0, 160) }}" data-price="{{ fp.price }}" data-sale="{{ fp_disc ? 1 : 0 }}"{% if card_index is defined %} style="animation-delay:{{ card_index * 35 }}ms"{% endif %}>
+<article class="pk view" data-open="{{ fp.id }}" data-name="{{ fp.name }}" data-desc="{{ fp_desc|slice(0, 160) }}" data-src="{{ fp_desc }}" data-price="{{ fp.price }}" data-sale="{{ fp_disc ? 1 : 0 }}"{% if card_index is defined %} style="animation-delay:{{ card_index * 35 }}ms"{% endif %}>
   <a class="art" href="/package/{{ fp.id }}" aria-label="{{ fp.name }}">
     <div class="badges">
       {% if fp_disc %}<span class="chip red">-{{ fp.discount.percentage|number_format(0) }}%</span>{% endif %}
@@ -19,9 +19,10 @@
     {% if fp.image.url %}<img src="{{ fp.image.url }}" alt="{{ fp.name }}" loading="lazy" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-{{ (card_index is defined and card_index % 2 == 1) ? 'box' : 'layers' }}"/></svg>{% endif %}
   </a>
   <div class="pk-b">
-    {% if fp_cat %}<span class="pk-cat">{{ fp_cat }}</span>{% endif %}
+    <div class="pk-top">{% if fp_cat %}<span class="pk-cat">{{ fp_cat }}</span>{% else %}<span></span>{% endif %}</div>
     <h3><a href="/package/{{ fp.id }}">{{ fp.name }}</a></h3>
-    {% if fp_desc and (config('card-desc') ?: 'Show') != 'Hide' %}<p>{{ fp_desc|slice(0, 140) }}</p>{% endif %}
+    {% if fp_desc and (config('card-desc') ?: 'Show') != 'Hide' %}<p>{{ fp_desc|replace({'FRAMEWORKS:': '|', 'TAGS:': '|', 'IMAGES:': '|', 'VIDEO:': '|', 'VERSION:': '|', 'RATING:': '|', 'DEPENDENCIES:': '|', 'CHANGELOG:': '|'})|split('|')|first|slice(0, 140) }}</p>{% endif %}
+    <div class="pk-meta"></div>
     <div class="pk-f">
       <div class="price">
         {% if fp.price == 0 %}<b>{{ config('free-text') ?: 'Free' }}</b>

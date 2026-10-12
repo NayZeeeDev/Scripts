@@ -17,7 +17,6 @@
   .hero-proof .stars{color:var(--teal);letter-spacing:.05em;font-size:12px}
   .hero-proof b{color:var(--ink-2);font-weight:500}
   .spot{position:relative;overflow:hidden;clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%)}
-  .spot::before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--teal),rgba(var(--teal-rgb),0));z-index:2}
   .spot::after{content:'';position:absolute;right:-40px;bottom:-46px;width:190px;height:190px;border-radius:22px;opacity:.035;background:var(--white);clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);pointer-events:none}
   .spot .p-head h2{display:flex;align-items:center;gap:10px}
   .spot .p-body{display:flex;flex-direction:column;gap:12px}
@@ -84,6 +83,21 @@
   .q[open] summary .ic{transform:rotate(45deg);color:var(--teal)}
   .q div{padding:0 16px 14px;font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.6}
   #modSlot:empty{display:none}
+  .hero-video{aspect-ratio:16/10;border-radius:var(--r-md);border:1px solid var(--line-soft);overflow:hidden;box-shadow:var(--sh-2);position:relative;background:var(--inset)}
+  .hero-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .upd{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .upd .panel{padding:16px;display:flex;flex-direction:column;gap:8px}
+  .upd .h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .upd .h b{font-size:13.5px;font-weight:600;color:var(--white)}
+  .upd .h span{font-size:10.5px;color:var(--ink-3);font-weight:300}
+  .upd p{font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.55}
+  .upd a.more{font-size:11.5px;color:var(--teal);margin-top:auto;display:inline-flex;align-items:center;gap:5px}
+  .trusted{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .trusted img{height:34px;width:auto;max-width:150px;object-fit:contain;opacity:.6;filter:grayscale(1);transition:all var(--fast);padding:6px 12px;border:1px solid var(--line-hair);border-radius:var(--r-sm);background:var(--panel)}
+  .trusted img:hover{opacity:1;filter:none;border-color:var(--line)}
+  .trusted span{font-size:12.5px;color:var(--ink-2);font-weight:500;padding:8px 14px;border:1px solid var(--line-soft);border-radius:var(--r-sm);background:var(--panel)}
+  @media (max-width:860px){.upd{grid-template-columns:1fr 1fr}}
+  @media (max-width:600px){.upd{grid-template-columns:1fr}}
   @media (max-width:1040px){.stats{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:860px){.hero-g{grid-template-columns:1fr}.hero h1{font-size:38px}.cats,.why,.reviews,.faq{grid-template-columns:1fr 1fr}.disc{flex-wrap:wrap}}
   @media (max-width:600px){.cats,.why,.reviews,.faq,.stats{grid-template-columns:1fr}.hero h1{font-size:32px}}
@@ -114,7 +128,10 @@
       {% endif %}
     </div>
 
-    {% if config('hero-image') %}
+    {% if config('hero-video') %}
+      {% set hv = config('hero-video')|replace({'watch?v=': 'embed/', 'youtu.be/': 'www.youtube.com/embed/'}) %}
+      <div class="hero-video"><iframe src="{{ hv }}{% if '?' in hv %}&{% else %}?{% endif %}rel=0&modestbranding=1" title="Showcase" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>
+    {% elseif config('hero-image') %}
       <div class="hero-img"><img src="{{ config('hero-image') }}" alt="{{ store.name }}" /></div>
     {% elseif relPkg %}
       <aside class="panel spot">
@@ -140,7 +157,15 @@
     <div class="panel stat"><div class="tile red"><svg class="ic"><use href="#i-clock"/></svg></div><div class="stat-txt"><span>{{ config('stat-4-label') ?: 'Support reply' }}</span><b>{{ config('stat-4-value') ?: '< 1h' }}</b></div></div>
   </div>
   {% endif %}
+  <div id="holEvent"></div>
 </section>
+
+{% if config('trusted-logos') or config('trusted-names') %}
+<section class="section wrap" style="padding-top:40px">
+  <div class="sec-h" style="margin-bottom:12px"><div><div class="kick">{{ config('trusted-kicker') ?: 'Trusted by' }}</div><h2 style="font-size:16px">{{ config('trusted-title') ?: 'Servers already running NAYZEEE scripts' }}</h2></div></div>
+  <div class="trusted">{% for u in (config('trusted-logos') ?: '')|split(',') %}{% if u|trim %}<img src="{{ u|trim }}" alt="" loading="lazy" onerror="this.remove()" />{% endif %}{% endfor %}{% for n in (config('trusted-names') ?: '')|split(',') %}{% if n|trim %}<span>{{ n|trim }}</span>{% endif %}{% endfor %}</div>
+</section>
+{% endif %}
 
 {# Featured: Tebex "Featured package" modules render here (module.featuredpackage.html). Falls back to the first packages. #}
 <section class="section wrap" id="featured">
@@ -171,6 +196,17 @@
     <div class="panel"><div class="tile"><svg class="ic"><use href="#i-layers"/></svg></div><b>{{ config('whyus-1-title') ?: 'Matched UI' }}</b><p>{{ config('whyus-1-desc') ?: 'Every script uses NAYZEEE UI: same surfaces, same accent, same motion. Mix and match and it still looks like one server.' }}</p></div>
     <div class="panel"><div class="tile"><svg class="ic"><use href="#i-shield"/></svg></div><b>{{ config('whyus-2-title') ?: 'Escrow or open source' }}</b><p>{{ config('whyus-2-desc') ?: 'Pick escrowed for the lowest price and Cfx.re protection, or open source when you want to dig into the code. Same updates either way.' }}</p></div>
     <div class="panel"><div class="tile"><svg class="ic"><use href="#i-refresh"/></svg></div><b>{{ config('whyus-3-title') ?: 'Lifetime updates' }}</b><p>{{ config('whyus-3-desc') ?: 'Buy once, keep getting updates in your Keymaster. Changelogs are posted in Discord with every release.' }}</p></div>
+  </div>
+</section>
+{% endif %}
+
+{% if config('update-1-name') %}
+<section class="section wrap">
+  <div class="sec-h"><div><div class="kick">{{ config('updates-kicker') ?: 'Changelog' }}</div><h2>{{ config('updates-title') ?: 'Latest updates' }}</h2><p>{{ config('updates-sub') ?: 'Every script keeps getting better. Updates land in your Keymaster automatically.' }}</p></div>{% if config('updates-url') %}<a class="btn-ghost" href="{{ config('updates-url') }}" target="_blank" rel="noopener">{{ config('updates-cta') ?: 'Full changelog' }} <svg class="ic"><use href="#i-chev"/></svg></a>{% endif %}</div>
+  <div class="upd">
+    {% for i in 1..6 %}{% if config('update-' ~ i ~ '-name') %}
+    <div class="panel"><div class="h"><b>{{ config('update-' ~ i ~ '-name') }}</b>{% if config('update-' ~ i ~ '-version') %}<span class="vtag">v{{ config('update-' ~ i ~ '-version')|replace({'v': ''}) }}</span>{% endif %}</div><span style="font-size:10.5px;color:var(--ink-3);font-weight:300">{{ config('update-' ~ i ~ '-date') }}</span><p>{{ config('update-' ~ i ~ '-text') }}</p>{% if config('update-' ~ i ~ '-package') %}<a class="more" href="/package/{{ config('update-' ~ i ~ '-package')|replace({' ': ''}) }}">{{ config('updates-view') ?: 'View script' }} <svg class="ic" style="width:12px;height:12px"><use href="#i-arrow"/></svg></a>{% endif %}</div>
+    {% endif %}{% endfor %}
   </div>
 </section>
 {% endif %}

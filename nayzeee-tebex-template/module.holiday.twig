@@ -1,131 +1,258 @@
 {# ───────────────────────────────────────────────────────────
    NAYZEEE · module.holiday.twig
-   Seasonal theme that switches automatically on the 1st of each month.
-   Settings (scheme/EN.json): holiday-mode (Auto / Off / a theme key),
-   holiday-recolor, holiday-particles, holiday-chip, holiday-density.
-   Month → theme:
+   Seasonal themes + events. Switches automatically on the 1st of each month.
      1 newyear · 2 valentine · 3 stpatrick · 4 easter · 5 spring · 6 summer
      7 july4 · 8 summersale · 9 autumn · 10 halloween · 11 thanksgiving · 12 christmas
+   Each theme: accent recolour, page glow, scene (moon/fog, lights/snow, fireworks…),
+   particles, nav badge with countdown, and a homepage EVENT panel with a countdown
+   and a daily-gift calendar (settings event-<theme>-title / -sub / -days / -end).
    ─────────────────────────────────────────────────────────── #}
 {% set holMode = config('holiday-mode') ?: 'Auto' %}
 {% if holMode != 'Off' %}
 <style>
-  /* each theme only overrides the accent tokens + the page glow; everything else stays NAYZEEE UI */
   html[data-hol-recolor="1"][data-holiday="newyear"]{--teal:#f5c451;--teal-hi:#ffd97a;--teal-lo:#b8902e;--teal-rgb:245,196,81;--on-teal:#201700;--hol-glow:#1a1707}
   html[data-hol-recolor="1"][data-holiday="valentine"]{--teal:#ff4d8d;--teal-hi:#ff7fae;--teal-lo:#c22a62;--teal-rgb:255,77,141;--on-teal:#2a0012;--hol-glow:#1c0c13}
   html[data-hol-recolor="1"][data-holiday="stpatrick"]{--teal:#2ecc71;--teal-hi:#5ee39a;--teal-lo:#1f8f4e;--teal-rgb:46,204,113;--on-teal:#002a12;--hol-glow:#0c1a10}
   html[data-hol-recolor="1"][data-holiday="easter"]{--teal:#b48cff;--teal-hi:#cbb0ff;--teal-lo:#7f5fd1;--teal-rgb:180,140,255;--on-teal:#14002e;--hol-glow:#141020}
   html[data-hol-recolor="1"][data-holiday="spring"]{--teal:#7ad15a;--teal-hi:#9fe683;--teal-lo:#4f9a38;--teal-rgb:122,209,90;--on-teal:#0f2600;--hol-glow:#101a0c}
   html[data-hol-recolor="1"][data-holiday="summer"]{--teal:#3fb6ff;--teal-hi:#7bcdff;--teal-lo:#1d7fbd;--teal-rgb:63,182,255;--on-teal:#001a2b;--hol-glow:#0b1620}
-  html[data-hol-recolor="1"][data-holiday="july4"]{--teal:#ff5a5a;--teal-hi:#ff8a8a;--teal-lo:#c03030;--teal-rgb:255,90,90;--on-teal:#2b0000;--hol-glow:#1a0d12}
+  html[data-hol-recolor="1"][data-holiday="july4"]{--teal:#ff5a5a;--teal-hi:#ff8a8a;--teal-lo:#c03030;--teal-rgb:255,90,90;--on-teal:#2b0000;--hol-glow:#141022}
   html[data-hol-recolor="1"][data-holiday="summersale"]{--teal:#ffb020;--teal-hi:#ffc95c;--teal-lo:#c27f0a;--teal-rgb:255,176,32;--on-teal:#2a1a00;--hol-glow:#1c1608}
   html[data-hol-recolor="1"][data-holiday="autumn"]{--teal:#e0872b;--teal-hi:#f3a758;--teal-lo:#a85f17;--teal-rgb:224,135,43;--on-teal:#2a1400;--hol-glow:#1c1309}
-  html[data-hol-recolor="1"][data-holiday="halloween"]{--teal:#ff7a1a;--teal-hi:#ffa04d;--teal-lo:#c25a0a;--teal-rgb:255,122,26;--on-teal:#2a1000;--hol-glow:#1a0f1c}
+  html[data-hol-recolor="1"][data-holiday="halloween"]{--teal:#ff7a1a;--teal-hi:#ffa04d;--teal-lo:#c25a0a;--teal-rgb:255,122,26;--on-teal:#2a1000;--hol-glow:#1c1024}
   html[data-hol-recolor="1"][data-holiday="thanksgiving"]{--teal:#d98c3a;--teal-hi:#f0ad5c;--teal-lo:#a2651f;--teal-rgb:217,140,58;--on-teal:#2a1600;--hol-glow:#1b140c}
   html[data-hol-recolor="1"][data-holiday="christmas"]{--teal:#22c55e;--teal-hi:#5ee08a;--teal-lo:#15803d;--teal-rgb:34,197,94;--on-teal:#00230c;--hol-glow:#0c1a12}
   html[data-holiday] body{background:radial-gradient(1100px 640px at 50% -8%,var(--hol-glow,#131718) 0%,transparent 62%),var(--void)}
 
-  .hol-layer{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  /* layers (behind content) */
+  .hol-layer,.hol-scene{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
   .hol-p{position:absolute;top:-8vh;opacity:0;will-change:transform;color:var(--teal)}
-  .hol-p svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 6px rgba(var(--teal-rgb),.35))}
+  .hol-p svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 6px rgba(var(--teal-rgb),.3))}
   .hol-p.fall{animation:holFall var(--d,14s) linear var(--dl,0s) infinite}
   .hol-p.rise{top:auto;bottom:-8vh;animation:holRise var(--d,14s) linear var(--dl,0s) infinite}
   @keyframes holFall{0%{transform:translate3d(0,0,0) rotate(0deg);opacity:0}6%{opacity:var(--o,.45)}50%{transform:translate3d(var(--sx,30px),55vh,0) rotate(180deg)}94%{opacity:var(--o,.45)}100%{transform:translate3d(0,118vh,0) rotate(360deg);opacity:0}}
   @keyframes holRise{0%{transform:translate3d(0,0,0);opacity:0}6%{opacity:var(--o,.4)}50%{transform:translate3d(var(--sx,30px),-55vh,0)}94%{opacity:var(--o,.4)}100%{transform:translate3d(0,-118vh,0);opacity:0}}
-  @media (prefers-reduced-motion:reduce){.hol-layer{display:none}}
 
-  .hol-chip{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px 0 7px;border-radius:999px;background:var(--teal-wash);border:1px solid var(--teal-edge);font-size:10.5px;font-weight:500;color:var(--teal);white-space:nowrap;margin-left:4px}
-  .hol-chip svg{width:14px;height:14px;display:block}
+  /* scenes */
+  .hol-moon{position:absolute;top:70px;right:8vw;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 38% 38%,#fff5d6,#f2d28a 55%,#d8b25f);box-shadow:0 0 60px 18px rgba(255,210,120,.18),0 0 160px 60px rgba(255,160,60,.08);opacity:.55}
+  .hol-moon::after{content:'';position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 70% 30%,transparent 55%,rgba(28,16,36,.9) 57%)}
+  .hol-fog{position:absolute;left:-20%;right:-20%;bottom:-10vh;height:46vh;background:radial-gradient(60% 70% at 30% 100%,rgba(var(--teal-rgb),.16),transparent 70%),radial-gradient(50% 60% at 75% 100%,rgba(180,120,255,.12),transparent 70%);filter:blur(30px);animation:holFog 18s ease-in-out infinite alternate}
+  @keyframes holFog{from{transform:translateX(-4%)}to{transform:translateX(4%)}}
+  .hol-sun{position:absolute;top:-120px;left:-80px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(var(--teal-rgb),.5),rgba(var(--teal-rgb),.12) 40%,transparent 70%);filter:blur(10px);animation:holPulse 8s ease-in-out infinite alternate}
+  @keyframes holPulse{from{opacity:.7;transform:scale(1)}to{opacity:1;transform:scale(1.06)}}
+  .hol-vign{position:absolute;inset:0;background:radial-gradient(70% 50% at 50% 0%,rgba(var(--teal-rgb),.14),transparent 70%)}
+  .hol-fw{position:absolute;width:6px;height:6px;border-radius:50%;opacity:0;animation:holBurst var(--d,3.2s) ease-out var(--dl,0s) infinite}
+  .hol-fw::before{content:'';position:absolute;inset:-2px;border-radius:50%;box-shadow:0 -40px 0 -1px var(--c),0 40px 0 -1px var(--c),40px 0 0 -1px var(--c),-40px 0 0 -1px var(--c),28px -28px 0 -1px var(--c),-28px -28px 0 -1px var(--c),28px 28px 0 -1px var(--c),-28px 28px 0 -1px var(--c),0 -22px 0 -2px var(--c),0 22px 0 -2px var(--c),22px 0 0 -2px var(--c),-22px 0 0 -2px var(--c)}
+  @keyframes holBurst{0%{transform:scale(.1);opacity:0}10%{opacity:1}60%{opacity:.6}100%{transform:scale(var(--s,2.2));opacity:0}}
+  .hol-lights{position:absolute;top:100%;left:0;right:0;height:22px;display:flex;justify-content:space-around;align-items:flex-start;padding:0 2vw;z-index:2;pointer-events:none}
+  .hol-lights::before{content:'';position:absolute;top:5px;left:0;right:0;height:2px;background:rgba(255,255,255,.12)}
+  .hol-bulb{width:9px;height:13px;border-radius:5px 5px 7px 7px;margin-top:6px;background:var(--c);box-shadow:0 0 10px 2px var(--c);animation:holBlink 1.6s ease-in-out var(--dl,0s) infinite alternate;position:relative}
+  .hol-bulb::before{content:'';position:absolute;top:-4px;left:2.5px;width:4px;height:4px;background:#2b2b2b;border-radius:1px}
+  @keyframes holBlink{from{opacity:.35;box-shadow:0 0 4px 0 var(--c)}to{opacity:1;box-shadow:0 0 12px 3px var(--c)}}
+  html[data-holiday="christmas"] .nav{border-bottom-color:rgba(255,255,255,.18)}
+  html[data-holiday="christmas"] .pk .art::before,html[data-holiday="christmas"] .panel.spot::before{content:'';position:absolute;inset:0 0 auto 0;height:9px;z-index:3;background:radial-gradient(9px 9px at 10% 0,#fff 60%,transparent 62%),radial-gradient(12px 12px at 32% 0,#fff 60%,transparent 62%),radial-gradient(8px 8px at 52% 0,#fff 60%,transparent 62%),radial-gradient(13px 13px at 74% 0,#fff 60%,transparent 62%),radial-gradient(9px 9px at 94% 0,#fff 60%,transparent 62%);opacity:.9}
+  @media (prefers-reduced-motion:reduce){.hol-layer,.hol-fw,.hol-fog{display:none}}
+
+  /* nav badge + countdown */
+  .hol-chip{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px 0 7px;border-radius:999px;background:var(--teal-wash);border:1px solid var(--teal-edge);font-size:10.5px;font-weight:500;color:var(--teal);white-space:nowrap;margin-left:4px}
+  .hol-chip svg{width:14px;height:14px;display:block;flex:none}
+  .hol-chip i{font-style:normal;color:var(--ink-2);font-weight:300;padding-left:7px;border-left:1px solid var(--teal-edge);font-variant-numeric:tabular-nums}
+  @media (max-width:1040px){.hol-chip i{display:none}}
   @media (max-width:860px){.hol-chip span{display:none}.hol-chip{padding:0 7px}}
+
+  /* homepage event panel */
+  .hol-ev{display:grid;grid-template-columns:1.1fr .9fr;gap:0;overflow:hidden;position:relative;margin-top:40px}
+  .hol-ev::after{content:'';position:absolute;right:-80px;top:-100px;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(var(--teal-rgb),.22),transparent 65%);pointer-events:none}
+  .hol-ev-l{padding:24px 26px;display:flex;flex-direction:column;gap:14px;border-right:1px solid var(--line-hair)}
+  .hol-ev-l .kick{display:flex;align-items:center;gap:9px;font-size:10.5px;color:var(--teal);font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+  .hol-ev-l .kick svg{width:14px;height:14px}
+  .hol-ev-l h2{font-size:24px;font-weight:600;letter-spacing:-.03em;line-height:1.08;color:var(--white)}
+  .hol-ev-l p{font-size:12.5px;color:var(--ink-2);font-weight:300;line-height:1.55;max-width:48ch}
+  .hol-cd{display:flex;align-items:flex-end;gap:8px}
+  .hol-cd div{display:flex;flex-direction:column;align-items:center;min-width:58px;padding:9px 8px 7px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-sm)}
+  .hol-cd b{font-size:22px;font-weight:600;letter-spacing:-.03em;color:var(--white);line-height:1;font-variant-numeric:tabular-nums}
+  .hol-cd span{font-size:9.5px;color:var(--ink-3);font-weight:300;letter-spacing:.06em;text-transform:uppercase;margin-top:5px}
+  .hol-cd em{font-style:normal;font-size:11.5px;color:var(--ink-3);font-weight:300;padding-bottom:12px;margin-left:4px}
+  .hol-ev-r{padding:20px 22px;display:flex;flex-direction:column;gap:12px;position:relative;z-index:1}
+  .hol-ev-r .ttl{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px;font-weight:500;color:var(--white)}
+  .hol-ev-r .ttl span{font-size:10.5px;color:var(--ink-3);font-weight:300}
+  .hol-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}
+  .hol-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-soft);font-size:12px;font-weight:600;color:var(--ink-3);position:relative;transition:all var(--fast)}
+  .hol-day small{font-size:8.5px;font-weight:300;letter-spacing:.04em;text-transform:uppercase}
+  .hol-day.past{color:var(--ink-2);border-color:var(--line)}
+  .hol-day.past::after{content:'';position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--teal)}
+  .hol-day.today{color:var(--on-teal);background:linear-gradient(var(--teal),var(--teal-lo));border-color:transparent;box-shadow:0 0 0 2px var(--teal-wash),0 6px 18px rgba(var(--teal-rgb),.35);transform:scale(1.06)}
+  .hol-day.today small{color:var(--on-teal);opacity:.8}
+  .hol-day.lock{opacity:.5}
+  .hol-day.lock svg{width:11px;height:11px;stroke-width:2;opacity:.7}
+  .hol-day.clickable{cursor:pointer}.hol-day.clickable:hover{border-color:var(--teal-edge);color:var(--white)}
+  .hol-gift{display:flex;align-items:center;gap:12px;padding:12px;background:var(--inset);border:1px solid var(--teal-edge);border-radius:var(--r-sm)}
+  .hol-gift .tile{width:40px;height:40px}
+  .hol-gift b{display:block;font-size:13px;font-weight:600;color:var(--white)}
+  .hol-gift span{display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:2px}
+  .hol-gift .code{margin-left:auto;display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 10px;border-radius:var(--r-xs);background:var(--teal-wash);border:1px solid var(--teal-edge);font-family:ui-monospace,monospace;font-size:11.5px;font-weight:600;color:var(--teal);letter-spacing:.06em;white-space:nowrap;cursor:pointer}
+  .hol-gift .code svg{width:12px;height:12px}
+  .hol-gift.locked{border-color:var(--line-soft);opacity:.7}
+  @media (max-width:860px){.hol-ev{grid-template-columns:1fr}.hol-ev-l{border-right:0;border-bottom:1px solid var(--line-hair)}}
+  @media (max-width:600px){.hol-cd div{min-width:50px}.hol-cd b{font-size:18px}.hol-gift{flex-wrap:wrap}.hol-gift .code{margin-left:0}}
 </style>
+<div class="hol-scene" id="holScene" aria-hidden="true"></div>
 <div class="hol-layer" id="holLayer" aria-hidden="true"></div>
 <script>
 (function () {
   var MODE = {{ holMode|json_encode|raw }};
   var RECOLOR = {{ ((config('holiday-recolor') ?: 'On') != 'Off') ? 'true' : 'false' }};
   var PARTICLES = {{ ((config('holiday-particles') ?: 'On') != 'Off' and hol_quiet is not defined) ? 'true' : 'false' }};
+  var SCENE = {{ ((config('holiday-scene') ?: 'On') != 'Off' and hol_quiet is not defined) ? 'true' : 'false' }};
   var CHIP = {{ ((config('holiday-chip') ?: 'Show') != 'Hide') ? 'true' : 'false' }};
+  var EVENT = {{ ((config('holiday-event') ?: 'Show') != 'Hide') ? 'true' : 'false' }};
   var DENSITY = parseInt({{ (config('holiday-density') ?: '28')|json_encode|raw }}, 10) || 28;
-  var LABELS = {
-    newyear: {{ (config('holiday-label-newyear') ?: 'New Year')|json_encode|raw }},
-    valentine: {{ (config('holiday-label-valentine') ?: "Valentine's")|json_encode|raw }},
-    stpatrick: {{ (config('holiday-label-stpatrick') ?: "St. Patrick's")|json_encode|raw }},
-    easter: {{ (config('holiday-label-easter') ?: 'Easter')|json_encode|raw }},
-    spring: {{ (config('holiday-label-spring') ?: 'Spring')|json_encode|raw }},
-    summer: {{ (config('holiday-label-summer') ?: 'Summer')|json_encode|raw }},
-    july4: {{ (config('holiday-label-july4') ?: '4th of July')|json_encode|raw }},
-    summersale: {{ (config('holiday-label-summersale') ?: 'Summer sale')|json_encode|raw }},
-    autumn: {{ (config('holiday-label-autumn') ?: 'Autumn')|json_encode|raw }},
-    halloween: {{ (config('holiday-label-halloween') ?: 'Halloween')|json_encode|raw }},
-    thanksgiving: {{ (config('holiday-label-thanksgiving') ?: 'Thanksgiving')|json_encode|raw }},
-    christmas: {{ (config('holiday-label-christmas') ?: 'Christmas')|json_encode|raw }}
+  var CFG = {
+    {% for k in ['newyear','valentine','stpatrick','easter','spring','summer','july4','summersale','autumn','halloween','thanksgiving','christmas'] %}
+    {{ k }}: { label: {{ (config('holiday-label-' ~ k) ?: '')|json_encode|raw }}, title: {{ (config('event-' ~ k ~ '-title') ?: '')|json_encode|raw }}, sub: {{ (config('event-' ~ k ~ '-sub') ?: '')|json_encode|raw }}, days: {{ (config('event-' ~ k ~ '-days') ?: '')|json_encode|raw }}, end: {{ (config('event-' ~ k ~ '-end') ?: '')|json_encode|raw }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
   };
-  var BY_MONTH = ['newyear', 'valentine', 'stpatrick', 'easter', 'spring', 'summer', 'july4', 'summersale', 'autumn', 'halloween', 'thanksgiving', 'christmas'];
-  /* glyphs: [svg path markup, motion, size px, extra glyph] */
+  var T = { until: {{ (config('event-until-text') ?: 'until')|json_encode|raw }}, ends: {{ (config('event-ends-text') ?: 'sale ends in')|json_encode|raw }}, today: {{ (config('event-today-text') ?: "Today's gift")|json_encode|raw }}, locked: {{ (config('event-locked-text') ?: 'Unlocks on')|json_encode|raw }}, opened: {{ (config('event-opened-text') ?: 'Opened')|json_encode|raw }}, copy: {{ (config('event-copy-text') ?: 'Copy code')|json_encode|raw }}, calendar: {{ (config('event-calendar-text') ?: 'Daily gifts')|json_encode|raw }}, days: ['Days', 'Hours', 'Min', 'Sec'], noGift: {{ (config('event-nogift-text') ?: 'Check back tomorrow for the next gift.')|json_encode|raw }}, over: {{ (config('event-over-text') ?: 'The event has ended. See you next year!')|json_encode|raw }}, view: {{ (config('event-view-text') ?: 'View')|json_encode|raw }} };
+
   var G = {
     star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 6 6.5.7-4.9 4.4 1.4 6.4L12 17l-5.8 3.3 1.4-6.4L2.7 9.5l6.5-.7z"/></svg>',
     sparkle: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/></svg>',
+    confetti: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="12" height="6" rx="1" transform="rotate(-20 12 7)"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5l-7.2-7.3A4.6 4.6 0 0 1 11.3 6.7L12 7.4l.7-.7a4.6 4.6 0 0 1 6.5 6.5z"/></svg>',
     clover: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="8" r="4"/><circle cx="16" cy="8" r="4"/><circle cx="8" cy="16" r="4"/><circle cx="16" cy="16" r="4"/><path d="M12 12l2 9h-4z"/></svg>',
-    egg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c4 0 7 6 7 11a7 7 0 0 1-14 0C5 8 8 2 12 2z"/><path d="M6.5 13h11" stroke="#000" stroke-opacity=".25" stroke-width="1.5"/></svg>',
+    coin: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#f5c451"/><circle cx="12" cy="12" r="6" fill="none" stroke="#b8902e" stroke-width="1.5"/></svg>',
+    egg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c4 0 7 6 7 11a7 7 0 0 1-14 0C5 8 8 2 12 2z"/><path d="M6.5 13h11M7.5 9.5h9" stroke="#000" stroke-opacity=".3" stroke-width="1.5"/></svg>',
     flower: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="3.2"/><circle cx="12" cy="18" r="3.2"/><circle cx="6" cy="12" r="3.2"/><circle cx="18" cy="12" r="3.2"/><circle cx="12" cy="12" r="2.4" fill="#000" fill-opacity=".35"/></svg>',
     bubble: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M8 9a4 4 0 0 1 3-3" stroke-linecap="round"/></svg>',
     sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
-    leaf: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4c-9 0-15 5-16 14 2-1 4-1 6-1 7 0 10-7 10-13zM4 18c3-5 7-8 12-10" stroke="#000" stroke-opacity=".3" stroke-width="1.2" fill="none"/><path d="M20 4c-9 0-15 5-16 14 2-1 4-1 6-1 7 0 10-7 10-13z"/></svg>',
+    leaf: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4c-9 0-15 5-16 14 2-1 4-1 6-1 7 0 10-7 10-13z"/><path d="M4 18c3-5 7-8 12-10" stroke="#000" stroke-opacity=".35" stroke-width="1.2" fill="none"/></svg>',
     bat: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c-1.5-2-4-3-7-2 1 2 .5 4-1 5 3 0 5 1 6 3l2-1 2 1c1-2 3-3 6-3-1.5-1-2-3-1-5-3-1-5.5 0-7 2z"/></svg>',
     pumpkin: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5c-1 0-1.5-2-1-3 .5.5 1.5 1 1.5 2M7 7c-3 0-5 3-5 7s2 6 5 6c1 0 2-.5 2.5-1 1 .7 2 1 2.5 1s1.5-.3 2.5-1c.5.5 1.5 1 2.5 1 3 0 5-2 5-6s-2-7-5-7c-1 0-2 .3-2.5 1C14 7.3 13 7 12 7s-2 .3-2.5 1C9 7.3 8 7 7 7z"/><path d="M8 12l1.5 2h-3zM16 12l1.5 2h-3zM8 16.5c2.5 1.5 5.5 1.5 8 0l-1 2c-2 1-4 1-6 0z" fill="#000" fill-opacity=".45"/></svg>',
+    ghost: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a7 7 0 0 0-7 7v10l2.5-2 2.5 2 2-2 2 2 2.5-2 2.5 2V10a7 7 0 0 0-7-7z"/><circle cx="9.5" cy="10" r="1.3" fill="#000" fill-opacity=".6"/><circle cx="14.5" cy="10" r="1.3" fill="#000" fill-opacity=".6"/></svg>',
     snow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19M12 2l-2 3M12 2l2 3M12 22l-2-3M12 22l2-3M2 12l3-2M2 12l3 2M22 12l-3-2M22 12l-3 2"/></svg>',
     gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 7v14M12 7s-1.5-4-4-4a2 2 0 0 0 0 4M12 7s1.5-4 4-4a2 2 0 0 1 0 4"/></svg>',
-    turkey: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4c-4 0-7 3-7 7 0 3 2 5 4 6v3h6v-3c2-1 4-3 4-6 0-4-3-7-7-7z"/><path d="M5 9L2 6M8 6L6 2M12 5l0-3M16 6l2-4M19 9l3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="10" r="1" fill="#000" fill-opacity=".5"/></svg>'
+    turkey: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4c-4 0-7 3-7 7 0 3 2 5 4 6v3h6v-3c2-1 4-3 4-6 0-4-3-7-7-7z"/><path d="M5 9L2 6M8 6L6 2M12 5l0-3M16 6l2-4M19 9l3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="10" r="1" fill="#000" fill-opacity=".5"/></svg>',
+    flag: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3v18h2v-7h11l-2-4 2-4H7V3z"/></svg>'
   };
-  var THEMES = {
-    newyear: { g: [G.sparkle, G.star], m: 'fall', s: [8, 16], chip: G.sparkle },
-    valentine: { g: [G.heart], m: 'rise', s: [10, 20], chip: G.heart },
-    stpatrick: { g: [G.clover], m: 'fall', s: [12, 22], chip: G.clover },
-    easter: { g: [G.egg, G.flower], m: 'fall', s: [10, 18], chip: G.egg },
-    spring: { g: [G.flower], m: 'fall', s: [10, 18], chip: G.flower },
-    summer: { g: [G.bubble], m: 'rise', s: [8, 22], chip: G.sun },
-    july4: { g: [G.star, G.sparkle], m: 'fall', s: [8, 16], chip: G.star },
-    summersale: { g: [G.sun, G.sparkle], m: 'rise', s: [10, 20], chip: G.sun },
-    autumn: { g: [G.leaf], m: 'fall', s: [12, 24], chip: G.leaf },
-    halloween: { g: [G.bat, G.pumpkin, G.bat], m: 'fall', s: [14, 26], chip: G.pumpkin },
-    thanksgiving: { g: [G.leaf, G.turkey, G.leaf, G.leaf], m: 'fall', s: [12, 24], chip: G.turkey },
-    christmas: { g: [G.snow, G.snow, G.gift], m: 'fall', s: [8, 20], chip: G.gift }
+  /* theme spec: glyphs, motion, size, palette (null = accent), scene, label, holiday date fn */
+  function nth(y, m, dow, n) { var d = new Date(y, m, 1), add = (dow - d.getDay() + 7) % 7; return new Date(y, m, 1 + add + (n - 1) * 7); }
+  function easter(y) { var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451), mo = Math.floor((h + l - 7 * m + 114) / 31) - 1, da = ((h + l - 7 * m + 114) % 31) + 1; return new Date(y, mo, da); }
+  var TH = {
+    newyear: { g: [G.sparkle, G.star, G.confetti], m: 'fall', s: [8, 16], pal: ['#f5c451', '#ffffff', '#ff5a5a', '#3fb6ff'], scene: 'fireworks', label: 'New Year', when: function (y) { return new Date(y, 0, 1); }, title: 'New Year drop', sub: 'Fresh year, fresh scripts. A new gift unlocks every day until the countdown hits zero.' },
+    valentine: { g: [G.heart], m: 'rise', s: [10, 22], pal: ['#ff4d8d', '#ff8fb8', '#ffffff'], scene: 'vign', label: "Valentine's", when: function (y) { return new Date(y, 1, 14); }, title: "Valentine's week", sub: 'Gift a script to a server you love. Daily codes until the 14th.' },
+    stpatrick: { g: [G.clover, G.coin], m: 'fall', s: [12, 22], pal: ['#2ecc71', '#5ee39a', '#f5c451'], scene: 'vign', label: "St. Patrick's", when: function (y) { return new Date(y, 2, 17); }, title: 'Lucky week', sub: 'Pots of gold, daily. A new code every day until the 17th.' },
+    easter: { g: [G.egg, G.flower], m: 'fall', s: [10, 18], pal: ['#b48cff', '#ff8fb8', '#7bcdff', '#9fe683', '#ffd97a'], scene: 'vign', label: 'Easter', when: function (y) { return easter(y); }, title: 'Egg hunt', sub: 'Crack an egg every day. Each one hides a discount.' },
+    spring: { g: [G.flower], m: 'fall', s: [10, 18], pal: ['#7ad15a', '#ff8fb8', '#ffd97a', '#7bcdff'], scene: 'vign', label: 'Spring', when: function (y) { return new Date(y, 4, 31); }, title: 'Spring release week', sub: 'New releases and daily deals all month.' },
+    summer: { g: [G.bubble], m: 'rise', s: [8, 22], pal: null, scene: 'sun', label: 'Summer', when: function (y) { return new Date(y, 5, 21); }, title: 'Summer kickoff', sub: 'Longest days, biggest drops.' },
+    july4: { g: [G.star, G.sparkle], m: 'fall', s: [8, 16], pal: ['#ff5a5a', '#ffffff', '#3fb6ff'], scene: 'fireworks', label: '4th of July', when: function (y) { return new Date(y, 6, 4); }, title: 'Independence week', sub: 'Fireworks and daily codes until the 4th.' },
+    summersale: { g: [G.sun, G.sparkle], m: 'rise', s: [10, 20], pal: null, scene: 'sun', label: 'Summer sale', when: function (y) { return new Date(y, 7, 31); }, title: 'Summer sale', sub: 'Every script on sale before the season ends.' },
+    autumn: { g: [G.leaf], m: 'fall', s: [12, 24], pal: ['#e0872b', '#c2410c', '#f5c451', '#9a3412'], scene: 'vign', label: 'Autumn', when: function (y) { return new Date(y, 8, 22); }, title: 'Autumn drop', sub: 'Leaves fall, prices too.' },
+    halloween: { g: [G.bat, G.pumpkin, G.bat, G.ghost], m: 'fall', s: [14, 26], pal: ['#ff7a1a', '#b48cff', '#ffffff'], scene: 'moon', label: 'Halloween', when: function (y) { return new Date(y, 9, 31); }, title: 'Nights of frights', sub: 'A new trick or treat every night until Halloween. Open today\'s box for the code.' },
+    thanksgiving: { g: [G.leaf, G.turkey, G.leaf, G.leaf], m: 'fall', s: [12, 24], pal: ['#d98c3a', '#c2410c', '#f5c451', '#7c2d12'], scene: 'vign', label: 'Thanksgiving', when: function (y) { return nth(y, 10, 4, 4); }, title: 'Thankful week', sub: 'A thank-you to every server running our scripts. Daily codes until Thanksgiving.' },
+    christmas: { g: [G.snow, G.snow, G.gift], m: 'fall', s: [8, 20], pal: ['#ffffff', '#dff5ff', '#22c55e', '#ff5a5a'], scene: 'lights', label: 'Christmas', when: function (y) { return new Date(y, 11, 25); }, title: 'Advent calendar', sub: 'Open a door every day until Christmas. Every door hides a discount or a free script.' }
   };
-  var key = MODE === 'Auto' ? BY_MONTH[new Date().getMonth()] : (THEMES[MODE] ? MODE : null);
+  var BY_MONTH = ['newyear', 'valentine', 'stpatrick', 'easter', 'spring', 'summer', 'july4', 'summersale', 'autumn', 'halloween', 'thanksgiving', 'christmas'];
+  var qs = new URLSearchParams(location.search);
+  var key = qs.get('holiday') && TH[qs.get('holiday')] ? qs.get('holiday') : (MODE === 'Auto' ? BY_MONTH[new Date().getMonth()] : (TH[MODE] ? MODE : null));
   if (!key) return;
-  var root = document.documentElement;
+  var th = TH[key], cfg = CFG[key], root = document.documentElement, now = new Date();
+  var label = cfg.label || th.label;
   root.setAttribute('data-holiday', key);
   if (RECOLOR) root.setAttribute('data-hol-recolor', '1');
-  var th = THEMES[key];
+  var pick = function (arr) { return arr[Math.floor(Math.random() * arr.length)]; };
+  var onReady = function (fn) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn); else fn(); };
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (CHIP) {
-    var brand = document.querySelector('.nav .brand');
-    if (brand) {
-      var chip = document.createElement('span'); chip.className = 'hol-chip'; chip.title = LABELS[key];
-      chip.innerHTML = th.chip + '<span>' + LABELS[key] + '</span>';
-      brand.parentNode.insertBefore(chip, brand.nextSibling);
-    }
+  /* holiday date: this year's, or next year's if it already passed (+ grace of 1 day) */
+  var when = th.when(now.getFullYear());
+  if (now - when > 36e5 * 24) when = th.when(now.getFullYear() + 1);
+  var endAt = cfg.end ? new Date(cfg.end + 'T23:59:59') : new Date(when.getFullYear(), when.getMonth(), when.getDate(), 23, 59, 59);
+
+  /* scene */
+  if (SCENE && !reduced) {
+    var sc = document.getElementById('holScene'), html = '';
+    if (th.scene === 'moon') html = '<div class="hol-moon"></div><div class="hol-fog"></div>';
+    if (th.scene === 'sun') html = '<div class="hol-sun"></div>';
+    if (th.scene === 'vign') html = '<div class="hol-vign"></div>';
+    if (th.scene === 'fireworks') { html = '<div class="hol-vign"></div>'; for (var f = 0; f < 7; f++) html += '<span class="hol-fw" style="left:' + (8 + Math.random() * 84) + 'vw;top:' + (8 + Math.random() * 40) + 'vh;--c:' + pick(th.pal) + ';--d:' + (2.6 + Math.random() * 2).toFixed(1) + 's;--dl:' + (-Math.random() * 6).toFixed(1) + 's;--s:' + (1.6 + Math.random() * 1.4).toFixed(1) + '"></span>'; }
+    if (th.scene === 'lights') { html = '<div class="hol-vign"></div>'; var lights = '<div class="hol-lights">'; var cols = ['#ff5a5a', '#22c55e', '#3fb6ff', '#f5c451', '#ff8fb8']; for (var b = 0; b < 36; b++) lights += '<span class="hol-bulb" style="--c:' + cols[b % cols.length] + ';--dl:' + (-Math.random() * 2).toFixed(2) + 's"></span>'; lights += '</div>'; onReady(function () { var nav = document.querySelector('header.nav'); if (nav) nav.insertAdjacentHTML('beforeend', lights); }); }
+    sc.innerHTML = html;
   }
-  if (PARTICLES && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
-    var layer = document.getElementById('holLayer');
-    var n = Math.min(80, Math.max(0, DENSITY)), frag = document.createDocumentFragment();
+  /* particles */
+  if (PARTICLES && !reduced) {
+    var layer = document.getElementById('holLayer'), n = Math.min(80, Math.max(0, DENSITY)), frag = document.createDocumentFragment();
     for (var i = 0; i < n; i++) {
-      var p = document.createElement('span');
-      var size = th.s[0] + Math.random() * (th.s[1] - th.s[0]);
+      var p = document.createElement('span'), size = th.s[0] + Math.random() * (th.s[1] - th.s[0]);
       p.className = 'hol-p ' + th.m;
       p.style.left = (Math.random() * 100) + 'vw';
       p.style.width = p.style.height = size.toFixed(1) + 'px';
+      if (th.pal) p.style.color = pick(th.pal);
       p.style.setProperty('--d', (11 + Math.random() * 14).toFixed(1) + 's');
       p.style.setProperty('--dl', (-Math.random() * 25).toFixed(1) + 's');
       p.style.setProperty('--sx', ((Math.random() - .5) * 120).toFixed(0) + 'px');
       p.style.setProperty('--o', (0.18 + Math.random() * 0.32).toFixed(2));
-      p.innerHTML = th.g[Math.floor(Math.random() * th.g.length)];
+      p.innerHTML = pick(th.g);
       frag.appendChild(p);
     }
     layer.appendChild(frag);
   }
-  window.NZ_HOLIDAY = key;
+
+  /* countdown helpers */
+  function parts(ms) { ms = Math.max(0, ms); var d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4), s = Math.floor(ms % 6e4 / 1e3); return [d, h, m, s]; }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  var tickers = [];
+  function tick() { var t = Date.now(); tickers.forEach(function (fn) { fn(t); }); }
+  setInterval(tick, 1000);
+
+  onReady(function () {
+  /* nav chip with countdown */
+  if (CHIP) {
+    var brand = document.querySelector('.nav .brand');
+    if (brand) {
+      var chip = document.createElement('span'); chip.className = 'hol-chip'; chip.title = label;
+      chip.innerHTML = th.g[th.g.length - 1].replace('<svg', '<svg style="color:var(--teal)"') + '<span>' + label + '</span><i></i>';
+      brand.parentNode.insertBefore(chip, brand.nextSibling);
+      var ci = chip.querySelector('i');
+      tickers.push(function (t) { var ms = when - t; if (ms <= 0) { ci.textContent = ''; return; } var p = parts(ms); ci.textContent = p[0] > 0 ? p[0] + 'd ' + pad(p[1]) + 'h' : pad(p[1]) + ':' + pad(p[2]) + ':' + pad(p[3]); });
+    }
+  }
+
+  /* homepage event panel */
+  var slot = document.getElementById('holEvent');
+  if (EVENT && slot) {
+    var days = cfg.days ? cfg.days.split('|').map(function (x) { var p = x.split(';'); return { title: (p[0] || '').trim(), code: (p[1] || '').trim(), pkg: (p[2] || '').trim() }; }).filter(function (d) { return d.title; }) : [];
+    var N = days.length, start = new Date(when.getFullYear(), when.getMonth(), when.getDate() - (N - 1));
+    var today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var idx = N ? Math.round((today0 - start) / 864e5) : -1;
+    var isOver = now > endAt;
+    var tiles = '', monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    days.forEach(function (d, i) {
+      var date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      var cls = i < idx ? 'past clickable' : i === idx ? 'today clickable' : 'lock';
+      tiles += '<div class="hol-day ' + cls + '" data-i="' + i + '" title="' + date.getDate() + ' ' + monthNames[date.getMonth()] + '">' + (i < idx || i === idx ? '<b>' + date.getDate() + '</b><small>' + monthNames[date.getMonth()] + '</small>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg><small>' + date.getDate() + '</small>') + '</div>';
+    });
+    var giftHtml = function (i) {
+      if (isOver) return '<div class="hol-gift locked"><div class="tile grey">' + G.gift + '</div><div><b>' + label + '</b><span>' + T.over + '</span></div></div>';
+      if (!N) return '';
+      if (i < 0) { var d0 = new Date(start); return '<div class="hol-gift locked"><div class="tile grey">' + G.gift + '</div><div><b>' + T.calendar + '</b><span>' + T.locked + ' ' + d0.getDate() + ' ' + monthNames[d0.getMonth()] + '</span></div></div>'; }
+      if (i >= N) i = N - 1;
+      var d = days[i], date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      var state = i < idx ? T.opened : i === idx ? T.today : T.locked + ' ' + date.getDate() + ' ' + monthNames[date.getMonth()];
+      if (i > idx) return '<div class="hol-gift locked"><div class="tile grey"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></div><div><b>' + T.calendar + ' · ' + (i + 1) + '/' + N + '</b><span>' + state + '</span></div></div>';
+      return '<div class="hol-gift' + (i < idx ? ' locked' : '') + '"><div class="tile">' + G.gift + '</div><div><b>' + d.title + '</b><span>' + state + (d.pkg ? ' · <a href="/package/' + d.pkg + '" style="color:var(--teal)">' + T.view + '</a>' : '') + '</span></div>' + (d.code ? '<button type="button" class="code" data-copy="' + d.code + '">' + d.code + ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button>' : '') + '</div>';
+    };
+    var cdLabel = isOver ? '' : (now < when ? T.until + ' ' + label : T.ends);
+    slot.innerHTML = '<section class="panel hol-ev view"><div class="hol-ev-l"><div class="kick">' + G.sparkle + label + ' · ' + {{ (config('event-kicker') ?: 'Event')|json_encode|raw }} + '</div><h2>' + (cfg.title || th.title) + '</h2><p>' + (cfg.sub || th.sub) + '</p>' +
+      (isOver ? '' : '<div class="hol-cd" id="holCd"><div><b>00</b><span>' + T.days[0] + '</span></div><div><b>00</b><span>' + T.days[1] + '</span></div><div><b>00</b><span>' + T.days[2] + '</span></div><div><b>00</b><span>' + T.days[3] + '</span></div><em>' + cdLabel + '</em></div>') +
+      '</div><div class="hol-ev-r">' + (N ? '<div class="ttl">' + T.calendar + '<span>' + Math.max(0, Math.min(N, idx + 1)) + ' / ' + N + '</span></div><div class="hol-days" id="holDays">' + tiles + '</div>' : '') + '<div id="holGift">' + giftHtml(idx) + '</div></div></section>';
+    var cd = document.getElementById('holCd');
+    if (cd) { var bs = cd.querySelectorAll('b'); tickers.push(function (t) { var target = now < when ? when : endAt; var p = parts(target - t); bs[0].textContent = pad(p[0]); bs[1].textContent = pad(p[1]); bs[2].textContent = pad(p[2]); bs[3].textContent = pad(p[3]); }); }
+    var dd = document.getElementById('holDays');
+    if (dd) dd.addEventListener('click', function (e) { var t = e.target.closest('.hol-day'); if (!t) return; document.getElementById('holGift').innerHTML = giftHtml(parseInt(t.getAttribute('data-i'), 10)); });
+  }
+  tick();
+  });
+  window.NZ_HOLIDAY = { key: key, label: label, date: when };
 })();
 </script>
 {% endif %}

@@ -40,14 +40,34 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 
 ## Package description markers
 
-Put these on their own line at the end of a package description in Tebex. They are hidden on the page and turned into UI:
+Put these on their own lines at the end of a package description in Tebex. They are hidden on the page and turned into UI on the cards and the package page:
 
 ```
-FRAMEWORKS: ESX, QBCore, Qbox
-TAGS: Best seller, New
-IMAGES: https://your.cdn/shot-1.png, https://your.cdn/shot-2.png
-VIDEO: https://www.youtube.com/watch?v=XXXXXXXXXXX
+FRAMEWORKS: ESX, QBCore, Qbox          → logo chips (ESX, QBCore, QBox, ox, Standalone are recognised)
+VERSION: 2.4.1                         → clean version tag on the card and next to the title
+RATING: 4.9 (124)                      → stars + review count
+TAGS: New, Lifetime updates            → badges ("Best seller" here also triggers the gold tag)
+IMAGES: https://cdn/1.png, https://cdn/2.png   → gallery thumbnails
+VIDEO: https://www.youtube.com/watch?v=XXXX    → Preview tab + gallery thumb
+DEPENDENCIES: ox_lib https://github.com/overextended/ox_lib, ox_target   → Dependencies tab (URL optional)
+CHANGELOG: v2.4.1 - New compass styles | v2.4.0 - Qbox support   → Changelog tab, entries separated by |
 ```
+
+**Best seller tag.** Gold gradient pill with a flame icon, top-left of the card and in the package header. Set `bestseller-ids` in settings (comma-separated package IDs) or add `Best seller` to a package's TAGS.
+
+## Seasonal themes and events
+
+`holiday-mode` Auto switches on the 1st of each month. Every theme recolours the accent, adds a background scene (moon and fog for Halloween, string lights and snow caps for Christmas, fireworks for New Year and 4th of July, sun for summer) and particles, and shows a badge in the nav with a live countdown to the holiday.
+
+The homepage gets an **event panel** with the countdown and a **daily gift calendar**. Fill `event-<theme>-days` with one entry per day, `Title;CODE;packageId`, separated by `|`. The last entry lands on the holiday, so 24 entries for Christmas gives you a 1 to 24 December advent calendar. Codes are coupons you create in Tebex. Visitors see locked doors for future days, today's gift with a copy button, and can reopen past days.
+
+Preview any theme by adding `?holiday=christmas` (or newyear, valentine, stpatrick, easter, spring, summer, july4, summersale, autumn, halloween, thanksgiving) to the store URL.
+
+## Also on the homepage
+
+- `hero-video`: YouTube showcase in the hero instead of the release card.
+- `trusted-logos` / `trusted-names`: a "Trusted by" row of servers.
+- `update-1..6-*`: a Latest updates feed with version tags.
 
 ## Gifting
 

@@ -36,6 +36,20 @@
   .tab:hover{color:var(--white)}.tab.on{color:var(--white);font-weight:500}
   .tab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--teal);box-shadow:0 0 9px var(--teal)}
   .tab-b{padding:20px 0;max-width:76ch}
+  .sticky{position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(14,16,17,.96);border-top:1px solid var(--line);box-shadow:0 -10px 30px rgba(0,0,0,.5);transform:translateY(110%);transition:transform var(--slow)}
+  .sticky.on{transform:none}
+  body{padding-bottom:70px}
+  .sticky .in{display:flex;align-items:center;gap:12px;height:62px}
+  .sticky .art{width:40px;aspect-ratio:1;border-radius:var(--r-xs);border:1px solid var(--line-soft);flex:none}
+  .sticky .art .big{width:18px;height:18px}
+  .sticky b{font-size:13px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sticky .pr{margin-left:auto;font-size:15px;font-weight:600;color:var(--white);white-space:nowrap}
+  .chg{display:flex;flex-direction:column;gap:10px}
+  .chg div{display:flex;gap:12px;padding:10px 12px;background:var(--inset);border:1px solid var(--line-hair);border-radius:var(--r-sm);font-size:12.5px;color:var(--ink-2);font-weight:300;line-height:1.5}
+  .chg .vtag{flex:none;margin-top:2px}
+  .deps{display:flex;flex-wrap:wrap;gap:8px}
+  .deps a,.deps span{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:var(--r-sm);background:var(--raise);border:1px solid var(--line-soft);font-size:12px;color:var(--ink-2)}
+  .deps a:hover{border-color:var(--teal-edge);color:var(--teal)}
   .lightbox{position:fixed;inset:0;z-index:110;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:30px;opacity:0;visibility:hidden;transition:all var(--slow);cursor:zoom-out}
   .lightbox.on{opacity:1;visibility:visible}
   .lightbox img{max-width:100%;max-height:100%;border-radius:var(--r-md);border:1px solid var(--line)}
@@ -66,7 +80,9 @@
         {% if package.price == 0 %}<span class="chip">{{ config('free-text') ?: 'Free' }}</span>{% endif %}
         <span id="pkgChips" style="display:contents"></span>
       </div>
-      <h1>{{ package.name }}</h1>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>{{ package.name }}</h1><span id="pkgVer"></span></div>
+      <div class="fw-row" id="pkgFw" style="min-height:0"></div>
+      <div id="pkgRate"></div>
       {% if short %}<p style="font-size:13px;color:var(--ink-2);font-weight:300;line-height:1.6" id="pkgShort">{{ short|slice(0, 220) }}{% if short|length > 220 %}…{% endif %}</p>{% endif %}
       <div class="big-price">
         {% if package.price == 0 %}<b>{{ config('free-text') ?: 'Free' }}</b>{% else %}<b>{{ csym }}{{ package.price|number_format(2) }}</b>{% if has_disc %}<s>{{ csym }}{{ package.discount.original|number_format(2) }}</s>{% endif %}{% endif %}
@@ -91,7 +107,10 @@
     </div>
   </div>
 
-  <div class="tabs" id="ptabs"><button class="tab on" data-t="desc">{{ config('package-tab-desc') ?: 'Description' }}</button><button class="tab" data-t="terms">{{ config('package-tab-terms') ?: 'Terms' }}</button></div>
+  <div class="tabs" id="ptabs"><button class="tab on" data-t="desc">{{ config('package-tab-desc') ?: 'Description' }}</button><button class="tab hide" data-t="preview">{{ config('package-tab-preview') ?: 'Preview' }}</button><button class="tab hide" data-t="deps">{{ config('package-tab-deps') ?: 'Dependencies' }}</button><button class="tab hide" data-t="chg">{{ config('package-tab-changelog') ?: 'Changelog' }}</button><button class="tab" data-t="terms">{{ config('package-tab-terms') ?: 'Terms' }}</button></div>
+  <div class="tab-b hide" data-tb="preview" id="pkgPreview"></div>
+  <div class="tab-b hide" data-tb="deps" id="pkgDeps"><p style="font-size:12px;color:var(--ink-3);margin-bottom:10px">{{ config('package-deps-note') ?: 'This script needs the following resources installed:' }}</p><div class="deps"></div></div>
+  <div class="tab-b hide chg" data-tb="chg" id="pkgChg"></div>
   <div class="tab-b prose" data-tb="desc" id="pkgDesc">{% if package.description %}{{ package.description|raw }}{% else %}<p>{{ config('package-no-desc') ?: 'No description yet.' }}</p>{% endif %}</div>
   <div class="tab-b prose hide" data-tb="terms">{{ (config('package-terms') ?: '<p>All purchases are digital goods delivered instantly and are non-refundable unless delivery fails. Assets are bound to the Cfx.re account used at checkout and licensed for one server. Redistributing open-source code or chargebacks result in a store ban.</p>')|raw }}</div>
 
@@ -105,9 +124,10 @@
   {% endif %}
 </div>
 <div class="lightbox" id="lightbox"><img src="" alt="" /></div>
+<div class="sticky" id="stickyBar"><div class="wrap in"><div class="art">{% if package.image.url %}<img src="{{ package.image.url }}" alt="" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-layers"/></svg>{% endif %}</div><b>{{ package.name }}</b><span class="pr">{% if package.price == 0 %}{{ config('free-text') ?: 'Free' }}{% else %}{{ csym }}{{ package.price|number_format(2) }}{% endif %}</span>{% if in_basket %}<a class="btn-line" href="/checkout/packages/remove/{{ package.id }}" data-remove="{{ package.id }}" data-add-text="{{ config('package-add-to-cart') ?: 'Add to cart' }}" data-in-text="{{ config('package-added-text') ?: 'In cart · remove' }}"><svg class="ic"><use href="#i-check"/></svg><span class="lbl">{{ config('package-added-text') ?: 'In cart · remove' }}</span></a>{% else %}<a class="btn-teal" href="/checkout/packages/add/{{ package.id }}" data-add="{{ package.id }}" data-add-text="{{ config('package-add-to-cart') ?: 'Add to cart' }}" data-in-text="{{ config('package-added-text') ?: 'In cart · remove' }}"><svg class="ic"><use href="#i-cart"/></svg><span class="lbl">{{ config('package-add-to-cart') ?: 'Add to cart' }}</span></a>{% endif %}</div></div>
 
 <script>
-(function () {
+function nzPackageInit() {
   var $ = function (s) { return document.querySelector(s); };
   /* tabs */
   $('#ptabs').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (!b) return; document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x === b); }); document.querySelectorAll('[data-tb]').forEach(function (x) { x.classList.toggle('hide', x.getAttribute('data-tb') !== b.getAttribute('data-t')); }); });
@@ -124,10 +144,24 @@
     if (!out) { var txt = desc.innerHTML, m2 = txt.match(new RegExp(label + ':\\s*([^<\\n]+)', 'i')); if (m2) { out = m2[1]; desc.innerHTML = txt.replace(m2[0], ''); } }
     return out ? out.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
   }
-  grab('FRAMEWORKS').forEach(function (f) { chips.insertAdjacentHTML('beforeend', '<span class="chip">' + f.replace(/[<>]/g, '') + '</span>'); });
-  grab('TAGS').forEach(function (f) { chips.insertAdjacentHTML('beforeend', '<span class="chip grey">' + f.replace(/[<>]/g, '') + '</span>'); });
-  grab('IMAGES').forEach(function (u) { if (/^https?:\/\//.test(u)) media.push({ t: 'img', u: u }); });
-  grab('VIDEO').forEach(function (u) { var m = u.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/); if (m) media.push({ t: 'yt', u: 'https://www.youtube-nocookie.com/embed/' + m[1] + '?rel=0', id: m[1] }); });
+  var raw = Array.prototype.slice.call(desc.querySelectorAll('p,li,div,h1,h2,h3,h4')).map(function (el) { return el.children.length > 1 ? '' : (el.textContent || '').trim(); }).join(' \n ');
+  var mk = window.nzMarkers ? window.nzMarkers(raw) : { frameworks: [], tags: [], images: [], video: [], version: '', rating: null, deps: [], changelog: [] };
+  ['FRAMEWORKS', 'TAGS', 'IMAGES', 'VIDEO', 'VERSION', 'RATING', 'DEPENDENCIES', 'CHANGELOG'].forEach(function (l) { grab(l); });
+  var BEST = {{ (config('bestseller-ids') ?: '')|replace({' ': ''})|json_encode|raw }}.split(',').filter(Boolean);
+  if (BEST.indexOf('{{ package.id }}') > -1 || mk.tags.some(function (t) { return /best/i.test(t); })) chips.insertAdjacentHTML('afterbegin', '<span class="bs"><svg class="ic"><use href="#i-flame"/></svg>' + {{ (config('bestseller-text') ?: 'Best seller')|json_encode|raw }} + '</span>');
+  mk.tags.forEach(function (f) { if (/best/i.test(f)) return; chips.insertAdjacentHTML('beforeend', '<span class="chip' + (/^new$/i.test(f) ? ' new' : ' grey') + '">' + f.replace(/[<>]/g, '') + '</span>'); });
+  if (mk.frameworks.length && window.nzFwChip) $('#pkgFw').innerHTML = mk.frameworks.map(function (f) { return window.nzFwChip(f, false); }).join('');
+  if (mk.version) $('#pkgVer').innerHTML = '<span class="vtag">v' + mk.version.replace(/[<>]/g, '') + '</span>';
+  if (mk.rating && window.nzStars) $('#pkgRate').innerHTML = '<span class="rate">' + window.nzStars(mk.rating.score) + '<b>' + mk.rating.score + '</b>' + (mk.rating.count ? ' · ' + mk.rating.count + ' ' + {{ (config('package-reviews-text') ?: 'reviews')|json_encode|raw }} : '') + '</span>';
+  mk.images.forEach(function (u) { if (/^https?:\/\//.test(u)) media.push({ t: 'img', u: u }); });
+  mk.video.forEach(function (u) { var m = u.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/); if (m) media.push({ t: 'yt', u: 'https://www.youtube-nocookie.com/embed/' + m[1] + '?rel=0', id: m[1] }); });
+  var vids = media.filter(function (m) { return m.t === 'yt'; });
+  if (vids.length) { $('#pkgPreview').innerHTML = vids.map(function (v) { return '<div class="art" style="aspect-ratio:16/9;border-radius:var(--r-md);border:1px solid var(--line-soft);margin-bottom:10px"><iframe src="' + v.u + '" allow="autoplay; fullscreen" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1"></iframe></div>'; }).join(''); $('[data-t="preview"]').classList.remove('hide'); }
+  if (mk.deps.length) { $('#pkgDeps .deps').innerHTML = mk.deps.map(function (d) { var u = d.match(/https?:\/\/\S+/); var name = d.replace(/https?:\/\/\S+/, '').trim() || d; return u ? '<a href="' + u[0] + '" target="_blank" rel="noopener"><svg class="ic" style="width:13px;height:13px"><use href="#i-box"/></svg>' + name.replace(/[<>]/g, '') + '</a>' : '<span><svg class="ic" style="width:13px;height:13px"><use href="#i-box"/></svg>' + name.replace(/[<>]/g, '') + '</span>'; }).join(''); $('[data-t="deps"]').classList.remove('hide'); }
+  if (mk.changelog.length) { $('#pkgChg').innerHTML = mk.changelog.map(function (c) { var m = c.match(/^v?([0-9][\w.]*)\s*[-–:]\s*(.+)$/); return '<div>' + (m ? '<span class="vtag">v' + m[1].replace(/[<>]/g, '') + '</span><span>' + m[2].replace(/[<>]/g, '') + '</span>' : '<span>' + c.replace(/[<>]/g, '') + '</span>') + '</div>'; }).join(''); $('[data-t="chg"]').classList.remove('hide'); }
+  /* sticky buy bar once the buy box scrolls away */
+  var buyBox = document.querySelector('.buy'), bar = $('#stickyBar');
+  if (buyBox && bar && 'IntersectionObserver' in window) new IntersectionObserver(function (en) { bar.classList.toggle('on', !en[0].isIntersecting && en[0].boundingClientRect.top < 0); }, { threshold: 0 }).observe(buyBox);
   var short = $('#pkgShort'); if (short) { var parts = Array.prototype.slice.call(desc.querySelectorAll('p,li,h1,h2,h3,h4')).map(function (el) { return (el.textContent || '').trim(); }).filter(Boolean); var clean = (parts.length ? parts.join(' · ') : (desc.textContent || '')).replace(/\s+/g, ' ').trim(); if (clean) short.textContent = clean.slice(0, 220) + (clean.length > 220 ? '…' : ''); }
   if (media.length > 1) {
     media.forEach(function (m, i) {
@@ -140,6 +174,7 @@
   main.addEventListener('click', function () { var u = main.getAttribute('data-src'); if (!u) return; var lb = $('#lightbox'); lb.querySelector('img').src = u; lb.classList.add('on'); });
   $('#lightbox').addEventListener('click', function () { this.classList.remove('on'); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('#lightbox').classList.remove('on'); });
-})();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', nzPackageInit); else nzPackageInit();
 </script>
 {% endblock %}

@@ -85,10 +85,8 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* nav */
 .nav{position:sticky;top:0;z-index:50;height:var(--nav-h);background:linear-gradient(var(--panel),rgba(8,9,10,.97));border-bottom:1px solid var(--line-soft)}
-.nav::before{content:'';position:absolute;inset:0 0 auto;height:1px;background:var(--lift)}
 .nav-in{height:100%;display:flex;align-items:center;gap:8px}
 .brand{position:relative;display:flex;align-items:center;gap:11px;height:var(--nav-h);padding-right:22px;margin-right:12px;border-right:1px solid var(--line-soft)}
-.brand::before{content:'';position:absolute;top:-1px;left:-8px;right:0;height:2px;background:linear-gradient(90deg,var(--teal),rgba(var(--teal-rgb),0))}
 .links{display:flex;align-items:center;gap:2px}
 .lnk{position:relative;display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:var(--r-sm);font-size:12.5px;font-weight:300;color:var(--ink-2);transition:background var(--fast),color var(--fast);white-space:nowrap}
 .lnk .ic{width:15px;height:15px;opacity:.75}
@@ -206,6 +204,23 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 .prose th{background:var(--raise);color:var(--white);font-weight:500}
 .prose iframe,.prose video{max-width:100%;border-radius:var(--r-sm)}
 
+/* framework chips · best seller · version · rating */
+.fwc{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px 0 8px;border-radius:var(--r-sm);background:var(--raise);border:1px solid var(--line-soft);font-size:12px;font-weight:500;color:var(--ink-2);white-space:nowrap}
+.fwc svg{width:22px;height:14px;display:block}
+.fwc.sm{height:24px;padding:0 7px;gap:0;font-size:0}
+.fwc.sm svg{width:20px;height:12px}
+.fw-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bs{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px 0 6px;border-radius:var(--r-xs);background:linear-gradient(135deg,#f7d06b,#e5a50a);color:#2a1a00;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;box-shadow:0 0 0 1px rgba(245,196,81,.35),0 4px 14px rgba(245,196,81,.22)}
+.bs svg{width:11px;height:11px;stroke-width:2.4}
+.chip.new{color:#0b0c0d;background:var(--white);border-color:var(--white)}
+.vtag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:var(--r-xs);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;font-weight:500;letter-spacing:.02em;color:var(--teal);border:1px solid var(--teal-edge);background:var(--teal-wash);white-space:nowrap}
+.rate{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink-3);font-weight:300;white-space:nowrap}
+.rate b{color:var(--white);font-weight:500}
+.rate .st{color:var(--amber);letter-spacing:.04em;font-size:10px}
+.pk-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:24px}
+.pk-meta:empty{display:none}
+.pk-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+
 /* package card */
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .grid.c3{grid-template-columns:repeat(3,1fr)}
@@ -225,6 +240,7 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 .pk-b{display:flex;flex-direction:column;gap:8px;padding:13px 14px 14px;flex:1}
 .pk-cat{font-size:10.5px;color:var(--ink-3);font-weight:300}
 .pk-b h3{font-size:14px;font-weight:600;letter-spacing:-.014em;color:var(--white);line-height:1.25}
+.pk .art::after{content:'';position:absolute;inset:auto 0 0 0;height:40%;background:linear-gradient(180deg,transparent,rgba(0,0,0,.35));z-index:1;pointer-events:none}
 .pk-b p{font-size:11.5px;line-height:1.5;color:var(--ink-2);font-weight:300;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pk-f{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:10px;border-top:1px solid var(--line-hair)}
 .price{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
@@ -243,7 +259,6 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
 .drawer{position:fixed;top:0;right:0;bottom:0;z-index:95;width:min(420px,100%);display:flex;flex-direction:column;background:var(--base);border-left:1px solid var(--line);box-shadow:var(--sh-3);transform:translateX(100%);visibility:hidden;transition:transform var(--slow),visibility 0s var(--slow)}
 .drawer.on{transform:none;visibility:visible;transition:transform var(--slow)}
 .d-head{display:flex;align-items:center;gap:12px;height:56px;padding:0 14px 0 18px;border-bottom:1px solid var(--line-soft);background:linear-gradient(var(--panel),var(--base));position:relative;flex:none}
-.d-head::before{content:'';position:absolute;inset:0 0 auto;height:1px;background:var(--lift)}
 .d-head b{font-size:13.5px;font-weight:600;color:var(--white)}
 .d-head span{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:2px}
 .d-head .pill-close{margin-left:auto}
@@ -412,7 +427,16 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
   <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4zM20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/></symbol>
-  <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19M6 15h4"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3 4 4.5 4 9a4 4 0 0 1-8 0c0-1.5.5-2.5 1-3 .3 1.2 1 2 2 2.5 0-3 .5-6 1-8.5z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+  <symbol id="fw-esx" viewBox="0 0 48 24"><text x="1" y="19" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="19" fill="#ffffff" letter-spacing="-1">ES</text><text x="29" y="19" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="19" fill="#f59e0b">X</text></symbol>
+  <symbol id="fw-qb" viewBox="0 0 48 24" fill="none" stroke="#e11d48" stroke-width="3.2" stroke-linecap="round"><circle cx="15" cy="12" r="5.5"/><path d="M20.5 12v9"/><circle cx="33" cy="12" r="5.5"/><path d="M27.5 12V3"/></symbol>
+  <symbol id="fw-qbx" viewBox="0 0 48 24"><path d="M24 2l11 5v10l-11 5-11-5V7z" fill="#f5b800"/><path d="M24 2l11 5-11 5-11-5z" fill="#ffd54a"/><path d="M24 12v10l11-5V7z" fill="#c98f00"/><path d="M13 7l11 5v10l-11-5z" fill="#e0a600"/></symbol>
+  <symbol id="fw-ox" viewBox="0 0 48 24"><rect x="9" y="3" width="30" height="18" rx="5" fill="#8b5cf6"/><text x="24" y="17" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="13" fill="#fff">ox</text></symbol>
+  <symbol id="fw-sa" viewBox="0 0 48 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 4v5M30 4v5M15 9h18v4a9 9 0 0 1-18 0zM24 22v-4"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24\" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19M6 15h4"/></symbol>
 </svg>
 
 {# ═══ ANNOUNCEMENT ═══ #}
@@ -763,6 +787,52 @@ textarea.inp{height:auto;padding:10px 11px;resize:vertical;min-height:70px}
       return '<a class="sr' + (i === 0 ? ' on' : '') + '" href="/package/' + p.id + '"><div class="art">' + (p.i ? '<img src="' + esc(p.i) + '" alt="">' : '<svg class="big"><use href="#i-box"/></svg>') + '</div><div class="sr-t"><b>' + esc(p.n) + '</b><span>' + esc(p.c) + '</span></div><div class="price"><b>' + (parseFloat(p.p) === 0 ? 'Free' : esc(CSYM + p.p)) + '</b></div></a>';
     }).join('') : '<div class="empty" style="margin:6px">' + ico('search') + '<b>' + esc(T.noResults) + '</b><span>' + esc(T.noResultsSub) + '</span></div>';
   }
+
+  /* description markers -> UI (frameworks, tags, version, rating...) */
+  var FW = [[/^esx$|es extended|esx/i, 'esx', 'ESX'], [/qbx|qbox/i, 'qbx', 'QBox'], [/qb[- ]?core|^qb$/i, 'qb', 'QBCore'], [/^ox/i, 'ox', 'ox'], [/standalone/i, 'sa', 'Standalone']];
+  var MARKERS = ['FRAMEWORKS', 'TAGS', 'IMAGES', 'VIDEO', 'VERSION', 'RATING', 'DEPENDENCIES', 'CHANGELOG'];
+  function markers(text) {
+    text = String(text || '').replace(/\s+/g, ' ');
+    var out = {}, names = MARKERS.join('|');
+    MARKERS.forEach(function (m) {
+      var re = new RegExp('\\b' + m + ':\\s*(.*?)(?=\\s*\\b(?:' + names + '):|$)', 'i'), r = text.match(re);
+      out[m.toLowerCase()] = r ? r[1].trim() : '';
+    });
+    var list = function (s) { return s ? s.split(/[,|]/).map(function (x) { return x.trim(); }).filter(Boolean) : []; };
+    var rt = out.rating.match(/([0-9]+(?:\.[0-9])?)\s*(?:\(|,|\s)\s*([0-9.,k]+)?/i);
+    return { frameworks: list(out.frameworks), tags: list(out.tags), images: list(out.images), video: list(out.video), version: out.version.replace(/^v/i, ''), rating: rt ? { score: rt[1], count: (rt[2] || '').replace(/\)$/, '') } : null, deps: list(out.dependencies), changelog: out.changelog ? out.changelog.split('|').map(function (x) { return x.trim(); }).filter(Boolean) : [] };
+  }
+  function fwChip(name, small) {
+    var hit = null; FW.forEach(function (f) { if (!hit && f[0].test(name)) hit = f; });
+    var label = hit ? hit[2] : name;
+    return '<span class="fwc' + (small ? ' sm' : '') + '" title="' + esc(label) + '">' + (hit ? '<svg><use href="#fw-' + hit[1] + '"/></svg>' : '') + (small ? '' : esc(label)) + '</span>';
+  }
+  function stars(score) { var n = Math.round(parseFloat(score) || 0); return '<span class="st">' + '★★★★★'.slice(0, n) + '<span style="opacity:.25">' + '★★★★★'.slice(n) + '</span></span>'; }
+  window.nzMarkers = markers; window.nzFwChip = fwChip; window.nzStars = stars;
+  var BEST = {{ (config('bestseller-ids') ?: '')|replace({' ': ''})|json_encode|raw }}.split(',').filter(Boolean);
+  var BEST_T = {{ (config('bestseller-text') ?: 'Best seller')|json_encode|raw }}, NEW_T = {{ (config('new-text') ?: 'New')|json_encode|raw }};
+  function enrichCards(root) {
+    $$('.pk[data-src]', root).forEach(function (card) {
+      var m = markers(card.getAttribute('data-src')); card.removeAttribute('data-src');
+      var id = card.getAttribute('data-open'), badges = card.querySelector('.badges'), meta = card.querySelector('.pk-meta'), top = card.querySelector('.pk-top');
+      var isBest = BEST.indexOf(String(id)) > -1 || m.tags.some(function (t) { return /best/i.test(t); });
+      var isNew = m.tags.some(function (t) { return /^new$/i.test(t); });
+      if (badges) {
+        if (isBest) badges.insertAdjacentHTML('afterbegin', '<span class="bs">' + ico('flame') + BEST_T + '</span>');
+        if (isNew) badges.insertAdjacentHTML('beforeend', '<span class="chip new">' + NEW_T + '</span>');
+        m.tags.filter(function (t) { return !/best|^new$/i.test(t); }).slice(0, 2).forEach(function (t) { badges.insertAdjacentHTML('beforeend', '<span class="chip grey">' + esc(t) + '</span>'); });
+      }
+      if (top && m.version) top.insertAdjacentHTML('beforeend', '<span class="vtag">v' + esc(m.version) + '</span>');
+      if (meta) {
+        var fw = m.frameworks.length ? '<span class="fw-row">' + m.frameworks.slice(0, 4).map(function (f) { return fwChip(f, true); }).join('') + '</span>' : '<span></span>';
+        var rt = m.rating ? '<span class="rate">' + stars(m.rating.score) + '<b>' + esc(m.rating.score) + '</b>' + (m.rating.count ? '· ' + esc(m.rating.count) : '') + '</span>' : '';
+        meta.innerHTML = fw + rt;
+      }
+      card.setAttribute('data-best', isBest ? 1 : 0);
+    });
+  }
+  window.nzEnrichCards = enrichCards;
+  enrichCards(document);
 
   /* events */
   document.addEventListener('click', function (e) {

@@ -13,7 +13,7 @@
             "Got it"
           ],
           "default": "Got it",
-          "description": "Upload your logo in Tebex → Webstore → Settings, then fill: accent colours (this tab), your Discord + Docs links (02), the hero text + release package ID (03), reviews and FAQ (04). Everything else has a sensible default. Seasonal themes (05) switch automatically every month."
+          "description": "Upload your logo in Tebex → Webstore → Settings, then fill: accent colours (this tab), your Discord + Docs links (02), the hero text + release package ID (03), reviews and FAQ (04), best-seller IDs (06). Everything else has a sensible default. Seasonal themes (05) switch automatically every month; add daily gift codes there for the holiday calendars. Package descriptions can carry markers (FRAMEWORKS:, VERSION:, RATING:, TAGS:, IMAGES:, VIDEO:, DEPENDENCIES:, CHANGELOG:) that turn into UI, see README."
         },
         {
           "id": "accent-colour",
@@ -399,6 +399,13 @@
           "description": "Text shown in the store. Leave empty to use the default: feel native."
         },
         {
+          "id": "hero-video",
+          "name": "Hero video",
+          "type": "textarea",
+          "default": "",
+          "description": "YouTube link (watch or embed URL) for a showcase video on the right of the hero. Takes priority over the image and the release card."
+        },
+        {
           "id": "release-btn",
           "name": "Release btn",
           "type": "textarea",
@@ -445,7 +452,7 @@
           "name": "Release package id",
           "type": "textarea",
           "default": "",
-          "description": "Package ID to feature in the \"Latest release\" card on the homepage. Find it in Tebex → Packages. Leave empty (and set a hero image) to show an image instead."
+          "description": "Package ID to feature in the \"Latest release\" card on the homepage. Find it in Tebex → Packages. Leave empty and set a hero image or video instead."
         },
         {
           "id": "release-title",
@@ -527,6 +534,34 @@
           ],
           "default": "Show",
           "description": "Text shown in the store. Leave empty to use the default: Show"
+        },
+        {
+          "id": "trusted-kicker",
+          "name": "Trusted kicker",
+          "type": "textarea",
+          "default": "Trusted by",
+          "description": "Text shown in the store. Leave empty to use the default: Trusted by"
+        },
+        {
+          "id": "trusted-logos",
+          "name": "Trusted logos",
+          "type": "textarea",
+          "default": "",
+          "description": "Comma-separated image URLs of servers / partners shown in a \"Trusted by\" row under the hero."
+        },
+        {
+          "id": "trusted-names",
+          "name": "Trusted names",
+          "type": "textarea",
+          "default": "",
+          "description": "Comma-separated names shown as text chips in the \"Trusted by\" row (use when you have no logos)."
+        },
+        {
+          "id": "trusted-title",
+          "name": "Trusted title",
+          "type": "textarea",
+          "default": "Servers already running NAYZEEE scripts",
+          "description": "Text shown in the store. Leave empty to use the default: Servers already running NAYZEEE scripts"
         }
       ]
     },
@@ -615,6 +650,13 @@
           "description": "Text shown in the store. Leave empty to use the default: online"
         },
         {
+          "id": "faq-1-a",
+          "name": "Faq 1 a",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
+        },
+        {
           "id": "faq-1-q",
           "name": "Faq 1 q",
           "type": "textarea",
@@ -622,8 +664,99 @@
           "description": "FAQ question"
         },
         {
+          "id": "faq-2-a",
+          "name": "Faq 2 a",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
+        },
+        {
           "id": "faq-2-q",
           "name": "Faq 2 q",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ question"
+        },
+        {
+          "id": "faq-3-a",
+          "name": "Faq 3 a",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
+        },
+        {
+          "id": "faq-3-q",
+          "name": "Faq 3 q",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ question"
+        },
+        {
+          "id": "faq-4-a",
+          "name": "Faq 4 a",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
+        },
+        {
+          "id": "faq-4-q",
+          "name": "Faq 4 q",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ question"
+        },
+        {
+          "id": "faq-5-a",
+          "name": "Faq 5 a",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
+        },
+        {
+          "id": "faq-5-q",
+          "name": "Faq 5 q",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ question"
+        },
+        {
+          "id": "faq-6-a",
+          "name": "Faq 6 a",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
+        },
+        {
+          "id": "faq-6-q",
+          "name": "Faq 6 q",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ question"
+        },
+        {
+          "id": "faq-7-a",
+          "name": "Faq 7 a",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
+        },
+        {
+          "id": "faq-7-q",
+          "name": "Faq 7 q",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ question"
+        },
+        {
+          "id": "faq-8-a",
+          "name": "Faq 8 a",
+          "type": "textarea",
+          "default": "",
+          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
+        },
+        {
+          "id": "faq-8-q",
+          "name": "Faq 8 q",
           "type": "textarea",
           "default": "",
           "description": "FAQ question"
@@ -773,8 +906,43 @@
           "description": "Text shown in the store. Leave empty to use the default: bought"
         },
         {
+          "id": "review-1-name",
+          "name": "Review 1 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
+          "id": "review-1-pkg",
+          "name": "Review 1 pkg",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
           "id": "review-1-text",
           "name": "Review 1 text",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
+          "id": "review-1-when",
+          "name": "Review 1 when",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
+          "id": "review-2-name",
+          "name": "Review 2 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
+          "id": "review-2-pkg",
+          "name": "Review 2 pkg",
           "type": "textarea",
           "default": "",
           "description": "Homepage review. Leave the text empty to hide this review."
@@ -787,8 +955,36 @@
           "description": "Homepage review. Leave the text empty to hide this review."
         },
         {
+          "id": "review-2-when",
+          "name": "Review 2 when",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
+          "id": "review-3-name",
+          "name": "Review 3 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
+          "id": "review-3-pkg",
+          "name": "Review 3 pkg",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
           "id": "review-3-text",
           "name": "Review 3 text",
+          "type": "textarea",
+          "default": "",
+          "description": "Homepage review. Leave the text empty to hide this review."
+        },
+        {
+          "id": "review-3-when",
+          "name": "Review 3 when",
           "type": "textarea",
           "default": "",
           "description": "Homepage review. Leave the text empty to hide this review."
@@ -831,6 +1027,258 @@
           ],
           "default": "Show",
           "description": "Text shown in the store. Leave empty to use the default: Show"
+        },
+        {
+          "id": "update-1-date",
+          "name": "Update 1 date",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-1-name",
+          "name": "Update 1 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-1-package",
+          "name": "Update 1 package",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-1-text",
+          "name": "Update 1 text",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-1-version",
+          "name": "Update 1 version",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-2-date",
+          "name": "Update 2 date",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-2-name",
+          "name": "Update 2 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-2-package",
+          "name": "Update 2 package",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-2-text",
+          "name": "Update 2 text",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-2-version",
+          "name": "Update 2 version",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-3-date",
+          "name": "Update 3 date",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-3-name",
+          "name": "Update 3 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-3-package",
+          "name": "Update 3 package",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-3-text",
+          "name": "Update 3 text",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-3-version",
+          "name": "Update 3 version",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-4-date",
+          "name": "Update 4 date",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-4-name",
+          "name": "Update 4 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-4-package",
+          "name": "Update 4 package",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-4-text",
+          "name": "Update 4 text",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-4-version",
+          "name": "Update 4 version",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-5-date",
+          "name": "Update 5 date",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-5-name",
+          "name": "Update 5 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-5-package",
+          "name": "Update 5 package",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-5-text",
+          "name": "Update 5 text",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-5-version",
+          "name": "Update 5 version",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-6-date",
+          "name": "Update 6 date",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-6-name",
+          "name": "Update 6 name",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-6-package",
+          "name": "Update 6 package",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-6-text",
+          "name": "Update 6 text",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "update-6-version",
+          "name": "Update 6 version",
+          "type": "textarea",
+          "default": "",
+          "description": "Latest updates feed on the homepage. Leave the name empty to hide this entry. package = package ID for the View script link."
+        },
+        {
+          "id": "updates-cta",
+          "name": "Updates cta",
+          "type": "textarea",
+          "default": "Full changelog",
+          "description": "Text shown in the store. Leave empty to use the default: Full changelog"
+        },
+        {
+          "id": "updates-kicker",
+          "name": "Updates kicker",
+          "type": "textarea",
+          "default": "Changelog",
+          "description": "Text shown in the store. Leave empty to use the default: Changelog"
+        },
+        {
+          "id": "updates-sub",
+          "name": "Updates sub",
+          "type": "textarea",
+          "default": "Every script keeps getting better. Updates land in your Keymaster automatically.",
+          "description": "Text shown in the store. Leave empty to use the default: Every script keeps getting better. Updates land in your Keymaster automatically."
+        },
+        {
+          "id": "updates-title",
+          "name": "Updates title",
+          "type": "textarea",
+          "default": "Latest updates",
+          "description": "Text shown in the store. Leave empty to use the default: Latest updates"
+        },
+        {
+          "id": "updates-url",
+          "name": "Updates url",
+          "type": "textarea",
+          "default": "",
+          "description": "Link for the \"Full changelog\" button (Discord channel or docs)."
+        },
+        {
+          "id": "updates-view",
+          "name": "Updates view",
+          "type": "textarea",
+          "default": "View script",
+          "description": "Text shown in the store. Leave empty to use the default: View script"
         },
         {
           "id": "whyus-1-desc",
@@ -905,173 +1353,89 @@
           ],
           "default": "Show",
           "description": "Text shown in the store. Leave empty to use the default: Show"
-        },
-        {
-          "id": "faq-1-a",
-          "name": "Faq 1 a",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
-        },
-        {
-          "id": "faq-2-a",
-          "name": "Faq 2 a",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
-        },
-        {
-          "id": "faq-3-q",
-          "name": "Faq 3 q",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ question"
-        },
-        {
-          "id": "faq-3-a",
-          "name": "Faq 3 a",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
-        },
-        {
-          "id": "faq-4-q",
-          "name": "Faq 4 q",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ question"
-        },
-        {
-          "id": "faq-4-a",
-          "name": "Faq 4 a",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
-        },
-        {
-          "id": "faq-5-q",
-          "name": "Faq 5 q",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ question"
-        },
-        {
-          "id": "faq-5-a",
-          "name": "Faq 5 a",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
-        },
-        {
-          "id": "faq-6-q",
-          "name": "Faq 6 q",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ question"
-        },
-        {
-          "id": "faq-6-a",
-          "name": "Faq 6 a",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
-        },
-        {
-          "id": "faq-7-q",
-          "name": "Faq 7 q",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ question"
-        },
-        {
-          "id": "faq-7-a",
-          "name": "Faq 7 a",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
-        },
-        {
-          "id": "faq-8-q",
-          "name": "Faq 8 q",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ question"
-        },
-        {
-          "id": "faq-8-a",
-          "name": "Faq 8 a",
-          "type": "textarea",
-          "default": "",
-          "description": "FAQ answer (HTML allowed). Leave the question empty to hide this entry."
-        },
-        {
-          "id": "review-1-name",
-          "name": "Review 1 name",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
-        },
-        {
-          "id": "review-1-when",
-          "name": "Review 1 when",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
-        },
-        {
-          "id": "review-1-pkg",
-          "name": "Review 1 pkg",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
-        },
-        {
-          "id": "review-2-name",
-          "name": "Review 2 name",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
-        },
-        {
-          "id": "review-2-when",
-          "name": "Review 2 when",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
-        },
-        {
-          "id": "review-2-pkg",
-          "name": "Review 2 pkg",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
-        },
-        {
-          "id": "review-3-name",
-          "name": "Review 3 name",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
-        },
-        {
-          "id": "review-3-when",
-          "name": "Review 3 when",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
-        },
-        {
-          "id": "review-3-pkg",
-          "name": "Review 3 pkg",
-          "type": "textarea",
-          "default": "",
-          "description": "Homepage review. Leave the text empty to hide this review."
         }
       ]
     },
     {
-      "header": "05 · Seasonal themes",
+      "header": "05 · Seasonal themes & events",
       "options": [
+        {
+          "id": "event-calendar-text",
+          "name": "Event calendar text",
+          "type": "textarea",
+          "default": "Daily gifts",
+          "description": "Text shown in the store. Leave empty to use the default: Daily gifts"
+        },
+        {
+          "id": "event-copy-text",
+          "name": "Event copy text",
+          "type": "textarea",
+          "default": "Copy code",
+          "description": "Text shown in the store. Leave empty to use the default: Copy code"
+        },
+        {
+          "id": "event-ends-text",
+          "name": "Event ends text",
+          "type": "textarea",
+          "default": "sale ends in",
+          "description": "Text shown in the store. Leave empty to use the default: sale ends in"
+        },
+        {
+          "id": "event-kicker",
+          "name": "Event kicker",
+          "type": "textarea",
+          "default": "Event",
+          "description": "Small word after the holiday name in the event panel (default Event)."
+        },
+        {
+          "id": "event-locked-text",
+          "name": "Event locked text",
+          "type": "textarea",
+          "default": "Unlocks on",
+          "description": "Text shown in the store. Leave empty to use the default: Unlocks on"
+        },
+        {
+          "id": "event-nogift-text",
+          "name": "Event nogift text",
+          "type": "textarea",
+          "default": "Check back tomorrow for the next gift.",
+          "description": "Text shown in the store. Leave empty to use the default: Check back tomorrow for the next gift."
+        },
+        {
+          "id": "event-opened-text",
+          "name": "Event opened text",
+          "type": "textarea",
+          "default": "Opened",
+          "description": "Text shown in the store. Leave empty to use the default: Opened"
+        },
+        {
+          "id": "event-over-text",
+          "name": "Event over text",
+          "type": "textarea",
+          "default": "The event has ended. See you next year!",
+          "description": "Text shown in the store. Leave empty to use the default: The event has ended. See you next year!"
+        },
+        {
+          "id": "event-today-text",
+          "name": "Event today text",
+          "type": "textarea",
+          "default": "Today's gift",
+          "description": "Text shown in the store. Leave empty to use the default: Today's gift"
+        },
+        {
+          "id": "event-until-text",
+          "name": "Event until text",
+          "type": "textarea",
+          "default": "until",
+          "description": "Text shown in the store. Leave empty to use the default: until"
+        },
+        {
+          "id": "event-view-text",
+          "name": "Event view text",
+          "type": "textarea",
+          "default": "View",
+          "description": "Text shown in the store. Leave empty to use the default: View"
+        },
         {
           "id": "holiday-chip",
           "name": "Holiday chip",
@@ -1081,7 +1445,7 @@
             "Hide"
           ],
           "default": "Show",
-          "description": "Small seasonal badge next to the logo in the navbar."
+          "description": "Seasonal badge next to the logo with a live countdown to the holiday."
         },
         {
           "id": "holiday-density",
@@ -1091,88 +1455,15 @@
           "description": "Number of particles on screen (default 28, max 80)."
         },
         {
-          "id": "holiday-label-autumn",
-          "name": "Holiday label autumn",
-          "type": "textarea",
-          "default": "Autumn",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-christmas",
-          "name": "Holiday label christmas",
-          "type": "textarea",
-          "default": "Christmas",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-easter",
-          "name": "Holiday label easter",
-          "type": "textarea",
-          "default": "Easter",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-halloween",
-          "name": "Holiday label halloween",
-          "type": "textarea",
-          "default": "Halloween",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-july4",
-          "name": "Holiday label july4",
-          "type": "textarea",
-          "default": "4th of July",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-newyear",
-          "name": "Holiday label newyear",
-          "type": "textarea",
-          "default": "New Year",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-spring",
-          "name": "Holiday label spring",
-          "type": "textarea",
-          "default": "Spring",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-stpatrick",
-          "name": "Holiday label stpatrick",
-          "type": "textarea",
-          "default": "St. Patrick's",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-summer",
-          "name": "Holiday label summer",
-          "type": "textarea",
-          "default": "Summer",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-summersale",
-          "name": "Holiday label summersale",
-          "type": "textarea",
-          "default": "Summer sale",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-thanksgiving",
-          "name": "Holiday label thanksgiving",
-          "type": "textarea",
-          "default": "Thanksgiving",
-          "description": "Badge text for this seasonal theme."
-        },
-        {
-          "id": "holiday-label-valentine",
-          "name": "Holiday label valentine",
-          "type": "textarea",
-          "default": "Valentine's",
-          "description": "Badge text for this seasonal theme."
+          "id": "holiday-event",
+          "name": "Holiday event",
+          "type": "select",
+          "values": [
+            "Show",
+            "Hide"
+          ],
+          "default": "Show",
+          "description": "Show the event panel on the homepage: countdown + daily gift calendar. Needs event-<theme>-days to show the calendar."
         },
         {
           "id": "holiday-mode",
@@ -1195,7 +1486,7 @@
             "christmas"
           ],
           "default": "Auto",
-          "description": "Auto switches the seasonal theme on the 1st of every month (Jan New Year, Feb Valentine's, Mar St. Patrick's, Apr Easter, May Spring, Jun Summer, Jul 4th of July, Aug Summer sale, Sep Autumn, Oct Halloween, Nov Thanksgiving, Dec Christmas). Off disables it. Or force one theme."
+          "description": "Auto switches the seasonal theme on the 1st of every month (Jan New Year, Feb Valentine's, Mar St. Patrick's, Apr Easter, May Spring, Jun Summer, Jul 4th of July, Aug Summer sale, Sep Autumn, Oct Halloween, Nov Thanksgiving, Dec Christmas). Off disables it. Or force one theme. Preview any theme by adding ?holiday=christmas to your store URL."
         },
         {
           "id": "holiday-particles",
@@ -1206,7 +1497,7 @@
             "Off"
           ],
           "default": "On",
-          "description": "Floating seasonal particles (bats, leaves, snow…). Automatically disabled for visitors with reduced motion."
+          "description": "Floating seasonal particles (bats, leaves, snow, confetti…). Automatically disabled for visitors with reduced motion."
         },
         {
           "id": "holiday-recolor",
@@ -1217,13 +1508,458 @@
             "Off"
           ],
           "default": "On",
-          "description": "On = the seasonal theme also recolours the accent (orange for Halloween, green for Christmas…). Off = particles and chip only, your accent stays."
+          "description": "On = the seasonal theme also recolours the accent (orange for Halloween, green for Christmas…). Off = scene, particles and badge only, your accent stays."
+        },
+        {
+          "id": "holiday-scene",
+          "name": "Holiday scene",
+          "type": "select",
+          "values": [
+            "On",
+            "Off"
+          ],
+          "default": "On",
+          "description": "Background scene per theme: moon and fog (Halloween), string lights and snow caps (Christmas), fireworks (New Year, 4th of July), sun (Summer), coloured glow (others)."
+        },
+        {
+          "id": "event-newyear-days",
+          "name": "Event newyear days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-newyear-end",
+          "name": "Event newyear end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-newyear-sub",
+          "name": "Event newyear sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-newyear-title",
+          "name": "Event newyear title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-newyear",
+          "name": "Holiday label newyear",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-valentine-days",
+          "name": "Event valentine days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-valentine-end",
+          "name": "Event valentine end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-valentine-sub",
+          "name": "Event valentine sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-valentine-title",
+          "name": "Event valentine title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-valentine",
+          "name": "Holiday label valentine",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-stpatrick-days",
+          "name": "Event stpatrick days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-stpatrick-end",
+          "name": "Event stpatrick end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-stpatrick-sub",
+          "name": "Event stpatrick sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-stpatrick-title",
+          "name": "Event stpatrick title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-stpatrick",
+          "name": "Holiday label stpatrick",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-easter-days",
+          "name": "Event easter days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-easter-end",
+          "name": "Event easter end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-easter-sub",
+          "name": "Event easter sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-easter-title",
+          "name": "Event easter title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-easter",
+          "name": "Holiday label easter",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-spring-days",
+          "name": "Event spring days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-spring-end",
+          "name": "Event spring end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-spring-sub",
+          "name": "Event spring sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-spring-title",
+          "name": "Event spring title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-spring",
+          "name": "Holiday label spring",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-summer-days",
+          "name": "Event summer days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-summer-end",
+          "name": "Event summer end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-summer-sub",
+          "name": "Event summer sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-summer-title",
+          "name": "Event summer title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "event-summersale-days",
+          "name": "Event summersale days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-summersale-end",
+          "name": "Event summersale end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-summersale-sub",
+          "name": "Event summersale sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-summersale-title",
+          "name": "Event summersale title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-summer",
+          "name": "Holiday label summer",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-july4-days",
+          "name": "Event july4 days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-july4-end",
+          "name": "Event july4 end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-july4-sub",
+          "name": "Event july4 sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-july4-title",
+          "name": "Event july4 title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-july4",
+          "name": "Holiday label july4",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "holiday-label-summersale",
+          "name": "Holiday label summersale",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-autumn-days",
+          "name": "Event autumn days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-autumn-end",
+          "name": "Event autumn end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-autumn-sub",
+          "name": "Event autumn sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-autumn-title",
+          "name": "Event autumn title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-autumn",
+          "name": "Holiday label autumn",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-halloween-days",
+          "name": "Event halloween days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-halloween-end",
+          "name": "Event halloween end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-halloween-sub",
+          "name": "Event halloween sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-halloween-title",
+          "name": "Event halloween title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-halloween",
+          "name": "Holiday label halloween",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-thanksgiving-days",
+          "name": "Event thanksgiving days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-thanksgiving-end",
+          "name": "Event thanksgiving end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-thanksgiving-sub",
+          "name": "Event thanksgiving sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-thanksgiving-title",
+          "name": "Event thanksgiving title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-thanksgiving",
+          "name": "Holiday label thanksgiving",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
+        },
+        {
+          "id": "event-christmas-days",
+          "name": "Event christmas days",
+          "type": "textarea",
+          "default": "",
+          "description": "Daily gift calendar. One entry per day, separated by | . Each entry: Title;CODE;packageId (code and package optional). The LAST entry lands on the holiday itself and the calendar counts back from there, so 8 entries = the 8 days up to and including the holiday. Create the codes as coupons in Tebex. Example: 10% off everything;SPOOKY10;|Free Notify;FRIGHT;102"
+        },
+        {
+          "id": "event-christmas-end",
+          "name": "Event christmas end",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional sale end date (YYYY-MM-DD). After the holiday the countdown switches to \"sale ends in\". Defaults to the holiday date."
+        },
+        {
+          "id": "event-christmas-sub",
+          "name": "Event christmas sub",
+          "type": "textarea",
+          "default": "",
+          "description": "One or two sentences under the headline."
+        },
+        {
+          "id": "event-christmas-title",
+          "name": "Event christmas title",
+          "type": "textarea",
+          "default": "",
+          "description": "Event headline for this theme. Leave empty for the built-in one."
+        },
+        {
+          "id": "holiday-label-christmas",
+          "name": "Holiday label christmas",
+          "type": "textarea",
+          "default": "",
+          "description": "Badge text for this seasonal theme."
         }
       ]
     },
     {
       "header": "06 · Category & cards",
       "options": [
+        {
+          "id": "bestseller-ids",
+          "name": "Bestseller ids",
+          "type": "textarea",
+          "default": "",
+          "description": "Comma-separated package IDs that get the gold BEST SELLER tag (e.g. 101,401). You can also write \"TAGS: Best seller\" inside a package description."
+        },
+        {
+          "id": "bestseller-text",
+          "name": "Bestseller text",
+          "type": "textarea",
+          "default": "Best seller",
+          "description": "Text on the gold tag (default Best seller)."
+        },
         {
           "id": "card-add",
           "name": "Card add",
@@ -1325,6 +2061,13 @@
           "type": "textarea",
           "default": "Free",
           "description": "Text shown in the store. Leave empty to use the default: Free"
+        },
+        {
+          "id": "new-text",
+          "name": "New text",
+          "type": "textarea",
+          "default": "New",
+          "description": "Text on the white NEW tag. A package gets it when its description contains \"TAGS: New\"."
         },
         {
           "id": "tier-current-badge",
@@ -1511,6 +2254,13 @@
           "description": "Text shown in the store. Leave empty to use the default: Show"
         },
         {
+          "id": "package-deps-note",
+          "name": "Package deps note",
+          "type": "textarea",
+          "default": "This script needs the following resources installed:",
+          "description": "Text shown in the store. Leave empty to use the default: This script needs the following resources installed:"
+        },
+        {
           "id": "package-docs-url",
           "name": "Package docs url",
           "type": "textarea",
@@ -1560,6 +2310,13 @@
           "description": "Text shown in the store. Leave empty to use the default: You may also like"
         },
         {
+          "id": "package-reviews-text",
+          "name": "Package reviews text",
+          "type": "textarea",
+          "default": "reviews",
+          "description": "Text shown in the store. Leave empty to use the default: reviews"
+        },
+        {
           "id": "package-save-text",
           "name": "Package save text",
           "type": "textarea",
@@ -1567,11 +2324,32 @@
           "description": "Text shown in the store. Leave empty to use the default: Save"
         },
         {
+          "id": "package-tab-changelog",
+          "name": "Package tab changelog",
+          "type": "textarea",
+          "default": "Changelog",
+          "description": "Text shown in the store. Leave empty to use the default: Changelog"
+        },
+        {
+          "id": "package-tab-deps",
+          "name": "Package tab deps",
+          "type": "textarea",
+          "default": "Dependencies",
+          "description": "Text shown in the store. Leave empty to use the default: Dependencies"
+        },
+        {
           "id": "package-tab-desc",
           "name": "Package tab desc",
           "type": "textarea",
           "default": "Description",
           "description": "Text shown in the store. Leave empty to use the default: Description"
+        },
+        {
+          "id": "package-tab-preview",
+          "name": "Package tab preview",
+          "type": "textarea",
+          "default": "Preview",
+          "description": "Text shown in the store. Leave empty to use the default: Preview"
         },
         {
           "id": "package-tab-terms",
