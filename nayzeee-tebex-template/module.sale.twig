@@ -1,0 +1,54 @@
+{# ─── NAYZEEE · module.sale.twig
+   Store-wide discount banner with a live countdown (independent of the seasonal themes).
+   Settings: sale-toggle, sale-title, sale-text, sale-code, sale-start (YYYY-MM-DD HH:MM), sale-end (YYYY-MM-DD HH:MM),
+             sale-started-title, sale-soon-title, sale-ended (Hide / Show).
+   Before sale-start it counts down to the start; between start and end it counts down to the end; after end it hides. ─── #}
+{% if (config('sale-toggle') ?: 'Hide') == 'Show' and config('sale-end') %}
+<style>
+  .sale{position:relative;overflow:hidden;display:flex;align-items:center;gap:18px;padding:18px 22px;margin-top:40px;background:linear-gradient(90deg,rgba(var(--teal-rgb),.16),var(--panel) 55%)}
+  .sale::after{content:'';position:absolute;right:-70px;top:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(var(--teal-rgb),.18),transparent 65%);pointer-events:none}
+  .sale .tile{width:44px;height:44px}
+  .sale .tile .ic{width:20px;height:20px}
+  .sale-t{flex:1;min-width:0}
+  .sale-t b{display:block;font-size:16px;font-weight:600;color:var(--white);letter-spacing:-.018em}
+  .sale-t p{font-size:12.5px;color:var(--ink-2);font-weight:300;margin-top:3px}
+  .sale-code{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 12px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--teal-edge);cursor:pointer;position:relative;z-index:1;flex:none}
+  .sale-code small{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:400}
+  .sale-code span{display:flex;align-items:center;gap:8px;font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:600;color:var(--teal);letter-spacing:.05em}
+  .sale-code span svg{width:13px;height:13px;color:var(--ink-3)}
+  .sale-code:hover{background:var(--teal-wash)}
+  .sale-cd{display:flex;gap:6px;position:relative;z-index:1;flex:none}
+  .sale-cd div{display:flex;flex-direction:column;align-items:center;min-width:56px;padding:8px 6px 6px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-sm)}
+  .sale-cd b{font-size:22px;font-weight:600;letter-spacing:-.03em;color:var(--white);line-height:1;font-variant-numeric:tabular-nums}
+  .sale-cd span{font-size:9px;color:var(--ink-3);font-weight:400;letter-spacing:.08em;text-transform:uppercase;margin-top:5px}
+  @media (max-width:860px){.sale{flex-wrap:wrap}.sale-cd{width:100%;justify-content:flex-start}}
+</style>
+<section class="panel sale view" id="salePanel" hidden>
+  <div class="tile"><svg class="ic"><use href="#i-bolt"/></svg></div>
+  <div class="sale-t"><b id="saleTitle">{{ config('sale-started-title') ?: config('sale-title') ?: 'Discount started' }}</b><p id="saleText">{{ config('sale-text') ?: 'The discount is now valid on all scripts.' }}</p></div>
+  {% if config('sale-code') %}<button type="button" class="sale-code" data-copy="{{ config('sale-code') }}"><small>{{ config('sale-code-label') ?: 'Code' }}</small><span>{{ config('sale-code') }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></span></button>{% endif %}
+  <div class="sale-cd" id="saleCd"><div><b>00</b><span>{{ config('cd-days') ?: 'Days' }}</span></div><div><b>00</b><span>{{ config('cd-hours') ?: 'Hrs' }}</span></div><div><b>00</b><span>{{ config('cd-mins') ?: 'Mins' }}</span></div><div><b>00</b><span>{{ config('cd-secs') ?: 'Secs' }}</span></div></div>
+</section>
+<script>
+(function () {
+  var p = document.getElementById('salePanel'); if (!p) return;
+  function dt(s) { s = String(s || '').trim().replace(' ', 'T'); if (!s) return null; if (s.length <= 10) s += 'T00:00:00'; var d = new Date(s); return isNaN(d) ? null : d; }
+  var start = dt({{ (config('sale-start') ?: '')|json_encode|raw }}), end = dt({{ (config('sale-end') ?: '')|json_encode|raw }});
+  if (!end) return;
+  var SOON = {{ (config('sale-soon-title') ?: 'Discount starts soon')|json_encode|raw }}, SOON_T = {{ (config('sale-soon-text') ?: 'Get ready, the discount unlocks when the timer hits zero.')|json_encode|raw }};
+  var STARTED = {{ (config('sale-started-title') ?: config('sale-title') ?: 'Discount started')|json_encode|raw }}, STARTED_T = {{ (config('sale-text') ?: 'The discount is now valid on all scripts.')|json_encode|raw }};
+  var bs = p.querySelectorAll('.sale-cd b'), title = document.getElementById('saleTitle'), text = document.getElementById('saleText'), code = p.querySelector('.sale-code');
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function tick() {
+    var now = Date.now(), target;
+    if (start && now < start) { target = start; title.textContent = SOON; text.textContent = SOON_T; if (code) code.style.display = 'none'; }
+    else if (now < end) { target = end; title.textContent = STARTED; text.textContent = STARTED_T; if (code) code.style.display = ''; }
+    else { p.hidden = true; return; }
+    p.hidden = false;
+    var ms = Math.max(0, target - now), d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4), s = Math.floor(ms % 6e4 / 1e3);
+    bs[0].textContent = pad(d); bs[1].textContent = pad(h); bs[2].textContent = pad(m); bs[3].textContent = pad(s);
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
+{% endif %}

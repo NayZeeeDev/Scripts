@@ -293,6 +293,34 @@
       "header": "03 · Homepage · Hero",
       "options": [
         {
+          "id": "cd-days",
+          "name": "Cd days",
+          "type": "textarea",
+          "default": "Days",
+          "description": "Text shown in the store. Leave empty to use the default: Days"
+        },
+        {
+          "id": "cd-hours",
+          "name": "Cd hours",
+          "type": "textarea",
+          "default": "Hrs",
+          "description": "Text shown in the store. Leave empty to use the default: Hrs"
+        },
+        {
+          "id": "cd-mins",
+          "name": "Cd mins",
+          "type": "textarea",
+          "default": "Mins",
+          "description": "Text shown in the store. Leave empty to use the default: Mins"
+        },
+        {
+          "id": "cd-secs",
+          "name": "Cd secs",
+          "type": "textarea",
+          "default": "Secs",
+          "description": "Text shown in the store. Leave empty to use the default: Secs"
+        },
+        {
           "id": "hero-cta-text",
           "name": "Hero cta text",
           "type": "textarea",
@@ -467,6 +495,80 @@
           "type": "textarea",
           "default": "",
           "description": "Text shown in the store. Leave empty to use the default: (none)"
+        },
+        {
+          "id": "sale-code",
+          "name": "Sale code",
+          "type": "textarea",
+          "default": "",
+          "description": "Coupon code shown with a copy button (create it in Tebex → Coupons)."
+        },
+        {
+          "id": "sale-code-label",
+          "name": "Sale code label",
+          "type": "textarea",
+          "default": "Code",
+          "description": "Text shown in the store. Leave empty to use the default: Code"
+        },
+        {
+          "id": "sale-end",
+          "name": "Sale end",
+          "type": "textarea",
+          "default": "",
+          "description": "When the discount ends, e.g. 2026-10-31 23:59. The banner hides itself after this."
+        },
+        {
+          "id": "sale-soon-text",
+          "name": "Sale soon text",
+          "type": "textarea",
+          "default": "Get ready, the discount unlocks when the timer hits zero.",
+          "description": "Line under the headline before sale-start."
+        },
+        {
+          "id": "sale-soon-title",
+          "name": "Sale soon title",
+          "type": "textarea",
+          "default": "Discount starts soon",
+          "description": "Headline before sale-start."
+        },
+        {
+          "id": "sale-start",
+          "name": "Sale start",
+          "type": "textarea",
+          "default": "",
+          "description": "Optional. When the discount starts, e.g. 2026-10-20 18:00. Before this the banner counts down to the start (\"Discount starts soon\")."
+        },
+        {
+          "id": "sale-started-title",
+          "name": "Sale started title",
+          "type": "textarea",
+          "default": "",
+          "description": "Alternative headline while running (overrides sale-title)."
+        },
+        {
+          "id": "sale-text",
+          "name": "Sale text",
+          "type": "textarea",
+          "default": "The discount is now valid on all scripts.",
+          "description": "Line under the headline, e.g. The 10% discount is now valid on all scripts."
+        },
+        {
+          "id": "sale-title",
+          "name": "Sale title",
+          "type": "textarea",
+          "default": "Discount started",
+          "description": "Headline while the discount is running (default Discount started)."
+        },
+        {
+          "id": "sale-toggle",
+          "name": "Sale toggle",
+          "type": "select",
+          "values": [
+            "Hide",
+            "Show"
+          ],
+          "default": "Hide",
+          "description": "Show the store-wide discount banner with countdown on the homepage (under the hero)."
         },
         {
           "id": "stat-1-label",
@@ -2061,6 +2163,13 @@
           "type": "textarea",
           "default": "Free",
           "description": "Text shown in the store. Leave empty to use the default: Free"
+        },
+        {
+          "id": "new-ids",
+          "name": "New ids",
+          "type": "textarea",
+          "default": "",
+          "description": "Comma-separated package IDs that get the white NEW tag (e.g. 106,203). You can also write \"TAGS: New\" inside a package description."
         },
         {
           "id": "new-text",

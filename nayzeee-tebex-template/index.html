@@ -20,8 +20,12 @@
   .spot::after{content:'';position:absolute;right:-40px;bottom:-46px;width:190px;height:190px;border-radius:22px;opacity:.035;background:var(--white);clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);pointer-events:none}
   .spot .p-head h2{display:flex;align-items:center;gap:10px}
   .spot .p-body{display:flex;flex-direction:column;gap:12px}
-  .spot .art{width:76px;aspect-ratio:1;border-radius:var(--r-sm);border:1px solid var(--line-soft);flex:none}
-  .spot .art .big{width:30px;height:30px}
+  .spot .cover{position:relative;aspect-ratio:16/9;border-radius:0;border:0;border-bottom:1px solid var(--line-hair)}
+  .spot .cover .big{width:64px;height:64px}
+  .spot .cover .ov{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:30px 16px 12px;background:linear-gradient(180deg,transparent,rgba(8,9,10,.92));display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+  .spot .cover .ov b{display:block;font-size:16px;font-weight:600;color:var(--white);letter-spacing:-.016em}
+  .spot .cover .ov span{display:block;font-size:11px;color:var(--ink-2);font-weight:300;margin-top:3px}
+  .spot .p-body{padding-top:12px}
   .spot ul{list-style:none;display:flex;flex-direction:column;gap:6px}
   .spot li{display:flex;gap:8px;font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.45}
   .spot li .ic{color:var(--teal);stroke-width:2;width:14px;height:14px;margin-top:2px}
@@ -136,11 +140,8 @@
     {% elseif relPkg %}
       <aside class="panel spot">
         <div class="p-head"><h2><span class="dot"></span>{{ config('release-title') ?: 'Latest release' }}</h2>{% if config('release-version') %}<span class="tag live">{{ config('release-version') }}</span>{% endif %}</div>
+        <a class="art cover" href="/package/{{ relPkg.id }}">{% if relPkg.image.url %}<img src="{{ relPkg.image.url }}" alt="{{ relPkg.name }}" onerror="this.remove()" />{% else %}<svg class="big"><use href="#i-layers"/></svg>{% endif %}<div class="ov"><div><b>{{ relPkg.name }}</b><span>{{ config('release-date') }}{% if config('release-meta') %} · {{ config('release-meta') }}{% endif %}</span></div>{% if config('release-version') %}<span class="vtag">{{ config('release-version') }}</span>{% endif %}</div></a>
         <div class="p-body">
-          <div style="display:flex;gap:12px;align-items:center">
-            <div class="art">{% if relPkg.image.url %}<img src="{{ relPkg.image.url }}" alt="" />{% else %}<svg class="big"><use href="#i-layers"/></svg>{% endif %}</div>
-            <div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.014em">{{ relPkg.name }}</b><span style="display:block;font-size:11px;color:var(--ink-3);font-weight:300;margin-top:3px">{{ config('release-date') }}{% if config('release-meta') %} · {{ config('release-meta') }}{% endif %}</span></div>
-          </div>
           {% if config('release-notes') %}<ul>{% for n in config('release-notes')|split('|') %}{% if n|trim %}<li><svg class="ic"><use href="#i-check"/></svg><span>{{ n|trim }}</span></li>{% endif %}{% endfor %}</ul>{% endif %}
           <div class="connect"><code>{% if relPkg.price == 0 %}{{ config('free-text') ?: 'Free' }}{% else %}{{ config('release-from') ?: 'from' }} {{ csym }}{{ relPkg.price|number_format(2) }}{% endif %}</code><span>{{ config('release-note') ?: 'lifetime updates' }}</span><a class="btn-teal btn-sm" href="/package/{{ relPkg.id }}">{{ config('release-btn') ?: 'View' }}</a></div>
         </div>
@@ -157,6 +158,7 @@
     <div class="panel stat"><div class="tile red"><svg class="ic"><use href="#i-clock"/></svg></div><div class="stat-txt"><span>{{ config('stat-4-label') ?: 'Support reply' }}</span><b>{{ config('stat-4-value') ?: '< 1h' }}</b></div></div>
   </div>
   {% endif %}
+  {% include 'module.sale.twig' ignore missing %}
   <div id="holEvent"></div>
 </section>
 

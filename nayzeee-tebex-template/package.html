@@ -149,6 +149,8 @@ function nzPackageInit() {
   ['FRAMEWORKS', 'TAGS', 'IMAGES', 'VIDEO', 'VERSION', 'RATING', 'DEPENDENCIES', 'CHANGELOG'].forEach(function (l) { grab(l); });
   var BEST = {{ (config('bestseller-ids') ?: '')|replace({' ': ''})|json_encode|raw }}.split(',').filter(Boolean);
   if (BEST.indexOf('{{ package.id }}') > -1 || mk.tags.some(function (t) { return /best/i.test(t); })) chips.insertAdjacentHTML('afterbegin', '<span class="bs"><svg class="ic"><use href="#i-flame"/></svg>' + {{ (config('bestseller-text') ?: 'Best seller')|json_encode|raw }} + '</span>');
+  var NEWS = {{ (config('new-ids') ?: '')|replace({' ': ''})|json_encode|raw }}.split(',').filter(Boolean);
+  if (NEWS.indexOf('{{ package.id }}') > -1 && !mk.tags.some(function (t) { return /^new$/i.test(t); })) mk.tags.unshift('New');
   mk.tags.forEach(function (f) { if (/best/i.test(f)) return; chips.insertAdjacentHTML('beforeend', '<span class="chip' + (/^new$/i.test(f) ? ' new' : ' grey') + '">' + f.replace(/[<>]/g, '') + '</span>'); });
   if (mk.frameworks.length && window.nzFwChip) $('#pkgFw').innerHTML = mk.frameworks.map(function (f) { return window.nzFwChip(f, false); }).join('');
   if (mk.version) $('#pkgVer').innerHTML = '<span class="vtag">v' + mk.version.replace(/[<>]/g, '') + '</span>';
