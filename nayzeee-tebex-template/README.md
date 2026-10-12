@@ -25,7 +25,7 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 | `module.bundle.twig` | Build-your-own-bundle section |
 | `module.reviews.twig` | Write-a-review modal that posts to a Discord webhook |
 | `module.heartbeat.twig` | Live usage cards powered by Heartbeat (servers / players per script, store totals on the homepage) |
-| `module.cursor.twig` | Custom cursor: the NayZeee feather arrow in the accent colour, glowing over links. Mouse devices only |
+| `module.cursor.twig` | Custom cursor: the feather arrow, and the Deku character over links and buttons, recoloured to the accent. Mouse devices only |
 | `scheme/EN.json` `DE.json` `FR.json` `NL.json` | Every setting shown in Tebex → Webstore → Templates → Settings, in four languages |
 
 ## Install
@@ -46,7 +46,7 @@ A complete Tebex webstore template in the NAYZEEE UI style (Lexend, black layere
 - **Tags** (06): `bestseller-ids` and `new-ids` are comma-separated package IDs. Descriptions can also carry `TAGS: Best seller` or `TAGS: New`.
 - **Subscription page** (06): create three packages in your tiered category named Monthly, Quarterly and Yearly (or set `tier-monthly-id` / `tier-quarterly-id` / `tier-yearly-id`). The switch shows the percent saved vs monthly automatically. The script count and total value are counted from the store, so they grow as you release scripts. Put your Bundles category ID in `tier-exclude-cats` so bundles are not counted. `tier-perk-1..4` is the checklist, `tier-feat-1..4-*` the four feature tiles, `tier-faq-1..4-*` the FAQ.
 - **Volume discount** (08): turn on, then `volume-tier-1-at`, `-pct`, `-code`.
-- **Cursor** (01): `cursor-toggle` Off restores the normal cursor. `cursor-url` / `cursor-pointer-url` swap in your own 32px PNGs.
+- **Cursor** (01): `cursor-toggle` Off restores the normal cursor. `cursor-url` / `cursor-pointer-url` swap in your own 32px PNGs. The built-in ones are the 32px frames from your .cur files with their original hotspots.
 - **Footer credit** (10): `footer-built` + `footer-built-name` (default "Built by NayZeee Dev").
 
 ## Package description markers
