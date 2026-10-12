@@ -2694,11 +2694,11 @@
           "name": "Tier details toggle",
           "type": "select",
           "values": [
-            "Show",
-            "Hide"
+            "Hide",
+            "Show"
           ],
-          "default": "Show",
-          "description": "Show the Tebex package description under the checklist, folded into a \"Plan details\" panel. Hide it to show the checklist only."
+          "default": "Hide",
+          "description": "Hidden by default: the Tebex package description is not shown on the plan cards (the checklist comes from tier-perks). Show adds it as a folded \"Plan details\" panel."
         },
         {
           "id": "tier-empty-text",

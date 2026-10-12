@@ -188,7 +188,7 @@
         {% set sv = 0 %}{% if k != 'm' and mprice > 0 and package.price > 0 %}{% set sv = ((1 - package.price / (mprice * months[k])) * 100)|number_format(0) %}{% endif %}{% if sv > 0 %}{% set perMo = package.price / months[k] %}{% set perTx = csym ~ perMo|number_format(2) ~ ' / mo' %}<span class="save"><svg class="ic"><use href="#i-sparkle"/></svg>{{ (config('tier-save-text') ?: 'Save {pct}% · works out to {per}')|replace({'{pct}': sv, '{per}': perTx}) }}</span>{% endif %}
         {% set perksRaw = config('tier-perks-' ~ k) ?: (config('tier-perks') ?: 'Every script in the store|All future releases|Updates while subscribed|Priority Discord support') %}
         <div class="prose"><ul>{% for perk in perksRaw|split('|') %}{% if perk|replace({' ': ''}) %}<li>{{ perk }}</li>{% endif %}{% endfor %}</ul></div>
-        {% if package.description and (config('tier-details-toggle') ?: 'Show') != 'Hide' %}<details class="tdet"><summary>{{ config('tier-details-label') ?: 'Plan details' }}<svg class="ic"><use href="#i-plus"/></svg></summary><div class="tdet-b">{{ package.description|raw }}</div></details>{% endif %}
+        {% if package.description and (config('tier-details-toggle') ?: 'Hide') == 'Show' %}<details class="tdet"><summary>{{ config('tier-details-label') ?: 'Plan details' }}<svg class="ic"><use href="#i-plus"/></svg></summary><div class="tdet-b">{{ package.description|raw }}</div></details>{% endif %}
         {% if is_subscribed %}
           <div class="tier-cur"><svg class="ic"><use href="#i-check"/></svg>{{ config('tier-subscribed-text') ?: 'Subscribed' }}</div>
         {% elseif is_downgrade %}
