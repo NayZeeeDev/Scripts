@@ -132,7 +132,7 @@ a{color:inherit;text-decoration:none}button{font:inherit;color:inherit;border:0;
   .wrap{grid-template-columns:1fr}.main{padding:22px 18px 60px}
   .side{position:fixed;top:0;left:0;bottom:0;height:100vh;width:min(300px,100%);z-index:45;transform:translateX(-100%);transition:transform .22s;box-shadow:var(--sh-2)}
   .side.on{transform:none}.scrim.on{display:block}
-  .burger{display:grid}.brand span{display:none}.search{max-width:none}.top .r .btn-line{display:none}
+  .burger{display:grid}.brand span{display:none}.search{max-width:none}.top .r .btn-line{display:none}.top .r .btn-teal{padding:0 10px;font-size:0;gap:0}.top{padding:0 12px;gap:8px}.brand{padding-right:10px}
 }
 </style>
 </head>
@@ -194,13 +194,17 @@ a{color:inherit;text-decoration:none}button{font:inherit;color:inherit;border:0;
 
   /* markdown → html (headings, paragraphs, lists, code fences, tables, callouts, links, images, inline) */
   function hl(code, lang) {
-    code = esc(code);
-    if (!/^(lua|js|javascript|ts|json|bash|sh|cfg|sql)$/i.test(lang || '')) return code;
-    return code.replace(/(--.*$|\/\/.*$|#(?!\w).*$)/gm, '<span class="tk-c">$1</span>')
-      .replace(/(&quot;.*?&quot;|&#39;.*?&#39;|'[^']*'|"[^"]*")/g, '<span class="tk-s">$1</span>')
-      .replace(/\b(local|function|end|if|then|else|elseif|return|for|do|while|in|not|and|or|nil|true|false|const|let|var|export|import|from|async|await|new|exports?)\b/g, '<span class="tk-k">$1</span>')
-      .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="tk-n">$1</span>')
-      .replace(/\b([A-Za-z_][\w.:]*)\s*(?=\()/g, '<span class="tk-f">$1</span>');
+    lang = (lang || '').toLowerCase();
+    var cm = /^(lua)$/.test(lang) ? '--[^\\n]*' : /^(js|javascript|ts|typescript|json)$/.test(lang) ? '\\/\\/[^\\n]*' : /^(bash|sh|cfg|yaml|yml|ini|toml)$/.test(lang) ? '#[^\\n]*' : /^sql$/.test(lang) ? '--[^\\n]*' : null;
+    if (!cm) return esc(code);
+    var re = new RegExp('(' + cm + ')|("(?:[^"\\\\\\n]|\\\\.)*"|\'(?:[^\'\\\\\\n]|\\\\.)*\')|\\b(local|function|end|if|then|else|elseif|return|for|do|while|in|not|and|or|nil|true|false|const|let|var|export|import|from|async|await|new|exports?|ensure|start|stop|SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE)\\b|\\b(\\d+(?:\\.\\d+)?)\\b|([A-Za-z_][\\w.:]*)(?=\\s*\\()', 'g');
+    var out = '', last = 0, m;
+    while ((m = re.exec(code))) {
+      out += esc(code.slice(last, m.index)); last = m.index + m[0].length;
+      var cls = m[1] ? 'tk-c' : m[2] ? 'tk-s' : m[3] ? 'tk-k' : m[4] ? 'tk-n' : 'tk-f';
+      out += '<span class="' + cls + '">' + esc(m[0]) + '</span>';
+    }
+    return out + esc(code.slice(last));
   }
   function inline(s) {
     s = esc(s);
