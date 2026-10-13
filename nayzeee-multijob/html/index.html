@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     JOB MENU
+     ═══════════════════════════════════════════════════════════ -->
+<div class="container" id="jobMenu">
+<div class="frame">
+<div class="shell">
+
+  <div class="bar">
+    <div class="bar-brand">
+      <div class="mark"></div>
+      <div class="bar-name">
+        <div class="title-txt">Job Center</div>
+        <div class="sub" id="barSub">Employment Services</div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="dot" id="barDot"></span>
+      <p id="barStatus">Working as <b id="barJob">Unemployed</b></p>
+      <span class="ver">v1.0.0</span>
+    </div>
+    <button class="pill-close" onclick="closeMenu()">Close</button>
+  </div>
+
+  <div class="body">
+    <nav class="side">
+      <div class="who">
+        <div class="av" id="whoAvatar">--</div>
+        <div class="who-txt">
+          <b id="whoName">Unemployed</b>
+          <span id="whoGrade">Grade 0</span>
+        </div>
+      </div>
+
+      <div class="shift">
+        <span id="shiftClock">00:00:00</span>
+        <b id="shiftState"><span class="dot"></span>Off duty</b>
+      </div>
+
+      <div class="grp">Employment</div>
+      <button class="nav on" data-tab="jobs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12h18"/></svg>
+        My jobs <span class="tally" id="navJobCount">0</span>
+      </button>
+      <button class="nav" data-tab="duty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+        Duty
+      </button>
+
+      <div class="grp">Records</div>
+      <button class="nav" data-tab="stats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="M8 16v-4M13 16V8M18 16v-6"/></svg>
+        Statistics
+      </button>
+      <button class="nav" data-tab="schedule">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        Schedule <span class="tally" id="navScheduleCount">0</span>
+      </button>
+      <button class="nav" data-tab="leaderboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 6H4.5v1.5A3.5 3.5 0 0 0 8 11M17 6h2.5v1.5A3.5 3.5 0 0 1 16 11"/><path d="M12 14v3M9 20h6"/></svg>
+        Rankings
+      </button>
+    </nav>
+
+    <main class="main">
+      <div class="head">
+        <div>
+          <h1 id="paneTitle">My jobs</h1>
+          <p id="paneDesc">Every job on your record. Switch between them, clock in and quit the ones you're done with.</p>
+        </div>
+        <div class="clock"><b id="headClock">00:00</b><span id="headDate">&nbsp;</span></div>
+      </div>
+
+      <!-- ── JOBS ── -->
+      <section class="pane on" id="tab-jobs">
+        <div class="stats">
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/></svg></div>
+            <div class="stat-txt"><span>Jobs held</span><b id="jobCount">0</b></div>
+            <div class="delta flat" id="jobSlots">of 4</div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></div>
+            <div class="stat-txt"><span>Hours worked</span><b id="totalHours">0h</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 4v16"/><path d="M16 8.5c0-1.7-1.8-2.5-4-2.5s-4 .8-4 2.5S9.8 11 12 11s4 .9 4 2.6-1.8 2.4-4 2.4-4-.7-4-2.4"/></svg></div>
+            <div class="stat-txt"><span>Total earned</span><b id="totalEarned">$0</b></div>
+          </div>
+        </div>
+
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2>All jobs</h2><p id="jobsSubhead">Select a job to make it active</p></div>
+            <div class="p-tools">
+              <div class="search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+                <input type="text" id="jobSearch" placeholder="Search jobs">
+              </div>
+              <button class="btn-ghost" onclick="refreshData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+                Refresh
+              </button>
+            </div>
+          </div>
+          <div class="filters" id="categoryFilters"></div>
+          <div class="p-body" id="jobsGrid"></div>
+        </section>
+      </section>
+
+      <!-- ── DUTY ── -->
+      <section class="pane" id="tab-duty">
+        <div class="duty-hero" id="dutyIndicator">
+          <div class="duty-ring"><span id="dutyTimer">00:00:00</span></div>
+          <div class="duty-copy">
+            <b id="dutyStatusText">Off duty</b>
+            <span id="dutyJobLine">Not clocked in</span>
+            <button class="btn-teal" id="dutyToggleBtn" onclick="toggleDuty()">Clock in</button>
+          </div>
+        </div>
+
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2>Recent shifts</h2><p>Your last clock-ins and what they paid</p></div>
+          </div>
+          <div class="p-body" id="shiftHistory"></div>
+        </section>
+      </section>
+
+      <!-- ── STATS ── -->
+      <section class="pane" id="tab-stats">
+        <div class="stats four">
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></div>
+            <div class="stat-txt"><span>Total hours</span><b id="statTotalHours">0</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 4v16"/><path d="M16 8.5c0-1.7-1.8-2.5-4-2.5s-4 .8-4 2.5S9.8 11 12 11s4 .9 4 2.6-1.8 2.4-4 2.4-4-.7-4-2.4"/></svg></div>
+            <div class="stat-txt"><span>Total earnings</span><b id="statTotalEarnings">$0</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/></svg></div>
+            <div class="stat-txt"><span>Jobs held</span><b id="statJobsHeld">0</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M8.5 13.5l2.2 2.2 4.3-4.3"/></svg></div>
+            <div class="stat-txt"><span>Shifts</span><b id="statTotalSessions">0</b></div>
+          </div>
+        </div>
+
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2>Job breakdown</h2><p>Hours and earnings per job</p></div>
+          </div>
+          <div class="p-body pad" id="jobStatsList"></div>
+        </section>
+      </section>
+
+      <!-- ── SCHEDULE ── -->
+      <section class="pane" id="tab-schedule">
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2>Shift schedule</h2><p>Automatic job switches at a set time</p></div>
+            <button class="btn-teal sm" id="newScheduleBtn" onclick="openScheduleModal()">New schedule</button>
+          </div>
+          <div class="p-body" id="schedulesList"></div>
+        </section>
+      </section>
+
+      <!-- ── RANKINGS ── -->
+      <section class="pane" id="tab-leaderboard">
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2>Rankings</h2><p>Top workers across the city</p></div>
+            <div class="seg">
+              <button class="seg-btn on" data-lb="total_hours">Hours</button>
+              <button class="seg-btn" data-lb="total_earnings">Earnings</button>
+              <button class="seg-btn" data-lb="jobs_held">Jobs</button>
+            </div>
+          </div>
+          <div class="p-body" id="leaderboardContent"></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="key">ESC</span>Close</span>
+    <span><span class="key">↵</span>Switch to top search result</span>
+    <span id="statusHint">Clock in to start earning</span>
+  </div>
+
+</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ADMIN PANEL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="container" id="adminPanel">
+<div class="frame">
+<div class="shell">
+
+  <div class="bar">
+    <div class="bar-brand">
+      <div class="mark"></div>
+      <div class="bar-name">
+        <div class="title-txt">Job Administration</div>
+        <div class="sub">Staff tools</div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="dot"></span>
+      <p><b id="adminOnline">0</b> players online</p>
+      <span class="ver">v1.0.0</span>
+    </div>
+    <button class="pill-close" onclick="closeMenu()">Close</button>
+  </div>
+
+  <div class="body">
+    <nav class="side">
+      <div class="grp">Management</div>
+      <button class="nav on" data-atab="admin-players">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.2a3.5 3.5 0 0 1 0 5.6M18 20a6.4 6.4 0 0 0-1.6-4.3"/></svg>
+        Players <span class="tally" id="navPlayerCount">0</span>
+      </button>
+      <button class="nav" data-atab="admin-bulk">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><path d="M12 3 3 7.5l9 4.5 9-4.5L12 3z"/><path d="M3 12.5 12 17l9-4.5M3 17 12 21.5 21 17"/></svg>
+        Bulk actions
+      </button>
+
+      <div class="grp">Oversight</div>
+      <button class="nav" data-atab="admin-logs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM9 12h6M9 16h4"/></svg>
+        Logs
+      </button>
+      <button class="nav" data-atab="admin-analytics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9h-9V3z"/></svg>
+        Analytics
+      </button>
+    </nav>
+
+    <main class="main">
+      <div class="head">
+        <div>
+          <h1 id="aPaneTitle">Players</h1>
+          <p id="aPaneDesc">Everyone online right now. Open a player to add or strip jobs.</p>
+        </div>
+      </div>
+
+      <!-- ── PLAYERS ── -->
+      <section class="pane on" id="tab-admin-players">
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2>Online players</h2><p>Select a player to manage their jobs</p></div>
+            <div class="p-tools">
+              <div class="search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+                <input type="text" id="playerSearch" placeholder="Search players">
+              </div>
+              <button class="btn-ghost" onclick="refreshAdminData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+                Refresh
+              </button>
+            </div>
+          </div>
+          <div class="p-body" id="playersList"></div>
+        </section>
+      </section>
+
+      <!-- ── LOGS ── -->
+      <section class="pane" id="tab-admin-logs">
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2>Action log</h2><p>Job switches, duty changes and staff actions</p></div>
+            <select id="logFilter" class="mini-select">
+              <option value="">All actions</option>
+              <option value="job_switch">Job switch</option>
+              <option value="job_added">Job added</option>
+              <option value="quit_job">Quit job</option>
+              <option value="job_removed">Job removed</option>
+              <option value="clock_in">Clock in</option>
+              <option value="clock_out">Clock out</option>
+              <option value="admin_add_job">Admin add job</option>
+              <option value="admin_remove_job">Admin remove job</option>
+              <option value="admin_set_job">Admin set job</option>
+            </select>
+          </div>
+          <div class="p-body pad" id="logsList"></div>
+        </section>
+      </section>
+
+      <!-- ── ANALYTICS ── -->
+      <section class="pane" id="tab-admin-analytics">
+        <div class="stats" id="analyticsGrid"></div>
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2>Most worked jobs</h2><p>Ranked by total recorded hours</p></div>
+          </div>
+          <div class="p-body pad" id="analyticsJobs"></div>
+        </section>
+      </section>
+
+      <!-- ── BULK ── -->
+      <section class="pane" id="tab-admin-bulk">
+        <div class="bulk-cols">
+          <section class="panel">
+            <div class="p-head"><div><h2>Action</h2><p>What to apply to the selection</p></div></div>
+            <div class="p-body pad gap">
+              <div class="field">
+                <label for="bulkAction">Action</label>
+                <select id="bulkAction">
+                  <option value="add">Add job</option>
+                  <option value="remove">Remove job</option>
+                  <option value="setjob">Set active job</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="bulkJob">Job name</label>
+                <input type="text" id="bulkJob" list="jobOptions" placeholder="police" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="bulkGrade">Grade</label>
+                <input type="number" id="bulkGrade" value="0" min="0">
+              </div>
+              <button class="btn-teal" onclick="executeBulkAction()">Execute</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="p-head">
+              <div><h2>Players</h2><p><b id="bulkSelectedCount">0</b> selected</p></div>
+              <div class="p-tools">
+                <div class="search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+                  <input type="text" id="bulkSearch" placeholder="Filter">
+                </div>
+                <button class="btn-ghost" onclick="bulkSelectAll(true)">All</button>
+                <button class="btn-ghost" onclick="bulkSelectAll(false)">None</button>
+              </div>
+            </div>
+            <div class="p-body" id="bulkPlayerList"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="key">ESC</span>Close</span>
+    <span>Every action here is written to the log</span>
+  </div>
+
+</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODALS
+     ═══════════════════════════════════════════════════════════ -->
+<div class="overlay" id="scheduleModal">
+  <div class="modal">
+    <div class="modal-h">
+      <h4>New schedule</h4>
+      <button class="x" onclick="closeScheduleModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-b col">
+      <div class="field">
+        <label for="scheduleJob">Job</label>
+        <select id="scheduleJob"></select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="scheduleHour">Hour</label><input type="number" id="scheduleHour" min="0" max="23" value="9"></div>
+        <div class="field"><label for="scheduleMinute">Minute</label><input type="number" id="scheduleMinute" min="0" max="59" value="0"></div>
+      </div>
+      <div class="field">
+        <label>Days</label>
+        <div class="days">
+          <label><input type="checkbox" value="1"><span>Sun</span></label>
+          <label><input type="checkbox" value="2" checked><span>Mon</span></label>
+          <label><input type="checkbox" value="3" checked><span>Tue</span></label>
+          <label><input type="checkbox" value="4" checked><span>Wed</span></label>
+          <label><input type="checkbox" value="5" checked><span>Thu</span></label>
+          <label><input type="checkbox" value="6" checked><span>Fri</span></label>
+          <label><input type="checkbox" value="7"><span>Sat</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn-line" onclick="closeScheduleModal()">Cancel</button>
+      <button class="btn-teal" onclick="saveSchedule()">Save schedule</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="playerModal">
+  <div class="modal lg">
+    <div class="modal-h">
+      <h4 id="playerModalName">Player</h4>
+      <button class="x" onclick="closePlayerModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-b col" id="playerModalContent"></div>
+  </div>
+</div>
+
+<!-- job names for the admin inputs, filled from the server -->
+<datalist id="jobOptions"></datalist>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
