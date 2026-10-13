@@ -122,7 +122,7 @@ lib.callback.register('nz_cargo:workshop:buy', Server.Once('stock', function(src
     item.build = new
     item.score = score
     item.rarity = Cargo.RarityFromScore(item.base_rarity, score, lvl.maxRarityGain)
-    item.offers, item.offers_at = nil, 0  -- buyers re-bid on the new build
+    -- the same buyers stay (their price follows the build), so you can add what they asked for
     if type(props) == 'table' then
         props.plate = item.plate
         item.props = props
@@ -163,7 +163,6 @@ lib.callback.register('nz_cargo:workshop:external', function(src, stockId, props
     local score = Cargo.ScoreBuild(build, w.upgrades.workshop)
     item.build, item.score = build, score
     item.rarity = Cargo.RarityFromScore(item.base_rarity, score, lvl.maxRarityGain)
-    item.offers, item.offers_at = nil, 0
     props.plate = item.plate
     item.props = props
     DB.UpdateStock(item)

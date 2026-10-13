@@ -7,10 +7,27 @@ Music = { stage = nil }
 
 local M = Config.Music
 
+-- Score events stream in from the game files. Triggering one before it has
+-- loaded plays nothing, so each waits until it is ready. They run one at a
+-- time in order (a countdown's kill event must land before the next cue).
+local queue, worker = {}, false
 local function native(name)
     if not name then return end
-    PrepareMusicEvent(name)
-    TriggerMusicEvent(name)
+    queue[#queue + 1] = name
+    if worker then return end
+    worker = true
+    CreateThread(function()
+        while #queue > 0 do
+            local ev = table.remove(queue, 1)
+            local t = GetGameTimer() + 3000
+            while not PrepareMusicEvent(ev) and GetGameTimer() < t do Wait(50) end
+            local ok = TriggerMusicEvent(ev)
+            if Config.Debug or not ok then
+                print(('^3[vehiclecargo] music %s: %s^7'):format(ev, ok and 'playing' or 'did not play (check the event name in Config.Music.Native)'))
+            end
+        end
+        worker = false
+    end)
 end
 
 function Music.Play(stage)
@@ -49,3 +66,12 @@ AddEventHandler('onResourceStop', function(res)
         native(M.Native.finish)
     end
 end)
+
+-- /cargomusic [stage]: test the score (start, delivering, attack, countdown, finish, fail, stop)
+RegisterCommand('cargomusic', function(_, args)
+    local stage = args[1] or 'start'
+    if stage == 'stop' then Music.Stop(true) return end
+    Music.stage = nil
+    print(('[vehiclecargo] music mode %s, playing %s'):format(M.Mode, stage))
+    Music.Play(stage)
+end, false)

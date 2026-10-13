@@ -379,16 +379,17 @@ function Heist.DeadCar(m, veh)
     end
 end
 
+-- Sitting in the driver seat: pull the wires under the dash
 local function hotwire(m, carrier)
     if busy(m) or m.hotwired then return end
     m.busy = true
-    TaskTurnPedToFaceEntity(cache.ped, carrier, 600)
-    Wait(600)
-    lib.requestAnimDict('veh@break_in@0h@p_m_one@')
-    TaskPlayAnim(cache.ped, 'veh@break_in@0h@p_m_one@', 'low_force_entry_ds', 3.0, 3.0, -1, 49, 0, false, false, false)
+    Bridge.HideText()
+    local dict = 'veh@std@ds@base'
+    lib.requestAnimDict(dict)
+    TaskPlayAnim(cache.ped, dict, 'hotwire', 3.0, 3.0, -1, 49, 0, false, false, false)
     local ok = lib.skillCheck(C.Recovery.Hotwire, { 'e' })
-    ClearPedTasks(cache.ped)
-    RemoveAnimDict('veh@break_in@0h@p_m_one@')
+    StopAnimTask(cache.ped, dict, 'hotwire', 1.0)
+    RemoveAnimDict(dict)
     if lib.callback.await('nz_cargo:source:hotwire', false, m.id, ok) then
         m.hotwired = true
         if Client.Control(carrier, 800) then
@@ -530,12 +531,24 @@ function Heist.Depot(m)
             if Client.Control(carrier, 1000) then CreatePickUpRopeForCargobob(carrier, 0) end
         end)
     end
-    target(m, carrier, 'nzc_carrier_' .. m.id, {
-        {
-            label = m.data.scenario == 'tow' and 'Hotwire the flatbed' or 'Hotwire the Cargobob', icon = 'fa-solid fa-bolt',
-            canInteract = function() return not m.hotwired and not busy(m) and not IsPedInAnyVehicle(cache.ped, false) end,
-            onSelect = function() CreateThread(function() hotwire(m, carrier) end) end,
-        },
-    }, 3.5)
+    -- get in first: the engine stays dead and the hotwire prompt shows from the driver seat
+    local label = m.data.scenario == 'tow' and 'Hotwire the flatbed' or 'Hotwire the Cargobob'
+    local NO_DRIVE = { 71, 72, 87, 88, 89, 90, 107, 108, 110, 111 }
+    CreateThread(function()
+        while not m.hotwired and not m.done and Client.mission == m do
+            local sleep = 400
+            if DoesEntityExist(carrier) and GetVehiclePedIsIn(cache.ped, false) == carrier and GetPedInVehicleSeat(carrier, -1) == cache.ped then
+                sleep = 0
+                SetVehicleEngineOn(carrier, false, true, true)
+                for i = 1, #NO_DRIVE do DisableControlAction(0, NO_DRIVE[i], true) end
+                if not busy(m) then
+                    Bridge.ShowText(Config.Interact.KeyLabel, label)
+                    if IsControlJustPressed(0, Config.Interact.Key) then CreateThread(function() hotwire(m, carrier) end) end
+                end
+            end
+            Wait(sleep)
+        end
+    end)
+    Source.Objective(m, m.data.scenario == 'tow' and 'Get in the flatbed and hotwire it' or 'Get in the Cargobob and hotwire it')
     liftLoop(m)
 end

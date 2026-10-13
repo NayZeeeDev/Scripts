@@ -33,6 +33,8 @@ Locale = {
 
     -- sourcing
     src_started       = 'Contract taken. The %s is marked on your GPS.',
+    src_lockpick_broke = 'Your lockpick snapped.',
+    src_driver_door   = 'Go round to the driver door.',
     src_locked        = 'It\'s locked. Break in or find the keys.',
     src_picked        = 'You have the car. Get it back to the warehouse.',
     src_tracker       = 'There\'s a tracker on this car. Lose it at a mod shop before going home.',

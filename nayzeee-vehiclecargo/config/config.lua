@@ -78,7 +78,7 @@ Config.Phone  = {
     System   = 'lb-phone',   -- 'auto' | 'lb-phone' | 'yseries' | 'npwd' | 'qs-smartphone' | 'gksphone' | 'none'
     Sender   = 'Unknown',    -- contact name shown on notifications
     Number   = '5550199',    -- the number texts come from (phones need a real number, not a name)
-    Notify   = true,         -- also push a phone notification (lb-phone) so it pops even with the phone closed
+    Notify   = false,        -- extra lb-phone push titled with Sender. Off: the text itself already notifies, so this showed twice
     Fallback = false,        -- show a phone-style message on screen when no phone resource takes it
     -- Texts your contact sends during the job (attacker texts live in Config.Attackers.Messages).
     Contact  = {
@@ -316,7 +316,9 @@ Config.Sourcing = {
     WantedLevel     = 0,          -- GTA wanted level on break in (0 = off, use dispatch instead)
     DispatchChance  = 0.55,       -- chance police get an alert on break in (impound always alerts)
     DeliverRadius   = 6.0,
-    LockpickItem    = false,      -- item name to require for parked cars, or false
+    -- Breaking in (driver door only) needs one of these items. false = no item needed.
+    LockpickItem    = { 'lockpick', 'advancedlockpick' },
+    LockpickBreak   = 0.35,       -- chance the lockpick snaps when the skill check fails
     SkillCheck      = { 'easy', 'easy', 'medium' },   -- ox_lib skill check on locked cars
 
     -- How the car is found (weights per tier). Spots for each live in config/locations.lua.
@@ -399,17 +401,21 @@ Config.Attackers = {
     Vehicles = { 'baller', 'granger', 'cavalcade2', 'dubsta', 'kuruma', 'schafter2' },
     Peds     = { 'g_m_y_famca_01', 'g_m_y_ballaeast_01', 'g_m_y_mexgoon_01', 'g_m_y_lost_02', 'g_m_y_korean_02' },
     Weapons  = { 'WEAPON_MICROSMG', 'WEAPON_PISTOL', 'WEAPON_MACHINEPISTOL' },
-    Delay    = { 20, 55 },          -- seconds after the trigger
-    TrackerWave = 150,              -- seconds between waves while a tracker is live
-    Spawn    = { Min = 160.0, Max = 260.0 },   -- like GTA: out of sight on a road this far away, then they drive in
-    -- chance of attackers and how many cars, per tier
+    Delay    = { 15, 40 },          -- seconds after the trigger
+    TrackerWave = 120,              -- seconds between waves while a tracker is live
+    WaveGap  = 70,                  -- seconds between the waves of one attack
+    -- They come from every side (behind, ahead, left, right) on roads this far away.
+    -- Hidden = prefer spots out of sight, but never fall back to spawning far away.
+    Spawn    = { Min = 70.0, Max = 140.0, Hidden = true },
+    Crew     = { 3, 4 },            -- people per car (driver + shooters). Illegal jobs always send the max
+    -- per tier: { chance, min cars, max cars, waves }
     source = {
-        common = { 0.08, 1, 1 }, uncommon = { 0.15, 1, 1 }, rare = { 0.28, 1, 2 }, epic = { 0.42, 1, 2 },
-        legendary = { 0.58, 2, 2 }, mythic = { 0.72, 2, 3 }, illegal = { 1.00, 2, 3 },
+        common = { 0.20, 1, 2, 1 }, uncommon = { 0.30, 1, 2, 1 }, rare = { 0.45, 2, 3, 1 }, epic = { 0.60, 2, 3, 2 },
+        legendary = { 0.75, 2, 4, 2 }, mythic = { 0.90, 3, 4, 2 }, illegal = { 1.00, 3, 5, 3 },
     },
     sell = {
-        common = { 0.10, 1, 1 }, uncommon = { 0.16, 1, 1 }, rare = { 0.25, 1, 2 }, epic = { 0.38, 1, 2 },
-        legendary = { 0.52, 2, 2 }, mythic = { 0.65, 2, 3 }, illegal = { 1.00, 2, 3 },
+        common = { 0.20, 1, 2, 1 }, uncommon = { 0.30, 1, 2, 1 }, rare = { 0.45, 2, 3, 1 }, epic = { 0.55, 2, 3, 2 },
+        legendary = { 0.70, 2, 4, 2 }, mythic = { 0.85, 3, 4, 2 }, illegal = { 1.00, 3, 5, 3 },
     },
     -- Texts from an unknown number when a crew is on its way.
     Messages = {
@@ -483,7 +489,7 @@ Config.Selling = {
     CleanStreak     = { step = 0.02, max = 0.10 },  -- +2% per clean delivery in a row, up to +10%
     ConditionWeight = 0.60,       -- how much stored condition (sourcing damage) affects the base offer
     MinOffer        = 0.25,       -- the offer never drops below 25% of what the buyer first agreed
-    OfferRefresh    = 30 * 60,    -- buyer offers on a car reshuffle after this many seconds
+    OfferRefresh    = 10 * 60,    -- the same buyers stay on a car this long (time to add what they want), then new ones bid
     ReturnOnFail    = false,      -- true = a failed sale sends the car back to the warehouse instead of losing it
     MinDropDistance = 400.0,      -- drop-offs closer than this to the warehouse are skipped
     -- Every time the car gets damaged on the way, the buyer drops the price.

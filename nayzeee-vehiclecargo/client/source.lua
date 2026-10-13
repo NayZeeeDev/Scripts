@@ -54,12 +54,22 @@ Source.Objective, Source.RemoveBlips, Source.ReportPeds = objective, removeBlips
 -----------------------------------------------------------------
 -- Break-in (locked cars)
 -----------------------------------------------------------------
+-- Where you stand to break in: the driver door (any side on bikes)
+local function driverDoor(veh)
+    if IsThisModelABike(GetEntityModel(veh)) then return GetEntityCoords(veh) end
+    local bone = GetEntityBoneIndexByName(veh, 'door_dside_f')
+    if bone ~= -1 then return GetWorldPositionOfEntityBone(veh, bone) end
+    local mn = GetModelDimensions(GetEntityModel(veh))
+    return GetOffsetFromEntityInWorldCoords(veh, mn.x, 0.4, 0.0)
+end
+
 local function breakIn(m, veh)
     if m.busy then return end
     m.busy = true
     if not lib.callback.await('nz_cargo:source:breakin', false, m.id) then m.busy = false return end
     local ped = cache.ped
-    TaskTurnPedToFaceEntity(ped, veh, 600)
+    local door = driverDoor(veh)
+    TaskTurnPedToFaceCoord(ped, door.x, door.y, door.z, 600)
     Wait(600)
     lib.requestAnimDict('veh@break_in@0h@p_m_one@')
     TaskPlayAnim(ped, 'veh@break_in@0h@p_m_one@', 'low_force_entry_ds', 3.0, 3.0, -1, 49, 0, false, false, false)
@@ -130,7 +140,10 @@ local function setup(m, veh)
         local bp = lib.points.new({ coords = spot, distance = 4.0 })
         function bp:nearby()
             if not m.locked or m.busy or IsPedInAnyVehicle(cache.ped, false) then return end
-            if #(GetEntityCoords(cache.ped) - GetEntityCoords(veh)) > 2.6 then Bridge.HideText() return end
+            local me = GetEntityCoords(cache.ped)
+            if #(me - GetEntityCoords(veh)) > 3.2 then Bridge.HideText() return end
+            -- only from the driver door
+            if #(me - driverDoor(veh)) > 1.6 then Bridge.ShowText('', L('src_driver_door')) return end
             Bridge.ShowText(Config.Interact.KeyLabel, 'Break in')
             if IsControlJustPressed(0, Config.Interact.Key) then
                 Bridge.HideText()
@@ -287,9 +300,13 @@ end
 
 -- Attack crews (rolled on the server by tier, more while a tracker is live)
 local function spawnAttack(m, plan, now)
+    local left = plan.waves or 1
     local function go()
         if Client.mission ~= m or m.done then return end
-        local made = Scenarios.Chasers(Config.Attackers, plan.cars or 1, 'shoot')
+        -- more waves keep coming until the job is over
+        left = left - 1
+        if left > 0 then SetTimeout((Config.Attackers.WaveGap or 70) * 1000, go) end
+        local made = Scenarios.Chasers(Config.Attackers, plan.cars or 1, 'shoot', plan.illegal or m.data.illegal)
         for _, e in ipairs(made) do m.peds[#m.peds + 1] = e end
         reportPeds(m, made)
         m.lastCombat = GetGameTimer()
@@ -329,6 +346,13 @@ Source.StartEscape, Source.Deliver = startEscape, deliver
 local function onEntered(m, veh)
     local res = lib.callback.await('nz_cargo:source:entered', false, m.id)
     if not res then return end
+    if res.kicked then
+        -- this one needs the keys: no getting round it with a lockpick
+        TaskLeaveVehicle(cache.ped, veh, 16)
+        SetTimeout(1500, function() if DoesEntityExist(veh) and m.locked then SetVehicleDoorsLocked(veh, 2) end end)
+        return
+    end
+    m.locked = false
     Bridge.Notify(L('src_picked'), 'success')
     startEscape(m, veh, res)
 end

@@ -520,6 +520,7 @@ function offersBlock(s, o) {
   const cd = o.cooldown > 0;
   return `<div class="kv" style="margin-top:4px"><b>Buyers bidding</b>${cd ? `<span class="tag hot"><i class="fa-solid fa-hourglass-half"></i>Next sale <span data-cd="${Date.now() + o.cooldown * 1000}">${fmtTime(o.cooldown)}</span></span>`
       : o.streak > 0 ? `<span class="tag live">+${Math.round(o.streak * 100)}% clean streak</span>` : ''}</div>
+    ${o.refreshIn > 0 ? `<div class="note"><span class="dot"></span><span>These buyers wait <b data-cd="${Date.now() + o.refreshIn * 1000}">${fmtTime(o.refreshIn)}</b> for this car. Add what they want in the design bay and their offer goes up.</span></div>` : ''}
     <div class="offers">
       ${arr(o.offers).map(b => `<article class="inc ${b.hot ? 'urgent' : ''}">
         <div class="inc-top"><span class="chip ${b.hot ? 'red' : ''}">${esc(b.label)}</span><span class="ref">${b.place ? esc(b.place) + ' · ' : ''}${(b.dist / 1000).toFixed(1)} km</span></div>

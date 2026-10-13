@@ -171,39 +171,55 @@ local function headingTo(from, to)
     return (math.deg(math.atan(-(to.x - from.x), to.y - from.y))) % 360
 end
 
-local function hiddenRoad(used)
+-- A road spot on one side of you (ahead, behind, left or right), preferably out
+-- of sight. They pull in from there, so you get boxed in instead of one car
+-- trailing far behind.
+local SIDES = { 180.0, 0.0, 90.0, -90.0 }   -- behind, ahead, left, right (relative to where you're heading)
+
+local function roadAround(used, side)
     local cfg = Config.Attackers.Spawn
     local p = GetEntityCoords(cache.ped)
-    for _ = 1, 40 do
-        local a = math.random() * math.pi * 2
+    local veh = GetVehiclePedIsIn(cache.ped, false)
+    local base = GetEntityHeading(veh ~= 0 and veh or cache.ped)
+    local fallback
+    for try = 1, 30 do
+        local a = math.rad(base + side + (math.random() - 0.5) * 70.0)
         local d = cfg.Min + math.random() * (cfg.Max - cfg.Min)
-        local ok, node, nodeHeading = GetClosestVehicleNodeWithHeading(p.x + math.cos(a) * d, p.y + math.sin(a) * d, p.z, 1, 3.0, 0)
+        local ok, node, nodeHeading = GetClosestVehicleNodeWithHeading(p.x - math.sin(a) * d, p.y + math.cos(a) * d, p.z, 1, 3.0, 0)
         if ok then
             local dist = #(node - p)
-            local clear = dist >= cfg.Min * 0.8 and math.abs(node.z - p.z) < 30.0
-                and not IsSphereVisible(node.x, node.y, node.z + 1.0, 5.0)
-            for _, u in ipairs(used) do if #(u - node) < 12.0 then clear = false end end
-            if clear then
-                -- drive the way that points at you
+            local good = dist >= cfg.Min * 0.6 and math.abs(node.z - p.z) < 25.0
+            for _, u in ipairs(used) do if #(u - node) < 15.0 then good = false end end
+            if good then
+                -- face the road direction that points at you
                 local want = headingTo(node, p)
                 local h1, h2 = nodeHeading % 360, (nodeHeading + 180.0) % 360
                 local function diff(h) local x = math.abs(h - want) % 360 return x > 180 and 360 - x or x end
-                return node, diff(h1) <= diff(h2) and h1 or h2
+                local heading = diff(h1) <= diff(h2) and h1 or h2
+                if not cfg.Hidden or not IsSphereVisible(node.x, node.y, node.z + 1.0, 4.0) then return node, heading end
+                fallback = fallback or { node, heading }
             end
         end
     end
-    -- nothing hidden found: far behind you on the road
+    -- nothing out of sight on that side: take a road spot there anyway
+    if fallback then return fallback[1], fallback[2] end
     local back = GetOffsetFromEntityInWorldCoords(cache.ped, 0.0, -cfg.Max, 0.0)
     local ok, node, heading = GetClosestVehicleNodeWithHeading(back.x, back.y, back.z, 1, 3.0, 0)
     if ok then return node, heading end
     return back, GetEntityHeading(cache.ped)
 end
 
--- Chase cars. mode 'shoot' = passengers fire, 'ram' = drivers try to ram
-function Scenarios.Chasers(cfg, count, mode)
+-- Chase cars from every side, each full of armed crew.
+-- mode 'shoot' = everyone chases and the passengers fire,
+-- 'ram' = the cars ahead of you ram, the rest chase and fire.
+-- illegal = tougher crews (Config.Sourcing.Guards.Illegal armour, aim and guns)
+function Scenarios.Chasers(cfg, count, mode, illegal)
     local made, used = {}, {}
-    for _ = 1, count do
-        local pos, heading = hiddenRoad(used)
+    local G = S.Guards
+    local crew = cfg.Crew or { 2, 2 }
+    for n = 1, count do
+        local side = SIDES[(n - 1) % #SIDES + 1]
+        local pos, heading = roadAround(used, side)
         used[#used + 1] = pos
         RequestCollisionAtCoord(pos.x, pos.y, pos.z)
         local vhash = Client.LoadModel(pick(cfg.Vehicles))
@@ -213,26 +229,32 @@ function Scenarios.Chasers(cfg, count, mode)
             SetModelAsNoLongerNeeded(vhash)
             SetEntityAsMissionEntity(veh, true, true)
             SetVehicleEngineOn(veh, true, true, false)
-            local driver = Scenarios.Ped(pick(cfg.Peds), pos.x, pos.y, pos.z + 2.0, heading)
-            if driver then
-                SetPedIntoVehicle(driver, veh, -1)
-                arm(driver, cfg.Weapons and pick(cfg.Weapons) or 'WEAPON_MICROSMG')
-                SetDriverAbility(driver, 1.0)
-                SetDriverAggressiveness(driver, 1.0)
-                if mode == 'ram' then
-                    TaskVehicleMissionPedTarget(driver, veh, cache.ped, 2, 60.0, 1074528293, 1.0, 1.0, true)
-                else
-                    TaskVehicleChase(driver, cache.ped)
-                end
-                made[#made + 1] = driver
-            end
-            if mode ~= 'ram' then
-                local gunner = Scenarios.Ped(pick(cfg.Peds), pos.x, pos.y, pos.z + 2.0, heading)
-                if gunner then
-                    SetPedIntoVehicle(gunner, veh, 0)
-                    arm(gunner, cfg.Weapons and pick(cfg.Weapons) or 'WEAPON_MICROSMG')
-                    TaskCombatPed(gunner, cache.ped, 0, 16)
-                    made[#made + 1] = gunner
+            SetVehicleForwardSpeed(veh, 12.0)
+            local seats = math.min(illegal and crew[2] or math.random(crew[1], crew[2]), GetVehicleMaxNumberOfPassengers(veh) + 1)
+            local rams = mode == 'ram' and side == 0.0
+            local weapons = illegal and G.Illegal and G.Illegal.Weapons or cfg.Weapons
+            for seat = -1, seats - 2 do
+                local ped = Scenarios.Ped(pick(cfg.Peds), pos.x, pos.y, pos.z + 2.0, heading)
+                if ped then
+                    SetPedIntoVehicle(ped, veh, seat)
+                    arm(ped, weapons and pick(weapons) or 'WEAPON_MICROSMG', illegal)
+                    SetPedSeeingRange(ped, 120.0)
+                    SetPedHearingRange(ped, 120.0)
+                    SetPedCombatAttributes(ped, 2, true)    -- shoot from the car
+                    SetPedCombatAttributes(ped, 1, true)    -- keep using the car
+                    if seat == -1 then
+                        SetDriverAbility(ped, 1.0)
+                        SetDriverAggressiveness(ped, 1.0)
+                        if rams then
+                            TaskVehicleMissionPedTarget(ped, veh, cache.ped, 2, 60.0, 1074528293, 1.0, 1.0, true)
+                        else
+                            TaskVehicleChase(ped, cache.ped)
+                            SetTaskVehicleChaseIdealPursuitDistance(ped, 0.0)
+                        end
+                    else
+                        TaskCombatPed(ped, cache.ped, 0, 16)
+                    end
+                    made[#made + 1] = ped
                 end
             end
             local b = AddBlipForEntity(veh)

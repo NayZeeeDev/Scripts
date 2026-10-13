@@ -62,23 +62,32 @@ local function rarityLabel(id)
     return r and r.label or id
 end
 
--- Wheels on the floor. Spots are saved at floor height, so the car's resting
--- height is known even when the interior collision hasn't streamed in yet.
+-- The real floor under a spot: a ray straight down onto the interior's collision.
+-- Spots can sit a little above or below the floor (preset height, hand-placed
+-- spots), so the car never trusts the saved height alone.
+local function floorAt(x, y, z, ignore)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(x, y, z + 1.5, x, y, z - 4.0, 1, ignore or 0, 7)
+    local _, hit, pos = GetShapeTestResult(ray)
+    if (hit == 1 or hit == true) and pos then return pos.z end
+end
+
+-- Put the car's wheels on the floor and remember where that is
 local function settle(veh, slot)
     local mn = GetModelDimensions(GetEntityModel(veh))
-    local want = slot.z - mn.z
-    FreezeEntityPosition(veh, false)
-    local ok = SetVehicleOnGroundProperly(veh)
-    local c = GetEntityCoords(veh)
-    -- no ground found yet, or it landed somewhere else (on another car, under the floor)
-    if not ok or math.abs(c.z - want) > 1.0 then
-        SetEntityCoordsNoOffset(veh, slot.x, slot.y, want, false, false, false)
+    local floor = floorAt(slot.x, slot.y, slot.z, veh)
+    local want = (floor or slot.z) - mn.z
+    SetEntityCoordsNoOffset(veh, slot.x, slot.y, want + 0.05, false, false, false)
+    SetEntityHeading(veh, slot.w or 0.0)
+    if floor and SetVehicleOnGroundProperly(veh) and math.abs(GetEntityCoords(veh).z - want) > 0.5 then
+        -- it found something else to stand on (another car): back onto the floor
+        SetEntityCoordsNoOffset(veh, slot.x, slot.y, want + 0.05, false, false, false)
         SetEntityHeading(veh, slot.w or 0.0)
     end
+    return floor and want or nil
 end
 
 -- Spawn one car on its spot and make sure it sits on the floor
-local function placeCar(car, slot, gen)
+local function placeCar(car, slot, gen, deadline)
     local hash = Client.LoadModel(car.model)
     if not hash or gen ~= displayGen then return nil end
     local mn = GetModelDimensions(hash)
@@ -87,10 +96,10 @@ local function placeCar(car, slot, gen)
     SetModelAsNoLongerNeeded(hash)
     FreezeEntityPosition(veh, true)
     SetEntityCollision(veh, true, true)
-    local t = GetGameTimer() + 2500
-    while not HasCollisionLoadedAroundEntity(veh) and GetGameTimer() < t and gen == displayGen do
+    -- one shared wait for the whole floor, so a spot off the floor can't stall the rest
+    while (not HasCollisionLoadedAroundEntity(veh) or not floorAt(slot.x, slot.y, slot.z, veh)) and GetGameTimer() < deadline and gen == displayGen do
         RequestCollisionAtCoord(slot.x, slot.y, slot.z)
-        Wait(0)
+        Wait(50)
     end
     if gen ~= displayGen then DeleteEntity(veh) return nil end
     Bridge.SetProps(veh, car.props)
@@ -105,9 +114,33 @@ local function placeCar(car, slot, gen)
     end
     Wait(0)
     if gen ~= displayGen then DeleteEntity(veh) return nil end
-    settle(veh, slot)
+    local rest = settle(veh, slot)
     FreezeEntityPosition(veh, true)
-    return veh
+    return veh, rest
+end
+
+-- Let gravity put the wheels down for real (suspension and all), then freeze
+-- again. Only cars whose floor was found take part, so none can fall through.
+local function dropAll(list, gen)
+    for _, d in ipairs(list) do
+        if DoesEntityExist(d.entity) then
+            FreezeEntityPosition(d.entity, false)
+            ActivatePhysics(d.entity)
+        end
+    end
+    Wait(900)
+    for _, d in ipairs(list) do
+        local veh = d.entity
+        if DoesEntityExist(veh) then
+            if gen == displayGen and GetEntityCoords(veh).z < d.rest - 0.6 then
+                -- went through something: put it back on the floor height
+                SetEntityCoordsNoOffset(veh, d.slot.x, d.slot.y, d.rest + 0.05, false, false, false)
+                SetEntityHeading(veh, d.slot.w or 0.0)
+            end
+            SetEntityVelocity(veh, 0.0, 0.0, 0.0)
+            FreezeEntityPosition(veh, true)
+        end
+    end
 end
 
 local function spawnDisplay(list)
@@ -115,6 +148,7 @@ local function spawnDisplay(list)
     local gen = displayGen
     local inside = Client.inside
     if not inside then return end
+    local drop, deadline = {}, GetGameTimer() + 4000
     local floors = {
         { cars = list.main or {}, slots = inside.interior.slots },
         { cars = (inside.interior.lowerOpen and list.lower) or {}, slots = inside.interior.lower and inside.interior.lower.slots or {} },
@@ -123,7 +157,8 @@ local function spawnDisplay(list)
         for i, car in ipairs(f.cars) do
             local slot = f.slots[i]
             if not slot or not Client.inside or gen ~= displayGen then break end
-            local veh = placeCar(car, slot, gen)
+            local veh, rest = placeCar(car, slot, gen, deadline)
+            if rest then drop[#drop + 1] = { entity = veh, slot = slot, rest = rest } end
             if veh then
                 local options = {
                     { label = L('ti_customize'), icon = 'fa-solid fa-spray-can-sparkles',
@@ -139,6 +174,7 @@ local function spawnDisplay(list)
             end
         end
     end
+    if #drop > 0 and gen == displayGen then dropAll(drop, gen) end
 end
 
 -----------------------------------------------------------------

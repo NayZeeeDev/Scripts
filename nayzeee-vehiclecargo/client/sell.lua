@@ -100,16 +100,21 @@ end)
 -- Start
 -----------------------------------------------------------------
 local function spawnAttack(m, plan)
-    SetTimeout((plan.delay or 30) * 1000, function()
+    local left = plan.waves or 1
+    local function go()
         if active ~= m or m.done then return end
-        local made = Scenarios.Chasers(Config.Attackers, plan.cars or 1, 'ram')
+        -- more waves keep coming until the car is delivered
+        left = left - 1
+        if left > 0 then SetTimeout((Config.Attackers.WaveGap or 70) * 1000, go) end
+        local made = Scenarios.Chasers(Config.Attackers, plan.cars or 1, 'ram', plan.illegal or m.data.illegal)
         for _, e in ipairs(made) do m.peds[#m.peds + 1] = e end
         local ids = Scenarios.NetIds(made)
         if #ids > 0 then lib.callback.await('nz_cargo:sell:peds', false, m.id, ids) end
         Music.Play('attack')
         m.lastCombat = GetGameTimer()
         Bridge.Notify(L('sell_rivals'), 'error', 'Attackers')
-    end)
+    end
+    SetTimeout((plan.delay or 30) * 1000, go)
 end
 
 -----------------------------------------------------------------

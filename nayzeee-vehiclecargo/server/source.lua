@@ -54,7 +54,7 @@ local function tierXp(id) local r = Cargo.Rarity[id] return r and r.xp or 0 end
 local function rollAttack(kind, rarity)
     local cfg = A[kind] and A[kind][rarity]
     if not cfg or math.random() >= cfg[1] then return nil end
-    return { cars = math.random(cfg[2], cfg[3]), delay = math.random(A.Delay[1], A.Delay[2]) }
+    return { cars = math.random(cfg[2], cfg[3]), delay = math.random(A.Delay[1], A.Delay[2]), waves = cfg[4] or 1, illegal = rarity == Config.Illegal.id }
 end
 Source.RollAttack = rollAttack
 
@@ -301,7 +301,8 @@ lib.callback.register('nz_cargo:source:start', Server.Once('player', function(sr
             Bridge.AddMoney(src, Config.Accounts.Purchase, tier.fee, 'vehiclecargo-refund')
             return false
         end
-        SetVehicleDoorsLocked(carrier, 2)
+        -- open: they get in, then hotwire it from the driver seat
+        SetVehicleDoorsLocked(carrier, 1)
     end
 
     local plate = plateText()
@@ -365,23 +366,40 @@ lib.callback.register('nz_cargo:source:peds', function(src, id, netIds)
     return true
 end)
 
+-- Police may hear about a break-in (an impound always calls it in)
+local function breakInAlert(src, m)
+    if m.dispatched or not (m.scenario == 'impound' or math.random() < Config.Sourcing.DispatchChance) then return end
+    m.dispatched = true
+    Bridge.Dispatch({
+        title = m.scenario == 'impound' and L('dispatch_impound') or L('dispatch_theft'),
+        message = ('%s · %s'):format(m.label, m.plate), coords = GetEntityCoords(m.entity), code = '10-60',
+        blip = { sprite = 225, colour = 1 }, plate = m.plate, model = m.model, src = src,
+    })
+end
+
+-- The lockpick item this player is carrying (Config.Sourcing.LockpickItem: a name, a list, or false)
+local function lockpickOf(src)
+    local want = Config.Sourcing.LockpickItem
+    if not want then return true end
+    if type(want) ~= 'table' then want = { want } end
+    for _, item in ipairs(want) do
+        if Bridge.HasItem(src, item) then return item end
+    end
+    return nil, want[1]
+end
+
 -- Called before a break-in (lockpick). Handles item + dispatch.
 lib.callback.register('nz_cargo:source:breakin', function(src, id)
     local m = owned(src, id)
     if not m or not m.locked then return false end
     if m.keysOnly or m.carrier then Server.Notify(src, L('src_need_keys'), 'error') return false end
-    if Config.Sourcing.LockpickItem and not Bridge.HasItem(src, Config.Sourcing.LockpickItem) then
-        Server.Notify(src, ('You need a %s.'):format(Config.Sourcing.LockpickItem), 'error')
+    local pick, need = lockpickOf(src)
+    if not pick then
+        Server.Notify(src, ('You need a %s.'):format(need), 'error')
         return false
     end
-    if not m.dispatched and (m.scenario == 'impound' or math.random() < Config.Sourcing.DispatchChance) then
-        m.dispatched = true
-        Bridge.Dispatch({
-            title = m.scenario == 'impound' and L('dispatch_impound') or L('dispatch_theft'),
-            message = ('%s · %s'):format(m.label, m.plate), coords = GetEntityCoords(m.entity), code = '10-60',
-            blip = { sprite = 225, colour = 1 }, plate = m.plate, model = m.model, src = src,
-        })
-    end
+    m.lockpick = pick ~= true and pick or nil
+    breakInAlert(src, m)
     return true
 end)
 
@@ -389,7 +407,10 @@ lib.callback.register('nz_cargo:source:unlock', function(src, id, success)
     local m = owned(src, id)
     if not m then return false end
     if not success then
-        if Config.Sourcing.LockpickItem and math.random() < 0.35 then Bridge.RemoveItem(src, Config.Sourcing.LockpickItem, 1) end
+        if m.lockpick and math.random() < (Config.Sourcing.LockpickBreak or 0.35) then
+            Bridge.RemoveItem(src, m.lockpick, 1)
+            Server.Notify(src, L('src_lockpick_broke'), 'error')
+        end
         return false
     end
     local d = #(GetEntityCoords(GetPlayerPed(src)) - GetEntityCoords(m.entity))
@@ -508,6 +529,15 @@ end)
 lib.callback.register('nz_cargo:source:entered', function(src, id)
     local m = owned(src, id)
     if not m or not inDriverSeat(src, m) then return false end
+    -- still locked to us: they got in some other way (another script's lockpick or keys)
+    if m.locked and m.stage ~= 'escape' then
+        if m.keysOnly or m.carrier then
+            Server.Notify(src, L('src_need_keys'), 'error')
+            return { kicked = true }
+        end
+        m.locked = false
+        breakInAlert(src, m)
+    end
     local attack
     if m.stage ~= 'escape' then
         m.stage = 'escape'
@@ -804,7 +834,7 @@ CreateThread(function()
                 if m.nextWave and now >= m.nextWave then
                     m.nextWave = now + A.TrackerWave
                     local wave = rollAttack('source', m.rarity) or { cars = 1, delay = 1 }
-                    wave.delay = 1
+                    wave.delay, wave.waves = 1, 1
                     TriggerClientEvent('nz_cargo:source:wave', m.src, m.id, wave)
                     Source.Text(m.src, 'tracker')
                 end

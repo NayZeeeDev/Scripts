@@ -362,7 +362,8 @@ Police on duty see tracked cars move on their map while the tracker is on. Break
 | The laptop is in the wrong place | `/cargoslots` → Laptop → Place, aim at the desk and scroll until the ghost laptop's screen faces you |
 | The laptop camera ends up behind the screen | Set `Config.Laptop.FlipSide = true` |
 | A second laptop still shows on the desk | Add its model name to `Config.Laptop.HideModels` |
-| Attackers spawn too close or too far | `Config.Attackers.Spawn` (Min / Max distance, always out of sight) |
+| Attackers spawn too close or too far | `Config.Attackers.Spawn` (Min / Max distance; they come from behind, ahead and both sides). Size and waves per tier in `Config.Attackers.source` / `sell` |
+| No mission music | Run `/cargomusic start` in game. F8 says if the score event played; if not, check `Config.Music.Native` names and the game's Score volume setting |
 | Chops at another script do nothing | Add the `VehicleChopped` line, or put its shop coords in `Config.ChopShop.External` |
 | Crew radio does nothing | Check `Config.Radio.System` matches your voice resource, or use `custom` |
 | Texts don't reach the phone | Give `Config.Phone.Number` a real number (lb-phone ignores names), check the player has a phone equipped, then `/cargotext` |
