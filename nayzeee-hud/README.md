@@ -6,7 +6,7 @@ It replaces **qb-hud**, **esx_hud** and **nayzeee-squads**. Remove those from `s
 
 ## Features
 
-- **Player status (17 styles):** Ring, Ring + Value, Segmented, Squircle, Hexagon, Diamond, Arc Gauge, Liquid Fill, Hex Fill, Circle Fill, Square Fill, Icon + Bar, Pill, Vertical, Minimal, Dots and Tile. Colours: Vibrant, Accent, Mono or **Custom** (players pick their own colour for every stat).
+- **Player status (17 styles):** Ring, Ring + Value, Segmented, Squircle, Hexagon, Diamond, Arc Gauge, Liquid Fill, Hex Fill, Circle Fill, Square Fill, Icon + Bar, Pill, Vertical, Minimal, Dots and Tile. Colours: Vibrant, Accent, Mono or **Custom** (players pick their own colour for every stat). Every colour setting (accent, stats, crosshair, team HUD bars) has a colour picker: a colour square, hue slider, hex box, recent colours and a reset to default, with a live preview while you drag.
   - Stats: health, armor, hunger, thirst, stamina, stress, oxygen (underwater) and voice (pma-voice range, talking glow and radio dot).
   - Vibrant, accent or mono colours, row or column layout, smart hide, and a low-value pulse.
 - **Speedometers (13 + 2 bicycle):** Modern Pro, Radial, Arc Digital, Tach Ladder, Cluster Bar, Pod Cluster, Classic Dual, Digital Linear, Sport Arc, Tesla Style, Minimal, Retro LCD and Twin Bars. Bicycles get a Smart Watch (speed, heart, cadence) or a Fitness Watch.

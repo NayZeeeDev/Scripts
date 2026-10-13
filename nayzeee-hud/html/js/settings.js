@@ -24,6 +24,11 @@
   const ACCENTS = ['#08afa2', '#b8f02a', '#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#fb7185', '#f97316', '#facc15', '#34d399', '#f5f5f5'];
 
   const g = (p) => NH.getPath(NH.cur, p);
+  // any-colour button (opens NH.ColorPicker) + the hex box, placed after a row of preset swatches
+  const cpick = (path, cur, def) => {
+    const hex = NH.parseHex(cur) || NH.parseHex(def) || '#ffffff';
+    return `<button class="cp-btn" data-cp="${path}" data-def="${def}" style="--sw:${hex}" title="Pick any colour"></button><input class="hex" data-hex="${path}" value="${hex}" maxlength="7" spellcheck="false"/>`;
+  };
 
   // ---- control builders ----
   const sec = (title, body, desc = '') => `<section class="sec"><h4>${title}</h4>${desc ? `<p class="desc">${desc}</p>` : ''}${body}</section>`;
@@ -68,7 +73,7 @@
       range('panelAlpha', 'Panel opacity', 0.3, 1, 0.02, 'pct') +
       `<div class="opt col"><div class="opt-t"><b>Accent colour</b><small>Seasonal styles can override this (see Seasons)</small></div>
         <div class="swatches">${ACCENTS.map(c => `<button class="swatch${NH.cur.accent === c ? ' on' : ''}" data-accent="${c}" style="--sw:${c}"></button>`).join('')}
-        <input class="hex" data-hex="accent" value="${NH.cur.accent}" maxlength="7" spellcheck="false"/></div></div>`) +
+        ${cpick('accent', NH.cur.accent, NH.DEFAULTS.accent)}</div></div>`) +
     sec('Sound', toggle('sound', 'HUD sounds', 'Seatbelt click, chime and indicator tick') + range('volume', 'Volume', 0, 1, 0.05, 'pct')) +
     sec('Layout', `<div class="opt"><div class="opt-t"><b>Edit sizes & positions</b><small>Drag any element, scroll to resize, right-click to reset it</small></div><button class="btn-line" data-act="edit">${ic('move')}Edit layout</button></div>` +
       toggle('cinematic', 'Cinematic mode', 'Black bars and no HUD, for screenshots and clips'));
@@ -91,8 +96,8 @@
     (NH.cur.status.color === 'custom' ? sec('Stat colours', NH.STATS.map(s => {
       const path = `status.colors.${s.k}`, cur = g(path) || s.c;
       return `<div class="opt"><div class="opt-t"><b>${NH.fic(s.icon)} ${s.label}</b></div><div class="swatches">${STAT_COLORS.concat(STAT_COLORS.includes(s.c) ? [] : [s.c]).map(h =>
-        `<button class="swatch${String(cur).toLowerCase() === h ? ' on' : ''}" style="--sw:${h}" data-setval="${path}" data-val="${h}"></button>`).join('')}<input class="hex" data-hex="${path}" value="${cur}" maxlength="7"/></div></div>`;
-    }).join(''), 'Pick a colour or type a hex code. Every style uses these.') : '') +
+        `<button class="swatch${String(cur).toLowerCase() === h ? ' on' : ''}" style="--sw:${h}" data-setval="${path}" data-val="${h}"></button>`).join('')}${cpick(path, cur, s.c)}</div></div>`;
+    }).join(''), 'Pick a preset, open the colour picker, or type a hex code. Every style uses these.') : '') +
     sec('Shown stats', chips(NH.STATS.map(s => [`status.show.${s.k}`, s.label, NH.fic(s.icon)])));
 
   R.vehicle = () =>
@@ -153,7 +158,7 @@
     return sec('Display', toggle('crosshair.enabled', 'Custom crosshair', 'Replaces GTA’s aim dot while you aim a gun (sniper scopes keep their own)') +
         toggle('crosshair.always', 'Show while holding a gun', 'Not just while aiming') + toggle('crosshair.outline', 'Dark outline', 'Easier to see on bright backgrounds')) +
       sec('Style', cards('crosshair.style', NH.CROSS_STYLES.map(([v, l]) => ({ v, l, pv: 'cross:' + v })), 'c4')) +
-      sec('Colour', `<div class="swatches">${NH.CROSS_COLORS.map(col => `<button class="swatch${c.color === col ? ' on' : ''}" style="--sw:${col === 'accent' ? 'var(--accent)' : col}" data-setval="crosshair.color" data-val="${col}" title="${col === 'accent' ? 'HUD accent' : col}"></button>`).join('')}</div>`) +
+      sec('Colour', `<div class="swatches">${NH.CROSS_COLORS.map(col => `<button class="swatch${c.color === col ? ' on' : ''}" style="--sw:${col === 'accent' ? 'var(--accent)' : col}" data-setval="crosshair.color" data-val="${col}" title="${col === 'accent' ? 'HUD accent' : col}"></button>`).join('')}${cpick('crosshair.color', c.color === 'accent' ? NH.cur.accent : c.color, '#ffffff')}</div>`) +
       sec('Size', range('crosshair.size', 'Length', 2, 20, 1, 'px') + range('crosshair.thick', 'Thickness', 1, 5, 1, 'px') +
         range('crosshair.gap', 'Gap', 0, 12, 1, 'px') + range('crosshair.opacity', 'Opacity', 20, 100, 5, 'raw%'));
   };
@@ -238,7 +243,7 @@
   const sqSw = (key, list) => `<div class="swatches">${list.map(([hex, id]) => {
     const val = id === undefined ? hex : id;
     return `<button class="swatch${String(g('squads.' + key)) === String(val) ? ' on' : ''}" style="--sw:${hex}" data-setval="squads.${key}" data-val="${val}"${id === undefined ? '' : ' data-num="1"'}></button>`;
-  }).join('')}</div>`;
+  }).join('')}${list.length && list[0][1] === undefined ? cpick('squads.' + key, g('squads.' + key), list[0][0]) : ''}</div>`;
   const sqSeg = (key, opts, label, desc, num) =>
     `<div class="opt"><div class="opt-t"><b>${label}</b>${desc ? `<small>${desc}</small>` : ''}</div><div class="segc" data-seg="squads.${key}">${opts.map(([v, l]) =>
       `<button data-val="${v}"${num ? ' data-num="1"' : ''} class="${String(g('squads.' + key)) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div></div>`;
@@ -421,6 +426,7 @@
 
     close() {
       if (!this.isOpen) return;
+      NH.ColorPicker?.close();
       if (NH.editing) this.editLayout(false);
       this.isOpen = false;
       if (this.dirty) { NH.cur = NH.saved; NH.applySettings(); NH.post('preview', NH.saved); }
@@ -453,6 +459,7 @@
     updateDirty() { this.el.classList.toggle('dirty', this.dirty); },
 
     setTab(id) {
+      NH.ColorPicker?.close();
       this.tab = id;
       NH.renderCrosshair?.();
       NH.toSquads?.('hudPreview', id === 'squads');
@@ -499,6 +506,8 @@
       if (card) return this.change(card.closest('[data-cards]').dataset.cards, card.dataset.val);
       const sw = e.target.closest('[data-accent]');
       if (sw) return this.change('accent', sw.dataset.accent);
+      const cp = e.target.closest('[data-cp]');
+      if (cp) return this.pickColor(cp);
       const act = e.target.closest('[data-act]');
       if (!act) return;
       const a = act.dataset.act;
@@ -573,9 +582,42 @@
       }
     },
 
+    // live colour change: no re-render (keeps the picker and the typing focus), just sync this row
+    liveColor(path, hex, row) {
+      this.change(path, hex, false);
+      if (!row) return;
+      row.querySelectorAll('.swatch').forEach(b => b.classList.toggle('on', (b.dataset.val || b.dataset.accent || '').toLowerCase() === hex));
+      const btn = row.querySelector('.cp-btn'), box = row.querySelector('.hex');
+      if (btn) btn.style.setProperty('--sw', hex);
+      if (box && document.activeElement !== box) box.value = hex;
+    },
+
+    pickColor(btn) {
+      if (NH.ColorPicker.isOpen && NH.ColorPicker.anchor === btn) return NH.ColorPicker.close();
+      const path = btn.dataset.cp, row = btn.parentElement;
+      NH.ColorPicker.open(btn, {
+        value: row.querySelector('.hex')?.value || g(path), def: btn.dataset.def,
+        onInput: hex => this.liveColor(path, hex, row),
+        // closed by clicking elsewhere: re-render after that click lands, so its target isn't swapped out under it
+        onClose: (changed, outside) => {
+          if (!changed) return;
+          if (outside) window.addEventListener('mouseup', () => setTimeout(() => this.isOpen && this.render()), { once: true });
+          else this.render();
+        },
+      });
+    },
+
     onInput(e) {
       const t = e.target;
       if (t.id === 'nh-import') { NH.ioCheck(this.el); return; }
+      if (t.dataset.hex) {
+        const hex = NH.parseHex(t.value);
+        if (hex && t.value.replace('#', '').length === 6) {
+          this.liveColor(t.dataset.hex, hex, t.parentElement);
+          if (NH.ColorPicker.isOpen && NH.ColorPicker.anchor === t.previousElementSibling) NH.ColorPicker.sync(hex);
+        }
+        return;
+      }
       if (t.dataset.rng) {
         const v = +t.value;
         t.nextElementSibling.textContent = fmtVal(v, t.dataset.fmt);
@@ -593,7 +635,10 @@
 
     onChange(e) {
       const t = e.target;
-      if (t.dataset.hex && /^#[\da-f]{6}$/i.test(t.value)) this.change(t.dataset.hex, t.value.toLowerCase());
+      if (!t.dataset.hex) return;
+      const hex = NH.parseHex(t.value); // also takes 'fff' or a hex without the #
+      if (hex) this.change(t.dataset.hex, hex);
+      else t.value = NH.parseHex(g(t.dataset.hex)) || t.defaultValue;
     },
   };
 })();

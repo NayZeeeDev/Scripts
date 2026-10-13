@@ -307,6 +307,7 @@
     }
     if (e.key !== 'Escape' && e.key !== 'Backspace' && e.key !== 'F7') return;
     if (e.key === 'Backspace' && /INPUT|TEXTAREA/.test(document.activeElement?.tagName)) return;
+    if (e.key === 'Escape' && NH.ColorPicker?.isOpen) { NH.ColorPicker.close(); return; }
     if (NH.editing) { NH.settingsUI.editLayout(false); return; }
     if (NH.panel.isOpen) { NH.panel.close(); return; }
     if (NH.settingsUI.isOpen && e.key === 'Escape') NH.settingsUI.close();
