@@ -50,10 +50,16 @@
     vertical:  { label: 'Vertical',      html: s => `<div class="vb"><span></span></div><i class="ico c">${NH.fic(s.icon)}</i>` },
     minimal:   { label: 'Minimal',       html: s => `<i class="ico c">${NH.fic(s.icon)}</i><div class="ml"><span></span></div>` },
     dots:      { label: 'Dots',          html: s => `<i class="ico c">${NH.fic(s.icon)}</i><div class="dt"><span></span></div>` },
+    tile:      { label: 'Tile',          html: s => `<div class="tl"><i class="ico">${NH.fic(s.icon)}</i><span class="tb"></span></div>` },
   };
 
-  const colorFor = (stat, mode) => mode === 'accent' ? 'var(--accent)' : mode === 'mono' ? '#f2f4f0' : stat.c;
-  const rgbFor = (stat, mode) => mode === 'accent' ? 'var(--accent-rgb)' : mode === 'mono' ? '242,244,240' : NH.hexToRgb(stat.c);
+  // 'custom' uses the colour each player picked per stat (falls back to the default colour)
+  const own = (stat) => {
+    const c = NH.cur && NH.cur.status && NH.cur.status.colors && NH.cur.status.colors[stat.k];
+    return /^#[\da-f]{6}$/i.test(c || '') ? c : stat.c;
+  };
+  const colorFor = (stat, mode) => mode === 'accent' ? 'var(--accent)' : mode === 'mono' ? '#f2f4f0' : mode === 'custom' ? own(stat) : stat.c;
+  const rgbFor = (stat, mode) => mode === 'accent' ? 'var(--accent-rgb)' : mode === 'mono' ? '242,244,240' : NH.hexToRgb(mode === 'custom' ? own(stat) : stat.c);
 
   function makeStat(stat, style, colorMode) {
     const el = document.createElement('div');
@@ -90,6 +96,7 @@
       const st = NH.cur.status;
       this.style = st.style;
       this.color = st.color;
+      this.colors = JSON.stringify(st.colors || {});
       this.row.innerHTML = '';
       this.items = {};
       for (const stat of NH.STATS) {
@@ -103,7 +110,7 @@
 
     apply() {
       const st = NH.cur.status;
-      if (st.style !== this.style || st.color !== this.color) this.rebuild();
+      if (st.style !== this.style || st.color !== this.color || JSON.stringify(st.colors || {}) !== this.colors) this.rebuild();
       this.root.classList.toggle('col', st.dir === 'col');
       this.render(true);
     },
@@ -135,6 +142,7 @@
         if (edit && st.show[stat.k]) hide = false;
         if (hide) flags += ' hide';
         if (v <= 0) flags += ' zero';
+        if (v >= 100) flags += ' full';
         setStat(item, v, flags);
       }
     },

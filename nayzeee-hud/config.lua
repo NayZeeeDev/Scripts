@@ -25,7 +25,7 @@ Config.Defaults = {
     minimap = 'vehicle',    -- 'vehicle' | 'always' | 'never'
     notifyStyle = 'card',   -- 'card' | 'glass' | 'pill' | 'stripe' | 'minimal'
     notifyPosition = 'right', -- 'right' | 'left' | 'top' | 'bottom'
-    progressStyle = 'bar',  -- 'bar' | 'ring' | 'line' | 'pill'
+    progressStyle = 'bar',  -- 'bar' | 'clean' | 'percent' | 'ringcard' | 'ring' | 'line' | 'pill'
     textStyle = 'key',      -- interaction prompt: 'key' | 'card' | 'minimal'
     crosshairStyle = 'crossdot', -- 'dot' | 'cross' | 'crossdot' | 'tee' | 'plus' | 'circle' | 'circledot' | 'chevron'
     voiceStyle = 'pill',    -- 'pill' | 'bars' | 'card' | 'minimal'
@@ -146,8 +146,10 @@ Config.ControlPanel = {
 -- or force one of those names, 'statebag' (Entity(veh).state.fuel) or 'native'
 Config.Fuel = 'auto'
 
--- Weapon images for the weapon display. %s = weapon name (WEAPON_PISTOL). Set '' to disable images.
-Config.WeaponImages = 'https://docs.fivem.net/weapons/%s.png'
+-- Weapon pictures (weapon widget + squads team HUD). %s = WEAPON_PISTOL, %l = weapon_pistol.
+-- 'auto': ox_inventory's images when it's running (nui://ox_inventory/web/images), then qb / ps / lj inventory,
+-- otherwise the FiveM docs pictures. Or set your own template, e.g. 'nui://my_inventory/html/images/%l.png'.
+Config.WeaponImages = 'auto'
 
 -- Odometer per plate, saved on the player's machine.
 Config.Odometer = true

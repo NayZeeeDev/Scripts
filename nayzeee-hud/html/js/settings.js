@@ -81,12 +81,18 @@
       toggle('decor', 'Decorations', 'Little seasonal ornaments on HUD elements') +
       toggle('seasonAccent', 'Use season colours', 'Turn off to keep your own accent colour with seasonal effects'));
 
+  const STAT_COLORS = ['#ff4d5e', '#4d8dff', '#ffad33', '#33c4ff', '#4ade80', '#c084fc', '#5eead4', '#08afa2', '#facc15', '#f472b6', '#f2f4f0'];
   R.status = () =>
     sec('Display', toggle('status.enabled', 'Show player status') + toggle('status.autoHide', 'Smart hide', 'Hide armor & stress at 0 and stamina when full') +
-      seg('status.color', [['vibrant', 'Vibrant'], ['accent', 'Accent'], ['mono', 'Mono']], 'Colours') +
+      seg('status.color', [['vibrant', 'Vibrant'], ['accent', 'Accent'], ['mono', 'Mono'], ['custom', 'Custom']], 'Colours', 'Custom lets you pick a colour for every stat below') +
       seg('status.place', [['under', 'Under the minimap'], ['side', 'Beside the minimap']], 'Position', 'Under lifts the minimap a little so the row fits below it') +
       seg('status.dir', [['row', 'Row'], ['col', 'Column']], 'Direction') + scaleRange('status')) +
     sec('Style', cards('status.style', Object.keys(NH.STATUS_STYLES).map(k => ({ v: k, l: NH.STATUS_STYLES[k].label, pv: 'status:' + k })), 'c4')) +
+    (NH.cur.status.color === 'custom' ? sec('Stat colours', NH.STATS.map(s => {
+      const path = `status.colors.${s.k}`, cur = g(path) || s.c;
+      return `<div class="opt"><div class="opt-t"><b>${NH.fic(s.icon)} ${s.label}</b></div><div class="swatches">${STAT_COLORS.concat(STAT_COLORS.includes(s.c) ? [] : [s.c]).map(h =>
+        `<button class="swatch${String(cur).toLowerCase() === h ? ' on' : ''}" style="--sw:${h}" data-setval="${path}" data-val="${h}"></button>`).join('')}<input class="hex" data-hex="${path}" value="${cur}" maxlength="7"/></div></div>`;
+    }).join(''), 'Pick a colour or type a hex code. Every style uses these.') : '') +
     sec('Shown stats', chips(NH.STATS.map(s => [`status.show.${s.k}`, s.label, NH.fic(s.icon)])));
 
   R.vehicle = () =>
@@ -97,12 +103,13 @@
       toggle('speedo.fuelWarn', 'Low fuel warning', 'Fuel bar blinks under 15%') + scaleRange('dash', 'Dashboard lights scale'));
 
   R.other = () =>
-    sec('Aircraft', cards('air.style', [{ v: 'pfd', l: 'Flight PFD', pv: 'air:pfd' }, { v: 'cards', l: 'Info Cards', pv: 'air:cards' }, { v: 'off', l: 'Off', html: `<span class="pv-off">${ic('x')}</span>` }], 'c3 tall') + scaleRange('air')) +
+    sec('Aircraft', cards('air.style', [{ v: 'pfd', l: 'Flight PFD', pv: 'air:pfd' }, { v: 'cards', l: 'Info Cards', pv: 'air:cards' }, { v: 'modern', l: 'Modern', pv: 'air:modern' }, { v: 'off', l: 'Off', html: `<span class="pv-off">${ic('x')}</span>` }], 'c4 tall') + scaleRange('air')) +
     sec('Boats', seg('boat.units', [['kts', 'Knots'], ['main', 'Same as cars']], 'Boat speed units') +
-      toggle('boat.info', 'Heading & trim display', 'Heading and how far the bow is up or down') + `<div class="cards c2"><div class="card on pv-static"><div class="pv" data-pv="boat:info"></div><span>Boat display</span></div></div>` + scaleRange('boat')) +
+      cards('boat.style', [{ v: 'classic', l: 'Heading & trim', pv: 'boat:classic' }, { v: 'modern', l: 'Modern', pv: 'boat:modern' }], 'c2') +
+      toggle('boat.info', 'Show with Heading & trim', 'Heading and how far the bow is up or down, above the speedometer') + scaleRange('boat')) +
     sec('Bicycles', cards('cycle.style', [{ v: 'smartwatch', l: 'Smart Watch', pv: 'speedo:smartwatch' }, { v: 'watch', l: 'Fitness Watch', pv: 'speedo:watch' }, { v: 'car', l: 'Car speedometer', html: `<span class="pv-off">${ic('car')}</span>` }], 'c3 tall'));
 
-  const MAP_FRAMES = [['glass', 'Glass'], ['accent', 'Accent'], ['panel', 'Panel'], ['corners', 'Corners'], ['shadow', 'Shadow'], ['none', 'None']];
+  const MAP_FRAMES = [['glass', 'Glass'], ['inset', 'Inset'], ['accent', 'Accent'], ['panel', 'Panel'], ['corners', 'Corners'], ['shadow', 'Shadow'], ['none', 'None']];
   R.map = () =>
     sec('Minimap', seg('map.mode', [['vehicle', 'In vehicles'], ['always', 'Always'], ['never', 'Never']], 'Show minimap') +
       toggle('map.frame', 'Minimap frame', 'Drawn around the radar; follows the shape you pick below') +
@@ -112,7 +119,8 @@
       range('map.fit.w', 'Width', -40, 40, 1, 'px') + range('map.fit.h', 'Height', -40, 40, 1, 'px') +
       `<div class="opt"><div class="opt-t"><b>Reset fit</b></div><button class="btn-line" data-act="fit-reset">${ic('reset')}Reset</button></div>`,
       'Nudge the frame until it sits exactly on your radar (open Edit layout or get in a car to see it). The street bar and speed sign follow.') +
-    sec('Street bar', toggle('map.street', 'Street bar', 'Direction, road, zone and postal') + toggle('map.streetOnFoot', 'Show on foot') + scaleRange('street')) +
+    sec('Street bar', toggle('map.street', 'Street bar', 'Direction, road, zone and postal') + toggle('map.streetOnFoot', 'Show on foot') +
+      toggle('map.streetInside', 'Inside the minimap', 'A small street label in the bottom-left of the map instead of a bar above it') + scaleRange('street')) +
     sec('Speed limit', toggle('map.sign', 'Speed limit sign') + toggle('map.blink', 'Blink when speeding') +
       cards('map.signStyle', [{ v: 'us', l: 'US', html: PV.sign('us') }, { v: 'eu', l: 'European', html: PV.sign('eu') }], 'c2') + scaleRange('sign')) +
     sec('Compass', toggle('map.compass', 'Compass') + seg('map.compassWhen', [['always', 'Always'], ['vehicle', 'In vehicles']], 'Show') +
@@ -172,10 +180,56 @@
     sec('Logo', cards('watermark.style', ['stack', 'badge', 'minimal'].map(s => ({ v: s, l: s[0].toUpperCase() + s.slice(1), html: PV.watermark(s, 'none') })), 'c3')) +
     sec('Effect', cards('watermark.effect', ['none', 'pulse', 'gloss', 'float'].map(e => ({ v: e, l: e[0].toUpperCase() + e.slice(1), html: PV.watermark(NH.cur.watermark.style, e) })), 'c4'));
 
+  // what a HUD code contains, as little chips
+  const label = (map, k) => (map && map[k] && map[k].label) || (k ? String(k)[0].toUpperCase() + String(k).slice(1) : '-');
+  const ioSummary = (c) => {
+    const moved = Object.keys(c.layout || {}).length;
+    const items = [
+      ['heart', 'Status', label(NH.STATUS_STYLES, c.status && c.status.style)],
+      ['gauge', 'Speedometer', label(NH.SPEEDO_STYLES, c.speedo && c.speedo.style)],
+      ['user', 'Player info', label(NH.INFO_STYLES, c.info && c.info.style)],
+      ['cloudsun', 'Clock', label(NH.CLOCK_STYLES, c.clock && c.clock.style)],
+      ['sparkles', 'Season', label(null, c.season)],
+      ['move', 'Layout', moved ? `${moved} moved` : 'Default'],
+    ];
+    const acc = /^#[\da-f]{6}$/i.test(c.accent || '') ? c.accent : '#08afa2';
+    return `<div class="io-sum">${items.map(([i, k, v]) => `<span class="io-chip">${ic(i)}<small>${k}</small><b>${NH.esc(v)}</b></span>`).join('')}
+      <span class="io-chip">${ic('palette')}<small>Accent</small><i class="io-dot" style="background:${acc}"></i><b>${acc.toUpperCase()}</b></span></div>`;
+  };
+  NH.ioDecode = (raw) => {
+    try {
+      const data = JSON.parse(decodeURIComponent(escape(atob(String(raw).trim()))));
+      return data && typeof data === 'object' && data.status ? data : null;
+    } catch (_) { return null; }
+  };
+
   R.io = () => {
     const code = btoa(unescape(encodeURIComponent(JSON.stringify(NH.cur))));
-    return sec('Export', `<p class="desc">Copy this code and share it. Includes layout, styles and colours.</p><textarea class="code" readonly id="nh-export">${code}</textarea><div class="btns"><button class="btn-line" data-act="copy">${ic('copy')}Copy code</button></div>`) +
-      sec('Import', `<textarea class="code" id="nh-import" placeholder="Paste a HUD code here"></textarea><div class="btns"><button class="btn-teal" data-act="import">${ic('download')}Import</button><span class="io-msg" id="nh-io-msg"></span></div>`);
+    return `<div class="io">
+      <div class="io-card">
+        <div class="io-hd"><span class="io-i">${ic('upload')}</span><div><b>Share your HUD</b><small>Everything you've set up, as one code: styles, colours, layout and squads look</small></div></div>
+        ${ioSummary(NH.cur)}
+        <div class="io-code"><code id="nh-export">${code}</code><span class="io-len">${code.length.toLocaleString('en-US')} characters</span></div>
+        <div class="btns"><button class="btn-teal" data-act="copy">${ic('copy')}<span>Copy code</span></button><small class="io-hint">Send it to a friend; they paste it below.</small></div>
+      </div>
+      <div class="io-card">
+        <div class="io-hd"><span class="io-i in">${ic('download')}</span><div><b>Use a HUD code</b><small>Paste a code to load someone's setup. Nothing changes until you press Save.</small></div></div>
+        <div class="io-drop" id="nh-drop"><textarea class="code" id="nh-import" spellcheck="false" placeholder="Paste a HUD code here"></textarea></div>
+        <div class="io-check" id="nh-io-check"></div>
+        <div class="btns"><button class="btn-teal" data-act="import" id="nh-import-btn" disabled>${ic('download')}Load code</button><button class="btn-line" data-act="io-clear">${ic('x')}Clear</button></div>
+      </div></div>`;
+  };
+  NH.ioCheck = (root) => {
+    const ta = root.querySelector('#nh-import'), out = root.querySelector('#nh-io-check'), btn = root.querySelector('#nh-import-btn'), drop = root.querySelector('#nh-drop');
+    if (!ta) return;
+    const raw = ta.value.trim();
+    const data = raw ? NH.ioDecode(raw) : null;
+    drop.classList.toggle('ok', !!data);
+    drop.classList.toggle('bad', !!raw && !data);
+    btn.disabled = !data;
+    out.innerHTML = !raw ? '' : data
+      ? `<p class="io-ok">${ic('check')}Valid code. This is what it sets:</p>${ioSummary(data)}`
+      : `<p class="io-bad">${ic('x')}That isn't a HUD code. Copy the whole code and try again.</p>`;
   };
 
   // ---- squads player settings (stored by the squads module, edited here) ----
@@ -278,7 +332,7 @@
       } else if (type === 'info') {
         pv.appendChild(NH.infoPreview(style));
       } else if (type === 'boat') {
-        const inst = NH.createBoat();
+        const inst = NH.createBoat(style);
         NH.updateBoat(inst, NH.DEMO_BOAT);
         pv.appendChild(inst.el);
       } else if (type === 'air') {
@@ -482,15 +536,31 @@
         act.classList.remove('armed');
         act.querySelector('span').textContent = 'Reset to default';
       } else if (a === 'copy') {
-        const ta = this.el.querySelector('#nh-export');
+        const codeEl = this.el.querySelector('#nh-export');
+        const ta = document.createElement('textarea');
+        ta.value = codeEl.textContent;
+        document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand('copy'); NH.toast('Code copied'); } catch (_) { NH.toast('Select the code and press Ctrl+C'); }
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+        ta.remove();
+        if (ok) {
+          act.classList.add('done');
+          act.querySelector('span').textContent = 'Copied';
+          setTimeout(() => { act.classList.remove('done'); const sp = act.querySelector('span'); if (sp) sp.textContent = 'Copy code'; }, 1800);
+        } else {
+          const r = document.createRange(); r.selectNodeContents(codeEl);
+          const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+          NH.toast('Code selected, press Ctrl+C');
+        }
+      } else if (a === 'io-clear') {
+        const ta = this.el.querySelector('#nh-import');
+        if (ta) { ta.value = ''; NH.ioCheck(this.el); ta.focus(); }
       } else if (a === 'import') {
         const raw = this.el.querySelector('#nh-import').value.trim();
-        const msg = this.el.querySelector('#nh-io-msg');
         try {
-          const data = JSON.parse(decodeURIComponent(escape(atob(raw))));
-          if (typeof data !== 'object' || !data.status) throw new Error('bad');
+          const data = NH.ioDecode(raw);
+          if (!data) throw new Error('bad');
           NH.cur = NH.merge(NH.clone(NH.DEFAULTS), data);
           this.markDirty();
           NH.applySettings();
@@ -498,13 +568,14 @@
           this.render();
           NH.toast('HUD code imported, press Save to keep it');
         } catch (_) {
-          msg.textContent = 'That code is not valid';
+          NH.ioCheck(this.el);
         }
       }
     },
 
     onInput(e) {
       const t = e.target;
+      if (t.id === 'nh-import') { NH.ioCheck(this.el); return; }
       if (t.dataset.rng) {
         const v = +t.value;
         t.nextElementSibling.textContent = fmtVal(v, t.dataset.fmt);

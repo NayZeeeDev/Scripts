@@ -89,7 +89,7 @@ body.paused #ui { opacity: 0; }
 .pg-ring .f { stroke: var(--accent); stroke-dasharray: 0 100; }
 .pg.run .pg-ring .f { stroke-dasharray: 100 100; transition: stroke-dasharray var(--pd) linear; }
 .pg-cancel { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 10.5px; color: var(--muted); }
-.pg-cancel kbd { min-width: 18px; height: 18px; font-size: 10px; background: rgba(255,255,255,.12); color: #fff; box-shadow: none; }
+#ui .pg-cancel kbd, .pv-ui .pg-cancel kbd { min-width: 18px; height: 18px; font-size: 10px; background: rgba(255,255,255,.12); color: #fff; box-shadow: none; }
 .pg.fin .pg-bar i { width: 100%; transition: width .15s; }
 .pg.fin .pg-ring .f { stroke-dasharray: 100 100; transition: stroke-dasharray .15s; }
 .pg.cancelled .pg-bar i, .pg.cancelled .pg-ring .f { background: var(--red); stroke: var(--red); box-shadow: none; }
@@ -176,3 +176,44 @@ body.paused .xh, body.hidden #xh { opacity: 0 !important; }
 .pv-ui, .pv-ui * { text-align: left; }
 .pv-ui.pg, .pv-ui.tx { display: inline-block; }
 .pv-ui.ps-ring .pg-top, .pv-ui.ps-ring .pg-top * { text-align: center; }
+
+/* Clean: white bar, bold label and percent, "Press X to cancel" */
+.pg-cancel .pc-p { display: none; }
+.ps-clean .pg-box { width: 340px; padding: 12px 14px 11px; border-radius: 10px; background: rgba(10, 11, 13, .88); border-color: rgba(255,255,255,.06); }
+.ps-clean .pg-top b { font-weight: 700; font-size: 13px; }
+.ps-clean .pg-top .ic { display: none; }
+.ps-clean .pg-pct { color: #fff; font-size: 12.5px; }
+.ps-clean .pg-bar { height: 7px; margin-top: 10px; background: rgba(255,255,255,.14); }
+.ps-clean .pg-bar i { background: #fff; box-shadow: none; }
+.ps-clean .pg-cancel { gap: 0; margin-top: 7px; color: rgba(255,255,255,.4); font-size: 10.5px; }
+.ps-clean .pg-cancel .pc-p { display: inline; }
+#ui .ps-clean .pg-cancel kbd, .pv-ui.ps-clean .pg-cancel kbd { min-width: 0; height: auto; padding: 0 3px; background: none; box-shadow: none; color: rgba(255,255,255,.55); font-size: 10.5px; }
+
+/* Ring card: ring with the percent inside, label beside it */
+.ps-ringcard .pg-box { width: auto; min-width: 150px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center;
+  column-gap: 11px; padding: 9px 16px 9px 9px; border-radius: 10px; background: rgba(10, 11, 13, .9); }
+.ps-ringcard .pg-ring { display: block; grid-row: 1 / span 2; width: 40px; height: 40px; transform: rotate(-90deg); }
+.ps-ringcard .pg-ring .t { stroke: rgba(255,255,255,.14); stroke-width: 3.5; }
+.ps-ringcard .pg-ring .f { stroke: #fff; stroke-width: 3.5; }
+.ps-ringcard .pg-top { display: contents; }
+.ps-ringcard .pg-top .ic { display: none; }
+.ps-ringcard .pg-top b { grid-column: 2; grid-row: 1; font-size: 13px; font-weight: 700; align-self: end; }
+.ps-ringcard .pg-pct { position: absolute; left: 9px; top: 50%; width: 40px; transform: translateY(-50%); text-align: center; color: #fff; font-size: 12px; font-weight: 800; }
+.ps-ringcard .pg-bar { display: none; }
+.ps-ringcard .pg-cancel { grid-column: 2; grid-row: 2; margin: 1px 0 0; font-size: 9.5px; align-self: start; }
+#ui .ps-ringcard .pg-cancel kbd, .pv-ui.ps-ringcard .pg-cancel kbd { min-width: 15px; height: 15px; font-size: 9px; }
+.ps-ringcard .pg-box.nc .pg-top b { grid-row: 1 / span 2; align-self: center; }
+
+/* Percent: big number on the left, label and PRESS X TO CANCEL beside it, a thin bar along the bottom */
+.ps-percent .pg-box { width: auto; min-width: 230px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center;
+  column-gap: 12px; padding: 10px 18px 12px 14px; border-radius: 8px; background: rgba(10, 11, 13, .9); overflow: hidden; }
+.ps-percent .pg-top { display: contents; }
+.ps-percent .pg-top .ic { display: none; }
+.ps-percent .pg-pct { grid-column: 1; grid-row: 1 / span 2; font-size: 24px; font-weight: 800; color: #fff; letter-spacing: -.01em; }
+.ps-percent .pg-top b { grid-column: 2; grid-row: 1; font-size: 13.5px; font-weight: 800; align-self: end; }
+.ps-percent .pg-cancel { grid-column: 2; grid-row: 2; margin: 1px 0 0; gap: 0; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(255,255,255,.4); align-self: start; }
+.ps-percent .pg-cancel .pc-p { display: inline; }
+#ui .ps-percent .pg-cancel kbd, .pv-ui.ps-percent .pg-cancel kbd { min-width: 0; height: auto; padding: 0 3px; background: none; box-shadow: none; color: rgba(255,255,255,.4); font-size: 9px; }
+.ps-percent .pg-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; margin: 0; border-radius: 0; background: rgba(255,255,255,.1); }
+.ps-percent .pg-bar i { background: #fff; box-shadow: none; border-radius: 0; }

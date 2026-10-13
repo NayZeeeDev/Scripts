@@ -154,7 +154,7 @@ RegisterNUICallback('sq_ready', function(_, cb)
             nicknames = { enabled = SquadsConfig.Nicknames.Enabled, max = SquadsConfig.Nicknames.MaxLength,
                           min = SquadsConfig.Nicknames.MinLength, temp = SquadsConfig.Nicknames.AllowInTemporary },
             autoRadio = SquadsConfig.Voice.AutoJoin and SquadsConfig.Voice.PlayerCanOptOut,
-            weaponImages = Config and Config.WeaponImages or false,
+            weaponImages = NHUD and NHUD.weaponImages and NHUD.weaponImages() or false,
             bleedOut = SquadsConfig.Revive.BleedOut or 0,
         },
     })

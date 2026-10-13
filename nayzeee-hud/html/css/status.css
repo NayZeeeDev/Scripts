@@ -99,3 +99,15 @@
 
 /* preview inside settings cards */
 .pv-status .row { display: flex; gap: 8px; align-items: flex-end; }
+
+/* Tile: rounded square, a colour line along the bottom that fills with the value, full outline at 100% */
+.st-tile { width: 32px; height: 32px; }
+.st-tile .tl { position: relative; width: 100%; height: 100%; border-radius: 8px; display: grid; place-items: center; overflow: hidden;
+  background: rgba(16, 18, 21, calc(var(--pa) + .08)); border: 1.5px solid rgba(255, 255, 255, .08); box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+  transition: border-color .2s, box-shadow .2s; }
+.st-tile .ico { font-size: 13px; color: #f3f5ef; position: relative; z-index: 1; }
+.st-tile .tb { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--v) * 1%); background: var(--c); box-shadow: 0 0 8px var(--c); transition: width .3s ease; }
+.st-tile.full .tl { border-color: var(--c); box-shadow: 0 0 10px rgba(var(--cr), .35), 0 2px 8px rgba(0, 0, 0, .3); }
+.st-tile.full .tb { opacity: 0; }
+.st-tile.low .tl { border-color: rgba(var(--cr), .8); animation: st-tile-low 1s ease-in-out infinite; }
+@keyframes st-tile-low { 50% { box-shadow: 0 0 12px rgba(var(--cr), .6); } }

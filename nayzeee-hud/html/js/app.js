@@ -215,7 +215,7 @@
       NH.S[k] = d[k];
       groups[GROUP[k] || 'x'] = 1;
     }
-    if (groups.mode) { renderMode(); if ('vm' in d) { NH.resetTrip(); if (!('odo' in d)) delete NH.S.odo; } }
+    if (groups.mode) { renderMode(); W.street.apply(); if ('vm' in d) { NH.resetTrip(); if (!('odo' in d)) delete NH.S.odo; } }
     if (groups.veh) groups.loc = 1; // speeding check on the sign
     for (const id in W) if (W[id].render) W[id].render(groups);
     if (groups.mode || groups.wpn || groups.st) {

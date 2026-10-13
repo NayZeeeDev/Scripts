@@ -309,6 +309,14 @@
       <div class="ac-row"><div class="ac alt">${ic('upload')}<div><b data-r="altf">0 ft</b><small data-r="vsf">0 ft/m</small></div></div>
         <div class="ac hdg">${ic('compass')}<b data-r="hdgd">0°</b></div></div>`,
   };
+  // Modern: four value cards and a fuel / systems strip (takes the speedometer's place)
+  const mcard = (k, label, unitRef) => `<div class="mc"><small>${label}</small><b data-r="${k}">0</b>${unitRef ? `<em data-r="${unitRef}"></em>` : ''}</div>`;
+  const strip = (icons) => `<div class="mstrip"><span class="ms-fuel">${ic('fuel')}<i><b></b></i></span><span class="ms-ic">${icons}</span></div>`;
+  AIR.modern = {
+    label: 'Modern',
+    html: () => `<div class="mgrid">${mcard('mpt', 'PITCH')}${mcard('malt', 'ALT', 'maltu')}${mcard('mhdg', 'HEAD', 'mdir')}${mcard('mias', 'AIR SPD', 'miasu')}</div>
+      ${strip(`<i class="m-eng">${ic('engine')}</i><i class="m-li">${ic('light')}</i><i class="m-gear">${ic('download')}</i><i class="m-warn">${ic('warn')}</i>`)}`,
+  };
   NH.AIR_STYLES = AIR;
 
   NH.createAir = (style) => {
@@ -335,25 +343,54 @@
     setTxt(inst, 'rl', String(a.rl));
     setTxt(inst, 'altf', a.alt.toLocaleString('en-US') + ' ft');
     setTxt(inst, 'vsf', (a.vs > 0 ? '+' : '') + a.vs + ' ft/m');
+    if (inst.style === 'modern') {
+      setTxt(inst, 'mpt', String(Math.abs(a.pt)).padStart(3, '0') + '°');
+      setTxt(inst, 'malt', String(Math.min(99999, Math.max(0, a.alt))).padStart(4, '0'));
+      setTxt(inst, 'maltu', 'FT');
+      setTxt(inst, 'mhdg', String(a.hdg).padStart(3, '0') + '°');
+      setTxt(inst, 'mdir', NH.dirOf(a.hdg));
+      setTxt(inst, 'mias', String(Math.min(9999, a.ias)).padStart(4, '0'));
+      setTxt(inst, 'miasu', 'KTS');
+      setVar(inst, '--mfu', ((a.fuel ?? 100) / 100).toFixed(3));
+      const cls = `air air-modern${a.engOn ? ' eng-on' : ''}${a.lights ? ' li-on' : ''}${a.gearDown ? ' gear-dn' : ''}${a.warn ? ' warn' : ''}${(a.fuel ?? 100) < 15 ? ' fuel-low' : ''}`;
+      if (inst.el.className !== cls) inst.el.className = cls;
+    }
   };
 
   // ---- Boats ----
-  NH.createBoat = () => {
+  NH.createBoat = (style) => {
     const el = document.createElement('div');
+    if (style === 'modern') {
+      el.className = 'boat boat-modern';
+      el.innerHTML = `<div class="mgrid two"><div class="mc"><small>SPD</small><b data-r="msp">000</b><em data-r="mspu">KTS</em><i class="mbar"><b></b></i></div>${mcard('mhdg', 'HEAD', 'mdir')}</div>
+        ${strip(`<i class="m-eng">${ic('engine')}</i><i class="m-li">${ic('light')}</i><i class="m-anc">${ic('lock')}</i>`)}`;
+      return { el, style, refs: collect(el), last: {}, vars: {} };
+    }
     el.className = 'boat';
     el.innerHTML = `
       <div class="bc hdg">${ic('crosshair')}<div><b data-r="hdg">0°</b><small data-r="dir">N</small></div></div>
       <div class="bc trim"><div class="tr-ind"><i class="tr-base"></i><i class="tr-line"><b></b></i></div><div><b class="tr-l" data-r="trim">LEVEL</b><small data-r="deg">0°</small></div></div>`;
-    return { el, refs: collect(el), last: {}, vars: {} };
+    return { el, style: 'classic', refs: collect(el), last: {}, vars: {} };
   };
   NH.updateBoat = (inst, b) => {
+    if (inst.style === 'modern') {
+      setTxt(inst, 'msp', String(Math.min(999, b.sp || 0)).padStart(3, '0'));
+      setTxt(inst, 'mspu', b.unit || 'KTS');
+      setTxt(inst, 'mhdg', String(b.hdg).padStart(3, '0') + '°');
+      setTxt(inst, 'mdir', NH.dirOf(b.hdg));
+      setVar(inst, '--msp', Math.min(1, b.sr ?? (b.sp || 0) / 60).toFixed(3));
+      setVar(inst, '--mfu', ((b.fuel ?? 100) / 100).toFixed(3));
+      const cls = `boat boat-modern${b.engOn ? ' eng-on' : ''}${b.lights ? ' li-on' : ''}${b.anchor ? ' anc-on' : ''}${(b.fuel ?? 100) < 15 ? ' fuel-low' : ''}`;
+      if (inst.el.className !== cls) inst.el.className = cls;
+      return;
+    }
     setVar(inst, '--trim', b.pt);
     setTxt(inst, 'hdg', b.hdg + '°');
     setTxt(inst, 'dir', NH.dirOf(b.hdg));
     setTxt(inst, 'trim', b.pt > 2 ? 'BOW UP' : b.pt < -2 ? 'BOW DOWN' : 'LEVEL');
     setTxt(inst, 'deg', Math.abs(b.pt) + '°');
   };
-  NH.DEMO_BOAT = { pt: 37, hdg: 175 };
+  NH.DEMO_BOAT = { pt: 37, hdg: 175, sp: 5, unit: 'KM/H', fuel: 64, engOn: true, lights: false };
 
-  NH.DEMO_AIR = { pt: 6, rl: -14, ias: 128, alt: 3250, agl: 1180, vs: 640, hdg: 82, gearDown: true };
+  NH.DEMO_AIR = { pt: 6, rl: -14, ias: 128, alt: 3250, agl: 1180, vs: 640, hdg: 82, gearDown: true, fuel: 72, engOn: true, lights: false };
 })();

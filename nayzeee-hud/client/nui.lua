@@ -1,4 +1,15 @@
 local KVP = 'nhud:settings'
+
+--- The weapon picture template, with 'auto' resolved to whichever inventory is running.
+function NHUD.weaponImages()
+    local v = Config.WeaponImages
+    if v ~= 'auto' and v then return v end
+    if GetResourceState('ox_inventory') == 'started' then return 'nui://ox_inventory/web/images/%s.png' end
+    for _, inv in ipairs({ 'qb-inventory', 'ps-inventory', 'lj-inventory' }) do
+        if GetResourceState(inv) == 'started' then return ('nui://%s/html/images/%%l.png'):format(inv) end
+    end
+    return 'https://docs.fivem.net/weapons/%s.png'
+end
 local settingsOpen = false
 
 local function applyLuaSettings(s)
@@ -45,7 +56,7 @@ RegisterNUICallback('ready', function(_, cb)
         settings = saved,
         defaults = Config.Defaults,
         watermark = Config.Watermark,
-        weaponImages = Config.WeaponImages,
+        weaponImages = NHUD.weaponImages(),
         crosshair = Config.Crosshair.enabled,
         mapFit = Config.Minimap.frameFit,
         belt = NHUD.builtinBelt,

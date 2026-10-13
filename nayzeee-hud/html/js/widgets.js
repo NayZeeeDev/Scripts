@@ -31,12 +31,15 @@
     label: 'Street Bar', anchor: [0, 1], dock: true,
     // above the radar when it's showing, otherwise right above the player status (wherever that sits)
     pos: c => {
+      // 'inside': a small label in the minimap's bottom-left corner
+      if (c.radar && NH.cur.map.streetInside) return [c.map.l + 0.45, c.map.b - 0.8];
       if (c.radar) return [c.map.l, c.map.b - c.map.h - 0.9];
       const s = W.status;
       if (NH.cur.status.enabled && s.x != null) return [s.x, s.y - (c.statusH || 4.6) - 0.9];
       return [1.4, 98.2];
     },
     visible: () => NH.cur.map.street && (inVeh() || NH.cur.map.streetOnFoot),
+    apply() { this.el.classList.toggle('inside', !!NH.cur.map.streetInside && (!!NH.S.radar || NH.editing)); },
     build(el) {
       el.innerHTML = `<div class="sb panel"><b class="sb-dir">N</b><div class="sb-t"><b class="sb-s">-</b><small class="sb-z">-</small></div></div><span class="deco"></span>`;
       this.r = { dir: $(el, '.sb-dir'), s: $(el, '.sb-s'), z: $(el, '.sb-z') };
@@ -89,7 +92,9 @@
   def('speedo', {
     label: 'Speedometer', anchor: [1, 1],
     pos: () => [98.6, 97.8],
-    visible: () => (inVeh() && NH.S.vm !== 'train') || NH.editing,
+    // the modern boat / plane displays carry their own speed, so the speedometer steps aside for them
+    visible: () => ((inVeh() && NH.S.vm !== 'train') || NH.editing)
+      && !(NH.S.vm === 'boat' && NH.cur.boat.style === 'modern') && !(NH.S.vm === 'air' && NH.cur.air.style === 'modern'),
     build(el) { this.inst = null; },
     effectiveStyle() {
       if (NH.S.vm === 'cycle' && NH.cur.cycle.style !== 'car') return NH.cur.cycle.style;
@@ -141,7 +146,7 @@
   // ---------------- Aircraft ----------------
   def('air', {
     label: 'Flight Display', anchor: [1, 1],
-    pos: c => [98.6, 97.8 - (c.speedoH || 22) - 1.2],
+    pos: c => NH.cur.air.style === 'modern' && NH.S.vm === 'air' ? [98.6, 97.8] : [98.6, 97.8 - (c.speedoH || 22) - 1.2],
     visible: () => NH.cur.air.style !== 'off' && (NH.S.vm === 'air' || NH.editing),
     build() { this.inst = null; },
     apply() {
@@ -158,6 +163,7 @@
       const a = NH.S.vm === 'air' ? {
         pt: S.pt || 0, rl: S.rl || 0, ias: Math.round((S.spd || 0) / 10 * 1.943844),
         alt: S.alt || 0, agl: S.agl || 0, vs: S.vs || 0, hdg: S.vh || 0, gearDown: !S.lg,
+        fuel: S.fu ?? 100, engOn: !!S.eng, lights: !!S.li, warn: (S.en ?? 100) < 35,
       } : NH.DEMO_AIR;
       NH.updateAir(this.inst, a);
     },
@@ -166,13 +172,28 @@
   // ---------------- Boat ----------------
   def('boat', {
     label: 'Boat Display', anchor: [1, 1],
-    pos: c => NH.editing && !NH.S.vm ? [80, 97.8] : [98.6, 97.8 - (c.speedoH || 22) - 1.2],
-    visible: () => NH.cur.boat.info !== false && (NH.S.vm === 'boat' || NH.editing),
-    build(el) { this.inst = NH.createBoat(); el.appendChild(this.inst.el); },
+    pos: c => NH.cur.boat.style === 'modern' && NH.S.vm === 'boat' ? [98.6, 97.8]
+      : NH.editing && !NH.S.vm ? [80, 97.8] : [98.6, 97.8 - (c.speedoH || 22) - 1.2],
+    visible: () => (NH.cur.boat.info !== false || NH.cur.boat.style === 'modern') && (NH.S.vm === 'boat' || NH.editing),
+    build() { this.inst = null; },
+    apply() {
+      const style = NH.cur.boat.style === 'modern' ? 'modern' : 'classic';
+      if (!this.inst || this.inst.style !== style) {
+        this.inst = NH.createBoat(style);
+        this.el.innerHTML = '';
+        this.el.appendChild(this.inst.el);
+      }
+      this.render({ edit: 1 });
+    },
     render(g) {
-      if (!g.air && !g.veh && !g.edit) return;
+      if (!this.inst || (!g.air && !g.veh && !g.edit)) return;
       const S = NH.S;
-      NH.updateBoat(this.inst, S.vm === 'boat' ? { pt: S.pt || 0, hdg: S.vh || 0 } : NH.DEMO_BOAT);
+      let b = NH.DEMO_BOAT;
+      if (S.vm === 'boat') {
+        const v = NH.vehState();
+        b = { pt: S.pt || 0, hdg: S.vh || 0, sp: v.sp, unit: v.unit, sr: v.sr, fuel: S.fu ?? 100, engOn: !!S.eng, lights: !!S.li, anchor: !!S.anc };
+      }
+      NH.updateBoat(this.inst, b);
     },
   });
 
@@ -381,7 +402,7 @@
       if (wp !== this.wp) {
         this.wp = wp;
         this.n.textContent = S.wp ? (S.wl || 'Weapon') : 'Heavy Pistol';
-        if (NH.cfg.weaponImages && wp !== 'WEAPON_UNKNOWN') this.img.src = NH.cfg.weaponImages.replace('%s', wp.toUpperCase());
+        if (NH.cfg.weaponImages && wp !== 'WEAPON_UNKNOWN') this.img.src = NH.cfg.weaponImages.replace('%s', wp.toUpperCase()).replace('%l', wp.toLowerCase());
         else this.box.classList.add('noimg');
       }
       const melee = S.wp ? S.clip === false : false;

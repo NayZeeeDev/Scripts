@@ -12,8 +12,13 @@
   const stackRow = (k, icon, label) => `<div class="ir i-${k}"><div><small>${label}</small><b data-i="${k}"></b></div><span class="cic">${ic(icon)}</span></div>`;
   const tile = (k, icon, inner) => `<div class="tl i-${k}"><div class="tl-t">${inner || `<b data-i="${k}"></b>`}</div><span class="tl-i">${ic(icon)}</span></div>`;
   const when = '<b data-i="date"></b><b data-i="time"></b>';
+  const chip = (k, icon) => `<span class="chp i-${k}"><i>${ic(icon)}</i><b data-i="${k}"></b></span>`;
 
   NH.INFO_STYLES = {
+    chips: {
+      label: 'Chips',
+      html: () => `<div class="inf chips">${chip('cash', 'cash')}${chip('dirty', 'cash')}${chip('bank', 'bank')}${chip('id', 'idcard')}${chip('players', 'users')}${chip('job', 'briefcase')}${chip('gang', 'users')}${chip('time', 'clock')}</div>`,
+    },
     pills: {
       label: 'Pills',
       html: () => `<div class="inf pills"><div class="r">${pill('job', 'briefcase')}</div><div class="r">${pill('gang', 'users')}</div>

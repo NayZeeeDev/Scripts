@@ -12,7 +12,7 @@
     info: { icon: 'info', c: '#58a6ff', r: '88,166,255' },
   };
   NH.NOTIFY_STYLES = [['card', 'Card'], ['glass', 'Glass'], ['pill', 'Pill'], ['stripe', 'Stripe'], ['minimal', 'Minimal']];
-  NH.PROGRESS_STYLES = [['bar', 'Bar'], ['ring', 'Ring'], ['line', 'Line'], ['pill', 'Pill']];
+  NH.PROGRESS_STYLES = [['bar', 'Bar'], ['clean', 'Clean'], ['percent', 'Percent'], ['ringcard', 'Ring card'], ['ring', 'Ring'], ['line', 'Line'], ['pill', 'Pill']];
   NH.TEXT_STYLES = [['key', 'Key'], ['card', 'Card'], ['minimal', 'Minimal']];
 
   let root, stack, prog, text;
@@ -98,11 +98,11 @@
       return;
     }
     const icon = d.icon && NH.ICONS[d.icon] ? ic(d.icon) : '';
-    prog.innerHTML = `<div class="pg-box">
+    prog.innerHTML = `<div class="pg-box${d.cancel ? '' : ' nc'}">
       <svg class="pg-ring" viewBox="0 0 48 48"><circle class="t" cx="24" cy="24" r="21" pathLength="100"/><circle class="f" cx="24" cy="24" r="21" pathLength="100"/></svg>
       <div class="pg-top">${icon}<b>${esc(d.label)}</b><em class="pg-pct">0%</em></div>
       <div class="pg-bar"><i></i></div>
-      ${d.cancel ? `<small class="pg-cancel"><kbd>${esc(d.cancel)}</kbd> Cancel</small>` : ''}</div>`;
+      ${d.cancel ? `<small class="pg-cancel"><span class="pc-p">Press </span><kbd>${esc(d.cancel)}</kbd> to cancel</small>` : ''}</div>`;
     prog.classList.remove('fin', 'cancelled');
     prog.classList.add('on');
     prog.style.setProperty('--pd', `${d.duration}ms`);
@@ -139,7 +139,7 @@
   // previews for the settings tab
   NH.uiPreview = {
     notify: (style) => `<div class="nt-stack pv-ui ns-${style}">${noteHtml({ kind: 'success', title: 'Garage', message: 'Your vehicle is ready.', duration: 5000 }).replace('class="nt ', 'class="nt in ')}${noteHtml({ kind: 'error', message: 'Not enough cash.', duration: 5000 }).replace('class="nt ', 'class="nt in ')}</div>`,
-    progress: (style) => `<div class="pg ps-${style} on pv-ui" style="--pv:62"><div class="pg-box"><svg class="pg-ring" viewBox="0 0 48 48"><circle class="t" cx="24" cy="24" r="21" pathLength="100"/><circle class="f" cx="24" cy="24" r="21" pathLength="100"/></svg><div class="pg-top"><b>Picking the lock</b><em class="pg-pct">62%</em></div><div class="pg-bar"><i></i></div><small class="pg-cancel"><kbd>X</kbd> Cancel</small></div></div>`,
+    progress: (style) => `<div class="pg ps-${style} on pv-ui" style="--pv:62"><div class="pg-box"><svg class="pg-ring" viewBox="0 0 48 48"><circle class="t" cx="24" cy="24" r="21" pathLength="100"/><circle class="f" cx="24" cy="24" r="21" pathLength="100"/></svg><div class="pg-top"><b>Picking the lock</b><em class="pg-pct">62%</em></div><div class="pg-bar"><i></i></div><small class="pg-cancel"><span class="pc-p">Press </span><kbd>X</kbd> to cancel</small></div></div>`,
     text: (style) => `<div class="tx ts-${style} on pv-ui"><div class="tx-box"><kbd>E</kbd><span>Open the stash</span></div></div>`,
   };
 })();
