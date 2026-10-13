@@ -1,4 +1,3 @@
-shared_script '@D305-Protection/init.lua'
 --[[
     
     NAYZEEE OPTIMIZER - FPS Boost, Kill Effects & Sounds

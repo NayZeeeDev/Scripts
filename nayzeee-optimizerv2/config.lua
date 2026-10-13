@@ -827,6 +827,6 @@ Config.Probe = {
         'nayzeee-optimizerv2', 'monitor', 'hardcap', 'sessionmanager', 'spawnmanager',
         'mapmanager', 'baseevents', 'basic-gamemode', 'fivem', 'fivem-map-skater',
         'fivem-map-hipster', 'rconlog', 'webadmin', 'yarn', 'webpack', 'chat',
-        'chat-theme-gtao', 'playernames', 'runcode', 'D305-Protection',
+        'chat-theme-gtao', 'playernames', 'runcode',
     },
 }

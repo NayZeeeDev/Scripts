@@ -72,7 +72,6 @@ Client: `/optimizersetup` (re-run wizard), `/optimizerunstuck` (restore control)
 - On Windows, server memory is this resource's Lua heap (no process API). On Linux it is the real process RSS.
 - The refresh-rate reading in the hardware scan is an estimate; the frame-cap target you pick is what the adaptive optimizer uses.
 - Fix Textures teleports the player briefly and sets invincibility for about a second. Whitelist the resource in your anticheat or disable it with `Config.Background.textureFix.enabled = false`.
-- The first line of `fxmanifest.lua` references `@D305-Protection/init.lua`. Remove it if that resource is not part of the package.
 
 ## Exports
 
