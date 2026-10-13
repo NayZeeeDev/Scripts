@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="frame" id="app">
+<div class="shell">
+
+  <!-- ═══ TITLE BAR ═══ -->
+  <div class="bar">
+    <div class="bar-brand">
+      <div class="mark"></div>
+      <div class="bar-name">
+        <div class="title-txt">Optimizer</div>
+        <div class="sub">Performance &amp; Effects</div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="dot" id="statusDot"></span>
+      <p id="statusText"><b>Custom</b> configuration</p>
+      <span class="ver" id="verTag">v1.1</span>
+    </div>
+    <button class="pill-close" id="closeBtn">Close</button>
+  </div>
+
+  <!-- ═══ BODY ═══ -->
+  <div class="body">
+
+    <!-- ── SIDEBAR ── -->
+    <nav class="side">
+      <div class="grp">Performance</div>
+      <button class="nav on" data-page="boost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l4-4"/><path d="M3.5 17a9 9 0 1 1 17 0"/><circle cx="12" cy="14" r="1.6"/></svg>Boost
+        <span class="tally" id="activeTally">0</span>
+      </button>
+      <button class="nav" data-page="world">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.2 10h4l2 3-1 3 2 3.6"/><path d="M20.6 9.5l-3 .5-2.2 2.4.7 2.6 2.9.7"/><path d="M8.5 3.4l1.2 2.3 3.4.6 2-2.3"/></svg>World
+      </button>
+      <button class="nav" data-page="advanced">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h8M16 18h4"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="14" cy="18" r="2"/></svg>Advanced
+      </button>
+      <button class="nav" data-page="graphics" id="navGraphics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="4" width="18.8" height="12.4" rx="2"/><path d="M8.5 20.4h7M12 16.4v4"/></svg><span>Graphics</span>
+      </button>
+
+      <div class="grp">Combat</div>
+      <button class="nav" data-page="kill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a8 8 0 0 0-5 14.2V20a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2.8A8 8 0 0 0 12 3z"/><circle cx="9.3" cy="12" r="1.6"/><circle cx="14.7" cy="12" r="1.6"/><path d="M11 17.5h2"/></svg>Kill Effects
+      </button>
+      <button class="nav" data-page="hit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1.2"/></svg>Hit Effects
+      </button>
+
+      <div class="grp" id="grpServer" hidden>Server</div>
+      <button class="nav" data-page="health" id="navHealth" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-6 3.5 12 2.5-6H21"/></svg>Health
+        <span class="tally" id="healthTally" hidden></span>
+      </button>
+    </nav>
+
+    <!-- ── MAIN ── -->
+    <div class="main">
+
+      <!-- ═══ PAGE: BOOST ═══ -->
+      <section class="page on" id="page-boost">
+        <div class="head">
+          <div>
+            <h1>Performance</h1>
+            <p>Pick a profile or tune individual options. Changes apply instantly and save automatically.</p>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5 4.5 13.4h6L11 21.5 19.5 10.6h-6L13 2.5z"/></svg></div>
+            <div class="stat-txt"><span>Frame rate</span><b id="statFps">—<em>fps</em></b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 3.4 7.6 12 12l8.6-4.4L12 3.2z"/><path d="M3.4 12.4 12 16.8l8.6-4.4"/><path d="M3.4 16.9 12 21.3l8.6-4.4"/></svg></div>
+            <div class="stat-txt"><span>Active options</span><b id="statActive">0</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.1 1.9"/></svg></div>
+            <div class="stat-txt"><span>Session</span><b id="statSession">0<em>m</em></b></div>
+          </div>
+        </div>
+
+        <div class="presets">
+          <button class="preset" data-preset="quality"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 3.5h9.6l3.7 5-8.5 12-8.5-12 3.7-5z"/><path d="M3 8.5h18M9 3.5 7.5 8.5 12 20.5l4.5-12L15 3.5"/></svg><span>Quality</span></button>
+          <button class="preset" data-preset="balanced"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M7 20h10M4.5 8.5h15M12 4.8 4.5 8.5M12 4.8 19.5 8.5"/><path d="M2 14.2 4.5 8.5 7 14.2a2.5 2.5 0 0 1-5 0zM17 14.2l2.5-5.7 2.5 5.7a2.5 2.5 0 0 1-5 0z"/></svg><span>Balanced</span></button>
+          <button class="preset" data-preset="performance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3.5c3.8 1.4 6.2 4.6 6.6 9.2L15 17.3H9L4.4 12.7c.4-4.6 2.8-7.8 6.6-9.2h2z"/><circle cx="12" cy="10" r="2.1"/><path d="M9 17.3 7 21l3-1.2M15 17.3 17 21l-3-1.2"/></svg><span>Perform</span></button>
+          <button class="preset" data-preset="potato"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8s5.2 4 5.2 9.2a5.2 5.2 0 0 1-10.4 0c0-1.8.8-3.2.8-3.2s.6 1.4 1.8 1.8c0-3 2.6-5.4 2.6-7.8z"/></svg><span>Potato</span></button>
+          <button class="preset" data-preset="streaming"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.8" y="6.4" width="12.6" height="11.2" rx="2.2"/><path d="M15.4 10.6 21.2 7.6v8.8l-5.8-3z"/></svg><span>Stream</span></button>
+          <button class="preset" data-preset="shooter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6.4"/><path d="M12 1.8v3.6M12 18.6v3.6M1.8 12h3.6M18.6 12h3.6"/></svg><span>Shooter</span></button>
+        </div>
+
+        <div class="cols">
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5 4.5 13.4h6L11 21.5 19.5 10.6h-6L13 2.5z"/></svg>Performance</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-setting="optimizePeds">
+                <div class="row-txt"><b>Optimize Peds</b><span>Reduce pedestrian density</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="optimizeVehicles">
+                <div class="row-txt"><b>Optimize Vehicles</b><span>Reduce traffic density</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="optimizeObjects">
+                <div class="row-txt"><b>Optimize Objects</b><span>Disable random police spawns</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="removeParticles">
+                <div class="row-txt"><b>Remove Particles</b><span>Clear particle effects</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 12S5.8 5.6 12 5.6 21.8 12 21.8 12 18.2 18.4 12 18.4 2.2 12 2.2 12z"/><circle cx="12" cy="12" r="2.8"/></svg>Visual</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-setting="optimizeShadows">
+                <div class="row-txt"><b>Optimize Shadows</b><span>Reduce shadow quality</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="optimizeLights">
+                <div class="row-txt"><b>Optimize Lights</b><span>Reduce light distance</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="lowTextures">
+                <div class="row-txt"><b>Low Textures</b><span>Reduce LOD quality</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="disableDecals">
+                <div class="row-txt"><b>Disable Decals</b><span>Remove blood &amp; tire marks</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Benchmark -->
+        <div class="panel">
+          <div class="p-head">
+            <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M9 2.5h6M12 2.5v2.5"/></svg>Benchmark</h2>
+            <span class="count" id="benchCount"></span>
+          </div>
+          <div class="p-body">
+            <div class="act" id="benchRunBtn">
+              <div class="row-txt"><b>Run benchmark</b><span>Closes the menu and records <em id="benchDur">30</em> seconds of frames for the current profile. Play normally while it runs.</span></div>
+              <button class="btn-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.6 18.4 12 8 18.4z"/></svg><span>Run</span></button>
+            </div>
+            <div class="bench-grid" id="benchGrid" hidden></div>
+            <div class="note" id="benchEmpty">
+              <b>No results yet</b>
+              <span>Run it once per profile. Results show average FPS, 1% lows and the worst frame, so you can see what each profile really gains.</span>
+            </div>
+            <div class="row-end" id="benchClearWrap" hidden><button class="btn-mini" id="benchClear">Clear results</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ PAGE: WORLD ═══ -->
+      <section class="page" id="page-world">
+        <div class="head">
+          <div>
+            <h1>World</h1>
+            <p>Control weather, ambient clutter, and environmental effects that cost frames.</p>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.2h10.2a3.8 3.8 0 0 0 .4-7.6 5.6 5.6 0 0 0-10.8-1.4A4.5 4.5 0 0 0 7 18.2z"/></svg>Weather</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-setting="disableRain">
+                <div class="row-txt"><b>Disable Rain</b><span>Remove rain rendering</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="disableWind">
+                <div class="row-txt"><b>Disable Wind</b><span>Remove wind effects</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4 12.6 11.4"/><path d="M9.4 8.2 15.8 14.6l-1.4 1.4c-2 2-4.6 2.6-6.4 2.2l-2.6 2.6-1.4-1.4 2.6-2.6c-.4-1.8.2-4.4 2.2-6.4l1.4-1.4z"/></svg>Cleanup</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-setting="clearBrokenGlass">
+                <div class="row-txt"><b>Clear Glass</b><span>Auto-remove broken glass</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="cleanPedEffects">
+                <div class="row-txt"><b>Clean Player</b><span>Remove blood &amp; dirt</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="disableBloodStains">
+                <div class="row-txt"><b>Disable Blood</b><span>Keep your character clean of blood</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="disableFireEffects">
+                <div class="row-txt"><b>Disable Fire</b><span>Put out nearby fires</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ PAGE: ADVANCED ═══ -->
+      <section class="page" id="page-advanced">
+        <div class="head">
+          <div>
+            <h1>Advanced</h1>
+            <p>Deeper optimizations and maintenance tools. Ultra Mode trades visual fidelity for maximum frames.</p>
+          </div>
+        </div>
+
+        <div class="live" id="liveStrip">
+          <div class="lv"><label>Vehicles</label><b id="lvVeh">&mdash;</b></div>
+          <div class="lv"><label>Peds</label><b id="lvPed">&mdash;</b></div>
+          <div class="lv"><label>Objects</label><b id="lvObj">&mdash;</b></div>
+          <div class="lv"><label>Script-spawned</label><b id="lvScr">&mdash;</b></div>
+          <div class="lv"><label>Ambient scale</label><b id="lvAmb">&mdash;</b></div>
+          <div class="lv"><label>Adaptive boost</label><b id="lvAdp">&mdash;</b></div>
+          <div class="lv"><label>Probes</label><b id="lvPrb">&mdash;</b></div>
+        </div>
+
+        <div class="cols">
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h8M16 18h4"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="14" cy="18" r="2"/></svg>System</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-setting="clearUnnecessary">
+                <div class="row-txt"><b>Clear Cache</b><span>Clear replay &amp; brief caches</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="entityCleanup">
+                <div class="row-txt"><b>Entity Cleanup</b><span>Remove distant ambient entities</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row danger" data-setting="ultraMode">
+                <div class="row-txt"><b>Ultra Mode</b><span>Maximum performance, turns city lights off</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-setting="showFPS">
+                <div class="row-txt"><b>Show FPS</b><span>Display FPS counter</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+
+              <div class="divide"></div>
+
+              <div class="row" data-effect="shareTelemetry" id="telemetryRow">
+                <div class="row-txt"><b>Share performance data</b><span>Anonymous FPS &amp; script load for the server's Health page</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="act quiet" id="exportBtn">
+                <div class="row-txt"><b>Export settings</b><span>Get a code to share your setup</span></div>
+                <button class="btn-line sm">Code</button>
+              </div>
+              <div class="act quiet" id="importBtn">
+                <div class="row-txt"><b>Import settings</b><span>Paste a code from a friend</span></div>
+                <button class="btn-line sm">Paste</button>
+              </div>
+              <div class="act quiet danger" id="resetBtn">
+                <div class="row-txt"><b>Reset to defaults</b><span>Keeps your hardware scan</span></div>
+                <button class="btn-red sm">Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 6.2 4 16.8l2.6 2.6L17.2 8.8z"/><path d="M13.4 7.4 16 10"/><path d="M18.4 3v3.2M20 4.6h-3.2M19.6 13.4v2.4M20.8 14.6h-2.4M8.6 3.4v2.2M9.7 4.5H7.5"/></svg>Maintenance</h2>
+            </div>
+            <div class="p-body">
+              <div class="act" id="fixTexturesBtn">
+                <div class="row-txt"><b>Fix Textures</b><span>Reload muddy or blurry textures</span></div>
+                <button class="btn-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 6.2 4 16.8l2.6 2.6L17.2 8.8z"/><path d="M13.4 7.4 16 10"/><path d="M18.4 3v3.2M20 4.6h-3.2M19.6 13.4v2.4M20.8 14.6h-2.4M8.6 3.4v2.2M9.7 4.5H7.5"/></svg><span>Run</span></button>
+              </div>
+
+              <div id="frameCapBlock">
+                <div class="divide"></div>
+
+                <div class="ctl">
+                  <label>Frame cap</label>
+                  <div class="ctl-wrap">
+                    <select id="frameCapSelect">
+                      <option value="0">Uncapped</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="note" id="capNote">
+                  <b id="capNoteTitle">Running uncapped</b>
+                  <span id="capNoteBody">Uncapped frames push your GPU flat out for frames your monitor never shows. Pick your refresh rate above for setup steps.</span>
+                </div>
+
+                <div class="guide" id="capGuide" hidden>
+                  <div class="guide-tabs">
+                    <button class="gt on" data-gpu="nvidia">NVIDIA</button>
+                    <button class="gt" data-gpu="amd">AMD</button>
+                    <button class="gt" data-gpu="gta">In-game</button>
+                  </div>
+                  <ol class="guide-steps" id="guideSteps"></ol>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ PAGE: GRAPHICS ═══ -->
+      <section class="page" id="page-graphics">
+        <div class="head">
+          <div>
+            <h1>Game Graphics</h1>
+            <p>Recommended in-game settings for your hardware. These live in GTA's own pause menu &mdash; a script can't change them, so this is a checklist you apply yourself.</p>
+          </div>
+          <button class="btn-mini" id="rescanBtn" hidden>Rescan</button>
+        </div>
+
+        <div class="gfx-empty" id="specEmpty">
+          <p>Detect your hardware to get settings matched to it.</p>
+          <button class="btn-teal" id="scanBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 6.2 4 16.8l2.6 2.6L17.2 8.8z"/><path d="M13.4 7.4 16 10"/><path d="M18.4 3v3.2M20 4.6h-3.2M19.6 13.4v2.4M20.8 14.6h-2.4M8.6 3.4v2.2M9.7 4.5H7.5"/></svg><span>Detect my specs</span></button>
+        </div>
+
+        <div id="specList" hidden>
+          <div class="sysbar">
+            <div class="sys wide"><label>Graphics card</label><b id="specGpu">&mdash;</b></div>
+            <div class="sys"><label>CPU threads</label><b id="specCpu">&mdash;</b></div>
+            <div class="sys"><label>Memory</label><b id="specRam">&mdash;</b></div>
+            <div class="sys"><label>Resolution</label><b id="specRes">&mdash;</b></div>
+            <div class="sys"><label>Refresh rate</label><b id="specHz">&mdash;</b></div>
+          </div>
+          <div class="tier" id="specTier">
+            <span class="tier-dot"></span>
+            <div><b id="tierName">&mdash;</b><span id="tierNote">&mdash;</span></div>
+          </div>
+        </div>
+
+        <div class="panel gfx-panel">
+          <div class="p-head">
+            <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h8M16 18h4"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="14" cy="18" r="2"/></svg>Recommended Settings</h2>
+            <span class="count" id="gfxCount"></span>
+          </div>
+          <div class="p-body">
+            <div class="note" id="gfxIntro">
+              <b>Detect your specs first</b>
+              <span>Once scanned, this shows the exact values to set in <b>ESC &rarr; Settings &rarr; Graphics</b>, tuned for your hardware.</span>
+            </div>
+            <div class="gfx-grid" id="gfxList" hidden></div>
+            <div class="note" id="gfxFoot" hidden>
+              <b>Restart after applying</b>
+              <span>GTA needs a restart for some of these to take effect. Your Optimizer settings are unaffected and stay saved.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ PAGE: KILL EFFECTS ═══ -->
+      <section class="page" id="page-kill">
+        <div class="head">
+          <div>
+            <h1>Kill Effects</h1>
+            <p>Visual and audio feedback when you confirm a kill.</p>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a8 8 0 0 0-5 14.2V20a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2.8A8 8 0 0 0 12 3z"/><circle cx="9.3" cy="12" r="1.6"/><circle cx="14.7" cy="12" r="1.6"/><path d="M11 17.5h2"/></svg>Visual</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-effect="killEnabled">
+                <div class="row-txt"><b>Enable Kill Effects</b><span>Master toggle</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-effect="killMarker">
+                <div class="row-txt"><b>Kill Marker</b><span>Floating marker at kill location</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-effect="killScreen">
+                <div class="row-txt"><b>Screen Flash</b><span>Screen effect on kill</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="divide"></div>
+              <div class="ctl">
+                <label>Screen effect</label>
+                <div class="ctl-wrap">
+                  <select id="killFxSelect">
+                    <option value="DeathFailOut">Death Flash</option>
+                    <option value="FocusIn">Focus In</option>
+                    <option value="FocusOut">Focus Out</option>
+                    <option value="RampageOut">Rampage</option>
+                    <option value="SwitchHUDIn">HUD Flash</option>
+                    <option value="MinigameEndNeutral">End Neutral</option>
+                    <option value="MinigameEndTrevor">End Trevor</option>
+                    <option value="CamPushInFranklin">Franklin Push</option>
+                    <option value="DrugsMichaelAliensFightIn">Alien Fight</option>
+                    <option value="SuccessFranklin">Success Green</option>
+                    <option value="SuccessMichael">Success Blue</option>
+                    <option value="SuccessTrevor">Success Orange</option>
+                  </select>
+                  <button class="icon-btn" data-preview="killFx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 12S5.8 5.6 12 5.6 21.8 12 21.8 12 18.2 18.4 12 18.4 2.2 12 2.2 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.4h3.2L11.6 6v12l-4.4-3.4H4z"/><path d="M15.4 9.6a3.6 3.6 0 0 1 0 4.8M18 7.2a7 7 0 0 1 0 9.6"/></svg>Audio</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-effect="killSoundEnabled">
+                <div class="row-txt"><b>Kill Sound</b><span>Play a sound on kill</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="divide"></div>
+              <div class="ctl">
+                <label>Sound</label>
+                <div class="ctl-wrap">
+                  <select id="killSoundSelect">
+                    <option value="hitmarker">Hitmarker</option>
+                    <option value="headshot">Headshot</option>
+                    <option value="eliminated">Eliminated</option>
+                    <option value="takedown">Takedown</option>
+                    <option value="frag">Frag</option>
+                    <option value="noscope">No Scope</option>
+                    <option value="collateral">Collateral</option>
+                    <option value="multikill">Multi Kill</option>
+                    <option value="unstoppable">Unstoppable</option>
+                    <option value="godlike">Godlike</option>
+                    <option value="domination">Domination</option>
+                    <option value="rampage">Rampage</option>
+                    <option value="killingspree">Killing Spree</option>
+                    <option value="savage">Savage</option>
+                    <option value="brutal">Brutal</option>
+                    <option value="lethal">Lethal</option>
+                    <option value="execution">Execution</option>
+                    <option value="finisher">Finisher</option>
+                  </select>
+                  <button class="icon-btn" data-preview="killSound"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.6 18.4 12 8 18.4z"/></svg></button>
+                </div>
+              </div>
+              <div class="ctl">
+                <label>Volume</label>
+                <div class="ctl-wrap">
+                  <input type="range" id="killVolumeSlider" min="0" max="100" value="50">
+                  <span class="val" id="killVolumeValue">50%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ PAGE: HIT EFFECTS ═══ -->
+      <section class="page" id="page-hit">
+        <div class="head">
+          <div>
+            <h1>Hit Effects</h1>
+            <p>Feedback for every shot that lands, lethal or not.</p>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1.2"/></svg>Visual</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-effect="hitEnabled">
+                <div class="row-txt"><b>Enable Hit Effects</b><span>Master toggle</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-effect="hitScreen">
+                <div class="row-txt"><b>Screen Flash</b><span>Screen effect on hit</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="row" data-effect="hitParticle">
+                <div class="row-txt"><b>Hit Particle</b><span>Particle at impact point</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="divide"></div>
+              <div class="ctl">
+                <label>Screen effect</label>
+                <div class="ctl-wrap">
+                  <select id="hitFxSelect">
+                    <option value="FocusIn">Focus In</option>
+                    <option value="FocusOut">Focus Out</option>
+                    <option value="DeathFailOut">Death Flash</option>
+                    <option value="RampageOut">Rampage</option>
+                    <option value="SwitchHUDIn">HUD Flash</option>
+                    <option value="MinigameEndNeutral">End Neutral</option>
+                    <option value="MinigameEndTrevor">End Trevor</option>
+                    <option value="CamPushInFranklin">Franklin Push</option>
+                    <option value="DrugsMichaelAliensFightIn">Alien Fight</option>
+                    <option value="SuccessFranklin">Success Green</option>
+                    <option value="SuccessMichael">Success Blue</option>
+                    <option value="SuccessTrevor">Success Orange</option>
+                  </select>
+                  <button class="icon-btn" data-preview="hitFx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 12S5.8 5.6 12 5.6 21.8 12 21.8 12 18.2 18.4 12 18.4 2.2 12 2.2 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
+                </div>
+              </div>
+              <div class="ctl">
+                <label>Particle</label>
+                <div class="ctl-wrap">
+                  <select id="hitParticleSelect">
+                    <option value="impact">Impact</option>
+                    <option value="electric">Electric</option>
+                    <option value="sparks">Sparks</option>
+                    <option value="flare">Flare</option>
+                    <option value="smoke">Smoke</option>
+                    <option value="blood">Blood</option>
+                  </select>
+                  <button class="icon-btn" data-preview="hitParticle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 12S5.8 5.6 12 5.6 21.8 12 21.8 12 18.2 18.4 12 18.4 2.2 12 2.2 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="p-head">
+              <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.4h3.2L11.6 6v12l-4.4-3.4H4z"/><path d="M15.4 9.6a3.6 3.6 0 0 1 0 4.8M18 7.2a7 7 0 0 1 0 9.6"/></svg>Audio</h2>
+            </div>
+            <div class="p-body">
+              <div class="row" data-effect="hitSoundEnabled">
+                <div class="row-txt"><b>Hit Sound</b><span>Play a sound on hit</span></div>
+                <div class="sw"><i></i></div>
+              </div>
+              <div class="divide"></div>
+              <div class="ctl">
+                <label>Sound</label>
+                <div class="ctl-wrap">
+                  <select id="hitSoundSelect">
+                    <option value="tick">Tick</option>
+                    <option value="pop">Pop</option>
+                    <option value="crack">Crack</option>
+                    <option value="thud">Thud</option>
+                    <option value="snap">Snap</option>
+                    <option value="ping">Ping</option>
+                    <option value="click">Click</option>
+                    <option value="tap">Tap</option>
+                    <option value="punch">Punch</option>
+                    <option value="impact">Impact</option>
+                  </select>
+                  <button class="icon-btn" data-preview="hitSound"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.6 18.4 12 8 18.4z"/></svg></button>
+                </div>
+              </div>
+              <div class="ctl">
+                <label>Volume</label>
+                <div class="ctl-wrap">
+                  <input type="range" id="hitVolumeSlider" min="0" max="100" value="50">
+                  <span class="val" id="hitVolumeValue">50%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ PAGE: HEALTH (admins) ═══ -->
+      <section class="page" id="page-health">
+        <div class="head">
+          <div>
+            <h1>Server Health</h1>
+            <p>Live performance tracker. Every resource gets a grade and a verdict from the probe, the deep scan and player telemetry.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn-mini" id="hRefresh">Refresh</button>
+            <button class="btn-mini" id="hScan">Deep scan</button>
+            <button class="btn-mini" id="hProbe">Install probes</button>
+          </div>
+        </div>
+
+        <div class="note" id="hStatus" hidden><b id="hStatusTitle"></b><span id="hStatusBody"></span></div>
+
+        <div class="stats h-stats">
+          <div class="stat">
+            <div class="tile" id="hGradeTile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-6 3.5 12 2.5-6H21"/></svg></div>
+            <div class="stat-txt"><span>Server tick</span><b id="hGrade">&mdash;</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></svg></div>
+            <div class="stat-txt"><span>Hitches / hour</span><b id="hHitch">&mdash;</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7v10M12 7v10M17 7v10"/></svg></div>
+            <div class="stat-txt"><span id="hMemLabel">Memory</span><b id="hMem">&mdash;</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.6a4.2 4.2 0 0 1 5 4.4"/></svg></div>
+            <div class="stat-txt"><span>Clients reporting</span><b id="hClients">&mdash;</b></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="p-head">
+            <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="M8 15v-4M12 15V8M16 15v-2"/></svg>Hitches, last 60 minutes</h2>
+            <span class="count" id="hTlCount"></span>
+          </div>
+          <div class="p-body">
+            <div class="tl" id="hTimeline"></div>
+            <div class="tl-foot"><span>60 min ago</span><span id="hTlInfo"></span><span>now</span></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="p-head">
+            <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h8M16 18h4"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="14" cy="18" r="2"/></svg>Resources</h2>
+            <div class="seg" id="hSeg">
+              <button class="gt on" data-view="server">Server</button>
+              <button class="gt" data-view="clients">All clients</button>
+              <button class="gt" data-view="mine">My client</button>
+            </div>
+          </div>
+          <div class="p-body">
+            <div class="note" id="hCoverage"><b id="hCovTitle">Waiting for data</b><span id="hCovBody">Requesting the server report&hellip;</span></div>
+            <div class="legend" id="hLegend">
+              <span><i class="pill g-excellent">Excellent</i></span>
+              <span><i class="pill g-good">Good</i></span>
+              <span><i class="pill g-ok">OK</i></span>
+              <span><i class="pill g-poor">Poor</i></span>
+              <span><i class="pill g-bad">Bad</i></span>
+              <span class="legend-note" id="hLegendNote">Load = % of server main thread</span>
+            </div>
+            <div class="rt" id="hTable"></div>
+            <div class="note" id="hTableEmpty" hidden><b>No data yet</b><span id="hTableEmptyBody"></span></div>
+          </div>
+        </div>
+
+        <div class="note" id="hUpdate" hidden><b id="hUpdateTitle"></b><span id="hUpdateBody"></span></div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ═══ STATUS BAR ═══ -->
+  <div class="statusbar">
+    <span><span class="key">ESC</span>Close</span>
+    <span><span class="key" id="keyLabel">F7</span>Toggle menu</span>
+    <span class="sp">Settings save automatically</span>
+  </div>
+
+  <!-- ═══ CODE / CONFIRM MODAL ═══ -->
+  <div class="modal" id="codeModal" hidden>
+    <div class="modal-card">
+      <h2 id="modalTitle">Export settings</h2>
+      <p id="modalSub"></p>
+      <textarea id="modalCode" spellcheck="false" rows="4"></textarea>
+      <div class="modal-actions">
+        <button class="btn-teal" id="modalPrimary"><span>Copy</span></button>
+        <button class="btn-line" id="modalClose">Close</button>
+      </div>
+      <p class="modal-msg" id="modalMsg"></p>
+    </div>
+  </div>
+
+  <!-- ═══ FIRST-RUN SETUP ═══ -->
+  <div class="setup" id="setupOverlay" hidden>
+    <div class="setup-card">
+
+      <div class="setup-step on" id="setupChoose">
+        <div class="setup-mark"><span class="mark"></span></div>
+        <h2>Set up your Optimizer</h2>
+        <p>Pick how you'd like to start. You can change any of this later.</p>
+        <div class="setup-opts">
+          <button class="opt" id="optAuto">
+            <span class="opt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 6.2 4 16.8l2.6 2.6L17.2 8.8z"/><path d="M13.4 7.4 16 10"/><path d="M18.4 3v3.2M20 4.6h-3.2M19.6 13.4v2.4M20.8 14.6h-2.4M8.6 3.4v2.2M9.7 4.5H7.5"/></svg></span>
+            <span class="opt-txt">
+              <b>Detect my specs</b>
+              <i>Reads your graphics card, CPU and display, then recommends a profile tuned to them.</i>
+            </span>
+          </button>
+          <button class="opt" id="optManual">
+            <span class="opt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h8M16 18h4"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="14" cy="18" r="2"/></svg></span>
+            <span class="opt-txt">
+              <b>I'll choose myself</b>
+              <i>Skip straight to the menu and pick your own profile and options.</i>
+            </span>
+          </button>
+        </div>
+        <button class="setup-skip" id="setupSkip">Skip for now</button>
+      </div>
+
+      <div class="setup-step" id="setupScan">
+        <div class="setup-mark scanning"><span class="mark"></span></div>
+        <h2>Reading your hardware</h2>
+        <p id="scanStatus">Checking graphics card…</p>
+        <div class="scan-bar"><i id="scanBar"></i></div>
+      </div>
+
+      <div class="setup-step" id="setupResult">
+        <div class="setup-mark"><span class="mark"></span></div>
+        <h2 id="resultTitle">Recommended for your PC</h2>
+        <p id="resultSub">Based on what we detected, this profile should give you the best balance.</p>
+
+        <div class="result-specs" id="resultSpecs"></div>
+
+        <div class="result-pick" id="resultPick">
+          <span class="rp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6.5 9.4 17 4 11.6"/></svg></span>
+          <div class="rp-txt"><b id="pickName">Balanced</b><span id="pickWhy">—</span></div>
+        </div>
+
+        <div class="setup-actions">
+          <button class="btn-teal wide" id="applyRec"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6.5 9.4 17 4 11.6"/></svg><span>Use this profile</span></button>
+          <button class="btn-line wide" id="pickOwn">Let me choose instead</button>
+        </div>
+        <p class="setup-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5M12 7.9v.1"/></svg> Graphics-menu recommendations are on the <b>Graphics</b> tab.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
