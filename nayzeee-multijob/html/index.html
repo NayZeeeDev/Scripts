@@ -73,6 +73,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 6H4.5v1.5A3.5 3.5 0 0 0 8 11M17 6h2.5v1.5A3.5 3.5 0 0 1 16 11"/><path d="M12 14v3M9 20h6"/></svg>
         Rankings
       </button>
+
+      <!-- only shown to bosses -->
+      <div class="grp" id="grpTeam" style="display:none">Management</div>
+      <button class="nav" data-tab="team" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.2a3.5 3.5 0 0 1 0 5.6M18 20a6.4 6.4 0 0 0-1.6-4.3"/></svg>
+        Team <span class="tally" id="navTeamCount"></span>
+      </button>
     </nav>
 
     <main class="main">
@@ -194,6 +201,40 @@
           <div class="p-body" id="leaderboardContent"></div>
         </section>
       </section>
+
+      <!-- ── TEAM (bosses) ── -->
+      <section class="pane" id="tab-team">
+        <div class="stats">
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.2a3.5 3.5 0 0 1 0 5.6M18 20a6.4 6.4 0 0 0-1.6-4.3"/></svg></div>
+            <div class="stat-txt"><span>Staff</span><b id="teamTotal">0</b></div>
+            <div class="delta flat" id="teamOnline">0 online</div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></div>
+            <div class="stat-txt"><span>On duty now</span><b id="teamOnDuty">0</b></div>
+          </div>
+          <div class="stat">
+            <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M8.5 13.5l2.2 2.2 4.3-4.3"/></svg></div>
+            <div class="stat-txt"><span>Hours this week</span><b id="teamWeek">0h</b></div>
+          </div>
+        </div>
+
+        <section class="panel grow">
+          <div class="p-head">
+            <div><h2 id="teamTitle">Staff</h2><p id="teamSub">Manage the grades below yours</p></div>
+            <div class="p-tools">
+              <select id="teamJob" class="mini-select"></select>
+              <div class="search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+                <input type="text" id="teamSearch" placeholder="Search staff">
+              </div>
+              <button class="btn-teal sm" id="hireBtn" onclick="openHireModal()">Hire</button>
+            </div>
+          </div>
+          <div class="p-body" id="teamList"></div>
+        </section>
+      </section>
     </main>
   </div>
 
@@ -265,8 +306,12 @@
       <section class="pane on" id="tab-admin-players">
         <section class="panel grow">
           <div class="p-head">
-            <div><h2>Online players</h2><p>Select a player to manage their jobs</p></div>
+            <div><h2 id="playersTitle">Online players</h2><p id="playersSub">Select a player to manage their jobs</p></div>
             <div class="p-tools">
+              <div class="seg" id="playerScope">
+                <button class="seg-btn on" data-scope="online">Online</button>
+                <button class="seg-btn" data-scope="all">All characters</button>
+              </div>
               <div class="search">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
                 <input type="text" id="playerSearch" placeholder="Search players">
@@ -411,12 +456,39 @@
 <div class="overlay" id="playerModal">
   <div class="modal lg">
     <div class="modal-h">
-      <h4 id="playerModalName">Player</h4>
+      <div class="modal-title">
+        <h4 id="playerModalName">Player</h4>
+        <p id="playerModalSub"></p>
+      </div>
       <button class="x" onclick="closePlayerModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
     <div class="modal-b col" id="playerModalContent"></div>
+  </div>
+</div>
+
+<div class="overlay" id="hireModal">
+  <div class="modal lg">
+    <div class="modal-h">
+      <div class="modal-title">
+        <h4 id="hireTitle">Hire someone</h4>
+        <p>They get an offer they can accept or turn down</p>
+      </div>
+      <button class="x" onclick="closeHireModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="modal-b col">
+      <div class="sec" id="hireRange">Standing near you</div>
+      <div class="pick" id="hireList"></div>
+      <div class="field">
+        <label for="hireGrade">Starting grade</label>
+        <select id="hireGrade"></select>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn-line" onclick="loadNearby()">Refresh</button>
+      <button class="btn-teal" id="hireSend" onclick="sendHire()" disabled>Send offer</button>
+    </div>
   </div>
 </div>
 

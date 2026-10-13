@@ -31,8 +31,19 @@ Advanced Multi-Job Management System for FiveM with comprehensive tracking, sche
 - **Auto-switch at a set time** on chosen days, with a reminder beforehand
 - Pause / resume or delete schedules, limit per player
 
+### Team Tab (for bosses)
+- **Roster of everyone in the job** - online and offline, on duty, hours this week and in total
+- **Hire** people standing near you - they get an offer to accept or turn down
+- **Promote, demote and let go** staff below your own grade, even while they are offline
+
+### Clock-in Points
+- **Clock in at the station** - jobs with points only clock in there
+- **Press E** (ox_lib text UI) or an **ox_target** option at the point, with map blips
+- Clocking in from the menu elsewhere marks the nearest point on the map
+
 ### Admin Panel
 - **Player management** - view, add and remove jobs for anyone online
+- **Offline characters** - search everyone who has played by name or identifier and edit their jobs
 - **Bulk operations** - add, remove or set a job for many players at once
 - **Activity logs** and **job analytics**
 - **Per-permission tabs** - every action is checked on the server
@@ -113,6 +124,46 @@ Config.Earnings = {
 | `estimate` | `salary x shift length / paycheckMinutes` - no paycheck hook needed |
 | `auto` | `paycheck` on ESX, `estimate` on QBCore / QBox |
 
+### Team tab (bosses)
+```lua
+Config.Boss = {
+    enabled = true,
+    minGrade = {},             -- e.g. police = 3 to make grade 3+ a boss
+    promoteToOwnGrade = false, -- bosses hand out grades up to one below their own
+    hireDistance = 5.0,        -- metres; 0 = hire anyone online
+    requireAccept = true,      -- new hires get an accept / decline pop-up
+    offerTimeout = 60,
+    permissions = { hire = true, fire = true, promote = true },
+}
+```
+
+Who counts as a boss: QBCore / QBox grades with `isboss = true`, ESX grades named
+`boss` (the same rule as esx_society), or a job's highest grade when nothing is
+marked. A boss only ever manages staff below their own grade and can never give
+out a grade above the limit.
+
+The roster includes staff who are offline and staff who only have the job in
+the framework (hired before the resource was installed). Firing someone who is
+working the job right now drops them to the default job, online or offline.
+
+### Clock-in points
+```lua
+Config.DutyPoints = {
+    enabled = true,
+    interact = 'textui',     -- 'textui' (press E) | 'target' (ox_target) | false
+    blips = true,
+    clockOutAtPoint = false,
+    waypoint = true,
+    points = {
+        { job = 'police', label = 'Mission Row PD', coords = vec3(441.1, -981.9, 30.7), radius = 3.0,
+          blip = { sprite = 60, colour = 29, scale = 0.7 } },
+    },
+}
+```
+Only jobs with a point are restricted; every other job clocks in anywhere. The
+server checks the player's real position (OneSync), so it can't be skipped from
+the client. QBCore's own duty toggles (station duty scripts, `/duty`) still work.
+
 ### QBCore / QBox duty sync
 ```lua
 Config.DutyTracking.syncFrameworkDuty = true
@@ -141,6 +192,12 @@ add_ace group.admin nayzeee-multijob.admin allow
 ```
 
 Turn single tabs off for everyone with `Config.AdminPermissions`.
+
+The Players tab has an **All characters** switch: search by name or identifier
+to open anyone who has ever played. Adding, removing or making a job active
+works the same online or offline - offline changes are written to the
+framework's saved job (`users` on ESX, `players.job` on QBCore, QBox's own
+exports on QBox).
 
 ---
 
@@ -171,6 +228,8 @@ exports['nayzeee-multijob']:GetJobHours(source, 'police')
 exports['nayzeee-multijob']:GetJobEarnings(source, 'police')
 exports['nayzeee-multijob']:TrackPaycheck(source, amount)   -- call from any paycheck loop
 exports['nayzeee-multijob']:IsAdmin(source)
+exports['nayzeee-multijob']:IsBoss(source, 'police')
+exports['nayzeee-multijob']:GetBossJobs(source)             -- { { name, label, grade, gradeLabel } }
 ```
 
 ---
@@ -363,6 +422,9 @@ Use `Config.UI` for colours and size first; `html/style.css` for anything deeper
 | Paid while clocked out (ESX) | Install `install/REPLACE_paycheck.lua` |
 | Paid while clocked out (QBCore) | Keep `Config.DutyTracking.syncFrameworkDuty = true` |
 | Shift clock-in time equals clock-out | Old table definition - restart once, the resource fixes the column itself |
+| Nobody shows up in the Hire list | Stand within `Config.Boss.hireDistance`, or set it to `0` on servers without OneSync |
+| Team tab missing | The player needs a boss grade - see `Config.Boss.minGrade` |
+| Can clock in anywhere despite points | Set `Config.DutyPoints.enabled = true` and check the point's `job` name |
 
 ---
 

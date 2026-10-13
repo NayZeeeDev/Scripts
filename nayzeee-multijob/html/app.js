@@ -36,6 +36,12 @@ let adminData = {};
 let currentCategory = null;
 let currentLeaderboard = 'total_hours';
 let lastLeaderboards = {};
+let team = null;          // Team tab data for the selected job
+let teamJob = null;       // job the Team tab is showing
+let hirePick = null;      // server id picked in the hire modal
+let playerScope = 'online';
+let searchTimer = null;
+let searchResults = [];
 let dutyInterval = null;
 let clockInterval = null;
 
@@ -44,7 +50,8 @@ const PANES = {
     duty:        ['Duty', 'Clock in to start earning. Your shift time and history are tracked here.'],
     stats:       ['Statistics', 'Everything you have worked and everything it has paid.'],
     schedule:    ['Schedule', 'Set a time and the job switches for you automatically.'],
-    leaderboard: ['Rankings', 'How you stack up against everyone else in the city.']
+    leaderboard: ['Rankings', 'How you stack up against everyone else in the city.'],
+    team:        ['Team', 'Your staff, who is working and what they have put in. Hire, promote and let people go.']
 };
 
 const ADMIN_PANES = {
@@ -186,8 +193,16 @@ const ICON = {
     quit:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M16 16l4-4-4-4M20 12H10"/></svg>',
     trash:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13"/></svg>',
     star:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><path d="M12 3.6l2.6 5.2 5.8.9-4.2 4.1 1 5.7L12 16.8l-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z"/></svg>',
-    power:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 3.5v8"/><path d="M7.1 6.6a7 7 0 1 0 9.8 0"/></svg>'
+    power:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 3.5v8"/><path d="M7.1 6.6a7 7 0 1 0 9.8 0"/></svg>',
+    up:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>',
+    down:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 6 6-6"/></svg>',
+    letGo:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16.5 9.5l4 4M20.5 9.5l-4 4"/></svg>'
 };
+
+function formatDistance(m) {
+    m = Math.max(0, Math.round(Number(m) || 0));
+    return m >= 1000 ? (m / 1000).toFixed(1) + ' km' : m + ' m';
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TOASTS
@@ -289,6 +304,8 @@ function readMenuData(data, base) {
         maxSchedules: data.maxSchedules || base.maxSchedules || 5,
         leaderboards: data.leaderboards !== false,
         leaderboardCategories: data.leaderboardCategories || base.leaderboardCategories || null,
+        bossJobs: data.bossJobs || [],
+        dutyPoint: data.dutyPoint || { required: false },
         locale: data.locale || base.locale || {}
     });
 }
@@ -341,6 +358,16 @@ window.addEventListener('message', (event) => {
             if (!data) break;
             menuData = readMenuData(data, menuData);
             renderMenu();
+            break;
+
+        case 'dutyPoint':
+            if (!data) break;
+            menuData.dutyPoint = data;
+            updateDutyUI();
+            break;
+
+        case 'teamChanged':
+            if (el('tab-team')?.classList.contains('on')) loadTeam();
             break;
 
         case 'notify':
@@ -438,6 +465,13 @@ function toggleOptionalTabs() {
 
     const newBtn = el('newScheduleBtn');
     if (newBtn) newBtn.style.display = menuData.scheduleCanCreate === false ? 'none' : '';
+
+    const isBoss = (menuData.bossJobs || []).length > 0;
+    const teamNav = document.querySelector('#jobMenu .nav[data-tab="team"]');
+    if (teamNav) teamNav.style.display = isBoss ? '' : 'none';
+    const teamGrp = el('grpTeam');
+    if (teamGrp) teamGrp.style.display = isBoss ? '' : 'none';
+    setupTeamJobs();
 
     // a hidden tab can't stay selected
     const active = document.querySelector('#jobMenu .nav.on');
@@ -772,8 +806,16 @@ function populateScheduleJobDropdown() {
 // DUTY
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Away from a required clock-in point the button marks it on the map instead
+function pointBlocks() {
+    const point = menuData.dutyPoint || {};
+    if (!point.required || point.inside) return false;
+    return menuData.isOnDuty ? point.outRequired === true : true;
+}
+
 function toggleDuty() {
     if (isDefaultJob(menuData.currentJob)) return;
+    if (pointBlocks()) { post('dutyWaypoint'); return; }
     post(menuData.isOnDuty ? 'clockOut' : 'clockIn');
 }
 
@@ -808,13 +850,25 @@ function updateDutyUI() {
         return;
     }
 
+    const point = menuData.dutyPoint || {};
+    const blocked = pointBlocks();
+
     setText('dutyStatusText', onDuty ? 'On duty' : 'Off duty');
-    setText('dutyJobLine', onDuty ? `Clocked in as ${label}` : `Clocked out · ${label}`);
-    setText('statusHint', onDuty ? 'You are earning while clocked in' : 'Clock in to start earning');
+    if (blocked) {
+        const where = `${point.label} · ${formatDistance(point.distance)} away`;
+        setText('dutyJobLine', (onDuty ? 'Clock out at ' : 'Clock in at ') + where);
+        setText('statusHint', `Head to ${point.label} to clock ${onDuty ? 'out' : 'in'}`);
+    } else if (point.required && point.inside) {
+        setText('dutyJobLine', onDuty ? `Clocked in as ${label} · at ${point.label}` : `At ${point.label} · ready to clock in`);
+        setText('statusHint', onDuty ? 'You are earning while clocked in' : 'Clock in to start earning');
+    } else {
+        setText('dutyJobLine', onDuty ? `Clocked in as ${label}` : `Clocked out · ${label}`);
+        setText('statusHint', onDuty ? 'You are earning while clocked in' : 'Clock in to start earning');
+    }
 
     if (toggle) {
-        toggle.textContent = onDuty ? 'Clock out' : 'Clock in';
-        toggle.className = 'btn-teal' + (onDuty ? ' out' : '');
+        toggle.textContent = blocked ? 'Set waypoint' : (onDuty ? 'Clock out' : 'Clock in');
+        toggle.className = 'btn-teal' + (onDuty && !blocked ? ' out' : '');
         toggle.disabled = false;
     }
 
@@ -878,7 +932,7 @@ function removeJob(job) {
 // Only show the boards Config.Leaderboards.categories lists
 function setupLeaderboardTabs() {
     const cats = menuData.leaderboardCategories;
-    const buttons = [...document.querySelectorAll('.seg-btn')];
+    const buttons = [...document.querySelectorAll('#tab-leaderboard .seg-btn')];
     if (!Array.isArray(cats) || !cats.length) return;
 
     const ids = cats.map(c => c.id);
@@ -996,6 +1050,197 @@ function deleteSchedule(id) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEAM (bosses)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function setupTeamJobs() {
+    const jobs = menuData.bossJobs || [];
+    const select = el('teamJob');
+    if (!select) return;
+
+    if (!jobs.some(j => j.name === teamJob)) {
+        teamJob = jobs[0]?.name || null;
+        team = null;
+    }
+    select.innerHTML = jobs.map(j => `<option value="${esc(j.name)}" ${j.name === teamJob ? 'selected' : ''}>${esc(j.label)}</option>`).join('');
+    select.style.display = jobs.length > 1 ? '' : 'none';
+    select.onchange = () => { teamJob = select.value; team = null; loadTeam(); };
+
+    const search = el('teamSearch');
+    if (search) search.oninput = () => renderTeam();
+}
+
+function loadTeam() {
+    if (!teamJob) return;
+    if (!team) el('teamList').innerHTML = skeletonRows(4);
+    postJson('bossTeam', { job: teamJob }).then(data => {
+        team = data && data.members ? data : null;
+        renderTeam();
+    });
+}
+
+function renderTeam() {
+    const list = el('teamList');
+    if (!list) return;
+
+    if (!team) {
+        list.innerHTML = emptyState('fa-solid fa-users', 'Team not available',
+            'You need a boss grade in this job to manage its staff.');
+        return;
+    }
+
+    const c = team.counts || {};
+    setText('teamTotal', c.total || 0);
+    setText('teamOnline', (c.online || 0) + ' online');
+    setText('teamOnDuty', c.onDuty || 0);
+    setText('teamWeek', (Number(c.weekHours) || 0).toFixed(1) + 'h');
+    setText('navTeamCount', c.total || 0);
+    setText('teamTitle', `${team.label} staff`);
+    setText('teamSub', `You are ${team.myGradeLabel} · you manage the grades below yours`);
+
+    const hireBtn = el('hireBtn');
+    if (hireBtn) hireBtn.style.display = team.permissions?.hire ? '' : 'none';
+
+    const search = (el('teamSearch')?.value || '').toLowerCase();
+    const members = (team.members || []).filter(m => !search || String(m.name).toLowerCase().includes(search));
+
+    if (!members.length) {
+        list.innerHTML = emptyState('fa-solid fa-users', search ? 'Nobody by that name' : 'No staff yet',
+            search ? 'Try a different name.' : 'Hire someone and they show up here.');
+        return;
+    }
+
+    list.innerHTML = members.map(renderMember).join('');
+}
+
+// Next grade up (+1) or down (-1) among the grades the job actually has
+function gradeStep(grade, dir) {
+    const grades = (team.grades || []).map(g => g.grade);
+    const i = grades.indexOf(grade);
+    return i === -1 ? undefined : grades[i + dir];
+}
+
+function renderMember(m) {
+    const perms = team.permissions || {};
+    const up = gradeStep(m.grade, 1);
+    const down = gradeStep(m.grade, -1);
+    const canUp = perms.promote && up !== undefined && up <= team.maxGrade;
+    const canDown = perms.promote && down !== undefined;
+
+    const state = m.onDuty ? '<span class="tag live">On duty</span>'
+        : m.online ? '<span class="tag idle">Online</span>'
+        : '<span class="tag off">Offline</span>';
+
+    let actions = '';
+    if (m.canManage) {
+        actions = `
+            <button class="ico" title="Promote" data-tact="up" ${canUp ? '' : 'disabled'}>${ICON.up}</button>
+            <button class="ico" title="Demote" data-tact="down" ${canDown ? '' : 'disabled'}>${ICON.down}</button>
+            <button class="ico danger" title="Let go" data-tact="fire" ${perms.fire ? '' : 'disabled'}>${ICON.letGo}</button>`;
+    }
+
+    return `
+        <div class="row ${m.me ? 'on' : ''}" data-ref="${esc(m.ref)}">
+            <div class="av">${esc(initials(m.name))}</div>
+            <div class="row-txt">
+                <b>${esc(m.name)}</b>
+                <span>${esc(m.gradeLabel)} · ${(Number(m.weekHours) || 0).toFixed(1)}h this week · ${(Number(m.totalHours) || 0).toFixed(1)}h total</span>
+            </div>
+            <div class="row-end">
+                ${m.me ? '<span class="tag live">You</span>' : ''}
+                ${state}
+                ${actions}
+            </div>
+        </div>`;
+}
+
+function onTeamClick(e) {
+    const btn = e.target.closest('[data-tact]');
+    const row = e.target.closest('.row[data-ref]');
+    if (!btn || !row || btn.disabled || !team) return;
+
+    const member = (team.members || []).find(m => m.ref === row.dataset.ref);
+    if (!member) return;
+
+    if (btn.dataset.tact === 'up' || btn.dataset.tact === 'down') {
+        const grade = gradeStep(member.grade, btn.dataset.tact === 'up' ? 1 : -1);
+        if (grade === undefined) return;
+        postJson('bossSetGrade', { job: teamJob, ref: member.ref, grade: grade }).then(() => loadTeam());
+    }
+
+    if (btn.dataset.tact === 'fire') {
+        showNuiConfirm(`${member.name} comes off the ${team.label} roster and loses the job.`, () => {
+            postJson('bossFire', { job: teamJob, ref: member.ref }).then(() => loadTeam());
+        }, { title: 'Let them go?', confirm: 'Let go' });
+    }
+}
+
+function openHireModal() {
+    if (!team) return;
+    hirePick = null;
+
+    const grades = (team.grades || []).filter(g => g.grade <= team.maxGrade);
+    el('hireGrade').innerHTML = grades.map(g => `<option value="${esc(g.grade)}">${esc(g.label)}</option>`).join('');
+    setText('hireTitle', `Hire for ${team.label}`);
+    el('hireModal')?.classList.add('active');
+    loadNearby();
+}
+
+function closeHireModal() {
+    el('hireModal')?.classList.remove('active');
+    hirePick = null;
+}
+
+function loadNearby() {
+    const list = el('hireList');
+    if (!list || !teamJob) return;
+    list.innerHTML = skeletonRows(2);
+
+    postJson('bossNearby', { job: teamJob }).then(data => {
+        const players = (data && data.players) || [];
+        const range = Number(data && data.range) || 0;
+        setText('hireRange', range > 0 ? `Within ${range} m of you` : 'Everyone online');
+
+        if (!players.some(p => p.id === hirePick && !p.employed)) hirePick = null;
+
+        if (!players.length) {
+            list.innerHTML = emptyState('fa-solid fa-user-plus', range > 0 ? 'Nobody close enough' : 'Nobody else online',
+                range > 0 ? `Stand within ${range} m of the person you want to hire, then refresh.` : 'There is nobody to hire right now.');
+        } else {
+            list.innerHTML = players.map(p => `
+                <div class="row ${p.employed ? 'paused' : 'clickable'} ${p.id === hirePick ? 'sel' : ''}" data-pid="${esc(p.id)}" data-employed="${p.employed ? 1 : 0}">
+                    <div class="av">${esc(initials(p.name))}</div>
+                    <div class="row-txt">
+                        <b>${esc(p.name)}</b>
+                        <span>ID ${esc(p.id)}${p.distance !== undefined && p.distance !== null ? ' · ' + esc(formatDistance(p.distance)) + ' away' : ''}</span>
+                    </div>
+                    <div class="row-end">${p.employed ? '<span class="tag off">Already staff</span>' : ''}</div>
+                </div>`).join('');
+        }
+        el('hireSend').disabled = hirePick === null;
+    });
+}
+
+function onHireClick(e) {
+    const row = e.target.closest('.row[data-pid]');
+    if (!row || row.dataset.employed === '1') return;
+    hirePick = parseInt(row.dataset.pid, 10);
+    document.querySelectorAll('#hireList .row').forEach(r => r.classList.toggle('sel', r === row));
+    el('hireSend').disabled = false;
+}
+
+function sendHire() {
+    if (hirePick === null || !teamJob) return;
+    const grade = parseInt(el('hireGrade')?.value, 10);
+    postJson('bossHire', { job: teamJob, target: hirePick, grade: isNaN(grade) ? undefined : grade }).then(res => {
+        if (res && res.ok) {
+            closeHireModal();
+            loadTeam();
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // RENDER — ADMIN
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1014,6 +1259,7 @@ function renderAdmin() {
     setupAdminNav();
     setupSearch();
     setupLogFilter();
+    setupPlayerScope();
     applyPlayerSearch();
 }
 
@@ -1041,6 +1287,68 @@ function renderJobOptions() {
         .map(j => `<option value="${esc(j.name)}">${esc(j.label || j.name)}</option>`).join('');
 }
 
+function setupPlayerScope() {
+    document.querySelectorAll('#playerScope .seg-btn').forEach(btn => {
+        btn.onclick = function () {
+            if (playerScope === this.dataset.scope) return;
+            playerScope = this.dataset.scope;
+            document.querySelectorAll('#playerScope .seg-btn').forEach(b => b.classList.toggle('on', b === this));
+
+            const all = playerScope === 'all';
+            const input = el('playerSearch');
+            if (input) { input.value = ''; input.placeholder = all ? 'Name or identifier' : 'Search players'; }
+            setText('playersTitle', all ? 'All characters' : 'Online players');
+            setText('playersSub', all ? 'Anyone who has played, online or not' : 'Select a player to manage their jobs');
+            searchResults = [];
+            renderPlayers();
+            if (all) input?.focus();
+        };
+    });
+}
+
+function runPlayerSearch() {
+    const query = (el('playerSearch')?.value || '').trim();
+    const container = el('playersList');
+    if (query.length < 2) {
+        searchResults = [];
+        renderPlayers();
+        return;
+    }
+    container.innerHTML = skeletonRows(3);
+    postJson('adminSearch', { query: query }).then(res => {
+        if (playerScope !== 'all') return;
+        searchResults = (res && res.results) || [];
+        renderPlayers();
+    });
+}
+
+function renderSearchResults(container) {
+    const query = (el('playerSearch')?.value || '').trim();
+    if (query.length < 2) {
+        container.innerHTML = emptyState('fa-solid fa-magnifying-glass', 'Search every character',
+            'Type two or more letters of a name, or paste an identifier.');
+        return;
+    }
+    if (!searchResults.length) {
+        container.innerHTML = emptyState('fa-solid fa-user-slash', 'No characters found',
+            'Nobody matches that name or identifier.');
+        return;
+    }
+
+    container.innerHTML = searchResults.map(p => `
+        <div class="row clickable" data-ident="${esc(p.identifier)}">
+            <div class="av">${esc(initials(p.name))}</div>
+            <div class="row-txt">
+                <b>${esc(p.name || p.identifier)}</b>
+                <span class="mono">${esc(p.identifier)}${p.online ? ' · ID ' + esc(p.id) : ''}</span>
+            </div>
+            <div class="row-end">
+                ${p.jobLabel ? `<span class="tag idle">${esc(p.jobLabel)}</span>` : ''}
+                <span class="tag ${p.online ? 'live' : 'off'}">${p.online ? 'Online' : 'Offline'}</span>
+            </div>
+        </div>`).join('');
+}
+
 function renderPlayers() {
     const container = el('playersList');
     if (!container) return;
@@ -1048,6 +1356,11 @@ function renderPlayers() {
     const players = adminData.players || [];
     setText('navPlayerCount', players.length);
     setText('adminOnline', players.length);
+
+    if (playerScope === 'all') {
+        renderSearchResults(container);
+        return;
+    }
 
     if (!players.length) {
         container.innerHTML = emptyState('fa-solid fa-users', 'Nobody online',
@@ -1069,8 +1382,10 @@ function renderPlayers() {
 }
 
 function onPlayersClick(e) {
-    const row = e.target.closest('.row[data-pid]');
-    if (row) openPlayerModal(parseInt(row.dataset.pid, 10));
+    const row = e.target.closest('.row[data-pid], .row[data-ident]');
+    if (!row) return;
+    // online rows open by server id, search results by character identifier
+    openPlayerModal(row.dataset.ident ? row.dataset.ident : parseInt(row.dataset.pid, 10));
 }
 
 const LOG_STYLE = {
@@ -1224,18 +1539,18 @@ function executeBulkAction() {
 // PLAYER MODAL
 // ═══════════════════════════════════════════════════════════════════════════
 
-let modalPlayerId = null;
+let modalTarget = null; // server id (online) or identifier (any character)
 
-function openPlayerModal(playerId) {
-    postJson('adminGetPlayer', { id: playerId }).then(data => {
+function openPlayerModal(target) {
+    postJson('adminGetPlayer', { target: target }).then(data => {
         if (!data || !data.jobs) {
             showNuiAlert('That player could not be loaded. They may have just left.', 'Request failed');
             return;
         }
 
-        modalPlayerId = playerId;
-        const player = (adminData.players || []).find(p => p.id === playerId);
-        setText('playerModalName', player?.name || 'Player');
+        modalTarget = target;
+        setText('playerModalName', data.name || 'Player');
+        setText('playerModalSub', (data.online ? `Online · ID ${data.id}` : 'Offline') + ` · ${data.identifier}`);
 
         const content = el('playerModalContent');
         if (!content) return;
@@ -1243,21 +1558,35 @@ function openPlayerModal(playerId) {
         const jobs = data.jobs || [];
         const canEdit = data.canEdit !== false;
 
+        let last = '';
+        if (data.lastShift) {
+            let when = '';
+            try { when = new Date(data.lastShift.clockIn).toLocaleString(); } catch (e) {}
+            last = `<div class="sec">Last shift</div>
+                <p class="modal-note">${esc(data.lastShift.jobLabel || data.lastShift.job)} · ${esc(when)}${data.lastShift.clockOut ? '' : ' · still open'}</p>`;
+        }
+
         content.innerHTML = `
             <div class="sec">Jobs on record</div>
-            ${jobs.length ? jobs.map(j => `
-                <div class="row" data-job="${esc(j.name)}">
+            ${jobs.length ? jobs.map(j => {
+                const active = j.name === data.currentJob;
+                return `
+                <div class="row ${active ? 'on' : ''}" data-job="${esc(j.name)}" data-grade="${esc(j.grade)}">
                     <div class="av cat"><i class="fa-solid fa-briefcase"></i></div>
                     <div class="row-txt">
                         <b>${esc(j.label || j.name)}</b>
-                        <span>${esc(j.gradeLabel || ('Grade ' + j.grade))} · grade ${esc(j.grade)}</span>
+                        <span>${esc(j.gradeLabel || ('Grade ' + j.grade))} · grade ${esc(j.grade)} · ${(Number(j.hours) || 0).toFixed(1)}h worked</span>
                     </div>
                     <div class="row-end">
-                        ${j.name === data.currentJob ? `<span class="tag ${data.onDuty ? 'live' : 'off'}">${data.onDuty ? 'On duty' : 'Active'}</span>` : ''}
+                        ${active ? `<span class="tag ${data.onDuty ? 'live' : 'idle'}">${data.onDuty ? 'On duty' : 'Active'}</span>` : ''}
+                        ${canEdit && !active ? `<button class="ico" title="Make this their active job" data-mact="active">${ICON.switchTo}</button>` : ''}
                         ${canEdit && !j.isDefault ? `<button class="ico danger" title="Remove job" data-mact="remove">${ICON.trash}</button>` : ''}
                     </div>
-                </div>`).join('')
+                </div>`;
+            }).join('')
             : emptyState('fa-solid fa-briefcase', 'No jobs assigned', 'This player has nothing on their employment record yet.')}
+
+            ${last}
 
             ${canEdit ? `
             <div class="sec">Add a job</div>
@@ -1273,39 +1602,43 @@ function openPlayerModal(playerId) {
 
 function onPlayerModalClick(e) {
     const btn = e.target.closest('[data-mact]');
-    if (!btn || modalPlayerId === null) return;
+    if (!btn || modalTarget === null) return;
 
-    if (btn.dataset.mact === 'add') adminAddJob(modalPlayerId);
-    if (btn.dataset.mact === 'remove') {
-        const row = btn.closest('.row[data-job]');
-        if (row) adminRemoveJob(modalPlayerId, row.dataset.job);
-    }
+    const row = btn.closest('.row[data-job]');
+    if (btn.dataset.mact === 'add') adminAddJob(modalTarget);
+    if (btn.dataset.mact === 'remove' && row) adminRemoveJob(modalTarget, row.dataset.job);
+    if (btn.dataset.mact === 'active' && row) adminSetActive(modalTarget, row.dataset.job, parseInt(row.dataset.grade, 10));
 }
 
 function closePlayerModal() {
     el('playerModal')?.classList.remove('active');
-    modalPlayerId = null;
+    modalTarget = null;
 }
 
-function adminAddJob(playerId) {
+// Reload whatever list the modal was opened from
+function afterAdminEdit(target) {
+    openPlayerModal(target);
+    if (playerScope === 'all') runPlayerSearch();
+    refreshAdminData();
+}
+
+function adminAddJob(target) {
     const job = (el('adminAddJobName')?.value || '').trim();
     const grade = parseInt(el('adminAddJobGrade')?.value, 10) || 0;
 
     if (!job) { showNuiAlert('Enter a job name first.', 'No job entered'); return; }
 
-    postJson('adminAddJob', { playerId: playerId, job: job, grade: grade }).then(() => {
-        openPlayerModal(playerId);
-        refreshAdminData();
-    });
+    postJson('adminAddJob', { target: target, job: job, grade: grade }).then(() => afterAdminEdit(target));
 }
 
-function adminRemoveJob(playerId, job) {
-    showNuiConfirm(`"${job}" comes off this player's record.`, () => {
-        postJson('adminRemoveJob', { playerId: playerId, job: job }).then(() => {
-            openPlayerModal(playerId);
-            refreshAdminData();
-        });
+function adminRemoveJob(target, job) {
+    showNuiConfirm(`"${job}" comes off this player's record. If it is their active job they go back to the default job.`, () => {
+        postJson('adminRemoveJob', { target: target, job: job }).then(() => afterAdminEdit(target));
     }, { title: 'Remove this job?', confirm: 'Remove' });
+}
+
+function adminSetActive(target, job, grade) {
+    postJson('adminSetJob', { target: target, job: job, grade: isNaN(grade) ? undefined : grade }).then(() => afterAdminEdit(target));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1328,12 +1661,13 @@ function setupNav() {
             if (copy) { setText('paneTitle', copy[0]); setText('paneDesc', copy[1]); }
 
             if (tab === 'leaderboard') loadLeaderboards();
+            if (tab === 'team') loadTeam();
         };
     });
 
-    document.querySelectorAll('.seg-btn').forEach(btn => {
+    document.querySelectorAll('#tab-leaderboard .seg-btn').forEach(btn => {
         btn.onclick = function () {
-            document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('on'));
+            document.querySelectorAll('#tab-leaderboard .seg-btn').forEach(b => b.classList.remove('on'));
             this.classList.add('on');
             currentLeaderboard = this.dataset.lb || 'total_hours';
             // every board arrives in one reply - no need to ask again
@@ -1362,7 +1696,7 @@ function setupAdminNav() {
 
 function applyPlayerSearch() {
     const search = (el('playerSearch')?.value || '').toLowerCase();
-    document.querySelectorAll('#playersList .row').forEach(row => {
+    document.querySelectorAll(playerScope === 'all' ? '#__none' : '#playersList .row').forEach(row => {
         const name = (row.querySelector('b')?.textContent || '').toLowerCase();
         row.style.display = name.includes(search) ? '' : 'none';
     });
@@ -1386,7 +1720,14 @@ function setupSearch() {
     }
 
     const playerSearch = el('playerSearch');
-    if (playerSearch) playerSearch.oninput = applyPlayerSearch;
+    if (playerSearch) {
+        playerSearch.oninput = () => {
+            if (playerScope !== 'all') { applyPlayerSearch(); return; }
+            // ask the server a moment after typing stops
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(runPlayerSearch, 350);
+        };
+    }
 
     const bulkSearch = el('bulkSearch');
     if (bulkSearch) bulkSearch.oninput = applyPlayerSearch;
@@ -1398,4 +1739,6 @@ document.addEventListener('DOMContentLoaded', () => {
     el('schedulesList')?.addEventListener('click', onSchedulesClick);
     el('playersList')?.addEventListener('click', onPlayersClick);
     el('playerModalContent')?.addEventListener('click', onPlayerModalClick);
+    el('teamList')?.addEventListener('click', onTeamClick);
+    el('hireList')?.addEventListener('click', onHireClick);
 });

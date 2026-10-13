@@ -153,6 +153,69 @@ local function SetFrameworkDuty(src, onDuty)
     player.Functions.SetJobDuty(onDuty)
 end
 
+
+-- Server-side position (needs OneSync). nil when the server can't see the ped.
+local function PlayerCoords(src)
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return nil end
+    local pos = GetEntityCoords(ped)
+    if not pos or (pos.x == 0 and pos.y == 0 and pos.z == 0) then return nil end
+    return pos
+end
+
+-- Config coords may be vec3() or a plain { x, y, z } table
+local function ToVector(c)
+    return vector3(tonumber(c.x) or 0.0, tonumber(c.y) or 0.0, tonumber(c.z) or 0.0)
+end
+
+local function Placeholders(n)
+    return string.rep('?', n, ', ')
+end
+
+local function Concat(a, b)
+    local out = {}
+    for _, v in ipairs(a) do out[#out + 1] = v end
+    for _, v in ipairs(b) do out[#out + 1] = v end
+    return out
+end
+
+local function ResolveNames(identifiers)
+    local names = {}
+    if #identifiers == 0 then return names end
+
+    -- online players: use the live character name
+    ForEachPlayer(function(src, player)
+        local identifier = IdentifierOf(player)
+        if identifier then names[identifier] = GetDisplayName(src) end
+    end)
+
+    local missing = {}
+    for _, id in ipairs(identifiers) do
+        if not names[id] then missing[#missing + 1] = id end
+    end
+    if #missing == 0 then return names end
+
+    local ok, rows = pcall(function()
+        if IsESX() then
+            return MySQL.query.await(('SELECT identifier, firstname, lastname FROM users WHERE identifier IN (%s)'):format(Placeholders(#missing)), missing)
+        elseif IsQB() then
+            return MySQL.query.await(('SELECT citizenid AS identifier, charinfo FROM players WHERE citizenid IN (%s)'):format(Placeholders(#missing)), missing)
+        end
+    end)
+
+    for _, row in ipairs(ok and rows or {}) do
+        local first, last = row.firstname, row.lastname
+        if row.charinfo then
+            local info = type(row.charinfo) == 'string' and json.decode(row.charinfo) or row.charinfo
+            if type(info) == 'table' then first, last = info.firstname, info.lastname end
+        end
+        local name = ((first or '') .. ' ' .. (last or '')):gsub('^%s+', ''):gsub('%s+$', '')
+        if name ~= '' then names[row.identifier] = name end
+    end
+
+    return names
+end
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- JOB INFO
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -167,6 +230,8 @@ local function NormaliseGrades(grades)
             out[level] = {
                 label = g.label or g.name or ('Grade ' .. level),
                 salary = tonumber(g.salary or g.payment) or 0,
+                key = g.name, -- ESX's internal grade name ('boss' marks bosses there)
+                isboss = g.isboss == true or g.isBoss == true,
             }
         end
     end
@@ -191,7 +256,7 @@ local function LoadJobInfo()
             for _, g in ipairs(MySQL.query.await('SELECT job_name, grade, name, label, salary FROM job_grades') or {}) do
                 local job = fresh[g.job_name]
                 if job then
-                    job.grades[tonumber(g.grade) or 0] = { label = g.label or g.name, salary = tonumber(g.salary) or 0 }
+                    job.grades[tonumber(g.grade) or 0] = { label = g.label or g.name, salary = tonumber(g.salary) or 0, key = g.name, isboss = false }
                 end
             end
         end
@@ -203,7 +268,7 @@ local function LoadJobInfo()
         end
         jobs = jobs or (core and core.Shared and core.Shared.Jobs) or {}
         for name, job in pairs(jobs) do
-            fresh[name] = { label = job.label or name, grades = NormaliseGrades(job.grades) }
+            fresh[name] = { label = job.label or name, type = job.type, grades = NormaliseGrades(job.grades) }
         end
     end
 
@@ -256,6 +321,92 @@ local function SetPlayerJob(src, jobName, grade)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- OFFLINE CHARACTERS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local function SourceByIdentifier(identifier)
+    if type(identifier) ~= 'string' then return nil end
+    local found
+    ForEachPlayer(function(src, player)
+        if IdentifierOf(player) == identifier then found = src end
+    end)
+    return found
+end
+
+-- The job the framework has saved for a character that is offline
+local function GetSavedJob(identifier)
+    local ok, job = pcall(function()
+        if IsESX() then
+            local row = MySQL.single.await('SELECT job, job_grade FROM users WHERE identifier = ?', { identifier })
+            return row and row.job and { name = row.job, grade = tonumber(row.job_grade) or 0 }
+        end
+        local row = MySQL.single.await('SELECT job FROM players WHERE citizenid = ?', { identifier })
+        local data = row and row.job
+        if type(data) == 'string' then data = json.decode(data) end
+        if type(data) ~= 'table' or not data.name then return nil end
+        local grade = type(data.grade) == 'table' and data.grade.level or data.grade
+        return { name = data.name, grade = tonumber(grade) or 0 }
+    end)
+    return ok and job or nil
+end
+
+-- Live job when they're online, saved job when they're not
+local function CharacterJob(identifier)
+    local src = SourceByIdentifier(identifier)
+    if src then return GetFrameworkJob(src), src end
+    return GetSavedJob(identifier), nil
+end
+
+local function SetSavedJob(identifier, jobName, grade)
+    local job = GetJob(jobName)
+    if not job or not GradeExists(jobName, grade) then return false end
+
+    -- QBox can edit offline players itself, and keeps its own job list in sync
+    if Shared.GetFramework() == 'qbox' then
+        local ok, added = pcall(function() return exports.qbx_core:AddPlayerToJob(identifier, jobName, grade) end)
+        local ok2, primary = pcall(function() return exports.qbx_core:SetPlayerPrimaryJob(identifier, jobName) end)
+        if ok and ok2 and added ~= false and primary ~= false then return true end
+    end
+
+    local ok, changed = pcall(function()
+        if IsESX() then
+            return MySQL.update.await('UPDATE users SET job = ?, job_grade = ? WHERE identifier = ?', { jobName, grade, identifier })
+        end
+        local g = job.grades[grade] or {}
+        return MySQL.update.await('UPDATE players SET job = ? WHERE citizenid = ?', { json.encode({
+            name = jobName,
+            label = job.label,
+            type = job.type,
+            payment = g.salary or 0,
+            onduty = false,
+            isboss = g.isboss == true,
+            grade = { name = g.label or ('Grade ' .. grade), level = grade, isboss = g.isboss == true },
+        }), identifier })
+    end)
+    return ok and (tonumber(changed) or 0) > 0
+end
+
+-- QBox keeps a second job list of its own; keep it from holding fired jobs
+local function QboxDropJob(identifier, jobName)
+    if Shared.GetFramework() ~= 'qbox' then return end
+    pcall(function() exports.qbx_core:RemovePlayerFromJob(identifier, jobName) end)
+end
+
+-- Does a character with this identifier exist at all?
+local function CharacterExists(identifier)
+    if type(identifier) ~= 'string' or identifier == '' then return false end
+    if SourceByIdentifier(identifier) then return true end
+    local ok, found = pcall(function()
+        if IsESX() then
+            return MySQL.scalar.await('SELECT 1 FROM users WHERE identifier = ?', { identifier })
+        end
+        return MySQL.scalar.await('SELECT 1 FROM players WHERE citizenid = ?', { identifier })
+    end)
+    if ok and found then return true end
+    return MySQL.scalar.await('SELECT 1 FROM nayzeee_multijob WHERE identifier = ? LIMIT 1', { identifier }) ~= nil
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- PERMISSIONS
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -302,7 +453,7 @@ local DISCORD_CATEGORY = {
 }
 
 local DISCORD_COLOR = {
-    jobSwitch = 0x08afa2, clockIn = 0x08afa2, clockOut = 0x63696d, adminAction = 0xe5484d,
+    jobSwitch = 0x08afa2, clockIn = 0x08afa2, clockOut = 0x63696d, adminAction = 0xe5484d, bossAction = 0x08afa2,
 }
 
 local function DiscordWebhook()
@@ -319,7 +470,7 @@ local function QueueDiscord(action, name, job, details, adminName)
     local cfg = ServerConfig and ServerConfig.Discord
     if not DiscordWebhook() then return end
 
-    local category = action:find('^admin_') and 'adminAction' or DISCORD_CATEGORY[action]
+    local category = (action:find('^admin_') and 'adminAction') or (action:find('^boss_') and 'bossAction') or DISCORD_CATEGORY[action]
     if not category or (cfg.logEvents and cfg.logEvents[category] == false) then return end
 
     local fields = {
@@ -554,6 +705,11 @@ local function CountJobs(identifier)
         { identifier, Config.DefaultJob.name }) or 0
 end
 
+local function UpsertJob(identifier, jobName, grade)
+    MySQL.update.await('INSERT INTO nayzeee_multijob (identifier, job, grade, removeable) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE grade = ?',
+        { identifier, jobName, grade, grade })
+end
+
 local function EnsureDefaultJob(identifier)
     MySQL.update.await('INSERT INTO nayzeee_multijob (identifier, job, grade, removeable) VALUES (?, ?, ?, 0) ON DUPLICATE KEY UPDATE removeable = 0',
         { identifier, Config.DefaultJob.name, Config.DefaultJob.grade or 0 })
@@ -635,6 +791,17 @@ end
 
 local function HandleJobChangeAsync(src, context)
     CreateThread(function() HandleJobChange(src, context) end)
+end
+
+-- Sets a character's framework job whether they are online or not
+local function ApplyJob(identifier, jobName, grade)
+    local src = SourceByIdentifier(identifier)
+    if src then
+        if not SetPlayerJob(src, jobName, grade) then return false end
+        HandleJobChangeAsync(src)
+        return true
+    end
+    return SetSavedJob(identifier, jobName, grade)
 end
 
 -- Framework hooks. Only the ones for the running framework ever fire.
@@ -815,6 +982,52 @@ RegisterNetEvent('nayzeee-multijob:toggleFavorite', function(jobName)
 end)
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- CLOCK-IN POINTS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local function DutyPointsFor(jobName)
+    local cfg = Config.DutyPoints
+    if not (cfg and cfg.enabled) or Shared.IsDefaultJob(jobName) then return nil end
+    local list = {}
+    for _, point in ipairs(cfg.points or {}) do
+        if point.job == jobName and point.coords then list[#list + 1] = point end
+    end
+    return #list > 0 and list or nil
+end
+
+-- true when the job has no points or the player stands in one,
+-- otherwise false plus the nearest point
+local function AtDutyPoint(src, jobName)
+    local points = DutyPointsFor(jobName)
+    if not points then return true end
+
+    -- the server can't see the ped (no OneSync): don't lock anyone out
+    local pos = PlayerCoords(src)
+    if not pos then return true end
+
+    local nearest, best
+    for _, point in ipairs(points) do
+        local dist = #(pos - ToVector(point.coords))
+        -- a metre of slack for position sync lag
+        if dist <= (point.radius or 3.0) + 1.0 then return true, point end
+        if not best or dist < best then nearest, best = point, dist end
+    end
+    return false, nearest
+end
+
+local function SendToDutyPoint(src, point, clockingOut)
+    local label = point.label or JobLabel(point.job)
+    if Config.DutyPoints.waypoint ~= false then
+        -- the client marks it on the map and says so in one message
+        TriggerClientEvent('nayzeee-multijob:dutyPointHint', src, {
+            label = label, x = point.coords.x, y = point.coords.y, out = clockingOut == true,
+        })
+    else
+        Say(src, 'Duty', Shared.L(clockingOut and 'duty_point_needed_out' or 'duty_point_needed', label), 'error')
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- CLOCK IN / OUT
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -831,6 +1044,14 @@ RegisterNetEvent('nayzeee-multijob:clockIn', function()
     if not info then return end
 
     local resumed = AfkPaused[src] == true
+    if not resumed then
+        local ok, point = AtDutyPoint(src, info.name)
+        if not ok then
+            SendToDutyPoint(src, point)
+            return
+        end
+    end
+
     if StartShift(src, { silent = resumed, reason = resumed and 'resumed' or nil }) and resumed then
         Say(src, 'Duty', Shared.L('afk_resumed'), 'success')
     end
@@ -860,7 +1081,473 @@ RegisterNetEvent('nayzeee-multijob:clockOut', function(auto)
         return
     end
 
+    if Config.DutyPoints and Config.DutyPoints.clockOutAtPoint then
+        local ok, point = AtDutyPoint(src, s.job)
+        if not ok then
+            SendToDutyPoint(src, point, true)
+            return
+        end
+    end
+
     EndShift(src, 'manual')
+end)
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BOSS / TEAM
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local Offers = {}   -- [id] = pending job offer
+local offerSeq = 0
+local BossRefs = {} -- [boss src] = { [ref] = identifier }; identifiers never reach the client
+
+local function BossEnabled() return Config.Boss ~= nil and Config.Boss.enabled == true end
+local function BossCan(action) return BossEnabled() and (Config.Boss.permissions or {})[action] ~= false end
+
+local function SortedGrades(jobName)
+    local job = GetJob(jobName)
+    local list = {}
+    for level, g in pairs(job and job.grades or {}) do
+        list[#list + 1] = { grade = level, label = g.label }
+    end
+    table.sort(list, function(a, b) return a.grade < b.grade end)
+    return list
+end
+
+local function GradeLabel(jobName, grade)
+    local job = GetJob(jobName)
+    local g = job and job.grades[grade]
+    return g and g.label or ('Grade ' .. tostring(grade))
+end
+
+-- Lowest grade that counts as a boss of the job, or nil when it has none
+local function BossFloor(jobName)
+    if Shared.IsDefaultJob(jobName) then return nil end
+    local override = Config.Boss.minGrade and tonumber(Config.Boss.minGrade[jobName])
+    if override then return override end
+
+    local job = GetJob(jobName)
+    if not job then return nil end
+
+    local floor, highest, count = nil, nil, 0
+    for level, g in pairs(job.grades) do
+        count = count + 1
+        if g.isboss or (IsESX() and g.key == 'boss') then
+            if not floor or level < floor then floor = level end
+        end
+        if not highest or level > highest then highest = level end
+    end
+    if floor then return floor end
+    return count >= 2 and highest or nil -- a single-grade job has nobody to manage
+end
+
+local function IsBossGrade(jobName, grade)
+    local floor = BossFloor(jobName)
+    return floor ~= nil and (tonumber(grade) or -1) >= floor
+end
+
+-- Every job a player holds and at which grade; the live framework grade wins
+local function HeldGrades(src)
+    local identifier = GetIdentifier(src)
+    local held = {}
+    if not identifier then return held end
+    for _, row in ipairs(MySQL.query.await('SELECT job, grade FROM nayzeee_multijob WHERE identifier = ?', { identifier }) or {}) do
+        held[row.job] = tonumber(row.grade) or 0
+    end
+    local current = GetFrameworkJob(src)
+    if current then held[current.name] = current.grade end
+    return held
+end
+
+-- The player's grade in jobName when they are a boss of it, else nil
+local function BossGrade(src, jobName)
+    if not BossEnabled() or type(jobName) ~= 'string' then return nil end
+    local grade = HeldGrades(src)[jobName]
+    if grade and IsBossGrade(jobName, grade) then return grade end
+    return nil
+end
+
+local function BossJobs(src)
+    local list = {}
+    if not BossEnabled() then return list end
+    for jobName, grade in pairs(HeldGrades(src)) do
+        if IsBossGrade(jobName, grade) then
+            list[#list + 1] = { name = jobName, label = JobLabel(jobName), grade = grade, gradeLabel = GradeLabel(jobName, grade) }
+        end
+    end
+    table.sort(list, function(a, b) return a.label < b.label end)
+    return list
+end
+
+-- Highest grade that exists in the job and that this boss may hand out (-1 = none)
+local function MaxAssignable(jobName, bossGrade)
+    local limit = Config.Boss.promoteToOwnGrade and bossGrade or bossGrade - 1
+    local best = -1
+    for _, g in ipairs(SortedGrades(jobName)) do
+        if g.grade <= limit then best = g.grade end
+    end
+    return best
+end
+
+-- A member's grade in jobName and whether it is their active job.
+-- Live job first, then their multijob record. nil when they don't work there.
+local function MemberGrade(identifier, jobName)
+    local job = CharacterJob(identifier)
+    if job and job.name == jobName then return job.grade, true end
+    local grade = MySQL.scalar.await('SELECT grade FROM nayzeee_multijob WHERE identifier = ? AND job = ?', { identifier, jobName })
+    if grade ~= nil then return tonumber(grade) or 0, false end
+    return nil
+end
+
+local function DenyBoss(src, key)
+    Say(src, 'Team', Shared.L(key), 'error')
+    return false
+end
+
+lib.callback.register('nayzeee-multijob:bossTeam', function(src, jobName)
+    if not RateLimit(src, 'bossTeam', 300) then return nil end
+    local myGrade = BossGrade(src, jobName)
+    if not myGrade then return nil end
+    local me = GetIdentifier(src)
+
+    local members = {}
+    for _, row in ipairs(MySQL.query.await('SELECT identifier, grade FROM nayzeee_multijob WHERE job = ? LIMIT 300', { jobName }) or {}) do
+        members[row.identifier] = { grade = tonumber(row.grade) or 0 }
+    end
+
+    -- staff the framework has on this job without a multijob record yet
+    -- (hired before install, or their job list was full)
+    local ok, saved = pcall(function()
+        if IsESX() then
+            return MySQL.query.await('SELECT identifier, job_grade AS grade FROM users WHERE job = ? LIMIT 300', { jobName })
+        end
+        return MySQL.query.await([[
+            SELECT citizenid AS identifier, JSON_EXTRACT(job, '$.grade.level') AS grade
+            FROM players WHERE JSON_UNQUOTE(JSON_EXTRACT(job, '$.name')) = ? LIMIT 300
+        ]], { jobName })
+    end)
+    for _, row in ipairs(ok and saved or {}) do
+        if row.identifier and not members[row.identifier] then
+            members[row.identifier] = { grade = tonumber(row.grade) or 0 }
+        end
+    end
+
+    -- online players: the live grade wins
+    local online = {}
+    ForEachPlayer(function(id, player)
+        local identifier = IdentifierOf(player)
+        if not identifier then return end
+        local info = GetFrameworkJob(id)
+        if info and info.name == jobName then
+            members[identifier] = members[identifier] or {}
+            members[identifier].grade = info.grade
+        end
+        if members[identifier] then online[identifier] = id end
+    end)
+
+    local ids = {}
+    for identifier in pairs(members) do ids[#ids + 1] = identifier end
+    local names = ResolveNames(ids)
+
+    local totals, week = {}, {}
+    for _, row in ipairs(MySQL.query.await('SELECT identifier, total_hours, last_clocked FROM nayzeee_multijob_stats WHERE job = ?', { jobName }) or {}) do
+        totals[row.identifier] = row
+    end
+    for _, row in ipairs(MySQL.query.await([[
+        SELECT identifier, COALESCE(SUM(duration_seconds), 0) AS secs FROM nayzeee_multijob_shifts
+        WHERE job = ? AND clock_in >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY identifier
+    ]], { jobName }) or {}) do
+        week[row.identifier] = tonumber(row.secs) or 0
+    end
+
+    local refs, list, n = {}, {}, 0
+    local counts = { total = 0, online = 0, onDuty = 0, weekHours = 0 }
+    for identifier, m in pairs(members) do
+        n = n + 1
+        local ref = 'm' .. n
+        refs[ref] = identifier
+
+        local id = online[identifier]
+        local onDuty = id ~= nil and Shifts[id] ~= nil and Shifts[id].job == jobName
+        local weekHours = (week[identifier] or 0) / 3600
+        local stat = totals[identifier]
+
+        list[#list + 1] = {
+            ref = ref,
+            name = names[identifier] or 'Unknown',
+            grade = m.grade,
+            gradeLabel = GradeLabel(jobName, m.grade),
+            online = id ~= nil,
+            onDuty = onDuty,
+            weekHours = weekHours,
+            totalHours = stat and tonumber(stat.total_hours) or 0,
+            lastClocked = stat and stat.last_clocked or nil,
+            me = identifier == me,
+            canManage = identifier ~= me and m.grade < myGrade,
+        }
+
+        counts.total = counts.total + 1
+        if id then counts.online = counts.online + 1 end
+        if onDuty then counts.onDuty = counts.onDuty + 1 end
+        counts.weekHours = counts.weekHours + weekHours
+    end
+    BossRefs[src] = refs
+
+    table.sort(list, function(a, b)
+        if a.onDuty ~= b.onDuty then return a.onDuty end
+        if a.online ~= b.online then return a.online end
+        if a.grade ~= b.grade then return a.grade > b.grade end
+        return a.name < b.name
+    end)
+
+    return {
+        job = jobName,
+        label = JobLabel(jobName),
+        myGrade = myGrade,
+        myGradeLabel = GradeLabel(jobName, myGrade),
+        maxGrade = MaxAssignable(jobName, myGrade),
+        grades = SortedGrades(jobName),
+        members = list,
+        counts = counts,
+        permissions = { hire = BossCan('hire'), fire = BossCan('fire'), promote = BossCan('promote') },
+        hireDistance = tonumber(Config.Boss.hireDistance) or 0,
+    }
+end)
+
+lib.callback.register('nayzeee-multijob:bossNearby', function(src, jobName)
+    if not RateLimit(src, 'bossNearby', 300) then return nil end
+    if not BossGrade(src, jobName) or not BossCan('hire') then return nil end
+
+    local range = tonumber(Config.Boss.hireDistance) or 0
+    local myPos = range > 0 and PlayerCoords(src) or nil
+    if range > 0 and not myPos then return { players = {}, range = range } end
+
+    local list, ids = {}, {}
+    ForEachPlayer(function(id, player)
+        local identifier = IdentifierOf(player)
+        if id == src or not identifier then return end
+
+        local dist
+        if range > 0 then
+            local pos = PlayerCoords(id)
+            if not pos then return end
+            dist = #(myPos - pos)
+            if dist > range then return end
+        end
+
+        local info = GetFrameworkJob(id)
+        list[#list + 1] = {
+            id = id,
+            name = GetDisplayName(id),
+            distance = dist and math.floor(dist + 0.5) or nil,
+            identifier = identifier,
+            employed = info ~= nil and info.name == jobName,
+        }
+        ids[#ids + 1] = identifier
+    end)
+
+    if #ids > 0 then
+        local rows = MySQL.query.await(('SELECT identifier FROM nayzeee_multijob WHERE job = ? AND identifier IN (%s)'):format(Placeholders(#ids)),
+            Concat({ jobName }, ids)) or {}
+        local employed = {}
+        for _, row in ipairs(rows) do employed[row.identifier] = true end
+        for _, p in ipairs(list) do
+            p.employed = p.employed or employed[p.identifier] == true
+            p.identifier = nil
+        end
+    end
+
+    table.sort(list, function(a, b) return (a.distance or 0) < (b.distance or 0) end)
+    return { players = list, range = range }
+end)
+
+local function PendingOfferFor(targetId)
+    local now = os.time()
+    for id, offer in pairs(Offers) do
+        if offer.expires < now then
+            Offers[id] = nil
+        elseif offer.target == targetId then
+            return offer
+        end
+    end
+    return nil
+end
+
+local function CompleteHire(offer)
+    local identifier = offer.targetIdentifier
+
+    if MySQL.scalar.await('SELECT 1 FROM nayzeee_multijob WHERE identifier = ? AND job = ?', { identifier, offer.job }) then
+        Say(offer.boss, 'Team', Shared.L('boss_already_employed', offer.targetName), 'error')
+        return false
+    end
+    if CountJobs(identifier) >= (Config.MaxJobs or 4) then
+        Say(offer.boss, 'Team', Shared.L('boss_target_full', offer.targetName), 'error')
+        Say(offer.target, 'Job', Shared.L('max_jobs_reached'), 'error')
+        return false
+    end
+
+    UpsertJob(identifier, offer.job, offer.grade)
+    if Shared.GetFramework() == 'qbox' then
+        pcall(function() exports.qbx_core:AddPlayerToJob(identifier, offer.job, offer.grade) end)
+    end
+
+    Say(offer.target, 'Job', Shared.L('boss_hired', JobLabel(offer.job)), 'success')
+    Say(offer.boss, 'Team', Shared.L('boss_offer_accepted', offer.targetName), 'success')
+    LogAction(identifier, offer.targetName, 'boss_hire', offer.job, offer.gradeLabel, offer.bossIdentifier, offer.bossName)
+
+    TriggerClientEvent('nayzeee-multijob:refresh', offer.target)
+    TriggerClientEvent('nayzeee-multijob:teamChanged', offer.boss)
+    return true
+end
+
+lib.callback.register('nayzeee-multijob:bossHire', function(src, jobName, targetId, grade)
+    if not RateLimit(src, 'bossAction', 750) then return false end
+    local myGrade = BossGrade(src, jobName)
+    if not myGrade then return DenyBoss(src, 'boss_not_boss') end
+    if not BossCan('hire') then return DenyBoss(src, 'boss_no_permission') end
+    if Shared.IsBlacklisted(jobName) then return false end
+
+    targetId = tonumber(targetId)
+    local targetIdentifier = targetId and targetId ~= src and GetIdentifier(targetId)
+    if not targetIdentifier then return DenyBoss(src, 'player_not_found') end
+
+    local grades = SortedGrades(jobName)
+    grade = math.floor(tonumber(grade) or (grades[1] and grades[1].grade) or 0)
+    if grade ~= grade or grade < 0 or not GradeExists(jobName, grade) then return false end
+    if grade > MaxAssignable(jobName, myGrade) then return DenyBoss(src, 'boss_grade_too_high') end
+
+    local range = tonumber(Config.Boss.hireDistance) or 0
+    if range > 0 then
+        local a, b = PlayerCoords(src), PlayerCoords(targetId)
+        if not a or not b or #(a - b) > range + 2.0 then return DenyBoss(src, 'boss_too_far') end
+    end
+
+    local targetName = GetDisplayName(targetId)
+    local current = GetFrameworkJob(targetId)
+    local onRecord = MySQL.scalar.await('SELECT 1 FROM nayzeee_multijob WHERE identifier = ? AND job = ?', { targetIdentifier, jobName })
+    if (current and current.name == jobName) or onRecord then
+        Say(src, 'Team', Shared.L('boss_already_employed', targetName), 'error')
+        return false
+    end
+    if CountJobs(targetIdentifier) >= (Config.MaxJobs or 4) then
+        Say(src, 'Team', Shared.L('boss_target_full', targetName), 'error')
+        return false
+    end
+    if PendingOfferFor(targetId) then
+        Say(src, 'Team', Shared.L('boss_offer_pending', targetName), 'error')
+        return false
+    end
+
+    offerSeq = offerSeq + 1
+    local timeout = tonumber(Config.Boss.offerTimeout) or 60
+    local offer = {
+        id = offerSeq,
+        boss = src, bossIdentifier = GetIdentifier(src), bossName = GetDisplayName(src),
+        target = targetId, targetIdentifier = targetIdentifier, targetName = targetName,
+        job = jobName, grade = grade, gradeLabel = GradeLabel(jobName, grade),
+        expires = os.time() + timeout,
+    }
+
+    if Config.Boss.requireAccept == false then
+        return CompleteHire(offer)
+    end
+
+    Offers[offer.id] = offer
+    TriggerClientEvent('nayzeee-multijob:jobOffer', targetId, {
+        id = offer.id, from = offer.bossName, jobLabel = JobLabel(jobName), gradeLabel = offer.gradeLabel, timeout = timeout,
+    })
+    Say(src, 'Team', Shared.L('boss_offer_sent', targetName), 'success')
+    return true
+end)
+
+RegisterNetEvent('nayzeee-multijob:offerResponse', function(offerId, accepted)
+    local src = source
+    local offer = Offers[tonumber(offerId) or -1]
+    if not offer or offer.target ~= src then return end
+    Offers[offer.id] = nil
+
+    if os.time() > offer.expires then
+        Say(src, 'Job', Shared.L('boss_offer_expired'), 'error')
+        return
+    end
+    if accepted ~= true then
+        Say(offer.boss, 'Team', Shared.L('boss_offer_declined', offer.targetName), 'info')
+        return
+    end
+    CompleteHire(offer)
+end)
+
+-- Shared checks for fire / set grade. Returns identifier, current grade, active, name.
+local function ManagedMember(src, jobName, ref, myGrade)
+    local identifier = BossRefs[src] and BossRefs[src][ref]
+    if not identifier or identifier == GetIdentifier(src) then return nil end
+
+    local grade, active = MemberGrade(identifier, jobName)
+    if not grade then return nil end
+    if grade >= myGrade then
+        DenyBoss(src, 'boss_rank_too_high')
+        return nil
+    end
+
+    local targetId = SourceByIdentifier(identifier)
+    local name = targetId and GetDisplayName(targetId) or ResolveNames({ identifier })[identifier] or 'Unknown'
+    return identifier, grade, active, name, targetId
+end
+
+lib.callback.register('nayzeee-multijob:bossFire', function(src, jobName, ref)
+    if not RateLimit(src, 'bossAction', 750) then return false end
+    local myGrade = BossGrade(src, jobName)
+    if not myGrade then return DenyBoss(src, 'boss_not_boss') end
+    if not BossCan('fire') then return DenyBoss(src, 'boss_no_permission') end
+
+    local identifier, grade, active, name, targetId = ManagedMember(src, jobName, ref, myGrade)
+    if not identifier then return false end
+
+    -- working it right now: back to the default job
+    if active then
+        if targetId then EndShift(targetId, 'admin') end
+        ApplyJob(identifier, Config.DefaultJob.name, Config.DefaultJob.grade or 0)
+    end
+    MySQL.update.await('DELETE FROM nayzeee_multijob WHERE identifier = ? AND job = ?', { identifier, jobName })
+    QboxDropJob(identifier, jobName)
+
+    if targetId then
+        Say(targetId, 'Job', Shared.L('boss_you_fired', JobLabel(jobName)), 'error')
+        TriggerClientEvent('nayzeee-multijob:refresh', targetId)
+    end
+    Say(src, 'Team', Shared.L('boss_fired', name), 'info')
+    LogAction(identifier, name, 'boss_fire', jobName, 'Grade ' .. grade, GetIdentifier(src), GetDisplayName(src))
+    return true
+end)
+
+lib.callback.register('nayzeee-multijob:bossSetGrade', function(src, jobName, ref, grade)
+    if not RateLimit(src, 'bossAction', 750) then return false end
+    local myGrade = BossGrade(src, jobName)
+    if not myGrade then return DenyBoss(src, 'boss_not_boss') end
+    if not BossCan('promote') then return DenyBoss(src, 'boss_no_permission') end
+
+    local identifier, current, active, name, targetId = ManagedMember(src, jobName, ref, myGrade)
+    if not identifier then return false end
+
+    grade = math.floor(tonumber(grade) or -1)
+    if grade ~= grade or grade < 0 or grade == current or not GradeExists(jobName, grade) then return false end
+    if grade > MaxAssignable(jobName, myGrade) then return DenyBoss(src, 'boss_grade_too_high') end
+
+    MySQL.update.await('UPDATE nayzeee_multijob SET grade = ? WHERE identifier = ? AND job = ?', { grade, identifier, jobName })
+    if active then
+        ApplyJob(identifier, jobName, grade)
+    elseif Shared.GetFramework() == 'qbox' then
+        pcall(function() exports.qbx_core:AddPlayerToJob(identifier, jobName, grade) end)
+    end
+
+    local label = GradeLabel(jobName, grade)
+    if targetId then
+        Say(targetId, 'Job', Shared.L('boss_your_grade', label, JobLabel(jobName)), grade > current and 'success' or 'info')
+        TriggerClientEvent('nayzeee-multijob:refresh', targetId)
+    end
+    Say(src, 'Team', Shared.L('boss_grade_set', name, label), 'success')
+    LogAction(identifier, name, grade > current and 'boss_promote' or 'boss_demote', jobName,
+        ('Grade %d -> %d'):format(current, grade), GetIdentifier(src), GetDisplayName(src))
+    return true
 end)
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -969,6 +1656,7 @@ lib.callback.register('nayzeee-multijob:getPlayerData', function(src)
         dutyTime = s and (os.time() - s.startTime) or 0,
         afkPaused = AfkPaused[src] == true,
         name = GetDisplayName(src),
+        bossJobs = BossJobs(src),
     }
 end)
 
@@ -1123,54 +1811,6 @@ end
 
 local LeaderboardCache = { at = 0, data = nil }
 
-local function Placeholders(n)
-    return string.rep('?', n, ', ')
-end
-
-local function Concat(a, b)
-    local out = {}
-    for _, v in ipairs(a) do out[#out + 1] = v end
-    for _, v in ipairs(b) do out[#out + 1] = v end
-    return out
-end
-
-local function ResolveNames(identifiers)
-    local names = {}
-    if #identifiers == 0 then return names end
-
-    -- online players: use the live character name
-    ForEachPlayer(function(src, player)
-        local identifier = IdentifierOf(player)
-        if identifier then names[identifier] = GetDisplayName(src) end
-    end)
-
-    local missing = {}
-    for _, id in ipairs(identifiers) do
-        if not names[id] then missing[#missing + 1] = id end
-    end
-    if #missing == 0 then return names end
-
-    local ok, rows = pcall(function()
-        if IsESX() then
-            return MySQL.query.await(('SELECT identifier, firstname, lastname FROM users WHERE identifier IN (%s)'):format(Placeholders(#missing)), missing)
-        elseif IsQB() then
-            return MySQL.query.await(('SELECT citizenid AS identifier, charinfo FROM players WHERE citizenid IN (%s)'):format(Placeholders(#missing)), missing)
-        end
-    end)
-
-    for _, row in ipairs(ok and rows or {}) do
-        local first, last = row.firstname, row.lastname
-        if row.charinfo then
-            local info = type(row.charinfo) == 'string' and json.decode(row.charinfo) or row.charinfo
-            if type(info) == 'table' then first, last = info.firstname, info.lastname end
-        end
-        local name = ((first or '') .. ' ' .. (last or '')):gsub('^%s+', ''):gsub('%s+$', '')
-        if name ~= '' then names[row.identifier] = name end
-    end
-
-    return names
-end
-
 local function BuildLeaderboards()
     local limit = Config.Leaderboards.maxEntries or 10
     local exclude = Config.Leaderboards.excludeJobs or {}
@@ -1308,93 +1948,213 @@ lib.callback.register('nayzeee-multijob:getAdminData', function(src)
     return data
 end)
 
-lib.callback.register('nayzeee-multijob:adminGetPlayer', function(src, targetId)
+-- A target is an online server id (number) or a character identifier (string)
+local function ResolveTarget(target)
+    local id = tonumber(target)
+    if id then
+        local identifier = GetIdentifier(id)
+        if identifier then return identifier, id end
+        return nil
+    end
+    if type(target) == 'string' and CharacterExists(target) then
+        return target, SourceByIdentifier(target)
+    end
+    return nil
+end
+
+local function TargetName(identifier, targetId)
+    if targetId then return GetDisplayName(targetId) end
+    return ResolveNames({ identifier })[identifier] or identifier
+end
+
+-- Search every character, online or not, by name or identifier
+lib.callback.register('nayzeee-multijob:adminSearch', function(src, query)
+    if not HasPerm(src, 'viewPlayers') or not RateLimit(src, 'adminSearch', 300) then return nil end
+    if type(query) ~= 'string' then return {} end
+    query = query:gsub('^%s+', ''):gsub('%s+$', ''):sub(1, 48)
+    if #query < 2 then return {} end
+
+    -- '!' escapes LIKE wildcards the admin typed
+    local function like(text) return '%' .. text:gsub('[!%%_]', '!%0') .. '%' end
+
+    local rows = {}
+    local ok, result = pcall(function()
+        if IsESX() then
+            return MySQL.query.await([[
+                SELECT identifier, firstname, lastname, job, job_grade AS grade FROM users
+                WHERE identifier LIKE ? ESCAPE '!' OR CONCAT(firstname, ' ', lastname) LIKE ? ESCAPE '!'
+                LIMIT 25
+            ]], { like(query), like(query) })
+        end
+        -- QBCore keeps names inside the charinfo JSON: every word has to match
+        local words, where, params = {}, {}, { like(query) }
+        for word in query:gmatch('%S+') do
+            if #words < 3 then words[#words + 1] = word end
+        end
+        for _, word in ipairs(words) do
+            where[#where + 1] = "charinfo LIKE ? ESCAPE '!'"
+            params[#params + 1] = like(word)
+        end
+        return MySQL.query.await(([[
+            SELECT citizenid AS identifier, charinfo, job FROM players
+            WHERE citizenid LIKE ? ESCAPE '!' OR (%s) LIMIT 25
+        ]]):format(table.concat(where, ' AND ')), params)
+    end)
+
+    -- ESX without esx_identity has no name columns: identifiers only
+    if not ok and IsESX() then
+        ok, result = pcall(MySQL.query.await, [[
+            SELECT identifier, job, job_grade AS grade FROM users WHERE identifier LIKE ? ESCAPE '!' LIMIT 25
+        ]], { like(query) })
+    end
+    if ok and result then rows = result end
+
+    local out = {}
+    for _, row in ipairs(rows) do
+        local identifier = row.identifier
+        local id = SourceByIdentifier(identifier)
+        local name, job = nil, row.job
+
+        if row.charinfo then
+            local info = type(row.charinfo) == 'string' and json.decode(row.charinfo) or row.charinfo
+            if type(info) == 'table' then name = ((info.firstname or '') .. ' ' .. (info.lastname or '')) end
+        elseif row.firstname or row.lastname then
+            name = (row.firstname or '') .. ' ' .. (row.lastname or '')
+        end
+        if type(job) == 'string' and job:sub(1, 1) == '{' then
+            local data = json.decode(job)
+            job = type(data) == 'table' and data.name or nil
+        end
+        if id then
+            name = GetDisplayName(id)
+            local info = GetFrameworkJob(id)
+            job = info and info.name or job
+        end
+
+        name = name and name:gsub('^%s+', ''):gsub('%s+$', '') or ''
+        out[#out + 1] = {
+            identifier = identifier,
+            name = name ~= '' and name or identifier,
+            online = id ~= nil,
+            id = id,
+            job = job,
+            jobLabel = job and JobLabel(job) or nil,
+        }
+    end
+
+    table.sort(out, function(a, b)
+        if a.online ~= b.online then return a.online end
+        return a.name < b.name
+    end)
+    return out
+end)
+
+lib.callback.register('nayzeee-multijob:adminGetPlayer', function(src, target)
     if not (HasPerm(src, 'viewPlayers') or HasPerm(src, 'editJobs')) then return nil end
-    targetId = tonumber(targetId)
-    local identifier = targetId and GetIdentifier(targetId)
+    local identifier, targetId = ResolveTarget(target)
     if not identifier then return nil end
+
+    local hours = {}
+    for _, row in ipairs(MySQL.query.await('SELECT job, total_hours FROM nayzeee_multijob_stats WHERE identifier = ?', { identifier }) or {}) do
+        hours[row.job] = tonumber(row.total_hours) or 0
+    end
 
     local rows = MySQL.query.await('SELECT job, grade, removeable FROM nayzeee_multijob WHERE identifier = ?', { identifier }) or {}
     local jobs = {}
     for _, row in ipairs(rows) do
         local entry = FormatJob(row.job, tonumber(row.grade) or 0, IsTrue(row.removeable), false)
         entry.isDefault = Shared.IsDefaultJob(row.job)
+        entry.hours = hours[row.job] or 0
         jobs[#jobs + 1] = entry
     end
 
-    local current = GetFrameworkJob(targetId)
+    local current = targetId and GetFrameworkJob(targetId) or GetSavedJob(identifier)
+    local last = MySQL.single.await('SELECT job, clock_in, clock_out FROM nayzeee_multijob_shifts WHERE identifier = ? ORDER BY id DESC LIMIT 1', { identifier })
+
     return {
+        identifier = identifier,
+        id = targetId,
+        online = targetId ~= nil,
+        name = TargetName(identifier, targetId),
         jobs = jobs,
         currentJob = current and current.name,
-        onDuty = Shifts[targetId] ~= nil,
+        onDuty = targetId ~= nil and Shifts[targetId] ~= nil,
+        lastShift = last and { job = last.job, jobLabel = JobLabel(last.job), clockIn = last.clock_in, clockOut = last.clock_out } or nil,
         canEdit = HasPerm(src, 'editJobs'),
     }
 end)
 
-local function AdminUpsertJob(identifier, jobName, grade)
-    MySQL.update.await('INSERT INTO nayzeee_multijob (identifier, job, grade, removeable) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE grade = ?',
-        { identifier, jobName, grade, grade })
-end
-
--- Returns ok, reason
-local function AdminApply(src, action, targetId, jobName, grade)
-    targetId = tonumber(targetId)
-    local identifier = targetId and GetIdentifier(targetId)
+-- Returns ok, reason. Works on online and offline characters alike.
+local function AdminApply(src, action, target, jobName, grade)
+    local identifier, targetId = ResolveTarget(target)
     if not identifier then return false, Shared.L('player_not_found') end
     if type(jobName) ~= 'string' or not GetJob(jobName) then return false, Shared.L('job_not_found') end
     if Shared.IsBlacklisted(jobName) then return false, Shared.L('job_blacklisted') end
+
+    -- no grade given for setjob = keep the grade on their record
+    if grade == nil and action == 'setjob' then
+        grade = MySQL.scalar.await('SELECT grade FROM nayzeee_multijob WHERE identifier = ? AND job = ?', { identifier, jobName })
+    end
     grade = math.max(0, math.floor(tonumber(grade) or 0))
 
     local adminId, adminName = GetIdentifier(src), GetDisplayName(src)
-    local targetName = GetDisplayName(targetId)
-    local current = GetFrameworkJob(targetId)
+    local targetName = TargetName(identifier, targetId)
+    local current = targetId and GetFrameworkJob(targetId) or GetSavedJob(identifier)
 
     if action == 'add' then
         if not GradeExists(jobName, grade) then return false, 'Grade ' .. grade .. ' does not exist' end
-        AdminUpsertJob(identifier, jobName, grade)
+        UpsertJob(identifier, jobName, grade)
         -- promote / demote straight away if it's the job they are working
         if current and current.name == jobName and current.grade ~= grade then
-            SetPlayerJob(targetId, jobName, grade)
+            ApplyJob(identifier, jobName, grade)
         end
-        Say(targetId, 'Job', Shared.L('job_added'), 'success')
+        if targetId then Say(targetId, 'Job', Shared.L('job_added'), 'success') end
         LogAction(identifier, targetName, 'admin_add_job', jobName, 'Grade ' .. grade, adminId, adminName)
 
     elseif action == 'remove' then
         if Shared.IsDefaultJob(jobName) then return false, Shared.L('job_not_removable') end
         if current and current.name == jobName then
-            EndShift(targetId, 'admin')
-            SetPlayerJob(targetId, Config.DefaultJob.name, Config.DefaultJob.grade or 0)
+            if targetId then EndShift(targetId, 'admin') end
+            ApplyJob(identifier, Config.DefaultJob.name, Config.DefaultJob.grade or 0)
         end
         MySQL.update.await('DELETE FROM nayzeee_multijob WHERE identifier = ? AND job = ?', { identifier, jobName })
-        Say(targetId, 'Job', Shared.L('job_removed'), 'info')
+        QboxDropJob(identifier, jobName)
+        if targetId then Say(targetId, 'Job', Shared.L('job_removed'), 'info') end
         LogAction(identifier, targetName, 'admin_remove_job', jobName, nil, adminId, adminName)
 
     elseif action == 'setjob' then
         if not GradeExists(jobName, grade) then return false, 'Grade ' .. grade .. ' does not exist' end
-        if not Shared.IsDefaultJob(jobName) then AdminUpsertJob(identifier, jobName, grade) end
-        if not SetPlayerJob(targetId, jobName, grade) then return false, Shared.L('job_switch_failed') end
-        Say(targetId, 'Job', Shared.L('job_switched', JobLabel(jobName)), 'success')
-        LogAction(identifier, targetName, 'admin_set_job', jobName, 'Grade ' .. grade, adminId, adminName)
+        if not Shared.IsDefaultJob(jobName) then UpsertJob(identifier, jobName, grade) end
+        if not ApplyJob(identifier, jobName, grade) then return false, Shared.L('job_switch_failed') end
+        if targetId then Say(targetId, 'Job', Shared.L('job_switched', JobLabel(jobName)), 'success') end
+        LogAction(identifier, targetName, 'admin_set_job', jobName, 'Grade ' .. grade .. (targetId and '' or ' · offline'), adminId, adminName)
 
     else
         return false, 'Unknown action'
     end
 
-    HandleJobChangeAsync(targetId)
+    if targetId then HandleJobChangeAsync(targetId) end
     return true
 end
 
-lib.callback.register('nayzeee-multijob:adminAddJob', function(src, targetId, jobName, grade)
+lib.callback.register('nayzeee-multijob:adminAddJob', function(src, target, jobName, grade)
     if not HasPerm(src, 'editJobs') then return false end
-    local ok, reason = AdminApply(src, 'add', targetId, jobName, grade)
+    local ok, reason = AdminApply(src, 'add', target, jobName, grade)
     Say(src, 'Admin', ok and Shared.L('admin_done', JobLabel(jobName) .. ' added') or reason, ok and 'success' or 'error')
     return ok
 end)
 
-lib.callback.register('nayzeee-multijob:adminRemoveJob', function(src, targetId, jobName)
+lib.callback.register('nayzeee-multijob:adminRemoveJob', function(src, target, jobName)
     if not HasPerm(src, 'editJobs') then return false end
-    local ok, reason = AdminApply(src, 'remove', targetId, jobName, 0)
+    local ok, reason = AdminApply(src, 'remove', target, jobName, 0)
     Say(src, 'Admin', ok and Shared.L('admin_done', JobLabel(jobName) .. ' removed') or reason, ok and 'success' or 'error')
+    return ok
+end)
+
+lib.callback.register('nayzeee-multijob:adminSetJob', function(src, target, jobName, grade)
+    if not HasPerm(src, 'editJobs') then return false end
+    local ok, reason = AdminApply(src, 'setjob', target, jobName, grade)
+    Say(src, 'Admin', ok and Shared.L('admin_done', JobLabel(jobName) .. ' is now their active job') or reason, ok and 'success' or 'error')
     return ok
 end)
 
@@ -1407,7 +2167,9 @@ lib.callback.register('nayzeee-multijob:adminBulkAction', function(src, action, 
     for i, targetId in ipairs(playerIds) do
         if i > 128 then break end
         total = total + 1
-        local ok, reason = AdminApply(src, action, targetId, jobName, grade)
+        -- bulk is for online players only: server ids, never identifiers
+        local ok, reason = false, Shared.L('player_not_found')
+        if tonumber(targetId) then ok, reason = AdminApply(src, action, tonumber(targetId), jobName, grade) end
         if ok then done = done + 1 else lastError = reason end
     end
 
@@ -1424,6 +2186,10 @@ AddEventHandler('playerDropped', function()
     EndShift(src, 'disconnect')
     AfkPaused[src] = nil
     RateTimes[src] = nil
+    BossRefs[src] = nil
+    for id, offer in pairs(Offers) do
+        if offer.target == src then Offers[id] = nil end
+    end
 end)
 
 local RESUME_KEY = 'nayzeee_multijob_resume'
@@ -1663,7 +2429,7 @@ exports('AddPlayerJob', function(src, jobName, grade)
     local identifier = GetIdentifier(src)
     grade = math.max(0, math.floor(tonumber(grade) or 0))
     if not identifier or not GetJob(jobName) or Shared.IsBlacklisted(jobName) or not GradeExists(jobName, grade) then return false end
-    AdminUpsertJob(identifier, jobName, grade)
+    UpsertJob(identifier, jobName, grade)
     TriggerClientEvent('nayzeee-multijob:refresh', src)
     return true
 end)
@@ -1694,3 +2460,11 @@ exports('TrackPaycheck', function(src, amount, jobName)
 end)
 
 exports('IsAdmin', IsAdmin)
+
+exports('IsBoss', function(src, jobName)
+    return BossGrade(tonumber(src), jobName) ~= nil
+end)
+
+exports('GetBossJobs', function(src)
+    return BossJobs(tonumber(src))
+end)

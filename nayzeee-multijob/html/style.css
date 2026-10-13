@@ -201,6 +201,7 @@ input,select{font:inherit}
 }
 .tally{margin-left:auto;font-size:9.5px;color:var(--ink-3);
   background:var(--raise);border:1px solid var(--line-soft);padding:1px 6px;border-radius:var(--r-xs)}
+.tally:empty{display:none}
 
 /* ═══════════════ MAIN ═══════════════ */
 .main{position:relative;padding:16px 18px 18px;display:flex;flex-direction:column;gap:13px;overflow:hidden}
@@ -275,6 +276,7 @@ input,select{font:inherit}
 .btn-teal.locked{background:var(--raise);color:var(--ink-3);box-shadow:none;cursor:not-allowed}
 .btn-teal.locked:hover{filter:none}
 .btn-teal.out{background:linear-gradient(var(--red),var(--red-lo));color:var(--white)}
+.btn-teal:disabled{filter:grayscale(.7) brightness(.7);cursor:not-allowed}
 
 .btn-white{height:28px;padding:0 13px;border-radius:var(--r-xs);background:var(--white);
   color:#000;font-size:12px;font-weight:600;transition:filter var(--fast)}
@@ -303,6 +305,8 @@ input,select{font:inherit}
 .ico.danger:hover{border-color:var(--red-edge);color:var(--red);background:var(--red-wash)}
 .ico.fav.on,.ico.lit{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash)}
 .ico.fav.on svg{fill:currentColor}
+.ico:disabled{opacity:.3;cursor:not-allowed}
+.ico:disabled:hover{border-color:var(--line);color:var(--ink-3);background:none}
 
 /* ═══════════════ SEARCH / FILTERS / SEG ═══════════════ */
 .search{position:relative;display:flex;align-items:center}
@@ -346,6 +350,9 @@ input,select{font:inherit}
 .row.clickable{cursor:pointer}
 .row.on{border-color:var(--teal-edge);background:var(--teal-wash)}
 .row.paused{opacity:.55}
+.row.sel{border-color:var(--teal-edge);background:var(--teal-wash)}
+.row-txt span.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;letter-spacing:.01em}
+.pick{display:flex;flex-direction:column;gap:6px;max-height:190px;overflow-y:auto}
 .row .av{width:26px;height:26px;font-size:9.5px}
 .row .av.cat{color:var(--teal);background:var(--teal-wash);border-color:var(--teal-edge);font-size:11px}
 .row-txt{flex:1;min-width:0}
@@ -360,6 +367,7 @@ input,select{font:inherit}
 .tag.live{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
 .tag.hot{color:var(--red);border-color:var(--red-edge);background:var(--red-wash)}
 .tag.off{color:var(--ink-3);border-color:var(--line-soft);background:var(--raise)}
+.tag.idle{color:var(--ink-2);border-color:var(--line);background:var(--raise)}
 
 /* ═══════════════ DUTY HERO ═══════════════ */
 .duty-hero{
@@ -473,6 +481,9 @@ input,select{font:inherit}
 .modal-h{display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:14px 16px;border-bottom:1px solid var(--line-hair)}
 .modal-h h4{font-size:13.5px;font-weight:600;color:var(--white);letter-spacing:-.012em}
+.modal-title{min-width:0}
+.modal-title p{font-size:10px;color:var(--ink-3);font-weight:300;margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .modal-h .x{width:24px;height:24px;border-radius:var(--r-xs);display:grid;place-items:center;
   color:var(--ink-3);transition:all var(--fast)}
 .modal-h .x svg{width:14px;height:14px;stroke-width:1.8}
@@ -488,6 +499,7 @@ input,select{font:inherit}
   color:var(--red);background:var(--red-wash);border:1px solid var(--red-edge)}
 .warn svg{width:17px;height:17px;stroke-width:1.7}
 .sec{display:flex;align-items:center;gap:9px;font-size:10.5px;color:var(--ink-3);font-weight:400}
+.modal-note{font-size:11px;color:var(--ink-2);font-weight:300}
 .sec::after{content:'';flex:1;height:1px;background:var(--line-hair)}
 
 /* ═══════════════ STATUS BAR ═══════════════ */

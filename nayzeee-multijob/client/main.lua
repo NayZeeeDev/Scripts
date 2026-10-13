@@ -26,6 +26,177 @@ local dutyStartTime = 0
 local lastActivity = GetGameTimer()
 local awaitingAutoClockOut = false
 local autoClockOutSentAt = 0
+local PlayerBossJobs = {}
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CLOCK-IN POINTS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local pointBlips = {}
+local pointZones = {}
+local markedJob = nil
+
+local function PointsCfg()
+    local cfg = Config.DutyPoints
+    return (cfg and cfg.enabled) and cfg or nil
+end
+
+local function ToVector(c)
+    return vector3(tonumber(c.x) or 0.0, tonumber(c.y) or 0.0, tonumber(c.z) or 0.0)
+end
+
+local function PointsForJob(jobName)
+    local cfg = PointsCfg()
+    if not cfg or Shared.IsDefaultJob(jobName) then return nil end
+    local list = {}
+    for _, point in ipairs(cfg.points or {}) do
+        if point.job == jobName and point.coords then list[#list + 1] = point end
+    end
+    return #list > 0 and list or nil
+end
+
+local function NearestPoint(jobName)
+    local points = PointsForJob(jobName)
+    if not points then return nil end
+    local pos = GetEntityCoords(PlayerPedId())
+    local best, bestDist
+    for _, point in ipairs(points) do
+        local dist = #(pos - ToVector(point.coords))
+        if not bestDist or dist < bestDist then best, bestDist = point, dist end
+    end
+    return best, bestDist
+end
+
+-- What the Duty tab needs to know about the nearest point
+local function DutyPointState()
+    local point, dist = NearestPoint(PlayerJob)
+    if not point then return { required = false } end
+    local cfg = PointsCfg()
+    return {
+        required = true,
+        outRequired = cfg.clockOutAtPoint == true,
+        inside = dist <= (point.radius or 3.0),
+        label = point.label or point.job,
+        distance = math.floor(dist + 0.5),
+    }
+end
+
+local function MarkPoint(point)
+    if not point then return end
+    SetNewWaypoint(point.coords.x + 0.0, point.coords.y + 0.0)
+end
+
+local function ClearPointMarkers()
+    for _, blip in ipairs(pointBlips) do
+        if DoesBlipExist(blip) then RemoveBlip(blip) end
+    end
+    pointBlips = {}
+    for _, id in ipairs(pointZones) do
+        pcall(function() exports.ox_target:removeZone(id) end)
+    end
+    pointZones = {}
+end
+
+-- Blips and ox_target zones follow the job the player is working right now
+local function RefreshPointMarkers()
+    local cfg = PointsCfg()
+    local key = tostring(PlayerJob) .. (cfg and ':on' or ':off')
+    if markedJob == key then return end
+    markedJob = key
+    ClearPointMarkers()
+
+    local points = PointsForJob(PlayerJob)
+    if not cfg or not points then return end
+
+    local useTarget = cfg.interact == 'target' and GetResourceState('ox_target') == 'started'
+
+    for _, point in ipairs(points) do
+        if cfg.blips ~= false and point.blip ~= false then
+            local style = type(point.blip) == 'table' and point.blip or {}
+            local blip = AddBlipForCoord(point.coords.x + 0.0, point.coords.y + 0.0, point.coords.z + 0.0)
+            SetBlipSprite(blip, style.sprite or 1)
+            SetBlipColour(blip, style.colour or style.color or 2)
+            SetBlipScale(blip, style.scale or 0.7)
+            SetBlipAsShortRange(blip, true)
+            BeginTextCommandSetBlipName('STRING')
+            AddTextComponentSubstringPlayerName(point.label or Config.Locale['clock_in'])
+            EndTextCommandSetBlipName(blip)
+            pointBlips[#pointBlips + 1] = blip
+        end
+
+        if useTarget then
+            local job = point.job
+            local ok, id = pcall(function()
+                return exports.ox_target:addSphereZone({
+                    coords = ToVector(point.coords),
+                    radius = point.radius or 3.0,
+                    debug = Config.Debug,
+                    options = {
+                        {
+                            name = 'nayzeee_clock_in',
+                            icon = 'fa-solid fa-clock',
+                            label = Config.Locale['clock_in'],
+                            canInteract = function() return not isOnDuty and PlayerJob == job end,
+                            onSelect = function() TriggerServerEvent('nayzeee-multijob:clockIn') end,
+                        },
+                        {
+                            name = 'nayzeee_clock_out',
+                            icon = 'fa-solid fa-clock-rotate-left',
+                            label = Config.Locale['clock_out'],
+                            canInteract = function() return isOnDuty and PlayerJob == job end,
+                            onSelect = function() TriggerServerEvent('nayzeee-multijob:clockOut', false) end,
+                        },
+                    },
+                })
+            end)
+            if ok and id then pointZones[#pointZones + 1] = id end
+        end
+    end
+end
+
+-- 'textui': show a prompt inside the point and clock in / out on the key
+CreateThread(function()
+    local shown = nil
+
+    while true do
+        local sleep = 1000
+        local cfg = PointsCfg()
+
+        if cfg and cfg.interact == 'textui' and not isUIOpen and not isAdminOpen then
+            local point, dist = NearestPoint(PlayerJob)
+            if point and dist <= (point.radius or 3.0) then
+                sleep = 0
+                local text = Shared.L(isOnDuty and 'duty_point_prompt_out' or 'duty_point_prompt_in', point.label or point.job)
+                if shown ~= text then
+                    lib.showTextUI(text, { icon = 'clock' })
+                    shown = text
+                end
+                if IsControlJustReleased(0, cfg.key or 38) then
+                    if isOnDuty then
+                        TriggerServerEvent('nayzeee-multijob:clockOut', false)
+                    else
+                        TriggerServerEvent('nayzeee-multijob:clockIn')
+                    end
+                end
+            else
+                if point and dist < 40.0 then sleep = 250 end
+            end
+        end
+
+        if sleep > 0 and shown then
+            lib.hideTextUI()
+            shown = nil
+        end
+        Wait(sleep)
+    end
+end)
+
+-- The server refused a clock in/out away from a point: mark the nearest one
+RegisterNetEvent('nayzeee-multijob:dutyPointHint', function(hint)
+    if type(hint) ~= 'table' then return end
+    SetNewWaypoint((tonumber(hint.x) or 0) + 0.0, (tonumber(hint.y) or 0) + 0.0)
+    Shared.Notify('Duty', Shared.L(hint.out and 'duty_point_needed_out' or 'duty_point_waypoint', hint.label or ''), 'error')
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PLAYER DATA
@@ -47,6 +218,8 @@ local function ApplyPlayerData(data)
     isOnDuty = data.isOnDuty == true
     afkPaused = data.afkPaused == true
     dutyStartTime = GetGameTimer() - math.floor((tonumber(data.dutyTime) or 0) * 1000)
+    PlayerBossJobs = data.bossJobs or {}
+    RefreshPointMarkers()
 end
 
 local function MenuPayload()
@@ -73,6 +246,8 @@ local function MenuPayload()
         maxSchedules = Config.Schedule and Config.Schedule.maxSchedules,
         ui = Config.UI,
         playerName = PlayerName or GetPlayerName(PlayerId()),
+        bossJobs = PlayerBossJobs,
+        dutyPoint = DutyPointState(),
     }
 end
 
@@ -282,8 +457,13 @@ end
 CreateThread(function()
     while true do
         Wait(1000)
-        if isOnDuty and isUIOpen then
-            SendNUIMessage({ action = 'updateDutyTime', time = DutySeconds() })
+        if isUIOpen then
+            if isOnDuty then
+                SendNUIMessage({ action = 'updateDutyTime', time = DutySeconds() })
+            end
+            if PointsForJob(PlayerJob) then
+                SendNUIMessage({ action = 'dutyPoint', data = DutyPointState() })
+            end
         end
     end
 end)
@@ -372,22 +552,71 @@ RegisterNUICallback('adminRefresh', function(_, cb)
     end)
 end)
 
+RegisterNUICallback('adminSearch', function(data, cb)
+    lib.callback('nayzeee-multijob:adminSearch', false, function(results)
+        cb({ results = results or {} })
+    end, data.query)
+end)
+
+-- target = an online server id or a character identifier (offline players)
 RegisterNUICallback('adminGetPlayer', function(data, cb)
     lib.callback('nayzeee-multijob:adminGetPlayer', false, function(pdata)
         cb(pdata or {})
-    end, data.id)
+    end, data.target)
 end)
 
 RegisterNUICallback('adminAddJob', function(data, cb)
     lib.callback('nayzeee-multijob:adminAddJob', false, function(ok)
         cb({ ok = ok == true })
-    end, data.playerId, data.job, data.grade)
+    end, data.target, data.job, data.grade)
 end)
 
 RegisterNUICallback('adminRemoveJob', function(data, cb)
     lib.callback('nayzeee-multijob:adminRemoveJob', false, function(ok)
         cb({ ok = ok == true })
-    end, data.playerId, data.job)
+    end, data.target, data.job)
+end)
+
+RegisterNUICallback('adminSetJob', function(data, cb)
+    lib.callback('nayzeee-multijob:adminSetJob', false, function(ok)
+        cb({ ok = ok == true })
+    end, data.target, data.job, data.grade)
+end)
+
+RegisterNUICallback('dutyWaypoint', function(_, cb)
+    MarkPoint(NearestPoint(PlayerJob))
+    cb('ok')
+end)
+
+-- Team tab (bosses). The server checks the boss grade on every call.
+RegisterNUICallback('bossTeam', function(data, cb)
+    lib.callback('nayzeee-multijob:bossTeam', false, function(team)
+        cb(team or {})
+    end, data.job)
+end)
+
+RegisterNUICallback('bossNearby', function(data, cb)
+    lib.callback('nayzeee-multijob:bossNearby', false, function(result)
+        cb(result or { players = {} })
+    end, data.job)
+end)
+
+RegisterNUICallback('bossHire', function(data, cb)
+    lib.callback('nayzeee-multijob:bossHire', false, function(ok)
+        cb({ ok = ok == true })
+    end, data.job, data.target, data.grade)
+end)
+
+RegisterNUICallback('bossFire', function(data, cb)
+    lib.callback('nayzeee-multijob:bossFire', false, function(ok)
+        cb({ ok = ok == true })
+    end, data.job, data.ref)
+end)
+
+RegisterNUICallback('bossSetGrade', function(data, cb)
+    lib.callback('nayzeee-multijob:bossSetGrade', false, function(ok)
+        cb({ ok = ok == true })
+    end, data.job, data.ref, data.grade)
 end)
 
 RegisterNUICallback('adminBulkAction', function(data, cb)
@@ -423,15 +652,49 @@ end)
 
 RegisterNetEvent('nayzeee-multijob:refresh', LoadPlayerData)
 
+-- A hire went through: reload the Team tab if the boss has it open
+RegisterNetEvent('nayzeee-multijob:teamChanged', function()
+    if isUIOpen then SendNUIMessage({ action = 'teamChanged' }) end
+end)
+
+-- A boss offered this player a job
+RegisterNetEvent('nayzeee-multijob:jobOffer', function(offer)
+    if type(offer) ~= 'table' or not offer.id then return end
+
+    local answered, expired = false, false
+    SetTimeout((tonumber(offer.timeout) or 60) * 1000, function()
+        if not answered then
+            expired = true
+            lib.closeAlertDialog()
+        end
+    end)
+
+    local answer = lib.alertDialog({
+        header = Shared.L('boss_offer_title'),
+        content = Shared.L('boss_offer_text', offer.from or '?', offer.jobLabel or '?', offer.gradeLabel or '?'),
+        centered = true,
+        cancel = true,
+        labels = { confirm = Shared.L('boss_offer_accept'), cancel = Shared.L('boss_offer_decline') },
+    })
+    answered = true
+
+    -- ox_lib drops NUI focus when its dialog closes; give it back to an open menu
+    if isUIOpen or isAdminOpen then SetNuiFocus(true, true) end
+    if expired then return end
+
+    TriggerServerEvent('nayzeee-multijob:offerResponse', offer.id, answer == 'confirm')
+end)
+
 RegisterNetEvent('nayzeee-multijob:shiftEnded', function(data)
     Shared.Debug('Shift ended:', data and data.job, data and data.duration, data and data.earnings)
     LoadPlayerData()
 end)
 
 AddEventHandler('onResourceStop', function(res)
-    if res == GetCurrentResourceName() and (isUIOpen or isAdminOpen) then
-        SetNuiFocus(false, false)
-    end
+    if res ~= GetCurrentResourceName() then return end
+    if isUIOpen or isAdminOpen then SetNuiFocus(false, false) end
+    ClearPointMarkers()
+    lib.hideTextUI()
 end)
 
 -- ═══════════════════════════════════════════════════════════════════════════

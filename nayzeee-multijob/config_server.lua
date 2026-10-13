@@ -30,5 +30,6 @@ ServerConfig.Discord = {
         clockIn = true,
         clockOut = true,
         adminAction = true, -- every staff action from /jobadmin
+        bossAction = true,  -- hires, promotions and firings from the Team tab
     }
 }

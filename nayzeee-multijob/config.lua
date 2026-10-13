@@ -66,11 +66,48 @@ Config.AdminGroups = { 'mod', 'admin', 'superadmin', 'god', 'management', 'devel
 
 -- Set any of these to false to hide that tab and block the action server-side
 Config.AdminPermissions = {
-    viewPlayers = true,     -- Players tab
+    viewPlayers = true,     -- Players tab, including the offline character search
     editJobs = true,        -- add / remove jobs from a single player
     bulkOperations = true,  -- Bulk actions tab
     viewLogs = true,        -- Logs tab
     viewAnalytics = true,   -- Analytics tab
+}
+
+-- ██████╗  ██████╗ ███████╗███████╗
+-- ██╔══██╗██╔═══██╗██╔════╝██╔════╝
+-- ██████╔╝██║   ██║███████╗███████╗
+-- ██╔══██╗██║   ██║╚════██║╚════██║
+-- ██████╔╝╚██████╔╝███████║███████║
+-- ╚═════╝  ╚═════╝ ╚══════╝╚══════╝
+-- Team tab for job bosses: hire, promote and let people go
+
+Config.Boss = {
+    enabled = true,
+
+    -- Who counts as a boss of a job:
+    --   QBCore / QBox -> grades with isboss = true
+    --   ESX           -> the grade named 'boss' (same rule as esx_society)
+    --   any job       -> its highest grade, when no grade is marked as boss
+    -- Override per job with the lowest grade that is a boss, e.g. police = 3
+    minGrade = {},
+
+    -- Bosses can set grades up to one below their own. true = up to their own grade.
+    promoteToOwnGrade = false,
+
+    -- How close a new hire must be standing, in metres. 0 = anyone online.
+    -- (Needs OneSync, which ESX Legacy and QBCore already require.)
+    hireDistance = 5.0,
+
+    -- New hires get a pop-up to accept or decline the offer
+    requireAccept = true,
+    offerTimeout = 60, -- seconds before an unanswered offer expires
+
+    -- Turn single actions off for every boss
+    permissions = {
+        hire = true,
+        fire = true,
+        promote = true, -- promote and demote
+    },
 }
 
 --  ██████╗ █████╗ ████████╗███████╗ ██████╗  ██████╗ ██████╗ ██╗███████╗███████╗
@@ -157,6 +194,41 @@ Config.Earnings = {
     -- Minutes between framework paychecks. nil = framework default
     -- (ESX 7, QBCore 10). Only used by 'estimate'.
     paycheckMinutes = nil,
+}
+
+-- ██████╗  ██████╗ ██╗███╗   ██╗████████╗███████╗
+-- ██╔══██╗██╔═══██╗██║████╗  ██║╚══██╔══╝██╔════╝
+-- ██████╔╝██║   ██║██║██╔██╗ ██║   ██║   ███████╗
+-- ██╔═══╝ ██║   ██║██║██║╚██╗██║   ██║   ╚════██║
+-- ██║     ╚██████╔╝██║██║ ╚████║   ██║   ███████║
+-- ╚═╝      ╚═════╝ ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
+-- Clock-in points: where a job has to be to clock in
+
+Config.DutyPoints = {
+    enabled = false,
+
+    -- How players clock in at a point:
+    --   'textui' = walk in and press the key (ox_lib text UI, nothing extra needed)
+    --   'target' = an ox_target option on the point
+    --   false    = no prompt, use the menu while standing in the point
+    interact = 'textui',
+    key = 38, -- E. Control index used by 'textui'.
+
+    blips = true,
+    clockOutAtPoint = false, -- true = players have to be at a point to clock out as well
+    waypoint = true,         -- clocking in away from a point marks the nearest one on the map
+
+    -- A job with points listed here can only clock in at one of them.
+    -- Jobs with no points keep clocking in from anywhere, like before.
+    -- blip: false hides that point's blip. Sprites: 60 police, 61 hospital, 446 mechanic.
+    points = {
+        { job = 'police', label = 'Mission Row PD', coords = vec3(441.1, -981.9, 30.7), radius = 3.0,
+          blip = { sprite = 60, colour = 29, scale = 0.7 } },
+        { job = 'ambulance', label = 'Pillbox Medical', coords = vec3(311.2, -593.8, 43.3), radius = 3.0,
+          blip = { sprite = 61, colour = 1, scale = 0.7 } },
+        { job = 'mechanic', label = 'Bennys Motorworks', coords = vec3(-205.9, -1310.9, 31.3), radius = 4.0,
+          blip = { sprite = 446, colour = 5, scale = 0.7 } },
+    },
 }
 
 --  ██████╗ ██████╗  ██████╗ ██╗     ██████╗  ██████╗ ██╗    ██╗███╗   ██╗███████╗
@@ -396,4 +468,34 @@ Config.Locale = {
     ['schedule_invalid'] = 'That schedule is not valid',
     ['admin_done'] = 'Done - %s',
     ['admin_bulk_done'] = '%s of %s players updated',
+
+    -- clock-in points
+    ['duty_point_needed'] = 'Clock in at %s',
+    ['duty_point_needed_out'] = 'Clock out at %s',
+    ['duty_point_waypoint'] = 'Clock in at %s - it is marked on your map',
+    ['duty_point_prompt_in'] = '[E] Clock in · %s',
+    ['duty_point_prompt_out'] = '[E] Clock out · %s',
+
+    -- boss / team
+    ['boss_not_boss'] = 'You are not a boss of this job',
+    ['boss_no_permission'] = 'Bosses cannot do that on this server',
+    ['boss_offer_sent'] = 'Job offer sent to %s',
+    ['boss_offer_title'] = 'Job offer',
+    ['boss_offer_text'] = '%s is offering you a job as %s (%s). Do you accept?',
+    ['boss_offer_accept'] = 'Accept',
+    ['boss_offer_decline'] = 'Decline',
+    ['boss_offer_accepted'] = '%s accepted your job offer',
+    ['boss_offer_declined'] = '%s turned down your job offer',
+    ['boss_offer_expired'] = 'That job offer has expired',
+    ['boss_offer_pending'] = '%s already has a job offer waiting',
+    ['boss_hired'] = 'You were hired as %s - switch to it from /jobs',
+    ['boss_already_employed'] = '%s already works here',
+    ['boss_too_far'] = 'Stand closer to the person you are hiring',
+    ['boss_target_full'] = '%s has no free job slots',
+    ['boss_fired'] = '%s was let go',
+    ['boss_you_fired'] = 'You were let go from %s',
+    ['boss_rank_too_high'] = 'You can only manage staff below your own grade',
+    ['boss_grade_too_high'] = 'You cannot give out a grade that high',
+    ['boss_grade_set'] = '%s is now %s',
+    ['boss_your_grade'] = 'You are now %s at %s',
 }
