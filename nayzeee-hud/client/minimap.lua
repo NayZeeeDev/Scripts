@@ -16,12 +16,15 @@ NHUD.hideHealthBars = hideHealthBars
 
 -- Minimap shape + height. With 'B' alignment a bigger Y moves a component DOWN the screen,
 -- so lifting the radar for the status row subtracts the raise.
--- 'square' / 'circle' need the squaremap.ytd / circlemap.ytd textures in this resource's stream/ folder.
+-- 'square' / 'rounded' / 'circle' need squaremap.ytd / roundedmap.ytd / circlemap.ytd in this resource's stream/ folder.
 -- frame: where the visible radar sits for that shape at 16:9, in vh (left, bottom gap, width, height),
 -- taken from qb-hud's border positions for the same component values.
 local SHAPES = {
     default = { clip = 0, map = { -0.0045, 0.002, 0.150, 0.188 }, mask = { 0.020, 0.032, 0.111, 0.159 }, blur = { -0.03, 0.022, 0.266, 0.237 } },
     square  = { dict = 'squaremap', clip = 0, map = { 0.0, -0.047, 0.1638, 0.183 }, mask = { 0.0, 0.0, 0.128, 0.20 }, blur = { -0.01, 0.025, 0.262, 0.300 },
+                frame = { 2.87, 6.37, 29.0, 18.5 } },
+    -- the square radar with a rounded-corner mask (roundedmap.ytd: the square mask, corners rounded 1.2vh)
+    rounded = { dict = 'roundedmap', clip = 0, map = { 0.0, -0.047, 0.1638, 0.183 }, mask = { 0.0, 0.0, 0.128, 0.20 }, blur = { -0.01, 0.025, 0.262, 0.300 },
                 frame = { 2.87, 6.37, 29.0, 18.5 } },
     circle  = { dict = 'circlemap', clip = 1, map = { -0.0100, -0.030, 0.180, 0.258 }, mask = { 0.200, 0.0, 0.065, 0.20 }, blur = { -0.00, 0.015, 0.252, 0.338 },
                 frame = { 4.07, 7.37, 27.3, 22.9 } },
@@ -48,7 +51,7 @@ function NHUD.setMinimapLayout(shape, raise)
     applied = key
     CreateThread(function()
         local def = SHAPES[shape]
-        -- the masks ship in stream/ (squaremap.ytd, circlemap.ytd); without them the shape still applies
+        -- the masks ship in stream/ (squaremap.ytd, roundedmap.ytd, circlemap.ytd); without them the shape still applies
         -- with GTA's own mask (circle clips natively), it just looks a little softer
         local textures = def.dict and hasTextures(def.dict)
         if def.dict and not textures then
@@ -93,7 +96,7 @@ local function anchor()
     local margin = math.abs(safe - 1.0) * 10
     local def = SHAPES[layout.shape]
     if def and def.frame then
-        -- square / circle: vh-based rect (height-relative), converted to % of the screen width for x
+        -- square / rounded / circle: vh-based rect (height-relative), converted to % of the screen width for x
         local f, hw = def.frame, resY / resX
         local l = f[1] * hw + layout.offset * 100 + xs * (resX * ((1.0 / 20.0) * margin)) * 100
         local b = 100 - f[2] - layout.raise * 100 - ys * (resY * ((1.0 / 20.0) * margin)) * 100

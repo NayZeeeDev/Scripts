@@ -64,7 +64,7 @@
     apply() { this.mf.dataset.style = NH.cur.map.frameStyle || 'glass'; },
     place(c) {
       const s = this.el.style;
-      this.el.dataset.shape = c.map.shape || 'default'; // square / circle frames follow the radar's shape
+      this.el.dataset.shape = c.map.shape || 'default'; // square / rounded / circle frames follow the radar's shape
       s.left = c.map.l + '%'; s.top = (c.map.b - c.map.h) + '%';
       s.width = c.map.w + '%'; s.height = c.map.h + '%';
     },
@@ -542,7 +542,7 @@
     });
   };
   // browser preview: no Lua to place the radar, so mimic what client/minimap.lua reports
-  const SHAPE_FRAMES = { square: [2.87, 6.37, 29.0, 18.5], circle: [4.07, 7.37, 27.3, 22.9] };
+  const SHAPE_FRAMES = { square: [2.87, 6.37, 29.0, 18.5], rounded: [2.87, 6.37, 29.0, 18.5], circle: [4.07, 7.37, 27.3, 22.9] };
   const browserMap = () => {
     const raise = NH.cur.status.enabled && NH.cur.status.place !== 'side' ? 6.5 : 0;
     const f = SHAPE_FRAMES[NH.cur.map.shape], hw = window.innerHeight / window.innerWidth;

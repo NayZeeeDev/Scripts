@@ -20,7 +20,11 @@
 .mf[data-style="corners"] > i:nth-child(3) { left: -2px; bottom: -2px; border-width: 0 0 3px 3px; border-radius: 0 0 0 8px; }
 .mf[data-style="corners"] > i:nth-child(4) { right: -2px; bottom: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 8px 0; }
 .mf[data-style="shadow"] { box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 26px 6px rgba(0, 0, 0, .45); }
-/* square and circle minimap shapes */
+/* square, rounded and circle minimap shapes (rounded: the mask's corners are 1.2vh, the frame wraps them) */
+.w-mapframe[data-shape="rounded"] .mf-bz { border-radius: 1.2vh; }
+.w-mapframe[data-shape="rounded"] .mf { border-radius: calc(1.2vh + 4px); }
+.w-mapframe[data-shape="rounded"] .mf[data-style="panel"] { border-radius: calc(1.2vh + 9px); }
+.w-mapframe[data-shape="rounded"] .mf[data-style="inset"] { border-radius: calc(1.2vh + 5px); }
 .w-mapframe[data-shape="square"] .mf, .w-mapframe[data-shape="square"] .mf-bz { border-radius: 4px; }
 .w-mapframe[data-shape="square"] .mf[data-style="panel"] { border-radius: 8px; }
 .w-mapframe[data-shape="circle"] .mf, .w-mapframe[data-shape="circle"] .mf-bz { border-radius: 50%; }
@@ -343,8 +347,9 @@ body.decor .deco { display: block; }
 .vc.vs-minimal.talk .vc-mic { background: var(--accent); }
 .vc.vs-minimal.rt .vc-radio { background: #fde047; }
 
-/* player info: Chips (a small icon square + a value pill, all in one row) */
-.inf.chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 760px; }
+/* player info: Chips (a small icon square + a value pill, in right-aligned rows) */
+.inf.chips { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding: 0; }
+.inf.chips .cr { display: flex; justify-content: flex-end; gap: 6px; }
 .chp { display: inline-flex; gap: 3px; }
 .chp > i, .chp > b { height: 24px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.25); display: grid; place-items: center; }
 .chp > i { width: 24px; font-size: 13px; color: #fff; font-style: normal; }
@@ -361,4 +366,3 @@ body.decor .deco { display: block; }
 .w-street.inside .sb-z { display: none; }
 .w-street.inside { z-index: 3; }
 
-.inf.chips { flex-wrap: nowrap; width: max-content; }

@@ -261,6 +261,11 @@
     }
     switch (m.t) {
       case 'u': NH.update(m.d); break;
+      case 'wimg': // the inventory started after the HUD
+        NH.cfg.weaponImages = m.v;
+        if (W.weapon) { W.weapon.wp = null; W.weapon.render({ wpn: 1 }); }
+        teamProxy();
+        break;
       case 'init':
         NH.applyServerDefaults(m.defaults);
         if (m.watermark) {

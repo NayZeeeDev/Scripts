@@ -119,7 +119,7 @@
     sec('Minimap', seg('map.mode', [['vehicle', 'In vehicles'], ['always', 'Always'], ['never', 'Never']], 'Show minimap') +
       toggle('map.frame', 'Minimap frame', 'Drawn around the radar; follows the shape you pick below') +
       cards('map.frameStyle', MAP_FRAMES.map(([v, l]) => ({ v, l, html: `<div class="pv-map"><div class="pv-radar"></div>${v === 'none' ? '' : '<b class="mf-bz"></b>'}<div class="mf" data-style="${v}"><i></i><i></i><i></i><i></i></div></div>` })), 'c3') +
-      seg('map.shape', [['default', 'Default'], ['square', 'Square'], ['circle', 'Circle']], 'Shape', 'The shape of the minimap itself')) +
+      seg('map.shape', [['default', 'Default'], ['square', 'Square'], ['rounded', 'Rounded'], ['circle', 'Circle']], 'Shape', 'The shape of the minimap itself')) +
     sec('Frame fit', range('map.fit.x', 'Left / right', -40, 40, 1, 'px') + range('map.fit.y', 'Up / down', -40, 40, 1, 'px') +
       range('map.fit.w', 'Width', -40, 40, 1, 'px') + range('map.fit.h', 'Height', -40, 40, 1, 'px') +
       `<div class="opt"><div class="opt-t"><b>Reset fit</b></div><button class="btn-line" data-act="fit-reset">${ic('reset')}Reset</button></div>`,
@@ -370,7 +370,7 @@
       el.innerHTML = `
         <div class="st-win">
           <aside class="st-side">
-            <div class="brand"><span class="brand-i">${ic('cog')}</span><div><b>NAYZEEE HUD</b><small>Customize your HUD</small></div></div>
+            <div class="brand"><span class="brand-i">${ic('cog')}</span><div><b>HUD SETTINGS</b><small>Customize your HUD</small></div></div>
             <nav>${TABS.map(t => `<button class="nav" data-tab="${t.id}">${ic(t.icon)}<span>${t.label}</span></button>`).join('')}</nav>
             <button class="btn-red reset-all" data-act="reset">${ic('reset')}<span>Reset to default</span></button>
           </aside>

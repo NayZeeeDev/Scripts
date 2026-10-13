@@ -1753,6 +1753,13 @@ const handlers = {
 handlers.settings = (d) => { if (d && typeof d === 'object') { state.settings = { ...state.settings, ...d }; applyHudStyle(); renderHud(); } };
 handlers.hudPreview = (on) => { state.previewHud = !!on; applyHudStyle(); renderHud(); };
 handlers.hudMove = () => { state.previewHud = true; hudEdit(true); };
+// the inventory started after the HUD: rebuild the cards so the guns use its pictures
+handlers.weaponImages = (tpl) => {
+  if (!state.cfg) return;
+  state.cfg.weaponImages = tpl;
+  document.querySelectorAll('#hud [data-w]').forEach((el) => { el.dataset.w = '\u0000'; });
+  renderHud();
+};
 
 window.addEventListener('message', (e) => {
   const { action, data } = e.data || {};

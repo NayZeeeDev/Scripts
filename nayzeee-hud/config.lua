@@ -65,7 +65,7 @@ Config.Minimap = {
     hideHealthBars = true,   -- hides GTA's health/armour bars under the radar
     raiseForStatus = 0.065,  -- how far the radar moves up when player status sits under it (screen height, 0-1)
     raisedFrameTrim = 0.007, -- while lifted, how much the frame's bottom edge comes up to meet the radar (screen height)
-    -- 'default' | 'square' | 'circle' (players pick in /hud). Square and circle need squaremap.ytd /
+    -- 'default' | 'square' | 'rounded' | 'circle' (players pick in /hud). These need squaremap.ytd / roundedmap.ytd /
     -- circlemap.ytd in a stream/ folder in this resource; without them the default shape is used.
     shape = 'default',
     -- Nudge the minimap frame for everyone, in 1080p pixels (players can fine-tune on top in /hud > Map & Compass > Frame fit).

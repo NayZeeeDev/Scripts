@@ -71,7 +71,7 @@ function gunHtml(name, tpl, v) {
   if (!wc) return ''; // nothing equipped: no gun slot at all
   const src = tpl && /^[A-Z0-9_]+$/i.test(name) ? tpl.replace('%s', String(name).toUpperCase()).replace('%l', String(name).toLowerCase()) : '';
   return `<div class="hm-gun" data-wc="${wc}"><svg class="wsil" viewBox="0 0 64 24" fill="currentColor">${SIL[wc] || SIL.pistol}</svg>${src
-    ? `<img class="wimg" src="${esc(src)}" alt="" draggable="false" onload="this.parentNode.classList.add('img')" onerror="this.remove()">` : ''}<i class="hm-flash"></i>${ammoHtml(v || {})}</div>`;
+    ? `<img class="wimg" src="${esc(src)}" data-fb="${src.includes('docs.fivem.net') ? '' : `https://docs.fivem.net/weapons/${String(name).toUpperCase()}.png`}" alt="" draggable="false" onload="this.parentNode.classList.add('img')" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.dataset.fb=''}else this.remove()">` : ''}<i class="hm-flash"></i>${ammoHtml(v || {})}</div>`;
 }
 
 // ─── vehicles ──────────────────────────────────────────────

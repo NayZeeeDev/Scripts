@@ -1,15 +1,35 @@
 local KVP = 'nhud:settings'
 
 --- The weapon picture template, with 'auto' resolved to whichever inventory is running.
+-- 'starting' counts too: the squads panel asks for this as soon as the HUD loads, which can be before the inventory is up
+local function running(res)
+    local s = GetResourceState(res)
+    return s == 'started' or s == 'starting'
+end
+local INVENTORIES = { 'ox_inventory', 'qb-inventory', 'ps-inventory', 'lj-inventory' }
+
 function NHUD.weaponImages()
     local v = Config.WeaponImages
     if v ~= 'auto' and v then return v end
-    if GetResourceState('ox_inventory') == 'started' then return 'nui://ox_inventory/web/images/%s.png' end
-    for _, inv in ipairs({ 'qb-inventory', 'ps-inventory', 'lj-inventory' }) do
-        if GetResourceState(inv) == 'started' then return ('nui://%s/html/images/%%l.png'):format(inv) end
+    if running('ox_inventory') then return 'nui://ox_inventory/web/images/%s.png' end
+    for i = 2, #INVENTORIES do
+        if running(INVENTORIES[i]) then return ('nui://%s/html/images/%%l.png'):format(INVENTORIES[i]) end
     end
     return 'https://docs.fivem.net/weapons/%s.png'
 end
+
+-- the inventory started after the HUD: send the HUD and the squads team HUD its pictures
+AddEventHandler('onClientResourceStart', function(res)
+    if Config.WeaponImages ~= 'auto' then return end
+    for i = 1, #INVENTORIES do
+        if res == INVENTORIES[i] then
+            local tpl = NHUD.weaponImages()
+            SendNUIMessage({ t = 'wimg', v = tpl })
+            SendNUIMessage({ action = 'weaponImages', data = tpl })
+            return
+        end
+    end
+end)
 local settingsOpen = false
 
 local function applyLuaSettings(s)

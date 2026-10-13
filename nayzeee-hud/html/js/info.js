@@ -17,7 +17,10 @@
   NH.INFO_STYLES = {
     chips: {
       label: 'Chips',
-      html: () => `<div class="inf chips">${chip('cash', 'cash')}${chip('dirty', 'cash')}${chip('bank', 'bank')}${chip('id', 'idcard')}${chip('players', 'users')}${chip('job', 'briefcase')}${chip('gang', 'users')}${chip('time', 'clock')}</div>`,
+      // rows like the other styles: id, players and time on top, then job, gang, and money at the bottom
+      html: () => `<div class="inf chips"><div class="cr">${chip('id', 'idcard')}${chip('players', 'users')}${chip('time', 'clock')}</div>
+        <div class="cr">${chip('job', 'briefcase')}</div><div class="cr">${chip('gang', 'users')}</div>
+        <div class="cr">${chip('cash', 'cash')}${chip('dirty', 'cash')}${chip('bank', 'bank')}</div></div>`,
     },
     pills: {
       label: 'Pills',
