@@ -222,7 +222,7 @@
     G.wrap = wrap;
     G.pp = NZA.ui.ProcPanel(wrap, {
       step: 1, total: 3, tag: T('tag', 'Blood donation'),
-      steps: [null, T('s1_title', 'Inflate the cuff'), T('s2_title', 'Squeeze on the beat'), T('s3_title', 'Seal the bag')],
+      steps: [T('s1_title', 'Inflate the cuff'), T('s2_title', 'Squeeze on the beat'), T('s3_title', 'Seal the bag')],
       hints: [{ keys: [keyCap(keys.squeeze)], label: T('hint_squeeze', 'squeeze') }],
       onAbort: () => { if (!G.finished) NZA.post(`${APP}:abort`, {}); },
       onTool: (k) => toolClick(k),
@@ -286,7 +286,7 @@
         tools: tools(),
         hints: [{ keys: [keyCap(k.squeeze)], label: T('hint_squeeze', 'squeeze') }],
       });
-      G.dev.state('');
+      G.dev.state(T('st_running', 'Collecting'), 'teal');
     } else if (n === 3) {
       G.pp.set({
         step: 3, title: T('s3_title', 'Seal the bag'),
@@ -364,6 +364,15 @@
     if (Math.floor(prevPos - 0.5) !== Math.floor(b.pos - 0.5)) {
       G.dev.pulse();
       NZA.audio.tone(64, 80, { vol: 0.12 }); NZA.audio.tone(56, 70, { vol: 0.08, at: 0.13 });
+    }
+    // browser preview: a demo hand squeezes (mostly) on the beat
+    if (G.auto && G.step === 2) {
+      if (G.autoAt === undefined) G.autoAt = 0.5 + (Math.random() * 0.16 - 0.07);
+      const pIdx = Math.floor(prevPos), pPh = prevPos - pIdx;
+      if ((pIdx === idx && pPh < G.autoAt && ph >= G.autoAt) || (pIdx !== idx && ph >= G.autoAt)) {
+        if (!b.hits[idx]) squeeze();
+        G.autoAt = 0.5 + (Math.random() * 0.16 - 0.07);
+      }
     }
     // a beat window passed without a squeeze → miss
     if (G.step === 2) {
@@ -456,6 +465,7 @@
     const beats = G.grades.length ? G.grades.reduce((a, b) => a + b, 0) / G.grades.length : 0.5;
     const score = Math.round(beats * 100 * 0.8 + G.cuff.acc * 100 * 0.12 + (s.restarts ? 60 : 100) * 0.08);
     G.result = { score: clamp(score, 0, 100), ml: Math.round(G.ml) };
+    G.pp.set({ hints: [{ keys: ['Enter'], label: T('hint_finish', 'finish') }] });
     G.pp.complete({
       title: T('done_title', 'Unit collected'),
       text: F(T('done_text', '**%s mL** collected. Best streak ×%s. Press {Enter} to finish.'), Math.round(G.ml), G.best),
@@ -600,12 +610,11 @@
     const d = BK.data;
     const max = Math.max(4, ...((d.types || []).map(t => t.units)));
     return `<div class="bk-types">${(d.types || TYPES.map(t => ({ type: t, units: 0, ml: 0 }))).map(t => `
-      <button class="bk-type ${sel === t.type ? 'on' : ''} ${t.units ? '' : 'none'}" data-type="${esc(t.type)}">
+      <button class="bk-type ${sel === t.type ? 'on' : ''} ${t.units ? '' : 'none'} ${t.type === 'O-' ? 'uni' : ''}" data-type="${esc(t.type)}" ${t.type === 'O-' ? `title="${esc(T('universal', 'Universal donor'))}"` : ''}>
         <div class="ty">${esc(fmtType(t.type))}</div>
         <div class="un"><b>${esc(t.units)}</b> ${esc(t.units === 1 ? T('unit', 'unit') : T('units', 'units'))}</div>
         <div class="ml">${esc(t.ml)} mL</div>
         <div class="bar"><i style="width:${clamp(t.units / max, 0, 1) * 100}%"></i></div>
-        ${t.type === 'O-' ? `<span class="tag">${esc(T('universal', 'Universal'))}</span>` : ''}
       </button>`).join('')}</div>`;
   }
 
@@ -879,6 +888,7 @@
         }), 600);
         return { ok: true };
       });
+      setTimeout(() => { if (G.on) G.auto = true; }, 50);
       NZA.demo(APP, {
         mode: 'donate', self: true, keys: { squeeze: 'Space', clamp: 'KeyC', needle: 'KeyE' },
         data: { point: 3, self: true, name: 'Michael Garcia', count: 3, bpm: 72, target: 450, bagSize: 500, typed: true, bloodType: 'O+',

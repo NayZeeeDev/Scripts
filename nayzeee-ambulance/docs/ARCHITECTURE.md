@@ -381,16 +381,31 @@ Every app MUST implement `preview()`.
   Icons: `NZ.icon(name)` (UI pack set) or inline SVG in the same stroke style.
 - Teal = primary/active/done. Red = danger, critical, close, abort. White = selected/current.
   Amber = warning/urgent (P2). P1 red, P2 amber, P3 teal.
-- The procedure panel (bottom centre, used by EVERY minigame): `NZA.ui.ProcPanel` in nza.js —
-  step counter + segmented progress, title, instruction text with inline key caps, stats block
-  on the right (label / big value / unit / optional meter), tool slots row (key badge + label,
-  active = teal, done = check), hints row, `ESC Hold to abort` on the right. Use it; do not
-  build your own.
+- ORIGINALITY (customer requirement, overrides anything older in this file): nothing may look
+  like the competitor product in the reference screenshots (layout, composition, wording, icon
+  treatment). Full rules and the list of forbidden look-alikes: `docs/design/ORIGINAL.md`.
+  No NAYZEEE name or logo on props or on in-world device faces (screens drawn in NUI/DUI that
+  represent a physical device); windows keep the UI pack signature.
+- The procedure HUD (used by EVERY minigame): `NZA.ui.ProcPanel` in nza.js. Layout: an
+  instruction column anchored bottom-left (readout card with a 240° dial for `wide` + an
+  instrument list / tile grid for `stats`, then the step card: procedure tag + `03/08` counter,
+  a vertical step spine, title, instruction text with inline key caps, optional `steps` names
+  → "Next: …", flash line, Done button), a key legend under it, and a vertical TOOL BELT on the
+  right edge (icon slots with key badges, labels as dark chips, active = teal slot + light bar,
+  done = check, need = red pulse) with the hold-to-abort RING under it. `side: 'right'` mirrors
+  it. The screen centre and the bottom-centre stay clear. Free zones for app widgets: top-left,
+  top-centre (transient), top-right, right-middle LEFT of the belt (keep `right ≥ 300px` when
+  tools are shown), centre for the scene. `pp.slot` is a container in the column for small
+  app widgets (above the key legend). Use it; do not build your own.
+- Patient speech: `NZA.speech` → voice card top-centre (avatar ring with initials, name +
+  role, quoted line). Interaction prompts: `NZA.prompt` → context tag next to the crosshair
+  (key ring + teal kicker `sub` + label). Timers/counters: `NZA.ui.FlipClock` now renders a
+  rolling (odometer) mono counter — do not draw split-flap digit cards anywhere.
 - Motion 130 ms hovers, 200–250 ms panels. Respect `prefers-reduced-motion`.
 - Text tone: short, plain, imperative ("Press the probe into the skin and feel for it").
 
 ### 10.3 Shared JS kit (core/nza.js, lead) — use these, don't re-implement
-`NZA.ui.ProcPanel`, `NZA.ui.FlipClock`, `NZA.ui.Toasts` (`NZA.toast`), `NZA.ui.KeyHints`,
+`NZA.ui.ProcPanel`, `NZA.ui.FlipClock` (rolling counter), `NZA.ui.Toasts` (`NZA.toast`), `NZA.ui.KeyHints`,
 `NZA.ui.Segmented`, `NZA.ui.Toggle`, `NZA.ui.Slider`, `NZA.ui.Chips`, `NZA.ui.Modal`,
 `NZA.ui.Win` (window shell builder), `NZA.ui.Anchors` (world-anchored markers fed by Lua),
 `NZA.ui.Hold` (hold-to-confirm), `NZA.ui.Meter`, `NZA.ui.Grade` (A–F result badge),

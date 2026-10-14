@@ -15,7 +15,7 @@
     NZA.ExamRoutes 'transfuse' (bleeding injury + blood volume below Stand.examRoute.belowPct).
     NZA.RadialItems 'blood_stand' (parent 'patient').
 
-    NUI callbacks: ivstand:hang { kind, serial?, slot?, force?, rate } → { ok, result | err, msg }
+    NUI callbacks: ivstand:hang { kind, serial?, slot?, force?, rate, hook? } → { ok, result | err, msg }
                    ivstand:rate { id, rate }   ivstand:takedown { id }   ivstand:txa { seconds }
                    ivstand:type   ivstand:iv   ivstand:fill { type }   ivstand:refresh   ivstand:close
     Lua → JS: open { locale, keys, cfg, data, bay }, data (panel data), snap (live patient), result
@@ -250,7 +250,7 @@ NZA.UI.On(APP, 'hang', function(data, cb)
     if not s or type(data) ~= 'table' then return cb({ ok = false }) end
     local payload = {
         kind = data.kind, serial = data.serial, slot = data.slot, type = data.type, force = data.force == true,
-        rate = tonumber(data.rate),
+        rate = tonumber(data.rate), hook = tonumber(data.hook),
     }
     if s.at then payload.at = { x = s.at.x, y = s.at.y, z = s.at.z } payload.h = s.h end
     local r = treat('ivstand:hang', payload)

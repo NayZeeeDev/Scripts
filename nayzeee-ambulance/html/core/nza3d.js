@@ -964,7 +964,7 @@
         .replace('#include <roughnessmap_fragment>', SKIN_ROUGH)
         .replace('#include <normal_fragment_maps>', SKIN_NORMAL)
         .replace('#include <clearcoat_normal_fragment_begin>', '#ifdef USE_CLEARCOAT\n vec3 clearcoatNormal = nzaMacroN;\n#endif')
-        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = clamp(uSebum * (1.0 - nzaInside) + nzaWet * 0.95, 0.0, 1.0);\n material.clearcoatRoughness = clamp(mix(0.34, mix(0.07, 0.16, nzaInside), nzaWet) + geometryRoughness, 0.0525, 1.0);\n#endif')
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = clamp(uSebum * (1.0 - nzaInside) + nzaWet * 0.95, 0.0, 1.0);\n material.clearcoatRoughness = clamp(mix(0.5, mix(0.07, 0.16, nzaInside), nzaWet) + geometryRoughness, 0.0525, 1.0);\n#endif')
         .replace('#include <aomap_fragment>', SKIN_AO);
     };
     skinMat.customProgramCacheKey = () => 'nza3d-skin-2';

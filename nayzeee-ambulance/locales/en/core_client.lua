@@ -67,7 +67,7 @@ NZA.AddLocale('en', {
     -- ── shared NUI strings (ui.*) ────────────────────────────────────────
     ['ui.abort']          = 'Abort',
     ['ui.hold_abort']     = 'Hold to abort',
-    ['ui.holdAbort']      = 'Hold to abort',
+    ['ui.holdAbort']      = 'Hold to cancel',
     ['ui.complete']       = 'Complete',
     ['ui.hold']           = 'Hold',
     ['ui.press']          = 'Press',

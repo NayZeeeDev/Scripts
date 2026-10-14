@@ -226,7 +226,7 @@ NZA.AddLocale('en', {
     ['cpr.s_vent'] = 'Ventilation',
     ['cpr.s_breaths'] = 'Breaths',
     ['cpr.s_etco2'] = 'EtCO₂',
-    ['cpr.w_comp'] = 'Compressions',
+    ['cpr.w_comp'] = 'This set',
     ['cpr.w_cycle'] = 'Cycle %s',
     ['cpr.cap_check'] = 'Rhythm check in %s',
     ['cpr.cap_due'] = 'Rhythm check due: analyse now',

@@ -390,6 +390,8 @@ end
 
 function MB.DropBody()
     if not B_.body or B_.busy then return end
+    local T = NZA.Transport
+    if T and T.Bay and T.Bay.Active and T.Bay.Active() then return toast(L('err_bad_spot'), 'error') end
     B_.busy = true
     local c = B('Carry')
     local ped = PlayerPedId()

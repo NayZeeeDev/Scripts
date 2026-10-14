@@ -408,7 +408,7 @@
   function ProcPanel(host, opts = {}) {
     const root = el('div', `pp${opts.side === 'right' ? ' pp--mirror' : ''}`);
     host.appendChild(root);
-    let o = Object.assign({ step: 1, total: 1, tag: '', title: '', text: '', steps: null, stats: [], wide: null, tools: [], hints: [], abort: { label: t('ui.holdAbort', 'Hold to abort'), key: 'ESC', seconds: 1.2 } }, opts);
+    let o = Object.assign({ step: 1, total: 1, tag: '', title: '', text: '', steps: null, stats: [], wide: null, tools: [], hints: [], abort: { label: t('ui.holdAbort', 'Hold to cancel'), key: 'ESC', seconds: 1.2 } }, opts);
     let flashTimer = null, hold = null, doneHandler = null;
     const RING = 2 * Math.PI * 19;
 

@@ -6,63 +6,69 @@
 
 #app-donation .dn-wrap{position:absolute;inset:0;pointer-events:none}
 
-/* ── collection monitor (rugged device, right side) ── */
-#app-donation .dn-dev{position:absolute;right:42px;top:50%;transform:translateY(-62%);width:318px;padding:12px 12px 10px;pointer-events:auto}
-#app-donation .dn-top{display:flex;align-items:center;justify-content:space-between;padding:2px 6px 10px}
-#app-donation .dn-scr{padding:12px 14px 12px;font-family:var(--mono);color:#e9eef0}
-#app-donation .dn-row1{display:flex;align-items:center;gap:8px;font:600 9px var(--font);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.45)}
-#app-donation .dn-row1 .dn-k{color:var(--teal-hi)}
-#app-donation .dn-row1 .dn-no{margin-left:auto}
-#app-donation .dn-row1 .dn-time{font:500 11px var(--mono);letter-spacing:.04em;color:rgba(255,255,255,.75)}
-#app-donation .dn-main{display:grid;grid-template-columns:78px 1fr;gap:14px;align-items:center;margin-top:12px}
-#app-donation .dn-bag{position:relative;height:118px;display:grid;place-items:end center}
-#app-donation .dn-bag .bb-bag{filter:drop-shadow(0 6px 10px rgba(0,0,0,.5))}
-#app-donation .dn-tube{position:absolute;left:50%;top:-6px;width:3px;height:14px;margin-left:-1.5px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
-#app-donation .dn-tube.on::after{content:'';position:absolute;left:0;right:0;height:6px;border-radius:2px;background:#b3242b;animation:dn-drip .55s linear infinite}
-@keyframes dn-drip{from{top:-6px}to{top:14px}}
-#app-donation .dn-read{min-width:0}
-#app-donation .dn-flip .flip{gap:4px}
-#app-donation .dn-flip .flip .d{width:44px;height:60px;font-size:38px}
-#app-donation .dn-of{margin-top:6px;font:500 11px var(--font);color:rgba(255,255,255,.55);letter-spacing:.02em}
+/* ── collection monitor (rugged device at the top of the procedure column) ── */
+#app-donation .dn-dev{position:relative;width:100%;padding:10px 11px 11px;border-radius:18px;pointer-events:auto;animation:nza-in 280ms cubic-bezier(.2,.7,.2,1) both}
+#app-donation .dn-dev::before{border-radius:14px}
+#app-donation .dn-top{display:flex;align-items:center;gap:10px;padding:1px 5px 8px}
+#app-donation .dn-top .dev-brand{flex:1}
+#app-donation .dn-time{font:500 10.5px var(--mono);letter-spacing:.06em;color:rgba(255,255,255,.5)}
+#app-donation .dn-scr{padding:11px 13px 10px;color:#e9eef0}
+#app-donation .dn-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+#app-donation .dn-hl{display:flex;flex-direction:column;gap:2px;min-width:0}
+#app-donation .dn-t{font-size:15px;font-weight:600;color:#fff;letter-spacing:-.01em;line-height:1.15}
+#app-donation .dn-t .ty{display:inline-grid;place-items:center;margin-left:6px;padding:0 6px;height:18px;border-radius:4px;background:#f3f1ea;color:#111;font-size:11px;font-weight:800;vertical-align:2px}
+#app-donation .dn-s{font-size:11px;color:rgba(255,255,255,.5);font-weight:300}
+#app-donation .dn-no{flex:none;font:600 8.5px var(--font);letter-spacing:.14em;text-transform:uppercase;color:var(--teal-hi);padding-top:3px}
+#app-donation .dn-main{display:grid;grid-template-columns:58px 1fr 74px;gap:12px;align-items:center;margin-top:10px}
+#app-donation .dn-bag{position:relative;height:82px;display:grid;place-items:end center}
+#app-donation .dn-bag .bb-bag{filter:drop-shadow(0 5px 8px rgba(0,0,0,.55))}
+#app-donation .dn-tube{position:absolute;left:50%;top:-8px;width:3px;height:12px;margin-left:-1.5px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+#app-donation .dn-tube.on::after{content:'';position:absolute;left:0;right:0;height:5px;border-radius:2px;background:#c42a31;animation:dn-drip .5s linear infinite}
+@keyframes dn-drip{from{top:-5px}to{top:12px}}
+#app-donation .dn-count{display:flex;flex-direction:column;align-items:center}
+#app-donation .dn-flip .odo{font-size:40px;gap:4px}
+#app-donation .dn-flip .odo .d{width:.78em;height:1.36em;border-radius:7px;background:linear-gradient(#1c1f23 0 49.6%,#121417 50.4% 100%);
+  border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 6px 14px rgba(0,0,0,.45)}
+#app-donation .dn-flip .odo .d::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(#1c1f23,#1c1f23) top/100% .19em no-repeat,linear-gradient(rgba(0,0,0,.75),rgba(0,0,0,.75)) center/100% 1px no-repeat,linear-gradient(#121417,#121417) bottom/100% .19em no-repeat}
+#app-donation .dn-flip .odo .d .st{top:.18em}
+#app-donation .dn-flip .odo .d .st i{width:.78em}
+#app-donation .dn-of{margin-top:6px;font:500 10.5px var(--font);color:rgba(255,255,255,.5);letter-spacing:.02em}
 #app-donation .dn-of b{color:#fff;font-weight:700}
-#app-donation .dn-flow{margin-top:12px}
-#app-donation .dn-flow .l{display:flex;align-items:baseline;gap:6px;font:600 9px var(--font);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.45)}
-#app-donation .dn-flow .l b{margin-left:auto;font:700 15px var(--mono);letter-spacing:0;color:#fff}
-#app-donation .dn-flow .l .u{font:500 9px var(--font);letter-spacing:.04em;text-transform:none}
-#app-donation .dn-flow .fm{margin-top:7px}
-#app-donation .dn-foot{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:11px;border-top:1px solid rgba(255,255,255,.07)}
+#app-donation .dn-heart{display:flex;flex-direction:column;align-items:center;gap:1px;color:#ff5a60}
+#app-donation .dn-heart .hi{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:rgba(229,72,77,.12);border:1px solid rgba(229,72,77,.3)}
+#app-donation .dn-heart .nz-ic{width:15px;height:15px;transition:transform 120ms}
+#app-donation .dn-heart b{margin-top:3px;font:700 22px/1 var(--mono);color:#fff;letter-spacing:-.03em}
+#app-donation .dn-heart .u{font:600 8px var(--font);letter-spacing:.16em;color:rgba(255,255,255,.45)}
+#app-donation .dn-heart.beat .hi{animation:dn-ring 420ms ease-out}
+#app-donation .dn-heart.beat .nz-ic{animation:dn-beat 380ms ease-out}
+@keyframes dn-beat{0%{transform:scale(1)}18%{transform:scale(1.42)}100%{transform:scale(1)}}
+@keyframes dn-ring{0%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}100%{box-shadow:0 0 0 10px rgba(229,72,77,0)}}
+#app-donation .dn-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;padding-top:9px;border-top:1px solid rgba(255,255,255,.07)}
 #app-donation .dn-beats{display:flex;gap:4px}
-#app-donation .dn-beats i{width:9px;height:16px;border-radius:2px;background:rgba(255,255,255,.08);transition:background 160ms}
-#app-donation .dn-beats i.perfect{background:var(--teal-hi);box-shadow:0 0 8px rgba(15,212,196,.55)}
+#app-donation .dn-beats i{width:8px;height:14px;border-radius:2px;background:rgba(255,255,255,.08);transition:background 160ms}
+#app-donation .dn-beats i.perfect{background:var(--teal-hi);box-shadow:0 0 7px rgba(15,212,196,.5)}
 #app-donation .dn-beats i.good{background:#e8ecee}
 #app-donation .dn-beats i.off{background:var(--amber)}
 #app-donation .dn-beats i.miss{background:var(--red)}
-#app-donation .dn-heart{display:flex;align-items:baseline;gap:6px;color:#ff6b70}
-#app-donation .dn-heart .nz-ic{width:16px;height:16px;align-self:center;transition:transform 120ms}
-#app-donation .dn-heart b{font:700 22px var(--mono);color:#fff;letter-spacing:-.02em}
-#app-donation .dn-heart span{font:600 8.5px var(--font);letter-spacing:.14em;color:rgba(255,255,255,.45)}
-#app-donation .dn-heart.beat .nz-ic{animation:dn-beat 380ms ease-out}
-@keyframes dn-beat{0%{transform:scale(1)}18%{transform:scale(1.38);filter:drop-shadow(0 0 6px #ff4a4f)}100%{transform:scale(1)}}
-#app-donation .dn-state{margin-top:10px;height:0;overflow:hidden;font:600 9.5px var(--font);letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);transition:height 200ms}
-#app-donation .dn-state.on{height:14px}
+#app-donation .dn-state{font:600 9px var(--font);letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #app-donation .dn-state.teal{color:var(--teal-hi)}
 #app-donation .dn-state.dim{color:rgba(255,255,255,.4)}
-#app-donation .dn-btns{display:flex;justify-content:center;gap:10px;padding-top:10px}
-#app-donation .dn-btns .dev-btn{width:42px;height:14px;border-radius:5px;pointer-events:none}
-#app-donation .dn-wrap.sq .dn-dev{animation:dn-sq 160ms ease-out}
-@keyframes dn-sq{50%{transform:translateY(-62%) scale(1.012)}}
+#app-donation .dn-wrap.sq .dn-dev .dn-flip{animation:dn-sq 170ms ease-out}
+@keyframes dn-sq{50%{transform:scale(1.03)}}
 
-/* watch (donor) */
-#app-donation .dn-wrap.watch .dn-dev{top:auto;bottom:120px;transform:none}
-#app-donation .dn-note{position:absolute;right:42px;bottom:470px;width:318px;display:flex;gap:10px;padding:11px 13px 12px 11px;overflow:hidden}
+/* watch (donor): same column as the procedure HUD */
+#app-donation .dn-col{position:absolute;left:28px;bottom:28px;width:392px;display:flex;flex-direction:column;gap:10px}
+#app-donation .dn-note{position:relative;display:flex;gap:10px;padding:11px 13px 12px 11px;overflow:hidden;animation:nza-in 240ms both}
 #app-donation .dn-note::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--teal);box-shadow:0 0 10px var(--teal)}
 #app-donation .dn-note .ni{width:30px;height:30px;flex:none;border-radius:9px;display:grid;place-items:center;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
 #app-donation .dn-note .ni .nz-ic{width:15px;height:15px}
 #app-donation .dn-note b{display:block;font-size:12.5px;font-weight:600;color:#fff}
 #app-donation .dn-note p{font-size:12px;color:rgba(243,245,239,.72);margin-top:2px;line-height:1.45}
 
-/* result card */
-#app-donation .dn-final{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);width:400px;padding:18px 18px 14px;display:flex;flex-direction:column;gap:14px;align-items:stretch;pointer-events:auto}
+/* result card (replaces the procedure column) */
+#app-donation .dn-final{position:absolute;left:28px;bottom:28px;width:392px;padding:16px 16px 13px;display:flex;flex-direction:column;gap:14px;align-items:stretch;pointer-events:auto;border-radius:14px}
+#app-donation .dn-final::before{content:'';position:absolute;left:0;top:0;width:44px;height:44px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:14px;pointer-events:none}
 #app-donation .dn-fh{display:flex;gap:14px;align-items:center}
 #app-donation .dn-fh .grade{width:52px;height:52px;font-size:24px;flex:none}
 #app-donation .dn-final .bb-label{align-self:center}
@@ -125,6 +131,8 @@
 .bb-label.sm .bb-prod .v b{font-size:17px}
 .bb-label.sm .bb-serial{font-size:10px}
 .bb-label.sm .bb-cross{margin:7px -10px -7px}
+.bb-label.sm .bb-site{display:none}
+.bb-head b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ═══════════════ BANK WINDOW ═══════════════ */
 #app-donation .bk-win.busy .w-main{opacity:.75;pointer-events:none}
@@ -140,7 +148,7 @@
 #app-donation .bk-type .ml{font-size:10px;color:var(--ink-3)}
 #app-donation .bk-type .bar{width:100%;height:4px;border-radius:9px;background:rgba(255,255,255,.08);margin-top:7px;overflow:hidden}
 #app-donation .bk-type .bar i{display:block;height:100%;border-radius:inherit;background:var(--teal)}
-#app-donation .bk-type .tag{position:absolute;right:9px;top:10px;font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--teal-hi)}
+#app-donation .bk-type.uni::after{content:'';position:absolute;right:10px;top:12px;width:7px;height:7px;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 0 3px var(--teal-wash),0 0 8px var(--teal-hi)}
 #app-donation .bk-tablep{flex:1;min-height:0}
 #app-donation .bk-table td{padding:8px 0;vertical-align:middle}
 #app-donation .bk-table td.act{text-align:right;width:120px}
@@ -183,5 +191,5 @@
 #app-donation .lb-f{display:flex;justify-content:flex-end;padding-top:11px;border-top:1px solid var(--line-soft);font-size:11px;color:var(--ink-3)}
 
 @media (prefers-reduced-motion: reduce){
-  #app-donation .dn-heart.beat .nz-ic,#app-donation .dn-tube.on::after,#app-donation .dn-wrap.sq .dn-dev{animation:none}
+  #app-donation .dn-heart.beat .nz-ic,#app-donation .dn-heart.beat .hi,#app-donation .dn-tube.on::after,#app-donation .dn-wrap.sq .dn-dev .dn-flip{animation:none}
 }

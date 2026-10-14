@@ -63,7 +63,7 @@
     pp_charged: 'Stand clear!', pp_charged_t: 'Hands off the patient. Deliver the shock with {%s} or disarm with {%s}.',
     pp_rosc: 'ROSC: the heart is beating', pp_rosc_t: 'Check the carotid pulse with {%s}. Keep the pads on: they can arrest again.',
     pp_cont: 'Continuous compressions', pp_cont_t: 'The patient is intubated on a ventilator: compress without pauses, {%s} on the beat.',
-    s_rate: 'Rate', s_depth: 'Depth', s_quality: 'Quality', s_vent: 'Ventilation', s_breaths: 'Breaths', s_etco2: 'EtCO₂', w_comp: 'Compressions', w_cycle: 'Cycle %s',
+    s_rate: 'Rate', s_depth: 'Depth', s_quality: 'Quality', s_vent: 'Ventilation', s_breaths: 'Breaths', s_etco2: 'EtCO₂', w_comp: 'This set', w_cycle: 'Cycle %s',
     cap_check: 'Rhythm check in %s', cap_due: 'Rhythm check due: analyse now', cap_adr_due: 'Adrenaline due', tag_cycle: 'Cycle %s', tag_easy: 'Easy mode',
     tool_pads: 'Pads', tool_analyse: 'Analyse', tool_charge: 'Charge', tool_disarm: 'Disarm', tool_shock: 'Shock', tool_adren: 'Adrenaline', tool_swap: 'Swap', tool_pulse: 'Pulse',
     hint_causes: 'Hs & Ts', hint_energy: 'energy', hint_orbit: 'orbit', hint_rmb: 'Right click', abort: 'Hold to stop CPR',
@@ -269,7 +269,7 @@
       onAbort: () => { if (!st.ended) post('leave'); }, onTool: k => toolKey(k),
     });
     const lane = document.createElement('div');
-    lane.className = 'cp-lane';
+    lane.className = 'cp-lane nza-hud solid nza-int';
     lane.innerHTML = `<div class="cp-beat"><canvas id="cpLane"></canvas><div class="cp-pop" id="cpPop"></div><div class="ov" id="cpLaneOv"><span class="ic"></span><span class="tx"></span><span class="bar"><i></i></span></div></div>
       <div class="cp-depth"><div class="tube"><span class="z"></span><i id="cpTube"></i></div><div><div class="l">${esc(T('d_depth'))}</div><div class="v" id="cpDepthV">--<small>cm</small></div><div class="s" id="cpDepthS">${esc(T('d_ok'))}</div></div></div>`;
     pp.slot.parentNode.insertBefore(lane, pp.slot);
@@ -327,7 +327,7 @@
     st.press = null;
     if (to === 'breaths') { st.waitBreaths = false; st.setPhase = 'breaths'; st.localSet = 0; if (st.breath) st.breath = null; }
     if (to === 'compress' && from !== 'advised' && from !== 'charging') { st.beat0 = now() + 250; st.lastBeatIdx = -1; st.idleWarned = false; }
-    if (to === 'compress' && (from === 'breaths' || from === 'charged' || from === 'analyse')) { st.setPhase = ''; st.localSet = 0; st.waitBreaths = false; }
+    if (to === 'compress' && (from === 'breaths' || from === 'charged' || from === 'analyse')) { st.setPhase = ''; st.localSet = 0; st.waitBreaths = false; st.intervals = []; st.lastPressAt = 0; }
     if (to === 'charged') { st.chargedBeep = now(); }
     if (to !== 'charged' && from === 'charged') hideBanner('clear');
     if (from === 'analyse' && to !== 'analyse') hideBanner('analyse');
@@ -493,7 +493,7 @@
     const meComp = v.role === 'comp';
     const fat = f => NZA.ui.meterHTML({ value: clamp((f || 0) / 40, 0, 1), tone: (f || 0) > 15 ? 'amber' : '' });
     const causes = (v.causes || []).map(c => `<div class="cp-cause ${esc(c.s)}"><i></i><span class="cn">${esc(T('c_' + c.k))}</span>${c.v ? `<span class="cv">${esc(c.v)}</span>` : ''}</div>`).join('');
-    const log = (v.log || []).slice(-6).map(l => `<div class="${esc(l.tone || '')}"><span>${NZA.fmt.time(l.t)}</span><b>${esc(l.text)}</b></div>`).join('');
+    const log = (v.log || []).slice(-4).map(l => `<div class="${esc(l.tone || '')}"><span>${NZA.fmt.time(l.t)}</span><b>${esc(l.text)}</b></div>`).join('');
     $('#cpTeam').className = `cp-team nza-hud rail ${v.state === 'arrest' ? 'red' : ''}`;
     $('#cpTeam').innerHTML = `
       <div class="hd"><span class="nza-label">${esc(kind)}</span><span class="chipx sm ${v.state === 'arrest' ? 'red' : 'teal'}">P1</span></div>
@@ -580,7 +580,7 @@
     const ph = v.phase;
     const ad = v.adrenaline || {};
     const list = [];
-    if (!v.pads) list.push({ key: keyLabel(st.keys.pads), act: 'pads', label: T('tool_pads'), state: !defib ? 'locked' : (st.padsOpen ? 'active' : 'need') });
+    if (!v.pads) list.push({ key: keyLabel(st.keys.pads), act: 'pads', icon: 'defib', label: T('tool_pads'), state: !defib ? 'locked' : (st.padsOpen ? 'active' : 'need') });
     list.push({ key: keyLabel(st.keys.analyse), act: 'analyse', icon: 'ecg', label: T('tool_analyse'), state: !v.pads || ph === 'breaths' || ph === 'charging' || ph === 'charged' || ph === 'rosc' ? 'locked' : (ph === 'analyse' ? 'active' : (checkDue() ? 'need' : '')) });
     const charging = ph === 'charging' || ph === 'charged';
     list.push({ key: keyLabel(st.keys.charge), act: 'charge', icon: 'bolt', label: charging ? T('tool_disarm') : T('tool_charge'), sub: `${curEnergy()} J`, state: !v.pads ? 'locked' : (charging ? 'active' : (ph === 'advised' ? 'need' : (v.mode !== 'manual' ? 'locked' : ''))) });
@@ -588,7 +588,7 @@
     if (ad.enabled !== false) list.push({ key: keyLabel(st.keys.adrenaline), act: 'adrenaline', icon: 'syringe', label: T('tool_adren'), count: `×${ad.have || 0}`, state: !ad.enabled || !ad.have ? 'locked' : (ad.due ? 'need' : '') });
     if (v.partner) list.push({ key: keyLabel(st.keys.swap), act: 'swap', icon: 'swap', label: T('tool_swap'), state: ph === 'charged' ? 'locked' : ((v.compFatigue || 0) > 15 ? 'need' : '') });
     else if (v.rosc || ph === 'rosc') list.push({ key: keyLabel(st.keys.pulse), act: 'pulse', icon: 'pulse', label: T('tool_pulse'), state: 'need' });
-    return list.map(t => ({ key: t.key, label: t.label, sub: t.sub, count: t.count, state: t.state, act: t.act }));
+    return list.map(t => ({ key: t.key, icon: t.icon, label: t.label, sub: t.sub, count: t.count, state: t.state, act: t.act }));
   }
   function toolKey(k) {
     const t = toolList().find(x => String(x.key).toLowerCase() === String(k).toLowerCase());

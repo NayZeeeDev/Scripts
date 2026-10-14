@@ -70,7 +70,7 @@
 
 /* IO layer column */
 .d-layers{position:relative;width:74px;height:178px;border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.1);flex:none;background:#160a09}
-.d-layers .ly{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;font:700 6.8px var(--font);letter-spacing:.1em;text-transform:uppercase;text-align:center;line-height:1.1}
+.d-layers .ly{position:absolute;left:0;right:0;padding-left:12px;display:flex;align-items:center;justify-content:center;font:700 6.8px var(--font);letter-spacing:.1em;text-transform:uppercase;text-align:center;line-height:1.1}
 .d-layers .ly.air{background:#050606;color:rgba(255,255,255,.3)}
 .d-layers .ly.soft{background:linear-gradient(#c98d73,#a96b56);color:#3d1c14}
 .d-layers .ly.cortex{background:linear-gradient(#efe7d4,#d8ccb1);color:#5a4d34}
@@ -79,7 +79,7 @@
 .d-layers .ly.beyond{background:#2a1513;color:rgba(255,255,255,.25)}
 .d-layers .tip{position:absolute;left:-2px;right:-2px;height:2px;background:#fff;box-shadow:0 0 8px #fff;transition:top 50ms linear}
 .d-layers .tip::after{content:'';position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-right-color:#fff}
-.d-layers .needle{position:absolute;left:50%;width:3px;margin-left:-1.5px;top:0;background:linear-gradient(#cfd6da,#8b959a);transition:height 50ms linear}
+.d-layers .needle{position:absolute;left:7px;width:3px;top:0;background:linear-gradient(#cfd6da,#8b959a);transition:height 50ms linear}
 
 /* arc gauge (off axis) */
 .d-arc{position:relative;width:86px;height:52px;flex:none}

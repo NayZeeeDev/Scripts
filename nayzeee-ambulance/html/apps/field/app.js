@@ -264,7 +264,7 @@
   function setText(t) { if (ui.pp && t !== lastText) { lastText = t; ui.pp.set({ text: t }); } }
 
   function stepNames() {
-    if (S.mode === 'iv') return IV_STEPS.map(id => L(`iv_t_${id}`, id));
+    if (S.mode === 'iv') return IV_STEPS.map(ivTitle);
     return [L('t_binder', 'Pelvic binder'), L('t_site', 'Choose IO site'), L('t_drill', 'Drill'), L('t_confirm', 'Confirm'), L('t_flush', 'Confirm and flush'), L('t_resus', 'Resuscitate'), L('t_reassess', 'Reassess')];
   }
   const hintsCam = () => [{ keys: [L('k_rclick', 'Right click')], label: L('h_orbit', 'orbit') }, { keys: ['Shift', L('k_rclick', 'Right click')], label: L('h_pan', 'pan') }];
@@ -640,7 +640,7 @@
       const io = S.io;
       if (io.syr) { io.syr.destroy(); io.syr = null; }
       io.phase = 'flush'; S.n = 5; io.tool = null;
-      ui.pp.set({ step: 5, title: L('t_flush', 'Confirm and flush'), tag: siteName(io.site) });
+      ui.pp.set({ step: 5, title: L('t_flush', 'Confirm and flush'), tag: siteName(io.site), hints: hintsCam() });
       this.flushTools();
       devFrame(L('d_flush', 'Flush'), `<div class="syrh"></div><div class="d-note fn"></div>`, { brand: L('dev_io', 'IO driver') });
       this.flushText();
@@ -1154,6 +1154,9 @@
     },
     show(s) {
       const b = s.before || {}, a = s.after || {};
+      if (a.bleed !== undefined) S.bleed = a.bleed;
+      if (a.map) S.vit.map = a.map;
+      S.metric = null; stats();
       const row = (k, bv, av, good) => `<span class="k">${esc(k)}</span><span class="b">${esc(bv ?? '--')}</span><span class="a ${good === true ? 'teal' : good === false ? 'red' : ''}">${esc(av ?? '--')}</span>`;
       const steps = (s.steps || []).map(st => `<div class="s"><span class="g ${st.skipped ? 'skip' : `g-${st.grade}`}">${esc(st.skipped ? '–' : st.grade || '?')}</span><span>${esc(st.label)}</span><i>${esc(st.skipped ? L('skipped', 'skipped') : st.note || `${st.score ?? ''}`)}</i></div>`).join('');
       devFrame(L('d_reassess', 'Reassess'), `
@@ -1174,6 +1177,8 @@
 
   /* ═══════════════════════════ IV CANNULATION ═══════════════════════════ */
   const IV_STEPS = ['tq', 'find', 'insert', 'advance', 'withdraw', 'secure'];
+  const IV_EN = { tq: 'Tourniquet', find: 'Find the vein', insert: 'Insert the needle', advance: 'Advance the cannula', withdraw: 'Withdraw the needle', secure: 'Secure the line' };
+  const ivTitle = id => L(`iv_t_${id}`, IV_EN[id] || id);
   H_.iv = {
     enter() {
       const d = S.data;
@@ -1186,7 +1191,7 @@
     go(ph) {
       const iv = S.iv;
       iv.phase = ph; S.n = IV_STEPS.indexOf(ph) + 1;
-      ui.pp.set({ step: S.n, total: 6, title: L(`iv_t_${ph}`, ph), tag: L('t_iv', 'IV cannulation'), steps: stepNames() });
+      ui.pp.set({ step: S.n, total: 6, title: ivTitle(ph), tag: L('t_iv', 'IV cannulation'), steps: stepNames() });
       stats();
       this.tools();
       if (ph === 'tq' || ph === 'find') this.armDev(); else this.xsecDev();
@@ -1197,7 +1202,9 @@
     },
     tools() {
       const iv = S.iv, ph = iv.phase;
-      const tq = { key: '1', label: iv.tq ? L('iv_tool_tq_off', 'Release tourniquet') : L('iv_tool_tq', 'Tourniquet'), icon: 'clamp', state: ph === 'tq' ? 'active' : ph === 'withdraw' && iv.tq ? 'active' : iv.tq ? 'done' : '' };
+      const releasing = iv.tq && (ph === 'withdraw' || ph === 'secure');
+      const tq = { key: '1', label: releasing ? L('iv_tool_tq_off', 'Release tourniquet') : L('iv_tool_tq', 'Tourniquet'), icon: 'clamp',
+        state: ph === 'tq' || releasing ? 'active' : iv.tq || ph === 'withdraw' || ph === 'secure' ? 'done' : '', sub: iv.tq && !releasing ? L('iv_tq_on_short', 'On') : '' };
       const tools = [tq,
         { key: '2', label: L('iv_tool_cannula', 'Cannula {g}G', { g: S.data.gauge || 18 }), icon: 'needle', state: ph === 'insert' || ph === 'advance' ? 'active' : ['withdraw', 'secure'].includes(ph) ? 'done' : 'locked' },
         { key: '3', label: L('iv_tool_dressing', 'Dressing'), icon: 'bandage', state: iv.secured ? 'done' : ph === 'secure' ? 'active' : 'locked' },
@@ -1659,7 +1666,7 @@
       if (which === 'site') setStep('io', 'run', ioData);
       if (which === 'drill') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); const p = apx('r_tibia'); S.mouse.x = p.x + 30; S.mouse.y = p.y - 26; S.mouse.down = true; S.io.lift = 0; S.io.depth = 7.8; S.io.drilling = false; S.io.torque = Array.from({ length: 80 }, (_, i) => (i < 30 ? 0.25 : 0.88) + (Math.random() - 0.5) * 0.1); }
       if (which === 'confirm') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); H_.io.confirmUi(); S.io.syr.set(1.4); S.io.syr.fluid('marrow'); ui.pp.flash('ok', L('confirm_ok', 'Marrow blood in the barrel. The needle is in.'), 0); }
-      if (which === 'flush') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); S.io.aspirated = true; H_.io.flushUi(); S.io.ext = true; H_.io.useSyringe('lido'); S.io.syr.set(5 - 0.8); S.io.lido.ml = 0.8; H_.io.flushText(); }
+      if (which === 'flush') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); S.io.aspirated = true; H_.io.flushUi(); S.io.ext = true; H_.io.useSyringe('lido'); S.io.syr.set(2 - 0.8); S.io.lido.ml = 0.8; H_.io.flushText(); }
       if (which === 'resus') {
         setStep('resus', 'run', { band: [60, 70], hold: 24, lowMap: 52, autoContinue: 1.6, access: { kind: 'io', site: 'r_lower_leg', siteLabel: 'Right tibia' }, maxRate: 66, txaPush: 10,
           infusion: { gravity: 60, ioFactor: 0.45, pressureGain: 1.4, maxPressure: 300, leak: 6, pump: 22, maxBags: 3, dilution: 1000 },

@@ -139,6 +139,12 @@ end
 
 local function plainV(v) return { x = v.x, y = v.y, z = v.z } end
 
+-- the ambulance treatment bay is a local interior: nothing networked goes down in there
+local function inBay()
+    local T = NZA.Transport
+    return T and T.Bay and T.Bay.Active and T.Bay.Active() and true or false
+end
+
 -- the pockets (+Y) of the bag face you
 local function bagHeading(h) return (h + 180.0) % 360.0 end
 
@@ -216,6 +222,10 @@ RegisterNetEvent('nza:medbag:place', function(token)
             return toast(L('err_vehicle'), 'error')
         end
         if down() then S.busy = false return end
+        if inBay() then
+            S.busy = false
+            return toast(L('err_bad_spot'), 'error')
+        end
         playOnce(C('Bag').putDown)
         local coords, h = MB.GroundSpot(C('Bag').placeAhead)
         local res = lib.callback.await('nza:medbag:put', false, token, plainV(coords), bagHeading(h))
@@ -320,6 +330,7 @@ end
 
 function MB.PutDown()
     if not S.carry or S.busy then return end
+    if inBay() then return toast(L('err_bad_spot'), 'error') end
     S.busy = true
     playOnce(C('Bag').putDown)
     local coords, h = MB.GroundSpot(C('Bag').placeAhead)

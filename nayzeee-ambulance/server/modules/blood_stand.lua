@@ -6,7 +6,7 @@
 
     Instant treatments (NZA.Treat):
       'ivstand:hang'      perm Stand.perm (+ Stand.bloodPerm for blood)
-                          payload { kind = 'saline'|'blood', serial?, slot?, type?, rate (mL/min), force?, at = {x,y,z}?, h? }
+                          payload { kind = 'saline'|'blood', serial?, slot?, type?, rate (mL/min), force?, hook?, at = {x,y,z}?, h? }
                           saline consumes Config.Items[Stand saline]; blood takes the unit with NZA.Blood.TakeBag.
                           Known mismatch (patient typed) needs force = true (and Stand.allowIncompatible).
                           → NZA.Patients.AddInfusion { kind, ml, rate, bag = label metadata, warm, by }
@@ -219,6 +219,12 @@ NZA.Treat.Register('ivstand:hang', {
         if not inf then return fail('failed') end
         s = standFor(src, p, payload)
         local hook = freeHook(s) or 1
+        local want = tonumber(payload.hook)
+        if want and want >= 1 and want <= (tonumber(cfg.maxBags) or 2) then
+            local taken = false
+            for _, b in pairs(s.bags) do if b.hook == want then taken = true end end
+            if not taken then hook = math.floor(want) end
+        end
         s.bags[inf.id] = { id = inf.id, k = inf.kind, t = bagType(inf.bag), f = 100, hook = hook }
         push(p)
         B.Bill(src, p, kind == 'blood' and 'unit' or 'saline')
