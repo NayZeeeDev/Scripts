@@ -77,7 +77,7 @@
   /* ── sweeping trace ── */
   function Trace(canvas, opts = {}) {
     const ctx = canvas.getContext('2d');
-    let o = Object.assign({ type: 'ecg', rhythm: 'sinus', rate: 75, rr: 14, spo2: 98, etco2: 38, color: '#3ddc84', speed: 0.25, amp: 1, line: 1.8, gain: 0.38, glow: true }, opts);
+    let o = Object.assign({ type: 'ecg', rhythm: 'sinus', rate: 75, rr: 14, spo2: 98, etco2: 38, color: '#3ddc84', speed: 0.25, amp: 1, line: 1.8, gain: 0.38, glow: true, artifact: 0, cprRate: 110 }, opts);
     let raf = 0, last = performance.now(), t = 0, x = 0, prevY = null, lastBeat = -1, running = true;
     let W = 0, H = 0, S = 1;
     const resize = () => {
@@ -100,7 +100,9 @@
         // erase bar ahead of the pen
         ctx.shadowBlur = 0; ctx.fillStyle = '#020303'; ctx.fillRect(x, 0, Math.ceil(14 * S), H);
         if (o.glow) ctx.shadowBlur = 6 * S;
-        const v = wave(o.type, t, o) * o.amp;
+        let v = wave(o.type, t, o) * o.amp;
+        // chest-compression artefact (CPR running): big rounded deflections at the compression rate
+        if (o.artifact > 0 && o.type === 'ecg') { const ph = (t * o.cprRate / 60) % 1; v += o.artifact * 0.55 * Math.sin(Math.PI * Math.min(1, ph / 0.55)) * (ph < 0.55 ? 1 : 0) - o.artifact * 0.12; }
         const y = H * 0.5 - v * H * o.gain;
         if (prevY !== null && x > 0) { ctx.beginPath(); ctx.moveTo(x - 1, prevY); ctx.lineTo(x, y); ctx.stroke(); }
         prevY = y; x += 1;

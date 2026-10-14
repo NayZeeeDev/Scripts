@@ -362,7 +362,7 @@ def scratch_field(C, texel, seed=0):
     """Fine straight scratches laid out in chart space (metres): a few random segments per cell,
     two size octaves. Width follows the texel size so they stay crisp without aliasing."""
     out = np.zeros(len(C), np.float32)
-    for cell, dens, sd in ((0.018, 0.55, 0), (0.007, 0.35, 1), (0.045, 0.6, 2)):
+    for cell, dens, sd in ((0.018, 0.4, 0), (0.007, 0.25, 1), (0.045, 0.45, 2)):
         for layer in range(2):
             ofs = 0.5 * layer
             u, v = C[:, 0] / cell + ofs, C[:, 1] / cell + ofs * 0.7
@@ -427,14 +427,14 @@ def eval_materials(mats: dict, matname, P, C, seed=11):
         L["aok"][sel] = m.ao
         L["dirt"][sel] = m.dirt
         clear = m.layer == "alpha"
-        L["wear"][sel] = (m.edge * (0.15 if clear else 0.85)) if m.wear < 0 else m.wear
+        L["wear"][sel] = (m.edge * (0.12 if clear else 0.6)) if m.wear < 0 else m.wear
         if m.wear_color is not None:
             L["wear_rgb"][sel] = np.asarray(m.wear_color, np.float32)[None, :]
         elif m.metal > 0.5 or m.spec > 0.7:
             L["wear_rgb"][sel] = np.minimum(alb * 1.22 + 22, 255)
         else:
             L["wear_rgb"][sel] = alb + (255.0 - alb) * 0.28
-        auto_s = (0.12 if clear else 0.2 + 0.55 * m.gloss) if m.bump not in ("fabric", "webbing", "foam", "pluck", "eggcrate",
+        auto_s = (0.1 if clear else 0.12 + 0.4 * m.gloss) if m.bump not in ("fabric", "webbing", "foam", "pluck", "eggcrate",
                                                                                "velcro", "cordura", "twill") else 0.0
         L["scratch"][sel] = auto_s if m.scratch < 0 else m.scratch
         L["smudge"][sel] = (0.25 + 0.6 * m.gloss if not clear else 0.35) if m.smudge < 0 else m.smudge
@@ -536,10 +536,10 @@ def bake(W, H, tid, bary, tri_vidx, V_pos, V_nrm, V_uvm, tri_mat, tri_chart, cha
         n_lo = fbm3(P / 0.035, 3, 103)
         wear = np.clip(convex * 1.7 - 0.55 + n_hi * 0.55 + n_lo * 0.35, 0, 1) * L["wear"]
         wear = np.clip(wear * 1.6, 0, 1) ** 1.3
-        alb = alb * (1 - wear[:, None] * 0.8) + L["wear_rgb"] * wear[:, None] * 0.8
+        alb = alb * (1 - wear[:, None] * 0.65) + L["wear_rgb"] * wear[:, None] * 0.65
         # fine scratches (lighter, slightly rougher, tiny dent in the height)
         scr = scratch_field(C, texel, seed=7) * L["scratch"] * np.clip(0.0009 / np.maximum(texel, 1e-6), 0.25, 1.0)
-        alb = alb + scr[:, None] * (np.maximum(L["wear_rgb"], alb) - alb) * 0.45 + scr[:, None] * 6.0
+        alb = alb + scr[:, None] * (np.maximum(L["wear_rgb"], alb) - alb) * 0.28 + scr[:, None] * 3.0
         L["height"] -= scr * 0.000004
         # handling marks / smudges: large blotches of lower gloss
         smg = np.clip(fbm3(P / 0.045, 3, 107) * 1.7 + 0.05, 0, 1) * np.clip(noise3(P / 0.012, 108) * 0.8 + 0.6, 0, 1) * L["smudge"]

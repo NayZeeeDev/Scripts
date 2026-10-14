@@ -346,7 +346,7 @@ def defib(b):
     spk = DecalCanvas(0.05, 0.016, ppm=9000)
     spk.perforate(0.003, 0.003, 12, 3, 0.0038, 0.0009, depth=0.0005, stagger=True)
     b.decal(spk, center=(0.06, py + 0.0001, zc - 0.064), normal=(0, 1, 0), mats=[panel], depth=0.003)
-    side = label_canvas(0.11, 0.022, "MONITOR / DEFIBRILLATOR", "MD-2  ·  BIPHASIC 360 J", ppm=5000, color=(20, 20, 22),
+    side = label_canvas(0.074, 0.02, "DEFIBRILLATOR", "MD-2  ·  BIPHASIC 360 J", ppm=7000, color=(20, 20, 22),
                         sub_color=(20, 20, 22), icon="star", icon_color=(30, 30, 34))
     b.decal(side, center=(-W / 2 - 0.0001, 0.0, zc - 0.035), normal=(-1, 0, 0), up=(0, 0, 1), mats=["defib_orange"], depth=0.004)
     pr = DecalCanvas(0.06, 0.012, ppm=7000)
