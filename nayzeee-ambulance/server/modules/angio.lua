@@ -19,7 +19,7 @@
           act = 'run' | 'puff'   uses contrast from the open bottle (info.kind, info.selective, info.blush)
           act = 'refill'         opens a new contrast bottle (takes the item now)
           act = 'coil'           releases a coil (info.dist cm, info.onPath); extra coils are taken now
-    Net events (S→C): nza:angio:use - the angio kit item was used
+    Net events (S→C): nza:angio:use - the angio kit item was used (Config.Angio.usable, perm checked here)
     Bus events emitted: angio:done (src, patient, injury, outcome)
     Exports: none. Lua API: NZA.Angio.Eligible(injury) → bool, NZA.Angio.Target(patient, injury) → key, side
 ]]
@@ -215,6 +215,8 @@ local function onStart(src, p, payload, extra)
             avpu = vit.avpu, vitals = { hr = vit.hr, sys = vit.sys, dia = vit.dia, map = vit.map, spo2 = vit.spo2, rr = vit.rr, rhythm = vit.rhythm },
         },
         budget = budget,
+        -- onStart runs before the proc core takes 'start' items, so in both modes the
+        -- inventory still holds the first bottle / coil here
         bottles = math.max(0, count(src, 'contrast') - 1),
         coils = math.max(1, count(src, 'coil')),
         maxCoils = tonumber(c.maxCoils) or 6,
@@ -424,10 +426,16 @@ end)
 CreateThread(function()
     Wait(1500)
     local name = item('angio_kit')
+    if cfg().usable == false then return end
     if name and Bridge and Bridge.Inv and type(Bridge.Inv.RegisterUsable) == 'function' then
         local ok, err = pcall(Bridge.Inv.RegisterUsable, name, function(src)
             src = tonumber(src)
-            if src then TriggerClientEvent('nza:angio:use', src) end
+            if not src or not (core().Rate and core().Rate('angio_use', src, 2, 3000)) then return end
+            if not NZA.Staff.Can(src, cfg().perm or 'angio') then
+                if core().Notify then core().Notify(src, NZA.L('angio.err.no_perm'), 'error', NZA.L('angio.title')) end
+                return
+            end
+            TriggerClientEvent('nza:angio:use', src)
         end)
         if not ok then NZA.Warn('angio: could not register the usable kit: ' .. tostring(err)) end
     end

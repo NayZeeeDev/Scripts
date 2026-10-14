@@ -55,7 +55,11 @@ const VIEWS = {
   frontlow: gta(0.35, 1.0, 0.18),
 };
 
-window.renderProp = async (url, views, size) => {
+renderer.localClippingEnabled = true;
+const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+
+window.renderProp = async (url, views, size, extra) => {
+  extra = extra || {};
   renderer.setSize(size, size);
   const gltf = await loader.loadAsync(url);
   const root = gltf.scene;
@@ -66,9 +70,17 @@ window.renderProp = async (url, views, size) => {
       if (m.normalMap) m.normalMap.anisotropy = 8;
       if (m.map) m.map.anisotropy = 8;
       if (m.transparent) { m.depthWrite = false; o.renderOrder = 2; }
+      m.clippingPlanes = [clipPlane];
     }
   });
   scene.add(root);
+  clipPlane.constant = 1e6;
+  const pts = (extra.lights || []).map(l => {
+    const pl = new THREE.PointLight(new THREE.Color(l.color || 0xffffff), l.intensity, l.distance || 0, 2);
+    pl.position.copy(gta(l.pos[0], l.pos[1], l.pos[2]));
+    scene.add(pl);
+    return pl;
+  });
   const box = new THREE.Box3().setFromObject(root);
   const c = box.getCenter(new THREE.Vector3());
   const ext = box.getSize(new THREE.Vector3());
@@ -92,6 +104,17 @@ window.renderProp = async (url, views, size) => {
     renderer.render(scene, cam);
     out.push(renderer.domElement.toDataURL('image/png'));
   }
+  for (const c of (extra.cams || [])) {
+    const cam = new THREE.PerspectiveCamera(c.fov || 60, 1, 0.02, R * 40);
+    cam.position.copy(gta(c.pos[0], c.pos[1], c.pos[2]));
+    cam.up.set(0, 1, 0);
+    cam.lookAt(gta(c.target[0], c.target[1], c.target[2]));
+    clipPlane.constant = (c.clipZ === undefined || c.clipZ === null) ? 1e6 : c.clipZ;
+    renderer.render(scene, cam);
+    out.push(renderer.domElement.toDataURL('image/png'));
+    clipPlane.constant = 1e6;
+  }
+  pts.forEach(pl => { scene.remove(pl); pl.dispose(); });
   scene.remove(root);
   root.traverse(o => {
     if (o.isMesh) {

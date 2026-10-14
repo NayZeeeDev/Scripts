@@ -3,8 +3,9 @@
 //   node render.mjs --list props.json --out <dir> [--modules <node_modules dir>] [--size 640]
 //                   [--views front,back,top] [--chromium /opt/pw-browsers/chromium]
 //
-// props.json: [{ "name": "nz_amb_x", "glb": "/abs/path/nz_amb_x.glb" }, ...]
-// Writes <out>/<name>_<view>.png for every prop and view. three + playwright-core are loaded from
+// props.json: [{ "name": "nz_amb_x", "glb": "/abs/path/nz_amb_x.glb", "cams"?: [...], "lights"?: [...] }, ...]
+// Writes <out>/<name>_<view>.png for every prop and view (+ <name>_<cam.name>.png per extra camera:
+// { name, pos: [x,y,z], target: [x,y,z], fov, clipZ? } in GTA prop space; lights: { pos, intensity, distance?, color? }). three + playwright-core are loaded from
 // --modules (default: ./node_modules next to this file).
 import http from 'node:http';
 import fs from 'node:fs';
@@ -54,9 +55,11 @@ try {
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 60000 });
   for (const p of list) {
     try {
-      const shots = await page.evaluate(([u, v, s]) => window.renderProp(u, v, s), [`/glb/${encodeURIComponent(p.name)}`, views, size]);
+      const extra = { cams: p.cams || [], lights: p.lights || [] };
+      const shots = await page.evaluate(([u, v, s, x]) => window.renderProp(u, v, s, x), [`/glb/${encodeURIComponent(p.name)}`, views, size, extra]);
+      const names = views.concat(extra.cams.map(c => c.name));
       shots.forEach((d, i) => {
-        const file = path.join(outDir, `${p.name}_${views[i]}.png`);
+        const file = path.join(outDir, `${p.name}_${names[i]}.png`);
         fs.writeFileSync(file, Buffer.from(d.split(',')[1], 'base64'));
       });
       console.log('rendered', p.name);

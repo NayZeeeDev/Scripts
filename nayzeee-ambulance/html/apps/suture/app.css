@@ -1,0 +1,133 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · Suture (app 'suture')                module: suture
+   Full-screen 3D close-up (core/nza3d.js) + HUD overlay in the HUD design.
+   The section itself is not zoomed (the WebGL canvas maps 1:1 to the window);
+   the HUD layer (.sz-ui) carries the UI zoom.
+   ═══════════════════════════════════════════════════════════ */
+
+#app-suture{background:#050607}
+#app-suture .sz-stage{position:absolute;inset:0;overflow:hidden;cursor:crosshair}
+#app-suture .sz-stage.grab{cursor:grab}
+#app-suture .sz-stage.grabbing{cursor:grabbing}
+#app-suture .sz-stage.busy{cursor:none}
+#app-suture .sz-ui{position:fixed;inset:0;pointer-events:none;zoom:var(--nza-zoom)}
+#app-suture .sz-ui .nza-hud{pointer-events:none}
+#app-suture .sz-ui .pp,#app-suture .sz-ui .sz-result{pointer-events:auto}
+
+/* ── top-left: patient card ── */
+#app-suture .sz-pt{position:absolute;left:24px;top:24px;width:272px;padding:13px 15px 14px}
+#app-suture .sz-pt .hd{display:flex;align-items:center;gap:10px}
+#app-suture .sz-pt .av{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;color:var(--teal-hi);
+  background:var(--teal-wash);border:1px solid var(--teal-edge)}
+#app-suture .sz-pt .av .nz-ic{width:17px;height:17px}
+#app-suture .sz-pt .nm{font-size:13.5px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-suture .sz-pt .inj{font-size:11px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-suture .sz-pt .row{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+#app-suture .sz-pt .row .v{font-size:12px;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums}
+#app-suture .sz-pt .row .v.red{color:#ff7478} #app-suture .sz-pt .row .v.amber{color:#f3c35a} #app-suture .sz-pt .row .v.teal{color:var(--teal-hi)}
+#app-suture .sz-pt .mtr{margin-top:7px}
+#app-suture .sz-pt .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+#app-suture .sz-chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:6px;font-size:10.5px;font-weight:600;
+  color:var(--ink-2);background:rgba(255,255,255,.05);border:1px solid var(--line-hair);white-space:nowrap}
+#app-suture .sz-chip .nz-ic{width:12px;height:12px}
+#app-suture .sz-chip.teal{color:var(--teal-hi);background:var(--teal-wash);border-color:var(--teal-edge)}
+#app-suture .sz-chip.red{color:#ff9a9d;background:var(--red-wash);border-color:var(--red-edge)}
+#app-suture .sz-chip.amber{color:#f3c35a;background:var(--amber-wash);border-color:var(--amber-edge)}
+#app-suture .sz-pt.flinch{animation:sz-shake 380ms ease-out}
+@keyframes sz-shake{0%,100%{transform:none}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-2px)}80%{transform:translateX(2px)}}
+
+/* ── top-right: procedure checklist ── */
+#app-suture .sz-plan{position:absolute;right:24px;top:24px;width:252px;padding:13px 15px 12px}
+#app-suture .sz-plan .hd{display:flex;align-items:center;justify-content:space-between}
+#app-suture .sz-plan .tm{font:600 12px var(--mono);color:var(--ink-2);font-variant-numeric:tabular-nums}
+#app-suture .sz-plan ol{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+#app-suture .sz-plan li{display:flex;align-items:center;gap:10px;height:30px;padding:0 8px;border-radius:7px;font-size:12px;color:var(--ink-3);position:relative}
+#app-suture .sz-plan li .b{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;flex:none;font-size:10px;font-weight:700;
+  border:1px solid var(--line);color:var(--ink-3)}
+#app-suture .sz-plan li .b .nz-ic{width:11px;height:11px}
+#app-suture .sz-plan li .x{margin-left:auto;font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums}
+#app-suture .sz-plan li.cur{background:rgba(255,255,255,.05);color:var(--white)}
+#app-suture .sz-plan li.cur::before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:#fff;box-shadow:0 0 8px rgba(255,255,255,.5)}
+#app-suture .sz-plan li.cur .b{border-color:rgba(255,255,255,.5);color:var(--white)}
+#app-suture .sz-plan li.done{color:var(--ink-2)}
+#app-suture .sz-plan li.done .b{background:var(--teal);border-color:transparent;color:var(--on-teal)}
+#app-suture .sz-plan li.done .x{color:var(--teal-hi)}
+#app-suture .sz-plan li.skip{color:var(--ink-3)}
+#app-suture .sz-plan li.skip .b{border-color:var(--amber-edge);color:#f3c35a;background:var(--amber-wash)}
+#app-suture .sz-plan li.skip .x{color:#f3c35a}
+#app-suture .sz-plan .ft{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);flex-wrap:wrap}
+
+/* ── camera hints (bottom right, above the panel edge) ── */
+#app-suture .sz-cam{position:absolute;right:24px;bottom:26px;display:flex;flex-direction:column;gap:7px;padding:10px 12px;font-size:11px;color:var(--ink-3)}
+#app-suture .sz-cam span{display:flex;align-items:center;gap:7px}
+#app-suture .sz-cam kbd{height:18px;min-width:18px;font-size:9.5px;padding:0 5px}
+
+/* ── cursor ring (hold progress / hints at the pointer) ── */
+#app-suture .sz-cur{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;zoom:1;opacity:0;transition:opacity 140ms}
+#app-suture .sz-cur.on{opacity:1}
+#app-suture .sz-cur svg{position:absolute;left:-23px;top:-23px;width:46px;height:46px;transform:rotate(-90deg)}
+#app-suture .sz-cur .bg{stroke:rgba(255,255,255,.22);fill:none;stroke-width:3}
+#app-suture .sz-cur .fg{stroke:var(--teal-hi);fill:none;stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(15,212,196,.7))}
+#app-suture .sz-cur.red .fg{stroke:#ff7478;filter:drop-shadow(0 0 4px rgba(229,72,77,.7))}
+#app-suture .sz-cur .tx{position:absolute;left:30px;top:-11px;height:22px;display:inline-flex;align-items:center;padding:0 8px;border-radius:6px;white-space:nowrap;
+  font:600 11px var(--font);color:var(--white);background:rgba(12,13,16,.86);border:1px solid var(--hud-line)}
+#app-suture .sz-cur .tx:empty{display:none}
+#app-suture .sz-cur .tx.teal{color:var(--teal-hi)} #app-suture .sz-cur .tx.red{color:#ff9a9d} #app-suture .sz-cur .tx.amber{color:#f3c35a}
+
+/* ── panel additions ── */
+#app-suture .pp{width:min(1060px,94vw)}
+#app-suture .pp-right{min-width:360px}
+#app-suture .sz-tip{display:flex;align-items:flex-start;gap:8px;margin-top:11px;padding:8px 10px 8px 12px;border-radius:8px;background:var(--inset);
+  border:1px solid var(--line-hair);position:relative;font-size:11.5px;color:var(--ink-2);line-height:1.45;max-width:60ch}
+#app-suture .sz-tip::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+#app-suture .sz-tip.amber::before{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+#app-suture .sz-tip.red::before{background:var(--red);box-shadow:0 0 8px var(--red)}
+#app-suture .sz-tip b{color:var(--white);font-weight:500}
+#app-suture .sz-tip:empty{display:none}
+#app-suture .sz-dots{display:flex;gap:4px;margin-top:8px}
+#app-suture .sz-dots i{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.1);transition:background 200ms}
+#app-suture .sz-dots i.ok{background:var(--teal)} #app-suture .sz-dots i.mid{background:var(--amber)} #app-suture .sz-dots i.bad{background:var(--red)}
+#app-suture .sz-dots i.cur{background:#fff;box-shadow:0 0 6px rgba(255,255,255,.5)}
+
+/* ── loading / fallback ── */
+#app-suture .sz-load{position:absolute;inset:0;display:grid;place-items:center;background:#050607;transition:opacity 260ms;pointer-events:none}
+#app-suture .sz-load.out{opacity:0}
+#app-suture .sz-load .in{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--ink-3);font-size:12px}
+#app-suture .sz-load .ring{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.1);border-top-color:var(--teal);animation:sz-spin 900ms linear infinite}
+@keyframes sz-spin{to{transform:rotate(360deg)}}
+
+/* ── result card ── */
+#app-suture .sz-result-wrap{position:absolute;left:0;right:0;top:64px;display:flex;justify-content:center;pointer-events:none}
+#app-suture .sz-result{width:600px;padding:18px 20px 16px;pointer-events:auto}
+#app-suture .sz-result::before{content:'';position:absolute;left:16px;right:16px;top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
+#app-suture .sz-result.low::before{background:linear-gradient(90deg,var(--amber),rgba(229,165,10,0))}
+#app-suture .sz-result .rh{display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--line-soft)}
+#app-suture .sz-result h3{font-size:19px;font-weight:600;color:var(--white);letter-spacing:-.01em}
+#app-suture .sz-result .rh p{font-size:12px;color:var(--ink-3);margin-top:4px}
+#app-suture .sz-result .sc{margin-left:auto;text-align:right}
+#app-suture .sz-result .sc b{display:block;font-size:26px;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
+#app-suture .sz-result .sc span{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+#app-suture .sz-result table{width:100%;border-collapse:collapse;margin-top:6px}
+#app-suture .sz-result td{padding:9px 0;border-top:1px solid var(--line-hair);font-size:12.5px;color:var(--ink-2);vertical-align:middle}
+#app-suture .sz-result tr:first-child td{border-top:0}
+#app-suture .sz-result td.k{width:128px}
+#app-suture .sz-result td.d{color:var(--white);font-weight:600}
+#app-suture .sz-result td.d i{font-style:normal;font-weight:400;font-size:11px;color:var(--ink-3);margin-left:6px}
+#app-suture .sz-result td.m{width:150px;padding-left:14px}
+#app-suture .sz-result td.n{width:40px;text-align:right;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums}
+#app-suture .sz-result .fb{list-style:none;display:flex;flex-direction:column;gap:6px;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--line-soft)}
+#app-suture .sz-result .fb li{display:flex;gap:9px;font-size:12.5px;color:var(--ink);line-height:1.45}
+#app-suture .sz-result .fb li::before{content:'';width:6px;height:6px;margin-top:6px;flex:none;border-radius:50%;background:var(--ink-3)}
+#app-suture .sz-result .fb li.ok::before{background:var(--teal);box-shadow:0 0 6px var(--teal)}
+#app-suture .sz-result .fb li.warn::before{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+#app-suture .sz-result .fb li.bad::before{background:var(--red);box-shadow:0 0 6px var(--red)}
+#app-suture .sz-result .msg{margin-top:12px;font-size:12px;color:var(--ink-2)}
+#app-suture .sz-result .msg.err{color:#ff9a9d}
+#app-suture .sz-result .act{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft)}
+#app-suture .sz-result .act .wait{margin-right:auto;font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:8px}
+#app-suture .sz-result .act .wait .ring{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.12);border-top-color:var(--teal);animation:sz-spin 900ms linear infinite}
+
+@media (prefers-reduced-motion: reduce){
+  #app-suture .sz-pt.flinch{animation:none}
+  #app-suture .sz-load .ring,#app-suture .sz-result .act .wait .ring{animation-duration:3s}
+}

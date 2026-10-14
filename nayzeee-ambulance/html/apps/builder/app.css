@@ -1,0 +1,58 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · Placement HUD (app 'builder')     module: hospital
+   Bottom-centre HUD panel (HUD design) + a crosshair at the exact screen
+   centre the placement ray uses. Never takes focus: Lua reads the keys.
+   ═══════════════════════════════════════════════════════════ */
+
+#app-builder .bx{position:absolute;left:0;right:0;bottom:30px;margin:0 auto;width:min(880px,94vw);padding:14px 16px 12px;
+  display:flex;flex-direction:column;gap:11px;animation:nza-in 240ms both}
+#app-builder .bx.bad::before{background:linear-gradient(90deg,var(--red),rgba(229,72,77,0))}
+.bx-top{display:flex;align-items:center;gap:14px}
+.bx-ic{width:46px;height:46px;flex:none;border-radius:11px;display:grid;place-items:center;color:var(--teal-hi);
+  background:var(--teal-wash);border:1px solid var(--teal-edge);box-shadow:0 0 18px rgba(8,175,162,.18);transition:all var(--fast)}
+.bx-ic .nz-ic{width:22px;height:22px}
+.bx.bad .bx-ic{color:#ff8a8d;background:var(--red-wash);border-color:var(--red-edge);box-shadow:0 0 18px rgba(229,72,77,.16)}
+.bx-t{flex:1;min-width:0}
+.bx-tag{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal)}
+.bx-tag i{width:3px;height:3px;border-radius:50%;background:var(--ink-3)}
+.bx-tag span{color:var(--ink-3)}
+.bx-title{font-size:19px;font-weight:600;color:var(--white);letter-spacing:-.015em;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bx-stats{display:flex;align-items:flex-start;gap:18px;padding-left:16px;border-left:1px solid var(--line-soft)}
+.bx-stat .l{font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.bx-stat .v{margin-top:4px;font:700 17px var(--mono);color:var(--white);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bx-stat .v small{font:500 10.5px var(--font);color:var(--ink-3);margin-left:2px}
+.bx-stat .v.bad{color:#ff7478}
+.bx-stat .mtr{margin-top:6px;width:84px}
+.bx-dial{width:44px;height:44px;flex:none;position:relative;align-self:center}
+.bx-dial svg{width:100%;height:100%}
+.bx-dial .nd{transition:transform 90ms linear;transform-origin:22px 22px}
+.bx-dial .snap{position:absolute;right:-4px;bottom:-4px;font:700 8px var(--font);letter-spacing:.06em;color:var(--on-teal);background:var(--teal);border-radius:4px;padding:1px 3px;display:none}
+.bx-dial.snapping .snap{display:block}
+.bx-msg{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:8px;font-size:12px;font-weight:500;
+  color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+.bx-msg .nz-ic{width:14px;height:14px;flex:none}
+.bx-msg.bad{color:#ff9a9d;background:var(--red-wash);border-color:var(--red-edge)}
+.bx-msg.shake{animation:bx-shake 320ms ease-in-out}
+@keyframes bx-shake{20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+.bx-msg em{font-style:normal;margin-left:auto;font:500 10.5px var(--mono);color:var(--ink-3)}
+.bx-keys{display:flex;align-items:center;flex-wrap:wrap;gap:6px 15px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--ink-2)}
+.bx-keys > span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.bx-keys kbd{height:20px;min-width:20px;font-size:10px}
+.bx-keys kbd.teal{background:var(--teal-wash);border-color:var(--teal-edge);color:var(--teal-hi)}
+.bx-keys .sep{opacity:.5}
+.bx-keys .on{color:var(--teal-hi)}
+
+/* crosshair at the screen centre (the ray starts there) */
+.bx-cross{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;pointer-events:none}
+.bx-cross::before{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid rgba(15,212,196,.9);box-shadow:0 0 10px rgba(8,175,162,.6)}
+.bx-cross::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#fff}
+.bx-cross.bad::before{border-color:rgba(229,72,77,.9);box-shadow:0 0 10px rgba(229,72,77,.6)}
+
+/* browser preview only: a pretend placement marker on the backdrop */
+.bx-demo{position:absolute;left:50%;top:50%;transform:translate(-50%,-214px);pointer-events:none;display:flex;flex-direction:column;align-items:center}
+.bx-demo .beam{width:6px;height:180px;background:linear-gradient(rgba(15,212,196,0),rgba(15,212,196,.55));filter:blur(.5px)}
+.bx-demo .orb{width:58px;height:58px;margin-top:-30px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#7ff7ec,#0fd4c4 45%,#067d74);box-shadow:0 0 40px rgba(15,212,196,.75),0 0 90px rgba(15,212,196,.35)}
+.bx-demo .ring{width:150px;height:40px;margin-top:-14px;border-radius:50%;border:3px solid rgba(15,212,196,.75);box-shadow:0 0 20px rgba(15,212,196,.5)}
+.bx-demo.bad .orb{background:radial-gradient(circle at 40% 35%,#ffb0b2,#e5484d 45%,#b8262b);box-shadow:0 0 40px rgba(229,72,77,.75),0 0 90px rgba(229,72,77,.35)}
+.bx-demo.bad .ring{border-color:rgba(229,72,77,.75);box-shadow:0 0 20px rgba(229,72,77,.5)}
+.bx-demo.bad .beam{background:linear-gradient(rgba(229,72,77,0),rgba(229,72,77,.55))}

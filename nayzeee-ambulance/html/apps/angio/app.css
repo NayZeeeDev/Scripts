@@ -83,6 +83,41 @@
 #app-angio .ag-gauges b.t-teal{color:var(--teal-hi)}
 #app-angio .ag-gauges b.t-amber{color:#f3c35a}
 
+/* step 1 planning card (choose the access) */
+#app-angio .ag-plan{display:none}
+#app-angio.ag-choose .ag-plan{display:block}
+#app-angio.ag-choose .ag-us,#app-angio.ag-choose .ag-gauges,#app-angio.ag-choose .ag-h .chipx{display:none}
+#app-angio .ag-plan-top{display:grid;grid-template-columns:118px 1fr;gap:12px;align-items:start;padding:10px;border-radius:10px;background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.05)}
+#app-angio .ag-body{width:118px;height:169px;display:block;overflow:visible}
+#app-angio .ag-body .sil{fill:rgba(255,255,255,.035);stroke:rgba(255,255,255,.26);stroke-width:1;stroke-linejoin:round}
+#app-angio .ag-body .spine{stroke:rgba(255,255,255,.12);stroke-width:2.4;stroke-dasharray:2.4 1.6}
+#app-angio .ag-body .bleed{animation:ag-pulse 1.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+#app-angio .ag-body .bleed-dot{fill:#e5484d}
+#app-angio .ag-body .side{fill:var(--ink-3);font:700 7px var(--font)}
+#app-angio .ag-site{cursor:pointer;pointer-events:all}
+#app-angio .ag-site .halo{fill:none;stroke:transparent;stroke-width:1.2}
+#app-angio .ag-site .pin{fill:rgba(12,13,16,.9);stroke:rgba(255,255,255,.7);stroke-width:1.1;transition:fill var(--fast)}
+#app-angio .ag-site text{fill:var(--white);font:700 7px var(--font);text-anchor:middle;pointer-events:none}
+#app-angio .ag-site.rec .pin{fill:var(--teal);stroke:var(--teal-hi)}
+#app-angio .ag-site.rec .halo{stroke:rgba(15,212,196,.55);animation:ag-pulse 1.8s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+#app-angio .ag-site:hover .pin{fill:rgba(8,175,162,.55)}
+#app-angio .ag-sus{min-width:0;padding-top:2px}
+#app-angio .ag-sus .nza-label{display:block;font-size:9px}
+#app-angio .ag-sus b{display:block;margin-top:4px;font-size:15px;font-weight:600;color:var(--white);line-height:1.2}
+#app-angio .ag-sus b.t-teal{color:var(--teal-hi)}
+#app-angio .ag-sus small{display:block;margin-top:4px;font-size:11px;line-height:1.4;color:var(--ink-3)}
+#app-angio .ag-sus .ag-rl{margin-top:14px;padding-top:12px;border-top:1px solid var(--line-hair)}
+#app-angio .ag-opts{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+#app-angio .ag-opt{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line-soft);background:rgba(255,255,255,.025);
+  color:var(--ink-2);text-align:left;font:inherit;cursor:pointer;pointer-events:auto;transition:background var(--fast),border-color var(--fast)}
+#app-angio .ag-opt:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16)}
+#app-angio .ag-opt span{flex:1;min-width:0}
+#app-angio .ag-opt b{display:block;font-size:12.5px;font-weight:600;color:var(--white)}
+#app-angio .ag-opt small{display:block;margin-top:2px;font-size:10.5px;color:var(--ink-3);line-height:1.35}
+#app-angio .ag-opt i{font-style:normal;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-hi);padding:3px 7px;border-radius:5px;background:var(--teal-wash);border:1px solid var(--teal-edge)}
+#app-angio .ag-opt.rec{border-color:var(--teal-edge);background:rgba(8,175,162,.08)}
+@keyframes ag-pulse{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
+
 /* fluoroscopy fallback screen (no DUI, browser preview, or View → Screen) */
 #app-angio .ag-screen{position:absolute;left:376px;right:24px;top:24px;display:none;justify-content:center;pointer-events:none}
 #app-angio.ag-showscreen .ag-screen{display:flex}
@@ -118,3 +153,13 @@
 @media (prefers-reduced-motion:reduce){
   #app-angio .ag-card,#app-angio .ag-dev,#app-angio .ag-result.on{animation:none}
 }
+
+/* catheter key legend (console card) */
+#app-angio .ag-keys{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px}
+#app-angio .ag-keys span{display:flex;align-items:center;gap:4px;min-width:0;font-size:11px;color:var(--ink-3)}
+#app-angio .ag-keys kbd{height:18px;min-width:18px;padding:0 5px;font-size:9.5px}
+#app-angio .ag-keys em{font-style:normal;margin-left:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-angio .ag-pp .pp-hints{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
+#app-angio .ag-gauges b .u{font-size:10px;font-weight:500;color:var(--ink-3);margin-left:3px}
+#app-angio .ag-pp.ag-many .pp-tool{gap:7px;padding:0 12px 0 7px}
+#app-angio .ag-pp.ag-many .pp-tool .ico{display:none}

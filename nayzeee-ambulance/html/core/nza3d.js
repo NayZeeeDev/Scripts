@@ -31,6 +31,8 @@
            gravity [gs, gt] direction blood runs on the patch (default [0, 1] = toward viewer)
      S.renderer S.scene S.camera S.patch {W,H} S.canvas S.quality S.region S.shape {axis,R}
      S.on('frame'|'pointer'|'down'|'up'|'resize', fn) S.off(name, fn)   S.start() S.stop()
+     S.step(dt, render = true)  advance one frame by hand (render false: simulate only)
+     S.prewarm(toolNames?, withDressing = true)  compile tool / dressing shaders now (no hitch on first use)
      S.dispose()        stops, removes listeners and frees all GPU memory of this scene
                         (the WebGL context itself is pooled and reused by the next scene).
      S.pointer          last pointer { x, y } (canvas fractions 0..1), S.buttons (bitmask)
@@ -79,7 +81,8 @@
      .bleed(wound, mlPerMin) ooze from a wound (pools in the groove, overflows as rivulets)
      .drip(uv, volume)  one rivulet   .drops(point, count, color)  burst of droplets   .clear()
 
-   TOOLS  S.tools   meshes: saline syringe probe needleDriver forceps scalpel gauze stapler dermatome
+   TOOLS  S.tools   meshes: saline (bottle) irrigator (30 mL syringe) syringe (5 mL) probe needleDriver forceps
+                    scalpel gauze stapler dermatome
      .use(name | null, poseOpts) → tool  (follows the cursor: lift, pressLift, tilt, yaw, roll)
      .active  .get(name)  .press(bool)  .hover(bool)  .follow (true)  .hit (last raycast)
      tool.group (THREE.Group, tip at origin, handle along +Y) tool.set({ plunger, open, squeeze, stain })
@@ -196,8 +199,8 @@
 
   /* ─────────────────────────── skin tones ─────────────────────────── */
   const TONES = [
-    [0.00, [242, 211, 192]], [0.18, [233, 192, 168]], [0.36, [214, 166, 132]],
-    [0.55, [182, 126, 92]], [0.75, [132, 86, 60]], [1.00, [84, 54, 40]],
+    [0.00, [247, 215, 192]], [0.18, [238, 192, 158]], [0.36, [221, 166, 124]],
+    [0.55, [187, 127, 86]], [0.75, [136, 87, 57]], [1.00, [88, 56, 40]],
   ];
   function toneRGB(t) {
     t = clamp(+t || 0, 0, 1);
@@ -367,7 +370,7 @@
         }
       }
       const normal = canvas(N, N);
-      normal.getContext('2d').putImageData(new ImageData(heightToNormal(hgt, N, 1.6), N, N), 0, 0);
+      normal.getContext('2d').putImageData(new ImageData(heightToNormal(hgt, N, 1.15), N, N), 0, 0);
       // hair: wrapped strokes on a separate canvas
       const hair = canvas(N, N), hc = hair.getContext('2d');
       hc.fillStyle = '#000'; hc.fillRect(0, 0, N, N);
@@ -379,17 +382,19 @@
         const bend = (R() - 0.5) * 0.9 * L;
         const ex = x + Math.cos(a) * L, ey = y - Math.sin(a) * L;
         const mx = (x + ex) / 2 - Math.sin(a) * bend, my = (y + ey) / 2 - Math.cos(a) * bend;
-        const width = 1.3 + R() * 1.1, alpha = 0.7 + R() * 0.3;
-        hc.fillStyle = 'rgba(255,255,255,.55)';
-        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) { hc.beginPath(); hc.arc(x + ox * N, y + oy * N, width * 0.55, 0, TAU); hc.fill(); }
+        // most body hair is fine and pale (vellus); a few are terminal hairs
+        const terminal = R() < 0.35;
+        const width = terminal ? 0.9 + R() * 0.5 : 0.5 + R() * 0.35, alpha = terminal ? 0.65 + R() * 0.3 : 0.28 + R() * 0.25;
+        hc.fillStyle = `rgba(255,255,255,${(alpha * 0.6).toFixed(2)})`;
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) { hc.beginPath(); hc.arc(x + ox * N, y + oy * N, width * 0.75, 0, TAU); hc.fill(); }
         for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
           const dx = ox * N, dy = oy * N;
           for (let s = 0; s < 3; s++) {
             const t0 = s / 3, t1 = (s + 1) / 3;
             const P = t => [(1 - t) * (1 - t) * x + 2 * (1 - t) * t * mx + t * t * ex, (1 - t) * (1 - t) * y + 2 * (1 - t) * t * my + t * t * ey];
             const a0 = P(t0), a1 = P(t1);
-            hc.strokeStyle = `rgba(255,255,255,${alpha * (1 - s * 0.18)})`;
-            hc.lineWidth = width * (1 - s * 0.3);
+            hc.strokeStyle = `rgba(255,255,255,${alpha * (1 - s * 0.22)})`;
+            hc.lineWidth = width * (1 - s * 0.32);
             hc.beginPath(); hc.moveTo(a0[0] + dx, a0[1] + dy); hc.lineTo(a1[0] + dx, a1[1] + dy); hc.stroke();
           }
         }
@@ -530,6 +535,20 @@
         c.fillStyle = 'rgba(8,143,133,.95)'; c.font = '700 20px Lexend, sans-serif';
         c.fillText('LIDOCAINE 2%', 46, 170);
         c.fillStyle = 'rgba(20,24,26,.7)'; c.font = '500 15px Lexend, sans-serif'; c.fillText('5 mL · NAYZEEE', 46, 200);
+      } else if (kind === 'irrigator') {
+        c.clearRect(0, 0, w, h);
+        c.strokeStyle = 'rgba(20,24,26,.88)'; c.fillStyle = 'rgba(20,24,26,.88)';
+        c.font = '600 17px Lexend, sans-serif'; c.textBaseline = 'middle';
+        for (let i = 0; i <= 30; i++) {
+          const x = 30 + i * 14.6, big = i % 10 === 0, mid = i % 5 === 0;
+          c.lineWidth = big ? 2.4 : 1.4;
+          c.beginPath(); c.moveTo(x, 34); c.lineTo(x, 34 + (big ? 44 : mid ? 30 : 18)); c.stroke();
+          if (big) c.fillText(String(i), x - (i >= 10 ? 9 : 5), 100);
+        }
+        c.fillStyle = 'rgba(8,143,133,.95)'; c.font = '700 22px Lexend, sans-serif';
+        c.fillText('NaCl 0.9%', 34, 156);
+        c.fillStyle = 'rgba(20,24,26,.7)'; c.font = '500 15px Lexend, sans-serif'; c.fillText('IRRIGATION · 30 mL · NAYZEEE', 34, 186);
+        drawMark(c, 34, 206, 22);
       } else if (kind === 'stapler') {
         c.fillStyle = '#e9edee'; c.fillRect(0, 0, w, h);
         drawMark(c, 30, 90, 70);
@@ -570,11 +589,14 @@
   function makeDropSprite() {
     return cached('drop', () => {
       const N = 64, cv = canvas(N, N), c = cv.getContext('2d');
+      // R = brightness, A = coverage: a glassy bead with a dark rim and a hot specular dot
       const g = c.createRadialGradient(N * 0.5, N * 0.5, 0, N * 0.5, N * 0.5, N * 0.5);
-      g.addColorStop(0, 'rgba(255,255,255,.55)'); g.addColorStop(0.62, 'rgba(255,255,255,.35)');
-      g.addColorStop(0.82, 'rgba(255,255,255,.85)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      g.addColorStop(0, 'rgba(210,210,210,.55)'); g.addColorStop(0.55, 'rgba(150,150,150,.6)');
+      g.addColorStop(0.85, 'rgba(70,70,70,.75)'); g.addColorStop(1, 'rgba(60,60,60,0)');
       c.fillStyle = g; c.fillRect(0, 0, N, N);
-      c.fillStyle = 'rgba(255,255,255,.95)'; c.beginPath(); c.arc(N * 0.38, N * 0.36, N * 0.09, 0, TAU); c.fill();
+      const h = c.createRadialGradient(N * 0.38, N * 0.36, 0, N * 0.38, N * 0.36, N * 0.16);
+      h.addColorStop(0, 'rgba(255,255,255,1)'); h.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = h; c.fillRect(0, 0, N, N);
       return cv;
     });
   }
@@ -636,14 +658,22 @@
       const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(scalar), side: THREE.DoubleSide });
       const me = new THREE.Mesh(geo, m); disp.push(geo, m); sc.add(me); return me;
     };
-    const room = mk(new THREE.BoxGeometry(8, 5, 8), 0x2a3236, 0.55); room.material.side = THREE.BackSide; room.position.y = 1.2;
-    const floor = mk(new THREE.PlaneGeometry(8, 8), 0x1a1e20, 0.6); floor.rotation.x = -Math.PI / 2; floor.position.y = -1.2;
-    const lamp = mk(new THREE.CircleGeometry(0.55, 48), 0xfff6ea, 9); lamp.position.set(0.3, 2.6, 0.5); lamp.rotation.x = Math.PI / 2;
-    const ring = mk(new THREE.RingGeometry(0.55, 0.78, 48), 0x8a9396, 0.8); ring.position.set(0.3, 2.59, 0.5); ring.rotation.x = Math.PI / 2;
-    const lamp2 = mk(new THREE.CircleGeometry(0.32, 32), 0xffffff, 5); lamp2.position.set(-1.4, 2.3, -0.6); lamp2.rotation.x = Math.PI / 2;
-    const p1 = mk(new THREE.PlaneGeometry(2.4, 1.2), 0xdfe9ef, 1.4); p1.position.set(3.9, 1.3, 0); p1.rotation.y = -Math.PI / 2;
-    const p2 = mk(new THREE.PlaneGeometry(2.4, 1.0), 0xc9d9df, 0.9); p2.position.set(-3.9, 1.1, 1); p2.rotation.y = Math.PI / 2;
-    const p3 = mk(new THREE.PlaneGeometry(3, 1.1), 0x6fb3ad, 0.5); p3.position.set(0, 1.0, -3.9);
+    // theatre walls (soft teal-grey), dark floor, a big round surgical lamp overhead plus
+    // softboxes so steel and wet surfaces always have something bright to reflect
+    const room = mk(new THREE.BoxGeometry(8, 5, 8), 0x6f7b80, 0.22); room.material.side = THREE.BackSide; room.position.y = 1.2;
+    const floor = mk(new THREE.PlaneGeometry(8, 8), 0x23292b, 0.6); floor.rotation.x = -Math.PI / 2; floor.position.y = -1.15;
+    const ceil = mk(new THREE.PlaneGeometry(8, 8), 0xdfe6e8, 0.55); ceil.rotation.x = Math.PI / 2; ceil.position.y = 3.6;
+    const lamp = mk(new THREE.CircleGeometry(0.6, 48), 0xfff4e6, 14); lamp.position.set(0.35, 2.7, -0.7); lamp.rotation.x = Math.PI / 2;
+    const ring = mk(new THREE.RingGeometry(0.6, 0.86, 48), 0x9aa3a6, 0.9); ring.position.set(0.35, 2.69, -0.7); ring.rotation.x = Math.PI / 2;
+    for (let i = 0; i < 6; i++) {   // lamp cells
+      const a = (i / 6) * Math.PI * 2;
+      const c = mk(new THREE.CircleGeometry(0.11, 24), 0xffffff, 20); c.position.set(0.35 + Math.cos(a) * 0.36, 2.68, -0.7 + Math.sin(a) * 0.36); c.rotation.x = Math.PI / 2;
+    }
+    const lamp2 = mk(new THREE.CircleGeometry(0.38, 32), 0xf2f6ff, 7); lamp2.position.set(-1.5, 2.4, 0.9); lamp2.rotation.x = Math.PI / 2;
+    const p1 = mk(new THREE.PlaneGeometry(2.6, 1.4), 0xeef4f7, 4.5); p1.position.set(3.9, 1.4, -0.4); p1.rotation.y = -Math.PI / 2;
+    const p2 = mk(new THREE.PlaneGeometry(2.4, 1.2), 0xd6e2e6, 1.8); p2.position.set(-3.9, 1.2, 1); p2.rotation.y = Math.PI / 2;
+    const p3 = mk(new THREE.PlaneGeometry(3.4, 1.2), 0x7cc4bd, 0.9); p3.position.set(0, 1.1, -3.9);
+    const p4 = mk(new THREE.PlaneGeometry(3.0, 1.0), 0xf4f1ea, 1.4); p4.position.set(0.2, 1.0, 3.9); p4.rotation.y = Math.PI;
     const rt = pm.fromScene(sc, 0.035);
     disp.forEach(d => d.dispose());
     pm.dispose();
@@ -655,17 +685,17 @@
      axis: base surface curvature ('x' = cylinder along screen-right, limbs; 'z' = cylinder along
      screen-down, torso), R radius (m), size [W, H] (m), hair default (male), hairAngle (rad). */
   const REGION = {
-    head:        { axis: 'z', R: 0.09,  size: [0.24, 0.22], hair: 0.05, hairAngle: 1.57 },
-    face:        { axis: 'z', R: 0.075, size: [0.2, 0.18],  hair: 0.25, hairAngle: -1.57 },
-    neck:        { axis: 'x', R: 0.06,  size: [0.24, 0.16], hair: 0.2,  hairAngle: 1.2 },
-    chest:       { axis: 'z', R: 0.26,  size: [0.5, 0.36],  hair: 0.55, hairAngle: 1.2 },
-    back:        { axis: 'z', R: 0.32,  size: [0.5, 0.36],  hair: 0.2,  hairAngle: 1.4 },
-    abdomen:     { axis: 'z', R: 0.22,  size: [0.46, 0.34], hair: 0.45, hairAngle: 1.57 },
-    pelvis:      { axis: 'z', R: 0.2,   size: [0.42, 0.3],  hair: 0.4,  hairAngle: -1.4 },
-    upper_arm:   { axis: 'x', R: 0.05,  size: [0.42, 0.155], hair: 0.45, hairAngle: 0.15 },
-    lower_arm:   { axis: 'x', R: 0.04,  size: [0.42, 0.125], hair: 1.0,  hairAngle: 0.12 },
-    upper_leg:   { axis: 'x', R: 0.075, size: [0.46, 0.22], hair: 0.8,  hairAngle: 0.1 },
-    lower_leg:   { axis: 'x', R: 0.055, size: [0.44, 0.165], hair: 1.0,  hairAngle: 0.08 },
+    head:        { axis: 'z', R: 0.09,  size: [0.24, 0.22], hair: 0.04, hairAngle: 1.57 },
+    face:        { axis: 'z', R: 0.075, size: [0.2, 0.18],  hair: 0.2,  hairAngle: -1.57 },
+    neck:        { axis: 'x', R: 0.06,  size: [0.24, 0.16], hair: 0.15, hairAngle: 1.2 },
+    chest:       { axis: 'z', R: 0.26,  size: [0.5, 0.36],  hair: 0.3,  hairAngle: 1.2 },
+    back:        { axis: 'z', R: 0.32,  size: [0.5, 0.36],  hair: 0.12, hairAngle: 1.4 },
+    abdomen:     { axis: 'z', R: 0.22,  size: [0.46, 0.34], hair: 0.26, hairAngle: 1.57 },
+    pelvis:      { axis: 'z', R: 0.2,   size: [0.42, 0.3],  hair: 0.25, hairAngle: -1.4 },
+    upper_arm:   { axis: 'x', R: 0.05,  size: [0.42, 0.155], hair: 0.26, hairAngle: 0.15 },
+    lower_arm:   { axis: 'x', R: 0.04,  size: [0.42, 0.125], hair: 0.55, hairAngle: 0.12 },
+    upper_leg:   { axis: 'x', R: 0.075, size: [0.46, 0.22], hair: 0.45, hairAngle: 0.1 },
+    lower_leg:   { axis: 'x', R: 0.055, size: [0.44, 0.165], hair: 0.6,  hairAngle: 0.08 },
   };
   function regionPreset(region) {
     const r = String(region || 'chest').replace(/^[lr]_/, '');
@@ -685,7 +715,7 @@
     if (!THREE) throw new Error('NZA3D: three.js is not loaded');
     const o = Object.assign({
       tone: 0.25, region: 'chest', sex: 'm', seed: 1, hair: null, size: null, focus: null, drape: false,
-      quality: 'high', exposure: 0.66, vignette: 0.6, work: null, keys: true, fullscreen: true, gravity: [0, 1], background: 0x050607,
+      quality: 'high', exposure: 0.6, vignette: 0.72, work: null, keys: true, fullscreen: true, gravity: [0, 1], background: 0x050607,
     }, opts);
     const entry = acquireRenderer();
     if (!entry) throw new Error('NZA3D: WebGL2 is not available');
@@ -757,13 +787,13 @@
     S.distanceUv = (a, b) => { const p = uvToST(a), q = uvToST(b); return Math.hypot(p[0] - q[0], p[1] - q[1]); };
 
     /* ─────────── lights ─────────── */
-    const key = new THREE.SpotLight(0xfff2e4, 1.12, 0, 0.27, 1.0, 0);
+    const key = new THREE.SpotLight(0xfff0de, 1.15, 0, 0.3, 1.0, 0);
     key.castShadow = true;
     key.shadow.mapSize.set(Q.shadow, Q.shadow);
     key.shadow.bias = -0.00012; key.shadow.normalBias = 0.0004;
     key.shadow.camera.near = 0.2; key.shadow.camera.far = 2.4;
-    const fill = new THREE.SpotLight(0xe8f1ff, 0.22, 0, 0.36, 1.0, 0);
-    const hemi = new THREE.HemisphereLight(0xdbe6ec, 0x3a2620, 0.1);
+    const fill = new THREE.SpotLight(0xe6f0ff, 0.26, 0, 0.4, 1.0, 0);
+    const hemi = new THREE.HemisphereLight(0xdbe6ec, 0x3a2620, 0.08);
     scene.add(key, key.target, fill, fill.target, hemi);
     S.lights = { key, fill, hemi };
     const keyDir = new THREE.Vector3();
@@ -892,15 +922,15 @@
       uFieldEnc: { value: FIELD_ENC },
       uMicroRep: { value: 1 / 0.036 }, uHair: { value: hairAmt }, uHairColor: { value: hairColor },
       uKeyDir: { value: new THREE.Vector3(0, 1, 0) }, uKeyColor: { value: new THREE.Color(1, 0.96, 0.9) },
-      uMicroNormal: { value: 1.0 }, uSkinRough: { value: 0.5 }, uFieldNormal: { value: 1.15 }, uSSS: { value: 0.75 },
-      uDark: { value: o.tone },
+      uMicroNormal: { value: 1.2 }, uSkinRough: { value: 0.42 }, uFieldNormal: { value: 1.15 }, uSSS: { value: 0.75 },
+      uDark: { value: o.tone }, uLayerTexel: { value: new THREE.Vector2(1 / LW, 1 / LH) }, uSebum: { value: 0.28 },
     };
     S.uniforms = U;
     const skinMat = keep(new THREE.MeshPhysicalMaterial({
-      map: macroTex, normalMap: microN, roughness: 0.5, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1,
-      sheen: 0.12, sheenRoughness: 0.6, sheenColor: new THREE.Color(1.0, 0.8, 0.72), ior: 1.4, specularIntensity: 0.38,
+      map: macroTex, normalMap: microN, roughness: 0.46, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1,
+      sheen: 0.05, sheenRoughness: 0.7, sheenColor: new THREE.Color(1.0, 0.82, 0.74), ior: 1.4, specularIntensity: 0.5,
     }));
-    skinMat.envMapIntensity = 0.45;
+    skinMat.envMapIntensity = 0.32;
     skinMat.onBeforeCompile = sh => {
       Object.assign(sh.uniforms, U);
       sh.vertexShader = sh.vertexShader
@@ -917,10 +947,10 @@
         .replace('#include <roughnessmap_fragment>', SKIN_ROUGH)
         .replace('#include <normal_fragment_maps>', SKIN_NORMAL)
         .replace('#include <clearcoat_normal_fragment_begin>', '#ifdef USE_CLEARCOAT\n vec3 clearcoatNormal = nzaMacroN;\n#endif')
-        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = nzaWet;\n material.clearcoatRoughness = clamp(mix(0.3, 0.07, nzaWet) + geometryRoughness, 0.0525, 1.0);\n#endif')
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = clamp(uSebum * (1.0 - nzaInside) + nzaWet * 0.95, 0.0, 1.0);\n material.clearcoatRoughness = clamp(mix(0.34, 0.06, nzaWet) + geometryRoughness, 0.0525, 1.0);\n#endif')
         .replace('#include <aomap_fragment>', SKIN_AO);
     };
-    skinMat.customProgramCacheKey = () => 'nza3d-skin-1';
+    skinMat.customProgramCacheKey = () => 'nza3d-skin-2';
     const skin = new THREE.Mesh(skinGeo, skinMat);
     skin.receiveShadow = true;
     skin.frustumCulled = false;
@@ -1279,7 +1309,7 @@
           const r = api.at(tN), hg = api.halfGape(tN), d = (hg + offset) * (side >= 0 ? 1 : -1);
           return stToUv(r.s + r.nrm[0] * d, r.t + r.nrm[1] * d);
         },
-        // nearest point of the centre line: distance (m), fraction, side (+1 / -1), arc length
+        // nearest point of the centre line: distance (m), fraction, side (+1 / -1, as in edge()), arc length
         locate(uv) {
           const p = uvToST(uv);
           if (w.code !== 1) { const d = Math.hypot(p[0] - w.center[0], p[1] - w.center[1]); return { d, tN: 0, side: 1, L: 0 }; }
@@ -1292,7 +1322,7 @@
             const d = Math.hypot(p[0] - qx, p[1] - qy);
             if (d < best) {
               best = d; bl = w.cum[i - 1] + tt * Math.sqrt(l2);
-              side = (ab[0] * (p[1] - a[1]) - ab[1] * (p[0] - a[0])) >= 0 ? -1 : 1;
+              side = (ab[0] * (p[1] - a[1]) - ab[1] * (p[0] - a[0])) >= 0 ? 1 : -1;   // same convention as edge()
             }
           }
           return { d: best, tN: bl / (w.length || 1), side, L: bl };
@@ -1614,7 +1644,7 @@
       teal: keep(new THREE.MeshPhysicalMaterial({ color: 0x08afa2, roughness: 0.32, clearcoat: 0.6, clearcoatRoughness: 0.2 })),
       tealClear: keep(new THREE.MeshPhysicalMaterial({ color: 0x0fd4c4, roughness: 0.15, transparent: true, opacity: 0.75, clearcoat: 1 })),
       dark: keep(new THREE.MeshPhysicalMaterial({ color: 0x1b1f22, roughness: 0.45, clearcoat: 0.4 })),
-      thread: keep(new THREE.MeshPhysicalMaterial({ color: 0x0b1222, roughness: 0.32, clearcoat: 0.9, clearcoatRoughness: 0.18 })),
+      thread: keep(new THREE.MeshPhysicalMaterial({ color: 0x060914, roughness: 0.38, clearcoat: 0.55, clearcoatRoughness: 0.22 })),
     };
     const tex = (cvs, srgb = true) => { const t = keep(new THREE.CanvasTexture(cvs)); if (srgb) t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t; };
     const geo = g => keep(g);
@@ -1691,10 +1721,69 @@
       api.set({ plunger: 0 });
       return api;
     }
+    // loft an elliptical section along +Y: rows [{ y, w, t, x?, z? }] → smooth shaded tube with caps
+    function loftRound(rows, seg = 12) {
+      const g = new THREE.BufferGeometry(), pos = [], idx = [];
+      rows.forEach(r => {
+        for (let k = 0; k < seg; k++) {
+          const a = (k / seg) * TAU;
+          pos.push((r.x || 0) + Math.cos(a) * r.w / 2, r.y, (r.z || 0) + Math.sin(a) * r.t / 2);
+        }
+      });
+      for (let i = 0; i < rows.length - 1; i++) for (let k = 0; k < seg; k++) {
+        const a = i * seg + k, b = i * seg + ((k + 1) % seg), c = a + seg, d = b + seg;
+        idx.push(a, d, b, a, c, d);
+      }
+      const n = pos.length / 3;
+      const r0 = rows[0], r1 = rows[rows.length - 1];
+      pos.push(r0.x || 0, r0.y, r0.z || 0, r1.x || 0, r1.y, r1.z || 0);
+      for (let k = 0; k < seg; k++) {
+        idx.push(n, k, (k + 1) % seg);
+        const o = (rows.length - 1) * seg;
+        idx.push(n + 1, o + (k + 1) % seg, o + k);
+      }
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setIndex(idx);
+      g.computeVertexNormals();
+      return g;
+    }
+    // 30 mL irrigation syringe with a blunt plastic tip; set({ plunger: 0 full → 1 empty })
+    function buildIrrigator() {
+      const g = new THREE.Group();
+      add(g, new THREE.CylinderGeometry(0.00045, 0.0006, 0.022, 14).translate(0, 0.011, 0), M.white);
+      add(g, lathe([[0.0006, 0.0215], [0.0019, 0.0225], [0.0021, 0.027], [0.0026, 0.0285], [0.0026, 0.0305], [0, 0.0305]], 24), M.teal);
+      add(g, lathe([[0.0012, 0.0302], [0.0025, 0.031], [0.0104, 0.0355], [0.0108, 0.0362]], 40), M.clear, false);
+      const barrel = add(g, new THREE.CylinderGeometry(0.0108, 0.0108, 0.076, 48, 1, true).translate(0, 0.074, 0), M.clear, false);
+      barrel.renderOrder = 3;
+      const grad = add(g, new THREE.CylinderGeometry(0.01088, 0.01088, 0.07, 48, 1, true, -0.95, 1.9).translate(0, 0.074, 0),
+        keep(new THREE.MeshBasicMaterial({ map: tex(makeLabel('irrigator')), transparent: true, depthWrite: false })), false);
+      grad.renderOrder = 4;
+      const flange = add(g, new THREE.BoxGeometry(0.044, 0.0022, 0.017), M.clear, false); flange.position.y = 0.1125;
+      const fluid = add(g, new THREE.CylinderGeometry(0.0101, 0.0101, 1, 32).translate(0, 0.5, 0), M.fluid, false);
+      fluid.position.y = 0.0362; fluid.renderOrder = 2;
+      const plunger = new THREE.Group(); g.add(plunger);
+      add(plunger, lathe([[0, 0], [0.0102, 0], [0.0106, 0.0012], [0.0099, 0.0022], [0.0106, 0.0034], [0.0099, 0.0046], [0.0102, 0.0056], [0, 0.0058]], 40), M.rubber);
+      add(plunger, new THREE.BoxGeometry(0.016, 0.084, 0.0016).translate(0, 0.047, 0), M.white);
+      add(plunger, new THREE.BoxGeometry(0.0016, 0.084, 0.016).translate(0, 0.047, 0), M.white);
+      add(plunger, new THREE.CylinderGeometry(0.0125, 0.0125, 0.0022, 40).translate(0, 0.0895, 0), M.white);
+      const api = {
+        group: g, plunger: 0,
+        set(p) {
+          if (p.plunger !== undefined) {
+            api.plunger = clamp(p.plunger, 0, 1);
+            const y = lerp(0.108, 0.0368, api.plunger);
+            plunger.position.y = y;
+            fluid.scale.y = Math.max(0.0001, y - 0.0362);
+          }
+        },
+      };
+      api.set({ plunger: 0 });
+      return api;
+    }
     function buildNeedleDriver() {
       const g = new THREE.Group(), r = 0.0058;
       // 3/8 curved needle: point at the origin, arc bulging to -X, swage end up
-      const needle = add(g, new THREE.TorusGeometry(r, 0.00034, 8, 40, Math.PI * 0.75), M.steel);
+      const needle = add(g, new THREE.TorusGeometry(r, 0.00034, 8, 48, Math.PI * 0.75), M.steel);
       needle.position.set(-r, 0, 0);
       const grip = new THREE.Vector3(-r + r * Math.cos(1.9), r * Math.sin(1.9), 0);
       const jaw = new THREE.Group(); g.add(jaw);
@@ -1703,19 +1792,36 @@
       const halves = [];
       for (const sd of [-1, 1]) {
         const h = new THREE.Group(); jaw.add(h); halves.push(h);
-        add(h, loft([{ y: -0.0012, w: 0.0016, t: 0.0014, x: sd * 0.0009 }, { y: 0.004, w: 0.0022, t: 0.002, x: sd * 0.0012 }, { y: 0.012, w: 0.003, t: 0.0028, x: sd * 0.0015 }]), M.steelDark);
-        add(h, tube([[sd * 0.0015, 0.011, 0], [sd * 0.0017, 0.03, 0.0004], [sd * 0.0034, 0.07, 0.0012], [sd * 0.0068, 0.112, 0.002], [sd * 0.0088, 0.126, 0.0022]], 0.00135, 40, 8), M.steelSatin);
-        const ring = add(h, new THREE.TorusGeometry(0.0092, 0.0019, 12, 36), M.gold);
-        ring.position.set(sd * 0.0118, 0.1355, 0.0022);
-        ring.rotation.set(0, 0, sd * 0.25);
-        const ratchet = add(h, new THREE.BoxGeometry(0.0022, 0.009, 0.0024), M.steelSatin);
-        ratchet.position.set(sd * 0.0045, 0.114, 0.0016);
+        // serrated carbide jaw insert + tapered jaw
+        add(h, loftRound([{ y: -0.0011, w: 0.0011, t: 0.0011, x: sd * 0.00045 }, { y: 0.0035, w: 0.0016, t: 0.0018, x: sd * 0.0007 }], 10), M.steelDark);
+        add(h, loftRound([{ y: 0.0032, w: 0.0017, t: 0.0019, x: sd * 0.0007 }, { y: 0.009, w: 0.0024, t: 0.0028, x: sd * 0.001 }, { y: 0.0135, w: 0.0028, t: 0.0034, x: sd * 0.00115 }], 12), M.steel);
+        // shank: flat bar that spreads toward the rings
+        add(h, loftRound([
+          { y: 0.016, w: 0.0026, t: 0.0034, x: sd * 0.0011 }, { y: 0.03, w: 0.0027, t: 0.0029, x: sd * 0.0016 },
+          { y: 0.06, w: 0.0029, t: 0.0027, x: sd * 0.0031 }, { y: 0.09, w: 0.003, t: 0.0027, x: sd * 0.0052 },
+          { y: 0.114, w: 0.0033, t: 0.0029, x: sd * 0.0074 },
+        ], 14), M.steelSatin);
+        // finger ring (gold = tungsten carbide jaws)
+        const ring = add(h, new THREE.TorusGeometry(0.0082, 0.00155, 14, 40), M.gold);
+        ring.position.set(sd * 0.0128, 0.1205, 0.0);
+        ring.rotation.set(0, 0, sd * 0.22);
+        // ratchet teeth
+        for (let i = 0; i < 4; i++) {
+          const t = add(h, new THREE.BoxGeometry(0.0016, 0.0011, 0.0018), M.steelSatin);
+          t.position.set(sd * (0.0062 - 0.0011), 0.1035 + i * 0.0016, sd * 0.0006);
+          t.rotation.z = sd * 0.6;
+        }
       }
-      const box = add(jaw, new THREE.BoxGeometry(0.0062, 0.0062, 0.0042), M.steelSatin); box.position.set(0, 0.0215, 0.0002);
-      add(jaw, new THREE.CylinderGeometry(0.0013, 0.0013, 0.0052, 16).rotateX(Math.PI / 2).translate(0, 0.0215, 0.0002), M.steel);
-      // thread from the swage end trailing away
+      // box lock: lens-shaped joint with a screw
+      const lock = add(jaw, new THREE.CylinderGeometry(0.0026, 0.0026, 0.0038, 28).rotateX(Math.PI / 2), M.steelSatin);
+      lock.scale.set(1, 1.4, 1); lock.position.set(0, 0.0148, 0);
+      const screw = add(jaw, new THREE.CylinderGeometry(0.001, 0.001, 0.0041, 20).rotateX(Math.PI / 2), M.steel);
+      screw.position.set(0, 0.0148, 0);
+      const slot = add(jaw, new THREE.BoxGeometry(0.0015, 0.00024, 0.0043), M.steelDark, false);
+      slot.position.set(0, 0.0148, 0); slot.rotation.z = 0.6;
+      // braided suture from the swage end, trailing back along the instrument
       const sw = new THREE.Vector3(-r + r * Math.cos(Math.PI * 0.75), r * Math.sin(Math.PI * 0.75), 0);
-      add(g, tube([sw, [sw.x - 0.006, sw.y + 0.004, 0.003], [sw.x - 0.016, sw.y + 0.012, 0.012], [sw.x - 0.03, sw.y + 0.03, 0.02], [sw.x - 0.05, sw.y + 0.06, 0.024]], 0.00026, 60, 6), M.thread);
+      add(g, tube([sw, [sw.x - 0.003, sw.y + 0.0018, 0.0016], [sw.x - 0.009, sw.y + 0.0065, 0.0048], [sw.x - 0.016, sw.y + 0.015, 0.0062], [sw.x - 0.021, sw.y + 0.027, 0.0055]], 0.00024, 60, 6), M.thread);
       return {
         group: g,
         set(p) { if (p.open !== undefined) { halves[0].rotation.z = p.open * 0.1; halves[1].rotation.z = -p.open * 0.1; } },
@@ -1806,11 +1912,12 @@
       add(g, new THREE.CylinderGeometry(0.0075, 0.009, 0.02, 24).translate(0, 0.195, 0), M.dark);
       return { group: g, set() {} };
     }
-    const BUILD = { saline: buildSaline, syringe: buildSyringe, needleDriver: buildNeedleDriver, forceps: buildForceps, scalpel: buildScalpel, probe: buildProbe, gauze: buildGauze, stapler: buildStapler, dermatome: buildDermatome };
+    const BUILD = { saline: buildSaline, irrigator: buildIrrigator, syringe: buildSyringe, needleDriver: buildNeedleDriver, forceps: buildForceps, scalpel: buildScalpel, probe: buildProbe, gauze: buildGauze, stapler: buildStapler, dermatome: buildDermatome };
     // lift: tip distance from the aim point along the tool axis · tilt: from the surface normal (rad)
     // yaw: screen angle of the handle (0 = right, π/2 = up) · roll: spin about the axis
     const POSE = {
       saline:       { lift: 0.045, pressLift: 0.045, tilt: 0.58, yaw: 1.85, roll: 0.0, shadow: 0.02 },
+      irrigator:    { lift: 0.012, pressLift: 0.012, tilt: 1.0, yaw: 0.95, roll: 0.0, shadow: 0.014 },
       syringe:      { lift: 0.008, pressLift: -0.0038, tilt: 1.05, yaw: 0.45, roll: 0.0, shadow: 0.01 },
       needleDriver: { lift: 0.004, pressLift: -0.0012, tilt: 0.85, yaw: 0.8, roll: 0.5, shadow: 0.016 },
       forceps:      { lift: 0.006, pressLift: 0.0, tilt: 0.55, yaw: 1.25, roll: 0, shadow: 0.012 },
@@ -1856,7 +1963,7 @@
       hover(v) { tools.hovering = !!v; },
     };
     S.tools = tools;
-    const _tq = new THREE.Quaternion(), _tm = new THREE.Matrix4(), _cr = new THREE.Vector3(), _cu = new THREE.Vector3();
+    const _tq = new THREE.Quaternion(), _tm = new THREE.Matrix4(), _cr = new THREE.Vector3(), _cu = new THREE.Vector3(), _bn = new THREE.Vector3(), _bp = new THREE.Vector3();
     function poseTool(t, hit, dt, instant) {
       const pz = t.pose;
       t.press = lerp(t.press, tools.pressed ? 1 : 0, 1 - Math.exp(-dt * 16));
@@ -1864,7 +1971,10 @@
       // handle direction: screen angle → tangent plane of the hit normal
       _cr.setFromMatrixColumn(camera.matrixWorld, 0); _cu.setFromMatrixColumn(camera.matrixWorld, 1);
       const sd = new THREE.Vector3().addScaledVector(_cr, Math.cos(pz.yaw)).addScaledVector(_cu, Math.sin(pz.yaw));
-      const n = hit.normal;
+      // orient by the smooth body surface, not the local wound relief (groove walls are steep)
+      const n = _bn;
+      surf(hit.s !== undefined ? hit.s : 0, hit.t !== undefined ? hit.t : 0, _bp, n);
+      n.lerp(hit.normal, 0.15).normalize();
       sd.addScaledVector(n, -sd.dot(n));
       if (sd.lengthSq() < 1e-8) sd.set(1, 0, 0);
       sd.normalize();
@@ -1981,7 +2091,7 @@
         const K = P.point.clone().lerp(Q.point, 0.17).addScaledVector(n, 0.00075);
         const Mid = P.point.clone().lerp(Q.point, 0.58).addScaledVector(n, 0.00048);
         const grp = new THREE.Group();
-        const rad = d.radius || 0.00027;
+        const rad = d.radius || 0.0002;
         const mat = d.color !== undefined ? keep(new THREE.MeshPhysicalMaterial({ color: d.color, roughness: 0.32, clearcoat: 0.9 })) : M.thread;
         add(grp, tube([Pin, Pout, K, Mid, Qout, Qin], rad, 48, 7), mat);
         // knot
@@ -1995,15 +2105,15 @@
         const across = Q.point.clone().sub(P.point).normalize();
         const along = new THREE.Vector3().crossVectors(n, across).normalize();
         for (const sgn of [1, -1]) {
-          const dir = along.clone().multiplyScalar(sgn).addScaledVector(across, (R() - 0.65) * 0.9).normalize();
-          const L = 0.0035 + R() * 0.0028;
+          const dir = along.clone().multiplyScalar(sgn).addScaledVector(across, -0.55 - R() * 0.5).normalize();
+          const L = 0.0024 + R() * 0.0018;
           const side = new THREE.Vector3().crossVectors(n, dir).multiplyScalar((R() - 0.5) * 0.0016);
           const p1 = K.clone().addScaledVector(dir, L * 0.5).add(side).addScaledVector(n, 0.0004);
           const p2 = K.clone().addScaledVector(dir, L).add(side.clone().multiplyScalar(1.8)).addScaledVector(n, 0.00022);
           add(grp, tube([K, p1, p2], rad * 0.92, 12, 6), mat);
         }
         scene.add(grp);
-        const st = { group: grp, a: uvOf(d.a), b: uvOf(d.b), remove() { scene.remove(grp); grp.traverse(c => { if (c.isMesh && c.geometry !== knotGeo && c.geometry !== knotRing) { c.geometry.dispose(); bin.delete(c.geometry); } }); const i = stitchList.indexOf(st); if (i >= 0) stitchList.splice(i, 1); } };
+        const st = { group: grp, a: uvOf(d.a), b: uvOf(d.b), sa: uvToST(d.a), sb: uvToST(d.b), remove() { scene.remove(grp); grp.traverse(c => { if (c.isMesh && c.geometry !== knotGeo && c.geometry !== knotRing) { c.geometry.dispose(); bin.delete(c.geometry); } }); const i = stitchList.indexOf(st); if (i >= 0) stitchList.splice(i, 1); } };
         stitchList.push(st);
         return st;
       },
@@ -2023,6 +2133,18 @@
       get list() { return stitchList.slice(); },
     };
     S.stitches = stitches;
+    // how high stitches stand off the skin at patch point (s, t) — cloth rests on top of them
+    function stitchClear(s, t) {
+      let c = 0;
+      for (let i = 0; i < stitchList.length; i++) {
+        const a = stitchList[i].sa, b = stitchList[i].sb;
+        const abx = b[0] - a[0], aby = b[1] - a[1], l2 = abx * abx + aby * aby || 1e-12;
+        const f = clamp(((s - a[0]) * abx + (t - a[1]) * aby) / l2, 0, 1);
+        const d = Math.hypot(s - a[0] - abx * f, t - a[1] - aby * f);
+        if (d < 0.0016) c = Math.max(c, 0.001 * (1 - d / 0.0016));
+      }
+      return c;
+    }
 
     /* ═════════════ FLUIDS ═════════════ */
     const NP = Q.particles;
@@ -2074,13 +2196,14 @@
         if (d.wet !== undefined) jet.wet = d.wet;
         if (d.rate !== undefined) jet.rate = d.rate;
         if (d.radius !== undefined) jet.radius = d.radius;
+        if (d.stream !== undefined) jet.stream = d.stream;
       },
       onImpact(fn) { impactFns.push(fn); return fn; },
       bleed(w, mlPerMin) { if (!w) return; if (mlPerMin > 0) oozes.set(w, { rate: mlPerMin, acc: 0, pool: 0 }); else oozes.delete(w); },
       drip(uv, vol = 0.12, dir) {
         if (rivulets.length > 14) return;
         const st = uvToST(uv);
-        rivulets.push({ s: st[0], t: st[1], vol, dir: dir || G.slice(), ph: Math.random() * 10 });
+        rivulets.push({ s: st[0], t: st[1], vol: Math.min(vol, 0.12), dir: dir || G.slice(), ph: Math.random() * 10 });
       },
       drops(point, count = 8, color = BLOODC, speed = 0.3) {
         for (let i = 0; i < count; i++) {
@@ -2104,7 +2227,7 @@
         jetMat.uniforms.p1.value.copy(p0).lerp(p2, 0.5).add(new THREE.Vector3(0, -L * 0.06, 0));
         jetMat.uniforms.uTime.value += dt;
         jetMat.uniforms.uAlpha.value = jet.flow;
-        jetMat.uniforms.uRadius.value = 0.00085 + 0.00025 * jet.rate;
+        jetMat.uniforms.uRadius.value = jet.stream || (0.00045 + 0.00025 * jet.rate);
       }
       if (jet.on) {
         const q = toSurf(jet.to);
@@ -2119,16 +2242,16 @@
         if (jet.wet > 0) { layers.paint('wet', uvh, r * 2.2, k * 2.2 * jet.wet, { hardness: 0.1 }); layers.paint('wet', ru, r * 2.6, k * 1.2 * jet.wet, { hardness: 0.1 }); }
         const nSplash = Math.min(14, Math.ceil(dt * 260 * jet.rate));
         for (let i = 0; i < nSplash; i++) {
-          const a = Math.random() * TAU, sp = 0.12 + Math.random() * 0.32;
+          const a = Math.random() * TAU, sp = 0.05 + Math.random() * 0.16;
           const t1 = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
           t1.addScaledVector(n, -t1.dot(n)).normalize();
-          spawn(1, hit.point.x, hit.point.y + 0.0006, hit.point.z, t1.x * sp + n.x * sp * 1.2, t1.y * sp + n.y * sp * 1.2, t1.z * sp + n.z * sp * 1.2, 0.18 + Math.random() * 0.35, 0.0005 + Math.random() * 0.0009, WATER, 0.8);
+          spawn(1, hit.point.x, hit.point.y + 0.0006, hit.point.z, t1.x * sp + n.x * sp * 1.3, t1.y * sp + n.y * sp * 1.3, t1.z * sp + n.z * sp * 1.3, 0.12 + Math.random() * 0.22, 0.00025 + Math.random() * 0.0005, WATER, 0.75);
         }
         // a few droplets along the stream
         for (let i = 0; i < 3; i++) {
           const f = Math.random();
           _jp.copy(jet.from).lerp(jet.to, f);
-          spawn(0, _jp.x + (Math.random() - 0.5) * 0.0012, _jp.y, _jp.z + (Math.random() - 0.5) * 0.0012, 0, -0.05, 0, 0.05 + Math.random() * 0.06, 0.0006 + Math.random() * 0.0005, WATER, 0.6);
+          spawn(0, _jp.x + (Math.random() - 0.5) * 0.0008, _jp.y, _jp.z + (Math.random() - 0.5) * 0.0008, 0, -0.05, 0, 0.05 + Math.random() * 0.06, 0.0003 + Math.random() * 0.0003, WATER, 0.5);
         }
         for (const fn of impactFns) { try { fn(hit, dt, uvh); } catch (e) { console.error(e); } }
       }
@@ -2167,10 +2290,10 @@
             layers.paint('blood', uvp, [0.0012 + Math.random() * 0.0016, 0.0009 + Math.random() * 0.001], 0.2 + Math.random() * 0.15, { hardness: 0.3, grain: 0.3, grainScale: 160, angle: Math.atan2(r.dir[1], r.dir[0]) });
             oz.pool += 1;
             // the groove overflows → a rivulet runs down the slope
-            if (oz.pool > 14 + w.length * 300 && Math.random() < 0.18) {
-              oz.pool *= 0.7;
+            if (oz.pool > 26 + w.length * 600 && Math.random() < 0.12) {
+              oz.pool *= 0.45;
               const side = (r.nrm[0] * G[0] + r.nrm[1] * G[1]) >= 0 ? 1 : -1;
-              fluids.drip(w.edge(tN, side, 0.0006), 0.08 + Math.random() * 0.1);
+              fluids.drip(w.edge(tN, side, 0.0006), 0.04 + Math.random() * 0.06);
             }
           } else {
             const c = w.center, rad = (w.p.radius || 0.004) * w.p.open;
@@ -2189,12 +2312,13 @@
         const wob = (noiseAt(0, rv.ph * 0.3, rv.s * 40) - 0.5) * 1.1;
         const dx = rv.dir[0] + -rv.dir[1] * wob, dy = rv.dir[1] + rv.dir[0] * wob, l = Math.hypot(dx, dy) || 1;
         const ns = rv.s + (dx / l) * sp, nt = rv.t + (dy / l) * sp;
-        const rad = 0.0006 + rv.vol * 0.008;
-        layers.stroke('blood', stToUv(rv.s, rv.t), stToUv(ns, nt), rad, 0.32, { hardness: 0.45 });
+        // a trickle: thin film that narrows as it runs out, ending in a small bead
+        const rad = 0.00032 + Math.max(0, rv.vol) * 0.0042;
+        layers.stroke('blood', stToUv(rv.s, rv.t), stToUv(ns, nt), rad, 0.075, { hardness: 0.55 });
         rv.s = ns; rv.t = nt;
         rv.vol -= sp * 9;
         if (rv.vol <= 0 || Math.abs(ns) > W / 2 || Math.abs(nt) > H / 2) {
-          if (rv.vol <= 0) layers.paint('blood', stToUv(ns, nt), rad * 1.6, 0.4, { hardness: 0.4 });
+          if (rv.vol <= 0) layers.paint('blood', stToUv(ns, nt), 0.0009, 0.42, { hardness: 0.5 });
           rivulets.splice(i, 1);
         }
       }
@@ -2210,7 +2334,7 @@
       const pos = new Float32Array(N * 3), prev = new Float32Array(N * 3), rend = new Float32Array(N * 3), nrm = new Float32Array(N * 3);
       const stick = new Float32Array(N), stuck = new Uint8Array(N), pinned = new Uint8Array(N), contact = new Uint8Array(N);
       const padMask = new Float32Array(N), wgt = new Float32Array(N), local = new Float32Array(N * 2);
-      const pinOff = new Float32Array(N * 3);
+      const pinOff = new Float32Array(N * 3), carryW = new Float32Array(N);
       const c0 = uvToST(d.uv || [0.5, 0.5]), ang = d.angle || 0, ca = Math.cos(ang), sa = -Math.sin(ang);
       const P = new THREE.Vector3(), Nn = new THREE.Vector3();
       for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
@@ -2219,7 +2343,10 @@
         local[k * 2] = lx; local[k * 2 + 1] = ly;
         const s = c0[0] + lx * ca - ly * sa, t = c0[1] + lx * sa + ly * ca;
         surf(s, t, P, Nn);
-        P.addScaledVector(Nn, heightAt(s, t) + thick);
+        // a fresh dressing out of its pack curls up a little at the edges
+        const ex = Math.abs(lx) / (w / 2), ey = Math.abs(ly) / (h / 2);
+        const curl = (Math.pow(Math.max(ex, ey), 3) * 0.0016 + Math.pow(ex * ey, 2) * 0.0012) * (d.curl !== undefined ? d.curl : 1);
+        P.addScaledVector(Nn, heightAt(s, t) + thick + curl);
         pos[k * 3] = prev[k * 3] = P.x; pos[k * 3 + 1] = prev[k * 3 + 1] = P.y; pos[k * 3 + 2] = prev[k * 3 + 2] = P.z;
         const m = smooth(-0.0015, 0.0015, pw / 2 - Math.abs(lx)) * smooth(-0.0015, 0.0015, ph / 2 - Math.abs(ly));
         padMask[k] = m;
@@ -2251,7 +2378,7 @@
       g2.setIndex(idx);
       const dTex = tex(makeDressingTex(w, h, pw, ph, 5));
       const seepU = { uSeep: { value: new THREE.Vector3(0.5, 0.5, 0) }, uPadRect: { value: new THREE.Vector4(pw / w, ph / h, w, h) }, tNoiseD: { value: noiseTex } };
-      const dMat = keep(new THREE.MeshPhysicalMaterial({ map: dTex, roughness: 0.82, sheen: 0.8, sheenRoughness: 0.6, sheenColor: new THREE.Color(1, 1, 1), side: THREE.DoubleSide }));
+      const dMat = keep(new THREE.MeshPhysicalMaterial({ map: dTex, color: 0xf2efe9, roughness: 0.86, sheen: 0.35, sheenRoughness: 0.7, sheenColor: new THREE.Color(1, 1, 1), side: THREE.DoubleSide }));
       dMat.onBeforeCompile = sh => {
         Object.assign(sh.uniforms, seepU);
         sh.fragmentShader = sh.fragmentShader
@@ -2262,11 +2389,11 @@
             float nzPad = (1.0 - smoothstep(-0.001, 0.0008, abs(nzq.x) - uPadRect.x * uPadRect.z * 0.5)) * (1.0 - smoothstep(-0.001, 0.0008, abs(nzq.y) - uPadRect.y * uPadRect.w * 0.5));
             float nzn = texture2D(tNoiseD, nzq * 18.0).r;
             float nzr = uSeep.z * 0.012 * (0.75 + 0.5 * nzn);
-            float nzd = length(nzq - nzc);
+            float nzd = length((nzq - nzc) * vec2(0.42, 1.0)) * (0.85 + 0.3 * texture2D(tNoiseD, nzq * 7.0 + 0.3).g);
             float nzs = (1.0 - smoothstep(nzr * 0.55, nzr, nzd)) * nzPad * step(0.001, uSeep.z);
             diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.62, 0.07, 0.05), vec3(0.38, 0.03, 0.02), smoothstep(0.0, nzr, nzr - nzd)), nzs * 0.85);`);
       };
-      dMat.customProgramCacheKey = () => 'nza3d-dressing-1';
+      dMat.customProgramCacheKey = () => 'nza3d-dressing-2';
       const mesh = new THREE.Mesh(g2, dMat);
       mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
       scene.add(mesh);
@@ -2331,7 +2458,14 @@
           const span = alongX ? Math.abs(i - gi) / NX : Math.abs(j - gj) / NY;
           if (onEdge && span < 0.32) { pinned[k] = 1; stuck[k] = 0; stick[k] = 0; }
         }
-        for (let k = 0; k < N; k++) { if (pinned[k]) { pinOff[k * 3] = pos[k * 3] - hit.point.x; pinOff[k * 3 + 1] = pos[k * 3 + 1] - hit.point.y; pinOff[k * 3 + 2] = pos[k * 3 + 2] - hit.point.z; } stuck[k] = 0; stick[k] = 0; }
+        // every vertex keeps its offset from the hand; the far side droops (carryW 0 at the held edge → 1)
+        const iE = gi <= 2 ? 0 : NX - 1, jE = gj <= 2 ? 0 : NY - 1;
+        for (let k = 0; k < N; k++) {
+          pinOff[k * 3] = pos[k * 3] - hit.point.x; pinOff[k * 3 + 1] = pos[k * 3 + 1] - hit.point.y; pinOff[k * 3 + 2] = pos[k * 3 + 2] - hit.point.z;
+          const i = k % NX, j = Math.floor(k / NX);
+          carryW[k] = alongX ? Math.abs(j - jE) / (NY - 1) : Math.abs(i - iE) / (NX - 1);
+          stuck[k] = 0; stick[k] = 0;
+        }
         D._target.copy(hit.point);
         D._lift = 0;
         D.state = 'carried';
@@ -2341,7 +2475,7 @@
       D.release = () => { if (D.state === 'carried') { pinned.fill(0); D.state = 'falling'; D._settle = 0; } };
       D.rub = (hit, dt) => {
         if (!hit || D.state === 'carried') return 0;
-        const R2 = 0.011;
+        const R2 = 0.014;
         let touched = 0;
         for (let k = 0; k < N; k++) {
           const dx = pos[k * 3] - hit.point.x, dy = pos[k * 3 + 1] - hit.point.y, dz = pos[k * 3 + 2] - hit.point.z;
@@ -2351,9 +2485,9 @@
           const f = 1 - dd / R2;
           _a.set(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]);
           const q = toSurf(_a);
-          const hs = heightAt(q.s, q.t) + thick;
+          const hs = heightAt(q.s, q.t) + thick + stitchClear(q.s, q.t);
           if (q.h - hs < 0.0016) {
-            stick[k] = Math.min(1, stick[k] + dt * 3.4 * f);
+            stick[k] = Math.min(1, stick[k] + dt * 4.6 * f);
             if (stick[k] >= 1 && !stuck[k]) {
               stuck[k] = 1;
               surf(q.s, q.t, P, Nn); P.addScaledVector(Nn, hs);
@@ -2361,7 +2495,7 @@
             }
           } else {
             surf(q.s, q.t, P, Nn);
-            pos[k * 3] -= Nn.x * 0.004 * f; pos[k * 3 + 1] -= Nn.y * 0.004 * f; pos[k * 3 + 2] -= Nn.z * 0.004 * f;
+            pos[k * 3] -= Nn.x * 0.0015 * f; pos[k * 3 + 1] -= Nn.y * 0.0015 * f; pos[k * 3 + 2] -= Nn.z * 0.0015 * f;
           }
         }
         if (D.state === 'rest' || D.state === 'falling') D.state = 'placed';
@@ -2385,6 +2519,7 @@
       D.center = () => { let x = 0, y = 0, z = 0; for (let k = 0; k < N; k++) { x += pos[k * 3]; y += pos[k * 3 + 1]; z += pos[k * 3 + 2]; } return new THREE.Vector3(x / N, y / N, z / N); };
       D.remove = () => { scene.remove(mesh); const i = dressings.indexOf(D); if (i >= 0) dressings.splice(i, 1); };
       D.step = dt => {
+        if (D.state === 'rest') return;   // lying on the tray / beside the wound until picked up
         const sub = 3, h2 = Math.min(dt, 0.04) / sub;
         const gy = -9.8;
         const lift = D.state === 'carried' ? (D._lift = lerp(D._lift || 0, D.carriedLift, 1 - Math.exp(-dt * 10))) : 0;
@@ -2399,7 +2534,7 @@
               pos[i3] = lerp(pos[i3], tx, 0.5); pos[i3 + 1] = lerp(pos[i3 + 1], ty, 0.5); pos[i3 + 2] = lerp(pos[i3 + 2], tz, 0.5);
               continue;
             }
-            const damp = contact[k] ? 0.55 : 0.985;
+            const damp = contact[k] ? 0.55 : D.state === 'carried' ? 0.86 : 0.985;
             const vx = (pos[i3] - prev[i3]) * damp, vy = (pos[i3 + 1] - prev[i3 + 1]) * damp, vz = (pos[i3 + 2] - prev[i3 + 2]) * damp;
             prev[i3] = pos[i3]; prev[i3 + 1] = pos[i3 + 1]; prev[i3 + 2] = pos[i3 + 2];
             pos[i3] += vx; pos[i3 + 1] += vy + gy * h2 * h2 * 0.35; pos[i3 + 2] += vz;
@@ -2419,6 +2554,16 @@
               pos[b3] -= dx * diff * wb; pos[b3 + 1] -= dy * diff * wb; pos[b3 + 2] -= dz * diff * wb;
             }
           }
+          // carried: the free part follows the hand loosely, sagging toward the skin
+          if (D.state === 'carried') {
+            for (let k = 0; k < N; k++) {
+              if (pinned[k]) continue;
+              const i3 = k * 3, cw = carryW[k], up = lift * (1 - 0.72 * cw);
+              const tx = D._target.x + tn.x * up + pinOff[i3], ty = D._target.y + tn.y * up + pinOff[i3 + 1], tz = D._target.z + tn.z * up + pinOff[i3 + 2];
+              const kk = 0.38 * (1 - 0.4 * cw);
+              pos[i3] += (tx - pos[i3]) * kk; pos[i3 + 1] += (ty - pos[i3 + 1]) * kk; pos[i3 + 2] += (tz - pos[i3 + 2]) * kk;
+            }
+          }
           // collide with the skin
           let moving = 0;
           for (let k = 0; k < N; k++) {
@@ -2426,7 +2571,7 @@
             const i3 = k * 3;
             _a.set(pos[i3], pos[i3 + 1], pos[i3 + 2]);
             const q = toSurf(_a);
-            const hs = heightAt(q.s, q.t) + thick + padMask[k] * 0.0002;
+            const hs = heightAt(q.s, q.t) + thick + padMask[k] * 0.0002 + stitchClear(q.s, q.t);
             if (q.h < hs) {
               surf(q.s, q.t, P, Nn); P.addScaledVector(Nn, hs);
               pos[i3] = P.x; pos[i3 + 1] = P.y; pos[i3 + 2] = P.z;
@@ -2447,6 +2592,27 @@
       return D;
     }
     S.dressing = { create: createDressing, get list() { return dressings.slice(); } };
+
+    // compile every shader a scene will need up front (tools, dressing) so the first use of a
+    // tool does not hitch. Call once after setup, ideally behind a loading veil.
+    S.prewarm = (names, withDressing = true) => {
+      const list = names || Object.keys(BUILD);
+      const shown = [];
+      for (const n of list) {
+        const t = tools.get(n);
+        if (t && !t.group.visible) { t.group.visible = true; t.group.position.set(0, -5, 0); shown.push(t); }
+      }
+      const D = withDressing ? createDressing({ uv: [0.02, 0.02], size: [0.02, 0.02], pad: [0.01, 0.01] }) : null;
+      // one of every marker kind and a stitch (their materials are created lazily)
+      const kinds = ['ring', 'dashed', 'check', 'cross', 'dot', 'pin'];
+      kinds.forEach(k => markers.set(`__warm_${k}`, { uv: [0.03, 0.03], kind: k }));
+      const st = stitches.add({ a: [0.03, 0.03], b: [0.04, 0.03] });
+      try { renderer.compile(scene, camera); } catch (e) { console.error('[NZA3D] prewarm', e); }
+      shown.forEach(t => { if (tools.active !== t) t.group.visible = false; });
+      if (D) D.remove();
+      kinds.forEach(k => markers.remove(`__warm_${k}`));
+      st.remove();
+    };
 
     /* ═════════════ DRAPE ═════════════ */
     if (o.drape) {
@@ -2531,13 +2697,13 @@
       const hm = ctl.home;
       surf(hm.s, hm.t, _p, _n);
       tangents(hm.s, hm.t, _a, _b);
-      key.position.copy(_p).addScaledVector(_n, 0.62).addScaledVector(_a, 0.16).addScaledVector(_b, -0.2);
+      key.position.copy(_p).addScaledVector(_n, 0.52).addScaledVector(_a, 0.22).addScaledVector(_b, -0.36);
       key.target.position.copy(_p);
       fill.position.copy(_p).addScaledVector(_n, 0.55).addScaledVector(_a, -0.4).addScaledVector(_b, 0.25);
       fill.target.position.copy(_p);
       key.target.updateMatrixWorld(); fill.target.updateMatrixWorld();
     }
-    function step(dt) {
+    function step(dt, render = true) {
       S.time += dt;
       resize();
       applyCamera(dt);
@@ -2552,6 +2718,7 @@
       updateMarkers(S.time);
       keyDir.copy(key.position).sub(key.target.position).normalize().transformDirection(camera.matrixWorldInverse);
       U.uKeyDir.value.copy(keyDir);
+      if (!render) return;
       renderer.setRenderTarget(null);
       renderer.render(scene, camera);
     }
@@ -2564,7 +2731,7 @@
     }
     S.start = () => { if (running || S.disposed) return; running = true; lastT = performance.now(); raf = requestAnimationFrame(frame); };
     S.stop = () => { running = false; cancelAnimationFrame(raf); };
-    S.step = dt => step(dt || 1 / 60);
+    S.step = (dt, render = true) => step(dt || 1 / 60, render);
     S.running = () => running;
 
     S.dispose = () => {
@@ -2755,6 +2922,7 @@
     uniform sampler2D tMicro2;
     uniform vec2 uPatch;
     uniform vec2 uFieldTexel;
+    uniform vec2 uLayerTexel;
     uniform float uFieldEnc;
     uniform vec4 uWR;
     uniform vec2 uWork;
@@ -2770,11 +2938,14 @@
     uniform float uFieldNormal;
     uniform float uSSS;
     uniform float uDark;
-    float nzaInside; float nzaDepthN; float nzaWet; float nzaSmooth; float nzaThick; float nzaGrit; float nzaGr; float nzaCl;
+    uniform float uSebum;
+    float nzaInside; float nzaDepthN; float nzaWet; float nzaSmooth; float nzaThick; float nzaThin; float nzaGrit; float nzaGr; float nzaCl; float nzaCav;
     vec2 nzaUv1; vec2 nzaUv2; vec2 nzaP;
     vec4 nzaM1; vec4 nzaM2; vec4 nzaN3; vec4 nzaN4;
     vec2 nzaRot(vec2 v, float a) { float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
     float nzaFieldH(vec2 w) { float h = texture2D(tField, w).g; return (uFieldEnc > 0.5 ? h * 32.0 - 16.0 : h) * nzaWin; }
+    // fluid film thickness (mm): wet blood ≈ 0.35 mm, clot ≈ 0.7 mm
+    float nzaFilm(vec2 w) { return texture2D(tMaskA, w).r * 0.35 + texture2D(tMaskB, w).b * 0.7; }
   `;
   const SKIN_MAP = `
     nzaP = vec2((vUv.x - 0.5) * uPatch.x, (0.5 - vUv.y) * uPatch.y);
@@ -2795,23 +2966,25 @@
     nzaN3 = texture2D(tNoise, nzaP * 37.0 + 0.27);
     nzaN4 = texture2D(tNoise, nzaP * 95.0 + 0.61);
     vec3 nzaCol = texture2D(map, vUv).rgb;
-    // micro cavities & hair
-    float nzaCav = 0.5 * (nzaM1.r + nzaM2.r);
-    nzaCol *= 1.0 - nzaCav * 0.3;
-    float nzaHair = max(nzaM1.g * smoothstep(0.38, 0.62, nzaN1.r), nzaM2.g * (1.0 - smoothstep(0.38, 0.62, nzaN1.r)));
-    nzaCol = mix(nzaCol, uHairColor, clamp(nzaHair * 1.7, 0.0, 1.0) * clamp(uHair * 1.5, 0.0, 0.95));
-    // bruise
+    // micro cavities (furrows, pores) are a touch darker and redder
+    nzaCav = 0.5 * (nzaM1.r + nzaM2.r);
+    nzaCol *= mix(vec3(1.0), vec3(0.86, 0.79, 0.77), nzaCav);
+    // body hair: density varies in patches; a second rotated layer breaks the tiling
+    float nzaDen = smoothstep(0.32, 0.68, nzaN1.g);
+    float nzaHair = max(nzaM1.g * nzaDen, nzaM2.g * (1.0 - nzaDen) * 0.8);
+    nzaCol = mix(nzaCol, uHairColor, clamp(nzaHair, 0.0, 1.0) * clamp(uHair * 1.6, 0.0, 0.9));
+    // bruise: red-purple core, yellow-green fringe
     float nzaBr = nzaB.r * (0.7 + 0.6 * nzaN2.g);
-    vec3 nzaBc = mix(vec3(0.94, 0.8, 0.78), vec3(0.7, 0.5, 0.6), smoothstep(0.1, 0.45, nzaBr));
-    nzaBc = mix(nzaBc, vec3(0.46, 0.33, 0.5), smoothstep(0.45, 0.9, nzaBr));
-    nzaCol *= mix(vec3(1.0), nzaBc, smoothstep(0.0, 0.45, nzaBr));
-    // wound margin: erythema, abraded epidermis
+    vec3 nzaBc = mix(vec3(0.96, 0.84, 0.66), vec3(0.72, 0.48, 0.58), smoothstep(0.12, 0.45, nzaBr));
+    nzaBc = mix(nzaBc, vec3(0.44, 0.3, 0.48), smoothstep(0.45, 0.9, nzaBr));
+    nzaCol *= mix(vec3(1.0), nzaBc, smoothstep(0.0, 0.4, nzaBr));
+    // wound margin: erythema and a thin abraded epidermis edge
     float nzaRim = clamp(nzaF.b, 0.0, 1.0);
-    nzaCol = mix(nzaCol, nzaCol * vec3(0.95, 0.52, 0.45), nzaRim * 0.85);
-    nzaCol = mix(nzaCol, vec3(0.34, 0.07, 0.04), smoothstep(0.5, 1.0, nzaRim * (0.55 + 0.9 * nzaN3.r)) * 0.6);
+    nzaCol = mix(nzaCol, nzaCol * vec3(0.98, 0.6, 0.52), nzaRim * 0.8);
+    nzaCol = mix(nzaCol, vec3(0.5, 0.13, 0.09), smoothstep(0.55, 1.0, nzaRim * (0.6 + 0.8 * nzaN3.r)) * 0.55);
     // iodine
     float nzaIo = nzaA.b * (0.85 + 0.3 * nzaN2.r);
-    nzaCol = mix(nzaCol, nzaCol * vec3(0.78, 0.36, 0.07), smoothstep(0.0, 0.7, nzaIo));
+    nzaCol = mix(nzaCol, nzaCol * vec3(0.8, 0.38, 0.08), smoothstep(0.0, 0.7, nzaIo));
     // burns: superficial red → partial (wet pink, sloughed white epidermis) → full thickness (leathery)
     float nzaBs = nzaF.a;
     vec3 nzaEry = nzaCol * vec3(1.0, 0.5, 0.44);
@@ -2822,72 +2995,96 @@
     nzaCol = mix(nzaCol, nzaFull, smoothstep(0.66, 0.86, nzaBs));
     float nzaEs = nzaB.a * (0.7 + 0.6 * nzaN3.g);
     nzaCol = mix(nzaCol, mix(vec3(0.22, 0.13, 0.07), vec3(0.05, 0.035, 0.025), smoothstep(0.4, 0.9, nzaEs)), smoothstep(0.08, 0.5, nzaEs));
-    // tissue inside the wound: dermis lip, yellow fat lobules, dark depth
+    // tissue inside the wound: pale dermis lip → raw red → yellow fat lobules → dark depth
     nzaInside = clamp(nzaF.r, 0.0, 1.0);
     nzaDepthN = clamp(-nzaH0 / 6.0, 0.0, 1.0);
-    float nzaFatBand = smoothstep(0.1, 0.26, nzaDepthN) * (1.0 - smoothstep(0.55, 0.9, nzaDepthN));
-    float nzaFat = (1.0 - smoothstep(0.18, 0.42, texture2D(tNoise, nzaP * 26.0).b)) * nzaFatBand;
-    vec3 nzaTis = mix(vec3(0.6, 0.1, 0.075), vec3(0.82, 0.52, 0.14), nzaFat * 0.9);
-    nzaTis = mix(nzaTis, vec3(0.22, 0.014, 0.011), smoothstep(0.35, 0.95, nzaDepthN));
-    nzaTis *= 0.72 + 0.56 * texture2D(tNoise, nzaP * 41.0 + vec2(nzaH0 * 0.06, nzaH0 * 0.025)).g;
-    float nzaLip = 1.0 - smoothstep(0.0, 0.12, nzaDepthN);
-    nzaTis = mix(nzaTis, vec3(0.62, 0.22, 0.18), nzaLip * 0.5);
+    float nzaLob = texture2D(tNoise, nzaP * 71.0 + vec2(0.13, 0.57)).b;
+    float nzaFatBand = smoothstep(0.14, 0.3, nzaDepthN) * (1.0 - smoothstep(0.5, 0.8, nzaDepthN)) * smoothstep(0.35, 0.6, texture2D(tNoise, nzaP * 9.0).g);
+    float nzaFat = (1.0 - smoothstep(0.28, 0.5, nzaLob)) * nzaFatBand;
+    vec3 nzaTis = mix(vec3(0.82, 0.42, 0.36), vec3(0.62, 0.09, 0.07), smoothstep(0.05, 0.3, nzaDepthN));
+    nzaTis = mix(nzaTis, mix(vec3(0.96, 0.78, 0.42), vec3(0.9, 0.62, 0.3), nzaN3.g), nzaFat * 0.8);
+    nzaTis = mix(nzaTis, vec3(0.36, 0.03, 0.025), smoothstep(0.55, 1.0, nzaDepthN));
+    nzaTis *= 0.82 + 0.36 * texture2D(tNoise, nzaP * 52.0 + vec2(nzaH0 * 0.05, 0.0)).g;
     nzaCol = mix(nzaCol, nzaTis, nzaInside);
+    // raised skin (lidocaine wheal, blister dome) is pale and slightly translucent
+    float nzaWh = smoothstep(0.3, 1.1, nzaH0) * (1.0 - nzaInside) * (1.0 - smoothstep(0.2, 0.6, nzaBs));
+    nzaCol = mix(nzaCol, nzaCol * vec3(1.06, 1.07, 1.05) + vec3(0.035, 0.03, 0.03), nzaWh * 0.75);
     // soot / powder stippling
     float nzaSo = nzaA.a;
     nzaCol = mix(nzaCol, nzaCol * 0.22, smoothstep(0.0, 0.7, nzaSo) * 0.75);
     nzaCol = mix(nzaCol, vec3(0.02), step(1.0 - nzaSo * 0.5, nzaN4.a) * 0.9);
-    // grime & grit
-    nzaGr = nzaA.g * (0.65 + 0.7 * nzaN2.b);
-    float nzaGf = smoothstep(0.06, 0.65, nzaA.g * (0.6 + 0.8 * texture2D(tNoise, nzaP * 16.0).r));
-    nzaCol = mix(nzaCol, nzaCol * vec3(0.36, 0.3, 0.24), nzaGf * 0.85);
-    // grit: round particles (worley cells) present where the grime is thick
-    float nzaW1 = texture2D(tNoise, nzaP * 190.0).b;
-    float nzaW2 = texture2D(tNoise, nzaP * 83.0 + 0.4).b;
-    float nzaPres = texture2D(tNoise, nzaP * 31.0 + 0.71).r;
-    float nzaG1 = (1.0 - smoothstep(0.16, 0.24, nzaW1)) * step(1.0 - clamp(nzaA.g, 0.0, 1.0) * 0.85, nzaPres);
-    float nzaG2 = (1.0 - smoothstep(0.1, 0.16, nzaW2)) * step(1.05 - clamp(nzaA.g, 0.0, 1.0) * 0.7, texture2D(tNoise, nzaP * 13.0 + 0.2).g);
-    nzaGrit = clamp(max(nzaG1, nzaG2), 0.0, 1.0);
-    nzaCol = mix(nzaCol, mix(vec3(0.03, 0.025, 0.02), vec3(0.24, 0.2, 0.15), texture2D(tNoise, nzaP * 61.0).g), nzaGrit);
-    // dried blood / clot
-    nzaCl = nzaB.b * (0.75 + 0.5 * nzaN2.r);
-    nzaCol = mix(nzaCol, nzaCol * vec3(0.55, 0.22, 0.16), smoothstep(0.04, 0.22, nzaCl) * 0.55);
-    nzaCol = mix(nzaCol, mix(vec3(0.11, 0.016, 0.011), vec3(0.05, 0.008, 0.006), smoothstep(0.45, 0.95, nzaCl)), smoothstep(0.16, 0.42, nzaCl));
-    nzaCol *= 1.0 - (smoothstep(0.16, 0.26, nzaCl) - smoothstep(0.26, 0.42, nzaCl)) * 0.45;
-    // wet blood
-    float nzaBl = nzaA.r + (nzaN2.r - 0.5) * 0.16;
-    float nzaThin = smoothstep(0.05, 0.2, nzaBl);
-    nzaThick = smoothstep(0.3, 0.75, nzaBl);
-    nzaCol = mix(nzaCol, nzaCol * vec3(0.42, 0.035, 0.03), nzaThin * 0.95);
-    nzaCol = mix(nzaCol, vec3(0.11, 0.004, 0.004), nzaThick);
-    // water film
-    nzaWet = clamp(max(max(nzaThin * 0.95, nzaB.g), nzaInside * 0.9), 0.0, 1.0);
-    nzaCol *= 1.0 - clamp(nzaB.g, 0.0, 1.0) * 0.12;
+    // clotted blood: dark maroon, thick
+    nzaCl = nzaB.b * (0.8 + 0.4 * nzaN2.r);
+    float nzaClf = smoothstep(0.08, 0.36, nzaCl);
+    nzaCol = mix(nzaCol, mix(vec3(0.24, 0.035, 0.025), vec3(0.085, 0.012, 0.008), smoothstep(0.3, 0.9, nzaCl)), nzaClf);
+    // wet blood: thin film tints, pools go deep red
+    float nzaBl = nzaA.r + (nzaN2.r - 0.5) * 0.06;
+    nzaThin = smoothstep(0.03, 0.22, nzaBl);
+    nzaThick = smoothstep(0.24, 0.78, nzaBl);
+    nzaCol = mix(nzaCol, nzaCol * vec3(0.66, 0.1, 0.075), nzaThin * 0.92);
+    nzaCol = mix(nzaCol, vec3(0.2, 0.012, 0.01), nzaThick * 0.96);
+    // grime (drawn over the blood: dirt sits in the wound): brown-grey smudges with soft broken edges ...
+    nzaGr = nzaA.g;
+    float nzaGn = texture2D(tNoise, nzaP * 8.0 + 0.13).r * 0.55 + texture2D(tNoise, nzaP * 29.0 + 0.3).g * 0.45;
+    float nzaGf = smoothstep(0.04, 0.5, nzaGr * (0.35 + 0.9 * nzaGn) * (0.45 + 1.1 * nzaN4.r));
+    vec3 nzaDirt = mix(vec3(0.52, 0.47, 0.4), vec3(0.27, 0.24, 0.2), nzaGn);
+    vec3 nzaDirtCol = mix(nzaCol * nzaDirt, nzaDirt * vec3(0.34, 0.3, 0.26), max(nzaThin, nzaInside) * 0.75);
+    nzaCol = mix(nzaCol, nzaDirtCol, nzaGf * 0.92);
+    // ... and grit: sparse sand / road-dirt particles where the grime is heavy (one random value per worley cell)
+    vec2 nzaGc1 = nzaP * 41.0 + vec2(0.41, 0.17);
+    vec2 nzaGc2 = nzaP * 97.0 + vec2(0.71, 0.29);
+    float nzaR1 = textureLod(tNoise, (floor(nzaGc1 * 8.0) + 0.5) / 8.0 + vec2(0.0019), 0.0).a;
+    float nzaR2 = textureLod(tNoise, (floor(nzaGc2 * 8.0) + 0.5) / 8.0 + vec2(0.0023), 0.0).a;
+    float nzaS1 = texture2D(tNoise, nzaGc1).b / (0.6 + 0.8 * nzaR1);
+    float nzaS2 = texture2D(tNoise, nzaGc2).b / (0.6 + 0.8 * nzaR2);
+    float nzaG1 = (1.0 - smoothstep(0.08, 0.13, nzaS1)) * step(1.0 - clamp(nzaGr - 0.25, 0.0, 1.0) * 0.8, nzaR1);
+    float nzaG2 = (1.0 - smoothstep(0.1, 0.16, nzaS2)) * step(1.0 - clamp(nzaGr - 0.15, 0.0, 1.0) * 0.7, nzaR2);
+    nzaGrit = clamp(max(nzaG1, nzaG2 * 0.9), 0.0, 1.0);
+    float nzaGk = fract(nzaR1 * 7.31 + nzaR2 * 3.7);
+    vec3 nzaGcol = mix(vec3(0.035, 0.03, 0.025), vec3(0.2, 0.16, 0.11), nzaGk * nzaGk);
+    nzaGcol *= 0.55 + 0.45 * smoothstep(0.02, 0.1, min(nzaS1, nzaS2));
+    nzaCol = mix(nzaCol, nzaGcol, nzaGrit);
+    // water film darkens a little and saturates
+    float nzaWater = clamp(nzaB.g, 0.0, 1.0);
+    nzaCol = mix(nzaCol, pow(max(nzaCol, vec3(0.0)), vec3(1.12)) * 0.95, nzaWater * 0.7);
+    nzaWet = clamp(max(max(nzaThin, nzaWater * 0.9), max(nzaInside * 0.92, nzaClf * 0.55)), 0.0, 1.0);
     diffuseColor.rgb *= nzaCol;
   `;
   const SKIN_ROUGH = `
-    float roughnessFactor = uSkinRough * (0.8 + 0.42 * 0.5 * (nzaM1.b + nzaM2.b)) * (1.0 + 0.25 * nzaM1.r);
-    roughnessFactor = mix(roughnessFactor, 0.85, smoothstep(0.05, 0.5, nzaGr));
-    roughnessFactor = mix(roughnessFactor, 0.6, smoothstep(0.12, 0.4, nzaCl));
-    roughnessFactor = mix(roughnessFactor, 0.36, nzaInside);
-    roughnessFactor = mix(roughnessFactor, 0.2, nzaWet * 0.75);
+    float roughnessFactor = uSkinRough * (0.8 + 0.4 * 0.5 * (nzaM1.b + nzaM2.b)) * (1.0 + 0.45 * nzaCav);
+    roughnessFactor = mix(roughnessFactor, 0.86, smoothstep(0.05, 0.5, nzaGr));
+    roughnessFactor = mix(roughnessFactor, 0.3, nzaInside);
+    roughnessFactor = mix(roughnessFactor, 0.42, smoothstep(0.1, 0.4, nzaCl));
+    roughnessFactor = mix(roughnessFactor, 0.16, max(nzaThin * 0.92, clamp(nzaB.g, 0.0, 1.0) * 0.75));
     roughnessFactor = mix(roughnessFactor, 0.92, nzaGrit);
-    nzaSmooth = clamp(max(max(nzaInside, nzaThick), max(nzaWet * 0.6, smoothstep(0.1, 0.4, nzaCl) * 0.9)), 0.0, 1.0);
+    nzaSmooth = clamp(max(max(nzaInside * 0.8, nzaThick), max(nzaWet * 0.6, smoothstep(0.1, 0.4, nzaCl) * 0.9)), 0.0, 1.0);
   `;
   const SKIN_NORMAL = `
     vec3 nzaMn1 = texture2D(normalMap, nzaUv1).xyz * 2.0 - 1.0;
     vec3 nzaMn2 = texture2D(normalMap, nzaUv2).xyz * 2.0 - 1.0;
     nzaMn2.xy = nzaRot(nzaMn2.xy, -0.61);
     vec2 nzaMxy = 0.5 * (nzaMn1.xy + nzaMn2.xy) * uMicroNormal * (1.0 - nzaSmooth * 0.85);
-    nzaMxy += (vec2(nzaN4.a, nzaN3.a) - 0.5) * 0.6 * nzaGrit;
-    nzaMxy += (vec2(nzaN3.r, nzaN3.g) - 0.5) * 0.4 * nzaInside;
+    nzaMxy += (vec2(nzaN4.a, nzaN3.a) - 0.5) * 1.1 * nzaGrit;
+    nzaMxy += (vec2(nzaN3.r, nzaN3.g) - 0.5) * 0.5 * nzaInside;
+    // wound field relief
     float nzaHl = nzaFieldH(nzaW - vec2(uFieldTexel.x, 0.0));
     float nzaHr = nzaFieldH(nzaW + vec2(uFieldTexel.x, 0.0));
     float nzaHd = nzaFieldH(nzaW - vec2(0.0, uFieldTexel.y));
     float nzaHu = nzaFieldH(nzaW + vec2(0.0, uFieldTexel.y));
     vec2 nzaG = vec2((nzaHr - nzaHl) / (2.0 * uFieldTexel.x * uWork.x), (nzaHu - nzaHd) / (2.0 * uFieldTexel.y * uWork.y)) * 0.001 * uFieldNormal;
-    vec3 nzaMacroN = perturbNormal2Arb(-vViewPosition, normal, normalize(vec3(-nzaG, 1.0)), faceDirection);
-    normal = perturbNormal2Arb(-vViewPosition, normal, normalize(vec3(nzaMxy - nzaG, 1.0)), faceDirection);
+    // fluid films have thickness: meniscus highlights at the edges of pools and clots
+    vec2 nzaLt = uLayerTexel * 1.5;
+    float nzaFl = nzaFilm(nzaW - vec2(nzaLt.x, 0.0)), nzaFr = nzaFilm(nzaW + vec2(nzaLt.x, 0.0));
+    float nzaFd = nzaFilm(nzaW - vec2(0.0, nzaLt.y)), nzaFu = nzaFilm(nzaW + vec2(0.0, nzaLt.y));
+    vec2 nzaFG = vec2((nzaFr - nzaFl) / (2.0 * nzaLt.x * uWork.x), (nzaFu - nzaFd) / (2.0 * nzaLt.y * uWork.y)) * 0.001 * nzaWin;
+    nzaFG = clamp(nzaFG, vec2(-1.2), vec2(1.2));
+    // gentle large-scale undulation of the body surface
+    float nzaU0 = texture2D(tNoise, nzaP * 3.0).r;
+    float nzaUx = texture2D(tNoise, (nzaP + vec2(0.004, 0.0)) * 3.0).r;
+    float nzaUy = texture2D(tNoise, (nzaP + vec2(0.0, 0.004)) * 3.0).r;
+    vec2 nzaUG = vec2(nzaUx - nzaU0, -(nzaUy - nzaU0)) / 0.004 * 0.0016;
+    vec3 nzaMacroN = perturbNormal2Arb(-vViewPosition, normal, normalize(vec3(-nzaG - nzaFG - nzaUG, 1.0)), faceDirection);
+    normal = perturbNormal2Arb(-vViewPosition, normal, normalize(vec3(nzaMxy - nzaG - nzaFG * 0.7 - nzaUG, 1.0)), faceDirection);
   `;
   const SKIN_AO = `
     float nzaAO = 1.0 - smoothstep(0.0, 1.0, nzaDepthN) * 0.55;

@@ -1,0 +1,209 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · app 'bay' — ambulance treatment bay HUD
+   HUD panels (HUD design) + the supplies window (UI v5 window shell).
+   No backdrop-filter / color-mix / :has().
+   ═══════════════════════════════════════════════════════════ */
+
+#app-bay{--b-green:#3ddc84;--b-cyan:#3fd0ff;--b-yellow:#f2d64b;--b-lav:#c8b6ff}
+
+/* ─────────────── top strip ─────────────── */
+#app-bay .bay-top{position:absolute;left:22px;right:22px;top:16px;height:102px;display:grid;
+  grid-template-columns:minmax(360px,1.2fr) auto minmax(560px,1.35fr);gap:18px;padding:10px 12px 10px 10px;align-items:stretch;
+  animation:nza-in 240ms cubic-bezier(.2,.7,.2,1) both}
+#app-bay .bay-top::before{content:'';position:absolute;left:14px;right:14px;top:-1px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0) 40%)}
+#app-bay .bay-ecg{display:flex;flex-direction:column;min-width:0;min-height:0}
+#app-bay .bay-top > *{min-height:0}
+#app-bay .bay-scr{position:relative;flex:1;min-height:0;display:grid;grid-template-rows:1.55fr 1fr;border-radius:8px;overflow:hidden;
+  background:#020303;border:1px solid #000;box-shadow:inset 0 0 0 1px rgba(255,255,255,.045),inset 0 8px 20px rgba(0,0,0,.6)}
+#app-bay .bay-scr::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(160deg,rgba(255,255,255,.05),transparent 38%)}
+#app-bay .bay-tr{position:relative;min-height:0;overflow:hidden}
+#app-bay .bay-tr + .bay-tr{border-top:1px solid rgba(255,255,255,.04)}
+#app-bay .bay-tr canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+#app-bay .bay-tr .tl{position:absolute;left:7px;top:3px;z-index:1;font-size:8px;font-weight:700;letter-spacing:.14em;color:rgba(255,255,255,.4)}
+#app-bay .bay-nosig{position:absolute;inset:0;z-index:2;display:grid;place-items:center;background:rgba(2,3,3,.72)}
+#app-bay .bay-nosig span{font:600 10.5px/1 var(--mono);letter-spacing:.34em;color:rgba(255,255,255,.34)}
+#app-bay .bay-scr-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:5px;height:12px;
+  font:500 9.5px/1 var(--mono);letter-spacing:.08em;color:var(--ink-3);white-space:nowrap}
+#app-bay .bay-scr-foot .rh{color:var(--b-green)}
+#app-bay .bay-scr-foot .drip b{color:var(--teal-hi);font-weight:700}
+
+#app-bay .bay-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:0 6px}
+#app-bay .bay-exit{display:inline-flex;align-items:center;gap:11px;height:38px;padding:0 18px 0 7px;border-radius:10px;
+  background:linear-gradient(var(--raise),var(--panel));border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--lift),var(--sh-1)}
+#app-bay .bay-exit kbd{height:25px;padding:0 10px;font-size:11px;letter-spacing:.06em;background:#f5f6f2;color:#111;border-color:#fff;border-bottom-color:#b9bcb6}
+#app-bay .bay-exit .x-l{font-size:14.5px;font-weight:600;color:var(--white);letter-spacing:-.005em;white-space:nowrap}
+#app-bay .bay-unit{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--ink-3);white-space:nowrap}
+#app-bay .bay-unit .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+#app-bay .bay-unit.moving .dot{background:var(--amber);box-shadow:0 0 8px var(--amber);animation:nza-blink 1s steps(1) infinite}
+#app-bay .bay-unit i{font-style:normal;opacity:.45;margin:0 1px}
+#app-bay .bay-unit b{font-weight:500;color:var(--ink-2)}
+#app-bay .bay-unit b.mv{color:#f3c35a}
+
+#app-bay .bay-vit{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));min-width:0}
+#app-bay .vt{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 4px 0 14px;border-left:1px solid var(--line-soft);min-width:0}
+#app-bay .vt .l{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+#app-bay .vt .v{font-size:30px;font-weight:700;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+#app-bay .vt .u{font-size:9.5px;color:var(--ink-3);white-space:nowrap}
+#app-bay .vt .u b{font-weight:600;color:var(--ink-2)}
+#app-bay .vt.hr{color:var(--b-green)} #app-bay .vt.sp{color:var(--b-cyan)} #app-bay .vt.bp{color:var(--white)}
+#app-bay .vt.rr{color:var(--b-yellow)} #app-bay .vt.tp{color:var(--b-lav)} #app-bay .vt.ls{color:#ff7478}
+#app-bay .vt.bp .v{font-size:25px}
+#app-bay .vt.warn .v{color:#f3c35a}
+#app-bay .vt.alarm .v{color:#ff4a4f;animation:nza-blink .8s steps(1) infinite}
+#app-bay .vt.alarm .l{color:#ff7478}
+#app-bay .vt.nil .v{color:var(--ink-3)}
+#app-bay .vt.nil .l{opacity:.55}
+
+/* ─────────────── left: patient card ─────────────── */
+#app-bay .bay-left{position:absolute;left:22px;top:134px;width:344px;animation:nza-in 260ms 60ms cubic-bezier(.2,.7,.2,1) both}
+#app-bay .bay-pt{padding:14px 14px 12px}
+#app-bay .pt-head{display:flex;align-items:center;gap:11px}
+#app-bay .av{display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:50%;font-size:13px;font-weight:700;letter-spacing:.02em;
+  color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+#app-bay .pt-head .who{min-width:0;flex:1}
+#app-bay .pt-head .who b{display:block;font-size:15px;font-weight:700;color:var(--white);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-bay .pt-head .who span{display:block;margin-top:3px;font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+#app-bay .pt-head .prio{flex:none}
+
+#app-bay .pst{position:relative;display:flex;align-items:center;gap:10px;margin-top:12px;padding:9px 10px 9px 13px;border-radius:9px;
+  background:var(--inset);border:1px solid var(--line-soft);overflow:hidden;--pc:var(--teal);--pr:8,175,162}
+#app-bay .pst::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--pc);box-shadow:0 0 10px var(--pc)}
+#app-bay .pst.red{--pc:#e5484d;--pr:229,72,77}
+#app-bay .pst.dim{--pc:#63696d;--pr:99,105,109}
+#app-bay .pst .pi{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:9px;color:var(--pc);
+  background:rgba(var(--pr),.14);border:1px solid rgba(var(--pr),.3)}
+#app-bay .pst .pi .nz-ic{width:15px;height:15px}
+#app-bay .pst b{display:block;font-size:12.5px;font-weight:700;color:var(--white);letter-spacing:.04em;text-transform:uppercase}
+#app-bay .pst.red b{color:#ff8a8d}
+#app-bay .pst.red .pi{animation:nza-redglow 1.6s infinite}
+#app-bay .pst small{display:block;margin-top:2px;font-size:11px;color:var(--ink-3);white-space:nowrap}
+#app-bay .pst small em{font-style:normal;color:#ff8a8d;font-weight:600}
+#app-bay .pst > div:not(.pc){flex:1;min-width:0}
+#app-bay .pst .pc{margin-left:auto;flex:none}
+#app-bay .pst .flip{gap:3px}
+#app-bay .pst .flip.sm .d{width:22px;height:30px;font-size:19px}
+#app-bay .pst .flip.sm .c{font-size:16px}
+
+#app-bay .pt-meters{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+#app-bay .pm > span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+#app-bay .pm > b{display:block;margin:4px 0 7px;font-size:19px;font-weight:700;letter-spacing:-.02em;color:var(--white)}
+#app-bay .pm > b i{font-style:normal;font-size:10px;font-weight:500;color:var(--ink-3);margin-left:3px;letter-spacing:0}
+#app-bay .pm > b.red{color:#ff7478} #app-bay .pm > b.amber{color:#f3c35a} #app-bay .pm > b.teal{color:var(--teal-hi)}
+
+#app-bay .pt-sec{margin-top:13px}
+#app-bay .pt-sec h4{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
+#app-bay .pt-sec .none{padding:7px 0 2px;font-size:11.5px;color:var(--ink-3);border-top:1px solid var(--line-hair)}
+#app-bay .inj{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line-hair)}
+#app-bay .inj .tx{flex:1;min-width:0}
+#app-bay .inj .tx b{display:block;font-size:12px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-bay .inj .tx span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:1px}
+#app-bay .inj .bl{font-size:12.5px;font-weight:700;color:#ff7478;white-space:nowrap}
+#app-bay .inj .bl i{font-style:normal;font-size:9px;font-weight:500;color:var(--ink-3);margin-left:2px}
+#app-bay .inj .stt{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 6px;border-radius:5px;border:1px solid var(--line-soft);color:var(--ink-3)}
+#app-bay .inj .stt.treated,#app-bay .inj .stt.healing{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
+#app-bay .inj .stt.controlled{color:#f3c35a;border-color:var(--amber-edge);background:var(--amber-wash)}
+#app-bay .inj .stt.open{color:#ff9a9d;border-color:var(--red-edge);background:var(--red-wash)}
+#app-bay .inj-more{padding:6px 0 0;font-size:10.5px;color:var(--ink-3);border-top:1px solid var(--line-hair)}
+#app-bay .pips{display:inline-flex;gap:2px;flex:none}
+#app-bay .pips i{width:4px;height:13px;border-radius:2px;background:rgba(255,255,255,.1)}
+#app-bay .pips.s1 i.on{background:var(--teal)}
+#app-bay .pips.s2 i.on{background:var(--amber)}
+#app-bay .pips.s3 i.on,#app-bay .pips.s4 i.on{background:var(--red);box-shadow:0 0 6px rgba(229,72,77,.45)}
+
+#app-bay .line{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line-hair)}
+#app-bay .line .li{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:8px;color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+#app-bay .line.blood .li{color:#ff8a8d;background:var(--red-wash);border-color:var(--red-edge)}
+#app-bay .line .li .nz-ic{width:14px;height:14px}
+#app-bay .line .tx{flex:1;min-width:0}
+#app-bay .line .tx b{display:block;font-size:12px;font-weight:600;color:var(--white);margin-bottom:6px}
+#app-bay .line .tx b i{font-style:normal;font-weight:400;color:var(--ink-3);margin-left:4px;font-size:10.5px}
+#app-bay .line .rt{text-align:right;font-size:12.5px;font-weight:700;color:var(--teal-hi);white-space:nowrap}
+#app-bay .line .rt i{font-style:normal;font-size:9px;font-weight:500;color:var(--ink-3);margin-left:2px}
+#app-bay .line .rt small{display:block;font-size:10px;font-weight:500;color:var(--ink-3);margin-top:2px}
+#app-bay .line.paused .rt{color:#f3c35a;letter-spacing:.08em;font-size:10px}
+#app-bay .pt-dev{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line-hair)}
+
+#app-bay .bay-pt.empty{padding:20px 16px 18px}
+#app-bay .pt-empty{text-align:center}
+#app-bay .pt-empty .ei{display:grid;place-items:center;width:46px;height:46px;margin:0 auto 12px;border-radius:12px;color:var(--ink-2);background:var(--inset);border:1px solid var(--line-soft)}
+#app-bay .pt-empty .ei .nz-ic{width:20px;height:20px}
+#app-bay .pt-empty b{display:block;font-size:14px;font-weight:600;color:var(--white)}
+#app-bay .pt-empty p{margin-top:5px;font-size:11.5px;line-height:1.5;color:var(--ink-3)}
+
+/* ─────────────── right: warnings + crew ─────────────── */
+#app-bay .bay-right{position:absolute;right:22px;top:134px;width:344px;display:flex;flex-direction:column;gap:10px}
+#app-bay .bay-warns{display:flex;flex-direction:column;gap:10px}
+#app-bay .bay-warns .note{width:100%}
+#app-bay .bay-warns .note.still{animation:none}
+#app-bay .bay-warns .note p{line-height:1.45}
+#app-bay .bay-crew{padding:12px 14px 8px;animation:nza-in 260ms 90ms cubic-bezier(.2,.7,.2,1) both}
+#app-bay .bay-crew .nza-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+#app-bay .bay-crew .nza-label span{color:var(--ink-2)}
+#app-bay .cm{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line-hair)}
+#app-bay .cm .av{width:28px;height:28px;font-size:10.5px}
+#app-bay .cm .tx{flex:1;min-width:0}
+#app-bay .cm .tx b{display:block;font-size:12px;font-weight:600;color:var(--white)}
+#app-bay .cm .tx span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:1px}
+#app-bay .cm.me .av{color:var(--on-teal);background:linear-gradient(var(--teal),var(--teal-lo));border-color:transparent}
+
+/* ─────────────── bottom-left: tools ─────────────── */
+#app-bay .bay-keys{position:absolute;left:22px;bottom:22px;display:flex;gap:6px;padding:7px;animation:nza-in 260ms 120ms cubic-bezier(.2,.7,.2,1) both}
+#app-bay .bk{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 13px 0 6px;border-radius:8px;background:var(--inset);
+  border:1px solid var(--line-soft);font-size:12px;font-weight:600;color:var(--ink-2);transition:all var(--fast)}
+#app-bay .bk kbd{height:22px;min-width:24px;font-size:10px}
+#app-bay .bk .bi{display:grid;place-items:center;width:16px;height:16px;color:var(--ink-3)}
+#app-bay .bk .bi .nz-ic{width:15px;height:15px}
+#app-bay .bk:hover{border-color:var(--line);color:var(--white)}
+#app-bay .bk.on{background:linear-gradient(var(--teal),var(--teal-lo));border-color:transparent;color:var(--on-teal);box-shadow:0 1px 0 rgba(255,255,255,.3) inset,0 0 0 4px var(--teal-wash)}
+#app-bay .bk.on kbd{background:rgba(0,0,0,.18);border-color:rgba(0,0,0,.25);color:var(--on-teal)}
+#app-bay .bk.on .bi{color:var(--on-teal)}
+#app-bay .bk.off{opacity:.38}
+
+/* ─────────────── big monitor (F4) ─────────────── */
+#app-bay .bay-mon{position:absolute;right:22px;bottom:22px;width:560px;display:none}
+#app-bay .bay-mon.on{display:block;animation:nza-pop 220ms cubic-bezier(.2,.7,.2,1) both}
+#app-bay .bay-dev{padding:12px 12px 10px}
+#app-bay .bay-dev .dev-top{display:flex;align-items:center;justify-content:space-between;margin:0 4px 9px}
+#app-bay .bay-dev .dev-screen .vmon{grid-template-columns:1fr 104px}
+#app-bay .bay-dev .dev-foot{display:flex;align-items:center;gap:8px;margin:9px 4px 0;font-size:10.5px;color:rgba(255,255,255,.45)}
+#app-bay .bay-dev .dev-foot kbd{height:18px;font-size:9.5px}
+
+/* ─────────────── supplies window ─────────────── */
+#app-bay .bay-sup{position:absolute;inset:0;pointer-events:none}
+#app-bay .bay-sup .nza-dim{animation:nza-in 160ms both}
+#app-bay .bay-win .w-main{gap:16px}
+#app-bay .bay-win .w-stats{grid-template-columns:repeat(3,1fr)}
+#app-bay .bay-win .w-stat{padding:12px 14px}
+#app-bay .bay-win .w-stat b{font-size:22px}
+#app-bay .sup-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(222px,1fr));gap:10px;align-content:start;padding:1px 6px 2px 1px}
+#app-bay .sup{position:relative;display:flex;flex-direction:column;gap:10px;padding:12px;background:var(--panel);border:1px solid var(--line-soft);
+  border-radius:var(--r-md);box-shadow:0 1px 0 var(--lift) inset,var(--sh-1);transition:border-color var(--fast),opacity var(--fast)}
+#app-bay .sup:hover{border-color:var(--line)}
+#app-bay .sup-img{position:relative;height:66px;display:grid;place-items:center;border-radius:8px;
+  background:radial-gradient(70% 90% at 50% 60%,rgba(255,255,255,.06),transparent 70%),var(--inset);border:1px solid var(--line-hair)}
+#app-bay .sup-img img{position:relative;z-index:1;max-width:64px;max-height:56px;object-fit:contain;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5))}
+#app-bay .sup-img .fb{position:absolute;inset:0;display:grid;place-items:center;color:var(--ink-3)}
+#app-bay .sup-img .fb .nz-ic{width:26px;height:26px}
+#app-bay .sup-img img + .fb{display:none}
+#app-bay .sup-tx b{display:block;font-size:13px;font-weight:600;color:var(--white);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-bay .sup-tx .cat{display:block;margin-top:3px;font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+#app-bay .sup-left .row{display:flex;justify-content:space-between;gap:8px;margin-bottom:7px;font-size:10.5px;color:var(--ink-2)}
+#app-bay .sup-left em{font-style:normal;color:var(--teal-hi);white-space:nowrap}
+#app-bay .sup-act{display:flex;align-items:center;gap:6px}
+#app-bay .sup-act .step{display:inline-flex;align-items:center;height:27px;padding:0 2px;border-radius:99px;background:var(--inset);border:1px solid var(--line-soft)}
+#app-bay .sup-act .step button{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;color:var(--ink-2)}
+#app-bay .sup-act .step button:hover{background:var(--raise);color:var(--white)}
+#app-bay .sup-act .step button:disabled{opacity:.3;pointer-events:none}
+#app-bay .sup-act .step button .nz-ic{width:12px;height:12px}
+#app-bay .sup-act .step span{min-width:20px;text-align:center;font-size:12px;font-weight:700;color:var(--white)}
+#app-bay .sup-act .tk{flex:1}
+#app-bay .sup.used{opacity:.5}
+#app-bay .sup.used .sup-img img{filter:grayscale(1) drop-shadow(0 6px 10px rgba(0,0,0,.5))}
+#app-bay .sup.busy{opacity:.7;pointer-events:none}
+#app-bay .sup.flash{animation:bay-flash 700ms ease-out}
+@keyframes bay-flash{0%{border-color:var(--teal);box-shadow:0 0 0 4px rgba(8,175,162,.25)}100%{border-color:var(--line-soft);box-shadow:0 1px 0 var(--lift) inset,var(--sh-1)}}
+
+/* ─────────────── compact: another procedure is on screen ─────────────── */
+#app-bay.compact .bay-left,#app-bay.compact .bay-right,#app-bay.compact .bay-keys,#app-bay.compact .bay-mon{display:none}
+#app-bay.compact .bay-top{height:80px}

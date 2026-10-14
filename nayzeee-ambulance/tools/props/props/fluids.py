@@ -223,7 +223,7 @@ for _lvl in (0, 25, 50, 75, 100):
         "title": f"Blood bag, {_lvl}% full (red cells, O NEG label)",
         "origin": "hanging slot at the top of the bag",
         "axes": "bag hangs along -Z (blood settles at the bottom), label faces +Y",
-        "attach": f"IV stand hook: stand entity pos ({HOOK_X}, 0, {HOOK_Z}) rot (0, 0, 0); on the donation mixer lay it flat: rot (-90, 0, 0)",
+        "attach": f"IV stand hook: stand entity pos ({HOOK_X}, 0, {HOOK_Z}) rot (0, 0, 0); lying flat label-up on nz_amb_blood_mixer: see the mixer's attach note (rot (90, 0, 0) lays it along +Y label-up, add a Z turn to run it along X); in the bay: IV hooks of nz_amb_bay_shell",
         "variant": "swap between _0/_25/_50/_75/_100 as the bag fills (donation) or empties (transfusion)",
     })
 

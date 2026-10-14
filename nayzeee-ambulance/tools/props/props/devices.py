@@ -28,7 +28,7 @@ def _bezel_lip(b, mat, w, h, r, at_y, cx, cz, prof_w=0.0035, prof_h=0.0018):
 @prop("nz_amb_monitor", atlas=1024, lod=70, hd=12, doc={
     "title": "Portable patient monitor",
     "origin": "bottom centre (sits on surfaces)",
-    "axes": "+Y = screen side (front), +Z up, +X = right (button column side)",
+    "axes": "+Y = screen side (front), +Z up; button column on -X (the viewer's right when facing the screen), connector panel on +X",
     "attach": "carry: PH_R_Hand (28422) pos (0.0, -0.03, -0.24) rot (0, 0, 90) holding the top handle; "
               "on stretcher/bed: place on the mattress or attach to the stretcher entity at its foot end",
     "screen": "nz_amb_screen - quad 0.180 x 0.112 m (aspect 1.61), UV 0..1 = full visible screen, top-left = (0,0)",

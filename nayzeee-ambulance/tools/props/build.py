@@ -14,7 +14,8 @@ Steps
      then load every binary back ('inspect') - any error aborts before stream/ is touched
   5. copy the binaries to --stream (stale nz_amb_*.ydr there are removed)
   6. headless three.js previews (3 angles per prop) -> <out>/sheets/contact_*.png
-  7. <out>/props_manifest.json + <out>/props_table.md (and --docs to refresh a markdown section)
+  7. <out>/props_manifest.json + props_table.md + props_catalog.md; --docs refreshes the generated
+     <!-- props:table:* --> and <!-- props:catalog:* --> sections of a markdown file (docs/modules/props.md)
 
 Requirements: python3 with numpy + Pillow, .NET 8 SDK, git, node 18+ (previews), chromium.
 """
@@ -176,10 +177,13 @@ def install_stream(bin_dir, stream, names):
 # ---------------------------------------------------------------------------------------------
 # previews
 # ---------------------------------------------------------------------------------------------
-def render_previews(out, work, names, size, views):
+def render_previews(out, work, names, size, views, manifests=None):
     nm = ensure_preview_modules(work)
     rdir = os.path.join(out, "renders")
-    lst = [{"name": n, "glb": os.path.join(out, n, n + ".glb")} for n in names]
+    lst = []
+    for n in names:
+        pv = ((manifests or {}).get(n) or {}).get("preview") or {}
+        lst.append({"name": n, "glb": os.path.join(out, n, n + ".glb"), "cams": pv.get("cams", []), "lights": pv.get("lights", [])})
     lpath = os.path.join(out, "render_list.json")
     with open(lpath, "w") as f:
         json.dump(lst, f)
@@ -209,7 +213,8 @@ def contact_sheets(out, rdir, manifests, views, per_page=6, cell=360):
             cx = 24 + (k % cols) * (len(views) * cell + 24)
             cy = 64 + (k // cols) * (cell + 58)
             m = manifests[n]
-            for vi, v in enumerate(views):
+            pviews = ((m.get("preview") or {}).get("views") or views)[:len(views)]
+            for vi, v in enumerate(pviews):
                 p = os.path.join(rdir, f"{n}_{v}.png")
                 if os.path.exists(p):
                     sheet.paste(Image.open(p).convert("RGB").resize((cell, cell), Image.LANCZOS), (cx + vi * cell, cy))
@@ -226,6 +231,63 @@ def contact_sheets(out, rdir, manifests, views, per_page=6, cell=360):
 # ---------------------------------------------------------------------------------------------
 # manifest / docs
 # ---------------------------------------------------------------------------------------------
+MODULE_TITLES = {
+    "props.cases": "Cases & bags", "props.devices": "Electronic devices", "props.fluids": "Fluids & IV",
+    "props.handheld": "Hand-held tools", "props.ortho": "Orthopaedic & worn", "props.stretcher": "Transport",
+    "props.airway": "Airway", "props.radiology": "Imaging & angiography suite", "props.hospital": "Hospital equipment",
+    "props.bay": "Ambulance treatment bay",
+}
+
+
+def config_keys(config_path):
+    """model name -> Config.Props key, parsed from config/props.lua (if present)."""
+    keys = {}
+    if config_path and os.path.exists(config_path):
+        for m in re.finditer(r"^\s*([a-z0-9_]+)\s*=\s*'(nz_amb_[a-z0-9_]+)'", open(config_path, encoding="utf-8").read(), re.M):
+            keys.setdefault(m.group(2), []).append(m.group(1))
+    return keys
+
+
+def catalog_md(manifests, config_path=None):
+    """Per-prop reference (generated from the @prop doc dicts + build manifests)."""
+    keys = config_keys(config_path)
+    groups = {}
+    for n, m in sorted(manifests.items()):
+        groups.setdefault(m.get("module", ""), []).append(n)
+    order = [k for k in MODULE_TITLES if k in groups] + sorted(k for k in groups if k not in MODULE_TITLES)
+    out = []
+    for mod in order:
+        out.append(f"### {MODULE_TITLES.get(mod, mod)}\n")
+        for n in groups[mod]:
+            m = manifests[n]
+            d = m.get("doc") or {}
+            out.append(f"#### `{n}` - {d.get('title', '')}\n")
+            out.append("| | |\n|---|---|")
+            ck = ", ".join(f"`Config.Props.{k}`" for k in keys.get(n, [])) or "-"
+            out.append(f"| Config | {ck} |")
+            dims = " x ".join(f"{v:.3f}" for v in m["dims"])
+            out.append(f"| Size X x Y x Z | {dims} m (bbMin {tuple(round(v, 3) for v in m['bbMin'])}, bbMax "
+                       f"{tuple(round(v, 3) for v in m['bbMax'])}) |")
+            for k, lab in (("origin", "Origin / pivot"), ("axes", "Axes"), ("attach", "Attach / use"), ("screen", "Screen"),
+                           ("variant", "Variants")):
+                if d.get(k):
+                    out.append(f"| {lab} | {d[k]} |")
+            typ = "static (archetype flag 32 - never moves, cheapest)" if m["static"] else "dynamic (physics, can be attached / carried)"
+            out.append(f"| LOD / type | lodDist {m['lodDist']:g} m, hdTextureDist {m['hdTextureDist']:g} m, {typ} |")
+            cols = {}
+            for c in m["collision"]:
+                cols[(c["type"], c["material"])] = cols.get((c["type"], c["material"]), 0) + 1
+            out.append("| Collision | " + ", ".join(f"{v} {t} {mat}" for (t, mat), v in sorted(cols.items())) + " (embedded composite) |")
+            tex = ", ".join(f"{t['name']} {t['size'] if not isinstance(t['size'], list) else 'x'.join(map(str, t['size']))}"
+                            for t in m["textures"])
+            out.append(f"| Textures (txd = `{n}`) | {tex} |")
+            out.append(f"| Mesh | {m['tris']} tris, {m['verts']} verts, shaders: {', '.join(sorted(set(m['shaders'])))} |")
+            if m.get("ydr_bytes"):
+                out[-1] = out[-1][:-2] + f", .ydr {m['ydr_bytes'] / 1024:.0f} KB |"
+            out.append("")
+    return "\n".join(out) + "\n"
+
+
 def write_tables(out, manifests, docs=None, stream=None):
     slim = {n: {k: v for k, v in m.items() if k != "archetype_xml"} for n, m in sorted(manifests.items())}
     if stream:
@@ -245,14 +307,22 @@ def write_tables(out, manifests, docs=None, stream=None):
     table = "\n".join(lines) + "\n"
     with open(os.path.join(out, "props_table.md"), "w") as f:
         f.write(table)
+    cfg = os.path.join(HERE, "..", "..", "config", "props.lua")
+    cat = catalog_md(slim, cfg)
+    with open(os.path.join(out, "props_catalog.md"), "w") as f:
+        f.write(cat)
     if docs and os.path.exists(docs):
         s = open(docs, encoding="utf-8").read()
-        a, b = "<!-- props:table:begin -->", "<!-- props:table:end -->"
-        if a in s and b in s:
-            s = s.split(a)[0] + a + "\n" + table + b + s.split(b)[1]
+        changed = False
+        for (a, b), body in ((("<!-- props:table:begin -->", "<!-- props:table:end -->"), table),
+                             (("<!-- props:catalog:begin -->", "<!-- props:catalog:end -->"), cat)):
+            if a in s and b in s:
+                s = s.split(a)[0] + a + "\n" + body + b + s.split(b)[1]
+                changed = True
+        if changed:
             with open(docs, "w", encoding="utf-8") as f:
                 f.write(s)
-            log(f"updated generated table in {docs}")
+            log(f"updated generated sections in {docs}")
     return table
 
 
@@ -270,8 +340,9 @@ def main():
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--views", default="front,back,top")
     ap.add_argument("--size", type=int, default=640, help="preview render size")
-    ap.add_argument("--docs", default=None, help="markdown file whose props:table section gets refreshed")
+    ap.add_argument("--docs", default=None, help="markdown file whose props:table / props:catalog sections get refreshed")
     ap.add_argument("--list", action="store_true", help="list registered props and exit")
+    ap.add_argument("--docs-only", action="store_true", help="only rewrite the manifest tables / --docs sections from <out>")
     args = ap.parse_args()
 
     load_props()
@@ -279,6 +350,16 @@ def main():
     if args.list:
         for n in names_all:
             print(n, REGISTRY[n].module)
+        return
+    if args.docs_only:
+        all_m = {}
+        for n in names_all:
+            p = os.path.join(args.out, n, "manifest.json")
+            if not os.path.exists(p):
+                raise SystemExit(f"{n} has never been built in {args.out}")
+            with open(p) as f:
+                all_m[n] = json.load(f)
+        write_tables(args.out, all_m, args.docs, args.stream)
         return
     sel = names_all
     if args.only:
@@ -327,7 +408,7 @@ def main():
             install_stream(bin_dir, args.stream, names_all)
     if not args.no_preview:
         views = [v.strip() for v in args.views.split(",") if v.strip()]
-        rdir = render_previews(args.out, args.work, sel, args.size, views)
+        rdir = render_previews(args.out, args.work, sel, args.size, views, all_m)
         sheets = contact_sheets(args.out, rdir, all_m, views)
         log("contact sheets: " + ", ".join(sheets))
     write_tables(args.out, all_m, args.docs, args.stream)

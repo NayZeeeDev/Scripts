@@ -646,7 +646,7 @@
       this.pattern = null;
       this.layer = document.createElement('canvas');
       this.arrKey = ''; this.arr = null;
-      this.cam = null;
+      this.cam = null; this.mag = 1;
       this.lastXr = 0;
       this.noiseOff = [0, 0];
       this.ecgT = 0; this.ecg = [];
@@ -686,9 +686,11 @@
       const sc = this.ensure(st.sc);
       const nd = sc.nodes;
       const s = H / 720;
-      const imgW = Math.min(W - 40 * s, H * 1.32);
+      const imgW = Math.min(W - 40 * s, H * 1.26);
       const ix = (W - imgW) / 2;
-      const scale = imgW / FOV_W;
+      this.mag = lerp(this.mag, clamp(st.mag || 1, 1, 2.5), 0.2);
+      if (Math.abs(this.mag - (st.mag || 1)) < 0.004) this.mag = st.mag || 1;
+      const scale = imgW / FOV_W * this.mag;
       const cx = ix + imgW / 2, cy = H / 2;
       const carm = st.carm || 0;
       const ca = Math.cos(carm * DEG), sa = Math.sin(carm * DEG);
@@ -907,7 +909,7 @@
     }
     hud(st, W, H, s0, ix, imgW, now) {
       const g = this.g;
-      const s = Math.max(s0, 0.94);
+      const s = Math.max(s0, Math.min(0.94, s0 * 1.25));
       const h = st.hud || {};
       const L = (k, fb) => this.L(k, fb);
       const mono = (px, w = 500) => `${w} ${px * s}px "JetBrains Mono", monospace`;
@@ -929,12 +931,12 @@
       const fitText = (txt, maxW) => { let t = String(txt); while (t.length > 3 && g.measureText(t).width > maxW) t = t.slice(0, -2); return t === String(txt) ? t : `${t}…`; };
       rows.forEach(([k, v, sub2]) => {
         g.fillStyle = 'rgba(255,255,255,.4)'; g.font = mono(9.5); g.fillText(k, x0, y);
-        g.fillStyle = 'rgba(255,255,255,.9)'; g.font = mono(13, 500); g.fillText(fitText(v, bandL - x0 - 10 * s), x0, y + 18 * s);
+        g.fillStyle = 'rgba(255,255,255,.9)'; g.font = mono(12.5, 500); g.fillText(fitText(v, bandL - x0 - 10 * s), x0, y + 18 * s);
         if (sub2) { g.fillStyle = 'rgba(255,255,255,.5)'; g.font = mono(10.5); g.fillText(fitText(sub2, bandL - x0 - 10 * s), x0, y + 34 * s); y += 16 * s; }
         y += 46 * s;
       });
       // scale bar (5 cm)
-      const sc5 = 5 * (imgW / FOV_W);
+      const sc5 = 5 * (imgW / FOV_W) * (this.mag || 1);
       const by = H - 30 * s;
       g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 1.5 * s;
       g.beginPath(); g.moveTo(x0, by); g.lineTo(x0 + Math.min(sc5, bandL - x0 - 16 * s), by); g.stroke();
@@ -954,13 +956,14 @@
       const rrows = [
         [L('screen.run', 'RUN'), String(h.run || 0).padStart(2, '0')],
         [L('screen.carm', 'C-ARM'), h.carmLabel || 'AP'],
+        [L('screen.field', 'FIELD'), `${Math.round(FOV_W / (this.mag || 1))} cm${(this.mag || 1) > 1.05 ? ` · ${L('screen.mag', 'MAG')}` : ''}`],
         [L('screen.contrast', 'CONTRAST'), `${Math.round(h.ml || 0)} mL`],
         [L('screen.coils', 'COILS'), String(h.coils || 0)],
       ];
       y = 86 * s;
       rrows.forEach(([k, v]) => {
         g.fillStyle = 'rgba(255,255,255,.4)'; g.font = mono(9.5); g.fillText(k, rx, y);
-        g.fillStyle = 'rgba(255,255,255,.9)'; g.font = mono(13, 500); g.fillText(fitText(v, rw), rx, y + 18 * s);
+        g.fillStyle = 'rgba(255,255,255,.9)'; g.font = mono(12.5, 500); g.fillText(fitText(v, rw), rx, y + 18 * s);
         y += 46 * s;
       });
       // C-arm dial
@@ -1051,23 +1054,26 @@
     const A = nodePos(sc, a), B = nodePos(sc, b);
     const base = lerpPos(sc, a, b, f);
     const dir = norm(sub(B, A));
-    const lenC = 1.05 * clamp(pct / 100, 0, 1);
-    const r = Math.max(0.13, Math.min(0.24, sc.nodes.r[edgeChild(sc, a, b)] * 1.1));
+    const lenC = 1.1 * clamp(pct / 100, 0, 1);
+    if (lenC < 0.02) return;
+    const r = Math.max(0.17, Math.min(0.27, sc.nodes.r[edgeChild(sc, a, b)] * 1.3));
     const [e1, e2] = frameFor(dir);
-    g.strokeStyle = 'rgba(4,5,6,.98)'; g.lineWidth = Math.max(1.8 * s, 0.07 * scale); g.lineCap = 'round'; g.lineJoin = 'round';
-    g.beginPath();
-    const turns = Math.max(2, Math.round(lenC / 0.085));
-    for (let i = 0; i <= turns * 10; i++) {
-      const k = i / (turns * 10);
+    const turns = Math.max(2, Math.round(lenC / 0.15));
+    const pts = [];
+    for (let i = 0; i <= turns * 12; i++) {
+      const k = i / (turns * 12);
       const ang = k * turns * TAU;
       // packed coils ball up toward the end
-      const along = lenC * Math.pow(k, 0.8);
-      const rr = r * (0.7 + 0.3 * Math.sin(k * 9));
+      const along = lenC * Math.pow(k, 0.85);
+      const rr = r * (0.72 + 0.28 * Math.sin(k * 7.5));
       const p = add(add(base, mul(dir, along)), add(mul(e1, Math.cos(ang) * rr), mul(e2, Math.sin(ang) * rr)));
-      const x = PX(p[0], p[2]), y = PY(p[1]);
-      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      pts.push([PX(p[0], p[2]), PY(p[1])]);
     }
-    g.stroke();
+    const path = () => { g.beginPath(); pts.forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]))); };
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    // platinum blooms on the detector: soft dark halo, then the wire
+    g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = Math.max(4.5 * s, 0.17 * scale); path(); g.stroke();
+    g.strokeStyle = 'rgba(3,4,5,.98)'; g.lineWidth = Math.max(1.6 * s, 0.055 * scale); path(); g.stroke();
   }
   function roundRect(g, x, y, w, h, r) {
     g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r); g.lineTo(x + w, y + h - r);
@@ -1132,7 +1138,7 @@
       this.rm = []; this.bleedSeen = false;
       this.contrastMl = 0; this.left = cfg.budget; this.fl = 0; this.dose = 0;
       this.xrUntil = 0; this.blocked = null; this.pushT = 0;
-      this.cam = { x: 0, y: 8 };
+      this.cam = { x: 0, y: 8 }; this.mag = 1;
       this.stats = { spasm: 0, wrongRuns: 0, offCoils: 0, extraCoils: 0, bestDist: Infinity };
     }
     setAccess(key) {
@@ -1268,7 +1274,7 @@
     snapshot(extra) {
       const tip = this.tip();
       return Object.assign({
-        sc: this.sc.params, p: this.path, f: this.f, phi: this.phi, carm: this.carm,
+        sc: this.sc.params, p: this.path, f: this.f, phi: this.phi, carm: this.carm, mag: this.mag,
         cx: this.cam.x, cy: this.cam.y, coils: this.coils.map(c => [c.a, c.b, c.f, c.pct, c.rel ? 1 : 0]).concat(this.deploy ? [[this.deploy.a, this.deploy.b, this.deploy.f, this.deploy.pct, 0]] : []),
         rm: this.rm, bs: this.bleedSeen, stain: this.stain, cd: this.cfg.coilDist,
         run: this.run ? { id: this.run.id, a: this.run.inj.a, b: this.run.inj.b, f: this.run.inj.f, k: this.run.kind, t: this.run.t } : null,
@@ -1289,6 +1295,13 @@
   const app = {
     escClose: false,
     modalKeys: true,
+    // right-drag look-around / wheel zoom go to the game camera only while the wheel is free
+    // (it aims the needle in 'aim' and drives the catheter in steps 2-5)
+    get camInput() {
+      if (!A || A.room || A.done) return false;
+      if (A.step >= 2 && A.step <= 5) return false;
+      return A.phase === 'aim' ? false : undefined;
+    },
     init(el) {
       el.innerHTML = `
         <div class="ag-col">
@@ -1310,9 +1323,11 @@
               <div><span class="nza-label" data-x="doseLbl">Dose</span><b data-x="dose">--</b><small data-x="fl">--</small></div>
             </div>
             <div class="ag-sec ag-view"><span class="nza-label" data-x="viewLbl">View</span><div data-x="viewSeg"></div></div>
+            <div class="ag-sec ag-keys" data-x="keys"></div>
           </div>
           <div class="nza-hud ag-card ag-access">
             <div class="ag-h"><span class="nz-mark xs"></span><span class="nza-label" data-x="accTitle">Access</span><span class="chipx sm teal" data-x="accChip">US-guided</span></div>
+            <div class="ag-plan" data-x="plan"></div>
             <div class="ag-us"><canvas data-x="cvT"></canvas><span class="ag-cap" data-x="capT">Transverse</span></div>
             <div class="ag-us"><canvas data-x="cvL"></canvas><span class="ag-cap" data-x="capL">Longitudinal</span></div>
             <div class="ag-gauges">
@@ -1352,7 +1367,7 @@
     app.keys[code] = e => { if (!A) return false; A.held[code] = true; onPress(code, e); return true; };
     app.keysUp[code] = () => { if (!A) return false; A.held[code] = false; onRelease(code); return true; };
   });
-  ['KeyR', 'KeyC', 'KeyZ', 'KeyV', 'KeyX', 'KeyB', 'Digit1', 'Digit2', 'Digit3', 'Enter', 'Backspace'].forEach(code => {
+  ['KeyR', 'KeyC', 'KeyZ', 'KeyV', 'KeyX', 'KeyB', 'KeyM', 'Digit1', 'Digit2', 'Digit3', 'Enter', 'Backspace'].forEach(code => {
     app.keys[code] = e => { if (!A) return false; onPress(code, e); return true; };
   });
   app.keys.Escape = () => !!A;   // owned by the ProcPanel hold-to-abort
@@ -1378,6 +1393,7 @@
     iia_ant: '%s anterior internal iliac', obt: '%s obturator', iglut: '%s inferior gluteal', ipud: '%s internal pudendal',
   };
   const ACCESS_EN = { femoral_r: 'Right femoral', femoral_l: 'Left femoral', radial: 'Right radial' };
+  const ORGAN_EN = { spleen: 'Spleen', liver: 'Liver', kidney: 'Kidney', bowel: 'Small bowel', mesenteric: 'Mesentery', pelvic: 'Pelvis', femoral: 'Thigh', pelvis: 'Pelvic fracture', l_upper_leg: 'Left thigh fracture', r_upper_leg: 'Right thigh fracture' };
   const carmLabel = a => { const r = Math.round(a); if (Math.abs(r) < 3) return L('carm.ap', 'AP'); return r > 0 ? F(L('carm.lao', 'LAO %d°'), r) : F(L('carm.rao', 'RAO %d°'), -r); };
   const sfx = {
     whirr() { NZA.audio.tone(170, 1700, { vol: 0.05, type: 'sawtooth', slide: 230 }); NZA.audio.noise(1700, { vol: 0.03, lp: 600, hp: 90 }); },
@@ -1499,9 +1515,74 @@
     A.def.el.classList.toggle('ag-accessmode', accessUi);
     A.def.el.classList.toggle('ag-navmode', !accessUi);
     A.def.el.classList.toggle('ag-showscreen', !accessUi && A.view === 'screen');
+    A.def.el.classList.toggle('ag-choose', ph === 'choose');
     if (!quiet) NZA.post('angio:step', { phase: ph, step, cam: accessUi ? (ph === 'choose' ? 'overview' : 'access') : (A.view === 'screen' && !A.dui ? 'overview' : 'monitor'), access: A.access, view: A.view });
     if (ph === 'aim' && prev === 'choose') { const P = ACCESS[A.accKind]; A.acc = { aim: -P.side * P.range * 0.45, angle: 32, depth: 0, adv: 0, flash: null, wire: 0, sheath: 0, needle: 0, back: false, t0: performance.now() }; }
+    if (ph === 'choose') renderPlan();
+    // the coil is a few millimetres long: magnify the first time we get to it
+    if (ph === 'coil' && !A.autoMag) { A.autoMag = true; setMag(MAG); }
     renderPanel();
+    if (step === 6) renderAccessGauges();
+  }
+
+  /* step 1 planning card: where is it bleeding, which way in */
+  function recommendAccess() {
+    const k = A.scene.bleed.key, side = A.scene.bleed.side;
+    if ((k === 'femoral' || k === 'profunda') && side) return { site: `femoral_${side}`, why: L('plan.whyAnte', 'Same-side groin, needle pointing down the leg: straight at the bleed.') };
+    if (['iia', 'gluteal', 'obturator'].includes(k) && side) return { site: side === 'r' ? 'femoral_l' : 'femoral_r', why: L('plan.whyCross', 'Go in from the other groin and cross over the iliac fork.') };
+    return { site: 'femoral_r', why: L('plan.whyStd', 'Right groin: the standard way up to the aorta and its branches.') };
+  }
+  function suspectLabel() {
+    const inj = A.data.injury || {};
+    const key = inj.type === 'fracture' ? inj.region : inj.organ;
+    return L(`organ.${key}`, ORGAN_EN[key] || L('organ.unknown', 'Abdomen'));
+  }
+  function renderPlan() {
+    const $ = A.$, sc = A.scene, rec = recommendAccess();
+    A.rec = rec.site;
+    const X = x => 60 + x * 1.9, Y = y => 62 + y * 1.55;
+    const sites = {
+      femoral_r: [X(-9.4), Y(28.6)], femoral_l: [X(9.4), Y(28.6)], radial: [21, 105],
+    };
+    const hold = A.cfg.holdTime || {};
+    const notes = {
+      femoral_r: F(L('plan.femoral', 'Big artery, easy to hit. %d s of pressure after.'), hold.femoral || 12),
+      femoral_l: F(L('plan.femoral', 'Big artery, easy to hit. %d s of pressure after.'), hold.femoral || 12),
+      radial: F(L('plan.radial', 'Small and fiddly, long way round. Closes in %d s.'), hold.radial || 6),
+    };
+    const bx = X(sc.bleed.x), by = Y(sc.bleed.y);
+    const marks = Object.entries(sites).map(([k, [x, y]], i) => `
+      <g class="ag-site ${k === rec.site ? 'rec' : ''}" data-site="${k}">
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8.6" class="halo"/>
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" class="pin"/>
+        <text x="${x.toFixed(1)}" y="${(y + 2.5).toFixed(1)}">${i + 1}</text>
+      </g>`).join('');
+    const inj = A.data.injury || {};
+    $.plan.innerHTML = `
+      <div class="ag-plan-top">
+        <svg class="ag-body" viewBox="0 0 120 172" aria-hidden="true">
+          <defs><radialGradient id="ag-bl"><stop offset="0" stop-color="#e5484d" stop-opacity=".75"/><stop offset="1" stop-color="#e5484d" stop-opacity="0"/></radialGradient></defs>
+          <circle cx="60" cy="13" r="9" class="sil"/>
+          <path class="sil" d="M53 21h14l1 6c9 1 16 3 19 7l6 22 6 34 3 18-6 2-5-17-5-28-3 14c2 9 3 17 3 25l-3 70H74l-5-62h-2l-1 0h-3l-5 62H44l-3-70c0-8 1-16 3-25l-3-14-5 28-5 17-6-2 3-18 6-34 6-22c3-4 10-6 19-7z"/>
+          <path class="spine" d="M60 30v68"/>
+          <circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="13" fill="url(#ag-bl)" class="bleed"/>
+          <circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="2.4" class="bleed-dot"/>
+          <text x="6" y="168" class="side">${esc(L('dir.r', 'R'))}</text><text x="108" y="168" class="side">${esc(L('dir.l', 'L'))}</text>
+          ${marks}
+        </svg>
+        <div class="ag-sus">
+          <span class="nza-label">${esc(L('plan.suspect', 'Suspected source'))}</span>
+          <b>${esc(suspectLabel())}</b>
+          <small>${esc(F(L('plan.bleed', '%s mL/min · severity %d/4'), Number(inj.bleed || 0).toFixed(0), inj.severity || 2))}</small>
+          <span class="nza-label ag-rl">${esc(L('plan.rec', 'Recommended'))}</span>
+          <b class="t-teal">${esc(L(`acc.${rec.site}`, ACCESS_EN[rec.site]))}</b>
+          <small>${esc(rec.why)}</small>
+        </div>
+      </div>
+      <div class="ag-opts">${Object.keys(sites).map((k, i) => `
+        <button class="ag-opt ${k === rec.site ? 'rec' : ''}" data-site="${k}"><kbd>${i + 1}</kbd><span><b>${esc(L(`acc.${k}`, ACCESS_EN[k]))}</b><small>${esc(notes[k])}</small></span>${k === rec.site ? `<i>${esc(L('plan.best', 'Best'))}</i>` : ''}</button>`).join('')}
+      </div>`;
+    $.plan.querySelectorAll('[data-site]').forEach(n => n.addEventListener('click', () => { if (A && A.phase === 'choose') chooseAccess(n.dataset.site); }));
   }
 
   function stepText() {
@@ -1528,8 +1609,18 @@
     return ['', ''];
   }
 
+  // the overlay has no focus while walking: only the keys the game reads are shown
+  function roomPanel() {
+    A.pp.set({
+      title: L('room.title', 'Walk to the button'), text: A.hasButton ? L('room.text', 'Walk to the red button and press {E}. {Z} back to the monitor.') : '',
+      tools: [{ key: 'E', label: L('t.button', 'Red button'), icon: 'target', state: 'active' }, { key: 'Z', label: L('t.monitor', 'Monitor'), icon: 'monitor' }],
+      hints: [], abort: false,
+    });
+    renderStats();
+  }
   function renderPanel() {
     if (!A || !A.pp) return;
+    if (A.room) return roomPanel();
     const [title, text] = stepText();
     const ph = A.phase;
     const tools = [];
@@ -1544,9 +1635,13 @@
       tools.push({ key: 'W', label: L('t.wire', 'Wire'), state: ph === 'wire' ? 'active' : (['sheath', 'needle'].includes(ph) ? 'done' : 'locked'), icon: 'tube' });
       tools.push({ key: 'E', label: L('t.sheath', 'Sheath'), state: ph === 'sheath' ? 'active' : (ph === 'needle' ? 'done' : 'locked'), icon: 'iv' });
       tools.push({ key: 'R', label: L('t.remove', 'Needle out'), state: ph === 'needle' ? 'active' : 'locked', icon: 'arrow-up' });
+      if (ph === 'aim') hints.push({ keys: ['A', 'D'], label: L('h.aim', 'aim') }, { keys: ['Q', 'E'], label: L('h.angle', 'angle') }, { keys: ['Shift'], label: L('h.faster', 'faster') });
+      else if (ph === 'wire') hints.push({ keys: ['Q'], label: L('h.flatten', 'flatten') });
+      if (ph !== 'aim' && NZA.inGame) hints.push({ keys: ['RMB'], label: L('h.look', 'look around') });
     } else if (A.step === 6) {
       tools.push({ key: 'R', label: L('t.sheathOut', 'Sheath out'), state: ph === 'pull' ? 'active' : 'done', icon: 'arrow-up' });
       tools.push({ key: 'Space', label: L('t.pressure', 'Pressure'), state: ph === 'press' ? 'active' : (ph === 'done' ? 'done' : 'locked'), icon: 'hand' });
+      if (NZA.inGame) hints.push({ keys: ['RMB'], label: L('h.look', 'look around') });
     } else {
       const dyeOut = s.left < A.cfg.selectiveMl;
       tools.push({ key: 'C', label: L('t.run', 'Contrast run'), icon: 'drop', state: ph === 'select' || ph === 'confirm' ? 'active' : (dyeOut ? 'need' : '') });
@@ -1555,15 +1650,40 @@
       if (ph === 'coil') tools.push({ key: 'R', label: L('t.pull', 'Pull back'), icon: 'arrow-down', state: A.released ? 'active' : '' });
       if (A.hasButton) tools.push({ key: 'Z', label: L('t.room', 'Room'), icon: 'walk' });
       if (dyeOut && A.bottles > 0) tools.push({ key: 'B', label: L('t.bottle', 'New bottle'), icon: 'bottle', state: 'need', count: String(A.bottles) });
-      hints.push({ keys: ['W', 'S'], label: L('h.advance', 'advance') }, { keys: ['A', 'D'], label: L('h.rotate', 'turn tip') });
+      renderKeys();
     }
     A.pp.set({ step: A.step, title, text, tools, hints, titleTone: ph === 'done' ? 'ok' : '' });
+    A.pp.el.classList.toggle('ag-many', tools.length >= 5);
     renderStats();
+  }
+
+  // catheter controls live in the console card (the panel row keeps the actions)
+  function renderKeys() {
+    const rows = [
+      [['W', 'S'], L('h.advance', 'advance')], [['A', 'D'], L('h.rotate', 'turn tip')],
+      [['Q', 'E'], L('h.carm', 'C-arm')], [['M'], A.sim.mag > 1 ? L('h.unmag', 'full view') : L('h.mag', 'magnify')],
+      [['Shift'], L('h.faster', 'faster')], [['Wheel'], L('h.fine', 'fine advance')],
+    ];
+    if (A.dui) rows.push([['V'], L('h.view', 'monitor / screen')]);
+    const html = rows.map(([k, t]) => `<span>${k.map(x => `<kbd>${esc(x)}</kbd>`).join('')}<em>${esc(t)}</em></span>`).join('');
+    if (A.$.keys.innerHTML !== html) A.$.keys.innerHTML = html;
   }
 
   function renderStats() {
     if (!A || !A.pp) return;
     const s = A.sim;
+    if (A.phase === 'choose') {
+      const inj = A.data.injury || {};
+      const b = Number(inj.bleed || 0);
+      A.pp.set({
+        stats: [
+          { id: 'src', label: L('plan.suspect', 'Suspected source'), value: suspectLabel(), small: true },
+          { id: 'bleed', label: L('st.bleed', 'Bleed'), value: b.toFixed(0), unit: 'mL/min', tone: b >= 30 ? 'red' : '' },
+        ],
+        wide: { label: L('plan.rec', 'Recommended'), value: L(`acc.${A.rec || 'femoral_r'}`, ACCESS_EN[A.rec || 'femoral_r']), meter: null, caption: '' },
+      });
+      return;
+    }
     if (A.step === 1 || A.step === 6) {
       const acc = A.acc || {};
       const stats = [
@@ -1573,7 +1693,7 @@
       if (A.step === 6) {
         const pr = A.press || {};
         stats[1] = { id: 'bleed', label: L('st.siteBleed', 'Site bleed'), value: (pr.bleed ?? 0).toFixed(1), unit: 'mL/min', tone: (pr.bleed ?? 0) > 3 ? 'red' : 'teal' };
-        A.pp.set({ stats, wide: { label: L('st.pressure', 'Pressure'), value: `${Math.round((pr.p || 0) * 100)}`, unit: '%', meter: { value: pr.p || 0, zone: [0.55, 0.8], mark: pr.p || 0, tone: (pr.p || 0) > 0.9 ? 'red' : '' }, caption: F(L('st.holdLeft', 'Hold %s s more'), Math.max(0, Math.ceil((pr.need || 0) - (pr.held || 0)))), captionTone: 'teal' } });
+        A.pp.set({ stats, wide: { label: L('st.pressure', 'Pressure'), value: `${Math.round((pr.p || 0) * 100)}`, unit: '%', meter: { value: pr.p || 0, zone: [0.55, 0.8], mark: pr.p || 0, tone: (pr.p || 0) > 0.9 ? 'red' : '' }, caption: A.phase === 'done' ? L('st.closed', 'Access closed') : F(L('st.holdLeft', 'Hold %s s more'), Math.max(0, Math.ceil((pr.need || 0) - (pr.held || 0)))), captionTone: 'teal' } });
       } else {
         const prog = A.phase === 'wire' ? acc.wire : A.phase === 'sheath' ? acc.sheath : A.phase === 'needle' ? acc.needle : (acc.flash === 'arterial' ? 1 : 0);
         A.pp.set({ stats, wide: A.phase === 'choose' ? null : { label: L(`prog.${A.phase}`, { aim: 'Needle', wire: 'Wire', sheath: 'Sheath', needle: 'Needle out' }[A.phase] || ''), value: `${Math.round((prog || 0) * 100)}`, unit: '%', meter: { value: prog || 0, tone: A.phase === 'needle' ? 'white' : '' } } });
@@ -1626,14 +1746,22 @@
       else if (code === 'KeyV' && A.dui) setView(A.view === 'monitor' ? 'screen' : 'monitor');
       else if (code === 'KeyB') refill();
       else if (code === 'KeyF') coilPress();
+      else if (code === 'KeyM') { setMag(A.sim.mag > 1 ? 1 : MAG); input(); }
     }
+  }
+  const MAG = 1.6;
+  function setMag(m) {
+    if (!A) return;
+    A.sim.mag = m;
+    sfx.tick();
+    renderPanel();
   }
   function onRelease(code) {
     if (code === 'KeyF' && A.sim.deploy && A.sim.deploy.pct < 100) A.pp.flash('warn', L('f.coilHalf', 'Coil half out. Hold {F} to finish, or {S} to draw it back.'), 2200);
   }
   function onTool(k) {
     if (!A) return;
-    const map = { 1: 'Digit1', 2: 'Digit2', 3: 'Digit3', C: 'KeyC', X: 'KeyX', Z: 'KeyZ', R: 'KeyR', B: 'KeyB', F: 'KeyF', V: 'KeyV' };
+    const map = { 1: 'Digit1', 2: 'Digit2', 3: 'Digit3', C: 'KeyC', X: 'KeyX', Z: 'KeyZ', R: 'KeyR', B: 'KeyB', F: 'KeyF', V: 'KeyV', M: 'KeyM' };
     if (map[k]) onPress(map[k]);
   }
 
@@ -1651,6 +1779,8 @@
     NZA.post('angio:say', { line: 'scratch' });
   }
   function needleOut() {
+    if (A.acc.out) return;
+    A.acc.out = true;
     A.pp.flash('ok', L('f.portIn', 'Needle out. The port stays in.'), 2400);
     sfx.thunk();
     const acc = A.acc;
@@ -1732,7 +1862,7 @@
       $.g1l.textContent = L('st.pressure', 'Pressure'); $.g1.textContent = `${Math.round(pr.p * 100)}%`;
       $.g1.className = pr.p > 0.9 ? 't-amber' : (pr.p >= 0.55 && pr.p <= 0.8 ? 't-teal' : '');
       A.g1.set({ value: pr.p, mark: pr.p, zone: [0.55, 0.8], noFill: false });
-      $.g2l.textContent = L('st.siteBleed', 'Site bleed'); $.g2.textContent = `${pr.bleed.toFixed(1)} mL`;
+      $.g2l.textContent = L('st.siteBleed', 'Site bleed'); $.g2.innerHTML = `${pr.bleed.toFixed(1)}<span class="u">mL/min</span>`;
       A.g2.set({ value: clamp(pr.bleed / ACCESS[A.accKind].bleed, 0, 1), zone: null, tone: 'red' });
       $.g3l.textContent = L('st.held', 'Held'); $.g3.textContent = `${Math.floor(pr.held)}/${pr.need} s`; $.g3.className = 't-teal';
       return;
@@ -2106,11 +2236,21 @@
     s.left = typeof r.left === 'number' ? r.left : s.left - ml;
     s.contrastMl += ml;
     s.runId++; s.runs++;
-    s.run = { id: s.runId, inj, kind: 'run', t: 0, res, blush, label: F(selective ? L('run.selective', 'Selective angiogram · %s') : L('run.flush', 'Flush aortogram · %s'), vname), selective };
+    // in game the camera may cut to the injector first: the dye reaches the patient after `delay` s
+    const delay = clamp(Number(r.delay) || 0, 0, 4);
+    s.run = { id: s.runId, inj, kind: 'run', t: -delay, res, blush, label: F(selective ? L('run.selective', 'Selective angiogram · %s') : L('run.flush', 'Flush aortogram · %s'), vname), selective };
+    injectorMarker(ml, delay);
     if (A.phase === 'select' || A.phase === 'confirm' || (A.phase === 'coil' && A.released)) A.runPhase = A.phase;
     else A.runPhase = A.phase;
     NZA.post('angio:say', { line: 'warm' });
     updateSupplies(); renderPanel();
+  }
+  // a world label on the power injector while it pushes dye (anchor 'injector' from Lua)
+  function injectorMarker(ml, delay) {
+    if (!A || !A.def.anchors || !A.def.anchors.map || !A.def.anchors.map.injector) return;
+    const m = NZA.ui.Marker('angio', 'injector', { label: F(L('inj.marker', 'Injecting %d mL'), ml), dot: 'teal', anchor: 'injector' });
+    const id = A.runIdMark = (A.runIdMark || 0) + 1;
+    setTimeout(() => { if (A && A.runIdMark === id) m.remove(); }, (INJ.run + delay) * 1000);
   }
   async function puff() {
     if (!A || A.busy || A.sim.run || A.done) return;
@@ -2246,7 +2386,7 @@
   }
   function updatePress(dt) {
     const pr = A.press; if (!pr || A.phase !== 'press') return;
-    const down = A.held.Space;
+    const down = A.held.Space || (A.demoPress && pr.p < 0.68);
     pr.p = clamp(pr.p + (down ? 0.55 : -0.9) * dt, 0, 1);
     const inZone = pr.p >= 0.55 && pr.p <= 0.8;
     A.stats.hold += dt;
@@ -2292,6 +2432,7 @@
       </div>`;
     A.$.result.classList.add('on');
     NZA.audio.success();
+    A.pp.set({ abort: false });
     A.pp.complete({ title: L('done.title', 'Bleed coiled'), text: L('done.text', 'Access closed, the bleed is sealed. Press {Enter} to finish.'), label: L('done.btn', 'Finish'), onDone: () => finish() });
     NZA.post('angio:step', { phase: 'done', step: 6, cam: 'access', access: A.access });
   }
@@ -2325,9 +2466,10 @@
     A.def.el.classList.toggle('ag-room', on);
     if (on) {
       NZA.ui.Marker('angio', 'button', { label: L('room.button', 'Contrast run'), dot: 'red', tone: 'red', anchor: 'button' });
-      A.pp.set({ title: L('room.title', 'Room'), text: A.hasButton ? L('room.text', 'Walk to the red button and press {E}. {Z} back to the monitor.') : '' });
+      roomPanel();
     } else {
       NZA.ui.Marker('angio', 'button').remove();
+      A.pp.set({ abort: { label: L('abort', 'Hold to abort'), key: 'ESC', seconds: 1.2 } });
       renderPanel();
     }
     if (!fromLua) NZA.post('angio:room', { on });
@@ -2368,7 +2510,7 @@
   function compact(st) {
     const r = v => Math.round(v * 1000) / 1000;
     return {
-      sc: st.sc, p: st.p, f: r(st.f), phi: r(st.phi), carm: r(st.carm), cx: r(st.cx), cy: r(st.cy), coils: st.coils.map(c => [c[0], c[1], r(c[2]), Math.round(c[3]), c[4]]),
+      sc: st.sc, p: st.p, f: r(st.f), phi: r(st.phi), carm: r(st.carm), mag: st.mag || 1, cx: r(st.cx), cy: r(st.cy), coils: st.coils.map(c => [c[0], c[1], r(c[2]), Math.round(c[3]), c[4]]),
       rm: st.rm, bs: st.bs, stain: r(st.stain), cd: st.cd, run: st.run ? { id: st.run.id, a: st.run.a, b: st.run.b, f: r(st.run.f), k: st.run.k, t: r(st.run.t) } : null,
       xr: st.xr, dsa: r(st.dsa || 0), hud: st.hud,
     };
@@ -2410,7 +2552,7 @@
     if (step === 'choose') { setPhase('choose'); return; }
     chooseAccess('femoral_r');
     if (step === 'access' || step === 'aim') { A.acc.angle = 44; A.acc.aim = 0.08; A.acc.adv = 3.6; A.acc.depth = A.acc.adv * Math.sin(44 * DEG); return; }
-    if (step === 'needle') { A.acc.flash = 'arterial'; A.acc.wire = 1; A.acc.sheath = 1; A.acc.depth = 3.0; A.acc.needle = 0.32; setPhase('needle'); return; }
+    if (step === 'needle') { A.acc.flash = 'arterial'; A.acc.wire = 1; A.acc.sheath = 1; A.acc.aim = 0.04; A.acc.angle = 44; A.acc.flashAngle = 44; A.acc.depth = 3.0; A.acc.needle = 0.32; setPhase('needle'); return; }
     A.stats.angleErr = 2; A.stats.accessT = 40;
     // catheter route from the groin to just short of the bleed
     const route = (target, stopBefore) => {
@@ -2458,7 +2600,7 @@
     if (step === 'press' || step === 'pull') {
       A.press = { pull: step === 'pull' ? 0.42 : 1, p: 0.68, held: 7.2, need: 12, bleed: 9.4, over: 0 };
       setPhase(step);
-      if (step === 'press') A.held.Space = true;
+      if (step === 'press') A.demoPress = true;
       return;
     }
     if (step === 'done') {

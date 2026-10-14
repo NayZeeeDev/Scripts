@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · radial job menu (UI pack Orbit, in-game safe: no backdrop-filter)
+   The app is 'noscale' and scales with a transform so mouse angles stay exact.
+   ═══════════════════════════════════════════════════════════ */
+#app-radial{pointer-events:auto}
+#app-radial .rd-wrap{position:absolute;left:50%;top:50%;display:flex;flex-direction:column;align-items:center;gap:20px;
+  transform:translate(-50%,-50%) scale(var(--nza-zoom));transform-origin:50% 50%}
+#app-radial .rd-wheel{position:relative;width:540px;height:540px}
+#app-radial .rd-wheel.in{animation:rd-in 280ms cubic-bezier(.2,.8,.2,1) both}
+#app-radial .rd-wheel.shake{animation:rd-shake 260ms ease}
+@keyframes rd-in{from{opacity:0;transform:scale(.9) rotate(-8deg)}to{opacity:1;transform:none}}
+@keyframes rd-shake{20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+#app-radial .rd-wheel > svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+
+#app-radial .rd-disc{fill:url(#rd-g);stroke:rgba(255,255,255,.07);stroke-width:1;filter:drop-shadow(0 20px 40px rgba(0,0,0,.55))}
+#app-radial .rd-dash{fill:none;stroke:rgba(255,255,255,.08);stroke-width:1;stroke-dasharray:2 7;transform-origin:center;animation:nz-spin 80s linear infinite}
+#app-radial .rd-tick{stroke:rgba(255,255,255,.09);stroke-width:1}
+
+#app-radial .rd-segs{transform-origin:center;animation:rd-pop 260ms cubic-bezier(.2,.8,.2,1) both}
+@keyframes rd-pop{from{opacity:0;transform:scale(.95) rotate(-5deg)}to{opacity:1;transform:none}}
+#app-radial .rd-seg{fill:rgba(255,255,255,.018);stroke:rgba(255,255,255,.08);stroke-width:1;cursor:pointer;transition:fill 130ms cubic-bezier(.4,0,.2,1),stroke 130ms}
+#app-radial .rd-seg.on{fill:rgba(8,175,162,.17);stroke:rgba(8,175,162,.55)}
+#app-radial .rd-seg.danger.on{fill:rgba(229,72,77,.16);stroke:rgba(229,72,77,.5)}
+#app-radial .rd-seg.act{fill:url(#rd-t);stroke:rgba(15,212,196,.8)}
+#app-radial .rd-seg.act.on{filter:brightness(1.12)}
+#app-radial .rd-seg.off{fill:rgba(255,255,255,.008)}
+#app-radial .rd-seg.off.on{fill:rgba(255,255,255,.035);stroke:rgba(255,255,255,.14)}
+#app-radial .rd-seg.back{fill:rgba(255,255,255,.03)}
+#app-radial .rd-halo{fill:none;stroke:var(--teal);stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 6px var(--teal));transition:opacity 130ms}
+#app-radial .rd-halo.danger{stroke:var(--red);filter:drop-shadow(0 0 6px var(--red))}
+#app-radial .rd-halo.off{stroke:rgba(255,255,255,.35);filter:none}
+
+#app-radial .rd-labs{position:absolute;inset:0;pointer-events:none;animation:rd-pop 260ms cubic-bezier(.2,.8,.2,1) both}
+#app-radial .rd-lab{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:7px;width:104px;text-align:center;
+  color:var(--ink-2);transition:color 130ms,transform 130ms}
+#app-radial .rd-lab .nz-ic{width:23px;height:23px;stroke-width:1.6}
+#app-radial .rd-lab .t{font-size:12px;font-weight:500;letter-spacing:.005em;line-height:1.2}
+#app-radial .rd-lab .num{position:absolute;top:-15px;font-size:9px;font-weight:600;color:var(--ink-3)}
+#app-radial .rd-lab .sub{position:absolute;bottom:-11px;width:14px;height:2px;border-radius:2px;background:rgba(255,255,255,.18)}
+#app-radial .rd-lab em{position:absolute;bottom:-16px;font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.16em;color:var(--on-teal)}
+#app-radial .rd-lab.on{color:var(--white);transform:translate(-50%,-50%) scale(1.07)}
+#app-radial .rd-lab.on .nz-ic{color:var(--teal)}
+#app-radial .rd-lab.on .sub{background:var(--teal)}
+#app-radial .rd-lab.danger.on .nz-ic{color:var(--red)}
+#app-radial .rd-lab.act{color:var(--on-teal)}
+#app-radial .rd-lab.act .nz-ic,#app-radial .rd-lab.act.on .nz-ic{color:var(--on-teal)}
+#app-radial .rd-lab.act .num{color:rgba(0,32,29,.6)}
+#app-radial .rd-lab.off{opacity:.38}
+#app-radial .rd-lab.off.on{opacity:.6;color:var(--ink-2)}
+#app-radial .rd-lab.off.on .nz-ic{color:var(--ink-2)}
+#app-radial .rd-lab.back .nz-ic{width:20px;height:20px}
+
+/* hub */
+#app-radial .rd-hub{position:absolute;left:50%;top:50%;width:188px;height:188px;margin:-94px 0 0 -94px;border-radius:50%;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center;padding:22px;
+  background:radial-gradient(circle at 50% 28%,#161a1c,#08090a 72%);border:1px solid var(--line);
+  box-shadow:0 0 0 6px rgba(0,0,0,.4),0 1px 0 var(--lift) inset,0 0 40px rgba(8,175,162,.06),var(--sh-2)}
+#app-radial .rd-hub .nz-mark{margin-bottom:2px}
+#app-radial .rd-back{display:none;align-items:center;gap:3px;font-size:10px;color:var(--teal);font-weight:600;letter-spacing:.04em}
+#app-radial .rd-back .nz-ic{width:12px;height:12px}
+#app-radial .rd-hub.sub .rd-back{display:flex}
+#app-radial .rd-hub.sub .nz-mark{display:none}
+#app-radial .rd-name{font-size:16px;font-weight:600;color:var(--white);letter-spacing:-.012em;line-height:1.15;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-radial .rd-st{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);font-weight:500}
+#app-radial .rd-st i{width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
+#app-radial .rd-st b{font:700 11px var(--mono);color:var(--ink)}
+#app-radial .rd-st.teal i{background:var(--teal);box-shadow:0 0 0 3px var(--teal-wash),0 0 8px var(--teal)}
+#app-radial .rd-st.amber i{background:var(--amber);box-shadow:0 0 0 3px var(--amber-wash)}
+#app-radial .rd-st.red i{background:var(--red);box-shadow:0 0 0 3px var(--red-wash),0 0 8px var(--red)}
+#app-radial .rd-st.white i{background:#fff}
+#app-radial .rd-title{font-size:10.5px;font-weight:700;letter-spacing:.2em;color:var(--teal)}
+#app-radial .rd-desc{font-size:10.5px;color:var(--ink-3);font-weight:300;line-height:1.45;max-width:140px;min-height:30px}
+#app-radial .rd-desc.warn{color:#f3c35a}
+
+#app-radial .rd-foot{display:flex;align-items:center;gap:20px;padding:9px 16px;border-radius:999px;background:rgba(8,9,10,.86);border:1px solid var(--line-soft);
+  font-size:10.5px;color:var(--ink-3);box-shadow:var(--sh-2)}
+#app-radial .rd-foot > span{display:inline-flex;align-items:center;gap:6px}
+#app-radial .rd-foot .nz-key{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 5px;border-radius:4px;
+  background:var(--raise);border:1px solid var(--line);font-size:9px;color:var(--ink-2);font-weight:600}

@@ -19,6 +19,15 @@ Layers (picked from each chart's material):
     alpha  -> normal_spec_alpha (<name>_ad DXT5 with alpha, <name>_an, <name>_as)
     glow   -> emissive (<name>_g)                       small LEDs / indicator lights
     screen -> emissive with a fixed-UV texture named by b.screen() (e.g. nz_amb_screen)
+    <custom> -> extra normal_spec atlas (<name>_<layer>_d/_n/_s) for big props that need more texels
+               than one atlas gives (e.g. labelled supply shelves): declare it with
+               @prop(..., layers={"sup": 1024}) and give materials layer="sup".
+
+Preview options (tools/props/preview, never shipped): @prop(..., preview={...})
+    views   list of view names used on the contact sheet instead of the global ones
+    cams    [{"name", "pos", "target", "fov", "clipZ"?}] extra cameras in GTA prop space
+            (clipZ hides everything above that height - a cut-away plan view of a room)
+    lights  [{"pos", "intensity", "distance"?, "color"?}] point lights (interiors)
 """
 from __future__ import annotations
 
@@ -57,6 +66,8 @@ class PropSpec:
     falloff: float = 100.0        # specularFalloffMult of the main shader (spec alpha scales it)
     spec_mult: float = 1.0        # specularIntensityMult
     glow_mult: float = 2.0        # emissiveMultiplier for the glow layer
+    layers: dict = field(default_factory=dict)    # extra normal_spec atlases {layer name: size}
+    preview: dict = field(default_factory=dict)   # preview-only cameras / lights / views
     module: str = ""
 
 
@@ -174,12 +185,18 @@ def compute_tangents(pos, nrm, uv, tri):
     return np.concatenate([t, w[:, None]], axis=1)
 
 
+BUILTIN_LAYERS = ("main", "alpha", "glow")
+
+
 def _layer_of(b: Builder, matname: str):
     if matname.startswith("screen:"):
         return "screen"
     if matname not in b.mats:
         raise KeyError(f"{b.name}: material '{matname}' used but not defined")
-    return b.mats[matname].layer
+    layer = b.mats[matname].layer
+    if layer not in BUILTIN_LAYERS and layer not in b.spec.layers:
+        raise KeyError(f"{b.name}: material '{matname}' uses layer '{layer}' that is not declared in layers=")
+    return layer
 
 
 # ---------------------------------------------------------------------------------------------
@@ -214,7 +231,9 @@ def build_prop(spec: PropSpec, out_root: str, quick=False):
     glb_groups = []
     tex_summary = []
     sizes = {"main": spec.atlas, "alpha": spec.alpha_atlas, "glow": spec.glow_atlas}
-    for layer in ("main", "alpha", "glow"):
+    sizes.update({k: int(v) for k, v in spec.layers.items()})
+    order = ["main"] + sorted(spec.layers) + ["alpha", "glow"]
+    for layer in order:
         lc = layers.get(layer)
         if not lc:
             continue
@@ -247,7 +266,7 @@ def build_prop(spec: PropSpec, out_root: str, quick=False):
         imgs = bake(S, S, tid, bary, T_v, V_pos, V_nrm, V_uvm, tri_mat, np.asarray(tri_chart), tags, cdens,
                     used_mats, b.decals, b.chart_decals, ao, alpha_layer=(layer == "alpha"), glow_layer=(layer == "glow"))
         tan = compute_tangents(V_pos, V_nrm, V_uv, T_v)
-        prefix = {"main": "", "alpha": "a", "glow": "g"}[layer]
+        prefix = {"main": "", "alpha": "a", "glow": "g"}.get(layer, layer + "_")
         if layer == "glow":
             tn = f"{name}_g"
             mips = write_dds(os.path.join(dds_dir, tn + ".dds"), imgs["diffuse"], "DXT1")
@@ -336,6 +355,7 @@ def build_prop(spec: PropSpec, out_root: str, quick=False):
                        "size": [round(float(v), 4) for v in s.size], "axis": s.axis} for s in b.shapes],
         "doc": spec.doc,
         "notes": b.notes,
+        "preview": spec.preview,
         "archetype_xml": arch,
     }
     with open(os.path.join(pdir, "manifest.json"), "w") as f:
