@@ -35,7 +35,7 @@
 #app-splint .sp-tag .lbl.red::before{background:var(--red);box-shadow:0 0 8px rgba(229,72,77,.7)}
 #app-splint .sp-tag .lbl.mono{font:700 11px/1 var(--mono);padding:4px 7px;border-radius:6px;letter-spacing:-.01em}
 #app-splint .sp-tag .lbl.mono::before{display:none}
-@keyframes sp-chip{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes sp-chip{from{transform:scale(.9)}to{transform:none}}
 
 #app-splint .sp-hint{position:absolute;left:50%;top:92px;transform:translateX(-50%);padding:9px 16px;border-radius:10px;font-size:12.5px;font-weight:500;color:var(--ink);
   background:rgba(12,13,16,.9);border:1px solid var(--amber-edge);box-shadow:0 8px 22px rgba(0,0,0,.4)}

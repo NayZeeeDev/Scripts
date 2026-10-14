@@ -737,7 +737,7 @@
     if (!THREE) throw new Error('NZA3D: three.js is not loaded');
     const o = Object.assign({
       tone: 0.25, region: 'chest', sex: 'm', seed: 1, hair: null, size: null, focus: null, drape: false,
-      quality: 'high', exposure: 0.6, vignette: 0.72, work: null, keys: true, fullscreen: true, gravity: [0, 1], background: 0x050607,
+      quality: 'high', exposure: 0.62, vignette: 0.72, work: null, keys: true, fullscreen: true, gravity: [0, 1], background: 0x050607,
     }, opts);
     const entry = acquireRenderer();
     if (!entry) throw new Error('NZA3D: WebGL2 is not available');
@@ -835,7 +835,7 @@
     // lamp placement relative to the framed point: [right, toward viewer, up] (m) · pool = light
     // pool radius in view half-widths. Mutable (placeLights() reads it every frame).
     S.lightRig = {
-      key: [0.16, -0.22, 0.82], keyB: [0.02, -0.12, 0.82], key2: [-0.12, -0.3, 0.8], fill: [-0.42, 0.3, 0.6], pool: 2.6,
+      key: [0.18, 0.12, 0.82], keyB: [0.04, 0.18, 0.8], key2: [-0.05, 0.32, 0.78], fill: [-0.42, -0.25, 0.6], pool: 1.8,
     };
     const keyDir = new THREE.Vector3();
 
@@ -964,7 +964,7 @@
       uFieldEnc: { value: FIELD_ENC },
       uMicroRep: { value: 1 / 0.036 }, uHair: { value: hairAmt }, uHairColor: { value: hairColor },
       uKeyDir: { value: new THREE.Vector3(0, 1, 0) }, uKeyColor: { value: new THREE.Color(1, 0.96, 0.9) },
-      uMicroNormal: { value: 1.25 }, uSkinRough: { value: 0.38 }, uFieldNormal: { value: 1.15 }, uSSS: { value: 0.75 },
+      uMicroNormal: { value: 1.6 }, uSkinRough: { value: 0.38 }, uFieldNormal: { value: 1.15 }, uSSS: { value: 0.75 },
       uDark: { value: o.tone }, uLayerTexel: { value: new THREE.Vector2(1 / LW, 1 / LH) }, uSebum: { value: 0.36 },
       uInsideLod: { value: clamp(Math.log2(0.0017 / (WR.W / LW)), 0, 6) },
     };
@@ -993,7 +993,7 @@
         .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = clamp(uSebum * (1.0 - nzaInside) + nzaWet * mix(0.82, 0.4, nzaWaterOnly), 0.0, 1.0);\n material.clearcoatRoughness = clamp(mix(mix(0.5, mix(0.11, 0.17, nzaInside), nzaWet), 0.24, nzaWaterOnly) + geometryRoughness, 0.0525, 1.0);\n#endif')
         .replace('#include <aomap_fragment>', SKIN_AO);
     };
-    skinMat.customProgramCacheKey = () => 'nza3d-skin-3';
+    skinMat.customProgramCacheKey = () => 'nza3d-skin-4';
     const skin = new THREE.Mesh(skinGeo, skinMat);
     skin.receiveShadow = true;
     skin.frustumCulled = false;
@@ -2992,6 +2992,14 @@
     float nzaFieldH(vec2 w) { float h = texture2D(tField, w).g; return (uFieldEnc > 0.5 ? h * 32.0 - 16.0 : h) * nzaWin; }
     // fluid film thickness (mm): wet blood ≈ 0.35 mm, clot ≈ 0.7 mm
     float nzaFilm(vec2 w) { return texture2D(tMaskA, w).r * 0.35 + texture2D(tMaskB, w).b * 0.7; }
+    // blurred read for the groove: 5 taps one mip finer than uInsideLod, so the coarse mip's
+    // texel grid never shows as blocks
+    vec4 nzaSoft(sampler2D t, vec2 w) {
+      float l = max(uInsideLod - 1.0, 0.0);
+      vec2 d = uLayerTexel * exp2(l) * 0.85;
+      return (textureLod(t, w, l) * 2.0 + textureLod(t, w + vec2(d.x, d.y), l) + textureLod(t, w + vec2(-d.x, d.y), l)
+            + textureLod(t, w + vec2(d.x, -d.y), l) + textureLod(t, w - d, l)) / 6.0;
+    }
   `;
   const SKIN_MAP = `
     nzaP = vec2((vUv.x - 0.5) * uPatch.x, (0.5 - vUv.y) * uPatch.y);
@@ -3006,8 +3014,8 @@
     // into streaks down the walls. Blood, clot and dirt pool in there anyway → read a blurred mip level.
     if (nzaF.r > 0.02) {
       float nzaIb = smoothstep(0.02, 0.5, nzaF.r);
-      nzaA = mix(nzaA, textureLod(tMaskA, nzaW, uInsideLod) * nzaWin, nzaIb);
-      nzaB = mix(nzaB, textureLod(tMaskB, nzaW, uInsideLod) * nzaWin, nzaIb);
+      nzaA = mix(nzaA, nzaSoft(tMaskA, nzaW) * nzaWin, nzaIb);
+      nzaB = mix(nzaB, nzaSoft(tMaskB, nzaW) * nzaWin, nzaIb);
     }
     vec2 nzaQ = vec2(nzaP.x, -nzaP.y);
     nzaUv1 = nzaQ * uMicroRep;
@@ -3058,16 +3066,18 @@
     vec2 nzaWq = vec2((nzaP.x + 0.25 * nzaP.y) * 1000.0, nzaDmm * 1.15 + nzaP.y * 300.0);
     float nzaLob = texture2D(tNoise, nzaWq / 13.0 + vec2(0.13, 0.57)).b;
     float nzaLob2 = texture2D(tNoise, nzaWq / 5.5 + vec2(0.41, 0.07)).b;
-    float nzaFatBand = smoothstep(1.1, 2.2, nzaDmm + (nzaN3.r - 0.5) * 1.2) * (1.0 - smoothstep(5.2, 7.5, nzaDmm + (nzaN3.g - 0.5) * 1.6));
-    float nzaFat = (1.0 - smoothstep(0.42, 0.72, nzaLob)) * nzaFatBand;
-    float nzaSept = smoothstep(0.62, 0.86, nzaLob) * nzaFatBand;
-    vec3 nzaTis = mix(vec3(0.83, 0.64, 0.54), vec3(0.69, 0.16, 0.13), smoothstep(0.15, 0.55, nzaDmm));
-    nzaTis = mix(nzaTis, vec3(0.55, 0.07, 0.055), smoothstep(0.9, 1.9, nzaDmm));
-    vec3 nzaFatC = mix(vec3(0.95, 0.66, 0.17), vec3(0.86, 0.47, 0.11), smoothstep(0.1, 0.55, nzaLob)) * (0.86 + 0.28 * (1.0 - nzaLob2));
-    nzaTis = mix(nzaTis, nzaFatC, nzaFat * 0.92);
-    nzaTis = mix(nzaTis, vec3(0.5, 0.07, 0.05), nzaSept * 0.75);
-    nzaTis = mix(nzaTis, vec3(0.2, 0.012, 0.009), smoothstep(4.5, 9.0, nzaDmm) * (1.0 - nzaFat * 0.5));
-    nzaTis *= 0.86 + 0.28 * texture2D(tNoise, nzaWq / 9.0 + 0.3).g;
+    float nzaFatBand = smoothstep(1.7, 2.8, nzaDmm + (nzaN3.r - 0.5) * 1.1) * (1.0 - smoothstep(5.8, 8.0, nzaDmm + (nzaN3.g - 0.5) * 1.6));
+    float nzaSept = smoothstep(0.7, 0.9, nzaLob) * nzaFatBand;
+    float nzaFat = nzaFatBand * (1.0 - nzaSept);
+    vec3 nzaTis = mix(vec3(0.83, 0.64, 0.54), vec3(0.72, 0.2, 0.16), smoothstep(0.12, 0.5, nzaDmm));
+    nzaTis = mix(nzaTis, vec3(0.6, 0.085, 0.065), smoothstep(1.0, 2.2, nzaDmm));
+    // lobules are small domes: lighter in the middle, a warmer orange where they dip into the septa
+    vec3 nzaFatC = mix(vec3(1.0, 0.76, 0.3), vec3(0.93, 0.5, 0.15), smoothstep(0.15, 0.62, nzaLob)) * (0.9 + 0.2 * (1.0 - nzaLob2));
+    nzaFatC = mix(nzaFatC, vec3(0.8, 0.26, 0.12), smoothstep(0.45, 0.8, nzaN3.b) * 0.45);
+    nzaTis = mix(nzaTis, nzaFatC, nzaFat * 0.9);
+    nzaTis = mix(nzaTis, vec3(0.62, 0.12, 0.08), nzaSept * 0.7);
+    nzaTis = mix(nzaTis, vec3(0.2, 0.012, 0.009), smoothstep(5.0, 9.5, nzaDmm) * (1.0 - nzaFat * 0.6));
+    nzaTis *= 0.9 + 0.2 * texture2D(tNoise, nzaWq / 9.0 + 0.3).g;
     nzaCol = mix(nzaCol, nzaTis, nzaInside);
     // raised skin (lidocaine wheal, blister dome) is pale and slightly translucent
     float nzaWh = smoothstep(0.3, 1.1, nzaH0) * (1.0 - nzaInside) * (1.0 - smoothstep(0.2, 0.6, nzaBs));
@@ -3169,8 +3179,9 @@
     reflectedLight.indirectSpecular *= mix(1.0, nzaAO, 0.8);
     float nzaNdl = dot(normal, uKeyDir);
     float nzaWrap = clamp((nzaNdl + 0.5) / 1.5, 0.0, 1.0) - clamp(nzaNdl, 0.0, 1.0);
-    reflectedLight.directDiffuse += max(nzaWrap, 0.0) * uKeyColor * vec3(0.9, 0.22, 0.12) * material.diffuseColor * uSSS * (1.0 - nzaInside);
-    reflectedLight.indirectDiffuse += material.diffuseColor * vec3(0.05, 0.012, 0.006) * uSSS * (1.0 - nzaInside);
+    reflectedLight.directDiffuse += max(nzaWrap, 0.0) * uKeyColor * vec3(0.9, 0.22, 0.12) * material.diffuseColor * uSSS * (1.0 - nzaInside * 0.6);
+    // light scattered inside the tissue keeps the walls of a deep cut from going muddy
+    reflectedLight.indirectDiffuse += material.diffuseColor * mix(vec3(0.05, 0.012, 0.006), vec3(0.16, 0.07, 0.03), nzaInside * (1.0 - nzaDepthN * 0.7)) * uSSS;
   `;
 
   const PART_VERT = `

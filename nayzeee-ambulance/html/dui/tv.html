@@ -1,39 +1,39 @@
 <!DOCTYPE html>
-<html lang="en" data-shape="cut">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>NAYZEEE · Waiting room board</title>
+<title>Waiting area board</title>
 <!--
-  NAYZEEE AMBULANCE · waiting room TV board (DUI)
-  Rendered by client/modules/checkin_tv.lua into the NAYZEEE screen model (AddReplaceTexture)
+  NAYZEEE AMBULANCE · waiting area TV board (DUI)
+  Rendered by client/modules/checkin_tv.lua into the board screen model (AddReplaceTexture)
   or a native TV render target. Size = Config.Checkin.tv.width × height (16:9).
+  Layout: info rail on the left (hospital, rolling clock, status rings, units en route),
+  bed bay map and triage lanes on the right, info ticker at the bottom.
   Messages (SendDuiMessage JSON): init · board · mine · clock · chime · standby
-  Opened as a file in a browser it shows demo data (?state=empty|flash|standby).
+  Opened as a file in a browser it shows demo data (?state=full|empty|flash|mine|standby|busy).
 -->
-<link rel="stylesheet" href="../core/nz-core.css">
 <link rel="stylesheet" href="tv.css">
 </head>
 <body>
 <div id="tv" class="standby">
   <div class="tv-bg"></div>
-  <header class="tv-head">
-    <div class="tv-brand"><span class="nz-mark"></span><div><h1 class="tv-dept">—</h1><p class="tv-room">Waiting room</p></div></div>
-    <div class="tv-clock"><b class="tv-time">--:--</b><span class="tv-date"></span></div>
-  </header>
+  <aside class="tv-rail">
+    <div class="tv-id">
+      <span class="tv-glyph"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21"/><path d="M20 12h8v8h8v8h-8v8h-8v-8h-8v-8h8z"/></svg></span>
+      <div><h1 class="tv-dept">—</h1><p class="tv-room">Waiting area</p></div>
+    </div>
+    <div class="tv-clock"><div class="tv-time"></div><span class="tv-date"></span></div>
+    <div class="tv-rings"></div>
+    <section class="tv-route"><div class="tv-lbl"><span class="tv-ric"></span><span data-l="incoming">En route</span></div><div class="tv-rlist"></div></section>
+  </aside>
   <main class="tv-main">
-    <section class="tv-serving"><div class="tv-lbl"><i class="tv-live"></i><span data-l="now_serving">Now serving</span></div><div class="tv-slist"></div></section>
-    <section class="tv-waiting"><div class="tv-lbl"><span data-l="waiting">Waiting</span><em class="tv-wcount">0</em></div><div class="tv-wlist"></div></section>
+    <section class="tv-bays"><div class="tv-lbl"><i class="tv-live"></i><span data-l="now_serving">Beds</span><em class="tv-legend"></em></div><div class="tv-bgrid"></div></section>
+    <section class="tv-queue"><div class="tv-lbl"><span data-l="waiting">Queue</span><em class="tv-qmore"></em></div><div class="tv-lanes"></div></section>
   </main>
-  <section class="tv-incoming"><div class="tv-ilbl"><span class="tv-iic"></span><span data-l="incoming">Incoming</span></div><div class="tv-ilist"></div></section>
-  <footer class="tv-foot">
-    <div class="tv-counts"></div>
-    <div class="tv-staff"></div>
-  </footer>
-  <div class="tv-ticker"><div class="tv-tick"></div></div>
+  <div class="tv-ticker"><span class="tv-tlbl" data-l="tv_info">Info</span><div class="tv-tickw"><div class="tv-tick"></div></div></div>
   <div class="tv-flash"></div>
-  <div class="tv-standby"><span class="nz-mark xl"></span><b data-l="standby_title">Waiting room</b><span class="tv-dots"><i></i><i></i><i></i></span></div>
+  <div class="tv-standby"><span class="tv-glyph xl"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21"/><path d="M20 12h8v8h8v8h-8v8h-8v-8h-8v-8h8z"/></svg></span><b data-l="standby_title">Waiting area</b><span class="tv-dots"><i></i><i></i><i></i></span></div>
 </div>
-<script src="../core/nz-core.js"></script>
 <script src="tv.js"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
    NAYZEEE AMBULANCE · treat app (first aid module)
 
    Modes (Lua NZA.UI.Open('treat', data) with data.mode):
-     bleed   STOP BLEEDING   pressure → pack (deep wounds) → wrap (limbs) | dressing (torso)
+     bleed   BLEED CONTROL   pressure → pack (deep wounds) → wrap (limbs) | dressing (torso)
      tq      TOURNIQUET      place high & tight + pull the slack → twist the windlass → lock the clip
      collar  CERVICAL COLLAR measure & size → fasten while holding the head in line
      meds    MEDICATION      dose panel: drug, dose, route, live warnings, administer
@@ -475,12 +475,14 @@
       };
       const boot = (at, dir, s) => {
         c.save(); c.translate(at.x, at.y); c.rotate(Math.atan2(dir.y, dir.x));
-        c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 20 * U; c.shadowOffsetY = 10 * U;
-        const bg = c.createLinearGradient(0, -s * 0.5, 0, s * 0.5); bg.addColorStop(0, '#2b2622'); bg.addColorStop(1, '#0d0c0b');
-        c.fillStyle = bg; c.beginPath(); c.ellipse(s * 0.25, 0, s * 0.62, s * 0.4, 0, 0, TAU); c.fill(); c.shadowBlur = 0; c.shadowOffsetY = 0;
-        c.fillStyle = '#070707'; c.beginPath(); c.ellipse(s * 0.32, 0, s * 0.66, s * 0.44, 0, -0.5, 0.5); c.lineTo(s * 0.3, 0); c.fill();
-        c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 1.5 * U;
-        for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(-s * 0.05 + i * s * 0.12, -s * 0.14); c.lineTo(-s * 0.05 + i * s * 0.12, s * 0.14); c.stroke(); }
+        c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 22 * U; c.shadowOffsetX = 6 * U; c.shadowOffsetY = 12 * U;
+        c.fillStyle = '#0a0a0a'; c.beginPath(); c.ellipse(s * 0.28, 0, s * 0.66, s * 0.44, 0, 0, TAU); c.fill();
+        c.shadowColor = 'transparent';
+        const bg = c.createLinearGradient(0, -s * 0.42, 0, s * 0.42); bg.addColorStop(0, '#3a332c'); bg.addColorStop(0.5, '#221e1a'); bg.addColorStop(1, '#100e0c');
+        c.fillStyle = bg; c.beginPath(); c.ellipse(s * 0.24, 0, s * 0.58, s * 0.37, 0, 0, TAU); c.fill();
+        c.fillStyle = 'rgba(255,255,255,.07)'; c.beginPath(); c.ellipse(s * 0.32, -s * 0.15, s * 0.38, s * 0.1, 0, 0, TAU); c.fill();
+        c.strokeStyle = 'rgba(210,200,185,.28)'; c.lineWidth = 1.6 * U;
+        for (let i = 0; i < 4; i++) { const x = s * (0.02 + i * 0.11); c.beginPath(); c.moveTo(x, -s * 0.12); c.lineTo(x + s * 0.05, s * 0.12); c.stroke(); }
         c.restore();
       };
       if (preset === 'leg' || preset === 'legfar') {
@@ -495,11 +497,6 @@
         cloth(j1, j2, L1 * 0.16 * f, L1 * 0.12 * f, MAT.denim, { folds: [[0.08, 0.9], [0.9, 0.6]] });
         cloth(j0, j1, L1 * 0.22 * f, L1 * 0.165 * f, MAT.denim, { folds: [[0.9, 1], [0.78, 0.6]] });
         boot(add(j2, mul(norm(sub(j2, j1)), L1 * 0.12)), norm(sub(j2, j1)), L1 * 0.23);
-        // belt across the hip
-        c.save(); c.translate(j0.x, j0.y); c.rotate(Math.atan2(n0.y, n0.x));
-        c.fillStyle = '#121212'; c.fillRect(-L1 * 0.3, -L1 * 0.06 - L1 * 0.12, L1 * 0.6, L1 * 0.07);
-        c.fillStyle = '#8d8a80'; c.fillRect(-L1 * 0.04, -L1 * 0.07 - L1 * 0.12, L1 * 0.06, L1 * 0.09);
-        c.restore();
       } else if (preset === 'torso') {
         const nk = px('neck'), pl = px('pel'), wd = px('wound'), L = dist(nk, pl), d = norm(sub(pl, nk)), n = perp(d);
         const sh = add(nk, mul(d, L * 0.08));
@@ -699,6 +696,7 @@
       const G = this.G; if (!G) return;
       G.t += dt;
       const fit = NZA.fitCanvas(this.cv); const W = fit.w, H = fit.h;
+      G.k = fit.scale;
       const c = this.cv.getContext('2d');
       let anc = this.anc.all();
       if (!NZA.inGame && this.preset) { anc = Backdrop.anchors(this.preset); }
@@ -920,7 +918,7 @@
       });
     },
 
-    /* ═════════════════════════════ STOP BLEEDING ═════════════════════════════ */
+    /* ═════════════════════════════ BLEED CONTROL ═════════════════════════════ */
     initBleed() {
       const d = this.d, G = this.G;
       this.steps = d.steps || ['pressure', 'wrap'];
@@ -1027,7 +1025,8 @@
       c.lineWidth = 1;
       for (let i = 1; i < 8; i++) { c.strokeStyle = i % 2 ? 'rgba(255,255,255,.025)' : 'rgba(255,255,255,.06)'; c.beginPath(); c.moveTo(0, Math.round((H * i) / 8) + 0.5); c.lineTo(W, Math.round((H * i) / 8) + 0.5); c.stroke(); }
       for (let i = 1; i < 12; i++) { c.strokeStyle = i % 3 ? 'rgba(255,255,255,.02)' : 'rgba(255,255,255,.05)'; c.beginPath(); c.moveTo(Math.round((W * i) / 12) + 0.5, 0); c.lineTo(Math.round((W * i) / 12) + 0.5, H); c.stroke(); }
-      const col = amp < 0.05 ? [15, 212, 196] : amp < 0.35 ? [243, 195, 90] : [255, 90, 96];
+      const flowNow = (inj.bleed || 0) * amp;
+      const col = flowNow < 1 ? [15, 212, 196] : flowNow < 8 ? [243, 195, 90] : [255, 90, 96];
       const rgb = a => `rgba(${col[0]},${col[1]},${col[2]},${a})`;
       const pts = [];
       tr.hist.forEach((y, i) => { if (y === null) return; pts.push([(i / (N - 1)) * W, H - 5 * k - y * (H - 12 * k)]); });
@@ -1333,7 +1332,19 @@
           };
         },
         size(w) { return { pw: w.cm * 11, ph: w.cm * 9 }; },
-        home(w) { const p = add({ x: w.x, y: w.y }, mul(w.n, w.limbW * 0.95 + 40 * w.U)); return { x: clamp(p.x, 120 * w.U, G.W - 420 * w.U), y: clamp(p.y, 120 * w.U, G.H - 400 * w.U) }; },
+        // where the dressing waits: beside the wound, on whichever side stays clear of the HUD
+        // (context card top-left, procedure column bottom-left, device + tool belt on the right)
+        home(w) {
+          // k = canvas px per HUD css px (zoom × device pixel ratio); pw = pad size on screen
+          const k = G.k || 1, pw = w.cm * 11, half = pw * 0.6;
+          const x0 = 440 * k + half, x1 = G.W - 620 * k - half, y0 = 40 * k + half, y1 = G.H - 60 * k - half;
+          const opts = [1, -1].map(sg => {
+            const p = add({ x: w.x, y: w.y }, mul(w.n, sg * (w.limbW * 0.95 + 40 * w.U)));
+            const q = { x: clamp(p.x, x0, Math.max(x0, x1)), y: clamp(p.y, y0, y1) };
+            return { q, cost: dist(p, q) };
+          });
+          return (opts[0].cost <= opts[1].cost ? opts[0] : opts[1]).q;
+        },
         cornerPts(w) {
           const { pw, ph: hh } = this.size(w); const ax = w.axis, n = w.n, c0 = this.pad;
           return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => add(add(c0, mul(n, (u * pw) / 2 * 0.86)), mul(ax, (v * hh) / 2 * 0.86)));
@@ -1656,7 +1667,7 @@
             });
           } else {
             const pull = this.pull;
-            a.pp.set({ stats: [{ id: 'slack', label: T('st_slack', 'Slack out'), value: String(Math.round(clamp(pull, 0, 1) * 100)), unit: '%' }], wide: { label: T('w_strap', 'Strap tension'), value: pull > 1 ? T('hard', 'Hard') : pull >= 0.75 ? T('good', 'Good') : T('slack', 'Slack'), meter: { value: clamp(pull / 1.25, 0, 1), zone: [0.75 / 1.25, 1.0 / 1.25], tone: pull > 1 ? 'red' : '' }, caption: T('cap_slack', 'Release inside the green band'), captionTone: 'teal' } });
+            a.pp.set({ stats: [{ id: 'slack', label: T('st_slack', 'Slack out'), value: String(Math.round(clamp(pull, 0, 1) * 100)), unit: '%' }], wide: { label: T('w_strap', 'Tension'), value: pull > 1 ? T('hard', 'Hard') : pull >= 0.75 ? T('good', 'Good') : T('slack', 'Slack'), meter: { value: clamp(pull / 1.25, 0, 1), zone: [0.75 / 1.25, 1.0 / 1.25], tone: pull > 1 ? 'red' : '' }, caption: T('cap_slack', 'Release inside the green band'), captionTone: 'teal' } });
           }
         },
         device() { a.devTq(); },
@@ -1764,7 +1775,7 @@
           { id: 'press', label: T('st_press', 'Pressure'), value: String(Math.round(q.P)), unit: 'mmHg', tone: over ? 'red' : occ ? 'teal' : '' },
           { id: 'pulse', label: T('st_distal', 'Distal pulse'), value: (G.pulseAmp || 0) > 0.04 ? T('present', 'Present') : T('absent', 'Absent'), small: true, tone: (G.pulseAmp || 0) > 0.04 ? 'amber' : 'teal' },
         ],
-        wide: { label: T('w_occlusion', 'Occlusion'), value: over ? T('over', 'Over') : occ ? T('occluded', 'Occluded') : `${Math.round((q.P / tune.occlusion) * 100)}`, unit: over || occ ? '' : '%', tone: over ? 'red' : '', meter: { value: q.P / maxP, zone: [tune.occlusion / maxP, (tune.occlusion + tune.overMargin) / maxP], tone: over ? 'red' : '' }, caption: over ? T('cap_over', 'Ease off: over-tightened') : occ ? T('cap_occ', 'Artery closed') : T('cap_twist', 'Keep turning'), captionTone: over ? 'red' : occ ? 'teal' : '' },
+        wide: { label: T('w_occlusion', 'Occlusion'), value: over ? T('over', 'Over') : `${Math.min(100, Math.round((q.P / tune.occlusion) * 100))}`, unit: over ? '' : '%', tone: over ? 'red' : occ ? 'teal' : '', meter: { value: q.P / maxP, zone: [tune.occlusion / maxP, (tune.occlusion + tune.overMargin) / maxP], tone: over ? 'red' : '' }, caption: over ? T('cap_over', 'Ease off: over-tightened') : occ ? T('cap_occ', 'Artery closed') : T('cap_twist', 'Keep turning'), captionTone: over ? 'red' : occ ? 'teal' : '' },
       });
     },
 

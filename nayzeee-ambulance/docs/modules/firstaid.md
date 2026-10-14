@@ -1,7 +1,7 @@
-# firstaid — Stop bleeding, tourniquet, collar, oxygen, foil blanket, medication, first aid items
+# firstaid — Bleed control, tourniquet, collar, oxygen, foil blanket, medication, first aid items
 
 Everything a first aider or medic does at the roadside to keep a patient alive: a three-step
-**Stop bleeding** minigame (direct pressure → wound packing → wrap / pressure dressing), a
+**Bleed control** minigame (direct pressure → wound packing → wrap / pressure dressing), a
 three-step **Tourniquet** (place high & tight + pull the slack → twist the windlass → lock the
 clip, time written on the strap), a two-step **Cervical collar** (measure & size → fasten while
 holding the head in line), the medic **Medication** dose panel, **Oxygen mask**, **Foil blanket**
@@ -34,16 +34,29 @@ Preview: `html/index.html?app=treat` (+ `&step=pack|wrap`), `&demo=torso[&step=d
   laceration from `injury.length`, abrasion patch), a blood-soaked patch that grows with the blood
   lost, **arterial jets on every heartbeat** (pseudo-3D: they rise toward the camera and land),
   venous rivulets running to the ground side, persistent stains anchored to the wound.
-- Top-left card: patient, wound (type, region, bleed, severity chip), live vitals (HR / BP /
-  SpO₂ / RR from `NZA.Patient.Watch`), a tip note with a glowing bar (deep wound, under tourniquet,
-  spinal precautions…). After finishing it becomes the result card (grade badge, score, per-step
-  scores, outcome message).
-- Right: a NAYZEEE device per procedure (HAEMOSTAT flow trace + gauges, TQ-1 windlass dial,
-  C-SPINE sizing post / in-line bubble level).
-- Bottom: `NZA.ui.ProcPanel` (step counter, title, instruction with key caps, live stats + wide
-  meter, tool slots done/active/locked, hints, hold ESC to abort).
+- **Top-left context card** (corner bracket): avatar in a spinning severity ring, procedure kicker
+  + patient name, severity chip; a **holographic body glyph** with the wound's region lit and a
+  pulsing diamond, beside an instrument list (wound, site, flow, severity — tone notches); four
+  **vital status rings** (HR with a heartbeat ping at the live rate, SYS, SpO₂, RR — from
+  `NZA.Patient.Watch`); a tip note with a glowing bar (deep wound, under tourniquet, spinal
+  precautions…). After finishing it becomes the result card: a **score ring** (0–100, fills in),
+  per-step score bars and the outcome message. No letter grades.
+- **Handheld device** right-middle, left of the core tool belt (`right: 304px`): our own industrial
+  design — moulded shell, rubber side grips, corner screws, model plate, glass screen with
+  scanlines, three physical keys (MODE / ZERO / MUTE), amber warning sticker and serial. Generic
+  labelling only, **no brand**: **HM-2 · Haemostat monitor** (rolling flow counter + trend arrow,
+  flow trace with grid and fill, instrument rows, step gauge), **TQ-1 · Windlass gauge** (pressure
+  dial with the occlusion band, distal pulse LED, flow, time on), **CS-4 · Neck sizer** (sizing post
+  / in-line bubble level + size chart).
+- Stage labels are dark chips with a tone diamond; targets are four-bracket reticles that turn
+  slowly (no dashed circles, no leader lines). The dressing waits on whichever side of the wound
+  stays clear of the HUD.
+- `NZA.ui.ProcPanel` (core): instruction column bottom-left (readout dial + instrument list, step
+  spine with `steps` names → *Next: …*, text with key caps, flash line, Done), tool belt on the
+  right edge with icons (gauze, gauze roll, bandage, dressing pad, strap, windlass, clip, ruler,
+  collar) and the hold-to-cancel ring. Tag: `Bleed control · <site>`, `Tourniquet · <site>`, `C-spine`.
 
-### Stop bleeding (`NZA.Proc 'stopbleed'`, perm `StopBleed.perm` = basic)
+### Bleed control (`NZA.Proc 'stopbleed'`, perm `StopBleed.perm` = basic)
 1. **Direct pressure** – a gloved hand with a gauze pad follows the mouse; **hold LMB** on the
    wound. The wound drifts as the patient moves, so you have to follow it. Bleed meter falls while
    pressing on target, rises when you let go or slip off. Finish: bleed under `pressureTarget` for
@@ -126,7 +139,7 @@ animation while downed). **First aid…** on a patient opens the kit chooser: ev
 count and what it would do to *this* patient ("Bandage: Deep laceration · Left forearm", "No burns
 to dress"), keys 1–6.
 - **Bandage** – the worst *minor* bleed (≤ `maxBleed`), quality `quality` (soak rules apply);
-  heavier bleeds are refused with "use Stop bleeding".
+  heavier bleeds are refused with "use Control bleeding".
 - **Medkit** – every abrasion / contusion up to `maxSeverity` and severity-1 laceration
   (bandaged / cooled / dressed) + `Heal(heal)` (a little blood back).
 - **Painkillers** – `GiveMed('painkillers')`, not while they still work (`stack`) or on morphine,
@@ -175,7 +188,7 @@ tourniquet positions) every client attaches local props to patients within `Prop
 | `Keys.confirm / lock` | minigame keys |
 | `Interact.distance / stopBleed / tourniquet / meds / collar / oxygen / foil / kit / minBleed / tqBleed / icons` | patient options |
 | `Radial.enabled / range` | EMS radial (Patient) entries |
-| `StopBleed.perm / types / minBleed / abrasionMin / pack / packDepth / items.{pack,wrap,dressing} / minTime / maxTime / easyTime / failScore / qualityBonus / pressureTarget / pressureHold / packStrips / wrapTurns / tensionBand / anim / camera / soak.{enabled,minBleed,quality,after}` | stop bleeding |
+| `StopBleed.perm / types / minBleed / abrasionMin / pack / packDepth / items.{pack,wrap,dressing} / minTime / maxTime / easyTime / failScore / qualityBonus / pressureTarget / pressureHold / packStrips / wrapTurns / tensionBand / anim / camera / soak.{enabled,minBleed,quality,after}` | bleed control |
 | `Tourniquet.perm / item / minTime / maxTime / easyTime / minBleed / jointZone / idealAbove / armLength / legLength / occlusion.{arm,leg,min,max} / turnGain / overMargin / unwind / clipWindow / overPain / clock / warnAfter / damageAfter / damage / checkEvery / removeReturns / removePerm / camera` | tourniquet |
 | `Collar.perm / item / minTime / maxTime / easyTime / fastenSeconds / drift / removeReturns / camera` | collar |
 | `Oxygen.perm / item / consume / removeReturns / anim` | oxygen mask |

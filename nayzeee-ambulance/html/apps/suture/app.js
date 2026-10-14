@@ -45,11 +45,11 @@
     weights: { irrigate: 20, anaesthetic: 15, suture: 45, dressing: 20 },
   };
   const TOOLS = [
-    { key: '1', id: 'saline', icon: 'bottle', label: ['tool_saline', 'Saline'] },
-    { key: '2', id: 'lido', icon: 'syringe', label: ['tool_lido', 'Lidocaine'] },
-    { key: '3', id: 'gauze', icon: 'gauze', label: ['tool_gauze', 'Gauze'] },
-    { key: '4', id: 'driver', icon: 'needle', label: ['tool_driver', 'Needle driver'] },
-    { key: '5', id: 'dressing', icon: 'bandage', label: ['tool_dressing', 'Dressing'] },
+    { key: '1', id: 'saline', icon: 'drop', label: ['tool_saline', 'Saline syringe'], sub: ['tool_saline_sub', '30 mL · NaCl 0.9%'] },
+    { key: '2', id: 'lido', icon: 'syringe', label: ['tool_lido', 'Lidocaine 1%'], sub: ['tool_lido_sub', '5 mL · 25G'] },
+    { key: '3', id: 'gauze', icon: 'gauze', label: ['tool_gauze', 'Gauze swab'], sub: ['tool_gauze_sub', '10 × 10 cm'] },
+    { key: '4', id: 'driver', icon: 'needle', label: ['tool_driver', 'Needle holder'], sub: ['tool_driver_sub', '4-0 nylon'] },
+    { key: '5', id: 'dressing', icon: 'bandage', label: ['tool_dressing', 'Island dressing'], sub: ['tool_dressing_sub', 'Adhesive pad'] },
   ];
   const STEP_TOOL = { 1: 'saline', 2: 'lido', 3: 'driver', 4: 'dressing' };
   const TOOL_STEP = { saline: 1, lido: 2, driver: 3, dressing: 4 };
@@ -72,7 +72,6 @@
         <div class="sz-ui">
           <div class="sz-pt nza-hud solid"></div>
           <div class="sz-plan nza-hud solid"></div>
-          <div class="sz-cam nza-hud"></div>
           <div class="sz-result-wrap"></div>
         </div>
         <div class="sz-cur"><svg viewBox="0 0 46 46"><circle class="bg" cx="23" cy="23" r="19"/><circle class="fg" cx="23" cy="23" r="19" stroke-dasharray="0 120"/></svg><span class="tx"></span></div>
@@ -81,7 +80,6 @@
       this.ui = el.querySelector('.sz-ui');
       this.ptEl = el.querySelector('.sz-pt');
       this.planEl = el.querySelector('.sz-plan');
-      this.camEl = el.querySelector('.sz-cam');
       this.resWrap = el.querySelector('.sz-result-wrap');
       this.cur = el.querySelector('.sz-cur');
       this.curFg = el.querySelector('.sz-cur .fg');
@@ -109,7 +107,7 @@
       this.loadEl.classList.remove('out');
       this.loadEl.querySelector('.lt').textContent = T('loading', 'Preparing the field…');
       this.resWrap.innerHTML = '';
-      this.ptEl.style.display = ''; this.planEl.style.display = ''; this.camEl.style.display = '';
+      this.ptEl.style.display = ''; this.planEl.style.display = '';
       this.mx = window.innerWidth / 2; this.my = window.innerHeight / 2;
       const token = this.openToken = (this.openToken || 0) + 1;
       // let the loading veil paint before the (heavy) scene build
@@ -162,6 +160,7 @@
       else def = { type: 'incision', length: clamp(L, 14, 60) * MM, gape: 2.6 * MM, depth: 6 * MM, rim: 0.4, jagged: 0.15 };
       const Lm = def.length;
       this.Lmm = Lm / MM;
+      this.depthMm = def.depth / MM;
       def.uv = [0.5, 0.5]; def.angle = angle; def.seed = seed % 100000;
       const viewW = clamp(Lm * 2.05, 0.07, 0.2);
       let S;
@@ -290,10 +289,9 @@
         <div class="pm"></div>
         <div class="chips"></div>`;
       this.planEl.innerHTML = `
-        <div class="hd"><span class="nza-label">${esc(T('plan', 'Procedure'))}</span><span class="tm">00:00</span></div>
+        <div class="hd"><span class="nza-label">${esc(T('plan', 'Closure plan'))}</span><span class="tm">00:00</span></div>
         <ol></ol>
         <div class="ft"></div>`;
-      this.camEl.innerHTML = `<span><kbd>RMB</kbd>${esc(T('cam_look', 'Look around'))}</span><span><kbd>${esc(T('key_wheel', 'Wheel'))}</kbd>${esc(T('cam_zoom', 'Zoom'))}</span><span><kbd>R</kbd>${esc(T('cam_recenter', 'Recentre'))}</span>`;
       this.renderHud(true);
     },
     renderHud(full) {
@@ -315,10 +313,10 @@
       if (ch.innerHTML !== html) ch.innerHTML = html;
       // plan
       const steps = [
-        [1, T('plan_1', 'Irrigate'), g.done[1] ? '0%' : g.skipped[1] ? T('skipped', 'Skipped') : `${pct(g.irr.cont)}%`],
-        [2, T('plan_2', 'Anaesthetise'), g.skipped[2] ? T('skipped', 'Skipped') : `${g.lido.points.filter(x => x.done).length}/${g.lido.points.length}`],
-        [3, T('plan_3', 'Suture'), `${this.stitchCount()}/${g.sut.N}`],
-        [4, T('plan_4', 'Dressing'), g.dr.D ? `${pct(g.dr.D.stuck)}%` : ''],
+        [1, T('plan_1', 'Rinse'), g.done[1] ? '0%' : g.skipped[1] ? T('skipped', 'Skipped') : `${pct(g.irr.cont)}%`],
+        [2, T('plan_2', 'Numb'), g.skipped[2] ? T('skipped', 'Skipped') : `${g.lido.points.filter(x => x.done).length}/${g.lido.points.length}`],
+        [3, T('plan_3', 'Stitch'), `${this.stitchCount()}/${g.sut.N}`],
+        [4, T('plan_4', 'Seal'), g.dr.D ? `${pct(g.dr.D.stuck)}%` : ''],
       ];
       const ol = steps.map(([n, label, x]) => {
         const cls = g.done[n] ? 'done' : g.skipped[n] ? 'skip' : g.step === n ? 'cur' : '';
@@ -341,8 +339,13 @@
     buildPanel() {
       this.pp = NZA.ui.ProcPanel(this.ui, {
         step: 1, total: 4, tag: T('tag', 'Suture'),
-        title: '', text: '', stats: this.stats(), tools: this.toolList(),
-        abort: { label: T('hold_abort', 'Hold to abort'), key: 'ESC', seconds: 1.2 },
+        title: '', text: '', stats: this.stats(), tools: this.toolList(), steps: this.stepNames(),
+        hints: [
+          { keys: [T('key_rmb', 'RMB')], label: T('cam_look', 'Look around') },
+          { keys: [T('key_wheel', 'Wheel')], label: T('cam_zoom', 'Zoom') },
+          { keys: ['R'], label: T('cam_recenter', 'Recentre') },
+        ],
+        abort: { label: T('hold_stop', 'Hold to stop'), key: 'ESC', seconds: 1.2 },
         onAbort: () => this.abort(),
         onTool: key => this.pickTool(key),
       });
@@ -354,19 +357,24 @@
       if (after && after.nextSibling) { body.insertBefore(this.tip, after.nextSibling); body.insertBefore(this.dots, this.tip); }
       else { body.appendChild(this.dots); body.appendChild(this.tip); }
     },
+    stepNames() {
+      // zero-based: the panel shows steps[current] as "Next"
+      return [T('plan_1', 'Rinse'), T('plan_2', 'Numb'), T('plan_3', 'Stitch'), T('plan_4', 'Seal')];
+    },
     stats() {
-      const g = this.g, inj = this.inj;
+      const inj = this.inj;
       const b = this.bleedNow();
       return [
-        { id: 'site', label: T('st_site', 'Site'), value: inj.regionLabel || inj.region || '', small: true },
-        { id: 'len', label: T('st_length', 'Length'), value: String(Math.round(this.Lmm || inj.length || 0)), unit: 'mm' },
-        { id: 'bleed', label: T('st_bleed', 'Bleed'), value: b.toFixed(1), unit: T('u_mlmin', 'mL/min'), tone: b >= 10 ? 'red' : b >= 3 ? 'amber' : '' },
+        { id: 'site', label: T('st_site', 'Region'), value: inj.regionLabel || inj.region || '', small: true },
+        { id: 'len', label: T('st_length', 'Cut length'), value: String(Math.round(this.Lmm || inj.length || 0)), unit: 'mm' },
+        { id: 'depth', label: T('st_depth', 'Depth'), value: String(Math.round(this.depthMm || 0)), unit: 'mm' },
+        { id: 'bleed', label: T('st_bleed', 'Bleeding'), value: b.toFixed(1), unit: T('u_mlmin', 'mL/min'), tone: b >= 10 ? 'red' : b >= 3 ? 'amber' : '' },
       ];
     },
     toolList() {
       const g = this.g;
       return TOOLS.map(t => {
-        const o = { key: t.key, label: T(t.label[0], t.label[1]), icon: t.icon };
+        const o = { key: t.key, label: T(t.label[0], t.label[1]), sub: T(t.sub[0], t.sub[1]), icon: t.icon };
         let state = '';
         if (g) {
           const st = TOOL_STEP[t.id];
@@ -394,10 +402,10 @@
       g.step = n;
       g.stepT[n] = g.t;
       const texts = {
-        1: [T('s1_title', 'Irrigate the wound'), T('s1_text', 'Saline — hold {LMB} to aim the jet into the cut and sweep it end to end until the grime and clot are rinsed out.')],
-        2: [T('s2_title', 'Numb the edges'), g.lido.have ? T('s2_text', 'Lidocaine — hold {LMB} on each marked point along both edges until a small wheal rises.') : T('s2_text_none', 'You carry no lidocaine. Press {4} to suture without anaesthetic — the patient will feel every stitch.')],
-        3: [T('s3_title', 'Suture the cut'), T('s3_text', 'Press on the near edge at the marker, pull across to the far edge, release to tie the stitch.')],
-        4: [T('s4_title', 'Apply the dressing'), T('s4_text', 'Pick the dressing up by its edge, carry it over the cut and release. Then hold {LMB} and rub it down until it sticks.')],
+        1: [T('s1_title', 'Rinse out the cut'), T('s1_text', 'Hold {LMB} to squeeze the syringe. Keep the stream down inside the cut and walk it slowly from one end to the other until no dirt or clot is left.')],
+        2: [T('s2_title', 'Numb the edges'), g.lido.have ? T('s2_text', 'Hold {LMB} on each ring beside the cut until the skin puffs up. Both sides need a dose.') : T('s2_text_none', 'You carry no lidocaine. Press {4} to stitch without it — the patient will feel every pass.')],
+        3: [T('s3_title', 'Close with stitches'), T('s3_text', 'Press {LMB} at the ring on your side, drag the needle straight through to the dashed ring opposite and let go — the knot ties itself.')],
+        4: [T('s4_title', 'Seal the wound'), T('s4_text', 'Lift the dressing by its border, lay the pad over the stitch line and let go. Then hold {LMB} and smooth it flat from the middle out.')],
       };
       this.pp.set({ step: n, title: texts[n][0], titleTone: '', text: texts[n][1] });
       this.useTool(STEP_TOOL[n]);
@@ -999,30 +1007,30 @@
       switch (g.step) {
         case 1: {
           const c = pct(g.irr.cont);
-          wide = { label: T('w_cont', 'Contamination'), value: String(c), unit: '%', tone: c > 40 ? 'red' : c > 10 ? 'amber' : 'teal',
+          wide = { label: T('w_cont', 'Debris'), value: String(c), unit: '%', tone: c > 40 ? 'red' : c > 10 ? 'amber' : 'teal',
             meter: { value: g.irr.cont, tone: c > 40 ? 'red' : c > 10 ? 'amber' : '' },
-            caption: g.irr.ml + g.irr.syr > 0 ? T('w_cont_cap', 'Flush the cut end to end · %s mL saline left', Math.round(g.irr.ml + g.irr.syr)) : T('saline_empty', 'Saline used up'), captionTone: g.irr.ml + g.irr.syr < 60 ? 'amber' : '' };
+            caption: g.irr.ml + g.irr.syr > 0 ? T('w_cont_cap', 'Rinse to 0 % · %s mL left', Math.round(g.irr.ml + g.irr.syr)) : T('saline_empty', 'Saline used up'), captionTone: g.irr.ml + g.irr.syr < 60 ? 'amber' : '' };
           break;
         }
         case 2: {
           const p = Math.round(g.pain), n = g.lido.points.filter(x => x.done).length;
-          wide = { label: T('w_pain', 'Patient pain'), value: String(p), unit: '%', tone: p >= 60 ? 'red' : p >= 30 ? 'amber' : 'teal',
+          wide = { label: T('w_pain', 'Pain'), value: String(p), unit: '%', tone: p >= 60 ? 'red' : p >= 30 ? 'amber' : 'teal',
             meter: { value: p / 100, tone: p >= 60 ? 'red' : p >= 30 ? 'amber' : '' },
-            caption: T('w_pain_cap', 'Points %s/%s · %s mL lidocaine', n, g.lido.points.length, g.lido.ml.toFixed(1)) };
+            caption: T('w_pain_cap', 'Rings %s/%s · %s mL given', n, g.lido.points.length, g.lido.ml.toFixed(1)) };
           break;
         }
         case 3: {
           const n = this.coveredSlots().filter(Boolean).length;
-          wide = { label: T('w_section', 'Section'), value: String(Math.min(n + (g.done[3] ? 0 : 1), g.sut.N)), unit: `/${g.sut.N}`, tone: 'teal',
+          wide = { label: T('w_section', 'Stitch'), value: String(Math.min(n + (g.done[3] ? 0 : 1), g.sut.N)), unit: `/${g.sut.N}`, tone: 'teal',
             meter: { value: n / g.sut.N, segs: true },
-            caption: g.sut.last ? g.sut.last[1] : T('w_section_cap', 'Bite %s mm each side · straight across', this.cfg.bite), captionTone: g.sut.last ? (g.sut.last[0] === 'ok' ? 'teal' : 'amber') : '' };
+            caption: g.sut.last ? g.sut.last[1] : T('w_section_cap', '%s mm bites · square to the cut', this.cfg.bite), captionTone: g.sut.last ? (g.sut.last[0] === 'ok' ? 'teal' : 'amber') : '' };
           break;
         }
         case 4: {
           const D = g.dr.D, s = D ? D.stuck : 0;
-          wide = { label: T('w_stuck', 'Dressing stuck'), value: String(pct(s)), unit: '%', tone: s >= 0.9 ? 'teal' : '',
+          wide = { label: T('w_stuck', 'Seal'), value: String(pct(s)), unit: '%', tone: s >= 0.9 ? 'teal' : '',
             meter: { value: s, zone: [this.cfg.stuckDone, 1] },
-            caption: D && D.state !== 'rest' && D.state !== 'carried' ? T('w_cover', 'Covers %s% of the cut', pct(g.dr.cover)) : T('w_stuck_cap', 'Lay it over the cut, then rub it down'), captionTone: D && D.state === 'placed' && g.dr.cover < this.cfg.coverMin ? 'amber' : '' };
+            caption: D && D.state !== 'rest' && D.state !== 'carried' ? T('w_cover', 'Pad over %s% of the stitches', pct(g.dr.cover)) : T('w_stuck_cap', 'Lift by the border · lay · smooth'), captionTone: D && D.state === 'placed' && g.dr.cover < this.cfg.coverMin ? 'amber' : '' };
           break;
         }
       }
@@ -1111,7 +1119,7 @@
     showResult(res, outcome) {
       this.resultShown = true;
       if (this.pp) { this.pp.destroy(); this.pp = null; }
-      this.ptEl.style.display = 'none'; this.planEl.style.display = 'none'; this.camEl.style.display = 'none';
+      this.ptEl.style.display = 'none'; this.planEl.style.display = 'none';
       const score = outcome && outcome.score !== undefined ? outcome.score : res.score;
       const grade = (outcome && outcome.grade) || (score >= 90 ? 'S' : score >= 80 ? 'A' : score >= 65 ? 'B' : score >= 50 ? 'C' : score >= 35 ? 'D' : 'F');
       const inj = this.inj;
@@ -1159,13 +1167,13 @@
       const inj = this.inj || DEMO.injury;
       this.Lmm = +inj.length || 40;
       this.g = null;
-      this.ptEl.style.display = 'none'; this.planEl.style.display = 'none'; this.camEl.style.display = 'none';
+      this.ptEl.style.display = 'none'; this.planEl.style.display = 'none';
       this.pp = NZA.ui.ProcPanel(this.ui, {
         step: 1, total: 1, tag: T('tag', 'Suture'), title: T('fb_title', 'Closing the wound'),
         text: T('fb_text', '3D view unavailable on this client — the wound is closed with a standard technique.'),
         stats: [{ label: T('st_site', 'Site'), value: inj.regionLabel || inj.region || '', small: true }, { label: T('st_length', 'Length'), value: String(Math.round(this.Lmm)), unit: 'mm' }],
         wide: { label: T('w_progress', 'Progress'), value: '0', unit: '%', meter: { value: 0 } },
-        tools: [], abort: { label: T('hold_abort', 'Hold to abort'), key: 'ESC', seconds: 1.2 }, onAbort: () => this.abort(),
+        tools: [], abort: { label: T('hold_stop', 'Hold to stop'), key: 'ESC', seconds: 1.2 }, onAbort: () => this.abort(),
       });
       const dur = Math.max(8, +(this.cfg && this.cfg.fallbackTime) || 14);
       let t = 0;

@@ -1,7 +1,7 @@
 --[[
-    NAYZEEE AMBULANCE - Transport (client): walk-in ambulance treatment bay
+    NAYZEEE AMBULANCE - Transport (client): walk-in ambulance treatment bay (HUD: 'patient cabin')
 
-    'Enter treatment bay' at the back doors of a configured ambulance (or from one of its passenger
+    'Get in the back' (transport.bay_enter) at the back doors of a configured ambulance (or from one of its passenger
     seats while it drives - radial) → fade → the interior model
     (Config.Props[Config.Transport.Bay.shell]) is spawned LOCALLY at this ambulance's hidden slot
     (Config.Transport.Bay.base + slot offset), lit with DrawLightWithRange, and you stand at your
@@ -641,6 +641,8 @@ end
 
 local function withImages(list)
     if type(list) ~= 'table' then return list end
+    -- the supplies window draws the refill ring from the shift length
+    if list.shiftLength == nil then list.shiftLength = tonumber((bc().supplies or {}).shiftLength) or 14400 end
     for _, it in ipairs(list.items or {}) do
         if Bridge and Bridge.Inv and Bridge.Inv.Image then
             local ok, img = pcall(Bridge.Inv.Image, it.name)

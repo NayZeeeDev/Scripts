@@ -96,14 +96,14 @@
 #app-treat .tc-tip b{color:var(--white);font-weight:500}
 /* result view */
 #app-treat .tc-hd.res{padding-bottom:12px}
-#app-treat .tc-score{--sc:var(--teal-hi);position:relative;flex:none;width:60px;height:60px;display:flex;align-items:baseline;justify-content:center;padding-top:19px}
+#app-treat .tc-score{--sc:var(--teal-hi);position:relative;flex:none;width:60px;height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 #app-treat .tc-score.amber{--sc:#f3c35a} #app-treat .tc-score.red{--sc:#ff6b70}
 #app-treat .tc-score svg{position:absolute;inset:0;transform:rotate(-90deg)}
 #app-treat .tc-score circle{fill:none;stroke-width:4}
 #app-treat .tc-score .b{stroke:rgba(255,255,255,.08);fill:rgba(6,7,9,.6)}
 #app-treat .tc-score .f{stroke:var(--sc);stroke-linecap:round;filter:drop-shadow(0 0 5px var(--sc));transition:stroke-dashoffset 1100ms cubic-bezier(.2,.7,.2,1)}
 #app-treat .tc-score b{position:relative;font:700 19px/1 var(--mono);color:var(--white);letter-spacing:-.04em}
-#app-treat .tc-score small{position:relative;font:600 8px var(--mono);color:var(--ink-3);margin-left:1px}
+#app-treat .tc-score small{position:relative;font:600 7.5px/1 var(--mono);color:var(--ink-3);letter-spacing:.04em}
 #app-treat .tc-list.res{padding:6px 16px 2px;border-top:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.2)}
 #app-treat .tc-row.bar{align-items:center}
 #app-treat .tc-row.bar span{width:84px;flex:none}

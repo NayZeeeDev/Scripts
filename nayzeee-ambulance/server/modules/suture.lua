@@ -237,6 +237,7 @@ local function onFinish(src, p, session, result)
 
     local patch = { treat = {}, quality = {} }
     if irrigated then patch.treat.irrigated = true end
+    if anesthetized then patch.treat.anesthetized = true end
     if sutured then patch.treat.sutured = true end
     if dressed then patch.treat.dressed = true end
     for k, v in pairs(q) do patch.quality[k] = v end

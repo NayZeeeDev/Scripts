@@ -220,6 +220,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     scene.add(group);
     let G = null;
     let dirty = true;
+    let lastFov = 0;
 
     const NX = 96, K = 24, RC = 6;
     const RING = (K + 1) + RC + (K + 1) + RC;
@@ -233,14 +234,27 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     function profile(x) {
       const o = G.o, P = G.P;
       const t = (x + o.L / 2) / o.L;
+      // shaping: smooth interpolation between the pressed points (ends fade out past the last point)
       let shaped = 0, over = 0;
-      for (const p of P.points) {
-        const g = Math.exp(-((x - p.x) * (x - p.x)) / (2 * o.sig * o.sig));
-        shaped = Math.max(shaped, Math.min(1, p.f / P.zone0) * g);
-        if (p.f > P.zone1) over = Math.max(over, Math.min(1, (p.f - P.zone1) * 30) * g);
+      const pts = P.points;
+      if (pts.length) {
+        const sv = p => Math.min(1, p.f / P.zone0);
+        if (x <= pts[0].x) shaped = sv(pts[0]) * Math.exp(-((x - pts[0].x) ** 2) / (2 * o.sig * o.sig));
+        else if (x >= pts[pts.length - 1].x) { const q = pts[pts.length - 1]; shaped = sv(q) * Math.exp(-((x - q.x) ** 2) / (2 * o.sig * o.sig)); }
+        else {
+          for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i], b = pts[i + 1];
+            if (x >= a.x && x <= b.x) { const t2 = smooth(0, 1, (x - a.x) / (b.x - a.x)); shaped = lerp(sv(a), sv(b), t2); break; }
+          }
+        }
+        for (const p of pts) {
+          if (p.f > P.zone1) over = Math.max(over, Math.min(1, (p.f - P.zone1) * 30) * Math.exp(-((x - p.x) ** 2) / (2 * 0.025 * 0.025)));
+        }
       }
       const z0 = -(o.limbR + 0.003);
-      let hw = o.limbR + 0.003 + o.gap * (1 - shaped) - 0.004 * over;
+      let padded = 0;
+      for (const px of P.pads) padded = Math.max(padded, Math.exp(-((x - px) * (x - px)) / (2 * 0.028 * 0.028)));
+      let hw = o.limbR + 0.003 + 0.0085 * padded + o.gap * (1 - shaped) - 0.004 * over;
       let flare = o.flare * (1 - shaped);
       let zr = z0 + o.depth + 0.006 * shaped;
       if (o.kind === 'leg' && o.segment === 'lower') {
@@ -394,11 +408,11 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       G.pads = o.sites.map(site => {
         const pair = new THREE.Group();
         for (const sgn of [-1, 1]) {
-          const g = new THREE.CapsuleGeometry(0.011, 0.034, 6, 14);
+          const g = new THREE.CapsuleGeometry(0.0085, 0.04, 6, 14);
           g.rotateZ(Math.PI / 2);
           const m = new THREE.Mesh(g, M.pad);
-          m.scale.set(1, 0.9, 1.35);
-          m.position.set(0, sgn * (o.limbR + 0.011), -(o.limbR + 0.003) + 0.024);
+          m.scale.set(1, 0.62, 1.9);
+          m.position.set(0, sgn * (o.limbR + 0.0062), -(o.limbR + 0.003) + 0.026);
           m.renderOrder = 4;
           pair.add(m);
         }
@@ -509,7 +523,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       build(o) {
         disposeGroup();
         const gap = Math.max(0.008, o.width / 2 - o.th - o.limbR - 0.003);
-        G = { o: Object.assign({ gap, flare: 0.34, sig: 0.04 }, o), P: { points: [], zone0: 0.72, zone1: 1.0 } };
+        G = { o: Object.assign({ gap, flare: 0.34, sig: 0.04 }, o), P: { points: [], pads: [], zone0: 0.72, zone1: 1.0 } };
         buildTrough();
         buildEnd();
         buildPads();
@@ -520,40 +534,49 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       // per frame
       update(st) {
         if (!G) return;
-        group.visible = !!st.visible;
-        if (!st.visible) { dirty = true; return; }
-        group.position.set(st.C.x, -st.C.y, 0);
-        group.rotation.set(0, 0, Math.atan2(-st.s.y, st.s.x));
-        group.scale.setScalar(st.ppm);
-        FU.uLimbA.value.set(st.limbA.x, st.H - st.limbA.y);
-        FU.uLimbB.value.set(st.limbB.x, st.H - st.limbB.y);
-        FU.uLimbR.value = st.limbR;
-        FU.uFade.value = st.fade;
-        FU.uOpacity.value = st.opacity;
+        if (!st.visible) { if (group.visible) { group.visible = false; dirty = true; } return; }
+        if (!group.visible) { group.visible = true; dirty = true; }
+        const r1 = v => Math.round(v * 2) / 2;
+        const pose = [r1(st.C.x), r1(st.C.y), Math.atan2(-st.s.y, st.s.x).toFixed(4), st.ppm.toFixed(2), st.opacity.toFixed(3), r1(st.limbA.x), r1(st.limbA.y), r1(st.limbB.x), r1(st.limbB.y), st.H].join(',');
+        if (pose !== G.poseKey) {
+          G.poseKey = pose; dirty = true;
+          group.position.set(st.C.x, -st.C.y, 0);
+          group.rotation.set(0, 0, Math.atan2(-st.s.y, st.s.x));
+          group.scale.setScalar(st.ppm);
+          FU.uLimbA.value.set(st.limbA.x, st.H - st.limbA.y);
+          FU.uLimbB.value.set(st.limbB.x, st.H - st.limbB.y);
+          FU.uLimbR.value = st.limbR;
+          FU.uFade.value = st.fade;
+          FU.uOpacity.value = st.opacity;
+        }
         // shaping
         const P = G.P;
         P.points = st.points || [];
         P.zone0 = st.zone[0]; P.zone1 = st.zone[1];
-        const sk = P.points.map(p => p.f.toFixed(3)).join(',');
-        if (sk !== G.shapeKey) { G.shapeKey = sk; fillTrough(false); G.strapsStale = true; }
+        P.pads = (st.pads || []).map((p, i) => (p.on ? G.o.sites[i].x : null)).filter(x => x !== null);
+        const sk = P.points.map(p => p.f.toFixed(3)).join(',') + '|' + P.pads.join(',');
+        if (sk !== G.shapeKey) { G.shapeKey = sk; fillTrough(false); G.strapsStale = true; dirty = true; }
         // pads
         (G.pads || []).forEach((pair, i) => {
           const p = st.pads && st.pads[i];
-          pair.visible = !!(p && p.on);
-          if (pair.visible) { const k = 1 + (p.pop || 0) * 0.35; pair.scale.set(k, k, k); }
+          const vis = !!(p && p.on);
+          const k = vis ? 1 + (p.pop || 0) * 0.35 : 1;
+          if (pair.visible !== vis || pair.scale.x !== k) { pair.visible = vis; pair.scale.set(k, k, k); dirty = true; }
         });
         // straps
         (G.straps || []).forEach((s, i) => {
           const ss = st.straps && st.straps[i] ? st.straps[i] : { k: 0, tension: 0, show: false };
-          s.mesh.visible = s.tab.visible = ss.show !== false;
-          if (!s.mesh.visible) { s.buckle.visible = false; return; }
+          const show = ss.show !== false;
+          if (s.mesh.visible !== show) { s.mesh.visible = s.tab.visible = show; dirty = true; }
+          if (!show) { s.buckle.visible = false; return; }
           const kk = `${ss.k.toFixed(3)}|${(ss.tension || 0).toFixed(3)}`;
-          if (kk !== s.key || G.strapsStale) { s.key = kk; fillStrap(s, ss); }
+          if (kk !== s.key || G.strapsStale) { s.key = kk; fillStrap(s, ss); dirty = true; }
         });
         G.strapsStale = false;
-        dirty = true;
       },
       render(W, H, fov) {
+        if (R.domElement.width !== W || R.domElement.height !== H || fov !== lastFov) dirty = true;
+        lastFov = fov;
         if (!dirty) return;
         dirty = false;
         if (R.domElement.width !== W || R.domElement.height !== H) R.setSize(W, H, false);
@@ -565,7 +588,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         cam.updateProjectionMatrix();
         R.render(scene, cam);
       },
-      clear() { R.clear(); dirty = true; },
+      clear() { R.clear(); dirty = true; if (G) G.poseKey = ''; },
       dispose() { disposeGroup(); G = null; R.clear(); },
     };
     return api;
@@ -766,6 +789,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       if (this.trace) { this.trace.stop(); this.trace = null; }
       [this.under, this.glc, this.over].forEach(c => c.classList.remove('on'));
       [this.uc, this.oc].forEach(c => { c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height); });
+      this._shKey = '';
       if (this.gl) this.gl.clear();
       this.tagsEl.innerHTML = ''; this.tags = {};
       this.cmsEl.hidden = true; this.resEl.hidden = true; this.hintEl.hidden = true; this.fracEl.hidden = true;
@@ -799,7 +823,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         if (S && S.finished) return 'done';
         if (n < step) return 'done';
         if (n > step) return 'locked';
-        if (id === tool) return S && id === 'cms' && S.cms.state === 'ready' ? 'active need' : 'active';
+        if (id === tool) return 'active';
         if (step === 2 && id === 'pad' && S && S.sites.every(s => s.padded)) return 'done';
         if (step === 3 && id === 'strap' && S && S.straps.every(s => s.state === 'locked')) return 'done';
         if (step === 3 && id === 'cms' && S && S.cms.state === 'hidden') return 'locked';
@@ -1125,7 +1149,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     },
 
     /* ─────────────── step 2: pad & shape ─────────────── */
-    padY() { return this.size.limbRadius + 0.011; },
+    padY() { return this.size.limbRadius + 0.008; },
     siteAt(l) {
       const S = this.S;
       let best = -1, bd = 0.034;
@@ -1475,14 +1499,14 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       const fu = NZA.fitCanvas(this.under), fo = NZA.fitCanvas(this.over);
       const w = fo.w, h = fo.h;
       const uc = this.uc, c = this.oc;
-      uc.setTransform(1, 0, 0, 1, 0, 0); uc.clearRect(0, 0, fu.w, fu.h);
       c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, w, h);
+      const clearUnder = () => { uc.setTransform(1, 0, 0, 1, 0, 0); uc.clearRect(0, 0, fu.w, fu.h); };
       const S = this.S;
       const f = this.frame();
       const U = h / 1080;
       this.U = U;
       const tags = {};
-      if (!f) { this.syncTags(tags); if (this.gl) { this.gl.update({ visible: false }); this.gl.clear(); } return; }
+      if (!f) { this.syncTags(tags); if (this.gl) { this.gl.update({ visible: false }); this.gl.clear(); } if (this._shKey) { clearUnder(); this._shKey = ''; } return; }
       const g = this.geom(f, S.pose);
       const introK = easeOut((now - (S.intro || now)) / 420);
 
@@ -1505,7 +1529,8 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         });
         this.gl.render(w, h, this.fov);
       }
-      this.drawShadow(f, g, introK);
+      const shKey = `${Math.round(g.C.x)},${Math.round(g.C.y)},${g.s.x.toFixed(3)},${g.s.y.toFixed(3)},${g.ppm.toFixed(1)},${introK.toFixed(2)},${fu.w}x${fu.h}`;
+      if (shKey !== this._shKey) { this._shKey = shKey; clearUnder(); this.drawShadow(f, g, introK); }
       if (!this.gl) this.drawFlatSplint(f, g);
 
       // fracture site on the limb
@@ -1869,7 +1894,9 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         const sig = `${o.label}|${o.sub || ''}|${o.tone || ''}`;
         if (t.sig !== sig) {
           const tone = o.tone || '';
-          t.el.innerHTML = `<span class="lbl ${tone}">${/\bok\b/.test(tone) && !/mono/.test(tone) ? icon('check') : ''}<span class="tx">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</span></span>`;
+          if (!t.lbl) { t.lbl = NZA.el('span', 'lbl'); t.el.appendChild(t.lbl); }
+          t.lbl.className = `lbl ${tone}`;
+          t.lbl.innerHTML = `${/\bok\b/.test(tone) && !/mono/.test(tone) ? icon('check') : ''}<span class="tx">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</span>`;
           t.sig = sig;
         }
         let ux = 1, uy = 0;
@@ -1927,13 +1954,17 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     /* ═════════════════════ PREVIEW ═════════════════════ */
     preview(stage) {
       stage = stage || new URLSearchParams(location.search).get('stage') || 'place';
+      if (!this._world && this._world !== null) { setTimeout(() => this.previewRun(stage), 30); return; }
+      this.previewRun(stage);
+    },
+    previewRun(stage) {
       LOC = {};
       const W = previewWorld(this);
       const arm = stage === 'arm' || stage.startsWith('arm-');
       NZA.mock(`${APP}:finish`, r => ({ ok: true, outcome: { score: r.score, grade: r.score >= 90 ? 'S' : r.score >= 80 ? 'A' : r.score >= 68 ? 'B' : 'C', msg: arm ? 'Right forearm splinted · pain easing' : 'Right lower leg splinted · pain easing' } }));
       if (stage.startsWith('hud')) {
         this.procStop();
-        if (W) { W.view('third'); W.tick(); }
+        if (W) W.hide();
         const hudDemo = {
           'hud-chair': { kind: 'chair', title: 'Wheelchair', sub: 'Rolling', state: 'drive', speed: 1.42, max: 1.9, slope: -4, keys: [{ keys: ['W', 'S'], label: 'Drive' }, { keys: ['A', 'D'], label: 'Turn' }, { keys: ['F'], label: 'Stand up' }] },
           'hud-blocked': { kind: 'chair', title: 'Wheelchair', sub: 'Blocked', state: 'blocked', blocked: 'Curb too high', speed: 0, max: 1.9, slope: 2, keys: [{ keys: ['W', 'S'], label: 'Drive' }, { keys: ['A', 'D'], label: 'Turn' }, { keys: ['F'], label: 'Stand up' }] },
@@ -1964,6 +1995,8 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       NZA.demo(APP, d);
       const S = this.S;
       const at = (fn, ms) => setTimeout(() => { if (this.S === S) fn(); }, ms);
+      // run fn once the procedure reached step n (frames are slow in software WebGL)
+      const when = (n, fn, delay = 120) => { const tick = () => { if (this.S !== S) return; if (S.step >= n && !(n === 2 && S.lockAnim && S.step === 1)) setTimeout(() => { if (this.S === S) fn(); }, delay); else setTimeout(tick, 60); }; tick(); };
       const st = stage.replace(/^arm-?/, '') || 'place';
       const later = ['aligned', 'pad', 'shape', 'strap', 'cms', 'cmsbad', 'done'];
       if (later.includes(st)) {
@@ -1976,39 +2009,39 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         }, 160);
       }
       if (st === 'pad') {
-        at(() => { S.sites[0].padded = true; S.sites[0].pop = 0; this.refreshTools(); this.updateReadout(true); }, 1000);
+        when(2, () => { this.padSite(0); S.sites[0].pop = 0; });
       }
       if (st === 'shape') {
-        at(() => {
-          S.sites.forEach(s => { s.padded = true; });
+        when(2, () => {
+          S.sites.forEach(x => { x.padded = true; });
           S.tool = 'shape'; this.enterStep(2, true);
           S.points.forEach((p, i) => { if (i < 2) { p.f = i ? 0.9 : 0.84; p.done = true; } });
           S.points[2].f = 0.58; S.press = 2;
           this._holdPreview = true;
-          this.updateReadout(true);
-        }, 1000);
+          this.refreshTools(); this.updateReadout(true);
+        });
       }
       if (['strap', 'cms', 'cmsbad', 'done'].includes(st)) {
-        at(() => {
-          S.sites.forEach(s => { s.padded = true; });
+        when(2, () => {
+          S.sites.forEach(x => { x.padded = true; });
           S.points.forEach(p => { p.f = 0.86; p.done = true; });
           this.checkShapeDone();
-        }, 1000);
+        });
       }
       if (st === 'strap') {
-        at(() => {
+        when(3, () => {
           const s0 = S.straps[0]; s0.state = 'locked'; s0.k = 1; s0.tension = 0.68; s0.quality = 96;
           const s1 = S.straps[1]; s1.state = 'sweep'; s1.k = 1; s1.ph = 0.21; S.sweeping = 1;
           this.refreshTools(); this.updateReadout(true);
-        }, 1950);
+        });
       }
       if (st === 'cms' || st === 'cmsbad' || st === 'done') {
-        at(() => {
-          S.straps.forEach((s, i) => { s.state = 'locked'; s.k = 1; s.tension = st === 'cmsbad' && i === 1 ? 0.93 : 0.66; s.quality = s.tension > 0.9 ? 30 : 94; s.tight = s.tension > 0.9; if (s.tight) S.tightEver += 1; });
+        when(3, () => {
+          S.straps.forEach((x, i) => { x.state = 'locked'; x.k = 1; x.tension = st === 'cmsbad' && i === 1 ? 0.93 : 0.66; x.quality = x.tension > 0.9 ? 30 : 94; x.tight = x.tension > 0.9; if (x.tight) S.tightEver += 1; });
           S.cms.state = 'ready'; S.tool = 'cms';
           this.enterStep(3, true); this.refreshTools();
-        }, 1950);
-        if (st !== 'cms') at(() => this.cmsCheck(), 2150);
+          if (st !== 'cms') setTimeout(() => { if (this.S === S) this.cmsCheck(); }, 200);
+        });
       }
     },
   };
@@ -2098,9 +2131,9 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         x.strokeStyle = 'rgba(10,20,40,.12)'; x.lineWidth = 3; x.beginPath(); x.moveTo(x0, y); x.quadraticCurveTo(x0 + 30, y + 4, x0 + 80, y + 2); x.stroke();
       }
       // side seams with topstitching
-      [0.02, 0.52].forEach(f => {
+      [0.0, 0.5].forEach(f => {
         const sx = w * f;
-        x.fillStyle = 'rgba(12,20,38,.5)'; x.fillRect(sx, 0, 3, hgt);
+        x.fillStyle = 'rgba(12,20,38,.35)'; x.fillRect(sx, 0, 3, hgt);
         x.fillStyle = 'rgba(190,135,68,.7)';
         for (let y = 0; y < hgt; y += 7) { x.fillRect(sx - 4, y, 1.2, 4); x.fillRect(sx + 6, y + 3, 1.2, 4); }
         hx.fillStyle = '#c0c0c0'; hx.fillRect(sx, 0, 3, hgt);
@@ -2340,6 +2373,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         return true;
       },
       rotate(dx) { rig.up.applyAxisAngle(V3(0, 0, 1), dx); rig.dirty = true; },
+      hide() { cv.style.display = 'none'; },
       zoom(k) { rig.height = clamp(rig.height * k, 0.55, 3.2); rig.dirty = true; },
     };
     // right-drag turns the view, wheel zooms (what NZA.Cam does in game)

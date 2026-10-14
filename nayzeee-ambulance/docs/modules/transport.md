@@ -94,20 +94,38 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
   passenger seat when it is still driving. Leaving is blocked while a procedure runs.
 - Vehicle deleted → everyone is kicked out where it last was and the patient is laid down there.
   A medic who goes down inside is put outside. Disconnects are cleaned up.
-- **HUD** (`bay` app, no focus): top strip with the ECG + pleth sweep, drip rate, rhythm, the
-  **BACKSPACE Exit treatment bay** pill, unit / plate / moving speed, and HR · SpO₂ · NIBP + MAP ·
-  RR · Temp · Blood loss tiles (alarm colours). Patient card (triage, bleeding-out flip clock /
-  stabilised / arrest + rhythm, bleed + blood meters, injuries with severity pips and status, lines
-  with bag fill and rate, devices). Warnings (glowing notes): *Surgery costs the patient blood — hang
-  a unit first* (retained fragments / internal bleeding and no blood running), active bleeding,
-  no IV access, cardiac arrest, hypothermia, ambulance moving. Crew card. Tool keys:
-  **F1 Examine** (assess module), **F2 Supplies**, **F3 IV stand** (blood module through the bus),
-  **F4 Monitor** (other module through the bus, otherwise the built-in big NAYZEEE monitor).
-  While any other procedure app is open the HUD collapses to the top strip.
-- **Supplies shelves** (F2, radial, or the target on the cabinets): v5 window with categories, item
-  cards (image, left this shift with a segmented meter, in your pockets, quantity stepper, Take /
-  Take all). Free items with per-medic limits (`supplies.items[].max`) that reset when the medic
-  goes on duty or after `shiftLength` s. Server checks the bay, limit, `maxPerTake`, inventory space.
+- **HUD** (`bay` app, no focus) — the *patient cabin* HUD, built in the NAYZEEE language (corner
+  brackets, status rings, instrument rows with tone notches, edge dock; see `docs/design/ORIGINAL.md`):
+  - **top-left patient card**: avatar inside a blood-volume ring, name / sex · age · blood type,
+    triage chip; state block (bleeding out / stabilised / arrest + rhythm, *Shockable*) with a
+    rolling (odometer) clock; a **holographic body glyph** with every wound coloured by severity and
+    a pulsing diamond on open wounds, beside the wound list (severity notch, region, bleed or status);
+    bleed + blood meters; **infusions** as small hanging-bag glyphs whose liquid level follows the
+    volume left (blood red, plasma yellow, clear fluids blue) with rate; device chips.
+  - **alerts** under the card (glowing-bar notes, new red ones sound the alarm): *No blood running*
+    (retained fragments / internal bleeding and no blood unit running), heavy bleed, no line,
+    cardiac arrest, getting cold, rough ride (ambulance moving).
+  - **top-right cabin monitor card**: unit + plate, parked / moving chip, ECG (rhythm + rate) and
+    pleth sweep, vitals as two columns of instrument rows (HR · SpO₂ · BP + MAP · RR · Temp ·
+    Est. loss, each with a tone notch and a range bar, alarms blink), running infusion rate with a
+    falling drop. Crew card under it (*In the back*, YOU tag).
+  - **action dock** on the right edge (bottom-aligned icon slots with key badges and dark label
+    chips): **F1 Assess** (assess module), **F2 Supplies**, **F3 Fluids** (IV stand, blood module
+    through the bus), **F4 Monitor** (other module through the bus, otherwise the built-in big
+    monitor), then **BKSP Get out** (red-edged door slot). Active tools light teal.
+  - **F4 big monitor**: a handheld shell of our own industrial design (rubber grips, screws, model
+    plate **TM-6 · Transport monitor**, warning sticker, serial) around `NZA.vitals.Monitor`. No
+    brand on the device face.
+  - While any other procedure app is open the HUD folds into a slim **cabin tab** hanging from the
+    top edge (left of centre: beating heart + HR, SpO₂, BP, mini ECG) so the procedure HUD (column
+    bottom-left, tool belt right) and the app's own top cards stay clear.
+- **Supplies shelves** (F2, radial, or the target on the cabinets): v5 window with the shelf list
+  in the sidebar, three ring tiles (on the shelves, taken this shift, refill countdown) and a
+  **shelf rack**: one labelled shelf per category (letter tag A–E), each item a bin row (thumbnail,
+  `n of max left`, stock pips, *Carrying n*, quantity stepper, **Take** / **All**). Free items with
+  per-medic limits (`supplies.items[].max`) that reset when the medic goes on duty or after
+  `shiftLength` s (sent to the window for the refill ring). Server checks the bay, limit,
+  `maxPerTake`, inventory space.
 
 ## Controls
 
@@ -116,7 +134,7 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
 | carrying | G / E | put down / context (stretcher, bed, vehicle seat) |
 | pushing | G / H / E | let go / raise-lower / context (load, return, transfer to bed) |
 | on a bed (alive) | hold X | get up |
-| bay (key mappings, rebindable) | Backspace / F1 / F2 / F3 / F4 | exit / examine / supplies / IV stand / monitor |
+| bay (key mappings, rebindable) | Backspace / F1 / F2 / F3 / F4 | get out / assess / supplies / fluids (IV stand) / monitor |
 | supplies window | Esc or F2, + / − | close, quantity of the first item |
 
 ## Config keys (`Config.Transport`)
@@ -178,7 +196,7 @@ configured ambulance models.
 **NUI app `bay`**: Lua → `open { locale, keys, unit, crew, me, warnings, tools }`, `patient (lite | false)`,
 `crew`, `tick`, `monitor { on }`, `tools`, `supplies (list)`, `suppliesClose`; JS → `bay:take { key, count }`,
 `bay:supplies { open = false }`, `bay:action { id }`.
-Preview: `index.html?app=bay` (`&demo=empty|supplies|monitor|arrest|moving`).
+Preview: `index.html?app=bay` (`&demo=empty|supplies|monitor|arrest|moving|compact`).
 
 ## Security
 Every callback: rate limit, permission (`NZA.Staff.Can`), the medic alive, server-side distances

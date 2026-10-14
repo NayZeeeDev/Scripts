@@ -1,7 +1,9 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · app 'checkin'
-   Check-in desk: thermal-paper receipt, ticket chip while you wait, receptionist
-   subtitles and the staff reception window. Several layers can show at once; the
+   Front desk: the queue pass (dark glass card, top-left, issued with a scan sweep:
+   queue ring, rolling number, instrument list, journey spine), the queue dock while
+   you wait (same corner, compact), receptionist lines through NZA.speech (top-centre
+   voice card) and the staff reception window. Several layers can show at once; the
    app posts checkin:hidden when nothing is left on screen.
 
    Lua → JS   open { mode: 'ticket'|'chip'|'say'|'desk', ticket, print, say, desk, mine,
@@ -22,6 +24,8 @@
   const TYPE_ICON = { gunshot: 'crosshair', shrapnel: 'burst', stab: 'knife', laceration: 'cut', abrasion: 'scrape', contusion: 'bruise', fracture: 'bone', burn: 'flame', internal: 'drop' };
   const TRI = { 1: ['tri_1', 'Critical'], 2: ['tri_2', 'Urgent'], 3: ['tri_3', 'Standard'] };
   const triLabel = (n, label) => label || tr(TRI[n] ? TRI[n][0] : 'tri_3', TRI[n] ? TRI[n][1] : 'Standard');
+  const triOf = t => Math.min(3, Math.max(1, (t && t.triage) || 3));
+  const VOID = { expired: 1, left: 1, noshow: 1, cancelled: 1 };
 
   /* ── server time + clock reference ── */
   const ref = { now: Date.now() / 1000, recv: performance.now(), clock: { mode: 'real' }, clockRecv: performance.now() };
@@ -38,152 +42,225 @@
     const m = ((Math.floor(nowMin - ago) % 1440) + 1440) % 1440;
     return `${pad(m / 60)}:${pad(m % 60)}`;
   }
+  const estText = t => {
+    const est = Math.max(0, (t.estimate || 0) - (t.issued ? serverNow() - t.issued : 0));
+    return est > 0 ? `~${Math.max(1, Math.round(est / 60))} ${tr('min', 'min')}` : tr('r_soon', 'Any moment');
+  };
 
-  /* ── deterministic barcode (Code-128 look) ── */
-  function barcode(text, w = 236, h = 46) {
-    let seed = 7;
-    for (const ch of String(text)) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
-    const rnd = () => { seed = (seed * 1103515245 + 12345) >>> 0; return (seed >>> 16) / 65536; };
-    const mods = [2, 1, 1, 2, 1, 1];          // start guard
-    for (let i = 0; i < 26; i++) { for (let k = 0; k < 6; k++) mods.push(1 + Math.floor(rnd() * 3.2)); }
-    mods.push(2, 3, 3, 1, 1, 1, 2);            // stop guard
-    const total = mods.reduce((a, b) => a + b, 0);
-    const unit = w / total;
-    let x = 0, out = '';
-    mods.forEach((m, i) => { if (i % 2 === 0) out += `<rect x="${x.toFixed(2)}" y="0" width="${(m * unit).toFixed(2)}" height="${h}"/>`; x += m * unit; });
-    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="none">${out}</svg>`;
+  /* ── progress ring (SVG, 100×100 box): track, arc, optional bezel ticks ── */
+  function ringSVG(p, { r = 40, w = 7, ticks = 0, cls = '' } = {}) {
+    const C = 2 * Math.PI * r;
+    const off = C * (1 - Math.max(0, Math.min(1, p)));
+    let tk = '';
+    if (ticks) {
+      for (let i = 0; i < ticks; i++) {
+        const a = (i / ticks) * Math.PI * 2, big = i % (ticks / 12) === 0;
+        const r1 = 48.5, r2 = big ? 44.5 : 46.4;
+        tk += `<line x1="${(50 + r1 * Math.sin(a)).toFixed(2)}" y1="${(50 - r1 * Math.cos(a)).toFixed(2)}" x2="${(50 + r2 * Math.sin(a)).toFixed(2)}" y2="${(50 - r2 * Math.cos(a)).toFixed(2)}" class="${big ? 'b' : ''}"/>`;
+      }
+    }
+    return `<svg class="ci-rsvg ${cls}" viewBox="0 0 100 100">${tk ? `<g class="tk">${tk}</g>` : ''}<circle class="tr" cx="50" cy="50" r="${r}" stroke-width="${w}"/><circle class="ar" cx="50" cy="50" r="${r}" stroke-width="${w}" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" data-c="${C.toFixed(2)}"/></svg>`;
   }
+  const setRing = (svg, p) => { const a = svg && svg.querySelector('.ar'); if (a) a.style.strokeDashoffset = String(Number(a.dataset.c) * (1 - Math.max(0, Math.min(1, p)))); };
 
-  /* ── thermal printer sound ── */
-  function printSound(ms) {
+  /* ── issue sound: a soft data chirp, then a two-tone confirm ── */
+  function issueSound(ms) {
     const a = NZA.audio;
-    a.noise(ms, { vol: 0.045, lp: 5600, hp: 1900, attack: 0.04, release: 0.1 });
-    const n = Math.floor(ms / 70);
-    for (let i = 0; i < n; i++) a.tone(2400 + (i % 3) * 140, 14, { vol: 0.012, type: 'square', at: i * 0.07 });
-    a.noise(140, { vol: 0.09, lp: 3800, hp: 700, at: ms / 1000 + 0.15, attack: 0.05, release: 0.5 });   // tear
+    const n = Math.max(6, Math.floor(ms / 90));
+    for (let i = 0; i < n; i++) a.tone(1700 + ((i * 7) % 5) * 170, 22, { vol: 0.018, type: 'sine', at: i * 0.075 });
+    a.noise(ms * 0.8, { vol: 0.018, lp: 7000, hp: 2600, attack: 0.1, release: 0.3 });
+    a.tone(880, 120, { vol: 0.06, at: ms / 1000 + 0.05 });
+    a.tone(1320, 200, { vol: 0.06, at: ms / 1000 + 0.18 });
   }
 
-  const S = { el: null, cfg: { receiptTime: 14, ticketHud: true, printSound: true }, mine: null, receipt: null, receiptTimer: 0, sayTimer: 0, desk: null, deskOn: false, win: null, tab: 'queue', sel: null, busy: false, timer: 0, hidden: true };
+  const S = { el: null, cfg: { receiptTime: 14, ticketHud: true, printSound: true }, mine: null, pass: null, passTimer: 0, sayUntil: 0, sayTimer: 0, desk: null, deskOn: false, win: null, tab: 'queue', sel: null, busy: false, timer: 0, hidden: true, maxAhead: {}, odo: null };
 
-  /* ═══════════════════════ RECEIPT ═══════════════════════ */
-  function stampFor(t) {
+  /* queue position as a ring fraction: grows as people ahead of you are called */
+  function queueP(t) {
+    if (!t) return 0;
+    if (t.status === 'called' || t.status === 'treatment' || t.status === 'done') return 1;
+    if (VOID[t.status]) return 0;
+    const key = t.id || t.code;
+    const ahead = Math.max(0, t.ahead || 0);
+    S.maxAhead[key] = Math.max(S.maxAhead[key] || 0, ahead);
+    const max = S.maxAhead[key];
+    return (max - ahead + 0.5) / (max + 1);
+  }
+  function stageOf(t) {
+    if (!t) return 0;
+    if (t.status === 'called') return 2;
+    if (t.status === 'treatment') return 3;
+    if (t.status === 'done') return 4;
+    if (VOID[t.status]) return -1;
+    return 1;
+  }
+  function statusChip(t) {
     if (!t) return '';
-    if (t.status === 'expired') return `<div class="ci-stamp red">${esc(tr('stamp_expired', 'Not valid'))}</div>`;
-    if (t.status === 'called') return `<div class="ci-stamp teal">${esc(tr('stamp_called', 'Called'))}<small>${esc(t.bed || '')}</small></div>`;
-    if (t.status === 'treatment') return `<div class="ci-stamp teal">${esc(tr('stamp_treatment', 'In treatment'))}</div>`;
-    if (t.status === 'done') return `<div class="ci-stamp teal">${esc(tr('stamp_done', 'Treated'))}</div>`;
-    if (t.status === 'left' || t.status === 'noshow' || t.status === 'cancelled') return `<div class="ci-stamp red">${esc(tr('stamp_closed', 'Closed'))}</div>`;
-    return '';
+    if (t.status === 'expired') return `<span class="ci-pst red">${icon('x')}${esc(tr('stamp_expired', 'Not valid'))}</span>`;
+    if (VOID[t.status]) return `<span class="ci-pst red">${icon('x')}${esc(tr('stamp_closed', 'Closed'))}</span>`;
+    if (t.status === 'called') return `<span class="ci-pst teal on"><i></i>${esc(tr('stamp_called', 'Called'))}</span>`;
+    if (t.status === 'treatment') return `<span class="ci-pst white">${icon('heart')}${esc(tr('stamp_treatment', 'In treatment'))}</span>`;
+    if (t.status === 'done') return `<span class="ci-pst teal">${icon('check')}${esc(tr('stamp_done', 'Treated'))}</span>`;
+    return `<span class="ci-pst live"><i></i>${esc(tr('stamp_live', 'In queue'))}</span>`;
   }
-  function receiptRows(t) {
-    const waited = t.issued ? serverNow() - t.issued : 0;
-    const est = t.status === 'waiting' ? Math.max(0, (t.estimate || 0) - waited) : 0;
+  // what sits inside the queue ring
+  function ringCore(t, big) {
+    if (!t) return '';
+    if (VOID[t.status]) return `<span class="ci-rc ic red">${icon('x')}</span>`;
+    if (t.status === 'called') return `<span class="ci-rc ic teal">${icon('bed')}${big ? `<small>${esc(tr('ring_go', 'Go'))}</small>` : ''}</span>`;
+    if (t.status === 'treatment') return `<span class="ci-rc ic white">${icon('heart')}</span>`;
+    if (t.status === 'done') return `<span class="ci-rc ic teal">${icon('check')}</span>`;
+    const a = Math.max(0, t.ahead || 0);
+    if (a === 0) return `<span class="ci-rc"><b class="nx">${esc(tr('ring_next', 'NEXT'))}</b>${big ? `<small>${esc(tr('ring_up', 'up'))}</small>` : ''}</span>`;
+    return `<span class="ci-rc"><b>${a}</b><small>${esc(tr('ring_ahead', 'ahead'))}</small></span>`;
+  }
+
+  /* ═══════════════════════ QUEUE PASS ═══════════════════════ */
+  function passRows(t) {
     const rows = [];
-    if (t.name) rows.push([tr('r_patient', 'Patient'), t.name]);
-    if (t.status === 'waiting' || t.ahead !== undefined) rows.push([tr('r_ahead', 'Patients ahead'), t.status === 'waiting' ? String(t.ahead || 0) : '0']);
-    if (t.issued) rows.push([tr('r_waiting', 'Waiting'), mmss(waited), 'wait']);
-    if (t.status === 'waiting') rows.push([tr('r_estimate', 'Est. wait'), est > 0 ? `~${Math.max(1, Math.round(est / 60))} ${tr('min', 'min')}` : tr('r_soon', 'Soon'), 'est']);
-    if (t.bed && t.status !== 'waiting') rows.push([tr('r_bed', 'Go to'), t.bed]);
-    if (t.issued) rows.push([tr('r_issued', 'Issued'), hhmm(t.issued)]);
-    return rows.map(r => `<div class="ci-row" ${r[2] ? `data-k="${r[2]}"` : ''}><span>${esc(r[0])}</span><i></i><b>${esc(r[1])}</b></div>`).join('');
+    const waited = t.issued ? serverNow() - t.issued : 0;
+    if (t.name) rows.push(['', tr('r_patient', 'Name'), esc(t.name), '']);
+    if (t.status === 'called') {
+      rows.push(['teal', tr('r_bed', 'Head to'), esc(t.bed || tr('bed', 'Bed')), '']);
+      rows.push(['teal', tr('r_called', 'Called'), mmss(t.called ? serverNow() - t.called : 0), 'called']);
+    } else if (t.status === 'waiting') {
+      rows.push(['', tr('r_waiting', 'Time in queue'), mmss(waited), 'wait']);
+      rows.push([t.ahead ? '' : 'teal', tr('r_estimate', 'Expected call'), esc(estText(t)), 'est']);
+    } else if (t.bed) {
+      rows.push(['white', tr('r_bed_now', 'Bed'), esc(t.bed), '']);
+    }
+    return rows.map(r => `<div class="ci-irow ${r[0]}" ${r[3] ? `data-k="${r[3]}"` : ''}><span>${esc(r[1])}</span><b>${r[2]}</b></div>`).join('');
   }
-  function receiptHTML(t) {
-    const tri = Math.min(3, Math.max(1, t.triage || 3));
+  function journeyHTML(t) {
+    const st = stageOf(t);
+    const voidAt = st === -1 ? (t.called ? 2 : 1) : -1;
+    const ahead = Math.max(0, t.ahead || 0);
+    const nodes = [
+      [tr('j_issued', 'Registered'), t.issued ? hhmm(t.issued) : ''],
+      [tr('j_queue', 'In the queue'), t.status === 'waiting' ? (ahead ? fmtS(tr('j_ahead', '%d ahead'), ahead) : tr('j_next', 'You are next')) : ''],
+      [tr('j_called', 'Called to a bed'), t.bed && st >= 2 ? t.bed : ''],
+      [tr('j_treat', 'Treatment'), st === 3 ? (t.ai ? tr('chip_ai', 'AI doctor') : (t.by || '')) : st === 4 ? tr('stamp_done', 'Treated') : ''],
+    ];
+    const fill = st === -1 ? voidAt / 3 : Math.min(1, Math.max(0, st) / 3);
+    return `<div class="ci-jr ${st === -1 ? 'void' : ''}"><span class="trk"><i style="height:${(fill * 100).toFixed(1)}%"></i></span>${nodes.map((n, i) => {
+      let cls = '';
+      if (st === -1) cls = i < voidAt ? 'done' : i === voidAt ? 'bad' : '';
+      else cls = i === 0 || i < st ? 'done' : i === st ? 'cur' : '';
+      if (st === 4) cls = 'done';
+      return `<div class="ci-jn ${cls}"><i></i><span>${esc(n[0])}</span><b>${esc(n[1])}</b></div>`;
+    }).join('')}</div>`;
+  }
+  function passHTML(t) {
+    const tri = triOf(t);
     const id = String(t.id || t.code || '').replace(/^T/, '');
-    const rows = receiptRows(t);
+    const st = stageOf(t);
     return `
-      <div class="ci-paper">
-        <div class="ci-hd"><div class="nz-mark sm"></div><div class="ci-hn"><b>${esc((t.hospitalLabel || tr('hospital', 'Hospital')).toUpperCase())}</b><span>${esc(t.desk || tr('desk', 'Check-in Desk'))}</span></div>${t.number ? `<span class="ci-no">#${esc(String(t.number).padStart(4, '0'))}</span>` : ''}</div>
-        <div class="ci-cut"></div>
-        <div class="ci-lbl">${esc(tr('your_number', 'Your number'))}</div>
-        <div class="ci-num">${esc(t.code || '?')}</div>
-        <div class="ci-tri p${tri}"><span class="dot">P${tri}</span><div><small>${esc(tr('triage', 'Triage'))}</small><b>${esc(triLabel(tri, t.triageLabel).toUpperCase())}</b></div></div>
-        <div class="ci-cut"></div>
-        ${rows ? `<div class="ci-rows">${rows}</div><div class="ci-cut"></div>` : ''}
-        <div class="ci-bars">${barcode(t.id || t.code)}</div>
-        <div class="ci-bc">${esc(id.toUpperCase())}</div>
-        <p class="ci-foot">${esc(tr('receipt_foot', 'Please keep this ticket. Watch the screen for your number.'))}</p>
-        <div class="ci-stamps">${stampFor(t)}</div>
+      <div class="ci-pass nza-hud solid tri${tri} ${st === -1 ? 'void' : ''} s${t.status || 'waiting'}">
+        <i class="ci-scan"></i>
+        <header class="ci-ph">
+          <div class="ci-pk"><small>${esc(tr('pass_kicker', 'Queue pass'))}</small><b>${esc(t.hospitalLabel || tr('hospital', 'Hospital'))}</b><span>${esc(t.desk || tr('desk', 'Front desk'))}${t.number ? ` · <em>#${esc(String(t.number).padStart(4, '0'))}</em>` : ''}</span></div>
+          <div class="ci-pstw">${statusChip(t)}</div>
+        </header>
+        <div class="ci-pmain">
+          <div class="ci-ring big">${ringSVG(0, { r: 39, w: 7, ticks: 48 })}<div class="ci-rcw">${ringCore(t, true)}</div></div>
+          <div class="ci-pid">
+            <small>${esc(tr('your_number', 'Queue number'))}</small>
+            <div class="ci-code"></div>
+            <span class="ci-tri p${tri}"><i></i><b>P${tri}</b>${esc(triLabel(tri, t.triageLabel))}</span>
+          </div>
+        </div>
+        <div class="ci-ilist">${passRows(t)}</div>
+        ${journeyHTML(t)}
+        <footer class="ci-pf">${icon('ticket')}<span>${esc(tr('receipt_hint', 'Pass saved to your pockets'))}</span>${id ? `<b>${esc(id.toUpperCase())}</b>` : ''}</footer>
       </div>`;
   }
-  function showReceipt(t, print) {
-    S.receipt = t;
-    const host = S.el.querySelector('.ci-receipt');
-    clearTimeout(S.receiptTimer);
+  function showPass(t, issue) {
+    S.pass = t;
+    const host = S.el.querySelector('.ci-passwrap');
+    clearTimeout(S.passTimer);
     host.classList.remove('out');
-    host.innerHTML = `
-      <div class="ci-printer"><span class="ci-led"></span><span class="ci-slot"></span><span class="ci-pbrand"><span class="nz-mark xs"></span>NAYZEEE</span></div>
-      <div class="ci-shadow ${print ? 'late' : ''}"></div>
-      <div class="ci-feed">${receiptHTML(t)}</div>
-      <div class="ci-hint">${icon('ticket')}<span>${esc(tr('receipt_hint', 'Ticket added to your inventory'))}</span></div>`;
+    host.innerHTML = passHTML(t);
     host.classList.add('on');
-    const paper = host.querySelector('.ci-paper');
-    if (print) {
-      paper.classList.add('printing');
-      if (S.cfg.printSound !== false) printSound(1500);
+    const card = host.querySelector('.ci-pass');
+    // rolling number: starts at zero digits and rolls up to the real code
+    const code = String(t.code || '?');
+    S.odo = NZA.ui.FlipClock(card.querySelector('.ci-code'), { value: issue ? code.replace(/[0-9]/g, '0') : code });
+    if (issue) {
+      card.classList.add('issuing');
+      setTimeout(() => S.odo && S.odo.set(code), 260);
+      if (S.cfg.printSound !== false) issueSound(1100);
     }
+    const svg = card.querySelector('.ci-ring svg');
+    requestAnimationFrame(() => requestAnimationFrame(() => setRing(svg, queueP(t))));
+    renderDock();
     const secs = Number(S.cfg.receiptTime);
-    if (secs > 0) S.receiptTimer = setTimeout(hideReceipt, (secs + (print ? 1.6 : 0)) * 1000);
+    if (secs > 0) S.passTimer = setTimeout(hidePass, (secs + (issue ? 1.2 : 0)) * 1000);
     sync();
   }
-  function hideReceipt() {
-    const host = S.el.querySelector('.ci-receipt');
+  function hidePass() {
+    const host = S.el.querySelector('.ci-passwrap');
     if (!host.classList.contains('on')) return;
-    clearTimeout(S.receiptTimer);
+    clearTimeout(S.passTimer);
     host.classList.add('out');
-    setTimeout(() => { host.classList.remove('on', 'out'); host.innerHTML = ''; S.receipt = null; sync(); }, 320);
+    setTimeout(() => { host.classList.remove('on', 'out'); host.innerHTML = ''; S.pass = null; S.odo = null; renderDock(); sync(); }, 300);
   }
-  function updateReceipt() {
-    if (!S.receipt) return;
-    const rows = S.el.querySelector('.ci-receipt .ci-rows');
-    if (rows && S.receipt.issued) rows.innerHTML = receiptRows(S.receipt);
-    const st = S.el.querySelector('.ci-receipt .ci-stamps');
-    if (st) st.innerHTML = stampFor(S.receipt);
+  function updatePass() {
+    const t = S.pass;
+    const card = S.el.querySelector('.ci-passwrap .ci-pass');
+    if (!t || !card) return;
+    const tri = triOf(t), st = stageOf(t);
+    card.className = `ci-pass nza-hud solid tri${tri} ${st === -1 ? 'void' : ''} s${t.status || 'waiting'}`;
+    card.querySelector('.ci-pstw').innerHTML = statusChip(t);
+    card.querySelector('.ci-rcw').innerHTML = ringCore(t, true);
+    card.querySelector('.ci-ilist').innerHTML = passRows(t);
+    const jr = card.querySelector('.ci-jr');
+    if (jr) jr.outerHTML = journeyHTML(t);
+    setRing(card.querySelector('.ci-ring svg'), queueP(t));
   }
 
-  /* ═══════════════════════ TICKET CHIP ═══════════════════════ */
-  function renderChip() {
-    const host = S.el.querySelector('.ci-chipwrap');
+  /* ═══════════════════════ QUEUE DOCK (while you wait) ═══════════════════════ */
+  function renderDock() {
+    const host = S.el.querySelector('.ci-dockwrap');
     const t = S.mine;
-    if (!t || S.cfg.ticketHud === false) { host.innerHTML = ''; host.classList.remove('on'); return; }
+    const passOpen = S.el.querySelector('.ci-passwrap').classList.contains('on');
+    if (!t || S.cfg.ticketHud === false || passOpen) {
+      if (host.classList.contains('on')) { host.classList.remove('on'); host.innerHTML = ''; }
+      sync();
+      return;
+    }
+    const tri = triOf(t);
+    const wasOn = host.classList.contains('on');
     host.classList.add('on');
-    const tri = Math.min(3, Math.max(1, t.triage || 3));
-    let body;
+    let line1, line2, cls = '';
     if (t.status === 'called') {
-      body = `<div class="ci-chip nza-hud solid called"><span class="ci-cic">${icon('bed')}</span>
-        <div class="ci-cc"><small>${esc(tr('chip_called', 'Your number is called'))}</small><b>${esc(t.code)}<em>→</em>${esc(t.bed || tr('bed', 'Bed'))}</b></div>
-        <div class="ci-csep"></div><div class="ci-ckv"><small>${esc(tr('chip_go', 'Go now'))}</small><b data-k="calledFor">${mmss(t.called ? serverNow() - t.called : 0)}</b></div>
-        <span class="ci-pulse"></span></div>`;
+      cls = 'called';
+      line1 = `<small>${esc(tr('chip_called', 'Called to a bed'))}</small><b class="cd">${esc(t.code)}<em>${icon('arrow-r')}</em>${esc(t.bed || tr('bed', 'Bed'))}</b>`;
+      line2 = `<span class="go"><i></i>${esc(tr('chip_go', 'Go now'))}</span><span class="sep"></span><span><b data-k="calledFor">${mmss(t.called ? serverNow() - t.called : 0)}</b></span>`;
     } else if (t.status === 'treatment') {
-      body = `<div class="ci-chip nza-hud solid treat"><span class="ci-cic">${icon('heart')}</span>
-        <div class="ci-cc"><small>${esc(t.ai ? tr('chip_ai', 'AI doctor') : tr('chip_treat', 'In treatment'))}</small><b>${esc(t.code)}<em>·</em>${esc(t.bed || '')}</b></div></div>`;
+      cls = 'treat';
+      line1 = `<small>${esc(t.ai ? tr('chip_ai', 'AI doctor') : tr('chip_treat', 'In treatment'))}</small><b class="cd">${esc(t.code)}<em>·</em>${esc(t.bed || '')}</b>`;
+      line2 = `<span>${esc(tr('chip_treat_sub', 'Stay on the bed'))}</span>`;
     } else {
       const waited = t.issued ? serverNow() - t.issued : 0;
-      const est = Math.max(0, (t.estimate || 0) - waited);
-      body = `<div class="ci-chip nza-hud solid"><span class="ci-cic">${icon('ticket')}</span>
-        <div class="ci-cc"><small>${esc(tr('chip_ticket', 'Your ticket'))}</small><b>${esc(t.code)}</b></div>
-        <span class="prio p${tri}">P${tri}</span>
-        <div class="ci-csep"></div>
-        <div class="ci-ckv"><small>${esc(tr('chip_ahead', 'Ahead'))}</small><b>${t.ahead || 0}</b></div>
-        <div class="ci-ckv"><small>${esc(tr('chip_waiting', 'Waiting'))}</small><b data-k="waited">${mmss(waited)}</b></div>
-        <div class="ci-ckv"><small>${esc(tr('chip_est', 'Est.'))}</small><b data-k="est">${est > 0 ? `~${Math.max(1, Math.round(est / 60))}${esc(tr('min_short', 'm'))}` : esc(tr('r_soon', 'Soon'))}</b></div></div>`;
+      line1 = `<small>${esc(tr('chip_ticket', 'Your queue number'))}</small><b class="cd">${esc(t.code)}</b><span class="ci-tri sm p${tri}"><i></i><b>P${tri}</b></span>`;
+      line2 = `<span><b data-k="waited">${mmss(waited)}</b> ${esc(tr('chip_waiting', 'in queue'))}</span><span class="sep"></span><span>${esc(tr('chip_est', 'call'))} <b data-k="est">${esc(estText(t))}</b></span>`;
     }
-    host.innerHTML = body;
+    host.innerHTML = `<div class="ci-dock nza-hud solid tri${tri} ${cls} ${wasOn ? 'still' : ''}">
+        <span class="ci-dspine"></span>
+        <div class="ci-ring sm">${ringSVG(queueP(t), { r: 40, w: 9 })}<div class="ci-rcw">${ringCore(t, false)}</div></div>
+        <div class="ci-dtx"><div class="ci-dl1">${line1}</div><div class="ci-dl2">${line2}</div></div>
+      </div>`;
     sync();
   }
 
-  /* ═══════════════════════ SAY (receptionist) ═══════════════════════ */
+  /* ═══════════════════════ VOICE (receptionist → NZA.speech) ═══════════════════════ */
   function showSay(s) {
     if (!s || !s.text) return;
-    const host = S.el.querySelector('.ci-say');
+    const ms = Math.max(3200, s.text.length * 70);
+    NZA.speech({ name: s.name || tr('reception', 'Reception'), role: s.role || tr('reception', 'Reception'), text: s.text, ms });
+    S.sayUntil = performance.now() + ms;
     clearTimeout(S.sayTimer);
-    host.innerHTML = `<div class="ci-speech nza-hud solid"><span class="who"><span class="nz-mark xs"></span>${esc(s.role || tr('reception', 'Reception'))} · <b>${esc(s.name || '')}</b></span><span class="txt">${esc(s.text)}</span></div>`;
-    host.classList.add('on');
-    S.sayTimer = setTimeout(() => {
-      const sp = host.querySelector('.ci-speech');
-      if (sp) sp.classList.add('out');
-      setTimeout(() => { host.classList.remove('on'); host.innerHTML = ''; sync(); }, 220);
-    }, Math.max(3200, s.text.length * 70));
+    S.sayTimer = setTimeout(sync, ms + 250);
     sync();
   }
 
@@ -193,6 +270,8 @@
     done: ['st_done', 'Treated', 'teal'], noshow: ['st_noshow', 'No-show', 'red'], left: ['st_left', 'Left', ''], cancelled: ['st_cancelled', 'Cancelled', 'red'],
   };
   const stLabel = s => tr((STATUS[s] || STATUS.waiting)[0], (STATUS[s] || STATUS.waiting)[1]);
+  const WAIT_CAP = 1800;   // a queue row's wait ring is full after 30 min
+  const waitTone = s => (s > 1500 ? 'red' : s > 900 ? 'amber' : '');
 
   function openDesk(desk) {
     S.desk = desk || S.desk || {};
@@ -247,7 +326,7 @@
     if (Array.isArray(d.hospitals) && d.hospitals.length > 1) {
       hs = `<select class="input ci-hsel">${d.hospitals.map(h => `<option value="${esc(h.id)}" ${h.id === d.hospital ? 'selected' : ''}>${esc(h.label)}</option>`).join('')}</select>`;
     }
-    return `<span class="nz-dot"></span><p><b>${staff}</b> ${esc(tr('staff_on_duty', 'medical staff on duty'))} · <b>${counts().waiting}</b> ${esc(tr('waiting_lc', 'waiting'))}</p>${aiTxt}${hs}`;
+    return `<span class="nz-dot"></span><p><b>${staff}</b> ${esc(tr('staff_on_duty', 'medical staff on shift'))} · <b>${counts().waiting}</b> ${esc(tr('waiting_lc', 'in the queue'))}</p>${aiTxt}${hs}`;
   }
   function renderDesk() {
     if (!S.win) return;
@@ -267,40 +346,45 @@
     bindDesk();
     tickDesk();
   }
+  // instrument strip: four readouts with a status ring each
   function statTiles() {
     const c = counts(), d = S.desk || {}, st = d.stats || {};
-    return `<div class="w-stats ci-stats">
-      <div class="w-stat"><div class="nz-tile">${icon('ticket')}</div><div><span>${esc(tr('s_waiting', 'Waiting'))}</span><b>${c.waiting}</b></div>${c.p1 ? `<em class="ci-delta red">${c.p1} P1</em>` : ''}</div>
-      <div class="w-stat"><div class="nz-tile">${icon('heart')}</div><div><span>${esc(tr('s_treatment', 'In treatment'))}</span><b>${c.treatment + c.called}</b></div>${c.called ? `<em class="ci-delta">${c.called} ${esc(tr('s_called', 'called'))}</em>` : ''}</div>
-      <div class="w-stat"><div class="nz-tile">${icon('bed')}</div><div><span>${esc(tr('s_beds', 'Beds free'))}</span><b>${c.free}<small>/${c.beds}</small></b></div></div>
-      <div class="w-stat"><div class="nz-tile">${icon('timer')}</div><div><span>${esc(tr('s_avg', 'Average wait'))}</span><b>${st.avgWait != null ? mmss(st.avgWait) : '--:--'}</b></div>${st.served ? `<em class="ci-delta">${st.served} ${esc(tr('s_served', 'served'))}</em>` : ''}</div>
+    const occ = c.beds ? (c.beds - c.free) / c.beds : 0;
+    const tile = (p, tone, ic, label, val, extra) => `<div class="ci-st ${tone}"><div class="ci-ring xs">${ringSVG(p, { r: 40, w: 9 })}<span class="ci-rc ic">${icon(ic)}</span></div><div class="ci-stt"><span>${esc(label)}</span><b>${val}</b></div>${extra || ''}</div>`;
+    return `<div class="ci-stats">
+      ${tile(Math.min(1, c.waiting / 8), c.p1 ? 'red' : '', 'ticket', tr('s_waiting', 'In the queue'), c.waiting, c.p1 ? `<em class="ci-delta red">${c.p1} P1</em>` : '')}
+      ${tile(c.beds ? (c.treatment + c.called) / c.beds : 0, 'white', 'heart', tr('s_treatment', 'In treatment'), c.treatment + c.called, c.called ? `<em class="ci-delta">${c.called} ${esc(tr('s_called', 'called'))}</em>` : '')}
+      ${tile(1 - occ, c.beds && !c.free ? 'red' : 'teal', 'bed', tr('s_beds', 'Beds open'), `${c.free}<small>/${c.beds}</small>`)}
+      ${tile(st.avgWait != null ? Math.min(1, st.avgWait / WAIT_CAP) : 0, waitTone(st.avgWait || 0), 'timer', tr('s_avg', 'Average wait'), st.avgWait != null ? mmss(st.avgWait) : '--:--', st.served ? `<em class="ci-delta">${st.served} ${esc(tr('s_served', 'served'))}</em>` : '')}
     </div>`;
   }
   function stateLine(t) {
     const now = serverNow();
-    if (t.status === 'waiting') return `<span class="ci-st">${esc(stLabel('waiting'))} <b data-since="${t.issued}">${mmss(now - t.issued)}</b></span>`;
-    if (t.status === 'called') return `<span class="ci-st teal">${esc(stLabel('called'))} → <b class="bd">${esc(t.bed || '')}</b> · <b data-since="${t.called}">${mmss(now - (t.called || now))}</b></span>`;
-    return `<span class="ci-st white">${esc(stLabel('treatment'))} · <b>${esc(t.bed || '')}</b>${t.ai ? ` · ${esc(tr('chip_ai', 'AI doctor'))}` : (t.by ? ` · ${esc(t.by)}` : '')}</span>`;
+    if (t.status === 'waiting') return `<span class="ci-st2">${esc(stLabel('waiting'))}</span>`;
+    if (t.status === 'called') return `<span class="ci-st2 teal">${esc(stLabel('called'))} ${icon('arrow-r')} <b class="bd">${esc(t.bed || '')}</b> · <b data-since="${t.called}">${mmss(now - (t.called || now))}</b></span>`;
+    return `<span class="ci-st2 white">${esc(stLabel('treatment'))} · <b>${esc(t.bed || '')}</b>${t.ai ? ` · ${esc(tr('chip_ai', 'AI doctor'))}` : (t.by ? ` · ${esc(t.by)}` : '')}</span>`;
   }
   function pageQueue() {
     const list = (S.desk || {}).tickets || [];
     if (S.sel && !list.find(t => t.id === S.sel)) S.sel = null;
     if (!S.sel && list.length) S.sel = list[0].id;
-    const rows = list.map(t => {
-      const tri = Math.min(3, Math.max(1, t.triage || 3));
+    const now = serverNow();
+    const rows = list.map((t, k) => {
+      const tri = triOf(t);
+      const waited = now - (t.issued || now);
       const inj = (t.injuries || []).slice(0, 4).map(i => `<span class="ci-inj" title="${esc(i.label)} · ${esc(i.region)}">${icon(TYPE_ICON[i.type] || 'medkit')}${esc(i.short || i.label)}</span>`).join('');
       const more = (t.injuryCount || 0) > 4 ? `<span class="ci-inj more">+${t.injuryCount - 4}</span>` : '';
-      return `<button class="ci-q tri${tri} ${t.status} ${t.id === S.sel ? 'on' : ''}" data-id="${esc(t.id)}">
+      return `<button class="ci-q tri${tri} ${t.status} ${t.id === S.sel ? 'on' : ''}" data-id="${esc(t.id)}" style="animation-delay:${Math.min(k, 10) * 30}ms">
         <span class="ci-qbar"></span>
-        <span class="ci-qcode">${esc(t.code)}</span>
-        <span class="prio p${tri}">P${tri}</span>
+        <span class="ci-qring ${t.status === 'waiting' ? waitTone(waited) : t.status}" data-ring="${t.status === 'waiting' ? t.issued : ''}">${ringSVG(t.status === 'waiting' ? waited / WAIT_CAP : 1, { r: 40, w: 10 })}<b data-since="${t.status === 'waiting' ? t.issued : ''}">${t.status === 'waiting' ? mmss(waited) : ''}</b>${t.status === 'waiting' ? '' : `<span class="ci-rc ic">${icon(t.status === 'called' ? 'bell' : 'heart')}</span>`}</span>
+        <span class="ci-qid"><span class="ci-qcode">${esc(t.code)}</span><span class="ci-tri sm p${tri}"><i></i><b>P${tri}</b>${esc(triLabel(tri, t.triageLabel))}</span></span>
         <span class="ci-qmain"><b>${esc(t.name || '?')}${t.online === false ? `<em class="ci-off">${esc(tr('offline', 'offline'))}</em>` : ''}</b><span class="ci-injs">${inj}${more}${!inj ? `<span class="ci-inj none">${esc(tr('no_injuries', 'Nothing listed'))}</span>` : ''}</span></span>
         ${stateLine(t)}
       </button>`;
     }).join('');
-    const empty = `<div class="ci-empty">${icon('ticket')}<b>${esc(tr('q_empty', 'Nobody is waiting'))}</b><span>${esc(tr('q_empty_p', 'New tickets from the check-in desk show up here.'))}</span></div>`;
+    const empty = `<div class="ci-empty">${icon('ticket')}<b>${esc(tr('q_empty', 'Nobody is waiting'))}</b><span>${esc(tr('q_empty_p', 'New tickets from the front desk show up here.'))}</span></div>`;
     return `
-      <div class="w-head"><div><h1>${esc(tr('q_title', 'Patient queue'))}</h1><p>${esc(tr('q_sub', 'Critical patients first, then by arrival. Call a patient to a free bed — they get a waypoint and the board shows their number.'))}</p></div></div>
+      <div class="w-head"><div><h1>${esc(tr('q_title', 'Patient queue'))}</h1><p>${esc(tr('q_sub', 'Critical patients first, then by arrival. Call a patient to an open bed — they get a waypoint and the board shows their number.'))}</p></div></div>
       ${statTiles()}
       <div class="ci-qgrid">
         <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('q_list', 'Tickets'))}</h2><p>${esc(fmtS(tr('q_n', '%d open tickets'), list.length))}</p></div></div>
@@ -311,11 +395,11 @@
   function freeBeds() { return ((S.desk || {}).beds || []).filter(b => b.state === 'free'); }
   function detailHTML(t) {
     if (!t) return `<div class="ci-empty">${icon('user')}<b>${esc(tr('d_none', 'No ticket selected'))}</b><span>${esc(tr('d_none_p', 'Pick a ticket on the left.'))}</span></div>`;
-    const tri = Math.min(3, Math.max(1, t.triage || 3));
+    const tri = triOf(t);
     const sev = s => `<span class="ci-sev">${[1, 2, 3, 4].map(i => `<i class="${i <= s ? 'on' : ''} s${s}"></i>`).join('')}</span>`;
     const inj = (t.injuries || []).map(i => `<div class="ci-drow"><span class="ci-dic">${icon(TYPE_ICON[i.type] || 'medkit')}</span><div><b>${esc(i.label)}</b><span>${esc(i.region)}</span></div>${sev(i.severity || 1)}</div>`).join('');
     const beds = freeBeds();
-    const bedSel = beds.length ? `<select class="input ci-bed">${beds.map(b => `<option value="${esc(b.id)}">${esc(b.label)}</option>`).join('')}</select>` : `<span class="ci-nobed">${esc(tr('no_free_bed', 'No free bed'))}</span>`;
+    const bedSel = beds.length ? `<select class="input ci-bed">${beds.map(b => `<option value="${esc(b.id)}">${esc(b.label)}</option>`).join('')}</select>` : `<span class="ci-nobed">${esc(tr('no_free_bed', 'No open bed'))}</span>`;
     let actions = '';
     if (t.status === 'waiting') {
       actions = `<div class="ci-dact"><div class="ci-callrow">${bedSel}<button class="btn-teal" data-a="call" ${beds.length ? '' : 'disabled'}>${icon('bell')}${esc(tr('a_call', 'Call'))}</button></div>
@@ -328,16 +412,16 @@
       actions = `<div class="ci-dact"><button class="btn-teal btn-block" data-a="treated">${icon('check')}${esc(tr('a_treated', 'Mark as treated'))}</button>
         <button class="btn-line btn-block" data-a="requeue">${icon('rot-l')}${esc(tr('a_requeue', 'Back to queue'))}</button></div>`;
     }
+    const blood = t.blood != null ? t.blood : null;
     return `
       <div class="ci-dhead tri${tri}">
-        <div class="ci-dcode">${esc(t.code)}</div>
-        <div class="ci-dmeta"><span class="prio p${tri}">P${tri} ${esc(triLabel(tri, t.triageLabel).toUpperCase())}</span><span class="ci-dname">${esc(t.name || '?')}</span></div>
+        <div class="ci-ring md">${ringSVG(blood != null ? blood / 100 : 0, { r: 40, w: 8, ticks: 36, cls: blood != null && blood < 80 ? 'red' : '' })}<span class="ci-rc"><b>${blood != null ? blood : '--'}</b><small>${esc(tr('d_blood', 'Blood'))} %</small></span></div>
+        <div class="ci-dmeta"><div class="ci-dcode">${esc(t.code)}</div><span class="ci-tri p${tri}"><i></i><b>P${tri}</b>${esc(triLabel(tri, t.triageLabel))}</span><span class="ci-dname">${esc(t.name || '?')}</span></div>
       </div>
       <div class="ci-dkv">
         <div><span>${esc(tr('d_status', 'Status'))}</span><b>${esc(t.bed && t.status !== 'waiting' ? t.bed : stLabel(t.status))}</b></div>
-        <div><span>${esc(tr('d_waiting', 'Waiting'))}</span><b data-since="${t.issued}">${mmss(serverNow() - t.issued)}</b></div>
-        <div><span>${esc(tr('d_issued', 'Issued'))}</span><b>${hhmm(t.issued)}</b></div>
-        <div><span>${esc(tr('d_blood', 'Blood'))}</span><b class="${t.blood != null && t.blood < 80 ? 't-red' : ''}">${t.blood != null ? `${t.blood}%` : '--'}</b></div>
+        <div><span>${esc(tr('d_waiting', 'In queue'))}</span><b data-since="${t.issued}">${mmss(serverNow() - t.issued)}</b></div>
+        <div><span>${esc(tr('d_issued', 'Registered'))}</span><b>${hhmm(t.issued)}</b></div>
       </div>
       <div class="ci-dsec">${esc(tr('d_injuries', 'Reported injuries'))}<em>${t.injuryCount || 0}</em></div>
       <div class="ci-dlist nza-scroll">${inj || `<div class="ci-drow none">${esc(tr('no_injuries', 'Nothing listed'))}</div>`}</div>
@@ -345,20 +429,24 @@
   }
   function pageBeds() {
     const beds = (S.desk || {}).beds || [];
-    const cards = beds.map(b => `<div class="ci-bedc ${b.state}">
-        <div class="ci-bedt">${icon('bed')}<b>${esc(b.label)}</b><span class="chipx sm ${b.state === 'free' ? 'teal' : b.state === 'reserved' ? 'amber' : ''}">${esc(tr('bed_' + b.state, b.state === 'free' ? 'Free' : b.state === 'reserved' ? 'Reserved' : 'Occupied'))}</span></div>
+    const cards = beds.map((b, k) => {
+      const tone = b.state === 'free' ? 'teal' : b.state === 'reserved' ? 'amber' : 'white';
+      return `<div class="ci-bedc ${b.state}" style="animation-delay:${Math.min(k, 12) * 35}ms">
+        <div class="ci-ring sm ${tone}">${ringSVG(b.state === 'free' ? 0 : b.state === 'reserved' ? 0.5 : 1, { r: 40, w: 9 })}<span class="ci-rc ic">${icon(b.state === 'free' ? 'bed' : b.state === 'reserved' ? 'bell' : 'heart')}</span></div>
+        <div class="ci-bedt"><b>${esc(b.label)}</b><span class="ci-bst ${tone}">${esc(tr('bed_' + b.state, b.state === 'free' ? 'Open' : b.state === 'reserved' ? 'Held' : 'In use'))}</span></div>
         <div class="ci-bedp">${b.ticket ? `<span class="ci-qcode sm">${esc(b.ticket)}</span>` : ''}<span>${esc(b.name || (b.state === 'free' ? tr('bed_ready', 'Ready for the next patient') : ''))}</span></div>
-      </div>`).join('');
-    return `<div class="w-head"><div><h1>${esc(tr('b_title', 'Beds'))}</h1><p>${esc(tr('b_sub', 'Every bed of this department. Reserved beds wait for a called patient.'))}</p></div></div>
+      </div>`;
+    }).join('');
+    return `<div class="w-head"><div><h1>${esc(tr('b_title', 'Beds'))}</h1><p>${esc(tr('b_sub', 'Every bed of this department. A held bed waits for the patient you called.'))}</p></div></div>
       ${statTiles()}
       <div class="ci-beds nza-scroll">${cards || `<div class="ci-empty">${icon('bed')}<b>${esc(tr('b_none', 'No beds placed'))}</b><span>${esc(tr('b_none_p', 'Place beds in /nzadmin → Positions to call patients.'))}</span></div>`}</div>`;
   }
   function pageToday() {
     const h = (S.desk || {}).history || [];
     const rows = h.map(t => {
-      const tri = Math.min(3, Math.max(1, t.triage || 3));
+      const tri = triOf(t);
       const st = STATUS[t.status] || STATUS.left;
-      return `<tr><td><b class="ci-mono">${esc(t.code)}</b></td><td><span class="prio p${tri}">P${tri}</span></td><td>${esc(t.name || '?')}</td>
+      return `<tr><td><b class="ci-mono">${esc(t.code)}</b></td><td><span class="ci-tri sm p${tri}"><i></i><b>P${tri}</b></span></td><td>${esc(t.name || '?')}</td>
         <td><span class="chipx sm ${st[2] === 'red' ? 'red' : st[2] === 'teal' ? 'teal' : ''}">${esc(stLabel(t.status))}</span></td>
         <td class="ci-mono">${t.waited != null ? mmss(t.waited) : '--'}</td><td>${esc(t.by || '—')}</td><td class="ci-mono">${t.closed ? hhmm(t.closed) : '--'}</td></tr>`;
     }).join('');
@@ -393,6 +481,14 @@
     if (!S.win) return;
     const now = serverNow();
     S.win.el.querySelectorAll('[data-since]').forEach(e => { const v = Number(e.dataset.since); if (v) e.textContent = mmss(now - v); });
+    S.win.el.querySelectorAll('.ci-qring[data-ring]').forEach(e => {
+      const v = Number(e.dataset.ring);
+      if (!v) return;
+      const s = now - v;
+      setRing(e.querySelector('svg'), s / WAIT_CAP);
+      e.classList.toggle('amber', waitTone(s) === 'amber');
+      e.classList.toggle('red', waitTone(s) === 'red');
+    });
   }
   function moveSel(dir) {
     const list = (S.desk || {}).tickets || [];
@@ -406,7 +502,7 @@
   /* ═══════════════════════ visibility / ticking ═══════════════════════ */
   function anyVisible() {
     const q = s => S.el.querySelector(s).classList.contains('on');
-    return q('.ci-receipt') || q('.ci-chipwrap') || q('.ci-say') || S.deskOn;
+    return q('.ci-passwrap') || q('.ci-dockwrap') || performance.now() < S.sayUntil || S.deskOn;
   }
   function sync() {
     const vis = anyVisible();
@@ -415,18 +511,23 @@
   }
   function tick() {
     const t = S.mine;
+    const now = serverNow();
     if (t) {
-      const now = serverNow();
-      const w = S.el.querySelector('.ci-chipwrap [data-k="waited"]');
+      const w = S.el.querySelector('.ci-dockwrap [data-k="waited"]');
       if (w && t.issued) w.textContent = mmss(now - t.issued);
-      const e = S.el.querySelector('.ci-chipwrap [data-k="est"]');
-      if (e && t.issued) { const est = Math.max(0, (t.estimate || 0) - (now - t.issued)); e.textContent = est > 0 ? `~${Math.max(1, Math.round(est / 60))}${tr('min_short', 'm')}` : tr('r_soon', 'Soon'); }
-      const c = S.el.querySelector('.ci-chipwrap [data-k="calledFor"]');
+      const e = S.el.querySelector('.ci-dockwrap [data-k="est"]');
+      if (e && t.issued) e.textContent = estText(t);
+      const c = S.el.querySelector('.ci-dockwrap [data-k="calledFor"]');
       if (c && t.called) c.textContent = mmss(now - t.called);
     }
-    if (S.receipt) {
-      const rw = S.el.querySelector('.ci-receipt [data-k="wait"] b');
-      if (rw && S.receipt.issued && (S.receipt.status === 'waiting' || S.receipt.status === 'called')) rw.textContent = mmss(serverNow() - S.receipt.issued);
+    if (S.pass) {
+      const p = S.pass;
+      const rw = S.el.querySelector('.ci-passwrap [data-k="wait"] b');
+      if (rw && p.issued && p.status === 'waiting') rw.textContent = mmss(now - p.issued);
+      const re = S.el.querySelector('.ci-passwrap [data-k="est"] b');
+      if (re && p.status === 'waiting') re.textContent = estText(p);
+      const rc = S.el.querySelector('.ci-passwrap [data-k="called"] b');
+      if (rc && p.called) rc.textContent = mmss(now - p.called);
     }
     tickDesk();
   }
@@ -440,11 +541,11 @@
     if ('mine' in d) S.mine = d.mine || null;
     if (d.mode === 'ticket' && d.ticket) {
       if (d.ticket.status !== 'expired' && (!S.mine || S.mine.id === d.ticket.id)) S.mine = d.ticket;
-      showReceipt(d.ticket, d.print);
+      showPass(d.ticket, d.print);
     }
     if (d.mode === 'desk' && d.desk) openDesk(d.desk);
     if (d.say) showSay(d.say);
-    renderChip();
+    renderDock();
     sync();
   }
 
@@ -452,7 +553,7 @@
     escClose: false,
     init(el) {
       S.el = el;
-      el.innerHTML = '<div class="ci-chipwrap"></div><div class="ci-receipt"></div><div class="ci-say"></div><div class="ci-deskwrap"></div>';
+      el.innerHTML = '<div class="ci-dockwrap"></div><div class="ci-passwrap"></div><div class="ci-deskwrap"></div>';
     },
     open(d) {
       S.hidden = false;
@@ -462,27 +563,27 @@
     },
     close() {
       clearInterval(S.timer);
-      clearTimeout(S.receiptTimer); clearTimeout(S.sayTimer);
-      S.deskOn = false; S.win = null; S.receipt = null; S.hidden = true;
-      S.el.querySelectorAll('.ci-chipwrap,.ci-receipt,.ci-say,.ci-deskwrap').forEach(e => { e.classList.remove('on', 'out'); e.innerHTML = ''; });
+      clearTimeout(S.passTimer); clearTimeout(S.sayTimer);
+      S.deskOn = false; S.win = null; S.pass = null; S.odo = null; S.hidden = true; S.sayUntil = 0;
+      S.el.querySelectorAll('.ci-dockwrap,.ci-passwrap,.ci-deskwrap').forEach(e => { e.classList.remove('on', 'out'); e.innerHTML = ''; });
     },
     msg: {
       mine(d) {
         const prev = S.mine;
         S.mine = d.ticket || null;
         if (S.mine && S.mine.now) setNow(S.mine.now);
-        if (S.receipt) {
-          if (S.mine && S.mine.id === S.receipt.id) S.receipt = S.mine;
-          else if (!S.mine && d.closed && d.closed.id === S.receipt.id) S.receipt = Object.assign({}, S.receipt, { status: d.closed.status });
-          updateReceipt();
+        if (S.pass) {
+          if (S.mine && S.mine.id === S.pass.id) S.pass = S.mine;
+          else if (!S.mine && d.closed && d.closed.id === S.pass.id) S.pass = Object.assign({}, S.pass, { status: d.closed.status });
+          updatePass();
         }
         if (S.mine && S.mine.status === 'called' && (!prev || prev.status !== 'called')) NZA.audio.ready();
-        renderChip();
+        renderDock();
       },
       say(d) { showSay(d); },
       desk(d) { if (S.deskOn) { S.desk = d; setNow(d.now); renderDesk(); } },
       deskClosed() { closeDesk(false); },
-      hideReceipt() { hideReceipt(); },
+      hideReceipt() { hidePass(); },
     },
     keys: {
       Escape() { if (S.deskOn) { closeDesk(true); return true; } return false; },
@@ -499,7 +600,8 @@
       KeyN() { if (!S.deskOn) return false; act('callNext', {}); return true; },
     },
 
-    /* ═══════════════════════ browser preview ═══════════════════════ */
+    /* ═══════════════════════ browser preview ═══════════════════════
+       ?app=checkin&view=ticket|p1|expired|chip|called|treat|desk|beds|today  (&print=1 replays the issue) */
     preview() {
       const now = Math.floor(Date.now() / 1000);
       const p = new URLSearchParams(location.search);
@@ -507,8 +609,8 @@
       const inj = (type, label, short, region, severity) => ({ type, label, short, region, severity, status: 'open' });
       const tickets = [
         { id: 'T8F3A21', code: 'A-013', number: 13, triage: 1, triageLabel: 'Critical', name: 'Rosa Diaz', status: 'waiting', issued: now - 142, ahead: 0, estimate: 0, online: true, blood: 71, injuryCount: 3, injuries: [inj('gunshot', 'Gunshot wound', 'GSW', 'Abdomen', 3), inj('fracture', 'Fracture', 'Fracture', 'Left lower leg', 2), inj('abrasion', 'Abrasion', 'Abrasion', 'Right upper arm', 1)] },
-        { id: 'T8F3A22', code: 'A-014', number: 14, triage: 2, triageLabel: 'Urgent', name: 'Ben Carter', status: 'waiting', issued: now - 418, ahead: 1, estimate: 240, online: true, blood: 92, injuryCount: 2, injuries: [inj('laceration', 'Deep laceration', 'Laceration', 'Left lower arm', 2), inj('contusion', 'Contusion', 'Contusion', 'Chest', 1)] },
-        { id: 'T8F3A23', code: 'A-015', number: 15, triage: 3, triageLabel: 'Standard', name: 'Lily Chen', status: 'waiting', issued: now - 195, ahead: 2, estimate: 720, online: false, blood: 99, injuryCount: 1, injuries: [inj('burn', 'Burn', 'Burn', 'Right lower arm', 1)] },
+        { id: 'T8F3A22', code: 'A-014', number: 14, triage: 2, triageLabel: 'Urgent', name: 'Ben Carter', status: 'waiting', issued: now - 1018, ahead: 1, estimate: 240, online: true, blood: 92, injuryCount: 2, injuries: [inj('laceration', 'Deep laceration', 'Laceration', 'Left lower arm', 2), inj('contusion', 'Contusion', 'Contusion', 'Chest', 1)] },
+        { id: 'T8F3A23', code: 'A-015', number: 15, triage: 3, triageLabel: 'Standard', name: 'Lily Chen', status: 'waiting', issued: now - 1595, ahead: 2, estimate: 720, online: false, blood: 99, injuryCount: 1, injuries: [inj('burn', 'Burn', 'Burn', 'Right lower arm', 1)] },
         { id: 'T8F3A19', code: 'A-011', number: 11, triage: 2, triageLabel: 'Urgent', name: 'Marcus Webb', status: 'called', issued: now - 905, called: now - 64, bed: 'Bed 2', bedId: 12, online: true, blood: 84, injuryCount: 1, injuries: [inj('stab', 'Stab wound', 'Stab', 'Chest', 2)] },
         { id: 'T8F3A17', code: 'A-009', number: 9, triage: 1, triageLabel: 'Critical', name: 'Ana Lopez', status: 'treatment', issued: now - 1520, called: now - 610, treatmentAt: now - 560, bed: 'Bed 1', bedId: 11, ai: false, by: 'Dr. K. Brooks', online: true, blood: 77, injuryCount: 2, injuries: [inj('internal', 'Internal bleeding', 'Internal', 'Abdomen', 3), inj('shrapnel', 'Shrapnel wound', 'Shrapnel', 'Right upper leg', 2)] },
       ];
@@ -521,7 +623,7 @@
         { code: 'A-004', triage: 3, name: 'Mia Ford', status: 'left', waited: null, by: null, closed: now - 3900 },
       ];
       const desk = { hospital: 'pillbox', label: 'Pillbox Medical', now, tickets, beds, history, staff: 2, ai: { enabled: true, standby: false, treating: 0, timeout: 600 }, stats: { served: 3, noshow: 1, avgWait: 278 }, hospitals: [{ id: 'pillbox', label: 'Pillbox Medical' }, { id: 'sandy', label: 'Sandy Shores Medical' }] };
-      const mine = { id: 'T8F3A22', code: 'A-014', number: 14, prefix: 'A', hospital: 'pillbox', hospitalLabel: 'Pillbox Medical', desk: 'Check-in Desk', status: 'waiting', triage: 2, triageLabel: 'Urgent', issued: now - 61, ahead: 2, estimate: 960, now, name: 'Ben Carter' };
+      const mine = { id: 'T8F3A22', code: 'A-014', number: 14, prefix: 'A', hospital: 'pillbox', hospitalLabel: 'Pillbox Medical', desk: 'Front desk', status: 'waiting', triage: 2, triageLabel: 'Urgent', issued: now - 64, ahead: 2, estimate: 960, now, name: 'Ben Carter' };
       const base = { cfg: { receiptTime: 0, ticketHud: true, printSound: false }, clock: { mode: 'game', h: 12, m: 1, msPerMin: 2000 } };
       NZA.mock('checkin:action', d => {
         const t = desk.tickets.find(x => x.id === d.id);
@@ -529,7 +631,7 @@
           const tk = t || desk.tickets.filter(x => x.status === 'waiting').sort((a, b) => a.triage - b.triage || a.issued - b.issued)[0];
           const bed = desk.beds.find(b => String(b.id) === String(d.bed)) || desk.beds.find(b => b.state === 'free');
           if (!tk) return { ok: false, msg: 'Nobody is waiting.' };
-          if (!bed) return { ok: false, msg: 'No free bed.' };
+          if (!bed) return { ok: false, msg: 'No open bed.' };
           tk.status = 'called'; tk.called = Math.floor(Date.now() / 1000); tk.bed = bed.label; bed.state = 'reserved'; bed.ticket = tk.code; bed.name = tk.name;
           setTimeout(() => NZA.apps.checkin.msg.desk(desk), 120);
           return { ok: true, msg: `Called ${tk.code} to ${bed.label}.` };
@@ -552,6 +654,7 @@
         return;
       }
       if (view === 'chip') {
+        S.maxAhead[mine.id] = 4;
         NZA.demo('checkin', Object.assign({}, base, { mode: 'chip', mine }));
         return;
       }
@@ -563,14 +666,15 @@
         NZA.demo('checkin', Object.assign({}, base, { mode: 'chip', mine: Object.assign({}, mine, { status: 'treatment', bed: 'Bed 3', ai: true }) }));
         return;
       }
-      const ticket = view === 'p1' ? Object.assign({}, mine, { code: 'A-001', number: 1, triage: 1, triageLabel: 'Critical', ahead: 0, estimate: 0, issued: now - 1 }) : mine;
       if (view === 'expired') {
-        NZA.demo('checkin', Object.assign({}, base, { mode: 'ticket', ticket: { code: 'A-006', hospitalLabel: 'Pillbox Medical', status: 'expired', triage: 3, now }, mine: null }));
+        NZA.demo('checkin', Object.assign({}, base, { mode: 'ticket', ticket: { code: 'A-006', hospitalLabel: 'Pillbox Medical', status: 'expired', triage: 3, issued: now - 4000, now }, mine: null }));
         return;
       }
+      const ticket = view === 'p1' ? Object.assign({}, mine, { code: 'A-001', number: 1, triage: 1, triageLabel: 'Critical', ahead: 0, estimate: 0, issued: now - 1 }) : mine;
+      if (view !== 'p1') S.maxAhead[ticket.id] = 4;
       NZA.demo('checkin', Object.assign({}, base, {
         mode: 'ticket', ticket, mine: ticket, print: p.get('print') === '1',
-        say: { name: 'Maria', role: 'Reception', text: ticket.triage === 1 ? 'Oh — you need a doctor right now. Number A-001, they will call you first.' : 'Here is your ticket, A-014. Two patients are ahead of you — please take a seat and watch the screen.' },
+        say: { name: 'Maria', role: 'Reception', text: ticket.triage === 1 ? 'You need a doctor right away. Number A-001 — you go first.' : 'Number A-014 is yours. Two people are ahead of you — grab a seat, the board will call you.' },
       }));
     },
   });

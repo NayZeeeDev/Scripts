@@ -293,3 +293,62 @@
 #app-ultrasound .pp-flash.info .fi{background:rgba(255,255,255,.12);color:var(--white)}
 .us-pw{z-index:0}
 #app-ultrasound .dk span{white-space:nowrap}
+#app-ultrasound .us-wm .wm.cur span{display:none}
+
+/* ═════════════ 3D CLOSE-UPS (chest drain, decompression) ═════════════ */
+#app-ultrasound .us-ov3{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;overflow:visible}
+#app-ultrasound .us-ov3 .tri{fill:rgba(15,212,196,.08);stroke:var(--us-teal);stroke-width:1.5;stroke-dasharray:6 5;filter:drop-shadow(0 0 4px rgba(15,212,196,.6))}
+#app-ultrasound .us-ov3 .tgt{fill:none;stroke:#fff;stroke-width:1.5;stroke-dasharray:3 3}
+#app-ultrasound .us-ov3 .guide{stroke:#fff;stroke-width:1.6;stroke-dasharray:5 5;filter:drop-shadow(0 0 3px rgba(0,0,0,.8))}
+#app-ultrasound .us-ov3 .gend{fill:rgba(15,212,196,.25);stroke:var(--us-teal);stroke-width:1.5}
+#app-ultrasound .us-cur{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;opacity:0;transition:opacity 140ms}
+#app-ultrasound .us-cur.on{opacity:1}
+#app-ultrasound .us-cur svg{position:absolute;left:-23px;top:-23px;width:46px;height:46px;transform:rotate(-90deg)}
+#app-ultrasound .us-cur .bg{stroke:rgba(255,255,255,.22);fill:none;stroke-width:3}
+#app-ultrasound .us-cur .fg{stroke:var(--teal-hi);fill:none;stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(15,212,196,.7))}
+#app-ultrasound .us-cur.red .fg{stroke:#ff7478} #app-ultrasound .us-cur.amber .fg{stroke:#f3c35a}
+#app-ultrasound .us-cur .tx{position:absolute;left:30px;top:-11px;height:22px;display:inline-flex;align-items:center;padding:0 8px;border-radius:6px;white-space:nowrap;
+  font:600 11px var(--font);color:var(--white);background:rgba(12,13,16,.88);border:1px solid var(--hud-line)}
+#app-ultrasound .us-cur .tx:empty{display:none}
+#app-ultrasound .us-cur .tx.teal{color:var(--teal-hi);border-color:var(--teal-edge)} #app-ultrasound .us-cur .tx.red{color:#ff9a9d;border-color:var(--red-edge)} #app-ultrasound .us-cur .tx.amber{color:#f3c35a;border-color:var(--amber-edge)}
+
+/* patient card (top-left) */
+#app-ultrasound .us-pt{position:absolute;left:28px;top:28px;width:292px;padding:13px 15px 12px;border-radius:14px;animation:pp-in-l 320ms cubic-bezier(.2,.7,.2,1) both}
+#app-ultrasound .us-pt::before{content:'';position:absolute;left:0;top:0;width:40px;height:40px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:14px}
+#app-ultrasound .us-pt .hd{display:flex;align-items:center;gap:10px}
+#app-ultrasound .us-pt .av{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+#app-ultrasound .us-pt .av .nz-ic{width:17px;height:17px}
+#app-ultrasound .us-pt .nm{font-size:13.5px;font-weight:600;color:var(--white)}
+#app-ultrasound .us-pt .sb{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-hi);margin-top:2px}
+#app-ultrasound .us-pt .rows{margin-top:10px;border-top:1px solid var(--line-hair)}
+#app-ultrasound .us-pt .rw{position:relative;display:flex;justify-content:space-between;align-items:center;height:28px;padding-left:10px;border-bottom:1px solid var(--line-hair);font-size:11.5px;color:var(--ink-3)}
+#app-ultrasound .us-pt .rw::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:rgba(255,255,255,.14)}
+#app-ultrasound .us-pt .rw b{font:700 12px var(--mono);color:var(--white)}
+#app-ultrasound .us-pt .rw b.red{color:#ff7478} #app-ultrasound .us-pt .rw b.amber{color:#f3c35a} #app-ultrasound .us-pt .rw b.teal{color:var(--teal-hi)}
+
+/* drain unit (top-right) */
+#app-ultrasound .us-drw{position:absolute;right:28px;top:28px;width:316px;padding:12px 14px 12px;border-radius:14px;animation:us-dev-in2 340ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes us-dev-in2{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+#app-ultrasound .us-drw header{display:flex;align-items:center;justify-content:space-between}
+#app-ultrasound .us-drw header .k{font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-hi)}
+#app-ultrasound .us-drw header .st{font:600 10px var(--mono);color:var(--ink-3);padding:2px 7px;border-radius:5px;border:1px solid var(--line-soft)}
+#app-ultrasound .us-drw.on header .st{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
+#app-ultrasound .dr-body{display:grid;grid-template-columns:150px 1fr;gap:12px;margin-top:9px;align-items:center}
+#app-ultrasound .dr-svg{width:150px;height:128px;display:block}
+#app-ultrasound .dr-svg .case{fill:#15181b;stroke:rgba(255,255,255,.12)}
+#app-ultrasound .dr-svg .ch{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.22)}
+#app-ultrasound .dr-svg .grad line{stroke:rgba(255,255,255,.4);stroke-width:.7}
+#app-ultrasound .dr-svg .grad text{fill:rgba(255,255,255,.45);font:600 5.5px var(--mono);text-anchor:end}
+#app-ultrasound .dr-svg .lb{fill:rgba(255,255,255,.4);font:700 5.5px var(--font);letter-spacing:.08em;text-anchor:middle}
+#app-ultrasound .dr-svg .bub circle{fill:rgba(220,245,255,.85)}
+#app-ultrasound .dr-read .r{display:flex;align-items:baseline;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line-hair)}
+#app-ultrasound .dr-read .r span{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+#app-ultrasound .dr-read .r b{font:700 13px var(--mono);color:var(--white)}
+#app-ultrasound .dr-read .r b.amber{color:#f3c35a} #app-ultrasound .dr-read .r b.teal{color:var(--teal-hi)}
+#app-ultrasound .dr-read .dml .odo{font-size:18px;color:#ff8a8d}
+#app-ultrasound .dr-read .lung{display:flex;align-items:center;gap:9px;margin-top:9px}
+#app-ultrasound .dr-read .lung svg{width:40px;height:40px;transform:rotate(-90deg)}
+#app-ultrasound .dr-read .lung .bg{fill:rgba(12,13,16,.8);stroke:rgba(255,255,255,.12);stroke-width:3}
+#app-ultrasound .dr-read .lung .fg{fill:none;stroke:var(--teal-hi);stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 3px rgba(15,212,196,.7))}
+#app-ultrasound .dr-read .lung span{display:block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+#app-ultrasound .dr-read .lung b{font:700 15px var(--mono);color:var(--teal-hi)}
