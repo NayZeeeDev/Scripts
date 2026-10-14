@@ -86,17 +86,34 @@
 #app-donation .dn-ff .btn-teal kbd{background:rgba(0,0,0,.18);border-color:rgba(0,0,0,.25);color:var(--on-teal);height:18px}
 
 /* ═══════════════ BLOOD BAG (svg) ═══════════════ */
-.bb-bag .shell{fill:rgba(255,255,255,.05);stroke:rgba(235,240,242,.55);stroke-width:1.4}
-.bb-bag .hang{fill:none;stroke:rgba(235,240,242,.55);stroke-width:1.4;stroke-linejoin:round}
-.bb-bag .hole{fill:#020303;stroke:rgba(235,240,242,.4);stroke-width:.8}
-.bb-bag .surf{fill:none;stroke:rgba(255,170,170,.35);stroke-width:1}
-.bb-bag .shine{fill:rgba(255,255,255,.07)}
-.bb-bag .grad{stroke:rgba(235,240,242,.35);stroke-width:1}
-.bb-bag .lab{fill:rgba(243,241,234,.92)}
-.bb-bag .labt{font:800 11px var(--font);fill:#111;letter-spacing:-.02em}
-.bb-bag .port{stroke:rgba(235,240,242,.55);stroke-width:2.2;stroke-linecap:round}
-.bb-bag.saline .lab{fill:rgba(243,241,234,.85)}
-.bb-bag.saline .labt{font-size:9px;fill:#067d74}
+.bb-bag{overflow:visible}
+.bb-bag .back{fill:rgba(225,236,240,.045)}
+.bb-bag .shell{fill:none;stroke:rgba(238,243,245,.62);stroke-width:1.1}
+.bb-bag .seam{fill:none;stroke-width:4.4;opacity:.9}
+.bb-bag .tab{fill:rgba(225,236,240,.10);stroke:rgba(238,243,245,.55);stroke-width:1;stroke-linejoin:round}
+.bb-bag .slot{fill:#050607;stroke:rgba(238,243,245,.45);stroke-width:.7}
+.bb-bag .eye{fill:#050607;stroke:rgba(238,243,245,.5);stroke-width:.7}
+.bb-bag .surf{fill:none;stroke:rgba(255,190,190,.42);stroke-width:.9}
+.bb-bag .men{fill:none;stroke:rgba(0,0,0,.28);stroke-width:1.4}
+.bb-bag .bub{fill:rgba(255,220,220,.18);stroke:rgba(255,235,235,.4);stroke-width:.4}
+.bb-bag .shine2{fill:rgba(255,255,255,.10)}
+.bb-bag .grad{stroke:rgba(238,243,245,.55);stroke-width:.8}
+.bb-bag .gradt{font:600 3.4px var(--mono);fill:rgba(238,243,245,.6)}
+.bb-bag .lab{fill:#f4f2eb}
+.bb-bag .labbar{fill:#16181a}
+.bb-bag .labbar.sal{fill:#067d74}
+.bb-bag .labt{font:800 14px var(--font);fill:#111;letter-spacing:-.03em}
+.bb-bag .labt.neg{fill:#111}
+.bb-bag .labt.sal{font-size:7.5px;fill:#067d74;letter-spacing:.02em}
+.bb-bag .labrh{font:800 3.3px var(--font);fill:#333;letter-spacing:.06em}
+.bb-bag .labs{font:700 4.6px var(--mono);fill:#222}
+.bb-bag .labbc{stroke:#1a1b1c;stroke-width:.55}
+.bb-bag .port{stroke:rgba(238,243,245,.62);stroke-width:2.4;stroke-linecap:round}
+.bb-bag .cap{fill:#d9dde0;stroke:rgba(0,0,0,.35);stroke-width:.5}
+.bb-bag.saline .cap{fill:#3fb8ae}
+.bb-bag .tube{fill:none;stroke:#8e141c;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+.bb-bag .tseg{stroke:rgba(238,243,245,.85);stroke-width:1}
+.bb-bag.blood .seam{opacity:1}
 
 /* ═══════════════ PRINTED LABEL (white paper) ═══════════════ */
 .bb-label{position:relative;width:268px;padding:10px 12px 9px;border-radius:5px;background:linear-gradient(180deg,#f6f4ee,#ebe8df);color:#121314;

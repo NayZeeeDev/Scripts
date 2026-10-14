@@ -84,30 +84,82 @@
   }
 
   let svgId = 0;
-  // blood / saline bag drawing; fill 0..1
-  function bagSVG({ fill = 1, kind = 'blood', type = '', w = 74, h = 104, label = true } = {}) {
+  /* blood / saline bag drawing (fill 0..1): pillow-shaped PVC bag that bulges as it fills, welded
+     seams (hatched), hanger slot + eyelets, printed scale, paper label, two outlet ports with
+     twist-off covers and - on blood units - the sealed tubing segments kept for crossmatching. */
+  function bagSVG({ fill = 1, kind = 'blood', type = '', w = 74, h = 104, label = true, segs = true } = {}) {
     const id = `bb${++svgId}`;
     const f = clamp(fill, 0, 1);
-    const top = 16, bottom = 92, inner = bottom - top;
-    const level = bottom - inner * f;
     const blood = kind === 'blood';
-    const liquid = blood ? `url(#${id}g)` : 'rgba(170,215,230,.30)';
+    const big = w >= 52;
+    const bl = 1.8 * f;                                   // pillow bulge when full
+    const X0 = 11, X1 = 63, Y0 = 13, Y1 = 89;
+    const body = `M${X0 + 6} ${Y0} H${X1 - 6} Q${X1} ${Y0} ${X1} ${Y0 + 6} C${X1 + bl} ${Y0 + 26} ${X1 + bl} ${Y1 - 24} ${X1} ${Y1 - 6} Q${X1} ${Y1} ${X1 - 6} ${Y1} H${X0 + 6} Q${X0} ${Y1} ${X0} ${Y1 - 6} C${X0 - bl} ${Y1 - 24} ${X0 - bl} ${Y0 + 26} ${X0} ${Y0 + 6} Q${X0} ${Y0} ${X0 + 6} ${Y0} Z`;
+    const top = Y0 + 4, bottom = Y1 - 3, inner = bottom - top;
+    const level = bottom - inner * f;
+    const lv = level.toFixed(2);
+    // deterministic bubbles under the surface
+    let bub = '';
+    if (big && f > 0.06 && f < 0.97) {
+      [[24, 3.2, 1.1], [44, 5.5, .8], [31, 8, .6], [52, 2.6, .9]].forEach(([bx, dy, r]) => {
+        if (level + dy < bottom - 2) bub += `<circle class="bub" cx="${bx}" cy="${(level + dy).toFixed(1)}" r="${r}"/>`;
+      });
+    }
+    // printed volume scale (right side, mL at 100 steps of a 500 mL bag)
+    let scale = '';
+    if (big) {
+      for (let i = 1; i <= 4; i++) {
+        const y = (bottom - inner * (i / 5)).toFixed(1);
+        scale += `<path class="grad" d="M${X1 - 7} ${y} H${X1 - 3}"/>`;
+        if (w >= 90) scale += `<text class="gradt" x="${X1 - 8}" y="${(+y + 1.4).toFixed(1)}" text-anchor="end">${i * 100}</text>`;
+      }
+    }
+    const abo = String(type || '').replace(/[+-]/, '');
+    const neg = /-/.test(type || '');
+    const lab = !label ? '' : blood
+      ? `<g class="labg"><rect class="lab" x="20" y="27" width="31" height="25" rx="1.6"/>
+          <rect class="labbar" x="20" y="27" width="31" height="4.5" rx="1.6"/>
+          <text class="labt ${neg ? 'neg' : ''}" x="35.5" y="46" text-anchor="middle">${esc(abo || '?')}</text>
+          ${big ? `<text class="labrh" x="35.5" y="50.6" text-anchor="middle">${neg ? 'RhD NEG' : 'RhD POS'}</text>
+          <path class="labbc" d="M23 34.5v4M24.4 34.5v4M25.4 34.5v4M27.2 34.5v4M28.1 34.5v4M30 34.5v4M31.6 34.5v4M32.5 34.5v4M34.3 34.5v4M35.2 34.5v4M37 34.5v4M38.9 34.5v4M39.8 34.5v4M41.6 34.5v4M43 34.5v4M44.1 34.5v4M46 34.5v4M47.6 34.5v4"/>` : ''}</g>`
+      : `<g class="labg"><rect class="lab" x="20" y="27" width="31" height="27" rx="1.6"/>
+          <rect class="labbar sal" x="20" y="27" width="31" height="4.5" rx="1.6"/>
+          <text class="labt sal" x="35.5" y="41.5" text-anchor="middle">NaCl</text>
+          <text class="labs" x="35.5" y="49.5" text-anchor="middle">0.9% · 500</text></g>`;
+    const tubing = blood && segs && big
+      ? `<path class="tube" d="M43 95 V97.5 Q43 101 46.5 101 H63 Q67 101 67 97 V74"/>
+         <path class="tseg" d="M47 99.4v3.2M51 99.4v3.2M55 99.4v3.2M59 99.4v3.2M65.4 95v3.2M65.4 90v3.2M65.4 85v3.2M65.4 80v3.2"/>`
+      : '';
     return `<svg class="bb-bag ${blood ? 'blood' : 'saline'}" viewBox="0 0 74 104" width="${w}" height="${h}">
       <defs>
-        <linearGradient id="${id}g" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#5c0f14"/><stop offset=".45" stop-color="#9d1b22"/><stop offset="1" stop-color="#5a0c12"/></linearGradient>
-        <clipPath id="${id}c"><path d="M12 14 Q12 8 18 8 H56 Q62 8 62 14 V86 Q62 94 54 94 H20 Q12 94 12 86 Z"/></clipPath>
+        <linearGradient id="${id}g" x1="0" x2="1" y1="0" y2="0">${blood
+          ? '<stop offset="0" stop-color="#3d070b"/><stop offset=".18" stop-color="#7a1018"/><stop offset=".5" stop-color="#a41b24"/><stop offset=".82" stop-color="#6e0e15"/><stop offset="1" stop-color="#36060a"/>'
+          : '<stop offset="0" stop-color="rgba(140,200,220,.30)"/><stop offset=".5" stop-color="rgba(190,232,245,.16)"/><stop offset="1" stop-color="rgba(140,200,220,.30)"/>'}</linearGradient>
+        <linearGradient id="${id}v" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgba(255,255,255,.10)"/><stop offset=".4" stop-color="rgba(255,255,255,0)"/><stop offset="1" stop-color="rgba(0,0,0,.32)"/></linearGradient>
+        <linearGradient id="${id}s" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="rgba(255,255,255,0)"/><stop offset=".5" stop-color="rgba(255,255,255,.22)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></linearGradient>
+        <pattern id="${id}h" width="2.2" height="2.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="2.2" fill="rgba(235,240,242,.10)"/><path d="M0 0V2.2" stroke="rgba(235,240,242,.34)" stroke-width=".55"/></pattern>
+        <clipPath id="${id}c"><path d="${body}"/></clipPath>
       </defs>
-      <path class="hang" d="M31 8 V3 H43 V8" />
-      <circle class="hole" cx="37" cy="5.5" r="1.6"/>
+      <path class="tab" d="M27 13 V5.5 Q27 3 29.5 3 H44.5 Q47 3 47 5.5 V13"/>
+      <rect class="slot" x="32" y="5.8" width="10" height="3.2" rx="1.6"/>
       <g clip-path="url(#${id}c)">
-        <rect x="10" y="${level.toFixed(2)}" width="56" height="${(100 - level).toFixed(2)}" fill="${liquid}"/>
-        ${f > 0.02 && f < 0.995 ? `<path class="surf" d="M10 ${level.toFixed(2)} Q24 ${(level - 1.4).toFixed(2)} 37 ${level.toFixed(2)} T66 ${level.toFixed(2)}"/>` : ''}
-        <rect x="14" y="10" width="7" height="80" class="shine"/>
+        <rect class="back" x="6" y="8" width="62" height="90"/>
+        <rect x="6" y="${lv}" width="62" height="${(100 - level).toFixed(2)}" fill="url(#${id}g)"/>
+        <rect x="6" y="${lv}" width="62" height="${(100 - level).toFixed(2)}" fill="url(#${id}v)"/>
+        ${f > 0.02 && f < 0.995 ? `<path class="surf" d="M6 ${lv} Q22 ${(level - 1.3).toFixed(2)} 37 ${lv} T68 ${lv}"/><path class="men" d="M6 ${(level + 0.9).toFixed(2)} H68"/>` : ''}
+        ${bub}
+        <rect class="shine" x="15" y="10" width="6" height="84" fill="url(#${id}s)"/>
+        <rect class="shine2" x="49" y="16" width="2" height="62" rx="1"/>
       </g>
-      <path class="shell" d="M12 14 Q12 8 18 8 H56 Q62 8 62 14 V86 Q62 94 54 94 H20 Q12 94 12 86 Z"/>
-      ${[0.25, 0.5, 0.75].map(g => `<path class="grad" d="M54 ${(bottom - inner * g).toFixed(1)} H61"/>`).join('')}
-      ${label ? `<rect class="lab" x="22" y="30" width="30" height="22" rx="2"/><text class="labt" x="37" y="46" text-anchor="middle">${esc(blood ? fmtType(type || '') : '0.9%')}</text>` : ''}
-      <path class="port" d="M30 94 V100 M44 94 V100"/>
+      <path class="seam" d="${body}" stroke="url(#${id}h)"/>
+      <path class="shell" d="${body}"/>
+      <circle class="eye" cx="${X0 + 5}" cy="${Y0 + 4.5}" r="1.5"/><circle class="eye" cx="${X1 - 5}" cy="${Y0 + 4.5}" r="1.5"/>
+      ${scale}
+      ${lab}
+      <path class="port" d="M29 ${Y1} V96 M43 ${Y1} V95"/>
+      <rect class="cap" x="26.6" y="95.4" width="4.8" height="6" rx="1.2"/>
+      ${blood ? '' : '<rect class="cap" x="40.6" y="94.6" width="4.8" height="6" rx="1.2"/>'}
+      ${tubing}
     </svg>`;
   }
 

@@ -96,11 +96,11 @@ def _closed_shell(b):
     # hinges on the back
     yb = -CD / 2
     for x in (-0.19, 0.0, 0.19):
-        g += cylinder(0.0095, 0.08, grey, segs=18, bevel=0.002, z0=-0.04).rotate(0, 90, 0).translate(x, yb - 0.006, Z_SEAM)
+        g += hinge(b, (x - 0.04, yb - 0.006, Z_SEAM), (x + 0.04, yb - 0.006, Z_SEAM), r=0.0095, knuckles=5, mat=grey, segs=14)
     return g
 
 
-@prop("nz_amb_kitcase_closed", atlas=1024, lod=90, hd=15, falloff=80, doc={
+@prop("nz_amb_kitcase_closed", atlas=2048, lod=90, hd=15, falloff=80, doc={
     "title": "Trauma kit hard case (closed)",
     "origin": "bottom centre (on the ground)",
     "axes": "+Y = front (latches + handle), +Z up, length along X",
@@ -113,8 +113,21 @@ def kitcase_closed(b):
         g += _case_latch(b, x, CD / 2)
     # purge valve on the lid front
     blk = m_black_plastic(b)
-    g += align(lathe([(0.0, 0.0), (0.012, 0.0), (0.012, 0.006), (0.010, 0.009), (0.0, 0.009)], blk, segs=24), (0, 1, 0), (0, 0, 1), (0.0, CD / 2, Z_SEAM + 0.036))
+    knurl = b.mat("valve_knurl", color=(30, 31, 34), spec=0.3, gloss=0.4, bump="ribs_u", bump_amp=0.0001, bump_scale=0.0014, edge=0.4)
+    g += align(lathe([(0.0, 0.0), (0.0125, 0.0), (0.0125, 0.006), (0.0105, 0.0088), (0.0, 0.009)], knurl, segs=32, smooth_angle=50),
+               (0, 1, 0), (0, 0, 1), (0.0, CD / 2, Z_SEAM + 0.036))
+    g += align(cylinder(0.005, 0.0012, blk, segs=16, caps=(False, True), z0=0.009), (0, 1, 0), (0, 0, 1), (0.0, CD / 2, Z_SEAM + 0.036))
+    # numbered tamper seal looped through the right padlock eye
+    red = b.mat("seal_red", color=(206, 34, 40), spec=0.45, gloss=0.6, edge=0.3)
+    loop = catmull([(0.24, CD / 2 + 0.0115, Z_SEAM + 0.004), (0.245, CD / 2 + 0.016, Z_SEAM - 0.004), (0.243, CD / 2 + 0.017, Z_SEAM - 0.016),
+                    (0.239, CD / 2 + 0.0165, Z_SEAM - 0.024)], n=6)
+    g += tube(loop, 0.0012, red, segs=8, tag="seal")
+    g += box((0.014, 0.0022, 0.03), red, r=0.0009, seg=1, center=(0.238, CD / 2 + 0.0172, Z_SEAM - 0.04))
     b.add(g)
+    sl = DecalCanvas(0.014, 0.03, ppm=12000)
+    sl.text(0.007, 0.006, "SEALED", 0.0016, fnt="label", color=(255, 236, 236), rotate=90)
+    sl.text(0.007, 0.02, "004417", 0.0019, fnt="mono-bold", color=(255, 255, 255), rotate=90)
+    b.decal(sl, center=(0.238, CD / 2 + 0.0184, Z_SEAM - 0.04), normal=(0, 1, 0), up=(0, 0, 1), mats=["seal_red"], depth=0.002)
     _case_decals(b, open_lid=False)
     b.col_box((-0.31, -0.232, 0.0), (0.31, 0.233, 0.205), "PLASTIC_HIGH_DENSITY")
     b.col_box((-0.1, 0.215, 0.04), (0.1, 0.255, 0.11), "PLASTIC_HIGH_DENSITY")
@@ -123,14 +136,27 @@ def kitcase_closed(b):
 def _case_decals(b, open_lid=False, lid_rot=None, hinge_o=None):
     grey = "case_grey"
     top = Z_SEAM + LID_H
-    dc = DecalCanvas(0.40, 0.16, ppm=1500)
-    dc.lockup(0.012, 0.012, 0.075, color=WHITE, sub_color=TEAL_HI)
-    dc.rect(0.012, 0.105, 0.376, 0.040, r=0.006, color=(8, 168, 156), spec=0.35, gloss=0.5)
-    dc.text(0.2, 0.125, "TRAUMA  /  RESUS  KIT", 0.017, fnt="label", color=(12, 14, 16), spacing=0.003, max_w=0.36)
-    lab = serial_label(0.07, 0.026, "TRAUMA KIT  NZ-TK62", "UNIT 07-A")
+    dc = DecalCanvas(0.40, 0.16, ppm=2200)
+    dc.rect(0.004, 0.004, 0.392, 0.152, r=0.01, color=(238, 240, 240), spec=0.4, gloss=0.55)
+    dc.rect(0.004, 0.004, 0.392, 0.03, r=0.01, color=(200, 34, 40), spec=0.4, gloss=0.55)
+    dc.rect(0.004, 0.02, 0.392, 0.014, color=(200, 34, 40))
+    dc.text(0.2, 0.019, "EMERGENCY MEDICAL EQUIPMENT", 0.0105, fnt="label", color=(255, 255, 255), spacing=0.0018, max_w=0.37)
+    dc.star_of_life(0.062, 0.088, 0.088, color=(30, 88, 186))
+    dc.text(0.118, 0.066, "TRAUMA / RESUS", 0.022, fnt="label", anchor="lm", color=(20, 22, 24), spacing=0.0016, max_w=0.27)
+    dc.text(0.118, 0.096, "KIT  TK-62  ·  UNIT 07-A  ·  ALS", 0.0105, fnt="label-semi", anchor="lm", color=(60, 64, 68), max_w=0.27)
+    dc.rect(0.118, 0.112, 0.27, 0.0012, color=(150, 154, 158))
+    dc.text(0.118, 0.126, "Check seal and contents after every call - restock from bay cabinet", 0.0062, fnt="label-semi",
+            anchor="lm", color=(90, 94, 98), max_w=0.19)
+    dc.barcode(0.318, 0.117, 0.07, 0.03, seed=62, color=(20, 22, 24))
+    lab = rating_plate(0.07, 0.026, "TRAUMA KIT CASE", "TK-62", "SN 26-00762", rating="MAX LOAD 25 kg  ·  IP67  ·  -30..+70 C",
+                       icons=("factory", "date", "book", "temp"))
+    deb = DecalCanvas(0.12, 0.02, ppm=3000)
+    deb.text(0.06, 0.01, "MAX 25 kg  ·  PP  ·  IP67", 0.0068, fnt="label", color=(116, 121, 126), height=-0.0003, spacing=0.0008)
     if not open_lid:
         b.decal(dc, center=(0.0, 0.0, top), normal=(0, 0, 1), up=(0, -1, 0), mats=[grey], depth=0.012, min_dot=0.6)
         b.decal(lab, center=(0.21, -CD / 2, Z_SEAM + 0.036), normal=(0, -1, 0), mats=[grey], depth=0.01)
+        b.decal(asset_tag(0.05, 0.014, "TK 07-A", seed=7), center=(-0.21, -CD / 2, Z_SEAM + 0.036), normal=(0, -1, 0), mats=[grey], depth=0.01)
+        b.decal(deb, center=(0.0, CD / 2, 0.075), normal=(0, 1, 0), mats=[grey], depth=0.01)
     else:
         n = lid_rot @ vec(0, 0, 1)
         up = lid_rot @ vec(0, 1, 0)
@@ -205,7 +231,7 @@ def kitcase_open(b):
     from nzprops.mesh import axis_angle
     rot = axis_angle((1, 0, 0), ang)
     for x in (-0.19, 0.0, 0.19):
-        g += cylinder(0.0095, 0.08, grey, segs=18, bevel=0.002, z0=-0.04).rotate(0, 90, 0).translate(x, -CD / 2 - 0.006, Z_SEAM)
+        g += hinge(b, (x - 0.04, -CD / 2 - 0.006, Z_SEAM), (x + 0.04, -CD / 2 - 0.006, Z_SEAM), r=0.0095, knuckles=5, mat=grey, segs=14)
 
     # ---- pick-and-pluck foam insert with pockets -------------------------------------------
     zt = Z_SEAM - 0.012
@@ -220,7 +246,7 @@ def kitcase_open(b):
     for (hx0, hx1, hy0, hy1) in holes:
         g += pocket(hx0, hx1, hy0, hy1, zt, 0.045, foam, tag="pocket")
     # contents
-    drill = iodrill_geo(b).rotate(0, -90, 0).rotate(0, 0, 0)
+    drill = iodrill_geo(b, detail=False).rotate(0, -90, 0)
     dmn, dmx = drill.bbox()
     drill.translate(-0.187 - (dmn[0] + dmx[0]) / 2, -0.03 - (dmn[1] + dmx[1]) / 2, zt - 0.032 - dmn[2])
     g += drill
@@ -258,10 +284,11 @@ def kitcase_open(b):
 
     # decals ------------------------------------------------------------------------------
     _case_decals(b, open_lid=True, lid_rot=rot, hinge_o=hinge_o)
-    cdc = DecalCanvas(0.20, 0.13, ppm=2600)
-    cdc.rect(0, 0, 0.2, 0.024, color=(8, 168, 156))
-    cdc.mark(0.006, 0.004, 0.016)
-    cdc.text(0.028, 0.012, "TRAUMA KIT  -  CONTENTS", 0.0075, fnt="label", anchor="lm", color=(10, 12, 14), max_w=0.165)
+    cdc = DecalCanvas(0.20, 0.13, ppm=3200)
+    cdc.rect(0, 0, 0.2, 0.024, color=(200, 34, 40))
+    cdc.star_of_life(0.014, 0.012, 0.018, color=(255, 255, 255), rod=(200, 34, 40))
+    cdc.text(0.028, 0.012, "TRAUMA KIT  -  CONTENTS", 0.0075, fnt="label", anchor="lm", color=(255, 255, 255), max_w=0.165)
+    cdc.text(0.19, 0.122, "CHECKED  ____  /  ____", 0.0045, fnt="mono", anchor="rm", color=(90, 94, 98))
     items = ["IO driver + needle sets (15/25/45)", "Syringes 10 mL  x3", "Blood tubes (red/purple/blue/green)",
              "Haemostatic dressings  x2", "Tourniquet  /  pelvic binder", "Check seal after every call"]
     for k, t in enumerate(items):
@@ -274,7 +301,9 @@ def kitcase_open(b):
         lab = DecalCanvas(0.08, 0.014, ppm=3000)
         lab.text(0.04, 0.007, t, 0.0065, fnt="label", color=(150, 156, 160), spacing=0.0012, max_w=0.075)
         b.decal(lab, center=((hx0 + hx1) / 2, hy1 + 0.012, zt), normal=(0, 0, 1), up=(0, 1, 0), mats=["pluck_foam"], depth=0.004)
-    b.decal(brand_canvas(0.07, 0.022, ppm=3000), center=(0.0, -CD / 2 + wall + 0.016, zt), normal=(0, 0, 1), up=(0, 1, 0), mats=["pluck_foam"], depth=0.004)
+    fl = DecalCanvas(0.16, 0.014, ppm=3000)
+    fl.text(0.08, 0.007, "INSERT TK-62  ·  REPLACE IF DAMAGED", 0.0055, fnt="label", color=(120, 126, 130), spacing=0.0006)
+    b.decal(fl, center=(0.0, -CD / 2 + wall + 0.016, zt), normal=(0, 0, 1), up=(0, 1, 0), mats=["pluck_foam"], depth=0.004)
 
     b.col_box((-0.31, -0.232, 0.0), (0.31, 0.233, 0.127), "PLASTIC_HIGH_DENSITY")
     b.col_box((-0.31, -0.33, 0.12), (0.31, -0.215, 0.56), "PLASTIC_HIGH_DENSITY")
@@ -283,7 +312,7 @@ def kitcase_open(b):
 # =============================================================================================
 # sharps bin
 # =============================================================================================
-@prop("nz_amb_sharps", atlas=512, lod=60, hd=10, doc={
+@prop("nz_amb_sharps", atlas=1024, lod=60, hd=10, doc={
     "title": "Sharps bin (5 L), yellow with orange lid",
     "origin": "bottom centre",
     "axes": "+Y = front (biohazard label), aperture on top, +Z up",
@@ -325,11 +354,38 @@ def sharps(b):
     fill.text(0.065, 0.012, "FILL LINE", 0.0045, fnt="label", color=(18, 18, 20))
     for sx in (-1, 1):
         b.decal(fill, center=(sx * (W / 2 + 0.001), 0, 0.155), normal=(sx, 0, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.012)
-    b.decal(brand_canvas(0.07, 0.02, ppm=3000, color=(18, 18, 20), sub_color=(18, 18, 20)), center=(0, -D / 2 - 0.001, 0.15),
-            normal=(0, -1, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.012)
-    arrow = DecalCanvas(0.13, 0.03, ppm=3000)
-    arrow.text(0.065, 0.015, "PUSH TO CLOSE", 0.0055, fnt="label", color=(250, 236, 224), spacing=0.0008)
+    bk = DecalCanvas(0.14, 0.09, ppm=3200)
+    bk.text(0.07, 0.010, "SHARPS CONTAINER  SC-5", 0.0062, fnt="label", color=(18, 18, 20), spacing=0.0006)
+    for k, t in enumerate(("Close temporarily between uses", "Close permanently at the fill line", "Do not empty  ·  Do not reopen",
+                           "Incinerate as clinical waste", "UN 3291  ·  LOT 26S0412  ·  EXP 2031-02")):
+        bk.text(0.07, 0.022 + k * 0.0085, t, 0.0039, fnt="label-semi", color=(30, 30, 32), max_w=0.13)
+    bk.polygon([(0.012, 0.086), (0.022, 0.068), (0.032, 0.086)], color=(18, 18, 20))
+    bk.polygon([(0.0155, 0.083), (0.022, 0.072), (0.0285, 0.083)], color=(236, 196, 30))
+    bk.text(0.022, 0.081, "5", 0.0042, fnt="label", color=(18, 18, 20))
+    bk.text(0.022, 0.090, "PP", 0.0034, fnt="label", color=(18, 18, 20))
+    bk.barcode(0.07, 0.068, 0.06, 0.02, seed=91, color=(18, 18, 20))
+    b.decal(bk, center=(0, -D / 2 - 0.001, 0.12), normal=(0, -1, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.012)
+    arrow = DecalCanvas(0.13, 0.03, ppm=4000)
+    arrow.text(0.065, 0.015, "PUSH TO CLOSE", 0.0055, fnt="label", color=(250, 236, 224), spacing=0.0008, height=0.00015)
+    arrow.polygon([(0.008, 0.015), (0.016, 0.009), (0.016, 0.021)], color=(250, 236, 224), height=0.00015)
+    arrow.polygon([(0.122, 0.015), (0.114, 0.009), (0.114, 0.021)], color=(250, 236, 224), height=0.00015)
     b.decal(arrow, center=(0, 0.04, zl + 0.0405), normal=(0, 0, 1), up=(0, -1, 0), mats=["sharps_lid"], depth=0.006)
+    # aperture: flexible fingers + needle unhook notches; moulded side ribs; lid hinge strip at the back
+    ap = DecalCanvas(0.115, 0.032, ppm=6000)
+    for k in range(9):
+        ap.line([(0.012 + k * 0.0115, 0.004), (0.012 + k * 0.0115, 0.028)], 0.0006, color=(60, 60, 62), height=-0.0003)
+    b.decal(ap, center=(0, 0.012, zl + 0.0415), normal=(0, 0, 1), up=(0, -1, 0), mats=["aperture"], depth=0.004)
+    nt = DecalCanvas(0.15, 0.02, ppm=5000)
+    for k, x in enumerate((0.02, 0.13)):
+        nt.circle(x, 0.01, 0.003, color=(30, 22, 18), height=-0.0012)
+        nt.rect(x - 0.0008, 0.01, 0.0016, 0.007, color=(30, 22, 18), height=-0.0012)
+    b.decal(nt, center=(0, 0.036, zl + 0.0405), normal=(0, 0, 1), up=(0, -1, 0), mats=["sharps_lid"], depth=0.004)
+    for sx in (-1, 1):
+        rb = DecalCanvas(0.12, 0.16, ppm=3000)
+        for k in range(2):
+            rb.rect(0.025 + k * 0.06, 0.012, 0.01, 0.135, r=0.005, color=(250, 214, 50), height=0.0009, alpha=0.6)
+        b.decal(rb, center=(sx * (W / 2 + 0.001), 0, 0.09), normal=(sx, 0, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.012)
+    b.add(box((0.17, 0.012, 0.012), lidm, r=0.005, seg=2, center=(0, -D / 2 - 0.004, zl + 0.03)))
     b.col_box((-0.106, -0.076, 0.0), (0.106, 0.076, 0.245), "PLASTIC_HOLLOW")
 
 
