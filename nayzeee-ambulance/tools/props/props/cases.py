@@ -115,7 +115,7 @@ def _case_decals(b, open_lid=False, lid_rot=None, hinge_o=None):
     dc = DecalCanvas(0.40, 0.16, ppm=1500)
     dc.lockup(0.012, 0.012, 0.075, color=WHITE, sub_color=TEAL_HI)
     dc.rect(0.012, 0.105, 0.376, 0.040, r=0.006, color=(8, 168, 156), spec=0.35, gloss=0.5)
-    dc.text(0.2, 0.125, "TRAUMA  /  RESUS  KIT", 0.017, fnt="brand", color=(12, 14, 16), spacing=0.003, max_w=0.36)
+    dc.text(0.2, 0.125, "TRAUMA  /  RESUS  KIT", 0.017, fnt="label", color=(12, 14, 16), spacing=0.003, max_w=0.36)
     lab = serial_label(0.07, 0.026, "TRAUMA KIT  NZ-TK62", "UNIT 07-A")
     if not open_lid:
         b.decal(dc, center=(0.0, 0.0, top), normal=(0, 0, 1), up=(0, -1, 0), mats=[grey], depth=0.012, min_dot=0.6)
@@ -128,8 +128,8 @@ def _case_decals(b, open_lid=False, lid_rot=None, hinge_o=None):
     side = DecalCanvas(0.12, 0.05, ppm=2400)
     side.rect(0, 0, 0.12, 0.05, r=0.006, color=(214, 54, 50))
     cross_mark(side, 0.025, 0.025, 0.032, color=WHITE)
-    side.text(0.078, 0.019, "EMS", 0.012, fnt="brand", color=WHITE)
-    side.text(0.078, 0.036, "07-A", 0.008, fnt="brand-semi", color=WHITE)
+    side.text(0.078, 0.019, "EMS", 0.012, fnt="label", color=WHITE)
+    side.text(0.078, 0.036, "07-A", 0.008, fnt="label-semi", color=WHITE)
     for sx in (-1, 1):
         b.decal(side, center=(sx * CL / 2, 0.0, 0.07), normal=(sx, 0, 0), up=(0, 0, 1), mats=[grey], depth=0.012)
 
@@ -250,18 +250,18 @@ def kitcase_open(b):
     cdc = DecalCanvas(0.20, 0.13, ppm=2600)
     cdc.rect(0, 0, 0.2, 0.024, color=(8, 168, 156))
     cdc.mark(0.006, 0.004, 0.016)
-    cdc.text(0.028, 0.012, "TRAUMA KIT  -  CONTENTS", 0.0075, fnt="brand", anchor="lm", color=(10, 12, 14), max_w=0.165)
+    cdc.text(0.028, 0.012, "TRAUMA KIT  -  CONTENTS", 0.0075, fnt="label", anchor="lm", color=(10, 12, 14), max_w=0.165)
     items = ["IO driver + needle sets (15/25/45)", "Syringes 10 mL  x3", "Blood tubes (red/purple/blue/green)",
              "Haemostatic dressings  x2", "Tourniquet  /  pelvic binder", "Check seal after every call"]
     for k, t in enumerate(items):
         cdc.circle(0.012, 0.036 + k * 0.0155, 0.0022, color=(8, 168, 156))
-        cdc.text(0.02, 0.036 + k * 0.0155, t, 0.0058, fnt="brand-semi", anchor="lm", color=(30, 32, 35), max_w=0.17)
+        cdc.text(0.02, 0.036 + k * 0.0155, t, 0.0058, fnt="label-semi", anchor="lm", color=(30, 32, 35), max_w=0.17)
     cc = rot @ (vec(0.12, 0.02, Z_SEAM + 0.0024) - hinge_o) + hinge_o
     b.decal(cdc, center=tuple(cc), normal=tuple(rot @ vec(0, 0, -1)), up=tuple(rot @ vec(0, 1, 0)), mats=["card"], depth=0.004)
     # pocket labels on the foam
     for (hx0, hx1, hy0, hy1), t in zip(holes, ("IO", "SYRINGES", "TUBES", "DRESSINGS", "IO NEEDLES")):
         lab = DecalCanvas(0.08, 0.014, ppm=3000)
-        lab.text(0.04, 0.007, t, 0.0065, fnt="brand", color=(150, 156, 160), spacing=0.0012, max_w=0.075)
+        lab.text(0.04, 0.007, t, 0.0065, fnt="label", color=(150, 156, 160), spacing=0.0012, max_w=0.075)
         b.decal(lab, center=((hx0 + hx1) / 2, hy1 + 0.012, zt), normal=(0, 0, 1), up=(0, 1, 0), mats=["pluck_foam"], depth=0.004)
     b.decal(brand_canvas(0.07, 0.022, ppm=3000), center=(0.0, -CD / 2 + wall + 0.016, zt), normal=(0, 0, 1), up=(0, 1, 0), mats=["pluck_foam"], depth=0.004)
 
@@ -303,21 +303,21 @@ def sharps(b):
     lab.rect(0, 0, 0.16, 0.13, r=0.006, color=(244, 210, 40))
     lab.rect(0.004, 0.004, 0.152, 0.122, r=0.004, fill=False, width=0.002, color=(18, 18, 20))
     biohazard(lab, 0.04, 0.048, 0.028)
-    lab.text(0.108, 0.034, "SHARPS", 0.017, fnt="brand", color=(18, 18, 20), max_w=0.08)
-    lab.text(0.108, 0.058, "BIOHAZARD", 0.008, fnt="brand", color=(18, 18, 20), max_w=0.08)
-    lab.text(0.08, 0.092, "DANGER - CONTAMINATED NEEDLES", 0.0058, fnt="brand", color=(18, 18, 20), max_w=0.145)
-    lab.text(0.08, 0.108, "DO NOT OVERFILL  ·  5 L", 0.0052, fnt="brand-semi", color=(18, 18, 20), max_w=0.145)
+    lab.text(0.108, 0.034, "SHARPS", 0.017, fnt="label", color=(18, 18, 20), max_w=0.08)
+    lab.text(0.108, 0.058, "BIOHAZARD", 0.008, fnt="label", color=(18, 18, 20), max_w=0.08)
+    lab.text(0.08, 0.092, "DANGER - CONTAMINATED NEEDLES", 0.0058, fnt="label", color=(18, 18, 20), max_w=0.145)
+    lab.text(0.08, 0.108, "DO NOT OVERFILL  ·  5 L", 0.0052, fnt="label-semi", color=(18, 18, 20), max_w=0.145)
     b.decal(lab, center=(0, D / 2 + 0.001, 0.095), normal=(0, 1, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.012)
     fill = DecalCanvas(0.13, 0.02, ppm=2600)
     for k in range(9):
         fill.rect(0.002 + k * 0.0145, 0.002, 0.009, 0.002, color=(18, 18, 20))
-    fill.text(0.065, 0.012, "FILL LINE", 0.0045, fnt="brand", color=(18, 18, 20))
+    fill.text(0.065, 0.012, "FILL LINE", 0.0045, fnt="label", color=(18, 18, 20))
     for sx in (-1, 1):
         b.decal(fill, center=(sx * (W / 2 + 0.001), 0, 0.155), normal=(sx, 0, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.012)
     b.decal(brand_canvas(0.07, 0.02, ppm=3000, color=(18, 18, 20), sub_color=(18, 18, 20)), center=(0, -D / 2 - 0.001, 0.15),
             normal=(0, -1, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.012)
     arrow = DecalCanvas(0.13, 0.03, ppm=3000)
-    arrow.text(0.065, 0.015, "PUSH TO CLOSE", 0.0055, fnt="brand", color=(250, 236, 224), spacing=0.0008)
+    arrow.text(0.065, 0.015, "PUSH TO CLOSE", 0.0055, fnt="label", color=(250, 236, 224), spacing=0.0008)
     b.decal(arrow, center=(0, 0.04, zl + 0.0405), normal=(0, 0, 1), up=(0, -1, 0), mats=["sharps_lid"], depth=0.006)
     b.col_box((-0.106, -0.076, 0.0), (0.106, 0.076, 0.245), "PLASTIC_HOLLOW")
 

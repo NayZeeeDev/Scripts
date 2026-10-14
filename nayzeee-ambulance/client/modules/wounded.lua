@@ -249,6 +249,10 @@ local function hudState()
         bleed = tonumber(sum.bleed) or 0,
         stab = sum.stab == true,
         clock = math.max(0, math.floor(tonumber(sum.clock) or 0)),
+        -- full scale of the HUD's bleed-out ring (arrest: time until death)
+        clockMax = S.mode == 'arrest'
+            and math.max(1, math.floor(tonumber(Config.Death and Config.Death.arrestToDeath) or 300))
+            or math.max(1, math.floor(tonumber(wcfg('maxClock', 300)) or 300)),
         running = clockRunning(),
         rate = (S.mode == 'wounded' and S.snap and tonumber(S.snap.clockRate)) and U.clamp(tonumber(S.snap.clockRate), 0, 1) or 1,
         critical = tonumber(ui('criticalClock', 30)) or 30,

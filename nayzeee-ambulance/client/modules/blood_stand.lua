@@ -4,9 +4,9 @@
     NZA.Blood.OpenStand(target, info?)  - any module (bay F3 hands `info` = bay fittings; beds, surgery,
         field) opens the IV stand panel for a patient: hang saline / blood bags you carry (label, group,
         expiry, compatibility once the patient was typed - mismatch warning), roller clamp, pressure
-        infuser (Space squeeze + gauge), live infusion rate, volume in, TXA slow push, take down,
+        infuser (Space pump + dial), live flow, volume given, TXA slow push (ring), unhang,
         Type & screen, 'Place an IV first' (field module's IV cannulation when installed, otherwise a
-        quick placement), 'Fill blood bag' from the ambulance onboard stock inside the treatment bay.
+        quick placement), 'Bag a unit' from the ambulance fridge inside the treatment bay.
     The stand is drawn for EVERY client from the patient's 'nzaStand' state bag (server): a tripod
         stand beside the patient with the bags on its hooks (blood bags swap their fill model
         Config.Props.bloodbag_0..100 as they empty); inside the ambulance bay the bags hang on the

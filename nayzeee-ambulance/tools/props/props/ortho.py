@@ -85,8 +85,8 @@ def binder_flat(b):
     _binder_print(b, "belt:2", 0.87, W, 0.03, 0.57)
     guide = DecalCanvas(0.20, W * 0.86, ppm=2000)
     guide.rect(0.098, 0.0, 0.004, W * 0.86, color=WHITE)
-    guide.text(0.05, W * 0.43, "CENTRE", 0.012, fnt="brand", color=WHITE, spacing=0.002)
-    guide.text(0.15, W * 0.43, "TROCHANTERS", 0.010, fnt="brand", color=WHITE, spacing=0.0015, max_w=0.09)
+    guide.text(0.05, W * 0.43, "CENTRE", 0.012, fnt="label", color=WHITE, spacing=0.002)
+    guide.text(0.15, W * 0.43, "TROCHANTERS", 0.010, fnt="label", color=WHITE, spacing=0.0015, max_w=0.09)
     b.chart_decal(guide, "belt:2", u0=W * 0.07, v0=0.335, rot=270, mats=["binder_belt"])
     hook = DecalCanvas(0.12, W * 0.8, ppm=1500)
     hook.rect(0, 0, 0.12, W * 0.8, r=0.004, color=(30, 31, 34), height=0.0003, spec=0.08, gloss=0.1)
@@ -138,7 +138,7 @@ def binder_worn(b):
     dc.lockup(0.012, 0.02, 0.058, color=TEAL_HI, sub_color=TEAL_HI)
     b.chart_decal(dc, "loop:1", u0=0.05, v0=per * 0.75 - 0.15, rot=90, mats=["binder_belt"])
     side = DecalCanvas(0.16, 0.03, ppm=1500)
-    side.text(0.08, 0.015, "PELVIC BINDER", 0.012, fnt="brand", color=TEAL_HI, spacing=0.0025, max_w=0.155)
+    side.text(0.08, 0.015, "PELVIC BINDER", 0.012, fnt="label", color=TEAL_HI, spacing=0.0025, max_w=0.155)
     b.chart_decal(side, "loop:1", u0=0.085, v0=per * 0.5 - 0.08, rot=90, mats=["binder_belt"])
     b.col_box((-0.18, -0.13, -0.11), (0.18, 0.14, 0.11), "CLOTH")
 
@@ -181,7 +181,7 @@ def tourniquet(b):
     b.add(box((0.03, 0.022, 0.008), strap, r=0.003, seg=1, center=(0, -0.004, zt + 0.0035)))
     b.add(box((0.034, 0.03, 0.0025), white, r=0.0012, seg=1, center=(0, 0.008, zt + 0.0168)))
     lab = DecalCanvas(0.034, 0.03, ppm=6000)
-    lab.text(0.017, 0.009, "TIME", 0.0045, fnt="brand", color=(200, 36, 40))
+    lab.text(0.017, 0.009, "TIME", 0.0045, fnt="label", color=(200, 36, 40))
     lab.text(0.017, 0.021, "14:32", 0.0048, fnt="mono-bold", color=(20, 22, 24))
     b.decal(lab, center=(0, 0.008, zt + 0.0181), normal=(0, 0, 1), up=(0, -1, 0), mats=["tq_time"], depth=0.003)
     pr = DecalCanvas(0.10, 0.03, ppm=4000)
@@ -242,7 +242,7 @@ def crutch(b):
     b.add(box((0.026, 0.02, 0.05), blk, r=0.008, seg=2, center=top + d * 0.01 + e2 * 0.002))
     # decals
     lab = DecalCanvas(0.03, 0.12, ppm=4000)
-    lab.text(0.015, 0.06, "NAYZEEE", 0.0075, fnt="brand", color=(240, 242, 243), spacing=0.0012, rotate=90)
+    lab.text(0.015, 0.06, "NAYZEEE", 0.0075, fnt="label", color=(240, 242, 243), spacing=0.0012, rotate=90)
     mid = (np.array([0.0, jy, 0.03]) + top) / 2
     b.decal(lab, center=tuple(mid + np.array([0.0108, 0, 0])), normal=(1, 0, 0), up=tuple(d), mats=["crutch_teal"], depth=0.008)
     holes = DecalCanvas(0.012, 0.30, ppm=3000)
@@ -292,7 +292,7 @@ def _splint(b, L, R, straps, foot_plate=False, palm=False, name="LEG"):
         b.add(cylinder(0.018, 0.07, pad, segs=20, bevel=0.006, z0=-0.035).rotate(90, 0, 0).translate(L / 2 - 0.03, 0, -R + 0.022))
     lab = DecalCanvas(0.20, 0.04, ppm=2400)
     lab.lockup(0.004, 0.004, 0.032, color=WHITE, sub_color=WHITE)
-    lab.text(0.196, 0.02, f"{name} SPLINT", 0.009, fnt="brand", anchor="rm", color=WHITE, spacing=0.0015, max_w=0.07)
+    lab.text(0.196, 0.02, f"{name} SPLINT", 0.009, fnt="label", anchor="rm", color=WHITE, spacing=0.0015, max_w=0.07)
     for sy in (-1, 1):
         b.decal(lab, center=(0.0 if not straps else (straps[0] + straps[1]) / 2 if len(straps) > 1 else 0.0,
                              sy * (R + t_pad + t_sh) * math.cos(math.radians(30)), -(R + t_pad + t_sh) * math.sin(math.radians(30))),
@@ -380,8 +380,8 @@ def collar(b):
     front.rect(0.025, 0.036, 0.04, 0.03, r=0.012, fill=False, width=0.002, color=(10, 150, 140))
     for k in range(5):
         front.circle(0.01 + k * 0.0175, 0.079, 0.0026, color=(18, 18, 20), height=-0.0008)
-    front.text(0.045, 0.017, "NAYZEEE", 0.0062, fnt="brand", color=(10, 130, 120), spacing=0.001)
-    front.text(0.045, 0.027, "ADULT  ·  ADJ", 0.0038, fnt="brand-semi", color=(90, 94, 98))
+    front.text(0.045, 0.017, "NAYZEEE", 0.0062, fnt="label", color=(10, 130, 120), spacing=0.001)
+    front.text(0.045, 0.027, "ADULT  ·  ADJ", 0.0038, fnt="label-semi", color=(90, 94, 98))
     b.decal(front, center=(0.0, ry + 0.003, 0.012 + 0.002), normal=(0, 1, 0), up=(0, 0, 1), mats=["white_plastic"], depth=0.03, min_dot=0.3)
     side = DecalCanvas(0.06, 0.04, ppm=3000)
     for k in range(3):

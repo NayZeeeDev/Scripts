@@ -102,6 +102,7 @@ Config.Field = {
             dilutionAt = 0.20,
         },
         keepMonitor = true,               -- leave the patient monitor attached when the scene ends
+        standKeep  = 240,                 -- seconds the IV stand stays after the scene (removed earlier if the patient is moved)
         autoContinue = 1.6,               -- seconds after the clot is firm before the step completes on its own
         camera = { dist = 2.6, pitch = 62.0, fov = 46.0, minDist = 0.7, maxDist = 5.0 },
         siteCamera = { dist = 1.05, pitch = 58.0, fov = 42.0 },   -- F2 / IO steps close-up

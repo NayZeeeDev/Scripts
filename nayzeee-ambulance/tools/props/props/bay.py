@@ -146,15 +146,15 @@ def _carton_print(cv, x, y, w, h, name, col, seed):
     band = min(h * 0.30, 0.036)
     cv.rect(x, y + h * 0.10, w, band, color=col, spec=0.3, gloss=0.45)
     fs = min(band * 0.46, w * 0.10)
-    cv.text(x + w / 2, y + h * 0.10 + band / 2, name, fs, fnt="brand", color=(255, 255, 255), max_w=w * 0.88, spacing=fs * 0.06)
+    cv.text(x + w / 2, y + h * 0.10 + band / 2, name, fs, fnt="label", color=(255, 255, 255), max_w=w * 0.88, spacing=fs * 0.06)
     ms = min(w * 0.14, h * 0.18, 0.018)
     cv.mark(x + w * 0.08, y + h * 0.10 + band + h * 0.08, ms)
-    cv.text(x + w * 0.08 + ms * 1.3, y + h * 0.10 + band + h * 0.08 + ms * 0.5, "NAYZEEE", ms * 0.42, fnt="brand", anchor="lm",
+    cv.text(x + w * 0.08 + ms * 1.3, y + h * 0.10 + band + h * 0.08 + ms * 0.5, "NAYZEEE", ms * 0.42, fnt="label", anchor="lm",
             color=INK, max_w=w * 0.6)
     rng = np.random.default_rng(seed)
     if h > 0.08:
         qty = ("50 PCS", "25 PCS", "100 PCS", "10 PCS", "STERILE", "SINGLE USE")[int(rng.integers(0, 6))]
-        cv.text(x + w * 0.08, y + h * 0.80, qty, min(h * 0.07, 0.008), fnt="brand-semi", anchor="lm", color=(90, 96, 100), max_w=w * 0.84)
+        cv.text(x + w * 0.08, y + h * 0.80, qty, min(h * 0.07, 0.008), fnt="label-semi", anchor="lm", color=(90, 96, 100), max_w=w * 0.84)
         bx = x + w * 0.62
         while bx < x + w * 0.92:
             bw = 0.0006 + rng.random() * 0.0012
@@ -221,7 +221,7 @@ def _fill_slot(wl: Wall, bay, row, cat):
                 g.charts.extend(wl.box(bay, u_off + u + 0.012, 0.02, dfront - 0.005, dfront + 0.004, zz + 0.04, 0.025, red, r=0.003,
                                        seg=1, faces=f"{wl.front} +z +y -y").charts)
                 cv.rect(u + 0.004, ctop(zz + 0.022), 0.037, 0.014, r=0.002, color=(214, 216, 216))
-                cv.text(u + 0.0225, ctop(zz + 0.015), "TQ", 0.006, fnt="brand", color=INK)
+                cv.text(u + 0.0225, ctop(zz + 0.015), "TQ", 0.006, fnt="label", color=INK)
             u += 0.05
     elif kind == "rolls":
         crepe = wl.mat("crepe", color=(240, 232, 214), spec=0.06, gloss=0.12, bump="fabric", bump_amp=0.0001, bump_scale=0.0015,
@@ -236,7 +236,7 @@ def _fill_slot(wl: Wall, bay, row, cat):
                 if lvl == 0 and i % 2 == 0:
                     cv.rect(u + 0.04 + i * 0.075 - 0.02, ctop(cz + 0.07), 0.04, 0.028, r=0.002, color=(250, 250, 250))
                     cv.rect(u + 0.04 + i * 0.075 - 0.02, ctop(cz + 0.07), 0.04, 0.008, color=col)
-                    cv.text(u + 0.04 + i * 0.075, ctop(cz + 0.052), "10cm", 0.0055, fnt="brand", color=INK)
+                    cv.text(u + 0.04 + i * 0.075, ctop(cz + 0.052), "10cm", 0.0055, fnt="label", color=INK)
         printed += [crepe]
         u = nroll * 0.075 + 0.01
         while u < width - 0.07:
@@ -283,11 +283,11 @@ def _fill_slot(wl: Wall, bay, row, cat):
             nm = names[i % len(names)]
             cv.rect(x_, yb, bw - 0.016, bh * 0.55, r=0.002, color=(250, 252, 252))
             cv.rect(x_, yb, bw - 0.016, 0.018, color=col)
-            cv.text(x_ + (bw - 0.016) / 2, yb + 0.009, nm, 0.0062, fnt="brand", color=(255, 255, 255), max_w=bw - 0.022)
-            cv.text(x_ + (bw - 0.016) / 2, yb + 0.034, "1000 mL" if i % 3 else "500 mL", 0.0095, fnt="brand", color=INK, max_w=bw - 0.022)
+            cv.text(x_ + (bw - 0.016) / 2, yb + 0.009, nm, 0.0062, fnt="label", color=(255, 255, 255), max_w=bw - 0.022)
+            cv.text(x_ + (bw - 0.016) / 2, yb + 0.034, "1000 mL" if i % 3 else "500 mL", 0.0095, fnt="label", color=INK, max_w=bw - 0.022)
             cv.mark(x_ + 0.004, yb + 0.05, 0.01)
-            cv.text(x_ + 0.017, yb + 0.055, "NAYZEEE", 0.0042, fnt="brand", anchor="lm", color=INK)
-            cv.text(x_ + (bw - 0.016) / 2, yb + 0.075, "FOR IV USE", 0.0045, fnt="brand-semi", color=(90, 96, 100), max_w=bw - 0.022)
+            cv.text(x_ + 0.017, yb + 0.055, "NAYZEEE", 0.0042, fnt="label", anchor="lm", color=INK)
+            cv.text(x_ + (bw - 0.016) / 2, yb + 0.075, "FOR IV USE", 0.0045, fnt="label-semi", color=(90, 96, 100), max_w=bw - 0.022)
     elif kind == "pouch":
         film = wl.mat("pouch", color=(232, 240, 236), spec=0.65, gloss=0.8, edge=0.1, grain=0.0)
         printed.append(film)
@@ -307,7 +307,7 @@ def _fill_slot(wl: Wall, bay, row, cat):
             yl = ctop(cz + bh * 0.95)
             cv.rect(x_ - bw / 2 + 0.01, yl, bw - 0.02, 0.022, r=0.002, color=(250, 252, 252))
             cv.rect(x_ - bw / 2 + 0.01, yl, 0.012, 0.022, color=col)
-            cv.text(x_ + 0.006, yl + 0.011, names[i % len(names)], 0.0068, fnt="brand", color=INK, max_w=bw - 0.04)
+            cv.text(x_ + 0.006, yl + 0.011, names[i % len(names)], 0.0068, fnt="label", color=INK, max_w=bw - 0.04)
     elif kind == "bvm":
         bag = wl.mat("bvm_bag", color=(70, 128, 212), spec=0.45, gloss=0.6, edge=0.15)
         bag2 = wl.mat("bvm_bag_w", color=(236, 238, 236), spec=0.45, gloss=0.6, edge=0.15)
@@ -355,8 +355,8 @@ def _fill_slot(wl: Wall, bay, row, cat):
                 zz = cz + 0.004 + lvl * 0.135
                 g += sh.translate(cx_, cy_, zz).set_density(1.0)
                 cv.mark(uc - 0.045, ctop(zz + 0.075), 0.012)
-                cv.text(uc - 0.03, ctop(zz + 0.069), "NAYZEEE", 0.0052, fnt="brand", anchor="lm", color=INK)
-                cv.text(uc, ctop(zz + 0.045), sizes[idx], 0.0068, fnt="brand", color=INK, max_w=0.12)
+                cv.text(uc - 0.03, ctop(zz + 0.069), "NAYZEEE", 0.0052, fnt="label", anchor="lm", color=INK)
+                cv.text(uc, ctop(zz + 0.045), sizes[idx], 0.0068, fnt="label", color=INK, max_w=0.12)
     elif kind == "spinal":
         orange = wl.mat("headblock", color=(232, 106, 26), spec=0.2, gloss=0.3, bump="foam", bump_amp=0.0002, bump_scale=0.003, edge=0.2)
         yellow = wl.mat("strap_y", color=(238, 196, 26), spec=0.18, gloss=0.28, bump="webbing", bump_amp=0.00012, bump_scale=0.0015, edge=0.15)
@@ -366,8 +366,8 @@ def _fill_slot(wl: Wall, bay, row, cat):
             for i in range(3):
                 g.charts.extend(wl.box(bay, u_off + 0.01 + i * 0.13, 0.12, dfront - 0.20, dfront, cz, 0.14, orange, r=0.015, seg=2).charts)
                 cv.rect(0.03 + i * 0.13, ctop(cz + 0.12), 0.08, 0.05, r=0.003, color=(250, 250, 250))
-                cv.text(0.07 + i * 0.13, ctop(cz + 0.105), "HEAD", 0.0068, fnt="brand", color=INK)
-                cv.text(0.07 + i * 0.13, ctop(cz + 0.09), "BLOCK", 0.0068, fnt="brand", color=INK)
+                cv.text(0.07 + i * 0.13, ctop(cz + 0.105), "HEAD", 0.0068, fnt="label", color=INK)
+                cv.text(0.07 + i * 0.13, ctop(cz + 0.09), "BLOCK", 0.0068, fnt="label", color=INK)
                 g.charts.extend(wl.box(bay, u_off + 0.01 + i * 0.13, 0.12, dfront - 0.20, dfront, cz + 0.142, 0.03, orange, r=0.01, seg=2).charts)
             u = 0.40
         else:
@@ -396,7 +396,7 @@ def _label_strip(text, col, w, h, code):
     cv.rect(h * 0.18, h * 0.18, h * 0.64, h * 0.64, r=0.002, color=col)
     cross_mark(cv, h * 0.5, h * 0.5, h * 0.38, color=(255, 255, 255))
     ts = h * 0.46
-    cv.text(h * 1.0, h * 0.53, text, ts, fnt="brand", anchor="lm", color=INK, spacing=ts * 0.04, max_w=w - h * 2.4)
+    cv.text(h * 1.0, h * 0.53, text, ts, fnt="label", anchor="lm", color=INK, spacing=ts * 0.04, max_w=w - h * 2.4)
     cv.text(w - h * 0.25, h * 0.53, code, h * 0.24, fnt="mono-bold", anchor="rm", color=(120, 126, 130))
     return cv
 
@@ -728,13 +728,13 @@ def bay_shell(b):
     b.decal(clock, center=(0.48, YF - 0.0301, 1.80), normal=(0, -1, 0), up=(0, 0, 1), mats=["gloss_black"], depth=0.004)
     emb = DecalCanvas(0.40, 0.36, ppm=1500)
     emb.mark(0.10, 0.02, 0.20, height=None)
-    emb.text(0.20, 0.27, "NAYZEEE", 0.042, fnt="brand", color=(46, 50, 54), spacing=0.006)
-    emb.text(0.20, 0.325, "MEDIC 1", 0.026, fnt="brand-semi", color=TEAL, spacing=0.004)
+    emb.text(0.20, 0.27, "NAYZEEE", 0.042, fnt="label", color=(46, 50, 54), spacing=0.006)
+    emb.text(0.20, 0.325, "MEDIC 1", 0.026, fnt="label-semi", color=TEAL, spacing=0.004)
     b.decal(emb, center=(0.55, YF - 0.0001, 1.15), normal=(0, -1, 0), up=(0, 0, 1), mats=["bay_wall"], depth=0.01)
     o2l = DecalCanvas(0.95, 0.06, ppm=1500)
     for (yy, t) in ((0.80, "O2  FLOW"), (1.06, "SUCTION"), (1.32, "OXYGEN"), (1.46, "VAC"), (1.36, "")):
         if t:
-            o2l.text(yy - 0.625, 0.03, t, 0.014, fnt="brand", color=(40, 44, 48), max_w=0.16)
+            o2l.text(yy - 0.625, 0.03, t, 0.014, fnt="label", color=(40, 44, 48), max_w=0.16)
     b.decal(o2l, center=(px + 0.0121, 1.10, 1.285), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_grey"], depth=0.006)
     gd = DecalCanvas(0.062, 0.062, ppm=6000)
     for k in range(0, 13):
@@ -743,29 +743,29 @@ def bay_shell(b):
                 0.0009, color=(30, 32, 34))
     a = math.radians(225 - 5 * 22.5)
     gd.line([(0.031, 0.031), (0.031 + math.cos(a) * 0.022, 0.031 - math.sin(a) * 0.022)], 0.0012, color=(206, 40, 44))
-    gd.text(0.031, 0.045, "-mmHg", 0.0034, fnt="brand-semi", color=(80, 86, 90))
+    gd.text(0.031, 0.045, "-mmHg", 0.0034, fnt="label-semi", color=(80, 86, 90))
     b.decal(gd, center=(fx + 0.0321, 1.06, 1.17), normal=(1, 0, 0), up=(0, 0, 1), mats=["gauge_face"], depth=0.002)
     ex_l = DecalCanvas(0.08, 0.12, ppm=3000)
     ex_l.rect(0, 0, 0.08, 0.12, r=0.004, color=(246, 246, 244))
-    ex_l.text(0.04, 0.025, "FIRE", 0.014, fnt="brand", color=(196, 30, 36))
-    ex_l.text(0.04, 0.05, "EXTINGUISHER", 0.0068, fnt="brand", color=INK, max_w=0.07)
-    ex_l.text(0.04, 0.08, "ABC  2 kg", 0.009, fnt="brand-semi", color=INK)
+    ex_l.text(0.04, 0.025, "FIRE", 0.014, fnt="label", color=(196, 30, 36))
+    ex_l.text(0.04, 0.05, "EXTINGUISHER", 0.0068, fnt="label", color=INK, max_w=0.07)
+    ex_l.text(0.04, 0.08, "ABC  2 kg", 0.009, fnt="label-semi", color=INK)
     b.decal(ex_l, center=(ex[0] - 0.07, ex[1], 0.32), normal=(-1, 0, 0), up=(0, 0, 1), mats=["ext_red"], depth=0.03, min_dot=0.6)
     sh = DecalCanvas(0.20, 0.20, ppm=2500)
-    sh.text(0.10, 0.03, "SHARPS", 0.026, fnt="brand", color=INK)
+    sh.text(0.10, 0.03, "SHARPS", 0.026, fnt="label", color=INK)
     biohazard(sh, 0.10, 0.11, 0.045, color=INK)
-    sh.text(0.10, 0.18, "DO NOT OVERFILL", 0.01, fnt="brand-semi", color=INK)
+    sh.text(0.10, 0.18, "DO NOT OVERFILL", 0.01, fnt="label-semi", color=INK)
     b.decal(sh, center=(sc[0] - 0.0751, sc[1], sc[2] + 0.11), normal=(-1, 0, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.01)
     kl = brand_canvas(0.26, 0.05, ppm=2400, color=(255, 255, 255), sub_color=(255, 220, 220), sub="TRAUMA KIT")
     b.decal(kl, center=(kc[0] - 0.1501, kc[1], kc[2] + 0.05), normal=(-1, 0, 0), up=(0, 0, 1), mats=["kit_red"], depth=0.02)
     gl = DecalCanvas(0.40, 0.024, ppm=2500)
     for k, s_ in enumerate(("L", "M", "S")):
-        gl.text(0.07 + k * 0.13, 0.012, f"GLOVES  {s_}", 0.0095, fnt="brand", color=INK)
+        gl.text(0.07 + k * 0.13, 0.012, f"GLOVES  {s_}", 0.0095, fnt="label", color=INK)
     b.decal(gl, center=(gx - 0.0701, gy, 1.24), normal=(-1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
     for sx in (-1, 1):
         dl = DecalCanvas(0.62, 0.08, ppm=2000)
-        dl.text(0.31, 0.025, "EMERGENCY EXIT", 0.022, fnt="brand", color=(40, 44, 48), spacing=0.003)
-        dl.text(0.31, 0.06, "LIFT LEVER TO OPEN", 0.013, fnt="brand-semi", color=(100, 106, 110), spacing=0.002)
+        dl.text(0.31, 0.025, "EMERGENCY EXIT", 0.022, fnt="label", color=(40, 44, 48), spacing=0.003)
+        dl.text(0.31, 0.06, "LIFT LEVER TO OPEN", 0.013, fnt="label-semi", color=(100, 106, 110), spacing=0.002)
         b.decal(dl, center=(sx * 0.5, yd + 0.0401, 0.95), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_grey"], depth=0.01)
         st = DecalCanvas(0.06, 1.70, ppm=500)
         for k in range(18):

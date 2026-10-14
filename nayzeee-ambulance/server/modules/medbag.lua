@@ -8,19 +8,21 @@
     rules, slot capacity, weight, rate limit and a per-bag lock.
 
     Bags on the ground are networked objects created by the SERVER (Entity state bag
-    'nzaMedbag' = { id, owner (name), locked }). A bag in someone's hand is a networked prop the
+    'nzaMedbag' = { id, owner (name), locked, name, colour }). A bag has a colour (one streamed model
+    per colour, Config.Medbag.Bag.colours) and an optional name the owner sets in the window. A bag in someone's hand is a networked prop the
     carrier spawns and registers with a one-use token (nza:medbag:held). Ground bags survive a
     restart (Config.Medbag.Bag.persist).
 
     Table: nza_bags (id PK, owner, items LONGTEXT)  items = JSON { v, slots = { { s, n, c, m } },
-           locked, ownerName, world = { x, y, z, h, b } }
+           locked, ownerName, colour, name, world = { x, y, z, h, b } }
 
     Callbacks (lib.callback) - every reply is a table { ok = true, ... } | { ok = false, err, msg }
       nza:medbag:put (token|nil, coords, heading)   item → ground (token from the usable item) or hand → ground
       nza:medbag:open (id|nil)                      → { bag, me, kit }   (nil id = the bag in your hand)
       nza:medbag:move (id, { dir = 'in'|'out'|'bag', from, to?, count = n|'all', name })
                                                      → { bag, me, moved = { name, label, image, count, dir } }
-      nza:medbag:action (id, 'sort'|'lock'|'kit'|'empty', data) → { bag, me, moved = { ... } }
+      nza:medbag:action (id, 'sort'|'lock'|'kit'|'empty'|'style', data) → { bag, me, movedList = { ... }, msg }
+                                                     style: { name, colour } (owner / admin; colour from Config.Medbag.Bag.colours)
       nza:medbag:carry (id)                         ground → hand  → { token, models }
       nza:medbag:held (token, net)                  register the hand prop
       nza:medbag:pickup (id)                        ground → inventory
@@ -29,7 +31,7 @@
     Net events
       C→S nza:medbag:close (id)                     the window was closed
       S→C nza:medbag:place (token)                  the item was used: put a bag down in front of you
-      S→C nza:medbag:sync (id, bagView)             another viewer changed the bag
+      S→C nza:medbag:sync (id, bagView, { moved, by }|nil)   another viewer changed the bag
       S→C nza:medbag:closed (id, reason)            close the window (gone / far / access / down)
       S→C nza:medbag:carryEnd ()                    the server took the bag out of your hand
     Bus (server) emitted: medbag:placed (src, id), medbag:picked (src, id), medbag:moved (src, id, moved)
@@ -126,15 +128,39 @@ end
 
 local function itemName() return Config.Items and Config.Items.medbag or 'medbag' end
 
+local function colourList()
+    local c = C('Bag').colours
+    return type(c) == 'table' and c or {}
+end
+
+local function colourOf(id)
+    for _, c in ipairs(colourList()) do if c.id == id then return c end end
+    return nil
+end
+
+local function baseModel()
+    return C('Bag').model or (Config.Props and Config.Props.medbag) or 'nz_amb_medbag'
+end
+
+-- every model that counts as a medical bag (colours, base, fallback, extras)
 local function bagModels()
     local b = C('Bag')
-    local list = { b.model or (Config.Props and Config.Props.medbag) or 'nz_amb_medbag' }
-    local fb = Config.PropFallbacks and Config.PropFallbacks.medbag
-    if fb then list[#list + 1] = fb end
-    for _, m in ipairs(b.extraModels or {}) do list[#list + 1] = m end
+    local list, seen = {}, {}
+    local function add(m) if type(m) == 'string' and not seen[m] then seen[m] = true list[#list + 1] = m end end
+    add(baseModel())
+    for _, c in ipairs(colourList()) do add(c.model) end
+    add(Config.PropFallbacks and Config.PropFallbacks.medbag)
+    for _, m in ipairs(b.extraModels or {}) do add(m) end
     return list
 end
 MB.BagModels = bagModels
+
+-- the model of one bag (its colour)
+local function modelFor(bag)
+    local c = bag and colourOf(bag.colour)
+    return (c and c.model) or baseModel()
+end
+MB.ModelFor = modelFor
 
 local function modelOk(ent, models)
     local h = GetEntityModel(ent)
@@ -316,13 +342,15 @@ local function encode(bag)
     local slots = {}
     for slot, e in pairs(bag.slots) do slots[#slots + 1] = { s = slot, n = e.name, c = e.count, m = e.meta } end
     table.sort(slots, function(a, b) return a.s < b.s end)
-    return json.encode({ v = 1, slots = slots, locked = bag.locked or nil, ownerName = bag.ownerName, world = bag.world })
+    return json.encode({ v = 1, slots = slots, locked = bag.locked or nil, ownerName = bag.ownerName, world = bag.world,
+        colour = bag.colour, name = bag.name })
 end
 
 local function decode(id, owner, raw)
     local data = type(raw) == 'string' and json.decode(raw) or nil
     if type(data) ~= 'table' then data = {} end
-    local bag = { id = id, owner = owner, ownerName = data.ownerName, slots = {}, locked = data.locked == true, world = data.world }
+    local bag = { id = id, owner = owner, ownerName = data.ownerName, slots = {}, locked = data.locked == true, world = data.world,
+        colour = type(data.colour) == 'string' and data.colour or nil, name = type(data.name) == 'string' and data.name or nil }
     for _, e in ipairs(data.slots or {}) do
         local slot, name, count = tonumber(e.s), e.n, math.floor(tonumber(e.c) or 0)
         if slot and slot >= 1 and type(name) == 'string' and count > 0 then
@@ -368,7 +396,8 @@ function MB.Create(src, wanted)
         end
     end
     if not id then return nil end
-    local bag = { id = id, owner = NZA.Core.Identifier(src), ownerName = NZA.Core.Name(src), slots = {}, locked = false }
+    local bag = { id = id, owner = NZA.Core.Identifier(src), ownerName = NZA.Core.Name(src), slots = {}, locked = false,
+        colour = C('Bag').defaultColour }
     MB.bags[id] = bag
     flush(bag)
     return bag
@@ -388,7 +417,13 @@ end
 
 local function itemMeta(bag)
     local _, items = bagStats(bag)
-    return { bagId = bag.id, description = L('item_desc', bag.id, items, bagWeight(bag) / 1000) }
+    local meta = { bagId = bag.id, description = L('item_desc', bag.id, items, bagWeight(bag) / 1000) }
+    if bag.name and bag.name ~= '' then
+        meta.label = bag.name
+        meta.description = bag.name .. ' · ' .. meta.description
+    end
+    if bag.colour then meta.colour = bag.colour end
+    return meta
 end
 MB.ItemMeta = itemMeta
 
@@ -477,8 +512,11 @@ function MB.BagView(bag, src)
         end
     end
     local mine = src and MB.IsOwner(src, bag) or false
+    local col = colourOf(bag.colour)
     return {
         id = bag.id, owner = bag.ownerName, mine = mine, locked = bag.locked == true,
+        name = bag.name, colour = col and col.id or nil, hex = col and col.hex or nil,
+        canStyle = mine or (src and NZA.Core.IsAdmin(src)) or false,
         canLock = mine and C('Access').lock ~= false or (src and NZA.Core.IsAdmin(src) and bag.locked) or false,
         slots = max, items = items, weight = bagWeight(bag),
         maxWeight = tonumber(C('Storage').maxWeight) or 20000,
@@ -577,16 +615,19 @@ local function kickAll(id, reason, except)
 end
 MB.KickAll = kickAll
 
-local function syncViewers(bag, except)
+local function syncViewers(bag, except, moved)
+    local extra = nil
+    if moved and except then extra = { moved = moved, by = NZA.Core.Name(except) } end
     for s in pairs(MB.viewers[bag.id] or {}) do
-        if s ~= except then TriggerClientEvent('nza:medbag:sync', s, bag.id, MB.BagView(bag, s)) end
+        if s ~= except then TriggerClientEvent('nza:medbag:sync', s, bag.id, MB.BagView(bag, s), extra) end
     end
 end
 
 local function worldState(bag)
     local w = MB.world[bag.id]
     if not w or not w.ent or not DoesEntityExist(w.ent) then return end
-    Entity(w.ent).state:set('nzaMedbag', { id = bag.id, owner = bag.ownerName, locked = bag.locked == true }, true)
+    Entity(w.ent).state:set('nzaMedbag', { id = bag.id, owner = bag.ownerName, locked = bag.locked == true,
+        name = bag.name, colour = bag.colour }, true)
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -594,7 +635,7 @@ end
 -- ════════════════════════════════════════════════════════════════════════
 
 local function placeWorld(bag, coords, heading, bucket, by, opts)
-    local ent, net = MB.SpawnObject(bagModels()[1], coords, heading, bucket, opts)
+    local ent, net = MB.SpawnObject(modelFor(bag), coords, heading, bucket, opts)
     if ent == 0 then return false end
     MB.world[bag.id] = { ent = ent, net = net, coords = coords, heading = heading, bucket = bucket, by = by }
     bag.world = { x = coords.x, y = coords.y, z = coords.z, h = heading, b = bucket ~= 0 and bucket or nil }
@@ -757,7 +798,9 @@ lib.callback.register('nza:medbag:carry', function(src, id)
     MB.carry[src] = id
     local token = NZA.Util.uid('mbh')
     MB.held[src] = { kind = 'medbag', id = id, token = token, at = os.time() }
-    return { ok = true, id = id, token = token, models = bagModels() }
+    local models = { modelFor(bag) }
+    for _, m in ipairs(bagModels()) do if m ~= models[1] then models[#models + 1] = m end end
+    return { ok = true, id = id, token = token, models = models }
 end)
 
 lib.callback.register('nza:medbag:held', function(src, token, net)
@@ -825,6 +868,12 @@ end)
 -- OPEN / CLOSE
 -- ════════════════════════════════════════════════════════════════════════
 
+function MB.ColourView()
+    local out = {}
+    for _, c in ipairs(colourList()) do out[#out + 1] = { id = c.id, hex = c.hex, label = L('colour_' .. c.id) } end
+    return out
+end
+
 local function kitAvailable()
     local kit = C('Storage').kit
     return type(kit) == 'table' and #kit > 0
@@ -842,7 +891,7 @@ lib.callback.register('nza:medbag:open', function(src, id)
     local okA, why = MB.CanAccess(src, bag)
     if not okA then return accessFail(why, bag) end
     addViewer(src, id)
-    return { ok = true, bag = MB.BagView(bag, src), me = MB.MeView(src), kit = kitAvailable() }
+    return { ok = true, bag = MB.BagView(bag, src), me = MB.MeView(src), kit = kitAvailable(), colours = MB.ColourView() }
 end)
 
 -- pockets refresh while the window is open (items that arrived from elsewhere)
@@ -1026,7 +1075,7 @@ end
 local function finishMove(src, bag, res)
     if res.ok then
         save(bag)
-        syncViewers(bag, src)
+        syncViewers(bag, src, res.moved or (res.movedList and res.movedList[1]) or nil)
         if res.moved then NZA.Bus.Emit('medbag:moved', src, bag.id, res.moved) end
     end
     res.bag = MB.BagView(bag, src)
@@ -1150,6 +1199,30 @@ lib.callback.register('nza:medbag:action', function(src, id, action, data)
             for s in pairs(MB.viewers[id] or {}) do
                 if s ~= src and not MB.CanAccess(s, bag) then kick(s, 'access') end
             end
+        elseif action == 'style' then
+            if not MB.IsOwner(src, bag) and not NZA.Core.IsAdmin(src) then return finishMove(src, bag, fail('not_owner')) end
+            data = type(data) == 'table' and data or {}
+            if data.colour ~= nil then
+                local col = colourOf(data.colour)
+                if col then bag.colour = col.id end
+            end
+            if data.name ~= nil then
+                local name = type(data.name) == 'string' and data.name or ''
+                name = name:gsub('[%c<>]', ''):gsub('^%s+', ''):gsub('%s+$', '')
+                local max = math.floor(tonumber(C('Bag').nameLength) or 20)
+                if #name > max then name = name:sub(1, max) end
+                bag.name = name ~= '' and name or nil
+            end
+            -- the ground prop takes the new colour at once
+            local w = MB.world[id]
+            if w and w.ent and DoesEntityExist(w.ent) and not modelOk(w.ent, { modelFor(bag) }) then
+                local coords, heading, bucket, by = GetEntityCoords(w.ent), w.heading, w.bucket, w.by
+                MB.DeleteEnt(w.ent)
+                MB.world[id] = nil
+                placeWorld(bag, coords, heading or 0.0, bucket or 0, by)
+            end
+            worldState(bag)
+            res.msg = L('ok_styled')
         elseif action == 'kit' then
             local list, total = packKit(src, bag)
             if total < 1 then return finishMove(src, bag, fail('nothing')) end

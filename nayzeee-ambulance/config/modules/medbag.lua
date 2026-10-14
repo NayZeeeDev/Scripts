@@ -39,6 +39,16 @@ Config.Medbag = {
         enabled       = true,
         model         = nil,     -- nil = Config.Props.medbag (streamed). Set a model name to use your own
         extraModels   = { 'xm_prop_x17_bag_med_01a' },  -- other models that count as a medical bag (targets)
+        -- Bag colours the owner can pick in the bag window (each one is a streamed model).
+        -- false = every bag uses Config.Props.medbag / Bag.model.
+        colours = {
+            { id = 'red',     model = 'nz_amb_medbag_red',     hex = '#e5484d' },
+            { id = 'orange',  model = 'nz_amb_medbag_orange',  hex = '#f08a24' },
+            { id = 'green',   model = 'nz_amb_medbag_green',   hex = '#2fb36b' },
+            { id = 'magenta', model = 'nz_amb_medbag_magenta', hex = '#d23c9a' },
+        },
+        defaultColour = 'red',   -- colour of a new bag
+        nameLength    = 20,      -- the owner can name a bag ("Trauma", "Airway"...); max characters
         whoCanPlace   = 'anyone', -- 'anyone' | 'medic' (on-duty medics only) - who may use the item
         placeAhead    = 0.85,    -- the bag is put down this far in front of you (metres)
         distance      = 2.0,     -- reach for the bag's options (open, carry, pick up)

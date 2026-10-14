@@ -252,7 +252,7 @@ def contact_sheets(out, rdir, manifests, views, per_page=6, cell=360):
         ph = 64 + rows * (cell + 58)
         sheet = Image.new("RGB", (pw, ph), (17, 19, 22))
         d = ImageDraw.Draw(sheet)
-        d.text((24, 22), f"NAYZEEE AMBULANCE  -  streamed props  ({pi + 1}/{len(pages)})", font=font("brand", 22), fill=(230, 233, 235))
+        d.text((24, 22), f"NAYZEEE AMBULANCE  -  streamed props  ({pi + 1}/{len(pages)})", font=font("label", 22), fill=(230, 233, 235))
         for k, n in enumerate(page):
             cx = 24 + (k % cols) * (len(views) * cell + 24)
             cy = 64 + (k // cols) * (cell + 58)
@@ -263,7 +263,7 @@ def contact_sheets(out, rdir, manifests, views, per_page=6, cell=360):
                 if os.path.exists(p):
                     sheet.paste(Image.open(p).convert("RGB").resize((cell, cell), Image.LANCZOS), (cx + vi * cell, cy))
             dims = " x ".join(f"{x:.3f}" for x in m["dims"])
-            d.text((cx, cy + cell + 6), n, font=font("brand-semi", 17), fill=(8, 190, 176))
+            d.text((cx, cy + cell + 6), n, font=font("label-semi", 17), fill=(8, 190, 176))
             d.text((cx, cy + cell + 30), f"{dims} m   {m['tris']} tris   lod {m['lodDist']:g}   {'static' if m['static'] else 'dynamic'}",
                    font=font("mono", 13), fill=(160, 166, 170))
         fp = os.path.join(sdir, f"contact_{pi + 1:02d}.png")

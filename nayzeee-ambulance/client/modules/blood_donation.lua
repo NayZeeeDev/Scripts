@@ -13,7 +13,7 @@
     card ('donation' app mode 'watch', no focus).
 
     Minigame (NUI app 'donation' mode 'donate', ProcPanel):
-        1 Inflate the cuff (hold Space into the band)  2 Squeeze on the beat until the bag is full
+        1 Inflate the cuff (hold Space into the band)  2 Pump with the pulse (Space as each peak crosses the window) until the bag is full
         3 Clamp the line [C] + remove the needle (hold [E]) → label printed
     NUI callbacks: donation:progress { ml }, donation:finish { score, ml }, donation:abort, donation:close
     Net events: C→S nza:blood:donation:leave / :progress   S→C nza:blood:donation:stood
@@ -299,8 +299,12 @@ local function seatLoop(s)
             lastCheck = now
             local e = chairState(s.point.id)
             if not e or e.d ~= sid then
-                B.StandUp(false)
-                break
+                -- give the replicated chair state a moment after sitting down
+                if now - (s.since or now) > 4000 then
+                    B.StandUp(false)
+                    break
+                end
+                e = { d = sid }
             end
             local medicDrawing = e.a and e.m ~= sid
             if medicDrawing then
@@ -364,7 +368,11 @@ function B.Sit(point, chair)
     local side = worldOf(point, s.chair, vec3(0.75, 0.1, 0.0))
     TaskGoStraightToCoord(ped, side.x, side.y, side.z, 1.0, 2500, GetEntityHeading(ped), 0.2)
     local deadline = GetGameTimer() + 2600
-    while GetGameTimer() < deadline and #(GetEntityCoords(ped) - side) > 0.6 do Wait(100) end
+    while GetGameTimer() < deadline do
+        local c = GetEntityCoords(ped)
+        if #(vector2(c.x, c.y) - vector2(side.x, side.y)) < 0.6 then break end
+        Wait(100)
+    end
     if seated ~= s then return end
     DoScreenFadeOut(250)
     Wait(260)
@@ -378,6 +386,7 @@ function B.Sit(point, chair)
     else
         toast(L('sit_both'), 'info')
     end
+    s.since = GetGameTimer()
     CreateThread(function() seatLoop(s) end)
 end
 
@@ -433,7 +442,11 @@ function B.RunDonation(point, target, isSelf)
                 local _, h = baseOf(point, chair)
                 TaskGoStraightToCoord(ped, sp.x, sp.y, sp.z, 1.0, 3000, h + (spot.w or 90.0), 0.15)
                 local deadline = GetGameTimer() + 3200
-                while GetGameTimer() < deadline and #(GetEntityCoords(ped) - sp) > 0.45 and not s.ended do Wait(100) end
+                while GetGameTimer() < deadline and not s.ended do
+                    local pc = GetEntityCoords(ped)
+                    if #(vector2(pc.x, pc.y) - vector2(sp.x, sp.y)) < 0.45 then break end
+                    Wait(100)
+                end
                 if s.ended then return end
                 SetEntityHeading(ped, h + (spot.w or 90.0))
                 local ma = c.medicAnim or {}

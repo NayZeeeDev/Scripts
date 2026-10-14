@@ -33,27 +33,37 @@ deceased patient to the morgue.
 - **Access** (`Config.Medbag.Access`): owner, medics (on duty, optional perm), police, anyone,
   admins. The owner can **lock** a bag (only the owner and admins can open or take it then).
 
-### Storage window (NUI `medbag`)
-HUD side panels on the right so the world and the bag stay visible (HUD design: panels
-`rgba(12,13,16,.92)`, r12, teal rail, glowing bars):
-- **Medical Bag · Unit storage**: 5-column slot grid (slot numbers, item pictures, counts), owner /
-  "Your bag" / Locked chips, sort and lock buttons, red Close pill, capacity bar (teal → amber 80 % →
-  red 95 %) with kg and slots used.
-- **Transfer amount**: stepper (−/+ / type / mouse wheel) and `1 / 5 / 10 / ALL` chips,
-  **Pack kit** (tops the bag up from your pockets to `Storage.kit`), **Empty bag** (confirm modal).
-- **Personnel · Equipment & pockets**: your inventory (any inventory through the bridge), search,
-  items that may not go in the bag dimmed with a red badge, your own capacity bar
-  (`ox_inventory` / QB / ESX limit, or `personalMax`).
-- **Moves**: click = move the transfer amount, Shift + click = all, right click = one, drag & drop
-  to a specific slot, drag inside the bag to rearrange / merge / swap, drag a bag item onto the
-  pockets panel to take it out. Moves are queued and applied in order; the changed slot pulses.
-- **Tooltips** beside the hovered slot: picture, name, category, description, weight each / total,
-  stack, metadata (blood type, serial, ...), what a click does.
-- **Transfer cards** over the world: `PACKED 5×` (teal) / `REMOVED 1×` (white) with the item picture
-  and name, up to six in a row, each with a timer line.
-- Several medics can have the same bag open; everyone sees each other's moves live. Walking away,
-  the bag being taken, losing access or going down closes the window.
-- Keys: `1/2/3/4` = 1/5/10/all, `+`/`-` step, `F` search, `Esc` close.
+### Bag window (NUI `medbag`) — our own composition (docs/design/ORIGINAL.md)
+Two docks on the screen edges around a clear centre, so the bag on the floor stays in view and
+moved items visibly travel between you and the bag:
+- **Your pockets** (left dock): a vertical list of your inventory (any inventory through the
+  bridge): picture, name, category and unit weight, count, a go-button. A status ring around the
+  header icon fills with your own load (`ox_inventory` / QB / ESX limit, or `personalMax`); filter
+  field. Items that may not go in a bag stay dimmed with "Stays in your pockets".
+- **Quantity dial** (under the pockets): a 240° dial with a rolling counter in the centre, preset
+  notches on the arc (`1 · 5 · 10 · Stack`), click the arc / mouse wheel / − + to set it, and a
+  gesture list (Click, Hold, Shift, RMB, Drag).
+- **Bag dock** (right): colour tile in the bag's colour, the bag's name (or "Medical bag"), id and
+  owner / Locked; buttons *Name & colour* (owner), *Sort by type*, *Lock*, red Close pill. A load
+  dial (teal → amber 80 % → red zone) with an instrument list (Load kg, Slots, Units, tone
+  notches), a 4-column slot grid (picture, name, count pill; corner brackets close in on hover),
+  **Restock** (tops the bag up from your pockets to `Storage.kit`) and **Unpack all** (confirm).
+- **Name & colour**: the owner names the bag ("Trauma", "Airway", max `nameLength`) and picks one of
+  `Bag.colours` (red / orange / green / magenta models). The bag on the ground switches model at
+  once; the inventory item shows the name (ox_inventory `metadata.label`).
+- **Bag log** (under the bag): the latest moves as a list (time, picture, item, "into the bag" /
+  "to pockets" or "J. Doe took it" for colleagues, `+5` / `−1`).
+- **Moving items**: click = the dial quantity · **hold = pour** (a ring fills around the item and a
+  `+n` counter climbs faster the longer you hold; release to move that many) · Shift + click =
+  whole stack · right click = one · drag onto a bag slot (or rearrange / merge / swap inside the
+  bag, or drop a bag item on the pockets). Moves are queued and applied in order; the item image
+  flies from the source to its new slot / row, which flashes when it lands.
+- **Tooltips** beside the dock: picture, name, category, description, weight each / total, count,
+  metadata (blood type, serial, ...), what a click does.
+- Several medics can have the same bag open; everyone sees each other's moves live (and in the log).
+  Walking away, the bag being taken, losing access or going down closes the window. Pockets refresh
+  every 4 s while open.
+- Keys: `1/2/3/4` = 1 / 5 / 10 / stack, `+`/`-` step, `F` filter, `Enter` save the name, `Esc` close.
 
 ### Body bag
 - **Place in body bag** (patient option, order 90; also in the radial *Patient* submenu): dead
@@ -105,8 +115,8 @@ Keys are GTA controls in `Config.Medbag.Bag.Carry.keys` and `Config.Medbag.Body.
 ## Config keys (`Config.Medbag`)
 
 - `radial`
-- `Bag { enabled model extraModels whoCanPlace placeAhead distance openRange maxOut persist putDown pickUp
-  Carry { enabled bone pos rot anim maxSpeed keys { drop open stow } } }`
+- `Bag { enabled model extraModels colours { { id model hex } } defaultColour nameLength whoCanPlace placeAhead
+  distance openRange maxOut persist putDown pickUp Carry { enabled bone pos rot anim maxSpeed keys { drop open stow } } }`
 - `Storage { slots maxWeight maxStack mode extra blocked blockWeapons weights defaultWeight personalMax
   personalFallback moveRate { count window } kit { { item, count } } }`
 - `Access { owner medics perm police anyone lock admins }`
@@ -119,26 +129,26 @@ Keys are GTA controls in `Config.Medbag.Bag.Carry.keys` and `Config.Medbag.Body.
 
 **Callbacks** (`lib.callback`, replies `{ ok = true, ... } | { ok = false, err, msg }`):
 `nza:medbag:put (token|nil, coords, heading)`, `open (id|nil)`, `move (id, { dir, from, to, count, name })`,
-`action (id, 'sort'|'lock'|'kit'|'empty', data)`, `carry (id)`, `held (token, net)`, `pickup (id)`, `stow ()`,
+`action (id, 'sort'|'lock'|'kit'|'empty'|'style', data)`, `carry (id)`, `held (token, net)`, `pickup (id)`, `stow ()`,
 `me ()` (pockets refresh every 4 s while a bag is open);
 `nza:medbag:body:adopt (pedNet)`, `body:carry (id)`, `body:drop (coords, heading)`, `body:stretcher (cotNet)`,
 `body:vehicle (vehNet)`, `body:open (id)`, `body:deliver (pointId, id?)`, `body:tag (id)`.
 Procedure: `bodybag` (`NZA.Proc`, states `{ dead = true }`, item used at the finish).
 
-**Net events**: C→S `nza:medbag:close (id)`; S→C `nza:medbag:place (token)`, `nza:medbag:sync (id, bag)`,
+**Net events**: C→S `nza:medbag:close (id)`; S→C `nza:medbag:place (token)`, `nza:medbag:sync (id, bag, { moved, by })`,
 `nza:medbag:closed (id, reason)`, `nza:medbag:carryEnd ()`, `nza:medbag:body:carryEnd ()`,
 `nza:medbag:body:release (coords, heading, teleport)`.
 
-**State bags**: `nzaMedbag` (bag prop), `nzaBag` + `nzaBody` (body bag prop), `nzaInBag` (player),
+**State bags**: `nzaMedbag = { id, owner, locked, name, colour }` (bag prop), `nzaBag` + `nzaBody` (body bag prop), `nzaInBag` (player),
 `nzaBodyOn` (cot), `nzaBodies` (vehicle). Patient meta `bodybag = id` (core state bag `bag`).
 
 **Server bus**: `medbag:placed`, `medbag:picked`, `medbag:moved`, `bodybag:bagged (src, body)`,
 `bodybag:morgue (src, body, point)`. Listens to `state:changed`, `patient:revived`, `wounded:respawned`,
 `player:unloaded`.
 
-**NUI app `medbag`**: Lua → `open { locale, bag, me, kit }`, `sync { bag }`, `me { me }`, `busy { on }`;
+**NUI app `medbag`**: Lua → `open { locale, bag, me, kit, colours }`, `sync { bag, moved?, by? }`, `me { me }`;
 JS → `medbag:move`, `medbag:action`, `medbag:close`. Preview `index.html?app=medbag`
-(`&demo=tip|tipme|drag|locked|empty|full`); the preview simulates every move locally.
+(`&demo=tip|tipme|drag|pour|fly|style|stack|locked|empty|full`); the preview simulates every move locally.
 
 **Exports (server)**: `GetMedbagContents(id) → { { slot, name, count, metadata } }`,
 `GetBodyBags() → { { id, pid, kind, name, mode, coords } }`.
@@ -167,8 +177,10 @@ and distance. The item must still be in the player's inventory when the bag is p
 - A body bag on a stretcher is not a transport "patient": transport can still place a patient on that
   cot or store it (see docs/requests/medbag.md). The bag then drops where the cot was.
 - Bags cannot be put down inside the (local) ambulance treatment bay.
+- A colour change while the bag is in your hand shows on the prop the next time it is put down.
 - Personal capacity comes from ox_inventory / QBCore / ESX; other inventories use `personalFallback`.
-- Verified with a stubbed-native smoke test of both server files (39 checks: place, open, deposits,
-  metadata, rules, rearrange, withdraw, kit, sort, lock, access, weight cap, empty, carry, put down,
-  stow, re-place, pick up, NPC + player body bag, toe tag, vehicle, stretcher, morgue, revive), a
+- Verified with a stubbed-native smoke test of both server files (place, open, deposits, metadata,
+  rules, rearrange, withdraw, kit, sort, lock, access, name & colour with the model swap, weight cap,
+  empty, carry, put down, stow, re-place, pick up, NPC + player body bag, toe tag, vehicle, stretcher,
+  morgue, revive), a
   client load test and headless-browser previews — not on a live server here.

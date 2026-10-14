@@ -449,6 +449,11 @@
     return cached(`dressing:${wM}:${hM}:${padW}:${padH}:${seed}`, () => {
       const pxm = 9000, w = Math.round(wM * pxm), h = Math.round(hM * pxm);
       const cv = canvas(w, h), c = cv.getContext('2d'), R = rng(seed);
+      // rounded corners (alpha → alphaTest on the material, also in the shadow pass)
+      const rc = Math.min(w, h) * 0.14;
+      c.clearRect(0, 0, w, h);
+      c.save();
+      c.beginPath(); c.roundRect ? c.roundRect(0.5, 0.5, w - 1, h - 1, rc) : c.rect(0, 0, w, h); c.clip();
       c.fillStyle = '#efede7'; c.fillRect(0, 0, w, h);
       // fibres
       c.lineCap = 'round';
@@ -482,12 +487,13 @@
       }
       c.restore();
       // brand print in a corner of the border
-      const bx = w - 16, by = h - 13;
+      const bx = w - 16 - rc * 0.55, by = h - 13;
       c.save();
       c.font = '600 11px Lexend, sans-serif'; c.textAlign = 'right'; c.textBaseline = 'middle';
       c.fillStyle = 'rgba(80,90,92,.55)';
       c.fillText('NAYZEEE · STERILE', bx - 16, by);
       drawMark(c, bx - 11, by - 6, 12);
+      c.restore();
       c.restore();
       return cv;
     });
@@ -576,6 +582,21 @@
       } else if (kind === 'dot') {
         glow(60, 12); c.beginPath(); c.arc(m, m, 44, 0, TAU); c.fill();
         c.lineWidth = 10; c.beginPath(); c.arc(m, m, 92, 0, TAU); c.stroke();
+      } else if (kind === 'pin') {
+        // map pin seen face-on: round head with a hole, tapering to the point at the bottom centre
+        const cx = m, cy = N * 0.36, r = N * 0.27;
+        const g = c.createRadialGradient(cx, cy, r * 0.6, cx, cy, r * 1.7);
+        g.addColorStop(0, 'rgba(255,255,255,.4)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        c.fillStyle = g; c.fillRect(0, 0, N, N);
+        c.fillStyle = '#fff';
+        c.beginPath();
+        c.arc(cx, cy, r, Math.PI * 0.82, Math.PI * 0.18);
+        c.quadraticCurveTo(cx + r * 0.62, cy + r * 1.2, cx, N * 0.97);
+        c.quadraticCurveTo(cx - r * 0.62, cy + r * 1.2, cx + Math.cos(Math.PI * 0.82) * r, cy + Math.sin(Math.PI * 0.82) * r);
+        c.closePath(); c.fill();
+        c.globalCompositeOperation = 'destination-out';
+        c.beginPath(); c.arc(cx, cy, r * 0.42, 0, TAU); c.fill();
+        c.globalCompositeOperation = 'source-over';
       } else if (kind === 'soft') {
         const g = c.createRadialGradient(m, m, 0, m, m, m);
         g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.45, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
@@ -591,8 +612,8 @@
       const N = 64, cv = canvas(N, N), c = cv.getContext('2d');
       // R = brightness, A = coverage: a glassy bead with a dark rim and a hot specular dot
       const g = c.createRadialGradient(N * 0.5, N * 0.5, 0, N * 0.5, N * 0.5, N * 0.5);
-      g.addColorStop(0, 'rgba(210,210,210,.55)'); g.addColorStop(0.55, 'rgba(150,150,150,.6)');
-      g.addColorStop(0.85, 'rgba(70,70,70,.75)'); g.addColorStop(1, 'rgba(60,60,60,0)');
+      g.addColorStop(0, 'rgba(200,200,200,.28)'); g.addColorStop(0.55, 'rgba(170,170,170,.38)');
+      g.addColorStop(0.82, 'rgba(235,235,235,.7)'); g.addColorStop(1, 'rgba(120,120,120,0)');
       c.fillStyle = g; c.fillRect(0, 0, N, N);
       const h = c.createRadialGradient(N * 0.38, N * 0.36, 0, N * 0.38, N * 0.36, N * 0.16);
       h.addColorStop(0, 'rgba(255,255,255,1)'); h.addColorStop(1, 'rgba(255,255,255,0)');
@@ -964,7 +985,7 @@
         .replace('#include <roughnessmap_fragment>', SKIN_ROUGH)
         .replace('#include <normal_fragment_maps>', SKIN_NORMAL)
         .replace('#include <clearcoat_normal_fragment_begin>', '#ifdef USE_CLEARCOAT\n vec3 clearcoatNormal = nzaMacroN;\n#endif')
-        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = clamp(uSebum * (1.0 - nzaInside) + nzaWet * 0.95, 0.0, 1.0);\n material.clearcoatRoughness = clamp(mix(0.5, mix(0.07, 0.16, nzaInside), nzaWet) + geometryRoughness, 0.0525, 1.0);\n#endif')
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = clamp(uSebum * (1.0 - nzaInside) + nzaWet * mix(0.82, 0.4, nzaWaterOnly), 0.0, 1.0);\n material.clearcoatRoughness = clamp(mix(mix(0.5, mix(0.11, 0.17, nzaInside), nzaWet), 0.24, nzaWaterOnly) + geometryRoughness, 0.0525, 1.0);\n#endif')
         .replace('#include <aomap_fragment>', SKIN_AO);
     };
     skinMat.customProgramCacheKey = () => 'nza3d-skin-2';
@@ -1830,11 +1851,11 @@
         }
       }
       // box lock: lens-shaped joint with a screw
-      const lock = add(jaw, new THREE.CylinderGeometry(0.0026, 0.0026, 0.0038, 28).rotateX(Math.PI / 2), M.steelSatin);
-      lock.scale.set(1, 1.4, 1); lock.position.set(0, 0.0148, 0);
-      const screw = add(jaw, new THREE.CylinderGeometry(0.001, 0.001, 0.0041, 20).rotateX(Math.PI / 2), M.steel);
+      const lock = add(jaw, new THREE.CylinderGeometry(0.0021, 0.0021, 0.0036, 28).rotateX(Math.PI / 2), M.steelSatin);
+      lock.scale.set(1, 1.3, 1); lock.position.set(0, 0.0148, 0);
+      const screw = add(jaw, new THREE.CylinderGeometry(0.0008, 0.0008, 0.0039, 20).rotateX(Math.PI / 2), M.steel);
       screw.position.set(0, 0.0148, 0);
-      const slot = add(jaw, new THREE.BoxGeometry(0.0015, 0.00024, 0.0043), M.steelDark, false);
+      const slot = add(jaw, new THREE.BoxGeometry(0.0012, 0.0002, 0.0041), M.steelDark, false);
       slot.position.set(0, 0.0148, 0); slot.rotation.z = 0.6;
       // braided suture from the swage end, trailing back along the instrument
       const sw = new THREE.Vector3(-r + r * Math.cos(Math.PI * 0.75), r * Math.sin(Math.PI * 0.75), 0);
@@ -2031,8 +2052,7 @@
 
     /* ═════════════ MARKERS ═════════════ */
     const markerGeo = geo(new THREE.PlaneGeometry(1, 1));
-    const pinGeo = geo(new THREE.ConeGeometry(0.0017, 0.0048, 20).rotateX(Math.PI).translate(0, 0.0024, 0));
-    const pinCap = geo(new THREE.SphereGeometry(0.0019, 20, 14));
+    const pinGeo = geo(new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0));   // camera-facing pin, point at the origin
     const markerTex = {};
     const markerMap = {};
     const markers = {
@@ -2042,10 +2062,10 @@
         if (mk && mk.kind !== kind) { markers.remove(id); mk = null; }
         if (!mk) {
           if (kind === 'pin') {
-            const mat = keep(new THREE.MeshBasicMaterial({ color: 0x0fd4c4, toneMapped: false, transparent: true }));
-            const grp = new THREE.Group();
-            grp.add(new THREE.Mesh(pinGeo, mat)); const cap = new THREE.Mesh(pinCap, mat); cap.position.y = 0.0058; grp.add(cap);
-            mk = { kind, obj: grp, mat };
+            if (!markerTex.pin) markerTex.pin = tex(makeMarkerSprite('pin'), false);
+            const mat = keep(new THREE.MeshBasicMaterial({ map: markerTex.pin, color: 0x0fd4c4, toneMapped: false, transparent: true, depthWrite: false }));
+            const me = new THREE.Mesh(pinGeo, mat); me.renderOrder = 6;
+            mk = { kind, obj: me, mat };
           } else {
             const spriteKind = kind;
             if (!markerTex[spriteKind]) markerTex[spriteKind] = tex(makeMarkerSprite(spriteKind), false);
@@ -2076,10 +2096,10 @@
         if (!mk.point) continue;
         const pulse = mk.pulse ? 1 + Math.sin(time * 4.2) * 0.08 : 1;
         if (mk.kind === 'pin') {
-          const bob = Math.sin(time * 3.2) * 0.0012;
-          mk.obj.position.copy(mk.point).addScaledVector(mk.normal, mk.lift + bob);
-          mk.obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), mk.normal);
-          mk.obj.scale.setScalar(mk.size / 0.006);
+          const bob = (Math.sin(time * 3.2) * 0.5 + 0.5) * mk.size * 0.18;
+          mk.obj.position.copy(mk.point).addScaledVector(mk.normal, mk.lift * 0.35 + bob);
+          mk.obj.quaternion.copy(camera.quaternion);
+          mk.obj.scale.set(mk.size * 0.78, mk.size, 1);
         } else {
           mk.obj.position.copy(mk.point).addScaledVector(mk.normal, 0.00035);
           mk.obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), mk.normal);
@@ -2245,7 +2265,7 @@
         jetMat.uniforms.p1.value.copy(p0).lerp(p2, 0.5).add(new THREE.Vector3(0, -L * 0.06, 0));
         jetMat.uniforms.uTime.value += dt;
         jetMat.uniforms.uAlpha.value = jet.flow;
-        jetMat.uniforms.uRadius.value = jet.stream || (0.00045 + 0.00025 * jet.rate);
+        jetMat.uniforms.uRadius.value = jet.stream || (0.0003 + 0.00012 * jet.rate);
       }
       if (jet.on) {
         const q = toSurf(jet.to);
@@ -2263,7 +2283,7 @@
           const a = Math.random() * TAU, sp = 0.05 + Math.random() * 0.16;
           const t1 = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
           t1.addScaledVector(n, -t1.dot(n)).normalize();
-          spawn(1, hit.point.x, hit.point.y + 0.0006, hit.point.z, t1.x * sp + n.x * sp * 1.3, t1.y * sp + n.y * sp * 1.3, t1.z * sp + n.z * sp * 1.3, 0.12 + Math.random() * 0.22, 0.00025 + Math.random() * 0.0005, WATER, 0.75);
+          spawn(1, hit.point.x, hit.point.y + 0.0006, hit.point.z, t1.x * sp + n.x * sp * 1.3, t1.y * sp + n.y * sp * 1.3, t1.z * sp + n.z * sp * 1.3, 0.12 + Math.random() * 0.22, 0.0002 + Math.random() * 0.00035, WATER, 0.75);
         }
         // a few droplets along the stream
         for (let i = 0; i < 3; i++) {
@@ -2396,7 +2416,7 @@
       g2.setIndex(idx);
       const dTex = tex(makeDressingTex(w, h, pw, ph, 5));
       const seepU = { uSeep: { value: new THREE.Vector3(0.5, 0.5, 0) }, uPadRect: { value: new THREE.Vector4(pw / w, ph / h, w, h) }, tNoiseD: { value: noiseTex } };
-      const dMat = keep(new THREE.MeshPhysicalMaterial({ map: dTex, color: 0xf2efe9, roughness: 0.86, sheen: 0.35, sheenRoughness: 0.7, sheenColor: new THREE.Color(1, 1, 1), side: THREE.DoubleSide }));
+      const dMat = keep(new THREE.MeshPhysicalMaterial({ map: dTex, color: 0xf2efe9, roughness: 0.86, sheen: 0.35, sheenRoughness: 0.7, sheenColor: new THREE.Color(1, 1, 1), side: THREE.DoubleSide, alphaTest: 0.5 }));
       dMat.onBeforeCompile = sh => {
         Object.assign(sh.uniforms, seepU);
         sh.fragmentShader = sh.fragmentShader
@@ -2411,7 +2431,7 @@
             float nzs = (1.0 - smoothstep(nzr * 0.55, nzr, nzd)) * nzPad * step(0.001, uSeep.z);
             diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.62, 0.07, 0.05), vec3(0.38, 0.03, 0.02), smoothstep(0.0, nzr, nzr - nzd)), nzs * 0.85);`);
       };
-      dMat.customProgramCacheKey = () => 'nza3d-dressing-2';
+      dMat.customProgramCacheKey = () => 'nza3d-dressing-3';
       const mesh = new THREE.Mesh(g2, dMat);
       mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
       scene.add(mesh);
@@ -2962,6 +2982,7 @@
     uniform float uDark;
     uniform float uSebum;
     uniform float uInsideLod;
+    float nzaWaterOnly;
     float nzaInside; float nzaDepthN; float nzaWet; float nzaSmooth; float nzaThick; float nzaThin; float nzaGrit; float nzaGr; float nzaCl; float nzaCav;
     vec2 nzaUv1; vec2 nzaUv2; vec2 nzaP;
     vec4 nzaM1; vec4 nzaM2; vec4 nzaN3; vec4 nzaN4;
@@ -3080,6 +3101,8 @@
     float nzaWater = clamp(nzaB.g, 0.0, 1.0);
     nzaCol = mix(nzaCol, pow(max(nzaCol, vec3(0.0)), vec3(1.12)) * 0.95, nzaWater * 0.7);
     nzaWet = clamp(max(max(nzaThin, nzaWater * 0.9), max(nzaInside * 0.92, nzaClf * 0.55)), 0.0, 1.0);
+    // a thin water film on intact skin: glossy, but a broader, softer lamp highlight than blood
+    nzaWaterOnly = nzaWater * (1.0 - nzaThin) * (1.0 - nzaInside);
     diffuseColor.rgb *= nzaCol;
   `;
   const SKIN_ROUGH = `
@@ -3087,7 +3110,8 @@
     roughnessFactor = mix(roughnessFactor, 0.86, smoothstep(0.05, 0.5, nzaGr));
     roughnessFactor = mix(roughnessFactor, 0.3, nzaInside);
     roughnessFactor = mix(roughnessFactor, 0.42, smoothstep(0.1, 0.4, nzaCl));
-    roughnessFactor = mix(roughnessFactor, 0.16, max(nzaThin * 0.92, clamp(nzaB.g, 0.0, 1.0) * 0.75));
+    roughnessFactor = mix(roughnessFactor, 0.17, nzaThin * 0.92);
+    roughnessFactor = mix(roughnessFactor, 0.3, nzaWaterOnly * 0.8);
     roughnessFactor = mix(roughnessFactor, 0.92, nzaGrit);
     nzaSmooth = clamp(max(max(nzaInside * 0.8, nzaThick), max(nzaWet * 0.6, smoothstep(0.1, 0.4, nzaCl) * 0.9)), 0.0, 1.0);
   `;
@@ -3149,7 +3173,10 @@
     void main() {
       if (vA <= 0.001) discard;
       vec4 t = texture2D(tDrop, gl_PointCoord);
-      gl_FragColor = vec4(vC * (0.55 + t.r * 0.6), t.a * vA);
+      // water: clear bead (sprite alpha) · blood (red ≫ blue): an opaque bead with the same glint
+      float blood = step(vC.b + 0.2, vC.r);
+      float disc = 1.0 - smoothstep(0.78, 1.0, length(gl_PointCoord * 2.0 - 1.0));
+      gl_FragColor = vec4(vC * (0.55 + t.r * 0.6), mix(t.a, disc, blood) * vA);
     }`;
   const JET_VERT = `
     uniform vec3 p0; uniform vec3 p1; uniform vec3 p2; uniform float uRadius;

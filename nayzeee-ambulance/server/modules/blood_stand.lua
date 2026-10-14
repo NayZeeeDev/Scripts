@@ -16,7 +16,7 @@
       'ivstand:access'    payload {}                quick IV placement when the field module is not installed
     Callbacks:
       nza:blood:stand:info (target) → { ok, data }  everything the panel shows (access, bags, stock, vitals)
-      nza:blood:stand:fill (type?) → { ok, msg }    'Fill blood bag' from the ambulance onboard stock (in a bay)
+      nza:blood:stand:fill (type?) → { ok, msg }    'Bag a unit' from the ambulance fridge (in a bay)
     State bag 'nzaStand' on the patient (player or NPC ped), replicated, read by every client to draw
       the stand: { at = { x, y, z } | nil, h, bay = vehNet | nil, b = { { id, k, t, f (fill %), hook, done } } }
     Transfusion reaction: incompatible blood (core flags infusion.incompatible) → stages by mL received
@@ -420,6 +420,7 @@ local function panelData(src, p)
         },
         easy = NZA.Staff.Easy(src, cfg.perm or 'iv'),
         warm = canWarm(p),
+        now = os.time(),
     }
 end
 

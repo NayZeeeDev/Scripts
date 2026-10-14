@@ -399,7 +399,7 @@ NZA.Treat.Register('infuse', {
             local okTake, bag, why = pcall(NZA.Blood.TakeBag, src, { serial = payload.serial, type = payload.type, recipient = p.pid })
             if not okTake or type(bag) ~= 'table' then
                 if not okTake then NZA.Warn('field: NZA.Blood.TakeBag failed: ' .. tostring(bag)) end
-                return fail('no_blood', type(why) == 'string' and why or '')
+                return fail('no_blood', (type(why) == 'string' and why ~= '') and (' — ' .. why) or '')
             end
             inf = NZA.Patients.AddInfusion(p.pid, {
                 kind = 'blood', ml = tonumber(bag.ml) or cfg.bloodMl or 450, rate = rate, bag = bag,

@@ -15,7 +15,7 @@
       NZA.Medbag.Carrying() → id | nil      NZA.Medbag.NearestBag(range) → { id, entity, dist } | nil
 
     Callbacks used: nza:medbag:put / open / move / action / carry / held / pickup / stow / me
-    Net events handled: nza:medbag:place (token), nza:medbag:sync (id, bag), nza:medbag:closed (id, reason),
+    Net events handled: nza:medbag:place (token), nza:medbag:sync (id, bag, { moved, by }), nza:medbag:closed (id, reason),
                         nza:medbag:carryEnd ()
     Net events sent: nza:medbag:close (id)
     NUI callbacks: medbag:move, medbag:action (+ medbag:close by the router)
@@ -58,12 +58,17 @@ local function down()
     return NZA.Self and NZA.Self.IsDown and NZA.Self.IsDown() or false
 end
 
+-- every model that counts as a medical bag: base, the colour variants, fallback, extras
 function MB.Models()
     local b = C('Bag')
-    local list = { b.model or (Config.Props and Config.Props.medbag) or 'nz_amb_medbag' }
-    local fb = Config.PropFallbacks and Config.PropFallbacks.medbag
-    if fb then list[#list + 1] = fb end
-    for _, m in ipairs(b.extraModels or {}) do list[#list + 1] = m end
+    local list, seen = {}, {}
+    local function add(m) if type(m) == 'string' and not seen[m] then seen[m] = true list[#list + 1] = m end end
+    add(b.model or (Config.Props and Config.Props.medbag) or 'nz_amb_medbag')
+    if type(b.colours) == 'table' then
+        for _, c in ipairs(b.colours) do add(c.model) end
+    end
+    add(Config.PropFallbacks and Config.PropFallbacks.medbag)
+    for _, m in ipairs(b.extraModels or {}) do add(m) end
     return list
 end
 
@@ -160,7 +165,7 @@ function MB.Open(id)
     if type(res) ~= 'table' or not res.ok then return err(res) end
     S.open = res.bag.id
     NZA.UI.Open('medbag', {
-        locale = NZA.LocaleTable('medbag'), bag = res.bag, me = res.me, kit = res.kit,
+        locale = NZA.LocaleTable('medbag'), bag = res.bag, me = res.me, kit = res.kit, colours = res.colours,
     }, { focus = true, cursor = true })
     -- keep the pockets panel fresh (items given / used elsewhere while the window is open)
     local id = S.open
@@ -206,8 +211,11 @@ NZA.Bus.On('ui:closed', function(app)
     if id then TriggerServerEvent('nza:medbag:close', id) end
 end)
 
-RegisterNetEvent('nza:medbag:sync', function(id, bag)
-    if S.open and S.open == id then NZA.UI.Send('medbag', 'sync', { bag = bag }) end
+RegisterNetEvent('nza:medbag:sync', function(id, bag, extra)
+    if not S.open or S.open ~= id then return end
+    local data = { bag = bag }
+    if type(extra) == 'table' then data.moved, data.by = extra.moved, extra.by end
+    NZA.UI.Send('medbag', 'sync', data)
 end)
 
 RegisterNetEvent('nza:medbag:closed', function(id, reason)

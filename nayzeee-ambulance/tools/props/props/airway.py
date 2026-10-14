@@ -90,9 +90,9 @@ def bvm(b):
     # decals: print on the bag top + valve label
     dc = DecalCanvas(0.10, 0.04, ppm=4500)
     dc.mark(0.002, 0.004, 0.013)
-    dc.text(0.019, 0.0105, "NAYZEEE", 0.0062, fnt="brand", anchor="lm", color=(40, 44, 48), spacing=0.0008)
-    dc.text(0.002, 0.026, "BVM  ADULT  ·  1600 mL", 0.0042, fnt="brand-semi", anchor="lm", color=TEAL, spacing=0.0003)
-    dc.text(0.002, 0.034, "SINGLE PATIENT USE", 0.0032, fnt="brand-semi", anchor="lm", color=(110, 116, 120))
+    dc.text(0.019, 0.0105, "NAYZEEE", 0.0062, fnt="label", anchor="lm", color=(40, 44, 48), spacing=0.0008)
+    dc.text(0.002, 0.026, "BVM  ADULT  ·  1600 mL", 0.0042, fnt="label-semi", anchor="lm", color=TEAL, spacing=0.0003)
+    dc.text(0.002, 0.034, "SINGLE PATIENT USE", 0.0032, fnt="label-semi", anchor="lm", color=(110, 116, 120))
     b.decal(dc, center=(0, 0.088 + 0.14, 0.096 + 0.063), normal=(0, 0, 1), up=(-1, 0, 0), mats=["bag_silicone"], depth=0.02, min_dot=0.4)
     boost(b, 1.6, mats=["bag_silicone"])
     b.col_box((-0.065, -0.065, -0.002), (0.065, 0.06, 0.12), "PLASTIC")
@@ -182,8 +182,8 @@ def suction(b):
         r0, r1 = 0.021 if k % 2 == 0 else 0.0235, 0.026
         gd.line([(0.029 + math.cos(a) * r0, 0.029 - math.sin(a) * r0), (0.029 + math.cos(a) * r1, 0.029 - math.sin(a) * r1)],
                 0.0007 if k % 2 else 0.0011, color=(30, 32, 34))
-    gd.text(0.029, 0.040, "mmHg", 0.0032, fnt="brand-semi", color=(80, 86, 90))
-    gd.text(0.029, 0.048, "x 100", 0.0026, fnt="brand-semi", color=(80, 86, 90))
+    gd.text(0.029, 0.040, "mmHg", 0.0032, fnt="label-semi", color=(80, 86, 90))
+    gd.text(0.029, 0.048, "x 100", 0.0026, fnt="label-semi", color=(80, 86, 90))
     a = math.radians(225 - 7 * 22.5)
     gd.line([(0.029, 0.029), (0.029 + math.cos(a) * 0.021, 0.029 - math.sin(a) * 0.021)], 0.0011, color=(206, 40, 44))
     gd.circle(0.029, 0.029, 0.0022, color=(30, 32, 34))
@@ -191,18 +191,18 @@ def suction(b):
     b.decal(gd, center=(gx, yf + 0.0095, gz), normal=(0, 1, 0), up=(0, 0, 1), mats=["gauge_face"], depth=0.002)
     lab = DecalCanvas(0.21, 0.135, ppm=3000)
     lab.mark(0.008, 0.006, 0.014)
-    lab.text(0.027, 0.013, "NAYZEEE  SUCTION", 0.0062, fnt="brand", anchor="lm", color=(190, 198, 204), spacing=0.0007)
-    lab.text(0.155, 0.048, "VACUUM", 0.004, fnt="brand-semi", color=(150, 158, 164))
-    lab.text(0.155, 0.112, "ON / OFF", 0.004, fnt="brand-semi", color=(150, 158, 164))
-    lab.text(0.067, 0.112, "LOW  ·  MED  ·  HIGH", 0.0034, fnt="brand-semi", color=(150, 158, 164))
+    lab.text(0.027, 0.013, "NAYZEEE  SUCTION", 0.0062, fnt="label", anchor="lm", color=(190, 198, 204), spacing=0.0007)
+    lab.text(0.155, 0.048, "VACUUM", 0.004, fnt="label-semi", color=(150, 158, 164))
+    lab.text(0.155, 0.112, "ON / OFF", 0.004, fnt="label-semi", color=(150, 158, 164))
+    lab.text(0.067, 0.112, "LOW  ·  MED  ·  HIGH", 0.0034, fnt="label-semi", color=(150, 158, 164))
     b.decal(lab, center=(bx, yf + 0.0031, 0.112), normal=(0, 1, 0), up=(0, 0, 1), mats=["gloss_black"], depth=0.003)
     can = DecalCanvas(0.05, 0.13, ppm=5000)
     for k in range(0, 11):
         y = 0.125 - k * 0.0115
         can.rect(0.0, y, 0.012 if k % 2 == 0 else 0.007, 0.0006, color=(30, 34, 38))
         if k % 2 == 0 and k > 0:
-            can.text(0.015, y, str(k * 100), 0.0034, fnt="brand-semi", anchor="lm", color=(30, 34, 38))
-    can.text(0.03, 0.008, "mL", 0.0036, fnt="brand", color=(30, 34, 38))
+            can.text(0.015, y, str(k * 100), 0.0034, fnt="label-semi", anchor="lm", color=(30, 34, 38))
+    can.text(0.03, 0.008, "mL", 0.0036, fnt="label", color=(30, 34, 38))
     b.decal(can, center=(cx, 0.0545, 0.09), normal=(0, 1, 0), up=(0, 0, 1), mats=["canister_clear"], depth=0.01, min_dot=0.5)
     b.decal(brand_canvas(0.16, 0.026, ppm=3200, color=(46, 50, 54), sub_color=TEAL), center=(bx - W / 2 - 0.0001, 0.0, 0.12),
             normal=(-1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
@@ -282,7 +282,7 @@ def ett(b):
         b.add(sweep(rrect(0.003, 0.018, 0.001, 1), sp, strap, up=(0, 0, 1), tag="strap"))
     lab = DecalCanvas(0.034, 0.018, ppm=8000)
     lab.mark(0.002, 0.0035, 0.011)
-    lab.text(0.016, 0.009, "ID 7.5", 0.0046, fnt="brand", anchor="lm", color=(255, 255, 255), spacing=0.0003)
+    lab.text(0.016, 0.009, "ID 7.5", 0.0046, fnt="label", anchor="lm", color=(255, 255, 255), spacing=0.0003)
     for sx in (-1, 1):
         b.decal(lab, center=(sx * 0.031, 0.0041, 0.0), normal=(0, 1, 0), up=(0, 0, 1), mats=["teal"], depth=0.003)
     boost(b, 3.0, mats=["teal"])

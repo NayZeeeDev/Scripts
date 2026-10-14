@@ -52,7 +52,7 @@ function Su.Eligible(inj)
     local mode = (cfg().types or {})[inj.type]
     if not mode then return false end
     local t = inj.treat or {}
-    if t.sutured then return false, L('why_done') end
+    if t.sutured then return false end          -- already closed: the route is hidden
     if mode == 'controlled' and (tonumber(inj.retained) or 0) > 0 and not t.extracted then
         return false, L('why_retained')
     end

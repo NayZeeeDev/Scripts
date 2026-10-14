@@ -18,7 +18,7 @@
     Usable item: Config.Items.suture_kit → client event 'nza:suture:use' (start on the nearest patient)
     Bus events emitted: suture:done (src, patient, injury, outcome)
     Lua API: NZA.Suture.Eligible(injury, easy) → ok, reason   NZA.Suture.Location(patient) → ok
-             NZA.Suture.Case(patient, injury) → client case table
+             NZA.Suture.Case(src, patient, injury) → client case table
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -217,6 +217,16 @@ local function onFinish(src, p, session, result)
             sutured = sutured and math.floor(clamp(parts.suture, 0, 100)) or nil,
             dressed = dressed and math.floor(clamp(parts.dressing, 0, 100)) or nil,
         }
+        -- the score must agree with the step scores (weights from Config.Suture.Game.weights)
+        local W = G.weights or {}
+        local wi, wa = tonumber(W.irrigate) or 20, tonumber(W.anaesthetic) or 15
+        local ws, wd = tonumber(W.suture) or 45, tonumber(W.dressing) or 20
+        local wsum = wi + wa + ws + wd
+        if wsum > 0 then
+            local calc = (clamp(parts.irrigate, 0, 100) * wi + clamp(parts.anaesthetic, 0, 100) * wa
+                + clamp(parts.suture, 0, 100) * ws + clamp(parts.dressing, 0, 100) * wd) / wsum
+            score = math.min(score, calc + 2)
+        end
         -- a closure that never closed cannot score well, whatever the client claims
         if not sutured then score = math.min(score, 35) end
         if not irrigated then score = math.min(score, 85) end

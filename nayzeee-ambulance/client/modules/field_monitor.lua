@@ -7,7 +7,7 @@
       NZA.Monitor.Close()                hide the overlay (stops the live data)
       NZA.Monitor.Attach(entity, target, { silent, scene })   NZA.Treat 'monitor' → prop + overlay
       NZA.Monitor.Detach()               NZA.Treat 'monitor_off' → removes prop + overlay
-      NZA.Monitor.AttachedTo(entity) → bool     NZA.Monitor.Target() → target | nil
+      NZA.Monitor.AttachedTo(entity) → bool     NZA.Monitor.Target() → target | nil   NZA.Monitor.Scene(on)
       NZA.Monitor.Override(map)          { map, sys, dia } | nil  (field resuscitate pressure model)
       NZA.Monitor.Nibp()                 cycle the cuff now      NZA.Monitor.Focus(on)   mouse on the buttons
 
@@ -67,7 +67,10 @@ local function bind(target)
     local ok, stop = pcall(NZA.Patient.Watch, target, function(snap, reason)
         if bound ~= b then return end
         if not snap then
-            if reason == 'gone' or reason == 'removed' or reason == 'denied' then
+            if not (attached and NZA.Target.Same(attached.target, target)) then
+                -- opened by another module (bay / bed): the watch ended, so does the overlay
+                SetTimeout(0, function() if bound == b then M.Close() end end)
+            elseif reason == 'gone' or reason == 'removed' or reason == 'denied' then
                 NZA.UI.Send(APP, 'standby', { on = true })
             end
             return
@@ -132,6 +135,11 @@ end
 function M.Nibp() NZA.UI.Send(APP, 'nibp', {}) end
 
 function M.Target() return bound and bound.target or nil end
+
+-- while a field scene runs the overlay never closes on distance
+function M.Scene(on)
+    if attached then attached.scene = on and true or nil end
+end
 
 function M.Focus(on)
     if not NZA.UI.IsOpen(APP) then return false end
@@ -259,6 +267,17 @@ CreateThread(function()
             end
         end
     end
+end)
+
+-- the ambulance treatment bay's F4 (transport module) shows this monitor when it is installed
+NZA.Bus.On('bay:monitor', function(target)
+    if type(target) ~= 'table' then return end
+    local cur = M.Target()
+    if NZA.UI.IsOpen(APP) and cur and NZA.Target.Same(cur, target) then M.Close() else M.Open(target) end
+end)
+
+NZA.Bus.On('bay:left', function()
+    if NZA.UI.IsOpen(APP) and not attached then M.Close() end
 end)
 
 -- leaving duty / going down ends it

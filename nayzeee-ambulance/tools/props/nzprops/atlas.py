@@ -128,7 +128,7 @@ def _try_pack(charts, W, H, dens, pad, max_frac=0.98):
     return out
 
 
-def pack_charts(charts, W, H=None, pad=4, max_density=4000.0, min_density=20.0):
+def pack_charts(charts, W, H=None, pad=4, max_density=9000.0, min_density=20.0):
     """Binary-search the largest uniform density (px/m, times each chart's own multiplier) that
     packs. Returns (density, placements)."""
     H = H or W

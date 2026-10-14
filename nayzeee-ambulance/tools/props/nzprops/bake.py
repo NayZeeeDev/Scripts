@@ -292,7 +292,94 @@ def _bump(m: Mat, P, C, seed):
         b = np.abs(noise3(P / (sc * 0.5), seed + 4))
         h = -(np.clip(0.18 - a, 0, 1) * 4 + np.clip(0.12 - b, 0, 1) * 3)
         return (h * amp).astype(np.float32), (1 + 0.6 * h).astype(np.float32)
+    if m.bump == "phillips":
+        # screw head built around its own axis: chart coords centred on the head (planar lathe caps)
+        u, v = C[:, 0] / sc, C[:, 1] / sc
+        r = np.sqrt(u * u + v * v)
+        dome = np.clip(1 - r * r, 0, 1) * 0.35
+        cross = ((np.abs(u) < 0.13) & (np.abs(v) < 0.62)) | ((np.abs(v) < 0.13) & (np.abs(u) < 0.62))
+        h = dome - cross * 1.0
+        return (h * amp).astype(np.float32), (1 - 0.55 * cross).astype(np.float32)
+    if m.bump == "hexsocket":
+        u, v = C[:, 0] / sc, C[:, 1] / sc
+        a = np.abs(u)
+        b2 = np.abs(v)
+        hexd = np.maximum(a * 0.866 + b2 * 0.5, b2) < 0.42
+        h = -hexd * 1.0
+        return (h * amp).astype(np.float32), (1 - 0.6 * hexd).astype(np.float32)
+    if m.bump == "diamond":
+        # tread plate: raised lozenges alternating +-45 deg on a square lattice
+        u, v = C[:, 0] / sc, C[:, 1] / sc
+        iu, iv = np.floor(u), np.floor(v)
+        fu, fv = u - iu - 0.5, v - iv - 0.5
+        par = ((iu + iv) % 2 == 0)
+        a = np.where(par, fu + fv, fu - fv) / 1.414
+        bb = np.where(par, fu - fv, fu + fv) / 1.414
+        d = (a / 0.42) ** 2 + (bb / 0.11) ** 2
+        h = np.clip(1 - d, 0, 1) ** 0.5 - 0.15
+        return (h * amp).astype(np.float32), (1 + 0.06 * h).astype(np.float32)
+    if m.bump == "dimple":
+        u, v = C[:, 0] / sc, C[:, 1] / sc
+        fu, fv = u - np.round(u), v - np.round(v)
+        d = np.sqrt(fu * fu + fv * fv) / 0.32
+        h = np.clip(1 - d * d, 0, 1) ** 0.5 - 0.2
+        return (h * amp).astype(np.float32), (1 + 0.05 * h).astype(np.float32)
+    if m.bump == "perf":
+        u, v = C[:, 0] / sc, C[:, 1] / sc
+        fu, fv = u - np.round(u), v - np.round(v)
+        d = np.sqrt(fu * fu + fv * fv)
+        hole = np.clip((0.30 - d) / 0.05, 0, 1)
+        h = -hole
+        return (h * amp).astype(np.float32), (1 - 0.8 * hole).astype(np.float32)
+    if m.bump == "twill":
+        # 2x2 twill weave (carbon fibre / heavy webbing)
+        u, v = C[:, 0] / sc, C[:, 1] / sc
+        k = np.floor(u) + np.floor(v)
+        along = np.where((k % 4) < 2, np.sin(np.pi * (u - np.floor(u))), np.sin(np.pi * (v - np.floor(v))))
+        h = along - 0.5 + 0.12 * noise3(P / (sc * 4), seed)
+        return (h * amp).astype(np.float32), (1 + 0.12 * h).astype(np.float32)
+    if m.bump == "cordura":
+        # coarse basket weave nylon (bags, pouches)
+        u, v = C[:, 0] / sc, C[:, 1] / sc
+        cu, cv = np.floor(u * 0.5), np.floor(v * 0.5)
+        warp = (cu + cv) % 2 == 0
+        h = np.where(warp, np.abs(np.sin(np.pi * u)), np.abs(np.sin(np.pi * v))) - 0.5 + 0.2 * noise3(P / (sc * 3), seed)
+        return (h * amp).astype(np.float32), (1 + 0.10 * h).astype(np.float32)
+    if m.bump == "velcro":
+        n1 = noise3(P / sc, seed)
+        n2 = noise3(P / (sc * 0.4), seed + 3)
+        h = np.abs(n1) * 0.6 + np.abs(n2) * 0.6 - 0.5
+        return (h * amp).astype(np.float32), (1 + 0.18 * h).astype(np.float32)
     raise ValueError(f"unknown bump pattern {m.bump}")
+
+
+def _hash2(iu, iv, seed):
+    from .paint import _hash
+    return _hash(iu.astype(np.int64), iv.astype(np.int64), np.zeros_like(iu, dtype=np.int64), seed)
+
+
+def scratch_field(C, texel, seed=0):
+    """Fine straight scratches laid out in chart space (metres): a few random segments per cell,
+    two size octaves. Width follows the texel size so they stay crisp without aliasing."""
+    out = np.zeros(len(C), np.float32)
+    for cell, dens, sd in ((0.018, 0.55, 0), (0.007, 0.35, 1), (0.045, 0.6, 2)):
+        for layer in range(2):
+            ofs = 0.5 * layer
+            u, v = C[:, 0] / cell + ofs, C[:, 1] / cell + ofs * 0.7
+            iu, iv = np.floor(u), np.floor(v)
+            fu, fv = u - iu - 0.5, v - iv - 0.5
+            s0 = seed * 31 + sd * 7 + layer * 3
+            h1, h2, h3, h4 = (_hash2(iu, iv, s0 + k) for k in range(4))
+            ang = h1 * np.pi
+            ta, tb = np.cos(ang), np.sin(ang)
+            along = fu * ta + fv * tb
+            across = -fu * tb + fv * ta - h2 * 0.25
+            half = 0.18 + 0.27 * (h3 * 0.5 + 0.5)
+            present = (h4 * 0.5 + 0.5) < dens
+            wid = np.maximum(texel * 0.8, 0.00012) / cell
+            line = np.clip(1 - np.abs(across) / wid, 0, 1) * np.clip((half - np.abs(along)) * 6, 0, 1) * present
+            out = np.maximum(out, line * (0.55 + 0.45 * (h3 * 0.5 + 0.5)))
+    return out
 
 
 def eval_materials(mats: dict, matname, P, C, seed=11):
@@ -308,6 +395,11 @@ def eval_materials(mats: dict, matname, P, C, seed=11):
         "edge": np.zeros(n, np.float32),
         "aok": np.zeros(n, np.float32),
         "dirt": np.zeros(n, np.float32),
+        "wear": np.zeros(n, np.float32),
+        "wear_rgb": np.zeros((n, 3), np.float32),
+        "scratch": np.zeros(n, np.float32),
+        "smudge": np.zeros(n, np.float32),
+        "cavity": np.zeros(n, np.float32),
     }
     for mi, (name, m) in enumerate(mats.items()):
         sel = np.nonzero(matname == name)[0]
@@ -334,6 +426,19 @@ def eval_materials(mats: dict, matname, P, C, seed=11):
         L["edge"][sel] = m.edge
         L["aok"][sel] = m.ao
         L["dirt"][sel] = m.dirt
+        clear = m.layer == "alpha"
+        L["wear"][sel] = (m.edge * (0.15 if clear else 0.85)) if m.wear < 0 else m.wear
+        if m.wear_color is not None:
+            L["wear_rgb"][sel] = np.asarray(m.wear_color, np.float32)[None, :]
+        elif m.metal > 0.5 or m.spec > 0.7:
+            L["wear_rgb"][sel] = np.minimum(alb * 1.22 + 22, 255)
+        else:
+            L["wear_rgb"][sel] = alb + (255.0 - alb) * 0.28
+        auto_s = (0.12 if clear else 0.2 + 0.55 * m.gloss) if m.bump not in ("fabric", "webbing", "foam", "pluck", "eggcrate",
+                                                                               "velcro", "cordura", "twill") else 0.0
+        L["scratch"][sel] = auto_s if m.scratch < 0 else m.scratch
+        L["smudge"][sel] = (0.25 + 0.6 * m.gloss if not clear else 0.35) if m.smudge < 0 else m.smudge
+        L["cavity"][sel] = m.cavity
     return L
 
 
@@ -419,15 +524,43 @@ def bake(W, H, tid, bary, tri_vidx, V_pos, V_nrm, V_uvm, tri_mat, tri_chart, cha
     chart_img[ys, xs] = ch
     curv = curvature(Pimg, Nimg, cov, chart_img)[ys, xs]
 
-    edge = np.clip(curv / 260.0, 0, 1) * L["edge"]
+    convex = np.clip(curv / 260.0, 0, 1)
+    concave = np.clip(-curv / 180.0, 0, 1)
+    edge = convex * L["edge"]
     alb = L["albedo"]
-    alb = alb + edge[:, None] * (255.0 - alb) * 0.30
+    # soft convex highlight (catches the light on bevels)
+    alb = alb + edge[:, None] * (255.0 - alb) * 0.10
+    # chipped edge wear: convexity broken up by fine + coarse 3D noise
+    if not glow_layer:
+        n_hi = noise3(P / 0.0021, 101) * 0.6 + noise3(P / 0.0009, 102) * 0.4
+        n_lo = fbm3(P / 0.035, 3, 103)
+        wear = np.clip(convex * 1.7 - 0.55 + n_hi * 0.55 + n_lo * 0.35, 0, 1) * L["wear"]
+        wear = np.clip(wear * 1.6, 0, 1) ** 1.3
+        alb = alb * (1 - wear[:, None] * 0.8) + L["wear_rgb"] * wear[:, None] * 0.8
+        # fine scratches (lighter, slightly rougher, tiny dent in the height)
+        scr = scratch_field(C, texel, seed=7) * L["scratch"] * np.clip(0.0009 / np.maximum(texel, 1e-6), 0.25, 1.0)
+        alb = alb + scr[:, None] * (np.maximum(L["wear_rgb"], alb) - alb) * 0.45 + scr[:, None] * 6.0
+        L["height"] -= scr * 0.000004
+        # handling marks / smudges: large blotches of lower gloss
+        smg = np.clip(fbm3(P / 0.045, 3, 107) * 1.7 + 0.05, 0, 1) * np.clip(noise3(P / 0.012, 108) * 0.8 + 0.6, 0, 1) * L["smudge"]
+        # crevice grime (AO + concave curvature), patchy
+        dmask = np.clip((1 - aov) * 2.0 + concave * 0.8, 0, 1) * np.clip(0.55 + 0.75 * n_lo, 0.1, 1.3)
+        dirt = L["dirt"] * dmask
+        # dust settling on up-facing surfaces
+        dust = L["dirt"] * np.clip((N[:, 2] - 0.55) / 0.45, 0, 1) * np.clip(0.45 + 0.8 * fbm3(P / 0.018, 2, 109), 0, 1) * 0.55
+    else:
+        wear = scr = smg = dust = np.zeros(len(P), np.float32)
+        dirt = L["dirt"] * np.clip((1 - aov) * 2.2, 0, 1)
     aof = 1.0 - L["aok"] * (1.0 - aov) * 0.85
-    dirt = L["dirt"] * np.clip((1 - aov) * 2.2, 0, 1)
-    alb = alb * aof[:, None]
-    alb = alb * (1 - dirt[:, None] * 0.35) + np.array([70, 60, 48], np.float32)[None, :] * dirt[:, None] * 0.35
-    spec = L["spec"] * (0.45 + 0.55 * aov) + edge * 0.08
-    gloss = L["gloss"] * (1 - dirt * 0.5)
+    alb = alb * aof[:, None] * (1 - concave * L["cavity"] * 0.35)[:, None]
+    alb = alb * (1 - dirt[:, None] * 0.38) + np.array([66, 57, 46], np.float32)[None, :] * dirt[:, None] * 0.38
+    alb = alb * (1 - dust[:, None] * 0.3) + np.array([152, 146, 136], np.float32)[None, :] * dust[:, None] * 0.3
+    metalish = np.clip(L["metal"] + (L["spec"] > 0.7), 0, 1)
+    spec = L["spec"] * (0.45 + 0.55 * aov) + edge * 0.05 + wear * (0.12 + 0.25 * metalish) - smg * 0.06 * L["spec"]
+    spec = spec * (1 - dust * 0.5) - scr * 0.05
+    gloss = L["gloss"] * (1 - dirt * 0.5) * (1 - smg * 0.32) * (1 - dust * 0.45) + wear * 0.08 * (1 - metalish) - scr * 0.12
+    gloss = np.clip(gloss, 0, 1)
+    spec = np.clip(spec, 0, 1)
 
     diffuse = blank(3)
     diffuse[ys, xs] = alb

@@ -1,188 +1,286 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · app 'medbag'
-   HUD design: side panels rgba(12,13,16,.92) r12, hairline borders, teal rail,
-   glowing bars. The world (and the bag on the floor) stays visible on the left.
+   Two edge docks (pockets left, bag right) around a clear centre. NAYZEEE language:
+   corner brackets, 240° dials, instrument lists with tone notches, rolling counters,
+   colour-coded bag identity. In-game rules: no backdrop-filter, color-mix() or :has().
    ═══════════════════════════════════════════════════════════ */
 
-#app-medbag{--mb-w:440px}
-#app-medbag .mb-col{position:absolute;right:24px;top:24px;bottom:24px;width:var(--mb-w);display:flex;flex-direction:column;gap:12px;
-  animation:mb-in 260ms cubic-bezier(.2,.7,.2,1) both}
-@keyframes mb-in{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+#app-medbag{--mb-l:372px;--mb-r:436px;--bc:#08afa2}
+#app-medbag .mb-left{position:absolute;left:24px;top:24px;bottom:280px;width:var(--mb-l);display:flex;flex-direction:column;gap:12px;
+  animation:mb-from-l 280ms cubic-bezier(.2,.7,.2,1) both}
+#app-medbag .mb-right{position:absolute;right:24px;top:24px;bottom:24px;width:var(--mb-r);display:flex;flex-direction:column;gap:12px;
+  animation:mb-from-r 280ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes mb-from-l{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
+@keyframes mb-from-r{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+#app-medbag.busy [data-item]{cursor:progress}
 
-/* ── panels ── */
-#app-medbag .mb-panel{display:flex;flex-direction:column;min-height:0;transition:box-shadow var(--fast),border-color var(--fast)}
-#app-medbag .mb-store{flex:0 1 auto;min-height:0}
-#app-medbag .mb-xfer{flex:none}
-#app-medbag .mb-pers{flex:1 1 0;min-height:330px}
-#app-medbag .mb-panel.dropzone{border-color:var(--teal-edge);box-shadow:0 10px 28px rgba(0,0,0,.28),0 0 0 3px var(--teal-wash),inset 0 1px 0 rgba(255,255,255,.05)}
+/* ── cards: corner bracket instead of a top rail ── */
+#app-medbag .mb-card{position:relative;display:flex;flex-direction:column;min-height:0;border-radius:14px;
+  transition:border-color var(--fast),box-shadow var(--fast)}
+#app-medbag .mb-card::before{content:'';position:absolute;left:-1px;top:-1px;width:42px;height:42px;z-index:2;pointer-events:none;
+  border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:14px;opacity:.9}
+#app-medbag .mb-bag::before{border-color:var(--bc)}
+#app-medbag .mb-card.dropzone{border-color:var(--teal-edge);box-shadow:0 10px 28px rgba(0,0,0,.28),0 0 0 3px rgba(8,175,162,.16),inset 0 1px 0 rgba(255,255,255,.05)}
 
-#app-medbag .mb-ph{display:flex;align-items:center;gap:12px;padding:14px 14px 13px 16px;border-bottom:1px solid var(--line-soft);position:relative}
-#app-medbag .mb-pt{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
-#app-medbag .mb-pt b{font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.01em;line-height:1}
-#app-medbag .mb-sub{font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app-medbag .mb-psub{color:var(--ink-3)}
-#app-medbag .mb-store .nz-tile{box-shadow:0 0 18px rgba(8,175,162,.18)}
+#app-medbag .mb-hd{display:flex;align-items:center;gap:12px;padding:14px 14px 13px 16px;border-bottom:1px solid var(--line-soft)}
+#app-medbag .mb-ht{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+#app-medbag .mb-ht b{font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.01em;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-mono{font:500 10.5px/1.2 var(--mono);color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-mono i{font-style:normal;color:var(--ink-3)}
+#app-medbag .mb-bag-s{color:var(--ink-3)}
+#app-medbag .mb-bag-s em{font-style:normal;color:var(--ink);display:inline-flex;align-items:center;gap:4px}
+#app-medbag .mb-bag-s em .nz-ic{width:10px;height:10px;color:var(--bc)}
+
+/* status ring (pockets load) */
+#app-medbag .mb-ring{position:relative;width:38px;height:38px;flex:none;display:grid;place-items:center;color:var(--ink-2)}
+#app-medbag .mb-ring > svg.rg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+#app-medbag .mb-ring circle{fill:none;stroke-width:3}
+#app-medbag .mb-ring .bg{stroke:rgba(255,255,255,.09)}
+#app-medbag .mb-ring .fg{stroke:var(--teal);stroke-linecap:round;transition:stroke-dashoffset 300ms cubic-bezier(.2,.7,.2,1)}
+#app-medbag .mb-ring .fg.amber{stroke:var(--amber)} #app-medbag .mb-ring .fg.red{stroke:var(--red)}
+#app-medbag .mb-ring .nz-ic{width:16px;height:16px}
+
+/* bag identity tile (bag colour) */
+#app-medbag .mb-swatch{position:relative;width:38px;height:38px;flex:none;border-radius:11px;display:grid;place-items:center;color:#fff;
+  background:radial-gradient(120% 120% at 30% 20%,rgba(255,255,255,.28),rgba(255,255,255,0) 55%),var(--bc);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),inset 0 -6px 12px rgba(0,0,0,.25),0 6px 16px rgba(0,0,0,.35);transition:background 200ms}
+#app-medbag .mb-swatch .nz-ic{width:18px;height:18px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+
 #app-medbag .mb-tools{display:flex;gap:6px;align-items:center}
-#app-medbag .mb-ib{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft);
+#app-medbag .mb-ib{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft);
   color:var(--ink-2);cursor:pointer;transition:all var(--fast)}
 #app-medbag .mb-ib .nz-ic{width:14px;height:14px}
 #app-medbag .mb-ib:hover{color:var(--white);border-color:var(--line)}
 #app-medbag .mb-ib.on{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
 #app-medbag .mb-ib + .pill-close{margin-left:4px}
 
-#app-medbag .mb-meta{display:flex;gap:6px;flex-wrap:wrap;padding:11px 16px 0}
-#app-medbag .mb-meta .nz-chip{gap:5px;padding:3px 8px}
-#app-medbag .mb-meta .nz-ic{width:10px;height:10px}
+#app-medbag .mb-filter{display:flex;align-items:center;gap:6px;height:30px;width:122px;padding:0 10px;border-radius:8px;background:var(--inset);
+  border:1px solid var(--line-soft);color:var(--ink-3);pointer-events:auto;transition:border-color var(--fast),width var(--fast)}
+#app-medbag .mb-filter:focus-within{border-color:var(--teal-edge);width:150px}
+#app-medbag .mb-filter .nz-ic{width:13px;height:13px;flex:none}
+#app-medbag .mb-filter input{width:100%;min-width:0;background:none;border:0;outline:0;color:var(--white);font:400 11.5px var(--font)}
+#app-medbag .mb-filter input::placeholder{color:var(--ink-3)}
 
-/* ── slot grids ── */
-#app-medbag .mb-grid-wrap{position:relative;padding:12px 14px 12px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
-#app-medbag .mb-grid-wrap::-webkit-scrollbar{width:6px}
-#app-medbag .mb-grid-wrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px}
-#app-medbag .mb-store .mb-grid-wrap{max-height:344px;flex:0 1 auto;min-height:90px}
-#app-medbag .mb-pwrap{flex:1;min-height:0}
-#app-medbag .mb-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+/* ── pockets: vertical list ── */
+#app-medbag .mb-pk{flex:1 1 0;min-height:200px}
+#app-medbag .mb-list{flex:1;min-height:0;overflow-y:auto;padding:8px 8px 10px;display:flex;flex-direction:column;gap:3px;
+  scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+#app-medbag .mb-list::-webkit-scrollbar,#app-medbag .mb-gwrap::-webkit-scrollbar{width:6px}
+#app-medbag .mb-list::-webkit-scrollbar-thumb,#app-medbag .mb-gwrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px}
+#app-medbag .mb-row{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) auto 24px;align-items:center;gap:10px;min-height:48px;
+  padding:4px 8px 4px 6px;border-radius:10px;border:1px solid transparent;cursor:pointer;user-select:none;transition:background var(--fast),border-color var(--fast)}
+#app-medbag .mb-row::before{content:'';position:absolute;left:-1px;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--teal);opacity:0;transition:opacity var(--fast)}
+#app-medbag .mb-row:hover{background:rgba(255,255,255,.04);border-color:var(--line-soft)}
+#app-medbag .mb-row:hover::before{opacity:1;box-shadow:0 0 8px rgba(8,175,162,.6)}
+#app-medbag .mb-row .th{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft)}
+#app-medbag .mb-row .th img{width:31px;height:31px;object-fit:contain;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
+#app-medbag .mb-row .tx{min-width:0}
+#app-medbag .mb-row .tx b{display:block;font-size:12.5px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-row .tx small{display:block;margin-top:3px;font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-row .q{font:600 12px var(--mono);color:var(--ink-2);font-variant-numeric:tabular-nums}
+#app-medbag .mb-row .go{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--ink-3);border:1px solid var(--line-soft);transition:all var(--fast)}
+#app-medbag .mb-row .go .nz-ic{width:12px;height:12px}
+#app-medbag .mb-row:hover .go{color:var(--on-teal);background:var(--teal);border-color:transparent}
+#app-medbag .mb-row.dis{cursor:not-allowed}
+#app-medbag .mb-row.dis .th img{opacity:.32;filter:grayscale(1)}
+#app-medbag .mb-row.dis .tx b{color:var(--ink-2)}
+#app-medbag .mb-row.dis .tx small{color:#ff8a8d}
+#app-medbag .mb-row.dis .go{color:var(--red);border-color:var(--red-edge)}
+#app-medbag .mb-row.dis:hover .go{background:var(--red-wash);color:var(--red)}
+#app-medbag .mb-row.dis:hover::before{background:var(--red);box-shadow:0 0 8px rgba(229,72,77,.6)}
+
+#app-medbag .mb-none{position:absolute;left:16px;right:16px;top:50%;transform:translateY(-50%);display:none;text-align:center;font-size:12px;line-height:1.55;
+  font-weight:300;color:var(--ink-2);pointer-events:none}
+#app-medbag .mb-none.on{display:block}
+
+/* ── quantity dial ── */
+#app-medbag .mb-qty{flex:none;flex-direction:row;align-items:center;gap:4px;padding:10px 12px 10px 4px}
+#app-medbag .mb-dial{position:relative;width:170px;height:152px;flex:none}
+#app-medbag .mb-dial > svg,#app-medbag .mb-pre,#app-medbag .mb-dv{position:absolute;left:15px;top:12px;width:140px;height:124px}
+#app-medbag .mb-dial > svg{cursor:pointer;overflow:visible}
+#app-medbag .mb-dial .trk{fill:none;stroke:rgba(255,255,255,.08);stroke-width:7;stroke-linecap:round}
+#app-medbag .mb-dial .fill{fill:none;stroke:var(--teal);stroke-width:7;stroke-linecap:round;filter:drop-shadow(0 0 5px rgba(8,175,162,.55))}
+#app-medbag .mb-dial .ticks line{stroke:rgba(255,255,255,.2);stroke-width:1.2}
+#app-medbag .mb-dial .knob{fill:#fff;stroke:var(--teal);stroke-width:2.5;filter:drop-shadow(0 0 4px rgba(0,0,0,.6))}
+#app-medbag .mb-dv{display:flex;align-items:center;justify-content:center;padding-bottom:14px;pointer-events:none}
+#app-medbag .mb-dv .odo{font-size:32px}
+#app-medbag .mb-stk{font:700 17px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--teal-hi);text-shadow:0 0 14px rgba(15,212,196,.35)}
+#app-medbag .mb-dc{position:absolute;left:15px;width:140px;top:84px;text-align:center;font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);pointer-events:none}
+#app-medbag .mb-dc b{display:block;color:var(--ink-2);font-weight:700;margin-bottom:2px}
+#app-medbag .mb-pre{pointer-events:none}
+#app-medbag .mb-pre button{position:absolute;transform:translate(-50%,-50%);height:19px;min-width:20px;padding:0 6px;border-radius:6px;pointer-events:auto;cursor:pointer;
+  font:600 9.5px/17px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);background:var(--hud-solid);border:1px solid var(--line);transition:all var(--fast)}
+#app-medbag .mb-pre button:hover{color:var(--white);border-color:var(--teal-edge)}
+#app-medbag .mb-pre button.on{color:var(--on-teal);background:linear-gradient(var(--teal-hi),var(--teal));border-color:transparent;box-shadow:0 0 10px rgba(8,175,162,.45)}
+#app-medbag .mb-db{position:absolute;bottom:6px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;cursor:pointer;
+  color:var(--ink-2);background:var(--inset);border:1px solid var(--line);transition:all var(--fast)}
+#app-medbag .mb-db[data-step="-1"]{left:52px} #app-medbag .mb-db[data-step="1"]{right:52px}
+#app-medbag .mb-db:hover{color:var(--white);border-color:var(--teal-edge)}
+#app-medbag .mb-db .nz-ic{width:12px;height:12px}
+#app-medbag .mb-gest{flex:1;min-width:0;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}
+#app-medbag .mb-gest li{position:relative;display:flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;font-size:10.5px;color:var(--ink-2);white-space:nowrap}
+#app-medbag .mb-gest li::before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:rgba(255,255,255,.14)}
+#app-medbag .mb-gest li:first-child::before{background:var(--teal);box-shadow:0 0 6px rgba(8,175,162,.6)}
+#app-medbag .mb-gest kbd{min-width:42px;height:18px;font-size:9px;justify-content:center}
+
+/* ── bag dock ── */
+#app-medbag .mb-bag{flex:0 1 auto;min-height:0}
+#app-medbag .mb-read{display:flex;align-items:center;gap:10px;padding:10px 16px 4px 8px}
+#app-medbag .mb-load{position:relative;width:110px;height:92px;flex:none}
+#app-medbag .mb-load > svg{position:absolute;inset:0;width:100%;height:100%}
+#app-medbag .mb-load .trk{fill:none;stroke:rgba(255,255,255,.08);stroke-width:8;stroke-linecap:round}
+#app-medbag .mb-load .zone{fill:none;stroke:rgba(229,72,77,.2);stroke-width:8}
+#app-medbag .mb-load .fill{fill:none;stroke:var(--teal-hi);stroke-width:8;stroke-linecap:round;filter:drop-shadow(0 0 5px rgba(15,212,196,.5))}
+#app-medbag .mb-load .fill.amber{stroke:var(--amber);filter:drop-shadow(0 0 5px rgba(229,165,10,.5))}
+#app-medbag .mb-load .fill.red{stroke:var(--red);filter:drop-shadow(0 0 5px rgba(229,72,77,.6))}
+#app-medbag .mb-load .ticks line{stroke:rgba(255,255,255,.2);stroke-width:1.2}
+#app-medbag .mb-lv{position:absolute;inset:0 0 14px;display:flex;align-items:center;justify-content:center;gap:1px}
+#app-medbag .mb-lv b{font:700 22px var(--mono);color:var(--white);letter-spacing:-.02em}
+#app-medbag .mb-lv b.amber{color:#f3c35a} #app-medbag .mb-lv b.red{color:#ff7478}
+#app-medbag .mb-lv span{font:600 11px var(--mono);color:var(--ink-3);margin-top:5px}
+#app-medbag .mb-inst{flex:1;min-width:0;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+#app-medbag .mb-inst li{position:relative;display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:6px 10px 6px 12px;border-radius:7px;background:rgba(255,255,255,.025)}
+#app-medbag .mb-inst li::before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:rgba(255,255,255,.14)}
+#app-medbag .mb-inst li.teal::before{background:var(--teal-hi);box-shadow:0 0 8px rgba(15,212,196,.5)}
+#app-medbag .mb-inst li.amber::before{background:var(--amber)} #app-medbag .mb-inst li.red::before{background:var(--red);box-shadow:0 0 8px rgba(229,72,77,.6)}
+#app-medbag .mb-inst span{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
+#app-medbag .mb-inst b{font:600 12.5px var(--mono);color:var(--white);font-variant-numeric:tabular-nums}
+#app-medbag .mb-inst b i{font-style:normal;color:var(--ink-3);font-weight:500}
+
+#app-medbag .mb-gwrap{position:relative;flex:1 1 auto;min-height:100px;overflow-y:auto;padding:10px 14px 12px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+#app-medbag .mb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 #app-medbag .mb-grid.sorted .mb-slot:not(.empty){animation:mb-pop 320ms cubic-bezier(.2,.7,.2,1) both}
-
-#app-medbag .mb-slot{position:relative;height:74px;border-radius:9px;display:grid;place-items:center;cursor:pointer;user-select:none;
-  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.014));border:1px solid var(--line-soft);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);transition:border-color var(--fast),background var(--fast),transform var(--fast),opacity var(--fast)}
-#app-medbag .mb-slot img{width:46px;height:46px;object-fit:contain;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.55));transition:transform var(--fast)}
-#app-medbag .mb-slot .n{position:absolute;left:6px;top:5px;font:500 8.5px/1 var(--mono);font-style:normal;color:var(--ink-3);opacity:.8}
-#app-medbag .mb-slot .c{position:absolute;right:5px;bottom:5px;min-width:18px;height:16px;padding:0 5px;border-radius:5px;
-  background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.09);font:700 10px/14px var(--mono);color:var(--white);text-align:center}
-#app-medbag .mb-slot .lb{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-#app-medbag .mb-slot .ban{position:absolute;right:4px;top:4px;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;
-  color:var(--red);background:rgba(229,72,77,.14);border:1px solid var(--red-edge)}
-#app-medbag .mb-slot .ban .nz-ic{width:10px;height:10px}
-#app-medbag .mb-slot:not(.empty):hover{border-color:var(--teal-edge);background:linear-gradient(180deg,rgba(8,175,162,.16),rgba(8,175,162,.06))}
-#app-medbag .mb-slot:not(.empty):hover img{transform:scale(1.07)}
-#app-medbag .mb-slot:not(.empty):active{transform:translateY(1px)}
-#app-medbag .mb-slot.empty{cursor:default;background:rgba(255,255,255,.012);border-style:dashed;border-color:rgba(255,255,255,.055);box-shadow:none}
-#app-medbag .mb-slot.empty.ph .n{display:none}
-#app-medbag .mb-slot.dis{cursor:not-allowed}
-#app-medbag .mb-slot.dis img{opacity:.32;filter:grayscale(1)}
-#app-medbag .mb-slot.dis:hover{border-color:var(--red-edge);background:rgba(229,72,77,.05)}
-#app-medbag .mb-slot.drop{border:1px solid var(--teal);background:rgba(8,175,162,.18);box-shadow:0 0 0 3px var(--teal-wash),0 0 16px rgba(8,175,162,.35)}
-#app-medbag .mb-slot.lifted{opacity:.28}
-#app-medbag .mb-slot.pending{opacity:.55}
-#app-medbag .mb-slot.pulse{animation:mb-pulse 560ms ease-out}
-#app-medbag .mb-slot.shake{animation:mb-shake 360ms}
-#app-medbag .mb-col.busy .mb-slot:not(.empty){cursor:progress}
-@keyframes mb-pulse{0%{box-shadow:0 0 0 0 rgba(8,175,162,.7);border-color:var(--teal)}100%{box-shadow:0 0 0 10px rgba(8,175,162,0)}}
+#app-medbag .mb-slot{position:relative;height:88px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  cursor:pointer;user-select:none;background:linear-gradient(165deg,rgba(255,255,255,.06),rgba(255,255,255,.012) 62%);border:1px solid var(--line-soft);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:border-color var(--fast),background var(--fast),transform var(--fast),opacity var(--fast)}
+#app-medbag .mb-slot img{width:42px;height:42px;margin-top:8px;object-fit:contain;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.55));transition:transform var(--fast)}
+#app-medbag .mb-slot .nm{max-width:88%;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-slot .q{position:absolute;right:6px;top:6px;min-width:20px;height:17px;padding:0 5px;border-radius:9px;background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,255,255,.1);font:700 10px/15px var(--mono);color:var(--white);text-align:center}
+/* hover: corner brackets close in on the item */
+#app-medbag .mb-slot::before,#app-medbag .mb-slot::after{content:'';position:absolute;width:12px;height:12px;opacity:0;pointer-events:none;transition:all var(--fast)}
+#app-medbag .mb-slot::before{left:4px;top:4px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:6px}
+#app-medbag .mb-slot::after{right:4px;bottom:4px;border-right:2px solid var(--teal);border-bottom:2px solid var(--teal);border-bottom-right-radius:6px}
+#app-medbag .mb-slot:not(.empty):hover{border-color:var(--teal-edge);background:linear-gradient(165deg,rgba(8,175,162,.16),rgba(8,175,162,.04) 62%)}
+#app-medbag .mb-slot:not(.empty):hover::before,#app-medbag .mb-slot:not(.empty):hover::after{opacity:1}
+#app-medbag .mb-slot:not(.empty):hover img{transform:translateY(-2px) scale(1.06)}
+#app-medbag .mb-slot.empty{cursor:default;background:transparent;border:1px dashed rgba(255,255,255,.065);box-shadow:none}
+#app-medbag .mb-slot.drop{border:1px solid var(--teal);background:rgba(8,175,162,.18);box-shadow:0 0 0 3px rgba(8,175,162,.14),0 0 16px rgba(8,175,162,.35)}
+#app-medbag .mb-slot.drop::before,#app-medbag .mb-slot.drop::after{opacity:1}
+#app-medbag .mb-slot.lifted,#app-medbag .mb-row.lifted{opacity:.3}
+#app-medbag .mb-slot.pending,#app-medbag .mb-row.pending{opacity:.55}
+#app-medbag .mb-slot.land,#app-medbag .mb-row.land,#app-medbag .mb-card.land{animation:mb-land 520ms ease-out}
+#app-medbag .shake{animation:mb-shake 360ms}
+@keyframes mb-land{0%{box-shadow:0 0 0 0 rgba(8,175,162,.75);border-color:var(--teal)}100%{box-shadow:0 0 0 12px rgba(8,175,162,0)}}
 @keyframes mb-shake{0%,100%{transform:none}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 @keyframes mb-pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+#app-medbag .mb-bnone{top:40%;padding:0 30px;background:radial-gradient(60% 60% at 50% 50%,rgba(12,13,16,.95),rgba(12,13,16,0));padding-top:18px;padding-bottom:18px}
 
-#app-medbag .mb-empty{position:absolute;inset:12px 14px;display:none;align-items:center;justify-content:center;text-align:center;padding:0 54px;
-  font-size:12px;line-height:1.55;font-weight:300;color:var(--ink-2);pointer-events:none;
-  background:radial-gradient(60% 55% at 50% 50%,rgba(12,13,16,.95),rgba(12,13,16,0))}
-#app-medbag .mb-empty.on{display:flex}
+#app-medbag .mb-foot{display:flex;gap:8px;padding:10px 14px 14px;border-top:1px solid var(--line-hair)}
+#app-medbag .mb-act{flex:1;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
+  font:600 12px var(--font);color:var(--ink-2);background:var(--inset);border:1px solid var(--line-soft);transition:all var(--fast)}
+#app-medbag .mb-act .nz-ic{width:13px;height:13px}
+#app-medbag .mb-act:hover{color:var(--white);border-color:var(--line)}
+#app-medbag .mb-act.teal{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
+#app-medbag .mb-act.teal:hover{background:rgba(8,175,162,.2)}
+#app-medbag .mb-act:disabled{opacity:.38;pointer-events:none}
 
-/* ── capacity footers ── */
-#app-medbag .mb-cap{padding:11px 16px 14px;border-top:1px solid var(--line-hair)}
-#app-medbag .mb-capl{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-#app-medbag .mb-capl b{font:600 12px var(--mono);color:var(--white);font-variant-numeric:tabular-nums}
-#app-medbag .mb-capl b span{color:var(--ink-3);font-weight:500}
-#app-medbag .mb-capl b.amber{color:#f3c35a} #app-medbag .mb-capl b.red{color:#ff8a8d}
-#app-medbag .mb-bar{position:relative;height:5px;border-radius:9px;background:rgba(255,255,255,.08);margin-top:9px}
-#app-medbag .mb-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));
-  box-shadow:0 0 10px rgba(8,175,162,.55);transition:width 260ms cubic-bezier(.2,.7,.2,1)}
-#app-medbag .mb-bar.amber i{background:linear-gradient(90deg,#b37d05,#f3c35a);box-shadow:0 0 10px rgba(229,165,10,.5)}
-#app-medbag .mb-bar.red i{background:linear-gradient(90deg,var(--red-lo),#ff7478);box-shadow:0 0 10px rgba(229,72,77,.55)}
-#app-medbag .mb-capr{display:flex;justify-content:space-between;margin-top:7px;font-size:10px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+/* name & colour editor */
+#app-medbag .mb-style{display:none;flex-direction:column;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line-hair);background:rgba(255,255,255,.015)}
+#app-medbag .mb-bag.styling .mb-style{display:flex;animation:nza-in 200ms both}
+#app-medbag .mb-bag.styling .mb-read{display:none}
+#app-medbag .mb-in{display:flex;flex-direction:column;gap:6px}
+#app-medbag .mb-in span,#app-medbag .mb-cols > span{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
+#app-medbag .mb-in input{height:34px;padding:0 12px;border-radius:9px;background:var(--inset);border:1px solid var(--line-soft);color:var(--white);font:500 13px var(--font);outline:none}
+#app-medbag .mb-in input:focus{border-color:var(--bc)}
+#app-medbag .mb-cols{display:flex;align-items:center;justify-content:space-between}
+#app-medbag .mb-cols > div{display:flex;gap:10px}
+#app-medbag .mb-sw{width:26px;height:26px;border-radius:50%;cursor:pointer;background:radial-gradient(120% 120% at 30% 20%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%),var(--sw);
+  border:2px solid rgba(0,0,0,.45);box-shadow:0 0 0 1px rgba(255,255,255,.12);transition:transform var(--fast),box-shadow var(--fast)}
+#app-medbag .mb-sw:hover{transform:scale(1.08)}
+#app-medbag .mb-sw.on{box-shadow:0 0 0 2px var(--white),0 0 12px var(--sw)}
+#app-medbag .mb-sb{display:flex;justify-content:flex-end;gap:8px}
 
-/* ── transfer amount ── */
-#app-medbag .mb-xfer{padding:12px 14px 12px 16px}
-#app-medbag .mb-xrow{display:flex;align-items:center;gap:10px}
-#app-medbag .mb-xl{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
-#app-medbag .mb-xl .nza-label{white-space:nowrap}
-#app-medbag .mb-arrows{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
-#app-medbag .mb-arrows .nz-ic{width:12px;height:12px;transform:rotate(90deg)}
-#app-medbag .mb-step{display:flex;align-items:center;height:30px;border-radius:8px;background:var(--inset);border:1px solid var(--line-soft);flex:none}
-#app-medbag .mb-step button{width:26px;height:28px;display:grid;place-items:center;color:var(--ink-2);cursor:pointer}
-#app-medbag .mb-step button:hover{color:var(--white)}
-#app-medbag .mb-step .nz-ic{width:12px;height:12px}
-#app-medbag .mb-num{width:40px;height:28px;text-align:center;background:transparent;border:0;border-left:1px solid var(--line-hair);border-right:1px solid var(--line-hair);
-  color:var(--white);font:700 12.5px var(--mono);outline:none;pointer-events:auto}
-#app-medbag .mb-num:focus{background:rgba(8,175,162,.08)}
-#app-medbag .mb-chips{padding:2px}
-#app-medbag .mb-chips button{height:24px;padding:0 10px;font-size:11px;min-width:30px;cursor:pointer}
-#app-medbag .mb-chips button[data-v="all"]{letter-spacing:.06em}
-#app-medbag .mb-chips button[data-v="all"].on{background:linear-gradient(var(--teal),var(--teal-lo));color:var(--on-teal)}
-#app-medbag .mb-xrow2{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)}
-#app-medbag .mb-acts{display:flex;gap:6px}
-#app-medbag .mb-acts .btn-sm{height:26px;padding:0 10px;font-size:11px;gap:6px}
-#app-medbag .mb-acts .nz-ic{width:12px;height:12px}
-#app-medbag .mb-kit .nz-ic{color:var(--teal)}
-#app-medbag .mb-hints{margin-left:auto;display:flex;gap:10px;font-size:10.5px;color:var(--ink-3);white-space:nowrap}
-#app-medbag .mb-hints span{display:inline-flex;align-items:center;gap:5px}
-#app-medbag .mb-hints kbd{height:17px;min-width:17px;font-size:9px;padding:0 4px}
+/* ── bag log ── */
+#app-medbag .mb-log{flex:0 0 auto;max-height:310px}
+#app-medbag .mb-lh{display:flex;align-items:baseline;justify-content:space-between;padding:13px 16px 9px}
+#app-medbag .mb-lh b{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+#app-medbag .mb-lh span{font-size:10.5px;color:var(--ink-3)}
+#app-medbag .mb-logl{list-style:none;margin:0;padding:0 10px 10px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+#app-medbag .mb-logl li{position:relative;display:grid;grid-template-columns:36px 26px minmax(0,1fr) auto;align-items:center;gap:8px;padding:5px 10px 5px 10px;border-radius:8px;background:rgba(255,255,255,.022)}
+#app-medbag .mb-logl li::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:rgba(255,255,255,.18)}
+#app-medbag .mb-logl li.in::before{background:var(--teal-hi);box-shadow:0 0 8px rgba(15,212,196,.5)}
+#app-medbag .mb-logl li.out::before{background:var(--white)}
+#app-medbag .mb-logl li.fresh{animation:mb-log-in 360ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes mb-log-in{from{opacity:0;transform:translateY(-8px);background:rgba(8,175,162,.16)}to{opacity:1;transform:none}}
+#app-medbag .mb-logl .tm{font:500 10px var(--mono);color:var(--ink-3)}
+#app-medbag .mb-logl .th{width:26px;height:26px;display:grid;place-items:center;border-radius:7px;background:var(--inset)}
+#app-medbag .mb-logl .th img{width:20px;height:20px;object-fit:contain}
+#app-medbag .mb-logl .tx{min-width:0}
+#app-medbag .mb-logl .tx b{display:block;font-size:11.5px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-logl .tx small{display:block;font-size:10px;color:var(--ink-3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-logl li.other .tx small{color:var(--ink-2)}
+#app-medbag .mb-logl .d{font:700 12px var(--mono);color:var(--ink-2)}
+#app-medbag .mb-logl li.in .d{color:var(--teal-hi)} #app-medbag .mb-logl li.out .d{color:var(--white)}
+#app-medbag .mb-logl li.none{display:block;padding:12px 10px;text-align:center;font-size:11px;color:var(--ink-3);background:transparent}
+#app-medbag .mb-logl li.none::before{display:none}
 
-/* ── personnel search ── */
-#app-medbag .mb-search{display:flex;align-items:center;gap:6px;height:30px;width:150px;padding:0 10px;border-radius:8px;background:var(--inset);
-  border:1px solid var(--line-soft);color:var(--ink-3);pointer-events:auto;transition:border-color var(--fast)}
-#app-medbag .mb-search:focus-within{border-color:var(--teal-edge)}
-#app-medbag .mb-search .nz-ic{width:13px;height:13px;flex:none}
-#app-medbag .mb-search input{width:100%;min-width:0;background:none;border:0;outline:0;color:var(--white);font:400 11.5px var(--font)}
-#app-medbag .mb-search input::placeholder{color:var(--ink-3)}
-
-/* ── tooltip (left of the column, next to the hovered slot) ── */
-#app-medbag .mb-tip{position:absolute;right:calc(100% + 12px);top:0;width:262px;padding:13px 14px 12px 16px;opacity:0;transform:translateX(8px);
-  pointer-events:none;transition:opacity 140ms,transform 140ms;z-index:5}
+/* ── tooltip beside the dock ── */
+#app-medbag .mb-tip{position:absolute;left:0;top:0;width:272px;padding:14px 14px 12px 16px;z-index:20;opacity:0;pointer-events:none;border-radius:14px;
+  transform:translateX(10px);transition:opacity 140ms,transform 140ms}
+#app-medbag .mb-tip.flip{transform:translateX(-10px)}
 #app-medbag .mb-tip.on{opacity:1;transform:none}
-#app-medbag .mb-tip::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+#app-medbag .mb-tip::before{content:'';position:absolute;left:-1px;top:-1px;width:30px;height:30px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:14px}
 #app-medbag .mb-tip .th{display:flex;gap:11px;align-items:center}
-#app-medbag .mb-tip .ti{width:46px;height:46px;flex:none;border-radius:10px;display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft)}
-#app-medbag .mb-tip .ti img{width:36px;height:36px;object-fit:contain}
-#app-medbag .mb-tip .th b{display:block;font-size:13.5px;font-weight:600;color:var(--white);margin-bottom:5px;line-height:1.15}
-#app-medbag .mb-tip .d{font-size:11.5px;color:var(--ink-2);line-height:1.5;margin:10px 0 6px;font-weight:300}
-#app-medbag .mb-tip .md{font-size:11px;color:var(--ink-2);margin:6px 0 2px;font-weight:300}
-#app-medbag .mb-tip .r{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:11px;padding:6px 0;border-top:1px solid var(--line-hair)}
-#app-medbag .mb-tip .r:first-of-type{margin-top:6px}
-#app-medbag .mb-tip .r span{color:var(--ink-3)}
-#app-medbag .mb-tip .r b{color:var(--white);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
-#app-medbag .mb-tip .r b em{font-style:normal;color:var(--ink-3);font-weight:400}
-#app-medbag .mb-tip .hk{display:flex;gap:12px;margin-top:8px;padding-top:9px;border-top:1px solid var(--line-hair);font-size:10.5px;color:var(--ink-3)}
-#app-medbag .mb-tip .hk span{display:inline-flex;align-items:center;gap:5px}
-#app-medbag .mb-tip .hk .nz-ic{width:11px;height:11px;color:var(--teal)}
+#app-medbag .mb-tip .ti{width:48px;height:48px;flex:none;border-radius:11px;display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft)}
+#app-medbag .mb-tip .ti img{width:38px;height:38px;object-fit:contain}
+#app-medbag .mb-tip .th b{display:block;font-size:13.5px;font-weight:600;color:var(--white);line-height:1.15;margin-bottom:5px}
+#app-medbag .mb-tip .cat{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-hi)}
+#app-medbag .mb-tip .d{font-size:11.5px;color:var(--ink-2);line-height:1.5;margin:10px 0 2px;font-weight:300}
+#app-medbag .mb-tip .md{font-size:11px;color:var(--ink-2);margin:6px 0 0;font-weight:300}
+#app-medbag .mb-tip ul{list-style:none;margin:8px 0 0;padding:0}
+#app-medbag .mb-tip li{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;border-top:1px solid var(--line-hair);font-size:11px}
+#app-medbag .mb-tip li span{color:var(--ink-3)}
+#app-medbag .mb-tip li b{color:var(--white);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+#app-medbag .mb-tip li b em{font-style:normal;color:var(--ink-3);font-weight:400}
+#app-medbag .mb-tip .hk{display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:9px;border-top:1px solid var(--line-hair);font-size:10.5px;color:var(--ink-2)}
 #app-medbag .mb-tip .hk kbd{height:17px;font-size:9px;padding:0 5px}
-#app-medbag .mb-tip .no{display:flex;align-items:center;gap:7px;margin-top:9px;padding:7px 9px;border-radius:7px;font-size:11px;font-weight:500;
+#app-medbag .mb-tip .no{display:flex;align-items:center;gap:7px;margin-top:9px;padding:7px 9px;border-radius:8px;font-size:11px;font-weight:500;
   color:#ff9a9d;background:var(--red-wash);border:1px solid var(--red-edge)}
 #app-medbag .mb-tip .no .nz-ic{width:12px;height:12px}
 
-/* ── drag ghost (lives on <body>, scaled by --z) ── */
-.mb-ghost{position:fixed;z-index:99999;width:66px;height:66px;margin:-33px 0 0 -33px;pointer-events:none;display:grid;place-items:center;border-radius:12px;
-  background:rgba(12,13,16,.94);border:1px solid var(--teal-edge);transform:scale(var(--z,1)) rotate(-5deg);
-  box-shadow:0 14px 30px rgba(0,0,0,.6),0 0 0 4px rgba(8,175,162,.12),0 0 22px rgba(8,175,162,.25)}
-.mb-ghost img{width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,.55))}
-.mb-ghost b{position:absolute;right:-6px;bottom:-6px;min-width:22px;height:20px;padding:0 6px;border-radius:6px;background:linear-gradient(var(--teal),var(--teal-lo));
-  color:var(--on-teal);font:700 11px/20px 'JetBrains Mono',monospace;text-align:center}
+/* ── hold to pour ── */
+#app-medbag .mb-pour{position:absolute;left:50%;top:44%;width:60px;height:60px;margin:-30px 0 0 -30px;pointer-events:none;z-index:3}
+#app-medbag .mb-row .mb-pour{left:26px;top:50%}
+#app-medbag .mb-pour > svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+#app-medbag .mb-pour circle{fill:none;stroke-width:3}
+#app-medbag .mb-pour .bg{stroke:rgba(255,255,255,.12)}
+#app-medbag .mb-pour .fg{stroke:var(--teal-hi);stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(15,212,196,.7))}
+#app-medbag .mb-pour b{position:absolute;left:50%;top:-12px;transform:translateX(-50%);height:19px;min-width:28px;padding:0 7px;border-radius:10px;
+  background:linear-gradient(var(--teal-hi),var(--teal));color:var(--on-teal);font:700 11px/19px var(--mono);text-align:center;box-shadow:0 4px 10px rgba(0,0,0,.4)}
+#app-medbag .pouring{border-color:var(--teal-edge)!important;background:rgba(8,175,162,.1)!important}
 
-/* ── transfer cards (over the world, centred left of the panels) ── */
-#app-medbag .mb-toasts{position:absolute;left:24px;right:calc(var(--mb-w) + 48px);bottom:72px;display:flex;justify-content:center;align-items:flex-end;gap:10px;pointer-events:none}
-#app-medbag .mb-card{position:relative;width:112px;display:flex;flex-direction:column;align-items:center;overflow:hidden;border-radius:12px;
-  background:var(--hud-solid);border:1px solid var(--hud-line);box-shadow:0 10px 28px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.05);
-  animation:mb-card-in 280ms cubic-bezier(.2,.7,.2,1) both}
-#app-medbag .mb-card.bye{animation:mb-card-out 240ms ease-in both}
-@keyframes mb-card-in{from{opacity:0;transform:translateY(16px) scale(.94)}to{opacity:1;transform:none}}
-@keyframes mb-card-out{to{opacity:0;transform:translateY(10px)}}
-#app-medbag .mb-card .h{align-self:stretch;display:flex;align-items:center;justify-content:center;gap:5px;height:23px;
-  font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
-#app-medbag .mb-card .h .nz-ic{width:10px;height:10px}
-#app-medbag .mb-card.in .h{color:var(--teal-hi);background:var(--teal-wash);border-bottom:1px solid var(--teal-edge)}
-#app-medbag .mb-card.out .h{color:var(--white);background:rgba(255,255,255,.07);border-bottom:1px solid var(--line)}
-#app-medbag .mb-card.bag .h{color:var(--ink-2);background:rgba(255,255,255,.04);border-bottom:1px solid var(--line-soft)}
-#app-medbag .mb-card .im{height:64px;display:grid;place-items:center}
-#app-medbag .mb-card .im img{width:48px;height:48px;object-fit:contain;filter:drop-shadow(0 5px 8px rgba(0,0,0,.6))}
-#app-medbag .mb-card .nm{max-width:100%;padding:0 9px 11px;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app-medbag .mb-card .tm{position:absolute;left:0;bottom:0;height:2px;width:100%;transform-origin:left;background:var(--teal);opacity:.75;animation:mb-shrink 3400ms linear both}
-#app-medbag .mb-card.out .tm{background:var(--white);opacity:.5}
-@keyframes mb-shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+/* ── flights ── */
+#app-medbag .mb-fx{position:absolute;inset:0;pointer-events:none;z-index:30;overflow:hidden}
+#app-medbag .mb-fly{position:absolute;left:0;top:0;width:50px;height:50px;margin:-25px 0 0 -25px;display:grid;place-items:center;border-radius:13px;will-change:transform,opacity;
+  background:rgba(12,13,16,.94);border:1px solid var(--teal-edge);box-shadow:0 12px 26px rgba(0,0,0,.5),0 0 18px rgba(8,175,162,.3)}
+#app-medbag .mb-fly img{width:36px;height:36px;object-fit:contain}
+#app-medbag .mb-fly b{position:absolute;right:-9px;top:-9px;height:18px;min-width:24px;padding:0 6px;border-radius:9px;font:700 10px/18px var(--mono);text-align:center;
+  background:linear-gradient(var(--teal-hi),var(--teal));color:var(--on-teal)}
+#app-medbag .mb-fly.out{border-color:rgba(255,255,255,.28);box-shadow:0 12px 26px rgba(0,0,0,.5)}
+#app-medbag .mb-fly.out b{background:var(--white);color:#111}
 
-/* modal inside the app */
-#app-medbag .nza-modal-wrap{z-index:30}
+/* ── drag ghost (on <body>, scaled by --z) ── */
+.mb-ghost{position:fixed;z-index:99999;width:64px;height:64px;margin:-32px 0 0 -32px;pointer-events:none;display:grid;place-items:center;border-radius:14px;
+  background:rgba(12,13,16,.95);border:1px solid rgba(8,175,162,.6);transform:scale(var(--z,1)) rotate(-6deg);
+  box-shadow:0 14px 30px rgba(0,0,0,.6),0 0 0 4px rgba(8,175,162,.12),0 0 22px rgba(8,175,162,.28)}
+.mb-ghost img{width:44px;height:44px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,.55))}
+.mb-ghost b{position:absolute;right:-8px;top:-8px;min-width:22px;height:20px;padding:0 6px;border-radius:10px;background:linear-gradient(#0fd4c4,#08afa2);
+  color:#00201d;font:700 11px/20px 'JetBrains Mono',monospace;text-align:center}
+
+#app-medbag .nza-modal-wrap{z-index:40}
 
 @media (prefers-reduced-motion:reduce){
-  #app-medbag .mb-col,#app-medbag .mb-card,#app-medbag .mb-slot.pulse,#app-medbag .mb-grid.sorted .mb-slot{animation:none}
-  #app-medbag .mb-slot,#app-medbag .mb-tip{transition:none}
+  #app-medbag .mb-left,#app-medbag .mb-right,#app-medbag .mb-logl li.fresh,#app-medbag .land,#app-medbag .mb-grid.sorted .mb-slot{animation:none}
+  #app-medbag .mb-slot,#app-medbag .mb-row,#app-medbag .mb-tip{transition:none}
 }

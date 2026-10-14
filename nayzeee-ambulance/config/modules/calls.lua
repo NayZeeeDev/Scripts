@@ -110,6 +110,15 @@ Config.Calls = {
             interval    = { 9, 18 },       -- seconds between lines of one patient
             sounds      = true,            -- GTA pain / ambient speech sounds with the lines
             ms          = 3800,            -- subtitle time
+            -- GTA sounds per kind of line: pain = PlayPain ids, speech = ambient speech name
+            sounds_map  = {
+                pain     = { pain = { 6, 7, 8 } },
+                groan    = { pain = { 6 } },
+                thanks   = { speech = 'GENERIC_THANKS' },
+                confused = { speech = 'GENERIC_WHATEVER' },
+                scared   = { speech = 'GENERIC_FRIGHTENED_MED' },
+                shout    = { speech = 'GENERIC_SHOCKED_HIGH' },
+            },
         },
         flee = {
             enabled  = true,               -- walking NPC patients run from gunfire, then come back

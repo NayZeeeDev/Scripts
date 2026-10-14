@@ -299,6 +299,7 @@
     S.n = S.mode === 'iv' ? 1 : (STEP_N[proc] || 1);
     if (ui.host) ui.host.classList.remove('grab', 'aim');
     S.metric = null;
+    const fl = ui.pp.el.querySelector('.pp-flash'); if (fl) fl.className = 'pp-flash';
     ui.pp.set({ step: S.n, total: S.total, tag: '', titleTone: '', hints: hintsCam(), steps: stepNames() });
     stats();
     renderFocus();
@@ -308,8 +309,14 @@
     else h.blocked ? h.blocked(status, reason) : blockedPanel(proc, status, reason);
   }
 
+  const PROC_EN = { binder: 'Pelvic binder', io: 'Intraosseous access', resus: 'Resuscitate', reassess: 'Reassess', iv: 'IV cannulation' };
   function blockedPanel(proc, status, reason) {
-    const title = L(`t_${proc}`, proc);
+    const title = L(`t_${proc}`, PROC_EN[proc] || proc);
+    if (status === 'easy') {
+      ui.pp.set({ title, titleTone: '', text: reason || L('easy_text', 'Easy mode — hold still while you work.'), tools: [] });
+      devFrame(title.toUpperCase(), `<div class="d-note">${NZA.rich(reason || L('easy_text', 'Easy mode — hold still while you work.'))}</div>`, {});
+      return;
+    }
     const text = status === 'skip' ? (reason || L('skip_text', 'Not needed — skipping.')) : (reason || L('blocked_text', 'You can not do this step right now.'));
     ui.pp.set({ title, titleTone: status === 'skip' ? 'ok' : 'bad', text, tools: [{ key: 'N', label: L('tool_continue', 'Continue'), icon: 'arrow-r', state: 'active' }] });
     devFrame(title.toUpperCase(), `<div class="d-note">${NZA.rich(text)}</div>`, { capLed: status === 'skip' ? '' : 'red' });
@@ -662,7 +669,8 @@
       if (!io.ext) text = L('flush_ext', 'Prime the **extension set** and connect it to the hub.');
       else if (io.tool === 'lido') text = L('flush_lido', 'Keep pushing **slowly**: lidocaine going in. {a} of {b} ml.', { a: fmt1(io.lido.ml), b: d.lidoMl || 2 });
       else if (io.tool === 'flush') text = L('flush_flush', 'Flush the line: {a} of {b} ml.', { a: fmt1(io.flush.ml), b: d.flushMl || 10 });
-      else text = d.responsive !== false && d.lidocaine !== false ? L('flush_pick_lido', 'The patient is awake: give **lidocaine 2%** before the flush (2).') : L('flush_pick', 'Flush the line with **saline** (3).');
+      else if (d.responsive !== false && d.lidocaine !== false && io.lido.ml < (d.lidoMl || 2) - 0.05) text = L('flush_pick_lido', 'The patient is awake: give **lidocaine 2%** before the flush (2).');
+      else text = L('flush_pick', 'Flush the line with **saline** (3).');
       ui.pp.set({ text });
       const n = q('.fn'); if (n) n.innerHTML = NZA.rich(io.tool ? L('flush_drag', 'Drag the plunger toward the needle. Stay in the band.') : L('flush_pick_tool', 'Pick a syringe.'));
     },
@@ -855,13 +863,13 @@
       });
       this.tools();
       mark('access', { label: d.access ? `${d.access.kind === 'io' ? 'IO' : 'IV'}` : '', dot: 'white' });
-      devFrame(L('d_clot', 'Clot and perfusion'), `
+      devFrame(L('d_clot', 'Clot'), `
         <div class="d-row" style="align-items:flex-end"><div style="flex:1"><div class="d-lbl">${esc(L('d_firm', 'Clot firmness'))}</div><div class="d-big teal fm">0<span class="u">%</span></div></div>
           <div style="text-align:right"><div class="d-lbl">MAP</div><div class="d-big mp" style="font-size:26px">--</div></div></div>
         <canvas class="d-teg" style="margin-top:8px"></canvas>
-        <div class="d-row" style="margin-top:8px;align-items:center"><div class="d-lbl st" style="flex:1">${esc(L('cs_wait', 'Waiting for flow'))}</div><div class="d-val hd" style="margin:0;font-family:var(--mono)">--</div></div>
-        <canvas class="d-strip" style="margin-top:6px"></canvas>
-        <div class="d-chips ch"></div>`, { brand: L('dev_clot', 'Clot monitor'), right: `${S.band[0]}–${S.band[1]} mmHg` });
+        <div class="d-row" style="margin-top:7px;align-items:center"><div class="d-lbl st" style="flex:1">${esc(L('cs_wait', 'Waiting for flow'))}</div><div class="d-val hd" style="margin:0;font-family:var(--mono)">--</div></div>
+        <canvas class="d-strip" style="margin-top:5px"></canvas>`, { brand: L('dev_clot', 'Clot monitor'), right: ' ', rightHtml: true });
+      const cap = ui.dev.querySelector('.d-cap .r'); if (cap) cap.classList.add('ch');
       ui.inf.style.display = '';
       ui.inf.innerHTML = `
         <div class="ic1"><div class="gauge">${gaugeSVG()}</div>
@@ -1059,7 +1067,7 @@
       const ch = q('.ch');
       if (ch) {
         const m = c.mods || {};
-        ch.innerHTML = [[L('chip_txa', 'TXA'), m.txa ? 'on' : ''], [L('chip_warm', 'Warm'), m.cold ? (m.foil ? 'warn' : 'bad') : 'on'], [L('chip_dil', 'Dilution {n}%', { n: m.dil || 0 }), m.dilution ? 'bad' : ''],
+        ch.innerHTML = [[L('chip_txa', 'TXA'), m.txa ? 'on' : ''], [L('chip_warm', 'Warm'), m.cold ? (m.foil ? 'warn' : 'bad') : 'on'], [L('chip_dil', 'Dil {n}%', { n: m.dil || 0 }), m.dilution ? 'bad' : ''],
           [L('chip_pops', 'Pops {n}', { n: c.pops || 0 }), c.pops ? 'bad' : '']].map(([t, cls]) => `<span class="d-chip ${cls}">${esc(t)}</span>`).join('');
       }
       if (c.bags && !S.preview) {
@@ -1249,6 +1257,7 @@
       };
       svg.addEventListener('mousedown', e => { if (e.button !== 0 || S.iv.phase !== 'find' || S.iv.fill < 1) return; e.stopPropagation(); S.iv.palp = true; this.palpate(pos(e)); });
       svg.addEventListener('mousemove', e => { if (S.iv.palp) this.palpate(pos(e)); });
+      if (this._up) window.removeEventListener('mouseup', this._up);
       window.addEventListener('mouseup', this._up = () => { if (S.iv && S.iv.palp) { S.iv.palp = false; this.markAt(); } });
     },
     veinDist(p) {
@@ -1298,7 +1307,15 @@
       const cv = ui.dev.querySelector('.d-xsec');
       cv.addEventListener('wheel', e => { e.preventDefault(); this.setAngle(S.iv.angle - Math.sign(e.deltaY) * 1); }, { passive: false });
       cv.addEventListener('mousedown', e => { if (e.button === 0 && S.iv.phase === 'withdraw') { e.stopPropagation(); S.iv.dragNeedle = true; } });
-      window.addEventListener('mousemove', this._mv = e => { const iv = S.iv; if (iv && iv.dragNeedle && iv.phase === 'withdraw') { iv.withdraw = clamp(iv.withdraw + Math.max(0, -e.movementX) / (cv.offsetWidth * (NZA.zoom || 1)) * 2.2, 0, 1); if (iv.withdraw >= 1) this.withdrawn(); } });
+      if (this._mv) window.removeEventListener('mousemove', this._mv);
+      if (this._mu) window.removeEventListener('mouseup', this._mu);
+      window.addEventListener('mousemove', this._mv = e => {
+        const iv = S.iv;
+        if (!iv || !iv.dragNeedle || iv.phase !== 'withdraw' || !cv.isConnected) return;
+        const px = Math.max(40, cv.offsetWidth * (NZA.zoom || 1));
+        iv.withdraw = clamp((iv.withdraw || 0) + Math.max(0, -(e.movementX || 0)) / px * 2.2, 0, 1);
+        if (iv.withdraw >= 1) this.withdrawn();
+      });
       window.addEventListener('mouseup', this._mu = () => { if (S.iv) S.iv.dragNeedle = false; });
     },
     setAngle(a) {

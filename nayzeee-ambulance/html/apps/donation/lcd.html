@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--
+  NAYZEEE AMBULANCE · collection mixer LCD (DUI, 256 x 128)
+  Replaces the nz_amb_screen texture of Config.Props.blood_mixer while a player is near an active
+  donation chair (client/modules/blood_donation.lua). Lua → SendDuiMessage(json):
+    { state = 'idle'|'ready'|'run'|'done', ml, target, size, type?, label }
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face{font-family:'JBM';font-weight:700;src:url(../../core/fonts/jetbrains-mono-latin-700-normal.woff2) format('woff2')}
+  @font-face{font-family:'JBM';font-weight:500;src:url(../../core/fonts/jetbrains-mono-latin-500-normal.woff2) format('woff2')}
+  @font-face{font-family:'Lexend';font-weight:600;src:url(../../core/fonts/lexend-latin-600-normal.woff2) format('woff2')}
+  html,body{margin:0;width:256px;height:128px;overflow:hidden;background:#020606}
+  body{position:relative;font-family:'Lexend',sans-serif;color:#dff7f4}
+  .scr{position:absolute;inset:0;padding:9px 12px 8px;box-sizing:border-box;display:flex;flex-direction:column;
+    background:radial-gradient(120% 90% at 50% 0%,#06201d 0%,#020606 70%)}
+  .scr::after{content:'';position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px)}
+  .top{display:flex;align-items:center;gap:6px;font-size:9px;font-weight:600;letter-spacing:.16em;color:#0fd4c4}
+  .mdl{padding:0 4px;border-radius:2px;background:#dff7f4;color:#021;font:700 8.5px 'JBM',monospace;letter-spacing:.06em}
+  #lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+  .st{margin-left:auto;padding:1px 5px;border-radius:3px;border:1px solid rgba(15,212,196,.5);font-size:8px;letter-spacing:.12em}
+  .st.run{background:#0fd4c4;color:#012;animation:bl 1s steps(1) infinite}
+  .st.done{background:#dff7f4;color:#012;border-color:#dff7f4}
+  @keyframes bl{50%{opacity:.55}}
+  .mid{flex:1;display:flex;align-items:flex-end;gap:7px;margin-top:2px}
+  .num{font:700 50px/1 'JBM',monospace;letter-spacing:-2px;color:#effffd;text-shadow:0 0 10px rgba(15,212,196,.55)}
+  .of{padding-bottom:7px;font:500 12px 'JBM',monospace;color:rgba(223,247,244,.6)}
+  .ty{margin-left:auto;padding-bottom:6px;font:700 22px 'JBM',monospace;color:#effffd}
+  .bar{height:7px;border-radius:2px;background:rgba(15,212,196,.14);overflow:hidden;margin-top:5px}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#067d74,#0fd4c4);box-shadow:0 0 8px #0fd4c4;transition:width .4s linear}
+  .tk{display:flex;justify-content:space-between;margin-top:3px;font:500 7.5px 'JBM',monospace;color:rgba(223,247,244,.45)}
+</style>
+</head>
+<body>
+<div class="scr">
+  <div class="top"><span class="mdl">CM-450</span><span id="lb">COLLECTION</span><span class="st" id="st">READY</span></div>
+  <div class="mid"><span class="num" id="ml">000</span><span class="of" id="of">mL / 500</span><span class="ty" id="ty"></span></div>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="tk"><span>0</span><span>125</span><span>250</span><span>375</span><span id="tmax">500</span></div>
+</div>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const STATES = { idle: 'IDLE', ready: 'READY', run: 'COLLECTING', done: 'SEALED' };
+  let shown = 0, target = 0, size = 500;
+  function apply(d) {
+    if (!d || typeof d !== 'object') return;
+    size = Number(d.size) || 500;
+    target = Math.max(0, Math.min(999, Number(d.ml) || 0));
+    if (d.state === 'idle') target = 0;
+    const st = $('st');
+    st.textContent = STATES[d.state] || 'READY';
+    st.className = `st ${d.state === 'run' ? 'run' : d.state === 'done' ? 'done' : ''}`;
+    $('of').textContent = `mL / ${size}`;
+    $('tmax').textContent = String(size);
+    $('ty').textContent = d.type ? String(d.type).replace('-', '−') : '';
+    if (d.label) $('lb').textContent = String(d.label).toUpperCase();
+  }
+  window.addEventListener('message', (e) => {
+    let d = e.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (err) { return; } }
+    apply(d);
+  });
+  // count up smoothly between messages
+  setInterval(() => {
+    if (Math.abs(shown - target) < 0.5) shown = target;
+    else shown += (target - shown) * 0.25;
+    $('ml').textContent = String(Math.round(shown)).padStart(3, '0');
+    $('bar').style.width = `${Math.min(100, shown / size * 100)}%`;
+  }, 80);
+  if (!/nui:|cfx-nui/.test(location.href)) apply({ state: 'run', ml: 312, size: 500, type: 'O+' });
+})();
+</script>
+</body>
+</html>

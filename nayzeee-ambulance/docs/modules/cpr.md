@@ -78,6 +78,21 @@ ROSC and a graded debrief. The server owns every clinical decision.
   compressions on the beat, breaths finish by themselves, P places both pads; the server scores easy
   compressions / breaths with `Config.EasyMode.score`.
 
+## Screen layout
+
+- **Bottom right**: the RESQ 360 device (rhythm pill, code timer, ECG / CPR-depth bars / CO₂,
+  HR · energy · shocks · EtCO₂, rate and compression meters, prompt line with cycle and adrenaline
+  timers, 4 soft keys, energy knob, AED / MAN switch, CHARGE, round SHOCK button). AED voice
+  prompts appear above it; the pads tray (torso card + two draggable pads) above that.
+- **Bottom left**: the shared procedure HUD (`NZA.ui.ProcPanel`): readout dial (this set n/30 or the
+  cycle timer) with rate / depth / quality (airway role: ventilation / breaths / EtCO₂), the step card
+  (Compress · Breaths · Analyse · Charge · Shock), the beat-lane card (metronome lane, chest-rise
+  meter during breaths, phase overlays, depth gauge) inserted at `pp.slot`, key hints.
+  The tool belt is docked against the device's left edge (`#app-cpr .pp-belt`), the centre stays clear.
+- **Top left**: code-team card; on short screens (the kit zoom is clamped to 0.75) it drops the log,
+  then the join hint and the Hs & Ts, so it never covers the instruction column.
+- **Top centre**: phase banners. The debrief replaces the procedure HUD and dims the device.
+
 ## Controls (in the CPR screen, `Config.Cpr.Keys`, JS `KeyboardEvent.code`)
 
 | Key | Action |

@@ -517,7 +517,6 @@ function I.RemoveVictim(scene, pid, reason, keepEntity)
         if type(b) == 'table' and b.point and NZA.Hospitals and NZA.Hospitals.ReleaseBed then
             pcall(NZA.Hospitals.ReleaseBed, b.point)
         end
-        p.meta.keep = nil
         NZA.Patients.Remove(pid, reason or 'calls')
     end
     if not keepEntity then fadeAndDelete({ v.net }) end
@@ -683,8 +682,8 @@ CreateThread(function()
     Wait(5000)
     local lastGen = 0
     while true do
+        Wait((next(scenes) ~= nil or next(I.orphans) ~= nil) and 1000 or 2500)
         local busy = next(scenes) ~= nil or next(I.orphans) ~= nil
-        Wait(busy and 1000 or 2500)
         if cfg().enabled ~= false then
             local t = now()
             if t - lastGen >= (tonumber(cfg('generation').tick) or 5) then
@@ -706,23 +705,70 @@ end)
 -- BUS
 -- ════════════════════════════════════════════════════════════════════════
 
+-- the unit left with one patient (hospital) or cleared while others are still lying there:
+-- page the remaining patients again as a follow-up call of the same scene
+local REDISPATCH = { hospital = true, cleared = true }
+
+local function redispatch(scene, oldCall)
+    if not (NZA.Dispatch and NZA.Dispatch.Create) then return false end
+    local remaining, worst = {}, 3
+    for pid, v in pairs(scene.victims) do
+        if not (v.removed or v.handed or v.released) then
+            local p = NZA.Patients.Get(pid)
+            if p and not detached(p, scene) and p.state ~= 'dead' then
+                remaining[#remaining + 1] = pid
+                local ok, tri = pcall(NZA.Patients.Triage, p)
+                if ok and tonumber(tri) and tri < worst then worst = tri end
+            end
+        end
+    end
+    if #remaining == 0 then return false end
+    local tpl = scene.tpl
+    local ok, id = pcall(NZA.Dispatch.Create, {
+        code = tpl.code or '10-52', priority = worst, title = L(tpl.title or ('calls.t_' .. scene.key)), type = tpl.type or scene.key,
+        coords = scene.center or vector3(scene.loc.x, scene.loc.y, scene.loc.z),
+        caller = cfg('call').showCaller ~= false and scene.caller.name or nil,
+        phone = cfg('call').showCaller ~= false and scene.caller.phone or nil,
+        message = L('calls.remaining', #remaining), npc = true, source = 'npc', patients = remaining,
+        meta = { scene = scene.id, scenario = scene.key, followUp = oldCall and oldCall.id or true },
+    })
+    if not ok or not id then return false end
+    if scene.callId then I.byCall[scene.callId] = nil end
+    scene.callId = id
+    I.byCall[id] = scene.id
+    NZA.Debug('calls: follow-up call', id, 'for scene', scene.id, #remaining .. ' patients')
+    return true
+end
+
 NZA.Bus.On('dispatch:closed', function(call, reason)
     if type(call) ~= 'table' then return end
     local id = I.byCall[call.id] or (call.meta and call.meta.scene)
     local scene = id and scenes[id]
-    if not scene then return end
+    if not scene or (scene.callId and scene.callId ~= call.id) then return end
     if scene.state == 'active' then
+        if REDISPATCH[reason] and redispatch(scene, call) then return end
         closeScene(scene, 'call_closed')
     elseif scene.state ~= 'closing' then
         C.Remove(scene.id, 'call_closed')
     end
 end)
 
-NZA.Bus.On('dispatch:status', function(call, src, stage)
-    if type(call) ~= 'table' or stage ~= 'SCN' then return end
+local function crewMark(call, src)
+    if type(call) ~= 'table' then return nil end
     local id = I.byCall[call.id]
     local scene = id and scenes[id]
-    if scene and not scene.firstArrival then scene.firstArrival = now() end
+    src = tonumber(src)
+    if scene and src then scene.crewOf[src] = now() end
+    return scene
+end
+
+NZA.Bus.On('dispatch:respond', function(call, src)
+    crewMark(call, src)
+end)
+
+NZA.Bus.On('dispatch:status', function(call, src, stage)
+    local scene = crewMark(call, src)
+    if scene and stage == 'SCN' and not scene.firstArrival then scene.firstArrival = now() end
 end)
 
 NZA.Bus.On('patient:removed', function(pid)

@@ -10,12 +10,12 @@ Defining a prop (tools/props/props/*.py):
     def example(b: Builder):
         shell = b.mat("shell", color=(70, 74, 78), spec=0.3, gloss=0.45, bump="stipple")
         b.add(box((0.2, 0.1, 0.05), shell, r=0.006, center=(0, 0, 0.025)))
-        dc = DecalCanvas(0.08, 0.03); dc.lockup(0.002, 0.004, 0.022)
+        dc = DecalCanvas(0.08, 0.03); dc.text(0.04, 0.015, "MONITOR", 0.006)
         b.decal(dc, center=(0, 0.0501, 0.03), normal=(0, 1, 0))
         b.col_box((-0.1, -0.05, 0), (0.1, 0.05, 0.05), "PLASTIC_HIGH_DENSITY")
 
 Layers (picked from each chart's material):
-    main   -> normal_spec  (<name>_d DXT1, <name>_n DXT5, <name>_s DXT5 RGB=intensity A=gloss)
+    main   -> normal_spec  (<name>_d DXT1, <name>_n DXT5, <name>_s DXT5 RGB=intensity A=gloss; _n/_s at half size above 1024)
     alpha  -> normal_spec_alpha (<name>_ad DXT5 with alpha, <name>_an, <name>_as)
     glow   -> emissive (<name>_g)                       small LEDs / indicator lights
     screen -> emissive with a fixed-UV texture named by b.screen() (e.g. nz_amb_screen)
@@ -281,7 +281,7 @@ def build_prop(spec: PropSpec, out_root: str, quick=False):
         tn_d, tn_n, tn_s = f"{name}_{prefix}d", f"{name}_{prefix}n", f"{name}_{prefix}s"
         dfmt = "DXT5" if layer == "alpha" else "DXT1"
         md = write_dds(os.path.join(dds_dir, tn_d + ".dds"), imgs["diffuse"], dfmt)
-        NS = S if S <= 512 else S // 2
+        NS = S if S <= 1024 else S // 2      # sharp normal / spec detail up to 1024, half size above
         nimg = imgs["normal_dx"].resize((NS, NS), Image.LANCZOS) if NS != S else imgs["normal_dx"]
         simg = imgs["spec"].resize((NS, NS), Image.LANCZOS) if NS != S else imgs["spec"]
         mn = write_dds(os.path.join(dds_dir, tn_n + ".dds"), nimg, "DXT5", normal_map=True)

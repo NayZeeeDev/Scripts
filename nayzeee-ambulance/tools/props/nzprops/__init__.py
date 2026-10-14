@@ -2,7 +2,7 @@
 nzprops - code-only GTA V prop pipeline (numpy + Pillow).
 
     mesh   primitives (box, lathe, cylinder, sweep, tube, extrude, plane, quad, pillow, ...) + Geo transforms
-    paint  Mat (materials), noise, DecalCanvas (labels, brand mark), default screen images
+    paint  Mat (materials), noise, DecalCanvas (labels, symbols, barcodes, screws, seams), default screen images
     atlas  automatic chart packing + rasteriser + gutter filling
     bake   per-texel material / decal / AO / edge baking -> diffuse, normal, spec
     dds    DXT1/DXT5 writer with mips

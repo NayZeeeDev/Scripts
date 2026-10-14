@@ -71,7 +71,7 @@ Config.Blood = {
         prop          = false,             -- Config.Props key for the fridge model, false = target sphere only
         distance      = 2.5,               -- metres from the point to use it
         shared        = false,             -- true = every blood bank shares one stock; false = stock per department
-        needEmptyBag  = true,              -- 'Fill blood bag' needs an empty bag (Bags.empty); false = withdraw straight
+        needEmptyBag  = true,              -- issuing a unit decants it into an empty bag (Bags.empty); false = withdraw the unit straight
         maxWithdraw   = 6,                 -- units one medic may take out per window (anti-hoarding)
         withdrawWindow = 15,               -- minutes of that window
         maxStock      = 60,                -- units one bank holds at most (deposits are refused above)
@@ -86,7 +86,7 @@ Config.Blood = {
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
-    -- DONATION (point type 'donation': chair + mixer, "squeeze on the beat")
+    -- DONATION (point type 'donation': chair + mixer, pump with the donor's pulse)
     -- ═══════════════════════════════════════════════════════════════════════
 
     Donation = {
@@ -117,7 +117,7 @@ Config.Blood = {
             fx        = 'MenuMGIn',        -- short screen effect when standing up (false = none)
             fxSeconds = 6,
         },
-        flow = {                           -- minigame tuning ("squeeze on the beat")
+        flow = {                           -- minigame tuning (squeeze as each pulse peak crosses the window)
             perfect   = 0.06,              -- beat phase error counted as perfect (0..0.5 of a beat)
             good      = 0.15,              -- ... as good (the band shown on the timing bar)
             maxFlow   = 12,                -- mL/s with a perfect rhythm (also the server's speed cap)
@@ -150,7 +150,7 @@ Config.Blood = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Stand = {
-        perm         = 'iv',               -- open the stand, hang saline, rate, take down
+        perm         = 'iv',               -- open the stand, hang saline, set the rate, unhang bags
         bloodPerm    = 'blood',            -- hang blood units
         maxBags      = 2,                  -- hooks on the stand
         salineMl     = 500,                -- one saline bag
@@ -176,7 +176,7 @@ Config.Blood = {
         examRoute = { enabled = true, belowPct = 88 },   -- 'Transfuse' in the examination when blood volume is below %
         placement = { side = 0.62, along = 0.55 },       -- where the stand appears beside a patient (metres, ped-local)
         camera   = { enabled = true, dist = 2.3, height = 0.35, pitch = 14.0, fov = 46.0 },  -- view of the stand (not in the bay)
-        bayStock = { ['O-'] = 2 },         -- units every ambulance carries ('Fill blood bag' in the treatment bay)
+        bayStock = { ['O-'] = 2 },         -- units every ambulance fridge holds ('Bag a unit' in the treatment bay)
         bayRefill = 30,                    -- minutes until a used onboard unit is replaced
         keys = { squeeze = 'Space', clampDown = 'KeyQ', clampUp = 'KeyE', txa = 'KeyT', hookA = 'Digit1', hookB = 'Digit2' },
         range    = 6.0,                    -- the panel closes when you walk further from the patient

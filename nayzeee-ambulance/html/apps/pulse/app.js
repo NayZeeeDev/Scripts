@@ -1,12 +1,16 @@
 /* ═══════════════════════════════════════════════════════════
-   NAYZEEE AMBULANCE · Check Pulse (app 'pulse')        module: assess
-   3 steps on the shared procedure panel (NZA.ui.ProcPanel):
-     1 Find the pulse   pick the site (carotid / radial), scroll = finger pressure. The
-                        "under your fingers" trace only shows beats inside the right pressure
-                        band (too light = nothing, too hard = occluded). N = no pulse here.
-     2 Count            Space starts a 15 s count; tap Space on every beat you feel.
-     3 Judge            rhythm (regular / irregular) and strength (weak / normal / bounding).
-   Then the result card (grade, your finding vs the patient, feedback, findings recorded).
+   NAYZEEE AMBULANCE · Pulse check (app 'pulse')          module: assess
+   3 steps on the shared procedure HUD (NZA.ui.ProcPanel):
+     1 Locate the artery  pick the site (neck / wrist), scroll = finger pressure (240° dial in
+                          the readout). The palpation scope (pp.slot) is a polar trace swept
+                          like a radar: beats only show inside the right pressure band (too
+                          light = flat, too hard = flattened artery, amber). N = nothing here.
+     2 Count              Space starts the timer; tap Space on every beat. The beat count rolls
+                          in the centre of the scope, taps are marked on its rim.
+     3 Describe it        rhythm (regular / irregular) and strength (weak / normal / bounding)
+                          in the verdict picker (pp.slot, keys 1-5), Enter submits.
+   Then a debrief card (top-right): score ring with a rolling score, rate scale (your count
+   against the real band), rhythm / strength scales, sites, notes, logged findings.
 
    The beat schedule arrives obfuscated (k + s, decoded here); the heart rate, rhythm and
    strength are never sent: the server re-scores the raw taps and returns the truth.
@@ -20,6 +24,13 @@
   let LOC = {};
   const T = (k, fb, ...a) => { let s = LOC[k] !== undefined ? String(LOC[k]) : fb; a.forEach(v => { s = s.replace(/%[sd]/, v); }); return s; };
   const now = () => performance.now();
+  const SWEEP = 4000;   // ms per revolution of the palpation scope
+
+  NZ.addIcons({
+    'as-neck': '<path d="M9 3.5c2.8-.8 6 .6 6.6 3.6.3 1.6-.2 2.6.6 3.6l1.3 1.6-1.6.6v2.2c0 1-.8 1.6-1.8 1.4l-1.6-.3V20"/><path d="M8 20v-4.5C6.2 14 5.4 11.8 5.6 9.4 5.8 6.6 7 4.2 9 3.5z"/><circle cx="10.5" cy="14.5" r="1.3"/>',
+    'as-wrist': '<path d="M5 21v-6l-1.5-4.5c-.3-.9.6-1.6 1.4-1.1L7 11V5.2c0-.9 1.4-.9 1.4 0V10M8.4 9.5V4c0-.9 1.4-.9 1.4 0v6M9.8 9.6V4.6c0-.9 1.4-.9 1.4 0v5.6M11.2 10.2V6.5c0-.9 1.4-.9 1.4 0V15c0 2-1 3.5-2.5 4.4V21"/><circle cx="16.8" cy="16" r="1.3"/><path d="M19.5 13.5a4 4 0 0 1 0 5"/>',
+    'as-ban': '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+  });
 
   // Park-Miller stream, same as server NZA.Assess.Encode
   function decode(seed, str) {
@@ -46,13 +57,17 @@
     const d = Math.exp(-(t - 120) / 170);
     return d + 0.22 * Math.exp(-(((t - 330) / 45) ** 2)) * d * 2.2;
   }
+  const ringSvg = (p, r, box, cls = '') => {
+    const C = 2 * Math.PI * r;
+    return `<svg class="rs ${cls}" viewBox="0 0 ${box} ${box}"><circle class="bg" cx="${box / 2}" cy="${box / 2}" r="${r}"/><circle class="fg" cx="${box / 2}" cy="${box / 2}" r="${r}" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${(C * (1 - clamp(p, 0, 1))).toFixed(2)}"/></svg>`;
+  };
 
   NZA.app('pulse', {
     escClose: false,
     init(el) {
       this.el = el;
-      el.innerHTML = '<div class="pz-result-wrap"></div>';
-      this.resultWrap = el.querySelector('.pz-result-wrap');
+      el.innerHTML = '<div class="pz-vig"></div><div class="pz-deb-wrap"></div>';
+      this.debWrap = el.querySelector('.pz-deb-wrap');
       this.onWheel = e => { if (!NZA.isOpen('pulse') || this.done) return; this.press(e.deltaY > 0 ? -0.035 : 0.035); e.preventDefault(); };
       window.addEventListener('wheel', this.onWheel, { passive: false });
     },
@@ -80,17 +95,17 @@
       this.t0 = now();
       this.opened = now();
       this.samples = [];
-      this.taps = [];
+      this.taps = []; this.tapMarks = [];
       this.count = null;
       this.rhythm = null; this.strength = null;
       this.inBand = 0; this.countFrames = 0;
-      this.done = false;
-      this.lastFelt = -1;
-      this.resultWrap.innerHTML = '';
+      this.done = false; this.finished = false;
+      this.lastFelt = -1; this.flashAt = -1e9;
+      this.debWrap.innerHTML = '';
       if (this.pp) this.pp.destroy();
       this.buildPanel();
       this.bindKeys();
-      this.marker = NZA.ui.Marker('pulse', 'site', { anchor: this.site, dot: 'white', label: '' });
+      this.marker = NZA.ui.Marker('pulse', 'site', { anchor: this.site, dot: 'white', label: this.siteName() });
       this.marker.el.classList.add('pz-site');
       cancelAnimationFrame(this.raf);
       this.last = now();
@@ -100,7 +115,8 @@
       cancelAnimationFrame(this.raf);
       if (this.pp) { this.pp.destroy(); this.pp = null; }
       clearTimeout(this.minTimer);
-      this.resultWrap.innerHTML = '';
+      this.debWrap.innerHTML = '';
+      this.cv = null; this.odo = null;
     },
 
     msg: {
@@ -125,96 +141,140 @@
     /* ── panel ── */
     buildPanel() {
       this.pp = NZA.ui.ProcPanel(this.el, {
-        step: 1, total: 3, tag: T('pulse_tag', 'Pulse'),
-        title: T('pulse_s1_title', 'Find the pulse'), text: this.siteText(),
-        stats: this.stats(),
-        tools: this.tools(),
-        hints: [],
-        abort: { label: T('hold_stop', 'Hold to stop'), key: 'ESC', seconds: 1.0 },
+        step: 1, total: 3, tag: T('pulse_tag', 'Pulse check'),
+        steps: [T('step_locate', 'Locate the artery'), T('step_count', 'Count the beats'), T('step_judge', 'Describe it')],
+        title: T('pulse_s1_title', 'Locate the artery'), text: this.siteText(),
+        wide: this.dial(), stats: this.stats(), tools: this.tools(), hints: this.hints(),
+        abort: { label: T('hold_stop', 'Hold to leave'), key: 'ESC', seconds: 1.0 },
         onAbort: () => this.abort(),
         onTool: key => this.tool(key),
       });
-      this.tip = document.createElement('div');
-      this.tip.className = 'pz-tip';
-      this.pp.el.querySelector('.pp-left').appendChild(this.tip);
-      this.setTip(1);
-      const right = this.pp.el.querySelector('.pp-right');
+      // palpation scope + verdict picker live in the HUD slot (above the key legend)
       const box = document.createElement('div');
-      box.className = 'pz-feel';
-      box.innerHTML = `<div class="pz-fh"><span class="l">${esc(T('under_fingers', 'Under your fingers'))}</span><span class="cap"></span></div><canvas class="pz-cv"></canvas>`;
-      right.appendChild(box);
+      box.className = 'pz-slot';
+      box.innerHTML = `
+        <div class="pz-scope">
+          <div class="sc-dial"><canvas></canvas><div class="sc-c"><span class="hb">${icon('heart')}</span><span class="odoh"></span><small></small></div></div>
+          <div class="sc-side">
+            <span class="kick">${esc(T('under_fingers', 'Palpation scope'))}</span>
+            <b class="cap"></b>
+            <ul class="sc-l"></ul>
+          </div>
+        </div>
+        <div class="pz-verdict"></div>`;
+      this.pp.slot.prepend(box);
+      this.slot = box;
       this.cv = box.querySelector('canvas');
-      this.cap = box.querySelector('.cap');
+      this.capEl = box.querySelector('.cap');
+      this.scList = box.querySelector('.sc-l');
+      this.centerLbl = box.querySelector('.sc-c small');
+      this.odo = NZA.ui.FlipClock(box.querySelector('.odoh'), { value: '00', small: true, tone: 'teal' });
+      box.querySelector('.pz-verdict').addEventListener('click', e => { const b = e.target.closest('button[data-n]'); if (b) this.digit(Number(b.dataset.n)); });
+      this.renderSlot();
     },
-    setTip(step) {
-      const tips = {
-        1: T('tip_1', 'No radial pulse usually means the systolic pressure is under about 80.'),
-        2: T('tip_2', 'Count the full 15 seconds: the rate is the beats times four.'),
-        3: T('tip_3', 'Irregularly irregular = atrial fibrillation. Weak and fast = think shock.'),
-      };
-      if (this.tip) this.tip.innerHTML = `${icon('info')}<span>${esc(tips[step] || '')}</span>`;
+    renderSlot() {
+      if (!this.slot) return;
+      this.slot.classList.toggle('judge', this.step === 3);
+      this.slot.classList.toggle('counting', this.step === 2);
+      this.centerLbl.textContent = this.step === 2 ? T('beats', 'beats') : T('cap_feel', 'feel');
+      if (this.step === 3) this.renderVerdict();
+      this.renderScopeList();
+    },
+    renderScopeList() {
+      const good = (this.tapMarks || []).filter(t => t.good).length, bad = (this.tapMarks || []).length - good;
+      const total = this.d.countSeconds || 15;
+      const left = this.count ? Math.max(0, total - (now() - this.count.started) / 1000) : total;
+      const row = (cls, l, v) => `<li class="${cls}"><i class="no"></i><span>${esc(l)}</span><b>${esc(v)}</b></li>`;
+      this.scList.innerHTML = row('t-teal', T('sc_on', 'On a beat'), String(good)) + row(bad ? 't-red' : '', T('sc_off', 'Between beats'), String(bad)) +
+        row(this.step === 2 ? 't-amber' : '', T('sc_window', 'Timer'), `${Math.ceil(left)} s`);
+    },
+    renderVerdict() {
+      const opt = (n, label, on) => `<button data-n="${n}" class="${on ? 'on' : ''}"><kbd>${n}</kbd><span>${esc(label)}</span></button>`;
+      this.slot.querySelector('.pz-verdict').innerHTML = `
+        <div class="vr"><span class="vl">${esc(T('row_rhythm', 'Rhythm'))}</span><div class="opts n2">${opt(1, T('rhythm_regular', 'Regular'), this.rhythm === 'regular')}${opt(2, T('rhythm_irregular', 'Irregular'), this.rhythm === 'irregular')}</div></div>
+        <div class="vr"><span class="vl">${esc(T('row_strength', 'Strength'))}</span><div class="opts n3">${opt(3, T('strength_weak', 'Weak'), this.strength === 'weak')}${opt(4, T('strength_normal', 'Normal'), this.strength === 'normal')}${opt(5, T('strength_bounding', 'Bounding'), this.strength === 'bounding')}</div></div>`;
     },
     siteName(site) {
       site = site || this.site;
-      if (site === 'carotid') return T('site_carotid', 'Carotid');
-      return (this.sites.radial && this.sites.radial.side === 'left') ? T('site_radial_left', 'Left radial') : T('site_radial_right', 'Right radial');
+      if (site === 'carotid') return T('site_carotid', 'Neck');
+      return (this.sites.radial && this.sites.radial.side === 'left') ? T('site_radial_left', 'Left wrist') : T('site_radial_right', 'Right wrist');
     },
     siteText() {
       return this.site === 'carotid'
-        ? T('pulse_s1_carotid', 'Two fingers beside the windpipe, under the jaw. Press firmly but not too hard, and **one side only**.')
-        : T('pulse_s1_radial', 'Thumb side of the wrist, just above the crease. Press gently: too hard and it disappears.');
+        ? T('pulse_s1_carotid', 'Slide two fingers into the groove beside the windpipe. Use **one side only** and press a little firmer.')
+        : T('pulse_s1_radial', 'Two fingertips on the wrist, below the thumb. Build up the pressure until each beat taps back.');
     },
     pressWord(p) {
-      if (p < 0.25) return T('press_light', 'Light');
-      if (p < 0.5) return T('press_moderate', 'Moderate');
+      if (p < 0.25) return T('press_light', 'Feather');
+      if (p < 0.5) return T('press_moderate', 'Gentle');
       if (p < 0.75) return T('press_firm', 'Firm');
-      return T('press_deep', 'Deep');
+      return T('press_deep', 'Hard');
+    },
+    contact() {
+      const p = this.pressure, f = this.feel(this.site, p), occ = this.occluded(this.site, p);
+      if (p < 0.08) return { cap: T('cap_lift', 'Just touching'), tone: '' };
+      if (occ) return { cap: T('cap_occluded', 'Too hard: the artery is flattened'), tone: 'amber' };
+      if (f >= 0.85) return { cap: T('cap_best', 'Clear beat'), tone: 'teal' };
+      if (f > 0.05) return { cap: T('cap_faint', 'Faint beat'), tone: '' };
+      return { cap: T('cap_nothing', 'No beat yet'), tone: '' };
+    },
+    dial() {
+      const p = this.pressure, occ = this.occluded(this.site, p), c = this.contact();
+      return {
+        label: T('st_pressure', 'Finger pressure'), value: String(Math.round(p * 100)), unit: '%',
+        meter: { value: p, mark: p, tone: occ ? 'amber' : (c.tone === 'teal' ? '' : 'white') },
+        caption: `${this.pressWord(p)} · ${c.cap}`, captionTone: c.tone,
+      };
     },
     stats() {
-      const p = this.pressure;
-      const s = [
-        { id: 'site', label: T('st_site', 'Site'), value: this.siteName(), small: true },
-        { id: 'press', label: T('st_pressure', 'Pressure'), value: this.pressWord(p), small: true, tone: p >= 0.75 ? 'amber' : '', meter: { value: p, tone: p >= 0.75 ? 'amber' : 'white', segs: true } },
-      ];
-      if (this.step === 1) s.push({ id: 'palp', label: T('st_palpating', 'Palpating'), value: this.palp[this.site].toFixed(1), unit: 's', meter: { value: clamp(this.palp[this.site] / Math.max(1, this.d.absentAfter || 5), 0, 1), tone: 'white' } });
-      else if (this.step === 2) {
+      const s = [{ id: 'site', label: T('st_site', 'Site'), value: this.siteName(), small: true, tone: 'teal' }];
+      if (this.step === 1) {
+        s.push({ id: 'palp', label: T('st_palpating', 'Feeling for'), value: this.palp[this.site].toFixed(1), unit: 's' });
+        s.push({ id: 'none', label: T('st_logged', 'Logged'), value: this.none.radial ? T('st_no_wrist', 'No wrist pulse') : '--', small: true, tone: this.none.radial ? 'amber' : '' });
+      } else if (this.step === 2) {
         const left = this.count ? Math.max(0, (this.d.countSeconds || 15) - (now() - this.count.started) / 1000) : (this.d.countSeconds || 15);
-        s.push({ id: 'count', label: T('st_counted', 'Counted'), value: this.taps.length, unit: T('beats', 'beats'), meter: { value: 1 - left / (this.d.countSeconds || 15), tone: 'teal' } });
-      } else s.push({ id: 'rate', label: T('st_rate', 'Your rate'), value: this.rate(), unit: T('bpm', 'bpm'), tone: 'teal' });
+        s.push({ id: 'count', label: T('st_counted', 'Beats'), value: this.taps.length });
+        s.push({ id: 'left', label: T('st_left', 'Time left'), value: Math.ceil(left), unit: 's', tone: 'amber' });
+      } else {
+        s.push({ id: 'count', label: T('st_counted', 'Beats'), value: this.taps.length });
+        s.push({ id: 'rate', label: T('st_rate', 'Your rate'), value: this.rate(), unit: T('bpm', 'bpm'), tone: 'teal' });
+      }
       return s;
+    },
+    hints() {
+      if (this.step === 3) return [{ keys: ['1', '2'], label: T('h_rhythm', 'rhythm') }, { keys: ['3', '4', '5'], label: T('h_strength', 'strength') }];
+      if (this.step === 2) return [{ keys: ['Space'], label: T('h_beat', 'on every beat') }, { keys: ['Scroll'], label: T('h_hold', 'keep the pressure') }];
+      return [{ keys: ['Scroll'], label: T('h_press', 'finger pressure') }, { keys: ['↑', '↓'], label: T('h_fine', 'fine adjust') }];
     },
     tools() {
       const k = this.keysCfg;
       if (this.step === 3) {
-        const t = (key, label, on) => ({ key, label, state: on ? 'active' : '' });
         return [
-          t('1', T('rhythm_regular', 'Regular'), this.rhythm === 'regular'),
-          t('2', T('rhythm_irregular', 'Irregular'), this.rhythm === 'irregular'),
-          t('3', T('strength_weak', 'Weak'), this.strength === 'weak'),
-          t('4', T('strength_normal', 'Normal'), this.strength === 'normal'),
-          t('5', T('strength_bounding', 'Bounding'), this.strength === 'bounding'),
-          { key: codeLabel(k.submit), label: T('submit', 'Submit'), state: (this.rhythm && this.strength) ? 'active' : 'locked' },
+          { key: 'R', label: T('tool_recount', 'Count again'), icon: 'rot-l' },
+          { key: codeLabel(k.submit), label: T('submit', 'Submit'), icon: 'check', state: (this.rhythm && this.strength) ? 'active' : 'locked' },
         ];
       }
       const counting = this.step === 2;
       return [
-        { key: 'Scroll', label: T('tool_pressure', 'Pressure') },
-        { key: codeLabel(k.count), label: counting ? T('tool_tap', 'Tap each beat') : T('tool_count', 'Start count'), state: counting ? 'active' : '' },
-        { key: codeLabel(k.none), label: this.site === 'radial' ? T('tool_no_radial', 'No radial pulse') : T('tool_no_pulse', 'No pulse'), state: (this.none[this.site] || counting) ? 'locked' : '' },
-        { key: codeLabel(k.carotid), label: T('site_carotid', 'Carotid'), state: this.site === 'carotid' ? 'active' : (counting ? 'locked' : '') },
-        { key: codeLabel(k.radial), label: T('site_radial', 'Radial'), state: this.site === 'radial' ? 'active' : (counting || this.none.radial ? 'locked' : '') },
+        { key: 'Scroll', label: T('tool_pressure', 'Press'), icon: 'hand' },
+        { key: codeLabel(k.count), label: counting ? T('tool_tap', 'Beat') : T('tool_count', 'Start timer'), icon: counting ? 'heart' : 'timer', state: counting ? 'active' : '' },
+        { key: codeLabel(k.none), label: this.site === 'radial' ? T('tool_no_radial', 'Nothing at wrist') : T('tool_no_pulse', 'Nothing at neck'), icon: 'as-ban', state: (this.none[this.site] || counting) ? 'locked' : '' },
+        { key: codeLabel(k.carotid), label: T('site_carotid', 'Neck'), sub: T('site_carotid_sub', 'carotid'), icon: 'as-neck', state: this.site === 'carotid' ? 'active' : (counting ? 'locked' : '') },
+        { key: codeLabel(k.radial), label: T('site_radial', 'Wrist'), sub: T('site_radial_sub', 'radial'), icon: 'as-wrist', state: this.site === 'radial' ? 'active' : (counting || this.none.radial ? 'locked' : '') },
       ];
     },
     refresh(full) {
       if (!this.pp) return;
-      if (full) this.pp.set({ stats: this.stats(), tools: this.tools() });
-      else this.pp.set({ stats: this.stats() });
+      if (full) this.pp.set({ wide: this.dial(), stats: this.stats(), tools: this.tools(), hints: this.hints() });
+      else this.pp.set({ wide: this.dial(), stats: this.stats() });
+      if (full) this.renderSlot();
     },
     tool(key) {
       const k = this.keysCfg;
       if (key === codeLabel(k.count)) return this.space();
       if (key === codeLabel(k.none)) return this.noPulse();
       if (key === codeLabel(k.submit)) return this.enter();
+      if (key === 'R') return this.step === 3 ? this.recount() : null;
       if (/^[1-5]$/.test(key)) return this.digit(Number(key));
       return null;
     },
@@ -270,11 +330,11 @@
     },
     setSite(site) {
       if (this.step === 2 || this.done) return;
-      if (site === 'radial' && this.none.radial) return this.pp.flash('warn', T('radial_marked', 'You already called no radial pulse.'));
+      if (site === 'radial' && this.none.radial) return this.pp.flash('warn', T('radial_marked', 'The wrist is already logged as empty.'));
       if (this.site === site) return;
       this.site = site;
       this.pressure = 0.12;
-      this.marker.set({ anchor: site });
+      this.marker.set({ anchor: site, label: this.siteName() });
       if (this.step === 1) this.pp.set({ text: this.siteText() });
       this.refresh(true);
       NZA.audio.click(700);
@@ -300,8 +360,9 @@
         this.step = 2;
         this.count = { started: now(), startMs: ms };
         this.taps = []; this.tapMarks = []; this.inBand = 0; this.countFrames = 0;
-        this.setTip(2);
-        this.pp.set({ step: 2, title: T('pulse_s2_title', 'Count the beats'), text: T('pulse_s2_text', 'Tap {Space} every time you feel a beat. Keep the pressure where you feel it best.') });
+        this.pp.set({ step: 2, title: T('pulse_s2_title', 'Count the beats'), text: T('pulse_s2_text', 'Hit {Space} on each beat. Hold your pressure steady while the timer runs.') });
+        this.pp.flash('ok', T('tip_2', '15 seconds × 4 = beats per minute. Do not stop early.'), 3600);
+        this.odo.set('00');
         this.refresh(true);
         NZA.audio.beep(1040, 70, 0.06);
         return;
@@ -311,6 +372,8 @@
         this.taps.push(Math.round(ms));
         this.tapMarks.push({ ms, good });
         if (good) NZA.audio.tone(1250, 45, { vol: 0.06, type: 'triangle' }); else NZA.audio.tone(240, 70, { vol: 0.07, type: 'triangle' });
+        this.odo.set(String(this.taps.length).padStart(2, '0'));
+        this.renderScopeList();
         this.refresh(false);
       }
     },
@@ -318,30 +381,30 @@
       if (this.done || this.step !== 1) return;
       const need = this.d.absentAfter || 5;
       const felt = this.palp[this.site];
-      if (felt < need) return this.pp.flash('warn', T('keep_feeling', 'Keep feeling for %s more seconds before you call it.', (need - felt).toFixed(1)));
+      if (felt < need) return this.pp.flash('warn', T('keep_feeling', 'Feel for another %s s before you rule it out.', (need - felt).toFixed(1)));
       if (this.site === 'radial') {
         this.none.radial = true;
-        this.pp.flash('ok', T('no_radial_noted', 'Noted: **no radial pulse**. Check the carotid.'), 3200);
+        this.pp.flash('ok', T('no_radial_noted', 'Logged: **nothing at the wrist**. Move to the neck.'), 3200);
         NZA.audio.click(600);
         this.setSite('carotid');
         this.refresh(true);
         return;
       }
       this.none.carotid = true;
-      this.pp.flash('bad', T('no_pulse_called', 'No carotid pulse.'), 0);
+      this.pp.flash('bad', T('no_pulse_called', 'Nothing at the neck.'), 0);
       this.submit();
     },
     recount() {
       this.step = 1; this.count = null; this.taps = []; this.tapMarks = [];
       this.rhythm = null; this.strength = null;
-      this.setTip(1);
-      this.pp.set({ step: 1, title: T('pulse_s1_title', 'Find the pulse'), text: this.siteText() });
+      this.odo.set('00');
+      this.pp.set({ step: 1, title: T('pulse_s1_title', 'Locate the artery'), text: this.siteText() });
       this.refresh(true);
     },
     enter() {
       if (this.done) { if (this.finished) this.closeNow(); return; }
       if (this.step !== 3) return;
-      if (!this.rhythm || !this.strength) return this.pp.flash('warn', T('judge_first', 'Pick a rhythm **and** a strength first.'));
+      if (!this.rhythm || !this.strength) return this.pp.flash('warn', T('judge_first', 'Set the rhythm **and** the strength first.'));
       this.submit();
     },
     rate() { return Math.round(this.taps.length * 60 / (this.d.countSeconds || 15)); },
@@ -349,7 +412,7 @@
     submit() {
       const left = (this.d.minTime ?? 8) - (now() - this.opened) / 1000;
       if (left > 0) {
-        this.pp.flash('warn', T('too_fast', 'Take a little more time with the patient.'), 0);
+        this.pp.flash('warn', T('too_fast', 'Stay with the patient a little longer.'), 0);
         clearTimeout(this.minTimer);
         this.minTimer = setTimeout(() => this.submit(), left * 1000 + 250);
         return;
@@ -367,7 +430,7 @@
         palp: { carotid: Math.round(this.palp.carotid * 10) / 10, radial: Math.round(this.palp.radial * 10) / 10 },
         score: 0,
       };
-      this.pp.set({ title: T('checking', 'Checking your findings…'), titleTone: '', text: '', tools: [] });
+      this.pp.set({ title: T('checking', 'Scoring your findings…'), titleTone: '', text: '', tools: [] });
       NZA.post('pulse:finish', result).then(r => { if (r && r.outcome) this.showResult(r.outcome); });
     },
     abort() {
@@ -386,7 +449,7 @@
       const site = this.site, p = this.pressure;
       const v = this.signal(ms, site, p);
       this.samples.push({ ms, v, occ: this.occluded(site, p) });
-      while (this.samples.length && ms - this.samples[0].ms > 4200) this.samples.shift();
+      while (this.samples.length && ms - this.samples[0].ms > SWEEP) this.samples.shift();
       if (!this.done) {
         if (p > 0.08 && this.step === 1) this.palp[site] += dt;
         if (this.step === 2 && this.count) {
@@ -399,109 +462,151 @@
         const key = site === 'carotid' ? 'c' : 'r';
         if (cur && cur.t !== this.lastFelt && ms - 120 - cur.t < 80) {
           this.lastFelt = cur.t;
-          if (cur.b[key] * this.feel(site, p) >= 0.12 && this.marker) {
-            this.marker.el.classList.remove('pz-beat'); void this.marker.el.offsetWidth; this.marker.el.classList.add('pz-beat');
+          if (cur.b[key] * this.feel(site, p) >= 0.12) {
+            this.flashAt = ms;
+            if (this.marker) { this.marker.el.classList.remove('pz-beat'); void this.marker.el.offsetWidth; this.marker.el.classList.add('pz-beat'); }
+            if (this.slot) { this.slot.classList.remove('beat'); void this.slot.offsetWidth; this.slot.classList.add('beat'); }
           }
         }
       }
       this.draw(ms);
       this.statT = (this.statT || 0) + dt;
-      if (this.statT > 0.12 && !this.finished) { this.statT = 0; this.refreshStats(); }
+      if (this.statT > 0.12 && !this.finished && !this.done) { this.statT = 0; this.refreshStats(); }
       this.raf = requestAnimationFrame(x => this.frame(x));
     },
     refreshStats() {
       if (!this.pp) return;
-      const p = this.pressure;
-      this.pp.stat('press', { value: this.pressWord(p), tone: p >= 0.75 ? 'amber' : '', meter: { value: p, tone: p >= 0.75 ? 'amber' : 'white', segs: true } });
-      if (this.step === 1) this.pp.stat('palp', { value: this.palp[this.site].toFixed(1), meter: { value: clamp(this.palp[this.site] / Math.max(1, this.d.absentAfter || 5), 0, 1), tone: 'white' } });
-      if (this.step === 2 && this.count) {
-        const total = this.d.countSeconds || 15;
-        const left = Math.max(0, total - (now() - this.count.started) / 1000);
-        this.pp.stat('count', { value: this.taps.length, meter: { value: 1 - left / total, tone: 'teal' } });
-        this.pp.el.querySelector('.pp-tag').textContent = `${Math.ceil(left)} s`;
-      }
-      // caption
-      const f = this.feel(this.site, p), occ = this.occluded(this.site, p);
-      let cap = '', tone = '';
-      if (p < 0.08) cap = T('cap_lift', 'Fingers resting on the skin');
-      else if (occ) { cap = T('cap_occluded', 'Pressing hard: the artery is squashed flat'); tone = 'amber'; }
-      else if (f >= 0.85) { cap = T('cap_best', 'Good contact'); tone = 'teal'; }
-      else if (f > 0.05) cap = T('cap_faint', 'Faint contact');
-      else cap = T('cap_nothing', 'Nothing under your fingers');
-      if (this.cap.textContent !== cap) { this.cap.textContent = cap; this.cap.className = `cap ${tone}`; }
+      this.pp.set({ wide: this.dial(), stats: this.stats() });
+      const c = this.contact();
+      if (this.capEl.textContent !== c.cap) { this.capEl.textContent = c.cap; this.capEl.className = `cap t-${c.tone || 'base'}`; }
+      if (this.step === 2) this.renderScopeList();
     },
     toJudge() {
       this.step = 3;
-      this.setTip(3);
-      this.pp.set({ step: 3, tag: T('pulse_tag', 'Pulse'), title: T('pulse_s3_title', 'Judge the pulse'), text: T('pulse_s3_text', 'Was the beat **regular**? Was it **weak**, **normal** or **bounding**? Then press {Enter}. {R} counts again.') });
+      this.pp.set({ step: 3, tag: T('pulse_tag', 'Pulse check'), title: T('pulse_s3_title', 'Describe it'), text: T('pulse_s3_text', 'Steady or uneven? Faint, normal or pounding? Set both, then {Enter}. {R} counts again.') });
+      this.pp.flash('ok', T('tip_3', 'Uneven with no pattern: think atrial fibrillation. Faint and racing: think blood loss.'), 5200);
       this.refresh(true);
       NZA.audio.beep(880, 70, 0.06);
     },
+    // polar palpation scope: one revolution = SWEEP ms, the beat lifts the trace outwards
     draw(ms) {
-      const cv = this.cv; if (!cv) return;
+      const cv = this.cv; if (!cv || this.step === 3) return;
       const { w, h, scale } = NZA.fitCanvas(cv);
       const c = cv.getContext('2d');
       c.clearRect(0, 0, w, h);
-      c.fillStyle = '#020403'; c.fillRect(0, 0, w, h);
-      // grid
-      c.strokeStyle = 'rgba(8,175,162,.08)'; c.lineWidth = 1;
-      const gx = 24 * scale;
-      for (let x = w - ((ms / 4000 * w) % gx); x > 0; x -= gx) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
-      for (let y = h / 4; y < h; y += h / 4) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
-      // count window shading
-      const xOf = m => w - ((ms - m) / 4000) * w;
-      if (this.count) {
-        const a = xOf(this.count.startMs), b = xOf(this.count.startMs + (this.d.countSeconds || 15) * 1000);
-        c.fillStyle = 'rgba(8,175,162,.06)'; c.fillRect(Math.max(0, a), 0, Math.min(w, b) - Math.max(0, a), h);
+      const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 3 * scale, r0 = R * 0.56, amp = R * 0.36;
+      const ang = m => -Math.PI / 2 + ((((m % SWEEP) + SWEEP) % SWEEP) / SWEEP) * Math.PI * 2;
+      // disc
+      const bg = c.createRadialGradient(cx, cy, R * 0.1, cx, cy, R);
+      bg.addColorStop(0, '#0a1a18'); bg.addColorStop(0.7, '#040a09'); bg.addColorStop(1, '#020404');
+      c.fillStyle = bg; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.fill();
+      // grid rings + spokes
+      c.lineWidth = 1;
+      [0.32, 0.56, 0.74, 0.92].forEach((k, i) => { c.strokeStyle = i === 1 ? 'rgba(15,212,196,.22)' : 'rgba(15,212,196,.08)'; c.beginPath(); c.arc(cx, cy, R * k, 0, Math.PI * 2); c.stroke(); });
+      c.strokeStyle = 'rgba(15,212,196,.07)';
+      for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; c.beginPath(); c.moveTo(cx + Math.cos(a) * R * 0.32, cy + Math.sin(a) * R * 0.32); c.lineTo(cx + Math.cos(a) * R * 0.98, cy + Math.sin(a) * R * 0.98); c.stroke(); }
+      // rim ticks
+      c.strokeStyle = 'rgba(15,212,196,.35)';
+      for (let i = 0; i < 60; i++) { const a = (i / 60) * Math.PI * 2, l = i % 5 ? 3 : 6; c.beginPath(); c.moveTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); c.lineTo(cx + Math.cos(a) * (R - l * scale), cy + Math.sin(a) * (R - l * scale)); c.stroke(); }
+      // sweep fan
+      const a0 = ang(ms);
+      for (let i = 0; i < 18; i++) {
+        const a = a0 - (i / 18) * 0.9;
+        c.fillStyle = `rgba(15,212,196,${(0.10 * (1 - i / 18)).toFixed(3)})`;
+        c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R * 0.96, a - 0.05, a); c.closePath(); c.fill();
       }
-      // trace
-      const base = h * 0.72, amp = h * 0.56;
+      // count window progress on the rim
+      if (this.count) {
+        const total = (this.d.countSeconds || 15) * 1000, f = clamp((now() - this.count.started) / total, 0, 1);
+        c.strokeStyle = 'rgba(243,195,90,.85)'; c.lineWidth = 3 * scale; c.lineCap = 'round';
+        c.beginPath(); c.arc(cx, cy, R + 0.5 * scale, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); c.stroke();
+        c.lineCap = 'butt';
+      }
+      // trace (fades with age)
       const occ = this.samples.length && this.samples[this.samples.length - 1].occ;
-      c.lineWidth = 1.8 * scale; c.lineJoin = 'round';
-      c.strokeStyle = occ ? '#e5a50a' : '#0fd4c4';
-      c.shadowColor = c.strokeStyle; c.shadowBlur = 6 * scale;
-      c.beginPath();
-      this.samples.forEach((s, i) => { const x = xOf(s.ms), y = base - s.v * amp; if (i) c.lineTo(x, y); else c.moveTo(x, y); });
-      c.stroke();
-      c.shadowBlur = 0;
-      // pen dot
-      if (this.samples.length) { const s = this.samples[this.samples.length - 1]; c.fillStyle = '#fff'; c.beginPath(); c.arc(w - 2 * scale, base - s.v * amp, 2.6 * scale, 0, Math.PI * 2); c.fill(); }
-      // taps
+      const col = occ ? '243,195,90' : '15,212,196';
+      c.lineWidth = 1.9 * scale; c.lineJoin = 'round';
+      for (let i = 1; i < this.samples.length; i++) {
+        const s0 = this.samples[i - 1], s1 = this.samples[i];
+        const age = (ms - s1.ms) / SWEEP;
+        const al = Math.max(0, 1 - age);
+        const ra = r0 + clamp(s0.v, -0.2, 1.3) * amp, rb = r0 + clamp(s1.v, -0.2, 1.3) * amp;
+        const aa = ang(s0.ms), ab = ang(s1.ms);
+        if (Math.abs(ab - aa) > 1) continue;
+        c.strokeStyle = `rgba(${col},${(al * 0.95).toFixed(3)})`;
+        c.beginPath(); c.moveTo(cx + Math.cos(aa) * ra, cy + Math.sin(aa) * ra); c.lineTo(cx + Math.cos(ab) * rb, cy + Math.sin(ab) * rb); c.stroke();
+      }
+      // pen
+      if (this.samples.length) {
+        const s = this.samples[this.samples.length - 1], r = r0 + clamp(s.v, -0.2, 1.3) * amp;
+        c.shadowColor = `rgb(${col})`; c.shadowBlur = 10 * scale; c.fillStyle = '#fff';
+        c.beginPath(); c.arc(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r, 2.8 * scale, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
+      }
+      // taps on the rim
       (this.tapMarks || []).forEach(tm => {
-        const x = xOf(tm.ms); if (x < 0) return;
-        c.fillStyle = tm.good ? '#0fd4c4' : '#e5484d';
-        c.fillRect(x - 1.5 * scale, 3 * scale, 3 * scale, 9 * scale);
+        const age = (ms - tm.ms) / SWEEP; if (age > 1) return;
+        const a = ang(tm.ms), r = R - 9 * scale;
+        c.fillStyle = tm.good ? `rgba(15,212,196,${1 - age * 0.7})` : `rgba(255,90,95,${1 - age * 0.7})`;
+        c.beginPath(); c.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3.2 * scale, 0, Math.PI * 2); c.fill();
       });
     },
 
-    /* ── result ── */
+    /* ── debrief ── */
     showResult(o) {
       if (this.finished) return;
       this.finished = true;
-      const g = o.grade || 'F';
       const r = o.rows || {};
-      const okIc = ok => (ok === true ? `<span class="ok">${icon('check')}</span>` : ok === false ? `<span class="no">${icon('x')}</span>` : '<span></span>');
-      const row = (label, you, pat, ok, unit = '') => `<tr><th>${esc(label)}</th><td>${esc(you ?? '--')}${unit && you !== '--' ? `<i>${esc(unit)}</i>` : ''}</td><td>${esc(pat ?? '--')}${unit && pat !== '--' ? `<i>${esc(unit)}</i>` : ''}</td><td class="m">${okIc(ok)}</td></tr>`;
+      const score = clamp(Math.round(o.score ?? 0), 0, 100);
+      const tone = score >= 75 ? 'teal' : score >= 50 ? 'amber' : 'red';
+      const verdict = score >= 90 ? T('vd_5', 'Spot on') : score >= 75 ? T('vd_4', 'Solid read') : score >= 55 ? T('vd_3', 'Close call') : score >= 35 ? T('vd_2', 'Off the mark') : T('vd_1', 'Missed it');
       const rate = r.rate || {}, rh = r.rhythm || {}, st = r.strength || {}, site = r.site || {};
-      const chip = (on, label) => `<span class="chipx sm ${on ? 'teal' : 'red'}">${icon(on ? 'check' : 'x')}${esc(label)}</span>`;
-      const fb = (o.feedback || []).map(f => `<li class="${esc(f.tone || '')}">${esc(f.text)}</li>`).join('');
-      const rec = (o.recorded || []).map(x => `<span class="chipx sm amber">${icon('clipboard')}${esc(x)}</span>`).join('');
-      this.resultWrap.innerHTML = `
-        <div class="pz-result nza-hud solid nza-pop">
-          <div class="rh"><div class="grade g-${esc(g)}">${esc(g)}</div><div><h3>${esc(o.title || T('pulse_result_title', 'Pulse assessment'))}</h3><p>${esc(T('result_sub', '%s s at the patient · score %s', o.seconds ?? 0, o.score ?? 0))}</p></div></div>
-          ${o.error ? `<p class="err">${esc(o.msg || '')}</p>` : `
-          <table><thead><tr><th></th><th>${esc(T('your_finding', 'Your finding'))}</th><th>${esc(T('patient', 'Patient'))}</th><th></th></tr></thead><tbody>
-            ${row(T('row_rate', 'Rate'), rate.you, rate.patient, rate.ok, rate.unit || T('bpm', 'bpm'))}
-            ${rate.apical ? `<tr class="sub"><th></th><td></td><td colspan="2">${esc(T('apical', 'Heart %s bpm (pulse deficit)', rate.apical))}</td></tr>` : ''}
-            ${row(T('row_rhythm', 'Rhythm'), rh.you, rh.patient, rh.ok)}
-            ${row(T('row_strength', 'Strength'), st.you, st.patient, st.ok)}
-            <tr><th>${esc(T('row_site', 'Site'))}</th><td>${esc(site.you || '--')}</td><td colspan="2"><span class="chips-row">${chip(site.carotid, T('site_carotid', 'Carotid'))}${chip(site.radial, T('site_radial', 'Radial'))}</span></td></tr>
-          </tbody></table>`}
+      const calls = [rate.ok, rh.ok, st.ok].filter(x => x !== undefined && x !== null);
+      const right = calls.filter(Boolean).length;
+      const mark = ok => (ok === true ? `<span class="mk ok">${icon('check')}</span>` : ok === false ? `<span class="mk no">${icon('x')}</span>` : '<span class="mk"></span>');
+      // rate scale 0..max with the real value band and your count
+      const you = parseFloat(rate.you), pat = parseFloat(rate.patient);
+      const max = Math.max(160, Math.ceil(Math.max(isNaN(you) ? 0 : you, isNaN(pat) ? 0 : pat) / 40) * 40 + 40);
+      const X = v => `${clamp(v / max, 0, 1) * 100}%`;
+      const ticks = Array.from({ length: max / 40 + 1 }, (_, i) => `<i style="left:${X(i * 40)}"><em>${i * 40}</em></i>`).join('');
+      const rateBar = `<div class="rs-bar">${ticks}${!isNaN(pat) ? `<span class="band" style="left:${X(Math.max(0, pat - 10))};width:calc(${X(Math.min(max, pat + 10))} - ${X(Math.max(0, pat - 10))})"></span><span class="tru" style="left:${X(pat)}"></span>` : ''}${!isNaN(you) ? `<span class="you ${rate.ok ? 'ok' : 'no'}" style="left:${X(you)}"></span>` : ''}</div>`;
+      const scale = (opts, youV, patV) => {
+        const list = opts.slice();
+        if (patV && !list.includes(patV)) list.push(patV);
+        return `<div class="sc">${list.map(op => `<span class="${op === patV ? 'tru' : ''} ${op === youV ? 'you' : ''}">${op === patV ? icon('check') : ''}${esc(op)}${op === youV ? `<em>${esc(T('you_short', 'you'))}</em>` : ''}</span>`).join('')}</div>`;
+      };
+      const fb = (o.feedback || []).map(f => `<li class="t-${esc(f.tone || 'info')}"><i></i><span>${esc(f.text)}</span></li>`).join('');
+      const rec = (o.recorded || []).map(x => `<span class="lg">${icon('clipboard')}${esc(x)}</span>`).join('');
+      const siteDot = (on, label) => `<span class="sd ${on ? 'on' : 'off'}"><i></i>${esc(label)}<em>${esc(on ? T('felt', 'felt') : T('not_felt', 'not felt'))}</em></span>`;
+      this.debWrap.innerHTML = `
+        <section class="pz-deb t-${tone}">
+          <header class="dh">
+            <div class="sr">${ringSvg(0, 38, 88)}<div class="in"><span class="odoh"></span><small>${esc(T('score', 'Score'))}</small></div></div>
+            <div class="dt"><span class="kick">${esc(o.title || T('pulse_result_title', 'Pulse debrief'))}</span><h3>${esc(verdict)}</h3>
+              <p>${esc(T('result_sub', '%s s with the patient', o.seconds ?? 0))}${calls.length ? ` · ${esc(T('calls_right', '%s of %s calls right', right, calls.length))}` : ''}</p></div>
+          </header>
+          ${o.error ? `<p class="err">${icon('alert')}${esc(o.msg || '')}</p>` : `
+          <div class="rows">
+            <div class="rw"><div class="rl"><span>${esc(T('row_rate', 'Rate'))}</span>${mark(rate.ok)}</div>
+              <div class="rv"><div class="nums"><b>${esc(rate.you ?? '--')}</b><i>${esc(T('vs', 'vs'))}</i><b class="t">${esc(rate.patient ?? '--')}</b><em>${esc(rate.unit || T('bpm', 'bpm'))}</em></div>${rateBar}
+              ${rate.apical ? `<div class="ap">${icon('alert')}${esc(T('apical', 'Heart %s bpm: some beats never reach the wrist', rate.apical))}</div>` : ''}</div></div>
+            <div class="rw"><div class="rl"><span>${esc(T('row_rhythm', 'Rhythm'))}</span>${mark(rh.ok)}</div><div class="rv">${scale([T('rhythm_regular', 'Regular'), T('rhythm_irregular', 'Irregular')], rh.you, rh.patient)}</div></div>
+            <div class="rw"><div class="rl"><span>${esc(T('row_strength', 'Strength'))}</span>${mark(st.ok)}</div><div class="rv">${scale([T('strength_weak', 'Weak'), T('strength_normal', 'Normal'), T('strength_bounding', 'Bounding')], st.you, st.patient)}</div></div>
+            <div class="rw"><div class="rl"><span>${esc(T('row_site', 'Sites'))}</span></div><div class="rv sites">${siteDot(site.carotid, T('site_carotid', 'Neck'))}${siteDot(site.radial, T('site_radial', 'Wrist'))}${site.you ? `<span class="cnt">${esc(T('counted_at', 'counted at %s', site.you))}</span>` : ''}</div></div>
+          </div>`}
           ${fb ? `<ul class="fb">${fb}</ul>` : ''}
-          ${rec ? `<div class="rec"><span class="nza-label">${esc(T('recorded', 'Recorded'))}</span>${rec}</div>` : ''}
-        </div>`;
-      if (['S', 'A', 'B'].includes(g)) NZA.audio.success(); else NZA.audio.fail();
-      this.pp.complete({ title: T('complete', 'Assessment complete'), text: T('complete_text', 'Check your call against the patient. {Enter} to close.'), label: T('done', 'Done'), onDone: () => this.closeNow() });
+          ${rec ? `<div class="rec"><span class="kick">${esc(T('recorded', 'Logged to chart'))}</span>${rec}</div>` : ''}
+        </section>`;
+      const host = this.debWrap.querySelector('.odoh');
+      const odo = NZA.ui.FlipClock(host, { value: '00', tone, small: true });
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const fg = this.debWrap.querySelector('.sr .fg');
+        if (fg) { const C = 2 * Math.PI * 38; fg.style.strokeDashoffset = (C * (1 - score / 100)).toFixed(2); }
+        odo.set(String(score).padStart(2, '0'));
+      }));
+      if (score >= 75) NZA.audio.success(); else NZA.audio.fail();
+      this.slot && this.slot.classList.add('gone');
+      this.pp.complete({ title: T('complete', 'Check finished'), text: T('complete_text', 'Your debrief is on the right. {Enter} when you are ready.'), label: T('done', 'Done'), onDone: () => this.closeNow() });
     },
 
     /* ── browser preview ── */
@@ -523,13 +628,13 @@
       NZA.mock('pulse:finish', res => {
         const counted = Math.round(res.taps.length * 60 / (this.d.countSeconds || 15));
         setTimeout(() => this.showResult({
-          score: 64, grade: 'C', seconds: Math.round((now() - this.opened) / 1000), title: 'Pulse assessment',
+          score: 64, grade: 'C', seconds: Math.round((now() - this.opened) / 1000), title: 'Pulse debrief',
           rows: { rate: { you: String(counted), patient: '124', unit: 'bpm', ok: Math.abs(counted - 124) <= 10 },
             rhythm: { you: res.rhythm === 'irregular' ? 'Irregular' : 'Regular', patient: 'Regular', ok: res.rhythm !== 'irregular' },
             strength: { you: ({ weak: 'Weak', normal: 'Normal', bounding: 'Bounding' })[res.strength] || '--', patient: 'Weak', ok: res.strength === 'weak' },
-            site: { you: 'Right radial', carotid: true, radial: true } },
-          feedback: [{ tone: Math.abs(counted - 124) <= 10 ? 'ok' : 'bad', text: `You counted ${counted} bpm. The pulse at that site was 124.` }, { tone: 'warn', text: 'Weak and fast: think shock. Find the bleeding.' }],
-          recorded: [],
+            site: { you: 'Right wrist', carotid: true, radial: true } },
+          feedback: [{ tone: Math.abs(counted - 124) <= 10 ? 'ok' : 'bad', text: `Your count: ${counted} bpm. Real rate: 124.` }, { tone: 'warn', text: '3 taps landed between beats.' }, { tone: 'warn', text: 'Faint and racing: find the bleeding.' }],
+          recorded: ['Weak, fast pulse'],
         }), 300);
         return { ok: true };
       });

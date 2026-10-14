@@ -157,6 +157,7 @@ NZA.AddLocale('en', {
     ['calls.need_extinguisher'] = 'Use a fire extinguisher on the flames',
     ['calls.engine_cut']       = 'Engine cut. The smoke is clearing.',
     ['calls.fire_out']         = 'The fire is out.',
+    ['calls.spraying']         = 'Spray at the base of the flames',
     ['calls.released']         = '%s was released on scene.',
     ['calls.release_fail']     = 'This patient still needs treatment or transport.',
     ['calls.handover']         = '%s was handed over to the hospital.',
@@ -170,6 +171,7 @@ NZA.AddLocale('en', {
     ['calls.err_state']        = 'That is not possible right now.',
     ['calls.fallback_call']    = 'NPC call: %s',
     ['calls.reward_reason']    = 'EMS patient hand-over',
+    ['calls.remaining']        = '%d patient(s) still at the scene.',
 
     -- ── admin ───────────────────────────────────────────────────────────
     ['calls.admin_created']    = 'NPC call %s created (%s).',

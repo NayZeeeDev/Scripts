@@ -32,7 +32,7 @@ def _mark(d: ImageDraw.ImageDraw, x, y, s, hi=TEAL_HI, lo=TEAL_LO, cut=(0, 0, 0)
 def _header(d, w, s, title, right):
     d.rectangle([0, 0, w, int(24 * s)], fill=PANEL)
     _mark(d, int(8 * s), int(5 * s), 14 * s)
-    d.text((int(28 * s), int(12 * s)), title, font=font("brand", 11 * s), fill=INK, anchor="lm")
+    d.text((int(28 * s), int(12 * s)), title, font=font("label", 11 * s), fill=INK, anchor="lm")
     d.text((w - int(8 * s), int(12 * s)), right, font=font("mono", 10 * s), fill=INK_DIM, anchor="rm")
 
 
@@ -76,14 +76,14 @@ def draw_ultrasound_ui(w=512, h=320, seed=3):
         if yk < h - 8 * s:
             d.line([(int(338 * s), yk), (int(346 * s), yk)], fill=INK_DIM, width=1)
             d.text((int(334 * s), yk), str(k), font=font("mono", 8 * s), fill=INK_DIM, anchor="rm")
-    d.text((int(10 * s), int(34 * s)), "B", font=font("brand", 12 * s), fill=TEAL_HI, anchor="lt")
+    d.text((int(10 * s), int(34 * s)), "B", font=font("label", 12 * s), fill=TEAL_HI, anchor="lt")
     for k, t in enumerate(("Frq 3.5", "Gn 51", "D 16", "DR 72", "FR 30")):
         d.text((int(10 * s), int((52 + k * 13) * s)), t, font=font("mono", 9 * s), fill=INK_DIM, anchor="lt")
-    d.text((int(118 * s), int(h - 26 * s)), "RUQ  ·  MORISON", font=font("brand-semi", 9 * s), fill=INK, anchor="lt")
+    d.text((int(118 * s), int(h - 26 * s)), "RUQ  ·  MORISON", font=font("label-semi", 9 * s), fill=INK, anchor="lt")
     # right column: eFAST checklist
     x0 = int(356 * s)
     d.rectangle([x0, int(30 * s), w - int(6 * s), h - int(6 * s)], fill=(10, 12, 14))
-    d.text((x0 + int(8 * s), int(40 * s)), "eFAST", font=font("brand", 11 * s), fill=INK, anchor="lt")
+    d.text((x0 + int(8 * s), int(40 * s)), "eFAST", font=font("label", 11 * s), fill=INK, anchor="lt")
     d.text((w - int(12 * s), int(40 * s)), "1/6", font=font("mono", 9 * s), fill=INK_DIM, anchor="rt")
     rows = [("RUQ", "POS", RED), ("LUQ", "--", INK_DIM), ("PELVIS", "--", INK_DIM), ("CARDIAC", "--", INK_DIM),
             ("LUNG R", "--", INK_DIM), ("LUNG L", "--", INK_DIM)]
@@ -92,9 +92,9 @@ def draw_ultrasound_ui(w=512, h=320, seed=3):
         if k == 0:
             d.rectangle([x0 + int(4 * s), y - int(3 * s), w - int(10 * s), y + int(16 * s)], fill=(18, 40, 38))
             d.rectangle([x0 + int(4 * s), y - int(3 * s), x0 + int(6 * s), y + int(16 * s)], fill=TEAL)
-        d.text((x0 + int(12 * s), y + int(6 * s)), lbl, font=font("brand-semi", 10 * s), fill=INK, anchor="lm")
+        d.text((x0 + int(12 * s), y + int(6 * s)), lbl, font=font("label-semi", 10 * s), fill=INK, anchor="lm")
         d.text((w - int(14 * s), y + int(6 * s)), res, font=font("mono-bold", 9 * s), fill=col, anchor="rm")
-    d.text((x0 + int(8 * s), h - int(14 * s)), "FREE FLUID", font=font("brand", 10 * s), fill=AMBER, anchor="lm")
+    d.text((x0 + int(8 * s), h - int(14 * s)), "FREE FLUID", font=font("label", 10 * s), fill=AMBER, anchor="lm")
     return img
 
 
@@ -144,14 +144,14 @@ def draw_angio_ui(w=512, h=288, seed=5):
     img = Image.composite(img, black, mask)
     d = ImageDraw.Draw(img)
     _mark(d, int(10 * s), int(10 * s), 14 * s)
-    d.text((int(30 * s), int(17 * s)), "NAYZEEE ANGIO", font=font("brand", 11 * s), fill=INK, anchor="lm")
+    d.text((int(30 * s), int(17 * s)), "NAYZEEE ANGIO", font=font("label", 11 * s), fill=INK, anchor="lm")
     d.text((int(10 * s), int(36 * s)), "LIVE  ·  FLUORO 7.5 p/s", font=font("mono", 9 * s), fill=TEAL_HI, anchor="lm")
     d.text((w - int(10 * s), int(17 * s)), "AP 0°  CRAN 0°", font=font("mono", 9 * s), fill=INK, anchor="rm")
     d.text((w - int(10 * s), int(32 * s)), "kV 78   mA 12", font=font("mono", 9 * s), fill=INK_DIM, anchor="rm")
     d.text((int(10 * s), h - int(12 * s)), "DOSE 41 mGy", font=font("mono", 9 * s), fill=INK_DIM, anchor="lm")
     d.text((w - int(10 * s), h - int(12 * s)), "00:42", font=font("mono-bold", 10 * s), fill=AMBER, anchor="rm")
     d.ellipse([bx - 16 * s, by - 13 * s, bx + 16 * s, by + 13 * s], outline=RED, width=max(1, int(2 * s)))
-    d.text((bx, by + 22 * s), "BLEED", font=font("brand", 9 * s), fill=RED, anchor="mm")
+    d.text((bx, by + 22 * s), "BLEED", font=font("label", 9 * s), fill=RED, anchor="mm")
     return img
 
 
@@ -167,15 +167,15 @@ def draw_brand_standby(w=1024, h=576, sub="MEDICAL"):
     d = ImageDraw.Draw(img)
     s = h / 576.0
     ms = 150 * s
-    tw = font("brand", 74 * s).getlength("NAYZEEE")
+    tw = font("label", 74 * s).getlength("NAYZEEE")
     total = ms + 36 * s + tw
     x0 = (w - total) / 2
     y0 = h * 0.45 - ms / 2
     _mark(d, x0, y0, ms)
-    d.text((x0 + ms + 36 * s, y0 + ms * 0.36), "NAYZEEE", font=font("brand", 74 * s), fill=(236, 240, 242), anchor="lm")
-    d.text((x0 + ms + 38 * s, y0 + ms * 0.80), sub, font=font("brand-semi", 34 * s), fill=TEAL_HI, anchor="lm")
+    d.text((x0 + ms + 36 * s, y0 + ms * 0.36), "NAYZEEE", font=font("label", 74 * s), fill=(236, 240, 242), anchor="lm")
+    d.text((x0 + ms + 38 * s, y0 + ms * 0.80), sub, font=font("label-semi", 34 * s), fill=TEAL_HI, anchor="lm")
     d.line([(w * 0.38, h * 0.80), (w * 0.62, h * 0.80)], fill=(20, 60, 56), width=max(1, int(2 * s)))
-    d.text((w / 2, h * 0.86), "PATIENT INFORMATION  ·  PLEASE WAIT TO BE CALLED", font=font("brand-semi", 15 * s),
+    d.text((w / 2, h * 0.86), "PATIENT INFORMATION  ·  PLEASE WAIT TO BE CALLED", font=font("label-semi", 15 * s),
            fill=(110, 120, 126), anchor="mm")
     return img
 
@@ -199,9 +199,9 @@ def draw_mixer_lcd(w=256, h=128):
     img = Image.new("RGB", (w, h), (8, 14, 16))
     d = ImageDraw.Draw(img)
     s = w / 256.0
-    d.text((int(8 * s), int(8 * s)), "COLLECT", font=font("brand", 12 * s), fill=TEAL_HI, anchor="lt")
-    d.text((w - int(8 * s), int(8 * s)), "O NEG", font=font("brand", 12 * s), fill=RED, anchor="rt")
-    d.text((int(8 * s), int(64 * s)), "312", font=font("brand", 44 * s), fill=(236, 240, 242), anchor="lm")
+    d.text((int(8 * s), int(8 * s)), "COLLECT", font=font("label", 12 * s), fill=TEAL_HI, anchor="lt")
+    d.text((w - int(8 * s), int(8 * s)), "O NEG", font=font("label", 12 * s), fill=RED, anchor="rt")
+    d.text((int(8 * s), int(64 * s)), "312", font=font("label", 44 * s), fill=(236, 240, 242), anchor="lm")
     d.text((int(100 * s), int(74 * s)), "mL / 450", font=font("mono", 13 * s), fill=INK_DIM, anchor="lm")
     d.rectangle([int(8 * s), int(98 * s), w - int(8 * s), int(110 * s)], outline=(40, 60, 62), width=max(1, int(1 * s)))
     d.rectangle([int(10 * s), int(100 * s), int(10 * s + (w - 20 * s) * 0.69), int(108 * s)], fill=TEAL)
@@ -215,8 +215,8 @@ def draw_bay_monitor(w=512, h=256):
     d = ImageDraw.Draw(img)
     s = w / 512.0
     _mark(d, int(196 * s), int(70 * s), 52 * s)
-    d.text((int(262 * s), int(86 * s)), "NAYZEEE", font=font("brand", 26 * s), fill=(210, 216, 220), anchor="lm")
-    d.text((int(263 * s), int(110 * s)), "MEDIC 1", font=font("brand-semi", 13 * s), fill=TEAL_HI, anchor="lm")
+    d.text((int(262 * s), int(86 * s)), "NAYZEEE", font=font("label", 26 * s), fill=(210, 216, 220), anchor="lm")
+    d.text((int(263 * s), int(110 * s)), "MEDIC 1", font=font("label-semi", 13 * s), fill=TEAL_HI, anchor="lm")
     d.line([(int(140 * s), int(150 * s)), (int(372 * s), int(150 * s))], fill=(18, 42, 40), width=max(1, int(1 * s)))
     d.text((int(256 * s), int(172 * s)), "TREATMENT BAY  ·  STANDBY", font=font("mono", 11 * s), fill=(96, 106, 110), anchor="mm")
     return img

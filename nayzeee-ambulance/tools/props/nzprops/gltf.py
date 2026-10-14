@@ -106,7 +106,7 @@ def write_glb(path, name, groups):
 
     bin_data = b"".join(blobs)
     gltf = {
-        "asset": {"version": "2.0", "generator": "nzprops (NAYZEEE props pipeline)"},
+        "asset": {"version": "2.0", "generator": "nzprops (procedural props pipeline)"},
         "scene": 0,
         "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0, "name": name}],

@@ -113,7 +113,7 @@ def _bag_label(lines, w, h, ppm=3600, band=(40, 110, 200)):
     dc.rect(0, 0, w, h, r=0.003, color=(236, 240, 242), alpha=0.92, spec=0.35, gloss=0.5)
     dc.rect(0, 0, w, h * 0.16, r=0.003, color=band)
     dc.mark(0.004, h * 0.025, h * 0.11)
-    dc.text(0.004 + h * 0.15, h * 0.08, "NAYZEEE MEDICAL", h * 0.055, fnt="brand", anchor="lm", color=(250, 252, 252), spacing=h * 0.006, max_w=w * 0.75)
+    dc.text(0.004 + h * 0.15, h * 0.08, "NAYZEEE MEDICAL", h * 0.055, fnt="label", anchor="lm", color=(250, 252, 252), spacing=h * 0.006, max_w=w * 0.75)
     for t, y, size, fnt, col in lines:
         dc.text(w / 2, y, t, size, fnt=fnt, color=col, max_w=w * 0.92)
     return dc
@@ -142,16 +142,16 @@ def ivbag_saline(b):
     g += _port(b, 0.016, zb, cap)
     g += _giving_set(b, -0.014, zb, fluid_mat=saline)
     b.add(g)
-    lab = _bag_label([("0.9% SODIUM CHLORIDE", 0.032, 0.0062, "brand", (30, 60, 140)),
-                      ("Intravenous Infusion", 0.042, 0.0042, "brand-semi", (40, 44, 48)),
-                      ("500 mL", 0.058, 0.010, "brand", (30, 60, 140)),
+    lab = _bag_label([("0.9% SODIUM CHLORIDE", 0.032, 0.0062, "label", (30, 60, 140)),
+                      ("Intravenous Infusion", 0.042, 0.0042, "label-semi", (40, 44, 48)),
+                      ("500 mL", 0.058, 0.010, "label", (30, 60, 140)),
                       ("LOT 26A417   EXP 2029-04", 0.074, 0.0034, "mono", (40, 44, 48))], 0.075, 0.084)
     b.decal(lab, center=(0.0, 0.02, zc + 0.02), normal=(0, 1, 0), up=(0, 0, 1), mats=["bag_film"], depth=0.03, min_dot=0.2)
     sc = DecalCanvas(0.02, 0.13, ppm=4000)
     for k in range(1, 5):
         y = 0.01 + k * 0.025
         sc.rect(0.0, y - 0.0003, 0.008, 0.0006, color=(20, 22, 26))
-        sc.text(0.0105, y, str(k * 100), 0.0028, fnt="brand-semi", anchor="lm", color=(20, 22, 26))
+        sc.text(0.0105, y, str(k * 100), 0.0028, fnt="label-semi", anchor="lm", color=(20, 22, 26))
     b.decal(sc, center=(-0.044, 0.02, zc - 0.005), normal=(0, 1, 0), up=(0, 0, 1), mats=["bag_film"], depth=0.03, min_dot=0.2)
     hole = DecalCanvas(0.03, 0.016, ppm=6000)
     hole.rect(0.006, 0.004, 0.018, 0.006, r=0.003, fill=False, width=0.0012, color=(160, 170, 175))
@@ -195,11 +195,11 @@ def _make_bloodbag(level):
         lab.rect(0, 0, 0.084, 0.09, r=0.003, color=(240, 242, 242), alpha=0.95, spec=0.35, gloss=0.5)
         lab.rect(0, 0, 0.084, 0.014, r=0.003, color=(196, 30, 36))
         lab.mark(0.003, 0.002, 0.010)
-        lab.text(0.016, 0.007, "NAYZEEE BLOOD SERVICE", 0.0042, fnt="brand", anchor="lm", color=(250, 250, 250), max_w=0.064)
-        lab.text(0.042, 0.022, "RED CELLS  CPD-SAGM", 0.0046, fnt="brand", color=(30, 32, 35), max_w=0.078)
+        lab.text(0.016, 0.007, "NAYZEEE BLOOD SERVICE", 0.0042, fnt="label", anchor="lm", color=(250, 250, 250), max_w=0.064)
+        lab.text(0.042, 0.022, "RED CELLS  CPD-SAGM", 0.0046, fnt="label", color=(30, 32, 35), max_w=0.078)
         lab.rect(0.006, 0.030, 0.034, 0.034, r=0.002, color=(196, 30, 36))
-        lab.text(0.023, 0.044, "O", 0.014, fnt="brand-black", color=(250, 250, 250))
-        lab.text(0.023, 0.058, "NEG", 0.0055, fnt="brand", color=(250, 250, 250))
+        lab.text(0.023, 0.044, "O", 0.014, fnt="label-black", color=(250, 250, 250))
+        lab.text(0.023, 0.058, "NEG", 0.0055, fnt="label", color=(250, 250, 250))
         rng = np.random.default_rng(level + 3)
         x = 0.046
         while x < 0.078:
@@ -207,8 +207,8 @@ def _make_bloodbag(level):
             lab.rect(x, 0.031, bw, 0.020, color=(20, 22, 24))
             x += bw + 0.0004 + rng.random() * 0.0009
         lab.text(0.062, 0.056, "DN 26-04417", 0.0028, fnt="mono", color=(30, 32, 35))
-        lab.text(0.042, 0.072, "450 mL  ·  store 2-6 C", 0.0034, fnt="brand-semi", color=(30, 32, 35), max_w=0.078)
-        lab.text(0.042, 0.083, "CHECK ID BEFORE TRANSFUSION", 0.0028, fnt="brand", color=(196, 30, 36), max_w=0.078)
+        lab.text(0.042, 0.072, "450 mL  ·  store 2-6 C", 0.0034, fnt="label-semi", color=(30, 32, 35), max_w=0.078)
+        lab.text(0.042, 0.083, "CHECK ID BEFORE TRANSFUSION", 0.0028, fnt="label", color=(196, 30, 36), max_w=0.078)
         b.decal(lab, center=(0.0, 0.03, zc + 0.012), normal=(0, 1, 0), up=(0, 0, 1), mats=["bag_film"], depth=0.04, min_dot=0.2)
         hole = DecalCanvas(0.03, 0.016, ppm=6000)
         hole.rect(0.006, 0.004, 0.018, 0.006, r=0.003, fill=False, width=0.0012, color=(160, 170, 175))
@@ -301,19 +301,19 @@ def infuser(b):
         r0, r1 = (0.0175, 0.022) if k % 5 == 0 else (0.0195, 0.022)
         dial.line([(cx + math.cos(a) * r0, cy - math.sin(a) * r0), (cx + math.cos(a) * r1, cy - math.sin(a) * r1)], 0.0006, color=(20, 22, 24))
         if k % 10 == 0:
-            dial.text(cx + math.cos(a) * 0.0145, cy - math.sin(a) * 0.0145, str(k * 10), 0.0026, fnt="brand", color=(20, 22, 24))
+            dial.text(cx + math.cos(a) * 0.0145, cy - math.sin(a) * 0.0145, str(k * 10), 0.0026, fnt="label", color=(20, 22, 24))
     for k0, k1, col in ((20, 30, (40, 170, 90)), (30, 31, (210, 40, 40))):
         for k in range(k0 * 3, k1 * 3):
             a = math.radians(225 - k * 3)
             dial.circle(cx + math.cos(a) * 0.0232, cy - math.sin(a) * 0.0232, 0.0011, color=col)
-    dial.text(cx, cy + 0.009, "mmHg", 0.0026, fnt="brand-semi", color=(60, 64, 68))
-    dial.text(cx, cy - 0.006, "NAYZEEE", 0.0022, fnt="brand", color=(10, 130, 120))
+    dial.text(cx, cy + 0.009, "mmHg", 0.0026, fnt="label-semi", color=(60, 64, 68))
+    dial.text(cx, cy - 0.006, "NAYZEEE", 0.0022, fnt="label", color=(10, 130, 120))
     b.decal(dial, center=(gx, -0.008 + 0.0168, gz), normal=(0, 1, 0), up=(0, 0, 1), mats=["white_plastic"], depth=0.003)
     lab = DecalCanvas(0.12, 0.03, ppm=3000)
     lab.lockup(0.004, 0.003, 0.022, color=(235, 238, 240), sub_color=TEAL_HI)
     b.decal(lab, center=(0.0, 0.006, -0.03 - 0.02), normal=(0, 1, 0), up=(0, 0, 1), mats=["infuser_fabric"], depth=0.03, min_dot=0.2)
     tag = DecalCanvas(0.11, 0.024, ppm=3000)
-    tag.text(0.055, 0.012, "PRESSURE INFUSER  500 mL", 0.0058, fnt="brand", color=(235, 238, 240), spacing=0.0006, max_w=0.105)
+    tag.text(0.055, 0.012, "PRESSURE INFUSER  500 mL", 0.0058, fnt="label", color=(235, 238, 240), spacing=0.0006, max_w=0.105)
     b.decal(tag, center=(0.0, 0.004, zc - H / 2 + 0.003), normal=(0, 1, 0), up=(0, 0, 1), mats=["infuser_fabric"], depth=0.03, min_dot=0.2)
     b.col_box((-0.085, -0.03, zc - H / 2 - 0.01), (0.085, 0.03, -0.0), "CLOTH")
     b.col_box((-0.14, -0.03, zb - 0.1), (-0.06, 0.03, gz + 0.035), "RUBBER")

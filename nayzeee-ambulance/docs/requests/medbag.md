@@ -46,3 +46,17 @@ where the cot was.
 `medbag` must be usable without being consumed (`consume = 0`); `install/generate.lua` already writes
 that for every usable item. The item keeps its `bagId` in metadata (`description` shows the bag id,
 item count and weight).
+
+## 5. ARCHITECTURE §10.2 — documentation only (lead)
+
+§10.2 lists the medic bag among the v5 WINDOWS. To keep the bag on the floor visible and to stay
+clear of the reference product's layout (docs/design/ORIGINAL.md), the `medbag` app is built from HUD
+cards instead: a pockets dock on the left edge (+ quantity dial), the bag dock on the right edge
+(+ bag log) and a free centre. Please list it under the HUD overlays.
+
+## 6. config/props.lua — optional keys for the bag colours (lead)
+
+The four streamed colour variants are referenced in `Config.Medbag.Bag.colours`
+(`nz_amb_medbag_red | _orange | _green | _magenta`). If you prefer every model name in
+`config/props.lua`, add `medbag_orange`, `medbag_green`, `medbag_magenta` (and `medbag` = red) and
+the module config can point at `Config.Props.medbag_*` instead.

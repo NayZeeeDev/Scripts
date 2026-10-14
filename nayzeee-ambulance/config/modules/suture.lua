@@ -71,8 +71,8 @@ Config.Suture = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     irrigatedBelow = 10,     -- % contamination left that still counts as "irrigated"
-    minStitchQuality = 0,    -- lowest score that still closes the wound (0 = any finished closure)
-    lidocaineMinutes = 15,   -- how long the local anaesthetic numbs the wound
+    minStitchQuality = 0,    -- lowest stitch score that still closes the wound (0 = any finished closure)
+    -- (the local anaesthetic itself lasts as long as the core 'lidocaine' medication: 15 minutes)
 
     -- ═══════════════════════════════════════════════════════════════════════
     -- INTERACTION

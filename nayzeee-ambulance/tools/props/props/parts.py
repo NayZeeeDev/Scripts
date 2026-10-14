@@ -181,7 +181,7 @@ def ruler(w, h, step=0.01, ppm=3000, color=(24, 26, 28), numbers=10, start=0, un
         th = h * (0.55 if major else (0.38 if mid else 0.24))
         dc.rect(x - h * 0.012, 0, h * 0.024, th, color=color)
         if major and 0 < x < w - h * 0.4:
-            dc.text(x + h * 0.06, h * 0.78, str(start + (k // numbers) * unit_step), h * font_scale * 0.6, fnt="brand-semi",
+            dc.text(x + h * 0.06, h * 0.78, str(start + (k // numbers) * unit_step), h * font_scale * 0.6, fnt="label-semi",
                     anchor="lm", color=color)
     return dc
 
