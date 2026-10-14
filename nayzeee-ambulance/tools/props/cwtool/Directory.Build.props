@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    Set the environment variable NZA_CWTOOL_OUT to keep bin/ and obj/ outside the repository
+    (tools/props/build.py uses <work>/cwtool). Without it they land next to the project and are
+    ignored by tools/props/.gitignore.
+  -->
+  <PropertyGroup Condition="'$(NZA_CWTOOL_OUT)' != ''">
+    <BaseIntermediateOutputPath>$(NZA_CWTOOL_OUT)/obj/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(NZA_CWTOOL_OUT)/bin/</BaseOutputPath>
+  </PropertyGroup>
+</Project>
