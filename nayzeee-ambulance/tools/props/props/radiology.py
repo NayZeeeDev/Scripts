@@ -12,8 +12,8 @@ import numpy as np
 from nzprops import (AMBER, TEAL, TEAL_HI, DecalCanvas, box, catmull, cylinder, lathe, polyline_fillet, prop, quad, torus,
                      tube)
 
-from .common import (align, brand_canvas, button, knob, m_alu, m_black_plastic, m_chrome, m_gloss_black, m_led, m_rubber,
-                     m_teal, serial_label, text_canvas)
+from .common import (align, button, cal_sticker, caution_label, knob, label_canvas, m_alu, m_black_plastic,
+                     m_chrome, m_gloss_black, m_led, m_rubber, m_teal, rating_plate, screws, text_canvas)
 from .parts import (boost, caster, caster_top, collar, m_hosp_dark, m_hosp_grey, m_hosp_white, m_stainless, m_teal_led, m_vinyl,
                     pole, radiation_label, ruler, star_base, vents)
 from .screens import draw_angio_ui, draw_lightbox_panel
@@ -27,7 +27,7 @@ XR_TUBE = (0.0, 0.35)   # focal spot (x, y) over the table
 XR_COLLIMATOR_Z = 1.42  # bottom of the collimator
 
 
-@prop("nz_amb_xray_table", atlas=1024, lod=120, hd=18, static=True, falloff=70, preview={
+@prop("nz_amb_xray_table", atlas=2048, lod=120, hd=18, static=True, falloff=70, preview={
     "cams": [{"name": "detail", "pos": [0.75, 0.0, 1.62], "target": [0.0, 0.35, 1.52], "fov": 36}]}, doc={
     "title": "Radiography table + floor-rail X-ray tube stand",
     "origin": "floor, under the centre of the table top",
@@ -134,10 +134,9 @@ def xray_table(b):
     b.add(box((0.24, 0.24, 0.006), led, center=(tx, ty, zc0 + 0.004), faces="+x -x +y -y"))
 
     # ---- decals -------------------------------------------------------------------------------
-    vb = brand_canvas(0.62, 0.10, ppm=1400, color=(236, 240, 242), sub_color=TEAL_HI)
+    vb = label_canvas(0.62, 0.10, "RADIOGRAPHY", "RT-4  ·  FLOOR RAIL TUBE STAND", ppm=1800, color=(236, 240, 242), sub_color=TEAL_HI)
     b.decal(vb, center=(cx + 0.1151, cy - 0.02, 1.12), normal=(1, 0, 0), up=(0, -1, 0), mats=["hosp_dark"], depth=0.008)
-    lab = DecalCanvas(0.30, 0.05, ppm=1600)
-    lab.lockup(0.004, 0.006, 0.038, color=(40, 44, 48), sub_color=TEAL, sub="RADIOGRAPHY")
+    lab = label_canvas(0.30, 0.05, "RADIOGRAPHY TABLE", "RT-4  ·  FLOATING TOP", ppm=2200, color=(40, 44, 48), sub_color=TEAL)
     b.decal(lab, center=(0.0, -0.05 + 0.4201, 0.50), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
     b.decal(lab, center=(0.2601, -0.05, 0.50), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
     scr = DecalCanvas(0.18, 0.09, ppm=2600)
@@ -160,12 +159,15 @@ def xray_table(b):
     rr = ruler(2.2, 0.04, step=0.05, ppm=900, numbers=2, start=0, unit_step=10)
     b.decal(rr, center=(cx + 0.055, 0.0, 0.0301), normal=(0, 0, 1), up=(1, 0, 0), mats=["alu"], depth=0.004)
     pend = DecalCanvas(0.05, 0.03, ppm=6000)
-    pend.mark(0.002, 0.002, 0.009)
-    pend.text(0.014, 0.0065, "TABLE", 0.0045, fnt="label", anchor="lm", color=(230, 234, 236))
+    pend.text(0.003, 0.0065, "TABLE", 0.0045, fnt="label", anchor="lm", color=(230, 234, 236))
     pend.text(0.025, 0.022, "UP  ·  DOWN  ·  FLOAT", 0.0028, fnt="label-semi", color=(160, 168, 172))
     b.decal(pend, center=(0.42, -0.8771, 0.665), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.004)
-    b.decal(serial_label(0.10, 0.035, "RAD TABLE  NZ-RT4", "MAX 230 kg"), center=(-0.2601, -0.05, 0.25), normal=(-1, 0, 0),
-            up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
+    b.decal(rating_plate(0.10, 0.035, "RADIOGRAPHY TABLE", "RT-4", "SN 26-04230", rating="400 V 3~  50/60 Hz  ·  SWL 230 kg",
+                         ppm=3500), center=(-0.2601, -0.05, 0.25), normal=(-1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
+    b.decal(caution_label(0.10, 0.045, "CAUTION", ["X-RAY  -  authorised operators only", "Keep clear of moving parts"], ppm=3000),
+            center=(cx + 0.1101, cy - 0.02, 0.40), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_dark"], depth=0.01)
+    b.decal(cal_sticker(0.03, 0.018, title="QA TESTED"), center=(-0.2601, -0.05, 0.33), normal=(-1, 0, 0), up=(0, 0, 1),
+            mats=["hosp_white"], depth=0.02)
 
     # texel budget: what the camera sees (top, tube head, column face) gets the texels
     for c in b.geo.charts:
@@ -191,7 +193,7 @@ LB_PANEL = (0.60, 0.75)
 LB_Y = 0.1465           # light panel plane
 
 
-@prop("nz_amb_lightbox", atlas=512, lod=80, hd=12, static=True, doc={
+@prop("nz_amb_lightbox", atlas=1024, lod=80, hd=12, static=True, doc={
     "title": "X-ray film viewer (lightbox) on a rolling stand",
     "origin": "floor, on the stand's pole axis",
     "axes": "+Y = light panel side (front), +Z up",
@@ -249,8 +251,7 @@ def lightbox(b):
     b.decal(vents(0.30, 0.05, 10, vertical=True), center=(0, 0.0699, LB_Z + 0.33), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
     cab = catmull([(0.12, 0.07, 1.10), (0.12, 0.02, 1.0), (0.05, -0.01, 0.8), (0.03, -0.022, 0.5), (0.05, -0.04, 0.2), (0.15, -0.05, 0.12)], n=6)
     b.add(tube(cab, 0.004, m_black_plastic(b), segs=8))
-    dc = DecalCanvas(0.40, 0.03, ppm=2600)
-    dc.lockup(0.002, 0.003, 0.024, color=(222, 228, 230), sub_color=TEAL_HI, sub="FILM VIEWER")
+    dc = label_canvas(0.40, 0.03, "FILM VIEWER", "LB-1  ·  DAYLIGHT 6500 K", ppm=3000, color=(60, 64, 70), sub_color=(20, 120, 112))
     b.decal(dc, center=(-0.12, yf + 0.0001, zb), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.008)
     leg = DecalCanvas(0.06, 0.012, ppm=6000)
     leg.text(0.03, 0.006, "BRIGHTNESS", 0.003, fnt="label-semi", color=(80, 88, 94))
@@ -270,7 +271,7 @@ INJ_TRAVEL = 0.20       # plunger travel along -X (full -> empty)
 INJ_SLEEVE_X = 0.078    # front of the ram sleeve
 
 
-@prop("nz_amb_injector", atlas=1024, alpha_atlas=512, lod=70, hd=12, static=True, falloff=80, preview={
+@prop("nz_amb_injector", atlas=2048, alpha_atlas=512, lod=70, hd=12, static=True, falloff=80, preview={
     "cams": [{"name": "detail", "pos": [-0.15, 0.55, 1.35], "target": [0.05, 0.05, 1.03], "fov": 40}]}, doc={
     "title": "Contrast power injector on a mobile pole tray",
     "origin": "floor, under the centre of the tray",
@@ -362,9 +363,9 @@ def injector(b):
 
     # ---- decals -----------------------------------------------------------------------------------------
     hd = DecalCanvas(0.15, 0.15, ppm=3000)
-    hd.mark(0.016, 0.016, 0.03)
-    hd.text(0.056, 0.026, "NAYZEEE", 0.011, fnt="label", anchor="lm", color=(36, 40, 44), spacing=0.0015)
-    hd.text(0.056, 0.042, "INJECT CT", 0.007, fnt="label-semi", anchor="lm", color=TEAL, spacing=0.001)
+    hd.star_of_life(0.031, 0.031, 0.03, color=(40, 110, 210))
+    hd.text(0.056, 0.026, "CT INJECTOR", 0.0095, fnt="label", anchor="lm", color=(36, 40, 44), spacing=0.001, max_w=0.09)
+    hd.text(0.056, 0.042, "CI-2  ·  SINGLE HEAD", 0.0062, fnt="label-semi", anchor="lm", color=TEAL, spacing=0.0006, max_w=0.09)
     b.decal(hd, center=(0.255, 0.1301, zp + 0.12), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
     b.decal(vents(0.12, 0.10, 6), center=(0.3401, 0.05, zp + 0.11), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
     lcd = DecalCanvas(0.10, 0.06, ppm=3600)
@@ -392,8 +393,8 @@ def injector(b):
     warn = text_canvas([("CONTRAST", 0.05, 0.03, 0.009, "label", (255, 255, 255), "mm", 0.001),
                         ("HIGH PRESSURE", 0.05, 0.06, 0.0065, "label-semi", (255, 255, 255), "mm", 0.0005)], 0.10, 0.09, ppm=3000)
     b.decal(warn, center=(0.1141, py - 0.10, 0.725), normal=(1, 0, 0), up=(0, 0, 1), mats=["warn_orange"], depth=0.004)
-    b.decal(serial_label(0.07, 0.025, "INJECT CT  NZ-IJ2", "SN 2026-0880"), center=(0.255, -0.0301, zp + 0.10), normal=(0, -1, 0),
-            up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
+    b.decal(rating_plate(0.07, 0.025, "CONTRAST INJECTOR", "CI-2", "SN 26-08802", rating="100-240 V~  50/60 Hz  2.0 A"),
+            center=(0.255, -0.0301, zp + 0.10), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
 
     boost(b, 3.0, mats=["gloss_black", "warn_orange"])
     boost(b, 1.5, mats=["hosp_white"], zmin=INJ_TRAY_Z)
@@ -404,7 +405,7 @@ def injector(b):
     b.col_box((-0.30, py - 0.33, 0.0), (0.30, py + 0.33, zc + 0.05), "METAL_HOLLOW_SMALL")
 
 
-@prop("nz_amb_injector_plunger", atlas=128, lod=30, hd=5, doc={
+@prop("nz_amb_injector_plunger", atlas=256, lod=30, hd=5, doc={
     "title": "Power-injector syringe plunger + ram (moving part of nz_amb_injector)",
     "origin": "the plunger face (front of the rubber stopper) on the syringe axis",
     "axes": "ram runs along +X back into the injector head; the plunger pushes towards -X",
@@ -422,7 +423,12 @@ def injector_plunger(b):
                  (0.0, 0.016)], stopper, segs=36, smooth_angle=40).rotate(0, 90, 0))
     b.add(cylinder(0.012, 0.02, white, segs=20, z0=0.016).rotate(0, 90, 0))
     b.add(cylinder(0.027, 0.008, dark, segs=28, bevel=0.002, z0=0.036).rotate(0, 90, 0))
-    b.add(cylinder(0.008, 0.26, chrome, segs=14, z0=0.044).rotate(0, 90, 0))
+    b.add(cylinder(0.008, 0.26, chrome, segs=16, z0=0.044).rotate(0, 90, 0))
+    knurl = b.mat("ram_knurl", color=(140, 144, 150), spec=0.75, gloss=0.55, metal=1.0, bump="knurl", bump_amp=0.0001,
+                  bump_scale=0.0014, edge=0.4)
+    b.add(cylinder(0.0105, 0.03, knurl, segs=20, bevel=0.0015, z0=0.27).rotate(0, 90, 0))
+    for x in (0.10, 0.18):
+        b.add(cylinder(0.0086, 0.002, dark, segs=16, caps=(False, False), z0=x).rotate(0, 90, 0))
     b.col_cyl((0.15, 0.0, 0.0), 0.02, 0.3, "x", "PLASTIC")
 
 
@@ -432,7 +438,7 @@ def injector_plunger(b):
 BTN_TOP = 1.012
 
 
-@prop("nz_amb_contrast_button", atlas=512, lod=60, hd=10, static=True, preview={
+@prop("nz_amb_contrast_button", atlas=1024, lod=60, hd=10, static=True, preview={
     "cams": [{"name": "detail", "pos": [0.0, 0.32, 1.20], "target": [0.0, 0.0, 0.96], "fov": 34}]}, doc={
     "title": "Contrast-run pedestal: big red mushroom button on a teal housing",
     "origin": "floor, on the pedestal axis",
@@ -493,7 +499,8 @@ def contrast_button(b):
     top.text(0.105, 0.084, "ARMED", 0.0055, fnt="label", color=(200, 206, 210))
     top.text(0.015, 0.084, "KEY", 0.0055, fnt="label", color=(200, 206, 210))
     b.decal(top, center=(0, -0.004, z1 + 0.0051), normal=(0, 0, 1), up=(0, -1, 0), mats=["btn_plate"], depth=0.003)
-    bd = brand_canvas(0.12, 0.022, ppm=3600, color=(255, 255, 255), sub_color=(220, 250, 246))
+    bd = label_canvas(0.12, 0.022, "CONTRAST", "INJECT SWITCH  CB-1", ppm=4500, color=(255, 255, 255), sub_color=(220, 250, 246),
+                      icon=None)
     b.decal(bd, center=(0, -0.0701, (z0 + z1) / 2), normal=(0, -1, 0), up=(0, 0, 1), mats=["teal"], depth=0.01)
     boost(b, 3.0, mats=["btn_plate"])
     boost(b, 2.5, mats=["teal"], zmin=0.89)
@@ -510,7 +517,7 @@ AM_Z = 1.55
 AM_Y = 0.62
 
 
-@prop("nz_amb_angio_monitor", atlas=1024, lod=100, hd=15, static=True, doc={
+@prop("nz_amb_angio_monitor", atlas=2048, lod=100, hd=15, static=True, doc={
     "title": "Fluoroscopy monitor on a boom stand",
     "origin": "floor, on the boom column axis",
     "axes": "boom reaches +Y over the table side; screen faces +Y; +Z up",
@@ -567,14 +574,18 @@ def angio_monitor(b):
                    (0.06, 0.1, za - 0.055), (0.06, 0.08, 1.9), (0.08, 0.06, 1.2), (0.09, 0.04, 0.4), (0.15, 0.02, zb)], n=6)
     b.add(tube(cab, 0.006, blk, segs=8))
     # decals
-    bd = brand_canvas(0.20, 0.024, ppm=3000, color=(222, 228, 230), sub_color=TEAL_HI, sub="ANGIO")
+    bd = label_canvas(0.20, 0.024, "FLUORO DISPLAY", "FD-55  ·  MEDICAL GRADE", ppm=3500, color=(222, 228, 230), sub_color=TEAL_HI,
+                      icon=None)
     b.decal(bd, center=(0, yf + 0.0001, AM_Z - H / 2 + 0.017), normal=(0, 1, 0), up=(0, 0, 1), mats=["monitor_bezel"], depth=0.006)
-    vb = brand_canvas(0.40, 0.07, ppm=1600, color=(46, 50, 54), sub_color=TEAL)
+    vb = label_canvas(0.40, 0.07, "FD-55 BOOM", "MAX ARM LOAD 25 kg", ppm=2000, color=(46, 50, 54), sub_color=TEAL)
     b.decal(vb, center=(0.0, 0.0751, 1.45), normal=(0, 1, 0), up=(1, 0, 0), mats=["hosp_white"], depth=0.03)
     b.decal(vents(0.60, 0.30, 8), center=(0, AM_Y - D / 2 - 0.0001, AM_Z + 0.08), normal=(0, -1, 0), up=(0, 0, 1),
             mats=["monitor_bezel"], depth=0.005)
-    b.decal(serial_label(0.08, 0.03, "FLUORO 55  NZ-AM1", "SN 2026-2201"), center=(0, AM_Y - D / 2 - 0.0001, AM_Z - 0.18),
-            normal=(0, -1, 0), up=(0, 0, 1), mats=["monitor_bezel"], depth=0.005)
+    b.decal(rating_plate(0.08, 0.03, "FLUORO DISPLAY", "FD-55", "SN 26-22015", rating="24 V DC  6.0 A"),
+            center=(0, AM_Y - D / 2 - 0.0001, AM_Z - 0.18), normal=(0, -1, 0), up=(0, 0, 1), mats=["monitor_bezel"], depth=0.005)
+    b.decal(cal_sticker(0.028, 0.017), center=(0.1, AM_Y - D / 2 - 0.0001, AM_Z - 0.18), normal=(0, -1, 0), up=(0, 0, 1),
+            mats=["monitor_bezel"], depth=0.005)
+    b.add(screws(b, [(sx * 0.42, AM_Y - D / 2, AM_Z + sz * 0.24) for sx in (-1, 1) for sz in (-1, 1)], (0, -1, 0), d=0.007, segs=12))
     for c in b.geo.charts:
         if float(c.pos[:, 2].max()) < 0.3:
             c.density *= 0.5

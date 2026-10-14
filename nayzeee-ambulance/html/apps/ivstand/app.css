@@ -47,7 +47,7 @@
 #app-ivstand .iv-vit .map.teal b{color:var(--teal-hi)}
 #app-ivstand .iv-vit .map.amber b{color:#f3c35a}
 #app-ivstand .iv-vit .map.red b{color:#ff7478}
-#app-ivstand .iv-blood{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px;align-items:end;padding:10px 16px 11px 18px;border-bottom:1px solid var(--line-hair)}
+#app-ivstand .iv-blood{display:grid;grid-template-columns:1.7fr 1fr .9fr .9fr;gap:12px;align-items:end;padding:10px 16px 11px 18px;border-bottom:1px solid var(--line-hair)}
 #app-ivstand .iv-blood .l{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
 #app-ivstand .iv-blood .bv .mtr{margin-bottom:3px}
 #app-ivstand .iv-blood span{font:700 8.5px var(--font);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
@@ -71,8 +71,43 @@
 #app-ivstand .iv-hook .hh .st.teal{color:var(--teal-hi);background:var(--teal-wash)}
 #app-ivstand .iv-hook .hh .st.red{color:#fff;background:var(--red);animation:nza-blink 1.2s steps(1) infinite}
 #app-ivstand .iv-hook .hh .st.amber{color:#f3c35a;background:var(--amber-wash)}
-#app-ivstand .iv-hook .hb{display:grid;grid-template-columns:56px 1fr;gap:10px;align-items:center}
+#app-ivstand .iv-hook .hb{display:grid;grid-template-columns:58px 1fr;gap:10px;align-items:start}
+#app-ivstand .iv-hook .rig{position:relative;display:flex;flex-direction:column;align-items:center}
 #app-ivstand .iv-hook .bag{display:grid;place-items:center;filter:drop-shadow(0 5px 8px rgba(0,0,0,.5))}
+/* pressure infuser sleeve: a mesh bladder around the bag that swells with the pressure */
+#app-ivstand .iv-hook .cuff{position:absolute;left:3px;right:3px;top:22px;height:52px;border-radius:7px;opacity:0;pointer-events:none;
+  transform:scaleX(calc(1 + var(--cp) * .1));transition:opacity 200ms,transform 120ms;
+  background:repeating-linear-gradient(45deg,rgba(15,212,196,.16) 0 2px,transparent 2px 5px),repeating-linear-gradient(-45deg,rgba(15,212,196,.16) 0 2px,transparent 2px 5px),rgba(8,40,40,.35);
+  border:1.5px solid rgba(15,212,196,calc(.35 + var(--cp) * .6));box-shadow:0 0 calc(var(--cp) * 12px) rgba(15,212,196,.45)}
+#app-ivstand .iv-hook .cuff.on{opacity:calc(.35 + var(--cp) * .65)}
+#app-ivstand .iv-hook .cuff.over{border-color:#ff5a60;box-shadow:0 0 12px rgba(229,72,77,.6)}
+#app-ivstand .iv-hook .cuff i{position:absolute;right:-6px;top:14px;width:9px;height:14px;border-radius:3px;background:linear-gradient(#2a3036,#15181b);border:1px solid rgba(255,255,255,.25)}
+/* drip chamber under the bag: spike, glass chamber with the drops, line */
+#app-ivstand .iv-hook .drip{position:relative;display:flex;flex-direction:column;align-items:center;margin-top:-1px;--liq:#a41b24;--liq2:rgba(164,27,36,.85)}
+#app-ivstand .iv-hook .rig.saline .drip{--liq:rgba(170,220,236,.75);--liq2:rgba(170,220,236,.35)}
+#app-ivstand .iv-hook .drip .spk{width:3px;height:5px;background:linear-gradient(90deg,#9aa1a6,#e7ebee,#9aa1a6);border-radius:0 0 1px 1px}
+#app-ivstand .iv-hook .drip .ch{position:relative;width:13px;height:27px;border-radius:3px 3px 5px 5px;overflow:hidden;
+  background:linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 35%,rgba(255,255,255,.02) 65%,rgba(255,255,255,.14));
+  border:1px solid rgba(235,240,242,.45);box-shadow:inset 0 0 4px rgba(0,0,0,.4)}
+#app-ivstand .iv-hook .drip .pool{position:absolute;left:0;right:0;bottom:0;height:9px;background:var(--liq);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+#app-ivstand .iv-hook .drip .dr{position:absolute;left:50%;top:1px;width:4px;height:5px;margin-left:-2px;border-radius:50% 50% 50% 50%/40% 40% 60% 60%;background:var(--liq);opacity:0}
+#app-ivstand .iv-hook .drip.run .dr{animation:iv-drop var(--dd) cubic-bezier(.55,0,.9,.5) infinite}
+@keyframes iv-drop{0%{transform:translateY(0) scale(.4);opacity:.9}35%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(17px) scale(1,1.15);opacity:1}}
+#app-ivstand .iv-hook .drip .st2{position:absolute;left:50%;top:1px;bottom:8px;width:2px;margin-left:-1px;border-radius:2px;opacity:0;
+  background:repeating-linear-gradient(180deg,var(--liq) 0 3px,var(--liq2) 3px 5px);background-size:2px 10px}
+#app-ivstand .iv-hook .drip.stream .st2{opacity:1;animation:iv-stream .35s linear infinite}
+@keyframes iv-stream{from{background-position:0 0}to{background-position:0 10px}}
+#app-ivstand .iv-hook .drip.stream .pool{animation:iv-ripple .5s ease-in-out infinite alternate}
+@keyframes iv-ripple{from{height:9px}to{height:10px}}
+#app-ivstand .iv-hook .drip .ln{width:3px;height:14px;border-radius:0 0 2px 2px;background:rgba(235,240,242,.18);position:relative;overflow:hidden}
+#app-ivstand .iv-hook .drip.run .ln,#app-ivstand .iv-hook .drip.stream .ln{background:repeating-linear-gradient(180deg,var(--liq) 0 4px,var(--liq2) 4px 7px);background-size:3px 14px;animation:iv-line 1.1s linear infinite}
+@keyframes iv-line{from{background-position:0 0}to{background-position:0 14px}}
+/* ECG strip under the numbers */
+#app-ivstand .iv-trace{position:relative;height:34px;background:#020303;border-bottom:1px solid var(--line-hair)}
+#app-ivstand .iv-trace canvas{display:block;width:100%;height:100%}
+#app-ivstand .iv-trace span{position:absolute;top:4px;font:700 8px var(--font);letter-spacing:.14em;text-transform:uppercase;color:rgba(61,220,132,.65)}
+#app-ivstand .iv-trace .tl{left:10px}
+#app-ivstand .iv-trace .tr2{right:10px}
 #app-ivstand .iv-hook .info{min-width:0;display:flex;flex-direction:column;gap:4px}
 #app-ivstand .iv-hook .info > b{font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #app-ivstand .iv-hook .info > small{font:500 10px var(--mono);color:var(--ink-3);letter-spacing:.06em;margin-top:-2px}
@@ -149,7 +184,8 @@
 #app-ivstand .iv-txa.none{opacity:.55}
 
 /* alerts (glowing-bar notes) */
-#app-ivstand .iv-alerts{display:flex;flex-direction:column;gap:7px;padding:0 14px 10px}
+#app-ivstand .iv-alerts{display:flex;flex-direction:column;gap:7px;padding:0 14px 10px;flex:0 1 auto;min-height:0;overflow-y:auto}
+#app-ivstand .iv-panel > *:not(.iv-alerts):not(.iv-pick){flex:none}
 #app-ivstand .iv-note{position:relative;display:flex;align-items:center;gap:10px;padding:9px 10px 9px 12px;border-radius:10px;background:var(--inset);border:1px solid var(--line-hair);--nc:var(--teal);--nr:8,175,162}
 #app-ivstand .iv-note::before{content:'';position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--nc);box-shadow:0 0 10px var(--nc)}
 #app-ivstand .iv-note.red{--nc:#e5484d;--nr:229,72,77;background:linear-gradient(90deg,rgba(229,72,77,.08),var(--inset) 70%)}
@@ -198,5 +234,5 @@
 #app-ivstand .pk-empty{padding:12px;border-radius:10px;border:1px dashed rgba(255,255,255,.12);font-size:11.5px;color:var(--ink-3);text-align:center}
 
 @media (prefers-reduced-motion: reduce){
-  #app-ivstand .iv-panel,#app-ivstand .iv-squeeze.hit,#app-ivstand .iv-hook .hh .st.red{animation:none}
+  #app-ivstand .iv-panel,#app-ivstand .iv-squeeze.hit,#app-ivstand .iv-hook .hh .st.red,#app-ivstand .iv-hook .drip .dr,#app-ivstand .iv-hook .drip .st2,#app-ivstand .iv-hook .drip .ln,#app-ivstand .iv-hook .drip .pool{animation:none}
 }

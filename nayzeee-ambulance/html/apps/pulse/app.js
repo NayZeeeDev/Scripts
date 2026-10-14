@@ -57,6 +57,14 @@
     const d = Math.exp(-(t - 120) / 170);
     return d + 0.22 * Math.exp(-(((t - 330) / 45) ** 2)) * d * 2.2;
   }
+  // verdict glyphs: beat spacing (rhythm) and wave height (strength)
+  const GLYPH = {
+    1: 'M1 10h3l1.5-7 1.5 7h4l1.5-7 1.5 7h4l1.5-7 1.5 7h3',
+    2: 'M1 10h2l1.5-7 1.5 7h8l1.5-7 1.5 7h.5l1.5-7 1.5 7h3',
+    3: 'M1 10c2.2 0 2.2-2 4.4-2s2.2 2 4.4 2 2.2-2 4.4-2 2.2 2 4.4 2 2.2-2 4.4-2',
+    4: 'M1 10c2.2 0 2.2-5 4.4-5s2.2 5 4.4 5 2.2-5 4.4-5 2.2 5 4.4 5 2.2-5 4.4-5',
+    5: 'M1 12c2.2 0 2.2-11 4.4-11s2.2 11 4.4 11 2.2-11 4.4-11 2.2 11 4.4 11 2.2-11 4.4-11',
+  };
   const ringSvg = (p, r, box, cls = '') => {
     const C = 2 * Math.PI * r;
     return `<svg class="rs ${cls}" viewBox="0 0 ${box} ${box}"><circle class="bg" cx="${box / 2}" cy="${box / 2}" r="${r}"/><circle class="fg" cx="${box / 2}" cy="${box / 2}" r="${r}" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${(C * (1 - clamp(p, 0, 1))).toFixed(2)}"/></svg>`;
@@ -102,6 +110,7 @@
       this.done = false; this.finished = false;
       this.lastFelt = -1; this.flashAt = -1e9;
       this.debWrap.innerHTML = '';
+      this.el.classList.remove('pz-res');
       if (this.pp) this.pp.destroy();
       this.buildPanel();
       this.bindKeys();
@@ -189,7 +198,7 @@
         row(this.step === 2 ? 't-amber' : '', T('sc_window', 'Timer'), `${Math.ceil(left)} s`);
     },
     renderVerdict() {
-      const opt = (n, label, on) => `<button data-n="${n}" class="${on ? 'on' : ''}"><kbd>${n}</kbd><span>${esc(label)}</span></button>`;
+      const opt = (n, label, on) => `<button data-n="${n}" class="${on ? 'on' : ''}"><kbd>${n}</kbd><svg class="gl" viewBox="0 0 26 14"><path d="${GLYPH[n]}"/></svg><span>${esc(label)}</span></button>`;
       this.slot.querySelector('.pz-verdict').innerHTML = `
         <div class="vr"><span class="vl">${esc(T('row_rhythm', 'Rhythm'))}</span><div class="opts n2">${opt(1, T('rhythm_regular', 'Regular'), this.rhythm === 'regular')}${opt(2, T('rhythm_irregular', 'Irregular'), this.rhythm === 'irregular')}</div></div>
         <div class="vr"><span class="vl">${esc(T('row_strength', 'Strength'))}</span><div class="opts n3">${opt(3, T('strength_weak', 'Weak'), this.strength === 'weak')}${opt(4, T('strength_normal', 'Normal'), this.strength === 'normal')}${opt(5, T('strength_bounding', 'Bounding'), this.strength === 'bounding')}</div></div>`;
@@ -219,10 +228,15 @@
       return { cap: T('cap_nothing', 'No beat yet'), tone: '' };
     },
     dial() {
+      if (this.step === 3) {
+        const r = this.rate();
+        return { label: T('st_rate', 'Your rate'), value: String(r), unit: T('bpm', 'bpm'), meter: { value: clamp(r / 200, 0, 1), tone: '' },
+          caption: T('cap_rate', '%s beats in %s s', this.taps.length, this.d.countSeconds || 15), captionTone: 'teal' };
+      }
       const p = this.pressure, occ = this.occluded(this.site, p), c = this.contact();
       return {
-        label: T('st_pressure', 'Finger pressure'), value: String(Math.round(p * 100)), unit: '%',
-        meter: { value: p, mark: p, tone: occ ? 'amber' : (c.tone === 'teal' ? '' : 'white') },
+        label: T('st_pressure', 'Pressure'), value: String(Math.round(p * 100)), unit: '%',
+        meter: { value: p, tone: occ ? 'amber' : (c.tone === 'teal' ? '' : 'white') },
         caption: `${this.pressWord(p)} · ${c.cap}`, captionTone: c.tone,
       };
     },
@@ -236,13 +250,14 @@
         s.push({ id: 'count', label: T('st_counted', 'Beats'), value: this.taps.length });
         s.push({ id: 'left', label: T('st_left', 'Time left'), value: Math.ceil(left), unit: 's', tone: 'amber' });
       } else {
+        const off = (this.tapMarks || []).filter(t => !t.good).length;
         s.push({ id: 'count', label: T('st_counted', 'Beats'), value: this.taps.length });
-        s.push({ id: 'rate', label: T('st_rate', 'Your rate'), value: this.rate(), unit: T('bpm', 'bpm'), tone: 'teal' });
+        s.push({ id: 'off', label: T('sc_off', 'Between beats'), value: off, tone: off ? 'amber' : '' });
       }
       return s;
     },
     hints() {
-      if (this.step === 3) return [{ keys: ['1', '2'], label: T('h_rhythm', 'rhythm') }, { keys: ['3', '4', '5'], label: T('h_strength', 'strength') }];
+      if (this.step === 3) return [{ keys: ['1-2'], label: T('h_rhythm', 'rhythm') }, { keys: ['3-5'], label: T('h_strength', 'strength') }, { keys: ['R'], label: T('h_recount', 'count again') }];
       if (this.step === 2) return [{ keys: ['Space'], label: T('h_beat', 'on every beat') }, { keys: ['Scroll'], label: T('h_hold', 'keep the pressure') }];
       return [{ keys: ['Scroll'], label: T('h_press', 'finger pressure') }, { keys: ['↑', '↓'], label: T('h_fine', 'fine adjust') }];
     },
@@ -556,6 +571,7 @@
     showResult(o) {
       if (this.finished) return;
       this.finished = true;
+      this.el.classList.add('pz-res');
       const r = o.rows || {};
       const score = clamp(Math.round(o.score ?? 0), 0, 100);
       const tone = score >= 75 ? 'teal' : score >= 50 ? 'amber' : 'red';
@@ -607,6 +623,10 @@
       if (score >= 75) NZA.audio.success(); else NZA.audio.fail();
       this.slot && this.slot.classList.add('gone');
       this.pp.complete({ title: T('complete', 'Check finished'), text: T('complete_text', 'Your debrief is on the right. {Enter} when you are ready.'), label: T('done', 'Done'), onDone: () => this.closeNow() });
+      const mine = [`${this.rate()} ${T('bpm', 'bpm')}`, this.rhythm ? T(`rhythm_${this.rhythm}`, this.rhythm) : '', this.strength ? T(`strength_${this.strength}`, this.strength) : ''].filter(Boolean).join(' · ');
+      this.pp.flash(tone === 'teal' ? 'ok' : tone === 'amber' ? 'warn' : 'bad', T('your_call', 'Your call: %s', this.none.carotid ? T('finding_pulseless', 'No pulse') : mine), 0);
+      // the debrief owns the right edge now: drop the cancel ring (Esc still closes)
+      this.pp.set({ abort: false, hints: [{ keys: ['Enter'], label: T('h_done', 'done') }, { keys: ['ESC'], label: T('h_close', 'close') }] });
     },
 
     /* ── browser preview ── */

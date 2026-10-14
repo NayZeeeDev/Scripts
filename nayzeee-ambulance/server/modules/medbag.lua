@@ -18,7 +18,8 @@
 
     Callbacks (lib.callback) - every reply is a table { ok = true, ... } | { ok = false, err, msg }
       nza:medbag:put (token|nil, coords, heading)   item → ground (token from the usable item) or hand → ground
-      nza:medbag:open (id|nil)                      → { bag, me, kit }   (nil id = the bag in your hand)
+      nza:medbag:open (id|nil)                      → { bag, me, kit = { { name, label, image, count } }, colours }
+                                                     (nil id = the bag in your hand; kit = the par list)
       nza:medbag:move (id, { dir = 'in'|'out'|'bag', from, to?, count = n|'all', name })
                                                      → { bag, me, moved = { name, label, image, count, dir } }
       nza:medbag:action (id, 'sort'|'lock'|'kit'|'empty'|'style', data) → { bag, me, movedList = { ... }, msg }
@@ -874,9 +875,18 @@ function MB.ColourView()
     return out
 end
 
-local function kitAvailable()
-    local kit = C('Storage').kit
-    return type(kit) == 'table' and #kit > 0
+-- the par list (restock targets) as the window shows it; only items a bag may hold
+local function kitView()
+    local out, seen = {}, {}
+    for _, k in ipairs(C('Storage').kit or {}) do
+        local name, count = k.item, math.floor(tonumber(k.count) or 0)
+        if type(name) == 'string' and count > 0 and allowed(name) and not seen[name] then
+            seen[name] = true
+            local i = info(name)
+            out[#out + 1] = { name = name, label = i.label, image = i.image, count = count }
+        end
+    end
+    return out
 end
 
 lib.callback.register('nza:medbag:open', function(src, id)
@@ -891,7 +901,7 @@ lib.callback.register('nza:medbag:open', function(src, id)
     local okA, why = MB.CanAccess(src, bag)
     if not okA then return accessFail(why, bag) end
     addViewer(src, id)
-    return { ok = true, bag = MB.BagView(bag, src), me = MB.MeView(src), kit = kitAvailable(), colours = MB.ColourView() }
+    return { ok = true, bag = MB.BagView(bag, src), me = MB.MeView(src), kit = kitView(), colours = MB.ColourView() }
 end)
 
 -- pockets refresh while the window is open (items that arrived from elsewhere)

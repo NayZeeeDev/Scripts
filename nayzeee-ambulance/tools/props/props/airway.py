@@ -11,8 +11,8 @@ import numpy as np
 from nzprops import (TEAL, DecalCanvas, box, catmull, cylinder, lathe, polyline_fillet, prop, rrect, sphere, sweep, torus,
                      tube)
 
-from .common import (align, asset_tag, cal_sticker, caution_label, knob, label_canvas, led_lens, m_chrome, m_gloss_black,
-                     m_led, m_rubber, m_teal, m_white_plastic, rating_plate, screws, strain_relief)
+from .common import (align, cal_sticker, caution_label, knob, label_canvas, m_chrome, m_gloss_black,
+                     m_led, m_rubber, m_teal, m_white_plastic, rating_plate, screws)
 from .parts import boost, m_hosp_dark, m_hosp_grey, m_hosp_white, vents
 
 

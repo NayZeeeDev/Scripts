@@ -13,7 +13,7 @@ import numpy as np
 
 from nzprops import (DecalCanvas, Geo, box, catmull, cylinder, extrude, lathe, prop, rrect, sphere, sweep, torus, tube)
 
-from .common import (align, caution_label, label_canvas, m_black_plastic, m_chrome, m_led, m_rubber, m_steel, rating_plate,
+from .common import (align, caution_label, label_canvas, m_chrome, m_led, m_rubber, m_steel, rating_plate,
                      screw, strain_relief)
 
 YZ_FROM_XY = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]], dtype=float)  # 2D (x, y) -> (Y, Z), extrusion -> X

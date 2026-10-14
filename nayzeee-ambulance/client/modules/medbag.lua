@@ -5,7 +5,9 @@
     Target options on the bag model (Bridge.Target.Model, every medbag model incl. fallbacks):
     Open medical bag · Carry medical bag · Pick up medical bag. While carrying: [G] put it down,
     [E] open it, [H] pack it away (keys in Config.Medbag.Bag.Carry.keys).
-    The storage window is the NUI app 'medbag' (HUD side panels); every move goes to the server.
+    The storage window is the NUI app 'medbag' (mode 'bag': pockets dock + the open bag drawn from
+    above with compartments and par levels); every move goes to the server. The same app shows the
+    body bag zip-up card and the toe tag (medbag_body.lua): MB.UIMode = 'bag' | 'zip' | 'tag' | nil.
 
       NZA.Medbag.Open(id|nil)     open a bag (nil = the one in your hand)
       NZA.Medbag.Carry(id)        pick a ground bag up into your hand
@@ -157,15 +159,35 @@ local function bagHeading(h) return (h + 180.0) % 360.0 end
 -- OPEN / NUI
 -- ════════════════════════════════════════════════════════════════════════
 
+-- the compartments of the open bag (Config.Medbag.Storage.compartments) with their labels
+local function layout()
+    local out = {}
+    local list = C('Storage').compartments
+    if type(list) ~= 'table' then return out end
+    for _, c in ipairs(list) do
+        if type(c) == 'table' and tonumber(c.slots) and c.place then
+            local id = c.id or c.place
+            local key = 'medbag.cmp_' .. id
+            local label = NZA.L(key)
+            if label == key then label = c.label or id end
+            out[#out + 1] = { id = id, place = c.place, slots = math.floor(tonumber(c.slots)), cols = tonumber(c.cols), label = label }
+        end
+    end
+    return out
+end
+
 function MB.Open(id)
     if S.open then return end
     if down() then return end
+    if MB.BodyState and MB.BodyState.busy then return end
     if IsPedInAnyVehicle(PlayerPedId(), false) then return toast(L('err_vehicle'), 'error') end
     local res = lib.callback.await('nza:medbag:open', false, id)
     if type(res) ~= 'table' or not res.ok then return err(res) end
     S.open = res.bag.id
+    MB.UIMode = 'bag'
     NZA.UI.Open('medbag', {
-        locale = NZA.LocaleTable('medbag'), bag = res.bag, me = res.me, kit = res.kit, colours = res.colours,
+        mode = 'bag', locale = NZA.LocaleTable('medbag'), bag = res.bag, me = res.me, kit = res.kit, colours = res.colours,
+        layout = layout(),
     }, { focus = true, cursor = true })
     -- keep the pockets panel fresh (items given / used elsewhere while the window is open)
     local id = S.open
@@ -183,6 +205,7 @@ local function closeLocal(reason)
     local id = S.open
     if not id then return end
     S.open = nil
+    if MB.UIMode == 'bag' then MB.UIMode = nil end
     NZA.UI.Close('medbag')
     TriggerServerEvent('nza:medbag:close', id)
     if reason then toast(L('closed_' .. reason), 'warning') end
@@ -206,6 +229,7 @@ end)
 
 NZA.Bus.On('ui:closed', function(app)
     if app ~= 'medbag' then return end
+    MB.UIMode = nil
     local id = S.open
     S.open = nil
     if id then TriggerServerEvent('nza:medbag:close', id) end
@@ -221,6 +245,7 @@ end)
 RegisterNetEvent('nza:medbag:closed', function(id, reason)
     if not S.open or S.open ~= id then return end
     S.open = nil
+    if MB.UIMode == 'bag' then MB.UIMode = nil end
     NZA.UI.Close('medbag')
     local key = 'closed_' .. tostring(reason)
     if NZA.L('medbag.' .. key) ~= 'medbag.' .. key then toast(L(key), 'warning') end

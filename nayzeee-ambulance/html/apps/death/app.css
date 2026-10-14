@@ -64,6 +64,15 @@
   background:linear-gradient(90deg,rgba(255,138,141,0),rgba(255,180,182,.9),rgba(255,138,141,0));filter:blur(1px);opacity:0;animation:dz-sweep 7s 3.4s linear infinite}
 @keyframes dz-sweep{0%{transform:translateX(-240px);opacity:0}6%{opacity:.8}70%{opacity:.5}100%{transform:translateX(1960px);opacity:0}}
 
+/* print-strip annotation over the flat end of the trace */
+#app-death .dz-strip{position:absolute;right:56px;top:-34px;display:flex;align-items:center;gap:14px;pointer-events:none;
+  font:600 9px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,138,141,.55)}
+#app-death .dz-strip .sp{color:rgba(255,255,255,.3);text-transform:none;letter-spacing:.08em}
+#app-death .dz-strip .hr{display:flex;align-items:baseline;gap:7px;padding-left:14px;border-left:1px solid rgba(229,72,77,.25)}
+#app-death .dz-strip .hr small{font-size:9px;color:rgba(255,138,141,.55)}
+#app-death .dz-strip .hr b{font:700 20px/1 var(--mono);color:#ff6b70;letter-spacing:0;text-shadow:0 0 12px rgba(229,72,77,.6);animation:dz-blink 1.4s steps(1) infinite}
+#app-death.in .dz-strip{animation:dz-fade 900ms 1.4s both}
+
 /* bottom bar content */
 #app-death .dz-note{display:flex;align-items:center;gap:13px;min-width:0;padding-top:6px}
 #app-death .dz-note .ni{width:36px;height:36px;flex:none;border-radius:10px;display:grid;place-items:center;color:var(--ink);
@@ -145,8 +154,10 @@
 #app-death .dz-ring .ticks line.on{stroke:var(--teal-hi);opacity:.8}
 #app-death .dz-ring .trk{fill:none;stroke:rgba(255,255,255,.06);stroke-width:7}
 #app-death .dz-ring .arc{fill:none;stroke:var(--teal-hi);stroke-width:7;stroke-linecap:round;transition:stroke-dasharray .25s linear;filter:drop-shadow(0 0 5px rgba(15,212,196,.6))}
+#app-death .dz-ring.intro .arc{transition:stroke-dasharray 1.3s cubic-bezier(.25,.8,.25,1) 1.4s}
+#app-death .dz-ring.intro .ticks line{transition-delay:calc(1.4s + var(--i) * 16ms)}
 #app-death .dz-ring .htrk{fill:none;stroke:rgba(255,255,255,0);stroke-width:4;transition:stroke .3s}
-#app-death .dz-ring .hold{fill:none;stroke:#fff;stroke-width:4;stroke-linecap:round;transition:stroke-dasharray 60ms linear;filter:drop-shadow(0 0 5px rgba(255,255,255,.8))}
+#app-death .dz-ring .hld{fill:none;stroke:#fff;stroke-width:4;stroke-linecap:round;transition:stroke-dasharray 60ms linear;filter:drop-shadow(0 0 5px rgba(255,255,255,.8))}
 #app-death .dz-ring.s-ready .htrk{stroke:rgba(255,255,255,.1)}
 #app-death .dz-ring.s-ready{animation:dz-ready 2.4s ease-in-out infinite;border-radius:50%}
 #app-death .dz-ring.s-ready.holding{animation:none}
@@ -217,5 +228,5 @@
 
 @media (prefers-reduced-motion:reduce){
   #app-death .dz-line .trace{stroke-dashoffset:0;animation:none}
-  #app-death .dz-grain,#app-death .dz-sweep,#app-death .dz-ring.s-ready{animation:none}
+  #app-death .dz-grain,#app-death .dz-sweep,#app-death .dz-ring.s-ready,#app-death .dz-strip .hr b{animation:none}
 }

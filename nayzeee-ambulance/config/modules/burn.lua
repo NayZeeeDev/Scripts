@@ -9,17 +9,19 @@
     AMBULANCE SYSTEM - BURN CARE & SKIN GRAFT
     Discord: discord.gg/nayzeeedev
 
-    Burn care (all burns): cool the burn with saline under a thermal camera, test the depth
-    with a diascope, debride blisters and dead skin, then dress it.
-    Skin graft (full-thickness burns): excise the eschar, harvest a graft from the thigh with
-    a dermatome, mesh it, staple it over the bed and dress it.
+    Burn care (every burn): cool the burn with saline while a wound imager shows the surface
+    temperature, test the depth with a diascope, debride blisters and dead skin, then dress it.
+    Skin graft (full-thickness burns): cut the eschar away, harvest a graft from the thigh with a
+    dermatome, run it through the mesher, staple it over the bed and dress it.
 
-    Items:  burn care  Config.Items.saline + .burn_dressing (needed)
-                       Config.Items.dressing (optional - secures the dressing on large burns)
-            graft      Config.Items.graft_kit (+ .burn_dressing when the graft is not done
-                       straight after burn care)
-    Opened from: the Examination screen ("Injuries to treat"), the patient interaction menu,
-    the EMS radial menu (Patient), or by using the burn dressing / graft kit item.
+    Supplies
+      burn care   Config.Items.saline (taken) + Config.Items.burn_dressing (taken when the burn is
+                  dressed here; when you go straight on to the graft the graft takes it instead)
+                  Config.Items.dressing (optional: secures the burn dressing on large burns)
+      graft       Config.Items.graft_kit (taken) + Config.Items.burn_dressing (taken when dressed)
+    Opened from: the patient examination (treatment list), the patient interaction menu,
+    the EMS radial menu (Patient), or by using the graft kit item (the burn dressing item stays
+    a first-aid item: using it applies a quick dressing, see config/modules/firstaid.lua).
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -39,16 +41,16 @@ Config.Burn = {
     maxDist   = 3.0,         -- metres the medic may be from the patient
     allowSelf = false,       -- may a medic treat their own burn
 
-    -- Items checked when burn care starts (Config.Items key → count), taken on finish
+    -- Supplies (Config.Items key → count). All are checked when burn care starts.
     items = {
-        saline        = 1,   -- cooling / irrigation saline (two 250 mL bottles of the minigame)
-        burn_dressing = 1,   -- hydrogel burn dressing
+        saline        = 1,   -- cooling saline (the bottles of the minigame) — always taken
+        burn_dressing = 1,   -- hydrogel burn dressing — taken when the burn is dressed
     },
-    -- Optional supplies: taken on finish only when they were used (and the medic still has them)
+    -- Optional supply: taken only when it was used and the medic still has it
     optional = {
         dressing = 1,        -- sterile dressing that secures the burn dressing on large burns
     },
-    secureAbove = 60,        -- cm²: burns this large are secured with a sterile dressing when the medic has one
+    secureAbove = 60,        -- cm²: burns this large get the sterile dressing on top (when carried)
 
     -- ═══════════════════════════════════════════════════════════════════════
     -- SKIN GRAFT (procedure 'graft')
@@ -61,20 +63,20 @@ Config.Burn = {
         easyTime  = 12,          -- seconds of progress bar in easy mode
         maxDist   = 3.0,         -- metres the surgeon may be from the patient
 
-        -- Items checked when the graft starts, taken on finish
+        -- Supplies (Config.Items key → count), checked when the graft starts
         items = {
-            graft_kit     = 1,   -- dermatome, mesher and skin stapler
-            burn_dressing = 1,   -- final dressing (not needed when continuing straight from burn care)
+            graft_kit     = 1,   -- dermatome blade, mesher carrier, skin stapler — always taken
+            burn_dressing = 1,   -- final dressing — taken when the graft is dressed
         },
 
-        -- Where the patient must be (skipped in easy mode: then only the supplies are needed)
+        -- Where the patient must be (ignored in easy mode: easy mode only needs the supplies)
         requireLocation = true,
         locations = { surgery = true, bay = true, bed = false },   -- hospital point types / ambulance bay
 
-        needCare       = true,   -- the burn must have been cooled and debrided first
-        continueWindow = 180,    -- seconds after burn care in which "continue to graft" counts as the same treatment
+        needCare       = true,   -- the burn must be cooled and debrided first (burn care)
+        continueWindow = 180,    -- seconds after burn care in which "go on to the graft" needs no new check-in
 
-        donorRegions  = { 'l_upper_leg', 'r_upper_leg' },  -- donor thigh (the side away from the burn is preferred)
+        donorRegions  = { 'l_upper_leg', 'r_upper_leg' },  -- donor thigh (the side away from the burn is used)
         donorInjury   = true,    -- record the donor site as a dressed graze that heals by itself
 
         bloodPerCm2      = 0.9,  -- mL of blood lost per cm² of excised eschar
@@ -83,7 +85,7 @@ Config.Burn = {
 
         minCoverage = 0.7,       -- part of the excised bed the graft must cover to count as grafted
         minStaples  = 0.6,       -- part of the staple points that must be stapled
-        minExcised  = 0.7,       -- part of the full-thickness eschar that must be excised
+        minExcised  = 0.7,       -- part of the full-thickness eschar that must be cut away
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -102,9 +104,9 @@ Config.Burn = {
     -- INTERACTION
     -- ═══════════════════════════════════════════════════════════════════════
 
-    interact   = true,       -- "Burn care" in the patient interaction menu
-    radial     = true,       -- "Burn care" under Patient in the EMS radial menu
-    usableItem = true,       -- using the burn dressing / graft kit item starts it on the nearest patient
+    interact   = true,       -- "Burn care" / "Skin graft" in the patient interaction menu
+    radial     = true,       -- the same under Patient in the EMS radial menu
+    usableItem = true,       -- using the graft kit item starts the graft (or burn care first) on the nearest patient
     useRange   = 3.0,        -- metres to look for a patient when the item is used / from the radial menu
     order      = 63,         -- position in the interaction menu (60s = procedures)
 
@@ -130,10 +132,12 @@ Config.Burn = {
         coolFrac    = 0.88,      -- part of the burn that must be under target
         overcool    = 24,        -- °C average: colder than this while pouring = over-cooling (hypothermia risk)
         sootDone    = 10,        -- % soot left that counts as washed off
+        rebound     = 1.0,       -- how strongly the deep tissue heat warms the surface back up (0 = never)
 
         -- 2 · assess
         assessCover = 0.6,       -- part of the burn that must be tested with the diascope
         pressTime   = 0.55,      -- seconds of pressing per test
+        diascopeMm  = 22,        -- mm: diameter of the diascope glass
 
         -- 3 · debride
         pullMm      = 7,         -- mm a blister roof / dead skin must be pulled away to come off
@@ -143,6 +147,7 @@ Config.Burn = {
         traceDone   = 0.92,      -- part of each outline that must be cut
 
         -- 5 · harvest
+        graftWidth  = 40,        -- mm: width of the dermatome blade (the graft strip)
         speedMin    = 10,        -- mm/s: slower stalls the dermatome (uneven graft)
         speedMax    = 32,        -- mm/s: faster chatters (ragged graft)
         pressureBand = { 0.42, 0.68 },  -- good dermatome pressure (0..1); below skips, above cuts too deep

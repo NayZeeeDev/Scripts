@@ -12,12 +12,12 @@ import numpy as np
 from nzprops import (TEAL, TEAL_HI, DecalCanvas, Geo, box, catmull, cylinder, extrude, lathe, polyline_fillet, prop, quad, rrect,
                      sphere, sweep, torus, tube)
 
-from .common import (align, brand_canvas, button, knob, m_black_plastic, m_chrome, m_gloss_black, m_led, m_rubber,
-                     m_teal, m_white_plastic, serial_label)
+from .common import (align, asset_tag, button, cal_sticker, caution_label, knob, label_canvas, m_black_plastic, m_chrome,
+                     m_gloss_black, m_led, m_rubber, m_teal, m_white_plastic, rating_plate, screws, strain_relief)
 from .handheld import syringe_geo
 from .parts import (boost, caster, caster_top, m_hosp_dark, m_hosp_grey, m_hosp_white, m_stainless, m_teal_led, m_vinyl,
                     vents)
-from .screens import draw_brand_standby, draw_mixer_lcd, draw_ultrasound_ui
+from .screens import draw_mixer_lcd, draw_ultrasound_ui, draw_waiting_board
 
 
 def cushion(w, d, h, mat, r=None, bulge=0.010, center=(0, 0, 0), tag="cushion"):
@@ -44,7 +44,7 @@ US_MON = (-0.14, 0.045, 1.27)    # monitor body centre y, depth, centre z
 US_SCREEN_C = (0.0, round(US_MON[0] + US_MON[1] / 2 + 0.0035, 4), US_MON[2] + 0.008)
 
 
-@prop("nz_amb_us_cart", atlas=1024, lod=90, hd=14, static=True, preview={
+@prop("nz_amb_us_cart", atlas=2048, lod=90, hd=14, static=True, preview={
     "cams": [{"name": "detail", "pos": [0.0, 0.55, 1.30], "target": [0.0, 0.0, 0.95], "fov": 45}]}, doc={
     "title": "Point-of-care ultrasound cart (eFAST) with monitor, console and probe holders",
     "origin": "floor, centre of the base",
@@ -140,7 +140,9 @@ def us_cart(b):
         port = (0.12, 0.0, -0.12)[k]
         path = catmull([top, top + (0, 0, 0.05), top + (side * 0.06, -0.04, 0.03), (x + side * 0.07, -0.12, zt - 0.20),
                         (x * 0.7, -0.22, zt - 0.32), (port, -0.26, zt - 0.12), (port, -0.245, zt - 0.045)], n=8)
-        b.add(tube(path, 0.0045, cable, segs=8, tag="cable"))
+        b.add(tube(path, 0.0045, cable, segs=10, tag="cable"))
+        tdir = (0.0, -math.sin(math.radians(tilt)), math.cos(math.radians(tilt)))
+        b.add(strain_relief(b, tuple(top - np.array(tdir) * 0.012), tdir, length=0.04, r0=0.0085, r1=0.005, rings=6, segs=14))
     # gel bottle in its cup on -X
     b.add(lathe(cup_prof, grey, segs=28, smooth_angle=40).translate(-0.305, -0.04, zt - 0.075))
     b.add(box((0.05, 0.08, 0.03), grey, r=0.008, seg=2, center=(-0.275, -0.04, zt - 0.05)))
@@ -167,10 +169,30 @@ def us_cart(b):
              image=draw_ultrasound_ui(512, 320), size=(512, 320), mult=1.0)
 
     # ---- decals ----------------------------------------------------------------------------------------
-    bd = brand_canvas(0.22, 0.036, ppm=3000, color=(46, 50, 54), sub_color=TEAL, sub="ECHO")
-    b.decal(bd, center=(0, yf + 0.0001, mz - mh / 2 + 0.022), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.006)
-    col = brand_canvas(0.24, 0.04, ppm=2400, color=(46, 50, 54), sub_color=TEAL, sub="ULTRASOUND")
+    bd = label_canvas(0.22, 0.020, "US-9  ·  POINT-OF-CARE ULTRASOUND", ppm=4000, color=(70, 76, 82), icon=None)
+    b.decal(bd, center=(-0.09, yf + 0.0001, mz - mh / 2 + 0.017), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.006)
+    pwr = DecalCanvas(0.06, 0.02, ppm=5000)
+    pwr.circle(0.05, 0.01, 0.0035, fill=False, width=0.0007, color=(90, 96, 102))
+    pwr.rect(0.0496, 0.0055, 0.0008, 0.0045, color=(90, 96, 102))
+    b.decal(pwr, center=(0.17, yf + 0.0001, mz - mh / 2 + 0.017), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.006)
+    col = label_canvas(0.24, 0.04, "ULTRASOUND", "US-9  ·  eFAST  ·  CARDIAC  ·  LUNG", ppm=3000, color=(46, 50, 54), sub_color=(20, 120, 112))
     b.decal(col, center=(0.0, 0.0601, 0.80), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
+    # keyboard key legends
+    kl = DecalCanvas(0.23, 0.075, ppm=6000)
+    letters = "QWERTYUIOPASDFGHJKL;ZXCVBNM,./"
+    for row in range(3):
+        for c in range(10):
+            x = -0.006 + c * 0.0215
+            y = 0.075 - row * 0.022
+            if x > 0.20:
+                continue
+            kl.text(0.115 - (x - 0.0905), 0.0375 + (y - 0.053), letters[row * 10 + c], 0.0042, fnt="label-semi", color=(40, 44, 48))
+    b.decal(kl, center=(0.0905, 0.053, zp + 0.005), normal=(0, 0, 1), up=(0, -1, 0), mats=["hosp_grey"], depth=0.002, min_dot=0.8)
+    b.decal(caution_label(0.07, 0.028, "CAUTION", ["Lock the castors before scanning", "Do not lean on the monitor arm"], ppm=5000),
+            center=(0.0, -0.1801, 0.72), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
+    b.decal(cal_sticker(0.028, 0.017), center=(0.06, -0.1801, 0.60), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
+    b.decal(asset_tag(0.05, 0.014, "IMG 0207", seed=13), center=(-0.06, -0.1801, 0.60), normal=(0, -1, 0), up=(0, 0, 1),
+            mats=["hosp_white"], depth=0.01)
     # panel legends: canvas top towards the monitor (-Y) so they read from the operator side; canvas x runs to -X
     kb = DecalCanvas(0.46, 0.30, ppm=1800)
     kb.text(0.06, 0.256, "FREEZE", 0.0068, fnt="label", color=(170, 178, 184))
@@ -194,13 +216,15 @@ def us_cart(b):
     up = np.array([0.0, -math.sin(math.radians(62)), math.cos(math.radians(62))])
     ctr = np.array([0.0, -0.15, zt + 0.045]) + nrm * 0.0066
     b.decal(tpd, center=tuple(ctr), normal=tuple(nrm), up=tuple(up), mats=["touch_glass"], depth=0.004)
-    b.decal(serial_label(0.08, 0.03, "ECHO 9  NZ-US9", "SN 2026-3120"), center=(0, -0.1801, 0.60), normal=(0, -1, 0), up=(0, 0, 1),
+    b.decal(rating_plate(0.08, 0.03, "ULTRASOUND SYSTEM", "US-9", "SN 26-31207", rating="100-240 V~  50/60 Hz  3.0 A"),
+            center=(0, -0.1801, 0.52), normal=(0, -1, 0), up=(0, 0, 1),
             mats=["hosp_white"], depth=0.01)
     b.decal(vents(0.36, 0.12, 6), center=(0, my - md / 2 - 0.0001, mz + 0.06), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.005)
     for c in b.geo.charts:
         if float(c.pos[:, 2].max()) < 0.3:
             c.density *= 0.5
     boost(b, 2.2, mats=["us_panel", "touch_glass"])
+    boost(b, 2.5, mats=["hosp_white"], zmin=1.08)
     b.col_box((-0.26, -0.29, 0.0), (0.26, 0.29, z0), "PLASTIC_HIGH_DENSITY")
     b.col_box((-0.15, -0.18, z0), (0.15, 0.06, 0.855), "PLASTIC_HIGH_DENSITY")
     b.col_box((-0.18, 0.045, 0.29), (0.18, 0.215, 0.43), "PLASTIC_HIGH_DENSITY")
@@ -216,7 +240,7 @@ DC_BACK = 32.0          # backrest recline from vertical (deg)
 DC_LEG = 28.0           # leg rest drop below horizontal (deg)
 
 
-@prop("nz_amb_donation_chair", atlas=1024, lod=90, hd=14, static=True, falloff=60, doc={
+@prop("nz_amb_donation_chair", atlas=2048, lod=90, hd=14, static=True, falloff=60, doc={
     "title": "Reclining blood donation chair with padded armrests",
     "origin": "floor, under the centre of the seat",
     "axes": f"the occupant faces +Y (leg rest towards +Y, backrest towards -Y reclined {DC_BACK:g} deg), +Z up; the "
@@ -287,21 +311,34 @@ def donation_chair(b):
     t = np.linspace(0, 1, 200)
     hel = np.stack([-0.39 + 0.007 * np.cos(t * 2 * math.pi * 16), 0.17 + 0.007 * np.sin(t * 2 * math.pi * 16), 0.575 + t * 0.10], axis=1)
     b.add(tube(hel, 0.0022, m_black_plastic(b), segs=6, tag="coil"))
-    # decals
-    bd = brand_canvas(0.20, 0.034, ppm=2400, color=(46, 50, 54), sub_color=TEAL, sub="DONOR")
+    # decals: stitched upholstery seams on the seat, leg rest and armrests
+    st = DecalCanvas(0.58, 0.54, ppm=1500)
+    st.stitch_rect(0.0, 0.0, 0.58, 0.54, r=0.04, inset=0.035, color=(10, 60, 60), length=0.006, gap=0.003, width=0.0014)
+    st.stitch([(0.29, 0.07), (0.29, 0.47)], length=0.006, gap=0.003, width=0.0014, color=(10, 60, 60))
+    b.decal(st, center=(0, 0.0, DC_SEAT + 0.0), normal=(0, 0, 1), up=(0, 1, 0), mats=["chair_vinyl"], depth=0.03, min_dot=0.6)
+    for sx in (-1, 1):
+        L = 0.70 if sx > 0 else 0.60
+        ast = DecalCanvas(0.12, L, ppm=1800)
+        ast.stitch_rect(0.0, 0.0, 0.12, L, r=0.03, inset=0.018, color=(10, 60, 60), length=0.006, gap=0.003, width=0.0014)
+        b.decal(ast, center=(sx * 0.35, -0.12 + L / 2 - 0.12, 0.69 + 0.035), normal=(0, 0, 1), up=(0, 1, 0), mats=["chair_vinyl"],
+                depth=0.03, min_dot=0.6)
+    bd = label_canvas(0.20, 0.034, "DONOR CHAIR", "DC-3  ·  3-SECTION RECLINE", ppm=3000, color=(46, 50, 54), sub_color=(20, 120, 112))
     b.decal(bd, center=(0, 0.2101, 0.22), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
-    bk = brand_canvas(0.22, 0.04, ppm=2200, color=(236, 240, 242), sub_color=TEAL_HI, sub="DONOR")
+    b.decal(caution_label(0.08, 0.034, "CAUTION", ["Max patient weight 200 kg", "Keep feet clear when lowering"], ppm=3500),
+            center=(0.12, 0.2101, 0.13), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
+    bk = label_canvas(0.22, 0.04, "BLOOD DONATION", "DC-3", ppm=2600, color=(236, 240, 242), sub_color=TEAL_HI, icon="cross",
+                      icon_color=(206, 40, 46))
     bc = hinge_b + np.array([0, -0.161 * math.cos(math.radians(DC_BACK)) - 0.45 * math.sin(math.radians(DC_BACK)),
                              0.45 * math.cos(math.radians(DC_BACK)) - 0.161 * math.sin(math.radians(DC_BACK))])
     rear_n = (0.0, -math.cos(math.radians(DC_BACK)), -math.sin(math.radians(DC_BACK)))
     rear_up = (0.0, -math.sin(math.radians(DC_BACK)), math.cos(math.radians(DC_BACK)))
     b.decal(bk, center=tuple(bc), normal=rear_n, up=rear_up, mats=["hosp_grey"], depth=0.03)
     pend = DecalCanvas(0.04, 0.10, ppm=5000)
-    pend.mark(0.012, 0.004, 0.012)
+    pend.star_of_life(0.02, 0.012, 0.014, color=(40, 110, 210))
     for k, t_ in enumerate(("TRENDEL", "UP", "DOWN")):
         pend.text(0.02, 0.036 + k * 0.022, t_, 0.0034, fnt="label-semi", color=(60, 66, 70), max_w=0.036)
     b.decal(pend, center=(-0.40, 0.1931, 0.53), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.004)
-    b.decal(serial_label(0.08, 0.03, "DONOR CHAIR  NZ-DC3", "MAX 200 kg"), center=(-0.1701, -0.02, 0.20), normal=(-1, 0, 0),
+    b.decal(rating_plate(0.08, 0.03, "DONOR CHAIR", "DC-3", "SN 26-00319", rating="24 V DC  ·  SWL 200 kg"), center=(-0.1701, -0.02, 0.20), normal=(-1, 0, 0),
             up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
     for c in b.geo.charts:
         if float(c.pos[:, 2].max()) < 0.35:
@@ -325,7 +362,7 @@ def donation_chair(b):
 BM_TRAY_Z = 0.318
 
 
-@prop("nz_amb_blood_mixer", atlas=512, lod=50, hd=8, preview={
+@prop("nz_amb_blood_mixer", atlas=1024, lod=50, hd=8, preview={
     "cams": [{"name": "detail", "pos": [0.0, 0.55, 0.25], "target": [0.0, 0.0, 0.17], "fov": 32}]}, doc={
     "title": "Blood collection mixer / scale with a rocking tray",
     "origin": "bottom centre (stands on the floor or a table)",
@@ -382,19 +419,26 @@ def blood_mixer(b):
     b.add(tube(hk, 0.003, chrome, segs=8))
     # decals
     lab = DecalCanvas(0.22, 0.16, ppm=3200)
-    lab.mark(0.008, 0.006, 0.014)
-    lab.text(0.027, 0.013, "COLLECT 450", 0.0078, fnt="label", anchor="lm", color=(190, 198, 204), spacing=0.0008)
+    lab.star_of_life(0.015, 0.013, 0.014, color=(206, 40, 46))
+    lab.text(0.027, 0.013, "BLOOD MIXER  BM-450", 0.0068, fnt="label", anchor="lm", color=(190, 198, 204), spacing=0.0006)
     lab.text(0.170, 0.045, "START", 0.005, fnt="label", anchor="rm", color=(190, 198, 204))
     lab.text(0.170, 0.085, "STOP", 0.005, fnt="label", anchor="rm", color=(190, 198, 204))
     lab.text(0.185, 0.146, "POWER", 0.0042, fnt="label-semi", color=(160, 168, 174))
     for u, t in ((0.04, "TARE"), (0.075, "MIX"), (0.11, "MENU")):
         lab.text(u, 0.146, t, 0.0042, fnt="label-semi", color=(160, 168, 174))
     b.decal(lab, center=(0, yf + 0.0031, 0.165), normal=(0, 1, 0), up=(0, 0, 1), mats=["gloss_black"], depth=0.003)
-    sd = brand_canvas(0.16, 0.026, ppm=3000, color=(46, 50, 54), sub_color=TEAL, sub="DONOR")
+    sd = label_canvas(0.16, 0.026, "COLLECTION MIXER", "BM-450  ·  WEIGH + AGITATE", ppm=4000, color=(46, 50, 54), sub_color=(20, 120, 112),
+                      icon="cross", icon_color=(206, 40, 46))
     b.decal(sd, center=(W / 2 + 0.0001, -0.04, 0.10), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
     b.decal(vents(0.16, 0.06, 5), center=(0, -D / 2 - 0.0001, 0.17), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.006)
-    b.decal(serial_label(0.07, 0.025, "COLLECT 450  NZ-BM1", "SN 2026-0451"), center=(0, -D / 2 - 0.0001, 0.07), normal=(0, -1, 0),
+    b.decal(rating_plate(0.07, 0.025, "COLLECTION MIXER", "BM-450", "SN 26-04510", rating="100-240 V~  50/60 Hz  0.5 A"),
+            center=(0, -D / 2 - 0.0001, 0.07), normal=(0, -1, 0),
             up=(0, 0, 1), mats=["hosp_white"], depth=0.006)
+    b.add(screws(b, [(sx * 0.104, yf + 0.003, zz) for sx in (-1, 1) for zz in (0.093, 0.237)], (0, 1, 0), d=0.0045, segs=10))
+    for sx in (-1, 1):
+        hr = DecalCanvas(0.12, 0.05, ppm=3000)
+        hr.rect(0.01, 0.01, 0.10, 0.03, r=0.015, color=(150, 154, 158), height=-0.004)
+        b.decal(hr, center=(sx * (W / 2), 0.03, 0.20), normal=(sx, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.008)
     boost(b, 3.5, mats=["gloss_black"])
     b.col_box((-W / 2, -D / 2, 0.0), (W / 2, D / 2, 0.262), "PLASTIC_HIGH_DENSITY")
     b.col_box((-0.145, -0.105, 0.262), (0.145, 0.105, BM_TRAY_Z + 0.02), "PLASTIC_HIGH_DENSITY")
@@ -412,7 +456,7 @@ TV_SCREEN = (1.568, 0.882)
     "axes": "screen faces +Y (into the room), +Z up, everything at y >= 0 (depth 0.033)",
     "screen": f"nz_amb_screen - 1024 x 576 texture embedded in the drawable's own dictionary (txd 'nz_amb_tv_board'), quad "
               f"{TV_SCREEN[0]} x {TV_SCREEN[1]} m (16:9) centred at (0, 0.0343, 0.008), UV 0..1 = visible screen, top-left = "
-              "(0,0); default = black with the teal NAYZEEE mark. Replace it with a DUI (AddReplaceTexture('nz_amb_tv_board', "
+              "(0,0); default = waiting-room information board (now serving / queue / clock). Replace it with a DUI (AddReplaceTexture('nz_amb_tv_board', "
               "'nz_amb_screen', duiTxd, duiTex))",
     "attach": "place against a wall: position = wall surface point at the desired screen-centre height (about 2.0 - 2.3 m), "
               "heading = the wall normal's heading (screen +Y points into the room)",
@@ -429,11 +473,11 @@ def tv_board(b):
     yf = 0.033
     b.add(box((TV_SCREEN[0] + 0.004, 0.0006, TV_SCREEN[1] + 0.004), gloss, center=(0, yf + 0.0003, 0.008), faces="+y"))
     b.screen(quad((0, yf + 0.0013, 0.008), (-1, 0, 0), (0, 0, 1), TV_SCREEN[0], TV_SCREEN[1], "x", fixed_uv=True),
-             image=draw_brand_standby(1024, 576), size=(1024, 576), mult=1.0)
+             image=draw_waiting_board(1024, 576), size=(1024, 576), mult=1.0)
     b.add(align(cylinder(0.0022, 0.0008, led, segs=10, caps=(False, True)), (0, 1, 0), (0, 0, 1), (0.74, yf, -0.4465)))
     lab = DecalCanvas(0.12, 0.016, ppm=6000)
-    lab.mark(0.0, 0.002, 0.012)
-    lab.text(0.016, 0.008, "NAYZEEE", 0.0062, fnt="label", anchor="lm", color=(170, 176, 180), spacing=0.0012)
+    lab.rect(0.0, 0.003, 0.014, 0.010, r=0.002, color=(8, 8, 10), spec=0.8, gloss=0.9)
+    lab.text(0.020, 0.008, "DS-65", 0.0042, fnt="label", anchor="lm", color=(120, 126, 130), spacing=0.0008)
     b.decal(lab, center=(0.0, yf + 0.0001, -0.4465), normal=(0, 1, 0), up=(0, 0, 1), mats=["tv_body"], depth=0.003)
     b.decal(vents(0.60, 0.05, 8, vertical=True), center=(0, -0.0001, 0.30), normal=(0, -1, 0), up=(0, 0, 1), mats=["tv_back"], depth=0.004)
     b.col_box((-W / 2, 0.0, -H / 2), (W / 2, yf, H / 2), "PLASTIC_HIGH_DENSITY")
@@ -473,7 +517,7 @@ def _pliers(steel, length, jaw, open_deg=6.0, rings=True, ratchet=False, fine=Fa
     return g
 
 
-@prop("nz_amb_surgery_tray", atlas=1024, alpha_atlas=256, lod=60, hd=10, static=True, falloff=90, doc={
+@prop("nz_amb_surgery_tray", atlas=2048, alpha_atlas=256, lod=60, hd=10, static=True, falloff=90, doc={
     "title": "Instrument tray table (stainless, two shelves) with a draped instrument set",
     "origin": "floor, under the centre of the top",
     "axes": "top 0.80 (X) x 0.50 (Y); push handle at -X, drape overhangs the front (+Y); +Z up",
@@ -573,8 +617,9 @@ def surgery_tray(b):
               center=(0.18, 0.02, 0.30 + 0.045)))
     # ---- decals ------------------------------------------------------------------------------------------
     gb = DecalCanvas(0.24, 0.09, ppm=2400)
-    gb.mark(0.008, 0.008, 0.02)
-    gb.text(0.034, 0.018, "NAYZEEE", 0.0095, fnt="label", anchor="lm", color=(36, 40, 44), spacing=0.001)
+    gb.cross(0.018, 0.018, 0.016, color=(20, 120, 112))
+    gb.text(0.032, 0.018, "EXAMINATION", 0.0085, fnt="label", anchor="lm", color=(36, 40, 44), spacing=0.001)
+    gb.text(0.22, 0.018, "POWDER FREE", 0.005, fnt="label-semi", anchor="rm", color=(90, 96, 100))
     gb.text(0.12, 0.052, "NITRILE GLOVES", 0.011, fnt="label", color=(36, 40, 44), spacing=0.0008)
     gb.rect(0.06, 0.066, 0.12, 0.016, r=0.003, color=TEAL)
     gb.text(0.12, 0.074, "SIZE  M  ·  100", 0.0072, fnt="label-semi", color=(255, 255, 255))
@@ -583,8 +628,8 @@ def surgery_tray(b):
         sp = DecalCanvas(0.038, 0.095, ppm=6000)
         sp.rect(0, 0, 0.038, 0.022, color=(30, 90, 170) if k == 1 else ((40, 40, 44) if k == 2 else (20, 130, 120)))
         sp.text(0.019, 0.011, t, 0.0042, fnt="label", color=(255, 255, 255), max_w=0.034)
-        sp.mark(0.003, 0.028, 0.008)
-        sp.text(0.013, 0.032, "NAYZEEE", 0.0028, fnt="label", anchor="lm", color=(40, 44, 48))
+        sp.text(0.019, 0.032, "STERILE  R", 0.0026, fnt="label", color=(40, 44, 48))
+        sp.barcode(0.006, 0.083, 0.026, 0.008, seed=40 + k, color=(40, 44, 48))
         sp.text(0.019, 0.05, "SUTURE", 0.004, fnt="label-semi", color=(40, 44, 48))
         sp.text(0.019, 0.06, "75 cm  ·  3/8 C", 0.0026, fnt="label-semi", color=(100, 106, 110))
         sp.circle(0.019, 0.078, 0.009, fill=False, width=0.0008, color=(120, 126, 130))
@@ -593,7 +638,8 @@ def surgery_tray(b):
     wrap.rect(0.0, 0.017, 0.20, 0.016, color=(240, 240, 236))
     wrap.text(0.10, 0.025, "STERILE  ·  MINOR SET", 0.0062, fnt="label", color=(40, 44, 48), spacing=0.0006)
     b.decal(wrap, center=(-0.17, 0.1001, 0.395), normal=(0, 1, 0), up=(0, 0, 1), mats=["wrap_blue"], depth=0.01)
-    bd = brand_canvas(0.18, 0.026, ppm=3000, color=(236, 240, 242), sub_color=TEAL_HI, sub="SURGICAL")
+    bd = label_canvas(0.18, 0.026, "STERILE FIELD", "DO NOT TOUCH  ·  SINGLE USE DRAPE", ppm=3500, color=(236, 240, 242), sub_color=TEAL_HI,
+                      icon=None)
     b.decal(bd, center=(0.0, TD / 2 + 0.018, ST_TOP - 0.10), normal=(0, 1, 0), up=(0, 0, 1), mats=["drape"], depth=0.01)
     boost(b, 3.0, mats=["suture_pack"])
     boost(b, 1.8, mats=["glove_box", "wrap_blue"])

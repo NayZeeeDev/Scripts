@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    cwtool - CodeWalker XML -> .ydr/.ytd/.ytyp converter + binary inspector (NAYZEEE props pipeline).
+    cwtool - CodeWalker XML -> .ydr/.ytd/.ytyp converter + binary inspector (procedural props pipeline).
 
     CodeWalker (https://github.com/dexyfex/CodeWalker) is NOT vendored. Clone it anywhere and pass
     its folder:  dotnet build -c Release -p:CodeWalkerDir=/path/to/CodeWalker

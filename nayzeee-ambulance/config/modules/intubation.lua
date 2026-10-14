@@ -15,6 +15,8 @@
     Items are in config/items.lua (intubation_kit, bvm), props in config/props.lua.
 ]]
 
+if not NAYZEEE_LOCK_OK then return end
+
 Config = Config or {}
 
 Config.Intubation = {
@@ -30,6 +32,20 @@ Config.Intubation = {
     requireDown   = true,         -- only patients that are wounded / in arrest can be intubated
     downAvpu      = { P = true, U = true },  -- ...and only when they respond to pain or less (wounded)
     allowSelf     = false,        -- you cannot intubate yourself
+
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- MENUS (patient options, examination buttons, EMS radial)
+    -- ═══════════════════════════════════════════════════════════════════════
+
+    interact = {
+        enabled   = true,         -- show 'Ventilate (BVM)' / 'Intubate' / tube options on patients
+        distance  = 2.0,          -- metres for the target options
+        orderBvm  = 31,           -- order band 30 = resuscitation
+        orderTube = 61,           -- order band 60 = procedures
+    },
+    examRoute = true,             -- 'Intubate' / 'Ventilate' buttons in the examination screen
+    radial    = true,             -- Patient ▸ Ventilate / Intubate in the EMS radial menu
+    radialRange = 3.0,            -- metres to look for a patient from the radial menu
 
     -- ═══════════════════════════════════════════════════════════════════════
     -- INTUBATION MINIGAME
@@ -57,6 +73,7 @@ Config.Intubation = {
         faceTrauma   = 1,         -- face / neck wounds of severity 3+ add this many grades
         swelling     = 1,         -- an 'airway swelling' condition adds this many grades
         cspine       = 1,         -- a collar or cervical spine injury adds this (no head tilt allowed)
+        keep         = 900,       -- seconds the same patient keeps the same anatomy (retries look the same)
     },
 
     -- Blood / vomit in the airway (suction step)
@@ -82,7 +99,16 @@ Config.Intubation = {
     mainstemRate      = 6,        -- hypoxia added per minute by a tube that is too deep (one lung only)
     attemptInsult     = 0.8,      -- hypoxia level added per % of SpO2 below 90 reached during the attempt
     extubateOnWake    = true,     -- remove the tube automatically when the patient is back to 'alive'
+    ventilateAfter    = 180,      -- seconds a fresh tube counts as ventilated (bag on the tube) after the procedure
+    bedVentilator     = true,     -- an intubated patient on a hospital bed / in the ambulance bay stays ventilated
+    ventRate          = 12,       -- breaths per minute the monitor shows while ventilated through the tube
     tick              = 5,        -- seconds between airway effect updates
+
+    -- Tube check (capnography) - any medic with the permission can check where a tube sits
+    check = {
+        enabled  = true,
+        cooldown = 10,            -- seconds between checks on the same patient
+    },
 
     -- ═══════════════════════════════════════════════════════════════════════
     -- BAG-VALVE MASK (standalone ventilation for apnoeic / overdosed patients)
@@ -90,12 +116,14 @@ Config.Intubation = {
 
     bvm = {
         enabled     = true,
+        perm        = 'airway',   -- permission for a ventilation round
         breaths     = 8,          -- breaths in one ventilation round
         minTime     = 14,         -- seconds; anti-cheat
         maxTime     = 600,
         easyTime    = 8,
         ventilate   = 120,        -- seconds the patient counts as ventilated after a round
         relief      = 30,         -- hypoxia level removed by a perfect round
+        gastricKeep = 900,        -- seconds the stomach air from bad bagging is remembered (vomit risk)
         states      = { wounded = true, arrest = true },  -- patient states it shows for
     },
 
@@ -127,20 +155,21 @@ Config.Intubation = {
     worldTube   = true,           -- every client shows the tube prop at the mouth of intubated patients
     worldRange  = 45.0,           -- metres within which tube props are shown
     networkProps= false,          -- spawn the procedure props networked so bystanders see them
-    externalMonitor = false,      -- true: open the field module's 'monitor' app instead of the built-in one
+    externalMonitor = false,      -- true: open the field module's patient monitor instead of the built-in one
+    monitorProp = true,           -- put a monitor prop on the ground beside the head (when the field module has none)
 
-    -- Attach offsets on the PATIENT (bone = ped bone id; 31086 = SKEL_Head)
+    -- Attach offsets on the PATIENT (bone = ped bone id; 31086 = SKEL_Head) - see docs/modules/props.md
     props = {
-        bvm    = { bone = 31086, pos = vector3(0.10, 0.10, 0.0),  rot = vector3(0.0, 0.0, -90.0) },  -- mask on the face
-        bvmEtt = { bone = 31086, pos = vector3(0.10, 0.20, 0.0),  rot = vector3(0.0, 0.0, -90.0) },  -- bag on the tube
-        ett    = { bone = 31086, pos = vector3(0.04, 0.11, 0.0),  rot = vector3(0.0, 0.0, -90.0) },  -- tube at the mouth
-        -- on the MEDIC (57005 = right hand, 18905 = left hand)
-        laryngoscope = { bone = 18905, pos = vector3(0.10, 0.02, -0.03), rot = vector3(-70.0, 0.0, 10.0) },
-        tubeHand     = { bone = 57005, pos = vector3(0.12, 0.03, 0.02),  rot = vector3(-80.0, 10.0, 0.0) },
-        syringe      = { bone = 57005, pos = vector3(0.10, 0.03, -0.02), rot = vector3(-90.0, 0.0, 0.0) },
+        bvm    = { bone = 31086, pos = vector3(0.06, 0.11, 0.0),  rot = vector3(0.0, -90.0, -90.0) },  -- mask on the face
+        bvmEtt = { bone = 31086, pos = vector3(-0.02, 0.19, 0.0), rot = vector3(0.0, -90.0, -90.0) },  -- bag on the tube
+        ett    = { bone = 31086, pos = vector3(-0.04, 0.12, 0.0), rot = vector3(0.0, 90.0, 0.0) },     -- tube at the mouth
+        -- on the MEDIC (60309 = PH_L_Hand, 28422 = PH_R_Hand)
+        laryngoscope = { bone = 60309, pos = vector3(0.0, 0.0, 0.0),  rot = vector3(0.0, 0.0, 0.0) },
+        tubeHand     = { bone = 28422, pos = vector3(0.0, 0.02, 0.0), rot = vector3(0.0, 0.0, 180.0) },
+        syringe      = { bone = 28422, pos = vector3(0.0, 0.0, 0.0),  rot = vector3(0.0, 0.0, -90.0) },
         -- on the ground next to the head (metres: side = patient's right, forward = towards the feet)
         suction      = { side = 0.62, forward = -0.15 },
-        monitor      = { side = -0.70, forward = 0.20, enabled = true },
+        monitor      = { side = -0.70, forward = 0.20 },
     },
 
     -- Medic animations (kneeling at the head on the ground, standing at a bed / stretcher)
@@ -148,14 +177,17 @@ Config.Intubation = {
         kneel = { dict = 'amb@medic@standing@tendtodead@idle_a', clip = 'idle_a' },
         stand = { dict = 'mini@repair', clip = 'fixing_a_ped' },
         headOffset = 0.62,        -- metres behind the patient's head where the medic kneels
+        bedHeight  = 0.55,        -- the head is this high above the ground → patient on a bed / stretcher
     },
 
-    -- Cameras per phase (offsets from the patient's head: side, forward = towards the feet, up)
+    -- Camera per phase, orbiting the patient's head. yaw = degrees around the body
+    -- (0 = from the top of the head looking down the body, 90 = from the patient's right side)
     camera = {
         enabled = true,
-        preox   = { side = 0.55, forward = 0.55, up = 0.95, fov = 46.0, look = { side = 0.0, forward = -0.15, up = 0.0 } },
-        scope   = { side = 0.10, forward = -0.55, up = 0.62, fov = 38.0, look = { side = 0.0, forward = 0.10, up = 0.02 } },
-        confirm = { side = 0.95, forward = 0.35, up = 1.10, fov = 50.0, look = { side = 0.0, forward = 0.30, up = 0.0 } },
+        preox   = { dist = 1.15, pitch = 46.0, yaw = 38.0,  fov = 44.0 },   -- mask, bag and monitor in view
+        scope   = { dist = 0.62, pitch = 34.0, yaw = 6.0,   fov = 38.0 },   -- close over the face from the head end
+        confirm = { dist = 1.35, pitch = 52.0, yaw = 70.0,  fov = 46.0 },   -- chest rise and the tube
+        bvm     = { dist = 1.20, pitch = 48.0, yaw = 44.0,  fov = 44.0 },
         ease    = 650,            -- ms camera blend
     },
 }

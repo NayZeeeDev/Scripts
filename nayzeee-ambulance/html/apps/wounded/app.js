@@ -98,6 +98,7 @@
   let ticker = 0;
   let raf = 0;
   let flashTimer = 0;
+  let introTimer = 0;
   let previewHold = null;
   let previewKeys = null;
   const last = {};
@@ -116,7 +117,7 @@
       const lg = i % 5 === 0;
       const r1 = lg ? 88.5 : 91, r2 = 96.5;
       const sx = Math.sin(a), cy = Math.cos(a);
-      out += `<line class="${lg ? 'lg' : ''}" x1="${(100 + r1 * sx).toFixed(2)}" y1="${(100 - r1 * cy).toFixed(2)}" x2="${(100 + r2 * sx).toFixed(2)}" y2="${(100 - r2 * cy).toFixed(2)}"/>`;
+      out += `<line class="${lg ? 'lg' : ''}" style="--i:${i}" x1="${(100 + r1 * sx).toFixed(2)}" y1="${(100 - r1 * cy).toFixed(2)}" x2="${(100 + r2 * sx).toFixed(2)}" y2="${(100 - r2 * cy).toFixed(2)}"/>`;
     }
     return out;
   }
@@ -159,7 +160,7 @@
           <span class="ri"><svg viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="19"/><circle class="fg" cx="22" cy="22" r="19" pathLength="100" transform="rotate(-90 22 22)" stroke-dasharray="0 100"/></svg><span class="ic"></span></span>
           <div class="tx"><small></small><b></b><p></p></div>
           <div class="eta"><small></small><div class="eo"></div></div>
-          <i class="bar"></i>
+          <div class="wd-route"><i class="trail"></i><i class="done"></i><i class="unit"></i><i class="pin"></i></div>
         </section>
         <section class="wd-inj nza-hud solid">
           <header class="wd-h"><span class="nza-label"></span><b class="wd-cnt"></b></header>
@@ -178,7 +179,7 @@
       heart: q('.wd-heart'), cap: q('.wd-cap'), pips: [...el.querySelectorAll('.wd-pips i')], pipsBox: q('.wd-pips'),
       aware: q('.wd-aware span'), title: q('.wd-title'), beat: q('.wd-beat'), chips: q('.wd-chips'), flash: q('.wd-flash'),
       resp: q('.wd-resp'), respFg: q('.wd-resp .fg'), respIc: q('.wd-resp .ic'), respK: q('.wd-resp .tx small'),
-      respT: q('.wd-resp .tx b'), respP: q('.wd-resp .tx p'), respEta: q('.wd-resp .eta'), respEtaK: q('.wd-resp .eta small'), respBar: q('.wd-resp .bar'),
+      respT: q('.wd-resp .tx b'), respP: q('.wd-resp .tx p'), respEta: q('.wd-resp .eta'), respEtaK: q('.wd-resp .eta small'), route: q('.wd-route'),
       inj: q('.wd-inj'), injH: q('.wd-inj .nza-label'), injCnt: q('.wd-cnt'), list: q('.wd-list'), mks: q('.wd-body .mks'),
       segs: [...el.querySelectorAll('.wd-body .sg')],
       keys: q('.wd-keys'), klist: q('.wd-klist'),
@@ -216,8 +217,8 @@
     const arrest = s.state === 'arrest';
 
     if (A.tone !== tone) {
-      ui.vital.classList.remove('t-red', 't-amber', 't-teal', 't-white');
-      ui.vital.classList.add(`t-${tone}`);
+      ui.vital.classList.remove('tn-red', 'tn-amber', 'tn-teal', 'tn-white');
+      ui.vital.classList.add(`tn-${tone}`);
       ui.resp.dataset.vital = tone;
       A.tone = tone;
     }
@@ -343,12 +344,12 @@
       ui.respEta.style.display = '';
       setText(ui.respEtaK, T('help_eta', 'Arrives in'));
       etaOdo.set(mmss(c.eta));
-      ui.respBar.style.width = `${(p * 100).toFixed(1)}%`;
-      ui.respBar.style.display = '';
+      ui.route.style.setProperty('--p', p.toFixed(4));   // the unit travels along the route as the ETA runs down
+      ui.resp.classList.add('route');
     } else {
       A.etaKey = '';
       ui.respEta.style.display = 'none';
-      ui.respBar.style.display = 'none';
+      ui.resp.classList.remove('route');
     }
     ui.respFg.setAttribute('stroke-dasharray', `${(p * 100).toFixed(1)} 100`);
     ui.respFg.style.opacity = p > 0.002 || c.wait ? '' : '0';
@@ -382,7 +383,7 @@
     setText(ui.injCnt, String(list.length));
     let rows = shown.map(({ j, t }) => {
       const [tc, tt] = injTag(j);
-      return `<li class="${t}"><i class="nt"></i><span class="ic">${icon(j.icon || 'drop')}</span><span class="rg">${esc(j.regionLabel || j.region || '')}</span><span class="ty">${esc(j.label || '')}</span><em class="tg ${tc}">${esc(tt)}</em></li>`;
+      return `<li class="${t}"><i class="nt"></i><span class="ic">${icon(j.icon || 'drop')}</span><span class="rg">${esc(j.regionLabel || j.region || '')}</span><span class="ty">${esc(j.label || '')}</span><em class="itag ${tc}">${esc(tt)}</em></li>`;
     }).join('');
     if (list.length > max) rows += `<li class="more"><span>${esc(T('inj_more', '+%d more', list.length - max))}</span></li>`;
     setHTML('list', ui.list, rows);
@@ -650,9 +651,15 @@
       A.etaKey = '';
       Object.keys(last).forEach(k => { delete last[k]; });
       ui.beat.style.display = A.opts.pulseLine ? '' : 'none';
+      // intro: the column slides in from the left edge, then the ring fills up to the time left
+      ui.arc.setAttribute('stroke-dasharray', '0 100');
+      ui.ticks.forEach(t => t.classList.remove('on'));
       ui.col.classList.remove('in');
+      ui.vital.classList.add('intro');
       void ui.col.offsetWidth;
       ui.col.classList.add('in');
+      clearTimeout(introTimer);
+      introTimer = setTimeout(() => ui.vital.classList.remove('intro'), 1700);
       if (d.state) applyState(d.state);
       renderInj();
       clearInterval(ticker);
@@ -664,6 +671,8 @@
       clearInterval(ticker);
       cancelAnimationFrame(raf);
       clearTimeout(flashTimer);
+      clearTimeout(introTimer);
+      ui.vital.classList.remove('intro');
       ui.flash.className = 'wd-flash';
       if (previewHold) { previewHold.destroy(); previewHold = null; }
       if (previewKeys) { window.removeEventListener('keydown', previewKeys); previewKeys = null; }
@@ -729,9 +738,13 @@
           { region: 'back', regionLabel: 'Back', label: 'Abrasion', icon: 'scrape', severity: 1 },
           { region: 'l_lower_leg', regionLabel: 'Left lower leg', label: 'Contusion', icon: 'bruise', severity: 1 },
         ];
+      // open with a longer ETA first so the route shows how far the unit has already come
+      const help = st.help;
       NZA.demo('wounded', {
-        L: {}, state: st, injuries, maxChips: 5, pulseLine: true, overlay: true, heartbeat: false, volume: 0.6,
+        L: {}, state: help && help.eta ? Object.assign({}, st, { help: Object.assign({}, help, { eta: Math.round(help.eta * 2.2) }) }) : st,
+        injuries, maxChips: 5, pulseLine: true, overlay: true, heartbeat: false, volume: 0.6,
       });
+      if (help && help.eta) NZA.apps.wounded.msg.state(st);
       NZA.apps.wounded.msg.fx({
         mode: st.state, tunnel: st.state === 'arrest' ? 0.9 : (st.stab ? 0.25 : 0.55), bleed: st.bleed,
         unconscious: st.unconscious, cpr: st.status.cpr, stab: st.stab,

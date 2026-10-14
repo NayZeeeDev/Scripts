@@ -2,7 +2,7 @@
   "name": "nzprops-preview",
   "private": true,
   "type": "module",
-  "description": "Headless three.js preview renderer for the NAYZEEE props pipeline (tools/props/build.py runs it)",
+  "description": "Headless three.js preview renderer for the procedural props pipeline (tools/props/build.py runs it)",
   "dependencies": {
     "three": "0.170.0",
     "playwright-core": "1.56.1"

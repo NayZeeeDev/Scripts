@@ -8,17 +8,17 @@ import math
 
 import numpy as np
 
-from nzprops import (TEAL_HI, WHITE, DecalCanvas, box, catmull, cylinder, extrude, lathe, polyline_fillet, prop,
+from nzprops import (TEAL_HI, WHITE, DecalCanvas, box, catmull, cylinder, extrude, lathe, polyline_fillet, prop, torus,
                      rrect, sphere, sweep, tube, vec)
 
-from .common import (m_alu, m_black_plastic, m_chrome, m_foam, m_rubber, m_teal, m_webbing, m_white_plastic)
+from .common import (align, m_alu, m_black_plastic, m_chrome, m_foam, m_rubber, m_teal, m_webbing, m_white_plastic)
 
 
-def _print_canvas(length, width, ppm=1600, color=TEAL_HI, sub="MEDICAL"):
-    """Belt print: mark + NAYZEEE MEDICAL, laid out along the canvas x axis."""
+def _stitch_strip(length, width, ppm=3000, inset=0.004, color=(20, 21, 23)):
+    """Two lock-stitch rows along the long edges of a strap / band (canvas x = along the strap)."""
     dc = DecalCanvas(length, width, ppm)
-    h = width * 0.62
-    dc.lockup(width * 0.12, (width - h) / 2, h, color=color, sub_color=color, sub=sub)
+    for y in (inset, width - inset):
+        dc.stitch([(0.0, y), (length, y)], length=0.0035, gap=0.0016, width=0.0007, color=color)
     return dc
 
 
@@ -46,9 +46,12 @@ def _binder_mats(b):
 
 
 def _binder_print(b, tag, length, width, start, repeat):
-    dc = DecalCanvas(0.26, width * 0.5, ppm=1600)
-    h = width * 0.30
-    dc.lockup(0.01, (width * 0.5 - h) / 2, h, color=TEAL_HI, sub_color=TEAL_HI)
+    dc = DecalCanvas(0.26, width * 0.5, ppm=2400)
+    hh = width * 0.5
+    dc.star_of_life(hh * 0.5, hh * 0.5, hh * 0.62, color=TEAL_HI, rod=(52, 55, 60))
+    dc.text(hh * 1.0, hh * 0.40, "PELVIC BINDER", hh * 0.24, fnt="label", anchor="lm", color=TEAL_HI, spacing=hh * 0.02, max_w=0.26 - hh * 1.05)
+    dc.text(hh * 1.0, hh * 0.72, "PB-1  ·  SIZE STD  ·  LATEX FREE", hh * 0.12, fnt="label-semi", anchor="lm", color=(170, 176, 180),
+            max_w=0.26 - hh * 1.05)
     b.chart_decal(dc, tag, u0=width * 0.25, v0=start, rot=270, repeat_v=repeat, mats=["binder_belt"])
 
 
@@ -91,6 +94,12 @@ def binder_flat(b):
     hook = DecalCanvas(0.12, W * 0.8, ppm=1500)
     hook.rect(0, 0, 0.12, W * 0.8, r=0.004, color=(30, 31, 34), height=0.0003, spec=0.08, gloss=0.1)
     b.chart_decal(hook, "belt:0", u0=W * 0.1, v0=0.02, rot=90)
+    b.chart_decal(_stitch_strip(0.87, W, ppm=2200, inset=0.007), "belt:2", u0=0.0, v0=0.0, rot=270, repeat_v=0.87, mats=["binder_belt"])
+    sl = DecalCanvas(0.06, 0.20, ppm=4000)
+    for yy in (0.045, 0.155):
+        sl.rect(0.012, yy - 0.022, 0.036, 0.044, r=0.004, color=(12, 13, 15), height=-0.002)
+    sl.text(0.03, 0.10, "PULL", 0.006, fnt="label", color=(150, 156, 160), rotate=90, height=0.0002)
+    b.decal(sl, center=(0.43, 0.0, 0.012), normal=(0, 0, 1), up=(0, 1, 0), mats=["black_plastic"], depth=0.004)
     b.col_box((-0.56, -0.12, 0.0), (0.46, 0.12, 0.02), "CLOTH")
 
 
@@ -134,19 +143,28 @@ def binder_worn(b):
     for sx in (-1, 1):
         b.add(box((0.04, 0.008, 0.06), teal, r=0.003, seg=1, center=(sx * 0.07, ay + 0.012, 0.0)))
     per = float(np.sum(np.linalg.norm(np.diff(np.concatenate([path, path[:1]]), axis=0), axis=1)))
-    dc = DecalCanvas(0.30, 0.10, ppm=1500)
-    dc.lockup(0.012, 0.02, 0.058, color=TEAL_HI, sub_color=TEAL_HI)
+    dc = DecalCanvas(0.30, 0.10, ppm=2000)
+    dc.star_of_life(0.045, 0.05, 0.06, color=TEAL_HI, rod=(52, 55, 60))
+    dc.text(0.085, 0.040, "PELVIC BINDER", 0.016, fnt="label", anchor="lm", color=TEAL_HI, spacing=0.002, max_w=0.2)
+    dc.text(0.085, 0.064, "PB-1  ·  SIZE STD", 0.008, fnt="label-semi", anchor="lm", color=(170, 176, 180), max_w=0.2)
     b.chart_decal(dc, "loop:1", u0=0.05, v0=per * 0.75 - 0.15, rot=90, mats=["binder_belt"])
+    b.chart_decal(_stitch_strip(0.8, 0.2, ppm=2000, inset=0.006), "loop:1", u0=0.0, v0=0.0, rot=90, repeat_v=0.8, mats=["binder_belt"])
     side = DecalCanvas(0.16, 0.03, ppm=1500)
     side.text(0.08, 0.015, "PELVIC BINDER", 0.012, fnt="label", color=TEAL_HI, spacing=0.0025, max_w=0.155)
     b.chart_decal(side, "loop:1", u0=0.085, v0=per * 0.5 - 0.08, rot=90, mats=["binder_belt"])
+    bk = DecalCanvas(0.06, 0.20, ppm=4000)
+    for zz in (0.05, 0.15):
+        bk.rect(0.014, zz - 0.02, 0.032, 0.04, r=0.004, color=(12, 13, 15), height=-0.002)
+    bk.text(0.03, 0.10, "PB-1", 0.006, fnt="label", color=(150, 156, 160), height=0.0002)
+    bk.groove_rect(0.004, 0.004, 0.052, 0.192, r=0.004)
+    b.decal(bk, center=tuple(front + np.array([0, 0.006, 0])), normal=(0, 1, 0), up=(0, 0, 1), mats=["black_plastic"], depth=0.004)
     b.col_box((-0.18, -0.13, -0.11), (0.18, 0.14, 0.11), "CLOTH")
 
 
 # =============================================================================================
 # tourniquet (applied, windlass locked)
 # =============================================================================================
-@prop("nz_amb_tourniquet", atlas=512, lod=40, hd=6, doc={
+@prop("nz_amb_tourniquet", atlas=1024, lod=40, hd=6, doc={
     "title": "Windlass tourniquet, applied loop (inner diameter ~0.11 m)",
     "origin": "centre of the loop (limb axis)",
     "axes": "limb / bone axis = X, windlass rod on top (+Z) lying along X, time strap on the rod",
@@ -156,7 +174,6 @@ def binder_worn(b):
 })
 def tourniquet(b):
     strap = m_webbing(b, "tq_strap", (26, 27, 30))
-    teal = m_teal(b)
     blk = m_black_plastic(b)
     red = b.mat("tq_red", color=(200, 36, 40), spec=0.3, gloss=0.45, edge=0.3)
     white = b.mat("tq_time", color=(232, 234, 235), spec=0.2, gloss=0.3, bump="fabric", bump_amp=0.0001, bump_scale=0.0012)
@@ -176,7 +193,9 @@ def tourniquet(b):
     for sx in (-1, 1):
         hook = np.array([(sx * 0.022, -0.016, zt + 0.002), (sx * 0.022, -0.016, zt + 0.014), (sx * 0.022, -0.004, zt + 0.02), (sx * 0.022, 0.006, zt + 0.014)])
         b.add(sweep(rrect(0.006, 0.003, 0.001, 2), catmull(hook, n=5), blk, side=(1, 0, 0), tag="clip"))
-    rod = cylinder(0.0055, 0.104, teal, segs=16, bevel=0.0015, z0=-0.052).rotate(0, 90, 0).translate(0, -0.004, zt + 0.010)
+    rodm = b.mat("tq_rod", color=(10, 150, 140), spec=0.42, gloss=0.55, bump="ribs", bump_amp=0.00012, bump_scale=0.0018, edge=0.5,
+                 dirt=0.15)
+    rod = cylinder(0.0055, 0.104, rodm, segs=20, bevel=0.0015, z0=-0.052).rotate(0, 90, 0).translate(0, -0.004, zt + 0.010)
     b.add(rod)
     b.add(box((0.03, 0.022, 0.008), strap, r=0.003, seg=1, center=(0, -0.004, zt + 0.0035)))
     b.add(box((0.034, 0.03, 0.0025), white, r=0.0012, seg=1, center=(0, 0.008, zt + 0.0168)))
@@ -184,16 +203,19 @@ def tourniquet(b):
     lab.text(0.017, 0.009, "TIME", 0.0045, fnt="label", color=(200, 36, 40))
     lab.text(0.017, 0.021, "14:32", 0.0048, fnt="mono-bold", color=(20, 22, 24))
     b.decal(lab, center=(0, 0.008, zt + 0.0181), normal=(0, 0, 1), up=(0, -1, 0), mats=["tq_time"], depth=0.003)
-    pr = DecalCanvas(0.10, 0.03, ppm=4000)
-    pr.lockup(0.004, 0.006, 0.018, color=TEAL_HI, sub_color=TEAL_HI, sub=None)
+    pr = DecalCanvas(0.10, 0.03, ppm=5000)
+    pr.text(0.004, 0.011, "TQ-1  TOURNIQUET", 0.0058, fnt="label", anchor="lm", color=(232, 236, 238), spacing=0.0006)
+    pr.text(0.004, 0.022, "NOTE TIME APPLIED  ·  DO NOT LOOSEN", 0.0032, fnt="label-semi", anchor="lm", color=(200, 60, 60))
     b.chart_decal(pr, "loop:1", u0=0.004, v0=0.21, rot=90, mats=["tq_strap"])
+    b.chart_decal(_stitch_strip(0.4, 0.038, ppm=6000, inset=0.003, color=(60, 62, 66)), "loop:1", u0=0.0, v0=0.0, rot=90,
+                  repeat_v=0.4, mats=["tq_strap"])
     b.col_box((-0.055, -0.065, -0.065), (0.055, 0.065, 0.09), "CLOTH")
 
 
 # =============================================================================================
 # forearm crutch
 # =============================================================================================
-@prop("nz_amb_crutch", atlas=512, lod=70, hd=10, doc={
+@prop("nz_amb_crutch", atlas=1024, lod=70, hd=10, doc={
     "title": "Forearm crutch, 1.2 m",
     "origin": "centre of the hand grip",
     "axes": "lower tube along -Z (ferrule at z = -0.86), grip points +Y (forward), cuff on top at the back",
@@ -241,13 +263,15 @@ def crutch(b):
     b.add(sweep(rrect(0.004, 0.044, 0.0015, 2), arc_in, foam, up=tuple(d), tag="cuffpad", smooth_angle=40))
     b.add(box((0.026, 0.02, 0.05), blk, r=0.008, seg=2, center=top + d * 0.01 + e2 * 0.002))
     # decals
-    lab = DecalCanvas(0.03, 0.12, ppm=4000)
-    lab.text(0.015, 0.06, "NAYZEEE", 0.0075, fnt="label", color=(240, 242, 243), spacing=0.0012, rotate=90)
+    lab = DecalCanvas(0.03, 0.14, ppm=5000)
+    lab.text(0.011, 0.07, "CR-2  ·  FOREARM CRUTCH", 0.0042, fnt="label", color=(240, 242, 243), spacing=0.0006, rotate=90)
+    lab.text(0.021, 0.07, "MAX 120 kg", 0.0034, fnt="label-semi", color=(220, 226, 228), rotate=90)
     mid = (np.array([0.0, jy, 0.03]) + top) / 2
     b.decal(lab, center=tuple(mid + np.array([0.0108, 0, 0])), normal=(1, 0, 0), up=tuple(d), mats=["crutch_teal"], depth=0.008)
-    holes = DecalCanvas(0.012, 0.30, ppm=3000)
+    holes = DecalCanvas(0.02, 0.30, ppm=4000)
     for k in range(9):
         holes.circle(0.006, 0.02 + k * 0.03, 0.0026, color=(18, 18, 20), height=-0.0004)
+        holes.text(0.0145, 0.02 + k * 0.03, str(9 - k), 0.0034, fnt="label", color=(60, 62, 66), height=-0.00005)
     b.decal(holes, center=(0, jy + 0.0095, -0.62), normal=(0, 1, 0), up=(0, 0, 1), mats=["alu"], depth=0.006)
     b.col_cyl((0, jy, -0.415), 0.013, 0.89, axis="z", material="METAL_HOLLOW_SMALL")
     b.col_box((-0.02, jy - 0.02, -0.03), (0.02, 0.08, 0.04), "RUBBER")
@@ -280,7 +304,13 @@ def _splint(b, L, R, straps, foot_plate=False, palm=False, name="LEG"):
         a = np.radians(np.linspace(0, 360, 48, endpoint=False))
         loop = np.stack([np.full_like(a, xs), Ro * np.cos(a), Ro * np.sin(a)], axis=1)
         b.add(sweep(rrect(0.003, 0.038, 0.0, 1), loop, web, closed_path=True, up=(1, 0, 0), tag="strap", smooth_angle=30))
-        b.add(box((0.044, 0.012, 0.03), teal, r=0.004, seg=2, center=(xs, -(Ro + 0.004) * math.cos(math.radians(35)), (Ro + 0.004) * math.sin(math.radians(35)))))
+        bc = np.array([xs, -(Ro + 0.004) * math.cos(math.radians(35)), (Ro + 0.004) * math.sin(math.radians(35))])
+        b.add(box((0.044, 0.012, 0.03), teal, r=0.004, seg=2, center=tuple(bc)))
+        nrm = np.array([0.0, -math.cos(math.radians(35)), math.sin(math.radians(35))])
+        b.add(align(torus(0.009, 0.0016, m_chrome(b), segs=20, tube_segs=6).scale(1.0, 0.7, 1.0), nrm, (1, 0, 0), tuple(bc + nrm * 0.008)))
+    if straps:
+        b.chart_decal(_stitch_strip(0.6, 0.038, ppm=4000, inset=0.004, color=(60, 62, 66)), "strap:", u0=0.0, v0=0.0, rot=90,
+                      repeat_v=0.6, mats=["webbing"])
     if foot_plate:
         fx = L / 2 + 0.004
         b.add(box((0.008, 2 * (R + 0.012), 0.24), shell, r=0.003, seg=2, center=(fx, 0, 0.03)))
@@ -290,9 +320,11 @@ def _splint(b, L, R, straps, foot_plate=False, palm=False, name="LEG"):
         b.add(sweep(rrect(0.003, 0.034, 0.0, 1), loopf, web, up=(1, 0, 0), tag="footstrap", smooth_angle=30))
     if palm:
         b.add(cylinder(0.018, 0.07, pad, segs=20, bevel=0.006, z0=-0.035).rotate(90, 0, 0).translate(L / 2 - 0.03, 0, -R + 0.022))
-    lab = DecalCanvas(0.20, 0.04, ppm=2400)
-    lab.lockup(0.004, 0.004, 0.032, color=WHITE, sub_color=WHITE)
-    lab.text(0.196, 0.02, f"{name} SPLINT", 0.009, fnt="label", anchor="rm", color=WHITE, spacing=0.0015, max_w=0.07)
+    lab = DecalCanvas(0.20, 0.04, ppm=3200)
+    lab.star_of_life(0.02, 0.02, 0.032, color=WHITE, rod=(12, 146, 136))
+    lab.text(0.042, 0.015, f"{name} SPLINT", 0.0095, fnt="label", anchor="lm", color=WHITE, spacing=0.0012, max_w=0.15)
+    lab.text(0.042, 0.03, "VACUUM-FORMED  ·  X-RAY TRANSLUCENT  ·  SP-" + name[0], 0.0042, fnt="label-semi", anchor="lm",
+             color=(210, 245, 240), max_w=0.15)
     for sy in (-1, 1):
         b.decal(lab, center=(0.0 if not straps else (straps[0] + straps[1]) / 2 if len(straps) > 1 else 0.0,
                              sy * (R + t_pad + t_sh) * math.cos(math.radians(30)), -(R + t_pad + t_sh) * math.sin(math.radians(30))),
@@ -300,7 +332,7 @@ def _splint(b, L, R, straps, foot_plate=False, palm=False, name="LEG"):
                 mats=["splint_shell"], depth=0.02, min_dot=0.4)
 
 
-@prop("nz_amb_splint_leg", atlas=512, lod=60, hd=10, doc={
+@prop("nz_amb_splint_leg", atlas=1024, lod=60, hd=10, doc={
     "title": "Posterior leg splint (U channel, 0.75 m, foot plate)",
     "origin": "on the limb axis at mid length (the channel wraps around it)",
     "axes": "length along X, foot plate at +X pointing +Z, open side of the channel +Z (anterior)",
@@ -312,7 +344,7 @@ def splint_leg(b):
     b.col_box((-0.38, -0.08, -0.08), (0.39, 0.08, 0.15), "PLASTIC")
 
 
-@prop("nz_amb_splint_arm", atlas=512, lod=50, hd=8, doc={
+@prop("nz_amb_splint_arm", atlas=1024, lod=50, hd=8, doc={
     "title": "Posterior arm splint (U channel, 0.40 m, palm roll)",
     "origin": "on the limb axis at mid length",
     "axes": "length along X (palm roll at +X), open side +Z",
@@ -326,7 +358,7 @@ def splint_arm(b):
 # =============================================================================================
 # cervical collar
 # =============================================================================================
-@prop("nz_amb_collar", atlas=512, lod=40, hd=8, doc={
+@prop("nz_amb_collar", atlas=1024, lod=40, hd=8, doc={
     "title": "Rigid cervical collar (applied loop)",
     "origin": "neck axis at the collar's mid height",
     "axes": "loop around Z, chin support and trachea opening at the front (+Y)",
@@ -337,7 +369,7 @@ def collar(b):
     shell = m_white_plastic(b)
     foam = m_foam(b)
     teal = m_teal(b)
-    velcro = b.mat("velcro", color=(10, 146, 136), spec=0.1, gloss=0.15, bump="rubber", bump_amp=0.0001, bump_scale=0.0006, edge=0.1)
+    velcro = b.mat("velcro", color=(10, 146, 136), spec=0.1, gloss=0.15, bump="velcro", bump_amp=0.00012, bump_scale=0.0007, edge=0.1)
     n = 72
     th = np.linspace(0, 2 * math.pi, n, endpoint=False)
     rx, ry = 0.066, 0.071
@@ -380,8 +412,11 @@ def collar(b):
     front.rect(0.025, 0.036, 0.04, 0.03, r=0.012, fill=False, width=0.002, color=(10, 150, 140))
     for k in range(5):
         front.circle(0.01 + k * 0.0175, 0.079, 0.0026, color=(18, 18, 20), height=-0.0008)
-    front.text(0.045, 0.017, "NAYZEEE", 0.0062, fnt="label", color=(10, 130, 120), spacing=0.001)
-    front.text(0.045, 0.027, "ADULT  ·  ADJ", 0.0038, fnt="label-semi", color=(90, 94, 98))
+    front.text(0.045, 0.015, "ADJUSTABLE", 0.0052, fnt="label", color=(10, 130, 120), spacing=0.0008)
+    front.text(0.045, 0.024, "ADULT  ·  CC-4", 0.0036, fnt="label-semi", color=(90, 94, 98))
+    for k, (t, c) in enumerate((("S", (230, 200, 40)), ("M", (40, 120, 210)), ("L", (200, 60, 60)))):
+        front.circle(0.03 + k * 0.015, 0.031, 0.0028, color=c)
+        front.text(0.03 + k * 0.015, 0.0312, t, 0.0028, fnt="label", color=(255, 255, 255))
     b.decal(front, center=(0.0, ry + 0.003, 0.012 + 0.002), normal=(0, 1, 0), up=(0, 0, 1), mats=["white_plastic"], depth=0.03, min_dot=0.3)
     side = DecalCanvas(0.06, 0.04, ppm=3000)
     for k in range(3):

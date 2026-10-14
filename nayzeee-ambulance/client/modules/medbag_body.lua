@@ -3,9 +3,12 @@
 
     Medic side
       Patient option 'Place in body bag' (dead players / NPC patients, perm Config.Medbag.Body.perm,
-      the body bag item) → NZA.Proc 'bodybag': kneel, unfold, roll the body in, zip it (ox_lib
-      progress per step; easy mode = one bar). Dead ambient NPCs that are not patients yet get the
-      same option through Bridge.Target.Ped (nza:medbag:body:adopt first).
+      the body bag item) → NZA.Proc 'bodybag': turn to the body, unfold, roll the body in, zip it.
+      Each step plays its animation while the zip-up card (NUI 'medbag', mode 'zip', no focus) shows
+      a step spine and a zipper that closes; [X] stops (Body.zipCard = false → ox_lib bars; easy
+      mode = one bar). Dead ambient NPCs that are not patients yet get the same option through
+      Bridge.Target.Ped (nza:medbag:body:adopt first).
+      'Read the toe tag' shows the tag card (NUI 'medbag', mode 'tag', no focus) for Body.tagSeconds.
       Options on the bag prop (NZA.Interact, bag = true): Carry body bag · Open body bag (players) ·
       Read the toe tag · Deliver to the morgue (bag near a morgue point).
       Carrying: [G] put it down, [E] context = deliver at a morgue / lay it on a free stretcher
@@ -127,9 +130,101 @@ local function bodySpot(ent)
     return vector3(c.x, c.y, z), GetEntityHeading(ent)
 end
 
+-- street + area where a body lies (toe tag)
+local function placeName(c)
+    if not c then return nil end
+    local s1, s2 = GetStreetNameAtCoord(c.x, c.y, c.z)
+    local street = s1 and s1 ~= 0 and GetStreetNameFromHashKey(s1) or nil
+    if (not street or street == '') and s2 and s2 ~= 0 then street = GetStreetNameFromHashKey(s2) end
+    local zone = GetNameOfZone(c.x, c.y, c.z)
+    local area = zone and GetLabelText(zone) or nil
+    if area == 'NULL' or area == '' then area = nil end
+    if street and street ~= '' and area then return street .. ', ' .. area end
+    return (street ~= '' and street) or area
+end
+
 -- ════════════════════════════════════════════════════════════════════════
 -- BAGGING
 -- ════════════════════════════════════════════════════════════════════════
+
+local ZIP_BLOCK = { 21, 22, 23, 24, 25, 30, 31, 32, 33, 34, 35, 36, 37, 44, 45, 140, 141, 142, 143, 257, 263, 264 }
+
+-- the zip-up card (NUI 'medbag', mode 'zip', no focus): each step plays its animation while the
+-- card's zipper closes; [X] (Body.cancelKey) stops. → true when every step ran
+local function zipSteps(ctx, steps, total)
+    local cancel = B().cancelKey or { control = 73, label = 'X' }
+    local d = type(ctx.data) == 'table' and ctx.data or {}
+    total = tonumber(d.time) or total
+    local sum = 0
+    for _, st in ipairs(steps) do sum = sum + (tonumber(st.share) or (1 / #steps)) end
+    if sum <= 0 then sum = 1 end
+    local list = {}
+    for i, st in ipairs(steps) do
+        list[i] = { label = L(st.label or 'bb_progress'), share = (tonumber(st.share) or (1 / #steps)) / sum }
+    end
+    local sub = d.tod and L('zip_sub_tod', d.tod) or nil
+    if type(d.cause) == 'string' and d.cause ~= '' then sub = sub and (sub .. ' · ' .. d.cause) or d.cause end
+
+    if MB.State and MB.State.open and MB.Close then MB.Close() end
+    MB.UIMode = 'zip'
+    NZA.UI.Open('medbag', {
+        mode = 'zip', locale = NZA.LocaleTable('medbag'),
+        zip = { name = d.name or L('unknown'), sub = sub, steps = list, key = cancel.label, keyLabel = L('zip_stop') },
+    }, { focus = false })
+    local function closeCard(delay)
+        SetTimeout(delay or 0, function()
+            if MB.UIMode == 'zip' then
+                MB.UIMode = nil
+                NZA.UI.Close('medbag')
+            end
+        end)
+    end
+    ctx.onEnd(function(outcome) if not outcome then closeCard(0) end end)
+
+    local ped = PlayerPedId()
+    local token = nil
+    local function stopAnim()
+        if token then NZA.Anim.Stop(ped, { token = token }) token = nil end
+    end
+    for i, st in ipairs(steps) do
+        local ms = math.max(400, math.floor(total * list[i].share * 1000))
+        NZA.UI.Send('medbag', 'zipStep', { i = i, ms = ms })
+        stopAnim()
+        if st.dict then
+            local okA, tk = NZA.Anim.Play(ped, st.dict, st.clip, { flag = st.flag or 1 })
+            if okA then token = tk end
+        end
+        local t0 = GetGameTimer()
+        while GetGameTimer() - t0 < ms do
+            if ctx.done() then stopAnim() closeCard(0) return false end
+            for j = 1, #ZIP_BLOCK do DisableControlAction(0, ZIP_BLOCK[j], true) end
+            DisableControlAction(0, cancel.control, true)
+            if IsDisabledControlJustPressed(0, cancel.control) or down() then
+                stopAnim()
+                closeCard(0)
+                return false
+            end
+            Wait(0)
+        end
+    end
+    stopAnim()
+    NZA.UI.Send('medbag', 'zipDone', {})
+    closeCard(1600)
+    return true
+end
+
+-- the classic way: one ox_lib progress bar per step
+local function barSteps(ctx, steps, total)
+    if #steps == 0 then
+        return progress(total * 1000, L('bb_progress'), { dict = 'amb@medic@standing@kneel@base', clip = 'base', flag = 1 })
+    end
+    for _, st in ipairs(steps) do
+        local share = tonumber(st.share) or (1 / #steps)
+        if ctx.done() then return false end
+        if not progress(total * share * 1000, L(st.label or 'bb_progress'), st) then return false end
+    end
+    return true
+end
 
 function MB.BagBody(entity, target)
     if B_.busy then return end
@@ -146,20 +241,16 @@ function MB.BagBody(entity, target)
             TaskTurnPedToFaceEntity(ped, body, 700)
             Wait(700)
         end
-        if #steps == 0 then
-            if not progress(total * 1000, L('bb_progress'), { dict = 'amb@medic@standing@kneel@base', clip = 'base', flag = 1 }) then return ctx.abort('cancel') end
-        else
-            for _, st in ipairs(steps) do
-                local share = tonumber(st.share) or (1 / #steps)
-                if ctx.done() then return end
-                if not progress(total * share * 1000, L(st.label or 'bb_progress'), st) then return ctx.abort('cancel') end
-            end
-        end
         if ctx.done() then return end
+        local done
+        if cfg.zipCard ~= false and #steps > 0 then done = zipSteps(ctx, steps, total)
+        else done = barSteps(ctx, steps, total) end
+        if ctx.done() then return end
+        if not done then return ctx.abort('cancel') end
         local at, h = nil, nil
         body = NZA.Target.Entity(target)
         if body ~= 0 then at, h = bodySpot(body) end
-        ctx.finish({ score = 100, at = plainV(at), heading = h })
+        ctx.finish({ score = 100, at = plainV(at), heading = h, where = placeName(at or GetEntityCoords(ped)) })
     end, { label = L('bb_progress'), silent = true })
     B_.busy = false
     if ok then
@@ -422,7 +513,7 @@ function MB.BodyToStretcher(cot)
         spawnHeld(res.model, { entity = cot, bone = 0, pos = st.pos or vector3(0.0, 0.0, 0.93), rot = st.rot or vector3(0.0, 0.0, 0.0) }, 'medbag_body_cot', res.token)
     end
     B_.busy = false
-    toast(res.msg or L('bb_ok_stretcher'), 'success', 'stretcher')
+    toast(res.msg or L('bb_ok_stretcher'), 'success', 'bed')
 end
 
 function MB.BodyToVehicle(veh)
@@ -461,13 +552,33 @@ function MB.Deliver(pointId, id)
     NZA.UI.Toast({ title = L('morgue'), message = res.msg, type = 'success', icon = 'skull', duration = 4500 })
 end
 
+-- the toe tag card (NUI 'medbag', mode 'tag', no focus) for Body.tagSeconds
+local tagToken = 0
 local function readTag(id)
     local res = lib.callback.await('nza:medbag:body:tag', false, id)
     if type(res) ~= 'table' or not res.ok then return err(res) end
-    local parts = { L('bb_tag_tod', res.tod or '--:--') }
-    if res.cause then parts[#parts + 1] = res.cause end
-    if res.by then parts[#parts + 1] = L('bb_tag_by', res.by) end
-    NZA.UI.Toast({ title = L('bb_tag_title', res.name or L('unknown')), message = table.concat(parts, ' · '), type = 'info', icon = 'note', duration = 8000 })
+    local ms = math.floor((tonumber(B().tagSeconds) or 9) * 1000)
+    if MB.UIMode == 'bag' or MB.UIMode == 'zip' then
+        -- another view owns the app right now: a short note instead
+        local parts = { L('bb_tag_tod', res.tod or '--:--') }
+        if res.cause then parts[#parts + 1] = res.cause end
+        if res.by then parts[#parts + 1] = L('bb_tag_by', res.by) end
+        return NZA.UI.Toast({ title = L('bb_tag_title', res.name or L('unknown')), message = table.concat(parts, ' · '), type = 'info', icon = 'note', duration = ms })
+    end
+    tagToken = tagToken + 1
+    local mine = tagToken
+    MB.UIMode = 'tag'
+    NZA.UI.Open('medbag', {
+        mode = 'tag', locale = NZA.LocaleTable('medbag'), ms = ms,
+        tag = { id = res.id, name = res.name, kind = res.kind, tod = res.tod, date = res.date, cause = res.cause, by = res.by,
+                where = res.where, sex = res.sex, age = res.age, blood = res.blood, call = res.call },
+    }, { focus = false })
+    SetTimeout(ms, function()
+        if tagToken == mine and MB.UIMode == 'tag' then
+            MB.UIMode = nil
+            NZA.UI.Close('medbag')
+        end
+    end)
 end
 
 RegisterNetEvent('nza:medbag:body:carryEnd', function()
@@ -551,7 +662,7 @@ RegisterNetEvent('nza:medbag:body:release', function(at, heading, teleport)
     else
         releaseSelf(at, heading)
     end
-    toast(L('bb_released'), 'info', 'body')
+    toast(L('bb_released'), 'info', 'person')
 end)
 
 -- the wounded module is about to teleport us to the hospital
@@ -803,6 +914,7 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= NZA.Resource then return end
+    if MB.UIMode == 'zip' or MB.UIMode == 'tag' then MB.UIMode = nil NZA.UI.Close('medbag') end
     NZA.UI.HidePrompt(PROMPT_DROP)
     NZA.UI.HidePrompt(PROMPT_CTX)
     NZA.UI.HidePrompt(PROMPT_UNLOAD)

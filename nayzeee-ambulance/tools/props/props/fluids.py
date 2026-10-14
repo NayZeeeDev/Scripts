@@ -11,7 +11,7 @@ import numpy as np
 from nzprops import (TEAL_HI, DecalCanvas, Geo, box, catmull, cylinder, lathe, pillow, polyline_fillet, prop,
                      register, rrect, sphere, sweep, torus, tube)
 
-from .common import align, m_black_plastic, m_chrome, m_rubber, m_teal, m_white_plastic
+from .common import align, m_black_plastic, m_chrome, m_rubber, m_teal, m_white_plastic, screws
 
 HOOK_X = 0.073
 HOOK_Z = 1.766
@@ -38,8 +38,10 @@ def ivstand(b):
     b.add(lathe([(0.0, 0.985), (0.0185, 0.985), (0.0205, 0.99), (0.0205, 1.03), (0.0175, 1.04), (0.0098, 1.045)], blk, segs=28, smooth_angle=40))
     b.add(cylinder(0.0212, 0.008, teal, segs=28, caps=(False, False), z0=1.005))
     b.add(cylinder(0.004, 0.03, chrome, segs=10, z0=0.0).rotate(0, 90, 0).translate(0.018, 0, 1.015))
-    b.add(lathe([(0.0, 0.0), (0.014, 0.0), (0.016, 0.004), (0.016, 0.012), (0.012, 0.016), (0.0, 0.016)], blk, segs=20, smooth_angle=40)
+    knk = b.mat("knob_knurl", color=(30, 31, 34), spec=0.3, gloss=0.4, bump="ribs_u", bump_amp=0.00014, bump_scale=0.0016, edge=0.45, dirt=0.2)
+    b.add(lathe([(0.0, 0.0), (0.014, 0.0), (0.016, 0.004), (0.016, 0.012), (0.012, 0.016), (0.0, 0.016)], knk, segs=28, smooth_angle=40)
           .rotate(0, 90, 0).translate(0.046, 0, 1.015))
+    b.add(screws(b, [(0.0, 0.0205, 1.03)], (0, 1, 0), d=0.004, segs=10))
     # top: cap + two hooks + finial
     b.add(lathe([(0.0098, 1.75), (0.016, 1.752), (0.017, 1.772), (0.012, 1.78), (0.0, 1.781)], blk, segs=24, smooth_angle=40))
     for sx in (-1, 1):
@@ -58,9 +60,16 @@ def ivstand(b):
         b.add(tube(catmull([p0, p1, p2], n=6), 0.0095, chrome, segs=14))
         foot = lathe([(0.0, 0.0), (0.017, 0.0), (0.018, 0.006), (0.015, 0.03), (0.0, 0.032)], rub, segs=18, smooth_angle=40)
         b.add(foot.translate(*(d * 0.315)))
-    lab = DecalCanvas(0.13, 0.03, ppm=2600)
-    lab.lockup(0.004, 0.003, 0.022, color=(30, 32, 35), sub_color=(10, 130, 120))
-    b.decal(lab, center=(0.0, 0.0206, 1.022), normal=(0, 1, 0), up=(0, 0, 1), mats=["black_plastic"], depth=0.01, min_dot=0.1)
+    lab = DecalCanvas(0.06, 0.04, ppm=5000)
+    lab.text(0.03, 0.008, "IV-2", 0.006, fnt="label", color=(200, 204, 208), spacing=0.0008)
+    lab.text(0.03, 0.033, "MAX 5 kg", 0.0038, fnt="label-semi", color=(160, 164, 168))
+    b.decal(lab, center=(0.0, 0.0206, 1.017), normal=(0, 1, 0), up=(0, 0, 1), mats=["black_plastic"], depth=0.01, min_dot=0.1)
+    sc = DecalCanvas(0.024, 0.60, ppm=2500)
+    for k in range(31):
+        sc.rect(0.004, 0.01 + k * 0.019, 0.006 if k % 5 else 0.012, 0.0008, color=(40, 42, 46))
+        if k % 5 == 0:
+            sc.text(0.016, 0.01 + k * 0.019, str(180 - k), 0.0035, fnt="label-semi", anchor="lm", color=(40, 42, 46))
+    b.decal(sc, center=(0.0, 0.0095, 1.40), normal=(0, 1, 0), up=(0, 0, 1), mats=["chrome"], depth=0.004, min_dot=0.3)
     b.col_cyl((0, 0, 0.9), 0.013, 1.8, axis="z", material="METAL_HOLLOW_SMALL")
     b.col_cyl((0, 0, 0.03), 0.30, 0.06, axis="z", material="METAL_HOLLOW_SMALL")
 
@@ -112,17 +121,21 @@ def _bag_label(lines, w, h, ppm=3600, band=(40, 110, 200)):
     dc = DecalCanvas(w, h, ppm)
     dc.rect(0, 0, w, h, r=0.003, color=(236, 240, 242), alpha=0.92, spec=0.35, gloss=0.5)
     dc.rect(0, 0, w, h * 0.16, r=0.003, color=band)
-    dc.mark(0.004, h * 0.025, h * 0.11)
-    dc.text(0.004 + h * 0.15, h * 0.08, "NAYZEEE MEDICAL", h * 0.055, fnt="label", anchor="lm", color=(250, 252, 252), spacing=h * 0.006, max_w=w * 0.75)
+    dc.text(0.004, h * 0.08, "STERILE  ·  NON-PYROGENIC", h * 0.05, fnt="label", anchor="lm", color=(250, 252, 252), spacing=h * 0.004,
+            max_w=w * 0.7)
+    dc.text(w - 0.004, h * 0.08, "Rx", h * 0.06, fnt="label", anchor="rm", color=(250, 252, 252))
     for t, y, size, fnt, col in lines:
         dc.text(w / 2, y, t, size, fnt=fnt, color=col, max_w=w * 0.92)
+    dc.barcode(w * 0.08, h * 0.80, w * 0.5, h * 0.12, seed=int(w * 1e4), color=(30, 32, 35))
+    for k, kd in enumerate(("noreuse", "latex", "temp")):
+        dc.icon(kd, w * 0.64 + k * h * 0.11, h * 0.82, h * 0.09, color=(40, 44, 48))
     return dc
 
 
 # =============================================================================================
 # saline bag 500 mL
 # =============================================================================================
-@prop("nz_amb_ivbag_saline", atlas=256, alpha_atlas=512, lod=50, hd=8, doc={
+@prop("nz_amb_ivbag_saline", atlas=256, alpha_atlas=1024, lod=50, hd=8, doc={
     "title": "Saline 0.9% 500 mL bag with giving set",
     "origin": "hanging slot at the top of the bag",
     "axes": "bag hangs along -Z, printed front faces +Y",
@@ -191,24 +204,33 @@ def _make_bloodbag(level):
         for k in range(0, len(path) - 4, 6):
             g += cylinder(0.0028, 0.003, film, segs=10, caps=(True, True)).rotate(0, 0, 0).translate(*path[k])
         b.add(g)
-        lab = DecalCanvas(0.084, 0.09, ppm=3400)
+        # ISBT-128 style quadrant label: donation number / group / product / expiry, each with its barcode
+        lab = DecalCanvas(0.084, 0.09, ppm=5000)
+        ink = (30, 32, 35)
         lab.rect(0, 0, 0.084, 0.09, r=0.003, color=(240, 242, 242), alpha=0.95, spec=0.35, gloss=0.5)
-        lab.rect(0, 0, 0.084, 0.014, r=0.003, color=(196, 30, 36))
-        lab.mark(0.003, 0.002, 0.010)
-        lab.text(0.016, 0.007, "NAYZEEE BLOOD SERVICE", 0.0042, fnt="label", anchor="lm", color=(250, 250, 250), max_w=0.064)
-        lab.text(0.042, 0.022, "RED CELLS  CPD-SAGM", 0.0046, fnt="label", color=(30, 32, 35), max_w=0.078)
-        lab.rect(0.006, 0.030, 0.034, 0.034, r=0.002, color=(196, 30, 36))
-        lab.text(0.023, 0.044, "O", 0.014, fnt="label-black", color=(250, 250, 250))
-        lab.text(0.023, 0.058, "NEG", 0.0055, fnt="label", color=(250, 250, 250))
-        rng = np.random.default_rng(level + 3)
-        x = 0.046
-        while x < 0.078:
-            bw = 0.0004 + rng.random() * 0.0012
-            lab.rect(x, 0.031, bw, 0.020, color=(20, 22, 24))
-            x += bw + 0.0004 + rng.random() * 0.0009
-        lab.text(0.062, 0.056, "DN 26-04417", 0.0028, fnt="mono", color=(30, 32, 35))
-        lab.text(0.042, 0.072, "450 mL  ·  store 2-6 C", 0.0034, fnt="label-semi", color=(30, 32, 35), max_w=0.078)
-        lab.text(0.042, 0.083, "CHECK ID BEFORE TRANSFUSION", 0.0028, fnt="label", color=(196, 30, 36), max_w=0.078)
+        lab.rect(0, 0, 0.084, 0.010, r=0.003, color=(196, 30, 36))
+        lab.text(0.042, 0.0052, "TRANSFUSION SERVICE  ·  WHOLE BLOOD DONATION", 0.0026, fnt="label", color=(250, 250, 250), max_w=0.078)
+        lab.line([(0.042, 0.012), (0.042, 0.078)], 0.0003, color=(150, 152, 156))
+        lab.line([(0.003, 0.045), (0.081, 0.045)], 0.0003, color=(150, 152, 156))
+        lab.barcode(0.003, 0.013, 0.037, 0.012, seed=level + 3, color=ink)
+        lab.text(0.0215, 0.029, "W0426 26 004417", 0.0024, fnt="mono-bold", color=ink, max_w=0.037)
+        lab.text(0.0215, 0.035, "DONATION No.", 0.0018, fnt="label-semi", color=(90, 94, 98))
+        lab.text(0.0215, 0.040, "COLLECTED 2026-10-02", 0.0018, fnt="label-semi", color=(90, 94, 98), max_w=0.037)
+        lab.barcode(0.045, 0.013, 0.036, 0.008, seed=level + 11, color=ink)
+        lab.rect(0.046, 0.023, 0.034, 0.02, r=0.002, color=(196, 30, 36))
+        lab.text(0.056, 0.033, "O", 0.012, fnt="label-black", color=(250, 250, 250))
+        lab.text(0.071, 0.030, "Rh", 0.0036, fnt="label", color=(250, 250, 250))
+        lab.text(0.071, 0.037, "NEG", 0.0036, fnt="label", color=(250, 250, 250))
+        lab.barcode(0.003, 0.047, 0.037, 0.008, seed=level + 17, color=ink)
+        lab.text(0.0215, 0.059, "RED CELLS", 0.0036, fnt="label", color=ink, max_w=0.037)
+        lab.text(0.0215, 0.064, "CPD-SAGM  ·  LEUCODEPLETED", 0.0017, fnt="label-semi", color=ink, max_w=0.037)
+        lab.text(0.0215, 0.069, "450 mL  ·  store 2-6 C", 0.0019, fnt="label-semi", color=ink, max_w=0.037)
+        lab.barcode(0.045, 0.047, 0.036, 0.008, seed=level + 23, color=ink)
+        lab.text(0.063, 0.059, "EXPIRES", 0.0022, fnt="label-semi", color=(90, 94, 98))
+        lab.text(0.063, 0.066, "2026-11-20", 0.0034, fnt="mono-bold", color=ink)
+        lab.text(0.063, 0.072, "23:59", 0.0024, fnt="mono", color=ink)
+        lab.rect(0.003, 0.079, 0.078, 0.008, r=0.001, color=(250, 236, 236))
+        lab.text(0.042, 0.083, "CHECK PATIENT ID BEFORE TRANSFUSION", 0.0024, fnt="label", color=(196, 30, 36), max_w=0.074)
         b.decal(lab, center=(0.0, 0.03, zc + 0.012), normal=(0, 1, 0), up=(0, 0, 1), mats=["bag_film"], depth=0.04, min_dot=0.2)
         hole = DecalCanvas(0.03, 0.016, ppm=6000)
         hole.rect(0.006, 0.004, 0.018, 0.006, r=0.003, fill=False, width=0.0012, color=(160, 170, 175))
@@ -219,7 +241,7 @@ def _make_bloodbag(level):
 
 
 for _lvl in (0, 25, 50, 75, 100):
-    register(f"nz_amb_bloodbag_{_lvl}", _make_bloodbag(_lvl), atlas=256, alpha_atlas=512, lod=50, hd=8, doc={
+    register(f"nz_amb_bloodbag_{_lvl}", _make_bloodbag(_lvl), atlas=256, alpha_atlas=1024, lod=50, hd=8, doc={
         "title": f"Blood bag, {_lvl}% full (red cells, O NEG label)",
         "origin": "hanging slot at the top of the bag",
         "axes": "bag hangs along -Z (blood settles at the bottom), label faces +Y",
@@ -231,7 +253,7 @@ for _lvl in (0, 25, 50, 75, 100):
 # =============================================================================================
 # pressure infuser
 # =============================================================================================
-@prop("nz_amb_infuser", atlas=512, alpha_atlas=512, lod=50, hd=8, doc={
+@prop("nz_amb_infuser", atlas=1024, alpha_atlas=512, lod=50, hd=8, doc={
     "title": "Pressure infuser bag with gauge and hand bulb (holds a 500 mL bag)",
     "origin": "top hook",
     "axes": "hangs along -Z, clear window + gauge face +Y",
@@ -307,11 +329,17 @@ def infuser(b):
             a = math.radians(225 - k * 3)
             dial.circle(cx + math.cos(a) * 0.0232, cy - math.sin(a) * 0.0232, 0.0011, color=col)
     dial.text(cx, cy + 0.009, "mmHg", 0.0026, fnt="label-semi", color=(60, 64, 68))
-    dial.text(cx, cy - 0.006, "NAYZEEE", 0.0022, fnt="label", color=(10, 130, 120))
+    dial.text(cx, cy - 0.006, "PI-500", 0.0022, fnt="label", color=(10, 130, 120))
     b.decal(dial, center=(gx, -0.008 + 0.0168, gz), normal=(0, 1, 0), up=(0, 0, 1), mats=["white_plastic"], depth=0.003)
-    lab = DecalCanvas(0.12, 0.03, ppm=3000)
-    lab.lockup(0.004, 0.003, 0.022, color=(235, 238, 240), sub_color=TEAL_HI)
+    lab = DecalCanvas(0.12, 0.03, ppm=4000)
+    lab.text(0.06, 0.010, "PI-500", 0.0075, fnt="label", color=(235, 238, 240), spacing=0.001)
+    lab.text(0.06, 0.022, "MAX 300 mmHg  ·  LATEX FREE", 0.0036, fnt="label-semi", color=TEAL_HI, spacing=0.0004)
     b.decal(lab, center=(0.0, 0.006, -0.03 - 0.02), normal=(0, 1, 0), up=(0, 0, 1), mats=["infuser_fabric"], depth=0.03, min_dot=0.2)
+    st = DecalCanvas(W + 0.01, H + 0.01, ppm=2400)
+    st.stitch_rect(0.0, 0.0, W + 0.01, H + 0.01, r=0.012, inset=0.004, color=(14, 60, 74))
+    st.stitch_rect(0.0, 0.0, W + 0.01, H + 0.01, r=0.022, inset=0.013, color=(14, 60, 74))
+    b.decal(st, center=(0.0, 0.03, zc), normal=(0, 1, 0), up=(0, 0, 1), mats=["infuser_fabric"], depth=0.03, min_dot=0.2)
+    b.decal(st, center=(0.0, -0.03, zc), normal=(0, -1, 0), up=(0, 0, 1), mats=["infuser_fabric"], depth=0.03, min_dot=0.2)
     tag = DecalCanvas(0.11, 0.024, ppm=3000)
     tag.text(0.055, 0.012, "PRESSURE INFUSER  500 mL", 0.0058, fnt="label", color=(235, 238, 240), spacing=0.0006, max_w=0.105)
     b.decal(tag, center=(0.0, 0.004, zc - H / 2 + 0.003), normal=(0, 1, 0), up=(0, 0, 1), mats=["infuser_fabric"], depth=0.03, min_dot=0.2)

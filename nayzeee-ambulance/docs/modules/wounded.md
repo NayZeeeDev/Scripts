@@ -51,31 +51,43 @@ draws it for the patient.
   ("Too weak — rest a moment") and recover in `recover` seconds.
 
 ### Wounded HUD (`html/apps/wounded`, opened without focus)
-- Flip clock: the bleed-out clock from the state bag, interpolated locally each second (with the
-  core's `clockRate` for slow oozes), red under `criticalClock`, teal + paused when stabilized.
-  In arrest it counts the time until death (`Config.Death.arrestToDeath`) and turns teal "held by
-  CPR" while compressions are running.
-- Title `WOUNDED / UNCONSCIOUS / CARDIAC ARREST`, a live heartbeat line next to it (fast and weak
-  with blood loss, flat with agonal blips in arrest, compressions during CPR).
-- Status line: `BLEEDING SLOWLY / BLEEDING / BLEEDING HEAVILY · STABILIZED — CLOCK PAUSED ·
-  NO PULSE — CPR NEEDED · CPR IN PROGRESS · BEING CARRIED / ON A STRETCHER / IN TRANSPORT /
-  IN A BODY BAG · A MEDIC IS TREATING YOU · MEDIC ON SCENE · MEDIC ON THE WAY · ETA m:ss ·
-  AI PARAMEDIC RESPONDING · EMS NOTIFIED · NO MEDICS ON DUTY`.
-- Help card above the panel (glowing-bar note): medic on the way with unit and ETA countdown +
-  progress, AI paramedic, medic on scene, medic examining you, CPR in progress (with the medic's
-  name), EMS notified (medics on duty), no medics on duty.
-- Injury chips (region + type, worst first, as many as fit on one line, rest as `+N`): red with a
-  pulsing dot while bleeding, teal `TQ` with a tourniquet, teal splint / check when treated.
-  No exact vitals are ever shown to the patient.
-- Key hints: `W Crawl · S Stop · A D Turn` (live strength meter while crawling, or "You can't move"
-  / "Someone is moving you"), `G Call EMS` (spinner while calling, ✓ EMS called + cooldown),
-  `E Give up` with a red hold ring, locked with a countdown until `Config.Wounded.giveUp.minTime`.
-  Key caps show the player's own bindings.
+A "vital column" docked top-left (slides in from the left edge, clear of the minimap and of the
+top-centre voice card). Nothing sits bottom-centre. Cards, top to bottom:
+- **Vital card** (teal corner bracket in the live tone): a large bleed-out **status ring** — 60-tick
+  bezel, arc = time left of `clockMax` (`Config.Wounded.maxClock`, or `Config.Death.arrestToDeath`
+  in arrest), a red critical sector for the last `criticalClock` seconds, a white head dot, a slow
+  sheen, a sonar ring on every heartbeat — around a heart glyph that beats with the pulse and the
+  rolling (odometer) counter `NZA.ui.FlipClock`. The clock is interpolated locally (with the core's
+  `clockRate` for slow oozes). Ring tone = live state: white awake, amber slow bleed, red bleeding /
+  critical / no pulse, teal on hold (bleeding stopped) or CPR running. Caption under the counter:
+  `Time left / On hold / No pulse / CPR holding`; three blood-drop pips show how fast you bleed
+  (no exact vitals are ever shown to the patient). On open the ring fills up to the time left.
+  Beside the ring: awareness tag from AVPU (`Awake / Drowsy / Fading / Unresponsive / No pulse`),
+  a plain headline (`You're down / You're out cold / Your heart stopped`), a live heartbeat trace
+  (fast and weak with blood loss, flat with agonal blips in arrest, compressions during CPR) and
+  state chips (`Slow bleed / Bleeding / Heavy bleeding / Bleeding stopped / Needs CPR now /
+  CPR running / In care / Medic with you / Being carried / On a stretcher / In transport /
+  In a body bag`). Flash replies slide out of the card's right edge.
+- **Response card** (only when relevant): status ring icon + `Help is coming / AI paramedic on the
+  way / A medic is here / A medic is checking you / Someone is doing CPR (with the medic's name) /
+  Call received (medics on duty, spinning ring) / No medics on duty`; with an ETA it shows a rolling
+  `Arrives in` counter and a route line where the unit dot travels to the patient pin.
+- **Injuries card**: holographic body figure (scanlines, sweep, segments tinted by the worst tone of
+  their region, a diamond per injured region, pulsing while bleeding, dashed for the back) + an
+  instrument list (tone notch, icon, region, short type, tag `Bleeding / Tourniquet / Splinted /
+  Treated / Minor…Critical`), worst first, `+N more` after `maxInjuryChips`.
+- **Action list**: compact vertical key list — `W Crawl forward` (strength meter while crawling),
+  `S Lie still`, `A D Change direction` (or a lock row `Too weak to move / Someone is moving you`),
+  `G Call a medic` (glowing until used, spinner while calling, ✓ `Medic called` + cooldown),
+  `E Let go` with a red hold ring and a red fill across the row, locked with `Unlocks in m:ss`
+  until `Config.Wounded.giveUp.minTime`. Key caps show the player's own bindings.
 - Screen: NUI vignette scaling with blood loss, red edge pulse on every heartbeat, slow eyelid
   fades while unconscious, deep fades in arrest; heartbeat sound (WebAudio, `NZA.audio`);
   game-side desaturation + vignette, blur while unconscious, black & white in arrest, slight sway.
+- Preview: `html/index.html?app=wounded&demo=bleeding|critical|stable|unconscious|arrest|cpr|crawl|help|treat|nomedic|carried`
+  (G calls, hold E to let go).
 
-### Call EMS (G)
+### Call a medic (G)
 - Server cooldown `Config.Wounded.callEms.cooldown`; refused while unconscious when
   `callWhileUnconscious = false`.
 - `NZA.Dispatch.Create({ code, priority = NZA.Patients.Triage(pid), title (from the worst injury,
@@ -88,21 +100,29 @@ draws it for the patient.
 - The reply shows on the HUD (flash + help card); `nza:wounded:help` from dispatch / AI medic
   turns it into "medic on the way · ETA".
 
-### Give up (hold E)
+### Let go (hold E)
 - After `Config.Wounded.giveUp.minTime` seconds down (server clock), held for
   `Config.Wounded.giveUp.hold` seconds → `NZA.Patients.SetState(pid, 'dead', 'gave_up')`.
 - Also in arrest (`giveUpInArrest`). Blocked while a medic is examining you or doing CPR
   unless `giveUpWhileTreated = true`.
 
 ### Death screen (`html/apps/death`)
-- `DECEASED` over a flatline, time of death (server time), time dead, name.
-- Cause of death in plain words: the reason (gave up, bled out, heart stopped, catastrophic head
-  wound, drowned, collapsed lung, ...), the three worst injuries ("Critical gunshot wound · Chest"),
-  blood lost (% and litres), up to two conditions, time without a pulse, "+N more injuries".
-- Respawn card: hospital name, `Config.Death.respawnTimer` countdown (flip clock + progress), then
-  "Hold E to respawn at <hospital>" with a teal hold fill; bill (fee, insurance plan and cover from
-  `NZA.Insurance.Get`, you pay), chips for healed / items kept-lost / cash kept-lost.
-- Note: EMS can still recover the body (or "You are in a body bag"), G requests body recovery.
+Cinematic letterbox; the centre stays clear for the death camera.
+- Top bar: `Life signs lost` / `Body bagged` kicker, `You didn't make it`, and an instrument trio:
+  time of death (server time), time since death (rolling counter), patient name.
+- Bottom bar: its top edge is the patient's last ECG trace running out into a flat line (draws in on
+  open, a faint sweep runs along it, `Lead II · 25 mm/s · HR 0` strip annotation); body note
+  (`Your body can still be collected` / `Your body is bagged`) and `G Ask for body pickup`
+  (✓ `Pickup requested` + cooldown).
+- Left card `What happened`: the lead cause in a red capsule, then contributing lines on a vertical
+  spine — the three worst injuries ("Critical gunshot wound · Chest"), blood lost (% and litres), up
+  to two conditions, time without a pulse, "+N more injuries".
+- Right card `Wake up in hospital`: hospital name, a respawn **status ring** that fills while
+  `Config.Death.respawnTimer` runs (rolling counter inside), then turns into the hold ring
+  (`Hold E to wake up at <hospital>`, white hold arc); the bill as an instrument list (treatment
+  cost, insurance plan and cover from `NZA.Insurance.Get`, your share) and keep / lose rows
+  (injuries treated, items, cash).
+- Preview: `html/index.html?app=death&demo=wait|ready|bagged|gaveup|free|respawning`.
 - Slow orbit camera over the body (keeps under ceilings, follows the body if it is moved).
 - Re-entry after relog shows the remaining timer (server `deadAt`).
 

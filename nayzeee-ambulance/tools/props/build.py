@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NAYZEEE props pipeline - builds every registered prop into streamable GTA V assets.
+Procedural props pipeline - builds every registered prop into streamable GTA V assets.
 
     python3 tools/props/build.py --out /tmp/nza-work/props/out \
                                  --stream /home/user/Scripts/nayzeee-ambulance/stream
@@ -252,7 +252,7 @@ def contact_sheets(out, rdir, manifests, views, per_page=6, cell=360):
         ph = 64 + rows * (cell + 58)
         sheet = Image.new("RGB", (pw, ph), (17, 19, 22))
         d = ImageDraw.Draw(sheet)
-        d.text((24, 22), f"NAYZEEE AMBULANCE  -  streamed props  ({pi + 1}/{len(pages)})", font=font("label", 22), fill=(230, 233, 235))
+        d.text((24, 22), f"AMBULANCE RESOURCE  -  streamed props  ({pi + 1}/{len(pages)})", font=font("label", 22), fill=(230, 233, 235))
         for k, n in enumerate(page):
             cx = 24 + (k % cols) * (len(views) * cell + 24)
             cy = 64 + (k // cols) * (cell + 58)

@@ -5,7 +5,7 @@ file owned by someone else. Offsets / screens are documented in `docs/modules/pr
 
 ## 1. lead — `fxmanifest.lua` (already satisfied, keep it)
 
-All 43 models are plain drawables with embedded textures + collision, plus ONE archetype file. The
+All 46 models (42 generated + the 4 imported medic bag colours) are plain drawables with embedded textures + collision, plus ONE archetype file. The
 manifest already has what the stream folder needs:
 
 ```lua
@@ -104,3 +104,16 @@ exactly your `Config.Angio.suite.plunger`. Please spawn it **every time** the in
   surface, heading = into the room); embedded `nz_amb_screen` is 1024 x 576.
 * xray: `nz_amb_xray_table` patient surface z 0.825, tube focal spot `(0, 0.35, 1.66)`; the lightbox
   panel `(0, 0.1465, 1.47)` 0.60 x 0.75 is DUI-ready (`Config.PropScreens.lightbox`, 2b).
+
+## 6. everyone — de-branding + detail pass (FYI, no action required)
+
+* No prop carries a maker name or logo any more (generic device labels, model codes, rating plates,
+  caution / calibration stickers, star of life). Default screen images were de-branded too
+  (`nz_amb_tv_board` now shows a waiting-room board, `nz_amb_bay_shell` a clock / cabin standby).
+* Model names, origins, axes, scale, attach offsets, screen quads (`nz_amb_screen` position / size /
+  texture size) and collision are **unchanged**; nothing in `config/props.lua` needs to change.
+* `nz_amb_monitor`: the control buttons used to sit on top of the screen quad; they now sit beside it on
+  the +X side (the screen quad itself did not move). `nz_amb_defib`: the doc said the pads pouch is on
+  -X - it always was on +X (printer on -X); the doc text was corrected, the model did not move.
+* Textures are larger (1024 hand tools, 2048 devices / furniture / bay), so the stream folder grew -
+  see the total in `docs/modules/props.md` section 8 / the build log.

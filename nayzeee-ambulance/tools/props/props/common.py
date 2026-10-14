@@ -12,7 +12,7 @@ import math
 
 import numpy as np
 
-from nzprops import (BLACK, TEAL_HI, WHITE, DecalCanvas, Geo, catmull, cylinder, extrude, lathe, normalize, rrect, sweep,
+from nzprops import (BLACK, TEAL_HI, WHITE, DecalCanvas, Geo, cylinder, extrude, lathe, normalize, rrect,
                      torus, tube, vec)
 
 # ---------------------------------------------------------------------------------------------
@@ -289,11 +289,6 @@ def rating_plate(w=0.07, h=0.025, title="MEDICAL DEVICE", model="MD-1", serial="
     dc.text(bx, h * 0.80, f"26{chr(65 + seed % 20)}{seed % 90 + 10}", h * 0.08, fnt="mono-bold", anchor="lm", color=ink)
     dc.text(bx, h * 0.91, "IP54  Rx ONLY", h * 0.06, fnt="mono", anchor="lm", color=(70, 73, 76), max_w=w - bx - ds - pad)
     return dc
-
-
-def serial_label(w=0.05, h=0.02, model="MD-1", serial="SN 2026-0417", ppm=4000, title="MEDICAL DEVICE", **kw):
-    """Back-compat wrapper: a generic rating plate (device type + model / serial fine print)."""
-    return rating_plate(w, h, title=title, model=model, serial=serial, ppm=ppm, **kw)
 
 
 CAUTION_STYLES = {

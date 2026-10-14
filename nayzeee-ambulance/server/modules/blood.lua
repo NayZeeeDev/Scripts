@@ -763,8 +763,8 @@ local function seedBanks()
                 for bt, n in pairs(seed) do
                     if validType(bt) then
                         for _ = 1, math.min(20, math.floor(tonumber(n) or 0)) do
-                            B.CreateBag({ type = bt, bank = key, donor = L('donor_seed') })
-                            B.Log(key, 'seed', { type = bt }, nil)
+                            local m = B.CreateBag({ type = bt, bank = key, donor = L('donor_seed') })
+                            B.Log(key, 'seed', m, nil)
                         end
                     end
                 end

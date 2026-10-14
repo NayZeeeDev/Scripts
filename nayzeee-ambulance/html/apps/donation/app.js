@@ -28,6 +28,11 @@
   const F = (s, ...a) => { let i = 0; return String(s).replace(/%[sd]/g, () => (a[i++] ?? '')); };
   const DAY = 86400;
   const TYPES = ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+  // red cell compatibility: donor group → recipient groups
+  const GIVES = {
+    'O-': TYPES, 'O+': ['O+', 'A+', 'B+', 'AB+'], 'A-': ['A-', 'A+', 'AB-', 'AB+'], 'A+': ['A+', 'AB+'],
+    'B-': ['B-', 'B+', 'AB-', 'AB+'], 'B+': ['B+', 'AB+'], 'AB-': ['AB-', 'AB+'], 'AB+': ['AB+'],
+  };
   const keyCap = (code) => {
     const c = String(code || '');
     if (c === 'Space') return T('key_space', 'Space');
@@ -310,10 +315,82 @@
       lane(st) { lane.draw(st); },
       bpm(n) { q('.hv').textContent = Math.round(n); },
       pulse() { const h = q('.hr'); h.classList.remove('beat'); void h.offsetWidth; h.classList.add('beat'); },
+      rock(on) { root.classList.toggle('rock', !!on); },
       state(text, tone = '') { const s = q('.dn-state'); s.className = `dn-state ${tone}`; s.textContent = text || ''; q('.dn-led').className = `dn-led ${tone}`; },
       destroy() { root.remove(); },
     };
     return api;
+  }
+
+  /* ═══════════════════════════ PULSE RING (procedure column slot) ═══════════════════════════
+     A sweep hand goes round once per heartbeat and crosses the squeeze window at the top on the
+     systolic peak; the foam ball in the centre squashes on every squeeze; the last 16 squeezes sit
+     on the outer ring (newest at the top, older ones running back anticlockwise). */
+  function PulseRing(host) {
+    const C = 60, R = 45;
+    const pt = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+    const arc = (d0, d1, r) => { const [x0, y0] = pt(d0, r), [x1, y1] = pt(d1, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${d1 - d0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+    let ticks = '';
+    for (let i = 0; i < 60; i++) {
+      const [a, b] = pt(i * 6, 38.5), [c, d] = pt(i * 6, i % 5 ? 40.5 : 42);
+      ticks += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}" class="${i % 5 ? '' : 'mj'}"/>`;
+    }
+    let dots = '';
+    for (let j = 0; j < 16; j++) { const [x, y] = pt(-j * 22.5, 55); dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${j ? 2.4 : 3.1}"/>`; }
+    const tail = [[-44, -33, 0.08], [-33, -22, 0.16], [-22, -11, 0.3], [-11, 0, 0.55]].map(([a, b, o]) => `<path d="${arc(a, b, R)}" style="opacity:${o}"/>`).join('');
+    const root = NZA.el('div', 'dn-pulse nza-hud solid nza-int idle');
+    root.innerHTML = `
+      <div class="dn-ring">
+        <svg viewBox="0 0 120 120">
+          <circle class="r-face" cx="${C}" cy="${C}" r="51"/>
+          <circle class="r-trk" cx="${C}" cy="${C}" r="${R}"/>
+          <path class="r-good"/><path class="r-perf"/>
+          <g class="r-ticks">${ticks}</g>
+          <circle class="r-beat" cx="${C}" cy="${C}" r="${R}"/>
+          <g class="r-hand"><g class="r-tail">${tail}</g><circle class="r-dot" cx="${C}" cy="${C - R}" r="4"/></g>
+          <g class="r-dots">${dots}</g>
+        </svg>
+        <div class="dn-ball"><i></i></div>
+      </div>
+      <div class="dn-pi">
+        <div class="pl">${esc(T('ring_label', 'Donor pulse'))}</div>
+        <div class="pv"><span class="ph">${icon('heart')}</span><b class="pb">--</b><i>bpm</i><span class="pst"></span></div>
+        <div class="pg">
+          <span class="c perfect"><i></i>${esc(T('g_perfect', 'Clean'))}<b data-g="perfect">0</b></span>
+          <span class="c good"><i></i>${esc(T('g_good', 'Close'))}<b data-g="good">0</b></span>
+          <span class="c off"><i></i>${esc(T('g_off', 'Off'))}<b data-g="off">0</b></span>
+          <span class="c miss"><i></i>${esc(T('g_miss', 'Missed'))}<b data-g="miss">0</b></span>
+        </div>
+      </div>`;
+    host.insertBefore(root, host.firstChild);
+    const q = s => root.querySelector(s);
+    const hand = q('.r-hand'), beatC = q('.r-beat'), ball = q('.dn-ball'), heart = q('.ph');
+    const dotEls = [...root.querySelectorAll('.r-dots circle')];
+    let lastBpm = -1, sqT = 0;
+    return {
+      el: root,
+      window(good, perfect) {
+        q('.r-good').setAttribute('d', arc(-good * 360, good * 360, R));
+        q('.r-perf').setAttribute('d', arc(-perfect * 360, perfect * 360, R));
+      },
+      mode(m, text) { root.className = `dn-pulse nza-hud solid nza-int ${m}`; q('.pst').textContent = text || ''; },
+      phase(p) { hand.setAttribute('transform', `rotate(${((p - 0.5) * 360).toFixed(1)} ${C} ${C})`); },
+      bpm(n) { const v = Math.round(n); if (v !== lastBpm) { lastBpm = v; q('.pb').textContent = v; } },
+      beat() {
+        beatC.classList.remove('on'); heart.classList.remove('on');
+        void root.offsetWidth;
+        beatC.classList.add('on'); heart.classList.add('on');
+      },
+      squeeze(g) {
+        ball.className = `dn-ball ${g}`; void ball.offsetWidth; ball.classList.add('sq');
+        clearTimeout(sqT); sqT = setTimeout(() => { ball.className = 'dn-ball'; }, 320);
+      },
+      history(list, counts) {
+        const n = list.length;
+        dotEls.forEach((d, j) => { const g = list[n - 1 - j]; d.setAttribute('class', g ? `${g}${j === 0 ? ' new' : ''}` : ''); });
+        Object.entries(counts || {}).forEach(([k, v]) => { const b = root.querySelector(`[data-g="${k}"]`); if (b) b.textContent = v; });
+      },
+    };
   }
 
   /* ═══════════════════════════ DONATION MINIGAME ═══════════════════════════ */
@@ -349,6 +426,10 @@
       onAbort: () => { if (!G.finished) NZA.post(`${APP}:abort`, {}); },
       onTool: (k) => toolClick(k),
     });
+    G.cnt = { perfect: 0, good: 0, off: 0, miss: 0 };
+    G.ring = PulseRing(G.pp.slot);
+    G.ring.window(G.flow.good, G.flow.perfect);
+    G.ring.bpm(G.beat.bpm);
     G.dev = Device(wrap);
     G.dev.setup({ size: G.size });
     G.dev.bpm(G.beat.bpm);
@@ -394,6 +475,7 @@
         tools: tools(),
         hints: [{ keys: [keyCap(k.squeeze)], label: T('hint_hold_pump', 'hold to pump') }],
       });
+      G.ring.mode('idle', T('ring_wait', 'cuff first'));
     } else if (n === 2) {
       G.pp.set({
         step: 2, title: T('s2_title', 'Pump with the pulse'),
@@ -407,7 +489,9 @@
         tools: tools(),
         hints: [{ keys: [keyCap(k.squeeze)], label: T('hint_squeeze', 'squeeze') }],
       });
-      G.dev.state(T('st_running', 'Collecting'), 'teal');
+      G.dev.state(T('st_running', 'Collecting · tray rocking'), 'teal');
+      G.dev.rock(true);
+      G.ring.mode('run', '');
     } else if (n === 3) {
       G.pp.set({
         step: 3, title: T('s3_title', 'Seal the bag'),
@@ -421,6 +505,8 @@
         hints: [{ keys: [keyCap(k.clamp)], label: T('hint_clamp', 'clamp') }, { keys: [keyCap(k.needle)], label: T('hint_hold_needle', 'hold: needle out') }],
       });
       G.dev.state(T('st_full', 'Bag full · clamp the line'), 'teal');
+      G.dev.rock(false);
+      G.ring.mode('done', F(T('ring_rhythm', 'rhythm %s'), `${rhythmPct()}%`));
       NZA.audio.success();
     }
   }
@@ -432,6 +518,8 @@
     G.grades.push(map[g]);
     G.dots.push(g);
     if (G.dots.length > 24) G.dots.shift();
+    if (G.cnt) G.cnt[g] = (G.cnt[g] || 0) + 1;
+    if (G.ring) { G.ring.history(G.dots, G.cnt); if (g !== 'miss') G.ring.squeeze(g); }
     G.q = G.q + (map[g] - G.q) * 0.38;
     if (g === 'perfect' || g === 'good') { G.streak++; G.best = Math.max(G.best, G.streak); } else G.streak = 0;
     const label = { perfect: T('g_perfect', 'Clean'), good: T('g_good', 'Close'), off: T('g_off', 'Off'), miss: T('g_miss', 'Missed') }[g];
@@ -487,6 +575,7 @@
     // the heartbeat itself (phase 0.5)
     if (Math.floor(prevPos - 0.5) !== Math.floor(b.pos - 0.5)) {
       G.dev.pulse();
+      G.ring.beat();
       NZA.audio.tone(64, 80, { vol: 0.12 }); NZA.audio.tone(56, 70, { vol: 0.08, at: 0.13 });
     }
     // browser preview: a demo hand squeezes (mostly) in time with the pulse
@@ -543,6 +632,8 @@
       }
     }
     G.dev.bpm(b.bpm);
+    G.ring.bpm(b.bpm);
+    if (G.step === 2) G.ring.phase(ph);
     G.dev.set({ ml: G.ml, flow: G.step === 2 ? G.flowNow : 0, elapsed: G.t });
     G.dev.lane({ pos: b.pos, bpm: b.bpm, window: G.flow.good, marks: G.marks, showWindow: G.step === 2 });
     if (now - G.lastPost > 260 && Math.abs(G.ml - G.lastPostMl) >= 1) {
@@ -562,7 +653,7 @@
       c.acc = clamp(1 - Math.abs(c.p - mid) / ((band[1] - band[0]) / 2) * 0.5, 0.5, 1);
       c.done = true;
       G.pp.flash('ok', T('flash_cuff_ok', 'Veins filling. Needle in, the line is running.'));
-      G.dev.state(T('st_running', 'Collecting'), 'teal');
+      G.dev.state(T('st_running', 'Collecting · tray rocking'), 'teal');
       NZA.audio.beep(1200, 70, 0.07);
       setTimeout(() => { if (G.on && G.step === 1) setStep(2); }, 900);
     } else {
@@ -589,6 +680,14 @@
     const beats = G.grades.length ? G.grades.reduce((a, b) => a + b, 0) / G.grades.length : 0.5;
     const score = Math.round(beats * 100 * 0.8 + G.cuff.acc * 100 * 0.12 + (s.restarts ? 60 : 100) * 0.08);
     G.result = { score: clamp(score, 0, 100), ml: Math.round(G.ml) };
+    G.pp.set({
+      stats: [
+        { id: 'ml', label: T('st_collected', 'Collected'), value: Math.round(G.ml), unit: 'mL', tone: 'teal' },
+        { id: 'rhythm', label: T('st_rhythm', 'Rhythm'), value: rhythmPct(), unit: '%' },
+        { id: 'streak', label: T('st_best', 'Best streak'), value: `×${G.best}` },
+      ],
+      wide: { label: T('w_sealed', 'Sealed'), value: '100', unit: '%', tone: 'teal', meter: { value: 1, tone: 'teal' }, caption: T('w_sealed_cap', 'Needle out · gauze on'), captionTone: 'teal' },
+    });
     G.pp.set({ hints: [{ keys: ['Enter'], label: T('hint_finish', 'finish') }] });
     G.pp.complete({
       title: T('done_title', 'Unit collected'),
@@ -639,7 +738,8 @@
     col.appendChild(W.note);
     W.dev = Device(col, { watch: true });
     W.dev.setup({ size: data.bagSize || 500 });
-    W.dev.state(T('st_running', 'Collecting'), 'teal');
+    W.dev.state(T('st_running', 'Collecting · tray rocking'), 'teal');
+    W.dev.rock(true);
     W.ml = data.ml || 0; W.shown = W.ml; W.last = performance.now(); W.bpm = 74; W.pos = 0;
     W.raf = requestAnimationFrame(watchLoop);
   }
@@ -661,6 +761,7 @@
     if (typeof u.ml === 'number') W.ml = Math.max(W.ml, u.ml);
     if (u.done && !W.done) {
       W.done = true; W.shown = W.ml;
+      W.dev.rock(false);
       W.dev.state(u.bt ? F(T('st_done_type', 'Thank you · group %s'), fmtType(u.bt)) : T('st_done', 'Thank you'), 'teal');
       W.note.querySelector('b').textContent = T('watch_done', 'Donation complete');
       W.note.querySelector('p').textContent = T('watch_done_text', 'Stand up slowly. You may feel light-headed for a few minutes.');
@@ -794,12 +895,14 @@
         ${typeTiles(sel)}
         <div class="bk-fill">
           <div class="w-panel bk-prev"><div class="w-phead"><div><h2>${esc(T('bank_issue', 'Unit to issue'))}</h2><p>${esc(unit ? relDays(unit.expires, d.now) : T('bank_none_type', 'No unit of this group in stock'))}</p></div></div>
-            <div class="bk-prev-b">${unit ? labelHTML(Object.assign({ product: T('product', 'Red cells in SAG-M') }, unit), { now: d.now, warnDays: d.warnDays }) : `<div class="nz-empty bk-empty">${icon('alert')}<b>${esc(F(T('bank_out_of', 'Out of %s'), fmtType(sel)))}</b><span>${esc(T('bank_out_hint', 'O− can be given to every group.'))}</span></div>`}</div>
+            <div class="bk-prev-b">${unit ? `<div class="bk-pv"><div class="bk-pv-bag">${bagSVG({ fill: clamp((unit.ml || 450) / 500, 0, 1), kind: 'blood', type: unit.type, w: 104, h: 146 })}</div>${labelHTML(Object.assign({ product: T('product', 'Red cells in SAG-M') }, unit), { now: d.now, warnDays: d.warnDays })}</div>` : `<div class="nz-empty bk-empty">${icon('alert')}<b>${esc(F(T('bank_out_of', 'Out of %s'), fmtType(sel)))}</b><span>${esc(T('bank_out_hint', 'O− can be given to every group.'))}</span></div>`}</div>
           </div>
           <div class="w-panel bk-side"><div class="w-phead"><div><h2>${esc(T('bank_you_carry', 'You carry'))}</h2><p>${esc(T('bank_you_carry_p', 'Collection bags and labelled units'))}</p></div></div>
             <div class="bk-side-b">
               <div class="bk-kv"><span>${icon('bag')}${esc(T('bank_empty_bags', 'Empty bags'))}</span><b class="${d.needEmpty && !(d.empty > 0) ? 't-red' : ''}">${esc(d.empty || 0)}</b></div>
               <div class="bk-kv"><span>${icon('bloodbag')}${esc(T('bank_units_carried', 'Blood units'))}</span><b>${esc((d.mine || []).length)}</b></div>
+              <div class="bk-compat"><div class="bk-ct">${esc(F(T('bank_gives', '%s can be given to'), fmtType(sel)))}</div>
+                <div class="bk-cg">${TYPES.map(t => `<span class="${(GIVES[sel] || []).includes(t) ? 'on' : ''}">${esc(fmtType(t))}</span>`).join('')}</div></div>
               ${d.needEmpty && !(d.empty > 0) ? `<div class="bk-note amber">${icon('alert')}<span>${esc(T('bank_need_empty', 'Issuing needs an empty collection bag. Get one from the pharmacy or storage.'))}</span></div>` : ''}
               <button class="btn-teal btn-lg btn-block bk-go" ${can ? '' : 'disabled'}>${icon('bloodbag')}${esc(unit ? F(T('bank_fill_btn', 'Issue %s unit'), fmtType(unit.type)) : T('bank_fill_btn0', 'Issue unit'))}</button>
             </div></div>
@@ -1030,11 +1133,18 @@
       ['perfect', 'good', 'perfect', 'off', 'perfect', 'perfect', 'good', 'perfect'].forEach(g => { G.dots.push(g); G.grades.push(1); });
       G.beat.pos = 40.44;
       ['perfect', 'good', 'perfect', 'perfect'].forEach((g, i) => G.marks.push({ pos: 36.5 + i, g }));
+      G.cnt = { perfect: 5, good: 2, off: 1, miss: 0 };
       G.pp.stat('streak', { value: '×6' }); grade('perfect', 40.5);
     } else if (state === 'seal') {
-      G.cuff.done = true; setStep(2); G.ml = G.target; setStep(3); G.seal.clamped = true; G.seal.hold = 0.9; G.seal.holding = true; G.pp.set({ tools: tools() });
+      G.cuff.done = true; G.grades = [1, 1, 0.65, 1, 0.2, 1, 1, 1]; G.best = 11; G.cnt = { perfect: 28, good: 7, off: 3, miss: 1 };
+      G.dots = ['perfect', 'perfect', 'good', 'perfect', 'off', 'perfect', 'perfect', 'perfect', 'good', 'perfect', 'miss', 'perfect', 'perfect', 'good', 'perfect', 'perfect'];
+      setStep(2); G.ring.history(G.dots, G.cnt); G.ml = G.target; setStep(3);
+      G.flow.sealHold = 60; G.seal.clamped = true; G.seal.hold = 37; G.seal.holding = true; G.pp.set({ tools: tools() });
     } else if (state === 'done') {
-      G.cuff.done = true; G.cuff.acc = 0.9; G.grades = [1, 1, 0.65, 1, 1]; G.best = 14; setStep(2); G.ml = G.target; setStep(3); G.seal.clamped = true; sealDone();
+      G.cuff.done = true; G.cuff.acc = 0.9; G.grades = [1, 1, 0.65, 1, 1]; G.best = 14; setStep(2); G.ml = G.target; setStep(3); G.seal.clamped = true;
+      G.cnt = { perfect: 31, good: 6, off: 2, miss: 1 };
+      G.dots = ['perfect', 'good', 'perfect', 'perfect', 'miss', 'perfect', 'perfect', 'good', 'perfect', 'perfect', 'perfect', 'off', 'perfect', 'perfect', 'good', 'perfect'];
+      G.ring.history(G.dots, G.cnt); sealDone();
     }
   };
 })();

@@ -8,7 +8,9 @@
 
     Body record (server only): MB.bodies[id] = { id ('BB-XXXXX'), pid, kind, src (player), name,
         mode = 'ground'|'carry'|'stretcher'|'vehicle', ent, net, coords, heading, bucket,
-        carrier, cot, veh, by, byName, tod, cause, callId, since }
+        carrier, cot, veh, by, byName, tod, cause, callId, since, sex, age, blood, where }
+    The procedure's start data feeds the medic's zip-up card: { time, name, tod, cause }; the finish
+    result may carry { at, heading, where (street name for the toe tag) }.
     Players stay patients (state 'dead', meta.bodybag = id → state bag 'bag'); their own client hides
     the ped and attaches it to whatever holds the bag (player state bag 'nzaInBag'). NPC peds are
     deleted and their patient record removed (a snapshot stays in the body record).
@@ -27,7 +29,7 @@
       nza:medbag:body:vehicle (vehNet)               hands → vehicle
       nza:medbag:body:open (id)                      unzip a player's bag where it lies
       nza:medbag:body:deliver (pointId, id|nil)      morgue: players respawn, NPCs pay a reward
-      nza:medbag:body:tag (id)                       → { name, tod, cause, by }
+      nza:medbag:body:tag (id)                       → { id, name, kind, tod, date, cause, by, where, sex, age, blood, call }
     Net events S→C: nza:medbag:body:carryEnd (), nza:medbag:body:release (coords, heading) to the
                     bagged player (out of the bag at that spot)
     Bus (server) emitted: bodybag:bagged (src, body), bodybag:morgue (src, body)
@@ -265,6 +267,15 @@ local function causeText(p)
     return nil
 end
 
+-- a short plain text from the client (street name for the toe tag)
+local function cleanText(v, max)
+    if type(v) ~= 'string' then return nil end
+    v = v:gsub('[%c<>]', ''):gsub('^%s+', ''):gsub('%s+$', '')
+    if v == '' then return nil end
+    if #v > (max or 60) then v = v:sub(1, max or 60) end
+    return v
+end
+
 local function validSpot(src, coords)
     local me = srcCoords(src)
     if not me or not coords then return false end
@@ -296,6 +307,8 @@ local function bagBody(src, p, result)
         name = p.name or L('unknown'), by = src, byName = NZA.Core.Name(src),
         tod = tonumber(p.deadAt) or os.time(), cause = causeText(p),
         callId = p.meta and p.meta.callId or nil, npcNet = p.kind == 'npc' and p.net or nil,
+        sex = (p.sex == 'm' or p.sex == 'f') and p.sex or nil, age = tonumber(p.age), blood = p.bloodType,
+        where = cleanText(type(result) == 'table' and result.where or nil, 60),
     }
     if not setGround(body, at, heading, bucket, false) then return nil end
     MB.bodies[body.id] = body
@@ -342,7 +355,9 @@ NZA.Proc.Register('bodybag', {
         if m.bodybag or byPid[p.pid] then return false, { err = 'bagged', msg = L('bb_err_bagged') } end
         if m.carried or m.stretcher or m.bay or m.vehicle or m.inBed then return false, { err = 'busy', msg = L('bb_err_busy') } end
         if p.kind == 'player' and not (p.src and NZA.Core.Online(p.src)) then return false, { err = 'no_patient', msg = L('bb_err_failed') } end
-        return true, { time = tonumber(cfg.time) or 9 }
+        -- what the zip-up card shows
+        return true, { time = tonumber(cfg.time) or 9, name = p.name or L('unknown'),
+                       tod = os.date('%H:%M', tonumber(p.deadAt) or os.time()), cause = causeText(p) }
     end,
     onFinish = function(src, p, session, result)
         if p.state ~= 'dead' or byPid[p.pid] then return { msg = L('bb_err_bagged'), failed = true } end
@@ -552,7 +567,9 @@ lib.callback.register('nza:medbag:body:tag', function(src, id)
     if not me or not pos or #(me - pos) > (tonumber(B().distance) or 2.0) + 2.5 then return fail('no_body') end
     return {
         ok = true, id = body.id, name = body.name, kind = body.kind,
-        tod = os.date('%H:%M', body.tod or os.time()), cause = body.cause, by = body.byName,
+        tod = os.date('%H:%M', body.tod or os.time()), date = os.date('%d %b', body.tod or os.time()),
+        cause = body.cause, by = body.byName, where = body.where, sex = body.sex, age = body.age,
+        blood = body.blood, call = body.callId,
     }
 end)
 

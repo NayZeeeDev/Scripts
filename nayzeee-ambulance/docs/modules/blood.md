@@ -17,6 +17,10 @@ Owner files: `server/modules/blood.lua`, `server/modules/blood_donation.lua`, `s
 - Using a blood bag item opens the printed label (app `donation`, mode `label`): barcode + serial, ABO box
   (Rh negative printed inverted), product, volume, collected / expiry, donor. No brand on the label
   (generic "Regional Blood Service").
+- Every bag drawn in the NUI (`NZABlood.bagSVG`) is a detailed PVC unit: pillow shape that bulges as it fills,
+  hatched welded seams, hanger slot + eyelets, printed mL scale, paper label (ABO, RhD, mini barcode), meniscus
+  and bubbles, outlet ports with twist-off covers and - on red cell units - the sealed tubing segments kept for
+  crossmatching. Saline bags are clear with a teal NaCl label.
 
 ### Type & screen
 - Patient option **Type & screen** (perm `TypeScreen.perm`, any state) → bedside card test (progress) →
@@ -30,6 +34,8 @@ Owner files: `server/modules/blood.lua`, `server/modules/blood_donation.lua`, `s
   **Issue a unit** (pick a group, preview of the label of the unit that will be issued — first in, first out;
   decanted into an empty collection bag when `Bank.needEmptyBag`), **Your bags** (labels of the units you
   carry, put back / discard), **Log** (deposits, issues, donations, expiries, opening stock).
+- **Issue a unit** shows the bag and its label side by side and a compatibility grid (*"O+ can be given to"*:
+  the 8 recipient groups lit teal / dashed).
 - Stock per department (`point.hospital`) or one shared stock (`Bank.shared`). Anti-hoarding window
   (`maxWithdraw` per `withdrawWindow` minutes), capacity `maxStock`.
 - New banks get an opening stock once (`Bank.seed`); the city donates random units over time
@@ -47,10 +53,15 @@ Owner files: `server/modules/blood.lua`, `server/modules/blood_donation.lua`, `s
 - Minigame (`NZA.Proc 'donation'`, app `donation` mode `donate`, kit ProcPanel):
   1. **Inflate the cuff** — hold Space, let go inside the band (40–60 mmHg); 3 tries.
   2. **Pump with the pulse** — the donor's pulse wave scrolls through the **CM-450 collection scale**
-     (top-left: bag gauge, volume rolling counter, flow, donor pulse, elapsed, pleth lane with the squeeze
-     window); press Space as each systolic peak crosses the window. Timing quality (dial) drives the flow
-     (`flow.trickle` … `flow.maxFlow` mL/s); squeezes are stamped on the wave (clean / close / off / missed).
-  3. **Seal the bag** — C clamps the line, hold E to slide the needle out.
+     (top-left: bag gauge on a rocking mixer tray, volume rolling counter, flow, donor pulse, elapsed, pleth lane
+     with the squeeze window); press Space as each systolic peak crosses the window. Timing quality (dial) drives
+     the flow (`flow.trickle` … `flow.maxFlow` mL/s); squeezes are stamped on the wave (clean / close / off /
+     missed). A second, glanceable cue sits in the procedure column (**pulse ring**, `pp.slot`): a sweep hand
+     goes round once per heartbeat and crosses the teal squeeze window at the top on the peak, a red ripple marks
+     every beat, the foam squeeze ball in the centre squashes (and glows by grade) on every press, the last 16
+     squeezes sit on the outer ring (newest at the top), with the BPM and clean / close / off / missed counts.
+  3. **Seal the bag** — C clamps the line, hold E to slide the needle out. The readout turns to *Sealed 100 %*
+     with collected mL, rhythm % and best streak.
   Result: grade, the printed label of the new unit, where it went.
 - Server: collected mL clamped by elapsed time × `flow.maxFlow` and the unit size; easy mode = a full unit.
   `AddBlood(-mL)` to the donor; ≥ `minUsable` → `NZA.Blood.CreateBag` with the donor's group into the chair's
@@ -69,6 +80,11 @@ injury and blood volume below `examRoute.belowPct`), hospital beds / surgery (an
   serial, expiry, compatibility: universal / compatible / not typed / incompatible / expired). Known mismatch →
   red warning (hang anyway only if `allowIncompatible`); untyped non-O− → warning with Type & screen.
   Inside the bay the **ambulance fridge** (`bayStock`, refills after `bayRefill` minutes) can **Bag a unit**.
+- Live ECG strip under the numbers (`NZA.vitals.Trace`, rate and rhythm from the patient, rhythm label).
+- Each hook card shows the bag (fill follows the volume), a **drip chamber** under it whose drops fall at the
+  real drop rate (blood set 15 gtt/mL, fluid set 20 gtt/mL; a continuous stream above 6 drops/s, still when
+  clamped or paused), the line running, and the **pressure infuser sleeve** - a mesh bladder around the bag that
+  swells and glows with the bag pressure (red when over-pressured). Left / rate / drip (gtt/min) rows.
 - Selected hook: roller clamp (slider, Q / E), pressure infuser (240° dial, Space pumps `pump` mmHg, leaks
   `leak` mmHg/s, red over 300), live flow mL/min and time to empty; **Unhang** (the rest of a blood unit is
   discarded). The selected unit's printed label sits beside the panel with the crossmatch strip.
@@ -77,9 +93,12 @@ injury and blood volume below `examRoute.belowPct`), hospital beds / surgery (an
   over 1 L of saline.
 - "Place an IV first": calls the field module's `nza_field_iv` option and reopens the stand when the line is
   in; without the field module a quick placement (`placeIv`, `iv_kit`, progress bar).
+- **Easy mode** (the medic's department easy flag for `Stand.perm`): only the supplies count - hanging a bag or
+  pushing TXA without IV / IO access puts a line in by itself (`placeIv.site`), no 'Place an IV first' alert.
 - World: every client draws the stand from the patient's `nzaStand` state bag — a tripod stand beside the
   patient with the bags on its hooks (blood bags swap their fill model as they empty, saline bag model), or
-  the bags on the bay's IV hooks (`NZA.Transport.Bay.Info().hooks`) for medics in the same bay. The stand
+  the bags on the bay's IV hooks (`NZA.Transport.Bay.Info().hooks`) for medics in the same bay. A bag that runs above gravity flow
+  (the pressure infuser is squeezing it) gets the `pressure_infuser` prop around it on its hook. The stand
   follows the patient when moved more than 5 m; empty bags hang 10 minutes, then go.
 
 ### Transfusion reaction
@@ -146,7 +165,9 @@ S→C `nza:blood:label (bag)`, `nza:blood:weak (seconds)`, `nza:blood:donation:s
 Registries: point types `bloodbank`, `donation`; `NZA.Interact` `nza_blood_type`, `nza_blood_stand`;
 `NZA.ExamRoutes` `transfuse`; `NZA.RadialItems` `blood_stand`.
 
-**NUI** — `donation`: open `{ mode = donate|watch|bank|label, locale, data, keys, self }`, msgs `result`, `watch`,
+**NUI** — `donation`: open `{ mode = donate|watch|bank|label, locale, data, keys, self }` (QA helper in the
+browser preview: `NZA.apps.donation._demo('collect'|'seal'|'done')`, `?mode=bank|label|watch`; IV stand
+`?state=react|noline|untyped|field`, `NZA.apps.ivstand._demo('squeeze'|'picker'|'sel2')`), msgs `result`, `watch`,
 `bank`; posts `donation:progress|finish|abort|bank|close`. `ivstand`: open `{ locale, keys, cfg, data, bay }`, msgs
 `data`, `snap`; posts `ivstand:hang|rate|takedown|txa|type|iv|fill|refresh|close`. Shared JS helpers for both
 apps: `window.NZABlood = { labelHTML, bagSVG, barcode, fmtType, dateText, relDays, expiryTone }`.

@@ -1,13 +1,18 @@
-# assess — Examination, Check Pulse, Check Breathing, Ask to Walk
+# assess — head-to-toe check, pulse check, breathing check, help them walk
 
 Everything a medic does to find out what is wrong before treating: the top-down
-**Examination** with injuries to treat, a 3-step **pulse check**, a 3-step **breathing
-check** with a stethoscope and synthesised breath sounds, and **Ask to Walk**. It also owns
-the server-side **discovered findings** (`NZA.Findings`) that make hidden problems visible.
+**head-to-toe check** with a holographic body map and a findings stack, a 3-step **pulse
+check**, a 3-step **breathing check** with a stethoscope and synthesised breath sounds, and
+**help them walk**. It also owns the server-side **discovered findings** (`NZA.Findings`)
+that make hidden problems visible.
+
+UI originality: every screen follows `docs/design/ORIGINAL.md` (NAYZEEE language: corner
+brackets, status rings, instrument lists, diamond markers, edge docks, rolling counters).
+No device face carries a brand.
 
 | Side | Files |
 |---|---|
-| client | `client/modules/assess.lua` (helpers, patient menu, radial, ask to walk, proc runner) · `assess_exam.lua` · `assess_pulse.lua` · `assess_breathing.lua` |
+| client | `client/modules/assess.lua` (helpers, patient menu, radial, help them walk, proc runner) · `assess_exam.lua` · `assess_pulse.lua` · `assess_breathing.lua` |
 | server | `server/modules/assess.lua` (findings API, exam/walk callbacks) · `assess_pulse.lua` · `assess_breathing.lua` |
 | NUI | `html/apps/exam/**` · `html/apps/pulse/**` · `html/apps/breathing/**` |
 | config / locale | `config/modules/assess.lua` (`Config.Assess`) · `locales/en/assess.lua` (`assess.*`) |
@@ -16,51 +21,64 @@ the server-side **discovered findings** (`NZA.Findings`) that make hidden proble
 
 ## Features
 
-### Examine Patient (`exam`)
+### Head-to-toe check (`exam`)
 - Medic kneels (`NZA.Anim.Kneel`), top-down camera (`NZA.Cam.TopDown`, or orbit), live
   medic snapshot (`NZA.Patient.Watch`).
-- **8 region labels** (head, neck, chest, abdomen, arms, legs) anchored to bones with
-  `NZA.Anchors`: name + status **Healthy / Minor / Serious / Critical / Treated**, a dot on
-  the body and a thin leader line. Labels are laid out in two columns (patient's left and
-  right limbs on their own side, midline regions alternate) and de-overlapped every frame,
-  so leader lines never cross the body. Count badge when a region has several problems.
-- **Injuries to treat** card for the selected region: type, severity, plain findings
-  (bleeding word, no exit wound / fragments, X-ray results, contamination, size of cuts,
-  open fracture / deformity angle, burn depth & area, soot, tourniquet time), treatments
-  already done, healing progress, and the next treatment(s) from `NZA.ExamRoutes` with the
-  items you carry as have/need (`✓ Bandage 8/1`) and a **Treat injury** button.
+- **Patient card** (top-left, corner bracket): name, priority and state chips, the number
+  of open problems, a **time-left status ring** with a rolling counter (bleed-out clock, or
+  *Holding steady* when stabilised), then an **observations** instrument list with tone
+  notches: bleeding level (4-segment bar), consciousness (AVPU), skin / shock signs, blue
+  lips, fast / no breathing, last pulse and breathing results with age, and device chips
+  (IV line, oxygen, collar, binder, intubated, foil blanket).
+- **Body map** card under it: holographic front / back figure (**F** or the segmented
+  switch turns it), regions coloured by status (**Clear / Minor / Serious / Severe /
+  Treated**), diamond hotspots per injury, height ruler and legend. Hover shows the region,
+  click selects it.
+- **Diamond markers on the 3D body** (`NZA.Anchors`, one per region, coloured by status);
+  the selected region gets a dark label chip with its open count. No leader lines.
+- **Findings stack** (top-right): region header with a severity status ring, severity chip,
+  open count and a pain ring; then one card per problem with a **severity ring**, type,
+  site, status, plain findings with tone notches (bleeding word, no exit wound / fragments,
+  X-ray results, contamination, size, open fracture / deformity angle, burn depth & area,
+  soot, tourniquet time), treatments already done, healing bar, and the **next care step**
+  from `NZA.ExamRoutes`: a supplies table (carried / uses, red when short), the primary
+  action button (**Enter**) and the alternatives under *Or instead*. Suspected problems
+  have a dashed amber card.
 - **Hidden problems** only appear after a check found them (`patient.meta.findings`):
   internal bleeding, haemothorax, pneumothorax, tamponade, airway compromise, fluid / spasm
-  in the lungs. Before that the exam only gives clues ("Belly tense and tender",
+  in the lungs. Before that the check only gives clues ("Belly tense and tender",
   "Penetrating wound: check for internal bleeding", "Chest wound: listen to both lungs").
 - Notes visible without a check: concussion, abnormal pupils, spinal tenderness.
-- **General card**: consciousness (AVPU), skin (shock signs), blue lips, fast / no
-  breathing, last pulse and breathing results with age, general findings, devices.
-- Bottom-left summary (EXAMINATION, bleeding level, N injuries to treat, state, bleed-out
-  flip clock or *Stabilized*), bottom buttons **Check pulse / Check breathing / Stop
-  bleeding** (the last one runs the route with id `stopbleed` on the worst bleed, selected
-  region first; hidden when no such route exists or nothing bleeds).
-- Patient **speech subtitles** on open and when you touch a painful region (pain level
-  after painkillers / morphine, patient sex, AVPU: groans when only responding to pain,
-  silent when unresponsive). Player patients only when `Speech.players = true`.
-- After a treatment / check started from the exam, the exam **reopens by itself** once the
+- **Checks dock** on the right edge: three status rings — **1 Pulse** (last rate), **2
+  Breathing**, **3 Bleed control** (runs the route with id `stopbleed` on the worst bleed,
+  selected region first; dimmed when nothing bleeds). Key legend bottom-left.
+- Patient **speech** (core voice card, top-centre) on open and when you touch a painful
+  region (pain level after painkillers / morphine, patient sex, AVPU: groans when only
+  responding to pain, silent when unresponsive). Player patients only when
+  `Speech.players = true`.
+- After a treatment / check started from here, the check **reopens by itself** once the
   minigame is over (`Exam.reopenAfterTreat`), without the medic standing up in between.
 
-### Check Pulse (`pulse`, `NZA.Proc 'pulse'`)
-1. **Find the pulse** – pick the site (**1** carotid, **2** radial; the radial is on the left
-   wrist when the right arm has a tourniquet), **scroll** (or ↑/↓) sets finger pressure
-   (Light → Deep meter). The *under your fingers* trace only shows beats inside the right
-   pressure band: too light = nothing, too hard = occluded (trace turns amber). Each site
-   has its own band, narrower for a weak pulse. A world marker on the wrist / neck throbs on
-   every beat you can feel. **N** = "no radial pulse" (switches to the carotid) or "no pulse"
-   at the carotid; only allowed after `absentAfter` seconds of palpation.
-2. **Count** – **Space** starts a 15 s count, tap **Space** on every beat; good taps click
-   high, taps without a beat click low and show red on the trace.
-3. **Judge** – **1/2** regular/irregular, **3/4/5** weak/normal/bounding, **Enter** submit,
-   **R** count again.
-- Result card: grade, *your finding vs patient* (rate, rhythm, strength, site with
-  palpable carotid/radial chips, heart rate vs wrist rate in atrial fibrillation),
-  feedback bullets, findings recorded. **Enter** closes.
+### Pulse check (`pulse`, `NZA.Proc 'pulse'`)
+Core procedure HUD (column bottom-left, tool belt right edge). Steps named in the spine:
+*Locate the artery → Count the beats → Describe it*.
+1. **Locate the artery** – pick the site on the belt (**1** neck, **2** wrist; the wrist is
+   the left one when the right arm has a tourniquet), **scroll** (or ↑/↓) sets finger
+   pressure on the readout's 240° dial (*Feather → Hard*). The **palpation scope** in the
+   column (a polar radar trace swept once every 4 s) only lifts on beats inside the right
+   pressure band: too light = flat, too hard = flattened artery (trace turns amber). Each
+   site has its own band, narrower for a weak pulse. A world marker on the wrist / neck
+   throbs on every beat you can feel. **N** = nothing at the wrist (moves to the neck) or
+   nothing at the neck; only allowed after `absentAfter` seconds of palpation.
+2. **Count the beats** – **Space** opens the 15 s window (amber arc on the scope rim), tap
+   **Space** on every beat; the count rolls in the scope centre, taps land on the rim (teal
+   on a beat, red between beats) and in the scope's instrument list.
+3. **Describe it** – verdict picker with glyph keys: **1/2** regular / irregular, **3/4/5**
+   weak / normal / bounding; **Enter** submits, **R** counts again.
+- **Debrief** card (top-right, slides in): score ring with a rolling score and a one-word
+  verdict, *n of m calls right*, a rate scale (your count as a diamond against the real
+  band), rhythm and strength scales (truth ticked, your pick tagged), sites felt, notes and
+  findings logged to the chart. The column shows *Your call* and **Done** (**Enter**).
 - Physiology: radial absent under `radialMinSys`, carotid under `carotidMinSys`, nothing in
   arrest; HRV for sinus rhythms, chaotic intervals and **pulse deficit** at the wrist for
   AFib, **pulsus paradoxus** (fades on inspiration) with a tamponade, strength from systolic
@@ -72,42 +90,51 @@ the server-side **discovered findings** (`NZA.Findings`) that make hidden proble
   pressure kept in band) and returns the truth only in the outcome. `minTime` enforced by
   the core.
 
-### Check Breathing (`breathing`, `NZA.Proc 'breathing'`)
-1. **Look & feel** – the world marker on the chest rises with every breath (real RR and
-   depth: laboured, shallow, agonal gasps, apnoea). **Space** starts a 15 s count, tap on
-   every rise. **N** = no chest rise (after `noBreathAfter` s). *What you see* card: dusky
-   lips (SpO₂ < 90), accessory muscles, gurgling, stridor / snoring, which side barely moves,
-   shallow / agonal, flail segment, unresponsive.
-2. **Listen** – needs `Config.Items.stethoscope` (never consumed; the medic holds
+### Breathing check (`breathing`, `NZA.Proc 'breathing'`)
+Core procedure HUD; steps *Watch and count → Sweep the zones → Name the sound*.
+1. **Watch and count** – the world marker on the chest rises with every breath (real RR and
+   depth: laboured, shallow, agonal gasps, apnoea). **Space** opens a 15 s **count window**
+   (strip in the column with a moving head and a tick per tap, rolling count), tap on every
+   rise. **N** = no chest rise (after `noBreathAfter` s). The **On sight** list in the
+   column (tone notches): dusky lips (SpO₂ < 90), accessory muscles, gurgling, stridor /
+   snoring, which side barely moves, shallow / agonal, flail segment, unresponsive.
+2. **Sweep the zones** – needs `Config.Items.stethoscope` (never consumed; the medic holds
    `Config.Props.stethoscope`). The 6 zones (R/L upper, middle, lower) are anchored on the
-   front of the chest from the skeleton. Move the stethoscope with the mouse, **hold the
-   mouse button** to listen (also works on the device's acoustic map). Device *NAYZEEE
-   AUSCULT*: zone name, scrolling sound trace, hold progress, lung wireframe map with the
-   zones, air entry meter, sides 0/2. Breath sounds are synthesised with WebAudio per zone
-   and condition: vesicular, reduced, absent, crackles, wheeze, stridor, gurgling, silence.
-   Without a stethoscope this step is skipped.
-3. **Call** – **1-9**: normal / reduced L / reduced R / absent L / absent R / crackles / wheeze /
-   noisy airway / not breathing, **Enter** submit.
-- Result card: grade, rate yours vs patient, pattern, call vs truth (partial credit for the
-  right side with the wrong severity), zones heard; the acoustic map then shows the real
-  sound of every zone (teal normal, amber reduced, red absent, C/W/S/G added sounds).
+   front of the chest from the skeleton and shown as diamond markers. Move the chest piece
+   with the mouse, **hold the mouse button** to listen (also works on the unit's pads).
+   **AX-4 auscultation unit** (top-right; generic device: model plate, serial, warning
+   sticker, no brand): zone tag + LIVE indicator, a scrolling **log-frequency spectrogram**
+   (60 Hz – 1.6 kHz: breath noise blooms, crackles as clicks, wheeze / stridor as tonal
+   lines), a **6-pad chest map** (hex pads with dwell rings, ticked when heard) and an
+   instrument list (zone, dwell bar, sides 0/2, **R·L air-entry balance** meter). Breath
+   sounds are synthesised with WebAudio per zone and condition: vesicular, reduced, absent,
+   crackles, wheeze, stridor, gurgling, silence. Without a stethoscope this step is skipped.
+3. **Name the sound** – picker in the column: *Both sides* (**1** normal, **6** crackles,
+   **7** wheeze, **8** noisy airway, **9** not breathing, each with a sound glyph) and a *One
+   side only* matrix (reduced / absent × right / left: **3 2 / 5 4**), **Enter** submits.
+- **Debrief** card slides in under the unit: score ring + rolling score, verdict, rate scale
+  (yours vs real band) with the breathing pattern chip, your sound vs the real one (partial
+  credit for the right side with the wrong severity), the 6 zones in their true colours
+  (dimmed when you never heard them), notes and findings logged. The unit's pads switch to
+  the truth (teal normal, amber reduced, red absent, white C/W/S/G added sounds) with a
+  legend.
 - Truth: pneumothorax (big / tension → absent, else reduced, drained → recovers),
   haemothorax by volume (bases first), drowning water → crackles (and gurgling), smoke →
   wheeze, airway obstruction / swelling / snoring → stridor, intubation → secured,
   apnoea → silence.
 
-### Ask to Walk
+### Help them walk
 - **NPC** patient who is `alive`, conscious (AVPU A/V), not carried / on a stretcher / in a
   bed / bagged, and has no leg or pelvis fracture (or a splinted one with
   `Walk.allowSplinted`): stands up (get-up clip) and follows the medic
   (`TaskFollowToOffsetOfEntity`), limping (`Walk.limpClipset`) with leg injuries, jogging
-  to catch up. Stops when asked again (**Tell to wait here**), when placed somewhere
+  to catch up. Stops when asked again (**Tell them to wait**), when placed somewhere
   (carried, stretcher, vehicle, attached), when it goes down, when the medic goes down or
   gets more than `Walk.maxDistance` away. The server tracks it in `patient.meta.escort`.
 - **Player** patient: gets a "walk with the medic" toast.
 
 ### Radial menu
-`NZA.RadialItems` under parent `patient`: Examine / Check pulse / Check breathing / Ask to walk
+`NZA.RadialItems` under parent `patient`: Head-to-toe check / Take a pulse / Assess breathing / Help them walk
 on the nearest patient within `Radial.range`.
 
 ---
@@ -116,9 +143,9 @@ on the nearest patient within `Radial.range`.
 
 | Where | Keys |
 |---|---|
-| Exam | click a region / ↑ ↓ Tab · Enter treat the first available route · 1 pulse · 2 breathing · 3 stop bleeding · ESC close |
-| Pulse | Scroll / ↑ ↓ pressure · 1 carotid · 2 radial · Space start count / tap · N no pulse here · 1-5 judge · R recount · Enter submit / done · hold ESC stop |
-| Breathing | Space start count / tap · N no chest rise · Enter next · hold LMB listen · 1-9 call · Enter submit / done · hold ESC stop |
+| Head-to-toe | click a region (map or body) / ↑ ↓ · F turn the map · Enter start the next care step · 1 pulse · 2 breathing · 3 bleed control · ESC close |
+| Pulse | Scroll / ↑ ↓ pressure · 1 neck · 2 wrist · Space open the window / tap · N nothing here · 1-5 describe · R count again · Enter submit / done · hold ESC leave |
+| Breathing | Space open the window / tap · N no chest rise · Enter next · hold LMB listen · 1-9 name the sound · Enter submit / done · hold ESC leave |
 
 Pulse and breathing keys are configurable (`Config.Assess.Pulse.keys`, `.Breathing.keys`,
 KeyboardEvent.code names).
@@ -131,7 +158,7 @@ KeyboardEvent.code names).
 |---|---|
 | `Interact.perm / distance / examine / pulse / breathing / icons` | patient menu options |
 | `Radial.enabled / range` | EMS radial entries |
-| `Exam.camera / height / maxDistance / anim / idle / reopenAfterTreat / reopenWait / notifyPatient` | examination |
+| `Exam.camera / height / maxDistance / anim / idle / reopenAfterTreat / reopenWait / notifyPatient` | head-to-toe check |
 | `Speech.enabled / players / onOpen / onTouch / cooldown / duration / levels / lines.{m,f}.{none,mild,moderate,severe,groan}` | patient subtitles |
 | `Pulse.minTime / maxTime / easyTime / countSeconds / absentAfter / radialMinSys / carotidMinSys / weakSys / boundingSys / tapWindow / startSite / camera / anim / keys` | pulse check |
 | `Breathing.minTime / maxTime / easyTime / countSeconds / listenSeconds / requireStethoscope / noBreathAfter / drowningCrackles / haemoAbsent / pneumoAbsent / camera / anim / listenAnim / prop / keys` | breathing check |

@@ -141,7 +141,10 @@ local function desiredPose(ped, bag, nb)
             if hint == 'overdose' or hint == 'cold' then return hint end
             return 'unconscious'
         end
-        if hint == 'sit' then return female and 'sit_f' or 'sit' end
+        -- awake again after an overdose / a near drowning / the cold: sitting up, drowsy
+        if hint == 'sit' or hint == 'overdose' or hint == 'cold' or hint == 'unconscious' then
+            return female and 'sit_f' or 'sit'
+        end
         return 'writhe'
     end
     -- alive

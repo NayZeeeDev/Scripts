@@ -18,7 +18,7 @@
       nza:blood:stand:info (target) → { ok, data }  everything the panel shows (access, bags, stock, vitals)
       nza:blood:stand:fill (type?) → { ok, msg }    'Bag a unit' from the ambulance fridge (in a bay)
     State bag 'nzaStand' on the patient (player or NPC ped), replicated, read by every client to draw
-      the stand: { at = { x, y, z } | nil, h, bay = vehNet | nil, b = { { id, k, t, f (fill %), hook, done } } }
+      the stand: { at = { x, y, z } | nil, h, bay = vehNet | nil, b = { { id, k, t, f (fill %), hook, done, pr (pressure infuser on) } } }
     Transfusion reaction: incompatible blood (core flags infusion.incompatible) → stages by mL received
       (Config.Blood.Reaction.stages): speech, condition 'reaction' { stage, ml }, haemolysis (AddBlood -mL/min)
       on top of the core reaction effect (fever, tachycardia, hypotension). Ends feverMinutes after the last drop.
@@ -54,6 +54,16 @@ local function access(p)
     return nil
 end
 
+-- easy mode (per department, ARCHITECTURE §5.2 / the user's rule): only the supplies count - the
+-- line goes in by itself when a bag is hung or TXA is pushed without IV / IO access
+local function ensureAccess(src, p)
+    if access(p) or sc().requireAccess == false then return true end
+    if not NZA.Staff.Easy(src, sc().perm or 'iv') then return false end
+    local site = (sc().placeIv or {}).site or 'l_lower_arm'
+    NZA.Patients.SetDevice(p.pid, 'iv', { site = site, kind = 'iv', by = src, at = os.time(), easy = true })
+    return access(p) ~= nil
+end
+
 local function findInf(p, id)
     for _, inf in ipairs(p.infusions or {}) do
         if inf.id == id then return inf end
@@ -86,7 +96,7 @@ local function push(p)
     end
     local list = {}
     for _, b in pairs(s.bags) do
-        list[#list + 1] = { id = b.id, k = b.k, t = b.t, f = b.f, hook = b.hook, done = b.done or nil }
+        list[#list + 1] = { id = b.id, k = b.k, t = b.t, f = b.f, hook = b.hook, done = b.done or nil, pr = (b.pr and not b.done) or nil }
     end
     table.sort(list, function(a, c) return (a.hook or 9) < (c.hook or 9) end)
     st:set('nzaStand', {
@@ -101,6 +111,11 @@ local function freeHook(s)
         if not used[i] then return i end
     end
     return nil
+end
+
+-- a flow above gravity means the pressure infuser is squeezing that bag (drawn on the stand)
+local function pressured(rate)
+    return (tonumber(rate) or 0) > (tonumber(sc().gravity) or 32) * 1.05
 end
 
 local function fillOf(inf)
@@ -183,7 +198,7 @@ NZA.Treat.Register('ivstand:hang', {
         payload = type(payload) == 'table' and payload or {}
         local kind = payload.kind == 'blood' and 'blood' or payload.kind == 'saline' and 'saline' or nil
         if not kind then return fail('failed') end
-        if cfg.requireAccess ~= false and not access(p) then return fail('no_access') end
+        if not ensureAccess(src, p) then return fail('no_access') end
         local s = stands[p.pid]
         if s and not freeHook(s) then return fail('hooks_full') end
         local rate = clampRate(payload.rate)
@@ -225,7 +240,7 @@ NZA.Treat.Register('ivstand:hang', {
             for _, b in pairs(s.bags) do if b.hook == want then taken = true end end
             if not taken then hook = math.floor(want) end
         end
-        s.bags[inf.id] = { id = inf.id, k = inf.kind, t = bagType(inf.bag), f = 100, hook = hook }
+        s.bags[inf.id] = { id = inf.id, k = inf.kind, t = bagType(inf.bag), f = 100, hook = hook, pr = pressured(inf.rate) }
         push(p)
         B.Bill(src, p, kind == 'blood' and 'unit' or 'saline')
         NZA.Bus.Emit('blood:hung', src, p, inf)
@@ -256,6 +271,12 @@ NZA.Treat.Register('ivstand:rate', {
             incompatible = old.incompatible,
         })
         if n and old.paused then n.paused = old.paused end
+        local s = stands[p.pid]
+        local sb = s and s.bags[old.id]
+        if sb and (sb.pr == true) ~= pressured(rate) then
+            sb.pr = pressured(rate)
+            push(p)
+        end
         return true, { id = old.id, rate = rate, left = n and n.left or old.left }
     end,
 })
@@ -302,7 +323,7 @@ NZA.Treat.Register('ivstand:txa', {
         return name and { [name] = 1 } or {}
     end,
     handler = function(src, p, payload)
-        if sc().requireAccess ~= false and not access(p) then return fail('no_access') end
+        if not ensureAccess(src, p) then return fail('no_access') end
         if p.meds and p.meds.txa and p.meds.txa > os.time() + 1800 then return fail('txa_active') end
         local okMed = NZA.Patients.GiveMed(p.pid, 'txa', { dose = 1, route = 'iv', by = src })
         if not okMed then return fail('failed') end

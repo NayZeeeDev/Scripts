@@ -1,10 +1,21 @@
-# NAYZEEE props pipeline (`tools/props`)
+# Props pipeline (`tools/props`)
 
-Every custom model in `stream/` (`nz_amb_*.ydr` + the single `nz_amb_props.ytyp`) is generated
+Every generated model in `stream/` (`nz_amb_*.ydr` + the single `nz_amb_props.ytyp`) is built
 from code in this folder - no Blender, no OpenIV, no binary sources in the repo. A prop is a
 Python function that builds geometry from primitives, assigns materials and paints labels; the
 pipeline unwraps it, bakes the textures, writes CodeWalker XML and converts it to the real GTA V
 formats with a tiny CodeWalker-based CLI.
+
+The one exception is the **imported medic bag** (`nz_amb_medbag_red / _green / _orange / _magenta`):
+an artist-made model supplied by the customer (~4.8k tris, 2048 diffuse + normal + spec). It was
+brought in with `import_model.py` (below); its metadata lives in `external/*.json` and build.py keeps
+it in the ytyp and never deletes it. Do not edit or regenerate those files.
+
+**Labelling policy:** props carry no maker name, wordmark or logo - neither ours nor a real
+company's. Labels name the device type and an invented model code (`PM-8`, `MD-2`, `SU-2`, `IO-3`,
+`TK-62` ...), plus believable fine print: rating plates (MODEL / SN / REF / LOT, electrical rating,
+regulatory symbols, barcode + data-matrix), caution / danger stickers, calibration and asset tags,
+the star of life or a plain cross. Keep it that way when you add props.
 
 ```
 props/*.py  ──►  geometry (charts) ──► atlas packing ──► texel bake (colour, height→normal, spec,
@@ -38,11 +49,12 @@ python3 tools/props/build.py \
 * converts + validates with cwtool (`### n end rc=0` for every line of `<out>/cwtool_log.txt`); any
   error aborts **before** `stream/` is touched,
 * copies the binaries into `stream/` and deletes stale `nz_amb_*.ydr` that are no longer registered,
-* renders 3 views per prop and writes `<out>/sheets/contact_NN.png`,
+* renders 3 views per prop (+ any extra cameras a prop declares) and writes `<out>/sheets/contact_NN.png`,
 * writes `<out>/props_manifest.json`, `props_table.md`, `props_catalog.md` and refreshes the generated
   sections of `docs/modules/props.md` (between `<!-- props:table:* -->` / `<!-- props:catalog:* -->`).
 
-A full build takes ~6-8 minutes (the treatment bay alone ~2 minutes). Useful flags:
+A full build takes ~15-20 minutes on 4 cores (2048 atlases + ambient occlusion; the treatment bay,
+the stretcher and the 2048 devices take 2-4 minutes each). Useful flags:
 
 | Flag | Effect |
 |---|---|
@@ -66,7 +78,7 @@ contact sheets in `<out>/sheets/`. LOOK at them after every change.
 
 ```python
 from nzprops import DecalCanvas, box, cylinder, prop, quad
-from .common import align, brand_canvas, m_teal
+from .common import align, label_canvas, m_teal, rating_plate, screws
 from .parts import m_hosp_white, m_teal_led
 
 @prop("nz_amb_example", atlas=512, lod=60, hd=10, static=True, doc={
@@ -80,8 +92,11 @@ def example(b):
     white = m_hosp_white(b)                       # materials register by name on the builder
     b.add(box((0.30, 0.20, 0.40), white, r=0.02, seg=3, center=(0, 0, 0.20)))
     b.add(cylinder(0.02, 0.01, m_teal(b), z0=0.40))
-    b.decal(brand_canvas(0.20, 0.03), center=(0, 0.1001, 0.30), normal=(0, 1, 0), up=(0, 0, 1),
-            mats=["hosp_white"], depth=0.01)        # projected print / label
+    b.decal(label_canvas(0.20, 0.03, "INFUSION PUMP", "IP-3"), center=(0, 0.1001, 0.30), normal=(0, 1, 0),
+            up=(0, 0, 1), mats=["hosp_white"], depth=0.01)        # projected print / label
+    b.decal(rating_plate(0.07, 0.025, "INFUSION PUMP", "IP-3", "SN 26-00001"), center=(0, -0.1001, 0.10),
+            normal=(0, -1, 0), mats=["hosp_white"], depth=0.01)   # fine-print plate on the back
+    b.add(screws(b, [(-0.12, -0.10, 0.36), (0.12, -0.10, 0.36)], (0, -1, 0), d=0.005))
     b.col_box((-0.15, -0.10, 0.0), (0.15, 0.10, 0.40), "PLASTIC_HIGH_DENSITY")   # collision is mandatory
 ```
 
@@ -100,17 +115,25 @@ def example(b):
   materials are the names in `nzprops/cwxml.py: COL_MATERIALS`.
 * `static=True` for furniture that never moves (archetype flag 32); dynamic props (carried,
   attached, dropped) stay non-static.
-* Texture budgets: hand-held / small props `atlas=256..512`, furniture `1024`, the bay shell several
-  1024 sets (`layers={...}`). Normal + spec maps are written at half size above 512.
+* Texture budgets (size on screen decides): hand-held tools seen in close-ups `atlas=1024` (syringe 512
+  + 512 alpha), carried devices / field kit / furniture `2048`, simple or distant props `256..1024`, the
+  bay shell 2048 main + shell and 1024 supply sets (`layers={...}`). Normal + spec maps are full size up
+  to 1024 and half size above (a 2048 prop gets 1024 normal / spec, like the imported bag).
+* Triangle budgets: hand-held <= 12k, carts / devices <= 30k, furniture <= 40k, the bay shell <= 120k.
+* Detail checklist: bevelled edges (`box(r=...)`), split lines (`DecalCanvas.groove`), screws
+  (`common.screw/screws`), feet and bumpers, strain reliefs and coiled cords, legends on buttons,
+  knurled knobs (`ribs_u` / `knurl` bumps), vents and grilles (`slots`, `perforate`), stitched straps
+  (`stitch`, `stitch_rect`), labels with fine print. The baker adds AO, chipped edge wear, scratches,
+  smudges, crevice grime and dust from the material parameters.
 
 ### Library cheat sheet (`nzprops`)
 
 | Module | What |
 |---|---|
 | `mesh` | `box` (rounded / chamfered, per-face material + texel density), `lathe`, `cylinder`, `sphere`, `capsule`, `torus`, `sweep` (profile along a path, per-point scale, twist), `tube`, `extrude` (bevelled polygons), `plane`, `quad` (oriented, `fixed_uv` for screens), `pillow` (soft bags), `slab_with_holes`, `pocket`; path helpers `catmull`, `bezier`, `polyline_fillet`, `rrect`, `arc_points`. `Geo` has `translate / rotate / rotate_axis / scale / mirror / transform / deform / taper / flip / set_density / set_tag` |
-| `paint` | `Mat(color, spec, gloss, metal, grain, bump, edge, ao, alpha, layer, dirt)`; bumps: `stipple orange_peel rubber brushed fabric webbing foam eggcrate pluck knurl ribs ribs_u leather`; `DecalCanvas` (metres; `rect circle line polygon text mark lockup`) with per-ink height / spec / gloss; `font()` bundled Lexend / JetBrains Mono / VT323 |
+| `paint` | `Mat(color, spec, gloss, metal, grain, bump, edge, ao, alpha, layer, dirt, wear, wear_color, scratch, smudge, cavity)`; bumps: `stipple orange_peel rubber brushed fabric webbing foam eggcrate pluck knurl ribs ribs_u leather phillips hexsocket diamond dimple perf twill cordura velcro`; `DecalCanvas` (metres; `rect circle line polygon text groove groove_rect stitch stitch_rect screw rivet perforate slots barcode datamatrix star_of_life cross icon`) with per-ink height / spec / gloss; `font()` bundled Lexend (`label*` keys) / JetBrains Mono / VT323 |
 | `prop` | `@prop(name, atlas, alpha_atlas, glow_atlas, layers, lod, hd, static, falloff, spec_mult, glow_mult, doc, preview)`, `Builder.mat / add / screen / decal / chart_decal / col_box / col_cyl` |
-| `bake`, `atlas`, `dds`, `cwxml`, `gltf` | internals: texel baker + AO, chart packer, DXT writer, CodeWalker XML, glb preview |
+| `bake`, `atlas`, `dds`, `cwxml`, `gltf` | internals: texel baker (AO, edge wear, scratches, smudges, grime, dust), chart packer, DXT writer, CodeWalker XML, glb preview |
 
 Material layers: `main` → `normal_spec` (`<name>_d/_n/_s`), `alpha` → `normal_spec_alpha`
 (`<name>_ad/_an/_as`, translucent plastics / glass), `glow` → `emissive` (`<name>_g`, LEDs, light
@@ -119,9 +142,10 @@ panels), any name declared in `layers={"sup": 1024}` → an extra `normal_spec` 
 texname="nz_amb_screen", image=..., size=(w, h))` adds an emissive screen whose texture keeps a fixed
 0..1 UV layout so a DUI can replace it at runtime (`AddReplaceTexture(model, 'nz_amb_screen', ...)`).
 
-Shared parts: `props/common.py` (materials, `align`, buttons, knobs, brand / serial labels,
-biohazard), `props/parts.py` (hospital plastics, casters, star bases, poles, vents, radiation
-label, rulers), `props/screens.py` (default screen images).
+Shared parts: `props/common.py` (materials, `align`, buttons, knobs, screws, rubber feet, strain
+reliefs, coiled cords, hinges, LED lenses, grommets; labelling: `label_canvas`, `rating_plate`,
+`caution_label`, `cal_sticker`, `asset_tag`, biohazard), `props/parts.py` (hospital plastics, casters,
+star bases, poles, vents, radiation label, rulers), `props/screens.py` (default screen images).
 
 ### Preview cameras for interiors
 
@@ -137,6 +161,19 @@ A closed room cannot be judged from outside: declare cameras + point lights in t
 ```
 
 `clipZ` cuts everything above that height away (plan view through the ceiling).
+
+## Importing a third-party model (`import_model.py`)
+
+```bash
+python3 tools/props/import_model.py /path/outside/repo/source.ydr nz_amb_medbag_red \
+    --stream nayzeee-ambulance/stream --title "Medic bag (red)" --max-size 2048
+```
+
+Re-exports the drawable through cwtool, renames it and its embedded textures to the new model name
+(`<name>_<texture>`), re-encodes textures to DXT1/DXT5 with full mip chains, rebuilds + validates the
+.ydr, writes `external/<name>.json` (bounds + archetype) and regenerates `nz_amb_props.ytyp`. The
+source file is only read; keep originals outside the repository. Run Python on files you did not make
+with `python3 -I` and keep them in their own folder.
 
 ## cwtool
 

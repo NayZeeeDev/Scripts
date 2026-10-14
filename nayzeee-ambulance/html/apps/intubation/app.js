@@ -24,7 +24,7 @@
   const tfmt = s => NZA.fmt.time(s);
   let LOC = {};
   const T = (k, f) => (LOC[k] !== undefined && LOC[k] !== '' ? LOC[k] : f);
-  const Tf = (k, f, ...a) => { let s = T(k, f); a.forEach(v => { s = s.replace(/%[sd]/, String(v)); }); return s; };
+  const Tf = (k, f, ...a) => { let s = T(k, f); a.forEach(v => { s = s.replace(/%[sd]/, String(v)); }); return s.replace(/%%/g, '%'); };
   const snd = () => NZA.cfg.sounds !== false;
 
   /* ─────────────── airway icons (NAYZEEE stroke style) ─────────────── */
@@ -146,16 +146,17 @@ float sdTri(vec2 p, vec2 p0, vec2 p1, vec2 p2){
 float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
 
 /* layered surface: colour (sC), height (sH, drives the normals), gloss (sG), ambient occlusion (sA) */
-vec3 sC; float sH; float sG; float sA; float gWq; float gWh;
+vec3 sC; float sH; float sG; float sA; float sF; float gWq; float gWh;
 float cov(float d, float w){ return 1.0 - smoothstep(-w, w, d); }
 void lay(float a, float b, vec3 c, float h, float g){ sC = mix(sC, c, a); sH = mix(sH, h, b); sG = mix(sG, g, a); sA = mix(sA, 1.0, a * 0.35); }
 // shape by distance: sharp colour edge, soft height edge (smooth normals, no 2x2 blocks)
 void layd(float d, float m, vec3 c, float h, float g){ lay(cov(d, gWq) * m, cov(d, gWh) * m, c, h, g); }
+void lays(float d, float m, float w, vec3 c, float h, float g){ lay(cov(d, w) * m, cov(d, w * 1.6) * m, c, h, g); }
 float dome(float d, float r){ float t = clamp(-d / r, 0.0, 1.0); return t * (2.0 - t); }
 vec3 vessels(vec3 c, vec2 p, float k){ float v = smoothstep(0.035, 0.0, abs(fbm(p) - 0.5)); return mix(c, c * vec3(0.62, 0.30, 0.42), v * k); }
 
-void main(){
-  vec2 frag = vUv * uRes;
+void scene(vec2 frag){
+  vec2 vuv = frag / uRes;
   float asp = uRes.x / uRes.y;
   vec2 p = (frag - 0.5 * uRes) / (0.5 * uRes.y);
   float r2 = dot(p, p);
@@ -176,48 +177,51 @@ void main(){
   float ang = atan(wv.y, wv.x);
   float rad = length(wv * vec2(0.85, 1.0));
   float folds = sin(ang * 13.0 + fbm(sp * 3.0) * 4.0) * 0.5 + 0.5;
-  vec3 wall = mix(vec3(0.50, 0.12, 0.12), vec3(0.74, 0.26, 0.24), fbm(sp * 4.5 + 2.0));
-  wall = vessels(wall, sp * 2.6 + 9.0, 0.65);
-  wall = vessels(wall, sp * 5.2 + 3.0, 0.35);
+  vec3 wall = mix(vec3(0.52, 0.11, 0.12), vec3(0.80, 0.27, 0.25), fbm(sp * 4.5 + 2.0));
+  wall = mix(wall, wall * vec3(1.08, 0.86, 0.9), smoothstep(0.45, 0.75, fbm(sp * 9.0 + 5.0)));
+  wall = vessels(wall, sp * 2.6 + 9.0, 0.42);
+  wall = vessels(wall, sp * 5.2 + 3.0, 0.22);
   float tun = smoothstep(0.0, 1.4, rad);
   sC = wall * mix(0.30, 1.0, tun) * mix(0.55, 1.0, near);
   sH = 0.10 + 0.05 * folds * tun + 0.06 * fbm(sp * vec2(3.0, 6.0));
-  sG = 0.9; sA = mix(0.55, 1.0, tun);
+  sG = 1.0; sA = mix(0.55, 1.0, tun); sF = 0.0;
 
   /* ── larynx ── */
   float lit = mix(0.35, 1.0, near);
   vec2 qa = vec2(abs(q.x), q.y);
   // posterior hypopharynx / postcricoid mucosa and the closed oesophageal inlet
   float dPc = sdEl(q - vec2(0.0, -0.50), vec2(0.34, 0.20));
-  layd(dPc, lar, vessels(vec3(0.70, 0.27, 0.26), q * 6.0, 0.4) * lit, 0.20 + 0.10 * dome(dPc, 0.2), 0.9);
-  float dOe = sdEl(q - vec2(0.0, -0.56), vec2(0.15, 0.022 + 0.01 * sin(q.x * 30.0)));
-  layd(dOe, lar, vec3(0.10, 0.02, 0.02) * lit, 0.02, 0.3);
+  lays(dPc, lar, 0.09, vessels(vec3(0.66, 0.22, 0.22), q * 6.0, 0.3) * lit, 0.18 + 0.12 * dome(dPc, 0.25), 1.0);
+  float dOe = sdEl(q - vec2(0.0, -0.57), vec2(0.12, 0.012 + 0.006 * sin(q.x * 40.0)));
+  float oeR = 0.5 + 0.5 * sin(atan(q.y + 0.57, q.x) * 9.0);
+  lays(dOe - 0.035, lar * 0.55, 0.05, vec3(0.42, 0.10, 0.11) * lit * (0.85 + 0.15 * oeR), 0.12, 0.8);
+  lays(dOe, lar, 0.012, vec3(0.12, 0.025, 0.03) * lit, 0.10, 0.25);
   // piriform fossae: dark pockets outside the aryepiglottic folds
   float dP = sdEl(qa - vec2(0.33, -0.12), vec2(0.09, 0.24));
   lay(cov(dP, 0.05) * lar, cov(dP, 0.06) * lar, vec3(0.16, 0.035, 0.04) * lit, -0.10 + 0.08 * (1.0 - dome(dP, 0.08)), 0.5);
   // laryngeal vestibule (inside the inlet)
   float dV = sdEl(q - vec2(0.0, -0.02), vec2(0.255, 0.345));
-  layd(dV, lar, vec3(0.50, 0.15, 0.16) * lit, 0.05 - 0.10 * dome(dV, 0.25), 0.9);
+  lays(dV, lar, 0.03, vec3(0.50, 0.14, 0.15) * lit, 0.05 - 0.12 * dome(dV, 0.25), 1.0);
   // aryepiglottic folds: the raised rim of the inlet
   float dAE = abs(sdEl(q - vec2(0.0, -0.02), vec2(0.265, 0.355))) - 0.030;
   float aeB = step(-0.33, q.y);
-  layd(dAE, aeB * lar, vessels(vec3(0.86, 0.43, 0.42), q * 7.0, 0.3) * lit, 0.42 + 0.22 * dome(dAE, 0.030), 1.3);
+  lays(dAE, aeB * lar, 0.022, vessels(vec3(0.84, 0.38, 0.38), q * 7.0, 0.25) * lit, 0.40 + 0.26 * dome(dAE, 0.045), 1.4);
   // glottis
   float op = uGlot.x;
   vec2 A0 = vec2(0.0, uGlot.y); vec2 B0 = vec2(-0.125 * op, -0.28); vec2 C0 = vec2(0.125 * op, -0.28);
   float dT = sdTri(q, A0, B0, C0) - 0.012;
   float post = step(-0.27, q.y);
   // ventricular (false) folds
-  float dF = abs(dT - 0.060) - 0.026;
-  layd(dF, post * lar, vec3(0.78, 0.33, 0.33) * lit, 0.30 + 0.12 * dome(dF, 0.026), 1.1);
+  float dF = abs(dT - 0.068) - 0.032;
+  lays(dF, post * lar, 0.034, vessels(vec3(0.66, 0.22, 0.23), q * 11.0, 0.25) * lit, 0.24 + 0.08 * dome(dF, 0.05), 1.1);
   // ventricle groove
-  layd(abs(dT - 0.031) - 0.005, post * lar, vec3(0.22, 0.05, 0.06) * lit, 0.14, 0.4);
+  lays(abs(dT - 0.031) - 0.004, post * lar * 0.8, 0.010, vec3(0.30, 0.07, 0.08) * lit, 0.16, 0.6);
   // true vocal cords: pearly white bands, brighter on the free edge
-  float dVc = abs(dT - 0.012) - 0.016;
+  float dVc = abs(dT - 0.014) - 0.021;
   float edge = smoothstep(0.016, -0.004, abs(dT + 0.002));
   vec3 cordC = mix(vec3(0.86, 0.80, 0.74), vec3(1.0, 0.97, 0.93), edge);
   cordC = mix(cordC, vec3(0.80, 0.55, 0.52), 0.12 * fbm(q * 40.0));
-  layd(dVc, post * lar, cordC * lit, 0.30 + 0.10 * dome(dVc, 0.016), 1.7);
+  lays(dVc, post * lar, 0.009, cordC * lit, 0.30 + 0.07 * dome(dVc, 0.03), 1.3);
   // trachea through the cords: rings on the anterior wall, darkness in the depth
   float deep = smoothstep(0.0, 0.10, -dT);
   vec2 tq = (q - vec2(0.0, -0.05)) * vec2(1.0, 0.70);
@@ -245,52 +249,55 @@ void main(){
   float sh = smoothstep(0.0, 0.10, rimC - q.y) * 0.55 + 0.45;
   sC *= mix(1.0, sh, shW * epiOn * step(q.y, rimC));
   float rimB = clamp(1.0 - (q.y - rimC) / 0.07, 0.0, 1.0);
-  vec3 epiC = mix(vec3(0.84, 0.54, 0.50), vec3(0.98, 0.80, 0.72), rimB * 0.8);
+  vec3 epiC = mix(vec3(0.86, 0.44, 0.44), vec3(0.98, 0.70, 0.66), rimB * 0.8);
   epiC = vessels(epiC, q * vec2(6.0, 9.0) + 4.0, 0.45) * (0.92 + 0.12 * fbm(q * 13.0));
   epiC *= 1.0 - 0.18 * smoothstep(0.03, 0.0, abs(q.x)) * (1.0 - rimB);
-  epiC *= mix(1.0, 0.72, smoothstep(0.25, 0.9, yy));
+  epiC *= mix(1.0, 0.84, smoothstep(0.25, 0.9, yy));
   layd(dEb, epiOn, epiC * lit, 0.58 + 0.28 * sin(rimB * 1.5708) + 0.12 * dome(dEw, 0.12), 1.6);
   float dVal = abs(q.y - valY - 0.018) - 0.024;
   float vmm = step(abs(q.x), 0.42) * epiOn;
   layd(dVal, vmm, vec3(0.24, 0.06, 0.07) * lit, 0.12, 0.4);
   layd(abs(q.x) - 0.012, cov(dVal, wq) * vmm, vec3(0.68, 0.32, 0.32) * lit, 0.30, 0.9);
   float tb = q.y - (valY + 0.045 + 0.022 * sin(q.x * 11.0));
-  vec2 cell = q * 16.0; vec2 ci = floor(cell); vec2 cf = fract(cell) - 0.5;
-  float bump = smoothstep(0.5, 0.05, length(cf + 0.25 * (vec2(hash(ci), hash(ci + 7.0)) - 0.5)));
+  vec2 cell = q * 13.0 + vec2(0.0, fbm(q * 3.0) * 1.5); vec2 ci = floor(cell); vec2 cf = fract(cell) - 0.5;
+  float bsz = 0.22 + 0.26 * hash(ci + 3.7);
+  float bump = step(0.35, hash(ci + 1.3)) * smoothstep(bsz, bsz * 0.2, length(cf + 0.55 * (vec2(hash(ci), hash(ci + 7.0)) - 0.5)));
+  bump = max(bump * 0.8, 0.5 * smoothstep(0.62, 0.8, fbm(q * 26.0)));
   vec3 tbC = vessels(vec3(0.80, 0.38, 0.38), q * 5.0, 0.3) * (0.84 + 0.22 * bump);
-  layd(-tb, epiOn, tbC * lit, 0.50 + 0.30 * clamp(tb * 3.0, 0.0, 1.0) + 0.08 * bump, 1.1);
+  layd(-tb, epiOn, tbC * lit, 0.50 + 0.30 * clamp(tb * 3.0, 0.0, 1.0) + 0.035 * bump, 1.1);
 
   /* ── soft palate + uvula (posterior, bottom of the picture early in the insertion) ── */
   float pa = smoothstep(0.03, 0.62, D);
   float base = mix(-0.30, -1.55, pa);
   float dPal = sp.y - (base + 0.30 * sp.x * sp.x);
-  vec3 palC = vessels(vec3(0.86, 0.46, 0.48), sp * 4.0, 0.35) * (0.84 + 0.2 * fbm(sp * 6.0));
+  vec3 palC = vessels(vec3(0.84, 0.36, 0.40), sp * 4.0, 0.35) * (0.84 + 0.2 * fbm(sp * 6.0));
   lay(cov(dPal, aa), cov(dPal, 0.03), palC, 0.62 + 0.3 * clamp(-dPal * 2.0, 0.0, 1.0), 1.1);
   vec2 u0 = sp - vec2(0.0, base);
   float dU = smin(sdEl(u0 - vec2(0.0, 0.30), vec2(0.075, 0.07)), sdEl(u0 - vec2(0.0, 0.13), vec2(0.05, 0.16)), 0.05);
-  lay(cov(dU, aa), cov(dU, 0.03), vec3(0.92, 0.52, 0.54), 0.74 + 0.30 * dome(dU, 0.06), 1.5);
+  lay(cov(dU, aa), cov(dU, 0.03), vec3(0.90, 0.42, 0.46), 0.74 + 0.30 * dome(dU, 0.06), 1.5);
 
   /* ── tongue (anterior, top of the picture), the flange pushes it aside when steering ── */
   float ta = smoothstep(0.0, 0.66, D);
   float tE = mix(-0.02, 1.38, ta) + 0.30 * sp.x * sp.x - uGlot.w * 0.10;
   float dTo = tE - sp.y;
   float pap = fbm(sp * 30.0);
-  vec3 tC = mix(vec3(0.82, 0.46, 0.46), vec3(0.94, 0.78, 0.74), smoothstep(0.55, 0.78, pap) * 0.5);
+  vec3 tC = mix(vec3(0.80, 0.34, 0.36), vec3(0.92, 0.62, 0.60), smoothstep(0.55, 0.78, pap) * 0.45);
   lay(cov(dTo, aa), cov(dTo, 0.04), tC, 0.78 + 0.22 * clamp(-dTo * 1.6, 0.0, 1.0) + 0.04 * pap, 1.0);
   float sd = max(abs(uSteer) - 0.2, 0.0);
   float dS = (asp + 0.05 - sd * 2.4 - 0.18 * p.y * p.y) - p.x * sign(uSteer + 0.0001);
   lay(cov(dS, aa) * step(0.001, sd), cov(dS, 0.04) * step(0.001, sd), tC * 0.95, 0.8 + 0.2 * clamp(-dS * 3.0, 0.0, 1.0), 1.0);
 
   /* ── blood / vomit / water pooling at the bottom (posterior) ── */
-  float f = texture2D(uSoil, vec2(vUv.x, 1.0 - vUv.y)).a * uMisc.w;
+  float f = texture2D(uSoil, vec2(vuv.x, 1.0 - vuv.y)).a * uMisc.w;
   float fc = smoothstep(0.22, 0.50, f);
   float fd = fbm(p * 7.0 + vec2(0.0, uTime * 0.05));
   vec2 bg = p * 15.0 + vec2(0.0, uTime * 0.12);
   vec2 bi = floor(bg); vec2 bfr = fract(bg) - 0.5;
   float brad = 0.12 + 0.20 * hash(bi);
-  float bub = step(0.80, hash(bi + 3.1)) * dome(length(bfr) - brad, 0.08) * smoothstep(0.5, 0.8, f);
-  vec3 flC = uFluid * (0.62 + 0.40 * fd) * mix(0.55, 1.0, smoothstep(0.25, 0.75, f));
-  sC = mix(sC, flC, fc); sH = mix(sH, 0.62 + 0.10 * fd + 0.10 * bub + 0.06 * f, smoothstep(0.10, 0.60, f)); sG = mix(sG, 2.4, fc);
+  float froth = step(0.5, uFluid.g) * step(0.86, hash(bi + 3.1)) * dome(length(bfr) - brad * 0.5, 0.05) * smoothstep(0.55, 0.85, f);
+  float thick = smoothstep(0.25, 0.85, f);
+  vec3 flC = uFluid * mix(1.55, 0.78, thick) * (0.88 + 0.16 * fd);
+  sC = mix(sC, flC, fc); sH = mix(sH, 0.46 + 0.20 * thick + 0.05 * froth, smoothstep(0.08, 0.50, f)); sG = mix(sG, 2.6, fc); sF = max(sF, fc * (1.0 - froth));
 
   /* ── blade tip (dark metal) entering from the top ── */
   float bl = smoothstep(0.10, 0.55, D);
@@ -298,22 +305,32 @@ void main(){
   float dBl = sdEl(p - vec2(0.0, bY + 0.42), vec2(0.66, 0.42));
   vec3 metal = vec3(0.05, 0.055, 0.06) + vec3(0.22, 0.24, 0.26) * smoothstep(0.02, 0.0, abs(dBl + 0.015)) + 0.03 * fbm(p * 5.0);
   lay(cov(dBl, aa) * step(0.01, bl), cov(dBl, 0.02) * step(0.01, bl), metal, 0.98 + 0.05 * dome(dBl, 0.1), 0.25);
+  sH += 0.012 * fbm(sp * 40.0) * (1.0 - sF);
+}
 
-  /* ── lighting: LED above the lens, wet mucosa ── */
-  sH += 0.012 * fbm(sp * 40.0);
-  vec2 gr = vec2(0.0);
-#ifdef HAS_DERIV
-  gr = clamp(vec2(dFdx(sH), dFdy(sH)) * uRes.y * 0.0036, vec2(-2.5), vec2(2.5));
-#endif
+void main(){
+  vec2 frag = vUv * uRes;
+  float e = max(1.0, uRes.y / 520.0);
+  scene(frag + vec2(e, 0.0)); float hx = sH;
+  scene(frag + vec2(0.0, e)); float hy = sH;
+  scene(frag);
+  vec2 p = (frag - 0.5 * uRes) / (0.5 * uRes.y);
+  float r2 = dot(p, p);
+  /* ── lighting: coaxial LED next to the lens, wet mucosa ── */
+  vec2 gr = clamp(vec2(hx - sH, hy - sH) / e * uRes.y * 0.034, vec2(-3.2), vec2(3.2));
   vec3 n = normalize(vec3(-gr.x, -gr.y, 1.0));
-  vec3 L = normalize(vec3(0.0, 0.62, 1.0));
-  vec3 Hv = normalize(L + vec3(0.0, 0.0, 1.0));
-  float diff = 0.30 + 0.78 * max(dot(n, L), 0.0);
+  vec3 L = normalize(vec3(0.0, 0.42, 1.0));
+  vec3 V = vec3(0.0, 0.0, 1.0);
+  vec3 Hv = normalize(L + V);
+  float ndl = max(dot(n, L), 0.0);
+  float diff = 0.22 + 0.86 * ndl;
   float nh = max(dot(n, Hv), 0.0);
   float lum = max(sC.r, max(sC.g, sC.b));
-  float spec = (0.18 * pow(nh, 24.0) + 1.10 * pow(nh, 140.0)) * sG * smoothstep(0.04, 0.30, lum);
-  float cone = exp(-r2 * 0.50);
-  vec3 col = sC * diff * sA * (0.55 + 0.60 * cone) + vec3(1.0, 0.94, 0.88) * spec * (0.35 + 0.65 * cone);
+  float fres = pow(1.0 - max(dot(n, V), 0.0), 3.0);
+  float spec = mix(0.10 * pow(nh, 18.0) + 0.85 * pow(nh, 90.0) + 1.6 * pow(nh, 600.0), 2.4 * pow(nh, 900.0) + 0.25 * pow(nh, 160.0), sF) * sG * mix(smoothstep(0.03, 0.25, lum), 1.0, sF);
+  float cone = exp(-r2 * 0.55);
+  vec3 sss = sC * vec3(1.0, 0.35, 0.30) * 0.22 * (1.0 - ndl);
+  vec3 col = (sC * diff + sss) * sA * (0.50 + 0.66 * cone) + vec3(1.0, 0.95, 0.90) * spec * (0.30 + 0.70 * cone) + sC * fres * 0.18 * sG;
   float vig = smoothstep(1.66, 0.55, length(p * vec2(0.68, 1.0)));
   col *= vig;
   vec3 red = vec3(0.55, 0.10, 0.09) * (0.65 + 0.55 * fbm(p * 2.6 + uTime * 0.15));
@@ -393,7 +410,7 @@ void main(){
   }
 
   /* ─────────────── fluid mask (blood / vomit / water on the screen) ─────────────── */
-  const FLUID = { blood: [0.42, 0.02, 0.03], vomit: [0.56, 0.42, 0.13], water: [0.78, 0.72, 0.66], none: [0.42, 0.02, 0.03] };
+  const FLUID = { blood: [0.50, 0.035, 0.04], vomit: [0.56, 0.42, 0.13], water: [0.78, 0.72, 0.66], none: [0.50, 0.035, 0.04] };
   function Soil(amount, rate) {
     const W = 192, H = 112;
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -404,16 +421,26 @@ void main(){
       g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(0.65, `rgba(0,0,0,${a * 0.8})`); g.addColorStop(1, 'rgba(0,0,0,0)');
       c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
     }
+    // a drip: overlapping beads that widen as it runs down into the pool
+    function streak(x, y, w, len) {
+      let cx = x, cy = y;
+      const steps = Math.max(3, Math.round(len / 2));
+      for (let i = 0; i <= steps; i++) { const t = i / steps; blob(cx, cy, w * (0.4 + 0.6 * t), 0.92); cx += rnd(-0.7, 0.7); cy += 2; }
+    }
     function seed(a) {
       c.clearRect(0, 0, W, H);
       if (a <= 0.01) { dirty = true; return; }
       const lvl = H * (1 - a * 0.6), ph = rnd(0, 6);
+      // a pool on the posterior wall (bottom of the picture), shallower towards the sides
       c.fillStyle = '#000';
       c.beginPath(); c.moveTo(0, H);
-      for (let x = 0; x <= W; x += 6) c.lineTo(x, lvl + Math.sin(x * 0.08 + ph) * 5 + rnd(0, 4) + Math.abs(x - W / 2) * 0.10);
+      for (let x = 0; x <= W; x += 4) c.lineTo(x, lvl + Math.sin(x * 0.07 + ph) * 4 + Math.sin(x * 0.23 + ph * 2) * 1.6 + Math.abs(x - W / 2) * 0.12);
       c.lineTo(W, H); c.closePath(); c.fill();
-      const n = Math.round(5 + a * 16);
-      for (let i = 0; i < n; i++) blob(rnd(8, W - 8), rnd(lvl - 34, H), rnd(5, 15), rnd(0.6, 1));
+      // drips running down the walls into the pool, a few beads clinging to the mucosa
+      const n = Math.round(3 + a * 9);
+      for (let i = 0; i < n; i++) streak(rnd(10, W - 10), rnd(lvl - 48, lvl - 8), rnd(2.2, 5), rnd(10, 32));
+      const m = Math.round(2 + a * 6);
+      for (let i = 0; i < m; i++) blob(rnd(8, W - 8), rnd(lvl - 30, lvl + 6), rnd(2, 4.5), rnd(0.75, 1));
       dirty = true; coverAt = 0;
     }
     seed(amount);
@@ -425,7 +452,7 @@ void main(){
       },
       refill(dt) {
         if (rate <= 0) return;
-        if (Math.random() < dt * 5 * rate) { blob(rnd(0, W), H - rnd(0, 14), rnd(8, 18), rnd(0.3, 0.55)); dirty = true; }
+        if (Math.random() < dt * 5 * rate) { if (Math.random() < 0.6) streak(rnd(6, W - 6), H - rnd(18, 44), rnd(1.8, 3.6), rnd(10, 26)); else blob(rnd(0, W), H - rnd(0, 10), rnd(6, 12), rnd(0.35, 0.6)); dirty = true; }
       },
       coverage() {
         if (now() - coverAt < 220) return cover;
@@ -462,7 +489,7 @@ void main(){
     root.innerHTML = `
       <div class="itb-dhead"><span class="itb-model"><b>AM-7</b>${esc(T('mon_model', 'Airway monitor'))}</span><span class="itb-dstat"><span class="itb-bat"><i></i><i></i><i></i><i></i></span><span class="dev-led" data-k="led"></span></span></div>
       <div class="dev-screen itb-mon-scr">
-        <div class="itb-mhead"><span class="itb-mtag">${esc(T('mon_adult', 'ADULT'))}</span><span class="itb-mrhy" data-k="rhy"></span><span class="itb-mstat" data-k="status"></span><span class="itb-mclock" data-k="clock">--:--</span></div>
+        <div class="itb-mhead"><span class="itb-mtag">${esc(`${S && S.patient && S.patient.age ? `${S.patient.age}${T('mon_years', 'Y')} ` : ''}${S && S.patient && S.patient.sex === 'f' ? T('mon_f', 'F') : T('mon_m', 'M')}`)}</span><span class="itb-mrhy" data-k="rhy"></span><span class="itb-mstat" data-k="status"></span><span class="itb-mclock" data-k="clock">--:--</span></div>
         <div class="itb-mgrid">
           <div class="itb-mleft">
             <div class="itb-sat" data-k="sat">
@@ -479,7 +506,7 @@ void main(){
           <div class="itb-vm"></div>
         </div>
         <div class="itb-mfoot">
-          <div class="itb-apn" data-k="apn"><span class="rg"><svg viewBox="0 0 36 36"><circle class="t" cx="18" cy="18" r="15"/><circle class="p" data-k="apr" cx="18" cy="18" r="15" transform="rotate(-90 18 18)" stroke-dasharray="0 ${RC.toFixed(1)}"/></svg>${icon('lungs')}</span><span class="tx"><small>${esc(T('mon_apnoea', 'APNOEA'))}</small><b data-k="apnoea">--:--</b></span></div>
+          <div class="itb-apn" data-k="apn"><span class="rg"><svg viewBox="0 0 36 36"><circle class="t" cx="18" cy="18" r="15"/><circle class="p" data-k="apr" cx="18" cy="18" r="15" transform="rotate(-90 18 18)" stroke-dasharray="0 ${RC.toFixed(1)}"/></svg>${icon('lungs')}</span><span class="tx"><small>${esc(T('mon_apnoea', 'APNOEIC FOR'))}</small><b data-k="apnoea">--:--</b></span></div>
           <div class="itb-atts"><small>${esc(T('mon_attempts', 'ATTEMPTS'))}</small><span class="pips" data-k="pips"></span></div>
           <div class="itb-lowest"><small>${esc(T('mon_lowest', 'LOWEST'))}</small><b data-k="low">--</b></div>
         </div>
@@ -583,12 +610,22 @@ void main(){
           <circle class="cad" cx="120" cy="120" r="${R}" transform="rotate(-90 120 120)" stroke-dasharray="0 ${C}"/>
           <circle class="hold" cx="120" cy="120" r="78" transform="rotate(-90 120 120)" stroke-dasharray="0 ${2 * Math.PI * 78}"/>
           <g class="needle"><circle cx="120" cy="${120 - R}" r="8"/></g>
-          <g transform="translate(0 -20)"><g class="bag">
-            <path class="reservoir" d="M78 128c-14 0-22-7-22-16s8-16 22-16"/>
-            <ellipse class="sack" cx="116" cy="120" rx="38" ry="25"/>
-            <path class="seam" d="M84 120h64" />
-            <path class="valve" d="M154 113h10v14h-10z"/>
-            <path class="mask" d="M164 108h12l8 12-8 12h-12z"/>
+          <g transform="translate(0 -20)"><g class="bvmart">
+            <path class="tubing" d="M47 134c-6 8-4 17 5 20s15 9 12 18"/>
+            <g class="resv"><path class="rbag" d="M72 110c-6-8-24-9-31 0-6 8-4 21 8 24 9 2 18-1 23-6z"/><path class="rfold" d="M50 107c4 5 5 13 1 20M59 105c3 7 3 16 0 23"/></g>
+            <rect class="inlet" x="70" y="113.5" width="10" height="13" rx="2.5"/>
+            <g class="bag">
+              <path class="sack" d="M80 120c0-15 13-26 36-26s36 11 36 26-13 26-36 26-36-11-36-26z"/>
+              <path class="rib" d="M93 99c-5 6-7 13-7 21s2 15 7 21M106 95c-3 7-4 16-4 25s1 18 4 25M126 95c3 7 4 16 4 25s-1 18-4 25M139 99c5 6 7 13 7 21s-2 15-7 21"/>
+              <path class="grip" d="M108 109h16M106 115h20M106 121h20M106 127h20M108 133h16"/>
+              <path class="shine" d="M95 103c9-5 24-7 39-3"/>
+            </g>
+            <path class="neck" d="M151 114.5h8v11h-8z"/>
+            <path class="valve" d="M159 111h11l3 4v10l-3 4h-11z"/>
+            <path class="duck" d="M161 120h7l2-3M168 120l2 3"/>
+            <path class="mask" d="M178 103c11 0 19 8 21 17-2 9-10 17-21 17-3 0-5-2-5-5v-24c0-3 2-5 5-5z"/>
+            <path class="cushion" d="M197 105c4 4 6 9 6 15s-2 11-6 15"/>
+            <path class="flow" d="M88 120H197"/>
           </g></g>
         </svg>
         <div class="itb-ring-c"><b data-k="big"></b><span data-k="small"></span></div>
@@ -603,6 +640,8 @@ void main(){
     host.appendChild(root);
     const q = k => root.querySelector(`[data-k="${k}"]`);
     const cad = root.querySelector('.cad'), hold = root.querySelector('.hold'), needle = root.querySelector('.needle'), bag = root.querySelector('.bag');
+    const resv = root.querySelector('.resv'), art = root.querySelector('.bvmart');
+    let kv = 0, lastF = now();
     const gasM = NZA.ui.Meter(q('gasm'), { value: 0, tone: 'amber', zone: [0, 0.35] });
     return {
       el: root,
@@ -618,9 +657,13 @@ void main(){
         hold.setAttribute('stroke-dasharray', `${2 * Math.PI * 78 * hp} ${2 * Math.PI * 78}`);
         hold.classList.toggle('good', holdSec >= ideal - 0.2 && holdSec <= ideal + 0.35);
         hold.classList.toggle('bad', holdSec > ideal + 0.6);
-        const sq = holding ? 1 - 0.22 * Math.min(1, holdSec / ideal) : 1;
-        bag.setAttribute('transform', `translate(116 120) scale(${sq.toFixed(3)} ${(0.9 + 0.1 * sq).toFixed(3)}) translate(-116 -120)`);
-        bag.classList.toggle('on', holding);
+        // squeeze: the bag flattens under the hand and springs back; the reservoir fills while the inlet is shut
+        const t = now(), fdt = Math.min(0.1, (t - lastF) / 1000); lastF = t;
+        const goal = holding ? Math.min(1, holdSec / ideal) : 0;
+        kv += (goal - kv) * Math.min(1, fdt * (holding ? 12 : 5));
+        bag.setAttribute('transform', `translate(116 120) scale(${(1 + 0.06 * kv).toFixed(3)} ${(1 - 0.34 * kv).toFixed(3)}) translate(-116 -120)`);
+        resv.setAttribute('transform', `translate(58 120) scale(${(0.9 + 0.2 * kv).toFixed(3)}) translate(-58 -120)`);
+        art.classList.toggle('on', holding);
         root.classList.toggle('inwin', !holding && started && ph >= 0.9 && ph <= 1.12);
         void cyc;
       },
@@ -1331,21 +1374,21 @@ void main(){
 
   /* ─────────────── panels ─────────────── */
   const TOOL_DEF = () => [
-    { key: '1', icon: 'itb-bvm', label: T('tool_bvm', 'Bag-valve mask') },
+    { key: '1', icon: 'itb-bvm', label: T('tool_bvm', 'BVM bag') },
     { key: '2', icon: 'itb-scope', label: T('tool_scope', 'Video laryngoscope') },
     { key: '3', icon: 'itb-suction', label: T('tool_suction', 'Suction') },
-    { key: '4', icon: 'itb-tube', label: Tf('tool_tube', 'Tube %s', S.A.tube) },
-    { key: '5', icon: 'syringe', label: T('tool_cuff', 'Cuff syringe') },
-    { key: '6', icon: 'itb-holder', label: T('tool_holder', 'Tube holder') },
+    { key: '4', icon: 'itb-tube', label: Tf('tool_tube', 'ETT %s', S.A.tube) },
+    { key: '5', icon: 'syringe', label: T('tool_cuff', '10 ml syringe') },
+    { key: '6', icon: 'itb-holder', label: T('tool_holder', 'Tube fixation') },
   ];
   function tools(active, done = []) {
     if (S.mode === 'bvm') {
       return [
-        { key: '1', icon: 'itb-bvm', label: S.A.intubated ? T('tool_bvm_tube', 'Bag on the tube') : T('tool_bvm', 'Bag-valve mask'), state: 'active', sub: T('in_use', 'IN USE') },
+        { key: '1', icon: 'itb-bvm', label: S.A.intubated ? T('tool_bvm_tube', 'Bag on the tube') : T('tool_bvm', 'BVM bag'), state: 'active', sub: T('in_use', 'IN HAND') },
         { key: '2', icon: 'drop', label: T('tool_o2', 'Oxygen 15 L/min'), state: 'done' },
       ];
     }
-    return TOOL_DEF().map(t => Object.assign(t, t.key === active ? { state: 'active', sub: T('in_use', 'IN USE') } : done.includes(t.key) ? { state: 'done' } : {}));
+    return TOOL_DEF().map(t => Object.assign(t, t.key === active ? { state: 'active', sub: T('in_use', 'IN HAND') } : done.includes(t.key) ? { state: 'done' } : {}));
   }
   const STEP_NAMES = () => [T('n1', 'Pre-oxygenate'), T('n2', 'Position the head'), T('n3', 'Suction'), T('n4', 'Insert the blade'), T('n5', 'Lift'), T('n6', 'Pass the tube'), T('n7', 'Inflate the cuff'), T('n8', 'Confirm & secure')];
   function setPanel(o) {
@@ -1486,8 +1529,8 @@ void main(){
         UI.vent.hist([]); UI.vent.stats({ breaths: `0/${S.cfg.breaths}`, interval: '--', vol: '--' }); UI.vent.gastric(S.gastric);
         setPanel({
           title: S.reox ? T('s1_title_re', 'Re-oxygenate') : T('s1_title', 'Pre-oxygenate'),
-          text: S.reox ? Tf('s1_text_re', 'Mask back on. Hold {Space} 1 s to squeeze, once every %s s, until the SpO₂ recovers.', S.cfg.cadence)
-            : Tf('s1_text', 'Hold {Space} 1 s to squeeze, once every %s s. Fill the oxygen reserve before the mask comes off.', S.cfg.cadence),
+          text: S.reox ? Tf('s1_text_re', 'Mask back on. Give a smooth {Space} squeeze of about a second, one breath every %s s, until the SpO₂ climbs again.', S.cfg.cadence)
+            : Tf('s1_text', 'Seal the mask and give a smooth {Space} squeeze of about a second, one breath every %s s. Fill the oxygen reserve before the mask comes off.', S.cfg.cadence),
           tag: S.reox ? Tf('tag_attempt', 'Attempt %s of %s', S.attemptsUsed + 1, S.cfg.attempts) : '',
           tools: tools('1'),
           hints: [H(['Space'], T('h_squeeze', 'squeeze')), H(['Enter'], T('h_continue', 'continue'))],
@@ -1514,7 +1557,7 @@ void main(){
       },
       tick() { ventTick(); },
       wide() {
-        return { label: T('w_reserve', 'Oxygen reserve'), value: Math.round(S.reserve * 100), unit: '%', meter: { value: S.reserve, zone: [0.8, 1] },
+        return { label: T('w_reserve', 'O₂ reserve'), value: Math.round(S.reserve * 100), unit: '%', meter: { value: S.reserve, zone: [0.8, 1] },
           caption: S.reserve >= 0.8 ? T('c_reserve_ok', 'Full — safe to start') : Tf('c_reserve', 'Breath %s of %s · keep the rhythm', Math.min(S.pre.good + 1, S.cfg.breaths), S.cfg.breaths), captionTone: S.reserve >= 0.8 ? 'teal' : '' };
       },
       enterKey() { if (S.pre.n >= 3) this.next(); else flash('warn', T('f_three', 'Give at least 3 breaths first.')); },
@@ -1563,7 +1606,7 @@ void main(){
       },
       wide() {
         const a = S.A.cspine ? (S.pos.tilt <= 6 && !S.pos.towel ? 1 : 0.3) * (0.5 + S.pos.jaw * 0.5) : S.pos.align;
-        return { label: S.A.cspine ? T('w_inline', 'In-line') : T('w_align', 'Axis alignment'), value: Math.round(a * 100), unit: '%', meter: { value: a, zone: [0.78, 1] },
+        return { label: S.A.cspine ? T('w_inline', 'In-line') : T('w_align', 'Alignment'), value: Math.round(a * 100), unit: '%', meter: { value: a, zone: [0.78, 1] },
           caption: S.pos.jaw < (S.A.cspine ? 0.75 : 0.6) ? T('c_jaw', 'Thrust the jaw to open the airway') : a >= 0.78 ? T('c_hold', 'Hold it…') : T('c_align', 'Line up the dashed axes'), captionTone: a >= 0.78 ? 'teal' : '' };
       },
       breath(b) { deliverBreath(b, 'mask'); const m = breathMsg(b); flash(m[0], m[1], 1500); },
@@ -1812,7 +1855,7 @@ void main(){
       wide() {
         const p = S.cuff.p, b = S.cfg.band;
         const ok = p >= b[0] && p <= b[1];
-        return { label: T('w_cuff', 'Cuff pressure'), value: Math.round(p), unit: 'cmH₂O', meter: { value: clamp(p / 60, 0, 1), zone: [b[0] / 60, b[1] / 60], tone: p > b[1] ? 'red' : '' },
+        return { label: T('w_cuff', 'Cuff'), value: Math.round(p), unit: 'cmH₂O', meter: { value: clamp(p / 60, 0, 1), zone: [b[0] / 60, b[1] / 60], tone: p > b[1] ? 'red' : '' },
           caption: ok ? T('c_cuff_ok', 'Sealed — press Enter') : p > b[1] ? T('c_cuff_hi', 'Too high — let some air out') : T('c_cuff_lo', 'Under-filled — the tube will leak'), captionTone: ok ? 'teal' : p > b[1] ? 'red' : '' };
       },
       enterKey() {
@@ -1911,8 +1954,8 @@ void main(){
         UI.vent.stats({ breaths: `0/${S.cfg.bvmBreaths}`, interval: '--', vol: '--' }); UI.vent.hist([]); UI.vent.gastric(S.gastric);
         setPanel({
           title: T('sb_title', 'Ventilate'),
-          text: S.A.intubated ? Tf('sb_text_tube', 'Hold {Space} 1 s to squeeze through the tube, once every %s s. Watch the chest rise and the CO₂ trace.', S.cfg.cadence)
-            : Tf('sb_text', 'Hold {Space} 1 s to squeeze, once every %s s. Watch the chest rise and the SpO₂.', S.cfg.cadence),
+          text: S.A.intubated ? Tf('sb_text_tube', 'Breathe through the tube: a smooth {Space} squeeze of about a second, one breath every %s s. Watch the chest rise and the CO₂ trace.', S.cfg.cadence)
+            : Tf('sb_text', 'Seal the mask and give a smooth {Space} squeeze of about a second, one breath every %s s. Watch the chest rise and the SpO₂.', S.cfg.cadence),
           tools: tools('1'),
           hints: [H(['Space'], T('h_squeeze', 'squeeze'))],
         });
@@ -1952,7 +1995,7 @@ void main(){
     UI.res = ResultCard(UI.dockR, card);
     UI.pp.complete({ title, text, label: T('done', 'Done'), onDone: sendResult });
     if (tone === 'bad') UI.pp.set({ titleTone: 'bad' });
-    UI.pp.set({ stats: statList(), wide: null, hints: [] });
+    UI.pp.set({ stats: statList(), wide: null, hints: [], abort: false });
     NZA.post(`${APP}:step`, { step: S.mode === 'bvm' ? 1 : 8, phase: 'done', placed: S.result.placed || null });
   }
 
@@ -2062,6 +2105,7 @@ void main(){
   }
   function abortProc() {
     if (!S || S.sent) return;
+    if (S.done && S.result) { sendResult(); return; }   // finished: leaving keeps the result
     S.sent = true;
     Promise.resolve(NZA.post(`${APP}:abort`, {})).then(() => { if (!NZA.inGame) NZA.close(APP); });
   }
@@ -2253,7 +2297,7 @@ void main(){
     appDef.el.appendChild(root);
     UI = { root, anchors: NZA.ui.Anchors(APP), dockR: el('div', 'itb-dock r'), dockC: el('div', 'itb-dock c') };
     root.append(UI.dockC, UI.dockR);
-    if (d.monitor !== false) UI.mon = MonitorDev(root);
+    if (d.monitor !== false) UI.mon = MonitorDev(root); else root.classList.add('no-mon');
     UI.pp = NZA.ui.ProcPanel(root, { step: 1, total: S.mode === 'bvm' ? 1 : 8, abort: { label: T('abort', 'Hold to cancel'), key: 'ESC', seconds: 1.2 }, onAbort: abortProc, onTool: k => toolInfo(k) });
     UI.anc = el('div', 'itb-anc');
     UI.anc.innerHTML = `<span class="dia"><svg viewBox="0 0 44 44"><circle class="t" cx="22" cy="22" r="19"/><circle class="p" cx="22" cy="22" r="19" transform="rotate(-90 22 22)" stroke-dasharray="0 119.4"/></svg><i></i></span><span class="chip"><small>${esc(T('anc_kicker', 'BVM · 15 L O₂'))}</small><b></b></span>`;

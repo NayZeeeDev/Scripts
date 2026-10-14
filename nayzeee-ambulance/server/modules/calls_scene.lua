@@ -7,8 +7,8 @@
                                  injuries = { def }, conditions = { name = value }, trapped, dp (damage packs), wet }
           plan.vehicles[i]   = { idx, model, offset, heading, damage, windows, doors, tyres, smoke, fire }
           plan.props[i]      = { idx, model, offset, rot, fx }
-          plan.bystanders[i] = { idx, model, sex, offset, heading, scenario, role, victim }
-          plan.fx[i]         = { id, kind, vehicle | prop | offset }
+          plan.bystanders[i] = { idx, model, sex, offset, heading, scenario, role ('caller'|'cpr'|'onlooker'), victim }
+          plan.fx[i]         = { id, kind, vehicle | prop | offset, dur (s, counted from the build) }
       I.PublicPlan(scene)  → what the building client needs (no injuries / conditions)
       I.Register(scene, src, result) → validates the entities the client built and turns the
                                        victims into NPC patients (NZA.Patients.CreateNPC)
@@ -172,7 +172,6 @@ function I.Plan(key, tpl, loc, opts)
     opts = opts or {}
     local plan = { key = key, vehicles = {}, victims = {}, props = {}, bystanders = {}, fx = {} }
     local vehPools = cfg().vehiclePools or {}
-    local now = os.time()
 
     -- vehicles
     for _, spec in ipairs(type(tpl.vehicles) == 'table' and tpl.vehicles or {}) do
@@ -269,27 +268,27 @@ function I.Plan(key, tpl, loc, opts)
         end
     end
 
-    -- effects (smoke / fire)
+    -- effects (smoke / fire); the burn time starts when the scene is built (I.Register)
     local fxCfg = cfg('fx')
-    local function until_()
-        return now + (range(fxCfg.duration or { 420, 720 }) or 600)
+    local function burnTime()
+        return range(fxCfg.duration or { 420, 720 }) or 600
     end
     for _, veh in ipairs(plan.vehicles) do
         if veh.fire then
-            plan.fx[#plan.fx + 1] = { id = #plan.fx + 1, kind = 'fire', vehicle = veh.idx, untilAt = until_() }
+            plan.fx[#plan.fx + 1] = { id = #plan.fx + 1, kind = 'fire', vehicle = veh.idx, dur = burnTime() }
         end
         if veh.smoke or veh.fire then
-            plan.fx[#plan.fx + 1] = { id = #plan.fx + 1, kind = 'smoke', vehicle = veh.idx, untilAt = until_() }
+            plan.fx[#plan.fx + 1] = { id = #plan.fx + 1, kind = 'smoke', vehicle = veh.idx, dur = burnTime() }
         end
     end
     for _, pr in ipairs(plan.props) do
         if pr.fx and fxCfg[pr.fx] then
-            plan.fx[#plan.fx + 1] = { id = #plan.fx + 1, kind = pr.fx, prop = pr.idx, untilAt = until_() }
+            plan.fx[#plan.fx + 1] = { id = #plan.fx + 1, kind = pr.fx, prop = pr.idx, dur = burnTime() }
         end
     end
     for _, spec in ipairs(type(tpl.fx) == 'table' and tpl.fx or {}) do
         if fxCfg[spec.kind] and math.random() <= (tonumber(spec.chance) or 1.0) then
-            plan.fx[#plan.fx + 1] = { id = #plan.fx + 1, kind = spec.kind, offset = packV(v3(spec.offset)), untilAt = until_() }
+            plan.fx[#plan.fx + 1] = { id = #plan.fx + 1, kind = spec.kind, offset = packV(v3(spec.offset)), dur = burnTime() }
         end
     end
 
@@ -317,6 +316,29 @@ function I.Plan(key, tpl, loc, opts)
             role = role, victim = role == 'cpr' and 1 or nil,
         }
     end
+
+    -- onlookers: a few passers-by keep their distance and film the scene with their phones
+    local ol = cfg('scene').onlookers
+    if cfg('scene').bystanders ~= false and type(ol) == 'table' and ol.enabled ~= false and tpl.onlookers ~= false then
+        local pools = cfg().pools or {}
+        local n = range(tpl.onlookers or ol.count or { 0, 2 }) or 0
+        n = math.min(n, tonumber(ol.max) or 3)
+        local base = math.random() * math.pi * 2
+        for k = 1, n do
+            local sex = math.random() < 0.5 and 'f' or 'm'
+            local poolName
+            if sex == 'f' then poolName = (by and by.poolF) or 'civ_f' else poolName = (by and by.pool) or 'civ_m' end
+            local list = modelsOf(poolName, pools)
+            -- spread around the scene, never on top of each other
+            local a = base + (k - 1) * (math.pi * 2 / math.max(1, n)) + (math.random() - 0.5) * 0.9
+            local d = range(ol.distance or { 7.0, 12.0 }, true) or 9.0
+            plan.bystanders[#plan.bystanders + 1] = {
+                idx = #plan.bystanders + 1, model = pick(list) or (sex == 'f' and 'a_f_y_hipster_01' or 'a_m_y_hipster_01'), sex = sex,
+                offset = packV(vector3(math.cos(a) * d, math.sin(a) * d, 0.0)),
+                scenario = pick(ol.scenarios) or 'WORLD_HUMAN_MOBILE_FILM_SHOCKING', role = 'onlooker',
+            }
+        end
+    end
     return plan
 end
 
@@ -326,7 +348,7 @@ function I.PublicPlan(scene)
     local out = {
         id = scene.id, key = scene.key, token = scene.buildToken,
         loc = packV(scene.loc), snap = tpl.snap or 'ped', roadside = tonumber(tpl.roadside) or 3.5,
-        hazard = cfg('scene').hazardLights ~= false,
+        hazard = cfg('scene').hazardLights ~= false, crashLights = cfg('scene').crashLights ~= false,
         modelTimeout = tonumber(cfg('scene').modelTimeout) or 8000,
         vehicles = {}, victims = {}, props = {}, bystanders = {},
         engineSmoke = cfg('fx').engineSmoke ~= false,
@@ -486,7 +508,7 @@ function I.Register(scene, src, result)
     -- effects become live now
     scene.fx = {}
     for _, f in ipairs(plan.fx) do
-        local fx = { id = f.id, kind = f.kind, on = true, untilAt = f.untilAt }
+        local fx = { id = f.id, kind = f.kind, on = true, untilAt = os.time() + (tonumber(f.dur) or 600) }
         if f.vehicle then
             fx.net = ents.vehicles[f.vehicle]
             if not fx.net then fx = nil end

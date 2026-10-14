@@ -73,6 +73,15 @@
     }
     return b;
   }
+  // drip chamber: drops/s from the flow (blood set 15 gtt/mL, fluid set 20 gtt/mL)
+  function dripOf(inf, rate) {
+    const factor = inf.kind === 'blood' ? 15 : 20;
+    const gtt = Math.round(rate * factor);
+    const dps = gtt / 60;
+    if (inf.done || inf.paused || dps < 0.05) return { cls: 'stop', dur: 0, gtt: 0 };
+    if (dps > 6) return { cls: 'stream', dur: 0.35, gtt };
+    return { cls: 'run', dur: Math.max(0.17, 1 / dps), gtt };
+  }
   function rateOf(inf) {
     const b = bagState(inf), c = S.cfg;
     return (c.gravity || 32) * b.clamp * (1 + (c.pressureGain || 1.15) * b.p / (c.maxPressure || 300));
@@ -92,6 +101,7 @@
           <button class="pill-close">${esc(T('close', 'Close'))}</button>
         </header>
         <div class="iv-vit"></div>
+        <div class="iv-trace"><canvas></canvas><span class="tl">II</span><span class="tr2"></span></div>
         <div class="iv-blood"></div>
         <div class="iv-hooks"></div>
         <div class="iv-ctl"></div>
@@ -107,6 +117,7 @@
     S.q('.iv-hooks').addEventListener('click', onHooksClick);
     S.q('.iv-alerts').addEventListener('click', onAlertClick);
     S.q('.iv-chips').addEventListener('click', onAlertClick);
+    if (NZA.vitals && NZA.vitals.Trace) S.trace = NZA.vitals.Trace(S.q('.iv-trace canvas'), { type: 'ecg', rhythm: 'sinus', rate: 80, color: '#3ddc84', speed: 0.2, gain: 0.34, line: 1.5 });
     renderAll();
   }
 
@@ -128,8 +139,13 @@
     S.q('.iv-chips').innerHTML = chips.join('');
   }
 
+  const RHYTHM = { sinus: 'Sinus', stach: 'Sinus tachy', sbrady: 'Sinus brady', afib: 'AF', vf: 'VF', vt: 'VT', pea: 'PEA', asystole: 'Asystole' };
   function renderVitals() {
     const p = patient(), v = p.vitals || {};
+    const rh = v.rhythm || (v.hr > 100 ? 'stach' : v.hr && v.hr < 55 ? 'sbrady' : 'sinus');
+    if (S.trace) S.trace.set({ rate: Math.max(20, Number(v.ecgRate || v.hr) || 80), rhythm: rh });
+    const tr2 = S.q('.iv-trace .tr2');
+    if (tr2) tr2.textContent = T('rh_' + rh, RHYTHM[rh] || rh);
     const map = v.map;
     const mapTone = map === undefined || map === null ? '' : map < 60 ? 'red' : map < 65 ? 'amber' : 'teal';
     const n = (x) => (x === undefined || x === null ? '--' : Math.round(x));
@@ -171,15 +187,22 @@
     const title = blood ? F(T('bag_blood_t', '%s red cells'), fmtType(inf.bag && inf.bag.type)) : inf.kind === 'plasma' ? T('bag_plasma_t', 'Plasma') : T('bag_saline_t', 'Saline 0.9%');
     const sub = blood ? ((inf.bag && inf.bag.serial) || '') : `${ml} mL`;
     const rate = inf.done || inf.paused ? 0 : rateOf(inf);
+    const dr = dripOf(inf, rate);
+    const cuff = clamp(b.p / (S.cfg.maxPressure || 300), 0, 1.1);
     return `<div class="iv-hook ${sel ? 'sel' : ''} ${bad ? 'bad' : ''} ${inf.done ? 'done' : ''}" data-hook="${h}">
       <div class="hh"><kbd>${esc(key)}</kbd><span>${esc(name)}</span><span class="st ${status[0]}">${esc(status[1])}</span></div>
       <div class="hb">
-        <div class="bag">${(BB().bagSVG || (() => ''))({ fill: left / ml, kind: blood ? 'blood' : 'saline', type: inf.bag && inf.bag.type, w: 56, h: 80 })}</div>
+        <div class="rig ${blood ? 'blood' : 'saline'}">
+          <div class="bag" data-f="${Math.round(clamp(left / ml, 0, 1) * 40) / 40}">${(BB().bagSVG || (() => ''))({ fill: left / ml, kind: blood ? 'blood' : 'saline', type: inf.bag && inf.bag.type, w: 56, h: 80 })}</div>
+          <div class="cuff ${cuff > 0.01 ? 'on' : ''}" style="--cp:${cuff.toFixed(3)}"><i></i></div>
+          <div class="drip ${dr.cls}" style="--dd:${dr.dur.toFixed(2)}s"><span class="spk"></span><span class="ch"><i class="dr"></i><i class="st2"></i><b class="pool"></b></span><span class="ln"></span></div>
+        </div>
         <div class="info">
           <b>${esc(title)}</b><small>${esc(sub)}</small>
           <div class="lv"><span>${esc(T('left', 'Left'))}</span><em>${Math.round(left)}<i>/ ${ml} mL</i></em></div>
           ${NZA.ui.meterHTML({ value: left / ml, tone: bad ? 'red' : blood ? 'red' : '' })}
           <div class="lv"><span>${esc(T('rate', 'Rate'))}</span><em class="rt">${rate.toFixed(0)}<i>mL/min</i></em></div>
+          <div class="lv"><span>${esc(T('drip', 'Drip'))}</span><em class="gt">${dr.gtt}<i>gtt/min</i></em></div>
         </div>
       </div>
       <button class="btn-line btn-sm btn-block iv-down ${bad ? 'red' : ''}" data-down="${esc(inf.id)}">${icon('arrow-down')}${esc(inf.done ? T('btn_remove', 'Remove empty bag') : T('btn_takedown', 'Unhang'))}</button>
@@ -262,6 +285,7 @@
     }
     const rate = running && !inf.paused ? rateOf(inf) : 0;
     box.querySelector('.fr').textContent = rate.toFixed(0);
+    if (running) { const card = S.wrap.querySelector(`.iv-hook[data-hook="${S.sel}"]`); if (card) patchRig(card, inf, rate); }
     const left = running ? Math.max(0, b.left ?? inf.left ?? 0) : 0;
     const eta = rate > 0.5 ? left / rate * 60 : 0;
     box.querySelector('.eta').innerHTML = running ? (inf.paused ? `<span class="t-amber">${esc(T('eta_paused', 'Paused · no line'))}</span>` : rate > 0.5 ? `${esc(T('eta', 'Empty in'))} <b>${NZA.fmt.time(eta)}</b>` : esc(T('eta_closed', 'Clamp closed'))) : esc(T('eta_none', 'Select a running bag'));
@@ -296,7 +320,7 @@
       const st = p.reaction.stage;
       out.push({ tone: 'red', icon: 'alert', title: T('al_reaction', 'Transfusion reaction'), text: T('al_reaction_' + st, ['Fever and chills. Stop the blood and run saline.', 'Back pain and falling pressure. Stop the transfusion now.', 'Haemolysis - the patient is crashing. Stop the blood, run saline.'][st - 1] || ''), btn: ['stopblood', T('btn_stop_blood', 'Stop blood')] });
     }
-    if (!acc && S.cfg.requireAccess) out.push({ tone: 'red', icon: 'iv', title: T('al_noaccess', 'Place an IV first'), text: T('al_noaccess_t', 'Bags cannot run without an IV or IO line.'), btn: ['iv', T('btn_place_iv', 'Place IV')] });
+    if (!acc && S.cfg.requireAccess && !S.data.easy) out.push({ tone: 'red', icon: 'iv', title: T('al_noaccess', 'Place an IV first'), text: T('al_noaccess_t', 'Bags cannot run without an IV or IO line.'), btn: ['iv', T('btn_place_iv', 'Place IV')] });
     if (inf.some(i => i.paused)) out.push({ tone: 'amber', icon: 'iv', title: T('al_paused', 'Infusion paused'), text: T('al_paused_t', 'The line is out. Place a new IV to continue.') });
     if (!p.typed && inf.some(i => i.kind === 'blood' && !i.done && i.bag && i.bag.type !== 'O-')) out.push({ tone: 'amber', icon: 'bloodbag', title: T('al_untyped', 'Group unknown'), text: T('al_untyped_t', 'Only O− is safe until you run Type & screen.'), btn: S.cfg.typeScreen && (S.data.perms || {}).type ? ['type', T('btn_type', 'Type & screen')] : null });
     if ((p.given && p.given.saline > (S.cfg.dilution || 1000))) out.push({ tone: 'amber', icon: 'drop', title: T('al_dilution', 'Over 1 L of saline'), text: T('al_dilution_t', 'The blood gets thin - hang red cells instead.') });
@@ -326,7 +350,7 @@
     const p = patient();
     let cross;
     if (inf.incompatible) cross = { state: 'bad', text: F(T('cross_bad', 'INCOMPATIBLE with %s - stop it'), fmtType(p.bloodType || '?')) };
-    else if (p.typed && p.bloodType) cross = { state: 'ok', text: F(T('cross_ok', 'Compatible with %s %s'), p.name ? p.name.split(' ')[0] : '', fmtType(p.bloodType)) };
+    else if (p.typed && p.bloodType) cross = { state: 'ok', text: F(T('cross_ok', 'Crossmatch OK · %s (%s)'), p.name ? p.name.split(' ')[0] : '', fmtType(p.bloodType)) };
     else if (inf.bag.type === 'O-') cross = { state: 'ok', text: T('cross_oneg', 'O− · safe for every group') };
     else cross = { state: 'unknown', text: T('cross_unknown', 'Patient not typed - risk of reaction') };
     const key = `${inf.id}:${cross.state}`;
@@ -506,7 +530,7 @@
     const inv = (S.data && S.data.inventory) || {};
     if (on) {
       if (t.done || t.sent || (inv.txa || 0) < 1 || (S.data.patient && S.data.patient.txaActive)) return;
-      if (S.cfg.requireAccess && !access()) { NZA.toast({ title: T('txa_title', 'TXA 1 g'), message: T('al_noaccess', 'Place an IV first'), type: 'error' }); return; }
+      if (S.cfg.requireAccess && !access() && !S.data.easy) { NZA.toast({ title: T('txa_title', 'TXA 1 g'), message: T('al_noaccess', 'Place an IV first'), type: 'error' }); return; }
       if (!t.holding) { t.holding = true; t.fastMode = !!fast; if (!t.t0) t.t0 = performance.now(); }
     } else t.holding = false;
     renderTxa();
@@ -568,6 +592,26 @@
     box.classList.toggle('push', S.txa.holding);
   }
 
+  // drip chamber speed + pressure sleeve of one hook card
+  function patchRig(card, inf, rate) {
+    const dr = dripOf(inf, rate);
+    const d = card.querySelector('.drip');
+    if (d) {
+      if (!d.classList.contains(dr.cls)) d.className = `drip ${dr.cls}`;
+      const dd = `${dr.dur.toFixed(2)}s`;
+      if (d.style.getPropertyValue('--dd') !== dd && Math.abs(parseFloat(d.style.getPropertyValue('--dd') || '0') - dr.dur) > 0.04) d.style.setProperty('--dd', dd);
+    }
+    const gt = card.querySelector('.gt');
+    if (gt) gt.innerHTML = `${dr.gtt}<i>gtt/min</i>`;
+    const cf = card.querySelector('.cuff');
+    if (cf) {
+      const cp = clamp(bagState(inf).p / (S.cfg.maxPressure || 300), 0, 1.1);
+      cf.style.setProperty('--cp', cp.toFixed(3));
+      cf.classList.toggle('on', cp > 0.01);
+      cf.classList.toggle('over', cp > 0.97);
+    }
+  }
+
   // live numbers on the hook cards without rebuilding them
   function patchHooks() {
     S.wrap.querySelectorAll('.iv-hook[data-hook]').forEach(card => {
@@ -577,8 +621,10 @@
       const left = Math.max(0, b.left ?? inf.left ?? 0);
       const em = card.querySelector('.lv em');
       if (em) em.innerHTML = `${Math.round(left)}<i>/ ${ml} mL</i>`;
+      const rate = inf.paused ? 0 : rateOf(inf);
       const rt = card.querySelector('.rt');
-      if (rt) rt.innerHTML = `${(inf.paused ? 0 : rateOf(inf)).toFixed(0)}<i>mL/min</i>`;
+      if (rt) rt.innerHTML = `${rate.toFixed(0)}<i>mL/min</i>`;
+      patchRig(card, inf, rate);
       const m = card.querySelector('.mtr > i');
       if (m) m.style.width = `${clamp(left / ml, 0, 1) * 100}%`;
       const bag = card.querySelector('.bag');
@@ -629,6 +675,7 @@
     },
     close() {
       if (S.raf) cancelAnimationFrame(S.raf);
+      if (S.trace) S.trace.stop();
       Object.keys(S).forEach(k => delete S[k]);
       S.on = false;
       this.el.innerHTML = '';

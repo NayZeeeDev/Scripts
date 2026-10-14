@@ -16,7 +16,7 @@ from nzprops import (DecalCanvas, Geo, box, catmull, cylinder, draw_defib_ui, dr
                      polyline_fillet, prop, quad, rrect, sphere, sweep, tube, vec)
 
 from .common import (align, asset_tag, button, cal_sticker, caution_label, label_canvas, led_lens, lightning, m_alu,
-                     m_black_plastic, m_gloss_black, m_rubber, m_steel, rating_plate, screw, screws, strain_relief,
+                     m_black_plastic, m_gloss_black, m_steel, rating_plate, screw, screws, strain_relief,
                      text_canvas)
 
 LEGEND = (214, 218, 220)

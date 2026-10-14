@@ -1,18 +1,29 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · app 'medbag'
-   Two edge docks (pockets left, bag right) around a clear centre. NAYZEEE language:
-   corner brackets, 240° dials, instrument lists with tone notches, rolling counters,
-   colour-coded bag identity. In-game rules: no backdrop-filter, color-mix() or :has().
+   'bag': two edge docks (pockets left, the OPEN bag right) around a clear centre.
+          The bag is drawn from above: lid with mesh pocket, zipper hinge, main compartment
+          with elastic loops, side pouches with velcro flaps, a reflective strip; the shell
+          takes the bag's colour (--bc). Shadow outlines show missing supplies.
+   'zip': body bag zip-up card bottom-left (above the minimap), a real zipper closes.
+   'tag': manila toe tag on the right-middle edge, filled in by hand.
+   NAYZEEE language: corner brackets, 240° dials, instrument lists with tone notches,
+   rolling counters, vertical spines. In-game rules: no backdrop-filter, color-mix() or :has().
    ═══════════════════════════════════════════════════════════ */
 
-#app-medbag{--mb-l:372px;--mb-r:436px;--bc:#08afa2}
-#app-medbag .mb-left{position:absolute;left:24px;top:24px;bottom:280px;width:var(--mb-l);display:flex;flex-direction:column;gap:12px;
+#app-medbag{--mb-l:372px;--mb-r:460px;--bc:#08afa2}
+#app-medbag .mb-win,#app-medbag .mb-zip,#app-medbag .mb-tagw{display:none}
+#app-medbag.m-bag .mb-win{display:block;position:absolute;inset:0}
+#app-medbag.m-zip .mb-zip{display:block}
+#app-medbag.m-tag .mb-tagw{display:block}
+
+#app-medbag .mb-left{position:absolute;left:24px;top:24px;bottom:270px;width:var(--mb-l);display:flex;flex-direction:column;gap:12px;
   animation:mb-from-l 280ms cubic-bezier(.2,.7,.2,1) both}
 #app-medbag .mb-right{position:absolute;right:24px;top:24px;bottom:24px;width:var(--mb-r);display:flex;flex-direction:column;gap:12px;
   animation:mb-from-r 280ms cubic-bezier(.2,.7,.2,1) both}
 @keyframes mb-from-l{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
 @keyframes mb-from-r{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
 #app-medbag.busy [data-item]{cursor:progress}
+#app-medbag.dragging,#app-medbag.dragging *{cursor:grabbing!important}
 
 /* ── cards: corner bracket instead of a top rail ── */
 #app-medbag .mb-card{position:relative;display:flex;flex-direction:column;min-height:0;border-radius:14px;
@@ -40,11 +51,19 @@
 #app-medbag .mb-ring .fg.amber{stroke:var(--amber)} #app-medbag .mb-ring .fg.red{stroke:var(--red)}
 #app-medbag .mb-ring .nz-ic{width:16px;height:16px}
 
-/* bag identity tile (bag colour) */
-#app-medbag .mb-swatch{position:relative;width:38px;height:38px;flex:none;border-radius:11px;display:grid;place-items:center;color:#fff;
-  background:radial-gradient(120% 120% at 30% 20%,rgba(255,255,255,.28),rgba(255,255,255,0) 55%),var(--bc);
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),inset 0 -6px 12px rgba(0,0,0,.25),0 6px 16px rgba(0,0,0,.35);transition:background 200ms}
-#app-medbag .mb-swatch .nz-ic{width:18px;height:18px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+/* bag identity tile: the bag itself, front view, in its colour */
+#app-medbag .mb-swatch{position:relative;width:42px;height:42px;flex:none;border-radius:11px;display:grid;place-items:center;
+  background:radial-gradient(90% 80% at 50% 30%,rgba(255,255,255,.07),rgba(255,255,255,0) 70%),var(--inset);border:1px solid var(--line-soft);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 6px 16px rgba(0,0,0,.35)}
+#app-medbag .bagsvg{width:36px;height:36px;filter:drop-shadow(0 3px 3px rgba(0,0,0,.55))}
+#app-medbag .bagsvg .bd{fill:var(--bc);transition:fill 200ms}
+#app-medbag .bagsvg .sh{fill:rgba(255,255,255,.16)}
+#app-medbag .bagsvg .hd{fill:none;stroke:#2a2d33;stroke-width:2.6;stroke-linecap:round}
+#app-medbag .bagsvg .zp{fill:rgba(0,0,0,.35)}
+#app-medbag .bagsvg .rf{fill:#d8dbe0;opacity:.85}
+#app-medbag .bagsvg .pt{fill:#f4f5f2}
+#app-medbag .bagsvg .cr{fill:none;stroke:var(--bc);stroke-width:2.4;transition:stroke 200ms}
+#app-medbag .bagsvg .wh{fill:#1b1d21;stroke:#464a51;stroke-width:1.2}
 
 #app-medbag .mb-tools{display:flex;gap:6px;align-items:center}
 #app-medbag .mb-ib{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft);
@@ -65,8 +84,8 @@
 #app-medbag .mb-pk{flex:1 1 0;min-height:200px}
 #app-medbag .mb-list{flex:1;min-height:0;overflow-y:auto;padding:8px 8px 10px;display:flex;flex-direction:column;gap:3px;
   scrollbar-width:thin;scrollbar-color:var(--line) transparent}
-#app-medbag .mb-list::-webkit-scrollbar,#app-medbag .mb-gwrap::-webkit-scrollbar{width:6px}
-#app-medbag .mb-list::-webkit-scrollbar-thumb,#app-medbag .mb-gwrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px}
+#app-medbag .mb-list::-webkit-scrollbar,#app-medbag .mb-open::-webkit-scrollbar{width:6px}
+#app-medbag .mb-list::-webkit-scrollbar-thumb,#app-medbag .mb-open::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px}
 #app-medbag .mb-row{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) auto 24px;align-items:center;gap:10px;min-height:48px;
   padding:4px 8px 4px 6px;border-radius:10px;border:1px solid transparent;cursor:pointer;user-select:none;transition:background var(--fast),border-color var(--fast)}
 #app-medbag .mb-row::before{content:'';position:absolute;left:-1px;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--teal);opacity:0;transition:opacity var(--fast)}
@@ -76,7 +95,11 @@
 #app-medbag .mb-row .th img{width:31px;height:31px;object-fit:contain;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
 #app-medbag .mb-row .tx{min-width:0}
 #app-medbag .mb-row .tx b{display:block;font-size:12.5px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app-medbag .mb-row .tx small{display:block;margin-top:3px;font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-row .tx small{display:flex;align-items:center;gap:8px;margin-top:3px;font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden}
+#app-medbag .mb-row .need{display:inline-flex;align-items:center;gap:3px;height:15px;padding:0 6px 0 4px;border-radius:8px;font-style:normal;font-size:9.5px;font-weight:600;
+  color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge);flex:none}
+#app-medbag .mb-row .need .nz-ic{width:9px;height:9px}
+#app-medbag .mb-row.wanted .th{border-color:var(--teal-edge);box-shadow:0 0 0 3px rgba(8,175,162,.08)}
 #app-medbag .mb-row .q{font:600 12px var(--mono);color:var(--ink-2);font-variant-numeric:tabular-nums}
 #app-medbag .mb-row .go{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--ink-3);border:1px solid var(--line-soft);transition:all var(--fast)}
 #app-medbag .mb-row .go .nz-ic{width:12px;height:12px}
@@ -123,9 +146,9 @@
 #app-medbag .mb-gest li:first-child::before{background:var(--teal);box-shadow:0 0 6px rgba(8,175,162,.6)}
 #app-medbag .mb-gest kbd{min-width:42px;height:18px;font-size:9px;justify-content:center}
 
-/* ── bag dock ── */
-#app-medbag .mb-bag{flex:0 1 auto;min-height:0}
-#app-medbag .mb-read{display:flex;align-items:center;gap:10px;padding:10px 16px 4px 8px}
+/* ── bag dock: readout ── */
+#app-medbag .mb-bag{flex:0 0.01 auto;min-height:0}          /* the log gives way first */
+#app-medbag .mb-read{display:flex;align-items:center;gap:10px;padding:10px 16px 6px 8px}
 #app-medbag .mb-load{position:relative;width:110px;height:92px;flex:none}
 #app-medbag .mb-load > svg{position:absolute;inset:0;width:100%;height:100%}
 #app-medbag .mb-load .trk{fill:none;stroke:rgba(255,255,255,.08);stroke-width:8;stroke-linecap:round}
@@ -133,39 +156,126 @@
 #app-medbag .mb-load .fill{fill:none;stroke:var(--teal-hi);stroke-width:8;stroke-linecap:round;filter:drop-shadow(0 0 5px rgba(15,212,196,.5))}
 #app-medbag .mb-load .fill.amber{stroke:var(--amber);filter:drop-shadow(0 0 5px rgba(229,165,10,.5))}
 #app-medbag .mb-load .fill.red{stroke:var(--red);filter:drop-shadow(0 0 5px rgba(229,72,77,.6))}
+#app-medbag .mb-load .kn{fill:#fff;stroke:var(--teal-hi);stroke-width:2}
+#app-medbag .mb-load .kn.amber{stroke:var(--amber)} #app-medbag .mb-load .kn.red{stroke:var(--red)}
 #app-medbag .mb-load .ticks line{stroke:rgba(255,255,255,.2);stroke-width:1.2}
-#app-medbag .mb-lv{position:absolute;inset:0 0 14px;display:flex;align-items:center;justify-content:center;gap:1px}
+#app-medbag .mb-lv{position:absolute;inset:0 0 18px;display:flex;align-items:center;justify-content:center;gap:1px}
 #app-medbag .mb-lv b{font:700 22px var(--mono);color:var(--white);letter-spacing:-.02em}
 #app-medbag .mb-lv b.amber{color:#f3c35a} #app-medbag .mb-lv b.red{color:#ff7478}
 #app-medbag .mb-lv span{font:600 11px var(--mono);color:var(--ink-3);margin-top:5px}
-#app-medbag .mb-inst{flex:1;min-width:0;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-#app-medbag .mb-inst li{position:relative;display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:6px 10px 6px 12px;border-radius:7px;background:rgba(255,255,255,.025)}
-#app-medbag .mb-inst li::before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:rgba(255,255,255,.14)}
+#app-medbag .mb-lc{position:absolute;left:0;right:0;bottom:16px;text-align:center;font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+#app-medbag .mb-inst{flex:1;min-width:0;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}
+#app-medbag .mb-inst li{position:relative;display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:5px 10px 5px 12px;border-radius:7px;background:rgba(255,255,255,.025)}
+#app-medbag .mb-inst li::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;background:rgba(255,255,255,.14)}
 #app-medbag .mb-inst li.teal::before{background:var(--teal-hi);box-shadow:0 0 8px rgba(15,212,196,.5)}
-#app-medbag .mb-inst li.amber::before{background:var(--amber)} #app-medbag .mb-inst li.red::before{background:var(--red);box-shadow:0 0 8px rgba(229,72,77,.6)}
+#app-medbag .mb-inst li.amber::before{background:var(--amber);box-shadow:0 0 8px rgba(229,165,10,.45)} #app-medbag .mb-inst li.red::before{background:var(--red);box-shadow:0 0 8px rgba(229,72,77,.6)}
 #app-medbag .mb-inst span{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
-#app-medbag .mb-inst b{font:600 12.5px var(--mono);color:var(--white);font-variant-numeric:tabular-nums}
+#app-medbag .mb-inst b{font:600 12px var(--mono);color:var(--white);font-variant-numeric:tabular-nums;white-space:nowrap}
 #app-medbag .mb-inst b i{font-style:normal;color:var(--ink-3);font-weight:500}
 
-#app-medbag .mb-gwrap{position:relative;flex:1 1 auto;min-height:100px;overflow-y:auto;padding:10px 14px 12px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
-#app-medbag .mb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-#app-medbag .mb-grid.sorted .mb-slot:not(.empty){animation:mb-pop 320ms cubic-bezier(.2,.7,.2,1) both}
-#app-medbag .mb-slot{position:relative;height:88px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
-  cursor:pointer;user-select:none;background:linear-gradient(165deg,rgba(255,255,255,.06),rgba(255,255,255,.012) 62%);border:1px solid var(--line-soft);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:border-color var(--fast),background var(--fast),transform var(--fast),opacity var(--fast)}
-#app-medbag .mb-slot img{width:42px;height:42px;margin-top:8px;object-fit:contain;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.55));transition:transform var(--fast)}
-#app-medbag .mb-slot .nm{max-width:88%;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app-medbag .mb-slot .q{position:absolute;right:6px;top:6px;min-width:20px;height:17px;padding:0 5px;border-radius:9px;background:rgba(0,0,0,.55);
-  border:1px solid rgba(255,255,255,.1);font:700 10px/15px var(--mono);color:var(--white);text-align:center}
+/* ═══════════════ THE OPEN BAG (top view) ═══════════════ */
+#app-medbag .mb-open{position:relative;flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 14px 12px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+/* shell = the bag's outer fabric in its colour, stitched seam inside the edge */
+#app-medbag .shell{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 38%,rgba(0,0,0,.30)),var(--bc);
+  box-shadow:0 10px 22px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.28),inset 0 -2px 0 rgba(0,0,0,.28);transition:background-color 200ms}
+#app-medbag .shell::before{content:'';position:absolute;inset:2.5px;border:1px dashed rgba(255,255,255,.34);border-radius:inherit;pointer-events:none}
+/* interior: ripstop nylon */
+#app-medbag .inner{position:relative;padding:8px 8px 9px;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 8px),repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 1px,transparent 1px 8px),linear-gradient(180deg,#15161a,#0c0d10);
+  box-shadow:inset 0 3px 12px rgba(0,0,0,.75),inset 0 0 0 1px rgba(0,0,0,.65)}
+/* lid flipped open with its mesh pocket */
+#app-medbag .mb-lid{position:relative;transform-origin:50% 100%}
+#app-medbag .mb-lid .shell{border-radius:18px 18px 7px 7px;padding:5px}
+#app-medbag .mb-lid .inner{border-radius:13px 13px 4px 4px}
+#app-medbag .inner.mesh{background:repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0 1px,transparent 1px 6px),repeating-linear-gradient(-45deg,rgba(255,255,255,.07) 0 1px,transparent 1px 6px),
+  radial-gradient(120% 90% at 50% 0%,#1c1e23,#0b0c0e)}
+/* zipper hinge between lid and body */
+#app-medbag .mb-hinge{position:relative;height:14px;margin:-3px 26px;z-index:3;border-radius:3px;background:linear-gradient(#1c1e22,#121316);box-shadow:inset 0 1px 2px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.04)}
+#app-medbag .mb-hinge .teeth{position:absolute;left:6px;right:6px;top:3px;bottom:3px;
+  background:repeating-linear-gradient(90deg,#b9bdc4 0 2.6px,transparent 2.6px 5.2px) 0 0/100% 50% no-repeat,repeating-linear-gradient(90deg,transparent 0 2.6px,#80858d 2.6px 5.2px) 0 100%/100% 50% no-repeat}
+#app-medbag .zpull{position:absolute;top:-5px;width:13px;height:26px;z-index:2}
+#app-medbag .zpull.l{left:22px} #app-medbag .zpull.r{right:22px}
+#app-medbag .zpull .slider{position:absolute;left:0;top:0;width:13px;height:15px;border-radius:4px;background:linear-gradient(#f2f3f5,#9a9fa6 55%,#6c7077);box-shadow:0 2px 4px rgba(0,0,0,.7),inset 0 -1px 0 rgba(0,0,0,.3)}
+#app-medbag .zpull .tab{position:absolute;left:3px;top:11px;width:7px;height:15px;border-radius:1px 1px 4px 4px;background:linear-gradient(rgba(255,255,255,.18),rgba(0,0,0,.3)),var(--bc);box-shadow:0 2px 3px rgba(0,0,0,.55)}
+/* body */
+#app-medbag .mb-body .shell{border-radius:7px 7px 20px 20px;padding:5px 5px 14px}
+#app-medbag .mb-body .inner{display:grid;gap:7px;border-radius:4px 4px 14px 14px}
+#app-medbag .reflect{position:absolute;left:16px;right:16px;bottom:4.5px;height:5px;border-radius:2px;overflow:hidden;
+  background:linear-gradient(90deg,#8c9097,#e6e8ec 22%,#9a9ea5 46%,#d6d9de 70%,#8a8e95);box-shadow:0 0 0 1px rgba(0,0,0,.28),0 0 6px rgba(255,255,255,.12)}
+#app-medbag .reflect::after{content:'';position:absolute;top:0;bottom:0;left:-30%;width:24%;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.95),rgba(255,255,255,0));opacity:0}
+#app-medbag .mb-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+#app-medbag .mb-col > .mb-cmp{flex:1 1 auto}
+
+/* compartments */
+#app-medbag .mb-cmp{position:relative;display:flex;flex-direction:column;gap:6px;min-width:0}
+#app-medbag .cmp-h{display:flex;align-items:center;justify-content:space-between;gap:6px;height:13px;padding:0 2px}
+#app-medbag .cmp-h b{min-width:0;font-size:8.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color var(--fast)}
+#app-medbag .cmp-h .mb-mono{font-size:9px;color:var(--ink-2);flex:none}
+#app-medbag .cmp-h .mb-mono.full{color:#f3c35a}
+#app-medbag .mb-cmp.over .cmp-h b{color:var(--teal-hi)}
+#app-medbag .cmp-g{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:6px}
+#app-medbag .mb-cmp.left .cmp-g,#app-medbag .mb-cmp.right .cmp-g{flex:1 1 auto;grid-auto-rows:minmax(76px,1fr)}
+
+/* slots */
+#app-medbag .mb-slot{position:relative;height:76px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;padding:0 4px 9px;
+  cursor:pointer;user-select:none;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.012));border:1px solid rgba(255,255,255,.075);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 5px rgba(0,0,0,.4);transition:border-color var(--fast),background var(--fast),transform var(--fast),opacity var(--fast)}
+#app-medbag .mb-slot.tall{height:auto}
+#app-medbag .mb-lid .mb-slot{height:72px}
+#app-medbag .mb-slot img{position:relative;z-index:1;width:40px;height:40px;margin-bottom:auto;margin-top:9px;object-fit:contain;pointer-events:none;
+  filter:drop-shadow(0 4px 5px rgba(0,0,0,.6));transition:transform var(--fast)}
+#app-medbag .mb-slot.tall img{width:50px;height:50px;margin:auto 0}
+#app-medbag .mb-slot img.stk{position:absolute;left:50%;top:9px;margin:0 0 0 -20px;z-index:0;filter:brightness(.42) saturate(.7) drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+#app-medbag .mb-slot img.stk.s1{transform:translate(6px,-3px) rotate(7deg);opacity:.85}
+#app-medbag .mb-slot img.stk.s2{transform:translate(-6px,-2px) rotate(-8deg);opacity:.7}
+#app-medbag .mb-slot:not(.empty):hover img.stk{transform:translate(8px,-5px) rotate(10deg)}
+#app-medbag .mb-slot:not(.empty):hover img.stk.s2{transform:translate(-8px,-4px) rotate(-11deg)}
+#app-medbag .mb-slot .nm{position:relative;z-index:2;max-width:100%;font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+#app-medbag .mb-slot .q{position:absolute;right:4px;top:4px;z-index:3;min-width:19px;height:16px;padding:0 5px;border-radius:8px;background:rgba(0,0,0,.62);
+  border:1px solid rgba(255,255,255,.1);font:700 9.5px/14px var(--mono);color:var(--white);text-align:center}
+#app-medbag .mb-slot .q i{font-style:normal;color:var(--ink-3);font-weight:500}
+#app-medbag .mb-slot.tall .q{top:22px}
+#app-medbag .mb-slot .sn{position:absolute;left:6px;bottom:5px;font:500 8px var(--mono);color:rgba(255,255,255,.12)}
+/* elastic loop across the main compartment (sewn down between slots) */
+#app-medbag .mb-slot .loop{position:absolute;left:-4px;right:-4px;top:41px;height:8px;z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.2) 0 2px,transparent 2px 5px) 0 1px/100% 1px no-repeat,
+    repeating-linear-gradient(90deg,rgba(255,255,255,.2) 0 2px,transparent 2px 5px) 0 6px/100% 1px no-repeat,linear-gradient(180deg,#34373e,#1d1f23);
+  box-shadow:0 2px 3px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);opacity:.94}
+#app-medbag .mb-slot .loop::before,#app-medbag .mb-slot .loop::after{content:'';position:absolute;top:-1px;bottom:-1px;width:2px;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.35) 0 1px,transparent 1px 2px)}
+#app-medbag .mb-slot .loop::before{left:1px} #app-medbag .mb-slot .loop::after{right:1px}
+/* velcro flap on the side pouches */
+#app-medbag .mb-slot .flap{position:absolute;left:3px;right:3px;top:3px;height:15px;z-index:2;border-radius:7px 7px 3px 3px;pointer-events:none;
+  background:radial-gradient(rgba(255,255,255,.1) .8px,transparent 1.1px) 0 0/3.5px 3.5px,linear-gradient(#2c2f35,#1c1e22);box-shadow:0 3px 4px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.07)}
+#app-medbag .mb-slot .flap i{position:absolute;left:50%;bottom:-6px;width:14px;height:7px;margin-left:-7px;border-radius:0 0 4px 4px;
+  background:linear-gradient(rgba(255,255,255,.18),rgba(0,0,0,.28)),var(--bc);box-shadow:0 2px 3px rgba(0,0,0,.5)}
+/* par bar (restock list) */
+#app-medbag .mb-slot .par{position:absolute;left:9px;right:9px;bottom:4px;height:2.5px;border-radius:2px;background:rgba(255,255,255,.09);overflow:hidden;z-index:2}
+#app-medbag .mb-slot .par::after{content:'';position:absolute;left:0;top:0;bottom:0;width:calc(var(--p) * 100%);border-radius:2px;background:var(--teal-hi);box-shadow:0 0 6px rgba(15,212,196,.6)}
+#app-medbag .mb-slot .par.lo::after{background:var(--amber);box-shadow:0 0 6px rgba(229,165,10,.6)}
+#app-medbag .mb-slot.short .q{color:#f3c35a;border-color:rgba(229,165,10,.35)}
 /* hover: corner brackets close in on the item */
-#app-medbag .mb-slot::before,#app-medbag .mb-slot::after{content:'';position:absolute;width:12px;height:12px;opacity:0;pointer-events:none;transition:all var(--fast)}
-#app-medbag .mb-slot::before{left:4px;top:4px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:6px}
-#app-medbag .mb-slot::after{right:4px;bottom:4px;border-right:2px solid var(--teal);border-bottom:2px solid var(--teal);border-bottom-right-radius:6px}
-#app-medbag .mb-slot:not(.empty):hover{border-color:var(--teal-edge);background:linear-gradient(165deg,rgba(8,175,162,.16),rgba(8,175,162,.04) 62%)}
-#app-medbag .mb-slot:not(.empty):hover::before,#app-medbag .mb-slot:not(.empty):hover::after{opacity:1}
-#app-medbag .mb-slot:not(.empty):hover img{transform:translateY(-2px) scale(1.06)}
-#app-medbag .mb-slot.empty{cursor:default;background:transparent;border:1px dashed rgba(255,255,255,.065);box-shadow:none}
-#app-medbag .mb-slot.drop{border:1px solid var(--teal);background:rgba(8,175,162,.18);box-shadow:0 0 0 3px rgba(8,175,162,.14),0 0 16px rgba(8,175,162,.35)}
+#app-medbag .mb-slot::before,#app-medbag .mb-slot::after{content:'';position:absolute;width:11px;height:11px;opacity:0;pointer-events:none;z-index:4;transition:all var(--fast)}
+#app-medbag .mb-slot::before{left:3px;top:3px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:6px}
+#app-medbag .mb-slot::after{right:3px;bottom:3px;border-right:2px solid var(--teal);border-bottom:2px solid var(--teal);border-bottom-right-radius:6px}
+#app-medbag .mb-slot:not(.empty):not(.ghost):hover{border-color:var(--teal-edge);background:linear-gradient(180deg,rgba(8,175,162,.18),rgba(8,175,162,.04))}
+#app-medbag .mb-slot:not(.empty):not(.ghost):hover::before,#app-medbag .mb-slot:not(.empty):not(.ghost):hover::after{opacity:1}
+#app-medbag .mb-slot:not(.empty):hover img.main{transform:translateY(-3px) scale(1.07)}
+#app-medbag .mb-slot.empty{cursor:default;background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.05));border:1px solid rgba(255,255,255,.035);
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.5)}
+/* shadow outline: a missing supply (restock list) */
+#app-medbag .mb-slot.ghost{background:rgba(229,165,10,.025);border:1px dashed rgba(229,165,10,.42);box-shadow:inset 0 2px 6px rgba(0,0,0,.45)}
+#app-medbag .mb-slot.ghost img{filter:brightness(0) invert(1);opacity:.16}
+#app-medbag .mb-slot.ghost .q{background:rgba(229,165,10,.14);border-color:rgba(229,165,10,.45);color:#f3c35a}
+#app-medbag .mb-slot.ghost .nm{color:rgba(243,195,90,.8)}
+#app-medbag .mb-slot.ghost:hover{border-style:solid;border-color:var(--amber);background:rgba(229,165,10,.09)}
+#app-medbag .mb-slot.ghost:hover img{opacity:.3}
+#app-medbag .mb-slot.ghost.none{border-color:rgba(255,255,255,.14);background:transparent;cursor:default}
+#app-medbag .mb-slot.ghost.none .q{background:rgba(0,0,0,.5);border-color:rgba(255,255,255,.12);color:var(--ink-3)}
+#app-medbag .mb-slot.ghost.none .nm{color:var(--ink-3)}
+#app-medbag .mb-slot.ghost.none:hover{background:transparent;border-style:dashed;border-color:rgba(255,255,255,.22)}
+#app-medbag .mb-slot.drop{border:1px solid var(--teal)!important;background:rgba(8,175,162,.2)!important;box-shadow:0 0 0 3px rgba(8,175,162,.14),0 0 16px rgba(8,175,162,.35)}
 #app-medbag .mb-slot.drop::before,#app-medbag .mb-slot.drop::after{opacity:1}
 #app-medbag .mb-slot.lifted,#app-medbag .mb-row.lifted{opacity:.3}
 #app-medbag .mb-slot.pending,#app-medbag .mb-row.pending{opacity:.55}
@@ -173,17 +283,34 @@
 #app-medbag .shake{animation:mb-shake 360ms}
 @keyframes mb-land{0%{box-shadow:0 0 0 0 rgba(8,175,162,.75);border-color:var(--teal)}100%{box-shadow:0 0 0 12px rgba(8,175,162,0)}}
 @keyframes mb-shake{0%,100%{transform:none}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
-@keyframes mb-pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
-#app-medbag .mb-bnone{top:40%;padding:0 30px;background:radial-gradient(60% 60% at 50% 50%,rgba(12,13,16,.95),rgba(12,13,16,0));padding-top:18px;padding-bottom:18px}
+@keyframes mb-pop{from{opacity:0;transform:translateY(6px) scale(.9)}to{opacity:1;transform:none}}
+#app-medbag .mb-bnone{position:absolute;z-index:6;left:30px;right:30px;top:52%;display:none;padding:14px 18px;border-radius:12px;text-align:center;font-size:12px;line-height:1.55;font-weight:300;
+  color:var(--ink);background:rgba(12,13,16,.92);border:1px solid var(--line-soft);box-shadow:0 10px 24px rgba(0,0,0,.5);pointer-events:none}
+#app-medbag .mb-bnone.on{display:block}
+
+/* opening: the lid swings back, the zipper runs, supplies settle in */
+#app-medbag .mb-open.opening .mb-lid{animation:mb-lid 640ms cubic-bezier(.2,.8,.2,1) both}
+#app-medbag .mb-open.opening .zpull.r{animation:mb-unzip 820ms cubic-bezier(.3,.6,.2,1) 80ms both}
+#app-medbag .mb-open.opening .mb-slot:not(.empty){animation:mb-pop 380ms cubic-bezier(.2,.7,.2,1) both;animation-delay:var(--d,0ms)}
+#app-medbag .mb-open.opening .reflect::after{animation:mb-shine 1100ms ease-in-out 380ms both}
+#app-medbag .mb-open.sorted .mb-slot:not(.empty){animation:mb-pop 320ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes mb-lid{from{transform:perspective(720px) rotateX(-72deg);opacity:.25}to{transform:none;opacity:1}}
+@keyframes mb-unzip{from{transform:translateX(-330px)}to{transform:none}}
+@keyframes mb-shine{0%{left:-30%;opacity:0}20%{opacity:.85}100%{left:110%;opacity:0}}
 
 #app-medbag .mb-foot{display:flex;gap:8px;padding:10px 14px 14px;border-top:1px solid var(--line-hair)}
-#app-medbag .mb-act{flex:1;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
+#app-medbag .mb-act{position:relative;flex:1;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
   font:600 12px var(--font);color:var(--ink-2);background:var(--inset);border:1px solid var(--line-soft);transition:all var(--fast)}
 #app-medbag .mb-act .nz-ic{width:13px;height:13px}
 #app-medbag .mb-act:hover{color:var(--white);border-color:var(--line)}
 #app-medbag .mb-act.teal{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
 #app-medbag .mb-act.teal:hover{background:rgba(8,175,162,.2)}
-#app-medbag .mb-act:disabled{opacity:.38;pointer-events:none}
+#app-medbag .mb-act:disabled{opacity:.45;pointer-events:none}
+#app-medbag .mb-act em{font:700 10px/16px var(--mono);font-style:normal;height:17px;padding:0 6px;border-radius:9px}
+#app-medbag .mb-act em:empty{display:none}
+#app-medbag .mb-act em.go{background:var(--teal);color:var(--on-teal)}
+#app-medbag .mb-act em.lo{background:rgba(229,165,10,.14);color:#f3c35a;border:1px solid rgba(229,165,10,.35)}
+#app-medbag .mb-act em.ok{background:rgba(255,255,255,.06);color:var(--ink-2)}
 
 /* name & colour editor */
 #app-medbag .mb-style{display:none;flex-direction:column;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line-hair);background:rgba(255,255,255,.015)}
@@ -202,11 +329,12 @@
 #app-medbag .mb-sb{display:flex;justify-content:flex-end;gap:8px}
 
 /* ── bag log ── */
-#app-medbag .mb-log{flex:0 0 auto;max-height:310px}
+#app-medbag .mb-log{flex:0 1 auto;min-height:92px;max-height:310px;overflow:hidden}
 #app-medbag .mb-lh{display:flex;align-items:baseline;justify-content:space-between;padding:13px 16px 9px}
 #app-medbag .mb-lh b{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
 #app-medbag .mb-lh span{font-size:10.5px;color:var(--ink-3)}
-#app-medbag .mb-logl{list-style:none;margin:0;padding:0 10px 10px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+#app-medbag .mb-logl{list-style:none;margin:0;padding:0 10px 10px;display:flex;flex-direction:column;gap:3px;overflow:hidden;min-height:0;
+  -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 22px),transparent)}
 #app-medbag .mb-logl li{position:relative;display:grid;grid-template-columns:36px 26px minmax(0,1fr) auto;align-items:center;gap:8px;padding:5px 10px 5px 10px;border-radius:8px;background:rgba(255,255,255,.022)}
 #app-medbag .mb-logl li::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:rgba(255,255,255,.18)}
 #app-medbag .mb-logl li.in::before{background:var(--teal-hi);box-shadow:0 0 8px rgba(15,212,196,.5)}
@@ -218,7 +346,8 @@
 #app-medbag .mb-logl .th img{width:20px;height:20px;object-fit:contain}
 #app-medbag .mb-logl .tx{min-width:0}
 #app-medbag .mb-logl .tx b{display:block;font-size:11.5px;font-weight:500;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app-medbag .mb-logl .tx small{display:block;font-size:10px;color:var(--ink-3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .mb-logl .tx small{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--ink-3);margin-top:1px;white-space:nowrap;overflow:hidden}
+#app-medbag .mb-logl .tx small .av{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;font:700 7px var(--font);font-style:normal;color:var(--teal-hi);border:1px solid var(--teal-edge);flex:none}
 #app-medbag .mb-logl li.other .tx small{color:var(--ink-2)}
 #app-medbag .mb-logl .d{font:700 12px var(--mono);color:var(--ink-2)}
 #app-medbag .mb-logl li.in .d{color:var(--teal-hi)} #app-medbag .mb-logl li.out .d{color:var(--white)}
@@ -226,16 +355,19 @@
 #app-medbag .mb-logl li.none::before{display:none}
 
 /* ── tooltip beside the dock ── */
-#app-medbag .mb-tip{position:absolute;left:0;top:0;width:272px;padding:14px 14px 12px 16px;z-index:20;opacity:0;pointer-events:none;border-radius:14px;
+#app-medbag .mb-tip{position:absolute;left:0;top:0;width:280px;padding:14px 14px 12px 16px;z-index:20;opacity:0;pointer-events:none;border-radius:14px;
   transform:translateX(10px);transition:opacity 140ms,transform 140ms}
-#app-medbag .mb-tip.flip{transform:translateX(-10px)}
+#app-medbag .mb-tip.lft{transform:translateX(-10px)}
 #app-medbag .mb-tip.on{opacity:1;transform:none}
 #app-medbag .mb-tip::before{content:'';position:absolute;left:-1px;top:-1px;width:30px;height:30px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:14px}
 #app-medbag .mb-tip .th{display:flex;gap:11px;align-items:center}
 #app-medbag .mb-tip .ti{width:48px;height:48px;flex:none;border-radius:11px;display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft)}
 #app-medbag .mb-tip .ti img{width:38px;height:38px;object-fit:contain}
+#app-medbag .mb-tip .ti.ghost{border-style:dashed;border-color:rgba(229,165,10,.45)}
+#app-medbag .mb-tip .ti.ghost img{filter:brightness(0) invert(1);opacity:.3}
 #app-medbag .mb-tip .th b{display:block;font-size:13.5px;font-weight:600;color:var(--white);line-height:1.15;margin-bottom:5px}
 #app-medbag .mb-tip .cat{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-hi)}
+#app-medbag .mb-tip .cat.amber{color:#f3c35a}
 #app-medbag .mb-tip .d{font-size:11.5px;color:var(--ink-2);line-height:1.5;margin:10px 0 2px;font-weight:300}
 #app-medbag .mb-tip .md{font-size:11px;color:var(--ink-2);margin:6px 0 0;font-weight:300}
 #app-medbag .mb-tip ul{list-style:none;margin:8px 0 0;padding:0}
@@ -243,14 +375,16 @@
 #app-medbag .mb-tip li span{color:var(--ink-3)}
 #app-medbag .mb-tip li b{color:var(--white);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
 #app-medbag .mb-tip li b em{font-style:normal;color:var(--ink-3);font-weight:400}
+#app-medbag .mb-tip li b em.lo{color:#f3c35a} #app-medbag .mb-tip li b em.ok{color:var(--teal-hi)}
 #app-medbag .mb-tip .hk{display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:9px;border-top:1px solid var(--line-hair);font-size:10.5px;color:var(--ink-2)}
 #app-medbag .mb-tip .hk kbd{height:17px;font-size:9px;padding:0 5px}
 #app-medbag .mb-tip .no{display:flex;align-items:center;gap:7px;margin-top:9px;padding:7px 9px;border-radius:8px;font-size:11px;font-weight:500;
   color:#ff9a9d;background:var(--red-wash);border:1px solid var(--red-edge)}
-#app-medbag .mb-tip .no .nz-ic{width:12px;height:12px}
+#app-medbag .mb-tip .no.amber{color:#f3c35a;background:rgba(229,165,10,.1);border-color:rgba(229,165,10,.35)}
+#app-medbag .mb-tip .no .nz-ic{width:12px;height:12px;flex:none}
 
 /* ── hold to pour ── */
-#app-medbag .mb-pour{position:absolute;left:50%;top:44%;width:60px;height:60px;margin:-30px 0 0 -30px;pointer-events:none;z-index:3}
+#app-medbag .mb-pour{position:absolute;left:50%;top:40%;width:58px;height:58px;margin:-29px 0 0 -29px;pointer-events:none;z-index:5}
 #app-medbag .mb-row .mb-pour{left:26px;top:50%}
 #app-medbag .mb-pour > svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
 #app-medbag .mb-pour circle{fill:none;stroke-width:3}
@@ -267,8 +401,11 @@
 #app-medbag .mb-fly img{width:36px;height:36px;object-fit:contain}
 #app-medbag .mb-fly b{position:absolute;right:-9px;top:-9px;height:18px;min-width:24px;padding:0 6px;border-radius:9px;font:700 10px/18px var(--mono);text-align:center;
   background:linear-gradient(var(--teal-hi),var(--teal));color:var(--on-teal)}
+#app-medbag .mb-fly .trail{position:absolute;inset:-6px;border-radius:16px;border:1px solid rgba(15,212,196,.35);animation:mb-trail 640ms ease-out both}
+@keyframes mb-trail{from{opacity:.9;transform:scale(.8)}to{opacity:0;transform:scale(1.5)}}
 #app-medbag .mb-fly.out{border-color:rgba(255,255,255,.28);box-shadow:0 12px 26px rgba(0,0,0,.5)}
 #app-medbag .mb-fly.out b{background:var(--white);color:#111}
+#app-medbag .mb-fly.out .trail{border-color:rgba(255,255,255,.25)}
 
 /* ── drag ghost (on <body>, scaled by --z) ── */
 .mb-ghost{position:fixed;z-index:99999;width:64px;height:64px;margin:-32px 0 0 -32px;pointer-events:none;display:grid;place-items:center;border-radius:14px;
@@ -280,7 +417,89 @@
 
 #app-medbag .nza-modal-wrap{z-index:40}
 
+/* ═══════════════ ZIP-UP CARD (body bag) ═══════════════ */
+#app-medbag .mb-zip{position:absolute;left:28px;bottom:250px;width:372px;padding:14px 16px 13px 18px;border-radius:14px;animation:mb-from-l 300ms cubic-bezier(.2,.7,.2,1) both}
+#app-medbag .mb-zip::before{content:'';position:absolute;left:-1px;top:-1px;width:40px;height:40px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:14px}
+#app-medbag .zh{display:flex;align-items:center;justify-content:space-between}
+#app-medbag .zk{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+#app-medbag .zt{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 9px;border-radius:10px;font-size:10px;font-weight:600;color:#f3c35a;
+  background:rgba(229,165,10,.1);border:1px solid rgba(229,165,10,.3)}
+#app-medbag .zt::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--amber);animation:nza-blink 1s infinite}
+#app-medbag .mb-zip.done .zt{color:var(--teal-hi);background:var(--teal-wash);border-color:var(--teal-edge)}
+#app-medbag .mb-zip.done .zt::before{background:var(--teal-hi);animation:none}
+#app-medbag .zwho{display:flex;align-items:center;gap:12px;margin:12px 0 12px}
+#app-medbag .zav{position:relative;width:42px;height:42px;flex:none;border-radius:50%;display:grid;place-items:center;background:#1a1d22;border:1.5px solid rgba(255,255,255,.18)}
+#app-medbag .zav i{position:absolute;inset:-5px;border-radius:50%;border:1px dashed rgba(255,255,255,.14)}
+#app-medbag .zav b{font:700 12.5px var(--font);color:var(--ink);letter-spacing:.04em}
+#app-medbag .zwho > div{min-width:0}
+#app-medbag .zn{display:block;font-size:16px;font-weight:600;color:var(--white);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .zs{display:block;margin-top:3px;font-size:11px;color:var(--ink-2);font-weight:300;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .zsp{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column}
+#app-medbag .zsp li{position:relative;display:flex;align-items:center;gap:11px;min-height:30px;font-size:12px;color:var(--ink-3);transition:color 200ms}
+#app-medbag .zsp li:not(:last-child)::after{content:'';position:absolute;left:10.5px;top:24px;bottom:-6px;width:1px;background:rgba(255,255,255,.12)}
+#app-medbag .zsp li i{position:relative;z-index:1;width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;font-style:normal;
+  background:var(--inset);border:1px solid var(--line)}
+#app-medbag .zsp li i b{font:700 10px var(--mono);color:var(--ink-3)}
+#app-medbag .zsp li i .nz-ic{width:11px;height:11px}
+#app-medbag .zsp li.cur{color:var(--white);font-weight:500}
+#app-medbag .zsp li.cur i{border-color:var(--teal);background:rgba(8,175,162,.12);animation:nza-glow 1.4s infinite}
+#app-medbag .zsp li.cur i b{color:var(--teal-hi)}
+#app-medbag .zsp li.done{color:var(--ink-2)}
+#app-medbag .zsp li.done i{background:var(--teal);border-color:transparent;color:var(--on-teal)}
+#app-medbag .zsp li.done:not(:last-child)::after{background:var(--teal-edge)}
+#app-medbag .zzip{position:relative;height:46px;margin:0 -4px;border-radius:9px;padding:0 4px;background:#0a0b0d;box-shadow:inset 0 1px 4px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.05)}
+#app-medbag .zzip svg{width:100%;height:46px;display:block;overflow:visible}
+#app-medbag .mb-zip.done .zkey{display:none}
+#app-medbag .zzip .tape{fill:#1d1f24;stroke:rgba(255,255,255,.05)}
+#app-medbag .zzip .gap{fill:#050506}
+#app-medbag .zzip .stop{fill:#9a9fa6;stroke:rgba(0,0,0,.5)}
+#app-medbag .zzip .tp rect{fill:url(#mbzt);transition:transform 160ms cubic-bezier(.3,.7,.3,1)}
+#app-medbag .zzip .tp.c .up{transform:translateY(8px)}
+#app-medbag .zzip .tp.c .dn{transform:translateY(-8px)}
+#app-medbag .zzip .slider{filter:drop-shadow(0 3px 3px rgba(0,0,0,.7))}
+#app-medbag .zzip .slider .tab{fill:#2f3339;stroke:rgba(255,255,255,.12)}
+#app-medbag .mb-zip.done .zzip{box-shadow:inset 0 1px 4px rgba(0,0,0,.8),0 0 0 1px var(--teal-edge),0 0 16px rgba(8,175,162,.2)}
+#app-medbag .zf{display:flex;align-items:center;justify-content:space-between;margin-top:11px}
+#app-medbag .zpct{display:flex;align-items:baseline;gap:2px;color:var(--white)}
+#app-medbag .zpct .odo{font-size:24px}
+#app-medbag .zpct > i{font:600 12px var(--mono);font-style:normal;color:var(--ink-3)}
+#app-medbag .zkey{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-2)}
+
+/* ═══════════════ TOE TAG ═══════════════ */
+#app-medbag .mb-tagw{position:absolute;right:70px;top:26%;width:348px;filter:drop-shadow(0 16px 20px rgba(0,0,0,.55)) drop-shadow(0 2px 3px rgba(0,0,0,.45));transition:opacity 380ms}
+#app-medbag .mb-tagw.out{opacity:0}
+#app-medbag .mb-tagw .string{position:absolute;left:-191px;top:calc(50% - 6px);width:220px;height:150px;overflow:visible}
+#app-medbag .mb-tagw .string path{fill:none;stroke:#d8d0bd;stroke-width:2.4;stroke-linecap:round}
+#app-medbag .mb-tagw.in .tag,#app-medbag .mb-tagw.in .string{animation:mb-tag-in 640ms cubic-bezier(.2,.9,.25,1.15) both}
+@keyframes mb-tag-in{from{opacity:0;transform:translateX(60px) rotate(8deg)}to{opacity:1;transform:rotate(-3deg)}}
+#app-medbag .tag{position:relative;transform:rotate(-3deg);transform-origin:20px 50%;padding:15px 18px 13px 56px;color:#2b2416;
+  clip-path:polygon(0 17%,8% 0,100% 0,100% 100%,8% 100%,0 83%);
+  background:radial-gradient(rgba(110,80,30,.07) 1px,transparent 1.3px) 0 0/3px 3px,radial-gradient(140% 120% at 70% 30%,rgba(255,255,255,.35),rgba(255,255,255,0) 60%),
+    linear-gradient(172deg,#f1e5c6,#e6d6ae 58%,#d8c493);
+  box-shadow:inset 0 0 26px rgba(120,90,40,.28)}
+#app-medbag .tag .eyelet{position:absolute;left:12px;top:50%;width:30px;height:30px;margin-top:-15px;border-radius:50%;background:rgba(255,250,235,.55);box-shadow:inset 0 0 0 1px rgba(120,90,40,.25)}
+#app-medbag .tag .eyelet i{position:absolute;left:5px;top:5px;width:20px;height:20px;border-radius:50%;
+  background:radial-gradient(circle,#15120c 0 4.2px,#e3e5e8 4.8px,#9ea2a8 6.5px,#62666c 9px,rgba(0,0,0,0) 9.6px)}
+#app-medbag .tag .eyelet::after{content:'';position:absolute;left:15px;top:15px;width:42px;height:2.4px;border-radius:2px;transform-origin:0 50%;transform:rotate(172deg);background:#d8d0bd;box-shadow:0 1px 1px rgba(0,0,0,.25)}
+#app-medbag .tg-hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding-bottom:7px;border-bottom:1.5px solid rgba(122,42,31,.55)}
+#app-medbag .tg-hd b{font-size:9.5px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#7a2a1f}
+#app-medbag .tg-hd .no{font:700 11px var(--mono);color:#3b3020;letter-spacing:.04em}
+#app-medbag .tg-name{display:flex;flex-direction:column;gap:2px;padding:8px 0 7px;border-bottom:1px dotted rgba(60,45,20,.45)}
+#app-medbag .tg-name span,#app-medbag .tf span{font-size:7.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(60,45,20,.7)}
+#app-medbag .ink{font-style:italic;color:#1d3685;text-shadow:0 0 .4px rgba(29,54,133,.6)}
+#app-medbag .tg-name b{font-size:22px;font-weight:600;letter-spacing:-.01em;transform:rotate(-1deg);transform-origin:0 50%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-medbag .tg-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:14px}
+#app-medbag .tf{display:flex;flex-direction:column;gap:2px;padding:6px 0 5px;border-bottom:1px dotted rgba(60,45,20,.45);min-width:0}
+#app-medbag .tf.wide{grid-column:1 / -1}
+#app-medbag .tf b{font-size:12.5px;font-weight:500;font-style:italic;color:#1d3685;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#app-medbag .tg-ft{position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:9px;height:26px}
+#app-medbag .tg-ft .stamp{display:inline-flex;align-items:center;height:22px;padding:0 9px;border:2px solid rgba(170,34,30,.72);border-radius:3px;transform:rotate(-7deg);
+  font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:rgba(170,34,30,.78);box-shadow:inset 0 0 0 1px rgba(170,34,30,.18)}
+#app-medbag .tg-ft .perf{flex:1;margin-left:14px;height:0;border-top:1.5px dashed rgba(60,45,20,.35)}
+
 @media (prefers-reduced-motion:reduce){
-  #app-medbag .mb-left,#app-medbag .mb-right,#app-medbag .mb-logl li.fresh,#app-medbag .land,#app-medbag .mb-grid.sorted .mb-slot{animation:none}
-  #app-medbag .mb-slot,#app-medbag .mb-row,#app-medbag .mb-tip{transition:none}
+  #app-medbag .mb-left,#app-medbag .mb-right,#app-medbag .mb-logl li.fresh,#app-medbag .land,#app-medbag .mb-open.sorted .mb-slot,
+  #app-medbag .mb-open.opening .mb-lid,#app-medbag .mb-open.opening .zpull.r,#app-medbag .mb-open.opening .mb-slot,#app-medbag .mb-open.opening .reflect::after,
+  #app-medbag .mb-zip,#app-medbag .mb-tagw.in .tag,#app-medbag .mb-tagw.in .string,#app-medbag .zsp li.cur i{animation:none}
+  #app-medbag .mb-slot,#app-medbag .mb-row,#app-medbag .mb-tip,#app-medbag .zzip .tp rect{transition:none}
 }

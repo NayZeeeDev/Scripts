@@ -442,14 +442,27 @@ local function renderOne(key, v)
             local cur = r.bags[b.id]
             if not cur or cur.model ~= model or cur.hook ~= b.hook or not DoesEntityExist(cur.ent or 0) then
                 if cur and cur.ent then NZA.Props.Delete(cur.ent) end
+                if cur and cur.inf then NZA.Props.Delete(cur.inf) end
                 local ent = spawnBag(r, mode, model, b.hook)
-                r.bags[b.id] = { ent = ent, model = model, hook = b.hook }
+                cur = { ent = ent, model = model, hook = b.hook }
+                r.bags[b.id] = cur
+            end
+            -- pressure infuser sleeve around a bag that runs above gravity flow
+            local wantInf = b.pr == true and not b.done and Config.Props.pressure_infuser ~= nil
+            if wantInf and not cur.infFail and (not cur.inf or not DoesEntityExist(cur.inf)) then
+                local inf = spawnBag(r, mode, 'pressure_infuser', b.hook)
+                cur.inf = inf ~= 0 and inf or nil
+                cur.infFail = inf == 0 or nil
+            elseif not wantInf and cur.inf then
+                NZA.Props.Delete(cur.inf)
+                cur.inf = nil
             end
         end
     end
     for id, cur in pairs(r.bags) do
         if not want[id] then
             if cur.ent then NZA.Props.Delete(cur.ent) end
+            if cur.inf then NZA.Props.Delete(cur.inf) end
             r.bags[id] = nil
         end
     end

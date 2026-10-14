@@ -6,10 +6,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from nzprops import (TEAL_HI, WHITE, DecalCanvas, Geo, box, catmull, cylinder, extrude, lathe, pocket, polyline_fillet, prop,
+from nzprops import (WHITE, DecalCanvas, Geo, box, catmull, cylinder, extrude, lathe, pocket, polyline_fillet, prop,
                      rrect, slab_with_holes, sweep, torus, tube, vec)
 
-from .common import (align, asset_tag, biohazard, caution_label, cross_mark, hinge, label_canvas, m_black_plastic,
+from .common import (align, asset_tag, biohazard, cross_mark, hinge, m_black_plastic,
                      m_case_grey, m_foam, m_grip, m_rubber, m_steel, m_teal, rating_plate, screws)
 from .handheld import iodrill_geo, syringe_geo
 

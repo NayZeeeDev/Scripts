@@ -4,9 +4,9 @@ nz_amb_bay_shell - the walk-in ambulance treatment bay interior (a closed room p
 Room (inside): 2.30 W (X) x 4.30 L (Y) x 2.05 H (Z), origin = floor centre, +Y = towards the cab
 (bulkhead), -Y = rear doors. Patient side (stretcher + O2 panel) on -X, bench + counter on +X.
 
-Texture sets (all <= 1024):
-    shell  walls / floor / ceiling                        <name>_shell_d/_n/_s   1024
-    main   furniture, doors, fixtures                     <name>_d/_n/_s         1024
+Texture sets:
+    shell  walls / floor / ceiling                        <name>_shell_d/_n/_s   2048 (normal / spec 1024)
+    main   furniture, doors, fixtures                     <name>_d/_n/_s         2048 (normal / spec 1024)
     supl   left supply cabinets + their labelled stock    <name>_supl_d/_n/_s    1024
     supr   right supply cabinets + their labelled stock   <name>_supr_d/_n/_s    1024
     alpha  cabinet glass                                  <name>_ad/_an/_as       512
@@ -22,8 +22,8 @@ import numpy as np
 from nzprops import (TEAL, DecalCanvas, Geo, box, catmull, cylinder, extrude, lathe, pillow, polyline_fillet, prop, quad, rrect,
                      sweep, torus, tube)
 
-from .common import (align, biohazard, brand_canvas, cross_mark, knob, m_alu, m_black_plastic, m_chrome, m_gloss_black, m_led,
-                     m_webbing, serial_label)
+from .common import (align, biohazard, caution_label, cross_mark, knob, label_canvas, m_alu, m_black_plastic, m_chrome,
+                     m_gloss_black, m_led, m_webbing, rating_plate)
 from .parts import m_hosp_dark, m_hosp_grey, m_hosp_white
 from .screens import draw_bay_monitor
 
@@ -148,9 +148,9 @@ def _carton_print(cv, x, y, w, h, name, col, seed):
     fs = min(band * 0.46, w * 0.10)
     cv.text(x + w / 2, y + h * 0.10 + band / 2, name, fs, fnt="label", color=(255, 255, 255), max_w=w * 0.88, spacing=fs * 0.06)
     ms = min(w * 0.14, h * 0.18, 0.018)
-    cv.mark(x + w * 0.08, y + h * 0.10 + band + h * 0.08, ms)
-    cv.text(x + w * 0.08 + ms * 1.3, y + h * 0.10 + band + h * 0.08 + ms * 0.5, "NAYZEEE", ms * 0.42, fnt="label", anchor="lm",
-            color=INK, max_w=w * 0.6)
+    cv.cross(x + w * 0.08 + ms * 0.5, y + h * 0.10 + band + h * 0.08 + ms * 0.5, ms * 0.8, color=col)
+    cv.text(x + w * 0.08 + ms * 1.3, y + h * 0.10 + band + h * 0.08 + ms * 0.5, ("STERILE", "SINGLE USE", "LATEX FREE", "MEDICAL")[seed % 4],
+            ms * 0.42, fnt="label", anchor="lm", color=INK, max_w=w * 0.6)
     rng = np.random.default_rng(seed)
     if h > 0.08:
         qty = ("50 PCS", "25 PCS", "100 PCS", "10 PCS", "STERILE", "SINGLE USE")[int(rng.integers(0, 6))]
@@ -285,8 +285,7 @@ def _fill_slot(wl: Wall, bay, row, cat):
             cv.rect(x_, yb, bw - 0.016, 0.018, color=col)
             cv.text(x_ + (bw - 0.016) / 2, yb + 0.009, nm, 0.0062, fnt="label", color=(255, 255, 255), max_w=bw - 0.022)
             cv.text(x_ + (bw - 0.016) / 2, yb + 0.034, "1000 mL" if i % 3 else "500 mL", 0.0095, fnt="label", color=INK, max_w=bw - 0.022)
-            cv.mark(x_ + 0.004, yb + 0.05, 0.01)
-            cv.text(x_ + 0.017, yb + 0.055, "NAYZEEE", 0.0042, fnt="label", anchor="lm", color=INK)
+            cv.text(x_ + 0.004, yb + 0.055, "STERILE  ·  Rx", 0.0042, fnt="label", anchor="lm", color=INK)
             cv.text(x_ + (bw - 0.016) / 2, yb + 0.075, "FOR IV USE", 0.0045, fnt="label-semi", color=(90, 96, 100), max_w=bw - 0.022)
     elif kind == "pouch":
         film = wl.mat("pouch", color=(232, 240, 236), spec=0.65, gloss=0.8, edge=0.1, grain=0.0)
@@ -354,8 +353,7 @@ def _fill_slot(wl: Wall, bay, row, cat):
                 cx_, cy_, _ = wl.P(bay, u_off + uc, dfront - 0.03, 0)
                 zz = cz + 0.004 + lvl * 0.135
                 g += sh.translate(cx_, cy_, zz).set_density(1.0)
-                cv.mark(uc - 0.045, ctop(zz + 0.075), 0.012)
-                cv.text(uc - 0.03, ctop(zz + 0.069), "NAYZEEE", 0.0052, fnt="label", anchor="lm", color=INK)
+                cv.text(uc, ctop(zz + 0.069), "CERVICAL COLLAR", 0.0046, fnt="label", color=INK, max_w=0.12)
                 cv.text(uc, ctop(zz + 0.045), sizes[idx], 0.0068, fnt="label", color=INK, max_w=0.12)
     elif kind == "spinal":
         orange = wl.mat("headblock", color=(232, 106, 26), spec=0.2, gloss=0.3, bump="foam", bump_amp=0.0002, bump_scale=0.003, edge=0.2)
@@ -478,7 +476,7 @@ def _cabinet_run(b, side):
 
 
 # ---------------------------------------------------------------------------------------------
-@prop("nz_amb_bay_shell", atlas=1024, alpha_atlas=256, glow_atlas=128, layers={"shell": 1024, "supl": 1024, "supr": 1024},
+@prop("nz_amb_bay_shell", atlas=2048, alpha_atlas=256, glow_atlas=128, layers={"shell": 2048, "supl": 1024, "supr": 1024},
       lod=120, hd=25, static=True, falloff=70, glow_mult=1.6, doc={
           "title": "Ambulance treatment bay interior (walk-in patient compartment)",
           "origin": "floor centre of the room",
@@ -487,7 +485,7 @@ def _cabinet_run(b, side):
                   "outer skin closes it from outside)",
           "screen": f"nz_amb_screen - bulkhead monitor quad {MON_SCREEN[0]} x {MON_SCREEN[1]} m centred at "
                     f"({MON_C[0]}, {MON_C[1]:.4f}, {MON_C[2]}) facing -Y, UV 0..1 = visible screen, top-left = (0,0); "
-                    "default = dark NAYZEEE standby (txd 'nz_amb_bay_shell')",
+                    "default = dark standby screen with clock, cabin temperature and O2 supply (txd 'nz_amb_bay_shell')",
           "attach": f"stretcher: nz_amb_stretcher at ({STRETCHER[0]}, {STRETCHER[1]}, 0.0) heading +0 (head end towards the "
                     f"cab); IV hooks (bag origin = hanging slot) at {IV_HOOKS[0]} and {IV_HOOKS[1]}; patient monitor shelf "
                     f"top at {PM_SHELF} - place nz_amb_monitor there with rot (0, 0, -90) (screen faces +X); medic spawn "
@@ -687,7 +685,7 @@ def bay_shell(b):
     for k, (gc, gs) in enumerate((((60, 110, 200), "S"), ((10, 158, 147), "M"), ((138, 78, 196), "L"))):
         gm = b.mat(f"glove_{gs}", color=_lighten(gc, 0.0), spec=0.3, gloss=0.45, edge=0.2)
         b.add(box((0.012, 0.12, 0.16), gm, r=0.004, seg=1, center=(gx - 0.073, gy - 0.13 + k * 0.13, 1.13), faces="-x +y -y +z -z"))
-    # ---- bulkhead: monitor, clock, brand ---------------------------------------------------------------
+    # ---- bulkhead: monitor, clock, emblem --------------------------------------------------------------
     mx, my, mz = MON_C
     b.add(box((MON_SCREEN[0] + 0.06, 0.045, MON_SCREEN[1] + 0.06), gloss, r=0.01, seg=2, center=(mx, YF - 0.0225, mz)))
     b.screen(quad((mx, my, mz), (1, 0, 0), (0, 0, 1), MON_SCREEN[0], MON_SCREEN[1], "x", fixed_uv=True),
@@ -726,10 +724,10 @@ def bay_shell(b):
     clock = DecalCanvas(0.24, 0.08, ppm=3000)
     clock.text(0.12, 0.04, "14:32", 0.03, fnt="mono-bold", color=(40, 230, 210), spacing=0.003)
     b.decal(clock, center=(0.48, YF - 0.0301, 1.80), normal=(0, -1, 0), up=(0, 0, 1), mats=["gloss_black"], depth=0.004)
-    emb = DecalCanvas(0.40, 0.36, ppm=1500)
-    emb.mark(0.10, 0.02, 0.20, height=None)
-    emb.text(0.20, 0.27, "NAYZEEE", 0.042, fnt="label", color=(46, 50, 54), spacing=0.006)
-    emb.text(0.20, 0.325, "MEDIC 1", 0.026, fnt="label-semi", color=TEAL, spacing=0.004)
+    emb = DecalCanvas(0.40, 0.36, ppm=1800)
+    emb.star_of_life(0.20, 0.12, 0.20, color=(30, 88, 186), border=(255, 255, 255))
+    emb.text(0.20, 0.27, "AMBULANCE", 0.034, fnt="label", color=(46, 50, 54), spacing=0.005)
+    emb.text(0.20, 0.32, "PATIENT COMPARTMENT", 0.016, fnt="label-semi", color=TEAL, spacing=0.003)
     b.decal(emb, center=(0.55, YF - 0.0001, 1.15), normal=(0, -1, 0), up=(0, 0, 1), mats=["bay_wall"], depth=0.01)
     o2l = DecalCanvas(0.95, 0.06, ppm=1500)
     for (yy, t) in ((0.80, "O2  FLOW"), (1.06, "SUCTION"), (1.32, "OXYGEN"), (1.46, "VAC"), (1.36, "")):
@@ -756,7 +754,8 @@ def bay_shell(b):
     biohazard(sh, 0.10, 0.11, 0.045, color=INK)
     sh.text(0.10, 0.18, "DO NOT OVERFILL", 0.01, fnt="label-semi", color=INK)
     b.decal(sh, center=(sc[0] - 0.0751, sc[1], sc[2] + 0.11), normal=(-1, 0, 0), up=(0, 0, 1), mats=["sharps_yellow"], depth=0.01)
-    kl = brand_canvas(0.26, 0.05, ppm=2400, color=(255, 255, 255), sub_color=(255, 220, 220), sub="TRAUMA KIT")
+    kl = label_canvas(0.26, 0.05, "TRAUMA KIT", "TK-62  ·  UNIT 07-A", ppm=2800, color=(255, 255, 255), sub_color=(255, 220, 220),
+                      icon="star", icon_color=(255, 255, 255))
     b.decal(kl, center=(kc[0] - 0.1501, kc[1], kc[2] + 0.05), normal=(-1, 0, 0), up=(0, 0, 1), mats=["kit_red"], depth=0.02)
     gl = DecalCanvas(0.40, 0.024, ppm=2500)
     for k, s_ in enumerate(("L", "M", "S")):
@@ -771,8 +770,25 @@ def bay_shell(b):
         for k in range(18):
             st.polygon([(0, k * 0.1), (0.06, k * 0.1 - 0.06), (0.06, k * 0.1 - 0.01), (0, k * 0.1 + 0.05)], color=(206, 36, 40))
         b.decal(st, center=(sx * 0.03, yd + 0.0301, 0.98), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
-    b.decal(serial_label(0.10, 0.035, "MEDIC MODULE  NZ-AMB", "BAY 4.3 m"), center=(XW - 0.0001, YR + 0.13, 1.10), normal=(-1, 0, 0),
-            up=(0, 0, 1), mats=["bay_wall"], depth=0.01)
+    b.decal(rating_plate(0.10, 0.035, "PATIENT COMPARTMENT", "PC-43", "SN 26-00701", rating="12 V DC / 230 V~ inverter  ·  BAY 4.3 m",
+                         ppm=3500), center=(XW - 0.0001, YR + 0.13, 1.10), normal=(-1, 0, 0), up=(0, 0, 1), mats=["bay_wall"], depth=0.01)
+    b.decal(caution_label(0.12, 0.05, "WARNING", ["OXYGEN IN USE  -  NO SMOKING", "No naked flames in the patient compartment"],
+                          kind="warning", ppm=3000), center=(-XW + 0.0001, YR + 0.42, 1.25), normal=(1, 0, 0), up=(0, 0, 1),
+            mats=["bay_wall"], depth=0.01)
+
+    # wall panel joints with riveted cover strips below the cabinets, anti-slip tread plate at the rear step
+    for side, xw, nx in (("l", -XW, 1.0), ("r", XW, -1.0)):
+        for y in np.arange(YR + 0.75, YF - 0.3, 0.72):
+            sc = DecalCanvas(0.04, 1.30, ppm=1400)
+            sc.rect(0.008, 0.0, 0.024, 1.30, color=(214, 218, 220), height=0.0006, spec=0.4, gloss=0.5)
+            sc.groove([(0.008, 0.0), (0.008, 1.30)], width=0.0008, depth=0.0003)
+            sc.groove([(0.032, 0.0), (0.032, 1.30)], width=0.0008, depth=0.0003)
+            for k in range(7):
+                sc.rivet(0.02, 0.06 + k * 0.195, 0.0035)
+            b.decal(sc, center=(xw + nx * 0.0001, float(y), 0.66), normal=(nx, 0, 0), up=(0, 0, 1), mats=["bay_wall"], depth=0.01)
+    tread = b.mat("tread_plate", layer="shell", color=(168, 172, 178), spec=0.7, gloss=0.55, metal=1.0, bump="diamond", bump_amp=0.0009,
+                  bump_scale=0.03, grain=0.03, grain_scale=0.2, edge=0.4, dirt=0.45)
+    b.add(box((BAY_W - 0.12, 0.22, 0.006), tread, r=0.002, seg=1, center=(0.0, YR + 0.12, 0.003), faces="+z +y -y +x -x", density=0.6))
 
     # ---- collision ---------------------------------------------------------------------------------------
     hw, hl = XW, BAY_L / 2

@@ -9,7 +9,8 @@ import numpy as np
 
 from nzprops import (TEAL_HI, WHITE, DecalCanvas, Geo, box, cylinder, lathe, polyline_fillet, prop, rrect, sweep, tube)
 
-from .common import (align, m_alu, m_black_plastic, m_chrome, m_grip, m_rubber, m_teal, m_webbing, serial_label)
+from .common import (align, asset_tag, cal_sticker, caution_label, label_canvas, led_lens, m_alu, m_black_plastic, m_chrome, m_grip,
+                     m_rubber, m_teal, m_webbing, rating_plate, screws)
 
 Z_MAT_TOP = 0.885
 
@@ -59,6 +60,7 @@ def stretcher(b):
     battery = b.mat("battery", color=(10, 158, 147), spec=0.4, gloss=0.55, bump="stipple", bump_amp=0.00004, bump_scale=0.0008, edge=0.5)
 
     # ---- base -----------------------------------------------------------------------------
+    redb = b.mat("release_red", color=(200, 36, 40), spec=0.45, gloss=0.6, edge=0.4)
     zb = 0.19
     for sx in (-1, 1):
         b.add(box((0.05, 1.50, 0.035), frame, r=0.008, seg=2, center=(sx * 0.215, 0.0, zb)))
@@ -122,8 +124,11 @@ def stretcher(b):
               (0.295, yy, Z_MAT_TOP - 0.02), (0.33, yy, zl + 0.04)]
         path = polyline_fillet(lp, 0.02, 5)
         b.add(sweep(rrect(0.05, 0.003, 0.0, 1), path, web, side=(0, 1, 0), tag="strap", smooth_angle=35))
-        b.add(box((0.06, 0.062, 0.012), blk, r=0.004, seg=2, center=(0.07, yy, Z_MAT_TOP + 0.007)))
-        b.add(box((0.022, 0.05, 0.014), teal, r=0.003, seg=1, center=(0.045, yy, Z_MAT_TOP + 0.008)))
+        # seat-belt style buckle: black housing, red release button, steel tongue
+        b.add(box((0.06, 0.062, 0.013), blk, r=0.005, seg=2, center=(0.07, yy, Z_MAT_TOP + 0.0075)))
+        b.add(box((0.026, 0.044, 0.006), redb, r=0.0025, seg=2, center=(0.058, yy, Z_MAT_TOP + 0.0145)))
+        b.add(box((0.05, 0.034, 0.0025), chrome, r=0.001, seg=1, center=(0.115, yy, Z_MAT_TOP + 0.004)))
+        b.add(box((0.012, 0.056, 0.008), blk, r=0.003, seg=2, center=(0.142, yy, Z_MAT_TOP + 0.005)))
     # ---- foot end: telescoping handle, controls, battery --------------------------------------
     hp = polyline_fillet([(-0.25, -0.90, zl + 0.03), (-0.25, -1.0, zl + 0.13), (0.25, -1.0, zl + 0.13), (0.25, -0.90, zl + 0.03)], 0.04, 6)
     b.add(tube(hp, 0.016, alu, segs=14, tag="foothandle"))
@@ -131,8 +136,17 @@ def stretcher(b):
     b.add(tube(gp, 0.0215, grip, segs=16, tag="footgrip"))
     b.add(box((0.16, 0.06, 0.10), blk, r=0.012, seg=2, center=(0.0, -0.955, zl + 0.055)))
     for k, x in enumerate((-0.04, 0.0, 0.04)):
-        m = teal if k != 1 else blk
-        b.add(align(cylinder(0.011, 0.005, m, segs=18, bevel=0.0015, caps=(False, True)), (0, -1, 0), (0, 0, 1), (x, -0.985, zl + 0.07)))
+        m = teal if k != 1 else redb
+        b.add(align(cylinder(0.011, 0.005, m, segs=24, bevel=0.0015, caps=(False, True)), (0, -1, 0), (0, 0, 1), (x, -0.985, zl + 0.07)))
+    b.add(led_lens(b, (0.06, -0.985, zl + 0.035), (0, -1, 0), r=0.0022, color=(70, 255, 140), name="led_green"))
+    b.add(screws(b, [(sx * 0.07, -0.985, zl + zz) for sx in (-1, 1) for zz in (0.012, 0.098)], (0, -1, 0), d=0.005, segs=10))
+    # battery latch + rail, brake pedals on the foot-end casters
+    b.add(box((0.04, 0.012, 0.016), redb, r=0.003, seg=2, center=(0.0, -0.853, zl - 0.03)))
+    for sx in (-1, 1):
+        ped = box((0.06, 0.05, 0.012), b.mat("pedal_red" if sx < 0 else "pedal_green", color=(200, 40, 40) if sx < 0 else (40, 160, 70),
+                                              spec=0.35, gloss=0.5, bump="diamond", bump_amp=0.0005, bump_scale=0.008, edge=0.6, dirt=0.3),
+                  r=0.004, seg=2, center=(0, 0, 0))
+        b.add(ped.rotate(-12, 0, 0).translate(sx * 0.215, -0.80, 0.235))
     b.add(box((0.17, 0.10, 0.075), battery, r=0.014, seg=3, center=(0.0, -0.80, zl - 0.06)))
     b.add(box((0.15, 0.03, 0.02), blk, r=0.005, seg=2, center=(0.0, -0.85, zl - 0.02)))
     # ---- head end: loading wheels + handle -------------------------------------------------------
@@ -149,24 +163,40 @@ def stretcher(b):
 
     # ---- decals --------------------------------------------------------------------------------
     for sx in (-1, 1):
-        dc = DecalCanvas(0.40, 0.07, ppm=1600)
-        dc.lockup(0.01, 0.008, 0.052, color=TEAL_HI, sub_color=TEAL_HI)
+        dc = DecalCanvas(0.40, 0.07, ppm=2200)
+        dc.text(0.01, 0.024, "FLUID RESISTANT  ·  LATEX FREE", 0.0105, fnt="label", anchor="lm", color=TEAL_HI, spacing=0.0015)
+        dc.text(0.01, 0.048, "MATTRESS MS-3  ·  WIPE CLEAN WITH APPROVED DISINFECTANT", 0.0062, fnt="label-semi", anchor="lm",
+                color=(170, 176, 180), max_w=0.38)
         b.decal(dc, center=(sx * 0.281, 0.55, zm0 + 0.055), normal=(sx, 0, 0), up=(0, 0, 1), mats=["mattress"], depth=0.02, min_dot=0.5)
-        sd = DecalCanvas(0.42, 0.04, ppm=1600)
-        sd.text(0.21, 0.02, "NAYZEEE MEDICAL  ·  POWER COT", 0.014, fnt="label", color=(232, 236, 238), spacing=0.003, max_w=0.41)
+        sd = label_canvas(0.30, 0.036, "POWER COT", "PC-2  ·  SAFE WORKING LOAD 318 kg", ppm=2400, color=(232, 236, 238),
+                          sub_color=(200, 206, 210), icon="star", icon_color=(40, 110, 210))
         b.decal(sd, center=(sx * 0.2985, 0.0, zl + 0.02), normal=(sx, 0, 0), up=(0, 0, 1), mats=["alu"], depth=0.01, min_dot=0.6)
-    ctl = DecalCanvas(0.16, 0.10, ppm=3000)
-    ctl.mark(0.006, 0.006, 0.016)
-    ctl.text(0.028, 0.014, "NAYZEEE", 0.007, fnt="label", anchor="lm", color=WHITE, spacing=0.0012)
+        b.decal(caution_label(0.08, 0.036, "CAUTION", ["PINCH POINT", "Keep hands clear of the lift"], ppm=3000),
+                center=(sx * 0.2005, 0.35, (zb + zl) / 2), normal=(sx, 0, 0), up=(0, 0, 1), mats=["alu"], depth=0.008, min_dot=0.5)
+    # stitched seams around each mattress section top
+    for (y0, y1) in secs:
+        st = DecalCanvas(0.56, y1 - y0, ppm=1600)
+        st.stitch_rect(0.0, 0.0, 0.56, y1 - y0, r=0.03, inset=0.032, color=(26, 28, 31), length=0.005, gap=0.0025, width=0.0012)
+        b.decal(st, center=(0.0, (y0 + y1) / 2, Z_MAT_TOP), normal=(0, 0, 1), up=(0, 1, 0), mats=["mattress"], depth=0.01, min_dot=0.6)
+    ctl = DecalCanvas(0.16, 0.10, ppm=4000)
+    ctl.text(0.008, 0.014, "PC-2  LIFT", 0.0068, fnt="label", anchor="lm", color=WHITE, spacing=0.001)
+    for k in range(4):
+        ctl.rect(0.118 + k * 0.007, 0.010, 0.005, 0.008, r=0.0008, color=(70, 220, 120) if k < 3 else (60, 64, 68))
     for x, t in ((0.04, "DOWN"), (0.08, "STOP"), (0.12, "UP")):
         ctl.text(x, 0.075, t, 0.0062, fnt="label", color=(225, 230, 232))
+    ctl.polygon([(0.04, 0.059), (0.036, 0.053), (0.044, 0.053)], color=(225, 230, 232))
+    ctl.polygon([(0.12, 0.051), (0.116, 0.057), (0.124, 0.057)], color=(225, 230, 232))
+    ctl.text(0.008, 0.092, "BATTERY", 0.0035, fnt="label-semi", anchor="lm", color=(170, 176, 180))
     b.decal(ctl, center=(0.0, -0.9851, zl + 0.055), normal=(0, -1, 0), up=(0, 0, 1), mats=["black_plastic"], depth=0.006)
     bat = DecalCanvas(0.16, 0.06, ppm=2600)
     bat.text(0.08, 0.02, "24V  LI-ION", 0.011, fnt="label", color=(12, 14, 16))
     bat.rect(0.03, 0.036, 0.10, 0.012, r=0.003, fill=False, width=0.0015, color=(12, 14, 16))
     bat.rect(0.033, 0.039, 0.07, 0.006, r=0.002, color=(12, 14, 16))
     b.decal(bat, center=(0.0, -0.851, zl - 0.06), normal=(0, -1, 0), up=(0, 0, 1), mats=["battery"], depth=0.01)
-    b.decal(serial_label(0.08, 0.03, "POWER COT  NZ-PC2", "MAX 318 kg"), center=(0.2405, 0.25, zb), normal=(1, 0, 0), up=(0, 0, 1), mats=["frame_dark"], depth=0.01)
+    b.decal(rating_plate(0.08, 0.03, "POWER COT", "PC-2", "SN 26-03181", rating="24 V DC  ·  SWL 318 kg  ·  IPX6"),
+            center=(0.2405, 0.25, zb), normal=(1, 0, 0), up=(0, 0, 1), mats=["frame_dark"], depth=0.01)
+    b.decal(cal_sticker(0.03, 0.018, title="SERVICED"), center=(0.2405, -0.25, zb), normal=(1, 0, 0), up=(0, 0, 1), mats=["frame_dark"], depth=0.01)
+    b.decal(asset_tag(0.05, 0.014, "COT 07-A", seed=11), center=(-0.2405, 0.25, zb), normal=(-1, 0, 0), up=(0, 0, 1), mats=["frame_dark"], depth=0.01)
 
     # texel budget: the mattress and the litter are what the camera sees up close
     for c in b.geo.charts:

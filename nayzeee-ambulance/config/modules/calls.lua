@@ -77,7 +77,31 @@ Config.Calls = {
         noMedicTimeout   = 300,            -- no opted-in medic on duty for this long → waiting calls are cancelled
         bystanders       = true,           -- spawn the 911 caller / bystanders at the scene
         hazardLights     = true,           -- crashed vehicles flash their hazard lights
+        crashLights      = true,           -- crashed vehicles keep their headlights / interior light on
         maxProps         = 10,             -- props spawned per scene (limits network entities)
+        onlookers = {
+            enabled   = true,              -- passers-by keep their distance and film the scene
+            count     = { 0, 2 },          -- per scene (a template can override: onlookers = { 1, 3 } or false)
+            max       = 3,
+            distance  = { 7.0, 12.0 },     -- metres from the scene
+            scenarios = { 'WORLD_HUMAN_MOBILE_FILM_SHOCKING', 'WORLD_HUMAN_STAND_MOBILE', 'WORLD_HUMAN_STAND_IMPATIENT' },
+        },
+    },
+
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- GROUND DETAIL (decals drawn by every client near a scene, nothing networked)
+    -- ═══════════════════════════════════════════════════════════════════════
+
+    decals = {
+        enabled  = true,
+        radius   = 120.0,                  -- decals exist while you are this close to the scene
+        lifetime = 2400.0,                 -- seconds (they are removed with the scene anyway)
+        -- type = GTA decal id, size = metres, tint = r g b 0..1, opacity 0..1
+        blood    = { type = 9015, size = { 0.55, 0.95, 1.45 }, tint = { 0.48, 0.03, 0.03 }, opacity = 0.92, max = 4 },  -- pool under a bleeding patient, grows with the bleeding (1..3)
+        splatter = { type = 1010, size = 0.8, tint = { 0.45, 0.02, 0.02 }, opacity = 0.85,                              -- spray around the patient for these call types
+                     types = { gunshot = true, stab = true, mva = true, assault = true, crush = true } },
+        oil      = { type = 9016, size = 1.7, tint = { 0.10, 0.08, 0.06 }, opacity = 0.9 },   -- leaking fluids under a smoking / burning car
+        water    = { type = 9010, size = 1.8, tint = { 0.70, 0.72, 0.75 }, opacity = 0.75 },  -- puddle under soaked patients (wet templates)
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -270,6 +294,8 @@ Config.Calls = {
     --   callers   voice lines (locale 'calls.line.<id>', file html/audio/calls/<id>.ogg), sex of the caller
     --   dispatcher  line id read by dispatch before the caller in voiceMode 'full'
     --   reward    multiplier on the hand-over pay
+    --   onlookers {min,max} passers-by filming the scene (false = none; default scene.onlookers.count)
+    --   wet       victims are soaked (water puddle decal, wet clothes)
     -- ═══════════════════════════════════════════════════════════════════════
 
     templates = {
@@ -277,6 +303,7 @@ Config.Calls = {
         -- ─── Opioid overdose ────────────────────────────────────────────────
         overdose = {
             enabled = true, weight = 12, priority = 2, code = '10-56', type = 'overdose', title = 'calls.t_overdose', snap = 'ped', reward = 1.0,
+            onlookers = { 0, 1 },                 -- passers-by filming (overrides scene.onlookers.count)
             locations = {
                 vector4(486.4, -1774.8, 28.6, 90.0),      -- Rancho, alley off Jamestown St
                 vector4(230.6, -1515.0, 29.3, 140.0),     -- Strawberry, behind the shops
@@ -320,6 +347,7 @@ Config.Calls = {
         -- ─── Motor vehicle accident ─────────────────────────────────────────
         mva = {
             enabled = true, weight = 16, priority = 1, code = '10-50', type = 'mva', title = 'calls.t_mva', snap = 'road', reward = 1.2,
+            onlookers = { 1, 3 },                 -- passers-by filming (overrides scene.onlookers.count)
             roadside = 3.6,                       -- metres from the road node towards the kerb
             locations = {
                 vector4(140.5, -1062.5, 29.2, 70.0),      -- Vespucci Blvd, downtown
@@ -425,6 +453,7 @@ Config.Calls = {
         -- ─── Street shooting ────────────────────────────────────────────────
         gunshot = {
             enabled = true, weight = 11, priority = 1, code = '10-52', type = 'gunshot', title = 'calls.t_gunshot', snap = 'ped', reward = 1.25,
+            onlookers = { 1, 3 },                 -- passers-by filming (overrides scene.onlookers.count)
             locations = {
                 vector4(105.9, -1940.6, 20.8, 45.0),      -- Grove Street
                 vector4(-133.6, -1596.2, 34.6, 140.0),    -- Forum Drive
@@ -467,6 +496,7 @@ Config.Calls = {
         -- ─── Stabbing ───────────────────────────────────────────────────────
         stabbing = {
             enabled = true, weight = 9, priority = 1, code = '10-52', type = 'stab', title = 'calls.t_stabbing', snap = 'ped', reward = 1.15,
+            onlookers = { 1, 2 },                 -- passers-by filming (overrides scene.onlookers.count)
             locations = {
                 vector4(128.0, -1298.0, 29.2, 210.0),     -- outside the Vanilla Unicorn
                 vector4(-1388.0, -586.0, 30.2, 30.0),     -- Bahama Mamas, Del Perro
@@ -500,6 +530,7 @@ Config.Calls = {
         -- ─── Drowning ───────────────────────────────────────────────────────
         drowning = {
             enabled = true, weight = 7, priority = 1, code = '10-52', type = 'drowning', title = 'calls.t_drowning', snap = 'ped', reward = 1.15,
+            onlookers = { 1, 3 },                 -- passers-by filming (overrides scene.onlookers.count)
             wet = true,                           -- victims are soaked
             locations = {
                 vector4(-1435.0, -1480.0, 2.4, 230.0),    -- Vespucci Beach
@@ -577,6 +608,7 @@ Config.Calls = {
         -- ─── Cardiac arrest (collapsed jogger) ──────────────────────────────
         cardiac = {
             enabled = true, weight = 8, priority = 1, code = '10-52', type = 'arrest', title = 'calls.t_cardiac', snap = 'ped', reward = 1.3,
+            onlookers = { 1, 2 },                 -- passers-by filming (overrides scene.onlookers.count)
             locations = {
                 vector4(-1340.0, -1560.0, 4.3, 30.0),     -- Vespucci beach path
                 vector4(-1610.0, -980.0, 13.0, 140.0),    -- Del Perro boardwalk
@@ -607,6 +639,7 @@ Config.Calls = {
         -- ─── Elderly fall ───────────────────────────────────────────────────
         elderly = {
             enabled = true, weight = 8, priority = 3, code = '10-52', type = 'fall', title = 'calls.t_elderly', snap = 'ped', reward = 0.9,
+            onlookers = { 0, 1 },                 -- passers-by filming (overrides scene.onlookers.count)
             locations = {
                 vector4(-710.0, -180.0, 37.3, 120.0),     -- Rockford Hills
                 vector4(-1530.0, 420.0, 109.0, 30.0),     -- Richman
@@ -730,7 +763,7 @@ Config.AIMedic = {
     vehicle        = 'ambulance',       -- native model
     livery         = nil,               -- livery index (nil = default)
     crew           = { 's_m_m_paramedic_01', 's_m_m_paramedic_01' },  -- driver + partner (1 or 2 entries)
-    plate          = 'NZA AI',          -- plate text (max 8)
+    plate          = 'EMS 911',         -- plate text (max 8)
 
     spawnDistance  = { 150.0, 300.0 },  -- the unit starts on a road this far away
     speed          = 28.0,              -- m/s while responding (≈ 100 km/h)

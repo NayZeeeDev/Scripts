@@ -496,6 +496,12 @@ RegisterNetEvent('nza:aimedic:handover', function(id, data)
     local r = runs[id]
     if r then r.handover = true end
     CreateThread(function()
+        -- the downed pose must not fight the move into the bed
+        local W = NZA.Wounded
+        if W and W.SuspendPose then W.SuspendPose('aimedic', true) end
+        SetTimeout(9000, function()
+            if W and W.SuspendPose then W.SuspendPose('aimedic', false) end
+        end)
         fade(true, 600)
         local ped = PlayerPedId()
         if IsPedInAnyVehicle(ped, false) then
@@ -521,5 +527,6 @@ AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
     for _, r in pairs(runs) do deleteAll(r) end
     runs = {}
+    if NZA.Wounded and NZA.Wounded.SuspendPose then pcall(NZA.Wounded.SuspendPose, 'aimedic', false) end
     if IsScreenFadedOut() or IsScreenFadingOut() then DoScreenFadeIn(300) end
 end)

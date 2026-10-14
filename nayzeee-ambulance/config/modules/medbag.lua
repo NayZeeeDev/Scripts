@@ -91,7 +91,19 @@ Config.Medbag = {
         personalFallback = 30000, -- used when 'auto' can't read the inventory's limit
         moveRate     = { count = 10, window = 1000 },  -- moves per player per window (ms)
 
-        -- "Pack kit" tops the bag up to these counts from your pockets
+        -- How the bag window draws the open bag. Compartments take the slot numbers in this order
+        -- (main = slots 1-12, lid = 13-16, ...). Keep the total equal to 'slots'; extra slots go to main.
+        -- place: 'main' (grid with elastic loops) | 'lid' (mesh pocket on the lid) | 'left' / 'right' (side pouches)
+        compartments = {
+            { id = 'main',  place = 'main',  slots = 12, cols = 3 },   -- label: locale 'medbag.cmp_<id>'
+            { id = 'lid',   place = 'lid',   slots = 4 },
+            { id = 'left',  place = 'left',  slots = 2 },
+            { id = 'right', place = 'right', slots = 2 },
+        },
+
+        -- Par levels: what a stocked bag carries. "Restock" tops the bag up to these counts from
+        -- your pockets; the window shows a par bar on stocked supplies and a shadow outline for
+        -- missing ones (click it to pack that supply). {} = no restock button.
         kit = {
             { item = Config.Items.bandage,       count = 10 },
             { item = Config.Items.gauze,         count = 10 },
@@ -137,6 +149,9 @@ Config.Medbag = {
         groundOffset = vec3(0.0, 0.0, 0.0),   -- bag on the ground relative to where the body lay
         bagHeading  = 0.0,       -- degrees added to the body's heading for the bag on the ground
         insideOffset = vec3(0.0, 0.0, 0.20),  -- where the (hidden) player sits inside the bag
+        zipCard     = true,      -- the zip-up card (steps + a closing zipper) while bagging; false = plain progress bars
+        cancelKey   = { control = 73, label = 'X' },   -- stop bagging (zip-up card)
+        tagSeconds  = 9,         -- how long the toe tag stays on screen after 'Read the toe tag'
 
         -- the zip-up sequence; 'share' = part of 'time'
         steps = {

@@ -574,10 +574,26 @@ local function closeScene(scene, why)
 end
 I.CloseScene = closeScene
 
+-- hand-over safety net: a call patient lying in a hospital bed (patient.meta.bed, set by the
+-- transport module) is handed over even if the bed event was missed
+local function bedCheck(pid, v)
+    if v.handed or v.released or v.removed or not I.Handover then return end
+    local p = NZA.Patients.Get(pid)
+    local b = p and p.meta and p.meta.bed
+    if type(b) == 'table' and b.point ~= nil then I.Handover(nil, p, b.type or 'bed') end
+end
+
 local function lifecycle()
     local sc = cfg('scene')
     local t = now()
     local radius = tonumber(sc.playerRadius) or 90.0
+    for _, scene in pairs(scenes) do
+        for pid, v in pairs(scene.victims or {}) do bedCheck(pid, v) end
+    end
+    for pid, o in pairs(I.orphans) do
+        local v = o.scene and o.scene.victims and o.scene.victims[pid]
+        if v then bedCheck(pid, v) end
+    end
     for id, scene in pairs(scenes) do
         if t - scene.created > (tonumber(sc.sceneTimeout) or 2700) then
             if scene.state == 'closing' then

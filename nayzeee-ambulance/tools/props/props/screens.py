@@ -1,6 +1,6 @@
 """
 Default images for the emissive screens of the part-2 props (what a prop shows before a DUI
-replaces its 'nz_amb_screen' texture). Everything is drawn with Pillow in the NAYZEEE palette.
+replaces its 'nz_amb_screen' texture). Everything is drawn with Pillow; generic UI, no maker names.
 """
 from __future__ import annotations
 
@@ -9,30 +9,30 @@ import math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from nzprops import AMBER, RED, TEAL, TEAL_HI, TEAL_LO, font
+from nzprops import AMBER, RED, TEAL, TEAL_HI, font
 
 INK = (200, 206, 210)
 INK_DIM = (120, 128, 134)
 PANEL = (14, 17, 20)
 
 
-def _mark(d: ImageDraw.ImageDraw, x, y, s, hi=TEAL_HI, lo=TEAL_LO, cut=(0, 0, 0)):
-    """NAYZEEE mark (chamfered square + inner bar) with its 155 deg gradient, top-left at (x, y)."""
-    img = Image.new("RGB", (int(s) + 2, int(s) + 2), (0, 0, 0))
-    yy, xx = np.mgrid[0:img.height, 0:img.width].astype(np.float32)
-    t = np.clip((xx / s * 0.42 + yy / s * 0.91) / 1.33, 0, 1)[..., None]
-    grad = (np.asarray(hi, np.float32) * (1 - t) + np.asarray(lo, np.float32) * t).astype(np.uint8)
-    mask = Image.new("L", img.size, 0)
-    md = ImageDraw.Draw(mask)
-    md.polygon([(0, 0), (s, 0), (s, 0.56 * s), (0.56 * s, s), (0, s)], fill=255)
-    d._image.paste(Image.fromarray(grad, "RGB"), (int(x), int(y)), mask)
-    d.rounded_rectangle([x + 0.22 * s, y + 0.22 * s, x + 0.78 * s, y + 0.44 * s], radius=max(1, 0.02 * s), fill=cut)
+def _star(d: ImageDraw.ImageDraw, cx, cy, size, color=(40, 110, 210), rod=(255, 255, 255)):
+    """Six-armed star of life (generic EMS symbol), centred at (cx, cy), tip-to-tip `size`."""
+    half, w = size / 2, size * 0.15
+    for a in (90.0, 30.0, -30.0):
+        t = (math.cos(math.radians(a)), -math.sin(math.radians(a)))
+        n = (-t[1], t[0])
+        pts = [(cx + t[0] * half + n[0] * w, cy + t[1] * half + n[1] * w), (cx + t[0] * half - n[0] * w, cy + t[1] * half - n[1] * w),
+               (cx - t[0] * half - n[0] * w, cy - t[1] * half - n[1] * w), (cx - t[0] * half + n[0] * w, cy - t[1] * half + n[1] * w)]
+        d.polygon(pts, fill=color)
+    d.rectangle([cx - size * 0.022, cy - size * 0.36, cx + size * 0.022, cy + size * 0.34], fill=rod)
+    pts = [(cx + size * 0.075 * math.sin(k / 12 * 2.6 * math.pi), cy + size * 0.27 - k / 12 * size * 0.51) for k in range(13)]
+    d.line(pts, fill=rod, width=max(1, int(size * 0.03)))
 
 
 def _header(d, w, s, title, right):
     d.rectangle([0, 0, w, int(24 * s)], fill=PANEL)
-    _mark(d, int(8 * s), int(5 * s), 14 * s)
-    d.text((int(28 * s), int(12 * s)), title, font=font("label", 11 * s), fill=INK, anchor="lm")
+    d.text((int(8 * s), int(12 * s)), title, font=font("label", 11 * s), fill=INK, anchor="lm")
     d.text((w - int(8 * s), int(12 * s)), right, font=font("mono", 10 * s), fill=INK_DIM, anchor="rm")
 
 
@@ -43,7 +43,7 @@ def draw_ultrasound_ui(w=512, h=320, seed=3):
     s = w / 512.0
     img = Image.new("RGB", (w, h), (4, 5, 6))
     d = ImageDraw.Draw(img)
-    _header(d, w, s, "NAYZEEE ECHO  ·  eFAST", "C5-2   MI 0.9   12:04")
+    _header(d, w, s, "eFAST  ·  ABDOMEN  ·  ADULT", "C5-2   MI 0.9   12:04")
     # sector image
     cx, cy = int(170 * s), int(34 * s)
     R0, R1 = 18 * s, 270 * s
@@ -143,8 +143,7 @@ def draw_angio_ui(w=512, h=288, seed=5):
     black = Image.new("RGB", (w, h), (3, 4, 5))
     img = Image.composite(img, black, mask)
     d = ImageDraw.Draw(img)
-    _mark(d, int(10 * s), int(10 * s), 14 * s)
-    d.text((int(30 * s), int(17 * s)), "NAYZEEE ANGIO", font=font("label", 11 * s), fill=INK, anchor="lm")
+    d.text((int(10 * s), int(17 * s)), "FLUORO  ·  ROOM 2", font=font("label", 11 * s), fill=INK, anchor="lm")
     d.text((int(10 * s), int(36 * s)), "LIVE  ·  FLUORO 7.5 p/s", font=font("mono", 9 * s), fill=TEAL_HI, anchor="lm")
     d.text((w - int(10 * s), int(17 * s)), "AP 0°  CRAN 0°", font=font("mono", 9 * s), fill=INK, anchor="rm")
     d.text((w - int(10 * s), int(32 * s)), "kV 78   mA 12", font=font("mono", 9 * s), fill=INK_DIM, anchor="rm")
@@ -155,42 +154,51 @@ def draw_angio_ui(w=512, h=288, seed=5):
     return img
 
 
-def draw_brand_standby(w=1024, h=576, sub="MEDICAL"):
-    """Black screen with the teal NAYZEEE mark + wordmark centred (waiting-room TV default)."""
-    img = Image.new("RGB", (w, h), (3, 4, 5))
-    # faint radial glow behind the mark
+def draw_waiting_board(w=1024, h=576):
+    """Waiting-room information board: header with the star of life, now-serving ticket, queue,
+    clock and a hygiene notice (default image before a DUI replaces the screen)."""
+    img = Image.new("RGB", (w, h), (6, 9, 12))
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
-    rr = np.hypot((xx - w / 2) / (w * 0.4), (yy - h * 0.45) / (h * 0.5))
-    glow = np.clip(1 - rr, 0, 1) ** 2.2
-    arr = np.asarray(img, np.float32) + glow[..., None] * np.array([4, 26, 24], np.float32)
+    glow = np.clip(1 - np.hypot((xx - w * 0.3) / (w * 0.6), (yy - h * 0.5) / (h * 0.7)), 0, 1) ** 2
+    arr = np.asarray(img, np.float32) + glow[..., None] * np.array([6, 18, 24], np.float32)
     img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
     d = ImageDraw.Draw(img)
     s = h / 576.0
-    ms = 150 * s
-    tw = font("label", 74 * s).getlength("NAYZEEE")
-    total = ms + 36 * s + tw
-    x0 = (w - total) / 2
-    y0 = h * 0.45 - ms / 2
-    _mark(d, x0, y0, ms)
-    d.text((x0 + ms + 36 * s, y0 + ms * 0.36), "NAYZEEE", font=font("label", 74 * s), fill=(236, 240, 242), anchor="lm")
-    d.text((x0 + ms + 38 * s, y0 + ms * 0.80), sub, font=font("label-semi", 34 * s), fill=TEAL_HI, anchor="lm")
-    d.line([(w * 0.38, h * 0.80), (w * 0.62, h * 0.80)], fill=(20, 60, 56), width=max(1, int(2 * s)))
-    d.text((w / 2, h * 0.86), "PATIENT INFORMATION  ·  PLEASE WAIT TO BE CALLED", font=font("label-semi", 15 * s),
-           fill=(110, 120, 126), anchor="mm")
+    d.rectangle([0, 0, w, int(70 * s)], fill=(14, 20, 26))
+    _star(d, int(44 * s), int(35 * s), 46 * s)
+    d.text((int(82 * s), int(35 * s)), "EMERGENCY DEPARTMENT  ·  PATIENT INFORMATION", font=font("label", 24 * s), fill=(230, 236, 240), anchor="lm")
+    d.text((w - int(28 * s), int(35 * s)), "12:04", font=font("mono-bold", 28 * s), fill=(230, 236, 240), anchor="rm")
+    # now serving tile
+    d.rounded_rectangle([int(28 * s), int(96 * s), int(500 * s), int(420 * s)], radius=int(14 * s), fill=(12, 34, 40))
+    d.text((int(60 * s), int(132 * s)), "NOW SERVING", font=font("label-semi", 26 * s), fill=TEAL_HI, anchor="lm")
+    d.text((int(264 * s), int(262 * s)), "A-014", font=font("label", 128 * s), fill=(240, 244, 246), anchor="mm")
+    d.text((int(264 * s), int(370 * s)), "TRIAGE  ROOM 2", font=font("label-semi", 30 * s), fill=(170, 200, 206), anchor="mm")
+    # queue list
+    x0 = int(530 * s)
+    d.text((x0, int(112 * s)), "NEXT", font=font("label-semi", 22 * s), fill=(150, 162, 170), anchor="lm")
+    rows = [("A-015", "TRIAGE", "4 min"), ("B-007", "X-RAY", "9 min"), ("A-016", "TRIAGE", "12 min"), ("C-002", "BLOOD", "15 min")]
+    for k, (t, room, eta) in enumerate(rows):
+        y = int((150 + k * 66) * s)
+        d.rounded_rectangle([x0, y, w - int(28 * s), y + int(54 * s)], radius=int(8 * s), fill=(14, 20, 26))
+        d.text((x0 + int(18 * s), y + int(27 * s)), t, font=font("mono-bold", 28 * s), fill=(220, 226, 230), anchor="lm")
+        d.text((x0 + int(190 * s), y + int(27 * s)), room, font=font("label-semi", 22 * s), fill=(150, 162, 170), anchor="lm")
+        d.text((w - int(46 * s), y + int(27 * s)), eta, font=font("mono", 22 * s), fill=AMBER, anchor="rm")
+    # footer notice
+    d.rectangle([0, h - int(110 * s), w, h], fill=(12, 16, 20))
+    d.text((int(28 * s), h - int(76 * s)), "Average wait  38 min", font=font("label-semi", 24 * s), fill=(200, 210, 214), anchor="lm")
+    d.text((int(28 * s), h - int(38 * s)), "Please clean your hands at the entrance  ·  Tell staff if your condition gets worse",
+           font=font("label-reg", 20 * s), fill=(130, 140, 146), anchor="lm")
     return img
 
 
 def draw_lightbox_panel(w=512, h=512):
-    """Cool white diffuser with a faint lamp gradient and the NAYZEEE mark in the corner."""
+    """Cool white diffuser with a faint lamp gradient (three tubes behind it)."""
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
     v = 0.93 + 0.05 * np.cos((xx / w - 0.5) * math.pi) * np.cos((yy / h - 0.5) * math.pi)
     for k in range(1, 4):   # three fluorescent tubes behind the diffuser
         v += 0.025 * np.exp(-((xx / w - k / 4) / 0.06) ** 2)
     col = np.clip(np.dstack([v * 236, v * 244, v * 250]), 0, 255).astype(np.uint8)
     img = Image.fromarray(col, "RGB")
-    d = ImageDraw.Draw(img)
-    s = w / 512.0
-    _mark(d, w - int(40 * s), h - int(40 * s), 24 * s, hi=(150, 210, 205), lo=(120, 190, 184), cut=(236, 244, 248))
     return img
 
 
@@ -210,13 +218,21 @@ def draw_mixer_lcd(w=256, h=128):
 
 
 def draw_bay_monitor(w=512, h=256):
-    """Bay wall monitor (dark, standby): NAYZEEE mark + unit / clock line."""
+    """Bay wall monitor (dark, standby): star of life, clock, cabin climate and oxygen supply."""
     img = Image.new("RGB", (w, h), (4, 6, 7))
     d = ImageDraw.Draw(img)
     s = w / 512.0
-    _mark(d, int(196 * s), int(70 * s), 52 * s)
-    d.text((int(262 * s), int(86 * s)), "NAYZEEE", font=font("label", 26 * s), fill=(210, 216, 220), anchor="lm")
-    d.text((int(263 * s), int(110 * s)), "MEDIC 1", font=font("label-semi", 13 * s), fill=TEAL_HI, anchor="lm")
-    d.line([(int(140 * s), int(150 * s)), (int(372 * s), int(150 * s))], fill=(18, 42, 40), width=max(1, int(1 * s)))
-    d.text((int(256 * s), int(172 * s)), "TREATMENT BAY  ·  STANDBY", font=font("mono", 11 * s), fill=(96, 106, 110), anchor="mm")
+    d.rectangle([0, 0, w, int(26 * s)], fill=PANEL)
+    d.text((int(10 * s), int(13 * s)), "TREATMENT BAY", font=font("label", 11 * s), fill=INK, anchor="lm")
+    d.text((w - int(10 * s), int(13 * s)), "STANDBY", font=font("mono", 10 * s), fill=AMBER, anchor="rm")
+    _star(d, int(84 * s), int(118 * s), 92 * s)
+    d.text((int(150 * s), int(98 * s)), "12:04", font=font("label", 52 * s), fill=(220, 226, 230), anchor="lm")
+    d.text((int(152 * s), int(146 * s)), "TUE 14 OCT", font=font("label-semi", 14 * s), fill=INK_DIM, anchor="lm")
+    tiles = [("CABIN", "21 °C"), ("O2 MAIN", "1850 L"), ("INVERTER", "OK")]
+    for k, (a, v) in enumerate(tiles):
+        x = int((24 + k * 160) * s)
+        d.rectangle([x, int(184 * s), x + int(150 * s), int(240 * s)], fill=(10, 14, 16))
+        d.rectangle([x, int(184 * s), x + int(3 * s), int(240 * s)], fill=TEAL)
+        d.text((x + int(12 * s), int(198 * s)), a, font=font("label-semi", 10 * s), fill=INK_DIM, anchor="lm")
+        d.text((x + int(12 * s), int(222 * s)), v, font=font("label", 18 * s), fill=(220, 226, 230), anchor="lm")
     return img

@@ -36,6 +36,7 @@
   let sinceOdo = null;
   let ticker = 0;
   let flashTimer = 0;
+  let introTimer = 0;
   let previewHold = null;
   const last = {};
   const setHTML = (k, el, html) => { if (last[k] !== html) { last[k] = html; el.innerHTML = html; } };
@@ -62,7 +63,7 @@
       const lg = i % 5 === 0;
       const r1 = lg ? 88 : 90.5, r2 = 96.5;
       const sx = Math.sin(a), cy = Math.cos(a);
-      out += `<line class="${lg ? 'lg' : ''}" x1="${(100 + r1 * sx).toFixed(2)}" y1="${(100 - r1 * cy).toFixed(2)}" x2="${(100 + r2 * sx).toFixed(2)}" y2="${(100 - r2 * cy).toFixed(2)}"/>`;
+      out += `<line class="${lg ? 'lg' : ''}" style="--i:${i}" x1="${(100 + r1 * sx).toFixed(2)}" y1="${(100 - r1 * cy).toFixed(2)}" x2="${(100 + r2 * sx).toFixed(2)}" y2="${(100 - r2 * cy).toFixed(2)}"/>`;
     }
     return out;
   }
@@ -89,6 +90,7 @@
           <path class="trace" d="${flatlinePath()}"/>
         </svg>
         <i class="dz-sweep"></i>
+        <div class="dz-strip"><span class="ld"></span><span class="sp"></span><span class="hr"><small></small><b>0</b></span></div>
         <div class="dz-note"></div>
         <div class="dz-call"></div>
       </footer>
@@ -105,7 +107,7 @@
             <circle class="trk" cx="100" cy="100" r="80"/>
             <circle class="arc" cx="100" cy="100" r="80" pathLength="100" transform="rotate(-90 100 100)" stroke-dasharray="0 100"/>
             <circle class="htrk" cx="100" cy="100" r="69"/>
-            <circle class="hold" cx="100" cy="100" r="69" pathLength="100" transform="rotate(-90 100 100)" stroke-dasharray="0 100"/>
+            <circle class="hld" cx="100" cy="100" r="69" pathLength="100" transform="rotate(-90 100 100)" stroke-dasharray="0 100"/>
           </svg>
           <div class="dz-core">
             <div class="v v-wait"><span class="vi">${icon('hospital')}</span><div class="dz-odo"></div><small class="cap"></small></div>
@@ -122,9 +124,10 @@
     ui = {
       root: el, kick: q('.dz-kick span'), title: q('.dz-title'),
       todK: q('.m.tod dt'), todV: q('.m.tod dd'), forK: q('.m.for dt'), whoK: q('.m.who dt'), whoV: q('.m.who dd'), whoBox: q('.m.who'), todBox: q('.m.tod'),
+      stripLd: q('.dz-strip .ld'), stripSp: q('.dz-strip .sp'), stripHr: q('.dz-strip .hr small'),
       note: q('.dz-note'), call: q('.dz-call'), flash: q('.dz-flash'),
       caseH: q('.dz-case .nza-label'), cnt: q('.dz-cnt'), spine: q('.dz-spine'),
-      retH: q('.dz-ret .nza-label'), where: q('.dz-where'), ring: q('.dz-ring'), arc: q('.dz-ring .arc'), hold: q('.dz-ring .hold'),
+      retH: q('.dz-ret .nza-label'), where: q('.dz-where'), ring: q('.dz-ring'), arc: q('.dz-ring .arc'), hold: q('.dz-ring .hld'),
       ticks: [...el.querySelectorAll('.dz-ring .ticks line')],
       capWait: q('.v-wait .cap'), capReady: q('.v-ready .cap'), capBusy: q('.v-busy .cap'), key: q('.v-ready kbd'),
       status: q('.dz-status'), bill: q('.dz-bill'), loss: q('.dz-loss'), ret: q('.dz-ret'),
@@ -142,6 +145,9 @@
     setText(ui.todK, T('death_tod', 'Time of death'));
     setText(ui.forK, T('death_for', 'Since death'));
     setText(ui.whoK, T('death_name', 'Patient'));
+    setText(ui.stripLd, T('death_lead', 'Lead II'));
+    setText(ui.stripSp, T('death_speed', '25 mm/s'));
+    setText(ui.stripHr, T('death_hr', 'HR'));
     setText(ui.todV, i.tod || '--:--');
     ui.whoBox.style.display = i.name ? '' : 'none';
     setText(ui.whoV, i.name || '');
@@ -297,9 +303,15 @@
       D.lit = -1;
       D.total = Math.max(1, d.timer || d.respawnIn || 300);
       Object.keys(last).forEach(k => { delete last[k]; });
+      // intro: bars close in, cards slide from their edges, then the respawn ring fills to where it stands
+      ui.arc.setAttribute('stroke-dasharray', '0 100');
+      ui.ticks.forEach(t => t.classList.remove('on'));
       ui.root.classList.remove('in');
+      ui.ring.classList.add('intro');
       void ui.root.offsetWidth;
       ui.root.classList.add('in');
+      clearTimeout(introTimer);
+      introTimer = setTimeout(() => ui.ring.classList.remove('intro'), 3000);
       applyInfo(d);
       applyState(d);
       clearInterval(ticker);
@@ -308,6 +320,8 @@
     close() {
       clearInterval(ticker);
       clearTimeout(flashTimer);
+      clearTimeout(introTimer);
+      ui.ring.classList.remove('intro');
       ui.flash.className = 'dz-flash';
       if (previewHold) { previewHold.destroy(); previewHold = null; }
     },

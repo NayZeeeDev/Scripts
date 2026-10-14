@@ -52,7 +52,10 @@ item count and weight).
 §10.2 lists the medic bag among the v5 WINDOWS. To keep the bag on the floor visible and to stay
 clear of the reference product's layout (docs/design/ORIGINAL.md), the `medbag` app is built from HUD
 cards instead: a pockets dock on the left edge (+ quantity dial), the bag dock on the right edge
-(+ bag log) and a free centre. Please list it under the HUD overlays.
+drawn as the OPEN bag seen from above (lid mesh pocket, zipper hinge, main compartment with elastic
+loops, side pouches, par levels with shadow outlines) (+ bag log) and a free centre. Please list it
+under the HUD overlays. The same app also renders the body bag zip-up card (bottom-left, above the
+minimap) and the toe tag (right-middle edge), both without NUI focus.
 
 ## 6. config/props.lua — optional keys for the bag colours (lead)
 

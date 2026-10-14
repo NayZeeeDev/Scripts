@@ -1,6 +1,6 @@
 """
 Shared parts for the hospital equipment props (part 2): casters, star / H bases, poles, hospital
-plastics, vent slots, warning symbols and the vertical brand panel used on columns.
+plastics, vent slots, warning symbols and rulers.
 """
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import math
 
 import numpy as np
 
-from nzprops import (TEAL_HI, WHITE, DecalCanvas, Geo, box, cylinder, lathe, rrect, sweep)
+from nzprops import (DecalCanvas, Geo, box, cylinder, lathe, rrect, sweep)
 
 from .common import m_black_plastic, m_chrome, m_rubber
 
@@ -34,7 +34,7 @@ def m_hosp_dark(b):
 
 
 def m_teal_led(b):
-    """Emissive NAYZEEE teal light strip."""
+    """Emissive teal accent light strip."""
     return b.mat("teal_led", color=(26, 236, 214), layer="glow")
 
 
@@ -160,12 +160,6 @@ def radiation_label(w=0.05, ppm=6000):
     dc.polygon(inner, color=(240, 198, 30), spec=0.4, gloss=0.6)
     trefoil(dc, w / 2, h * 0.64, w * 0.18)
     return dc
-
-
-def vertical_brand(w, h, ppm=1600, color=WHITE, sub_color=TEAL_HI, sub="MEDICAL"):
-    """Brand lockup for a tall narrow panel (text runs bottom -> top). Project it with up=(sideways)."""
-    from .common import brand_canvas
-    return brand_canvas(h, w, ppm=ppm, color=color, sub_color=sub_color, sub=sub)
 
 
 def ruler(w, h, step=0.01, ppm=3000, color=(24, 26, 28), numbers=10, start=0, unit_step=1, font_scale=0.42, bg=None):

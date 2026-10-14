@@ -17,11 +17,16 @@
         fire           → spray it with the fire extinguisher (or hold [E] "Smother" when
                          Config.Calls.fx.fireNeedsExtinguisher = false)
     Effects also stop by themselves after Config.Calls.fx.duration.
+    Ground detail (Config.Calls.decals, local to every client near the scene): blood pools under
+    bleeding patients that grow with the bleeding (state bag nza.bleed 1..3) and stay where the
+    patient lay, blood spray for violent / road calls, leaking fluids under smoking wrecks and
+    puddles under soaked patients. Crashed cars keep hazards, headlights and the dome light on.
 
     Patient options (NZA.Interact): nza_calls_extricate 'Cut free' (order 11, trapped victims;
     also an [E] prompt at the car), nza_calls_release 'Release on scene' (order 92).
     Bystanders (owner client): the caller stands on the phone and waves the first medic over;
-    the CPR bystander does compressions on the arrest victim until a medic is close.
+    the CPR bystander does compressions on the arrest victim until a medic is close; onlookers
+    keep their distance and film the scene.
 
     Net events handled: nza:calls:build, nza:calls:scenes, nza:calls:scene, nza:calls:sceneRemove,
                         nza:calls:fade, nza:calls:fallback
@@ -191,6 +196,11 @@ local function crashVehicle(veh, spec, plan)
     if plan.hazard and spec.damage and next(spec.damage) then
         SetVehicleIndicatorLights(veh, 0, true)
         SetVehicleIndicatorLights(veh, 1, true)
+    end
+    if plan.crashLights and spec.damage and next(spec.damage) then
+        -- the wreck keeps its lights on: headlights into the night, dome light through the open door
+        SetVehicleLights(veh, 2)
+        SetVehicleInteriorlight(veh, true)
     end
     if spec.flip then
         local r = GetEntityRotation(veh, 2)
@@ -370,10 +380,25 @@ local function stopFx(key)
     end
 end
 
+local decals = {}          -- [sceneId] = { recs = { { spec, x, y, z, size, a, h } }, vict = {}, veh = {}, wet = {} }
+
+local function clearDecals(id, forget)
+    local d = decals[id]
+    if not d then return end
+    for _, r in ipairs(d.recs) do
+        if r.h then
+            pcall(RemoveDecal, r.h)
+            r.h = nil
+        end
+    end
+    if forget then decals[id] = nil end
+end
+
 local function dropScene(id)
     for key in pairs(fxHandles) do
         if key:sub(1, #id + 1) == id .. ':' then stopFx(key) end
     end
+    clearDecals(id, true)
     scenes[id] = nil
 end
 
@@ -514,6 +539,120 @@ local function effectsTick(me)
     end
     for key in pairs(fxHandles) do
         if not keep[key] then stopFx(key) end
+    end
+end
+
+-- ════════════════════════════════════════════════════════════════════════
+-- GROUND DETAIL (local decals: blood pools that grow with the bleeding, spray, leaking
+-- fluids under the wreck, puddles under soaked patients). Records stay with the scene;
+-- handles exist only while this client is near it.
+-- ════════════════════════════════════════════════════════════════════════
+
+local HELD_TR = { carry = true, str = true, bed = true, bay = true, seat = true }
+local nextDecalAt = 0
+
+local function groundZ(x, y, z)
+    local ok, gz = GetGroundZFor_3dCoord(x, y, z + 1.0, false)
+    if ok and gz and math.abs(gz - z) < 3.0 then return gz end
+    return z - 0.95
+end
+
+local function spawnDecal(r)
+    local spec = r.spec
+    local tint = type(spec.tint) == 'table' and spec.tint or { 1.0, 1.0, 1.0 }
+    local life = tonumber(cfg('decals').lifetime) or 2400.0
+    local ok, h = pcall(AddDecal, tonumber(spec.type) or 9015, r.x + 0.0, r.y + 0.0, r.z + 0.02,
+        0.0, 0.0, -1.0, math.cos(r.a) + 0.0, math.sin(r.a) + 0.0, 0.0, r.size + 0.0, r.size + 0.0,
+        (tonumber(tint[1]) or 1.0) + 0.0, (tonumber(tint[2]) or 1.0) + 0.0, (tonumber(tint[3]) or 1.0) + 0.0,
+        (tonumber(spec.opacity) or 1.0) + 0.0, life + 0.0, false, false, false)
+    if ok and h and h ~= 0 then r.h = h end
+end
+
+local function addRec(d, spec, x, y, z, size)
+    if type(spec) ~= 'table' or not spec.type then return end
+    local r = { spec = spec, x = x, y = y, z = groundZ(x, y, z), size = size, a = math.random() * math.pi * 2 }
+    d.recs[#d.recs + 1] = r
+    spawnDecal(r)
+end
+
+local function onGround(ped)
+    if IsPedInAnyVehicle(ped, false) or IsEntityAttached(ped) then return false end
+    local tr = Entity(ped).state.nzaTr
+    if type(tr) == 'table' and HELD_TR[tr.m] then return false end
+    return GetEntitySpeed(ped) < 0.6
+end
+
+local function decalScene(id, s, dc)
+    local d = decals[id]
+    if not d then
+        d = { recs = {}, vict = {}, veh = {}, wet = {} }
+        decals[id] = d
+    end
+    -- respawn what the engine dropped (or what was cleared while we were away)
+    for _, r in ipairs(d.recs) do
+        if not r.h or not IsDecalAlive(r.h) then r.h = nil; spawnDecal(r) end
+    end
+    local tpl = (cfg().templates or {})[s.key] or {}
+    local blood, splat = dc.blood, dc.splatter
+    for _, v in ipairs(s.victims or {}) do
+        local ped = entOf(v.n)
+        if ped ~= 0 and onGround(ped) then
+            local c = GetEntityCoords(ped)
+            local bag = Entity(ped).state.nza
+            local level = type(bag) == 'table' and math.floor(tonumber(bag.bleed) or 0) or 0
+            local vs = d.vict[v.n] or { level = 0, count = 0 }
+            d.vict[v.n] = vs
+            if type(blood) == 'table' and level >= 1 then
+                local moved = vs.x and ((c.x - vs.x) ^ 2 + (c.y - vs.y) ^ 2) > 1.44
+                if (level > vs.level or moved or not vs.x) and vs.count < (tonumber(blood.max) or 4) then
+                    local sizes = type(blood.size) == 'table' and blood.size or { 0.6, 1.0, 1.4 }
+                    local size = tonumber(sizes[math.min(level, #sizes)]) or 1.0
+                    addRec(d, blood, c.x + (math.random() - 0.5) * 0.25, c.y + (math.random() - 0.5) * 0.25, c.z, size)
+                    vs.count = vs.count + 1
+                    vs.level, vs.x, vs.y = level, c.x, c.y
+                    if type(splat) == 'table' and not vs.splat and type(splat.types) == 'table' and splat.types[s.type] then
+                        vs.splat = true
+                        local a = math.random() * math.pi * 2
+                        local r = 0.6 + math.random() * 0.5
+                        addRec(d, splat, c.x + math.cos(a) * r, c.y + math.sin(a) * r, c.z, tonumber(splat.size) or 0.8)
+                    end
+                end
+            end
+            if tpl.wet and type(dc.water) == 'table' and not d.wet[v.n] then
+                d.wet[v.n] = true
+                addRec(d, dc.water, c.x, c.y, c.z, tonumber(dc.water.size) or 1.8)
+            end
+        end
+    end
+    -- fluids under every smoking / burning wreck
+    if type(dc.oil) == 'table' then
+        for _, f in ipairs(s.fx or {}) do
+            if f.net and (f.kind == 'smoke' or f.kind == 'fire') and not d.veh[f.net] then
+                local veh = entOf(f.net)
+                if veh ~= 0 and IsEntityAVehicle(veh) then
+                    d.veh[f.net] = true
+                    local pos = fxPos(f) or GetEntityCoords(veh)
+                    addRec(d, dc.oil, pos.x, pos.y, pos.z, tonumber(dc.oil.size) or 1.7)
+                end
+            end
+        end
+    end
+end
+
+local function decalsTick(me)
+    local dc = cfg('decals')
+    if dc.enabled == false then return end
+    local now = GetGameTimer()
+    if now < nextDecalAt then return end
+    nextDecalAt = now + 1000
+    local radius = tonumber(dc.radius) or 120.0
+    for id, s in pairs(scenes) do
+        local c = s.c and vector3(s.c.x, s.c.y, s.c.z)
+        if c and #(c - me) <= radius then
+            decalScene(id, s, dc)
+        elseif decals[id] then
+            clearDecals(id, false)
+        end
     end
 end
 
@@ -708,6 +847,8 @@ CreateThread(function()
         local me = GetEntityCoords(PlayerPedId())
         local ok, err = pcall(effectsTick, me)
         if not ok then NZA.Debug('calls fx', err) end
+        ok, err = pcall(decalsTick, me)
+        if not ok then NZA.Debug('calls decals', err) end
         -- anything to do within reach?
         local near = false
         for _, s in pairs(scenes) do
@@ -906,6 +1047,7 @@ end)
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
     for key in pairs(fxHandles) do stopFx(key) end
+    for id in pairs(decals) do clearDecals(id, true) end
     for _, fb in pairs(fallbackBlips) do RemoveBlip(fb.blip) end
     fallbackBlips = {}
     if NZA.UI and NZA.UI.HidePrompt then

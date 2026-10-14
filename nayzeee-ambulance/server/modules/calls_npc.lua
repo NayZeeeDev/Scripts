@@ -284,7 +284,7 @@ local function bystanderTick()
                         Entity(ent).state:set('nzaBy', { role = 'watch', v = bag.v, scenario = 'WORLD_HUMAN_STAND_IMPATIENT' }, true)
                     end
                     local greeted = byGreeted[net] or 0
-                    if closest <= 5.0 and greeted < 2 and (greeted == 0 or math.random() < 0.15) then
+                    if spec.role ~= 'onlooker' and closest <= 5.0 and greeted < 2 and (greeted == 0 or math.random() < 0.15) then
                         byGreeted[net] = greeted + 1
                         local key = I.Pick(byLines(scene.key))
                         if key then
@@ -439,6 +439,8 @@ local function handover(src, p, pointType)
         I.RemoveVictim(scene, pid, 'handover')
     end)
 end
+
+I.Handover = handover
 
 NZA.Bus.On('transport:bed', function(src, p, pt)
     if type(p) ~= 'table' or p.kind ~= 'npc' or type(pt) ~= 'table' then return end

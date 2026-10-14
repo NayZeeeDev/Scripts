@@ -4,17 +4,24 @@ Owner files: `tools/props/**` (code-only model pipeline, see `tools/props/README
 `stream/**` (the built binaries). Lead-owned references: `config/props.lua` (`Config.Props`,
 `Config.PropScreens`, `Config.PropFallbacks`), `fxmanifest.lua`.
 
-Every NAYZEEE prop is generated from code - geometry, UV atlas, baked PBR-style textures (colour,
-normal, specular/gloss, ambient occlusion, edge wear, printed labels), collision and the archetype -
-then converted to real GTA V binaries with CodeWalker and re-loaded/validated before it is copied to
-`stream/`. Nothing in `stream/` is hand edited: rebuild with `python3 tools/props/build.py` (below).
+Every generated prop is built from code - geometry, UV atlas, baked PBR-style textures (colour,
+normal, specular/gloss, ambient occlusion, chipped edge wear, scratches, smudges, crevice grime, dust,
+printed labels with fine print), collision and the archetype - then converted to real GTA V binaries
+with CodeWalker and re-loaded/validated before it is copied to `stream/`. Nothing in `stream/` is hand
+edited: rebuild with `python3 tools/props/build.py` (below).
+
+The **medic bag** is the exception: `nz_amb_medbag_red / _green / _orange / _magenta` are the
+customer's artist-made model (~4.8k tris, 2048 diffuse + 1024 normal + 1024 spec), brought in with
+`tools/props/import_model.py` (renamed drawable + textures, DXT re-encode with mips, validated). Their
+metadata lives in `tools/props/external/*.json`; the build keeps them in the ytyp and never deletes or
+regenerates them. They are not in the generated table / catalog below.
 
 ## 1. What ships
 
 | | |
 |---|---|
-| `stream/nz_amb_*.ydr` | 43 drawables (one per model). Textures are **embedded** in each drawable's own dictionary (txd name = model name), collision is **embedded** (composite bound of boxes / cylinders). No separate `.ytd` / `.ybn`. |
-| `stream/nz_amb_props.ytyp` | one archetype file with all 43 `CBaseArchetypeDef`s (bounds, `lodDist`, `hdTextureDist`, static flag) |
+| `stream/nz_amb_*.ydr` | 46 drawables (one per model: 42 generated + 4 imported medic bag colours). Textures are **embedded** in each drawable's own dictionary (txd name = model name), collision is **embedded** (composite bound of boxes / cylinders). No separate `.ytd` / `.ybn`. |
+| `stream/nz_amb_props.ytyp` | one archetype file with all 46 `CBaseArchetypeDef`s (bounds, `lodDist`, `hdTextureDist`, static flag) |
 | manifest | `files { 'stream/*.ytyp' }` + `data_file 'DLC_ITYP_REQUEST' 'stream/*.ytyp'` (already in `fxmanifest.lua`, see `docs/requests/props.md`) |
 
 Total stream size and per-model numbers are in the generated table (section 8).
@@ -37,8 +44,15 @@ Total stream size and per-model numbers are in the generated table (section 8).
 * **Attach rotations** in this document are `AttachEntityToEntity` rotations (degrees, rotation order
   2, the default used by `NZA.Props.Spawn`). Bone axes differ between bones and anim poses: values
   marked *start* are measured starting points to fine-tune per animation.
-* **Branding**: every device carries the NAYZEEE mark / wordmark in the teal palette; no third-party
-  brand anywhere.
+* **Labelling**: no maker name, wordmark or logo on any prop (ours or a real company's). Devices carry
+  generic labelling: device type + invented model code (`PM-8` monitor, `MD-2` defibrillator, `SU-2`
+  suction, `IO-3` IO driver, `TK-62` trauma case, `PC-2` cot, `US-9` ultrasound ...), rating plates
+  (MODEL / SN / REF / LOT, electrical rating, regulatory symbols, barcode + data-matrix), caution /
+  danger stickers, calibration and asset tags, the star of life or a plain cross.
+* **Detail / budgets**: bevelled shells with split lines, screws, rubber feet and bumpers, strain
+  reliefs, legends on buttons, knurled knobs, stitched straps, vents and grilles. Hand-held tools
+  <= 12k tris with 1024 textures (full-size normal + spec), devices / field kit / furniture 2048
+  (normal + spec 1024), the bay shell 2048 + 2048 + 2 x 1024 sets.
 
 ## 3. Screens (DUI targets)
 
@@ -58,15 +72,15 @@ A replacement affects every instance of that model on the client (do it while th
 
 | Model | Quad (m) | Aspect | Embedded default (px) | Centre / facing (prop space) |
 |---|---|---|---|---|
-| `nz_amb_monitor` | 0.180 x 0.112 | 1.61 | 512 x 256 vitals | front (+Y) panel |
+| `nz_amb_monitor` | 0.180 x 0.112 | 1.61 | 512 x 256 vitals (bed / alarm / battery header) | front (+Y) panel, controls to its +X |
 | `nz_amb_defib` | 0.170 x 0.096 | 1.77 | 512 x 256 manual defib | front (+Y) |
 | `nz_amb_pager` | 0.056 x 0.022 | 2.55 | 256 x 128 LCD | front (+Y) |
-| `nz_amb_us_cart` | 0.40 x 0.25 | 1.60 | 512 x 320 eFAST B-mode | (0, -0.114, 1.278) +Y |
+| `nz_amb_us_cart` | 0.40 x 0.25 | 1.60 | 512 x 320 eFAST B-mode (RUQ free fluid) | (0, -0.114, 1.278) +Y |
 | `nz_amb_angio_monitor` | 0.94 x 0.53 | 1.77 | 1024 x 512 live fluoro | (0, 0.6585, 1.55) +Y |
 | `nz_amb_lightbox` | 0.60 x 0.75 | 0.80 | 512 x 512 white diffuser | (0, 0.1465, 1.47) +Y |
 | `nz_amb_blood_mixer` | 0.110 x 0.055 | 2.00 | 256 x 128 collection LCD | (0.035, 0.1185, 0.1875) +Y |
-| `nz_amb_tv_board` | 1.568 x 0.882 | 16:9 | **1024 x 576** black + teal NAYZEEE mark | (0, 0.0343, 0.008) +Y |
-| `nz_amb_bay_shell` | 0.84 x 0.40 | 2.10 | 512 x 256 dark standby | (-0.20, 2.1045, 1.68) -Y |
+| `nz_amb_tv_board` | 1.568 x 0.882 | 16:9 | **1024 x 576** waiting-room board (now serving / queue / clock) | (0, 0.0343, 0.008) +Y |
+| `nz_amb_bay_shell` | 0.84 x 0.40 | 2.10 | 512 x 256 dark standby (clock, cabin temp, O2 main) | (-0.20, 2.1045, 1.68) -Y |
 
 `Config.PropScreens` currently lists tv_board, monitor, angio_monitor and us_cart; the others are
 requested in `docs/requests/props.md` (all use tex `nz_amb_screen`, txd = model name).
@@ -95,7 +109,7 @@ Bones: `SKEL_R_Hand` 57005, `PH_R_Hand` 28422 (right hand grip helper), `SKEL_L_
 | `bvm` | SKEL_Head 31086 (on the patient) | (0.06, 0.11, 0) | (0, -90, -90) *start* | mask rim at the origin, face side -Z; medic's left hand holds the mask, right hand squeezes the bag at (0, 0.21, 0.095) prop space |
 | `ett` | SKEL_Head 31086 (on the patient) | (-0.04, 0.12, 0) | (0, 90, 0) *start* | origin = lip line; only the connector + holder show outside the mouth |
 | `kitcase_closed` | PH_R_Hand 28422 | (0, -0.245, -0.06) | (0, 0, 0) | carried by the handle |
-| `medbag` | PH_R_Hand 28422 | (0, 0, -0.40) | (0, 0, 0) | pull by the trolley handle: pos (-0.62, 0, -0.36) rot (0, -35, 0) |
+| `medbag` (imported, `_red/_green/_orange/_magenta`) | PH_R_Hand 28422 | (0, 0, -0.36) | (0, 0, 0) *start* | carried by the top straps; origin = bottom centre like the native bag it replaces, so its attach values carry over |
 | `monitor` | PH_R_Hand 28422 | (0, -0.03, -0.24) | (0, 0, 90) | carried by the top handle |
 | `defib` | PH_R_Hand 28422 | (0, -0.06, -0.26) | (0, 0, 90) | carried by the top handle |
 | `suction` | PH_R_Hand 28422 | (0.03, 0, -0.26) | (0, 0, 0) | carried by the top handle |
@@ -215,9 +229,10 @@ the prop's +Y should face (the operator side). Key offsets (full details in the 
 
 ## 7. Previews
 
-`/tmp/nza-work/props/out/sheets/contact_01..08.png` (3 views per prop) and
-`/tmp/nza-work/props/out/renders/<model>_<view>.png`; the bay shell renders interior cameras
-(`int_rear`, `int_front`, `plan` cut-away, `cab_left`, `cab_right`, `head_end`).
+`/tmp/nza-work/props/out/sheets/contact_01..07.png` (3 views per generated prop) and
+`/tmp/nza-work/props/out/renders/<model>_<view>.png` (+ `detail` close-ups for the devices / carts that
+declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, `plan` cut-away,
+`cab_left`, `cab_right`, `head_end`). The imported medic bag is not rendered by the pipeline.
 
 ## 8. Summary table (generated)
 

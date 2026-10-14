@@ -9,10 +9,10 @@
     AMBULANCE SYSTEM - SPLINTS, CRUTCHES & WHEELCHAIR
     Discord: discord.gg/nayzeeedev
 
-    Field splinting of broken arms and legs (place the splint on the limb, pad &
-    mould it, strap it and check circulation / motor / sensation), crutches that
-    anyone can walk with, and a folding wheelchair you drive with W A S D, that
-    others can push and medics can seat patients in.
+    Field splinting of broken arms and legs (lay the splint along the limb, pad
+    the bony points and shape it to the limb, strap it and check circulation /
+    motor / sensation), crutches anyone can walk with, and a folding wheelchair
+    you drive with W A S D, that others can push and medics can seat patients in.
 
     Items are named in config/items.lua (Config.Items.*). Here they are referred
     to by their KEY ('splint', 'crutches', 'wheelchair'), never by the inventory
@@ -28,7 +28,7 @@ Config = Config or {}
 Config.Splint = {
 
     -- ═══════════════════════════════════════════════════════════════════════
-    -- SPLINTING (NZA.Proc 'splint') - 1 place, 2 pad & mould, 3 strap + CMS check
+    -- SPLINTING (NZA.Proc 'splint') - 1 lay it, 2 pad & shape, 3 strap + CMS check
     -- ═══════════════════════════════════════════════════════════════════════
 
     Splint = {
@@ -40,16 +40,28 @@ Config.Splint = {
         easyTime  = 8,             -- progress bar length in easy mode
         maxDist   = 3.0,           -- metres between the medic and the patient
         states    = { 'alive', 'wounded' },  -- patient states that can be splinted
+        regions   = {              -- regions that take a splint, and which device
+            l_upper_arm = 'arm', l_lower_arm = 'arm', r_upper_arm = 'arm', r_lower_arm = 'arm',
+            l_upper_leg = 'leg', l_lower_leg = 'leg', r_upper_leg = 'leg', r_lower_leg = 'leg',
+        },
 
-        tolerance      = 0.075,    -- how close each splint end must be to its joint (share of the limb length on screen)
-        lockHold       = 0.7,      -- seconds both ends must stay aligned before the splint sets (the set key does it at once)
+        -- Device sizes (metres) - the splint is drawn to scale over the limb
+        device = {
+            leg = { width = 0.150, depth = 0.070, wall = 0.010, model = 'CS-76' },   -- padded leg trough with foot plate
+            arm = { width = 0.105, depth = 0.050, wall = 0.008, model = 'CS-40' },   -- padded arm trough with palm roll
+        },
+        limbRadius = { leg = 0.055, thigh = 0.075, arm = 0.040, upperArm = 0.048 },  -- used to show the limb lying in the splint
+
+        tolerance      = 0.035,    -- metres: how close each splint end must sit to its joint
+        angleTolerance = 8.0,      -- degrees the splint may be turned off the limb axis and still set
+        lockHold       = 0.7,      -- seconds both ends must stay on their joints before the splint sets (Space does it at once)
         rotateSpeed    = 55,       -- degrees per second while Q / E is held
-        nudgeSpeed     = 0.30,     -- limb lengths per second while an arrow key is held
+        nudgeSpeed     = 0.20,     -- metres per second while an arrow key is held
         fine           = 0.22,     -- Shift multiplier for rotate / nudge / drag
-        mouldPoints    = { leg = 6, arm = 5 },  -- points along the splint you mould by hand
-        mouldSeconds   = 1.15,     -- seconds of holding a point from flat to fully moulded
-        mouldClick     = 0.18,     -- share added by a single click
-        mouldZone      = { 0.72, 1.0 },  -- a point counts as moulded inside this band; above 1.0 = pressure point
+        shapePoints    = { leg = 6, arm = 5 },  -- points along the splint you shape by hand
+        shapeSeconds   = 1.15,     -- seconds of holding a point from loose to fully shaped
+        shapeClick     = 0.18,     -- share added by a single click
+        shapeZone      = { 0.72, 1.0 },  -- a point counts as shaped inside this band; above 1.0 = pressure point
         strapZone      = { 0.55, 0.82 }, -- good strap tension band (0..1)
         strapTight     = 0.88,     -- above this a strap cuts off circulation (the CMS check finds it)
         strapPeriod    = 1.7,      -- seconds for the tension needle to sweep up and back
@@ -57,25 +69,29 @@ Config.Splint = {
         painRelief     = 12,       -- extra pain points taken off the fracture at a perfect score
         minScore       = 0,        -- a score below this fails the splint (item kept, nothing applied)
 
-        -- Camera: top-down over the limb for patients lying down, side-on for standing / sitting ones
+        -- Camera: straight down over the limb when it lies flat, from the side when the limb is upright
         camera = {
-            leg      = { height = 1.45, fov = 50.0 },
-            arm      = { height = 1.15, fov = 50.0 },
-            standing = { dist = 1.45, pitch = 6.0, fov = 44.0 },
-            minHeight = 0.7, maxHeight = 3.2,  -- mouse wheel zoom limits
+            fov       = 50.0,      -- field of view (degrees) - the NUI draws the splint with the same lens
+            fill      = 0.38,      -- share of the screen height the limb takes
+            minHeight = 0.6, maxHeight = 3.2,     -- mouse wheel zoom limits
+            upright   = { dist = 1.35, pitch = 8.0, fov = 44.0 },   -- used for an upright limb
         },
         -- medic pose while splinting (nil = the core kneel)
         anim = { dict = 'amb@medic@standing@kneel@base', clip = 'base', flag = 1 },
+        -- a standing player patient sits down on the ground for the splint (false = stay as they are)
+        patientPose = {
+            m = { dict = 'amb@world_human_picnic@male@base', clip = 'base' },
+            f = { dict = 'amb@world_human_picnic@female@base', clip = 'base' },
+        },
 
         keys = {
             rotateLeft  = 'KeyQ',
             rotateRight = 'KeyE',
             reset       = 'KeyX',
-            set         = 'Space',  -- set the splint when both ends line up
+            set         = 'Space',  -- set the splint when both ends sit on their joints / cinch a strap
         },
 
-        -- Distal circulation / motor / sensation check (step 3). The 'cms' point is
-        -- the bone clicked for the check (toes / fingers).
+        -- Distal circulation / motor / sensation check (step 3): the bone clicked for the check
         cmsBones = {
             l_upper_leg = 2108,  l_lower_leg = 2108,  r_upper_leg = 20781, r_lower_leg = 20781,
             l_upper_arm = 18905, l_lower_arm = 18905, r_upper_arm = 57005, r_lower_arm = 57005,
@@ -88,26 +104,26 @@ Config.Splint = {
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
-    -- WORN SPLINT PROPS (every client renders them from the patient state bag)
+    -- WORN SPLINT PROPS (every client draws them from the patient state bag)
     -- One or more pieces per region: { prop = Config.Props key, bone = ped bone id,
     -- pos = offset along the bone (X runs down the limb), rot = rotation }.
-    -- Turn 'rot' around X if the open side of the channel faces the wrong way.
+    -- If the open side of the channel faces the wrong way, flip rot X (-90 ↔ 90).
     -- ═══════════════════════════════════════════════════════════════════════
 
     Props = {
         enabled = true,
         range   = 45.0,            -- metres within which worn splints / crutches are drawn
         attach  = {
-            l_lower_leg = { { prop = 'splint_leg', bone = 63931, pos = vec3(0.10, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) } },
-            r_lower_leg = { { prop = 'splint_leg', bone = 36864, pos = vec3(0.10, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) } },
-            l_upper_leg = { { prop = 'splint_leg', bone = 63931, pos = vec3(0.10, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) },   -- long leg: lower splint +
-                            { prop = 'splint_arm', bone = 58271, pos = vec3(0.22, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) } }, -- thigh tray
-            r_upper_leg = { { prop = 'splint_leg', bone = 36864, pos = vec3(0.10, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) },
-                            { prop = 'splint_arm', bone = 51826, pos = vec3(0.22, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) } },
-            l_lower_arm = { { prop = 'splint_arm', bone = 61163, pos = vec3(0.12, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) } },
-            r_lower_arm = { { prop = 'splint_arm', bone = 28252, pos = vec3(0.12, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) } },
-            l_upper_arm = { { prop = 'splint_arm', bone = 45509, pos = vec3(0.14, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) } },
-            r_upper_arm = { { prop = 'splint_arm', bone = 40269, pos = vec3(0.14, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) } },
+            l_lower_leg = { { prop = 'splint_leg', bone = 63931, pos = vec3(0.10, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) } },
+            r_lower_leg = { { prop = 'splint_leg', bone = 36864, pos = vec3(0.10, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) } },
+            l_upper_leg = { { prop = 'splint_leg', bone = 63931, pos = vec3(0.10, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) },   -- long leg: lower splint +
+                            { prop = 'splint_arm', bone = 58271, pos = vec3(0.22, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) } }, -- thigh trough
+            r_upper_leg = { { prop = 'splint_leg', bone = 36864, pos = vec3(0.10, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) },
+                            { prop = 'splint_arm', bone = 51826, pos = vec3(0.22, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) } },
+            l_lower_arm = { { prop = 'splint_arm', bone = 61163, pos = vec3(0.12, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) } },
+            r_lower_arm = { { prop = 'splint_arm', bone = 28252, pos = vec3(0.12, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) } },
+            l_upper_arm = { { prop = 'splint_arm', bone = 45509, pos = vec3(0.14, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) } },
+            r_upper_arm = { { prop = 'splint_arm', bone = 40269, pos = vec3(0.14, 0.0, 0.0), rot = vec3(-90.0, 0.0, 0.0) } },
         },
     },
 
@@ -121,6 +137,7 @@ Config.Splint = {
         maxMoveBlend = 1.0,        -- 1.0 = walk only, 2.0 = jog, 3.0 = sprint
         moveRate     = 0.88,       -- walk animation speed (1.0 = normal)
         legClipset   = false,      -- a walk clipset for a splinted leg, false = keep the core injured walk
+        armNoAim     = false,      -- true: no aiming with a splinted arm
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -131,7 +148,8 @@ Config.Splint = {
         enabled   = true,
         item      = 'crutches',
         prop      = 'crutch',      -- Config.Props key (fallback: Config.PropFallbacks.crutch)
-        clipset   = 'move_lester_CaneUp',   -- walk style while on crutches (Lester's cane step)
+        clipset   = 'move_lester_CaneUp',   -- walk style on crutches (a planted, weight-bearing step)
+        upper     = false,         -- optional upper-body loop { dict, clip } played while walking (false = none)
         moveRate  = 0.86,          -- walk animation speed
         maxMoveBlend = 1.0,        -- 1.0 = no jogging / sprinting on crutches
         key       = '',            -- default key to pick up / put away (players can rebind; '' = unbound)
@@ -144,6 +162,7 @@ Config.Splint = {
         give          = true,      -- medics get 'Give crutches' on player patients
         givePerm      = 'splint',  -- permission for that option
         autoEquip     = true,      -- the patient starts walking with them straight away
+        hud           = true,      -- small status card while on crutches
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -155,11 +174,13 @@ Config.Splint = {
         item         = 'wheelchair',
         prop         = 'wheelchair',  -- Config.Props key (native prop_wheelchair_01)
         maxPerPlayer = 1,             -- unfolded chairs one player may have out at once
+        placeDistance = 1.1,          -- metres in front of you the chair unfolds
         seatPerm     = 'transport',   -- permission to seat / take out patients
         foldOwnerOnly = false,        -- true: only the player who unfolded it can fold it
+        abandonMinutes = 20,          -- an empty chair whose owner left the server is removed after this
         states       = { 'alive' },   -- patient states that can sit in a chair
 
-        -- the person sitting (offsets on the chair, Lester's wheelchair loop)
+        -- the person sitting (offsets on the chair)
         seat = {
             pos  = vec3(0.0, 0.0, 0.4),
             rot  = vec3(0.0, 0.0, 180.0),
@@ -196,7 +217,7 @@ Config.Splint = {
             stand = { control = 23, label = 'F' },  -- stand up / get out
             letGo = { control = 47, label = 'G' },  -- stop pushing
         },
-        hud = true,                   -- speed / slope HUD while driving or pushing
+        hud = true,                   -- speed / slope card while driving or pushing
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -205,10 +226,10 @@ Config.Splint = {
 
     Interact = {
         distance = 2.2,               -- metres from the patient for the options to show
-        splint   = true,              -- 'Splint fracture' (order 44)
-        remove   = true,              -- 'Remove splint'
+        splint   = true,              -- 'Splint the fracture' (order 44)
+        remove   = true,              -- 'Take the splint off'
         crutches = true,              -- 'Give crutches'
-        chair    = true,              -- 'Seat in wheelchair' / 'Out of wheelchair'
+        chair    = true,              -- 'Seat in wheelchair' / 'Help out of the chair'
         chairRange = 6.0,             -- how far the nearest free wheelchair may be from the patient
         icons = {                     -- NAYZEEE icon names (target scripts get the matching Font Awesome icon)
             splint = 'splint', remove = 'splint', crutches = 'crutch', chair = 'wheelchair',
@@ -217,7 +238,8 @@ Config.Splint = {
     },
 
     Radial = {
-        enabled = true,               -- 'Splint fracture' and 'Wheelchair' under Patient in the EMS radial
+        enabled = true,               -- 'Splint the fracture' and 'Wheelchair' under Patient in the EMS radial
+        range   = 3.0,                -- nearest patient within this many metres
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

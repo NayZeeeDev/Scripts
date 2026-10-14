@@ -67,6 +67,67 @@
 #app-donation .dn-wrap.sq .dn-odo{animation:dn-sq 170ms ease-out}
 @keyframes dn-sq{50%{transform:scale(1.04)}}
 
+/* the mixer tray rocks the bag while it collects (keeps the anticoagulant mixed) */
+#app-donation .dn-dev.rock .dn-bag .bb-bag{transform-origin:50% 8%;animation:dn-rock 2.4s ease-in-out infinite alternate}
+@keyframes dn-rock{from{transform:rotate(-5deg)}to{transform:rotate(5deg)}}
+
+/* ── pulse ring (procedure column slot) ── */
+#app-donation .dn-pulse{display:grid;grid-template-columns:112px 1fr;gap:16px;align-items:center;padding:10px 16px 10px 16px;border-radius:12px;position:relative;overflow:hidden}
+#app-donation .dn-pulse::before{content:'';position:absolute;left:0;top:0;width:34px;height:34px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:12px;opacity:.9;pointer-events:none}
+#app-donation .dn-ring{position:relative;width:112px;height:112px}
+#app-donation .dn-ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#app-donation .dn-ring .r-face{fill:#07080a;stroke:rgba(255,255,255,.06);stroke-width:1}
+#app-donation .dn-ring .r-trk{fill:none;stroke:rgba(255,255,255,.07);stroke-width:6}
+#app-donation .dn-ring .r-good{fill:none;stroke:rgba(15,212,196,.22);stroke-width:6}
+#app-donation .dn-ring .r-perf{fill:none;stroke:var(--teal-hi);stroke-width:6;filter:drop-shadow(0 0 4px rgba(15,212,196,.7))}
+#app-donation .dn-ring .r-ticks line{stroke:rgba(255,255,255,.14);stroke-width:.8}
+#app-donation .dn-ring .r-ticks line.mj{stroke:rgba(255,255,255,.32);stroke-width:1.1}
+#app-donation .dn-ring .r-beat{fill:none;stroke:#ff4a52;stroke-width:2;opacity:0;transform-box:fill-box;transform-origin:center}
+#app-donation .dn-ring .r-beat.on{animation:dn-ripple 620ms ease-out}
+@keyframes dn-ripple{0%{opacity:.85;transform:scale(1)}100%{opacity:0;transform:scale(1.2)}}
+#app-donation .dn-ring .r-tail path{fill:none;stroke:#fff;stroke-width:6;stroke-linecap:butt}
+#app-donation .dn-ring .r-dot{fill:#fff;filter:drop-shadow(0 0 5px rgba(255,255,255,.8))}
+#app-donation .dn-ring .r-dots circle{fill:rgba(255,255,255,.08);stroke:rgba(255,255,255,.12);stroke-width:.6;transition:fill 200ms}
+#app-donation .dn-ring .r-dots circle.perfect{fill:var(--teal-hi);stroke:none;filter:drop-shadow(0 0 3px rgba(15,212,196,.7))}
+#app-donation .dn-ring .r-dots circle.good{fill:#f2f4f5;stroke:none}
+#app-donation .dn-ring .r-dots circle.off{fill:var(--amber);stroke:none}
+#app-donation .dn-ring .r-dots circle.miss{fill:transparent;stroke:#ff5a60;stroke-width:1.3}
+#app-donation .dn-ring .r-dots circle.new{animation:dn-dotin 380ms ease-out}
+@keyframes dn-dotin{0%{opacity:0}40%{opacity:1}100%{opacity:1}}
+#app-donation .dn-pulse.idle .r-hand,#app-donation .dn-pulse.done .r-hand{display:none}
+#app-donation .dn-pulse.idle .r-good,#app-donation .dn-pulse.idle .r-perf{opacity:.35}
+#app-donation .dn-pulse.done .r-perf{stroke:rgba(15,212,196,.5);filter:none}
+/* the foam squeeze ball */
+#app-donation .dn-ball{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
+  background:radial-gradient(circle at 36% 30%,#5d6268 0%,#33373b 38%,#17191b 72%,#0b0c0d 100%);
+  box-shadow:inset 0 -5px 9px rgba(0,0,0,.6),inset 0 2px 3px rgba(255,255,255,.12),0 6px 12px rgba(0,0,0,.55)}
+#app-donation .dn-ball i{position:absolute;inset:7px;border-radius:50%;background:
+  radial-gradient(circle at 50% 50%,transparent 46%,rgba(255,255,255,.05) 47%,transparent 52%),
+  repeating-conic-gradient(rgba(255,255,255,.035) 0 10deg,transparent 10deg 20deg)}
+#app-donation .dn-ball.sq{animation:dn-squash 220ms cubic-bezier(.3,.6,.3,1)}
+#app-donation .dn-ball.perfect.sq{box-shadow:inset 0 -5px 9px rgba(0,0,0,.6),inset 0 2px 3px rgba(255,255,255,.12),0 0 0 3px rgba(15,212,196,.35),0 0 18px rgba(15,212,196,.55)}
+#app-donation .dn-ball.good.sq{box-shadow:inset 0 -5px 9px rgba(0,0,0,.6),inset 0 2px 3px rgba(255,255,255,.12),0 0 0 3px rgba(255,255,255,.22)}
+#app-donation .dn-ball.off.sq{box-shadow:inset 0 -5px 9px rgba(0,0,0,.6),inset 0 2px 3px rgba(255,255,255,.12),0 0 0 3px rgba(229,165,10,.4)}
+@keyframes dn-squash{0%{transform:scale(1)}35%{transform:scale(1.2,.76)}70%{transform:scale(.94,1.06)}100%{transform:scale(1)}}
+#app-donation .dn-pi{min-width:0;display:flex;flex-direction:column;gap:4px}
+#app-donation .dn-pi .pl{font:700 8.5px var(--font);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+#app-donation .dn-pi .pv{display:flex;align-items:baseline;gap:6px}
+#app-donation .dn-pi .ph{align-self:center;display:grid;place-items:center;color:#ff5a60}
+#app-donation .dn-pi .ph .nz-ic{width:15px;height:15px}
+#app-donation .dn-pi .ph.on{animation:dn-beat 380ms ease-out}
+#app-donation .dn-pi .pb{font:700 26px/1 var(--mono);color:#fff;letter-spacing:-.03em}
+#app-donation .dn-pi .pv > i{font:500 10px var(--font);font-style:normal;color:var(--ink-3)}
+#app-donation .dn-pi .pst{margin-left:auto;font:600 9px var(--font);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+#app-donation .dn-pulse.done .pst{color:var(--teal-hi)}
+#app-donation .dn-pi .pg{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;margin-top:4px;padding-top:7px;border-top:1px solid var(--line-hair)}
+#app-donation .dn-pi .c{position:relative;display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-2)}
+#app-donation .dn-pi .c i{width:7px;height:7px;border-radius:50%;flex:none}
+#app-donation .dn-pi .c b{margin-left:auto;font:700 12px var(--mono);color:#fff}
+#app-donation .dn-pi .c.perfect i{background:var(--teal-hi);box-shadow:0 0 6px rgba(15,212,196,.7)}
+#app-donation .dn-pi .c.good i{background:#f2f4f5}
+#app-donation .dn-pi .c.off i{background:var(--amber)}
+#app-donation .dn-pi .c.miss i{border:1.3px solid #ff5a60;box-sizing:border-box}
+
 /* watch (donor): same column as the procedure HUD */
 #app-donation .dn-col{position:absolute;left:28px;top:28px;width:432px;display:flex;flex-direction:column;gap:10px}
 #app-donation .dn-note{position:relative;display:flex;gap:10px;padding:11px 13px 12px 11px;overflow:hidden;animation:nza-in 240ms both}
@@ -195,6 +256,13 @@
 #app-donation .bk-empty span{font-size:11.5px;font-weight:300}
 #app-donation .bk-fill{flex:1;min-height:0;display:grid;grid-template-columns:1fr 320px;gap:14px}
 #app-donation .bk-prev-b{flex:1;display:grid;place-items:center;padding:16px;background:radial-gradient(70% 60% at 50% 45%,rgba(255,255,255,.035),transparent 70%)}
+#app-donation .bk-pv{display:flex;align-items:center;gap:30px}
+#app-donation .bk-pv-bag{filter:drop-shadow(0 12px 18px rgba(0,0,0,.55))}
+#app-donation .bk-compat{padding:11px 12px 12px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-hair)}
+#app-donation .bk-ct{font:700 9px var(--font);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px}
+#app-donation .bk-cg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+#app-donation .bk-cg span{display:grid;place-items:center;height:26px;border-radius:6px;font-size:11.5px;font-weight:700;color:var(--ink-3);border:1px dashed rgba(255,255,255,.12)}
+#app-donation .bk-cg span.on{color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge)}
 #app-donation .bk-side-b{display:flex;flex-direction:column;gap:10px;padding:14px 16px 16px;flex:1}
 #app-donation .bk-side-b .bk-go{margin-top:auto}
 #app-donation .bk-kv{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-hair);font-size:12px;color:var(--ink-2)}
@@ -219,5 +287,5 @@
 #app-donation .lb-f{display:flex;justify-content:flex-end;padding-top:11px;border-top:1px solid var(--line-soft);font-size:11px;color:var(--ink-3)}
 
 @media (prefers-reduced-motion: reduce){
-  #app-donation .dn-dev,#app-donation .dn-row.hr.beat .hi,#app-donation .dn-tube.on::after,#app-donation .dn-wrap.sq .dn-odo{animation:none}
+  #app-donation .dn-dev,#app-donation .dn-row.hr.beat .hi,#app-donation .dn-tube.on::after,#app-donation .dn-wrap.sq .dn-odo,#app-donation .dn-dev.rock .dn-bag .bb-bag,#app-donation .dn-ring .r-beat.on,#app-donation .dn-ball.sq,#app-donation .dn-pi .ph.on{animation:none}
 }
