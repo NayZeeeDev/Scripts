@@ -110,22 +110,22 @@
     if (big) {
       for (let i = 1; i <= 4; i++) {
         const y = (bottom - inner * (i / 5)).toFixed(1);
-        scale += `<path class="grad" d="M${X1 - 7} ${y} H${X1 - 3}"/>`;
-        if (w >= 90) scale += `<text class="gradt" x="${X1 - 8}" y="${(+y + 1.4).toFixed(1)}" text-anchor="end">${i * 100}</text>`;
+        scale += `<path class="grad" d="M${X1 - 6} ${y} H${X1 - 2.5}"/>`;
+        if (w >= 90) scale += `<text class="gradt" x="${X1 - 7}" y="${(+y + 1.4).toFixed(1)}" text-anchor="end">${i * 100}</text>`;
       }
     }
     const abo = String(type || '').replace(/[+-]/, '');
     const neg = /-/.test(type || '');
     const lab = !label ? '' : blood
-      ? `<g class="labg"><rect class="lab" x="20" y="27" width="31" height="25" rx="1.6"/>
-          <rect class="labbar" x="20" y="27" width="31" height="4.5" rx="1.6"/>
-          <text class="labt ${neg ? 'neg' : ''}" x="35.5" y="46" text-anchor="middle">${esc(abo || '?')}</text>
-          ${big ? `<text class="labrh" x="35.5" y="50.6" text-anchor="middle">${neg ? 'RhD NEG' : 'RhD POS'}</text>
-          <path class="labbc" d="M23 34.5v4M24.4 34.5v4M25.4 34.5v4M27.2 34.5v4M28.1 34.5v4M30 34.5v4M31.6 34.5v4M32.5 34.5v4M34.3 34.5v4M35.2 34.5v4M37 34.5v4M38.9 34.5v4M39.8 34.5v4M41.6 34.5v4M43 34.5v4M44.1 34.5v4M46 34.5v4M47.6 34.5v4"/>` : ''}</g>`
-      : `<g class="labg"><rect class="lab" x="20" y="27" width="31" height="27" rx="1.6"/>
-          <rect class="labbar sal" x="20" y="27" width="31" height="4.5" rx="1.6"/>
-          <text class="labt sal" x="35.5" y="41.5" text-anchor="middle">NaCl</text>
-          <text class="labs" x="35.5" y="49.5" text-anchor="middle">0.9% · 500</text></g>`;
+      ? `<g class="labg"><rect class="lab" x="16" y="27" width="31" height="25" rx="1.6"/>
+          <rect class="labbar" x="16" y="27" width="31" height="4.5" rx="1.6"/>
+          <text class="labt ${neg ? 'neg' : ''}" x="31" y="46" text-anchor="middle">${esc(abo || '?')}</text>
+          ${big ? `<text class="labrh" x="31" y="50.6" text-anchor="middle">${neg ? 'RhD NEG' : 'RhD POS'}</text>
+          <path class="labbc" d="M19 34.5v4M20.4 34.5v4M21.4 34.5v4M23.2 34.5v4M24.1 34.5v4M26 34.5v4M27.6 34.5v4M28.5 34.5v4M30.3 34.5v4M31.2 34.5v4M33 34.5v4M34.9 34.5v4M35.8 34.5v4M37.6 34.5v4M39 34.5v4M40.1 34.5v4M42 34.5v4M43.6 34.5v4"/>` : ''}</g>`
+      : `<g class="labg"><rect class="lab" x="16" y="27" width="31" height="27" rx="1.6"/>
+          <rect class="labbar sal" x="16" y="27" width="31" height="4.5" rx="1.6"/>
+          <text class="labt sal" x="31" y="41.5" text-anchor="middle">NaCl</text>
+          <text class="labs" x="31" y="49.5" text-anchor="middle">0.9% · 500</text></g>`;
     const tubing = blood && segs && big
       ? `<path class="tube" d="M43 95 V97.5 Q43 101 46.5 101 H63 Q67 101 67 97 V74"/>
          <path class="tseg" d="M47 99.4v3.2M51 99.4v3.2M55 99.4v3.2M59 99.4v3.2M65.4 95v3.2M65.4 90v3.2M65.4 85v3.2M65.4 80v3.2"/>`
