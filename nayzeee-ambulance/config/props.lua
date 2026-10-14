@@ -55,6 +55,7 @@ Config.Props = {
     lightbox         = 'nz_amb_lightbox',         -- film viewer on a stand
     us_cart          = 'nz_amb_us_cart',          -- ultrasound cart
     injector         = 'nz_amb_injector',         -- contrast power injector on a tray
+    injector_plunger = 'nz_amb_injector_plunger', -- moving syringe plunger + ram (always spawned with the injector)
     contrast_button  = 'nz_amb_contrast_button',  -- pedestal with the big red button
     angio_monitor    = 'nz_amb_angio_monitor',    -- boom-mounted fluoroscopy monitor
     donation_chair   = 'nz_amb_donation_chair',
@@ -70,6 +71,11 @@ Config.PropScreens = {
     monitor       = { txd = 'nz_amb_monitor',       tex = 'nz_amb_screen' },
     angio_monitor = { txd = 'nz_amb_angio_monitor', tex = 'nz_amb_screen' },
     us_cart       = { txd = 'nz_amb_us_cart',       tex = 'nz_amb_screen' },
+    defib         = { txd = 'nz_amb_defib',         tex = 'nz_amb_screen' },
+    pager         = { txd = 'nz_amb_pager',         tex = 'nz_amb_screen' },
+    lightbox      = { txd = 'nz_amb_lightbox',      tex = 'nz_amb_screen' },   -- the film being read
+    blood_mixer   = { txd = 'nz_amb_blood_mixer',   tex = 'nz_amb_screen' },   -- live mL counter
+    bay_shell     = { txd = 'nz_amb_bay_shell',     tex = 'nz_amb_screen' },   -- treatment bay wall monitor
 }
 
 -- Native models used if a custom one is missing
@@ -87,4 +93,11 @@ Config.PropFallbacks = {
     crutch         = 'prop_cs_walking_stick',
     bvm            = 'prop_cs_mask',
     suction        = 'prop_ld_case_01',
+    xray_table     = 'v_med_emptybed',
+    donation_chair = 'v_med_emptybed',
+    us_cart        = 'prop_laptop_01a',
+    angio_monitor  = 'prop_tv_flat_01',
+    lightbox       = 'prop_tv_flat_01',
+    surgery_tray   = 'v_med_cor_emblmtable',
+    injector       = 'v_med_cor_emblmtable',
 }
