@@ -25,6 +25,7 @@
       nza:medbag:held (token, net)                  register the hand prop
       nza:medbag:pickup (id)                        ground → inventory
       nza:medbag:stow ()                            hand → inventory
+      nza:medbag:me ()                              → your pockets view (while a bag is open)
     Net events
       C→S nza:medbag:close (id)                     the window was closed
       S→C nza:medbag:place (token)                  the item was used: put a bag down in front of you
@@ -842,6 +843,13 @@ lib.callback.register('nza:medbag:open', function(src, id)
     if not okA then return accessFail(why, bag) end
     addViewer(src, id)
     return { ok = true, bag = MB.BagView(bag, src), me = MB.MeView(src), kit = kitAvailable() }
+end)
+
+-- pockets refresh while the window is open (items that arrived from elsewhere)
+lib.callback.register('nza:medbag:me', function(src)
+    if not MB.viewing[src] then return nil end
+    if not rate(src, 'me', 2, 2000) then return nil end
+    return MB.MeView(src)
 end)
 
 RegisterNetEvent('nza:medbag:close', function()

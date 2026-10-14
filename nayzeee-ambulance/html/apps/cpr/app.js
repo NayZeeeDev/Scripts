@@ -511,7 +511,21 @@
       </div>
       ${v.solo ? `<div class="cp-join">${icon('user-plus')}<span>${esc(T('join_hint'))}</span></div>` : ''}
       ${st.showCauses && causes ? `<div class="cp-sec"><div class="sh"><span class="nza-label">${esc(T('causes'))}</span><kbd>${esc(keyLabel(st.keys.causes))}</kbd></div><div class="cp-causes">${causes}</div></div>` : ''}
-      ${log ? `<div class="cp-sec"><div class="sh"><span class="nza-label">${esc(T('log'))}</span></div><div class="cp-log">${log}</div></div>` : ''}`;
+      ${log ? `<div class="cp-sec log"><div class="sh"><span class="nza-label">${esc(T('log'))}</span></div><div class="cp-log">${log}</div></div>` : ''}`;
+    fitTeam();
+  }
+  // small screens (the kit zoom is clamped): drop the log, then the hint and the causes, before touching the column
+  function fitTeam() {
+    const team = $('#cpTeam');
+    const col = pp && pp.el.querySelector('.pp-col');
+    if (!team || !col || !st.open || st.ended) return;
+    const first = col.firstElementChild && col.firstElementChild.offsetParent ? col.firstElementChild : col;
+    team.classList.remove('fit1', 'fit2', 'fit3');
+    for (let lv = 1; lv <= 3; lv++) {
+      if (team.getBoundingClientRect().bottom <= first.getBoundingClientRect().top - 10) return;
+      team.classList.remove('fit1', 'fit2', 'fit3');
+      team.classList.add(`fit${lv}`);
+    }
   }
 
   /* ─────────────── proc panel ─────────────── */

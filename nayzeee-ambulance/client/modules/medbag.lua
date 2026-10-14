@@ -14,7 +14,7 @@
       NZA.Medbag.PickUp(id)       ground bag → inventory
       NZA.Medbag.Carrying() → id | nil      NZA.Medbag.NearestBag(range) → { id, entity, dist } | nil
 
-    Callbacks used: nza:medbag:put / open / move / action / carry / held / pickup / stow
+    Callbacks used: nza:medbag:put / open / move / action / carry / held / pickup / stow / me
     Net events handled: nza:medbag:place (token), nza:medbag:sync (id, bag), nza:medbag:closed (id, reason),
                         nza:medbag:carryEnd ()
     Net events sent: nza:medbag:close (id)
@@ -162,6 +162,16 @@ function MB.Open(id)
     NZA.UI.Open('medbag', {
         locale = NZA.LocaleTable('medbag'), bag = res.bag, me = res.me, kit = res.kit,
     }, { focus = true, cursor = true })
+    -- keep the pockets panel fresh (items given / used elsewhere while the window is open)
+    local id = S.open
+    CreateThread(function()
+        while S.open == id do
+            Wait(4000)
+            if S.open ~= id then break end
+            local me = lib.callback.await('nza:medbag:me', false)
+            if S.open == id and type(me) == 'table' then NZA.UI.Send('medbag', 'me', { me = me }) end
+        end
+    end)
 end
 
 local function closeLocal(reason)

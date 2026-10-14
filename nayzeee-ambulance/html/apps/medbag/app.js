@@ -488,8 +488,16 @@
       document.querySelectorAll('.nza-modal-wrap').forEach(m => { if (A.el.contains(m)) m.remove(); });
     },
     msg: {
-      sync(d) { if (d && d.bag) { S.bag = d.bag; renderBag(); } },
-      me(d) { if (d && d.me) { S.me = d.me; renderMe(); } },
+      sync(d) {
+        if (!d || !d.bag) return;
+        S.bag = d.bag; renderBag();
+        if (S.tipFor && !document.body.contains(S.tipFor)) hideTip();
+      },
+      me(d) {
+        if (!d || !d.me || S.drag || S.busy) return;
+        S.me = d.me; renderMe();
+        if (S.tipFor && !document.body.contains(S.tipFor)) hideTip();
+      },
       busy(d) { R.col.classList.toggle('busy', !!(d && d.on)); },
     },
     keys: {

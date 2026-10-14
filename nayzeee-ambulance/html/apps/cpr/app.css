@@ -57,8 +57,8 @@
 #app-cpr .cp-tr canvas{display:block;width:100%;height:100%}
 #app-cpr .cp-tr .tl{position:absolute;left:4px;top:2px;z-index:2;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.42)}
 #app-cpr .cp-tr .tl.g{color:rgba(61,220,132,.8)} #app-cpr .cp-tr .tl.y{color:rgba(242,214,75,.8)} #app-cpr .cp-tr .tl.w{color:rgba(255,255,255,.55)}
-#app-cpr .cp-tr.ecg{height:118px}
-#app-cpr .cp-tr.fb{height:62px}
+#app-cpr .cp-tr.ecg{height:110px}
+#app-cpr .cp-tr.fb{height:58px}
 #app-cpr .cp-tr.co2{height:44px;border-bottom:0}
 #app-cpr .cp-msg{position:absolute;inset:0;z-index:3;display:none;align-items:center;justify-content:center;gap:9px;font-size:11px;font-weight:700;letter-spacing:.16em;color:rgba(255,255,255,.7);background:rgba(2,3,3,.55)}
 #app-cpr .cp-msg.on{display:flex}
@@ -203,6 +203,7 @@
 #app-cpr .cp-log div.red b{color:#ff8a8d;font-weight:500}
 #app-cpr .cp-log div.amber b{color:#f3c35a;font-weight:500}
 #app-cpr .cp-log div b{font-weight:400}
+#app-cpr .cp-team.fit1 .cp-sec.log,#app-cpr .cp-team.fit2 .cp-sec.log,#app-cpr .cp-team.fit2 .cp-join,#app-cpr .cp-team.fit3 .cp-sec,#app-cpr .cp-team.fit3 .cp-join{display:none}
 #app-cpr .cp-join{margin-top:10px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-3);line-height:1.4}
 #app-cpr .cp-join .nz-ic{width:14px;height:14px;flex:none;color:var(--ink-3)}
 
