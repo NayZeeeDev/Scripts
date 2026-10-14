@@ -27,6 +27,8 @@
 
     Callbacks: nza:pharmacy:insurance:buy (pointId, planId, method)
                nza:pharmacy:bills:pay (pointId, billId | 'all', method)
+               nza:pharmacy:bills:count () → { ok, count, total }   (own open bills, for prompts)
+    Net event (S→C): nza:pharmacy:bills (count, total) - pushed when a bill is created or paid
                nza:pharmacy:invoice:info (targetSid) · nza:pharmacy:invoice:send (targetSid, amount, reason)
     Usable item: Config.Items.insurance_card (shows the card to you and the nearest player)
     Commands: Config.Pharmacy.commands.insurance / .bills (ace nza.admin)
@@ -417,6 +419,18 @@ function Bill.Society(opts)
     return billingCfg().society or 'ambulance'
 end
 
+-- tell an online player how many open bills they have (prompts, sidebar)
+local function pushBills(identifier, src)
+    if not identifier then return end
+    src = src or select(1, resolveTarget(identifier))
+    if not src then return end
+    CreateThread(function()
+        local total, count = Bill.Unpaid(identifier)
+        TriggerClientEvent('nza:pharmacy:bills', src, count, total)
+    end)
+end
+Bill.Push = pushBills
+
 function Bill.CreateBill(identifier, amount, reason, opts)
     opts = opts or {}
     amount = math.floor(tonumber(amount) or 0)
@@ -432,6 +446,7 @@ function Bill.CreateBill(identifier, amount, reason, opts)
         local id = tonumber(open[1].id)
         dbQuery('UPDATE `nza_bills` SET `amount` = `amount` + ?, `covered` = `covered` + ?, `reason` = ?, `created` = ? WHERE `id` = ?',
             { amount, math.floor(tonumber(opts.covered) or 0), L('reason_merged'), now, id })
+        pushBills(identifier)
         return id
     end
     local id = dbInsert('INSERT INTO `nza_bills` (`identifier`, `name`, `amount`, `covered`, `reason`, `kind`, `medic`, `medic_name`, `society`, `status`, `created`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -439,6 +454,7 @@ function Bill.CreateBill(identifier, amount, reason, opts)
           cleanText(opts.kind, 32), medicId, cleanText(medicName, 80), Bill.Society(opts), 'unpaid', now })
     if id then
         NZA.Bus.Emit('billing:bill', identifier, { id = id, amount = amount, reason = reason, kind = opts.kind })
+        pushBills(identifier)
     end
     return id
 end
@@ -659,6 +675,7 @@ function Bill.PayBill(src, which, method, ctx)
         settle(tonumber(r.amount) or 0, society, medic, src, L('reason_bills'), name)
     end
     NZA.Bus.Emit('billing:paid', identifier, pick)
+    pushBills(identifier, src)
     return true, { paid = total, count = #pick, method = method }
 end
 
@@ -701,6 +718,14 @@ lib.callback.register('nza:pharmacy:bills:pay', function(src, pointId, which, me
     if not ok then return fail(res) end
     Core.Notify(src, { title = L('title_billing'), message = L('bills_paid', res.count, money(res.paid)), type = 'success' })
     return { ok = true, result = res, data = P.OpenData(src, ctx) }
+end)
+
+lib.callback.register('nza:pharmacy:bills:count', function(src)
+    if not rate(src, 'action') then return { ok = false, err = 'rate' } end
+    local identifier = Core.Identifier(src)
+    if not identifier then return { ok = false, err = 'no_identifier' } end
+    local total, count = Bill.Unpaid(identifier)
+    return { ok = true, count = count, total = total }
 end)
 
 -- ── medic → patient bill ─────────────────────────────────────────────────

@@ -46,7 +46,7 @@ Config.Props = {
 
     -- transport
     stretcher        = 'nz_amb_stretcher',
-    medbag           = 'nz_amb_medbag',
+    medbag           = 'nz_amb_medbag_red',       -- medic bag: nz_amb_medbag_red | _orange | _green | _magenta
     wheelchair       = 'prop_wheelchair_01',      -- native
     bodybag          = 'xm_prop_body_bag',        -- native (Doomsday DLC)
 

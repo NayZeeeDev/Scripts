@@ -265,29 +265,31 @@
     if (cfg.sounds) audio.click(type === 'error' ? 260 : 660);
   }
 
-  /* ─────────────── speech (patient subtitles) ─────────────── */
+  /* ─────────────── speech (patient voice card, top centre) ─────────────── */
   let speechTimer = null;
-  function speech({ name, text, ms } = {}) {
+  function speech({ name, text, ms, role } = {}) {
     const layer = document.getElementById('nza-layer-speech');
     if (!layer || !text) return;
     layer.innerHTML = '';
-    const s = el('div', 'speech nza-hud solid');
-    s.innerHTML = `<span class="who">${esc(t('ui.patient', 'Patient'))} · <b>${esc(name || '')}</b></span><span class="txt">${esc(text)}</span>`;
+    const ini = String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+    const s = el('div', 'speech');
+    s.innerHTML = `<span class="av"><i></i><b>${esc(ini)}</b></span><span class="sp"><span class="who">${esc(name || '')}<em>${esc(role || t('ui.patient', 'Patient'))}</em></span><span class="txt">\u201C${esc(text)}\u201D</span></span>`;
     layer.appendChild(s);
     clearTimeout(speechTimer);
     speechTimer = setTimeout(() => { s.classList.add('out'); setTimeout(() => s.remove(), 200); }, ms || Math.max(2600, text.length * 75));
   }
 
-  /* ─────────────── prompts ([E] Check in · Check-in Desk) ─────────────── */
+  /* ─────────────── prompts (context tag beside the crosshair) ─────────────── */
   const prompts = {};
   function prompt(id, { key = 'E', label = '', sub = '', progress = null, tone = '' } = {}) {
     const layer = document.getElementById('nza-layer-prompt');
     let p = prompts[id];
-    if (!p) { p = el('div', 'prompt nza-hud solid'); layer.appendChild(p); prompts[id] = p; }
-    const ring = progress !== null && progress !== undefined
-      ? `<span class="ring"><svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" stroke="rgba(255,255,255,.12)"/><circle cx="13" cy="13" r="11" stroke="${tone === 'red' ? 'var(--red)' : 'var(--teal)'}" stroke-dasharray="${(progress * 69.1).toFixed(1)} 69.1"/></svg><kbd style="position:absolute;inset:3px;min-width:0;height:auto;font-size:10px">${esc(key)}</kbd></span>`
-      : `<kbd class="${tone}">${esc(key)}</kbd>`;
-    p.innerHTML = `${ring}<span class="t">${esc(label)}${sub ? ` <span>· ${esc(sub)}</span>` : ''}</span>`;
+    if (!p) { p = el('div', 'prompt'); layer.appendChild(p); prompts[id] = p; }
+    const prog = progress !== null && progress !== undefined ? clamp(progress, 0, 1) : null;
+    const C = 2 * Math.PI * 15;
+    p.className = `prompt ${tone || ''}${prog !== null ? ' hold' : ''}`;
+    p.innerHTML = `<span class="kr"><svg viewBox="0 0 36 36"><circle class="bg" cx="18" cy="18" r="15"/>${prog !== null ? `<circle class="fg" cx="18" cy="18" r="15" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - prog)).toFixed(1)}"/>` : ''}</svg><b>${esc(key)}</b></span>
+      <span class="pt">${sub ? `<small>${esc(sub)}</small>` : ''}<span>${esc(label)}</span></span>`;
   }
   function promptHide(id) { if (prompts[id]) { prompts[id].remove(); delete prompts[id]; } }
 
@@ -377,79 +379,148 @@
   }
   function Meter(host, m) { host.innerHTML = meterHTML(m); return { set(n) { host.innerHTML = meterHTML(Object.assign(m, n)); } }; }
 
-  /* ── Procedure panel (bottom centre, every minigame) ── */
+  /* ── Procedure HUD (every minigame) ──────────────────────────────────────────────
+     Layout: an instruction column anchored bottom-left (readouts, step spine, text, key
+     legend) and a vertical tool belt on the right edge with the hold-to-abort ring under
+     it. The centre and bottom-centre of the screen stay clear for the scene.
+     opts.side 'right' mirrors it (column right, belt left) for apps that need the left. */
+  const TOOL_ICONS = [
+    [/saline|flush|irrigat|water|rinse|cool/i, 'drop'], [/lido|syringe|inject|txa|adrenal|epi|amio|naloxone|morphine|push|dose|cuff syr/i, 'syringe'],
+    [/gauze|pack/i, 'gauze'], [/dressing|bandage|foil|plaster|tape/i, 'bandage'], [/needle|suture|stitch|driver/i, 'needle'],
+    [/scalpel|knife|incis|cut/i, 'scalpel'], [/forcep|clamp|grip|extract/i, 'forceps'], [/splint/i, 'splint'], [/collar/i, 'collar'],
+    [/tube|ett|intubat|holder/i, 'tube'], [/laryngo|light|viewer|lamp/i, 'light'], [/suction/i, 'wind'], [/bvm|bag.?valve|oxygen|o2|ventil|breath/i, 'lungs'],
+    [/probe|ultra|echo|scan/i, 'probe'], [/x.?ray|film/i, 'xray'], [/drill|io\b/i, 'drill'], [/binder|tourniquet|cuff|strap/i, 'cuff'],
+    [/blood|unit|o-|o\+/i, 'bloodbag'], [/iv\b|infus|drip|bag|squeeze/i, 'iv'], [/defib|pads|shock/i, 'defib'], [/charge|energy/i, 'bolt'],
+    [/monitor|nibp|bp\b|ecg/i, 'monitor'], [/stetho|listen/i, 'stetho'], [/contrast|dye|flask/i, 'flask'], [/coil/i, 'spring'],
+    [/derma|mesh|graft|scissor/i, 'scissors'], [/staple/i, 'hammer'], [/thermal|camera|photo/i, 'camera'], [/blanket|warm/i, 'blanket'],
+    [/measure|ruler|length/i, 'ruler'], [/mark|pin|target|aim/i, 'target'], [/move|drag|hand|press/i, 'hand'], [/room|exit|door/i, 'door'],
+    [/pull|back|retract/i, 'arrow-l'], [/release|drop/i, 'arrow-down'], [/puff|run/i, 'play'], [/rotate|turn/i, 'rot-r'], [/zoom|look/i, 'search'],
+  ];
+  function toolIcon(tl) {
+    if (tl.img) return `<img src="${esc(tl.img)}" alt="">`;
+    if (tl.icon) return icon(tl.icon);
+    const hit = TOOL_ICONS.find(([re]) => re.test(tl.label || ''));
+    if (hit) return icon(hit[1]);
+    const words = String(tl.label || '?').trim().split(/\s+/);
+    return `<span class="mono">${esc((words[0][0] + (words[1] ? words[1][0] : '')).toUpperCase())}</span>`;
+  }
+
   function ProcPanel(host, opts = {}) {
-    const root = el('div', 'pp nza-hud solid nza-int');
+    const root = el('div', `pp${opts.side === 'right' ? ' pp--mirror' : ''}`);
     host.appendChild(root);
-    let o = Object.assign({ step: 1, total: 1, tag: '', title: '', text: '', stats: [], wide: null, tools: [], hints: [], abort: { label: t('ui.holdAbort', 'Hold to abort'), key: 'ESC', seconds: 1.2 } }, opts);
+    let o = Object.assign({ step: 1, total: 1, tag: '', title: '', text: '', steps: null, stats: [], wide: null, tools: [], hints: [], abort: { label: t('ui.holdAbort', 'Hold to abort'), key: 'ESC', seconds: 1.2 } }, opts);
     let flashTimer = null, hold = null, doneHandler = null;
+    const RING = 2 * Math.PI * 19;
 
     root.innerHTML = `
-      <div class="pp-top">
-        <div class="pp-left">
-          <div class="pp-step"><span class="n"></span><span class="pp-segs"></span><span class="pp-tag"></span></div>
-          <div class="pp-title"></div>
-          <div class="pp-text"></div>
-          <div class="pp-flash"></div>
-        </div>
-        <div class="pp-right"><div class="pp-stats"></div><div class="pp-wide"></div></div>
-      </div>
-      <div class="pp-bot"><div class="pp-tools" style="display:flex;gap:8px;flex-wrap:wrap"></div><div class="pp-hints"></div><div class="pp-abort"><span class="fill"></span><kbd></kbd><span class="al"></span></div></div>`;
+      <aside class="pp-col">
+        <div class="pp-read nza-hud solid nza-int"><div class="pp-gauge"></div><div class="pp-stats"></div></div>
+        <section class="pp-card nza-hud solid nza-int">
+          <header class="pp-head"><span class="pp-tag"></span><span class="pp-step"><span class="n"></span></span></header>
+          <div class="pp-main">
+            <div class="pp-spine"><span class="trk"><i></i></span><span class="pp-segs"></span></div>
+            <div class="pp-body"><div class="pp-title"></div><div class="pp-text"></div><div class="pp-next"></div><div class="pp-flash"></div><div class="pp-act"></div></div>
+          </div>
+        </section>
+        <div class="pp-bot"><div class="pp-hints"></div></div>
+      </aside>
+      <nav class="pp-belt">
+        <div class="pp-tools"></div>
+        <div class="pp-abort nza-int"><span class="al"></span><span class="ring"><svg viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="19"/><circle class="fg" cx="22" cy="22" r="19" stroke-dasharray="${RING}" stroke-dashoffset="${RING}"/></svg><kbd></kbd></span></div>
+      </nav>`;
     const q = s => root.querySelector(s);
 
     function renderStep() {
-      q('.pp-step .n').innerHTML = `<b>${o.step}</b>/${o.total}`;
-      q('.pp-segs').innerHTML = Array.from({ length: o.total }, (_, i) => `<i class="${i + 1 < o.step ? 'done' : i + 1 === o.step ? 'cur' : ''}"></i>`).join('');
+      const total = Math.max(1, o.total | 0), step = clamp(o.step | 0, 1, total);
+      q('.pp-step .n').innerHTML = `<b>${String(step).padStart(2, '0')}</b><i>/${String(total).padStart(2, '0')}</i>`;
+      q('.pp-segs').innerHTML = Array.from({ length: total }, (_, i) => `<i class="${i + 1 < step ? 'done' : i + 1 === step ? 'cur' : ''}"></i>`).join('');
+      q('.pp-spine .trk i').style.height = total > 1 ? `${((step - 1) / (total - 1)) * 100}%` : '0%';
+      q('.pp-spine').style.display = total > 1 ? '' : 'none';
       q('.pp-tag').textContent = o.tag || '';
+      const nx = q('.pp-next');
+      const name = Array.isArray(o.steps) ? o.steps[step] : null;
+      nx.innerHTML = name ? `<span>${esc(t('ui.next', 'Next'))}</span>${esc(name)}` : '';
+      nx.style.display = name ? '' : 'none';
     }
     function renderText() {
       const ti = q('.pp-title');
       ti.textContent = o.title || '';
       ti.className = `pp-title ${o.titleTone || ''}`;
       q('.pp-text').innerHTML = rich(o.text);
+      const b = q('.pp-body');
+      b.classList.remove('swap'); void b.offsetWidth; b.classList.add('swap');
+    }
+    function gaugeSVG(m) {
+      // 240° dial: track, target zone, fill, marker
+      const R = 46, C = 60, A0 = 150, SW = 240;
+      const pt = (f, r = R) => { const a = (A0 + SW * clamp(f, 0, 1)) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+      const arc = (f0, f1, r = R) => { const [x0, y0] = pt(f0, r), [x1, y1] = pt(f1, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${(f1 - f0) * SW > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+      const v = clamp(m.value ?? 0, 0, 1);
+      let ticks = '';
+      for (let i = 0; i <= 12; i++) { const [a, b] = pt(i / 12, R + 8), [c, d] = pt(i / 12, R + (i % 3 ? 11 : 14)); ticks += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }
+      const zone = m.zone ? `<path class="zone" d="${arc(m.zone[0], m.zone[1])}"/>` : '';
+      const fill = m.noFill || v <= 0.001 ? '' : `<path class="fill ${m.tone || ''}" d="${arc(0, Math.max(v, 0.002))}"/>`;
+      let mark = '';
+      if (m.mark !== undefined && m.mark !== null) { const [x0, y0] = pt(m.mark, R + 7), [x1, y1] = pt(m.mark, R - 7); mark = `<line class="mark" x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}"/>`; }
+      return `<svg viewBox="0 0 120 104"><path class="trk" d="${arc(0, 1)}"/>${zone}${fill}<g class="ticks">${ticks}</g>${mark}</svg>`;
     }
     function renderStats() {
-      const right = q('.pp-right');
-      const hasStats = (o.stats && o.stats.length) || o.wide;
-      right.style.display = hasStats ? '' : 'none';
-      q('.pp-stats').innerHTML = (o.stats || []).map(s => `
-        <div class="pp-stat" data-id="${esc(s.id || '')}">
+      const read = q('.pp-read');
+      const stats = o.stats || [], w = o.wide;
+      read.style.display = stats.length || w ? '' : 'none';
+      const g = q('.pp-gauge');
+      const dial = w && w.meter;
+      g.style.display = w ? '' : 'none';
+      g.className = `pp-gauge${w && !dial ? ' flat' : ''}`;
+      if (w) {
+        g.innerHTML = `${dial ? gaugeSVG(w.meter) : ''}
+          <div class="gv"><div class="l">${esc(w.label || '')}</div><div class="v ${w.tone || ''}">${esc(w.value ?? '--')}${w.unit ? `<span class="u">${esc(w.unit)}</span>` : ''}</div></div>
+          ${w.caption ? `<div class="cap ${w.captionTone || ''}">${rich(w.caption)}</div>` : ''}`;
+      }
+      const box = q('.pp-stats');
+      box.className = `pp-stats n${Math.min(stats.length, 4)}${w ? ' with-g' : ''}`;
+      box.innerHTML = stats.map(s => `
+        <div class="pp-stat ${s.tone || ''}" data-id="${esc(s.id || '')}">
           <div class="l">${esc(s.label)}</div>
           <div class="v ${s.small ? 'sm' : ''} ${s.tone || ''}">${esc(s.value ?? '--')}${s.unit ? `<span class="u">${esc(s.unit)}</span>` : ''}</div>
           ${s.meter ? `<div class="m">${meterHTML(s.meter)}</div>` : ''}
         </div>`).join('');
-      const w = o.wide;
-      const wide = q('.pp-wide');
-      wide.style.display = w ? '' : 'none';
-      if (w) {
-        wide.innerHTML = `
-          <div class="pp-stat"><div class="l">${esc(w.label)}</div></div>
-          <div class="row"><div class="pp-stat"><div class="v ${w.tone || ''}" style="font-size:26px">${esc(w.value ?? '--')}${w.unit ? `<span class="u">${esc(w.unit)}</span>` : ''}</div></div>
-          <div class="meter">${w.meter ? meterHTML(Object.assign({ lg: true }, w.meter)) : ''}</div></div>
-          ${w.caption ? `<div class="cap ${w.captionTone || ''}">${rich(w.caption)}</div>` : ''}`;
-      }
     }
     function renderTools() {
       const box = q('.pp-tools');
-      box.innerHTML = (o.tools || []).map(tl => {
-        const ic = tl.img ? `<span class="ico"><img src="${esc(tl.img)}" alt=""></span>` : tl.icon ? `<span class="ico">${icon(tl.icon)}</span>` : '';
-        return `<button class="pp-tool ${tl.state || ''}" data-key="${esc(tl.key)}">${tl.key ? `<kbd>${esc(tl.key)}</kbd>` : ''}${ic}<span>${esc(tl.label)}${tl.sub ? `<span class="cnt" style="display:block;font-size:9px;letter-spacing:.08em">${esc(tl.sub)}</span>` : ''}</span>${tl.count ? `<span class="cnt">${esc(tl.count)}</span>` : ''}</button>`;
-      }).join('');
+      const tools = o.tools || [];
+      box.innerHTML = tools.map(tl => `
+        <button class="pp-tool ${tl.state || ''}" data-key="${esc(tl.key)}">
+          <span class="tl"><b>${esc(tl.label)}</b>${tl.sub ? `<small>${esc(tl.sub)}</small>` : ''}</span>
+          <span class="slot"><span class="ico">${toolIcon(tl)}</span>${tl.key ? `<kbd>${esc(tl.key)}</kbd>` : ''}${tl.count ? `<span class="cnt">${esc(tl.count)}</span>` : ''}<span class="ok">${icon('check')}</span></span>
+        </button>`).join('');
+      box.style.display = tools.length ? '' : 'none';
+      root.classList.toggle('pp--dense', tools.length > 7);
       box.querySelectorAll('.pp-tool').forEach(b => b.addEventListener('click', () => o.onTool && o.onTool(b.dataset.key)));
+      syncBelt();
+    }
+    function syncBelt() {
+      const has = (o.tools || []).length || (o.abort !== false && o.onAbort);
+      q('.pp-belt').style.display = has ? '' : 'none';
     }
     function renderHints() {
-      q('.pp-hints').innerHTML = (o.hints || []).map(h => `<span>${(h.keys || []).map(k => `<kbd>${esc(k)}</kbd>`).join('<span style="opacity:.6">+</span>')} ${esc(h.label)}</span>`).join('');
+      const hints = o.hints || [];
+      q('.pp-hints').innerHTML = hints.map(h => `<span>${(h.keys || []).map(k => `<kbd>${esc(k)}</kbd>`).join('<i>+</i>')}<em>${esc(h.label)}</em></span>`).join('');
+      q('.pp-bot').style.display = hints.length ? '' : 'none';
       const ab = q('.pp-abort');
-      if (o.abort === false) { ab.style.display = 'none'; return; }
+      if (o.abort === false) { ab.style.display = 'none'; syncBelt(); return; }
       ab.style.display = '';
       q('.pp-abort kbd').textContent = o.abort.key || 'ESC';
       q('.pp-abort .al').textContent = o.abort.label;
+      syncBelt();
     }
     function armAbort() {
       if (hold) hold.destroy();
+      hold = null;
+      syncBelt();
       if (o.abort === false || !o.onAbort) return;
-      const fill = q('.pp-abort .fill');
-      hold = Hold({ key: 'Escape', seconds: o.abort.seconds || 1.2, onProgress: p => { fill.style.width = `${p * 100}%`; }, onDone: () => o.onAbort && o.onAbort() });
+      const fg = q('.pp-abort .fg'), ab = q('.pp-abort');
+      hold = Hold({ key: 'Escape', el: ab, seconds: o.abort.seconds || 1.2, onProgress: p => { fg.style.strokeDashoffset = `${RING * (1 - p)}`; ab.classList.toggle('on', p > 0); }, onDone: () => o.onAbort && o.onAbort() });
     }
     renderStep(); renderText(); renderStats(); renderTools(); renderHints(); armAbort();
 
@@ -457,8 +528,8 @@
       el: root,
       set(n) {
         const prev = o; o = Object.assign({}, o, n);
-        if ('step' in n || 'total' in n || 'tag' in n) renderStep();
-        if ('title' in n || 'text' in n || 'titleTone' in n) renderText();
+        if ('step' in n || 'total' in n || 'tag' in n || 'steps' in n) renderStep();
+        if (('title' in n && n.title !== prev.title) || ('text' in n && n.text !== prev.text) || 'titleTone' in n) renderText();
         if ('stats' in n || 'wide' in n) renderStats();
         if ('tools' in n) renderTools();
         if ('hints' in n || 'abort' in n) renderHints();
@@ -472,7 +543,7 @@
       active(key) { o.tools = (o.tools || []).map(tl => Object.assign({}, tl, { state: tl.key === key ? 'active' : (tl.state === 'active' ? '' : tl.state) })); renderTools(); return api; },
       flash(type, text, ms = 2600) {
         const f = q('.pp-flash');
-        f.className = `pp-flash on ${type}`; f.innerHTML = `${icon(type === 'ok' ? 'check' : type === 'bad' ? 'x' : 'alert')}<span>${rich(text)}</span>`;
+        f.className = `pp-flash on ${type}`; f.innerHTML = `<span class="fi">${icon(type === 'ok' ? 'check' : type === 'bad' ? 'x' : 'alert')}</span><span>${rich(text)}</span>`;
         clearTimeout(flashTimer);
         if (ms) flashTimer = setTimeout(() => { f.className = 'pp-flash'; }, ms);
         return api;
@@ -481,11 +552,14 @@
       complete({ title, text, label = t('ui.done', 'Done'), onDone } = {}) {
         o.step = o.total; renderStep();
         api.set({ title: title || t('ui.complete', 'Complete'), titleTone: 'ok', text: text || '' });
-        const box = q('.pp-tools');
-        box.innerHTML = `<button class="pp-done"><kbd>Enter</kbd>${esc(label)}</button>`;
-        doneHandler = onDone;
-        box.querySelector('.pp-done').onclick = () => doneHandler && doneHandler();
         q('.pp-segs').querySelectorAll('i').forEach(i => { i.className = 'done'; });
+        q('.pp-spine .trk i').style.height = '100%';
+        o.tools = []; renderTools();
+        const act = q('.pp-act');
+        act.innerHTML = `<button class="pp-done">${esc(label)}<kbd>Enter</kbd></button>`;
+        doneHandler = onDone;
+        act.querySelector('.pp-done').onclick = () => doneHandler && doneHandler();
+        root.classList.add('pp--done');
         return api;
       },
       // digit keys → tools; Enter → done. Call from your app's keys handler: return pp.key(e)
@@ -495,28 +569,32 @@
         if (tl && tl.state !== 'locked' && o.onTool) { o.onTool(tl.key); return true; }
         return false;
       },
+      // a container in the column (above the key legend) for app widgets
+      get slot() { return q('.pp-bot'); },
       destroy() { if (hold) hold.destroy(); clearTimeout(flashTimer); root.remove(); },
     };
     return api;
   }
 
-  /* ── Flip clock ── */
+  /* ── Rolling counter (timers / counters): each digit rolls like an odometer ──
+     NZA.ui.FlipClock(host, { value, tone, small }) → { set(v), tone(t), paused(p) } (name kept for compatibility) */
   function FlipClock(host, { value = '00:00', tone = '', small = false } = {}) {
-    const root = el('div', `flip ${tone} ${small ? 'sm' : ''}`);
+    const root = el('div', `odo ${tone} ${small ? 'sm' : ''}`);
     host.appendChild(root);
     let cur = '';
+    const strip = '<span class="st">' + '0123456789'.split('').map(d => `<i>${d}</i>`).join('') + '</span>';
     function set(v) {
       v = String(v);
-      if (v.length !== cur.length) {
-        root.innerHTML = [...v].map(ch => (ch === ':' ? '<span class="c">:</span>' : `<span class="d">${esc(ch)}</span>`)).join('');
-      } else {
-        const ds = [...root.children];
-        [...v].forEach((ch, i) => { if (ch !== cur[i] && ds[i] && ds[i].classList.contains('d')) { ds[i].textContent = ch; ds[i].classList.remove('tick'); void ds[i].offsetWidth; ds[i].classList.add('tick'); } });
+      const shape = [...v].map(ch => (/[0-9]/.test(ch) ? 'd' : ch)).join('');
+      const curShape = [...cur].map(ch => (/[0-9]/.test(ch) ? 'd' : ch)).join('');
+      if (shape !== curShape) {
+        root.innerHTML = [...v].map(ch => (/[0-9]/.test(ch) ? `<span class="d">${strip}</span>` : `<span class="c">${esc(ch)}</span>`)).join('');
       }
+      [...v].forEach((ch, i) => { const d = root.children[i]; if (d && d.classList.contains('d')) d.firstChild.style.transform = `translateY(${-Number(ch)}em)`; });
       cur = v;
     }
     set(value);
-    return { el: root, set, tone(tn) { root.className = `flip ${tn || ''} ${small ? 'sm' : ''} ${root.classList.contains('paused') ? 'paused' : ''}`; }, paused(p) { root.classList.toggle('paused', !!p); } };
+    return { el: root, set, tone(tn) { root.className = `odo ${tn || ''} ${small ? 'sm' : ''} ${root.classList.contains('paused') ? 'paused' : ''}`; }, paused(p) { root.classList.toggle('paused', !!p); } };
   }
 
   /* ── Segmented / Toggle / Slider / Chips (HUD design controls) ── */

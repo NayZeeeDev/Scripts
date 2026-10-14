@@ -1,0 +1,206 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · field — field resuscitation (7 steps) + IV cannulation
+   HUD overlays from the HUD design: camera focus bar (top), rugged NAYZEEE device
+   (top right), infusion panel (right), procedure panel (bottom, NZA.ui.ProcPanel),
+   in-world markers (NZA.ui.Marker) and a drag overlay in the anchors layer.
+   ═══════════════════════════════════════════════════════════ */
+
+#app-field{cursor:default}
+#app-field.grab{cursor:grabbing}
+#app-field.aim{cursor:crosshair}
+
+/* ── camera focus bar ── */
+.fd-focus{position:absolute;left:0;right:0;top:18px;margin:0 auto;width:max-content;display:flex;align-items:center;gap:6px;padding:5px;
+  animation:nza-in 240ms both}
+.fd-focus button{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px 0 5px;border-radius:8px;font-size:12px;font-weight:600;
+  color:var(--ink-2);transition:background var(--fast),color var(--fast)}
+.fd-focus button kbd{height:20px;min-width:24px;font-size:9.5px}
+.fd-focus button:hover{background:rgba(255,255,255,.05);color:var(--white)}
+.fd-focus button.on{background:var(--teal-wash);color:var(--white);box-shadow:0 0 0 1px var(--teal-edge) inset}
+.fd-focus button.on kbd{background:var(--teal);border-color:transparent;color:var(--on-teal)}
+.fd-focus button.off{opacity:.35;pointer-events:none}
+.fd-focus .sep{width:1px;height:18px;background:var(--line-soft);margin:0 4px}
+.fd-focus .tip{font-size:11px;color:var(--ink-3);padding:0 8px 0 2px;white-space:nowrap}
+.fd-focus .tip b{color:var(--ink-2);font-weight:600}
+
+/* ── rugged device (top right) ── */
+.fd-dev{position:absolute;right:22px;top:22px;width:334px;animation:nza-pop 220ms cubic-bezier(.2,.7,.2,1) both}
+.fd-dev .dev{padding:12px 12px 10px}
+.fd-dev .d-top{display:flex;align-items:center;gap:8px;padding:0 4px 8px}
+.fd-dev .d-top .dev-brand{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fd-dev .d-scr{padding:10px 11px 11px;min-height:150px}
+.fd-dev .d-cap{display:flex;align-items:center;gap:7px;font:700 8.5px var(--font);letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:9px}
+.fd-dev .d-cap .dev-led{width:6px;height:6px}
+.fd-dev .d-cap .r{margin-left:auto;font-family:var(--mono);letter-spacing:.04em;color:rgba(255,255,255,.45)}
+.fd-dev .d-hw{display:flex;gap:5px}
+.fd-dev .d-hw .dev-btn{width:24px;height:20px;border-radius:6px;cursor:default}
+.fd-dev .d-hw .dev-btn .nz-ic{width:11px;height:11px}
+.fd-dev .d-keys{display:flex;gap:10px;margin-top:9px;font:600 9px var(--font);color:rgba(255,255,255,.5);letter-spacing:.04em}
+.fd-dev .d-keys kbd{height:16px;min-width:16px;font-size:8.5px;padding:0 5px;margin-right:4px}
+.d-big{font:700 34px/1 var(--mono);color:#fff;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.d-big .u{font-size:13px;color:rgba(255,255,255,.45);margin-left:3px;font-weight:500}
+.d-big.teal{color:var(--teal-hi)} .d-big.red{color:#ff6b70} .d-big.amber{color:#f3c35a}
+.d-lbl{font:700 8px var(--font);letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.42)}
+.d-val{font:600 13px var(--font);color:#fff;margin-top:3px}
+.d-val.red{color:#ff8a8d} .d-val.teal{color:var(--teal-hi)} .d-val.amber{color:#f3c35a}
+.d-row{display:flex;gap:12px;align-items:flex-start}
+.d-col{display:flex;flex-direction:column;gap:9px;flex:1;min-width:0}
+.d-sep{height:1px;background:rgba(255,255,255,.07);margin:9px 0}
+.d-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.d-chip{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 7px;border-radius:5px;font:700 8.5px var(--font);letter-spacing:.08em;text-transform:uppercase;
+  background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.07)}
+.d-chip.on{background:var(--teal-wash);color:var(--teal-hi);border-color:var(--teal-edge)}
+.d-chip.bad{background:var(--red-wash);color:#ff9a9d;border-color:var(--red-edge)}
+.d-chip.warn{background:var(--amber-wash);color:#f3c35a;border-color:var(--amber-edge)}
+.d-note{margin-top:8px;font:500 10.5px/1.45 var(--font);color:rgba(255,255,255,.6)}
+.d-note b{color:#fff;font-weight:600}
+
+/* tension gauge (binder) */
+.d-tension{position:relative;height:150px;width:46px;border-radius:8px;background:#0b0d0e;border:1px solid rgba(255,255,255,.08);overflow:hidden;flex:none}
+.d-tension .zone{position:absolute;left:0;right:0;background:rgba(61,220,132,.16);border-top:1px solid rgba(61,220,132,.7);border-bottom:1px solid rgba(61,220,132,.7)}
+.d-tension .fill{position:absolute;left:6px;right:6px;bottom:0;border-radius:4px 4px 0 0;background:linear-gradient(0deg,var(--teal-lo),var(--teal-hi));transition:height 60ms linear}
+.d-tension .fill.red{background:linear-gradient(0deg,var(--red-lo),#ff6b70)}
+.d-tension .fill.amber{background:linear-gradient(0deg,#9a6c05,#f3c35a)}
+.d-tension .tick{position:absolute;left:0;width:8px;height:1px;background:rgba(255,255,255,.25)}
+.d-tension .tick.r{left:auto;right:0}
+
+/* binder art */
+.d-binder{position:relative;flex:1;height:150px;display:flex;flex-direction:column;justify-content:space-between}
+.d-binder svg{width:100%;height:84px}
+
+/* IO layer column */
+.d-layers{position:relative;width:74px;height:178px;border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.1);flex:none;background:#160a09}
+.d-layers .ly{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;font:700 6.8px var(--font);letter-spacing:.1em;text-transform:uppercase;text-align:center;line-height:1.1}
+.d-layers .ly.air{background:#050606;color:rgba(255,255,255,.3)}
+.d-layers .ly.soft{background:linear-gradient(#c98d73,#a96b56);color:#3d1c14}
+.d-layers .ly.cortex{background:linear-gradient(#efe7d4,#d8ccb1);color:#5a4d34}
+.d-layers .ly.marrow{background:linear-gradient(#7a1a1d,#5c1013);color:#ffb3b5}
+.d-layers .ly.far{background:linear-gradient(#d8ccb1,#c2b597);color:#5a4d34}
+.d-layers .ly.beyond{background:#2a1513;color:rgba(255,255,255,.25)}
+.d-layers .tip{position:absolute;left:-2px;right:-2px;height:2px;background:#fff;box-shadow:0 0 8px #fff;transition:top 50ms linear}
+.d-layers .tip::after{content:'';position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-right-color:#fff}
+.d-layers .needle{position:absolute;left:50%;width:3px;margin-left:-1.5px;top:0;background:linear-gradient(#cfd6da,#8b959a);transition:height 50ms linear}
+
+/* arc gauge (off axis) */
+.d-arc{position:relative;width:86px;height:52px;flex:none}
+.d-arc svg{width:86px;height:52px;overflow:visible}
+.d-arc .v{position:absolute;left:0;right:0;bottom:-4px;text-align:center;font:700 14px var(--mono);color:#fff}
+.d-arc .v.red{color:#ff6b70} .d-arc .v.teal{color:var(--teal-hi)}
+
+/* sparkline / canvases */
+.d-spark{display:block;width:100%;height:34px;margin-top:4px}
+.d-teg{display:block;width:100%;height:62px;border-radius:6px;background:#030505;border:1px solid rgba(255,255,255,.05)}
+.d-strip{display:block;width:100%;height:46px;border-radius:6px;background:#030505;border:1px solid rgba(255,255,255,.05)}
+
+/* syringe */
+.syr{position:relative;user-select:none}
+.syr svg{display:block;width:100%;height:70px;overflow:visible}
+.syr .thumb{cursor:grab}
+.syr.drag .thumb{cursor:grabbing}
+.syr-meter{margin-top:6px}
+.syr-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:6px;font:600 10.5px var(--font);color:rgba(255,255,255,.6)}
+.syr-row b{font:700 15px var(--mono);color:#fff}
+.syr-row b.red{color:#ff6b70} .syr-row b.teal{color:var(--teal-hi)} .syr-row b.amber{color:#f3c35a}
+
+/* site list */
+.d-sites{display:flex;flex-direction:column;gap:6px}
+.d-site{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);
+  font:600 11.5px var(--font);color:#fff;cursor:pointer;text-align:left;transition:border-color var(--fast),background var(--fast)}
+.d-site:hover{border-color:var(--teal-edge);background:var(--teal-wash)}
+.d-site kbd{height:18px;min-width:18px;font-size:9px}
+.d-site .why{margin-left:auto;font:700 8px var(--font);letter-spacing:.1em;text-transform:uppercase;color:var(--teal-hi)}
+.d-site.bad{opacity:.55;cursor:not-allowed}
+.d-site.bad .why{color:#ff8a8d}
+.d-site.on{border-color:var(--teal);background:var(--teal-wash)}
+
+/* ── infusion panel (resuscitate) · bottom centre, between the step column and the tool belt ── */
+.fd-inf{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);width:800px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr 300px;gap:16px;
+  align-items:start;animation:nza-in 240ms both}
+.fd-inf::before{content:'';position:absolute;left:16px;right:16px;top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
+.fd-inf .ic1{display:flex;flex-direction:column;align-items:center;gap:8px;padding-right:16px;border-right:1px solid var(--line-soft)}
+.fd-inf .ic2{min-width:0}
+.fd-inf .ic3{padding-left:16px;border-left:1px solid var(--line-soft)}
+.fd-inf .gauge{width:118px;height:118px;flex:none;position:relative}
+.fd-inf .gauge svg{width:118px;height:118px;overflow:visible}
+.fd-inf .press{text-align:center}
+.fd-inf .lcd{display:flex;gap:3px;margin-top:5px;justify-content:center}
+.fd-inf .lcd span{width:20px;height:27px;border-radius:4px;display:grid;place-items:center;background:#0b0d0e;border:1px solid rgba(255,255,255,.08);
+  font:700 17px var(--mono);color:#f3c35a}
+.fd-inf .lcd i{align-self:flex-end;font:500 9.5px var(--font);color:var(--ink-3);margin-left:3px;font-style:normal}
+.fd-bags{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.fd-bag{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;background:var(--inset);border:1px solid var(--line-soft);cursor:pointer;
+  transition:border-color var(--fast)}
+.fd-bag.sel{border-color:var(--teal-edge);box-shadow:0 0 0 3px var(--teal-wash)}
+.fd-bag .bi{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.05);color:var(--ink-2)}
+.fd-bag.blood .bi{color:#ff7478;background:var(--red-wash)}
+.fd-bag .bi .nz-ic{width:15px;height:15px}
+.fd-bag .bt{flex:1;min-width:0}
+.fd-bag .bt b{display:block;font-size:12.5px;font-weight:600;color:var(--white)}
+.fd-bag .bt span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:1px}
+.fd-bag .bt .lvl{display:block;height:3px;border-radius:9px;background:rgba(255,255,255,.08);margin-top:5px;overflow:hidden}
+.fd-bag .bt .lvl i{display:block;height:100%;background:var(--teal);border-radius:inherit}
+.fd-bag.blood .bt .lvl i{background:var(--red)}
+.fd-bag .down{height:22px;padding:0 8px;border-radius:5px;font:700 8.5px var(--font);letter-spacing:.12em;text-transform:uppercase;color:#f3c35a;
+  background:var(--amber-wash);border:1px solid var(--amber-edge)}
+.fd-bag.empty{justify-content:center;color:var(--ink-3);font-size:11.5px;cursor:default;border-style:dashed}
+.fd-tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.fd-tile{padding:7px 9px;border-radius:8px;background:var(--inset);border:1px solid var(--line-hair)}
+.fd-tile .l{font-size:9.5px;font-weight:600;color:var(--ink-3);letter-spacing:.04em}
+.fd-tile .v{font:700 16px var(--font);color:var(--white);margin-top:2px;font-variant-numeric:tabular-nums}
+.fd-tile .v .u{font-size:10px;color:var(--ink-3);margin-left:3px;font-weight:500}
+.fd-tile .v.amber{color:#f3c35a} .fd-tile .v.teal{color:var(--teal-hi)} .fd-tile .v.red{color:#ff7478}
+.fd-ctl{display:flex;align-items:center;gap:7px;margin-top:11px}
+.fd-ctl .sq{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px 0 6px;border-radius:8px;background:var(--inset);border:1px solid var(--line);
+  font-size:12px;font-weight:600;color:var(--ink)}
+.fd-ctl .sq.on{background:linear-gradient(var(--teal),var(--teal-lo));color:var(--on-teal);border-color:transparent}
+.fd-ctl .sq.on kbd{background:rgba(0,0,0,.18);border-color:rgba(0,0,0,.25);color:var(--on-teal)}
+.fd-ctl .pm{width:30px;height:34px;border-radius:8px;background:var(--inset);border:1px solid var(--line);font-size:16px;font-weight:600;color:var(--ink)}
+.fd-ctl .pm:hover,.fd-ctl .sq:hover{border-color:var(--ink-3)}
+.fd-ctl .clamp{flex:1;min-width:0}
+.fd-ctl .clamp .t{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);font-weight:600}
+.fd-ctl .clamp .t b{color:var(--white);font-variant-numeric:tabular-nums}
+.fd-ctl .clamp .mtr{margin-top:6px}
+.fd-txa{margin-top:10px;padding:9px 10px 10px;border-radius:9px;background:var(--inset);border:1px solid var(--teal-edge)}
+.fd-txa .t{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;color:var(--ink)}
+.fd-txa .t span{font-size:10px;color:var(--ink-3);font-weight:500}
+
+/* ── reassess card ── */
+.fd-sum .d-scr{min-height:0}
+.fd-cmp{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 10px;align-items:center;font:600 10.5px var(--font)}
+.fd-cmp .h{font:700 7.5px var(--font);letter-spacing:.16em;color:rgba(255,255,255,.38);text-transform:uppercase}
+.fd-cmp .k{color:rgba(255,255,255,.55);letter-spacing:.06em}
+.fd-cmp .b{font:600 13px var(--mono);color:rgba(255,255,255,.6)}
+.fd-cmp .a{font:700 15px var(--mono);color:#fff}
+.fd-cmp .a.teal{color:var(--teal-hi)} .fd-cmp .a.red{color:#ff6b70}
+.fd-steps{display:flex;flex-direction:column;gap:5px}
+.fd-steps .s{display:flex;align-items:center;gap:8px;font:500 11px var(--font);color:rgba(255,255,255,.75)}
+.fd-steps .s .g{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font:800 10px var(--font);color:#fff;
+  background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));flex:none}
+.fd-steps .s .g.g-C,.fd-steps .s .g.g-D{background:linear-gradient(155deg,#f3c35a,#b37d05)}
+.fd-steps .s .g.g-F{background:linear-gradient(155deg,#ff7478,var(--red-lo))}
+.fd-steps .s .g.skip{background:rgba(255,255,255,.08);color:rgba(255,255,255,.45)}
+.fd-steps .s span{flex:1}
+.fd-steps .s i{font-style:normal;color:rgba(255,255,255,.4);font-family:var(--mono);font-size:10px}
+
+/* ── IV cannulation views ── */
+.d-arm{display:block;width:100%;height:150px;cursor:crosshair}
+.d-xsec{display:block;width:100%;height:150px;border-radius:7px;background:#08090a}
+.d-bounce{height:6px;margin-top:8px}
+
+/* ── overlay (anchors layer, zoom 1) ── */
+.fd-ov{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.fd-ghost{position:fixed;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:10px;
+  background:var(--hud-solid);border:1px solid var(--teal-edge);box-shadow:0 10px 26px rgba(0,0,0,.45),0 0 0 4px var(--teal-wash);
+  font:600 12px var(--font);color:var(--white);pointer-events:none;white-space:nowrap}
+.fd-ghost .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;background:linear-gradient(var(--teal),var(--teal-lo));color:var(--on-teal)}
+.fd-ghost .ic .nz-ic{width:15px;height:15px}
+.fd-ghost.near{border-color:var(--teal);background:var(--teal-wash)}
+
+/* bigger in-world tab for the strap */
+.anc .dot.tab{width:30px;height:30px;border-width:3px}
+.anc .lbl.small{height:22px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
+
+/* preview-only scene */
+.fd-scene{position:fixed;inset:0;width:100%;height:100%;z-index:-1}
+
+@media (prefers-reduced-motion:reduce){ .fd-dev,.fd-inf,.fd-focus{animation:none} }

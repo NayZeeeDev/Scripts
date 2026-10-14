@@ -199,8 +199,8 @@
 
   /* ─────────────────────────── skin tones ─────────────────────────── */
   const TONES = [
-    [0.00, [247, 215, 192]], [0.18, [238, 192, 158]], [0.36, [221, 166, 124]],
-    [0.55, [187, 127, 86]], [0.75, [136, 87, 57]], [1.00, [88, 56, 40]],
+    [0.00, [246, 219, 204]], [0.18, [239, 199, 176]], [0.36, [224, 172, 141]],
+    [0.55, [190, 131, 98]], [0.75, [138, 90, 65]], [1.00, [86, 56, 42]],
   ];
   function toneRGB(t) {
     t = clamp(+t || 0, 0, 1);
@@ -624,7 +624,8 @@
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // wide PCF kernels (shadow.radius); two shadowed lamp cells overlap into a soft penumbra
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.setPixelRatio(1);
     const entry = { renderer, canvas: cv, busy: true, env: null, halfFloatRT: null };
     entry.halfFloatRT = !!(renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float'));
@@ -703,9 +704,9 @@
   }
 
   const QUALITY = {
-    high:   { grid: 300, layer: 1024, field: 1024, macro: 1024, shadow: 2048, particles: 1400 },
-    medium: { grid: 220, layer: 768,  field: 768,  macro: 1024, shadow: 1536, particles: 900 },
-    low:    { grid: 150, layer: 512,  field: 512,  macro: 768,  shadow: 1024, particles: 500 },
+    high:   { grid: 300, layer: 1024, field: 1024, macro: 1024, shadow: 2048, blur: 3.2, cells: 2, particles: 1400 },
+    medium: { grid: 220, layer: 768,  field: 768,  macro: 1024, shadow: 1536, blur: 2.6, cells: 2, particles: 900 },
+    low:    { grid: 150, layer: 512,  field: 512,  macro: 768,  shadow: 1024, blur: 2.0, cells: 1, particles: 500 },
   };
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -787,15 +788,29 @@
     S.distanceUv = (a, b) => { const p = uvToST(a), q = uvToST(b); return Math.hypot(p[0] - q[0], p[1] - q[1]); };
 
     /* ─────────── lights ─────────── */
-    const key = new THREE.SpotLight(0xfff0de, 1.15, 0, 0.3, 1.0, 0);
-    key.castShadow = true;
-    key.shadow.mapSize.set(Q.shadow, Q.shadow);
-    key.shadow.bias = -0.00012; key.shadow.normalBias = 0.0004;
-    key.shadow.camera.near = 0.2; key.shadow.camera.far = 2.4;
-    const fill = new THREE.SpotLight(0xe6f0ff, 0.26, 0, 0.4, 1.0, 0);
-    const hemi = new THREE.HemisphereLight(0xdbe6ec, 0x3a2620, 0.08);
-    scene.add(key, key.target, fill, fill.target, hemi);
-    S.lights = { key, fill, hemi };
+    // The operating lamp is a big multi-cell head: two shadowed cells a few cm apart (soft, double
+    // penumbra) plus a shadowless centre cell that lifts the umbra, and a cool fill = room bounce.
+    // `key` stays the main light (its direction drives the skin's subsurface wrap term).
+    const mkCell = (color, intensity, shadow) => {
+      const l = new THREE.SpotLight(color, intensity, 0, 0.38, 1.0, 0);
+      if (shadow) {
+        l.castShadow = true;
+        l.shadow.mapSize.set(Q.shadow, Q.shadow);
+        l.shadow.bias = -0.00015; l.shadow.normalBias = 0.0005;
+        l.shadow.radius = Q.blur;
+        l.shadow.camera.near = 0.3; l.shadow.camera.far = 2.4;
+      }
+      return l;
+    };
+    const twoCells = (Q.cells || 1) > 1;
+    const key = mkCell(0xfff1e0, twoCells ? 0.82 : 1.0, true);
+    const keyB = mkCell(0xfff3e6, twoCells ? 0.3 : 0.0, twoCells);
+    const key2 = mkCell(0xfff6ec, twoCells ? 0.24 : 0.36, false);
+    const fill = new THREE.SpotLight(0xe6f0ff, 0.24, 0, 0.45, 1.0, 0);
+    const hemi = new THREE.HemisphereLight(0xdbe6ec, 0x3a2620, 0.1);
+    scene.add(key, key.target, key2, key2.target, fill, fill.target, hemi);
+    if (twoCells) scene.add(keyB, keyB.target);
+    S.lights = { key, keyB, key2, fill, hemi };
     const keyDir = new THREE.Vector3();
 
     /* ─────────── skin geometry (denser around the focus) ─────────── */
@@ -900,9 +915,10 @@
     }));
     const FIELD_ENC = entry.halfFloatRT ? 0 : 1;   // 8-bit fallback stores (h + 16) / 32 mm
     const LW = Q.layer, LH = Math.max(32, Math.round(Q.layer * WR.H / WR.W));
+    // mipmapped: the skin shader reads a blurred level inside wound grooves (see SKIN_MAP)
     const mkLayerRT = () => keep(new THREE.WebGLRenderTarget(LW, LH, {
-      type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
-      depthBuffer: false, stencilBuffer: false, generateMipmaps: false,
+      type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter,
+      depthBuffer: false, stencilBuffer: false, generateMipmaps: true,
     }));
     const rtA = mkLayerRT(), rtB = mkLayerRT();
     {
@@ -922,13 +938,14 @@
       uFieldEnc: { value: FIELD_ENC },
       uMicroRep: { value: 1 / 0.036 }, uHair: { value: hairAmt }, uHairColor: { value: hairColor },
       uKeyDir: { value: new THREE.Vector3(0, 1, 0) }, uKeyColor: { value: new THREE.Color(1, 0.96, 0.9) },
-      uMicroNormal: { value: 1.2 }, uSkinRough: { value: 0.42 }, uFieldNormal: { value: 1.15 }, uSSS: { value: 0.75 },
-      uDark: { value: o.tone }, uLayerTexel: { value: new THREE.Vector2(1 / LW, 1 / LH) }, uSebum: { value: 0.28 },
+      uMicroNormal: { value: 1.25 }, uSkinRough: { value: 0.38 }, uFieldNormal: { value: 1.15 }, uSSS: { value: 0.75 },
+      uDark: { value: o.tone }, uLayerTexel: { value: new THREE.Vector2(1 / LW, 1 / LH) }, uSebum: { value: 0.36 },
+      uInsideLod: { value: clamp(Math.log2(0.0017 / (WR.W / LW)), 0, 6) },
     };
     S.uniforms = U;
     const skinMat = keep(new THREE.MeshPhysicalMaterial({
       map: macroTex, normalMap: microN, roughness: 0.46, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1,
-      sheen: 0.05, sheenRoughness: 0.7, sheenColor: new THREE.Color(1.0, 0.82, 0.74), ior: 1.4, specularIntensity: 0.5,
+      sheen: 0.05, sheenRoughness: 0.7, sheenColor: new THREE.Color(1.0, 0.82, 0.74), ior: 1.4, specularIntensity: 0.62,
     }));
     skinMat.envMapIntensity = 0.32;
     skinMat.onBeforeCompile = sh => {
@@ -947,7 +964,7 @@
         .replace('#include <roughnessmap_fragment>', SKIN_ROUGH)
         .replace('#include <normal_fragment_maps>', SKIN_NORMAL)
         .replace('#include <clearcoat_normal_fragment_begin>', '#ifdef USE_CLEARCOAT\n vec3 clearcoatNormal = nzaMacroN;\n#endif')
-        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = clamp(uSebum * (1.0 - nzaInside) + nzaWet * 0.95, 0.0, 1.0);\n material.clearcoatRoughness = clamp(mix(0.34, 0.06, nzaWet) + geometryRoughness, 0.0525, 1.0);\n#endif')
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat = clamp(uSebum * (1.0 - nzaInside) + nzaWet * 0.95, 0.0, 1.0);\n material.clearcoatRoughness = clamp(mix(0.34, mix(0.07, 0.16, nzaInside), nzaWet) + geometryRoughness, 0.0525, 1.0);\n#endif')
         .replace('#include <aomap_fragment>', SKIN_AO);
     };
     skinMat.customProgramCacheKey = () => 'nza3d-skin-2';
@@ -1533,7 +1550,7 @@
     const camM = new THREE.Matrix4();
     function applyCamera(dt) {
       const k = 1 - Math.exp(-dt * 9);
-      for (const key2 of ['s', 't', 'yaw', 'pitch', 'dist']) ctl.cur[key2] += (ctl.goal[key2] - ctl.cur[key2]) * k;
+      for (const kk of ['s', 't', 'yaw', 'pitch', 'dist']) ctl.cur[kk] += (ctl.goal[kk] - ctl.cur[kk]) * k;
       const c = ctl.cur;
       surf(c.s, c.t, camT, camN);
       tangents(c.s, c.t, camS, camTt);
@@ -1990,13 +2007,14 @@
       if (instant || !t._init) { t._p.copy(target); t._q.copy(_tq); t._init = true; }
       else { const k = 1 - Math.exp(-dt * 30); t._p.lerp(target, k); t._q.slerp(_tq, k); }
       t.group.position.copy(t._p); t.group.quaternion.copy(t._q);
-      // contact shadow
+      // contact occlusion: only a faint darkening right under a tool that touches the skin
+      // (the lamp's soft shadow map does the rest)
       const h = Math.max(0, lift);
-      const sz = (pz.shadow || 0.012) * (1 + h * 30);
+      const sz = (pz.shadow || 0.012) * (0.55 + h * 18);
       blob.position.copy(hit.point).addScaledVector(n, 0.0002);
       blob.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
       blob.scale.set(sz, sz, 1);
-      blob.material.opacity = clamp(0.5 - h * 7, 0.08, 0.5);
+      blob.material.opacity = 0.3 * (1 - smooth(0.0, 0.012, h));
     }
     function updateTools(dt) {
       const t = tools.active;
@@ -2266,7 +2284,7 @@
           _jp.set(pPos[i * 3], pPos[i * 3 + 1], pPos[i * 3 + 2]);
           const q = toSurf(_jp);
           if (Math.abs(q.s) < W / 2 && Math.abs(q.t) < H / 2 && q.h < heightAt(q.s, q.t)) {
-            if (pKind[i] === 2) layers.paint('blood', stToUv(q.s, q.t), 0.0009 + pSize[i] * 0.5, 0.5, { hardness: 0.5 });
+            if (pKind[i] === 2) layers.paint('blood', stToUv(q.s, q.t), 0.0004 + pSize[i] * 0.3, 0.36, { hardness: 0.45, grain: 0.35, grainScale: 220 });
             pLife[i] = 0;
           }
         }
@@ -2313,8 +2331,8 @@
         const dx = rv.dir[0] + -rv.dir[1] * wob, dy = rv.dir[1] + rv.dir[0] * wob, l = Math.hypot(dx, dy) || 1;
         const ns = rv.s + (dx / l) * sp, nt = rv.t + (dy / l) * sp;
         // a trickle: thin film that narrows as it runs out, ending in a small bead
-        const rad = 0.00032 + Math.max(0, rv.vol) * 0.0042;
-        layers.stroke('blood', stToUv(rv.s, rv.t), stToUv(ns, nt), rad, 0.075, { hardness: 0.55 });
+        const rad = 0.00028 + Math.max(0, rv.vol) * 0.0036;
+        layers.stroke('blood', stToUv(rv.s, rv.t), stToUv(ns, nt), rad, 0.16, { hardness: 0.6 });
         rv.s = ns; rv.t = nt;
         rv.vol -= sp * 9;
         if (rv.vol <= 0 || Math.abs(ns) > W / 2 || Math.abs(nt) > H / 2) {
@@ -2697,11 +2715,15 @@
       const hm = ctl.home;
       surf(hm.s, hm.t, _p, _n);
       tangents(hm.s, hm.t, _a, _b);
-      key.position.copy(_p).addScaledVector(_n, 0.52).addScaledVector(_a, 0.22).addScaledVector(_b, -0.36);
+      key.position.copy(_p).addScaledVector(_n, 0.82).addScaledVector(_a, 0.16).addScaledVector(_b, -0.22);
       key.target.position.copy(_p);
-      fill.position.copy(_p).addScaledVector(_n, 0.55).addScaledVector(_a, -0.4).addScaledVector(_b, 0.25);
+      keyB.position.copy(_p).addScaledVector(_n, 0.82).addScaledVector(_a, 0.02).addScaledVector(_b, -0.12);
+      keyB.target.position.copy(_p);
+      key2.position.copy(_p).addScaledVector(_n, 0.8).addScaledVector(_a, -0.12).addScaledVector(_b, -0.3);
+      key2.target.position.copy(_p);
+      fill.position.copy(_p).addScaledVector(_n, 0.6).addScaledVector(_a, -0.42).addScaledVector(_b, 0.3);
       fill.target.position.copy(_p);
-      key.target.updateMatrixWorld(); fill.target.updateMatrixWorld();
+      key.target.updateMatrixWorld(); keyB.target.updateMatrixWorld(); key2.target.updateMatrixWorld(); fill.target.updateMatrixWorld();
     }
     function step(dt, render = true) {
       S.time += dt;
@@ -2749,7 +2771,7 @@
       });
       bin.forEach(x => { try { x.dispose(); } catch (e) { /* already gone */ } });
       bin.clear();
-      try { key.dispose(); fill.dispose(); } catch (e) { /* r149 lights */ }
+      try { key.dispose(); keyB.dispose(); key2.dispose(); fill.dispose(); } catch (e) { /* r149 lights */ }
       renderer.renderLists.dispose();
       for (const k in handlers) delete handlers[k];
       if (vig && vig.parentNode) vig.parentNode.removeChild(vig);
@@ -2816,9 +2838,9 @@
           float exists = step(0.0005, cut) * (1.0 - step(cutE + 0.0001, tN));
           float env = exists * pow(max(sin(3.14159265 * clamp(tN / cutE, 0.0, 1.0)), 0.0), taperE);
           float jn = texture2D(tNoise, vec2(bestL * 0.043 + seed, bestSide * 0.31 + seed * 0.7)).r - 0.5;
-          float jn2 = texture2D(tNoise, vec2(bestL * 0.21 + seed * 1.3, bestSide * 0.17 + seed)).g - 0.5;
+          float jn2 = texture2D(tNoise, vec2(bestL * 0.11 + seed * 1.3, bestSide * 0.17 + seed)).g - 0.5;
           float g = gape * open * env * (1.0 - bestC) * bestG;
-          float halfG = max(0.5 * g * (1.0 + jag * (jn * 0.9 + jn2 * 0.45)), 0.0);
+          float halfG = max(0.5 * g * (1.0 + jag * (jn * 0.95 + jn2 * 0.22)), 0.0);
           float ins = halfG > 0.03 ? 1.0 - smoothstep(halfG - 0.07, halfG + 0.07, best) : 0.0;
           float x = clamp(best / max(halfG, 0.03), 0.0, 1.0);
           float dep = depth * pow(env, 0.4) * (1.0 - 0.96 * bestC) * mix(0.35, 1.0, open);
@@ -2939,6 +2961,7 @@
     uniform float uSSS;
     uniform float uDark;
     uniform float uSebum;
+    uniform float uInsideLod;
     float nzaInside; float nzaDepthN; float nzaWet; float nzaSmooth; float nzaThick; float nzaThin; float nzaGrit; float nzaGr; float nzaCl; float nzaCav;
     vec2 nzaUv1; vec2 nzaUv2; vec2 nzaP;
     vec4 nzaM1; vec4 nzaM2; vec4 nzaN3; vec4 nzaN4;
@@ -2956,6 +2979,13 @@
     nzaF.rba *= nzaWin;
     vec4 nzaA = texture2D(tMaskA, nzaW) * nzaWin;
     vec4 nzaB = texture2D(tMaskB, nzaW) * nzaWin;
+    // In the groove the walls are steep: the patch uv barely changes across them, so paint would smear
+    // into streaks down the walls. Blood, clot and dirt pool in there anyway → read a blurred mip level.
+    if (nzaF.r > 0.02) {
+      float nzaIb = smoothstep(0.02, 0.5, nzaF.r);
+      nzaA = mix(nzaA, textureLod(tMaskA, nzaW, uInsideLod) * nzaWin, nzaIb);
+      nzaB = mix(nzaB, textureLod(tMaskB, nzaW, uInsideLod) * nzaWin, nzaIb);
+    }
     vec2 nzaQ = vec2(nzaP.x, -nzaP.y);
     nzaUv1 = nzaQ * uMicroRep;
     nzaUv2 = nzaRot(nzaQ * uMicroRep * 0.731, 0.61) + vec2(0.37, 0.19);
@@ -2968,7 +2998,7 @@
     vec3 nzaCol = texture2D(map, vUv).rgb;
     // micro cavities (furrows, pores) are a touch darker and redder
     nzaCav = 0.5 * (nzaM1.r + nzaM2.r);
-    nzaCol *= mix(vec3(1.0), vec3(0.86, 0.79, 0.77), nzaCav);
+    nzaCol *= mix(vec3(1.0), vec3(0.95, 0.9, 0.89), nzaCav);
     // body hair: density varies in patches; a second rotated layer breaks the tiling
     float nzaDen = smoothstep(0.32, 0.68, nzaN1.g);
     float nzaHair = max(nzaM1.g * nzaDen, nzaM2.g * (1.0 - nzaDen) * 0.8);
@@ -3001,9 +3031,9 @@
     float nzaLob = texture2D(tNoise, nzaP * 71.0 + vec2(0.13, 0.57)).b;
     float nzaFatBand = smoothstep(0.14, 0.3, nzaDepthN) * (1.0 - smoothstep(0.5, 0.8, nzaDepthN)) * smoothstep(0.35, 0.6, texture2D(tNoise, nzaP * 9.0).g);
     float nzaFat = (1.0 - smoothstep(0.28, 0.5, nzaLob)) * nzaFatBand;
-    vec3 nzaTis = mix(vec3(0.82, 0.42, 0.36), vec3(0.62, 0.09, 0.07), smoothstep(0.05, 0.3, nzaDepthN));
-    nzaTis = mix(nzaTis, mix(vec3(0.96, 0.78, 0.42), vec3(0.9, 0.62, 0.3), nzaN3.g), nzaFat * 0.8);
-    nzaTis = mix(nzaTis, vec3(0.36, 0.03, 0.025), smoothstep(0.55, 1.0, nzaDepthN));
+    vec3 nzaTis = mix(vec3(0.9, 0.52, 0.44), vec3(0.74, 0.15, 0.09), smoothstep(0.04, 0.26, nzaDepthN));
+    nzaTis = mix(nzaTis, mix(vec3(0.98, 0.8, 0.46), vec3(0.92, 0.64, 0.32), nzaN3.g), nzaFat * 0.8);
+    nzaTis = mix(nzaTis, vec3(0.44, 0.05, 0.035), smoothstep(0.5, 1.0, nzaDepthN));
     nzaTis *= 0.82 + 0.36 * texture2D(tNoise, nzaP * 52.0 + vec2(nzaH0 * 0.05, 0.0)).g;
     nzaCol = mix(nzaCol, nzaTis, nzaInside);
     // raised skin (lidocaine wheal, blister dome) is pale and slightly translucent
@@ -3016,9 +3046,11 @@
     // clotted blood: dark maroon, thick
     nzaCl = nzaB.b * (0.8 + 0.4 * nzaN2.r);
     float nzaClf = smoothstep(0.08, 0.36, nzaCl);
-    nzaCol = mix(nzaCol, mix(vec3(0.24, 0.035, 0.025), vec3(0.085, 0.012, 0.008), smoothstep(0.3, 0.9, nzaCl)), nzaClf);
+    nzaCol = mix(nzaCol, mix(vec3(0.42, 0.11, 0.065), vec3(0.09, 0.013, 0.009), smoothstep(0.26, 0.9, nzaCl)), nzaClf);
     // wet blood: thin film tints, pools go deep red
     float nzaBl = nzaA.r + (nzaN2.r - 0.5) * 0.06;
+    // in the groove blood runs off the walls and pools at the bottom
+    nzaBl *= mix(1.0, mix(0.45, 1.15, smoothstep(0.22, 0.72, nzaDepthN)), nzaInside);
     nzaThin = smoothstep(0.03, 0.22, nzaBl);
     nzaThick = smoothstep(0.24, 0.78, nzaBl);
     nzaCol = mix(nzaCol, nzaCol * vec3(0.66, 0.1, 0.075), nzaThin * 0.92);
@@ -3077,7 +3109,7 @@
     float nzaFl = nzaFilm(nzaW - vec2(nzaLt.x, 0.0)), nzaFr = nzaFilm(nzaW + vec2(nzaLt.x, 0.0));
     float nzaFd = nzaFilm(nzaW - vec2(0.0, nzaLt.y)), nzaFu = nzaFilm(nzaW + vec2(0.0, nzaLt.y));
     vec2 nzaFG = vec2((nzaFr - nzaFl) / (2.0 * nzaLt.x * uWork.x), (nzaFu - nzaFd) / (2.0 * nzaLt.y * uWork.y)) * 0.001 * nzaWin;
-    nzaFG = clamp(nzaFG, vec2(-1.2), vec2(1.2));
+    nzaFG = clamp(nzaFG, vec2(-1.2), vec2(1.2)) * (1.0 - 0.85 * nzaInside);
     // gentle large-scale undulation of the body surface
     float nzaU0 = texture2D(tNoise, nzaP * 3.0).r;
     float nzaUx = texture2D(tNoise, (nzaP + vec2(0.004, 0.0)) * 3.0).r;
@@ -3087,7 +3119,7 @@
     normal = perturbNormal2Arb(-vViewPosition, normal, normalize(vec3(nzaMxy - nzaG - nzaFG * 0.7 - nzaUG, 1.0)), faceDirection);
   `;
   const SKIN_AO = `
-    float nzaAO = 1.0 - smoothstep(0.0, 1.0, nzaDepthN) * 0.55;
+    float nzaAO = 1.0 - smoothstep(0.0, 1.0, nzaDepthN) * 0.42;
     reflectedLight.indirectDiffuse *= nzaAO;
     reflectedLight.directDiffuse *= mix(1.0, nzaAO, 0.55);
     reflectedLight.indirectSpecular *= mix(1.0, nzaAO, 0.8);

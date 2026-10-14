@@ -145,6 +145,32 @@ function F.BinderIndicated(p)
     return false, nil
 end
 
+-- why a limb region can't take a needle (IO / IV): fracture, tourniquet at or above it, deep burn, open wound
+local PROXIMAL = { l_lower_leg = 'l_upper_leg', r_lower_leg = 'r_upper_leg', l_lower_arm = 'l_upper_arm', r_lower_arm = 'r_upper_arm' }
+function F.SiteContra(p, region)
+    if not region then return 'invalid' end
+    local tq = p.devices and p.devices.tourniquet or {}
+    if tq[region] or (PROXIMAL[region] and tq[PROXIMAL[region]]) then return 'tourniquet' end
+    for _, inj in pairs(p.injuries or {}) do
+        if inj.region == region then
+            if inj.type == 'fracture' or inj.fracture then return 'fracture' end
+            if inj.type == 'burn' and (inj.severity or 1) >= 3 then return 'burn' end
+            if (inj.type == 'gunshot' or inj.type == 'shrapnel') and (inj.severity or 1) >= 2 then return 'wound' end
+        end
+    end
+    return nil
+end
+
+function F.Sites(p, list)
+    local out = {}
+    for id, def in pairs(list or {}) do
+        local region = type(def) == 'table' and def.region or id
+        local why = F.SiteContra(p, region)
+        out[id] = { region = region, ok = why == nil, why = why, label = U.RegionLabel(region) }
+    end
+    return out
+end
+
 function F.Summary(p, inj)
     if not inj then return nil end
     return {
@@ -291,6 +317,9 @@ lib.callback.register('nza:field:plan', function(src, target)
         ioPerm = NZA.Staff.Can(src, F.Cfg('IO').perm or 'iv'),
         resusPerm = NZA.Staff.Can(src, F.Cfg('Infusion').perm or 'iv'),
         band = rc.band or { 60, 70 }, hold = rc.hold or 24,
+        ioSites = F.Sites(p, F.Cfg('IO').sites), ivSites = F.Sites(p, F.Cfg('IV').sites),
+        maxRate = F.MaxRate(p), blood = bloodModule(), bloodType = (p.meta and (p.meta.bloodTyped or p.meta.typed)) and p.bloodType or nil,
+        txaActive = p.meds and p.meds.txa and p.meds.txa > os.time() or false, foilOn = p.devices.foil and true or false,
         vitals = F.Vitals(p), counts = F.Counts(src),
         easy = {
             binder = NZA.Staff.Easy(src, F.Cfg('Binder').perm or 'binder'),
@@ -320,9 +349,17 @@ end)
 -- INFUSIONS
 -- ════════════════════════════════════════════════════════════════════════
 
-local function clampRate(rate)
-    local maxR = F.Cfg('Infusion').maxRate or 160
-    return U.clamp(math.floor((tonumber(rate) or 0) + 0.5), 1, maxR)
+-- fastest flow the line allows: gravity (IO lines run slower) x the pressure infuser, hard capped
+function F.MaxRate(p)
+    local cfg = F.Cfg('Infusion')
+    local a = F.Access(p)
+    local gravity = (cfg.gravity or 60) * ((a and a.kind == 'io') and (cfg.ioFactor or 0.45) or 1)
+    local best = gravity * (1 + (cfg.pressureGain or 1.4))
+    return math.max(1, math.min(cfg.maxRate or 160, math.floor(best + 1.5)))
+end
+
+local function clampRate(rate, p)
+    return U.clamp(math.floor((tonumber(rate) or 0) + 0.5), 1, F.MaxRate(p))
 end
 
 local function findInfusion(p, id)
@@ -350,8 +387,8 @@ NZA.Treat.Register('infuse', {
         for _, inf in ipairs(p.infusions or {}) do
             if (inf.left or 0) > 0 then running = running + 1 end
         end
-        if running >= 3 then return fail('too_many_bags') end
-        local rate = clampRate(payload.rate or cfg.gravity or 32)
+        if running >= (cfg.maxBags or 3) then return fail('too_many_bags') end
+        local rate = clampRate(payload.rate or cfg.gravity or 60, p)
         local inf
         if kind == 'saline' then
             inf = NZA.Patients.AddInfusion(p.pid, {
@@ -385,7 +422,7 @@ NZA.Treat.Register('infuse_rate', {
     handler = function(src, p, payload)
         local inf = type(payload.id) == 'string' and findInfusion(p, payload.id)
         if not inf then return fail('no_bag') end
-        local rate = clampRate(payload.rate)
+        local rate = clampRate(payload.rate, p)
         if math.abs((inf.rate or 0) - rate) < 0.5 then return true, { id = inf.id, rate = inf.rate } end
         -- the core has no rate setter: re-hang the same bag (same id, what is left) at the new rate
         local ok, old = NZA.Patients.StopInfusion(p.pid, inf.id)
@@ -485,6 +522,13 @@ NZA.Treat.Register('binder_off', {
         if not p.devices.binder then return fail('no_binder') end
         NZA.Patients.SetDevice(p.pid, 'binder', false)
         NZA.Patients.SetMeta(p.pid, 'binderQ', nil)
+        -- the reduction a well-tightened strap gave the pelvic bleeding goes with it
+        for id, inj in pairs(p.injuries or {}) do
+            local f = tonumber(inj.fieldBinder)
+            if f and f > 0 and f < 1 then
+                NZA.Patients.UpdateInjury(p.pid, id, { bleedBase = (inj.bleedBase or 0) / f, fieldBinder = false })
+            end
+        end
         local cfg = F.Cfg('Binder')
         if cfg.removeReturns ~= false and cfg.item then giveBack(src, cfg.item) end
         local warn = F.BinderIndicated(p) and p.state ~= 'dead'

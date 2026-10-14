@@ -35,6 +35,7 @@ local deskOpen = false    -- reception window open
 local appOpen = false     -- checkin app open (any mode)
 local guide = nil         -- { ticket, gen } walking to the called bed
 local guideGen = 0
+local receiptGen = 0      -- receipt that waits for you to walk away (receiptTime 0)
 
 local function cfg(section, key, default)
     local s = Config.Checkin and Config.Checkin[section]
@@ -121,6 +122,23 @@ function CI.ShowReceipt(ticket, opts)
     openApp({ mode = 'ticket', ticket = ticket, print = opts.print == true,
               say = opts.say and { name = receptionistName(opts.point), role = L('reception'), text = L(opts.say, ticket.code, ticket.ahead or 0) } or nil },
         deskOpen)
+    -- receiptTime 0: the receipt stays until you walk away from the desk
+    local pt = opts.point and NZA.Points.Get(opts.point)
+    if pt and (tonumber(cfg('desk', 'receiptTime', 14)) or 14) <= 0 then
+        receiptGen = receiptGen + 1
+        local gen = receiptGen
+        local pos = vector3(pt.coords.x + 0.0, pt.coords.y + 0.0, pt.coords.z + 0.0)
+        local range = (tonumber(cfg('desk', 'promptDistance', 2.6)) or 2.6) + 3.0
+        CreateThread(function()
+            while receiptGen == gen and appOpen do
+                if #(GetEntityCoords(PlayerPedId()) - pos) > range then
+                    NZA.UI.Send('checkin', 'hideReceipt', {})
+                    break
+                end
+                Wait(500)
+            end
+        end)
+    end
 end
 
 -- the app closes itself when nothing is left to show

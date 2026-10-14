@@ -233,36 +233,50 @@
       setTimeout(() => this.loadEl.classList.add('out'), 120);
     },
 
-    // grime in and around the cut, clots, pooled blood, a bruise, dried trickles
+    // grime in and around the cut, clots, pooled blood, a bruise, dried trickles and flecks
     paintInitial(R, sev) {
-      const S = this.S, w = this.w, g = this.g, c = g.cont0, pts = this.pts, gape = w.p.gape;
+      const S = this.S, w = this.w, c = this.g.cont0, pts = this.pts;
       const jit = (uv, mm) => [uv[0] + (R() - 0.5) * mm * MM / S.patch.W, uv[1] + (R() - 0.5) * mm * MM / S.patch.H];
+      const side = () => (R() < 0.5 ? 1 : -1);
       if (c > 0.02) {
-        for (let i = 0; i < pts.length; i += 2) S.layers.splat('grime', jit(pts[i], 1.5), (1.8 + R() * 1.6) * MM, clamp(0.35 + c * 0.6, 0, 1), { seed: 11 + i });
-        // smeared road dirt around the cut: short streaks, mostly along the direction of the injury
-        const n = Math.round(4 + c * 12);
+        // dirt packed into the cut: this is what the jet has to rinse out
+        for (let i = 0; i < pts.length; i += 2) S.layers.splat('grime', jit(pts[i], 1.2), (1.1 + R() * 1.1) * MM, clamp(0.35 + c * 0.6, 0, 1), { seed: 11 + i, count: 5 });
+        // road dirt dragged over the edges: thin broken streaks, mostly along the injury
+        const n = Math.round(6 + c * 16);
         for (let k = 0; k < n; k++) {
-          const tN = 0.05 + R() * 0.9, side = R() < 0.5 ? 1 : -1;
-          const a = w.edge(tN, side, (0.6 + R() * 7) * MM), at = w.at(tN);
-          const len = (2 + R() * 6) * MM, ang = Math.atan2(at.dir[1], at.dir[0]) + (R() - 0.5) * 1.2;
+          const tN = 0.04 + R() * 0.92, sd = side();
+          const a = w.edge(tN, sd, (0.4 + R() * R() * 6) * MM), at = w.at(tN);
+          const len = (1.5 + R() * 4.5) * MM, ang = Math.atan2(at.dir[1], at.dir[0]) + (R() - 0.5) * 0.9;
           const st = S.uvToST(a), b = S.stToUv(st[0] + Math.cos(ang) * len, st[1] + Math.sin(ang) * len);
-          S.layers.stroke('grime', a, b, (0.7 + R() * 1.3) * MM, (0.08 + R() * 0.12) * (0.4 + c), { hardness: 0.12, grain: 0.65, grainScale: 90 });
-          if (R() < 0.4) S.layers.splat('grime', b, (0.6 + R() * 0.9) * MM, (0.2 + R() * 0.3) * (0.4 + c), { seed: 70 + k, count: 4 });
+          S.layers.stroke('grime', a, b, (0.3 + R() * 0.5) * MM, (0.14 + R() * 0.16) * (0.4 + c), { hardness: 0.25, grain: 0.85, grainScale: 150 + R() * 80 });
+        }
+        // grit: fine specks within a few millimetres of the edges
+        const nd = Math.round(18 + c * 46);
+        for (let k = 0; k < nd; k++) {
+          S.layers.paint('grime', w.edge(R(), side(), (0.2 + R() * R() * 5.5) * MM), (0.12 + R() * 0.3) * MM, 0.55 + R() * 0.45, { hardness: 0.55 });
         }
       }
-      for (let k = 0; k < 2 + sev; k++) S.layers.splat('clot', w.at(0.12 + R() * 0.76).uv, (1.6 + R() * 1.6) * MM, 0.5 + R() * 0.25, { seed: 140 + k, count: 6 });
+      // clots in the groove
+      for (let k = 0; k < 2 + sev; k++) S.layers.splat('clot', w.at(0.12 + R() * 0.76).uv, (1.2 + R() * 1.2) * MM, 0.45 + R() * 0.25, { seed: 140 + k, count: 5 });
+      // pooled blood along the whole cut
       for (let i = 0; i < pts.length; i++) {
         const tN = i / Math.max(1, pts.length - 1), r = w.halfGape(tN) + 0.0004;
         S.layers.paint('blood', pts[i], [r, r], 0.16 + R() * 0.14, { hardness: 0.3 });
+      }
+      // dried blood flecks around the cut (red-brown spatter)
+      const nf = 26 + sev * 10;
+      for (let k = 0; k < nf; k++) {
+        const r = (0.1 + R() * R() * 0.45) * MM;
+        S.layers.paint('clot', w.edge(R(), side(), (0.4 + R() * R() * 9) * MM), [r * (0.8 + R() * 0.6), r], 0.16 + R() * 0.3, { hardness: 0.45, angle: R() * Math.PI });
       }
       // old dried trickles below the near edge
       for (let k = 0; k < 2; k++) {
         const tN = 0.25 + R() * 0.5, a = w.edge(tN, this.near, 0.0008), r = w.at(tN);
         const len = (5 + R() * 8) * MM, dx = r.nrm[0] * this.near * len, dy = r.nrm[1] * this.near * len;
         const b = [a[0] + dx / S.patch.W, a[1] - dy / S.patch.H];
-        S.layers.stroke('clot', a, b, 0.0008, 0.045, { hardness: 0.45 });
+        S.layers.stroke('clot', a, b, 0.0006, 0.035, { hardness: 0.45, grain: 0.4, grainScale: 120 });
       }
-      S.layers.splat('bruise', w.at(0.5).uv, (10 + this.Lmm * 0.12) * MM, 0.14 + sev * 0.03, { seed: 3, count: 7 });
+      S.layers.splat('bruise', w.at(0.5).uv, (10 + this.Lmm * 0.12) * MM, 0.09 + sev * 0.025, { seed: 3, count: 7 });
     },
 
     /* ═════════════ HUD (cards) ═════════════ */
@@ -332,9 +346,13 @@
         onAbort: () => this.abort(),
         onTool: key => this.pickTool(key),
       });
-      const left = this.pp.el.querySelector('.pp-left');
-      this.dots = document.createElement('div'); this.dots.className = 'sz-dots'; left.appendChild(this.dots);
-      this.tip = document.createElement('div'); this.tip.className = 'sz-tip'; left.appendChild(this.tip);
+      // section dots + contextual tip live in the instruction card, under the step text
+      const body = this.pp.el.querySelector('.pp-body') || this.pp.el;
+      const after = body.querySelector('.pp-text');
+      this.dots = document.createElement('div'); this.dots.className = 'sz-dots';
+      this.tip = document.createElement('div'); this.tip.className = 'sz-tip';
+      if (after && after.nextSibling) { body.insertBefore(this.tip, after.nextSibling); body.insertBefore(this.dots, this.tip); }
+      else { body.appendChild(this.dots); body.appendChild(this.tip); }
     },
     stats() {
       const g = this.g, inj = this.inj;
@@ -841,8 +859,8 @@
       g.sut.list.push({ tN: tMid, q, bite: [d.aMm, mm], perp, space: spaceMm, fast, flinch: d.flinch });
       this.hurt(8, 0);
       this.setBleed();
-      // a little blood squeezes out as the edges come together
-      S.fluids.drops(at.uv ? S.surfaceAt(at.uv).point : hit.point, 3, undefined, 0.12);
+      // a little blood squeezes out along the cut as the edges come together
+      S.layers.paint('blood', at.uv, [(this.Lmm / g.sut.N) * 0.45 * MM, (this.w.halfGape(tMid) + 0.0009)], 0.3, { hardness: 0.35, grain: 0.3, grainScale: 160, angle: Math.atan2(at.dir[1], at.dir[0]) });
       // feedback
       let fb;
       if (fast) fb = ['warn', T('fb_fast', 'Too fast — follow the curve of the needle.')];

@@ -46,6 +46,8 @@ if not NAYZEEE_LOCK_OK then return end
 
 NZA.Cpr = NZA.Cpr or {}
 local C = NZA.Cpr
+-- cpr_logic.lua loads after this file (alphabetical) and fills this same table
+C.Logic = C.Logic or {}
 local Logic = C.Logic
 local Core = NZA.Core
 local P = NZA.Patients
@@ -151,6 +153,13 @@ local function codeDefib(code, p)
     end
     return nil
 end
+
+-- on a bed, stretcher or in the bay the patient stays where they are (no floor pose)
+local function bedLike(p)
+    local m = p.meta or {}
+    return m.bed ~= nil or m.inBed == true or m.bay ~= nil or (m.stretcher ~= nil and m.stretcher ~= false)
+end
+C.BedLike = bedLike
 
 local function canManual(src) return NZA.Staff.Can(src, sub('Defib').perm or 'defib') end
 local function canAed(src) return NZA.Staff.Can(src, sub('Defib').aedPerm or 'cpr') end
@@ -259,7 +268,7 @@ local function view(code, src, p)
         causes = Logic.Causes(p, code),
         log = { table.unpack(code.log, math.max(1, #code.log - 7), #code.log) },
         codeTime = os.time() - code.started, arrestTime = os.time() - (p.arrestAt or code.arrestAt),
-        easy = m.easy == true, rosc = code.rosc ~= nil, maxTeam = cfg().maxTeam or 2,
+        easy = m.easy == true, rosc = code.rosc ~= nil, maxTeam = cfg().maxTeam or 2, bed = bedLike(p),
     }
 end
 
@@ -279,6 +288,9 @@ C.Push = push
 
 local function pose(code, p, on, mode)
     if p.kind ~= 'player' or not p.src then return end
+    if on and (bedLike(p) or cfg().Anim and cfg().Anim.patientPose == false) then
+        if code.poseSent and code.poseSent ~= 'off' then on = false else return end
+    end
     local key = on and (mode or 'idle') or 'off'
     local rate = code.rate > 0 and round(code.rate / 5) * 5 or 0
     if code.poseSent == key and code.poseRate == rate and on then return end
@@ -334,11 +346,16 @@ end
 local function removeMember(code, src, reason)
     local m = code.team[src]
     if not m then return end
+    -- the last one out ends the code (everyone gets the full, graded summary)
+    local n = 0
+    for _ in pairs(code.team) do n = n + 1 end
+    if n <= 1 then return endCode(code, reason == 'left' and 'stopped' or reason) end
+    local p = P.Get(code.pid)
+    local sum = summary(code, p, reason)
+    sum.left = true
     code.team[src] = nil
     member[src] = nil
-    local p = P.Get(code.pid)
-    TriggerClientEvent('nza:cpr:ended', src, { reason = reason, left = true, rosc = code.rosc ~= nil,
-        duration = os.time() - code.started, compressions = code.total, shocks = code.shocks })
+    TriggerClientEvent('nza:cpr:ended', src, sum)
     if code.comp == src then
         if code.air and code.team[code.air] then
             code.comp, code.air = code.air, nil
@@ -828,7 +845,10 @@ NZA.Treat.Register('cpr_adrenaline', {
     states = { arrest = true, wounded = true },
     maxDist = (cfg().maxDist or 3.0),
     cooldown = 800,
-    items = function() return { [item('adrenaline') or 'adrenaline'] = 1 } end,
+    items = function()
+        local name = item('adrenaline')
+        return name and { [name] = 1 } or {}
+    end,
     handler = function(src, p, payload)
         local code = codes[p.pid]
         if not code or not code.team[src] then return false, { err = 'no_code', msg = L('err_no_code') } end
@@ -977,6 +997,25 @@ local function step(code, now)
         if not validateMembers(code, p) then return end
         code.continuous = continuous(p)
         second(code, p, now)
+    end
+
+    -- a respiratory code (wounded, unresponsive, not breathing) whose heart stopped becomes a cardiac arrest
+    if p.state == 'arrest' and code.kind ~= 'arrest' and code.phase ~= 'rosc' then
+        code.kind = 'arrest'
+        code.arrestAt = p.arrestAt or os.time()
+        code.needAdrenaline = not SHOCKABLE[rhythmOf(p)]
+        log(code, 'arrested', 'red')
+        emit(code, { kind = 'arrested', rhythm = code.pads and rhythmOf(p) or nil })
+        dirty(code)
+    end
+    -- ...and one whose patient breathes again on their own is over
+    if code.kind == 'resp' and p.state == 'wounded' then
+        if notBreathing(p) then
+            code.breathingSince = nil
+        else
+            code.breathingSince = code.breathingSince or now
+            if now - code.breathingSince >= 4000 then return endCode(code, 'breathing') end
+        end
     end
 
     -- state changes from outside (ROSC by someone else, re-arrest)

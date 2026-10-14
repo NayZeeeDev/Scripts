@@ -1,15 +1,16 @@
 """
-Cases and containers: trauma kit case (closed / open), red rolling trauma bag, sharps bin.
+Cases and containers: trauma kit case (closed / open), sharps bin.
+(The medic bag is an imported model: see tools/props/external/ and import_model.py.)
 """
 from __future__ import annotations
 
 import numpy as np
 
 from nzprops import (TEAL_HI, WHITE, DecalCanvas, Geo, box, cylinder, extrude, lathe, pocket, polyline_fillet, prop,
-                     rrect, slab_with_holes, sweep, tube, vec)
+                     rrect, slab_with_holes, sweep, vec)
 
-from .common import (align, brand_canvas, cross_mark, biohazard, m_alu, m_black_plastic, m_case_grey, m_foam, m_grip,
-                     m_red_fabric, m_rubber, m_steel, m_teal, m_webbing, serial_label)
+from .common import (align, brand_canvas, cross_mark, biohazard, m_black_plastic, m_case_grey, m_foam, m_grip,
+                     m_rubber, m_steel, m_teal, serial_label)
 from .handheld import iodrill_geo, syringe_geo
 
 # ---------------------------------------------------------------------------------------------
@@ -266,116 +267,6 @@ def kitcase_open(b):
 
     b.col_box((-0.31, -0.232, 0.0), (0.31, 0.233, 0.127), "PLASTIC_HIGH_DENSITY")
     b.col_box((-0.31, -0.33, 0.12), (0.31, -0.215, 0.56), "PLASTIC_HIGH_DENSITY")
-
-
-# =============================================================================================
-# red rolling trauma bag
-# =============================================================================================
-@prop("nz_amb_medbag", atlas=1024, lod=90, hd=15, falloff=60, doc={
-    "title": "Red rolling trauma bag",
-    "origin": "bottom centre (on the ground, wheels + feet touch z = 0)",
-    "axes": "+Y = front (pockets), wheels and trolley handle at +X, +Z up",
-    "attach": "carry by the top handles: PH_R_Hand (28422) pos (0.0, 0.0, -0.40) rot (0, 0, 0); "
-              "pull: PH_R_Hand pos (-0.62, 0.0, -0.36) rot (0, -35, 0) (handle at +X end, z 0.39)",
-})
-def medbag(b):
-    red = m_red_fabric(b)
-    pipe = b.mat("piping", color=(26, 27, 29), spec=0.2, gloss=0.3, bump="rubber", bump_amp=0.00003, bump_scale=0.0008, edge=0.2)
-    blk = m_black_plastic(b)
-    rub = m_rubber(b)
-    web = m_webbing(b)
-    alu = m_alu(b)
-    teal = m_teal(b)
-    grip = m_grip(b)
-    L, W, H = 0.54, 0.33, 0.29
-    z0 = 0.045
-    zc = z0 + H / 2
-    body = Geo()
-    body += box((L, W, H), red, r=0.05, seg=3, center=(0, 0, zc), face_density={"-z": 0.4})
-    for zz in (z0 + 0.0146, z0 + H - 0.0146):
-        body += tube(_outline_path(L - 0.0292, W - 0.0292, 0.0354, zz, 6), 0.0042, pipe, segs=10, closed_path=True, tag="pipe")
-    # front pockets
-    for px in (-0.13, 0.13):
-        body += box((0.22, 0.05, 0.17), red, r=0.024, seg=3, center=(px, W / 2 + 0.006, zc - 0.035), faces="+x -x +y +z -z")
-        body += tube(_pocket_loop(px, W / 2 + 0.024, zc - 0.035, 0.206, 0.156, 0.017), 0.0032, pipe, segs=8, closed_path=True, tag="ppipe")
-
-    def bulge(p):
-        q = p.copy()
-        fx = np.clip(1 - (p[:, 0] / (L / 2)) ** 2, 0, 1)
-        fy = np.clip(1 - (p[:, 1] / (W / 2 + 0.03)) ** 2, 0, 1)
-        fz = np.clip(1 - ((p[:, 2] - zc) / (H / 2)) ** 2, 0, 1)
-        q[:, 0] += np.sign(p[:, 0]) * 0.010 * fy * fz
-        q[:, 1] += np.sign(p[:, 1]) * 0.012 * fx * fz
-        q[:, 2] += 0.010 * fx * fy * np.clip((p[:, 2] - zc) / (H / 2), 0, 1) ** 2
-        return q
-    body.deform(bulge)
-    b.add(body)
-    top = z0 + H + 0.008
-    # carry handles: two webbing arches joined by a grip wrap
-    for x in (-0.06, 0.06):
-        path = polyline_fillet([(x, 0.12, top - 0.012), (x, 0.06, top + 0.062), (x, -0.06, top + 0.062), (x, -0.12, top - 0.012)], 0.04, 8)
-        b.add(sweep(rrect(0.032, 0.003, 0.0012, 2), path, web, side=(1, 0, 0), tag="strap", smooth_angle=60))
-    b.add(box((0.17, 0.05, 0.022), grip, r=0.01, seg=3, center=(0, 0, top + 0.064)))
-    # trolley: back plate, rails, T handle, wheels
-    xe = L / 2 + 0.006
-    b.add(box((0.02, 0.24, 0.27), blk, r=0.008, seg=2, center=(xe + 0.012, 0, zc - 0.005)))
-    for yy in (-0.09, 0.09):
-        b.add(box((0.012, 0.02, 0.32), alu, r=0.004, seg=2, center=(xe + 0.027, yy, zc + 0.02)))
-    b.add(box((0.03, 0.22, 0.03), grip, r=0.012, seg=3, center=(xe + 0.028, 0, zc + 0.185)))
-    for yy in (-0.13, 0.13):
-        b.add(box((0.09, 0.055, 0.075), blk, r=0.012, seg=2, center=(xe - 0.022, yy, 0.05)))
-        wheel = Geo()
-        wheel += lathe([(0.0, -0.015), (0.036, -0.015), (0.050, -0.0145), (0.056, -0.010), (0.0575, 0.0), (0.056, 0.010), (0.050, 0.0145), (0.036, 0.015), (0.0, 0.015)],
-                       rub, segs=36, smooth_angle=35)
-        wheel += cylinder(0.034, 0.033, alu, segs=28, bevel=0.003, z0=-0.0165)
-        wheel.rotate(90, 0, 0).translate(xe - 0.01, yy + np.sign(yy) * 0.012, 0.0575)
-        b.add(wheel)
-    for yy in (-0.12, 0.12):
-        b.add(box((0.05, 0.05, 0.05), blk, r=0.01, seg=2, center=(-L / 2 + 0.04, yy, 0.025)))
-    # zip pulls
-    for px in (-0.13, 0.13):
-        b.add(box((0.012, 0.006, 0.03), teal, r=0.003, seg=2, center=(px + 0.09, W / 2 + 0.035, zc + 0.05)))
-    for xx in (-0.22, 0.22):
-        b.add(box((0.03, 0.012, 0.006), teal, r=0.003, seg=2, center=(xx, W / 2 - 0.02, top + 0.004)))
-
-    # decals ------------------------------------------------------------------------------
-    dc = DecalCanvas(L, W, ppm=1400)
-    zip_track(dc, 0.035, 0.035, L - 0.07, W - 0.07, 0.04)
-    cross_mark(dc, L / 2, W / 2, 0.15, color=WHITE, spec=0.3, gloss=0.4, height=0.0004)
-    b.decal(dc, center=(0, 0, top), normal=(0, 0, 1), up=(0, 1, 0), mats=["red_fabric"], depth=0.03, min_dot=0.5)
-    for px in (-0.13, 0.13):
-        pd = DecalCanvas(0.22, 0.17, ppm=1800)
-        zip_track(pd, 0.014, 0.016, 0.192, 0.15, 0.02, open_bottom=True)
-        pd.rect(0.0, 0.11, 0.22, 0.022, color=(205, 210, 214), spec=0.9, gloss=0.75, metal=0.6)
-        if px > 0:
-            pd.lockup(0.022, 0.045, 0.042, color=WHITE, sub_color=WHITE)
-        else:
-            pd.text(0.11, 0.065, "TRAUMA", 0.026, fnt="brand", color=WHITE, spacing=0.003, max_w=0.18)
-        b.decal(pd, center=(px, W / 2 + 0.031, zc - 0.035), normal=(0, 1, 0), up=(0, 0, 1), mats=["red_fabric"], depth=0.02)
-    ed = DecalCanvas(W, H, ppm=1400)
-    cross_mark(ed, W / 2, H * 0.42, 0.12, color=WHITE, height=0.0004)
-    ed.rect(0.0, H * 0.78, W, 0.024, color=(205, 210, 214), spec=0.9, gloss=0.75, metal=0.6)
-    b.decal(ed, center=(-L / 2 - 0.01, 0, zc), normal=(-1, 0, 0), up=(0, 0, 1), mats=["red_fabric"], depth=0.03)
-    bd = DecalCanvas(0.5, 0.25, ppm=1400)
-    bd.lockup(0.02, 0.02, 0.07, color=WHITE, sub_color=WHITE)
-    bd.rect(0.0, 0.17, 0.5, 0.024, color=(205, 210, 214), spec=0.9, gloss=0.75, metal=0.6)
-    b.decal(bd, center=(0, -W / 2 - 0.012, zc), normal=(0, -1, 0), up=(0, 0, 1), mats=["red_fabric"], depth=0.03)
-
-    b.col_box((-0.3, -0.2, 0.0), (0.33, 0.2, 0.35), "CLOTH")
-    b.col_box((0.27, -0.12, 0.33), (0.33, 0.12, 0.395), "PLASTIC")
-
-
-def _pocket_loop(px, y, zc, w, h, r):
-    lp = rrect(w, h, r, 5)
-    return np.stack([px + lp[:, 0], np.full(len(lp), y), zc + lp[:, 1]], axis=1)
-
-
-def zip_track(dc: DecalCanvas, x, y, w, h, r, open_bottom=False):
-    """Dark zip tape with teeth around a rounded rectangle on a fabric canvas."""
-    dc.rect(x, y, w, h, r=r, fill=False, width=0.010, color=(26, 27, 29), height=0.0004, spec=0.25, gloss=0.4)
-    dc.rect(x, y, w, h, r=r, fill=False, width=0.0035, color=(70, 72, 76), height=0.0006, spec=0.6, gloss=0.6)
-    if open_bottom:
-        return
 
 
 # =============================================================================================

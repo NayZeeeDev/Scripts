@@ -30,11 +30,12 @@ Config.Field = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Keys = {
-        drill      = 'Space',  -- hold to run the IO driver / hold to fasten
+        drill      = 'Space',  -- hold to run the IO driver
         advance    = 'KeyE',   -- slide the cannula off the needle
         clampDown  = 'KeyQ',   -- roller clamp - (also [ and ←)
         clampUp    = 'KeyE',   -- roller clamp + (also ] and →)
         squeeze    = 'Space',  -- pump the pressure infuser (resuscitate step)
+        insert     = 'Space',  -- IV cannulation: hold to advance the needle
         focus      = { patient = 'F1', site = 'F2', stand = 'F3', kit = 'F4' },  -- camera focus keys
     },
 
@@ -71,28 +72,46 @@ Config.Field = {
     Resus = {
         perms      = { 'iv', 'binder' },  -- medics with ANY of these see 'Field resuscitation'
         kit        = 'trauma_kit',        -- item KEY the medic must carry (not consumed)
-        minLoss    = 0.0,                 -- blood loss fraction from which the scene may be started (0 = always)
         band       = { 60, 70 },          -- permissive hypotension: target MAP (mmHg) while the clot forms
-        hold       = 24,                  -- seconds the MAP must stay in the band to firm the clot
+        hold       = 24,                  -- seconds of MAP inside the band that firm the clot to 100 %
         minTime    = 18,                  -- anti-cheat: shortest possible resuscitate step (s)
         maxTime    = 600,                 -- longest resuscitate step (s)
         easyTime   = 10,                  -- easy mode progress bar (s)
         clotFactor = 0.55,                -- a perfect firm clot removes this share of the base bleed of the target injuries
-        popFactor  = 1.35,                -- a clot that pops multiplies the base bleed by this (over-resuscitation)
-        popMargin  = 8,                   -- mmHg above the band that pops the clot after popAfter seconds
-        popAfter   = 3.0,
-        lowMap     = 52,                  -- under this MAP the clot stops forming (and the panel warns)
-        nibpAuto   = 15,                  -- seconds between automatic NIBP cycles during the resuscitate step
-        keepMonitor = true,               -- keep the monitor overlay open (no prop) after the scene ends
-        finishMsgDelay = 900,             -- ms the result card waits before closing on Enter
+        popFactor  = 1.35,                -- a clot that pops multiplies the base bleed of the target injuries by this
+        maxPop     = 1.8,                 -- ...but never above this multiple of the bleed the step started with
+        popMargin  = 6,                   -- mmHg above the band (caused by your fluids) that pops the clot...
+        popAfter   = 3.0,                 -- ...after this many seconds
+        lowMap     = 52,                  -- under this MAP the clot stops forming (the panel warns)
+        -- how the pressure answers the fluids during the step (server model on top of the real MAP)
+        response   = {
+            saline = 0.16,                -- mmHg per mL/min of crystalloid running
+            blood  = 0.30,                -- mmHg per mL/min of blood running
+            plasma = 0.26,
+            tau    = 6.0,                 -- seconds for the pressure to follow a change of flow
+            own    = 4,                   -- below this many mmHg of fluid response a high MAP is the patient's own (no pop)
+        },
+        speed      = {                    -- clot forming speed multipliers
+            below = 0.35,                 -- MAP between lowMap and the band
+            high  = 0.25,                 -- MAP above the band because of your fluids
+            own   = 0.80,                 -- MAP above the band on its own (no fluids needed)
+            txa   = 1.30,                 -- TXA given
+            cold  = 0.60,                 -- patient under 35 C without a foil blanket
+            foil  = 0.85,                 -- patient under 35 C with a foil blanket
+            dilution = 0.70,              -- more than 'dilutionAt' of the circulating volume is saline
+            dilutionAt = 0.20,
+        },
+        keepMonitor = true,               -- leave the patient monitor attached when the scene ends
+        autoContinue = 1.6,               -- seconds after the clot is firm before the step completes on its own
         camera = { dist = 2.6, pitch = 62.0, fov = 46.0, minDist = 0.7, maxDist = 5.0 },
+        siteCamera = { dist = 1.05, pitch = 58.0, fov = 42.0 },   -- F2 / IO steps close-up
         anim   = { dict = 'amb@medic@standing@tendtodead@idle_a', clip = 'idle_a' },  -- medic loop (kneeling)
+        -- prop layout around the patient (metres): side > 0 = the side away from the medic,
+        -- along > 0 = from the pelvis toward the head
         props = {
-            kitSide    = 0.62,            -- metres from the patient's pelvis toward the medic side (kit case)
-            kitAlong   = 0.30,            -- metres along the body toward the head
-            sharpsSide = 0.72,  sharpsAlong = -0.25,
-            monitorSide = 0.55, monitorAlong = 0.85,   -- monitor on the ground beside the chest
-            standSide  = -0.55, standAlong = 0.95,     -- IV stand on the far side beside the head
+            kit     = { side = 0.68, along = 0.18 },   -- open trauma case
+            sharps  = { side = 0.72, along = -0.38 },  -- sharps bin
+            stand   = { side = -0.62, along = 0.95 },  -- IV stand (medic side, beside the head)
         },
     },
 
@@ -133,6 +152,16 @@ Config.Field = {
             humerus = { soft = { 8, 16 }, cortex = { 2.0, 3.0 }, marrow = { 12, 20 }, far = { 2.5, 3.5 } },
         },
         speed = { soft = 7.0, cortex = 1.3, marrow = 8.0, far = 1.1 },   -- drill speed mm/s per layer
+        -- IO sites: bone + offset along the bone (m) where the needle goes in
+        sites = {
+            l_tibia   = { region = 'l_lower_leg', bone = 63931, offset = { 0.07, 0.0, 0.0 } },   -- proximal tibia, 2 cm below the knee
+            r_tibia   = { region = 'r_lower_leg', bone = 36864, offset = { 0.07, 0.0, 0.0 } },
+            l_humerus = { region = 'l_upper_arm', bone = 45509, offset = { 0.05, 0.0, 0.0 } },   -- humeral head
+            r_humerus = { region = 'r_upper_arm', bone = 40269, offset = { 0.05, 0.0, 0.0 } },
+        },
+        pxPerDeg = 3.2,                   -- cursor pixels (1080p) per degree off-axis while aiming the driver
+        tremor   = 7,                     -- degrees of hand drift while the driver fights the cortex
+        aspirateMl = 1.0,                 -- ml to pull back for a marrow flash
         lidoMl = 2.0,                     -- lidocaine 2 % to push (ml)
         lidoRate = { 0.08, 0.45 },        -- ml/s accepted ("slowly")
         flushMl = 10,                     -- saline flush (ml)
@@ -152,8 +181,14 @@ Config.Field = {
         attempts = 2,                     -- blown veins before the attempt fails
         gauge    = 18,                    -- cannula size written to the patient record
         tourniquetFill = 3.0,             -- seconds for the veins to fill under the tourniquet
+        sites    = {                      -- forearm close-up: bone, tourniquet bone (upper arm)
+            l_lower_arm = { bone = 61163, tq = 45509 },
+            r_lower_arm = { bone = 28252, tq = 40269 },
+        },
+        flash    = 0.9,                   -- seconds of needle travel inside the vein before it goes through the back wall
         camera   = { dist = 0.62, pitch = 64.0, fov = 40.0 },
         anim     = { dict = 'amb@medic@standing@tendtodead@idle_a', clip = 'idle_a' },
+        tourniquetProp = true,            -- show a tourniquet strap on the upper arm while cannulating
         removeReturns = false,            -- 'Remove IV / IO line' returns nothing (cannulas are single use)
         fee = 0,
     },
@@ -168,12 +203,14 @@ Config.Field = {
         salineMl  = 500,
         blood     = 'blood_bag',          -- blood bag KEY (needs the blood module: NZA.Blood.TakeBag)
         bloodMl   = 450,
-        gravity   = 32,                   -- ml/min through a fully open roller clamp without pressure
-        pressureGain = 1.15,              -- flow x (1 + gain * pressure / 300) with the infuser squeezed
+        gravity   = 60,                   -- ml/min through an IV with the roller clamp fully open, no pressure
+        ioFactor  = 0.45,                 -- an IO line runs at this share of the gravity flow (use the infuser!)
+        pressureGain = 1.4,               -- flow x (1 + gain * pressure / maxPressure) with the infuser pumped up
         maxPressure = 300,                -- mmHg on the infuser gauge
         leak      = 6,                    -- mmHg the infuser loses per second
-        pump      = 22,                   -- mmHg per squeeze (press)
-        maxRate   = 160,                  -- ml/min the server ever accepts
+        pump      = 22,                   -- mmHg per squeeze
+        maxRate   = 160,                  -- ml/min the server ever accepts (hard cap)
+        maxBags   = 3,                    -- bags running at once
         warm      = false,                -- true = field fluids count as warmed (no temperature drop)
         dilution  = 1000,                 -- ml of saline after which the panel warns about dilution
     },
@@ -200,7 +237,8 @@ Config.Field = {
         nibpTime    = 4.0,                -- seconds a cuff cycle takes
         alarms      = true,               -- alarm tones (also needs Config.UI.sounds)
         silence     = 120,                -- seconds the alarm silence button mutes the alarms
-        prop        = true,               -- place the monitor prop next to the patient (standalone)
+        prop        = true,               -- place the monitor prop next to the patient
+        place       = { side = 0.62, along = 0.82 },   -- beside the chest, away from the medic (m)
         screen      = true,               -- live vitals on the prop screen (DUI) for the medic who attached it
         focusKey    = false,              -- e.g. 'F9': take the mouse to press the monitor's buttons (false = no default)
         command     = 'nzamonitor',       -- same as the key (toggle mouse on the monitor)

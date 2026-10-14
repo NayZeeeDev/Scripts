@@ -48,6 +48,16 @@ Config.Pharmacy = {
         maxDistance = 4.0,    -- the window closes when you walk further than this
     },
 
+    -- Check-in desks (placed by the check-in module) also take payments: "[H] Pay medical bills".
+    -- The window opens in desk mode there (Bills + Insurance, no shop).
+    desk = {
+        enabled       = true,   -- show the prompt at check-in desks
+        onlyWithBills = true,   -- only when the player has open bills (false = always, for insurance too)
+        key           = 74,     -- control for the prompt (74 = H)
+        keyLabel      = 'H',    -- what the prompt shows
+        distance      = 2.6,    -- metres from the desk
+    },
+
     -- Defaults for new positions (each position can change them in the position editor).
     pointDefaults = {
         npc       = true,     -- spawn a pharmacist NPC at the position

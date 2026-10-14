@@ -1,0 +1,66 @@
+{
+ "name": "nz_amb_medbag_orange",
+ "module": "props.medbag",
+ "external": true,
+ "source": "xm_prop_x17_bag_med_01a.ydr",
+ "credit": "",
+ "dims": [
+  0.5701,
+  0.372,
+  0.3302
+ ],
+ "bbMin": [
+  -0.2902,
+  -0.2122,
+  -0.0023
+ ],
+ "bbMax": [
+  0.2798,
+  0.1598,
+  0.3278
+ ],
+ "bsCentre": [
+  -0.0052,
+  -0.0262,
+  0.1627
+ ],
+ "bsRadius": 0.3783,
+ "lodDist": 100.0,
+ "hdTextureDist": 15.0,
+ "flags": 0,
+ "static": false,
+ "tris": null,
+ "textures": [
+  {
+   "name": "nz_amb_medbag_orange_medicalbag_01",
+   "size": [
+    2048,
+    2048
+   ],
+   "format": "D3DFMT_DXT1",
+   "mips": 12
+  },
+  {
+   "name": "nz_amb_medbag_orange_normal_01",
+   "size": [
+    1024,
+    1024
+   ],
+   "format": "D3DFMT_DXT5",
+   "mips": 5
+  },
+  {
+   "name": "nz_amb_medbag_orange_metallic_01",
+   "size": [
+    1024,
+    1024
+   ],
+   "format": "D3DFMT_DXT5",
+   "mips": 11
+  }
+ ],
+ "doc": {
+  "title": "Medic bag (orange)"
+ },
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"100\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.290214\" y=\"-0.212182\" z=\"-0.002346\" />\n      <bbMax x=\"0.279848\" y=\"0.159822\" z=\"0.327839\" />\n      <bsCentre x=\"-0.005183\" y=\"-0.026180\" z=\"0.162746\" />\n      <bsRadius value=\"0.378279\" />\n      <hdTextureDist value=\"15\" />\n      <name>nz_amb_medbag_orange</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary />\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nz_amb_medbag_orange</assetName>\n      <extensions />\n    </Item>"
+}

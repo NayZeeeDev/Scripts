@@ -426,11 +426,13 @@ function C.Board(hospital)
     local free = 0
     for _, b in ipairs(beds) do if b.state == 'free' then free = free + 1 end end
     local h = hosp(hospital)
+    local staff = staffCount(hospital)
     return {
         hospital = hospital, label = hospitalLabel(hospital), now = t0,
         serving = serving, waiting = waiting, waitingMore = math.max(0, #wl - #waiting),
         incoming = incoming(hospital),
-        counts = { waiting = #wl, treatment = inTreatment, bedsFree = free, bedsTotal = #beds, staff = staffCount(hospital) },
+        counts = { waiting = #wl, treatment = inTreatment, bedsFree = free, bedsTotal = #beds, staff = staff },
+        ai = cfg('ai', 'enabled', true) == true and cfg('ai', 'noStaff', true) == true and staff == 0,
         hq = h and h.hq and true or false,
     }
 end
@@ -526,6 +528,11 @@ local function notifyStaff(t, kind, extra)
         local scopeOk = n.scope == 'all' or rec.hospital == nil or rec.hospital == t.hospital or NZA.Core.IsAdmin(s)
         if scopeOk and NZA.Staff.Can(s, perm) and s ~= t.src then
             TriggerClientEvent('nza:checkin:staff', s, note)
+            -- pager line (when the dispatch module offers one)
+            if kind == 'new' and n.pager ~= false and NZA.Dispatch and type(NZA.Dispatch.Page) == 'function' then
+                pcall(NZA.Dispatch.Page, s, { kind = 'checkin', priority = t.triage, title = L('pager_title', t.code),
+                    text = L('staff_new', t.code, ('P%d %s'):format(t.triage, t.triageLabel or '')), hospital = hospitalLabel(t.hospital) })
+            end
             local phone = n.phone
             if kind == 'new' and phone and Bridge and Bridge.Phone and Bridge.Phone.Notify then
                 local paired = phone == true or (phone == 'paired' and NZA.Dispatch and NZA.Dispatch.Paired and NZA.Dispatch.Paired(s))

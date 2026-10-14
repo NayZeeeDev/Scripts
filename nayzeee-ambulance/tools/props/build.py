@@ -111,10 +111,54 @@ def ensure_preview_modules(work):
 # ---------------------------------------------------------------------------------------------
 # conversion + verification
 # ---------------------------------------------------------------------------------------------
+def external_manifests():
+    """Imported third-party models (tools/props/external/*.json, written by import_model.py)."""
+    d = os.path.join(HERE, "external")
+    res = {}
+    if os.path.isdir(d):
+        for f in sorted(os.listdir(d)):
+            if f.endswith(".json"):
+                with open(os.path.join(d, f)) as fh:
+                    m = json.load(fh)
+                res[m["name"]] = m
+    return res
+
+
+def all_archetypes(all_manifests):
+    ext = external_manifests()
+    merged = {**ext, **all_manifests}
+    return [merged[n]["archetype_xml"] for n in sorted(merged)], len(merged)
+
+
+def write_ytyp(cw, out):
+    """Rebuild only nz_amb_props.ytyp from every built manifest in <out> + the imported models."""
+    load_props()
+    all_m = {}
+    for n in sorted(REGISTRY):
+        p = os.path.join(out, n, "manifest.json")
+        if os.path.exists(p):
+            with open(p) as f:
+                all_m[n] = json.load(f)
+    arch, count = all_archetypes(all_m)
+    bin_dir = os.path.join(out, "bin")
+    os.makedirs(bin_dir, exist_ok=True)
+    src = os.path.join(out, YTYP_NAME + ".ytyp.xml")
+    with open(src, "w", encoding="utf-8") as f:
+        f.write(ytyp_xml(YTYP_NAME, arch))
+    dst = os.path.join(bin_dir, YTYP_NAME + ".ytyp")
+    subprocess.run(cw + ["ytyp", src, dst], check=True, capture_output=True)
+    r = subprocess.run(cw + ["inspect", dst], capture_output=True, text=True)
+    m = re.search(r"Ytyp Name=.*archetypes=(\d+)", r.stdout)
+    if not m or int(m.group(1)) != count:
+        raise SystemExit(f"ytyp archetype count mismatch ({m.group(1) if m else '?'} != {count})")
+    log(f"{YTYP_NAME}.ytyp rebuilt ({count} archetypes)")
+    return dst
+
+
 def convert(cw, out, names, all_manifests):
     bin_dir = os.path.join(out, "bin")
     os.makedirs(bin_dir, exist_ok=True)
-    arch = [all_manifests[n]["archetype_xml"] for n in sorted(all_manifests)]
+    arch, arch_count = all_archetypes(all_manifests)
     ytyp_src = os.path.join(out, YTYP_NAME + ".ytyp.xml")
     with open(ytyp_src, "w", encoding="utf-8") as f:
         f.write(ytyp_xml(YTYP_NAME, arch))
@@ -154,9 +198,9 @@ def convert(cw, out, names, all_manifests):
         raise SystemExit(f"cwtool reported errors (see {out}/cwtool_log.txt)")
     # archetype count check
     m = re.search(r"Ytyp Name=.*archetypes=(\d+)", r.stdout)
-    if not m or int(m.group(1)) != len(all_manifests):
-        raise SystemExit(f"ytyp archetype count mismatch ({m.group(1) if m else '?'} != {len(all_manifests)})")
-    log(f"cwtool: {len(names)} drawables + {YTYP_NAME}.ytyp converted and verified ({len(all_manifests)} archetypes)")
+    if not m or int(m.group(1)) != arch_count:
+        raise SystemExit(f"ytyp archetype count mismatch ({m.group(1) if m else '?'} != {arch_count})")
+    log(f"cwtool: {len(names)} drawables + {YTYP_NAME}.ytyp converted and verified ({arch_count} archetypes)")
     return bin_dir
 
 
@@ -165,7 +209,7 @@ def install_stream(bin_dir, stream, names):
     for n in names:
         shutil.copy2(os.path.join(bin_dir, n + ".ydr"), os.path.join(stream, n + ".ydr"))
     shutil.copy2(os.path.join(bin_dir, YTYP_NAME + ".ytyp"), os.path.join(stream, YTYP_NAME + ".ytyp"))
-    registered = set(REGISTRY)
+    registered = set(REGISTRY) | set(external_manifests())   # imported models are never "stale"
     for f in os.listdir(stream):
         if f.startswith("nz_amb_") and f.endswith(".ydr") and f[:-4] not in registered:
             os.remove(os.path.join(stream, f))

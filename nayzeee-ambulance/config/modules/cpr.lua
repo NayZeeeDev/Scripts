@@ -55,6 +55,8 @@ Config.Cpr = {
         swap       = 'KeyX',     -- swap compressor / airway roles with your partner
         pulse      = 'KeyF',     -- check the carotid pulse after an organised rhythm
         causes     = 'KeyH',     -- show / hide the reversible causes card
+        mode       = 'KeyM',     -- AED <-> manual mode (manual needs the 'defib' permission)
+        disarm     = 'KeyZ',     -- dump the charge without shocking
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -95,6 +97,9 @@ Config.Cpr = {
         mouthQuality  = 60,     -- % a mouth-to-mouth breath is worth compared with the BVM
         mouthSlower   = 1.25,   -- mouth-to-mouth needs this much longer to fill the chest
         bvmProp       = true,   -- show the BVM on the patient's face while ventilating
+        bvmAttach     = {       -- BVM on the patient's face (SKEL_Head), see docs/modules/props.md
+            bone = 31086, pos = { x = 0.06, y = 0.11, z = 0.0 }, rot = { x = 0.0, y = -90.0, z = -90.0 },
+        },
         continuousIfVentilated = true, -- intubated + on a ventilator → continuous compressions, no pauses
     },
 
@@ -139,6 +144,18 @@ Config.Cpr = {
             efficacy = 0.4,     -- the shock is this much as effective (energy went into the rescuer)
         },
         prop        = true,     -- put the defibrillator case (Config.Props.defib) on the ground next to the patient
+        propOffset  = 0.75,     -- metres from the chest, on the medic's side
+    },
+
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- PADS (drag them onto the chest)
+    -- ═══════════════════════════════════════════════════════════════════════
+
+    Pads = {
+        snap      = 70,         -- pixels: how close to the chest target a pad must be dropped
+        sternum   = 0.42,       -- right pad: share of the way from the upper chest to the right shoulder
+        apex      = 0.85,       -- left pad: share of the way out to the left side (mid-axillary line)
+        lift      = 0.09,       -- metres above the spine bones (the chest surface)
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -187,13 +204,21 @@ Config.Cpr = {
             breath   = { 'mini@cpr@char_a@cpr_str', 'cpr_kol_idle' },
             success  = { 'mini@cpr@char_a@cpr_str', 'cpr_success' },
         },
+        bed = {                  -- patient on a bed / stretcher / in the bay: the medic stands, the patient stays put
+            compress = { 'missheistfbi3b_ig8_2', 'cpr_loop_paramedic' },
+            idle     = { 'amb@medic@standing@timeofdeath@base', 'base' },
+            side     = 0.65,     -- metres beside the chest
+        },
         patient = {
             intro    = { 'mini@cpr@char_b@cpr_def', 'cpr_intro' },
             compress = { 'mini@cpr@char_b@cpr_str', 'cpr_pumpchest' },
             idle     = { 'mini@cpr@char_b@cpr_def', 'cpr_pumpchest_idle' },
+            breath   = { 'mini@cpr@char_b@cpr_str', 'cpr_kol_idle' },
             success  = { 'mini@cpr@char_b@cpr_str', 'cpr_success' },
         },
         helper   = { 'amb@medic@standing@kneel@base', 'base' }, -- the partner kneels at the head
+        helperBed = { 'amb@medic@standing@timeofdeath@base', 'base' }, -- ...or stands at the head of a bed
+        helperDist = 0.55,       -- metres beyond the patient's head
         npcRest  = { 'dead', 'dead_a' },   -- an NPC patient lies like this after CPR
         origin   = { x = 0.0, y = 0.0, z = 1.0, h = 0.0 }, -- scene origin from the patient's ground spot (raise z if peds sink)
         baseRate = 105,          -- compressions per minute the pump clip plays at normal speed

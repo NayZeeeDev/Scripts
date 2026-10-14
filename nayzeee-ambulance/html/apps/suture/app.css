@@ -75,8 +75,6 @@
 #app-suture .sz-cur .tx.teal{color:var(--teal-hi)} #app-suture .sz-cur .tx.red{color:#ff9a9d} #app-suture .sz-cur .tx.amber{color:#f3c35a}
 
 /* ── panel additions ── */
-#app-suture .pp{width:min(1060px,94vw)}
-#app-suture .pp-right{min-width:360px}
 #app-suture .sz-tip{display:flex;align-items:flex-start;gap:8px;margin-top:11px;padding:8px 10px 8px 12px;border-radius:8px;background:var(--inset);
   border:1px solid var(--line-hair);position:relative;font-size:11.5px;color:var(--ink-2);line-height:1.45;max-width:60ch}
 #app-suture .sz-tip::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--teal);box-shadow:0 0 8px var(--teal)}

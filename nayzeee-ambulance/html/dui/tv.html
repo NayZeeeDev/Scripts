@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" data-shape="cut">
+<head>
+<meta charset="utf-8">
+<title>NAYZEEE · Waiting room board</title>
+<!--
+  NAYZEEE AMBULANCE · waiting room TV board (DUI)
+  Rendered by client/modules/checkin_tv.lua into the NAYZEEE screen model (AddReplaceTexture)
+  or a native TV render target. Size = Config.Checkin.tv.width × height (16:9).
+  Messages (SendDuiMessage JSON): init · board · mine · clock · chime · standby
+  Opened as a file in a browser it shows demo data (?state=empty|flash|standby).
+-->
+<link rel="stylesheet" href="../core/nz-core.css">
+<link rel="stylesheet" href="tv.css">
+</head>
+<body>
+<div id="tv" class="standby">
+  <div class="tv-bg"></div>
+  <header class="tv-head">
+    <div class="tv-brand"><span class="nz-mark"></span><div><h1 class="tv-dept">—</h1><p class="tv-room">Waiting room</p></div></div>
+    <div class="tv-clock"><b class="tv-time">--:--</b><span class="tv-date"></span></div>
+  </header>
+  <main class="tv-main">
+    <section class="tv-serving"><div class="tv-lbl"><i class="tv-live"></i><span data-l="now_serving">Now serving</span></div><div class="tv-slist"></div></section>
+    <section class="tv-waiting"><div class="tv-lbl"><span data-l="waiting">Waiting</span><em class="tv-wcount">0</em></div><div class="tv-wlist"></div></section>
+  </main>
+  <section class="tv-incoming"><div class="tv-ilbl"><span class="tv-iic"></span><span data-l="incoming">Incoming</span></div><div class="tv-ilist"></div></section>
+  <footer class="tv-foot">
+    <div class="tv-counts"></div>
+    <div class="tv-staff"></div>
+  </footer>
+  <div class="tv-ticker"><div class="tv-tick"></div></div>
+  <div class="tv-flash"></div>
+  <div class="tv-standby"><span class="nz-mark xl"></span><b data-l="standby_title">Waiting room</b><span class="tv-dots"><i></i><i></i><i></i></span></div>
+</div>
+<script src="../core/nz-core.js"></script>
+<script src="tv.js"></script>
+</body>
+</html>

@@ -84,6 +84,7 @@ Config.Checkin = {
         notify = {
             toast  = true,        -- toast to on-duty staff: "New patient A-014 · P2 Urgent"
             sound  = true,        -- pager beep with the toast
+            pager  = true,        -- also a line on the EMS pager (when the dispatch module offers NZA.Dispatch.Page)
             phone  = 'paired',    -- phone notification: true | false | 'paired' (only medics whose pager is paired)
             scope  = 'department',-- 'department' = staff of that hospital, 'all' = every medic with the permission
         },
@@ -103,11 +104,14 @@ Config.Checkin = {
         downedTeleport = true,    -- downed patients are always moved into the bed
         doctorPed    = true,      -- a doctor NPC stands by the bed during the treatment
         doctorModels = { 's_m_m_doctor_01', 's_f_y_scrubs_01' },
-        doctorScenario = 'CODE_HUMAN_MEDIC_TEND_TO_DEAD',
+        doctorScenario = 'CODE_HUMAN_MEDIC_TIME_OF_DEATH', -- doctor writing notes (assessment, discharge)
+        doctorWork   = { dict = 'anim@amb@clubhouse@tutorial@bkr_tut_ig3@', clip = 'machinic_loop_mechandplayer' }, -- hands at work over the bed
         cinematic    = true,      -- slow camera shots around the bed ([C] switches to your normal camera)
+        shotTime     = 8,         -- seconds per camera shot
         cameraKey    = 'C',
         cameraControl = 26,       -- INPUT_LOOK_BEHIND (C)
         getUpHold    = 1.5,       -- seconds to hold the get-up key to stop the treatment
+        summaryTime  = 9,         -- seconds the "treatment complete" card stays before you stand up
 
         -- seconds per step (one step per injury, plus assessment / resus / transfusion / discharge)
         times = {

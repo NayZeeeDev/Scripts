@@ -248,7 +248,7 @@ static class Program
             }
         }
         else problems.Add("no embedded collision");
-        if (reexport != null) File.WriteAllText(reexport, YdrXml.GetXml(ydr));
+        if (reexport != null) File.WriteAllText(reexport, YdrXml.GetXml(ydr, Path.GetDirectoryName(Path.GetFullPath(reexport))));   // embedded textures are written next to the xml as .dds
     }
 
     static void InspectYtd(byte[] bytes, string reexport, List<string> problems)
@@ -259,7 +259,7 @@ static class Program
         if (items == null || items.Length == 0) { problems.Add("texture dictionary empty"); return; }
         foreach (var t in items)
             Console.WriteLine($"  Tex Name={t.Name} {t.Width}x{t.Height} mips={t.Levels} fmt={t.Format}");
-        if (reexport != null) File.WriteAllText(reexport, YtdXml.GetXml(ytd));
+        if (reexport != null) File.WriteAllText(reexport, YtdXml.GetXml(ytd, Path.GetDirectoryName(Path.GetFullPath(reexport))));
     }
 
     static void InspectYtyp(byte[] bytes, string reexport, List<string> problems)

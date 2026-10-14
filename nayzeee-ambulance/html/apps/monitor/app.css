@@ -1,0 +1,113 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · monitor — rugged NAYZEEE patient monitor (HUD overlay)
+   Device frame (.dev from nza.css) + NZA.vitals.Monitor inside, alarm banner,
+   NIBP cuff row and side hardware buttons. Opened by the field, bay, bed, cpr and
+   intubation modules with NZA.UI.Open('monitor', { target, compact }).
+   ═══════════════════════════════════════════════════════════ */
+
+#app-monitor .mon{position:absolute;left:22px;top:22px;animation:nza-pop 220ms cubic-bezier(.2,.7,.2,1) both}
+#app-monitor .mon.pos-tr{left:auto;right:22px}
+#app-monitor .mon.pos-bl{top:auto;bottom:22px}
+#app-monitor .mon.pos-br{left:auto;right:22px;top:auto;bottom:22px}
+
+.mon-dev{width:500px;padding:12px 12px 12px 14px;border-radius:20px;transition:width var(--slow)}
+.mon.compact .mon-dev{width:372px}
+.mon-top{display:flex;align-items:center;gap:10px;padding:0 4px 9px 2px}
+.mon-top .dev-brand{flex:1}
+.mon-model{font:600 8.5px var(--mono);letter-spacing:.14em;color:rgba(255,255,255,.3);padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.08)}
+.mon-body{display:flex;gap:10px;align-items:stretch}
+
+/* screen */
+.mon-screen{flex:1;min-width:0;display:flex;flex-direction:column;background:#020303}
+.mon-head{display:flex;align-items:center;gap:8px;height:22px;padding:0 9px;border-bottom:1px solid rgba(255,255,255,.06);
+  font:600 9px var(--font);letter-spacing:.12em;color:rgba(255,255,255,.5);text-transform:uppercase;white-space:nowrap}
+.mon-head .pname{color:rgba(255,255,255,.82);overflow:hidden;text-overflow:ellipsis}
+.mon-head .clock{margin-left:auto;font-family:var(--mono);letter-spacing:.04em;color:rgba(255,255,255,.62)}
+.mon-head .bat{display:inline-flex;align-items:center;gap:4px;color:rgba(255,255,255,.4)}
+.mon-head .bat i{display:block;width:16px;height:7px;border-radius:2px;border:1px solid rgba(255,255,255,.35);position:relative}
+.mon-head .bat i::after{content:'';position:absolute;left:1px;top:1px;bottom:1px;width:70%;background:var(--green);border-radius:1px}
+
+/* alarm banner */
+.mon-alarm{display:none;align-items:center;justify-content:center;gap:7px;height:21px;margin:5px 6px 0;border-radius:4px;
+  font:700 10px var(--font);letter-spacing:.14em;text-transform:uppercase}
+.mon-alarm.on{display:flex}
+.mon-alarm.l1{background:rgba(229,165,10,.16);color:#f3c35a;border:1px solid rgba(229,165,10,.45)}
+.mon-alarm.l2,.mon-alarm.l3{background:rgba(229,72,77,.2);color:#ff8a8d;border:1px solid rgba(229,72,77,.55);animation:mon-flash 1s steps(1) infinite}
+.mon-alarm.l3{background:#c92a2f;color:#fff;border-color:#ff6b70}
+.mon-alarm.muted{animation:none;opacity:.75}
+.mon-alarm .nz-ic{width:12px;height:12px}
+.mon-alarm .cnt{font-family:var(--mono);letter-spacing:.02em;opacity:.8}
+@keyframes mon-flash{50%{filter:brightness(1.45)}}
+
+/* the shared bedside monitor widget, re-laid out for the rugged device */
+.mon .vmon{grid-template-columns:1fr 176px;min-width:0;background:transparent}
+.mon.compact .vmon{grid-template-columns:1fr 132px}
+.mon .vmon .foot{display:none}
+.mon .vmon .tr{border-bottom-color:rgba(255,255,255,.04)}
+.mon .vmon .tr .tl{font-size:8px;top:4px;left:7px}
+.mon .vmon .nums{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(0,1fr)}
+.mon.compact .vmon .nums{grid-template-columns:1fr}
+.mon .vmon .nb{padding:3px 8px 3px 6px;justify-content:center;border-left:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);position:relative}
+.mon .vmon .nb .k{font-size:7.5px;letter-spacing:.12em;opacity:.85;align-self:stretch;display:flex;justify-content:space-between}
+.mon .vmon .nb .v{font-size:27px}
+.mon .vmon .nb.hr{order:1}.mon .vmon .nb.sp{order:2}
+.mon .vmon .nb.mp{order:3;grid-column:1 / -1}
+.mon .vmon .nb.rr{order:4}.mon .vmon .nb.co{order:5}
+.mon .vmon .nb.tp{order:6;grid-column:1 / -1;flex-direction:row;align-items:center;justify-content:space-between}
+.mon .vmon .nb.tp .v{font-size:16px!important}
+.mon .vmon .nb.mp{flex-direction:row;align-items:center;justify-content:space-between;gap:6px}
+.mon .vmon .nb.mp .k{flex-direction:column;justify-content:center;gap:3px;align-self:center;width:auto}
+.mon .vmon .nb.mp .v{font-size:30px;color:var(--teal-hi)}
+.mon .vmon .nb.mp .s{font-size:13px;font-weight:700;color:#fff;opacity:.92;order:-1;margin-right:auto}
+.mon .vmon .nb.co{color:var(--yellow)}
+.mon .vmon .nb.hr .v{font-size:31px}
+.mon .vmon .nb.sp .v{font-size:31px}
+.mon.compact .vmon .nb.rr,.mon.compact .vmon .nb.co,.mon.compact .vmon .nb.tp{display:none}
+.mon.compact .vmon .nb.mp{grid-column:auto}
+.mon .vmon .nb .lim{font-size:7px;font-weight:600;opacity:.55;letter-spacing:0;font-family:var(--mono)}
+.mon .vmon .nb.hr .k::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);opacity:0;align-self:center}
+.mon .vmon .nb.hr.beat .k::after{opacity:1;box-shadow:0 0 6px var(--green)}
+.mon .vmon .nb.stale .v{opacity:.45}
+
+/* NIBP / cuff row */
+.mon-nibp{display:flex;align-items:center;gap:9px;height:24px;padding:0 9px;border-top:1px solid rgba(255,255,255,.06);
+  font:600 8.5px var(--font);letter-spacing:.1em;color:rgba(255,255,255,.5);text-transform:uppercase;white-space:nowrap}
+.mon-nibp .cuff{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.75)}
+.mon-nibp .cuff .nz-ic{width:12px;height:12px;color:var(--teal-hi)}
+.mon-nibp .bar{position:relative;flex:1;height:4px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden;min-width:40px}
+.mon-nibp .bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));border-radius:inherit}
+.mon-nibp .when{font-family:var(--mono);letter-spacing:0;color:rgba(255,255,255,.55);text-transform:none}
+.mon-nibp.busy .cuff{color:#f3c35a}
+.mon-nibp.busy .cuff .nz-ic{color:#f3c35a;animation:nza-blink .7s steps(1) infinite}
+.mon-nibp .auto{color:rgba(255,255,255,.35);font-family:var(--mono);letter-spacing:0;text-transform:none}
+.mon-nibp .ovr{display:none;color:var(--teal-hi)}
+.mon-nibp.ovr .ovr{display:inline}
+
+/* standby */
+.mon-screen{position:relative}
+.mon-off{position:absolute;inset:0;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#020303;
+  font:600 9px var(--font);letter-spacing:.24em;color:rgba(255,255,255,.3)}
+.mon-off .nz-mark{width:28px;height:28px;border-radius:7px;opacity:.55}
+.mon.off .mon-off{display:flex}
+.mon.boot .mon-off{display:flex;animation:mon-boot 1.1s ease-out both}
+@keyframes mon-boot{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
+
+/* hardware buttons */
+.mon-btns{display:flex;flex-direction:column;gap:8px;width:40px;padding-top:2px}
+.mon-btns .dev-btn{width:40px;height:40px;border-radius:11px;position:relative}
+.mon-btns .dev-btn .nz-ic{width:16px;height:16px}
+.mon-btns .dev-btn.pwr .nz-ic{color:var(--teal-hi)}
+.mon.off .mon-btns .dev-btn.pwr .nz-ic{color:#ff6b70}
+.mon-btns .dev-btn.on{color:#f3c35a;box-shadow:0 0 0 1px rgba(229,165,10,.55) inset,0 3px 6px rgba(0,0,0,.5)}
+.mon-btns .dev-btn.busy .nz-ic{color:var(--teal-hi);animation:nza-blink .7s steps(1) infinite}
+.mon-btns .dev-btn .tip{position:absolute;right:48px;top:50%;transform:translateY(-50%);padding:4px 8px;border-radius:6px;background:var(--hud-solid);
+  border:1px solid var(--hud-line);font:600 10.5px var(--font);color:var(--ink);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity var(--fast)}
+.mon-btns .dev-btn:hover .tip{opacity:1}
+.mon.pos-tl .mon-btns .dev-btn .tip,.mon.pos-bl .mon-btns .dev-btn .tip{right:auto;left:48px}
+.mon-btns .led{margin:auto auto 2px;width:7px;height:7px}
+.mon.compact .mon-btns{gap:6px;width:34px}
+.mon.compact .mon-btns .dev-btn{width:34px;height:34px;border-radius:9px}
+
+@media (prefers-reduced-motion:reduce){
+  .mon-alarm.l2,.mon-alarm.l3,.mon-nibp.busy .cuff .nz-ic,.mon-btns .dev-btn.busy .nz-ic{animation:none}
+}
