@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from nzprops import (TEAL_HI, WHITE, DecalCanvas, Geo, box, cylinder, extrude, lathe, pocket, polyline_fillet, prop,
-                     rrect, slab_with_holes, sweep, vec)
+from nzprops import (TEAL_HI, WHITE, DecalCanvas, Geo, box, catmull, cylinder, extrude, lathe, pocket, polyline_fillet, prop,
+                     rrect, slab_with_holes, sweep, torus, tube, vec)
 
-from .common import (align, brand_canvas, cross_mark, biohazard, m_black_plastic, m_case_grey, m_foam, m_grip,
-                     m_rubber, m_steel, m_teal, serial_label)
+from .common import (align, asset_tag, biohazard, caution_label, cross_mark, hinge, label_canvas, m_black_plastic,
+                     m_case_grey, m_foam, m_grip, m_rubber, m_steel, m_teal, rating_plate, screws)
 from .handheld import iodrill_geo, syringe_geo
 
 # ---------------------------------------------------------------------------------------------
@@ -44,6 +44,13 @@ def _case_latch(b, x, y_face):
     g += cylinder(0.006, 0.074, grey, segs=16, bevel=0.0015, z0=-0.037).rotate(0, 90, 0).translate(x, y_face + 0.007, Z_SEAM - 0.034)
     g += box((0.05, 0.016, 0.012), grey, r=0.004, seg=2, center=(x, y_face + 0.006, Z_SEAM + 0.043))
     g += cylinder(0.0028, 0.078, steel, segs=10, z0=-0.039).rotate(0, 90, 0).translate(x, y_face + 0.007, Z_SEAM - 0.034)
+    for sx in (-1, 1):
+        g += cylinder(0.0042, 0.0016, steel, segs=12, bevel=0.0005, bevel_seg=1).rotate(0, 90 * sx, 0).translate(
+            x + sx * 0.0372, y_face + 0.007, Z_SEAM - 0.034)
+    # padlock eye beside the latch (base + lid tabs with holes)
+    for dz, zz in ((-1, Z_SEAM - 0.012), (1, Z_SEAM + 0.012)):
+        g += box((0.012, 0.012, 0.022), grey, r=0.003, seg=2, center=(x + 0.05, y_face + 0.004, zz))
+    g += torus(0.0042, 0.0012, steel, segs=14, tube_segs=6).rotate(0, 90, 0).translate(x + 0.05, y_face + 0.0115, Z_SEAM)
     return g
 
 
@@ -64,8 +71,12 @@ def _case_hardware(b, open_lid=False):
     yf = CD / 2
     for sx in (-1, 1):
         g += box((0.03, 0.026, 0.03), grey, r=0.008, seg=2, center=(sx * 0.085, yf + 0.008, 0.098))
-    hp = polyline_fillet([(-0.085, yf + 0.016, 0.098), (-0.085, yf + 0.030, 0.050), (0.085, yf + 0.030, 0.050), (0.085, yf + 0.016, 0.098)], 0.016, 6)
-    g += sweep(rrect(0.020, 0.030, 0.008, 3), hp, grip, side=(0, 1, 0), tag="handle", smooth_angle=55)
+    hp = polyline_fillet([(-0.085, yf + 0.016, 0.098), (-0.085, yf + 0.030, 0.050), (0.085, yf + 0.030, 0.050), (0.085, yf + 0.016, 0.098)], 0.016, 8)
+    g += sweep(rrect(0.020, 0.030, 0.008, 3), hp, grey, side=(0, 1, 0), tag="handle", smooth_angle=55)
+    g += sweep(rrect(0.024, 0.034, 0.010, 3), np.array([(-0.062, yf + 0.030, 0.050), (0.062, yf + 0.030, 0.050)]), grip,
+               side=(0, 1, 0), tag="handlegrip", smooth_angle=55)
+    for sx in (-1, 1):
+        g += screws(b, [(sx * 0.085, yf + 0.021, 0.098)], (0, 1, 0), d=0.006, segs=12)
     return g
 
 
