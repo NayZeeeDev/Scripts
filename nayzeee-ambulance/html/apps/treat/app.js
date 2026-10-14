@@ -1016,7 +1016,11 @@
       const beat = G.beat || 0;
       const v = inj.arterial ? amp * (0.35 + 0.65 * beat * beat) : amp * (0.55 + 0.08 * Math.sin(G.t * 9));
       const N = 200;
-      if (!tr.hist.length) for (let i = 0; i < N; i++) tr.hist.push(null);
+      if (!tr.hist.length) {
+        // seed the sweep with the last few seconds so the screen is never blank
+        const per = Math.max(10, Math.round(3600 / clamp(G.hr || 90, 30, 200)));
+        for (let i = 0; i < N; i++) { const bt = Math.max(0, 1 - (i % per) / 15); tr.hist.push(inj.arterial ? amp * (0.35 + 0.65 * bt * bt) : amp * (0.55 + 0.08 * Math.sin(i * 0.15))); }
+      }
       tr.hist.push(v); while (tr.hist.length > N) tr.hist.shift();
       c.clearRect(0, 0, W, H);
       // grid: fine minor lines, brighter major lines

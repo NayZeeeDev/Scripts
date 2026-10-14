@@ -205,7 +205,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     const foamT = foamTextures(), webT = webbingTextures(), shellT = shellTextures();
     const M = {
       foam: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#3c444b'), map: foamT.map, normalMap: foamT.normal, normalScale: new THREE.Vector2(0.7, 0.7), roughness: 0.94, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.55 }), 'foam', 0.12),
-      shell: fadeMat(new THREE.MeshPhysicalMaterial({ color: lin('#0c9a8e'), normalMap: shellT.normal, normalScale: new THREE.Vector2(0.25, 0.25), roughness: 0.36, metalness: 0, clearcoat: 0.75, clearcoatRoughness: 0.2, side: THREE.DoubleSide, envMapIntensity: 1.1 }), 'shell', 0.06),
+      shell: fadeMat(new THREE.MeshPhysicalMaterial({ color: lin('#07887e'), normalMap: shellT.normal, normalScale: new THREE.Vector2(0.25, 0.25), roughness: 0.4, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.22, side: THREE.DoubleSide, envMapIntensity: 0.8 }), 'shell', 0.06),
       cap: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#0a7f76'), roughness: 0.5, side: THREE.DoubleSide }), 'cap', 0.06),
       pad: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#e6ecee'), normalMap: foamT.normal, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.97, envMapIntensity: 0.6 }), 'pad', 0.35),
       roll: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#59666c'), normalMap: foamT.normal, roughness: 0.92 }), 'roll', 0.2),
@@ -2120,7 +2120,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       const c = cvs(w, hgt), x = c.getContext('2d');
       x.fillStyle = '#e9e6dc'; x.fillRect(0, 0, w, hgt);
       x.globalCompositeOperation = 'destination-out';
-      for (let i = 0; i < 5200; i++) { x.fillStyle = `rgba(0,0,0,${0.15 + r() * 0.6})`; x.beginPath(); x.arc(r() * w, r() * hgt, 0.5 + r() * 2.2, 0, Math.PI * 2); x.fill(); }
+      for (let i = 0; i < 1800; i++) { x.fillStyle = `rgba(0,0,0,${0.15 + r() * 0.5})`; x.beginPath(); x.arc(r() * w, r() * hgt, 0.5 + r() * 2.2, 0, Math.PI * 2); x.fill(); }
       return tex(c, [1, 4], true);
     }
 
@@ -2132,7 +2132,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       denim: new THREE.MeshStandardMaterial({ map: tD.map, normalMap: tD.normal, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.92 }),
       jacket: new THREE.MeshStandardMaterial({ map: tJ.map, normalMap: tJ.normal, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.55, metalness: 0.05 }),
       boot: new THREE.MeshStandardMaterial({ map: tB.map, normalMap: tB.normal, roughness: 0.5, metalness: 0.05 }),
-      sole: new THREE.MeshStandardMaterial({ color: lin('#2a2826'), roughness: 0.85 }),
+      sole: new THREE.MeshStandardMaterial({ color: lin('#26221f'), roughness: 0.85 }),
       glove: new THREE.MeshStandardMaterial({ map: tG.map, normalMap: tG.normal, roughness: 0.6 }),
       helmet: new THREE.MeshPhysicalMaterial({ color: lin('#1c1e21'), roughness: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.35 }),
       visor: new THREE.MeshPhysicalMaterial({ color: lin('#121820'), roughness: 0.05, metalness: 0.2, clearcoat: 1, transparent: true, opacity: 0.92 }),
@@ -2175,15 +2175,17 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       rEl: V3(-0.32, 0.23, 0.075), rWr: V3(-0.385, -0.005, 0.055), rHand: V3(-0.405, -0.09, 0.05),
       lEl: V3(0.31, 0.25, 0.08), lWr: V3(0.24, 0.08, 0.19), head: V3(0, 0.73, 0.135),
     };
-    function limb(a, b, r0, r1, m, bulge = 0, at = 0.35) {
+    function limb(a, b, r0, r1, m, bulge = 0, at = 0.35, round = false) {
       const L = a.distanceTo(b), pts = [];
       const n = 26;
       for (let i = 0; i <= n; i++) {
         const t = i / n;
         let r = r0 + (r1 - r0) * t + bulge * Math.exp(-((t - at) ** 2) / 0.04);
-        const e = Math.min(0.08, (r0 * 0.9) / L);
-        if (t < e) r *= Math.sqrt(Math.max(0.0001, 1 - ((e - t) / e) ** 2));
-        if (t > 1 - e) r *= Math.sqrt(Math.max(0.0001, 1 - ((t - (1 - e)) / e) ** 2));
+        if (round) {
+          const e = Math.min(0.08, (r0 * 0.9) / L);
+          if (t < e) r *= Math.sqrt(Math.max(0.0001, 1 - ((e - t) / e) ** 2));
+          if (t > 1 - e) r *= Math.sqrt(Math.max(0.0001, 1 - ((t - (1 - e)) / e) ** 2));
+        }
         pts.push(new THREE.Vector2(Math.max(r, 0.002), t * L));
       }
       const geo = new THREE.LatheGeometry(pts, 40);
@@ -2231,9 +2233,9 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       shaft.position.copy(shin.clone().multiplyScalar(0.045));
       shaft.quaternion.setFromUnitVectors(V3(0, 1, 0), shin);
       shaft.castShadow = shaft.receiveShadow = true; g.add(shaft);
-      const hem = new THREE.Mesh(new THREE.TorusGeometry(0.054, 0.009, 10, 30), mat.denim);
-      hem.position.copy(shin.clone().multiplyScalar(0.105));
-      hem.quaternion.setFromUnitVectors(V3(0, 0, 1), shin);
+      const hem = new THREE.Mesh(new THREE.CylinderGeometry(0.059, 0.061, 0.035, 30, 1), mat.denim);
+      hem.position.copy(shin.clone().multiplyScalar(0.1));
+      hem.quaternion.setFromUnitVectors(V3(0, 1, 0), shin);
       hem.castShadow = true; g.add(hem);
       // foot: toes up, tipped toward the feet end; sole on the plantar side
       const fd = V3(0, -Math.sin(0.55), Math.cos(0.55));
@@ -2251,7 +2253,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       toe.position.copy(fd.clone().multiplyScalar(0.18)).add(plantar.clone().multiplyScalar(0.01)); toe.scale.set(1.05, 0.9, 1);
       toe.castShadow = true; g.add(toe);
       for (let i = 0; i < 4; i++) {
-        const l = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.007, 0.006), mat.metal);
+        const l = new THREE.Mesh(new THREE.BoxGeometry(0.044, 0.005, 0.004), mat.sole);
         l.position.copy(fd.clone().multiplyScalar(0.02 + i * 0.03)).add(plantar.clone().multiplyScalar(-0.047));
         l.quaternion.setFromUnitVectors(V3(0, 1, 0), fd);
         g.add(l);
