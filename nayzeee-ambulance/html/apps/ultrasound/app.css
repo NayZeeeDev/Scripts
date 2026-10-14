@@ -1,0 +1,295 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · Ultrasound (app 'ultrasound')           module: ultrasound
+   Scan / pericardiocentesis: the game world stays visible; the device sits right of
+   centre (left of the tool belt), the treatment plan top-left, the procedure column
+   bottom-left. Chest drain / decompression: full-screen 3D close-up (core/nza3d.js).
+   The section is not zoomed (WebGL maps 1:1); the HUD layer .us-ui carries the zoom.
+   In-game rules: no backdrop-filter, no color-mix(), no :has().
+   ═══════════════════════════════════════════════════════════ */
+
+#app-ultrasound{--us-teal:#0fd4c4;--us-red:#ff5a5f}
+#app-ultrasound.us-3d{background:#050607}
+#app-ultrasound .us-stage{position:absolute;inset:0;overflow:hidden;cursor:crosshair}
+#app-ultrasound:not(.us-3d) .us-stage{display:none}
+#app-ultrasound .us-ui{position:fixed;inset:0;pointer-events:none;zoom:var(--nza-zoom)}
+#app-ultrasound .us-ui .nza-hud{pointer-events:none}
+#app-ultrasound .us-ui .pp,#app-ultrasound .us-ui .us-dev,#app-ultrasound .us-ui .us-plan{pointer-events:auto}
+#app-ultrasound .us-ui .pp{pointer-events:none}
+#app-ultrasound .us-ui .pp .pp-card,#app-ultrasound .us-ui .pp .pp-belt,#app-ultrasound .us-ui .pp .pp-read{pointer-events:auto}
+#app-ultrasound.us-m-scan,#app-ultrasound.us-m-pericardio{cursor:none}
+#app-ultrasound.us-m-scan .us-dev,#app-ultrasound.us-m-scan .us-plan,#app-ultrasound.us-m-scan .pp-card,#app-ultrasound.us-m-scan .pp-belt,
+#app-ultrasound.us-m-pericardio .us-dev,#app-ultrasound.us-m-pericardio .pp-card,#app-ultrasound.us-m-pericardio .pp-belt{cursor:default}
+.us-pw{position:fixed;inset:0;width:100vw;height:100vh}
+
+/* loading veil (3D modes) */
+#app-ultrasound .us-load{position:absolute;inset:0;display:grid;place-items:center;background:#050607;transition:opacity 260ms;z-index:5}
+#app-ultrasound .us-load.out{opacity:0;pointer-events:none}
+#app-ultrasound .us-load .in{display:flex;flex-direction:column;align-items:center;gap:14px}
+#app-ultrasound .us-load .ring{width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.1);border-top-color:var(--teal-hi);animation:us-spin .9s linear infinite}
+#app-ultrasound .us-load .lt{font-size:12px;color:var(--ink-2);letter-spacing:.04em}
+@keyframes us-spin{to{transform:rotate(360deg)}}
+
+/* ═════════════ DEVICE ═════════════ */
+#app-ultrasound .us-dev{position:absolute;right:300px;top:50%;transform:translateY(-50%);width:676px;animation:us-dev-in 380ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes us-dev-in{from{opacity:0;transform:translate(24px,-50%)}to{opacity:1;transform:translateY(-50%)}}
+#app-ultrasound .dv-shell{position:relative;padding:12px 14px 12px;border-radius:22px;
+  background:linear-gradient(165deg,#30353a 0%,#1b1e21 40%,#121417 72%,#0c0d0f 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -2px 0 rgba(0,0,0,.65),inset 1px 0 0 rgba(255,255,255,.04),0 26px 60px rgba(0,0,0,.62),0 6px 16px rgba(0,0,0,.45),0 0 0 1px #000}
+#app-ultrasound .dv-shell::before{content:'';position:absolute;inset:5px;border-radius:18px;border:1px solid rgba(255,255,255,.045);pointer-events:none}
+#app-ultrasound .dv-shell::after{content:'';position:absolute;left:24px;right:24px;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent)}
+#app-ultrasound .dv-screw{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#4b5157,#14171a 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.08)}
+#app-ultrasound .dv-screw::after{content:'';position:absolute;left:2px;right:2px;top:4px;height:1px;background:rgba(0,0,0,.7);transform:rotate(35deg)}
+#app-ultrasound .dv-screw.s1{left:9px;top:9px} #app-ultrasound .dv-screw.s2{right:9px;top:9px} #app-ultrasound .dv-screw.s3{left:9px;bottom:9px} #app-ultrasound .dv-screw.s4{right:9px;bottom:9px}
+#app-ultrasound .dv-top{display:flex;align-items:center;gap:12px;height:22px;padding:0 14px 8px;font:700 9px/1 var(--font);letter-spacing:.2em;color:rgba(255,255,255,.42);text-transform:uppercase}
+#app-ultrasound .dv-led{width:7px;height:7px;border-radius:50%;background:#3ddc84;box-shadow:0 0 8px #3ddc84;animation:us-led 2.4s ease-in-out infinite}
+#app-ultrasound .us-dev.frozen .dv-led{background:#f3c35a;box-shadow:0 0 8px #f3c35a;animation:none}
+@keyframes us-led{50%{opacity:.45}}
+#app-ultrasound .dv-model{display:flex;align-items:baseline;gap:9px}
+#app-ultrasound .dv-model b{color:#dfe5e8;letter-spacing:.22em;font-weight:800}
+#app-ultrasound .dv-model em{font-style:normal;font-weight:500;letter-spacing:.06em;text-transform:none;color:rgba(255,255,255,.34);font-size:10px}
+#app-ultrasound .dv-probe{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:18px;padding:0 8px;border-radius:5px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.07);color:rgba(255,255,255,.62);letter-spacing:.12em}
+#app-ultrasound .dv-probe i{width:6px;height:9px;border-radius:2px 2px 4px 4px;background:#d9dee2}
+#app-ultrasound .dv-batt{position:relative;width:24px;height:11px;border-radius:3px;border:1.5px solid rgba(255,255,255,.4)}
+#app-ultrasound .dv-batt::after{content:'';position:absolute;right:-4px;top:2.5px;width:2px;height:4px;border-radius:0 1px 1px 0;background:rgba(255,255,255,.4)}
+#app-ultrasound .dv-batt i{position:absolute;left:1px;top:1px;bottom:1px;border-radius:1px;background:#3ddc84}
+
+#app-ultrasound .dv-screen{position:relative;border-radius:10px;background:#020303;border:1px solid #000;overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.035),inset 0 14px 36px rgba(0,0,0,.65),0 0 0 3px #0a0b0c,0 0 0 4px rgba(255,255,255,.05)}
+#app-ultrasound .dv-screen::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(162deg,rgba(255,255,255,.055),transparent 32%),repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px)}
+#app-ultrasound .sc-hdr{display:flex;align-items:center;gap:13px;height:24px;padding:0 11px;font:600 9.5px/1 var(--mono);color:#7c868b;letter-spacing:.04em;border-bottom:1px solid rgba(255,255,255,.06);background:linear-gradient(#070909,#030404)}
+#app-ultrasound .sc-hdr b{color:#cfd6d9;font-weight:600}
+#app-ultrasound .sc-hdr .ps{color:var(--us-teal);font-weight:700;letter-spacing:.1em}
+#app-ultrasound .sc-hdr .sid{color:#5f696d}
+#app-ultrasound .sc-hdr .st{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:16px;padding:0 7px;border-radius:4px;background:rgba(15,212,196,.1);border:1px solid rgba(15,212,196,.3)}
+#app-ultrasound .sc-hdr .st i{width:6px;height:6px;border-radius:50%;background:var(--us-teal);box-shadow:0 0 6px var(--us-teal);animation:nza-blink 1.2s steps(1) infinite}
+#app-ultrasound .sc-hdr .st b{color:var(--us-teal);letter-spacing:.12em}
+#app-ultrasound .us-dev.frozen .sc-hdr .st{background:rgba(229,165,10,.12);border-color:rgba(229,165,10,.4)}
+#app-ultrasound .us-dev.frozen .sc-hdr .st i{background:#f3c35a;box-shadow:0 0 6px #f3c35a;animation:none}
+#app-ultrasound .us-dev.frozen .sc-hdr .st b{color:#f3c35a}
+#app-ultrasound .sc-hdr .clk{color:#9aa3a7}
+
+#app-ultrasound .sc-main{display:grid;grid-template-columns:440px 1fr;height:372px}
+#app-ultrasound .sc-img{position:relative;overflow:hidden;background:#000}
+#app-ultrasound .bm-wrap{position:absolute;inset:0;transform-origin:50% 0;transition:transform 220ms cubic-bezier(.2,.7,.2,1)}
+#app-ultrasound .bm-wrap canvas,#app-ultrasound .bm-wrap svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+#app-ultrasound .us-dev.cal .bm-wrap{cursor:crosshair}
+#app-ultrasound .mm-wrap{position:absolute;left:0;right:0;bottom:0;height:41%;display:none;border-top:1px solid rgba(255,255,255,.09);background:#000}
+#app-ultrasound .mm-wrap canvas{width:100%;height:100%;display:block}
+#app-ultrasound .us-dev.mmode .bm-wrap{transform:scale(.58)}
+#app-ultrasound .us-dev.mmode .mm-wrap{display:block;animation:nza-in 220ms both}
+#app-ultrasound .mm-tag{position:absolute;right:8px;top:7px;font:700 9px/1 var(--mono);letter-spacing:.1em;padding:4px 7px;border-radius:4px;color:#9aa3a7;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.08)}
+#app-ultrasound .mm-tag:empty{display:none}
+#app-ultrasound .mm-tag.teal{color:var(--us-teal);border-color:rgba(15,212,196,.35)}
+#app-ultrasound .mm-tag.red{color:#ff8a8d;border-color:rgba(229,72,77,.45)}
+#app-ultrasound .sc-flag{position:absolute;left:10px;bottom:10px}
+#app-ultrasound .sc-flag span{display:inline-flex;align-items:center;height:20px;padding:0 9px;border-radius:5px;font:700 9.5px/1 var(--mono);letter-spacing:.1em;color:var(--us-teal);background:rgba(0,0,0,.72);border:1px solid rgba(15,212,196,.35)}
+#app-ultrasound .sc-flag span.red{color:#ff8a8d;border-color:rgba(229,72,77,.5);animation:nza-blink .8s steps(1) infinite}
+#app-ultrasound .sc-noc{position:absolute;inset:0;display:none;place-items:center;pointer-events:none}
+#app-ultrasound .sc-noc span{font:600 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#59646a;padding:6px 10px;border:1px dashed rgba(255,255,255,.1);border-radius:6px}
+#app-ultrasound .us-dev.noc .sc-noc{display:grid}
+
+/* overlay on the image */
+#app-ultrasound .ov .tk{stroke:rgba(210,222,226,.55);stroke-width:1}
+#app-ultrasound .ov .tx{fill:rgba(210,222,226,.7);font:600 9px var(--mono)}
+#app-ultrasound .ov .fc{fill:var(--us-teal)}
+#app-ultrasound .ov .tgc{fill:none;stroke:rgba(15,212,196,.45);stroke-width:1.2;stroke-dasharray:2 3}
+#app-ultrasound .ov .mk circle{fill:none;stroke:var(--us-teal);stroke-width:1.4}
+#app-ultrasound .ov .mk circle.in{fill:var(--us-teal);stroke:none}
+#app-ultrasound .ov .mline{stroke:rgba(255,255,255,.85);stroke-width:1;stroke-dasharray:3 3}
+#app-ultrasound .ov .lab{fill:#f3f6f7;font:700 9.5px var(--font);letter-spacing:.12em;paint-order:stroke;stroke:rgba(0,0,0,.85);stroke-width:3px}
+#app-ultrasound .ov .lab.sm{font-size:8.5px;fill:#c7d0d4}
+#app-ultrasound .ov .lab.red{fill:#ffb0b2}
+#app-ultrasound .ov .cal path{stroke:#f3c35a;stroke-width:1.6;fill:none}
+#app-ultrasound .ov .cal text{fill:#f3c35a;font:700 8.5px var(--mono)}
+#app-ultrasound .ov .cl{stroke:#f3c35a;stroke-width:1;stroke-dasharray:2 2.5}
+#app-ultrasound .ov .cv rect{fill:rgba(0,0,0,.78);stroke:rgba(243,195,90,.6)}
+#app-ultrasound .ov .cv text{fill:#f3c35a;font:700 10px var(--mono)}
+#app-ultrasound .ov .ng{stroke:rgba(15,212,196,.55);stroke-width:1;stroke-dasharray:1.5 4}
+#app-ultrasound .ov .ngd{fill:rgba(15,212,196,.35)}
+#app-ultrasound .ov .ngd.in{fill:var(--us-teal)}
+
+/* side column */
+#app-ultrasound .sc-side{display:flex;flex-direction:column;gap:7px;padding:8px 8px 8px 9px;border-left:1px solid rgba(255,255,255,.06);background:linear-gradient(180deg,#040606,#020303)}
+#app-ultrasound .sd-win{padding:6px 8px 7px;border-radius:6px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05)}
+#app-ultrasound .sd-win .wl{font:700 8px/1 var(--font);letter-spacing:.2em;color:#5f696d}
+#app-ultrasound .sd-win .wn{margin-top:4px;font:600 12px/1.25 var(--font);color:#eef2f3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-ultrasound .sd-win .wq{display:flex;align-items:flex-end;gap:2px;margin-top:6px;height:12px}
+#app-ultrasound .sd-win .wq i{width:5px;border-radius:1px;background:rgba(255,255,255,.1)}
+#app-ultrasound .sd-win .wq i:nth-child(1){height:4px} #app-ultrasound .sd-win .wq i:nth-child(2){height:6px} #app-ultrasound .sd-win .wq i:nth-child(3){height:8px}
+#app-ultrasound .sd-win .wq i:nth-child(4){height:10px} #app-ultrasound .sd-win .wq i:nth-child(5){height:12px}
+#app-ultrasound .sd-win .wq i.on{background:var(--us-teal);box-shadow:0 0 5px rgba(15,212,196,.6)}
+#app-ultrasound .sd-win .wq i.mid{background:#f3c35a}
+#app-ultrasound .sd-win .wq i.low{background:#ff6b70}
+#app-ultrasound .sd-win .wq span{margin-left:6px;font:600 9.5px/1 var(--mono);color:#8f999d}
+#app-ultrasound .sd-3d{position:relative;height:104px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,.05);
+  background:radial-gradient(120% 90% at 50% 60%,rgba(15,212,196,.09),rgba(0,0,0,0) 70%),#030505}
+#app-ultrasound .sd-3d canvas{width:100%;height:100%;display:block}
+#app-ultrasound .sd-3d .t3{position:absolute;left:7px;top:6px;font:700 8px/1 var(--font);letter-spacing:.2em;color:#5f696d}
+#app-ultrasound .sd-3d.off canvas{display:none}
+#app-ultrasound .sd-map{position:relative;flex:1;min-height:0;border-radius:6px;border:1px solid rgba(255,255,255,.05);background:#030505;display:grid;place-items:center}
+#app-ultrasound .mp-svg{height:100%;max-height:150px;width:auto;overflow:visible}
+#app-ultrasound .mp-svg .tor{fill:url(#usTorso);stroke:rgba(15,212,196,.42);stroke-width:1}
+#app-ultrasound .mp-svg .ln{fill:none;stroke:rgba(15,212,196,.16);stroke-width:.8}
+#app-ultrasound .mp-svg .umb{fill:rgba(15,212,196,.4)}
+#app-ultrasound .mp-svg .pr rect{fill:#e9eef0;stroke:#000;stroke-width:.6}
+#app-ultrasound .mp-svg .pr .pm{fill:var(--us-teal)}
+#app-ultrasound .mp-svg .nd{cursor:pointer}
+#app-ultrasound .mp-svg .nd .hit{fill:transparent}
+#app-ultrasound .mp-svg .nd .rg{fill:rgba(8,9,10,.9);stroke:#5b6569;stroke-width:1.3;stroke-dasharray:2.2 1.8;transition:all 160ms}
+#app-ultrasound .mp-svg .nd .ct{fill:#5b6569}
+#app-ultrasound .mp-svg .nd .ok,#app-ultrasound .mp-svg .nd .pl{fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;display:none}
+#app-ultrasound .mp-svg .nd .lb{font:700 6.2px var(--mono);fill:#7d878b;text-anchor:middle;letter-spacing:.06em}
+#app-ultrasound .mp-svg .nd.seen .rg{stroke-dasharray:none;stroke:#9aa3a7}
+#app-ultrasound .mp-svg .nd.cur .rg{stroke:#fff;stroke-dasharray:none;filter:drop-shadow(0 0 3px rgba(255,255,255,.7))}
+#app-ultrasound .mp-svg .nd.cur .lb{fill:#fff}
+#app-ultrasound .mp-svg .nd.neg .rg{stroke:var(--us-teal);stroke-dasharray:none;fill:rgba(8,60,56,.9)}
+#app-ultrasound .mp-svg .nd.neg .ct{display:none}
+#app-ultrasound .mp-svg .nd.neg .ok{display:block;stroke:var(--us-teal)}
+#app-ultrasound .mp-svg .nd.neg .lb{fill:var(--us-teal)}
+#app-ultrasound .mp-svg .nd.pos .rg{stroke:var(--us-red);stroke-dasharray:none;fill:rgba(70,12,14,.92);filter:drop-shadow(0 0 3px rgba(255,90,95,.6))}
+#app-ultrasound .mp-svg .nd.pos .ct{display:none}
+#app-ultrasound .mp-svg .nd.pos .pl{display:block;stroke:var(--us-red)}
+#app-ultrasound .mp-svg .nd.pos .lb{fill:#ff9a9d}
+#app-ultrasound .mp-svg .nd.miss .rg{stroke:#ff6b70;stroke-dasharray:2 1.5;animation:us-miss 1s steps(1) infinite}
+#app-ultrasound .mp-svg .nd.good .rg{filter:drop-shadow(0 0 4px rgba(15,212,196,.8))}
+@keyframes us-miss{50%{stroke:#fff}}
+#app-ultrasound .mp-cnt{position:absolute;right:7px;top:6px;font:600 9px/1 var(--mono);color:#6b7579}
+#app-ultrasound .mp-cnt b{color:#eef2f3;font-size:11px}
+#app-ultrasound .sd-ndl{display:none}
+#app-ultrasound .us-dev.needle .sd-map{display:none}
+#app-ultrasound .us-dev.needle .sd-ndl{display:flex;flex-direction:column;flex:1;min-height:0;padding:7px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.05);background:#030505}
+#app-ultrasound .sd-ndl .nl-hd{font:700 8px/1 var(--font);letter-spacing:.2em;color:#5f696d;margin-bottom:4px}
+#app-ultrasound .sd-ndl .nl{height:118px;width:100%}
+#app-ultrasound .sd-ndl .trk{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.12)}
+#app-ultrasound .sd-ndl .sac{fill:rgba(15,212,196,.22);stroke:var(--us-teal);stroke-width:.8}
+#app-ultrasound .sd-ndl .wall{fill:rgba(229,72,77,.35);stroke:#ff6b70;stroke-width:.8}
+#app-ultrasound .sd-ndl .tk{stroke:rgba(255,255,255,.3)}
+#app-ultrasound .sd-ndl .tt{fill:#6b7579;font:600 7px var(--mono);text-anchor:end}
+#app-ultrasound .sd-ndl .tip{fill:#fff;filter:drop-shadow(0 0 3px rgba(255,255,255,.6))}
+#app-ultrasound .sd-ndl .sh{stroke:#e8eef0;stroke-width:1.6}
+#app-ultrasound .sd-ndl .nl-r{display:flex;justify-content:space-between;align-items:baseline;font:600 9px/1.6 var(--mono);color:#7d878b;text-transform:uppercase;letter-spacing:.08em}
+#app-ultrasound .sd-ndl .nl-r b{color:#eef2f3;font-size:11px}
+#app-ultrasound .sd-ndl .nl-r.sac b{color:var(--us-teal)}
+#app-ultrasound .sd-ndl .nl-r.wall b{color:#ff8a8d}
+
+/* footer */
+#app-ultrasound .sc-foot{display:grid;grid-template-columns:1fr 112px 214px;align-items:stretch;height:52px;border-top:1px solid rgba(255,255,255,.06);background:linear-gradient(#030404,#060808)}
+#app-ultrasound .ft-ecg{position:relative;border-right:1px solid rgba(255,255,255,.05)}
+#app-ultrasound .ft-ecg canvas{width:100%;height:100%;display:block}
+#app-ultrasound .ft-ecg .ecl{position:absolute;left:7px;top:5px;font:700 8px/1 var(--font);color:rgba(61,220,132,.6);letter-spacing:.14em}
+#app-ultrasound .ft-hr{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;padding:0 10px;border-right:1px solid rgba(255,255,255,.05)}
+#app-ultrasound .ft-hr .k{font:700 8px/1 var(--font);color:rgba(61,220,132,.7);letter-spacing:.16em}
+#app-ultrasound .ft-hr .hr{font:700 22px/1 var(--mono);color:#3ddc84;letter-spacing:-.03em}
+#app-ultrasound .ft-hr .rh{font:700 8.5px/1.2 var(--mono);color:rgba(61,220,132,.75);letter-spacing:.08em}
+#app-ultrasound .us-dev.alarm .ft-hr .hr,#app-ultrasound .us-dev.alarm .ft-hr .rh{color:#ff5a5f;animation:nza-blink .8s steps(1) infinite}
+#app-ultrasound .ft-acq{display:grid;grid-template-columns:repeat(3,1fr);align-content:center;gap:3px 6px;padding:0 10px;font:600 9px/1.2 var(--mono);color:#6b7579}
+#app-ultrasound .ft-acq span{white-space:nowrap}
+#app-ultrasound .ft-acq em{font-style:normal;color:#4f585c;margin-right:4px}
+#app-ultrasound .ft-acq b{color:#d4dbde;margin-right:2px}
+
+/* hardware keys */
+#app-ultrasound .dv-keys{display:flex;align-items:center;gap:6px;margin-top:10px;padding:0 4px}
+#app-ultrasound .dk{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 9px 0 11px;border-radius:9px;cursor:pointer;
+  background:linear-gradient(#2d3135,#1a1c1f);border:1px solid #060607;color:rgba(255,255,255,.7);font:700 9px/1 var(--font);letter-spacing:.14em;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 3px 6px rgba(0,0,0,.5);transition:filter var(--fast),transform var(--fast)}
+#app-ultrasound .dk:hover{filter:brightness(1.18)}
+#app-ultrasound .dk:active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 1px 2px rgba(0,0,0,.5)}
+#app-ultrasound .dk kbd{height:16px;min-width:16px;font-size:8.5px;padding:0 4px;background:rgba(0,0,0,.35);border-color:rgba(255,255,255,.1)}
+#app-ultrasound .dk.sm{padding:0 7px 0 9px;letter-spacing:.08em}
+#app-ultrasound .dk-sep{width:1px;height:20px;background:rgba(255,255,255,.08);margin:0 2px}
+#app-ultrasound .us-dev.frozen .dk[data-k="freeze"],#app-ultrasound .us-dev.mmode .dk[data-k="mode"],#app-ultrasound .us-dev.cal .dk[data-k="cal"]{color:var(--us-teal);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 -2px 0 var(--us-teal),0 0 12px rgba(15,212,196,.25),0 3px 6px rgba(0,0,0,.5)}
+#app-ultrasound .dv-sticker{position:absolute;right:26px;bottom:-9px;display:inline-flex;align-items:center;gap:5px;height:17px;padding:0 7px 0 3px;border-radius:3px;transform:rotate(-1.5deg);
+  background:#d9a21a;color:#1b1400;font:800 7.5px/1 var(--font);letter-spacing:.08em;text-transform:uppercase;box-shadow:0 1px 2px rgba(0,0,0,.6);opacity:.85}
+#app-ultrasound .dv-sticker i{width:11px;height:11px;border-radius:2px;display:grid;place-items:center;background:#1b1400;color:#d9a21a;font-style:normal;font-size:8px}
+
+/* ═════════════ TREATMENT PLAN (top-left) ═════════════ */
+#app-ultrasound .us-plan{position:absolute;left:28px;top:28px;width:384px;max-height:calc(100vh / var(--nza-zoom) - 520px);min-height:150px;display:flex;flex-direction:column;
+  border-radius:14px;padding:0;overflow:hidden;animation:pp-in-l 340ms cubic-bezier(.2,.7,.2,1) both;pointer-events:auto}
+#app-ultrasound .us-plan::before{content:'';position:absolute;left:0;top:0;width:44px;height:44px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:14px;pointer-events:none}
+#app-ultrasound .us-plan.busy{opacity:.6;pointer-events:none}
+#app-ultrasound .pl-hd{display:flex;align-items:center;justify-content:space-between;padding:13px 16px 0 18px}
+#app-ultrasound .pl-hd .k{font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-hi)}
+#app-ultrasound .pl-hd .n{min-width:22px;height:20px;padding:0 6px;border-radius:6px;display:grid;place-items:center;font:700 11px/1 var(--mono);color:var(--white);background:rgba(255,255,255,.06);border:1px solid var(--line-soft)}
+#app-ultrasound .pl-sub{padding:4px 18px 8px;font-size:11.5px;color:var(--ink-3);font-weight:300}
+#app-ultrasound .pl-list{list-style:none;margin:0;padding:2px 14px 6px 12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;min-height:0;position:relative}
+#app-ultrasound .pl-list::before{content:'';position:absolute;left:25px;top:14px;bottom:18px;width:2px;border-radius:2px;background:rgba(255,255,255,.08)}
+#app-ultrasound .pl-list .st{position:relative;display:grid;grid-template-columns:28px 1fr;gap:10px;padding:8px 6px 9px 0;animation:pp-swap 260ms cubic-bezier(.2,.7,.2,1) both}
+#app-ultrasound .pl-list .st .no{position:relative;z-index:1;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 10.5px/1 var(--mono);color:var(--white);
+  background:#15181c;border:1.5px solid rgba(255,255,255,.22)}
+#app-ultrasound .pl-list .st .no .nz-ic{width:13px;height:13px}
+#app-ultrasound .pl-list .st:first-child .no{border-color:var(--teal);box-shadow:0 0 0 4px rgba(8,175,162,.16),0 0 12px rgba(15,212,196,.4);background:#0c2a28}
+#app-ultrasound .pl-list .st .bd{min-width:0}
+#app-ultrasound .pl-list .st .tt{display:flex;align-items:center;gap:7px;min-width:0}
+#app-ultrasound .pl-list .st .tt .nz-ic{width:14px;height:14px;color:var(--teal-hi);flex:none}
+#app-ultrasound .pl-list .st .tt b{font-size:13px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-ultrasound .pl-list .st .tt .tag{flex:none;height:17px;padding:0 6px;border-radius:4px;display:inline-flex;align-items:center;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#ff9a9d;background:var(--red-wash);border:1px solid var(--red-edge)}
+#app-ultrasound .pl-list .st p{margin-top:3px;font-size:11.5px;line-height:1.45;color:var(--ink-2);font-weight:300}
+#app-ultrasound .pl-list .chs{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+#app-ultrasound .pl-list .ch{display:inline-flex;align-items:center;gap:5px;height:21px;padding:0 7px 0 5px;border-radius:6px;font-size:10.5px;white-space:nowrap;border:1px solid}
+#app-ultrasound .pl-list .ch .nz-ic{width:11px;height:11px}
+#app-ultrasound .pl-list .ch b{font-weight:600}
+#app-ultrasound .pl-list .ch em{font-style:normal;font:600 9.5px var(--mono);opacity:.8}
+#app-ultrasound .pl-list .ch.have{color:var(--teal-hi);background:var(--teal-wash);border-color:var(--teal-edge)}
+#app-ultrasound .pl-list .ch.need{color:#ff9a9d;background:var(--red-wash);border-color:var(--red-edge)}
+#app-ultrasound .pl-list .go{display:inline-flex;align-items:center;gap:7px;height:27px;margin-top:8px;padding:0 12px 0 9px;border-radius:7px;cursor:pointer;
+  background:linear-gradient(var(--teal),var(--teal-lo));color:var(--on-teal);font:700 11.5px var(--font);box-shadow:0 1px 0 rgba(255,255,255,.3) inset,0 6px 16px rgba(8,175,162,.25)}
+#app-ultrasound .pl-list .go .nz-ic{width:12px;height:12px}
+#app-ultrasound .pl-list .go:hover{filter:brightness(1.12)}
+#app-ultrasound .pl-list .st.miss .no{border-color:var(--red);background:#2a0c0e;box-shadow:0 0 0 4px rgba(229,72,77,.14)}
+#app-ultrasound .pl-list .st.done .no{background:var(--teal);border-color:var(--teal-hi);color:var(--on-teal)}
+#app-ultrasound .pl-list .st.empty p{color:var(--ink-3)}
+#app-ultrasound .pl-note{position:relative;margin:4px 12px 12px;padding:8px 10px 8px 13px;border-radius:8px;background:var(--inset);border:1px solid var(--line-hair);font-size:11px;line-height:1.45;color:var(--ink-2)}
+#app-ultrasound .pl-note::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+
+/* ═════════════ PROBE RETICLE & WINDOW MARKERS (over the world) ═════════════ */
+#app-ultrasound .us-ret{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;opacity:0;transition:opacity 140ms}
+#app-ultrasound .us-ret.on{opacity:1}
+#app-ultrasound .us-ret svg{position:absolute;left:-40px;top:-40px;width:80px;height:80px;overflow:visible}
+#app-ultrasound .us-ret .fp rect{fill:rgba(255,255,255,.1);stroke:#fff;stroke-width:1.6;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
+#app-ultrasound .us-ret .fp .mk{fill:var(--us-teal)}
+#app-ultrasound .us-ret .rg{fill:none;stroke:rgba(255,255,255,.45);stroke-width:1.4;stroke-dasharray:3 5;transform-origin:center;animation:us-spin 6s linear infinite}
+#app-ultrasound .us-ret.good .rg{stroke:var(--us-teal);stroke-dasharray:none;filter:drop-shadow(0 0 4px rgba(15,212,196,.8));animation:none}
+#app-ultrasound .us-ret .lb{position:absolute;left:34px;top:-11px;height:22px;display:inline-flex;align-items:center;padding:0 8px;border-radius:6px;white-space:nowrap;
+  font:700 10.5px var(--mono);letter-spacing:.08em;color:var(--white);background:rgba(12,13,16,.88);border:1px solid var(--hud-line)}
+#app-ultrasound .us-ret .lb:empty{display:none}
+#app-ultrasound .us-ret.good .lb{color:var(--teal-hi);border-color:var(--teal-edge)}
+#app-ultrasound .us-wm .wm{position:absolute;transform:translate(-50%,-50%);pointer-events:none;display:flex;align-items:center;gap:6px;transition:opacity 160ms}
+#app-ultrasound .us-wm .wm i{width:11px;height:11px;transform:rotate(45deg);border:1.6px solid rgba(255,255,255,.85);background:rgba(12,13,16,.55);box-shadow:0 0 0 3px rgba(0,0,0,.25)}
+#app-ultrasound .us-wm .wm span{height:18px;display:inline-flex;align-items:center;padding:0 6px;border-radius:5px;font:700 9px/1 var(--mono);letter-spacing:.08em;color:var(--ink);background:rgba(12,13,16,.86);border:1px solid var(--hud-line);opacity:.85}
+#app-ultrasound .us-wm .wm.seen i{background:rgba(255,255,255,.35)}
+#app-ultrasound .us-wm .wm.cur i{border-color:var(--us-teal);background:var(--us-teal);box-shadow:0 0 0 4px rgba(15,212,196,.2),0 0 12px rgba(15,212,196,.7)}
+#app-ultrasound .us-wm .wm.cur span{color:var(--teal-hi);border-color:var(--teal-edge)}
+#app-ultrasound .us-wm .wm.pos i{border-color:var(--us-red);background:var(--us-red);box-shadow:0 0 10px rgba(255,90,95,.7)}
+#app-ultrasound .us-wm .wm.pos span{color:#ff9a9d;border-color:var(--red-edge)}
+#app-ultrasound .us-wm .wm.neg i{border-color:var(--us-teal);background:rgba(8,90,84,.9)}
+#app-ultrasound .us-wm .wm.neg span{color:var(--teal-hi)}
+
+/* ═════════════ SYRINGE (pericardiocentesis, in the procedure column) ═════════════ */
+#app-ultrasound .us-syr{padding:10px 14px 11px;border-radius:12px;pointer-events:none}
+#app-ultrasound .us-syr .sy-hd,#app-ultrasound .us-syr .sy-ft{display:flex;align-items:baseline;justify-content:space-between}
+#app-ultrasound .us-syr .sy-hd span,#app-ultrasound .us-syr .sy-ft span{font-size:8.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+#app-ultrasound .us-syr .sy-hd b{font:700 16px/1 var(--mono);color:var(--white)}
+#app-ultrasound .us-syr .sy-hd b em{font-style:normal;font-size:10px;color:var(--ink-3)}
+#app-ultrasound .us-syr .sy-ft b{font:700 12px/1 var(--mono);color:#ff8a8d}
+#app-ultrasound .us-syr .sy{width:100%;height:auto;display:block;margin:6px 0 4px;overflow:visible}
+#app-ultrasound .us-syr .nd{fill:#c9d1d4}
+#app-ultrasound .us-syr .hub{fill:rgba(220,232,238,.18);stroke:rgba(220,232,238,.55);stroke-width:1}
+#app-ultrasound .us-syr .fl{fill:#b3151b;opacity:0;transition:opacity 160ms}
+#app-ultrasound .us-syr .br{fill:rgba(220,232,238,.06);stroke:rgba(220,232,238,.55);stroke-width:1.2}
+#app-ultrasound .us-syr .gr line{stroke:rgba(255,255,255,.55);stroke-width:.8}
+#app-ultrasound .us-syr .gr text{fill:rgba(255,255,255,.6);font:600 6.5px var(--mono);text-anchor:middle}
+#app-ultrasound .us-syr .pl{fill:#272b2f;stroke:rgba(255,255,255,.35)}
+#app-ultrasound .us-syr .rod{fill:rgba(220,232,238,.55)}
+#app-ultrasound .us-syr .thumb{fill:#e3e9ec}
+#app-ultrasound .us-syr.drawing .br{stroke:#ff8a8d}
+
+@media (prefers-reduced-motion:reduce){
+  #app-ultrasound .us-dev,#app-ultrasound .us-plan{animation:none}
+  #app-ultrasound .us-ret .rg{animation:none}
+}
+
+/* flash tone for neutral guidance + preview world canvas order */
+#app-ultrasound .pp-flash.info{color:var(--ink);background:rgba(255,255,255,.05)}
+#app-ultrasound .pp-flash.info .fi{background:rgba(255,255,255,.12);color:var(--white)}
+.us-pw{z-index:0}
+#app-ultrasound .dk span{white-space:nowrap}

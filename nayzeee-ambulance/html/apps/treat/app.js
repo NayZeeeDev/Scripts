@@ -41,7 +41,51 @@
     'tq-strap': '<path d="M4 9.5c2.5-2 13.5-2 16 0v5c-2.5 2-13.5 2-16 0z"/><path d="M12 5v14"/><path d="M9.5 5h5"/>',
     'tq-clip': '<path d="M7 7a5 5 0 1 0 10 0"/><path d="M12 12v8M9 20h6"/>',
     'o2': '<circle cx="9" cy="12" r="4.5"/><path d="M15.5 14.5c.4-1 3.5-1 3.5.6 0 1.3-3.6 2.2-3.6 3.9h3.8"/>',
+    'gauze-roll': '<ellipse cx="16" cy="9.5" rx="3" ry="5.5"/><path d="M16 4H7.5C5.6 4 4.5 6.5 4.5 9.5S5.6 15 7.5 15H16"/><path d="M9 15l1.5 5.5h5L14 15"/><ellipse cx="16" cy="9.5" rx="1" ry="2"/>',
+    'dressing-pad': '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><rect x="8" y="9" width="8" height="6" rx="1"/><path d="M3.5 9h2M18.5 9h2M3.5 15h2M18.5 15h2"/>',
   });
+
+  /* ── holographic body glyph (front view: the patient's left is on the viewer's right) ── */
+  const BODY_SEGS = [
+    ['head', '<ellipse cx="32" cy="11" rx="7.2" ry="8.8"/>'],
+    ['neck', '<rect x="28.6" y="20.2" width="6.8" height="5.8" rx="2"/>'],
+    ['chest', '<path d="M21.5 26.6h21a5 5 0 0 1 5 5v11.6h-31V31.6a5 5 0 0 1 5-5z"/>'],
+    ['abdomen', '<rect x="18.8" y="44.6" width="26.4" height="10.8" rx="2.6"/>'],
+    ['pelvis', '<path d="M18.8 56.8h26.4v5.6a4.6 4.6 0 0 1-4.6 4.6H23.4a4.6 4.6 0 0 1-4.6-4.6z"/>'],
+    ['r_upper_arm', '<rect x="10.8" y="28.4" width="6.4" height="17" rx="3.2" transform="rotate(9 14 28.4)"/>'],
+    ['r_lower_arm', '<rect x="8.3" y="46.4" width="5.8" height="18" rx="2.9" transform="rotate(5 11.2 46.4)"/>'],
+    ['l_upper_arm', '<rect x="46.8" y="28.4" width="6.4" height="17" rx="3.2" transform="rotate(-9 50 28.4)"/>'],
+    ['l_lower_arm', '<rect x="49.9" y="46.4" width="5.8" height="18" rx="2.9" transform="rotate(-5 52.8 46.4)"/>'],
+    ['r_upper_leg', '<rect x="20.4" y="68.4" width="10.2" height="27" rx="5"/>'],
+    ['r_lower_leg', '<rect x="21.4" y="96.8" width="8.2" height="28.4" rx="4"/>'],
+    ['l_upper_leg', '<rect x="33.4" y="68.4" width="10.2" height="27" rx="5"/>'],
+    ['l_lower_leg', '<rect x="34.4" y="96.8" width="8.2" height="28.4" rx="4"/>'],
+  ];
+  const BODY_ALIAS = { face: 'head', back: 'chest' };
+  const BODY_PT = {
+    head: [32, 11], face: [32, 13], neck: [32, 23], chest: [32, 35], back: [32, 35], abdomen: [32, 50], pelvis: [32, 61.5],
+    r_upper_arm: [12.7, 37], r_lower_arm: [10.4, 55.4], l_upper_arm: [51.3, 37], l_lower_arm: [53.6, 55.4],
+    r_upper_leg: [25.5, 81.5], r_lower_leg: [25.5, 110], l_upper_leg: [38.5, 81.5], l_lower_leg: [38.5, 110],
+  };
+  // states: { region: 'red' | 'amber' | 'teal' }  focus: region with the pulsing diamond
+  function bodyGlyph(states, focus) {
+    const st = {};
+    Object.entries(states || {}).forEach(([r, v]) => { st[BODY_ALIAS[r] || r] = v; });
+    const segs = BODY_SEGS.map(([r, shape]) => `<g class="bs ${st[r] || ''} ${focus && (BODY_ALIAS[focus] || focus) === r ? 'fx' : ''}" data-r="${r}">${shape}</g>`).join('');
+    const p = focus && BODY_PT[focus];
+    const dia = p ? `<g class="hot ${st[BODY_ALIAS[focus] || focus] || 'red'}" transform="translate(${p[0]} ${p[1]})"><circle class="pl" r="4.6"/><path class="dm" d="M0 -3.4 3.4 0 0 3.4 -3.4 0z"/></g>` : '';
+    return `<svg class="bglyph" viewBox="0 0 64 132" aria-hidden="true">
+      <defs><pattern id="tr-scan" width="4" height="2.2" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="rgba(255,255,255,.07)"/></pattern></defs>
+      <ellipse class="pad" cx="32" cy="128.4" rx="17" ry="2.6"/>
+      ${segs}<rect x="0" y="0" width="64" height="132" fill="url(#tr-scan)" pointer-events="none"/>${dia}${focus === 'back' ? '<text class="bk" x="32" y="40">BACK</text>' : ''}</svg>`;
+  }
+  // a status ring (HUD design): value in the middle, track + fill, label under it
+  const RING_C = 2 * Math.PI * 18;
+  function vring({ value, frac = 0, tone = '', label: lb = '', unit = '', beat = 0 }) {
+    const f = clamp(frac, 0, 1);
+    return `<div class="vr ${tone}"${beat ? ` style="--beat:${beat.toFixed(2)}s"` : ''}><span class="rg"><svg viewBox="0 0 44 44"><circle class="b" cx="22" cy="22" r="18"/><circle class="f" cx="22" cy="22" r="18" stroke-dasharray="${RING_C.toFixed(1)}" stroke-dashoffset="${(RING_C * (1 - f)).toFixed(1)}"/></svg><b>${esc(String(value))}</b>${beat ? '<i class="bt"></i>' : ''}</span><em>${esc(lb)}${unit ? `<small>${esc(unit)}</small>` : ''}</em></div>`;
+  }
+  const initialsOf = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
 
   let LOC = {};
   const T = (k, fb, ...args) => { let s = LOC[k] !== undefined ? String(LOC[k]) : fb; args.forEach(a => { s = s.replace(/%[sd]|%\.\df/, a); }); return s; };
@@ -263,20 +307,56 @@
     c.restore();
   }
 
-  function ring(c, x, y, r, col, wdt, dash) {
+  // plain guide circle (dashed path the hand follows)
+  function ringDash(c, x, y, r, col, wdt, dash) {
     c.save(); c.strokeStyle = col; c.lineWidth = wdt; if (dash) c.setLineDash(dash);
     c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke(); c.restore();
   }
 
+  // target reticle: four bracket arcs that turn slowly, cardinal ticks, soft glow (no dashed circles)
+  function ring(c, x, y, r, col, wdt, dash) {
+    if (!dash) return ringDash(c, x, y, r, col, wdt);
+    const t = now() / 1000;
+    c.save(); c.translate(x, y);
+    c.lineCap = 'round';
+    c.strokeStyle = col; c.globalAlpha *= 0.22; c.lineWidth = wdt * 0.6;
+    c.beginPath(); c.arc(0, 0, r, 0, TAU); c.stroke();
+    c.globalAlpha /= 0.22;
+    c.rotate(t * 0.55);
+    c.shadowColor = col; c.shadowBlur = wdt * 4;
+    c.lineWidth = wdt * 1.35;
+    for (let i = 0; i < 4; i++) { const a = i * TAU / 4 + Math.PI / 4; c.beginPath(); c.arc(0, 0, r, a - 0.44, a + 0.44); c.stroke(); }
+    c.shadowBlur = 0; c.lineWidth = wdt;
+    for (let i = 0; i < 4; i++) {
+      const a = i * TAU / 4 + Math.PI / 4;
+      c.beginPath(); c.moveTo(Math.cos(a) * (r - wdt * 2), Math.sin(a) * (r - wdt * 2)); c.lineTo(Math.cos(a) * (r - wdt * 5.5), Math.sin(a) * (r - wdt * 5.5)); c.stroke();
+    }
+    c.restore();
+  }
+
+  // dark label chip on the stage: tone diamond + tinted hairline, readable over any scene
+  const TONE = {
+    red: ['#ff5a60', 'rgba(255,90,96,.55)'], teal: ['#0fd4c4', 'rgba(15,212,196,.55)'],
+    amber: ['#f3c35a', 'rgba(243,195,90,.55)'], '': ['rgba(255,255,255,.75)', 'rgba(255,255,255,.14)'],
+  };
   function label(c, x, y, text, tone, U) {
     c.save();
-    c.font = `600 ${Math.round(12.5 * U)}px Lexend, system-ui, sans-serif`;
-    const w = c.measureText(text).width + 20 * U, h = 26 * U;
-    const bg = tone === 'red' ? 'rgba(229,72,77,.92)' : tone === 'teal' ? 'rgba(8,175,162,.95)' : tone === 'amber' ? 'rgba(229,165,10,.95)' : 'rgba(12,13,16,.86)';
-    c.fillStyle = bg; roundRect(c, x - w / 2, y - h / 2, w, h, 7 * U); c.fill();
-    if (!tone) { c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 1; roundRect(c, x - w / 2, y - h / 2, w, h, 7 * U); c.stroke(); }
-    c.fillStyle = tone === 'teal' ? '#00201d' : tone === 'amber' ? '#1d1400' : '#fff';
-    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, x, y + 0.5 * U);
+    const [col, edge] = TONE[tone || ''] || TONE[''];
+    c.font = `600 ${Math.round(12 * U)}px Lexend, system-ui, sans-serif`;
+    const dm = 4.2 * U, padL = 11 * U, padR = 12 * U, gap = 8 * U;
+    const w = padL + dm * 2 + gap + c.measureText(text).width + padR, h = 27 * U;
+    const x0 = Math.round(x - w / 2), y0 = Math.round(y - h / 2);
+    c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 16 * U; c.shadowOffsetY = 5 * U;
+    const g = c.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, 'rgba(26,28,32,.95)'); g.addColorStop(1, 'rgba(10,11,13,.95)');
+    c.fillStyle = g; roundRect(c, x0, y0, w, h, 7 * U); c.fill();
+    c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0;
+    c.strokeStyle = edge; c.lineWidth = Math.max(1, U); roundRect(c, x0 + 0.5, y0 + 0.5, w - 1, h - 1, 7 * U); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.09)'; c.beginPath(); c.moveTo(x0 + 7 * U, y0 + 1.5); c.lineTo(x0 + w - 7 * U, y0 + 1.5); c.stroke();
+    const dx = x0 + padL + dm;
+    c.fillStyle = col; c.shadowColor = col; c.shadowBlur = 8 * U;
+    c.beginPath(); c.moveTo(dx, y - dm); c.lineTo(dx + dm, y); c.lineTo(dx, y + dm); c.lineTo(dx - dm, y); c.closePath(); c.fill();
+    c.shadowBlur = 0;
+    c.fillStyle = '#f4f6f2'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText(text, dx + dm + gap, y + 0.5 * U);
     c.restore();
   }
 
@@ -284,71 +364,199 @@
      Browser preview only: a stylised close-up of the patient so the overlay can be judged.
      In game the real camera image is behind the (transparent) page. */
   const Backdrop = {
-    preset: null, t0: now(),
-    anchors(preset, W, H) {
-      const t = (now() - this.t0) / 1000, br = Math.sin(t * TAU / 4.2) * 0.0025;
-      const P = (x, y) => ({ x, y: y + br, visible: true });
+    preset: null, t0: now(), cache: null,
+    base(preset) {
+      const P = (x, y) => ({ x, y, visible: true });
       if (preset === 'leg') return { j0: P(0.27, 0.26), j1: P(0.6, 0.5), j2: P(0.86, 0.72) };
       if (preset === 'legfar') return { j0: P(0.27, 0.27), j1: P(0.47, 0.44), j2: P(0.65, 0.62) };
       if (preset === 'torso') return { wound: P(0.47, 0.41), pel: P(0.62, 0.78), neck: P(0.36, 0.06) };
       if (preset === 'neck') return { head: P(0.47, 0.22), neck: P(0.49, 0.4), chest: P(0.52, 0.66) };
       return {};
     },
+    breath() { return Math.sin(((now() - this.t0) / 1000) * TAU / 4.2) * 0.0025; },
+    anchors(preset) {
+      const b = this.base(preset), br = this.breath(), out = {};
+      Object.keys(b).forEach(k => { out[k] = { x: b[k].x, y: b[k].y + br, visible: true }; });
+      return out;
+    },
     draw(c, W, H, anc, preset) {
-      const g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#3a3d40'); g.addColorStop(1, '#232527');
+      const key = `${preset}|${W}|${H}`;
+      if (!this.cache || this.cache.key !== key) this.cache = { key, ground: this.paintGround(W, H), body: this.paintBody(W, H, preset) };
+      c.drawImage(this.cache.ground, 0, 0);
+      c.drawImage(this.cache.body, 0, Math.round(this.breath() * H * 10) / 10);
+      const v = c.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.98); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.5)');
+      c.fillStyle = v; c.fillRect(0, 0, W, H);
+    },
+    canvas(W, H) { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; return cv; },
+    // wet asphalt: aggregate speckle, tar blotches, a worn lane line, an oil stain, glass grit
+    paintGround(W, H) {
+      const cv = this.canvas(W, H), c = cv.getContext('2d'), U = H / 1080, R = rng(11);
+      const g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#3b3d3f'); g.addColorStop(0.55, '#2c2e30'); g.addColorStop(1, '#1f2022');
       c.fillStyle = g; c.fillRect(0, 0, W, H);
-      const R = rng(7); c.fillStyle = 'rgba(255,255,255,.025)';
-      for (let i = 0; i < 260; i++) c.fillRect(R() * W, R() * H, 2, 2);
-      c.fillStyle = 'rgba(0,0,0,.05)'; for (let i = 0; i < 260; i++) c.fillRect(R() * W, R() * H, 3, 3);
-      const px = id => ({ x: anc[id].x * W, y: anc[id].y * H });
-      const limb = (a, b, wa, wb, col, hi) => {
-        const d = norm(sub(b, a)), n = perp(d);
-        const shape = (ox, oy) => {
-          c.beginPath();
-          c.moveTo(a.x + n.x * wa + ox, a.y + n.y * wa + oy); c.lineTo(b.x + n.x * wb + ox, b.y + n.y * wb + oy);
-          c.lineTo(b.x - n.x * wb + ox, b.y - n.y * wb + oy); c.lineTo(a.x - n.x * wa + ox, a.y - n.y * wa + oy); c.closePath(); c.fill();
-          c.beginPath(); c.arc(a.x + ox, a.y + oy, wa, 0, TAU); c.fill();
-          c.beginPath(); c.arc(b.x + ox, b.y + oy, wb, 0, TAU); c.fill();
-        };
-        c.fillStyle = 'rgba(0,0,0,.32)'; shape(wa * 0.12, wa * 0.22);
+      for (let i = 0; i < 40; i++) {
+        const x = R() * W, y = R() * H, r = (60 + R() * 260) * U, rg = c.createRadialGradient(x, y, 0, x, y, r);
+        const dark = R() < 0.6; rg.addColorStop(0, dark ? 'rgba(0,0,0,.16)' : 'rgba(255,255,255,.04)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = rg; c.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+      // worn lane marking across the far corner
+      c.save(); c.translate(W * 0.9, -H * 0.05); c.rotate(0.62);
+      c.fillStyle = 'rgba(214,210,196,.42)'; c.fillRect(-26 * U, 0, 52 * U, H * 1.6);
+      c.restore();
+      // aggregate: tiny stones, light and dark, a few bigger ones
+      const n = Math.round((W * H) / 70);
+      for (let i = 0; i < n; i++) {
+        const x = R() * W, y = R() * H, s = (R() < 0.9 ? 1 : 2) * Math.max(1, U);
+        const l = R();
+        c.fillStyle = l < 0.55 ? `rgba(0,0,0,${0.15 + R() * 0.25})` : `rgba(255,255,255,${0.025 + R() * 0.08})`;
+        c.fillRect(x, y, s, s);
+      }
+      // oil stain and a damp patch
+      [[0.14, 0.8, 120], [0.78, 0.18, 90]].forEach(([x, y, r]) => {
+        const rg = c.createRadialGradient(x * W, y * H, 0, x * W, y * H, r * U);
+        rg.addColorStop(0, 'rgba(8,8,10,.42)'); rg.addColorStop(0.7, 'rgba(8,8,10,.18)'); rg.addColorStop(1, 'rgba(8,8,10,0)');
+        c.fillStyle = rg; c.beginPath(); c.ellipse(x * W, y * H, r * U * 1.4, r * U, 0.4, 0, TAU); c.fill();
+      });
+      for (let i = 0; i < 70; i++) { c.fillStyle = `rgba(200,225,230,${0.15 + R() * 0.3})`; c.fillRect(W * (0.2 + R() * 0.6), H * (0.15 + R() * 0.7), 1.5 * U, 1.5 * U); }
+      return cv;
+    },
+    paintBody(W, H, preset) {
+      const cv = this.canvas(W, H), c = cv.getContext('2d'), U = H / 1080, R = rng(5);
+      const b = this.base(preset); const px = id => ({ x: b[id].x * W, y: b[id].y * H });
+      const MAT = {
+        denim: { base: '#1d3050', mid: '#2b4670', hi: '#4a6b98', dark: '#0c1420', twill: 'rgba(255,255,255,.05)', seam: 'rgba(214,170,92,.6)' },
+        denim2: { base: '#18283f', mid: '#223a5c', hi: '#3a5880', dark: '#0a111b', twill: 'rgba(255,255,255,.04)', seam: 'rgba(214,170,92,.45)' },
+        jacket: { base: '#1a1c20', mid: '#25292f', hi: '#3c424b', dark: '#08090b', twill: 'rgba(255,255,255,.03)' },
+        shirt: { base: '#39414d', mid: '#48525f', hi: '#66707f', dark: '#1a1f26', twill: 'rgba(255,255,255,.035)' },
+        skin: { base: '#a8765a', mid: '#c08c6c', hi: '#dcb091', dark: '#6e4733' },
+      };
+      const capsule = (a, e, wa, wb) => {
+        const d = norm(sub(e, a)), n = perp(d), p = new Path2D();
+        const A0 = Math.atan2(n.y, n.x);
+        p.arc(a.x, a.y, wa, A0, A0 + Math.PI);
+        p.arc(e.x, e.y, wb, A0 + Math.PI, A0 + TAU);
+        p.closePath();
+        return { p, d, n };
+      };
+      const cloth = (a, e, wa, wb, m, opt = {}) => {
+        const { p, d, n } = capsule(a, e, wa, wb);
+        c.save(); c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 34 * U; c.shadowOffsetX = 8 * U; c.shadowOffsetY = 16 * U; c.fillStyle = m.base; c.fill(p); c.restore();
         const lg = c.createLinearGradient(a.x + n.x * wa, a.y + n.y * wa, a.x - n.x * wa, a.y - n.y * wa);
-        lg.addColorStop(0, hi); lg.addColorStop(0.42, col); lg.addColorStop(1, '#0c111a');
-        c.fillStyle = lg; shape(0, 0);
-        c.strokeStyle = 'rgba(255,255,255,.06)'; c.lineWidth = 2;
-        c.beginPath(); c.moveTo(lerp(a.x, b.x, 0.05) + n.x * wa * 0.45, lerp(a.y, b.y, 0.05) + n.y * wa * 0.45); c.lineTo(lerp(a.x, b.x, 0.95) + n.x * wb * 0.45, lerp(a.y, b.y, 0.95) + n.y * wb * 0.45); c.stroke();
+        lg.addColorStop(0, m.hi); lg.addColorStop(0.3, m.mid); lg.addColorStop(0.75, m.base); lg.addColorStop(1, m.dark);
+        c.fillStyle = lg; c.fill(p);
+        c.save(); c.clip(p);
+        const L = dist(a, e) + Math.max(wa, wb) * 2, ang = Math.atan2(d.y, d.x);
+        if (m.twill) {
+          c.save(); c.translate((a.x + e.x) / 2, (a.y + e.y) / 2); c.rotate(ang + 1.05);
+          c.strokeStyle = m.twill; c.lineWidth = Math.max(1, U);
+          for (let k = -L; k < L; k += 3.2 * U) { c.beginPath(); c.moveTo(-L, k); c.lineTo(L, k); c.stroke(); }
+          c.restore();
+          for (let i = 0; i < L * 0.6; i++) { const u = R(), v2 = (R() - 0.5) * 2, q = add(mix(a, e, u), mul(n, v2 * lerp(wa, wb, u))); c.fillStyle = `rgba(255,255,255,${0.03 + R() * 0.05})`; c.fillRect(q.x, q.y, (2 + R() * 4) * U, Math.max(1, U * 0.8)); }
+        } else {
+          for (let i = 0; i < L * 1.4; i++) { const u = R(), v2 = (R() - 0.5) * 2, q = add(mix(a, e, u), mul(n, v2 * lerp(wa, wb, u))); c.fillStyle = R() < 0.5 ? 'rgba(90,50,30,.08)' : 'rgba(255,230,210,.05)'; c.fillRect(q.x, q.y, 1.5 * U, 1.5 * U); }
+        }
+        if (m.seam && opt.seam !== false) {
+          const off = (opt.seamSide || 1) * 0.66;
+          c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 3 * U;
+          c.beginPath(); c.moveTo(a.x + n.x * wa * off, a.y + n.y * wa * off); c.lineTo(e.x + n.x * wb * off, e.y + n.y * wb * off); c.stroke();
+          c.strokeStyle = m.seam; c.lineWidth = 1.4 * U; c.setLineDash([5 * U, 4 * U]);
+          [-3.2, 3.2].forEach(o => { c.beginPath(); c.moveTo(a.x + n.x * (wa * off + o * U), a.y + n.y * (wa * off + o * U)); c.lineTo(e.x + n.x * (wb * off + o * U), e.y + n.y * (wb * off + o * U)); c.stroke(); });
+          c.setLineDash([]);
+        }
+        (opt.folds || []).forEach(([u, s]) => {
+          const q = mix(a, e, u), w2 = lerp(wa, wb, u);
+          c.strokeStyle = 'rgba(0,0,0,.28)'; c.lineWidth = 5 * U * s;
+          c.beginPath(); c.moveTo(q.x + n.x * w2 * 0.9, q.y + n.y * w2 * 0.9); c.quadraticCurveTo(q.x + d.x * w2 * 0.35 * s, q.y + d.y * w2 * 0.35 * s, q.x - n.x * w2 * 0.6, q.y - n.y * w2 * 0.6); c.stroke();
+          c.strokeStyle = 'rgba(255,255,255,.07)'; c.lineWidth = 2 * U;
+          c.beginPath(); c.moveTo(q.x + n.x * w2 * 0.85 - d.x * 6 * U, q.y + n.y * w2 * 0.85 - d.y * 6 * U); c.quadraticCurveTo(q.x + d.x * w2 * 0.3 * s - d.x * 6 * U, q.y + d.y * w2 * 0.3 * s - d.y * 6 * U, q.x - n.x * w2 * 0.5 - d.x * 6 * U, q.y - n.y * w2 * 0.5 - d.y * 6 * U); c.stroke();
+        });
+        c.restore();
+        c.strokeStyle = 'rgba(255,255,255,.08)'; c.lineWidth = 1.5 * U; c.stroke(p);
+        return { p, d, n };
+      };
+      const boot = (at, dir, s) => {
+        c.save(); c.translate(at.x, at.y); c.rotate(Math.atan2(dir.y, dir.x));
+        c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 20 * U; c.shadowOffsetY = 10 * U;
+        const bg = c.createLinearGradient(0, -s * 0.5, 0, s * 0.5); bg.addColorStop(0, '#2b2622'); bg.addColorStop(1, '#0d0c0b');
+        c.fillStyle = bg; c.beginPath(); c.ellipse(s * 0.25, 0, s * 0.62, s * 0.4, 0, 0, TAU); c.fill(); c.shadowBlur = 0; c.shadowOffsetY = 0;
+        c.fillStyle = '#070707'; c.beginPath(); c.ellipse(s * 0.32, 0, s * 0.66, s * 0.44, 0, -0.5, 0.5); c.lineTo(s * 0.3, 0); c.fill();
+        c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 1.5 * U;
+        for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(-s * 0.05 + i * s * 0.12, -s * 0.14); c.lineTo(-s * 0.05 + i * s * 0.12, s * 0.14); c.stroke(); }
+        c.restore();
       };
       if (preset === 'leg' || preset === 'legfar') {
-        const j0 = px('j0'), j1 = px('j1'), j2 = px('j2'), L1 = dist(j0, j1);
-        const f = preset === 'leg' ? 1 : 0.95;
-        const up = norm(sub(j0, j1));
-        // torso (jacket) going off screen, the other leg, then the treated leg on top
-        limb(add(j0, mul(up, L1 * 0.15)), add(j0, mul(up, L1 * 1.4)), L1 * 0.4, L1 * 0.44, '#1d2025', '#32363c');
-        limb(j1, j2, L1 * 0.16 * f, L1 * 0.12 * f, '#2a4878', '#4068a6');
-        limb(j0, j1, L1 * 0.22 * f, L1 * 0.165 * f, '#2b4a7c', '#4470ae');
-        const dd = norm(sub(j2, j1)); const foot = add(j2, mul(dd, L1 * 0.1));
-        c.fillStyle = '#121315'; c.beginPath(); c.ellipse(foot.x, foot.y, L1 * 0.16, L1 * 0.09, Math.atan2(dd.y, dd.x) + 0.5, 0, TAU); c.fill();
-        c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(j0.x - L1 * 0.05, j0.y - L1 * 0.02, 2, 2);
+        const j0 = px('j0'), j1 = px('j1'), j2 = px('j2'), L1 = dist(j0, j1), f = preset === 'leg' ? 1 : 0.95;
+        const up = norm(sub(j0, j1)), n0 = perp(norm(sub(j1, j0)));
+        cloth(add(j0, mul(up, L1 * 0.15)), add(j0, mul(up, L1 * 1.45)), L1 * 0.42, L1 * 0.46, MAT.jacket, { seam: false, folds: [[0.3, 1], [0.55, 0.7]] });
+        // the other leg, half under the treated one
+        const o0 = add(j0, mul(n0, -L1 * 0.36)), o1 = add(j1, mul(n0, -L1 * 0.5)), o2 = add(j2, mul(n0, -L1 * 0.52));
+        cloth(o1, o2, L1 * 0.15, L1 * 0.12, MAT.denim2, { seamSide: -1 });
+        cloth(o0, o1, L1 * 0.21, L1 * 0.16, MAT.denim2, { seamSide: -1 });
+        boot(add(o2, mul(norm(sub(o2, o1)), L1 * 0.12)), norm(sub(o2, o1)), L1 * 0.22);
+        cloth(j1, j2, L1 * 0.16 * f, L1 * 0.12 * f, MAT.denim, { folds: [[0.08, 0.9], [0.9, 0.6]] });
+        cloth(j0, j1, L1 * 0.22 * f, L1 * 0.165 * f, MAT.denim, { folds: [[0.9, 1], [0.78, 0.6]] });
+        boot(add(j2, mul(norm(sub(j2, j1)), L1 * 0.12)), norm(sub(j2, j1)), L1 * 0.23);
+        // belt across the hip
+        c.save(); c.translate(j0.x, j0.y); c.rotate(Math.atan2(n0.y, n0.x));
+        c.fillStyle = '#121212'; c.fillRect(-L1 * 0.3, -L1 * 0.06 - L1 * 0.12, L1 * 0.6, L1 * 0.07);
+        c.fillStyle = '#8d8a80'; c.fillRect(-L1 * 0.04, -L1 * 0.07 - L1 * 0.12, L1 * 0.06, L1 * 0.09);
+        c.restore();
       } else if (preset === 'torso') {
-        const nk = px('neck'), pl = px('pel'), L = dist(nk, pl), d = norm(sub(pl, nk)), n = perp(d);
+        const nk = px('neck'), pl = px('pel'), wd = px('wound'), L = dist(nk, pl), d = norm(sub(pl, nk)), n = perp(d);
         const sh = add(nk, mul(d, L * 0.08));
-        limb(add(sh, mul(n, L * 0.36)), add(add(sh, mul(n, L * 0.6)), mul(d, L * 0.5)), L * 0.1, L * 0.08, '#202226', '#34373c');
-        limb(add(sh, mul(n, -L * 0.36)), add(add(sh, mul(n, -L * 0.62)), mul(d, L * 0.48)), L * 0.1, L * 0.08, '#202226', '#34373c');
-        limb(add(nk, mul(d, L * 0.1)), pl, L * 0.3, L * 0.26, '#22252a', '#3b3f46');
-        c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 3; c.beginPath(); c.moveTo(nk.x + d.x * L * 0.1, nk.y + d.y * L * 0.1); c.lineTo(pl.x, pl.y); c.stroke();
-        c.fillStyle = '#c99a78'; c.beginPath(); c.ellipse(nk.x - d.x * L * 0.1, nk.y - d.y * L * 0.1, L * 0.13, L * 0.15, 0, 0, TAU); c.fill();
+        cloth(add(sh, mul(n, L * 0.36)), add(add(sh, mul(n, L * 0.6)), mul(d, L * 0.5)), L * 0.1, L * 0.08, MAT.jacket, { seam: false, folds: [[0.5, 0.8]] });
+        cloth(add(sh, mul(n, -L * 0.36)), add(add(sh, mul(n, -L * 0.62)), mul(d, L * 0.48)), L * 0.1, L * 0.08, MAT.jacket, { seam: false, folds: [[0.45, 0.8]] });
+        const tor = cloth(add(nk, mul(d, L * 0.1)), pl, L * 0.3, L * 0.26, MAT.shirt, { seam: false, folds: [[0.75, 1], [0.86, 0.7]] });
+        // the shirt is cut open up the middle: bare chest around the wound, flaps folded back
+        c.save(); c.clip(tor.p);
+        const top = add(nk, mul(d, L * 0.12)), bot = add(wd, mul(d, L * 0.22));
+        const half = L * 0.2, flap = new Path2D();
+        flap.moveTo(top.x + n.x * half * 0.7, top.y + n.y * half * 0.7);
+        for (let i = 0; i <= 10; i++) { const u = i / 10, q = mix(top, bot, u); const w2 = half * (0.7 + 0.35 * Math.sin(u * Math.PI)) + (R() - 0.5) * 6 * U; flap.lineTo(q.x + n.x * w2, q.y + n.y * w2); }
+        for (let i = 10; i >= 0; i--) { const u = i / 10, q = mix(top, bot, u); const w2 = half * (0.7 + 0.35 * Math.sin(u * Math.PI)) + (R() - 0.5) * 6 * U; flap.lineTo(q.x - n.x * w2, q.y - n.y * w2); }
+        flap.closePath();
+        const sg = c.createLinearGradient(top.x + n.x * half, top.y + n.y * half, top.x - n.x * half, top.y - n.y * half);
+        sg.addColorStop(0, MAT.skin.hi); sg.addColorStop(0.45, MAT.skin.mid); sg.addColorStop(1, MAT.skin.dark);
+        c.fillStyle = sg; c.fill(flap);
+        c.save(); c.clip(flap);
+        for (let i = 0; i < 900; i++) { const q = add(mix(top, bot, R()), mul(n, (R() - 0.5) * half * 2)); c.fillStyle = R() < 0.5 ? 'rgba(90,50,30,.1)' : 'rgba(255,230,210,.06)'; c.fillRect(q.x, q.y, 1.4 * U, 1.4 * U); }
+        c.strokeStyle = 'rgba(90,50,35,.25)'; c.lineWidth = 3 * U; c.beginPath(); c.moveTo(top.x, top.y); c.lineTo(bot.x, bot.y); c.stroke();
+        c.restore();
+        c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 14 * U; c.strokeStyle = 'rgba(120,130,145,.55)'; c.lineWidth = 3 * U; c.stroke(flap); c.shadowBlur = 0;
+        c.restore();
+        // head
+        const hd = add(nk, mul(d, -L * 0.1));
+        const hg = c.createRadialGradient(hd.x - L * 0.04, hd.y - L * 0.05, L * 0.02, hd.x, hd.y, L * 0.16);
+        hg.addColorStop(0, MAT.skin.hi); hg.addColorStop(1, MAT.skin.dark);
+        c.save(); c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 24 * U; c.shadowOffsetY = 10 * U;
+        c.fillStyle = hg; c.beginPath(); c.ellipse(hd.x, hd.y, L * 0.13, L * 0.15, 0, 0, TAU); c.fill(); c.restore();
+        c.fillStyle = '#1d140f'; c.beginPath(); c.ellipse(hd.x - d.x * L * 0.05, hd.y - d.y * L * 0.05, L * 0.135, L * 0.11, Math.atan2(d.y, d.x), Math.PI * 0.5, Math.PI * 1.5); c.fill();
       } else if (preset === 'neck') {
         const hd = px('head'), nk = px('neck'), ch = px('chest'), L = dist(hd, ch), d = norm(sub(ch, hd)), n = perp(d);
-        limb(add(nk, mul(n, L * 0.2)), add(ch, mul(n, L * 0.62)), L * 0.12, L * 0.1, '#202226', '#35383d');
-        limb(add(nk, mul(n, -L * 0.2)), add(ch, mul(n, -L * 0.62)), L * 0.12, L * 0.1, '#202226', '#35383d');
-        limb(add(nk, mul(d, L * 0.12)), add(ch, mul(d, L * 0.5)), L * 0.42, L * 0.4, '#202328', '#383c42');
-        limb(hd, add(nk, mul(d, L * 0.1)), L * 0.11, L * 0.12, '#bd8f6e', '#d6aa86');
-        const hg = c.createRadialGradient(hd.x - L * 0.05, hd.y - L * 0.08, L * 0.02, hd.x, hd.y, L * 0.24);
-        hg.addColorStop(0, '#d9ad89'); hg.addColorStop(1, '#9c6e50'); c.fillStyle = hg;
-        c.beginPath(); c.ellipse(hd.x, hd.y - L * 0.05, L * 0.2, L * 0.24, 0, 0, TAU); c.fill();
-        c.fillStyle = '#2a1d15'; c.beginPath(); c.ellipse(hd.x, hd.y - L * 0.15, L * 0.205, L * 0.16, 0, Math.PI, TAU); c.fill();
+        cloth(add(nk, mul(n, L * 0.2)), add(ch, mul(n, L * 0.62)), L * 0.12, L * 0.1, MAT.jacket, { seam: false, folds: [[0.4, 0.9]] });
+        cloth(add(nk, mul(n, -L * 0.2)), add(ch, mul(n, -L * 0.62)), L * 0.12, L * 0.1, MAT.jacket, { seam: false, folds: [[0.4, 0.9]] });
+        cloth(add(nk, mul(d, L * 0.12)), add(ch, mul(d, L * 0.5)), L * 0.42, L * 0.4, MAT.jacket, { seam: false, folds: [[0.3, 1], [0.6, 0.8]] });
+        // T-shirt neckline under the open jacket
+        c.save(); c.translate(nk.x + d.x * L * 0.16, nk.y + d.y * L * 0.16); c.rotate(Math.atan2(d.y, d.x) - Math.PI / 2);
+        c.fillStyle = '#4a5260'; c.beginPath(); c.ellipse(0, 0, L * 0.2, L * 0.13, 0, 0, Math.PI); c.fill();
+        c.restore();
+        cloth(hd, add(nk, mul(d, L * 0.12)), L * 0.11, L * 0.12, MAT.skin, { seam: false });
+        // ears, head, hair
+        c.save(); c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 26 * U; c.shadowOffsetY = 12 * U;
+        const hg = c.createRadialGradient(hd.x - L * 0.06, hd.y - L * 0.1, L * 0.02, hd.x, hd.y, L * 0.26);
+        hg.addColorStop(0, MAT.skin.hi); hg.addColorStop(0.6, MAT.skin.mid); hg.addColorStop(1, MAT.skin.dark); c.fillStyle = hg;
+        c.beginPath(); c.ellipse(hd.x, hd.y - L * 0.05, L * 0.2, L * 0.24, 0, 0, TAU); c.fill(); c.restore();
+        c.fillStyle = MAT.skin.mid; [[-1], [1]].forEach(([s2]) => { c.beginPath(); c.ellipse(hd.x + s2 * L * 0.2, hd.y - L * 0.02, L * 0.035, L * 0.06, 0, 0, TAU); c.fill(); });
+        const hair = c.createLinearGradient(0, hd.y - L * 0.3, 0, hd.y - L * 0.05); hair.addColorStop(0, '#2b1e16'); hair.addColorStop(1, '#130d09');
+        c.fillStyle = hair; c.beginPath(); c.ellipse(hd.x, hd.y - L * 0.14, L * 0.21, L * 0.17, 0, Math.PI, TAU); c.fill();
+        c.strokeStyle = 'rgba(255,255,255,.06)'; c.lineWidth = 1.2 * U;
+        for (let i = 0; i < 26; i++) { const a0 = Math.PI + R() * Math.PI; c.beginPath(); c.moveTo(hd.x + Math.cos(a0) * L * 0.2, hd.y - L * 0.14 + Math.sin(a0) * L * 0.16); c.lineTo(hd.x + Math.cos(a0) * L * 0.08, hd.y - L * 0.14 + Math.sin(a0) * L * 0.06); c.stroke(); }
+        // closed eyes, brow, nose shadow
+        c.strokeStyle = 'rgba(60,35,25,.7)'; c.lineWidth = 2.2 * U;
+        [-1, 1].forEach(s2 => { c.beginPath(); c.arc(hd.x + s2 * L * 0.075, hd.y - L * 0.02, L * 0.035, 0.2, Math.PI - 0.2); c.stroke(); });
+        c.fillStyle = 'rgba(90,55,40,.35)'; c.beginPath(); c.ellipse(hd.x + L * 0.012, hd.y + L * 0.06, L * 0.025, L * 0.045, 0, 0, TAU); c.fill();
+        c.strokeStyle = 'rgba(120,60,50,.55)'; c.lineWidth = 2.5 * U; c.beginPath(); c.moveTo(hd.x - L * 0.05, hd.y + L * 0.13); c.quadraticCurveTo(hd.x, hd.y + L * 0.145, hd.x + L * 0.05, hd.y + L * 0.13); c.stroke();
       }
-      const v = c.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.95); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.45)');
-      c.fillStyle = v; c.fillRect(0, 0, W, H);
+      return cv;
     },
   };
 
@@ -360,7 +568,13 @@
       root.innerHTML = `
         <canvas class="tr-stage int"></canvas>
         <div class="tr-card nza-hud"></div>
-        <div class="tr-dev"><div class="dev"><div class="dev-top"><span class="dev-brand"><span class="nz-mark"></span><span class="db-name">NAYZEEE</span></span><span class="dev-led"></span></div><div class="dev-screen"></div><div class="dev-foot"><span class="dev-btn"></span><span class="dev-btn"></span><span class="df-l">NAYZEEE MEDICAL</span></div></div></div>
+        <div class="tr-dev"><div class="hx">
+          <i class="hx-sc a"></i><i class="hx-sc b"></i><i class="hx-sc c"></i><i class="hx-sc d"></i>
+          <div class="hx-head"><span class="hx-model"><b class="hx-code">--</b><span class="hx-name"></span></span><span class="hx-stat"><span class="hx-led"><span class="dev-led"></span></span><em class="hx-st">RUN</em></span></div>
+          <div class="dev-screen"></div>
+          <div class="hx-keys"><span class="hx-btn"><i></i><em>MODE</em></span><span class="hx-btn"><i></i><em>ZERO</em></span><span class="hx-btn t"><i></i><em>MUTE</em></span></div>
+          <div class="hx-foot"><span class="hx-warn"><i></i><span class="hx-wt"></span></span><span class="hx-sn"></span></div>
+        </div></div>
         <div class="tr-tag"></div>
         <div class="tr-meds nza-hud solid"></div>
         <div class="tr-kit nza-hud solid"></div>`;
@@ -487,7 +701,7 @@
       const fit = NZA.fitCanvas(this.cv); const W = fit.w, H = fit.h;
       const c = this.cv.getContext('2d');
       let anc = this.anc.all();
-      if (!NZA.inGame && this.preset) { anc = Backdrop.anchors(this.preset, W, H); }
+      if (!NZA.inGame && this.preset) { anc = Backdrop.anchors(this.preset); }
       G.anc = anc; G.W = W; G.H = H; G.U = H / 1080;
       const w = this.geo();
       c.clearRect(0, 0, W, H);
@@ -629,41 +843,82 @@
       if (this.G.statusT > 0) return;
       this.G.statusT = 0.1;
       if (this.ph && this.ph.panel) this.ph.panel();
-      if (this.ph && this.ph.device) this.ph.device();
+      if (this.ph && this.ph.device) { this.ph.device(); this.devTones(); }
     },
 
-    /* ─────────────── top-left card ─────────────── */
+    /* ─────────────── top-left context card ───────────────
+       corner bracket · avatar status ring · holographic body glyph with the wound diamond ·
+       instrument list (type / site / flow / grade) · four vital rings · glowing-bar note */
     renderCard() {
       const d = this.d, inj = d.injury, pt = d.patient || {};
-      const icon = this.mode === 'collar' ? 'collar' : this.mode === 'tq' ? 'tq-strap' : 'drop';
-      const sev = inj ? inj.severity : 0;
-      const injRow = inj
-        ? `<div class="inj">${NZA.icon(icon)}<div class="t"><b>${esc(inj.typeLabel || '')}</b><span>${esc(inj.regionLabel || '')} · ${esc(T('bleed_rate', '%s mL/min', (inj.bleed || 0).toFixed(1)))}</span></div><span class="sev s${sev}">${esc(inj.sevLabel || '')}</span></div>`
-        : `<div class="inj">${NZA.icon(icon)}<div class="t"><b>${esc(d.regionLabel || '')}</b><span>${esc(this.mode === 'collar' ? (d.spinal ? T('spinal_suspected', 'Neck pain, possible spinal injury') : T('precaution', 'Precaution: mechanism of injury')) : T('no_bleed_precaution', 'Applied as a precaution'))}</span></div></div>`;
+      const sev = inj ? (inj.severity || 0) : 0;
+      const sevTone = sev >= 3 ? 'red' : sev === 2 ? 'amber' : 'teal';
+      const region = inj ? inj.region : (this.mode === 'collar' ? 'neck' : d.region);
+      const states = {};
+      if (region) states[region] = this.mode === 'collar' ? 'amber' : sevTone;
+      const rows = inj
+        ? [
+          [T('c_type', 'Wound'), esc(inj.typeLabel || ''), ''],
+          [T('c_site', 'Site'), esc(inj.regionLabel || ''), ''],
+          [T('c_flow', 'Flow'), `${(inj.bleed || 0).toFixed(1)}<small>mL/min</small>`, (inj.bleed || 0) > 20 ? 'red' : (inj.bleed || 0) > 3 ? 'amber' : 'teal'],
+          [T('c_sev', 'Severity'), esc(inj.sevLabel || ''), sevTone],
+        ]
+        : [
+          [T('c_site', 'Site'), esc(d.regionLabel || ''), ''],
+          [T('c_reason', 'Reason'), esc(this.mode === 'collar' ? (d.spinal ? T('spinal_short', 'Spinal pain') : T('precaution_short', 'Mechanism')) : T('no_bleed_short', 'Precaution')), d.spinal ? 'amber' : ''],
+        ];
       this.card.innerHTML = `
-        <div class="who"><span class="av ${this.mode === 'collar' ? 'teal' : ''}">${NZA.icon('user')}</span><div><b>${esc(pt.name || T('patient', 'Patient'))}</b><span>${esc(this.title())}</span></div></div>
-        ${injRow}
-        <div class="vit"></div>
-        <div class="tip ${this.tipTone || ''}">${rich(this.tipText || '')}</div>`;
+        <div class="tc-hd">
+          <span class="tc-av ${this.mode === 'collar' ? 'teal' : sevTone}"><svg viewBox="0 0 44 44"><circle class="b" cx="22" cy="22" r="19"/><circle class="f" cx="22" cy="22" r="19"/></svg><b>${esc(initialsOf(pt.name || T('patient', 'Patient')))}</b></span>
+          <div class="tc-who"><span class="k">${esc(this.title())}</span><b>${esc(pt.name || T('patient', 'Patient'))}</b></div>
+          ${inj ? `<span class="tc-sev ${sevTone}"><i></i>${esc(inj.sevLabel || '')}</span>` : ''}
+        </div>
+        <div class="tc-body">
+          <div class="tc-map">${bodyGlyph(states, region)}</div>
+          <div class="tc-list">${rows.map(([k, v, t]) => `<div class="tc-row" data-t="${t}"><span>${esc(k)}</span><b>${v}</b></div>`).join('')}</div>
+        </div>
+        <div class="tc-vit"></div>
+        <div class="tc-tip ${this.tipTone || ''}">${rich(this.tipText || '')}</div>`;
       this.renderVitals();
     },
     renderVitals() {
-      const box = this.card.querySelector('.vit'); if (!box) return;
+      const box = this.card.querySelector('.tc-vit'); if (!box) return;
       const v = this.vit || {};
-      const sysTone = v.sys && v.sys < 90 ? 'bad' : v.sys && v.sys < 100 ? 'warn' : '';
-      const spTone = v.spo2 && v.spo2 < 90 ? 'bad' : v.spo2 && v.spo2 < 94 ? 'warn' : 'sp';
-      box.innerHTML = `
-        <div><div class="k">HR</div><div class="v hr">${v.hr ? Math.round(v.hr) : '--'}</div></div>
-        <div><div class="k">BP</div><div class="v ${sysTone}">${v.sys ? `${Math.round(v.sys)}` : '--'}</div></div>
-        <div><div class="k">SPO₂</div><div class="v ${spTone}">${v.spo2 ? Math.round(v.spo2) : '--'}</div></div>
-        <div><div class="k">RR</div><div class="v">${v.rr ? Math.round(v.rr) : '--'}</div></div>`;
+      const hr = v.hr ? Math.round(v.hr) : 0, sys = v.sys ? Math.round(v.sys) : 0, sp = v.spo2 ? Math.round(v.spo2) : 0, rr = v.rr ? Math.round(v.rr) : 0;
+      box.innerHTML = [
+        vring({ value: hr || '--', frac: hr / 180, tone: !hr ? '' : hr > 130 || hr < 45 ? 'red' : hr > 110 ? 'amber' : 'green', label: 'HR', beat: hr ? 60 / clamp(hr, 30, 200) : 0 }),
+        vring({ value: sys || '--', frac: sys / 180, tone: !sys ? '' : sys < 90 ? 'red' : sys < 100 ? 'amber' : 'white', label: 'SYS' }),
+        vring({ value: sp || '--', frac: (sp - 70) / 30, tone: !sp ? '' : sp < 90 ? 'red' : sp < 94 ? 'amber' : 'cyan', label: 'SpO₂' }),
+        vring({ value: rr || '--', frac: rr / 40, tone: !rr ? '' : rr < 8 || rr > 28 ? 'red' : rr > 22 || rr < 10 ? 'amber' : 'yellow', label: 'RR' }),
+      ].join('');
     },
-    setTip(text, tone) { this.tipText = text; this.tipTone = tone || ''; const t = this.card.querySelector('.tip'); if (t) { t.className = `tip ${this.tipTone}`; t.innerHTML = rich(text); } },
-    title() { return this.mode === 'tq' ? T('title_tq', 'Tourniquet') : this.mode === 'collar' ? T('title_collar', 'Cervical collar') : T('title_bleed', 'Stop bleeding'); },
+    setTip(text, tone) { this.tipText = text; this.tipTone = tone || ''; const t = this.card.querySelector('.tc-tip'); if (t) { t.className = `tc-tip ${this.tipTone}`; t.innerHTML = rich(text); } },
+    title() { return this.mode === 'tq' ? T('title_tq', 'Tourniquet') : this.mode === 'collar' ? T('title_collar', 'Cervical collar') : T('title_bleed', 'Bleed control'); },
 
     /* ─────────────── device shell ─────────────── */
-    devBrand(name) { this.dev.querySelector('.db-name').textContent = name; },
-    devLed(tone) { this.dev.querySelector('.dev-led').className = `dev-led ${tone || ''}`; },
+    // generic device labelling: model code, type name, warning sticker, serial (no brand on device faces)
+    devBrand(code, name, warn) {
+      const q = s => this.dev.querySelector(s);
+      q('.hx-code').textContent = code;
+      q('.hx-name').textContent = name;
+      q('.hx-wt').textContent = warn || T('dev_warn_single', 'Single patient use');
+      q('.hx-sn').textContent = `SN ${String(hash(code) % 9000 + 1000)}-${String(hash(name) % 9000 + 1000)}`;
+      this.dev.dataset.model = code;
+    },
+    devLed(tone) {
+      this.dev.querySelector('.dev-led').className = `dev-led ${tone || ''}`;
+      const st = this.dev.querySelector('.hx-st');
+      st.textContent = tone === 'red' ? T('dev_alarm', 'ALARM') : tone === 'off' ? T('dev_stby', 'STBY') : T('dev_run', 'RUN');
+      st.className = `hx-st ${tone || ''}`;
+    },
+    // mirror each instrument row's value tone onto the row (tone notch on the left)
+    devTones() {
+      this.devScreen.querySelectorAll('.row').forEach(r => {
+        const b = r.querySelector('b'); if (!b) return;
+        const t = /\bred\b/.test(b.className) ? 'red' : /\bamber\b/.test(b.className) ? 'amber' : /\bteal\b/.test(b.className) ? 'teal' : '';
+        if (r.dataset.t !== t) r.dataset.t = t;
+      });
+    },
 
     /* ═════════════════════════════ STOP BLEEDING ═════════════════════════════ */
     initBleed() {
@@ -673,11 +928,11 @@
       G.b = d.underTq ? 0.12 : 1;
       G.maxB = G.b;
       G.strips = [];
-      this.devBrand('NAYZEEE HAEMOSTAT');
+      this.devBrand('HM-2', T('dev_hm', 'Haemostat monitor'), T('dev_warn_hm', 'Check circulation below'));
       this.devScreen.innerHTML = `
-        <div class="scr-h"><span>${esc(T('dev_flow', 'Wound flow'))}</span><span class="st">LIVE</span></div>
-        <div class="big"><span class="fv">--</span><small>mL/min</small><span class="tr-arrow"></span></div>
-        <canvas class="trace"></canvas>
+        <div class="scr-h"><span class="md">${esc(T('dev_flow', 'Wound flow'))}</span><span class="st">LIVE</span></div>
+        <div class="big"><span class="fv"></span><small>mL/min</small><span class="tr-arrow"></span></div>
+        <div class="trw"><canvas class="trace"></canvas><span class="ax">0</span></div>
         <div class="rows">
           <div class="row"><span>${esc(T('dev_lost', 'Lost during care'))}</span><b class="lost">0 mL</b></div>
           <div class="row"><span>${esc(T('dev_hr', 'Heart rate'))}</span><b class="hr teal">--</b></div>
@@ -685,6 +940,7 @@
         </div>
         <div class="gauge"><div class="gl"><span class="g-l"></span><b class="g-v"></b></div><div class="g-m"></div></div>`;
       this.trace = { cv: this.devScreen.querySelector('.trace'), hist: [] };
+      this.flowOdo = NZA.ui.FlipClock(this.devScreen.querySelector('.fv'), { value: '0.0' });
       if (d.underTq) this.setTip(T('tip_under_tq', 'A tourniquet is holding this bleed. Pack and dress it now so it can come off later.'), 'amber');
       else if (d.deep) this.setTip(T('tip_deep', '**Deep wound.** Pressure alone will not hold it: pack it with gauze, then dress it.'), 'red');
       else this.setTip(T('tip_shallow', 'Firm, direct pressure first. Then cover it so it stays controlled.'));
@@ -700,12 +956,13 @@
       this.ph = make();
       this.ph.name = name;
       this.ph.t0 = this.G.t;
-      this.pp.set(Object.assign({ step: this.stepIdx + 1, total: this.steps.length, tag: T('tag_bleed', 'Stop bleeding') }, this.ph.panelInit()));
+      const names = { pressure: T('sn_pressure', 'Press on the wound'), pack: T('sn_pack', 'Pack the wound'), wrap: T('sn_wrap', 'Wrap the limb'), dressing: T('sn_dressing', 'Seal a dressing') };
+      this.pp.set(Object.assign({ step: this.stepIdx + 1, total: this.steps.length, tag: `${T('tag_bleed', 'Bleed control')} · ${(this.d.injury && this.d.injury.regionLabel) || ''}`.replace(/ · $/, ''), steps: this.steps.map(s => names[s] || s) }, this.ph.panelInit()));
       this.updateTools();
     },
 
     updateTools() {
-      const icons = { pressure: 'gauze', pack: 'gauze', wrap: 'bandage', dressing: 'bandage' };
+      const icons = { pressure: 'gauze', pack: 'gauze-roll', wrap: 'bandage', dressing: 'dressing-pad' };
       const names = { pressure: T('tool_pad', 'Gauze pad'), pack: T('tool_roll', 'Gauze roll'), wrap: T('tool_bandage', 'Bandage'), dressing: T('tool_dressing', 'Pressure dressing') };
       this.pp.set({ tools: this.steps.map((s, i) => ({ key: String(i + 1), label: names[s], icon: icons[s], state: i < this.stepIdx ? 'done' : i === this.stepIdx ? 'active' : 'locked' })) });
     },
@@ -733,11 +990,11 @@
       const G = this.G, inj = this.d.injury || {};
       const flow = (inj.bleed || 0) * G.b * (G.cover ? 0.15 : 1);
       const s = this.devScreen;
-      const fv = s.querySelector('.fv'); if (!fv) return;
-      fv.textContent = flow.toFixed(1);
+      const fv = s.querySelector('.fv'); if (!fv || !this.flowOdo) return;
+      this.flowOdo.set(flow.toFixed(1));
       const big = s.querySelector('.big'); big.className = `big ${flow < 1 ? 'teal' : flow < 8 ? 'amber' : ''}`;
       const prev = this.trace.prevFlow === undefined ? flow : this.trace.prevFlow;
-      s.querySelector('.tr-arrow').textContent = flow < prev - 0.05 ? '↓' : flow > prev + 0.05 ? '↑' : '';
+      s.querySelector('.tr-arrow').className = `tr-arrow ${flow < prev - 0.05 ? 'dn' : flow > prev + 0.05 ? 'up' : ''}`;
       this.trace.prevFlow = lerp(prev, flow, 0.3);
       s.querySelector('.lost').textContent = `${Math.round(G.lost)} mL`;
       s.querySelector('.hr').textContent = `${Math.round(G.hr || 0)} bpm`;
@@ -753,20 +1010,32 @@
 
     drawTrace() {
       const tr = this.trace; if (!tr || !tr.cv) return;
-      const fit = NZA.fitCanvas(tr.cv); const c = tr.cv.getContext('2d'); const W = fit.w, H = fit.h;
+      const fit = NZA.fitCanvas(tr.cv); const c = tr.cv.getContext('2d'); const W = fit.w, H = fit.h, k = fit.scale;
       const G = this.G, inj = this.d.injury || {};
       const amp = clamp(G.b * (G.cover ? 0.15 : 1), 0, 1);
       const beat = G.beat || 0;
       const v = inj.arterial ? amp * (0.35 + 0.65 * beat * beat) : amp * (0.55 + 0.08 * Math.sin(G.t * 9));
-      tr.hist.push(v); while (tr.hist.length > 180) tr.hist.shift();
+      const N = 200;
+      if (!tr.hist.length) for (let i = 0; i < N; i++) tr.hist.push(null);
+      tr.hist.push(v); while (tr.hist.length > N) tr.hist.shift();
       c.clearRect(0, 0, W, H);
-      c.strokeStyle = 'rgba(255,255,255,.05)'; c.lineWidth = 1;
-      for (let i = 1; i < 4; i++) { c.beginPath(); c.moveTo(0, (H * i) / 4); c.lineTo(W, (H * i) / 4); c.stroke(); }
-      const col = amp < 0.05 ? '#0fd4c4' : amp < 0.35 ? '#f3c35a' : '#ff5a60';
-      c.strokeStyle = col; c.lineWidth = 2 * fit.scale; c.shadowColor = col; c.shadowBlur = 6 * fit.scale;
-      c.beginPath();
-      tr.hist.forEach((y, i) => { const x = (i / 179) * W; const yy = H - 4 * fit.scale - y * (H - 10 * fit.scale); i ? c.lineTo(x, yy) : c.moveTo(x, yy); });
-      c.stroke(); c.shadowBlur = 0;
+      // grid: fine minor lines, brighter major lines
+      c.lineWidth = 1;
+      for (let i = 1; i < 8; i++) { c.strokeStyle = i % 2 ? 'rgba(255,255,255,.025)' : 'rgba(255,255,255,.06)'; c.beginPath(); c.moveTo(0, Math.round((H * i) / 8) + 0.5); c.lineTo(W, Math.round((H * i) / 8) + 0.5); c.stroke(); }
+      for (let i = 1; i < 12; i++) { c.strokeStyle = i % 3 ? 'rgba(255,255,255,.02)' : 'rgba(255,255,255,.05)'; c.beginPath(); c.moveTo(Math.round((W * i) / 12) + 0.5, 0); c.lineTo(Math.round((W * i) / 12) + 0.5, H); c.stroke(); }
+      const col = amp < 0.05 ? [15, 212, 196] : amp < 0.35 ? [243, 195, 90] : [255, 90, 96];
+      const rgb = a => `rgba(${col[0]},${col[1]},${col[2]},${a})`;
+      const pts = [];
+      tr.hist.forEach((y, i) => { if (y === null) return; pts.push([(i / (N - 1)) * W, H - 5 * k - y * (H - 12 * k)]); });
+      if (pts.length > 1) {
+        const fill = c.createLinearGradient(0, 0, 0, H); fill.addColorStop(0, rgb(0.28)); fill.addColorStop(1, rgb(0));
+        c.fillStyle = fill; c.beginPath(); c.moveTo(pts[0][0], H); pts.forEach(([x, y]) => c.lineTo(x, y)); c.lineTo(pts[pts.length - 1][0], H); c.closePath(); c.fill();
+        c.strokeStyle = rgb(1); c.lineWidth = 2 * k; c.lineJoin = 'round'; c.shadowColor = rgb(0.9); c.shadowBlur = 7 * k;
+        c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke(); c.shadowBlur = 0;
+        const [hx, hy] = pts[pts.length - 1];
+        c.fillStyle = '#fff'; c.beginPath(); c.arc(hx - 2 * k, hy, 2.6 * k, 0, TAU); c.fill();
+        c.fillStyle = rgb(0.35); c.beginPath(); c.arc(hx - 2 * k, hy, 6 * k, 0, TAU); c.fill();
+      }
     },
 
     /* ── 1. direct pressure ── */
@@ -1006,7 +1275,7 @@
           });
           if (this.phase === 'wrap') {
             const R = w.limbW * 0.95;
-            ring(c, w.x, w.y, R, 'rgba(255,255,255,.28)', 2 * w.U, [5 * w.U, 7 * w.U]);
+            ringDash(c, w.x, w.y, R, 'rgba(255,255,255,.28)', 2 * w.U, [5 * w.U, 7 * w.U]);
             const frac = this.acc / TAU;
             const tone = this.tension > band[1] ? C.red : this.tension < band[0] ? C.amber : C.tealHi;
             c.save(); c.strokeStyle = tone; c.lineWidth = 5 * w.U; c.lineCap = 'round'; c.shadowColor = tone; c.shadowBlur = 10 * w.U;
@@ -1176,7 +1445,7 @@
       G.b = 1; G.maxB = 1;
       if (!d.injury) { d.injury = null; G.b = 0; }
       this.tq = { t: 0.93, placed: false, slack: 0, P: 0, theta: 0, locked: false, over: 0, misLocks: 0, misplaced: 0, placeScore: 100, slackScore: 0, twistT0: 0, time: d.time || '' };
-      this.devBrand('NAYZEEE TQ-1');
+      this.devBrand('TQ-1', T('dev_tq', 'Windlass gauge'), T('dev_warn_tq', 'Write the time on the strap'));
       this.devScreen.innerHTML = `
         <div class="scr-h"><span>${esc(T('dev_windlass', 'Windlass'))}</span><span class="st">--</span></div>
         <canvas class="dial"></canvas>
@@ -1199,7 +1468,7 @@
       if (!name) return this.finishTq();
       this.ph = ({ place: () => this.phPlace(), twist: () => this.phTwist(), lock: () => this.phLock() })[name]();
       this.ph.name = name; this.ph.t0 = this.G.t;
-      this.pp.set(Object.assign({ step: this.stepIdx + 1, total: 3, tag: T('tag_tq', 'Tourniquet') }, this.ph.panelInit()));
+      this.pp.set(Object.assign({ step: this.stepIdx + 1, total: 3, tag: `${T('tag_tq', 'Tourniquet')} · ${this.d.regionLabel || ''}`.replace(/ · $/, ''), steps: [T('sn_place', 'Position the strap'), T('sn_twist', 'Turn the windlass'), T('sn_lock', 'Lock the rod')] }, this.ph.panelInit()));
       const names = [T('tool_strap', 'Strap'), T('tool_windlass', 'Windlass'), T('tool_clip', 'Clip')], icons = ['tq-strap', 'refresh', 'tq-clip'];
       this.pp.set({ tools: this.steps.map((s, i) => ({ key: String(i + 1), label: names[i], icon: icons[i], state: i < this.stepIdx ? 'done' : i === this.stepIdx ? 'active' : 'locked' })) });
     },
@@ -1491,7 +1760,7 @@
           { id: 'press', label: T('st_press', 'Pressure'), value: String(Math.round(q.P)), unit: 'mmHg', tone: over ? 'red' : occ ? 'teal' : '' },
           { id: 'pulse', label: T('st_distal', 'Distal pulse'), value: (G.pulseAmp || 0) > 0.04 ? T('present', 'Present') : T('absent', 'Absent'), small: true, tone: (G.pulseAmp || 0) > 0.04 ? 'amber' : 'teal' },
         ],
-        wide: { label: T('w_occlusion', 'Arterial occlusion'), value: over ? T('over', 'Over') : occ ? T('occluded', 'Occluded') : `${Math.round((q.P / tune.occlusion) * 100)}`, unit: over || occ ? '' : '%', tone: over ? 'red' : '', meter: { value: q.P / maxP, zone: [tune.occlusion / maxP, (tune.occlusion + tune.overMargin) / maxP], tone: over ? 'red' : '' }, caption: over ? T('cap_over', 'Ease off: over-tightened') : occ ? T('cap_occ', 'Artery closed') : T('cap_twist', 'Keep turning'), captionTone: over ? 'red' : occ ? 'teal' : '' },
+        wide: { label: T('w_occlusion', 'Occlusion'), value: over ? T('over', 'Over') : occ ? T('occluded', 'Occluded') : `${Math.round((q.P / tune.occlusion) * 100)}`, unit: over || occ ? '' : '%', tone: over ? 'red' : '', meter: { value: q.P / maxP, zone: [tune.occlusion / maxP, (tune.occlusion + tune.overMargin) / maxP], tone: over ? 'red' : '' }, caption: over ? T('cap_over', 'Ease off: over-tightened') : occ ? T('cap_occ', 'Artery closed') : T('cap_twist', 'Keep turning'), captionTone: over ? 'red' : occ ? 'teal' : '' },
       });
     },
 
@@ -1620,7 +1889,7 @@
       G.b = 0;
       this.tune = Object.assign({ fastenSeconds: 4, drift: 1 }, d.tune || {});
       this.col = { fingers: 0, measured: 0, size: null, align: 0, alignT: 0, holdT: 0, fasten: 0, bubble: { x: 0, y: 0, vx: 0, vy: 0 }, sizeScore: 0 };
-      this.devBrand('NAYZEEE C-SPINE');
+      this.devBrand('CS-4', T('dev_cs', 'Neck sizer'), T('dev_warn_cs', 'Hold the head in line'));
       this.devScreen.innerHTML = `
         <div class="scr-h"><span class="ch-t">${esc(T('dev_sizing', 'Sizing'))}</span><span class="st">--</span></div>
         <canvas class="dial"></canvas>
@@ -1641,7 +1910,7 @@
       if (!name) return this.finishCollar();
       this.ph = name === 'measure' ? this.phMeasure() : this.phFasten();
       this.ph.name = name; this.ph.t0 = this.G.t;
-      this.pp.set(Object.assign({ step: this.stepIdx + 1, total: 2, tag: T('tag_collar', 'C-spine') }, this.ph.panelInit()));
+      this.pp.set(Object.assign({ step: this.stepIdx + 1, total: 2, tag: T('tag_collar', 'C-spine'), steps: [T('sn_measure', 'Size the neck'), T('sn_fasten', 'Fit the collar')] }, this.ph.panelInit()));
       this.pp.set({ tools: [{ key: '1', label: T('tool_measure', 'Measure'), icon: 'ruler', state: this.stepIdx > 0 ? 'done' : 'active' }, { key: '2', label: T('tool_collar', 'Collar'), icon: 'collar', state: this.stepIdx > 0 ? 'active' : 'locked' }] });
     },
 
@@ -1719,7 +1988,7 @@
         panel() {
           a.pp.set({
             stats: [{ id: 'f', label: T('st_fingers', 'Fingers'), value: String(col.fingers || 0) }, { id: 'size', label: T('st_size', 'Size'), value: col.size ? a.sizes().find(s => s.id === col.size).l : '--', small: true }],
-            wide: { label: T('w_measure', 'Shoulder → chin'), value: String(col.fingers || 0), unit: T('fingers', 'fingers'), meter: { value: clamp((col.fingers || 0) / 6, 0, 1), segs: true }, caption: col.measured ? T('cap_pick', 'Now pick the size: 1 No-neck · 2 Short · 3 Regular · 4 Tall') : T('cap_measure', 'Stop exactly at the chin'), captionTone: 'teal' },
+            wide: { label: T('w_measure', 'Neck'), value: String(col.fingers || 0), unit: T('fingers', 'fingers'), meter: { value: clamp((col.fingers || 0) / 6, 0, 1), segs: true }, caption: col.measured ? T('cap_pick', 'Now pick the size: 1 No-neck · 2 Short · 3 Regular · 4 Tall') : T('cap_measure', 'Stop exactly at the chin'), captionTone: 'teal' },
           });
         },
         device() { a.devCollar(); },
@@ -1787,7 +2056,7 @@
           const off = col.pos ? Math.hypot(col.pos.x, col.pos.y) : 0;
           a.pp.set({
             stats: [{ id: 'fasten', label: T('st_fasten', 'Fastened'), value: String(Math.round(clamp(col.fasten, 0, 1) * 100)), unit: '%' }, { id: 'line', label: T('st_inline', 'In line'), value: off < 0.32 ? T('yes', 'Yes') : T('no', 'No'), small: true, tone: off < 0.32 ? 'teal' : 'red' }],
-            wide: { label: T('w_fasten', 'Velcro straps'), value: String(Math.round(clamp(col.fasten, 0, 1) * 100)), unit: '%', meter: { value: clamp(col.fasten, 0, 1) }, caption: this.holding ? (off < 0.32 ? T('cap_fasten', 'Fastening…') : T('cap_inline', 'Bring the head back in line')) : T('cap_hold_space', 'Hold %s', keyLabel(KEY.confirm)), captionTone: off < 0.32 ? 'teal' : 'red' },
+            wide: { label: T('w_fasten', 'Straps'), value: String(Math.round(clamp(col.fasten, 0, 1) * 100)), unit: '%', meter: { value: clamp(col.fasten, 0, 1) }, caption: this.holding ? (off < 0.32 ? T('cap_fasten', 'Fastening…') : T('cap_inline', 'Bring the head back in line')) : T('cap_hold_space', 'Hold %s', keyLabel(KEY.confirm)), captionTone: off < 0.32 ? 'teal' : 'red' },
           });
         },
         device() { a.devCollar(); },
@@ -1865,15 +2134,22 @@
       if (!this.pp) return;
       this.result = o;
       const score = Math.round(o.score !== undefined ? o.score : (this.pendingResult && this.pendingResult.score) || 0);
-      const grade = o.grade || ['F', 'D', 'C', 'B', 'A', 'S'][score >= 95 ? 5 : score >= 85 ? 4 : score >= 72 ? 3 : score >= 58 ? 2 : score >= 40 ? 1 : 0];
       const failed = !!o.failed;
       const steps = (this.pendingResult && this.pendingResult.steps) || {};
-      const stepNames = { pressure: T('step_pressure', 'Pressure'), pack: T('step_pack', 'Packing'), wrap: T('step_wrap', 'Wrap'), dressing: T('step_dressing', 'Dressing'), place: T('step_place', 'Placement'), twist: T('step_twist', 'Windlass'), lock: T('step_lock', 'Clip') };
-      const rows = Object.keys(steps).map(k => `<div><div class="k">${esc((stepNames[k] || k).toUpperCase())}</div><div class="v ${steps[k] < 40 ? 'bad' : steps[k] < 70 ? 'warn' : ''}">${Math.round(steps[k])}</div></div>`).join('');
+      const stepNames = { pressure: T('step_pressure', 'Pressure'), pack: T('step_pack', 'Packing'), wrap: T('step_wrap', 'Wrap'), dressing: T('step_dressing', 'Dressing'), place: T('step_place', 'Placement'), twist: T('step_twist', 'Windlass'), lock: T('step_lock', 'Clip'), measure: T('step_measure', 'Sizing'), fasten: T('step_fasten', 'Fit') };
+      const tone = v => (v < 40 ? 'red' : v < 70 ? 'amber' : 'teal');
+      const rows = Object.keys(steps).map(k => `<div class="tc-row bar" data-t="${tone(steps[k])}"><span>${esc(stepNames[k] || k)}</span><i class="mb"><i style="width:${clamp(steps[k], 0, 100)}%"></i></i><b>${Math.round(steps[k])}</b></div>`).join('');
+      const C = 2 * Math.PI * 25;
+      const st = failed ? 'red' : tone(score);
       this.card.innerHTML = `
-        <div class="who"><div class="grade g-${esc(grade)}">${esc(grade)}</div><div><b>${esc(failed ? T('res_fail', 'Not controlled') : T('res_ok', 'Treatment recorded'))}</b><span>${esc(T('res_score', 'Score %s / 100', score))}</span></div></div>
-        ${rows ? `<div class="vit" style="grid-template-columns:repeat(${Math.min(4, Object.keys(steps).length)},1fr)">${rows}</div>` : ''}
-        <div class="tip ${failed ? 'red' : ''}">${rich(o.msg || '')}</div>`;
+        <div class="tc-hd res">
+          <span class="tc-score ${st}"><svg viewBox="0 0 60 60"><circle class="b" cx="30" cy="30" r="25"/><circle class="f" cx="30" cy="30" r="25" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}" style="--off:${(C * (1 - clamp(score, 0, 100) / 100)).toFixed(1)}"/></svg><b>${score}</b><small>/100</small></span>
+          <div class="tc-who"><span class="k">${esc(this.title())}</span><b>${esc(failed ? T('res_fail', 'Not controlled') : T('res_ok', 'Treatment recorded'))}</b><span class="sub">${esc(T('res_score', 'Score %s / 100', score))}</span></div>
+        </div>
+        ${rows ? `<div class="tc-list res">${rows}</div>` : ''}
+        <div class="tc-tip ${failed ? 'red' : 'teal'}">${rich(o.msg || '')}</div>`;
+      const ringF = this.card.querySelector('.tc-score .f');
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (ringF) ringF.style.strokeDashoffset = ringF.style.getPropertyValue('--off'); }));
       if (failed) NZA.audio.fail(); else NZA.audio.success();
       if (o.bleed !== undefined && this.d.injury && this.G) { this.d.injury.bleed = Number(o.bleed) || 0; this.G.b = 1; this.G.cover = false; }
       this.pp.complete({ title: failed ? T('res_fail', 'Not controlled') : T('res_done', 'Done'), text: o.msg || '', label: T('done', 'Done'), onDone: () => this.closeDone() });
@@ -1969,12 +2245,12 @@
           <div class="mdet">
             <div class="dh"><div><h2>${esc(dr ? dr.label : '')}</h2><p>${esc(dr ? dr.desc || '' : '')}</p></div>${dr && act[dr.id] ? `<span class="chipx sm teal">${NZA.icon('clock')}${esc(T('active_for', 'Active %s', NZA.fmt.time(act[dr.id])))}</span>` : ''}</div>
             <div class="mvit">
-              <div><div class="k">HR</div><div class="v hr ${tone(v.hr, 120, 140)}">${v.hr || '--'}</div></div>
-              <div><div class="k">BP</div><div class="v ${tone(v.sys, 100, 90, true)}">${v.sys ? `${v.sys}<small>/${v.dia || '--'}</small>` : '--'}</div></div>
-              <div><div class="k">RR</div><div class="v rr ${tone(v.rr, 12, 10, true)}">${v.rr || '--'}</div></div>
-              <div><div class="k">SPO₂</div><div class="v sp ${tone(v.spo2, 94, 90, true)}">${v.spo2 || '--'}</div></div>
-              <div><div class="k">${esc(T('pain', 'PAIN'))}</div><div class="v ${info.pain > 60 ? 'bad' : info.pain > 30 ? 'warn' : ''}">${info.pain !== undefined ? info.pain : '--'}</div></div>
-              <div><div class="k">AVPU</div><div class="v ${v.avpu && v.avpu !== 'A' ? 'warn' : ''}">${esc(v.avpu || '--')}</div></div>
+              ${vring({ value: v.hr || '--', frac: (v.hr || 0) / 180, tone: !v.hr ? '' : tone(v.hr, 120, 140) === 'bad' ? 'red' : tone(v.hr, 120, 140) ? 'amber' : 'green', label: 'HR', beat: v.hr ? 60 / clamp(v.hr, 30, 200) : 0 })}
+              ${vring({ value: v.sys ? `${v.sys}` : '--', frac: (v.sys || 0) / 180, tone: !v.sys ? '' : tone(v.sys, 100, 90, true) === 'bad' ? 'red' : tone(v.sys, 100, 90, true) ? 'amber' : 'white', label: 'SYS', unit: v.dia ? `/${v.dia}` : '' })}
+              ${vring({ value: v.rr || '--', frac: (v.rr || 0) / 40, tone: !v.rr ? '' : tone(v.rr, 12, 10, true) === 'bad' ? 'red' : tone(v.rr, 12, 10, true) ? 'amber' : 'yellow', label: 'RR' })}
+              ${vring({ value: v.spo2 || '--', frac: ((v.spo2 || 70) - 70) / 30, tone: !v.spo2 ? '' : tone(v.spo2, 94, 90, true) === 'bad' ? 'red' : tone(v.spo2, 94, 90, true) ? 'amber' : 'cyan', label: 'SpO₂' })}
+              ${vring({ value: info.pain !== undefined ? info.pain : '--', frac: (info.pain || 0) / 100, tone: info.pain > 60 ? 'red' : info.pain > 30 ? 'amber' : 'teal', label: T('pain_l', 'Pain') })}
+              ${vring({ value: v.avpu || '--', frac: { A: 1, V: 0.66, P: 0.33, U: 0.08 }[v.avpu] || 0, tone: v.avpu && v.avpu !== 'A' ? (v.avpu === 'V' ? 'amber' : 'red') : 'teal', label: 'AVPU' })}
             </div>
             <div class="mrow"><span>${esc(T('dose', 'Dose'))}</span><div class="segc seg-dose">${doseBtns}</div></div>
             <div class="mrow"><span>${esc(T('route', 'Route'))}</span><div class="segc seg-route">${routes}</div></div>
@@ -2038,7 +2314,7 @@
       const q = new URLSearchParams(location.search);
       const demo = q.get('demo') || 'bleed';
       const vit = { hr: 128, sys: 94, dia: 58, spo2: 95, rr: 24 };
-      const pt = { name: 'Michael Garcia', sex: 'm', kind: 'npc' };
+      const pt = { name: 'Lena Okafor', sex: 'f', kind: 'npc' };
       NZA.mock('treat:finish', res => {
         const r = res.result || {};
         setTimeout(() => app.msg.result({ score: r.score, grade: null, msg: demo === 'tq' ? 'Tourniquet on: Left thigh at 14:32. Bleeding stopped.' : demo === 'collar' ? 'Collar fitted (Regular). Spine stabilised.' : 'Packing + Wrap · Left thigh. Bleeding now 2.4 mL/min.', bleed: demo === 'bleed' || !demo ? 2.4 : undefined }), 500);
@@ -2049,7 +2325,7 @@
         this.preset = null;
         NZA.demo('treat', {
           mode: 'meds', patient: pt, preset: 'morphine', tune: { morphineRR: 10, morphineSys: 90 },
-          info: { name: 'Michael Garcia', state: 'wounded', pain: 74, access: 'iv', active: { painkillers: 812 }, bleeding: 18.4, vitals: { hr: 118, sys: 88, dia: 54, rr: 9, spo2: 93, avpu: 'V', pupils: 'normal' } },
+          info: { name: 'Lena Okafor', state: 'wounded', pain: 74, access: 'iv', active: { painkillers: 812 }, bleeding: 18.4, vitals: { hr: 118, sys: 88, dia: 54, rr: 9, spo2: 93, avpu: 'V', pupils: 'normal' } },
           drugs: [
             { id: 'morphine', label: 'Morphine', short: '10 mg/ml · opioid analgesic', desc: 'Strong pain relief. Slows breathing and drops the pressure: watch both.', icon: 'syringe', have: 3, routes: ['iv', 'im'], doses: [{ dose: 0.5, mg: '2.5 mg' }, { dose: 1, mg: '5 mg' }, { dose: 2, mg: '10 mg' }], default: 2 },
             { id: 'adrenaline', label: 'Adrenaline', short: '1 mg/ml · vasopressor', desc: 'Cardiac arrest, anaphylaxis, a crashing blood pressure.', icon: 'bolt', have: 2, routes: ['im', 'iv'], doses: [{ dose: 0.5, mg: '0.5 mg' }, { dose: 1, mg: '1 mg' }], default: 1 },
@@ -2064,7 +2340,7 @@
       if (demo === 'kit') {
         this.preset = null;
         NZA.demo('treat', {
-          mode: 'kit', name: 'Michael Garcia', self: false,
+          mode: 'kit', name: 'Lena Okafor', self: false,
           items: [
             { key: 'bandage', label: 'Bandage', have: 6, usable: true, text: 'Bandage: Deep laceration · Left forearm' },
             { key: 'medkit', label: 'Medkit', have: 1, usable: true, text: 'Patch up 2 minor injuries' },

@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════
-   NAYZEEE AMBULANCE · dispatch board (UI v5 window)
-   Overview · Calls (detail, timeline, patients, assign) · Units · Unit map (canvas,
-   world → map projection) · Call log (nza_calls) · Hospital queue (check-in module +
-   incoming ambulances).
+   NAYZEEE AMBULANCE · dispatch board — "Ops board" (UI v5 window)
+   Ops board · Open calls (stage ring, detail, timeline, patients, send a crew) · Crews ·
+   Live map (canvas, world → map projection) · Logbook (nza_calls) · ER intake (check-in
+   module + inbound crews). Calls show their progress as the 6-stage ring (NZD.stageRing).
 
    Lua → JS: open (board data + tab + locale + logLimit) · data (board data, every ~2 s)
      board data = { now, clock, self {x,y}, calls[], units[], hospitals[], queue[] | nil,
@@ -26,12 +26,19 @@
   const prioChip = p => `<span class="prio p${K.prio(p)}">P${K.prio(p)}</span>`;
   const cap = s => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : '');
   const typeLabel = t => tr('type_' + t, cap(t));
-  const HIST = { dsp: 'Dispatched', enr: 'En route', scn: 'On scene', care: 'Treating', trn: 'Transporting', hsp: 'At hospital', join: 'Unit joined', clr: 'Unit cleared', p1: 'Raised to P1', dup: 'Called again' };
+  const HIST = { dsp: 'Paged', enr: 'Rolling', scn: 'On scene', care: 'Treating', trn: 'Transporting', hsp: 'Handover', join: 'Crew joined', clr: 'Crew stood down', p1: 'Raised to P1', dup: 'Called again' };
   const histLabel = s => tr('hist_' + String(s).toLowerCase(), HIST[String(s).toLowerCase()] || s);
   const unitTone = s => K.unitStatusTone(s);
-  const UNIT_LBL = { 108: 'Available', 107: 'Out of service', ENR: 'En route', SCN: 'On scene', CARE: 'Treating', TRN: 'Transporting', HSP: 'At hospital', DSP: 'Dispatched' };
-  const unitLabel = s => { const k = String(s).replace('-', ''); return tr('unit_' + k, UNIT_LBL[k] || ''); };
-  const unitChip = (s, full) => `<span class="ust ${unitTone(s)}">${esc(s)}${full ? `<span>${esc(unitLabel(s))}</span>` : ''}</span>`;
+  const unitChip = s => `<span class="ust ${unitTone(s)}"><i></i>${esc(K.unitWord(s, tr))}</span>`;
+  const TRI = ['', 'Immediate', 'Delayed', 'Minor'];
+  const SRC = { player: 'Player', npc: 'Local', system: 'System' };
+  const QST = { waiting: 'In the lobby', called: 'Called up', treatment: 'In treatment' };
+  const REASON = { closed: 'Closed out', cleared: 'Stood down', hospital: 'Handed over', expired: 'Nobody took it', stale: 'Timed out' };
+  // stage readout: ring + word + what comes next
+  function stageBlock(st, size, cls = '') {
+    const ci = K.stageIdx(st);
+    return `<div class="db-stage ${cls}">${K.stageRing(st, { size })}<div class="sg-t"><b>${esc(K.stageWord(st, tr))}</b><span>${ci < 5 ? `${esc(tr('db_next', 'Next'))} · ${esc(K.stageWord(K.STAGES[ci + 1], tr))}` : esc(tr('db_last', 'Last stage'))}</span></div><span class="sg-n">${ci + 1}<i>/6</i></span></div>`;
+  }
   const initials = n => String(n || '?').split(/\s+/).map(x => x[0] || '').join('').slice(0, 2).toUpperCase();
   const hhmm = t => { if (!t) return '--:--'; const d = new Date(t * 1000); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   const dur = s => (s == null || isNaN(s) ? '—' : K.eta(s));
@@ -61,14 +68,14 @@
   function navItems() {
     const st = (D && D.stats) || {};
     return [
-      { group: tr('db_g_ops', 'Operations') },
-      { id: 'overview', label: tr('db_overview', 'Overview'), icon: 'grid' },
-      { id: 'calls', label: tr('db_calls', 'Active calls'), icon: 'siren', tally: calls().length },
-      { id: 'units', label: tr('db_units', 'Units'), icon: 'users', tally: units().length },
-      { id: 'map', label: tr('db_map', 'Unit map'), icon: 'map' },
+      { group: tr('db_g_ops', 'Live') },
+      { id: 'overview', label: tr('db_overview', 'Ops board'), icon: 'grid' },
+      { id: 'calls', label: tr('db_calls', 'Open calls'), icon: 'siren', tally: calls().length },
+      { id: 'units', label: tr('db_units', 'Crews'), icon: 'users', tally: units().length },
+      { id: 'map', label: tr('db_map', 'Live map'), icon: 'map' },
       { group: tr('db_g_rec', 'Records') },
-      { id: 'log', label: tr('db_log', 'Call log'), icon: 'list' },
-      { id: 'queue', label: tr('db_queue', 'Hospital queue'), icon: 'hospital', tally: st.waiting != null ? st.waiting : undefined },
+      { id: 'log', label: tr('db_log', 'Logbook'), icon: 'list' },
+      { id: 'queue', label: tr('db_queue', 'ER intake'), icon: 'hospital', tally: st.waiting != null ? st.waiting : undefined },
     ];
   }
 
@@ -78,19 +85,19 @@
     return `
       <div class="db-who"><div class="av">${esc(initials(m.name))}</div><div class="who-txt"><b>${esc(m.name || '')}</b><span>${esc([m.callsign, m.grade].filter(Boolean).join(' · '))}</span></div></div>
       <div class="db-shift">
-        <div class="row"><span>${esc(tr('db_status', 'Status'))}</span>${unitChip(st, true)}</div>
-        <div class="segc db-stseg" ${m.call ? 'data-locked="1"' : ''}><button data-st="10-8" class="${!m.oos && !m.call ? 'on' : ''}">10-8</button><button data-st="10-7" class="${m.oos ? 'on' : ''}">10-7</button></div>
-        <div class="row tgl"><span>${esc(tr('db_npc', 'NPC calls'))}</span><button class="tg ${m.npc ? 'on' : ''}" data-npc><i></i></button></div>
+        <div class="row"><span>${esc(tr('db_status', 'You are'))}</span>${unitChip(st)}</div>
+        <div class="segc db-stseg" ${m.call ? 'data-locked="1"' : ''}><button data-st="10-8" class="${!m.oos && !m.call ? 'on' : ''}">${esc(tr('db_avail', 'Available'))}</button><button data-st="10-7" class="${m.oos ? 'on' : ''}">${esc(tr('db_unavail', 'Unavailable'))}</button></div>
+        <div class="row tgl"><span>${esc(tr('db_npc', 'Street calls'))}</span><button class="tg ${m.npc ? 'on' : ''}" data-npc><i></i></button></div>
       </div>`;
   }
 
   function chrome() {
     const st = (D && D.stats) || {};
-    win.setMid(`<span class="nz-dot ${st.p1 ? 'red' : ''}"></span><p>${esc(tr('db_connected', 'Connected to dispatch'))} · <b>${st.onDuty || 0}</b> ${esc(tr('db_on_duty', 'on duty'))} · <b>${st.active || 0}</b> ${esc(tr('db_open', 'open calls'))}</p><span class="nz-ver">${esc(me().callsign || 'EMS')}</span>`);
+    win.setMid(`<span class="nz-dot ${st.p1 ? 'red' : ''}"></span><p>${esc(tr('db_connected', 'Linked to dispatch'))} · <b>${st.onDuty || 0}</b> ${esc(tr('db_on_duty', 'on duty'))} · <b>${st.active || 0}</b> ${esc(tr('db_open', 'open calls'))}</p><span class="nz-ver">${esc(me().callsign || 'EMS')}</span>`);
     win.setNav(navItems());
     win.setStatus([
       { key: 'ESC', label: tr('db_k_close', 'Close') }, { key: '↑↓', label: tr('db_k_select', 'Select call') },
-      { key: 'R', label: tr('db_k_respond', 'Respond') }, { key: 'G', label: tr('db_k_gps', 'Set GPS') }, { key: 'M', label: tr('db_k_map', 'Map') },
+      { key: 'R', label: tr('db_k_respond', 'Take call') }, { key: 'G', label: tr('db_k_gps', 'Route') }, { key: 'M', label: tr('db_k_map', 'Map') },
     ], `<span class="db-clock">${icon('clock')}<b>${esc((D && D.clock) || '--:--')}</b></span>`);
   }
 
@@ -115,14 +122,15 @@
     const p = K.prio(c.priority);
     const us = c.units || [];
     const mine = me().call === c.id;
-    return `<article class="db-inc p${p} ${selId === c.id ? 'sel' : ''} ${mine ? 'mine' : ''}" data-call="${esc(c.id)}">
-      <div class="inc-top">${prioChip(p)}<span class="db-code">${esc(c.code || '')}</span><span class="db-type">${icon(K.typeIcon(c.type))}${esc(typeLabel(c.type))}</span>
-        <span class="ref">${esc(c.id)}</span><span class="db-age" data-age="${esc(c.id)}">${K.age(ageOf(c))}</span></div>
-      <h3>${esc(c.title || '')}${mine ? `<span class="db-mine">${esc(tr('db_yours', 'Your call'))}</span>` : ''}</h3>
-      <p>${icon('pin')}${esc(where(c))}${c.caller ? ` <span class="dim">· ${esc(c.caller)}</span>` : ''}</p>
-      ${opts.compact ? '' : K.chain(c.status, tr, 'db-chain')}
-      <div class="meta">${us.length ? us.map(u => `<span class="db-u ${unitTone(u.stage)}">${esc(u.callsign)}<i>${esc(u.stage)}</i></span>`).join('') : `<span class="db-unassigned">${icon('alert')}${esc(tr('db_unassigned', 'Unassigned'))}</span>`}
-        <span class="sp"></span>${(c.patients || []).length ? `<span class="dim">${icon('person')}${(c.patients || []).length}</span>` : ''}${c.declined ? `<span class="dim">${icon('x')}${c.declined}</span>` : ''}</div>
+    return `<article class="db-inc p${p} ${opts.compact ? 'cmp' : ''} ${selId === c.id ? 'sel' : ''} ${mine ? 'mine' : ''}" data-call="${esc(c.id)}">
+      <div class="inc-rail">${K.stageRing(c.status, { size: opts.compact ? 34 : 42 })}${prioChip(p)}</div>
+      <div class="inc-body">
+        <div class="inc-top"><span class="db-type">${icon(K.typeIcon(c.type))}${esc(typeLabel(c.type))}</span><span class="ref">${esc([c.code, c.id].filter(Boolean).join(' · '))}</span><span class="db-age" data-age="${esc(c.id)}">${K.age(ageOf(c))}</span></div>
+        <h3><span class="tt">${esc(c.title || '')}</span>${mine ? `<span class="db-mine">${esc(tr('db_yours', 'Your call'))}</span>` : ''}</h3>
+        <p>${icon('pin')}${esc(where(c))}${c.caller ? ` <span class="dim">· ${esc(c.caller)}</span>` : ''}</p>
+        <div class="meta"><span class="db-sw">${esc(K.stageWord(c.status, tr))}</span>${us.length ? us.map(u => `<span class="db-u"><i class="${unitTone(u.stage)}"></i>${esc(u.callsign)}</span>`).join('') : `<span class="db-unassigned">${icon('alert')}${esc(tr('db_unassigned', 'No crew yet'))}</span>`}
+          <span class="sp"></span>${(c.patients || []).length ? `<span class="dim">${icon('person')}${(c.patients || []).length}</span>` : ''}${c.declined ? `<span class="dim">${icon('x')}${c.declined}</span>` : ''}</div>
+      </div>
     </article>`;
   }
 
@@ -131,21 +139,21 @@
     const list = calls();
     const ulist = units();
     return `
-      <div class="w-head"><div><h1>${esc(tr('db_overview_t', 'Dispatch'))}</h1><p>${esc(tr('db_overview_p', 'Live calls, units on duty and the hospital queue.'))}</p></div>
+      <div class="w-head"><div><h1>${esc(tr('db_overview_t', 'Ops board'))}</h1><p>${esc(tr('db_overview_p', 'Open calls, crews on shift and the ER intake.'))}</p></div>
         <div class="db-clockbig"><b>${esc((D && D.clock) || '--:--')}</b><span>${esc(tr('db_game_time', 'City time'))}</span></div></div>
       <div class="w-stats">
         <div class="w-stat"><div class="nz-tile ${st.p1 ? 'red' : ''}">${icon('siren')}</div><div><span>${esc(tr('db_s_open', 'Open calls'))}</span><b>${st.active || 0}</b></div>${st.p1 ? `<em class="delta dn">${st.p1} P1</em>` : ''}</div>
-        <div class="w-stat"><div class="nz-tile">${icon('ambulance')}</div><div><span>${esc(tr('db_s_avail', 'Units free'))}</span><b>${st.available || 0}<small>/${st.onDuty || 0}</small></b></div>${st.onCall ? `<em class="delta">${st.onCall} ${esc(tr('db_s_busy', 'busy'))}</em>` : ''}</div>
+        <div class="w-stat"><div class="nz-tile">${icon('ambulance')}</div><div><span>${esc(tr('db_s_avail', 'Crews free'))}</span><b>${st.available || 0}<small>/${st.onDuty || 0}</small></b></div>${st.onCall ? `<em class="delta">${st.onCall} ${esc(tr('db_s_busy', 'busy'))}</em>` : ''}</div>
         <div class="w-stat"><div class="nz-tile">${icon('timer')}</div><div><span>${esc(tr('db_s_resp', 'Avg. response'))}</span><b>${st.avgResponse != null ? K.eta(st.avgResponse) : '—'}</b></div>${st.served ? `<em class="delta">${st.served} ${esc(tr('db_s_served', 'today'))}</em>` : ''}</div>
-        <div class="w-stat"><div class="nz-tile">${icon('hospital')}</div><div><span>${esc(tr('db_s_wait', 'Hospital queue'))}</span><b>${st.waiting != null ? st.waiting : '—'}</b></div>${(D.incoming || []).length ? `<em class="delta">${(D.incoming || []).length} ${esc(tr('db_s_incoming', 'incoming'))}</em>` : ''}</div>
+        <div class="w-stat"><div class="nz-tile">${icon('hospital')}</div><div><span>${esc(tr('db_s_wait', 'ER intake'))}</span><b>${st.waiting != null ? st.waiting : '—'}</b></div>${(D.incoming || []).length ? `<em class="delta">${(D.incoming || []).length} ${esc(tr('db_s_incoming', 'inbound'))}</em>` : ''}</div>
       </div>
       <div class="db-cols">
-        <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_calls', 'Active calls'))}</h2><p>${esc(tr('db_calls_p', 'Newest and most urgent first'))}</p></div>
-          <button class="btn-ghost" data-go="calls">${icon('arrow-r')}${esc(tr('db_open_calls', 'Open'))}</button></div>
-          <div class="w-pbody" data-scroll="ov-calls">${list.length ? list.map(c => callCard(c)).join('') : empty('siren', tr('db_no_calls', 'No open calls'), tr('db_no_calls_p', 'New calls show up here, on the call card and on your pager.'))}</div></section>
-        <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_units', 'Units'))}</h2><p>${esc(K.fmt(tr('db_units_p', '%d medics signed in'), ulist.length))}</p></div>
-          <button class="btn-ghost" data-go="map">${icon('map')}${esc(tr('db_map', 'Unit map'))}</button></div>
-          <div class="w-pbody" data-scroll="ov-units">${ulist.length ? ulist.map(unitRow).join('') : empty('users', tr('db_no_units', 'No units on duty'), tr('db_no_units_p', 'Medics appear here when they go on duty.'))}</div></section>
+        <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_calls', 'Open calls'))}</h2><p>${esc(tr('db_calls_p', 'Most urgent on top'))}</p></div>
+          <button class="btn-ghost" data-go="calls">${icon('arrow-r')}${esc(tr('db_open_calls', 'View all'))}</button></div>
+          <div class="w-pbody" data-scroll="ov-calls">${list.length ? list.map(c => callCard(c)).join('') : empty('siren', tr('db_no_calls', 'No open calls'), tr('db_no_calls_p', 'New calls land here, on the incoming strip and on your pager.'))}</div></section>
+        <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_units', 'Crews'))}</h2><p>${esc(K.fmt(tr('db_units_p', '%d on shift'), ulist.length))}</p></div>
+          <button class="btn-ghost" data-go="map">${icon('map')}${esc(tr('db_map', 'Live map'))}</button></div>
+          <div class="w-pbody" data-scroll="ov-units">${ulist.length ? ulist.map(unitRow).join('') : empty('users', tr('db_no_units', 'Nobody on shift'), tr('db_no_units_p', 'Medics show up here when they start a shift.'))}</div></section>
       </div>`;
   }
 
@@ -163,8 +171,8 @@
     const c = selId && callById(selId);
     return `
       <div class="db-split">
-        <section class="w-panel db-list"><div class="w-phead"><div><h2>${esc(tr('db_calls', 'Active calls'))}</h2><p>${esc(K.fmt(tr('db_calls_n', '%d open'), list.length))}</p></div></div>
-          <div class="w-pbody" data-scroll="calls-list">${list.length ? list.map(x => callCard(x, { compact: true })).join('') : empty('siren', tr('db_no_calls', 'No open calls'), tr('db_no_calls_p', 'New calls show up here, on the call card and on your pager.'))}</div></section>
+        <section class="w-panel db-list"><div class="w-phead"><div><h2>${esc(tr('db_calls', 'Open calls'))}</h2><p>${esc(K.fmt(tr('db_calls_n', '%d open'), list.length))}</p></div></div>
+          <div class="w-pbody" data-scroll="calls-list">${list.length ? list.map(x => callCard(x, { compact: true })).join('') : empty('siren', tr('db_no_calls', 'No open calls'), tr('db_no_calls_p', 'New calls land here, on the incoming strip and on your pager.'))}</div></section>
         <section class="w-panel db-detail">${c ? detail(c) : empty('clipboard', tr('db_pick', 'Pick a call'), tr('db_pick_p', 'Select a call on the left to see the details.'))}</section>
       </div>`;
   }
@@ -182,28 +190,28 @@
           ${canAssign() ? `<span class="dt-plabel">${esc(tr('db_priority', 'Priority'))}</span><div class="segc db-pseg">${[1, 2, 3].map(n => `<button data-prio="${n}" class="${p === n ? 'on' : ''}">P${n}</button>`).join('')}</div>` : ''}
           <span class="db-age big" data-age="${esc(c.id)}">${K.age(ageOf(c))}</span></div>
         <div class="dt-title"><div class="nz-tile ${p === 1 ? 'red' : ''}">${icon(K.typeIcon(c.type))}</div><div><h2>${esc(c.title || '')}</h2><p>${icon('pin')}${esc(where(c))}${d != null ? ` · <b>${K.dist(d).v} ${K.dist(d).u}</b>` : ''}</p></div></div>
-        ${K.chain(c.status, tr, 'db-chain big')}
-        <div class="dt-acts">
-          ${mine || onIt ? `<button class="btn-line" data-a="clear">${icon('x')}${esc(tr('db_a_clear', 'Clear'))}</button>` : `<button class="btn-teal" data-a="respond">${icon('siren')}${esc(tr('db_a_respond', 'Respond'))}<kbd>R</kbd></button>`}
-          <button class="btn-line" data-a="gps">${icon('nav')}${esc(tr('db_a_gps', 'Set GPS'))}<kbd>G</kbd></button>
-          ${canAssign() ? `<button class="btn-line" data-a="assign">${icon('user-plus')}${esc(tr('db_a_assign', 'Assign unit'))}</button>` : ''}
-          <span class="sp"></span>
-          ${canAssign() || onIt ? `<button class="btn-red" data-a="close">${icon('check')}${esc(tr('db_a_close', 'Close call'))}</button>` : ''}
+        <div class="dt-mid">${stageBlock(c.status, 56, 'big')}
+          <div class="dt-acts">
+            ${mine || onIt ? `<button class="btn-line" data-a="clear">${icon('x')}${esc(tr('db_a_clear', 'Stand down'))}</button>` : `<button class="btn-teal" data-a="respond">${icon('siren')}${esc(tr('db_a_respond', 'Take call'))}<kbd>R</kbd></button>`}
+            <button class="btn-line" data-a="gps">${icon('nav')}${esc(tr('db_a_gps', 'Route'))}<kbd>G</kbd></button>
+            ${canAssign() ? `<button class="btn-line" data-a="assign">${icon('user-plus')}${esc(tr('db_a_assign', 'Send a crew'))}</button>` : ''}
+            ${canAssign() || onIt ? `<button class="btn-red" data-a="close">${icon('check')}${esc(tr('db_a_close', 'Close out'))}</button>` : ''}
+          </div>
         </div>
       </div>
       <div class="w-pbody dt-body" data-scroll="detail">
-        ${c.caller || c.message ? `<div class="dt-box"><div class="lb">${icon('phone')}${esc(tr('cc_caller', 'Caller'))} <b>${esc(c.caller || tr('cc_unknown_caller', 'Unknown'))}</b>${c.phone ? `<span class="mono">${esc(c.phone)}</span>` : ''}<span class="sp"></span><span class="dim">${esc(tr('src_' + (c.source || 'system'), cap(c.source)))}</span></div>${c.message ? `<q>${esc(c.message)}</q>` : ''}</div>` : ''}
+        ${c.caller || c.message ? `<div class="dt-box"><div class="lb">${icon('phone')}${esc(tr('cc_caller', 'Caller'))} <b>${esc(c.caller || tr('cc_unknown_caller', 'Unknown'))}</b>${c.phone ? `<span class="mono">${esc(c.phone)}</span>` : ''}<span class="sp"></span><span class="dim">${esc(tr('src_' + (c.source || 'system'), SRC[c.source || 'system'] || cap(c.source)))}</span></div>${c.message ? `<q>${esc(c.message)}</q>` : ''}</div>` : ''}
         <div class="dt-grid">
           <div class="dt-sec"><h4>${esc(tr('db_patients', 'Patients'))}<span>${pts.length}</span></h4>
-            ${pts.length ? pts.map(pt => `<div class="dt-pt"><span class="tri t${pt.tri}">${esc(tr('tri_' + pt.tri, ['', 'Critical', 'Urgent', 'Standard'][pt.tri] || ''))}</span><div><b>${esc(pt.name || '?')}</b><span>${esc(tr('pst_' + pt.st, cap(pt.st)))}${(pt.tags || []).length ? ' · ' + pt.tags.map(typeLabel).map(esc).join(', ') : ''}</span></div></div>`).join('') : `<p class="dim sm">${esc(tr('db_no_patients', 'No patient linked yet'))}</p>`}
+            ${pts.length ? pts.map(pt => `<div class="dt-pt"><span class="tri t${pt.tri}">${esc(tr('tri_' + pt.tri, TRI[pt.tri] || ''))}</span><div><b>${esc(pt.name || '?')}</b><span>${esc(tr('pst_' + pt.st, cap(pt.st)))}${(pt.tags || []).length ? ' · ' + pt.tags.map(typeLabel).map(esc).join(', ') : ''}</span></div></div>`).join('') : `<p class="dim sm">${esc(tr('db_no_patients', 'No patient linked yet'))}</p>`}
           </div>
-          <div class="dt-sec"><h4>${esc(tr('db_on_call', 'Units on the call'))}<span>${(c.units || []).length}</span></h4>
-            ${(c.units || []).length ? c.units.map(u => `<div class="dt-unit"><b>${esc(u.callsign)}</b><span class="dim">${esc(u.short || '')}</span><span class="sp"></span>${unitChip(u.stage)}${canAssign() || u.src === me().src ? `<button class="db-xs" data-unassign="${u.src}" title="${esc(tr('db_a_unassign', 'Take off the call'))}">${icon('x')}</button>` : ''}</div>`).join('') : `<p class="dim sm">${esc(tr('db_unassigned', 'Unassigned'))}${c.declined ? ` · ${esc(K.fmt(tr('db_declined', '%d declined'), c.declined))}` : ''}</p>`}
+          <div class="dt-sec"><h4>${esc(tr('db_on_call', 'Crews on it'))}<span>${(c.units || []).length}</span></h4>
+            ${(c.units || []).length ? c.units.map(u => `<div class="dt-unit"><b>${esc(u.callsign)}</b><span class="dim">${esc(u.short || '')}</span><span class="sp"></span>${unitChip(u.stage)}${canAssign() || u.src === me().src ? `<button class="db-xs" data-unassign="${u.src}" title="${esc(tr('db_a_unassign', 'Take off the call'))}">${icon('x')}</button>` : ''}</div>`).join('') : `<p class="dim sm">${esc(tr('db_unassigned', 'No crew yet'))}${c.declined ? ` · ${esc(K.fmt(tr('db_declined', '%d declined'), c.declined))}` : ''}</p>`}
           </div>
         </div>
         <div class="dt-sec"><h4>${esc(tr('db_timeline', 'Timeline'))}</h4>
           <div class="dt-tl">${hist.map(h => `<div class="tl-i ${esc(String(h.s).toLowerCase())}"><i></i><span class="t">${hhmm(h.t)}</span><b>${esc(histLabel(h.s))}</b>${h.u ? `<span class="dim">${esc(h.u)}</span>` : ''}</div>`).join('')}
-            <div class="tl-i created"><i></i><span class="t">${hhmm(c.created)}</span><b>${esc(tr('hist_created', 'Call created'))}</b><span class="dim">${esc(tr('src_' + (c.source || 'system'), cap(c.source)))}</span></div></div>
+            <div class="tl-i created"><i></i><span class="t">${hhmm(c.created)}</span><b>${esc(tr('hist_created', 'Call created'))}</b><span class="dim">${esc(tr('src_' + (c.source || 'system'), SRC[c.source || 'system'] || cap(c.source)))}</span></div></div>
         </div>
       </div>`;
   }
@@ -212,17 +220,17 @@
     const ulist = units();
     const sel = (selId && callById(selId)) || calls().find(c => !(c.units || []).length) || null;
     return `
-      <div class="w-head"><div><h1>${esc(tr('db_units', 'Units'))}</h1><p>${esc(tr('db_units_h', 'Everyone on duty, their status and where they are.'))}</p></div>
-        <div class="db-legend">${['10-8', 'ENR', 'SCN', 'TRN', '10-7'].map(x => unitChip(x, true)).join('')}</div></div>
+      <div class="w-head"><div><h1>${esc(tr('db_units', 'Crews'))}</h1><p>${esc(tr('db_units_h', 'Who is on shift, what they are doing and where.'))}</p></div>
+        <div class="db-legend">${['10-8', 'ENR', 'SCN', 'TRN', '10-7'].map(x => unitChip(x)).join('')}</div></div>
       <section class="w-panel grow"><div class="w-pbody" data-scroll="units">
         ${ulist.length ? `<table class="w-table db-table"><thead><tr><th>${esc(tr('db_t_unit', 'Unit'))}</th><th>${esc(tr('db_t_name', 'Name'))}</th><th>${esc(tr('db_t_grade', 'Grade'))}</th><th>${esc(tr('db_t_status', 'Status'))}</th><th>${esc(tr('db_t_call', 'Call'))}</th><th>${esc(tr('db_t_dist', 'Distance'))}</th><th></th></tr></thead><tbody>
           ${ulist.map(u => { const c = u.call && callById(u.call); const d = distTo(u.x, u.y); return `<tr>
-            <td><b>${esc(u.callsign)}</b></td><td>${esc(u.name)}${u.offDuty ? ` <span class="dim sm">· ${esc(tr('db_off_duty', 'off duty'))}</span>` : ''}</td><td>${esc(u.grade || '—')}</td><td>${unitChip(u.status, true)}</td>
+            <td><b>${esc(u.callsign)}</b></td><td>${esc(u.name)}${u.offDuty ? ` <span class="dim sm">· ${esc(tr('db_off_duty', 'off duty'))}</span>` : ''}</td><td>${esc(u.grade || '—')}</td><td>${unitChip(u.status)}</td>
             <td>${c ? `<a class="db-link" data-call="${esc(c.id)}">${esc(c.id)} · ${esc(c.title)}</a>` : '<span class="dim">—</span>'}</td>
             <td>${d != null ? `${K.dist(d).v} ${K.dist(d).u}${u.veh ? ` ${icon('car')}` : ''}` : '—'}</td>
-            <td class="r">${u.x != null ? `<button class="db-xs" data-gpsxy="${u.x},${u.y}" title="${esc(tr('db_a_gps', 'Set GPS'))}">${icon('nav')}</button>` : ''}
+            <td class="r">${u.x != null ? `<button class="db-xs" data-gpsxy="${u.x},${u.y}" title="${esc(tr('db_a_gps', 'Route'))}">${icon('nav')}</button>` : ''}
               ${canAssign() && sel && !u.call ? `<button class="btn-line btn-sm" data-assignto="${u.src}" data-for="${esc(sel.id)}">${icon('user-plus')}${esc(K.fmt(tr('db_a_send', 'Send to %s'), sel.id))}</button>` : ''}</td></tr>`; }).join('')}
-          </tbody></table>` : empty('users', tr('db_no_units', 'No units on duty'), tr('db_no_units_p', 'Medics appear here when they go on duty.'))}
+          </tbody></table>` : empty('users', tr('db_no_units', 'Nobody on shift'), tr('db_no_units_p', 'Medics show up here when they start a shift.'))}
       </div></section>`;
   }
 
@@ -232,31 +240,31 @@
       <div class="db-mapwrap">
         <section class="w-panel db-map"><canvas class="db-cv"></canvas>
           <div class="db-mapbar"><button class="db-xs" data-map="in">${icon('plus')}</button><button class="db-xs" data-map="out">${icon('minus')}</button><button class="db-xs" data-map="fit">${icon('target')}</button></div>
-          <div class="db-maplegend"><span><i class="lg p1"></i>P1</span><span><i class="lg p2"></i>P2</span><span><i class="lg p3"></i>P3</span><span><i class="lg unit"></i>${esc(tr('db_units', 'Units'))}</span><span><i class="lg hosp"></i>${esc(tr('hospital', 'Hospital'))}</span><span><i class="lg you"></i>${esc(tr('db_you', 'You'))}</span></div>
+          <div class="db-maplegend"><span><i class="lg p1"></i>P1</span><span><i class="lg p2"></i>P2</span><span><i class="lg p3"></i>P3</span><span><i class="lg unit"></i>${esc(tr('db_units', 'Crews'))}</span><span><i class="lg hosp"></i>${esc(tr('hospital', 'Hospital'))}</span><span><i class="lg you"></i>${esc(tr('db_you', 'You'))}</span></div>
           <div class="db-tip"></div></section>
-        <section class="w-panel db-mapside"><div class="w-phead"><div><h2>${esc(sel ? sel.id : tr('db_calls', 'Active calls'))}</h2><p>${esc(sel ? where(sel) : tr('db_map_p', 'Click a call on the map'))}</p></div></div>
-          <div class="w-pbody" data-scroll="map-side">${sel ? callCard(sel) + `<div class="dt-acts col">${me().call === sel.id ? '' : `<button class="btn-teal btn-block" data-a="respond">${icon('siren')}${esc(tr('db_a_respond', 'Respond'))}</button>`}<button class="btn-line btn-block" data-a="gps">${icon('nav')}${esc(tr('db_a_gps', 'Set GPS'))}</button></div>` : ''}
+        <section class="w-panel db-mapside"><div class="w-phead"><div><h2>${esc(sel ? sel.id : tr('db_calls', 'Open calls'))}</h2><p>${esc(sel ? where(sel) : tr('db_map_p', 'Click a call on the map'))}</p></div></div>
+          <div class="w-pbody" data-scroll="map-side">${sel ? callCard(sel) + `<div class="dt-acts col">${me().call === sel.id ? '' : `<button class="btn-teal btn-block" data-a="respond">${icon('siren')}${esc(tr('db_a_respond', 'Take call'))}</button>`}<button class="btn-line btn-block" data-a="gps">${icon('nav')}${esc(tr('db_a_gps', 'Route'))}</button></div>` : ''}
             ${calls().filter(c => !sel || c.id !== sel.id).map(c => callCard(c, { compact: true })).join('')}
-            ${!calls().length ? empty('map', tr('db_no_calls', 'No open calls'), tr('db_map_empty', 'Units and hospitals are still shown on the map.')) : ''}</div></section>
+            ${!calls().length ? empty('map', tr('db_no_calls', 'No open calls'), tr('db_map_empty', 'Crews and hospitals stay on the map.')) : ''}</div></section>
       </div>`;
   }
 
   function pageLog() {
     const rows = logState.rows;
     return `
-      <div class="w-head"><div><h1>${esc(tr('db_log', 'Call log'))}</h1><p>${esc(logState.db ? tr('db_log_p', 'Every call handled by EMS, newest first.') : tr('db_log_mem', 'This session only (no database).'))}</p></div>
+      <div class="w-head"><div><h1>${esc(tr('db_log', 'Logbook'))}</h1><p>${esc(logState.db ? tr('db_log_p', 'Every call EMS handled, newest on top.') : tr('db_log_mem', 'This session only (no database).'))}</p></div>
         <div class="db-filters"><div class="segc db-logseg">${[0, 1, 2, 3].map(n => `<button data-lp="${n}" class="${logState.prio === n ? 'on' : ''}">${n ? 'P' + n : esc(tr('db_all', 'All'))}</button>`).join('')}</div>
-          <label class="db-search">${icon('search')}<input class="input" placeholder="${esc(tr('db_search', 'Search id, street, unit…'))}" value="${esc(logState.search)}"></label></div></div>
+          <label class="db-search">${icon('search')}<input class="input" placeholder="${esc(tr('db_search', 'Find a call, street or crew…'))}" value="${esc(logState.search)}"></label></div></div>
       <section class="w-panel grow"><div class="w-pbody" data-scroll="log">
         ${logState.loading && !rows ? `<div class="db-empty"><span class="ei spin">${icon('refresh')}</span><b>${esc(tr('db_loading', 'Loading…'))}</b></div>` : ''}
-        ${rows && rows.length ? `<table class="w-table db-table"><thead><tr><th>${esc(tr('db_t_time', 'Time'))}</th><th>${esc(tr('db_t_call', 'Call'))}</th><th></th><th>${esc(tr('db_t_loc', 'Location'))}</th><th>${esc(tr('db_units', 'Units'))}</th><th>${esc(tr('db_t_resp', 'Response'))}</th><th>${esc(tr('db_t_dur', 'Duration'))}</th><th>${esc(tr('db_t_status', 'Status'))}</th></tr></thead><tbody>
+        ${rows && rows.length ? `<table class="w-table db-table"><thead><tr><th>${esc(tr('db_t_time', 'Time'))}</th><th>${esc(tr('db_t_call', 'Call'))}</th><th></th><th>${esc(tr('db_t_loc', 'Location'))}</th><th>${esc(tr('db_units', 'Crews'))}</th><th>${esc(tr('db_t_resp', 'Response'))}</th><th>${esc(tr('db_t_dur', 'Duration'))}</th><th>${esc(tr('db_t_status', 'Status'))}</th></tr></thead><tbody>
           ${rows.map(r => `<tr><td class="mono">${hhmm(r.created)}<span class="dim sm">${r.created ? ' ' + new Date(r.created * 1000).toLocaleDateString() : ''}</span></td>
             <td><b>${esc(r.title || '')}</b><span class="dim sm"> ${esc(r.id)} · ${esc(r.code || '')}</span></td><td>${prioChip(r.priority)}</td>
             <td>${esc([r.zone, r.street].filter(Boolean).join(' · ') || '—')}</td>
             <td>${(r.units || []).length ? (Array.isArray(r.units) ? r.units.map(u => typeof u === 'string' ? u : (u.callsign || '')).map(esc).join(', ') : '') : '<span class="dim">—</span>'}</td>
             <td class="mono">${r.arrived && r.created ? dur(r.arrived - r.created) : (r.arrivedAt && r.created ? dur(r.arrivedAt - r.created) : '—')}</td>
             <td class="mono">${r.closed && r.created && r.closed !== true ? dur(r.closed - r.created) : '—'}</td>
-            <td>${K.chain(r.status, null, 'db-chain xs')}<span class="dim sm">${esc(tr('reason_' + (r.reason || ''), cap(r.reason)))}</span></td></tr>`).join('')}
+            <td><span class="db-lst">${K.stageRing(r.status, { size: 24, icon: false })}<span><b>${esc(K.stageWord(r.status, tr))}</b><span class="dim sm">${esc(tr('reason_' + (r.reason || ''), REASON[r.reason] || cap(r.reason)))}</span></span></span></td></tr>`).join('')}
           </tbody></table>` : (!logState.loading ? empty('list', tr('db_log_empty', 'Nothing logged yet'), tr('db_log_empty_p', 'Closed calls are saved here.')) : '')}
       </div></section>`;
   }
@@ -265,15 +273,15 @@
     const q = D.queue;
     const inc = D.incoming || [];
     return `
-      <div class="w-head"><div><h1>${esc(tr('db_queue', 'Hospital queue'))}</h1><p>${esc(tr('db_queue_p', 'Patients waiting at check-in and ambulances on their way in.'))}</p></div></div>
+      <div class="w-head"><div><h1>${esc(tr('db_queue', 'ER intake'))}</h1><p>${esc(tr('db_queue_p', 'Who checked in at the desk and which crews are bringing someone in.'))}</p></div></div>
       <div class="db-cols">
-        <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_q_waiting', 'Waiting at check-in'))}</h2><p>${esc(D.queueAvailable ? K.fmt(tr('db_q_n', '%d tickets'), (q || []).length) : tr('db_q_none', 'Check-in desks are not set up'))}</p></div></div>
-          <div class="w-pbody" data-scroll="queue">${q && q.length ? `<table class="w-table db-table"><thead><tr><th>${esc(tr('db_t_ticket', 'Ticket'))}</th><th>${esc(tr('db_t_name', 'Name'))}</th><th></th><th>${esc(tr('db_t_wait', 'Waiting'))}</th><th>${esc(tr('db_t_status', 'Status'))}</th></tr></thead><tbody>
-            ${q.map(e => `<tr><td class="mono"><b>${esc(e.ticket)}</b></td><td>${esc(e.name)}${e.hospital ? `<span class="dim sm"> · ${esc(e.hospital)}</span>` : ''}</td><td>${prioChip(e.priority)}</td><td class="mono">${K.eta(e.wait)}</td><td><span class="ust ${e.status === 'waiting' ? 'amber' : 'teal'}">${esc(tr('qst_' + e.status, cap(e.status)))}</span></td></tr>`).join('')}</tbody></table>`
-            : empty('ticket', D.queueAvailable ? tr('db_q_empty', 'Nobody is waiting') : tr('db_q_off', 'No check-in queue'), D.queueAvailable ? tr('db_q_empty_p', 'Tickets from the check-in desk show up here.') : tr('db_q_off_p', 'Build a check-in desk in /nzadmin to use the queue.'))}</div></section>
-        <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_q_incoming', 'Incoming ambulances'))}</h2><p>${esc(K.fmt(tr('db_q_inc_n', '%d transporting'), inc.length))}</p></div></div>
-          <div class="w-pbody" data-scroll="incoming">${inc.length ? inc.map(i => `<div class="w-row"><div class="nz-tile ${i.priority === 1 ? 'red' : ''}">${icon('ambulance')}</div><div class="txt"><b>${esc(i.callsign)} <em class="nm">· ${esc(i.name || '')}</em></b><span>${esc(i.call || '')} · ${esc(i.title || '')} → ${esc(i.hospital || '')}</span></div>${prioChip(i.priority)}<div class="db-eta"><span>${esc(tr('cc_eta', 'ETA'))}</span><b>${K.eta(i.eta)}</b></div></div>`).join('')
-            : empty('ambulance', tr('db_q_noinc', 'No ambulances inbound'), tr('db_q_noinc_p', 'Units transporting a patient show up here with their ETA.'))}</div></section>
+        <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_q_waiting', 'Checked in'))}</h2><p>${esc(D.queueAvailable ? K.fmt(tr('db_q_n', '%d tickets'), (q || []).length) : tr('db_q_none', 'No check-in desk built yet'))}</p></div></div>
+          <div class="w-pbody" data-scroll="queue">${q && q.length ? `<table class="w-table db-table"><thead><tr><th>${esc(tr('db_t_ticket', 'Ticket'))}</th><th>${esc(tr('db_t_name', 'Name'))}</th><th></th><th>${esc(tr('db_t_wait', 'Time in'))}</th><th>${esc(tr('db_t_status', 'Status'))}</th></tr></thead><tbody>
+            ${q.map(e => `<tr><td class="mono"><b>${esc(e.ticket)}</b></td><td>${esc(e.name)}${e.hospital ? `<span class="dim sm"> · ${esc(e.hospital)}</span>` : ''}</td><td>${prioChip(e.priority)}</td><td class="mono">${K.eta(e.wait)}</td><td><span class="ust ${e.status === 'waiting' ? 'amber' : 'teal'}"><i></i>${esc(tr('qst_' + e.status, QST[e.status] || cap(e.status)))}</span></td></tr>`).join('')}</tbody></table>`
+            : empty('ticket', D.queueAvailable ? tr('db_q_empty', 'Lobby is clear') : tr('db_q_off', 'No check-in desk'), D.queueAvailable ? tr('db_q_empty_p', 'Check-ins from the desk land here.') : tr('db_q_off_p', 'Build a check-in desk in /nzadmin to use the queue.'))}</div></section>
+        <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_q_incoming', 'Inbound crews'))}</h2><p>${esc(K.fmt(tr('db_q_inc_n', '%d on the way in'), inc.length))}</p></div></div>
+          <div class="w-pbody" data-scroll="incoming">${inc.length ? inc.map(i => `<div class="w-row"><div class="nz-tile ${i.priority === 1 ? 'red' : ''}">${icon('ambulance')}</div><div class="txt"><b>${esc(i.callsign)} <em class="nm">· ${esc(i.name || '')}</em></b><span>${esc(i.call || '')} · ${esc(i.title || '')} → ${esc(i.hospital || '')}</span></div>${prioChip(i.priority)}<div class="db-eta"><span>${esc(tr('cc_i_drive', 'Drive time'))}</span><b>${K.eta(i.eta)}</b></div></div>`).join('')
+            : empty('ambulance', tr('db_q_noinc', 'Nobody inbound'), tr('db_q_noinc_p', 'Crews carrying a patient show up here with their drive time.'))}</div></section>
       </div>`;
   }
 
@@ -445,8 +453,8 @@
 
   function hitTest(w, sc) {
     const r = 12 / sc;
-    for (const c of calls()) if (Math.hypot(c.x - w[0], c.y - w[1]) < r) return { call: c.id, html: `<b>${esc(c.id)} · ${esc(c.title)}</b><span>${esc(where(c))}</span><span>${(c.units || []).map(u => esc(u.callsign)).join(', ') || esc(tr('db_unassigned', 'Unassigned'))} · ${K.age(ageOf(c))}</span>` };
-    for (const u of units()) if (u.x != null && Math.hypot(u.x - w[0], u.y - w[1]) < r) return { html: `<b>${esc(u.callsign)} · ${esc(u.short || u.name)}</b><span>${esc(u.status)} · ${esc(unitLabel(u.status))}</span>` };
+    for (const c of calls()) if (Math.hypot(c.x - w[0], c.y - w[1]) < r) return { call: c.id, html: `<b>${esc(c.id)} · ${esc(c.title)}</b><span>${esc(where(c))}</span><span>${(c.units || []).map(u => esc(u.callsign)).join(', ') || esc(tr('db_unassigned', 'No crew yet'))} · ${K.age(ageOf(c))}</span>` };
+    for (const u of units()) if (u.x != null && Math.hypot(u.x - w[0], u.y - w[1]) < r) return { html: `<b>${esc(u.callsign)} · ${esc(u.short || u.name)}</b><span>${esc(K.unitWord(u.status, tr))}</span>` };
     for (const h of (D.hospitals || [])) if (Math.hypot(h.x - w[0], h.y - w[1]) < r) return { html: `<b>${esc(h.label)}</b><span>${esc(tr('hospital', 'Hospital'))}</span>` };
     return null;
   }
@@ -590,7 +598,7 @@
       if (d && d.locale) tr = K.tr(d.locale);
       D = d;
       win = NZA.ui.Win(el, {
-        title: tr('db_title', 'Dispatch'), sub: tr('db_sub', 'Emergency Medical Services'), width: '1280px', height: '780px',
+        title: tr('db_title', 'Ops board'), sub: tr('db_sub', 'Emergency medical dispatch'), width: '1280px', height: '780px',
         nav: navItems(), navValue: tab,
         onNav: v => setTab(v), onClose: () => NZA.close('dispatch'),
       });
@@ -617,14 +625,14 @@
         clock: '16:42', now, self: { x: 310, y: -600 },
         me: { src: 1, name: 'John Doe', callsign: 'Unit 04', grade: 'Paramedic', status: 'ENR', call: 'C-0416', npc: true, oos: false, canAssign: true },
         calls: [
-          { id: 'C-0418', code: '10-52', priority: 1, title: 'Gunshot Wound', type: 'gunshot', x: -1120, y: -1250, zone: 'Vespucci Canals', street: 'Imagination Ct / Prosperity St', caller: 'Michael Garcia', phone: '555-0142',
+          { id: 'C-0418', code: '10-52', priority: 1, title: 'Shot in the chest', type: 'gunshot', x: -1120, y: -1250, zone: 'Vespucci Canals', street: 'Imagination Ct / Prosperity St', caller: 'Michael Garcia', phone: '555-0142',
             message: "My friend's been shot in the chest, he's bleeding a lot!", age: 42, status: 'DSP', units: [], declined: 1, source: 'player',
             patients: [{ pid: 'p:1', name: 'Tony Russo', tri: 1, st: 'wounded', tags: ['gunshot'] }], history: [{ s: 'DSP', t: now - 42 }], created: now - 42 },
-          { id: 'C-0416', code: '10-50', priority: 2, title: 'Vehicle Collision', type: 'mva', x: 120, y: -1010, zone: 'Pillbox Hill', street: 'Palomino Ave', caller: 'Witness', age: 260, status: 'ENR', source: 'npc', npc: true,
+          { id: 'C-0416', code: '10-50', priority: 2, title: 'Two-car collision', type: 'mva', x: 120, y: -1010, zone: 'Pillbox Hill', street: 'Palomino Ave', caller: 'Witness', age: 260, status: 'ENR', source: 'npc', npc: true,
             units: [{ src: 1, callsign: 'Unit 04', short: 'J. Doe', stage: 'ENR' }, { src: 3, callsign: 'Unit 09', short: 'T. Kane', stage: 'SCN' }],
             patients: [{ pid: 'n:1', name: 'Ana Silva', tri: 2, st: 'wounded', tags: ['fracture', 'laceration'] }, { pid: 'n:2', name: 'Dean Price', tri: 3, st: 'alive', tags: ['contusion'] }],
             history: [{ s: 'DSP', t: now - 260 }, { s: 'JOIN', t: now - 200, u: 'Unit 09' }, { s: 'ENR', t: now - 200, u: 'Unit 09' }, { s: 'SCN', t: now - 80, u: 'Unit 09' }, { s: 'JOIN', t: now - 30, u: 'Unit 04' }], created: now - 260 },
-          { id: 'C-0415', code: '10-56', priority: 3, title: 'Overdose', type: 'overdose', x: 1700, y: 3650, zone: 'Sandy Shores', street: 'Alhambra Dr', age: 610, status: 'TRN', source: 'npc', npc: true,
+          { id: 'C-0415', code: '10-56', priority: 3, title: 'Unresponsive after pills', type: 'overdose', x: 1700, y: 3650, zone: 'Sandy Shores', street: 'Alhambra Dr', age: 610, status: 'TRN', source: 'npc', npc: true,
             units: [{ src: 5, callsign: 'Unit 12', short: 'M. Reyes', stage: 'TRN' }], patients: [{ pid: 'n:3', name: 'Kyle Ward', tri: 2, st: 'wounded', tags: [] }], history: [{ s: 'DSP', t: now - 610 }], created: now - 610 },
         ],
         units: [
@@ -637,14 +645,14 @@
         hospitals: [{ id: 'h1', label: 'Pillbox Medical', x: 298, y: -584 }, { id: 'h2', label: 'Sandy Shores Medical', x: 1839, y: 3672 }, { id: 'h3', label: 'Paleto Bay Clinic', x: -247, y: 6331 }],
         queue: [{ ticket: 'A-014', name: 'Rosa Diaz', priority: 2, wait: 380, status: 'waiting', hospital: 'Pillbox' }, { ticket: 'A-015', name: 'Ben Carter', priority: 3, wait: 140, status: 'waiting' }, { ticket: 'A-012', name: 'Lily Chen', priority: 1, wait: 620, status: 'treatment' }],
         queueAvailable: true,
-        incoming: [{ callsign: 'Unit 12', name: 'M. Reyes', call: 'C-0415', title: 'Overdose', priority: 3, hospital: 'Sandy Shores Medical', eta: 64 }],
+        incoming: [{ callsign: 'Unit 12', name: 'M. Reyes', call: 'C-0415', title: 'Unresponsive after pills', priority: 3, hospital: 'Sandy Shores Medical', eta: 64 }],
         stats: { active: 3, p1: 1, available: 1, onDuty: 5, onCall: 3, avgResponse: 236, served: 14, waiting: 3 },
         locale: {}, tab: 'overview',
       };
       NZA.mock('dispatch:log', () => ({ db: true, rows: [
-        { id: 'C-0414', code: '10-52', priority: 1, title: 'Stab Wound', type: 'stab', zone: 'Davis', street: 'Grove St', units: ['Unit 04', 'Unit 09'], status: 'HSP', reason: 'hospital', created: now - 3600, arrived: now - 3330, closed: now - 2700 },
-        { id: 'C-0413', code: '10-50', priority: 2, title: 'Vehicle Collision', type: 'mva', zone: 'Rockford Hills', street: 'Portola Dr', units: ['Unit 12'], status: 'SCN', reason: 'cleared', created: now - 5400, arrived: now - 5100, closed: now - 4600 },
-        { id: 'C-0411', code: '10-52', priority: 3, title: 'Fall', type: 'fall', zone: 'Vinewood', street: 'Hawick Ave', units: [], status: 'DSP', reason: 'expired', created: now - 9000, closed: now - 8100 },
+        { id: 'C-0414', code: '10-52', priority: 1, title: 'Stabbed outside a bar', type: 'stab', zone: 'Davis', street: 'Grove St', units: ['Unit 04', 'Unit 09'], status: 'HSP', reason: 'hospital', created: now - 3600, arrived: now - 3330, closed: now - 2700 },
+        { id: 'C-0413', code: '10-50', priority: 2, title: 'Two-car collision', type: 'mva', zone: 'Rockford Hills', street: 'Portola Dr', units: ['Unit 12'], status: 'SCN', reason: 'cleared', created: now - 5400, arrived: now - 5100, closed: now - 4600 },
+        { id: 'C-0411', code: '10-52', priority: 3, title: 'Fell from a ladder', type: 'fall', zone: 'Vinewood', street: 'Hawick Ave', units: [], status: 'DSP', reason: 'expired', created: now - 9000, closed: now - 8100 },
       ] }));
       NZA.demo('dispatch', demo);
     },

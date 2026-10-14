@@ -1,14 +1,16 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · pager
-   A NAYZEEE EMS pager (bottom right): backlit dot-matrix LCD (VT323), LED, soft keys
-   and three hardware buttons. Pops up without focus when a call comes in; taken in hand
-   (focus + cursor, game input kept) with the pager key / item.
+   An "RX-10" two-way receiver (bottom right, generic device — no brand on the face):
+   graphite shell with rubber corner bumpers, LED light pipes on the top edge (PWR / MSG /
+   LNK), a teal OLED glass on the left and a round jog pad + ✕ key on the right. Pops up
+   without focus when a call comes in; taken in hand (focus + cursor, game input kept)
+   with the pager key / item.
 
-   Screens: CALL (priority + type, street, distance + ETA, progress, status chain)
-            MENU (calls, pair phone, mute, NPC calls, status 10-8/10-7, history, clear call)
-            HISTORY, IDLE (clock, unit, status)
-   Keys (focused): ◀ / ArrowLeft menu-back · ▲▼ scroll · Y / Enter ACK-select ·
-                   Backspace BACK-decline · ESC or the pager key: put it away
+   Screens: CALL (answer / route ring, priority + type, street, range + drive time, stage
+            pips, key legend), SETUP (call list, link phone, silent, street calls,
+            availability, page log, stand down), PAGE LOG, STANDBY (clock, status)
+   Keys (focused): ◀ / ArrowLeft setup-back · ▲▼ scroll · Y / Enter / ArrowRight take-open ·
+                   Backspace pass-back · ESC or the pager key: put it away
 
    Lua → JS: open (payload) · state (payload) · page { id, priority, beep } · live { time, calls } · focus { on }
    JS → Lua: pager:ack {id} · pager:decl {id} · pager:clear · pager:gps {id} · pager:pair {on}
@@ -21,49 +23,66 @@
   let d = { calls: [], history: [], me: {}, muted: false, phone: true, beep: true, focused: false, time: '--:--', key: 'F7' };
   let live = { calls: {} };
   let screen = 'call', sel = 0, menuSel = 0, histSel = 0, blink = false, blinkT = 0, flashT = 0;
-  let dev, lcd, body, softL, softR, statusEl, ledEl, hintsEl;
+  let dev, scr, body, statusEl, legEl, ledMsg, ledLnk, hintsEl;
 
   const up = s => String(s ?? '').toUpperCase();
-  const pad = (s, n) => { s = String(s); return s.length >= n ? s.slice(0, n) : s + ' '.repeat(n - s.length); };
   const calls = () => d.calls || [];
   const cur = () => calls()[Math.min(sel, Math.max(0, calls().length - 1))];
   const isMine = c => c && d.me && d.me.call === c.id;
+  // fallback short names for the glass (in game the locale's type_*_s strings win)
+  const SHORT = { gunshot: 'GSW', shrapnel: 'BLAST', stab: 'STAB', burn: 'BURNS', arrest: 'NO PULSE', overdose: 'OD', mva: 'CRASH', crash: 'CRASH',
+    fall: 'FALL', drowning: 'DROWNING', deceased: 'DOA', unconscious: 'UNRESP', call: '911', fracture: 'FRACTURE', internal: 'BLEED', unknown: 'UNKNOWN' };
+  const availWord = m => (m.oos ? tr('pg_unavail', 'UNAVAIL') : tr('pg_avail', 'AVAIL'));
 
-  /* ── menu model ── */
+  /* ── setup menu model ── */
   function menu() {
     const m = d.me || {};
     const on = v => (v ? tr('pg_on', 'ON') : tr('pg_off', 'OFF'));
     const items = [
-      { id: 'calls', label: tr('pg_calls', 'CALLS'), val: String(calls().length) },
-      d.phone ? { id: 'pair', label: tr('pg_pair', 'PAIR PHONE'), val: on(m.paired) } : null,
-      { id: 'mute', label: tr('pg_mute', 'MUTE'), val: on(d.muted) },
-      { id: 'npc', label: tr('pg_npc', 'NPC CALLS'), val: on(m.npc) },
-      { id: 'status', label: tr('pg_status', 'STATUS'), val: m.call ? (m.status || 'ENR') : (m.oos ? '10-7' : '10-8') },
-      { id: 'history', label: tr('pg_history', 'HISTORY'), val: String((d.history || []).length) },
-      m.call ? { id: 'clear', label: tr('pg_clear', 'CLEAR CALL'), val: m.call } : null,
+      { id: 'calls', label: tr('pg_calls', 'Call list'), val: String(calls().length) },
+      d.phone ? { id: 'pair', label: tr('pg_pair', 'Link phone'), val: on(m.paired) } : null,
+      { id: 'mute', label: tr('pg_mute', 'Silent'), val: on(d.muted) },
+      { id: 'npc', label: tr('pg_npc', 'Street calls'), val: on(m.npc) },
+      { id: 'status', label: tr('pg_status', 'Availability'), val: m.call ? K.stageShort(m.status || 'ENR', tr) : availWord(m) },
+      { id: 'history', label: tr('pg_history', 'Page log'), val: String((d.history || []).length) },
+      m.call ? { id: 'clear', label: tr('pg_clear', 'Stand down'), val: m.call } : null,
     ];
     return items.filter(Boolean);
   }
 
-  /* ── render ── */
-  function chainHTML(stage) {
-    const ci = K.stageIdx(stage);
-    return K.STAGES.map((s, i) => `<span class="${i < ci ? 'dn' : i === ci ? 'inv' : 'fut'}">${s}</span>`).join('<span class="gt">&gt;</span>');
+  /* ── pixel widgets ── */
+  function ringSVG(frac, big, small) {
+    const f = Math.max(0, Math.min(1, frac || 0));
+    let ticks = '';
+    for (let i = 0; i < 24; i++) { const a = (i * 15 - 90) * Math.PI / 180; ticks += `<rect x="${(31 * Math.cos(a) - 1).toFixed(1)}" y="${(31 * Math.sin(a) - 1).toFixed(1)}" width="2" height="2" class="${i / 24 < f ? 'on' : ''}"/>`; }
+    return `<div class="px-ring"><svg viewBox="-36 -36 72 72"><circle class="trk" r="26"/><circle class="arc" r="26" pathLength="100" stroke-dasharray="${(f * 100).toFixed(1)} 100"/>${ticks}</svg>
+      <div class="rv"><b>${esc(big)}</b><span>${esc(small)}</span></div></div>`;
   }
+  function stagePips(stage) {
+    const ci = K.stageIdx(stage);
+    return `<div class="ln pips">${K.STAGES.map((s, i) => `<i class="${i < ci ? 'dn' : i === ci ? 'cur' : ''}"></i>`).join('')}<span class="sw">${esc(up(K.stageShort(stage, tr)))}</span><span class="sp"></span><span class="sn">${ci + 1}/6</span></div>`;
+  }
+  const arrow = rel => `<svg class="px-arr" viewBox="0 0 16 16" style="transform:rotate(${rel || 0}deg)"><path d="M8 1l5 12-5-3-5 3z"/></svg>`;
+  function legend(rows) {
+    const html = rows.filter(Boolean).map(r => `<div class="lg ${r.cls || ''}"><span class="g">${r.g}</span><span>${esc(up(r.t))}</span></div>`).join('');
+    if (legEl.innerHTML !== html) legEl.innerHTML = html;
+  }
+  const G = { ok: '<i class="dot"></i>', x: '✕', l: '◀', ud: '▲▼' };
 
+  /* ── render ── */
+  const pairIcon = () => '<svg viewBox="0 0 16 10"><rect x="1.5" y=".8" width="5.5" height="8.4" rx="1"/><path d="M3.5 7.4h1.5"/><path d="M9.5 3.2a2.6 2.6 0 0 1 0 3.6M11.8 1.4a5.2 5.2 0 0 1 0 7.2"/></svg>';
+  const muteIcon = () => '<svg viewBox="0 0 16 10"><path d="M1 3.5h3l3-2.5v8l-3-2.5H1z"/><path d="M10 2.5l5 5M15 2.5l-5 5"/></svg>';
   function renderStatus() {
     const m = d.me || {};
     statusEl.innerHTML = `
-      <span class="sig"><i></i><i></i><i></i><i></i></span>
-      ${m.paired ? `<span class="lk">${pairIcon()}</span>` : ''}
-      ${d.muted ? `<span class="mt">${muteIcon()}</span>` : ''}
       <span class="unit">${esc(up(m.callsign || ''))}</span>
+      ${m.paired ? `<span class="ic">${pairIcon()}</span>` : ''}
+      ${d.muted ? `<span class="ic">${muteIcon()}</span>` : ''}
       <span class="sp"></span>
+      <span class="sig"><i></i><i></i><i></i><i></i></span>
       <span class="clk">${esc(live.time || d.time || '--:--')}</span>
       <span class="bat"><i></i></span>`;
   }
-  const pairIcon = () => '<svg viewBox="0 0 16 10"><rect x="1.5" y=".8" width="5.5" height="8.4" rx="1"/><path d="M3.5 7.4h1.5"/><path d="M9.5 3.2a2.6 2.6 0 0 1 0 3.6M11.8 1.4a5.2 5.2 0 0 1 0 7.2"/></svg>';
-  const muteIcon = () => '<svg viewBox="0 0 16 10"><path d="M1 3.5h3l3-2.5v8l-3-2.5H1z"/><path d="M10 2.5l5 5M15 2.5l-5 5"/></svg>';
 
   function renderCall() {
     const c = cur();
@@ -71,75 +90,79 @@
     const L = live.calls[c.id] || {};
     const dist = L.dist != null ? K.dist(L.dist) : { v: '--', u: 'm' };
     const p = K.prio(c.priority);
-    const type = up(tr('type_' + c.type + '_s', tr('type_' + c.type, c.title || c.type)));
+    const type = up(tr('type_' + c.type + '_s', SHORT[c.type] || tr('type_' + c.type, c.title || c.type)));
     const ageNow = c.age != null ? c.age + (performance.now() - (c._at || performance.now())) / 1000 : 0;
-    let prog, num;
+    let ring;
     if (isMine(c)) {
-      prog = L.prog != null ? L.prog : (K.stageIdx(c.status) > 1 ? 1 : 0);
-      num = K.stageIdx(c.status) > 1 ? K.eta(ageNow) : K.eta(L.eta);
+      if (K.stageIdx(c.status) > 1) ring = ringSVG((K.stageIdx(c.status) + 1) / 6, K.eta(ageNow), tr('pg_time', 'TIME'));
+      else ring = ringSVG(L.prog != null ? L.prog : 0, K.eta(L.eta), tr('pg_eta', 'DRV'));
     } else {
       const win = Number(d.ackWindow) || 30;
       const left = Math.max(0, win - ageNow);
-      prog = left / win;
-      num = left > 0 ? String(Math.ceil(left)) : K.eta(ageNow);
+      ring = left > 0 ? ringSVG(left / win, String(Math.ceil(left)), tr('pg_sec', 'SEC')) : ringSVG(0, K.eta(ageNow), tr('pg_held', 'HELD'));
     }
     body.innerHTML = `
-      <div class="ln l1"><span class="inv pr">P${p}</span> <span class="tt">${esc(type)}</span><span class="sp"></span><span class="ix">${sel + 1}/${calls().length}</span></div>
-      <div class="ln">${esc(up(c.street || c.zone || tr('unknown_location', 'UNKNOWN LOCATION')))}</div>
-      <div class="ln"><span>${esc(up(dist.v + dist.u))} ${esc(L.dir || '')}</span><span class="sp"></span><span>${esc(tr('pg_eta', 'ETA'))} ${esc(K.eta(L.eta))}</span></div>
-      <div class="ln pb"><span class="bar"><i style="width:${Math.round(prog * 100)}%"></i></span><span class="ag">${esc(num)}</span></div>
-      <div class="ln ch">${chainHTML(c.status)}</div>`;
-    if (isMine(c)) { soft(tr('pg_clr', 'CLR'), tr('pg_gps', 'GPS')); } else { soft(tr('pg_decl', 'DECL'), tr('pg_ack', 'ACK')); }
+      <div class="pg-call ${p === 1 ? 'p1' : ''}">
+        ${ring}
+        <div class="ci">
+          <div class="ln l1"><span class="inv pr">P${p}</span><span class="tt">${esc(type)}</span><span class="sp"></span><span class="ix">${sel + 1}/${calls().length}</span></div>
+          <div class="ln st">${esc(up(c.street || c.zone || tr('unknown_location', 'UNKNOWN LOCATION')))}</div>
+          <div class="ln rg">${L.rel != null ? arrow(L.rel) : ''}<span>${esc(up(dist.v + dist.u))}</span><span class="dm">${esc(L.dir || '')}</span><span class="sp"></span><span class="dm">${esc(up(tr('pg_eta', 'DRV')))}</span><span>${esc(K.eta(L.eta))}</span></div>
+        </div>
+      </div>
+      ${stagePips(c.status)}`;
+    if (isMine(c)) legend([{ g: G.ok, t: tr('pg_gps', 'Nav'), cls: 'hot' }, { g: G.x, t: tr('pg_clr', 'End') }, { g: G.l, t: tr('pg_menu', 'Setup') }]);
+    else legend([{ g: G.ok, t: tr('pg_ack', 'Take'), cls: 'hot' }, { g: G.x, t: tr('pg_decl', 'Pass') }, { g: G.l, t: tr('pg_menu', 'Setup') }]);
   }
 
   function renderMenu() {
     const items = menu();
     menuSel = Math.max(0, Math.min(menuSel, items.length - 1));
-    const start = Math.max(0, Math.min(menuSel - 2, items.length - 5));
-    body.innerHTML = `<div class="ln hd"><span class="inv">${esc(tr('pg_menu', 'MENU'))}</span><span class="sp"></span><span class="ix">${menuSel + 1}/${items.length}</span></div>` +
+    const start = Math.max(0, Math.min(menuSel - 2, items.length - 4));
+    body.innerHTML = `<div class="ln hd"><span class="inv">${esc(up(tr('pg_menu', 'Setup')))}</span><span class="sp"></span><span class="dots">${items.map((_, i) => `<i class="${i === menuSel ? 'on' : ''}"></i>`).join('')}</span></div>` +
       items.slice(start, start + 4).map((it, i) => {
         const on = start + i === menuSel;
-        return `<div class="ln mi ${on ? 'on' : ''}"><span class="cur">${on ? '&gt;' : '&nbsp;'}</span><span>${esc(up(it.label))}</span><span class="sp"></span><span class="${on ? 'inv' : ''}">${esc(up(it.val))}</span></div>`;
+        return `<div class="ln mi ${on ? 'on' : ''}"><span class="cur">${on ? '&gt;' : ''}</span><span class="lb">${esc(up(it.label))}</span><span class="lead"></span><span class="vl">${esc(up(it.val))}</span></div>`;
       }).join('');
-    soft(tr('pg_back', 'BACK'), tr('pg_sel', 'SEL'));
+    legend([{ g: G.ok, t: tr('pg_sel', 'Open'), cls: 'hot' }, { g: G.x, t: tr('pg_back', 'Back') }, { g: G.ud, t: tr('pg_move', 'Move') }]);
   }
 
   function renderHistory() {
     const h = d.history || [];
     if (!h.length) {
-      body.innerHTML = `<div class="ln hd"><span class="inv">${esc(tr('pg_history', 'HISTORY'))}</span></div><div class="ln dim">${esc(tr('pg_no_history', 'NO PAGES YET'))}</div>`;
+      body.innerHTML = `<div class="ln hd"><span class="inv">${esc(up(tr('pg_history', 'Page log')))}</span></div><div class="ln dim ct">${esc(up(tr('pg_no_history', 'Nothing paged yet')))}</div>`;
     } else {
       histSel = Math.max(0, Math.min(histSel, h.length - 1));
       const start = Math.max(0, Math.min(histSel - 2, h.length - 4));
-      body.innerHTML = `<div class="ln hd"><span class="inv">${esc(tr('pg_history', 'HISTORY'))}</span><span class="sp"></span><span class="ix">${histSel + 1}/${h.length}</span></div>` +
+      body.innerHTML = `<div class="ln hd"><span class="inv">${esc(up(tr('pg_history', 'Page log')))}</span><span class="sp"></span><span class="ix">${histSel + 1}/${h.length}</span></div>` +
         h.slice(start, start + 4).map((e, i) => {
           const on = start + i === histSel;
-          return `<div class="ln mi ${on ? 'on' : ''} ${e.closed ? 'dim' : ''}"><span class="cur">${on ? '&gt;' : '&nbsp;'}</span><span>${esc(e.time || '')}</span> <span>P${K.prio(e.priority)}</span> <span class="tt">${esc(up(tr('type_' + (e.type || '') + '_s', e.title || '')))}</span><span class="sp"></span><span>${esc(e.closed ? tr('pg_closed', 'CLSD') : tr('pg_open', 'OPEN'))}</span></div>`;
+          return `<div class="ln mi ${on ? 'on' : ''} ${e.closed ? 'dim' : ''}"><span class="cur">${on ? '&gt;' : ''}</span><span>${esc(e.time || '')}</span><span>P${K.prio(e.priority)}</span><span class="lb">${esc(up(tr('type_' + (e.type || '') + '_s', SHORT[e.type] || e.title || '')))}</span><span class="lead"></span><span class="vl">${esc(up(e.closed ? tr('pg_closed', 'Done') : tr('pg_open', 'Open')))}</span></div>`;
         }).join('');
     }
-    soft(tr('pg_back', 'BACK'), '');
+    legend([{ g: G.x, t: tr('pg_back', 'Back') }, { g: G.ud, t: tr('pg_move', 'Move') }]);
   }
 
   function renderIdle() {
     const m = d.me || {};
-    const st = m.call ? (m.status || 'ENR') : (m.oos ? '10-7' : '10-8');
+    const st = m.call ? K.stageShort(m.status || 'ENR', tr) : m.oos ? tr('pg_unavail', 'UNAVAIL') : tr('pg_avail', 'AVAIL');
     body.innerHTML = `
-      <div class="ln idle-clk">${esc(live.time || d.time || '--:--')}</div>
-      <div class="ln dim ct">${esc(tr('pg_no_calls', 'NO ACTIVE CALLS'))}</div>
-      <div class="ln ct"><span class="inv">${esc(st)}</span> <span>${esc(up(tr('unit_' + st.replace('-', ''), '')))}</span></div>`;
-    soft(tr('pg_hide', 'HIDE'), tr('pg_menu', 'MENU'));
+      <div class="pg-idle">
+        ${ringSVG(m.oos ? 0.25 : 1, '', '')}
+        <div class="ii">
+          <div class="ln idle-clk">${esc(live.time || d.time || '--:--')}</div>
+          <div class="ln"><span class="inv">${esc(up(tr('pg_standby', 'Standby')))}</span><span>${esc(up(st))}</span></div>
+          <div class="ln dim">${esc(up(tr('pg_no_calls', 'No open calls')))}</div>
+        </div>
+      </div>`;
+    legend([{ g: G.ok, t: tr('pg_menu', 'Setup'), cls: 'hot' }, { g: G.x, t: tr('pg_hide', 'Hide') }]);
   }
 
   function renderHints() {
     const k = esc(d.key || 'F7');
-    const html = `<span><kbd>◀</kbd>${esc(tr('pg_h_menu', 'Menu'))}</span><span><kbd>▲</kbd><kbd>▼</kbd>${esc(tr('pg_h_scroll', 'Scroll'))}</span>` +
-      `<span><kbd>Y</kbd>${esc(tr('pg_h_ack', 'Ack'))}</span><span><kbd>⌫</kbd>${esc(tr('pg_h_back', 'Back'))}</span><span><kbd>${k}</kbd>${esc(tr('pg_h_hide', 'Put away'))}</span>`;
+    const html = `<span><kbd>◀</kbd>${esc(tr('pg_h_menu', 'Setup'))}</span><span><kbd>▲</kbd><kbd>▼</kbd>${esc(tr('pg_h_scroll', 'Scroll'))}</span>` +
+      `<span><kbd>Y</kbd>${esc(tr('pg_h_ack', 'Take'))}</span><span><kbd>⌫</kbd>${esc(tr('pg_h_back', 'Pass / back'))}</span><span><kbd>${k}</kbd>${esc(tr('pg_h_hide', 'Put away'))}</span>`;
     if (hintsEl.innerHTML !== html) hintsEl.innerHTML = html;
-  }
-
-  function soft(l, r) {
-    softL.innerHTML = l ? `<span class="inv">BACK</span> ${esc(up(l))}` : '';
-    softR.innerHTML = r ? `<span class="inv">Y</span> ${esc(up(r))}` : '';
   }
 
   function render() {
@@ -148,8 +171,10 @@
     if (screen === 'call' && !calls().length) screen = 'idle';
     if (screen === 'idle' && calls().length) screen = 'call';
     ({ call: renderCall, menu: renderMenu, history: renderHistory, idle: renderIdle })[screen]();
+    scr.dataset.screen = screen;
     const m = d.me || {};
-    ledEl.className = `pg-led ${blink ? 'red blink' : m.call ? 'green' : calls().length ? 'amber' : 'off'}`;
+    ledMsg.className = `led-i ${blink ? 'red blink' : m.call ? 'teal' : calls().length ? 'amber' : ''}`;
+    ledLnk.className = `led-i ${m.paired ? 'teal' : ''}`;
     dev.classList.toggle('focused', !!d.focused);
     hintsEl.classList.toggle('on', !!d.focused);
     if (d.focused) renderHints();
@@ -161,8 +186,7 @@
     if (!d.focused) return;
     blink = false;
     click();
-    const b = dev.querySelector(`[data-b="${btn}"]`);
-    if (b) { b.classList.add('dn'); setTimeout(() => b.classList.remove('dn'), 120); }
+    dev.querySelectorAll(`[data-b="${btn}"]`).forEach(b => { b.classList.add('press'); setTimeout(() => b.classList.remove('press'), 120); });
     if (btn === 'left') {
       if (screen === 'menu') screen = calls().length ? 'call' : 'idle';
       else if (screen === 'history') screen = 'menu';
@@ -212,8 +236,8 @@
 
   function flash() {
     clearTimeout(flashT);
-    lcd.classList.add('flash');
-    flashT = setTimeout(() => lcd.classList.remove('flash'), 520);
+    scr.classList.remove('flash'); void scr.offsetWidth; scr.classList.add('flash');
+    flashT = setTimeout(() => scr.classList.remove('flash'), 560);
   }
 
   function apply(p) {
@@ -227,6 +251,8 @@
     render();
   }
 
+  const screw = cls => `<span class="pg-screw ${cls}"><i></i></span>`;
+
   NZA.app('pager', {
     escClose: false,
     init(el) {
@@ -234,29 +260,51 @@
         <div class="pg-wrap">
           <div class="pg-hints nza-hud solid"></div>
           <div class="pg-dev">
-            <div class="pg-shell">
-              <div class="pg-top"><span class="pg-led off"></span><div class="pg-brand"><span class="nz-mark"></span>NAYZEEE<em>EMS</em></div><span class="pg-model">NZ-P2</span></div>
-              <div class="pg-bezel"><div class="pg-lcd">
-                <div class="pg-status"></div>
-                <div class="pg-body"></div>
-                <div class="pg-soft"><span class="sl" data-b="back"></span><span class="sr" data-b="ack"></span></div>
-              </div></div>
-              <div class="pg-keys">
-                <button class="pg-btn" data-b="left"><svg viewBox="0 0 24 24"><path d="M15 6l-7 6 7 6z"/></svg></button>
-                <button class="pg-btn" data-b="up"><svg viewBox="0 0 24 24"><path d="M6 15l6-7 6 7z"/></svg></button>
-                <button class="pg-btn" data-b="down"><svg viewBox="0 0 24 24"><path d="M6 9l6 7 6-7z"/></svg></button>
+            <div class="pg-clip"></div>
+            <div class="pg-shell"><div class="pg-plate">
+              ${screw('s1')}${screw('s2')}${screw('s3')}${screw('s4')}
+              <div class="pg-top">
+                <span class="pg-model">RX-10</span><span class="pg-kind">2-WAY ALPHA RECEIVER</span>
+                <span class="sp"></span>
+                <span class="pg-leds">
+                  <span class="led"><i class="led-i teal"></i>PWR</span>
+                  <span class="led"><i class="led-i" data-led="msg"></i>MSG</span>
+                  <span class="led"><i class="led-i" data-led="lnk"></i>LNK</span>
+                </span>
               </div>
-              <div class="pg-grille">${'<i></i>'.repeat(14)}</div>
-            </div>
+              <div class="pg-face">
+                <div class="pg-bezel"><div class="pg-scr">
+                  <div class="pg-status"></div>
+                  <div class="pg-main"><div class="pg-body"></div><div class="pg-leg"></div></div>
+                </div></div>
+                <div class="pg-ctl">
+                  <div class="pg-pad">
+                    <span class="pg-rose"></span>
+                    <button class="pk pk-u" data-b="up"><svg viewBox="0 0 24 24"><path d="M6 15l6-7 6 7z"/></svg></button>
+                    <button class="pk pk-d" data-b="down"><svg viewBox="0 0 24 24"><path d="M6 9l6 7 6-7z"/></svg></button>
+                    <button class="pk pk-l" data-b="left"><svg viewBox="0 0 24 24"><path d="M15 6l-7 6 7 6z"/></svg></button>
+                    <button class="pk pk-r" data-b="ack"><svg viewBox="0 0 24 24"><path d="M9 6l7 6-7 6z"/></svg></button>
+                    <button class="pg-sel" data-b="ack"><i></i></button>
+                  </div>
+                  <button class="pg-x" data-b="back"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+                </div>
+              </div>
+              <div class="pg-bot">
+                <span class="pg-grill">${'<i></i>'.repeat(9)}</span>
+                <span class="pg-sticker"><b>!</b><span>IP54 · KEEP DRY</span></span>
+                <span class="sp"></span>
+                <span class="pg-sn">SN 4471-0932 · 433 MHz</span>
+              </div>
+            </div></div>
           </div>
         </div>`;
       dev = el.querySelector('.pg-dev');
-      lcd = el.querySelector('.pg-lcd');
+      scr = el.querySelector('.pg-scr');
       body = el.querySelector('.pg-body');
-      softL = el.querySelector('.sl');
-      softR = el.querySelector('.sr');
+      legEl = el.querySelector('.pg-leg');
       statusEl = el.querySelector('.pg-status');
-      ledEl = el.querySelector('.pg-led');
+      ledMsg = el.querySelector('[data-led="msg"]');
+      ledLnk = el.querySelector('[data-led="lnk"]');
       hintsEl = el.querySelector('.pg-hints');
       el.querySelectorAll('[data-b]').forEach(b => b.addEventListener('mousedown', e => { e.preventDefault(); press(b.dataset.b); }));
       // the pager key itself puts the pager away while it has focus
@@ -293,6 +341,7 @@
     },
     keys: {
       ArrowLeft() { if (!d.focused) return false; press('left'); },
+      ArrowRight() { if (!d.focused) return false; press('ack'); },
       ArrowUp() { if (!d.focused) return false; press('up'); },
       ArrowDown() { if (!d.focused) return false; press('down'); },
       y() { if (!d.focused) return false; press('ack'); },
@@ -303,20 +352,21 @@
     },
     preview() {
       NZA.demo('pager', {
-        focused: true, time: '16:42', muted: false, phone: true, key: 'F7',
+        focused: true, time: '16:42', muted: false, phone: true, key: 'F7', ackWindow: 30,
         me: { callsign: 'Unit 04', status: '10-8', paired: true, npc: true, call: null },
         calls: [
-          { id: 'C-0417', code: '10-56', priority: 2, title: 'Overdose', type: 'overdose', street: 'Palomino Ave', zone: 'Pillbox Hill', status: 'DSP', age: 27 },
-          { id: 'C-0416', code: '10-50', priority: 1, title: 'Vehicle Collision', type: 'mva', street: 'Strawberry Ave', zone: 'Strawberry', status: 'ENR', age: 140 },
+          { id: 'C-0417', code: '10-56', priority: 2, title: 'Overdose', type: 'overdose', street: 'Mirror Park Blvd', zone: 'Mirror Park', status: 'DSP', age: 9 },
+          { id: 'C-0416', code: '10-50', priority: 1, title: 'Two-car collision', type: 'mva', street: 'Strawberry Ave', zone: 'Strawberry', status: 'ENR', age: 140 },
           { id: 'C-0412', code: '10-52', priority: 3, title: 'Fall', type: 'fall', street: 'Vespucci Blvd', zone: 'Vespucci', status: 'DSP', age: 310 },
         ],
         history: [
           { id: 'C-0417', priority: 2, title: 'Overdose', type: 'overdose', time: '16:41' },
           { id: 'C-0410', priority: 1, title: 'Gunshot', type: 'gunshot', time: '16:12', closed: true },
+          { id: 'C-0407', priority: 3, title: 'Fall', type: 'fall', time: '15:48', closed: true },
         ],
         locale: {},
       });
-      live = { time: '16:42', calls: { 'C-0417': { dist: 310, dir: 'SW', eta: 19, prog: 0.86 }, 'C-0416': { dist: 1240, dir: 'NE', eta: 71 } } };
+      live = { time: '16:42', calls: { 'C-0417': { dist: 640, dir: 'NE', rel: 38, eta: 34, prog: 0.2 }, 'C-0416': { dist: 1240, dir: 'SW', rel: 205, eta: 71 } } };
       NZA.apps.pager.msg.page({ id: 'C-0417', priority: 2, beep: false });
     },
   });

@@ -239,48 +239,47 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 <!-- props:table:begin -->
 | Model | Size X x Y x Z (m) | bbMin | bbMax | Tris | lodDist | Type | Screens | Collision |
 |---|---|---|---|---|---|---|---|---|
-| `nz_amb_angio_monitor` | 1.000 x 1.068 x 2.135 | (-0.5, -0.35, 0.0) | (0.5, 0.718, 2.135) | 11692 | 100 | static | nz_amb_screen | METAL_HOLLOW_MEDIUM, METAL_SOLID_MEDIUM, PLASTIC_HIGH_DENSITY |
-| `nz_amb_bay_shell` | 2.420 x 4.420 x 2.210 | (-1.21, -2.21, -0.1) | (1.21, 2.21, 2.15) | 78326 | 120 | static | nz_amb_screen | FIBREGLASS, LEATHER, METAL_HOLLOW_MEDIUM, METAL_SOLID_MEDIUM, METAL_SOLID_SMALL, PLASTIC_HIGH_DENSITY |
+| `nz_amb_angio_monitor` | 1.000 x 1.068 x 2.135 | (-0.5, -0.35, 0.0) | (0.5, 0.718, 2.135) | 12076 | 100 | static | nz_amb_screen | METAL_HOLLOW_MEDIUM, METAL_SOLID_MEDIUM, PLASTIC_HIGH_DENSITY |
+| `nz_amb_bay_shell` | 2.420 x 4.420 x 2.210 | (-1.21, -2.21, -0.1) | (1.21, 2.21, 2.15) | 78416 | 120 | static | nz_amb_screen | FIBREGLASS, LEATHER, METAL_HOLLOW_MEDIUM, METAL_SOLID_MEDIUM, METAL_SOLID_SMALL, PLASTIC_HIGH_DENSITY |
 | `nz_amb_binder_flat` | 1.020 x 0.230 x 0.018 | (-0.56, -0.12, -0.0) | (0.46, 0.12, 0.02) | 1104 | 60 | dynamic | - | CLOTH |
 | `nz_amb_binder_worn` | 0.359 x 0.274 x 0.200 | (-0.18, -0.13, -0.11) | (0.18, 0.144, 0.11) | 1560 | 60 | dynamic | - | CLOTH |
-| `nz_amb_blood_mixer` | 0.348 x 0.236 x 0.339 | (-0.173, -0.115, 0.0) | (0.175, 0.121, 0.339) | 3878 | 50 | dynamic | nz_amb_screen | PLASTIC_HIGH_DENSITY |
+| `nz_amb_blood_mixer` | 0.348 x 0.236 x 0.339 | (-0.173, -0.115, 0.0) | (0.175, 0.121, 0.339) | 4198 | 50 | dynamic | nz_amb_screen | PLASTIC_HIGH_DENSITY |
 | `nz_amb_bloodbag_0` | 0.134 x 0.021 x 0.343 | (-0.068, -0.007, -0.35) | (0.068, 0.015, 0.0) | 3228 | 50 | dynamic | - | PLASTIC_HOLLOW_CLEAR |
 | `nz_amb_bloodbag_100` | 0.134 x 0.037 x 0.343 | (-0.068, -0.021, -0.35) | (0.068, 0.021, 0.0) | 5136 | 50 | dynamic | - | PLASTIC_HOLLOW_CLEAR |
 | `nz_amb_bloodbag_25` | 0.134 x 0.022 x 0.343 | (-0.068, -0.009, -0.35) | (0.068, 0.015, 0.0) | 4388 | 50 | dynamic | - | PLASTIC_HOLLOW_CLEAR |
 | `nz_amb_bloodbag_50` | 0.134 x 0.026 x 0.343 | (-0.068, -0.013, -0.35) | (0.068, 0.015, 0.0) | 4592 | 50 | dynamic | - | PLASTIC_HOLLOW_CLEAR |
 | `nz_amb_bloodbag_75` | 0.134 x 0.030 x 0.343 | (-0.068, -0.017, -0.35) | (0.068, 0.017, 0.0) | 4864 | 50 | dynamic | - | PLASTIC_HOLLOW_CLEAR |
-| `nz_amb_bvm` | 0.266 x 0.520 x 0.160 | (-0.065, -0.065, -0.002) | (0.202, 0.457, 0.161) | 7580 | 35 | dynamic | - | PLASTIC, RUBBER_HOLLOW |
+| `nz_amb_bvm` | 0.266 x 0.520 x 0.160 | (-0.065, -0.065, -0.002) | (0.202, 0.457, 0.161) | 8808 | 35 | dynamic | - | PLASTIC, RUBBER_HOLLOW |
 | `nz_amb_collar` | 0.137 x 0.170 x 0.126 | (-0.075, -0.08, -0.04) | (0.075, 0.093, 0.088) | 1928 | 40 | dynamic | - | PLASTIC |
 | `nz_amb_contrast_button` | 0.336 x 0.336 x 1.014 | (-0.168, -0.168, -0.002) | (0.168, 0.168, 1.012) | 10116 | 60 | static | - | METAL_HOLLOW_SMALL, METAL_SOLID_MEDIUM, PLASTIC_HIGH_DENSITY |
 | `nz_amb_crutch` | 0.100 x 0.190 x 1.206 | (-0.055, -0.128, -0.86) | (0.055, 0.08, 0.346) | 4076 | 70 | dynamic | - | METAL_HOLLOW_SMALL, PLASTIC, RUBBER |
-| `nz_amb_defib` | 0.348 x 0.136 x 0.268 | (-0.165, -0.061, 0.0) | (0.187, 0.075, 0.268) | 5610 | 70 | dynamic | nz_amb_screen | PLASTIC_HIGH_DENSITY, RUBBER |
+| `nz_amb_defib` | 0.382 x 0.146 x 0.268 | (-0.195, -0.064, 0.0) | (0.188, 0.082, 0.268) | 12132 | 70 | dynamic | nz_amb_screen | PLASTIC_HIGH_DENSITY, RUBBER |
 | `nz_amb_donation_chair` | 0.907 x 1.601 x 1.299 | (-0.449, -0.826, 0.0) | (0.458, 0.775, 1.299) | 12338 | 90 | static | - | LEATHER, PLASTIC_HIGH_DENSITY |
 | `nz_amb_ett` | 0.159 x 0.273 x 0.171 | (-0.08, -0.15, -0.147) | (0.08, 0.123, 0.024) | 5364 | 30 | dynamic | - | PLASTIC |
 | `nz_amb_infuser` | 0.218 x 0.050 x 0.581 | (-0.14, -0.03, -0.58) | (0.085, 0.03, 0.002) | 8492 | 50 | dynamic | - | CLOTH, RUBBER |
 | `nz_amb_injector` | 0.926 x 0.739 x 1.160 | (-0.476, -0.433, 0.0) | (0.45, 0.306, 1.16) | 16646 | 70 | static | - | METAL_HOLLOW_SMALL, PLASTIC_HIGH_DENSITY |
-| `nz_amb_injector_plunger` | 0.304 x 0.064 x 0.064 | (-0.0, -0.032, -0.032) | (0.304, 0.032, 0.032) | 832 | 30 | dynamic | - | PLASTIC |
-| `nz_amb_iodrill` | 0.046 x 0.189 x 0.136 | (-0.024, -0.082, -0.066) | (0.024, 0.108, 0.072) | 2000 | 45 | dynamic | - | PLASTIC_HIGH_DENSITY |
+| `nz_amb_injector_plunger` | 0.304 x 0.064 x 0.064 | (-0.0, -0.032, -0.032) | (0.304, 0.032, 0.032) | 1144 | 30 | dynamic | - | PLASTIC |
+| `nz_amb_iodrill` | 0.046 x 0.191 x 0.141 | (-0.024, -0.084, -0.07) | (0.024, 0.108, 0.072) | 5672 | 45 | dynamic | - | PLASTIC_HIGH_DENSITY |
 | `nz_amb_ivbag_saline` | 0.127 x 0.035 x 0.627 | (-0.064, -0.018, -0.627) | (0.064, 0.019, 0.0) | 5026 | 50 | dynamic | - | PLASTIC_HOLLOW_CLEAR |
-| `nz_amb_ivstand` | 0.582 x 0.508 x 1.801 | (-0.3, -0.3, 0.0) | (0.3, 0.333, 1.801) | 3744 | 140 | static | - | METAL_HOLLOW_SMALL |
-| `nz_amb_kitcase_closed` | 0.618 x 0.487 x 0.200 | (-0.31, -0.232, 0.0) | (0.31, 0.257, 0.205) | 8212 | 90 | dynamic | - | PLASTIC_HIGH_DENSITY |
-| `nz_amb_kitcase_open` | 0.618 x 0.626 x 0.561 | (-0.31, -0.364, 0.0) | (0.31, 0.262, 0.561) | 21266 | 90 | static | - | PLASTIC_HIGH_DENSITY |
-| `nz_amb_laryngoscope` | 0.029 x 0.146 x 0.164 | (-0.015, -0.015, -0.072) | (0.015, 0.132, 0.092) | 2732 | 35 | dynamic | - | METAL_SOLID_SMALL |
+| `nz_amb_ivstand` | 0.582 x 0.508 x 1.801 | (-0.3, -0.3, 0.0) | (0.3, 0.333, 1.801) | 3888 | 140 | static | - | METAL_HOLLOW_SMALL |
+| `nz_amb_kitcase_closed` | 0.618 x 0.487 x 0.200 | (-0.31, -0.232, 0.0) | (0.31, 0.257, 0.205) | 12288 | 90 | dynamic | - | PLASTIC_HIGH_DENSITY |
+| `nz_amb_kitcase_open` | 0.618 x 0.626 x 0.561 | (-0.31, -0.364, 0.0) | (0.31, 0.262, 0.561) | 29526 | 90 | static | - | PLASTIC_HIGH_DENSITY |
+| `nz_amb_laryngoscope` | 0.029 x 0.146 x 0.165 | (-0.015, -0.015, -0.072) | (0.015, 0.132, 0.092) | 5252 | 35 | dynamic | - | METAL_SOLID_SMALL |
 | `nz_amb_lightbox` | 0.680 x 0.635 x 1.895 | (-0.34, -0.3, 0.0) | (0.34, 0.35, 1.895) | 11276 | 80 | static | nz_amb_screen | METAL_HOLLOW_SMALL, PLASTIC_HIGH_DENSITY |
-| `nz_amb_medbag` | 0.597 x 0.375 x 0.418 | (-0.3, -0.2, 0.0) | (0.33, 0.207, 0.418) | 10564 | 90 | dynamic | - | CLOTH, PLASTIC |
-| `nz_amb_monitor` | 0.302 x 0.090 x 0.238 | (-0.15, -0.051, -0.001) | (0.152, 0.04, 0.238) | 8546 | 70 | dynamic | nz_amb_screen | PLASTIC_HIGH_DENSITY, RUBBER |
-| `nz_amb_pager` | 0.097 x 0.031 x 0.061 | (-0.049, -0.019, -0.03) | (0.049, 0.013, 0.031) | 2180 | 40 | dynamic | nz_amb_screen | PLASTIC |
-| `nz_amb_sharps` | 0.212 x 0.152 x 0.234 | (-0.106, -0.076, 0.0) | (0.106, 0.076, 0.245) | 2072 | 60 | dynamic | - | PLASTIC_HOLLOW |
-| `nz_amb_splint_arm` | 0.400 x 0.120 x 0.120 | (-0.205, -0.06, -0.06) | (0.205, 0.06, 0.06) | 2048 | 50 | dynamic | - | PLASTIC |
-| `nz_amb_splint_leg` | 0.758 x 0.165 x 0.240 | (-0.38, -0.083, -0.09) | (0.39, 0.083, 0.15) | 3280 | 60 | dynamic | - | PLASTIC |
-| `nz_amb_stethoscope` | 0.247 x 0.182 x 0.020 | (-0.14, -0.07, -0.003) | (0.11, 0.12, 0.017) | 5144 | 35 | dynamic | - | RUBBER |
-| `nz_amb_stretcher` | 0.663 x 2.046 x 0.952 | (-0.332, -1.03, 0.0) | (0.332, 1.03, 0.952) | 24008 | 150 | dynamic | - | LEATHER, METAL_HOLLOW_MEDIUM, METAL_HOLLOW_SMALL |
-| `nz_amb_suction` | 0.487 x 0.366 x 0.267 | (-0.217, -0.08, -0.001) | (0.27, 0.286, 0.266) | 9104 | 50 | dynamic | - | PLASTIC_HIGH_DENSITY |
-| `nz_amb_surgery_tray` | 0.866 x 0.532 x 0.951 | (-0.466, -0.264, 0.0) | (0.4, 0.268, 0.951) | 17546 | 60 | static | - | METAL_HOLLOW_SMALL, METAL_SOLID_SMALL |
-| `nz_amb_syringe` | 0.034 x 0.132 x 0.018 | (-0.017, -0.04, -0.009) | (0.017, 0.123, 0.009) | 1576 | 30 | dynamic | - | PLASTIC |
-| `nz_amb_tourniquet` | 0.104 x 0.125 x 0.149 | (-0.055, -0.065, -0.065) | (0.055, 0.065, 0.09) | 2340 | 40 | dynamic | - | CLOTH |
+| `nz_amb_monitor` | 0.302 x 0.092 x 0.238 | (-0.15, -0.051, -0.001) | (0.152, 0.041, 0.238) | 11030 | 70 | dynamic | nz_amb_screen | PLASTIC_HIGH_DENSITY, RUBBER |
+| `nz_amb_pager` | 0.099 x 0.033 x 0.062 | (-0.049, -0.019, -0.03) | (0.05, 0.013, 0.032) | 3312 | 40 | dynamic | nz_amb_screen | PLASTIC |
+| `nz_amb_sharps` | 0.212 x 0.156 x 0.234 | (-0.106, -0.08, 0.0) | (0.106, 0.076, 0.245) | 2372 | 60 | dynamic | - | PLASTIC_HOLLOW |
+| `nz_amb_splint_arm` | 0.400 x 0.124 x 0.120 | (-0.205, -0.065, -0.06) | (0.205, 0.06, 0.06) | 2528 | 50 | dynamic | - | PLASTIC |
+| `nz_amb_splint_leg` | 0.758 x 0.165 x 0.240 | (-0.38, -0.083, -0.09) | (0.39, 0.083, 0.15) | 4000 | 60 | dynamic | - | PLASTIC |
+| `nz_amb_stethoscope` | 0.247 x 0.182 x 0.020 | (-0.14, -0.07, -0.003) | (0.11, 0.12, 0.017) | 7552 | 35 | dynamic | - | RUBBER |
+| `nz_amb_stretcher` | 0.663 x 2.046 x 0.952 | (-0.332, -1.03, 0.0) | (0.332, 1.03, 0.952) | 27314 | 150 | dynamic | - | LEATHER, METAL_HOLLOW_MEDIUM, METAL_HOLLOW_SMALL |
+| `nz_amb_suction` | 0.487 x 0.366 x 0.267 | (-0.217, -0.08, -0.001) | (0.27, 0.286, 0.266) | 10120 | 50 | dynamic | - | PLASTIC_HIGH_DENSITY |
+| `nz_amb_surgery_tray` | 0.866 x 0.532 x 0.951 | (-0.466, -0.264, 0.0) | (0.4, 0.268, 0.951) | 18430 | 60 | static | - | METAL_HOLLOW_SMALL, METAL_SOLID_SMALL |
+| `nz_amb_syringe` | 0.034 x 0.132 x 0.018 | (-0.017, -0.04, -0.009) | (0.017, 0.123, 0.009) | 2556 | 30 | dynamic | - | PLASTIC |
+| `nz_amb_tourniquet` | 0.104 x 0.125 x 0.149 | (-0.055, -0.065, -0.065) | (0.055, 0.065, 0.09) | 2388 | 40 | dynamic | - | CLOTH |
 | `nz_amb_tv_board` | 1.600 x 0.034 x 0.920 | (-0.8, 0.0, -0.46) | (0.8, 0.034, 0.46) | 424 | 80 | static | nz_amb_screen | PLASTIC_HIGH_DENSITY |
-| `nz_amb_us_cart` | 0.780 x 0.592 x 1.435 | (-0.39, -0.302, 0.0) | (0.39, 0.29, 1.435) | 26574 | 90 | static | nz_amb_screen | PLASTIC_HIGH_DENSITY |
-| `nz_amb_us_probe` | 0.098 x 0.027 x 0.212 | (-0.034, -0.016, -0.061) | (0.071, 0.016, 0.151) | 2132 | 35 | dynamic | - | PLASTIC |
+| `nz_amb_us_cart` | 0.781 x 0.592 x 1.435 | (-0.39, -0.302, 0.0) | (0.39, 0.29, 1.435) | 28842 | 90 | static | nz_amb_screen | PLASTIC_HIGH_DENSITY |
+| `nz_amb_us_probe` | 0.098 x 0.028 x 0.215 | (-0.034, -0.016, -0.063) | (0.071, 0.016, 0.152) | 4704 | 35 | dynamic | - | PLASTIC |
 | `nz_amb_xray_table` | 1.310 x 2.340 x 2.480 | (-0.855, -1.17, 0.0) | (0.455, 1.17, 2.48) | 14308 | 120 | static | - | METAL_SOLID_MEDIUM, PLASTIC_HIGH_DENSITY |
 <!-- props:table:end -->
 
@@ -300,8 +299,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | carry: PH_R_Hand (28422) pos (0.0, -0.245, -0.06) rot (0, 0, 0) -> handle in the hand, case hanging; SKEL_R_Hand (57005) pos (0.06, 0.0, -0.06) rot (90, 0, 90) as a starting point |
 | LOD / type | lodDist 90 m, hdTextureDist 15 m, dynamic (physics, can be attached / carried) |
 | Collision | 2 box PLASTIC_HIGH_DENSITY (embedded composite) |
-| Textures (txd = `nz_amb_kitcase_closed`) | nz_amb_kitcase_closed_d 1024 |
-| Mesh | 8212 tris, 6229 verts, shaders: normal_spec, .ydr 676 KB |
+| Textures (txd = `nz_amb_kitcase_closed`) | nz_amb_kitcase_closed_d 2048 |
+| Mesh | 12288 tris, 10642 verts, shaders: normal_spec, .ydr 2562 KB |
 
 #### `nz_amb_kitcase_open` - Trauma kit hard case (open, foam inserts with IO driver, syringes, blood tubes)
 
@@ -315,35 +314,21 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | LOD / type | lodDist 90 m, hdTextureDist 15 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 2 box PLASTIC_HIGH_DENSITY (embedded composite) |
 | Textures (txd = `nz_amb_kitcase_open`) | nz_amb_kitcase_open_d 2048, nz_amb_kitcase_open_ad 256 |
-| Mesh | 21266 tris, 17915 verts, shaders: normal_spec, normal_spec_alpha, .ydr 2339 KB |
-
-#### `nz_amb_medbag` - Red rolling trauma bag
-
-| | |
-|---|---|
-| Config | `Config.Props.medbag` |
-| Size X x Y x Z | 0.597 x 0.375 x 0.418 m (bbMin (-0.3, -0.2, 0.0), bbMax (0.33, 0.207, 0.418)) |
-| Origin / pivot | bottom centre (on the ground, wheels + feet touch z = 0) |
-| Axes | +Y = front (pockets), wheels and trolley handle at +X, +Z up |
-| Attach / use | carry by the top handles: PH_R_Hand (28422) pos (0.0, 0.0, -0.40) rot (0, 0, 0); pull: PH_R_Hand pos (-0.62, 0.0, -0.36) rot (0, -35, 0) (handle at +X end, z 0.39) |
-| LOD / type | lodDist 90 m, hdTextureDist 15 m, dynamic (physics, can be attached / carried) |
-| Collision | 1 box CLOTH, 1 box PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_medbag`) | nz_amb_medbag_d 1024 |
-| Mesh | 10564 tris, 7258 verts, shaders: normal_spec, .ydr 648 KB |
+| Mesh | 29526 tris, 26415 verts, shaders: normal_spec, normal_spec_alpha, .ydr 2659 KB |
 
 #### `nz_amb_sharps` - Sharps bin (5 L), yellow with orange lid
 
 | | |
 |---|---|
 | Config | `Config.Props.sharps` |
-| Size X x Y x Z | 0.212 x 0.152 x 0.234 m (bbMin (-0.106, -0.076, 0.0), bbMax (0.106, 0.076, 0.245)) |
+| Size X x Y x Z | 0.212 x 0.156 x 0.234 m (bbMin (-0.106, -0.08, 0.0), bbMax (0.106, 0.076, 0.245)) |
 | Origin / pivot | bottom centre |
 | Axes | +Y = front (biohazard label), aperture on top, +Z up |
 | Attach / use | placed on the ground / ambulance shelf; carry: PH_R_Hand (28422) pos (0.0, 0.0, -0.27) by the lid handle |
 | LOD / type | lodDist 60 m, hdTextureDist 10 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HOLLOW (embedded composite) |
-| Textures (txd = `nz_amb_sharps`) | nz_amb_sharps_d 512 |
-| Mesh | 2072 tris, 1464 verts, shaders: normal_spec, .ydr 269 KB |
+| Textures (txd = `nz_amb_sharps`) | nz_amb_sharps_d 1024 |
+| Mesh | 2372 tris, 1680 verts, shaders: normal_spec, .ydr 1003 KB |
 
 ### Electronic devices
 
@@ -352,45 +337,45 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | | |
 |---|---|
 | Config | `Config.Props.defib` |
-| Size X x Y x Z | 0.348 x 0.136 x 0.268 m (bbMin (-0.165, -0.061, 0.0), bbMax (0.187, 0.075, 0.268)) |
+| Size X x Y x Z | 0.382 x 0.146 x 0.268 m (bbMin (-0.195, -0.064, 0.0), bbMax (0.188, 0.082, 0.268)) |
 | Origin / pivot | bottom centre |
-| Axes | +Y = screen side (front), +Z up; handle on top, pads pouch on the -X side |
+| Axes | +Y = screen side (front), +Z up; handle on top, pads pouch on the +X side, printer on the -X side |
 | Attach / use | carry: PH_R_Hand (28422) pos (0.0, -0.06, -0.26) rot (0, 0, 90); placed next to the patient on the ground |
 | Screen | nz_amb_screen - quad 0.170 x 0.096 m (aspect 1.77), UV 0..1 = visible screen, top-left = (0,0) |
 | LOD / type | lodDist 70 m, hdTextureDist 12 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HIGH_DENSITY, 1 box RUBBER (embedded composite) |
-| Textures (txd = `nz_amb_defib`) | nz_amb_defib_d 1024, nz_amb_defib_g 64, nz_amb_screen 512x256 |
-| Mesh | 5610 tris, 4249 verts, shaders: emissive, normal_spec, .ydr 581 KB |
+| Textures (txd = `nz_amb_defib`) | nz_amb_defib_d 2048, nz_amb_defib_g 64, nz_amb_screen 512x256 |
+| Mesh | 12132 tris, 8930 verts, shaders: emissive, normal_spec, .ydr 2247 KB |
 
 #### `nz_amb_monitor` - Portable patient monitor
 
 | | |
 |---|---|
 | Config | `Config.Props.monitor` |
-| Size X x Y x Z | 0.302 x 0.090 x 0.238 m (bbMin (-0.15, -0.051, -0.001), bbMax (0.152, 0.04, 0.238)) |
+| Size X x Y x Z | 0.302 x 0.092 x 0.238 m (bbMin (-0.15, -0.051, -0.001), bbMax (0.152, 0.041, 0.238)) |
 | Origin / pivot | bottom centre (sits on surfaces) |
-| Axes | +Y = screen side (front), +Z up; button column on -X (the viewer's right when facing the screen), connector panel on +X |
+| Axes | +Y = screen side (front), +Z up; control column beside the screen on +X (the viewer's left when facing the screen), connector panel on the +X side face |
 | Attach / use | carry: PH_R_Hand (28422) pos (0.0, -0.03, -0.24) rot (0, 0, 90) holding the top handle; on stretcher/bed: place on the mattress or attach to the stretcher entity at its foot end |
 | Screen | nz_amb_screen - quad 0.180 x 0.112 m (aspect 1.61), UV 0..1 = full visible screen, top-left = (0,0) |
 | LOD / type | lodDist 70 m, hdTextureDist 12 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HIGH_DENSITY, 1 box RUBBER (embedded composite) |
-| Textures (txd = `nz_amb_monitor`) | nz_amb_monitor_d 1024, nz_amb_monitor_g 64, nz_amb_screen 512x256 |
-| Mesh | 8546 tris, 6517 verts, shaders: emissive, normal_spec, .ydr 552 KB |
+| Textures (txd = `nz_amb_monitor`) | nz_amb_monitor_d 2048, nz_amb_monitor_g 64, nz_amb_screen 512x256 |
+| Mesh | 11030 tris, 8922 verts, shaders: emissive, normal_spec, .ydr 1910 KB |
 
 #### `nz_amb_pager` - EMS pager
 
 | | |
 |---|---|
 | Config | `Config.Props.pager` |
-| Size X x Y x Z | 0.097 x 0.031 x 0.061 m (bbMin (-0.049, -0.019, -0.03), bbMax (0.049, 0.013, 0.031)) |
+| Size X x Y x Z | 0.099 x 0.033 x 0.062 m (bbMin (-0.049, -0.019, -0.03), bbMax (0.05, 0.013, 0.032)) |
 | Origin / pivot | centre of the body (the grip) |
 | Axes | +Y = LCD side (front), +Z up, belt clip on -Y |
 | Attach / use | hand: PH_R_Hand (28422) pos (0.0, 0.0, 0.0) rot (-90, 0, 0) -> adjust per animation; belt: SKEL_Pelvis (11816) pos (0.0, 0.14, 0.1) rot (0, 0, 180) |
 | Screen | nz_amb_screen - LCD quad 0.056 x 0.022 m (aspect 2.55), UV 0..1 = LCD, top-left = (0,0) |
 | LOD / type | lodDist 40 m, hdTextureDist 6 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_pager`) | nz_amb_pager_d 512, nz_amb_pager_g 64, nz_amb_screen 256x128 |
-| Mesh | 2180 tris, 1688 verts, shaders: emissive, normal_spec, .ydr 300 KB |
+| Textures (txd = `nz_amb_pager`) | nz_amb_pager_d 1024, nz_amb_pager_g 64, nz_amb_screen 256x128 |
+| Mesh | 3312 tris, 2739 verts, shaders: emissive, normal_spec, .ydr 1108 KB |
 
 ### Fluids & IV
 
@@ -406,8 +391,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Variants | swap between _0/_25/_50/_75/_100 as the bag fills (donation) or empties (transfusion) |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HOLLOW_CLEAR (embedded composite) |
-| Textures (txd = `nz_amb_bloodbag_0`) | nz_amb_bloodbag_0_d 256, nz_amb_bloodbag_0_ad 512 |
-| Mesh | 3228 tris, 2540 verts, shaders: normal_spec, normal_spec_alpha, .ydr 226 KB |
+| Textures (txd = `nz_amb_bloodbag_0`) | nz_amb_bloodbag_0_d 256, nz_amb_bloodbag_0_ad 1024 |
+| Mesh | 3228 tris, 2540 verts, shaders: normal_spec, normal_spec_alpha, .ydr 544 KB |
 
 #### `nz_amb_bloodbag_100` - Blood bag, 100% full (red cells, O NEG label)
 
@@ -421,8 +406,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Variants | swap between _0/_25/_50/_75/_100 as the bag fills (donation) or empties (transfusion) |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HOLLOW_CLEAR (embedded composite) |
-| Textures (txd = `nz_amb_bloodbag_100`) | nz_amb_bloodbag_100_d 256, nz_amb_bloodbag_100_ad 512 |
-| Mesh | 5136 tris, 3654 verts, shaders: normal_spec, normal_spec_alpha, .ydr 297 KB |
+| Textures (txd = `nz_amb_bloodbag_100`) | nz_amb_bloodbag_100_d 256, nz_amb_bloodbag_100_ad 1024 |
+| Mesh | 5136 tris, 3654 verts, shaders: normal_spec, normal_spec_alpha, .ydr 640 KB |
 
 #### `nz_amb_bloodbag_25` - Blood bag, 25% full (red cells, O NEG label)
 
@@ -436,8 +421,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Variants | swap between _0/_25/_50/_75/_100 as the bag fills (donation) or empties (transfusion) |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HOLLOW_CLEAR (embedded composite) |
-| Textures (txd = `nz_amb_bloodbag_25`) | nz_amb_bloodbag_25_d 256, nz_amb_bloodbag_25_ad 512 |
-| Mesh | 4388 tris, 3258 verts, shaders: normal_spec, normal_spec_alpha, .ydr 276 KB |
+| Textures (txd = `nz_amb_bloodbag_25`) | nz_amb_bloodbag_25_d 256, nz_amb_bloodbag_25_ad 1024 |
+| Mesh | 4388 tris, 3258 verts, shaders: normal_spec, normal_spec_alpha, .ydr 600 KB |
 
 #### `nz_amb_bloodbag_50` - Blood bag, 50% full (red cells, O NEG label)
 
@@ -451,8 +436,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Variants | swap between _0/_25/_50/_75/_100 as the bag fills (donation) or empties (transfusion) |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HOLLOW_CLEAR (embedded composite) |
-| Textures (txd = `nz_amb_bloodbag_50`) | nz_amb_bloodbag_50_d 256, nz_amb_bloodbag_50_ad 512 |
-| Mesh | 4592 tris, 3366 verts, shaders: normal_spec, normal_spec_alpha, .ydr 290 KB |
+| Textures (txd = `nz_amb_bloodbag_50`) | nz_amb_bloodbag_50_d 256, nz_amb_bloodbag_50_ad 1024 |
+| Mesh | 4592 tris, 3366 verts, shaders: normal_spec, normal_spec_alpha, .ydr 628 KB |
 
 #### `nz_amb_bloodbag_75` - Blood bag, 75% full (red cells, O NEG label)
 
@@ -466,8 +451,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Variants | swap between _0/_25/_50/_75/_100 as the bag fills (donation) or empties (transfusion) |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HOLLOW_CLEAR (embedded composite) |
-| Textures (txd = `nz_amb_bloodbag_75`) | nz_amb_bloodbag_75_d 256, nz_amb_bloodbag_75_ad 512 |
-| Mesh | 4864 tris, 3510 verts, shaders: normal_spec, normal_spec_alpha, .ydr 292 KB |
+| Textures (txd = `nz_amb_bloodbag_75`) | nz_amb_bloodbag_75_d 256, nz_amb_bloodbag_75_ad 1024 |
+| Mesh | 4864 tris, 3510 verts, shaders: normal_spec, normal_spec_alpha, .ydr 637 KB |
 
 #### `nz_amb_infuser` - Pressure infuser bag with gauge and hand bulb (holds a 500 mL bag)
 
@@ -480,8 +465,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | IV stand hook: stand entity pos (0.073, 0, 1.766) rot (0, 0, 0) |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box CLOTH, 1 box RUBBER (embedded composite) |
-| Textures (txd = `nz_amb_infuser`) | nz_amb_infuser_d 512, nz_amb_infuser_ad 512 |
-| Mesh | 8492 tris, 5545 verts, shaders: normal_spec, normal_spec_alpha, .ydr 590 KB |
+| Textures (txd = `nz_amb_infuser`) | nz_amb_infuser_d 1024, nz_amb_infuser_ad 512 |
+| Mesh | 8492 tris, 5545 verts, shaders: normal_spec, normal_spec_alpha, .ydr 1072 KB |
 
 #### `nz_amb_ivbag_saline` - Saline 0.9% 500 mL bag with giving set
 
@@ -494,8 +479,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | IV stand hook: stand entity pos (0.073, 0, 1.766) rot (0, 0, 0); hand: PH_R_Hand (28422) pos (0.0, 0.0, 0.1) rot (0, 0, 0) |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HOLLOW_CLEAR (embedded composite) |
-| Textures (txd = `nz_amb_ivbag_saline`) | nz_amb_ivbag_saline_d 256, nz_amb_ivbag_saline_ad 512 |
-| Mesh | 5026 tris, 3530 verts, shaders: normal_spec, normal_spec_alpha, .ydr 316 KB |
+| Textures (txd = `nz_amb_ivbag_saline`) | nz_amb_ivbag_saline_d 256, nz_amb_ivbag_saline_ad 1024 |
+| Mesh | 5026 tris, 3530 verts, shaders: normal_spec, normal_spec_alpha, .ydr 739 KB |
 
 #### `nz_amb_ivstand` - Tripod IV stand, 1.8 m, two hooks
 
@@ -509,7 +494,7 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | LOD / type | lodDist 140 m, hdTextureDist 20 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 2 cylinder METAL_HOLLOW_SMALL (embedded composite) |
 | Textures (txd = `nz_amb_ivstand`) | nz_amb_ivstand_d 512 |
-| Mesh | 3744 tris, 2953 verts, shaders: normal_spec, .ydr 299 KB |
+| Mesh | 3888 tris, 3113 verts, shaders: normal_spec, .ydr 349 KB |
 
 ### Hand-held tools
 
@@ -518,28 +503,28 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | | |
 |---|---|
 | Config | `Config.Props.iodrill` |
-| Size X x Y x Z | 0.046 x 0.189 x 0.136 m (bbMin (-0.024, -0.082, -0.066), bbMax (0.024, 0.108, 0.072)) |
+| Size X x Y x Z | 0.046 x 0.191 x 0.141 m (bbMin (-0.024, -0.084, -0.07), bbMax (0.024, 0.108, 0.072)) |
 | Origin / pivot | centre of the pistol grip (where the palm wraps) |
 | Axes | +Y = needle direction, +Z = up over the grip, body on top |
 | Attach / use | PH_R_Hand (28422) pos (0.0, 0.0, 0.0) rot (0, 0, -90) needle forward; SKEL_R_Hand (57005) pos (0.10, 0.02, -0.02) rot (-90, 0, 0) |
 | LOD / type | lodDist 45 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC_HIGH_DENSITY (embedded composite) |
-| Textures (txd = `nz_amb_iodrill`) | nz_amb_iodrill_d 512 |
-| Mesh | 2000 tris, 1695 verts, shaders: normal_spec, .ydr 296 KB |
+| Textures (txd = `nz_amb_iodrill`) | nz_amb_iodrill_d 1024, nz_amb_iodrill_g 64 |
+| Mesh | 5672 tris, 4776 verts, shaders: emissive, normal_spec, .ydr 1181 KB |
 
 #### `nz_amb_laryngoscope` - Laryngoscope (Macintosh blade, open / light on)
 
 | | |
 |---|---|
 | Config | `Config.Props.laryngoscope` |
-| Size X x Y x Z | 0.029 x 0.146 x 0.164 m (bbMin (-0.015, -0.015, -0.072), bbMax (0.015, 0.132, 0.092)) |
+| Size X x Y x Z | 0.029 x 0.146 x 0.165 m (bbMin (-0.015, -0.015, -0.072), bbMax (0.015, 0.132, 0.092)) |
 | Origin / pivot | centre of the handle |
 | Axes | handle along Z (top = +Z), blade points +Y and curves down |
 | Attach / use | PH_L_Hand (60309) pos (0.0, 0.0, 0.0) rot (0, 0, 0); SKEL_L_Hand (18905) pos (0.08, 0.02, 0.0) rot (0, 90, 0) |
 | LOD / type | lodDist 35 m, hdTextureDist 6 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box METAL_SOLID_SMALL, 1 cylinder METAL_SOLID_SMALL (embedded composite) |
-| Textures (txd = `nz_amb_laryngoscope`) | nz_amb_laryngoscope_d 512, nz_amb_laryngoscope_g 64 |
-| Mesh | 2732 tris, 2053 verts, shaders: emissive, normal_spec, .ydr 265 KB |
+| Textures (txd = `nz_amb_laryngoscope`) | nz_amb_laryngoscope_d 1024, nz_amb_laryngoscope_g 64 |
+| Mesh | 5252 tris, 4034 verts, shaders: emissive, normal_spec, .ydr 940 KB |
 
 #### `nz_amb_stethoscope` - Stethoscope, coiled
 
@@ -552,8 +537,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | neck: SKEL_Neck_1 (39317) needs a draped variant - use this model on surfaces / in hand: PH_R_Hand (28422) pos (0.0, 0.0, 0.0) |
 | LOD / type | lodDist 35 m, hdTextureDist 6 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box RUBBER (embedded composite) |
-| Textures (txd = `nz_amb_stethoscope`) | nz_amb_stethoscope_d 512 |
-| Mesh | 5144 tris, 3527 verts, shaders: normal_spec, .ydr 346 KB |
+| Textures (txd = `nz_amb_stethoscope`) | nz_amb_stethoscope_d 1024 |
+| Mesh | 7552 tris, 5239 verts, shaders: normal_spec, .ydr 1093 KB |
 
 #### `nz_amb_syringe` - 10 mL syringe with needle
 
@@ -566,22 +551,22 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | PH_R_Hand (28422) pos (0.0, 0.0, 0.0) rot (0, 0, -90) or SKEL_R_Hand (57005) pos (0.09, 0.03, -0.01) rot (-80, 0, 0) |
 | LOD / type | lodDist 30 m, hdTextureDist 5 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_syringe`) | nz_amb_syringe_d 256, nz_amb_syringe_ad 256 |
-| Mesh | 1576 tris, 1631 verts, shaders: normal_spec, normal_spec_alpha, .ydr 143 KB |
+| Textures (txd = `nz_amb_syringe`) | nz_amb_syringe_d 512, nz_amb_syringe_ad 512 |
+| Mesh | 2556 tris, 2677 verts, shaders: normal_spec, normal_spec_alpha, .ydr 428 KB |
 
 #### `nz_amb_us_probe` - Ultrasound probe (convex) with cable stub
 
 | | |
 |---|---|
 | Config | `Config.Props.us_probe` |
-| Size X x Y x Z | 0.098 x 0.027 x 0.212 m (bbMin (-0.034, -0.016, -0.061), bbMax (0.071, 0.016, 0.151)) |
+| Size X x Y x Z | 0.098 x 0.028 x 0.215 m (bbMin (-0.034, -0.016, -0.063), bbMax (0.071, 0.016, 0.152)) |
 | Origin / pivot | centre of the grip |
 | Axes | lens points -Z, cable exits +Z; orientation marker on +X |
 | Attach / use | PH_R_Hand (28422) pos (0.0, 0.0, 0.0) rot (180, 0, 0) lens down; SKEL_R_Hand (57005) pos (0.08, 0.03, -0.02) rot (90, 0, 0) |
 | LOD / type | lodDist 35 m, hdTextureDist 6 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_us_probe`) | nz_amb_us_probe_d 512 |
-| Mesh | 2132 tris, 1334 verts, shaders: normal_spec, .ydr 186 KB |
+| Textures (txd = `nz_amb_us_probe`) | nz_amb_us_probe_d 1024 |
+| Mesh | 4704 tris, 2960 verts, shaders: normal_spec, .ydr 679 KB |
 
 ### Orthopaedic & worn
 
@@ -597,7 +582,7 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | LOD / type | lodDist 60 m, hdTextureDist 10 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box CLOTH (embedded composite) |
 | Textures (txd = `nz_amb_binder_flat`) | nz_amb_binder_flat_d 512 |
-| Mesh | 1104 tris, 1030 verts, shaders: normal_spec, .ydr 269 KB |
+| Mesh | 1104 tris, 1030 verts, shaders: normal_spec, .ydr 288 KB |
 
 #### `nz_amb_binder_worn` - Pelvic binder applied (closed loop)
 
@@ -611,7 +596,7 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | LOD / type | lodDist 60 m, hdTextureDist 10 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box CLOTH (embedded composite) |
 | Textures (txd = `nz_amb_binder_worn`) | nz_amb_binder_worn_d 512 |
-| Mesh | 1560 tris, 1536 verts, shaders: normal_spec, .ydr 264 KB |
+| Mesh | 1560 tris, 1536 verts, shaders: normal_spec, .ydr 280 KB |
 
 #### `nz_amb_collar` - Rigid cervical collar (applied loop)
 
@@ -624,8 +609,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | SKEL_Neck_1 (39317) pos (0.0, 0.0, 0.0) rot (0, 0, 0) as a start - the neck bone's X runs up the neck, so the usual fix is rot (0, 90, 0) or (0, -90, 180); disable collision on the attached object |
 | LOD / type | lodDist 40 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_collar`) | nz_amb_collar_d 512 |
-| Mesh | 1928 tris, 1860 verts, shaders: normal_spec, .ydr 257 KB |
+| Textures (txd = `nz_amb_collar`) | nz_amb_collar_d 1024 |
+| Mesh | 1928 tris, 1860 verts, shaders: normal_spec, .ydr 744 KB |
 
 #### `nz_amb_crutch` - Forearm crutch, 1.2 m
 
@@ -638,22 +623,22 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | PH_R_Hand (28422) pos (0.0, 0.0, 0.0) rot (0, 0, 0) or SKEL_R_Hand (57005) pos (0.08, 0.02, 0.0) rot (90, 0, 90); second crutch in the left hand: PH_L_Hand (60309) |
 | LOD / type | lodDist 70 m, hdTextureDist 10 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC, 1 box RUBBER, 1 cylinder METAL_HOLLOW_SMALL (embedded composite) |
-| Textures (txd = `nz_amb_crutch`) | nz_amb_crutch_d 512 |
-| Mesh | 4076 tris, 2939 verts, shaders: normal_spec, .ydr 335 KB |
+| Textures (txd = `nz_amb_crutch`) | nz_amb_crutch_d 1024 |
+| Mesh | 4076 tris, 2939 verts, shaders: normal_spec, .ydr 1062 KB |
 
 #### `nz_amb_splint_arm` - Posterior arm splint (U channel, 0.40 m, palm roll)
 
 | | |
 |---|---|
 | Config | `Config.Props.splint_arm` |
-| Size X x Y x Z | 0.400 x 0.120 x 0.120 m (bbMin (-0.205, -0.06, -0.06), bbMax (0.205, 0.06, 0.06)) |
+| Size X x Y x Z | 0.400 x 0.124 x 0.120 m (bbMin (-0.205, -0.065, -0.06), bbMax (0.205, 0.06, 0.06)) |
 | Origin / pivot | on the limb axis at mid length |
 | Axes | length along X (palm roll at +X), open side +Z |
 | Attach / use | SKEL_L_Forearm (61163) / SKEL_R_Forearm (28252) pos (0.12, 0.0, 0.0) rot (0, 0, 0); rotate around X so the open side faces the forearm |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_splint_arm`) | nz_amb_splint_arm_d 512 |
-| Mesh | 2048 tris, 1890 verts, shaders: normal_spec, .ydr 266 KB |
+| Textures (txd = `nz_amb_splint_arm`) | nz_amb_splint_arm_d 1024 |
+| Mesh | 2528 tris, 2226 verts, shaders: normal_spec, .ydr 872 KB |
 
 #### `nz_amb_splint_leg` - Posterior leg splint (U channel, 0.75 m, foot plate)
 
@@ -666,8 +651,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | SKEL_L_Calf (63931) / SKEL_R_Calf (36864) pos (0.10, 0.0, 0.0) rot (0, 0, 0) - the calf bone's X runs knee -> foot; rotate around X until the open side faces the shin (try rot (90, 0, 0) / (-90, 0, 0)) |
 | LOD / type | lodDist 60 m, hdTextureDist 10 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_splint_leg`) | nz_amb_splint_leg_d 512 |
-| Mesh | 3280 tris, 2944 verts, shaders: normal_spec, .ydr 294 KB |
+| Textures (txd = `nz_amb_splint_leg`) | nz_amb_splint_leg_d 1024 |
+| Mesh | 4000 tris, 3448 verts, shaders: normal_spec, .ydr 1047 KB |
 
 #### `nz_amb_tourniquet` - Windlass tourniquet, applied loop (inner diameter ~0.11 m)
 
@@ -680,8 +665,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | limb bones (X runs along the bone): SKEL_L_UpperArm 45509, SKEL_R_UpperArm 40269, SKEL_L_Forearm 61163, SKEL_R_Forearm 28252, SKEL_L_Thigh 58271, SKEL_R_Thigh 51826, SKEL_L_Calf 63931, SKEL_R_Calf 36864 - pos (0.12, 0, 0) along the bone, rot (0, 0, 0); scale by choosing the bone (thigh loops look tight on big peds) |
 | LOD / type | lodDist 40 m, hdTextureDist 6 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box CLOTH (embedded composite) |
-| Textures (txd = `nz_amb_tourniquet`) | nz_amb_tourniquet_d 512 |
-| Mesh | 2340 tris, 2018 verts, shaders: normal_spec, .ydr 270 KB |
+| Textures (txd = `nz_amb_tourniquet`) | nz_amb_tourniquet_d 1024 |
+| Mesh | 2388 tris, 2058 verts, shaders: normal_spec, .ydr 881 KB |
 
 ### Transport
 
@@ -696,8 +681,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | patient: attach the ped to the stretcher entity pos (0.0, 0.05, 1.33) rot (0, 0, 180) with a lying anim (or use the mattress top z = 0.885 + ped root offset); push: attach the stretcher to the medic SKEL_Pelvis (11816) / PH_R_Hand with the foot-end handle (y = -1.02, z = 0.80) in the hands, e.g. stretcher pos (0.0, 1.45, -0.85) relative to the medic ped; into the ambulance: attach to the vehicle with an offset per model |
 | LOD / type | lodDist 150 m, hdTextureDist 20 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box LEATHER, 2 box METAL_HOLLOW_MEDIUM, 2 box METAL_HOLLOW_SMALL (embedded composite) |
-| Textures (txd = `nz_amb_stretcher`) | nz_amb_stretcher_d 2048 |
-| Mesh | 24008 tris, 18820 verts, shaders: normal_spec, .ydr 2549 KB |
+| Textures (txd = `nz_amb_stretcher`) | nz_amb_stretcher_d 2048, nz_amb_stretcher_g 64 |
+| Mesh | 27314 tris, 21439 verts, shaders: emissive, normal_spec, .ydr 2811 KB |
 
 ### Airway
 
@@ -712,8 +697,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | face: SKEL_Head (31086) - the head bone's +X runs up through the crown and +Y out of the face, so the rim's -Z must face the bone's -Y and the mask's +Y the bone's +X: start from pos (0.06, 0.11, 0.0) rot (0, -90, -90) and tune per ped; hand: the medic's PH_L_Hand (60309) holds the mask (C-E grip) at pos (0.0, 0.0, 0.0) and the PH_R_Hand (28422) squeezes the bag at (0, 0.21, 0.095) in prop space |
 | LOD / type | lodDist 35 m, hdTextureDist 6 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC, 1 box RUBBER_HOLLOW (embedded composite) |
-| Textures (txd = `nz_amb_bvm`) | nz_amb_bvm_d 512, nz_amb_bvm_ad 256 |
-| Mesh | 7580 tris, 5451 verts, shaders: normal_spec, normal_spec_alpha, .ydr 375 KB |
+| Textures (txd = `nz_amb_bvm`) | nz_amb_bvm_d 1024, nz_amb_bvm_ad 512 |
+| Mesh | 8808 tris, 6648 verts, shaders: normal_spec, normal_spec_alpha, .ydr 1069 KB |
 
 #### `nz_amb_ett` - Endotracheal tube 7.5 (cuffed, Magill curve) secured in a tube holder
 
@@ -726,8 +711,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | SKEL_Head (31086): rim of the lips is about (0.0, 0.12, -0.04) in bone space for the freemode heads; the prop's +Y must point out of the mouth (bone +Y) and its -Z towards the neck (bone -X): start from pos (-0.04, 0.12, 0.0) rot (0, 90, 0) and tune; the BVM / ventilator connects at the connector end (0, 0.075, 0) |
 | LOD / type | lodDist 30 m, hdTextureDist 5 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 box PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_ett`) | nz_amb_ett_d 256, nz_amb_ett_ad 256 |
-| Mesh | 5364 tris, 4350 verts, shaders: normal_spec, normal_spec_alpha, .ydr 221 KB |
+| Textures (txd = `nz_amb_ett`) | nz_amb_ett_d 512, nz_amb_ett_ad 512 |
+| Mesh | 5364 tris, 4350 verts, shaders: normal_spec, normal_spec_alpha, .ydr 523 KB |
 
 #### `nz_amb_suction` - Portable suction unit with 1 L canister, patient tubing and Yankauer tip
 
@@ -740,8 +725,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | carry: PH_R_Hand (28422) by the top handle pos (0.03, 0.0, -0.26) rot (0, 0, 0); in-hand Yankauer: hide is not possible per part - spawn a second suction prop or a native tube when the medic picks the tip up; the tip lies at (-0.21, 0.27, 0.012) pointing -X |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 2 box PLASTIC_HIGH_DENSITY (embedded composite) |
-| Textures (txd = `nz_amb_suction`) | nz_amb_suction_d 512, nz_amb_suction_ad 256, nz_amb_suction_g 64 |
-| Mesh | 9104 tris, 6879 verts, shaders: emissive, normal_spec, normal_spec_alpha, .ydr 462 KB |
+| Textures (txd = `nz_amb_suction`) | nz_amb_suction_d 1024, nz_amb_suction_ad 512, nz_amb_suction_g 64 |
+| Mesh | 10120 tris, 7925 verts, shaders: emissive, normal_spec, normal_spec_alpha, .ydr 1403 KB |
 
 ### Imaging & angiography suite
 
@@ -757,8 +742,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Screen | nz_amb_screen - quad 0.94 x 0.53 m (aspect 1.77) centred at (0, 0.6585, 1.55), UV 0..1 = visible screen, top-left = (0,0); default = live fluoroscopy frame |
 | LOD / type | lodDist 100 m, hdTextureDist 15 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 1 box METAL_HOLLOW_MEDIUM, 1 box METAL_SOLID_MEDIUM, 1 box PLASTIC_HIGH_DENSITY, 1 cylinder METAL_HOLLOW_MEDIUM (embedded composite) |
-| Textures (txd = `nz_amb_angio_monitor`) | nz_amb_angio_monitor_d 1024, nz_amb_angio_monitor_g 64, nz_amb_screen 1024x512 |
-| Mesh | 11692 tris, 9295 verts, shaders: emissive, normal_spec, .ydr 741 KB |
+| Textures (txd = `nz_amb_angio_monitor`) | nz_amb_angio_monitor_d 2048, nz_amb_angio_monitor_g 64, nz_amb_screen 1024x512 |
+| Mesh | 12076 tris, 9711 verts, shaders: emissive, normal_spec, .ydr 2194 KB |
 
 #### `nz_amb_contrast_button` - Contrast-run pedestal: big red mushroom button on a teal housing
 
@@ -771,8 +756,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | button top centre at (0, 0.0, 1.012) - press anim target; hand IK point (0, 0.02, 1.032); ped stands at (0, 0.45, 0) facing -Y |
 | LOD / type | lodDist 60 m, hdTextureDist 10 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 1 box PLASTIC_HIGH_DENSITY, 1 cylinder METAL_HOLLOW_SMALL, 1 cylinder METAL_SOLID_MEDIUM (embedded composite) |
-| Textures (txd = `nz_amb_contrast_button`) | nz_amb_contrast_button_d 512, nz_amb_contrast_button_g 64 |
-| Mesh | 10116 tris, 7749 verts, shaders: emissive, normal_spec, .ydr 476 KB |
+| Textures (txd = `nz_amb_contrast_button`) | nz_amb_contrast_button_d 1024, nz_amb_contrast_button_g 64 |
+| Mesh | 10116 tris, 7749 verts, shaders: emissive, normal_spec, .ydr 1244 KB |
 
 #### `nz_amb_injector` - Contrast power injector on a mobile pole tray
 
@@ -785,22 +770,22 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | syringe tip at (-0.235, 0.05, 1.040); the syringe plunger + ram is the separate model nz_amb_injector_plunger - ALWAYS spawn it with the injector, attached at (0.03, 0.05, 1.04) rot (0, 0, 0) and slide it 0 .. 0.2 m along -X while dye goes in (the contrast column stays drawn); delivery line ends at (-0.47, 0.30, 0.66) - attach a line prop / rope from there to the patient's IV port; camera over the tray: (0.0, 0.55, 1.45) looking at (0, 0, 1.0) |
 | LOD / type | lodDist 70 m, hdTextureDist 12 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 1 box METAL_HOLLOW_SMALL, 3 box PLASTIC_HIGH_DENSITY, 1 cylinder METAL_HOLLOW_SMALL (embedded composite) |
-| Textures (txd = `nz_amb_injector`) | nz_amb_injector_d 1024, nz_amb_injector_ad 512, nz_amb_injector_g 64 |
-| Mesh | 16646 tris, 13097 verts, shaders: emissive, normal_spec, normal_spec_alpha, .ydr 973 KB |
+| Textures (txd = `nz_amb_injector`) | nz_amb_injector_d 2048, nz_amb_injector_ad 512, nz_amb_injector_g 64 |
+| Mesh | 16646 tris, 13097 verts, shaders: emissive, normal_spec, normal_spec_alpha, .ydr 2346 KB |
 
 #### `nz_amb_injector_plunger` - Power-injector syringe plunger + ram (moving part of nz_amb_injector)
 
 | | |
 |---|---|
-| Config | - |
+| Config | `Config.Props.injector_plunger` |
 | Size X x Y x Z | 0.304 x 0.064 x 0.064 m (bbMin (-0.0, -0.032, -0.032), bbMax (0.304, 0.032, 0.032)) |
 | Origin / pivot | the plunger face (front of the rubber stopper) on the syringe axis |
 | Axes | ram runs along +X back into the injector head; the plunger pushes towards -X |
 | Attach / use | attach to the nz_amb_injector entity at (0.03, 0.05, 1.04) rot (0, 0, 0) (collision off); full syringe = offset 0, empty = 0.2 m along -X (x = -0.17) |
 | LOD / type | lodDist 30 m, hdTextureDist 5 m, dynamic (physics, can be attached / carried) |
 | Collision | 1 cylinder PLASTIC (embedded composite) |
-| Textures (txd = `nz_amb_injector_plunger`) | nz_amb_injector_plunger_d 128 |
-| Mesh | 832 tris, 839 verts, shaders: normal_spec, .ydr 32 KB |
+| Textures (txd = `nz_amb_injector_plunger`) | nz_amb_injector_plunger_d 256 |
+| Mesh | 1144 tris, 1129 verts, shaders: normal_spec, .ydr 85 KB |
 
 #### `nz_amb_lightbox` - X-ray film viewer (lightbox) on a rolling stand
 
@@ -814,8 +799,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Screen | nz_amb_screen - emissive light panel 0.6 x 0.75 m centred at (0, 0.1465, 1.47), UV 0..1 = whole panel, top-left = (0,0); default = white diffuser. Replace it with a DUI to show the film being read |
 | LOD / type | lodDist 80 m, hdTextureDist 12 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 1 box METAL_HOLLOW_SMALL, 1 box PLASTIC_HIGH_DENSITY, 1 cylinder METAL_HOLLOW_SMALL (embedded composite) |
-| Textures (txd = `nz_amb_lightbox`) | nz_amb_lightbox_d 512, nz_amb_lightbox_g 64, nz_amb_screen 512x512 |
-| Mesh | 11276 tris, 9444 verts, shaders: emissive, normal_spec, .ydr 435 KB |
+| Textures (txd = `nz_amb_lightbox`) | nz_amb_lightbox_d 1024, nz_amb_lightbox_g 64, nz_amb_screen 512x512 |
+| Mesh | 11276 tris, 9444 verts, shaders: emissive, normal_spec, .ydr 1259 KB |
 
 #### `nz_amb_xray_table` - Radiography table + floor-rail X-ray tube stand
 
@@ -828,8 +813,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | patient lies on the pad (surface z = 0.825) head towards +Y: attach the ped to the table entity at (0.0, 0.0, 0.825) + the lying clip's root height, rot (0, 0, 180) for a clip whose ped faces up with feet along its +Y; tube focal spot at (0.0, 0.35, 1.66), collimator light field bottom at z 1.42 (point a camera from there straight down for a 'film' view); medic stands at (+0.75, 0.0) facing -X |
 | LOD / type | lodDist 120 m, hdTextureDist 18 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 2 box METAL_SOLID_MEDIUM, 5 box PLASTIC_HIGH_DENSITY (embedded composite) |
-| Textures (txd = `nz_amb_xray_table`) | nz_amb_xray_table_d 1024, nz_amb_xray_table_g 64 |
-| Mesh | 14308 tris, 10957 verts, shaders: emissive, normal_spec, .ydr 699 KB |
+| Textures (txd = `nz_amb_xray_table`) | nz_amb_xray_table_d 2048, nz_amb_xray_table_g 64 |
+| Mesh | 14308 tris, 10957 verts, shaders: emissive, normal_spec, .ydr 2141 KB |
 
 ### Hospital equipment
 
@@ -845,8 +830,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Screen | nz_amb_screen - LCD quad 0.110 x 0.055 m (aspect 2.0) on the front panel, UV 0..1 = LCD, top-left = (0,0); default = '312 mL / 450' collection screen |
 | LOD / type | lodDist 50 m, hdTextureDist 8 m, dynamic (physics, can be attached / carried) |
 | Collision | 2 box PLASTIC_HIGH_DENSITY (embedded composite) |
-| Textures (txd = `nz_amb_blood_mixer`) | nz_amb_blood_mixer_d 512, nz_amb_blood_mixer_g 64, nz_amb_screen 256x128 |
-| Mesh | 3878 tris, 2996 verts, shaders: emissive, normal_spec, .ydr 300 KB |
+| Textures (txd = `nz_amb_blood_mixer`) | nz_amb_blood_mixer_d 1024, nz_amb_blood_mixer_g 64, nz_amb_screen 256x128 |
+| Mesh | 4198 tris, 3348 verts, shaders: emissive, normal_spec, .ydr 1049 KB |
 
 #### `nz_amb_donation_chair` - Reclining blood donation chair with padded armrests
 
@@ -859,8 +844,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | seat top z = 0.53; attach / place the donor at (0.0, -0.08, 0.53) + the sit clip's root height, rot (0, 0, 0) (ped faces +Y) - a reclined sit clip (e.g. the dentist / beach chair clips) matches the back; venepuncture site (right antecubital) rests at about (0.36, 0.06, 0.70); place nz_amb_blood_mixer on the floor at (0.62, 0.15, 0) and the IV stand at (-0.55, 0.0, 0) |
 | LOD / type | lodDist 90 m, hdTextureDist 14 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 8 box LEATHER, 2 box PLASTIC_HIGH_DENSITY (embedded composite) |
-| Textures (txd = `nz_amb_donation_chair`) | nz_amb_donation_chair_d 1024 |
-| Mesh | 12338 tris, 8604 verts, shaders: normal_spec, .ydr 828 KB |
+| Textures (txd = `nz_amb_donation_chair`) | nz_amb_donation_chair_d 2048 |
+| Mesh | 12338 tris, 8604 verts, shaders: normal_spec, .ydr 2772 KB |
 
 #### `nz_amb_surgery_tray` - Instrument tray table (stainless, two shelves) with a draped instrument set
 
@@ -873,8 +858,8 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Attach / use | drape surface z = 0.909; instruments lie in a row along X from (-0.30, -0.12) to (0.05, -0.12) with the tips towards +Y (scalpel first at x = -0.30); kidney dish (0.24, 0.10), saline bowl (0.24, -0.12), gauze (0.03, 0.12), syringe (-0.18, 0.12); place it beside the bed / X-ray table head end |
 | LOD / type | lodDist 60 m, hdTextureDist 10 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 1 box METAL_HOLLOW_SMALL, 2 box METAL_SOLID_SMALL, 4 cylinder METAL_HOLLOW_SMALL (embedded composite) |
-| Textures (txd = `nz_amb_surgery_tray`) | nz_amb_surgery_tray_d 1024, nz_amb_surgery_tray_ad 256 |
-| Mesh | 17546 tris, 15900 verts, shaders: normal_spec, normal_spec_alpha, .ydr 918 KB |
+| Textures (txd = `nz_amb_surgery_tray`) | nz_amb_surgery_tray_d 2048, nz_amb_surgery_tray_ad 256 |
+| Mesh | 18430 tris, 16895 verts, shaders: normal_spec, normal_spec_alpha, .ydr 2502 KB |
 
 #### `nz_amb_tv_board` - Waiting-room wall screen 1.6 x 0.9 m (thin bezel)
 
@@ -885,26 +870,26 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Origin / pivot | centre of the BACK face - the prop sits flat on a wall when placed at the wall surface |
 | Axes | screen faces +Y (into the room), +Z up, everything at y >= 0 (depth 0.033) |
 | Attach / use | place against a wall: position = wall surface point at the desired screen-centre height (about 2.0 - 2.3 m), heading = the wall normal's heading (screen +Y points into the room) |
-| Screen | nz_amb_screen - 1024 x 576 texture embedded in the drawable's own dictionary (txd 'nz_amb_tv_board'), quad 1.568 x 0.882 m (16:9) centred at (0, 0.0343, 0.008), UV 0..1 = visible screen, top-left = (0,0); default = black with the teal NAYZEEE mark. Replace it with a DUI (AddReplaceTexture('nz_amb_tv_board', 'nz_amb_screen', duiTxd, duiTex)) |
+| Screen | nz_amb_screen - 1024 x 576 texture embedded in the drawable's own dictionary (txd 'nz_amb_tv_board'), quad 1.568 x 0.882 m (16:9) centred at (0, 0.0343, 0.008), UV 0..1 = visible screen, top-left = (0,0); default = waiting-room information board (now serving / queue / clock). Replace it with a DUI (AddReplaceTexture('nz_amb_tv_board', 'nz_amb_screen', duiTxd, duiTex)) |
 | LOD / type | lodDist 80 m, hdTextureDist 15 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 1 box PLASTIC_HIGH_DENSITY (embedded composite) |
 | Textures (txd = `nz_amb_tv_board`) | nz_amb_tv_board_d 512, nz_amb_tv_board_g 64, nz_amb_screen 1024x576 |
-| Mesh | 424 tris, 348 verts, shaders: emissive, normal_spec, .ydr 258 KB |
+| Mesh | 424 tris, 348 verts, shaders: emissive, normal_spec, .ydr 303 KB |
 
 #### `nz_amb_us_cart` - Point-of-care ultrasound cart (eFAST) with monitor, console and probe holders
 
 | | |
 |---|---|
 | Config | `Config.Props.us_cart` |
-| Size X x Y x Z | 0.780 x 0.592 x 1.435 m (bbMin (-0.39, -0.302, 0.0), bbMax (0.39, 0.29, 1.435)) |
+| Size X x Y x Z | 0.781 x 0.592 x 1.435 m (bbMin (-0.39, -0.302, 0.0), bbMax (0.39, 0.29, 1.435)) |
 | Origin / pivot | floor, centre of the base |
 | Axes | +Y = operator side (console front, screen faces +Y), +Z up; probe holders on +X / -X |
 | Attach / use | operator stands at (0, 0.75, 0) facing -Y; the in-hand probe is nz_amb_us_probe (hide/show the parked one is not needed - the holders keep 3 probes); screen camera: from (0, 0.55, 1.30) looking at (0.0, -0.114, 1.278) |
 | Screen | nz_amb_screen - quad 0.4 x 0.25 m (aspect 1.6) centred at (0.0, -0.114, 1.278), UV 0..1 = visible screen, top-left = (0,0); default = eFAST B-mode frame |
 | LOD / type | lodDist 90 m, hdTextureDist 14 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 5 box PLASTIC_HIGH_DENSITY (embedded composite) |
-| Textures (txd = `nz_amb_us_cart`) | nz_amb_us_cart_d 1024, nz_amb_us_cart_g 64, nz_amb_screen 512x320 |
-| Mesh | 26574 tris, 21376 verts, shaders: emissive, normal_spec, .ydr 916 KB |
+| Textures (txd = `nz_amb_us_cart`) | nz_amb_us_cart_d 2048, nz_amb_us_cart_g 64, nz_amb_screen 512x320 |
+| Mesh | 28842 tris, 22954 verts, shaders: emissive, normal_spec, .ydr 2314 KB |
 
 ### Ambulance treatment bay
 
@@ -917,11 +902,11 @@ declare them); the bay shell renders interior cameras (`int_rear`, `int_front`, 
 | Origin / pivot | floor centre of the room |
 | Axes | +Y = towards the cab bulkhead, -Y = the rear doors, patient side (stretcher, O2 panel) -X, bench + counter +X, +Z up; inside 2.30 W x 4.30 L x 2.05 H, walls / floor / ceiling face inwards (a thin outer skin closes it from outside) |
 | Attach / use | stretcher: nz_amb_stretcher at (-0.42, 0.1, 0.0) heading +0 (head end towards the cab); IV hooks (bag origin = hanging slot) at (-0.18, 0.95, 1.86) and (-0.18, -0.3, 1.86); patient monitor shelf top at (-1.02, 0.3, 1.1) - place nz_amb_monitor there with rot (0, 0, -90) (screen faces +X); medic spawn (0.3, -1.62, 0.0) heading +0; exit marker (0.0, -1.9, 0.0); bench seats (0.93, -1.317 / -0.450 / 0.417, 0.5) heading +90; attendant seat (-0.42, 1.86, 0.48) heading +180; supply cabinet slots: see docs/modules/props.md section 5 |
-| Screen | nz_amb_screen - bulkhead monitor quad 0.84 x 0.4 m centred at (-0.2, 2.1045, 1.68) facing -Y, UV 0..1 = visible screen, top-left = (0,0); default = dark NAYZEEE standby (txd 'nz_amb_bay_shell') |
+| Screen | nz_amb_screen - bulkhead monitor quad 0.84 x 0.4 m centred at (-0.2, 2.1045, 1.68) facing -Y, UV 0..1 = visible screen, top-left = (0,0); default = dark standby screen with clock, cabin temperature and O2 supply (txd 'nz_amb_bay_shell') |
 | LOD / type | lodDist 120 m, hdTextureDist 25 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 4 box FIBREGLASS, 4 box LEATHER, 1 box METAL_HOLLOW_MEDIUM, 2 box METAL_SOLID_MEDIUM, 1 box METAL_SOLID_SMALL, 4 box PLASTIC_HIGH_DENSITY (embedded composite) |
-| Textures (txd = `nz_amb_bay_shell`) | nz_amb_bay_shell_d 1024, nz_amb_bay_shell_shell_d 1024, nz_amb_bay_shell_supl_d 1024, nz_amb_bay_shell_supr_d 1024, nz_amb_bay_shell_ad 256, nz_amb_bay_shell_g 128, nz_amb_screen 512x256 |
-| Mesh | 78326 tris, 65771 verts, shaders: emissive, normal_spec, normal_spec_alpha, .ydr 3086 KB |
+| Textures (txd = `nz_amb_bay_shell`) | nz_amb_bay_shell_d 2048, nz_amb_bay_shell_shell_d 2048, nz_amb_bay_shell_supl_d 1024, nz_amb_bay_shell_supr_d 1024, nz_amb_bay_shell_ad 256, nz_amb_bay_shell_g 128, nz_amb_screen 512x256 |
+| Mesh | 78416 tris, 65851 verts, shaders: emissive, normal_spec, normal_spec_alpha, .ydr 7086 KB |
 
 <!-- props:catalog:end -->
 

@@ -1,13 +1,16 @@
 /* ═══════════════════════════════════════════════════════════
-   NAYZEEE AMBULANCE · radial — EMS job menu
-   Based on the NAYZEEE UI pack "03 · Orbit" wheel, adapted to the NZA app router and
-   the in-game rules (no backdrop-filter). Centre: your name + unit status (10-8 / 10-7 /
-   ENR …); in a submenu the submenu title. Mouse angle selection like a weapon wheel.
+   NAYZEEE AMBULANCE · radial — EMS job menu ("orbit")
+   Separate round nodes on an orbit (first node at 12 o'clock), labels as dark chips
+   outside the orbit, a beam from the centre to the node under the mouse. Centre: the
+   unit badge — unit ring (6-stage ring on a call, status colour otherwise) inside the
+   duty ring (shift clock). A detail card under the orbit explains the hovered node.
+   Submenus fly out from the centre; the centre, RMB or Backspace goes back (no Back node).
+   Mouse angle selection like a weapon wheel.
 
    Lua → JS
-     open   { name, callsign, status, statusLabel, tone, items: [ { id, label, icon, desc, danger,
-              active, disabled, items: [...] } ], key: 'F6', locale }
-     header { name, status, statusLabel, tone }
+     open   { name, callsign, grade, status, statusLabel, tone, onDuty, shift, call, stage,
+              items: [ { id, label, icon, desc, danger, active, disabled, items: [...] } ], key: 'F6', locale }
+     header { same header fields }
    JS → Lua
      radial:select { id } → { close: true } | { items, header }   (toggles stay open)
    Keys: mouse / 1-9 quick pick · ←/→ move · Enter select · RMB / Backspace back · ESC / F6 close
@@ -15,103 +18,147 @@
 (() => {
   const K = window.NZD;
   const esc = NZA.esc, icon = NZA.icon;
-  const R_IN = 104, R_OUT = 226, GAP = 1.1, HALF = 270;
+  const HALF = 380, R_HUB = 98, R_ORB = 214, R_NODE = 34, R_LAB = 262;
   let tr = K ? K.tr({}) : ((k, fb) => fb);
-  let data = { items: [] }, path = [], sel = -1, busy = false, key = 'F6';
-  let el, wheel, svgEl, labsEl, hubName, hubSub, hubDesc, hubEl, footEl;
+  let data = { items: [] }, path = [], sel = -1, busy = false, key = 'F6', shiftAt = 0, shiftT = 0;
+  let el, wheel, svgEl, nodesEl, hubEl, infoEl, footEl;
 
-  const pt = (r, deg) => [r * Math.cos(deg * Math.PI / 180), r * Math.sin(deg * Math.PI / 180)];
-  function arc(r1, r2, a0, a1) {
-    const large = a1 - a0 > 180 ? 1 : 0;
-    const [x0, y0] = pt(r2, a0), [x1, y1] = pt(r2, a1), [x2, y2] = pt(r1, a1), [x3, y3] = pt(r1, a0);
-    return `M${x0} ${y0}A${r2} ${r2} 0 ${large} 1 ${x1} ${y1}L${x2} ${y2}A${r1} ${r1} 0 ${large} 0 ${x3} ${y3}Z`;
-  }
-  function stroke(r, a0, a1) {
+  const pt = (r, deg) => [+(r * Math.cos(deg * Math.PI / 180)).toFixed(2), +(r * Math.sin(deg * Math.PI / 180)).toFixed(2)];
+  function arc(r, a0, a1) {
     const [x0, y0] = pt(r, a0), [x1, y1] = pt(r, a1);
     return `M${x0} ${y0}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1} ${y1}`;
   }
 
-  // current ring: root items, or a submenu with a Back segment at the bottom
+  // current ring: root items, or a submenu
   function ring() {
     let list = data.items || [];
     const titles = [];
     for (const id of path) {
       const it = list.find(x => x.id === id);
       if (!it || !it.items) break;
-      titles.push(it.label);
+      titles.push(it);
       list = it.items;
     }
-    if (path.length) {
-      list = list.slice();
-      const n = list.length + 1;
-      const backAt = Math.min(list.length, Math.round(n / 2 + 0.5) - 0);
-      list.splice(Math.min(backAt, list.length), 0, { id: '__back', label: tr('r_back', 'Back'), icon: 'arrow-l', back: true });
-    }
-    return { list, title: titles[titles.length - 1] || null };
+    return { list, parent: titles[titles.length - 1] || null };
   }
-  const step = () => 360 / Math.max(1, ring().list.length);
-  const center = i => -90 - step() / 2 + i * step();
+  const angleOf = (i, n) => -90 + i * (360 / Math.max(1, n));
+
+  /* ── static decoration + hub rings ── */
+  function hubRings() {
+    const onDuty = data.onDuty !== false;
+    const st = data.status || (onDuty ? '10-8' : '10-7');
+    const onCall = K && K.STAGES.includes(st);
+    let unit = '';
+    if (onCall) {
+      const ci = K.stageIdx(st);
+      unit = K.STAGES.map((s, i) => `<path class="u-seg ${i < ci ? 'dn' : i === ci ? 'cur' : ''}" d="${arc(78, -90 + i * 60 + 4, -90 + (i + 1) * 60 - 4)}"/>`).join('');
+    } else {
+      unit = `<circle class="u-full ${!onDuty ? 'off' : st === '10-7' ? 'amber' : 'teal'}" r="78"/>`;
+    }
+    const sh = Math.max(0, Number(data.shift) || 0) + (shiftAt ? (performance.now() - shiftAt) / 1000 : 0);
+    const frac = onDuty ? (sh % 3600) / 3600 : 0;
+    let ticks = '';
+    for (let i = 0; i < 60; i++) {
+      const a = -90 + i * 6, [x0, y0] = pt(i % 5 ? 92 : 90, a), [x1, y1] = pt(95, a);
+      ticks += `<line class="${i / 60 < frac ? 'on' : ''} ${i % 5 ? '' : 'q'}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`;
+    }
+    return `<g class="rd-hubrings"><circle class="h-face" r="${R_HUB}"/>${ticks}${frac > 0 ? `<path class="d-arc" d="${arc(86.5, -90, -90 + Math.max(1, frac * 360 - 0.01))}"/>` : ''}<circle class="u-trk" r="78"/>${unit}</g>`;
+  }
 
   function render(animate = true) {
     const { list } = ring();
     const n = list.length, s = 360 / Math.max(1, n);
-    let svg = `<defs><radialGradient id="rd-g" cx="0" cy="0" r="${R_OUT}" gradientUnits="userSpaceOnUse"><stop offset="${R_IN / R_OUT}" stop-color="#0d1011" stop-opacity=".95"/><stop offset="1" stop-color="#08090a" stop-opacity=".9"/></radialGradient>
-      <linearGradient id="rd-t" x1="0" y1="-1" x2="0" y2="1"><stop offset="0" stop-color="#0fd4c4"/><stop offset="1" stop-color="#067d74"/></linearGradient></defs>`;
-    svg += `<circle class="rd-disc" r="${R_OUT + 14}"/><circle class="rd-dash" r="${R_OUT + 22}"/>`;
-    for (let t = 0; t < 72; t++) {
-      const [x0, y0] = pt(R_OUT + 6, t * 5), [x1, y1] = pt(t % 6 ? R_OUT + 9 : R_OUT + 12, t * 5);
-      svg += `<line class="rd-tick" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`;
-    }
-    svg += '<g class="rd-segs">' + list.map((it, i) => {
-      const c = -90 - s / 2 + i * s;
-      const cls = ['rd-seg', it.danger ? 'danger' : '', it.active ? 'act' : '', it.disabled ? 'off' : '', it.back ? 'back' : ''].join(' ');
-      return `<path class="${cls}" data-i="${i}" d="${arc(R_IN, R_OUT, c - s / 2 + GAP, c + s / 2 - GAP)}"/>`;
-    }).join('') + '<path class="rd-halo" d="" opacity="0"/></g>';
-    svgEl.innerHTML = svg;
+    let orbTicks = '';
+    for (let a = 0; a < 360; a += 3) { const [x0, y0] = pt(R_ORB + 46, a), [x1, y1] = pt(a % 30 ? R_ORB + 49 : R_ORB + 54, a); orbTicks += `<line class="${a % 30 ? '' : 'q'}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; }
+    svgEl.innerHTML = `
+      <defs>
+        <radialGradient id="rd-dim" cx="0" cy="0" r="330" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#000" stop-opacity=".62"/><stop offset=".72" stop-color="#000" stop-opacity=".42"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+        <radialGradient id="rd-face" cx="0" cy="-30" r="${R_HUB + 20}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#1a1f22"/><stop offset=".75" stop-color="#0a0c0d"/><stop offset="1" stop-color="#060707"/></radialGradient>
+        <linearGradient id="rd-beam" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0fd4c4" stop-opacity="0"/><stop offset="1" stop-color="#0fd4c4" stop-opacity=".9"/></linearGradient>
+      </defs>
+      <circle r="340" fill="url(#rd-dim)"/>
+      <circle class="rd-guide" r="${R_ORB - R_NODE - 18}"/>
+      <circle class="rd-orbit" r="${R_ORB}"/>
+      <g class="rd-otk">${orbTicks}</g>
+      ${list.map((it, i) => { const [x, y] = pt(R_ORB, angleOf(i, n)); return `<circle class="rd-pad ${it.danger ? 'danger' : ''}" cx="${x}" cy="${y}" r="${R_NODE + 7}"/>`; }).join('')}
+      <path class="rd-sel" d="" opacity="0"/>
+      <line class="rd-beam" x1="0" y1="0" x2="0" y2="0" opacity="0"/>
+      ${hubRings()}`;
 
-    const mid = (R_IN + R_OUT) / 2 + 4;
-    labsEl.innerHTML = list.map((it, i) => {
-      const [x, y] = pt(mid, -90 - s / 2 + i * s);
-      const cls = ['rd-lab', it.danger ? 'danger' : '', it.active ? 'act' : '', it.disabled ? 'off' : '', it.back ? 'back' : ''].join(' ');
-      return `<div class="${cls}" data-i="${i}" style="left:${HALF + x}px;top:${HALF + y}px">
-        ${it.back ? '' : `<span class="num">${list.slice(0, i).filter(z => !z.back).length + 1}</span>`}
-        ${icon(it.icon || 'more')}<span class="t">${esc(it.label)}</span>${it.items && !it.disabled ? '<i class="sub"></i>' : ''}${it.active ? `<em>${esc(tr('r_on', 'ON'))}</em>` : ''}</div>`;
+    nodesEl.innerHTML = list.map((it, i) => {
+      const a = angleOf(i, n), [x, y] = pt(R_ORB, a), [lx, ly] = pt(R_LAB, a);
+      const c = Math.cos(a * Math.PI / 180), sn = Math.sin(a * Math.PI / 180);
+      const kx = Math.max(-1, Math.min(1, c * 1.8));
+      const ky = Math.abs(c) < 0.45 ? (sn < 0 ? -1 : 1) : 0;
+      const cls = [it.danger ? 'danger' : '', it.active ? 'act' : '', it.disabled ? 'off' : '', it.items ? 'grp' : ''].join(' ');
+      return `<div class="rd-node ${cls}" data-i="${i}" style="left:${HALF + x}px;top:${HALF + y}px;--dx:${-x}px;--dy:${-y}px;--d:${i * 28}ms">
+          <span class="disc">${icon(it.icon || 'more')}</span>
+          <span class="num">${i + 1}</span>
+          ${it.active ? `<span class="on">${esc(tr('r_on', 'ON'))}</span>` : ''}
+          ${it.disabled ? `<span class="lock">${icon('lock')}</span>` : ''}
+        </div>
+        <div class="rd-lab ${cls}" data-i="${i}" style="left:${HALF + lx}px;top:${HALF + ly}px;transform:translate(calc(-50% + ${(50 * kx).toFixed(1)}%),calc(-50% + ${(50 * ky).toFixed(1)}%));--d:${i * 28 + 90}ms">
+          <b>${esc(it.label)}</b>${it.items && !it.disabled ? `<small>${esc(K ? K.fmt(tr('r_options', '%d options'), it.items.length) : it.items.length)}</small>` : ''}</div>`;
     }).join('');
-    if (animate) ['.rd-segs', '.rd-labs'].forEach(q => { const e = el.querySelector(q); e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; });
+    if (animate) { nodesEl.classList.remove('fly'); void nodesEl.offsetWidth; nodesEl.classList.add('fly'); }
+    header();
     highlight(-1);
   }
 
   function header() {
     const r = ring();
+    const onDuty = data.onDuty !== false;
+    const st = data.status || (onDuty ? '10-8' : '10-7');
     hubEl.classList.toggle('sub', path.length > 0);
-    hubName.textContent = data.name || '';
     if (path.length) {
-      hubSub.innerHTML = `<span class="rd-title">${esc(String(r.title || '').toUpperCase())}</span>`;
+      hubEl.innerHTML = `
+        <span class="hb-back">${icon('arrow-l')}<span>${esc(tr('r_back', 'Back'))}</span></span>
+        <span class="hb-ic">${icon(r.parent.icon || 'more')}</span>
+        <b class="hb-title">${esc(r.parent.label || '')}</b>
+        <span class="hb-cs">${esc(data.callsign || data.name || '')}</span>`;
     } else {
-      hubSub.innerHTML = `<span class="rd-st ${esc(data.tone || 'off')}"><i></i><b>${esc(data.status || '10-7')}</b>${data.statusLabel ? `<span>${esc(data.statusLabel)}</span>` : ''}</span>`;
+      const word = data.statusLabel || (K ? K.unitWord(st, tr) : st);
+      hubEl.innerHTML = `
+        <span class="hb-k">${esc(onDuty ? tr('r_unit', 'Unit') : tr('r_shift_off', 'Off shift'))}</span>
+        <b class="hb-cs">${esc(data.callsign || data.name || '')}</b>
+        <span class="hb-nm">${esc(data.callsign ? data.name || '' : data.grade || '')}</span>
+        <span class="hb-st ${esc(data.tone || 'off')}"><i></i>${esc(word)}</span>
+        ${onDuty ? `<span class="hb-sh">${icon('clock')}<b data-shift>${shiftText()}</b></span>` : ''}`;
     }
+    const rings = svgEl.querySelector('.rd-hubrings');
+    if (rings) rings.outerHTML = hubRings();
+  }
+  function shiftText() {
+    const sh = Math.max(0, Number(data.shift) || 0) + (shiftAt ? (performance.now() - shiftAt) / 1000 : 0);
+    const h = Math.floor(sh / 3600), m = Math.floor((sh % 3600) / 60);
+    return `${h}:${String(m).padStart(2, '0')}`;
   }
 
   function highlight(i) {
     sel = i;
     const { list } = ring();
-    const s = 360 / Math.max(1, list.length);
-    el.querySelectorAll('.rd-seg').forEach(p => p.classList.toggle('on', +p.dataset.i === i));
-    el.querySelectorAll('.rd-lab').forEach(p => p.classList.toggle('on', +p.dataset.i === i));
-    const halo = el.querySelector('.rd-halo');
+    const n = list.length, s = 360 / Math.max(1, n);
+    el.querySelectorAll('.rd-node,.rd-lab').forEach(p => p.classList.toggle('sel', +p.dataset.i === i));
+    const selArc = svgEl.querySelector('.rd-sel'), beam = svgEl.querySelector('.rd-beam');
     const it = list[i];
-    header();
     if (it) {
-      const c = -90 - s / 2 + i * s;
-      halo.setAttribute('d', stroke(R_OUT + 7, c - s / 2 + GAP + 1.5, c + s / 2 - GAP - 1.5));
-      halo.setAttribute('class', `rd-halo ${it.danger ? 'danger' : ''} ${it.disabled ? 'off' : ''}`);
-      halo.setAttribute('opacity', '1');
-      hubDesc.textContent = it.back ? tr('r_back_d', 'Back to the previous menu') : (it.desc || (it.items ? K.fmt(tr('r_options', '%d options'), it.items.length) : tr('r_click', 'Click to confirm')));
-      hubDesc.classList.toggle('warn', !!it.disabled);
+      const a = angleOf(i, n);
+      const span = Math.min(s / 2 - 6, 22);
+      selArc.setAttribute('d', arc(R_ORB, a - span, a + span));
+      selArc.setAttribute('class', `rd-sel ${it.danger ? 'danger' : ''} ${it.disabled ? 'off' : ''}`);
+      selArc.setAttribute('opacity', '1');
+      const [x0, y0] = pt(R_HUB + 4, a), [x1, y1] = pt(R_ORB - R_NODE - 6, a);
+      beam.setAttribute('x1', x0); beam.setAttribute('y1', y0); beam.setAttribute('x2', x1); beam.setAttribute('y2', y1);
+      beam.setAttribute('class', `rd-beam ${it.danger ? 'danger' : ''} ${it.disabled ? 'off' : ''}`);
+      beam.setAttribute('opacity', '1');
+      const desc = it.desc || (it.items ? K.fmt(tr('r_options', '%d options'), it.items.length) : tr('r_click', 'Click to use'));
+      infoEl.className = `rd-info on ${it.danger ? 'danger' : ''} ${it.disabled ? 'off' : ''} ${it.active ? 'act' : ''}`;
+      infoEl.innerHTML = `<span class="ii">${icon(it.disabled ? 'lock' : it.icon || 'more')}</span><div><b>${esc(it.label)}${it.active ? `<em>${esc(tr('r_on', 'ON'))}</em>` : ''}</b><p>${esc(desc)}</p></div><span class="ik"><kbd>${i + 1}</kbd></span>`;
     } else {
-      halo.setAttribute('opacity', '0');
-      hubDesc.textContent = path.length ? tr('r_hint_sub', 'Right click to go back') : tr('r_hint', 'Move the mouse to choose');
-      hubDesc.classList.remove('warn');
+      selArc.setAttribute('opacity', '0');
+      beam.setAttribute('opacity', '0');
+      infoEl.className = 'rd-info';
+      infoEl.innerHTML = `<span class="ii">${icon('mouse')}</span><div><b>${esc(path.length ? tr('r_hint_sub', 'Right click or the centre to go back') : tr('r_hint', 'Point at an option'))}</b></div>`;
     }
   }
 
@@ -124,9 +171,10 @@
     const { list } = ring();
     const it = list[i];
     if (!it || busy) return;
-    if (it.back) return back();
     if (it.disabled) return shake();
     NZA.audio.click(880);
+    const node = el.querySelector(`.rd-node[data-i="${i}"]`);
+    if (node) { node.classList.remove('hit'); void node.offsetWidth; node.classList.add('hit'); }
     if (it.items) { path.push(it.id); render(); return; }
     busy = true;
     const res = await NZA.post('radial:select', { id: it.id });
@@ -148,10 +196,11 @@
     const r = wheel.getBoundingClientRect();
     const z = r.width / (HALF * 2);
     const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-    if (Math.hypot(dx, dy) < (R_IN - 12) * z) { if (sel !== -1) highlight(-1); return; }
+    if (Math.hypot(dx, dy) < R_HUB * z) { if (sel !== -1) highlight(-1); return; }
     const n = ring().list.length, s = 360 / Math.max(1, n);
+    if (!n) return;
     const a = Math.atan2(dy, dx) * 180 / Math.PI;
-    const i = Math.floor((((a - (-90 - s)) % 360) + 360) % 360 / s) % n;
+    const i = Math.round((((a + 90) % 360) + 360) % 360 / s) % n;
     if (i !== sel) { highlight(i); NZA.audio.tick(); }
   }
 
@@ -163,25 +212,18 @@
       root.innerHTML = `
         <div class="rd-wrap">
           <div class="rd-wheel">
-            <svg viewBox="-270 -270 540 540"></svg>
-            <div class="rd-labs"></div>
-            <div class="rd-hub">
-              <span class="nz-mark sm"></span>
-              <span class="rd-back">${icon('chev-l')}<span></span></span>
-              <b class="rd-name"></b>
-              <div class="rd-sub"></div>
-              <p class="rd-desc"></p>
-            </div>
+            <svg viewBox="-${HALF} -${HALF} ${HALF * 2} ${HALF * 2}"></svg>
+            <div class="rd-nodes"></div>
+            <div class="rd-hub"></div>
           </div>
+          <div class="rd-info"></div>
           <div class="rd-foot"></div>
         </div>`;
       wheel = root.querySelector('.rd-wheel');
       svgEl = root.querySelector('svg');
-      labsEl = root.querySelector('.rd-labs');
+      nodesEl = root.querySelector('.rd-nodes');
       hubEl = root.querySelector('.rd-hub');
-      hubName = root.querySelector('.rd-name');
-      hubSub = root.querySelector('.rd-sub');
-      hubDesc = root.querySelector('.rd-desc');
+      infoEl = root.querySelector('.rd-info');
       footEl = root.querySelector('.rd-foot');
       window.addEventListener('mousemove', onMove);
       // the menu key closes the menu again
@@ -203,59 +245,59 @@
       if (d && d.locale && K) tr = K.tr(d.locale);
       key = (d && d.key) || 'F6';
       path = []; busy = false;
-      el.querySelector('.rd-back span').textContent = tr('r_back', 'Back');
-      footEl.innerHTML = `<span><span class="nz-key">LMB</span>${esc(tr('r_f_select', 'Select'))}</span><span><span class="nz-key">RMB</span>${esc(tr('r_back', 'Back'))}</span>` +
-        `<span><span class="nz-key">1-9</span>${esc(tr('r_f_quick', 'Quick pick'))}</span><span><span class="nz-key">${esc(key)}</span>${esc(tr('r_f_close', 'Close'))}</span><span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>`;
+      shiftAt = performance.now();
+      footEl.innerHTML = `<span><kbd>LMB</kbd>${esc(tr('r_f_select', 'Use'))}</span><span><kbd>RMB</kbd>${esc(tr('r_back', 'Back'))}</span>` +
+        `<span><kbd>1-9</kbd>${esc(tr('r_f_quick', 'Quick pick'))}</span><span><kbd>${esc(key)}</kbd>${esc(tr('r_f_close', 'Close'))}</span><span class="nz-sig"><span class="nz-mark xs"></span>NAYZEEE</span>`;
       wheel.classList.remove('in'); void wheel.offsetWidth; wheel.classList.add('in');
       render();
+      clearInterval(shiftT);
+      shiftT = setInterval(() => { const s = hubEl.querySelector('[data-shift]'); if (s) s.textContent = shiftText(); }, 15000);
     },
-    close() { path = []; sel = -1; },
+    close() { path = []; sel = -1; clearInterval(shiftT); },
     msg: {
-      header(h) { Object.assign(data, h || {}); header(); },
+      header(h) { Object.assign(data, h || {}); shiftAt = performance.now(); header(); },
     },
     keys: {
       Escape() { NZA.close('radial'); },
       Backspace() { back(); },
       Enter() { if (sel >= 0) pick(sel); },
-      ArrowRight() { const n = ring().list.length; highlight((sel + 1 + n) % n); },
-      ArrowLeft() { const n = ring().list.length; highlight(((sel < 0 ? 0 : sel) - 1 + n) % n); },
+      ArrowRight() { const n = ring().list.length; if (n) highlight((sel + 1 + n) % n); },
+      ArrowLeft() { const n = ring().list.length; if (n) highlight(((sel < 0 ? 0 : sel) - 1 + n) % n); },
       1() { quick(1); }, 2() { quick(2); }, 3() { quick(3); }, 4() { quick(4); }, 5() { quick(5); },
       6() { quick(6); }, 7() { quick(7); }, 8() { quick(8); }, 9() { quick(9); },
     },
     preview() {
       NZA.mock('radial:select', d => {
         if (d.id === 'd_npc') { const it = data.items[0].items.find(x => x.id === 'd_npc'); it.active = !it.active; return { items: data.items }; }
-        NZA.toast({ title: 'Radial', message: `Selected ${d.id}`, type: 'info' });
+        NZA.toast({ title: 'Job menu', message: `Selected ${d.id}`, type: 'info' });
         return { close: true };
       });
       NZA.demo('radial', {
-        name: 'John Doe', callsign: 'Unit 04', status: '10-8', statusLabel: 'Available', tone: 'teal', key: 'F6',
+        name: 'Dana Whitfield', callsign: 'Medic 12', grade: 'Paramedic', status: 'ENR', statusLabel: 'Rolling', tone: 'amber', onDuty: true, shift: 8040, call: 'C-0416', key: 'F6',
         items: [
-          { id: 'dispatch', label: 'Dispatch', icon: 'broadcast', desc: 'Calls, units, queue and map', items: [
-            { id: 'd_log', label: 'Call log', icon: 'list' }, { id: 'd_queue', label: 'Hospital queue', icon: 'users' },
-            { id: 'd_map', label: 'Unit map', icon: 'map' }, { id: 'd_npc', label: 'NPC calls', icon: 'call', active: true, desc: 'You receive NPC calls' },
-            { id: 'd_respond', label: 'Respond', icon: 'siren', desc: 'Respond to the most urgent open call' },
-            { id: 'd_clear', label: 'Clear call', icon: 'x', danger: true, disabled: true, desc: 'You are not on a call' },
-            { id: 'd_status', label: 'Out of service', icon: 'pause', desc: 'Go 10-7, no call cards' },
+          { id: 'dispatch', label: 'Calls', icon: 'broadcast', desc: 'Take calls, see the live map and the logbook', items: [
+            { id: 'd_respond', label: 'Take next call', icon: 'siren', desc: 'Take the most urgent open call' },
+            { id: 'd_clear', label: 'Stand down', icon: 'x', danger: true, desc: 'Leave C-0416 and become available' },
+            { id: 'd_map', label: 'Live map', icon: 'map' }, { id: 'd_log', label: 'Logbook', icon: 'list' },
+            { id: 'd_queue', label: 'ER intake', icon: 'hospital' },
+            { id: 'd_npc', label: 'Street calls', icon: 'call', active: true, desc: 'Locals can page you. Click to stop.' },
+            { id: 'd_status', label: 'Go unavailable', icon: 'pause', disabled: true, desc: 'Stand down from your call first' },
             { id: 'd_pager', label: 'Pager', icon: 'pager' },
           ] },
-          { id: 'patient', label: 'Patient', icon: 'person', desc: 'Nearest patient', items: [
-            { id: 'p_exam', label: 'Examine', icon: 'stetho' }, { id: 'p_pulse', label: 'Check pulse', icon: 'pulse' },
-            { id: 'p_breath', label: 'Check breathing', icon: 'lungs' }, { id: 'p_walk', label: 'Ask to walk', icon: 'walk' },
+          { id: 'patient', label: 'Care', icon: 'heart', desc: 'Treat the closest patient', items: [
+            { id: 'p_exam', label: 'Head-to-toe', icon: 'stetho' }, { id: 'p_pulse', label: 'Pulse', icon: 'pulse' },
+            { id: 'p_breath', label: 'Breathing', icon: 'lungs' }, { id: 'p_walk', label: 'Walk them', icon: 'walk' },
           ] },
-          { id: 'duty', label: 'Go off duty', icon: 'power', danger: true, desc: 'Sign out and stop receiving calls' },
-          { id: 'stretcher', label: 'Stretcher', icon: 'bed', disabled: true, desc: 'No stretcher nearby' },
+          { id: 'stretcher', label: 'Gurney', icon: 'bed', disabled: true, desc: 'No gurney close by' },
+          { id: 'duty', label: 'End shift', icon: 'logout', danger: true, desc: 'Clock out and stop getting paged' },
         ],
       });
-      path = ['dispatch']; render(); highlight(3);
+      path = ['dispatch']; render(); highlight(5);
     },
   });
 
   function quick(n) {
     const { list } = ring();
-    const real = list.filter(x => !x.back);
-    const it = real[n - 1];
-    if (!it) return;
-    pick(list.indexOf(it));
+    if (list[n - 1]) pick(n - 1);
   }
 })();

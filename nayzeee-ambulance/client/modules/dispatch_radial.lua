@@ -1,11 +1,12 @@
 --[[
     NAYZEEE AMBULANCE - Dispatch (client): EMS radial job menu (NUI app 'radial')
 
-    Opened with Config.Dispatch.radial.key (F6) by medics, on or off duty. The centre
-    shows your name and unit status (10-8 available, 10-7 out of service, ENR/SCN/…).
-    Root: Dispatch, Patient, Stretcher, Go on/off duty + every root item other modules add.
-    Dispatch: call log, hospital queue, unit map, NPC calls (toggle), respond, clear call,
-    out of service, pager, back.
+    Opened with Config.Dispatch.radial.key (F6) by medics, on or off duty. Round nodes on an
+    orbit; the centre is the unit badge: callsign + name, status word, the unit ring (6-stage
+    ring while on a call) inside the duty ring (shift clock).
+    Root (clockwise from 12): Calls, Care, Gurney, Start/End shift + every root item other
+    modules add. Calls: take next call, stand down, live map, logbook, ER intake, street calls
+    (toggle), go (un)available, pager. Back = centre / right click (no back node).
 
     Other modules add entries at their file top level:
       NZA.RadialItems = NZA.RadialItems or {}
@@ -52,27 +53,35 @@ local function board(tab) return function() if D.OpenBoard then D.OpenBoard(tab)
 
 local function builtins()
     local m = me()
+    -- root ring, clockwise from 12 o'clock: Calls · Care · Gurney · Shift
     local list = {
         { id = 'dispatch', label = L('dispatch.r_dispatch'), icon = 'broadcast', order = 10, desc = L('dispatch.r_dispatch_d'),
           disabledText = (not onDuty()) and L('dispatch.r_need_duty') or nil },
-        { id = 'patient', label = L('dispatch.r_patient'), icon = 'person', order = 20, desc = L('dispatch.r_patient_d'),
+        { id = 'patient', label = L('dispatch.r_patient'), icon = 'heart', order = 20, desc = L('dispatch.r_patient_d'),
           emptyText = L('dispatch.r_patient_empty') },
-        { id = 'stretcher', label = L('dispatch.r_stretcher'), icon = 'bed', order = 40, desc = L('dispatch.r_stretcher_d'),
+        { id = 'stretcher', label = L('dispatch.r_stretcher'), icon = 'bed', order = 30, desc = L('dispatch.r_stretcher_d'),
           emptyText = L('dispatch.r_stretcher_empty') },
     }
     if cfg('radial', 'dutyToggle', true) then
         list[#list + 1] = {
-            id = 'duty', label = onDuty() and L('dispatch.r_duty_off') or L('dispatch.r_duty_on'), icon = 'power', order = 30,
+            id = 'duty', label = onDuty() and L('dispatch.r_duty_off') or L('dispatch.r_duty_on'), icon = onDuty() and 'logout' or 'login', order = 40,
             danger = onDuty(), desc = onDuty() and L('dispatch.r_duty_off_d') or L('dispatch.r_duty_on_d'),
             onSelect = function() D.SetDuty(not onDuty()) end,
         }
     end
     if onDuty() then
+        -- Calls ring, clockwise from 12 o'clock
         local dsp = {
-            { id = 'd_log', label = L('dispatch.r_log'), icon = 'list', order = 10, onSelect = board('log') },
-            { id = 'd_queue', label = L('dispatch.r_queue'), icon = 'users', order = 20, onSelect = board('queue') },
+            { id = 'd_respond', label = L('dispatch.r_respond'), icon = 'siren', order = 10, desc = L('dispatch.r_respond_d'),
+              onSelect = function() D.Respond() end },
+            { id = 'd_clear', label = L('dispatch.r_clear'), icon = 'x', order = 20, danger = true,
+              disabledText = (not m.call) and L('dispatch.err_not_on_call') or nil,
+              desc = m.call and L('dispatch.r_clear_d', m.call) or nil,
+              onSelect = function() D.Clear() end },
             { id = 'd_map', label = L('dispatch.r_map'), icon = 'map', order = 30, onSelect = board('map') },
-            { id = 'd_npc', label = L('dispatch.r_npc'), icon = 'call', order = 40, keepOpen = true,
+            { id = 'd_log', label = L('dispatch.r_log'), icon = 'list', order = 40, onSelect = board('log') },
+            { id = 'd_queue', label = L('dispatch.r_queue'), icon = 'hospital', order = 50, onSelect = board('queue') },
+            { id = 'd_npc', label = L('dispatch.r_npc'), icon = 'call', order = 60, keepOpen = true,
               active = function() return me().npc == true end,
               desc = m.npc and L('dispatch.r_npc_on') or L('dispatch.r_npc_off'),
               onSelect = function()
@@ -80,14 +89,8 @@ local function builtins()
                   me().npc = on
                   D.SetNpcCalls(on)
               end },
-            { id = 'd_respond', label = L('dispatch.r_respond'), icon = 'siren', order = 60, desc = L('dispatch.r_respond_d'),
-              onSelect = function() D.Respond() end },
-            { id = 'd_clear', label = L('dispatch.r_clear'), icon = 'x', order = 70, danger = true,
-              disabledText = (not m.call) and L('dispatch.err_not_on_call') or nil,
-              desc = m.call and L('dispatch.r_clear_d', m.call) or nil,
-              onSelect = function() D.Clear() end },
             { id = 'd_status', label = m.oos and L('dispatch.r_in_service') or L('dispatch.r_oos'), icon = m.oos and 'play' or 'pause',
-              order = 80, keepOpen = true, active = function() return me().oos == true end,
+              order = 70, keepOpen = true, active = function() return me().oos == true end,
               desc = m.oos and L('dispatch.r_in_service_d') or L('dispatch.r_oos_d'),
               disabledText = m.call and L('dispatch.r_oos_busy') or nil,
               onSelect = function()
@@ -98,7 +101,7 @@ local function builtins()
               end },
         }
         if cfg('pager', 'enabled', true) ~= false then
-            dsp[#dsp + 1] = { id = 'd_pager', label = L('dispatch.r_pager'), icon = 'pager', order = 90,
+            dsp[#dsp + 1] = { id = 'd_pager', label = L('dispatch.r_pager'), icon = 'pager', order = 80,
                 disabledText = (not D.HasPager()) and L('dispatch.err_no_pager') or nil,
                 onSelect = function() D.TogglePager() end }
         end
@@ -183,17 +186,30 @@ local function build()
     return out
 end
 
-local STATUS_TONE = { ['10-8'] = 'teal', ['10-7'] = 'off', ENR = 'amber', SCN = 'red', CARE = 'red', TRN = 'white', HSP = 'teal' }
+local STATUS_TONE = { ['10-8'] = 'teal', ['10-7'] = 'amber', DSP = 'amber', ENR = 'amber', SCN = 'red', CARE = 'red', TRN = 'white', HSP = 'teal' }
+
+-- shift clock for the duty ring in the centre (counted from the first moment we see you on duty)
+local shiftStart = nil
+local function shiftSeconds()
+    if not onDuty() then shiftStart = nil return 0 end
+    shiftStart = shiftStart or GetGameTimer()
+    return math.floor((GetGameTimer() - shiftStart) / 1000)
+end
 
 local function header()
     local m = me()
-    local status = onDuty() and (m.status or '10-8') or '10-7'
+    local duty = onDuty()
+    local status = duty and (m.status or '10-8') or '10-7'
     return {
         name = m.name or GetPlayerName(PlayerId()),
-        callsign = onDuty() and m.callsign or nil,
+        callsign = duty and m.callsign or nil,
+        grade = m.grade,
         status = status,
-        statusLabel = L('dispatch.unit_' .. status:gsub('%-', '')),
-        tone = STATUS_TONE[status] or 'off',
+        statusLabel = duty and L('dispatch.unit_' .. status:gsub('%-', '')) or L('dispatch.r_shift_off'),
+        tone = duty and (STATUS_TONE[status] or 'off') or 'off',
+        onDuty = duty,
+        shift = shiftSeconds(),
+        call = m.call,
     }
 end
 
@@ -249,6 +265,7 @@ NZA.Bus.On('ui:closed', function(app)
 end)
 
 NZA.Bus.On('dispatch:me', function()
+    shiftSeconds()   -- starts / resets the shift clock as soon as the duty state changes
     if isOpen and NZA.UI.IsOpen(APP) then
         NZA.UI.Send(APP, 'header', header())
     end

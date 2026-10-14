@@ -1,12 +1,14 @@
 --[[
     NAYZEEE AMBULANCE - Dispatch (client): the pager device (NUI app 'pager')
 
-    A NAYZEEE pager with a backlit LCD, bottom right. It needs Config.Items.pager (unless
-    Config.Dispatch.pager.requireItem = false). It pops up by itself when a call comes in
-    (no focus, beeps, LED blinks) and stays on screen while you are on a call. Take it in
-    your hand with the pager key / the item / /pager to use the buttons:
-      ◀ menu / back   ▲ ▼ scroll calls or menu   BACK = decline / back   Y = acknowledge (respond)
-    Menu: calls, pair with phone, mute, history, status (10-8 / 10-7), NPC calls, clear call.
+    An "RX-10" two-way receiver (generic device, no brand), bottom right: teal OLED glass,
+    jog pad + ✕ key. It needs Config.Items.pager (unless Config.Dispatch.pager.requireItem =
+    false). It pops up by itself when a call comes in (no focus, beeps, MSG LED blinks) and
+    stays on screen while you are on a call. Take it in your hand with the pager key / the
+    item / /pager to use the keys:
+      ◀ setup / back   ▲ ▼ scroll calls or setup   ✕ (Backspace) = pass / back   ● (Y) = take
+    Setup: call list, link phone, silent, street calls, availability (10-8 / 10-7), page log,
+    stand down.
 
     NUI callbacks: pager:ack {id} · pager:decl {id} · pager:clear · pager:gps {id} · pager:pair {on}
                    pager:mute {on} · pager:npc {on} · pager:status {code} · pager:hide
@@ -307,8 +309,8 @@ CreateThread(function()
             local live = { time = clock(), calls = {} }
             local n = 0
             for _, c in ipairs(D.Calls and D.Calls() or {}) do
-                local dist, dir, _, eta = D.Live(c)
-                local entry = { dist = dist, dir = dir, eta = eta }
+                local dist, dir, rel, eta = D.Live(c)
+                local entry = { dist = dist, dir = dir, rel = rel, eta = eta }
                 local start = P.startDist[c.id]
                 if start and start > 1 then entry.prog = math.max(0.0, math.min(1.0, 1.0 - dist / start)) end
                 live.calls[c.id] = entry
