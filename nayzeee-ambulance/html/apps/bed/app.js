@@ -1,9 +1,12 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · app 'bed'
-   mode 'ai'   cinematic AI doctor treatment: letterbox, step timeline with timers,
-               live bedside monitor (NZA.vitals.Monitor), bill with insurance cover,
-               doctor subtitles, completion summary.
-   mode 'rest' bed rest HUD: rest timer, healing ×4, recovery per injury, get-up key.
+   mode 'ai'   cinematic AI doctor treatment: letterbox; care-plan card top-left (progress
+               ring around a rolling time-left counter, vertical step spine with a live
+               ring on the current node); generic patient monitor + cost card top-right;
+               doctor lines through NZA.speech (top-centre voice card); discharge card.
+   mode 'rest' bed rest card on the right edge: recovery ring, rolling rest timer,
+               instrument list, per-injury healing rings, get-up key.
+   No product name or logo on the monitor face (generic model code + labels).
 
    Lua → JS   open { mode, session | point/bed/how, keys { getUp, hospitalGetUp, cam, hold }, cinematic, locale, clock }
               step { index, elapsed } · vitals {…} · done { bill, paid, amount, unpaid, msg }
@@ -35,7 +38,7 @@
     discharge: "All done. Take it easy for a few days — you're good to go.",
   };
 
-  const S = { el: null, mode: null, ses: null, recv: 0, base: 0, mon: null, flip: null, rflip: null, raf: 0, timer: 0, cam: true, keys: {}, done: false, rest: null, restRecv: 0, lastIdx: -1, sayTimer: 0, hidden: true };
+  const S = { el: null, mode: null, ses: null, recv: 0, base: 0, mon: null, flip: null, rflip: null, raf: 0, timer: 0, cam: true, keys: {}, done: false, rest: null, restRecv: 0, lastIdx: -1, hidden: true };
 
   const elapsed = () => S.base + (performance.now() - S.recv) / 1000;
   function curIndex(t) {
@@ -45,38 +48,65 @@
     return steps.length - 1;
   }
   function stepStart(i) { let acc = 0; for (let k = 0; k < i; k++) acc += S.ses.steps[k].time; return acc; }
+  const p2 = n => String(Math.max(0, n)).padStart(2, '0');
+
+  /* ── status ring (SVG in a 100 box; optional tick bezel) ── */
+  function ring(p, { r = 42, w = 6, ticks = 0, cls = '' } = {}) {
+    const C = 2 * Math.PI * r, off = C * (1 - Math.max(0, Math.min(1, p)));
+    let tk = '';
+    for (let i = 0; i < ticks; i++) {
+      const a = (i / ticks) * Math.PI * 2, big = i % 5 === 0, r1 = 49.5, r2 = big ? 46 : 47.6;
+      tk += `<line x1="${(50 + r1 * Math.sin(a)).toFixed(2)}" y1="${(50 - r1 * Math.cos(a)).toFixed(2)}" x2="${(50 + r2 * Math.sin(a)).toFixed(2)}" y2="${(50 - r2 * Math.cos(a)).toFixed(2)}"${big ? ' class="b"' : ''}/>`;
+    }
+    return `<svg class="bd-rs ${cls}" viewBox="0 0 100 100">${tk ? `<g class="tk">${tk}</g>` : ''}<circle class="tr" cx="50" cy="50" r="${r}" stroke-width="${w}"/><circle class="ar" cx="50" cy="50" r="${r}" stroke-width="${w}" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" data-c="${C.toFixed(2)}"/></svg>`;
+  }
+  function setRing(svg, p) {
+    const a = svg && svg.querySelector('.ar');
+    if (a) a.style.strokeDashoffset = String(Number(a.dataset.c) * (1 - Math.max(0, Math.min(1, p))));
+  }
 
   /* ═══════════════════════ AI DOCTOR ═══════════════════════ */
   function buildAI() {
     const s = S.ses;
     const root = S.el.querySelector('.bd-ai');
     const doc = s.doctor || tr('ai_name', 'Dr. Hale (AI)');
+    const n = s.steps.length;
     root.innerHTML = `
       <div class="bd-lb top"></div><div class="bd-lb bot"></div>
-      <div class="bd-cap"><span class="l"><span class="nz-mark xs"></span>${esc(s.hospital || '')}</span><span class="c"><i></i>${esc(tr('ai_live', 'Treatment in progress'))}</span><span class="r">${esc(s.ticket || '')} · ${esc(s.bed || '')}</span></div>
-      <section class="bd-left nza-hud solid rail">
-        <div class="bd-hd">
-          <div class="bd-dtile">${icon('stetho')}</div>
-          <div class="bd-dn"><small>${esc(tr('ai_label', 'AI doctor · treating you'))}</small><b>${esc(doc)}</b><span>${esc(s.hospital || '')}</span></div>
-          <div class="bd-tags"><span class="bd-tag">${icon('ticket')}${esc(s.ticket || '')}</span><span class="bd-tag">${icon('bed')}${esc(s.bed || '')}</span></div>
+      <div class="bd-cap"><span class="l"><span class="bd-cross">${icon('cross')}</span>${esc(s.hospital || '')}</span><span class="c"><i></i>${esc(tr('ai_live', 'Treatment in progress'))}</span><span class="r">${esc(s.ticket || '')}<em>·</em>${esc(s.bed || '')}</span></div>
+      <section class="bd-plan bd-card">
+        <div class="bd-ph">
+          <div class="bd-pring">${ring(0, { r: 43, w: 5, ticks: 60, cls: 'teal' })}<div class="bd-prc"><div class="bd-flip"></div><small>${esc(tr('ai_left', 'Time left'))}</small></div></div>
+          <div class="bd-pid">
+            <small>${esc(tr('ai_label', 'AI doctor · on your case'))}</small>
+            <b>${esc(doc)}</b>
+            <span>${esc(s.hospital || '')}</span>
+            <div class="bd-tags"><span class="bd-tag">${icon('ticket')}${esc(s.ticket || '')}</span><span class="bd-tag">${icon('bed')}${esc(s.bed || '')}</span></div>
+          </div>
         </div>
-        <div class="bd-ov">
-          <div class="bd-ovl"><small>${esc(tr('ai_left', 'Time left'))}</small><div class="bd-flip"></div></div>
-          <div class="bd-ovr"><div class="bd-ovtop"><span class="bd-ovpct">0%</span><span class="bd-ovn"></span></div><div class="bd-segs">${s.steps.map(st => `<i style="flex:${st.time}"><b></b></i>`).join('')}</div></div>
+        <div class="bd-ilist">
+          <div class="bd-irow teal"><span>${esc(tr('ai_progress', 'Progress'))}</span><b class="bd-ovpct">0%</b></div>
+          <div class="bd-irow white"><span>${esc(tr('ai_stage', 'Stage'))}</span><b class="bd-ovn"><em>01</em>/${p2(n)}</b></div>
         </div>
-        <div class="bd-steps nza-scroll">${s.steps.map((st, i) => `
+        <div class="bd-spine nza-scroll">
+          <div class="bd-trk"><i></i></div>
+          ${s.steps.map((st, i) => `
           <div class="bd-step" data-i="${i}">
-            <span class="bd-sic">${icon(STEP_ICON[st.key] || st.icon || 'medkit')}</span>
-            <div class="bd-stx"><b>${esc(st.label)}</b><span>${esc(st.text || '')}</span><div class="bd-sbar"><i></i></div></div>
+            <span class="bd-node">${ring(0, { r: 40, w: 12, cls: 'node' })}<i></i></span>
+            <div class="bd-stx"><div class="bd-stl"><span class="bd-sic">${icon(STEP_ICON[st.key] || st.icon || 'medkit')}</span><b>${esc(st.label)}</b></div><span>${esc(st.text || '')}</span></div>
             <span class="bd-stm">${mmss(st.time)}</span>
-          </div>`).join('')}</div>
+          </div>`).join('')}
+        </div>
       </section>
       <section class="bd-right">
-        <div class="dev bd-dev"><div class="bd-devhd"><span class="dev-brand"><span class="nz-mark"></span>NAYZEEE</span><span class="bd-devt">${esc(tr('mon_title', 'Bedside monitor'))}</span><span class="dev-led"></span></div><div class="dev-screen bd-mon"></div></div>
-        ${s.bill && s.bill.enabled !== false ? `<div class="bd-bill nza-hud solid">${billHTML(s.bill, false)}</div>` : ''}
+        <div class="dev bd-dev">
+          <div class="bd-devhd"><span class="bd-model">PM-7</span><span class="bd-devt">${esc(tr('mon_title', 'Patient monitor'))}</span><span class="bd-sticker">${esc(tr('mon_adult', 'Adult'))}</span><span class="dev-led"></span></div>
+          <div class="dev-screen bd-mon"></div>
+          <div class="bd-devft"><span class="bd-grill"></span><span class="bd-plate">PM-7 · 100–240V~ · IPX1</span><span class="bd-btns"><i></i><i></i><i class="r"></i></span></div>
+        </div>
+        ${s.bill && s.bill.enabled !== false ? `<div class="bd-bill bd-card">${billHTML(s.bill, false)}</div>` : ''}
       </section>
-      <div class="bd-sub"></div>
-      <div class="bd-keys"><span class="bd-k" data-k="cam"><kbd>${esc(S.keys.cam || 'C')}</kbd>${esc(tr('k_cam', 'Camera'))}</span><span class="bd-k bd-hold"><span class="bd-ring"><svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="13"/><circle class="p" cx="15" cy="15" r="13"/></svg><kbd>${esc(S.keys.getUp || 'X')}</kbd></span>${esc(tr('k_getup_hold', 'Hold to get up'))}</span></div>
+      <div class="bd-keys"><span class="bd-k" data-k="cam"><kbd>${esc(S.keys.cam || 'C')}</kbd>${esc(tr('k_cam', 'Camera'))}</span><span class="bd-k bd-hold"><span class="bd-ring"><svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="13"/><circle class="p" cx="15" cy="15" r="13"/></svg><kbd>${esc(S.keys.getUp || 'X')}</kbd></span>${esc(tr('k_getup_hold', 'Leave the bed (hold)'))}</span></div>
       <div class="bd-donewrap"></div>`;
     S.flip = NZA.ui.FlipClock(root.querySelector('.bd-flip'), { value: '00:00', small: true, tone: 'teal' });
     S.mon = NZA.vitals.Monitor(root.querySelector('.bd-mon'), { traces: ['ecg', 'pleth', 'resp'], height: 168, beep: false, title: (s.name || '').toUpperCase() });
@@ -86,18 +116,16 @@
   function billHTML(b, final) {
     const lines = (b.lines || []).map(l => `<div class="bd-bl"><span>${esc(l.label)}</span><b>${money(l.amount)}</b></div>`).join('');
     const cover = b.cover > 0 ? `<div class="bd-bl ins"><span>${icon('shield-check')}${esc(b.plan ? fmtS(tr('bill_ins_plan', 'Insurance · %s'), b.plan) : tr('bill_ins', 'Insurance'))} <em>${Math.round(b.cover * 100)}%</em></span><b>−${money(b.coverAmount)}</b></div>` : `<div class="bd-bl noins"><span>${icon('shield')}${esc(tr('bill_noins', 'No insurance'))}</span><b>—</b></div>`;
+    const cov = b.subtotal > 0 ? Math.max(0, Math.min(1, (b.coverAmount || 0) / b.subtotal)) : 0;
     return `
-      <div class="bd-bhd"><div><small>${esc(final ? tr('bill_final', 'Your bill') : tr('bill_est', 'Estimated bill'))}</small><b>${esc(tr('bill_title', 'Treatment costs'))}</b></div>${icon('receipt')}</div>
+      <div class="bd-bhd"><div><small>${esc(final ? tr('bill_final', 'Final costs') : tr('bill_est', 'Running estimate'))}</small><b>${esc(tr('bill_title', 'Care costs'))}</b></div><span class="bd-bcov">${ring(cov, { r: 40, w: 10, cls: 'teal' })}<em>${Math.round(cov * 100)}%</em></span></div>
       <div class="bd-blines nza-scroll">${lines}</div>
       <div class="bd-bsub"><div class="bd-bl"><span>${esc(tr('bill_sub', 'Subtotal'))}</span><b>${money(b.subtotal)}</b></div>${cover}</div>
-      <div class="bd-btot"><span>${esc(tr('bill_total', 'You pay'))}</span><b>${money(b.total)}</b></div>`;
+      <div class="bd-btot"><span>${esc(tr('bill_total', 'Your share'))}</span><b>${money(b.total)}</b></div>`;
   }
   function say(text) {
-    const host = S.el.querySelector('.bd-sub');
-    if (!host || !text) return;
-    clearTimeout(S.sayTimer);
-    host.innerHTML = `<div class="bd-speech"><span class="who">${esc(S.ses.doctor || tr('ai_name', 'Dr. Hale (AI)'))}</span><span class="txt">${esc(text)}</span></div>`;
-    S.sayTimer = setTimeout(() => { const sp = host.querySelector('.bd-speech'); if (sp) sp.classList.add('out'); }, Math.max(4200, text.length * 80));
+    if (!text || !S.ses) return;
+    NZA.speech({ name: S.ses.doctor || tr('ai_name', 'Dr. Hale (AI)'), role: tr('ai_role', 'AI doctor'), text, ms: Math.max(4200, text.length * 80) });
   }
   function frameAI() {
     if (S.mode !== 'ai' || !S.ses) return;
@@ -106,31 +134,33 @@
     const i = S.done ? s.steps.length : curIndex(t);
     const root = S.el.querySelector('.bd-ai');
     if (!root) return;
+    const rows = root.querySelectorAll('.bd-step');
     if (i !== S.lastIdx) {
       S.lastIdx = i;
-      root.querySelectorAll('.bd-step').forEach((row, k) => { row.classList.toggle('done', k < i); row.classList.toggle('cur', k === i); });
+      rows.forEach((row, k) => { row.classList.toggle('done', k < i); row.classList.toggle('cur', k === i); });
       const st = s.steps[i];
       if (st && !S.done) {
         say(tr('line_' + st.key, LINES[st.key] || st.text || ''));
         const row = root.querySelector(`.bd-step[data-i="${i}"]`);
         if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
-      root.querySelector('.bd-ovn').textContent = S.done ? tr('ai_complete', 'Complete') : fmtS(tr('ai_stepn', 'Step %d of %d'), Math.min(i + 1, s.steps.length), s.steps.length);
+      root.querySelector('.bd-ovn').innerHTML = S.done ? esc(tr('ai_complete', 'Complete')) : `<em>${p2(Math.min(i + 1, s.steps.length))}</em>/${p2(s.steps.length)}`;
+      // spine fill: up to the centre of the current node
+      const trk = root.querySelector('.bd-trk'), cur = rows[Math.min(i, rows.length - 1)];
+      if (trk && cur) {
+        const top = rows[0].offsetTop + 13, end = S.done ? rows[rows.length - 1].offsetTop + 13 : cur.offsetTop + 13;
+        trk.firstChild.style.height = `${Math.max(0, end - top)}px`;
+      }
     }
-    // per-step bars + timers
-    root.querySelectorAll('.bd-step').forEach((row, k) => {
+    rows.forEach((row, k) => {
       const st = s.steps[k], a = stepStart(k);
       const p = Math.max(0, Math.min(1, (t - a) / st.time));
-      row.querySelector('.bd-sbar i').style.width = `${(k < i ? 1 : k === i ? p : 0) * 100}%`;
-      row.querySelector('.bd-stm').textContent = k < i ? '✓' : k === i ? mmss(st.time - (t - a)) : mmss(st.time);
+      if (k === i) setRing(row.querySelector('.bd-rs'), p);
+      row.querySelector('.bd-stm').innerHTML = k < i ? icon('check') : k === i ? mmss(st.time - (t - a)) : mmss(st.time);
     });
-    root.querySelectorAll('.bd-segs i').forEach((seg, k) => {
-      const st = s.steps[k], a = stepStart(k);
-      const p = Math.max(0, Math.min(1, (t - a) / st.time));
-      seg.className = k < i ? 'done' : k === i ? 'cur' : '';
-      seg.querySelector('b').style.width = `${p * 100}%`;
-    });
-    root.querySelector('.bd-ovpct').textContent = `${Math.round((t / total) * 100)}%`;
+    const pct = t / total;
+    root.querySelector('.bd-ovpct').textContent = `${Math.round(pct * 100)}%`;
+    setRing(root.querySelector('.bd-pring .bd-rs'), pct);
     S.flip.set(mmss(total - t));
     S.raf = requestAnimationFrame(frameAI);
   }
@@ -140,20 +170,24 @@
     if (!root) return;
     root.classList.add('finished');
     const b = d.bill || S.ses.bill || {};
-    const steps = (S.ses.steps || []).map(st => `<span class="bd-dchip">${icon(STEP_ICON[st.key] || 'check')}${esc(st.label)}</span>`).join('');
+    const steps = (S.ses.steps || []).map(st => `<div class="bd-dst"><i>${icon('check')}</i><span>${esc(st.label)}</span><b>${mmss(st.time)}</b></div>`).join('');
+    const ok = d.paid || b.enabled === false || !b.subtotal;
     const paidTxt = b.enabled === false || !b.subtotal ? tr('done_free', 'No charge') : (d.paid ? fmtS(tr('done_paid', '%s paid'), money(d.amount != null ? d.amount : b.total)) : fmtS(tr('done_unpaid', '%s billed to you'), money(d.amount != null ? d.amount : b.total)));
     const secs = Number(S.keys.summary || 9);
     root.querySelector('.bd-donewrap').innerHTML = `
-      <div class="bd-done nza-hud solid rail nza-pop">
-        <div class="bd-dbadge">${icon('check')}</div>
-        <small>${esc(S.ses.ticket || '')} · ${esc(S.ses.bed || '')}</small>
-        <h2>${esc(tr('done_title', 'Treatment complete'))}</h2>
-        <p>${esc(d.msg || tr('done_p', "You've been patched up. Take it easy for a few days."))}</p>
-        <div class="bd-dchips">${steps}</div>
-        ${b.enabled === false ? '' : `<div class="bd-dbill">${billHTML(b, true)}</div>`}
-        <div class="bd-dpay ${d.paid || b.enabled === false ? 'ok' : 'bad'}">${icon(d.paid || b.enabled === false ? 'check' : 'alert')}<span>${esc(paidTxt)}</span></div>
-        <div class="bd-dbar"><i style="animation-duration:${secs}s"></i></div>
-        <span class="bd-dleave">${esc(tr('done_leave', 'Standing up…'))}</span>
+      <div class="bd-done bd-card">
+        <div class="bd-dl">
+          <div class="bd-dring">${ring(1, { r: 43, w: 5, ticks: 60, cls: 'teal' })}<span class="bd-dic">${icon('check')}</span></div>
+          <small>${esc(S.ses.ticket || '')} · ${esc(S.ses.bed || '')}</small>
+          <h2>${esc(tr('done_title', 'You are patched up'))}</h2>
+          <p>${esc(d.msg || tr('done_p', 'Take it easy for a few days.'))}</p>
+          <div class="bd-dsteps"><div class="bd-dtrk"></div>${steps}</div>
+        </div>
+        <div class="bd-dr">
+          ${b.enabled === false ? `<div class="bd-dfree">${icon('shield-check')}<b>${esc(tr('done_free', 'No charge'))}</b></div>` : `<div class="bd-dbill">${billHTML(b, true)}</div>`}
+          <div class="bd-dpay ${ok ? 'ok' : 'bad'}">${icon(ok ? 'check' : 'alert')}<span>${esc(paidTxt)}</span></div>
+          <div class="bd-dleave"><span class="bd-lring" style="--d:${secs}s"><svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="12"/><circle class="p" cx="15" cy="15" r="12"/></svg></span><span>${esc(tr('done_leave', 'Getting up…'))}</span></div>
+        </div>
       </div>`;
     NZA.audio.success();
   }
@@ -162,16 +196,24 @@
   function buildRest(d) {
     const root = S.el.querySelector('.bd-rest');
     root.innerHTML = `
-      <div class="bd-rp nza-hud solid rail">
-        <div class="bd-rtop">
-          <div class="bd-rt"><div class="bd-rtile">${icon('bed')}</div><div><small>${esc(tr('rest_title', 'Bed rest'))}</small><b class="bd-rbed">${esc(d.bed || d.label || tr('bed', 'Bed'))}</b><span class="bd-rhosp">${esc(d.hospital || '')}</span></div></div>
-          <div class="bd-rsep"></div>
-          <div class="bd-rtime"><small>${esc(tr('rest_time', 'Resting'))}</small><div class="bd-rflip"></div></div>
-          <div class="bd-rsep"></div>
-          <div class="bd-rrec"><div class="bd-rrtop"><small>${esc(tr('rest_recovery', 'Recovery'))}</small><b class="bd-rpct">--%</b></div><div class="mtr lg bd-rmtr"><i style="width:0"></i></div><span class="bd-reta"></span></div>
-          <div class="bd-rmult"><b>×<span>4</span></b><small>${esc(tr('rest_heal', 'Healing'))}</small></div>
+      <div class="bd-rp bd-card">
+        <div class="bd-rhd">
+          <span class="bd-rtile">${icon('bed')}</span>
+          <div class="bd-rid"><small>${esc(tr('rest_title', 'Bed rest'))}</small><b class="bd-rbed">${esc(d.bed || d.label || tr('bed', 'Bed'))}</b><span class="bd-rhosp">${esc(d.hospital || '')}</span></div>
+          <span class="bd-rmult"><b>×<span>4</span></b><small>${esc(tr('rest_heal', 'Healing'))}</small></span>
         </div>
-        <div class="bd-rbot"><div class="bd-rinj"></div><div class="bd-rvit"></div><div class="bd-rkey"></div></div>
+        <div class="bd-rmain">
+          <div class="bd-rring">${ring(0, { r: 43, w: 6, ticks: 60, cls: 'teal' })}<div class="bd-rrc"><b class="bd-rpct">--</b><small>${esc(tr('rest_recovery', 'Recovered'))}</small></div></div>
+          <div class="bd-ilist bd-rlist">
+            <div class="bd-irow white"><span>${esc(tr('rest_time', 'Resting'))}</span><div class="bd-rflip"></div></div>
+            <div class="bd-irow teal"><span>${esc(tr('rest_eta_l', 'Healed in'))}</span><b class="bd-reta">--</b></div>
+            <div class="bd-irow bd-rblood"><span>${esc(tr('rest_blood', 'Blood'))}</span><b>--</b></div>
+            <div class="bd-irow bd-rpain"><span>${esc(tr('rest_pain', 'Pain'))}</span><b>--</b></div>
+          </div>
+        </div>
+        <p class="bd-rnote"></p>
+        <div class="bd-rinj"></div>
+        <div class="bd-rkey"></div>
       </div>`;
     S.rflip = NZA.ui.FlipClock(root.querySelector('.bd-rflip'), { value: '00:00', small: true });
     updateRest(d);
@@ -184,16 +226,36 @@
     if (r.label) root.querySelector('.bd-rbed').textContent = r.label;
     if (r.hospital) root.querySelector('.bd-rhosp').textContent = r.hospital;
     const rec = r.recovery != null ? Math.max(0, Math.min(100, r.recovery)) : null;
-    root.querySelector('.bd-rpct').textContent = rec != null ? `${rec}%` : '--%';
-    root.querySelector('.bd-rmtr i').style.width = `${rec || 0}%`;
+    const list = r.injuries || [];
+    const stuck = list.some(i => !i.healing);
+    root.querySelector('.bd-rpct').innerHTML = rec != null ? `${Math.round(rec)}<i>%</i>` : '--';
+    root.querySelector('.bd-rring').classList.toggle('amber', stuck);
+    setRing(root.querySelector('.bd-rring .bd-rs'), (rec || 0) / 100);
     const mult = r.mult || 4;
     root.querySelector('.bd-rmult span').textContent = mult;
     root.querySelector('.bd-rmult').classList.toggle('off', mult <= 1);
-    root.querySelector('.bd-reta').textContent = (r.injuries && r.injuries.length) ? (r.eta > 0 ? fmtS(tr('rest_eta', 'Fully healed in ~%s'), r.eta >= 3600 ? `${Math.floor(r.eta / 3600)} h ${pad((r.eta % 3600) / 60)} min` : `${Math.max(1, Math.round(r.eta / 60))} min`) : tr('rest_needs', 'Some wounds need treatment before they heal')) : tr('rest_healed', 'Nothing left to heal — you can get up');
-    const inj = (r.injuries || []).slice(0, 5).map(i => `<div class="bd-ri ${i.healing ? '' : 'stuck'}"><span class="bd-rii">${icon(STEP_ICON[i.icon] || i.icon || 'medkit')}</span><div><b>${esc(i.short || i.label)}</b><span>${esc(i.region || '')}</span></div><div class="bd-rih"><em>${Math.round(i.heal || 0)}%</em><div class="mtr"><i style="width:${Math.round(i.heal || 0)}%"></i></div></div></div>`).join('');
-    const more = (r.injuries || []).length > 5 ? `<span class="bd-rmore">+${r.injuries.length - 5}</span>` : '';
+    const eta = list.length && r.eta > 0 ? (r.eta >= 3600 ? `${Math.floor(r.eta / 3600)} h ${pad((r.eta % 3600) / 60)} min` : `~${Math.max(1, Math.round(r.eta / 60))} min`) : (list.length ? '—' : tr('rest_now', 'Now'));
+    root.querySelector('.bd-reta').textContent = eta;
+    const note = root.querySelector('.bd-rnote');
+    note.textContent = list.length ? (stuck ? tr('rest_needs', 'Some wounds need treatment before they heal') : '') : tr('rest_healed', 'Nothing left to heal — you can get up');
+    note.className = `bd-rnote ${list.length ? (stuck ? 'amber' : '') : 'teal'}`;
+    const blood = r.blood ?? null, pain = r.pain ?? 0;
+    const bl = root.querySelector('.bd-rblood');
+    bl.className = `bd-irow bd-rblood ${blood != null && blood < 80 ? 'red' : ''}`;
+    bl.querySelector('b').textContent = blood != null ? `${blood}%` : '--';
+    const pn = root.querySelector('.bd-rpain');
+    pn.className = `bd-irow bd-rpain ${pain >= 50 ? 'amber' : ''}`;
+    pn.querySelector('b').textContent = `${pain}/100`;
+    const inj = list.slice(0, 5).map((i, k) => {
+      const h = Math.round(i.heal || 0);
+      return `<div class="bd-ri ${i.healing ? '' : 'stuck'}" style="--i:${k}">
+        <span class="bd-rir">${ring(h / 100, { r: 40, w: 9, cls: i.healing ? 'teal' : 'amber' })}<span>${icon(STEP_ICON[i.icon] || i.icon || 'medkit')}</span></span>
+        <div class="bd-rit"><b>${esc(i.short || i.label)}</b><span>${esc(i.healing ? (i.region || '') : tr('rest_stuck', 'Needs treatment first'))}</span></div>
+        <em>${h}%</em>
+      </div>`;
+    }).join('');
+    const more = list.length > 5 ? `<span class="bd-rmore">+${list.length - 5}</span>` : '';
     root.querySelector('.bd-rinj').innerHTML = inj ? inj + more : `<div class="bd-rnone">${icon('check')}${esc(tr('rest_clear', 'No injuries'))}</div>`;
-    root.querySelector('.bd-rvit').innerHTML = `<div><small>${esc(tr('rest_blood', 'Blood'))}</small><b class="${(r.blood ?? 100) < 80 ? 't-red' : ''}">${r.blood ?? '--'}%</b></div><div><small>${esc(tr('rest_pain', 'Pain'))}</small><b class="${(r.pain || 0) >= 50 ? 't-amber' : ''}">${r.pain ?? 0}</b></div>`;
     const how = r.how || {};
     root.querySelector('.bd-rkey').innerHTML = how.medic
       ? `<span class="bd-rmed">${icon('user')}${esc(tr('rest_medic', 'A medic will help you off the bed'))}</span>`
@@ -209,7 +271,6 @@
   function reset() {
     cancelAnimationFrame(S.raf);
     clearInterval(S.timer);
-    clearTimeout(S.sayTimer);
     if (S.mon) { S.mon.destroy(); S.mon = null; }
     S.flip = null; S.rflip = null; S.ses = null; S.done = false; S.lastIdx = -1; S.rest = null;
     S.el.querySelector('.bd-ai').innerHTML = '';
