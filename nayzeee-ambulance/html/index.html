@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-shape="cut">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE Ambulance</title>
+<!--
+  NAYZEEE AMBULANCE · NUI
+  One page, many apps. Each app lives in apps/<name>/ and renders into its own
+  <section id="app-<name>">. The list below is fixed (see docs/ARCHITECTURE.md §10).
+  Browser preview: index.html?app=<name>
+-->
+<link rel="stylesheet" href="core/nz-core.css">
+<link rel="stylesheet" href="core/nza.css">
+<link rel="stylesheet" href="apps/wounded/app.css">
+<link rel="stylesheet" href="apps/death/app.css">
+<link rel="stylesheet" href="apps/callcard/app.css">
+<link rel="stylesheet" href="apps/pager/app.css">
+<link rel="stylesheet" href="apps/dispatch/app.css">
+<link rel="stylesheet" href="apps/exam/app.css">
+<link rel="stylesheet" href="apps/pulse/app.css">
+<link rel="stylesheet" href="apps/breathing/app.css">
+<link rel="stylesheet" href="apps/treat/app.css">
+<link rel="stylesheet" href="apps/cpr/app.css">
+<link rel="stylesheet" href="apps/field/app.css">
+<link rel="stylesheet" href="apps/monitor/app.css">
+<link rel="stylesheet" href="apps/suture/app.css">
+<link rel="stylesheet" href="apps/bullet/app.css">
+<link rel="stylesheet" href="apps/burn/app.css">
+<link rel="stylesheet" href="apps/ultrasound/app.css">
+<link rel="stylesheet" href="apps/angio/app.css">
+<link rel="stylesheet" href="apps/intubation/app.css">
+<link rel="stylesheet" href="apps/xray/app.css">
+<link rel="stylesheet" href="apps/splint/app.css">
+<link rel="stylesheet" href="apps/donation/app.css">
+<link rel="stylesheet" href="apps/ivstand/app.css">
+<link rel="stylesheet" href="apps/bay/app.css">
+<link rel="stylesheet" href="apps/medbag/app.css">
+<link rel="stylesheet" href="apps/checkin/app.css">
+<link rel="stylesheet" href="apps/bed/app.css">
+<link rel="stylesheet" href="apps/pharmacy/app.css">
+<link rel="stylesheet" href="apps/manager/app.css">
+<link rel="stylesheet" href="apps/builder/app.css">
+<link rel="stylesheet" href="apps/radial/app.css">
+</head>
+<body>
+<div id="nza-root">
+  <section id="app-wounded" class="nza-app" data-app="wounded"></section>
+  <section id="app-death" class="nza-app" data-app="death"></section>
+  <section id="app-callcard" class="nza-app" data-app="callcard"></section>
+  <section id="app-pager" class="nza-app" data-app="pager"></section>
+  <section id="app-dispatch" class="nza-app" data-app="dispatch"></section>
+  <section id="app-exam" class="nza-app" data-app="exam"></section>
+  <section id="app-pulse" class="nza-app" data-app="pulse"></section>
+  <section id="app-breathing" class="nza-app" data-app="breathing"></section>
+  <section id="app-treat" class="nza-app" data-app="treat"></section>
+  <section id="app-cpr" class="nza-app" data-app="cpr"></section>
+  <section id="app-field" class="nza-app" data-app="field"></section>
+  <section id="app-monitor" class="nza-app" data-app="monitor"></section>
+  <section id="app-suture" class="nza-app" data-app="suture"></section>
+  <section id="app-bullet" class="nza-app" data-app="bullet"></section>
+  <section id="app-burn" class="nza-app" data-app="burn"></section>
+  <section id="app-ultrasound" class="nza-app" data-app="ultrasound"></section>
+  <section id="app-angio" class="nza-app" data-app="angio"></section>
+  <section id="app-intubation" class="nza-app" data-app="intubation"></section>
+  <section id="app-xray" class="nza-app" data-app="xray"></section>
+  <section id="app-splint" class="nza-app" data-app="splint"></section>
+  <section id="app-donation" class="nza-app" data-app="donation"></section>
+  <section id="app-ivstand" class="nza-app" data-app="ivstand"></section>
+  <section id="app-bay" class="nza-app" data-app="bay"></section>
+  <section id="app-medbag" class="nza-app" data-app="medbag"></section>
+  <section id="app-checkin" class="nza-app" data-app="checkin"></section>
+  <section id="app-bed" class="nza-app" data-app="bed"></section>
+  <section id="app-pharmacy" class="nza-app" data-app="pharmacy"></section>
+  <section id="app-manager" class="nza-app" data-app="manager"></section>
+  <section id="app-builder" class="nza-app" data-app="builder"></section>
+  <section id="app-radial" class="nza-app" data-app="radial"></section>
+</div>
+<div id="nza-layer-anchors"></div>
+<div id="nza-layer-speech"></div>
+<div id="nza-layer-prompt"></div>
+<div id="nza-layer-toasts"></div>
+
+<script src="core/nz-core.js"></script>
+<script src="core/nza.js"></script>
+<script src="core/nza-vitals.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="core/nza3d.js"></script>
+<script src="apps/wounded/app.js"></script>
+<script src="apps/death/app.js"></script>
+<script src="apps/callcard/app.js"></script>
+<script src="apps/pager/app.js"></script>
+<script src="apps/dispatch/app.js"></script>
+<script src="apps/exam/app.js"></script>
+<script src="apps/pulse/app.js"></script>
+<script src="apps/breathing/app.js"></script>
+<script src="apps/treat/app.js"></script>
+<script src="apps/cpr/app.js"></script>
+<script src="apps/field/app.js"></script>
+<script src="apps/monitor/app.js"></script>
+<script src="apps/suture/app.js"></script>
+<script src="apps/bullet/app.js"></script>
+<script src="apps/burn/app.js"></script>
+<script src="apps/ultrasound/app.js"></script>
+<script src="apps/angio/app.js"></script>
+<script src="apps/intubation/app.js"></script>
+<script src="apps/xray/app.js"></script>
+<script src="apps/splint/app.js"></script>
+<script src="apps/donation/app.js"></script>
+<script src="apps/ivstand/app.js"></script>
+<script src="apps/bay/app.js"></script>
+<script src="apps/medbag/app.js"></script>
+<script src="apps/checkin/app.js"></script>
+<script src="apps/bed/app.js"></script>
+<script src="apps/pharmacy/app.js"></script>
+<script src="apps/manager/app.js"></script>
+<script src="apps/builder/app.js"></script>
+<script src="apps/radial/app.js"></script>
+<script>NZA.boot();</script>
+</body>
+</html>
