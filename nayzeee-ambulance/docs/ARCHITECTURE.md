@@ -548,3 +548,29 @@ Client bus events from core-client: `self:state (new, old)`, `self:update (snap)
 Server side (hospital module): `NZA.Hospitals.*` as in §8 and it must broadcast the three
 `nza:points:*` events. Core-client streams point props within 60 m, registers targets from the
 type's `target` list (each option gets `(point, entity)`), calls `onSpawn/onRemove`.
+
+---------------------------------------------------------------------------------------
+
+## 18. As-built amendments (core is implemented — `docs/modules/core-api.md` is authoritative)
+
+- §5.2 procedure callbacks:
+  `nza:proc:start (name, target, payload) → { ok, token, data, easy, easyTime, minTime, maxTime, maxDist, label, allowDead } | { ok = false, err, msg }`;
+  `nza:proc:finish (token, result) → { ok, outcome } | { ok = false, err, msg }` (outcome has score, grade, easy);
+  C→S `nza:proc:abort (token)`, S→C `nza:proc:aborted (token, reason, msg)`. `easyTime` defaults to `minTime`
+  clamped to 4–10 s and is the easy-mode minimum on the server. `NZA.Proc.Run` blocks (call it from a thread)
+  and returns `true, outcome` or `false, reason`; optional 5th arg `{ label, anim, maxDist, silent }`.
+- §17: `nza:patient:update (pid, snapshot | nil)` — nil = the watch ended. Server helper for subtitles:
+  `NZA.Core.Speech(src, name, text, ms, extra)`.
+- §4.3 self snapshot: `{ pid, state, clock, clockRate, arrestLeft, downAt, deadAt, stabilized, bleeding, pain, avpu,
+  loss, health, syncHealth, injuries[{ id, region, type, severity, status, bleeding, label, regionLabel }],
+  conditions[], meds[], devices{}, fx{ limp, shake, blur, tunnel, cold, breathless, drunk }, bloodType, name }`.
+- Bay viewing rights come ONLY from server meta: the transport module must set the medic's bay with
+  `NZA.Patients.SetMeta(medicPid, 'bay', id)` (client state bags are never trusted for permissions).
+- The hospital module pushes `nza:points:sync` on player load (core-client never requests points).
+- NUI router (`html/core/nza.js`): `_core` action `focus { top }` gives the Lua-focused app keyboard priority;
+  right-drag / wheel are forwarded to `NZA.Cam` via `_core:camInput` while an app has NUI focus — an app opts
+  out with `camInput: false` (or `preventDefault()` in its own handler); `camInput: true` also forwards R (recentre).
+  `NZA.toast({ grade })` shows the grade badge.
+- Wounded module server API: `NZA.Wounded.Help(srcOrPid, { eta, unit, ai, status })`,
+  `NZA.Wounded.ForceRespawn(src, { coords, label, fee, bed })`; client `NZA.Wounded.SuspendPose(name, on)`.
+- Assess module server API: `NZA.Findings.Add(pid, key, data)` (discovered findings shown in the exam).
