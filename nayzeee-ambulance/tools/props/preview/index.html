@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>nzprops preview</title>
+<style>html,body{margin:0;background:#1b1e22;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/modules/three/build/three.module.js","three/addons/":"/modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+<script type="module">
+// Studio renderer used by render.mjs. window.renderProp(url, views, size) -> [dataURL, ...]
+// GTA axes: +X right, +Y forward (front of the prop), +Z up. The glb is already Y-up
+// (glTF), so GTA (x, y, z) == three (x, z, -y).
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b1e22);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.75;
+
+const key = new THREE.DirectionalLight(0xfff4e8, 2.3);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.bias = -0.0004;
+key.shadow.normalBias = 0.01;
+scene.add(key, key.target);
+const rim = new THREE.DirectionalLight(0xbfd8ff, 0.9);
+scene.add(rim, rim.target);
+scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x202326, 0.35));
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x3a3e44, roughness: 0.92, metalness: 0 }));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const loader = new GLTFLoader();
+const gta = (x, y, z) => new THREE.Vector3(x, z, -y);
+const VIEWS = {
+  front: gta(0.62, 1.0, 0.55),
+  back: gta(-0.75, -0.9, 0.45),
+  top: gta(0.18, 0.42, 1.0),
+  side: gta(1.0, 0.12, 0.25),
+  frontlow: gta(0.35, 1.0, 0.18),
+};
+
+window.renderProp = async (url, views, size) => {
+  renderer.setSize(size, size);
+  const gltf = await loader.loadAsync(url);
+  const root = gltf.scene;
+  root.traverse(o => {
+    if (o.isMesh) {
+      o.castShadow = true; o.receiveShadow = true;
+      const m = o.material;
+      if (m.normalMap) m.normalMap.anisotropy = 8;
+      if (m.map) m.map.anisotropy = 8;
+      if (m.transparent) { m.depthWrite = false; o.renderOrder = 2; }
+    }
+  });
+  scene.add(root);
+  const box = new THREE.Box3().setFromObject(root);
+  const c = box.getCenter(new THREE.Vector3());
+  const ext = box.getSize(new THREE.Vector3());
+  const R = Math.max(0.5 * ext.length(), 0.01);
+  floor.position.set(c.x, box.min.y - 0.0005, c.z);
+  floor.scale.set(R * 14, R * 14, 1);
+  key.position.copy(c).add(gta(0.9, 0.6, 1.6).multiplyScalar(R * 4));
+  key.target.position.copy(c);
+  const sc = key.shadow.camera;
+  sc.left = sc.bottom = -R * 1.6; sc.right = sc.top = R * 1.6; sc.near = R * 0.5; sc.far = R * 10;
+  sc.updateProjectionMatrix();
+  rim.position.copy(c).add(gta(-1.2, -1.0, 0.8).multiplyScalar(R * 4));
+  rim.target.position.copy(c);
+  const out = [];
+  for (const v of views) {
+    const cam = new THREE.PerspectiveCamera(30, 1, R * 0.02, R * 40);
+    const dir = (VIEWS[v] || VIEWS.front).clone().normalize();
+    const dist = R / Math.sin(THREE.MathUtils.degToRad(15)) * 1.04;
+    cam.position.copy(c).addScaledVector(dir, dist);
+    cam.lookAt(c);
+    renderer.render(scene, cam);
+    out.push(renderer.domElement.toDataURL('image/png'));
+  }
+  scene.remove(root);
+  root.traverse(o => {
+    if (o.isMesh) {
+      o.geometry.dispose();
+      for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap']) if (o.material[k]) o.material[k].dispose();
+      o.material.dispose();
+    }
+  });
+  return out;
+};
+window.__ready = true;
+</script>
+</body>
+</html>

@@ -278,6 +278,8 @@ function P.UpdateInjury(pid, id, patch)
         if SUB[k] and type(v) == 'table' then
             inj[k] = type(inj[k]) == 'table' and inj[k] or {}
             for k2, v2 in pairs(v) do inj[k][k2] = v2 end
+        elseif (k == 'treat' or k == 'quality') then
+            -- these must stay tables (physiology indexes them every tick); ignore bad values
         elseif k ~= 'id' then
             inj[k] = v
         end
@@ -407,8 +409,8 @@ function P.AddInfusion(pid, inf)
         end
     end
     if inf.incompatible ~= nil then item.incompatible = inf.incompatible end
+    -- flows straight away; it only pauses when the last IV/IO is taken out (SetDevice)
     p.infusions[#p.infusions + 1] = item
-    updateAccess(p)
     P.Touch(p, true)
     NZA.Bus.Emit('infusion:started', p, item)
     return item
@@ -662,6 +664,7 @@ function P.Revive(pid, opts)
         v.hr, v.sys, v.dia, v.rhythm = 118, 82, 50, 'stach'
         v.map = math.floor(v.dia + (v.sys - v.dia) / 3 + 0.5)
         v.spo2, v.rr, v.etco2 = 88, 10, 45   -- the typical post-ROSC etCO2 spike
+        runtime(p).vf = nil                  -- vitals smooth on from these numbers
         P.Touch(p, true)
         NZA.Bus.Emit('patient:revived', p, opts)
         return true
@@ -693,7 +696,7 @@ function P.Revive(pid, opts)
     NZA.Bus.Emit('patient:revived', p, opts)
     if p.kind == 'player' and p.src then
         TriggerClientEvent('nza:revived', p.src, { full = opts.full == true, reason = opts.reason })
-        P.Flush(true)
+        P.Sync(p)
     end
     return true
 end
@@ -900,12 +903,14 @@ local function selfSnapshot(p)
         pid = p.pid,
         state = p.state,
         clock = math.floor(p.clock or 0),
+        clockRate = p.state == 'wounded' and (p.stabilized and 0 or (p.clockRate or 1)) or nil,
         arrestLeft = p.arrestLeft and math.floor(p.arrestLeft) or nil,
         downAt = p.downAt, deadAt = p.deadAt,
         stabilized = p.stabilized == true,
         bleeding = bleedLevel(p.bleedTotal or 0),
         pain = math.floor((p.pain or 0) + 0.5),
         avpu = v.avpu or 'A',
+        loss = math.floor(loss * 1000 + 0.5) / 1000,
         health = health,
         syncHealth = cfg('Physiology', 'syncHealth', true) ~= false,
         injuries = injuries,
@@ -1235,6 +1240,11 @@ function P.UnloadPlayer(src, reason)
     local p = store[pid]
     if not p then return end
     P.Save(pid)
+    -- medics watching this player: the watch is over (client treats (pid, nil) as "ended")
+    for w in pairs(p.watchers) do
+        if w ~= src and Core.Online(w) then TriggerClientEvent('nza:patient:update', w, pid, nil) end
+    end
+    p.watchers = {}
     if reason ~= 'dropped' then pcall(function() Player(src).state:set('nza', nil, true) end) end
     p.src = nil
     store[pid] = nil

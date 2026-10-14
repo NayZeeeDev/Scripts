@@ -196,6 +196,12 @@
       case 'closeAll': return [...stack].forEach(n => close(n, false));
       case 'sound': return audio.play(data.name, data);
       case 'locale': locale = Object.assign(locale, data || {}); return;
+      case 'focus': {   // Lua focus stack → the focused app gets keyboard priority
+        const top = data && data.top;
+        const i = top ? stack.indexOf(top) : -1;
+        if (i !== -1 && i !== stack.length - 1) { stack.splice(i, 1); stack.push(top); }
+        return;
+      }
     }
   }
 
@@ -212,13 +218,45 @@
   window.addEventListener('keydown', e => { if (e.repeat && e.key !== ' ' && !/^(Arrow|Key)/.test(e.key + e.code)) return; keyHandler('keys', e); });
   window.addEventListener('keyup', e => keyHandler('keysUp', e));
 
+  /* ─────────────── camera input → Lua NZA.Cam (client/core/cam.lua) ───────────────
+     With full NUI focus the game can't read the mouse, so right-drag / wheel are forwarded.
+     An app opts out with def.camInput = false, or by calling e.preventDefault() in its own
+     mousedown/wheel handler. R = recentre only for apps with def.camInput === true. */
+  const cam = { down: false, dx: 0, dy: 0, wheel: 0, pan: false, raf: 0 };
+  const camApp = () => { const n = stack[stack.length - 1]; return n ? apps[n] : null; };
+  const camOk = () => { const a = camApp(); return inGame && a && a.camInput !== false; };
+  const camFlush = () => {
+    cam.raf = 0;
+    if (!cam.dx && !cam.dy && !cam.wheel) return;
+    post('_core:camInput', { dx: cam.dx, dy: cam.dy, wheel: cam.wheel, pan: cam.pan });
+    cam.dx = 0; cam.dy = 0; cam.wheel = 0;
+  };
+  const camQueue = () => { if (!cam.raf) cam.raf = requestAnimationFrame(camFlush); };
+  window.addEventListener('mousedown', e => { if (e.button === 2 && !e.defaultPrevented && camOk()) cam.down = true; });
+  window.addEventListener('mouseup', e => { if (e.button === 2) cam.down = false; });
+  window.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('mousemove', e => {
+    if (!cam.down) return;
+    cam.dx += e.movementX / window.innerWidth; cam.dy += e.movementY / window.innerHeight; cam.pan = e.shiftKey; camQueue();
+  });
+  window.addEventListener('wheel', e => {
+    if (e.defaultPrevented || !camOk()) return;
+    if (e.target && e.target.closest && e.target.closest('.nza-scroll,.w-pbody,.w-side,input,select,textarea,[data-wheel]')) return;
+    cam.wheel += Math.sign(e.deltaY); camQueue();
+  });
+  window.addEventListener('keydown', e => {
+    const a = camApp();
+    if (inGame && a && a.camInput === true && (e.key === 'r' || e.key === 'R') && !e.repeat) post('_core:camInput', { recenter: true });
+  });
+
   /* ─────────────── toasts ─────────────── */
   const TOAST_ICON = { success: 'check', error: 'x', warning: 'alert', info: 'info' };
-  function toast({ title, message, type = 'success', duration = 4500, icon: ic } = {}) {
+  function toast({ title, message, type = 'success', duration = 4500, icon: ic, grade } = {}) {
     const layer = document.getElementById('nza-layer-toasts');
     if (!layer) return;
     const n = el('div', `note ${type === 'success' ? '' : type}`);
-    n.innerHTML = `<span class="ni">${icon(ic || TOAST_ICON[type] || 'info')}</span><div>${title ? `<b>${esc(title)}</b>` : ''}${message ? `<p>${esc(message)}</p>` : ''}</div><i class="bar"></i>`;
+    const badge = grade ? `<span class="grade g-${esc(grade)}" style="width:30px;height:30px;font-size:15px;border-radius:9px;flex:none;box-shadow:none">${esc(grade)}</span>` : `<span class="ni">${icon(ic || TOAST_ICON[type] || 'info')}</span>`;
+    n.innerHTML = `${badge}<div>${title ? `<b>${esc(title)}</b>` : ''}${message ? `<p>${esc(message)}</p>` : ''}</div><i class="bar"></i>`;
     const bar = n.querySelector('.bar');
     bar.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration, easing: 'linear', fill: 'forwards' });
     layer.appendChild(n);

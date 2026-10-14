@@ -16,12 +16,14 @@
       NZA.UI.IsOpen(app) / Top() / OpenApps() / CloseAll() / Ready()
       NZA.UI.Toast({ title, message, type, duration })      '_core' action 'toast'
       NZA.UI.Speech(name, text, ms, extra)                  '_core' action 'speech'
-      NZA.UI.Prompt(id, { key = 'E', label, hold, progress }) '_core' action 'prompt'
+      NZA.UI.Prompt(id, { key = 'E', label, sub, hold, progress, tone = 'red' | danger })
+                                                            '_core' action 'prompt'
       NZA.UI.PromptProgress(id, 0..1)                       re-sends 'prompt' with progress
       NZA.UI.HidePrompt(id)                                 '_core' action 'promptHide'
       NZA.UI.Hold(id, opts) → bool     blocking "hold [E] to ..." helper driven from Lua
       NZA.UI.PushConfig()              '_core' action 'config' (font, shape, scale, sounds,
-                                       signature, locale = NZA.LocaleTable('ui'))
+                                       signature, locale = NZA.LocaleTable('ui') with every key
+                                       also present as 'ui.<key>' - nza.js t('ui.close'))
 
     Focus: several apps may be open. SetNuiFocus(anyFocus, anyCursor) over all open apps,
     SetNuiFocusKeepInput(true) while any focused app asked for keepInput (game controls that
@@ -347,9 +349,11 @@ function UI.Toast(data)
         UI.Send(CORE, 'toast', t)
         return
     end
-    -- NUI not up yet: fall back to the framework notification
-    if Bridge and Bridge.Notify then
-        local ok = pcall(Bridge.Notify, { title = t.title, message = t.message, type = t.type, duration = t.duration })
+    -- NUI not up yet: fall back to the external notification (Bridge.Notify itself routes
+    -- back into nza:ui:toast, so call its external path directly)
+    local external = Bridge and (Bridge.NotifyExternal or Bridge.Notify)
+    if external then
+        local ok = pcall(external, { title = t.title, message = t.message, type = t.type, duration = t.duration })
         if ok then return end
     end
     lib.notify({ title = t.title, description = t.message, type = t.type == 'info' and 'inform' or t.type, duration = t.duration })
@@ -366,10 +370,12 @@ function UI.Speech(name, text, ms, extra)
 end
 
 local function samePrompt(a, b)
-    return a and b and a.key == b.key and a.label == b.label and a.hold == b.hold
-        and a.progress == b.progress and a.danger == b.danger
+    return a and b and a.key == b.key and a.label == b.label and a.sub == b.sub and a.hold == b.hold
+        and a.progress == b.progress and a.tone == b.tone
 end
 
+-- opts = { key = 'E', label, sub (small grey suffix), hold = seconds, progress = 0..1
+--          (shows the fill ring), tone = 'red' | danger = true }
 function UI.Prompt(id, opts)
     if id == nil then return end
     opts = opts or {}
@@ -377,9 +383,10 @@ function UI.Prompt(id, opts)
         id = id,
         key = opts.key or 'E',
         label = opts.label or '',
+        sub = opts.sub,
         hold = tonumber(opts.hold),
         progress = tonumber(opts.progress),
-        danger = opts.danger == true or nil,
+        tone = opts.tone or (opts.danger and 'red') or nil,
     }
     if samePrompt(prompts[id], p) then return end
     prompts[id] = p
@@ -416,7 +423,8 @@ function UI.Hold(id, opts)
     local seconds = math.max(0.1, tonumber(opts.seconds or opts.hold) or 2)
     local started = GetGameTimer()
     local held = 0.0
-    UI.Prompt(id, { key = opts.key or 'E', label = opts.label, hold = seconds, progress = 0, danger = opts.danger })
+    UI.Prompt(id, { key = opts.key or 'E', label = opts.label, sub = opts.sub, hold = seconds, progress = 0,
+        tone = opts.tone, danger = opts.danger })
     while true do
         if opts.cancel and opts.cancel() then break end
         if opts.timeout and GetGameTimer() - started > opts.timeout then break end
@@ -441,6 +449,16 @@ end
 -- CONFIG PUSH
 -- ════════════════════════════════════════════════════════════════════════
 
+-- ui.* strings under both spellings: nza.js looks up 'ui.close', apps may use 'close'
+local function uiLocale()
+    local out = {}
+    for k, v in pairs(NZA.LocaleTable('ui')) do
+        out[k] = v
+        out['ui.' .. k] = v
+    end
+    return out
+end
+
 function UI.PushConfig()
     local c = Config.UI or {}
     UI.Send(CORE, 'config', {
@@ -449,7 +467,7 @@ function UI.PushConfig()
         scale = c.scale,
         sounds = c.sounds,
         signature = c.signature,
-        locale = NZA.LocaleTable('ui'),
+        locale = uiLocale(),
         lang = Config.Locale or 'en',
         resource = NZA.Resource,
     })

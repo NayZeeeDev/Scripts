@@ -1,0 +1,140 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · app 'death' — full-screen death screen
+   Top: flatline + DECEASED + time of death. Middle stays open for the
+   death camera. Bottom: cause of death · respawn card · body recovery note.
+   ═══════════════════════════════════════════════════════════ */
+
+#app-death .dz-fx{position:absolute;inset:0;pointer-events:none}
+#app-death .dz-vig{position:absolute;inset:0;
+  background:
+    linear-gradient(180deg,rgba(0,0,0,.82) 0%,rgba(0,0,0,.35) 26%,rgba(0,0,0,0) 42%,rgba(0,0,0,0) 52%,rgba(0,0,0,.55) 74%,rgba(0,0,0,.9) 100%),
+    radial-gradient(ellipse 70% 60% at 50% 48%,rgba(0,0,0,0) 45%,rgba(0,0,0,.7) 100%)}
+#app-death .dz-scan{position:absolute;inset:0;opacity:.05;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.5) 0 1px,transparent 1px 3px)}
+#app-death.in .dz-fx{animation:dz-fade 1.4s ease both}
+@keyframes dz-fade{from{opacity:0}to{opacity:1}}
+
+/* flatline */
+#app-death .dz-line{position:absolute;left:0;right:0;top:92px;width:100%;height:150px;pointer-events:none;overflow:visible;
+  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 31%,transparent 34.5%,transparent 65.5%,#000 69%,#000 100%);
+  mask-image:linear-gradient(90deg,#000 0,#000 31%,transparent 34.5%,transparent 65.5%,#000 69%,#000 100%)}
+#app-death .dz-line .trace{fill:none;stroke:url(#dz-lg);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;
+  vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 6px rgba(229,72,77,.7));stroke-dasharray:4200;stroke-dashoffset:0}
+#app-death.in .dz-line .trace{animation:dz-draw 2.6s cubic-bezier(.3,.6,.2,1) both}
+@keyframes dz-draw{from{stroke-dashoffset:4200}to{stroke-dashoffset:0}}
+
+/* header */
+#app-death .dz-head{position:absolute;left:0;right:0;top:88px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+#app-death .dz-over{display:inline-flex;align-items:center;gap:9px;height:24px;padding:0 12px;border-radius:99px;
+  background:rgba(12,13,16,.7);border:1px solid var(--red-edge);font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#ff8a8d}
+#app-death .dz-over .nz-dot{animation:nza-blink 1.4s steps(1) infinite}
+#app-death .dz-title{font-size:86px;font-weight:800;letter-spacing:.2em;line-height:.95;color:var(--white);margin-right:-.2em;
+  text-shadow:0 0 40px rgba(229,72,77,.28),0 6px 30px rgba(0,0,0,.6)}
+#app-death.in .dz-title{animation:dz-title 1.6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes dz-title{from{opacity:0;letter-spacing:.42em;filter:blur(6px)}to{opacity:1;letter-spacing:.2em;filter:none}}
+#app-death .dz-meta{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--ink-2);font-weight:400}
+#app-death .dz-meta b{color:var(--white);font-weight:600}
+#app-death .dz-meta b.mono{font-family:var(--mono);font-weight:500}
+#app-death .dz-meta i{width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+#app-death.in .dz-meta{animation:nza-in 600ms 700ms both}
+
+/* dock */
+#app-death .dz-dock{position:absolute;left:0;right:0;margin:0 auto;bottom:30px;display:flex;flex-direction:column;align-items:center;gap:10px;width:884px;max-width:96vw}
+#app-death.in .dz-dock{animation:nza-in 500ms 500ms both}
+#app-death .dz-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%}
+#app-death .dz-card{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+#app-death .dz-h{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:16px}
+#app-death .dz-where{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);min-width:0}
+#app-death .dz-where span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-death .dz-where .nz-ic{width:13px;height:13px;color:var(--teal)}
+
+/* cause list */
+#app-death .dz-list{list-style:none;display:flex;flex-direction:column;gap:6px}
+#app-death .dz-list li{display:flex;align-items:center;gap:10px;min-height:30px;padding:4px 10px 4px 4px;border-radius:8px;
+  background:var(--inset);border:1px solid var(--line-hair)}
+#app-death .dz-list .ic{width:26px;height:26px;flex:none;border-radius:7px;display:grid;place-items:center;color:var(--ink-2);background:var(--raise);border:1px solid var(--line-soft)}
+#app-death .dz-list .ic .nz-ic{width:14px;height:14px}
+#app-death .dz-list .tx{font-size:12.5px;color:var(--ink);font-weight:400;line-height:1.35}
+#app-death .dz-list li.red .ic{color:#ff7478;background:var(--red-wash);border-color:var(--red-edge)}
+#app-death .dz-list li.amber .ic{color:#f3c35a;background:var(--amber-wash);border-color:var(--amber-edge)}
+#app-death .dz-list li.dim .tx{color:var(--ink-2)}
+#app-death .dz-list li.lead{background:linear-gradient(90deg,rgba(229,72,77,.12),rgba(229,72,77,0) 70%),var(--inset);border-color:var(--red-edge)}
+#app-death .dz-list li.lead .tx{font-size:13.5px;font-weight:600;color:var(--white)}
+#app-death .dz-list li.sk .ic{background:rgba(255,255,255,.04)}
+#app-death .dz-list li.sk .tx{display:block;width:60%;height:9px;border-radius:9px;background:rgba(255,255,255,.06);animation:nza-blink 1.4s infinite}
+
+/* respawn: waiting */
+#app-death .dz-wait{display:flex;align-items:center;gap:16px}
+#app-death .dz-flip .flip{gap:4px}
+#app-death .dz-flip .flip.sm .d{width:34px;height:46px;font-size:28px}
+#app-death .dz-wt{flex:1;display:flex;flex-direction:column;gap:9px;min-width:0}
+#app-death .dz-wt small{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+#app-death .dz-prog{height:5px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden}
+#app-death .dz-prog i{display:block;height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--teal-lo),var(--teal));transition:width .25s linear}
+
+/* respawn: ready (hold) */
+#app-death .dz-go{position:relative;display:flex;align-items:center;gap:13px;height:58px;padding:0 16px 0 9px;border-radius:10px;overflow:hidden;
+  background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--white);animation:nza-glow 2s infinite}
+#app-death .dz-go .fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(8,175,162,.25),rgba(8,175,162,.5));transition:width 60ms linear}
+#app-death .dz-go > *{position:relative}
+#app-death .dz-go .tx{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+#app-death .dz-go .tx b{font-size:14px;font-weight:700}
+#app-death .dz-go .tx small{font-size:11.5px;color:var(--teal-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-death .dz-go > .nz-ic{width:18px;height:18px;color:var(--teal-hi)}
+#app-death .dz-ring{position:relative;width:42px;height:42px;display:grid;place-items:center;flex:none}
+#app-death .dz-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+#app-death .dz-ring circle{fill:none;stroke-width:2.6}
+#app-death .dz-ring .bg{stroke:rgba(255,255,255,.12)}
+#app-death .dz-ring .fg{stroke:var(--teal-hi);stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(15,212,196,.7))}
+#app-death .dz-ring kbd{height:24px;min-width:24px;font-size:12px}
+#app-death .dz-go.holding{animation:none}
+#app-death .dz-busy{display:flex;align-items:center;justify-content:center;gap:10px;height:58px;border-radius:10px;background:var(--inset);border:1px solid var(--line-soft);
+  font-size:13px;font-weight:600;color:var(--teal-hi)}
+#app-death .spin{display:block;width:14px;height:14px;border-radius:50%;border:2px solid var(--teal-edge);border-top-color:var(--teal);animation:dz-spin .8s linear infinite}
+@keyframes dz-spin{to{transform:rotate(360deg)}}
+
+/* bill */
+#app-death .dz-bill{display:flex;flex-direction:column;border-top:1px solid var(--line-hair)}
+#app-death .dz-bill:empty{display:none}
+#app-death .dz-bill .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-hair);font-size:12px;color:var(--ink-2)}
+#app-death .dz-bill .row span{display:inline-flex;align-items:center;gap:6px}
+#app-death .dz-bill .row .nz-ic{width:13px;height:13px;color:var(--teal)}
+#app-death .dz-bill .row em{font-style:normal;font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+#app-death .dz-bill .row b{font-family:var(--mono);font-weight:500;color:var(--ink)}
+#app-death .dz-bill .row.ins b{color:var(--teal-hi)}
+#app-death .dz-bill .row.tot{border-bottom:0;padding-bottom:0}
+#app-death .dz-bill .row.tot span{color:var(--white);font-weight:600}
+#app-death .dz-bill .row.tot b{font-family:var(--font);font-size:18px;font-weight:700;color:var(--white);letter-spacing:-.02em}
+#app-death .dz-bill .row.tot b.teal{font-size:13px;color:var(--teal-hi)}
+#app-death .dz-loss{display:flex;flex-wrap:wrap;gap:6px}
+#app-death .dz-loss:empty{display:none}
+#app-death .dz-loss .chipx{cursor:default}
+#app-death .dz-loss .chipx .nz-ic{width:12px;height:12px}
+
+/* note */
+#app-death .dz-note{position:relative;display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px 11px 12px;
+  background:var(--hud);border:1px solid var(--hud-line);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.05)}
+#app-death .dz-note::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:#fff;box-shadow:0 0 10px rgba(255,255,255,.8)}
+#app-death .dz-note .ni{width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16)}
+#app-death .dz-note .ni .nz-ic{width:16px;height:16px}
+#app-death .dz-note .tx{flex:1;min-width:0}
+#app-death .dz-note .tx b{display:block;font-size:13px;font-weight:600;color:var(--white)}
+#app-death .dz-note .tx p{font-size:11.5px;color:rgba(243,245,239,.66);margin-top:2px;line-height:1.4}
+#app-death .dz-note .k{display:inline-flex;align-items:center;gap:8px;flex:none;font-size:12px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+#app-death .dz-note .k kbd{height:24px;min-width:24px;font-size:11.5px}
+#app-death .dz-note .k.done{color:var(--teal-hi)}
+#app-death .dz-note .k.done .nz-ic{width:14px;height:14px}
+#app-death .dz-note .k em{font-style:normal;font-family:var(--mono);font-size:11px;font-weight:500;color:var(--ink-3)}
+
+/* flash */
+#app-death .dz-flash{display:none;align-items:center;gap:8px;height:30px;padding:0 13px 0 10px;border-radius:99px;font-size:12px;font-weight:600;
+  background:var(--hud-solid);border:1px solid var(--hud-line);color:var(--ink)}
+#app-death .dz-flash.on{display:inline-flex;animation:nza-in 200ms both}
+#app-death .dz-flash .nz-ic{width:14px;height:14px}
+#app-death .dz-flash.ok{border-color:var(--teal-edge);color:var(--teal-hi)}
+#app-death .dz-flash.warn{border-color:var(--amber-edge);color:#f3c35a}
+#app-death .dz-flash.bad{border-color:var(--red-edge);color:#ff9a9d}
+
+@media (prefers-reduced-motion:reduce){
+  #app-death .dz-line .trace{stroke-dashoffset:0}
+}

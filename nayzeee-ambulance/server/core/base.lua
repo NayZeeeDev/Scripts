@@ -17,6 +17,7 @@
     NZA.Core.DistanceTo(src, p)        → metres (math.huge when unknown)
     NZA.Core.Rate(bucket, key, n, ms)  → true while under n calls per ms window
     NZA.Core.Notify(src, msg, type, title, duration)   → 'nza:ui:toast' to the client
+    NZA.Core.Speech(src, name, text, ms, extra)        → 'nza:ui:speech' (patient subtitle) to the client
     NZA.Core.NormalizeItems(items)     → { [name] = count }
     NZA.Core.CheckItems(src, items)    → ok, missingName
     NZA.Core.TakeItems(src, items)     → ok
@@ -211,6 +212,18 @@ function Core.Notify(src, message, kind, title, duration)
 end
 
 NZA.Notify = NZA.Notify or function(...) return Core.Notify(...) end
+
+-- Patient speech subtitle on one client ('nza:ui:speech', shown by core-client).
+-- src = player id or -1 for everyone; extra = optional additional fields for the NUI.
+function Core.Speech(src, name, text, ms, extra)
+    src = tonumber(src)
+    if not src or src == 0 or type(text) ~= 'string' or text == '' then return end
+    local data = { name = name, text = text, ms = tonumber(ms) or 4000 }
+    if type(extra) == 'table' then
+        for k, v in pairs(extra) do if data[k] == nil then data[k] = v end end
+    end
+    TriggerClientEvent('nza:ui:speech', src, data)
+end
 
 -- ════════════════════════════════════════════════════════════════════════
 -- ITEMS — items may be { [name] = count } or { { name, count }, ... } or { 'name', ... }

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE Angio Screen</title>
+<!--
+  NAYZEEE AMBULANCE · angio — fluoroscopy monitor (DUI page)
+  Drawn into a runtime texture that replaces Config.PropScreens.angio_monitor on the boom
+  monitor of the angiography suite. Lua drives it with SendDuiMessage (see screen.js).
+  Browser check: screen.html?demo=1
+-->
+<style>
+@font-face{font-family:'Lexend';font-weight:600;src:url(../../core/fonts/lexend-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Lexend';font-weight:700;src:url(../../core/fonts/lexend-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:500;src:url(../../core/fonts/jetbrains-mono-latin-500-normal.woff2) format('woff2')}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#030405}
+canvas{display:block;width:100vw;height:100vh}
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<script src="../../core/nza-vitals.js"></script>
+<script src="app.js"></script>
+<script src="screen.js"></script>
+</body>
+</html>

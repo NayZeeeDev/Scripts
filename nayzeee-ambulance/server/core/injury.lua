@@ -76,6 +76,8 @@ I.OrganBleed = {
     femoral = 1.4, lung = 0.7, brain = 0.35, carotid = 1.5, tibial = 0.6, brachial = 0.8, radial = 0.5,
 }
 
+I.MaxInjuries = 12   -- past this, new damage merges into existing injuries (server/core/damage.lua)
+
 I.Penetrating = { gunshot = true, shrapnel = true, stab = true }
 -- open wounds that can get contaminated / infected
 I.OpenTypes = { gunshot = true, shrapnel = true, stab = true, laceration = true, abrasion = true, burn = true }
@@ -333,7 +335,8 @@ function I.Complications(p, inj)
     end
 
     -- ── abdomen / pelvis / back: a penetrating wound usually hits something inside
-    if pen and (region == 'abdomen' or region == 'pelvis' or region == 'back') and sev >= 2 then
+    local room = NZA.Util.tableCount(p.injuries) < I.MaxInjuries
+    if pen and room and (region == 'abdomen' or region == 'pelvis' or region == 'back') and sev >= 2 then
         if chance(({ 0, 0.4, 0.75, 1.0 })[sev]) then
             local share = 0.4
             inj.bleedBase = r1(inj.bleedBase * (1 - share))
@@ -347,7 +350,7 @@ function I.Complications(p, inj)
     -- ── fractures
     if kind == 'fracture' and inj.fracture then
         local bone = inj.fracture.bone
-        if region == 'pelvis' and sev >= 3 and chance(0.8) then
+        if region == 'pelvis' and sev >= 3 and room and chance(0.8) then
             P.AddInjury(p.pid, { region = 'pelvis', type = 'internal', severity = math.max(1, sev - 1),
                 internal = { organ = 'pelvic' }, complications = false, cause = 'fracture' })
         end

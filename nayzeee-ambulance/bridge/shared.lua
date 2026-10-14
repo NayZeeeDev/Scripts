@@ -22,7 +22,7 @@
     Every kind of integration has a priority list and a resource map below.
     Reorder a list to prefer one script over another, or add your own entry
     (and an adapter with the same name in bridge/client or bridge/server).
-    A resource value of `true` means "always available" (built in).
+    A resource value of true means "always available" (built in).
     ═══════════════════════════════════════════════════════════════════════════
 ]]
 

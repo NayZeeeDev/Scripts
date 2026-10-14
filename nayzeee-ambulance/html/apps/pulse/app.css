@@ -1,0 +1,51 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · Check Pulse (app 'pulse')
+   ═══════════════════════════════════════════════════════════ */
+
+/* "under your fingers" block inside the procedure panel */
+#app-pulse .pz-feel{display:flex;flex-direction:column;gap:6px;padding-top:9px;border-top:1px solid var(--line-hair)}
+#app-pulse .pz-fh{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#app-pulse .pz-fh .l{font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+#app-pulse .pz-fh .cap{font-size:10.5px;font-weight:500;color:var(--ink-3);white-space:nowrap}
+#app-pulse .pz-fh .cap.teal{color:var(--teal-hi)} #app-pulse .pz-fh .cap.amber{color:#f3c35a}
+#app-pulse .pz-cv{display:block;width:100%;height:62px;border-radius:7px;border:1px solid rgba(8,175,162,.18);box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
+#app-pulse .pp-right{min-width:420px}
+
+/* in-world fingertip marker */
+.anc.pz-site .dot{width:26px;height:26px;border-color:rgba(255,255,255,.9);background:rgba(255,255,255,.08);box-shadow:0 0 0 4px rgba(255,255,255,.06);animation:none}
+.anc.pz-site.pz-beat .dot{animation:pz-throb 360ms ease-out}
+@keyframes pz-throb{0%{transform:scale(1);border-color:#fff;box-shadow:0 0 0 4px rgba(15,212,196,.0)}
+  25%{transform:scale(1.28);border-color:#0fd4c4;box-shadow:0 0 0 9px rgba(15,212,196,.28)}100%{transform:scale(1);box-shadow:0 0 0 4px rgba(15,212,196,0)}}
+
+/* result card */
+#app-pulse .pz-result-wrap{position:absolute;left:0;right:0;top:56px;display:flex;justify-content:center;pointer-events:none}
+#app-pulse .pz-result{width:540px;padding:18px 20px 16px;pointer-events:auto}
+#app-pulse .pz-result::before{content:'';position:absolute;left:16px;right:16px;top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
+#app-pulse .pz-result .rh{display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--line-soft)}
+#app-pulse .pz-result h3{font-size:19px;font-weight:600;color:var(--white);letter-spacing:-.01em}
+#app-pulse .pz-result .rh p{font-size:12px;color:var(--ink-3);margin-top:4px}
+#app-pulse .pz-result table{width:100%;border-collapse:collapse;margin-top:8px}
+#app-pulse .pz-result thead th{font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:6px 0}
+#app-pulse .pz-result tbody th{width:96px;text-align:left;font-size:12.5px;font-weight:400;color:var(--ink-2);padding:9px 0;border-top:1px solid var(--line-hair)}
+#app-pulse .pz-result tbody td{font-size:14px;font-weight:700;color:var(--white);padding:9px 0;border-top:1px solid var(--line-hair)}
+#app-pulse .pz-result tbody td i{font-style:normal;font-size:10.5px;font-weight:500;color:var(--ink-3);margin-left:4px}
+#app-pulse .pz-result tbody td.m{width:28px;text-align:right}
+#app-pulse .pz-result tr.sub td{border-top:0;padding-top:0;font-size:11px;font-weight:500;color:#f3c35a}
+#app-pulse .pz-result span.ok,#app-pulse .pz-result span.no{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px}
+#app-pulse .pz-result span.ok{background:var(--teal-wash);color:var(--teal-hi);border:1px solid var(--teal-edge)}
+#app-pulse .pz-result span.no{background:var(--red-wash);color:#ff8a8d;border:1px solid var(--red-edge)}
+#app-pulse .pz-result span.ok .nz-ic,#app-pulse .pz-result span.no .nz-ic{width:12px;height:12px}
+#app-pulse .pz-result .chips-row{display:inline-flex;gap:6px}
+#app-pulse .pz-result .fb{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft)}
+#app-pulse .pz-result .fb li{display:flex;gap:9px;font-size:12.5px;color:var(--ink);line-height:1.45}
+#app-pulse .pz-result .fb li::before{content:'';width:6px;height:6px;margin-top:6px;flex:none;border-radius:50%;background:var(--ink-3)}
+#app-pulse .pz-result .fb li.ok::before{background:var(--teal);box-shadow:0 0 6px var(--teal)}
+#app-pulse .pz-result .fb li.warn::before{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+#app-pulse .pz-result .fb li.bad::before{background:var(--red);box-shadow:0 0 6px var(--red)}
+#app-pulse .pz-result .fb li.info::before{background:#fff}
+#app-pulse .pz-result .rec{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}
+#app-pulse .pz-result .rec .nza-label{margin-right:4px}
+#app-pulse .pz-result .err{margin-top:12px;font-size:12.5px;color:#ff9a9d}
+#app-pulse .pz-tip{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:8px 10px 8px 12px;border-radius:8px;background:var(--inset);border:1px solid var(--line-hair);position:relative;font-size:11.5px;color:var(--ink-2);line-height:1.45;max-width:58ch}
+#app-pulse .pz-tip::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+#app-pulse .pz-tip .nz-ic{width:14px;height:14px;color:var(--teal);margin-top:1px}

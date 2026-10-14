@@ -127,8 +127,16 @@ static class Program
 
     static bool Ordered(SharpDX.Vector3 a, SharpDX.Vector3 b) => a.X <= b.X && a.Y <= b.Y && a.Z <= b.Z;
 
+    static readonly string[] KnownNames =
+    {
+        "default", "default.sps", "spec", "spec.sps", "normal", "normal.sps", "normal_spec", "normal_spec.sps",
+        "normal_spec_alpha", "normal_spec_alpha.sps", "emissive", "emissive.sps", "emissivestrong", "emissivestrong.sps",
+        "emissivenight", "emissivenight.sps", "alpha", "alpha.sps", "glass", "glass.sps",
+    };
+
     static void Inspect(string path, string reexport, List<string> problems)
     {
+        foreach (var n in KnownNames) JenkIndex.Ensure(n);
         var bytes = File.ReadAllBytes(path);
         var ext = Path.GetExtension(path).ToLowerInvariant();
         var magic = bytes.Length >= 4 ? Encoding.ASCII.GetString(bytes, 0, 4) : "????";

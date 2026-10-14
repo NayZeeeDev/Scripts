@@ -11,9 +11,11 @@
       NZA.OnDuty()          → bool
       NZA.Staff.Get()       → record | nil
           { hospital, dept, grade, gradeLabel, perms = { [perm] = true },
-            easy = { [perm] = true }, onDuty, medic, admin? }
+            easy = { [perm] = true }, onDuty, medic, police, admin? }
+      NZA.Staff.Refresh()   → record   (awaits callback 'nza:staff:get')
 
     Net events handled: nza:staff:update (record)
+    Callbacks used: nza:staff:get (fallback fetch 4 s after start when no push arrived)
     Bus events emitted: staff:changed (record)
 ]]
 
@@ -68,14 +70,20 @@ function NZA.OnDuty()
     return type(job) == 'table' and job.onDuty == true
 end
 
+-- same rule as server/core/staff.lua: duty is required unless Config.Jobs.requireDuty == false
+local function requireDuty()
+    return not (Config.Jobs and Config.Jobs.requireDuty == false)
+end
+
 function NZA.Perm(perm)
     if perm == nil then return true end
     if publicPerms[perm] then return true end
     if record then
         if record.admin then return true end
         if record.perms and record.perms[perm] then
-            -- medics off duty only keep the public perms (server enforces the same)
-            if record.medic and Config.Jobs and Config.Jobs.requireDuty and record.onDuty == false then
+            -- the server already sends effective perms; this only matters between a local
+            -- duty toggle (Bridge.OnJobChanged) and the server's fresh record
+            if requireDuty() and record.onDuty == false and not record.ignoreDuty then
                 return false
             end
             return true
@@ -87,23 +95,44 @@ function NZA.Perm(perm)
     return false
 end
 
+-- Mirrors NZA.Staff.Easy on the server: a perm listed in record.easy is easy, anything
+-- else falls back to Config.EasyMode.default. (The server decides per session anyway:
+-- 'nza:proc:start' returns easy = true/false.)
 function NZA.Easy(perm)
+    local default = (Config.EasyMode and Config.EasyMode.default == true) or false
     if record and type(record.easy) == 'table' then
         if perm == nil then
             for _ in pairs(record.easy) do return true end
-            return false
+            return default
         end
-        return record.easy[perm] == true
+        if record.easy[perm] then return true end
     end
-    return Config.EasyMode and Config.EasyMode.default == true or false
+    return default
 end
 
-RegisterNetEvent('nza:staff:update', function(rec)
+local function applyRecord(rec)
     if type(rec) ~= 'table' then return end
     rec.perms = toSet(rec.perms)
     if rec.easy ~= nil then rec.easy = toSet(rec.easy) end
     record = rec
     NZA.Bus.Emit('staff:changed', rec)
+end
+
+-- re-ask the server (callback 'nza:staff:get'); the push event is the normal path
+function Staff.Refresh()
+    local ok, rec = pcall(lib.callback.await, 'nza:staff:get', false)
+    if ok and type(rec) == 'table' then applyRecord(rec) end
+    return record
+end
+
+RegisterNetEvent('nza:staff:update', function(rec)
+    applyRecord(rec)
+end)
+
+CreateThread(function()
+    -- client-only restart or a missed push: fetch once if nothing arrived
+    Wait(4000)
+    if not record then Staff.Refresh() end
 end)
 
 CreateThread(function()

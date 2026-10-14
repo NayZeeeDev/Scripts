@@ -1,0 +1,120 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · angio — angiography overlay
+   HUD design: panels rgba(12,13,16,.78) r12, teal = active, red = bleed/abort,
+   amber = X-ray on / warnings. In-game safe: no backdrop-filter, color-mix, :has.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── left column ── */
+#app-angio .ag-col{position:absolute;left:24px;top:24px;width:328px;display:flex;flex-direction:column;gap:12px;transition:opacity 200ms}
+#app-angio .ag-card{padding:12px 14px 14px;overflow:hidden;animation:nza-in 240ms both}
+#app-angio .ag-console,#app-angio .ag-access{display:none}
+#app-angio.ag-navmode .ag-console{display:block}
+#app-angio.ag-accessmode .ag-access{display:block}
+#app-angio .ag-h{display:flex;align-items:center;gap:8px;margin-bottom:10px;min-height:20px}
+#app-angio .ag-h .nza-label{color:var(--ink-2)}
+#app-angio .ag-xr{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:5px;border:1px solid var(--line-soft);
+  font-size:9px;letter-spacing:.14em;color:var(--ink-3);transition:color var(--fast),border-color var(--fast),background var(--fast)}
+#app-angio .ag-xr b{font-weight:700}
+#app-angio .ag-xr i{width:7px;height:7px;border-radius:50%;background:#2c2f31;transition:background var(--fast),box-shadow var(--fast)}
+#app-angio .ag-xr.on{color:#f3c35a;border-color:var(--amber-edge);background:var(--amber-wash)}
+#app-angio .ag-xr.on i{background:#f2b33d;box-shadow:0 0 8px #f2b33d}
+#app-angio .ag-h .chipx{margin-left:auto}
+
+/* vitals strip (kit monitor, squeezed into the card) */
+#app-angio .ag-vit{border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.05)}
+#app-angio .ag-vit .vmon{min-width:0;grid-template-columns:1fr 74px}
+#app-angio .ag-vit .vmon .nums{display:grid;grid-template-columns:1fr}
+#app-angio .ag-vit .vmon .nb{padding:1px 7px}
+#app-angio .ag-vit .vmon .nb .v{font-size:17px}
+#app-angio .ag-vit .vmon .nb.sp{display:none}
+#app-angio .ag-vit .vmon .foot{padding:3px 8px}
+
+/* sections */
+#app-angio .ag-sec{border-top:1px solid var(--line-hair);margin-top:11px;padding-top:10px}
+#app-angio .ag-sl{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+#app-angio .ag-sv{font-size:12px;letter-spacing:0;text-transform:none;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums}
+#app-angio .ag-sec .segc{display:flex;width:100%}
+#app-angio .ag-sec .segc button{flex:1;padding:0 6px}
+#app-angio .ag-slider{margin-top:10px}
+#app-angio .ag-slider .rng span{min-width:62px;font-size:11.5px}
+#app-angio .ag-disabled{opacity:.35;pointer-events:none}
+
+/* tip compass */
+#app-angio .ag-tipwrap{display:grid;grid-template-columns:116px 1fr;gap:12px;align-items:center}
+#app-angio .ag-compass{width:116px;height:116px;overflow:visible}
+#app-angio .ag-compass .ring{fill:rgba(0,0,0,.32);stroke:rgba(255,255,255,.12);stroke-width:1}
+#app-angio .ag-compass .ring2{fill:none;stroke:rgba(255,255,255,.07);stroke-width:1;stroke-dasharray:2 3}
+#app-angio .ag-compass .lb{fill:var(--ink-3);font:600 7px var(--font);letter-spacing:.06em;text-anchor:middle}
+#app-angio .ag-compass .tk{stroke:rgba(255,255,255,.55);stroke-width:3.2;stroke-linecap:round}
+#app-angio .ag-compass .tk.on{stroke:var(--teal-hi)}
+#app-angio .ag-compass .tk.nar{stroke:rgba(229,72,77,.6);stroke-dasharray:2 2}
+#app-angio .ag-compass circle.on{fill:var(--teal);stroke:var(--teal-hi)}
+#app-angio .ag-compass circle.nar{fill:var(--red-wash);stroke:var(--red-edge)}
+#app-angio .ag-compass circle:not(.ring):not(.ring2):not(.head){fill:rgba(255,255,255,.12);stroke:rgba(255,255,255,.4);stroke-width:1}
+#app-angio .ag-compass circle.on:not(.ring){fill:var(--teal);stroke:var(--teal-hi)}
+#app-angio .ag-compass .dot{fill:rgba(255,255,255,.55);stroke:none}
+#app-angio .ag-compass .dot.on{fill:var(--teal-hi)}
+#app-angio .ag-compass .arrow{stroke:var(--white);stroke-width:3;stroke-linecap:round}
+#app-angio .ag-compass .head{fill:var(--white);filter:drop-shadow(0 0 4px rgba(255,255,255,.5))}
+#app-angio .ag-next{min-width:0}
+#app-angio .ag-next .nza-label{display:block;font-size:9px}
+#app-angio .ag-next b{display:block;margin-top:4px;font-size:13.5px;font-weight:600;color:var(--white);line-height:1.25}
+#app-angio .ag-next small{display:block;margin-top:3px;font-size:11px;color:var(--ink-3)}
+
+/* supplies */
+#app-angio .ag-sup{display:grid;grid-template-columns:1.2fr .9fr 1fr;gap:12px}
+#app-angio .ag-sup .nza-label{display:block;font-size:9px}
+#app-angio .ag-sup b{display:block;margin:4px 0 6px;font-size:15px;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums;white-space:nowrap}
+#app-angio .ag-sup small{display:block;font-size:10.5px;color:var(--ink-3);white-space:nowrap}
+#app-angio .ag-pips{display:flex;gap:4px;flex-wrap:wrap}
+#app-angio .ag-pips i{width:9px;height:9px;border-radius:3px;background:var(--teal);box-shadow:0 0 6px rgba(8,175,162,.4)}
+#app-angio .ag-pips i.used{background:rgba(255,255,255,.14);box-shadow:none}
+#app-angio .ag-view{display:flex;align-items:center;gap:12px}
+#app-angio .ag-view .segc{flex:1;display:flex}
+#app-angio .ag-view .segc button{flex:1}
+
+/* access device */
+#app-angio .ag-us{position:relative;height:168px;border-radius:9px;overflow:hidden;background:#000;margin-bottom:8px;border:1px solid rgba(255,255,255,.06)}
+#app-angio .ag-us canvas{display:block;width:100%;height:100%}
+#app-angio .ag-cap{position:absolute;left:9px;bottom:7px;font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+#app-angio .ag-gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
+#app-angio .ag-gauges .nza-label{display:block;font-size:9px}
+#app-angio .ag-gauges b{display:block;margin:4px 0 6px;font-size:16px;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums;white-space:nowrap}
+#app-angio .ag-gauges b.t-teal{color:var(--teal-hi)}
+#app-angio .ag-gauges b.t-amber{color:#f3c35a}
+
+/* fluoroscopy fallback screen (no DUI, browser preview, or View → Screen) */
+#app-angio .ag-screen{position:absolute;left:376px;right:24px;top:24px;display:none;justify-content:center;pointer-events:none}
+#app-angio.ag-showscreen .ag-screen{display:flex}
+#app-angio .ag-dev{width:1040px;padding:12px 14px 14px;animation:nza-in 240ms both}
+#app-angio .ag-devtop{display:flex;align-items:center;justify-content:space-between;padding:0 4px 9px}
+#app-angio .ag-devtop .dev-brand .nz-mark{width:12px;height:12px}
+#app-angio .ag-dev .dev-screen{aspect-ratio:16/9;width:100%}
+#app-angio .ag-dev .dev-screen canvas{display:block;width:100%;height:100%}
+
+/* room mode: the medic walks around, only the panel stays */
+#app-angio.ag-room .ag-col,#app-angio.ag-room .ag-screen{opacity:0;pointer-events:none}
+
+/* procedure panel tweaks */
+#app-angio .ag-pp .pp-right{min-width:356px}
+#app-angio .ag-pp .pp-wide .row .v{font-size:17px!important;font-weight:600;letter-spacing:-.01em;white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+#app-angio .ag-pp .pp-wide .cap{min-height:14px}
+
+/* result card */
+#app-angio .ag-result{position:absolute;left:0;right:0;margin:0 auto;bottom:262px;width:600px;padding:16px 18px 16px;display:none}
+#app-angio .ag-result.on{display:block;animation:nza-pop 240ms both}
+#app-angio .ag-rhead{display:flex;align-items:center;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+#app-angio .ag-rhead h3{font-size:19px;font-weight:600;color:var(--white);letter-spacing:-.015em;margin-top:2px}
+#app-angio .ag-rhead p{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+#app-angio .ag-rscore{margin-left:auto;text-align:right}
+#app-angio .ag-rscore b{font-size:30px;font-weight:800;color:var(--white);font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+#app-angio .ag-rscore span{font-size:12px;color:var(--ink-3);margin-left:2px}
+#app-angio .ag-rbody{display:grid;grid-template-columns:1fr 1fr;gap:9px 24px;padding-top:12px}
+#app-angio .ag-rrow{display:grid;grid-template-columns:104px 1fr 26px;align-items:center;gap:10px;font-size:12px;color:var(--ink-2)}
+#app-angio .ag-rrow b{text-align:right;color:var(--white);font-variant-numeric:tabular-nums}
+#app-angio .ag-rrow small{grid-column:1 / -1;margin-top:-6px;font-size:10px;color:var(--ink-3)}
+#app-angio .ag-rrow .mtr{height:5px}
+
+@media (prefers-reduced-motion:reduce){
+  #app-angio .ag-card,#app-angio .ag-dev,#app-angio .ag-result.on{animation:none}
+}

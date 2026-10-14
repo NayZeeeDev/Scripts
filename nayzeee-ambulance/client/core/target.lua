@@ -16,7 +16,8 @@
     and body bag props. Modules add options; this file rebuilds the bridge options from the
     registry (debounced) and filters every option at runtime by: own state (downed players
     see nothing unless opt.whileDown), self/player/npc/bag flags, permission (NZA.Perm),
-    patient state (opt.states), distance and opt.canInteract. Options are sorted by order.
+    patient state (opt.states), distance (default 2.0 m) and opt.canInteract. Options are
+    sorted by order.
 
       NZA.Interact.Add({ name, label, icon, order, perm, states, self, npc, player, bag,
                          distance, whileDown, description, faIcon,
@@ -40,6 +41,7 @@ local T = NZA.Target
 local I = NZA.Interact
 
 local CACHE_MS = 250
+local DEFAULT_DISTANCE = 2.0
 local BAG_SCAN_MS = 1500
 local BAG_RANGE = 40.0
 
@@ -228,7 +230,7 @@ local function allowed(opt, entity, distance)
     if distance == nil and entity ~= me then
         distance = #(GetEntityCoords(me) - GetEntityCoords(entity))
     end
-    if opt.distance and distance and distance > opt.distance + 0.05 then return false end
+    if distance and distance > (opt.distance or DEFAULT_DISTANCE) + 0.05 then return false end
     if opt.canInteract then
         local ok, res = pcall(opt.canInteract, entity, info.target, info.state)
         if not ok then
@@ -252,14 +254,21 @@ local function runSelect(opt, entity)
     end)
 end
 
-local function bridgeOption(opt)
+-- kind = 'player' | 'ped' | 'bag': which registration this copy belongs to. Some target
+-- scripts also run global ped options on player peds; the kind check keeps each option
+-- from showing twice on the same entity.
+local function bridgeOption(opt, kind)
     return {
         name = opt.name,
         label = opt.label,
         icon = opt.icon,
-        distance = opt.distance or 2.0,
+        order = opt.order,
+        distance = opt.distance or DEFAULT_DISTANCE,
         canInteract = function(entity, distance)
             if type(entity) == 'table' then entity = entity.entity end
+            if not entity or entity == 0 then return false end
+            if kind == 'ped' and IsEntityAPed(entity) and IsPedAPlayer(entity) then return false end
+            if kind == 'player' and not (IsEntityAPed(entity) and IsPedAPlayer(entity)) then return false end
             return allowed(opt, entity, distance)
         end,
         onSelect = function(entity)
@@ -282,7 +291,7 @@ local function bagOptions()
     if bagOptionsCache then return bagOptionsCache end
     local list = {}
     for _, opt in ipairs(sorted()) do
-        if opt.bag then list[#list + 1] = bridgeOption(opt) end
+        if opt.bag then list[#list + 1] = bridgeOption(opt, 'bag') end
     end
     bagOptionsCache = list
     return list
@@ -301,7 +310,8 @@ local function unregisterBag(entity)
     local api = targetApi()
     local list = bags[entity]
     bags[entity] = nil
-    if api and api.RemoveEntity and list and DoesEntityExist(entity) then
+    -- also when the prop is already gone: the bridge keeps a per-entity registry
+    if api and api.RemoveEntity and list then
         pcall(api.RemoveEntity, entity, list)
     end
 end
@@ -318,8 +328,8 @@ local function rebuild()
 
     local playerOpts, pedOpts = {}, {}
     for _, opt in ipairs(sorted()) do
-        if opt.player ~= false then playerOpts[#playerOpts + 1] = bridgeOption(opt) end
-        if opt.npc ~= false then pedOpts[#pedOpts + 1] = bridgeOption(opt) end
+        if opt.player ~= false then playerOpts[#playerOpts + 1] = bridgeOption(opt, 'player') end
+        if opt.npc ~= false then pedOpts[#pedOpts + 1] = bridgeOption(opt, 'ped') end
     end
     if #playerOpts > 0 and api.Player then
         local ok, err = pcall(api.Player, playerOpts)
@@ -404,6 +414,20 @@ local function menuTitle(entity)
     return NZA.L('core_client.interact.patient')
 end
 
+-- ox_lib wants a Font Awesome name ('heart-pulse'); the bridge maps NAYZEEE icon names
+local function faName(opt)
+    if opt.faIcon then return opt.faIcon end
+    local icon = opt.icon
+    if type(icon) ~= 'string' or icon == '' then return nil end
+    if Bridge and Bridge.FaIcon then
+        local ok, cls = pcall(Bridge.FaIcon, icon)
+        if ok and type(cls) == 'string' then
+            return cls:match('fa%-([%w%-]+)$') or icon
+        end
+    end
+    return icon
+end
+
 function I.Open(entity)
     entity = entity or PlayerPedId()
     local list = I.Options(entity)
@@ -416,7 +440,7 @@ function I.Open(entity)
         options[i] = {
             title = opt.label,
             description = opt.description,
-            icon = opt.faIcon or opt.icon,
+            icon = faName(opt),
             onSelect = function() runSelect(opt, entity) end,
         }
     end

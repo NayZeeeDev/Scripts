@@ -10,7 +10,6 @@ screen helpers: draw_monitor_ui / draw_defib_ui / draw_pager_lcd produce default
 """
 from __future__ import annotations
 
-import math
 import os
 from dataclasses import dataclass, field
 
@@ -258,8 +257,15 @@ class DecalCanvas:
             d.polygon(P, fill=255)
         return self.ink(self._mask(fn, blur), **ink)
 
-    def text(self, x, y, s, size, fnt="brand", anchor="mm", spacing=0.0, blur=0.0, rotate=0, **ink):
-        """size = cap height-ish in metres (font pixel size = size * ppm * 1.38)."""
+    def text(self, x, y, s, size, fnt="brand", anchor="mm", spacing=0.0, blur=0.0, rotate=0, max_w=None, **ink):
+        """size = cap height-ish in metres (font pixel size = size * ppm * 1.38). max_w shrinks the
+        text (and its spacing) until it fits that width."""
+        if max_w is not None:
+            wdt = self.text_width(s, size, fnt, spacing)
+            if wdt > max_w:
+                k = max_w / wdt
+                size *= k
+                spacing *= k
         px = size * self.ppm * self.SS * 1.38
         f = font(fnt, px)
         sp = self._px(spacing)
@@ -341,13 +347,6 @@ class DecalCanvas:
                       color=sub_color or TEAL, height=height, spec=spec, gloss=gloss)
         w = self.text_width(text, ts, fnt, ts * spacing)
         return (cx - x) + w
-
-    # finishing --------------------------------------------------------------------------
-    def soften(self, sigma_px=0.6):
-        img = Image.fromarray((np.clip(self.height / (np.abs(self.height).max() + 1e-12), -1, 1) * 127 + 128).astype(np.uint8))
-        _ = img
-        return self
-
 
 # ---------------------------------------------------------------------------------------------
 # default screen images (what the prop shows before a DUI replaces 'nz_amb_screen')
@@ -442,7 +441,7 @@ def draw_pager_lcd(w=256, h=128):
     bg = (126, 156, 92)
     img = Image.new("RGB", (w, h), bg)
     d = ImageDraw.Draw(img)
-    s = w / 256.0
+    s = h / 128.0
     ink = (28, 40, 22)
     # faint pixel grid
     for gx in range(0, w, max(2, int(3 * s))):

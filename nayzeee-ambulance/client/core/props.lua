@@ -18,7 +18,9 @@
           opts { flag = 1, blendIn = 8.0, blendOut = -8.0, duration = -1, rate = 0.0,
                  wait = false (block until the clip finished), scenario = 'NAME' (instead of dict),
                  prop = { model, bone, pos, rot } (attached for the anim, removed on Stop) }
-      NZA.Anim.Stop(ped, opts)   stop what Play/Kneel started (opts.immediate = snap)
+      NZA.Anim.Stop(ped, opts)   stop what Play/Kneel started (opts.immediate = snap,
+                                 opts.token = only if that Play is still the current anim)
+      NZA.Anim.Current(ped)      → { dict, clip, scenario, token, duration (ms) } | nil
       NZA.Anim.Kneel lives in proc.lua.
 ]]
 
@@ -219,10 +221,11 @@ function Anim.Play(ped, dict, clip, opts)
             NZA.Debug('anim dict missing', dict)
             return false
         end
+        local clipMs = math.floor(GetAnimDuration(dict, clip) * 1000)   -- read while the dict is loaded
         TaskPlayAnim(ped, dict, clip, opts.blendIn or 8.0, opts.blendOut or -8.0, opts.duration or -1,
             opts.flag or 1, opts.rate or 0.0, false, false, false)
         RemoveAnimDict(dict)
-        playing[ped] = { dict = dict, clip = clip, token = token }
+        playing[ped] = { dict = dict, clip = clip, token = token, duration = clipMs }
     end
 
     if type(opts.prop) == 'table' and opts.prop.model then
@@ -233,7 +236,7 @@ function Anim.Play(ped, dict, clip, opts)
 
     if opts.wait and not opts.scenario then
         local ms = opts.duration
-        if not ms or ms < 0 then ms = math.floor(GetAnimDuration(dict, clip) * 1000) end
+        if not ms or ms < 0 then ms = playing[ped] and playing[ped].duration or 0 end
         local started = GetGameTimer()
         Wait(100)
         while GetGameTimer() - started < ms and IsEntityPlayingAnim(ped, dict, clip, 3) do Wait(50) end

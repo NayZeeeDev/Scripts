@@ -73,6 +73,7 @@ Config.Commands = {
     heal    = 'heal',      -- /heal [id]   (removes injuries, keeps you standing)
     injure  = 'injure',    -- /injure [id] [region] [type] [severity]  (testing)
     kill    = false,       -- set a name to enable /kill [id]
+    interact = 'nzainteract', -- opens the patient interaction menu (keybind 'nza_interact' is unbound by default)
 }
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -158,6 +159,8 @@ Config.Physiology = {
     examDistance  = 4.0,      -- metres a medic can be from the patient for live data
     watchRate     = 1000,     -- ms between monitor updates to watching medics
     syncHealth    = true,     -- keep the GTA health bar matched to blood volume
+    infection     = true,     -- dirty, uncovered wounds can get infected (fever, sepsis) - antibiotics cure it
+    hypothermia   = true,     -- body temperature (blood loss, water, cold fluids) - foil blanket / bed warm up
 }
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -167,13 +170,15 @@ Config.Physiology = {
 Config.Wounded = {
     enabled      = true,
     lossDown     = 0.30,    -- blood loss fraction that knocks a player down
-    maxClock     = 300,     -- the bleed-out clock never shows more than this (seconds)
+    maxClock     = 300,     -- the bleed-out clock never shows more than this (seconds). It runs in real time for
+                            -- heavy bleeding, slower for a minor ooze, and pauses when the patient is stabilized
     minClock     = 60,      -- ...and starts at least at this
     stableBleed  = 1.0,     -- total bleed (mL/min) under this = STABILIZED, clock paused
     noBleedClock = 600,     -- downed without bleeding (e.g. fractures): seconds before you can only give up
     crawl        = true,
     crawlSpeed   = 1.0,
-    giveUp       = { enabled = true, hold = 3, minTime = 60 },  -- hold E; only after minTime seconds down
+    giveUp       = { enabled = true, hold = 3, minTime = 60 },  -- hold time; only after minTime seconds down
+                                                                -- (the key is Config.WoundedUI.keys.giveUp in config/modules/wounded.lua)
     callEms      = { key = 'G', cooldown = 60 },
     invincible   = true,    -- extra damage while downed doesn't re-kill, it adds injuries instead
     disableControls = { 24, 25, 37, 44, 45, 140, 141, 142, 143, 257, 263, 264 }, -- attack, aim, weapon wheel, cover, reload, melee
@@ -186,7 +191,7 @@ Config.Wounded = {
 Config.Death = {
     arrestToDeath = 300,      -- seconds of cardiac arrest without ROSC before death (CPR pauses this)
     respawnTimer  = 300,      -- seconds dead before you may respawn at a hospital
-    respawnHold   = 3,        -- hold E for this long to respawn
+    respawnHold   = 3,        -- hold for this long to respawn (key: Config.WoundedUI.keys.respawn)
     respawnFee    = 500,      -- charged on respawn (insurance applies)
     loseItems     = false,    -- clear inventory on respawn
     keepItems     = { 'id_card', 'driver_license', 'phone' },

@@ -1,0 +1,287 @@
+# Module: bridge
+
+Every call nayzeee-ambulance makes to another resource goes through `Bridge`. That
+covers the framework, inventory, target, notifications, phone, external dispatch,
+vehicle keys, fuel, clothing and society money. All bridge files are open source
+(`escrow_ignore`), so server owners can fix or add an adapter without touching
+the rest of the resource.
+
+## Files
+
+| File | What it does |
+|---|---|
+| `bridge/shared.lua` | `Bridge` global, config access, detection (`Bridge.Pick`), priority lists and resource maps, framework detection, job helpers, item helpers, icon map (NAYZEEE icon → Font Awesome), throttle |
+| `bridge/server/framework.lua` | ESX / QBCore / Qbox / standalone adapters, player lifecycle hooks, job, duty, money, admin, `nzaJob` state bag |
+| `bridge/server/inventory.lua` | 10 inventory adapters, metadata emulation (KVP), usable items, labels, images, client count callback |
+| `bridge/server/society.lua` | society/business accounts |
+| `bridge/server/notify.lua` | `Bridge.Notify(src, data)`: our NUI toast, or a notify resource |
+| `bridge/server/phone.lua` | 10 phone adapters, 911/EMS forwarding, `CallEMS` export |
+| `bridge/server/dispatch.lua` | `Bridge.Dispatch.External(call)`: mirror to an external dispatch/MDT |
+| `bridge/server/vehicle.lua` | plates, server-side keys (qb/qbx), keys net event |
+| `bridge/client/framework.lua` | player data, job, lifecycle hooks |
+| `bridge/client/notify.lua` | notify adapters (nza toast, nayzeee-notify, ox_lib, okok, codem, mythic, brutal, t-notify, qb, esx, native) |
+| `bridge/client/target.lua` | ox_target, qb-target, qtarget, interact, sleepless_interact, built-in [E] fallback, and a registry |
+| `bridge/client/inventory.lua` | non-blocking `Has`/`Count`, labels, images |
+| `bridge/client/vehicle.lua` | vehicle keys (10 scripts), fuel (7 scripts + native) |
+| `bridge/client/clothing.lua` | outfit save/restore (illenium, fivem-appearance, qb-clothing, esx_skin, rcore_clothing, native) |
+| `bridge/client/phone.lua` | `IsOpen`, client half of npwd/qs/roadphone adapters |
+| `bridge/client/dispatch.lua` | client half of external dispatch adapters |
+| `config/modules/bridge.lua` | `Config.Bridge` |
+| `locales/en/bridge.lua` | strings (`bridge.*`) |
+| `install/*` | item install files, the generator and README |
+| `html/img/items/*.png` | 48 item pictures plus `nza_unknown.png` (128x128, transparent) |
+
+## Detection
+
+Every kind of integration has a priority list (`Bridge.Priority.<kind>`) and an
+adapter → resource map (`Bridge.Resources.<kind>`) in `bridge/shared.lua`.
+`Config.Bridge.<kind>` can be `'auto'`, an adapter name, or a resource name.
+Aliases such as `'okokNotify'`, `'qb'` and `'qbx'` are accepted. If a forced
+adapter is not running, the bridge warns and falls back to auto-detection.
+
+- Framework: qbx_core, then es_extended, then qb-core, else standalone. Qbox
+  goes first because it provides `qb-core`. `Config.Bridge.framework` overrides
+  `Config.Framework` when it is not `'auto'`. `Bridge.Framework` is set when
+  `bridge/shared.lua` loads, so every later file can read it at top level.
+- Optional kinds are resolved lazily and resolved again when a matching resource
+  starts or stops.
+- sleepless_interact is checked before ox_target because it provides
+  `ox_target` and `qtarget`. qbx_vehiclekeys is checked before qb-vehiclekeys
+  for the same reason.
+
+## Config (`Config.Bridge`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `framework inventory target notify phone dispatch keys fuel clothing society` | `'auto'` | force an adapter; `false` disables phone, keys, clothing or society |
+| `externalDispatch` | `false` | also send every EMS call to the external dispatch |
+| `dispatchJobs` | `nil` | jobs alerted externally; `nil` uses `Config.Jobs.medic` |
+| `standaloneMedicAce` / `standalonePoliceAce` | `nza.medic` / `nza.police` | standalone jobs; `<ace>.<n>` sets the grade, `<ace>.boss` marks a boss |
+| `standaloneGrade` / `standaloneMaxGrade` / `standaloneOnDuty` | `1` / `10` / `true` | standalone defaults |
+| `standaloneMoneyItem` | `'money'` | cash item when standalone runs ox_inventory |
+| `standaloneFreeBills` / `standaloneFreeItems` | `true` / `false` | standalone without a money or inventory system |
+| `offDutyPrefix` | `'off'` | ESX `offambulance` = ambulance, off duty |
+| `phoneEmergency` | see file | 911 numbers, EMS company names, cooldown, reply, extra events |
+| `phoneApp` | per phone | app id used for EMS phone notifications |
+| `builtinTarget` | E, 2.0 m, 250 ms | built-in target key, reach, scan rate, optional markers |
+| `keysDistance` | `8.0` | server check for keys requests |
+| `emulateMetadata` | `true` | KVP metadata for inventories without metadata |
+| `preferInventoryImages` | `true` | use the inventory's own picture when the file exists |
+| `debug` | `false` | print detection results and adapter errors |
+
+## Server API
+
+Everything in ARCHITECTURE §16, plus a few extras:
+
+```lua
+Bridge.Framework
+Bridge.Ready                                     -- true once players already online were registered
+Bridge.OnPlayerLoaded(fn(src), replay?)          -- replay = true also calls fn for players already loaded
+Bridge.OnPlayerUnloaded(fn(src))  Bridge.OnJobChanged(fn(src, job))   -- job hook fires only on real changes
+Bridge.IsLoaded(src)  Bridge.GetPlayer(src)  Bridge.RefreshJob(src)
+Bridge.GetIdentifier(src)  Bridge.GetSourceFromIdentifier(id)
+Bridge.GetName(src)  Bridge.GetCharInfo(src) → { firstname, lastname, dob, sex = 'm'|'f', phone }
+Bridge.GetJob(src) → { name, label, grade, gradeLabel, onDuty, isBoss }
+Bridge.IsMedic(src) Bridge.IsPolice(src) Bridge.IsOnDuty(src) Bridge.SetDuty(src, bool)
+Bridge.IsAdmin(src)            -- ace Config.Admin.ace, or a framework group in Config.Admin.groups
+Bridge.GetPlayers()  Bridge.GetMedics(onDutyOnly)
+Bridge.GetMoney(src, 'cash'|'bank')  Bridge.RemoveMoney(src, account, amount, reason) → bool  Bridge.AddMoney(...)
+Bridge.Society.Get(name) / Add(name, amount) / Remove(name, amount) / Resource()
+Bridge.Inv.HasItem / Count(src, name, metaMatch?) / AddItem / RemoveItem(src, name, count, metadata?, slot?)
+Bridge.Inv.CanCarry / GetItems / GetSlot / SetMetadata / Search / RegisterUsable / Label / Image / Clear / Resource
+Bridge.Notify(src, { title, message, type, duration })      -- src = -1 for everyone
+Bridge.Phone.Notify(src, { title, message, app?, icon?, fallback? })  Bridge.Phone.Mail(src, { sender, subject, message })
+Bridge.Phone.Number(src)  Bridge.Phone.Resource
+Bridge.CallEMS(src, message, coords?, meta?) → ok, callId
+Bridge.Dispatch.External(call) → bool   Bridge.Dispatch.Resource()
+Bridge.Vehicle.SetPlate(vehicle, plate)  Bridge.Vehicle.GiveKeys(src, vehicle, plate?)
+```
+
+Notes:
+- `metaMatch` is a subset match: `{ type = 'O-' }` matches any bag with that type.
+- Money amounts must be numbers ≥ 0. Negative or NaN amounts are rejected.
+  `RemoveMoney` returns false when the player is short.
+- `Bridge.CallEMS` checks the cooldown, takes coordinates from the server-side
+  ped, names the caller, and lists the caller as a patient when they are wounded.
+  It then calls `NZA.Dispatch.Create`. If no dispatch module is running, it
+  mirrors the call externally and notifies on-duty medics directly. The dispatch
+  module itself should call `Bridge.Dispatch.External(call)` for every call; the
+  function returns false unless `externalDispatch` is on.
+
+## Client API
+
+```lua
+Bridge.Framework  Bridge.PlayerData()  Bridge.IsLoaded()
+Bridge.OnPlayerLoaded(fn, replay?)  Bridge.OnPlayerUnloaded(fn)  Bridge.OnJobChanged(fn(job))
+Bridge.GetJob() → { name, label, grade, gradeLabel, onDuty, isBoss }  Bridge.IsMedic()  Bridge.IsPolice()  Bridge.IsOnDuty()
+Bridge.Notify(data)  Bridge.NotifyExternal(data)          -- External skips our NUI toast
+Bridge.Target.Player/Ped/Entity/Model/Sphere/Box/Remove/RemovePlayer/RemovePed/RemoveEntity/RemoveModel  Bridge.Target.Resource()
+Bridge.Inv.Has(name, count?)  Bridge.Inv.Count(name)  Bridge.Inv.CountAwait(name)  Bridge.Inv.Label(name)  Bridge.Inv.Image(name)
+Bridge.Vehicle.GiveKeys(vehicle, plate?)  Bridge.Vehicle.RemoveKeys(vehicle, plate?)  Bridge.Vehicle.SetFuel(vehicle, level)  Bridge.Vehicle.GetFuel(vehicle)
+Bridge.Clothing.Save()  Bridge.Clothing.Restore()  Bridge.Clothing.HasSaved()
+Bridge.Phone.IsOpen()  Bridge.Phone.Resource
+```
+
+Target option format (§16):
+`{ name, label, icon, distance, order?, canInteract = fn(entity, distance, coords), onSelect = fn(entity, data) }`.
+- `icon` can be a NAYZEEE icon name, which is mapped to Font Awesome for
+  third-party menus, or a full `fa-...` class.
+- An option without a name gets a generated one.
+- `canInteract` must return a truthy value for the option to show.
+- Everything registered is kept in `Bridge.Target.Registry` and re-applied when
+  the target resource restarts, or when the bridge switches to another target
+  script. If a target script stops, the built-in fallback takes over.
+- interact (darktrc) has no global ped target. Peds within 12 m get a local
+  interaction from a 1 s tracker.
+
+`Bridge.Inv.Has` and `Count` never block, so they are safe inside `canInteract`.
+- ox_inventory, qb-style inventories and plain ESX are read locally.
+- Other inventories use the `nza:bridge:inv:counts` callback with a 1.5 s cache.
+  The first read returns the cached value (0 at first) while it refreshes.
+- The server invalidates the cache after every add, remove or clear.
+
+## Notifications
+
+`Config.Bridge.notify = 'auto'` uses our own NUI toast:
+- Server: `TriggerClientEvent('nza:ui:toast', src, data)`.
+- Client: local `TriggerEvent('nza:ui:toast', data)`.
+
+client/core renders the toast. If client/core calls `Bridge.Notify` again while
+handling the event (for example as a fallback), a guard sends it to
+`NotifyExternal` instead of looping. Any other `notify` value sends
+`nza:bridge:notify` to the client, which renders it with that resource.
+
+## Inventory details
+
+- **Usable items with ox_inventory:** `RegisterUsable` installs a `usingItem`
+  hook filtered to the item. The hook returns false, so ox never consumes the
+  item or plays its own use, and our function runs in a new thread. The
+  framework usable (ESX / QBCore / Qbox) is registered as well, because ox
+  routes items without `consume` to the framework. The install file sets
+  `consume = 0`, so the hook path is used. Only one path ever fires.
+- **Other inventories:** usables go through the framework
+  (`ESX.RegisterUsableItem`, `QBCore.Functions.CreateUseableItem`,
+  `qbx_core:CreateUseableItem`). qs-inventory's own `CreateUsableItem` is tried
+  first. Registrations are applied again when the inventory restarts.
+- **Callback item:** every usable callback receives
+  `item = { name, label, count, slot, metadata, weight }`, normalized from the
+  inventory's own shape (`amount`/`info` → `count`/`metadata`).
+- **Metadata emulation (plain ESX):**
+  - Units added with metadata are stored per character and item in the KVP key
+    `nza_meta:<identifier>:<item>`, each with a `serial`.
+  - `Search` and `GetItems` return them as single units on virtual slots 10001+.
+  - When the real count drops outside our control (dropped, sold), the oldest
+    entries are dropped.
+  - `RemoveItem` with metadata or a virtual slot removes the right unit.
+- **qb-inventory:** 2.x uses its exports (`AddItem`, `RemoveItem`,
+  `CanAddItem`, `SetItemData`, `GetItemCount`). Older versions use
+  `Player.Functions`. The version is read from the resource metadata.
+- **Images:** the inventory's picture is used if that file exists
+  (`LoadResourceFile`). Otherwise `nui://nayzeee-ambulance/html/img/items/<name>.png`,
+  then `ItemDefs[key].image`, then `nza_unknown.png`.
+
+## Phones: what was verified
+
+| Phone | Notify | Mail | Number | 911 → NZA dispatch |
+|---|---|---|---|---|
+| lb-phone | `SendNotification` (docs) | `GetEquippedPhoneNumber` + `GetEmailAddress` + `SendMail` (docs) | `GetEquippedPhoneNumber` | server events `lb-phone:newCompanyMessage`, `lb-phone:newCall` (documented names; payload read defensively) |
+| npwd | client `createNotification` (source) | becomes a notification | `getPhoneNumber` (source) | `onCall` + `onMessage` for `phoneEmergency.numbers` (source) |
+| yseries | `SendNotification(data, 'source', src)` (TeamsGG docs) | `SendMail(data, 'source', src)` (docs) | `GetPhoneNumberBySourceId` | no public services hook: add its event to `phoneEmergency.events` or call `CallEMS` |
+| qs-smartphone(-pro) | `<res>:client:notification` (NAYZEEE multijob) | client `<res>:server:sendNewMail` (community bridges) | `qs-base:GetPlayerPhone` → framework | net event `<res>:server:sendJobAlert` (community-documented, unverified) |
+| gksphone | `gksphone:NotificationShow` (multijob) | `SendNewMail(src, data)` (community) | `GetPhoneBySource` | none known |
+| okokPhone | `pushNotifyViaPhoneNumber` (okok docs) | `sendEmail` (community) | `getPhoneNumberFromSource` | none known |
+| roadphone | `roadphone:notify` (multijob) | client `sendMail` (community) | framework | none known |
+| high-phone | `high_phone:notification` (multijob) | becomes a notification | framework | none known |
+| renewed-phone | `qb-phone:client:CustomNotification` | `sendNewMailToOffline` (qb-phone API, unverified on renewed) | framework | none known |
+
+The undocumented lb-phone payloads are read defensively: the reader looks for
+job, message, number, source and coordinates under any common key name.
+- If the sender is a net client, only that client's source is trusted, and the
+  coordinates come from the server-side ped.
+- Messages from on-duty medics, such as replies in the company chat, are
+  ignored.
+- Everything goes through `Bridge.CallEMS`, so the cooldown applies.
+
+`Bridge.Phone.IsOpen()` uses lb-phone `IsOpen` and npwd `isPhoneVisible`, both
+verified. Other phones try the common export names once through pcall and
+remember the one that answers. The last resort is `LocalPlayer.state.phoneOpen`.
+
+## External dispatch: what was verified
+
+- lb-tablet: server `AddDispatch` (community bridge).
+- ps-dispatch: client `CustomAlert`, checked against its source.
+- cd_dispatch, qs-dispatch, tk_dispatch, origen_police: client calls from
+  community bridges.
+- rcore_dispatch (`rcore_dispatch:server:sendAlert`) and core_dispatch
+  (`addCall`): from the vendors' docs, which could not be reached from here.
+  Both are wrapped in pcall.
+
+Client-only dispatch scripts run on one player's client: the caller, else an
+on-duty medic, else any player.
+
+## Events
+
+| Event | Dir | Payload | Notes |
+|---|---|---|---|
+| `nza:ui:toast` | S→C / local | `{ title, message, type, duration }` | sent by Notify; handled by client/core |
+| `nza:bridge:notify` | S→C | data | rendered by the configured notify resource |
+| `nza:bridge:phone` | S→C | action, payload | client half of phone adapters |
+| `nza:bridge:dispatch` | S→C | adapter, call, jobs | client half of external dispatch |
+| `nza:bridge:inv:dirty` | S→C | names \| nil | clears the client item cache |
+| `nza:bridge:vehicle:keys` | C→S | netId, plate | checked: on-duty medic/police, vehicle exists, within `keysDistance`, plate matches, 1 per second |
+| `nza:bridge:vehicle:keys` | S→C | netId, plate | client-side key scripts |
+| `nza:callEMS` | server-local | src, message, coords? | other server scripts only (not net) |
+| callback `nza:bridge:inv:counts` | C→S | names[] (max 40) → counts | 1 per 200 ms per player |
+
+Export: `exports['nayzeee-ambulance']:CallEMS(src, message, coords?) → ok, callId`.
+State bag: `Player(src).state.nzaJob = { name, label, grade, gradeLabel, onDuty, isBoss, medic, police }`.
+Bus (NZA.Bus): `bridge:playerLoaded`, `bridge:playerUnloaded`, `bridge:jobChanged`.
+
+## Install files
+
+`lua5.4 install/generate.lua` rebuilds `ox_inventory_items.lua`,
+`qb_shared_items.lua` and `esx_items.sql` from `config/items.lua`. Use
+`--esx-grams` to write ESX weights in grams. `install/README.md` explains each
+inventory.
+
+The generated `.lua` files are snippets to paste into other resources, so they
+do not start with the lock guard. They are not in the fxmanifest. The generator
+also skips the guard: it stubs `NAYZEEE_LOCK_OK` itself, and it returns at once
+if FiveM ever loads it.
+
+## Item pictures
+
+48 hand-drawn SVG illustrations: 3/4 product view, soft shading, NAYZEEE teal
+accents, red crosses on first-aid products. They were rendered with Playwright
+(Chromium) to 128x128 transparent PNGs and checked on a contact sheet on dark
+and light backgrounds. Sources and renderer are in `/tmp/nza-work/bridge/icons/`
+(not shipped). `nza_unknown.png` is the fallback picture.
+
+## Testing
+
+All 21 Lua files pass `luac5.4 -p`: 16 bridge files, the config, the locale, the
+generator and the 2 generated item files. Only `Bridge` is written as a global.
+
+A mock FiveM runtime in `/tmp/nza-work/bridge/test/` runs the real bridge files
+under plain Lua 5.4. Every scenario passes:
+- QBCore + ox_inventory + lb-phone + qb-banking + lb-tablet + qb-vehiclekeys
+- ESX default inventory with emulated metadata + esx_addonaccount + npwd
+- standalone
+- QBCore client with ox_target and the built-in fallback, ox_fuel, illenium,
+  ps-dispatch
+- every target adapter
+
+## Known limits
+
+- yseries, gksphone, okokPhone, roadphone, high-phone and renewed-phone expose
+  no public 911/services hook. Server owners add their phone's event to
+  `Config.Bridge.phoneEmergency.events`, or call the `CallEMS` export from the
+  phone's open config.
+- npwd `onMessage` keeps one handler per number. If another script also handles
+  `911` messages, change `phoneEmergency.numbers`.
+- `Bridge.Society.Get/Add/Remove` on esx_addonaccount wait for its callback.
+  Call them from a thread or event handler, never from file top level.
+- ESX weights in `esx_items.sql` are rounded to whole kg (minimum 1), because
+  ESX's `items.weight` column is an integer.
+- Clothing restore needs the same ped model as when it was saved; the native
+  snapshot refuses otherwise.

@@ -13,7 +13,8 @@
       falls        height tracked while falling / ragdolling in the air, reported on landing
                    when ≥ Config.Damage.fall.minHeight (merged into GTA's WEAPON_FALL report)
       vehicles     speed drop per 100 ms ≥ Config.Damage.vehicle.minSpeedDrop with a real
-                   collision, report speedDrop + belted (merged into the crash damage report)
+                   collision, report speedDrop + belted (also sent as 'seatbelt', the field
+                   core-server reads), merged into the crash damage report
       fire         while on fire, one report every Config.Damage.fire.tick with fire = true
       drowning     underwater with no air left, one report every 2 s with drown = true
 
@@ -30,7 +31,9 @@
       NZA.Damage.WeaponName(hash)   → 'WEAPON_X' | nil (known names only)
 
     Events sent: nza:damage (report), nza:down (info)
-    Bus events emitted: self:down (info) right after 'nza:down' was sent
+    Bus events emitted: self:down (info)          right after 'nza:down' was sent
+                        self:resurrected (wasAlive) after every in-place resurrect, so modules
+                                                    holding a pose (wounded) re-apply it
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -220,6 +223,7 @@ local function flush()
         if lastCrash and now - lastCrash.at < 800 and not rep.attacker_is_gun then
             rep.speedDrop = U.round(lastCrash.drop, 1)
             rep.belted = lastCrash.belted
+            rep.seatbelt = lastCrash.belted
             lastCrash.reported = true
         end
         rep.attacker_is_gun = nil
@@ -274,7 +278,8 @@ local function onDamage(ped, args)
     ClearPedLastDamageBone(ped)
 
     local group = weaponGroup(weapon)
-    local melee = args[12] == 1 or args[12] == true or group == 'GROUP_UNARMED' or group == 'GROUP_MELEE'
+    -- the event's own melee flag moved between game builds; the weapon group never lies
+    local melee = group == 'GROUP_UNARMED' or group == 'GROUP_MELEE'
     local sid, net = attackerInfo(ped, attacker)
     local region = regionFor(ped, bone, weapon, attacker)
     lastHit = { weapon = weapon, bone = bone, region = region, attacker = attacker, sid = sid, net = net, at = GetGameTimer() }
@@ -432,7 +437,8 @@ CreateThread(function()
                             if crash.reported then return end
                             crash.reported = true
                             send({ weapon = W.RAMMED, bone = 0, region = 'chest', damage = 0, armour = 0, hits = 1,
-                                   attacker = 0, melee = false, speedDrop = U.round(crash.drop, 1), belted = crash.belted })
+                                   attacker = 0, melee = false, speedDrop = U.round(crash.drop, 1),
+                                   belted = crash.belted, seatbelt = crash.belted })
                         end)
                     end
                 end
@@ -686,10 +692,12 @@ CreateThread(function()
     if Bridge and Bridge.OnPlayerLoaded then
         Bridge.OnPlayerLoaded(function()
             -- frameworks sometimes re-enable auto spawn while loading the character
-            Wait(2000)
-            disableAutoSpawn()
-            disableNativeRestart()
-            D.SyncBaseline()
+            CreateThread(function()
+                Wait(2000)
+                disableAutoSpawn()
+                disableNativeRestart()
+                D.SyncBaseline()
+            end)
         end)
     end
 end)

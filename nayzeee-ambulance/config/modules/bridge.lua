@@ -80,6 +80,7 @@ Config.Bridge = {
     standaloneOnDuty    = true,      -- standalone medics start on duty
     standaloneMoneyItem = 'money',   -- with ox_inventory, cash is this item
     standaloneFreeBills = true,      -- without any money system, bills are waived instead of failing
+    standaloneFreeItems = false,     -- without any inventory, act as if every medical item is always there
 
     -- ═══════════════════════════════════════════════════════════════════════
     -- ESX DUTY

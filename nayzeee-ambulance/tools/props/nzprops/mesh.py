@@ -27,7 +27,7 @@ arc_points, bezier.
 from __future__ import annotations
 
 import math
-from typing import Iterable, Sequence
+from typing import Iterable
 
 import numpy as np
 
@@ -227,6 +227,44 @@ class Geo:
         for c in self.charts:
             c.tag = tag
         return self
+
+    def flip(self):
+        """Turn the surface inside out (interiors of boxes, cavities)."""
+        for c in self.charts:
+            c.nrm = -c.nrm
+            c.tri = c.tri[:, [0, 2, 1]]
+            c.uvm = c.uvm * vec(-1, 1)
+        return self
+
+    def deform(self, fn, eps=1e-5):
+        """Move every vertex through fn(P (n,3)) -> (n,3). Normals follow exactly through the
+        numerical Jacobian (n' = J^-T n), so smooth surfaces stay smooth across chart seams."""
+        for c in self.charts:
+            p = c.pos
+            q = fn(p)
+            J = np.zeros((len(p), 3, 3))
+            for k in range(3):
+                d = np.zeros(3)
+                d[k] = eps
+                J[:, :, k] = (fn(p + d) - fn(p - d)) / (2 * eps)
+            JT = np.transpose(J, (0, 2, 1))
+            n = np.linalg.solve(JT, c.nrm[:, :, None])[:, :, 0]
+            c.nrm = normalize(n)
+            if np.any(np.linalg.det(J) < 0):
+                c.tri = c.tri[:, [0, 2, 1]]
+            c.pos = q
+        return self
+
+    def taper(self, z0, z1, s0, s1, cx=0.0, cy=0.0):
+        """Scale X/Y linearly from s0 at z0 to s1 at z1 (around cx, cy)."""
+        def fn(p):
+            t = (p[:, 2] - z0) / (z1 - z0)
+            s = s0 + (s1 - s0) * t
+            q = p.copy()
+            q[:, 0] = cx + (p[:, 0] - cx) * s
+            q[:, 1] = cy + (p[:, 1] - cy) * s
+            return q
+        return self.deform(fn)
 
     def bbox(self):
         if not self.charts:
@@ -689,7 +727,7 @@ def triangulate(poly):
             # degenerate remainder: fan it
             for k in range(1, len(idx) - 1):
                 tris.append((idx[0], idx[k], idx[k + 1]))
-            idx = idx[:3] if False else []
+            idx = []
             break
     if len(idx) == 3:
         tris.append(tuple(idx))
@@ -724,6 +762,20 @@ def plane(sx, sy, mat, density=1.0, tag="", fixed_uv=False, two_sided=False):
                      None if fu is None else fu.copy())
         g.charts.append(back.clean())
     return g
+
+
+def quad(center, right, up, w, h, mat, density=1.0, tag="", fixed_uv=False):
+    """Oriented quad: spans `right` (width w) and `up` (height h) around `center`; it faces
+    right x up. With fixed_uv the texture's top-left corner sits at (-right, +up) - i.e. the image
+    reads correctly for a viewer looking at the front of the quad. Use it for screens/labels."""
+    c, r, u = vec(center), normalize(vec(right)), normalize(vec(up))
+    n = normalize(np.cross(r, u))
+    P = np.array([c - r * w / 2 + u * h / 2, c + r * w / 2 + u * h / 2, c + r * w / 2 - u * h / 2, c - r * w / 2 - u * h / 2])
+    N = np.tile(n, (4, 1))
+    UVm = np.array([(-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)])
+    tri = np.array([(0, 2, 1), (0, 3, 2)])
+    fu = np.array([(0, 0), (1, 0), (1, 1), (0, 1)], dtype=np.float64) if fixed_uv else None
+    return Geo([Chart(P, N, UVm, tri, mat, density, tag or "quad", fu).clean()])
 
 
 # ---------------------------------------------------------------------------------------------
@@ -774,7 +826,6 @@ def extrude(poly, depth, mat, bevel=0.0, bevel_seg=2, z0=0.0, caps=(True, True),
     P = np.zeros((len(rings), ncol, 3))
     N = np.zeros((len(rings), ncol, 3))
     UV = np.zeros((len(rings), ncol, 2))
-    zs = [r[1] for r in rings]
     s_prof = np.concatenate([[0.0], np.cumsum([math.hypot(rings[k + 1][0] - rings[k][0], rings[k + 1][1] - rings[k][1]) for k in range(len(rings) - 1)])])
     for ri, (ins, z, no, nz) in enumerate(rings):
         op = offs[ins]
@@ -797,9 +848,10 @@ def extrude(poly, depth, mat, bevel=0.0, bevel_seg=2, z0=0.0, caps=(True, True),
 # ---------------------------------------------------------------------------------------------
 # sweep
 # ---------------------------------------------------------------------------------------------
-def path_frames(path, closed=False, up=None):
+def path_frames(path, closed=False, up=None, side=None):
     """Rotation-minimising frames along a polyline. Returns (T, S, U) arrays (m,3):
-    tangent, side (= T x U) and up. For closed paths the residual twist is spread evenly."""
+    tangent, side (= T x U) and up. `up` hints the initial U, `side` the initial S (profile x).
+    For closed paths the residual twist is spread evenly."""
     P = np.asarray(path, dtype=np.float64)
     m = len(P)
     if closed:
@@ -811,6 +863,8 @@ def path_frames(path, closed=False, up=None):
         T[-1] = P[-1] - P[-2]
         T = normalize(T)
     u0 = vec(0, 0, 1) if up is None else normalize(vec(up))
+    if side is not None:
+        u0 = normalize(np.cross(normalize(vec(side)), T[0]))
     if abs(float(np.dot(u0, T[0]))) > 0.98:
         u0 = vec(1, 0, 0) if abs(T[0][0]) < 0.9 else vec(0, 1, 0)
     U = np.zeros_like(P)
@@ -841,12 +895,14 @@ def path_frames(path, closed=False, up=None):
 
 
 def sweep(profile, path, mat, closed_path=False, closed_profile=True, caps=True, up=None, scale=None,
-          smooth_angle=40.0, density=1.0, split=0.45, tag="", twist=0.0):
+          smooth_angle=40.0, density=1.0, split=0.45, tag="", twist=0.0, side=None):
     """Sweep a 2D profile (x -> frame side, y -> frame up) along a 3D path.
 
     profile        (k,2) polygon/polyline. Closed profiles should be CCW.
     path           (m,3) points (use catmull / polyline_fillet / resample for smooth curves).
-    scale          optional per-path-point scale factors (taper), length m.
+    up / side      hint for the initial frame: profile y follows `up`, or profile x follows `side`.
+    scale          optional per-path-point scale factors (taper): (m,) or (m,2) for separate
+                   profile x / y scaling (e.g. a collar band that is taller at the front).
     twist          extra twist in degrees distributed along the path.
     split          max chart length along the path in metres (charts are split at rings).
     Each smooth run of the profile becomes its own chart tagged '<tag>:<run>' - e.g. a strap
@@ -857,19 +913,21 @@ def sweep(profile, path, mat, closed_path=False, closed_profile=True, caps=True,
         prof = ensure_ccw(prof)
     P = np.asarray(path, dtype=np.float64)
     m = len(P)
-    T, S, U = path_frames(P, closed_path, up)
+    T, S, U = path_frames(P, closed_path, up, side)
     if twist:
         for i in range(m):
             a = twist * i / max(m - 1, 1)
             S[i] = axis_angle(T[i], a) @ S[i]
             U[i] = axis_angle(T[i], a) @ U[i]
-    sc = np.ones(m) if scale is None else np.asarray(scale, dtype=np.float64)
+    sc = np.ones((m, 2)) if scale is None else np.asarray(scale, dtype=np.float64)
+    if sc.ndim == 1:
+        sc = np.stack([sc, sc], axis=1)
     if closed_path:
         P = np.concatenate([P, P[:1]])
         T = np.concatenate([T, T[:1]])
         S = np.concatenate([S, S[:1]])
         U = np.concatenate([U, U[:1]])
-        sc = np.concatenate([sc, sc[:1]])
+        sc = np.concatenate([sc, sc[:1]], axis=0)
         m += 1
     seglen = np.linalg.norm(np.diff(P, axis=0), axis=1)
     sl = np.concatenate([[0.0], np.cumsum(seglen)])
@@ -895,9 +953,9 @@ def sweep(profile, path, mat, closed_path=False, closed_profile=True, caps=True,
             Nn = np.zeros((nr, k, 3))
             UV = np.zeros((nr, k, 2))
             for rr, i in enumerate(rows):
-                Pp[rr] = P[i] + (pr[:, 0:1] * S[i] + pr[:, 1:2] * U[i]) * sc[i]
-                Nn[rr] = n2[:, 0:1] * S[i] + n2[:, 1:2] * U[i]
-                UV[rr, :, 0] = plen * sc[i]
+                Pp[rr] = P[i] + pr[:, 0:1] * sc[i, 0] * S[i] + pr[:, 1:2] * sc[i, 1] * U[i]
+                Nn[rr] = n2[:, 0:1] / sc[i, 0] * S[i] + n2[:, 1:2] / sc[i, 1] * U[i]
+                UV[rr, :, 0] = plen * float(np.sqrt(sc[i, 0] * sc[i, 1]))
                 UV[rr, :, 1] = sl[i]
             ch = Chart(Pp.reshape(-1, 3), Nn.reshape(-1, 3), UV.reshape(-1, 2), grid_tris(k, nr), mat, density,
                        f"{tag}:{ri}" if tag else f"sweep:{ri}")
@@ -905,18 +963,118 @@ def sweep(profile, path, mat, closed_path=False, closed_profile=True, caps=True,
     if caps and closed_profile and not closed_path:
         tri = triangulate(prof)
         for end, i, sgn in (("a", 0, -1.0), ("b", m - 1, 1.0)):
-            Pc = P[i] + (prof[:, 0:1] * S[i] + prof[:, 1:2] * U[i]) * sc[i]
+            Pc = P[i] + prof[:, 0:1] * sc[i, 0] * S[i] + prof[:, 1:2] * sc[i, 1] * U[i]
             Nc = np.tile(T[i] * sgn, (len(prof), 1))
-            UVc = np.stack([prof[:, 0] * sgn, -prof[:, 1]], axis=1) * sc[i]
+            UVc = np.stack([prof[:, 0] * sgn * sc[i, 0], -prof[:, 1] * sc[i, 1]], axis=1)
             g.charts.append(Chart(Pc, Nc, UVc, tri, mat, density, f"{tag}:cap{end}" if tag else f"sweep:cap{end}").clean())
     return g
 
 
-def tube(path, radius, mat, segs=12, closed_path=False, caps=True, density=1.0, split=0.45, tag="", up=None, scale=None):
+def tube(path, radius, mat, segs=12, closed_path=False, caps=True, density=1.0, split=0.45, tag="", up=None, scale=None, side=None):
     return sweep(circle(radius, segs), path, mat, closed_path=closed_path, caps=caps, density=density,
-                 split=split, tag=tag, up=up, scale=scale, smooth_angle=60)
+                 split=split, tag=tag, up=up, scale=scale, smooth_angle=60, side=side)
 
 
 def torus(R, r, mat, segs=32, tube_segs=12, density=1.0, tag=""):
     path = arc_points((0, 0, 0), R, 0, 360, segs + 1)[:-1]
     return sweep(circle(r, tube_segs), path, mat, closed_path=True, density=density, tag=tag, smooth_angle=60, up=(0, 0, 1))
+
+
+# ---------------------------------------------------------------------------------------------
+# soft shapes
+# ---------------------------------------------------------------------------------------------
+def pillow(w, h, t, mat, nx=18, nz=22, seam=0.0, power=3.0, density=1.0, tag="pillow", zmax=None, inset=0.0):
+    """Flat bag / cushion in the XZ plane (width w along X, height h along Z, centred at the
+    origin), thickness t along Y at the centre falling off towards the welded edges.
+    seam  width of a flat welded border (two-sided strip) around the edge.
+    zmax  clip the body at this Z (fill level of a liquid) and close it with a flat top.
+    Returns front (+Y) and back (-Y) charts (+ top cap when clipped, + seam strip)."""
+    hw, hh = w / 2 - inset, h / 2 - inset
+
+    def thick(x, z):
+        a = np.clip(1 - np.abs(x / hw) ** power, 0, 1)
+        b = np.clip(1 - np.abs(z / hh) ** power, 0, 1)
+        return (t / 2) * np.sqrt(a * b)
+
+    xs = np.sin(np.linspace(-np.pi / 2, np.pi / 2, nx)) * hw
+    ztop = hh if zmax is None else min(zmax, hh)
+    zs_full = np.sin(np.linspace(-np.pi / 2, np.pi / 2, nz)) * hh
+    zs = zs_full[zs_full < ztop - 1e-6]
+    zs = np.concatenate([zs, [ztop]])
+    g = Geo()
+    X, Z = np.meshgrid(xs, zs)
+    for side in (1, -1):
+        Y = side * thick(X, Z)
+        P = np.stack([X, Y, Z], axis=-1).reshape(-1, 3)
+        # normals from the analytic gradient of the thickness field
+        e = 1e-5
+        dtx = (thick(X + e, Z) - thick(X - e, Z)) / (2 * e)
+        dtz = (thick(X, Z + e) - thick(X, Z - e)) / (2 * e)
+        N = np.stack([-dtx, np.full_like(X, float(side)), -dtz], axis=-1).reshape(-1, 3)
+        UV = np.stack([-X * side, -Z], axis=-1).reshape(-1, 2)
+        ch = Chart(P, N, UV, grid_tris(len(xs), len(zs)), mat, density, f"{tag}:{'front' if side > 0 else 'back'}")
+        g.charts.append(ch.clean())
+    if zmax is not None and ztop < hh:
+        xx = xs
+        tt = thick(xx, np.full_like(xx, ztop))
+        P = np.concatenate([np.stack([xx, tt, np.full_like(xx, ztop)], axis=1), np.stack([xx, -tt, np.full_like(xx, ztop)], axis=1)])
+        N = np.tile(vec(0, 0, 1), (len(P), 1))
+        UV = np.stack([P[:, 0], -P[:, 1]], axis=1)
+        n = len(xx)
+        tri = []
+        for i in range(n - 1):
+            tri += [(i, i + 1, n + i + 1), (i, n + i + 1, n + i)]
+        g.charts.append(Chart(P, N, UV, np.array(tri), mat, density, f"{tag}:level").clean())
+    if seam > 0:
+        outer = rrect(w + 2 * seam, h + 2 * seam, seam * 1.2, 3)
+        inner = rrect(w, h, seam * 0.3, 3)
+        # resample both loops to the same count for a clean strip
+        def res_loop(lp, n):
+            lp = np.concatenate([lp, lp[:1]])
+            d = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(lp, axis=0), axis=1))])
+            tt_ = np.linspace(0, d[-1], n, endpoint=False)
+            return np.stack([np.interp(tt_, d, lp[:, 0]), np.interp(tt_, d, lp[:, 1])], axis=1)
+        n = 96
+        lo = res_loop(outer, n)
+        li = res_loop(inner, n)
+        for side in (1, -1):
+            P = np.concatenate([np.stack([lo[:, 0], np.full(n, side * 0.0004), lo[:, 1]], axis=1),
+                                np.stack([li[:, 0], np.full(n, side * 0.0004), li[:, 1]], axis=1)])
+            N = np.tile(vec(0, side, 0), (2 * n, 1))
+            UV = np.stack([P[:, 0] * side, -P[:, 2]], axis=1)
+            tri = []
+            for i in range(n):
+                j = (i + 1) % n
+                tri += [(i, j, n + j), (i, n + j, n + i)]
+            g.charts.append(Chart(P, N, UV, np.array(tri), mat, density, f"{tag}:seam").clean())
+    return g
+
+
+def slab_with_holes(x0, x1, y0, y1, z, holes, mat, density=1.0, tag="slab"):
+    """Horizontal +Z facing rectangle with axis aligned rectangular holes (x0, x1, y0, y1) cut out
+    - e.g. the top of a pick-and-pluck foam insert."""
+    xs = sorted({x0, x1, *[h[0] for h in holes], *[h[1] for h in holes]})
+    ys = sorted({y0, y1, *[h[2] for h in holes], *[h[3] for h in holes]})
+    xs = [x for x in xs if x0 <= x <= x1]
+    ys = [y for y in ys if y0 <= y <= y1]
+    P, tri = [], []
+    for i in range(len(xs) - 1):
+        for j in range(len(ys) - 1):
+            cx, cy = (xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2
+            if any(h[0] <= cx <= h[1] and h[2] <= cy <= h[3] for h in holes):
+                continue
+            b = len(P)
+            P += [(xs[i], ys[j], z), (xs[i + 1], ys[j], z), (xs[i + 1], ys[j + 1], z), (xs[i], ys[j + 1], z)]
+            tri += [(b, b + 1, b + 2), (b, b + 2, b + 3)]
+    P = np.asarray(P, dtype=np.float64)
+    N = np.tile(vec(0, 0, 1), (len(P), 1))
+    UV = np.stack([P[:, 0], -P[:, 1]], axis=1)
+    return Geo([Chart(P, N, UV, np.asarray(tri), mat, density, tag).clean()])
+
+
+def pocket(x0, x1, y0, y1, z_top, depth, mat, density=1.0, tag="pocket"):
+    """Inside walls + floor of a rectangular cut-out going down from z_top."""
+    w, d = x1 - x0, y1 - y0
+    g = box((w, d, depth), mat, r=0.0, center=((x0 + x1) / 2, (y0 + y1) / 2, z_top - depth / 2),
+            faces="+x -x +y -y -z", density=density, tag=tag)
+    return g.flip()

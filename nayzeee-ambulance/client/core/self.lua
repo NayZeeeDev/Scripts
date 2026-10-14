@@ -22,6 +22,8 @@
       blood    desaturation + vignette scaling with blood loss
       pain     camera sway scaling with pain
       hypoxia  gasping (out of breath anim + face), blur pulses, darker vignette
+      server fx hints from the self snapshot: limp, shake, blur, tunnel, breathless,
+               drunk (drunk walk + sway), cold (shiver sway)
     GTA health sync (Config.Physiology.syncHealth): the GTA health bar follows blood volume
     by deltas, so blood loss lowers it, transfusions raise it, gun damage still shows, and
     the sync never takes health below a safe floor (it can never kill the player).
@@ -51,6 +53,8 @@ local HEAD = { head = true, face = true }
 local CLIP_INJURED_M = 'move_m@injured'
 local CLIP_INJURED_F = 'move_f@injured'
 local CLIP_LIMP = 'move_injured_generic'
+local CLIP_DRUNK = 'move_m@drunk@moderatedrunk'
+local CLIP_DRUNK_HEAVY = 'move_m@drunk@verydrunk'
 
 local TC_BLOOD = 'rply_saturation_neg'
 local TC_VIGNETTE = 'rply_vignette'
@@ -88,7 +92,12 @@ local function conditionSet(snap)
     return out
 end
 
--- Blood loss fraction 0..1
+local function lossDown()
+    return (Config.Wounded and Config.Wounded.lossDown) or 0.30
+end
+
+-- Blood loss fraction 0..1. core-server's self snapshot has no exact blood numbers; it gives
+-- health = 100 * (1 - loss / lossDown) while alive (5..100) and fx.tunnel = (loss - 0.10) * 3.
 local function lossOf(snap)
     if not snap then return 0 end
     if tonumber(snap.loss) then return U.clamp(tonumber(snap.loss), 0, 1) end
@@ -99,15 +108,34 @@ local function lossOf(snap)
     end
     local blood, max = tonumber(snap.blood), tonumber(snap.bloodMax)
     if blood and max and max > 0 then return U.clamp(1 - blood / max, 0, 1) end
-    return 0
+    local loss = 0
+    local health = tonumber(snap.health)
+    if health and (snap.state == nil or snap.state == 'alive') then
+        loss = lossDown() * (1 - U.clamp(health, 0, 100) / 100)
+    end
+    local tunnel = type(snap.fx) == 'table' and tonumber(snap.fx.tunnel)
+    if tunnel and tunnel > 0 and tunnel < 1 then loss = math.max(loss, 0.10 + tunnel / 3) end
+    return U.clamp(loss, 0, 1)
 end
 
-local function isSplinted(snap, inj)
+-- region list or map → set
+local function regionSet(t)
+    local out = {}
+    if type(t) ~= 'table' then return out end
+    for k, v in pairs(t) do
+        if type(k) == 'number' then
+            if type(v) == 'string' then out[v] = true end
+        elseif v then
+            out[k] = true
+        end
+    end
+    return out
+end
+
+local function isSplinted(snap, inj, splints)
     if inj.splinted then return true end
     if type(inj.treat) == 'table' and (inj.treat.splinted or inj.treat.cast) then return true end
-    local dev = snap and snap.devices
-    local s = (type(dev) == 'table' and dev.splints) or (snap and snap.splints)
-    if type(s) == 'table' and s[inj.region] then return true end
+    if splints[inj.region] then return true end
     if summary and type(summary.splints) == 'table' and summary.splints[inj.region] then return true end
     return false
 end
@@ -119,13 +147,20 @@ local function injuryPain(inj)
     return t and t.pain[sev] or 0
 end
 
-local fx = { leg = 0, legFracture = false, arm = 0, head = 0, loss = 0, pain = 0, hypoxia = 0 }
+local function emptyFx()
+    return { leg = 0, legFracture = false, arm = 0, head = 0, loss = 0, pain = 0, hypoxia = 0,
+             blur = 0, drunk = 0, cold = false }
+end
+
+local fx = emptyFx()
 
 local function computeEffects()
     local snap = snapshot
-    local out = { leg = 0, legFracture = false, arm = 0, head = 0, loss = 0, pain = 0, hypoxia = 0 }
+    local out = emptyFx()
     if not snap then return out end
 
+    local dev = type(snap.devices) == 'table' and snap.devices or {}
+    local splints = regionSet(dev.splints or snap.splints)
     local legScore, armScore, painMax = 0, 0, 0
     for _, inj in ipairs(asList(snap.injuries or snap.inj)) do
         local region = inj.region
@@ -134,14 +169,16 @@ local function computeEffects()
         local healing = inj.status == 'healing' and (tonumber(inj.heal) or 0) >= 60
         if healing then sev = sev - 2 end
         local fracture = kind == 'fracture' or type(inj.fracture) == 'table'
-        local splint = isSplinted(snap, inj)
+        local splint = isSplinted(snap, inj, splints)
         if sev > 0 and region then
             if LEG[region] then
                 if fracture then
                     legScore = legScore + (splint and 2 or 3)
                     out.legFracture = true
-                elseif sev >= 2 then
+                elseif sev >= 2 and kind ~= 'contusion' and kind ~= 'abrasion' then
                     legScore = legScore + sev * 0.5
+                elseif sev >= 3 then
+                    legScore = legScore + 1
                 end
             elseif ARM[region] then
                 if fracture then
@@ -156,6 +193,11 @@ local function computeEffects()
         if not healing then painMax = math.max(painMax, injuryPain(inj)) end
     end
 
+    -- server-side hints (core-server self snapshot 'fx')
+    local hint = type(snap.fx) == 'table' and snap.fx or {}
+    if hint.limp then legScore = math.max(legScore, 1) end
+    if tonumber(hint.shake) then armScore = math.max(armScore, tonumber(hint.shake) * 2) end
+
     out.leg = legScore >= 3 and 2 or (legScore >= 1 and 1 or 0)
     out.arm = math.min(2, armScore)
 
@@ -167,9 +209,13 @@ local function computeEffects()
 
     out.pain = tonumber(snap.pain) or painMax
     out.loss = lossOf(snap)
+    out.blur = U.clamp(tonumber(hint.blur) or 0, 0, 1)
+    out.drunk = U.clamp(tonumber(hint.drunk) or 0, 0, 1)
+    out.cold = hint.cold == true
 
     local hyp = 0
     if cond.hypoxia or cond.airway then hyp = 0.6 end
+    if hint.breathless then hyp = math.max(hyp, 0.5) end
     local spo2 = tonumber(snap.spo2) or (type(snap.vitals) == 'table' and tonumber(snap.vitals.spo2))
     if spo2 and spo2 < 94 then hyp = math.max(hyp, U.clamp((94 - spo2) / 20, 0, 1)) end
     local breathing = snap.breathing or (type(snap.vitals) == 'table' and snap.vitals.breathing)
@@ -182,7 +228,7 @@ end
 
 local function anyEffect(f)
     return f.leg > 0 or f.legFracture or f.arm > 0 or f.head > 0 or f.loss >= 0.12
-        or f.pain >= 35 or f.hypoxia > 0
+        or f.pain >= 35 or f.hypoxia > 0 or f.blur >= 0.3 or f.drunk >= 0.2 or f.cold
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -345,6 +391,8 @@ local function desiredClipset(ped)
     if IsPedInAnyVehicle(ped, false) then return applied.clipset end
     if fx.leg >= 2 then return CLIP_LIMP end
     if fx.leg >= 1 then return IsPedMale(ped) and CLIP_INJURED_M or CLIP_INJURED_F end
+    if fx.drunk >= 0.7 then return CLIP_DRUNK_HEAVY end
+    if fx.drunk >= 0.35 then return CLIP_DRUNK end
     return nil
 end
 
@@ -362,6 +410,8 @@ local function slowTick(ped, now)
         local amp = 0
         if fx.pain >= 35 then amp = 0.12 + ((fx.pain - 35) / 65) * 0.65 end
         if fx.hypoxia > 0 then amp = amp + fx.hypoxia * 0.25 end
+        if fx.drunk >= 0.2 then amp = amp + fx.drunk * 0.6 end
+        if fx.cold then amp = amp + 0.12 end
         if amp > 0 then setShake('DRUNK_SHAKE', U.clamp(amp, 0, 1.0)) else setShake(nil) end
     end
 
@@ -404,6 +454,13 @@ local function slowTick(ped, now)
                 RemoveAnimDict(GASP_DICT)
             end
             timers.gasp = now + math.random(6000, 11000)
+        end
+    elseif fx.blur >= 0.3 then
+        -- blurred vision without breathing trouble (blood loss, overdose, concussion)
+        if timers.hypoxia == 0 then timers.hypoxia = now + math.random(5000, 10000) end
+        if now >= timers.hypoxia then
+            playPostfx(FX_HYPOXIA, math.floor(1200 + fx.blur * 2500))
+            timers.hypoxia = now + math.random(9000, 16000) - math.floor(fx.blur * 5000)
         end
     else
         timers.hypoxia = 0
@@ -496,16 +553,25 @@ end
 -- GTA HEALTH SYNC
 -- ════════════════════════════════════════════════════════════════════════
 
+-- GTA health the blood volume allows. core-server's 'health' (0..100, reaches ~0 at the
+-- lossDown threshold) maps straight onto the bar; otherwise blood loss vs deathLoss.
 local function bloodHealthTarget(ped, snap)
     local maxHp = GetEntityMaxHealth(ped)
-    local deathLoss = (Config.Physiology and Config.Physiology.deathLoss) or 0.5
-    local f = U.clamp((deathLoss - lossOf(snap)) / deathLoss, 0, 1)
+    local f
+    local health = tonumber(snap.health)
+    if health and (snap.state == nil or snap.state == 'alive') then
+        f = U.clamp(health / 100, 0, 1)
+    else
+        local deathLoss = (Config.Physiology and Config.Physiology.deathLoss) or 0.5
+        f = U.clamp((deathLoss - lossOf(snap)) / deathLoss, 0, 1)
+    end
     return math.floor(100 + f * (maxHp - 100) + 0.5), maxHp
 end
 
 local function syncHealth(snap)
     if not (Config.Physiology and Config.Physiology.syncHealth) then return end
-    if current ~= 'alive' then lastTarget = nil return end
+    if snap.syncHealth == false then return end
+    if current ~= 'alive' or (snap.state and snap.state ~= 'alive') then lastTarget = nil return end
     local ped = PlayerPedId()
     if IsEntityDead(ped) or IsPedFatallyInjured(ped) then return end
 
@@ -634,9 +700,12 @@ CreateThread(function()
     Wait(0)
     if Bridge and Bridge.OnPlayerLoaded then
         Bridge.OnPlayerLoaded(function()
-            Wait(1000)
-            applySummary(LocalPlayer.state.nza)
-            Self.Refresh()
+            -- own thread: the bridge runs its hooks one after another
+            CreateThread(function()
+                Wait(1000)
+                applySummary(LocalPlayer.state.nza)
+                Self.Refresh()
+            end)
         end)
     end
 end)
