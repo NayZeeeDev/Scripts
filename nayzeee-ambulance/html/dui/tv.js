@@ -106,24 +106,24 @@
       .concat(Array.from({ length: free }, () => ({ k: 'open' })));
     const MAX = 8;
     const shown = tiles.slice(0, MAX);
-    const cols = Math.max(3, Math.min(4, shown.length || 3));
+    const n = shown.length;
+    const cols = n <= 4 ? Math.max(3, n) : n <= 6 ? 3 : 4;
     const grid = $('.tv-bgrid');
-    grid.style.gridTemplateColumns = `repeat(${cols},1fr)`;
+    grid.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`;
     grid.classList.toggle('two', shown.length > cols);
     if (!shown.length) {
       grid.innerHTML = `<div class="tv-bnone">${ICON.bed}<p>${esc(tr('tv_seat', 'Take a seat — your number shows up here with your bed.'))}</p></div>`;
       return;
     }
     grid.innerHTML = shown.map((t, i) => {
-      if (t.k === 'open') return `<div class="tv-bay open" style="--i:${i}"><div class="hd"><span>${esc(tr('tv_bay', 'Bed'))}</span><i></i></div><div class="bd">${ICON.bed}<b>${esc(tr('tv_open', 'Open'))}</b></div></div>`;
-      if (t.k === 'use') return `<div class="tv-bay use" style="--i:${i}"><div class="hd"><span>${esc(tr('tv_bay', 'Bed'))}</span><i></i></div><div class="bd">${ICON.user}<b>${esc(tr('tv_use', 'In use'))}</b></div></div>`;
+      if (t.k === 'open') return `<div class="tv-bay open" style="--i:${i}"><div class="hd"><span>${esc(tr('tv_open', 'Open'))}</span><i></i></div><div class="bd">${ICON.bed}<p>${esc(tr('tv_open_p', 'Ready for the next patient'))}</p></div></div>`;
+      if (t.k === 'use') return `<div class="tv-bay use" style="--i:${i}"><div class="hd"><span>${esc(tr('tv_use', 'In use'))}</span><i></i></div><div class="bd">${ICON.user}<p>${esc(tr('tv_use_p', 'Patient on the bed'))}</p></div></div>`;
       const s = t.s, tri = triOf(s.triage), mine = S.mine && s.code === S.mine;
       const called = t.k === 'called';
       return `<div class="tv-bay ${called ? 'called' : 'treat'} t${tri} ${mine ? 'mine' : ''}" style="--i:${i}">
-        <div class="hd"><span>${esc(s.bed || tr('bed', 'Bed'))}</span><i></i></div>
+        <div class="hd"><span>${esc(s.bed || tr('bed', 'Bed'))}</span>${mine ? `<span class="you">${esc(tr('tv_yours', 'That is you'))}</span>` : '<i></i>'}</div>
         <div class="code">${esc(s.code)}</div>
         <div class="st">${called ? `${ICON.arrow}<b>${esc(tr('tv_go', 'Go to your bed'))}</b>` : `${ICON.heart}<b>${esc(tr('tv_in', 'In treatment'))}</b>`}</div>
-        ${mine ? `<span class="you">${esc(tr('tv_yours', 'That is you'))}</span>` : ''}
       </div>`;
     }).join('') + (tiles.length > MAX ? `<div class="tv-bmore">+${tiles.length - MAX}</div>` : '');
     $('.tv-legend').textContent = total ? fmtS(tr('tv_bays_n', '%d of %d open'), free, total) : '';
@@ -173,7 +173,9 @@
     const b = S.board;
     if (!b) return;
     tv.classList.remove('standby');
-    $('.tv-dept').textContent = S.title || b.label || tr('hospital', 'Hospital');
+    const dept = S.title || b.label || tr('hospital', 'Hospital');
+    $('.tv-dept').textContent = dept;
+    $('.tv-dept').classList.toggle('long', dept.length > 18);
     $('.tv-room').textContent = tr('tv_room', 'Emergency · waiting area');
     bays(b); lanes(b); rail(b);
   }

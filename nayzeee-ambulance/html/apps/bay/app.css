@@ -220,6 +220,8 @@
 /* ─────────────── big monitor (F4): handheld industrial shell, no brand ─────────────── */
 #app-bay .bay-mon{position:absolute;right:200px;bottom:28px;width:580px;display:none}
 #app-bay .bay-mon.on{display:block;animation:bay-in-r 300ms cubic-bezier(.2,.7,.2,1) both}
+/* short screens: the big monitor needs the room under the cabin card, so the crew list steps aside */
+@media (max-height: 820px){#app-bay.bigmon .bay-crew{display:none}}
 #app-bay .hx{position:relative;padding:12px 18px 12px;border-radius:22px;
   background:radial-gradient(120% 50% at 25% 0%,rgba(255,255,255,.08),transparent 60%),linear-gradient(172deg,#30353a 0%,#1d2023 34%,#121416 72%,#0d0e10 100%);
   box-shadow:0 36px 72px rgba(0,0,0,.55),0 12px 24px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.16),inset 0 -3px 0 rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.05),inset 0 0 0 5px rgba(0,0,0,.18)}
@@ -318,6 +320,9 @@
 #app-bay .sup-act .step button .nz-ic{width:12px;height:12px}
 #app-bay .sup-act .step span{min-width:20px;text-align:center;font:700 12px var(--mono);color:var(--white)}
 #app-bay .sup-act .tk{min-width:64px;justify-content:center}
+#app-bay .sup-act .ta{display:inline-flex;align-items:center;gap:5px;min-width:56px;justify-content:center;font:700 11.5px var(--mono);letter-spacing:.02em}
+#app-bay .sup-act .ta .nz-ic{width:13px;height:13px;color:var(--teal-hi)}
+#app-bay .sup-act .ta:disabled .nz-ic{color:inherit}
 #app-bay .sup.used{opacity:.5}
 #app-bay .sup.used .sup-img img{filter:grayscale(1) drop-shadow(0 5px 8px rgba(0,0,0,.5))}
 #app-bay .sup.busy{opacity:.7;pointer-events:none}

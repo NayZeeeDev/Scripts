@@ -31,7 +31,7 @@
     exit: 'Get out', bay_title: 'Patient cabin', no_patient: 'Stretcher is empty',
     no_patient_sub: 'Load a patient into the ambulance to work on them here.',
     hr: 'HR', spo2: 'SpO₂', nibp: 'BP', map: 'MAP', rr: 'RR', temp: 'Temp', loss: 'Est. loss', drip: 'Running', bleed: 'Bleed',
-    blood: 'Blood', patient: 'Patient', stabilized: 'Stabilized', bleeding_out: 'Bleeding out',
+    blood: 'Blood', patient: 'Patient', stabilized: 'Holding steady', bleeding_out: 'Bleeding out',
     st_alive: 'Conscious', st_wounded: 'Wounded', st_arrest: 'Cardiac arrest', st_dead: 'Deceased',
     unit: 'Unit', crew: 'In the back', moving: 'Moving · %s km/h', parked: 'Parked',
     examine: 'Assess', supplies: 'Supplies', ivstand: 'Fluids', monitor: 'Monitor',
@@ -46,7 +46,7 @@
     w_cold: 'Getting cold', w_moving: 'Rough ride',
     sup_title: 'Supplies', sup_sub: 'Cabin shelves', sup_head: 'Free for the crew. Every shelf refills at the start of a shift.',
     sup_all: 'All shelves', sup_left: '%s of %s left', sup_used: 'Shelf empty', sup_take: 'Take',
-    sup_take_all: 'All', sup_have: 'Carrying %s', sup_reset: 'Refill in %s', sup_shelf: 'Shelf %s',
+    sup_take_all: 'Grab %s at once', sup_have: 'Carrying %s', sup_reset: 'Refill in %s', sup_shelf: 'Shelf %s',
     sup_taken: 'Taken this shift', sup_left_total: 'On the shelves', close: 'Close', qty: 'Quantity',
     cat_wound: 'Wound care', cat_fluids: 'IV & fluids', cat_airway: 'Airway', cat_ortho: 'Immobilisation', cat_meds: 'Medication',
     mon_model: 'Transport monitor', mon_warn: 'Secure before driving',
@@ -391,6 +391,7 @@
   /* ─────────────── big monitor (F4 fallback): industrial shell, generic model code ─────────────── */
   function setBigMonitor(on) {
     st.bigMon = !!on;
+    if (R && R.root) R.root.classList.toggle('bigmon', st.bigMon);
     if (!st.bigMon) {
       if (bigMon) { bigMon.destroy(); bigMon = null; }
       R.mon.innerHTML = '';
@@ -485,7 +486,7 @@
         <div class="sup-act">
           <div class="step"><button class="mn" ${used || q <= 1 ? 'disabled' : ''}>${ic('minus')}</button><span>${used ? 0 : q}</span><button class="pl" ${used || q >= Math.min(i.left, maxTake) ? 'disabled' : ''}>${ic('plus')}</button></div>
           <button class="btn-teal btn-sm tk" ${used ? 'disabled' : ''}>${esc(t('sup_take'))}</button>
-          <button class="btn-line btn-sm ta" ${used || i.left <= 1 ? 'disabled' : ''}>${esc(t('sup_take_all'))}</button>
+          <button class="btn-line btn-sm ta" title="${esc(t('sup_take_all', Math.max(1, Math.min(i.left, maxTake))))}" ${used || i.left <= 1 ? 'disabled' : ''}>${ic('download')}<span>+${used ? 0 : Math.max(1, Math.min(i.left, maxTake))}</span></button>
         </div>
       </div>`;
     };
@@ -639,9 +640,10 @@
           if (p.state === 'wounded' && !p.stabilized && p.clock > 0) p.clock -= 1;
           if (p.state === 'arrest' && p.clock) p.clock += 1;
           if (p.state !== 'arrest') {
-            p.vitals.hr = Math.round(124 + Math.sin(Date.now() / 3000) * 4);
+            const base = p.stabilized ? 104 : 124;
+            p.vitals.hr = Math.round(base + Math.sin(Date.now() / 3000) * 4);
             p.vitals.ecgRate = p.vitals.hr;
-            p.vitals.spo2 = 93 + (Math.random() < 0.3 ? 1 : 0);
+            p.vitals.spo2 = (p.stabilized ? 97 : 93) + (Math.random() < 0.3 ? 1 : 0);
             p.infusions.forEach(f => { if (!f.paused) f.left = Math.max(0, f.left - f.rate / 60); });
           }
           NZA.apps.bay.msg.patient(p);
@@ -662,14 +664,15 @@
 
   /* ─────────────── demo data (browser preview only) ─────────────── */
   function demoPatient(kind) {
-    const arrest = kind === 'arrest';
+    const arrest = kind === 'arrest', stable = kind === 'stable';
     return {
-      name: 'Lena Okafor', sex: 'f', age: 34, bloodType: 'O-', state: arrest ? 'arrest' : 'wounded', stabilized: false,
+      name: 'Lena Okafor', sex: 'f', age: 34, bloodType: 'O-', state: arrest ? 'arrest' : 'wounded', stabilized: stable,
       clock: arrest ? 214 : 142, triage: { level: 1, code: 'P1', label: 'Critical', colour: '#e5484d' },
       vitals: arrest
         ? { hr: 0, ecgRate: 0, sys: 0, dia: 0, map: 0, spo2: 0, rr: 0, temp: 35.1, rhythm: 'vf', avpu: 'U' }
+        : stable ? { hr: 104, ecgRate: 104, sys: 108, dia: 66, map: 80, spo2: 97, rr: 18, temp: 36.2, rhythm: 'sinus', avpu: 'A' }
         : { hr: 126, ecgRate: 126, sys: 92, dia: 58, map: 69, spo2: 93, rr: 24, temp: 34.6, rhythm: 'stach', avpu: 'V' },
-      temp: arrest ? 35.1 : 34.6, bleed: 14.8, bloodPct: 76, lossMl: 1240, access: true,
+      temp: arrest ? 35.1 : stable ? 36.2 : 34.6, bleed: stable ? 1.2 : 14.8, bloodPct: stable ? 84 : 76, lossMl: 1240, access: true,
       injuries: [
         { region: 'chest', regionLabel: 'Chest', type: 'gunshot', typeLabel: 'Gunshot wound', severity: 3, status: 'open', bleed: 9.2 },
         { region: 'l_upper_arm', regionLabel: 'Left upper arm', type: 'laceration', typeLabel: 'Deep laceration', severity: 2, status: 'controlled', bleed: 3.1 },
@@ -678,9 +681,11 @@
         { region: 'head', regionLabel: 'Head', type: 'abrasion', typeLabel: 'Abrasion', severity: 1, status: 'open', bleed: 0 },
       ],
       injuryCount: 5,
-      infusions: [{ kind: 'saline', ml: 500, left: 320, rate: 125 }, { kind: 'txa', ml: 100, left: 64, rate: 10 }],
+      infusions: stable
+        ? [{ kind: 'blood', ml: 450, left: 286, rate: 60 }, { kind: 'saline', ml: 500, left: 140, rate: 80 }]
+        : [{ kind: 'saline', ml: 500, left: 320, rate: 125 }, { kind: 'txa', ml: 100, left: 64, rate: 10 }],
       devices: { iv: 'iv', oxygen: true, collar: true, tq: 1, splints: 1 },
-      surgery: true, bloodRunning: false,
+      surgery: true, bloodRunning: stable,
     };
   }
   function demoSupplies() {

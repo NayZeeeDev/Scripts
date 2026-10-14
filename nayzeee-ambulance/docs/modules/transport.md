@@ -16,7 +16,7 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
 | `client/modules/transport_stretcher.lua` | stretcher: take, push, raise / lower (+ optional low-model swap), load / unload slide, return, targets on the cot and the ambulance, the `stretcher` hospital point type, stretcher radial items |
 | `client/modules/transport_bed.lua` | bed-like hospital points: transfer from stretcher / carry, help off the table |
 | `client/modules/transport_bay.lua` | treatment bay: local interior + lights + dressing props, enter / exit (also from a passenger seat), patient in / out, HUD, supplies, key mappings, ambulance target, bay radial items |
-| `html/apps/bay/app.js`, `app.css` | NUI app `bay`: top vitals strip with exit pill, patient card, warnings, crew, tool keys, big monitor, supplies window |
+| `html/apps/bay/app.js`, `app.css` | NUI app `bay`: patient card (top-left) with alert notes under it, cabin monitor + crew (top-right), right-edge tool dock with the get-out slot, big monitor, supplies window |
 
 ## Features
 
@@ -97,7 +97,7 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
 - **HUD** (`bay` app, no focus) — the *patient cabin* HUD, built in the NAYZEEE language (corner
   brackets, status rings, instrument rows with tone notches, edge dock; see `docs/design/ORIGINAL.md`):
   - **top-left patient card**: avatar inside a blood-volume ring, name / sex · age · blood type,
-    triage chip; state block (bleeding out / stabilised / arrest + rhythm, *Shockable*) with a
+    triage chip; state block (*Bleeding out* / *Holding steady* / arrest + rhythm, *Shockable*) with a
     rolling (odometer) clock; a **holographic body glyph** with every wound coloured by severity and
     a pulsing diamond on open wounds, beside the wound list (severity notch, region, bleed or status);
     bleed + blood meters; **infusions** as small hanging-bag glyphs whose liquid level follows the
@@ -122,7 +122,7 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
 - **Supplies shelves** (F2, radial, or the target on the cabinets): v5 window with the shelf list
   in the sidebar, three ring tiles (on the shelves, taken this shift, refill countdown) and a
   **shelf rack**: one labelled shelf per category (letter tag A–E), each item a bin row (thumbnail,
-  `n of max left`, stock pips, *Carrying n*, quantity stepper, **Take** / **All**). Free items with
+  `n of max left`, stock pips, *Carrying n*, quantity stepper, **Take**, and a bulk-grab button showing the count it takes, e.g. `+8`). Free items with
   per-medic limits (`supplies.items[].max`) that reset when the medic goes on duty or after
   `shiftLength` s (sent to the window for the refill ring). Server checks the bay, limit,
   `maxPerTake`, inventory space.
@@ -196,7 +196,7 @@ configured ambulance models.
 **NUI app `bay`**: Lua → `open { locale, keys, unit, crew, me, warnings, tools }`, `patient (lite | false)`,
 `crew`, `tick`, `monitor { on }`, `tools`, `supplies (list)`, `suppliesClose`; JS → `bay:take { key, count }`,
 `bay:supplies { open = false }`, `bay:action { id }`.
-Preview: `index.html?app=bay` (`&demo=empty|supplies|monitor|arrest|moving|compact`).
+Preview: `index.html?app=bay` (`&demo=empty|stable|supplies|monitor|arrest|moving|compact`).
 
 ## Security
 Every callback: rate limit, permission (`NZA.Staff.Can`), the medic alive, server-side distances

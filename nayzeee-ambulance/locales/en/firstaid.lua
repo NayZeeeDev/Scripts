@@ -241,7 +241,7 @@ NZA.AddLocale('en', {
     ['firstaid.cap_occ']                     = 'Artery closed',
     ['firstaid.cap_over']                    = 'Ease off: over-tightened',
     ['firstaid.cap_pack']                    = 'Every feed that lands deep fills it faster',
-    ['firstaid.cap_pick']                    = 'Now pick the size: 1 No-neck · 2 Short · 3 Regular · 4 Tall',
+    ['firstaid.cap_pick']                    = 'Pick a size: 1 to 4',
     ['firstaid.cap_place']                   = '2–3 finger widths above the wound is ideal',
     ['firstaid.cap_pressing']                = 'Pressing',
     ['firstaid.cap_release']                 = 'Not pressing: bleeding',

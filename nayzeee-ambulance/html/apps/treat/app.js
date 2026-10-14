@@ -2003,7 +2003,7 @@
         panel() {
           a.pp.set({
             stats: [{ id: 'f', label: T('st_fingers', 'Fingers'), value: String(col.fingers || 0) }, { id: 'size', label: T('st_size', 'Size'), value: col.size ? a.sizes().find(s => s.id === col.size).l : '--', small: true }],
-            wide: { label: T('w_measure', 'Neck'), value: String(col.fingers || 0), unit: T('fingers', 'fingers'), meter: { value: clamp((col.fingers || 0) / 6, 0, 1), segs: true }, caption: col.measured ? T('cap_pick', 'Now pick the size: 1 No-neck · 2 Short · 3 Regular · 4 Tall') : T('cap_measure', 'Stop exactly at the chin'), captionTone: 'teal' },
+            wide: { label: T('w_measure', 'Neck'), value: String(col.fingers || 0), unit: T('fingers', 'fingers'), meter: { value: clamp((col.fingers || 0) / 6, 0, 1), segs: true }, caption: col.measured ? T('cap_pick', 'Pick a size: 1 to 4') : T('cap_measure', 'Stop exactly at the chin'), captionTone: 'teal' },
           });
         },
         device() { a.devCollar(); },
