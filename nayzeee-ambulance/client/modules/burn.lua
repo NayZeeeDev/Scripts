@@ -18,7 +18,7 @@
 
     API     NZA.Burn.Start(entityOrTarget, injuryId, mode) → ok, outcome | reason   (blocks; call from a thread)
             NZA.Burn.Pick(entity, target, mode)       choose a burn, then Start ('care' | 'graft' | nil = best)
-            NZA.Burn.CareEligible(inj) / GraftEligible(inj) → ok, reasonText
+            NZA.Burn.CareEligible(inj) / GraftEligible(inj, snap?) → ok, reasonText
     NUI     burn:finish (result) → { ok, pending } then action 'careDone' (continue) / 'result' (outcome)
             burn:graftCheck {} → { ok, msg }        burn:abort        burn:pain { pain }      burn:close (core)
             Lua → JS: open (case) · careDone (outcome) · graft (case) · graftFail { msg } · result (outcome)
@@ -64,31 +64,46 @@ end
 function Bn.CareEligible(inj)
     if type(inj) ~= 'table' or inj.type ~= 'burn' then return false end
     local t = inj.treat or {}
-    if t.grafted then return false end
+    if t.grafted then return false, L('err_graft_done') end
     local deg, full = burnOf(inj)
-    if deg <= 1 and t.dressed then return false end
+    if deg <= 1 and t.dressed then return false, L('err_done') end
     if t.cooled and t.debrided and t.dressed then
-        if deg >= 3 and full > 0 then return false end
-        return false
+        if deg >= 3 and full > 0 then return false, L('err_graft') end
+        return false, L('err_done')
     end
     return true
 end
 
-function Bn.GraftEligible(inj)
+-- Surgery table / configured hospital point or the ambulance treatment bay (from the medic snapshot;
+-- the server checks the same thing again when the graft starts)
+local function atGraftLocation(snap)
+    local meta = type(snap) == 'table' and snap.meta or nil
+    if type(meta) ~= 'table' then return true end          -- unknown here: let the server decide
+    local locs = gcfg().locations or {}
+    if type(meta.bed) == 'table' and meta.bed.type and locs[meta.bed.type] then return true end
+    if meta.bay and locs.bay then return true end
+    return false
+end
+
+-- snap (optional) = medic snapshot of the patient, for the room check
+function Bn.GraftEligible(inj, snap)
     if type(inj) ~= 'table' or inj.type ~= 'burn' then return false end
     local t = inj.treat or {}
-    if t.grafted then return false end
+    if t.grafted then return false, L('err_graft_done') end
     local deg, full = burnOf(inj)
     if deg < 3 or full <= 0 then return false end
     local easy = NZA.Easy and NZA.Easy(gcfg().perm or 'graft')
     if not easy and gcfg().needCare ~= false and not (t.cooled and t.debrided) then
         return false, L('why_care_first')
     end
+    if not easy and gcfg().requireLocation ~= false and snap and not atGraftLocation(snap) then
+        return false, L('why_graft_location')
+    end
     return true
 end
 
-local function eligible(inj, mode)
-    if mode == 'graft' then return Bn.GraftEligible(inj) end
+local function eligible(inj, mode, snap)
+    if mode == 'graft' then return Bn.GraftEligible(inj, snap) end
     return Bn.CareEligible(inj)
 end
 
@@ -200,6 +215,10 @@ function Bn.Start(target, injuryId, mode)
             -- straight on to the graft: same app, same patient
             s.mode = 'graft'
             s.chain = true
+            -- an easy-mode graft runs as the core progress bar: the 3D app has nothing left to show
+            if NZA.Easy and NZA.Easy(gcfg().perm or 'graft') and NZA.UI.IsOpen(APP) then
+                NZA.UI.Close(APP)
+            end
             local appOpen = NZA.UI.IsOpen(APP)
             local ok2, res2 = session(s, 'graft', { injury = injuryId, continue = true }, not appOpen)
             if not ok2 and NZA.UI.IsOpen(APP) and not s.closed then
@@ -237,9 +256,9 @@ function Bn.Pick(entity, target, mode)
         if inj.type == 'burn' then
             local m = mode
             if not m then
-                m = (Bn.GraftEligible(inj) and NZA.Perm(gcfg().perm or 'graft')) and 'graft' or 'care'
+                m = (Bn.GraftEligible(inj, snap) and NZA.Perm(gcfg().perm or 'graft')) and 'graft' or 'care'
             end
-            local ok, why = eligible(inj, m)
+            local ok, why = eligible(inj, m, snap)
             if ok or why then list[#list + 1] = { inj = inj, ok = ok, why = why, mode = m } end
             if not ok and why and not firstWhy then firstWhy = why end
         end
@@ -351,9 +370,9 @@ table.insert(NZA.ExamRoutes, {
     id = 'graft', label = L('route_graft'), icon = 'scissors', perm = gcfg().perm or 'graft', order = 36,
     types = { 'burn' }, regions = nil,
     items = itemsOf(gcfg().items),
-    available = function(inj)
+    available = function(inj, snap)
         if inj and inj.condition then return false end
-        return Bn.GraftEligible(inj)
+        return Bn.GraftEligible(inj, snap)
     end,
     run = function(target, inj) Bn.Start(target, inj.id, 'graft') end,
 })

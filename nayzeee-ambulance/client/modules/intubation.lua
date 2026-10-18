@@ -103,7 +103,9 @@ local function endSession(s)
     s.stopWatch = nil
     if s.open then NZA.UI.Close(APP) end
     s.open = false
+    if s.monScene and NZA.Monitor and NZA.Monitor.Scene then pcall(NZA.Monitor.Scene, false) end
     if s.extMon and NZA.Monitor and NZA.Monitor.Close then pcall(NZA.Monitor.Close) end
+    s.monScene, s.extMon = nil, nil
     if s.scene then Scene().End(s.scene) end
     s.scene = nil
 end
@@ -130,7 +132,12 @@ local function run(s, ctx)
     s.scene = Scene().Begin(s.entity, s.mode, { intubated = anat.intubated == true, noMonitor = ext })
     if ctx.done() or s.ended then return end
     if ext then
-        s.extMon = pcall(NZA.Monitor.Open, s.target, { compact = true, position = 'tr' })
+        -- reuse a monitor the medic already has open (and leave it open afterwards)
+        if not NZA.UI.IsOpen('monitor') then
+            local ok = pcall(NZA.Monitor.Open, s.target, { compact = true, position = 'tr' })
+            s.extMon = ok
+        end
+        if type(NZA.Monitor.Scene) == 'function' then s.monScene = pcall(NZA.Monitor.Scene, true) end
     end
 
     local data = {}

@@ -352,3 +352,20 @@
 #app-ultrasound .dr-read .lung .fg{fill:none;stroke:var(--teal-hi);stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 3px rgba(15,212,196,.7))}
 #app-ultrasound .dr-read .lung span{display:block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
 #app-ultrasound .dr-read .lung b{font:700 15px var(--mono);color:var(--teal-hi)}
+
+/* palpation lens (ribs / collarbone light up under the fingers) */
+#app-ultrasound .us-ov3 .lens .lr{fill:rgba(8,40,44,.16);stroke:rgba(15,212,196,.55);stroke-width:1.2;stroke-dasharray:2 5}
+#app-ultrasound .us-ov3 .lens path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+#app-ultrasound .us-ov3 .lens .rb{stroke:rgba(190,255,248,.55);stroke-width:13;filter:drop-shadow(0 0 6px rgba(15,212,196,.55))}
+#app-ultrasound .us-ov3 .lens .rb.hi{stroke:rgba(120,255,240,.8)}
+#app-ultrasound .us-ov3 .lens .cl{stroke:rgba(230,255,252,.75);stroke-width:18;filter:drop-shadow(0 0 7px rgba(15,212,196,.6))}
+#app-ultrasound .us-ov3 .lens .mcl{stroke:rgba(255,255,255,.7);stroke-width:1.4;stroke-dasharray:6 6}
+#app-ultrasound .us-ov3 .lens .ll{font:700 11px var(--mono);fill:#e9fffc;text-anchor:middle;dominant-baseline:middle;paint-order:stroke;stroke:rgba(4,22,24,.85);stroke-width:3px}
+#app-ultrasound .us-ov3 .lens .ll.hi{fill:var(--teal-hi)}
+#app-ultrasound .us-ov3 .lens .ll.sp{font-size:9.5px;fill:rgba(233,255,252,.62)}
+#app-ultrasound .us-ov3 .lens .ll.sp.hi{fill:var(--teal-hi)}
+#app-ultrasound .us-ov3 .trl rect{fill:rgba(10,12,14,.82);stroke:rgba(15,212,196,.5)}
+#app-ultrasound .us-ov3 .trl text{font:700 9.5px var(--font);letter-spacing:.16em;fill:var(--teal-hi);text-anchor:middle}
+#app-ultrasound .us-drw header .k em{font-style:normal;font-weight:600;letter-spacing:.08em;text-transform:none;color:var(--ink-3);margin-left:8px;font-family:var(--mono)}
+#app-ultrasound .dr-svg .mns{stroke:rgba(255,170,170,.55);stroke-width:.8}
+#app-ultrasound .dr-read .drate{font-size:12px}

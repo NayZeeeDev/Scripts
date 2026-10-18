@@ -67,12 +67,38 @@ SpO₂ with trend arrow, attempt timer, step timer, a dial per step), tool belt 
 airway monitor device top-right (generic `AM-7` face: SpO₂ dial with the alarm limit, ECG / pleth /
 CO₂ sweep traces, HR / NIBP / EtCO₂ / RR list, apnoea ring timer, attempt pips, lowest SpO₂, status
 pill VENTILATING / APNOEIC / SAT FALLING / LOW SpO₂), blade cut-away top-left (steps 4–6), video
-laryngoscope device in the centre (`VL-3`: WebGL airway with lens distortion, coaxial LED lighting,
-wet specular mucosa, epiglottis, vallecula, lingual tonsil, cords, false folds, arytenoids, piriform
-fossae, oesophageal inlet, pooled / dripping fluid; OSD with blade, attempt, CL grade, depth / lift /
-tube gauge, warnings), cards right-middle (ventilation ring, head position, cuff manometer,
-capnograph + auscultation, result). A diamond marker with a cadence chip floats on the bag in the
-world (anchor `bvm`). Compact rules for screens ≤ 820 px high.
+laryngoscope device in the centre (`VL-3`, see below), cards right-middle (ventilation ring with an
+animated bag / reservoir / valve / mask, head position cut-away, cuff panel, capnograph + auscultation,
+result). A diamond marker with a cadence chip floats on the bag in the world (anchor `bvm`). Compact
+rules for screens ≤ 820 px high (checked at 1280×720).
+
+**Video laryngoscope render** (one full-screen WebGL fragment shader, 2D fallback without WebGL):
+- every layer carries a distance from the lens; the only light is the LED beside the lens, so
+  brightness falls off with the square of the distance (the larynx is a dark hole at the start of the
+  insertion and lights up as the blade closes in), with camera auto-exposure (gain drops while the
+  tongue and palate fill the frame), a soft sensor shoulder, vignette, barrel distortion and noise;
+- wet mucosa: blotchy perfusion, two-scale capillary networks, subsurface red where tissue faces
+  away from the light, height-field normals with sharp wet highlights;
+- anatomy: tongue (papillae), soft palate + uvula, lingual tonsil / tongue base arch, two vallecula
+  pockets either side of the median fold, a rounded epiglottis leaf with a rolled translucent free
+  edge that casts a shadow on the inlet, aryepiglottic folds, piriform fossae, false folds, ventricle,
+  pearly true cords with a capillary along the edge, tracheal rings in the dark, arytenoid complex,
+  postcricoid mucosa and the oesophageal inlet;
+- fluid (blood / vomit / water by patient): a mask texture whose alpha is coverage and red channel
+  thickness — a wet film creeping up the walls, rivulets that run down into the posterior pool and
+  drops still hanging, a dark glossy pool with a moving meniscus; water and secretions are
+  see-through; froth for drowning; saliva bubbles cluster at the posterior commissure and ride the
+  pool margin; active bleeding keeps adding rivulets; the suction tip clears the mask;
+- the tube is a translucent PVC cylinder shaded across its width, radio-opaque blue line, printed
+  depth marks, balloon cuff (wrinkled / taut), pilot line, bevel with the dark lumen and the Murphy
+  eye; the part past the cords (or into the oesophageal inlet) fades into the dark.
+
+**Cuff panel**: a physical 10 ml syringe (cylindrical barrel, printed scale, rubber stopper, rod and
+flange that travel with the volume) on the pilot valve and balloon (grows with pressure), the
+manometer with the 20–30 cmH₂O band, and a live tracheal cross-section (cartilage horseshoe,
+membranous wall, mucosa, tube, cuff): the balloon grows until it meets the wall, air bubbles leak
+past it while it is under-filled, and above the band the mucosa blanches (flow *reduced*), with a
+three-line readout (cuff to wall, mucosal flow, air past the cuff).
 
 | Lua → JS | data |
 |---|---|
@@ -150,5 +176,8 @@ camera{enabled,preox,scope,confirm,bvm,ease}`
 - The assess module hears an oesophageal tube like a correct one until it reads `meta.tube.placed`
   (request filed); the capnography check of this module always finds it.
 - Prop offsets follow `docs/modules/props.md` start values; per-ped tuning lives in `Config.Intubation.props`.
-- `externalMonitor = true` uses the field module's monitor overlay, which shows server vitals, not the
-  minigame's simulated desaturation.
+- `externalMonitor = true` uses the field module's monitor overlay (`NZA.Monitor.Open`, kept on screen
+  with `NZA.Monitor.Scene(true)`), which shows server vitals, not the minigame's simulated desaturation.
+  A monitor the medic already had open is reused and left open afterwards.
+- The airway shader is a single full-screen pass (scene evaluated three times for normals); on very
+  old GPUs it falls back to the flat 2D drawing.

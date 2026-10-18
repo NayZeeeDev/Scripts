@@ -240,14 +240,14 @@
       if (c > 0.02) {
         // dirt packed into the cut: this is what the jet has to rinse out
         for (let i = 0; i < pts.length; i += 2) S.layers.splat('grime', jit(pts[i], 1.2), (1.1 + R() * 1.1) * MM, clamp(0.35 + c * 0.6, 0, 1), { seed: 11 + i, count: 5 });
-        // road dirt dragged over the edges: thin broken streaks, mostly along the injury
-        const n = Math.round(6 + c * 16);
+        // road dirt smeared over the edges: soft granular smudges dragged along the injury
+        const n = Math.round(5 + c * 12);
         for (let k = 0; k < n; k++) {
-          const tN = 0.04 + R() * 0.92, sd = side();
-          const a = w.edge(tN, sd, (0.4 + R() * R() * 6) * MM), at = w.at(tN);
-          const len = (1.5 + R() * 4.5) * MM, ang = Math.atan2(at.dir[1], at.dir[0]) + (R() - 0.5) * 0.9;
-          const st = S.uvToST(a), b = S.stToUv(st[0] + Math.cos(ang) * len, st[1] + Math.sin(ang) * len);
-          S.layers.stroke('grime', a, b, (0.3 + R() * 0.5) * MM, (0.14 + R() * 0.16) * (0.4 + c), { hardness: 0.25, grain: 0.85, grainScale: 150 + R() * 80 });
+          const tN = 0.04 + R() * 0.92, sd = side(), at = w.at(tN);
+          const a = w.edge(tN, sd, (0.8 + R() * R() * 6.5) * MM);
+          const ang = Math.atan2(at.dir[1], at.dir[0]) + (R() - 0.5) * 0.7;
+          S.layers.paint('grime', a, [(1.4 + R() * 3.4) * MM, (0.4 + R() * 0.8) * MM], (0.16 + R() * 0.2) * (0.4 + c),
+            { hardness: 0.05, grain: 0.75, grainScale: 1100 + R() * 900, angle: ang });
         }
         // grit: fine specks within a few millimetres of the edges
         const nd = Math.round(18 + c * 46);

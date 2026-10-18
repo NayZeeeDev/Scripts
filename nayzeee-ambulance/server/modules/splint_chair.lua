@@ -57,7 +57,7 @@ end
 
 local function modelName()
     local key = W().prop or 'wheelchair'
-    return (Config.Props and Config.Props[key]) or 'prop_wheelchair_01'
+    return (Config.Props and Config.Props[key]) or (Config.PropFallbacks and Config.PropFallbacks[key]) or Config.Props.wheelchair
 end
 
 local function srcCoords(src)

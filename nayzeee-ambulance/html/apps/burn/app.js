@@ -464,25 +464,29 @@
       col = mixC(col, BROWN, smooth(0.62, 0.86, b1 * 0.5 + b2 * 0.6) * 0.75);
       // charred crust: patchy, crusty, mostly toward the middle
       const charN = fbm(n2, X * 0.05 + 11, Y * 0.05, 5) + (e - 0.75) * 0.3 + (b3 - 0.5) * 0.08;
-      const charA = smooth(0.6, 0.72, charN);
+      const charA = smooth(0.57, 0.76, charN);
+      col = mixC(col, [98, 60, 36], smooth(0.47, 0.62, charN) * (1 - charA) * 0.55);     // scorched halo round the char
       col = mixC(col, mixC(CHAR, [70, 44, 30], b3 * 0.6), charA * 0.94);
+      col = mixC(col, [92, 86, 80], charA * smooth(0.6, 0.75, n(X * 0.7 + 21, Y * 0.7)) * 0.35);   // grey ash bloom on the char
       // fissures: thin, irregular, deeper in the crust
-      const W1 = wy(wx * 0.22, wyy * 0.22), crack = 1 - smooth(0.0, 0.035 + charA * 0.04, W1.f2 - W1.f1);
-      const crackA = crack * (0.18 + charA * 0.8) * smooth(0.3, 0.7, e);
+      const W1 = wy(wx * 0.22, wyy * 0.22), crack = 1 - smooth(0.0, 0.03 + charA * 0.045, W1.f2 - W1.f1);
+      const crackMask = Math.max(smooth(0.42, 0.6, n2(X * 0.06 + 31, Y * 0.06 + 7)), charA * 0.75) * (0.55 + 0.45 * smooth(0.2, 0.7, W1.id));
+      const crackA = crack * crackMask * (0.12 + charA * 0.82) * smooth(0.3, 0.7, e);
       col = mixC(col, FISS, crackA);
       // skin creases: faint parallel wrinkles that survived the burn
       const crease = Math.pow(Math.abs(Math.sin((wx * 0.9 + wyy * 0.35) * 0.9 + b2 * 3)), 24) * (1 - charA);
-      col = mixC(col, mixC(col, [60, 40, 30], 0.5), crease * 0.25);
+      col = mixC(col, mixC(col, [60, 40, 30], 0.5), crease * 0.12);
       // edge: a dark junction line, then grey flaking dead epidermis
       const junction = smooth(0.18, 0.32, e) * (1 - smooth(0.32, 0.52, e));
       col = mixC(col, JUNC, junction * 0.55);
       const flake = (1 - smooth(0.12, 0.42, e)) * smooth(0.45, 0.62, n(X * 0.45 + 3, Y * 0.45));
       col = mixC(col, GREY, flake * 0.6);
       const gr = (n(X * 3.4, Y * 3.4) - 0.5) * 12 + (b3 - 0.5) * 6;
-      const a = mask[i] ? smooth(0.4, 0.56, e + (b2 - 0.5) * 0.3) : 0;
+      // soft, ragged rim: the dark junction and the grey flaking skin fade into the burn round it
+      const a = smooth(0.2, 0.5, e + (b2 - 0.5) * 0.22 + (b3 - 0.5) * 0.06) * (mask[i] ? 1 : 0.92);
       const o = i * 4;
       d[o] = col[0] + gr; d[o + 1] = col[1] + gr * 0.9; d[o + 2] = col[2] + gr * 0.8; d[o + 3] = a * 255;
-      hgt[i] = 0.5 + b2 * 0.3 + charA * (0.35 + fbm(n, X * 0.9, Y * 0.9, 2) * 0.35) - crackA * 0.9 - crease * 0.15 + flake * 0.2;
+      hgt[i] = 0.5 + b2 * 0.3 + charA * (0.35 + fbm(n, X * 0.9, Y * 0.9, 2) * 0.35) - crackA * 0.9 - crease * 0.06 + flake * 0.2;
       // waxy areas have a dull sheen, charred crust is bone dry
       const ro = clamp(0.58 + charA * 0.36 + crackA * 0.1 - (1 - charA) * (1 - smooth(0.3, 0.6, b1)) * 0.16, 0, 1) * 255;
       rd[o] = ro; rd[o + 1] = ro; rd[o + 2] = ro; rd[o + 3] = 255;
@@ -574,7 +578,7 @@
     const n = valueNoise(o.seed), R = rng(o.seed ^ 0x2a);
     const cv = mkCanvas(w, h), c = cv.getContext('2d'), id = c.createImageData(w, h), d = id.data;
     const hgt = new Float32Array(w * h);
-    const PINK = [240, 200, 186], PINK2 = [226, 172, 160], WHITE = [246, 232, 222];
+    const PINK = [226, 172, 152], PINK2 = [206, 146, 128], WHITE = [238, 216, 200];
     const expand = o.expand || 1, mode = o.mode || 'raw';
     // diamond lattice in the expanded sheet: cells of pitch px (along L) × py (across)
     const px = o.ratio === '1:3' ? 5.2 : 3.6, py = o.ratio === '1:3' ? 4.2 : 2.6;
@@ -680,15 +684,167 @@
         if (!inside) { d[i + 3] = 0; continue; }
         const X = x + ph * 10, Y = y;
         const b = fbm(n, X * 0.02, Y * 0.02, 4), crease = 1 - smooth(0.0, 0.05, (() => { const W = wy(X * 0.035, Y * 0.06); return W.f2 - W.f1; })());
-        let col = mixC([222, 210, 194], [196, 178, 160], smooth(0.35, 0.7, b));
-        col = mixC(col, [206, 150, 136], smooth(0.62, 0.8, fbm(n2, X * 0.03, Y * 0.03, 3)) * 0.45);   // underside showing through
-        col = mixC(col, [120, 100, 86], crease * 0.45);
+        let col = mixC([208, 198, 180], [176, 160, 140], smooth(0.35, 0.7, b));
+        col = mixC(col, [204, 132, 118], smooth(0.55, 0.78, fbm(n2, X * 0.03, Y * 0.03, 3)) * 0.55);   // the pink underside showing through the thin parts
+        col = mixC(col, [110, 90, 76], crease * 0.5);
+        col = mixC(col, [96, 72, 58], smooth(0.6, 0.75, n2(X * 0.08 + 3, Y * 0.08)) * 0.25);            // soot caught in the dead skin
         const rim = smooth(edge - 0.05, edge, r);
-        col = mixC(col, [246, 240, 232], rim * 0.7);
+        col = mixC(col, [232, 222, 206], rim * 0.55);
         d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = (0.86 - rim * 0.3) * 255;
       }
     }
     c.putImageData(id, 0, 0);
+    return cv;
+  }
+
+  // Partial-thickness surface for the skin shader patch (see patchSkin), drawn over the burn box:
+  //   map    R deep-partial pallor (mottled ivory)   G sloughed epidermis (grey-white membrane)
+  //          B weeping serum (gloss)
+  //   normal relief: rolled membrane edges, wrinkles in the dead skin, papillary dermis
+  // Superficial (1st degree) burns get no membranes and only a faint sheen.
+  function texBurnDetail(o) {
+    const { box, dn, zones, blisters, flaps, degree, seed } = o;
+    const bw = box[2] - box[0], bh = box[3] - box[1];
+    const base = 640;
+    const w = bw >= bh ? base : Math.max(160, Math.round(base * bw / bh)), h = bw >= bh ? Math.max(160, Math.round(base * bh / bw)) : base;
+    const n = valueNoise(seed ^ 0x1b), n2 = valueNoise(seed ^ 0x2c), n3 = valueNoise(seed ^ 0x3d), wy = worley(seed ^ 0x4e);
+    const mmX = bw * 1000 / w, mmY = bh * 1000 / h;
+    // soft "near full thickness" mask: the deep-partial ring hugs the eschar
+    const near = new Float32Array(w * h);
+    zones.forEach(Z => {
+      const m = polyMask(polyOffset(Z.poly, 0.002), box, w, h, Math.max(2, Math.round(7 / mmX)));
+      for (let i = 0; i < near.length; i++) near[i] = Math.max(near[i], m[i]);
+    });
+    const cv = mkCanvas(w, h), c = cv.getContext('2d'), id = c.createImageData(w, h), d = id.data;
+    const hgt = new Float32Array(w * h);
+    const deg = clamp(degree | 0, 1, 3);
+    const memAmt = deg <= 1 ? 0 : 1, palAmt = deg <= 1 ? 0 : deg === 2 ? 0.62 : 0.95;
+    for (let y = 0; y < h; y++) {
+      const t = box[1] + (y + 0.5) / h * bh;
+      for (let x = 0; x < w; x++) {
+        const s = box[0] + (x + 0.5) / w * bw, i = y * w + x, o4 = i * 4;
+        const dd = dn(s, t);
+        const core = 1 - smooth(0.86, 1.0, dd);
+        if (core <= 0.001) { d[o4] = 0; d[o4 + 1] = 0; d[o4 + 2] = 0; d[o4 + 3] = 255; hgt[i] = 0.5; continue; }
+        const X = x * mmX, Y = y * mmY;
+        // domain warp: dead skin tears along wandering lines, never round
+        const wx = X + (fbm(n3, X * 0.045, Y * 0.045, 3) - 0.5) * 14, wyy = Y + (fbm(n3, X * 0.045 + 13, Y * 0.045, 3) - 0.5) * 14;
+        // deep partial: pale, reticulated ivory, toward the middle and around the eschar
+        const pal0 = (1 - dd) * 0.85 + (fbm(n2, X * 0.04, Y * 0.04, 4) - 0.5) * 0.9 + near[i] * 0.7 - 0.18;
+        const mot = smooth(0.38, 0.66, fbm(n2, wx * 0.2 + 5, wyy * 0.2, 3));
+        const pal = smooth(0.25, 0.85, pal0) * (0.35 + 0.65 * mot) * palAmt;
+        // sloughed epidermis: sheets in the mid band and a peeling rim at the edge
+        const band = smooth(0.18, 0.42, dd) * (1 - smooth(0.9, 0.99, dd)) + (1 - smooth(0.0, 0.25, dd)) * 0.45;
+        const sheetN = fbm(n, wx * 0.055, wyy * 0.055, 4) + (band - 1) * 0.35;
+        const sheet = smooth(0.585, 0.61, sheetN);
+        const rimLine = smooth(0.56, 0.585, sheetN) * (1 - smooth(0.585, 0.61, sheetN));    // torn edge where it lifts
+        const peel = smooth(0.8, 0.88, dd) * (1 - smooth(0.93, 0.985, dd)) * smooth(0.4, 0.6, n(X * 0.09 + 4, Y * 0.09));
+        let mem = clamp(Math.max(sheet * 0.92, peel * 0.85), 0, 1) * memAmt;
+        // weeping serum: wet where the dermis is open, drier on the deep (pale) parts and on dead skin
+        let weep = core * (0.92 - pal * 0.5 - mem * 0.3) * (0.82 + 0.18 * n(X * 0.3, Y * 0.3));
+        if (deg <= 1) weep = core * 0.16;
+        // relief (mm-ish): rolled edges stand up, wrinkles inside the sheets, papillae on the dermis
+        const W = wy(wx * 0.32, wyy * 0.5);
+        const wrinkle = (1 - smooth(0.0, 0.06, W.f2 - W.f1)) * sheet;
+        const pap = (n(X * 2.2, Y * 2.2) - 0.5) * 0.08 * (1 - mem);
+        hgt[i] = 0.5 + mem * 0.22 + rimLine * 0.55 * memAmt + peel * 0.3 * memAmt - wrinkle * 0.16 + pap;
+        d[o4] = clamp(pal, 0, 1) * 255; d[o4 + 1] = mem * core * 255; d[o4 + 2] = clamp(weep, 0, 1) * 255; d[o4 + 3] = 255;
+      }
+    }
+    // intact blisters: no loose skin under the dome, a puckered collar round it
+    const sx = w / bw, sy = h / bh;
+    const hole = (cx, cy, rr, collar) => {
+      const x0 = Math.max(0, Math.floor((cx - rr * 1.6 - box[0]) * sx)), x1 = Math.min(w - 1, Math.ceil((cx + rr * 1.6 - box[0]) * sx));
+      const y0 = Math.max(0, Math.floor((cy - rr * 1.6 - box[1]) * sy)), y1 = Math.min(h - 1, Math.ceil((cy + rr * 1.6 - box[1]) * sy));
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const s = box[0] + (x + 0.5) / sx, t = box[1] + (y + 0.5) / sy, q = Math.hypot(s - cx, t - cy) / rr;
+        const i = y * w + x, o4 = i * 4;
+        const inner = 1 - smooth(0.92, 1.08, q), ring = collar ? smooth(0.95, 1.1, q) * (1 - smooth(1.15, 1.5, q)) : 0;
+        d[o4 + 1] = Math.max(d[o4 + 1] * (1 - inner), ring * 150 * memAmt);
+        // under an intact roof the dermis looks pale and yellowish through the serum; under a dead sheet it is raw
+        d[o4] = collar ? lerp(d[o4], 190, inner) : d[o4] * (1 - inner * 0.7);
+        hgt[i] = lerp(hgt[i], 0.5, inner) + ring * 0.25 * memAmt;
+      }
+    };
+    blisters.forEach(b => { if (!b.removed) hole(b.s, b.t, b.r, true); });
+    flaps.forEach(f => { if (!f.removed) hole(f.s, f.t, Math.max(f.w, f.h) * 0.42, false); });
+    c.putImageData(id, 0, 0);
+    return { map: cv, normal: normalFromHeight(hgt, w, h, 2.4), w, h, box };
+  }
+
+  // the GLSL the burn puts into the engine's skin shader (replaces its partial-thickness colouring)
+  const BURN_GLSL_PARS = `
+    uniform sampler2D tBnDet; uniform sampler2D tBnNrm; uniform vec4 uBnBox; uniform float uBnOn; uniform float uBnHot;
+    vec2 bnQ; float bnIn; float bnWeep;`;
+  const BURN_GLSL_COL = `
+    bnQ = (nzaP - uBnBox.xy) / uBnBox.zw;
+    bnIn = step(0.0, bnQ.x) * step(bnQ.x, 1.0) * step(0.0, bnQ.y) * step(bnQ.y, 1.0) * uBnOn;
+    vec3 bnD = texture2D(tBnDet, bnQ).rgb * bnIn;
+    float bnCore = smoothstep(0.34, 0.5, nzaBs);
+    // erythema: blotchy, stronger while the burn is still hot
+    vec3 bnEryC = nzaCol * mix(vec3(1.0, 0.5, 0.43), vec3(0.94, 0.36, 0.32), nzaN2.g) * mix(1.04, 0.97, uBnHot);
+    nzaCol = mix(nzaCol, bnEryC, smoothstep(0.0, 0.3, nzaBs) * mix(0.8, 1.0, uBnHot));
+    // open dermis: wet cherry-salmon with punctate capillaries; deep partial pales to mottled ivory
+    vec3 bnDerm = mix(vec3(0.74, 0.15, 0.13), vec3(0.86, 0.27, 0.22), nzaN3.r) * (0.9 + 0.2 * nzaN4.r);
+    bnDerm = mix(bnDerm, vec3(0.42, 0.035, 0.035), (1.0 - smoothstep(0.0, 0.11, nzaN4.b)) * 0.55);
+    vec3 bnPale = mix(vec3(0.88, 0.7, 0.58), vec3(0.8, 0.44, 0.36), nzaN3.g * 0.8);
+    bnDerm = mix(bnDerm, bnPale, bnD.r);
+    // dead epidermis: thin grey-white sheet, the dermis shows pink through the thin parts
+    vec3 bnMem = mix(vec3(0.8, 0.76, 0.68), vec3(0.66, 0.6, 0.53), nzaN3.b);
+    bnMem = mix(bnMem, bnDerm, 0.22 * (1.0 - nzaN2.r));
+    vec3 bnSurf = mix(bnDerm, bnMem, bnD.g);
+    vec3 nzaFull = mix(vec3(0.80, 0.72, 0.56), vec3(0.42, 0.28, 0.16), nzaN2.r);
+    nzaCol = mix(nzaCol, bnSurf, bnCore * max(bnIn, 0.0));
+    nzaCol = mix(nzaCol, mix(vec3(0.82, 0.30, 0.26), vec3(0.93, 0.84, 0.76), 0.3), bnCore * (1.0 - bnIn));
+    nzaCol = mix(nzaCol, nzaFull, smoothstep(0.66, 0.86, nzaBs));
+    bnWeep = bnD.b * bnCore;`;
+
+  // Hydrogel burn dressing (replaces the engine's generic dressing print): non-woven border with
+  // perforations and a generic product line, a cool translucent gel pad with its mesh liner.
+  function texBurnDressing(wM, hM, pwM, phM, seed) {
+    const pxm = 8000, w = Math.round(wM * pxm), h = Math.round(hM * pxm);
+    const cv = mkCanvas(w, h), c = cv.getContext('2d'), R = rng(seed);
+    const rc = Math.min(w, h) * 0.12;
+    const rrect = (x, y, ww, hh, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + ww, y, x + ww, y + hh, r); c.arcTo(x + ww, y + hh, x, y + hh, r); c.arcTo(x, y + hh, x, y, r); c.arcTo(x, y, x + ww, y, r); c.closePath(); };
+    c.clearRect(0, 0, w, h);
+    c.save(); rrect(0.5, 0.5, w - 1, h - 1, rc); c.clip();
+    c.fillStyle = '#f1efe9'; c.fillRect(0, 0, w, h);
+    c.lineCap = 'round';
+    for (let i = 0; i < w * h / 60; i++) {
+      const x = R() * w, y = R() * h, a = R() * TAU, L = 3 + R() * 8;
+      c.strokeStyle = `rgba(${R() < 0.5 ? '255,255,255' : '176,172,164'},${0.16 + R() * 0.22})`; c.lineWidth = 0.5 + R() * 0.5;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); c.stroke();
+    }
+    c.fillStyle = 'rgba(140,136,128,.2)';
+    for (let y = 6; y < h; y += 10) for (let x = 6 + ((y / 10) % 2) * 5; x < w; x += 10) { c.beginPath(); c.arc(x, y, 0.8, 0, TAU); c.fill(); }
+    // gel pad
+    const pw = pwM * pxm, ph = phM * pxm, px = (w - pw) / 2, py = (h - ph) / 2;
+    c.save();
+    c.shadowColor = 'rgba(0,40,50,.25)'; c.shadowBlur = 12;
+    rrect(px, py, pw, ph, 18); c.fillStyle = '#9ccbe0'; c.fill();
+    c.restore();
+    c.save(); rrect(px, py, pw, ph, 18); c.clip();
+    const gr = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(pw, ph) * 0.7);
+    gr.addColorStop(0, '#c8e6f2'); gr.addColorStop(0.7, '#a2cde2'); gr.addColorStop(1, '#84b6cf');
+    c.fillStyle = gr; c.fillRect(px, py, pw, ph);
+    // mesh liner
+    c.strokeStyle = 'rgba(255,255,255,.42)'; c.lineWidth = 1.2;
+    for (let x = px; x < px + pw; x += 7) { c.beginPath(); c.moveTo(x, py); c.lineTo(x, py + ph); c.stroke(); }
+    for (let y = py; y < py + ph; y += 7) { c.beginPath(); c.moveTo(px, y); c.lineTo(px + pw, y); c.stroke(); }
+    // trapped micro-bubbles and gel sheen
+    for (let i = 0; i < pw * ph / 900; i++) { const x = px + R() * pw, y = py + R() * ph, r = 0.8 + R() * R() * 3.2; c.strokeStyle = `rgba(255,255,255,${0.4 + R() * 0.4})`; c.lineWidth = 0.9; c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke(); }
+    const sh = c.createLinearGradient(px, py, px + pw, py + ph);
+    sh.addColorStop(0, 'rgba(255,255,255,.22)'); sh.addColorStop(0.35, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,50,60,.12)');
+    c.fillStyle = sh; c.fillRect(px, py, pw, ph);
+    c.restore();
+    c.strokeStyle = 'rgba(70,120,124,.45)'; c.lineWidth = 1.5; rrect(px, py, pw, ph, 18); c.stroke();
+    // generic product print on the border
+    const fs = Math.max(9, Math.round(Math.min(w, h) * 0.022));
+    c.fillStyle = 'rgba(70,82,86,.6)'; c.font = `600 ${fs}px Lexend, sans-serif`; c.textBaseline = 'middle';
+    c.fillText('HYDROGEL BURN DRESSING · STERILE R', rc * 0.6, h - (h - ph) / 4);
+    c.textAlign = 'right'; c.font = `500 ${fs}px "JetBrains Mono", monospace`;
+    c.fillText(`${Math.round(wM * 100)} × ${Math.round(hM * 100)} cm · LOT 4H2207`, w - rc * 0.6, (h - ph) / 4);
+    c.restore();
     return cv;
   }
 
@@ -746,12 +902,31 @@
       c.font = '500 16px "JetBrains Mono", monospace'; c.fillStyle = '#3a4246'; c.fillText('FEED →   TURN CLOCKWISE', 26, 170);
       c.fillText('SN GM2-0418   AUTOCLAVE 134 °C', 26, 204);
     } else if (kind === 'c15' || kind === 'c3') {
-      c.fillStyle = '#f2f4f5'; c.fillRect(0, 0, W, H);
-      c.fillStyle = kind === 'c3' ? '#e5484d' : '#0a8f85'; c.fillRect(0, 0, W, 10);
-      c.font = '700 96px Lexend, sans-serif'; c.fillText(kind === 'c3' ? '1:3' : '1:1.5', 24, 126);
-      c.fillStyle = '#16191b'; c.font = '600 22px Lexend, sans-serif'; c.fillText('GRAFT CARRIER', 26, 170);
-      c.font = '500 15px "JetBrains Mono", monospace'; c.fillStyle = '#5b6266'; c.fillText('STERILE EO · SINGLE USE · FEED →', 26, 204);
-      c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = 2; for (let x = 300; x < W - 10; x += 9) { c.beginPath(); c.moveTo(x, 30); c.lineTo(x, 100); c.stroke(); }
+      // ribbed carrier board: grip tab with the ratio code on the left, a diamond-grooved bed,
+      // a millimetre rule along the near edge and small print — no big printed ratio
+      const tone = kind === 'c3' ? '#c23a3f' : '#0a8f85';
+      c.fillStyle = '#e9edee'; c.fillRect(0, 0, W, H);
+      c.fillStyle = tone; c.fillRect(0, 0, 64, H);
+      c.save(); c.translate(42, H / 2); c.rotate(-Math.PI / 2);
+      c.fillStyle = '#fff'; c.font = '700 26px "JetBrains Mono", monospace'; c.textAlign = 'center';
+      c.fillText(kind === 'c3' ? 'C-3.0' : 'C-1.5', 0, 0);
+      c.restore();
+      c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 2;
+      for (let y = 18; y < H - 10; y += 14) { c.beginPath(); c.moveTo(8, y); c.lineTo(20, y); c.stroke(); }
+      // grooved bed
+      c.save(); c.beginPath(); c.rect(84, 22, W - 104, H - 86); c.clip();
+      c.fillStyle = '#dde3e5'; c.fillRect(84, 22, W - 104, H - 86);
+      c.strokeStyle = 'rgba(40,52,58,.22)'; c.lineWidth = 1.2;
+      const step = kind === 'c3' ? 9 : 13;
+      for (let k = -H; k < W + H; k += step) { c.beginPath(); c.moveTo(84 + k, 22); c.lineTo(84 + k + H, 22 + H); c.stroke(); c.beginPath(); c.moveTo(84 + k, 22 + H); c.lineTo(84 + k + H, 22); c.stroke(); }
+      c.restore();
+      c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 1.5; c.strokeRect(84, 22, W - 104, H - 86);
+      // rule
+      c.strokeStyle = '#2a3034'; c.fillStyle = '#2a3034'; c.font = '500 10px "JetBrains Mono", monospace';
+      for (let i = 0; i <= 40; i++) { const x = 90 + i * 10; c.lineWidth = i % 5 ? 1 : 1.6; c.beginPath(); c.moveTo(x, H - 60); c.lineTo(x, H - 60 + (i % 10 ? (i % 5 ? 5 : 8) : 11)); c.stroke(); if (i % 10 === 0) c.fillText(String(i), x - 4, H - 36); }
+      c.fillStyle = '#4b5357'; c.font = '600 12px Lexend, sans-serif';
+      c.fillText(kind === 'c3' ? 'MESH CARRIER · EXPANSION 3.0' : 'MESH CARRIER · EXPANSION 1.5', 90, H - 14);
+      c.fillStyle = tone; c.beginPath(); c.moveTo(W - 46, H - 24); c.lineTo(W - 28, H - 17); c.lineTo(W - 46, H - 10); c.closePath(); c.fill();
     }
     return cv;
   }
@@ -894,7 +1069,8 @@
         uv.push(cum[i] / L, sd < 0 ? 0 : 1);
       }
     }
-    for (let i = 0; i < m - 1; i++) { const a = i * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, c, b, b, c, d); }
+    // wound so the faces point out of the skin (toward the camera)
+    for (let i = 0; i < m - 1; i++) { const a = i * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, b, c, b, d, c); }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
@@ -1002,7 +1178,11 @@
     const THREE = window.THREE, g = new THREE.Group();
     const head = new THREE.Group(); g.add(head);
     head.rotation.x = tilt;
-    addMesh(bin, head, new THREE.BoxGeometry(0.056, 0.0075, 0.02).translate(0, 0.00375, -0.004), M.satin);
+    addMesh(bin, head, new THREE.BoxGeometry(0.056, 0.0075, 0.02).translate(0, 0.00375, -0.004), M.darkSteel);
+    // bevelled guard on the leading edge and a brushed top cover, so the head reads as machined steel
+    addMesh(bin, head, new THREE.CylinderGeometry(0.0034, 0.0034, 0.056, 20).rotateZ(Math.PI / 2).translate(0, 0.0034, 0.0062), M.brushed);
+    addMesh(bin, head, new THREE.BoxGeometry(0.052, 0.0012, 0.016).translate(0, 0.0081, -0.005), M.brushed);
+    for (let i = 0; i < 9; i++) addMesh(bin, head, new THREE.BoxGeometry(0.0004, 0.0003, 0.0035).translate(-0.02 + i * 0.005, 0.0089, -0.009), M.graphite, false);
     const blade = new THREE.Group(); head.add(blade);
     addMesh(bin, blade, new THREE.BoxGeometry(0.05, 0.0005, 0.012).translate(0, 0.0009, 0.0035), M.steel);
     addMesh(bin, blade, new THREE.BoxGeometry(0.05, 0.0003, 0.0012).translate(0, 0.0008, 0.0098), M.steel);
@@ -1013,8 +1193,11 @@
     lev.position.set(0.0295, 0.0055, -0.006); lev.rotation.x = -0.35;
     addMesh(bin, head, new THREE.CylinderGeometry(0.0036, 0.0036, 0.004, 24).rotateZ(Math.PI / 2).translate(0.0295, 0.0045, -0.006), M.darkSteel);
     // neck & body
-    addMesh(bin, g, loftRound([{ y: 0.004, w: 0.048, t: 0.016, z: -0.004 }, { y: 0.02, w: 0.04, t: 0.024, z: -0.002 }, { y: 0.034, w: 0.033, t: 0.033 }], 20), M.polyGrey);
-    addMesh(bin, g, new THREE.CylinderGeometry(0.0168, 0.0172, 0.142, 40).translate(0, 0.104, 0), M.poly);
+    addMesh(bin, g, loftRound([{ y: 0.004, w: 0.048, t: 0.016, z: -0.004 }, { y: 0.02, w: 0.04, t: 0.024, z: -0.002 }, { y: 0.034, w: 0.033, t: 0.033 }], 20), M.darkSteel);
+    addMesh(bin, g, new THREE.CylinderGeometry(0.0168, 0.0172, 0.142, 40).translate(0, 0.104, 0), M.brushed);
+    // rubber grip sleeve with a teal thumb switch
+    addMesh(bin, g, new THREE.CylinderGeometry(0.0176, 0.0176, 0.064, 40, 1, true).translate(0, 0.1, 0), M.rubber, false);
+    addMesh(bin, g, new THREE.BoxGeometry(0.008, 0.014, 0.004).translate(0, 0.062, 0.0175), M.teal);
     for (const y of [0.07, 0.09, 0.11, 0.13]) { const b = addMesh(bin, g, new THREE.TorusGeometry(0.0172, 0.0013, 8, 40), M.rubber, false); b.rotation.x = Math.PI / 2; b.position.y = y; }
     const lab = addMesh(bin, g, new THREE.CylinderGeometry(0.01735, 0.01735, 0.045, 40, 1, true, Math.PI * 0.2, Math.PI * 0.9),
       bin.own(new THREE.MeshPhysicalMaterial({ map: canvasTex(bin, texLabel('dermatome')), roughness: 0.4, clearcoat: 0.4 })), false);
@@ -1184,10 +1367,14 @@
     const pool = addMesh(bin, dish, new THREE.CircleGeometry(0.044, 40), M.fluid, false);
     pool.rotation.x = -Math.PI / 2; pool.position.y = 0.0075;
     dish.scale.set(1.5, 1, 0.85); dish.position.set(-0.2, 0, -0.1); dish.rotation.y = 0.4;
+    // put down flat behind the mesher: head toward the bench, body and cable away from it
     const derm = buildDermatome(bin, M, 0);
-    derm.group.rotation.set(0, 0.6, Math.PI / 2 - 0.08);
-    derm.group.position.set(0.17, 0.018, -0.085);
-    scene.add(derm.group);
+    const dermHold = new THREE.Group();
+    derm.group.rotation.set(-Math.PI / 2, 0, 0);
+    dermHold.add(derm.group);
+    dermHold.rotation.y = -1.12;
+    dermHold.position.set(0.105, 0.0174, -0.125);
+    scene.add(dermHold);
     derm.group.traverse(c => { if (c.isMesh) c.castShadow = true; });
 
     const api = {
@@ -1422,6 +1609,9 @@
       }
       this.S = S;
       this.canvasA = S.canvas;
+      // a lower, more raking lamp than the engine default: blister domes, rolled skin edges and the
+      // eschar's fissures read in relief
+      if (S.lightRig && Array.isArray(S.lightRig.key)) S.lightRig.key = [0.27, 0.07, 0.66];
       this.viewW = viewW;
       const w = S.wounds.add({ type: 'burn', uv: [0.5, 0.5], radius: [rx, ry], degree: Math.min(2, deg), irregular: 0.42, blisters: 0, seed: seed % 100000, rim: 0.85, rimWidth: 0.007 });
       this.w = w;
@@ -1470,6 +1660,7 @@
       }
       if (this.mode === 'graft' && +b.excised >= cfg.minExcised) plan.zones.forEach(Z => { Z.excised = true; Z.preExcised = true; });
 
+      this.patchSkin(plan, deg, seed);
       this.paintInitial(seed, resumed);
       this.buildSceneA(resumed);
       S.layers.decay('wet', 0.05);
@@ -1491,6 +1682,53 @@
       if (this.mode === 'care' && g.conscious && first === 1) this.sayLater('say_hot', 'It burns… please, cool it down!', 1600);
     },
 
+    // The engine colours partial-thickness burns with its own round noise cells. For a burn that has
+    // to read as real, the skin material of THIS scene gets our own partial-thickness layer: weeping
+    // cherry dermis, mottled deep-partial pallor, torn sheets of dead epidermis with rolled edges.
+    // Every anchor is optional — when the engine's shader text changes, the engine look stays.
+    patchSkin(plan, deg, seed) {
+      const THREE = window.THREE, S = this.S, mat = S.skin && S.skin.material;
+      if (!mat || typeof mat.onBeforeCompile !== 'function') return;
+      const box = [-plan.rx * 1.6, -plan.ry * 1.6, plan.rx * 1.6, plan.ry * 1.6];
+      const det = texBurnDetail({ box, dn: plan.dn, zones: plan.zones, blisters: plan.blisters, flaps: plan.flaps, degree: deg, seed });
+      const mapTex = canvasTex(this.binA, det.map, false), nrmTex = canvasTex(this.binA, det.normal, false);
+      this.det = { cv: det.map, ctx: det.map.getContext('2d'), tex: mapTex, box, w: det.w, h: det.h };
+      const U = this.bnU = {
+        tBnDet: { value: mapTex }, tBnNrm: { value: nrmTex },
+        uBnBox: { value: new THREE.Vector4(box[0], box[1], box[2] - box[0], box[3] - box[1]) },
+        uBnOn: { value: 1 }, uBnHot: { value: 1 },
+      };
+      const base = mat.onBeforeCompile, baseKey = typeof mat.customProgramCacheKey === 'function' ? mat.customProgramCacheKey() : '';
+      const A1 = 'vec3 nzaPart = ', A2 = 'nzaCol = mix(nzaCol, nzaFull, smoothstep(0.66, 0.86, nzaBs));';
+      mat.onBeforeCompile = (sh, renderer) => {
+        base.call(mat, sh, renderer);
+        let f = sh.fragmentShader;
+        const i1 = f.indexOf(A1), i2 = f.indexOf(A2);
+        if (i1 < 0 || i2 < i1 || f.indexOf('#include <common>') < 0) return;
+        f = f.slice(0, i1) + BURN_GLSL_COL + f.slice(i2 + A2.length);
+        f = f.replace('#include <common>', '#include <common>\n' + BURN_GLSL_PARS);
+        f = f.replace(/nzaWet = clamp\([^;]*;/, m => `${m}\n    nzaWet = max(nzaWet, bnWeep);`);
+        f = f.replace(/roughnessFactor = mix\(roughnessFactor, 0\.92, nzaGrit\);/, m => `${m}\n    roughnessFactor = mix(roughnessFactor, 0.22, bnWeep * 0.85);`);
+        f = f.replace(/vec2 nzaCoatXY = [^;]*;/, m => `vec2 bnNxy = (texture2D(tBnNrm, bnQ).xy * 2.0 - 1.0) * bnIn;\n    nzaMxy += bnNxy;\n    ${m}\n    nzaCoatXY += bnNxy * 0.8;`);
+        sh.fragmentShader = f;
+        Object.assign(sh.uniforms, U);
+      };
+      mat.customProgramCacheKey = () => `${baseKey}+nza-burn-2`;
+      mat.needsUpdate = true;
+    },
+    // a deroofed blister / pulled-off sheet leaves raw, wet, pink dermis
+    bareDetail(s, t, r) {
+      const D = this.det;
+      if (!D) return;
+      const x = (s - D.box[0]) / (D.box[2] - D.box[0]) * D.w, y = (t - D.box[1]) / (D.box[3] - D.box[1]) * D.h;
+      const rp = r / (D.box[2] - D.box[0]) * D.w;
+      const gr = D.ctx.createRadialGradient(x, y, 0, x, y, rp);
+      gr.addColorStop(0, 'rgba(10,0,255,1)'); gr.addColorStop(0.7, 'rgba(10,0,255,.85)'); gr.addColorStop(1, 'rgba(10,0,255,0)');
+      D.ctx.fillStyle = gr;
+      D.ctx.beginPath(); D.ctx.arc(x, y, rp, 0, TAU); D.ctx.fill();
+      D.tex.needsUpdate = true;
+    },
+
     // soot, ash, the eschar's footprint on the skin
     paintInitial(seed, resumed) {
       const S = this.S, plan = this.plan, R = rng(seed ^ 0x5007);
@@ -1498,15 +1736,20 @@
       const uv = (s, t) => S.stToUv(s, t);
       const soot = this.g.cool.soot0 / 100;
       if (soot > 0.02 && !resumed.cooled) {
-        // broad smoke-black smudges (washable film) …
-        for (let k = 0; k < 44; k++) {
-          const a = R() * TAU, r = Math.pow(R(), 0.7) * 1.15;
-          S.layers.splat('grime', uv(Math.cos(a) * r * rx, Math.sin(a) * r * ry), (4 + R() * 10) * MM, clamp((0.24 + R() * 0.3) * (0.35 + soot), 0, 1), { seed: 700 + k, count: 7 });
+        // a thin smoke-black haze over the burn and the skin round it (washable film) …
+        for (let k = 0; k < 34; k++) {
+          const a = R() * TAU, r = Math.pow(R(), 0.8) * 1.25;
+          S.layers.splat('soot', uv(Math.cos(a) * r * rx, Math.sin(a) * r * ry), (4 + R() * 8) * MM, clamp((0.09 + R() * 0.12) * (0.4 + soot) * (r < 1 ? 1 : 0.7), 0, 1), { seed: 700 + k, count: 6 });
         }
-        // … a few heavier sooty patches on the burn itself …
-        for (let k = 0; k < 16; k++) {
+        // … heavier black patches where the flames sat …
+        for (let k = 0; k < 14; k++) {
           const a = R() * TAU, r = Math.sqrt(R()) * 0.85;
-          S.layers.splat('soot', uv(Math.cos(a) * r * rx, Math.sin(a) * r * ry), (2.5 + R() * 4) * MM, 0.22 * (0.4 + soot), { seed: 1300 + k, count: 5 });
+          S.layers.splat('soot', uv(Math.cos(a) * r * rx, Math.sin(a) * r * ry), (2.5 + R() * 4) * MM, 0.24 * (0.4 + soot), { seed: 1300 + k, count: 5 });
+        }
+        // … greasy ash-brown residue in a few places …
+        for (let k = 0; k < 12; k++) {
+          const a = R() * TAU, r = Math.pow(R(), 0.6) * 1.05;
+          S.layers.splat('grime', uv(Math.cos(a) * r * rx, Math.sin(a) * r * ry), (2.5 + R() * 5) * MM, clamp((0.16 + R() * 0.16) * (0.35 + soot), 0, 1), { seed: 1900 + k, count: 5 });
         }
         // … and fine ash flecks, densest on the burn, thinning out over the healthy skin
         for (let k = 0; k < 360; k++) {
@@ -1518,12 +1761,6 @@
           const a = R() * TAU, r = Math.sqrt(R());
           S.layers.splat('grime', uv(Math.cos(a) * r * rx, Math.sin(a) * r * ry), (2 + R() * 5) * MM, 0.25 * this.g.cool.soot / 100, { seed: 300 + k, count: 4 });
         }
-      }
-      // partial-thickness skin weeps: a glistening serous film
-      for (let k = 0; k < 70; k++) {
-        const a = R() * TAU, r = Math.sqrt(R()) * 0.95, s = Math.cos(a) * r * rx, t = Math.sin(a) * r * ry;
-        if (plan.inZone(s, t)) continue;
-        S.layers.paint('wet', uv(s, t), (3 + R() * 5) * MM, 0.45, { hardness: 0.2 });
       }
       // the eschar's dark footprint under the crust, for a soft edge
       plan.zones.forEach((Z, zi) => {
@@ -1554,7 +1791,7 @@
         bin.own(geo);
         const mat = bin.own(new THREE.MeshStandardMaterial({
           map: canvasTex(bin, tx.map), normalMap: canvasTex(bin, tx.normal, false), roughnessMap: canvasTex(bin, tx.rough, false),
-          roughness: 1, metalness: 0, alphaTest: 0.5, normalScale: new THREE.Vector2(1.6, 1.6), polygonOffset: true, polygonOffsetFactor: -2,
+          roughness: 1, metalness: 0, transparent: true, alphaTest: 0.02, depthWrite: false, normalScale: new THREE.Vector2(1.6, 1.6), polygonOffset: true, polygonOffsetFactor: -2,
         }));
         const me = new THREE.Mesh(geo, mat);
         me.receiveShadow = true; me.castShadow = true; me.renderOrder = 2;
@@ -1580,7 +1817,7 @@
           const tex = bin.own(base.clone());
           tex.needsUpdate = true;
           tex.repeat.set(0.5, 0.5); tex.offset.set((f.v % 2) * 0.5, Math.floor(f.v / 2) * 0.5 === 0 ? 0.5 : 0);
-          const mat = bin.own(new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, sheen: 0.7, sheenColor: new THREE.Color(1, 0.96, 0.9), sheenRoughness: 0.5, alphaTest: 0.35, side: THREE.DoubleSide, transparent: false }));
+          const mat = bin.own(new THREE.MeshPhysicalMaterial({ map: tex, color: new THREE.Color(0.93, 0.89, 0.86), roughness: 0.5, clearcoat: 0.7, clearcoatRoughness: 0.18, sheen: 0.3, sheenColor: new THREE.Color(1, 0.9, 0.84), sheenRoughness: 0.45, alphaTest: 0.35, side: THREE.DoubleSide, transparent: false }));
           // one side lies stuck in the wound, the free edge curls up and over
           const lift = (lx, ly) => 0.0002 + Math.pow(Math.max(0, lx / (f.w / 2) + 0.15), 2.4) * f.curl * 0.0042 + Math.abs(ly / (f.h / 2)) * 0.0003;
           const geo = bin.own(conformGeo(S, { c: [f.s, f.t], size: [f.w * 1.25, f.h * 1.25], n: [14, 12], angle: f.ang, lift, computeNormals: true }));
@@ -1716,7 +1953,7 @@
       if (g.hold && !force) return;
       const mode = this.devMode(), cv = this.devImg, c = cv.getContext('2d'), W = cv.width, H = cv.height;
       c.fillStyle = '#04070a'; c.fillRect(0, 0, W, H);
-      const modeNames = { thermal: T('dm_thermal', 'Thermal'), depth: T('dm_depth', 'Depth map'), tissue: T('dm_tissue', 'Tissue'), excise: T('dm_excise', 'Excision'), donor: T('dm_donor', 'Donor'), mesh: T('dm_mesh', 'Mesh plan'), graft: T('dm_graft', 'Graft fit'), cover: T('dm_cover', 'Cover') };
+      const modeNames = { thermal: T('dm_thermal', 'Surface heat'), depth: T('dm_depth', 'Depth map'), tissue: T('dm_tissue', 'Tissue'), excise: T('dm_excise', 'Excision'), donor: T('dm_donor', 'Donor'), mesh: T('dm_mesh', 'Expansion'), graft: T('dm_graft', 'Graft fit'), cover: T('dm_cover', 'Cover') };
       this.devEl.querySelector('.dv-mode').textContent = modeNames[mode];
       this.devEl.querySelector('.dv-pal').textContent = mode === 'thermal' ? g.pal.toUpperCase() : '';
       this.devEl.querySelector('.dv-rec b').textContent = NZA.fmt.time(g.t);
@@ -2337,6 +2574,7 @@
       const jet = g.cool.pouring ? g.cool.jet : null;
       this.heat.step(dt, jet);
       this.lastStats = this.heat.stats(cfg.target);
+      if (this.bnU) { const u = this.bnU.uBnHot; u.value = lerp(u.value, clamp((this.lastStats.mean - 30) / 14, 0, 1), clamp(dt * 1.5, 0, 1)); }
       if (S.tools.hit) this.spot = [S.tools.hit.s, S.tools.hit.t];
       this.updatePain(dt);
       switch (g.step) {
@@ -2347,22 +2585,8 @@
         case 7: this.tickGraft(dt); break;
         case 8: this.tickDressing(dt); break;
       }
-      this.weep(dt);
       this.tickFx(dt);
       this.tickCommon(dt);
-    },
-    // partial-thickness burns keep weeping serum until they are dressed
-    weep(dt) {
-      const g = this.g, S = this.S, plan = this.plan;
-      if (g.done[8] || plan.deg < 2) return;
-      g.weepT = (g.weepT || 0) - dt;
-      if (g.weepT > 0) return;
-      g.weepT = 0.45;
-      for (let k = 0; k < 3; k++) {
-        const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * 0.92, s = Math.cos(a) * r * plan.rx, t = Math.sin(a) * r * plan.ry;
-        if (plan.inZone(s, t)) continue;
-        S.layers.paint('wet', S.stToUv(s, t), (3 + Math.random() * 4) * MM, 0.14, { hardness: 0.2 });
-      }
     },
     tickCommon(dt) {
       const g = this.g;
@@ -2684,11 +2908,14 @@
         if (it.bump) { it.bump.remove(); it.bump = null; }
         it.dome = null;
         // the weeping, glistening pink base of a deroofed blister
+        this.bareDetail(it.s, it.t, it.r * 1.3);
         S.layers.paint('wet', uv, it.r * 1.25, 1, { hardness: 0.2 });
-        S.layers.paint('blood', uv, it.r * 0.95, 0.06, { hardness: 0.2, grain: 0.3, grainScale: 120 });
-        S.fluids.drops(sp.point, 9, [0.96, 0.86, 0.56], 0.2);
+        // the serum runs out over the burn (engine drops always land as blood, so the film is painted)
+        S.layers.paint('wet', S.stToUv(it.s, it.t + it.r * 1.4), it.r * 1.1, 0.9, { hardness: 0.1 });
+        S.layers.paint('blood', uv, it.r * 0.95, 0.05, { hardness: 0.2, grain: 0.3, grainScale: 120 });
         if (gr && gr.cap) { gr.cap.material = this.binA.own(gr.cap.material.clone()); this.fx({ mesh: gr.cap, life: 0.6, follow: true }); }
       } else if (it.mesh) {
+        this.bareDetail(it.s, it.t, Math.max(it.w, it.h) * 0.62);
         S.layers.paint('wet', uv, Math.max(it.w, it.h) * 0.6, 0.8, { hardness: 0.2 });
         this.fx({ mesh: it.mesh, life: 0.6, follow: true, base: sp.point.clone() });
         it.mesh = null;
@@ -2731,7 +2958,7 @@
         m.position.copy(L.n).multiplyScalar(e * 0.012);
         m.position.addScaledVector(L.side, e * 0.01);
         m.material.opacity = 1 - smooth(0.55, 1, f);
-        m.material.transparent = f > 0.55;
+        m.material.transparent = true;
         if (f >= 1 && !L.gone) { L.gone = true; this.binA.kill(m); }
       });
       if (this.lifts) this.lifts = this.lifts.filter(L => !L.gone);
@@ -3429,7 +3656,7 @@
       if (Math.abs(c[0]) + Lm / 2 > Wh * 0.95) c = [plan.rx * 0.1, -(plan.ry + Wm / 2 + 0.01)];
       const gr = g.gr = { phase: 'place', size: [Lm, Wm], c: c.slice(), cGoal: c.slice(), ang: 0.12, angGoal: 0.12, lift: 0.0003, liftGoal: 0.0003, carried: false, placed: false, coverage: 0, points: null, staples: [], misses: 0, dirty: true, tex: tx, warnT: 0 };
       const mat = this.binA.own(new THREE.MeshPhysicalMaterial({ map: canvasTex(this.binA, tx.map), normalMap: canvasTex(this.binA, tx.normal, false), normalScale: new THREE.Vector2(0.8, 0.8),
-        roughness: 0.34, clearcoat: 0.8, clearcoatRoughness: 0.15, sheen: 0.5, sheenColor: new THREE.Color(1, 0.88, 0.84), alphaTest: 0.5, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3 }));
+        roughness: 0.4, clearcoat: 0.85, clearcoatRoughness: 0.12, sheen: 0.18, sheenColor: new THREE.Color(1, 0.8, 0.74), color: new THREE.Color(0.96, 0.9, 0.88), alphaTest: 0.5, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3 }));
       gr.mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
       gr.mesh.castShadow = true; gr.mesh.receiveShadow = true; gr.mesh.renderOrder = 3;
       S.scene.add(gr.mesh);
@@ -3603,11 +3830,15 @@
       const dw = plan.rx * 2 + 0.028, dh = plan.ry * 2 + 0.028, pw = dw - 0.014, ph = dh - 0.014;
       const Hh = S.patch.H / 2, Wh = S.patch.W / 2;
       let uv, ctr;
-      if (plan.ry + dh + 0.01 < Hh) { ctr = [plan.rx * 0.08, plan.ry + dh / 2 + 0.008]; }
-      else if (plan.rx + dw + 0.01 < Wh) { ctr = [plan.rx + dw / 2 + 0.008, 0]; }
+      // beside the burn (the wide screen has room left and right), else below it
+      if (plan.rx + dw + 0.01 < Wh) { ctr = [plan.rx + dw / 2 + 0.01, plan.ry * 0.12]; }
+      else if (plan.ry + dh + 0.01 < Hh) { ctr = [plan.rx * 0.08, plan.ry + dh / 2 + 0.008]; }
       else ctr = [plan.rx * 0.08, Math.min(Hh - dh / 2, plan.ry + dh / 2 + 0.004)];
       uv = S.stToUv(ctr[0], ctr[1]);
       g.dr.D = S.dressing.create({ size: [dw, dh], pad: [pw, ph], uv, angle: 0.06 });
+      // our own hydrogel burn dressing print on the engine's dressing (its material is per dressing)
+      const dm = g.dr.D.mesh && g.dr.D.mesh.material;
+      if (dm) { dm.map = canvasTex(this.binA, texBurnDressing(dw, dh, pw, ph, this.seed)); dm.color.setRGB(1, 1, 1); dm.roughness = 0.7; dm.needsUpdate = true; }
       g.dr.restUv = uv; g.dr.ctr = ctr;
       const mid = S.stToUv(ctr[0] / 2, ctr[1] / 2);
       S.controls.frame(mid, clamp(Math.max(this.viewW * 1.25, Math.abs(ctr[0]) + dw + 0.05, (Math.abs(ctr[1]) + dh) * 1.9), 0.12, 0.42), { instant: false, pitch: 1.24 });
@@ -3786,14 +4017,14 @@
         case 1: {
           const [lo, hi] = this.tempRange(), m = st ? st.mean : 40;
           const left = Math.round(g.cool.ml + Math.max(0, cfg.bottles - g.cool.bottle) * cfg.bottleMl);
-          wide = { label: T('w_temp', 'Surface temp'), value: f1(m), unit: '°C', tone: m <= cfg.target ? 'teal' : m > 40 ? 'red' : 'amber',
+          wide = { label: T('w_temp', 'Surface'), value: f1(m), unit: '°C', tone: m <= cfg.target ? 'teal' : m > 40 ? 'red' : 'amber',
             meter: { value: clamp((m - lo) / (hi - lo), 0, 1), zone: [0, (cfg.target - lo) / (hi - lo)], tone: m <= cfg.target ? '' : m > 40 ? 'red' : 'amber' },
             caption: T('w_temp_cap', 'Target < %s °C · %s mL saline', cfg.target, left), captionTone: g.cool.overcool > 0.5 ? 'red' : '' };
           break;
         }
         case 2: {
           const cv = g.as.cover;
-          wide = { label: T('w_tested', 'Burn tested'), value: String(pct(cv)), unit: '%', tone: cv >= cfg.assessCover ? 'teal' : '',
+          wide = { label: T('w_tested', 'Tested'), value: String(pct(cv)), unit: '%', tone: cv >= cfg.assessCover ? 'teal' : '',
             meter: { value: cv, zone: [cfg.assessCover, 1] },
             caption: g.as.est === null ? T('w_tested_cap0', 'Press the glass on the burn') : T('w_tested_cap', 'Full thickness ≈ %s%', Math.round(g.as.est)), captionTone: g.as.est ? 'red' : '' };
           break;
@@ -3813,7 +4044,7 @@
         case 5: {
           const hv = g.hv;
           if (!hv) break;
-          wide = { label: T('w_length', 'Graft length'), value: String(Math.round(hv.cut)), unit: 'mm', tone: hv.cut >= hv.Lneed ? 'teal' : '',
+          wide = { label: T('w_length', 'Graft'), value: String(Math.round(hv.cut)), unit: 'mm', tone: hv.cut >= hv.Lneed ? 'teal' : '',
             meter: { value: clamp(hv.cut / hv.Lneed, 0, 1), zone: [hv.L3 / hv.Lneed, 1] },
             caption: T('w_length_cap', '%s mm/s · pressure %s%', Math.round(hv.speed), pct(hv.p)), captionTone: hv.p < cfg.pressureBand[0] || hv.p > cfg.pressureBand[1] ? 'amber' : '' };
           break;
@@ -3832,13 +4063,13 @@
             const n = gr.points.filter(p => p.done).length;
             wide = { label: T('w_staples', 'Staples'), value: String(n), unit: `/${gr.points.length}`, tone: 'teal', meter: { value: n / Math.max(1, gr.points.length), zone: [cfg.minStaples, 1] }, caption: T('w_staples_cap', 'Bed covered %s%', pct(gr.coverage)) };
           } else {
-            wide = { label: T('w_cover', 'Bed covered'), value: String(pct(gr.coverage)), unit: '%', tone: gr.coverage >= cfg.minCoverage ? 'teal' : 'amber', meter: { value: gr.coverage, zone: [cfg.minCoverage, 1] }, caption: gr.carried ? T('w_cover_cap', '{Q} / {E} turn it') : T('w_cover_cap2', 'Lay it over the raw bed') };
+            wide = { label: T('w_cover', 'Covered'), value: String(pct(gr.coverage)), unit: '%', tone: gr.coverage >= cfg.minCoverage ? 'teal' : 'amber', meter: { value: gr.coverage, zone: [cfg.minCoverage, 1] }, caption: gr.carried ? T('w_cover_cap', '{Q} / {E} turn it') : T('w_cover_cap2', 'Lay it over the raw bed') };
           }
           break;
         }
         case 8: {
           const D = g.dr.D, s = D ? D.stuck : 0;
-          wide = { label: T('w_stuck', 'Dressing stuck'), value: String(pct(s)), unit: '%', tone: s >= cfg.stuckDone ? 'teal' : '',
+          wide = { label: T('w_stuck', 'Adhered'), value: String(pct(s)), unit: '%', tone: s >= cfg.stuckDone ? 'teal' : '',
             meter: { value: s, zone: [cfg.stuckDone, 1] }, caption: D && D.state !== 'rest' && D.state !== 'carried' ? T('w_dcover', 'Covers %s% of the burn', pct(g.dr.cover)) : T('w_stuck_cap', 'Lay it over the burn, then rub it down'), captionTone: D && D.state === 'placed' && g.dr.cover < cfg.coverMin ? 'amber' : '' };
           break;
         }
@@ -3872,7 +4103,8 @@
           html = `<i></i><b>${esc(f1(this.lastStats.max))}°</b><em>${esc(T('tag_hot', 'Hottest'))}</em>`;
         } else if (d.kind === 'zone') {
           const Z = d.Z;
-          st = [Z.box[2] + 0.002, Z.box[1] - 0.002];
+          if (!Z.tagSt) { let best = Z.cutPoly[0]; Z.cutPoly.forEach(p => { if (p[0] - p[1] > best[0] - best[1]) best = p; }); Z.tagSt = [best[0] + 0.0015, best[1] - 0.0015]; }
+          st = Z.tagSt;
           const fr = Z.bins.reduce((a, b) => a + b, 0) / Z.bins.length;
           html = `<i></i><b>${esc(T('tag_full', 'Full thickness'))}</b><em>${pct(fr)}%</em>`;
         } else html = `<i></i><b>${esc(d.text || '')}</b>`;
@@ -4073,6 +4305,14 @@
       if (btn) btn.onclick = () => { if (this.canClose) this.closeNow(); };
     },
     showOutcome(o) {
+      o = o || {};
+      if (!this.result && this.careResult) {
+        // "graft now" was refused when the care was saved (no theatre / kit any more): burn care ends here
+        if (this.g) this.g.waitGraft = false;
+        this.finished = true;
+        this.careOutcome = o;
+        this.result = Object.assign({}, this.careResult, { continue: false });
+      }
       if (!this.result) return;
       this.showResult(this.result, o || {});
       if (!o.error) this.snd('success');

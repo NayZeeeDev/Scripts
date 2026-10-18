@@ -145,15 +145,26 @@ float sdTri(vec2 p, vec2 p0, vec2 p1, vec2 p2){
 }
 float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
 
-/* layered surface: colour (sC), height (sH, drives the normals), gloss (sG), ambient occlusion (sA) */
-vec3 sC; float sH; float sG; float sA; float sF; float gWq; float gWh;
+/* layered surface: colour (sC), height (sH, drives the normals), gloss (sG), ambient occlusion (sA),
+   liquid flag (sF) and distance from the lens (sZ - the LED next to the lens is the only light, so
+   brightness falls off with the square of it: far structures sink into the dark, near ones glow) */
+vec3 sC; float sH; float sG; float sA; float sF; float sZ; float cZ; float gWq; float gWh;
 float cov(float d, float w){ return 1.0 - smoothstep(-w, w, d); }
-void lay(float a, float b, vec3 c, float h, float g){ sC = mix(sC, c, a); sH = mix(sH, h, b); sG = mix(sG, g, a); sA = mix(sA, 1.0, a * 0.35); }
+void lay(float a, float b, vec3 c, float h, float g){ sC = mix(sC, c, a); sH = mix(sH, h, b); sG = mix(sG, g, a); sA = mix(sA, 1.0, a * 0.35); sZ = mix(sZ, cZ, a); }
 // shape by distance: sharp colour edge, soft height edge (smooth normals, no 2x2 blocks)
 void layd(float d, float m, vec3 c, float h, float g){ lay(cov(d, gWq) * m, cov(d, gWh) * m, c, h, g); }
 void lays(float d, float m, float w, vec3 c, float h, float g){ lay(cov(d, w) * m, cov(d, w * 1.6) * m, c, h, g); }
 float dome(float d, float r){ float t = clamp(-d / r, 0.0, 1.0); return t * (2.0 - t); }
-vec3 vessels(vec3 c, vec2 p, float k){ float v = smoothstep(0.035, 0.0, abs(fbm(p) - 0.5)); return mix(c, c * vec3(0.62, 0.30, 0.42), v * k); }
+float vline(vec2 p){ return smoothstep(0.035, 0.0, abs(fbm(p) - 0.5)); }
+// capillary network: a coarse and a fine web of dark violet-red vessels
+vec3 vessels(vec3 c, vec2 p, float k){ float v = max(vline(p), 0.55 * vline(p * 2.3 + 7.1)); return mix(c, c * vec3(0.58, 0.26, 0.40), v * k); }
+// mucosa albedo: salmon pink, blotchy perfusion, slightly yellow where thin over cartilage
+vec3 mucosa(vec3 base, vec2 p, float k){
+  float b = fbm(p * 3.1 + 11.0);
+  vec3 c = base * (0.86 + 0.26 * b);
+  c = mix(c, c * vec3(1.06, 0.92, 0.84), smoothstep(0.55, 0.8, fbm(p * 7.3 + 2.0)) * 0.6);
+  return vessels(c, p * 1.7 + 3.0, k);
+}
 
 void scene(vec2 frag){
   vec2 vuv = frag / uRes;
@@ -171,41 +182,49 @@ void scene(vec2 frag){
   gWq = wq; gWh = wh;
   float near = smoothstep(0.25, 1.05, D);
   float lar = clamp((D - 0.26) * 4.0, 0.0, 1.0);
+  float zL = 1.10 / max(S, 0.2);               // distance of the larynx from the lens
+  float lit = 1.0;
 
   /* ── pharyngeal wall: a wet tube converging on the larynx ── */
   vec2 wv = sp - G;
   float ang = atan(wv.y, wv.x);
   float rad = length(wv * vec2(0.85, 1.0));
   float folds = sin(ang * 13.0 + fbm(sp * 3.0) * 4.0) * 0.5 + 0.5;
-  vec3 wall = mix(vec3(0.52, 0.11, 0.12), vec3(0.80, 0.27, 0.25), fbm(sp * 4.5 + 2.0));
+  vec3 wall = mix(vec3(0.56, 0.12, 0.13), vec3(0.82, 0.30, 0.27), fbm(sp * 4.5 + 2.0));
   wall = mix(wall, wall * vec3(1.08, 0.86, 0.9), smoothstep(0.45, 0.75, fbm(sp * 9.0 + 5.0)));
-  wall = vessels(wall, sp * 2.6 + 9.0, 0.42);
-  wall = vessels(wall, sp * 5.2 + 3.0, 0.22);
+  wall = vessels(wall, sp * 2.6 + 9.0, 0.48);
+  wall = vessels(wall, sp * 6.2 + 3.0, 0.26);
   float tun = smoothstep(0.0, 1.4, rad);
-  sC = wall * mix(0.30, 1.0, tun) * mix(0.55, 1.0, near);
+  sC = wall;
   sH = 0.10 + 0.05 * folds * tun + 0.06 * fbm(sp * vec2(3.0, 6.0));
-  sG = 1.0; sA = mix(0.55, 1.0, tun); sF = 0.0;
+  sG = 1.0; sA = mix(0.62, 1.0, tun); sF = 0.0;
+  sZ = mix(zL * 1.10, 0.62, smoothstep(0.0, 1.55, rad)); cZ = sZ;
 
   /* ── larynx ── */
-  float lit = mix(0.35, 1.0, near);
   vec2 qa = vec2(abs(q.x), q.y);
   // posterior hypopharynx / postcricoid mucosa and the closed oesophageal inlet
   float dPc = sdEl(q - vec2(0.0, -0.50), vec2(0.34, 0.20));
-  lays(dPc, lar, 0.09, vessels(vec3(0.66, 0.22, 0.22), q * 6.0, 0.3) * lit, 0.18 + 0.12 * dome(dPc, 0.25), 1.0);
+  cZ = zL * 1.03;
+  lays(dPc, lar, 0.09, mucosa(vec3(0.68, 0.23, 0.23), q * 6.0, 0.34), 0.18 + 0.12 * dome(dPc, 0.25), 1.0);
   float dOe = sdEl(q - vec2(0.0, -0.57), vec2(0.12, 0.012 + 0.006 * sin(q.x * 40.0)));
   float oeR = 0.5 + 0.5 * sin(atan(q.y + 0.57, q.x) * 9.0);
-  lays(dOe - 0.035, lar * 0.55, 0.05, vec3(0.42, 0.10, 0.11) * lit * (0.85 + 0.15 * oeR), 0.12, 0.8);
-  lays(dOe, lar, 0.012, vec3(0.12, 0.025, 0.03) * lit, 0.10, 0.25);
+  cZ = zL * 1.12;
+  lays(dOe - 0.035, lar * 0.55, 0.05, vec3(0.44, 0.11, 0.12) * (0.85 + 0.15 * oeR), 0.12, 0.8);
+  cZ = zL * 1.55;
+  lays(dOe, lar, 0.012, vec3(0.20, 0.04, 0.05), 0.10, 0.25);
   // piriform fossae: dark pockets outside the aryepiglottic folds
   float dP = sdEl(qa - vec2(0.33, -0.12), vec2(0.09, 0.24));
-  lay(cov(dP, 0.05) * lar, cov(dP, 0.06) * lar, vec3(0.16, 0.035, 0.04) * lit, -0.10 + 0.08 * (1.0 - dome(dP, 0.08)), 0.5);
+  cZ = zL * 1.45;
+  lay(cov(dP, 0.05) * lar, cov(dP, 0.06) * lar, vec3(0.36, 0.08, 0.09), -0.10 + 0.08 * (1.0 - dome(dP, 0.08)), 0.5);
   // laryngeal vestibule (inside the inlet)
   float dV = sdEl(q - vec2(0.0, -0.02), vec2(0.255, 0.345));
-  lays(dV, lar, 0.03, vec3(0.50, 0.14, 0.15) * lit, 0.05 - 0.12 * dome(dV, 0.25), 1.0);
+  cZ = zL * 1.16;
+  lays(dV, lar, 0.03, mucosa(vec3(0.58, 0.17, 0.18), q * 8.0, 0.3), 0.05 - 0.12 * dome(dV, 0.25), 1.0);
   // aryepiglottic folds: the raised rim of the inlet
   float dAE = abs(sdEl(q - vec2(0.0, -0.02), vec2(0.265, 0.355))) - 0.030;
   float aeB = step(-0.33, q.y);
-  lays(dAE, aeB * lar, 0.022, vessels(vec3(0.84, 0.38, 0.38), q * 7.0, 0.25) * lit, 0.40 + 0.26 * dome(dAE, 0.045), 1.4);
+  cZ = zL * 0.99;
+  lays(dAE, aeB * lar, 0.022, mucosa(vec3(0.86, 0.40, 0.39), q * 7.0, 0.3), 0.40 + 0.26 * dome(dAE, 0.045), 1.4);
   // glottis
   float op = uGlot.x;
   vec2 A0 = vec2(0.0, uGlot.y); vec2 B0 = vec2(-0.125 * op, -0.28); vec2 C0 = vec2(0.125 * op, -0.28);
@@ -213,97 +232,155 @@ void scene(vec2 frag){
   float post = step(-0.27, q.y);
   // ventricular (false) folds
   float dF = abs(dT - 0.068) - 0.032;
-  lays(dF, post * lar, 0.034, vessels(vec3(0.66, 0.22, 0.23), q * 11.0, 0.25) * lit, 0.24 + 0.08 * dome(dF, 0.05), 1.1);
+  cZ = zL * 1.08;
+  lays(dF, post * lar, 0.034, mucosa(vec3(0.70, 0.24, 0.25), q * 11.0, 0.3), 0.24 + 0.08 * dome(dF, 0.05), 1.1);
   // ventricle groove
-  lays(abs(dT - 0.031) - 0.004, post * lar * 0.8, 0.010, vec3(0.30, 0.07, 0.08) * lit, 0.16, 0.6);
-  // true vocal cords: pearly white bands, brighter on the free edge
+  cZ = zL * 1.14;
+  lays(abs(dT - 0.031) - 0.004, post * lar * 0.8, 0.010, vec3(0.32, 0.08, 0.09), 0.16, 0.6);
+  // true vocal cords: pearly white bands with a faint capillary along the top, brighter on the free edge
   float dVc = abs(dT - 0.014) - 0.021;
   float edge = smoothstep(0.016, -0.004, abs(dT + 0.002));
-  vec3 cordC = mix(vec3(0.86, 0.80, 0.74), vec3(1.0, 0.97, 0.93), edge);
-  cordC = mix(cordC, vec3(0.80, 0.55, 0.52), 0.12 * fbm(q * 40.0));
-  lays(dVc, post * lar, 0.009, cordC * lit, 0.30 + 0.07 * dome(dVc, 0.03), 1.3);
+  vec3 cordC = mix(vec3(0.84, 0.78, 0.72), vec3(1.0, 0.97, 0.93), edge);
+  cordC = mix(cordC, vec3(0.80, 0.52, 0.50), 0.14 * fbm(q * 40.0) + 0.18 * smoothstep(0.03, 0.0, abs(dT - 0.026)) * vline(q * 18.0));
+  cZ = zL * 1.10;
+  lays(dVc, post * lar, 0.009, cordC, 0.30 + 0.07 * dome(dVc, 0.03), 1.35);
   // trachea through the cords: rings on the anterior wall, darkness in the depth
   float deep = smoothstep(0.0, 0.10, -dT);
   vec2 tq = (q - vec2(0.0, -0.05)) * vec2(1.0, 0.70);
   float rings = 0.5 + 0.5 * sin(length(tq) * 95.0);
   float ant = smoothstep(-0.05, 0.25, q.y);
-  vec3 trach = mix(vec3(0.42, 0.13, 0.13), vec3(0.02, 0.004, 0.004), deep) * (0.70 + 0.30 * rings * ant * (1.0 - 0.7 * deep));
-  layd(dT, lar, trach * lit, 0.0 - 0.25 * deep, 0.6);
+  vec3 trach = mix(vec3(0.62, 0.22, 0.22), vec3(0.30, 0.07, 0.07), deep) * (0.72 + 0.28 * rings * ant * (1.0 - 0.6 * deep));
+  cZ = zL * (1.18 + 1.9 * deep);
+  layd(dT, lar, trach, 0.0 - 0.25 * deep, 0.6);
   // arytenoid complex: corniculate + cuneiform tubercles, interarytenoid notch
   float ar = uGlot.z;
   float dAr = smin(sdEl(qa - vec2(0.100, -0.345), vec2(0.075, 0.062) * ar), sdEl(qa - vec2(0.190, -0.282), vec2(0.044, 0.052) * ar), 0.035);
-  vec3 arC = vessels(vec3(0.88, 0.50, 0.48), q * 9.0, 0.25) * (0.92 + 0.12 * fbm(q * 18.0));
-  layd(dAr, lar, arC * lit, 0.48 + 0.34 * dome(dAr, 0.06), 1.5);
-  layd(sdEl(q - vec2(0.0, -0.352), vec2(0.014, 0.045)), lar, vec3(0.28, 0.06, 0.07) * lit, 0.25, 0.5);
+  vec3 arC = mucosa(vec3(0.90, 0.52, 0.50), q * 9.0, 0.3) * (0.92 + 0.12 * fbm(q * 18.0));
+  cZ = zL * 0.97;
+  layd(dAr, lar, arC, 0.48 + 0.34 * dome(dAr, 0.06), 1.5);
+  cZ = zL * 1.12;
+  layd(sdEl(q - vec2(0.0, -0.352), vec2(0.014, 0.045)), lar, vec3(0.34, 0.08, 0.09), 0.25, 0.5);
 
-  /* ── epiglottis (leaf with a curled rim), its shadow, the vallecula and tongue base ── */
+  /* ── epiglottis (leaf with a rolled, translucent rim), its shadow, the vallecula and tongue base ── */
   float epiOn = smoothstep(0.40, 0.62, D);
   float ex = q.x / 0.30;
   float rimC = rimY + 0.15 * ex * ex;
   float valY = rimY + 0.46;
   float yy = clamp((q.y - rimY) / 0.46, 0.0, 1.0);
-  float dEw = abs(q.x) - (0.30 - 0.07 * yy);
-  float dEb = max(max(rimC - q.y, dEw), q.y - valY);
+  // leaf outline: a rounded U-shaped free edge (bottom), sides narrowing gently towards the base (top)
+  float wE = 0.30 - 0.05 * yy - 0.03 * yy * yy;
+  float dEw = abs(q.x) - wE;
+  float kE = 0.05;
+  float dRim = rimC - q.y;
+  float dEb = max(dRim, dEw);
+  dEb = mix(dEb, -kE + length(max(vec2(dRim, dEw) + kE, 0.0)), step(-kE, min(dRim, dEw)));
+  dEb = max(dEb, q.y - valY - 0.06);
   // shadow of the rim on what lies below it
   float shW = smoothstep(0.34, 0.24, abs(q.x));
-  float sh = smoothstep(0.0, 0.10, rimC - q.y) * 0.55 + 0.45;
+  float sh = smoothstep(0.0, 0.12, rimC - q.y) * 0.62 + 0.38;
   sC *= mix(1.0, sh, shW * epiOn * step(q.y, rimC));
-  float rimB = clamp(1.0 - (q.y - rimC) / 0.07, 0.0, 1.0);
-  vec3 epiC = mix(vec3(0.86, 0.44, 0.44), vec3(0.98, 0.70, 0.66), rimB * 0.8);
-  epiC = vessels(epiC, q * vec2(6.0, 9.0) + 4.0, 0.45) * (0.92 + 0.12 * fbm(q * 13.0));
-  epiC *= 1.0 - 0.18 * smoothstep(0.03, 0.0, abs(q.x)) * (1.0 - rimB);
-  epiC *= mix(1.0, 0.84, smoothstep(0.25, 0.9, yy));
-  layd(dEb, epiOn, epiC * lit, 0.58 + 0.28 * sin(rimB * 1.5708) + 0.12 * dome(dEw, 0.12), 1.6);
-  float dVal = abs(q.y - valY - 0.018) - 0.024;
-  float vmm = step(abs(q.x), 0.42) * epiOn;
-  layd(dVal, vmm, vec3(0.24, 0.06, 0.07) * lit, 0.12, 0.4);
-  layd(abs(q.x) - 0.012, cov(dVal, wq) * vmm, vec3(0.68, 0.32, 0.32) * lit, 0.30, 0.9);
-  float tb = q.y - (valY + 0.045 + 0.022 * sin(q.x * 11.0));
+  float rimB = clamp(1.0 - (q.y - rimC) / 0.06, 0.0, 1.0);
+  float cx2 = clamp(q.x / wE, -1.0, 1.0);
+  float crown = sqrt(1.0 - cx2 * cx2);                  // convex across the leaf
+  vec3 epiC = mix(vec3(0.80, 0.32, 0.33), vec3(0.93, 0.55, 0.50), rimB * 0.75);
+  epiC = mix(epiC, epiC * vec3(1.06, 0.96, 0.84), smoothstep(0.02, 0.0, abs(q.y - rimC - 0.012)) * 0.45);
+  epiC = mucosa(epiC, q * vec2(5.0, 8.0) + 4.0, 0.55) * (0.94 + 0.10 * fbm(q * 13.0));
+  epiC *= mix(0.80, 1.0, crown);
+  epiC *= mix(1.0, 0.86, smoothstep(0.25, 0.9, yy));
+  cZ = zL * mix(0.94, 0.88, yy);
+  float hE = 0.34 + 0.20 * crown + 0.24 * sin(rimB * 1.5708) - 0.04 * smoothstep(0.0, 0.25, yy) * (1.0 - rimB) + 0.012 * fbm(q * 30.0);
+  // the free edge is crisp, the sides melt into the aryepiglottic folds
+  float atRim = smoothstep(-0.02, 0.02, dRim - dEw);
+  float eW = mix(0.028, wq, atRim);
+  lay(cov(dEb, eW) * epiOn, cov(dEb, mix(0.09, wh, atRim)) * epiOn, epiC, hE, 1.5);
+  // vallecula: two dark pockets either side of the median glossoepiglottic fold
+  float dVal = sdEl(vec2(abs(q.x) - 0.15, q.y - valY - 0.025), vec2(0.12, 0.032));
+  cZ = zL * 0.98;
+  lays(dVal, epiOn * smoothstep(0.01, 0.03, abs(q.x)), 0.03, vec3(0.42, 0.11, 0.12), 0.30 - 0.12 * dome(dVal, 0.04), 0.7);
+  float tb = q.y - (valY + 0.050 + 0.045 * (fbm(vec2(q.x * 4.0, 1.3)) - 0.5) + 0.09 * q.x * q.x);
   vec2 cell = q * 13.0 + vec2(0.0, fbm(q * 3.0) * 1.5); vec2 ci = floor(cell); vec2 cf = fract(cell) - 0.5;
   float bsz = 0.22 + 0.26 * hash(ci + 3.7);
   float bump = step(0.35, hash(ci + 1.3)) * smoothstep(bsz, bsz * 0.2, length(cf + 0.55 * (vec2(hash(ci), hash(ci + 7.0)) - 0.5)));
-  bump = max(bump * 0.8, 0.5 * smoothstep(0.62, 0.8, fbm(q * 26.0)));
-  vec3 tbC = vessels(vec3(0.80, 0.38, 0.38), q * 5.0, 0.3) * (0.84 + 0.22 * bump);
-  layd(-tb, epiOn, tbC * lit, 0.50 + 0.30 * clamp(tb * 3.0, 0.0, 1.0) + 0.035 * bump, 1.1);
+  bump = max(bump * 0.7, 0.45 * smoothstep(0.62, 0.8, fbm(q * 26.0)));
+  vec3 tbC = mucosa(vec3(0.80, 0.38, 0.37), q * 5.0, 0.32) * (0.86 + 0.18 * bump);
+  cZ = mix(zL * 0.84, 0.58, clamp(tb * 1.6, 0.0, 1.0));
+  layd(-tb, epiOn, tbC, 0.50 + 0.30 * clamp(tb * 3.0, 0.0, 1.0) + 0.03 * bump, 1.1);
 
   /* ── soft palate + uvula (posterior, bottom of the picture early in the insertion) ── */
   float pa = smoothstep(0.03, 0.62, D);
   float base = mix(-0.30, -1.55, pa);
   float dPal = sp.y - (base + 0.30 * sp.x * sp.x);
-  vec3 palC = vessels(vec3(0.84, 0.36, 0.40), sp * 4.0, 0.35) * (0.84 + 0.2 * fbm(sp * 6.0));
+  vec3 palC = mucosa(vec3(0.84, 0.36, 0.40), sp * 4.0, 0.4);
+  cZ = mix(0.62, 0.50, clamp(-dPal * 2.0, 0.0, 1.0));
   lay(cov(dPal, aa), cov(dPal, 0.03), palC, 0.62 + 0.3 * clamp(-dPal * 2.0, 0.0, 1.0), 1.1);
   vec2 u0 = sp - vec2(0.0, base);
   float dU = smin(sdEl(u0 - vec2(0.0, 0.30), vec2(0.075, 0.07)), sdEl(u0 - vec2(0.0, 0.13), vec2(0.05, 0.16)), 0.05);
-  lay(cov(dU, aa), cov(dU, 0.03), vec3(0.90, 0.42, 0.46), 0.74 + 0.30 * dome(dU, 0.06), 1.5);
+  cZ = 0.66;
+  lay(cov(dU, aa), cov(dU, 0.03), mucosa(vec3(0.90, 0.44, 0.46), u0 * 9.0, 0.3), 0.74 + 0.30 * dome(dU, 0.06), 1.5);
 
   /* ── tongue (anterior, top of the picture), the flange pushes it aside when steering ── */
   float ta = smoothstep(0.0, 0.66, D);
   float tE = mix(-0.02, 1.38, ta) + 0.30 * sp.x * sp.x - uGlot.w * 0.10;
   float dTo = tE - sp.y;
   float pap = fbm(sp * 30.0);
-  vec3 tC = mix(vec3(0.80, 0.34, 0.36), vec3(0.92, 0.62, 0.60), smoothstep(0.55, 0.78, pap) * 0.45);
+  vec3 tC = mix(vec3(0.78, 0.34, 0.35), vec3(0.92, 0.64, 0.60), smoothstep(0.55, 0.78, pap) * 0.45);
+  tC = vessels(tC, sp * 3.4 + 1.0, 0.22);
+  cZ = mix(0.60, 0.46, clamp(-dTo * 1.6, 0.0, 1.0));
   lay(cov(dTo, aa), cov(dTo, 0.04), tC, 0.78 + 0.22 * clamp(-dTo * 1.6, 0.0, 1.0) + 0.04 * pap, 1.0);
   float sd = max(abs(uSteer) - 0.2, 0.0);
   float dS = (asp + 0.05 - sd * 2.4 - 0.18 * p.y * p.y) - p.x * sign(uSteer + 0.0001);
+  cZ = 0.48;
   lay(cov(dS, aa) * step(0.001, sd), cov(dS, 0.04) * step(0.001, sd), tC * 0.95, 0.8 + 0.2 * clamp(-dS * 3.0, 0.0, 1.0), 1.0);
 
-  /* ── blood / vomit / water pooling at the bottom (posterior) ── */
-  float f = texture2D(uSoil, vec2(vuv.x, 1.0 - vuv.y)).a * uMisc.w;
-  float fc = smoothstep(0.22, 0.50, f);
+  /* ── fluid: alpha = coverage, red = thickness (film streak 0.27, hanging drop 0.78, pool 1.0) ── */
+  vec4 so = texture2D(uSoil, vec2(vuv.x, 1.0 - vuv.y));
+  float f = so.a * uMisc.w;
+  float th = so.r;
+  float fc = smoothstep(0.10, 0.42, f);
+  float pool = smoothstep(0.86, 0.98, th) * smoothstep(0.35, 0.75, f);
+  float drop = smoothstep(0.55, 0.75, th) * (1.0 - smoothstep(0.86, 0.98, th));
   float fd = fbm(p * 7.0 + vec2(0.0, uTime * 0.05));
   vec2 bg = p * 15.0 + vec2(0.0, uTime * 0.12);
   vec2 bi = floor(bg); vec2 bfr = fract(bg) - 0.5;
   float brad = 0.12 + 0.20 * hash(bi);
   float froth = step(0.5, uFluid.g) * step(0.86, hash(bi + 3.1)) * dome(length(bfr) - brad * 0.5, 0.05) * smoothstep(0.55, 0.85, f);
-  float thick = smoothstep(0.25, 0.85, f);
-  vec3 flC = uFluid * mix(1.55, 0.78, thick) * (0.88 + 0.16 * fd);
-  sC = mix(sC, flC, fc); sH = mix(sH, 0.46 + 0.20 * thick + 0.05 * froth, smoothstep(0.08, 0.50, f)); sG = mix(sG, 2.6, fc); sF = max(sF, fc * (1.0 - froth));
+  // a thin film tints and darkens the mucosa under it; a pool or a drop is the fluid itself
+  float clear = smoothstep(0.55, 0.70, uFluid.g);            // water / secretions are see-through
+  vec3 tint = mix(clamp(uFluid * 1.9, 0.0, 1.0), vec3(1.0), clear * 0.7);
+  vec3 film = sC * mix(vec3(1.0), tint, 0.62) * 0.80;
+  vec3 body = mix(uFluid * mix(0.95, 0.40, pool), sC * 0.72 + 0.03, clear) * (0.88 + 0.16 * fd);
+  sC = mix(sC, mix(film, body, max(pool, drop * 0.85)), fc);
+  float fh = 0.012 + 0.10 * drop * dome(0.5 - f, 0.5) + pool * (0.14 + 0.022 * fbm(p * 9.0 + vec2(uTime * 0.2, 0.0))) + 0.05 * froth;
+  sH = mix(sH, sH + fh, smoothstep(0.05, 0.45, f));
+  sG = mix(sG, 2.4, fc); sF = max(sF, fc * (1.0 - froth));
+
+  /* ── saliva bubbles: clusters on the wet mucosa round the posterior commissure and on the fluid margins ── */
+  float zM = smoothstep(0.24, 0.06, length((q - vec2(0.0, -0.40)) * vec2(0.75, 1.5))) * lar
+           + 0.35 * smoothstep(0.30, 0.0, abs(dAE)) * lar * step(-0.30, q.y) * step(q.y, -0.05);
+  float zP = smoothstep(0.02, 0.25, pool) * smoothstep(0.95, 0.55, pool);
+  for (int k = 0; k < 2; k++) {
+    float sc = k == 0 ? 34.0 : 30.0;
+    float zB = clamp(k == 0 ? zM : zP * 0.8, 0.0, 1.0);
+    vec2 bq = (k == 0 ? q : p) * sc;
+    vec2 gi = floor(bq); vec2 gf = fract(bq) - 0.5;
+    float hb = hash(gi * 1.31 + 4.2 + float(k) * 9.0);
+    vec2 bo = (vec2(hash(gi + 2.3), hash(gi + 5.1)) - 0.5) * 0.36;
+    float br = 0.13 + 0.22 * hash(gi + 8.9);
+    float db = length(gf - bo) - br;
+    float on = step(1.0 - 0.55 * zB, hb) * step(0.05, zB);
+    float bin = cov(db, 0.05) * on;
+    sC = mix(sC, sC * 1.10 + vec3(0.05, 0.04, 0.04), bin * 0.6);
+    sC *= 1.0 - 0.30 * smoothstep(0.06, 0.0, abs(db)) * on;
+    sH += 0.035 * dome(db, br) * on * (k == 0 ? 1.0 : 0.6);
+    sG = mix(sG, 3.0, bin); sF = max(sF, bin);
+  }
 
   /* ── blade tip (dark metal) entering from the top ── */
   float bl = smoothstep(0.10, 0.55, D);
   float bY = mix(1.35, 0.80, bl);
   float dBl = sdEl(p - vec2(0.0, bY + 0.42), vec2(0.66, 0.42));
   vec3 metal = vec3(0.05, 0.055, 0.06) + vec3(0.22, 0.24, 0.26) * smoothstep(0.02, 0.0, abs(dBl + 0.015)) + 0.03 * fbm(p * 5.0);
+  cZ = 0.42;
   lay(cov(dBl, aa) * step(0.01, bl), cov(dBl, 0.02) * step(0.01, bl), metal, 0.98 + 0.05 * dome(dBl, 0.1), 0.25);
   sH += 0.012 * fbm(sp * 40.0) * (1.0 - sF);
 }
@@ -316,30 +393,38 @@ void main(){
   scene(frag);
   vec2 p = (frag - 0.5 * uRes) / (0.5 * uRes.y);
   float r2 = dot(p, p);
-  /* ── lighting: coaxial LED next to the lens, wet mucosa ── */
+  /* ── lighting: coaxial LED next to the lens, inverse-square falloff, wet mucosa ── */
   vec2 gr = clamp(vec2(hx - sH, hy - sH) / e * uRes.y * 0.034, vec2(-3.2), vec2(3.2));
   vec3 n = normalize(vec3(-gr.x, -gr.y, 1.0));
   vec3 L = normalize(vec3(0.0, 0.42, 1.0));
   vec3 V = vec3(0.0, 0.0, 1.0);
   vec3 Hv = normalize(L + V);
   float ndl = max(dot(n, L), 0.0);
-  float diff = 0.22 + 0.86 * ndl;
+  float diff = 0.18 + 0.86 * ndl;
   float nh = max(dot(n, Hv), 0.0);
   float lum = max(sC.r, max(sC.g, sC.b));
   float fres = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-  float spec = mix(0.10 * pow(nh, 18.0) + 0.85 * pow(nh, 90.0) + 1.6 * pow(nh, 600.0), 2.4 * pow(nh, 900.0) + 0.25 * pow(nh, 160.0), sF) * sG * mix(smoothstep(0.03, 0.25, lum), 1.0, sF);
+  float spec = mix(0.10 * pow(nh, 18.0) + 0.85 * pow(nh, 90.0) + 1.6 * pow(nh, 600.0), 2.6 * pow(nh, 900.0) + 0.30 * pow(nh, 160.0), sF) * sG * mix(smoothstep(0.03, 0.25, lum), 1.0, sF);
+  // auto-exposure: near tongue / palate fill the frame early in the insertion → the gain drops
+  float expo = mix(0.50, 1.0, smoothstep(0.0, 0.55, uDepth));
+  float E = min(1.0 / (0.10 + sZ * sZ), 2.8) * expo;
   float cone = exp(-r2 * 0.55);
-  vec3 sss = sC * vec3(1.0, 0.35, 0.30) * 0.22 * (1.0 - ndl);
-  vec3 col = (sC * diff + sss) * sA * (0.50 + 0.66 * cone) + vec3(1.0, 0.95, 0.90) * spec * (0.30 + 0.70 * cone) + sC * fres * 0.18 * sG;
+  // subsurface: thin mucosa glows red where it faces away from the light
+  vec3 sss = sC * vec3(1.0, 0.32, 0.26) * 0.26 * (1.0 - ndl);
+  vec3 col = (sC * diff + sss) * sA * E * (0.52 + 0.62 * cone);
+  col += vec3(1.0, 0.95, 0.90) * spec * min(E, 2.2) * (0.30 + 0.70 * cone);
+  col += sC * fres * 0.16 * sG * min(E, 1.6);
+  col += sC * 0.012;                                         // stray light inside the pharynx
   float vig = smoothstep(1.66, 0.55, length(p * vec2(0.68, 1.0)));
   col *= vig;
   vec3 red = vec3(0.55, 0.10, 0.09) * (0.65 + 0.55 * fbm(p * 2.6 + uTime * 0.15));
   col = mix(col, red * vig, uMisc.x);
   col = mix(col, vec3(0.38, 0.04, 0.04) * (0.6 + 0.6 * fbm(p * 2.2)), uMisc.y * 0.6 * smoothstep(0.35, 0.7, fbm(p * 1.4 + 2.0)));
-  col = col / (1.0 + col * 0.22);
-  col += (hash(frag + fract(uTime * 7.0) * 113.0) - 0.5) * 0.022;
+  // sensor response: soft shoulder instead of hard clipping, a touch of warm cast
+  col = vec3(1.0) - exp(-col * vec3(1.08, 1.0, 0.96));
+  col += (hash(frag + fract(uTime * 7.0) * 113.0) - 0.5) * 0.020;
   col *= uMisc.z;
-  gl_FragColor = vec4(pow(max(col, vec3(0.0)), vec3(0.95)), 1.0);
+  gl_FragColor = vec4(pow(max(col, vec3(0.0)), vec3(0.92)), 1.0);
 }`;
 
   function AirwayGL(canvas) {
@@ -415,32 +500,49 @@ void main(){
     const W = 192, H = 112;
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const c = cv.getContext('2d', { willReadFrequently: true });
-    let dirty = true, cover = 0, coverAt = 0;
-    function blob(x, y, r, a) {
+    let dirty = true, cover = 0, coverAt = 0, lvl = H;
+    // alpha = coverage, red = thickness the shader reads: 70 film, 200 hanging drop, 255 pool
+    function blob(x, y, r, a, th = 255) {
       const g = c.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(0.65, `rgba(0,0,0,${a * 0.8})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      g.addColorStop(0, `rgba(${th},0,0,${a})`); g.addColorStop(0.65, `rgba(${th},0,0,${a * 0.8})`); g.addColorStop(1, `rgba(${th},0,0,0)`);
       c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
     }
-    // a drip: overlapping beads that widen as it runs down into the pool
-    function streak(x, y, w, len) {
-      let cx = x, cy = y;
-      const steps = Math.max(3, Math.round(len / 2));
-      for (let i = 0; i <= steps; i++) { const t = i / steps; blob(cx, cy, w * (0.4 + 0.6 * t), 0.92); cx += rnd(-0.7, 0.7); cy += 2; }
+    // a rivulet: a thin wet trail that widens as it runs down the wall and ends in a drop
+    function drip(x, y0, y1, w) {
+      const steps = Math.max(4, Math.round((y1 - y0) / 1.2));
+      const wob = rnd(0, 6), amp = rnd(0.2, 1.1), fr = rnd(2.5, 6);
+      let cx = x;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        cx = x + Math.sin(t * fr + wob) * amp * t;
+        blob(cx, y0 + (y1 - y0) * t, Math.max(0.7, w * (0.22 + 0.42 * t)), 0.85, 70);
+      }
+      if (y1 < lvl - 2) blob(cx, y1 + w * 0.35, w * 0.78, 0.95, 200);
     }
     function seed(a) {
       c.clearRect(0, 0, W, H);
+      lvl = H;
       if (a <= 0.01) { dirty = true; return; }
-      const lvl = H * (1 - a * 0.6), ph = rnd(0, 6);
+      lvl = H * (1 - a * 0.6);
+      const ph = rnd(0, 6);
       // a pool on the posterior wall (bottom of the picture), shallower towards the sides
-      c.fillStyle = '#000';
+      c.fillStyle = 'rgb(255,0,0)';
       c.beginPath(); c.moveTo(0, H);
       for (let x = 0; x <= W; x += 4) c.lineTo(x, lvl + Math.sin(x * 0.07 + ph) * 4 + Math.sin(x * 0.23 + ph * 2) * 1.6 + Math.abs(x - W / 2) * 0.12);
       c.lineTo(W, H); c.closePath(); c.fill();
-      // drips running down the walls into the pool, a few beads clinging to the mucosa
-      const n = Math.round(3 + a * 9);
-      for (let i = 0; i < n; i++) streak(rnd(10, W - 10), rnd(lvl - 48, lvl - 8), rnd(2.2, 5), rnd(10, 32));
-      const m = Math.round(2 + a * 6);
-      for (let i = 0; i < m; i++) blob(rnd(8, W - 8), rnd(lvl - 30, lvl + 6), rnd(2, 4.5), rnd(0.75, 1));
+      // a wet film creeping up from the pool, rivulets running down into it, a few drops still hanging
+      c.save(); c.filter = 'blur(2px)'; c.globalCompositeOperation = 'destination-over';
+      c.fillStyle = 'rgba(70,0,0,0.62)';
+      c.beginPath(); c.moveTo(0, H);
+      for (let x = 0; x <= W; x += 3) c.lineTo(x, lvl - 7 - Math.abs(Math.sin(x * 0.11 + ph * 3)) * 6 - Math.sin(x * 0.031 + ph) * 3);
+      c.lineTo(W, H); c.closePath(); c.fill(); c.restore();
+      const n = Math.round(3 + a * 8);
+      for (let i = 0; i < n; i++) {
+        const x = rnd(8, W - 8), y0 = lvl - rnd(18, 58);
+        drip(x, y0, Math.random() < 0.65 ? lvl + 3 : y0 + rnd(8, 22), rnd(1.6, 3.4));
+      }
+      const m = Math.round(2 + a * 5);
+      for (let i = 0; i < m; i++) blob(rnd(8, W - 8), rnd(lvl - 34, lvl - 4), rnd(1.4, 2.6), rnd(0.8, 1), 200);
       dirty = true; coverAt = 0;
     }
     seed(amount);
@@ -452,7 +554,7 @@ void main(){
       },
       refill(dt) {
         if (rate <= 0) return;
-        if (Math.random() < dt * 5 * rate) { if (Math.random() < 0.6) streak(rnd(6, W - 6), H - rnd(18, 44), rnd(1.8, 3.6), rnd(10, 26)); else blob(rnd(0, W), H - rnd(0, 10), rnd(6, 12), rnd(0.35, 0.6)); dirty = true; }
+        if (Math.random() < dt * 5 * rate) { const y = Math.min(lvl, H - 6); if (Math.random() < 0.6) { const y0 = y - rnd(16, 46); drip(rnd(6, W - 6), y0, Math.random() < 0.7 ? y + 3 : y0 + rnd(6, 18), rnd(1.5, 3)); } else blob(rnd(0, W), H - rnd(0, 10), rnd(6, 12), rnd(0.35, 0.6), 255); dirty = true; }
       },
       coverage() {
         if (now() - coverAt < 220) return cover;
@@ -961,51 +1063,88 @@ void main(){
     function drawTube(o, W, H) {
       const sh = tubeShape(o, W, H), { C, L, R } = sh;
       const N = C.length - 1;
+      const cm = tubeCm();
       ctx.save();
-      // shadow under the tube
-      ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
-      ctx.translate(6, 8); path(L, R); ctx.fill(); ctx.translate(-6, -8);
-      ctx.globalAlpha = 1;
-      // cuff
+      // soft contact shadow on the mucosa
+      ctx.save(); ctx.filter = 'blur(7px)'; ctx.globalAlpha = 0.42; ctx.fillStyle = '#120202';
+      ctx.translate(9, 12); path(L, R); ctx.fill(); ctx.restore();
+      // body: a translucent PVC cylinder, shaded across its width segment by segment
+      for (let i = 0; i < N; i++) {
+        const a0 = L[i], a1 = L[i + 1], b0 = R[i], b1 = R[i + 1];
+        const g = ctx.createLinearGradient(a0[0], a0[1], b0[0], b0[1]);
+        const far = i / N;
+        g.addColorStop(0, `rgba(58,70,78,${0.78 - far * 0.1})`);
+        g.addColorStop(0.12, 'rgba(206,220,226,0.50)');
+        g.addColorStop(0.24, 'rgba(255,255,255,0.88)');
+        g.addColorStop(0.34, 'rgba(226,236,240,0.42)');
+        g.addColorStop(0.70, 'rgba(176,192,200,0.38)');
+        g.addColorStop(0.90, 'rgba(110,126,136,0.58)');
+        g.addColorStop(1, `rgba(40,50,58,${0.82 - far * 0.1})`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.moveTo(a0[0], a0[1]); ctx.lineTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.lineTo(b0[0], b0[1]); ctx.closePath(); ctx.fill();
+      }
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      // inner wall of the lumen seen through the plastic
+      offsetLine(C, 0.62, 2, N - 1); ctx.strokeStyle = 'rgba(70,84,92,0.30)'; ctx.lineWidth = Math.max(1, sh.tipW * 0.05); ctx.stroke();
+      offsetLine(C, -0.62, 2, N - 1); ctx.strokeStyle = 'rgba(70,84,92,0.22)'; ctx.stroke();
+      // radio-opaque line and the sharp highlight that runs along the curve
+      offsetLine(C, 0.30, 0, N - 1); ctx.strokeStyle = 'rgba(30,110,240,0.90)'; ctx.lineWidth = Math.max(1.4, sh.tipW * 0.075); ctx.stroke();
+      offsetLine(C, -0.50, 1, N - 3); ctx.strokeStyle = 'rgba(255,255,255,0.70)'; ctx.lineWidth = Math.max(1.2, sh.tipW * 0.055); ctx.stroke();
+      // printed depth marks (cm at the teeth) on the proximal part
+      ctx.font = `700 ${Math.round(clamp(sh.tipW * 0.32, 9, 15))}px "JetBrains Mono", monospace`;
+      const span = Math.round(N * 0.46);
+      for (let i = 2; i < span; i++) {
+        const c = C[i];
+        const mark = Math.round(cm + (span - i) * 0.5);
+        if (mark % 2) continue;
+        const big = mark % 10 === 0;
+        ctx.strokeStyle = 'rgba(12,14,16,0.80)'; ctx.lineWidth = big ? 2.6 : 1.4;
+        ctx.beginPath(); ctx.moveTo(c[0] + c[2] * c[4] * 0.15, c[1] + c[3] * c[4] * 0.15); ctx.lineTo(c[0] - c[2] * c[4] * (big ? 0.7 : 0.45), c[1] - c[3] * c[4] * (big ? 0.7 : 0.45)); ctx.stroke();
+        if (mark % 4 === 0 && c[4] > 14) {
+          ctx.save(); ctx.translate(c[0] - c[2] * c[4] * 0.42, c[1] - c[3] * c[4] * 0.42); ctx.rotate(Math.atan2(c[6], c[5]));
+          ctx.fillStyle = 'rgba(12,14,16,0.82)'; ctx.textAlign = 'center'; ctx.fillText(String(mark), 0, -3); ctx.restore();
+        }
+      }
+      // cuff: a thin balloon around the distal tube, taut when inflated, wrinkled when empty
       const c0 = Math.round(N * 0.80), c1 = Math.round(N * 0.94);
-      const cs = o.tube.inflated ? 1.75 : 1.28;
-      const CL = [], CR = [];
-      for (let i = c0; i <= c1; i++) { const c = C[i]; const bulge = Math.sin((i - c0) / (c1 - c0) * Math.PI); const w = c[4] * (1 + (cs - 1) * bulge); CL.push([c[0] + c[2] * w, c[1] + c[3] * w]); CR.push([c[0] - c[2] * w, c[1] - c[3] * w]); }
-      path(CL, CR); ctx.fillStyle = 'rgba(236,242,245,0.20)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
-      if (!o.tube.inflated) { ctx.strokeStyle = 'rgba(255,255,255,0.22)'; for (let i = c0 + 1; i < c1; i += 2) { const c = C[i]; ctx.beginPath(); ctx.moveTo(c[0] + c[2] * c[4] * 1.2, c[1] + c[3] * c[4] * 1.2); ctx.lineTo(c[0] - c[2] * c[4] * 1.2, c[1] - c[3] * c[4] * 1.2); ctx.stroke(); } }
-      // body
-      path(L, R);
-      const lg = ctx.createLinearGradient(W, H, sh.tip[0], sh.tip[1]);
-      lg.addColorStop(0, 'rgba(238,244,246,0.62)'); lg.addColorStop(1, 'rgba(230,238,242,0.45)');
-      ctx.fillStyle = lg; ctx.fill();
-      ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(70,84,92,0.55)';
-      path(R); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; path(L); ctx.stroke();
-      // highlight + radio-opaque line
-      ctx.lineCap = 'round';
-      offsetLine(C, -0.45, 2, N - 2); ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = Math.max(1.5, sh.tipW * 0.10); ctx.stroke();
-      offsetLine(C, 0.25, 0, N - 1); ctx.strokeStyle = 'rgba(40,120,255,0.85)'; ctx.lineWidth = Math.max(1.4, sh.tipW * 0.07); ctx.stroke();
-      // depth marks near the camera
-      ctx.strokeStyle = 'rgba(12,14,16,0.75)';
-      for (let i = 4; i < Math.round(N * 0.42); i += 3) { const c = C[i]; ctx.lineWidth = i % 9 === 1 ? 3 : 1.6; ctx.beginPath(); ctx.moveTo(c[0] + c[2] * c[4] * 0.1, c[1] + c[3] * c[4] * 0.1); ctx.lineTo(c[0] - c[2] * c[4] * 0.55, c[1] - c[3] * c[4] * 0.55); ctx.stroke(); }
-      // bevel + Murphy eye
+      const cs = o.tube.inflated ? 1.75 : 1.22;
+      const CLp = [], CRp = [];
+      for (let i = c0; i <= c1; i++) { const c = C[i]; const bulge = Math.sin((i - c0) / (c1 - c0) * Math.PI); const w = c[4] * (1 + (cs - 1) * bulge); CLp.push([c[0] + c[2] * w, c[1] + c[3] * w]); CRp.push([c[0] - c[2] * w, c[1] - c[3] * w]); }
+      const cg = ctx.createLinearGradient(CLp[(CLp.length / 2) | 0][0], CLp[(CLp.length / 2) | 0][1], CRp[(CRp.length / 2) | 0][0], CRp[(CRp.length / 2) | 0][1]);
+      cg.addColorStop(0, 'rgba(255,255,255,0.10)'); cg.addColorStop(0.2, 'rgba(255,255,255,0.42)'); cg.addColorStop(0.5, 'rgba(240,246,248,0.10)'); cg.addColorStop(0.85, 'rgba(255,255,255,0.30)'); cg.addColorStop(1, 'rgba(255,255,255,0.08)');
+      path(CLp, CRp); ctx.fillStyle = cg; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.1; path(CLp); ctx.stroke(); path(CRp); ctx.stroke();
+      if (!o.tube.inflated) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.26)'; ctx.lineWidth = 1;
+        for (let i = c0 + 1; i < c1; i++) { const c = C[i]; const k = 1.1 + 0.08 * Math.sin(i * 2.7); ctx.beginPath(); ctx.moveTo(c[0] + c[2] * c[4] * k, c[1] + c[3] * c[4] * k); ctx.quadraticCurveTo(c[0] + c[5] * 3, c[1] + c[6] * 3, c[0] - c[2] * c[4] * k, c[1] - c[3] * c[4] * k); ctx.stroke(); }
+      }
+      // pilot line leaving the cuff along the tube
+      offsetLine(C, -0.85, Math.round(N * 0.08), c0); ctx.strokeStyle = 'rgba(236,242,244,0.55)'; ctx.lineWidth = Math.max(1, sh.tipW * 0.04); ctx.stroke();
+      // bevel: the open, slanted tip with the dark lumen and a bright cut edge, Murphy eye opposite
       const tc = C[N];
       ctx.save(); ctx.translate(tc[0], tc[1]); ctx.rotate(Math.atan2(tc[6], tc[5]) + Math.PI / 2 + 0.35);
-      ctx.beginPath(); ctx.ellipse(0, 0, sh.tipW * 0.5, sh.tipW * 0.24, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(25,10,10,0.75)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.4; ctx.stroke();
+      const lum = ctx.createRadialGradient(0, 0, 0, 0, 0, sh.tipW * 0.5);
+      lum.addColorStop(0, 'rgba(6,2,2,0.92)'); lum.addColorStop(0.7, 'rgba(22,8,8,0.85)'); lum.addColorStop(1, 'rgba(60,30,30,0.7)');
+      ctx.beginPath(); ctx.ellipse(0, 0, sh.tipW * 0.5, sh.tipW * 0.26, 0, 0, Math.PI * 2); ctx.fillStyle = lum; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.88)'; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, -1, sh.tipW * 0.40, sh.tipW * 0.17, 0, Math.PI * 1.1, Math.PI * 1.9); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.stroke();
       ctx.restore();
       const me = C[N - 2];
       ctx.beginPath(); ctx.ellipse(me[0] - me[2] * me[4] * 0.45, me[1] - me[3] * me[4] * 0.45, sh.tipW * 0.12, sh.tipW * 0.07, Math.atan2(me[6], me[5]), 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(30,12,12,0.7)'; ctx.fill();
-      // the part that went through the cords / behind the arytenoids disappears into the dark
+      ctx.fillStyle = 'rgba(30,12,12,0.72)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 0.8; ctx.stroke();
+      // the part that went through the cords / into the oesophageal inlet disappears into the dark
       if (o.tube.placed) {
         ctx.save();
         if (o.tube.placed === 'trachea') {
           const t = glottisPoly(o, W, H); ctx.beginPath(); ctx.moveTo(...t[0]); ctx.lineTo(...t[1]); ctx.lineTo(...t[2]); ctx.closePath(); ctx.clip();
+          path(L, R); ctx.fillStyle = 'rgba(8,2,2,0.80)'; ctx.fill();
         } else {
-          const a = gp(o.g, 0, -0.42, W, H, o.st.steer); ctx.beginPath(); ctx.rect(0, a[1], W, H); ctx.clip();
+          const r = sh.tipW * 2.2;
+          const rg = ctx.createRadialGradient(tc[0], tc[1], 0, tc[0], tc[1], r);
+          rg.addColorStop(0, 'rgba(10,2,2,0.95)'); rg.addColorStop(0.45, 'rgba(24,4,4,0.75)'); rg.addColorStop(1, 'rgba(24,4,4,0)');
+          path(L, R); ctx.clip();
+          ctx.fillStyle = rg; ctx.fillRect(tc[0] - r, tc[1] - r, r * 2, r * 2);
         }
-        path(L, R); ctx.fillStyle = 'rgba(8,2,2,0.82)'; ctx.fill();
         ctx.restore();
       }
       ctx.restore();
@@ -1087,21 +1226,41 @@ void main(){
     const arc = (p0, p1, r) => { const a0 = ang(p0), a1 = ang(p1); const large = (a1 - a0) > Math.PI ? 1 : 0; return `M${(CX + Math.cos(a0) * r).toFixed(1)} ${(CY + Math.sin(a0) * r).toFixed(1)}A${r} ${r} 0 ${large} 1 ${(CX + Math.cos(a1) * r).toFixed(1)} ${(CY + Math.sin(a1) * r).toFixed(1)}`; };
     let ticks = '';
     for (let p = 0; p <= PMAX; p += 5) { const a = ang(p), r1 = p % 10 === 0 ? 62 : 67; ticks += `<line x1="${(CX + Math.cos(a) * r1).toFixed(1)}" y1="${(CY + Math.sin(a) * r1).toFixed(1)}" x2="${(CX + Math.cos(a) * 72).toFixed(1)}" y2="${(CY + Math.sin(a) * 72).toFixed(1)}"/>`; if (p % 10 === 0) ticks += `<text x="${(CX + Math.cos(a) * 50).toFixed(1)}" y="${(CY + Math.sin(a) * 50 + 4).toFixed(1)}">${p}</text>`; }
+    // barrel scale: 0 ml at the tip (left), 10 ml near the flange (right), 16 px per ml
+    const PX = 16;
     let grads = '';
-    for (let v = 0; v <= 10; v++) grads += `<line x1="${100 + v * 20}" y1="52" x2="${100 + v * 20}" y2="${v % 2 === 0 ? 66 : 60}"/>${v % 2 === 0 ? `<text x="${100 + v * 20}" y="80">${v}</text>` : ''}`;
+    for (let v = 0; v <= 20; v++) { const x = 120 + v * PX / 2; grads += `<line x1="${x}" y1="44" x2="${x}" y2="${v % 2 === 0 ? 56 : 51}"/>${v % 4 === 0 ? `<text x="${x}" y="68">${v / 2}</text>` : ''}`; }
+    // tracheal cross-section: cartilage horseshoe, mucosa, tube, cuff
+    const XC = 70, XR = 52;
+    let rings = '';
+    for (let i = 0; i < 14; i++) { const a = (-128 + i * 256 / 13) * Math.PI / 180; rings += `<line x1="${(XC + Math.sin(a) * (XR + 3)).toFixed(1)}" y1="${(XC - Math.cos(a) * (XR + 3)).toFixed(1)}" x2="${(XC + Math.sin(a) * (XR + 8)).toFixed(1)}" y2="${(XC - Math.cos(a) * (XR + 8)).toFixed(1)}"/>`; }
+    let bub = '';
+    for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2 + 0.4; bub += `<circle class="b" cx="${(XC + Math.cos(a) * (XR - 9)).toFixed(1)}" cy="${(XC + Math.sin(a) * (XR - 9)).toFixed(1)}" r="${(1.6 + (i % 3) * 0.7).toFixed(1)}" style="animation-delay:${(i * 0.17).toFixed(2)}s"/>`; }
     root.innerHTML = `
       <div class="itb-ph"><div><div class="nza-label">${esc(T('cuff_label', 'Cuff seal'))}</div><div class="itb-pt">${esc(T('cuff_title', '10 ml syringe · pilot balloon'))}</div></div><span class="chipx sm" data-k="seal"></span></div>
       <div class="itb-cuff-body">
-        <svg class="syr" viewBox="0 0 460 150">
-          <path class="line" d="M78 73H52"/><path class="line" d="M22 73C10 73 8 100 4 140"/>
-          <ellipse class="pilot" data-k="pilot" cx="37" cy="73" rx="12" ry="8"/>
-          <path class="luer" d="M80 66h20v14H80z"/>
-          <rect class="air" data-k="air" x="100" y="50" width="200" height="46" rx="3"/>
-          <rect class="barrel" x="100" y="48" width="200" height="50" rx="4"/>
-          <g class="grads">${grads}</g>
-          <path class="flange" d="M300 34v78"/>
-          <g data-k="plunger"><rect class="stop" x="-7" y="50" width="14" height="46" rx="2"/><rect class="rod" x="7" y="66" width="150" height="14" rx="2"/><rect class="thumb" x="152" y="40" width="10" height="66" rx="3"/></g>
-          <text class="hint" x="230" y="134" data-k="shint"></text>
+        <svg class="syr" viewBox="0 0 500 120">
+          <defs>
+            <linearGradient id="itbBarrel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".30"/><stop offset=".18" stop-color="#fff" stop-opacity=".07"/><stop offset=".55" stop-color="#fff" stop-opacity=".03"/><stop offset=".85" stop-color="#fff" stop-opacity=".10"/><stop offset="1" stop-color="#fff" stop-opacity=".26"/></linearGradient>
+            <linearGradient id="itbRod" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f7f8"/><stop offset=".5" stop-color="#c9d1d5"/><stop offset="1" stop-color="#8d989e"/></linearGradient>
+            <linearGradient id="itbStop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4f53"/><stop offset=".5" stop-color="#1d2124"/><stop offset="1" stop-color="#383d41"/></linearGradient>
+            <radialGradient id="itbPilot" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#e9fffb" stop-opacity=".75"/><stop offset=".45" stop-color="#0fd4c4" stop-opacity=".22"/><stop offset="1" stop-color="#08afa2" stop-opacity=".12"/></radialGradient>
+          </defs>
+          <path class="line" d="M6 112C14 92 18 70 30 62"/>
+          <g data-k="pilotg"><ellipse class="pilot" data-k="pilot" cx="44" cy="58" rx="12" ry="8"/><path class="pshine" d="M38 53q5-3 10-1"/></g>
+          <path class="valve" d="M57 52h14l4 3v6l-4 3H57z"/><path class="vring" d="M63 52v12"/>
+          <path class="luer" d="M75 54h22l4 2v4l-4 2H75z"/><path class="nozzle" d="M101 55h19v6h-19z"/>
+          <rect class="air" data-k="air" x="120" y="36" width="160" height="44" rx="2"/>
+          <g data-k="plunger">
+            <rect class="rod" x="18" y="51" width="158" height="14" rx="1.5"/><path class="rodx" d="M22 58h150"/>
+            <rect class="stop" x="0" y="36.5" width="18" height="43" rx="3"/><path class="srib" d="M5 37v42M12 37v42"/>
+            <rect class="thumb" x="174" y="24" width="11" height="68" rx="4"/>
+          </g>
+          <rect class="barrel" x="118" y="34" width="184" height="48" rx="4"/>
+          <rect class="gloss" x="122" y="37" width="176" height="6" rx="3"/>
+          <g class="grads">${grads}</g><text class="unit" x="128" y="78">ml</text>
+          <path class="flange" d="M302 18c4 0 6 2 6 6v68c0 4-2 6-6 6"/><path class="flange2" d="M302 26v64"/>
+          <text class="hint" x="250" y="112" data-k="shint"></text>
         </svg>
         <svg class="gauge" viewBox="0 0 200 200">
           <circle class="face" cx="${CX}" cy="${CY}" r="${RR + 8}"/>
@@ -1112,6 +1271,29 @@ void main(){
           <text class="unit" x="${CX}" y="${CY + 38}">cmH₂O</text>
           <text class="val" data-k="pv" x="${CX}" y="${CY + 62}">0</text>
         </svg>
+        <div class="itb-xs">
+          <svg viewBox="0 0 140 150" data-k="xs">
+            <defs><radialGradient id="itbMuc" cx="50%" cy="50%" r="50%"><stop offset=".78" stop-color="#5a1518"/><stop offset=".92" stop-color="#b8484a"/><stop offset="1" stop-color="#d77a72"/></radialGradient></defs>
+            <path class="cart" d="M${XC - 41} ${XC + 33}A${XR + 6} ${XR + 6} 0 1 1 ${XC + 41} ${XC + 33}"/>
+            <g class="rings">${rings}</g>
+            <path class="memb" d="M${XC - 41} ${XC + 33}Q${XC} ${XC + 46} ${XC + 41} ${XC + 33}"/>
+            <circle class="pale" cx="${XC}" cy="${XC}" r="${XR}"/>
+            <circle class="muc" data-k="muc" cx="${XC}" cy="${XC}" r="${XR}"/>
+            <circle class="lumen" cx="${XC}" cy="${XC}" r="${XR - 4}"/>
+            <g class="leak" data-k="leak">${bub}</g>
+            <circle class="cuffb" data-k="cuffb" cx="${XC}" cy="${XC}" r="24"/>
+            <circle class="tubew" cx="${XC}" cy="${XC}" r="21"/>
+            <circle class="tubel" cx="${XC}" cy="${XC}" r="16.5"/>
+            <path class="tubeline" d="M${XC + 18.5} ${XC - 4}v8"/>
+            <text class="capk" x="${XC}" y="${XC - XR - 12}">${esc(T('cuff_x_ant', 'ANT'))}</text>
+            <text class="cap" x="${XC}" y="${XC + XR + 22}">${esc(T('cuff_x_title', 'Trachea · cross-section'))}</text>
+          </svg>
+          <ul class="itb-xs-l">
+            <li data-k="xs1"><i></i><span>${esc(T('cuff_x_wall', 'Cuff to wall'))}</span><b data-k="xgap">—</b></li>
+            <li data-k="xs2"><i></i><span>${esc(T('cuff_x_muc', 'Mucosal flow'))}</span><b data-k="xmuc">—</b></li>
+            <li data-k="xs3"><i></i><span>${esc(T('cuff_x_air', 'Air past the cuff'))}</span><b data-k="xair">—</b></li>
+          </ul>
+        </div>
       </div>
       <div class="itb-mini3">
         <div><span>${esc(T('cuff_volume', 'Volume'))}</span><b data-k="ml">0.0 ml</b></div>
@@ -1123,12 +1305,13 @@ void main(){
     const syr = root.querySelector('.syr');
     syr.addEventListener('pointerdown', e => { if (e.button === 0) onHold && onHold(1); if (e.button === 2) onHold && onHold(-1); });
     q('shint').textContent = T('cuff_hint', 'Hold to push · right click to let air out');
+    const li = k => q(k);
     return {
       el: root,
       set({ ml, p, leak }) {
         const left = 10 - ml;
-        q('plunger').setAttribute('transform', `translate(${(100 + left * 20).toFixed(1)} 0)`);
-        q('air').setAttribute('width', (left * 20).toFixed(1));
+        q('plunger').setAttribute('transform', `translate(${(120 + left * PX).toFixed(1)} 0)`);
+        q('air').setAttribute('width', Math.max(0, left * PX).toFixed(1));
         q('pilot').setAttribute('rx', (8 + clamp(p, 0, 60) / 60 * 10).toFixed(1));
         q('pilot').setAttribute('ry', (5 + clamp(p, 0, 60) / 60 * 6).toFixed(1));
         q('needle').setAttribute('transform', `rotate(${(A0 + clamp(p, 0, PMAX) / PMAX * SW + 90).toFixed(1)} ${CX} ${CY})`);
@@ -1140,6 +1323,21 @@ void main(){
         const s = q('seal');
         s.textContent = leak ? T('cuff_leak', 'Leak') : inb ? T('cuff_sealed', 'Sealed') : p > band[1] ? T('cuff_high', 'Too high') : T('cuff_low', 'Under-filled');
         s.className = `chipx sm ${leak ? 'amber' : inb ? 'teal' : p > band[1] ? 'red' : ''}`;
+        // cross-section: the balloon grows until it meets the wall; above the band it squeezes the mucosa pale
+        const touch = clamp(p / band[0], 0, 1);
+        const r = 21 + (XR - 21.5) * Math.pow(Math.min(1, ml / 6), 0.7) * (0.55 + 0.45 * touch);
+        q('cuffb').setAttribute('r', Math.min(XR - 0.3, r).toFixed(1));
+        const blanch = clamp((p - band[1]) / 18, 0, 1);
+        q('muc').style.opacity = (1 - blanch * 0.75).toFixed(2);
+        q('xs').classList.toggle('blanch', blanch > 0.05);
+        q('leak').style.display = (leak || p < band[0]) && ml > 0.2 ? '' : 'none';
+        const gap = Math.max(0, XR - r);
+        q('xgap').textContent = gap < 0.6 ? T('cuff_x_contact', 'contact') : `${(gap / XR * 9).toFixed(1)} mm`;
+        q('xmuc').textContent = blanch > 0.05 ? T('cuff_x_low', 'reduced') : T('cuff_x_ok', 'normal');
+        q('xair').textContent = leak || p < band[0] ? T('cuff_x_yes', 'yes') : T('cuff_x_no', 'none');
+        li('xs1').className = gap < 0.6 ? 'ok' : 'warn';
+        li('xs2').className = blanch > 0.05 ? 'bad' : 'ok';
+        li('xs3').className = leak || p < band[0] ? 'warn' : 'ok';
       },
       destroy() { root.remove(); },
     };
@@ -1816,7 +2014,7 @@ void main(){
       wide() {
         const cm = tubeCm(), t = S.A.depth;
         const ok = S.tube.placed && Math.abs(cm - t) <= 1;
-        return { label: T('w_depth', 'Tube depth'), value: cm.toFixed(0), unit: T('u_cm_teeth', 'cm at the teeth'), meter: { value: cm / CM_FULL, zone: [(t - 1) / CM_FULL, (t + 1) / CM_FULL] },
+        return { label: T('w_depth', 'Tube depth'), value: cm.toFixed(0), unit: T('u_cm_teeth', 'cm'), meter: { value: cm / CM_FULL, zone: [(t - 1) / CM_FULL, (t + 1) / CM_FULL] },
           caption: !S.tube.placed ? (S.tube.pr < 0.05 ? T('c_aim', 'Aim, then push') : T('c_through', 'Through the cords…')) : cm > t + 2 ? T('c_tdeep', 'Too deep — pull back') : ok ? T('c_tok', 'Depth correct — press Enter') : T('c_tpush', 'Keep pushing'), captionTone: ok ? 'teal' : cm > t + 2 ? 'red' : '' };
       },
       enterKey() {
@@ -1928,7 +2126,7 @@ void main(){
         S.tube.pr = clamp(S.tube.pr + d / CM_FULL, 0, 1);
         S.cuff.p = cuffPressure(S.cuff.ml); S.cuff.leak = S.cuff.p < 18 || tubeCm() < S.A.depth - 3;
         S.conf.res = {}; UI.conf.spot(S.conf.spot, S.conf.res);
-        if (tubeCm() < 15) { flash('bad', T('f_out', 'The tube came out.')); abortAttempt('out'); return; }
+        if (tubeCm() < 15) { flash('bad', T('f_out', 'The tube came out. Re-oxygenate and try again.')); abortAttempt('out'); return; }
         flash('ok', Tf('f_depth', 'Tube at %s cm at the teeth.', tubeCm().toFixed(0)), 1200);
       },
       secure() {

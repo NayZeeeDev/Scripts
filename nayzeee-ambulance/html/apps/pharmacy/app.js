@@ -1,12 +1,13 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · Pharmacy (app 'pharmacy')        module: pharmacy
-   v5 window, UI pack 05-market storefront:
-     Shop       categories with counts, search, sort, product cards (image, category,
-                description, struck old price, stock badge, restrictions), live order
-                column (qty steppers, insurance / staff discount, tax, cash / bank with
-                balances, Pay), thermal receipt on success
-     Insurance  member card, how cover works, Basic / Plus / Premium plans (buy, renew,
-                switch with credit for unused days)
+   v5 window, no sidebar: section tabs + purse in the title bar.
+     Counter    shelf rail (icon dock, tray count per shelf), formulary list (rows with
+                shelf-level gauge, unit price, inline stepper), product inspector (lightbox
+                stage with stock dial, instrument list, quantity + Add), counter tray dock
+                (item tiles, totals with a rolling counter, cash / bank rings, Dispense),
+                dark dispense slip in the inspector column after payment
+     Cover      member card (generic, no brand), how cover works, Basic / Plus / Premium
+                plans (buy, renew, switch with credit for unused days)
      Bills      open medical bills (pay one / pay all), recently paid
      Stock      (perm 'pharmacy') shelf levels, order from the supplier (society pays),
                 put items from your inventory on the shelf
@@ -22,7 +23,7 @@
               pharmacy:refresh → { ok, data }      pharmacy:staff → { ok, staff }
               pharmacy:restock { id, qty, from = 'order'|'inventory' } → { ok, staff, msg }
               pharmacy:invoice { sid, amount, reason } → { ok, info } | { ok = false, msg }
-   Keys: ESC close (closes a dialog first) · / search · Enter pay / send
+   Keys: ESC close (closes a dialog first) · / search · ↑↓ browse · + add · Enter dispense / send
    Preview: index.html?app=pharmacy&view=shop|receipt|insurance|bills|stock|sales|desk|invoice
    ═══════════════════════════════════════════════════════════ */
 (() => {
@@ -58,7 +59,7 @@
   const S = {
     d: null, view: 'shop', cat: 'all', q: '', sort: 'featured',
     cart: new Map(), method: 'bank', busy: false, receipt: null, msg: null, hl: null,
-    staff: null, staffBusy: false, qty: {}, rowBusy: null, skew: 0, inv: null,
+    staff: null, staffBusy: false, qty: {}, rowBusy: null, skew: 0, inv: null, sel: null, iq: 1, odo: null,
   };
   let root = null, win = null, dim = null, modal = null, invTimer = 0;
 
@@ -140,28 +141,9 @@
     clearInterval(invTimer); invTimer = 0;
   }
 
-  function navValue() { return S.view === 'shop' ? `cat:${S.cat}` : S.view; }
-
-  function navItems() {
-    const d = S.d, items = [];
-    if (isShop()) {
-      items.push({ group: T('ui_shop', 'Shop') });
-      items.push({ id: 'cat:all', icon: 'grid', label: T('cat_all', 'All products'), tally: prods().length });
-      d.categories.forEach(c => { if (num(c.count) > 0) items.push({ id: `cat:${c.id}`, icon: c.icon || CAT_ICON[c.id] || 'tag', label: c.label || catLabel(c.id), tally: num(c.count) }); });
-    }
-    const svc = [];
-    if (d.insurance.enabled) svc.push({ id: 'insurance', icon: 'shield', label: T('ui_insurance', 'Insurance'), tally: insStatusLabel() });
-    if (d.bills.enabled) svc.push({ id: 'bills', icon: 'receipt', label: T('ui_bills', 'Bills'), tally: d.bills.list.length ? d.bills.list.length : null });
-    if (svc.length) items.push({ group: T('ui_services', 'Services') }, ...svc);
-    if (d.canManage && isShop()) {
-      const att = S.staff ? num(S.staff.low) + num(S.staff.out) : null;
-      items.push({ group: T('ui_staff', 'Staff') },
-        { id: 'stock', icon: 'box', label: T('ui_stock', 'Stock'), tally: att ? att : null },
-        { id: 'sales', icon: 'chart', label: T('ui_sales', 'Sales log') });
-    }
-    return items;
-  }
-
+  /* ═════════════════════════ window shell ═════════════════════════
+     Title bar: section tabs (Counter · Cover · Bills · Shelf stock · Sales log) and the
+     purse (cash / bank). No sidebar: the counter uses the whole body. */
   function insState() {
     const c = S.d.insurance.current;
     if (!c) return 'none';
@@ -169,46 +151,54 @@
   }
   const insStatusLabel = () => ({ active: T('ui_active', 'Active'), expired: T('ui_expired', 'Expired'), none: T('ui_inactive', 'Inactive') }[insState()]);
 
+  // status ring in a 100 box (rotated so it starts at 12 o'clock)
+  function ring(p, { r = 42, w = 8, ticks = 0, cls = '' } = {}) {
+    const C = 2 * Math.PI * r, off = C * (1 - Math.max(0, Math.min(1, p)));
+    let tk = '';
+    for (let i = 0; i < ticks; i++) {
+      const a = (i / ticks) * Math.PI * 2, big = i % 5 === 0, r1 = 49.5, r2 = big ? 45.5 : 47.4;
+      tk += `<line x1="${(50 + r1 * Math.sin(a)).toFixed(2)}" y1="${(50 - r1 * Math.cos(a)).toFixed(2)}" x2="${(50 + r2 * Math.sin(a)).toFixed(2)}" y2="${(50 - r2 * Math.cos(a)).toFixed(2)}"${big ? ' class="b"' : ''}/>`;
+    }
+    return `<svg class="ph-rs ${cls}" viewBox="0 0 100 100">${tk ? `<g class="tk">${tk}</g>` : ''}<circle class="tr" cx="50" cy="50" r="${r}" stroke-width="${w}"/><circle class="ar" cx="50" cy="50" r="${r}" stroke-width="${w}" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/></svg>`;
+  }
+
+  function tabs() {
+    const d = S.d, t = [];
+    if (isShop()) t.push({ v: 'shop', ic: 'pill', l: T('ui_tab_counter', 'Counter') });
+    if (d.insurance.enabled) { const st = insState(); t.push({ v: 'insurance', ic: 'shield', l: T('ui_insurance', 'Cover'), dot: st === 'active' ? 'ok' : st === 'expired' ? 'bad' : 'off' }); }
+    if (d.bills.enabled) t.push({ v: 'bills', ic: 'receipt', l: T('ui_bills', 'Bills'), n: d.bills.list.length, tone: 'bad' });
+    if (d.canManage && isShop()) {
+      const att = S.staff ? num(S.staff.low) + num(S.staff.out) : 0;
+      t.push({ v: 'stock', ic: 'box', l: T('ui_stock', 'Shelf stock'), n: att, tone: 'warn' }, { v: 'sales', ic: 'chart', l: T('ui_sales', 'Sales log') });
+    }
+    return t;
+  }
+
+  function midHTML() {
+    const open = isShop() ? `<span class="ph-open"><i></i>${esc(T('ui_open', 'Open'))}</span>` : '';
+    return `<nav class="ph-tabs">${tabs().map(t => `<button data-act="tab" data-v="${t.v}" class="${S.view === t.v ? 'on' : ''}">${icon(t.ic)}<span>${esc(t.l)}</span>${t.n ? `<i class="n ${t.tone || ''}">${t.n}</i>` : ''}${t.dot ? `<i class="d ${t.dot}"></i>` : ''}</button>`).join('')}</nav>${open}`;
+  }
+
+  // title-bar tabs + purse (kept under this name: every data change calls it)
   function renderSide() {
     if (!win) return;
-    win.setNav(navItems(), navValue());
-    const side = win.side;
-    const t = side.querySelector('[data-id="insurance"] .tally');
-    if (t) t.classList.add(insState() === 'active' ? 'ok' : insState() === 'expired' ? 'bad' : 'off');
-    const b = side.querySelector('[data-id="bills"] .tally');
-    if (b) b.classList.add('bad');
-    const s = side.querySelector('[data-id="stock"] .tally');
-    if (s) s.classList.add('warn');
-    const c = S.d.insurance.current, st = insState();
-    const w = document.createElement('div');
-    w.className = 'ph-wallet';
-    w.innerHTML = `<div class="wl"><span>${esc(T('ui_wallet', 'Wallet'))}</span>${icon('wallet')}</div>
-      <div class="wr" data-w="cash">${icon('cash')}<span>${esc(T('ui_cash', 'Cash'))}</span><b>${money(wallet('cash'))}</b></div>
-      <div class="wr" data-w="bank">${icon('bank')}<span>${esc(T('ui_bank', 'Bank'))}</span><b>${money(wallet('bank'))}</b></div>
-      ${S.d.insurance.enabled ? `<div class="ph-insmini ${st === 'active' ? '' : 'none'}">${icon(st === 'active' ? 'shield-check' : 'shield')}<span>${st === 'active'
-        ? `<b>${esc(c.label)}</b> · ${esc(T('ui_ins_valid', 'Valid until'))} ${esc(date(c.expires, false))}`
-        : esc(T('ui_ins_none', 'You are not insured'))}</span></div>` : ''}`;
-    side.appendChild(w);
+    win.setMid(midHTML());
+    win.act.innerHTML = `<div class="ph-purse">
+      <span class="pw" data-w="cash">${icon('cash')}<em>${esc(T('ui_cash', 'Cash'))}</em><b>${money(wallet('cash'))}</b></span>
+      <span class="pw" data-w="bank">${icon('bank')}<em>${esc(T('ui_bank', 'Bank'))}</em><b>${money(wallet('bank'))}</b></span>
+    </div>`;
   }
 
   function flashWallet(m) {
     if (!win) return;
-    const r = win.side.querySelector(`.wr[data-w="${m}"]`);
+    const r = win.act.querySelector(`.pw[data-w="${m}"]`);
     if (r) { r.classList.remove('flash'); void r.offsetWidth; r.classList.add('flash'); }
-  }
-
-  function midHTML() {
-    const sh = S.d.shop || {};
-    const where = sh.location || sh.label || sh.dept || T('ui_brand', 'Pharmacy');
-    const open = isShop() ? `<span class="ph-open"><i></i>${esc(T('ui_open', 'Open'))}</span>` : '';
-    return `<span class="ph-loc">${icon('pin')}<b>${esc(where)}</b></span>${open}
-      <label class="ph-search ${S.q ? 'has' : ''} ${S.view === 'shop' ? '' : 'off'}">${icon('search')}<input id="ph-q" placeholder="${esc(T('ui_search', 'Search products'))}" value="${esc(S.q)}" spellcheck="false" autocomplete="off"><button class="clr" data-act="clrq">${icon('x')}</button><kbd>/</kbd></label>`;
   }
 
   function status() {
     if (!win) return;
     const keys = [{ key: 'ESC', label: T('ui_k_close', 'Close') }];
-    if (S.view === 'shop') keys.push({ key: '/', label: T('ui_k_search', 'Search') }, { key: 'Enter', label: T('ui_k_pay', 'Pay') });
+    if (S.view === 'shop') keys.push({ key: '/', label: T('ui_k_search', 'Search') }, { key: '↑↓', label: T('ui_k_browse', 'Browse') }, { key: '+', label: T('ui_k_add', 'Add to tray') }, { key: 'Enter', label: T('ui_k_pay', 'Dispense') });
     const me = S.d.me && S.d.me.name ? `<span>${esc(S.d.me.name)}</span>` : '';
     win.setStatus(keys, me);
   }
@@ -217,28 +207,21 @@
     dim = NZA.el('div', 'nza-dim');
     root.appendChild(dim);
     const desk = !isShop();
+    const sh = S.d.shop || {};
     win = NZA.ui.Win(root, {
       title: (desk ? T('ui_desk', 'Billing desk') : T('ui_brand', 'Pharmacy')).toUpperCase(),
-      sub: S.d.shop.dept || S.d.shop.location || '',
-      nav: navItems(), navValue: navValue(),
-      onNav: v => go(v),
+      sub: sh.location || sh.label || sh.dept || '',
       onClose: () => NZA.close(APP),
     });
-    win.setMid(midHTML());
+    win.el.classList.add('ph-win');
     renderSide();
     renderMain();
   }
 
   function go(v) {
     closeModal();
-    if (v.startsWith('cat:')) {
-      S.view = 'shop';
-      S.cat = v.slice(4);
-    } else {
-      S.view = v;
-    }
+    S.view = v;
     if ((S.view === 'stock' || S.view === 'sales') && !S.staff && !S.staffBusy) loadStaff();
-    win.setMid(midHTML());
     renderSide();
     renderMain();
   }
@@ -247,9 +230,27 @@
     if (!win) return;
     const m = win.main;
     m.classList.toggle('ph-flush', S.view === 'shop');
+    S.odo = null;
     if (S.view === 'shop') {
-      m.innerHTML = `<div class="ph-shop"><section class="ph-catalog"><div class="ph-head"></div><div class="ph-grid"></div></section><aside class="ph-cart"></aside></div>`;
-      renderHead(); renderGrid(); renderCart();
+      m.innerHTML = `<div class="ph-counter">
+        <nav class="ph-rail"></nav>
+        <section class="ph-form">
+          <div class="ph-head"><div class="ph-ht"></div>
+            <label class="ph-search ${S.q ? 'has' : ''}">${icon('search')}<input id="ph-q" placeholder="${esc(T('ui_search', 'Find a product'))}" value="${esc(S.q)}" spellcheck="false" autocomplete="off"><button class="clr" data-act="clrq">${icon('x')}</button><kbd>/</kbd></label>
+            <div class="ph-head-r"></div></div>
+          <div class="ph-cols"><span>${esc(T('ui_col_item', 'Item'))}</span><span>${esc(T('ui_col_shelf', 'Shelf'))}</span><span>${esc(T('ui_col_unit', 'Unit'))}</span><span></span></div>
+          <div class="ph-list"></div>
+        </section>
+        <aside class="ph-insp"></aside>
+        <section class="ph-tray">
+          <div class="ph-tl"></div>
+          <div class="ph-tiles"></div>
+          <div class="ph-sum"><div class="ph-sl"></div><div class="ph-tot"><span>${esc(T('ui_total', 'To pay'))}</span><div class="ph-odo"></div></div></div>
+          <div class="ph-payc"></div>
+        </section>
+      </div>`;
+      S.odo = NZA.ui.FlipClock(m.querySelector('.ph-odo'), { value: money(totals().total) });
+      renderHead(); renderGrid(); renderInsp(); renderCart();
     } else if (S.view === 'insurance') {
       m.innerHTML = insHTML();
     } else if (S.view === 'bills') {
@@ -263,7 +264,7 @@
     status();
   }
 
-  /* ═════════════════════════ shop ═════════════════════════ */
+  /* ═════════════════════════ counter: formulary ═════════════════════════ */
   function visible() {
     const q = S.q.trim().toLowerCase();
     const list = prods().filter(p => (S.cat === 'all' || p.category === S.cat)
@@ -280,79 +281,147 @@
     return list;
   }
 
+  function shelves() {
+    const list = [{ id: 'all', icon: 'grid', label: T('cat_all_short', 'All') }];
+    S.d.categories.forEach(c => { if (num(c.count) > 0) list.push({ id: c.id, icon: c.icon || CAT_ICON[c.id] || 'tag', label: c.label || catLabel(c.id) }); });
+    return list;
+  }
+  function inTray(cat) { let n = 0; S.cart.forEach((q, id) => { const p = prod(id); if (p && (cat === 'all' || p.category === cat)) n += q; }); return n; }
+
+  function renderRail() {
+    const r = win && win.main.querySelector('.ph-rail');
+    if (!r) return;
+    r.innerHTML = `<span class="ph-rl">${esc(T('ui_shelves', 'Shelves'))}</span>` + shelves().map((s, k) => {
+      const n = s.id === 'all' ? 0 : inTray(s.id);
+      return `<button class="ph-shelf ${S.cat === s.id ? 'on' : ''}" data-act="cat" data-v="${esc(s.id)}" style="--i:${k}"><span class="ti">${icon(s.icon)}${n ? `<i>${n}</i>` : ''}</span><span class="tl">${esc(s.label)}</span></button>`;
+    }).join('');
+  }
+
   function renderHead() {
     const h = win && win.main.querySelector('.ph-head');
     if (!h) return;
     const n = visible().length;
-    const title = S.cat === 'all' ? T('cat_all', 'All products') : catLabel(S.cat);
+    const title = S.cat === 'all' ? T('ui_formulary', 'Full formulary') : catLabel(S.cat);
     const d = S.d.discount || {};
     const perk = num(d.pct) > 0
-      ? `<span class="ph-perk">${icon(d.kind === 'staff' ? 'badge' : 'shield-check')}<span><b>${esc(d.kind === 'staff' ? T('ui_staff_discount', 'Staff discount') : (d.plan || T('ui_insurance', 'Insurance')))}</b> · −${Math.round(num(d.pct) * 100)}%</span></span>` : '';
-    const sorts = [['featured', T('ui_sort_featured', 'Featured')], ['price', T('ui_sort_price', 'Price')], ['name', T('ui_sort_name', 'A-Z')]];
-    h.innerHTML = `<div><h1>${esc(title)}<span class="cnt">${esc(n === 1 ? T('ui_product', '1 product') : T('ui_products', '%d products', n))}</span></h1><p>${esc(T('ui_shop_sub', 'Prices already include product discounts.'))}</p></div>
-      <div class="ph-head-r">${perk}<div class="segc">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${S.sort === v ? 'on' : ''}">${esc(l)}</button>`).join('')}</div></div>`;
+      ? `<span class="ph-perk">${icon(d.kind === 'staff' ? 'badge' : 'shield-check')}<span><b>${esc(d.kind === 'staff' ? T('ui_staff_discount', 'Staff discount') : (d.plan || T('ui_insurance', 'Cover')))}</b> −${Math.round(num(d.pct) * 100)}%</span></span>` : '';
+    const sorts = [['featured', T('ui_sort_featured', 'Suggested')], ['price', T('ui_sort_price', 'Price')], ['name', T('ui_sort_name', 'Name')]];
+    h.querySelector('.ph-ht').innerHTML = `<small>${esc(T('ui_shelf', 'Shelf'))}</small><h1>${esc(title)}<span class="cnt">${n}</span></h1>`;
+    h.querySelector('.ph-head-r').innerHTML = `${perk}<div class="segc">${sorts.map(([v, l]) => `<button data-act="sort" data-v="${v}" class="${S.sort === v ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>`;
   }
 
-  function cardHTML(p, k) {
+  function gaugeHTML(p) {
+    if (p.locked) return `<span class="ph-gauge lock">${icon('lock')}</span>`;
+    if (!hasStock(p)) return `<span class="ph-gauge inf"><span class="bars">${'<i class="on"></i>'.repeat(5)}</span><b>${esc(T('ui_always', 'Stocked'))}</b></span>`;
+    const st = num(p.stock), cap = Math.max(st, num(p.max) || 20);
+    const lv = st <= 0 ? 0 : Math.max(1, Math.min(5, Math.ceil((st / cap) * 5)));
+    const cls = st <= 0 ? 'out' : p.low ? 'low' : '';
+    return `<span class="ph-gauge ${cls}"><span class="bars">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= lv ? 'on' : ''}"></i>`).join('')}</span><b>${st <= 0 ? esc(T('ui_sold_out', 'Empty')) : st}</b></span>`;
+  }
+
+  function rowHTML(p, k) {
     const inCart = S.cart.get(p.id) || 0;
     const max = maxFor(p);
     const out = hasStock(p) && num(p.stock) <= 0;
-    const badges = [];
-    if (p.was && p.discount > 0) badges.push(`<span class="ph-tag teal">−${Math.round(p.discount * 100)}%</span>`);
-    if (p.featured && S.cat === 'all' && !p.locked) badges.push(`<span class="ph-tag line">${icon('star')}${esc(T('ui_featured', 'Popular'))}</span>`);
-    let stock = '';
-    if (!p.locked && hasStock(p)) {
-      if (out) stock = `<span class="ph-tag red">${esc(T('ui_sold_out', 'Sold out'))}</span>`;
-      else if (p.low) stock = `<span class="ph-tag amber">${icon('alert')}${esc(T('ui_left', '%d left', num(p.stock)))}</span>`;
-      else stock = `<span class="ph-tag">${esc(T('ui_left', '%d left', num(p.stock)))}</span>`;
-    }
-    let buy;
-    if (p.locked) buy = `<button class="ph-add" disabled title="${esc(p.lockText || '')}">${icon('lock')}</button>`;
-    else if (inCart > 0) buy = `<div class="ph-step"><button data-act="dec" data-id="${esc(p.id)}">${icon('minus')}</button><b>${inCart}</b><button class="plus" data-act="inc" data-id="${esc(p.id)}" ${inCart >= max ? 'disabled' : ''}>${icon('plus')}</button></div>`;
-    else buy = `<button class="ph-add" data-act="add" data-id="${esc(p.id)}" ${max <= 0 ? 'disabled' : ''} title="${esc(T('ui_add', 'Add to order'))}">${icon('plus')}</button>`;
-    return `<article class="ph-card ${p.locked ? 'locked' : ''} ${out ? 'out' : ''} ${inCart ? 'incart' : ''}" data-id="${esc(p.id)}" style="animation-delay:${Math.min(k, 14) * 22}ms">
-      <div class="ph-vis">${badges.length ? `<div class="ph-badges">${badges.join('')}</div>` : ''}${stock ? `<div class="ph-stock">${stock}</div>` : ''}
-        ${img(p.image, catIcon(p.category))}
-        ${p.locked ? `<div class="ph-lock"><span class="i">${icon('lock')}</span>${esc(p.lockText || '')}</div>` : ''}</div>
-      <div class="ph-info"><span class="ph-catl">${esc(catLabel(p.category))}</span><b>${esc(p.label)}</b><p>${esc(p.description || '')}</p></div>
-      <div class="ph-buy"><div class="ph-price">${p.was ? `<s>${money(p.was)}</s>` : ''}<b>${money(p.price)}</b>${p.limit < 25 && !p.locked ? `<small>${esc(T('ui_max', 'Max %d per order', p.limit))}</small>` : ''}</div>${buy}</div>
-    </article>`;
+    const tags = [];
+    if (p.was && p.discount > 0) tags.push(`<span class="ph-tag teal">−${Math.round(p.discount * 100)}%</span>`);
+    if (p.featured && !p.locked) tags.push(`<span class="ph-tag line">${icon('star')}${esc(T('ui_featured', 'Staff pick'))}</span>`);
+    if (p.limit < 25 && !p.locked) tags.push(`<span class="ph-tag">${esc(T('ui_max', 'Max %d', p.limit))}</span>`);
+    let ctl;
+    if (p.locked) ctl = `<span class="ph-lockt" title="${esc(p.lockText || '')}">${icon('lock')}</span>`;
+    else if (inCart > 0) ctl = `<div class="ph-step"><button data-act="dec" data-id="${esc(p.id)}">${icon('minus')}</button><b>${inCart}</b><button class="plus" data-act="inc" data-id="${esc(p.id)}" ${inCart >= max ? 'disabled' : ''}>${icon('plus')}</button></div>`;
+    else ctl = `<button class="ph-add" data-act="add" data-id="${esc(p.id)}" ${max <= 0 ? 'disabled' : ''} title="${esc(T('ui_add', 'Add to tray'))}">${icon('plus')}</button>`;
+    return `<div class="ph-row ${S.sel === p.id ? 'sel' : ''} ${p.locked ? 'locked' : ''} ${out ? 'out' : ''} ${inCart ? 'intray' : ''}" data-act="sel" data-id="${esc(p.id)}" style="--i:${Math.min(k, 14)}">
+      <span class="ph-th">${img(p.image, catIcon(p.category))}</span>
+      <div class="ph-nm"><div class="l1"><b>${esc(p.label)}</b>${tags.join('')}</div><span>${esc(p.locked ? (p.lockText || '') : (p.description || ''))}</span></div>
+      ${gaugeHTML(p)}
+      <span class="ph-pr"><b>${money(p.price)}</b><small>${esc(T('ui_each', 'each'))}</small></span>
+      <span class="ph-ctl">${ctl}</span>
+    </div>`;
   }
 
   function renderGrid() {
-    const g = win && win.main.querySelector('.ph-grid');
+    const g = win && win.main.querySelector('.ph-list');
     if (!g) return;
     const list = visible();
+    const prev = S.sel;
+    if (!S.sel || !list.some(p => p.id === S.sel)) S.sel = list.length ? list[0].id : (S.sel && prod(S.sel) ? S.sel : null);
     const top = g.scrollTop;
-    g.innerHTML = list.length ? list.map(cardHTML).join('')
-      : `<div class="ph-empty"><span class="i">${icon('search')}</span><b>${esc(T('ui_no_match', 'Nothing matches "%s"', S.q))}</b><span>${esc(T('ui_no_match_sub', 'Try another word or switch category.'))}</span></div>`;
+    g.innerHTML = list.length ? list.map(rowHTML).join('')
+      : `<div class="ph-empty"><span class="i">${icon('search')}</span><b>${esc(T('ui_no_match', 'Nothing matches "%s"', S.q))}</b><span>${esc(T('ui_no_match_sub', 'Try another word or another shelf.'))}</span></div>`;
     g.scrollTop = top;
     hookImgs(g);
+    if (prev !== S.sel) { S.iq = 1; renderInsp(); }
   }
 
-  // re-render one card in place (keeps the grid's scroll and avoids re-animating everything)
+  // re-render one row in place (keeps the list's scroll and avoids re-animating everything)
   function refreshCard(id) {
-    const g = win && win.main.querySelector('.ph-grid');
-    const old = g && g.querySelector(`.ph-card[data-id="${CSS.escape(id)}"]`);
+    const g = win && win.main.querySelector('.ph-list');
+    const old = g && g.querySelector(`.ph-row[data-id="${CSS.escape(id)}"]`);
     const p = prod(id);
-    if (!old || !p) return renderGrid();
+    if (!old || !p) { renderGrid(); return; }
     const k = document.createElement('div');
-    k.innerHTML = cardHTML(p, 0);
+    k.innerHTML = rowHTML(p, 0);
     const n = k.firstElementChild;
     n.style.animation = 'none';
     old.replaceWith(n);
     hookImgs(n);
+    if (id === S.sel) renderInsp();
   }
 
-  function lineHTML(id, q) {
+  function select(id, scroll) {
+    if (!prod(id)) return;
+    S.sel = id; S.iq = 1;
+    const g = win && win.main.querySelector('.ph-list');
+    if (g) g.querySelectorAll('.ph-row').forEach(r => r.classList.toggle('sel', r.dataset.id === id));
+    if (scroll && g) { const r = g.querySelector(`.ph-row[data-id="${CSS.escape(id)}"]`); if (r && r.scrollIntoView) r.scrollIntoView({ block: 'nearest' }); }
+    if (S.receipt) S.receipt = null;
+    renderInsp();
+  }
+
+  /* ═════════════════════════ counter: inspector ═════════════════════════ */
+  function renderInsp() {
+    const host = win && win.main.querySelector('.ph-insp');
+    if (!host) return;
+    if (S.receipt) { host.innerHTML = slipHTML(S.receipt); hookImgs(host); return; }
+    const p = prod(S.sel);
+    if (!p) { host.innerHTML = `<div class="ph-empty"><span class="i">${icon('pill')}</span><b>${esc(T('ui_pick', 'Pick a product'))}</b><span>${esc(T('ui_pick_sub', 'Its details show up here.'))}</span></div>`; return; }
+    const pct = num(S.d.discount && S.d.discount.pct);
+    const yours = Math.floor(p.price * (1 - pct) + 0.5);
+    const inCart = S.cart.get(p.id) || 0, max = maxFor(p), room = Math.max(0, max - inCart);
+    const out = hasStock(p) && num(p.stock) <= 0;
+    S.iq = Math.max(1, Math.min(Math.max(1, room), S.iq || 1));
+    const fill = hasStock(p) ? Math.max(0, Math.min(1, num(p.stock) / Math.max(num(p.stock), num(p.max) || 20))) : 1;
+    host.innerHTML = `
+      <div class="ph-stage">
+        <span class="ph-shelfchip">${icon(catIcon(p.category))}${esc(catLabel(p.category))}</span>
+        <span class="ph-code">${esc(String(p.id).toUpperCase().replace(/_/g, '-').slice(0, 14))}</span>
+        <div class="ph-dial">${ring(fill, { r: 44, w: 3, ticks: 60, cls: out ? 'red' : p.low ? 'amber' : 'teal' })}</div>
+        <div class="ph-hero">${img(p.image, catIcon(p.category), 'hero')}</div>
+        ${p.was && p.discount > 0 ? `<span class="ph-save">−${Math.round(p.discount * 100)}%</span>` : ''}
+      </div>
+      <div class="ph-iname"><h2>${esc(p.label)}</h2><p>${esc(p.description || '')}</p></div>
+      <div class="ph-ilist">
+        <div class="ph-irow"><span>${esc(T('ui_i_unit', 'Shelf price'))}</span><b>${money(p.price)}</b></div>
+        ${pct > 0 ? `<div class="ph-irow teal"><span>${esc(T('ui_i_yours', 'With your discount'))}</span><b>${money(yours)}</b></div>` : ''}
+        <div class="ph-irow ${out ? 'red' : p.low ? 'amber' : ''}"><span>${esc(T('ui_i_stock', 'On the shelf'))}</span><b>${hasStock(p) ? num(p.stock) : esc(T('ui_always', 'Stocked'))}</b></div>
+        <div class="ph-irow"><span>${esc(T('ui_i_limit', 'Per order'))}</span><b>${p.locked ? '—' : p.limit}</b></div>
+        <div class="ph-irow white"><span>${esc(T('ui_i_tray', 'In your tray'))}</span><b>${inCart}</b></div>
+      </div>
+      <div class="ph-iact">${p.locked
+        ? `<div class="ph-lockbox">${icon('lock')}<span>${esc(p.lockText || T('ui_locked', 'Not for you'))}</span></div>`
+        : `<div class="ph-iq"><button data-act="iq" data-d="-1" ${S.iq <= 1 ? 'disabled' : ''}>${icon('minus')}</button><b>${S.iq}</b><button data-act="iq" data-d="1" ${S.iq >= room ? 'disabled' : ''}>${icon('plus')}</button></div>
+           <button class="btn-teal ph-iadd" data-act="iadd" data-id="${esc(p.id)}" ${room <= 0 ? 'disabled' : ''}>${icon(room <= 0 ? 'check' : 'plus')}<span>${esc(room <= 0 ? (out ? T('ui_sold_out', 'Empty') : T('ui_i_full', 'Limit reached')) : T('ui_i_add', 'Add %d to tray', S.iq))}</span></button>`}</div>`;
+    hookImgs(host);
+  }
+
+  /* ═════════════════════════ counter: tray ═════════════════════════ */
+  function tileHTML(id, q) {
     const p = prod(id);
     if (!p) return '';
-    const max = maxFor(p);
-    return `<div class="ph-line ${S.hl === id ? 'hl' : ''}" data-id="${esc(id)}">
-      <div class="im">${img(p.image, catIcon(p.category))}</div>
-      <div class="t"><b>${esc(p.label)}</b><span><em>${q} ×</em> ${money(p.price)}</span></div>
-      <div class="r"><b class="nza-num" style="font-size:13px">${money(p.price * q)}</b>
-        <div class="ph-step sm"><button data-act="dec" data-id="${esc(id)}">${icon('minus')}</button><b>${q}</b><button class="plus" data-act="inc" data-id="${esc(id)}" ${q >= max ? 'disabled' : ''}>${icon('plus')}</button></div></div>
+    return `<div class="ph-tile ${S.hl === id ? 'hl' : ''}" data-act="sel" data-id="${esc(id)}">
+      <span class="im">${img(p.image, catIcon(p.category))}<i>${q}</i></span>
+      <div class="t"><b>${esc(p.label)}</b><span>${money(p.price * q)}</span></div>
       <button class="rm" data-act="rm" data-id="${esc(id)}" title="${esc(T('ui_clear', 'Remove'))}">${icon('x')}</button>
     </div>`;
   }
@@ -360,92 +429,72 @@
   function payBtns(total) {
     return ['cash', 'bank'].map(m => {
       const have = wallet(m), short = have < total;
-      return `<button data-act="method" data-m="${m}" class="${S.method === m ? 'on' : ''} ${short && total > 0 ? 'short' : ''}" ${payOk(m) ? '' : 'disabled'}>
-        <span>${icon(m === 'cash' ? 'cash' : 'bank')}${esc(T(`ui_${m}`, m === 'cash' ? 'Cash' : 'Bank'))}</span>
-        <small>${short && total > 0 ? esc(T('ui_short', 'Short %s', money(total - have))) : money(have)}</small></button>`;
+      const cover = total > 0 ? Math.min(1, have / total) : 1;
+      return `<button data-act="method" data-m="${m}" class="ph-pm ${S.method === m ? 'on' : ''} ${short && total > 0 ? 'short' : ''}" ${payOk(m) ? '' : 'disabled'}>
+        <span class="r">${ring(cover, { r: 40, w: 10, cls: short && total > 0 ? 'red' : 'teal' })}${icon(m === 'cash' ? 'cash' : 'bank')}</span>
+        <span class="t"><b>${esc(T(`ui_${m}`, m === 'cash' ? 'Cash' : 'Bank'))}</b><small>${short && total > 0 ? esc(T('ui_short', 'Short %s', money(total - have))) : money(have)}</small></span></button>`;
     }).join('');
   }
 
   function renderCart() {
-    const c = win && win.main.querySelector('.ph-cart');
+    const c = win && win.main.querySelector('.ph-tray');
     if (!c) return;
+    renderRail();
     const t = totals();
-    const head = `<div class="ph-cart-h"><span class="ci">${icon('cart')}${t.count ? `<i class="${S.hl ? 'bump' : ''}">${t.count}</i>` : ''}</span>
-      <h2>${esc(T('ui_order', 'Your order'))}<small>${esc(t.count === 1 ? T('ui_item', '1 item') : T('ui_items', '%d items', t.count))}</small></h2>
-      ${S.cart.size && !S.receipt ? `<button class="btn-line btn-ic" data-act="clear" title="${esc(T('ui_clear', 'Empty order'))}">${icon('trash')}</button>` : ''}</div>`;
-    if (S.receipt) {
-      c.innerHTML = head + receiptHTML(S.receipt);
-      hookImgs(c);
-      return;
-    }
     const lines = [...S.cart];
-    const body = lines.length
-      ? `<div class="ph-lines">${lines.map(([id, q]) => lineHTML(id, q)).join('')}</div>`
-      : `<div class="ph-lines"><div class="ph-empty"><span class="i">${icon('cart')}</span><b>${esc(T('ui_empty_order', 'Your order is empty'))}</b><span>${esc(T('ui_empty_order_sub', 'Pick products from the shelf to start an order.'))}</span></div></div>`;
     const d = S.d.discount || {};
-    const discLabel = d.kind === 'staff' ? T('ui_staff_discount', 'Staff discount') : d.kind === 'both' ? T('ui_both_discount', 'Insurance + staff') : T('ui_ins_discount', '%s insurance', d.plan || '');
+    const discLabel = d.kind === 'staff' ? T('ui_staff_discount', 'Staff discount') : d.kind === 'both' ? T('ui_both_discount', 'Cover + staff') : T('ui_ins_discount', '%s cover', d.plan || '');
+    const cap = Math.max(1, num(S.d.maxLines, 30));
+    c.querySelector('.ph-tl').innerHTML = `<span class="ph-tring">${ring(lines.length / cap, { r: 42, w: 7, ticks: 30, cls: 'teal' })}<b class="${S.hl ? 'bump' : ''}">${t.count}</b></span>
+      <div><small>${esc(T('ui_order', 'Tray'))}</small><b>${esc(t.count === 1 ? T('ui_item', '1 item') : T('ui_items', '%d items', t.count))}</b>
+      ${lines.length ? `<button class="ph-clear" data-act="clear">${icon('trash')}${esc(T('ui_clear_all', 'Clear'))}</button>` : ''}</div>`;
+    c.querySelector('.ph-tiles').innerHTML = lines.length ? lines.map(([id, q]) => tileHTML(id, q)).join('')
+      : `<div class="ph-tempty"><span class="i">${icon('crate')}</span><div><b>${esc(T('ui_empty_order', 'The tray is empty'))}</b><span>${esc(T('ui_empty_order_sub', 'Pick from the formulary — items land here.'))}</span></div></div>`;
+    c.querySelector('.ph-sl').innerHTML = `
+      <div class="ln"><span>${esc(T('ui_subtotal', 'Subtotal'))}</span><b>${money(t.sub)}</b></div>
+      ${t.pct > 0 && t.sub > 0 ? `<div class="ln disc"><span>${icon(d.kind === 'staff' ? 'badge' : 'shield-check')}${esc(discLabel)} −${Math.round(t.pct * 100)}%</span><b>−${money(t.discount)}</b></div>` : ''}
+      ${t.taxPct > 0 ? `<div class="ln"><span>${esc(T('ui_tax', 'Sales tax'))} ${Math.round(t.taxPct * 1000) / 10}%</span><b>${money(t.tax)}</b></div>` : ''}`;
+    if (S.odo) S.odo.set(money(t.total));
     const canPay = lines.length && !S.busy && payOk(S.method) && wallet(S.method) >= t.total;
     const msg = S.msg ? `<div class="ph-msg ${S.msg.kind}">${icon(S.msg.kind === 'err' ? 'error' : S.msg.kind === 'warn' ? 'alert' : 'check')}<span>${esc(S.msg.text)}</span></div>` : '';
-    c.innerHTML = `${head}${body}
-      <div class="ph-sum">
-        <div class="ln"><span>${esc(T('ui_subtotal', 'Subtotal'))}</span><b>${money(t.sub)}</b></div>
-        ${t.pct > 0 ? `<div class="ln disc"><span>${icon(d.kind === 'staff' ? 'badge' : 'shield-check')}${esc(discLabel)} · −${Math.round(t.pct * 100)}%</span><b>−${money(t.discount)}</b></div>` : ''}
-        ${t.taxPct > 0 ? `<div class="ln"><span>${esc(T('ui_tax', 'Sales tax'))} (${Math.round(t.taxPct * 1000) / 10}%)</span><b>${money(t.tax)}</b></div>` : ''}
-        <div class="tot"><span>${esc(T('ui_total', 'Total'))}</span><b>${money(t.total)}</b></div>
-        <div class="lbl">${esc(T('ui_pay_with', 'Pay with'))}</div>
-        <div class="ph-pay">${payBtns(t.total)}</div>
-        <button class="btn-teal btn-block ph-paybtn ${S.busy ? 'busy' : ''}" data-act="pay" ${canPay ? '' : 'disabled'}>${S.busy
-          ? `<span class="ph-spin"></span>${esc(T('ui_paying', 'Processing payment'))}`
-          : `${esc(T('ui_pay', 'Pay %s', money(t.total)))}${lines.length ? '<kbd>Enter</kbd>' : ''}`}</button>
-        ${msg}
-      </div>`;
+    c.querySelector('.ph-payc').innerHTML = `<div class="ph-pay">${payBtns(t.total)}</div>
+      <button class="btn-teal ph-paybtn ${S.busy ? 'busy' : ''}" data-act="pay" ${canPay ? '' : 'disabled'}>${S.busy
+        ? `<span class="ph-spin"></span>${esc(T('ui_paying', 'Dispensing'))}`
+        : `${icon('check')}${esc(T('ui_pay', 'Dispense'))}${lines.length ? '<kbd>Enter</kbd>' : ''}`}</button>${msg}`;
     hookImgs(c);
     S.hl = null;
   }
 
-  function barcode(code) {
-    let h = 0, x = 0, bars = '';
-    const s = String(code || 'NZA');
-    for (let i = 0; i < 64; i++) {
-      h = (h * 31 + s.charCodeAt(i % s.length) + i * 7) >>> 0;
-      const w = 1 + (h % 3);
-      if (i % 2 === 0) bars += `<rect x="${x}" y="0" width="${w}" height="30"/>`;
-      x += w + (h >> 3) % 2;
-    }
-    return `<svg class="bc" viewBox="0 0 ${x} 30" preserveAspectRatio="none" fill="#16191a">${bars}</svg>`;
-  }
-
-  function receiptHTML(r) {
+  /* dispense slip (dark, in the inspector column) */
+  function slipHTML(r) {
     const lines = arr(r.lines);
     const kind = r.discountKind;
-    const dl = kind === 'staff' ? T('ui_staff_discount', 'Staff discount') : kind === 'both' ? T('ui_both_discount', 'Insurance + staff') : T('ui_ins_discount', '%s insurance', r.plan || '');
+    const dl = kind === 'staff' ? T('ui_staff_discount', 'Staff discount') : kind === 'both' ? T('ui_both_discount', 'Cover + staff') : T('ui_ins_discount', '%s cover', r.plan || '');
     const saved = lines.reduce((s, l) => { const p = prod(l.id); return s + (p && p.was ? (p.was - num(l.unit)) * num(l.qty) : 0); }, 0) + num(r.discount);
-    return `<div class="ph-done">
-      <div class="ph-check">${icon('check')}</div>
-      <h3>${esc(T('ui_paid', 'Payment complete'))}</h3>
-      <p>${esc(r.partial ? T('ui_partial', 'Some items did not fit - %s refunded.', money(r.refund)) : T('ui_paid_sub', 'Everything is in your inventory.'))}</p>
-      <div class="ph-receipt">
-        <div class="rh"><span class="br"><span class="nz-mark"></span>${esc(T('ui_brand', 'Pharmacy'))}</span><span>${esc(r.no || '')}</span></div>
-        <div style="height:6px"></div>
-        ${lines.map(l => `<div class="rl"><span>${num(l.qty)} × ${esc(l.label || l.name)}</span><b>${money(l.total)}</b></div>`).join('')}
-        <div class="rs"></div>
-        <div class="rl sub"><span>${esc(T('ui_subtotal', 'Subtotal'))}</span><span>${money(r.subtotal)}</span></div>
-        ${num(r.discount) > 0 ? `<div class="rl d"><span>${esc(dl)}</span><span>−${money(r.discount)}</span></div>` : ''}
-        ${num(r.tax) > 0 ? `<div class="rl sub"><span>${esc(T('ui_tax', 'Sales tax'))}</span><span>${money(r.tax)}</span></div>` : ''}
-        ${num(r.refund) > 0 ? `<div class="rl sub"><span>${esc(T('reason_refund', 'Refund'))}</span><span>−${money(r.refund)}</span></div>` : ''}
-        <div class="rl t"><span>${esc(T('ui_total', 'Total'))}</span><span>${money(r.total)}</span></div>
-        <div class="meta"><span>${esc(T('ui_paid_by', 'Paid by %s', T(`ui_${r.method}`, r.method === 'cash' ? 'Cash' : 'Bank')))}</span><span>${esc(date(r.time))} ${esc(stamp(r.time).slice(-5))}</span></div>
-        ${barcode(r.no)}
+    const by = T('ui_paid_by', 'Paid by %s', T(`ui_${r.method}`, r.method === 'cash' ? 'Cash' : 'Bank'));
+    return `<div class="ph-slip">
+      <div class="ph-slh">
+        <span class="ph-stamp">${ring(1, { r: 44, w: 4, ticks: 40, cls: 'teal' })}${icon('check')}</span>
+        <div><small>${esc(T('ui_paid', 'Dispensed'))}</small><b>${esc(r.no || '')}</b><span>${esc(date(r.time))} · ${esc(stamp(r.time).slice(-5))}</span></div>
       </div>
+      <p class="ph-slp ${r.partial ? 'warn' : ''}">${esc(r.partial ? T('ui_partial', 'Some items did not fit — %s refunded.', money(r.refund)) : T('ui_paid_sub', 'Everything is in your pockets.'))}</p>
+      <div class="ph-sll">${lines.map((l, k) => `<div class="ph-sline" style="--i:${k}"><em>${num(l.qty)}×</em><span>${esc(l.label || l.name)}</span><b>${money(l.total)}</b></div>`).join('')}</div>
+      <div class="ph-sls">
+        <div class="ln"><span>${esc(T('ui_subtotal', 'Subtotal'))}</span><b>${money(r.subtotal)}</b></div>
+        ${num(r.discount) > 0 ? `<div class="ln disc"><span>${esc(dl)}</span><b>−${money(r.discount)}</b></div>` : ''}
+        ${num(r.tax) > 0 ? `<div class="ln"><span>${esc(T('ui_tax', 'Sales tax'))}</span><b>${money(r.tax)}</b></div>` : ''}
+        ${num(r.refund) > 0 ? `<div class="ln"><span>${esc(T('reason_refund', 'Refund'))}</span><b>−${money(r.refund)}</b></div>` : ''}
+      </div>
+      <div class="ph-slt"><span>${esc(by)}</span><b>${money(r.total)}</b></div>
       ${saved > 0 ? `<div class="ph-saved">${icon('tag')}${esc(T('ui_saved', 'You saved %s', money(saved)))}</div>` : ''}
-      <button class="btn-line" data-act="neworder">${icon('cart')}${esc(T('ui_new_order', 'New order'))}</button>
+      <button class="btn-line ph-again" data-act="neworder">${icon('plus')}${esc(T('ui_new_order', 'Start a new tray'))}</button>
     </div>`;
   }
 
   function addToCart(id, n) {
     const p = prod(id);
     if (!p) return;
-    if (S.receipt) S.receipt = null;
+    if (S.receipt) { S.receipt = null; renderInsp(); }
     const max = maxFor(p);
     if (n > 0 && !S.cart.has(id) && S.cart.size >= num(S.d.maxLines, 30)) {
       S.msg = { kind: 'warn', text: T('err_too_many', 'Too many different products in one order.') };
@@ -480,19 +529,19 @@
       S.cart.clear();
       S.receipt = res.receipt || { lines: [], total: t.total, method };
       NZA.audio.success();
-      renderSide(); renderHead(); renderGrid(); renderCart();
+      renderSide(); renderHead(); renderGrid(); renderInsp(); renderCart();
       flashWallet(method);
     } else {
       if (res && res.data) apply(res.data);
       S.msg = { kind: 'err', text: (res && res.msg) || T('ui_failed', 'Payment failed') };
       NZA.audio.fail();
-      renderSide(); renderHead(); renderGrid(); renderCart();
+      renderSide(); renderHead(); renderGrid(); renderInsp(); renderCart();
     }
   }
 
   /* ═════════════════════════ shared view bits ═════════════════════════ */
   function methodSeg() {
-    return `<div class="ph-method"><span class="lbl">${esc(T('ui_pay_with', 'Pay with'))}</span><div class="segc">${['cash', 'bank'].filter(payOk).map(m =>
+    return `<div class="ph-method"><span class="lbl">${esc(T('ui_pay_with', 'Pay from'))}</span><div class="segc">${['cash', 'bank'].filter(payOk).map(m =>
       `<button data-act="method" data-m="${m}" class="${S.method === m ? 'on' : ''}">${esc(T(`ui_${m}`, m === 'cash' ? 'Cash' : 'Bank'))}<small>${money(wallet(m))}</small></button>`).join('')}</div></div>`;
   }
   const emptyView = (ic, title, sub = '') => `<div class="ph-empty" style="flex:1"><span class="i">${icon(ic)}</span><b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
@@ -516,7 +565,7 @@
     if (!ins.enabled) return `<div class="ph-view">${emptyView('shield', T('ui_ins_disabled', 'Health insurance is not sold at this counter.'))}</div>`;
     const cur = ins.current, st = insState(), now = nowSec();
     const card = cur ? `<div class="ph-icard ${st === 'expired' ? 'expired' : ''}">
-        <div class="top"><span class="nz-mark"></span><div class="br"><b>NAYZEEE</b><span>${esc(T('ui_ins_title', 'Health insurance'))}</span></div>
+        <div class="top"><span class="ph-cross">${icon('cross')}</span><div class="br"><b>${esc(T('ui_ins_card_t', 'HEALTH COVER'))}</b><span>${esc((S.d.shop && (S.d.shop.dept || S.d.shop.label)) || T('ui_ins_title', 'Health insurance'))}</span></div>
           <span class="st ph-tag ${st === 'active' ? 'teal' : 'red'}">${esc(insStatusLabel())}</span></div>
         <div class="chip"></div>
         <div class="plan"><div><span>${esc(T('ui_ins_current', 'Your plan'))}</span><b>${esc(cur.label)}</b></div>
@@ -883,8 +932,13 @@
       case 'add': return addToCart(id, 1);
       case 'inc': return addToCart(id, 1);
       case 'dec': return addToCart(id, -1);
-      case 'rm': S.cart.delete(id); NZA.audio.click(440); refreshCard(id); return renderCart();
-      case 'clear': S.cart.clear(); S.msg = null; renderGrid(); return renderCart();
+      case 'rm': e.stopPropagation(); S.cart.delete(id); NZA.audio.click(440); refreshCard(id); return renderCart();
+      case 'clear': S.cart.clear(); S.msg = null; renderGrid(); renderInsp(); return renderCart();
+      case 'sel': return select(id);
+      case 'cat': S.cat = b.dataset.v; renderRail(); renderHead(); return renderGrid();
+      case 'tab': return go(b.dataset.v);
+      case 'iq': { const p = prod(S.sel); if (!p) return; S.iq = Math.max(1, (S.iq || 1) + num(b.dataset.d)); NZA.audio.click(640); return renderInsp(); }
+      case 'iadd': { const q = S.iq || 1; S.iq = 1; return addToCart(id, q); }
       case 'sort': S.sort = b.dataset.v; renderHead(); return renderGrid();
       case 'method':
         if (!payOk(b.dataset.m)) return;
@@ -892,7 +946,7 @@
         if (S.view === 'shop') return renderCart();
         return renderMain();
       case 'pay': return pay();
-      case 'neworder': S.receipt = null; return renderCart();
+      case 'neworder': S.receipt = null; renderInsp(); return renderCart();
       case 'clrq': {
         e.preventDefault();
         S.q = '';
@@ -949,6 +1003,14 @@
   }
 
   const typing = e => e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
+  function browse(e, d) {
+    if (typing(e) || S.view !== 'shop' || modal || !win) return false;
+    const list = visible();
+    if (!list.length) return false;
+    const i = list.findIndex(p => p.id === S.sel);
+    select(list[Math.max(0, Math.min(list.length - 1, (i < 0 ? 0 : i + d)))].id, true);
+    return true;
+  }
 
   NZA.app(APP, {
     init(el) {
@@ -963,7 +1025,7 @@
       data = data || {};
       LOC = Object.assign({}, data.locale || {});
       S.busy = false; S.msg = null; S.receipt = null; S.staff = null; S.qty = {}; S.rowBusy = null; S.inv = null;
-      S.cart = new Map(); S.q = ''; S.cat = 'all'; S.sort = 'featured';
+      S.cart = new Map(); S.q = ''; S.cat = 'all'; S.sort = 'featured'; S.sel = null; S.iq = 1; S.odo = null;
       if (data.mode === 'invoice') return openInvoice(data);
       S.d = normalize(Object.assign({}, data));
       const pd = S.d.payment.default === 'cash' ? 'cash' : 'bank';
@@ -993,9 +1055,12 @@
         if (S.inv) { sendInvoice(); return true; }
         if (e.target && e.target.id === 'ph-q') { e.target.blur(); return true; }   // never pay from the search box
         if (S.view === 'shop' && S.cart.size && !S.receipt) { pay(); return true; }
-        if (S.view === 'shop' && S.receipt) { S.receipt = null; renderCart(); return true; }
+        if (S.view === 'shop' && S.receipt) { S.receipt = null; renderInsp(); renderCart(); return true; }
         return false;
       },
+      ArrowDown(e) { return browse(e, 1); },
+      ArrowUp(e) { return browse(e, -1); },
+      '+'(e) { if (typing(e) || S.view !== 'shop' || !S.sel || modal) return false; addToCart(S.sel, 1); return true; },
       '/'(e) {
         if (typing(e) || S.view !== 'shop' || !win) return false;
         const q = win.el.querySelector('#ph-q');
@@ -1054,7 +1119,7 @@
       discount: insured ? { pct: 0.2, kind: 'insurance', plan: 'Plus', insurance: 0.2, staff: 0 } : { pct: 0 }, maxLines: 30,
       insurance: {
         enabled: true, card: true, maxDays: 90, plans,
-        current: insured ? { plan: 'plus', label: 'Plus', icon: 'shield-check', cover: 0.65, pharmacy: 0.2, days: 14, expires: now + 11 * 86400 + 5 * 3600, started: now - 3 * 86400, serial: 'NZ-7KQ4-H2MX', active: true } : null,
+        current: insured ? { plan: 'plus', label: 'Plus', icon: 'shield-check', cover: 0.65, pharmacy: 0.2, days: 14, expires: now + 11 * 86400 + 5 * 3600, started: now - 3 * 86400, serial: 'HC-7KQ4-H2MX', active: true } : null,
       },
       bills: {
         enabled: true,
@@ -1099,7 +1164,7 @@
     NZA.mock(`${APP}:insurance`, req => {
       const p = live.insurance.plans.find(x => x.id === req.plan);
       live.wallet[req.method] -= p.pay;
-      live.insurance.current = { plan: p.id, label: p.label, icon: p.icon, cover: p.cover, pharmacy: p.pharmacy, days: p.days, expires: p.newExpires, started: now, serial: 'NZ-7KQ4-H2MX', active: true };
+      live.insurance.current = { plan: p.id, label: p.label, icon: p.icon, cover: p.cover, pharmacy: p.pharmacy, days: p.days, expires: p.newExpires, started: now, serial: 'HC-7KQ4-H2MX', active: true };
       live.insurance.plans.forEach(x => { x.action = x.id === p.id ? 'renew' : 'switch'; });
       live.discount = { pct: p.pharmacy, kind: 'insurance', plan: p.label };
       return { ok: true, data: clone(live) };

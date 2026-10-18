@@ -365,7 +365,7 @@
           const pore = poreAt[id1] ? 1 - smooth(poreAt[id1] * 0.45, poreAt[id1] * 1.25, pr) : 0;
           const fine = noiseAt(0, x / N * 8, y / N * 8) * 0.5 + noiseAt(1, x / N * 16, y / N * 16) * 0.5;
           const i = y * N + x;
-          hgt[i] = 1 - furrow * 0.42 - pore * 0.75 + fine * 0.45;
+          hgt[i] = 1 - furrow * 0.5 - pore * 0.8 + fine * 0.18;
           cav[i] = clamp(furrow * 0.4 + pore * 0.85, 0, 1);
         }
       }
@@ -3064,20 +3064,25 @@
     float nzaDmm = max(-nzaH0, 0.0);
     // wall coordinates: roughly along the cut × depth, so lobules are round on the steep walls too
     vec2 nzaWq = vec2((nzaP.x + 0.25 * nzaP.y) * 1000.0, nzaDmm * 1.15 + nzaP.y * 300.0);
-    float nzaLob = texture2D(tNoise, nzaWq / 13.0 + vec2(0.13, 0.57)).b;
-    float nzaLob2 = texture2D(tNoise, nzaWq / 5.5 + vec2(0.41, 0.07)).b;
-    float nzaFatBand = smoothstep(1.7, 2.8, nzaDmm + (nzaN3.r - 0.5) * 1.1) * (1.0 - smoothstep(5.8, 8.0, nzaDmm + (nzaN3.g - 0.5) * 1.6));
-    float nzaSept = smoothstep(0.7, 0.9, nzaLob) * nzaFatBand;
-    float nzaFat = nzaFatBand * (1.0 - nzaSept);
-    vec3 nzaTis = mix(vec3(0.83, 0.64, 0.54), vec3(0.72, 0.2, 0.16), smoothstep(0.12, 0.5, nzaDmm));
-    nzaTis = mix(nzaTis, vec3(0.6, 0.085, 0.065), smoothstep(1.0, 2.2, nzaDmm));
-    // lobules are small domes: lighter in the middle, a warmer orange where they dip into the septa
-    vec3 nzaFatC = mix(vec3(1.0, 0.76, 0.3), vec3(0.93, 0.5, 0.15), smoothstep(0.15, 0.62, nzaLob)) * (0.9 + 0.2 * (1.0 - nzaLob2));
-    nzaFatC = mix(nzaFatC, vec3(0.8, 0.26, 0.12), smoothstep(0.45, 0.8, nzaN3.b) * 0.45);
-    nzaTis = mix(nzaTis, nzaFatC, nzaFat * 0.9);
-    nzaTis = mix(nzaTis, vec3(0.62, 0.12, 0.08), nzaSept * 0.7);
-    nzaTis = mix(nzaTis, vec3(0.2, 0.012, 0.009), smoothstep(5.0, 9.5, nzaDmm) * (1.0 - nzaFat * 0.6));
-    nzaTis *= 0.9 + 0.2 * texture2D(tNoise, nzaWq / 9.0 + 0.3).g;
+    // fat lobules: soft domes of two sizes (worley F1 → 1 at the lobule centre), no drawn septa —
+    // the gaps between them simply stay in shadow and fill with blood
+    float nzaLobA = texture2D(tNoise, nzaWq / 10.0 + vec2(0.13, 0.57)).b;
+    float nzaLobB = texture2D(tNoise, nzaWq / 4.2 + vec2(0.41, 0.07)).b;
+    float nzaDome = 1.0 - smoothstep(0.08, 0.72, min(nzaLobA * 0.85, nzaLobB * 1.05 + 0.12));
+    float nzaFatBand = smoothstep(1.6, 2.9, nzaDmm + (nzaN3.r - 0.5) * 1.4) * (1.0 - smoothstep(5.6, 8.2, nzaDmm + (nzaN3.g - 0.5) * 1.8));
+    // fresh blood stains most of the tissue: the fat only shows through in irregular patches
+    float nzaStain = smoothstep(0.38, 0.66, texture2D(tNoise, nzaWq / 26.0 + vec2(0.71, 0.23)).r + (nzaN2.g - 0.5) * 0.35);
+    float nzaFat = nzaFatBand * smoothstep(0.05, 0.55, nzaDome) * (1.0 - nzaStain * 0.7);
+    // epidermis lip → glistening dermis → (fat) → dark pooled blood at the bottom
+    vec3 nzaTis = mix(vec3(0.8, 0.55, 0.47), vec3(0.66, 0.15, 0.12), smoothstep(0.1, 0.55, nzaDmm));
+    nzaTis = mix(nzaTis, vec3(0.5, 0.06, 0.045), smoothstep(1.1, 2.4, nzaDmm));
+    nzaTis *= 0.86 + 0.28 * texture2D(tNoise, nzaWq / 3.0 + 0.3).g;
+    vec3 nzaFatC = mix(vec3(0.82, 0.46, 0.2), vec3(0.98, 0.86, 0.55), nzaDome);
+    nzaFatC = mix(nzaFatC, nzaFatC * vec3(0.86, 0.5, 0.36), smoothstep(0.4, 0.85, nzaN3.b) * 0.5);
+    nzaTis = mix(nzaTis, nzaFatC, nzaFat);
+    // shadowed crevices between the lobules
+    nzaTis *= 1.0 - nzaFatBand * (1.0 - nzaDome) * 0.35;
+    nzaTis = mix(nzaTis, vec3(0.13, 0.008, 0.006), smoothstep(4.5, 9.0, nzaDmm) * (1.0 - nzaFat * 0.5));
     nzaCol = mix(nzaCol, nzaTis, nzaInside);
     // raised skin (lidocaine wheal, blister dome) is pale and slightly translucent
     float nzaWh = smoothstep(0.3, 1.1, nzaH0) * (1.0 - nzaInside) * (1.0 - smoothstep(0.2, 0.6, nzaBs));
@@ -3088,6 +3093,8 @@
     nzaCol = mix(nzaCol, vec3(0.02), step(1.0 - nzaSo * 0.5, nzaN4.a) * 0.9);
     // clotted blood: dark maroon, thick
     nzaCl = nzaB.b * (0.8 + 0.4 * nzaN2.r);
+    // in the groove a clot is a jelly of lumps, not an even film
+    nzaCl *= mix(1.0, 0.3 + 1.15 * texture2D(tNoise, nzaWq / 5.0 + vec2(0.3, 0.8)).r, nzaInside);
     float nzaClf = smoothstep(0.08, 0.36, nzaCl);
     nzaCol = mix(nzaCol, mix(vec3(0.42, 0.11, 0.065), vec3(0.09, 0.013, 0.009), smoothstep(0.26, 0.9, nzaCl)), nzaClf);
     // wet blood: thin film tints, pools go deep red
@@ -3104,6 +3111,10 @@
     float nzaGf = smoothstep(0.04, 0.5, nzaGr * (0.35 + 0.9 * nzaGn) * (0.45 + 1.1 * nzaN4.r));
     vec3 nzaDirt = mix(vec3(0.52, 0.47, 0.4), vec3(0.27, 0.24, 0.2), nzaGn);
     vec3 nzaDirtCol = mix(nzaCol * nzaDirt, nzaDirt * vec3(0.34, 0.3, 0.26), max(nzaThin, nzaInside) * 0.75);
+    // inside the cut, dirt is mud and grit stuck to wet tissue: dark specks over a brown film
+    float nzaSpk = smoothstep(0.52, 0.78, nzaN3.a);
+    nzaDirtCol = mix(nzaDirtCol, mix(vec3(0.27, 0.18, 0.12), vec3(0.055, 0.045, 0.035), nzaSpk), nzaInside);
+    nzaGf = mix(nzaGf, smoothstep(0.05, 0.5, nzaGr) * (0.22 + 0.78 * nzaSpk), nzaInside);
     nzaCol = mix(nzaCol, nzaDirtCol, nzaGf * 0.92);
     // ... and grit: sparse sand / road-dirt particles where the grime is heavy (one random value per worley cell)
     vec2 nzaGc1 = nzaP * 41.0 + vec2(0.41, 0.17);

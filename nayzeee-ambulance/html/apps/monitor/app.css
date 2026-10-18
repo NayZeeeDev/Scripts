@@ -1,113 +1,189 @@
 /* ═══════════════════════════════════════════════════════════
-   NAYZEEE AMBULANCE · monitor — rugged NAYZEEE patient monitor (HUD overlay)
-   Device frame (.dev from nza.css) + NZA.vitals.Monitor inside, alarm banner,
-   NIBP cuff row and side hardware buttons. Opened by the field, bay, bed, cpr and
-   intubation modules with NZA.UI.Open('monitor', { target, compact }).
+   NAYZEEE AMBULANCE · monitor — "PM-4" handheld field monitor (HUD overlay)
+   Carry handle + alarm light bar on top, status rings over full-width traces,
+   rubber keys and a rotary knob on the bottom bezel. Generic model code only.
    ═══════════════════════════════════════════════════════════ */
 
-#app-monitor .mon{position:absolute;left:22px;top:22px;animation:nza-pop 220ms cubic-bezier(.2,.7,.2,1) both}
-#app-monitor .mon.pos-tr{left:auto;right:22px}
-#app-monitor .mon.pos-bl{top:auto;bottom:22px}
-#app-monitor .mon.pos-br{left:auto;right:22px;top:auto;bottom:22px}
+#app-monitor .mon{position:absolute;left:24px;top:30px;animation:pm-in-l 300ms cubic-bezier(.2,.7,.2,1) both}
+#app-monitor .mon.pos-tr{left:auto;right:24px;animation-name:pm-in-r}
+#app-monitor .mon.pos-bl{top:auto;bottom:24px}
+#app-monitor .mon.pos-br{left:auto;right:24px;top:auto;bottom:24px;animation-name:pm-in-r}
+@keyframes pm-in-l{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
+@keyframes pm-in-r{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
 
-.mon-dev{width:500px;padding:12px 12px 12px 14px;border-radius:20px;transition:width var(--slow)}
-.mon.compact .mon-dev{width:372px}
-.mon-top{display:flex;align-items:center;gap:10px;padding:0 4px 9px 2px}
-.mon-top .dev-brand{flex:1}
-.mon-model{font:600 8.5px var(--mono);letter-spacing:.14em;color:rgba(255,255,255,.3);padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.08)}
-.mon-body{display:flex;gap:10px;align-items:stretch}
+/* ── carry handle ── */
+.pm-handle{position:absolute;left:50%;top:-12px;width:46%;height:20px;transform:translateX(-50%);z-index:0}
+.pm-handle::before{content:'';position:absolute;inset:0;border:6px solid #15171a;border-bottom:0;border-radius:14px 14px 0 0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 -1px 0 rgba(255,255,255,.05),0 6px 14px rgba(0,0,0,.4)}
+.pm-handle i{position:absolute;left:18%;right:18%;top:1px;height:3px;border-radius:3px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 2px,transparent 2px 5px)}
 
-/* screen */
-.mon-screen{flex:1;min-width:0;display:flex;flex-direction:column;background:#020303}
-.mon-head{display:flex;align-items:center;gap:8px;height:22px;padding:0 9px;border-bottom:1px solid rgba(255,255,255,.06);
-  font:600 9px var(--font);letter-spacing:.12em;color:rgba(255,255,255,.5);text-transform:uppercase;white-space:nowrap}
-.mon-head .pname{color:rgba(255,255,255,.82);overflow:hidden;text-overflow:ellipsis}
-.mon-head .clock{margin-left:auto;font-family:var(--mono);letter-spacing:.04em;color:rgba(255,255,255,.62)}
-.mon-head .bat{display:inline-flex;align-items:center;gap:4px;color:rgba(255,255,255,.4)}
-.mon-head .bat i{display:block;width:16px;height:7px;border-radius:2px;border:1px solid rgba(255,255,255,.35);position:relative}
-.mon-head .bat i::after{content:'';position:absolute;left:1px;top:1px;bottom:1px;width:70%;background:var(--green);border-radius:1px}
+/* ── body ── */
+.pm{position:relative;z-index:1;width:468px;padding:7px 10px 9px;border-radius:16px;
+  background:linear-gradient(180deg,#2c3034 0%,#1c1f22 30%,#141618 72%,#0f1112 100%);border:1px solid #050607;
+  box-shadow:0 26px 54px rgba(0,0,0,.55),0 8px 16px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.1),inset 0 -2px 0 rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.025);
+  transition:width var(--slow)}
+.mon.compact .pm{width:372px}
+.pm::after{content:'';position:absolute;left:16px;right:16px;bottom:3px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,rgba(8,175,162,.55),transparent);opacity:.7}
+.pm-bump{position:absolute;width:26px;height:26px;pointer-events:none;border:0 solid #0a0b0c;filter:drop-shadow(0 1px 0 rgba(255,255,255,.06))}
+.pm-bump.tl{left:-3px;top:-3px;border-left-width:5px;border-top-width:5px;border-top-left-radius:19px}
+.pm-bump.tr{right:-3px;top:-3px;border-right-width:5px;border-top-width:5px;border-top-right-radius:19px}
+.pm-bump.bl{left:-3px;bottom:-3px;border-left-width:5px;border-bottom-width:5px;border-bottom-left-radius:19px}
+.pm-bump.br{right:-3px;bottom:-3px;border-right-width:5px;border-bottom-width:5px;border-bottom-right-radius:19px}
 
-/* alarm banner */
-.mon-alarm{display:none;align-items:center;justify-content:center;gap:7px;height:21px;margin:5px 6px 0;border-radius:4px;
-  font:700 10px var(--font);letter-spacing:.14em;text-transform:uppercase}
-.mon-alarm.on{display:flex}
-.mon-alarm.l1{background:rgba(229,165,10,.16);color:#f3c35a;border:1px solid rgba(229,165,10,.45)}
-.mon-alarm.l2,.mon-alarm.l3{background:rgba(229,72,77,.2);color:#ff8a8d;border:1px solid rgba(229,72,77,.55);animation:mon-flash 1s steps(1) infinite}
-.mon-alarm.l3{background:#c92a2f;color:#fff;border-color:#ff6b70}
-.mon-alarm.muted{animation:none;opacity:.75}
-.mon-alarm .nz-ic{width:12px;height:12px}
-.mon-alarm .cnt{font-family:var(--mono);letter-spacing:.02em;opacity:.8}
-@keyframes mon-flash{50%{filter:brightness(1.45)}}
+/* alarm light bar */
+.pm-lamp{position:absolute;left:50%;top:3px;width:132px;height:5px;margin-left:-66px;border-radius:5px;background:#0b0c0d;box-shadow:inset 0 1px 2px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.05);overflow:hidden}
+.pm-lamp i{position:absolute;inset:1px;border-radius:4px;background:linear-gradient(90deg,#1d2022,#2a2e31,#1d2022)}
+.pm-lamp.on.l1 i{background:linear-gradient(90deg,#8a6006,#f3c35a,#8a6006);box-shadow:0 0 10px #e5a50a}
+.pm-lamp.on.l2 i{background:linear-gradient(90deg,#7a1418,#ff5a5f,#7a1418);box-shadow:0 0 12px #e5484d;animation:pm-lamp 0.9s steps(1) infinite}
+.pm-lamp.muted i{animation:none;opacity:.55}
+@keyframes pm-lamp{50%{opacity:.25}}
 
-/* the shared bedside monitor widget, re-laid out for the rugged device */
-.mon .vmon{grid-template-columns:1fr 176px;min-width:0;background:transparent}
-.mon.compact .vmon{grid-template-columns:1fr 132px}
-.mon .vmon .foot{display:none}
-.mon .vmon .tr{border-bottom-color:rgba(255,255,255,.04)}
-.mon .vmon .tr .tl{font-size:8px;top:4px;left:7px}
-.mon .vmon .nums{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:minmax(0,1fr)}
-.mon.compact .vmon .nums{grid-template-columns:1fr}
-.mon .vmon .nb{padding:3px 8px 3px 6px;justify-content:center;border-left:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);position:relative}
-.mon .vmon .nb .k{font-size:7.5px;letter-spacing:.12em;opacity:.85;align-self:stretch;display:flex;justify-content:space-between}
-.mon .vmon .nb .v{font-size:27px}
-.mon .vmon .nb.hr{order:1}.mon .vmon .nb.sp{order:2}
-.mon .vmon .nb.mp{order:3;grid-column:1 / -1}
-.mon .vmon .nb.rr{order:4}.mon .vmon .nb.co{order:5}
-.mon .vmon .nb.tp{order:6;grid-column:1 / -1;flex-direction:row;align-items:center;justify-content:space-between}
-.mon .vmon .nb.tp .v{font-size:16px!important}
-.mon .vmon .nb.mp{flex-direction:row;align-items:center;justify-content:space-between;gap:6px}
-.mon .vmon .nb.mp .k{flex-direction:column;justify-content:center;gap:3px;align-self:center;width:auto}
-.mon .vmon .nb.mp .v{font-size:30px;color:var(--teal-hi)}
-.mon .vmon .nb.mp .s{font-size:13px;font-weight:700;color:#fff;opacity:.92;order:-1;margin-right:auto}
-.mon .vmon .nb.co{color:var(--yellow)}
-.mon .vmon .nb.hr .v{font-size:31px}
-.mon .vmon .nb.sp .v{font-size:31px}
-.mon.compact .vmon .nb.rr,.mon.compact .vmon .nb.co,.mon.compact .vmon .nb.tp{display:none}
-.mon.compact .vmon .nb.mp{grid-column:auto}
-.mon .vmon .nb .lim{font-size:7px;font-weight:600;opacity:.55;letter-spacing:0;font-family:var(--mono)}
-.mon .vmon .nb.hr .k::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);opacity:0;align-self:center}
-.mon .vmon .nb.hr.beat .k::after{opacity:1;box-shadow:0 0 6px var(--green)}
-.mon .vmon .nb.stale .v{opacity:.45}
+/* model plate */
+.pm-plate{display:flex;align-items:center;gap:10px;height:22px;padding:4px 6px 4px 8px}
+.pm-model{display:flex;align-items:baseline;gap:8px;flex:1;min-width:0;white-space:nowrap}
+.pm-model b{font:800 11px/1 var(--mono);letter-spacing:.06em;color:rgba(255,255,255,.62);text-shadow:0 1px 0 rgba(0,0,0,.9),0 -1px 0 rgba(255,255,255,.04)}
+.pm-model span{font:700 7.5px var(--font);letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.3);overflow:hidden;text-overflow:ellipsis}
+.pm-screws{display:flex;gap:150px;position:absolute;left:50%;top:12px;transform:translateX(-50%);pointer-events:none}
+.mon.compact .pm-screws{gap:110px}
+.pm-screws i{width:6px;height:6px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#4a4f53,#16181a);box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
+.pm-screws i::after{content:'';display:block;width:4px;height:1px;margin:2.5px auto 0;background:rgba(0,0,0,.75);transform:rotate(-35deg)}
+.pm-leds{display:flex;gap:7px}
+.pm-led{width:7px;height:7px;border-radius:50%;background:#253028;box-shadow:inset 0 1px 1px rgba(0,0,0,.7)}
+.pm-led.pwr{background:#3ddc84;box-shadow:0 0 7px #3ddc84}
+.pm-led.pwr.off{background:#5a2224;box-shadow:none}
+.pm-led.al.amber{background:#f3c35a;box-shadow:0 0 7px #e5a50a}
+.pm-led.al.red{background:#ff4a4f;box-shadow:0 0 8px #ff4a4f;animation:pm-lamp .9s steps(1) infinite}
 
-/* NIBP / cuff row */
-.mon-nibp{display:flex;align-items:center;gap:9px;height:24px;padding:0 9px;border-top:1px solid rgba(255,255,255,.06);
-  font:600 8.5px var(--font);letter-spacing:.1em;color:rgba(255,255,255,.5);text-transform:uppercase;white-space:nowrap}
-.mon-nibp .cuff{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.75)}
-.mon-nibp .cuff .nz-ic{width:12px;height:12px;color:var(--teal-hi)}
-.mon-nibp .bar{position:relative;flex:1;height:4px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden;min-width:40px}
-.mon-nibp .bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--teal-lo),var(--teal-hi));border-radius:inherit}
-.mon-nibp .when{font-family:var(--mono);letter-spacing:0;color:rgba(255,255,255,.55);text-transform:none}
-.mon-nibp.busy .cuff{color:#f3c35a}
-.mon-nibp.busy .cuff .nz-ic{color:#f3c35a;animation:nza-blink .7s steps(1) infinite}
-.mon-nibp .auto{color:rgba(255,255,255,.35);font-family:var(--mono);letter-spacing:0;text-transform:none}
-.mon-nibp .ovr{display:none;color:var(--teal-hi)}
-.mon-nibp.ovr .ovr{display:inline}
+/* ── screen ── */
+.pm-screen{position:relative;border-radius:10px;background:#020303;overflow:hidden;border:1px solid #000;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.04),inset 0 12px 30px rgba(0,0,0,.65),0 1px 0 rgba(255,255,255,.06)}
+.pm-glass{position:absolute;inset:0;pointer-events:none;z-index:6;background:linear-gradient(158deg,rgba(255,255,255,.06),rgba(255,255,255,0) 32%,rgba(255,255,255,0) 70%,rgba(255,255,255,.025))}
+.pm-head{position:relative;display:flex;align-items:center;gap:8px;height:24px;padding:0 9px;border-bottom:1px solid rgba(255,255,255,.06);
+  font:600 9px var(--font);letter-spacing:.1em;color:rgba(255,255,255,.55);text-transform:uppercase;white-space:nowrap;background:linear-gradient(rgba(255,255,255,.025),transparent)}
+.pm-pt{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.pm-pt em{font-style:normal;padding:2px 5px;border-radius:4px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);font-size:7.5px;letter-spacing:.14em}
+.pm-pt .pname{color:rgba(255,255,255,.86);overflow:hidden;text-overflow:ellipsis}
+.pm-rhy{font-family:var(--mono);letter-spacing:.04em;color:#3ddc84}
+.pm-rhy.bad{color:#ff6b70}
+.pm-bat{display:inline-flex}
+.pm-bat i{display:block;width:17px;height:8px;border-radius:2px;border:1px solid rgba(255,255,255,.35);position:relative}
+.pm-bat i::before{content:'';position:absolute;right:-3px;top:2px;width:2px;height:3px;background:rgba(255,255,255,.35);border-radius:0 1px 1px 0}
+.pm-bat i::after{content:'';position:absolute;left:1px;top:1px;bottom:1px;width:68%;background:#3ddc84;border-radius:1px}
+.pm-clock{font-family:var(--mono);letter-spacing:.04em;color:rgba(255,255,255,.66)}
+/* alarm chip in the header */
+.pm-al{display:none;align-items:center;gap:5px;height:16px;padding:0 7px 0 5px;border-radius:4px;font:700 8.5px var(--font);letter-spacing:.1em}
+.pm-al.on{display:inline-flex}
+.pm-al .nz-ic{width:10px;height:10px}
+.pm-al i{font-style:normal;font-family:var(--mono);letter-spacing:0;opacity:.8}
+.pm-al.l1{background:rgba(229,165,10,.18);color:#f3c35a;box-shadow:inset 0 0 0 1px rgba(229,165,10,.5)}
+.pm-al.l2{background:rgba(229,72,77,.22);color:#ff8a8d;box-shadow:inset 0 0 0 1px rgba(229,72,77,.6);animation:pm-al 1s steps(1) infinite}
+.pm-al.l3{background:#c92a2f;color:#fff;box-shadow:inset 0 0 0 1px #ff6b70;animation:pm-al 1s steps(1) infinite}
+.pm-al.muted{animation:none;opacity:.75}
+@keyframes pm-al{50%{filter:brightness(1.5)}}
 
-/* standby */
-.mon-screen{position:relative}
-.mon-off{position:absolute;inset:0;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#020303;
-  font:600 9px var(--font);letter-spacing:.24em;color:rgba(255,255,255,.3)}
-.mon-off .nz-mark{width:28px;height:28px;border-radius:7px;opacity:.55}
-.mon.off .mon-off{display:flex}
-.mon.boot .mon-off{display:flex;animation:mon-boot 1.1s ease-out both}
-@keyframes mon-boot{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
+/* ── status rings ── */
+.pm-rings{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid rgba(255,255,255,.05)}
+.mon.compact .pm-rings{grid-template-columns:repeat(3,1fr)}
+.pm-ring{position:relative;display:flex;flex-direction:column;align-items:center;padding:6px 0 6px;color:#fff;--c:#fff}
+.pm-ring + .pm-ring{border-left:1px solid rgba(255,255,255,.045)}
+.pm-ring.hr{--c:#3ddc84} .pm-ring.sp{--c:#3fd0ff} .pm-ring.bp{--c:#0fd4c4} .pm-ring.rr{--c:#f2d64b}
+.pm-ring .pk{align-self:stretch;display:flex;align-items:baseline;justify-content:space-between;padding:0 8px;font:800 8.5px var(--font);letter-spacing:.12em;color:var(--c)}
+.pm-ring .pk i{font:600 7px var(--mono);font-style:normal;letter-spacing:0;color:rgba(255,255,255,.35)}
+.pm-ring .pr{position:relative;width:72px;height:72px;margin-top:1px}
+.mon.compact .pm-ring .pr{width:64px;height:64px}
+.pm-ring .rg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.pm-ring .tk line{stroke:rgba(255,255,255,.16);stroke-width:1}
+.pm-ring .rt{fill:none;stroke:rgba(255,255,255,.075);stroke-width:5;stroke-linecap:round}
+.pm-ring .rz{fill:none;stroke:var(--c);stroke-opacity:.18;stroke-width:9}
+.pm-ring .rf{fill:none;stroke:var(--c);stroke-width:5;stroke-linecap:round;filter:drop-shadow(0 0 3px var(--c));transition:stroke-dasharray 420ms cubic-bezier(.2,.7,.2,1)}
+.pm-ring .rn{fill:#fff;filter:drop-shadow(0 0 3px var(--c));transition:cx 420ms cubic-bezier(.2,.7,.2,1),cy 420ms cubic-bezier(.2,.7,.2,1)}
+.pm-ring .pv{position:absolute;inset:0;display:grid;place-items:center;color:var(--c)}
+.pm-ring .odo{font-size:24px;color:var(--c);text-shadow:0 0 14px rgba(0,0,0,.6);letter-spacing:-.04em}
+.pm-ring .odo .c{animation:none;color:inherit;width:.5em}
+.mon.compact .pm-ring .odo{font-size:21px}
+.pm-ring .ps{margin-top:2px;height:12px;font:600 8px/12px var(--font);letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.45);white-space:nowrap}
+.pm-ring .ps b{font:700 10px var(--mono);letter-spacing:0;color:#fff}
+.pm-ring.hr.beat .pr{animation:pm-beat 300ms ease-out}
+.pm-ring.hr.beat .pk b::before{opacity:1;box-shadow:0 0 7px #3ddc84}
+.pm-ring.hr .pk b::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:5px;background:#3ddc84;opacity:.15;vertical-align:1px;transition:opacity 80ms}
+@keyframes pm-beat{0%{transform:scale(1)}30%{transform:scale(1.045)}100%{transform:scale(1)}}
+.pm-ring.alarm{--c:#ff5a5f}
+.pm-ring.alarm .pv{animation:pm-al .8s steps(1) infinite}
+.pm-ring.bp.cuff{--c:#f3c35a}
+.pm-ring.bp.cuff .ps{color:#f3c35a;animation:nza-blink .7s steps(1) infinite}
+.pm-ring.bp.stale .pv{opacity:.45}
+.pm-ring.bp .rf{transition-duration:120ms}
 
-/* hardware buttons */
-.mon-btns{display:flex;flex-direction:column;gap:8px;width:40px;padding-top:2px}
-.mon-btns .dev-btn{width:40px;height:40px;border-radius:11px;position:relative}
-.mon-btns .dev-btn .nz-ic{width:16px;height:16px}
-.mon-btns .dev-btn.pwr .nz-ic{color:var(--teal-hi)}
-.mon.off .mon-btns .dev-btn.pwr .nz-ic{color:#ff6b70}
-.mon-btns .dev-btn.on{color:#f3c35a;box-shadow:0 0 0 1px rgba(229,165,10,.55) inset,0 3px 6px rgba(0,0,0,.5)}
-.mon-btns .dev-btn.busy .nz-ic{color:var(--teal-hi);animation:nza-blink .7s steps(1) infinite}
-.mon-btns .dev-btn .tip{position:absolute;right:48px;top:50%;transform:translateY(-50%);padding:4px 8px;border-radius:6px;background:var(--hud-solid);
-  border:1px solid var(--hud-line);font:600 10.5px var(--font);color:var(--ink);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity var(--fast)}
-.mon-btns .dev-btn:hover .tip{opacity:1}
-.mon.pos-tl .mon-btns .dev-btn .tip,.mon.pos-bl .mon-btns .dev-btn .tip{right:auto;left:48px}
-.mon-btns .led{margin:auto auto 2px;width:7px;height:7px}
-.mon.compact .mon-btns{gap:6px;width:34px}
-.mon.compact .mon-btns .dev-btn{width:34px;height:34px;border-radius:9px}
+/* ── traces ── */
+.pm-trs{position:relative}
+.pm-tr{position:relative;height:34px;border-bottom:1px solid rgba(255,255,255,.04)}
+.pm-tr.pleth{height:30px} .pm-tr.co2{height:28px}
+.mon.compact .pm-tr{height:30px}
+.pm-tr canvas{display:block;width:100%;height:100%}
+.pm-tr::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:12px 12px;background-position:0 -1px}
+.pm-tr .tl{position:absolute;left:6px;top:3px;z-index:2;font:800 7.5px var(--font);letter-spacing:.14em;padding:1px 4px;border-radius:3px;background:rgba(2,3,3,.8)}
+.pm-tr.ecg .tl{color:#3ddc84} .pm-tr.pleth .tl{color:#3fd0ff} .pm-tr.co2 .tl{color:#f2d64b}
+.pm-tr .sc{position:absolute;right:6px;top:3px;z-index:2;font:600 7px var(--mono);color:rgba(255,255,255,.35)}
+
+/* ── foot (instrument line) ── */
+.pm-foot{display:flex;align-items:center;gap:0;height:22px;padding:0 4px;font:600 8px var(--font);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.pm-foot .fi{display:inline-flex;align-items:baseline;gap:4px;padding:0 7px;position:relative}
+.pm-foot .fi + .fi::before{content:'';position:absolute;left:0;top:2px;bottom:1px;width:1px;background:rgba(255,255,255,.08)}
+.pm-foot em{font-style:normal;color:rgba(255,255,255,.4)}
+.pm-foot b{font:700 10px var(--mono);letter-spacing:0;color:rgba(255,255,255,.88);text-transform:none}
+.pm-foot i{font-style:normal;font:500 7.5px var(--mono);color:rgba(255,255,255,.35);letter-spacing:0;text-transform:none}
+.pm-foot .fi.tp b{color:#c8b6ff} .pm-foot .fi.et b{color:#f2d64b}
+.pm-foot .fi.bad b{color:#ff6b70}
+.pm-foot .fi.nb b{color:rgba(255,255,255,.62);font-size:9px}
+.pm-foot .fi.nb.ovr em{color:var(--teal-hi)}
+.pm-foot .fi.au{margin-left:auto}
+.pm-foot .fi.au b{font-size:9px;color:rgba(255,255,255,.45)}
+.mon.compact .pm-foot .fi.et{display:none}
+
+/* ── standby / boot ── */
+.pm-off{position:absolute;inset:0;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;gap:9px;background:#020303;
+  font:600 9px var(--font);letter-spacing:.24em;text-transform:uppercase;color:rgba(255,255,255,.32)}
+.pm-off b{font:800 22px var(--mono);letter-spacing:.1em;color:rgba(255,255,255,.14)}
+.pm-off .bar{width:120px;height:3px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;display:none}
+.pm-off .bar i{display:block;height:100%;width:0;background:var(--teal-hi)}
+.mon.off .pm-off{display:flex}
+.mon.boot .pm-off{display:flex;animation:pm-boot 1.3s ease-out both}
+.mon.boot .pm-off .bar{display:block}
+.mon.boot .pm-off .bar i{animation:pm-bar 1s ease-out both}
+.mon.boot .pm-off .st{visibility:hidden}
+@keyframes pm-boot{0%,75%{opacity:1}100%{opacity:0}}
+@keyframes pm-bar{to{width:100%}}
+
+/* ── bottom bezel: rubber keys, speaker, sticker, knob ── */
+.pm-keys{display:flex;align-items:center;gap:7px;padding:8px 2px 2px}
+.pm-key{position:relative;width:40px;height:28px;border-radius:8px;display:grid;place-items:center;color:rgba(255,255,255,.7);cursor:pointer;
+  background:linear-gradient(#2c3034,#17191b);border:1px solid #050505;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 3px 0 #08090a,0 4px 8px rgba(0,0,0,.45);
+  transition:transform 90ms,box-shadow 90ms,color var(--fast)}
+.pm-key .nz-ic{width:15px;height:15px}
+.pm-key:hover{color:#fff}
+.pm-key:active,.pm-key.press{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 1px 0 #08090a,0 2px 4px rgba(0,0,0,.45)}
+.pm-key.pwr .nz-ic{color:var(--teal-hi)}
+.mon.off .pm-key.pwr .nz-ic{color:#ff6b70}
+.pm-key.on{color:#f3c35a;box-shadow:inset 0 0 0 1px rgba(229,165,10,.55),0 3px 0 #08090a,0 0 12px rgba(229,165,10,.25)}
+.pm-key.busy .nz-ic{color:var(--teal-hi);animation:nza-blink .7s steps(1) infinite}
+.pm-key .tip,.pm-knob .tip{position:absolute;left:50%;bottom:38px;transform:translate(-50%,4px);padding:4px 8px;border-radius:6px;background:var(--hud-solid);
+  border:1px solid var(--hud-line);font:600 10.5px var(--font);color:var(--ink);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity var(--fast),transform var(--fast);z-index:9}
+.pm-key:hover .tip,.pm-knob:hover .tip{opacity:1;transform:translate(-50%,0)}
+.pm-grille{flex:1;height:16px;border-radius:5px;min-width:30px;
+  background:radial-gradient(circle,rgba(0,0,0,.85) 1.1px,transparent 1.5px) 0 0/6px 6px,linear-gradient(#141618,#1b1e20);box-shadow:inset 0 1px 2px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.04)}
+.pm-sticker{display:inline-flex;align-items:center;gap:5px;height:16px;padding:0 6px 0 3px;border-radius:3px;background:linear-gradient(#e9c74a,#d4ad2c);color:#1a1400;
+  font:800 6.5px var(--font);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;box-shadow:0 1px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.35);transform:rotate(-1deg)}
+.pm-sticker b{display:grid;place-items:center;width:11px;height:11px;border-radius:2px;background:#1a1400;color:#e9c74a;font-size:8px}
+.mon.compact .pm-sticker{display:none}
+.pm-knob{position:relative;width:32px;height:32px;border-radius:50%;cursor:pointer;flex:none;
+  background:repeating-conic-gradient(#33383c 0 7deg,#16181a 7deg 14deg);border:1px solid #050505;box-shadow:0 3px 6px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.05)}
+.pm-knob i{position:absolute;inset:5px;border-radius:50%;background:radial-gradient(circle at 38% 30%,#3a3f43,#15171a 70%);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 2px rgba(0,0,0,.6);
+  transition:transform 260ms cubic-bezier(.2,.7,.2,1)}
+.pm-knob i::after{content:'';position:absolute;left:50%;top:2px;width:2px;height:7px;margin-left:-1px;border-radius:2px;background:var(--teal-hi);box-shadow:0 0 5px var(--teal-hi)}
+.mon.compact .pm-knob i{transform:rotate(-60deg)}
+.pm-knob:active i{transform:rotate(30deg)}
 
 @media (prefers-reduced-motion:reduce){
-  .mon-alarm.l2,.mon-alarm.l3,.mon-nibp.busy .cuff .nz-ic,.mon-btns .dev-btn.busy .nz-ic{animation:none}
+  #app-monitor .mon,.pm-lamp.on.l2 i,.pm-al.l2,.pm-al.l3,.pm-ring.alarm .pv,.pm-ring.hr.beat .pr,.pm-key.busy .nz-ic,.pm-led.al.red{animation:none}
 }

@@ -1,6 +1,6 @@
 # Module: pharmacy (pharmacy shop, health insurance, billing)
 
-Pharmacy counters placed in game, a full storefront window, health insurance plans with an
+Pharmacy counters placed in game, a dispensary counter window (formulary, inspector, tray), health insurance plans with an
 insurance card, and `NZA.Billing` — the one billing pipeline every treatment, transport and
 respawn fee goes through (insurance share, bank / cash, unpaid bills, society + medic cut,
 external invoice scripts).
@@ -36,31 +36,39 @@ external invoice scripts).
 - The window closes when you walk more than `interact.maxDistance` away, go down, or the
   counter is removed.
 
-### Shop (v5 window)
-- Title bar: NAYZEEE mark, PHARMACY + department, location chip with "Open" dot, search
-  (`/` focuses it, clear button), red Close pill. Status bar with key caps, your name and the
-  NAYZEEE signature.
-- Sidebar: Shop (All products + every category with counts, icons), Services (Insurance with
-  Active / Inactive / Expired, Bills with the open count in red), Staff (Stock with the
-  low + sold-out count, Sales log), Wallet card (cash, bank, current plan) pinned to the bottom.
-- Header: category title + product count, the active discount chip ("Plus · −20%"),
-  Featured / Price / A–Z sort.
-- Product cards: item image (`Bridge.Inv.Image`, falls back to the category icon), discount
-  tag, Popular tag, stock badge (n left / Low stock amber / Sold out red), category, name,
-  2-line description, struck old price, price, "max n per order", `+` button that turns into a
-  − qty + stepper once the product is in the order. Restricted products stay visible with a lock
-  overlay and the reason ("On-duty medics only", "Needs a medical permission", job / grade /
-  licence) unless `showRestricted = false`. Available products sort before sold-out and locked.
-- Your order: count badge (bumps on add), lines with image, unit × qty, line total, stepper,
-  remove, empty state, Empty order. Summary: subtotal, insurance / staff discount line, sales
-  tax (when set), big total, Pay with Cash / Bank (balances, "Short $x" in red), Pay $X
-  (`Enter`), inline error messages (stock changed, money, price changed — the window refreshes
-  itself from the server reply).
-- Success: animated check, printed thermal receipt (receipt no., lines, discount, total, paid
-  by, date, barcode), "You saved $x", New order.
+### Counter (v5 window, no sidebar)
+Originality (customer requirement, `docs/design/ORIGINAL.md`): no category list with counts, no
+product-card grid with struck old prices, no order column, no white thermal receipt / barcode.
+- Title bar: UI pack mark, PHARMACY + location, section tabs (Counter · Cover with a status dot ·
+  Bills with the open count · Shelf stock with the low + sold-out count · Sales log), "Open" dot,
+  purse chips (cash, bank; they flash teal after a payment), red Close pill. Status bar with key
+  caps, your name and the UI pack signature.
+- Shelf rail (left icon dock): All + every category as an icon tile with its name; a teal badge
+  shows how many items of that shelf are in your tray; active shelf = teal glow + notch.
+- Formulary (centre): shelf title + count, search (`/` focuses it, clear button), the active
+  discount chip ("Plus −20%"), Suggested / Price / Name sort, column heads (Item · Shelf · Unit),
+  one row per product: item image tile (`Bridge.Inv.Image`, falls back to the category icon),
+  name with −% / Staff pick / Max n tags, one-line description (or the lock reason), 5-bar shelf
+  gauge with the count (amber low, red empty, "Stocked" when unlimited), unit price, and a `+`
+  slot that becomes a − qty + stepper once the product is in the tray. Restricted products stay
+  visible greyed with a lock unless `showRestricted = false`. Available sort before empty and
+  locked. ↑ / ↓ browse rows, `+` adds the selected one.
+- Inspector (right): lightbox stage (product render, ticked stock dial teal / amber / red, shelf
+  chip, item code, −% badge), name + description, instrument list (shelf price, price with your
+  discount, on the shelf, per order, in your tray), quantity selector and "Add n to tray", or the
+  lock reason for restricted products.
+- Tray dock (bottom): tray ring with the item count, item tiles (image, qty badge, line total;
+  click to inspect, × to remove; scrolls sideways), Clear, summary (subtotal, insurance / staff
+  discount, sales tax when set) with the total as a rolling counter, Cash / Bank buttons with a
+  ring showing how much of the total each balance covers ("Short $x" in red), Dispense (`Enter`),
+  inline messages (stock changed, money, price changed — the window refreshes itself from the
+  server reply).
+- After paying: a dark dispense slip replaces the inspector — ticked ring with a check, slip no.,
+  date + time, the lines (qty × name, total), subtotal / discount / tax / refund, "Paid by …" with
+  the total, "You saved $x", Start a new tray.
 
 ### Health insurance
-- Member card (NAYZEEE Health Insurance, plan, cover %, holder, member no., valid until,
+- Member card (generic: cross glyph, HEALTH COVER + department, plan, cover %, holder, member no., valid until,
   Active / Expired), coverage period meter with days left, "how cover works" with a $1,000
   split bar.
 - Plans Basic / Plus / Premium (config): price per period, cover %, pharmacy discount %,
@@ -98,7 +106,8 @@ external invoice scripts).
 | E (`interact.key`) | at a counter | open the pharmacy |
 | H (`desk.key`) | at a check-in desk with open bills | open the billing desk |
 | / | shop | focus search |
-| Enter | shop / receipt / dialogs / bill window | pay / new order / confirm / send |
+| ↑ / ↓ · + | counter | browse the formulary · add the selected product |
+| Enter | counter / slip / dialogs / bill window | dispense / new tray / confirm / send |
 | ESC | window | close (closes a dialog or clears the search first) |
 
 ## Config (`Config.Pharmacy`)

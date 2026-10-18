@@ -2050,18 +2050,21 @@
 /* ═══════════════════════════════════════════════════════════
    Part 4 · chest drain and needle decompression (full-screen 3D close-up, core/nza3d.js)
 
-   Chest drain (lateral chest wall, head at the top of the screen):
-     1 Palpate & mark   tool 1 hand: hold LMB and sweep, ribs are counted under the finger;
-                        tool 2 marker: click the 5th rib space in the middle of the armpit line
-     2 Clean            tool 3 swab: hold LMB and scrub the antiseptic over the mark
+   Chest drain (side of the chest, head at the top of the screen, front of the body toward the
+   screen edge on the drain side):
+     1 Find the spot    tool 1 gloved hand: hold LMB and sweep, the ribs light up under the
+                        fingers (palpation lens) and are counted; tool 2 skin marker: click the
+                        5th rib space in the middle of the armpit line (ink X on the skin)
+     2 Clean            tool 3 swab: hold LMB and scrub the antiseptic over the mark; the sterile
+                        drape with its window then drops over the field
      3 Numb (optional)  tool 4 lidocaine: hold LMB on the mark until the bleb rises ({N} skips)
      4 Cut              tool 5 scalpel: press at one end of the guide and drag along the rib
      5 Through the wall tool 6 clamp: hold LMB in the cut until it pops through; {Space} opens the jaws
      6 Finger sweep     tool 7 finger: hold LMB and circle around the hole
      7 Feed the tube    tool 8 tube: hold LMB and drag toward the head; stop at 10–14 cm, {Enter} clamps it
      8 Connect          tool 9 drain: click — blood / air drains, the lung re-expands
-   Decompression (front of the chest): 1 palpate & mark the 2nd space under the middle of the
-   collarbone · 2 push the needle in (hold LMB) until the air hisses out.
+   Decompression (front of the chest): 1 feel the collarbone and count down, mark the 2nd space
+   under the middle of the collarbone · 2 push the needle in (hold LMB) until the air hisses out.
    ═══════════════════════════════════════════════════════════ */
 (() => {
   'use strict';
@@ -2071,12 +2074,12 @@
   const T = (...a) => UI.T(...a);
   const esc = NZA.esc, icon = NZA.icon;
   const MM = 0.001;
-  const ORD = n => T('ord_' + n, ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][n] || `${n}th`);
+  const ORD = n => T('ord_' + n, ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'][n] || `${n}th`);
 
   /* ─────────── shared 3D shell ─────────── */
   function Shell(app, d, o) {
     const root = app.ui;
-    const S0 = { S: null, mouse: { x: 0.5, y: 0.5, cx: 0, cy: 0 }, lmb: false };
+    const S0 = { S: null, mouse: { x: 0.5, y: 0.5, cx: -999, cy: -999 }, moved: false, lmb: false };
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'us-ov3');
     app.el.appendChild(svg);
@@ -2098,18 +2101,18 @@
     } catch (e) { console.warn('[ultrasound] 3D unavailable', e); S = null; }
     S0.S = S;
     if (S) S.start();
-    const onMove = e => { S0.mouse = { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight, cx: e.clientX, cy: e.clientY }; };
+    const onMove = e => { S0.moved = true; S0.mouse = { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight, cx: e.clientX, cy: e.clientY }; };
     window.addEventListener('mousemove', onMove);
     const api = {
       S, svg, cur, card, ppHost, state: S0,
-      hit() { return S ? S.raycast(S.pointer) : null; },
+      hit() { return S && S0.moved ? S.raycast(S.pointer) : null; },
       project(uv) { if (!S) return null; const p = S.project(uv); return { x: p.x * window.innerWidth, y: p.y * window.innerHeight, visible: p.visible !== false }; },
       ring(p, text, tone) {
         // p 0..1 → progress ring at the pointer, text chip beside it
         const C = 2 * Math.PI * 19;
-        cur.style.left = `${S0.mouse.cx}px`; cur.style.top = `${S0.mouse.cy}px`;
-        cur.classList.toggle('on', p !== null && p !== undefined);
-        cur.className = `us-cur ${p !== null && p !== undefined ? 'on' : ''} ${tone || ''}`;
+        const on = S0.moved && p !== null && p !== undefined;
+        cur.style.left = `${S0.mouse.cx.toFixed(1)}px`; cur.style.top = `${S0.mouse.cy.toFixed(1)}px`;
+        cur.className = `us-cur ${on ? 'on' : ''} ${tone || ''}`;
         cur.querySelector('.fg').setAttribute('stroke-dasharray', `${(C * clamp(p || 0, 0, 1)).toFixed(1)} ${C.toFixed(1)}`);
         const tx = cur.querySelector('.tx');
         tx.textContent = text || ''; tx.className = `tx ${tone || ''}`;
@@ -2117,7 +2120,11 @@
       patient(rows) {
         const p = d.patient || {};
         card.innerHTML = `<div class="hd"><span class="av">${icon('lungs')}</span><div><div class="nm">${esc(p.name || T('patient', 'Patient'))}</div><div class="sb">${esc(o.sub || '')}</div></div></div>
-          <div class="rows">${rows.map(r => `<div class="rw"><span>${esc(r.label)}</span><b class="${r.tone || ''}">${esc(r.value)}</b></div>`).join('')}</div>`;
+          <div class="rows">${rows.map(r => `<div class="rw" data-id="${esc(r.id || '')}"><span>${esc(r.label)}</span><b class="${r.tone || ''}">${esc(r.value)}</b></div>`).join('')}</div>`;
+      },
+      row(id, value, tone) {
+        const b = card.querySelector(`.rw[data-id="${id}"] b`);
+        if (b) { b.textContent = value; b.className = tone || ''; }
       },
       destroy() {
         window.removeEventListener('mousemove', onMove);
@@ -2160,89 +2167,473 @@
     return api;
   }
 
+  /* ─────────── canvas helpers (glove grain, drape weave) ─────────── */
+  function cv(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+  // height canvas → tangent-space normal map canvas
+  function heightToNormal(hc, strength) {
+    const w = hc.width, h = hc.height, src = hc.getContext('2d').getImageData(0, 0, w, h).data;
+    const out = cv(w, h), oc = out.getContext('2d'), id = oc.createImageData(w, h);
+    const H = (x, y) => src[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+        const l = Math.hypot(dx, dy, 1), i = (y * w + x) * 4;
+        id.data[i] = (-dx / l * 0.5 + 0.5) * 255; id.data[i + 1] = (dy / l * 0.5 + 0.5) * 255; id.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; id.data[i + 3] = 255;
+      }
+    }
+    oc.putImageData(id, 0, 0);
+    return out;
+  }
+  const TEXCACHE = {};
+  function gloveGrain() {
+    if (TEXCACHE.glove) return TEXCACHE.glove;
+    const n = 256, c = cv(n, n), x = c.getContext('2d'), r = U.rng(91);
+    x.fillStyle = '#808080'; x.fillRect(0, 0, n, n);
+    for (let i = 0; i < 5200; i++) { const v = 100 + r() * 70; x.fillStyle = `rgb(${v},${v},${v})`; x.beginPath(); x.arc(r() * n, r() * n, 0.6 + r() * 1.1, 0, Math.PI * 2); x.fill(); }
+    // fine stretch lines along the fingers
+    x.globalAlpha = 0.18;
+    for (let i = 0; i < 90; i++) { const yy = r() * n; x.strokeStyle = r() < 0.5 ? '#5a5a5a' : '#a8a8a8'; x.lineWidth = 0.6; x.beginPath(); x.moveTo(0, yy); x.bezierCurveTo(n * 0.3, yy + r() * 6 - 3, n * 0.7, yy + r() * 6 - 3, n, yy); x.stroke(); }
+    TEXCACHE.glove = heightToNormal(c, 2.2);
+    return TEXCACHE.glove;
+  }
+  function weave() {
+    if (TEXCACHE.weave) return TEXCACHE.weave;
+    const n = 256, h = cv(n, n), x = h.getContext('2d'), r = U.rng(17);
+    const a = cv(n, n), ax = a.getContext('2d');
+    x.fillStyle = '#7a7a7a'; x.fillRect(0, 0, n, n);
+    ax.fillStyle = '#c9c9c9'; ax.fillRect(0, 0, n, n);
+    const th = 16, step = n / th;
+    for (let i = 0; i < th; i++) {
+      for (let j = 0; j < th; j++) {
+        const over = (i + j) % 2 === 0;
+        const px = i * step, py = j * step;
+        const g = x.createLinearGradient(px, py, over ? px : px + step, over ? py + step : py);
+        g.addColorStop(0, '#5c5c5c'); g.addColorStop(0.5, over ? '#d8d8d8' : '#b8b8b8'); g.addColorStop(1, '#5c5c5c');
+        x.fillStyle = g; x.fillRect(px + 0.5, py + 0.5, step - 1, step - 1);
+        const v = 190 + r() * 40;
+        ax.fillStyle = `rgb(${v},${v},${v})`; ax.fillRect(px, py, step, step);
+      }
+    }
+    ax.globalAlpha = 0.25;
+    for (let i = 0; i < 260; i++) { const v = r() < 0.5 ? 150 : 235; ax.strokeStyle = `rgb(${v},${v},${v})`; ax.lineWidth = 0.7; ax.beginPath(); const sx = r() * n, sy = r() * n; ax.moveTo(sx, sy); ax.lineTo(sx + r() * 14 - 7, sy + r() * 14 - 7); ax.stroke(); }
+    TEXCACHE.weave = { normal: heightToNormal(h, 3.0), albedo: a };
+    return TEXCACHE.weave;
+  }
+
   /* ─────────── custom meshes ─────────── */
   function meshes(S) {
     const THREE = window.THREE;
     const bin = [];
     const keep = x => { bin.push(x); return x; };
+    const tex = (c, srgb) => { const t = keep(new THREE.CanvasTexture(c)); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; if (srgb) t.encoding = THREE.sRGBEncoding; return t; };
+    const gloveN = tex(gloveGrain(), false); gloveN.repeat.set(3, 3);
     const M = {
-      glove: keep(new THREE.MeshPhysicalMaterial({ color: 0x4d7fd6, roughness: 0.52, clearcoat: 0.25, clearcoatRoughness: 0.5, sheen: 0.4, sheenColor: new THREE.Color(0x9fc0ff) })),
-      tube: keep(new THREE.MeshPhysicalMaterial({ color: 0xf3fbff, roughness: 0.12, transparent: true, opacity: 0.42, clearcoat: 1, clearcoatRoughness: 0.06, depthWrite: false })),
+      glove: keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x2a49b8), roughness: 0.52, normalMap: gloveN, normalScale: new THREE.Vector2(0.3, 0.3), sheen: 0.4, sheenRoughness: 0.5, sheenColor: new THREE.Color(0x7f9cf0), clearcoat: 0.12, clearcoatRoughness: 0.5 })),
+      cuff: keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x2443a8), roughness: 0.5, sheen: 0.4, sheenColor: new THREE.Color(0x7f9cf0) })),
+      sleeve: keep(new THREE.MeshStandardMaterial({ color: new THREE.Color(0x1b2533), roughness: 0.92 })),
+      tube: keep(new THREE.MeshPhysicalMaterial({ color: 0xf4fbff, roughness: 0.1, transparent: true, opacity: 0.38, clearcoat: 1, clearcoatRoughness: 0.05, depthWrite: false })),
       stripe: keep(new THREE.MeshStandardMaterial({ color: 0x1f5fd1, roughness: 0.4 })),
-      blood: keep(new THREE.MeshPhysicalMaterial({ color: 0x5e0508, roughness: 0.25, clearcoat: 0.8, transparent: true, opacity: 0.92 })),
+      blood: keep(new THREE.MeshPhysicalMaterial({ color: 0x5a0407, roughness: 0.22, clearcoat: 0.8, transparent: true, opacity: 0.93 })),
       mark: keep(new THREE.MeshBasicMaterial({ color: 0x15181a })),
-      pen: keep(new THREE.MeshPhysicalMaterial({ color: 0x6d3fb2, roughness: 0.35, clearcoat: 0.6 })),
-      penCap: keep(new THREE.MeshPhysicalMaterial({ color: 0xf2f4f5, roughness: 0.4, clearcoat: 0.4 })),
-      steri: keep(new THREE.MeshStandardMaterial({ color: 0xf4f1e8, roughness: 0.85 })),
+      barrel: keep(new THREE.MeshPhysicalMaterial({ color: 0xf1f3f4, roughness: 0.34, clearcoat: 0.5, clearcoatRoughness: 0.3 })),
+      ink: keep(new THREE.MeshPhysicalMaterial({ color: 0x5b2f9c, roughness: 0.35, clearcoat: 0.5 })),
+      grip: keep(new THREE.MeshStandardMaterial({ color: 0x6a4bb8, roughness: 0.7 })),
+      steel: keep(new THREE.MeshStandardMaterial({ color: 0xc9cfd4, roughness: 0.22, metalness: 1 })),
+      connector: keep(new THREE.MeshPhysicalMaterial({ color: 0xe8edf1, roughness: 0.3, transparent: true, opacity: 0.85, clearcoat: 0.6 })),
+      clampBlue: keep(new THREE.MeshStandardMaterial({ color: 0x2c63d6, roughness: 0.45 })),
     };
-    const api = {
-      M,
-      finger() {
-        const g = new THREE.Group();
-        // index + middle fingertips (palpating pair), gloved; the hand continues off screen
-        [[0, 0, 0.0074, 0.07], [0.0158, 0.004, 0.0078, 0.066]].forEach(([x, z, r, len]) => {
-          const f = new THREE.Mesh(keep(new THREE.CapsuleGeometry(r, len, 10, 24)), M.glove);
-          f.position.set(x, len / 2 + r * 0.6, z); f.castShadow = true; g.add(f);
-          const crease = new THREE.Mesh(keep(new THREE.TorusGeometry(r * 1.01, 0.0006, 6, 24)), M.glove);
-          crease.rotation.x = Math.PI / 2; crease.position.set(x, len * 0.42 + r, z); g.add(crease);
+    // the medic's hand is drawn as an AR ghost (fresnel rim, soft fill, fades toward the wrist):
+    // it shows exactly where the fingers press without hiding the skin under them
+    const ghostU = { uTip: { value: new THREE.Vector3() }, uCol: { value: new THREE.Color(0x3ee8d8) }, uPress: { value: 0 } };
+    M.ghost = keep(new THREE.ShaderMaterial({
+      uniforms: ghostU, transparent: true, depthWrite: false, side: THREE.FrontSide, blending: THREE.NormalBlending,
+      vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vW;
+        void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mv = viewMatrix * w; vV = -mv.xyz; vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uTip; uniform vec3 uCol; uniform float uPress; varying vec3 vN; varying vec3 vV; varying vec3 vW;
+        void main(){
+          float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+          float rim = pow(f, 2.4);
+          float d = distance(vW, uTip);
+          float fade = 1.0 - smoothstep(0.09, 0.24, d);
+          float near = 1.0 - smoothstep(0.0, 0.035, d);
+          vec3 c = uCol * (0.35 + 1.5 * rim) + vec3(0.9, 1.0, 1.0) * near * (0.25 + 0.5 * uPress);
+          float a = (0.1 + 0.62 * rim + near * (0.12 + 0.25 * uPress)) * fade;
+          gl_FragColor = vec4(c, a);
+        }`,
+    }));
+    M.ghost.depthFunc = THREE.LessEqualDepth;
+    M.ghost.polygonOffset = true; M.ghost.polygonOffsetFactor = -1; M.ghost.polygonOffsetUnits = -4;
+    M.depthOnly = keep(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true }));
+    const V2 = (x, y) => new THREE.Vector2(x, y);
+    // tapered capsule along -Y from 0 to -len (base radius r0, tip radius r1)
+    function seg(len, r0, r1, flat) {
+      const pts = [];
+      for (let i = 8; i >= 0; i--) { const a = (i / 8) * Math.PI / 2; pts.push(V2(Math.max(1e-4, r1 * Math.cos(a)), -len - r1 * Math.sin(a))); }
+      for (let i = 1; i <= 6; i++) { const t = i / 7; pts.push(V2(lerp(r1, r0, t), -len * (1 - t))); }
+      for (let i = 0; i <= 8; i++) { const a = (i / 8) * Math.PI / 2; pts.push(V2(Math.max(1e-4, r0 * Math.cos(a)), r0 * 0.8 * Math.sin(a))); }
+      const g = keep(new THREE.LatheGeometry(pts, 22));
+      g.scale(flat || 1.08, 1, 0.9);
+      return g;
+    }
+    // smooth palm: a squared-off ellipsoid (superellipse), narrower toward +Y (wrist), arched on the back
+    function palmGeo(w, l, t, taper) {
+      const g = keep(new THREE.SphereGeometry(1, 48, 32));
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        let x = p.getX(i), y = p.getY(i), zz = p.getZ(i);
+        const sq = v => Math.sign(v) * Math.pow(Math.abs(v), 0.72);
+        x = sq(x) * w / 2; y = sq(y) * l / 2; zz = sq(zz) * t / 2;
+        const k = lerp(1, taper, clamp((y + l / 2) / l, 0, 1));
+        x *= k;
+        zz += (1 - Math.pow(x / (w / 2), 2)) * t * 0.12 * (zz > 0 ? 1 : 0.3);
+        p.setXYZ(i, x, y, zz);
+      }
+      g.computeVertexNormals();
+      return g;
+    }
+
+    /* gloved right hand + sleeve. Local frame = engine tool frame: origin at the contact point,
+       +Y toward the wrist (tool axis), +Z back of the hand, palm toward -Z, thumb on +X. */
+    function hand(pose) {
+      const GM = M.ghost;
+      const g = new THREE.Group();
+      const inner = new THREE.Group();
+      g.add(inner);
+      const FINGERS = [
+        { x: 0.026, len: [0.043, 0.025, 0.02], r: 0.0088, splay: -0.05 },   // index
+        { x: 0.008, len: [0.047, 0.028, 0.021], r: 0.009, splay: 0.0 },    // middle
+        { x: -0.011, len: [0.044, 0.026, 0.02], r: 0.0086, splay: 0.05 },  // ring
+        { x: -0.028, len: [0.034, 0.02, 0.018], r: 0.0076, splay: 0.12 },  // little
+      ];
+      const P = {
+        palpate: { flex: [[0.16, 0.14, 0.1], [0.18, 0.15, 0.1], [0.42, 0.5, 0.3], [0.5, 0.55, 0.32]], thumb: [0.5, 0.3, 0.25], tz: 0.42, tilt: 1.3, yaw: -0.32 },
+        point: { flex: [[0.06, 0.05, 0.02], [1.35, 1.5, 0.8], [1.4, 1.55, 0.8], [1.45, 1.55, 0.8]], thumb: [0.9, 0.7, 0.6], tz: -0.25, tilt: 0.62, yaw: -0.9 },
+      }[pose] || {};
+      const pads = [];
+      // palm
+      const palm = new THREE.Mesh(palmGeo(0.08, 0.1, 0.026, 0.84), GM);
+      palm.position.set(-0.001, 0.047, 0.0);
+      palm.castShadow = true;
+      inner.add(palm);
+      FINGERS.forEach((f, fi) => {
+        let parent = new THREE.Group();
+        parent.position.set(f.x, 0.0, 0.0);
+        parent.rotation.z = f.splay;
+        inner.add(parent);
+        const flex = P.flex[fi];
+        f.len.forEach((L, si) => {
+          const j = new THREE.Group();
+          j.rotation.x = flex[si];
+          parent.add(j);
+          const r0 = f.r * (1 - si * 0.08), r1 = f.r * (0.9 - si * 0.08);
+          const m = new THREE.Mesh(seg(L, r0, r1), GM);
+          m.castShadow = true;
+          j.add(m);
+          const nx = new THREE.Group();
+          nx.position.y = -L;
+          j.add(nx);
+          if (si === 2) { const pad = new THREE.Object3D(); pad.position.set(0, -L * 0.55, -r1 * 0.95); j.add(pad); pads[fi] = pad; }
+          parent = nx;
         });
-        g.visible = false;
-        S.scene.add(g);
-        return g;
-      },
-      pen() {
-        const g = new THREE.Group();
-        const b = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.0055, 0.0055, 0.11, 20)), M.pen); b.position.y = 0.065; b.castShadow = true; g.add(b);
-        const tip = new THREE.Mesh(keep(new THREE.ConeGeometry(0.0055, 0.012, 20)), M.penCap); tip.rotation.x = Math.PI; tip.position.y = 0.006; g.add(tip);
-        const cap = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.006, 0.006, 0.02, 20)), M.penCap); cap.position.y = 0.122; g.add(cap);
-        g.visible = false;
-        S.scene.add(g);
-        return g;
-      },
-      // chest tube: clear PVC with a blue radio-opaque stripe, depth marks and the blood column inside
-      tube(curve) {
-        const g = new THREE.Group();
-        const outer = new THREE.Mesh(keep(new THREE.TubeGeometry(curve, 120, 0.0052, 18, false)), M.tube);
-        outer.renderOrder = 3; g.add(outer);
-        const stripeCurve = new THREE.CatmullRomCurve3(curve.getPoints(60).map((p, i, a) => {
-          const t = curve.getTangentAt(Math.min(0.999, i / (a.length - 1)));
-          const side = new THREE.Vector3(0, 1, 0).cross(t).normalize().multiplyScalar(0.0049);
-          return p.clone().add(side);
-        }));
-        g.add(new THREE.Mesh(keep(new THREE.TubeGeometry(stripeCurve, 120, 0.0009, 6, false)), M.stripe));
-        const inner = new THREE.Mesh(keep(new THREE.TubeGeometry(curve, 120, 0.0036, 12, false)), M.blood);
-        inner.geometry.setDrawRange(0, 0);
-        g.add(inner);
-        const rings = [];
-        for (let i = 0; i < 9; i++) {
-          const r = new THREE.Mesh(keep(new THREE.TorusGeometry(0.0054, 0.0005, 6, 24)), M.mark);
-          g.add(r); rings.push(r);
+      });
+      // thumb (from the palm's thumb side, palm-ward, pointing along the fingers)
+      const tb = new THREE.Group();
+      tb.position.set(0.04, 0.074, -0.008);
+      tb.rotation.set(P.thumb[0] * 0.5, 0.35, P.tz);
+      inner.add(tb);
+      let tp = tb;
+      [[0.04, 0.0118, 0.0108], [0.032, 0.0108, 0.0098]].forEach(([L, a, b], i) => {
+        const j = new THREE.Group(); j.rotation.x = P.thumb[i + 1]; tp.add(j);
+        const m = new THREE.Mesh(seg(L, a, b, 1.05), GM); m.castShadow = true; j.add(m);
+        const nx = new THREE.Group(); nx.position.y = -L; j.add(nx); tp = nx;
+      });
+      // wrist, glove cuff, sleeve
+      const wristG = keep(new THREE.CylinderGeometry(0.03, 0.033, 0.075, 28, 6, true));
+      const wrist = new THREE.Mesh(wristG, GM); wrist.scale.set(1, 1, 0.72); wrist.position.set(-0.002, 0.13, 0.0); wrist.castShadow = true; inner.add(wrist);
+      const cuff = new THREE.Mesh(keep(new THREE.TorusGeometry(0.035, 0.0035, 10, 36)), GM); cuff.rotation.x = Math.PI / 2; cuff.scale.set(1, 0.74, 1); cuff.position.set(-0.002, 0.167, 0); inner.add(cuff);
+      // move the contact point (between the pads that touch) to the origin
+      inner.updateMatrixWorld(true);
+      const use = pose === 'point' ? [pads[0]] : [pads[0], pads[1]];
+      const c = new THREE.Vector3();
+      use.forEach(p => c.add(p.getWorldPosition(new THREE.Vector3())));
+      c.multiplyScalar(1 / use.length);
+      inner.position.sub(c);
+      // depth pre-pass: only the outer surface of the ghost shows (no overlapping inner outlines)
+      const ghosts = [];
+      g.traverse(o2 => { if (o2.isMesh) ghosts.push(o2); });
+      ghosts.forEach(o2 => {
+        o2.castShadow = false; o2.renderOrder = 7;
+        const dm = new THREE.Mesh(o2.geometry, M.depthOnly);
+        dm.position.copy(o2.position); dm.quaternion.copy(o2.quaternion); dm.scale.copy(o2.scale);
+        dm.renderOrder = 6;
+        o2.parent.add(dm);
+      });
+      S.scene.add(g);
+      g.visible = false;
+      const tool = {
+        group: g, name: 'hand_' + pose, press: 0, _p: new THREE.Vector3(), _q: new THREE.Quaternion(), _init: false,
+        pose: { lift: 0.006, pressLift: pose === 'point' ? -0.016 : 0.0005, tilt: P.tilt, yaw: P.yaw, roll: 0, shadow: 0.05 },
+        tipWorld: () => g.getWorldPosition(new THREE.Vector3()), set() {},
+        update() { ghostU.uTip.value.copy(g.position); ghostU.uPress.value = tool.press; },
+      };
+      return tool;
+    }
+
+    // surgical skin marker: white barrel, violet grip and tip (tool frame: tip at origin, body +Y)
+    function pen() {
+      const g = new THREE.Group();
+      const add = (geo2, mat, y) => { const m = new THREE.Mesh(keep(geo2), mat); m.position.y = y; m.castShadow = true; g.add(m); return m; };
+      add(new THREE.ConeGeometry(0.0016, 0.006, 16), M.ink, 0.003).rotation.x = Math.PI;
+      add(new THREE.CylinderGeometry(0.0034, 0.0016, 0.008, 20), M.barrel, 0.01);
+      add(new THREE.CylinderGeometry(0.0052, 0.0044, 0.034, 24), M.grip, 0.031);
+      add(new THREE.CylinderGeometry(0.0052, 0.0052, 0.07, 24), M.barrel, 0.083);
+      add(new THREE.CylinderGeometry(0.0056, 0.0056, 0.026, 24), M.ink, 0.128);
+      add(new THREE.SphereGeometry(0.0056, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), M.ink, 0.141);
+      const clip = add(new THREE.BoxGeometry(0.0016, 0.03, 0.003), M.ink, 0.12); clip.position.x = 0.006;
+      g.visible = false;
+      S.scene.add(g);
+      return {
+        group: g, name: 'pen', press: 0, _p: new THREE.Vector3(), _q: new THREE.Quaternion(), _init: false,
+        pose: { lift: 0.002, pressLift: 0.0, tilt: 0.62, yaw: 0.85, roll: 0.4, shadow: 0.012 },
+        tipWorld: () => g.getWorldPosition(new THREE.Vector3()), set() {},
+      };
+    }
+
+    // chest tube: clear PVC with a blue radio-opaque stripe, depth marks, the blood column inside,
+    // a stepped connector and the clamp on the outside part
+    function tube(curve) {
+      const g = new THREE.Group();
+      const outer = new THREE.Mesh(keep(new THREE.TubeGeometry(curve, 140, 0.0052, 20, false)), M.tube);
+      outer.renderOrder = 3; g.add(outer);
+      const stripeCurve = new THREE.CatmullRomCurve3(curve.getPoints(60).map((p, i, a) => {
+        const t = curve.getTangentAt(Math.min(0.999, i / (a.length - 1)));
+        const side = new THREE.Vector3(0, 1, 0).cross(t).normalize().multiplyScalar(0.0049);
+        return p.clone().add(side);
+      }));
+      g.add(new THREE.Mesh(keep(new THREE.TubeGeometry(stripeCurve, 120, 0.0009, 6, false)), M.stripe));
+      const inner = new THREE.Mesh(keep(new THREE.TubeGeometry(curve, 140, 0.0037, 12, false)), M.blood);
+      inner.geometry.setDrawRange(0, 0);
+      g.add(inner);
+      const rings = [];
+      for (let i = 0; i < 9; i++) {
+        const r = new THREE.Mesh(keep(new THREE.TorusGeometry(0.0054, 0.0005, 6, 24)), M.mark);
+        g.add(r); rings.push(r);
+      }
+      // connector at the far end + a roller clamp half way
+      const end = curve.getPointAt(1), endT = curve.getTangentAt(1);
+      const con = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.0062, 0.0075, 0.03, 20)), M.connector);
+      con.position.copy(end).addScaledVector(endT, 0.012); con.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), endT); g.add(con);
+      const cp = curve.getPointAt(0.62), ct = curve.getTangentAt(0.62);
+      const cl = new THREE.Group();
+      const body = new THREE.Mesh(keep(new THREE.BoxGeometry(0.02, 0.026, 0.009)), M.clampBlue); cl.add(body);
+      const jaw = new THREE.Mesh(keep(new THREE.BoxGeometry(0.004, 0.028, 0.012)), M.clampBlue); jaw.position.x = 0.011; cl.add(jaw);
+      cl.position.copy(cp); cl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ct);
+      g.add(cl);
+      g.traverse(c => { if (c.isMesh) c.castShadow = true; });
+      S.scene.add(g);
+      const total = inner.geometry.index ? inner.geometry.index.count : 0;
+      return {
+        g, curve, clamp: cl,
+        // depth = cm fed in; marks every 2 cm from the tip slide toward the skin
+        depth(cm) {
+          const L = curve.getLength();
+          rings.forEach((r, i) => {
+            const fromTip = (i + 2) * 2;
+            const outside = (fromTip - cm) / 100;
+            if (outside < 0.002 || outside > L - 0.01) { r.visible = false; return; }
+            r.visible = true;
+            const t = outside / L;
+            const p = curve.getPointAt(t), tg = curve.getTangentAt(t);
+            r.position.copy(p);
+            r.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tg);
+          });
+        },
+        fill(f) { inner.geometry.setDrawRange(0, Math.floor(total * clamp(f, 0, 1) / 6) * 6); },
+        open(on) { cl.rotation.z = on ? 0.0 : 0.0; jaw.position.x = on ? 0.016 : 0.011; },
+      };
+    }
+
+    /* fenestrated sterile drape with a round window at uv; drop(t 0..1) animates it settling */
+    function drape(uv, radius) {
+      const wv = weave();
+      const nT = tex(wv.normal, false), aT = tex(wv.albedo, true);
+      nT.repeat.set(1, 1); aT.repeat.set(1, 1);
+      const c = S.uvToST(uv), W = S.patch.W, H = S.patch.H;
+      const AS = 160, RS = 40, P = new THREE.Vector3(), N = new THREE.Vector3();
+      const pos = new Float32Array((AS + 1) * (RS + 1) * 3), uvs = new Float32Array((AS + 1) * (RS + 1) * 2), base = new Float32Array((AS + 1) * (RS + 1) * 3), nrm = new Float32Array((AS + 1) * (RS + 1) * 3);
+      const rr0 = U.rng(33);
+      const folds = Array.from({ length: 8 }, () => ({ a: rr0() * Math.PI, f: 26 + rr0() * 60, p: rr0() * 6, amp: 0.0015 + rr0() * 0.004 }));
+      const smax = W * 0.8, tmax = H * 0.8;
+      for (let a = 0; a <= AS; a++) {
+        const th = (a / AS) * Math.PI * 2, cs = Math.cos(th), sn = Math.sin(th);
+        const rmax = Math.min(Math.abs(cs) > 1e-4 ? (smax - Math.sign(cs) * c[0]) / Math.abs(cs) : 9, Math.abs(sn) > 1e-4 ? (tmax - Math.sign(sn) * c[1]) / Math.abs(sn) : 9);
+        for (let k = 0; k <= RS; k++) {
+          const f = Math.pow(k / RS, 1.6), rr = radius + (Math.max(rmax, radius + 0.01) - radius) * f;
+          const s = c[0] + cs * rr, t = c[1] + sn * rr;
+          S._surf(s, t, P, N);
+          const away = smooth(radius, radius + 0.04, rr);
+          let zz = 0.0016 + away * 0.0016;
+          for (const fo of folds) zz += Math.max(0, Math.sin((s * Math.cos(fo.a) + t * Math.sin(fo.a)) * fo.f + fo.p)) * fo.amp * away;
+          P.addScaledVector(N, zz);
+          const i = a * (RS + 1) + k;
+          base[i * 3] = P.x; base[i * 3 + 1] = P.y; base[i * 3 + 2] = P.z;
+          nrm[i * 3] = N.x; nrm[i * 3 + 1] = N.y; nrm[i * 3 + 2] = N.z;
+          uvs[i * 2] = s * 7; uvs[i * 2 + 1] = t * 7;
         }
-        g.traverse(c => { if (c.isMesh) c.castShadow = true; });
-        S.scene.add(g);
-        const total = inner.geometry.index ? inner.geometry.index.count : 0;
-        return {
-          g, curve,
-          // depth = cm fed in; marks every 2 cm from the tip slide toward the skin
-          depth(cm) {
-            const L = curve.getLength();
-            rings.forEach((r, i) => {
-              const fromTip = (i + 2) * 2;                 // cm along the tube from the tip
-              const outside = (fromTip - cm) / 100;        // m outside the skin
-              if (outside < 0.002 || outside > L - 0.01) { r.visible = false; return; }
-              r.visible = true;
-              const t = outside / L;
-              const p = curve.getPointAt(t), tg = curve.getTangentAt(t);
-              r.position.copy(p);
-              r.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tg);
-            });
-          },
-          fill(f) { inner.geometry.setDrawRange(0, Math.floor(total * clamp(f, 0, 1) / 6) * 6); },
-        };
-      },
+      }
+      pos.set(base);
+      const idx = [];
+      for (let a = 0; a < AS; a++) for (let k = 0; k < RS; k++) { const i0 = a * (RS + 1) + k, i1 = i0 + RS + 1; idx.push(i0, i0 + 1, i1, i1, i0 + 1, i1 + 1); }
+      const dg = keep(new THREE.BufferGeometry());
+      dg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); dg.setAttribute('uv', new THREE.BufferAttribute(uvs, 2)); dg.setIndex(idx);
+      dg.computeVertexNormals();
+      const mat = keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x2f6c86), map: aT, normalMap: nT, normalScale: new THREE.Vector2(0.75, 0.75), roughness: 0.95, sheen: 0.75, sheenRoughness: 0.75, sheenColor: new THREE.Color(0x9ad8e6), side: THREE.DoubleSide, transparent: true, opacity: 0 }));
+      const m = new THREE.Mesh(dg, mat);
+      m.castShadow = true; m.receiveShadow = true;
+      S.scene.add(m);
+      // adhesive film ring around the window
+      const ringG = keep(new THREE.RingGeometry(radius - 0.004, radius + 0.006, 120, 1));
+      const rp = ringG.attributes.position;
+      for (let i = 0; i < rp.count; i++) {
+        const s = c[0] + rp.getX(i), t = c[1] - rp.getY(i);
+        S._surf(s, t, P, N); P.addScaledVector(N, S.heightAt(S.stToUv(s, t)) + 0.0004);
+        rp.setXYZ(i, P.x, P.y, P.z);
+      }
+      ringG.computeVertexNormals();
+      const ringM = keep(new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0, roughness: 0.06, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide }));
+      const ring = new THREE.Mesh(ringG, ringM);
+      ring.renderOrder = 4;
+      S.scene.add(ring);
+      return {
+        mesh: m,
+        drop(k) {
+          // falls from 6 cm, overshoots a touch and settles; opacity fades in on the way down
+          const e = 1 - Math.pow(1 - clamp(k, 0, 1), 3);
+          const lift = (1 - e) * 0.06 + Math.sin(clamp(k, 0, 1) * Math.PI) * 0.004;
+          for (let i = 0; i < pos.length; i += 3) {
+            pos[i] = base[i] + nrm[i] * lift; pos[i + 1] = base[i + 1] + nrm[i + 1] * lift; pos[i + 2] = base[i + 2] + nrm[i + 2] * lift;
+          }
+          dg.attributes.position.needsUpdate = true;
+          mat.opacity = clamp(k * 2.2, 0, 1);
+          mat.transparent = mat.opacity < 1;
+          ringM.opacity = 0.16 * smooth(0.7, 1, k);
+        },
+      };
+    }
+
+    // hospital sheet under the body (fills the view past the curved skin patch)
+    function sheet() {
+      const wv = weave();
+      const nT = tex(wv.normal, false), aT = tex(wv.albedo, true);
+      nT.repeat.set(60, 60); aT.repeat.set(60, 60);
+      const g = keep(new THREE.PlaneGeometry(2.4, 2.4, 80, 80));
+      const p = g.attributes.position, r = U.rng(51);
+      const folds = Array.from({ length: 6 }, () => ({ a: r() * Math.PI, f: 5 + r() * 12, p: r() * 6, amp: 0.002 + r() * 0.006 }));
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i);
+        let zz = 0;
+        for (const f of folds) zz += Math.sin((x * Math.cos(f.a) + y * Math.sin(f.a)) * f.f + f.p) * f.amp;
+        p.setZ(i, zz);
+      }
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x8fa4b2), map: aT, normalMap: nT, normalScale: new THREE.Vector2(0.5, 0.5), roughness: 0.95, sheen: 0.5, sheenColor: new THREE.Color(0xdfe9ef) })));
+      m.rotation.x = -Math.PI / 2;
+      const R = (S.shape && S.shape.R) || 0.26, Wd = S.patch.W;
+      const edge = R * Math.cos(Math.min(1.45, (Wd / 2) / R)) - R;
+      m.position.y = edge - 0.012;
+      m.receiveShadow = true;
+      S.scene.add(m);
+      return m;
+    }
+
+    const api = {
+      M, hand, pen, tube, drape, sheet,
       dispose() { bin.forEach(x => { try { x.dispose(); } catch (e) { /* gone */ } }); },
     };
     return api;
+  }
+
+  /* ─────────── skin ink: a private copy of the skin colour map we can draw on (marker ink,
+                 areola, landmark pigment) — never touches the engine's shared cached canvas ─────────── */
+  function Ink(S) {
+    const THREE = window.THREE;
+    const mat = S.skin && S.skin.material;
+    const src = mat && mat.map && mat.map.image;
+    if (!src || !src.width) return null;
+    const c = cv(src.width, src.height), x = c.getContext('2d');
+    x.drawImage(src, 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+    t.wrapS = mat.map.wrapS; t.wrapT = mat.map.wrapT;
+    const old = mat.map;
+    mat.map = t;
+    const pxPerM = c.width / S.patch.W;
+    const P = uv => [uv[0] * c.width, (1 - uv[1]) * c.height];
+    let dirty = false;
+    const api = {
+      px: m => m * pxPerM,
+      // marker stroke with a soft wet edge and slight bleed into the skin lines
+      line(a, b, wM, col, alpha) {
+        const pa = P(a), pb = P(b);
+        x.save(); x.lineCap = 'round'; x.strokeStyle = col || 'rgba(76,36,140,1)';
+        x.globalAlpha = (alpha === undefined ? 0.85 : alpha) * 0.35; x.lineWidth = wM * pxPerM * 1.8; x.filter = 'blur(1px)';
+        x.beginPath(); x.moveTo(pa[0], pa[1]); x.lineTo(pb[0], pb[1]); x.stroke();
+        x.filter = 'none'; x.globalAlpha = alpha === undefined ? 0.85 : alpha; x.lineWidth = wM * pxPerM;
+        x.beginPath(); x.moveTo(pa[0], pa[1]); x.lineTo(pb[0], pb[1]); x.stroke();
+        x.restore(); dirty = true;
+      },
+      cross(uv, sizeM, angle) {
+        const sx = S.patch.W, sy = S.patch.H, h = sizeM / 2;
+        [[angle + Math.PI / 4], [angle - Math.PI / 4]].forEach(([a]) => {
+          const du = Math.cos(a) * h / sx, dv = Math.sin(a) * h / sy;
+          api.line([uv[0] - du, uv[1] - dv], [uv[0] + du, uv[1] + dv], 0.0011);
+        });
+      },
+      dashes(a, b, wM, dashM) {
+        const L = S.distanceUv(a, b), n = Math.max(1, Math.floor(L / (dashM * 2)));
+        for (let i = 0; i < n; i++) {
+          const t0 = (i * 2) / (n * 2), t1 = (i * 2 + 1) / (n * 2);
+          api.line([lerp(a[0], b[0], t0), lerp(a[1], b[1], t0)], [lerp(a[0], b[0], t1), lerp(a[1], b[1], t1)], wM, undefined, 0.6);
+        }
+      },
+      // areola + nipple pigment (tone-aware), r in metres
+      areola(uv, rM, tone) {
+        const [px, py] = P(uv), r = rM * pxPerM;
+        const dk = clamp(tone || 0.35, 0, 1);
+        const g = x.createRadialGradient(px, py, 0, px, py, r);
+        const c0 = `rgba(${Math.round(120 - dk * 60)},${Math.round(64 - dk * 30)},${Math.round(52 - dk * 26)},`;
+        g.addColorStop(0, c0 + '0.85)'); g.addColorStop(0.3, c0 + '0.72)'); g.addColorStop(0.78, c0 + '0.5)'); g.addColorStop(1, c0 + '0)');
+        x.save(); x.fillStyle = g; x.beginPath(); x.ellipse(px, py, r, r * 0.92, 0, 0, Math.PI * 2); x.fill();
+        // Montgomery bumps (darker dots)
+        const R = U.rng(7);
+        x.fillStyle = c0 + '0.45)';
+        for (let i = 0; i < 9; i++) { const a = R() * Math.PI * 2, d = r * (0.55 + R() * 0.3); x.beginPath(); x.arc(px + Math.cos(a) * d, py + Math.sin(a) * d, r * 0.05, 0, Math.PI * 2); x.fill(); }
+        x.restore(); dirty = true;
+      },
+      flush() { if (dirty) { t.needsUpdate = true; dirty = false; } },
+      dispose() { if (mat.map === t) mat.map = old; t.dispose(); },
+    };
+    return api;
+  }
+
+  /* palpation lens: ribs (and collarbone) under the fingers, drawn as a soft holographic overlay */
+  function lensSVG(sh, cx, cy, r, curves, labels, alpha) {
+    if (alpha <= 0.01) return '';
+    let s = `<defs><radialGradient id="usLensG"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".72" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+      <mask id="usLensM"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="url(#usLensG)"/></mask></defs>
+      <g class="lens" style="opacity:${alpha.toFixed(2)}"><circle class="lr" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}"/><g mask="url(#usLensM)">`;
+    curves.forEach(cv2 => {
+      const pts = cv2.pts.map(uv => sh.project(uv)).filter(p => p && p.visible);
+      if (pts.length < 2) return;
+      const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('');
+      s += `<path class="${cv2.cls}" d="${d}"/>`;
+    });
+    labels.forEach(l => {
+      const p = sh.project(l.uv);
+      if (!p || !p.visible || Math.hypot(p.x - cx, p.y - cy) > r * 0.92) return;
+      s += `<text class="ll ${l.cls || ''}" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}">${esc(l.t)}</text>`;
+    });
+    return s + '</g></g>';
   }
 
   /* ═════════════ CHEST DRAIN ═════════════ */
@@ -2256,35 +2647,51 @@
     const STEPS = STEPS_ALL.filter(s => s[0] !== 'numb' || d.numbing);
     const tag = T('cd_tag', 'Chest drain · %s side', T('side_' + side, side));
     if (!window.NZA3D || !NZA3D.supported()) return Fallback(app, d, STEPS.map(s => s[1]), tag, { numbed: false });
+    const ant = side === 'right' ? 1 : -1;                         // the front of the body lies toward +u on the right side
     const sh = Shell(app, d, {
       sub: tag,
-      scene: { region: 'chest', hair: 0.25, focus: { uv: [0.5, 0.5], size: [0.12, 0.1], view: 0.24 }, gravity: [side === 'right' ? -0.4 : 0.4, 1] },
+      scene: { region: 'chest', size: [0.6, 0.44], hair: 0.22, focus: { uv: [0.5, 0.5], size: [0.12, 0.1] }, gravity: [-0.35 * ant, 1] },
     });
     const S = sh.S;
     if (!S) { sh.destroy(); return Fallback(app, d, STEPS.map(s => s[1]), tag, { numbed: false }); }
+    const THREE = window.THREE;
     const MS = meshes(S);
+    const ink = Ink(S);
     const H = S.patch.H, W = S.patch.W;
-    // anatomy on the patch: ribs (head at the top of the screen, anterior on the screen right for the right side)
-    const ant = side === 'right' ? 1 : -1;
-    const SP = 0.022 / H;                                          // rib spacing in v
-    const slope = -0.1 * ant;                                      // ribs run down toward the front
+    // anatomy on the patch: ribs run down toward the front of the body
+    const SP = 0.021 / H;                                          // rib spacing in v
+    const slope = -0.12 * ant;
     const ribV = (n, u) => 0.5 + SP / 2 - (n - 5) * SP + slope * (u - 0.5);
-    const target = [0.5, ribV(5, 0.5) - SP / 2];                   // 5th space, mid-axillary
-    const bumps = [];
-    for (let n = 2; n <= 10; n++) {
-      for (let u = 0.06; u <= 0.94; u += 0.032) {
+    const target = [0.5, ribV(5, 0.5) - SP / 2];                   // 5th space, mid-axillary line
+    for (let n = 3; n <= 9; n++) {
+      for (let u = 0.17; u <= 0.835; u += 0.03) {
         const v = ribV(n, u);
-        if (v < 0.04 || v > 0.86) continue;
-        bumps.push(S.bumps.add({ uv: [u, v], radius: 0.0115, height: 0.0016 }));
+        if (v < 0.06 || v > 0.94) continue;
+        S.bumps.add({ uv: [u, v], radius: 0.015, height: 0.00125 * (1 - 0.35 * Math.abs(u - 0.5) * 2) });
       }
     }
-    // axillary hollow and the muscle edges of the safe triangle
-    S.bumps.add({ uv: [0.5 + 0.15 * ant, 0.68], radius: 0.07, height: 0.004 });     // pectoralis bulk (front)
-    S.bumps.add({ uv: [0.5 - 0.17 * ant, 0.62], radius: 0.08, height: 0.0045 });    // latissimus bulk (back)
-    S.controls.frame([0.5, 0.5], 0.21, { pitch: 1.18 });
+    // muscle edges of the safe triangle: chest muscle (front), back muscle (behind), armpit hollow above
+    S.bumps.add({ uv: [0.5 + 0.2 * ant, 0.7], radius: 0.075, height: 0.0055 });
+    S.bumps.add({ uv: [0.5 + 0.13 * ant, 0.64], radius: 0.05, height: 0.003 });
+    S.bumps.add({ uv: [0.5 - 0.2 * ant, 0.64], radius: 0.085, height: 0.006 });
+    S.bumps.add({ uv: [0.5, 0.92], radius: 0.06, height: -0.004 });
+    // nipple (anterior landmark: the 5th space runs at its level)
+    const nip = [0.5 + 0.235 * ant, ribV(4, 0.5 + 0.235 * ant) - SP * 0.45];
+    S.bumps.add({ uv: nip, radius: 0.0045, height: 0.0024 });
+    if (ink) { ink.areola(nip, 0.014, d.tone !== undefined ? +d.tone : 0.35); ink.flush(); }
+    // the camera moves with the work: wide to find the landmarks, close for the cut, back out for the tube
+    const VIEW = { mark: [0.34, 0], clean: [0.28, 0], numb: [0.2, 0], cut: [0.19, 0], dissect: [0.19, 0], sweep: [0.21, 0], tube: [0.3, -0.05], connect: [0.32, -0.06] };
+    function frameFor(id, instant) {
+      const v = VIEW[id] || VIEW.mark;
+      const c = id === 'mark' || !G.mark ? [0.5, 0.52] : [G.mark[0], G.mark[1] + v[1]];
+      S.controls.frame(c, v[0], { pitch: id === 'mark' ? 1.08 : 1.16, instant: !!instant });
+    }
     S.prewarm(['scalpel', 'forceps', 'gauze', 'syringe'], false);
-    const finger = MS.finger();
+    MS.sheet();
+    const hand = MS.hand('palpate');
+    const finger = MS.hand('point');
     const pen = MS.pen();
+    let drape = null;
 
     const ml0 = Math.max(0, d.haemo || 0), air = (d.ptx || 0) > 0;
     const G = {
@@ -2295,7 +2702,7 @@
       sweep: 0, lastAng: null,
       tube: null, depth: 0, dragY: null, tubeSet: false,
       connected: false, drained: 0, lung: 0, bubbles: 0, drainT: 0,
-      flinches: 0, done: false, score: {},
+      flinches: 0, done: false, score: {}, lens: 0, felt: {}, drapeK: -1,
     };
     const tools = [
       { key: '1', id: 'hand', label: T('cd_t_hand', 'Palpate'), icon: 'hand' },
@@ -2303,7 +2710,7 @@
       { key: '3', id: 'swab', label: T('cd_t_swab', 'Antiseptic'), icon: 'drop' },
       { key: '4', id: 'lido', label: T('cd_t_lido', 'Lidocaine'), icon: 'syringe', hide: !d.numbing },
       { key: '5', id: 'scalpel', label: T('cd_t_scalpel', 'Scalpel'), icon: 'scalpel' },
-      { key: '6', id: 'clamp', label: T('cd_t_clamp', 'Curved clamp'), icon: 'clamp' },
+      { key: '6', id: 'clamp', label: T('cd_t_clamp', 'Curved clamp'), icon: 'forceps' },
       { key: '7', id: 'finger', label: T('cd_t_finger', 'Finger'), icon: 'hand' },
       { key: '8', id: 'tube', label: T('cd_t_tube', 'Chest tube'), icon: 'tube' },
       { key: '9', id: 'drain', label: T('cd_t_drain', 'Drain unit'), icon: 'kit' },
@@ -2311,8 +2718,8 @@
     const STEP_TOOL = { mark: 'pen', clean: 'swab', numb: 'lido', cut: 'scalpel', dissect: 'clamp', sweep: 'finger', tube: 'tube', connect: 'drain' };
     const stepId = () => (STEPS[G.step] || STEPS[STEPS.length - 1])[0];
     const TXT = {
-      mark: T('cd_x_mark', 'Count the ribs with {1} (hold {LMB} and sweep down from the armpit). Then mark the **5th rib space in the middle of the armpit line** with {2}.'),
-      clean: T('cd_x_clean', 'Hold {LMB} and scrub the antiseptic over the mark until the whole area is brown.'),
+      mark: T('cd_x_mark', 'Feel for the ribs with {1}: hold {LMB} and sweep down from the armpit, they light up under your fingers. Then mark the **5th rib space in the middle of the armpit line** with {2}.'),
+      clean: T('cd_x_clean', 'Hold {LMB} and scrub the antiseptic over the mark until the whole area is brown. The sterile drape goes on after.'),
       numb: T('cd_x_numb', 'Hold {LMB} on the mark to raise a bleb of lidocaine, then down to the top of the rib. {N} skips it (it will hurt).'),
       cut: T('cd_x_cut', 'Press at one end of the dashed line and draw the blade **along the top of the rib**, 2–3 cm.'),
       dissect: T('cd_x_dissect', 'Put the closed clamp in the cut and hold {LMB} to push through the muscle until it **pops** into the chest. Then tap {Space} to spread the jaws.'),
@@ -2340,24 +2747,28 @@
     const dw = document.createElement('section');
     dw.className = 'us-drw nza-hud solid';
     dw.innerHTML = `
-      <header><span class="k">${esc(T('dr_title', 'Drain unit'))}</span><span class="st">${esc(T('dr_idle', 'not connected'))}</span></header>
+      <header><span class="k">${esc(T('dr_title', 'Drain unit'))}<em>UWS-3 · ${esc(T('dr_sub', '3-chamber'))}</em></span><span class="st">${esc(T('dr_idle', 'not connected'))}</span></header>
       <div class="dr-body">
         <svg class="dr-svg" viewBox="0 0 150 128">
           <defs><linearGradient id="usDrB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a3161b"/><stop offset="1" stop-color="#4a0507"/></linearGradient>
-            <linearGradient id="usDrW" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fd0ff" stop-opacity=".55"/><stop offset="1" stop-color="#0b6f99" stop-opacity=".75"/></linearGradient></defs>
+            <linearGradient id="usDrW" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fd0ff" stop-opacity=".55"/><stop offset="1" stop-color="#0b6f99" stop-opacity=".75"/></linearGradient>
+            <linearGradient id="usDrG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".3" stop-color="#fff" stop-opacity=".02"/><stop offset="1" stop-color="#fff" stop-opacity=".06"/></linearGradient></defs>
           <rect class="case" x="2" y="2" width="146" height="124" rx="10"/>
           <rect class="ch" x="10" y="12" width="74" height="104" rx="4"/>
           <rect class="lvl" x="11" y="115" width="72" height="0" fill="url(#usDrB)"/>
+          <path class="mns" d="M11 115 Q47 112 83 115" fill="none"/>
           <g class="grad"></g>
           <rect class="ch" x="92" y="12" width="22" height="104" rx="4"/>
           <rect class="wat" x="93" y="70" width="20" height="45" fill="url(#usDrW)"/>
           <g class="bub"></g>
           <rect class="ch" x="120" y="12" width="22" height="104" rx="4"/>
           <rect class="wat2" x="121" y="40" width="20" height="75" fill="url(#usDrW)"/>
+          <rect x="10" y="12" width="132" height="104" rx="4" fill="url(#usDrG)" pointer-events="none"/>
           <text class="lb" x="47" y="124">${esc(T('dr_col', 'COLLECT'))}</text><text class="lb" x="103" y="124">${esc(T('dr_seal', 'SEAL'))}</text><text class="lb" x="131" y="124">${esc(T('dr_suc', 'SUCT'))}</text>
         </svg>
         <div class="dr-read">
           <div class="r"><span>${esc(T('dr_drained', 'Drained'))}</span><b class="dml"></b></div>
+          <div class="r"><span>${esc(T('dr_rate', 'Flow'))}</span><b class="drate">--</b></div>
           <div class="r"><span>${esc(T('dr_air', 'Air leak'))}</span><b class="dair">--</b></div>
           <div class="lung"><svg viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="18"/><circle class="fg" cx="22" cy="22" r="18" stroke-dasharray="0 120"/></svg><div><span>${esc(T('dr_lung', 'Lung open'))}</span><b class="dl">0%</b></div></div>
         </div>
@@ -2369,9 +2780,10 @@
     const odo = NZA.ui.FlipClock(dw.querySelector('.dml'), { value: '0000', small: true });
 
     sh.patient([
-      { label: T('pt_side', 'Side'), value: T('side_' + side, side) },
-      { label: T('pt_blood', 'Blood in chest'), value: ml0 ? `~${ml0} mL` : '—', tone: ml0 > 1000 ? 'red' : ml0 ? 'amber' : '' },
-      { label: T('pt_air', 'Air in chest'), value: air ? `${d.ptx}%${d.tension ? ' · ' + T('pt_tension', 'tension') : ''}` : '—', tone: d.tension ? 'red' : air ? 'amber' : '' },
+      { id: 'side', label: T('pt_side', 'Side'), value: T('side_' + side, side) },
+      { id: 'blood', label: T('pt_blood', 'Blood in chest'), value: ml0 ? `~${ml0} mL` : '—', tone: ml0 > 1000 ? 'red' : ml0 ? 'amber' : '' },
+      { id: 'air', label: T('pt_air', 'Air in chest'), value: air ? `${d.ptx}%${d.tension ? ' · ' + T('pt_tension', 'tension') : ''}` : '—', tone: d.tension ? 'red' : air ? 'amber' : '' },
+      { id: 'numb', label: T('pt_numb', 'Local anaesthetic'), value: d.numbing ? T('pt_numb_no', 'not yet') : T('pt_numb_none', 'none carried'), tone: d.numbing ? '' : 'amber' },
     ]);
 
     function pick(key) {
@@ -2379,9 +2791,8 @@
       if (!t || G.done) return;
       G.tool = t.id;
       pp.active(t.key);
-      const engine = { swab: 'gauze', lido: 'syringe', scalpel: 'scalpel', clamp: 'forceps' }[t.id] || null;
+      const engine = { swab: 'gauze', lido: 'syringe', scalpel: 'scalpel', clamp: 'forceps', hand: hand, pen: pen, finger: finger }[t.id] || null;
       S.tools.use(engine);
-      finger.visible = false; pen.visible = false;
       if (t.id === 'drain' && stepId() === 'connect') connect();
       NZA.audio.click(640);
     }
@@ -2389,6 +2800,7 @@
       G.step++;
       if (G.step >= STEPS.length) return;
       const id = stepId();
+      frameFor(id, false);
       pp.set({ step: G.step + 1, title: STEPS[G.step][1], text: TXT[id] });
       const tl = tools.find(t => t.id === STEP_TOOL[id]);
       if (tl) pick(tl.key);
@@ -2399,7 +2811,7 @@
       if (tl) pp.active(tl.key);
     }
     function wideFor(id) {
-      const W = {
+      const Wd = {
         mark: { label: T('cd_w_mark', 'Off target'), value: '--', unit: 'mm', meter: { value: 0, zone: [0, 0.2] } },
         clean: { label: T('cd_w_clean', 'Covered'), value: '0', unit: '%', meter: { value: 0, zone: [0.85, 1] } },
         numb: { label: T('cd_w_numb', 'Lidocaine'), value: '0', unit: 'mL', meter: { value: 0, zone: [0.8, 1] } },
@@ -2409,17 +2821,18 @@
         tube: { label: T('cd_w_tube', 'Tube depth'), value: '0.0', unit: 'cm', meter: { value: 0, zone: [10 / 18, 14 / 18] } },
         connect: { label: T('cd_w_connect', 'Drained'), value: '0', unit: 'mL', meter: { value: 0 } },
       }[id];
-      if (W) pp.set({ wide: W });
+      if (Wd) pp.set({ wide: Wd });
     }
     pick('1');
+    frameFor('mark', true);
 
     function ribAt(uv) {
       // which rib / space lies under a patch point
-      for (let n = 2; n <= 10; n++) {
+      for (let n = 2; n <= 11; n++) {
         const dv = uv[1] - ribV(n, uv[0]);
         if (Math.abs(dv) < SP * 0.3) return { rib: n };
       }
-      for (let n = 2; n <= 10; n++) {
+      for (let n = 2; n <= 11; n++) {
         if (uv[1] < ribV(n, uv[0]) && uv[1] > ribV(n + 1, uv[0])) return { space: n };
       }
       return {};
@@ -2443,10 +2856,16 @@
 
     function placeMark(uv) {
       G.mark = uv;
-      S.markers.set('mark', { uv, kind: 'cross', color: 0x6d3fb2, size: 0.007, opacity: 0.95, pulse: false });
       G.markErr = mmBetween(uv, target);
       const where = ribAt(uv);
       G.markSpace = where;
+      // ink: an X on the spot and a short stroke along the rib below it
+      if (ink) {
+        ink.cross(uv, 0.009, -Math.atan(slope * H / W));
+        const half = 0.012 / W;
+        ink.line([uv[0] - half, uv[1] - slope * half - SP * 0.42], [uv[0] + half, uv[1] + slope * half - SP * 0.42], 0.0009, undefined, 0.6);
+        ink.flush();
+      } else S.markers.set('mark', { uv, kind: 'cross', color: 0x5b2f9c, size: 0.007, opacity: 0.95, pulse: false });
       const errTone = G.markErr <= 10 ? 'ok' : G.markErr <= 20 ? 'warn' : 'bad';
       const whereTxt = where.rib ? T('cd_on_rib', 'on the %s rib', ORD(where.rib)) : where.space ? T('cd_in_space', 'in the %s space', ORD(where.space)) : '';
       pp.wide({ value: String(Math.round(G.markErr)), meter: { value: clamp(G.markErr / 50, 0, 1), zone: [0, 0.2], tone: errTone === 'ok' ? '' : errTone === 'warn' ? 'amber' : 'red' }, caption: whereTxt });
@@ -2454,16 +2873,17 @@
       NZA.audio.click(900);
       G.score.mark = G.markErr <= 8 ? 25 : G.markErr <= 15 ? 19 : G.markErr <= 25 ? 11 : 4;
       if (where.rib) G.score.mark -= 4;
-      G.showTri = 2.8;
+      if (G.felt && Object.keys(G.felt).length >= 3) G.score.mark += 2;
+      G.showTri = 3.2;
       setTimeout(() => { if (!G.done && stepId() === 'mark') nextStep(); }, 900);
     }
 
     // incision runs along the rib below the mark (its upper border)
     function cutLine() {
       const m = G.mark || target;
-      const n = Math.round(((0.5 + SP / 2 - m[1] + slope * (m[0] - 0.5)) / SP) + 5);   // nearest rib index
+      const n = Math.round(((0.5 + SP / 2 - m[1] + slope * (m[0] - 0.5)) / SP) + 5);
       const below = Math.max(n, 3);
-      const vTop = ribV(below + (m[1] > ribV(below, m[0]) ? 0 : 0), m[0]);
+      const vTop = ribV(below, m[0]);
       const v0 = Math.min(m[1], vTop + SP * 0.32);
       const half = 0.016 / W;
       return { a: [m[0] - half, v0 - slope * half], b: [m[0] + half, v0 + slope * half], mid: [m[0], v0] };
@@ -2478,7 +2898,7 @@
       const pts = [];
       for (let i = 0; i <= 12; i++) pts.push([from[0] + dir[0] * i / 12, from[1] + dir[1] * i / 12]);
       G.wound = S.wounds.add({ type: 'incision', points: pts, cut: 0.001, gape: 2.2 * MM, depth: 5 * MM, open: 1, seed: (d.seed || 7) % 9973 });
-      if (!G.numbed && d.numbing !== undefined) flinch();
+      if (!G.numbed) flinch();
     }
     function endCut() {
       G.cutDone = G.cutLen >= 14;
@@ -2501,6 +2921,7 @@
       G.connected = true;
       dw.classList.add('on');
       dw.querySelector('.st').textContent = T('dr_on', 'draining');
+      if (G.tube) G.tube.open(true);
       NZA.audio.click(520);
       G.score.connect = 5;
     }
@@ -2515,9 +2936,20 @@
       app.post('finish', { result: { score: total, numbed: G.numbed, drained: Math.round(G.drained), depth: +G.depth.toFixed(1) } }).then(r => { if (r && r.outcome) api.msg.result(r.outcome); });
     }
 
+    // rib curves for the palpation lens
+    const ribCurves = [];
+    for (let n = 2; n <= 10; n++) {
+      const pts = [];
+      for (let u = 0.08; u <= 0.92; u += 0.04) pts.push([u, ribV(n, u)]);
+      ribCurves.push({ cls: n === 5 || n === 6 ? 'rb hi' : 'rb', pts });
+    }
+    const ribLabels = [];
+    for (let n = 2; n <= 10; n++) ribLabels.push({ uv: [0.5 + 0.06 * ant, ribV(n, 0.5 + 0.06 * ant) + SP * 0.08], t: String(n), cls: n === 5 || n === 6 ? 'hi' : '' });
+    for (let n = 2; n <= 9; n++) ribLabels.push({ uv: [0.5 - 0.075 * ant, ribV(n, 0.5 - 0.075 * ant) - SP * 0.42], t: `${n}`, cls: n === 5 ? 'sp hi' : 'sp' });
+
     // ── per frame ──
     let uiT = 0;
-    const camRight = new (window.THREE.Vector3)();
+    const camRight = new THREE.Vector3();
     function frame(dt) {
       G.t += dt;
       const id = stepId();
@@ -2527,15 +2959,19 @@
       // overlay guides (projected each frame)
       let ov = '';
       const P = uv => sh.project(uv);
-      if (G.showTri > 0 || id === 'mark') {
+      // palpation lens (ribs light up under the fingers while pressing with the hand)
+      const pressing = id === 'mark' && G.tool === 'hand' && G.lmb && hit;
+      G.lens = clamp(G.lens + (pressing ? dt * 4 : -dt * 3), 0, 1);
+      if (G.lens > 0 && sh.state.moved) ov += lensSVG(sh, sh.state.mouse.cx, sh.state.mouse.cy, 170, ribCurves, ribLabels, G.lens);
+      if (G.showTri > 0) {
         G.showTri = Math.max(0, (G.showTri || 0) - dt);
-        const alpha = id === 'mark' ? 0 : clamp(G.showTri, 0, 1);
-        if (alpha > 0) {
-          const apex = P([0.5, 0.86]), a1 = P([0.5 + 0.11 * ant, ribV(5, 0.5 + 0.11 * ant) - SP / 2]), a2 = P([0.5 - 0.11 * ant, ribV(5, 0.5 - 0.11 * ant) - SP / 2]);
-          ov += `<path class="tri" style="opacity:${alpha.toFixed(2)}" d="M${apex.x} ${apex.y}L${a1.x} ${a1.y}L${a2.x} ${a2.y}Z"/>`;
-          const tg = P(target);
-          ov += `<circle class="tgt" style="opacity:${alpha.toFixed(2)}" cx="${tg.x}" cy="${tg.y}" r="7"/>`;
-        }
+        const alpha = clamp(G.showTri, 0, 1);
+        const apex = P([0.5, 0.86]), a1 = P([0.5 + 0.11 * ant, ribV(5, 0.5 + 0.11 * ant) - SP / 2]), a2 = P([0.5 - 0.11 * ant, ribV(5, 0.5 - 0.11 * ant) - SP / 2]);
+        ov += `<path class="tri" style="opacity:${alpha.toFixed(2)}" d="M${apex.x} ${apex.y}L${a1.x} ${a1.y}L${a2.x} ${a2.y}Z"/>`;
+        const tg = P(target);
+        ov += `<circle class="tgt" style="opacity:${alpha.toFixed(2)}" cx="${tg.x}" cy="${tg.y}" r="7"/>`;
+        const lb = P([0.5, 0.79]);
+        ov += `<g class="trl" style="opacity:${alpha.toFixed(2)}" transform="translate(${lb.x.toFixed(1)} ${lb.y.toFixed(1)})"><rect x="-58" y="-11" width="116" height="20" rx="5"/><text y="3">${esc(T('cd_safe', 'SAFE TRIANGLE'))}</text></g>`;
       }
       if (L && (id === 'cut')) {
         const a = P(L.a), b = P(L.b);
@@ -2543,35 +2979,38 @@
       }
       sh.svg.innerHTML = ov;
 
+      // drape drop after the skin prep
+      if (G.drapeK >= 0 && G.drapeK < 1) {
+        G.drapeK = Math.min(1, G.drapeK + dt / 0.85);
+        if (drape) drape.drop(G.drapeK);
+      }
+
       // ── step logic ──
-      if (id === 'mark' && hit) {
-        if (G.tool === 'hand') {
-          finger.visible = true;
-          const sf = S.surfaceAt(hit.uv);
-          finger.position.copy(sf.point).addScaledVector(sf.normal, G.lmb ? 0.002 : 0.012);
-          finger.quaternion.setFromUnitVectors(new window.THREE.Vector3(0, 1, 0), sf.normal);
-          finger.rotateZ(0.5);
-          if (G.lmb) {
-            const w = ribAt(hit.uv);
-            rtext = w.rib ? T('cd_rib', '%s rib', ORD(w.rib)) : w.space ? T('cd_space', '%s space', ORD(w.space)) : '';
-            rtone = w.space === 5 && Math.abs(hit.uv[0] - 0.5) < 0.06 ? 'teal' : '';
-            ring = 1;
-            if (w.rib && G.lastRib !== w.rib) { G.lastRib = w.rib; NZA.audio.tick(); }
-          }
-        } else if (G.tool === 'pen') {
-          pen.visible = true;
-          const sf = S.surfaceAt(hit.uv);
-          pen.position.copy(sf.point).addScaledVector(sf.normal, 0.001);
-          pen.quaternion.setFromUnitVectors(new window.THREE.Vector3(0, 1, 0), sf.normal.clone().add(new window.THREE.Vector3(0.35, 0.2, 0.25)).normalize());
-        }
-      } else { finger.visible = G.tool === 'finger' && id === 'sweep'; pen.visible = false; }
+      if (id === 'mark' && hit && G.tool === 'hand' && G.lmb) {
+        const w = ribAt(hit.uv);
+        rtext = w.rib ? T('cd_rib', '%s rib', ORD(w.rib)) : w.space ? T('cd_space', '%s space', ORD(w.space)) : '';
+        rtone = w.space === 5 && Math.abs(hit.uv[0] - 0.5) < 0.06 ? 'teal' : '';
+        ring = 1;
+        if (w.rib && G.lastRib !== w.rib) { G.lastRib = w.rib; G.felt[w.rib] = true; NZA.audio.tick(); }
+      } else if (id === 'mark' && hit && G.tool === 'pen') {
+        const w = ribAt(hit.uv);
+        rtext = w.rib ? T('cd_rib', '%s rib', ORD(w.rib)) : w.space ? T('cd_space', '%s space', ORD(w.space)) : '';
+        ring = rtext ? 0 : null;
+      }
 
       if (id === 'clean' && G.tool === 'swab' && G.lmb && hit && G.mark) {
-        S.layers.paint('iodine', hit.uv, 0.011, Math.min(1, dt * 3.2), { hardness: 0.35, grain: 0.5 });
-        S.layers.paint('wet', hit.uv, 0.012, Math.min(1, dt * 2), { hardness: 0.3 });
+        S.layers.paint('iodine', hit.uv, 0.019, Math.min(1, dt * 3.4), { hardness: 0.3, grain: 0.55 });
+        S.layers.paint('wet', hit.uv, 0.02, Math.min(1, dt * 2), { hardness: 0.3 });
         G.cover = S.layers.coverage('iodine', G.mark, 0.04, 0.3);
         pp.wide({ value: String(Math.round(G.cover * 100)), meter: { value: G.cover, zone: [0.85, 1] } });
-        if (G.cover >= 0.86) { G.score.clean = 10; nextStep(); }
+        if (G.cover >= 0.86) {
+          G.score.clean = 10;
+          // sterile field: the drape with its window settles over the prepped skin
+          try { drape = MS.drape(G.mark, 0.052); G.drapeK = 0; } catch (e) { console.warn('[ultrasound] drape', e); }
+          NZA.audio.noise(420, { vol: 0.05, lp: 1400, hp: 120, attack: 0.05, release: 0.4 });
+          pp.flash('ok', T('cd_fl_draped', 'Prepped. The sterile drape is on.'), 2200);
+          nextStep();
+        }
       }
       if (id === 'numb' && G.tool === 'lido' && G.lmb && hit && G.mark) {
         const near = mmBetween(hit.uv, G.mark) < 8;
@@ -2581,7 +3020,7 @@
           G.wheal.set({ radius: 0.004 + 0.007 * G.numb, height: 0.0002 + 0.0016 * G.numb });
           ring = G.numb; rtext = `${(G.numb * 5).toFixed(1)} mL`; rtone = 'teal';
           pp.wide({ value: (G.numb * 5).toFixed(1), meter: { value: G.numb, zone: [0.8, 1] } });
-          if (G.numb >= 1) { G.numbed = true; G.score.numb = 5; pp.flash('ok', T('cd_fl_numb', 'Skin and rib top numbed.'), 2200); nextStep(); }
+          if (G.numb >= 1) { G.numbed = true; G.score.numb = 5; sh.row('numb', T('pt_numb_yes', '5 mL lidocaine'), 'teal'); pp.flash('ok', T('cd_fl_numb', 'Skin and rib top numbed.'), 2200); nextStep(); }
         } else { ring = 0; rtext = T('cd_on_mark', 'on the mark'); rtone = 'amber'; }
       }
       if (id === 'cut' && G.cutStart && !G.cutDone && G.lmb && hit) {
@@ -2635,11 +3074,16 @@
       if (id === 'sweep' && G.wound) {
         const mid = G.wound.at(0.5);
         const pm = sh.project(mid.uv);
-        const sf = S.surfaceAt(mid.uv);
-        finger.visible = true;
         const ang = Math.atan2(sh.state.mouse.cy - pm.y, sh.state.mouse.cx - pm.x);
-        finger.position.copy(sf.point).addScaledVector(sf.normal, -0.012);
-        finger.quaternion.setFromUnitVectors(new window.THREE.Vector3(0, 1, 0), sf.normal.clone().add(new window.THREE.Vector3(Math.cos(ang) * 0.5, 0, Math.sin(ang) * 0.5)).normalize());
+        // the finger stays in the hole and circles with the pointer
+        if (G.tool === 'finger') {
+          S.tools.follow = false;
+          const base = S.surfaceAt(mid.uv);
+          const sw = 0.0035;
+          const pt = base.point.clone().add(new THREE.Vector3(Math.cos(ang) * sw, 0, Math.sin(ang) * sw));
+          S.tools.hit = { point: pt, normal: base.normal, uv: mid.uv, s: S.uvToST(mid.uv)[0], t: S.uvToST(mid.uv)[1] };
+          finger.group.visible = true;
+        }
         if (G.lmb && G.tool === 'finger') {
           if (G.lastAng !== null) {
             let da = ang - G.lastAng;
@@ -2652,21 +3096,21 @@
           if (Math.random() < dt * 3) S.controls.shake(0.04, 90);
         } else G.lastAng = null;
         pp.wide({ value: String(Math.round(G.sweep * 100)), meter: { value: G.sweep, zone: [0.95, 1] } });
-        if (G.sweep >= 1) { G.score.sweep = 5; finger.visible = false; pp.flash('ok', T('cd_fl_sweep', 'Track clear, no stuck lung under the finger.'), 2200); nextStep(); }
+        if (G.sweep >= 1) { G.score.sweep = 5; S.tools.follow = true; pp.flash('ok', T('cd_fl_sweep', 'Track clear, no stuck lung under the finger.'), 2200); nextStep(); }
       }
+      if (id !== 'sweep' && !S.tools.follow) S.tools.follow = true;
       if (id === 'tube' && G.wound) {
         if (!G.tube) {
-          const THREE = window.THREE;
           const mid = G.wound.at(0.5).uv;
           const sf = S.surfaceAt(mid);
-          // outside part: from the skin, out and away toward the drain (screen bottom / posterior)
+          // outside part: from the skin, out and away toward the drain (screen bottom / back of the body)
           const n = sf.normal.clone();
           camRight.setFromMatrixColumn(S.camera.matrixWorld, 0);
           const down = new THREE.Vector3().setFromMatrixColumn(S.camera.matrixWorld, 1).negate();
-          const p0 = sf.point.clone();
+          const p0 = sf.point.clone().addScaledVector(n, -0.003);
           const p1 = p0.clone().addScaledVector(n, 0.03).addScaledVector(down, 0.01);
-          const p2 = p0.clone().addScaledVector(n, 0.06).addScaledVector(down, 0.07).addScaledVector(camRight, 0.03 * ant);
-          const p3 = p0.clone().addScaledVector(n, 0.05).addScaledVector(down, 0.2).addScaledVector(camRight, 0.08 * ant);
+          const p2 = p0.clone().addScaledVector(n, 0.06).addScaledVector(down, 0.07).addScaledVector(camRight, -0.03 * ant);
+          const p3 = p0.clone().addScaledVector(n, 0.05).addScaledVector(down, 0.2).addScaledVector(camRight, -0.09 * ant);
           G.tube = MS.tube(new THREE.CatmullRomCurve3([p0, p1, p2, p3], false, 'catmullrom', 0.4));
           G.tube.depth(0);
         }
@@ -2678,7 +3122,7 @@
           if (!G.numbed && G.depth > 4 && Math.random() < dt * 0.4) flinch();
         }
         G.tube.depth(G.depth);
-        if (ml0 > 0 && G.depth > 3) G.tube.fill(Math.min(1, (G.depth - 3) / 25 + G.t * 0.0));
+        if (ml0 > 0 && G.depth > 3) G.tube.fill(Math.min(0.45, (G.depth - 3) / 25));
         pp.wide({ value: G.depth.toFixed(1), meter: { value: G.depth / 18, zone: [10 / 18, 14 / 18], tone: G.depth > 14 ? 'red' : '' }, caption: G.depth < 9 ? T('cd_cap_short', 'side hole still outside') : G.depth > 14 ? T('cd_cap_deep', 'too far: pull back') : T('cd_cap_good', 'all holes inside') });
       }
       if (id === 'connect' && G.tube) {
@@ -2686,9 +3130,11 @@
         if (G.connected) {
           G.drainT += dt;
           const goal = ml0 * 0.85 * (0.6 + 0.4 * (G.score.tube || 10) / 20);
+          const before = G.drained;
           G.drained = Math.min(goal, G.drained + Math.max(30, goal / 6) * dt);
+          G.flow = dt > 0 ? (G.drained - before) / dt * 60 : 0;
           G.lung = Math.min(1, G.drainT / 7);
-          G.tube.fill(ml0 > 0 ? Math.min(1, 0.2 + G.drainT / 2) : 0);
+          G.tube.fill(ml0 > 0 ? Math.min(1, 0.45 + G.drainT / 2) : 0);
           odo.set(String(Math.round(G.drained)).padStart(4, '0'));
           pp.wide({ value: String(Math.round(G.drained)), meter: { value: goal ? G.drained / goal : G.lung } });
           if (G.drainT >= 7.5 && !G.done) finish();
@@ -2698,19 +3144,21 @@
       const lvl = Math.min(100, G.drained / 2000 * 100);
       dw.querySelector('.lvl').setAttribute('y', (115 - lvl).toFixed(1));
       dw.querySelector('.lvl').setAttribute('height', lvl.toFixed(1));
+      dw.querySelector('.mns').setAttribute('d', `M11 ${(115 - lvl).toFixed(1)} Q47 ${(112 - lvl + Math.sin(G.t * 3) * 0.8).toFixed(1)} 83 ${(115 - lvl).toFixed(1)}`);
       const airNow = G.connected && air && G.lung < 0.95;
       if (G.connected) {
         G.bubbles += dt;
         const bub = dw.querySelector('.bub');
         if (airNow) {
           let b = '';
-          for (let i = 0; i < 5; i++) { const ph = (G.bubbles * 1.6 + i * 0.2) % 1; b += `<circle cx="${(98 + (i % 3) * 5).toFixed(1)}" cy="${(114 - ph * 42).toFixed(1)}" r="${(1.4 + (i % 2)).toFixed(1)}"/>`; }
+          for (let i = 0; i < 6; i++) { const ph = (G.bubbles * 1.6 + i * 0.17) % 1; b += `<circle cx="${(97 + (i % 3) * 5).toFixed(1)}" cy="${(114 - ph * 42).toFixed(1)}" r="${(1.2 + (i % 2) * 0.9).toFixed(1)}"/>`; }
           bub.innerHTML = b;
         } else bub.innerHTML = '';
         const sw = Math.sin(G.bubbles * 2.4) * 3 * (1 - G.lung);
         dw.querySelector('.wat').setAttribute('y', (70 + sw).toFixed(1));
         dw.querySelector('.dair').textContent = airNow ? T('dr_bubbling', 'bubbling') : T('dr_none', 'none');
         dw.querySelector('.dair').className = `dair ${airNow ? 'amber' : 'teal'}`;
+        dw.querySelector('.drate').textContent = G.flow > 1 ? `${Math.round(G.flow)} mL/min` : T('dr_slow', 'slowing');
         const C = 2 * Math.PI * 18;
         dw.querySelector('.lung .fg').setAttribute('stroke-dasharray', `${(C * G.lung).toFixed(1)} ${C.toFixed(1)}`);
         dw.querySelector('.dl').textContent = `${Math.round(G.lung * 100)}%`;
@@ -2723,6 +3171,7 @@
         const rec = G.lung;
         pp.stat('spo2', { value: String(Math.round((v.spo2 || 90) + (97 - (v.spo2 || 90)) * rec)), tone: rec > 0.6 ? 'teal' : (v.spo2 || 90) < 92 ? 'red' : '' });
         pp.stat('rr', { value: String(Math.round((v.rr || 24) - ((v.rr || 24) - 16) * rec)) });
+        if (G.connected) sh.row('blood', ml0 ? `~${Math.max(0, Math.round(ml0 - G.drained))} mL` : '—', ml0 - G.drained > 300 ? 'amber' : 'teal');
       }
     }
 
@@ -2731,7 +3180,7 @@
         if (G.done) { if (e.key === 'Enter') { pp.key(e); return true; } return false; }
         if (/^[1-9]$/.test(e.key)) { pick(e.key); return true; }
         const id = stepId();
-        if (e.code === 'KeyN' && id === 'numb') { G.numbSkipped = true; G.score.numb = 0; pp.flash('warn', T('cd_fl_skip', 'No local: the patient will feel this.'), 2400); nextStep(); return true; }
+        if (e.code === 'KeyN' && id === 'numb') { G.numbSkipped = true; G.score.numb = 0; sh.row('numb', T('pt_numb_skip', 'skipped'), 'red'); pp.flash('warn', T('cd_fl_skip', 'No local: the patient will feel this.'), 2400); nextStep(); return true; }
         if (e.key === ' ' && id === 'dissect' && G.popped && G.tool === 'clamp') {
           G.spread++;
           const t = S.tools.active;
@@ -2752,6 +3201,7 @@
       },
       frame,
       msg: {
+        vitals(v) { d.vitals = Object.assign(d.vitals || {}, v || {}); pp.stat('hr', { value: String(Math.round(v.hr || v.ecgRate || 0) || '--') }); },
         result(o) {
           G.done = true;
           const ok = !o.failed;
@@ -2761,8 +3211,8 @@
           NZA.audio[ok ? 'success' : 'fail']();
         },
       },
-      destroy() { pp.destroy(); dw.remove(); MS.dispose(); sh.destroy(); },
-      _dbg: { S, G, target, cutLine: () => cutLine(), pick, connect },
+      destroy() { pp.destroy(); dw.remove(); if (ink) ink.dispose(); MS.dispose(); sh.destroy(); },
+      _dbg: { S, G, target, cutLine: () => cutLine(), pick, connect, ribV, nextStep, placeMark, MS, hand, finger, pen },
     };
     return api;
   }
@@ -2773,43 +3223,71 @@
     const tag = T('dc_tag', 'Needle decompression · %s side', T('side_' + side, side));
     const STEPS = [T('dc_s1', 'Find the 2nd rib space'), T('dc_s2', 'Push the needle in')];
     if (!window.NZA3D || !NZA3D.supported()) return Fallback(app, d, STEPS, tag, {});
-    const sh = Shell(app, d, { sub: tag, scene: { region: 'chest', focus: { uv: [0.5, 0.6], size: [0.1, 0.1], view: 0.24 } } });
+    const sh = Shell(app, d, { sub: tag, scene: { region: 'chest', size: [0.6, 0.44], hair: 0.3, focus: { uv: [0.5, 0.6], size: [0.1, 0.1] } } });
     const S = sh.S;
     if (!S) { sh.destroy(); return Fallback(app, d, STEPS, tag, {}); }
-    const H = S.patch.H;
+    const THREE = window.THREE;
+    const H = S.patch.H, W = S.patch.W;
     const med = side === 'right' ? 1 : -1;                       // the breastbone lies toward +u on the right side
     const SP = 0.024 / H;
-    const ribV = n => 0.86 - 0.05 - (n - 1) * SP - 0.012;       // rib 1 hides under the collarbone
-    const clavV = 0.86;
-    const target = [0.5, ribV(2) - SP / 2];
-    for (let u = 0.05; u <= 0.95; u += 0.028) S.bumps.add({ uv: [u, clavV - 0.04 * (u - 0.5) * med], radius: 0.012, height: 0.0024 });
-    for (let n = 2; n <= 7; n++) for (let u = 0.08; u <= 0.92; u += 0.032) { const v = ribV(n) + 0.05 * (u - 0.5) * med; if (v > 0.05) S.bumps.add({ uv: [u, v], radius: 0.011, height: 0.0014 }); }
-    S.bumps.add({ uv: [0.5 + 0.42 * med, 0.5], radius: 0.06, height: -0.0012 });   // groove over the breastbone
-    S.controls.frame([0.5, 0.6], 0.22, { pitch: 1.22 });
-    S.prewarm(['syringe'], false);
+    const clavV = u => 0.84 - 0.05 * (u - 0.5) * med;           // collarbone, rising toward the shoulder
+    const ribV = (n, u) => 0.84 - 0.05 - (n - 1) * SP - 0.012 + 0.05 * (u - 0.5) * med;
+    const mcl = 0.5;                                             // middle of the collarbone
+    const target = [mcl, ribV(2, mcl) - SP / 2];
     const MS = meshes(S);
+    const ink = Ink(S);
+    for (let u = 0.06; u <= 0.95; u += 0.034) S.bumps.add({ uv: [u, clavV(u)], radius: 0.014, height: 0.0042 });
+    S.bumps.add({ uv: [0.5 - 0.36 * med, clavV(0.5 - 0.36 * med) - 0.02], radius: 0.05, height: 0.004 });     // shoulder / chest muscle
+    S.bumps.add({ uv: [0.5 - 0.06 * med, clavV(0.5) + 0.05], radius: 0.04, height: -0.0035 });                 // hollow above the collarbone
+    for (let n = 2; n <= 6; n++) for (let u = 0.1; u <= 0.9; u += 0.036) { const v = ribV(n, u); if (v > 0.05) S.bumps.add({ uv: [u, v], radius: 0.013, height: 0.0016 }); }
+    S.bumps.add({ uv: [0.5 + 0.42 * med, 0.5], radius: 0.06, height: -0.0016 });                              // groove over the breastbone
+    S.bumps.add({ uv: [0.5 + 0.43 * med, clavV(0.5 + 0.43 * med) + 0.01], radius: 0.022, height: -0.003 });      // notch above the breastbone
+    const nip = [0.5 - 0.02 * med, ribV(4, 0.5) - SP * 0.5];
+    S.bumps.add({ uv: nip, radius: 0.0045, height: 0.0024 });
+    if (ink) { ink.areola(nip, 0.014, d.tone !== undefined ? +d.tone : 0.35); ink.flush(); }
+    S.controls.frame([0.5, 0.62], 0.3, { pitch: 1.14 });
+    S.prewarm(['syringe'], false);
+    MS.sheet();
+    const hand = MS.hand('palpate');
     const pen = MS.pen();
-    const G = { step: 0, mark: null, err: null, push: 0, popped: false, lmb: false, done: false, score: 0, t: 0 };
+    const G = { step: 0, mark: null, err: null, push: 0, popped: false, lmb: false, done: false, score: 0, t: 0, tool: 'hand', lens: 0 };
+    const tlist = () => [
+      { key: '1', label: T('cd_t_hand', 'Palpate'), icon: 'hand', state: G.step > 0 ? 'done' : G.tool === 'hand' ? 'active' : '' },
+      { key: '2', label: T('cd_t_pen', 'Skin marker'), icon: 'edit', state: G.step > 0 ? 'done' : G.tool === 'pen' ? 'active' : '' },
+      { key: '3', label: T('dc_t_needle', 'Needle'), icon: 'needle', state: G.step === 1 ? 'active' : 'locked' },
+    ];
     const pp = NZA.ui.ProcPanel(sh.ppHost, {
       tag, step: 1, total: 2, steps: STEPS, title: STEPS[0],
-      text: T('dc_x1', 'Find the collarbone, count down to the **2nd rib space** in the **middle of the collarbone** and click to mark it.'),
+      text: T('dc_x1', 'Feel the collarbone with {1} and count down the ribs. Mark the **2nd rib space** under the **middle of the collarbone** with {2}.'),
       wide: { label: T('cd_w_mark', 'Off target'), value: '--', unit: 'mm', meter: { value: 0, zone: [0, 0.2] } },
       stats: [{ id: 'spo2', label: 'SpO₂', value: String((d.vitals && d.vitals.spo2) || '--'), unit: '%' }, { id: 'sys', label: T('st_bp', 'Systolic'), value: String((d.vitals && d.vitals.sys) || '--') }],
-      tools: [{ key: '1', label: T('cd_t_pen', 'Skin marker'), icon: 'edit', state: 'active' }, { key: '2', label: T('dc_t_needle', 'Needle'), icon: 'needle' }],
+      tools: tlist(),
       hints: [{ keys: [T('k_rmb', 'RMB')], label: T('h_look3', 'look around') }, { keys: [T('k_wheel', 'Wheel')], label: T('h_zoom', 'zoom') }],
       abort: { label: T('hold_stop_needle', 'Hold to stop'), key: 'ESC', seconds: 1.2 }, onAbort: () => app.abort(),
+      onTool: k => pickTool(k),
     });
     sh.patient([
-      { label: T('pt_side', 'Side'), value: T('side_' + side, side) },
-      { label: T('pt_air', 'Air in chest'), value: d.tension === false ? T('pt_simple', 'simple') : T('pt_tension', 'tension'), tone: 'red' },
+      { id: 'side', label: T('pt_side', 'Side'), value: T('side_' + side, side) },
+      { id: 'air', label: T('pt_air', 'Air in chest'), value: d.tension === false ? T('pt_simple', 'simple') : T('pt_tension', 'tension'), tone: 'red' },
+      { id: 'trachea', label: T('pt_trachea', 'Windpipe'), value: d.tension === false ? T('pt_mid', 'midline') : T('pt_shift', 'pushed away'), tone: d.tension === false ? '' : 'amber' },
     ]);
+    function pickTool(k) {
+      if (G.done) return;
+      if (G.step === 0 && (k === '1' || k === '2')) {
+        G.tool = k === '1' ? 'hand' : 'pen';
+        S.tools.use(G.tool === 'hand' ? hand : pen);
+        pp.set({ tools: tlist() });
+        NZA.audio.click(640);
+      }
+    }
+    S.tools.use(hand);
     S.on('down', e => {
       if (e.button !== 0 || G.done) return;
       G.lmb = true; S.tools.press(true);
       const hit = sh.hit();
-      if (G.step === 0 && hit) {
+      if (G.step === 0 && hit && G.tool === 'pen') {
         G.mark = hit.uv;
-        S.markers.set('mark', { uv: hit.uv, kind: 'cross', color: 0x6d3fb2, size: 0.007 });
+        if (ink) { ink.cross(hit.uv, 0.008, 0); ink.flush(); } else S.markers.set('mark', { uv: hit.uv, kind: 'cross', color: 0x5b2f9c, size: 0.007 });
         G.err = S.distanceUv(hit.uv, target) / MM;
         const tone = G.err <= 10 ? 'ok' : G.err <= 22 ? 'warn' : 'bad';
         pp.wide({ value: String(Math.round(G.err)), meter: { value: clamp(G.err / 50, 0, 1), zone: [0, 0.2], tone: tone === 'ok' ? '' : tone === 'warn' ? 'amber' : 'red' } });
@@ -2817,27 +3295,32 @@
         pp.flash(tone, tooMed ? T('dc_fl_med', 'Too close to the breastbone: big vessels run there.') : tone === 'ok' ? T('dc_fl_ok', 'Right spot.') : T('dc_fl_off', '%s mm from the ideal spot.', Math.round(G.err)), 2600);
         G.score = (G.err <= 8 ? 55 : G.err <= 15 ? 45 : G.err <= 25 ? 30 : 12) - (tooMed ? 15 : 0);
         G.step = 1;
-        pen.visible = false;
         setTimeout(() => {
-          pp.set({ step: 2, title: STEPS[1], text: T('dc_x2', 'Hold {LMB} on the mark and push straight down, just over the top of the 3rd rib, until you hear the hiss.'), tools: [{ key: '1', label: T('cd_t_pen', 'Skin marker'), icon: 'edit', state: 'done' }, { key: '2', label: T('dc_t_needle', 'Needle'), icon: 'needle', state: 'active' }], wide: { label: T('dc_w_push', 'Depth'), value: '0', unit: '%', meter: { value: 0, zone: [0.95, 1] } } });
+          pp.set({ step: 2, title: STEPS[1], text: T('dc_x2', 'Hold {LMB} on the mark and push straight down, just over the top of the 3rd rib, until you hear the hiss.'), tools: tlist(), wide: { label: T('dc_w_push', 'Depth'), value: '0', unit: '%', meter: { value: 0, zone: [0.95, 1] } } });
           S.tools.use('syringe', { tilt: 0.12, yaw: 1.4 });
         }, 700);
       }
     });
     S.on('up', e => { if (e.button === 0) { G.lmb = false; S.tools.press(false); } });
+    const curves = [{ cls: 'cl', pts: Array.from({ length: 22 }, (_, i) => { const u = 0.06 + i * 0.042; return [u, clavV(u)]; }) }];
+    for (let n = 1; n <= 6; n++) curves.push({ cls: n === 2 || n === 3 ? 'rb hi' : 'rb', pts: Array.from({ length: 22 }, (_, i) => { const u = 0.06 + i * 0.042; return [u, ribV(n, u)]; }) });
+    curves.push({ cls: 'mcl', pts: [[mcl, 0.92], [mcl, 0.3]] });
+    const labels = [{ uv: [0.5 - 0.1 * med, clavV(0.5 - 0.1 * med) + 0.025], t: T('dc_clav_s', 'collarbone'), cls: 'hi' }];
+    for (let n = 1; n <= 6; n++) labels.push({ uv: [0.5 - 0.12 * med, ribV(n, 0.5 - 0.12 * med) + 0.004], t: String(n), cls: n === 2 || n === 3 ? 'hi' : '' });
+    labels.push({ uv: [mcl + 0.012, 0.36], t: T('dc_mcl', 'mid-clavicle'), cls: 'sp' });
     function frame(dt) {
       G.t += dt;
       const hit = sh.hit();
       let ring = null, txt = '', tone = '';
+      const pressing = G.step === 0 && G.tool === 'hand' && G.lmb && hit;
+      G.lens = clamp(G.lens + (pressing ? dt * 4 : -dt * 3), 0, 1);
+      sh.svg.innerHTML = G.lens > 0 && sh.state.moved ? lensSVG(sh, sh.state.mouse.cx, sh.state.mouse.cy, 170, curves, labels, G.lens) : '';
       if (G.step === 0 && hit) {
-        pen.visible = true;
-        const sf = S.surfaceAt(hit.uv);
-        pen.position.copy(sf.point);
-        pen.quaternion.setFromUnitVectors(new window.THREE.Vector3(0, 1, 0), sf.normal.clone().add(new window.THREE.Vector3(0.3, 0.2, 0.3)).normalize());
-        const v = hit.uv[1];
-        const n = Math.round((0.86 - 0.05 - 0.012 - v) / SP + 1);
-        txt = Math.abs(v - clavV) < 0.03 ? T('dc_clav', 'collarbone') : (n >= 2 && n <= 7 ? (Math.abs(v - ribV(n)) < SP * 0.3 ? T('cd_rib', '%s rib', ORD(n)) : T('cd_space', '%s space', ORD(v > ribV(n) ? n - 1 : n))) : '');
-        ring = txt ? 1 : null; tone = txt === T('cd_space', '%s space', ORD(2)) ? 'teal' : '';
+        const v = hit.uv[1], u = hit.uv[0];
+        const n = Math.round((ribV(1, u) - v) / SP + 1);
+        txt = Math.abs(v - clavV(u)) < 0.03 ? T('dc_clav', 'collarbone') : (n >= 1 && n <= 7 ? (Math.abs(v - ribV(n, u)) < SP * 0.3 ? T('cd_rib', '%s rib', ORD(n)) : T('cd_space', '%s space', ORD(v > ribV(n, u) ? n - 1 : n))) : '');
+        if (G.tool === 'hand') { ring = G.lmb && txt ? 1 : null; tone = txt === T('cd_space', '%s space', ORD(2)) ? 'teal' : ''; if (!G.lmb) txt = ''; }
+        else { ring = txt ? 0 : null; tone = txt === T('cd_space', '%s space', ORD(2)) ? 'teal' : ''; }
       }
       if (G.step === 1 && !G.popped && G.lmb && hit && G.mark) {
         const near = S.distanceUv(hit.uv, G.mark) / MM < 7;
@@ -2848,7 +3331,10 @@
             G.popped = true;
             NZA.audio.noise(1600, { vol: 0.12, lp: 4200, hp: 500, attack: 0.02, release: 0.7 });
             S.controls.shake(0.25, 300);
+            S.layers.splat('wet', G.mark, 0.006, 0.6);
             pp.flash('ok', T('dc_fl_hiss', 'Hiss! Trapped air rushes out of the needle.'), 3000);
+            sh.row('air', T('pt_released', 'released'), 'teal');
+            sh.row('trachea', T('pt_mid', 'midline'), 'teal');
             G.score += 45;
             setTimeout(() => finish(), 1500);
           }
@@ -2858,9 +3344,9 @@
       sh.ring(ring, txt, tone);
       if (G.popped) {
         const v = d.vitals || {};
-        const k = clamp((G.t % 100) / 3, 0, 1);
-        pp.stat('spo2', { value: String(Math.round((v.spo2 || 86) + (94 - (v.spo2 || 86)) * k)), tone: 'teal' });
-        pp.stat('sys', { value: String(Math.round((v.sys || 80) + (104 - (v.sys || 80)) * k)), tone: 'teal' });
+        G.rec = Math.min(1, (G.rec || 0) + dt / 3);
+        pp.stat('spo2', { value: String(Math.round((v.spo2 || 86) + (94 - (v.spo2 || 86)) * G.rec)), tone: 'teal' });
+        pp.stat('sys', { value: String(Math.round((v.sys || 80) + (104 - (v.sys || 80)) * G.rec)), tone: 'teal' });
       }
     }
     function finish() {
@@ -2870,7 +3356,11 @@
       app.post('finish', { result: { score: clamp(Math.round(G.score), 0, 100) } }).then(r => { if (r && r.outcome) api.msg.result(r.outcome); });
     }
     const api = {
-      key(e) { if (G.done && e.key === 'Enter') { pp.key(e); return true; } return false; },
+      key(e) {
+        if (G.done && e.key === 'Enter') { pp.key(e); return true; }
+        if (e.key === '1' || e.key === '2') { pickTool(e.key); return true; }
+        return false;
+      },
       frame,
       msg: {
         result(o) {
@@ -2879,8 +3369,8 @@
           NZA.audio[ok ? 'success' : 'fail']();
         },
       },
-      destroy() { pp.destroy(); MS.dispose(); sh.destroy(); },
-      _dbg: { S, G, target },
+      destroy() { pp.destroy(); if (ink) ink.dispose(); MS.dispose(); sh.destroy(); },
+      _dbg: { S, G, target, hand, pen },
     };
     return api;
   }
@@ -3157,7 +3647,7 @@
   document.addEventListener('mouseover', e => {
     const a = NZA.apps.ultrasound;
     if (!a || !a.mode || !a.mode.overUi) return;
-    const over = !!(e.target && e.target.closest && e.target.closest('.us-dev,.us-plan,.pp-card,.pp-belt,.pp-read,.pp-bot'));
+    const over = !!(e.target && e.target.closest && e.target.closest('.us-dev,.us-plan,.pp-col,.pp-card,.pp-belt,.pp-abort,.pp-read'));
     a.mode.overUi(over);
   });
 

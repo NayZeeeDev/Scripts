@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>NAYZEEE Monitor Screen</title>
+<title>PM-4 screen</title>
 <!--
   NAYZEEE AMBULANCE · monitor — the screen of the nz_amb_monitor prop (DUI page, 512 x 256)
+  The face is unbranded: same status-ring grammar as the PM-4 overlay (rings row + full-width sweeps).
   Drawn into a runtime texture that replaces Config.PropScreens.monitor while a medic has the
   monitor attached (client/modules/field_monitor.lua). Lua drives it with SendDuiMessage:
-    { vitals = { hr, ecgRate, spo2, sys, dia, map, rr, temp, etco2, rhythm, state, name } }
+    { vitals = { hr, ecgRate, spo2, sys, dia, map, rr, temp, etco2, rhythm, state, name } }   { locale = {...} }
     { nibp = { sys, dia, map } }   { override = { map, sys, dia } | false }
   Browser check: screen.html?demo=1
 -->

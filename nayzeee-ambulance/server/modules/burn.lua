@@ -326,6 +326,9 @@ local function careFinish(src, p, session, result)
         debrided = nothing or dfrac >= (tonumber(C.debridedMin) or 0.75)
         if nothing and b.degree <= 1 then debrided = false end   -- superficial burns are never debrided
         continue = result.continue == true and b.degree >= 3 and b.full > 0
+        -- "graft now" only counts when the graft could really start (perm, kit, room); otherwise the
+        -- burn simply ends undressed and the medic is told so
+        if continue and graftCheck(src, p, inj, true).ok ~= true then continue = false end
         dressed = not continue and result.dressed == true and clamp(result.stuck, 0, 1) >= 0.5 and clamp(result.cover, 0, 1) >= 0.5
         if result.tested then fullEst = clamp(result.fullEst, 0, 100) end
         overcool = clamp(result.overcool, 0, tonumber(session.elapsed) or 0)

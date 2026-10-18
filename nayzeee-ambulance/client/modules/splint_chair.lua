@@ -14,7 +14,7 @@
         pitch on slopes (gravity pulls you downhill), curbs higher than drive.maxStep and drops deeper than
         drive.maxDrop block you, walls / vehicles / peds stop you (capsule shape tests). The driver owns the
         chair entity (network control) while driving; the pusher owns it while pushing.
-    HUD: NZA.Splint.HudSet('chair' | 'push', ...) → 'splint' app in 'hud' mode.
+    HUD: NZA.Splint.HudSet('chair' | 'push', { speed, slope, turn, dist, blocked, ... }) → 'splint' app in 'hud' mode.
     Net events handled: nza:splint:chair:place · nza:splint:chair:seated (net, on)
     Callbacks used: nza:splint:chair:spawn / sit / push / fold / seat / unseat · event nza:splint:chair:leave
     Lua API: NZA.Splint.InChair() · NZA.Splint.Pushing() · NZA.Splint.ChairSit(ent) · NZA.Splint.ChairPush(ent)
@@ -46,7 +46,7 @@ local function toastMsg(r, fallback)
     NZA.UI.Toast({ title = L('chair'), message = msg or L(fallback or 'err_generic'), type = 'error' })
 end
 
-local MODEL_NAME = (Config.Props and Config.Props[W().prop or 'wheelchair']) or 'prop_wheelchair_01'
+local MODEL_NAME = (Config.Props and Config.Props[W().prop or 'wheelchair']) or (Config.PropFallbacks and Config.PropFallbacks[W().prop or 'wheelchair']) or Config.Props.wheelchair
 local MODEL = joaat(MODEL_NAME)
 
 local my = { mode = nil, ent = 0, net = nil, gen = 0, speed = 0.0, heading = 0.0, baseOff = nil }
@@ -285,6 +285,7 @@ local function driveStep(ent, dt, d, input)
         else
             pos = vector3(np.x, np.y, ngz + (my.baseOff or 0.0))
             gz = ngz
+            my.dist = (my.dist or 0.0) + math.abs(step)
         end
     end
     my.speed = v
@@ -327,9 +328,10 @@ local function seatLoop(gen)
             if pushedBy then
                 my.speed = 0.0
                 local sp = GetEntitySpeed(ent)
+                my.dist = (my.dist or 0.0) + sp * GetFrameTime()
                 hudPush('chair', {
                     kind = 'chair', title = L('hud_chair'), sub = L('hud_pushed_by', playerName(pushedBy)), state = 'pushed',
-                    speed = sp, max = tonumber(d.maxSpeed) or 1.9, slope = 0,
+                    speed = sp, max = tonumber(d.maxSpeed) or 1.9, slope = 0, turn = 0, dist = my.dist,
                     keys = { { keys = { stand.label or 'F' }, label = L('k_stand') } },
                 })
             else
@@ -346,14 +348,15 @@ local function seatLoop(gen)
                     end
                     local fwd = (IsDisabledControlPressed(0, 32) and 1 or 0) - (IsDisabledControlPressed(0, 33) and 1 or 0)
                     local turn = (IsDisabledControlPressed(0, 34) and 1 or 0) - (IsDisabledControlPressed(0, 35) and 1 or 0)
+                    my.turn = turn
                     blocked, pitchDeg = driveStep(ent, math.min(0.05, GetFrameTime()), d, { fwd = fwd, turn = turn })
                 end
                 local blockedText = blocked and L('blocked_' .. blocked) or nil
                 hudPush('chair', {
                     kind = 'chair', title = L('hud_chair'),
-                    sub = blocked and L('hud_blocked') or (math.abs(my.speed) > 0.05 and (my.speed > 0 and L('hud_rolling') or L('hud_reversing')) or L('hud_parked')),
+                    sub = blocked and L('hud_sub_blocked') or L('hud_sub_drive'),
                     state = blocked and 'blocked' or 'drive', blocked = blockedText,
-                    speed = my.speed, max = tonumber(d.maxSpeed) or 1.9, slope = pitchDeg or 0,
+                    speed = my.speed, max = tonumber(d.maxSpeed) or 1.9, slope = pitchDeg or 0, turn = my.turn or 0, dist = my.dist or 0,
                     keys = {
                         { keys = { 'W', 'S' }, label = L('k_drive') },
                         { keys = { 'A', 'D' }, label = L('k_turn') },
@@ -378,7 +381,7 @@ local function attachSelf(ent, net)
     NZA.Self.SetMoveOverride('wheelchair', false)
     my.gen = my.gen + 1
     my.mode, my.ent, my.net = 'sit', ent, net
-    my.speed, my.baseOff = 0.0, nil
+    my.speed, my.baseOff, my.dist, my.turn = 0.0, nil, 0.0, 0
     my.heading = GetEntityHeading(ent)
     seatLoop(my.gen)
     return true
@@ -439,6 +442,8 @@ local function pushLoop(gen)
         local pc = W().push or {}
         local letGo = (W().keys or {}).letGo or { control = 47, label = 'G' }
         local blend = tonumber(pc.maxMoveBlend) or 1.0
+        local slope, slopeAt = 0.0, 0
+        my.dist = 0.0
         while my.mode == 'push' and my.gen == gen do
             local ped = PlayerPedId()
             local ent = my.ent
@@ -469,9 +474,20 @@ local function pushLoop(gen)
             end
             local st = chairState(ent) or {}
             local who = st.occ and not st.occNpc and playerName(st.occ) or nil
+            local speed = GetEntitySpeed(ped)
+            my.dist = (my.dist or 0.0) + speed * GetFrameTime()
+            local now = GetGameTimer()
+            if now > slopeAt then
+                -- ground grade along the walking direction (two probes, a metre apart)
+                slopeAt = now + 300
+                local f = GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.5, 0.0)
+                local b = GetOffsetFromEntityInWorldCoords(ped, 0.0, -0.5, 0.0)
+                local fz, bz = groundAt(f.x, f.y, f.z, ped), groundAt(b.x, b.y, b.z, ped)
+                slope = (fz and bz) and math.deg(math.atan(fz - bz, 1.0)) or 0.0
+            end
             hudPush('push', {
                 kind = 'push', title = L('hud_push'), sub = who and who ~= '' and L('hud_pushing', who) or (st.occ and L('hud_pushing_patient') or L('hud_push_empty')),
-                state = 'push', speed = GetEntitySpeed(ped), max = tonumber((W().drive or {}).maxSpeed) or 1.9, slope = 0,
+                state = 'push', speed = speed, max = tonumber((W().drive or {}).maxSpeed) or 1.9, slope = slope, turn = 0, dist = my.dist,
                 keys = { { keys = { letGo.label or 'G' }, label = L('k_let_go') } },
             })
             Wait(0)

@@ -1,16 +1,27 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · field — field resuscitation (7 steps) and IV cannulation
 
+   Layout (with the core procedure HUD: step column bottom-left, tool belt right edge):
+     · the PM-4 monitor top-left (monitor app)
+     · VIEW selector (camera focus keys) inside the step column's slot
+     · an instrument RACK mounted beside the tool belt (right-middle, left of the belt):
+       one device per step — BT-3 binder tensioner, IO-7 driver (bubble level + bone
+       cross-section), SX-10 syringe (vertical, rate dial), CA-2 clot analyser +
+       PI-3 pressure infuser (step 6), VF-2 vein finder / NC-1 needle cam (IV), handover card.
+     · in-world diamond markers + an overlay for the strap / drill aim (anchors layer)
+   Devices carry generic model codes and warning stickers, never a brand.
+
    Lua → JS
      open      { mode = 'resus'|'iv', plan, keys, locale, focus = { patient, site, stand, kit } }
-     step      { proc = 'binder'|'io'|'resus'|'reassess'|'iv', status = 'run'|'skip'|'blocked', data, reason }
+     step      { proc = 'binder'|'io'|'resus'|'reassess'|'iv', status = 'run'|'skip'|'blocked'|'easy', data, reason }
      outcome   { proc, ok, outcome | reason }           (server answer for a finished step)
      vitals    { hr, sys, dia, map, spo2, rr, temp, etco2, rhythm, bleed, state, injury }
      clot      server model of the resuscitate step (see server/modules/field_procs.lua)
      popped    {}                                         the clot gave way
      focus     { what }                                   camera focus key highlight
      summary   { before, after, steps[], devices, given, clot }   step 7
-     bags      { saline, txa, foil, bags[], infusions[] }
+     bags      { counts, bags[] }
+     drill     { flash, type }
    JS → Lua (NUI callbacks 'field:<event>')
      result { proc, result }  skip { proc }  abort {}  done {}  focus { what }
      binderDrop {} → { ok }   phase { proc, phase, site }   drill { x, y, angle, dx, dy, lift, depth }
@@ -30,9 +41,9 @@
     return s;
   }
   const post = (ev, d) => NZA.post(`${APP}:${ev}`, d || {});
-  const smooth = x => x * x * (3 - 2 * x);
   const fmt1 = n => (Math.round(n * 10) / 10).toFixed(1);
   const grade = s => (s >= 92 ? 'S' : s >= 80 ? 'A' : s >= 65 ? 'B' : s >= 50 ? 'C' : s >= 35 ? 'D' : 'F');
+  const toneOf = (v, lo, hi) => (v > hi ? 'red' : v >= lo ? 'teal' : v > 0 ? 'amber' : '');
 
   /* ═══════════════════════════ STATE ═══════════════════════════ */
   const S = {
@@ -42,7 +53,7 @@
     mouse: { x: 0, y: 0, down: false }, held: {}, results: [], focus: 'patient',
     b: null, io: null, rs: null, iv: null, waiting: false,
   };
-  const ui = { host: null, focus: null, dev: null, inf: null, ov: null, pp: null, ghost: null, scene: null };
+  const ui = { host: null, view: null, rack: null, dev: null, inf: null, ov: null, pp: null, ghost: null, scene: null };
   let raf = 0, lastT = 0;
 
   const anchors = () => (NZA.apps[APP] ? NZA.apps[APP].anchors.map : {}) || {};
@@ -53,53 +64,88 @@
   }
   const pxScale = () => H() / 1080;
 
-  /* ═══════════════════════════ SMALL WIDGETS ═══════════════════════════ */
+  /* ═══════════════════════════ DRAWING HELPERS ═══════════════════════════ */
+  // 240° dial (value / zone 0..1) — used by the tensioner, the syringe rate and the infuser
+  function dialSVG(v, { zone = null, tone = '', ticks = 12, label = '' } = {}) {
+    const R = 44, C = 60, A0 = 150, SW = 240;
+    const pt = (f, r = R) => { const a = (A0 + SW * clamp(f, 0, 1)) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+    const arc = (f0, f1, r = R) => { const [x0, y0] = pt(f0, r), [x1, y1] = pt(f1, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${(f1 - f0) * SW > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+    let tk = '';
+    for (let i = 0; i <= ticks; i++) { const [a, b] = pt(i / ticks, R + 7), [c, d] = pt(i / ticks, R + (i % 3 ? 10 : 13)); tk += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }
+    const f = clamp(v, 0, 1);
+    const [nx, ny] = pt(f);
+    return `<svg viewBox="0 0 120 108" class="dz ${tone}">
+      <g class="tk">${tk}</g><path class="tr" d="${arc(0, 1)}"/>
+      ${zone ? `<path class="zn" d="${arc(zone[0], zone[1])}"/>` : ''}
+      ${f > 0.004 ? `<path class="fl" d="${arc(0, Math.max(f, 0.005))}"/><circle class="nb" cx="${nx.toFixed(2)}" cy="${ny.toFixed(2)}" r="3.4"/>` : ''}
+      ${label ? `<text x="60" y="100" class="lb">${esc(label)}</text>` : ''}
+    </svg>`;
+  }
+  // rounded-rect path without CanvasRenderingContext2D.roundRect (older CEF builds)
+  function rrPath(c, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+  }
+  // instrument list rows: label left, mono value right, tone notch
+  const row = (cls, label, value, tone = '') => `<div class="m-row ${cls} ${tone}"><span class="k">${esc(label)}</span><span class="v">${value}</span></div>`;
+  function setRow(sel, value, tone) { const r = q(sel); if (!r) return; r.querySelector('.v').innerHTML = value; r.className = r.className.replace(/\b(teal|amber|red|dim)\b/g, '').trim() + (tone ? ` ${tone}` : ''); }
+
+  /* ── vertical syringe (drag the plunger; push = drag down, pull = drag up) ── */
   function Syringe(host, o) {
-    o = Object.assign({ cap: 10, vol: 0, mode: 'push', fluid: 'clear', band: null, maxRate: 1, flashAt: null, label: '' }, o);
-    const root = NZA.el('div', 'syr');
-    const fluidCol = { clear: 'rgba(170,215,235,.55)', lido: 'rgba(150,200,255,.6)', blood: 'rgba(150,20,28,.92)', marrow: 'rgba(120,14,20,.95)', txa: 'rgba(200,235,225,.6)' };
-    root.innerHTML = `
-      <svg viewBox="0 0 300 70">
-        <defs><linearGradient id="syrg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(255,255,255,.22)"/><stop offset=".5" stop-color="rgba(255,255,255,.05)"/><stop offset="1" stop-color="rgba(255,255,255,.14)"/></linearGradient></defs>
-        <rect x="2" y="33" width="26" height="4" rx="1" fill="#c8d0d4"/>
-        <rect x="26" y="28" width="20" height="14" rx="3" fill="#2b3135" stroke="rgba(255,255,255,.25)"/>
-        <rect class="liq" x="46" y="22" width="0" height="26" fill="${fluidCol[o.fluid] || fluidCol.clear}"/>
-        <rect x="46" y="20" width="200" height="30" rx="4" fill="url(#syrg)" stroke="rgba(255,255,255,.45)" stroke-width="1.4"/>
-        <g class="grad" stroke="rgba(255,255,255,.45)" stroke-width="1"></g>
-        <rect x="244" y="14" width="8" height="42" rx="2" fill="#3a4246"/>
-        <g class="pl"><rect class="pist" x="0" y="21" width="9" height="28" rx="2" fill="#1d2023"/><rect class="rod" x="9" y="31" width="52" height="8" fill="#aeb8bd"/>
-          <rect class="thumb" x="58" y="12" width="9" height="46" rx="3" fill="#e9eef0" stroke="#08afa2" stroke-width="2"/></g>
-      </svg>
-      <div class="syr-row"><span>${esc(o.label)}</span><span><b class="vol">0.0</b> / ${o.cap} ml</span></div>
-      ${o.band ? '<div class="syr-meter"></div><div class="syr-row"><span class="rl"></span><span><b class="rate">0.00</b> ml/s</span></div>' : ''}`;
-    host.appendChild(root);
-    const g = root.querySelector('.grad');
-    for (let i = 0; i <= o.cap; i++) {
-      const x = 46 + (i / o.cap) * 200;
-      g.insertAdjacentHTML('beforeend', `<line x1="${x}" y1="20" x2="${x}" y2="${i % 5 === 0 ? 29 : 25}"/>`);
+    o = Object.assign({ cap: 10, vol: 0, mode: 'push', fluid: 'clear', band: null, maxRate: 1, flashAt: null, label: '', compact: false }, o);
+    const root = NZA.el('div', `syr ${o.band ? 'wb' : ''} ${o.compact ? 'cmp' : ''} ${o.mode}`);
+    const fluidCol = { clear: 'rgba(175,220,240,.5)', lido: 'rgba(150,200,255,.62)', blood: 'rgba(150,20,28,.92)', marrow: 'rgba(110,12,18,.96)', txa: 'rgba(196,236,226,.6)' };
+    const TOP = 140, BOT = 264, LEN = BOT - TOP, ROD = LEN + 8, VH = 296;
+    let grads = '';
+    const step = o.cap <= 5 ? 0.5 : 1;
+    for (let i = 0; i <= o.cap + 1e-6; i += step) {
+      const y = BOT - (i / o.cap) * LEN, major = Math.abs(i % (o.cap <= 5 ? 1 : 2)) < 1e-6;
+      grads += `<line x1="${major ? 38 : 42}" y1="${y.toFixed(1)}" x2="48" y2="${y.toFixed(1)}"/>`;
+      if (major && i > 0) grads += `<text x="10" y="${(y + 2.3).toFixed(1)}">${i}</text>`;
     }
+    const gid = `syrg${Math.random().toString(36).slice(2, 7)}`;
+    root.innerHTML = `
+      <div class="syr-col"><svg viewBox="0 0 64 ${VH}">
+        <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="rgba(255,255,255,.2)"/><stop offset=".35" stop-color="rgba(255,255,255,.04)"/><stop offset=".8" stop-color="rgba(255,255,255,.1)"/><stop offset="1" stop-color="rgba(255,255,255,.22)"/></linearGradient></defs>
+        <g class="pl"><rect class="thumb" x="15" y="${-ROD - 7}" width="34" height="7" rx="3"/><rect class="rod" x="29.5" y="${-ROD}" width="5" height="${ROD}" rx="1"/><path class="rodx" d="M26 ${-ROD + 2}h12M26 -10h12"/><rect class="stop" x="17" y="0" width="30" height="7" rx="2"/><path class="ribs" d="M17 2.3h30M17 4.7h30"/></g>
+        <rect class="liq" x="17" y="${BOT}" width="30" height="0" fill="${fluidCol[o.fluid] || fluidCol.clear}"/>
+        <rect class="flange" x="4" y="${TOP - 6}" width="56" height="6" rx="2"/>
+        <rect class="barrel" x="16" y="${TOP}" width="32" height="${LEN}" rx="3" fill="url(#${gid})"/>
+        <g class="gr">${grads}</g>
+        <path class="hub" d="M24 ${BOT}h16l-2 10h-12z"/><rect class="luer" x="27" y="${BOT + 10}" width="10" height="7" rx="1"/>
+        <line class="ndl" x1="32" y1="${BOT + 17}" x2="32" y2="${VH}"/>
+      </svg><span class="syr-grip">${icon('chev-u')}${icon('chev-d')}</span></div>
+      <div class="syr-side">
+        <div class="syr-k">${esc(o.label)}</div>
+        <div class="syr-v"><b class="vol">0.0</b><i>/ ${o.cap} ml</i></div>
+        ${o.band ? `<div class="syr-dial"><div class="sd"></div><div class="sdv"><b class="rate">0.00</b><i>ml/s</i></div></div><div class="syr-st"><span class="dot"></span><span class="rl"></span></div>` : '<div class="syr-ret"></div>'}
+      </div>`;
+    host.appendChild(root);
     let vol = o.vol, rate = 0, dragging = false, lastMove = now(), acc = 0, flashed = false, fluid = o.fluid, dead = false;
+    const liq = root.querySelector('.liq'), pl = root.querySelector('.pl');
     const draw = () => {
-      const x = 46 + clamp(vol / o.cap, 0, 1) * 200;
-      root.querySelector('.liq').setAttribute('width', Math.max(0, x - 46));
-      root.querySelector('.liq').setAttribute('fill', fluidCol[fluid] || fluidCol.clear);
-      root.querySelector('.pl').setAttribute('transform', `translate(${x},0)`);
+      const y = BOT - clamp(vol / o.cap, 0, 1) * LEN;
+      liq.setAttribute('y', (y + 7).toFixed(1));
+      liq.setAttribute('height', Math.max(0, BOT - y - 7).toFixed(1));
+      liq.setAttribute('fill', fluidCol[fluid] || fluidCol.clear);
+      pl.setAttribute('transform', `translate(0,${y.toFixed(1)})`);
       root.querySelector('.vol').textContent = fmt1(vol);
       if (o.band) {
-        const m = root.querySelector('.syr-meter');
-        const tone = rate > o.band[1] ? 'red' : rate >= o.band[0] ? '' : 'amber';
-        m.innerHTML = NZA.ui.meterHTML({ value: clamp(rate / o.maxRate, 0, 1), zone: [o.band[0] / o.maxRate, Math.min(1, o.band[1] / o.maxRate)], tone, lg: true });
+        const tone = rate > o.band[1] ? 'red' : rate >= o.band[0] && rate > 0.01 ? 'teal' : rate > 0.01 ? 'amber' : '';
+        root.querySelector('.sd').innerHTML = dialSVG(rate / o.maxRate, { zone: [o.band[0] / o.maxRate, Math.min(1, o.band[1] / o.maxRate)], tone, ticks: 9 });
         const rb = root.querySelector('.rate');
         rb.textContent = rate.toFixed(2);
-        rb.className = `rate ${rate > o.band[1] ? 'red' : rate >= o.band[0] && rate > 0.01 ? 'teal' : ''}`;
-        root.querySelector('.rl').textContent = rate < 0.01 ? L('syr_idle', 'Drag the plunger') : rate > o.band[1] ? L('syr_fast', 'Too fast') : rate >= o.band[0] ? L('syr_band', 'In the band') : L('syr_slow', 'Slow');
+        rb.className = `rate ${tone}`;
+        const st = root.querySelector('.syr-st');
+        st.className = `syr-st ${tone}`;
+        root.querySelector('.rl').textContent = rate < 0.01 ? L('syr_idle', 'Idle') : rate > o.band[1] ? L('syr_fast', 'Too fast') : rate >= o.band[0] ? L('syr_band', 'On target') : L('syr_slow', 'Too slow');
       }
     };
+    const barrelPx = () => Math.max(40, root.querySelector('.syr-col svg').getBoundingClientRect().height * (LEN / VH));
     const onDown = e => { if (e.button !== 0 || dead) return; dragging = true; root.classList.add('drag'); e.preventDefault(); e.stopPropagation(); };
     const onMove = e => {
       if (!dragging || dead) return;
-      const px = root.offsetWidth * (NZA.zoom || 1);
-      const dv = (e.movementX / Math.max(40, px)) * 300 / 200 * o.cap;
+      const dv = -(e.movementY / barrelPx()) * o.cap;
       let nv = vol + dv;
       if (o.mode === 'push') nv = Math.min(vol, nv); else nv = Math.max(vol, nv);
       nv = clamp(nv, 0, o.cap);
@@ -110,7 +156,7 @@
       o.onChange && o.onChange(vol, rate);
     };
     const onUp = () => { if (!dragging) return; dragging = false; root.classList.remove('drag'); o.onRelease && o.onRelease(vol, rate); };
-    root.addEventListener('mousedown', onDown);
+    root.querySelector('.syr-col').addEventListener('mousedown', onDown);
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     let tPrev = now();
@@ -132,37 +178,43 @@
       el: root, get vol() { return vol; }, get rate() { return rate; }, get dragging() { return dragging; },
       set(v) { vol = clamp(v, 0, o.cap); draw(); },
       fluid(f) { fluid = f; draw(); },
+      ret(html) { const r = root.querySelector('.syr-ret'); if (r) r.innerHTML = html; },
       destroy() { dead = true; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); root.remove(); },
     };
   }
 
-  function gaugeSVG() {
-    let ticks = '';
-    for (let v = 0; v <= 300; v += 10) {
-      const a = (-120 + (v / 300) * 240) * Math.PI / 180;
-      const r1 = v % 50 === 0 ? 40 : 45, r2 = 50;
-      ticks += `<line x1="${59 + Math.sin(a) * r1}" y1="${59 - Math.cos(a) * r1}" x2="${59 + Math.sin(a) * r2}" y2="${59 - Math.cos(a) * r2}" stroke="${v >= 250 ? '#ff6b70' : 'rgba(255,255,255,.55)'}" stroke-width="${v % 50 === 0 ? 2 : 1}"/>`;
-      if (v % 100 === 0) ticks += `<text x="${59 + Math.sin(a) * 31}" y="${62 - Math.cos(a) * 31}" text-anchor="middle" font-size="8.5" font-weight="700" fill="rgba(255,255,255,.7)" font-family="Lexend">${v}</text>`;
-    }
-    return `<svg viewBox="0 0 118 118">
-      <circle cx="59" cy="59" r="57" fill="#15181a" stroke="#050505" stroke-width="2"/>
-      <circle cx="59" cy="59" r="53" fill="#f2f3f0"/>
-      <circle cx="59" cy="59" r="53" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1"/>
-      <g style="filter:invert(1)">${ticks}</g>
-      <text x="59" y="78" text-anchor="middle" font-size="6.5" font-weight="700" fill="#555" font-family="Lexend" letter-spacing="1">mmHg</text>
-      <rect x="53" y="84" width="12" height="12" rx="3" fill="#08afa2"/><path d="M56 87h5v2.6h-2.6v3.4H56z" fill="#fff"/>
-      <g class="ndl"><path d="M57.6 59 L59 14 L60.4 59 Z" fill="#e5484d"/><circle cx="59" cy="59" r="5" fill="#222"/></g>
-    </svg>`;
-  }
-
-  function arcSVG(maxAngle) {
-    const R = 36, cx = 43, cy = 44;
-    const pt = deg => { const a = (180 + (deg / 45) * 180) * Math.PI / 180; return [cx + Math.cos(a) * R, cy + Math.sin(a) * R]; };
-    const arc = (a, b, col, w) => { const p1 = pt(a), p2 = pt(b); return `<path d="M${p1[0]} ${p1[1]} A${R} ${R} 0 0 1 ${p2[0]} ${p2[1]}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`; };
-    return `<svg viewBox="0 0 86 52">${arc(0, 45, 'rgba(255,255,255,.12)', 6)}${arc(0, maxAngle, 'rgba(61,220,132,.75)', 6)}<line class="an" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - R + 4}" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>`;
-  }
-
   /* ═══════════════════════════ LAYOUT ═══════════════════════════ */
+  const UNITS = {
+    bt: ['BT-3', 'u_bt', 'Binder tensioner', 'stk_pinch', 'Pinch point'],
+    io: ['IO-7', 'u_io', 'IO driver', 'stk_sharp', 'Sharp · single use'],
+    sx: ['SX-10', 'u_sx', 'Syringe', 'stk_luer', 'Luer lock'],
+    ca: ['CA-2', 'u_ca', 'Clot analyser', 'stk_bio', 'Biohazard'],
+    pi: ['PI-3', 'u_pi', 'Pressure infuser', 'stk_press', '300 mmHg max'],
+    vf: ['VF-2', 'u_vf', 'Vein finder', 'stk_led', 'Do not stare into LED'],
+    nc: ['NC-1', 'u_nc', 'Needle cam', 'stk_sharp', 'Sharp · single use'],
+    note: ['FX-1', 'u_note', 'Field unit', '', ''],
+  };
+  const serial = (k) => `SN ${String(4100 + (k.charCodeAt(0) * 37 + k.length * 911) % 5800).padStart(4, '0')}-${String(1000 + (k.charCodeAt(1 % k.length) * 53) % 8999)}`;
+  function moduleHTML(u, title, body, opts = {}) {
+    const U = UNITS[u] || UNITS.note;
+    return `<div class="fd-mod u-${u} ${opts.cls || ''}" data-u="${u}">
+      <i class="m-scw a"></i><i class="m-scw b"></i><i class="m-scw c"></i><i class="m-scw d"></i><i class="m-grip"></i>
+      <div class="m-plate"><b>${esc(U[0])}</b><span>${esc(L(U[1], U[2]))}</span><span class="m-led ${opts.led || ''}"></span></div>
+      <div class="m-scr"><div class="m-cap"><span class="t">${esc(title)}</span><span class="r">${opts.right || ''}</span></div>${body}<i class="m-glass"></i></div>
+      <div class="m-foot">${U[3] ? `<span class="m-stk"><b>!</b>${esc(L(U[3], U[4]))}</span>` : ''}<span class="m-sn">${serial(u)}</span></div>
+    </div>`;
+  }
+  // mount one or more devices in the rack beside the tool belt
+  function rack(mods, cls = '') {
+    ui.rack.className = `fd-rack nza-int ${cls}`;
+    ui.rack.innerHTML = `<i class="fd-rail"><i></i><i></i></i>${mods.join('')}`;
+    ui.rack.style.display = '';
+    ui.rack.classList.remove('in'); void ui.rack.offsetWidth; ui.rack.classList.add('in');
+    ui.dev = ui.rack;
+    return ui.rack;
+  }
+  function devFrame(title, body, opts = {}) { return rack([moduleHTML(opts.unit || 'note', title, body, opts)], opts.rackCls || ''); }
+
   function build() {
     const host = ui.host;
     if (ui.pp) { ui.pp.destroy(); ui.pp = null; }
@@ -170,13 +222,9 @@
     if (ui.ghost) { ui.ghost.remove(); ui.ghost = null; }
     clearMarks();
     host.innerHTML = '';
-    ui.focus = NZA.el('div', 'fd-focus nza-hud solid nza-int');
-    host.appendChild(ui.focus);
-    ui.dev = NZA.el('div', 'fd-dev nza-int');
-    host.appendChild(ui.dev);
-    ui.inf = NZA.el('div', 'fd-inf nza-hud solid nza-int');
-    ui.inf.style.display = 'none';
-    host.appendChild(ui.inf);
+    ui.rack = NZA.el('div', 'fd-rack nza-int');
+    host.appendChild(ui.rack);
+    ui.dev = ui.rack;
     const layer = document.getElementById('nza-layer-anchors');
     ui.ov = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     ui.ov.setAttribute('class', 'fd-ov');
@@ -185,39 +233,33 @@
     ui.ghost.style.display = 'none';
     layer.appendChild(ui.ghost);
     ui.pp = NZA.ui.ProcPanel(host, {
-      step: 1, total: S.total, title: '', text: '', stats: [], tools: [],
-      hints: [{ keys: [L('k_rclick', 'Right click')], label: L('h_orbit', 'orbit') }, { keys: ['Shift', L('k_rclick', 'Right click')], label: L('h_pan', 'pan') }],
-      onAbort: () => abort(), onTool: k => tool(k),
+      step: 1, total: S.total, title: '', text: '', stats: [], tools: [], steps: stepNames(),
+      hints: hintsCam(), onAbort: () => abort(), onTool: k => tool(k),
     });
     const rawSet = ui.pp.set;
     ui.pp.set = n => { if (n && 'text' in n) lastText = n.text; if (n && 'stats' in n) lastStats = ''; return rawSet(n); };
-    renderFocus();
+    ui.view = NZA.el('div', 'fd-view nza-hud solid nza-int');
+    ui.pp.slot.prepend(ui.view);
+    renderView();
   }
 
-  function renderFocus() {
-    if (!ui.focus) return;
+  /* camera VIEW selector (lives in the step column) */
+  function renderView() {
+    if (!ui.view) return;
     const f = S.keys.focus || { patient: 'F1', site: 'F2', stand: 'F3', kit: 'F4' };
     const items = S.mode === 'iv'
-      ? [['patient', f.patient, L('f_patient', 'Patient')], ['site', f.site, L('f_arm', 'Arm')]]
-      : [['patient', f.patient, L('f_patient', 'Patient')], ['site', f.site, L('f_site', 'Site')], ['stand', f.stand, L('f_stand', 'IV stand')], ['kit', f.kit, L('f_kit', 'Kit')]];
+      ? [['patient', f.patient, L('f_patient', 'Body'), 'person'], ['site', f.site, L('f_arm', 'Arm'), 'target']]
+      : [['patient', f.patient, L('f_patient', 'Body'), 'person'], ['site', f.site, L('f_site', 'Access'), 'target'], ['stand', f.stand, L('f_stand', 'Drip'), 'iv'], ['kit', f.kit, L('f_kit', 'Kit'), 'kit']];
     const standOk = S.proc === 'resus' || S.proc === 'reassess' || (S.rs && S.rs.stand);
-    ui.focus.innerHTML = items.map(([id, key, label]) => `<button data-f="${id}" class="${S.focus === id ? 'on' : ''} ${id === 'stand' && !standOk ? 'off' : ''}"><kbd>${esc(key)}</kbd>${esc(label)}</button>`).join('')
-      + `<span class="sep"></span><span class="tip"><b>${esc(L('k_scroll', 'Scroll'))}</b> ${esc(L('h_zoom', 'zoom'))}</span>`;
-    ui.focus.querySelectorAll('button').forEach(b => b.addEventListener('click', () => focusCam(b.dataset.f)));
+    ui.view.innerHTML = `<span class="vl">${icon('camera')}<span>${esc(L('view', 'View'))}</span></span><span class="vs">${items.map(([id, key, label, ic]) => `<button data-f="${id}" class="${S.focus === id ? 'on' : ''} ${id === 'stand' && !standOk ? 'off' : ''}"><span class="vi">${icon(ic)}</span><span class="vt"><b>${esc(label)}</b><kbd>${esc(key)}</kbd></span></button>`).join('')}</span>`;
+    ui.view.querySelectorAll('button').forEach(b => b.addEventListener('click', () => focusCam(b.dataset.f)));
   }
+  const renderFocus = renderView;
   function focusCam(what) {
     if (what === 'stand' && !(S.proc === 'resus' || S.proc === 'reassess' || (S.rs && S.rs.stand))) return;
-    S.focus = what; renderFocus(); post('focus', { what }); NZA.audio.click(700);
+    S.focus = what; renderView(); post('focus', { what }); NZA.audio.click(700);
   }
 
-  function devFrame(title, body, opts = {}) {
-    ui.dev.innerHTML = `<div class="dev ${opts.cls || ''}">
-      <div class="d-top"><div class="dev-brand"><span class="nz-mark"></span>NAYZEEE · ${esc(opts.brand || L('dev_brand', 'Field'))}</div><span class="d-hw"><span class="dev-btn">${icon('minus')}</span><span class="dev-btn">${icon('plus')}</span><span class="dev-btn">${icon('power')}</span></span><span class="dev-led ${opts.led || ''}"></span></div>
-      <div class="dev-screen d-scr"><div class="d-cap"><span class="dev-led ${opts.capLed || ''}"></span>${esc(title)}<span class="r">${esc(opts.right || '')}</span></div>${body}</div>
-    </div>`;
-    ui.dev.style.display = '';
-    return ui.dev;
-  }
   const q = sel => ui.host && ui.host.querySelector(sel);
 
   // readout above the step card: a MAP dial (IV: needle angle) + an instrument list
@@ -228,7 +270,7 @@
       const off = a && (a < band[0] || a > band[1]);
       return {
         wide: { label: L('st_angle', 'Angle'), value: a ? Math.round(a) : '--', unit: '°', tone: off ? 'amber' : 'teal',
-          meter: { value: a / 45, zone: [band[0] / 45, band[1] / 45], tone: off ? 'amber' : '' }, caption: L('cap_angle', 'Insert at {a}–{b}°', { a: band[0], b: band[1] }), captionTone: off ? 'amber' : '' },
+          meter: { value: a / 45, zone: [band[0] / 45, band[1] / 45], tone: off ? 'amber' : '' }, caption: L('cap_angle', 'Enter at {a}–{b}°', { a: band[0], b: band[1] }), captionTone: off ? 'amber' : '' },
         stats: [
           { id: 'site', label: L('st_site', 'Site'), value: S.data.siteLabel || L('site_forearm', 'Forearm'), small: true },
           { id: 'att', label: L('st_attempts', 'Attempts'), value: `${iv.attempts || 1}/${S.data.attempts || 2}` },
@@ -249,7 +291,7 @@
     return {
       wide: { label: L('st_map', 'MAP'), value: map || '--', unit: 'mmHg', tone,
         meter: { value: map ? (map - 30) / 80 : 0, zone: [(lo - 30) / 80, (hi - 30) / 80], tone: tone === 'teal' ? '' : tone },
-        caption: L('cap_target', 'Target {a}–{b}', { a: lo, b: hi }), captionTone: tone === 'teal' ? 'teal' : '' },
+        caption: L('cap_target', 'Aim {a}–{b}', { a: lo, b: hi }), captionTone: tone === 'teal' ? 'teal' : '' },
       stats,
     };
   }
@@ -265,9 +307,9 @@
 
   function stepNames() {
     if (S.mode === 'iv') return IV_STEPS.map(ivTitle);
-    return [L('t_binder', 'Pelvic binder'), L('t_site', 'Choose IO site'), L('t_drill', 'Drill'), L('t_confirm', 'Confirm'), L('t_flush', 'Confirm and flush'), L('t_resus', 'Resuscitate'), L('t_reassess', 'Reassess')];
+    return [L('s_binder', 'Bind the pelvis'), L('s_site', 'Pick the IO site'), L('s_drill', 'Drive the needle'), L('s_aspirate', 'Draw back'), L('s_flush', 'Flush the line'), L('s_resus', 'Hold the pressure'), L('s_recheck', 'Recheck')];
   }
-  const hintsCam = () => [{ keys: [L('k_rclick', 'Right click')], label: L('h_orbit', 'orbit') }, { keys: ['Shift', L('k_rclick', 'Right click')], label: L('h_pan', 'pan') }];
+  const hintsCam = () => [{ keys: [L('k_rclick', 'Right mouse')], label: L('h_orbit', 'turn') }, { keys: ['Shift', L('k_rclick', 'Right mouse')], label: L('h_pan', 'slide') }, { keys: [L('k_scroll', 'Wheel')], label: L('h_zoom', 'zoom') }];
 
   /* ═══════════════════════════ MARKERS & OVERLAY ═══════════════════════════ */
   const markerIds = new Set();
@@ -291,9 +333,8 @@
     const prev = S.proc && H_[S.proc];
     if (prev && prev.leave) prev.leave();
     clearMarks(); ov(''); ghost(false);
-    ui.inf.style.display = 'none';
     S.proc = proc; S.status = status; S.data = data || {}; S.reason = reason; S.waiting = false;
-    if (S.data.band) S.band = S.data.band;
+    if (S.data.band && proc === 'resus') S.band = S.data.band;   // the binder's band is its strap tension, not the MAP target
     if (S.data.injury) S.injury = S.data.injury;
     if (S.data.bleed !== undefined) S.bleed = S.data.bleed;
     S.n = S.mode === 'iv' ? 1 : (STEP_N[proc] || 1);
@@ -302,31 +343,35 @@
     const fl = ui.pp.el.querySelector('.pp-flash'); if (fl) fl.className = 'pp-flash';
     ui.pp.set({ step: S.n, total: S.total, tag: '', titleTone: '', hints: hintsCam(), steps: stepNames() });
     stats();
-    renderFocus();
+    renderView();
     const h = H_[proc];
     if (!h) return;
     if (status === 'run') h.enter();
     else h.blocked ? h.blocked(status, reason) : blockedPanel(proc, status, reason);
   }
 
-  const PROC_EN = { binder: 'Pelvic binder', io: 'Intraosseous access', resus: 'Resuscitate', reassess: 'Reassess', iv: 'IV cannulation' };
+  const PROC_EN = { binder: 'Bind the pelvis', io: 'IO access', resus: 'Hold the pressure', reassess: 'Recheck', iv: 'IV cannulation' };
+  const PROC_TITLE = { binder: 's_binder', io: 's_site', resus: 's_resus', reassess: 's_recheck', iv: 't_iv' };
+  const PROC_UNIT = { binder: 'bt', io: 'io', resus: 'pi', reassess: 'note', iv: 'vf' };
   function blockedPanel(proc, status, reason) {
-    const title = L(`t_${proc}`, PROC_EN[proc] || proc);
+    const title = L(PROC_TITLE[proc] || `t_${proc}`, PROC_EN[proc] || proc);
+    const noteBody = (txt, tone) => `<div class="m-note ${tone}"><span class="ni">${icon(tone === 'red' ? 'alert' : tone === 'teal' ? 'check' : 'clock')}</span><span>${NZA.rich(txt)}</span></div>`;
     if (status === 'easy') {
-      ui.pp.set({ title, titleTone: '', text: reason || L('easy_text', 'Easy mode — hold still while you work.'), tools: [] });
-      devFrame(title.toUpperCase(), `<div class="d-note">${NZA.rich(reason || L('easy_text', 'Easy mode — hold still while you work.'))}</div>`, {});
+      const txt = reason || L('easy_text', 'Easy mode — hold still while you work.');
+      ui.pp.set({ title, titleTone: '', text: txt, tools: [] });
+      devFrame(title, noteBody(txt, ''), { unit: PROC_UNIT[proc] });
       return;
     }
-    const text = status === 'skip' ? (reason || L('skip_text', 'Not needed — skipping.')) : (reason || L('blocked_text', 'You can not do this step right now.'));
+    const text = status === 'skip' ? (reason || L('skip_text', 'Not needed — moving on.')) : (reason || L('blocked_text', 'This step can not start right now.'));
     ui.pp.set({ title, titleTone: status === 'skip' ? 'ok' : 'bad', text, tools: [{ key: 'N', label: L('tool_continue', 'Continue'), icon: 'arrow-r', state: 'active' }] });
-    devFrame(title.toUpperCase(), `<div class="d-note">${NZA.rich(text)}</div>`, { capLed: status === 'skip' ? '' : 'red' });
+    devFrame(title, noteBody(text, status === 'skip' ? 'teal' : 'red'), { unit: PROC_UNIT[proc], led: status === 'skip' ? '' : 'red' });
   }
 
   function sendResult(proc, result) {
     if (S.waiting) return;
     S.waiting = true;
     S.lastResult = { proc, result };
-    ui.pp.flash('ok', L('checking', 'Done — checking…'), 0);
+    ui.pp.flash('ok', L('checking', 'Logged — checking…'), 0);
     if (S.preview) { setTimeout(() => NZA.apps[APP].msg.outcome({ proc, ok: true, outcome: { score: result.score, grade: grade(result.score), msg: L('ok_generic', 'Done') } }), 500); return; }
     post('result', { proc, result });
   }
@@ -338,7 +383,7 @@
   }
   function abort() {
     post('abort', {});
-    if (S.preview) NZA.toast({ title: L('aborted', 'Aborted'), message: L('aborted_text', 'Field resuscitation stopped.'), type: 'error' });
+    if (S.preview) NZA.toast({ title: L('aborted', 'Stopped'), message: L('aborted_text', 'Field resuscitation cancelled.'), type: 'error' });
   }
 
   function tool(k) {
@@ -359,52 +404,57 @@
       const why = d.indicated ? L(`why_${d.why || 'bleed'}`, 'Pelvic injury') : L('why_none', 'No pelvic injury found');
       if (b.phase === 'drop') {
         ui.pp.set({
-          title: L('t_binder', 'Pelvic binder'), tag: why,
-          text: L('binder_drop', 'Drag the **binder** from the kit onto the pelvis and let go.'),
-          tools: [{ key: '1', label: L('tool_binder', 'Pelvic binder'), icon: 'shield', state: 'active', sub: d.count !== undefined ? `×${d.count}` : '' },
-            { key: 'N', label: d.indicated ? L('tool_skip', 'Skip') : L('tool_skip_ok', 'Not needed — skip'), icon: 'arrow-r' }],
+          title: L('s_binder', 'Bind the pelvis'), tag: why,
+          text: L('binder_drop', 'Pick up the **binder** at the kit and lay it under the hips.'),
+          tools: [{ key: '1', label: L('tool_binder', 'Pelvic binder'), icon: 'cuff', state: 'active', sub: d.count !== undefined ? `×${d.count}` : '' },
+            { key: 'N', label: d.indicated ? L('tool_skip', 'Skip') : L('tool_skip_ok', 'Skip — not needed'), icon: 'arrow-r' }],
         });
-        mark('kit', { label: L('m_binder', 'Pelvic binder'), tone: 'teal', dot: 'white' });
-        mark('pelvis', { label: L('m_drop', 'Drop the binder here'), dot: 'ring' });
+        mark('kit', { label: L('m_binder', 'Binder'), tone: 'teal', dot: 'fd-dia white' });
+        mark('pelvis', { label: L('m_drop', 'Under the hips'), dot: 'fd-dia fd-target' });
       } else if (b.phase === 'strap') {
         ui.pp.set({
-          title: L('t_binder', 'Pelvic binder'), tag: why,
-          text: L('binder_strap', 'Pull the strap tab across the body into the green band and let go. Tension {t}%.', { t: Math.round(b.tension) }),
-          tools: [{ key: '1', label: L('tool_binder', 'Pelvic binder'), icon: 'shield', state: 'done' }],
+          title: L('s_binder', 'Bind the pelvis'), tag: why,
+          text: L('binder_strap', 'Grab the strap handle and draw it across the hips. Release when the ring turns teal. Tension {t}%.', { t: Math.round(b.tension) }),
+          tools: [{ key: '1', label: L('tool_binder', 'Pelvic binder'), icon: 'cuff', state: 'done' }],
         });
-        mark('strapB', { label: '', dot: 'white' });
       }
       this.dev();
     },
     dev() {
       const b = S.b;
       const [lo, hi] = b.band;
-      const ticks = [0, 20, 40, 60, 80, 100].map(v => `<span class="tick" style="bottom:${v / 120 * 100}%"></span><span class="tick r" style="bottom:${v / 120 * 100}%"></span>`).join('');
+      const teeth = Array.from({ length: 18 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
       devFrame(L('d_binder', 'Strap tension'), `
-        <div class="d-row">
-          <div class="d-tension"><span class="zone" style="bottom:${lo / 120 * 100}%;height:${(hi - lo) / 120 * 100}%"></span>${ticks}<span class="fill" style="height:0"></span></div>
-          <div class="d-binder">
-            <div><div class="d-lbl">${esc(L('d_tension', 'Tension'))}</div><div class="d-big tn">0<span class="u">%</span></div></div>
-            <svg viewBox="0 0 200 84"><path d="M10 50 Q100 4 190 50" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="22" stroke-linecap="round"/>
-              <path class="bstrap" d="M10 50 Q100 4 190 50" fill="none" stroke="#08afa2" stroke-width="22" stroke-linecap="round" stroke-dasharray="0 400"/>
-              <rect x="88" y="16" width="24" height="16" rx="3" fill="#0b0d0e" stroke="rgba(255,255,255,.4)"/><text x="100" y="72" text-anchor="middle" font-size="9" font-family="Lexend" font-weight="700" fill="rgba(255,255,255,.4)" letter-spacing="2">${esc(L('d_pelvis', 'PELVIS'))}</text></svg>
-            <div class="d-note bnote">${esc(b.phase === 'drop' ? L('d_binder_drop', 'Slide it under the pelvis first.') : L('d_binder_band', 'Let go inside the band ({lo}–{hi}%).', { lo, hi }))}</div>
+        <div class="m-split">
+          <div class="m-dial bt"><div class="dzh">${dialSVG(0, { zone: [lo / 120, hi / 120], ticks: 12 })}</div><div class="dv"><span class="tn"></span><i>%</i></div><span class="dl">${esc(L('d_tension', 'Tension'))}</span></div>
+          <div class="m-list">
+            ${row('r-pl', L('d_placed', 'Placed'), b.phase === 'drop' ? '—' : icon('check'), b.phase === 'drop' ? 'dim' : 'teal')}
+            ${row('r-tg', L('d_target', 'Target'), `${lo}–${hi}<small>%</small>`)}
+            ${row('r-at', L('d_attempt', 'Attempt'), String(b.attempts))}
           </div>
         </div>
-        <div class="d-chips"><span class="d-chip ${b.phase === 'strap' ? 'on' : ''}">${esc(L('d_placed', 'Under pelvis'))}</span><span class="d-chip">${esc(L('d_attempt', 'Attempt'))} ${b.attempts}</span></div>`,
-      { brand: L('dev_binder', 'Pelvic binder'), right: `${lo}–${hi}%` });
+        <div class="m-teeth">${teeth}</div>
+        <div class="m-state bst"><span class="dot"></span><span class="tx">${esc(b.phase === 'drop' ? L('d_binder_drop', 'Waiting for the binder.') : L('d_binder_band', 'Release between {lo} and {hi}%.', { lo, hi }))}</span></div>`,
+      { unit: 'bt', right: `<span class="m-chip">${esc(L('d_pelvis', 'Hips'))}</span>` });
+      b.odo = NZA.ui.FlipClock(q('.m-dial.bt .tn'), { value: '0' });
+      this.devTick();
     },
     devTick() {
       const b = S.b;
-      const fill = q('.d-tension .fill');
-      if (!fill) return;
-      const t = b.tension;
-      fill.style.height = `${clamp(t / 120, 0, 1) * 100}%`;
-      fill.className = `fill ${t > b.band[1] ? 'red' : t >= b.band[0] ? '' : 'amber'}`;
-      const tn = q('.tn'); if (tn) tn.innerHTML = `${Math.round(t)}<span class="u">%</span>`;
-      tn.className = `d-big tn ${t > b.band[1] ? 'red' : t >= b.band[0] ? 'teal' : ''}`;
-      const st = q('.bstrap'); if (st) st.setAttribute('stroke-dasharray', `${clamp(t / 100, 0, 1.2) * 220} 400`);
-      metric({ label: L('st_tension', 'Tension'), value: Math.round(t), unit: '%', tone: t > b.band[1] ? 'red' : t >= b.band[0] ? 'teal' : t > 0 ? 'amber' : '' });
+      const t = b.tension, [lo, hi] = b.band;
+      const tone = toneOf(t, lo, hi);
+      const dz = q('.m-dial.bt .dzh'); if (!dz) return;
+      dz.innerHTML = dialSVG(t / 120, { zone: [lo / 120, hi / 120], tone, ticks: 12 });
+      if (b.odo) { b.odo.set(String(Math.round(t))); b.odo.tone(tone === 'teal' ? 'teal' : tone === 'red' ? 'red' : tone === 'amber' ? 'amber' : ''); }
+      const n = Math.round(clamp(t / 120, 0, 1) * 18);
+      ui.dev.querySelectorAll('.m-teeth i').forEach((e, i) => { const v = (i + 0.5) / 18 * 120; e.className = i < n ? (v > hi ? 'on red' : v >= lo ? 'on teal' : 'on') : (v >= lo && v <= hi ? 'zone' : ''); });
+      const st = q('.bst');
+      if (st && b.phase !== 'drop') {
+        st.className = `m-state bst ${tone}`;
+        st.querySelector('.tx').textContent = t > hi ? L('bs_over', 'Over-tight — ease back') : t >= lo ? L('bs_ok', 'On target — let go') : t > 0 ? L('bs_under', 'Keep drawing across') : L('d_binder_band', 'Release between {lo} and {hi}%.', { lo, hi });
+      }
+      metric({ label: L('st_tension', 'Tension'), value: Math.round(t), unit: '%', tone });
+      if (b.phase === 'strap') setText(L('binder_strap', 'Grab the strap handle and draw it across the hips. Release when the ring turns teal. Tension {t}%.', { t: Math.round(t) }));
     },
     tool(k) {
       if (k.toUpperCase() === 'N') return skip();
@@ -425,7 +475,7 @@
       if (b.phase === 'drop' && b.drag) {
         const p = apx('pelvis');
         const near = p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 80 * pxScale();
-        ghost(true, `<span class="ic">${icon('shield')}</span>${esc(L('tool_binder', 'Pelvic binder'))}`, e.clientX, e.clientY, near);
+        ghost(true, `<span class="ic">${icon('cuff')}</span><span class="gt"><b>${esc(L('tool_binder', 'Pelvic binder'))}</b><small>${esc(near ? L('binder_release', 'Let go to lay it') : L('binder_carry', 'Carry it over the hips'))}</small></span>`, e.clientX, e.clientY, near);
       }
       if (b.phase === 'strap' && b.drag) {
         const A = apx('strapA'), B = apx('strapB');
@@ -435,8 +485,8 @@
         const prev = b.tension;
         b.tension = clamp(t * 100, 0, 120);
         b.tab = { x: A.x + vx * clamp(t, 0, 1.2), y: A.y + vy * clamp(t, 0, 1.2) };
-        if (Math.floor(prev / 10) !== Math.floor(b.tension / 10)) NZA.audio.tick();
-        ui.pp.set({ text: L('binder_strap', 'Pull the strap tab across the body into the green band and let go. Tension {t}%.', { t: Math.round(b.tension) }) });
+        if (Math.floor(prev / (120 / 18)) !== Math.floor(b.tension / (120 / 18))) NZA.audio.tick();
+        ui.pp.set({ text: L('binder_strap', 'Grab the strap handle and draw it across the hips. Release when the ring turns teal. Tension {t}%.', { t: Math.round(b.tension) }) });
         this.devTick();
       }
     },
@@ -449,14 +499,14 @@
           b.phase = 'wait';
           const go = r => {
             if (!S.b || S.proc !== 'binder') return;
-            if (r && r.ok === false) { b.phase = 'drop'; ui.pp.flash('bad', (r && r.msg) || L('binder_drop_fail', 'Could not place the binder.')); return; }
+            if (r && r.ok === false) { b.phase = 'drop'; ui.pp.flash('bad', (r && r.msg) || L('binder_drop_fail', 'The binder would not go under.')); return; }
             b.phase = 'strap'; clearMarks(); NZA.audio.success();
-            ui.pp.flash('ok', L('binder_placed', 'Binder under the pelvis. Now tighten the strap.'));
+            ui.pp.flash('ok', L('binder_placed', 'Binder is under the hips. Now tension the strap.'));
             this.ui();
           };
           if (S.preview) go({ ok: true }); else post('binderDrop', {}).then(go);
         } else {
-          ui.pp.flash('warn', L('binder_miss', 'Drop it on the pelvis marker.'));
+          ui.pp.flash('warn', L('binder_miss', 'Missed — let go over the hip marker.'));
         }
       } else if (b.phase === 'strap' && b.drag) {
         b.drag = false; ui.host.classList.remove('grab');
@@ -470,9 +520,9 @@
         } else {
           b.attempts += 1;
           NZA.audio.fail();
-          ui.pp.flash(t > hi ? 'bad' : 'warn', t > hi ? L('binder_tight', 'Too tight — {t}%. Ease it back.', { t: Math.round(t) }) : L('binder_loose', 'Too loose — {t}%. Pull it further across.', { t: Math.round(t) }));
+          ui.pp.flash(t > hi ? 'bad' : 'warn', t > hi ? L('binder_tight', 'Over-tight at {t}% — slacken and try again.', { t: Math.round(t) }) : L('binder_loose', 'Too slack at {t}% — draw it further across.', { t: Math.round(t) }));
           b.tension = 0; b.tab = null; this.devTick();
-          const n = q('.d-chips'); if (n) n.lastElementChild.textContent = `${L('d_attempt', 'Attempt')} ${b.attempts}`;
+          setRow('.r-at', String(b.attempts), b.attempts > 1 ? 'amber' : '');
         }
       }
     },
@@ -484,14 +534,41 @@
         if (!A || !B) { ov(''); return; }
         const tab = b.tab || A;
         const [lo, hi] = b.band;
+        const k = pxScale();
         const P = f => ({ x: A.x + (B.x - A.x) * f, y: A.y + (B.y - A.y) * f });
-        const z1 = P(lo / 100), z2 = P(hi / 100);
-        const w = 26 * pxScale();
-        ov(`<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="rgba(255,255,255,.35)" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="2 ${w * 0.5}" opacity=".55"/>
-          <line x1="${z1.x}" y1="${z1.y}" x2="${z2.x}" y2="${z2.y}" stroke="rgba(61,220,132,.55)" stroke-width="${w + 12}" stroke-linecap="butt"/>
-          <line x1="${A.x}" y1="${A.y}" x2="${tab.x}" y2="${tab.y}" stroke="#121820" stroke-width="${w}" stroke-linecap="round"/>
-          <line x1="${A.x}" y1="${A.y}" x2="${tab.x}" y2="${tab.y}" stroke="${b.tension > hi ? '#e5484d' : b.tension >= lo ? '#08afa2' : '#5e6a72'}" stroke-width="3" stroke-dasharray="10 7"/>`);
-        if (b.phase === 'strap') mark('tab', { label: L('m_pull', 'Pull'), tone: 'red', dot: 'red tab', at: { x: tab.x / W(), y: tab.y / H() } });
+        const len = Math.hypot(B.x - A.x, B.y - A.y) || 1;
+        const ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, nx = -uy, ny = ux;
+        const z1 = P(lo / 100), z2 = P(hi / 100), end = P(1.2);
+        const w = 22 * k;
+        const tone = toneOf(b.tension, lo, hi);
+        const col = tone === 'red' ? '#ff6b70' : tone === 'teal' ? '#0fd4c4' : tone === 'amber' ? '#f3c35a' : '#9aa5ab';
+        // chevrons along the path (direction of pull)
+        let chev = '';
+        for (let d = 46 * k; d < len * 1.2 - 20 * k; d += 34 * k) {
+          const c = { x: A.x + ux * d, y: A.y + uy * d }, s = 6 * k;
+          chev += `<path d="M${c.x - ux * s + nx * s} ${c.y - uy * s + ny * s}L${c.x} ${c.y}L${c.x - ux * s - nx * s} ${c.y - uy * s - ny * s}" />`;
+        }
+        const bracket = (p, dir) => { const s = (w / 2 + 9 * k), t = 7 * k * dir; return `<path d="M${p.x + nx * s + ux * t} ${p.y + ny * s + uy * t}L${p.x + nx * s} ${p.y + ny * s}L${p.x - nx * s} ${p.y - ny * s}L${p.x - nx * s + ux * t} ${p.y - ny * s + uy * t}"/>`; };
+        const R = 21 * k, C = 2 * Math.PI * R, fr = clamp(b.tension / 120, 0, 1);
+        const lx = tab.x + nx * (R + 16 * k), ly = tab.y + ny * (R + 16 * k);
+        const pulse = ((now() / 1400) % 1);
+        const chipTxt = b.drag ? `${Math.round(b.tension)}%` : L('m_pull', 'Grip');
+        const cw = (chipTxt.length * 7.4 + 20) * k;
+        ov(`<line x1="${A.x}" y1="${A.y}" x2="${end.x}" y2="${end.y}" stroke="rgba(10,12,14,.55)" stroke-width="${w + 6 * k}" stroke-linecap="round"/>
+          <line x1="${A.x}" y1="${A.y}" x2="${end.x}" y2="${end.y}" stroke="rgba(255,255,255,.12)" stroke-width="${w}" stroke-linecap="round"/>
+          <line x1="${z1.x}" y1="${z1.y}" x2="${z2.x}" y2="${z2.y}" stroke="rgba(15,212,196,.22)" stroke-width="${w}" />
+          <g fill="none" stroke="rgba(255,255,255,.4)" stroke-width="${1.6 * k}" stroke-linecap="round" stroke-linejoin="round">${chev}</g>
+          <g fill="none" stroke="#0fd4c4" stroke-width="${2.4 * k}" stroke-linecap="round" stroke-linejoin="round">${bracket(z1, 1)}${bracket(z2, -1)}</g>
+          <line x1="${A.x}" y1="${A.y}" x2="${tab.x}" y2="${tab.y}" stroke="#1d2a33" stroke-width="${w - 4 * k}" stroke-linecap="round"/>
+          <line x1="${A.x}" y1="${A.y}" x2="${tab.x}" y2="${tab.y}" stroke="${col}" stroke-width="${2 * k}" stroke-dasharray="${8 * k} ${6 * k}" opacity=".9"/>
+          ${b.phase === 'strap' ? `<g>
+            <circle cx="${tab.x}" cy="${tab.y}" r="${R + (4 + pulse * 14) * k}" fill="none" stroke="${col}" stroke-width="${2 * k}" opacity="${(0.55 * (1 - pulse)).toFixed(2)}"/>
+            <circle cx="${tab.x}" cy="${tab.y}" r="${R}" fill="rgba(12,13,16,.92)" stroke="rgba(255,255,255,.14)" stroke-width="${4 * k}"/>
+            <circle cx="${tab.x}" cy="${tab.y}" r="${R}" fill="none" stroke="${col}" stroke-width="${4 * k}" stroke-linecap="round" stroke-dasharray="${(C * fr).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 ${tab.x} ${tab.y})" style="filter:drop-shadow(0 0 4px ${col})"/>
+            <g stroke="#fff" stroke-width="${2 * k}" stroke-linecap="round" opacity=".9"><line x1="${tab.x - 7 * k}" y1="${tab.y - 5 * k}" x2="${tab.x + 7 * k}" y2="${tab.y - 5 * k}"/><line x1="${tab.x - 7 * k}" y1="${tab.y}" x2="${tab.x + 7 * k}" y2="${tab.y}"/><line x1="${tab.x - 7 * k}" y1="${tab.y + 5 * k}" x2="${tab.x + 7 * k}" y2="${tab.y + 5 * k}"/></g>
+            <rect x="${lx - cw / 2}" y="${ly - 12 * k}" width="${cw}" height="${24 * k}" rx="${7 * k}" fill="rgba(12,13,16,.92)" stroke="rgba(255,255,255,.1)"/>
+            <text x="${lx}" y="${ly + 4.2 * k}" text-anchor="middle" font-size="${12 * k}" font-weight="700" fill="${b.drag ? col : '#fff'}" style="font-family:var(--font)">${esc(chipTxt)}</text>
+          </g>` : ''}`);
       } else ov('');
     },
     leave() { ghost(false); },
@@ -500,13 +577,29 @@
   /* ═══════════════════════════ STEPS 2-5 · INTRAOSSEOUS ═══════════════════════════ */
   const IO_SITES = ['r_tibia', 'l_tibia', 'r_humerus', 'l_humerus'];
   const SITE_EN = { r_tibia: 'Right tibia', l_tibia: 'Left tibia', r_humerus: 'Right humeral head', l_humerus: 'Left humeral head' };
-  const LAYER_EN = { air: 'Above skin', soft: 'Soft tissue', cortex: 'Cortex', marrow: 'Marrow', far: 'Far cortex', through: 'Through the bone' };
+  const LAYER_EN = { air: 'Above skin', soft: 'Tissue', cortex: 'Bone wall', marrow: 'Marrow', far: 'Back wall', through: 'Out the back' };
   const WHY_EN = { fracture: 'Fracture', tourniquet: 'Tourniquet', burn: 'Burn', wound: 'Wound', invalid: 'Not possible' };
   const siteName = id => L(`site_${id}`, SITE_EN[id] || id);
   const LAYER_ORDER = ['soft', 'cortex', 'marrow', 'far'];
+  // body map positions (front view, patient's right on the viewer's left)
+  const SITE_XY = { r_humerus: [27, 38], l_humerus: [73, 38], r_tibia: [40, 132], l_tibia: [60, 132] };
+  function bodySVG(sites) {
+    const dia = (id, i) => {
+      const st = sites[id] || { ok: true }, [x, y] = SITE_XY[id];
+      return `<g class="st ${st.ok === false ? 'bad' : 'ok'}" data-s="${id}" transform="translate(${x} ${y})"><rect x="-5" y="-5" width="10" height="10" rx="1.5" transform="rotate(45)"/><text x="${x < 50 ? -10 : 10}" y="3" text-anchor="${x < 50 ? 'end' : 'start'}">${i + 1}</text></g>`;
+    };
+    return `<svg viewBox="0 0 100 168" class="m-body">
+      <defs><linearGradient id="fdholo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(15,212,196,.22)"/><stop offset="1" stop-color="rgba(15,212,196,.04)"/></linearGradient></defs>
+      <g class="sil"><circle cx="50" cy="13" r="9"/>
+        <path d="M38 26h24l6 6 4 34-6 2-4-26v30l2 30h-10l-2-26-2 26h-10l2-30V42l-4 26-6-2 4-34z"/>
+        <path d="M41 92h8v68h-9zM51 92h8l1 68h-9z"/></g>
+      <g class="scan"><rect x="0" y="0" width="100" height="2"/></g>
+      ${IO_SITES.map(dia).join('')}
+    </svg>`;
+  }
   H_.io = {
     enter() {
-      S.io = { phase: 'site', site: null, needles: 1, depth: 0, lift: 1, drilling: false, drift: { x: 0, y: 0 }, aim: { x: 0, y: 0 }, angle: 0,
+      S.io = { phase: 'site', site: null, needles: 1, depth: 0, lift: 1, drilling: false, drift: { x: 0, y: 0 }, aim: { x: 0, y: 0 }, angle: 0, ax: 0, ay: 0,
         angleSum: 0, angleN: 0, maxAngle: 0, torque: [], fails: 0, aspirated: false, ext: false, lido: { ml: 0, rate: 0, peak: 0 }, flush: { ml: 0, rate: 0, peak: 0 }, layer: 'air', snd: 0, lostRes: false };
       this.site();
     },
@@ -516,19 +609,31 @@
       io.phase = 'site'; S.n = 2;
       metric({ label: L('st_needles', 'Needles'), value: `${io.needles}/${S.data.attempts || 3}` });
       ui.pp.set({
-        step: 2, title: L('t_site', 'Choose IO site'), tag: L('tag_io', 'Intraosseous access'),
-        text: L('site_text', 'Click a marker or press its key: the **proximal tibia** below the knee or the **humeral head**.'),
+        step: 2, title: L('s_site', 'Pick the IO site'), tag: L('tag_io', 'Intraosseous access'),
+        text: L('site_text', 'Press a site key or click its marker: the **tibia** just below the knee, or the **humeral head** at the shoulder.'),
         tools: IO_SITES.map((id, i) => ({ key: String(i + 1), label: siteName(id), icon: 'bone', state: sites[id] && sites[id].ok === false ? 'locked' : '' })),
       });
       IO_SITES.forEach(id => {
         const st = sites[id] || { ok: true };
-        mark(id, { label: st.ok === false ? `${siteName(id)} · ${L(`why_site_${st.why}`, WHY_EN[st.why] || st.why || '')}` : siteName(id), dot: st.ok === false ? 'red' : '', tone: st.ok === false ? 'red' : '' });
+        mark(id, { label: st.ok === false ? `${siteName(id)} · ${L(`why_site_${st.why}`, WHY_EN[st.why] || st.why || '')}` : siteName(id), dot: st.ok === false ? 'fd-dia red' : 'fd-dia', tone: st.ok === false ? 'red' : '' });
       });
-      devFrame(L('d_site', 'IO site'), `<div class="d-sites">${IO_SITES.map((id, i) => {
-        const st = sites[id] || { ok: true };
-        return `<button class="d-site ${st.ok === false ? 'bad' : ''}" data-s="${id}"><kbd>${i + 1}</kbd>${esc(siteName(id))}<span class="why">${esc(st.ok === false ? L(`why_site_${st.why}`, WHY_EN[st.why] || st.why || '') : L('site_ok', 'Clear'))}</span></button>`;
-      }).join('')}</div><div class="d-note">${NZA.rich(L('site_note', 'Never drill a **fractured** bone or below a **tourniquet**.'))}</div>`, { brand: L('dev_io', 'IO driver'), right: `${io.needles}/${S.data.attempts || 3}` });
-      ui.dev.querySelectorAll('.d-site').forEach(b => b.addEventListener('click', () => this.pick(b.dataset.s)));
+      const okN = IO_SITES.filter(id => !(sites[id] && sites[id].ok === false)).length;
+      devFrame(L('d_site', 'Site check'), `
+        <div class="m-split top">
+          ${bodySVG(sites)}
+          <div class="m-sites">${IO_SITES.map((id, i) => {
+            const st = sites[id] || { ok: true };
+            return `<button class="d-site ${st.ok === false ? 'bad' : ''}" data-s="${id}"><kbd>${i + 1}</kbd><span class="sn">${esc(siteName(id))}<small>${esc(st.ok === false ? L(`why_site_${st.why}`, WHY_EN[st.why] || st.why || '') : L('site_ok', 'Clear'))}</small></span><span class="sd">${icon(st.ok === false ? 'x' : 'check')}</span></button>`;
+          }).join('')}</div>
+        </div>
+        <div class="m-note amber"><span class="ni">${icon('alert')}</span><span>${NZA.rich(L('site_note', 'No drilling into a **broken** bone or below a **tourniquet**.'))}</span></div>`,
+      { unit: 'io', right: `<span class="m-chip">${okN}/4 ${esc(L('site_clear', 'clear'))}</span>` });
+      ui.dev.querySelectorAll('.d-site').forEach(b => {
+        b.addEventListener('click', () => this.pick(b.dataset.s));
+        b.addEventListener('mouseenter', () => { const g = ui.dev.querySelector(`.m-body .st[data-s="${b.dataset.s}"]`); if (g) g.classList.add('hl'); });
+        b.addEventListener('mouseleave', () => ui.dev.querySelectorAll('.m-body .st').forEach(g => g.classList.remove('hl')));
+      });
+      ui.dev.querySelectorAll('.m-body .st').forEach(g => g.addEventListener('click', () => this.pick(g.dataset.s)));
     },
     pick(id) {
       const st = (S.data.sites || {})[id];
@@ -537,45 +642,49 @@
       clearMarks();
       NZA.audio.click(820);
       post('phase', { proc: 'io', phase: 'drill', site: id });
-      S.focus = 'site'; renderFocus();
+      S.focus = 'site'; renderView();
       this.drillUi();
     },
     layers() {
       const kind = /humerus/.test(S.io.site || '') ? 'humerus' : 'tibia';
       return (S.data.layers || {})[kind] || { soft: 7, cortex: 3, marrow: 12, far: 3 };
     },
-    /* ── step 3 · drill ── */
+    /* ── step 3 · drive the needle ── */
     drillUi() {
       const io = S.io, ly = this.layers();
       io.phase = 'drill'; S.n = 3; io.depth = 0; io.drilling = false; io.lostRes = false; io.layer = 'air'; io.torque = [];
       const k = S.keys.drill || 'Space';
+      const maxA = S.data.maxAngle || 15;
       ui.pp.set({
-        step: 3, title: L('t_drill', 'Drill'), tag: siteName(io.site),
-        text: L('drill_text', 'Move the mouse to line the driver up with the bone (under {max}°), hold {Click} to reach the skin, then hold {{key}} to drill. Let go when the resistance is lost.', { max: S.data.maxAngle || 15, key: keyName(k) }),
+        step: 3, title: L('s_drill', 'Drive the needle'), tag: siteName(io.site),
+        text: L('drill_text', 'Center the bubble inside the ring (under {max}°), press {Click} to seat the needle on the skin, then hold {{key}} to drive it. Release the moment it gives way.', { max: maxA, key: keyName(k) }),
         tools: [{ key: '1', label: L('tool_driver', 'IO driver'), icon: 'drill', state: 'active', sub: `${L('needle', 'Needle')} ${io.needles}/${S.data.attempts || 3}` }],
-        hints: [{ keys: [L('k_hold', 'Hold'), keyName(k)], label: L('h_drill', 'drill') }, { keys: [L('k_click', 'Click')], label: L('h_pressure', 'pressure') }].concat(hintsCam()),
+        hints: [{ keys: [L('k_hold', 'Hold'), keyName(k)], label: L('h_drill', 'drive') }, { keys: [L('k_click', 'Click')], label: L('h_pressure', 'seat') }].concat(hintsCam()),
       });
-      mark('site', { anchor: io.site, label: '', dot: 'white ring' });
+      mark('site', { anchor: io.site, label: '', dot: 'fd-dia white' });
       ui.host.classList.add('aim');
-      const total = 4 + ly.soft + ly.cortex + ly.marrow + ly.far + 5;
-      const y = mm => ((mm + 4) / total) * 100;
-      let acc = 0;
-      const seg = (cls, label, mm) => { const s = `<div class="ly ${cls}" style="top:${y(acc)}%;height:${mm / total * 100}%">${esc(label)}</div>`; acc += mm; return s; };
-      acc = -4;
-      const col = seg('air', '', 4) + seg('soft', L('ly_soft', 'Soft tissue'), ly.soft) + seg('cortex', L('ly_cortex', 'Cortex'), ly.cortex) + seg('marrow', L('ly_marrow', 'Marrow'), ly.marrow) + seg('far', L('ly_far', 'Far cortex'), ly.far) + seg('beyond', '', 5);
-      io.total = total;
-      devFrame(L('d_drill', 'IO drill'), `
-        <div class="d-row">
-          <div class="d-layers">${col}<span class="needle" style="height:0"></span><span class="tip" style="top:0"></span></div>
-          <div class="d-col">
-            <div class="d-row" style="gap:6px;align-items:center"><div class="d-arc">${arcSVG(S.data.maxAngle || 15)}<span class="v av">0°</span></div><div><div class="d-lbl">${esc(L('d_offaxis', 'Off axis'))}</div><div class="d-val oa">0°</div></div></div>
-            <div><div class="d-lbl">${esc(L('d_depth', 'Depth'))}</div><div class="d-big dp" style="font-size:24px">0.0<span class="u">mm</span></div></div>
-            <div><div class="d-lbl">${esc(L('d_tip', 'Tip in'))}</div><div class="d-val ti">${esc(L('ly_air', 'Above skin'))}</div></div>
+      io.total = 4 + ly.soft + ly.cortex + ly.marrow + ly.far + 5;
+      const tolR = (maxA / 30) * 40;
+      let rings = '';
+      [10, 20, 30].forEach(a => { rings += `<circle class="rg" cx="52" cy="52" r="${(a / 30) * 40}"/>`; });
+      devFrame(L('d_drill', 'Drive'), `
+        <div class="m-split">
+          <div class="m-level"><svg viewBox="0 0 104 104">
+            <circle class="bz" cx="52" cy="52" r="50"/><circle class="gl" cx="52" cy="52" r="44"/>${rings}
+            <circle class="tol" cx="52" cy="52" r="${tolR.toFixed(1)}"/>
+            <path class="xh" d="M52 10v84M10 52h84"/>
+            <circle class="bub" cx="52" cy="52" r="7.5"/><circle class="bhl" cx="50" cy="50" r="2.4"/>
+          </svg><span class="dl">${esc(L('d_level', 'Level'))}</span></div>
+          <div class="m-list">
+            ${row('r-oa', L('d_offaxis', 'Off level'), '0<small>°</small>', 'teal')}
+            ${row('r-dp', L('d_depth', 'Depth'), '0.0<small>mm</small>')}
+            ${row('r-ti', L('d_tip', 'Tip layer'), esc(L('ly_air', LAYER_EN.air)))}
+            ${row('r-ct', L('d_contact', 'Contact'), esc(L('contact_off', 'Lifted')), 'dim')}
           </div>
         </div>
-        <div class="d-lbl" style="margin-top:8px">${esc(L('d_resist', 'Resistance'))}</div><canvas class="d-spark"></canvas>
-        <div class="d-keys"><span><kbd>${esc(keyName(k))}</kbd>${esc(L('d_trigger', 'Trigger'))}</span><span><kbd>${esc(L('k_click', 'Click'))}</kbd>${esc(L('d_pressure', 'Pressure'))}</span></div>`,
-      { brand: L('dev_io', 'IO driver'), right: `${io.needles}/${S.data.attempts || 3}`, capLed: '' });
+        <canvas class="m-xs"></canvas>
+        <div class="m-trace"><span>${esc(L('d_resist', 'Torque'))}</span><canvas class="d-spark"></canvas></div>`,
+      { unit: 'io', right: `<span class="m-chip">${esc(L('needle', 'Needle'))} ${io.needles}/${S.data.attempts || 3}</span>` });
     },
     layerAt(depth) {
       const ly = this.layers();
@@ -591,10 +700,10 @@
       const max = S.data.attempts || 3;
       ui.pp.flash('bad', L(`drill_fail_${why}`, why), 0);
       if (io.needles >= max) {
-        ui.pp.set({ text: L('drill_out', 'No needles left for this attempt.'), tools: [{ key: 'N', label: L('tool_giveup', 'Give up IO'), icon: 'x' }] });
+        ui.pp.set({ text: L('drill_out', 'Out of needles for this attempt.'), tools: [{ key: 'N', label: L('tool_giveup', 'Stop IO'), icon: 'x' }] });
         return;
       }
-      ui.pp.set({ text: L('drill_retry', 'Pull the needle and take a new one.'), tools: [{ key: 'R', label: L('tool_newneedle', 'New needle'), icon: 'needle', state: 'active' }, { key: 'N', label: L('tool_giveup', 'Give up IO'), icon: 'x' }] });
+      ui.pp.set({ text: L('drill_retry', 'Back the needle out and load a fresh one.'), tools: [{ key: 'R', label: L('tool_newneedle', 'Fresh needle'), icon: 'needle', state: 'active' }, { key: 'N', label: L('tool_giveup', 'Stop IO'), icon: 'x' }] });
     },
     newNeedle() {
       const io = S.io;
@@ -602,7 +711,7 @@
       const go = r => {
         if (!r || r.ok === false) { ui.pp.flash('bad', (r && r.msg) || L('no_needle', 'No IO needle set left.')); return; }
         io.needles = r.needles || io.needles + 1; io.failed = null;
-        ui.pp.flash('ok', L('needle_new', 'New needle on the driver.'));
+        ui.pp.flash('ok', L('needle_new', 'Fresh needle loaded.'));
         this.drillUi();
       };
       if (S.preview) go({ ok: true, needles: io.needles + 1 }); else post('needle', {}).then(go);
@@ -614,10 +723,10 @@
       io.drilling = false;
       if (intoFar > 1.0) return this.drillFail('far');
       NZA.audio.success();
-      ui.pp.flash(intoFar > 0 ? 'warn' : 'ok', intoFar > 0 ? L('drill_touch_far', 'In — the tip is touching the far cortex.') : L('drill_ok', 'Loss of resistance. The needle is in the marrow.'));
+      ui.pp.flash(intoFar > 0 ? 'warn' : 'ok', intoFar > 0 ? L('drill_touch_far', 'Seated — the tip just touches the back wall.') : L('drill_ok', 'Seated in the marrow.'));
       setTimeout(() => this.confirmUi(), 900);
     },
-    /* ── step 4 · confirm ── */
+    /* ── step 4 · draw back ── */
     confirmUi() {
       const io = S.io;
       io.phase = 'confirm'; S.n = 4;
@@ -625,31 +734,33 @@
       ui.host.classList.remove('aim');
       post('phase', { proc: 'io', phase: 'confirm', site: io.site });
       ui.pp.set({
-        step: 4, title: L('t_confirm', 'Confirm'), tag: siteName(io.site),
-        text: L('confirm_text', 'Take the stylet out, screw on the syringe and **drag the plunger back** to aspirate. Marrow blood means you are in.'),
+        step: 4, title: L('s_aspirate', 'Draw back'), tag: siteName(io.site),
+        text: L('confirm_text', 'Remove the stylet, fit the syringe and **draw the plunger up**. Dark blood in the barrel means you are in.'),
         tools: [{ key: '1', label: L('tool_syringe', 'Syringe 10 ml'), icon: 'syringe', state: 'active' }],
         hints: hintsCam(),
       });
-      mark('site', { anchor: io.site, label: L('m_io', 'IO needle'), dot: 'white' });
-      devFrame(L('d_confirm', 'Aspirate'), `<div class="syrh"></div><div class="d-note cn">${esc(L('confirm_note', 'Pull back about 1 ml.'))}</div>`, { brand: L('dev_io', 'IO driver') });
+      mark('site', { anchor: io.site, label: L('m_io', 'IO needle'), dot: 'fd-dia white' });
+      devFrame(L('d_confirm', 'Draw back'), `<div class="syrh"></div><div class="m-note cn"><span class="ni">${icon('info')}</span><span>${esc(L('confirm_note', 'About 1 ml is enough.'))}</span></div>`, { unit: 'sx', right: `<span class="m-chip">10 ml</span>` });
       io.syr = Syringe(ui.dev.querySelector('.syrh'), {
-        cap: 10, vol: 0, mode: 'pull', fluid: 'clear', label: L('syr_aspirate', 'Aspirate'), flashAt: S.data.aspirateMl || 1,
+        cap: 10, vol: 0, mode: 'pull', fluid: 'clear', label: L('syr_aspirate', 'Draw back'), flashAt: S.data.aspirateMl || 1,
         onFlash: () => {
           io.aspirated = true; NZA.audio.success();
-          ui.pp.flash('ok', L('confirm_ok', 'Marrow blood in the barrel. The needle is in.'));
-          const n = q('.cn'); if (n) n.textContent = L('confirm_ok', 'Marrow blood in the barrel. The needle is in.');
+          ui.pp.flash('ok', L('confirm_ok', 'Dark return in the barrel — you are in the marrow.'));
+          setRow('.r-ret', `${icon('drop')}${esc(L('ret_marrow', 'Marrow'))}`, 'red');
+          const n = q('.cn'); if (n) { n.className = 'm-note teal cn'; n.innerHTML = `<span class="ni">${icon('check')}</span><span>${esc(L('confirm_ok', 'Dark return in the barrel — you are in the marrow.'))}</span>`; }
           setTimeout(() => this.flushUi(), 1300);
         },
       });
+      io.syr.ret(`<div class="m-list">${row('r-ret', L('d_return', 'Return'), esc(L('ret_none', 'None yet')), 'dim')}${row('r-dep', L('d_depth', 'Depth'), `${fmt1(io.depth)}<small>mm</small>`)}${row('r-st', L('st_site', 'Site'), esc(siteName(io.site)))}</div>`);
     },
     /* ── step 5 · flush ── */
     flushUi() {
       const io = S.io;
       if (io.syr) { io.syr.destroy(); io.syr = null; }
       io.phase = 'flush'; S.n = 5; io.tool = null;
-      ui.pp.set({ step: 5, title: L('t_flush', 'Confirm and flush'), tag: siteName(io.site), hints: hintsCam() });
+      ui.pp.set({ step: 5, title: L('s_flush', 'Flush the line'), tag: siteName(io.site), hints: hintsCam() });
       this.flushTools();
-      devFrame(L('d_flush', 'Flush'), `<div class="syrh"></div><div class="d-note fn"></div>`, { brand: L('dev_io', 'IO driver') });
+      devFrame(L('d_flush', 'Flush'), `<div class="syrh"></div><div class="m-note fn"></div>`, { unit: 'sx', right: '<span class="m-chip fc"></span>' });
       this.flushText();
     },
     flushTools() {
@@ -657,7 +768,7 @@
       const hasLido = d.lidocaine !== false;
       ui.pp.set({
         tools: [
-          { key: '1', label: L('tool_ext', 'Extension set'), icon: 'tube', state: io.ext ? 'done' : io.tool === 'ext' ? 'active' : '' },
+          { key: '1', label: L('tool_ext', 'Extension line'), icon: 'tube', state: io.ext ? 'done' : io.tool === 'ext' ? 'active' : '' },
           { key: '2', label: L('tool_lido', 'Lidocaine 2%'), icon: 'syringe', state: io.lido.ml >= (d.lidoMl || 2) - 0.05 ? 'done' : !io.ext || !hasLido ? 'locked' : io.tool === 'lido' ? 'active' : '', sub: hasLido ? `${d.lidoMl || 2} ml` : '×0' },
           { key: '3', label: L('tool_flush', 'Saline flush'), icon: 'drop', state: io.flush.ml >= (d.flushMl || 10) - 0.1 ? 'done' : !io.ext ? 'locked' : io.tool === 'flush' ? 'active' : '', sub: `${d.flushMl || 10} ml` },
         ],
@@ -666,13 +777,17 @@
     flushText() {
       const io = S.io, d = S.data;
       let text;
-      if (!io.ext) text = L('flush_ext', 'Prime the **extension set** and connect it to the hub.');
-      else if (io.tool === 'lido') text = L('flush_lido', 'Keep pushing **slowly**: lidocaine going in. {a} of {b} ml.', { a: fmt1(io.lido.ml), b: d.lidoMl || 2 });
-      else if (io.tool === 'flush') text = L('flush_flush', 'Flush the line: {a} of {b} ml.', { a: fmt1(io.flush.ml), b: d.flushMl || 10 });
-      else if (d.responsive !== false && d.lidocaine !== false && io.lido.ml < (d.lidoMl || 2) - 0.05) text = L('flush_pick_lido', 'The patient is awake: give **lidocaine 2%** before the flush (2).');
-      else text = L('flush_pick', 'Flush the line with **saline** (3).');
+      if (!io.ext) text = L('flush_ext', 'Prime the **extension line** and lock it onto the hub (1).');
+      else if (io.tool === 'lido') text = L('flush_lido', 'Ease the **lidocaine** in — slow and steady. {a} of {b} ml.', { a: fmt1(io.lido.ml), b: d.lidoMl || 2 });
+      else if (io.tool === 'flush') text = L('flush_flush', 'Push the saline through. {a} of {b} ml.', { a: fmt1(io.flush.ml), b: d.flushMl || 10 });
+      else if (d.responsive !== false && d.lidocaine !== false && io.lido.ml < (d.lidoMl || 2) - 0.05) text = L('flush_pick_lido', 'Patient is awake — numb the marrow with **lidocaine 2%** first (2).');
+      else text = L('flush_pick', 'Push **saline** through the line (3).');
       ui.pp.set({ text });
-      const n = q('.fn'); if (n) n.innerHTML = NZA.rich(io.tool ? L('flush_drag', 'Drag the plunger toward the needle. Stay in the band.') : L('flush_pick_tool', 'Pick a syringe.'));
+      const n = q('.fn');
+      if (n) n.innerHTML = `<span class="ni">${icon(io.tool ? 'arrow-down' : 'syringe')}</span><span>${NZA.rich(io.tool ? L('flush_drag', 'Drag the plunger down. Keep the needle in the green arc.') : L('flush_pick_tool', 'Choose a syringe.'))}</span>`;
+      const fc = q('.fc');
+      if (fc) fc.innerHTML = `${io.ext ? icon('check') : icon('x')}${esc(L('fc_line', 'Line'))}`;
+      if (fc) fc.className = `m-chip fc ${io.ext ? 'teal' : ''}`;
     },
     useSyringe(kind) {
       const io = S.io, d = S.data;
@@ -688,7 +803,7 @@
         onChange: (vol, rate) => {
           rec.ml = clamp(cap - vol, 0, cap);
           if (rate > 0.01) { rec.samples = (rec.samples || 0) + 1; rec.rateSum = (rec.rateSum || 0) + rate; rec.peak = Math.max(rec.peak, rate); }
-          if (rate > band[1] * 1.25 && !rec.warned) { rec.warned = true; ui.pp.flash('bad', kind === 'lido' ? L('lido_fast', 'Too fast — that burns.') : L('flush_fast', 'Too fast — the patient pulls away.')); }
+          if (rate > band[1] * 1.25 && !rec.warned) { rec.warned = true; ui.pp.flash('bad', kind === 'lido' ? L('lido_fast', 'Too quick — that stings.') : L('flush_fast', 'Too quick — the patient flinches.')); }
           this.flushText();
           if (rec.ml >= cap - 0.05 && !rec.done) {
             rec.done = true; rec.rate = rec.samples ? rec.rateSum / rec.samples : 0;
@@ -722,10 +837,10 @@
       if (io.phase === 'site' && /^[1-4]$/.test(k)) return this.pick(IO_SITES[Number(k) - 1]);
       if (io.phase === 'drill' && K === 'R') return this.newNeedle();
       if (io.phase === 'flush') {
-        if (k === '1' && !io.ext) { io.ext = true; NZA.audio.click(900); ui.pp.flash('ok', L('ext_ok', 'Extension set primed and connected.')); this.flushTools(); this.flushText(); return; }
+        if (k === '1' && !io.ext) { io.ext = true; NZA.audio.click(900); ui.pp.flash('ok', L('ext_ok', 'Extension line primed and locked.')); this.flushTools(); this.flushText(); return; }
         if (k === '2' && io.ext && S.data.lidocaine !== false && io.lido.ml < (S.data.lidoMl || 2) - 0.05) return this.useSyringe('lido');
         if (k === '3' && io.ext && io.flush.ml < (S.data.flushMl || 10) - 0.1) {
-          if (S.data.responsive !== false && S.data.lidocaine !== false && io.lido.ml < 1 && !io.warnedLido) { io.warnedLido = true; ui.pp.flash('warn', L('flush_nolido', 'Awake patient: the flush hurts without lidocaine. Press 3 again to flush anyway.')); return; }
+          if (S.data.responsive !== false && S.data.lidocaine !== false && io.lido.ml < 1 && !io.warnedLido) { io.warnedLido = true; ui.pp.flash('warn', L('flush_nolido', 'Patient is awake: saline without lidocaine will hurt. Press 3 again to go ahead.')); return; }
           return this.useSyringe('flush');
         }
       }
@@ -745,8 +860,8 @@
       if (e.code !== k && e.key !== k) return false;
       if (downKey) {
         if (e.repeat) return true;
-        if (io.lift > 0.08) { ui.pp.flash('warn', L('drill_press', 'Hold {Click} to press the driver onto the skin first.')); return true; }
-        if (io.angle > (S.data.maxAngle || 15) && io.depth < 0.1) { ui.pp.flash('warn', L('drill_align', 'Line up first: {a}° off axis.', { a: Math.round(io.angle) })); return true; }
+        if (io.lift > 0.08) { ui.pp.flash('warn', L('drill_press', 'Press {Click} first to seat the needle on the skin.')); return true; }
+        if (io.angle > (S.data.maxAngle || 15) && io.depth < 0.1) { ui.pp.flash('warn', L('drill_align', 'Center the bubble first — off by {a}°.', { a: Math.round(io.angle) })); return true; }
         io.drilling = true;
       } else if (io.drilling) {
         io.drilling = false;
@@ -761,8 +876,79 @@
       if (io.phase === 'drill') this.drillFrame(dt);
       else if (io.phase !== 'site') {
         const p = apx(io.site);
-        ov(p ? `<circle cx="${p.x}" cy="${p.y}" r="${9 * pxScale()}" fill="none" stroke="#08afa2" stroke-width="2"/>` : '');
+        const k = pxScale();
+        ov(p ? `<circle cx="${p.x}" cy="${p.y}" r="${12 * k}" fill="none" stroke="#0fd4c4" stroke-width="2" stroke-dasharray="${4 * k} ${3 * k}" stroke-dashoffset="${((now() / 60) % 70).toFixed(1)}"/><circle cx="${p.x}" cy="${p.y}" r="${(12 + ((now() / 1600) % 1) * 16) * k}" fill="none" stroke="#0fd4c4" stroke-width="1.5" opacity="${(0.6 * (1 - ((now() / 1600) % 1))).toFixed(2)}"/>` : '');
       }
+    },
+    // bone cross-section: skin on top, tissue, cortical ring around the marrow canal, the needle coming in at the off-level angle
+    drawXs() {
+      const io = S.io, cv = q('.m-xs');
+      if (!cv) return;
+      const { w, h } = NZA.fitCanvas(cv);
+      const c = cv.getContext('2d');
+      const s = w / 288;
+      const ly = this.layers();
+      const tot = ly.soft + ly.cortex + ly.marrow + ly.far;
+      const k = (h / s - 22) / (tot + 5);            // px per mm (in 288-wide units)
+      c.save(); c.scale(s, s);
+      const Wd = 288, Hd = h / s;
+      c.clearRect(0, 0, Wd, Hd);
+      const skinY = 12, cx = Wd * 0.42;
+      const R = ((ly.cortex * 2 + ly.marrow) / 2) * k;
+      const by = skinY + ly.soft * k + R;
+      // air
+      c.fillStyle = '#05080a'; c.fillRect(0, 0, Wd, Hd);
+      // tissue body (soft tissue around the bone)
+      const tg = c.createLinearGradient(0, skinY, 0, Hd);
+      tg.addColorStop(0, '#d39a7c'); tg.addColorStop(0.06, '#b8735c'); tg.addColorStop(0.5, '#8e4a3c'); tg.addColorStop(1, '#5a2a24');
+      c.fillStyle = tg; c.beginPath(); c.moveTo(0, skinY + 6); c.quadraticCurveTo(cx, skinY - 6, Wd, skinY + 6); c.lineTo(Wd, Hd); c.lineTo(0, Hd); c.closePath(); c.fill();
+      // skin line + fibres
+      c.strokeStyle = 'rgba(255,220,200,.55)'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(0, skinY + 6); c.quadraticCurveTo(cx, skinY - 6, Wd, skinY + 6); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,.05)'; c.lineWidth = 1;
+      for (let i = 0; i < 9; i++) { c.beginPath(); c.moveTo(0, skinY + 14 + i * 9); c.bezierCurveTo(Wd * 0.3, skinY + 8 + i * 9, Wd * 0.6, skinY + 20 + i * 9, Wd, skinY + 12 + i * 9); c.stroke(); }
+      // cortical bone ring (slightly oval) + trabecular marrow
+      c.save(); c.translate(cx, by); c.scale(1.35, 1);
+      const bg = c.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.2, 0, 0, R);
+      bg.addColorStop(0, '#fbf3df'); bg.addColorStop(1, '#cdbf9c');
+      c.fillStyle = bg; c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = 'rgba(80,60,30,.35)'; c.lineWidth = 0.8;
+      for (let i = 1; i < 4; i++) { c.beginPath(); c.arc(0, 0, R - (ly.cortex * k * i) / 4, 0, Math.PI * 2); c.stroke(); }
+      const mr = R - ly.cortex * k;
+      const mg = c.createRadialGradient(0, 0, mr * 0.1, 0, 0, mr);
+      mg.addColorStop(0, '#8e1e22'); mg.addColorStop(1, '#5a0f13');
+      c.fillStyle = mg; c.beginPath(); c.arc(0, 0, mr, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(255,190,150,.16)';
+      for (let i = 0; i < 46; i++) { const a = (i * 2.399) % (Math.PI * 2), r = mr * Math.sqrt(((i * 0.618) % 1)); c.beginPath(); c.arc(Math.cos(a) * r, Math.sin(a) * r, 1.1 + (i % 3) * 0.5, 0, Math.PI * 2); c.fill(); }
+      c.restore();
+      // layer legend (right side, no leader lines)
+      const lyY = { soft: skinY + (ly.soft * k) / 2 + 2, cortex: skinY + ly.soft * k + (ly.cortex * k) / 2 + 2, marrow: by, far: by + R - (ly.cortex * k) / 2 };
+      c.font = '700 7.5px Lexend'; c.textAlign = 'right';
+      LAYER_ORDER.forEach(id => {
+        const on = io.layer === id;
+        const txt = String(L(`ly_${id}`, LAYER_EN[id])).toUpperCase();
+        const tw = c.measureText(txt).width + 10;
+        c.fillStyle = on ? (id === 'marrow' ? 'rgba(15,212,196,.92)' : id === 'far' ? 'rgba(229,72,77,.92)' : 'rgba(255,255,255,.9)') : 'rgba(5,8,10,.72)';
+        rrPath(c, Wd - 6 - tw, lyY[id] - 7, tw, 13, 3); c.fill();
+        c.fillStyle = on ? '#031513' : 'rgba(255,255,255,.62)';
+        c.fillText(txt, Wd - 11, lyY[id] + 2.6);
+      });
+      // needle: pivots at the skin entry by the off-level angle (signed by the aim direction)
+      const sgn = io.ax >= 0 ? 1 : -1;
+      const ang = clamp(io.angle, 0, 50) * sgn * Math.PI / 180;
+      const entryY = skinY - 0.5;
+      const tip = io.depth * k - io.lift * 9;
+      const dx = Math.sin(ang), dy = Math.cos(ang);
+      const tx = cx + dx * tip, ty = entryY + dy * tip;
+      const col = io.angle > (S.data.maxAngle || 15) ? '#ff6b70' : '#0fd4c4';
+      // ideal axis
+      c.setLineDash([3, 3]); c.strokeStyle = 'rgba(15,212,196,.45)'; c.lineWidth = 1; c.beginPath(); c.moveTo(cx, 0); c.lineTo(cx, by + R); c.stroke(); c.setLineDash([]);
+      // hub + shaft
+      const hx = tx - dx * (tip + 18), hy = ty - dy * (tip + 18);
+      const sh = c.createLinearGradient(hx - 3, 0, hx + 3, 0); sh.addColorStop(0, '#9aa4a9'); sh.addColorStop(0.5, '#f1f5f7'); sh.addColorStop(1, '#7d878c');
+      c.strokeStyle = sh; c.lineWidth = 3; c.lineCap = 'round'; c.beginPath(); c.moveTo(hx, hy); c.lineTo(tx, ty); c.stroke();
+      c.save(); c.translate(hx, hy); c.rotate(-ang); c.fillStyle = '#1d2226'; c.fillRect(-7, -14, 14, 12); c.fillStyle = col; c.fillRect(-7, -4, 14, 2.5); c.restore();
+      c.fillStyle = '#fff'; c.shadowColor = col; c.shadowBlur = 8; c.beginPath(); c.arc(tx, ty, 2.4, 0, Math.PI * 2); c.fill(); c.shadowBlur = 0;
+      c.restore();
     },
     drillFrame(dt) {
       const io = S.io, d = S.data;
@@ -778,6 +964,7 @@
       io.drift.x += ((tx * trem) - io.drift.x) * Math.min(1, dt * 1.6);
       io.drift.y += ((ty * trem) - io.drift.y) * Math.min(1, dt * 1.6);
       const ax = io.aim.x / ppd + io.drift.x, ay = io.aim.y / ppd + io.drift.y;
+      io.ax = ax; io.ay = ay;
       io.angle = Math.min(60, Math.hypot(ax, ay));
       const target = S.mouse.down ? 0 : 1;
       io.lift += (target - io.lift) * Math.min(1, dt * 7);
@@ -789,7 +976,7 @@
         io.angleSum += io.angle * dt; io.angleN += dt; io.maxAngle = Math.max(io.maxAngle, io.angle);
         const nl = this.layerAt(io.depth);
         if ((nl === 'cortex' || nl === 'far') && io.angle > (d.bendAngle || 26)) return this.drillFail('bent');
-        if (nl === 'marrow' && !io.lostRes) { io.lostRes = true; ui.pp.flash('ok', L('drill_loss', 'Loss of resistance — let go of the trigger!'), 1600); NZA.audio.beep(1250, 70, 0.06); }
+        if (nl === 'marrow' && !io.lostRes) { io.lostRes = true; ui.pp.flash('ok', L('drill_loss', 'It gave way — release the trigger now!'), 1600); NZA.audio.beep(1250, 70, 0.06); }
         if (nl === 'through') return this.drillFail('through');
         io.snd -= dt;
         if (io.snd <= 0) { io.snd = 0.075; NZA.audio.tone(nl === 'cortex' || nl === 'far' ? 135 : nl === 'marrow' ? 430 : 290, 85, { vol: 0.028, type: 'sawtooth' }); }
@@ -798,43 +985,53 @@
       const res = { air: 0.02, soft: 0.25, cortex: 0.9, marrow: 0.12, far: 0.95, through: 0.05 }[io.layer] || 0;
       io.torque.push(io.drilling ? res + (Math.random() - 0.5) * 0.12 : io.torque.length ? io.torque[io.torque.length - 1] * 0.9 : 0);
       if (io.torque.length > 120) io.torque.shift();
-      // device
-      const tipTop = ((io.depth + 4 - io.lift * 3) / io.total) * 100;
-      const tip = q('.d-layers .tip'); if (tip) tip.style.top = `${clamp(tipTop, 0, 100)}%`;
-      const ndl = q('.d-layers .needle'); if (ndl) ndl.style.height = `${clamp(tipTop, 0, 100)}%`;
+      // device: bubble level
       const maxA = d.maxAngle || 15;
-      const an = q('.d-arc .an');
-      if (an) an.setAttribute('transform', `rotate(${(clamp(io.angle, 0, 45) / 45) * 180 - 90} 43 44)`);
-      const av = q('.d-arc .v'); if (av) { av.textContent = `${Math.round(io.angle)}°`; av.className = `v ${io.angle > maxA ? 'red' : 'teal'}`; }
-      const oa = q('.oa'); if (oa) { oa.textContent = io.angle > maxA ? L('d_realign', 'Realign') : L('d_aligned', 'Aligned'); oa.className = `d-val oa ${io.angle > maxA ? 'red' : 'teal'}`; }
-      const dp = q('.dp'); if (dp) dp.innerHTML = `${fmt1(io.depth)}<span class="u">mm</span>`;
-      metric({ label: L('st_offaxis', 'Off axis'), value: Math.round(io.angle), unit: '°', tone: io.angle > maxA ? 'red' : 'teal' });
-      const ti = q('.ti'); if (ti) { ti.textContent = L(`ly_${io.layer}`, LAYER_EN[io.layer] || io.layer); ti.className = `d-val ti ${io.layer === 'marrow' ? 'teal' : io.layer === 'far' || io.layer === 'through' ? 'red' : ''}`; }
+      const off = io.angle > maxA;
+      const bub = q('.m-level .bub');
+      if (bub) {
+        const l = Math.hypot(ax, ay) || 1, r = Math.min(40, (Math.min(io.angle, 30) / 30) * 40);
+        const bx = 52 + (ax / l) * r, by2 = 52 + (ay / l) * r;
+        bub.setAttribute('cx', bx.toFixed(1)); bub.setAttribute('cy', by2.toFixed(1));
+        const hl = q('.m-level .bhl'); if (hl) { hl.setAttribute('cx', (bx - 2.2).toFixed(1)); hl.setAttribute('cy', (by2 - 2.4).toFixed(1)); }
+        q('.m-level').classList.toggle('off', off);
+      }
+      setRow('.r-oa', `${Math.round(io.angle)}<small>°</small>`, off ? 'red' : 'teal');
+      setRow('.r-dp', `${fmt1(io.depth)}<small>mm</small>`, io.drilling ? 'teal' : '');
+      setRow('.r-ti', esc(L(`ly_${io.layer}`, LAYER_EN[io.layer] || io.layer)), io.layer === 'marrow' ? 'teal' : io.layer === 'far' || io.layer === 'through' ? 'red' : io.layer === 'cortex' ? 'amber' : '');
+      setRow('.r-ct', esc(io.lift < 0.3 ? L('contact_on', 'On skin') : L('contact_off', 'Lifted')), io.lift < 0.3 ? 'teal' : 'dim');
+      metric({ label: L('st_offaxis', 'Off level'), value: Math.round(io.angle), unit: '°', tone: off ? 'red' : 'teal' });
+      this.drawXs();
       const cv = q('.d-spark');
       if (cv) {
         const { w, h } = NZA.fitCanvas(cv);
         const c = cv.getContext('2d');
         c.clearRect(0, 0, w, h);
+        c.fillStyle = 'rgba(229,72,77,.08)'; c.fillRect(0, 0, w, h * 0.3);
         c.strokeStyle = 'rgba(255,255,255,.06)'; c.beginPath(); c.moveTo(0, h - 1); c.lineTo(w, h - 1); c.stroke();
         c.strokeStyle = io.layer === 'marrow' ? '#0fd4c4' : '#f3c35a'; c.lineWidth = 1.6 * (w / cv.clientWidth || 1); c.beginPath();
         io.torque.forEach((v, i) => { const x = (i / 119) * w, y = h - 2 - clamp(v, 0, 1) * (h - 6); if (i) c.lineTo(x, y); else c.moveTo(x, y); });
         c.stroke();
       }
       if (!io.failed) setText((io.lift > 0.3
-        ? L('drill_text_aim', 'Line the driver up with the bone (under {max}°) and hold {Click} to reach the skin. {a}° off axis.', { max: maxA, a: Math.round(io.angle) })
-        : io.drilling ? (io.layer === 'cortex' ? L('drill_text_cortex', 'Through the cortex — keep it straight. {a}° off axis.', { a: Math.round(io.angle) }) : io.layer === 'marrow' ? L('drill_loss', 'Loss of resistance — let go of the trigger!') : L('drill_text_drilling', 'Drilling… {d} mm.', { d: fmt1(io.depth) }))
-          : L('drill_text_ready', 'On the skin. Hold {{key}} to drill. {a}° off axis.', { key: keyName(S.keys.drill || 'Space'), a: Math.round(io.angle) })));
-      // overlay: site ring + driver axis toward the cursor
+        ? L('drill_text_aim', 'Center the bubble inside the ring (under {max}°), then press {Click} to seat the needle. Off by {a}°.', { max: maxA, a: Math.round(io.angle) })
+        : io.drilling ? (io.layer === 'cortex' ? L('drill_text_cortex', 'Through the bone wall — keep it level. Off by {a}°.', { a: Math.round(io.angle) }) : io.layer === 'marrow' ? L('drill_loss', 'It gave way — release the trigger now!') : L('drill_text_drilling', 'Driving… {d} mm.', { d: fmt1(io.depth) }))
+          : L('drill_text_ready', 'Needle on the skin. Hold {{key}} to drive it in. Off by {a}°.', { key: keyName(S.keys.drill || 'Space'), a: Math.round(io.angle) })));
+      // overlay: tolerance ring with bracket ticks + a reticle that closes as the needle seats
       if (site) {
-        const col = io.angle > maxA ? '#e5484d' : '#08afa2';
-        const len = Math.min(140 * k, Math.hypot(S.mouse.x - site.x, S.mouse.y - site.y));
-        const ang = Math.atan2(S.mouse.y - site.y, S.mouse.x - site.x);
-        const ex = site.x + Math.cos(ang) * len, ey = site.y + Math.sin(ang) * len;
-        const rz = (maxA * (d.pxPerDeg || 3.2)) * k;
-        ov(`<circle cx="${site.x}" cy="${site.y}" r="${rz}" fill="rgba(8,175,162,.08)" stroke="rgba(8,175,162,.5)" stroke-dasharray="4 4"/>
-          <circle cx="${site.x}" cy="${site.y}" r="${6 * k}" fill="${col}"/>
-          <line x1="${site.x}" y1="${site.y}" x2="${ex}" y2="${ey}" stroke="${col}" stroke-width="2" stroke-dasharray="${io.lift > 0.3 ? '6 5' : 'none'}"/>
-          <circle cx="${S.mouse.x}" cy="${S.mouse.y}" r="${(10 + io.lift * 12) * k}" fill="none" stroke="${col}" stroke-width="2"/>`);
+        const col = off ? '#ff6b70' : '#0fd4c4';
+        const rz = (maxA * ppd) * k;
+        const mx = S.mouse.x, my = S.mouse.y;
+        const rr = (12 + io.lift * 10) * k, C = 2 * Math.PI * rr, seat = clamp(1 - io.lift, 0, 1);
+        let br = '';
+        [0, 90, 180, 270].forEach(a => { const r = a * Math.PI / 180, x = site.x + Math.cos(r) * rz, y = site.y + Math.sin(r) * rz, tx2 = -Math.sin(r) * 7 * k, ty2 = Math.cos(r) * 7 * k; br += `<path d="M${x - tx2} ${y - ty2}L${x + tx2} ${y + ty2}"/>`; });
+        ov(`<circle cx="${site.x}" cy="${site.y}" r="${rz}" fill="rgba(8,175,162,.06)" stroke="rgba(15,212,196,.42)" stroke-dasharray="${3 * k} ${5 * k}"/>
+          <g stroke="#0fd4c4" stroke-width="${2.2 * k}" stroke-linecap="round">${br}</g>
+          <line x1="${site.x}" y1="${site.y}" x2="${mx}" y2="${my}" stroke="${col}" stroke-width="${1.6 * k}" stroke-dasharray="${io.lift > 0.3 ? `${5 * k} ${4 * k}` : 'none'}" opacity=".85"/>
+          <circle cx="${site.x}" cy="${site.y}" r="${4 * k}" fill="${col}"/>
+          <circle cx="${mx}" cy="${my}" r="${rr}" fill="rgba(12,13,16,.35)" stroke="rgba(255,255,255,.18)" stroke-width="${3 * k}"/>
+          <circle cx="${mx}" cy="${my}" r="${rr}" fill="none" stroke="${col}" stroke-width="${3 * k}" stroke-linecap="round" stroke-dasharray="${(C * seat).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 ${mx} ${my})"/>
+          <g stroke="${col}" stroke-width="${1.6 * k}"><line x1="${mx - rr - 6 * k}" y1="${my}" x2="${mx - rr + 3 * k}" y2="${my}"/><line x1="${mx + rr - 3 * k}" y1="${my}" x2="${mx + rr + 6 * k}" y2="${my}"/><line x1="${mx}" y1="${my - rr - 6 * k}" x2="${mx}" y2="${my - rr + 3 * k}"/><line x1="${mx}" y1="${my + rr - 3 * k}" x2="${mx}" y2="${my + rr + 6 * k}"/></g>`);
       }
       // stream the driver pose to Lua (~20 Hz)
       io.sendT = (io.sendT || 0) - dt;
@@ -847,7 +1044,7 @@
     leave() { const io = S.io; if (io && io.syr) { io.syr.destroy(); io.syr = null; } if (io) io.drilling = false; },
   };
 
-  /* ═══════════════════════════ STEP 6 · RESUSCITATE ═══════════════════════════ */
+  /* ═══════════════════════════ STEP 6 · HOLD THE PRESSURE ═══════════════════════════ */
   H_.resus = {
     enter() {
       const d = S.data;
@@ -857,37 +1054,52 @@
       if (rs.bags.length) rs.sel = rs.bags[0].id;
       S.clot = null;
       ui.pp.set({
-        title: L('t_resus', 'Resuscitate'), tag: d.access ? `${d.access.kind === 'io' ? 'IO' : 'IV'} · ${d.access.siteLabel || d.access.site || ''}` : '',
-        text: L('resus_text', 'Hang a bag, squeeze the infuser and open the clamp until the MAP sits in the band. Hold it there while the clot firms.'),
-        hints: [{ keys: [keyName(S.keys.squeeze || 'Space')], label: L('h_squeeze', 'squeeze') }, { keys: ['Q', 'E'], label: L('h_clamp', 'clamp') }].concat(hintsCam()),
+        title: L('s_resus', 'Hold the pressure'), tag: d.access ? `${d.access.kind === 'io' ? 'IO' : 'IV'} · ${d.access.siteLabel || d.access.site || ''}` : '',
+        text: L('resus_text', 'Hang fluid, pump the bulb and open the roller clamp until MAP reaches the target arc. Keep it there until the clot sets.'),
+        hints: [{ keys: [keyName(S.keys.squeeze || 'Space')], label: L('h_squeeze', 'pump') }, { keys: ['Q', 'E'], label: L('h_clamp', 'clamp') }].concat(hintsCam()),
       });
       this.tools();
-      mark('access', { label: d.access ? `${d.access.kind === 'io' ? 'IO' : 'IV'}` : '', dot: 'white' });
-      devFrame(L('d_clot', 'Clot'), `
-        <div class="d-row" style="align-items:flex-end"><div style="flex:1"><div class="d-lbl">${esc(L('d_firm', 'Clot firmness'))}</div><div class="d-big teal fm">0<span class="u">%</span></div></div>
-          <div style="text-align:right"><div class="d-lbl">MAP</div><div class="d-big mp" style="font-size:26px">--</div></div></div>
-        <canvas class="d-teg" style="margin-top:8px"></canvas>
-        <div class="d-row" style="margin-top:7px;align-items:center"><div class="d-lbl st" style="flex:1">${esc(L('cs_wait', 'Waiting for flow'))}</div><div class="d-val hd" style="margin:0;font-family:var(--mono)">--</div></div>
-        <canvas class="d-strip" style="margin-top:5px"></canvas>`, { brand: L('dev_clot', 'Clot monitor'), right: ' ', rightHtml: true });
-      const cap = ui.dev.querySelector('.d-cap .r'); if (cap) cap.classList.add('ch');
-      ui.inf.style.display = '';
-      ui.inf.innerHTML = `
-        <div class="ic1"><div class="gauge">${gaugeSVG()}</div>
-          <div class="press"><div class="nza-label">${esc(L('i_pressure', 'Bag pressure'))}</div><div class="lcd"><span>0</span><span>0</span><span>0</span><i>mmHg</i></div></div></div>
-        <div class="ic2"><div class="nza-label">${esc(L('i_bags', 'On the stand'))}</div><div class="fd-bags"></div><div class="fd-txa-h"></div></div>
-        <div class="ic3">
-          <div class="fd-tiles">
-            <div class="fd-tile"><div class="l">${esc(L('i_rate', 'Infusion'))}</div><div class="v t-rt">0<span class="u">ml/min</span></div></div>
-            <div class="fd-tile"><div class="l">${esc(L('i_saline', 'Saline in'))}</div><div class="v t-si">0<span class="u">ml</span></div></div>
-            <div class="fd-tile"><div class="l">${esc(L('i_blood', 'Blood in'))}</div><div class="v t-bi">0<span class="u">ml</span></div></div>
-            <div class="fd-tile"><div class="l">${esc(L('i_txa', 'TXA push'))}</div><div class="v t-tx">${rs.txaDone ? '✓' : '0.0'}<span class="u">/${d.txaPush || 10} s</span></div></div>
+      mark('access', { label: d.access ? `${d.access.kind === 'io' ? 'IO' : 'IV'}` : '', dot: 'fd-dia white' });
+      const clot = moduleHTML('ca', L('d_clot', 'Clot formation'), `
+        <div class="m-split">
+          <div class="m-clot"><svg viewBox="0 0 104 104" class="cr"></svg><div class="cv"><span class="fm"></span><i>%</i></div><span class="dl">${esc(L('d_firm', 'Clot'))}</span></div>
+          <div class="m-list">
+            ${row('r-map', 'MAP', '--')}
+            ${row('r-hold', L('c_hold', 'Hold'), '--')}
+            ${row('r-txa', L('chip_txa', 'TXA'), '—', 'dim')}
+            ${row('r-warm', L('chip_warm', 'Warmth'), '—', 'dim')}
+            ${row('r-dil', L('chip_dil', 'Dilution'), '0<small>%</small>')}
+            ${row('r-pop', L('chip_pops', 'Breaks'), '0')}
           </div>
-          <div class="fd-ctl"><button class="sq"><kbd>${esc(keyName(S.keys.squeeze || 'Space'))}</kbd>${esc(L('i_squeeze', 'Squeeze'))}</button>
-            <button class="pm" data-c="-1">−</button><div class="clamp"><div class="t"><span>${esc(L('i_clamp', 'Roller clamp'))}</span><b class="cl">66%</b></div><div class="cm"></div></div><button class="pm" data-c="1">+</button></div>
-        </div>`;
-      ui.inf.querySelector('.sq').addEventListener('mousedown', e => { e.stopPropagation(); this.squeeze(); });
-      ui.inf.querySelectorAll('.pm').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); this.clampBy(Number(b.dataset.c) * 0.1); }));
+        </div>
+        <div class="m-state cst"><span class="dot"></span><span class="tx">${esc(L('cs_wait', 'No flow yet'))}</span></div>
+        <div class="m-trend"><span>${esc(L('c_trend', 'MAP trend'))}</span><canvas class="d-strip"></canvas></div>`, { right: '<span class="m-chip ch"></span>' });
+      const inf = moduleHTML('pi', L('d_infuser', 'Line & pressure'), `
+        <div class="pi-top">
+          <div class="m-dial pi"><div class="dzh"></div><div class="dv"><span class="pv"></span><i>mmHg</i></div><span class="dl">${esc(L('i_pressure', 'Bag pressure'))}</span></div>
+          <div class="pi-stand"><div class="pi-hook"></div><div class="fd-bags"></div></div>
+          <div class="pi-clamp"><span class="ck">${esc(L('i_clamp', 'Clamp'))}</span><button class="wheel" data-wheel="1"><i class="rid"></i><i class="cap up">${icon('chev-u')}</i><i class="cap dn">${icon('chev-d')}</i></button><b class="cl">66%</b></div>
+        </div>
+        <div class="pi-bot">
+          <button class="pi-bulb"><span class="bb"></span><span class="bt"><b>${esc(L('i_squeeze', 'Pump'))}</b><kbd>${esc(keyName(S.keys.squeeze || 'Space'))}</kbd></span></button>
+          <div class="m-list two">
+            ${row('r-rt', L('i_rate', 'Flow'), '0<small>ml/min</small>')}
+            ${row('r-si', L('i_saline', 'Crystalloid'), '0<small>ml</small>')}
+            ${row('r-bi', L('i_blood', 'Blood'), '0<small>ml</small>')}
+            ${row('r-tx', L('i_txa', 'TXA'), rs.txaDone ? icon('check') : '—', rs.txaDone ? 'teal' : 'dim')}
+          </div>
+        </div>
+        <div class="fd-txa-h"></div>`, { right: '<span class="m-chip nb"></span>' });
+      rack([clot, inf], 'wide');
+      ui.inf = ui.rack.querySelector('.u-pi');
+      rs.pOdo = NZA.ui.FlipClock(ui.inf.querySelector('.dv .pv'), { value: '0' });
+      rs.fOdo = NZA.ui.FlipClock(ui.rack.querySelector('.m-clot .fm'), { value: '0' });
+      ui.inf.querySelector('.pi-bulb').addEventListener('mousedown', e => { e.stopPropagation(); this.squeeze(); });
+      const wheel = ui.inf.querySelector('.wheel');
+      wheel.addEventListener('mousedown', e => { e.stopPropagation(); const r = wheel.getBoundingClientRect(); this.clampBy(e.clientY < r.top + r.height / 2 ? 0.05 : -0.05); });
+      wheel.addEventListener('wheel', e => { e.preventDefault(); this.clampBy(-Math.sign(e.deltaY) * 0.02); }, { passive: false });
       this.bagsUi();
+      this.clotRing(0);
       this.infTick(0);
     },
     tools() {
@@ -895,65 +1107,76 @@
       const saline = rs.bags.find(b => b.kind === 'saline' && b.left > 0);
       const blood = rs.bags.find(b => b.kind === 'blood' && b.left > 0);
       const bb = (d.bags || [])[0];
-      const bloodSub = !d.blood ? L('tool_blood_none', 'No blood bank') : blood ? L('tool_running', 'Running') : bb ? `${bb.type} · ${bb.compatible === true ? L('compatible', 'Compatible') : bb.compatible === false ? L('incompatible', 'Incompatible') : L('untyped', 'Untyped')}` : '×0';
+      const bloodSub = !d.blood ? L('tool_blood_none', 'No blood bank') : blood ? L('tool_running', 'Running') : bb ? `${bb.type} · ${bb.compatible === true ? L('compatible', 'Match') : bb.compatible === false ? L('incompatible', 'No match') : L('untyped', 'Untyped')}` : '×0';
       ui.pp.set({
         tools: [
-          { key: '1', label: L('tool_saline', 'Saline 500 ml'), icon: 'iv', state: saline ? (rs.sel === saline.id ? 'active' : 'done') : (c.saline || 0) < 1 ? 'locked' : '', sub: saline ? L('tool_running', 'Running') : `×${c.saline || 0}` },
-          { key: '2', label: L('tool_blood', 'Blood'), icon: 'bloodbag', state: blood ? (rs.sel === blood.id ? 'active' : 'done') : (!d.blood || !bb) ? 'locked' : bb.compatible === false ? 'need' : '', sub: bloodSub },
+          { key: '1', label: L('tool_saline', 'Saline 0.9%'), icon: 'iv', state: saline ? (rs.sel === saline.id ? 'active' : 'done') : (c.saline || 0) < 1 ? 'locked' : '', sub: saline ? L('tool_running', 'Running') : `500 ml ×${c.saline || 0}` },
+          { key: '2', label: L('tool_blood', 'Blood unit'), icon: 'bloodbag', state: blood ? (rs.sel === blood.id ? 'active' : 'done') : (!d.blood || !bb) ? 'locked' : bb.compatible === false ? 'need' : '', sub: bloodSub },
           { key: '3', label: L('tool_txa', 'TXA 1 g'), icon: 'syringe', state: rs.txaDone ? 'done' : rs.txa ? 'active' : (c.txa || 0) < 1 ? 'locked' : '', sub: rs.txaDone ? '' : `×${c.txa || 0}` },
-          { key: '4', label: L('tool_foil', 'Foil blanket'), icon: 'blanket', state: rs.foil ? 'done' : (c.foil || 0) < 1 ? 'locked' : '', sub: rs.foil ? '' : `×${c.foil || 0}` },
-          { key: '5', label: L('tool_squeeze', 'Squeeze infuser'), icon: 'gauge' },
-          { key: '6', label: L('tool_nibp', 'Cycle NIBP'), icon: 'cuff' },
+          { key: '4', label: L('tool_foil', 'Warming foil'), icon: 'blanket', state: rs.foil ? 'done' : (c.foil || 0) < 1 ? 'locked' : '', sub: rs.foil ? '' : `×${c.foil || 0}` },
+          { key: '5', label: L('tool_squeeze', 'Pump bulb'), icon: 'gauge' },
+          { key: '6', label: L('tool_nibp', 'Read BP'), icon: 'cuff' },
         ],
       });
     },
     bagsUi() {
       const rs = S.rs;
-      const box = ui.inf.querySelector('.fd-bags');
+      const box = ui.inf && ui.inf.querySelector('.fd-bags');
       if (!box) return;
       const list = rs.bags.filter(b => b.left > 0);
-      if (!list.length) { box.innerHTML = `<div class="fd-bag empty">${esc(L('i_nobag', 'No bag hanging — press 1 or 2'))}</div>`; return; }
+      const nb = ui.inf.querySelector('.m-chip.nb'); if (nb) nb.textContent = `${list.length}/${(S.data.infusion || {}).maxBags || 3}`;
+      if (!list.length) { box.innerHTML = `<div class="fd-bag empty"><span class="eh">${icon('iv')}</span><span>${esc(L('i_nobag', 'Nothing hanging — press 1 or 2'))}</span></div>`; return; }
       box.innerHTML = list.map(b => {
         const blood = b.kind === 'blood';
-        const name = blood ? `${L('bag_blood_short', 'Blood')} ${b.bag && b.bag.type ? b.bag.type : ''}` : L('bag_saline_short', 'Saline {ml} ml', { ml: b.ml });
-        return `<div class="fd-bag ${blood ? 'blood' : ''} ${rs.sel === b.id ? 'sel' : ''}" data-id="${esc(b.id)}"><span class="bi">${icon(blood ? 'bloodbag' : 'iv')}</span>
-          <span class="bt"><b>${esc(name)}</b><span>${esc(L('i_left', '{n} ml left', { n: Math.round(b.left) }))} · ${Math.round(b.rate || 0)} ml/min${b.paused ? ` · ${L('paused', 'paused')}` : ''}</span><span class="lvl"><i style="width:${clamp(b.left / (b.ml || 500), 0, 1) * 100}%"></i></span></span>
-          <button class="down">${esc(L('take_down_btn', 'Take down'))}</button></div>`;
+        const short = blood ? (b.bag && b.bag.type ? b.bag.type : L('bag_blood_short', 'Blood')) : L('bag_saline_tag', 'NaCl');
+        const lvl = clamp(b.left / (b.ml || 500), 0, 1);
+        const drip = b.paused ? 0 : clamp((b.rate || 0) / 80, 0.08, 1);
+        return `<div class="fd-bag ${blood ? 'blood' : ''} ${rs.sel === b.id ? 'sel' : ''} ${b.paused ? 'paused' : ''}" data-id="${esc(b.id)}" title="${esc(blood ? L('bag_blood_short', 'Blood') : L('bag_saline_short', 'Saline {ml} ml', { ml: b.ml }))}">
+          <button class="down" title="${esc(L('take_down_btn', 'Remove'))}">${icon('x')}</button>
+          <svg viewBox="0 0 44 74" class="bg"><path class="bo" d="M8 6h28l4 6v42q0 8-8 8H12q-8 0-8-8V12z"/>
+            <clipPath id="bc${esc(b.id)}"><path d="M8 6h28l4 6v42q0 8-8 8H12q-8 0-8-8V12z"/></clipPath>
+            <rect class="fl" x="0" y="${(10 + (1 - lvl) * 52).toFixed(1)}" width="44" height="70" clip-path="url(#bc${esc(b.id)})"/>
+            <path class="hl" d="M10 12v38"/><rect class="lb" x="12" y="22" width="20" height="16" rx="1.5"/><path class="lbl" d="M15 27h14M15 31h10"/>
+            <path class="pt" d="M18 62h8v8h-8z"/><circle class="hk" cx="22" cy="3" r="2.6"/></svg>
+          <span class="dc" style="--drip:${(1.6 - drip * 1.3).toFixed(2)}s"><i></i></span>
+          <span class="bn">${esc(short)}</span><span class="bl">${Math.round(b.left)}<small>ml</small></span>
+        </div>`;
       }).join('');
       box.querySelectorAll('.fd-bag').forEach(c => {
+        c.addEventListener('mousedown', e => e.stopPropagation());
         c.addEventListener('click', e => { if (e.target.closest('.down')) return; rs.sel = c.dataset.id; this.bagsUi(); this.tools(); });
         c.querySelector('.down').addEventListener('click', e => { e.stopPropagation(); this.takeDown(c.dataset.id); });
       });
     },
     hang(kind) {
       const rs = S.rs, d = S.data;
-      if (rs.bags.filter(b => b.left > 0).length >= ((d.infusion || {}).maxBags || 3)) { ui.pp.flash('warn', L('too_many', 'Three bags are already running.')); return; }
-      let serial = null, type = null;
+      if (rs.bags.filter(b => b.left > 0).length >= ((d.infusion || {}).maxBags || 3)) { ui.pp.flash('warn', L('too_many', 'Three bags already hanging.')); return; }
+      let serialNo = null, type = null;
       if (kind === 'blood') {
         const bb = (d.bags || [])[0];
         if (!d.blood || !bb) { ui.pp.flash('bad', d.blood ? L('no_blood', 'You carry no blood.') : L('no_blood_module', 'Blood needs the blood bank.')); return; }
-        if (bb.compatible === false && now() - rs.confirmBlood > 3000) { rs.confirmBlood = now(); ui.pp.flash('bad', L('blood_incompat', '{t} is NOT compatible with this patient. Press 2 again to hang it anyway.', { t: bb.type })); return; }
-        if (bb.compatible !== true && bb.compatible !== false && now() - rs.confirmBlood > 3000) { rs.confirmBlood = now(); ui.pp.flash('warn', L('blood_untyped', 'The patient is not typed. Only O- is safe. Press 2 again to hang {t}.', { t: bb.type })); return; }
-        serial = bb.serial; type = bb.type;
+        if (bb.compatible === false && now() - rs.confirmBlood > 3000) { rs.confirmBlood = now(); ui.pp.flash('bad', L('blood_incompat', '{t} does NOT match this patient. Press 2 again to hang it anyway.', { t: bb.type })); return; }
+        if (bb.compatible !== true && bb.compatible !== false && now() - rs.confirmBlood > 3000) { rs.confirmBlood = now(); ui.pp.flash('warn', L('blood_untyped', 'No blood type yet — only O− is safe. Press 2 again to hang {t}.', { t: bb.type })); return; }
+        serialNo = bb.serial; type = bb.type;
       } else if ((rs.counts.saline || 0) < 1) { ui.pp.flash('bad', L('no_saline', 'No saline bag left.')); return; }
       const rate = Math.max(1, Math.round(this.rateFor(kind)));
       const go = r => {
-        if (!r || r.ok === false || !r.inf) { ui.pp.flash('bad', (r && r.msg) || L('hang_fail', 'Could not hang the bag.')); return; }
+        if (!r || r.ok === false || !r.inf) { ui.pp.flash('bad', (r && r.msg) || L('hang_fail', 'The bag would not hang.')); return; }
         rs.bags.push(Object.assign({ mine: true }, r.inf));
         rs.sel = r.inf.id;
         if (kind === 'saline') rs.counts.saline = Math.max(0, (rs.counts.saline || 1) - 1);
-        if (kind === 'blood') d.bags = (d.bags || []).filter(b => b.serial !== serial);
+        if (kind === 'blood') d.bags = (d.bags || []).filter(b => b.serial !== serialNo);
         NZA.audio.click(880);
         ui.pp.flash('ok', kind === 'blood' ? L('hung_blood', 'Blood {t} running.', { t: type || '' }) : L('hung_saline', 'Saline running.'));
         this.bagsUi(); this.tools();
       };
       if (S.preview) go({ ok: true, inf: { id: `i${Date.now() % 1000}`, kind, ml: kind === 'blood' ? 450 : 500, left: kind === 'blood' ? 450 : 500, rate, bag: type ? { type } : null } });
-      else post('hang', { kind, serial, rate }).then(go);
+      else post('hang', { kind, serial: serialNo, rate }).then(go);
     },
     takeDown(id) {
       const rs = S.rs;
       const go = r => {
-        if (!r || r.ok === false) { ui.pp.flash('bad', (r && r.msg) || L('takedown_fail', 'Could not take the bag down.')); return; }
+        if (!r || r.ok === false) { ui.pp.flash('bad', (r && r.msg) || L('takedown_fail', 'The bag would not come down.')); return; }
         const b = rs.bags.find(x => x.id === id);
         if (b) { if (b.kind === 'blood') rs.bloodIn += (b.ml - b.left); else rs.salineIn += (b.ml - b.left); }
         rs.bags = rs.bags.filter(x => x.id !== id);
@@ -967,7 +1190,7 @@
       const acc = S.data.access && S.data.access.kind === 'io' ? (inf.ioFactor || 0.45) : 1;
       const gravity = (inf.gravity || 60) * acc;
       const r = gravity * rs.clamp * (1 + (inf.pressureGain || 1.4) * rs.pressure / (inf.maxPressure || 300));
-      return clamp(r, rs.clamp > 0.005 ? 1 : 1, S.data.maxRate || 160);
+      return clamp(r, 1, S.data.maxRate || 160);
     },
     squeeze() {
       const rs = S.rs, inf = S.data.infusion || {};
@@ -982,10 +1205,10 @@
       if ((rs.counts.txa || 0) < 1) { ui.pp.flash('bad', L('no_txa', 'No TXA in the kit.')); return; }
       const box = ui.inf.querySelector('.fd-txa-h');
       const push = S.data.txaPush || 10;
-      box.innerHTML = `<div class="fd-txa"><div class="t">${esc(L('txa_title', 'TXA 1 g in 10 ml'))}<span>${esc(L('txa_slow', 'Over {s} s or more', { s: push }))}</span></div><div class="sh"></div></div>`;
+      box.innerHTML = `<div class="fd-txa"><div class="t"><b>${esc(L('txa_title', 'TXA 1 g / 10 ml'))}</b><span>${esc(L('txa_slow', 'Push over ≥ {s} s', { s: push }))}</span></div><div class="sh"></div></div>`;
       const t0 = { start: 0 };
       rs.txa = Syringe(box.querySelector('.sh'), {
-        cap: 10, vol: 10, mode: 'push', fluid: 'txa', band: [0.15, 10 / push], maxRate: (10 / push) * 2, label: L('tool_txa', 'TXA 1 g'),
+        cap: 10, vol: 10, mode: 'push', fluid: 'txa', band: [0.15, 10 / push], maxRate: (10 / push) * 2, label: L('tool_txa', 'TXA 1 g'), compact: true,
         onChange: vol => {
           if (!t0.start && vol < 9.9) t0.start = now();
           if (vol <= 0.05 && !rs.txaDone) {
@@ -993,21 +1216,21 @@
             rs.txaDone = true;
             const fin = r => {
               if (r && r.ok === false) { rs.txaDone = false; ui.pp.flash('bad', r.msg || L('txa_fail', 'TXA not given.')); return; }
-              ui.pp.flash(secs < push * 0.6 ? 'warn' : 'ok', secs < push * 0.6 ? L('txa_fast', 'TXA in — too fast, the pressure dips.') : L('txa_ok', 'TXA given. The clot will hold better.'));
+              ui.pp.flash(secs < push * 0.6 ? 'warn' : 'ok', secs < push * 0.6 ? L('txa_fast', 'TXA in — too fast, pressure dips.') : L('txa_ok', 'TXA in. The clot will hold better.'));
               rs.counts.txa = Math.max(0, (rs.counts.txa || 1) - 1);
               setTimeout(() => { if (rs.txa) { rs.txa.destroy(); rs.txa = null; box.innerHTML = ''; } this.tools(); }, 900);
             };
             if (S.preview) fin({ ok: true }); else post('txa', { seconds: Math.round(secs * 10) / 10 }).then(fin);
           }
         },
-        onTick: () => { const tx = ui.inf.querySelector('.t-tx'); if (tx && t0.start && !rs.txaDone) tx.innerHTML = `${fmt1((now() - t0.start) / 1000)}<span class="u">/${push} s</span>`; },
+        onTick: () => { if (t0.start && !rs.txaDone) setRow('.r-tx', `${fmt1((now() - t0.start) / 1000)}<small>/${push} s</small>`, 'amber'); },
       });
       this.tools();
     },
     foil() {
       const rs = S.rs;
       if (rs.foil) return;
-      const go = r => { if (r && r.ok === false) { ui.pp.flash('bad', r.msg || L('foil_fail', 'No foil blanket.')); return; } rs.foil = true; ui.pp.flash('ok', L('foil_ok', 'Foil blanket on — keep them warm.')); this.tools(); };
+      const go = r => { if (r && r.ok === false) { ui.pp.flash('bad', r.msg || L('foil_fail', 'No foil blanket.')); return; } rs.foil = true; ui.pp.flash('ok', L('foil_ok', 'Foil on — keep the heat in.')); this.tools(); };
       if (S.preview) go({ ok: true }); else post('foil', {}).then(go);
     },
     tool(k) {
@@ -1018,7 +1241,7 @@
       if (k === '3') this.txaStart();
       if (k === '4') this.foil();
       if (k === '5') this.squeeze();
-      if (k === '6') { post('nibp', {}); NZA.audio.click(600); ui.pp.flash('ok', L('nibp_cycle', 'Cuff cycling…'), 1400); }
+      if (k === '6') { post('nibp', {}); NZA.audio.click(600); ui.pp.flash('ok', L('nibp_cycle', 'Taking a BP…'), 1400); }
     },
     key(e, down) {
       const sq = S.keys.squeeze || 'Space';
@@ -1029,47 +1252,71 @@
     },
     infTick(dt) {
       const rs = S.rs, inf = S.data.infusion || {};
+      if (!ui.inf) return;
       rs.pressure = Math.max(0, rs.pressure - (inf.leak || 6) * dt);
-      const p = Math.round(rs.pressure);
-      const nd = ui.inf.querySelector('.ndl'); if (nd) nd.setAttribute('transform', `rotate(${-120 + (p / (inf.maxPressure || 300)) * 240} 59 59)`);
-      const lcd = ui.inf.querySelectorAll('.lcd span'); const ps = String(p).padStart(3, '0');
-      lcd.forEach((s, i) => { s.textContent = ps[i]; });
-      const sq = ui.inf.querySelector('.sq'); if (sq) sq.classList.toggle('on', now() - (rs.sqT || 0) < 160);
+      const p = Math.round(rs.pressure), maxP = inf.maxPressure || 300;
+      const pd = Math.round(p / 3);
+      if (pd !== rs.lastPd) {
+        rs.lastPd = pd;
+        ui.inf.querySelector('.m-dial.pi .dzh').innerHTML = dialSVG(p / maxP, { zone: [0.6, 1], tone: p > maxP * 0.6 ? 'teal' : p > 0 ? 'amber' : '', ticks: 10 });
+        rs.pOdo.set(String(p));
+      }
+      const bulb = ui.inf.querySelector('.pi-bulb'); if (bulb) bulb.classList.toggle('on', now() - (rs.sqT || 0) < 180);
       const cl = ui.inf.querySelector('.cl'); if (cl) cl.textContent = `${Math.round(rs.clamp * 100)}%`;
-      const cm = ui.inf.querySelector('.cm'); if (cm) cm.innerHTML = NZA.ui.meterHTML({ value: rs.clamp });
+      const wh = ui.inf.querySelector('.wheel'); if (wh) { wh.style.setProperty('--roll', `${(rs.clamp * 140).toFixed(1)}px`); wh.style.setProperty('--open', rs.clamp.toFixed(2)); }
       const sel = rs.bags.find(b => b.id === rs.sel && b.left > 0);
       const rate = sel ? Math.round(this.rateFor(sel.kind)) : 0;
       const total = rs.bags.filter(b => b.left > 0).reduce((a, b) => a + (b.id === rs.sel ? rate : (b.rate || 0)), 0);
-      const rt = ui.inf.querySelector('.t-rt'); if (rt) rt.innerHTML = `${total}<span class="u">ml/min</span>`;
       let si = rs.salineIn, bi = rs.bloodIn;
       rs.bags.forEach(b => { if (b.kind === 'blood') bi += b.ml - b.left; else si += b.ml - b.left; });
-      const se = ui.inf.querySelector('.t-si'); if (se) { se.innerHTML = `${Math.round(si)}<span class="u">ml</span>`; se.className = `v t-si ${si > ((inf.dilution || 1000)) ? 'amber' : ''}`; }
-      const be = ui.inf.querySelector('.t-bi'); if (be) be.innerHTML = `${Math.round(bi)}<span class="u">ml</span>`;
-      if (rs.txaDone) { const tx = ui.inf.querySelector('.t-tx'); if (tx && !rs.txa) tx.innerHTML = `✓<span class="u">${esc(L('given', 'given'))}</span>`; }
+      const sig = `${total}|${Math.round(si)}|${Math.round(bi)}|${rs.txaDone}`;
+      if (sig !== rs.lastSig) {
+        rs.lastSig = sig;
+        setRow('.r-rt', `${total}<small>ml/min</small>`, total > 0 ? 'teal' : '');
+        setRow('.r-si', `${Math.round(si)}<small>ml</small>`, si > (inf.dilution || 1000) ? 'amber' : '');
+        setRow('.r-bi', `${Math.round(bi)}<small>ml</small>`, bi > 0 ? 'red' : '');
+        if (rs.txaDone && !rs.txa) setRow('.r-tx', `${icon('check')}<small>${esc(L('given', 'given'))}</small>`, 'teal');
+      }
       // post the new flow for the selected bag (throttled)
       if (sel && (Math.abs((rs.lastRate[sel.id] || sel.rate || 0) - rate) >= 2) && now() - rs.lastPost > 650) {
         rs.lastPost = now(); rs.lastRate[sel.id] = rate; sel.rate = rate;
+        const dc = ui.inf.querySelector(`.fd-bag[data-id="${sel.id}"] .dc`); if (dc) dc.style.setProperty('--drip', `${(1.6 - clamp(rate / 80, 0.08, 1) * 1.3).toFixed(2)}s`);
         if (!S.preview) post('rate', { id: sel.id, rate });
       }
+    },
+    clotRing(firm, state) {
+      const svg = ui.rack && ui.rack.querySelector('.m-clot .cr');
+      if (!svg) return;
+      const N = 36, lit = Math.floor(clamp(firm, 0, 100) / 100 * N + 1e-6);
+      let segs = '';
+      for (let i = 0; i < N; i++) {
+        const a0 = (-90 + (360 / N) * i + 1.6) * Math.PI / 180, a1 = (-90 + (360 / N) * (i + 1) - 1.6) * Math.PI / 180;
+        const r1 = 36, r2 = 46;
+        const p = (r, a) => `${(52 + Math.cos(a) * r).toFixed(2)} ${(52 + Math.sin(a) * r).toFixed(2)}`;
+        segs += `<path class="${i < lit ? 'on' : ''}" d="M${p(r1, a0)}L${p(r2, a0)}A${r2} ${r2} 0 0 1 ${p(r2, a1)}L${p(r1, a1)}A${r1} ${r1} 0 0 0 ${p(r1, a0)}z"/>`;
+      }
+      svg.innerHTML = `<circle class="in" cx="52" cy="52" r="31"/>${segs}`;
+      svg.setAttribute('class', `cr ${state || ''}`);
     },
     clotTick() {
       const c = S.clot, rs = S.rs;
       if (!c) return;
-      const fm = q('.fm'); if (fm) fm.innerHTML = `${Math.floor(c.firm)}<span class="u">%</span>`;
+      if (rs.fOdo) rs.fOdo.set(String(Math.floor(c.firm)));
+      this.clotRing(c.firm, c.state === 'popped' ? 'bad' : c.firm >= 100 ? 'done' : c.state === 'band' || c.state === 'own' ? 'ok' : 'warn');
       S.metric = { label: L('st_clot', 'Clot'), value: Math.floor(c.firm), unit: '%', tone: c.firm >= 100 ? 'teal' : c.state === 'popped' ? 'red' : '' };
-      const mp = q('.mp');
-      if (mp) { mp.textContent = c.map; mp.className = `d-big mp ${c.map >= S.band[0] && c.map <= S.band[1] ? 'teal' : c.map > S.band[1] ? 'amber' : 'red'}`; mp.style.fontSize = '26px'; }
-      const st = q('.d-scr .st');
-      const stTxt = { band: L('cs_band', 'In the band — holding'), below: L('cs_below', 'Low — open up a little'), low: L('cs_low', 'Too low — the clot can not form'), high: L('cs_high', 'High — ease off'),
-        own: L('cs_own', 'Above the band on their own — no fluids needed'), popped: L('cs_popped', 'Clot popped'), firm: L('cs_firm', 'Clot holding'), arrest: L('cs_arrest', 'No output') }[c.state] || c.state;
-      if (st) { st.textContent = stTxt; st.style.color = c.state === 'band' || c.state === 'firm' || c.state === 'own' ? 'var(--teal-hi)' : c.state === 'below' || c.state === 'high' ? '#f3c35a' : '#ff8a8d'; }
-      const hd = q('.hd'); if (hd) hd.textContent = c.state === 'firm' ? '✓' : c.warn ? `${L('pop_in', 'pop')} ${fmt1(Math.max(0, c.warn))} s` : c.eta ? `${c.eta} s` : '--';
-      const ch = q('.ch');
-      if (ch) {
-        const m = c.mods || {};
-        ch.innerHTML = [[L('chip_txa', 'TXA'), m.txa ? 'on' : ''], [L('chip_warm', 'Warm'), m.cold ? (m.foil ? 'warn' : 'bad') : 'on'], [L('chip_dil', 'Dil {n}%', { n: m.dil || 0 }), m.dilution ? 'bad' : ''],
-          [L('chip_pops', 'Pops {n}', { n: c.pops || 0 }), c.pops ? 'bad' : '']].map(([t, cls]) => `<span class="d-chip ${cls}">${esc(t)}</span>`).join('');
-      }
+      const inBand = c.map >= S.band[0] && c.map <= S.band[1];
+      setRow('.r-map', `${c.map}<small>mmHg</small>`, inBand ? 'teal' : c.map > S.band[1] ? 'amber' : 'red');
+      setRow('.r-hold', c.state === 'firm' ? icon('check') : c.warn ? `<span class="warn">${esc(L('pop_in', 'breaks in'))} ${fmt1(Math.max(0, c.warn))}</span><small>s</small>` : c.eta ? `${c.eta}<small>s</small>` : '--', c.state === 'firm' ? 'teal' : c.warn ? 'red' : '');
+      const m = c.mods || {};
+      setRow('.r-txa', m.txa ? `${icon('check')}<small>${esc(L('c_on', 'on board'))}</small>` : '—', m.txa ? 'teal' : 'dim');
+      setRow('.r-warm', esc(m.cold ? (m.foil ? L('c_foil', 'Foil on') : L('c_cold', 'Cold')) : L('c_warm', 'Warm')), m.cold ? (m.foil ? 'amber' : 'red') : 'teal');
+      setRow('.r-dil', `${m.dil || 0}<small>%</small>`, m.dilution ? 'red' : '');
+      setRow('.r-pop', String(c.pops || 0), c.pops ? 'red' : '');
+      const st = q('.cst');
+      const stTxt = { band: L('cs_band', 'On target — holding'), below: L('cs_below', 'Just under'), low: L('cs_low', 'Too low to clot'), high: L('cs_high', 'Over — ease off'),
+        own: L('cs_own', 'Holding unassisted'), popped: L('cs_popped', 'Clot broke'), firm: L('cs_firm', 'Set'), arrest: L('cs_arrest', 'No output') }[c.state] || c.state;
+      if (st) { st.className = `m-state cst ${c.state === 'band' || c.state === 'firm' || c.state === 'own' ? 'teal' : c.state === 'below' || c.state === 'high' ? 'amber' : 'red'}`; st.querySelector('.tx').textContent = stTxt; }
+      const ch = q('.m-chip.ch'); if (ch) { ch.textContent = c.state === 'firm' ? L('c_set', 'Set') : `${Math.floor(c.firm)}%`; ch.className = `m-chip ch ${c.state === 'firm' ? 'teal' : ''}`; }
       if (c.bags && !S.preview) {
         // server truth for what is left / running
         const mine = c.bags.filter(b => b.mine);
@@ -1079,24 +1326,24 @@
         if (rs.sel && !rs.bags.find(b => b.id === rs.sel)) rs.sel = rs.bags.length ? rs.bags[0].id : null;
         this.bagsUi();
       }
-      if (c.bleed !== undefined) { S.bleed = c.bleed; stats(); }
+      if (c.bleed !== undefined) { S.bleed = c.bleed; }
+      stats();
       if (c.txa) rs.txaDone = true;
       if (c.foil) rs.foil = true;
       rs.mapHist.push(c.map); if (rs.mapHist.length > 60) rs.mapHist.shift();
-      rs.tegHist.push(c.firm); if (rs.tegHist.length > 90) rs.tegHist.shift();
-      this.drawTeg(); this.drawStrip();
-      const txt = c.state === 'firm' ? L('resus_firm', 'Clot holding at 100%. Keep the line open.')
-        : c.state === 'band' ? L('resus_band', 'In the band. Hold it while the clot firms: {s} s. Clot {f}%.', { s: c.eta || '--', f: Math.floor(c.firm) })
-          : c.state === 'own' ? L('resus_own', 'The pressure holds on its own. Keep the fluids low: {s} s. Clot {f}%.', { s: c.eta || '--', f: Math.floor(c.firm) })
-            : c.state === 'high' ? L('resus_high', 'MAP {m} — too high. Close the clamp before the clot pops.', { m: c.map })
-              : c.state === 'below' ? L('resus_below', 'MAP {m} — a little low. Open the clamp or squeeze the infuser.', { m: c.map })
-                : c.state === 'low' ? L('resus_low', 'MAP {m} — too low for a clot. Run fluid in now.', { m: c.map })
-                  : c.state === 'popped' ? L('resus_popped', 'The clot popped. Bleeding is back up — bring the pressure down.') : '';
+      this.drawStrip();
+      const txt = c.state === 'firm' ? L('resus_firm', 'Clot set at 100%. Leave the line open.')
+        : c.state === 'band' ? L('resus_band', 'MAP on target. Keep it steady — clot {f}%, {s} s to go.', { s: c.eta || '--', f: Math.floor(c.firm) })
+          : c.state === 'own' ? L('resus_own', 'Pressure holds without help. Keep the drip slow — clot {f}%, {s} s to go.', { s: c.eta || '--', f: Math.floor(c.firm) })
+            : c.state === 'high' ? L('resus_high', 'MAP {m} — over target. Close the clamp before the clot breaks.', { m: c.map })
+              : c.state === 'below' ? L('resus_below', 'MAP {m} — just under. Open the clamp a little or pump the bulb.', { m: c.map })
+                : c.state === 'low' ? L('resus_low', 'MAP {m} — far too low to clot. Run fluid now.', { m: c.map })
+                  : c.state === 'popped' ? L('resus_popped', 'The clot broke loose. Bleeding is up — bring MAP back into the arc.') : '';
       if (txt) ui.pp.set({ text: txt, titleTone: c.state === 'firm' ? 'ok' : c.state === 'popped' || c.state === 'low' ? 'bad' : '' });
       if (c.state === 'firm' && !rs.firmAt) {
         rs.firmAt = now();
         NZA.audio.success();
-        ui.pp.flash('ok', L('resus_done', 'The clot is firm.'), 0);
+        ui.pp.flash('ok', L('resus_done', 'Clot set.'), 0);
         const after = (S.data.autoContinue || 1.6) * 1000;
         setTimeout(() => { if (S.proc === 'resus' && S.rs === rs) this.finish(); }, after);
       }
@@ -1109,27 +1356,6 @@
       const score = clamp(100 - (c.pops || 0) * 20, 0, 100);
       sendResult('resus', { score, pops: c.pops || 0 });
     },
-    drawTeg() {
-      const cv = q('.d-teg'); if (!cv) return;
-      const { w, h } = NZA.fitCanvas(cv);
-      const c = cv.getContext('2d');
-      c.clearRect(0, 0, w, h);
-      const mid = h / 2;
-      c.strokeStyle = 'rgba(255,255,255,.07)'; c.lineWidth = 1;
-      for (let i = 1; i < 6; i++) { c.beginPath(); c.moveTo((w / 6) * i, 0); c.lineTo((w / 6) * i, h); c.stroke(); }
-      c.beginPath(); c.moveTo(0, mid); c.lineTo(w, mid); c.stroke();
-      const hist = S.rs.tegHist; if (hist.length < 2) return;
-      const n = 90;
-      const pts = hist.map((v, i) => [(i / (n - 1)) * w, (clamp(v, 0, 100) / 100) * (h / 2 - 4)]);
-      const grad = c.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, 'rgba(15,212,196,.35)'); grad.addColorStop(0.5, 'rgba(15,212,196,.05)'); grad.addColorStop(1, 'rgba(15,212,196,.35)');
-      c.fillStyle = grad; c.beginPath(); c.moveTo(0, mid);
-      pts.forEach(([x, a]) => c.lineTo(x, mid - a)); for (let i = pts.length - 1; i >= 0; i--) c.lineTo(pts[i][0], mid + pts[i][1]);
-      c.closePath(); c.fill();
-      c.strokeStyle = '#0fd4c4'; c.lineWidth = 1.8; c.shadowColor = '#0fd4c4'; c.shadowBlur = 6;
-      c.beginPath(); pts.forEach(([x, a], i) => (i ? c.lineTo(x, mid - a) : c.moveTo(x, mid - a))); c.stroke();
-      c.beginPath(); pts.forEach(([x, a], i) => (i ? c.lineTo(x, mid + a) : c.moveTo(x, mid + a))); c.stroke();
-      c.shadowBlur = 0;
-    },
     drawStrip() {
       const cv = q('.d-strip'); if (!cv) return;
       const { w, h } = NZA.fitCanvas(cv);
@@ -1137,55 +1363,74 @@
       c.clearRect(0, 0, w, h);
       const lo = 35, hi = 95;
       const y = v => h - ((clamp(v, lo, hi) - lo) / (hi - lo)) * h;
-      c.fillStyle = 'rgba(61,220,132,.12)'; c.fillRect(0, y(S.band[1]), w, y(S.band[0]) - y(S.band[1]));
-      c.strokeStyle = 'rgba(61,220,132,.5)'; c.lineWidth = 1; c.setLineDash([3, 3]);
+      c.fillStyle = 'rgba(15,212,196,.12)'; c.fillRect(0, y(S.band[1]), w, y(S.band[0]) - y(S.band[1]));
+      c.strokeStyle = 'rgba(15,212,196,.55)'; c.lineWidth = 1; c.setLineDash([3, 3]);
       [S.band[0], S.band[1]].forEach(v => { c.beginPath(); c.moveTo(0, y(v)); c.lineTo(w, y(v)); c.stroke(); });
       c.strokeStyle = 'rgba(229,72,77,.5)'; const lm = S.data.lowMap || 52; c.beginPath(); c.moveTo(0, y(lm)); c.lineTo(w, y(lm)); c.stroke();
       c.setLineDash([]);
       const hist = S.rs.mapHist; if (hist.length < 2) return;
-      c.strokeStyle = '#fff'; c.lineWidth = 1.8; c.beginPath();
-      hist.forEach((v, i) => { const x = (i / 59) * w; if (i) c.lineTo(x, y(v)); else c.moveTo(x, y(v)); });
+      const pts = hist.map((v, i) => [(i / 59) * w, y(v)]);
+      const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g; c.beginPath(); c.moveTo(pts[0][0], h); pts.forEach(([x, yy]) => c.lineTo(x, yy)); c.lineTo(pts[pts.length - 1][0], h); c.closePath(); c.fill();
+      c.strokeStyle = '#fff'; c.lineWidth = 1.8 * (w / (cv.clientWidth || w)); c.lineJoin = 'round'; c.beginPath();
+      pts.forEach(([x, yy], i) => (i ? c.lineTo(x, yy) : c.moveTo(x, yy)));
       c.stroke();
       const last = hist[hist.length - 1];
       c.fillStyle = last >= S.band[0] && last <= S.band[1] ? '#0fd4c4' : '#f3c35a';
-      c.beginPath(); c.arc(((hist.length - 1) / 59) * w, y(last), 3.2, 0, Math.PI * 2); c.fill();
+      c.shadowColor = c.fillStyle; c.shadowBlur = 8;
+      c.beginPath(); c.arc(pts[pts.length - 1][0], y(last), 3.4 * (w / (cv.clientWidth || w)), 0, Math.PI * 2); c.fill(); c.shadowBlur = 0;
     },
     frame(dt) { if (S.rs) this.infTick(dt); },
-    leave() { const rs = S.rs; if (rs && rs.txa) { rs.txa.destroy(); rs.txa = null; } ui.inf.style.display = 'none'; },
+    leave() { const rs = S.rs; if (rs && rs.txa) { rs.txa.destroy(); rs.txa = null; } ui.inf = null; },
   };
 
-  /* ═══════════════════════════ STEP 7 · REASSESS ═══════════════════════════ */
+  /* ═══════════════════════════ STEP 7 · RECHECK / HANDOVER ═══════════════════════════ */
   H_.reassess = {
     enter() {
-      ui.pp.set({ title: L('t_reassess', 'Reassess'), text: L('reassess_wait', 'Rechecking the patient…'), tools: [] });
-      devFrame(L('d_reassess', 'Reassess'), `<div class="d-note">${esc(L('reassess_wait', 'Rechecking the patient…'))}</div>`, { brand: L('dev_field', 'Field') });
+      ui.pp.set({ title: L('s_recheck', 'Recheck'), text: L('reassess_wait', 'Rechecking vitals…'), tools: [] });
+      rack([`<div class="fd-card ho"><div class="ho-h"><span class="t">${esc(L('d_reassess', 'Handover'))}</span></div><div class="m-note"><span class="ni">${icon('clock')}</span><span>${esc(L('reassess_wait', 'Rechecking vitals…'))}</span></div></div>`]);
     },
     show(s) {
       const b = s.before || {}, a = s.after || {};
       if (a.bleed !== undefined) S.bleed = a.bleed;
       if (a.map) S.vit.map = a.map;
       S.metric = null; stats();
-      const row = (k, bv, av, good) => `<span class="k">${esc(k)}</span><span class="b">${esc(bv ?? '--')}</span><span class="a ${good === true ? 'teal' : good === false ? 'red' : ''}">${esc(av ?? '--')}</span>`;
-      const steps = (s.steps || []).map(st => `<div class="s"><span class="g ${st.skipped ? 'skip' : `g-${st.grade}`}">${esc(st.skipped ? '–' : st.grade || '?')}</span><span>${esc(st.label)}</span><i>${esc(st.skipped ? L('skipped', 'skipped') : st.note || `${st.score ?? ''}`)}</i></div>`).join('');
-      devFrame(L('d_reassess', 'Reassess'), `
-        <div class="fd-cmp"><span class="h"></span><span class="h">${esc(L('before', 'Before'))}</span><span class="h">${esc(L('now', 'Now'))}</span>
-          ${row(L('st_bleed', 'Bleed'), b.bleed !== undefined ? `${fmt1(b.bleed)}` : '--', a.bleed !== undefined ? `${fmt1(a.bleed)}` : '--', a.bleed !== undefined && b.bleed !== undefined ? a.bleed < b.bleed : null)}
-          ${row('MAP', b.map, a.map, a.map >= S.band[0] && a.map <= S.band[1] + 8)}
-          ${row('HR', b.hr, a.hr, a.hr && b.hr ? a.hr <= b.hr : null)}
-          ${row('SpO₂', b.spo2, a.spo2, a.spo2 >= 94)}</div>
-        <div class="d-sep"></div><div class="fd-steps">${steps}</div>
-        <div class="d-chips">${(s.devices || []).map(d => `<span class="d-chip on">${esc(d)}</span>`).join('')}</div>`, { brand: L('dev_field', 'Field'), right: s.grade || '' });
+      const trend = (k, bv, av, good, unit = '') => {
+        const has = av !== undefined && av !== null && bv !== undefined && bv !== null;
+        const up = has && Number(av) > Number(bv), same = has && Number(av) === Number(bv);
+        const tone = good === true ? 'teal' : good === false ? 'red' : '';
+        return `<div class="ho-r ${tone}"><span class="k">${esc(k)}</span><span class="b">${esc(bv ?? '--')}</span><span class="ar ${same ? 'eq' : up ? 'up' : 'dn'}">${icon(same ? 'minus' : up ? 'arrow-ur' : 'arrow-r')}</span><span class="a">${esc(av ?? '--')}<small>${esc(unit)}</small></span></div>`;
+      };
+      const score = (s.steps || []).filter(st => !st.skipped && st.score !== undefined);
+      const avg = score.length ? Math.round(score.reduce((x, st) => x + Number(st.score || 0), 0) / score.length) : null;
+      const RC = 2 * Math.PI * 15;
+      const steps = (s.steps || []).map(st => {
+        const sc = st.skipped ? 0 : clamp(Number(st.score ?? (st.grade ? { S: 96, A: 85, B: 72, C: 57, D: 42, F: 20 }[st.grade] : 0)) / 100, 0, 1);
+        const tone = st.skipped ? 'skip' : sc >= 0.65 ? 'ok' : sc >= 0.35 ? 'mid' : 'low';
+        return `<div class="ho-s ${tone}"><span class="nd"><svg class="rg" viewBox="0 0 36 36"><circle class="bg" cx="18" cy="18" r="15"/><circle class="fg" cx="18" cy="18" r="15" stroke-dasharray="${(RC * sc).toFixed(1)} ${RC.toFixed(1)}" transform="rotate(-90 18 18)"/></svg>${icon(st.skipped ? 'minus' : 'check')}</span>
+          <span class="tx"><b>${esc(st.label)}</b><small>${esc(st.skipped ? L('skipped', 'skipped') : st.note || '')}</small></span><span class="pc">${st.skipped ? '–' : `${Math.round(sc * 100)}`}<small>${st.skipped ? '' : '%'}</small></span></div>`;
+      }).join('');
+      rack([`<div class="fd-card ho">
+        <div class="ho-h"><span class="t">${esc(L('d_reassess', 'Handover'))}</span>${avg !== null ? `<span class="ho-q"><svg class="rg" viewBox="0 0 36 36"><circle class="bg" cx="18" cy="18" r="15"/><circle class="fg" cx="18" cy="18" r="15" stroke-dasharray="${(RC * avg / 100).toFixed(1)} ${RC.toFixed(1)}" transform="rotate(-90 18 18)"/></svg><b>${avg}</b></span>` : ''}</div>
+        <div class="ho-cols"><span></span><span>${esc(L('before', 'Start'))}</span><span></span><span>${esc(L('now', 'Now'))}</span></div>
+        ${trend(L('st_bleed', 'Bleed'), b.bleed !== undefined ? fmt1(b.bleed) : '--', a.bleed !== undefined ? fmt1(a.bleed) : '--', a.bleed !== undefined && b.bleed !== undefined ? a.bleed < b.bleed : null, 'ml/m')}
+        ${trend('MAP', b.map, a.map, a.map >= S.band[0] && a.map <= S.band[1] + 8)}
+        ${trend('HR', b.hr, a.hr, a.hr && b.hr ? a.hr <= b.hr : null)}
+        ${trend('SpO₂', b.spo2, a.spo2, a.spo2 >= 94)}
+        <div class="ho-sp">${steps}</div>
+        <div class="ho-dev">${(s.devices || []).map(d => `<span class="m-chip teal">${esc(d)}</span>`).join('')}</div>
+      </div>`]);
       ui.pp.complete({
-        title: L('t_done', 'Patient reassessed'), label: L('finish', 'Finish'),
-        text: s.text || L('reassess_text', 'Bleed {a} mL/min (was {b}). Hand over and transport.', { a: fmt1(a.bleed || 0), b: fmt1(b.bleed || 0) }),
-        onDone: () => { post('done', {}); if (S.preview) NZA.toast({ title: L('t_done', 'Patient reassessed'), message: L('report_saved', 'Report written to the patient record.') }); },
+        title: L('t_done', 'Ready for handover'), label: L('finish', 'Finish'),
+        text: s.text || L('reassess_text', 'Bleeding down to {a} mL/min from {b}. Package the patient and move.', { a: fmt1(a.bleed || 0), b: fmt1(b.bleed || 0) }),
+        onDone: () => { post('done', {}); if (S.preview) NZA.toast({ title: L('t_done', 'Ready for handover'), message: L('report_saved', 'Saved to the patient record.') }); },
       });
     },
   };
 
   /* ═══════════════════════════ IV CANNULATION ═══════════════════════════ */
   const IV_STEPS = ['tq', 'find', 'insert', 'advance', 'withdraw', 'secure'];
-  const IV_EN = { tq: 'Tourniquet', find: 'Find the vein', insert: 'Insert the needle', advance: 'Advance the cannula', withdraw: 'Withdraw the needle', secure: 'Secure the line' };
+  const IV_EN = { tq: 'Tourniquet on', find: 'Feel for a vein', insert: 'Needle in', advance: 'Slide the cannula', withdraw: 'Needle out', secure: 'Dress and flush' };
   const ivTitle = id => L(`iv_t_${id}`, IV_EN[id] || id);
   H_.iv = {
     enter() {
@@ -1204,8 +1449,8 @@
       this.tools();
       if (ph === 'tq' || ph === 'find') this.armDev(); else this.xsecDev();
       this.text();
-      if (ph === 'tq') mark('tq', { label: L('m_tq', 'Tourniquet'), dot: 'white' });
-      else if (ph === 'find') mark('site', { label: L('m_forearm', 'Forearm'), dot: 'ring' });
+      if (ph === 'tq') mark('tq', { label: L('m_tq', 'Tourniquet'), dot: 'fd-dia white' });
+      else if (ph === 'find') mark('site', { label: L('m_forearm', 'Forearm'), dot: 'fd-dia fd-target' });
       else clearMarks();
     },
     tools() {
@@ -1223,12 +1468,12 @@
     text() {
       const iv = S.iv, a = S.data.angle || [15, 30];
       const t = {
-        tq: L('iv_tq', 'Put the **tourniquet** on the upper arm (1) and wait for the veins to fill.'),
-        find: iv.fill < 1 ? L('iv_fill', 'Veins filling… {p}%', { p: Math.round(iv.fill * 100) }) : L('iv_find', 'Hold {Click} over the forearm to **palpate**. A springy, straight vein bounces back. Let go to mark it.'),
-        insert: iv.inVein ? L('iv_flash', 'Flashback! Stop advancing.') : L('iv_insert', 'Set the angle ({a}–{b}°) with the wheel or ↑ ↓, then hold {{key}} to advance the needle.', { a: a[0], b: a[1], key: keyName(S.keys.insert || 'Space') }),
-        advance: L('iv_advance', 'Lower the needle and hold {{key}} to slide the cannula off it into the vein. {p}%', { key: keyName(S.keys.advance || 'KeyE'), p: Math.round(iv.cannula * 100) }),
-        withdraw: iv.tq ? L('iv_withdraw_tq', 'Release the **tourniquet** (1) before you pull the needle.') : L('iv_withdraw', 'Press on the vein and **drag the needle back** out of the cannula.'),
-        secure: !iv.secured ? L('iv_secure', 'Cover the cannula with the **dressing** (3).') : !iv.flushed ? L('iv_flush', 'Flush the line (4) to check it runs.') : L('iv_done', 'Line in and running.'),
+        tq: L('iv_tq', 'Band the upper arm with the **tourniquet** (1) and let the veins fill.'),
+        find: iv.fill < 1 ? L('iv_fill', 'Veins filling… {p}%', { p: Math.round(iv.fill * 100) }) : L('iv_find', 'Hold {Click} on the forearm and press. A good vein springs back — let go to mark it.'),
+        insert: iv.inVein ? L('iv_flash', 'Blood in the chamber — stop there.') : L('iv_insert', 'Set {a}–{b}° with the wheel or ↑ ↓, then hold {{key}} to go in.', { a: a[0], b: a[1], key: keyName(S.keys.insert || 'Space') }),
+        advance: L('iv_advance', 'Drop the angle and hold {{key}} to slide the cannula home. {p}%', { key: keyName(S.keys.advance || 'KeyE'), p: Math.round(iv.cannula * 100) }),
+        withdraw: iv.tq ? L('iv_withdraw_tq', 'Take the **tourniquet** off (1) before the needle comes out.') : L('iv_withdraw', 'Press above the tip and **drag the needle out** of the cannula.'),
+        secure: !iv.secured ? L('iv_secure', 'Cover the hub with the **dressing** (3).') : !iv.flushed ? L('iv_flush', 'Flush it (4) to prove it runs.') : L('iv_done', 'Line in and running.'),
       }[iv.phase];
       ui.pp.set({ text: t });
     },
@@ -1240,16 +1485,17 @@
       }).join('');
       devFrame(L('d_arm', 'Forearm'), `
         <svg class="d-arm" viewBox="0 0 300 150">
-          <defs><linearGradient id="skn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b78468"/><stop offset=".5" stop-color="#d4a387"/><stop offset="1" stop-color="#a87459"/></linearGradient></defs>
-          <rect x="2" y="8" width="296" height="134" rx="60" fill="url(#skn)"/>
+          <defs><linearGradient id="skn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b78468"/><stop offset=".5" stop-color="#d4a387"/><stop offset="1" stop-color="#a87459"/></linearGradient>
+            <radialGradient id="sknl" cx=".5" cy=".3" r=".8"><stop offset="0" stop-color="rgba(255,255,255,.18)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>
+          <rect x="2" y="8" width="296" height="134" rx="60" fill="url(#skn)"/><rect x="2" y="8" width="296" height="134" rx="60" fill="url(#sknl)"/>
           <g class="veins">${veins}</g>
-          <text x="12" y="146" font-size="7" fill="rgba(255,255,255,.4)" font-family="Lexend" font-weight="700" letter-spacing="1.5">${esc(L('d_wrist', 'WRIST'))}</text>
-          <text x="288" y="146" text-anchor="end" font-size="7" fill="rgba(255,255,255,.4)" font-family="Lexend" font-weight="700" letter-spacing="1.5">${esc(L('d_elbow', 'ELBOW'))}</text>
+          <text x="14" y="146" font-size="7" fill="rgba(255,255,255,.4)" font-family="Lexend" font-weight="700" letter-spacing="1.5">${esc(L('d_wrist', 'WRIST'))}</text>
+          <text x="286" y="146" text-anchor="end" font-size="7" fill="rgba(255,255,255,.4)" font-family="Lexend" font-weight="700" letter-spacing="1.5">${esc(L('d_elbow', 'ELBOW'))}</text>
           <g class="fing" style="display:none"><circle r="14" fill="rgba(255,255,255,.12)" stroke="#fff" stroke-width="1.5"/><circle class="rip" r="14" fill="none" stroke="#0fd4c4" stroke-width="2" opacity="0"/></g>
-          <g class="pin" style="display:none"><circle r="6" fill="#08afa2" stroke="#fff" stroke-width="2"/></g>
+          <g class="pin" style="display:none"><rect x="-6" y="-6" width="12" height="12" rx="2" transform="rotate(45)" fill="#08afa2" stroke="#fff" stroke-width="2"/></g>
         </svg>
-        <div class="d-row" style="margin-top:8px;align-items:center"><div class="d-lbl" style="flex:1">${esc(L('d_bounce', 'Bounce'))}</div><div class="d-val bq" style="margin:0">--</div></div>
-        <div class="d-bounce"></div>`, { brand: L('dev_iv', 'Cannulation'), right: `${S.data.gauge || 18}G` });
+        <div class="m-split mid"><div class="m-list"><div class="m-row r-bq"><span class="k">${esc(L('d_bounce', 'Rebound'))}</span><span class="v">—</span></div></div><div class="d-bounce"></div></div>`,
+      { unit: 'vf', right: `<span class="m-chip">${S.data.gauge || 18}G</span>` });
       const svg = ui.dev.querySelector('.d-arm');
       const pos = e => {
         const r = svg.getBoundingClientRect();
@@ -1286,24 +1532,28 @@
       const f = ui.dev.querySelector('.fing'); if (f) { f.style.display = ''; f.setAttribute('transform', `translate(${p.x},${p.y})`); }
       const rip = ui.dev.querySelector('.rip'); if (rip) { rip.setAttribute('opacity', iv.bounce); rip.setAttribute('r', 10 + iv.bounce * 14); }
       ui.dev.querySelectorAll('.vn').forEach(v => { v.setAttribute('opacity', 0.12 + 0.35 * iv.fill + (Number(v.dataset.i) === b.i ? iv.bounce * 0.25 : 0)); });
-      const bq = q('.bq'); if (bq) { bq.textContent = iv.bounce > 0.7 ? L('b_good', 'Springy — good vein') : iv.bounce > 0.35 ? L('b_ok', 'Soft') : L('b_none', 'Nothing'); bq.className = `d-val bq ${iv.bounce > 0.7 ? 'teal' : iv.bounce > 0.35 ? 'amber' : ''}`; }
+      setRow('.r-bq', esc(iv.bounce > 0.7 ? L('b_good', 'Springy') : iv.bounce > 0.35 ? L('b_ok', 'Soft') : L('b_none', 'Nothing')), iv.bounce > 0.7 ? 'teal' : iv.bounce > 0.35 ? 'amber' : 'dim');
       const bm = q('.d-bounce'); if (bm) bm.innerHTML = NZA.ui.meterHTML({ value: iv.bounce, zone: [0.7, 1], lg: true });
       if (iv.bounce > 0.7 && Math.random() < 0.08) NZA.audio.tick();
     },
     markAt() {
       const iv = S.iv;
       const f = ui.dev.querySelector('.fing'); if (f) f.style.display = 'none';
-      if (!iv.cur || iv.bounce < 0.35) { ui.pp.flash('warn', L('iv_nothing', 'No vein under your fingers. Feel along the forearm.')); return; }
+      if (!iv.cur || iv.bounce < 0.35) { ui.pp.flash('warn', L('iv_nothing', 'Nothing there. Feel further along the forearm.')); return; }
       iv.mark = iv.cur; iv.palpQ = iv.bounce; iv.vein = iv.near && iv.near.v;
       const pin = ui.dev.querySelector('.pin'); if (pin) { pin.style.display = ''; pin.setAttribute('transform', `translate(${iv.mark.x},${iv.mark.y})`); }
-      ui.pp.flash(iv.bounce > 0.7 ? 'ok' : 'warn', iv.bounce > 0.7 ? L('iv_marked_good', 'Good vein marked.') : L('iv_marked_soft', 'Marked — a soft, small vein. Harder to hit.'));
+      ui.pp.flash(iv.bounce > 0.7 ? 'ok' : 'warn', iv.bounce > 0.7 ? L('iv_marked_good', 'Vein marked — firm and springy.') : L('iv_marked_soft', 'Marked — small and soft. Harder to hit.'));
       NZA.audio.click(820);
       setTimeout(() => { if (S.iv === iv && iv.phase === 'find') { iv.tip = 0; iv.inVein = false; iv.inT = 0; iv.blown = false; this.go('insert'); } }, 800);
     },
     xsecDev() {
-      devFrame(L('d_xsec', 'Needle view'), `<canvas class="d-xsec" data-wheel="1"></canvas>
-        <div class="d-row" style="margin-top:8px"><div style="flex:1"><div class="d-lbl">${esc(L('d_angle', 'Angle'))}</div><div class="d-big xa" style="font-size:22px">--</div></div>
-          <div style="flex:1"><div class="d-lbl">${esc(L('d_chamber', 'Flash chamber'))}</div><div class="d-val xf">${esc(L('d_empty', 'Empty'))}</div></div></div>`, { brand: L('dev_iv', 'Cannulation'), right: `${S.data.gauge || 18}G` });
+      devFrame(L('d_xsec', 'Needle cam'), `<canvas class="d-xsec" data-wheel="1"></canvas>
+        <div class="m-split mid"><div class="m-dial iv"><div class="dzh"></div><div class="dv"><span class="xa">--</span><i>°</i></div></div>
+          <div class="m-list">
+            ${row('r-xf', L('d_chamber', 'Flash chamber'), esc(L('d_empty', 'Empty')), 'dim')}
+            ${row('r-xc', L('d_cannula', 'Cannula'), '0<small>%</small>')}
+            ${row('r-xa', L('st_attempts', 'Attempts'), `${S.iv.attempts}/${S.data.attempts || 2}`)}
+          </div></div>`, { unit: 'nc', right: `<span class="m-chip">${S.data.gauge || 18}G</span>` });
       const cv = ui.dev.querySelector('.d-xsec');
       cv.addEventListener('wheel', e => { e.preventDefault(); this.setAngle(S.iv.angle - Math.sign(e.deltaY) * 1); }, { passive: false });
       cv.addEventListener('mousedown', e => { if (e.button === 0 && S.iv.phase === 'withdraw') { e.stopPropagation(); S.iv.dragNeedle = true; } });
@@ -1351,39 +1601,44 @@
       const inside = ((tipX - g.cx) ** 2) / (g.rx ** 2) + ((tipY - g.cy) ** 2) / (g.ry ** 2) <= 1;
       if (iv.phase === 'insert' || iv.phase === 'advance') {
         if (inside) {
-          if (!iv.inVein) { iv.inVein = true; NZA.audio.beep(1100, 60, 0.05); if (iv.phase === 'insert') ui.pp.flash('ok', L('iv_flash', 'Flashback! Stop advancing.'), 1500); this.text(); }
+          if (!iv.inVein) { iv.inVein = true; NZA.audio.beep(1100, 60, 0.05); if (iv.phase === 'insert') ui.pp.flash('ok', L('iv_flash', 'Blood in the chamber — stop there.'), 1500); this.text(); }
           iv.flash = Math.min(1, iv.flash + dt * 2.5);
         } else if (iv.inVein && tipY > g.cy) {
           // went through the back wall
           iv.blown = true; iv.inVein = false; this.blown(); return;
         } else if (iv.tip > 175 && !iv.miss && iv.phase === 'insert') {
           iv.miss = true; iv.misses += 1;
-          ui.pp.flash('warn', tipY < g.cy ? L('iv_miss_flat', 'Too flat — you went over the vein. Pull back and steepen.') : L('iv_miss_steep', 'Too steep — you went under the vein. Pull back and flatten.'));
+          ui.pp.flash('warn', tipY < g.cy ? L('iv_miss_flat', 'Too shallow — you passed over it. Back out and go steeper.') : L('iv_miss_steep', 'Too steep — you passed under it. Back out and go flatter.'));
           setTimeout(() => { if (S.iv === iv) { iv.tip = 0; iv.miss = false; } }, 1200);
         }
         if (iv.phase === 'insert' && iv.inVein && !S.held[insertKey] && !iv.blown) { iv.inT += dt; if (iv.inT > 0.5) { iv.inT = 0; this.go('advance'); } }
       }
       if (iv.phase === 'advance' && S.held[S.keys.advance || 'KeyE']) {
         iv.cannula = clamp(iv.cannula + dt * 0.55, 0, 1); this.text();
-        if (iv.cannula >= 1) { NZA.audio.success(); ui.pp.flash('ok', L('iv_cannula_in', 'Cannula in the vein.')); this.go('withdraw'); }
+        if (iv.cannula >= 1) { NZA.audio.success(); ui.pp.flash('ok', L('iv_cannula_in', 'Cannula home.')); this.go('withdraw'); }
       }
       // draw
       c.clearRect(0, 0, w, h);
       c.save(); c.scale(sx, sy);
       const sk = c.createLinearGradient(0, g.skin, 0, 150); sk.addColorStop(0, '#d9a98b'); sk.addColorStop(0.08, '#c48c70'); sk.addColorStop(1, '#8e5a44');
-      c.fillStyle = '#0b0d0e'; c.fillRect(0, 0, 300, g.skin);
+      c.fillStyle = '#05080a'; c.fillRect(0, 0, 300, g.skin);
       c.fillStyle = sk; c.fillRect(0, g.skin, 300, 150 - g.skin);
-      c.fillStyle = 'rgba(255,255,255,.05)'; for (let i = 0; i < 300; i += 22) c.fillRect(i, g.skin + 14, 12, 1);
+      c.strokeStyle = 'rgba(255,225,205,.5)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(0, g.skin); c.lineTo(300, g.skin); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,.05)'; c.lineWidth = 1;
+      for (let i = 0; i < 7; i++) { c.beginPath(); c.moveTo(0, g.skin + 12 + i * 13); c.bezierCurveTo(100, g.skin + 6 + i * 13, 200, g.skin + 18 + i * 13, 300, g.skin + 10 + i * 13); c.stroke(); }
       // vein
       c.fillStyle = iv.blown ? '#5a1f28' : '#3b4f8f';
       c.beginPath(); c.ellipse(g.cx, g.cy, g.rx, g.ry, 0, 0, Math.PI * 2); c.fill();
       c.fillStyle = iv.blown ? 'rgba(90,20,30,.55)' : '#7a1d26';
       c.beginPath(); c.ellipse(g.cx, g.cy, g.rx - 3, g.ry - 3, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.12)'; c.beginPath(); c.ellipse(g.cx - g.rx * 0.2, g.cy - g.ry * 0.45, g.rx * 0.5, g.ry * 0.18, 0, 0, Math.PI * 2); c.fill();
       if (iv.blown) { c.fillStyle = 'rgba(80,10,25,.45)'; c.beginPath(); c.ellipse(g.cx, g.cy + 8, g.rx + 20, g.ry + 16, 0, 0, Math.PI * 2); c.fill(); }
-      // angle band guide
+      // angle band guide (wedge)
       const band = d.angle || [15, 30];
-      c.strokeStyle = 'rgba(61,220,132,.28)'; c.lineWidth = 1; c.setLineDash([3, 3]);
-      band.forEach(b => { const r = b * Math.PI / 180; c.beginPath(); c.moveTo(g.entryX, g.skin); c.lineTo(g.entryX - Math.cos(r) * 52, g.skin - Math.sin(r) * 52); c.stroke(); });
+      const r0 = band[0] * Math.PI / 180, r1 = band[1] * Math.PI / 180;
+      c.fillStyle = 'rgba(15,212,196,.1)'; c.beginPath(); c.moveTo(g.entryX, g.skin); c.arc(g.entryX, g.skin, 56, Math.PI + r0, Math.PI + r1); c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(15,212,196,.45)'; c.lineWidth = 1; c.setLineDash([3, 3]);
+      [r0, r1].forEach(r => { c.beginPath(); c.moveTo(g.entryX, g.skin); c.lineTo(g.entryX - Math.cos(r) * 56, g.skin - Math.sin(r) * 56); c.stroke(); });
       c.setLineDash([]);
       // needle (+ cannula sleeve) coming from the upper left
       const back = 120;
@@ -1405,27 +1660,31 @@
       c.fillStyle = `rgba(160,20,30,${iv.flash})`; c.fillRect(-18, -4, 18 * iv.flash, 8);
       c.restore();
       c.restore();
-      const xa = q('.xa'); if (xa) { xa.textContent = `${iv.angle}°`; xa.className = `d-big xa ${iv.angle < band[0] || iv.angle > band[1] ? 'amber' : 'teal'}`; xa.style.fontSize = '22px'; }
-      const xf = q('.xf'); if (xf) { xf.textContent = iv.flash > 0.1 ? L('d_flash', 'Flashback') : L('d_empty', 'Empty'); xf.className = `d-val xf ${iv.flash > 0.1 ? 'red' : ''}`; }
+      // readouts
+      const off = iv.angle < band[0] || iv.angle > band[1];
+      const dz = q('.m-dial.iv .dzh');
+      if (dz && dz.dataset.a !== String(iv.angle)) { dz.dataset.a = String(iv.angle); dz.innerHTML = dialSVG(iv.angle / 45, { zone: [band[0] / 45, band[1] / 45], tone: off ? 'amber' : 'teal', ticks: 9 }); const xa = q('.xa'); if (xa) xa.textContent = iv.angle; }
+      setRow('.r-xf', esc(iv.flash > 0.1 ? L('d_flash', 'Blood') : L('d_empty', 'Empty')), iv.flash > 0.1 ? 'red' : 'dim');
+      setRow('.r-xc', `${Math.round(iv.cannula * 100)}<small>%</small>`, iv.cannula >= 1 ? 'teal' : '');
     },
     blown() {
       const iv = S.iv, max = S.data.attempts || 2;
       NZA.audio.fail();
-      ui.pp.flash('bad', L('iv_blown', 'Through the back wall — the vein is blown.'), 0);
+      ui.pp.flash('bad', L('iv_blown', 'Through the back wall — that vein is gone.'), 0);
       if (!S.preview && S.data.responsive) NZA.speech({ name: S.data.name || '', text: L('say_ouch', 'Ouch!'), ms: 1800 });
       setTimeout(() => {
         if (S.iv !== iv) return;
         if (iv.attempts >= max) { this.finish(true); return; }
         iv.attempts += 1; iv.blown = false; iv.flash = 0; iv.tip = 0; iv.inVein = false; iv.cannula = 0; iv.mark = null; stats();
         this.go('find');
-        ui.pp.flash('warn', L('iv_new_site', 'New cannula — find another spot.'));
+        ui.pp.flash('warn', L('iv_new_site', 'New cannula — pick another spot.'));
       }, 1600);
     },
     withdrawn() {
       const iv = S.iv;
       if (iv.phase !== 'withdraw') return;
       if (iv.tq) { iv.spill = true; ui.pp.flash('bad', L('iv_spill', 'Blood everywhere — the tourniquet was still on.')); }
-      else { NZA.audio.success(); ui.pp.flash('ok', L('iv_needle_out', 'Needle out into the sharps bin.')); }
+      else { NZA.audio.success(); ui.pp.flash('ok', L('iv_needle_out', 'Needle out and into the sharps bin.')); }
       iv.withdraw = 1;
       setTimeout(() => this.go('secure'), 700);
     },
@@ -1441,12 +1700,12 @@
       const iv = S.iv;
       if (k === '1') {
         if (iv.phase === 'tq' && !iv.tq) { iv.tq = true; iv.fill = 0; post('ivTq', { on: true }); NZA.audio.click(500); ui.pp.flash('ok', L('iv_tq_on', 'Tourniquet on. Veins filling…')); this.go('find'); return; }
-        if (iv.tq && (iv.phase === 'withdraw' || iv.phase === 'secure' || iv.phase === 'advance')) { iv.tq = false; post('ivTq', { on: false }); NZA.audio.click(400); ui.pp.flash('ok', L('iv_tq_off', 'Tourniquet released.')); this.tools(); this.text(); }
+        if (iv.tq && (iv.phase === 'withdraw' || iv.phase === 'secure' || iv.phase === 'advance')) { iv.tq = false; post('ivTq', { on: false }); NZA.audio.click(400); ui.pp.flash('ok', L('iv_tq_off', 'Tourniquet off.')); this.tools(); this.text(); }
         return;
       }
-      if (k === '3' && iv.phase === 'secure' && !iv.secured) { iv.secured = true; NZA.audio.click(900); ui.pp.flash('ok', L('iv_secured', 'Cannula covered and secured.')); this.tools(); this.text(); return; }
+      if (k === '3' && iv.phase === 'secure' && !iv.secured) { iv.secured = true; NZA.audio.click(900); ui.pp.flash('ok', L('iv_secured', 'Hub covered and taped.')); this.tools(); this.text(); return; }
       if (k === '4' && iv.phase === 'secure' && iv.secured && !iv.flushed) {
-        iv.flushed = true; NZA.audio.success(); ui.pp.flash('ok', L('iv_flushed', 'Flushes easily — no swelling.')); this.tools(); this.text();
+        iv.flushed = true; NZA.audio.success(); ui.pp.flash('ok', L('iv_flushed', 'Runs freely — no swelling.')); this.tools(); this.text();
         setTimeout(() => this.finish(false), 700);
       }
       if (k === 'Enter' && iv.phase === 'secure' && iv.secured) this.finish(false);
@@ -1484,7 +1743,7 @@
   const onDown = e => {
     if (!S.open || e.button !== 0) return;
     S.mouse.down = true; S.mouse.x = e.clientX; S.mouse.y = e.clientY;
-    if (e.target.closest && e.target.closest('.pp, .fd-focus, .fd-inf, .fd-dev')) return;
+    if (e.target.closest && e.target.closest('.pp, .fd-view, .fd-rack')) return;
     const h = H_[S.proc]; if (h && h.down && S.status === 'run') h.down(e);
   };
   const onMove = e => {
@@ -1531,7 +1790,7 @@
   /* ═══════════════════════════ PREVIEW SCENE (browser only) ═══════════════════════════ */
   const PREV = {
     pelvis: { x: 0.47, y: 0.5 }, strapA: { x: 0.47, y: 0.64 }, strapB: { x: 0.47, y: 0.36 }, kit: { x: 0.45, y: 0.19 }, stand: { x: 0.4, y: 0.79 },
-    l_tibia: { x: 0.665, y: 0.43 }, r_tibia: { x: 0.665, y: 0.57 }, l_humerus: { x: 0.31, y: 0.36 }, r_humerus: { x: 0.31, y: 0.64 }, access: { x: 0.665, y: 0.57 },
+    l_tibia: { x: 0.6, y: 0.43 }, r_tibia: { x: 0.6, y: 0.57 }, l_humerus: { x: 0.31, y: 0.36 }, r_humerus: { x: 0.31, y: 0.64 }, access: { x: 0.6, y: 0.57 },
     tq: { x: 0.32, y: 0.5 }, site: { x: 0.52, y: 0.5 },
   };
   function previewAnchors() {
@@ -1541,50 +1800,79 @@
   }
   function drawScene() {
     const cv = ui.scene;
-    const w = cv.width = W(), h = cv.height = H();
+    const w = W(), h = H();
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; ui.sceneBg = null; }
     const c = cv.getContext('2d');
+    const s = h / 1080;
     if (!ui.sceneBg) {
+      // static layer: asphalt, kerb, patient, kit (drawn once)
       const bg = document.createElement('canvas'); bg.width = w; bg.height = h;
       const g = bg.getContext('2d');
-      g.fillStyle = '#3a3c3e'; g.fillRect(0, 0, w, h);
-      for (let i = 0; i < 26000; i++) { const v = 40 + Math.random() * 60; g.fillStyle = `rgba(${v},${v},${v + 4},.5)`; g.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 2 + Math.random() * 3); }
-      const vg = g.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, h * 0.9); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
-      g.fillStyle = vg; g.fillRect(0, 0, w, h);
+      const base = g.createLinearGradient(0, 0, w, h); base.addColorStop(0, '#3d3f41'); base.addColorStop(1, '#2c2e30');
+      g.fillStyle = base; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 42000; i++) { const v = 34 + Math.random() * 70; g.fillStyle = `rgba(${v},${v},${v + 3},${0.35 + Math.random() * 0.4})`; const r = 1 + Math.random() * 2.6; g.fillRect(Math.random() * w, Math.random() * h, r, r); }
+      // kerb + lane line
+      g.fillStyle = '#56585a'; g.fillRect(0, h * 0.9, w, h * 0.1); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, h * 0.9, w, 6 * s);
+      g.fillStyle = 'rgba(230,200,60,.55)'; for (let x = 0; x < w; x += 160 * s) g.fillRect(x, h * 0.06, 90 * s, 10 * s);
+      const rr = (x, y, ww, hh, r, col) => { g.fillStyle = col; rrPath(g, x, y, ww, hh, r); g.fill(); };
+      const shade = (x, y, ww, hh, r, c1, c2) => { const gr = g.createLinearGradient(0, y, 0, y + hh); gr.addColorStop(0, c1); gr.addColorStop(1, c2); rr(x, y, ww, hh, r, gr); };
+      g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 34 * s; g.shadowOffsetY = 10 * s;
+      // legs
+      shade(0.5 * w, 0.405 * h, 0.3 * w, 0.075 * h, 30 * s, '#2b3446', '#1b2230'); shade(0.5 * w, 0.52 * h, 0.3 * w, 0.075 * h, 30 * s, '#2b3446', '#1b2230');
+      shade(0.79 * w, 0.398 * h, 0.04 * w, 0.088 * h, 18 * s, '#222', '#090909'); shade(0.79 * w, 0.513 * h, 0.04 * w, 0.088 * h, 18 * s, '#222', '#090909');
+      // arms
+      shade(0.27 * w, 0.31 * h, 0.2 * w, 0.06 * h, 26 * s, '#34405a', '#232c3e'); shade(0.27 * w, 0.63 * h, 0.2 * w, 0.06 * h, 26 * s, '#34405a', '#232c3e');
+      shade(0.45 * w, 0.315 * h, 0.04 * w, 0.05 * h, 20 * s, '#d4a587', '#a77a5e'); shade(0.45 * w, 0.635 * h, 0.04 * w, 0.05 * h, 20 * s, '#d4a587', '#a77a5e');
+      // torso + pelvis + head
+      shade(0.22 * w, 0.355 * h, 0.3 * w, 0.29 * h, 70 * s, '#34405a', '#222a3a');
+      shade(0.41 * w, 0.37 * h, 0.12 * w, 0.26 * h, 40 * s, '#2b3446', '#1b2230');
+      g.fillStyle = '#c99b7d'; g.beginPath(); g.ellipse(0.17 * w, 0.5 * h, 0.05 * w, 0.075 * h, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#2b1f18'; g.beginPath(); g.ellipse(0.155 * w, 0.5 * h, 0.035 * w, 0.07 * h, 0, 0, Math.PI * 2); g.fill();
+      g.restore();
+      // shirt seam, buttons, belt
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0.3 * w, 0.497 * h, 0.11 * w, 2 * s);
+      rr(0.445 * w, 0.37 * h, 0.012 * w, 0.26 * h, 4 * s, '#111'); rr(0.441 * w, 0.48 * h, 0.02 * w, 0.04 * h, 4 * s, '#9aa0a4');
+      // blood pool
+      const bp = g.createRadialGradient(0.5 * w, 0.66 * h, 4, 0.5 * w, 0.66 * h, 0.07 * w); bp.addColorStop(0, 'rgba(110,8,14,.8)'); bp.addColorStop(1, 'rgba(70,6,10,0)');
+      g.fillStyle = bp; g.beginPath(); g.ellipse(0.5 * w, 0.665 * h, 0.075 * w, 0.035 * h, 0.2, 0, Math.PI * 2); g.fill();
+      // kit case (open) + sharps bin
+      const k = { x: PREV.kit.x * w, y: PREV.kit.y * h };
+      g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 26 * s; g.shadowOffsetY = 8 * s;
+      shade(k.x - 160 * s, k.y - 128 * s, 320 * s, 126 * s, 16 * s, '#3a4246', '#2a3033'); shade(k.x - 160 * s, k.y, 320 * s, 156 * s, 16 * s, '#3c4448', '#2b3134');
+      g.restore();
+      rr(k.x - 146 * s, k.y + 14 * s, 292 * s, 128 * s, 12 * s, '#1a1f22');
+      rr(k.x - 146 * s, k.y - 116 * s, 292 * s, 102 * s, 12 * s, '#22282b');
+      // foam cut-outs + tools
+      rr(k.x - 132 * s, k.y + 28 * s, 74 * s, 100 * s, 10 * s, '#11161a');
+      rr(k.x - 124 * s, k.y + 36 * s, 58 * s, 84 * s, 6 * s, '#1f3a40'); g.fillStyle = 'rgba(15,212,196,.5)'; g.fillRect(k.x - 124 * s, k.y + 70 * s, 58 * s, 8 * s);
+      rr(k.x - 40 * s, k.y + 34 * s, 72 * s, 30 * s, 12 * s, '#11161a'); rr(k.x - 34 * s, k.y + 38 * s, 58 * s, 22 * s, 9 * s, '#47525a'); rr(k.x + 14 * s, k.y + 42 * s, 22 * s, 14 * s, 4 * s, '#0fd4c4');
+      [0, 26, 52].forEach(o => { rr(k.x + 48 * s, k.y + (32 + o) * s, 84 * s, 16 * s, 8 * s, '#11161a'); rr(k.x + 52 * s, k.y + (35 + o) * s, 68 * s, 10 * s, 5 * s, '#dfe5e8'); rr(k.x + 104 * s, k.y + (35 + o) * s, 16 * s, 10 * s, 3 * s, ['#e5a50a', '#9b6bff', '#3fd0ff'][o / 26]); });
+      rr(k.x - 34 * s, k.y + 80 * s, 64 * s, 46 * s, 8 * s, '#11161a'); rr(k.x - 28 * s, k.y + 86 * s, 52 * s, 34 * s, 5 * s, '#f3f3ee');
+      g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(k.x - 22 * s, k.y + 94 * s, 40 * s, 3 * s); g.fillRect(k.x - 22 * s, k.y + 102 * s, 30 * s, 3 * s);
+      // lid pockets
+      rr(k.x - 132 * s, k.y - 104 * s, 130 * s, 78 * s, 8 * s, '#2c3337'); rr(k.x + 8 * s, k.y - 104 * s, 124 * s, 78 * s, 8 * s, '#2c3337');
+      g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = 2 * s; g.strokeRect(k.x - 126 * s, k.y - 98 * s, 118 * s, 66 * s);
+      g.fillStyle = '#0fd4c4'; g.fillRect(k.x - 66 * s, k.y + 150 * s, 26 * s, 6 * s); g.fillRect(k.x + 40 * s, k.y + 150 * s, 26 * s, 6 * s);
+      // sharps bin
+      g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 18 * s; g.shadowOffsetY = 6 * s;
+      shade(k.x + 196 * s, k.y - 12 * s, 76 * s, 96 * s, 10 * s, '#f0cd45', '#c9a82a'); shade(k.x + 192 * s, k.y - 20 * s, 84 * s, 28 * s, 9 * s, '#e88a30', '#c86e1c');
+      g.restore();
+      g.fillStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.arc(k.x + 234 * s, k.y + 34 * s, 12 * s, 0, Math.PI * 2); g.fill();
       ui.sceneBg = bg;
     }
     c.drawImage(ui.sceneBg, 0, 0);
-    const P = k => ({ x: PREV[k].x * w, y: PREV[k].y * h });
-    const s = h / 1080;
-    const rr = (x, y, ww, hh, r, col) => { c.fillStyle = col; c.beginPath(); c.roundRect(x, y, ww, hh, r); c.fill(); };
-    c.save(); c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 30 * s; c.shadowOffsetY = 8 * s;
-    // legs
-    rr(0.5 * w, 0.405 * h, 0.33 * w, 0.075 * h, 30 * s, '#232b3a'); rr(0.5 * w, 0.52 * h, 0.33 * w, 0.075 * h, 30 * s, '#232b3a');
-    rr(0.82 * w, 0.4 * h, 0.035 * w, 0.085 * h, 16 * s, '#111'); rr(0.82 * w, 0.515 * h, 0.035 * w, 0.085 * h, 16 * s, '#111');
-    // arms
-    rr(0.27 * w, 0.31 * h, 0.2 * w, 0.06 * h, 26 * s, '#2a3446'); rr(0.27 * w, 0.63 * h, 0.2 * w, 0.06 * h, 26 * s, '#2a3446');
-    rr(0.45 * w, 0.315 * h, 0.04 * w, 0.05 * h, 20 * s, '#c99b7d'); rr(0.45 * w, 0.635 * h, 0.04 * w, 0.05 * h, 20 * s, '#c99b7d');
-    // torso + pelvis + head
-    rr(0.22 * w, 0.355 * h, 0.3 * w, 0.29 * h, 70 * s, '#2a3446');
-    rr(0.41 * w, 0.37 * h, 0.12 * w, 0.26 * h, 40 * s, '#232b3a');
-    c.fillStyle = '#c99b7d'; c.beginPath(); c.ellipse(0.17 * w, 0.5 * h, 0.05 * w, 0.075 * h, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#2b1f18'; c.beginPath(); c.ellipse(0.155 * w, 0.5 * h, 0.035 * w, 0.07 * h, 0, 0, Math.PI * 2); c.fill();
-    c.restore();
-    // belt
-    rr(0.445 * w, 0.37 * h, 0.012 * w, 0.26 * h, 4 * s, '#111');
-    // blood pool
-    c.fillStyle = 'rgba(90,10,14,.55)'; c.beginPath(); c.ellipse(0.5 * w, 0.66 * h, 0.06 * w, 0.03 * h, 0.2, 0, Math.PI * 2); c.fill();
-    if (S.proc && S.proc !== 'binder' || (S.b && (S.b.phase === 'done'))) { rr(0.43 * w, 0.355 * h, 0.075 * w, 0.29 * h, 12 * s, '#1b2a30'); c.fillStyle = '#08afa2'; c.fillRect(0.462 * w, 0.48 * h, 0.012 * w, 0.04 * h); }
-    // kit case (open) + sharps + stand
-    const k = P('kit');
-    c.save(); c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 24 * s;
-    rr(k.x - 150 * s, k.y - 120 * s, 300 * s, 120 * s, 14 * s, '#2a3033'); rr(k.x - 150 * s, k.y, 300 * s, 150 * s, 14 * s, '#30373a');
-    c.restore();
-    rr(k.x - 136 * s, k.y + 14 * s, 272 * s, 122 * s, 10 * s, '#1c2124');
-    rr(k.x - 120 * s, k.y + 28 * s, 70 * s, 95 * s, 8 * s, S.proc === 'binder' && S.b && S.b.phase === 'drop' ? '#1b2a30' : '#151a1c');
-    c.fillStyle = '#08afa2'; c.fillRect(k.x - 92 * s, k.y + 60 * s, 14 * s, 14 * s);
-    rr(k.x - 30 * s, k.y + 40 * s, 60 * s, 24 * s, 8 * s, '#3b4448'); rr(k.x + 50 * s, k.y + 34 * s, 70 * s, 12 * s, 5 * s, '#d7dde0'); rr(k.x + 50 * s, k.y + 60 * s, 70 * s, 12 * s, 5 * s, '#d7dde0');
-    c.fillStyle = '#08afa2'; c.fillRect(k.x - 60 * s, k.y + 146 * s, 24 * s, 6 * s); c.fillRect(k.x + 36 * s, k.y + 146 * s, 24 * s, 6 * s);
-    rr(k.x + 190 * s, k.y - 10 * s, 70 * s, 90 * s, 8 * s, '#e3c13a'); rr(k.x + 186 * s, k.y - 16 * s, 78 * s, 26 * s, 8 * s, '#d9822b');
+    const P = key => ({ x: PREV[key].x * w, y: PREV[key].y * h });
+    const rr = (x, y, ww, hh, r, col) => { c.fillStyle = col; rrPath(c, x, y, ww, hh, r); c.fill(); };
+    if ((S.proc && S.proc !== 'binder') || (S.b && (S.b.phase === 'done' || S.b.phase === 'strap'))) {
+      c.save(); c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 16 * s;
+      rr(0.425 * w, 0.355 * h, 0.085 * w, 0.29 * h, 14 * s, '#22333a'); c.restore();
+      c.fillStyle = 'rgba(255,255,255,.07)'; for (let i = 0; i < 8; i++) c.fillRect(0.43 * w, (0.37 + i * 0.033) * h, 0.075 * w, 2 * s);
+      rr(0.458 * w, 0.475 * h, 0.018 * w, 0.05 * h, 4 * s, '#0b0d0e'); c.fillStyle = '#0fd4c4'; c.fillRect(0.462 * w, 0.49 * h, 0.01 * w, 0.02 * h);
+    }
+    if (S.io && S.io.phase !== 'site' && S.io.phase !== 'drill' && S.io.site) {
+      const p = P(S.io.site);
+      rr(p.x - 10 * s, p.y - 10 * s, 20 * s, 20 * s, 5 * s, '#e9eef0'); c.fillStyle = '#d33'; c.beginPath(); c.arc(p.x, p.y, 4 * s, 0, Math.PI * 2); c.fill();
+    }
     if (S.proc === 'resus' || S.proc === 'reassess') {
       const st = P('stand');
       c.strokeStyle = '#9aa3a8'; c.lineWidth = 5 * s; [0, 2.1, 4.2].forEach(a => { c.beginPath(); c.moveTo(st.x, st.y); c.lineTo(st.x + Math.cos(a) * 70 * s, st.y + Math.sin(a) * 70 * s); c.stroke(); });
@@ -1611,8 +1899,8 @@
       S.band = (S.plan.band) || [60, 70]; S.bleed = S.plan.bleed || 0; S.injury = S.plan.injury || null; S.focus = 'patient';
       S.proc = null; S.status = ''; S.clot = null; S.b = S.io = S.rs = S.iv = null;
       build();
-      ui.dev.style.display = 'none';
-      ui.pp.set({ step: 1, total: S.total, title: S.mode === 'iv' ? L('t_iv', 'IV cannulation') : L('t_field', 'Field resuscitation'), text: L('starting', 'Opening the kit…'), tools: [], steps: stepNames() });
+      ui.rack.style.display = 'none';
+      ui.pp.set({ step: 1, total: S.total, title: S.mode === 'iv' ? L('t_iv', 'IV cannulation') : L('t_field', 'Field resuscitation'), text: L('starting', 'Laying out the kit…'), tools: [], steps: stepNames() });
       stats();
       lastT = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     },
@@ -1626,6 +1914,7 @@
       if (ui.ghost) { ui.ghost.remove(); ui.ghost = null; }
       if (ui.scene) { ui.scene.remove(); ui.scene = null; ui.sceneBg = null; }
       if (ui.host) ui.host.innerHTML = '';
+      ui.view = null; ui.rack = null; ui.dev = null; ui.inf = null;
       S.proc = null;
     },
     keys: new Proxy({}, { get: (_, k) => (k === 'Escape' ? undefined : e => (S.open ? keyDown(e) : false)) }),
@@ -1638,7 +1927,7 @@
         const o = d.outcome || {};
         if (d.ok && !o.failed) {
           S.results.push({ proc: d.proc, score: o.score, grade: o.grade });
-          ui.pp.flash('ok', `${o.msg || L('ok_generic', 'Done')} · ${o.grade || grade(o.score || 0)}`, 0);
+          ui.pp.flash('ok', `${o.msg || L('ok_generic', 'Done')}${o.score !== undefined ? ` · ${Math.round(o.score)}%` : ''}`, 0);
         } else {
           ui.pp.flash('bad', o.msg || d.msg || L(`err_${d.reason}`, L('step_failed', 'That did not work.')), 0);
         }
@@ -1652,7 +1941,7 @@
         stats();
       },
       clot(c) { if (!c || S.proc !== 'resus' || !S.rs) return; S.clot = c; H_.resus.clotTick(); },
-      popped() { if (S.proc !== 'resus') return; NZA.audio.alarm(2); ui.pp.flash('bad', L('popped', 'The clot popped! Bleeding is back up.'), 3200); if (S.rs) S.rs.popped += 1; },
+      popped() { if (S.proc !== 'resus') return; NZA.audio.alarm(2); ui.pp.flash('bad', L('popped', 'Clot broke loose! Bleeding is up again.'), 3200); if (S.rs) S.rs.popped += 1; },
       focus(d) { if (d && d.what) { S.focus = d.what; renderFocus(); } },
       summary(s) { if (S.proc !== 'reassess') setStep('reassess', 'run', {}); H_.reassess.show(s || {}); },
       bags(b) { if (!b || !S.rs) return; if (b.counts) S.rs.counts = b.counts; if (b.bags) S.data.bags = b.bags; H_.resus.tools(); },
@@ -1679,24 +1968,25 @@
       const ioData = { sites, layers: { tibia: { soft: 6.5, cortex: 3.2, marrow: 13, far: 3 }, humerus: { soft: 12, cortex: 2.6, marrow: 16, far: 3 } }, maxAngle: 15, bendAngle: 26, attempts: 3,
         speed: { soft: 7, cortex: 1.3, marrow: 8, far: 1.1 }, pxPerDeg: 3.2, tremor: 7, aspirateMl: 1, lidoMl: 2, lidoRate: [0.08, 0.45], flushMl: 10, flushRate: [1.5, 6], lidocaine: true, responsive: true,
         injury: { region: 'abdomen', regionLabel: 'Abdomen' }, bleed: 101 };
-      if (which === 'binder') { setStep('binder', 'run', { indicated: true, why: 'fracture', band: [60, 80], count: 1, injury: { regionLabel: 'Pelvis' }, bleed: 241 }); if (sub === 'strap') { S.b.phase = 'strap'; clearMarks(); H_.binder.ui(); S.b.tension = 72; S.b.tab = null; const A = apx('strapA'), B = apx('strapB'); if (A && B) S.b.tab = { x: A.x + (B.x - A.x) * 0.72, y: A.y + (B.y - A.y) * 0.72 }; H_.binder.devTick(); } }
+      if (which === 'binder') { setStep('binder', 'run', { indicated: true, why: 'fracture', band: [60, 80], count: 1, injury: { regionLabel: 'Pelvis' }, bleed: 241 }); if (sub === 'strap') { S.b.phase = 'strap'; clearMarks(); H_.binder.ui(); S.b.tension = 72; S.b.drag = true; S.b.tab = null; const A = apx('strapA'), B = apx('strapB'); if (A && B) S.b.tab = { x: A.x + (B.x - A.x) * 0.72, y: A.y + (B.y - A.y) * 0.72 }; H_.binder.devTick(); } }
       if (which === 'site') setStep('io', 'run', ioData);
       if (which === 'drill') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); const p = apx('r_tibia'); S.mouse.x = p.x + 30; S.mouse.y = p.y - 26; S.mouse.down = true; S.io.lift = 0; S.io.depth = 7.8; S.io.drilling = false; S.io.torque = Array.from({ length: 80 }, (_, i) => (i < 30 ? 0.25 : 0.88) + (Math.random() - 0.5) * 0.1); }
-      if (which === 'confirm') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); H_.io.confirmUi(); S.io.syr.set(1.4); S.io.syr.fluid('marrow'); ui.pp.flash('ok', L('confirm_ok', 'Marrow blood in the barrel. The needle is in.'), 0); }
-      if (which === 'flush') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); S.io.aspirated = true; H_.io.flushUi(); S.io.ext = true; H_.io.useSyringe('lido'); S.io.syr.set(2 - 0.8); S.io.lido.ml = 0.8; H_.io.flushText(); }
+      if (which === 'confirm') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); S.io.depth = 11.2; H_.io.confirmUi(); S.io.syr.set(1.4); S.io.syr.fluid('marrow'); setRow('.r-ret', `${icon('drop')}${esc(L('ret_marrow', 'Marrow'))}`, 'red'); ui.pp.flash('ok', L('confirm_ok', 'Dark return in the barrel — you are in the marrow.'), 0); }
+      if (which === 'flush') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); S.io.aspirated = true; H_.io.flushUi(); S.io.ext = true; H_.io.useSyringe('lido'); S.io.syr.set(5 - 0.8); S.io.lido.ml = 0.8; H_.io.flushText(); }
       if (which === 'resus') {
         setStep('resus', 'run', { band: [60, 70], hold: 24, lowMap: 52, autoContinue: 1.6, access: { kind: 'io', site: 'r_lower_leg', siteLabel: 'Right tibia' }, maxRate: 66, txaPush: 10,
           infusion: { gravity: 60, ioFactor: 0.45, pressureGain: 1.4, maxPressure: 300, leak: 6, pump: 22, maxBags: 3, dilution: 1000 },
-          counts: { saline: 2, txa: 1, foil: 1 }, blood: true, bags: [{ serial: 'NZ-0042', type: 'O-', ml: 450, compatible: true }],
-          infusions: [{ id: 'i1', kind: 'saline', ml: 500, left: 382, rate: 58, mine: true }], injury: { regionLabel: 'Abdomen' }, bleed: 19 });
+          counts: { saline: 2, txa: 1, foil: 1 }, blood: true, bags: [{ serial: 'BB-0042', type: 'O-', ml: 450, compatible: true }],
+          infusions: [{ id: 'i1', kind: 'saline', ml: 500, left: 382, rate: 58, mine: true }, { id: 'i2', kind: 'blood', ml: 450, left: 301, rate: 24, mine: true, bag: { type: 'O−' } }], injury: { regionLabel: 'Abdomen' }, bleed: 19 });
         S.rs.pressure = 186; S.rs.clamp = 0.66; S.rs.salineIn = 0;
         const hist = [52, 53, 55, 57, 58, 60, 61, 62, 63, 64, 63, 64, 65, 64, 63, 63, 64, 62, 63, 64, 65, 66, 64, 63];
         hist.forEach((m, i) => { S.clot = { map: m, firm: Math.min(93, i * 4.3), state: 'band', eta: 8, pops: 0, mods: { txa: false, cold: true, foil: false, dil: 12 }, bleed: 19 }; H_.resus.clotTick(); });
+        if (sub === 'txa') H_.resus.txaStart();
       }
       if (which === 'reassess') {
         setStep('reassess', 'run', {});
         H_.reassess.show({ before: { bleed: 241, map: 52, hr: 141, spo2: 93 }, after: { bleed: 11.4, map: 64, hr: 118, spo2: 97 }, grade: 'A',
-          steps: [{ label: 'Pelvic binder', grade: 'A', score: 88 }, { label: 'IO access · right tibia', grade: 'B', score: 74 }, { label: 'Resuscitate', grade: 'S', score: 94 }],
+          steps: [{ label: 'Pelvic binder', grade: 'A', score: 88, note: 'strap 68%' }, { label: 'IO access · right tibia', grade: 'B', score: 74, note: '1 needle' }, { label: 'Hold the pressure', grade: 'S', score: 94, note: 'no breaks' }],
           devices: ['Binder', 'IO R tibia', 'Saline 380 ml', 'TXA 1 g', 'Clot 100%'] });
       }
       if (which === 'iv') {

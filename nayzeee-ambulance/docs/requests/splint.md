@@ -1,13 +1,11 @@
 # Requests from the splint module
 
-## 1. Props: no NAYZEEE name on the splint prop (customer requirement)
+## 1. Props: generic labelling on the splint / crutch props — DONE
 
-`nz_amb_splint_leg` still prints **"NAYZEEE …"** on the outer shell (front render,
-`/tmp/nza-work/props/out/renders/nz_amb_splint_leg_front.png`). The customer asked for no name or logo
-on any prop. Please replace that print with generic device labelling, e.g. `LEG SPLINT · CS-76` +
-a small size ruler (the NUI calls the devices "Contour leg splint CS-76" / "Contour arm splint CS-40").
-Please check `nz_amb_splint_arm` and `nz_amb_crutch` for the same.
-Owner: props module (`tools/props/**`, `stream/**`).
+The props pass replaced the old print on `nz_amb_splint_leg` with generic labelling (`LEG SPLINT` +
+star of life, see `/tmp/nza-work/props/out/renders/nz_amb_splint_leg_front.png`). Nothing left to do.
+The NUI splint (three.js) carries its own generic print only: model code (`CS-76` / `CS-40`), device
+type, centimetre rule, joint lines and a "check pulse below" warning sticker. No brand anywhere.
 
 ## 2. Props: native fallbacks for the worn splints (optional)
 
@@ -23,7 +21,13 @@ falls back to the raw key name when a bone has no label. All bones produced by `
 should have a `core.bone_*` label (they do today). No change needed unless new bones are added.
 Owner: core-server.
 
-## 4. Integration notes (no change needed)
+## 4. Kit (optional, lead): `.dev` class name
+
+`html/core/nza.css` defines a global `.dev` (device bezel). Any app that uses a plain `.dev` class for
+something else inherits the bezel look (the splint record card hit this; it now uses `.dv`). A
+prefixed name (`.nza-dev`) in the kit would avoid such clashes for other modules. Owner: lead.
+
+## 5. Integration notes (no change needed)
 
 - The splint procedure uses the anchors `prox / dist / cms / core` and `NZA.Cam.TopDown(coords, height,
   { heading, fov, minHeight, maxHeight })`; the NUI renders the splint with the same `fov`, so keep
@@ -31,3 +35,5 @@ Owner: core-server.
 - `NZA.Self.SetMoveOverride` names used: `crutch`, `wheelchair`, `splint_leg`.
 - Player state bag written by the server: `nzaCrutch` (replicated). Entity state bag on wheelchairs:
   `nzaChair` (replicated).
+- The mobility card (wheelchair / pushing / crutches) is the `splint` app opened without focus in
+  `hud` mode; a splint procedure on the same client hides it and it comes back afterwards.

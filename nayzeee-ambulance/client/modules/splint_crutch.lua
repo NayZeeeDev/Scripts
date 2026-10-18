@@ -8,7 +8,8 @@
         no sprint / jump / weapons (Config.Splint.Crutches.blockControls), optional upper-body loop,
       - draws two Config.Props.crutch props in the hands of EVERY player whose bag says 'nzaCrutch'
         (local props, within Config.Splint.Props.range, hidden in vehicles),
-      - adds the medic option nza_crutches_give 'Give crutches' (NZA.Treat 'crutches_give').
+      - adds the medic option nza_crutches_give 'Give crutches' (NZA.Treat 'crutches_give'),
+      - feeds the crutch card (NZA.Splint.HudSet 'crutch': moving, steps, the leg to keep off the ground).
     Net event handled: nza:splint:crutch (on, silent)
     Callback used: nza:splint:crutch:toggle
     Lua API: NZA.Splint.CrutchesOn() → bool, NZA.Splint.ToggleCrutches()
@@ -46,12 +47,43 @@ end
 -- LOCAL WALK
 -- ════════════════════════════════════════════════════════════════════════
 
-local function hud(state)
+local walk = { dist = 0.0, side = nil, sideAt = 0 }
+
+-- the leg that should stay off the ground: a splinted leg, else a broken one ('l' | 'r' | nil)
+local function injuredSide()
+    local snap = NZA.Self.Get and NZA.Self.Get() or nil
+    if type(snap) ~= 'table' then return nil end
+    local function sideOf(region)
+        if type(region) ~= 'string' or not region:find('_leg') then return nil end
+        return region:sub(1, 1) == 'l' and 'l' or 'r'
+    end
+    local sp = type(snap.devices) == 'table' and snap.devices.splints or nil
+    if type(sp) == 'table' then
+        for k, v in pairs(sp) do
+            local s = sideOf(type(k) == 'string' and k or v)
+            if s then return s end
+        end
+    end
+    for _, inj in ipairs(type(snap.injuries) == 'table' and snap.injuries or {}) do
+        if inj.type == 'fracture' then
+            local s = sideOf(inj.region)
+            if s then return s end
+        end
+    end
+    return nil
+end
+
+local function hud(state, moving)
     if not SP.HudSet then return end
     if not state or CR().hud == false then SP.HudSet('crutch', nil) return end
     local key = CR().command and ('/' .. CR().command) or nil
+    local now = GetGameTimer()
+    if now > walk.sideAt then walk.side = injuredSide() walk.sideAt = now + 3000 end
+    local sub = walk.side and L('hud_crutch_side_' .. walk.side) or state
     SP.HudSet('crutch', {
-        kind = 'crutch', title = L('hud_crutch'), sub = state,
+        kind = 'crutch', title = L('hud_crutch'), sub = sub,
+        state = state == L('hud_crutch_vehicle') and 'vehicle' or (moving and 'walk' or 'stand'),
+        moving = moving == true, steps = math.floor(walk.dist / (tonumber(CR().stride) or 0.62)), side = walk.side,
         keys = key and { { keys = { key }, label = L('k_put_away') } } or {},
     })
 end
@@ -72,12 +104,14 @@ local function startWalk()
     gen = gen + 1
     local my = gen
     NZA.Self.SetMoveOverride('crutch', CR().clipset or 'move_lester_CaneUp')
-    hud(L('hud_crutch_walk'))
+    walk.dist, walk.sideAt = 0.0, 0
+    hud(L('hud_crutch_stand'), false)
     CreateThread(function()
         local blend = tonumber(CR().maxMoveBlend) or 1.0
         local rate = tonumber(CR().moveRate) or 0.86
         local block = CR().blockControls or {}
         local lastMoving = nil
+        local nextHud = 0
         while on and gen == my do
             local ped = PlayerPedId()
             if not IsPedInAnyVehicle(ped, false) then
@@ -86,16 +120,20 @@ local function startWalk()
                 for i = 1, #block do DisableControlAction(0, block[i], true) end
                 DisablePlayerFiring(PlayerId(), true)
                 if GetSelectedPedWeapon(ped) ~= UNARMED then SetCurrentPedWeapon(ped, UNARMED, true) end
-                local moving = GetEntitySpeed(ped) > 0.3
-                if moving ~= lastMoving then
+                local speed = GetEntitySpeed(ped)
+                local moving = speed > 0.3
+                if moving then walk.dist = walk.dist + speed * GetFrameTime() end
+                local now = GetGameTimer()
+                if moving ~= lastMoving or (moving and now > nextHud) then
+                    if moving ~= lastMoving then upperAnim(ped, moving) end
                     lastMoving = moving
-                    upperAnim(ped, moving)
-                    hud(moving and L('hud_crutch_walk') or L('hud_crutch_stand'))
+                    nextHud = now + 400
+                    hud(moving and L('hud_crutch_walk') or L('hud_crutch_stand'), moving)
                 end
             elseif lastMoving ~= 'veh' then
                 lastMoving = 'veh'
                 upperAnim(ped, false)
-                hud(L('hud_crutch_vehicle'))
+                hud(L('hud_crutch_vehicle'), false)
             end
             Wait(0)
         end

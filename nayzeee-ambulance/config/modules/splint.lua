@@ -162,7 +162,8 @@ Config.Splint = {
         give          = true,      -- medics get 'Give crutches' on player patients
         givePerm      = 'splint',  -- permission for that option
         autoEquip     = true,      -- the patient starts walking with them straight away
-        hud           = true,      -- small status card while on crutches
+        hud           = true,      -- status card while on crutches (gait, steps, which leg stays off the ground)
+        stride        = 0.62,      -- metres per crutch step (step counter on the card)
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -217,7 +218,7 @@ Config.Splint = {
             stand = { control = 23, label = 'F' },  -- stand up / get out
             letGo = { control = 47, label = 'G' },  -- stop pushing
         },
-        hud = true,                   -- speed / slope card while driving or pushing
+        hud = true,                   -- card while driving or pushing (speed, wheel drive, grade, distance)
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

@@ -20,7 +20,14 @@
                          toes / fingers ('cms' anchor) for circulation, motor and
                          sensation. A strap that is too tight cuts the pulse off:
                          click it to loosen, cinch again and re-check.
-   Also hosts the mobility card (wheelchair / pushing / crutches) in 'hud' mode.
+   The splint model carries a printed foam liner (centimetre rule, joint lines, device print, warning
+   sticker - generic labelling only), a stitched edge binding, riveted strap tabs, D-rings and numbered
+   pull tabs; the limb lies on it (hidden under the limb, contact shadow round it, strap shadows on it).
+   The finished splint is written up in the record card (grade ring + a top-view map of joints, pads,
+   shaping points and strap tensions).
+   Also hosts the mobility card (wheelchair / pushing / crutches) in 'hud' mode: chair drawing with
+   moving tread and per-wheel drive bars, rolling speed / distance counters, inclinometer, blocked note;
+   crutch gait drawing (tips, good foot, splinted foot held off the ground), step counter.
 
    Lua → JS   open { mode = 'proc', locale, region, regionLabel, device, deviceLabel, deviceModel,
                      limb, segment, joints { prox, dist, cms }, fracture { kind, kindLabel, bone,
@@ -28,8 +35,12 @@
                      sys, refill, responsive, name, sex, pain, size { width, depth, wall,
                      limbRadius }, segLen, fov, upright, tune, keys }
               open { mode = 'hud', locale, hud }     hud (data)    hudOff    result (outcome)
+              hud data: chair/push { kind, title, sub, state, speed, max, slope, turn, dist, blocked, keys }
+                        crutch     { kind, title, sub, state, moving, steps, side ('l'|'r'), keys }
               anchors { prox, dist, cms, core }
    JS → Lua   splint:finish (result) · splint:abort · splint:done · splint:close
+   Preview    index.html?app=splint&stage=place|aligned|pad|shape|strap|cmsready|cms|cmsbad|done
+              (prefix arm- for the forearm: arm, arm-done …) · hud-chair|hud-push|hud-blocked|hud-crutch
    ═══════════════════════════════════════════════════════════ */
 (() => {
   const APP = 'splint';
@@ -98,7 +109,7 @@
   }
   const lin = hex => new THREE.Color(hex).convertSRGBToLinear();
 
-  // closed-cell foam: tiny dimples
+  // closed-cell foam: tiny dimples (tiled - foot plate pad, palm roll)
   function foamTextures() {
     const n = 256, r = rng(91);
     const h = cvs(n, n), hc = h.getContext('2d');
@@ -114,22 +125,135 @@
     cc.globalAlpha = 0.08; cc.drawImage(h, 0, 0); cc.globalAlpha = 1;
     return { map: tex(c, [6, 6], true), normal: tex(normalFromHeight(h, 2.4), [6, 6]) };
   }
-  // nylon webbing: ribs along the strap + stitched edge lines
+
+  // The printed foam liner of the channel (one texture over the whole inner surface, u across the
+  // channel from rim to rim, v along it from the proximal end): closed-cell dimples, a centimetre
+  // rule along one wall, joint lines across the floor, the device print along the other wall and a
+  // warning sticker. Generic device labelling only - no brand.
+  function linerTextures(o) {
+    const W = 512, H = 2048, r = rng(o.kind === 'leg' ? 191 : 233);
+    const c = cvs(W, H), x = c.getContext('2d');
+    const h = cvs(W, H), hx = h.getContext('2d');
+    x.fillStyle = '#3d454c'; x.fillRect(0, 0, W, H);
+    hx.fillStyle = '#8c8c8c'; hx.fillRect(0, 0, W, H);
+    // tonal mottling + wear along the floor
+    for (let i = 0; i < 30; i++) {
+      const gx = r() * W, gy = r() * H, gr = 40 + r() * 120, dark = r() > 0.5;
+      const g = x.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      g.addColorStop(0, dark ? `rgba(10,14,18,${0.03 + r() * 0.04})` : `rgba(160,175,185,${0.02 + r() * 0.025})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g; x.fillRect(gx - gr, gy - gr, gr * 2, gr * 2);
+    }
+    const floor = x.createLinearGradient(0, 0, W, 0);
+    floor.addColorStop(0, 'rgba(0,0,0,.18)'); floor.addColorStop(0.18, 'rgba(0,0,0,0)'); floor.addColorStop(0.5, 'rgba(255,255,255,.035)'); floor.addColorStop(0.82, 'rgba(0,0,0,0)'); floor.addColorStop(1, 'rgba(0,0,0,.18)');
+    x.fillStyle = floor; x.fillRect(0, 0, W, H);
+    // closed-cell dimples
+    for (let i = 0; i < 24000; i++) {
+      const px = r() * W, py = r() * H, rad = 0.6 + r() * 1.8;
+      hx.fillStyle = `rgba(28,28,28,${0.2 + r() * 0.4})`; hx.beginPath(); hx.arc(px, py, rad, 0, 6.2832); hx.fill();
+      if (r() < 0.2) { x.fillStyle = `rgba(0,0,0,${0.05 + r() * 0.06})`; x.fillRect(px - rad * 0.5, py - rad * 0.5, rad, rad); }
+    }
+    const L = o.L, P = o.perim, ku = W / P, kv = H / L;
+    // draw in millimetres at (u, v) metres; rot 90° = along the splint
+    const mmAt = (um, vm, rot) => { const cs = Math.cos(rot), sn = Math.sin(rot), k = 0.001; x.setTransform(ku * k * cs, kv * k * sn, -ku * k * sn, kv * k * cs, um * ku, vm * kv); };
+    const ink = 'rgba(214,224,228,.82)', inkDim = 'rgba(214,224,228,.5)';
+    const font = (mm, w = 600) => `${w} ${mm}px "JetBrains Mono", monospace`;
+    // centimetre rule along the left wall (zero at the proximal end)
+    const uR = P * 0.2;
+    for (let cm = 0; cm <= Math.floor(L * 100); cm++) {
+      const vm = cm / 100;
+      const long = cm % 5 === 0;
+      mmAt(uR, vm, 0);
+      x.fillStyle = long ? ink : inkDim;
+      x.fillRect(-(long ? 9 : 5.5), -0.35, long ? 9 : 5.5, 0.7);
+      for (let mmk = 1; mmk < 10 && cm < Math.floor(L * 100); mmk++) { if (mmk !== 5) x.fillRect(-2.2, mmk - 0.18, 2.2, 0.36); else x.fillRect(-3.6, mmk - 0.22, 3.6, 0.44); }
+      if (long && cm > 0) {
+        mmAt(uR + 0.0062, vm, Math.PI / 2);
+        x.fillStyle = ink; x.font = font(5.6, 700); x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.fillText(String(cm), 0, 0);
+      }
+    }
+    mmAt(uR - 0.0005, 0, 0); x.fillStyle = inkDim; x.fillRect(-0.3, 0, 0.6, L * 1000);
+    // joint lines across the floor (line the joints up with them)
+    (o.sites || []).forEach((s, i) => {
+      const vm = s.x + L / 2;
+      mmAt(0, vm, 0);
+      x.fillStyle = 'rgba(47,224,208,.85)';
+      for (let u = 6; u < P * 1000 - 6; u += 5) x.fillRect(u, -0.45, 3, 0.9);
+      mmAt(P * 0.7, vm + (i === 0 ? -0.006 : 0.006), Math.PI / 2);
+      x.fillStyle = 'rgba(47,224,208,.95)'; x.font = font(5.4, 800); x.textAlign = i === 0 ? 'right' : 'left'; x.textBaseline = 'middle';
+      x.fillText(`${i === 0 ? '▲ ' : ''}${(i === 0 ? o.print.prox : o.print.dist).toUpperCase()}${i === 0 ? '' : ' ▼'}`, 0, 0);
+    });
+    // device print along the right wall, repeated
+    const line = `${o.print.model} · ${o.print.name.toUpperCase()} · ${o.print.use.toUpperCase()}`;
+    x.font = font(4.2, 600); x.textAlign = 'left'; x.textBaseline = 'middle';
+    const tw = x.measureText(line).width + 60;
+    for (let vmm = 40; vmm < L * 1000 - 60; vmm += tw) {
+      mmAt(P * 0.6, vmm / 1000, Math.PI / 2);
+      x.fillStyle = inkDim; x.fillText(line, 0, 0);
+    }
+    // warning sticker near the distal end
+    const vS = Math.max(0.06, (o.sites && o.sites[1] ? o.sites[1].x + L / 2 : L * 0.8) - 0.075);
+    mmAt(P * 0.36, vS, Math.PI / 2);
+    x.scale(1.45, 1.45);
+    x.font = font(2.8, 800); const sw1 = x.measureText(o.print.warn.toUpperCase()).width;
+    x.font = font(2.1, 600); const sw2 = x.measureText(o.print.warn2.toUpperCase()).width;
+    const sw = Math.max(sw1, sw2) + 13.5;
+    x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(-0.6, -4.6, sw, 10.4);
+    x.fillStyle = '#e8a90f'; x.beginPath(); if (x.roundRect) x.roundRect(-1, -5.2, sw, 10.4, 1.2); else x.rect(-1, -5.2, sw, 10.4); x.fill();
+    x.fillStyle = '#16181a';
+    x.beginPath(); x.moveTo(4.5, -3.6); x.lineTo(8.4, 3.2); x.lineTo(0.6, 3.2); x.closePath(); x.fill();
+    x.fillStyle = '#e8a90f'; x.fillRect(4.1, -1.4, 0.8, 2.6); x.fillRect(4.1, 1.8, 0.8, 0.7);
+    x.fillStyle = '#16181a'; x.font = font(2.8, 800); x.textAlign = 'left';
+    x.fillText(o.print.warn.toUpperCase(), 10.5, -1.3);
+    x.font = font(2.1, 600); x.fillText(o.print.warn2.toUpperCase(), 10.5, 2.5);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    const map = tex(c, null, true), normal = tex(normalFromHeight(h, 2.2));
+    [map, normal].forEach(t => { t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.flipY = false; t.anisotropy = 8; });
+    return { map, normal };
+  }
+
+  // nylon webbing: ribs along the strap, bound edges, stitch lines, hook-and-loop patch at the free end
   function webbingTextures() {
-    const w = 64, h = 256;
+    const w = 64, h = 1024, r = rng(17);
     const c = cvs(w, h), cc = c.getContext('2d');
     cc.fillStyle = '#1c1f22'; cc.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x += 2) { cc.fillStyle = x % 4 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,0,.25)'; cc.fillRect(x, 0, 1, h); }
     for (let y = 0; y < h; y += 3) { cc.fillStyle = 'rgba(255,255,255,.025)'; cc.fillRect(0, y, w, 1); }
-    // edge binding + stitch lines (generic, no branding)
-    cc.fillStyle = '#121416'; cc.fillRect(0, 0, 4, h); cc.fillRect(w - 4, 0, 4, h);
+    cc.fillStyle = '#111315'; cc.fillRect(0, 0, 4, h); cc.fillRect(w - 4, 0, 4, h);
     cc.fillStyle = 'rgba(15,180,168,.85)';
     for (let y = 0; y < h; y += 8) { cc.fillRect(6, y, 2, 5); cc.fillRect(w - 8, y, 2, 5); }
+    // hook-and-loop patch (last fifth), box-stitched
+    const p0 = Math.round(h * 0.8);
+    cc.fillStyle = '#3a3e42'; cc.fillRect(5, p0, w - 10, h - p0 - 6);
+    for (let i = 0; i < 2600; i++) { const l = 50 + r() * 50; cc.fillStyle = `rgba(${l},${l + 3},${l + 6},.8)`; cc.fillRect(5 + r() * (w - 10), p0 + r() * (h - p0 - 6), 1, 1 + r() * 2); }
+    cc.strokeStyle = 'rgba(15,180,168,.8)'; cc.lineWidth = 1.2; cc.setLineDash([3, 2]);
+    cc.strokeRect(8, p0 + 3, w - 16, h - p0 - 12);
+    cc.beginPath(); cc.moveTo(8, p0 + 3); cc.lineTo(w - 8, h - 9); cc.moveTo(w - 8, p0 + 3); cc.lineTo(8, h - 9); cc.stroke();
     const hh = cvs(w, h), hc = hh.getContext('2d');
     hc.fillStyle = '#808080'; hc.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x += 2) { hc.fillStyle = x % 4 ? '#a0a0a0' : '#606060'; hc.fillRect(x, 0, 1, h); }
     hc.fillStyle = '#b8b8b8'; hc.fillRect(0, 0, 3, h); hc.fillRect(w - 3, 0, 3, h);
-    return { map: tex(c, [1, 4], true), normal: tex(normalFromHeight(hh, 3), [1, 4]) };
+    for (let i = 0; i < 3000; i++) { hc.fillStyle = r() > 0.5 ? '#c4c4c4' : '#5a5a5a'; hc.fillRect(5 + r() * (w - 10), p0 + r() * (h - p0 - 6), 1, 1); }
+    const m = tex(c, [1, 1], true), n = tex(normalFromHeight(hh, 3));
+    [m, n].forEach(t => { t.wrapT = THREE.ClampToEdgeWrapping; });
+    return { map: m, normal: n };
+  }
+  // woven edge binding round the rims: fine weave across, a stitch line down the middle
+  function bindingTextures() {
+    const w = 64, h = 256;
+    const c = cvs(w, h), x = c.getContext('2d');
+    x.fillStyle = '#0a6a62'; x.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 2) { x.fillStyle = y % 4 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.18)'; x.fillRect(0, y, w, 1); }
+    const sh = x.createLinearGradient(0, 0, w, 0); sh.addColorStop(0, 'rgba(0,0,0,.35)'); sh.addColorStop(0.2, 'rgba(0,0,0,0)'); sh.addColorStop(0.8, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.35)');
+    x.fillStyle = sh; x.fillRect(0, 0, w, h);
+    x.fillStyle = 'rgba(205,245,240,.9)';
+    for (let y = 2; y < h; y += 12) x.fillRect(w / 2 - 1.5, y, 3, 7);
+    const hh = cvs(w, h), hx = hh.getContext('2d');
+    hx.fillStyle = '#808080'; hx.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 2) { hx.fillStyle = y % 4 ? '#9a9a9a' : '#666'; hx.fillRect(0, y, w, 1); }
+    hx.fillStyle = '#5a5a5a'; for (let y = 2; y < h; y += 12) hx.fillRect(w / 2 - 2, y - 1, 4, 9);
+    hx.fillStyle = '#c0c0c0'; for (let y = 2; y < h; y += 12) hx.fillRect(w / 2 - 1, y, 2, 7);
+    return { map: tex(c, null, true), normal: tex(normalFromHeight(hh, 2.6)) };
   }
   // brushed / moulded shell grain
   function shellTextures() {
@@ -137,7 +261,18 @@
     const h = cvs(n, n), hc = h.getContext('2d');
     hc.fillStyle = '#808080'; hc.fillRect(0, 0, n, n);
     for (let i = 0; i < 5000; i++) { hc.fillStyle = `rgba(${r() > 0.5 ? 255 : 0},${r() > 0.5 ? 255 : 0},${r() > 0.5 ? 255 : 0},.06)`; hc.fillRect(r() * n, r() * n, 1 + r() * 2, 1); }
-    return { normal: tex(normalFromHeight(h, 0.6), [4, 4]) };
+    return { normal: tex(normalFromHeight(h, 0.6), [8, 14]) };
+  }
+  // the numbered pull tab at the free end of each strap
+  function tabNumberTexture(n) {
+    const c = cvs(64, 32), x = c.getContext('2d');
+    x.fillStyle = '#0b8379'; x.fillRect(0, 0, 64, 32);
+    x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(0, 0, 64, 3);
+    x.fillStyle = '#e9fffb'; x.font = '800 22px "JetBrains Mono", monospace'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(String(n), 32, 17);
+    const t = tex(c, null, true);
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
   }
   // studio-ish environment for reflections (up = +z)
   function envTexture(renderer, opts = {}) {
@@ -185,9 +320,10 @@
     const fill = new THREE.DirectionalLight(0xd6e8ff, 0.5); fill.position.set(0.7, -0.5, 0.6); scene.add(fill);
     const hemi = new THREE.HemisphereLight(0xeef4ff, 0x2c2c28, 0.45); hemi.position.set(0, 0, 1); scene.add(hemi);
 
-    // ── fade where the splint passes under the limb (screen-space capsule) ──
+    // ── where the splint passes under the limb it is hidden (the limb lies on it), and the foam right
+    //    next to the limb is darkened (contact shadow) - screen-space capsule fed every frame ──
     const FU = { uLimbA: { value: new THREE.Vector2() }, uLimbB: { value: new THREE.Vector2() }, uLimbR: { value: 0 }, uFade: { value: 0 }, uOpacity: { value: 1 } };
-    const fadeMat = (mat, keyName, floor = 0.1) => {
+    const fadeMat = (mat, keyName, floor = 0.1, ao = 0) => {
       mat.transparent = true;
       mat.onBeforeCompile = sh => {
         Object.assign(sh.uniforms, FU);
@@ -196,26 +332,31 @@
 uniform vec2 uLimbA; uniform vec2 uLimbB; uniform float uLimbR; uniform float uFade; uniform float uOpacity;
 float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0); return length(pa - ba * h); }`)
           .replace('#include <dithering_fragment>', `#include <dithering_fragment>
-{ float dd = nzaSeg(gl_FragCoord.xy, uLimbA, uLimbB); float kk = (1.0 - smoothstep(uLimbR * 0.8, uLimbR * 1.04, dd)) * uFade;
+{ float dd = nzaSeg(gl_FragCoord.xy, uLimbA, uLimbB);
+  float kk = (1.0 - smoothstep(uLimbR * 0.84, uLimbR * 1.0, dd)) * uFade;
+  ${ao ? `float oc = (1.0 - smoothstep(uLimbR * 0.95, uLimbR * 1.6, dd)) * uFade; gl_FragColor.rgb *= 1.0 - oc * ${ao.toFixed(3)};` : ''}
   gl_FragColor.a *= uOpacity * (1.0 - kk * ${(1 - floor).toFixed(3)}); }`);
       };
       mat.customProgramCacheKey = () => `nzafade-${keyName}`;
       return mat;
     };
-    const foamT = foamTextures(), webT = webbingTextures(), shellT = shellTextures();
+    const foamT = foamTextures(), webT = webbingTextures(), shellT = shellTextures(), bindT = bindingTextures();
     const M = {
-      foam: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#3c444b'), map: foamT.map, normalMap: foamT.normal, normalScale: new THREE.Vector2(0.7, 0.7), roughness: 0.94, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.55 }), 'foam', 0.12),
-      shell: fadeMat(new THREE.MeshPhysicalMaterial({ color: lin('#07887e'), normalMap: shellT.normal, normalScale: new THREE.Vector2(0.25, 0.25), roughness: 0.4, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.22, side: THREE.DoubleSide, envMapIntensity: 0.8 }), 'shell', 0.06),
-      cap: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#0a7f76'), roughness: 0.5, side: THREE.DoubleSide }), 'cap', 0.06),
-      pad: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#e6ecee'), normalMap: foamT.normal, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.97, envMapIntensity: 0.6 }), 'pad', 0.35),
-      roll: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#59666c'), normalMap: foamT.normal, roughness: 0.92 }), 'roll', 0.2),
-      plateFoam: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#3c444b'), map: foamT.map, normalMap: foamT.normal, roughness: 0.95 }), 'pfoam', 0.2),
+      foam: fadeMat(new THREE.MeshStandardMaterial({ color: 0xffffff, normalScale: new THREE.Vector2(0.75, 0.75), roughness: 0.93, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.55 }), 'foam', 0.0, 0.62),
+      shell: fadeMat(new THREE.MeshPhysicalMaterial({ color: lin('#07887e'), normalMap: shellT.normal, normalScale: new THREE.Vector2(0.25, 0.25), roughness: 0.4, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.22, side: THREE.DoubleSide, envMapIntensity: 0.8 }), 'shell', 0.0),
+      bind: fadeMat(new THREE.MeshStandardMaterial({ map: bindT.map, normalMap: bindT.normal, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.78, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.6 }), 'bind', 0.04),
+      cap: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#0a7f76'), roughness: 0.5, side: THREE.DoubleSide }), 'cap', 0.0),
+      pad: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#e6ecee'), normalMap: foamT.normal, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.97, envMapIntensity: 0.6 }), 'pad', 0.3),
+      roll: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#59666c'), normalMap: foamT.normal, roughness: 0.92 }), 'roll', 0.15),
+      plateFoam: fadeMat(new THREE.MeshStandardMaterial({ color: lin('#3c444b'), map: foamT.map, normalMap: foamT.normal, roughness: 0.95 }), 'pfoam', 0.12),
       strap: new THREE.MeshStandardMaterial({ map: webT.map, normalMap: webT.normal, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.68, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.7 }),
-      metal: new THREE.MeshStandardMaterial({ color: lin('#9aa3a9'), metalness: 0.95, roughness: 0.28, envMapIntensity: 1.3 }),
+      // an open strap lies on the ground: the limb covers it
+      strapO: fadeMat(new THREE.MeshStandardMaterial({ map: webT.map, normalMap: webT.normal, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.68, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.7 }), 'strapO', 0.0),
+      metal: new THREE.MeshStandardMaterial({ color: lin('#a3acb2'), metalness: 0.95, roughness: 0.26, envMapIntensity: 1.35 }),
       tab: new THREE.MeshPhysicalMaterial({ color: lin('#0b8379'), roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.25 }),
       dark: new THREE.MeshStandardMaterial({ color: lin('#16191c'), roughness: 0.55, metalness: 0.2 }),
-      glow: new THREE.MeshBasicMaterial({ color: lin('#2fe0d0'), transparent: true, opacity: 0.0, depthWrite: false }),
     };
+    const numMats = [1, 2, 3].map(n => new THREE.MeshPhysicalMaterial({ map: tabNumberTexture(n), roughness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.3 }));
     const group = new THREE.Group();
     scene.add(group);
     let G = null;
@@ -224,6 +365,10 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
 
     const NX = 96, K = 24, RC = 6;
     const RING = (K + 1) + RC + (K + 1) + RC;
+    const BV = RC + 2;                                   // binding verts per rim per slice
+    const JS = K + RC + 1 + Math.floor(K / 2);           // ring seam (underneath, out of sight)
+    const RIM_R = Array.from({ length: BV }, (_, r) => K + r);
+    const RIM_L = Array.from({ length: BV }, (_, r) => (2 * K + RC + 1 + r) % RING);
 
     function disposeGroup() {
       group.traverse(o => { if (o.geometry) o.geometry.dispose(); });
@@ -298,6 +443,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     }
 
     function buildTrough() {
+      const o = G.o;
       const pos = new Float32Array((NX + 1) * RING * 3), uv = new Float32Array((NX + 1) * RING * 2);
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -305,17 +451,49 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       const foam = [], shell = [];
       for (let i = 0; i < NX; i++) {
         for (let j = 0; j < RING; j++) {
+          const isFoam = j < K, isShell = j >= K + RC + 1 && j <= 2 * K + RC;
+          if (!isFoam && !isShell) continue;                         // rims → binding mesh
           const j2 = (j + 1) % RING;
           const a = i * RING + j, b = i * RING + j2, c = (i + 1) * RING + j, d = (i + 1) * RING + j2;
-          (j < K ? foam : shell).push(a, d, b, a, c, d);
+          (isFoam ? foam : shell).push(a, d, b, a, c, d);
         }
       }
       geo.setIndex(foam.concat(shell));
       geo.addGroup(0, foam.length, 0);
       geo.addGroup(foam.length, shell.length, 1);
+      // liner print: u over the inner surface only (seam under the splint)
+      const lt = linerTextures(o);
+      const u0 = ((0 - JS + RING) % RING) / RING;
+      [lt.map, lt.normal].forEach(t => { t.repeat.set(RING / K, 1); t.offset.set(-u0 * RING / K, 0); });
+      if (M.foam.map) M.foam.map.dispose();
+      if (M.foam.normalMap) M.foam.normalMap.dispose();
+      M.foam.map = lt.map; M.foam.normalMap = lt.normal; M.foam.needsUpdate = true;
       const mesh = new THREE.Mesh(geo, [M.foam, M.shell]);
       mesh.renderOrder = 2;
       group.add(mesh);
+      // woven binding over both rims (own vertices / UVs)
+      const bgeo = new THREE.BufferGeometry();
+      bgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((NX + 1) * 2 * BV * 3), 3));
+      const buv = new Float32Array((NX + 1) * 2 * BV * 2);
+      const bi = [];
+      for (let i = 0; i <= NX; i++) {
+        for (let sd = 0; sd < 2; sd++) {
+          for (let r = 0; r < BV; r++) {
+            const q = ((i * 2 + sd) * BV + r) * 2;
+            buv[q] = r / (BV - 1); buv[q + 1] = (o.L * i / NX) / 0.05;
+            if (i < NX && r < BV - 1) {
+              const a = (i * 2 + sd) * BV + r, b = a + 1, c = ((i + 1) * 2 + sd) * BV + r, d = c + 1;
+              bi.push(a, d, b, a, c, d);
+            }
+          }
+        }
+      }
+      bgeo.setAttribute('uv', new THREE.BufferAttribute(buv, 2));
+      bgeo.setIndex(bi);
+      bindT.map.repeat.set(1, 1); bindT.normal.repeat.set(1, 1);
+      const bind = new THREE.Mesh(bgeo, M.bind);
+      bind.renderOrder = 3;
+      group.add(bind);
       // end caps (own vertices → flat normals)
       const capGeo = new THREE.BufferGeometry();
       capGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2 * RING * 3), 3));
@@ -332,7 +510,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       const caps = new THREE.Mesh(capGeo, M.cap);
       caps.renderOrder = 2;
       group.add(caps);
-      G.trough = mesh; G.caps = caps;
+      G.trough = mesh; G.caps = caps; G.bind = bind;
       G.ringBuf = new Float32Array(RING * 2);
       fillTrough(true);
     }
@@ -340,6 +518,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     function fillTrough(first) {
       const o = G.o;
       const pos = G.trough.geometry.attributes.position.array, uv = G.trough.geometry.attributes.uv.array;
+      const bpos = G.bind.geometry.attributes.position.array;
       const cap = G.caps.geometry.attributes.position.array;
       for (let i = 0; i <= NX; i++) {
         const x = -o.L / 2 + o.L * i / NX;
@@ -347,20 +526,26 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         for (let j = 0; j < RING; j++) {
           const p = (i * RING + j) * 3, q = (i * RING + j) * 2;
           pos[p] = x; pos[p + 1] = G.ringBuf[j * 2]; pos[p + 2] = G.ringBuf[j * 2 + 1];
-          if (first) { uv[q] = j / RING * 3; uv[q + 1] = (x + o.L / 2) * 6; }
+          if (first) { uv[q] = ((j - JS + RING) % RING) / RING; uv[q + 1] = (x + o.L / 2) / o.L; }
           if (i === 0 || i === NX) {
             const e = i === 0 ? 0 : 1, cp = (e * RING + j) * 3;
             cap[cp] = x; cap[cp + 1] = pos[p + 1]; cap[cp + 2] = pos[p + 2];
           }
         }
+        for (let sd = 0; sd < 2; sd++) {
+          const rim = sd ? RIM_L : RIM_R;
+          for (let r = 0; r < BV; r++) {
+            const j = rim[r], b = ((i * 2 + sd) * BV + r) * 3;
+            bpos[b] = x; bpos[b + 1] = G.ringBuf[j * 2]; bpos[b + 2] = G.ringBuf[j * 2 + 1] + 0.0004;
+          }
+        }
       }
-      G.trough.geometry.attributes.position.needsUpdate = true;
+      [G.trough, G.bind, G.caps].forEach(m => {
+        m.geometry.attributes.position.needsUpdate = true;
+        m.geometry.computeVertexNormals();
+        m.geometry.computeBoundingSphere();
+      });
       if (first) G.trough.geometry.attributes.uv.needsUpdate = true;
-      G.trough.geometry.computeVertexNormals();
-      G.trough.geometry.computeBoundingSphere();
-      G.caps.geometry.attributes.position.needsUpdate = true;
-      G.caps.geometry.computeVertexNormals();
-      G.caps.geometry.computeBoundingSphere();
     }
 
     function roundedRect(w, h, r) {
@@ -387,19 +572,32 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         pf.position.set(o.L / 2 - 0.01, 0, base + hgt / 2 + 0.006);
         pf.renderOrder = 3;
         group.add(pf);
-        // heel strap slot ribs on the plate top edge
+        // heel-strap slot ribs and a lightening slot on the plate top edge
         for (const sgn of [-1, 1]) {
           const rib = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.022, 0.008), M.tab);
           rib.position.set(o.L / 2 + 0.002, sgn * (w / 2 - 0.02), base + hgt - 0.004);
           group.add(rib);
+          const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.0032, 0.0032, 0.003, 14), M.metal);
+          screw.rotation.z = Math.PI / 2;
+          screw.position.set(o.L / 2 + 0.0035, sgn * (w / 2 - 0.035), base + 0.03);
+          group.add(screw);
         }
+        const slot = new THREE.Mesh(new THREE.BoxGeometry(0.0125, w * 0.42, 0.012), M.dark);
+        slot.position.set(o.L / 2 + 0.0005, 0, base + hgt - 0.022);
+        group.add(slot);
       }
       if (o.kind === 'arm') {
         const hw = profile(o.L / 2 - 0.04).hw;
-        const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, hw * 2 + 0.004, 24, 1), M.roll);
+        const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, hw * 2 + 0.004, 28, 1), M.roll);
         roll.position.set(o.L / 2 - 0.045, 0, z0 + 0.019);
         roll.renderOrder = 3;
         group.add(roll);
+        for (const sgn of [-1, 1]) {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0195, 0.0016, 6, 28), M.dark);
+          ring.rotation.x = Math.PI / 2;
+          ring.position.set(o.L / 2 - 0.045, sgn * (hw - 0.004), z0 + 0.019);
+          group.add(ring);
+        }
       }
     }
 
@@ -426,7 +624,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     const SM = 34;
     function buildStraps() {
       const o = G.o;
-      G.straps = o.strapX.map(x => {
+      G.straps = o.strapX.map((x, si) => {
         const pos = new Float32Array(SM * 4 * 3), uv = new Float32Array(SM * 4 * 2);
         const idx = [];
         for (let i = 0; i < SM - 1; i++) {
@@ -446,23 +644,30 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         const mesh = new THREE.Mesh(geo, M.strap);
         mesh.renderOrder = 5;
         group.add(mesh);
-        // anchor tab on the near rim, cam buckle on the far rim
+        // anchor tab riveted on the near rim
         const tab = new THREE.Group();
-        const tb = new THREE.Mesh(new THREE.BoxGeometry(o.strapW + 0.012, 0.012, 0.016), M.tab);
+        const tb = new THREE.Mesh(new THREE.BoxGeometry(o.strapW + 0.012, 0.014, 0.016), M.tab);
         tab.add(tb);
-        const rivet = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.004, 12), M.metal);
-        rivet.rotation.x = Math.PI / 2; rivet.position.set(0, 0, 0.009);
-        tab.add(rivet);
+        for (const dx of [-1, 1]) {
+          const rivet = new THREE.Mesh(new THREE.CylinderGeometry(0.0032, 0.0032, 0.004, 14), M.metal);
+          rivet.rotation.x = Math.PI / 2; rivet.position.set(dx * o.strapW * 0.3, 0, 0.009);
+          tab.add(rivet);
+        }
         group.add(tab);
-        const buckle = new THREE.Group();
-        const bb = new THREE.Mesh(new THREE.BoxGeometry(o.strapW + 0.01, 0.016, 0.012), M.metal);
-        buckle.add(bb);
-        const lever = new THREE.Mesh(new THREE.BoxGeometry(o.strapW * 0.62, 0.012, 0.006), M.tab);
-        lever.position.set(0, 0.002, 0.008);
-        buckle.add(lever);
-        buckle.visible = false;
-        group.add(buckle);
-        return { x, mesh, tab, buckle, key: '' };
+        // D-ring on the far rim (the strap passes through and folds back on its hook patch)
+        const dring = new THREE.Group();
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(o.strapW * 0.56, 0.0023, 8, 26, Math.PI), M.metal);
+        dring.add(arc);
+        const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.0023, 0.0023, o.strapW * 1.12, 10), M.metal);
+        bar.rotation.z = Math.PI / 2;
+        dring.add(bar);
+        dring.visible = false;
+        group.add(dring);
+        // numbered pull tab on the free end
+        const nt = new THREE.Mesh(new THREE.BoxGeometry(o.strapW * 0.72, 0.022, 0.0032), [M.tab, M.tab, M.tab, M.tab, numMats[si % 3], M.tab]);
+        nt.renderOrder = 6;
+        group.add(nt);
+        return { x, mesh, tab, dring, nt, key: '' };
       });
     }
 
@@ -479,7 +684,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       for (let i = 0; i < SM; i++) {
         const u = i / (SM - 1);
         // open: from the tab, down onto the ground, lying out to the side
-        const oy = yA + side * (0.012 + u * 0.19), oz = ground + (pr.zr - ground) * Math.exp(-u * 26) + 0.0015;
+        const oy = yA + side * (0.012 + u * 0.15), oz = ground + (pr.zr - ground) * Math.exp(-u * 26) + 0.0015;
         // wrapped: arch from the tab over the limb to the far rim
         const th = Math.PI * u;
         const wy = yA * Math.cos(th);
@@ -512,18 +717,34 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       s.mesh.geometry.attributes.position.needsUpdate = true;
       s.mesh.geometry.computeVertexNormals();
       s.mesh.geometry.computeBoundingSphere();
-      s.tab.position.set(s.x, info.yA - o.anchorSide * 0.002, info.zr - 0.004);
-      s.buckle.position.set(s.x, -info.yA, info.zr + 0.002);
-      s.buckle.visible = st.k >= 0.999;
+      s.mesh.material = st.k > 0.3 ? M.strap : M.strapO;
+      const side = o.anchorSide;
+      s.tab.position.set(s.x, info.yA - side * 0.002, info.zr - 0.004);
+      const wrapped = st.k >= 0.999;
+      s.dring.visible = wrapped;
+      s.dring.position.set(s.x, -info.yA - side * 0.002, info.zr + 0.0035);
+      s.dring.rotation.set(0, 0, side > 0 ? Math.PI : 0);
+      if (wrapped) {
+        // tail folded back over the D-ring: numbered tab hangs just outside the far rim
+        s.nt.position.set(s.x, -info.yA - side * (o.strapW * 0.56 + 0.012), info.zr - 0.002);
+        s.nt.rotation.set(side * 0.42, 0, 0);
+      } else {
+        const ey = buf[(SM - 1) * 2], ez = buf[(SM - 1) * 2 + 1];
+        s.nt.position.set(s.x, ey + side * 0.011, ez + 0.0018);
+        s.nt.rotation.set(0, 0, 0);
+      }
     }
 
     const api = {
       ok: true,
-      // o = { kind, segment, L, width, depth, th, limbR, plate, sites:[{x}], strapX:[x], strapW, anchorSide, sig }
+      // o = { kind, segment, L, width, depth, th, limbR, plate, sites:[{x}], strapX:[x], strapW, anchorSide, print:{} }
       build(o) {
         disposeGroup();
         const gap = Math.max(0.008, o.width / 2 - o.th - o.limbR - 0.003);
-        G = { o: Object.assign({ gap, flare: 0.34, sig: 0.04 }, o), P: { points: [], pads: [], zone0: 0.72, zone1: 1.0 } };
+        const oo = Object.assign({ gap, flare: 0.34, sig: 0.04 }, o);
+        const hw = oo.limbR + 0.003 + gap;
+        oo.perim = Math.PI / 2 * Math.sqrt(2 * (hw * hw + oo.depth * oo.depth)) * 1.12;
+        G = { o: oo, P: { points: [], pads: [], zone0: 0.72, zone1: 1.0 } };
         buildTrough();
         buildEnd();
         buildPads();
@@ -567,8 +788,8 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         (G.straps || []).forEach((s, i) => {
           const ss = st.straps && st.straps[i] ? st.straps[i] : { k: 0, tension: 0, show: false };
           const show = ss.show !== false;
-          if (s.mesh.visible !== show) { s.mesh.visible = s.tab.visible = show; dirty = true; }
-          if (!show) { s.buckle.visible = false; return; }
+          if (s.mesh.visible !== show) { s.mesh.visible = s.tab.visible = s.nt.visible = show; dirty = true; }
+          if (!show) { s.dring.visible = false; return; }
           const kk = `${ss.k.toFixed(3)}|${(ss.tension || 0).toFixed(3)}`;
           if (kk !== s.key || G.strapsStale) { s.key = kk; fillStrap(s, ss); dirty = true; }
         });
@@ -685,6 +906,8 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       window.addEventListener('mousemove', e => this.pointerMove(e));
       window.addEventListener('mouseup', e => { if (e.button === 0) this.pointerUp(e); });
       this.loop = this.loop.bind(this);
+      this.hudTick = this.hudTick.bind(this);
+      this.reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     },
 
     open(d) {
@@ -773,10 +996,9 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         onAbort: () => this.abort(),
         onTool: k => this.selectTool(k),
       });
-      this.pp.el.classList.add('sp-pp');
       this.enterStep(1);
-      if (d.open) setTimeout(() => this.pp && this.S === S && this.pp.flash('warn', d.dressed ? T('open_dressed', 'Open fracture, already covered. Keep the dressing clean under the splint.') : T('open_warn', 'Open fracture: the bone broke the skin. Cover it before you strap over it.'), 5200), 600);
-      else if (d.fracture && d.fracture.displaced) setTimeout(() => this.pp && this.S === S && this.pp.flash('warn', T('displaced', 'Displaced %s°. Splint it where it lies - it is set in hospital.', Math.round(d.fracture.angle || 0)), 4600), 600);
+      if (d.open) setTimeout(() => this.pp && this.S === S && S.step === 1 && this.pp.flash('warn', d.dressed ? T('open_dressed', 'Open fracture, already covered. Keep the dressing clean under the splint.') : T('open_warn', 'Open fracture: the bone broke the skin. Cover it before you strap over it.'), 5200), 600);
+      else if (d.fracture && d.fracture.displaced) setTimeout(() => this.pp && this.S === S && S.step === 1 && this.pp.flash('warn', T('displaced', 'Displaced %s°. Splint it where it lies - it is set in hospital.', Math.round(d.fracture.angle || 0)), 4600), 600);
       if (!this.raf) { this.last = 0; this.raf = requestAnimationFrame(this.loop); }
     },
 
@@ -910,10 +1132,15 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
           : T('s2_text_shape', 'Press and hold each point until the walls close on the limb. Let go **inside the band** - squeezing past it leaves a pressure point.');
       } else {
         const allLocked = S.straps.every(s => s.state === 'locked');
-        title = allLocked ? T('s3_title_cms', 'Check below the splint') : T('s3_title', 'Strap it in place');
-        text = allLocked
-          ? T('s3_text_cms', 'Click the **%s** to check circulation, movement and feeling below the splint.', cmsName)
-          : T('s3_text', 'Click a strap to wrap it over the limb, then click again (or {%s}) when the needle sits **in the band**. Keep straps off the break.', keyLabel(this.K.set));
+        if (allLocked && S.cms.state === 'bad') {
+          title = T('s3_title_bad', 'Loosen the tight strap');
+          text = T('s3_text_bad', 'Click the strap marked in red to loosen it, cinch it again **inside the band**, then check the **%s** again.', cmsName);
+        } else {
+          title = allLocked ? T('s3_title_cms', 'Check below the splint') : T('s3_title', 'Strap it in place');
+          text = allLocked
+            ? T('s3_text_cms', 'Click the **%s** to check circulation, movement and feeling below the splint.', cmsName)
+            : T('s3_text', 'Click a strap to wrap it over the limb, then click again (or {%s}) when the needle sits **in the band**. Keep straps off the break.', keyLabel(this.K.set));
+        }
       }
       this.pp.set({ step: n, title, text, tools: this.toolsFor(), hints: this.hintsFor(n) });
       this.updateReadout(true);
@@ -1053,9 +1280,21 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       }
       return 1;
     },
+    // the splint starts lying beside the limb - on the free side (away from the body) unless that
+    // side runs into the HUD columns or off screen
     initialPose(f) {
-      const side = this.bodySide(f);
-      return { cu: 0.04, cv: side * (this.size.width * 1.45 + 0.03), phi: side * 0.32 };
+      const away = this.bodySide(f);
+      const W = this.over.width, H = this.over.height, Z = H / 1080;
+      const safe = { x0: 450 * Z, x1: W - 330 * Z, y0: 30 * Z, y1: H - 30 * Z };
+      const pose = sd => ({ cu: 0.03, cv: sd * (this.size.width * 1.3 + 0.03), phi: sd * 0.14 });
+      const overflow = p => {
+        const g = this.geom(f, p);
+        const hl = g.H * f.ppm, hw = (this.size.width / 2 + 0.17) * f.ppm;
+        const ex = Math.abs(g.s.x) * hl + Math.abs(g.m.x) * hw, ey = Math.abs(g.s.y) * hl + Math.abs(g.m.y) * hw;
+        return Math.max(0, safe.x0 - (g.C.x - ex)) + Math.max(0, g.C.x + ex - safe.x1) + Math.max(0, safe.y0 - (g.C.y - ey)) + Math.max(0, g.C.y + ey - safe.y1);
+      };
+      const a = pose(away), b = pose(-away);
+      return overflow(b) + 40 * Z < overflow(a) ? b : a;
     },
 
     resetSplint() {
@@ -1094,7 +1333,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
 
     /* ─────────────── pointer ─────────────── */
     px(e) { return v(e.clientX / window.innerWidth * this.over.width, e.clientY / window.innerHeight * this.over.height); },
-    overUi(e) { return !!(e.target && e.target.closest && e.target.closest('.pp-card,.pp-read,.pp-belt,.pp-bot,.sp-res,.sp-hud,.sp-frac,.sp-cms')); },
+    overUi(e) { return !!(e.target && e.target.closest && e.target.closest('.pp-col,.pp-belt,.sp-res,.sp-hud,.sp-frac,.sp-cms')); },
 
     pointerDown(e) {
       const S = this.S;
@@ -1331,6 +1570,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     cmsTick(now) {
       const S = this.S, d = this.d;
       if (S.cms.state !== 'checking') return;
+      if (S.cms.hold) S.cms.t = now - 1700;      // preview: freeze the check half-way
       const el = (now - S.cms.t) / 1000;
       const step = Math.max(0.75, (S.cms.refill || 1.4) * 0.6);
       const shown = Math.min(3, Math.floor(el / step));
@@ -1397,11 +1637,12 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         <div class="hd"><span class="k">${icon('splint')}${esc(T('res_kicker', 'Splint record'))}</span><span class="tm">${icon('timer')}${NZA.fmt.time(t)}</span></div>
         <div class="top">
           <div class="dial g-${esc(grade)}"><svg viewBox="0 0 80 80"><circle class="bg" cx="40" cy="40" r="34"/><circle class="fg" cx="40" cy="40" r="34" stroke-dasharray="${ring.toFixed(1)}" stroke-dashoffset="${(ring * (1 - score / 100)).toFixed(1)}"/></svg><b>${esc(grade)}</b><small>${score}</small></div>
-          <div class="who"><div class="ttl">${esc(this.d.regionLabel || '')}</div><div class="dev">${esc(this.d.deviceLabel || '')} · ${esc(this.d.deviceModel || '')}</div>
+          <div class="who"><div class="ttl">${esc(this.d.regionLabel || '')}</div><div class="dv">${esc(this.d.deviceLabel || '')} · ${esc(this.d.deviceModel || '')}</div>
             <div class="chips"><span class="chipx sm teal">${icon('check')}${esc(T('res_cms', 'Distal check intact'))}</span>${r.pressure ? `<span class="chipx sm amber">${esc(T('res_press', '%s pressure point(s)', r.pressure))}</span>` : ''}${S.cms.fixed ? `<span class="chipx sm">${esc(T('res_fixed', 'Strap re-done'))}</span>` : ''}</div></div>
         </div>
+        <div class="map">${this.splintMapSVG()}</div>
         <div class="bars">${row(T('res_align', 'Alignment'), r.align ?? score, 'ruler')}${row(T('res_mould', 'Shaping'), r.mould ?? score, 'hand')}${row(T('res_straps', 'Straps'), r.straps ?? score, 'cuff')}</div>
-        ${o.msg ? `<div class="msg">${esc(o.msg)}</div>` : ''}`;
+        ${o.msg ? `<div class="msg">${icon('check')}<span>${esc(o.msg)}</span></div>` : ''}`;
       this.resEl.hidden = false;
       this.cmsEl.hidden = true;
       if (this.trace) { this.trace.stop(); this.trace = null; }
@@ -1410,7 +1651,65 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         text: T('done_text', 'The limb is held above and below the break. Re-check the pulse below it on the way in.'),
         label: T('done', 'Done'), onDone: () => this.done(),
       });
-      this.pp.set({ wide: { label: T('score', 'Score'), value: score, tone: 'teal', meter: { value: score / 100 }, caption: T('grade', 'Grade %s', grade), captionTone: 'teal' }, stats: [] });
+      const cmsOk = (S.cms.rows || []).every(x => x.tone === 'teal');
+      this.pp.set({
+        wide: { label: T('score', 'Score'), value: score, tone: 'teal', meter: { value: score / 100 }, caption: T('grade', 'Grade %s', grade), captionTone: 'teal' },
+        stats: [
+          { id: 'tm', label: T('res_time', 'Time'), value: NZA.fmt.time(t) },
+          { id: 'pp', label: T('pressure_pts', 'Pressure points'), value: r.pressure || 0, tone: r.pressure ? 'amber' : 'teal' },
+          { id: 'cm', label: T('cms', 'Distal check'), value: cmsOk ? T('cms_ok', 'Intact') : T('cms_noted', 'Noted'), small: true, tone: cmsOk ? 'teal' : 'amber' },
+        ],
+        hints: [{ keys: ['Enter'], label: T('h_finish', 'Finish') }],
+        abort: false,
+      });
+    },
+
+    // top view of the finished splint for the record: joint lines, break, pads, shaping points
+    // (tone = how well each one sits), straps with their tension, distal check
+    splintMapSVG() {
+      const S = this.S, d = this.d, J = d.joints || {};
+      const W = 300, H = 96, x0 = 14, x1 = 286, cy = 42, L = this.Ls;
+      const X = x => x0 + (x + L / 2) / L * (x1 - x0);
+      const hw = 15, lr = 9;
+      const [z0, z1] = this.tune.shapeZone;
+      const zone = this.tune.strapZone;
+      const plate = this.kind === 'leg' && this.segment === 'lower';
+      let g = `<defs><linearGradient id="spm-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26303a"/><stop offset=".5" stop-color="#1a2128"/><stop offset="1" stop-color="#26303a"/></linearGradient>
+        <linearGradient id="spm-l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(120,150,190,.28)"/><stop offset=".5" stop-color="rgba(150,180,215,.42)"/><stop offset="1" stop-color="rgba(120,150,190,.28)"/></linearGradient></defs>`;
+      g += `<rect x="${x0}" y="${cy - hw}" width="${x1 - x0}" height="${hw * 2}" rx="9" fill="url(#spm-f)" stroke="#2fe0d0" stroke-width="1.6"/>`;
+      if (plate) g += `<rect x="${x1 - 3}" y="${cy - hw - 4}" width="6" height="${hw * 2 + 8}" rx="2.5" fill="#0b8379" stroke="#2fe0d0" stroke-width="1"/>`;
+      g += `<rect x="${x0 - 6}" y="${cy - lr}" width="${x1 - x0 + 4}" height="${lr * 2}" rx="${lr}" fill="url(#spm-l)"/>`;
+      // ruler ticks along the top edge
+      for (let cm = 0; cm <= Math.floor(L * 100); cm += 5) { const x = X(-L / 2 + cm / 100); g += `<line x1="${x.toFixed(1)}" y1="${cy - hw - 2}" x2="${x.toFixed(1)}" y2="${cy - hw - (cm % 10 ? 5 : 8)}" stroke="rgba(214,224,228,.35)" stroke-width="1"/>`; }
+      // joints
+      S.sites.forEach((s, i) => {
+        const x = X(s.x);
+        g += `<line x1="${x.toFixed(1)}" y1="${cy - hw}" x2="${x.toFixed(1)}" y2="${cy + hw}" stroke="#2fe0d0" stroke-width="1.2" stroke-dasharray="2.5 2"/>`;
+        if (s.padded) [-1, 1].forEach(sg => { g += `<ellipse cx="${x.toFixed(1)}" cy="${cy + sg * (lr + 3)}" rx="6" ry="2.6" fill="#e6ecee" opacity=".9"/>`; });
+        g += `<text x="${x.toFixed(1)}" y="${H - 6}" class="mj" text-anchor="middle">${esc(((i === 0 ? J.prox : J.dist) || '').toUpperCase())}</text>`;
+        g += `<line x1="${x.toFixed(1)}" y1="${cy + hw + 3}" x2="${x.toFixed(1)}" y2="${H - 17}" stroke="rgba(47,224,208,.35)" stroke-width="1"/>`;
+      });
+      // the break
+      const fx = X(S.xFr);
+      let zz = `M${fx - 2} ${cy - lr + 1}`;
+      for (let i = 1; i <= 5; i++) zz += ` L${fx + (i % 2 ? 3 : -3)} ${cy - lr + 1 + (lr * 2 - 2) * i / 5}`;
+      g += `<path d="${zz}" fill="none" stroke="#ff6b70" stroke-width="1.6" stroke-linejoin="round"/>`;
+      // shaping points
+      S.points.forEach(p => {
+        const x = X(p.x), ok = p.f >= z0 && p.f <= z1 && !p.tight;
+        g += `<circle cx="${x.toFixed(1)}" cy="${cy}" r="2.6" fill="${p.tight ? '#f3c35a' : ok ? '#2fe0d0' : 'rgba(255,255,255,.6)'}" stroke="#0c0d10" stroke-width="1"/>`;
+      });
+      // straps + tension
+      S.straps.forEach(st => {
+        const x = X(st.x), w = Math.max(8, STRAP_W[this.kind] / L * (x1 - x0));
+        const tone = st.tight ? '#ff7478' : st.tension < zone[0] ? '#f3c35a' : '#2fe0d0';
+        g += `<rect x="${(x - w / 2).toFixed(1)}" y="${cy - hw - 2}" width="${w.toFixed(1)}" height="${hw * 2 + 4}" rx="2" fill="rgba(28,31,34,.92)" stroke="${tone}" stroke-width="1"/>`;
+        g += `<text x="${x.toFixed(1)}" y="${cy - hw - 9}" class="mt" text-anchor="middle" fill="${tone}">${Math.round(st.tension * 100)}</text>`;
+      });
+      // distal check
+      const cx = X(L / 2) + (plate ? -2 : 0), cyc = cy + hw + 10;
+      g += `<path d="M${cx} ${cyc - 6} L${cx + 6} ${cyc} L${cx} ${cyc + 6} L${cx - 6} ${cyc} Z" fill="rgba(8,175,162,.3)" stroke="#2fe0d0" stroke-width="1.2"/><path d="M${cx - 2.6} ${cyc} l1.8 1.9 3.4 -3.6" fill="none" stroke="#2fe0d0" stroke-width="1.4" stroke-linecap="round"/>`;
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${g}</svg>`;
     },
 
     done() {
@@ -1517,6 +1816,15 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
             kind: this.kind, segment: this.segment, L: this.Ls, width: this.size.width, depth: this.size.depth, th: this.size.wall,
             limbR: this.size.limbRadius, plate: this.kind === 'leg' && this.segment === 'lower', strapW: STRAP_W[this.kind],
             sites: S.sites.map(s => ({ x: s.x })), strapX: S.straps.map(s => s.x), anchorSide: -S.side,
+            print: {
+              prox: (this.d.joints && this.d.joints.prox) || T('j_prox', 'Upper joint'),
+              dist: (this.d.joints && this.d.joints.dist) || T('j_dist', 'Lower joint'),
+              model: this.d.deviceModel || '',
+              name: this.kind === 'leg' ? T('print_leg', 'Posterior leg splint') : T('print_arm', 'Posterior arm splint'),
+              use: T('print_use', 'Single patient use · latex free'),
+              warn: T('print_warn', 'Check pulse below'),
+              warn2: T('print_warn2', 'after every strap'),
+            },
           });
           this.glBuilt = true;
         }
@@ -1529,7 +1837,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         });
         this.gl.render(w, h, this.fov);
       }
-      const shKey = `${Math.round(g.C.x)},${Math.round(g.C.y)},${g.s.x.toFixed(3)},${g.s.y.toFixed(3)},${g.ppm.toFixed(1)},${introK.toFixed(2)},${fu.w}x${fu.h}`;
+      const shKey = `${Math.round(g.C.x)},${Math.round(g.C.y)},${g.s.x.toFixed(3)},${g.s.y.toFixed(3)},${g.ppm.toFixed(1)},${introK.toFixed(2)},${fu.w}x${fu.h},${S.step === 3 ? S.straps.map(x => x.k.toFixed(2)).join('/') : ''}`;
       if (shKey !== this._shKey) { this._shKey = shKey; clearUnder(); this.drawShadow(f, g, introK); }
       if (!this.gl) this.drawFlatSplint(f, g);
 
@@ -1564,6 +1872,28 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.lineTo(b.x + lift.x, b.y + lift.y); c.lineTo(a.x + lift.x, a.y + lift.y); c.closePath(); c.fill();
       }
       c.restore();
+      // the limb lies on the splint: no splint shadow on it
+      c.save();
+      c.globalCompositeOperation = 'destination-out';
+      c.filter = `blur(${Math.round(5 * U)}px)`;
+      c.strokeStyle = '#000'; c.lineCap = 'round'; c.lineWidth = 2 * o.limbRadius * g.ppm * 0.94;
+      c.beginPath(); c.moveTo(f.limbA.x, f.limbA.y); c.lineTo(f.limbB.x, f.limbB.y); c.stroke();
+      c.restore();
+      // straps over the limb throw a soft shadow on it
+      if (this.S.step === 3) {
+        const sw = STRAP_W[this.kind], lr = o.limbRadius * 1.08;
+        c.save();
+        c.filter = `blur(${Math.round(4 * U)}px)`;
+        c.fillStyle = 'rgba(0,0,0,.9)';
+        c.translate(5 * U, 8 * U);
+        this.S.straps.forEach(st => {
+          if (st.k < 0.05) return;
+          c.globalAlpha = 0.42 * k * easeOut(st.k);
+          const p1 = this.world(g, st.x - sw / 2, -lr), p2 = this.world(g, st.x + sw / 2, -lr), p3 = this.world(g, st.x + sw / 2, lr), p4 = this.world(g, st.x - sw / 2, lr);
+          c.beginPath(); c.moveTo(p1.x, p1.y); c.lineTo(p2.x, p2.y); c.lineTo(p3.x, p3.y); c.lineTo(p4.x, p4.y); c.closePath(); c.fill();
+        });
+        c.restore();
+      }
     },
 
     // 2D fallback when WebGL is unavailable
@@ -1832,7 +2162,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         // tension gauge beside the strap
         if (s.state === 'sweep') {
           const base = this.world(g, s.x, S.side * (half + 0.02));
-          const gh = Math.max(74 * U, 0.12 * g.ppm), gw = 10 * U;
+          const gh = Math.max(96 * U, 0.15 * g.ppm), gw = 11 * U;
           const gp = add(base, mul(g.m, S.side * (gw + 16 * U)));
           c.save();
           c.translate(gp.x, gp.y);
@@ -1843,6 +2173,9 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
           const yOf = tv => gh / 2 - tv * gh;
           c.fillStyle = 'rgba(8,175,162,.45)'; c.fillRect(-gw / 2, yOf(z[1]), gw, (z[1] - z[0]) * gh);
           c.fillStyle = 'rgba(229,72,77,.45)'; c.fillRect(-gw / 2, -gh / 2, gw, (1 - t.strapTight) * gh);
+          c.fillStyle = 'rgba(255,255,255,.35)';
+          for (let i = 0; i <= 10; i++) { const ty = yOf(i / 10); c.fillRect(gw / 2 + 2 * U, ty - 0.5 * U, (i % 5 ? 3 : 6) * U, 1 * U); }
+          c.fillStyle = COL.tealHi; [z[0], z[1]].forEach(zv => c.fillRect(-gw / 2 - 3 * U, yOf(zv) - 0.75 * U, gw + 6 * U, 1.5 * U));
           const ny = yOf(s.tension);
           const inZone = s.tension >= z[0] && s.tension <= z[1];
           c.fillStyle = s.tension > t.strapTight ? COL.redHi : inZone ? COL.tealHi : '#fff';
@@ -1911,44 +2244,212 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       });
     },
 
-    /* ═════════════════════ MOBILITY CARD ═════════════════════ */
+    /* ═════════════════════ MOBILITY CARD ═════════════════════
+       Bottom-right card while driving / pushing a wheelchair or walking on crutches.
+       chair / push: { kind, title, sub, state ('drive'|'blocked'|'pushed'|'push'), speed (m/s, signed), max,
+                       slope (deg, + = uphill), turn (-1..1), dist (m), blocked (text), keys }
+       crutch:       { kind, title, sub, state ('walk'|'stand'|'vehicle'), moving, steps, side ('l'|'r'|nil), keys } */
     hudShow(h) {
-      this.hud = Object.assign({}, this.hud && this.hud.kind === h.kind ? this.hud : {}, h);
-      const o = this.hud;
-      const el = this.hudEl;
-      const kind = o.kind || 'chair';
-      const speed = Number(o.speed) || 0;
-      const max = Math.max(0.1, Number(o.max) || 2);
-      const frac = clamp(Math.abs(speed) / max, 0, 1.4);
-      const slope = Number(o.slope) || 0;
-      const keys = (o.keys || []).map(k => `<span class="hk">${(k.keys || []).map(x => `<kbd>${esc(x)}</kbd>`).join('')}<em>${esc(k.label)}</em></span>`).join('');
-      el.className = `sp-hud nza-hud solid kind-${kind} ${o.state ? `st-${o.state}` : ''}${this.S ? ' away' : ''}`;
-      if (kind === 'crutch') {
-        el.innerHTML = `
-          <div class="hrow"><span class="hic">${icon('crutch')}</span><div class="tx"><span class="kick">${esc(T('hud_kicker_mob', 'Mobility aid'))}</span><b>${esc(o.title || '')}</b><small>${esc(o.sub || '')}</small></div></div>
-          ${keys ? `<div class="keys">${keys}</div>` : ''}`;
-      } else {
-        const R = 30, A0 = 150, SW = 240;
-        const pt = (fv, r = R) => { const a = (A0 + SW * clamp(fv, 0, 1)) * Math.PI / 180; return [40 + r * Math.cos(a), 40 + r * Math.sin(a)]; };
-        const arc = (f0, f1) => { const [x0, y0] = pt(f0), [x1, y1] = pt(f1); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${(f1 - f0) * SW > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
-        const fv = clamp(frac, 0, 1);
-        const kmh = Math.abs(speed) * 3.6;
-        const steep = Math.abs(slope) >= 8;
-        el.innerHTML = `
-          <div class="hrow">
-            <div class="spd ${speed < -0.05 ? 'rev' : ''}"><svg viewBox="0 0 80 74"><path class="trk" d="${arc(0, 1)}"/>${fv > 0.005 ? `<path class="fill" d="${arc(0, Math.max(0.01, fv))}"/>` : ''}</svg><b>${kmh.toFixed(1)}</b><i>${esc(T('kmh', 'km/h'))}</i>${speed < -0.05 ? `<span class="rv">${esc(T('rev', 'REV'))}</span>` : ''}</div>
-            <div class="tx"><span class="kick">${icon(kind === 'push' ? 'hand' : 'wheelchair')}${esc(kind === 'push' ? T('hud_kicker_push', 'Pushing') : T('hud_kicker_chair', 'Wheelchair'))}</span><b>${esc(o.title || '')}</b><small>${esc(o.sub || '')}</small>
-              <div class="slope ${steep ? 'steep' : ''}"><span class="gl"><i style="transform:rotate(${clamp(-slope, -30, 30).toFixed(1)}deg)"></i></span><span>${slope > 0.5 ? '▲' : slope < -0.5 ? '▼' : '='} ${Math.abs(slope).toFixed(0)}°</span><em>${esc(steep ? T('steep', 'Steep') : T('grade_lbl', 'Grade'))}</em></div>
-            </div>
-          </div>
-          ${o.blocked ? `<div class="blk">${icon('alert')}<span>${esc(o.blocked)}</span></div>` : ''}
-          ${keys ? `<div class="keys">${keys}</div>` : ''}`;
-      }
-      el.hidden = false;
+      const kind = h.kind || (this.hud && this.hud.kind) || 'chair';
+      if (!this.hud || this.hud.kind !== kind) this.hud = { kind };
+      Object.assign(this.hud, h, { kind });
+      if (this.hudKind !== kind || !this.hudEl.firstChild) this.hudBuild(kind);
+      this.hudUpdate();
+      this.hudEl.hidden = false;
+      this.hudEl.classList.toggle('away', !!this.S);
+      if (!this.hudRaf) { this.hudLast = 0; this.hudRaf = requestAnimationFrame(this.hudTick); }
     },
     hudHide() {
       this.hud = null;
+      this.hudKind = null;
       this.hudEl.hidden = true;
+      this.hudEl.innerHTML = '';
+      if (this.hudRaf) { cancelAnimationFrame(this.hudRaf); this.hudRaf = 0; }
+    },
+
+    // top view of the chair (front up): tyres with moving tread, per-wheel drive bars, casters,
+    // footplates, the heading arrow, and the person pushing when kind = push
+    chairSVG(push) {
+      const tread = side => {
+        let l = '';
+        for (let y = -6; y <= 72; y += 6) l += `<line x1="${side ? 99 : 11}" y1="${y}" x2="${side ? 109 : 21}" y2="${y + 2}"/>`;
+        return `<g clip-path="url(#sph-w${side})"><g class="tread t${side}">${l}</g></g>`;
+      };
+      return `<svg viewBox="0 0 120 ${push ? 156 : 132}">
+        <defs>
+          <clipPath id="sph-w0"><rect x="10" y="54" width="12" height="64" rx="5"/></clipPath>
+          <clipPath id="sph-w1"><rect x="98" y="54" width="12" height="64" rx="5"/></clipPath>
+          <linearGradient id="sph-seat" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#22272c"/><stop offset=".5" stop-color="#30363c"/><stop offset="1" stop-color="#22272c"/></linearGradient>
+          <radialGradient id="sph-sh" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="rgba(0,0,0,.55)"/><stop offset="1" stop-color="rgba(0,0,0,0)"/></radialGradient>
+        </defs>
+        <ellipse cx="60" cy="78" rx="58" ry="56" fill="url(#sph-sh)"/>
+        <g class="arrow"><path class="ar" d="M60 4 L68 14 L63 14 L63 22 L57 22 L57 14 L52 14 Z"/></g>
+        <g class="turn"><path class="tl" d="M30 30 A36 36 0 0 1 60 18"/><path class="tr" d="M90 30 A36 36 0 0 0 60 18"/></g>
+        <path class="frame" d="M34 58 L40 26 M86 58 L80 26 M40 26 L80 26"/>
+        <rect class="foot" x="40" y="20" width="17" height="8" rx="2"/><rect class="foot" x="63" y="20" width="17" height="8" rx="2"/>
+        <g class="caster"><rect x="30" y="38" width="6" height="11" rx="3"/><rect x="84" y="38" width="6" height="11" rx="3"/></g>
+        <rect class="tyre" x="10" y="54" width="12" height="64" rx="5"/><rect class="tyre" x="98" y="54" width="12" height="64" rx="5"/>
+        ${tread(0)}${tread(1)}
+        <rect class="rim" x="6" y="58" width="2.2" height="56" rx="1.1"/><rect class="rim" x="111.8" y="58" width="2.2" height="56" rx="1.1"/>
+        <rect class="bar b0" x="14.5" y="86" width="3" height="0" rx="1.5"/><rect class="bar b1" x="102.5" y="86" width="3" height="0" rx="1.5"/>
+        <rect class="arm" x="26" y="62" width="6" height="34" rx="2.5"/><rect class="arm" x="88" y="62" width="6" height="34" rx="2.5"/>
+        <rect x="32" y="56" width="56" height="54" rx="7" fill="url(#sph-seat)" stroke="rgba(255,255,255,.12)"/>
+        <path class="stitch" d="M37 61 H83 V105 H37 Z"/>
+        <circle class="occ" cx="60" cy="86" r="${push ? 13 : 0}"/>
+        <rect class="back" x="30" y="108" width="60" height="9" rx="3"/>
+        <circle class="hdl" cx="31" cy="122" r="3.4"/><circle class="hdl" cx="89" cy="122" r="3.4"/>
+        ${push ? `<g class="pusher"><path d="M31 123 L44 140 M89 123 L76 140"/><ellipse cx="60" cy="144" rx="19" ry="8"/><circle cx="60" cy="144" r="7.5"/></g>` : ''}
+        <g class="blk"><rect x="38" y="0" width="44" height="6" rx="3"/></g>
+      </svg>`;
+    },
+    // top view of the crutch gait: crutch tips, the good foot and the splinted foot held off the ground
+    crutchSVG(side) {
+      const foot = (x, y, cls) => `<path class="${cls}" d="M${x} ${y} c-5 0 -7 -8 -6 -15 c1 -6 3 -10 6 -10 c3 0 5 4 6 10 c1 7 -1 15 -6 15 z"/>`;
+      const hurt = side === 'l' || side === 'r';
+      const gx = side === 'l' ? 66 : 44, hx = side === 'l' ? 44 : 66;
+      return `<svg viewBox="0 0 110 132">
+        <defs><radialGradient id="sph-csh" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="rgba(0,0,0,.5)"/><stop offset="1" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>
+        <ellipse cx="55" cy="70" rx="52" ry="60" fill="url(#sph-csh)"/>
+        <path class="lane" d="M24 6 V126 M86 6 V126"/>
+        <path class="fwd" d="M55 4 L61 12 L57 12 L57 20 L53 20 L53 12 L49 12 Z"/>
+        <g class="tips ph-a"><circle cx="24" cy="32" r="5"/><circle cx="86" cy="32" r="5"/></g>
+        <g class="tips ph-b"><circle cx="24" cy="66" r="5"/><circle cx="86" cy="66" r="5"/></g>
+        <path class="swing" d="M${gx} 98 C${gx} 84 ${gx} 76 ${gx} 70"/>
+        <g class="good ph-a">${foot(gx, 68, 'ft')}</g>
+        <g class="good ph-b">${foot(gx, 102, 'ft')}</g>
+        ${hurt
+          ? `<g class="hurt"><ellipse class="hov" cx="${hx}" cy="106" rx="7" ry="3.5"/>${foot(hx, 98, 'ft nwb')}</g>`
+          : `<g class="good ph-a">${foot(hx, 68, 'ft')}</g><g class="good ph-b">${foot(hx, 102, 'ft')}</g>`}
+      </svg>`;
+    },
+    hudBuild(kind) {
+      const el = this.hudEl;
+      this.hudKind = kind;
+      this.hudRefs = {};
+      el.className = `sp-hud nza-hud solid kind-${kind}`;
+      const R = this.hudRefs;
+      if (kind === 'crutch') {
+        el.innerHTML = `
+          <div class="hh"><span class="kick">${icon('crutch')}<span class="kt"></span></span><span class="chipx sm st"></span></div>
+          <div class="hm">
+            <div class="viz"></div>
+            <div class="ins">
+              <div class="ttl"></div><div class="sub"></div>
+              <div class="row"><span>${esc(T('hud_steps', 'Steps'))}</span><span class="odo-h steps"></span></div>
+              <div class="row"><span>${esc(T('hud_weight', 'Weight on'))}</span><b class="wt"></b></div>
+              <div class="row"><span>${esc(T('hud_pace', 'Pace'))}</span><b class="pace"></b></div>
+            </div>
+          </div>
+          <div class="keys"></div>`;
+        R.steps = NZA.ui.FlipClock(el.querySelector('.steps'), { value: '000', small: true });
+      } else {
+        el.innerHTML = `
+          <div class="hh"><span class="kick">${icon(kind === 'push' ? 'hand' : 'wheelchair')}<span class="kt"></span></span><span class="chipx sm st"></span></div>
+          <div class="hm">
+            <div class="viz">${this.chairSVG(kind === 'push')}</div>
+            <div class="ins">
+              <div class="ttl"></div><div class="sub"></div>
+              <div class="row big"><span>${esc(T('hud_speed', 'Speed'))}</span><span class="odo-h spd"></span><em>${esc(T('kmh', 'km/h'))}</em></div>
+              <div class="meter"><i class="mf"></i><i class="mz"></i></div>
+              <div class="row"><span>${esc(T('grade_lbl', 'Grade'))}</span><span class="incl"><i></i></span><b class="gr"></b></div>
+              <div class="row"><span>${esc(T('hud_dist', 'Travelled'))}</span><span class="odo-h dist"></span><em>m</em></div>
+            </div>
+          </div>
+          <div class="note"><span class="ni">${icon('alert')}</span><span class="nt"></span><i class="nb"></i></div>
+          <div class="keys"></div>`;
+        R.spd = NZA.ui.FlipClock(el.querySelector('.spd'), { value: '0.0', small: true });
+        R.dist = NZA.ui.FlipClock(el.querySelector('.dist'), { value: '0000', small: true });
+      }
+      R.svg = el.querySelector('.viz svg');
+      R.kt = el.querySelector('.kt'); R.st = el.querySelector('.st');
+      R.ttl = el.querySelector('.ttl'); R.sub = el.querySelector('.sub'); R.keys = el.querySelector('.keys');
+      R.treads = [...el.querySelectorAll('.tread')];
+      R.bars = [...el.querySelectorAll('.bar')];
+      R.off = [0, 0]; R.ph = 0;
+    },
+    hudUpdate() {
+      const o = this.hud, R = this.hudRefs, el = this.hudEl;
+      if (!o || !R) return;
+      const kind = o.kind;
+      R.ttl.textContent = o.title || '';
+      R.sub.textContent = o.sub || '';
+      const keys = (o.keys || []).map(k => `<span class="hk">${(k.keys || []).map(x => `<kbd>${esc(x)}</kbd>`).join('')}<em>${esc(k.label)}</em></span>`).join('');
+      if (R.keysHtml !== keys) { R.keys.innerHTML = keys; R.keysHtml = keys; R.keys.style.display = keys ? '' : 'none'; }
+      if (kind === 'crutch') {
+        R.kt.textContent = T('hud_kicker_mob', 'Mobility aid');
+        const st = o.state || (o.moving ? 'walk' : 'stand');
+        R.st.textContent = st === 'vehicle' ? T('hud_st_vehicle', 'Stowed') : o.moving ? T('hud_st_walk', 'Walking') : T('hud_st_stand', 'Standing');
+        R.st.className = `chipx sm st ${o.moving ? 'teal' : ''}`;
+        R.steps.set(String(Math.min(999, Math.max(0, Math.floor(Number(o.steps) || 0)))).padStart(3, '0'));
+        el.querySelector('.wt').textContent = o.side === 'l' ? T('hud_w_right', 'Right leg only') : o.side === 'r' ? T('hud_w_left', 'Left leg only') : T('hud_w_both', 'Both legs, light');
+        el.querySelector('.pace').textContent = st === 'vehicle' ? '--' : o.moving ? T('hud_pace_walk', 'Walk · no running') : T('hud_pace_rest', 'Resting');
+        const side = o.side === 'l' || o.side === 'r' ? o.side : '';
+        if (R.side !== side || !R.svg) { R.side = side; const v = el.querySelector('.viz'); v.innerHTML = this.crutchSVG(side); R.svg = v.querySelector('svg'); }
+        el.classList.toggle('moving', !!o.moving);
+        if (!o.moving) delete el.dataset.ph;
+        return;
+      }
+      const speed = Number(o.speed) || 0, max = Math.max(0.1, Number(o.max) || 2);
+      const slope = Number(o.slope) || 0, turn = clamp(Number(o.turn) || 0, -1, 1);
+      const blocked = !!o.blocked;
+      R.kt.textContent = kind === 'push' ? T('hud_kicker_push', 'Pushing') : T('hud_kicker_chair', 'Wheelchair');
+      const stKey = blocked ? 'blocked' : o.state === 'pushed' ? 'pushed' : Math.abs(speed) > 0.05 ? (speed > 0 ? 'rolling' : 'reverse') : 'parked';
+      R.st.textContent = { blocked: T('hud_st_blocked', 'Blocked'), pushed: T('hud_st_pushed', 'Being pushed'), rolling: T('hud_rolling', 'Rolling'), reverse: T('hud_reversing', 'Reversing'), parked: T('hud_parked', 'Parked') }[stKey];
+      R.st.className = `chipx sm st ${stKey === 'blocked' ? 'amber' : stKey === 'rolling' ? 'teal' : ''}`;
+      R.spd.set((Math.abs(speed) * 3.6).toFixed(1));
+      R.spd.tone(blocked ? 'amber' : speed < -0.05 ? 'amber' : '');
+      R.dist.set(String(Math.min(9999, Math.max(0, Math.floor(Number(o.dist) || 0)))).padStart(4, '0'));
+      const f = clamp(Math.abs(speed) / max, 0, 1);
+      el.querySelector('.mf').style.width = `${(f * 100).toFixed(1)}%`;
+      el.querySelector('.mf').classList.toggle('rev', speed < -0.05);
+      el.querySelector('.incl i').style.transform = `rotate(${clamp(-slope, -30, 30).toFixed(1)}deg)`;
+      const steep = Math.abs(slope) >= 8;
+      const gr = el.querySelector('.gr');
+      gr.textContent = `${slope > 0.5 ? '▲' : slope < -0.5 ? '▼' : '='} ${Math.abs(slope).toFixed(0)}°`;
+      gr.className = `gr ${steep ? 'amber' : ''}`;
+      el.querySelector('.nt').textContent = o.blocked || '';
+      el.classList.toggle('blocked', blocked);
+      el.classList.toggle('rev', speed < -0.05);
+      el.classList.toggle('moving', Math.abs(speed) > 0.05);
+      el.classList.toggle('turn-l', turn > 0.2);
+      el.classList.toggle('turn-r', turn < -0.2);
+      // per-wheel drive bars (rim speed): turning on the spot drives the wheels against each other
+      const vL = speed - turn * 0.55, vR = speed + turn * 0.55;
+      R.bars.forEach((b, i) => {
+        const vv = i === 0 ? vL : vR, hgt = clamp(Math.abs(vv) / max, 0, 1) * 28;
+        b.setAttribute('y', vv >= 0 ? 86 - hgt : 86);
+        b.setAttribute('height', hgt.toFixed(1));
+        b.setAttribute('class', `bar b${i} ${vv < -0.02 ? 'rev' : ''}`);
+      });
+      const ar = R.svg.querySelector('.arrow');
+      ar.setAttribute('transform', `translate(0 ${(-(f) * 3).toFixed(1)}) ${speed < -0.05 ? 'rotate(180 60 66)' : ''}`);
+      R.vL = vL; R.vR = vR;
+    },
+    hudTick(now) {
+      this.hudRaf = 0;
+      if (!this.hud || this.hudEl.hidden) return;
+      const dt = Math.min(0.1, this.hudLast ? (now - this.hudLast) / 1000 : 0);
+      this.hudLast = now;
+      const R = this.hudRefs;
+      if (R && !this.reduced) {
+        if (this.hud.kind === 'crutch') {
+          if (this.hud.moving) {
+            R.ph = (R.ph + dt / 0.55) % 3;
+            const p = Math.floor(R.ph);
+            if (p !== R.lastPh) { R.lastPh = p; this.hudEl.dataset.ph = String(p); }
+          }
+        } else if (R.treads.length) {
+          // tread scrolls with each wheel's rim speed (px per metre on the drawing)
+          [R.vL || 0, R.vR || 0].forEach((vv, i) => {
+            R.off[i] = (R.off[i] - vv * dt * 26) % 6;
+            R.treads[i].setAttribute('transform', `translate(0 ${(R.off[i] < 0 ? R.off[i] + 6 : R.off[i]).toFixed(2)})`);
+          });
+        }
+      }
+      // keep animating only while something moves (hudShow restarts it)
+      const moving = this.hud.kind === 'crutch' ? !!this.hud.moving : (R && (Math.abs(R.vL || 0) > 0.01 || Math.abs(R.vR || 0) > 0.01));
+      if (moving && !this.reduced) this.hudRaf = requestAnimationFrame(this.hudTick);
+      else this.hudLast = 0;
     },
 
     /* ═════════════════════ PREVIEW ═════════════════════ */
@@ -1964,14 +2465,16 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       NZA.mock(`${APP}:finish`, r => ({ ok: true, outcome: { score: r.score, grade: r.score >= 90 ? 'S' : r.score >= 80 ? 'A' : r.score >= 68 ? 'B' : 'C', msg: arm ? 'Right forearm splinted · pain easing' : 'Right lower leg splinted · pain easing' } }));
       if (stage.startsWith('hud')) {
         this.procStop();
-        if (W) W.hide();
+        if (W) { W.body(false); W.view('third'); W.tick(); }
+        const drive = [{ keys: ['W', 'S'], label: 'Drive' }, { keys: ['A', 'D'], label: 'Turn' }, { keys: ['F'], label: 'Stand up' }];
         const hudDemo = {
-          'hud-chair': { kind: 'chair', title: 'Wheelchair', sub: 'Rolling', state: 'drive', speed: 1.42, max: 1.9, slope: -4, keys: [{ keys: ['W', 'S'], label: 'Drive' }, { keys: ['A', 'D'], label: 'Turn' }, { keys: ['F'], label: 'Stand up' }] },
-          'hud-blocked': { kind: 'chair', title: 'Wheelchair', sub: 'Blocked', state: 'blocked', blocked: 'Curb too high', speed: 0, max: 1.9, slope: 2, keys: [{ keys: ['W', 'S'], label: 'Drive' }, { keys: ['A', 'D'], label: 'Turn' }, { keys: ['F'], label: 'Stand up' }] },
-          'hud-push': { kind: 'push', title: 'Pushing a wheelchair', sub: 'Michael Garcia', state: 'push', speed: 1.1, max: 1.9, slope: 6, keys: [{ keys: ['G'], label: 'Let go' }] },
-          'hud-crutch': { kind: 'crutch', title: 'On crutches', sub: 'Walking · no running', keys: [{ keys: ['/crutches'], label: 'Put away' }] },
+          'hud-chair': { kind: 'chair', title: 'Self-propelled', sub: 'Rims under both hands', state: 'drive', speed: 1.42, max: 1.9, slope: -4, turn: 0.35, dist: 126, keys: drive },
+          'hud-blocked': { kind: 'chair', title: 'Self-propelled', sub: 'Back off and find a ramp', state: 'blocked', blocked: 'Curb too high', speed: 0, max: 1.9, slope: 2, turn: 0, dist: 131, keys: drive },
+          'hud-push': { kind: 'push', title: 'Pushing a wheelchair', sub: 'Michael Garcia', state: 'push', speed: 1.1, max: 1.9, slope: 6, turn: 0, dist: 48, keys: [{ keys: ['G'], label: 'Let go' }] },
+          'hud-crutch': { kind: 'crutch', title: 'On crutches', sub: 'Splinted right lower leg', state: 'walk', moving: true, steps: 37, side: 'r', keys: [{ keys: ['/crutches'], label: 'Put away' }] },
         }[stage] || {};
         NZA.demo(APP, { mode: 'hud', hud: hudDemo });
+        if (stage === 'hud-crutch') this.hudEl.dataset.ph = '1';
         return;
       }
       if (W) W.view(arm ? 'arm' : 'leg');
@@ -1993,56 +2496,62 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       };
       d.keys = { rotateLeft: 'KeyQ', rotateRight: 'KeyE', reset: 'KeyX', set: 'Space' };
       NZA.demo(APP, d);
+      this.previewStage(stage.replace(/^arm-?/, '') || 'place');
+    },
+    // Puts the running procedure straight into a stage (synchronous - software WebGL frames are slow,
+    // so timer chains would race the screenshot). Stages: place aligned pad shape strap cmsready cms cmsbad done
+    previewStage(st) {
       const S = this.S;
-      const at = (fn, ms) => setTimeout(() => { if (this.S === S) fn(); }, ms);
-      // run fn once the procedure reached step n (frames are slow in software WebGL)
-      const when = (n, fn, delay = 120) => { const tick = () => { if (this.S !== S) return; if (S.step >= n && !(n === 2 && S.lockAnim && S.step === 1)) setTimeout(() => { if (this.S === S) fn(); }, delay); else setTimeout(tick, 60); }; tick(); };
-      const st = stage.replace(/^arm-?/, '') || 'place';
-      const later = ['aligned', 'pad', 'shape', 'strap', 'cms', 'cmsbad', 'done'];
-      if (later.includes(st)) {
-        at(() => {
-          S.moved = true;
-          if (st === 'aligned') { S.pose = { cu: 0.006, cv: 0.004, phi: 0.02 }; S.alignHold = -99; return; }
-          S.pose = { cu: 0.004, cv: 0.003, phi: 0.012 };
-          this.update(performance.now(), 0);
-          this.lockSplint();
-        }, 160);
+      if (!S) return;
+      const order = ['place', 'aligned', 'pad', 'shape', 'strap', 'cmsready', 'cms', 'cmsbad', 'done'];
+      const lvl = Math.max(0, order.indexOf(st));
+      const now = performance.now();
+      S.intro = now - 4000;
+      S.t0 = now - 97000;
+      S.moved = true;
+      if (st === 'aligned') {
+        S.pose = { cu: 0.006, cv: 0.004, phi: 0.02 }; S.pose0 = Object.assign({}, S.pose); S.alignHold = -1e9;
+        return;
       }
+      if (lvl < 2) return;
+      // 1 · laid and set
+      S.pose = { cu: 0, cv: 0, phi: 0 }; S.pose0 = { cu: 0.04, cv: 0.2, phi: 0.3 };
+      S.locked = true; S.aligned = { p: true, d: true }; S.err = { p: 0.006, d: 0.009, a: 0.8 }; S.s1 = 93;
+      this.enterStep(2);
       if (st === 'pad') {
-        when(2, () => { this.padSite(0); S.sites[0].pop = 0; });
+        this.padSite(0); S.sites[0].pop = 0;
+        return;
       }
+      S.sites.forEach(x => { x.padded = true; x.pop = 0; });
       if (st === 'shape') {
-        when(2, () => {
-          S.sites.forEach(x => { x.padded = true; });
-          S.tool = 'shape'; this.enterStep(2, true);
-          S.points.forEach((p, i) => { if (i < 2) { p.f = i ? 0.9 : 0.84; p.done = true; } });
-          S.points[2].f = 0.58; S.press = 2;
-          this._holdPreview = true;
-          this.refreshTools(); this.updateReadout(true);
-        });
+        S.tool = 'shape';
+        S.points.forEach((p, i) => { if (i < 3) { p.f = [0.84, 0.9, 0.87][i]; p.done = true; } });
+        S.points[3].f = 0.61; S.press = 3;
+        this._holdPreview = true;
+        this.enterStep(2, true); this.refreshTools(); this.updateReadout(true);
+        return;
       }
-      if (['strap', 'cms', 'cmsbad', 'done'].includes(st)) {
-        when(2, () => {
-          S.sites.forEach(x => { x.padded = true; });
-          S.points.forEach(p => { p.f = 0.86; p.done = true; });
-          this.checkShapeDone();
-        });
-      }
+      // 2 · padded and shaped
+      S.points.forEach((p, i) => { p.f = [0.84, 0.9, 0.87, 0.92, 0.88, 0.86, 0.9, 0.85, 0.89][i] || 0.86; p.done = true; p.pop = 0; });
+      S.shapeDone = true; S.s2 = 91;
+      this.enterStep(3);
       if (st === 'strap') {
-        when(3, () => {
-          const s0 = S.straps[0]; s0.state = 'locked'; s0.k = 1; s0.tension = 0.68; s0.quality = 96;
-          const s1 = S.straps[1]; s1.state = 'sweep'; s1.k = 1; s1.ph = 0.21; S.sweeping = 1;
-          this.refreshTools(); this.updateReadout(true);
-        });
+        const s0 = S.straps[0]; s0.state = 'locked'; s0.k = 1; s0.tension = 0.68; s0.quality = 96;
+        const s1 = S.straps[1]; s1.state = 'sweep'; s1.k = 1; s1.ph = 0.19; s1.tension = 0.5 - 0.5 * Math.cos(s1.ph * Math.PI * 2); S.sweeping = 1;
+        this.refreshTools(); this.updateReadout(true);
+        return;
       }
-      if (st === 'cms' || st === 'cmsbad' || st === 'done') {
-        when(3, () => {
-          S.straps.forEach((x, i) => { x.state = 'locked'; x.k = 1; x.tension = st === 'cmsbad' && i === 1 ? 0.93 : 0.66; x.quality = x.tension > 0.9 ? 30 : 94; x.tight = x.tension > 0.9; if (x.tight) S.tightEver += 1; });
-          S.cms.state = 'ready'; S.tool = 'cms';
-          this.enterStep(3, true); this.refreshTools();
-          if (st !== 'cms') setTimeout(() => { if (this.S === S) this.cmsCheck(); }, 200);
-        });
-      }
+      // 3 · strapped, distal check
+      S.straps.forEach((x, i) => {
+        x.state = 'locked'; x.k = 1; x.tension = st === 'cmsbad' && i === 1 ? 0.93 : [0.66, 0.71, 0.64][i];
+        x.quality = x.tension > 0.9 ? 30 : [96, 92, 95][i]; x.tight = x.tension > 0.9; if (x.tight) S.tightEver += 1;
+      });
+      S.cms.state = 'ready'; S.tool = 'cms';
+      this.enterStep(3, true); this.refreshTools(); this.updateReadout(true);
+      if (st === 'cmsready') return;
+      this.cmsCheck();
+      if (st === 'cms') { S.cms.t = now - 1500; S.cms.hold = true; return; }
+      S.cms.t = now - 60000;            // cmsbad / done: the check has run its course
     },
   };
 
@@ -2157,20 +2666,42 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       return tex(c, [1, 4], true);
     }
 
-    const tA = asphalt(), tD = denim(), tJ = leather('#4a2a22', 31), tB = leather('#17181a', 47), tG = leather('#1e1f22', 63);
+    // cotton twill work jacket: diagonal weave, slub noise, soft creases
+    function fabric(base, seed) {
+      const n = 512, r = rng(seed);
+      const c = cvs(n, n), x = c.getContext('2d'), h = cvs(n, n), hx = h.getContext('2d');
+      x.fillStyle = base; x.fillRect(0, 0, n, n);
+      hx.fillStyle = '#808080'; hx.fillRect(0, 0, n, n);
+      for (let i = -n; i < n * 2; i += 3) {
+        x.strokeStyle = i % 6 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,0,.12)'; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(i, 0); x.lineTo(i - n * 0.6, n); x.stroke();
+        hx.strokeStyle = i % 6 ? '#959595' : '#6a6a6a'; hx.beginPath(); hx.moveTo(i, 0); hx.lineTo(i - n * 0.6, n); hx.stroke();
+      }
+      for (let i = 0; i < 7000; i++) { const l = r() > 0.5; x.fillStyle = l ? `rgba(255,255,255,${r() * 0.05})` : `rgba(0,0,0,${r() * 0.07})`; x.fillRect(r() * n, r() * n, 1 + r() * 3, 1); }
+      for (let i = 0; i < 14; i++) {
+        const y = r() * n, x0 = r() * n, len = 60 + r() * 140;
+        const g = x.createLinearGradient(x0, y - 6, x0, y + 6); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,.14)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = g; x.fillRect(x0, y - 6, len, 12);
+        hx.fillStyle = 'rgba(40,40,40,.5)'; hx.fillRect(x0, y - 2, len, 4);
+      }
+      return { map: tex(c, [3, 3], true), normal: tex(normalFromHeight(h, 1.8), [3, 3]) };
+    }
+    const tA = asphalt(), tD = denim(), tJ = fabric('#37414c', 31), tB = leather('#17181a', 47), tG = leather('#1e1f22', 63);
     const mat = {
       ground: new THREE.MeshStandardMaterial({ map: tA.map, normalMap: tA.normal, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.94, metalness: 0 }),
       paint: new THREE.MeshStandardMaterial({ map: paint(), transparent: true, roughness: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
       curb: new THREE.MeshStandardMaterial({ color: lin('#8d8c86'), roughness: 0.9, normalMap: tA.normal, normalScale: new THREE.Vector2(0.4, 0.4) }),
       denim: new THREE.MeshStandardMaterial({ map: tD.map, normalMap: tD.normal, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.92 }),
-      jacket: new THREE.MeshStandardMaterial({ map: tJ.map, normalMap: tJ.normal, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.55, metalness: 0.05 }),
+      jacket: new THREE.MeshStandardMaterial({ map: tJ.map, normalMap: tJ.normal, normalScale: new THREE.Vector2(0.7, 0.7), roughness: 0.86, metalness: 0 }),
+      tape: new THREE.MeshStandardMaterial({ color: lin('#d7dad6'), roughness: 0.35, metalness: 0.15, envMapIntensity: 1.4 }),
       boot: new THREE.MeshStandardMaterial({ map: tB.map, normalMap: tB.normal, roughness: 0.5, metalness: 0.05 }),
       sole: new THREE.MeshStandardMaterial({ color: lin('#26221f'), roughness: 0.85 }),
       glove: new THREE.MeshStandardMaterial({ map: tG.map, normalMap: tG.normal, roughness: 0.6 }),
       helmet: new THREE.MeshPhysicalMaterial({ color: lin('#1c1e21'), roughness: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.35 }),
       visor: new THREE.MeshPhysicalMaterial({ color: lin('#121820'), roughness: 0.05, metalness: 0.2, clearcoat: 1, transparent: true, opacity: 0.92 }),
       metal: new THREE.MeshStandardMaterial({ color: lin('#a8adb2'), metalness: 0.95, roughness: 0.3 }),
-      skin: new THREE.MeshStandardMaterial({ color: lin('#b98365'), roughness: 0.65 }),
+      skin: new THREE.MeshPhysicalMaterial({ color: lin('#9c6248'), roughness: 0.6, sheen: 0.12, sheenColor: lin('#e8b49a'), sheenRoughness: 0.7 }),
+      nail: new THREE.MeshStandardMaterial({ color: lin('#b98a7a'), roughness: 0.32 }),
       shard: new THREE.MeshPhysicalMaterial({ color: lin('#c8d8dc'), roughness: 0.05, transmission: 0, metalness: 0.1, clearcoat: 1, transparent: true, opacity: 0.6 }),
       reflector: new THREE.MeshStandardMaterial({ color: lin('#d4601a'), roughness: 0.35, emissive: lin('#3a1004') }),
       leaf: new THREE.MeshStandardMaterial({ color: lin('#7a5a2c'), roughness: 0.9, side: THREE.DoubleSide }),
@@ -2255,8 +2786,36 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     limb(J.rSh, J.rEl, 0.058, 0.05, mat.jacket, 0.004); limb(J.rEl, J.rWr, 0.05, 0.04, mat.jacket, 0.006, 0.3);
     limb(J.lSh, J.lEl, 0.058, 0.05, mat.jacket, 0.004); limb(J.lEl, J.lWr, 0.05, 0.04, mat.jacket, 0.006, 0.3);
     ball(J.rEl, 0.05, mat.jacket); ball(J.lEl, 0.05, mat.jacket);
-    ball(J.rHand.clone().add(V3(0, 0.03, 0)), 0.048, mat.glove, 0.85, 1.35, 0.6);
-    ball(J.lWr.clone().add(V3(-0.03, -0.05, 0.02)), 0.048, mat.glove, 0.85, 1.3, 0.6);
+    // reflective tape on the sleeves
+    function band(a, b2, at, r) {
+      const d = b2.clone().sub(a), p2 = a.clone().add(d.clone().multiplyScalar(at));
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.03, 32, 1, true), mat.tape);
+      m.position.copy(p2); m.quaternion.setFromUnitVectors(V3(0, 1, 0), d.normalize()); m.castShadow = true; body.add(m);
+    }
+    band(J.rEl, J.rWr, 0.72, 0.0442); band(J.lEl, J.lWr, 0.72, 0.0442); band(J.rSh, J.rEl, 0.55, 0.0578); band(J.lSh, J.lEl, 0.55, 0.0578);
+    // a hand: palm, four slightly curled fingers with nails, thumb (palm down)
+    function handAt(wrist, elbow, thumbSide) {
+      const g = new THREE.Group();
+      const dir = wrist.clone().sub(elbow).normalize();
+      const xa = new THREE.Vector3().crossVectors(dir, V3(0, 0, 1)).normalize(), za = new THREE.Vector3().crossVectors(xa, dir).normalize();
+      g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xa, dir, za));
+      g.position.copy(wrist);
+      const add2 = (geo, m, px, py, pz, sx, sy, sz) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); if (sx) o.scale.set(sx, sy, sz); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
+      add2(new THREE.SphereGeometry(1, 28, 18), mat.skin, 0, 0.012, -0.004, 0.032, 0.03, 0.022);          // wrist heel
+      add2(new THREE.SphereGeometry(1, 28, 18), mat.skin, 0, 0.052, -0.002, 0.041, 0.05, 0.016);          // palm / back of the hand
+      [0.044, 0.05, 0.047, 0.038].forEach((len, i) => {
+        const fx = (i - 1.5) * 0.0168 * -thumbSide;
+        const f = new THREE.Group(); f.position.set(fx, 0.094, -0.002); f.rotation.x = -0.32; f.rotation.z = (i - 1.5) * 0.06 * thumbSide; g.add(f);
+        const seg = new THREE.Mesh(new THREE.CapsuleGeometry(0.0078 - i * 0.0004, len - 0.016, 6, 12), mat.skin); seg.position.y = len / 2; seg.castShadow = true; f.add(seg);
+        const nail = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), mat.nail); nail.scale.set(0.0058, 0.0075, 0.0022); nail.position.set(0, len - 0.006, 0.0062); f.add(nail);
+        const kn = new THREE.Mesh(new THREE.SphereGeometry(0.0085, 14, 10), mat.skin); kn.position.set(fx, 0.088, 0.004); kn.scale.set(1, 0.8, 0.6); g.add(kn);
+      });
+      const th = new THREE.Group(); th.position.set(thumbSide * 0.034, 0.026, -0.006); th.rotation.z = -thumbSide * 0.85; th.rotation.y = thumbSide * 0.4; g.add(th);
+      const tseg = new THREE.Mesh(new THREE.CapsuleGeometry(0.0098, 0.03, 6, 12), mat.skin); tseg.position.y = 0.024; tseg.castShadow = true; th.add(tseg);
+      body.add(g);
+      return g;
+    }
+    handAt(J.rWr, J.rEl, 1); handAt(J.lWr, J.lEl, -1);
     // boots (toes up, turned out on the injured side)
     function bootAt(ankle, knee, outward) {
       const g = new THREE.Group();
@@ -2270,26 +2829,51 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       hem.position.copy(shin.clone().multiplyScalar(0.1));
       hem.quaternion.setFromUnitVectors(V3(0, 1, 0), shin);
       hem.castShadow = true; g.add(hem);
-      // foot: toes up, tipped toward the feet end; sole on the plantar side
-      const fd = V3(0, -Math.sin(0.55), Math.cos(0.55));
-      const plantar = V3(0, -Math.cos(0.55), -Math.sin(0.55));
-      const foot = new THREE.Mesh(new THREE.CapsuleGeometry(0.046, 0.15, 8, 22), mat.boot);
-      foot.quaternion.setFromUnitVectors(V3(0, 1, 0), fd);
-      foot.position.copy(fd.clone().multiplyScalar(0.085)).add(plantar.clone().multiplyScalar(0.012));
-      foot.scale.set(1.08, 1, 0.92);
+      // foot: toes up, tipped toward the feet end. Shaped from the boot's side profile (heel → toe cap →
+      // instep → shaft), bevelled across its width; lugged sole, laces and eyelets
+      const fd = V3(0, -Math.sin(0.55), Math.cos(0.55)), dorsal = V3(0, Math.cos(0.55), Math.sin(0.55));
+      const lat = new THREE.Vector3().crossVectors(fd, dorsal);
+      const basis = new THREE.Matrix4().makeBasis(fd, dorsal, lat);
+      const prof = new THREE.Shape();
+      prof.moveTo(-0.03, -0.035); prof.lineTo(0.19, -0.035);
+      prof.quadraticCurveTo(0.248, -0.035, 0.25, 0.005); prof.quadraticCurveTo(0.25, 0.045, 0.2, 0.052);
+      prof.quadraticCurveTo(0.13, 0.058, 0.07, 0.085); prof.lineTo(0.04, 0.115); prof.lineTo(-0.045, 0.118);
+      prof.quadraticCurveTo(-0.062, 0.04, -0.03, -0.035);
+      const fgeo = new THREE.ExtrudeGeometry(prof, { depth: 0.07, bevelEnabled: true, bevelThickness: 0.016, bevelSize: 0.013, bevelSegments: 5, curveSegments: 14 });
+      fgeo.translate(0, -0.06, -0.035); fgeo.scale(0.92, 0.92, 0.92);
+      { const uv = fgeo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 7, uv.getY(i) * 7); }
+      const foot = new THREE.Mesh(fgeo, mat.boot);
+      foot.quaternion.setFromRotationMatrix(basis);
       foot.castShadow = foot.receiveShadow = true; g.add(foot);
-      const sole = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.27, 0.024, 2, 6, 1), mat.sole);
-      sole.quaternion.setFromUnitVectors(V3(0, 1, 0), fd);
-      sole.position.copy(fd.clone().multiplyScalar(0.085)).add(plantar.clone().multiplyScalar(0.058));
+      const sp = new THREE.Shape();
+      sp.moveTo(-0.045, -0.06); sp.lineTo(0.2, -0.06); sp.quadraticCurveTo(0.268, -0.06, 0.266, -0.018); sp.lineTo(0.235, -0.022);
+      sp.lineTo(-0.04, -0.022); sp.quadraticCurveTo(-0.062, -0.03, -0.045, -0.06);
+      const sgeo = new THREE.ExtrudeGeometry(sp, { depth: 0.086, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.006, bevelSegments: 3, curveSegments: 10 });
+      sgeo.translate(0, -0.06, -0.043); sgeo.scale(0.92, 0.92, 0.92);
+      const sole = new THREE.Mesh(sgeo, mat.sole);
+      sole.quaternion.setFromRotationMatrix(basis);
       sole.castShadow = true; g.add(sole);
-      const toe = new THREE.Mesh(new THREE.SphereGeometry(0.05, 20, 14), mat.boot);
-      toe.position.copy(fd.clone().multiplyScalar(0.18)).add(plantar.clone().multiplyScalar(0.01)); toe.scale.set(1.05, 0.9, 1);
-      toe.castShadow = true; g.add(toe);
-      for (let i = 0; i < 4; i++) {
-        const l = new THREE.Mesh(new THREE.BoxGeometry(0.044, 0.005, 0.004), mat.sole);
-        l.position.copy(fd.clone().multiplyScalar(0.02 + i * 0.03)).add(plantar.clone().multiplyScalar(-0.047));
-        l.quaternion.setFromUnitVectors(V3(0, 1, 0), fd);
-        g.add(l);
+      // lugs across the sole
+      for (let i = 0; i < 9; i++) {
+        const lug = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.008, 0.094), mat.sole);
+        const s0 = -0.03 + i * 0.03;
+        lug.position.copy(fd.clone().multiplyScalar(s0 * 0.92)).add(dorsal.clone().multiplyScalar((-0.06 - 0.06 - 0.004) * 0.92));
+        lug.quaternion.setFromRotationMatrix(basis);
+        g.add(lug);
+      }
+      // laces + eyelets up the instep
+      for (let i = 0; i < 5; i++) {
+        const t = i / 4, ps = 0.17 - t * 0.12, pd = 0.016 + 0.045 * t;
+        const lace = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.004, 0.06), mat.sole);
+        lace.position.copy(fd.clone().multiplyScalar(ps * 0.92)).add(dorsal.clone().multiplyScalar(pd * 0.92));
+        lace.quaternion.setFromRotationMatrix(basis); lace.rotateY(i % 2 ? 0.35 : -0.35);
+        g.add(lace);
+        for (const sg of [-1, 1]) {
+          const ey = new THREE.Mesh(new THREE.TorusGeometry(0.0042, 0.0013, 6, 12), mat.metal);
+          ey.position.copy(fd.clone().multiplyScalar(ps * 0.92)).add(dorsal.clone().multiplyScalar((pd - 0.002) * 0.92)).add(lat.clone().multiplyScalar(sg * 0.032));
+          ey.quaternion.setFromRotationMatrix(basis); ey.rotateX(Math.PI / 2);
+          g.add(ey);
+        }
       }
       g.position.copy(ankle);
       g.rotation.z = outward;
@@ -2374,6 +2958,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       },
       rotate(dx) { rig.up.applyAxisAngle(V3(0, 0, 1), dx); rig.dirty = true; },
       hide() { cv.style.display = 'none'; },
+      body(v) { body.visible = v !== false; rig.dirty = true; },
       zoom(k) { rig.height = clamp(rig.height * k, 0.55, 3.2); rig.dirty = true; },
     };
     // right-drag turns the view, wheel zooms (what NZA.Cam does in game)

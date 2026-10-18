@@ -28,55 +28,62 @@
 
   /* ─────────────── strings (English fallbacks; Lua sends NZA.LocaleTable('cpr')) ─────────────── */
   const EN = {
-    brand: 'NAYZEEE', model: 'RESQ 360', adult: 'ADULT', pads_on: 'PADS', pads_off: 'NO PADS', lead: 'PADS · II', code: 'CODE',
-    tr_fb: 'CPR DEPTH', tr_co2: 'CO₂', hr: 'HR', energy: 'ENERGY', shocks: 'SHOCKS', etco2: 'EtCO₂', mmhg: 'mmHg',
-    rate: 'RATE', per_min: '/MIN', compressions: 'COMPRESSIONS', perfect: 'PERFECT', too_fast: 'TOO FAST', too_slow: 'TOO SLOW',
+    // device face (generic labelling only: type + model code + warning sticker, no brand)
+    model: 'DF-7', dev_type: 'MONITOR · DEFIBRILLATOR', dev_ref: 'BIPHASIC · 360 J MAX · REF 4107-02', dev_warn: 'DANGER · HIGH VOLTAGE · STAND CLEAR WHEN SHOCKING',
+    adult: 'ADULT', pads_on: 'PADS', pads_off: 'NO PADS', lead: 'ECG · PADS', code: 'T+',
+    tr_fb: 'CPR', tr_co2: 'CO₂', hr: 'HR', bpm: 'bpm', energy: 'Energy', shocks: 'Shocks', etco2: 'EtCO₂', mmhg: 'mmHg',
+    rate: 'Rate', per_min: 'cpm', compressions: 'Compressions', perfect: 'IN RANGE', too_fast: 'FAST', too_slow: 'SLOW',
+    rhs_shock: 'SHOCKABLE', rhs_noshock: 'NON-SHOCKABLE', rhs_perf: 'PERFUSING', rhs_none: 'NO SIGNAL',
     connect_pads: 'CONNECT PADS', no_defib: 'NO DEFIBRILLATOR', analysing: 'ANALYSING',
-    aed: 'AED', manual: 'MAN', mode_aed: 'AED MODE', mode_manual: 'MANUAL', energy_select: 'ENERGY', charge: 'CHARGE', disarm: 'DISARM', shock: 'SHOCK', cycle: 'CYCLE', adr: 'ADR', due: 'DUE',
-    sk_pads: 'PADS', sk_analyse: 'ANALYSE', sk_adren: 'ADRENALINE', sk_swap: 'SWAP', sk_pulse: 'PULSE',
+    aed: 'AED', manual: 'MAN', mode_aed: 'AED', mode_manual: 'MANUAL', energy_select: 'ENERGY', charge: 'CHARGE', disarm: 'DISARM', shock: 'SHOCK', cycle: 'Cycle', adr: 'Adrenaline', due: 'DUE', auto: 'AUTO',
+    il_cycle: 'Cycle %s', il_adr: 'Adrenaline', il_none: 'none',
+    sk_pads: 'PADS', sk_analyse: 'ANALYSE', sk_adren: 'DRUG', sk_swap: 'SWAP', sk_pulse: 'PULSE',
     rh_vf: 'VF', rh_vt: 'VT', rh_pea: 'PEA', rh_asystole: 'ASYSTOLE', rh_sinus: 'SINUS', rh_stach: 'S.TACH', rh_sbrady: 'S.BRADY', rh_afib: 'AFIB', rh_rosc: 'ROSC', rh_none: '— — —',
-    // device prompt line
-    p_compress: 'COMPRESS ON THE BEAT', p_easy: 'START / STOP COMPRESSIONS', p_partner: 'PARTNER COMPRESSING · PADS · DRUGS', p_breath: 'HOLD · GIVE BREATH %s/%s',
-    p_handsoff: 'HANDS OFF · BREATHS', p_analyse: 'ANALYSING · DO NOT TOUCH THE PATIENT', p_advised: 'SHOCK ADVISED · CHARGE', p_charging: 'CHARGING %s J · KEEP COMPRESSING',
-    p_charged: 'STAND CLEAR · SHOCK', p_rosc: 'ROSC · CHECK THE PULSE', p_noshock: 'NO SHOCK ADVISED · RESUME CPR', p_check: 'RHYTHM CHECK DUE · ANALYSE',
-    p_continuous: 'CONTINUOUS COMPRESSIONS · VENTILATOR', p_waitbreath: 'STOP · BREATHS NEXT',
-    // team HUD
-    t_arrest: 'Cardiac arrest', t_resp: 'Respiratory arrest', t_rosc: 'ROSC · pulse back', down: 'DOWN', ccf: 'CCF', adren: 'ADR',
-    role_comp: 'COMPRESSIONS', role_air: 'AIRWAY · DEFIB · DRUGS', you: 'you', nobody: 'Nobody · you do the breaths (30:2)', fatigue: 'FATIGUE',
-    join_hint: 'Another medic can choose Join CPR on the patient to take the airway and swap with you.',
+    // device message line (what the unit says / shows; no keyboard keys on the device)
+    p_compress: 'PUSH HARD · PUSH FAST', p_easy: 'AUTO-PACED CPR', p_partner: 'CPR IN PROGRESS', p_breath: 'GIVE BREATH %s OF %s',
+    p_handsoff: 'PAUSE · BREATHS', p_analyse: 'ANALYSING · DO NOT TOUCH THE PATIENT', p_advised: 'SHOCK ADVISED · CHARGE NOW', p_charging: 'CHARGING TO %s J',
+    p_charged: 'STAND CLEAR · PRESS SHOCK', p_rosc: 'ROSC · CHECK THE PULSE', p_noshock: 'NO SHOCK ADVISED · RESUME CPR', p_check: 'RHYTHM CHECK DUE · ANALYSE',
+    p_continuous: 'CONTINUOUS CPR · VENTILATED', p_waitbreath: 'STOP · BREATHS NEXT', p_nopads: 'CONNECT THE PADS',
+    // team card
+    t_arrest: 'Cardiac arrest', t_resp: 'Respiratory arrest', t_rosc: 'Pulse back (ROSC)', down: 'Down', ccf: 'Hands-on', adren: 'Adrenaline',
+    role_comp: 'COMPRESSIONS', role_air: 'AIRWAY · DEFIB · DRUGS', you: 'you', nobody: 'Nobody yet · you give the breaths (30:2)', fatigue: 'FATIGUE',
+    join_hint: 'A second medic can pick Join CPR on the patient to run the airway and swap with you.',
     causes: 'Reversible causes (Hs & Ts)', log: 'Code log', npc: 'Unknown',
     c_hypovolemia: 'Hypovolaemia', c_hypoxia: 'Hypoxia', c_hypothermia: 'Hypothermia', c_tension: 'Tension pneumo', c_tamponade: 'Tamponade', c_toxins: 'Toxins',
-    // pads
-    pads_title: 'Place the pads', pads_text: 'Drag each pad onto the chest: **sternum** below the right collarbone, **apex** on the left side under the armpit. Or press {%s}.',
-    pad_r: 'STERNUM', pad_l: 'APEX', pad_wrong: 'Wrong spot: that is the %s position.', pad_ok: '%s pad on.', pads_done: 'Pads on. The monitor shows the rhythm.',
-    // proc panel
-    pp_compress: 'Compress on the beat', pp_compress_t: 'Tap {%s} on every click: 100 to 120 per minute, deep and let the chest come back up. 30 compressions, then 2 breaths.',
-    pp_compress_easy: 'Easy mode: press {%s} to start compressions; they run on the beat by themselves.',
-    pp_partner: 'Your partner is compressing', pp_partner_t: 'Place the pads, analyse every 2 minutes, charge and shock, give adrenaline. Swap with {%s} when they tire.',
-    pp_breaths: 'Give %s breaths', pp_breaths_1: 'Give the last breath', pp_breaths_bvm: 'Hold {%s} about 1 second per breath with the bag-valve mask and watch the chest rise.',
+    // pads (drawn on the device screen)
+    pads_title: 'Pad placement', pads_text: 'Drag each pad onto the chest. **Sternum**: under the right collarbone. **Apex**: left side, below the armpit. {%s} sticks both.',
+    pad_r: 'STERNUM', pad_l: 'APEX', pad_wrong: 'Wrong spot: that is where the %s pad goes.', pad_ok: '%s pad on.', pads_done: 'Both pads on. Reading the rhythm.',
+    // procedure HUD
+    pp_compress: 'Compress the chest', pp_compress_t: 'Press {%s} as the metronome hand crosses the top: 100 to 120 a minute, 5 to 6 cm deep, let the chest rise fully. 30 pushes, then 2 breaths.',
+    pp_compress_easy: 'Easy mode: press {%s} once and the compressions keep time by themselves.',
+    pp_partner: 'Your partner is compressing', pp_partner_t: 'Put the pads on, analyse every 2 minutes, charge, shock and give adrenaline. Swap with {%s} when they tire.',
+    pp_breaths: 'Give %s breaths', pp_breaths_1: 'Give the last breath', pp_breaths_bvm: 'Hold {%s} about 1 second per breath on the bag and watch the chest rise.',
     pp_breaths_mouth: 'No bag-valve mask: mouth to mouth. Hold {%s} a little longer (1.3 s) per breath; it moves less air.',
-    pp_breaths_wait: 'Hands off the chest', pp_breaths_wait_t: 'Your partner gives %s breaths. Get ready to compress again.',
-    pp_analyse: 'Analysing the rhythm', pp_analyse_t: 'Everybody hands off. Any compression now spoils the analysis.',
-    pp_advised: 'Shock advised', pp_advised_t: 'Keep compressing while you charge: {%s}. Then everybody stands clear.',
-    pp_advised_man: 'Shockable rhythm', pp_noshock: 'No shock advised', pp_noshock_t: 'Resume compressions immediately. Think about the reversible causes and adrenaline.',
-    pp_charging: 'Charging %s J', pp_charging_t: 'Keep compressing until the device is charged.',
-    pp_charged: 'Stand clear!', pp_charged_t: 'Hands off the patient. Deliver the shock with {%s} or disarm with {%s}.',
-    pp_rosc: 'ROSC: the heart is beating', pp_rosc_t: 'Check the carotid pulse with {%s}. Keep the pads on: they can arrest again.',
-    pp_cont: 'Continuous compressions', pp_cont_t: 'The patient is intubated on a ventilator: compress without pauses, {%s} on the beat.',
-    s_rate: 'Rate', s_depth: 'Depth', s_quality: 'Quality', s_vent: 'Ventilation', s_breaths: 'Breaths', s_etco2: 'EtCO₂', w_comp: 'This set', w_cycle: 'Cycle %s',
-    cap_check: 'Rhythm check in %s', cap_due: 'Rhythm check due: analyse now', cap_adr_due: 'Adrenaline due', tag_cycle: 'Cycle %s', tag_easy: 'Easy mode',
+    pp_breaths_wait: 'Hands off the chest', pp_breaths_wait_t: 'Your partner gives %s breaths. Be ready to push again.',
+    pp_analyse: 'Reading the rhythm', pp_analyse_t: 'Everybody hands off. One push now spoils the analysis.',
+    pp_advised: 'Shock advised', pp_advised_t: 'Keep pushing while it charges: {%s}. Then everybody stands clear.',
+    pp_advised_man: 'Shockable rhythm', pp_noshock: 'No shock advised', pp_noshock_t: 'Back on the chest now. Think about the reversible causes and adrenaline.',
+    pp_charging: 'Charging to %s J', pp_charging_t: 'Keep pushing until the device is ready.',
+    pp_charged: 'Stand clear!', pp_charged_t: 'Hands off the patient. Shock with {%s} or disarm with {%s}.',
+    pp_rosc: 'Pulse is back', pp_rosc_t: 'Feel the carotid with {%s}. Leave the pads on: they can arrest again.',
+    pp_cont: 'Continuous compressions', pp_cont_t: 'Intubated and ventilated: push without pauses, {%s} with the metronome.',
+    s_rate: 'Rate', s_depth: 'Depth', s_recoil: 'Recoil', s_quality: 'Quality', s_vent: 'Ventilation', s_breaths: 'Breaths', s_etco2: 'EtCO₂', w_comp: 'This set', w_rate: 'Rate', w_cycle: 'Cycle %s',
+    cap_check: 'Rhythm check in %s', cap_due: 'Rhythm check due: analyse', cap_adr_due: 'Adrenaline due', cap_target: 'Aim for %s–%s', tag_cycle: 'CPR · cycle %s', tag_easy: 'CPR · easy mode',
+    st_push: 'Compressions', st_breathe: 'Breaths', st_analyse: 'Rhythm check', st_charge: 'Charge', st_shock: 'Shock',
     tool_pads: 'Pads', tool_analyse: 'Analyse', tool_charge: 'Charge', tool_disarm: 'Disarm', tool_shock: 'Shock', tool_adren: 'Adrenaline', tool_swap: 'Swap', tool_pulse: 'Pulse',
-    hint_causes: 'Hs & Ts', hint_energy: 'energy', hint_orbit: 'orbit', hint_rmb: 'Right click', abort: 'Hold to stop CPR',
-    // lane
-    l_perfect: 'PERFECT', l_good: 'GOOD', l_early: 'EARLY', l_late: 'LATE', l_off: 'OFF BEAT', l_shallow: 'PUSH DEEPER', l_lean: 'LET IT RECOIL',
-    l_breath: 'CHEST RISE', l_partner: '%s compresses: %s/min, quality %s', l_analyse: 'Analysing… hands off', l_charging: 'Charging', l_charged: 'Charged · stand clear', l_handsoff: 'Hands off · breaths',
+    hint_causes: 'Hs & Ts', hint_energy: 'energy', hint_orbit: 'orbit', hint_rmb: 'Right click', abort: 'Stop CPR',
+    // metronome card (in the procedure column)
+    m_title: 'Metronome', m_depth: 'Depth', m_timing: 'Timing · this set', m_early: 'Early', m_on: 'In time', m_late: 'Late', m_recoil: 'Recoil',
+    m_breaths: 'Breaths', m_rise: 'Chest rise', m_short: 'short', m_long: 'long', m_ok: 'good', m_wait: 'waiting',
+    l_perfect: 'SPOT ON', l_good: 'GOOD', l_early: 'EARLY', l_late: 'LATE', l_off: 'MISSED', l_shallow: 'DEEPER', l_lean: 'LIFT OFF',
+    l_breath: 'CHEST RISE', l_partner: '%s compresses · %s cpm · %s', l_analyse: 'Reading the rhythm · hands off', l_charging: 'Charging', l_charged: 'Charged · stand clear', l_handsoff: 'Hands off · breaths',
     d_depth: 'DEPTH', d_ok: '5–6 cm', d_low: 'too shallow', d_lean: 'leaning',
     // flashes / voice
     f_hands: 'Hands off! The device is charged.', f_motion: 'Motion: the analysis needs everyone off the patient.', f_partner: 'Your partner is compressing.',
     f_waitbreath: 'Stop: breaths come next.', f_breath_short: 'Too short: the chest barely rose.', f_breath_long: 'Too long: air went into the stomach.', f_breath_ok: 'Good breath: chest rose.',
     f_no_defib: 'No defibrillator here: bring one (or a trauma kit), or work in the ambulance / hospital.', f_pulse_yes: 'Carotid pulse %s/min%s.', f_pulse_weak: ', weak', f_pulse_no: 'No pulse. Continue CPR.',
     f_idle: 'Keep going! Every second without compressions counts.', f_aed_energy: 'AED mode chooses the energy itself.',
-    v_analyse: 'Analysing heart rhythm. Do not touch the patient.', v_shock: 'Shock advised. Charging.', v_shock_man: 'Shockable rhythm.', v_charged: 'Stand clear. Push the flashing shock button now.',
+    v_analyse: 'Analysing heart rhythm. Do not touch the patient.', v_shock: 'Shock advised. Charging.', v_shock_man: 'Shockable rhythm.', v_charged: 'Stand clear. Press the flashing shock button now.',
     v_noshock: 'No shock advised. Start CPR.', v_motion: 'Motion detected. Stop all motion.', v_breaths: 'Give two breaths.', v_check: 'Two minutes. Stop CPR and analyse.', v_adr: 'Consider adrenaline.',
     v_shocked: 'Shock delivered. Start CPR.', v_rosc: 'Pulse detected.', v_who: 'DEVICE',
     // banners
@@ -90,9 +97,9 @@
     e_adren: 'Adrenaline 1 mg given (dose %s).', e_missed: '%s breath(s) missed: compressions resume.', e_changed: 'The rhythm changed after the shock.',
     // debrief
     d_title_rosc: 'ROSC achieved', d_title_death: 'The patient died', d_title_stopped: 'CPR stopped', d_title_left: 'You left the code', d_title_breathing: 'Breathing again',
-    d_sub: '%s · %s', d_duration: 'DURATION', d_comp: 'COMPRESSIONS', d_quality: 'QUALITY', d_ccf: 'HANDS-ON', d_vent: 'BREATHS', d_shocks: 'SHOCKS', d_adr: 'ADRENALINE', d_protocol: 'PROTOCOL',
-    d_rhythm: 'Rhythm %s → %s', d_done: 'Done',
-    fb_rosc: 'Pulse back after %s of resuscitation.', fb_quality: 'Compression quality %s%%: press on the click and let the chest come all the way back up.',
+    d_sub: '%s · %s', d_duration: 'Duration', d_comp: 'Compressions', d_quality: 'Quality', d_ccf: 'Hands-on', d_vent: 'Breaths', d_shocks: 'Shocks', d_adr: 'Adrenaline', d_protocol: 'Protocol',
+    d_rhythm: 'Rhythm %s → %s', d_done: 'Done', d_score: 'Score', d_kicker: 'Code summary', d_path: 'Rhythm', d_tips: 'Notes for next time',
+    fb_rosc: 'Pulse back after %s of resuscitation.', fb_quality: 'Compression quality %s%%: press on the metronome and let the chest come all the way back up.',
     fb_ccf: 'Hands-on time %s%%: keep every pause under 10 seconds (aim for 80%% or more).', fb_vent: 'Breaths %s%%: hold about 1 second and watch the chest rise.',
     fb_protocol: 'Protocol: shocks on a non-shockable rhythm, long pauses before a shock or touching the patient during the shock cost points.',
     fb_adr: 'No adrenaline was given: every 3 to 5 minutes, early in non-shockable rhythms.', fb_good: 'Solid CPR: good rate, depth and recoil.',
@@ -126,8 +133,10 @@
     auto: false, showCauses: true, pads: { R: false, L: false }, drag: null, padsBusy: false,
     viewAt: 0, phaseLeftAt: 0, idleWarned: false, cycleWarned: 0, adrWarned: 0, chargedBeep: 0, lastPP: '', raf: 0,
     autoCharged: false, noShockUntil: 0, ppTimer: 0, padsOpen: false, chargeMs: 2500, waitAt: 0,
+    recoil: 0, setCells: [], setStats: { early: 0, on: 0, late: 0, miss: 0, recoil: 0, n: 0 }, breathLog: [], voice: '',
   };
   const zeroBatch = () => ({ n: 0, timing: 0, depth: 0, recoil: 0 });
+  function resetSet() { st.setCells = []; st.setStats = { early: 0, on: 0, late: 0, miss: 0, recoil: 0, n: 0 }; }
   st.batch = zeroBatch();
 
   let root, dev, pp = null, ecg = null, co2 = null, anchors = null;
@@ -136,109 +145,170 @@
   const snd = () => st.cfg.sounds !== false && NZA.cfg.sounds !== false;
 
   /* ─────────────── SVG bits ─────────────── */
-  const padSVG = (lab) => `<svg viewBox="0 0 44 56" width="100%" height="100%"><defs><linearGradient id="pg${lab}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f5"/><stop offset="1" stop-color="#cfd5d6"/></linearGradient></defs>
-    <rect x="2" y="2" width="40" height="52" rx="9" fill="url(#pg${lab})" stroke="#08afa2" stroke-width="2"/><rect x="9" y="11" width="26" height="34" rx="6" fill="#9fb4b6" opacity=".55"/>
-    <path d="M22 2v-2" stroke="#3c4245" stroke-width="3"/><text x="22" y="33" text-anchor="middle" font-family="Lexend,sans-serif" font-weight="800" font-size="9" fill="#065e57">${lab}</text></svg>`;
-  const torsoSVG = `<svg viewBox="0 0 150 118"><path d="M38 6c8-4 22-5 37-5s29 1 37 5l26 14c6 3 9 9 9 16v40c0 5-4 8-8 7l-10-3v38H21V80l-10 3c-4 1-8-2-8-7V36c0-7 3-13 9-16z" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.22)" stroke-width="1.4"/>
-    <path d="M75 12v62M52 30c7 3 15 4 23 4s16-1 23-4M50 46c8 3 16 4 25 4s17-1 25-4M52 62c7 2 15 3 23 3s16-1 23-3" stroke="rgba(255,255,255,.12)" stroke-width="1.2" fill="none"/>
-    <path d="M44 14c10 5 20 7 31 7s21-2 31-7" stroke="rgba(255,255,255,.2)" stroke-width="1.4" fill="none"/></svg>`;
-  const knobSVG = (list) => {
-    const a0 = -135, a1 = 135, cx = 59, cy = 59;
-    return `<svg viewBox="0 0 118 118">${list.map((e, i) => {
-      const a = (a0 + (a1 - a0) * (i / Math.max(1, list.length - 1))) * Math.PI / 180;
-      const x1 = cx + Math.sin(a) * 39, y1 = cy - Math.cos(a) * 39, x2 = cx + Math.sin(a) * 44, y2 = cy - Math.cos(a) * 44;
-      const tx = cx + Math.sin(a) * 53, ty = cy - Math.cos(a) * 53 + 3;
-      return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,.5)" stroke-width="2"/><text data-e="${e}" x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" font-weight="700" fill="rgba(255,255,255,.45)">${e}</text>`;
-    }).join('')}</svg>`;
+  // electrode pad: foam border, gel window, lead wire, a placement pictogram printed on it
+  const padSVG = (lab) => {
+    const dot = lab === 'R' ? '<circle cx="18.5" cy="34" r="2.6" fill="#e5484d"/>' : '<circle cx="25.5" cy="40" r="2.6" fill="#e5484d"/>';
+    return `<svg viewBox="0 0 44 58" width="100%" height="100%"><defs>
+      <linearGradient id="pf${lab}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbfcfb"/><stop offset="1" stop-color="#d8dedd"/></linearGradient>
+      <linearGradient id="pgl${lab}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9cdd0"/><stop offset="1" stop-color="#8ea7ab"/></linearGradient></defs>
+      <path d="M22 0v6" stroke="#2b3134" stroke-width="3" stroke-linecap="round"/><rect x="18" y="4" width="8" height="5" rx="1.5" fill="#3a4246"/>
+      <rect x="2" y="8" width="40" height="48" rx="10" fill="url(#pf${lab})" stroke="rgba(0,0,0,.25)" stroke-width="1"/>
+      <rect x="8" y="14" width="28" height="36" rx="7" fill="url(#pgl${lab})" opacity=".8"/>
+      <path d="M14.5 27c0-3 3-4.5 7.5-4.5s7.5 1.5 7.5 4.5v15h-15z" fill="none" stroke="#2c3b3e" stroke-width="1.3" opacity=".75"/>
+      <circle cx="22" cy="19.5" r="2.4" fill="none" stroke="#2c3b3e" stroke-width="1.3" opacity=".75"/>${dot}
+      <rect x="2" y="8" width="40" height="48" rx="10" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width=".8"/></svg>`;
   };
+  // line-art torso pictogram for the pad map on the device screen (120 × 150)
+  const torsoSVG = `<svg viewBox="0 0 120 150" class="tso">
+    <circle cx="60" cy="16" r="11" class="o"/>
+    <path d="M52 27v7M68 27v7" class="o"/>
+    <path d="M24 46c4-8 14-12 28-12h16c14 0 24 4 28 12l8 30c1 4-1 7-5 7l-8-1-1 64H30l-1-64-8 1c-4 0-6-3-5-7z" class="o"/>
+    <path d="M60 40v58M42 42c6 3 12 4 18 4s12-1 18-4M38 58c7 3 14 4 22 4s15-1 22-4M38 72c7 3 14 4 22 4s15-1 22-4M40 86c6 2 13 3 20 3s14-1 20-3" class="r"/>
+    <path d="M34 40l18 4M86 40l-18 4" class="r"/></svg>`;
+  // energy selector ring around the shock button (240°, gap at the bottom)
+  const RING = { C: 90, R: 60, A0: 150, SW: 240 };
+  const ringPt = (f, r) => { const a = (RING.A0 + RING.SW * f) * Math.PI / 180; return [RING.C + r * Math.cos(a), RING.C + r * Math.sin(a)]; };
+  const ringArc = (f0, f1, r) => { const [x0, y0] = ringPt(f0, r), [x1, y1] = ringPt(f1, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${(f1 - f0) * RING.SW > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+  function ringSVG(list) {
+    const n = Math.max(1, list.length - 1);
+    let ticks = '', labels = '', minor = '';
+    for (let i = 0; i <= 48; i++) { const f = i / 48; const [a, b] = ringPt(f, RING.R + 6), [c, d] = ringPt(f, RING.R + 9); minor += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }
+    list.forEach((e, i) => {
+      const f = i / n;
+      const [a, b] = ringPt(f, RING.R + 5), [c, d] = ringPt(f, RING.R + 13), [tx, ty] = ringPt(f, RING.R + 22);
+      ticks += `<line data-i="${i}" x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`;
+      labels += `<text data-i="${i}" x="${tx.toFixed(1)}" y="${(ty + 3).toFixed(1)}" text-anchor="middle">${e}</text>`;
+    });
+    return `<svg viewBox="0 0 180 180"><path class="trk" d="${ringArc(0, 1, RING.R)}"/><path class="fil" d=""/>
+      <g class="mn">${minor}</g><g class="tk">${ticks}</g><g class="lb">${labels}</g><circle class="dot" r="4" cx="0" cy="0"/>
+      <text class="unit" x="${RING.C}" y="${RING.C + RING.R + 4}" text-anchor="middle">J</text></svg>`;
+  }
 
   /* ═══════════════════════════ DOM ═══════════════════════════ */
+  // DF-7: a portrait monitor / defibrillator docked left of the tool belt (right ≥ 300 px).
+  // Generic labelling only (type, model code, warning sticker).
+  function deviceHTML() {
+    const key = (sk, ic, lab, id) => `<div class="df-k"><button class="df-key" data-sk="${sk}"${id ? ` id="${id}"` : ''}><span class="led"></span>${ic}</button><label>${esc(lab)}</label></div>`;
+    return `
+      <div class="df">
+        <span class="df-grip l"></span><span class="df-grip r"></span>
+        <div class="df-cap">
+          <span class="df-port" id="cpPort"><i class="sock"></i><i class="plug"></i></span>
+          <span class="df-grille"></span>
+          <span class="df-leds"><i class="on"></i><i id="cpLedPads"></i><i id="cpLed"></i></span>
+        </div>
+        <div class="df-plate"><b>${esc(T('model'))}</b><span>${esc(T('dev_type'))}</span><span class="sp"></span><em class="df-tag" id="cpModeTag"></em></div>
+        <div class="df-bezel">
+          <div class="dev-screen df-scr" id="cpScr">
+            <div class="sb">
+              <span class="sb-chip" id="cpSbAge">${esc(T('adult'))}</span>
+              <span class="sb-pads" id="cpPadsTag"></span>
+              <span class="sp"></span>
+              <span class="sb-bat"><i></i><i></i><i></i><i></i></span>
+              <span class="sb-clk"><em>${esc(T('code'))}</em><b id="cpCode">00:00</b></span>
+            </div>
+            <div class="panes">
+              <div class="pane ecg">
+                <canvas id="cpEcg"></canvas>
+                <span class="pl g">${esc(T('lead'))} · ×1</span>
+                <div class="hrb" id="cpNHr"><span class="k">${esc(T('hr'))}<i class="hb">${icon('heart')}</i></span><b class="v">---</b><span class="u">${esc(T('bpm'))}</span></div>
+                <div class="rhy" id="cpRh"><b></b><span></span></div>
+                <span class="cp-anl" id="cpAnl"></span>
+                <div class="cp-msg" id="cpEcgMsg"></div>
+              </div>
+              <div class="pane co2"><canvas id="cpCo2"></canvas><span class="pl y">${esc(T('tr_co2'))}</span><div class="nv y" id="cpNCo"><b>--</b><span>${esc(T('mmhg'))}</span></div></div>
+              <div class="pane cpr"><canvas id="cpFb"></canvas><span class="pl w">${esc(T('tr_fb'))}</span><div class="nv" id="cpNRate"><b>---</b><span>${esc(T('per_min'))}</span><em id="cpRateChip"></em></div></div>
+              <div class="cp-padmap" id="cpPads">
+                <div class="torso">${torsoSVG}<span class="slot" data-slot="R" style="left:45px;top:58px">${padSVG('R')}</span><span class="slot" data-slot="L" style="left:79px;top:92px">${padSVG('L')}</span></div>
+                <div class="txt"><b class="pt"></b><p></p>
+                  <div class="row"><div class="pk"><div class="cp-pad" data-pad="R">${padSVG('R')}</div><span>${esc(T('pad_r'))}</span></div><div class="pk"><div class="cp-pad" data-pad="L">${padSVG('L')}</div><span>${esc(T('pad_l'))}</span></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="il">
+              <div class="en" id="cpNEn"><span>${esc(T('energy'))}</span><b>200<small>J</small></b></div>
+              <div class="sh" id="cpNSh"><span>${esc(T('shocks'))}</span><b>0</b></div>
+              <div class="cy" id="cpNCy"><span></span><b>--:--</b></div>
+              <div class="ad" id="cpNAd"><span>${esc(T('il_adr'))}</span><b>--</b></div>
+            </div>
+            <div class="msg" id="cpPrm"><span class="spk">${icon('volume')}</span><span class="t"></span><span class="wv"><i></i><i></i><i></i><i></i></span></div>
+            <div class="cp-chg"><i id="cpChg"></i></div>
+          </div>
+        </div>
+        <div class="df-deck">
+          <div class="df-col">
+            ${key('analyse', icon('ecg'), T('sk_analyse'))}
+            <div class="df-k"><button class="df-key chg" id="cpCharge"><span class="f"></span><span class="led"></span>${icon('bolt')}</button><label class="lab">${esc(T('charge'))}</label></div>
+            <div class="df-k"><div class="df-rock" id="cpMode"><button data-m="aed">${esc(T('aed'))}</button><button data-m="manual">${esc(T('manual'))}</button></div><label>${esc(T('energy_select'))}</label></div>
+          </div>
+          <div class="df-dial" id="cpKnob" data-wheel="1">
+            <div class="ring"></div>
+            <button class="df-shock" id="cpShock"><span class="halo"></span><span class="face">${icon('bolt')}<small>${esc(T('shock'))}</small></span></button>
+          </div>
+          <div class="df-col">
+            ${key('pads', icon('defib'), T('sk_pads'))}
+            ${key('adren', `${icon('syringe')}<span class="cnt" id="cpAdrCnt"></span>`, T('sk_adren'))}
+            <div class="df-k"><button class="df-key" data-sk="four"><span class="led"></span><span class="ic4"></span></button><label id="cpFourL"></label></div>
+          </div>
+        </div>
+        <div class="df-foot"><span class="hz"></span><span class="wt">${icon('alert')}<span>${esc(T('dev_warn'))}</span></span><span class="hz"></span></div>
+        <div class="df-ref"><span>${esc(T('dev_ref'))}</span><span class="sn">SN 07-41188</span></div>
+      </div>`;
+  }
+
   function build(el) {
     root = el;
     el.innerHTML = `
       <div class="cp-wrap">
-        <div class="cp-team nza-hud rail" id="cpTeam"></div>
-        <div class="cp-banner nza-hud solid" id="cpBanner"><div class="bi"></div><div><b></b><span></span></div></div>
-        <div class="cp-pads nza-hud solid" id="cpPads">
-          <div class="torso">${torsoSVG}<span class="slot" data-slot="R" style="left:52px;top:34px">${padSVG('R')}</span><span class="slot" data-slot="L" style="left:108px;top:72px">${padSVG('L')}</span></div>
-          <div class="txt"><b class="pt"></b><p></p>
-            <div class="row"><span class="cp-padl">${esc(T('pad_r'))}</span><div class="cp-pad" data-pad="R">${padSVG('R')}</div><span class="cp-padl" style="margin-left:14px">${esc(T('pad_l'))}</span><div class="cp-pad" data-pad="L">${padSVG('L')}</div></div>
-          </div>
-        </div>
+        <div class="cp-team nza-hud solid" id="cpTeam"></div>
+        <div class="cp-banner nza-hud solid" id="cpBanner"><div class="bi"><span class="ic"></span></div><div class="bt"><b></b><span></span></div></div>
         <div class="cp-padg" id="cpGhost"></div>
         <div class="cp-wpad hide" id="cpWR">${padSVG('R')}</div><div class="cp-wpad hide" id="cpWL">${padSVG('L')}</div>
-        <div class="cp-dev" id="cpDev">
-          <div class="cp-voice"><div class="nza-hud solid" id="cpVoice"><span class="ic">${icon('defib')}</span><span class="who"></span><span class="tx"></span></div></div>
-          <div class="cp-handle"></div>
-          <div class="dev cp-body">
-            <span class="cp-bump tl"></span><span class="cp-bump tr"></span><span class="cp-bump bl"></span><span class="cp-bump br"></span>
-            <div class="cp-top"><div class="dev-brand"><span class="nz-mark"></span><b>${esc(T('brand'))}</b></div><span class="model">${esc(T('model'))}</span><span class="sp"></span>
-              <span class="cp-tag" id="cpModeTag"></span><span class="cp-tag" id="cpPadsTag"></span><span class="dev-led" id="cpLed"></span></div>
-            <div class="cp-grid">
-              <div>
-                <div class="dev-screen cp-scr" id="cpScr">
-                  <div class="cp-hdr"><span id="cpHdrL"></span><span class="cp-rh" id="cpRh"></span><span class="r"><span>${esc(T('code'))}</span><b id="cpCode">00:00</b></span></div>
-                  <div class="cp-main">
-                    <div class="cp-traces">
-                      <div class="cp-tr ecg"><span class="tl g">${esc(T('lead'))}</span><canvas id="cpEcg"></canvas><div class="cp-msg dash" id="cpEcgMsg"></div><span class="cp-anl" id="cpAnl"></span></div>
-                      <div class="cp-tr fb"><span class="tl w">${esc(T('tr_fb'))}</span><canvas id="cpFb"></canvas></div>
-                      <div class="cp-tr co2"><span class="tl y">${esc(T('tr_co2'))}</span><canvas id="cpCo2"></canvas></div>
-                    </div>
-                    <div class="cp-nums">
-                      <div class="cp-n hr" id="cpNHr"><span class="k">${esc(T('hr'))}</span><span class="v">---</span></div>
-                      <div class="cp-n en" id="cpNEn"><span class="k">${esc(T('energy'))}</span><span class="v">200<small>J</small></span></div>
-                      <div class="cp-n sh" id="cpNSh"><span class="k">${esc(T('shocks'))}</span><span class="v">0</span></div>
-                      <div class="cp-n co" id="cpNCo"><span class="k">${esc(T('etco2'))}</span><span class="v">--</span><span class="s">${esc(T('mmhg'))}</span></div>
-                    </div>
-                  </div>
-                  <div class="cp-mt">
-                    <div class="cp-m"><div class="row">${esc(T('rate'))} <b id="cpRate">---</b>${esc(T('per_min'))}<span class="sp"></span><span class="cp-chip" id="cpRateChip">—</span></div>
-                      <div class="cp-bar"><span class="zone" id="cpRateZone"></span><span class="mk" id="cpRateMk" style="left:0"></span></div></div>
-                    <div class="cp-m"><div class="row">${esc(T('compressions'))} <b id="cpCnt">0/30</b><span class="sp"></span><span class="q" id="cpQ">--%</span></div>
-                      <div class="cp-bar segs" id="cpCntBar"><i style="width:0"></i></div></div>
-                  </div>
-                  <div class="cp-prm" id="cpPrm"><kbd></kbd><span class="t"></span><span class="sp"></span><span class="side" id="cpPrmSide"></span></div>
-                  <div class="cp-sl" id="cpSl"><span data-sk="pads"></span><span data-sk="analyse"></span><span data-sk="adren"></span><span data-sk="four"></span></div>
-                  <div class="cp-chg"><i id="cpChg"></i></div>
-                </div>
-                <div class="cp-softkeys"><button class="dev-btn cp-soft" data-sk="pads"></button><button class="dev-btn cp-soft" data-sk="analyse"></button><button class="dev-btn cp-soft" data-sk="adren"></button><button class="dev-btn cp-soft" data-sk="four"></button></div>
-              </div>
-              <div class="cp-side">
-                <div class="cp-lbl">${esc(T('energy_select'))}</div>
-                <div class="cp-knob" id="cpKnob" data-wheel="1"><div class="kt"></div><div class="cap"></div></div>
-                <div class="cp-mode" id="cpMode"><button data-m="aed">${esc(T('aed'))}</button><button data-m="manual">${esc(T('manual'))}</button></div>
-                <button class="dev-btn cp-charge" id="cpCharge"><span class="f"></span><span class="lab">${esc(T('charge'))}</span></button>
-                <div class="cp-lbl" style="margin-top:2px">${esc(T('shock'))}</div>
-                <div class="cp-shock" id="cpShock">${icon('bolt')}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="cp-deb nza-hud solid rail" id="cpDeb"></div>
+        <div class="cp-dev" id="cpDev"></div>
+        <div class="cp-deb nza-hud solid" id="cpDeb"></div>
       </div>`;
     dev = $('#cpDev');
     anchors = NZA.ui.Anchors(APP);
     anchors.on(onAnchors);
 
-    // hardware
-    root.querySelectorAll('[data-sk]').forEach(b => { if (b.tagName === 'BUTTON') b.addEventListener('click', () => { blur(); softKey(b.dataset.sk); }); });
-    $('#cpCharge').addEventListener('click', () => { blur(); doCharge(); });
-    $('#cpShock').addEventListener('click', () => { blur(); doShock(); });
-    $('#cpMode').addEventListener('click', e => { const b = e.target.closest('button'); blur(); if (b && !b.disabled) setMode(b.dataset.m); });
-    const knob = $('#cpKnob');
-    knob.addEventListener('click', e => { const r = knob.getBoundingClientRect(); stepEnergy(e.clientX < r.left + r.width / 2 ? -1 : 1); });
-    knob.addEventListener('wheel', e => { e.preventDefault(); stepEnergy(e.deltaY > 0 ? -1 : 1); }, { passive: false });
-
-    // pads drag
-    root.querySelectorAll('.cp-pad').forEach(p => p.addEventListener('pointerdown', e => startDrag(e, p.dataset.pad)));
+    mountDevice();
+    // pads drag (the pads themselves are wired in mountDevice)
     window.addEventListener('pointermove', moveDrag);
     window.addEventListener('pointerup', endDrag);
 
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
   }
+  // device face markup + hardware wiring (re-run on open so the locale applies to the printed labels)
+  function mountDevice() {
+    dev.innerHTML = deviceHTML();
+    dev.querySelectorAll('button[data-sk]').forEach(b => b.addEventListener('click', () => { blur(); softKey(b.dataset.sk); }));
+    $('#cpCharge').addEventListener('click', () => { blur(); doCharge(); });
+    $('#cpShock').addEventListener('click', e => { e.stopPropagation(); blur(); doShock(); });
+    $('#cpMode').addEventListener('click', e => { const b = e.target.closest('button'); blur(); if (b && !b.disabled) setMode(b.dataset.m); });
+    const knob = $('#cpKnob');
+    knob.addEventListener('click', e => { if (e.target.closest('#cpShock')) return; const r = knob.getBoundingClientRect(); stepEnergy(e.clientX < r.left + r.width / 2 ? -1 : 1); });
+    knob.addEventListener('wheel', e => { e.preventDefault(); stepEnergy(e.deltaY > 0 ? -1 : 1); }, { passive: false });
+    dev.querySelectorAll('.cp-pad').forEach(p => p.addEventListener('pointerdown', e => startDrag(e, p.dataset.pad)));
+    $('#cpKnob .ring').innerHTML = ringSVG(st.cfg.energies || DEF_CFG.energies);
+  }
   const blur = () => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); };
   const isTop = () => st.open && NZA.isOpen(APP) && NZA.stack[NZA.stack.length - 1] === APP;
+
+  /* metronome card: lives in the procedure column (pp.slot, above the key legend) */
+  function metroHTML() {
+    let scale = '';
+    for (let cm = 0; cm <= 7; cm++) scale += `<i style="top:${(cm / 7) * 100}%" class="${cm === 5 || cm === 6 ? 'b' : ''}"><em>${cm}</em></i>`;
+    return `
+      <div class="mt-hd"><span class="k">${esc(T('m_title'))}</span><b id="cpMtBpm">110</b><span class="u">/min</span><span class="sp"></span><span class="mt-auto" id="cpMtAuto">${esc(T('auto'))}</span><span class="mt-pop cp-pop" id="cpPop"></span></div>
+      <div class="mt-body">
+        <div class="mt-ring"><canvas id="cpRing"></canvas><div class="mt-c"><b id="cpMtN">0</b><span id="cpMtOf">/30</span></div></div>
+        <div class="mt-depth"><div class="tube"><span class="sc">${scale}</span><span class="z"></span><i id="cpTube"></i></div>
+          <div class="dv"><div class="l" id="cpDepthL">${esc(T('m_depth'))}</div><div class="v" id="cpDepthV">--<small>cm</small></div><div class="s" id="cpDepthS">${esc(T('d_ok'))}</div></div></div>
+        <div class="mt-tim" id="cpTim"></div>
+        <div class="ov" id="cpLaneOv"><span class="ic"></span><span class="tx"></span><span class="bar"><i></i></span></div>
+      </div>`;
+  }
 
   /* ═══════════════════════════ OPEN / CLOSE ═══════════════════════════ */
   function open(data) {
@@ -248,38 +318,43 @@
     st.keys = Object.assign({}, DEF_KEYS, data.keys || {});
     st.easy = !!data.easy || !!(data.view && data.view.easy);
     st.open = true; st.ended = false; st.view = null;
-    st.localSet = 0; st.waitBreaths = false; st.bars = []; st.hits = []; st.intervals = []; st.rate = 0; st.depth = 0; st.quality = 0;
+    st.localSet = 0; st.waitBreaths = false; st.bars = []; st.hits = []; st.intervals = []; st.rate = 0; st.depth = 0; st.quality = 0; st.recoil = 0;
+    st.setCells = []; st.setStats = { early: 0, on: 0, late: 0, miss: 0, recoil: 0, n: 0 }; st.breathLog = [];
     st.press = null; st.breath = null; st.auto = false; st.batch = zeroBatch(); st.lastReport = now(); st.lastCompAt = 0; st.lastPressAt = 0;
     st.pads = { R: false, L: false }; st.padsBusy = false; st.padsOpen = false; st.drag = null; st.noShockUntil = 0; st.cycleWarned = 0; st.adrWarned = 0; st.autoCharged = false; st.lastPP = '';
-    st.period = 60 / (st.cfg.target || 110); st.beat0 = now() + 400; st.lastBeatIdx = -1;
+    st.period = 60 / (st.cfg.target || 110); st.beat0 = now() + 400; st.lastBeatIdx = -1; st.voice = '';
+    mountDevice();   // the locale arrived with the open: rebuild the static device face
     root.querySelectorAll('.cp-dev,.cp-team').forEach(e => { e.style.display = ''; });
     dev.classList.remove('cp-dim');
     $('#cpDeb').classList.remove('on');
-    hideBanner(); voice(null);
-    $('#cpKnob .kt').innerHTML = knobSVG(st.cfg.energies);
+    hideBanner(); clearTimeout(voiceTimer);
 
-    if (!ecg) ecg = NZA.vitals.Trace($('#cpEcg'), { type: 'ecg', rhythm: 'asystole', rate: 60, color: '#3ddc84', speed: 0.2, gain: 0.36, onBeat: () => { const v = st.view; if (v && v.monitor && snd() && !ARREST_RH[v.rhythm] && v.rhythm) NZA.audio.heartbeat(v.spo2 || 96); } });
-    else { ecg.start(); ecg.clear(); }
-    if (!co2) co2 = NZA.vitals.Trace($('#cpCo2'), { type: 'co2', rr: 0, etco2: 0, color: '#f2d64b', speed: 0.12, gain: 0.3, glow: false });
-    else { co2.start(); co2.clear(); }
+    if (ecg) ecg.stop();
+    if (co2) co2.stop();
+    ecg = NZA.vitals.Trace($('#cpEcg'), { type: 'ecg', rhythm: 'asystole', rate: 60, color: '#3ddc84', speed: 0.2, gain: 0.34, onBeat: () => { const v = st.view; if (v && v.monitor && !ARREST_RH[v.rhythm] && v.rhythm) { beatFlash(); if (snd()) NZA.audio.heartbeat(v.spo2 || 96); } } });
+    co2 = NZA.vitals.Trace($('#cpCo2'), { type: 'co2', rr: 0, etco2: 0, color: '#f2d64b', speed: 0.12, gain: 0.3, glow: false });
 
     if (pp) pp.destroy();
     pp = NZA.ui.ProcPanel(root.querySelector('.cp-wrap'), {
-      step: 1, total: 5, title: T('pp_compress'), text: '', abort: { label: T('abort'), key: 'ESC', seconds: 1.2 },
+      step: 1, total: 5, tag: T('tag_cycle', 1), title: T('pp_compress'), text: '', steps: stepNames(), abort: { label: T('abort'), key: 'ESC', seconds: 1.2 },
+      hints: [{ keys: [keyLabel(st.keys.causes)], label: T('hint_causes') }],
       onAbort: () => { if (!st.ended) post('leave'); }, onTool: k => toolKey(k),
     });
-    const lane = document.createElement('div');
-    lane.className = 'cp-lane nza-hud solid nza-int';
-    lane.innerHTML = `<div class="cp-beat"><canvas id="cpLane"></canvas><div class="cp-pop" id="cpPop"></div><div class="ov" id="cpLaneOv"><span class="ic"></span><span class="tx"></span><span class="bar"><i></i></span></div></div>
-      <div class="cp-depth"><div class="tube"><span class="z"></span><i id="cpTube"></i></div><div><div class="l">${esc(T('d_depth'))}</div><div class="v" id="cpDepthV">--<small>cm</small></div><div class="s" id="cpDepthS">${esc(T('d_ok'))}</div></div></div>`;
-    pp.slot.parentNode.insertBefore(lane, pp.slot);
-    const z = $('.cp-depth .tube .z'); z.style.top = `${(5 / 7) * 100}%`; z.style.height = `${(1 / 7) * 100}%`;
-    // depth tube: top = 0 cm, bottom = 7 cm → the zone sits between 5 and 6 cm from the top
+    const card = document.createElement('div');
+    card.className = 'cp-metro nza-hud solid nza-int';
+    card.id = 'cpMetro';
+    card.innerHTML = metroHTML();
+    pp.slot.insertBefore(card, pp.slot.firstChild);
+    const z = $('.mt-depth .tube .z'); z.style.top = `${(5 / 7) * 100}%`; z.style.height = `${(1 / 7) * 100}%`;
+    // depth tube: top = 0 cm, bottom = 7 cm → the band sits between 5 and 6 cm
 
     if (data.view) state(data.view);
+    renderMsg();
     cancelAnimationFrame(st.raf);
     st.raf = requestAnimationFrame(frame);
   }
+  const stepNames = () => [T('st_push'), T('st_breathe'), T('st_analyse'), T('st_charge'), T('st_shock')];
+  function beatFlash() { const h = $('#cpNHr'); if (!h) return; h.classList.remove('beat'); void h.offsetWidth; h.classList.add('beat'); }
 
   function close() {
     st.open = false;
@@ -294,7 +369,6 @@
     hideBanner(); voice(null);
     clearTimeout(st.ppTimer);
   }
-
   /* ═══════════════════════════ VIEW ═══════════════════════════ */
   function state(v) {
     if (!v || st.ended) return;
@@ -325,9 +399,9 @@
 
   function phaseChanged(from, to) {
     st.press = null;
-    if (to === 'breaths') { st.waitBreaths = false; st.setPhase = 'breaths'; st.localSet = 0; if (st.breath) st.breath = null; }
+    if (to === 'breaths') { st.waitBreaths = false; st.setPhase = 'breaths'; st.localSet = 0; st.breathLog = []; if (st.breath) st.breath = null; }
     if (to === 'compress' && from !== 'advised' && from !== 'charging') { st.beat0 = now() + 250; st.lastBeatIdx = -1; st.idleWarned = false; }
-    if (to === 'compress' && (from === 'breaths' || from === 'charged' || from === 'analyse')) { st.setPhase = ''; st.localSet = 0; st.waitBreaths = false; st.intervals = []; st.lastPressAt = 0; }
+    if (to === 'compress' && (from === 'breaths' || from === 'charged' || from === 'analyse')) { st.setPhase = ''; st.localSet = 0; st.waitBreaths = false; st.intervals = []; st.lastPressAt = 0; resetSet(); }
     if (to === 'charged') { st.chargedBeep = now(); }
     if (to !== 'charged' && from === 'charged') hideBanner('clear');
     if (from === 'analyse' && to !== 'analyse') hideBanner('analyse');
@@ -349,74 +423,96 @@
     return 0;
   }
 
+  /* ─────────────── device ─────────────── */
   function rhythmInfo(v) {
-    if (!v.monitor) return { text: T('rh_none'), cls: '' };
-    if (v.rosc && v.state !== 'arrest') return { text: T('rh_rosc'), cls: 'green' };
+    if (!v.monitor) return { text: T('rh_none'), sub: T('rhs_none'), cls: 'none' };
+    if (v.rosc && v.state !== 'arrest') return { text: T('rh_rosc'), sub: T('rhs_perf'), cls: 'green' };
     const r = v.rhythm || 'asystole';
     const text = T(`rh_${r}`);
-    if (r === 'vf' || r === 'vt') return { text, cls: 'red blink' };
-    if (r === 'asystole') return { text, cls: 'red' };
-    if (r === 'pea') return { text, cls: 'amber' };
-    return { text, cls: 'green' };
+    if (r === 'vf' || r === 'vt') return { text, sub: T('rhs_shock'), cls: 'red blink' };
+    if (r === 'asystole') return { text, sub: T('rhs_noshock'), cls: 'red' };
+    if (r === 'pea') return { text, sub: T('rhs_noshock'), cls: 'amber' };
+    return { text, sub: T('rhs_perf'), cls: 'green' };
   }
 
-  /* ─────────────── device ─────────────── */
   function renderDevice() {
     const v = v_();
+    if (!$('#cpModeTag')) return;
     const defib = !!v.defib || !!v.pads;
-    $('#cpHdrL').textContent = `${T('adult')} · ${v.pads ? T('pads_on') : T('pads_off')}`;
+    const man = v.mode === 'manual';
+    const charging = v.phase === 'charging', charged = v.phase === 'charged';
+    // plate, cable port, LEDs, status bar
     const mt = $('#cpModeTag');
-    mt.textContent = v.mode === 'manual' ? T('mode_manual') : T('mode_aed');
-    mt.className = `cp-tag ${v.mode === 'manual' ? '' : 'on'}`;
+    mt.textContent = man ? T('mode_manual') : T('mode_aed');
+    mt.className = `df-tag ${man ? 'man' : ''}`;
     const pt = $('#cpPadsTag');
-    pt.textContent = v.pads ? T('pads_on') : (defib ? T('pads_off') : T('no_defib'));
-    pt.className = `cp-tag ${v.pads ? 'on' : (defib ? '' : 'red')}`;
-    $('#cpLed').className = `dev-led ${v.phase === 'charged' ? 'red cp-led blink' : (v.pads ? '' : 'off')}`;
+    pt.innerHTML = `${icon(defib ? 'link' : 'alert')}<span>${esc(v.pads ? T('pads_on') : (defib ? T('pads_off') : T('no_defib')))}</span>`;
+    pt.className = `sb-pads ${v.pads ? 'on' : (defib ? 'warn' : 'red')}`;
+    $('#cpPort').className = `df-port ${v.pads ? 'on' : ''}`;
+    $('#cpLedPads').className = v.pads ? 'on' : (defib ? 'warn' : '');
+    $('#cpLed').className = charged ? 'red blink' : (charging ? 'amber blink' : '');
+    // rhythm tag (bottom-left of the ECG pane)
     const rh = rhythmInfo(v);
-    const rhe = $('#cpRh'); rhe.textContent = rh.text; rhe.className = `cp-rh ${rh.cls}`;
+    const rhe = $('#cpRh');
+    rhe.querySelector('b').textContent = rh.text;
+    rhe.querySelector('span').textContent = rh.sub;
+    rhe.className = `rhy ${rh.cls}`;
     const msg = $('#cpEcgMsg');
-    if (!v.pads && !v.monitor) { msg.className = 'cp-msg dash on'; msg.innerHTML = `${icon(defib ? 'link' : 'alert')}<span>${esc(defib ? T('connect_pads') : T('no_defib'))}</span>`; }
+    if (!v.pads && !v.monitor) { msg.className = `cp-msg on ${defib ? '' : 'red'}`; msg.innerHTML = `<span>${icon(defib ? 'link' : 'alert')}${esc(defib ? T('connect_pads') : T('no_defib'))}</span>`; }
     else msg.className = 'cp-msg';
     const anl = $('#cpAnl');
     anl.textContent = `${T('analysing')}…`;
     anl.classList.toggle('on', v.phase === 'analyse');
-    // numbers
+    // HR corner box
     const arrestRh = v.state === 'arrest' && ARREST_RH[v.rhythm];
     const hr = $('#cpNHr');
     hr.querySelector('.v').textContent = !v.monitor ? '--' : (v.state === 'arrest' && (v.rhythm === 'vf' || v.rhythm === 'asystole')) ? '---' : String(Math.round(v.hr || 0));
     hr.classList.toggle('alarm', !!(v.monitor && arrestRh));
+    hr.classList.toggle('live', !!(v.monitor && !arrestRh && (v.hr || 0) > 0));
+    // instrument list
     const en = $('#cpNEn');
-    en.querySelector('.v').innerHTML = `${curEnergy()}<small>J</small>`;
-    en.classList.toggle('ready', v.phase === 'charged');
-    $('#cpNSh .v').textContent = String(v.shocks || 0);
+    en.querySelector('b').innerHTML = `${curEnergy()}<small>J</small>`;
+    en.className = `en ${charged ? 'ready' : (charging ? 'chg' : '')}`;
+    $('#cpNSh b').textContent = String(v.shocks || 0);
     const co = shownEtco2();
-    $('#cpNCo .v').textContent = v.monitor && co ? String(Math.round(co)) : '--';
-    // knob
-    const knob = $('#cpKnob');
+    $('#cpNCo b').textContent = v.monitor && co ? String(Math.round(co)) : '--';
+    // energy ring
     const list = st.cfg.energies || [];
     const idx = Math.max(0, list.indexOf(curEnergy()));
-    const ang = -135 + 270 * (idx / Math.max(1, list.length - 1));
-    knob.querySelector('.cap').style.transform = `rotate(${ang}deg)`;
-    knob.classList.toggle('aed', v.mode !== 'manual');
-    knob.querySelectorAll('text').forEach(tx => tx.setAttribute('fill', Number(tx.dataset.e) === curEnergy() ? '#ffffff' : 'rgba(255,255,255,.4)'));
-    // mode
+    const f = idx / Math.max(1, list.length - 1);
+    const knob = $('#cpKnob');
+    const svg = knob.querySelector('svg');
+    if (svg) {
+      svg.querySelector('.fil').setAttribute('d', ringArc(0, Math.max(f, 0.004), RING.R));
+      const [dx, dy] = ringPt(f, RING.R);
+      const dot = svg.querySelector('.dot'); dot.setAttribute('cx', dx.toFixed(1)); dot.setAttribute('cy', dy.toFixed(1));
+      svg.querySelectorAll('[data-i]').forEach(e => e.classList.toggle('on', Number(e.dataset.i) === idx));
+    }
+    knob.classList.toggle('aed', !man);
+    knob.classList.toggle('hot', charging || charged);
+    // mode rocker
     $('#cpMode').querySelectorAll('button').forEach(b => {
-      b.classList.toggle('on', (b.dataset.m === 'manual') === (v.mode === 'manual'));
-      b.disabled = (b.dataset.m === 'manual' && !v.canManual) || v.phase === 'charging' || v.phase === 'charged';
+      b.classList.toggle('on', (b.dataset.m === 'manual') === man);
+      b.disabled = (b.dataset.m === 'manual' && !v.canManual) || charging || charged;
     });
     // charge / shock
     const ch = $('#cpCharge');
-    const charging = v.phase === 'charging', charged = v.phase === 'charged';
-    ch.querySelector('.lab').textContent = charged || charging ? T('disarm') : T('charge');
+    ch.parentNode.querySelector('.lab').textContent = charged || charging ? T('disarm') : T('charge');
     ch.classList.toggle('ready', charged);
-    ch.classList.toggle('off', !v.pads || (v.mode !== 'manual' && v.phase !== 'advised' && !charging && !charged));
+    ch.classList.toggle('lit', v.phase === 'advised');
+    ch.classList.toggle('off', !v.pads || (!man && v.phase !== 'advised' && !charging && !charged));
     $('#cpShock').classList.toggle('armed', charged);
-    // soft keys
-    const labels = { pads: v.pads ? `${T('sk_pads')} ✓` : T('sk_pads'), analyse: T('sk_analyse'), adren: `${T('sk_adren')}${v.adrenaline && v.adrenaline.n ? ' ×' + v.adrenaline.n : ''}`, four: fourKey() === 'swap' ? T('sk_swap') : T('sk_pulse') };
-    const lit = { pads: defib && !v.pads, analyse: v.pads && checkDue(), adren: !!(v.adrenaline && v.adrenaline.due), four: fourKey() === 'pulse' ? !!v.rosc : false };
-    const off = { pads: !defib || v.pads, analyse: !v.pads, adren: !(v.adrenaline && v.adrenaline.enabled), four: fourKey() === 'swap' ? !v.partner : false };
-    root.querySelectorAll('#cpSl span').forEach(s => { const k = s.dataset.sk; s.textContent = labels[k]; s.className = lit[k] ? 'lit' : (off[k] ? 'off' : ''); });
-    root.querySelectorAll('.cp-soft').forEach(b => { const k = b.dataset.sk; b.classList.toggle('lit', !!lit[k]); b.classList.toggle('off', !!off[k]); });
+    // side keys
+    const four = fourKey();
+    $('#cpFourL').textContent = four === 'swap' ? T('sk_swap') : T('sk_pulse');
+    dev.querySelector('[data-sk="four"] .ic4').innerHTML = icon(four === 'swap' ? 'swap' : 'pulse');
+    const ad = v.adrenaline || {};
+    const cnt = $('#cpAdrCnt');
+    cnt.textContent = ad.n ? `×${ad.n}` : '';
+    cnt.style.display = ad.n ? '' : 'none';
+    const lit = { pads: defib && !v.pads, analyse: v.pads && checkDue(), adren: !!ad.due, four: four === 'pulse' ? !!v.rosc : (v.compFatigue || 0) > 15 };
+    const off = { pads: !defib || v.pads, analyse: !v.pads, adren: !ad.enabled, four: four === 'swap' ? !v.partner : false };
+    dev.querySelectorAll('.df-key[data-sk]').forEach(b => { const k = b.dataset.sk; b.classList.toggle('lit', !!lit[k]); b.classList.toggle('off', !!off[k] && !lit[k]); b.classList.toggle('done', k === 'pads' && !!v.pads); });
     padsTray(defib && !v.pads && st.padsOpen);
   }
   const fourKey = () => (v_().partner ? 'swap' : 'pulse');
@@ -424,90 +520,113 @@
 
   function renderLive() {
     const v = v_();
+    if (!$('#cpCode')) return;
     $('#cpCode').textContent = NZA.fmt.time(codeTime());
     const comp = iAmComp();
     const rate = comp ? st.rate : (v.rate || 0);
     const rmin = st.cfg.rateMin, rmax = st.cfg.rateMax;
-    $('#cpRate').textContent = rate ? String(Math.round(rate)) : '---';
-    const pos = r => clamp((r - 60) / 100, 0, 1) * 100;
-    $('#cpRateZone').style.left = `${pos(rmin)}%`; $('#cpRateZone').style.width = `${pos(rmax) - pos(rmin)}%`;
-    $('#cpRateMk').style.left = `${pos(rate || 60)}%`;
-    $('#cpRateMk').style.opacity = rate ? 1 : 0;
+    const nr = $('#cpNRate');
+    nr.querySelector('b').textContent = rate ? String(Math.round(rate)) : '---';
     const chip = $('#cpRateChip');
-    if (!rate) { chip.textContent = '—'; chip.className = 'cp-chip'; }
-    else if (rate < rmin) { chip.textContent = T('too_slow'); chip.className = 'cp-chip amber'; }
-    else if (rate > rmax) { chip.textContent = T('too_fast'); chip.className = 'cp-chip amber'; }
-    else { chip.textContent = T('perfect'); chip.className = 'cp-chip teal'; }
-    const per = v.perSet || st.cfg.perSet;
-    const n = v.continuous ? (v.total || 0) % per : Math.min(per, st.localSet);
-    $('#cpCnt').textContent = `${n}/${per}`;
-    $('#cpCntBar i').style.width = `${(n / per) * 100}%`;
-    const q = comp && st.quality ? st.quality : (v.quality || 0);
-    $('#cpQ').textContent = q ? `${Math.round(q)}%` : '--%';
-    renderPrompt();
+    if (!rate) { chip.textContent = ''; chip.className = ''; }
+    else if (rate < rmin) { chip.textContent = T('too_slow'); chip.className = 'amber'; }
+    else if (rate > rmax) { chip.textContent = T('too_fast'); chip.className = 'amber'; }
+    else { chip.textContent = T('perfect'); chip.className = 'teal'; }
+    // cycle + adrenaline rows
+    const cl = v.cycleLength || st.cfg.cycleLength;
+    const due = checkDue();
+    const cy = $('#cpNCy');
+    cy.querySelector('span').textContent = T('il_cycle', v.cycleNo || 1);
+    cy.querySelector('b').textContent = due ? T('due') : NZA.fmt.time(Math.max(0, cl - cycleElapsed()));
+    cy.className = `cy ${due ? 'due' : ''}`;
+    const ad = v.adrenaline || {};
+    const ae = $('#cpNAd');
+    let at = '--', acls = 'ad';
+    if (ad.enabled === false) at = '--';
+    else if (ad.due && v.state === 'arrest') { at = T('due'); acls = 'ad due'; }
+    else if (ad.dueIn !== null && ad.dueIn !== undefined && v.state === 'arrest') at = NZA.fmt.time(Math.max(0, ad.dueIn - (now() - st.viewAt) / 1000));
+    else if (!ad.n) at = T('il_none');
+    ae.querySelector('b').textContent = at;
+    ae.className = acls;
+    // charge progress (screen strip + key fill)
     const pl = phaseLeft();
-    const chg = $('#cpChg');
-    if (v.phase === 'charging' && pl !== null) { const tot = Math.max(0.1, (st.chargeMs || 2500) / 1000); chg.style.width = `${clamp(1 - pl / tot, 0, 1) * 100}%`; $('#cpCharge .f').style.width = chg.style.width; }
-    else if (v.phase === 'charged') { chg.style.width = '100%'; $('#cpCharge .f').style.width = '100%'; }
-    else { chg.style.width = '0'; $('#cpCharge .f').style.width = '0'; }
+    const chg = $('#cpChg'), kf = $('#cpCharge .f');
+    let w = 0;
+    if (v.phase === 'charging' && pl !== null) { const tot = Math.max(0.1, (st.chargeMs || 2500) / 1000); w = clamp(1 - pl / tot, 0, 1) * 100; }
+    else if (v.phase === 'charged') w = 100;
+    chg.style.width = `${w}%`; kf.style.height = `${w}%`;
+    renderMsg();
   }
 
-  function renderPrompt() {
+  // the device's own message line: its spoken prompt while it talks, otherwise the state of the code
+  function renderMsg() {
     const v = v_();
     const pr = $('#cpPrm');
-    let key = '', text = '', cls = '';
-    const kc = keyLabel(st.keys.compress);
+    if (!pr) return;
+    let text = '', cls = '';
     const ph = v.phase;
-    if (ph === 'analyse') { text = T('p_analyse'); cls = 'red blink'; }
-    else if (ph === 'charged') { key = keyLabel(st.keys.shock); text = T('p_charged'); cls = 'red blink'; }
+    const defib = !!v.defib || !!v.pads;
+    if (st.voice) { text = st.voice; cls = 'voice'; }
+    else if (ph === 'analyse') { text = T('p_analyse'); cls = 'red blink'; }
+    else if (ph === 'charged') { text = T('p_charged'); cls = 'red blink'; }
     else if (ph === 'charging') { text = T('p_charging', curEnergy()); cls = 'amber'; }
-    else if (ph === 'advised') { key = keyLabel(st.keys.charge); text = T('p_advised'); cls = 'amber'; }
-    else if (ph === 'rosc') { key = keyLabel(st.keys.pulse); text = T('p_rosc'); cls = 'teal'; }
+    else if (ph === 'advised') { text = T('p_advised'); cls = 'amber'; }
+    else if (ph === 'rosc') { text = T('p_rosc'); cls = 'teal'; }
     else if (ph === 'breaths') {
-      if (iBreathe()) { key = kc; text = T('p_breath', Math.min(2, (2 - (v.breathsLeft || 0)) + 1), 2); cls = 'teal'; }
+      if (iBreathe()) { text = T('p_breath', Math.min(2, (2 - (v.breathsLeft || 0)) + 1), 2); cls = 'teal'; }
       else text = T('p_handsoff');
     } else if (st.noShockUntil > now()) { text = T('p_noshock'); }
-    else if (checkDue() && v.pads) { key = keyLabel(st.keys.analyse); text = T('p_check'); cls = 'amber'; }
+    else if (!v.pads && !defib) { text = T('no_defib'); cls = 'dim'; }
+    else if (!v.pads) { text = T('p_nopads'); cls = 'amber'; }
+    else if (checkDue()) { text = T('p_check'); cls = 'amber'; }
     else if (st.waitBreaths) { text = T('p_waitbreath'); cls = 'amber'; }
-    else if (v.continuous && iAmComp()) { key = kc; text = T('p_continuous'); }
-    else if (iAmComp()) { key = kc; text = st.easy ? T('p_easy') : T('p_compress'); }
+    else if (v.continuous && iAmComp()) { text = T('p_continuous'); }
+    else if (iAmComp()) { text = st.easy ? T('p_easy') : T('p_compress'); }
     else text = T('p_partner');
-    pr.className = `cp-prm ${cls}`;
-    const k = pr.querySelector('kbd'); k.textContent = key; k.style.display = key ? '' : 'none';
-    pr.querySelector('.t').textContent = text;
-    const ad = v.adrenaline || {};
-    const cyc = Math.max(0, (v.cycleLength || st.cfg.cycleLength) - cycleElapsed());
-    let side = `${esc(T('cycle'))} ${v.cycleNo || 1} · <b>${NZA.fmt.time(cyc)}</b>`;
-    if (ad.enabled !== false && v.state === 'arrest') {
-      if (ad.due) side += ` &nbsp;${esc(T('adr'))} <b class="due">${esc(T('due'))}</b>`;
-      else if (ad.dueIn !== null && ad.dueIn !== undefined) side += ` &nbsp;${esc(T('adr'))} <b>${NZA.fmt.time(Math.max(0, ad.dueIn - (now() - st.viewAt) / 1000))}</b>`;
-    }
-    $('#cpPrmSide').innerHTML = side;
+    const c = `msg ${cls}`;
+    if (pr.className !== c) pr.className = c;
+    const te = pr.querySelector('.t');
+    if (te.textContent !== text) te.textContent = text;
   }
 
-  /* ─────────────── team HUD ─────────────── */
+  /* ─────────────── code-team card (top left) ─────────────── */
+  const RC = 2 * Math.PI * 16;
+  function ringHTML(frac, tone, ic, label, val, cls = '') {
+    return `<div class="cp-ring ${tone} ${cls}"><span class="rg"><svg viewBox="0 0 40 40"><circle class="bg" cx="20" cy="20" r="16"/><circle class="fg" cx="20" cy="20" r="16" stroke-dasharray="${RC.toFixed(1)}" stroke-dashoffset="${(RC * (1 - clamp(frac, 0, 1))).toFixed(1)}"/></svg>${icon(ic)}</span>
+      <span class="l">${esc(label)}</span><b>${esc(val)}</b></div>`;
+  }
   function renderTeam() {
     const v = v_();
     const ad = v.adrenaline || {};
-    const kind = v.rosc && v.state !== 'arrest' ? T('t_rosc') : (v.kind === 'resp' && v.state !== 'arrest' ? T('t_resp') : T('t_arrest'));
+    const arrest = v.state === 'arrest';
+    const kind = v.rosc && !arrest ? T('t_rosc') : (v.kind === 'resp' && !arrest ? T('t_resp') : T('t_arrest'));
     const meComp = v.role === 'comp';
     const fat = f => NZA.ui.meterHTML({ value: clamp((f || 0) / 40, 0, 1), tone: (f || 0) > 15 ? 'amber' : '' });
     const causes = (v.causes || []).map(c => `<div class="cp-cause ${esc(c.s)}"><i></i><span class="cn">${esc(T('c_' + c.k))}</span>${c.v ? `<span class="cv">${esc(c.v)}</span>` : ''}</div>`).join('');
-    const log = (v.log || []).slice(-4).map(l => `<div class="${esc(l.tone || '')}"><span>${NZA.fmt.time(l.t)}</span><b>${esc(l.text)}</b></div>`).join('');
-    $('#cpTeam').className = `cp-team nza-hud rail ${v.state === 'arrest' ? 'red' : ''}`;
-    $('#cpTeam').innerHTML = `
-      <div class="hd"><span class="nza-label">${esc(kind)}</span><span class="chipx sm ${v.state === 'arrest' ? 'red' : 'teal'}">P1</span></div>
+    const log = (v.log || []).slice(-4).map(l => `<div class="${esc(l.tone || '')}"><i></i><span>${NZA.fmt.time(l.t)}</span><b>${esc(l.text)}</b></div>`).join('');
+    const down = (v.arrestTime || 0) + (now() - st.viewAt) / 1000;
+    const ccf = Math.round(v.ccf || 0);
+    const cl = v.cycleLength || st.cfg.cycleLength, ce = cycleElapsed();
+    const due = checkDue();
+    let adFrac = 0, adVal = String(ad.n || 0), adTone = '';
+    if (ad.due && arrest) { adFrac = 1; adTone = 'amber pulse'; adVal = T('due'); }
+    else if (ad.dueIn !== null && ad.dueIn !== undefined && ad.gap) { adFrac = 1 - clamp(ad.dueIn / ad.gap, 0, 1); adTone = 'teal'; adVal = `×${ad.n || 0}`; }
+    else if (ad.n) { adFrac = 1; adTone = 'teal'; adVal = `×${ad.n}`; }
+    const team = $('#cpTeam');
+    team.className = `cp-team nza-hud solid ${arrest ? 'arrest' : 'ok'} ${team.className.match(/fit\d/) ? team.className.match(/fit\d/)[0] : ''}`;
+    team.innerHTML = `
+      <div class="hd"><span class="kick"><i></i>${esc(kind)}</span><span class="sp"></span><span class="shk">${icon('bolt')}${v.shocks || 0}</span><span class="chipx sm ${arrest ? 'red' : 'teal'}">P1</span></div>
       <div class="who"><span class="nza-h">${esc(v.name || T('npc'))}</span>${v.npc ? '<span class="tag">NPC</span>' : ''}</div>
-      <div class="cp-kv">
-        <div><div class="l">${esc(T('down'))}</div><div class="v red">${NZA.fmt.time((v.arrestTime || 0) + (now() - st.viewAt) / 1000)}</div></div>
-        <div><div class="l">${esc(T('ccf'))}</div><div class="v ${(v.ccf || 0) >= 80 ? 'teal' : (v.ccf || 0) >= 60 ? 'amber' : 'red'}">${Math.round(v.ccf || 0)}%</div></div>
-        <div><div class="l">${esc(T('shocks'))}</div><div class="v">${v.shocks || 0}</div></div>
-        <div><div class="l">${esc(T('adren'))}</div><div class="v ${ad.due ? 'amber' : ''}">${ad.n || 0}</div></div>
+      <div class="cp-rings">
+        ${ringHTML(clamp(down / 600, 0, 1), 'red', 'clock', T('down'), NZA.fmt.time(down))}
+        ${ringHTML(ccf / 100, ccf >= 80 ? 'teal' : ccf >= 60 ? 'amber' : 'red', 'hand', T('ccf'), `${ccf}%`)}
+        ${ringHTML(clamp(ce / cl, 0, 1), due ? 'amber pulse' : 'white', 'timer', T('il_cycle', v.cycleNo || 1), due ? T('due') : NZA.fmt.time(Math.max(0, cl - ce)))}
+        ${ringHTML(adFrac, adTone, 'syringe', T('adren'), adVal)}
       </div>
       <div class="cp-roles">
-        <div class="cp-role ${meComp ? 'me' : ''}"><span class="ri">${icon('heart')}</span><div><div class="rl">${esc(T('role_comp'))}</div><div class="rn">${esc(v.compName || '')}${meComp ? `<em>${esc(T('you'))}</em>` : ''}</div></div>
+        <div class="cp-role ${meComp ? 'me' : ''}"><span class="ri">${icon('heart')}</span><div class="rx"><div class="rl">${esc(T('role_comp'))}</div><div class="rn">${esc(v.compName || '')}${meComp ? `<em>${esc(T('you'))}</em>` : ''}</div></div>
           <div class="ft"><div class="l">${esc(T('fatigue'))}</div>${fat(v.compFatigue)}</div></div>
-        <div class="cp-role ${!meComp ? 'me' : ''}"><span class="ri">${icon('lungs')}</span><div><div class="rl">${esc(T('role_air'))}</div>${v.airName ? `<div class="rn">${esc(v.airName)}${!meComp ? `<em>${esc(T('you'))}</em>` : ''}</div>` : `<div class="rn dim">${esc(T('nobody'))}</div>`}</div><div></div></div>
+        <div class="cp-role ${!meComp ? 'me' : ''}"><span class="ri">${icon('lungs')}</span><div class="rx"><div class="rl">${esc(T('role_air'))}</div>${v.airName ? `<div class="rn">${esc(v.airName)}${!meComp ? `<em>${esc(T('you'))}</em>` : ''}</div>` : `<div class="rn dim">${esc(T('nobody'))}</div>`}</div><div></div></div>
       </div>
       ${v.solo ? `<div class="cp-join">${icon('user-plus')}<span>${esc(T('join_hint'))}</span></div>` : ''}
       ${st.showCauses && causes ? `<div class="cp-sec"><div class="sh"><span class="nza-label">${esc(T('causes'))}</span><kbd>${esc(keyLabel(st.keys.causes))}</kbd></div><div class="cp-causes">${causes}</div></div>` : ''}
@@ -528,7 +647,7 @@
     }
   }
 
-  /* ─────────────── proc panel ─────────────── */
+  /* ─────────────── procedure HUD ─────────────── */
   function stepOf(ph) { return ({ compress: 1, breaths: 2, analyse: 3, advised: 4, charging: 4, charged: 5, rosc: 5 })[ph] || 1; }
   function renderPP(force) {
     if (!pp) return;
@@ -551,14 +670,16 @@
     else { title = T('pp_partner'); text = T('pp_partner_t', keyLabel(st.keys.swap)); }
 
     const rate = comp ? st.rate : (v.rate || 0);
-    const rTone = !rate ? '' : (rate < st.cfg.rateMin || rate > st.cfg.rateMax) ? 'amber' : 'teal';
+    const rmin = st.cfg.rateMin, rmax = st.cfg.rateMax;
+    const rTone = !rate ? '' : (rate < rmin || rate > rmax) ? 'amber' : 'teal';
     const depth = comp ? st.depth : (v.depth ? 3.5 + v.depth * 0.025 : 0);
     const q = comp && st.quality ? st.quality : (v.quality || 0);
+    const rec = comp && st.recoil ? st.recoil : (v.recoil || 0);
     let stats;
     if (comp || v.solo) {
       stats = [
-        { id: 'rate', label: T('s_rate'), value: rate ? Math.round(rate) : '--', unit: '/min', tone: rTone },
         { id: 'depth', label: T('s_depth'), value: depth ? depth.toFixed(1) : '--', unit: 'cm', tone: !depth ? '' : depth >= 5 ? 'teal' : 'amber' },
+        { id: 'recoil', label: T('s_recoil'), value: rec ? Math.round(rec) : '--', unit: '%', tone: !rec ? '' : rec >= 80 ? 'teal' : rec >= 55 ? 'amber' : 'red' },
         { id: 'q', label: T('s_quality'), value: q ? Math.round(q) : '--', unit: '%', tone: !q ? '' : q >= 75 ? 'teal' : q >= 50 ? 'amber' : 'red' },
       ];
     } else {
@@ -568,12 +689,12 @@
         { id: 'co', label: T('s_etco2'), value: shownEtco2() ? Math.round(shownEtco2()) : '--', unit: 'mmHg' },
       ];
     }
-    const per = v.perSet || st.cfg.perSet;
     const cl = v.cycleLength || st.cfg.cycleLength;
     const ce = cycleElapsed();
     const due = checkDue();
+    const rv = rate ? clamp((rate - 60) / 100, 0, 1) : 0;
     const wide = (comp && ph !== 'rosc')
-      ? { label: T('w_comp'), value: String(v.continuous ? (v.total || 0) % per : Math.min(per, st.localSet)), unit: `/${per}`, meter: { value: (v.continuous ? (v.total || 0) % per : Math.min(per, st.localSet)) / per, segs: true }, caption: due ? T('cap_due') : T('cap_check', NZA.fmt.time(Math.max(0, cl - ce))), captionTone: due ? 'amber' : '' }
+      ? { label: T('w_rate'), value: rate ? String(Math.round(rate)) : '--', unit: '/min', tone: rTone, meter: { value: rv, zone: [(rmin - 60) / 100, (rmax - 60) / 100], mark: rate ? rv : null, tone: rTone === 'amber' ? 'amber' : '', noFill: !rate }, caption: due ? T('cap_due') : T('cap_check', NZA.fmt.time(Math.max(0, cl - ce))), captionTone: due ? 'amber' : '' }
       : { label: T('w_cycle', v.cycleNo || 1), value: NZA.fmt.time(Math.max(0, cl - ce)), meter: { value: clamp(ce / cl, 0, 1), tone: due ? 'amber' : '' }, caption: (v.adrenaline && v.adrenaline.due) ? T('cap_adr_due') : (due ? T('cap_due') : ''), captionTone: 'amber' };
 
     const tools = toolList();
@@ -582,7 +703,7 @@
     if (!force && sig === st.lastPP) return;
     st.lastPP = sig;
     pp.set({
-      step: stepOf(ph), total: 5, tag, title, titleTone: tone, text, stats, wide, tools,
+      step: stepOf(ph), total: 5, steps: stepNames(), tag, title, titleTone: tone, text, stats, wide, tools,
       hints: [{ keys: [keyLabel(st.keys.causes)], label: T('hint_causes') }].concat(v.mode === 'manual' ? [{ keys: [keyLabel(st.keys.energyDown), keyLabel(st.keys.energyUp)], label: T('hint_energy') }] : [], tools.length <= 4 ? [{ keys: [T('hint_rmb')], label: T('hint_orbit') }] : []),
     });
     pp.el.querySelector('.pp-tag').classList.toggle('easy', st.easy);
@@ -597,7 +718,7 @@
     if (!v.pads) list.push({ key: keyLabel(st.keys.pads), act: 'pads', icon: 'defib', label: T('tool_pads'), state: !defib ? 'locked' : (st.padsOpen ? 'active' : 'need') });
     list.push({ key: keyLabel(st.keys.analyse), act: 'analyse', icon: 'ecg', label: T('tool_analyse'), state: !v.pads || ph === 'breaths' || ph === 'charging' || ph === 'charged' || ph === 'rosc' ? 'locked' : (ph === 'analyse' ? 'active' : (checkDue() ? 'need' : '')) });
     const charging = ph === 'charging' || ph === 'charged';
-    list.push({ key: keyLabel(st.keys.charge), act: 'charge', icon: 'bolt', label: charging ? T('tool_disarm') : T('tool_charge'), sub: `${curEnergy()} J`, state: !v.pads ? 'locked' : (charging ? 'active' : (ph === 'advised' ? 'need' : (v.mode !== 'manual' ? 'locked' : ''))) });
+    list.push({ key: keyLabel(st.keys.charge), act: 'charge', icon: charging ? 'x' : 'battery', label: charging ? T('tool_disarm') : T('tool_charge'), sub: `${curEnergy()} J`, state: !v.pads ? 'locked' : (charging ? 'active' : (ph === 'advised' ? 'need' : (v.mode !== 'manual' ? 'locked' : ''))) });
     list.push({ key: keyLabel(st.keys.shock), act: 'shock', icon: 'bolt', label: T('tool_shock'), state: ph === 'charged' ? 'need' : 'locked' });
     if (ad.enabled !== false) list.push({ key: keyLabel(st.keys.adrenaline), act: 'adrenaline', icon: 'syringe', label: T('tool_adren'), count: `×${ad.have || 0}`, state: !ad.enabled || !ad.have ? 'locked' : (ad.due ? 'need' : '') });
     if (v.partner) list.push({ key: keyLabel(st.keys.swap), act: 'swap', icon: 'swap', label: T('tool_swap'), state: ph === 'charged' ? 'locked' : ((v.compFatigue || 0) > 15 ? 'need' : '') });
@@ -802,11 +923,18 @@
     const q = timing * 0.45 + depthScore * 0.35 + recoil * 0.20;
     st.quality = st.quality ? st.quality + (q - st.quality) * 0.18 : q;
     st.depth = depthCm;
+    st.recoil = st.recoil ? st.recoil + (recoil - st.recoil) * 0.2 : recoil;
+    if (compressPhase(ph) && !st.waitBreaths) {
+      const ss = st.setStats;
+      if (cls === 'perfect' || cls === 'good') ss.on += 1; else if (cls === 'early') ss.early += 1; else if (cls === 'late') ss.late += 1; else ss.miss += 1;
+      ss.n += 1; ss.recoil += recoil;
+      if (st.setCells.length < (v_().perSet || c.perSet)) st.setCells.push(depthCm < 5 ? 'low' : (recoil < 60 ? 'lean' : (cls === 'bad' ? 'off' : 'ok')));
+    }
     const b = st.batch;
     b.n += 1; b.timing += timing; b.depth += depthScore; b.recoil += recoil;
     st.bars.push({ d: depthCm, cls: depthCm < 5 ? 'low' : (recoil < 60 ? 'lean' : 'ok') });
     if (st.bars.length > 48) st.bars.shift();
-    st.hits.push({ t, cls });
+    st.hits.push({ t, cls, err });
     if (st.hits.length > 16) st.hits.shift();
     pop(depthCm < 4.6 ? 'shallow' : recoil < 50 ? 'lean' : cls);
     const v = v_();
@@ -814,7 +942,7 @@
       st.localSet += 1;
       const per = v.perSet || c.perSet;
       if (!v.continuous && st.localSet >= per && v.phase === 'compress') { st.waitBreaths = true; st.waitAt = now(); st.auto = false; report(true); }
-      if (v.continuous && st.localSet >= per) st.localSet = 0;
+      if (v.continuous && st.localSet >= per) { st.localSet = 0; resetSet(); }
     }
     if (now() - st.lastReport >= 1000) report(false);
   }
@@ -831,7 +959,7 @@
     if (!e) return;
     const map = { perfect: 'l_perfect', good: 'l_good', early: 'l_early', late: 'l_late', bad: 'l_off', shallow: 'l_shallow', lean: 'l_lean' };
     e.textContent = T(map[cls] || 'l_good');
-    e.className = `cp-pop ${cls === 'shallow' || cls === 'lean' ? 'early' : cls}`;
+    e.className = `mt-pop cp-pop ${cls === 'shallow' || cls === 'lean' ? 'early' : cls}`;
     void e.offsetWidth; e.classList.add('go');
   }
 
@@ -854,8 +982,11 @@
     const hold = (t - b.at) / 1000;
     const v = v_();
     const k = v.bvm ? 1 : st.cfg.mouthSlower;
-    if (hold < st.cfg.tooShort * k) pp && pp.flash('warn', T('f_breath_short'), 1800);
-    else if (hold > st.cfg.tooLong * k) pp && pp.flash('bad', T('f_breath_long'), 1800);
+    const bc = hold < st.cfg.tooShort * k ? 'short' : (hold > st.cfg.tooLong * k ? 'long' : 'ok');
+    st.breathLog.push({ hold, cls: bc });
+    if (st.breathLog.length > 2) st.breathLog.shift();
+    if (bc === 'short') pp && pp.flash('warn', T('f_breath_short'), 1800);
+    else if (bc === 'long') pp && pp.flash('bad', T('f_breath_long'), 1800);
     else pp && pp.flash('ok', T('f_breath_ok'), 1400);
     post('breath', { hold: Math.round(hold * 100) / 100 });
   }
@@ -913,151 +1044,268 @@
     // cycle / adrenaline voice prompts (once each)
     if (v.state === 'arrest' && checkDue() && v.pads && st.cycleWarned !== v.cycleNo) { st.cycleWarned = v.cycleNo; voice(T('v_check')); if (snd()) NZA.audio.alarm(1); }
     if (v.adrenaline && v.adrenaline.due && st.adrWarned !== (v.adrenaline.n || 0) + 1) { st.adrWarned = (v.adrenaline.n || 0) + 1; voice(T('v_adr')); }
-    drawLane(t);
-    drawFb();
+    laneOverlay();
+    drawMetro(t);
+    drawFb(t);
     drawTube(t);
-    if (!st._liveAt || t - st._liveAt > 120) { st._liveAt = t; renderLive(); }
+    if (!st._liveAt || t - st._liveAt > 120) { st._liveAt = t; renderLive(); renderMetro(t); }
     if (!st._ppAt || t - st._ppAt > 400) { st._ppAt = t; renderPP(false); }
     if (!st._teamAt || t - st._teamAt > 1000) { st._teamAt = t; renderTeam(); }
   }
 
-  function laneOverlay(t) {
+  /* ─────────────── metronome card ─────────────── */
+  // overlay over the side panels (the ring stays visible) for hands-off moments and the partner view
+  function laneOverlay() {
     const v = v_();
     const ov = $('#cpLaneOv');
-    if (!ov) return;
+    if (!ov) return false;
     const ph = v.phase;
-    const set = (cls, ic, text, p) => { ov.className = `ov on ${cls}`; ov.querySelector('.ic').innerHTML = icon(ic); ov.querySelector('.tx').textContent = text; ov.querySelector('.bar').style.display = p === null ? 'none' : ''; if (p !== null) ov.querySelector('.bar i').style.width = `${clamp(p, 0, 1) * 100}%`; };
+    const set = (cls, ic, text, p) => {
+      const c = `ov on ${cls}`;
+      if (ov.className !== c) ov.className = c;
+      ov.querySelector('.ic').innerHTML = icon(ic);
+      const tx = ov.querySelector('.tx'); if (tx.textContent !== text) tx.textContent = text;
+      ov.querySelector('.bar').style.display = p === null ? 'none' : '';
+      if (p !== null) ov.querySelector('.bar i').style.width = `${clamp(p, 0, 1) * 100}%`;
+      return true;
+    };
     const pl = phaseLeft();
-    if (ph === 'analyse') return set('red', 'hand', T('l_analyse'), pl === null ? 0 : 1 - pl / (st.cfg.analyseTime || 4)), true;
-    if (ph === 'charged') return set('red', 'bolt', T('l_charged'), 1), true;
-    if (ph === 'breaths' && !iBreathe()) return set('amber', 'lungs', T('l_handsoff'), null), true;
-    if (ph === 'rosc') return set('teal', 'heart', T('pp_rosc'), null), true;
+    if (ph === 'analyse') return set('red', 'hand', T('l_analyse'), pl === null ? 0 : 1 - pl / (st.cfg.analyseTime || 4));
+    if (ph === 'charged') return set('red', 'bolt', T('l_charged'), 1);
+    if (ph === 'breaths' && !iBreathe()) return set('amber', 'lungs', T('l_handsoff'), null);
+    if (ph === 'rosc') return set('teal', 'heart', T('pp_rosc'), null);
     if (!iAmComp() && ph !== 'breaths') {
-      if (ph === 'charging') return set('amber', 'bolt', `${T('l_charging')} ${curEnergy()} J`, pl === null ? 0 : 1 - pl / Math.max(0.1, (st.chargeMs || 2500) / 1000)), true;
+      if (ph === 'charging') return set('amber', 'bolt', `${T('l_charging')} ${curEnergy()} J`, pl === null ? 0 : 1 - pl / Math.max(0.1, (st.chargeMs || 2500) / 1000));
       const pq = v.quality ? `${Math.round(v.quality)}%` : '--';
-      return set('', 'heart', T('l_partner', v.compName || '', v.rate ? Math.round(v.rate) : '--', pq), null), true;
+      return set('', 'heart', T('l_partner', v.compName || '', v.rate ? Math.round(v.rate) : '--', pq), null);
     }
-    ov.className = 'ov';
+    if (ov.className !== 'ov') ov.className = 'ov';
     return false;
   }
 
-  function drawLane(t) {
-    const cv = $('#cpLane');
+  const CELL = { ok: '#0fd4c4', low: '#f3c35a', lean: '#ff7478', off: '#ff7478', old: 'rgba(15,212,196,.45)' };
+  const HIT = { perfect: '#0fd4c4', good: '#ffffff', early: '#f3c35a', late: '#f3c35a', bad: '#ff7478' };
+  const breathSpan = () => { const k = v_().bvm ? 1 : st.cfg.mouthSlower; return { k, span: st.cfg.tooLong * k * 1.18 }; };
+  const heldNow = t => (st.breath ? (st.breath.frozen || (t - st.breath.at) / 1000) : 0);
+  const setCount = () => {
+    const v = v_();
+    const per = v.perSet || st.cfg.perSet;
+    if (v.continuous) return (v.total || 0) % per;
+    return iAmComp() ? Math.min(per, st.localSet) : Math.min(per, v.set || 0);
+  };
+
+  // the beat ring: outer = the 30 pushes of this set (coloured by quality), inner = a hand that
+  // sweeps once per beat; press as it crosses the top window. Breaths: the ring times the hold.
+  function drawMetro(t) {
+    const cv = $('#cpRing');
     if (!cv) return;
-    const covered = laneOverlay(t);
-    const { w, h, scale } = NZA.fitCanvas(cv);
+    const { w, h, scale: s } = NZA.fitCanvas(cv);
     const ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, w, h);
-    if (covered) return;
     const v = v_();
-    const hitX = w * 0.12;
-    const s = scale;
-    // breath mode: chest-rise meter
-    if (v.phase === 'breaths' && iBreathe()) {
-      const tgt = breathTarget();
-      const k = v.bvm ? 1 : st.cfg.mouthSlower;
-      const span = st.cfg.tooLong * k * 1.15;
-      const x0 = 16 * s, x1 = w - 16 * s, y = h * 0.7, bh = 12 * s;
-      const X = sec => x0 + (x1 - x0) * clamp(sec / span, 0, 1);
-      ctx.fillStyle = 'rgba(255,255,255,.08)'; roundRect(ctx, x0, y - bh / 2, x1 - x0, bh, bh / 2); ctx.fill();
-      ctx.fillStyle = 'rgba(8,175,162,.25)'; ctx.fillRect(X(st.cfg.tooShort * k), y - bh / 2 - 3 * s, X(st.cfg.tooLong * k) - X(st.cfg.tooShort * k), bh + 6 * s);
-      ctx.fillStyle = '#fff'; ctx.fillRect(X(tgt) - 1 * s, y - bh / 2 - 6 * s, 2 * s, bh + 12 * s);
-      const held = st.breath ? (st.breath.frozen || (t - st.breath.at) / 1000) : 0;
-      if (held > 0) {
-        const over = held > st.cfg.tooLong * k;
-        ctx.fillStyle = over ? '#e5484d' : (held >= st.cfg.tooShort * k ? '#0fd4c4' : '#f2f4f5');
-        roundRect(ctx, x0, y - bh / 2, X(held) - x0, bh, bh / 2); ctx.fill();
-      }
-      ctx.font = `700 ${10 * s}px Lexend, sans-serif`; ctx.fillStyle = 'rgba(255,255,255,.55)';
-      ctx.fillText(`${T('l_breath')} · ${2 - (v.breathsLeft || 0) + (st.breath ? 1 : 0)}/2`, x0, 16 * s);
-      // chest profile rising with the breath (right of the label)
-      const rise = clamp(held / tgt, 0, 1.3);
-      const cx = w - 60 * s, cy = 21 * s;
-      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1.5 * s; ctx.beginPath(); ctx.moveTo(cx - 44 * s, cy); ctx.lineTo(cx + 44 * s, cy); ctx.stroke();
-      ctx.strokeStyle = held > st.cfg.tooLong * k ? '#ff7478' : '#0fd4c4'; ctx.lineWidth = 2 * s; ctx.beginPath();
-      ctx.moveTo(cx - 44 * s, cy); ctx.quadraticCurveTo(cx, cy - 4 * s - rise * 11 * s, cx + 44 * s, cy); ctx.stroke();
-      ctx.font = `600 ${9 * s}px Lexend, sans-serif`; ctx.fillStyle = 'rgba(255,255,255,.4)';
-      ctx.fillText(held ? `${held.toFixed(1)} s` : `${tgt.toFixed(1)} s`, cx - 120 * s, cy + 3 * s);
+    const ph = v.phase;
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2;
+    const TOP = -Math.PI / 2, TAU = Math.PI * 2;
+    const handsOff = ph === 'analyse' || ph === 'charged';
+    const breathing = ph === 'breaths' && iBreathe();
+    // outer: set segments
+    const per = v.perSet || st.cfg.perSet;
+    const n = setCount();
+    const cells = st.setCells, offs = n - cells.length;
+    const r1 = R - 5 * s;
+    const seg = TAU / per, gap = Math.min(0.05, seg * 0.28);
+    ctx.lineCap = 'butt';
+    ctx.lineWidth = 6 * s;
+    for (let i = 0; i < per; i++) {
+      const a0 = TOP + i * seg + gap / 2, a1 = a0 + seg - gap;
+      let col = 'rgba(255,255,255,.07)';
+      if (i < n) col = CELL[i >= offs ? cells[i - offs] : 'old'] || CELL.ok;
+      else if (i === n && iAmComp() && compressPhase(ph) && !st.waitBreaths) col = `rgba(255,255,255,${0.18 + 0.14 * Math.sin(t / 160)})`;
+      if (handsOff && i < n) col = 'rgba(255,116,120,.35)';
+      ctx.strokeStyle = col;
+      ctx.beginPath(); ctx.arc(cx, cy, r1, a0, a1); ctx.stroke();
+    }
+    // inner track
+    const r2 = R - 18 * s;
+    ctx.lineWidth = 2 * s;
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.beginPath(); ctx.arc(cx, cy, r2, 0, TAU); ctx.stroke();
+    // inner ticks (quarter beats)
+    ctx.strokeStyle = 'rgba(255,255,255,.16)'; ctx.lineWidth = 1 * s;
+    for (let i = 1; i < 8; i++) { const a = TOP + i * TAU / 8; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * (r2 - 4 * s), cy + Math.sin(a) * (r2 - 4 * s)); ctx.lineTo(cx + Math.cos(a) * (r2 + 2 * s), cy + Math.sin(a) * (r2 + 2 * s)); ctx.stroke(); }
+
+    if (handsOff) {
+      ctx.setLineDash([4 * s, 5 * s]); ctx.lineDashOffset = -t / 40;
+      ctx.strokeStyle = 'rgba(255,116,120,.8)'; ctx.lineWidth = 2.5 * s;
+      ctx.beginPath(); ctx.arc(cx, cy, r2, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
       return;
     }
-    // compression lane
-    const pxPerMs = (w - hitX) / 2400;
-    // hit zone
-    const pz = st.cfg.perfect * 1000 * pxPerMs, gz = st.cfg.good * 1000 * pxPerMs;
-    ctx.fillStyle = 'rgba(8,175,162,.10)'; ctx.fillRect(hitX - gz, 0, gz * 2, h);
-    ctx.fillStyle = 'rgba(8,175,162,.22)'; ctx.fillRect(hitX - pz, 0, pz * 2, h);
-    ctx.fillStyle = 'rgba(15,212,196,.9)'; ctx.fillRect(hitX - 1 * s, 0, 2 * s, h);
-    // beats
-    const active = compressPhase(v.phase) && !st.waitBreaths;
-    const per = st.period * 1000;
-    const first = Math.floor((t - 600 - st.beat0) / per);
-    for (let i = first; i < first + 8; i++) {
-      const tb = st.beat0 + i * per;
-      const x = hitX + (tb - t) * pxPerMs;
-      if (x < -20 || x > w + 20) continue;
-      const near = Math.abs(tb - t) < 90;
-      const r = (near ? 9 : 7) * s;
-      ctx.beginPath(); ctx.arc(x, h / 2, r, 0, Math.PI * 2);
-      ctx.fillStyle = !active ? 'rgba(255,255,255,.12)' : (tb < t ? 'rgba(255,255,255,.18)' : (near ? '#ffffff' : 'rgba(255,255,255,.75)'));
-      ctx.fill();
-      if (active && tb >= t) { ctx.strokeStyle = 'rgba(8,175,162,.6)'; ctx.lineWidth = 1.5 * s; ctx.stroke(); }
+    if (breathing) {
+      const { k, span } = breathSpan();
+      const A = sec => TOP + TAU * clamp(sec / span, 0, 1);
+      ctx.lineCap = 'butt'; ctx.lineWidth = 7 * s;
+      ctx.strokeStyle = 'rgba(8,175,162,.25)';
+      ctx.beginPath(); ctx.arc(cx, cy, r2, A(st.cfg.tooShort * k), A(st.cfg.tooLong * k)); ctx.stroke();
+      const held = heldNow(t);
+      if (held > 0) {
+        const over = held > st.cfg.tooLong * k;
+        ctx.strokeStyle = over ? '#ff7478' : (held >= st.cfg.tooShort * k ? '#0fd4c4' : '#f2f4f5');
+        ctx.lineCap = 'round'; ctx.lineWidth = 4 * s;
+        ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8 * s;
+        ctx.beginPath(); ctx.arc(cx, cy, r2, TOP, A(held)); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      const at = A(breathTarget());
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * s; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(at) * (r2 - 6 * s), cy + Math.sin(at) * (r2 - 6 * s)); ctx.lineTo(cx + Math.cos(at) * (r2 + 6 * s), cy + Math.sin(at) * (r2 + 6 * s)); ctx.stroke();
+      return;
     }
-    // your presses
-    const col = { perfect: '#0fd4c4', good: '#ffffff', early: '#f3c35a', late: '#f3c35a', bad: '#ff7478' };
+    // timing windows at the top
+    const perMs = st.period * 1000;
+    const pa = (st.cfg.perfect * 1000 / perMs) * TAU, ga = (st.cfg.good * 1000 / perMs) * TAU;
+    const active = iAmComp() && compressPhase(ph) && !st.waitBreaths && !st.ended;
+    const phase = (((t - st.beat0) / perMs) % 1 + 1) % 1;
+    const near = active && (phase < 0.07 || phase > 0.93);
+    ctx.lineCap = 'butt'; ctx.lineWidth = 7 * s;
+    ctx.strokeStyle = 'rgba(8,175,162,.2)';
+    ctx.beginPath(); ctx.arc(cx, cy, r2, TOP - ga, TOP + ga); ctx.stroke();
+    ctx.strokeStyle = near ? '#5ff5e6' : 'rgba(15,212,196,.8)';
+    if (near) { ctx.shadowColor = '#0fd4c4'; ctx.shadowBlur = 12 * s; }
+    ctx.beginPath(); ctx.arc(cx, cy, r2, TOP - pa, TOP + pa); ctx.stroke();
+    ctx.shadowBlur = 0;
+    // your presses: dots at their timing error, sinking inward as they age
     st.hits.forEach(hh => {
       const age = t - hh.t;
-      if (age > 2400) return;
-      const x = hitX - age * pxPerMs * 0.35;
-      ctx.globalAlpha = clamp(1 - age / 2400, 0, 1);
-      ctx.fillStyle = col[hh.cls] || '#fff';
-      ctx.fillRect(x - 2 * s, h * 0.2, 4 * s, h * 0.6);
+      if (age > 1800 || hh.err === undefined) return;
+      const a = TOP + (hh.err / st.period) * TAU;
+      const r = r2 - 4 * s - 10 * s * (age / 1800);
+      ctx.globalAlpha = clamp(1 - age / 1800, 0, 1);
+      ctx.fillStyle = HIT[hh.cls] || '#fff';
+      ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3 * s, 0, TAU); ctx.fill();
       ctx.globalAlpha = 1;
     });
-    if (st.press) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(hitX, h / 2, 12 * s, 0, Math.PI * 2); ctx.globalAlpha = 0.25; ctx.fill(); ctx.globalAlpha = 1; }
-    if (st.easy && iAmComp()) {
-      ctx.font = `700 ${10 * s}px Lexend, sans-serif`; ctx.fillStyle = st.auto ? '#0fd4c4' : 'rgba(255,255,255,.45)';
-      ctx.fillText(st.auto ? 'AUTO ●' : 'AUTO ○', w - 64 * s, 15 * s);
+    if (!active) return;
+    // the sweeping hand with a comet tail
+    const ang = TOP + phase * TAU;
+    for (let i = 0; i < 14; i++) {
+      const a0 = ang - (i + 1) * 0.07, a1 = ang - i * 0.07;
+      ctx.strokeStyle = `rgba(255,255,255,${(0.5 * (1 - i / 14)).toFixed(3)})`;
+      ctx.lineWidth = 3 * s; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.arc(cx, cy, r2, a0, a1); ctx.stroke();
+    }
+    ctx.fillStyle = '#ffffff'; ctx.shadowColor = near ? '#0fd4c4' : 'rgba(255,255,255,.8)'; ctx.shadowBlur = 10 * s;
+    ctx.beginPath(); ctx.arc(cx + Math.cos(ang) * r2, cy + Math.sin(ang) * r2, 4.5 * s, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    if (st.press) {
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r2);
+      g.addColorStop(0, 'rgba(15,212,196,.0)'); g.addColorStop(1, 'rgba(15,212,196,.22)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r2 - 3 * s, 0, TAU); ctx.fill();
     }
   }
-  function roundRect(ctx, x, y, w, h, r) { w = Math.max(0, w); r = Math.min(r, w / 2, h / 2); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 
-  function drawFb() {
+  // text parts of the metronome card (≈ 8 Hz)
+  function renderMetro(t) {
+    const v = v_();
+    const card = $('#cpMetro');
+    if (!card) return;
+    const ph = v.phase;
+    const breathing = ph === 'breaths' && iBreathe();
+    card.classList.toggle('breath', breathing);
+    card.classList.toggle('off', ph === 'analyse' || ph === 'charged');
+    $('#cpMtBpm').textContent = String(Math.round(60 / st.period));
+    const au = $('#cpMtAuto');
+    au.style.display = st.easy && iAmComp() ? '' : 'none';
+    au.classList.toggle('on', !!st.auto);
+    const per = v.perSet || st.cfg.perSet;
+    if (breathing) { $('#cpMtN').textContent = String(Math.min(2, 2 - (v.breathsLeft || 0) + (st.breath ? 1 : 0))); $('#cpMtOf').textContent = '/2'; }
+    else { $('#cpMtN').textContent = String(setCount()); $('#cpMtOf').textContent = `/${per}`; }
+    const tim = $('#cpTim');
+    let html;
+    if (breathing) {
+      const rows = [0, 1].map(i => {
+        const b = st.breathLog[i];
+        const lab = b ? T(b.cls === 'ok' ? 'm_ok' : b.cls === 'short' ? 'm_short' : 'm_long') : T('m_wait');
+        return `<div class="br ${b ? b.cls : ''}"><span class="n">${i + 1}</span><span class="k">${esc(lab)}</span><b>${b ? `${b.hold.toFixed(1)} s` : '—'}</b></div>`;
+      }).join('');
+      html = `<div class="th">${esc(T('m_breaths'))}</div>${rows}`;
+    } else {
+      const ss = st.setStats, tot = Math.max(1, ss.n);
+      const row = (cls, k, val, frac) => `<div class="tr ${cls}"><span class="k">${esc(k)}</span><span class="b"><i style="width:${(clamp(frac, 0, 1) * 100).toFixed(1)}%"></i></span><b>${val}</b></div>`;
+      const rec = ss.n ? Math.round(ss.recoil / ss.n) : 0;
+      html = `<div class="th">${esc(T('m_timing'))}</div>
+        ${row('early', T('m_early'), ss.early, ss.early / tot)}
+        ${row('on', T('m_on'), ss.on, ss.on / tot)}
+        ${row('late', T('m_late'), ss.late + ss.miss, (ss.late + ss.miss) / tot)}
+        ${row(`rc ${!rec ? '' : rec >= 80 ? 'ok' : rec >= 55 ? 'mid' : 'bad'}`, T('m_recoil'), rec ? `${rec}%` : '--', rec / 100)}`;
+    }
+    if (tim._html !== html) { tim.innerHTML = html; tim._html = html; }
+    $('#cpDepthL').textContent = breathing ? T('m_rise') : T('m_depth');
+  }
+
+  // compression depth trace on the device screen: one dip per push, 5–6 cm band
+  function drawFb(t) {
     const cv = $('#cpFb');
     if (!cv) return;
     const { w, h, scale } = NZA.fitCanvas(cv);
-    const sig = `${st.bars.length}:${w}`;
+    const live = st.press ? liveDepth(t) : 0;
+    const sig = `${st.bars.length}:${st.bars.length ? st.bars[st.bars.length - 1].d : 0}:${w}:${h}:${live.toFixed(2)}`;
     if (cv._sig === sig) return;
     cv._sig = sig;
     const ctx = cv.getContext('2d');
     ctx.fillStyle = '#020303'; ctx.fillRect(0, 0, w, h);
-    const top = 12 * scale, bot = h - 4 * scale;
+    const top = 14 * scale, bot = h - 5 * scale;
     const Y = cm => top + (bot - top) * clamp(cm / 7, 0, 1);
-    ctx.fillStyle = 'rgba(8,175,162,.16)'; ctx.fillRect(0, Y(5), w, Y(6) - Y(5));
+    ctx.fillStyle = 'rgba(15,212,196,.09)'; ctx.fillRect(0, Y(5), w, Y(6) - Y(5));
     ctx.strokeStyle = 'rgba(15,212,196,.35)'; ctx.lineWidth = 1; ctx.setLineDash([3 * scale, 3 * scale]);
     [5, 6].forEach(cm => { ctx.beginPath(); ctx.moveTo(0, Y(cm)); ctx.lineTo(w, Y(cm)); ctx.stroke(); });
     ctx.setLineDash([]);
-    const bw = 7 * scale, gap = 3 * scale;
-    const max = Math.floor((w - 8 * scale) / (bw + gap));
-    const list = st.bars.slice(-max);
-    list.forEach((b, i) => {
-      const x = 6 * scale + i * (bw + gap);
-      ctx.fillStyle = b.cls === 'ok' ? '#0fd4c4' : (b.cls === 'low' ? '#ffb224' : '#ff7a7e');
-      ctx.fillRect(x, top, bw, Y(b.d) - top);
-    });
+    ctx.font = `600 ${7.5 * scale}px JetBrains Mono, monospace`; ctx.fillStyle = 'rgba(15,212,196,.55)';
+    ctx.fillText('5', 3 * scale, Y(5) - 2 * scale); ctx.fillText('6', 3 * scale, Y(6) + 8 * scale);
+    const stepX = 12 * scale, x0 = 14 * scale, room = w - x0 - 92 * scale;
+    const list = st.bars.slice(-Math.max(1, Math.floor(room / stepX)));
+    const dip = (x, d, base, col) => {
+      ctx.strokeStyle = col; ctx.lineWidth = 1.8 * scale; ctx.shadowColor = col; ctx.shadowBlur = 4 * scale;
+      ctx.beginPath(); ctx.moveTo(x, Y(0.2)); ctx.bezierCurveTo(x + stepX * 0.25, Y(0.2), x + stepX * 0.3, Y(d), x + stepX * 0.45, Y(d));
+      ctx.bezierCurveTo(x + stepX * 0.6, Y(d), x + stepX * 0.7, Y(base), x + stepX, Y(base)); ctx.stroke();
+      ctx.shadowBlur = 0;
+    };
+    list.forEach((b, i) => dip(x0 + i * stepX, b.d, b.cls === 'lean' ? 1.1 : 0.2, b.cls === 'ok' ? '#e9f6f4' : (b.cls === 'low' ? '#ffb224' : '#ff7a7e')));
+    if (live > 0.05) dip(x0 + list.length * stepX, live, 0.2, '#0fd4c4');
   }
+  const liveDepth = t => (st.press ? 6.25 * (1 - Math.exp(-((t - st.press.at) / 1000) / 0.055)) : 0);
 
   function drawTube(t) {
     const tube = $('#cpTube');
     if (!tube) return;
-    let cm = 0, cls = '';
-    if (st.press) cm = 6.25 * (1 - Math.exp(-((t - st.press.at) / 1000) / 0.055));
-    else if (st.lastCompAt && t - st.lastCompAt < 260) cm = st.depth * (1 - (t - st.lastCompAt) / 260);
-    cls = cm >= 5 ? 'ok' : (cm > 0.3 ? 'low' : '');
-    tube.style.height = `${clamp(cm / 7, 0, 1) * 100}%`;
-    tube.className = cls;
+    const v = v_();
+    const breathing = v.phase === 'breaths' && iBreathe();
+    let frac = 0, cls = '';
+    if (breathing) {
+      const { k } = breathSpan();
+      const held = heldNow(t);
+      frac = clamp(held / (st.cfg.tooLong * k * 1.18), 0, 1);
+      cls = held > st.cfg.tooLong * k ? 'bad' : (held >= st.cfg.tooShort * k ? 'ok' : (held > 0 ? 'low' : ''));
+    } else {
+      let cm = 0;
+      if (st.press) cm = liveDepth(t);
+      else if (st.lastCompAt && t - st.lastCompAt < 260) cm = st.depth * (1 - (t - st.lastCompAt) / 260);
+      frac = clamp(cm / 7, 0, 1);
+      cls = cm >= 5 ? 'ok' : (cm > 0.3 ? 'low' : '');
+    }
+    tube.style.height = `${frac * 100}%`;
+    if (tube.className !== cls) tube.className = cls;
     if (!st._tubeAt || t - st._tubeAt > 150) {
       st._tubeAt = t;
       const dv = $('#cpDepthV'), ds = $('#cpDepthS');
+      $('.mt-depth .tube .z').style.display = breathing ? 'none' : '';
+      if (breathing) {
+        const held = heldNow(t), { k } = breathSpan();
+        dv.innerHTML = `${held ? held.toFixed(1) : breathTarget().toFixed(1)}<small>s</small>`;
+        ds.textContent = held > st.cfg.tooLong * k ? T('m_long') : (held >= st.cfg.tooShort * k ? T('m_ok') : (held ? T('m_short') : T('m_wait')));
+        ds.className = `s ${held > st.cfg.tooLong * k ? 'red' : held >= st.cfg.tooShort * k ? 'teal' : held ? 'amber' : ''}`;
+        return;
+      }
       const d = st.depth;
       dv.innerHTML = `${d ? d.toFixed(1) : '--'}<small>cm</small>`;
       const leaning = st.press && t - st.press.at > st.cfg.pressMax * 1000;
@@ -1072,24 +1320,27 @@
   function banner(id, tone, ic, title, sub, ms) {
     const b = $('#cpBanner');
     bannerId = id;
+    b.className = 'cp-banner nza-hud solid';
+    void b.offsetWidth;
     b.className = `cp-banner nza-hud solid on ${tone}`;
-    b.querySelector('.bi').innerHTML = icon(ic);
-    b.querySelector('b').textContent = title;
-    b.querySelector('span').textContent = sub || '';
+    b.querySelector('.bi .ic').innerHTML = icon(ic);
+    b.querySelector('.bt b').textContent = title;
+    b.querySelector('.bt span').textContent = sub || '';
     clearTimeout(bannerTimer);
     if (ms) bannerTimer = setTimeout(() => hideBanner(id), ms);
   }
   function hideBanner(id) { if (id && id !== bannerId) return; const b = $('#cpBanner'); if (b) b.className = 'cp-banner nza-hud solid'; bannerId = ''; }
+  // the unit's spoken prompt: shown on its own message line (speaker + level bars) for a few seconds
   let voiceTimer = 0;
   function voice(text, ms = 4200) {
-    const vb = $('#cpVoice');
-    if (!vb) return;
     clearTimeout(voiceTimer);
-    if (!text) { vb.classList.remove('on'); return; }
-    vb.querySelector('.who').textContent = T('v_who');
-    vb.querySelector('.tx').textContent = text;
-    vb.classList.remove('on'); void vb.offsetWidth; vb.classList.add('on');
-    voiceTimer = setTimeout(() => vb.classList.remove('on'), ms);
+    st.voice = text || '';
+    if (text) {
+      voiceTimer = setTimeout(() => { st.voice = ''; renderMsg(); }, ms);
+      const pr = $('#cpPrm');
+      if (pr) { pr.classList.remove('voice'); void pr.offsetWidth; }
+    }
+    renderMsg();
   }
   function rhLabel(r) { return r ? T(`rh_${r}`) : ''; }
 
@@ -1143,7 +1394,7 @@
         else if (ev.result === 'induced') banner('shock', 'red', 'bolt', T('b_induced'), T('b_induced_s'), 3200);
         else if (ev.result !== 'rosc') { banner('shock', '', 'bolt', T('b_shocked'), T('b_shocked_s', ev.energy, ev.n), 2600); voice(T('v_shocked')); }
         if (ev.result === 'changed') pp && pp.flash('warn', T('e_changed'), 2600);
-        st.beat0 = now() + 300; st.lastBeatIdx = -1; st.localSet = 0; st.setPhase = '';
+        st.beat0 = now() + 300; st.lastBeatIdx = -1; st.localSet = 0; st.setPhase = ''; resetSet();
         break;
       }
       case 'zapped':
@@ -1196,14 +1447,16 @@
     const has = sum.score !== undefined && sum.score !== null;
     const grade = sum.grade || (has ? 'C' : null);
     const box = $('#cpDeb');
-    const m = (val) => NZA.ui.meterHTML({ value: clamp((val || 0) / 100, 0, 1), tone: (val || 0) >= 75 ? '' : (val || 0) >= 50 ? 'amber' : 'red' });
-    const tiles = [
-      [T('d_duration'), NZA.fmt.time(sum.duration || 0), ''],
-      [T('d_comp'), sum.compressions || 0, ''],
-      [T('d_shocks'), sum.shocks || 0, ''],
-      [T('d_adr'), sum.adrenaline || 0, ''],
+    const tone = val => ((val || 0) >= 75 ? 'teal' : (val || 0) >= 50 ? 'amber' : 'red');
+    const C1 = 2 * Math.PI * 42, C2 = 2 * Math.PI * 17;
+    const score = has ? clamp(Math.round(sum.score), 0, 100) : 0;
+    const rows = [
+      [T('d_duration'), NZA.fmt.time(sum.duration || 0), 'clock'],
+      [T('d_comp'), sum.compressions || 0, 'heart'],
+      [T('d_shocks'), sum.shocks || 0, 'bolt'],
+      [T('d_adr'), sum.adrenaline || 0, 'syringe'],
     ];
-    const qtiles = has ? [[T('d_quality'), parts.quality], [T('d_ccf'), parts.ccf], [T('d_vent'), parts.vent], [T('d_protocol'), parts.protocol]] : [];
+    const rings = has ? [[T('d_quality'), parts.quality], [T('d_ccf'), parts.ccf], [T('d_vent'), parts.vent], [T('d_protocol'), parts.protocol]] : [];
     const fb = [];
     if (sum.rosc) fb.push(['', T('fb_rosc', NZA.fmt.time(sum.duration || 0))]);
     if (has) {
@@ -1214,14 +1467,24 @@
       if (!(sum.adrenaline > 0) && (sum.duration || 0) > 240) fb.push(['warn', T('fb_adr')]);
       if (fb.length === (sum.rosc ? 1 : 0)) fb.push(['', T('fb_good')]);
     }
+    const rhFrom = sum.rhythmStart ? rhLabel(sum.rhythmStart) : '';
+    const rhTo = sum.rhythmStart ? (sum.rosc ? T('rh_rosc') : rhLabel(sum.rhythmEnd)) : '';
+    const ttl = sum.rosc ? 'teal' : (reason === 'death' ? 'red' : '');
+    box.className = `cp-deb nza-hud solid ${ttl}`;
     box.innerHTML = `
-      <div class="hd">${grade ? `<div class="grade g-${esc(grade)}">${esc(grade)}</div>` : `<div class="grade g-C">${icon('heart')}</div>`}
-        <div><b class="${sum.rosc ? 'teal' : (reason === 'death' ? 'red' : '')}">${esc(T(titleKey))}</b><p>${esc(T('d_sub', v_().name || sum.name || T('npc'), T('r_' + reason)))}</p></div></div>
-      <div class="gridx">${tiles.map(([l, val]) => `<div><div class="l">${esc(l)}</div><div class="v">${esc(val)}</div></div>`).join('')}</div>
-      ${qtiles.length ? `<div class="gridx">${qtiles.map(([l, val]) => `<div><div class="l">${esc(l)}</div><div class="v">${Math.round(val || 0)}<small>%</small></div>${m(val)}</div>`).join('')}</div>` : ''}
-      ${fb.length ? `<ul>${fb.map(([c, txt]) => `<li class="${c}">${esc(txt)}</li>`).join('')}</ul>` : ''}
-      <div class="ft">${sum.rhythmStart ? `<span class="rh">${esc(T('d_rhythm', rhLabel(sum.rhythmStart), sum.rosc ? T('rh_rosc') : rhLabel(sum.rhythmEnd)))}</span>` : ''}<span class="sp"></span><button class="btn-teal" id="cpDone"><kbd style="background:rgba(0,0,0,.18);border-color:rgba(0,0,0,.25);color:var(--on-teal)">Enter</kbd>${esc(T('d_done'))}</button></div>`;
+      <div class="db-hd">
+        <div class="db-score ${has ? tone(score) : 'none'}"><svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="42"/><circle class="fg" cx="50" cy="50" r="42" stroke-dasharray="${C1.toFixed(1)}" stroke-dashoffset="${C1.toFixed(1)}" data-off="${(C1 * (1 - score / 100)).toFixed(1)}"/></svg>
+          <div class="c">${has ? `<b>${score}</b><span>${esc(T('d_score'))}</span>` : icon('heart')}</div>${grade && has ? `<em class="g g-${esc(grade)}">${esc(grade)}</em>` : ''}</div>
+        <div class="db-t"><span class="k">${esc(T('d_kicker'))}</span><b class="${ttl}">${esc(T(titleKey))}</b><p>${esc(T('d_sub', v_().name || sum.name || T('npc'), T('r_' + reason)))}</p>
+          ${rhFrom ? `<div class="path"><span class="l">${esc(T('d_path'))}</span><span class="rh">${esc(rhFrom)}</span>${icon('arrow-r')}<span class="rh ${sum.rosc ? 'ok' : ''}">${esc(rhTo)}</span></div>` : ''}</div>
+      </div>
+      <div class="db-il">${rows.map(([l, val, ic]) => `<div><span class="i">${icon(ic)}</span><span class="l">${esc(l)}</span><b>${esc(val)}</b></div>`).join('')}</div>
+      ${rings.length ? `<div class="db-rings">${rings.map(([l, val]) => `<div class="${tone(val)}"><span class="rg"><svg viewBox="0 0 40 40"><circle class="bg" cx="20" cy="20" r="17"/><circle class="fg" cx="20" cy="20" r="17" stroke-dasharray="${C2.toFixed(1)}" stroke-dashoffset="${C2.toFixed(1)}" data-off="${(C2 * (1 - clamp((val || 0) / 100, 0, 1))).toFixed(1)}"/></svg><b>${Math.round(val || 0)}<small>%</small></b></span><span class="l">${esc(l)}</span></div>`).join('')}</div>` : ''}
+      ${fb.length ? `<div class="db-tips"><div class="k">${esc(T('d_tips'))}</div><ul>${fb.map(([c, txt]) => `<li class="${c}">${esc(txt)}</li>`).join('')}</ul></div>` : ''}
+      <div class="db-ft"><span class="sp"></span><button class="btn-teal" id="cpDone">${esc(T('d_done'))}<kbd>Enter</kbd></button></div>`;
     box.classList.add('on');
+    // rings fill after the card lands
+    requestAnimationFrame(() => requestAnimationFrame(() => box.querySelectorAll('circle.fg[data-off]').forEach(c => { c.style.strokeDashoffset = c.dataset.off; })));
     box.querySelector('#cpDone').onclick = () => NZA.close(APP);
     if (pp) pp.el.style.display = 'none';
     dev.classList.add('cp-dim');
@@ -1338,13 +1601,16 @@
     sim.start(v);
     NZA.demo(APP, { view: v, easy: !!v.easy });
     fakeAnchors();
-    if (name === 'compress' || name === 'air' || name === 'easy') {
+    if (name === 'compress' || name === 'air' || name === 'easy' || name === 'charged' || name === 'analyse') {
       const t0 = now();
       [0, 1, 2, 3, 4, 5, 6, 7].forEach(i => { st.bars.push({ d: 5.2 + (i % 3) * 0.3, cls: 'ok' }); });
       st.bars.push({ d: 4.4, cls: 'low' }); st.bars.push({ d: 5.6, cls: 'ok' }); st.bars.push({ d: 5.9, cls: 'lean' });
       for (let i = 0; i < 10; i++) st.bars.push({ d: 5.3 + ((i * 7) % 5) * 0.15, cls: 'ok' });
-      st.rate = 112; st.depth = 5.6; st.quality = 88; st.localSet = v.set; st.lastCompAt = t0;
-      st.hits = [{ t: t0 - 520, cls: 'good' }, { t: t0 - 1050, cls: 'perfect' }, { t: t0 - 1600, cls: 'perfect' }, { t: t0 - 2150, cls: 'early' }];
+      st.rate = 112; st.depth = 5.6; st.quality = 88; st.recoil = 93; st.localSet = v.set; st.lastCompAt = t0;
+      const pat = ['ok', 'ok', 'ok', 'low', 'ok', 'ok', 'ok', 'ok', 'lean', 'ok', 'ok', 'ok', 'ok', 'ok', 'low', 'ok', 'ok', 'ok', 'ok'];
+      st.setCells = pat.slice(0, v.set);
+      st.setStats = { early: 2, on: Math.max(0, v.set - 3), late: 1, miss: 0, recoil: 93 * v.set, n: v.set };
+      st.hits = [{ t: t0 - 260, cls: 'perfect', err: 0.02 }, { t: t0 - 800, cls: 'good', err: -0.11 }, { t: t0 - 1340, cls: 'perfect', err: 0.05 }, { t: t0 - 1600, cls: 'early', err: -0.2 }];
       if (name === 'easy') st.auto = true;
       setTimeout(() => pop('perfect'), 900);
     }
@@ -1352,7 +1618,7 @@
     if (name === 'analyse') { banner('analyse', '', 'ecg', T('b_analyse'), T('b_analyse_s')); voice(T('v_analyse'), 60000); }
     if (name === 'charged') { banner('clear', 'red pulse', 'alert', T('b_clear'), T('b_clear_s')); voice(T('v_charged'), 60000); }
     if (name === 'rosc') { banner('rosc', 'teal', 'heart', T('b_rosc'), T('b_rosc_s'), 60000); voice(T('v_rosc'), 60000); }
-    if (name === 'breaths') { st.breath = { at: now(), frozen: 0.86 }; }
+    if (name === 'breaths') { st.breath = { at: now(), frozen: 0.86 }; st.breathLog = [{ hold: 1.04, cls: 'ok' }]; }
     if (name === 'debrief') ended({ reason: 'rosc', rosc: true, duration: 412, compressions: 618, cycles: 6, shocks: 2, adrenaline: 1, score: 84, grade: 'A', parts: { quality: 86, ccf: 78, vent: 71, protocol: 90 }, rhythmStart: 'vf', rhythmEnd: 'stach', name: 'Michael Garcia' });
   }
 

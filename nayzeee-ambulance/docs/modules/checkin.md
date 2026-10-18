@@ -1,8 +1,13 @@
 # Module: checkin
 
-Check-in desk with an NPC receptionist, triage tickets (thermal-paper receipt + inventory
-item), a per-department queue, the waiting-room TV board (DUI), staff calls to free beds, the
-AI doctor (cinematic treatment in a bed) and the bed rest HUD for every hospital bed.
+Reception desk with an NPC receptionist, triage queue numbers (dark glass queue pass + inventory
+item), a per-department queue, the waiting-area board (DUI), staff calls to open beds, the
+AI doctor (cinematic treatment in a bed) and the bed rest card for every hospital bed.
+
+UI originality (customer requirement, `docs/design/ORIGINAL.md`): no paper receipt, no barcode, no
+"your number / patients ahead / please keep this ticket" layout, no "now serving / waiting list /
+incoming" board arrangement, no bottom-centre subtitle strip; no product name or logo on the
+board, the bedside monitor or any device face.
 
 ## Files
 
@@ -10,12 +15,12 @@ AI doctor (cinematic treatment in a bed) and the bed rest HUD for every hospital
 |---|---|
 | `server/modules/checkin.lua` | tickets, numbering, triage, queue order, beds/reservations, staff calls, board + desk payloads, notifications, item, DB (`nza_tickets`), restore after restart, `NZA.Checkin` API |
 | `server/modules/checkin_ai.lua` | AI doctor: plan, bill (insurance), server-run treatment session, hand-over rules, `nza:checkin:lie`, `nza:checkin:rest` |
-| `client/modules/checkin.lua` | `checkin` point type (receptionist ped, [E]/[G] prompts, targets), receipt / chip / subtitles / reception window, called-to-bed guide (waypoint + marker + [E] Lie down), staff toasts, radial items |
+| `client/modules/checkin.lua` | `checkin` point type (receptionist ped, [E]/[G] prompts, targets), queue pass / queue dock / receptionist voice (NZA.speech) / reception window, called-to-bed guide (waypoint + marker + [E] Lie down), staff toasts, radial items |
 | `client/modules/checkin_bed.lua` | lying in a called bed, get up (hold while the AI works), AI doctor HUD, doctor ped, cinematic camera, bed rest HUD |
-| `client/modules/checkin_tv.lua` | `tv` point type, DUI board (replace texture on the NAYZEEE screen, render target on native TVs), chime |
-| `html/apps/checkin/` | NUI app `checkin` (receipt, ticket chip, receptionist subtitle, reception window) |
+| `client/modules/checkin_tv.lua` | `tv` point type, DUI board (replace texture on the board screen model, render target on native TVs), chime |
+| `html/apps/checkin/` | NUI app `checkin` (queue pass, queue dock, reception window; receptionist lines go to `NZA.speech`) |
 | `html/apps/bed/` | NUI app `bed` (AI doctor cinematic HUD, bed rest bar) |
-| `html/dui/tv.html` `tv.css` `tv.js` | waiting room board (DUI page, 16:9, vw-based) |
+| `html/dui/tv.html` `tv.css` `tv.js` | waiting-area board (DUI page, 16:9, vw-based, generic cross glyph only) |
 | `config/modules/checkin.lua` | `Config.Checkin` |
 | `locales/en/checkin.lua` | every `checkin.*` string (Lua, both apps and the board) |
 
@@ -26,9 +31,10 @@ AI doctor (cinematic treatment in a bed) and the bed rest HUD for every hospital
   on/off), `pose` (`sit` / `stand`), `model` (custom ped), `name` (receptionist name), `z` (height offset).
 - Local receptionist ped (scenario `PROP_HUMAN_SEAT_COMPUTER` / `WORLD_HUMAN_CLIPBOARD`) spawned with
   the point, invincible, removed with the point / resource.
-- Prompt `[E] Check in — treat injuries · Check-in Desk` (no target needed); with a ticket it shows
-  `Your ticket A-014 · 2 ahead of you` / `Go to Bed 3` / `In treatment`. Staff also get
-  `[G] Reception queue`. Target options: Check in, Show my ticket, Leave the queue, Reception queue,
+- Prompt (context tag beside the crosshair, `NZA.prompt`): `[E]` kicker = the point label (or
+  "Front desk"), label `Take a queue number`; with a number it shows `Queue pass A-014 · 2 ahead of
+  you` / `Go to Bed 3` / `In treatment`. Staff also get `[G] Reception queue`. Target options: Take a
+  queue number, Show my queue pass, Leave the queue, Reception queue,
   Call next patient (staff) — skipped when the bridge target is the built-in prompt.
 - Server: ticket per department per desk letter per day (`A-001`, `A-002`…; counters survive
   restarts), triage from `NZA.Patients.Triage` (P1 Critical / P2 Urgent / P3 Standard), patients
@@ -36,40 +42,46 @@ AI doctor (cinematic treatment in a bed) and the bed rest HUD for every hospital
   Refuses when nothing needs treatment (`desk.requireInjury`), carried / on a stretcher / already in
   a bed, in arrest, a cooldown, too far.
 - `Config.Items.triage_ticket` with metadata (`ticket`, `ticketId`, `hospital`, `triage`, `issued`,
-  label + description). Using the item shows the receipt again (an old ticket shows a red
-  "Not valid" stamp). The item is taken back when the visit ends (`desk.takeBack`).
-- Receptionist answers with a subtitle (P1 "you need a doctor right now", next, N ahead, already
-  have a ticket, nothing to treat).
+  label + description). Using the item shows the queue pass again (an old number shows a red
+  "Not valid" status). The item is taken back when the visit ends (`desk.takeBack`).
+- Receptionist answers through the top-centre voice card (`NZA.speech`: initials ring, name +
+  role, quoted line): P1 "you go first", next, N ahead, already have a number, nothing to treat.
 
-### Receipt (NUI `checkin`, mode `ticket`)
-Thermal paper coming out of a NAYZEEE printer slot (stepped feed animation, printer buzz + tear
-sound): teal NAYZEEE mark, department + desk, `#0014`, YOUR NUMBER `A-014`, triage chip, patient,
-patients ahead, waiting mm:ss (live), estimated wait, issued (game or real clock), barcode +
-id, "Please keep this ticket. Watch the screen for your number.", torn bottom edge, stamps
-(Called · Bed 3 / In treatment / Treated / Closed / Not valid). Stays `desk.receiptTime` seconds
-(0 = until you walk away from the desk).
+### Queue pass (NUI `checkin`, mode `ticket`, top-left)
+Dark glass card that slides in from the left edge with a scan sweep: teal corner bracket, "Queue
+pass" kicker, department + desk + `#0014`, status chip (In queue / Called / In treatment / Not
+valid), a queue ring (ticked bezel, arc = progress from the first count of people ahead, centre =
+people ahead / "Go" / icon), rolling queue number `A-014` (odometer digits), triage chip, an
+instrument list (name, time in queue live, expected call / bed), the journey spine (Registered →
+In the queue → Called to a bed → Treatment, current node pulses) and a footer "Pass saved to your
+pockets" + short id. Stays `desk.receiptTime` seconds (0 = until you walk away from the desk).
 
-### Ticket chip (top centre while you wait)
-`A-014 · P2 · Ahead 2 · Waiting 06:12 · Est. ~8m`; when called it turns teal and glows:
-`Your number is called — A-014 → Bed 3 · Go now 00:13`; in treatment: `AI doctor / In treatment · Bed 3`.
+### Queue dock (top-left while you wait)
+Compact card in the same corner: mini ring + `A-014` + triage chip + time in queue + expected call;
+called → teal ring with a bed icon, `A-014 → Bed 3`, blinking "Go now" + countdown; in treatment
+(AI doctor) → `A-014 · Bed 3 / Stay on the bed`.
 
-### Waiting room board (`tv` position, DUI)
-- `Config.Props.tv_board` (NAYZEEE screen; `Config.PropScreens.tv_board` texture replaced by the DUI)
+### Waiting-area board (`tv` position, DUI)
+- `Config.Props.tv_board` (board screen model; `Config.PropScreens.tv_board` texture replaced by the DUI)
   or `existing = true` to take over the nearest map TV of `tv.existingModels` (drawn into its render
   target, `tv.renderTargets`; the placed screen is hidden). The fallback native TV model also uses
   the render target. Data: `existing`, `title` (overrides the department name).
 - Only the nearest board within `tv.drawDistance` runs; leaving unsubscribes at once and destroys the
   browser after `tv.linger` s.
-- Board (readable from across the room): department + "Waiting room", big clock (game or real),
-  NOW SERVING (up to `queue.maxServing` cards: ticket → bed, "Please go now" / "In treatment", triage
-  colour bar; or "Please take a seat. Your ticket number will appear here when a bed is ready."),
-  WAITING list (P1/P2/P3 chip, ticket, live wait time, amber after 15 min, "+ N more"), INCOMING
-  ambulances (unit, priority, ETA min / blinking "Arriving" — units in `TRN` whose nearest hospital is
-  this department, via `NZA.Dispatch.Units/NearestHospital`), footer counts (Waiting, In treatment,
-  Beds free x/y with bar, Medical staff on duty n / "AI doctor on call"), teal info ticker.
-- A newly called number flashes full screen for 7 s ("NOW CALLING A-014 → Bed 3", "YOUR NUMBER" when
-  it is yours) with a two-tone chime (volume by distance, `tv.chime`, `tv.chimeDistance`). Your own
-  ticket is outlined on the board.
+- Board (readable from across the room, sizes in vw): left info rail — department (wraps to two
+  lines, smaller for long names) + "Emergency · waiting area", rolling clock (game or real) with
+  date, three status rings (beds open x/y, staff on shift / "AI doctor on call" / "No staff on
+  shift", people in the queue + in treatment), "En route" unit cards at the bottom (unit, priority,
+  ETA min / blinking "At the door" — units in `TRN` whose nearest hospital is this department, via
+  `NZA.Dispatch.Units/NearestHospital`). Right: the BEDS bay map (one tile per bed, called tiles
+  glow teal with "Go to your bed", treatment tiles show the number with "In treatment", open tiles
+  are dashed "Open · Ready for the next patient", other occupied beds "In use"; 3–4 columns,
+  balanced rows, up to 8 tiles) and the QUEUE as three triage lanes (P1 / P2 / P3 head with count,
+  number tokens in call order with live wait time, amber after 15 min, "+N", "Nobody in this lane").
+  Info ticker at the bottom.
+- A newly called number takes over the screen for 7 s (ring sweep, "Number called", `A-014 → Bed 3`,
+  "That is you" when it is yours) with a two-tone chime (volume by distance, `tv.chime`,
+  `tv.chimeDistance`). Your own number is outlined white with a "You" mark.
 
 ### Staff flow (reception window, NUI `checkin` mode `desk`, v5 window)
 - Open with `[G]` at the desk, the desk target, or radial Dispatch → Reception queue.
@@ -81,7 +93,7 @@ id, "Please keep this ticket. Watch the screen for your number.", torn bottom ed
 - Beds page: every bed (free / reserved / occupied with ticket + name). Today page: closed tickets
   (outcome, waited, handled by, closed time).
 - `Call next patient` (button, `N`, desk target, radial, net event from the dispatch board) → the
-  next ticket (P1 first, then by arrival) becomes Now serving with a reserved free bed; the patient
+  next number (P1 first, then by arrival) is called to a reserved open bed; the patient
   gets a toast + sound, a waypoint, a bobbing marker on the bed and `[E] Lie down · Bed 3`.
 - Lying on the assigned bed turns the ticket "In treatment" (`queue.autoTreatment`); a medic who
   treats a waiting patient or puts them on a bed (transport) takes the ticket over; a staff ticket
@@ -103,12 +115,18 @@ id, "Please keep this ticket. Watch the screen for your number.", torn bottom ed
   per injury (severity first; time `ai.times[type] + perSeverity`) → Discharge, scaled into
   `ai.minTime..ai.maxTime`. Each step applies its treatment flags when it ends (real vitals improve);
   the end heals (`ai.heal`), revives and closes the ticket as treated.
-- HUD (NUI `bed`, mode `ai`): cinematic letterbox with captions, doctor card (ticket, bed), time
-  left flip clock, overall % with per-step segments, timeline (done ✓ / current with description,
-  progress and countdown / pending with duration), NAYZEEE bedside monitor (live ECG/pleth/resp +
-  HR/SpO₂/MAP/NIBP/RR/Temp from the server every 2 s), bill card (lines, subtotal, insurance plan
-  and cover %, You pay), doctor subtitles per step, `[C] Camera`, hold `[X]` to get up (ring).
-  Completion card: steps done, final bill, paid / billed to you, auto stand-up countdown.
+- HUD (NUI `bed`, mode `ai`): cinematic letterbox with captions (cross glyph + department, live
+  dot, number · bed). Care-plan card top-left: progress ring (ticked bezel) around a rolling
+  time-left counter, doctor + number/bed tags, instrument list (progress %, stage 03/06) and a
+  vertical step spine (done = teal node + check, current = pulsing node inside a ring that fills
+  with the step, description card, countdown; pending = duration). Top-right: generic patient
+  monitor (model plate "PM-7", "Patient monitor", amber "Adult" sticker, grille + buttons; live
+  ECG/pleth/resp + HR/SpO₂/MAP/NIBP/RR/Temp from the server every 2 s) and the care-costs card
+  (cover ring, lines, subtotal, insurance plan + %, your share). Doctor lines per step go to the
+  top-centre voice card (`NZA.speech`). Keys in the bottom letterbox: `[C] Camera`, hold `[X]` to
+  leave the bed (ring). Discharge card (centre, two columns): ticked ring with a check, "You are
+  patched up", the finished steps on a spine with their times, final costs, paid / billed to you,
+  "Getting up…" countdown ring.
 - Local doctor ped beside the bed (clipboard scenario for assessment/discharge, working anim for
   procedures), slow cinematic camera shots around the bed (wall-safe ray test), radar hidden;
   `[C]` toggles back to your own camera.
@@ -116,17 +134,18 @@ id, "Please keep this ticket. Watch the screen for your number.", torn bottom ed
   `NZA.Billing.Charge` (society, unpaid bills) or directly from bank/cash with `Bridge`. Getting up
   early bills only the finished steps.
 
-### Bed rest HUD (NUI `bed`, mode `rest`)
-Every bed you lie in (hospital module bed, called bed, or a medic's transport placement): bed +
-department, rest timer (flip clock), recovery % bar, "Fully healed in ~N min" (or what still needs
-treatment), ×4 healing badge (`meta.inBed`), up to 5 injuries with heal %, blood, pain, and the
-get-up key that applies (or "A medic will help you off the bed"). Hides the hospital module's small
+### Bed rest card (NUI `bed`, mode `rest`, right edge)
+Every bed you lie in (hospital module bed, called bed, or a medic's transport placement): card that
+slides in from the right edge — bed + department, ×4 healing badge (`meta.inBed`), a recovery ring
+(amber while a wound needs treatment first), instrument list (resting time as a rolling counter,
+healed in ~N min, blood, pain), a note when something still needs treatment, up to 5 injuries each
+with its own heal ring, and the get-up key that applies (or "A medic will help you off the bed"). Hides the hospital module's small
 get-up prompt (`rest.hideBedPrompt`).
 
 ## Controls
 | Key | Where | Action |
 |---|---|---|
-| `E` (`desk.control`) | desk | check in / show your ticket |
+| `E` (`desk.control`) | desk | take a queue number / show your queue pass |
 | `G` (`desk.staffControl`) | desk, staff | reception window |
 | `E` | at your called bed | lie down |
 | `X` (`rest.getUpControl`) | in a called bed | get up (hold `ai.getUpHold` s while the AI works) |

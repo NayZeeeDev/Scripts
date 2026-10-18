@@ -1,26 +1,50 @@
 # Requests from the burn module
 
-## 1. nza3d.js (suture module) — instrument labels carry the NAYZEEE name
+## 1. nza3d.js (suture module) — the NAYZEEE name on in-world props
 
-`html/core/nza3d.js` → `makeLabel('saline')` prints `NAYZEEE MEDICAL` on the irrigation bottle and
-`makeLabel('syringe')` prints `5 mL · NAYZEEE` on the lidocaine syringe. ORIGINAL.md forbids the
-NAYZEEE name on props / in-world devices. The burn app does not use these two engine tools (it builds
-its own unbranded irrigation bottle, diascope, dermatome and stapler), but suture / bullet do.
-Suggested: replace with a generic maker line, e.g. `STERILE · SINGLE USE` and a lot number.
+ORIGINAL.md forbids the NAYZEEE name / mark on props and device faces. Still present in
+`html/core/nza3d.js`:
+
+- `makeLabel('saline')` — `drawMark(...)` + `NAYZEEE MEDICAL` on the irrigation bottle.
+- `makeLabel('syringe')` — `5 mL · NAYZEEE` on the lidocaine syringe.
+- `makeDressingTex(...)` — `NAYZEEE · STERILE` + `drawMark` printed in the corner of every dressing.
+
+The burn app does not use the first two (it builds its own unbranded bottle, diascope, dermatome,
+stapler) and replaces the dressing's map with its own hydrogel burn-dressing print, so burn is clean
+either way. Suture / bullet / chest drain still show them. Suggested: a generic maker line
+(`STERILE · SINGLE USE`, a lot number) and no mark.
 
 ## 2. nza.js ProcPanel — dial label overlaps the 240° arc
 
-`.pp-gauge .gv` sits at `top:44px`; with a long `wide.label` ("SURFACE TEMP", "CONTAMINATION") the
-uppercase label is drawn across the top of the arc. Suggested: `.pp-gauge .gv{top:50px}` and
-`.pp-gauge .gv .l{padding:0 30px}` (or shrink the label to 8px). Seen in burn and suture.
+`.pp-gauge .gv` sits at `top:44px`; a label longer than ~9 uppercase characters is drawn across the
+ends of the arc. The burn app now uses one-word labels (Surface, Tested, Debrided, Excised, Graft,
+Meshing, Staples, Covered, Adhered), so this is no longer visible in burn. Suggested for everyone:
+`.pp-gauge .gv{top:50px}` and `.pp-gauge .gv .l{padding:0 30px;font-size:8px}`.
 
 ## 3. nza.js ProcPanel — skipped steps on the spine
 
 The burn app marks skipped steps itself (`.pp-segs i.skip`, styled in `apps/burn/app.css`) after
-every `pp.set({ step })`. A built-in `skipped: [n…]` option on ProcPanel would let every app do this.
+every `pp.set({ step })`. A built-in `skipped: [n…]` option on ProcPanel would let every app do it.
 Not blocking.
 
-## 4. Exam route `items`
+## 4. nza3d.js — partial-thickness burn colouring (FYI for the suture module)
+
+The engine colours partial-thickness burns with `smoothstep(0.52, 0.72, nzaN2.b)` — worley cells —
+which reads as round pink/white polka dots. The burn app patches its own scene's skin material at
+compile time (it replaces the block from `vec3 nzaPart =` to
+`nzaCol = mix(nzaCol, nzaFull, smoothstep(0.66, 0.86, nzaBs));` and appends after
+`nzaWet = clamp(...)`, `roughnessFactor = mix(roughnessFactor, 0.92, nzaGrit);` and
+`vec2 nzaCoatXY = ...`). If you change those lines, please keep them (or tell burn); otherwise the
+patch is skipped silently and burn falls back to the engine look. Other apps using `type: 'burn'`
+wounds would also benefit from non-round noise there.
+
+## 5. nza3d.js — `fluids.drops(point, count, color)` always lands as blood
+
+`updateFluids` paints `layers.paint('blood', …)` for every kind-2 particle that lands, whatever its
+colour, so clear / serous droplets leave red dots. Burn no longer calls it for blister serum.
+Suggested: only paint blood when the colour is blood-red, or paint `'wet'` otherwise.
+
+## 6. Exam route `items`
 
 The burn routes list `Config.Items.saline` + `burn_dressing` (care) and `graft_kit` + `burn_dressing`
 (graft). The exam's "have / need" counts read the bag; nothing else needed.
