@@ -2,70 +2,96 @@
 
 Hospitals are built in game. A **department** is one hospital / EMS organisation: it has
 grades (salary + permissions), outfits, garage vehicles, an HQ with a map blip, staff and
-placed **positions** (points). The module owns the data, the staff resolver behind every
-permission check, the EMS Manager window, placement mode and what each of its own positions
-does at runtime.
+placed **sites** (points; "positions" in code). The module owns the data, the staff resolver
+behind every permission check, the Department Console window, the site survey (placement) HUD
+and what each of its own sites does at runtime.
 
 ## Files
 
 | File | What it does |
 |---|---|
 | `server/modules/hospital.lua` | database, caches, sanitizing, `NZA.Hospitals` API, staff provider, point sync, beds, paychecks |
-| `server/modules/hospital_manager.lua` | EMS Manager callbacks (admins + bosses), `/nzadmin` |
+| `server/modules/hospital_manager.lua` | Department Console callbacks (admins + command desk), `/nzadmin` |
 | `server/modules/hospital_runtime.lua` | duty, locker, stash (incl. built-in storage), supply cabinet, garage / helipad, beds |
 | `client/modules/hospital.lua` | position types, blips, runtime menus (locker, stash, cabinet, garage, elevator), beds, store-vehicle prompt, radial items |
-| `client/modules/hospital_builder.lua` | placement mode (ghost prop / vehicle, marker, raycast, controls) |
+| `client/modules/hospital_builder.lua` | site survey mode (ghost prop / vehicle, survey pin, floor brackets, raycast, controls) |
 | `client/modules/hospital_manager.lua` | opens the manager, relays its actions, placement round-trip, go to, outfit capture / try-on |
-| `html/apps/manager/` | EMS Manager window + compact menus |
-| `html/apps/builder/` | placement HUD |
+| `html/apps/manager/` | Department Console window + compact menus |
+| `html/apps/builder/` | site survey HUD |
 | `config/modules/hospital.lua` | `Config.Hospital` |
 | `locales/en/hospital.lua` | `hospital.*` strings (also every NUI string) |
 
 ## Features
 
-### EMS Manager (`manager` app, v5 window)
-- **Explorer**: search, All / Linked / Standalone filter, one folder per department with
-  Overview, Roster, Grades, Outfits, Positions, Garage and area folders (Station, Pharmacy,
-  Check-in, Transfusion, Surgery, Angiography suite, X-ray, Ultrasound, Beds, Elevators,
-  Morgue, Other) with live counts. Unsaved departments get an amber dot. A **Hospital** section
-  (admins) shows every department, every position and who is on duty now.
-- **Overview**: stat tiles (staff, on duty, positions, vehicles); Identity (display name,
-  locked internal name, description); Integrations (framework job, Discord role id, society
-  account); **Easy mode** toggle with the explanation text and per-permission overrides;
-  **HQ location** (X/Y/Z/H chips, distance, Go to, Re-place in-world); **Map blip** (show,
-  12 colour swatches, sprite presets + any id, scale slider, label, short range, live preview).
-- **Roster**: stats, hire an online player or any server id / citizen id at a grade, change
-  grades inline, fire with confirmation, online / on-duty dots, "via job" for members through
-  the framework job link. Refresh button for live status.
-- **Grades**: add / remove / reorder, label, internal name, salary, permission chips
-  (all 24 `NZA.Const.Perms`) with All / None / copy from the grade below. Staff keep their
-  place: the server remaps stored grades when grades move or disappear.
-- **Outfits**: "New outfit from my clothes", per outfit a name, grade chips (none = all) and a
-  male + female version captured from what you wear (components / props from
-  `Config.Hospital.locker`), component summary, Try on, Put my own clothes back.
-- **Positions**: an "Add a position" button for **every registered point type** (read from
-  `NZA.Points.Types()` at runtime, so other modules' types appear automatically) → placement
-  mode; configured list with type filter, coordinates, distance from you, data chips, Go to,
-  Re-place, inline editor (label + every data field: toggles, numbers, text) and Delete.
-- **Garage**: vehicles (model, label, Car / Heli, minimum grade, livery, extras) and the
-  garage / helipad spawn points.
-- **Funds** (boss): society balance, deposit / withdraw (cash or bank, quick amounts), payroll.
-- New Department modal (display name → auto internal name), delete / fire / discard
-  confirmations, Ctrl+S save, ESC asks before throwing away unsaved edits.
+### Department Console (`manager` app, v5 window)
+Originality: this window must not look like a folder explorer (see `docs/design/ORIGINAL.md`).
+It is built from the NAYZEEE language: corner brackets, status rings, instrument lists, a
+spine, rolling counters and an edge dock.
+- **Title bar readouts**: Departments / Sites / On shift (ring) as mono readouts. For admins
+  they are also the way into the whole-server views (overview cards, every site, on shift now).
+- **Department rail** (sidebar): "On file" kicker with a rolling department count, search with
+  two inline filter toggles (job-linked only / own roster only), one **unit card** per
+  department (status ring in the blip colour = share of staff on shift, three-letter code, job
+  link, on-shift / staff), a dashed "Register department" card, and a **Live now** card
+  (on-shift faces, opens "On shift now"). Command desk users see their own card instead.
+  Unsaved departments get an amber dot.
+- **Section dock**: a vertical icon dock between rail and content with count badges and a lit
+  edge bar: Profile, Staff, Ranks, Uniforms, Sites, Fleet (command desk: Staff, Ranks,
+  Uniforms, Fleet, Account). It switches to Overview / Sites / On shift on server views.
+- **Profile**: hero card (big badge ring with code + map-pin sprite, code chip, job link chip,
+  simple-care chip, instrument list: staff, on shift, sites, fleet); settings rows in the HUD
+  settings style (Name & code, Links: job link, Discord role ID, paying account, **Simple care**
+  toggle + per-permission chips); **Base point** card with a radar preview (pin, you, distance,
+  sweep), X / Y / Z / facing / distance instrument list, Travel there, Move it; **Map pin**
+  (show, 12 colour swatches, icon presets + any id, size slider, pin text, only-when-close).
+- **Staff**: people list sorted on shift → online → rank (avatar status ring, status dot,
+  identifier, job-link tag, rank select, since, let go), side gauge (on-shift ring + members /
+  online / on shift) and the Hire panel (online player or any server id / citizen id, rank).
+- **Ranks**: a ladder on a vertical spine, top rank first (level node, title, code, pay, move
+  up / down, remove, permission chips with All / None / Same as the rank below). Staff keep
+  their place: the server remaps stored grades when ranks move or disappear.
+- **Uniforms**: "Save what I wear as a uniform", per uniform a name, male + female fits
+  (status ring, component read-out, Save, Try on), rank chips (none = all), "Back to my own clothes".
+- **Sites**: **zone board** (Staff base, Dispensary, Front desk, Blood service, Theatre, Cath lab,
+  Imaging, Sonography, Wards, Lifts, Mortuary, Other — ring = share of the zone's site types
+  that are set, site count), site list for the zone sorted nearest first (type filter chips
+  inside a zone, coordinates, proximity ring + distance, data chips, Travel, Move, settings
+  editor for label + every data field, Remove) and the **Set a new site** palette for **every
+  registered point type** of the zone (read from `NZA.Points.Types()` at runtime, so other
+  modules' types appear automatically) → site survey mode.
+- **Fleet**: vehicle rows (name, model, Road / Air, from rank, livery, extras) and the bays
+  (vehicle bay / helipad sites).
+- **Account** (command desk): rolling balance, one pay round + rounds covered, pay in / take
+  out (cash or bank, quick amounts), pay by rank.
+- **Register a department** modal: live card preview (badge, code, name) + name / code rows
+  (code auto-filled from the name). Remove / let go / drop-changes confirmations, Ctrl+S save,
+  ESC asks before throwing away unsaved edits.
+- Compact windows: uniform locker, staff store (two columns, move-per-click stepper + whole
+  stack toggle — no 1/5/10/All row), supply cabinet (left-this-shift ring, stepper), vehicle
+  bay / helipad, lift (stops on a spine, highest first).
 
-### Placement mode (`builder` app + `hospital_builder.lua`)
-- Ray from the screen centre (crosshair shown) onto floors and furniture.
-- Prop types: translucent ghost of the type's prop, resting on the surface (model bounds),
-  outline teal / red where the game supports it. Marker types: glowing sphere, beam, ring and
-  heading line. Garage / helipad: ghost of the department's first car / helicopter
+### Site survey mode (`builder` app + `hospital_builder.lua`)
+- Ray from the screen centre onto floors and furniture. The centre shows a bracket reticle
+  (four corners + diamond) with a range chip under it.
+- In the world (all kinds): floor corner brackets around the footprint (model bounds) and a
+  facing arrow, a small centre cross. Marker kinds add the **survey pin**: a bobbing inverted
+  cone over a dashed plumb line, a thin floor ring and a soft light pool. Teal when the spot is
+  clear, red when it is not (`Config.Hospital.builder.markerColour / badColour`). No sphere,
+  no beam. Prop types: translucent ghost resting on the surface, outline teal / red where the
+  game supports it. Bays / helipads: ghost of the department's first car / helicopter
   (`Config.Hospital.garage.carModel / heliModel` when it has none). The ghost never collides.
-- E confirm, Q / X / Backspace / ESC cancel, ← → rotate (hold), mouse wheel steps, Shift
-  faster, Alt fine, Page Up / Down raise / lower, G snap heading. Max distance check, invalid
-  spots turn red and refuse E. HUD: icon, "Place <type>", department + kind tags, heading
-  dial with snap badge, height, distance meter, status line with coordinates, key row.
-- Re-place starts from the old spot. After placing, the manager reopens where you left it.
+- Keys: E set here, Q / X / Backspace / ESC back out, ← → turn (hold), wheel nudges, Shift
+  coarse, Alt fine, Page Up / Down lift, G lock to the snap angle. Max distance check, invalid
+  spots refuse E (state note shakes).
+- HUD (left column, vertically centred; nothing bottom-centre or on the right edge): survey
+  card with a corner bracket, type status ring (ring = share of the reach used), title,
+  department + new / moving, a **bearing compass** (the rose turns, pointer fixed, rolling
+  read-out, snap ticks light up when locked), instrument list (lift, range with bar, lock,
+  grid), state note; under it a control pad whose tiles light up while their key is held
+  (Lua sends `keys = { fast, fine, turn, wheel, lift }` with every state).
+- Moving a site starts from the old spot. After setting, the console reopens where you left it.
 
-### Runtime positions
+### Runtime sites
 | Type | Who | What |
 |---|---|---|
 | `duty` | members | Go on / off duty (framework duty through `Bridge.SetDuty` for framework medics, own duty for standalone members) |

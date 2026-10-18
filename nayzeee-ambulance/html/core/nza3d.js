@@ -91,7 +91,7 @@
    MARKERS  S.markers.set(id, { uv, kind 'ring'|'dashed'|'dot'|'check'|'cross'|'pin', color, size, opacity, pulse })
             .remove(id)  .clear()  .get(id)
 
-   STITCHES S.stitches.add({ a: uv, b: uv, knot 'a'|'b', color, radius }) → { remove() }
+   STITCHES S.stitches.add({ a: uv, b: uv, knot 'a'|'b', tails ±1 (side the trimmed ends lie on), color, radius }) → { remove() }
             .preview(aUv, toPoint Vector3 | uv | null)   live thread while pulling   .clear() .list
 
    DRESSING S.dressing.create({ size:[w,h], pad:[pw,ph], uv, angle }) → D
@@ -2157,16 +2157,22 @@
           k.scale.setScalar(0.85 + R() * 0.5); grp.add(k);
         }
         const kr = new THREE.Mesh(knotRing, mat); kr.position.copy(K); kr.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n); kr.castShadow = true; grp.add(kr);
-        // tails, roughly along the wound
+        // trimmed tails: both laid off to one side of the knot (the way they are held for the
+        // scissors), slightly splayed and curled, a few millimetres long
         const across = Q.point.clone().sub(P.point).normalize();
         const along = new THREE.Vector3().crossVectors(n, across).normalize();
-        for (const sgn of [1, -1]) {
-          const dir = along.clone().multiplyScalar(sgn).addScaledVector(across, -0.55 - R() * 0.5).normalize();
-          const L = 0.0024 + R() * 0.0018;
-          const side = new THREE.Vector3().crossVectors(n, dir).multiplyScalar((R() - 0.5) * 0.0016);
-          const p1 = K.clone().addScaledVector(dir, L * 0.5).add(side).addScaledVector(n, 0.0004);
-          const p2 = K.clone().addScaledVector(dir, L).add(side.clone().multiplyScalar(1.8)).addScaledVector(n, 0.00022);
-          add(grp, tube([K, p1, p2], rad * 0.92, 12, 6), mat);
+        const tailSide = d.tails !== undefined ? d.tails : 1;
+        for (let k = 0; k < 2; k++) {
+          const spread = k ? 0.35 + R() * 0.35 : -0.1 + R() * 0.2;
+          const dir = along.clone().multiplyScalar(tailSide).addScaledVector(across, -spread).normalize();
+          const L = 0.0032 + R() * 0.0018;
+          const curl = new THREE.Vector3().crossVectors(n, dir).multiplyScalar((R() - 0.5) * 0.0011);
+          const p1 = K.clone().addScaledVector(dir, L * 0.35).addScaledVector(n, 0.00035);
+          const p2 = K.clone().addScaledVector(dir, L * 0.7).add(curl).addScaledVector(n, 0.00026);
+          const p3 = K.clone().addScaledVector(dir, L).add(curl.clone().multiplyScalar(2.2)).addScaledVector(n, 0.00018);
+          add(grp, tube([K, p1, p2, p3], rad * 0.92, 16, 6), mat);
+          // cut end: a tiny flat cap shows where the scissors went through
+          const cap = new THREE.Mesh(knotGeo, mat); cap.position.copy(p3); cap.scale.setScalar(0.42); grp.add(cap);
         }
         scene.add(grp);
         const st = { group: grp, a: uvOf(d.a), b: uvOf(d.b), sa: uvToST(d.a), sb: uvToST(d.b), remove() { scene.remove(grp); grp.traverse(c => { if (c.isMesh && c.geometry !== knotGeo && c.geometry !== knotRing) { c.geometry.dispose(); bin.delete(c.geometry); } }); const i = stitchList.indexOf(st); if (i >= 0) stitchList.splice(i, 1); } };
@@ -2369,12 +2375,12 @@
         const dx = rv.dir[0] + -rv.dir[1] * wob, dy = rv.dir[1] + rv.dir[0] * wob, l = Math.hypot(dx, dy) || 1;
         const ns = rv.s + (dx / l) * sp, nt = rv.t + (dy / l) * sp;
         // a trickle: thin film that narrows as it runs out, ending in a small bead
-        const rad = 0.00028 + Math.max(0, rv.vol) * 0.0036;
-        layers.stroke('blood', stToUv(rv.s, rv.t), stToUv(ns, nt), rad, 0.16, { hardness: 0.6 });
+        const rad = (0.0002 + Math.max(0, rv.vol) * 0.0022) * (0.85 + 0.3 * noiseAt(1, rv.ph * 0.5, 0.3));
+        layers.stroke('blood', stToUv(rv.s, rv.t), stToUv(ns, nt), rad, 0.11, { hardness: 0.55 });
         rv.s = ns; rv.t = nt;
         rv.vol -= sp * 9;
         if (rv.vol <= 0 || Math.abs(ns) > W / 2 || Math.abs(nt) > H / 2) {
-          if (rv.vol <= 0) layers.paint('blood', stToUv(ns, nt), 0.0009, 0.42, { hardness: 0.5 });
+          if (rv.vol <= 0) layers.paint('blood', stToUv(ns, nt), 0.0007, 0.36, { hardness: 0.5 });
           rivulets.splice(i, 1);
         }
       }
@@ -2443,13 +2449,20 @@
             vec2 nzq = (vUv - 0.5) * uPadRect.zw;
             vec2 nzc = (uSeep.xy - 0.5) * uPadRect.zw;
             float nzPad = (1.0 - smoothstep(-0.001, 0.0008, abs(nzq.x) - uPadRect.x * uPadRect.z * 0.5)) * (1.0 - smoothstep(-0.001, 0.0008, abs(nzq.y) - uPadRect.y * uPadRect.w * 0.5));
-            float nzn = texture2D(tNoiseD, nzq * 18.0).r;
-            float nzr = uSeep.z * 0.012 * (0.75 + 0.5 * nzn);
-            float nzd = length((nzq - nzc) * vec2(0.42, 1.0)) * (0.85 + 0.3 * texture2D(tNoiseD, nzq * 7.0 + 0.3).g);
-            float nzs = (1.0 - smoothstep(nzr * 0.55, nzr, nzd)) * nzPad * step(0.001, uSeep.z);
-            diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.62, 0.07, 0.05), vec3(0.38, 0.03, 0.02), smoothstep(0.0, nzr, nzr - nzd)), nzs * 0.85);`);
+            // blood wicks into the pad along the stitch line: an irregular streak with a darker core,
+            // fibrous edges and a pale serum halo where the plasma ran ahead of the red cells
+            float nzn = texture2D(tNoiseD, nzq * 26.0).r;
+            float nzn2 = texture2D(tNoiseD, nzq * 74.0 + 0.4).g;
+            float nzr = max(uSeep.z * 0.011, 1e-5);
+            float nzd = length((nzq - nzc) * vec2(0.24, 1.0)) / nzr + (nzn - 0.5) * 0.55 + (nzn2 - 0.5) * 0.28;
+            float nzOn = nzPad * step(0.001, uSeep.z);
+            float nzs = (1.0 - smoothstep(0.6, 1.0, nzd)) * nzOn;
+            float nzHalo = (1.0 - smoothstep(0.95, 1.4, nzd)) * nzOn * (1.0 - nzs);
+            vec3 nzCore = mix(vec3(0.56, 0.07, 0.045), vec3(0.3, 0.03, 0.02), 1.0 - smoothstep(0.0, 0.75, nzd));
+            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.97, 0.84, 0.72), nzHalo * 0.65);
+            diffuseColor.rgb = mix(diffuseColor.rgb, nzCore, nzs * (0.6 + 0.3 * nzn2));`);
       };
-      dMat.customProgramCacheKey = () => 'nza3d-dressing-3';
+      dMat.customProgramCacheKey = () => 'nza3d-dressing-4';
       const mesh = new THREE.Mesh(g2, dMat);
       mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
       scene.add(mesh);

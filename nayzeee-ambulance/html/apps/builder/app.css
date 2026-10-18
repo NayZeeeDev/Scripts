@@ -56,7 +56,7 @@
 .bx-compass .ptr{fill:var(--tc);filter:drop-shadow(0 0 4px rgba(var(--tr),.8));transition:fill var(--fast)}
 .bx-cv{position:absolute;left:6px;top:6px;width:124px;height:124px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;pointer-events:none}
 .bx-cv .odo.sm{font-size:20px;text-shadow:0 0 14px rgba(var(--tr),.25)}
-.bx-cv .odo .c{animation:none;width:.26em;color:var(--white);opacity:.75}
+.bx-cv .odo .c{animation:none;width:.26em;color:var(--white);font-weight:800}
 .bx-cv > span{font-size:8.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3)}
 .bx-lock{position:absolute;right:6px;bottom:6px;display:none;align-items:center;gap:3px;height:17px;padding:0 5px;border-radius:5px;
   font:700 9px var(--mono);color:var(--on-teal);background:var(--teal);box-shadow:0 0 10px rgba(8,175,162,.55)}

@@ -871,7 +871,7 @@
       const spaceQ = clamp(100 - Math.max(0, spaceMm - 0.8) * 14, 0, 100);
       const fast = dur < cfg.minDrag;
       const q = clamp(0.4 * biteQ + 0.3 * perpQ + 0.3 * spaceQ - (fast ? 15 : 0) - (d.flinch ? 8 : 0), 0, 100);
-      S.stitches.add({ a: d.a, b: bUv, knot: 'b', seed: g.sut.list.length * 31 + 7 });
+      S.stitches.add({ a: d.a, b: bUv, knot: 'a', tails: 1, seed: g.sut.list.length * 31 + 7 });
       this.w.close(tMid, 1, 0.5 / g.sut.N);
       g.sut.list.push({ tN: tMid, q, bite: [d.aMm, mm], perp, space: spaceMm, fast, flinch: d.flinch });
       this.hurt(8, 0);
@@ -1125,6 +1125,15 @@
       if (res.cover < 0.95) out.push(['warn', T('fbk_cover', 'The pad covers %s% of the cut.', Math.round(res.cover * 100))]);
       return out;
     },
+    // 240° score dial (same geometry as the procedure HUD readout)
+    scoreDial(v, tone) {
+      const R = 46, C = 60, A0 = 150, SW = 240;
+      const pt = (f, r = R) => { const a = (A0 + SW * clamp(f, 0, 1)) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+      const arc = (f0, f1, r = R) => { const [x0, y0] = pt(f0, r), [x1, y1] = pt(f1, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${(f1 - f0) * SW > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+      let ticks = '';
+      for (let i = 0; i <= 12; i++) { const [a, b] = pt(i / 12, R + 8), [c, d] = pt(i / 12, R + (i % 3 ? 11 : 14)); ticks += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }
+      return `<svg viewBox="0 0 120 104"><path class="trk" d="${arc(0, 1)}"/>${v > 0.002 ? `<path class="fill ${tone || ''}" d="${arc(0, v)}"/>` : ''}<g class="ticks">${ticks}</g></svg>`;
+    },
     showResult(res, outcome) {
       this.resultShown = true;
       if (this.pp) { this.pp.destroy(); this.pp = null; }
@@ -1143,17 +1152,25 @@
       const waiting = !outcome;
       const err = outcome && outcome.error;
       this.canClose = !waiting;
+      const first = !this.resWrap.firstElementChild;
+      const toneCls = v => (v >= 75 ? 'ok' : v >= 45 ? 'warn' : 'bad');
       this.resWrap.innerHTML = `
-        <div class="sz-result nza-hud solid nza-pop ${score < 50 ? 'low' : ''}">
-          <div class="rh"><span class="grade g-${esc(grade)}">${esc(grade)}</span>
-            <div><h3>${esc(score >= 50 ? T('r_title', 'Wound closed') : T('r_title_low', 'Wound closed — poorly'))}</h3><p>${esc(inj.label || '')} · ${esc(inj.regionLabel || '')} · ${esc(T('r_meta', '%s stitches · %s', res.stitches, NZA.fmt.time(res.seconds)))}</p></div>
-            <div class="sc"><b>${esc(score)}</b><span>${esc(T('r_score', 'Score'))}</span></div></div>
-          <table>${rows.map(r => `<tr><td class="k">${esc(r[0])}</td><td class="d">${esc(r[1])}<i>${esc(r[2])}</i></td><td class="m">${NZA.ui.meterHTML({ value: r[3] / 100, tone: tone(r[3]) })}</td><td class="n">${esc(r[3])}</td></tr>`).join('')}</table>
+        <div class="sz-result nza-hud solid ${first ? 'in' : ''} ${score < 50 ? 'low' : ''}">
+          <div class="rh">
+            <div class="dial">${this.scoreDial(score / 100, score < 50 ? 'red' : score < 75 ? 'amber' : '')}
+              <div class="gv"><b class="g-${esc(grade)}">${esc(grade)}</b><span>${esc(score)}<i>/100</i></span></div></div>
+            <div class="rt"><span class="kick">${esc(T('r_kicker', 'Closure debrief'))}</span>
+              <h3>${esc(score >= 50 ? T('r_title', 'Wound closed') : T('r_title_low', 'Wound closed — poorly'))}</h3>
+              <p>${esc(inj.label || '')} · ${esc(inj.regionLabel || '')}</p>
+              <p class="mono">${esc(T('r_meta', '%s stitches · %s', res.stitches, NZA.fmt.time(res.seconds)))}</p></div>
+          </div>
+          <ul class="rows">${rows.map(r => `<li class="${toneCls(r[3])}"><span class="k">${esc(r[0])}</span><span class="d">${esc(r[1])}<i>${esc(r[2])}</i></span><b>${esc(r[3])}</b>
+            <span class="m">${NZA.ui.meterHTML({ value: r[3] / 100, tone: tone(r[3]) })}</span></li>`).join('')}</ul>
           <ul class="fb">${fb.map(f => `<li class="${f[0]}">${esc(f[1])}</li>`).join('')}</ul>
           ${outcome && outcome.msg ? `<div class="msg">${esc(outcome.msg)}</div>` : ''}
           ${err ? `<div class="msg err">${esc(err)}</div>` : ''}
           <div class="act">${waiting ? `<span class="wait"><span class="ring"></span>${esc(T('r_saving', 'Saving the treatment…'))}</span>` : ''}
-            <button class="pp-done" ${waiting ? 'disabled style="opacity:.45;pointer-events:none"' : ''}><kbd>Enter</kbd>${esc(T('done', 'Done'))}</button></div>
+            <button class="pp-done" ${waiting ? 'disabled' : ''}><kbd>Enter</kbd>${esc(T('done', 'Done'))}</button></div>
         </div>`;
       const btn = this.resWrap.querySelector('.pp-done');
       if (btn) btn.onclick = () => { if (this.canClose) this.closeNow(); };

@@ -8,7 +8,7 @@
       * Examination screen: NZA.ExamRoutes entry 'suture' (laceration / stab, and gunshot /
         shrapnel once the object is out) — available when the bleeding is controlled or the
         wound is small, otherwise greyed with the reason.
-      * Patient interaction menu: "Suture wound" (perm Config.Suture.perm).
+      * Patient interaction menu: "Stitch wound" (perm Config.Suture.perm).
       * Using the suture kit item: event 'nza:suture:use' → nearest patient.
       When several wounds can be closed the medic picks one (ox_lib context menu).
 

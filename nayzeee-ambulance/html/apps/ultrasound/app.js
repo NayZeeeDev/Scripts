@@ -2047,6 +2047,7 @@
         window.removeEventListener('mouseup', onUp);
         pp.destroy(); dev.destroy(); ppHost.remove(); reticle.remove();
       },
+      _dbg: { S, dev, pressF, setPhase },
     };
     setPhase('window');
     return api;
@@ -2347,8 +2348,8 @@
       barrel: keep(new THREE.MeshPhysicalMaterial({ color: 0xf1f3f4, roughness: 0.34, clearcoat: 0.5, clearcoatRoughness: 0.3 })),
       ink: keep(new THREE.MeshPhysicalMaterial({ color: 0x5b2f9c, roughness: 0.35, clearcoat: 0.5 })),
       grip: keep(new THREE.MeshStandardMaterial({ color: 0x6a4bb8, roughness: 0.7 })),
-      steel: keep(new THREE.MeshPhysicalMaterial({ color: 0xd4d9dd, roughness: 0.2, metalness: 1, clearcoat: 0.3, clearcoatRoughness: 0.2 })),
-      steelSatin: keep(new THREE.MeshPhysicalMaterial({ color: 0xbfc5ca, roughness: 0.38, metalness: 1 })),
+      steel: keep(new THREE.MeshPhysicalMaterial({ color: 0xe2e7eb, roughness: 0.24, metalness: 0.92, envMapIntensity: 1.7, clearcoat: 0.35, clearcoatRoughness: 0.18 })),
+      steelSatin: keep(new THREE.MeshPhysicalMaterial({ color: 0xcdd3d8, roughness: 0.4, metalness: 0.9, envMapIntensity: 1.5 })),
       connector: keep(new THREE.MeshPhysicalMaterial({ color: 0xe8edf1, roughness: 0.3, transparent: true, opacity: 0.85, clearcoat: 0.6 })),
       clampBlue: keep(new THREE.MeshPhysicalMaterial({ color: 0x2c63d6, roughness: 0.35, clearcoat: 0.4 })),
       drainTube: keep(new THREE.MeshPhysicalMaterial({ color: 0xf2f7fa, roughness: 0.18, transparent: true, opacity: 0.42, clearcoat: 0.8, depthWrite: false })),
@@ -2548,7 +2549,7 @@
       let open = 0, openT = 0;
       const tool = {
         group: g, name: 'kelly', press: 0, _p: V3(0, 0, 0), _q: new THREE.Quaternion(), _init: false,
-        pose: { lift: 0.006, pressLift: -0.002, tilt: 0.5, yaw: 1.2, roll: 0.25, shadow: 0.014 },
+        pose: { lift: 0.006, pressLift: -0.002, tilt: 0.72, yaw: 1.15, roll: 0.35, shadow: 0.014 },
         tipWorld: () => g.getWorldPosition(V3(0, 0, 0)),
         set(o2) { if (o2 && o2.open !== undefined) openT = clamp(+o2.open, 0, 1); },
         update(dt) {

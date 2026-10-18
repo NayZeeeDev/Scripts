@@ -15,7 +15,7 @@
 
     Items:  Config.Items.suture_kit, .saline, .dressing (needed)
             Config.Items.lidocaine, .gauze (optional - used only when the medic uses them)
-    Opened from: the Examination screen ("Injuries to treat"), the patient
+    Opened from: the examination screen (treatment list), the patient
     interaction menu, or by using the suture kit item next to a patient.
 ]]
 
@@ -78,7 +78,7 @@ Config.Suture = {
     -- INTERACTION
     -- ═══════════════════════════════════════════════════════════════════════
 
-    interact   = true,       -- "Suture wound" in the patient interaction menu
+    interact   = true,       -- "Stitch wound" in the patient interaction menu
     usableItem = true,       -- using the suture kit item starts it on the nearest patient
     useRange   = 3.0,        -- metres to look for a patient when the item is used
     order      = 62,         -- position in the interaction menu (60s = procedures)
@@ -109,6 +109,7 @@ Config.Suture = {
         lidoMaxPoint = 0.9,      -- mL at most per point
         lidoSpacing  = 14,       -- mm between injection points along each edge
         lidoOffset   = 3.5,      -- mm from the cut edge
+        lidoPick     = 4,        -- mm from a marked point that still counts as on it
 
         -- 3 · stitches
         mmPerStitch  = 8,        -- one stitch per this many mm of wound

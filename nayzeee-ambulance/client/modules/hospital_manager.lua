@@ -1,11 +1,11 @@
 --[[
-    NAYZEEE AMBULANCE - EMS Manager (client): opens the 'manager' NUI app and carries its
+    NAYZEEE AMBULANCE - Department Console (client): opens the 'manager' NUI app and carries its
     actions to the server (server/modules/hospital_manager.lua checks everything again).
 
     Open
       /nzadmin (Config.Commands.admin, server checks admin)   → 'nza:hospital:openManager' ('admin')
-      boss point "Boss menu"                                   → NZA.HospitalC.OpenManager('boss', pointId)
-      radial "EMS Manager" (admins)
+      boss point "Command desk"                                → NZA.HospitalC.OpenManager('boss', pointId)
+      radial "Department Console" (admins)
     NUI open data: { mode, data (server snapshot), types (every registered position type),
                      me = { x, y, z, w }, locale, resume }
 
@@ -13,7 +13,7 @@
       create { id, label }      save { dept }          delete { id }
       hire { dept, target, grade }   grade { dept, identifier, grade }   fire { dept, identifier }
       pointData { id, data, label }  pointDelete { id }  funds { dept, action, amount, account }
-      place { dept, type, point?, hq? }   → closes the window, runs placement mode, reopens
+      place { dept, type, point?, hq? }   → closes the window, runs the site survey HUD, reopens
       goto { coords }                     → admins: fade teleport there
       capture {}                          → { gender, data } outfit from what you wear now
       tryOn { data }  restore {}          → wear an outfit locally / put your clothes back

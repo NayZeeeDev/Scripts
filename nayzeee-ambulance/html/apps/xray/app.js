@@ -1260,7 +1260,7 @@
     wrap.appendChild(box);
 
     // ── report window (right)
-    const side = NZA.el('div', 'xr-side'); wrap.appendChild(side);
+    const side = NZA.el('div', `xr-side${viewOnly ? ' short' : ''}`); wrap.appendChild(side);
     const win = NZA.ui.Win(side, {
       title: T('report', 'Radiology report'), sub: `${film.id || ''} · ${film.viewLabel || ''}`,
       mid: `<span class="xr-timer" data-timer></span>`,
@@ -1981,9 +1981,9 @@
         g.bezierCurveTo(x1 + 225, cy + 60, x1 + 190, cy + 105, x1 + 140, cy + 100); g.lineTo(x1 + 10, cy + 92); g.closePath(); g.fill();
         // foot form: sole in shade, ankle knuckle, toe creases
         g.save(); g.clip();
-        const fs = g.createLinearGradient(x1 + 60, 0, x1 + 225, 0); fs.addColorStop(0, 'rgba(255,230,210,.10)'); fs.addColorStop(0.55, 'rgba(0,0,0,0)'); fs.addColorStop(1, 'rgba(40,20,10,.45)');
+        const fs = g.createLinearGradient(x1 + 60, 0, x1 + 225, 0); fs.addColorStop(0, 'rgba(0,0,0,0)'); fs.addColorStop(0.5, 'rgba(0,0,0,0)'); fs.addColorStop(1, 'rgba(40,20,10,.4)');
         g.fillStyle = fs; g.fillRect(x1, cy - 340, 240, 460);
-        const ank = g.createRadialGradient(x1 + 40, cy - 10, 4, x1 + 40, cy - 10, 60); ank.addColorStop(0, 'rgba(255,236,220,.32)'); ank.addColorStop(1, 'rgba(255,236,220,0)');
+        const ank = g.createRadialGradient(x1 + 40, cy - 10, 4, x1 + 40, cy - 10, 60); ank.addColorStop(0, 'rgba(255,236,220,.14)'); ank.addColorStop(1, 'rgba(255,236,220,0)');
         g.fillStyle = ank; g.beginPath(); g.ellipse(x1 + 40, cy - 10, 60, 48, 0, 0, TAU); g.fill();
         g.strokeStyle = 'rgba(90,50,30,.35)'; g.lineWidth = 2.5;
         [[cy - 262, 0.0], [cy - 284, 0.08], [cy - 304, 0.14]].forEach(([y, k]) => { g.beginPath(); g.moveTo(x1 + 104 + k * 60, y); g.quadraticCurveTo(x1 + 140, y - 8, x1 + 176 - k * 40, y + 4); g.stroke(); });

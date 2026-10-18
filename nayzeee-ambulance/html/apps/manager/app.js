@@ -1008,7 +1008,7 @@
     body.querySelectorAll('[data-q]').forEach(b => { b.onclick = () => { amt.value = num(amt.value) + Number(b.dataset.q); }; });
     const go = async action => {
       const amount = Math.round(num(amt.value));
-      if (amount <= 0) { toast(T('err_bad_amount', 'Type an amount.'), 'error'); amt.focus(); return; }
+      if (amount <= 0) { toast(T('err_bad_amount', 'Type a valid amount.'), 'error'); amt.focus(); return; }
       if (await act('funds', { dept: d.id, action, amount, account })) renderMain();
     };
     body.querySelector('[data-a=dep]').onclick = () => go('deposit');
@@ -1103,7 +1103,7 @@
       body.innerHTML = `<div class="mx-mv">
           <div class="t"><b>${esc(T('move_amount', 'Move per click'))}</b><small>${esc(T('move_amount_help', 'Arrows move this many; whole stack moves everything in that row.'))}</small></div>
           <div class="mx-step big ${C.whole ? 'dim' : ''}"><button data-amt="-1">${icon('minus')}</button><span data-h="amt">${C.amount}</span><button data-amt="1">${icon('plus')}</button></div>
-          <label class="mx-whole"><span data-h="whole"></span>${esc(T('all', 'Whole stack'))}</label></div>
+          <label class="mx-whole"><span data-h="whole"></span>${esc(T('whole_stack', 'Whole stack'))}</label></div>
         <div class="mx-cgrid">${col(T('stash', 'Staff store'), d.items || [], 'out')}${col(T('pockets', 'On you'), d.inv || [], 'in')}</div>`;
       body.querySelectorAll('[data-amt]').forEach(b => { b.onclick = () => { C.amount = Math.max(1, Math.min(999, C.amount + Number(b.dataset.amt))); body.querySelector('[data-h=amt]').textContent = C.amount; }; });
       NZA.ui.Toggle(body.querySelector('[data-h=whole]'), { on: C.whole, onChange: v => { C.whole = v; body.querySelector('.mx-step.big').classList.toggle('dim', v); } });

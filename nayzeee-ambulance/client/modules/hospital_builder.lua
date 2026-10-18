@@ -1,5 +1,5 @@
 --[[
-    NAYZEEE AMBULANCE - Placement mode (client) for the EMS Manager
+    NAYZEEE AMBULANCE - Site survey (placement) mode (client) for the Department Console
 
     NZA.HospitalC.Place(opts) → coords { x, y, z, w } | nil, reason        (blocking, call from a thread)
       opts = { type, label, icon, kind = 'prop'|'marker'|'car'|'heli', prop (model), model (vehicle),
