@@ -1014,15 +1014,15 @@
         <header class="dv-top">
           <span class="dv-led"></span>
           <span class="dv-model"><b>POCUS-7</b><em>${esc(T('dev_sub', 'portable trauma ultrasound'))}</em></span>
-          <span class="dv-probe"><i></i>C5-2</span>
+          <span class="dv-probe"><i></i>C1-6</span>
           <span class="dv-batt"><i style="width:78%"></i></span>
         </header>
         <div class="dv-screen">
           <div class="sc-hdr">
-            <span class="ps">${esc(T('preset', 'TRAUMA · eFAST'))}</span>
-            <span class="mi">MI <b>0.8</b></span><span class="mi">TIs <b>0.4</b></span><span class="mi fq">3.5 <b>MHz</b></span>
-            <span class="sid">${esc(opts.study || 'US-00000')}</span>
             <span class="st"><i></i><b class="stt">${esc(T('live', 'LIVE'))}</b></span>
+            <span class="ps">${esc(T('preset', 'FAST · ABD / CARD / LUNG'))}</span>
+            <span class="mi fq">C1-6 <b>3.5</b> MHz</span>
+            <span class="sid">${esc(opts.study || 'US-00000')}</span>
             <span class="clk">--:--:--</span>
           </div>
           <div class="sc-main">
@@ -1030,6 +1030,7 @@
               <div class="bm-wrap"><canvas class="bm" width="440" height="372"></canvas><svg class="ov" viewBox="0 0 440 372" preserveAspectRatio="none"></svg></div>
               <div class="mm-wrap"><canvas class="mm" width="440" height="150"></canvas><span class="mm-tag"></span></div>
               <div class="sc-flag"></div>
+              <span class="sc-ti">MI <b>0.8</b> · TIs <b>0.4</b></span>
               <div class="sc-noc"><span>${esc(T('no_contact', 'Probe off the skin'))}</span></div>
             </div>
             <aside class="sc-side">
@@ -1831,7 +1832,7 @@
         { keys: [T('k_mouse', 'Mouse')], label: T('pc_h_aim', 'probe / needle angle') },
         { keys: [T('k_lmb', 'LMB')], label: T('pc_h_adv', 'advance') },
         { keys: [T('k_rmb', 'RMB')], label: T('pc_h_back', 'pull back') },
-        { keys: ['F'], label: T('pc_h_draw', 'hold to draw') },
+        { keys: ['F'], label: T('pc_h_draw', 'hold to aspirate') },
         { keys: ['T'], label: T('pc_h_tap', 'empty the syringe') },
       ],
       abort: { label: T('hold_stop_needle', 'Hold to stop'), key: 'ESC', seconds: 1.2 },
@@ -1841,7 +1842,7 @@
     pp.slot.prepend(syr);
     function tools() {
       return [
-        { key: 'F', label: S.phase === 'window' ? T('pc_tl_in', 'Needle in') : T('pc_tl_draw', 'Draw back'), icon: 'syringe', state: S.phase === 'window' ? (S.hold > 0.8 ? 'need' : '') : S.f ? 'active' : '' },
+        { key: 'F', label: S.phase === 'window' ? T('pc_tl_in', 'Needle in') : T('pc_tl_draw', 'Aspirate'), icon: 'syringe', state: S.phase === 'window' ? (S.hold > 0.8 ? 'need' : '') : S.f ? 'active' : '' },
         { key: 'LMB', label: T('pc_tl_adv', 'Advance'), icon: 'arrow-r', state: S.phase === 'window' || S.phase === 'out' ? 'locked' : S.lmb ? 'active' : '' },
         { key: 'RMB', label: T('pc_tl_back', 'Pull back'), icon: 'arrow-l', state: S.phase === 'window' ? 'locked' : S.rmb ? 'active' : '' },
         { key: 'T', label: T('pc_tl_tap', 'Empty syringe'), sub: `${Math.round(S.syr)} mL`, icon: 'drop', state: S.syr >= S.syrMax - 0.5 ? 'need' : S.syr > 0 ? '' : 'locked' },
@@ -1856,7 +1857,7 @@
       const txt = {
         window: T('pc_t1', 'Hold the probe **under the breastbone** until the black ring around the heart is clear, then press {F} to put the needle in beside it.'),
         needle: T('pc_t2', 'Aim with the mouse toward the **left shoulder** (dotted line). Hold {LMB} to advance. Stop when the tip sits in the **black** band.'),
-        draw: T('pc_t3', 'Blood in the hub. Hold {F} to draw it off. The sac shrinks and the heart comes closer: ease back with {RMB} so the tip never touches it.'),
+        draw: T('pc_t3', 'Flashback in the hub. Keep {F} held to aspirate. As the sac empties the heart rises toward the tip: ease back with {RMB} so it never touches.'),
         out: T('pc_t4', 'The sac is nearly dry. Hold {RMB} to pull the needle all the way out.'),
       }[ph];
       pp.set({ step: idx, title: STEPS[idx - 1], text: txt });
@@ -2384,9 +2385,9 @@
         const p = palmG.attributes.position, w = 0.084, l = 0.098, t = 0.027;
         for (let i = 0; i < p.count; i++) {
           let x = p.getX(i), y = p.getY(i), zz = p.getZ(i);
-          const sq = v => Math.sign(v) * Math.pow(Math.abs(v), 0.7);
+          const sq = v => Math.sign(v) * Math.pow(Math.abs(v), 0.84);
           x = sq(x) * w / 2; y = sq(y) * l / 2; zz = sq(zz) * t / 2;
-          const k = lift(1, 0.8, clamp((y + l / 2) / l, 0, 1));
+          const k = lift(1, 0.78, clamp((y + l / 2) / l, 0, 1)) * (1 - 0.06 * Math.pow(Math.abs(y) / (l / 2), 3));
           x *= k;
           zz += (1 - Math.pow(x / (w / 2), 2)) * t * 0.14 * (zz > 0 ? 1 : 0.25);
           // knuckle ridge across the back at the finger end
@@ -2443,14 +2444,14 @@
       // thumb: out of the thenar pad, along and across the palm
       {
         const fl = P.thumb;
-        const base = V3(0.036, 0.074, -0.01);
-        const d0 = V3(0.18, -0.8, -0.42).normalize();
-        const turn = (v, a) => V3(v.x * Math.cos(a) - v.y * Math.sin(a) * 0.35, v.y * Math.cos(a) + v.x * Math.sin(a) * 0.35, v.z - Math.sin(a) * 0.55).normalize();
-        const p1 = base.clone().addScaledVector(turn(d0, fl[0] * 0.4), 0.038);
+        const base = V3(0.03, 0.07, -0.012);
+        const d0 = V3(0.5, -0.66, -0.5).normalize();             // abducted ~35° from the index, toward the palm
+        const turn = (v, a) => V3(v.x * Math.cos(a) + v.y * Math.sin(a) * 0.35, v.y * Math.cos(a) - v.x * Math.sin(a) * 0.35, v.z - Math.sin(a) * 0.55).normalize();
+        const p1 = base.clone().addScaledVector(turn(d0, fl[0] * 0.4), 0.032);
         const d1 = turn(d0, fl[0] * 0.4 + fl[1]);
-        const p2 = p1.clone().addScaledVector(d1, 0.032);
+        const p2 = p1.clone().addScaledVector(d1, 0.027);
         const d2 = turn(d0, fl[0] * 0.4 + fl[1] + fl[2]);
-        const p3 = p2.clone().addScaledVector(d2, 0.026);
+        const p3 = p2.clone().addScaledVector(d2, 0.022);
         const pts = [base.clone().addScaledVector(d0, -0.012), base, base.clone().lerp(p1, 0.5), p1, p1.clone().lerp(p2, 0.5), p2, p3];
         const geo = keep(sweepGeo(THREE, pts, t => { const r = 0.0102 * lift(1.06, 0.84, t); return { w: r * 1.05, h: r * 0.88, e: 2.2, pad: 0.05 }; }, { seg: 32, rad: 20, up: V3(0.5, 0, 1), capEnd: true, capLen: 0.9 }));
         inner.add(new THREE.Mesh(geo, M.glove));
@@ -2863,7 +2864,7 @@
     const side = d.side === 'left' ? 'left' : 'right';
     const STEPS_ALL = [
       ['mark', T('cd_s_mark', 'Find the spot')], ['clean', T('cd_s_clean', 'Clean the skin')], ['numb', T('cd_s_numb', 'Numb the skin')],
-      ['cut', T('cd_s_cut', 'Cut along the rib')], ['dissect', T('cd_s_dissect', 'Through the chest wall')], ['sweep', T('cd_s_sweep', 'Finger sweep')],
+      ['cut', T('cd_s_cut', 'Open the skin over the rib')], ['dissect', T('cd_s_dissect', 'Through the chest wall')], ['sweep', T('cd_s_sweep', 'Finger sweep')],
       ['tube', T('cd_s_tube', 'Feed the tube')], ['connect', T('cd_s_connect', 'Connect the drain')],
     ];
     const STEPS = STEPS_ALL.filter(s => s[0] !== 'numb' || d.numbing);

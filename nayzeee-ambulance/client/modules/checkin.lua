@@ -4,7 +4,8 @@
     Position type 'checkin' (NZA.Points.RegisterType): a receptionist NPC behind the desk
     (local ped, seated or standing scenario), "[E] Check in — treat injuries · Check-in Desk"
     when you are close (no target needed) plus target options. Staff with
-    Config.Checkin.desk.perm get "[G] Reception queue" and "Call next patient".
+    Config.Checkin.desk.perm get "[G] Reception queue" and "Call next patient". With the
+    pharmacy module the desk also has "Pay medical bills" (NZA.Pharmacy.Open, desk mode).
 
     The 'checkin' NUI app shows the thermal-paper receipt (mode 'ticket'), the small ticket chip
     while you wait, the receptionist's subtitles and the staff reception window (mode 'desk').
@@ -470,6 +471,16 @@ local function targets()
           onSelect = function(p) CreateThread(function() CI.OpenDesk(p.hospital, p.id) end) end },
         { name = 'next', label = L('t_next'), icon = 'bell', perm = deskPerm(),
           onSelect = function(p) CreateThread(function() CI.CallNext(p.hospital, p.id) end) end },
+        -- the pharmacy module takes payments at the desk (desk mode: bills + insurance);
+        -- NZA.Pharmacy is resolved here because client/modules/pharmacy.lua loads after this file
+        { name = 'bills', label = NZA.L('pharmacy.t_bills'), icon = 'receipt',
+          canInteract = function()
+              local pc = Config.Pharmacy
+              return NZA.Pharmacy ~= nil and NZA.Pharmacy.Open ~= nil and type(pc) == 'table' and pc.enabled ~= false
+                  and not (type(pc.desk) == 'table' and pc.desk.enabled == false)
+                  and not (NZA.Pharmacy.IsOpen and NZA.Pharmacy.IsOpen())
+          end,
+          onSelect = function(p) CreateThread(function() NZA.Pharmacy.Open(p.id, 'bills') end) end },
     }
 end
 

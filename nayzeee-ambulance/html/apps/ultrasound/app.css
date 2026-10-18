@@ -60,7 +60,8 @@
 #app-ultrasound .sc-hdr b{color:#cfd6d9;font-weight:600}
 #app-ultrasound .sc-hdr .ps{color:var(--us-teal);font-weight:700;letter-spacing:.1em}
 #app-ultrasound .sc-hdr .sid{color:#5f696d}
-#app-ultrasound .sc-hdr .st{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:16px;padding:0 7px;border-radius:4px;background:rgba(15,212,196,.1);border:1px solid rgba(15,212,196,.3)}
+#app-ultrasound .sc-hdr .clk{margin-left:auto}
+#app-ultrasound .sc-hdr .st{display:inline-flex;align-items:center;gap:6px;height:16px;padding:0 7px;border-radius:4px;background:rgba(15,212,196,.1);border:1px solid rgba(15,212,196,.3)}
 #app-ultrasound .sc-hdr .st i{width:6px;height:6px;border-radius:50%;background:var(--us-teal);box-shadow:0 0 6px var(--us-teal);animation:nza-blink 1.2s steps(1) infinite}
 #app-ultrasound .sc-hdr .st b{color:var(--us-teal);letter-spacing:.12em}
 #app-ultrasound .us-dev.frozen .sc-hdr .st{background:rgba(229,165,10,.12);border-color:rgba(229,165,10,.4)}
@@ -82,6 +83,8 @@
 #app-ultrasound .mm-tag.teal{color:var(--us-teal);border-color:rgba(15,212,196,.35)}
 #app-ultrasound .mm-tag.red{color:#ff8a8d;border-color:rgba(229,72,77,.45)}
 #app-ultrasound .sc-flag{position:absolute;right:30px;top:8px;z-index:3}
+#app-ultrasound .sc-ti{position:absolute;left:10px;bottom:8px;z-index:2;font:600 8.5px/1 var(--mono);letter-spacing:.06em;color:#5f696d;pointer-events:none}
+#app-ultrasound .sc-ti b{color:#9aa3a7;font-weight:600}
 #app-ultrasound .sc-flag span{display:inline-flex;align-items:center;height:20px;padding:0 9px;border-radius:5px;font:700 9.5px/1 var(--mono);letter-spacing:.1em;color:var(--us-teal);background:rgba(0,0,0,.72);border:1px solid rgba(15,212,196,.35)}
 #app-ultrasound .sc-flag span.red{color:#ff8a8d;border-color:rgba(229,72,77,.5);animation:nza-blink .8s steps(1) infinite}
 #app-ultrasound .sc-noc{position:absolute;inset:0;display:none;place-items:center;pointer-events:none}
@@ -374,3 +377,6 @@
 #app-ultrasound .us-drw header .k em{font-style:normal;font-weight:600;letter-spacing:.08em;text-transform:none;color:var(--ink-3);margin-left:8px;font-family:var(--mono)}
 #app-ultrasound .dr-svg .mns{stroke:rgba(255,170,170,.55);stroke-width:.8}
 #app-ultrasound .dr-read .drate{font-size:12px}
+
+/* world markers + probe reticle stay under the device panel and the plan card */
+#app-ultrasound .us-wm{position:absolute;inset:0;pointer-events:none;z-index:-1}

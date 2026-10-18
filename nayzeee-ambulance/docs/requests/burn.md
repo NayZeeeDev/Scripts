@@ -1,6 +1,6 @@
 # Requests from the burn module
 
-## 1. nza3d.js (suture module) — the NAYZEEE name on in-world props
+## 1. nza3d.js (suture module) — the NAYZEEE name on in-world props · RESOLVED (engine labels are generic now)
 
 ORIGINAL.md forbids the NAYZEEE name / mark on props and device faces. Still present in
 `html/core/nza3d.js`:
@@ -14,7 +14,7 @@ stapler) and replaces the dressing's map with its own hydrogel burn-dressing pri
 either way. Suture / bullet / chest drain still show them. Suggested: a generic maker line
 (`STERILE · SINGLE USE`, a lot number) and no mark.
 
-## 2. nza.js ProcPanel — dial label overlaps the 240° arc
+## 2. nza.js ProcPanel — dial label overlaps the 240° arc · RESOLVED (`.gv` moved to top:56px)
 
 `.pp-gauge .gv` sits at `top:44px`; a label longer than ~9 uppercase characters is drawn across the
 ends of the arc. The burn app now uses one-word labels (Surface, Tested, Debrided, Excised, Graft,
@@ -48,3 +48,12 @@ Suggested: only paint blood when the colour is blood-red, or paint `'wet'` other
 
 The burn routes list `Config.Items.saline` + `burn_dressing` (care) and `graft_kit` + `burn_dressing`
 (graft). The exam's "have / need" counts read the bag; nothing else needed.
+
+## 7. nza3d.js dressing — a placed sheet creeps down a curved limb
+
+`S.dressing` has no tangential friction: a placed, un-rubbed dressing slides under gravity along the
+curve of a limb (on the thigh a 17 × 12 cm burn dressing left alone for ~6 s slid off the patch;
+`D.covers()` went from 1 to 0). Burn works around it by tacking the sheet where it lands
+(`tackDressing`: nine `D.rub(...)` presses round the centre ≈ 13 % stuck, the rest still has to be
+rubbed on). Suggested engine fix for every app: when a free vertex is in contact, remove the
+tangential part of its velocity (or scale it by ~0.1) — i.e. static friction for contact vertices.

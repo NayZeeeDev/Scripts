@@ -41,6 +41,7 @@
       S→C nza:checkin:board (hospital, board) live board data (TV watchers only)
       S→C nza:checkin:bed ({ point, on })    you were put in / taken out of a hospital bed (rest HUD)
     BUS  listens: hospital:bed transport:bed treat:done proc:done player:loaded player:unloaded patient:removed
+                  patient:death (a waiting / called ticket is closed 'left')
          emits:   checkin:issued (t) checkin:called (t) checkin:treatment (t) checkin:closed (t, status)
 
     DATA  nza_tickets (created on start; SQL in docs/modules/checkin.md)
@@ -1086,6 +1087,15 @@ end
 NZA.Bus.On('treat:done', function(src, p) treatedBy(src, p) end)
 NZA.Bus.On('proc:done', function(src, p) treatedBy(src, p) end)
 
+-- a patient who dies while waiting / called gives the ticket (and the reserved bed) up, so
+-- nobody - the AI doctor included - calls a body to a bed; in treatment the bedside staff
+-- or the AI session (checkin_ai.lua) deal with it
+NZA.Bus.On('patient:death', function(p)
+    if type(p) ~= 'table' then return end
+    local t = C.ForPid(p.pid)
+    if t and t.status ~= 'treatment' then C.Close(t, 'left') end
+end)
+
 NZA.Bus.On('player:loaded', function(src)
     local ident = NZA.Core.Identifier(src)
     if not ident then return end
@@ -1226,25 +1236,27 @@ CreateThread(function()
         return
     end
     local ok, err = pcall(function()
-        MySQL.query.await([[CREATE TABLE IF NOT EXISTS nza_tickets (
-            id VARCHAR(24) NOT NULL PRIMARY KEY,
-            hospital VARCHAR(64) NOT NULL,
-            day CHAR(10) NOT NULL,
-            prefix VARCHAR(4) NOT NULL,
-            number INT NOT NULL,
-            identifier VARCHAR(80) NULL,
-            name VARCHAR(80) NULL,
-            triage TINYINT NOT NULL DEFAULT 3,
-            status VARCHAR(16) NOT NULL DEFAULT 'waiting',
-            bed INT NULL,
-            handled_by VARCHAR(80) NULL,
-            issued INT NOT NULL,
-            called INT NULL,
-            closed INT NULL,
-            data LONGTEXT NULL,
-            INDEX idx_nza_tickets_day (hospital, day, prefix),
-            INDEX idx_nza_tickets_status (status)
-        )]])
+        -- same statement as sql/install.sql
+        MySQL.query.await([[CREATE TABLE IF NOT EXISTS `nza_tickets` (
+            `id` VARCHAR(24) NOT NULL,
+            `hospital` VARCHAR(64) NOT NULL,
+            `day` CHAR(10) NOT NULL,
+            `prefix` VARCHAR(4) NOT NULL,
+            `number` INT NOT NULL,
+            `identifier` VARCHAR(80) NULL,
+            `name` VARCHAR(80) NULL,
+            `triage` TINYINT NOT NULL DEFAULT 3,
+            `status` VARCHAR(16) NOT NULL DEFAULT 'waiting',
+            `bed` INT NULL,
+            `handled_by` VARCHAR(80) NULL,
+            `issued` INT NOT NULL,
+            `called` INT NULL,
+            `closed` INT NULL,
+            `data` LONGTEXT NULL,
+            PRIMARY KEY (`id`),
+            INDEX `idx_nza_tickets_day` (`hospital`, `day`, `prefix`),
+            INDEX `idx_nza_tickets_status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
     end)
     if not ok then
         NZA.Warn('checkin: could not create nza_tickets: ' .. tostring(err))

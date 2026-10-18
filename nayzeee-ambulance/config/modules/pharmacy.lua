@@ -214,6 +214,7 @@ Config.Pharmacy = {
         maxDays  = 90,        -- renewing stacks days up to this many days ahead
         prorate  = true,      -- switching plans credits the unused days of the current plan
         toSociety = true,     -- plan payments go to the department society of the pharmacy
+        memberPrefix = 'HC-', -- member number prefix on the cover card / insurance_card item (HC-7KQ4-H2MX)
 
         --[[ Plans: id, price, days (real days), cover (0..1 of every medical bill: treatments,
              transport, respawn), pharmacy (0..1 discount in pharmacies), popular (badge).

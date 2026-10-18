@@ -260,7 +260,10 @@ local function hasLicense(src, lic, ctx)
     if ctx.licenses[lic] ~= nil then return ctx.licenses[lic] end
     local has = false
     local fw = Bridge and Bridge.Framework
-    if fw == 'qbcore' or fw == 'qbox' then
+    if Core.Has('HasLicense') then
+        -- the bridge knows every framework's licences (falls back to the nza.license.<name> ace)
+        has = bridge('HasLicense', src, tostring(lic)) == true
+    elseif fw == 'qbcore' or fw == 'qbox' then
         local pl = bridge('GetPlayer', src)
         local md = pl and pl.PlayerData and pl.PlayerData.metadata
         has = type(md) == 'table' and type(md.licences) == 'table' and md.licences[lic] == true

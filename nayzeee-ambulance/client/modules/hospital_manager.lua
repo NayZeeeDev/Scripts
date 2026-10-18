@@ -153,6 +153,7 @@ NZA.UI.On(APP, 'place', function(data, cb)
         local coords = C.Place({
             type = typeName, label = def.label or typeName, icon = def.icon, kind = kind, prop = def.prop,
             model = (kind == 'car' or kind == 'heli') and vehicleModel(data.dept, kind) or nil,
+            parts = type(def.parts) == 'table' and def.parts or nil,
             dept = data.dept, deptLabel = d and d.label or data.dept, from = from,
         })
 

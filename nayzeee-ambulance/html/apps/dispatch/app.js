@@ -11,7 +11,8 @@
              dispatch:clear {id} · dispatch:closeCall {id} · dispatch:priority {id, priority}
              dispatch:gps {id} | {x, y} · dispatch:status {code} · dispatch:npc {on}
              dispatch:log {priority, search} → { rows, db } · dispatch:refresh → data
-   Keys: ↑/↓ select call · R respond · G GPS · M map · ESC close
+             dispatch:callNext {} (ER intake: call the next check-in ticket)
+   Keys: ↑/↓ select call · R respond · G GPS · M map · N call next (ER intake) · ESC close
    ═══════════════════════════════════════════════════════════ */
 (() => {
   const K = window.NZD;
@@ -273,7 +274,8 @@
     const q = D.queue;
     const inc = D.incoming || [];
     return `
-      <div class="w-head"><div><h1>${esc(tr('db_queue', 'ER intake'))}</h1><p>${esc(tr('db_queue_p', 'Who checked in at the desk and which crews are bringing someone in.'))}</p></div></div>
+      <div class="w-head"><div><h1>${esc(tr('db_queue', 'ER intake'))}</h1><p>${esc(tr('db_queue_p', 'Who checked in at the desk and which crews are bringing someone in.'))}</p></div>
+        ${D.queueAvailable && D.canCallNext ? `<button class="btn-teal" data-callnext ${(q || []).some(e => e.status === 'waiting') ? '' : 'disabled'}>${icon('bell')}${esc(tr('db_q_next', 'Call next'))}<kbd>N</kbd></button>` : ''}</div>
       <div class="db-cols">
         <section class="w-panel"><div class="w-phead"><div><h2>${esc(tr('db_q_waiting', 'Checked in'))}</h2><p>${esc(D.queueAvailable ? K.fmt(tr('db_q_n', '%d tickets'), (q || []).length) : tr('db_q_none', 'No check-in desk built yet'))}</p></div></div>
           <div class="w-pbody" data-scroll="queue">${q && q.length ? `<table class="w-table db-table"><thead><tr><th>${esc(tr('db_t_ticket', 'Ticket'))}</th><th>${esc(tr('db_t_name', 'Name'))}</th><th></th><th>${esc(tr('db_t_wait', 'Time in'))}</th><th>${esc(tr('db_t_status', 'Status'))}</th></tr></thead><tbody>
@@ -337,6 +339,7 @@
     const gx = t.closest('[data-gpsxy]'); if (gx) { const [x, y] = gx.dataset.gpsxy.split(',').map(Number); act('gps', { x, y }); return; }
     const pick = t.closest('[data-pick]'); if (pick && selId) { act('assign', { id: selId, src: Number(pick.dataset.pick) }); closePopover(); return; }
     const lp = t.closest('[data-lp]'); if (lp) { logState.prio = Number(lp.dataset.lp); loadLog(); return; }
+    const cn = t.closest('[data-callnext]'); if (cn) { callNext(cn); return; }
     const mp = t.closest('[data-map]'); if (mp && mapView) { if (mp.dataset.map === 'fit') fitMap(); else zoomMap(mp.dataset.map === 'in' ? 1.5 : 1 / 1.5); }
   }
 
@@ -354,6 +357,13 @@
         host: el,
       });
     }
+  }
+
+  // ER intake: call the next waiting ticket to a free bed (the server answers with a toast)
+  function callNext(btn) {
+    if (!D || !D.queueAvailable || !D.canCallNext) return;
+    if (btn) btn.disabled = true;
+    act('callNext', {});
   }
 
   function openAssign(btn, c) {
@@ -617,6 +627,7 @@
       r(e) { if (e.target.closest && e.target.closest('input')) return false; const c = selId && callById(selId); if (c && me().call !== c.id) act('respond', { id: c.id }); },
       g(e) { if (e.target.closest && e.target.closest('input')) return false; if (selId) act('gps', { id: selId }); },
       m(e) { if (e.target.closest && e.target.closest('input')) return false; setTab('map'); },
+      n(e) { if ((e.target.closest && e.target.closest('input')) || tab !== 'queue') return false; const b = win && win.main.querySelector('[data-callnext]'); if (b && !b.disabled) callNext(b); },
       Escape() { if (popover) { closePopover(); return; } const m = el.querySelector('.nza-modal-wrap'); if (m) { m.remove(); return; } NZA.close('dispatch'); },
     },
     preview() {
@@ -644,7 +655,7 @@
         ],
         hospitals: [{ id: 'h1', label: 'Pillbox Medical', x: 298, y: -584 }, { id: 'h2', label: 'Sandy Shores Medical', x: 1839, y: 3672 }, { id: 'h3', label: 'Paleto Bay Clinic', x: -247, y: 6331 }],
         queue: [{ ticket: 'A-014', name: 'Rosa Diaz', priority: 2, wait: 380, status: 'waiting', hospital: 'Pillbox' }, { ticket: 'A-015', name: 'Ben Carter', priority: 3, wait: 140, status: 'waiting' }, { ticket: 'A-012', name: 'Lily Chen', priority: 1, wait: 620, status: 'treatment' }],
-        queueAvailable: true,
+        queueAvailable: true, canCallNext: true,
         incoming: [{ callsign: 'Unit 12', name: 'M. Reyes', call: 'C-0415', title: 'Unresponsive after pills', priority: 3, hospital: 'Sandy Shores Medical', eta: 64 }],
         stats: { active: 3, p1: 1, available: 1, onDuty: 5, onCall: 3, avgResponse: 236, served: 14, waiting: 3 },
         locale: {}, tab: 'overview',

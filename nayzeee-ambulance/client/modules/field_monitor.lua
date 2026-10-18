@@ -34,6 +34,7 @@ local bound = nil     -- { target, stop, pid }
 local attached = nil  -- { entity, target, prop, pos, scene }
 local focused = false
 local dui = nil       -- { obj, txd, tex, last }
+local rt = { txd = nil, n = 0 }   -- one runtime txd, a fresh texture name per DUI (a reused name keeps the old, destroyed DUI bound)
 local lastVitals = nil
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -167,9 +168,11 @@ local function startDui()
     local url = ('nui://%s/html/apps/monitor/screen.html'):format(GetCurrentResourceName())
     local ok, obj = pcall(CreateDui, url, 512, 256)
     if not ok or not obj then return end
-    local rtxd = CreateRuntimeTxd('nza_field_monitor')
-    CreateRuntimeTextureFromDuiHandle(rtxd, 'screen', GetDuiHandle(obj))
-    AddReplaceTexture(scr.txd, scr.tex, 'nza_field_monitor', 'screen')
+    if not rt.txd then rt.txd = CreateRuntimeTxd('nza_field_monitor') end
+    rt.n = rt.n + 1
+    local tex = 'screen' .. rt.n
+    CreateRuntimeTextureFromDuiHandle(rt.txd, tex, GetDuiHandle(obj))
+    AddReplaceTexture(scr.txd, scr.tex, 'nza_field_monitor', tex)
     dui = { obj = obj, txd = scr.txd, tex = scr.tex }
     SetTimeout(1200, function()
         if dui and dui.obj == obj and lastVitals then

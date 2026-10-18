@@ -30,7 +30,7 @@ Owner files
   patient's torso (`NZA.Anchors`), wheel turns the marker, Q/E tilt; the in-world probe prop follows on the
   skin (networked), the medic's right arm reaches for it (IK). Image quality depends on distance to the
   window, marker angle and tilt; hints tell the medic what to fix.
-- **Device face** (our own industrial design, generic `POCUS-7` / `C5-2` labels, no brand): sector image,
+- **Device face** (our own industrial design, generic `POCUS-7` / `C1-6` labels, no brand): sector image,
   depth scale + focus marker, TGC curve, anatomy labels (configurable), 3D probe orientation view,
   holographic torso map with the six window nodes (click to call), ECG trace + HR, acquisition readouts,
   hardware keys with rocker switches, FREEZE, M-mode sweep, calipers on a frozen image (`D1 4.5 cm`).

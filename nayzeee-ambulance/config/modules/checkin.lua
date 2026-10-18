@@ -99,6 +99,8 @@ Config.Checkin = {
         noStaff      = true,      -- take patients while no medic of the department is on duty
         noStaffDelay = 12,        -- seconds after check-in before the AI calls them (time to read the ticket)
         waitTimeout  = 600,       -- also take patients nobody called within this many seconds (0 = never)
+        criticalTimeout = 0,      -- P1 (immediate) tickets: take them after this many seconds even with staff
+                                  -- on duty (0 = off, waitTimeout applies; bleeding out takes about 300 s)
         staffPerm    = 'checkin', -- on-duty medics with this permission count as staff (nil = any medic)
         travel       = 'walk',    -- 'walk' (waypoint, lie down on the bed yourself) | 'teleport' (fade into the bed)
         downedTeleport = true,    -- downed patients are always moved into the bed

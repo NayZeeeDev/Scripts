@@ -12,7 +12,9 @@
    Keys (focused): ◀ / ArrowLeft setup-back · ▲▼ scroll · Y / Enter / ArrowRight take-open ·
                    Backspace pass-back · ESC or the pager key: put it away
 
-   Lua → JS: open (payload) · state (payload) · page { id, priority, beep } · live { time, calls } · focus { on }
+   Lua → JS: open (payload) · state (payload) · page { id, priority, beep, line? } · live { time, calls } · focus { on }
+             line = { title, text, hospital, priority, time } (NZA.Dispatch.Page): shown on the glass
+             for a few seconds over the call / standby screen, then kept in the page log
    JS → Lua: pager:ack {id} · pager:decl {id} · pager:clear · pager:gps {id} · pager:pair {on}
              pager:mute {on} · pager:npc {on} · pager:status {code} · pager:hide
    ═══════════════════════════════════════════════════════════ */
@@ -22,7 +24,7 @@
   let tr = K.tr({});
   let d = { calls: [], history: [], me: {}, muted: false, phone: true, beep: true, focused: false, time: '--:--', key: 'F7' };
   let live = { calls: {} };
-  let screen = 'call', sel = 0, menuSel = 0, histSel = 0, blink = false, blinkT = 0, flashT = 0;
+  let screen = 'call', sel = 0, menuSel = 0, histSel = 0, blink = false, blinkT = 0, flashT = 0, line = null, lineT = 0;
   let dev, scr, body, statusEl, legEl, ledMsg, ledLnk, hintsEl;
 
   const up = s => String(s ?? '').toUpperCase();
@@ -137,11 +139,23 @@
       body.innerHTML = `<div class="ln hd"><span class="inv">${esc(up(tr('pg_history', 'Page log')))}</span><span class="sp"></span><span class="ix">${histSel + 1}/${h.length}</span></div>` +
         h.slice(start, start + 4).map((e, i) => {
           const on = start + i === histSel;
-          return `<div class="ln mi ${on ? 'on' : ''} ${e.closed ? 'dim' : ''}"><span class="cur">${on ? '&gt;' : ''}</span><span>${esc(e.time || '')}</span><span>P${K.prio(e.priority)}</span><span class="lb">${esc(up(tr('type_' + (e.type || '') + '_s', SHORT[e.type] || e.title || '')))}</span><span class="lead"></span><span class="vl">${esc(up(e.closed ? tr('pg_closed', 'Done') : tr('pg_open', 'Open')))}</span></div>`;
+          return `<div class="ln mi ${on ? 'on' : ''} ${e.closed ? 'dim' : ''}"><span class="cur">${on ? '&gt;' : ''}</span><span>${esc(e.time || '')}</span><span>P${K.prio(e.priority)}</span><span class="lb">${esc(up(tr('type_' + (e.type || '') + '_s', SHORT[e.type] || e.title || '')))}</span><span class="lead"></span><span class="vl">${esc(up(e.page ? tr('pg_page', 'Page') : e.closed ? tr('pg_closed', 'Done') : tr('pg_open', 'Open')))}</span></div>`;
         }).join('');
     }
     legend([{ g: G.x, t: tr('pg_back', 'Back') }, { g: G.ud, t: tr('pg_move', 'Move') }]);
   }
+
+  // a paged line (no call behind it): title, text, where
+  function renderLine() {
+    const m = line;
+    body.innerHTML = `
+      <div class="ln hd"><span class="inv">P${K.prio(m.priority)}</span><span class="tt">${esc(up(m.title || tr('pg_page', 'Page')))}</span><span class="sp"></span><span class="ix">${esc(m.time || '')}</span></div>
+      ${m.text ? `<div class="ln wr"><span>${esc(up(m.text))}</span></div>` : ''}
+      ${m.hospital ? `<div class="ln dim">${esc(up(m.hospital))}</div>` : ''}`;
+    legend([{ g: G.ok, t: tr('pg_ok', 'OK'), cls: 'hot' }, { g: G.x, t: tr('pg_back', 'Back') }, { g: G.l, t: tr('pg_menu', 'Setup') }]);
+  }
+  const lineUp = () => !!line && (screen === 'call' || screen === 'idle');
+  function dropLine() { line = null; clearTimeout(lineT); }
 
   function renderIdle() {
     const m = d.me || {};
@@ -170,7 +184,8 @@
     renderStatus();
     if (screen === 'call' && !calls().length) screen = 'idle';
     if (screen === 'idle' && calls().length) screen = 'call';
-    ({ call: renderCall, menu: renderMenu, history: renderHistory, idle: renderIdle })[screen]();
+    if (lineUp()) renderLine();
+    else ({ call: renderCall, menu: renderMenu, history: renderHistory, idle: renderIdle })[screen]();
     scr.dataset.screen = screen;
     const m = d.me || {};
     ledMsg.className = `led-i ${blink ? 'red blink' : m.call ? 'teal' : calls().length ? 'amber' : ''}`;
@@ -187,6 +202,8 @@
     blink = false;
     click();
     dev.querySelectorAll(`[data-b="${btn}"]`).forEach(b => { b.classList.add('press'); setTimeout(() => b.classList.remove('press'), 120); });
+    if (lineUp() && (btn === 'ack' || btn === 'back')) { dropLine(); render(); return; }
+    if (lineUp()) dropLine();
     if (btn === 'left') {
       if (screen === 'menu') screen = calls().length ? 'call' : 'idle';
       else if (screen === 'history') screen = 'menu';
@@ -319,13 +336,18 @@
       apply(p);
       dev.classList.remove('in'); void dev.offsetWidth; dev.classList.add('in');
     },
-    close() { clearTimeout(blinkT); blink = false; },
+    close() { clearTimeout(blinkT); blink = false; dropLine(); },
     msg: {
       state: apply,
       focus(p) { d.focused = !!(p && p.on); render(); },
       page(p) {
         const i = calls().findIndex(c => c.id === p.id);
         if (i >= 0 && (screen !== 'menu' || !d.focused)) { sel = i; screen = 'call'; }
+        if (p.line) {
+          line = p.line;
+          clearTimeout(lineT);
+          lineT = setTimeout(() => { line = null; render(); }, (Number(p.line.hold) || 10) * 1000);
+        }
         blink = true;
         clearTimeout(blinkT);
         blinkT = setTimeout(() => { blink = false; render(); }, 15000);

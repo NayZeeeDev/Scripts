@@ -77,6 +77,7 @@ product-card grid with struck old prices, no order column, no white thermal rece
   Confirmation dialog, pay with cash or bank.
 - `Config.Items.insurance_card` is given / updated with metadata (plan, holder, identifier,
   serial, expiry, label, description). Using the card shows it to you and the nearest player.
+  Member numbers look like `HC-7KQ4-H2MX` (`insurance.memberPrefix`).
 
 ### Bills
 - Stat tiles (open bills, total due, insurance paid), open bills with reason, time, medic,
@@ -120,7 +121,7 @@ scale, shortRange) · `payment` (cash, bank, default) · `tax` · `staffDiscount
 limit, perm, medicOnly, jobs, minGrade, license, featured, label, description }]` · `stock`
 (enabled, orderCost, orderMax, fromInventory, autoRestock{ enabled, interval, amount, charge },
 lowAt) · `staff` (perm, salesLog, keepDays) · `insurance` (enabled, giveCard,
-cardShowDistance, maxDays, prorate, toSociety, plans[{ id, price, days, cover, pharmacy, icon,
+cardShowDistance, maxDays, prorate, toSociety, memberPrefix, plans[{ id, price, days, cover, pharmacy, icon,
 popular }]) · `billing` (useInsurance, insurerPays, otherAccount, unpaidBills, maxUnpaid,
 lateMedicCut, notify, autoCollect{ enabled, interval, onLoad }, external, externalKinds,
 externalFallback, externalSender, custom) · `invoice` (enabled, perm, distance, max, cooldown,
@@ -204,8 +205,9 @@ Preview: `html/index.html?app=pharmacy&view=shop|receipt|insurance|none|bills|st
   esx_billing (`billing` table), qb-phone / jim-payments (`phone_invoices` table) and a custom
   function. Payloads follow those scripts' public docs; when an external script fails the
   bill is charged directly unless `externalFallback = false`.
-- Licence checks: QBCore / Qbox metadata, ESX `esx_license`, standalone ace
-  `nza.license.<name>` (see docs/requests/pharmacy.md for a bridge function).
+- Licence checks go through `Bridge.HasLicense(src, name)` (framework licences, else the ace
+  `nza.license.<name>`); without that bridge function the module checks QBCore / Qbox metadata,
+  ESX `esx_license` or the ace itself.
 - Without oxmysql, insurance and stock live in memory and unpaid bills cannot be stored
   (`Charge` then returns `false, 'cannot_pay'` for a player who can't pay).
 - Item images come from the inventory when it has the file, else `html/img/items`; products

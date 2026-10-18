@@ -111,7 +111,10 @@ serial plate along the bottom.
   clicks work on every key.
 - SETUP: call list, link phone, silent, street calls, availability (10-8 / 10-7), page log, stand
   down — dotted leaders to the values, page dots in the header.
-- PAGE LOG lists the last `history` pages, each marked open or done. STANDBY shows a large clock,
+- PAGE LOG lists the last `history` pages, each marked open or done (lines paged through
+  `NZA.Dispatch.Page`, e.g. a new hospital check-in, are marked PAGE). Such a line also shows on
+  the glass for 10 s over the call / standby screen (title, text, hospital; Y or ✕ clears it)
+  with the beep and the MSG LED. STANDBY shows a large clock,
   your status and "No open calls" beside a status ring.
 - Phone linking: LINK PHONE sends every call to `Bridge.Phone.Notify`, and to `Bridge.Phone.Mail`
   when `phoneMail` is on. The link is kept per character.
@@ -148,9 +151,11 @@ serial plate along the bottom.
   zone, caller or crews. Columns: time, call, priority, location, crews, response time, duration,
   final stage (small ring + word) and reason. Without a database it shows this session's calls.
 - ER intake: `NZA.Checkin.Queue()` check-ins (ticket, name, priority, time in, status), and
-  inbound crews with their hospital and drive time.
+  inbound crews with their hospital and drive time. Staff with `Config.Checkin.desk.perm`
+  (board data `canCallNext`) get **Call next** (key N) → `nza:checkin:callNext`, which calls the
+  next waiting ticket of their department to a free bed and answers with a toast.
 - Refreshes every `board.refresh` ms. Scroll positions and the selected call are kept. Keys: ↑↓
-  pick a call, R, G, M (map), ESC.
+  pick a call, R, G, M (map), N (call next, ER intake), ESC.
 
 ### EMS radial job menu (`radial`, F6) — "orbit"
 - Separate round nodes on a dashed orbit, the first one at 12 o'clock, labels as dark chips
@@ -228,6 +233,7 @@ NZA.Dispatch.Close(callId, reason) → bool
 NZA.Dispatch.Get(callId) → call | nil          -- live table, read only
 NZA.Dispatch.SetStatus(callId, src, status, { forward?, force? }) → ok, err   -- 'DSP' (removes the unit) | ENR | SCN | CARE | TRN | HSP
 NZA.Dispatch.Respond(src, callId)  Clear(src, callId?, reason)  Assign(callId, target, by)  Decline(src, callId)
+NZA.Dispatch.Page(src, { kind?, priority 1..3, title, text?, hospital? }) → bool   -- one line on that medic's pager
 NZA.Dispatch.Advance(callId, src, stage)       -- forward only
 NZA.Dispatch.Active()  CallOf(src)  CallForPatient(p)  CallPatients(call)  Recent()
 NZA.Dispatch.Unit(src)  Units(withCoords)  UnitStatus(src)  SetOutOfService(src, bool)  SetCallsign(src, text)
@@ -274,6 +280,7 @@ table.insert(NZA.RadialItems, { id, parent = nil | 'dispatch' | 'patient' | 'str
 | `nza:dispatch:street` | C→S | `callId, street, zone` (first report only, medics or the caller) |
 | `nza:dispatch:state / me / board / log` | callbacks | sync payload / own unit / board data / `{ rows, db }` |
 | `nza:dispatch:sync / call / update / close / me / units / stage / assigned / police / pager` | S→C | see the file headers |
+| `nza:dispatch:page` | S→C | `{ id, kind, priority, title, text, hospital }` (`NZA.Dispatch.Page`) |
 | `nza:wounded:help` | S→C | `{ eta, unit, status }` through `NZA.Wounded.Help` |
 
 Every net handler checks the source and rate-limits. Permissions come from `NZA.Staff`, and
@@ -281,7 +288,7 @@ positions are server-side.
 
 NUI callbacks:
 - `pager:ack decl clear gps pair mute npc status hide`
-- `dispatch:respond assign unassign clear closeCall priority gps status npc refresh log`
+- `dispatch:respond assign unassign clear closeCall priority gps status npc refresh log callNext`
 - `radial:select`
 
 ## Database

@@ -216,6 +216,8 @@ NZA.AddLocale('en', {
     ['dispatch.pg_hide']           = 'Hide',
     ['dispatch.pg_open']           = 'Open',
     ['dispatch.pg_closed']         = 'Done',
+    ['dispatch.pg_page']           = 'Page',
+    ['dispatch.pg_ok']             = 'OK',
     ['dispatch.pg_no_calls']       = 'No open calls',
     ['dispatch.pg_no_history']     = 'Nothing paged yet',
     ['dispatch.pg_avail']           = 'AVAIL',
@@ -377,4 +379,5 @@ NZA.AddLocale('en', {
     ['dispatch.db_q_inc_n']        = '%d on the way in',
     ['dispatch.db_q_noinc']        = 'Nobody inbound',
     ['dispatch.db_q_noinc_p']      = 'Crews carrying a patient show up here with their drive time.',
+    ['dispatch.db_q_next']         = 'Call next',
 })

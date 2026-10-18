@@ -80,6 +80,8 @@ spine, rolling counters and an edge dock.
   no beam. Prop types: translucent ghost resting on the surface, outline teal / red where the
   game supports it. Bays / helipads: ghost of the department's first car / helicopter
   (`Config.Hospital.garage.carModel / heliModel` when it has none). The ghost never collides.
+  Types with `parts` in their def (the angio suite: monitor, injector tray, red button) show
+  each part as an extra ghost at its type-space offset, turned with the main ghost.
 - Keys: E set here, Q / X / Backspace / ESC back out, ← → turn (hold), wheel nudges, Shift
   coarse, Alt fine, Page Up / Down lift, G lock to the snap angle. Max distance check, invalid
   spots refuse E (state note shakes).
@@ -96,9 +98,9 @@ spine, rolling counters and an edge dock.
 |---|---|---|
 | `duty` | members | Go on / off duty (framework duty through `Bridge.SetDuty` for framework medics, own duty for standalone members) |
 | `locker` | members | outfits of your grade that fit your character, civilian clothes back (`Bridge.Clothing`) |
-| `stash` | on-duty members, `minGrade` | ox_inventory / qb-inventory / classic qb-style stash, else the built-in storage window (stacks, metadata items kept per unit) |
+| `stash` | on-duty members, `minGrade` | `Bridge.Inv.OpenStash` first (ox, qb 1.x/2.x, ps, lj, qs); if it fails: ox_inventory / qb-inventory 2.x / classic `inventory:server:OpenInventory` (qb-inventory 1.x, lj, qs; not ps, which renamed it), else the built-in storage window (stacks, metadata items kept per unit) |
 | `boss` | grades with `manage` | the manager limited to the department |
-| `storage` | on-duty members | supply cabinet, items from `Config.Hospital.storage.items` with per-shift limits and optional perm |
+| `storage` | on-duty members | supply cabinet, items from `Config.Hospital.storage.items` with per-shift limits and optional perm (the default list also stocks the procedure kits: empty blood bag, trauma, intubation, chest drain, angio kit / contrast / coil, surgical and graft kits) |
 | `garage` / `heli` | on-duty members | vehicles of the right kind for your grade, server-side spawn when the spot is clear, plate, keys, fuel, livery, extras, colour, warp; store back (target or [E] while driving in) |
 | `elevator` | everyone / staff only | floors with the same `group`, sorted by `order`, fade teleport |
 | `bed` | everyone | lie down (frozen, looped anim, [X] get up), `OccupyBed` → `patient.meta.bed` + `meta.inBed` (healing ×4) |
@@ -115,9 +117,11 @@ Paychecks: on-duty members of standalone departments get their grade salary ever
    the highest level ≤ the framework grade;
 3. else no department → the core default (`Config.DefaultPerms`).
 
-Record fields: `hospital dept deptLabel grade gradeLabel gradeName salary perms easy onDuty
-medic police job jobLabel isBoss linked frameworkMedic` (+ `excluded` for fired linked members).
-`easy` = the department switch, then per-permission overrides. Duty: framework medics follow
+Record fields: `hospital dept deptLabel grade gradeLabel gradeName salary perms easy easyDefault
+onDuty medic police job jobLabel isBoss linked frameworkMedic` (+ `excluded` for fired linked members).
+`easy` = the department switch, then per-permission overrides. `easyDefault` (read by
+`NZA.Staff.Easy` / `NZA.Easy` for anything not in `easy`) is true only when every permission
+of the department is easy, so `Config.EasyMode.default` never overrides a department. Duty: framework medics follow
 the framework duty, everyone else uses the module's own duty. Every manager change refreshes
 the affected players (`NZA.Staff.Refresh` → `nza:staff:update`).
 
@@ -191,8 +195,6 @@ vehicles, point data depth / size).
 - Offline members who only belong through the job link are not listed in the roster.
 - Firing / hiring in a linked department changes the framework job only when the bridge offers
   `Bridge.SetJob` (request 2); otherwise a fired member keeps an "excluded" row.
-- Department easy mode OFF can't override `Config.EasyMode.default = true` until core supports
-  `record.easyDefault` (request 1).
 - Stash support for inventories other than ox / qb / qs / ps / lj is the built-in storage window.
 - Outfits are native component / prop snapshots of the freemode characters.
 - Elevator teleports move only you.

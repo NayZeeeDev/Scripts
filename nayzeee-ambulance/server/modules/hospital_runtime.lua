@@ -229,7 +229,9 @@ local function inventoryKind()
         if (tonumber(v:match('^(%d+)')) or 0) >= 2 then return 'qb' end
         return 'qbold'
     end
-    if (name == 'ps-inventory' or name == 'lj-inventory' or name == 'qs-inventory') and GetResourceState(name) == 'started' then
+    -- the classic 'inventory:server:OpenInventory' stash event (qb-inventory 1.x, lj, qs);
+    -- ps-inventory renamed it, its stashes open through Bridge.Inv.OpenStash only
+    if (name == 'lj-inventory' or name == 'qs-inventory') and GetResourceState(name) == 'started' then
         return 'qbold'
     end
     return 'own'
@@ -255,7 +257,7 @@ lib.callback.register('nza:hospital:stash', function(src, pointId)
     local id = stashId(pt, ident, sc.personal)
     local label = ('%s · %s'):format(d.label, sc.label)
 
-    -- the bridge may offer a generic stash opener one day; it wins when present
+    -- the bridge's stash opener (ox, qb 1.x/2.x, ps, lj, qs) wins; the paths below are fallbacks
     if Core.Has('Inv.OpenStash') then
         local okOpen = Core.B('Inv.OpenStash', src, id, { label = label, slots = sc.slots, weight = sc.weight, owner = sc.personal and ident or nil })
         if okOpen then return { ok = true, mode = 'bridge', id = id } end

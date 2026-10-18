@@ -3,7 +3,10 @@
 
     NZA.HospitalC.Place(opts) → coords { x, y, z, w } | nil, reason        (blocking, call from a thread)
       opts = { type, label, icon, kind = 'prop'|'marker'|'car'|'heli', prop (model), model (vehicle),
-               dept, deptLabel, heading, from = coords (re-place: start there) }
+               dept, deptLabel, heading, from = coords (re-place: start there),
+               parts = { { model, pos = vector3 (type space: +X right, +Y forward), h }, ... } }
+      parts (a type def's `parts`, e.g. the angio suite's monitor / injector / button) are shown
+      as extra ghosts around the main one, rotated with it and standing on the same floor.
 
     Aim with the camera: a ray from the screen centre finds the floor / furniture under it.
       prop types    translucent ghost of the type's prop, bottom resting on the surface
@@ -112,6 +115,33 @@ local function footprintOf(ent, kind)
     return { hx = r, hy = r, cx = 0.0, cy = 0.0 }
 end
 
+-- type-space offset (x = right, y = forward) → world offset for a heading (GTA: 0 = north, CCW)
+local function rotateOffset(v, heading)
+    local h = math.rad(heading or 0.0)
+    local c, s = math.cos(h), math.sin(h)
+    return vector3(v.x * c - v.y * s, v.x * s + v.y * c, 0.0)
+end
+
+-- extra ghosts of a type's parts (angio suite equipment), placed next to the main ghost
+local function makePartGhosts(parts, at, heading)
+    local out = {}
+    if type(parts) ~= 'table' then return out end
+    for _, part in ipairs(parts) do
+        local model = type(part) == 'table' and part.model
+        local pos = type(part) == 'table' and part.pos
+        if model and pos and tonumber(pos.x) and tonumber(pos.y) then
+            local ent = makePropGhost(model, at, heading + (tonumber(part.h) or 0.0))
+            if ent ~= 0 then
+                out[#out + 1] = {
+                    ent = ent, h = tonumber(part.h) or 0.0, z = tonumber(pos.z) or 0.0, base = baseOffset(ent),
+                    off = vector3(tonumber(pos.x) + 0.0, tonumber(pos.y) + 0.0, 0.0),
+                }
+            end
+        end
+    end
+    return out
+end
+
 local function snapHeading(h, step)
     if not step or step <= 0 then return h end
     return (math.floor(h / step + 0.5) * step) % 360.0
@@ -212,7 +242,8 @@ function C.Place(opts)
     local zBase = baseOffset(ghost)
     state.foot = footprintOf(ghost, kind)
     state.keys = {}
-    active = { ghost = ghost }
+    local parts = (kind == 'prop' or kind == 'marker') and makePartGhosts(opts.parts, start, state.heading) or {}
+    active = { ghost = ghost, parts = parts }
 
     NZA.UI.Open(APP, {
         type = opts.type, label = opts.label, icon = opts.icon, kind = kind, dept = opts.deptLabel,
@@ -280,6 +311,15 @@ function C.Place(opts)
             SetEntityAlpha(ghost, state.valid and (bc.ghostAlpha or 165) or 95, false)
             setOutline(ghost, state.valid)
         end
+        for _, part in ipairs(parts) do
+            if DoesEntityExist(part.ent) then
+                local at = state.pos + rotateOffset(part.off, state.shownHeading)
+                SetEntityCoordsNoOffset(part.ent, at.x, at.y, state.surface.z + state.height + part.base + part.z, false, false, false)
+                SetEntityHeading(part.ent, (state.shownHeading + part.h) % 360.0)
+                SetEntityAlpha(part.ent, state.valid and (bc.ghostAlpha or 165) or 95, false)
+                setOutline(part.ent, state.valid)
+            end
+        end
         draw(state, state.valid and (bc.markerColour or { 8, 175, 162 }) or (bc.badColour or { 229, 72, 77 }))
         sendState(state)
 
@@ -304,6 +344,7 @@ function C.Place(opts)
 
     if result then PlaySoundFrontend(-1, 'SELECT', 'HUD_FRONTEND_DEFAULT_SOUNDSET', true) end
     deleteGhost(ghost)
+    for _, part in ipairs(parts) do deleteGhost(part.ent) end
     NZA.UI.Close(APP)
     active = nil
     -- swallow the key that ended placement so it doesn't open the pause menu / fire anything
@@ -324,6 +365,7 @@ end
 AddEventHandler('onResourceStop', function(res)
     if res ~= NZA.Resource or not active then return end
     deleteGhost(active.ghost)
+    for _, part in ipairs(active.parts or {}) do deleteGhost(part.ent) end
     NZA.Props.Clear('nza:builder')
     active = nil
 end)

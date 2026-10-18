@@ -163,6 +163,16 @@ Config.Hospital = {
             { key = 'morphine',        limit = 4, perm = 'meds' },   -- perm: only shown to grades with it
             { key = 'adrenaline',      limit = 4, perm = 'meds' },
             { key = 'txa',             limit = 4, perm = 'meds' },
+            -- procedure kits (no other source in the resource; remove a line to hand them out elsewhere)
+            { key = 'empty_blood_bag', limit = 4, perm = 'blood' },      -- blood donation (medic mode)
+            { key = 'trauma_kit',      limit = 1, perm = 'iv' },         -- field resuscitation case (+ defib)
+            { key = 'intubation_kit',  limit = 2, perm = 'airway' },
+            { key = 'chest_drain_kit', limit = 2, perm = 'chestdrain' },
+            { key = 'angio_kit',       limit = 2, perm = 'angio' },
+            { key = 'contrast',        limit = 4, perm = 'angio' },
+            { key = 'coil',            limit = 6, perm = 'angio' },
+            { key = 'surgical_kit',    limit = 1, perm = 'surgery' },    -- bullet / fragment removal
+            { key = 'graft_kit',       limit = 1, perm = 'graft' },
         },
     },
 

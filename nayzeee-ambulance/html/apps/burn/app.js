@@ -4557,7 +4557,7 @@
             sim(0.9, f => aim(lerp(e0[0], e1[0], f), lerp(e0[1], e1[1], f)));
             release(); sim(1.4);
             aim(0, 0); sim(0.05); press();
-            for (let k = 0; k < 8 && !g.done[8]; k++) sim(2, f => aim(Math.sin(f * Math.PI * 6 + k) * D.size[0] * 0.42, Math.sin(f * Math.PI * 2 + k * 1.3) * D.size[1] * 0.42));
+            for (let k = 0; k < 14 && !g.done[8]; k++) sim(2, f => aim(Math.sin(f * Math.PI * 6 + k) * D.size[0] * 0.49, Math.sin(f * Math.PI * 2 + k * 1.3) * D.size[1] * 0.49));
             release(); sim(0.3);
             S.start();
             resolve(true);

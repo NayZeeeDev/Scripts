@@ -141,6 +141,9 @@
 #app-pager .ln.mi .lead{flex:1;min-width:6px;align-self:center;height:0;border-bottom:1.5px dotted var(--pxd);transform:translateY(3px)}
 #app-pager .ln.mi.on{background:rgba(138,248,236,.12);box-shadow:inset 2px 0 0 var(--px)}
 #app-pager .ln.mi.on .vl{background:var(--px);color:var(--pxb);text-shadow:none;padding:0 3px}
+/* paged line (NZA.Dispatch.Page): the text may take two lines */
+#app-pager .ln.wr{height:auto;max-height:40px;white-space:normal;align-items:flex-start}
+#app-pager .ln.wr span{min-width:0;overflow:hidden;overflow-wrap:anywhere}
 
 /* standby */
 #app-pager .pg-idle{display:grid;grid-template-columns:62px minmax(0,1fr);gap:10px;align-items:center;margin-top:6px}

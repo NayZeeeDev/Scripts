@@ -384,6 +384,16 @@ local function pointFromRow(r)
     }
 end
 
+-- a TIMESTAMP column as 'YYYY-MM-DD HH:MM:SS' (the format a fresh hire stores in I.SetStaff);
+-- oxmysql returns TIMESTAMP values as epoch milliseconds
+local function stampText(v)
+    if type(v) == 'number' then
+        if v > 100000000000 then v = v / 1000 end
+        return os.date('%Y-%m-%d %H:%M:%S', math.floor(v))
+    end
+    return v
+end
+
 function I.SaveDept(d)
     local data = {}
     for k, v in pairs(d) do
@@ -418,7 +428,7 @@ local function loadAll()
         staff[r.identifier] = {
             identifier = r.identifier, department = r.department, grade = tonumber(r.grade) or 0,
             name = r.name, excluded = tonumber(r.excluded) == 1 or r.excluded == true,
-            hiredBy = r.hired_by, created = r.created_at,
+            hiredBy = r.hired_by, created = stampText(r.created_at),
         }
     end
 end
@@ -736,6 +746,14 @@ local function provider(src, base)
     local g = I.GradeFor(d, level)
     local perms = {}
     for _, p in ipairs(g and g.perms or {}) do perms[p] = true end
+    -- the department decides easy mode for every permission (easySet); easyDefault covers
+    -- the rest (NZA.Staff.Easy / NZA.Easy) so Config.EasyMode.default never overrides a
+    -- department: true only when every permission of the department is easy
+    local easy = easySet(d)
+    local easyDefault = true
+    for _, p in ipairs(NZA.Const.Perms) do
+        if not easy[p.key] then easyDefault = false break end
+    end
 
     local onDuty
     local own = ownDuty[src]
@@ -750,7 +768,7 @@ local function provider(src, base)
         hospital = d.id, dept = d.id, deptLabel = d.label,
         grade = g and g.level or 0, gradeLabel = g and g.label or nil, gradeName = g and g.name or nil,
         salary = g and g.salary or 0,
-        perms = perms, easy = easySet(d),
+        perms = perms, easy = easy, easyDefault = easyDefault,
         onDuty = onDuty == true,
         medic = true, police = base.police,
         job = base.job, jobLabel = base.jobLabel,

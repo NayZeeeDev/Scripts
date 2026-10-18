@@ -422,6 +422,7 @@ function AI.Tick(t0)
     local noStaff = cfg('ai', 'noStaff', true)
     local delay = tonumber(cfg('ai', 'noStaffDelay', 12)) or 12
     local timeout = tonumber(cfg('ai', 'waitTimeout', 600)) or 0
+    local critical = tonumber(cfg('ai', 'criticalTimeout', 0)) or 0
     local staffCache, fullBeds = {}, {}
     for _, t in ipairs(C.Waiting(nil)) do
         if not fullBeds[t.hospital] and not t.aiDenied then
@@ -432,10 +433,14 @@ function AI.Tick(t0)
             end
             local age = t0 - t.issued
             local take = (noStaff and staff == 0 and age >= delay) or (timeout > 0 and age >= timeout)
+                or (critical > 0 and t.triage == 1 and age >= critical)
+            -- the AI doctor cannot take a patient in cardiac arrest or dead (the bed lie refuses
+            -- them): leave the ticket to the staff / the death listener in checkin.lua
+            local p = take and NZA.Patients.Get(t.pid) or nil
+            if p and (p.state == 'arrest' or p.state == 'dead') then take = false end
             if take then
                 local src = C.PlayerSrc(t)
                 if src then
-                    local p = NZA.Patients.Get(t.pid)
                     if cfg('ai', 'requirePayment', false) and p then
                         local steps = AI.Plan(p)
                         local bill = AI.Bill(p, t, steps, false)

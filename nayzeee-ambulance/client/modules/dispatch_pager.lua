@@ -12,8 +12,10 @@
 
     NUI callbacks: pager:ack {id} · pager:decl {id} · pager:clear · pager:gps {id} · pager:pair {on}
                    pager:mute {on} · pager:npc {on} · pager:status {code} · pager:hide
-    Actions sent:  open, state, page, live, focus
+    Actions sent:  open, state, page { id, priority, beep, line? }, live, focus
     Net events handled: nza:dispatch:pager ('toggle')  (using the pager item)
+                        nza:dispatch:page { id, kind, priority, title, text, hospital }  one paged line
+                        (NZA.Dispatch.Page: page log + a few seconds on the LCD + beep)
     Keybind: nza_pager (Config.Dispatch.pager.key)   Command: Config.Dispatch.pager.command
     Client API: NZA.Dispatch.PagerVisible() · NZA.Dispatch.TogglePager() · NZA.Dispatch.HasPager()
 ]]
@@ -160,9 +162,25 @@ local function addHistory(c)
     for _, h in ipairs(P.history) do if h.id == c.id then return end end
     table.insert(P.history, 1, {
         id = c.id, code = c.code, title = c.title, type = c.type, priority = c.priority, street = c.street or c.zone, time = clock(),
+        page = c.page, text = c.text,
     })
     local max = tonumber(cfg('pager', 'history', 20)) or 20
     while #P.history > max do table.remove(P.history) end
+end
+
+-- pop the pager up (no focus) for the popup time, then beep + blink; line = a page line for the LCD
+local function popup(id, priority, line)
+    local hold = (tonumber(cfg('pager', 'popupTime', 12)) or 12) * 1000
+    if cfg('pager', 'popup', true) and not P.visible then
+        P.popupUntil = GetGameTimer() + hold
+        show(false)
+    elseif P.visible then
+        P.popupUntil = math.max(P.popupUntil, GetGameTimer() + hold)
+        pushState()
+    end
+    if P.visible then
+        NZA.UI.Send(APP, 'page', { id = id, priority = priority, beep = cfg('pager', 'beep', true) ~= false and not muted(), line = line })
+    end
 end
 
 local function markHistory(id, reason)
@@ -175,16 +193,19 @@ NZA.Bus.On('dispatch:call', function(c, flags)
     if not D.HasPager() then return end
     addHistory(c)
     if not (flags and flags.alert) then pushState() return end
-    if cfg('pager', 'popup', true) and not P.visible then
-        P.popupUntil = GetGameTimer() + (tonumber(cfg('pager', 'popupTime', 12)) or 12) * 1000
-        show(false)
-    elseif P.visible then
-        P.popupUntil = math.max(P.popupUntil, GetGameTimer() + (tonumber(cfg('pager', 'popupTime', 12)) or 12) * 1000)
-        pushState()
-    end
-    if P.visible then
-        NZA.UI.Send(APP, 'page', { id = c.id, priority = c.priority, beep = cfg('pager', 'beep', true) ~= false and not muted() })
-    end
+    popup(c.id, c.priority)
+end)
+
+-- a single line paged to this medic (NZA.Dispatch.Page on the server, e.g. a new check-in)
+RegisterNetEvent('nza:dispatch:page', function(m)
+    if type(m) ~= 'table' or type(m.id) ~= 'string' or not D.HasPager() then return end
+    local line = {
+        id = m.id, kind = m.kind, priority = tonumber(m.priority) or 3, title = m.title, text = m.text,
+        hospital = m.hospital, time = clock(),
+    }
+    addHistory({ id = m.id, title = m.title or m.text, type = m.kind, priority = line.priority, street = m.hospital, page = true, text = m.text })
+    if not onDuty() then return end
+    popup(m.id, line.priority, line)
 end)
 
 NZA.Bus.On('dispatch:update', function() pushState() end)

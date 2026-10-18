@@ -102,13 +102,18 @@ called → teal ring with a bed icon, `A-014 → Bed 3`, blinking "Go now" + cou
   `queue.offlineGrace` s; tickets expire after `queue.expire` s; triage is re-checked while waiting
   (worse → staff toast).
 - Staff notification on every check-in: toast "New patient A-014 · P2 Urgent" (P1 red with pager
-  beep), phone notification (`queue.notify.phone`: always / only paired pagers), pager line when the
-  dispatch module exposes `NZA.Dispatch.Page` (see requests).
+  beep), phone notification (`queue.notify.phone`: always / only paired pagers) and a pager line
+  through `NZA.Dispatch.Page` (page log + a few seconds on the pager glass + beep; `queue.notify.pager`).
+- A patient who dies while waiting or called gives the ticket up (closed as `left`, bed released).
+- The desk also offers "Pay medical bills" as a target option when the pharmacy module runs
+  (`NZA.Pharmacy.Open(point, 'bills')`, desk mode). The dispatch board's ER intake page has
+  "Call next" (key N) for staff with `desk.perm` (`nza:checkin:callNext`).
 
 ### AI doctor
 - Takes waiting tickets when no staff of the department (with `ai.staffPerm`) is on duty after
-  `ai.noStaffDelay` s, or when nobody called them within `ai.waitTimeout` s; staff can hand a ticket
-  over. Optional `ai.requirePayment`.
+  `ai.noStaffDelay` s, or when nobody called them within `ai.waitTimeout` s (P1 tickets after
+  `ai.criticalTimeout` s when that is set); staff can hand a ticket over. Optional `ai.requirePayment`.
+  Patients in cardiac arrest or dead are never taken.
 - Travel: `walk` (waypoint, lie down yourself) or `teleport` (fade into the bed); downed patients are
   always moved into the bed (`ai.downedTeleport`).
 - Plan: Assessment → Resuscitation (downed) → Transfusion (blood < `ai.transfuseBelow`) → one step
@@ -158,7 +163,7 @@ cooldown, prefix, digits, giveItem, takeBack, receiptTime, ticketHud, printSound
 `receptionist` (enabled, models, sitScenario, standScenario, spawnDistance, talk) ·
 `queue` (expire, offlineGrace, noShow, estimate, maxServing, keepServing, autoTreatment, doneOnLeave,
 restore, history, notify { toast, sound, pager, phone, scope }) ·
-`ai` (enabled, noStaff, noStaffDelay, waitTimeout, staffPerm, travel, downedTeleport, doctorPed,
+`ai` (enabled, noStaff, noStaffDelay, waitTimeout, criticalTimeout, staffPerm, travel, downedTeleport, doctorPed,
 doctorModels, doctorScenario, doctorWork, cinematic, shotTime, cameraKey/cameraControl, getUpHold,
 summaryTime, times, scale, minTime, maxTime, transfuseBelow, heal, revive, billing, prices,
 requirePayment, account, fallbackCash) ·
@@ -190,13 +195,13 @@ Callbacks: `nza:checkin:checkin (pointId)`, `:mine ()`, `:leave ()`, `:desk ({ p
 Net events: C→S `nza:checkin:callNext (hospital?)`; S→C `nza:checkin:mine (ticket|false, event, closed?)`,
 `:receipt (ticket)`, `:staff (note)`, `:desk (desk)`, `:board (hospital, board)`, `:bed ({ point, on })`,
 `:ai (action, data)` (start step vitals done abort).
-Server bus: listens `hospital:bed transport:bed treat:done proc:done player:loaded player:unloaded`;
+Server bus: listens `hospital:bed transport:bed treat:done proc:done patient:death player:loaded player:unloaded`;
 emits `checkin:issued (t)`, `checkin:called (t)`, `checkin:treatment (t)`, `checkin:closed (t, status)`, `checkin:ai (t, outcome)`.
 NUI: `checkin:action deskClose refresh hospital leave hidden`, `bed:hidden`.
 Radial (`NZA.RadialItems`, parent `dispatch`): `checkin_next`, `checkin_queue`.
 
 ## Data
-`nza_tickets` (created on start; SQL in `docs/requests/checkin.md`). Open tickets of the last
+`nza_tickets` (created on start with the same statement as `sql/install.sql`: InnoDB, utf8mb4). Open tickets of the last
 `queue.expire` seconds are restored as waiting after a restart (`queue.restore`).
 
 ## Security
@@ -221,4 +226,3 @@ aborts it).
   nearest one's data.
 - The board chime plays from the board browser (not positional, volume by distance).
 - The cinematic camera only avoids walls between the bed and the camera, not props in the room.
-- Pager lines need `NZA.Dispatch.Page` (requested); the dispatch board's "Call next" button is requested too.

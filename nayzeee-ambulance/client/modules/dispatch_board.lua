@@ -12,6 +12,7 @@
       dispatch:clear {id}     dispatch:closeCall {id}     dispatch:priority {id, priority}
       dispatch:gps {id} | {x, y}   dispatch:status {code}  dispatch:npc {on}
       dispatch:refresh → board data     dispatch:log {priority, search} → { rows, db }
+      dispatch:callNext {hospital?}    ER intake: call the next check-in ticket (nza:checkin:callNext)
     Actions sent: open (board data + tab + locale), data (board data)
     Callbacks used: nza:dispatch:board, nza:dispatch:log
 ]]
@@ -164,6 +165,15 @@ NZA.UI.On(APP, 'npc', function(d, cb)
     D.SetNpcCalls(on)
     cb({ ok = true })
     refreshSoon()
+end)
+
+-- ER intake page: call the next waiting check-in ticket to a free bed (the server checks
+-- Config.Checkin.desk.perm, resolves the department and answers with a toast)
+NZA.UI.On(APP, 'callNext', function(d, cb)
+    local hospital = type(d) == 'table' and type(d.hospital) == 'string' and #d.hospital <= 64 and d.hospital or nil
+    TriggerServerEvent('nza:checkin:callNext', hospital)
+    cb({ ok = true })
+    refreshSoon(600)
 end)
 
 NZA.UI.On(APP, 'refresh', function(_, cb)

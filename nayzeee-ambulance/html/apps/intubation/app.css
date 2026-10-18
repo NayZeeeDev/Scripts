@@ -423,9 +423,6 @@
   #app-intubation *{animation-duration:1ms!important;animation-iteration-count:1!important;transition:none!important}
 }
 
-/* ProcPanel with a single step (BVM round): no spine column, the text takes the full width */
-#app-intubation .pp-spine[style*="none"] + .pp-body{grid-column:1 / -1}
-
 /* short screens (720p): a smaller monitor so it clears the tool belt and the scope */
 @media (max-height: 820px){
   #app-intubation .itb-mon{zoom:.78}

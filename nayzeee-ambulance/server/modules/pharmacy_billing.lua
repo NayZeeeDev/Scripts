@@ -221,6 +221,15 @@ function Ins.Get(x)
     }
 end
 
+-- member number printed on the cover card and the insurance_card item, e.g. HC-7KQ4-H2MX
+-- (Config.Pharmacy.insurance.memberPrefix; existing serials keep their old prefix)
+local function serialPrefix()
+    local p = cfg('insurance').memberPrefix
+    if type(p) ~= 'string' then p = 'HC-' end
+    p = p:upper():gsub('[^A-Z0-9%-]', ''):sub(1, 8)
+    return p
+end
+
 local function newSerial()
     local chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
     local out = {}
@@ -228,7 +237,7 @@ local function newSerial()
         local n = math.random(#chars)
         out[i] = chars:sub(n, n)
     end
-    return 'NZ-' .. table.concat(out, '', 1, 4) .. '-' .. table.concat(out, '', 5, 8)
+    return serialPrefix() .. table.concat(out, '', 1, 4) .. '-' .. table.concat(out, '', 5, 8)
 end
 
 local function saveRow(row)

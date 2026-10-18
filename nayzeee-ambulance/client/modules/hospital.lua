@@ -288,6 +288,7 @@ local function openStash(point)
         local ok = pcall(function() exports.ox_inventory:openInventory('stash', res.id) end)
         if not ok then toast(L('err_failed'), 'error') end
     elseif res.mode == 'qbold' then
+        -- classic stash event (qb-inventory 1.x, lj, qs; the server never picks it for ps-inventory)
         TriggerServerEvent('inventory:server:OpenInventory', 'stash', res.id, { maxweight = res.weight, slots = res.slots })
         TriggerEvent('inventory:client:SetCurrentStash', res.id)
     elseif res.mode == 'own' then

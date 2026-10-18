@@ -24,6 +24,8 @@
           opts = { forward = true } only moves forward; { force = true } ignores maxUnits
       NZA.Dispatch.Respond(src, callId) → ok, err    NZA.Dispatch.Clear(src, callId?, reason) → ok, err
       NZA.Dispatch.Assign(callId, targetSrc, bySrc) → ok, err
+      NZA.Dispatch.Page(src, { kind?, priority 1..3, title, text?, hospital? }) → bool
+                                                      one line on that medic's pager (page log, LCD, beep)
       NZA.Dispatch.Decline(src, callId)
       NZA.Dispatch.Active() → { call, … } (newest first)      NZA.Dispatch.CallOf(src) → call | nil
       NZA.Dispatch.CallForPatient(p) → call | nil
@@ -42,6 +44,7 @@
       nza:dispatch:me     (me)                            own unit record changed
       nza:dispatch:stage  (callId, stage, extra)          this unit's stage changed (toasts, GPS)
       nza:dispatch:assigned (call, byName)                dispatch assigned this unit
+      nza:dispatch:page   { id, kind, priority, title, text, hospital }   pager line (NZA.Dispatch.Page)
       nza:dispatch:units  (units[])                       roster changed
       nza:dispatch:police (summary)                       on-duty police, violent calls only
       nza:wounded:help    { eta, unit, status }           patient players (through NZA.Wounded.Help)
@@ -937,6 +940,23 @@ function D.Assign(id, target, by)
     return true
 end
 
+-- one line on a medic's pager (page log + LCD + beep), e.g. a new hospital check-in
+local pageSeq = 0
+function D.Page(src, msg)
+    src = tonumber(src)
+    if not src or type(msg) ~= 'table' or not online(src) then return false end
+    local title, text = str(msg.title, 48), str(msg.text, 120)
+    if not title and not text then return false end
+    pageSeq = pageSeq + 1
+    TriggerClientEvent('nza:dispatch:page', src, {
+        id = ('PG-%d-%d'):format(now(), pageSeq),
+        kind = str(msg.kind, 16) or 'page',
+        priority = U.clamp(math.floor(tonumber(msg.priority) or 3), 1, 3),
+        title = title, text = text, hospital = str(msg.hospital, 48),
+    })
+    return true
+end
+
 -- ════════════════════════════════════════════════════════════════════════
 -- BOARD
 -- ════════════════════════════════════════════════════════════════════════
@@ -1020,8 +1040,11 @@ function D.Board(src)
     for _, c in ipairs(list) do if c.priority == 1 then p1 = p1 + 1 end end
     local avg, served = responseStats()
     local queue = checkinQueue()
+    -- "Call next" on the ER intake page (nza:checkin:callNext checks the same permission)
+    local deskPerm = (Config.Checkin and Config.Checkin.desk and Config.Checkin.desk.perm) or 'checkin'
     return {
         now = now(), calls = list, units = unitsList, hospitals = hosp, queue = queue, queueAvailable = queue ~= nil,
+        canCallNext = queue ~= nil and NZA.Staff.Can(src, deskPerm) == true,
         incoming = incoming, recent = recent,
         stats = { active = #list, p1 = p1, available = available, onDuty = #unitsList - offDuty, onCall = onCall,
                   avgResponse = avg, served = served, waiting = queue and #queue or nil },
