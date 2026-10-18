@@ -2071,7 +2071,12 @@
      7 Feed the tube    tool 8 tube: hold LMB and drag toward the head; stop at 10–14 cm, {Enter} clamps it
      8 Connect          tool 9 drain: click — blood / air drains, the lung re-expands
    Decompression (front of the chest): 1 feel the collarbone and count down, mark the 2nd space
-   under the middle of the collarbone · 2 push the needle in (hold LMB) until the air hisses out.
+   under the middle of the collarbone · 2 push the 14 G cannula in (hold LMB) until the air hisses
+   out; the needle comes back out and the catheter stays in.
+   Custom meshes (meshes(S)): nitrile-gloved hand (swept fingers, knuckles, thenar pad, gown sleeve),
+   skin marker, curved artery clamp (Roberts pattern, box joint, ratchet, rings; set({ open })),
+   14 G cannula (set({ needle, flash })), 28 Fr chest tube + connector + drain line (depth / fill /
+   drain), spun-bond fenestrated drape, cotton sheet. sweepGeo() builds the swept shapes.
    ═══════════════════════════════════════════════════════════ */
 (() => {
   'use strict';
@@ -2222,7 +2227,7 @@
     ax.fillStyle = '#c4c4c4'; ax.fillRect(0, 0, n, n);
     // density clouds (thicker / thinner web)
     for (let i = 0; i < 140; i++) {
-      const cx = r() * n, cy = r() * n, rad = 18 + r() * 60, v = r() < 0.5 ? 0 : 255, al = 0.035 + r() * 0.05;
+      const cx = r() * n, cy = r() * n, rad = 18 + r() * 60, v = r() < 0.5 ? 0 : 255, al = 0.015 + r() * 0.025;
       wrapDraw(n, cx, cy, rad, (X, Y) => {
         const g = ax.createRadialGradient(X, Y, 0, X, Y, rad);
         g.addColorStop(0, `rgba(${v},${v},${v},${al})`); g.addColorStop(1, `rgba(${v},${v},${v},0)`);
@@ -2338,10 +2343,10 @@
       // nitrile exam glove: cobalt blue, satin, a little translucency at the thin edges (sheen)
       glove: keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x2440b4), roughness: 0.4, normalMap: gloveN, normalScale: new THREE.Vector2(0.32, 0.32), sheen: 0.35, sheenRoughness: 0.45, sheenColor: new THREE.Color(0x6f86e8), clearcoat: 0.45, clearcoatRoughness: 0.32 })),
       sleeve: keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x1d3a4a), map: cotA, normalMap: cotN, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.9, sheen: 0.5, sheenColor: new THREE.Color(0x6aa4b4) })),
-      tube: keep(new THREE.MeshPhysicalMaterial({ color: 0xeef8ff, roughness: 0.08, transparent: true, opacity: 0.34, clearcoat: 1, clearcoatRoughness: 0.04, depthWrite: false, side: THREE.DoubleSide })),
+      tube: keep(new THREE.MeshPhysicalMaterial({ color: 0xd6e9f2, roughness: 0.06, transparent: true, opacity: 0.24, clearcoat: 1, clearcoatRoughness: 0.03, depthWrite: false, side: THREE.DoubleSide })),
       tubeEdge: keep(new THREE.MeshPhysicalMaterial({ color: 0xdfeff6, roughness: 0.15, transparent: true, opacity: 0.5, clearcoat: 1, depthWrite: false })),
       stripe: keep(new THREE.MeshStandardMaterial({ color: 0x1f5fd1, roughness: 0.4 })),
-      blood: keep(new THREE.MeshPhysicalMaterial({ color: 0x4e0306, roughness: 0.22, clearcoat: 0.8, transparent: true, opacity: 0.94 })),
+      blood: keep(new THREE.MeshPhysicalMaterial({ color: 0x3a0204, roughness: 0.2, clearcoat: 0.9, clearcoatRoughness: 0.15, transparent: true, opacity: 0.97 })),
       mark: keep(new THREE.MeshBasicMaterial({ color: 0x15181a })),
       barrel: keep(new THREE.MeshPhysicalMaterial({ color: 0xf1f3f4, roughness: 0.34, clearcoat: 0.5, clearcoatRoughness: 0.3 })),
       ink: keep(new THREE.MeshPhysicalMaterial({ color: 0x5b2f9c, roughness: 0.35, clearcoat: 0.5 })),
@@ -2880,11 +2885,13 @@
     const slope = -0.12 * ant;
     const ribV = (n, u) => 0.5 + SP / 2 - (n - 5) * SP + slope * (u - 0.5);
     const target = [0.5, ribV(5, 0.5) - SP / 2];                   // 5th space, mid-axillary line
+    // ribs: overlapping soft bumps (spacing ≈ 0.6 × radius) sum into continuous ridges under the skin
     for (let n = 3; n <= 9; n++) {
-      for (let u = 0.17; u <= 0.835; u += 0.03) {
+      for (let u = 0.17; u <= 0.835; u += 0.02) {
         const v = ribV(n, u);
         if (v < 0.06 || v > 0.94) continue;
-        S.bumps.add({ uv: [u, v], radius: 0.015, height: 0.00125 * (1 - 0.35 * Math.abs(u - 0.5) * 2) });
+        const edge = smooth(0.17, 0.26, u) * smooth(0.835, 0.745, u);
+        S.bumps.add({ uv: [u, v], radius: 0.02, height: 0.0007 * (1 - 0.35 * Math.abs(u - 0.5) * 2) * edge });
       }
     }
     // muscle edges of the safe triangle: chest muscle (front), back muscle (behind), armpit hollow above
@@ -3468,10 +3475,11 @@
     const target = [mcl, ribV(2, mcl) - SP / 2];
     const MS = meshes(S);
     const ink = Ink(S);
-    for (let u = 0.06; u <= 0.95; u += 0.034) S.bumps.add({ uv: [u, clavV(u)], radius: 0.014, height: 0.0042 });
+    // collarbone + ribs as continuous ridges (overlapping soft bumps, tapered at the ends)
+    for (let u = 0.15; u <= 0.85; u += 0.02) S.bumps.add({ uv: [u, clavV(u)], radius: 0.022, height: 0.0018 * smooth(0.15, 0.26, u) * smooth(0.85, 0.74, u) });
     S.bumps.add({ uv: [0.5 - 0.36 * med, clavV(0.5 - 0.36 * med) - 0.02], radius: 0.05, height: 0.004 });     // shoulder / chest muscle
     S.bumps.add({ uv: [0.5 - 0.06 * med, clavV(0.5) + 0.05], radius: 0.04, height: -0.0035 });                 // hollow above the collarbone
-    for (let n = 2; n <= 6; n++) for (let u = 0.1; u <= 0.9; u += 0.036) { const v = ribV(n, u); if (v > 0.05) S.bumps.add({ uv: [u, v], radius: 0.013, height: 0.0016 }); }
+    for (let n = 2; n <= 5; n++) for (let u = 0.2; u <= 0.8; u += 0.0167) { const v = ribV(n, u); if (v > 0.05) S.bumps.add({ uv: [u, v], radius: 0.017, height: 0.00078 * smooth(0.2, 0.3, u) * smooth(0.8, 0.7, u) }); }
     S.bumps.add({ uv: [0.5 + 0.42 * med, 0.5], radius: 0.06, height: -0.0016 });                              // groove over the breastbone
     S.bumps.add({ uv: [0.5 + 0.43 * med, clavV(0.5 + 0.43 * med) + 0.01], radius: 0.022, height: -0.003 });      // notch above the breastbone
     const nip = [0.5 - 0.02 * med, ribV(4, 0.5) - SP * 0.5];

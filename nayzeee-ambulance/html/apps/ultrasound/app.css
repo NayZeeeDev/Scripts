@@ -81,7 +81,7 @@
 #app-ultrasound .mm-tag:empty{display:none}
 #app-ultrasound .mm-tag.teal{color:var(--us-teal);border-color:rgba(15,212,196,.35)}
 #app-ultrasound .mm-tag.red{color:#ff8a8d;border-color:rgba(229,72,77,.45)}
-#app-ultrasound .sc-flag{position:absolute;left:10px;bottom:10px}
+#app-ultrasound .sc-flag{position:absolute;right:30px;top:8px;z-index:3}
 #app-ultrasound .sc-flag span{display:inline-flex;align-items:center;height:20px;padding:0 9px;border-radius:5px;font:700 9.5px/1 var(--mono);letter-spacing:.1em;color:var(--us-teal);background:rgba(0,0,0,.72);border:1px solid rgba(15,212,196,.35)}
 #app-ultrasound .sc-flag span.red{color:#ff8a8d;border-color:rgba(229,72,77,.5);animation:nza-blink .8s steps(1) infinite}
 #app-ultrasound .sc-noc{position:absolute;inset:0;display:none;place-items:center;pointer-events:none}

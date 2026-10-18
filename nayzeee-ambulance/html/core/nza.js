@@ -17,7 +17,7 @@
      NZA.mock('<app>:<event>', fnOrValue)          preview-only replies for NZA.post
 
    KIT  NZA.ui.ProcPanel · FlipClock · Hold · Segmented · Toggle · Slider · Chips · Modal
-        Win · Anchors · Marker · Meter · KeyHints
+        Win · Anchors · Marker · Meter · KeyHints · BodyGlyph · Ring (the last two return HTML)
         NZA.toast · NZA.speech · NZA.prompt · NZA.audio · NZA.fmt · NZA.t · NZA.icon
    ═══════════════════════════════════════════════════════════ */
 (() => {
@@ -383,7 +383,9 @@
      Layout: an instruction column anchored bottom-left (readouts, step spine, text, key
      legend) and a vertical tool belt on the right edge with the hold-to-abort ring under
      it. The centre and bottom-centre of the screen stay clear for the scene.
-     opts.side 'right' mirrors it (column right, belt left) for apps that need the left. */
+     opts.side 'right' mirrors it (column right, belt left) for apps that need the left.
+     opts.skipped [n…] (1-based step numbers) draws those spine nodes as skipped (dashed);
+     pp.set({ skipped }) updates them. total <= 1 hides the spine and the body takes the full width. */
   const TOOL_ICONS = [
     [/saline|flush|irrigat|water|rinse|cool/i, 'drop'], [/lido|syringe|inject|txa|adrenal|epi|amio|naloxone|morphine|push|dose|cuff syr/i, 'syringe'],
     [/gauze|pack/i, 'gauze'], [/dressing|bandage|foil|plaster|tape/i, 'bandage'], [/needle|suture|stitch|driver/i, 'needle'],
@@ -430,12 +432,22 @@
       </nav>`;
     const q = s => root.querySelector(s);
 
+    // o.skipped: [n…] step numbers; a Set or a { [n]: true } map also works
+    function skippedSet() {
+      const sk = o.skipped;
+      if (sk instanceof Set) return new Set([...sk].map(Number));
+      if (Array.isArray(sk)) return new Set(sk.map(Number));
+      if (sk && typeof sk === 'object') return new Set(Object.keys(sk).filter(k => sk[k]).map(Number));
+      return new Set();
+    }
     function renderStep() {
       const total = Math.max(1, o.total | 0), step = clamp(o.step | 0, 1, total);
+      const sk = skippedSet();
       q('.pp-step .n').innerHTML = `<b>${String(step).padStart(2, '0')}</b><i>/${String(total).padStart(2, '0')}</i>`;
-      q('.pp-segs').innerHTML = Array.from({ length: total }, (_, i) => `<i class="${i + 1 < step ? 'done' : i + 1 === step ? 'cur' : ''}"></i>`).join('');
+      q('.pp-segs').innerHTML = Array.from({ length: total }, (_, i) => `<i class="${i + 1 === step ? 'cur' : sk.has(i + 1) ? 'skip' : i + 1 < step ? 'done' : ''}"></i>`).join('');
       q('.pp-spine .trk i').style.height = total > 1 ? `${((step - 1) / (total - 1)) * 100}%` : '0%';
       q('.pp-spine').style.display = total > 1 ? '' : 'none';
+      root.classList.toggle('pp--flat', total <= 1);
       q('.pp-tag').textContent = o.tag || '';
       const nx = q('.pp-next');
       const name = Array.isArray(o.steps) ? o.steps[step] : null;
@@ -464,6 +476,13 @@
       if (m.mark !== undefined && m.mark !== null) { const [x0, y0] = pt(m.mark, R + 7), [x1, y1] = pt(m.mark, R - 7); mark = `<line class="mark" x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}"/>`; }
       return `<svg viewBox="0 0 120 104"><path class="trk" d="${arc(0, 1)}"/>${zone}${fill}<g class="ticks">${ticks}</g>${mark}</svg>`;
     }
+    // the dial value sits inside the ring (about 70 px wide): estimate the width from the mono
+    // advance (24 px → 13.7 px, 17 px → 9.7 px per char, unit ≈ 7 px per char) and shrink long values
+    function dialFit(value, unit) {
+      const n = String(value ?? '--').length, u = unit ? 2 + String(unit).length * 7 : 0;
+      if (n * 13.7 + u <= 70) return '';
+      return n * 9.7 + u <= 72 ? ' long' : ' xlong';
+    }
     function renderStats() {
       const read = q('.pp-read');
       const stats = o.stats || [], w = o.wide;
@@ -474,7 +493,7 @@
       g.className = `pp-gauge${w && !dial ? ' flat' : ''}`;
       if (w) {
         g.innerHTML = `${dial ? gaugeSVG(w.meter) : ''}
-          <div class="gv"><div class="l">${esc(w.label || '')}</div><div class="v ${w.tone || ''}">${esc(w.value ?? '--')}${w.unit ? `<span class="u">${esc(w.unit)}</span>` : ''}</div></div>
+          <div class="gv"><div class="l">${esc(w.label || '')}</div><div class="v ${w.tone || ''}${dial ? dialFit(w.value, w.unit) : ''}">${esc(w.value ?? '--')}${w.unit ? `<span class="u">${esc(w.unit)}</span>` : ''}</div></div>
           ${w.caption ? `<div class="cap ${w.captionTone || ''}">${rich(w.caption)}</div>` : ''}`;
       }
       const box = q('.pp-stats');
@@ -528,7 +547,7 @@
       el: root,
       set(n) {
         const prev = o; o = Object.assign({}, o, n);
-        if ('step' in n || 'total' in n || 'tag' in n || 'steps' in n) renderStep();
+        if ('step' in n || 'total' in n || 'tag' in n || 'steps' in n || 'skipped' in n) renderStep();
         if (('title' in n && n.title !== prev.title) || ('text' in n && n.text !== prev.text) || 'titleTone' in n) renderText();
         if ('stats' in n || 'wide' in n) renderStats();
         if ('tools' in n) renderTools();
@@ -552,7 +571,8 @@
       complete({ title, text, label = t('ui.done', 'Done'), onDone } = {}) {
         o.step = o.total; renderStep();
         api.set({ title: title || t('ui.complete', 'Complete'), titleTone: 'ok', text: text || '' });
-        q('.pp-segs').querySelectorAll('i').forEach(i => { i.className = 'done'; });
+        const sk = skippedSet();
+        q('.pp-segs').querySelectorAll('i').forEach((i, k) => { i.className = sk.has(k + 1) ? 'skip' : 'done'; });
         q('.pp-spine .trk i').style.height = '100%';
         o.tools = []; renderTools();
         const act = q('.pp-act');
@@ -606,7 +626,7 @@
     return { el: root, set(v) { root.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === String(v))); } };
   }
   function Toggle(host, { on = false, onChange } = {}) {
-    const b = el('button', `tg ${on ? 'on' : ''}`, '<i></i>');
+    const b = el('button', `tg nza-tg ${on ? 'on' : ''}`, '<i></i>');
     b.addEventListener('click', () => { b.classList.toggle('on'); onChange && onChange(b.classList.contains('on')); });
     host.appendChild(b);
     return { el: b, set(v) { b.classList.toggle('on', !!v); }, get() { return b.classList.contains('on'); } };
@@ -744,6 +764,60 @@
     host.innerHTML = `<div class="pp-hints" style="margin:0">${hints.map(h => `<span>${(h.keys || []).map(k => `<kbd>${esc(k)}</kbd>`).join('+')} ${esc(h.label)}</span>`).join('')}</div>`;
   }
 
+  /* ── Body glyph: holographic front-view body, 15 regions (the patient's left is on the viewer's right) ──
+     NZA.ui.BodyGlyph(states, focus) → SVG html (styled by .nza-body; size it with the parent box)
+       states  { region: 'red' | 'amber' | 'teal' }   aliases: face → head, back → chest
+       focus   region            one pulsing diamond hotspot, its segment pulses too ('back' adds a BACK tag)
+               [region | { region, tone }, …]   several hotspots (tone defaults to the region's state) */
+  const BODY_SEGS = [
+    ['head', '<ellipse cx="32" cy="11" rx="7.2" ry="8.8"/>'],
+    ['neck', '<rect x="28.6" y="20.2" width="6.8" height="5.8" rx="2"/>'],
+    ['chest', '<path d="M21.5 26.6h21a5 5 0 0 1 5 5v11.6h-31V31.6a5 5 0 0 1 5-5z"/>'],
+    ['abdomen', '<rect x="18.8" y="44.6" width="26.4" height="10.8" rx="2.6"/>'],
+    ['pelvis', '<path d="M18.8 56.8h26.4v5.6a4.6 4.6 0 0 1-4.6 4.6H23.4a4.6 4.6 0 0 1-4.6-4.6z"/>'],
+    ['r_upper_arm', '<rect x="10.8" y="28.4" width="6.4" height="17" rx="3.2" transform="rotate(9 14 28.4)"/>'],
+    ['r_lower_arm', '<rect x="8.3" y="46.4" width="5.8" height="18" rx="2.9" transform="rotate(5 11.2 46.4)"/>'],
+    ['l_upper_arm', '<rect x="46.8" y="28.4" width="6.4" height="17" rx="3.2" transform="rotate(-9 50 28.4)"/>'],
+    ['l_lower_arm', '<rect x="49.9" y="46.4" width="5.8" height="18" rx="2.9" transform="rotate(-5 52.8 46.4)"/>'],
+    ['r_upper_leg', '<rect x="20.4" y="68.4" width="10.2" height="27" rx="5"/>'],
+    ['r_lower_leg', '<rect x="21.4" y="96.8" width="8.2" height="28.4" rx="4"/>'],
+    ['l_upper_leg', '<rect x="33.4" y="68.4" width="10.2" height="27" rx="5"/>'],
+    ['l_lower_leg', '<rect x="34.4" y="96.8" width="8.2" height="28.4" rx="4"/>'],
+  ];
+  const BODY_ALIAS = { face: 'head', back: 'chest' };
+  const BODY_PT = {
+    head: [32, 11], face: [32, 13], neck: [32, 23], chest: [32, 35], back: [32, 35], abdomen: [32, 50], pelvis: [32, 61.5],
+    r_upper_arm: [12.7, 37], r_lower_arm: [10.4, 55.4], l_upper_arm: [51.3, 37], l_lower_arm: [53.6, 55.4],
+    r_upper_leg: [25.5, 81.5], r_lower_leg: [25.5, 110], l_upper_leg: [38.5, 81.5], l_lower_leg: [38.5, 110],
+  };
+  const toneOk = v => typeof v === 'string' && /^[\w-]+$/.test(v);
+  // scan lines as one path (no <pattern> id, so any number of glyphs can share a page)
+  const BODY_SCAN = `<path class="scan" d="${Array.from({ length: 60 }, (_, i) => `M0 ${(i * 2.2 + 0.5).toFixed(1)}h64`).join('')}"/>`;
+  function BodyGlyph(states, focus) {
+    const st = {};
+    Object.entries(states || {}).forEach(([r, v]) => { if (toneOk(v)) st[BODY_ALIAS[r] || r] = v; });
+    const multi = Array.isArray(focus);
+    const one = !multi && focus ? String(focus) : null;
+    const seg = one ? (BODY_ALIAS[one] || one) : null;
+    const segs = BODY_SEGS.map(([r, shape]) => `<g class="bs ${st[r] || ''}${seg === r ? ' fx' : ''}" data-r="${r}">${shape}</g>`).join('');
+    const spots = (multi ? focus : one ? [one] : []).map(f => (f && typeof f === 'object' ? f : { region: f }))
+      .filter(f => BODY_PT[f.region])
+      .map(f => [BODY_PT[f.region], toneOk(f.tone) ? f.tone : (st[BODY_ALIAS[f.region] || f.region] || 'red')]);
+    const d = multi ? 3.2 : 3.4;
+    const hot = spots.map(([p, tone], k) => `<g class="hot ${tone}" transform="translate(${p[0]} ${p[1]})"><circle class="pl" r="4.6"${k ? ` style="animation-delay:${(k * 0.4).toFixed(1)}s"` : ''}/><path class="dm" d="M0 -${d} ${d} 0 0 ${d} -${d} 0z"/></g>`).join('');
+    const back = one === 'back' ? `<text class="bk" x="32" y="40">${esc(String(t('ui.back_tag', 'BACK')))}</text>` : '';
+    return `<svg class="nza-body" viewBox="0 0 64 132" aria-hidden="true"><ellipse class="pad" cx="32" cy="128.4" rx="17" ry="2.6"/>${segs}${BODY_SCAN}${hot}${back}</svg>`;
+  }
+
+  /* ── Status ring: value in the middle, track + fill, label under it, optional heartbeat ping ──
+     NZA.ui.Ring({ value, frac 0..1, tone, label, unit, beat }) → html
+       tone  '' | teal | red | amber | white | green | cyan | yellow      beat  seconds per ping (0 = off) */
+  const RING_C = 2 * Math.PI * 18;
+  function Ring({ value = '--', frac = 0, tone = '', label = '', unit = '', beat = 0 } = {}) {
+    const f = clamp(Number(frac) || 0, 0, 1), b = Number(beat) || 0;
+    return `<div class="nza-ring ${esc(tone || '')}"${b > 0 ? ` style="--beat:${b.toFixed(2)}s"` : ''}><span class="rg"><svg viewBox="0 0 44 44"><circle class="b" cx="22" cy="22" r="18"/><circle class="f" cx="22" cy="22" r="18" stroke-dasharray="${RING_C.toFixed(1)}" stroke-dashoffset="${(RING_C * (1 - f)).toFixed(1)}"/></svg><b>${esc(String(value ?? '--'))}</b>${b > 0 ? '<i class="bt"></i>' : ''}</span><em>${esc(String(label ?? ''))}${unit ? `<small>${esc(String(unit))}</small>` : ''}</em></div>`;
+  }
+
   /* ── canvas sizing that respects app zoom + device pixel ratio ── */
   function fitCanvas(cv, zoomed = true) {
     const z = zoomed ? (NZA.zoom || 1) : 1;
@@ -790,7 +864,7 @@
     inGame, resource, app, open, close: (n) => close(n, true), closeLocal: (n) => close(n, false), isOpen, demo, boot,
     post, mock: (name, v) => { mocks[name] = v; }, toast, speech, prompt, promptHide,
     audio, fmt, t, icon, rich, esc, el, clamp, fitCanvas, pointer, get stack() { return [...stack]; }, get cfg() { return cfg; },
-    ui: { ProcPanel, FlipClock, Hold, Segmented, Toggle, Slider, Chips, Modal, Win, Anchors, Marker, Meter, meterHTML, KeyHints },
+    ui: { ProcPanel, FlipClock, Hold, Segmented, Toggle, Slider, Chips, Modal, Win, Anchors, Marker, Meter, meterHTML, KeyHints, BodyGlyph, Ring },
     apps,
   };
 })();

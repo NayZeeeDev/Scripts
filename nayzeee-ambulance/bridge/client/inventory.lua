@@ -15,6 +15,11 @@
     ox_inventory, qb-style inventories and plain ESX are read locally. Every
     other inventory is read through the server callback 'nza:bridge:inv:counts'
     and cached for a moment (a stale value is returned while it refreshes).
+    Requests respect the server's 200 ms throttle and carry every name in use.
+
+    Net event 'nza:bridge:inv:openStash' (id, { label, slots, weight }) is the
+    client half of the server Bridge.Inv.OpenStash for qb-inventory 1.x,
+    lj-inventory and qs-inventory.
     ═══════════════════════════════════════════════════════════════════════════
 ]]
 
@@ -87,19 +92,23 @@ AddEventHandler('onClientResourceStop', reset)
 -- SERVER-BACKED CACHE
 -- ═══════════════════════════════════════════════════════════════════════════
 
-local cache = {}      -- [name] = { count = n, at = ms }
+local cache = {}      -- [name] = { count = n, at = ms fetched, read = ms last asked for }
 local pending = {}    -- names waiting for the next request
 local requesting = false
 local lastAt = nil    -- GetGameTimer() of the last 'nza:bridge:inv:counts' request
 local failed = 0      -- requests in a row the server answered with nothing
 
--- the server answers one request per 200 ms per player and nil to anything sooner
--- (bridge/server/inventory.lua 'inv:counts'); keep a little margin above that
+-- the server answers one request per 200 ms per player and nil to anything sooner,
+-- and reads at most 40 names per request (bridge/server/inventory.lua 'inv:counts')
 local GAP_MS = 220
-local RETRIES = 3
+local RETRIES = 3         -- quick retries after a nil answer
+local BACKOFF_MS = 2000   -- gap after that, until an answer comes back
+local MAX_NAMES = 40
+local SOON_MS = CACHE_MS // 2   -- names still in use that go stale this soon ride along
 
 local function waitForGap(minWait)
-    local left = lastAt and (GAP_MS - (GetGameTimer() - lastAt)) or 0
+    local gap = failed > RETRIES and BACKOFF_MS or GAP_MS
+    local left = lastAt and (gap - (GetGameTimer() - lastAt)) or 0
     local ms = math.max(minWait or 0, left)
     if ms > 0 then Wait(ms) end
 end
@@ -109,26 +118,39 @@ local function flush()
     requesting = true
     CreateThread(function()
         waitForGap(50)
-        local names = {}
-        for name in pairs(pending) do names[#names + 1] = name end
-        pending = {}
+        local names, batch = {}, {}
+        for name in pairs(pending) do
+            if #names >= MAX_NAMES then break end
+            names[#names + 1] = name
+            batch[name] = true
+        end
+        for name in pairs(batch) do pending[name] = nil end
         if #names > 0 then
+            -- one request instead of one per name: refresh what is still being read
+            local t = GetGameTimer()
+            for name, e in pairs(cache) do
+                if #names >= MAX_NAMES then break end
+                if not batch[name] and t - (e.read or 0) < CACHE_MS and t - e.at > CACHE_MS - SOON_MS then
+                    names[#names + 1] = name
+                    batch[name] = true
+                end
+            end
             lastAt = GetGameTimer()
             local result = lib.callback.await('nza:bridge:inv:counts', false, names)
             local now = GetGameTimer()
             if type(result) == 'table' then
                 failed = 0
                 for _, name in ipairs(names) do
-                    cache[name] = { count = tonumber(result[name]) or 0, at = now }
+                    local prev = cache[name]
+                    cache[name] = { count = tonumber(result[name]) or 0, at = now, read = prev and prev.read or now }
+                    pending[name] = nil   -- read again (still stale) while this request was out
                 end
             else
-                -- throttled: ask again after the gap. After a few misses in a row the
-                -- names are dropped; the next Count/Has queues them again.
+                -- throttled: ask again after the gap. After a few misses in a row the names
+                -- are dropped and the gap grows to BACKOFF_MS; the next Count/Has queues them again.
                 failed = failed + 1
                 if failed <= RETRIES then
                     for _, name in ipairs(names) do pending[name] = true end
-                else
-                    failed = 0
                 end
             end
         end
@@ -138,8 +160,10 @@ local function flush()
 end
 
 local function cached(name)
+    local now = GetGameTimer()
     local entry = cache[name]
-    if not entry or GetGameTimer() - entry.at > CACHE_MS then
+    if entry then entry.read = now end
+    if not entry or now - entry.at > CACHE_MS then
         pending[name] = true
         flush()
     end
@@ -170,7 +194,10 @@ function Bridge.Inv.CountAwait(name)
     lastAt = GetGameTimer()
     local result = lib.callback.await('nza:bridge:inv:counts', false, { name })
     local n = type(result) == 'table' and tonumber(result[name]) or nil
-    if n then cache[name] = { count = n, at = GetGameTimer() } end
+    if n then
+        local now = GetGameTimer()
+        cache[name] = { count = n, at = now, read = now }
+    end
     return n or Bridge.Inv.Count(name)
 end
 

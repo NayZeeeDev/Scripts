@@ -584,7 +584,7 @@
     const n = valueNoise(o.seed), R = rng(o.seed ^ 0x2a);
     const cv = mkCanvas(w, h), c = cv.getContext('2d'), id = c.createImageData(w, h), d = id.data;
     const hgt = new Float32Array(w * h);
-    const PINK = [226, 172, 152], PINK2 = [206, 146, 128], WHITE = [238, 216, 200];
+    const PINK = [218, 156, 138], PINK2 = [196, 128, 112], WHITE = [236, 206, 190];
     const expand = o.expand || 1, mode = o.mode || 'raw';
     // diamond lattice in the expanded sheet: cells of pitch px (along L) × py (across)
     const px = o.ratio === '1:3' ? 5.2 : 3.6, py = o.ratio === '1:3' ? 4.2 : 2.6;
@@ -3249,7 +3249,7 @@
       const sStart = -clamp(Lneed * MM / 2 + 0.01, 0.03, 0.078), Lmax = 140;
       // a slightly oblique view from the side the blade travels to: the trailing handle leans away and
       // the raw donor bed behind the head stays in sight
-      SB.controls.frame(SB.stToUv(sStart + Lneed * MM * 0.5, 0.004), clamp((Lneed * MM + 0.1) / 0.62, 0.24, 0.36), { yaw: 0.42, pitch: 1.02 });
+      SB.controls.frame(SB.stToUv(sStart + Lneed * MM * 0.5, 0.006), clamp((Lneed * MM + 0.1) / 0.56, 0.26, 0.38), { yaw: 0.3, pitch: 1.08 });
       g.hv = {
         sStart, Lneed, L3, Lmax, cut: 0, front: sStart, p: 0.56, drift: 0, cutting: false, speed: 0,
         thin: new Float32Array(Lmax + 2).fill(1), wobble: new Float32Array(Lmax + 2), qual: new Float32Array(Lmax + 2).fill(1),
@@ -3275,8 +3275,8 @@
         }
         for (let i = 0; i < 6; i++) SB.layers.paint('iodine', SB.stToUv(sStart - 0.02 + R() * (Lneed * MM + 0.04), (R() - 0.5) * prepW), (1 + R() * 2.5) * MM, 0.18 + R() * 0.18, { hardness: 0.3, grain: 0.5 });
       }
-      // dermatome: held about 35° off the skin, handle trailing behind the blade (see alignDerm)
-      const tilt = 0.95;
+      // dermatome: held about 25° off the skin, handle trailing behind the blade (see alignDerm)
+      const tilt = 1.12;
       this.tbB = { derm: mkTool(SB, bin, 'dermatome', buildDermatome(bin, M, tilt), { lift: 0.0042, pressLift: 0.0003, tilt, yaw: Math.PI * 0.97, roll: 0, shadow: 0.07 }) };
       this.tbB.derm.group.visible = true; this.tbB.derm.group.position.set(0, -5, 0);
       SB.prewarm([], false);
@@ -3691,7 +3691,9 @@
       if (Math.abs(c[0]) + Lm / 2 > Wh * 0.95) c = [plan.rx * 0.1, -(plan.ry + Wm / 2 + 0.01)];
       const gr = g.gr = { phase: 'place', size: [Lm, Wm], c: c.slice(), cGoal: c.slice(), ang: 0.12, angGoal: 0.12, lift: 0.0003, liftGoal: 0.0003, carried: false, placed: false, coverage: 0, points: null, staples: [], misses: 0, dirty: true, tex: tx, warnT: 0 };
       const mat = this.binA.own(new THREE.MeshPhysicalMaterial({ map: canvasTex(this.binA, tx.map), normalMap: canvasTex(this.binA, tx.normal, false), normalScale: new THREE.Vector2(0.8, 0.8),
-        roughness: 0.4, clearcoat: 0.85, clearcoatRoughness: 0.12, sheen: 0.18, sheenColor: new THREE.Color(1, 0.8, 0.74), color: new THREE.Color(0.96, 0.9, 0.88), alphaTest: 0.5, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3 }));
+        roughness: 0.42, clearcoat: 0.8, clearcoatRoughness: 0.14, sheen: 0.12, sheenColor: new THREE.Color(1, 0.78, 0.72), color: new THREE.Color(0.93, 0.84, 0.82),
+        // a split-thickness graft is thin: the red bed glows faintly through it
+        transparent: true, opacity: 0.9, alphaTest: 0.5, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3 }));
       gr.mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
       gr.mesh.castShadow = true; gr.mesh.receiveShadow = true; gr.mesh.renderOrder = 3;
       S.scene.add(gr.mesh);
@@ -3894,7 +3896,16 @@
       const g = this.g, D = g.dr.D;
       g.dr.rub = false;
       if (!D) return;
-      if (D.state === 'carried') { D.release(); g.dr.settledT = 0; this.stage.classList.remove('grabbing'); }
+      if (D.state === 'carried') { D.release(); g.dr.settledT = 0; g.dr.tacked = false; this.stage.classList.remove('grabbing'); }
+    },
+    tackDressing(D) {
+      const S = this.S, c = D.center(), at = S.raycast(S.project(c));
+      if (!at) return;
+      const sz = D.size || [0.06, 0.04];
+      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+        const sp = S.surfaceAt(S.stToUv(at.s + i * sz[0] * 0.3, at.t + j * sz[1] * 0.3));
+        if (sp && sp.point) D.rub({ point: sp.point, normal: sp.normal }, 0.45);
+      }
     },
     tickDressing(dt) {
       const g = this.g, S = this.S, cfg = this.cfg, D = g.dr.D;
@@ -3908,6 +3919,9 @@
       }
       if (D.state === 'placed' || D.state === 'falling') {
         g.dr.settledT += dt;
+        // hydrogel is tacky: where it lands it grips a little at once, so the sheet does not creep down
+        // the curve of the limb before it is rubbed on
+        if (!g.dr.tacked && g.dr.settledT > 0.18) { g.dr.tacked = true; this.tackDressing(D); }
         if (g.dr.settledT > 0.4 && (g.dr.coverT = (g.dr.coverT || 0) - dt) <= 0) {
           g.dr.coverT = 0.3;
           g.dr.cover = D.covers(this.burnUvs);

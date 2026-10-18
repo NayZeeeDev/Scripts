@@ -26,7 +26,7 @@ NZA.app('kit', {
         <div class="nza-hud rail" style="padding:16px 18px;width:330px">
           <div class="nza-label">Wounded</div>
           <div style="display:flex;align-items:center;gap:16px;margin-top:10px"><div id="flip"></div>
-            <div><div class="nza-h" style="font-size:24px;letter-spacing:.02em">WOUNDED</div><div class="nza-sub" style="text-transform:uppercase;font-size:11px;letter-spacing:.06em">Stabilized — clock paused</div></div></div>
+            <div><div class="nza-h" style="font-size:24px;letter-spacing:.02em">WOUNDED</div><div class="nza-sub" style="text-transform:uppercase;font-size:11px;letter-spacing:.06em">Stable · timer held</div></div></div>
         </div>
         <div class="nza-hud" style="width:330px;overflow:hidden"><div id="mon"></div></div>
         <div class="nza-hud" style="padding:14px;width:330px" id="ctrls"></div>
@@ -40,12 +40,22 @@ NZA.app('kit', {
           <div style="display:flex;gap:10px;align-items:center"><div class="grade">A</div><div class="grade g-C">C</div><div class="grade g-F">F</div>
             <div style="display:flex;gap:6px"><kbd>E</kbd><kbd class="teal">Space</kbd><kbd class="red">ESC</kbd></div></div>
         </div>
+        <div class="nza-hud" style="padding:12px 14px;width:360px;display:flex;gap:18px;align-items:center">
+          <div id="glyph" style="width:64px;height:132px;flex:none"></div>
+          <div id="rings" style="display:flex;gap:14px"></div>
+        </div>
       </div>
     </div>`;
     const flip = NZA.ui.FlipClock(el.querySelector('#flip'), { value: '02:00' });
     let s = 120; setInterval(() => { s = s > 0 ? s - 1 : 120; flip.set(NZA.fmt.time(s)); flip.tone(s < 30 ? 'red' : ''); }, 1000);
     const mon = NZA.vitals.Monitor(el.querySelector('#mon'), { compact: true, height: 140, beep: false });
     mon.update({ hr: 138, spo2: 97, sys: 89, dia: 53, map: 65, rr: 22, temp: 36.1, rhythm: 'stach' });
+    el.querySelector('#glyph').innerHTML = NZA.ui.BodyGlyph({ l_upper_leg: 'red', chest: 'amber', r_lower_arm: 'teal' }, 'l_upper_leg');
+    el.querySelector('#rings').innerHTML = [
+      NZA.ui.Ring({ value: 138, frac: 0.72, tone: 'green', label: 'HR', beat: 60 / 138 }),
+      NZA.ui.Ring({ value: 97, frac: 0.97, tone: 'cyan', label: 'SpO2', unit: '%' }),
+      NZA.ui.Ring({ value: 89, frac: 0.45, tone: 'amber', label: 'Sys' }),
+    ].join('');
     const c = el.querySelector('#ctrls');
     c.innerHTML = '<div class="opt"><div class="opt-t"><b>Easy mode</b><small>Minigames become progress bars</small></div><span id="tg"></span></div><div class="opt"><div class="opt-t"><b>Site</b></div><span id="seg"></span></div><div class="opt col"><div class="opt-t"><b>Roller clamp</b></div><span id="sl"></span></div><span id="ch"></span>';
     NZA.ui.Toggle(c.querySelector('#tg'), { on: true });
@@ -53,7 +63,7 @@ NZA.app('kit', {
     NZA.ui.Slider(c.querySelector('#sl'), { value: 66, format: v => v + '%' });
     NZA.ui.Chips(c.querySelector('#ch'), { options: [{ value: 'a', label: 'Assess', icon: 'pulse' }, { value: 'b', label: 'Suture', icon: 'needle' }, { value: 'c', label: 'Surgery', icon: 'scalpel' }], values: ['a', 'c'] });
     this.pp = NZA.ui.ProcPanel(el, {
-      step: 3, total: 4, tag: 'Suture · Chest', steps: ['Irrigate', 'Anaesthetise', 'Suture the cut', 'Apply dressing'], title: 'Suture the cut', text: 'Pull down to the far edge, then release to tie the stitch. Hold {Click} to drag.',
+      step: 3, total: 4, skipped: [2], tag: 'Suture · Chest', steps: ['Irrigate', 'Anaesthetise', 'Suture the cut', 'Apply dressing'], title: 'Suture the cut', text: 'Pull down to the far edge, then release to tie the stitch. Hold {Click} to drag.',
       stats: [{ label: 'Site', value: 'Chest', small: true }, { label: 'Length', value: 56, unit: 'mm' }, { id: 'bleed', label: 'Bleed', value: '2.4', unit: 'mL/min', tone: 'red' }],
       wide: { label: 'Section', value: '6', unit: '/7', meter: { value: 0.82, zone: [0.75, 0.95], mark: 0.86 }, caption: 'Keep the bites even', captionTone: 'teal' },
       tools: [{ key: '1', label: 'Saline', state: 'done' }, { key: '2', label: 'Lidocaine', state: 'done' }, { key: '3', label: 'Gauze', state: 'done' }, { key: '4', label: 'Needle driver', state: 'active' }, { key: '5', label: 'Dressing' }],
@@ -80,9 +90,9 @@ NZA.applyBg = (() => { document.body.prepend(NZA.el('div', 'nza-bg')); })();
 NZA.toast({ title: 'Report filed', message: 'MED-215 was saved to the patient record.' });
 NZA.toast({ title: "You're not on duty", message: 'Sign in at the station terminal.', type: 'error' });
 NZA.speech({ name: 'Michael Garcia', text: 'It hurts... it hurts so bad.', ms: 60000 });
-NZA.prompt('desk', { key: 'E', label: 'Check in — treat injuries', sub: 'Check-in Desk' });
-NZA.ui.Marker('kit', 'binder', { label: 'Drop the binder here', at: { x: 0.42, y: 0.42 } });
-NZA.ui.Marker('kit', 'drag', { label: 'Drag splint', tone: 'red', dot: 'red', at: { x: 0.30, y: 0.30 } });
+NZA.prompt('desk', { key: 'E', label: 'Register at the desk', sub: 'Check-in Desk' });
+NZA.ui.Marker('kit', 'binder', { label: 'Place the binder', at: { x: 0.42, y: 0.42 } });
+NZA.ui.Marker('kit', 'drag', { label: 'Drag splint', tone: 'red', dot: 'red', at: { x: 0.30, y: 0.52 } });
 </script>
 </body>
 </html>

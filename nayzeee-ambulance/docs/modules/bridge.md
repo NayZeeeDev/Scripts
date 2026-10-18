@@ -83,12 +83,15 @@ Bridge.GetIdentifier(src)  Bridge.GetSourceFromIdentifier(id)
 Bridge.GetName(src)  Bridge.GetCharInfo(src) → { firstname, lastname, dob, sex = 'm'|'f', phone }
 Bridge.GetJob(src) → { name, label, grade, gradeLabel, onDuty, isBoss }
 Bridge.IsMedic(src) Bridge.IsPolice(src) Bridge.IsOnDuty(src) Bridge.SetDuty(src, bool)
+Bridge.SetJob(src, job, grade) → bool              -- framework job; false on standalone
+Bridge.HasLicense(src, name) → bool                -- framework licence, else ace nza.license.<name>
 Bridge.IsAdmin(src)            -- ace Config.Admin.ace, or a framework group in Config.Admin.groups
 Bridge.GetPlayers()  Bridge.GetMedics(onDutyOnly)
 Bridge.GetMoney(src, 'cash'|'bank')  Bridge.RemoveMoney(src, account, amount, reason) → bool  Bridge.AddMoney(...)
 Bridge.Society.Get(name) / Add(name, amount) / Remove(name, amount) / Resource()
 Bridge.Inv.HasItem / Count(src, name, metaMatch?) / AddItem / RemoveItem(src, name, count, metadata?, slot?)
 Bridge.Inv.CanCarry / GetItems / GetSlot / SetMetadata / Search / RegisterUsable / Label / Image / Clear / Resource
+Bridge.Inv.OpenStash(src, id, { label, slots, weight, owner? }) → bool   -- false = no stash support here
 Bridge.Notify(src, { title, message, type, duration })      -- src = -1 for everyone
 Bridge.Phone.Notify(src, { title, message, app?, icon?, fallback? })  Bridge.Phone.Mail(src, { sender, subject, message })
 Bridge.Phone.Number(src)  Bridge.Phone.Resource
@@ -107,6 +110,33 @@ Notes:
   mirrors the call externally and notifies on-duty medics directly. The dispatch
   module itself should call `Bridge.Dispatch.External(call)` for every call; the
   function returns false unless `externalDispatch` is on.
+- `Bridge.SetJob` (used by the hospital for hire, grade change and fire):
+  - ESX: `xPlayer.setJob`. Refused when `ESX.DoesJobExist` says no. Old ESX
+    returns nothing from `setJob`, so the job is read back to decide.
+  - QBCore: `Player.Functions.SetJob`. Refused when the grade is missing from
+    `QBCore.Shared.Jobs`, because qb-core would otherwise give "No Grades" level 0.
+  - Qbox: `exports.qbx_core:SetJob`, which checks job and grade itself. The
+    `qbx:setjob_replaces` convar decides whether the old job stays in the
+    player's job list.
+  - A grade change on the same job keeps the current duty state, including ESX
+    `off<job>`. A new job uses the framework's default duty.
+  - Standalone returns false (jobs are aces), so the hospital keeps its
+    "excluded" staff row.
+- `Bridge.HasLicense` checks QBCore / Qbox `metadata.licences[name]` and ESX
+  `esx_license:checkLicense` (2 s timeout; it yields, so call it from a thread).
+  Standalone, and ESX without esx_license, use the ace `nza.license.<name>`.
+- `Bridge.Inv.OpenStash` opens the stash itself; the caller checks access first.
+  - ox_inventory: `RegisterStash(id, label, slots, weight, owner and true)`,
+    then `forceOpenInventory(src, 'stash', id)`.
+  - qb-inventory 2.x: `OpenInventory(src, id, { label, maxweight, slots })`.
+  - ps-inventory: `OpenInventory('stash', id, { maxweight, slots }, src)`. ps
+    renamed its stash net events, so the classic qb flow does not reach it.
+  - qb-inventory 1.x, lj-inventory, qs-inventory: the client fires
+    `inventory:server:OpenInventory` + `inventory:client:SetCurrentStash`
+    (event `nza:bridge:inv:openStash`).
+  - codem, origen, tgiann, core_inventory and plain ESX/QB return false, and the
+    caller falls back to its own storage. Add `openStash = fn(src, id, opts)` to
+    the adapter to support one.
 
 ## Client API
 
@@ -138,6 +168,10 @@ Target option format (§16):
 - ox_inventory, qb-style inventories and plain ESX are read locally.
 - Other inventories use the `nza:bridge:inv:counts` callback with a 1.5 s cache.
   The first read returns the cached value (0 at first) while it refreshes.
+- Requests are at least 220 ms apart, so the server's 200 ms throttle never
+  answers nil. One request carries every name still being read, up to the
+  server's 40. A nil answer is retried 3 times, then the gap grows to 2 s until
+  an answer comes back.
 - The server invalidates the cache after every add, remove or clear.
 
 ## Notifications
@@ -176,8 +210,8 @@ handling the event (for example as a fallback), a guard sends it to
 - **qb-inventory:** 2.x uses its exports (`AddItem`, `RemoveItem`,
   `CanAddItem`, `SetItemData`, `GetItemCount`). Older versions use
   `Player.Functions`. The version is read from the resource metadata.
-- **Images:** the inventory's picture is used if that file exists
-  (`LoadResourceFile`). Otherwise `nui://nayzeee-ambulance/html/img/items/<name>.png`,
+- **Images (server and client):** the inventory's picture is used if that file
+  exists (`LoadResourceFile`). Otherwise `nui://nayzeee-ambulance/html/img/items/<name>.png`,
   then `ItemDefs[key].image`, then `nza_unknown.png`.
 
 ## Phones: what was verified
@@ -228,6 +262,7 @@ on-duty medic, else any player.
 | `nza:bridge:phone` | S→C | action, payload | client half of phone adapters |
 | `nza:bridge:dispatch` | S→C | adapter, call, jobs | client half of external dispatch |
 | `nza:bridge:inv:dirty` | S→C | names \| nil | clears the client item cache |
+| `nza:bridge:inv:openStash` | S→C | id, { label, slots, weight } | classic qb stash flow for `Bridge.Inv.OpenStash` |
 | `nza:bridge:vehicle:keys` | C→S | netId, plate | checked: on-duty medic/police, vehicle exists, within `keysDistance`, plate matches, 1 per second |
 | `nza:bridge:vehicle:keys` | S→C | netId, plate | client-side key scripts |
 | `nza:callEMS` | server-local | src, message, coords? | other server scripts only (not net) |
@@ -270,6 +305,15 @@ under plain Lua 5.4. Every scenario passes:
 - QBCore client with ox_target and the built-in fallback, ox_fuel, illenium,
   ps-dispatch
 - every target adapter
+
+The integration harnesses in `/tmp/nza-work/integrate/` also cover the later
+additions:
+- `SetJob` / `HasLicense` on ESX, QBCore and standalone.
+- `OpenStash` on ox_inventory and the classic client flow.
+- The hospital hire, fire and stash paths that call them.
+- The client count cache. A medic idling 60 s next to a patient on standalone
+  sends 36 requests per minute, none throttled. Before the fix it was 87, with
+  28 answered nil.
 
 ## Known limits
 

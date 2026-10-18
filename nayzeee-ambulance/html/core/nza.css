@@ -111,10 +111,11 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .btn-ic{width:32px;padding:0}
 
 /* ═══════════════ CONTROLS (HUD design) ═══════════════ */
-.tg{position:relative;width:40px;height:22px;flex:none;border-radius:99px;background:rgba(255,255,255,.14);transition:background .2s;cursor:pointer}
-.tg i{position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
-.tg.on{background:var(--teal)}
-.tg.on i{transform:translateX(18px);background:var(--on-teal)}
+/* toggle: .nza-tg (NZA.ui.Toggle); button.tg is the legacy alias, so a plain .tg span stays free for apps */
+.nza-tg,button.tg{position:relative;width:40px;height:22px;flex:none;border-radius:99px;background:rgba(255,255,255,.14);transition:background .2s;cursor:pointer}
+.nza-tg i,button.tg i{position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
+.nza-tg.on,button.tg.on{background:var(--teal)}
+.nza-tg.on i,button.tg.on i{transform:translateX(18px);background:var(--on-teal)}
 .segc{display:inline-flex;padding:3px;border-radius:99px;background:var(--inset);border:1px solid var(--line-soft);flex:none}
 .segc button{height:28px;padding:0 13px;border-radius:99px;font-size:12px;font-weight:600;color:var(--ink-2)}
 .segc button.on{background:#f5f6f2;color:#111}
@@ -247,6 +248,7 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .pp-step .n b{font-size:17px;font-weight:700;color:var(--white)}
 .pp-step .n i{font-style:normal}
 .pp-main{display:grid;grid-template-columns:22px 1fr;gap:12px;padding:10px 18px 16px 14px}
+.pp--flat .pp-main{grid-template-columns:1fr;padding-left:18px}
 .pp-spine{position:relative;display:flex;justify-content:center;padding:6px 0}
 .pp-spine .trk{position:absolute;left:50%;top:9px;bottom:9px;width:2px;margin-left:-1px;border-radius:2px;background:rgba(255,255,255,.1)}
 .pp-spine .trk i{position:absolute;left:0;right:0;top:0;height:0;border-radius:2px;background:linear-gradient(var(--teal-hi),var(--teal));box-shadow:0 0 8px rgba(15,212,196,.5);transition:height 420ms cubic-bezier(.2,.7,.2,1)}
@@ -254,6 +256,7 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .pp-segs i{display:block;width:8px;height:8px;border-radius:50%;background:#15181c;border:1.5px solid rgba(255,255,255,.22);transition:all var(--slow)}
 .pp-segs i.done{background:var(--teal);border-color:var(--teal-hi)}
 .pp-segs i.cur{width:14px;height:14px;background:var(--white);border:3px solid var(--teal);box-shadow:0 0 0 4px rgba(8,175,162,.18),0 0 14px rgba(15,212,196,.55);animation:pp-node 1.8s ease-in-out infinite}
+.pp-segs i.skip{background:transparent;border-style:dashed;border-color:rgba(255,255,255,.35)}
 @keyframes pp-node{50%{box-shadow:0 0 0 7px rgba(8,175,162,.06),0 0 18px rgba(15,212,196,.7)}}
 .pp-body{min-width:0}
 .pp-body.swap{animation:pp-swap 260ms cubic-bezier(.2,.7,.2,1) both}
@@ -290,9 +293,12 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .pp-gauge .fill.white{stroke:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.5))}
 .pp-gauge .ticks line{stroke:rgba(255,255,255,.22);stroke-width:1.2}
 .pp-gauge .mark{stroke:#fff;stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 3px rgba(0,0,0,.8));transition:all 120ms linear}
-.pp-gauge .gv{position:absolute;left:0;right:0;top:44px;text-align:center}
-.pp-gauge .gv .l{font-size:8.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 26px}
+/* the readout sits inside the ring: the label may wrap to two lines, long values shrink (.long / .xlong, set by renderStats) */
+.pp-gauge .gv{position:absolute;left:0;right:0;top:56px;text-align:center}
+.pp-gauge .gv .l{font-size:8.5px;font-weight:700;letter-spacing:.08em;line-height:1.15;text-transform:uppercase;color:var(--ink-3);white-space:normal;overflow-wrap:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;padding:0 38px}
 .pp-gauge .gv .v{margin-top:3px;font:700 24px/1 var(--mono);color:var(--white);letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 18px}
+.pp-gauge .gv .v.long{font-size:17px}
+.pp-gauge .gv .v.xlong{font-size:13px;letter-spacing:-.02em;padding:0 36px}
 .pp-gauge .gv .v .u{font:500 10px var(--font);color:var(--ink-3);margin-left:2px;letter-spacing:0}
 .pp-gauge .gv .v.red{color:#ff7478} .pp-gauge .gv .v.amber{color:#f3c35a} .pp-gauge .gv .v.teal{color:var(--teal-hi)}
 .pp-gauge .cap{margin-top:-6px;font-size:10.5px;line-height:1.3;color:var(--ink-3);text-align:center;max-width:136px}
@@ -300,6 +306,7 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .pp-gauge.flat{width:100%;flex:1 1 100%;flex-direction:row;align-items:center;gap:12px;border-right:0;padding:12px 16px;background:none}
 .pp-gauge.flat .gv{position:static;text-align:left}
 .pp-gauge.flat .gv .l,.pp-gauge.flat .gv .v{padding:0}
+.pp-gauge.flat .gv .l{display:block;white-space:nowrap;text-overflow:ellipsis;letter-spacing:.14em;line-height:inherit}
 .pp-gauge.flat .cap{margin:0;text-align:left;max-width:none}
 .pp-read .pp-gauge.flat + .pp-stats{display:none}
 .pp-stats{flex:1;display:grid;grid-template-columns:repeat(3,1fr);align-content:center}
@@ -492,11 +499,13 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .nza-modal p{font-size:11.5px;color:var(--ink-2);line-height:1.55;font-weight:300}
 .nza-modal .mf{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;background:var(--inset);border-top:1px solid var(--line-hair)}
 
-/* ═══════════════ HOLD RING ═══════════════ */
-.hold{position:relative;display:inline-grid;place-items:center}
-.hold svg{position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px);transform:rotate(-90deg);pointer-events:none}
-.hold circle{fill:none;stroke:var(--teal);stroke-width:2.5;stroke-linecap:round;transition:stroke-dashoffset 60ms linear}
-.hold.red circle{stroke:var(--red)}
+/* ═══════════════ HOLD RING ═══════════════
+   .nza-hold wraps a control with a progress ring. span.hold is the legacy alias; a bare .hold is
+   left free as a state class (.prompt.hold, app buttons and shells). */
+.nza-hold,span.hold{position:relative;display:inline-grid;place-items:center}
+.nza-hold svg,span.hold svg{position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px);transform:rotate(-90deg);pointer-events:none}
+.nza-hold circle,span.hold circle{fill:none;stroke:var(--teal);stroke-width:2.5;stroke-linecap:round;transition:stroke-dashoffset 60ms linear}
+.nza-hold.red circle,span.hold.red circle{stroke:var(--red)}
 
 /* ═══════════════ DEVICE (rugged hardware frame: pager, monitor, defib, ultrasound) ═══════════════ */
 .dev{position:relative;padding:14px;border-radius:22px;background:linear-gradient(160deg,#2a2e31,#141618 60%,#0c0d0e);
@@ -512,6 +521,41 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .dev-btn{display:grid;place-items:center;border-radius:10px;background:linear-gradient(#2b2f32,#1a1c1e);border:1px solid #050505;
   box-shadow:0 1px 0 rgba(255,255,255,.1) inset,0 3px 6px rgba(0,0,0,.5);color:rgba(255,255,255,.7);cursor:pointer;pointer-events:auto}
 .dev-btn:active{transform:translateY(1px);box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 1px 2px rgba(0,0,0,.5)}
+
+/* ═══════════════ STATUS RING (NZA.ui.Ring) ═══════════════ */
+.nza-ring{--vc:rgba(255,255,255,.5);display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.nza-ring .rg{position:relative;width:46px;height:46px;display:grid;place-items:center}
+.nza-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
+.nza-ring circle{fill:none;stroke-width:3.2}
+.nza-ring .b{stroke:rgba(255,255,255,.08);fill:rgba(6,7,9,.55)}
+.nza-ring .f{stroke:var(--vc);stroke-linecap:round;filter:drop-shadow(0 0 3px var(--vc));transition:stroke-dashoffset 640ms cubic-bezier(.2,.7,.2,1)}
+.nza-ring b{position:relative;font:700 14px/1 var(--mono);color:var(--vc);letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nza-ring em{font-style:normal;font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+.nza-ring em small{font:600 9px var(--mono);letter-spacing:0;margin-left:2px;color:var(--ink-3);text-transform:none}
+.nza-ring.green{--vc:var(--green)} .nza-ring.cyan{--vc:var(--cyan)} .nza-ring.yellow{--vc:var(--yellow)}
+.nza-ring.white{--vc:#fff} .nza-ring.teal{--vc:var(--teal-hi)} .nza-ring.amber{--vc:#f3c35a} .nza-ring.red{--vc:#ff6b70}
+.nza-ring .bt{position:absolute;inset:-2px;border-radius:50%;border:1.5px solid var(--vc);opacity:0;animation:nza-ring-beat var(--beat,1s) ease-out infinite;pointer-events:none}
+@keyframes nza-ring-beat{0%{opacity:.75;transform:scale(.9)}70%{opacity:0;transform:scale(1.16)}100%{opacity:0;transform:scale(1.16)}}
+
+/* ═══════════════ BODY GLYPH (NZA.ui.BodyGlyph) ═══════════════ */
+.nza-body{display:block;width:100%;height:100%;overflow:visible}
+.nza-body .bs{fill:rgba(15,212,196,.07);stroke:rgba(15,212,196,.5);stroke-width:.6;transition:fill 240ms}
+.nza-body .bs.red{fill:rgba(229,72,77,.42);stroke:#ff6b70}
+.nza-body .bs.amber{fill:rgba(229,165,10,.34);stroke:#f3c35a}
+.nza-body .bs.teal{fill:rgba(15,212,196,.32);stroke:var(--teal-hi)}
+.nza-body .bs.fx{animation:nza-body-seg 1.6s ease-in-out infinite}
+@keyframes nza-body-seg{50%{fill-opacity:.45;stroke-opacity:.6}}
+.nza-body .pad{fill:rgba(15,212,196,.16)}
+.nza-body .scan{fill:none;stroke:rgba(255,255,255,.07);stroke-width:1;pointer-events:none}
+.nza-body .hot{--hc:#ff5a60}
+.nza-body .hot.amber{--hc:#f3c35a} .nza-body .hot.teal{--hc:var(--teal-hi)}
+.nza-body .hot .dm{fill:#fff;stroke:var(--hc);stroke-width:.9}
+.nza-body .hot .pl{fill:none;stroke:var(--hc);stroke-width:.8;transform-box:fill-box;transform-origin:center;animation:nza-body-ping 1.6s ease-out infinite}
+.nza-body .bk{font:700 4px var(--font);fill:rgba(255,255,255,.7);text-anchor:middle;letter-spacing:.4px;text-transform:uppercase}
+@keyframes nza-body-ping{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.3);opacity:0}}
+@media (prefers-reduced-motion: reduce){
+  .nza-ring .bt,.nza-body .hot .pl,.nza-body .bs.fx{animation:none}
+}
 
 /* ═══════════════ BEDSIDE MONITOR (nza-vitals.js) ═══════════════ */
 .vmon{display:grid;grid-template-columns:1fr 92px;gap:0;background:#020303;color:#fff;font-family:var(--mono);min-width:300px}
