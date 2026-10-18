@@ -90,21 +90,45 @@ AddEventHandler('onClientResourceStop', reset)
 local cache = {}      -- [name] = { count = n, at = ms }
 local pending = {}    -- names waiting for the next request
 local requesting = false
+local lastAt = nil    -- GetGameTimer() of the last 'nza:bridge:inv:counts' request
+local failed = 0      -- requests in a row the server answered with nothing
+
+-- the server answers one request per 200 ms per player and nil to anything sooner
+-- (bridge/server/inventory.lua 'inv:counts'); keep a little margin above that
+local GAP_MS = 220
+local RETRIES = 3
+
+local function waitForGap(minWait)
+    local left = lastAt and (GAP_MS - (GetGameTimer() - lastAt)) or 0
+    local ms = math.max(minWait or 0, left)
+    if ms > 0 then Wait(ms) end
+end
 
 local function flush()
     if requesting then return end
     requesting = true
     CreateThread(function()
-        Wait(50)
+        waitForGap(50)
         local names = {}
         for name in pairs(pending) do names[#names + 1] = name end
         pending = {}
         if #names > 0 then
+            lastAt = GetGameTimer()
             local result = lib.callback.await('nza:bridge:inv:counts', false, names)
             local now = GetGameTimer()
             if type(result) == 'table' then
+                failed = 0
                 for _, name in ipairs(names) do
                     cache[name] = { count = tonumber(result[name]) or 0, at = now }
+                end
+            else
+                -- throttled: ask again after the gap. After a few misses in a row the
+                -- names are dropped; the next Count/Has queues them again.
+                failed = failed + 1
+                if failed <= RETRIES then
+                    for _, name in ipairs(names) do pending[name] = true end
+                else
+                    failed = 0
                 end
             end
         end
@@ -142,6 +166,8 @@ end
 
 function Bridge.Inv.CountAwait(name)
     if type(name) ~= 'string' then return 0 end
+    waitForGap(0)
+    lastAt = GetGameTimer()
     local result = lib.callback.await('nza:bridge:inv:counts', false, { name })
     local n = type(result) == 'table' and tonumber(result[name]) or nil
     if n then cache[name] = { count = n, at = GetGameTimer() } end
@@ -156,6 +182,17 @@ RegisterNetEvent('nza:bridge:inv:dirty', function(names)
         return
     end
     for _, name in pairs(names) do cache[name] = nil end
+end)
+
+-- server Bridge.Inv.OpenStash for inventories that only open stashes from the client
+-- (qb-inventory 1.x, lj-inventory, qs-inventory). The server checked access already.
+RegisterNetEvent('nza:bridge:inv:openStash', function(id, opts)
+    if type(id) ~= 'string' or id == '' then return end
+    opts = type(opts) == 'table' and opts or {}
+    TriggerServerEvent('inventory:server:OpenInventory', 'stash', id, {
+        maxweight = tonumber(opts.weight), slots = tonumber(opts.slots), label = opts.label,
+    })
+    TriggerEvent('inventory:client:SetCurrentStash', id)
 end)
 
 local labelCache, imageCache = {}, {}
@@ -209,6 +246,13 @@ function Bridge.Inv.Image(name)
     local own = GetCurrentResourceName()
     if not url and fileExists(own, ('html/img/items/%s.png'):format(name)) then
         url = ('nui://%s/html/img/items/%s.png'):format(own, name)
+    end
+    -- a renamed item keeps its picture through Config.ItemDefs[key].image (as on the server)
+    if not url then
+        local def = Bridge.ItemDef(name)
+        if def and type(def.image) == 'string' and fileExists(own, 'html/img/items/' .. def.image) then
+            url = ('nui://%s/html/img/items/%s'):format(own, def.image)
+        end
     end
     url = url or ('nui://%s/html/img/items/nza_unknown.png'):format(own)
     imageCache[name] = url
