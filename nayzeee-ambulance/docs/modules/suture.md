@@ -44,7 +44,9 @@ bleeding is controlled) is closed in a full-screen, real-time 3D close-up of the
      from the fingers as cloth and casts a shadow; lay the pad over the stitch line, release, then
      rub it down until it sticks. Coverage of the cut and adhesion are measured; blood seeps into
      the pad.
-- **Result card**: grade, score, per-step breakdown with meters, plain-language feedback.
+- **Debrief card** (slides in bottom-left where the procedure column was, so the finished closure
+  stays in view): 240° score dial with the grade, per-step instrument list (value, score, tone
+  notch, meter), plain-language notes with glowing bars; Enter closes once the server confirmed.
 - **Patient card** (top-left: pain meter, anaesthetic / flinch chips) and **closure plan**
   (top-right: step list with live values, timer, swabs and saline left).
 - **No WebGL2**: a short manual fallback (progress bar) so the procedure still completes.

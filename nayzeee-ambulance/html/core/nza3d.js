@@ -1973,7 +1973,7 @@
     // yaw: screen angle of the handle (0 = right, π/2 = up) · roll: spin about the axis
     const POSE = {
       saline:       { lift: 0.045, pressLift: 0.045, tilt: 0.58, yaw: 1.85, roll: 0.0, shadow: 0.02 },
-      irrigator:    { lift: 0.01, pressLift: 0.01, tilt: 1.28, yaw: 1.2, roll: 0.0, shadow: 0.014 },
+      irrigator:    { lift: 0.01, pressLift: 0.01, tilt: 1.28, yaw: 0.8, roll: 0.0, shadow: 0.014 },
       syringe:      { lift: 0.008, pressLift: -0.0038, tilt: 1.05, yaw: 0.45, roll: 0.0, shadow: 0.01 },
       needleDriver: { lift: 0.004, pressLift: -0.0012, tilt: 0.85, yaw: 0.8, roll: 0.5, shadow: 0.016 },
       forceps:      { lift: 0.006, pressLift: 0.0, tilt: 0.55, yaw: 1.25, roll: 0, shadow: 0.012 },
@@ -2175,7 +2175,7 @@
           const cap = new THREE.Mesh(knotGeo, mat); cap.position.copy(p3); cap.scale.setScalar(0.42); grp.add(cap);
         }
         scene.add(grp);
-        const st = { group: grp, a: uvOf(d.a), b: uvOf(d.b), sa: uvToST(d.a), sb: uvToST(d.b), remove() { scene.remove(grp); grp.traverse(c => { if (c.isMesh && c.geometry !== knotGeo && c.geometry !== knotRing) { c.geometry.dispose(); bin.delete(c.geometry); } }); const i = stitchList.indexOf(st); if (i >= 0) stitchList.splice(i, 1); } };
+        const st = { group: grp, a: uvOf(d.a), b: uvOf(d.b), sa: uvToST(d.a), sb: uvToST(d.b), knot: uvToST(knotAtA ? d.a : d.b), remove() { scene.remove(grp); grp.traverse(c => { if (c.isMesh && c.geometry !== knotGeo && c.geometry !== knotRing) { c.geometry.dispose(); bin.delete(c.geometry); } }); const i = stitchList.indexOf(st); if (i >= 0) stitchList.splice(i, 1); } };
         stitchList.push(st);
         return st;
       },
@@ -2204,6 +2204,9 @@
         const f = clamp(((s - a[0]) * abx + (t - a[1]) * aby) / l2, 0, 1);
         const d = Math.hypot(s - a[0] - abx * f, t - a[1] - aby * f);
         if (d < 0.0016) c = Math.max(c, 0.001 * (1 - d / 0.0016));
+        // knot and trimmed tails: a soft bump a few millimetres around the knot end
+        const k = stitchList[i].knot, dk = Math.hypot(s - k[0], t - k[1]);
+        if (dk < 0.0065) c = Math.max(c, 0.0011 * (1 - dk / 0.0065));
       }
       return c;
     }
@@ -2458,9 +2461,9 @@
             float nzOn = nzPad * step(0.001, uSeep.z);
             float nzs = (1.0 - smoothstep(0.6, 1.0, nzd)) * nzOn;
             float nzHalo = (1.0 - smoothstep(0.95, 1.4, nzd)) * nzOn * (1.0 - nzs);
-            vec3 nzCore = mix(vec3(0.56, 0.07, 0.045), vec3(0.3, 0.03, 0.02), 1.0 - smoothstep(0.0, 0.75, nzd));
+            vec3 nzCore = mix(vec3(0.46, 0.05, 0.035), vec3(0.24, 0.025, 0.018), 1.0 - smoothstep(0.0, 0.75, nzd));
             diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.97, 0.84, 0.72), nzHalo * 0.65);
-            diffuseColor.rgb = mix(diffuseColor.rgb, nzCore, nzs * (0.6 + 0.3 * nzn2));`);
+            diffuseColor.rgb = mix(diffuseColor.rgb, nzCore, nzs * (0.72 + 0.26 * nzn2));`);
       };
       dMat.customProgramCacheKey = () => 'nza3d-dressing-4';
       const mesh = new THREE.Mesh(g2, dMat);

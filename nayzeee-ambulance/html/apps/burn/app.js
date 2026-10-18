@@ -534,10 +534,13 @@
       // edge, each a slightly different yellow, split by thin red septa with a tiny vessel in them
       const wX = (fbm(n, X * 0.07 + 11, Y * 0.07, 3) - 0.5) * 3.4, wY = (fbm(n, X * 0.07, Y * 0.07 + 31, 3) - 0.5) * 3.4;
       const L = wy(X * 0.42 + wX, Y * 0.42 + wY), edge = L.f2 - L.f1;
-      const lob = smooth(0.02, 0.16, edge), sept = 1 - smooth(0.0, 0.05, edge);
-      const fatZ = smooth(0.5, 0.66, fbm(n, X * 0.05 + 20, Y * 0.05, 3)), fatA = fatZ * lob;
-      col = mixC(col, mixC(mixC(FAT, FAT2, L.id), [244, 214, 128], smooth(0.1, 0.5, edge) * 0.35), fatA * 0.9);
-      col = mixC(col, [120, 18, 14], sept * fatZ * 0.75);
+      const lob = smooth(0.01, 0.12, edge), sept = 1 - smooth(0.0, 0.035, edge);
+      const fatZ = smooth(0.54, 0.7, fbm(n, X * 0.05 + 20, Y * 0.05, 3)), fatA = fatZ * lob;
+      // fat: pale butter-yellow lobules, glossier in the middle, washed over with a thin film of blood
+      let fat = mixC(mixC(FAT, FAT2, L.id * 0.8), [246, 222, 150], smooth(0.08, 0.45, edge) * 0.3);
+      fat = mixC(fat, [196, 82, 60], smooth(0.35, 0.7, fbm(n, X * 0.18 + 70, Y * 0.18, 3)) * 0.45);
+      col = mixC(col, fat, fatA * 0.78);
+      col = mixC(col, [128, 22, 16], sept * fatZ * 0.5);
       // fibrin film
       col = mixC(col, FIB, smooth(0.62, 0.78, fbm(n, X * 0.12 + 50, Y * 0.12, 3)) * 0.38);
       // wall shadow and the pale cut edge of the skin
@@ -1856,7 +1859,7 @@
       }
       // instruments
       this.tb = {
-        bottle: mkTool(S, bin, 'bottle', buildBottle(bin, M), { lift: 0.042, pressLift: 0.042, tilt: 0.98, yaw: 1.72, roll: 0, shadow: 0.025 }),
+        bottle: mkTool(S, bin, 'bottle', buildBottle(bin, M), { lift: 0.055, pressLift: 0.055, tilt: 0.42, yaw: 1.62, roll: 0, shadow: 0.025 }),
         diascope: mkTool(S, bin, 'diascope', buildDiascope(bin, M), { lift: 0.007, pressLift: 0.0002, tilt: 0.0, yaw: 0.6, roll: 0, shadow: 0.02 }),
         stapler: mkTool(S, bin, 'stapler', buildStapler(bin, M), { lift: 0.006, pressLift: 0.0005, tilt: 0.55, yaw: 1.3, roll: 0, shadow: 0.03 }),
       };
@@ -3262,13 +3265,15 @@
       const r2 = new THREE.Mesh(bin.own(ribbonGeo(SB, this.densify(tick, 0.001), 0.001, 0.0002, false)), ink); r2.renderOrder = 6; SB.scene.add(r2);
       // skin prep: povidone-iodine painted on in long, overlapping swab strokes round the planned strip
       {
-        const R = rng((this.seed + 5) >>> 0), prepW = cfg.graftWidth * MM + 0.042, n = 8;
+        const R = rng((this.seed + 5) >>> 0), prepW = cfg.graftWidth * MM + 0.042, prepL = Lneed * MM + 0.05, n = 13;
+        // a thin, even wash first, then overlapping swab strokes (darker where they overlap, streaky edges)
+        SB.layers.paint('iodine', SB.stToUv(sStart + Lneed * MM / 2, 0), [prepL / 2, prepW / 2], 0.2, { hardness: 0.12, grain: 0.7, grainScale: 45 });
         for (let i = 0; i < n; i++) {
           const t = -prepW / 2 + (i + 0.5) * prepW / n + (R() - 0.5) * 0.003;
-          const s0 = sStart - 0.024 - R() * 0.008, s1 = sStart + Lneed * MM + 0.022 + R() * 0.01;
-          SB.layers.stroke('iodine', SB.stToUv(s0, t), SB.stToUv(s1, t + (R() - 0.5) * 0.004), 0.0052 + R() * 0.0018, 0.3 + R() * 0.14, { hardness: 0.22, grain: 0.65, grainScale: 70 });
+          const s0 = sStart - 0.024 - R() * 0.01, s1 = sStart + Lneed * MM + 0.02 + R() * 0.012;
+          SB.layers.stroke('iodine', SB.stToUv(s0, t), SB.stToUv(s1, t + (R() - 0.5) * 0.005), 0.0042 + R() * 0.0016, 0.09 + R() * 0.08, { hardness: 0.15, grain: 0.75, grainScale: 60 });
         }
-        for (let i = 0; i < 5; i++) SB.layers.paint('iodine', SB.stToUv(sStart - 0.02 + R() * (Lneed * MM + 0.04), (R() - 0.5) * prepW), (1 + R() * 2.5) * MM, 0.35 + R() * 0.3, { hardness: 0.4, grain: 0.5 });
+        for (let i = 0; i < 6; i++) SB.layers.paint('iodine', SB.stToUv(sStart - 0.02 + R() * (Lneed * MM + 0.04), (R() - 0.5) * prepW), (1 + R() * 2.5) * MM, 0.18 + R() * 0.18, { hardness: 0.3, grain: 0.5 });
       }
       // dermatome: held about 35° off the skin, handle trailing behind the blade (see alignDerm)
       const tilt = 0.95;
@@ -4484,7 +4489,7 @@
       });
       if (want === 6) { S.start(); return true; }
       sim(1.2);
-      if (want === 7) { S.start(); return true; }
+      if (want === 7) { flush(); S.start(); return true; }
       // 5 · harvest (async scene build) → continue in a callback
       flush(); go(5);
       return new Promise(resolve => {
@@ -4493,6 +4498,7 @@
           const SB = this.SB, hv = g.hv;
           SB.stop();
           const simB = (sec, fn) => sim(sec, fn, SB);
+          simB(0.1);   // let the camera settle on the harvest framing before aiming
           aimS(SB, hv.sStart + 0.001, 0); simB(0.1); press();
           const target = want === 8 ? hv.Lneed * 0.55 : hv.Lneed + 2;
           const dur = target / 20;

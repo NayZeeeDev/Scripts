@@ -29,18 +29,18 @@ The server also resolves `'p:…' / 'n:…'` pid strings, a server id number, or
 | `SetCondition(pid, name, value)` | stored value | `true` → `{}`, `false/nil` clears; `'arrest'` on a living patient → `SetState('arrest')`; clearing arrest while in arrest is ignored (use `Revive{rosc}`) |
 | `SetDevice(pid, name, value)` | stored value | `binder collar intubated oxygen foil monitor iv port …` |
 | `SetDevice(pid, map, key, value)` | stored value | map devices `tourniquet splints chestDrain`: table merges, `false` removes key, `nil` clears map; tourniquet `true` → `os.time()` |
-| `AddInfusion(pid, inf)` | infusion | `inf = { kind = 'saline'|'blood'|'txa'|'plasma', ml = 500, rate (mL/min), bag, warm, by, id?, left? }` → `{ id, kind, ml, left, rate, bag, warm, started, by, incompatible?, paused? }`; pauses (`paused = 'access'`) without `devices.iv`/`port` |
+| `AddInfusion(pid, inf)` | infusion | `inf = { kind = 'saline'|'blood'|'txa'|'plasma', ml = 500, rate (mL/min), bag, warm, by, id?, left? }` → `{ id, kind, ml, left, rate, bag, warm, started, by, incompatible?, paused? }`; flows at once (callers check IV/IO access themselves); pauses (`paused = 'access'`) when the last `devices.iv`/`port` is removed and resumes when one is set again |
 | `StopInfusion(pid, id)` | bool, infusion | |
 | `GiveMed(pid, name, opts?)` | ok, info | names `adrenaline naloxone morphine painkillers txa antibiotics lidocaine` (+ registered); `opts.dose`, lidocaine `opts.region / opts.injury`; info `{ msg }` or `{ err }` (`no_patient unknown_med dead`) |
 | `RegisterMed(name, fn(p, opts) → ok, info)` | | adds a medication |
 | `MedActive(p, name)` | bool | |
 | `AddBlood(pid, ml)` | new blood mL | negative removes (donation); capped 110 % |
-| `SetState(pid, state, reason)` | bool | `reason` string or table `{ reason, weapon, attacker, region, at }` (stored as `p.cause`) |
+| `SetState(pid, state, reason)` | bool | `reason` string or table `{ reason, weapon, attacker, region, at }` (stored as `p.cause`); arrest → dead keeps what stopped the heart in `p.cause.arrestCause` and `conditions.arrest.cause` (e.g. reason `'arrest'`, arrestCause `'hypovolemia'`) |
 | `Revive(pid, opts)` | bool, err | `{ full = true }` heal all; `{}` patch & stand up; `{ rosc = true }` arrest → wounded (err `not_arrest`); sends `nza:revived` only when the player ends up `alive`; `opts.reason` |
 | `Heal(pid, amount = 100)` | bool | heal points to every injury; ≥100 also clears conditions/devices/infusions |
 | `CanStand(pid)` | ok, reason | `state bleeding avpu blood condition` |
 | `Cpr(pid, src, quality 0..100)` | bool | call on every compression set; pauses the arrest → death timer for 4 s |
-| `SetMeta(pid, key, value)` | value | `carried stretcher bodybag bay bed inBed recovery ventilated ventRate wet keep …` (state bag resync) |
+| `SetMeta(pid, key, value)` | value | `carried stretcher bodybag bay bed inBed recovery ventilated ventRate bagUntil wet keep …` (state bag resync) |
 | `Snapshot(pid, level)` | table \| nil | `'summary' | 'medic' | 'self'` (fields below) |
 | `Sync(pid)` | bool | push state bag + self snapshot now |
 | `Watch(pid, src, on)` | bool | `on` pushes a medic snapshot at once, then every `watchRate` |
@@ -68,6 +68,9 @@ treat quality heal status complications(=true) force`.
 `pid st avpu bleed(0–3) stab clock inj tri tags[] tq{region=true} splints{region=true} binder
 collar iv intub bag carried stretcher(netId|nil) name('M. Garcia') npc(true|nil)`.
 `clock` = bleed-out seconds while wounded, seconds to death in arrest, else 0.
+`stab` = stabilized: total bleed < `Config.Wounded.stableBleed` (1 mL/min), or < `controlledBleed`
+(default 5 mL/min) while no wound is still `open` and no haemothorax is still filling. The bleed-out
+clock is paused while stabilized and `CanStand` allows a pick-up.
 
 **medic** (`nza:patient:get`, watch pushes): every Patient field except `watchers` (`pid kind src
 net identifier name sex age bloodType blood bloodMax fluid state stabilized clock clockRate
@@ -76,12 +79,15 @@ downAt deadAt cause meta seq created updated stateAt`) + `injuries` (ARRAY, seve
 bleed) + `triage { level, code, label, colour }`, `bloodPct`, `lossPct`, `clockText`.
 `vitals = { hr sys dia map spo2 rr temp etco2 rhythm avpu pupils breathing airway ecgRate }`
 (`hr` = palpable pulse, 0 in arrest; `ecgRate` = monitor rate).
+Rounded in the snapshot only (the live Patient keeps full precision): `blood fluid clock` 0.1, `temp`
+0.001, `infusions[].left` 0.1, condition fields `ml output size pressure water smoke level amount` 0.1,
+injury `heal` 0.01 and `contamination` 0.1. `cause.arrestCause` is set after an arrest ended in death.
 
 **self** (`nza:self:get`, `nza:self:update` ≤ 500 ms when changed): `pid state clock clockRate
 arrestLeft downAt deadAt stabilized bleeding(0–3) pain avpu loss(0..1) health(0–100) syncHealth
 injuries[{ id region type severity status bleeding label regionLabel }] conditions[names]
 meds[names] devices{ tourniquet[] splints[] collar binder iv oxygen foil intubated }
-fx{ limp shake blur tunnel cold breathless drunk } bloodType name`.
+fx{ limp shake blur tunnel cold breathless drunk } bloodType name` (`fx` numbers rounded to 0.01).
 
 ### NZA.Treat (treat.lua) — §5.1
 
@@ -137,13 +143,16 @@ NZA.Proc.Abort(token, reason) → bool        -- notifies the client ('nza:proc:
 NZA.Staff.Get(src) → { hospital, dept, grade, gradeLabel, perms = { [perm] = true }, easy = { [perm] = true },
                        onDuty, medic, police, admin, job, jobLabel, isBoss, …provider fields }
 NZA.Staff.Can(src, perm) → bool        -- src 0 and admins always true, perm nil → true
-NZA.Staff.Easy(src, perm) → bool       -- record.easy[perm] or Config.EasyMode.default
+NZA.Staff.Easy(src, perm) → bool       -- record.easy[perm], else record.easyDefault (optional provider
+                                       -- bool), else Config.EasyMode.default
 NZA.Staff.OnDuty() → { src, … }        -- medics on duty
 NZA.Staff.Provider(fn(src, defaultRecord) → record | nil)   -- hospital module; refreshes everyone
 NZA.Staff.Refresh(src, force?) → record     NZA.Staff.RefreshAll(force?)
 ```
 `perms` in the record are EFFECTIVE (duty rule applied, public perms added, admin = all +
-`builder`). A provider record may set `ignoreDuty = true`. Pushed as `nza:staff:update`.
+`builder`). A provider record may set `ignoreDuty = true` and `easyDefault = true|false` (easy mode for
+every perm not in `easy`, so a department can switch it off under `Config.EasyMode.default = true`).
+Pushed as `nza:staff:update`.
 
 ### NZA.Records (records.lua)
 ```lua
@@ -168,7 +177,13 @@ NZA.Injury.BaseBleed(type, region, sev, organ?) → mL/min    NZA.Injury.BurnSev
 NZA.Injury.Bones / Organs / Vessels / OrganBleed / MaxInjuries (12) / Penetrating / OpenTypes
 NZA.Physiology.Refresh(p)  Recompute(p, snap?)  TimeToDeath(p, bleed?) → s  PickArrestRhythm(p, why)
 NZA.Physiology.HealMultiplier(p, inj)  InjuryBleed(p, inj) → mL/min  Status(p, inj)  Update(p, dt, now)  Tick(dt)
+NZA.Physiology.SetModifier(pid, key, { sys, dia, hr, ttl = 3 } | nil) → bool
+    -- short-lived vitals offset (sys/dia/hr added to a living patient's targets before smoothing, all
+    -- monitors see it); dropped ttl s (1..60) after the last call; nil removes it; keyed per caller
 ```
+Ventilation counts in physiology when `devices.intubated` + `meta.ventilated` (rate `meta.ventRate`,
+default 14) or while `meta.bagUntil` (timestamp, bag-valve-mask round) is in the future (RR at least
+`meta.ventRate` or 10, SpO2 +4, absent / agonal / shallow breathing reads `normal`; in arrest RR 10).
 
 ### NZA.Core (base.lua, treat.lua, callbacks.lua)
 ```lua
@@ -331,3 +346,10 @@ Keybind `nza_interact` (unbound) + command `Config.Commands.interact` (default `
   `ignoreDuty`, easy default).
 - Player- and ped-registered target options no longer both match the same entity.
 - `exports:Revive` never awaits the database inside the export call.
+- Final integration pass: physiology accumulators (blood, fluid, temp, heal, contamination, condition
+  levels, infusion `left`, clock) keep full precision (slow bleeds, saline decay, healing, overdoses,
+  infection and cooling no longer stall at 0.1-unit rounding); the snapshots round them.
+- Controlled bleeding (< `controlledBleed`, nothing `open`, no filling haemothorax) counts as stabilized.
+- Mask ventilation (`meta.bagUntil`) counts as ventilation; `NZA.Physiology.SetModifier` added.
+- Arrest → dead keeps `p.cause.arrestCause`; `NZA.Staff.Easy` honours `record.easyDefault`;
+  `cond.reaction` locale key.

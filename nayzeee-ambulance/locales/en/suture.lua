@@ -197,6 +197,7 @@ NZA.AddLocale('en', {
     ['suture.r_irrigate_sub'] = 'left',
     ['suture.r_lido'] = 'Anaesthetic',
     ['suture.r_lido_sub'] = 'points',
+    ['suture.r_kicker'] = 'Closure debrief',
     ['suture.r_meta'] = '%s stitches · %s',
     ['suture.r_saving'] = 'Saving the treatment…',
     ['suture.r_score'] = 'Score',

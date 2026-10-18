@@ -33,6 +33,16 @@
       NZA.Physiology.HealMultiplier(p, inj)   0 = not healing
       NZA.Physiology.InjuryBleed(p, inj)      current mL/min of one injury
       NZA.Physiology.Status(p, inj)           'open'|'controlled'|'treated'|'healing'
+      NZA.Physiology.SetModifier(pid, key, { sys, dia, hr, ttl = 3 } | nil)
+                                              short-lived vitals offset (e.g. a resuscitation pressure
+                                              model), added before smoothing, dropped after ttl s
+
+    Ventilation: a tube on the bag / ventilator (devices.intubated + meta.ventilated, meta.ventRate)
+      or a recent bag-valve-mask round (meta.bagUntil timestamp) counts as assisted breathing.
+    Stabilized: total bleed < Config.Wounded.stableBleed, or < controlledBleed (default 5 mL/min)
+      when no wound is still 'open' and no haemothorax is still filling (clock paused, may stand).
+    Accumulators (blood, fluid, temp, heal, contamination, condition levels, infusion left, clock)
+      keep full precision; patients.lua rounds them in the snapshots.
 
     Bus events: infusion:done (p, inf) · injury:updated (p, inj) on status change ·
       injury:removed (p, id) when healed · plus everything SetState emits.
@@ -102,6 +112,14 @@ end
 
 local function cprActive(p, now)
     return p.lastCpr ~= nil and (now - p.lastCpr) <= K.cprWindow
+end
+
+-- assisted ventilation: tube = bag / ventilator on a tube, mask = a bag-valve-mask round
+-- (the intubation module sets meta.bagUntil for its duration)
+local function ventilation(p, now)
+    local tube = (p.devices.intubated and p.meta.ventilated) and true or false
+    local mask = (not tube) and (tonumber(p.meta.bagUntil) or 0) > now
+    return tube, mask
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -379,12 +397,13 @@ local function setArrestVitals(p, now)
     v.map = math.floor(v.dia + (v.sys - v.dia) / 3 + 0.5)
     v.spo2 = 0
     v.rr = since < 45 and 3 or 0
-    if p.devices.intubated and p.meta.ventilated then v.rr = tonumber(p.meta.ventRate) or 10 end
+    local tube, mask = ventilation(p, now)
+    if tube or mask then v.rr = tonumber(p.meta.ventRate) or 10 end
     if cpr then v.etco2 = math.floor(8 + q * 0.14 + 0.5) else v.etco2 = since < 60 and 6 or 2 end
     v.rhythm = a.rhythm
     v.avpu = 'U'
     v.pupils = since > 60 and 'fixed' or 'dilated'
-    v.breathing = (since < 45 and not p.meta.ventilated) and 'agonal' or 'absent'
+    v.breathing = (since < 45 and not (p.meta.ventilated or mask)) and 'agonal' or 'absent'
     if p.devices.intubated then v.airway = 'secured'
     elseif p.conditions.hypoxia and (p.conditions.hypoxia.water or 0) > 50 then v.airway = 'gurgling'
     elseif p.conditions.airway and p.conditions.airway.kind == 'obstructed' then v.airway = 'obstructed'
@@ -477,8 +496,13 @@ local function computeVitals(p, ctx, dt, snap)
 
     -- breathing drive
     rr = rr * (1 - clamp((opioid - 20) / 100, 0, 0.85))
-    local ventilated = p.devices.intubated and p.meta.ventilated
-    if ventilated then rr = tonumber(p.meta.ventRate) or 14 end
+    local tube, mask = ventilation(p, now)
+    if tube then
+        rr = tonumber(p.meta.ventRate) or 14
+    elseif mask then
+        rr = math.max(rr, tonumber(p.meta.ventRate) or 10)   -- bagged breaths on top of the patient's own
+    end
+    local ventilated = tube or mask
     if rr < 10 then spo2 = spo2 - (10 - rr) * 3 end
 
     -- perfusion / dilution / cold probe
@@ -496,6 +520,19 @@ local function computeVitals(p, ctx, dt, snap)
     if spo2 < 70 then
         hr = hr - (70 - spo2) * 3.5     -- hypoxic bradycardia before arrest
         rr = rr * 0.7
+    end
+
+    -- short-lived module offsets (NZA.Physiology.SetModifier), dropped once expired
+    local rtm = P.RT(p)
+    if rtm.mods then
+        for key, mod in pairs(rtm.mods) do
+            if mod.exp <= now then
+                rtm.mods[key] = nil
+            else
+                hr, sys, dia = hr + mod.hr, sys + mod.sys, dia + mod.dia
+            end
+        end
+        if next(rtm.mods) == nil then rtm.mods = nil end
     end
 
     if rr > 24 then etco2 = etco2 - (rr - 24) * 0.6 elseif rr < 10 then etco2 = etco2 + (10 - rr) * 3 end
@@ -548,7 +585,11 @@ local function computeVitals(p, ctx, dt, snap)
     v.airway = airwayOf(p, v.avpu)
     v.pupils = pupilsOf(p, v.avpu, v.spo2, opioid)
     v.breathing = breathingOf(p, v.rr, opioid)
-    if ventilated then v.breathing = 'normal' end
+    if tube then
+        v.breathing = 'normal'
+    elseif mask and (v.breathing == 'absent' or v.breathing == 'agonal' or v.breathing == 'shallow') then
+        v.breathing = 'normal'      -- the bag makes up for poor breathing; laboured stays laboured
+    end
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -572,14 +613,13 @@ local function stepConditions(p, dt, now, ctx)
         if drained then
             local out = math.min(h.ml, K.drainRate * m)
             h.ml = h.ml - out
-            h.output = r1((h.output or 0) + out)
+            h.output = (h.output or 0) + out
         end
         local decay = drained and 0.04 or 0.015       -- clots / lung re-expansion tamponades the bleed
         if not h.stopped then
             h.rate = (h.rate or 0) * (1 - decay * m)
             if h.rate < 0.2 then h.rate = 0 end
         end
-        h.ml = r1(h.ml)
         if h.ml <= 0.5 and ((h.rate or 0) <= 0 or h.stopped) then c.haemothorax = nil end
     end
 
@@ -597,7 +637,6 @@ local function stepConditions(p, dt, now, ctx)
             pn.size = math.min(60, (pn.size or 20) + 0.5 * m)
             if (pn.pressure or 0) > 0 then pn.pressure = math.max(0, pn.pressure - 5 * dt) end
         end
-        if c.pneumothorax then pn.size = r1(pn.size or 0); pn.pressure = r1(pn.pressure or 0) end
     end
 
     -- cardiac tamponade
@@ -605,7 +644,7 @@ local function stepConditions(p, dt, now, ctx)
     if tp then
         if not tp.stopped then
             local rate = (tp.rate or 10) * (ctx.txa and 0.6 or 1)
-            tp.ml = r1((tp.ml or 0) + rate * m)
+            tp.ml = (tp.ml or 0) + rate * m
             tp.rate = (tp.rate or 10) * (1 - 0.01 * m)
         end
         if (tp.ml or 0) <= 0 and (tp.stopped or (tp.rate or 0) < 0.5) then c.tamponade = nil end
@@ -624,8 +663,6 @@ local function stepConditions(p, dt, now, ctx)
             end
         end
         if (hx.smoke or 0) > 0 then hx.smoke = math.max(0, hx.smoke - (d.oxygen and 12 or 4) * m) end
-        if hx.water then hx.water = r1(hx.water) end
-        if hx.smoke then hx.smoke = r1(hx.smoke) end
         if (hx.water or 0) <= 0 and (hx.smoke or 0) <= 0 then c.hypoxia = nil end
     end
 
@@ -634,7 +671,6 @@ local function stepConditions(p, dt, now, ctx)
     if aw and aw.kind == 'swelling' and not intubated then
         aw.level = math.min(100, (aw.level or 0) + 2.5 * m)
         if aw.level >= 100 then aw.kind = 'obstructed' end
-        aw.level = r1(aw.level)
     end
 
     -- overdoses wear off (naloxone keeps antagonising opioids)
@@ -642,7 +678,7 @@ local function stepConditions(p, dt, now, ctx)
     if od then
         local rate = od.drug == 'stimulant' and 1.2 or (od.drug == 'alcohol' and 1.0 or 0.8)
         if od.drug == 'opioid' and med(p, 'naloxone', now) then rate = rate + 6 end
-        od.amount = r1((od.amount or 0) - rate * m)
+        od.amount = (od.amount or 0) - rate * m
         if od.amount <= 0 then c.overdose = nil end
     end
 
@@ -699,7 +735,7 @@ local function stepInfection(p, dt, now)
                 g = 0.5 * (((inj.retained or 0) > 0 and not t.extracted) and 1.5 or 1) * (wet and 1.3 or 1)
                 if t.irrigated then g = g * 0.5 end
             end
-            inj.contamination = r1(clamp((inj.contamination or 0) + g * m, 0, 100))
+            inj.contamination = clamp((inj.contamination or 0) + g * m, 0, 100)
             if inj.contamination > worst and now - (inj.created or now) >= 600 then
                 worst, worstRegion = inj.contamination, inj.region
             end
@@ -708,7 +744,7 @@ local function stepInfection(p, dt, now)
     local c = p.conditions.infection
     if abx then
         if c then
-            c.level = r1((c.level or 0) - 3 * m)
+            c.level = (c.level or 0) - 3 * m
             if c.level <= 0 then p.conditions.infection = nil end
         end
     elseif worst >= K.infectAt then
@@ -716,10 +752,10 @@ local function stepInfection(p, dt, now)
             c = { region = worstRegion, level = 0, since = now }
             p.conditions.infection = c
         end
-        c.level = r1(math.min(100, (c.level or 0) + 0.8 * m * (worst / K.infectAt)))
+        c.level = math.min(100, (c.level or 0) + 0.8 * m * (worst / K.infectAt))
         c.region = worstRegion
     elseif c then
-        c.level = r1((c.level or 0) - 0.3 * m)
+        c.level = (c.level or 0) - 0.3 * m
         if c.level <= 0 then p.conditions.infection = nil end
     end
 end
@@ -764,7 +800,6 @@ local function stepTemperature(p, dt, now, loss)
     p.temp = clamp(p.temp + rate * dt / 60, 24, 42)
     if rate > 0 and before <= target and p.temp > target then p.temp = target end
     if rate < 0 and before >= target and p.temp < target and cool <= 0 then p.temp = target end
-    p.temp = math.floor(p.temp * 1000 + 0.5) / 1000
 
     if p.temp < 35 then
         c.hypothermia = c.hypothermia or { since = now }
@@ -807,7 +842,6 @@ local function stepInfusions(p, dt, now)
                 if not inf.warm then p.temp = p.temp - ml * 0.0005 end   -- room temperature saline
                 p.given[kind] = (p.given[kind] or 0) + ml
             end
-            inf.left = r1(inf.left)
         end
         if (inf.left or 0) <= 0.05 then
             table.remove(list, i)
@@ -853,6 +887,23 @@ function Phys.PickArrestRhythm(p, why)
     return NZA.Util.weightedPick(w) or 'pea'
 end
 
+-- STABILIZED (§6): the bleed-out clock pauses and the patient may be helped up. Any total under
+-- Config.Wounded.stableBleed counts; up to Config.Wounded.controlledBleed it counts when every wound
+-- that still bleeds is under control (bandaged / packed / tourniquet / splinted / treated - not
+-- 'open') and no haemothorax is still filling. Untreated and internal ('open') bleeds keep the clock.
+-- Needs fresh inj.bleed / inj.status (both callers set them first).
+local function isStable(p, total)
+    if p.state == 'arrest' or p.state == 'dead' then return false end
+    if total < cfg('Wounded', 'stableBleed', 1.0) then return true end
+    if total >= cfg('Wounded', 'controlledBleed', 5.0) then return false end
+    local h = p.conditions.haemothorax
+    if h and not h.stopped and (h.rate or 0) > 0 then return false end
+    for _, inj in pairs(p.injuries) do
+        if (inj.bleed or 0) >= 0.5 and inj.status == 'open' then return false end
+    end
+    return true
+end
+
 -- Recompute bleeding, injury status and the stabilized flag without moving time.
 function Phys.Refresh(p)
     if not p or not p.injuries then return end
@@ -866,7 +917,7 @@ function Phys.Refresh(p)
     end
     total = total + haemoBleed(p, ctx)
     p.bleedTotal = r1(total)
-    p.stabilized = p.bleedTotal < cfg('Wounded', 'stableBleed', 1.0) and p.state ~= 'arrest' and p.state ~= 'dead'
+    p.stabilized = isStable(p, p.bleedTotal)
     p.pain = math.floor(painOf(p, now) + 0.5)
 end
 
@@ -889,6 +940,7 @@ local function needsTick(p)
     end
     -- healthy: settle the numbers once, then skip until something changes
     local r = P.RT(p)
+    if r.mods then return true end      -- a module offset (SetModifier) is running
     if r.active then
         p.blood, p.fluid, p.temp, p.pain, p.bleedTotal, p.stabilized = math.min(p.blood, p.bloodMax), 0, 37.0, 0, 0, true
         Phys.Recompute(p, true)
@@ -941,7 +993,6 @@ function Phys.Update(p, dt, now)
         local hm = Phys.HealMultiplier(p, inj)
         if hm > 0 and p.state ~= 'arrest' then
             inj.heal = math.min(healCap(inj), (inj.heal or 0) + healRate * hm * m)
-            inj.heal = math.floor(inj.heal * 100 + 0.5) / 100
             if inj.heal >= 100 then
                 removed = removed or {}
                 removed[#removed + 1] = id
@@ -965,7 +1016,6 @@ function Phys.Update(p, dt, now)
     stepConditions(p, dt, now, ctx)
 
     -- ── blood & fluid accounting
-    local stableBleed = cfg('Wounded', 'stableBleed', 1.0)
     local minClock = cfg('Wounded', 'minClock', 60)
     local applied = total
     if p.state == 'wounded' and p.downAt and (now - p.downAt) < minClock and (p.clock or 0) > 0 then
@@ -990,11 +1040,9 @@ function Phys.Update(p, dt, now)
     if p.state == 'alive' and total < 0.5 and p.blood < p.bloodMax then
         p.blood = math.min(p.bloodMax, p.blood + K.regen * (p.meta.inBed and 4 or 1) * m)
     end
-    p.blood = math.floor(p.blood * 10 + 0.5) / 10
-    p.fluid = math.floor(p.fluid * 10 + 0.5) / 10
 
     p.bleedTotal = r1(total)
-    p.stabilized = p.bleedTotal < stableBleed and p.state ~= 'arrest'
+    p.stabilized = isStable(p, p.bleedTotal)      -- statuses were refreshed in the injury loop above
 
     local loss = P.Loss(p)
     stepInfection(p, dt, now)
@@ -1083,7 +1131,6 @@ function Phys.Update(p, dt, now)
                 transition(p, cfg('Death', 'bleedOutDeath', true) and 'dead' or 'arrest', 'bleedout')
                 return
             end
-            p.clock = math.floor(p.clock * 10 + 0.5) / 10
         end
     end
     r.prevBleed = total
@@ -1100,6 +1147,31 @@ function Phys.Update(p, dt, now)
     end
 
     P.Touch(p)
+end
+
+-- Short-lived vitals offset from a module, keyed so several can run side by side. mod =
+-- { sys, dia, hr, ttl = seconds (default 3, 1..60) }; nil / false removes it. Call it again before
+-- ttl runs out to keep it. Added to the living patient's targets before smoothing (not in arrest).
+function Phys.SetModifier(pid, key, mod)
+    local p = P.Resolve(pid)
+    if not p or key == nil then return false end
+    local r = P.RT(p)
+    if mod == nil or mod == false then
+        if r.mods then
+            r.mods[key] = nil
+            if next(r.mods) == nil then r.mods = nil end
+        end
+        return true
+    end
+    if type(mod) ~= 'table' then return false end
+    r.mods = r.mods or {}
+    r.mods[key] = {
+        sys = clamp(tonumber(mod.sys) or 0, -120, 120),
+        dia = clamp(tonumber(mod.dia) or 0, -80, 80),
+        hr = clamp(tonumber(mod.hr) or 0, -120, 120),
+        exp = os.time() + clamp(tonumber(mod.ttl) or 3, 1, 60),
+    }
+    return true
 end
 
 function Phys.Tick(dt)

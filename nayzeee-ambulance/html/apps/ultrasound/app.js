@@ -1052,10 +1052,8 @@
           <button class="dk" data-k="mode"><span>B / M</span><kbd>M</kbd></button>
           <button class="dk" data-k="cal"><span>${esc(T('k_measure', 'MEASURE'))}</span><kbd>C</kbd></button>
           <span class="dk-sep"></span>
-          <button class="dk sm" data-k="depth-"><span>${esc(T('k_depth', 'DEPTH'))} −</span><kbd>↑</kbd></button>
-          <button class="dk sm" data-k="depth+"><span>${esc(T('k_depth', 'DEPTH'))} +</span><kbd>↓</kbd></button>
-          <button class="dk sm" data-k="gain-"><span>${esc(T('k_gain', 'GAIN'))} −</span><kbd>←</kbd></button>
-          <button class="dk sm" data-k="gain+"><span>${esc(T('k_gain', 'GAIN'))} +</span><kbd>→</kbd></button>
+          <div class="dk-rk"><span class="rl">${esc(T('k_depth', 'DEPTH'))}</span><button class="dk rh" data-k="depth-"><b>−</b><kbd>↑</kbd></button><button class="dk rh" data-k="depth+"><b>+</b><kbd>↓</kbd></button></div>
+          <div class="dk-rk"><span class="rl">${esc(T('k_gain', 'GAIN'))}</span><button class="dk rh" data-k="gain-"><b>−</b><kbd>←</kbd></button><button class="dk rh" data-k="gain+"><b>+</b><kbd>→</kbd></button></div>
         </div>
         <span class="dv-sticker"><i>!</i>${esc(T('sticker', 'Rx only · IPX7 probe'))}</span>
       </div>`;
@@ -2338,7 +2336,7 @@
     const cotN = tex(cot.normal, false), cotA = tex(cot.albedo, true);
     const M = {
       // nitrile exam glove: cobalt blue, satin, a little translucency at the thin edges (sheen)
-      glove: keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x3a5fd0), roughness: 0.46, normalMap: gloveN, normalScale: new THREE.Vector2(0.22, 0.22), sheen: 0.7, sheenRoughness: 0.42, sheenColor: new THREE.Color(0x9db4ff), clearcoat: 0.28, clearcoatRoughness: 0.38 })),
+      glove: keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x2440b4), roughness: 0.4, normalMap: gloveN, normalScale: new THREE.Vector2(0.32, 0.32), sheen: 0.35, sheenRoughness: 0.45, sheenColor: new THREE.Color(0x6f86e8), clearcoat: 0.45, clearcoatRoughness: 0.32 })),
       sleeve: keep(new THREE.MeshPhysicalMaterial({ color: new THREE.Color(0x1d3a4a), map: cotA, normalMap: cotN, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.9, sheen: 0.5, sheenColor: new THREE.Color(0x6aa4b4) })),
       tube: keep(new THREE.MeshPhysicalMaterial({ color: 0xeef8ff, roughness: 0.08, transparent: true, opacity: 0.34, clearcoat: 1, clearcoatRoughness: 0.04, depthWrite: false, side: THREE.DoubleSide })),
       tubeEdge: keep(new THREE.MeshPhysicalMaterial({ color: 0xdfeff6, roughness: 0.15, transparent: true, opacity: 0.5, clearcoat: 1, depthWrite: false })),
@@ -2449,7 +2447,7 @@
         const d2 = turn(d0, fl[0] * 0.4 + fl[1] + fl[2]);
         const p3 = p2.clone().addScaledVector(d2, 0.026);
         const pts = [base.clone().addScaledVector(d0, -0.012), base, base.clone().lerp(p1, 0.5), p1, p1.clone().lerp(p2, 0.5), p2, p3];
-        const geo = keep(sweepGeo(THREE, pts, t => { const r = 0.0112 * lift(1.08, 0.86, t); return { w: r * 1.05, h: r * 0.88, e: 2.2, pad: 0.05 }; }, { seg: 32, rad: 20, up: V3(0.5, 0, 1), capEnd: true, capLen: 0.9 }));
+        const geo = keep(sweepGeo(THREE, pts, t => { const r = 0.0102 * lift(1.06, 0.84, t); return { w: r * 1.05, h: r * 0.88, e: 2.2, pad: 0.05 }; }, { seg: 32, rad: 20, up: V3(0.5, 0, 1), capEnd: true, capLen: 0.9 }));
         inner.add(new THREE.Mesh(geo, M.glove));
       }
       // wrist, rolled glove cuff, gown sleeve with a knit band
@@ -2560,6 +2558,47 @@
       return tool;
     }
 
+    /* 14 G decompression cannula (8 cm): steel needle inside an orange-tinted catheter, winged hub
+       with injection port, clear flashback chamber and the white needle grip. Tool frame: needle tip at
+       the origin, hub along +Y. set({ needle: false }) withdraws the needle and leaves the catheter. */
+    function cannula() {
+      const g = new THREE.Group();
+      const orange = keep(new THREE.MeshPhysicalMaterial({ color: 0xff7a1a, roughness: 0.3, clearcoat: 0.6, transparent: true, opacity: 0.92 }));
+      const cath = keep(new THREE.MeshPhysicalMaterial({ color: 0xffd2a8, roughness: 0.15, transparent: true, opacity: 0.55, clearcoat: 1, depthWrite: false }));
+      const clear = keep(new THREE.MeshPhysicalMaterial({ color: 0xf4fbff, roughness: 0.08, transparent: true, opacity: 0.38, clearcoat: 1, depthWrite: false }));
+      const white = keep(new THREE.MeshPhysicalMaterial({ color: 0xf3f5f6, roughness: 0.45, clearcoat: 0.3 }));
+      const add = (geo2, mat, y, parent) => { const m = new THREE.Mesh(keep(geo2), mat); m.position.y = y; m.castShadow = true; (parent || g).add(m); return m; };
+      const needle = new THREE.Group(); g.add(needle);
+      // bevelled steel needle (protrudes 2 mm past the catheter)
+      add(new THREE.CylinderGeometry(0.00105, 0.00105, 0.084, 16).translate(0, 0.042, 0), M.steel, 0.0, needle);
+      const bevel = add(new THREE.ConeGeometry(0.00105, 0.004, 16), M.steel, 0.002, needle); bevel.rotation.x = Math.PI;
+      // flashback chamber + needle grip
+      add(new THREE.CylinderGeometry(0.0034, 0.0034, 0.022, 20), clear, 0.106, needle);
+      add(new THREE.CylinderGeometry(0.0042, 0.0038, 0.03, 20), white, 0.13, needle);
+      add(new THREE.CylinderGeometry(0.0045, 0.0045, 0.004, 20), white, 0.147, needle);
+      const flash = add(new THREE.CylinderGeometry(0.0026, 0.0026, 0.001, 16), M.blood, 0.097, needle); flash.visible = false;
+      // catheter + hub with wings and port (stays in when the needle comes out)
+      const cat = new THREE.Group(); g.add(cat);
+      add(new THREE.CylinderGeometry(0.00125, 0.0016, 0.078, 18).translate(0, 0.041, 0), cath, 0.0, cat);
+      add(new THREE.CylinderGeometry(0.0022, 0.0042, 0.01, 22), orange, 0.083, cat);
+      add(new THREE.CylinderGeometry(0.0042, 0.0042, 0.012, 22), orange, 0.093, cat);
+      const wing = add(new THREE.BoxGeometry(0.03, 0.009, 0.0009), orange, 0.087, cat); wing.position.z = -0.0012;
+      const port = add(new THREE.CylinderGeometry(0.0022, 0.0022, 0.007, 16), orange, 0.091, cat); port.rotation.x = Math.PI / 2; port.position.z = 0.005;
+      g.traverse(o2 => { if (o2.isMesh) o2.castShadow = true; });
+      g.visible = false;
+      S.scene.add(g);
+      return {
+        group: g, name: 'cannula', press: 0, _p: V3(0, 0, 0), _q: new THREE.Quaternion(), _init: false,
+        pose: { lift: 0.004, pressLift: 0.0, tilt: 0.1, yaw: 1.4, roll: 0, shadow: 0.008 },
+        tipWorld: () => g.getWorldPosition(V3(0, 0, 0)),
+        set(o2) {
+          if (!o2) return;
+          if (o2.needle !== undefined) needle.visible = !!o2.needle;
+          if (o2.flash !== undefined) flash.visible = !!o2.flash;
+        },
+      };
+    }
+
     /* chest tube (28 Fr, clear PVC, blue radio-opaque line, depth marks every 2 cm), then the
        step connector and the drain tubing that runs off the bed to the drain unit.
        curve: from the skin outward. Returns { depth(cm), fill(0..1), drain(0..1), open(bool) } */
@@ -2591,8 +2630,8 @@
       // slide clamp on the outside part
       const cp = curve.getPointAt(0.55), ct = curve.getTangentAt(0.55);
       const cl = new THREE.Group();
-      const body = new THREE.Mesh(keep(new THREE.BoxGeometry(0.024, 0.028, 0.0115)), M.clampBlue); cl.add(body);
-      const slot = new THREE.Mesh(keep(new THREE.BoxGeometry(0.013, 0.02, 0.0118)), M.mark); slot.position.x = 0.002; cl.add(slot);
+      const body = new THREE.Mesh(keep(new THREE.BoxGeometry(0.02, 0.024, 0.0105)), M.clampBlue); cl.add(body);
+      const slot = new THREE.Mesh(keep(new THREE.BoxGeometry(0.011, 0.017, 0.0108)), M.mark); slot.position.x = 0.002; cl.add(slot);
       const tab = new THREE.Mesh(keep(new THREE.BoxGeometry(0.006, 0.012, 0.006)), M.clampBlue); tab.position.set(0.014, -0.008, 0); cl.add(tab);
       cl.position.copy(cp); cl.quaternion.setFromUnitVectors(V3(0, 1, 0), ct);
       g.add(cl);
@@ -2725,7 +2764,7 @@
     }
 
     const api = {
-      M, hand, pen, kelly, tube, drape, sheet,
+      M, hand, pen, kelly, cannula, tube, drape, sheet,
       dispose() { bin.forEach(x => { try { x.dispose(); } catch (e) { /* gone */ } }); },
     };
     return api;
@@ -3287,7 +3326,8 @@
           const mid = G.wound.at(0.5).uv;
           const sf = S.surfaceAt(mid);
           const n = sf.normal.clone();
-          let dx = -ant * 0.32, dy = -1;
+          // toward the back of the chest (the side of the bed and the floor), a little toward the feet
+          let dx = -ant, dy = -0.38;
           const dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
           const uvAt = k => [mid[0] + dx * k / W, mid[1] + dy * k / H];
           const lie = 0.0047 + 0.0029;
@@ -3296,7 +3336,7 @@
           const p0 = sf.point.clone().addScaledVector(n, -0.004);
           const p1 = sf.point.clone().addScaledVector(n, 0.017).addScaledVector(dW, 0.005);
           const pts = [p0, p1, onSurf(0.045, lie + 0.004), onSurf(0.085, lie), onSurf(0.13, lie), onSurf(0.175, lie)];
-          const kEdge = Math.max(0.19, Math.min(0.32, (mid[1] - 0.03) * H / Math.max(0.2, -dy)));
+          const kEdge = Math.max(0.19, Math.min(0.32, (ant > 0 ? mid[0] - 0.03 : 0.97 - mid[0]) * W / Math.max(0.2, Math.abs(dx))));
           const last = onSurf(kEdge, 0.0052 + 0.0029);
           const tail = [onSurf((0.2 + kEdge) / 2, 0.0052 + 0.0029), last,
             last.clone().addScaledVector(dW, 0.06).add(new THREE.Vector3(0, -0.035, 0)),
@@ -3442,6 +3482,7 @@
     MS.sheet();
     const hand = MS.hand('palpate');
     const pen = MS.pen();
+    const can = MS.cannula();
     const G = { step: 0, mark: null, err: null, push: 0, popped: false, lmb: false, done: false, score: 0, t: 0, tool: 'hand', lens: 0 };
     const tlist = () => [
       { key: '1', label: T('cd_t_hand', 'Palpate'), icon: 'hand', state: G.step > 0 ? 'done' : G.tool === 'hand' ? 'active' : '' },
@@ -3477,22 +3518,23 @@
       if (e.button !== 0 || G.done) return;
       G.lmb = true; S.tools.press(true);
       const hit = sh.hit();
-      if (G.step === 0 && hit && G.tool === 'pen') {
-        G.mark = hit.uv;
-        if (ink) { ink.cross(hit.uv, 0.008, 0); ink.flush(); } else S.markers.set('mark', { uv: hit.uv, kind: 'cross', color: 0x5b2f9c, size: 0.007 });
-        G.err = S.distanceUv(hit.uv, target) / MM;
-        const tone = G.err <= 10 ? 'ok' : G.err <= 22 ? 'warn' : 'bad';
-        pp.wide({ value: String(Math.round(G.err)), meter: { value: clamp(G.err / 50, 0, 1), zone: [0, 0.2], tone: tone === 'ok' ? '' : tone === 'warn' ? 'amber' : 'red' } });
-        const tooMed = (hit.uv[0] - 0.5) * med > 0.12;
-        pp.flash(tone, tooMed ? T('dc_fl_med', 'Too close to the breastbone: big vessels run there.') : tone === 'ok' ? T('dc_fl_ok', 'Right spot.') : T('dc_fl_off', '%s mm from the ideal spot.', Math.round(G.err)), 2600);
-        G.score = (G.err <= 8 ? 55 : G.err <= 15 ? 45 : G.err <= 25 ? 30 : 12) - (tooMed ? 15 : 0);
-        G.step = 1;
-        setTimeout(() => {
-          pp.set({ step: 2, title: STEPS[1], text: T('dc_x2', 'Hold {LMB} on the mark and push straight down, just over the top of the 3rd rib, until you hear the hiss.'), tools: tlist(), wide: { label: T('dc_w_push', 'Depth'), value: '0', unit: '%', meter: { value: 0, zone: [0.95, 1] } } });
-          S.tools.use('syringe', { tilt: 0.12, yaw: 1.4 });
-        }, 700);
-      }
+      if (G.step === 0 && hit && G.tool === 'pen') placeMark(hit.uv);
     });
+    function placeMark(uv) {
+      G.mark = uv;
+      if (ink) { ink.cross(uv, 0.008, 0); ink.flush(); } else S.markers.set('mark', { uv: uv, kind: 'cross', color: 0x5b2f9c, size: 0.007 });
+      G.err = S.distanceUv(uv, target) / MM;
+      const tone = G.err <= 10 ? 'ok' : G.err <= 22 ? 'warn' : 'bad';
+      pp.wide({ value: String(Math.round(G.err)), meter: { value: clamp(G.err / 50, 0, 1), zone: [0, 0.2], tone: tone === 'ok' ? '' : tone === 'warn' ? 'amber' : 'red' } });
+      const tooMed = (uv[0] - 0.5) * med > 0.12;
+      pp.flash(tone, tooMed ? T('dc_fl_med', 'Too close to the breastbone: big vessels run there.') : tone === 'ok' ? T('dc_fl_ok', 'Right spot.') : T('dc_fl_off', '%s mm from the ideal spot.', Math.round(G.err)), 2600);
+      G.score = (G.err <= 8 ? 55 : G.err <= 15 ? 45 : G.err <= 25 ? 30 : 12) - (tooMed ? 15 : 0);
+      G.step = 1;
+      setTimeout(() => {
+        pp.set({ step: 2, title: STEPS[1], text: T('dc_x2', 'Hold {LMB} on the mark and push straight down, just over the top of the 3rd rib, until you hear the hiss.'), tools: tlist(), wide: { label: T('dc_w_push', 'Depth'), value: '0', unit: '%', meter: { value: 0, zone: [0.95, 1] } } });
+        S.tools.use(can);
+      }, 700);
+    }
     S.on('up', e => { if (e.button === 0) { G.lmb = false; S.tools.press(false); } });
     const curves = [{ cls: 'cl', pts: Array.from({ length: 22 }, (_, i) => { const u = 0.06 + i * 0.042; return [u, clavV(u)]; }) }];
     for (let n = 1; n <= 6; n++) curves.push({ cls: n === 2 || n === 3 ? 'rb hi' : 'rb', pts: Array.from({ length: 22 }, (_, i) => { const u = 0.06 + i * 0.042; return [u, ribV(n, u)]; }) });
@@ -3518,9 +3560,13 @@
         const near = S.distanceUv(hit.uv, G.mark) / MM < 7;
         if (near) {
           G.push = Math.min(1, G.push + dt / 1.8);
+          can.pose.pressLift = -0.052 * G.push;             // the needle sinks through the chest wall
           ring = G.push; txt = `${Math.round(G.push * 100)}%`; tone = 'teal';
           if (G.push >= 1) {
             G.popped = true;
+            // needle out, the catheter stays in: air keeps escaping through it
+            S.tools.follow = false;
+            setTimeout(() => { can.set({ needle: false }); can.pose.pressLift = -0.05; }, 650);
             NZA.audio.noise(1600, { vol: 0.12, lp: 4200, hp: 500, attack: 0.02, release: 0.7 });
             S.controls.shake(0.25, 300);
             S.layers.splat('wet', G.mark, 0.006, 0.6);
@@ -3544,7 +3590,7 @@
     function finish() {
       if (G.done) return;
       G.done = true;
-      S.tools.use(null);
+      if (!G.popped) S.tools.use(null);                 // a placed catheter stays in view
       app.post('finish', { result: { score: clamp(Math.round(G.score), 0, 100) } }).then(r => { if (r && r.outcome) api.msg.result(r.outcome); });
     }
     const api = {
@@ -3562,7 +3608,7 @@
         },
       },
       destroy() { pp.destroy(); if (ink) ink.dispose(); MS.dispose(); sh.destroy(); },
-      _dbg: { S, G, target, hand, pen },
+      _dbg: { S, G, target, hand, pen, can, placeMark, pickTool },
     };
     return api;
   }

@@ -6,12 +6,14 @@
     NZA.Staff.Can() again for every action (ARCHITECTURE §7, §13).
 
       NZA.Perm(perm)        → bool   may this player use 'perm' (filters menus/targets)
-      NZA.Easy(perm)        → bool   easy mode (progress bar instead of minigame) for 'perm'
+      NZA.Easy(perm)        → bool   easy mode (progress bar instead of minigame) for 'perm':
+                                     record.easy[perm], else record.easyDefault when the
+                                     provider set it, else Config.EasyMode.default
       NZA.IsMedic()         → bool   framework job is a medic job
       NZA.OnDuty()          → bool
       NZA.Staff.Get()       → record | nil
           { hospital, dept, grade, gradeLabel, perms = { [perm] = true },
-            easy = { [perm] = true }, onDuty, medic, police, admin? }
+            easy = { [perm] = true }, easyDefault?, onDuty, medic, police, admin? }
       NZA.Staff.Refresh()   → record   (awaits callback 'nza:staff:get')
 
     Net events handled: nza:staff:update (record)
@@ -96,10 +98,12 @@ function NZA.Perm(perm)
 end
 
 -- Mirrors NZA.Staff.Easy on the server: a perm listed in record.easy is easy, anything
--- else falls back to Config.EasyMode.default. (The server decides per session anyway:
--- 'nza:proc:start' returns easy = true/false.)
+-- else falls back to the provider's optional record.easyDefault (a department with easy
+-- mode off sends false), else Config.EasyMode.default. (The server decides per session
+-- anyway: 'nza:proc:start' returns easy = true/false.)
 function NZA.Easy(perm)
     local default = (Config.EasyMode and Config.EasyMode.default == true) or false
+    if record and record.easyDefault ~= nil then default = record.easyDefault == true end
     if record and type(record.easy) == 'table' then
         if perm == nil then
             for _ in pairs(record.easy) do return true end

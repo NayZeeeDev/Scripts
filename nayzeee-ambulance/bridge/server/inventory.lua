@@ -21,6 +21,7 @@
       Bridge.Inv.RegisterUsable(name, fn(src, item))
       Bridge.Inv.Label(name) → label        Bridge.Inv.Image(name) → 'nui://...png'
       Bridge.Inv.Clear(src, keep?)           keep = { 'item_name', ... }
+      Bridge.Inv.OpenStash(src, id, { label, slots, weight, owner? }) → bool   (ox, qb, ps, lj, qs)
       Bridge.Inv.Resource() → adapter name
 
     METADATA
@@ -138,6 +139,13 @@ local function qbShared(name)
     return items and items[name] or nil
 end
 
+-- Stash flow of qb-inventory 1.x, lj-inventory and qs-inventory: the client asks the
+-- inventory to open it (bridge/client/inventory.lua 'nza:bridge:inv:openStash').
+local function classicStash(src, id, opts)
+    TriggerClientEvent('nza:bridge:inv:openStash', src, id, { label = opts.label, slots = opts.slots, weight = opts.weight })
+    return true
+end
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- ox_inventory
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -191,6 +199,11 @@ I['ox_inventory'] = {
         -- items without 'consume' are handed to the framework by ox
         frameworkUsable(name, cb)
         return hookId ~= nil
+    end,
+    openStash = function(src, id, opts)
+        -- owner = true: one stash per player under the same id (re-registering only updates it)
+        ox:RegisterStash(id, opts.label, opts.slots, opts.weight, opts.owner and true or nil)
+        return ox:forceOpenInventory(src, 'stash', id) ~= nil
     end,
 }
 
@@ -340,6 +353,14 @@ I['qb-inventory'] = makeQbStyle('qb-inventory', 'qb-inventory:client:ItemBox')
 I['ps-inventory'] = makeQbStyle('ps-inventory', 'ps-inventory:client:ItemBox')
 I['lj-inventory'] = makeQbStyle('lj-inventory', 'inventory:client:ItemBox')
 
+-- ps-inventory renamed its stash events (ps-inventory:server:OpenInventory); its
+-- OpenInventory export opens the stash and sets the client's current stash itself
+I['ps-inventory'].openStash = function(src, id, opts)
+    exports['ps-inventory']:OpenInventory('stash', id, { maxweight = opts.weight, slots = opts.slots }, src)
+    return true
+end
+I['lj-inventory'].openStash = classicStash
+
 -- qb-inventory before v2 had no AddItem/RemoveItem exports: use Player.Functions
 do
     local v2 = I['qb-inventory']
@@ -358,6 +379,12 @@ do
     wrapped.image = function(name)
         local def = qbShared(name)
         return 'qb-inventory', 'html/images/' .. (def and def.image or (name .. '.png'))
+    end
+    -- 2.x opens stashes from the server; 1.x only through its client event
+    wrapped.openStash = function(src, id, opts)
+        if not qbVersion2('qb-inventory') then return classicStash(src, id, opts) end
+        exports['qb-inventory']:OpenInventory(src, id, { label = opts.label, maxweight = opts.weight, slots = opts.slots })
+        return true
     end
     I['qb-inventory'] = wrapped
 end
@@ -413,6 +440,7 @@ I['qs-inventory'] = {
         end)
         return ok or frameworkUsable(name, cb)
     end,
+    openStash = classicStash,   -- qs documents the qb 'inventory:server:OpenInventory' stash flow
 }
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -976,6 +1004,23 @@ function Bridge.Inv.Clear(src, keep)
     end
     dirty(src)
     return true
+end
+
+-- Open a stash of the running inventory for the player. The caller checks access first.
+-- False when the inventory has no stash support here (codem, origen, tgiann, core,
+-- plain ESX/QB, none): the caller then uses its own storage.
+function Bridge.Inv.OpenStash(src, id, opts)
+    src = tonumber(src)
+    if not src or src <= 0 or type(id) ~= 'string' or id == '' then return false end
+    opts = type(opts) == 'table' and opts or {}
+    local o = {
+        label = (type(opts.label) == 'string' and opts.label ~= '') and opts.label or id,
+        slots = math.max(1, math.floor(tonumber(opts.slots) or 50)),
+        weight = math.max(0, math.floor(tonumber(opts.weight) or 100000)),
+        owner = opts.owner,
+    }
+    local ok, done = run('openStash', src, id, o)
+    return ok and done == true
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════

@@ -241,4 +241,5 @@ NZA.AddLocale('en', {
     ['cond.hypothermia']   = 'Hypothermia',
     ['cond.infection']     = 'Wound infection',
     ['cond.spinal']        = 'Spinal injury',
+    ['cond.reaction']      = 'Transfusion reaction',
 })

@@ -89,38 +89,66 @@
 #app-suture .sz-load .ring{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.1);border-top-color:var(--teal);animation:sz-spin 900ms linear infinite}
 @keyframes sz-spin{to{transform:rotate(360deg)}}
 
-/* ── result card ── */
-#app-suture .sz-result-wrap{position:absolute;left:0;right:0;top:64px;display:flex;justify-content:center;pointer-events:none}
-#app-suture .sz-result{width:600px;padding:18px 20px 16px;pointer-events:auto}
-#app-suture .sz-result::before{content:'';position:absolute;left:16px;right:16px;top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0))}
-#app-suture .sz-result.low::before{background:linear-gradient(90deg,var(--amber),rgba(229,165,10,0))}
-#app-suture .sz-result .rh{display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--line-soft)}
-#app-suture .sz-result h3{font-size:19px;font-weight:600;color:var(--white);letter-spacing:-.01em}
-#app-suture .sz-result .rh p{font-size:12px;color:var(--ink-3);margin-top:4px}
-#app-suture .sz-result .sc{margin-left:auto;text-align:right}
-#app-suture .sz-result .sc b{display:block;font-size:26px;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
-#app-suture .sz-result .sc span{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
-#app-suture .sz-result table{width:100%;border-collapse:collapse;margin-top:6px}
-#app-suture .sz-result td{padding:9px 0;border-top:1px solid var(--line-hair);font-size:12.5px;color:var(--ink-2);vertical-align:middle}
-#app-suture .sz-result tr:first-child td{border-top:0}
-#app-suture .sz-result td.k{width:128px}
-#app-suture .sz-result td.d{color:var(--white);font-weight:600}
-#app-suture .sz-result td.d i{font-style:normal;font-weight:400;font-size:11px;color:var(--ink-3);margin-left:6px}
-#app-suture .sz-result td.m{width:150px;padding-left:14px}
-#app-suture .sz-result td.n{width:40px;text-align:right;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums}
-#app-suture .sz-result .fb{list-style:none;display:flex;flex-direction:column;gap:6px;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--line-soft)}
-#app-suture .sz-result .fb li{display:flex;gap:9px;font-size:12.5px;color:var(--ink);line-height:1.45}
-#app-suture .sz-result .fb li::before{content:'';width:6px;height:6px;margin-top:6px;flex:none;border-radius:50%;background:var(--ink-3)}
+/* ── debrief card: bottom-left, where the procedure column was; the finished closure stays in view ── */
+#app-suture .sz-result-wrap{position:absolute;left:28px;bottom:28px;width:392px;pointer-events:none}
+#app-suture .sz-result{position:relative;padding:16px 18px 14px;pointer-events:auto}
+#app-suture .sz-result.in{animation:sz-in-l 320ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes sz-in-l{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
+/* corner bracket instead of a full top rail */
+#app-suture .sz-result::before{content:'';position:absolute;left:-1px;top:-1px;width:34px;height:34px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);
+  border-top-left-radius:12px;filter:drop-shadow(0 0 6px rgba(8,175,162,.55));pointer-events:none}
+#app-suture .sz-result.low::before{border-color:var(--amber);filter:drop-shadow(0 0 6px rgba(229,165,10,.45))}
+#app-suture .sz-result .rh{display:flex;align-items:center;gap:12px;padding-bottom:10px;border-bottom:1px solid var(--line-soft)}
+#app-suture .sz-result .dial{position:relative;flex:none;width:112px;height:98px}
+#app-suture .sz-result .dial svg{width:112px;height:98px;display:block;overflow:visible}
+#app-suture .sz-result .dial .trk{fill:none;stroke:rgba(255,255,255,.08);stroke-width:7;stroke-linecap:round}
+#app-suture .sz-result .dial .fill{fill:none;stroke:var(--teal-hi);stroke-width:7;stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(15,212,196,.6));
+  stroke-dasharray:100;stroke-dashoffset:100;animation:sz-dial 900ms 120ms cubic-bezier(.3,.7,.2,1) forwards}
+#app-suture .sz-result .dial .fill.amber{stroke:#f3c35a;filter:drop-shadow(0 0 4px rgba(229,165,10,.5))}
+#app-suture .sz-result .dial .fill.red{stroke:#ff6b70;filter:drop-shadow(0 0 4px rgba(229,72,77,.6))}
+#app-suture .sz-result:not(.in) .dial .fill{animation:none;stroke-dashoffset:0}
+@keyframes sz-dial{to{stroke-dashoffset:0}}
+#app-suture .sz-result .dial .ticks line{stroke:rgba(255,255,255,.22);stroke-width:1.2}
+#app-suture .sz-result .dial .gv{position:absolute;left:0;right:0;top:30px;text-align:center}
+#app-suture .sz-result .dial .gv b{display:block;font:800 30px/1 var(--font);color:var(--teal-hi);letter-spacing:-.02em;text-shadow:0 0 14px rgba(15,212,196,.45)}
+#app-suture .sz-result .dial .gv b.g-C,#app-suture .sz-result .dial .gv b.g-D{color:#f3c35a;text-shadow:0 0 14px rgba(229,165,10,.4)}
+#app-suture .sz-result .dial .gv b.g-F{color:#ff7478;text-shadow:0 0 14px rgba(229,72,77,.45)}
+#app-suture .sz-result .dial .gv span{display:block;margin-top:4px;font:700 13px/1 var(--mono);color:var(--white);font-variant-numeric:tabular-nums}
+#app-suture .sz-result .dial .gv span i{font-style:normal;font-weight:500;font-size:9.5px;color:var(--ink-3);margin-left:1px}
+#app-suture .sz-result .rt{min-width:0}
+#app-suture .sz-result .kick{display:block;font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--teal-hi)}
+#app-suture .sz-result.low .kick{color:#f3c35a}
+#app-suture .sz-result h3{margin-top:4px;font-size:17px;font-weight:600;color:var(--white);letter-spacing:-.01em;line-height:1.2}
+#app-suture .sz-result .rt p{font-size:11.5px;color:var(--ink-3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-suture .sz-result .rt p.mono{font:500 11px var(--mono);color:var(--ink-2)}
+/* instrument list: label left, value + score right, tone notch, thin meter under */
+#app-suture .sz-result .rows{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column}
+#app-suture .sz-result .rows li{position:relative;display:grid;grid-template-columns:96px 1fr 34px;align-items:baseline;column-gap:8px;padding:7px 0 8px 12px;border-top:1px solid var(--line-hair)}
+#app-suture .sz-result .rows li:first-child{border-top:0}
+#app-suture .sz-result .rows li::before{content:'';position:absolute;left:0;top:9px;width:3px;height:12px;border-radius:2px;background:var(--teal);box-shadow:0 0 6px var(--teal)}
+#app-suture .sz-result .rows li.warn::before{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+#app-suture .sz-result .rows li.bad::before{background:var(--red);box-shadow:0 0 6px var(--red)}
+#app-suture .sz-result .rows .k{font-size:12px;color:var(--ink-2)}
+#app-suture .sz-result .rows .d{font-size:12px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-suture .sz-result .rows .d i{font-style:normal;font-weight:400;font-size:10.5px;color:var(--ink-3);margin-left:5px}
+#app-suture .sz-result .rows b{font:700 13px var(--mono);color:var(--white);text-align:right;font-variant-numeric:tabular-nums}
+#app-suture .sz-result .rows .m{grid-column:1 / -1;margin-top:6px}
+#app-suture .sz-result .rows .m .mtr{height:3px}
+#app-suture .sz-result .fb{list-style:none;display:flex;flex-direction:column;gap:5px;margin:4px 0 0;padding:10px 0 0;border-top:1px solid var(--line-soft)}
+#app-suture .sz-result .fb li{position:relative;padding:5px 8px 5px 12px;border-radius:7px;background:var(--inset);font-size:11.5px;color:var(--ink);line-height:1.4}
+#app-suture .sz-result .fb li::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;background:var(--ink-3)}
 #app-suture .sz-result .fb li.ok::before{background:var(--teal);box-shadow:0 0 6px var(--teal)}
 #app-suture .sz-result .fb li.warn::before{background:var(--amber);box-shadow:0 0 6px var(--amber)}
 #app-suture .sz-result .fb li.bad::before{background:var(--red);box-shadow:0 0 6px var(--red)}
-#app-suture .sz-result .msg{margin-top:12px;font-size:12px;color:var(--ink-2)}
+#app-suture .sz-result .msg{margin-top:10px;font-size:11.5px;color:var(--ink-2)}
 #app-suture .sz-result .msg.err{color:#ff9a9d}
-#app-suture .sz-result .act{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft)}
+#app-suture .sz-result .act{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft)}
+#app-suture .sz-result .act .pp-done[disabled]{opacity:.45;pointer-events:none}
 #app-suture .sz-result .act .wait{margin-right:auto;font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:8px}
 #app-suture .sz-result .act .wait .ring{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.12);border-top-color:var(--teal);animation:sz-spin 900ms linear infinite}
 
 @media (prefers-reduced-motion: reduce){
-  #app-suture .sz-pt.flinch{animation:none}
+  #app-suture .sz-pt.flinch,#app-suture .sz-result.in{animation:none}
+  #app-suture .sz-result .dial .fill{animation:none;stroke-dashoffset:0}
   #app-suture .sz-load .ring,#app-suture .sz-result .act .wait .ring{animation-duration:3s}
 }

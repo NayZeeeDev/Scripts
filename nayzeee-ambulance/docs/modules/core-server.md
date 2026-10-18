@@ -66,8 +66,8 @@ folder works in any glob order (the smoke test loads it forwards and backwards).
   `sutured`, `packed`, binder, TXA). Haemothorax bleeding adds to the total.
 - Natural clotting: wounds under a dressing and small (sev ≤ 2) abrasions / lacerations / burns /
   shrapnel slowly stop.
-- Blood & saline lost in proportion; infusions flow at `rate` mL/min (pause when the last IV/IO is
-  removed), saline decays `Config.Physiology.fluidDecay`/min, refrigerated blood and room-temp saline
+- Blood & saline lost in proportion; infusions flow at `rate` mL/min from the moment they are added
+  (modules check IV/IO access; they pause when the last IV/IO is removed), saline decays `Config.Physiology.fluidDecay`/min, refrigerated blood and room-temp saline
   cool the patient (unless `warm`), incompatible blood (detected from `bag.type`) → transfusion reaction.
   Blood regenerates 6 mL/min while alive and not bleeding (×4 in bed).
 - `loss% = 1 − (blood + 0.35 × fluid) / bloodMax` → ATLS curves for HR / SBP / DBP / MAP / RR.
@@ -77,6 +77,10 @@ folder works in any glob order (the smoke test loads it forwards and backwards).
 - Airway: drowning water and smoke (cleared by coughing / oxygen / CPR), airway swelling closes the
   airway unless intubated, unconscious patients snore (unless `meta.recovery`), gurgling with water,
   facial bleeding or vomiting drunks.
+- Ventilation: a tube on the bag / ventilator (`devices.intubated` + `meta.ventilated`, RR =
+  `meta.ventRate` or 14) or a bag-valve-mask round (`meta.bagUntil` in the future: RR at least
+  `meta.ventRate` or 10, absent / agonal / shallow breathing reads `normal`) adds SpO2 +4 and removes
+  the low-RR penalty; in arrest either shows RR 10 (default).
 - Drugs: opioid / stimulant / alcohol overdose; morphine stacking → opioid toxicity; naloxone reverses
   and blocks morphine; adrenaline raises HR/BP; transfusion reaction.
 - Temperature: blood loss, exposure while down, water (`meta.wet` until timestamp), arrest, cold
@@ -87,6 +91,9 @@ folder works in any glob order (the smoke test loads it forwards and backwards).
   hypotension; antibiotics clear it.
 - Pain from injuries (minus splint/cast, cooling, dressings, lidocaine on anesthetized wounds) + tourniquets
   + conditions, minus painkillers (−20) and morphine (−45).
+- `NZA.Physiology.SetModifier(pid, key, { sys, dia, hr, ttl })`: short-lived offsets a module adds to a
+  living patient's vitals targets (e.g. the field resuscitation pressure model), so every monitor shows
+  the same numbers; dropped `ttl` s (default 3) after the last call.
 - Vitals are smoothed (τ ≈ 4 s) with small jitter. Rhythm: sinus / stach / sbrady / afib (deep
   hypothermia); in arrest VF / VT / PEA / asystole chosen by cause (headshot/trauma/electrocution → VF,
   hypoxia/drowning/opioids → PEA/asystole, tension/tamponade → PEA, hypovolaemia → PEA); without CPR
@@ -105,6 +112,14 @@ folder works in any glob order (the smoke test loads it forwards and backwards).
   `clockRate` in the self snapshot); never exceeds the physiological time-to-death (after the first
   `minClock` seconds, during which blood loss is capped so the minimum is honoured); treatment that cuts
   the bleed gives part of the time back; frozen while `stabilized`.
+- `stabilized`: total bleed < `Config.Wounded.stableBleed`, or < `Config.Wounded.controlledBleed`
+  (default 5 mL/min) when no wound that still bleeds ≥ 0.5 mL/min is `open` (bandaged, packed,
+  tourniquet, splinted or treated wounds are controlled) and no haemothorax is still filling. Untreated
+  and internal (`open`) bleeds keep the clock running; a well-controlled ooze pauses it and allows a
+  pick-up (`CanStand`).
+- Precision: blood, fluid, temperature, heal, contamination, condition amounts / levels / mL, infusion
+  `left` and the clock accumulate at full precision every tick (slow processes never stall); the medic /
+  self snapshots round them (see core-api.md).
 - Healing: definitively treated injuries gain `Config.Physiology.healRate`/min (×4 with `meta.inBed`,
   ×0.25 in an infected region, fractures ×0.6 without a cast), contusions and minor abrasions heal on
   their own; removed at 100. Concussion grades settle with rest; spinal injuries resolve once no spine
@@ -146,6 +161,8 @@ folder works in any glob order (the smoke test loads it forwards and backwards).
 - Staff: default resolver = framework job → `Config.DefaultPerms[grade]` (highest lower grade), police →
   `Config.PolicePerms`, everyone → `Config.PublicPerms`, admins → everything (+ `builder`).
   `Config.Jobs.requireDuty` strips job perms off duty. The record's `perms` are the effective perms.
+  `NZA.Staff.Easy(src, perm)`: `record.easy[perm]`, else the provider's optional `record.easyDefault`
+  (bool, lets a department switch easy mode off under `Config.EasyMode.default = true`), else the default.
 
 ## Config keys used
 
@@ -158,6 +175,8 @@ saveInterval, offlineHeal), Items (via modules)`.
 
 Optional (not in config.lua yet, defaults on): `Config.Physiology.infection = false` disables wound
 infections, `Config.Physiology.hypothermia = false` disables temperature simulation.
+`Config.Wounded.controlledBleed` (default 5.0 mL/min, not in config.lua yet): controlled wounds oozing
+less than this count as stabilized.
 
 ## Events
 
@@ -216,6 +235,7 @@ living patient puts them in arrest (clearing it in arrest is ignored — use `Re
 
 Meta keys core reads: `inBed` (×4 healing, rewarming), `bay`, `bed` (view rules), `wet` (timestamp),
 `recovery` (no snoring), `ventilated` + `ventRate` (BVM / ventilator on an intubated patient),
+`bagUntil` (timestamp: bag-valve-mask ventilation without a tube),
 `cprQuality` (0–100, EtCO2 / pressures during CPR), `keep` (NPC survives ped deletion),
 `bodybag`, `carried`, `stretcher` (state bag).
 
@@ -265,18 +285,21 @@ CREATE TABLE IF NOT EXISTS `nza_records` (
   EtCO2); ROSC = `Revive(pid, { rosc = true })` (post-ROSC vitals are set; 20 s grace).
 - **defib**: change rhythm with `SetCondition(pid, 'arrest', { rhythm = 'vf', since = ..., cause = ... })`
   while in arrest; `NZA.Const.Shockable`.
-- **iv / blood**: set `devices.iv` / `devices.port` before or after `AddInfusion` (infusions pause with no
-  access); pass the bag metadata as `bag` (`bag.type` is checked for compatibility; `warm = true` for
+- **iv / blood**: check access before `AddInfusion` (the core does not: a bag added without
+  `devices.iv` / `devices.port` flows; it pauses when the last line is removed and resumes when one is
+  set again); pass the bag metadata as `bag` (`bag.type` is checked for compatibility; `warm = true` for
   warmed fluids).
 - **chest drain / needle**: `SetDevice(pid, 'chestDrain', side, true)`; needle decompression =
   `SetCondition(pid, 'pneumothorax', { ...existing, tension = false })`.
 - **wounded / transport**: `CanStand(pid)` before setting `alive`; `downAt` and `clockRate` are in the
-  self snapshot for the give-up timer and UI.
+  self snapshot for the give-up timer and UI. A death after an arrest keeps the arrest's cause in
+  `p.cause.arrestCause` (`p.cause.reason` is `'arrest'`).
 
 ## Known limits
 - Healing and infection are game-time compressed (minutes, not days); tune with `healRate`.
 - The bleed-out clock is a game timer (see above), so it can end before the blood volume reaches
-  `deathLoss`; that is intended (`Config.Death.bleedOutDeath`).
+  `deathLoss`; that is intended (`Config.Death.bleedOutDeath`). It only runs while the patient is not
+  `stabilized`, so controlled bleeding (see above) never ends in a bleed-out.
 - A `json.encode` failure (a module storing a function or sparse array in `meta`) skips that save with
   a warning instead of crashing.
 - NPC records are not written to `nza_records`.

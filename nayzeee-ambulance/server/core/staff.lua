@@ -12,7 +12,8 @@
     API
       NZA.Staff.Get(src)         → { hospital, dept, grade, gradeLabel, perms, easy, onDuty, medic, police, admin, job }
       NZA.Staff.Can(src, perm)   → bool
-      NZA.Staff.Easy(src, perm)  → bool (easy mode for that permission)
+      NZA.Staff.Easy(src, perm)  → bool (easy mode for that permission: record.easy[perm], else the
+                                 provider's optional record.easyDefault, else Config.EasyMode.default)
       NZA.Staff.OnDuty()         → { src, ... } medics on duty
       NZA.Staff.Provider(fn)     install / replace the resolver (refreshes everyone)
       NZA.Staff.Refresh(src, force) / NZA.Staff.RefreshAll()   recompute + push 'nza:staff:update'
@@ -126,6 +127,9 @@ local function finalize(src, rec)
     local easy = {}
     addPerms(easy, rec.easy)
     rec.easy = easy
+    -- optional provider switch for every perm not in rec.easy (a department with easy mode off
+    -- sets false so Config.EasyMode.default = true does not apply to its members)
+    if rec.easyDefault ~= nil then rec.easyDefault = rec.easyDefault == true end
     return rec
 end
 
@@ -169,9 +173,13 @@ function S.Can(src, perm)
     return rec.perms[perm] == true
 end
 
+-- rec.easy[perm] → easy; else the provider's rec.easyDefault when set; else Config.EasyMode.default
 function S.Easy(src, perm)
     local rec = S.Get(src)
-    if rec and rec.easy[perm] ~= nil then return rec.easy[perm] == true end
+    if rec then
+        if perm ~= nil and rec.easy[perm] then return true end
+        if rec.easyDefault ~= nil then return rec.easyDefault == true end
+    end
     return (Config.EasyMode and Config.EasyMode.default) == true
 end
 

@@ -262,6 +262,32 @@ local GUN_GROUPS = {
 -- the killing blow, for the down report (the bone is cleared after every hit)
 local lastHit = nil   -- { weapon, bone, region, attacker, sid, net, at }
 
+-- GTA death handling (defined in the GTA DEATH section below)
+local downing = false
+local handleDeath
+
+-- A fatal hit wakes the death check at once, so the idle death watcher can sleep 500 ms.
+-- Polls every 50 ms for up to 1.5 s until GTA has really killed the ped (also across a
+-- resurrect still in progress); deaths without a damage event (a script setting health 0)
+-- are caught by the watcher.
+local deathKick = false
+local function kickDeathCheck()
+    if deathKick then return end
+    deathKick = true
+    CreateThread(function()
+        local t = GetGameTimer()
+        while GetGameTimer() - t < 1500 do
+            local ped = PlayerPedId()
+            if not downing and (IsEntityDead(ped) or IsPedDeadOrDying(ped, true)) then
+                handleDeath(ped)
+                break
+            end
+            Wait(50)
+        end
+        deathKick = false
+    end)
+end
+
 local function onDamage(ped, args)
     local attacker = args[2]
     local weapon = s32(args[7] or 0)
@@ -269,6 +295,7 @@ local function onDamage(ped, args)
 
     local hp, ar = GetEntityHealth(ped), GetPedArmour(ped)
     local fatal = hp <= 100 or IsEntityDead(ped)
+    if fatal then kickDeathCheck() end
     local dmg = math.max(0, base.hp - math.max(hp, 100))
     local arm = math.max(0, base.ar - ar)
     base.hp, base.ar, base.pendingSince = hp, ar, nil
@@ -389,14 +416,36 @@ local function onLanded(ped, height)
     end)
 end
 
+-- on the ground: poll every 150 ms only when a fall is likely to start, else every 500 ms
+local function fallLikely(ped)
+    if IsPedJumpingOutOfVehicle(ped) then return true end
+    if IsPedInAnyVehicle(ped, false) then return false end
+    if IsPedJumping(ped) or IsPedClimbing(ped) or IsPedVaulting(ped) or IsPedRagdoll(ped) then return true end
+    return not IsEntityInWater(ped) and GetEntityHeightAboveGround(ped) > 1.5
+end
+
+local GRAVITY = 9.81
+
 CreateThread(function()
     local top = nil
+    local lastPoll = GetGameTimer()
     while true do
         local ped = PlayerPedId()
         if airborne(ped) then
             local z = GetEntityCoords(ped).z
             local chute = GetPedParachuteState(ped)
-            if not top or z > top or chute == 1 or chute == 2 then top = z end   -- canopy open = slow descent
+            if not top then
+                -- add the drop already fallen before this first airborne poll: free-fall height
+                -- for the current sink speed, capped to what the time since the last ground poll
+                -- (+ 0.1 s for GTA's fall task to start) allows
+                top = z
+                local vz = GetEntityVelocity(ped).z
+                if vz < 0 then
+                    local w = math.max(0, GetGameTimer() - lastPoll) / 1000 + 0.1
+                    top = z + math.min(vz * vz / (2 * GRAVITY), 0.5 * GRAVITY * w * w)
+                end
+            end
+            if z > top or chute == 1 or chute == 2 then top = z end   -- canopy open = slow descent
             Wait(0)
         else
             if top then
@@ -404,7 +453,8 @@ CreateThread(function()
                 top = nil
                 onLanded(ped, drop)
             end
-            Wait(150)
+            lastPoll = GetGameTimer()
+            Wait(fallLikely(ped) and 150 or 500)
         end
     end
 end)
@@ -542,7 +592,6 @@ end)
 -- GTA DEATH → RESURRECT IN PLACE + nza:down
 -- ════════════════════════════════════════════════════════════════════════
 
-local downing = false
 local lastDownAt = -60000
 local resurrects = {}
 local DEATH_FX = {
@@ -600,7 +649,7 @@ local function stopDeathEffects()
     end
 end
 
-local function handleDeath(ped)
+handleDeath = function(ped)
     if downing then return end
     downing = true
 
@@ -679,7 +728,8 @@ CreateThread(function()
         if not downing and (IsEntityDead(ped) or IsPedDeadOrDying(ped, true)) then
             handleDeath(ped)
         end
-        Wait(downing and 250 or 100)
+        -- fatal hits wake handleDeath at once (kickDeathCheck); this catches the rest
+        Wait(downing and 250 or 500)
     end
 end)
 

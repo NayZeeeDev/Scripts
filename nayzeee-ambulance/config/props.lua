@@ -6,6 +6,8 @@
     GTA props used when a custom model fails to load.
 ]]
 
+if not NAYZEEE_LOCK_OK then return end
+
 Config = Config or {}
 
 Config.Props = {

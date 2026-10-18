@@ -9,6 +9,8 @@
     (ox_inventory, qb-core shared items, ESX SQL). Images are in html/img/items/.
 ]]
 
+if not NAYZEEE_LOCK_OK then return end
+
 Config = Config or {}
 
 Config.Items = {

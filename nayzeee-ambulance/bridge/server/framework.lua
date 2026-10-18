@@ -17,6 +17,7 @@
       Bridge.GetName(src)                       Bridge.GetCharInfo(src) → { firstname, lastname, dob, sex, phone }
       Bridge.GetJob(src) → { name, label, grade, gradeLabel, onDuty, isBoss }
       Bridge.IsMedic(src) Bridge.IsPolice(src) Bridge.IsOnDuty(src) Bridge.SetDuty(src, bool)
+      Bridge.SetJob(src, job, grade) → bool     Bridge.HasLicense(src, name) → bool
       Bridge.IsAdmin(src)                       Bridge.GetPlayers() Bridge.GetMedics(onDutyOnly)
       Bridge.GetMoney(src, account)             account: 'cash' | 'bank' (ESX 'money' works too)
       Bridge.RemoveMoney(src, account, amount, reason) → bool
@@ -154,6 +155,46 @@ function FW.esx.setDuty(src, onDuty)
     return true
 end
 
+-- Same job with a new grade keeps the duty state the player has now.
+function FW.esx.setJob(src, job, grade)
+    local ESX = core()
+    local x = FW.esx.player(src)
+    if not (ESX and x and x.setJob) then return false end
+    local cur = (x.getJob and x.getJob()) or x.job or {}
+    local base, offPrefix = Bridge.SplitDutyJob(cur.name)
+    local target, onDuty = job, nil
+    if base == job then
+        if offPrefix == false then
+            local off = Bridge.Cfg('offDutyPrefix', 'off') .. job
+            if not ESX.DoesJobExist or ESX.DoesJobExist(off, grade) then target = off end
+        elseif cur.onDuty ~= nil then
+            onDuty = cur.onDuty == true
+        end
+    end
+    if ESX.DoesJobExist and not ESX.DoesJobExist(target, grade) then
+        Bridge.Warn(('ESX job "%s" grade %d does not exist - cannot give it to player %d'):format(target, grade, src))
+        return false
+    end
+    x.setJob(target, grade, onDuty)
+    -- old ESX setJob returns nothing, so read the job back
+    local now = (x.getJob and x.getJob()) or x.job
+    return type(now) == 'table' and now.name == target and tonumber(now.grade) == grade
+end
+
+-- esx_license answers through a callback; without it the ace fallback decides
+function FW.esx.hasLicense(src, name)
+    if not Bridge.Started('esx_license') then return nil end
+    local p, settled = promise.new(), false
+    local function settle(value)
+        if settled then return end
+        settled = true
+        p:resolve(value == true)
+    end
+    TriggerEvent('esx_license:checkLicense', src, name, settle)
+    if not settled then SetTimeout(2000, function() settle(false) end) end
+    return Citizen.Await(p) == true
+end
+
 function FW.esx.getMoney(src, account)
     local x = FW.esx.player(src)
     if not x then return 0 end
@@ -281,6 +322,52 @@ function FW.qbcore.setDuty(src, onDuty)
     return true
 end
 
+-- QBCore and Qbox reset duty to the job's defaultDuty on SetJob: a grade change on the
+-- same job puts the old duty state back.
+local function qbDutyToKeep(p, job)
+    local j = p and p.PlayerData and p.PlayerData.job
+    if j and j.name == job then return j.onduty == true end
+    return nil
+end
+
+local function qbHasGrade(def, grade)
+    local grades = type(def) == 'table' and def.grades
+    if type(grades) ~= 'table' then return false end
+    return grades[tostring(grade)] ~= nil or grades[grade] ~= nil
+end
+
+function FW.qbcore.setJob(src, job, grade)
+    local QBCore = core()
+    local p = FW.qbcore.player(src)
+    if not (QBCore and p and p.Functions and p.Functions.SetJob) then return false end
+    job = job:lower()
+    local jobs = QBCore.Shared and QBCore.Shared.Jobs
+    -- qb-core accepts a missing grade and makes it 'No Grades' level 0: refuse instead
+    if type(jobs) == 'table' and not qbHasGrade(jobs[job], grade) then
+        Bridge.Warn(('QBCore job "%s" grade %d does not exist - cannot give it to player %d'):format(job, grade, src))
+        return false
+    end
+    local keepDuty = qbDutyToKeep(p, job)
+    if p.Functions.SetJob(job, grade) == false then return false end
+    local now = FW.qbcore.player(src)
+    local j = now and now.PlayerData and now.PlayerData.job
+    if keepDuty ~= nil and j and j.onduty ~= keepDuty and now.Functions.SetJobDuty then
+        now.Functions.SetJobDuty(keepDuty)
+    end
+    return true
+end
+
+-- QBCore and Qbox keep licences in the player's metadata (licences = { weapon = true, ... })
+local function qbHasLicense(p, name)
+    local md = p and p.PlayerData and p.PlayerData.metadata
+    local list = type(md) == 'table' and (md.licences or md.licenses) or nil
+    return type(list) == 'table' and list[name] == true
+end
+
+function FW.qbcore.hasLicense(src, name)
+    return qbHasLicense(FW.qbcore.player(src), name)
+end
+
 local function qbGetMoney(p, account)
     if not p then return 0 end
     account = (account == 'money') and 'cash' or account
@@ -369,6 +456,26 @@ function FW.qbox.setDuty(src, onDuty)
     if not FW.qbox.player(src) then return false end
     exports.qbx_core:SetJobDuty(src, onDuty == true)
     return true
+end
+
+-- qbx_core SetJob checks the job and grade itself and returns true / false, err.
+-- Whether the old job stays in the player's job list is qbx's 'qbx:setjob_replaces' convar.
+function FW.qbox.setJob(src, job, grade)
+    local p = FW.qbox.player(src)
+    if not p then return false end
+    job = job:lower()
+    local keepDuty = qbDutyToKeep(p, job)
+    if exports.qbx_core:SetJob(src, job, grade) ~= true then return false end
+    if keepDuty ~= nil then
+        local now = FW.qbox.player(src)
+        local j = now and now.PlayerData and now.PlayerData.job
+        if j and j.onduty ~= keepDuty then exports.qbx_core:SetJobDuty(src, keepDuty) end
+    end
+    return true
+end
+
+function FW.qbox.hasLicense(src, name)
+    return qbHasLicense(FW.qbox.player(src), name)
 end
 
 function FW.qbox.getMoney(src, account)
@@ -487,6 +594,11 @@ end
 function FW.standalone.setDuty(src, onDuty)
     saDuty[src] = onDuty == true
     return true
+end
+
+-- standalone jobs come from aces, which a script cannot hand out
+function FW.standalone.setJob()
+    return false
 end
 
 local function oxMoneyItem()
@@ -761,6 +873,31 @@ function Bridge.SetDuty(src, onDuty)
         return true
     end
     return false
+end
+
+-- Give the player a framework job. False when the job or grade does not exist, the
+-- player is not loaded, or the framework has no jobs to give (standalone aces).
+function Bridge.SetJob(src, job, grade)
+    src = toSource(src)
+    if not src or type(job) ~= 'string' or job == '' then return false end
+    grade = math.max(0, math.floor(tonumber(grade) or 0))
+    local ok, done = call('setJob', src, job, grade)
+    if ok and done == true then
+        emit.job(src)
+        return true
+    end
+    return false
+end
+
+-- Framework licence check: QBCore / Qbox metadata.licences, ESX esx_license.
+-- Where the framework cannot tell (standalone, ESX without esx_license) the ace
+-- 'nza.license.<name>' decides. ESX waits for esx_license: call it from a thread.
+function Bridge.HasLicense(src, name)
+    src = toSource(src)
+    if not src or type(name) ~= 'string' or name == '' then return false end
+    local ok, has = call('hasLicense', src, name)
+    if ok and has ~= nil then return has == true end
+    return IsPlayerAceAllowed(tostring(src), 'nza.license.' .. name) == true
 end
 
 function Bridge.IsAdmin(src)

@@ -409,7 +409,9 @@ function P.AddInfusion(pid, inf)
         end
     end
     if inf.incompatible ~= nil then item.incompatible = inf.incompatible end
-    -- flows straight away; it only pauses when the last IV/IO is taken out (SetDevice)
+    -- flows straight away: callers check IV / IO access themselves (a module may allow bags
+    -- without a line). It pauses ('access') when the last IV/IO is taken out and resumes when
+    -- one goes back in (SetDevice → updateAccess).
     p.infusions[#p.infusions + 1] = item
     P.Touch(p, true)
     NZA.Bus.Emit('infusion:started', p, item)
@@ -564,6 +566,8 @@ function P.SetState(pid, state, reason)
     if old == state then return true end
     local now = os.time()
     local r = runtime(p)
+    -- what stopped the heart (hypovolemia, tension, drowning, ...): kept when the arrest ends in death
+    local prevArrestCause = (old == 'arrest' and type(p.conditions.arrest) == 'table' and p.conditions.arrest.cause) or nil
     local why = reason
     if type(reason) == 'table' then
         p.cause = reason
@@ -603,7 +607,14 @@ function P.SetState(pid, state, reason)
         p.deadAt = now
         p.downAt = p.downAt or now
         p.arrestLeft = 0
-        p.conditions.arrest = { rhythm = 'asystole', since = p.arrestAt or now, cause = why }
+        if type(p.cause) == 'table' then
+            if prevArrestCause and prevArrestCause ~= p.cause.reason then
+                p.cause.arrestCause = prevArrestCause      -- e.g. reason 'arrest', arrestCause 'hypovolemia'
+            elseif type(reason) ~= 'table' then
+                p.cause.arrestCause = nil                  -- no stale cause from an earlier arrest
+            end
+        end
+        p.conditions.arrest = { rhythm = 'asystole', since = p.arrestAt or now, cause = prevArrestCause or why }
     elseif state == 'alive' then
         p.downAt, p.deadAt, p.arrestAt, p.arrestLeft = nil, nil, nil, nil
         p.conditions.arrest = nil
@@ -791,6 +802,17 @@ end
 -- SNAPSHOTS (§4.3)
 -- ════════════════════════════════════════════════════════════════════════
 
+-- physiology keeps its accumulators at full precision; payloads carry them rounded
+local function round(n, d)
+    if type(n) ~= 'number' then return n end
+    local f = 10 ^ (d or 1)
+    return math.floor(n * f + 0.5) / f
+end
+
+-- numeric condition fields that physiology accumulates every tick (rounded to 0.1 in snapshots)
+local COND_ROUND = { ml = true, output = true, size = true, pressure = true, water = true, smoke = true,
+    level = true, amount = true }
+
 local function bleedLevel(total)
     if total < cfg('Wounded', 'stableBleed', 1.0) then return 0 end
     if total < 10 then return 1 end
@@ -807,7 +829,12 @@ end
 
 local function injuryArray(p)
     local arr = {}
-    for _, inj in pairs(p.injuries) do arr[#arr + 1] = NZA.Util.deepcopy(inj) end
+    for _, inj in pairs(p.injuries) do
+        local c = NZA.Util.deepcopy(inj)
+        c.heal = round(c.heal, 2)
+        c.contamination = round(c.contamination, 1)
+        arr[#arr + 1] = c
+    end
     table.sort(arr, function(a, b)
         if a.severity ~= b.severity then return a.severity > b.severity end
         if (a.bleed or 0) ~= (b.bleed or 0) then return (a.bleed or 0) > (b.bleed or 0) end
@@ -922,14 +949,14 @@ local function selfSnapshot(p)
             oxygen = p.devices.oxygen and true or false, foil = p.devices.foil and true or false,
             intubated = p.devices.intubated and true or false,
         },
-        fx = {
+        fx = {   -- 2 decimals: the push only goes out when something visibly changed
             limp = limp,
-            shake = math.min(1, armShake),
-            blur = math.min(1, blur),
-            tunnel = math.min(1, math.max(0, (loss - 0.10) * 3)),
+            shake = round(math.min(1, armShake), 2),
+            blur = round(math.min(1, blur), 2),
+            tunnel = round(math.min(1, math.max(0, (loss - 0.10) * 3)), 2),
             cold = (p.temp or 37) < 35.5,
             breathless = (v.spo2 or 99) < 90 or (v.breathing == 'labored'),
-            drunk = (c.overdose and c.overdose.drug == 'alcohol') and math.min(1, (c.overdose.amount or 0) / 100) or 0,
+            drunk = (c.overdose and c.overdose.drug == 'alcohol') and round(math.min(1, (c.overdose.amount or 0) / 100), 2) or 0,
         },
         bloodType = p.bloodType,
         name = p.name,
@@ -950,6 +977,15 @@ function P.Snapshot(pid, level)
         end
     end
     out.injuries = injuryArray(p)
+    out.blood, out.fluid, out.temp, out.clock = round(p.blood, 1), round(p.fluid, 1), round(p.temp, 3), round(p.clock, 1)
+    for _, inf in ipairs(out.infusions or {}) do inf.left = round(inf.left, 1) end
+    for _, cond in pairs(out.conditions or {}) do
+        if type(cond) == 'table' then
+            for k, v in pairs(cond) do
+                if COND_ROUND[k] and type(v) == 'number' then cond[k] = round(v, 1) end
+            end
+        end
+    end
     local lvl, label, colour = P.Triage(p)
     out.triage = { level = lvl, code = NZA.Const.Triage[lvl].code, label = label, colour = colour }
     out.bleedTotal = math.floor((p.bleedTotal or 0) * 10 + 0.5) / 10

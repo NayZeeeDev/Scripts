@@ -20,6 +20,8 @@
     Items are in config/items.lua, prop models in config/props.lua.
 ]]
 
+if not NAYZEEE_LOCK_OK then return end
+
 Config = Config or {}
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -174,6 +176,8 @@ Config.Wounded = {
                             -- heavy bleeding, slower for a minor ooze, and pauses when the patient is stabilized
     minClock     = 60,      -- ...and starts at least at this
     stableBleed  = 1.0,     -- total bleed (mL/min) under this = STABILIZED, clock paused
+    controlledBleed = 5.0,  -- ...and under this when every bleeding wound is under control (bandaged, packed,
+                            -- tourniquet, treated) and no haemothorax is still filling
     noBleedClock = 600,     -- downed without bleeding (e.g. fractures): seconds before you can only give up
     crawl        = true,
     crawlSpeed   = 1.0,
@@ -224,6 +228,10 @@ Config.Persistence = {
 -- ═══════════════════════════════════════════════════════════════════════════
 -- BILLING DEFAULTS (prices per treatment are in each module's config)
 -- ═══════════════════════════════════════════════════════════════════════════
+-- enabled / society / account / medicCut are used by NZA.Billing.Charge (every treatment,
+-- transport and respawn fee). Insurance share, unpaid bills, external invoice scripts
+-- (okokBilling, esx_billing, ...) and auto collect: Config.Pharmacy.billing
+-- (config/modules/pharmacy.lua).
 
 Config.Billing = {
     enabled = true,

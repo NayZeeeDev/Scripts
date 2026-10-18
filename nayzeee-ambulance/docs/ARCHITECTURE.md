@@ -24,7 +24,9 @@ server:  @oxmysql/lib/MySQL.lua → bridge/server/*.lua → server/core/*.lua �
 ```
 
 Rules:
-- Every Lua file starts with `if not NAYZEEE_LOCK_OK then return end`.
+- Every Lua file starts with `if not NAYZEEE_LOCK_OK then return end` (right after its header
+  comment). Exceptions: `lock.lua` (it sets the flag) and `install/*.lua` (paste-in snippets for
+  other resources and the offline generator; none of them is in the fxmanifest).
 - At file top level you may only (a) declare `NZA.X = NZA.X or {}`, (b) define functions,
   (c) call APIs that are defined by an EARLIER folder in the order above
   (e.g. a module may call `NZA.Treat.Register(...)` at top level because server/core loads
@@ -39,7 +41,7 @@ Rules:
 
 - `NZA.Debug(...)` prints when `Config.Debug`.
 - `NZA.L(key, ...)` → localized string (`string.format` args). Locale files add keys with
-  `NZA.AddLocale('en', { ['exam.title'] = 'Examination', ... })`. Key = `<module>.<name>`.
+  `NZA.AddLocale('en', { ['exam.title'] = 'Head-to-toe check', ... })`. Key = `<module>.<name>`.
   Each module owns `locales/en/<module>.lua`.
 - `NZA.Const.Regions` (ordered array) and `NZA.Const.Region[name]` (lookup) — 15 regions:
   `head, face, neck, chest, back, abdomen, pelvis, l_upper_arm, l_lower_arm, r_upper_arm,
@@ -93,7 +95,8 @@ Patient = {
   bloodMax  = 5000,
   fluid     = 0,          -- mL crystalloid (saline) in circulation (decays over time)
   state     = 'alive' | 'wounded' | 'arrest' | 'dead',
-  stabilized= false,      -- true when total bleed < Config.Wounded.stableBleed and no arrest
+  stabilized= false,      -- true when total bleed < Config.Wounded.stableBleed and no arrest, or < controlledBleed
+                          -- with every bleeding wound under control (not 'open') and no filling haemothorax
   clock     = 120,        -- seconds left on the wounded bleed-out clock (players & NPC)
   injuries  = { [id] = Injury },
   conditions= { [name] = table },          -- e.g. haemothorax = { side = 'right', ml = 900 }
@@ -128,6 +131,9 @@ Injury = {
   internal = nil | { organ = 'spleen'|'liver'|'kidney'|'bowel'|'mesenteric'|'pelvic'|'femoral', vessel = 'jejunal' },
   treat = { packed, bandaged, tourniquet, irrigated, anesthetized, sutured, dressed, extracted,
             splinted, reduced, cast, cooled, debrided, grafted, coiled, drained, xray, xrayMarked },  -- booleans
+                          -- treat.xray = seen on a film, treat.xrayMarked = confirmed on both films (lightbox read)
+  xrayMap = nil | { film, view, ap = { x, y }, lat = { x, y }, depth (mm), n, at },
+                          -- set by xray when a retained fragment is pinned on both films (used by bullet)
   quality = { [treatKey] = 0..100 },
   status = 'open' | 'controlled' | 'treated' | 'healing',
   heal = 0..100, created = os.time(), weapon = hash,
@@ -191,6 +197,31 @@ replicated, set by core only:
   iv = bool, intub = bool, bag = bool (in body bag), carried = bool, stretcher = netId|nil,
   name = 'M. Garcia' }
 ```
+
+Reserved module state bags (replicated, server-set unless noted). Only the owner writes them;
+everyone may read them. Never trust any of them for permissions on the server.
+
+| Bag | On | Shape | Owner |
+|---|---|---|---|
+| `nzaFa` | player / NPC ped | `{ o2 = true?, foil = true?, tq = { [region] = { s, f } \| false } }` (worn props) | firstaid |
+| `nzaMedbag` | medical bag object | `{ id, owner, locked, name, colour }` | medbag |
+| `nzaBag` | body bag object | patient target `{ kind = 'player', sid } \| { kind = 'npc', net }` (core target contract) | medbag |
+| `nzaBody` | body bag object | `{ id, name, kind, mode }` | medbag |
+| `nzaInBag` | player | `{ id, net (entity it is attached to), mode, off = { x, y, z }? }` | medbag |
+| `nzaBodyOn` | stretcher | body bag id | medbag |
+| `nzaBodies` | vehicle | `{ n, ids }` | medbag |
+| `nzaTr` | player / NPC ped | `{ m = 'carry'\|'str'\|'bed'\|'bay'\|'seat'\|'free', n, c, s, b, bt, at, v, seat, slot, stand, from }` | transport |
+| `nzaStr` | stretcher | `{ pid, pk, pusher, veh, low, home }` | transport |
+| `nzaAmb` | ambulance | `{ str, inside, bay }` | transport |
+| `nzaCrutch` | player | `true` while walking on crutches | splint |
+| `nzaChair` | wheelchair | `{ owner, occ, occNpc, push }` | splint |
+| `nzaCpr` | player / NPC ped | server id of the compressor while a code runs | cpr |
+| `nzaNpcCalls` | player | `true` = this medic takes NPC calls | dispatch |
+| `nzaNpc` | NPC patient ped | `{ s, c, tr, pose, dp, wet, esc, rel, ho, veh, seat, sex }` | calls |
+| `nzaBy` | bystander ped | `{ role = 'caller'\|'cpr'\|'watch', v, scenario }` | calls |
+| `nzaJob` | player | `{ name, label, grade, gradeLabel, onDuty, isBoss, medic, police }` | bridge |
+| `isDead dead inLastStand laststand isDowned` | player | booleans for HUDs / other scripts (set by the player's own client) | core-client |
+
 Snapshot 'medic' (callback `nza:patient:get`, requires medic + distance ≤ Config.Physiology.examDistance
 or the patient in the same bay/bed): everything in Patient except `watchers`, plus
 `vitals`, `triage`, `bleedTotal` (mL/min), `bloodPct`, injuries as an ARRAY sorted by severity.
@@ -235,6 +266,9 @@ Client calls `NZA.Treat.Do(action, target, payload)` →
 `lib.callback.await('nza:treat', false, action, target, payload)` → `ok, result`.
 Core checks: action exists, permission, distance (server-side coords), items present →
 runs handler → consumes items only if handler returned true → emits `treat:done`.
+Treatments and procedures aimed at one wound take `payload.injury = <injury id>` (the exam
+passes the chosen wound). Without it, first-aid treatments pick the most fitting wound
+themselves, while wound procedures such as `suture` refuse with `err = 'no_injury'`.
 
 ### 5.2 Procedures (minigames with a server session)
 ```lua
@@ -281,7 +315,8 @@ Only one session per medic. Session stores `startedAt`, items reserved.
   `wounded → alive` when stabilized AND AVPU = 'A' AND loss% < lossDown AND a medic used
   'pick up' / or the patient was treated to 'alive' (`SetState`).
 - Clock: seconds until blood reaches the death threshold at the current bleed rate, clamped to
-  `Config.Wounded.maxClock`, frozen when stabilized ("STABILIZED — CLOCK PAUSED").
+  `Config.Wounded.maxClock`, frozen while stabilized (the wounded HUD shows the pause in its own
+  wording — see `docs/design/ORIGINAL.md`, the reference product's phrase is not allowed).
 - Healing: treated injuries gain `heal` over time (faster in a hospital bed) and are removed at 100.
 
 ## 7. Staff, departments & permissions
@@ -315,19 +350,24 @@ NZA.Hospitals.Get(id) NZA.Hospitals.All() NZA.Hospitals.Nearest(coords)
 NZA.Hospitals.Points(type, hospitalId?) NZA.Hospitals.RespawnPoint(coords)
 NZA.Hospitals.FreeBed(hospitalId) NZA.Hospitals.OccupyBed(pointId, pid) NZA.Hospitals.ReleaseBed(pointId)
 ```
-Point types (owner module): `duty storage stash wardrobe boss garage heli` (hospital),
-`checkin tv bed respawn` (checkin/hospital), `pharmacy` (pharmacy), `bloodbank donation` (blood),
-`xray lightbox` (xray), `surgery` (bullet), `ultrasound` (ultrasound), `angio` (angio),
-`morgue` (bodybag). Builder UI lists every registered type automatically.
+Point types (owner module): `duty locker stash boss storage garage heli elevator bed respawn hq`
+(hospital; `hq` is stored on the department, not as a point), `checkin tv` (checkin),
+`pharmacy` (pharmacy), `bloodbank donation` (blood), `xray lightbox` (xray), `surgery` (bullet),
+`ultrasound` (ultrasound), `angio` (angio), `morgue` (medbag), `stretcher` (transport, stretcher
+rack). The Department Console lists every registered type automatically (`NZA.Points.Types()`).
+Bed-like types (a patient can be laid on them): `Config.Transport.Beds.types` plus any type or
+point whose `data.bed = true`; `point.data.lie = { x, y, z }` nudges the body on the mattress.
 
 ## 9. Dispatch, calls & billing (owned by those modules — callable by everyone)
 
 ```lua
 NZA.Dispatch.Create(call)   -- server; call = { code='10-52', priority=1..3, title='Gunshot Wound', type='gunshot',
-                            --   coords=vec3, street?, zone?, caller?, voice? (audio file), patients = { pid },
+                            --   coords=vec3, street?, zone?, caller?, patients = { pid },
+                            --   voice? ('audio/calls/x.ogg' - path relative to html/, [%w_-/.] only,
+                            --           .ogg/.mp3/.wav; 'audio/' is prefixed when missing; nui:// URLs are rejected),
                             --   npc = bool, source = 'player'|'npc'|'system', blip = { sprite, colour } } → callId
 NZA.Dispatch.Update(callId, patch)   NZA.Dispatch.Close(callId, reason)   NZA.Dispatch.Get(callId)
-NZA.Dispatch.SetStatus(callId, src, status)  -- 'DSP'|'ENR'|'SCN'|'TRN'|'HSP'
+NZA.Dispatch.SetStatus(callId, src, status)  -- 'DSP'|'ENR'|'SCN'|'CARE'|'TRN'|'HSP' (CARE = first treatment on scene)
 NZA.Billing.Charge(target, amount, reason, opts) -- target = src | identifier ; applies insurance; pays society
 NZA.Insurance.Get(identifier) → { plan, expires, cover = 0..1 } | nil
 NZA.Blood.CreateBag(meta) → metadata table  NZA.Blood.Compatible(recipient, donor) → bool
@@ -366,14 +406,16 @@ Every app MUST implement `preview()`.
 - Palette & tokens: `nz-core.css` `:root` (black surfaces, teal `#08afa2`, red `#e5484d`, white,
   amber `#e5a50a` for warnings only). Font token `--font` (Lexend default; `Config.UI.font`
   can switch to Inter). Mono: `--mono` JetBrains Mono. LCD (pager): `--lcd` VT323.
-- WINDOWS (full menus: pharmacy, medic bag, manager, builder, dispatch board, lightbox side
+- WINDOWS (full menus: pharmacy, manager, builder, dispatch board, lightbox side
   panel): design `nayzeee-ui-v5.html` → `.nza-win` chamfered frame, title bar with teal rail +
   `.nz-mark`, sidebar nav, stat tiles, panels, status bar with key caps, red `Close` pill on the
   right of the title bar, `.nz-sig` signature in the status bar.
-- HUD OVERLAYS (wounded, call card, procedure panels, monitors, toasts, prompts): design
-  `nayzeee-ui-hud-design.html` → `.nza-hud` panels `rgba(12,13,16,.78)`, radius 12, hairline
+- HUD OVERLAYS (wounded, call card, procedure panels, monitors, toasts, prompts, medic bag):
+  design `nayzeee-ui-hud-design.html` → `.nza-hud` panels `rgba(12,13,16,.78)`, radius 12, hairline
   border, 1px top highlight; notes with a glowing left bar; segmented controls, toggles,
-  sliders, chips from that file.
+  sliders, chips from that file. The medic bag is built from edge docks so the bag on the floor
+  stays in view: pockets dock left, the open bag right, body-bag zip card bottom-left, toe tag
+  right-middle (no NUI focus for the last two).
 - SETTINGS pages (department manager, easy mode, builder options): the HUD design's settings
   window (sidebar tabs, header with btn-line + btn-teal + red Close pill, uppercase section
   headings, option rows label+helper left / control right).
@@ -444,13 +486,23 @@ Order bands: 10 movement (ask to walk, carry, stretcher, help off table), 20 ass
 
 ## 12. Data (oxmysql) — each owner creates its tables with `CREATE TABLE IF NOT EXISTS` on start
 
-`nza_patients (identifier PK, data LONGTEXT, state, updated_at)` (core) ·
-`nza_hospitals, nza_points, nza_departments, nza_staff` (hospital) · `nza_tickets` (checkin) ·
-`nza_blood (serial PK, type, ml, donor, created, expires, used)` (blood) ·
-`nza_insurance (identifier PK, plan, expires)` (pharmacy) · `nza_bills` (pharmacy/billing) ·
-`nza_calls` (dispatch log) · `nza_bags (id PK, owner, items LONGTEXT)` (medbag) ·
-`nza_records (id, identifier, medic, summary LONGTEXT, created)` (core: treatment log).
-Also ship `sql/install.sql` with every table (integration step collects them).
+16 tables, all `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` in `sql/install.sql` (the collected copy,
+column for column the same as the code; change both together). There are no ALTERs/migrations.
+
+| Owner | Tables |
+|---|---|
+| core | `nza_patients (identifier PK, data LONGTEXT, state, updated_at)` · `nza_records (id PK, identifier, medic, medic_name, action, summary LONGTEXT, created)` (treatment log) |
+| hospital | `nza_departments (id PK, label, job, data)` · `nza_points (id PK, department, type, x, y, z, h, label, data)` · `nza_staff (identifier PK, department, grade, name, excluded, hired_by)` · `nza_hospital_stash (id PK, items)` (built-in staff store) |
+| checkin | `nza_tickets (id PK, hospital, day, prefix, number, identifier, name, triage, status, bed, handled_by, issued, called, closed, data)` |
+| blood | `nza_blood (serial PK, type, ml, donor, donor_id, created, expires, used, bank, updated)` · `nza_blood_donors (identifier PK, last, count, weak_until)` · `nza_blood_log (id PK, bank, action, serial, type, actor, at)` |
+| pharmacy | `nza_pharmacy_stock (pool + item PK, stock)` · `nza_pharmacy_sales (id PK, pool, point, identifier, name, items, subtotal, discount, tax, total, method, kind, created)` |
+| billing (pharmacy) | `nza_insurance (identifier PK, plan, expires, started, serial)` · `nza_bills (id PK, identifier, name, amount, covered, reason, kind, medic, medic_name, society, status, created, paid_at)` |
+| dispatch | `nza_calls (id PK, code, priority, title, type, x, y, z, street, zone, caller, message, source, npc, status, units, reason, created, responded, arrived, closed)` (call log) |
+| medbag | `nza_bags (id PK, owner, items LONGTEXT)` |
+
+A department IS the hospital: there is no `nza_hospitals` table (`NZA.Hospitals.*` reads
+`nza_departments`). Small non-table state uses the resource KVP store (`nza_dispatch_seq`,
+`nza_blood_seed:*`, bridge `nza_meta:*` metadata emulation).
 
 ## 13. Security (server is the authority)
 
@@ -465,7 +517,7 @@ Also ship `sql/install.sql` with every table (integration step collects them).
 
 | Module | Files |
 |---|---|
-| lead | `fxmanifest.lua lock.lua shared/* config/config.lua config/items.lua config/props.lua html/index.html html/core/nza.* html/core/nza-vitals.js docs/*` |
+| lead | `fxmanifest.lua lock.lua shared/* config/config.lua config/items.lua config/props.lua html/index.html html/core/nza.* html/core/nza-vitals.js docs/* README.md sql/*` (+ regenerating `install/*` from `config/items.lua` during integration) |
 | core-server | `server/core/*.lua config/modules/core.lua? (no — core uses config/config.lua) locales/en/core.lua` |
 | core-client | `client/core/*.lua locales/en/core_client.lua` |
 | bridge | `bridge/** install/** html/img/items/**` |
@@ -557,7 +609,33 @@ Bridge.Phone.IsOpen() → bool
 | `nza:respawn` | C→S | — | wounded module |
 
 Client bus events from core-client: `self:state (new, old)`, `self:update (snap)`, `self:revived`,
-`ui:closed (app)`, `points:changed`, `staff:changed (rec)`.
+`ui:closed (app)`, `points:changed`, `staff:changed (rec)`. The complete core lists (server and
+client, incl. `condition:changed`, `device:changed`, `infusion:*`, `med:given`, `proc:started`,
+`proc:aborted`, `player:loaded|unloaded|job`, `self:down`, `self:resurrected`) are in
+`docs/modules/core-api.md`.
+
+Module bus events (stable signatures — other modules may listen; `p` = Patient table):
+
+| Owner | Server bus | Client bus |
+|---|---|---|
+| transport | `transport:loaded (src, p, vehNet, strNet)` · `transport:unloaded (src, p, vehNet)` · `transport:bed (src, p, point)` · `transport:carry (src, p, on)` · `transport:bay (src, vehNet, on)` | `transport:mine (mode, cmd)` · `bay:entered (vehNet, target)` · `bay:left (vehNet)` · `bay:ivstand (target, info)` · `bay:monitor (target, info)` |
+| medbag | `medbag:placed (src, id)` · `medbag:picked (src, id)` · `medbag:moved (src, id, moved)` · `bodybag:bagged (src, body)` · `bodybag:morgue (src, body, point)` | — |
+| xray | `xray:taken (src, p, meta)` · `xray:read (src, p, film, outcome)` · `xray:offTable (src, p)` · `xray:reduced (src, p, inj, outcome)` · `xray:cast (src, p, inj, outcome)` | — |
+| assess | `assess:done (src, p, kind, data)` · `assess:exam (src, p)` · `findings:changed (p, key, finding \| nil)` | — |
+| procedures | `suture:done` · `burn:done` · `graft:done` · `angio:done (src, p, inj, outcome)` · `splint:applied (src, p, inj, score)` · `splint:removed (src, p, region)` · `intubation:done (src, p, outcome)` · `intubation:extubated (p, reason)` · `ultrasound:scan` · `ultrasound:drain` · `ultrasound:decompress` · `ultrasound:pericardio (src, p, outcome)` | `suture:flinch (entity, pain)` · `burn:pain (entity, pain)` · `angio:suiteRemoved (pointId)` |
+| cpr | `cpr:started (p, code)` · `cpr:rosc (p, code)` · `cpr:shock (p, src, energy, result)` · `cpr:ended (p, code, reason, summary)` | `cpr:started (action)` · `cpr:ended (summary)` |
+| firstaid | `firstaid:tq_warn (p, region)` · `firstaid:tq_damage (p, region)` · `firstaid:soaked (p, inj)` | — |
+| blood | `blood:typed (src, p, bloodType)` · `blood:hung (src, p, inf)` · `blood:reaction (p, stage)` · `blood:donated (src, p, ml, meta)` | `blood:typed (target, bloodType)` |
+| hospital | `hospital:changed (deptId)` · `hospital:points (action, point \| id)` (`add move data remove`) · `hospital:bed (pointId, pid, on)` · `hospital:duty (src, on)` | `hospital:depts (depts)` |
+| checkin | `checkin:issued (ticket)` · `checkin:called (ticket)` · `checkin:treatment (ticket)` · `checkin:closed (ticket, status)` · `checkin:ai (ticket, 'done' \| reason)` | — |
+| pharmacy / billing | `pharmacy:sale (src, sale)` · `pharmacy:restock (pool, productId, qty, from)` · `billing:charged (identifier, info)` · `billing:bill (identifier, bill)` · `billing:paid (identifier, bills)` · `insurance:changed (identifier, row \| nil)` | — |
+| dispatch | `dispatch:created (call)` · `dispatch:status (call, src, status)` · `dispatch:respond (call, src)` · `dispatch:closed (call, reason)` | `dispatch:sync (state)` · `dispatch:call (call, flags)` · `dispatch:update (call)` · `dispatch:close (id, reason)` · `dispatch:me (me)` · `dispatch:stage (id, stage)` |
+| calls | `calls:created (scene)` · `calls:built (scene)` · `calls:removed (scene, reason)` · `calls:handover (scene, p, state, amount)` · `calls:released (scene, p)` | — |
+| wounded | `wounded:called (src, p, callId)` · `wounded:gaveUp (src, p)` · `wounded:respawned (src, p, spot)` | — |
+| bridge | `bridge:playerLoaded (src)` · `bridge:playerUnloaded (src)` · `bridge:jobChanged (src, job)` | the same without `src` |
+
+Consumers today: dispatch, checkin and calls listen to `transport:loaded` / `transport:bed`
+(the patient reached an ambulance / a hospital bed).
 
 `NZA.Points` point table: `{ id, hospital, type, coords = vector4, data = {}, label? }`.
 Server side (hospital module): `NZA.Hospitals.*` as in §8 and it must broadcast the three

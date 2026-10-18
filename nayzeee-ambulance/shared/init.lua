@@ -62,7 +62,7 @@ function NZA.L(key, ...)
 end
 
 -- All strings of one module, for sending to the NUI in one go:
--- NZA.LocaleTable('exam') → { title = 'Examination', ... } (prefix stripped)
+-- NZA.LocaleTable('exam') → { title = 'Head-to-toe check', ... } (prefix stripped)
 function NZA.LocaleTable(prefix)
     local lang = (Config and Config.Locale) or 'en'
     local out = {}

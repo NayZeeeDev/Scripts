@@ -14,7 +14,7 @@
                                          far edge, release to tie; bite, angle and spacing judged
      4 Dressing       tool 5 Dressing    pick the dressing up by its edge, lay it over the cut,
                                          release, then rub it down until it sticks
-   Then the result card (grade, breakdown, feedback) — Enter closes.
+   Then the debrief card bottom-left (score dial + grade, step list, notes) — Enter closes.
 
    Lua → JS   open { locale, patient{name,sex}, injury{id,type,region,regionLabel,label,severity,
                      length,depth,bleed,contamination,pain}, tone, hair, seed, items{lidocaine,gauze},
@@ -1132,7 +1132,7 @@
       const arc = (f0, f1, r = R) => { const [x0, y0] = pt(f0, r), [x1, y1] = pt(f1, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${(f1 - f0) * SW > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
       let ticks = '';
       for (let i = 0; i <= 12; i++) { const [a, b] = pt(i / 12, R + 8), [c, d] = pt(i / 12, R + (i % 3 ? 11 : 14)); ticks += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }
-      return `<svg viewBox="0 0 120 104"><path class="trk" d="${arc(0, 1)}"/>${v > 0.002 ? `<path class="fill ${tone || ''}" d="${arc(0, v)}"/>` : ''}<g class="ticks">${ticks}</g></svg>`;
+      return `<svg viewBox="0 0 120 104"><path class="trk" d="${arc(0, 1)}"/>${v > 0.002 ? `<path class="fill ${tone || ''}" pathLength="100" d="${arc(0, v)}"/>` : ''}<g class="ticks">${ticks}</g></svg>`;
     },
     showResult(res, outcome) {
       this.resultShown = true;

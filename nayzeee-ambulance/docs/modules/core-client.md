@@ -108,9 +108,13 @@ seatbelt?, fire?, drown? }`.
   (100..200 player range), armour delta separately. Region from `GetPedLastDamageBone`,
   `chest` becomes `back` when the attacker stands behind. Bursts within 200 ms with the same
   weapon + region + attacker are merged (`hits = n`). Max 15 reports / s.
-- **Falls**: height tracked while falling or ragdolling in the air (parachute canopy resets
-  it), sent on landing when ≥ `Config.Damage.fall.minHeight` (water landings × 0.3, ignored
-  under 20 m). Merged into GTA's `WEAPON_FALL` report, or sent alone after 450 ms.
+- **Falls**: height tracked every frame while falling or ragdolling in the air (parachute
+  canopy resets it), sent on landing when ≥ `Config.Damage.fall.minHeight` (water landings
+  × 0.3, ignored under 20 m). Merged into GTA's `WEAPON_FALL` report, or sent alone after
+  450 ms. On the ground the watcher polls every 150 ms only while a fall is likely (jumping,
+  climbing, vaulting, ragdoll, bailing out of a vehicle, or > 1.5 m above the ground outside
+  water), otherwise every 500 ms; the drop fallen before the first airborne poll is added from
+  the sink speed (v²/2g, capped to the free fall possible since the last ground poll + 0.1 s).
 - **Crashes**: speed drop per 100 ms ≥ `Config.Damage.vehicle.minSpeedDrop` with a real
   collision (collided flag or body/engine damage). Belt detection order:
   `Config.Damage.vehicle.seatbeltExport` (`{ resource, fn }` or a function) → state bags
@@ -127,7 +131,10 @@ seatbelt?, fire?, drown? }`.
   patient is `alive` and not within 5 s of the previous one; pending damage is flushed first.
   While already down the ped is still resurrected (wounded anims need a living ped) but
   nothing is reported; 4+ deaths in 15 s add a growing back-off. spawnmanager auto-spawn,
-  `PauseDeathArrestRestart`, fade-out after death are disabled.
+  `PauseDeathArrestRestart`, fade-out after death are disabled. A fatal damage event starts the
+  death handling on the next tick (polls 50 ms for up to 1.5 s until GTA has killed the ped);
+  the idle death watcher polls every 500 ms and catches deaths without a damage event (a script
+  setting health 0).
 - Bus: `self:down (info)` after `nza:down`, `self:resurrected (wasAlive)` after every resurrect
   (the wounded module re-applies its pose on it).
 
@@ -281,6 +288,10 @@ NZA.Perm(perm)  NZA.Easy(perm)  NZA.IsMedic()  NZA.OnDuty()  NZA.Staff.Get()  NZ
 Record from `nza:staff:update` (fallback fetch `nza:staff:get` after 4 s). `Config.PublicPerms`
 are always granted; off-duty medics keep only those when `Config.Jobs.requireDuty`. Before a
 record arrives police get `Config.PolicePerms`. Bus `staff:changed (record)`.
+`NZA.Easy(perm)` mirrors the server's `NZA.Staff.Easy`: `record.easy[perm]`, else the
+provider's optional `record.easyDefault` (`false` for a department with easy mode off, so a
+`true` config default does not apply to it), else `Config.EasyMode.default`. `NZA.Easy()`
+(no perm) is true when any perm is easy, else the same fallback.
 
 ## Compatibility (compat.lua)
 
