@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ultrasound cart screen</title>
+<!--
+  NAYZEEE AMBULANCE · ultrasound — cart monitor (DUI page)
+  Drawn into a runtime texture that replaces Config.PropScreens.us_cart on the ultrasound cart
+  while somebody scans next to it (client/modules/ultrasound_world.lua). It mirrors the medic's
+  live picture with the same imaging engine (app.js Part 1, window.NZUS) so people standing
+  around the bed watch the scan happen. Generic device labelling only (no brand on device faces).
+  Messages (SendDuiMessage JSON):
+    init   { kind 'scan'|'pericardio', seed, study, views, labels, sex, mm, where, locale }
+    probe  { contact, win, q, shift, vis, depth, gain, focus, frozen, mm, tilt }
+    needle { depth, ang, eff, q, draw, off }
+    vitals { vitals = { hr, ecgRate, rhythm, sys, dia, spo2, rr } }
+    freeze {}            the scan was graded: hold the last frame
+  Browser check: screen.html?demo=1 (cycles the windows with demo data)
+-->
+<link rel="stylesheet" href="screen.css">
+</head>
+<body>
+<div id="scr" class="standby">
+  <header class="top">
+    <span class="mode"><i class="dot"></i><b data-l="scr_preset">TRAUMA · eFAST</b></span>
+    <span class="meta">C5-2 <em>3.5 MHz</em> <em class="study">—</em></span>
+    <span class="clk">--:--</span>
+  </header>
+  <main>
+    <section class="img">
+      <canvas class="bm"></canvas>
+      <canvas class="mm"></canvas>
+      <div class="scale"></div>
+      <span class="win">—</span>
+      <span class="frz" data-l="frozen">FROZEN</span>
+      <span class="off" data-l="no_contact">Probe off the skin</span>
+      <span class="ndl"></span>
+    </section>
+    <aside class="side">
+      <div class="blk view"><span class="lbl" data-l="view">VIEW</span><b class="wname">—</b><span class="qbar"><i></i><i></i><i></i><i></i><i></i></span></div>
+      <div class="blk hr"><span class="lbl">HR</span><b class="hrv">--</b><span class="rh">—</span><canvas class="ecg"></canvas></div>
+      <div class="blk nums">
+        <div><span>SpO₂</span><b class="spo2">--</b></div>
+        <div><span>NIBP</span><b class="bp">--/--</b></div>
+        <div><span>RR</span><b class="rr">--</b></div>
+      </div>
+      <div class="blk set">
+        <div><span>D</span><b class="dep">16</b><em>cm</em></div>
+        <div><span>G</span><b class="gai">55</b><em>%</em></div>
+        <div><span>F</span><b class="foc">8</b><em>cm</em></div>
+      </div>
+    </aside>
+  </main>
+  <footer class="bot"><span class="tag">US-CART · SCAN 7</span><span class="hint" data-l="scr_hint">Bedside scan in progress</span><span class="mi">MI 0.8 · TIs 0.4</span></footer>
+  <div class="stby"><span class="ring"></span><b data-l="scr_standby">Ready</b><em data-l="scr_standby_d">Place the probe to start</em></div>
+</div>
+<script src="../../core/nza-vitals.js"></script>
+<script src="app.js"></script>
+<script src="screen.js"></script>
+</body>
+</html>

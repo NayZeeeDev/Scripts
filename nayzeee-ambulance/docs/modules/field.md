@@ -1,9 +1,9 @@
 # Module: field — field resuscitation, IO / IV access, patient monitor
 
 The trauma kit at the roadside. A medic kneels by a bleeding patient, the camera rises over them,
-the open NAYZEEE trauma case, a sharps bin and the patient monitor appear beside the body, and the
+the open trauma case, a sharps bin and the patient monitor appear beside the body, and the
 scene walks through seven server-validated steps. The same module owns the standard IV cannulation
-(usable anywhere) and the NAYZEEE patient monitor that every other module can open.
+(usable anywhere) and the PM-4 patient monitor that every other module can open.
 
 ## Files
 
@@ -26,21 +26,33 @@ Shown to medics with any perm of `Config.Field.Resus.perms` (`iv`, `binder`) who
 (or any bleed and no line). Also an exam route (`field_resus`: heavy, internal or pelvic injuries),
 a radial entry (Patient → Field resuscitation) and using the trauma kit item.
 
-Scene: kneel animation, orbit camera over the pelvis (`NZA.Cam.Orbit`, right-drag orbit,
-Shift + right-drag pan, wheel zoom), focus keys **F1 patient · F2 site · F3 IV stand · F4 kit**
+Scene: kneel animation, orbit camera over the pelvis (`NZA.Cam.Orbit`, right-drag turn,
+Shift + right-drag slide, wheel zoom), camera views **F1 Body · F2 Access · F3 Drip · F4 Kit**
 (`Config.Field.Keys.focus`), props via `NZA.Props` (open kit case, sharps bin, monitor; IV stand,
-bags and pressure infuser in step 6), monitor overlay top-left, NAYZEEE device top-right,
-the kit ProcPanel (MAP dial with the 60–70 target zone + bleed / injury / step metric).
+bags and pressure infuser in step 6).
+
+### Screen layout (NAYZEEE look, see `docs/design/ORIGINAL.md`)
+
+| Zone | What |
+|---|---|
+| top-left | PM-4 field monitor (monitor app): four status rings + full-width sweeps |
+| bottom-left | core procedure column: MAP dial (target arc) + instrument list (bleed / injury / step metric), step card with the 7-node spine and named steps (`opts.steps`), then the VIEW dock (camera keys, in `pp.slot`) and the key legend |
+| right-middle, left of the belt | the instrument rack: one unbranded device per step (BT-3 binder tensioner, IO-7 driver with bubble level + bone cross-section + torque trace, SX-10 syringe with draw-back / rate dials, CA-2 clot analyser + PI-3 pressure infuser in step 6, VF-2 vein finder / NC-1 needle cam for IV, handover card in step 7). Model codes, serials and warning stickers only — no brand |
+| right edge | core tool belt with an explicit `tool.icon` per tool (cuff, drill, needle, syringe, tube, drop, iv, bloodbag, blanket, gauge) + the hold-to-cancel ring |
+| scene | diamond markers with dark chips (*Under the hips*, IO sites, *IO needle*), the strap track with the tension ring, the IO aim reticle; nothing bottom-centre |
+
+Devices slide in from the right edge, values roll (odometer counters), rings fill and the current
+step node pulses. Everything fits at 1920×1080 and 1280×720 (the rack scales with `--nza-zoom`).
 
 | # | Step | Server | Interaction |
 |---|---|---|---|
-| 1 | Pelvic binder | `NZA.Proc 'binder'` (item `pelvic_binder`) | drag the binder from the kit onto *Drop the binder here* (pelvis) → `binder_flat` under the patient; pull the strap tab across the body, release inside 60–80 % (too loose / too tight retries). → `devices.binder`, pelvic base bleed × (1 − 0.25 × quality), over-tight = pain; every client attaches `binder_worn` to SKEL_Pelvis from the state bag |
-| 2 | Choose IO site | `NZA.Proc 'io'` (item `io_kit`) | four anchored markers (L/R proximal tibia, L/R humeral head); fractured bones, a tourniquet above, deep burns or wounds are contraindicated (red) and refused by the server |
-| 3 | Drill | (same session) | the IO driver prop follows the mouse; off-axis angle = cursor offset from the site (< 15°); hold Click to press onto the skin, hold Space to drill; device shows soft tissue / cortex / marrow / far cortex, depth, tip layer, resistance trace; hand drift in the cortex; > 26° in the cortex bends the needle, past the far cortex = through-and-through → *R* new needle (`io_needle` treat, max `IO.attempts`) |
-| 4 | Confirm | | drag the syringe plunger back; marrow blood flashes in the barrel |
-| 5 | Flush | | 1 extension set → 2 lidocaine 2 % (2 ml, push in the 0.08–0.45 ml/s band) → 3 saline flush (10 ml, 1.5–6 ml/s); too fast / no lidocaine on an awake patient = pain speech + score. → `devices.iv = { kind = 'io', site }`, lidocaine item used when carried |
-| 6 | Resuscitate | `NZA.Proc 'resus'` + treats | IV stand + pressure infuser: 1 hang saline 500 ml (`infuse`), 2 hang blood (`NZA.Blood.TakeBag`, compatibility shown, untyped/incompatible need a second press; locked without the blood module), roller clamp (Q/E, −/+), squeeze the infuser (Space, gauge 0–300 mmHg, leaks), the flow is sent with `infuse_rate`, 3 TXA 1 g slow push (syringe ≥ 10 s, `txa`), 4 foil blanket (`field_foil` → first aid's `fa_foil`), 5 squeeze, 6 cycle NIBP. Keep the MAP in the band while the clot firms (device: clot firmness, TEG-style curve, MAP strip, pop warning) |
-| 7 | Reassess | `NZA.Treat 'field_report'` | before / now (bleed, MAP, HR, SpO₂), grades of every step, devices; Enter writes the record and ends the scene |
+| 1 | Bind the pelvis | `NZA.Proc 'binder'` (item `pelvic_binder`) | pick the binder up at the kit and let go over the *Under the hips* marker → `binder_flat` under the patient; grab the strap handle and draw it across the hips, release when the BT-3 ring turns teal (60–80 %, too slack / over-tight retries). → `devices.binder`, pelvic base bleed × (1 − 0.25 × quality), over-tight = pain; every client attaches `binder_worn` to SKEL_Pelvis from the state bag |
+| 2 | Pick the IO site | `NZA.Proc 'io'` (item `io_kit`) | four anchored markers (L/R proximal tibia, L/R humeral head); fractured bones, a tourniquet above, deep burns or wounds are contraindicated (red) and refused by the server |
+| 3 | Drive the needle | (same session) | the IO driver prop follows the mouse; centre the bubble in the IO-7 level ring (off level = cursor offset from the site, < 15°); press Click to seat the needle on the skin, hold Space to drive it; the needle cam shows tissue / bone wall / marrow / back wall rings, the list shows off level, depth, tip layer, contact, the torque trace drops when it gives way; hand drift in the bone wall; > 26° there bends the needle, out the back = through-and-through → *R* fresh needle (`io_needle` treat, max `IO.attempts`) |
+| 4 | Draw back | | drag the SX-10 plunger up; the return dial fills to 1 ml and turns red when marrow comes back |
+| 5 | Flush the line | | 1 extension line → 2 lidocaine 2 % (2 ml, keep the needle in the 0.08–0.45 ml/s arc) → 3 flush syringe (10 ml saline, 1.5–6 ml/s); too quick / no lidocaine on an awake patient = pain speech + score. → `devices.iv = { kind = 'io', site }`, lidocaine item used when carried |
+| 6 | Hold the pressure | `NZA.Proc 'resus'` + treats | IV stand + PI-3 pressure infuser: 1 hang saline 0.9 % (`infuse`), 2 hang a blood unit (`NZA.Blood.TakeBag`, match shown, untyped/no match need a second press; locked without the blood module), clamp (Q/E, −/+, vertical clamp gauge), pump the bulb (Space, cuff pressure dial 0–300 mmHg, leaks), the flow is sent with `infuse_rate`, 3 TXA 1 g slow push (compact syringe with a rate bar, ≥ 10 s, `txa`), 4 warming foil (`field_foil` → first aid's `fa_foil`), 5 pump bulb, 6 read BP. Keep the MAP on the target arc while the clot sets (CA-2: segmented clot ring, MAP / hold / TXA / warmth / dilution / breaks list, MAP trend strip, break warning) |
+| 7 | Recheck | `NZA.Treat 'field_report'` | handover card: start → now (bleed, MAP, HR, SpO₂) with trend arrows, a ring per step with its score, device chips; Finish (Enter) writes the record and ends the scene |
 
 Steps that are done (binder on, line in) or not allowed are skipped with a note; a step that can't
 start (missing item) shows why and waits for *N Continue*. **Easy mode** (per department / perm):
@@ -62,21 +74,25 @@ and the monitor shows that pressure (`NZA.Monitor.Override`).
 ## IV cannulation (patient option *IV cannulation*, order 44)
 
 `NZA.Proc 'iv'` (perm `iv`, item `iv_kit`), close-up on the forearm (the server picks a free arm).
-1 tourniquet (prop on the upper arm, veins fill) → 2 palpate the forearm on the vein viewer (hold
-Click, bounce meter; the straight, springy vein is best) → 3 set the angle 15–30° (wheel / ↑↓) and
-hold Space: flashback in the chamber when the tip is in the lumen; too flat / too steep misses,
-keep pushing = through the back wall (blown vein, new attempt up to `IV.attempts`) → 4 hold E to
-slide the cannula off the needle → 5 release the tourniquet (1) and drag the needle out → 6 dressing
-(3) + flush (4). → `devices.iv = { kind = 'iv', site, gauge }`. Used by the blood module's
+1 tourniquet on (prop on the upper arm, veins fill) → 2 feel for a vein on the VF-2 vein finder
+(hold Click, rebound meter; the straight, springy vein is best) → 3 needle in: set 15–30° (wheel /
+↑↓, angle dial in the column) and hold Space; the NC-1 needle cam shows the tip, the flash chamber
+fills when it is in the lumen; too shallow / too steep misses, keep pushing = through the back wall
+(vein gone, new attempt up to `IV.attempts`) → 4 hold E to slide the cannula home → 5 tourniquet
+off (1) and drag the needle out → 6 dressing (3) + flush (4). → `devices.iv = { kind = 'iv', site, gauge }`. Used by the blood module's
 *Place an IV first* (it calls the `nza_field_iv` option).
 
 ## Patient monitor (`NZA.Monitor`, NUI app `monitor`)
 
-A rugged NAYZEEE monitor (top-left by default): ECG / PLETH / CO₂ traces (`NZA.vitals.Monitor`),
-HR, SpO₂, NIBP sys/dia + MAP, RR, EtCO₂, temperature; alarm banner (ARREST · rhythm,
-DESATURATING, HYPOTENSION, APNOEA, TACHY-/BRADYCARDIA, TACHYPNOEA, LOW EtCO₂, HYPOTHERMIA) with
-tones; side buttons power (standby), alarm silence (`Monitor.silence` s), cycle NIBP, display size.
-NIBP is intermittent (auto every `Monitor.nibpAuto` s, cuff animation), the rest is live.
+The PM-4 field monitor (top-left by default, unbranded: model code, carry handle, LEDs, a
+*Defib-proof leads only* sticker): a row of four status rings (HR, SpO₂, NIBP with sys/dia + MAP,
+RESP with EtCO₂) with limit and zone marks, full-width ECG / PLETH / CO₂ sweeps with an erase bar
+(`NZA.vitals`), a footer with temperature, EtCO₂ and the NIBP age / auto timer; alarm chip
+(Arrest · rhythm, SpO₂ low, Pressure low, No breathing, Heart rate high / low, Breathing fast,
+EtCO₂ low, Body temp low) with tones; hardware buttons power (standby), silence alarms
+(`Monitor.silence` s), measure BP now, display size. NIBP is intermittent (auto every
+`Monitor.nibpAuto` s, cuff animation), the rest is live. The prop's DUI screen
+(`screen.html`, 512×256) uses the same ring row and sweeps, with no brand.
 
 ```lua
 -- any module (bay, bed, CPR, intubation …)

@@ -498,11 +498,11 @@ function W.Probe(sc, p)
         local now = GetGameTimer()
         if not sc.duiAt or now - sc.duiAt >= num(cfg('Probe').rate, 66) then
             sc.duiAt = now
+            local win = type(p.win) == 'string' and #p.win <= 12 and p.win or 'air'
             duiSend(sc, {
-                type = 'probe', contact = p.contact == true, win = p.win, q = num(p.q, 0), shift = num(p.shift, 0),
-                vis = num(p.vis, 1), depth = num(p.depth, 16), gain = num(p.gain, 55), focus = num(p.focus, 8),
-                frozen = p.frozen == true, mm = p.mm == true, tilt = num(p.tilt, 0),
-                needle = type(p.needle) == 'table' and p.needle or nil, effusion = tonumber(p.effusion),
+                type = 'probe', contact = p.contact == true, win = win, q = clamp(num(p.q, 0), 0, 1), shift = clamp(num(p.shift, 0), -3, 3),
+                vis = clamp(num(p.vis, 1), 0, 1), depth = clamp(num(p.depth, 16), 4, 24), gain = clamp(num(p.gain, 55), 0, 100),
+                focus = clamp(num(p.focus, 8), 1, 24), frozen = p.frozen == true, mm = p.mm == true, tilt = num(p.tilt, 0),
             })
         end
     end
@@ -517,6 +517,7 @@ function W.Needle(sc, n)
     end
     if n.phase == 'out' then
         sc.needle = nil
+        duiSend(sc, { type = 'needle', depth = 0, off = true })
         if sc.syringe and sc.syringe ~= 0 then NZA.Props.Delete(sc.syringe) end
         sc.syringe, sc.syrTried = nil, nil
         return
@@ -525,6 +526,12 @@ function W.Needle(sc, n)
         if n.depth ~= nil then sc.needle.depth = num(n.depth, sc.needle.depth) end
         if n.ang ~= nil then sc.needle.ang = num(n.ang, sc.needle.ang) end
         sc.needle.draw = n.draw == true
+        if sc.dui and sc.dui.ready then
+            duiSend(sc, {
+                type = 'needle', depth = clamp(num(sc.needle.depth, 0), 0, 14), ang = num(sc.needle.ang, 0.86),
+                eff = tonumber(n.eff), q = clamp(num(n.q, 1), 0, 1), draw = sc.needle.draw,
+            })
+        end
     end
 end
 

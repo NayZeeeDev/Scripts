@@ -17,7 +17,7 @@ in-world boom monitor** (DUI), with a NUI fallback.
 
 ## The procedure (6 steps)
 
-1. **Access** — a planning card shows the suspected source (from the injury) on a body map and
+1. **Get access** — a planning card shows the suspected source (from the injury) on a body map and
    recommends a way in (right femoral as standard, the other groin for a pelvic bleed so you cross
    over the iliac fork, same-side antegrade for a thigh bleed). Pick `1` right femoral, `2` left
    femoral or `3` right radial (also clickable). Ultrasound-guided puncture: transverse and
@@ -25,30 +25,34 @@ in-world boom monitor** (DUI), with a NUI fallback.
    (`Q`/`E` or wheel) to **45°**, hold `W` (`Shift` faster, `S` back) until flashback. The vein gives
    dark venous blood, too deep goes through the back wall (attempt counted, patient says "Ow!").
    Hold still → feed the wire (`W`, it fights you when the needle is too steep), slide the sheath
-   (`E`), then **"Remove the needle — the port stays in"**: tap `R` until 100 %.
+   (`E`), then **Withdraw the needle** (the sheath stays in the artery): tap `R` until 100 %.
 2. **Navigate** — fluoroscopy of the abdomen / pelvis (spine with levels, pelvis, bowel gas, colon).
    The vessel tree (aorta → coeliac / SMA / IMA → jejunal & ileal arcades, colic branches, renal
    segments, lumbar, common / external / internal iliac with gluteal, obturator, pudendal branches,
    femoral, profunda, perforators) is invisible until contrast. `W`/`S` (or wheel) advance /
    withdraw, `A`/`D` rotate the shaped tip; at a bifurcation the branch the tip points at is taken.
    The tip compass shows the next branch, its distance and which way the tip points. `X` = test puff
-   (3 mL, local), `C` = contrast run. The last run stays as a faint **road-map**. `Q`/`E` or the
+   (3 mL, local), `C` = **Inject** (contrast run). The last run stays as a faint **road-map**. `Q`/`E` or the
    console slider / segmented control rotate the C-arm (AP, LAO, RAO), `M` magnifies (field 30 → 19 cm).
    Narrow vessels block the catheter, forcing it causes spasm.
-3. **Contrast run** — once in the right first-order vessel, press the big red button in the room
-   (`Z` → walk to the pedestal → `E`) or `C`. The injector plunger moves ("Dye going in. Watch the
-   screen."), the camera shows the injector for `injectorShot` s, then the monitor: DSA subtraction,
-   vessels fill in flow order, organ blush, and a **BLEED** blush at the injury's vessel.
+3. **Shoot the run** — once in the right first-order vessel, press the red pedal button in the
+   room (`Z` → walk to the pedestal → `E`) or `C`. The injector plunger moves (toast *Contrast
+   away*), the camera shows the injector for `injectorShot` s, then the monitor: DSA subtraction,
+   vessels fill in flow order, organ blush, and the leak lights up — marked on the screen with a
+   red corner-bracket reticle, a pulsing diamond and a dark **LEAK** chip (no leader line).
    A run that does not reach the bleed costs points; flush runs from the aorta map everything.
-4. **Coil it** — bring the tip within `coilDist` cm of the bleed (`TO BLEED` stat), hold `F` to push
-   the coil out (visible spring on the image), `F` to release, `R` to pull back. A coil too far or off
+4. **Pack the leak** — bring the tip within `coilDist` cm of the leak (the *Leak gap* dial in the
+   procedure HUD, its teal band is the coil range; instrument list: vessel, coil deployed %, coils
+   left), hold `F` to feed the coil out (visible spring on the image), `F` detaches it, `R` backs
+   the catheter off. A coil too far or off
    the bleeding branch lets collaterals refill it.
-5. **Confirm run** — run again: no blush = sealed, otherwise another coil (extra coils come out of
+5. **Check the seal** — inject again: no pooling = sealed, otherwise another coil (extra coils come out of
    the inventory).
 6. **Close the access** — tap `R` to pull the sheath (it bleeds), hold `Space` to press on the
    puncture keeping the pressure in the band (too hard stops the pulse) for `holdTime` s.
 
-Result card: grade S–F + six part scores (access angle / attempts, navigation, contrast used,
+Result card (top-right, slides in from the edge): the score as a status ring (no letter grade) +
+six part scores as an instrument list with tone notches (access angle / attempts, navigation, contrast used,
 dose, coil placement, haemostasis). `Enter` saves. Outcome (server): `injury.treat.coiled = true`,
 bleed 0, `quality.coiled = score`, internal injuries → `treated` + `healBoost`; bleeding fractures
 keep the fracture (`bleedBase = 0`, still needs splint / binder). Record line + bill (`price`).
@@ -139,3 +143,14 @@ Preview: `html/index.html?app=angio&step=choose|aim|needle|nav|run|coil|confirm|
   `docs/requests/angio.md`); otherwise an "Injecting N mL" world label shows on the injector.
 - Bone offsets for the access close-up / needle prop are tuned for the freemode peds' bone axes and
   may need small config tweaks for unusual ped models.
+
+## Device faces (no brand)
+
+The overlay and the in-world monitor carry generic device labelling only: catheter console `CC-4`,
+access ultrasound `US-2`, fluoroscopy monitor `AX-3` (model plate + yellow radiation sticker).
+The DUI page (`screen.html`) draws the plate with a radiation sign in the left band, an instrument
+list (patient, case, exposure, fluoro time, dose) with tone notches, the current run as an amber
+strip under the mode lamp, run / field / contrast / coils and a 240° C-arm dial on the right, and a
+standby screen with a sweeping ready ring, the radiation sign and the model code (`screen.model`,
+`screen.standby`). The fallback screen in the NUI sits between x 440 and the right edge minus
+300 px, so neither the procedure column nor the tool belt covers it.

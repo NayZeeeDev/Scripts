@@ -897,31 +897,63 @@
     g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.03 * amount; g.fillStyle = p; g.fillRect(0, 0, W, H); g.restore();
   }
 
+  // burned-in film annotation: rotated series strip on the left edge, lead side marker with the
+  // projection tag under it, a calibration ruler and the photographic ID block (flash card)
   function labels(g, C) {
     const { W, H, film, which } = C, s = W / 720;
-    const col = 'rgba(226,234,240,.78)', dim = 'rgba(226,234,240,.45)';
-    g.save(); g.textBaseline = 'top';
-    g.fillStyle = col; g.font = `600 ${Math.round(14 * s)}px Lexend, sans-serif`;
-    // the NAYZEEE mark burned into the film
-    const mx = 24 * s, my = 22 * s, ms = 13 * s;
-    g.beginPath(); g.moveTo(mx, my); g.lineTo(mx + ms, my); g.lineTo(mx + ms, my + ms * 0.62); g.lineTo(mx + ms * 0.62, my + ms); g.lineTo(mx, my + ms); g.closePath(); g.fill();
-    g.fillStyle = '#020405'; g.fillRect(mx + ms * 0.2, my + ms * 0.22, ms * 0.6, ms * 0.18);
-    g.fillStyle = col; g.fillText('NAYZEEE MEDICAL / RADIOLOGY', mx + ms + 8 * s, my - 1 * s);
-    g.font = `500 ${Math.round(11 * s)}px "JetBrains Mono", monospace`; g.fillStyle = dim;
+    const ink = 'rgba(226,234,240,.80)', dim = 'rgba(226,234,240,.42)';
+    const mono = (px, w = 500) => `${w} ${Math.round(px * s)}px "JetBrains Mono", monospace`;
     const view = String(film.viewLabel || film.view || '').toUpperCase();
-    const lines = [`${film.id || 'A0000'} / TRAUMA SERIES`, `${view} / ${which === 'lat' ? 'LATERAL' : 'AP'}`, `${String(film.name || '').toUpperCase()}${film.sex ? ` · ${String(film.sex).toUpperCase()}` : ''}${film.age ? ` ${film.age}` : ''}`];
-    lines.forEach((t, i) => g.fillText(t, 24 * s, 46 * s + i * 15 * s));
-    g.font = `700 ${Math.round(24 * s)}px "JetBrains Mono", monospace`; g.fillStyle = col; g.textAlign = 'right';
-    g.fillText(which === 'lat' ? 'LAT' : 'AP', W - 24 * s, 22 * s);
-    // lead side marker (white on film)
+    const proj = which === 'lat' ? 'LAT' : 'AP';
+    g.save();
+    // 1. series strip, reading bottom → top along the left edge
+    g.save();
+    g.translate(18 * s, H - 26 * s); g.rotate(-Math.PI / 2);
+    g.textBaseline = 'top'; g.fillStyle = dim; g.font = mono(10);
+    const strip = `${film.id || 'A0000'}  ·  ${view}  ·  ${which === 'lat' ? 'LATERAL' : 'FRONTAL AP'}  ·  SER 1 / IMG ${which === 'lat' ? 2 : 1}`;
+    g.fillText(strip, 0, 0);
+    const tw = g.measureText(strip).width;
+    g.fillStyle = 'rgba(226,234,240,.22)'; g.fillRect(tw + 10 * s, 5 * s, Math.max(0, H - 80 * s - tw), 1 * s);
+    g.restore();
+    // 2. lead side marker + projection tag
     const side = C.side ? C.side.toUpperCase() : (which === 'lat' ? 'L' : 'R');
     const right = which === 'lat' || C.side === 'l';
-    const bx = right ? W - 52 * s : 24 * s, by = right ? 60 * s : (C.side ? H * 0.16 : H - 92 * s);
-    g.fillStyle = 'rgba(245,250,255,.92)'; g.fillRect(bx, by, 26 * s, 28 * s); g.fillStyle = '#05080a'; g.textAlign = 'center';
-    g.font = `700 ${Math.round(19 * s)}px Lexend, sans-serif`; g.fillText(side, bx + 13 * s, by + 4 * s);
-    g.textAlign = 'left'; g.font = `400 ${Math.round(9.5 * s)}px "JetBrains Mono", monospace`; g.fillStyle = dim; g.textBaseline = 'bottom';
-    g.fillText(`${film.kv ? `kV ${film.kv} · mAs ${film.mas} · ` : ''}DRY LASER FILM${film.quality === 'motion' ? ' · MOTION' : ''}`, 24 * s, H - 20 * s);
-    g.textAlign = 'right'; g.fillText(`${film.dateText || ''}  ${film.hospital ? String(film.hospital).toUpperCase() : ''}`, W - 24 * s, H - 20 * s);
+    const mw = 28 * s, mh = 30 * s;
+    const bx = right ? W - 26 * s - mw : 40 * s, by = 22 * s;
+    g.fillStyle = 'rgba(246,250,255,.94)'; g.fillRect(bx, by, mw, mh);
+    g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(bx + mw - 3 * s, by + 3 * s, 3 * s, mh - 3 * s);
+    g.fillStyle = '#05080a'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `700 ${Math.round(20 * s)}px Lexend, sans-serif`; g.fillText(side, bx + mw / 2, by + mh / 2 + 1 * s);
+    g.strokeStyle = ink; g.lineWidth = 1.2 * s; g.strokeRect(bx, by + mh + 6 * s, mw, 16 * s);
+    g.fillStyle = ink; g.font = mono(9.5, 700); g.fillText(proj, bx + mw / 2, by + mh + 14.5 * s);
+    // 3. calibration ruler, bottom left
+    const rx = 40 * s, ry = H - 30 * s, rw = 120 * s;
+    g.strokeStyle = 'rgba(232,240,246,.7)'; g.lineWidth = 1.4 * s;
+    g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx + rw, ry);
+    for (let i = 0; i <= 10; i++) { const x = rx + rw * i / 10; g.moveTo(x, ry); g.lineTo(x, ry - (i % 5 === 0 ? 9 : 5) * s); }
+    g.stroke();
+    g.textAlign = 'left'; g.textBaseline = 'bottom'; g.fillStyle = dim; g.font = mono(8.5);
+    g.fillText('CAL', rx, ry - 12 * s);
+    // 4. ID flash card: a pale block exposed by the cassette printer, dark type on it
+    const lines = [
+      String(film.hospital || 'RADIOLOGY').toUpperCase(),
+      `${String(film.name || '').toUpperCase()}${film.sex ? `  ${String(film.sex).toUpperCase()}` : ''}${film.age ? `/${film.age}` : ''}`,
+      `${film.pid ? `${String(film.pid).toUpperCase()}  ` : ''}${film.dateText || ''}`,
+      `${film.kv ? `${film.kv} kV  ${film.mas} mAs` : ''}${film.quality === 'motion' ? '  MOTION' : ''}`,
+    ].filter(Boolean);
+    const cw = 214 * s, ch = (14 + lines.length * 13) * s;
+    const cx = W - 22 * s - cw, cy = H - 22 * s - ch;
+    const cg = g.createLinearGradient(cx, cy, cx, cy + ch);
+    cg.addColorStop(0, 'rgba(214,222,228,.88)'); cg.addColorStop(1, 'rgba(188,198,206,.84)');
+    g.fillStyle = cg; g.fillRect(cx, cy, cw, ch);
+    g.fillStyle = 'rgba(5,8,10,.85)'; g.fillRect(cx, cy, 4 * s, ch);
+    g.textBaseline = 'top'; g.textAlign = 'left';
+    lines.forEach((t, i) => {
+      g.fillStyle = i === 0 ? '#06090b' : 'rgba(6,9,11,.82)';
+      g.font = mono(i === 0 ? 9.5 : 9, i === 0 ? 700 : 500);
+      let txt = t; while (txt.length > 4 && g.measureText(txt).width > cw - 20 * s) txt = txt.slice(0, -1);
+      g.fillText(txt, cx + 12 * s, cy + 7 * s + i * 13 * s);
+    });
     g.restore();
   }
 
@@ -1007,7 +1039,7 @@
   }
   const post = (ev, data) => NZA.post(`${APP}:${ev}`, data || {});
   const frame = (fn) => { const loop = (t) => { S.raf = requestAnimationFrame(loop); fn(t); }; S.raf = requestAnimationFrame(loop); };
-  const abortBtn = () => ({ key: 'ESC', label: T('hold_abort', 'Hold to abort'), seconds: 1.0 });
+  const abortBtn = () => ({ key: 'ESC', label: T('hold_abort', 'Hold to cancel'), seconds: 1.0 });
 
   /* ═══════════════════════════ MODE: CHOOSE ═══════════════════════════ */
   function modeChoose(d) {
@@ -1015,15 +1047,15 @@
     let sel = (views.find(v => v.sev) || views[2] || views[0] || {}).id;
     const box = NZA.el('div', 'xr-dev xr-choose nza-int');
     box.innerHTML = `
-      <div class="xr-dev-head"><span class="nz-mark"></span><b>NAYZEEE</b> RADIOGRAPHY<span class="sp"></span><span class="xr-led on"></span></div>
+      ${devHead('RX-10', T('dev_console', 'Radiographic console'))}
       <div class="xr-ch-body">
         <div class="xr-scr xr-ch-fig">${figSVG(sel)}</div>
         <div class="xr-ch-list">
-          <div class="xr-ch-pt"><b>${esc(d.name || T('patient', 'Patient'))}</b><span>${esc(T('choose_sub', 'Choose the body part to X-ray'))}</span></div>
+          <div class="xr-ch-pt"><b>${esc(d.name || T('patient', 'Patient'))}</b><span>${esc(T('choose_sub', 'Pick the body part for the film'))}</span></div>
           <div class="xr-ch-grid">${views.map((v, i) => `<button class="xr-vbtn" data-v="${esc(v.id)}"><kbd>${i + 1}</kbd><span>${esc(v.label)}</span><span class="sp"></span>${v.sev ? `<span class="tag ${v.sev >= 3 ? 'red' : ''}"><i></i>${esc(T('injured', 'Injured'))}</span>` : ''}</button>`).join('')}</div>
-          <div class="xr-ch-set"><div><div class="xr-k">kVp</div><div class="v" data-kv>--</div></div><div><div class="xr-k">mAs</div><div class="v" data-mas>--</div></div><div><div class="xr-k">${esc(T('projections', 'Projections'))}</div><div class="v">AP<small>+</small>LAT</div></div></div>
-          ${views.some(v => v.sev) ? `<div class="xr-ch-note">${icon('alert')}<span>${esc(T('complaint', 'Patient complains about'))}: <b>${esc(views.filter(v => v.sev).sort((a, b) => b.sev - a.sev).map(v => v.label).join(', '))}</b></span></div>` : ''}
-          <div class="xr-ch-foot"><span class="hint">${esc(T('choose_hint', 'Everyone steps out of the room before the exposure.'))}</span><span class="sp"></span><button class="btn-line" data-x>${esc(T('cancel', 'Cancel'))}</button><button class="btn-teal" data-go>${icon('xray')}${esc(T('take', 'Take X-ray'))}</button></div>
+          <div class="xr-ch-set"><div class="dl" data-kv></div><div class="dl" data-mas></div><div class="pj"><div class="xr-k">${esc(T('projections', 'Projections'))}</div><div class="v">AP<small>+</small>LAT</div><div class="xr-k" style="margin-top:8px">SID</div><div class="v sm">180<small>cm</small></div></div></div>
+          ${views.some(v => v.sev) ? `<div class="xr-ch-note">${icon('alert')}<span>${esc(T('complaint', 'Where it hurts'))}: <b>${esc(views.filter(v => v.sev).sort((a, b) => b.sev - a.sev).map(v => v.label).join(', '))}</b></span></div>` : ''}
+          <div class="xr-ch-foot"><span class="hint">${esc(T('choose_hint', 'Clear the room before you expose.'))}</span><span class="sp"></span><button class="btn-line" data-x>${esc(T('cancel', 'Cancel'))}</button><button class="btn-teal" data-go>${icon('xray')}${esc(T('take', 'Take X-ray'))}</button></div>
         </div>
       </div>`;
     root.appendChild(box);
@@ -1035,7 +1067,8 @@
         z.classList.toggle('on', z.dataset.v === sel); z.classList.toggle('inj', !!(v && v.sev)); z.classList.toggle('sev3', !!(v && v.sev >= 3));
       });
       const s = SET[sel] || [70, 10];
-      box.querySelector('[data-kv]').innerHTML = `${s[0]}<small>kV</small>`; box.querySelector('[data-mas]').innerHTML = `${s[1]}<small>mAs</small>`;
+      box.querySelector('[data-kv]').innerHTML = miniDial(s[0] / 150, 'kVp', s[0], 'kV');
+      box.querySelector('[data-mas]').innerHTML = miniDial(s[1] / 40, 'mAs', s[1], 'mAs');
     };
     const go = () => { if (!sel) return; sound('click', 880); box.querySelector('[data-go]').disabled = true; post('choose', { view: sel }); };
     box.addEventListener('click', (e) => {
@@ -1061,7 +1094,7 @@
     const st = { phase: 'ready', breathAt: 0, hold: 0, holding: false, exposed: false };
     const box = NZA.el('div', 'xr-dev xr-console nza-int');
     box.innerHTML = `
-      <div class="xr-dev-head"><span class="nz-mark"></span><b>NAYZEEE</b> RADIOGRAPHY<span class="sp"></span><span class="xr-led on" data-led></span></div>
+      ${devHead('RX-10', T('dev_console', 'Radiographic console'))}
       <div class="xr-scr xr-co-scr">
         <div class="xr-co-fig">${figSVG(d.view, '', true)}</div>
         <div class="xr-co-info">
@@ -1092,7 +1125,9 @@
       title: T('expose_title', 'Expose the film'),
       text: needBreath ? T('expose_text_breath', 'Everyone is out of the room. Press {B} so the patient holds their breath, then hold {Space} to expose.')
         : T('expose_text', 'Everyone is out of the room. Hold {Space} to expose the film.'),
-      stats: [{ id: 'view', label: T('view', 'View'), value: d.viewLabel || d.view, small: true }, { id: 'kv', label: 'kVp', value: d.kv || 70 }, { id: 'mas', label: 'mAs', value: d.mas || 10 }],
+      steps: [T('expose_title', 'Expose the film'), T('processing_title', 'Develop the film')],
+      wide: { label: 'kVp', value: d.kv || 70, unit: 'kV', meter: { value: clamp((d.kv || 70) / 150, 0, 1), zone: [0.38, 0.8] }, caption: `${d.mas || 10} mAs · SID 180`, captionTone: 'teal' },
+      stats: [{ id: 'view', label: T('view', 'View'), value: d.viewLabel || d.view, small: true }, { id: 'proj', label: T('projections', 'Projections'), value: 'AP + LAT', small: true }],
       tools: tools(), abort: abortBtn(),
       onAbort: () => { post('abort'); }, onTool: (k) => { if (k === keyCap(KEY('breath', 'KeyB'))) breath(); },
     });
@@ -1126,8 +1161,8 @@
       later(() => {
         setState('done', T('st_processing', 'Processing film'));
         q('[data-led]').className = 'xr-led amber';
-        S.pp.set({ step: 2, title: T('processing_title', 'Processing the film'), text: T('processing_text', 'The film is running through the processor. Hand it to the lightbox to read it.'), tools: [], stats: [{ id: 'p', label: T('progress', 'Progress'), value: '0', unit: '%', meter: { value: 0 } }] });
-        let p = 0; const iv = setInterval(() => { p = Math.min(0.95, p + 0.06); if (S.pp) S.pp.stat('p', { value: Math.round(p * 100), meter: { value: p } }); }, 160);
+        S.pp.set({ step: 2, title: T('processing_title', 'Develop the film'), text: T('processing_text', 'The cassette is in the processor. The film drops out in a moment.'), tools: [], wide: { label: T('progress', 'Developer'), value: 0, unit: '%', meter: { value: 0 }, caption: '' } });
+        let p = 0; const iv = setInterval(() => { p = Math.min(0.95, p + 0.06); if (S.pp) S.pp.wide({ value: Math.round(p * 100), meter: { value: p } }); }, 160);
         S.timers.push(iv);
       }, 450);
       post('expose', { breath: !!breathOk });
@@ -1146,12 +1181,30 @@
         fontsReady.then(() => { const img = renderFilm(demo, 'ap', 384); cv.getContext('2d').drawImage(img, 0, 0, 192, 240); requestAnimationFrame(() => cv.classList.add('dev')); });
         q('[data-fid]').textContent = `${f.id} · ${(f.viewLabel || '').toUpperCase()}`;
         if (S.pp) {
-          S.pp.stat('p', { value: 100, meter: { value: 1 } });
+          S.pp.wide({ value: 100, meter: { value: 1 }, caption: f.id, captionTone: 'teal' });
           S.pp.complete({ title: T('film_ready', 'Film ready'), text: F(f.quality === 'motion' ? T('film_ready_motion', 'Film %s is in your pocket. The patient moved: the image is blurred.') : T('film_ready_text', 'Film %s is in your pocket. Read it on a lightbox.'), f.id), onDone: () => NZA.close(APP) });
         }
         sound('success');
       },
     };
+  }
+  // generic device head: engraved model plate, device name, radiation sticker, status LED
+  function devHead(model, name, led = '<span class="xr-led on" data-led></span>', extra = '') {
+    return `<div class="xr-dev-head"><span class="xr-plate">${esc(model)}</span><b>${esc(name)}</b><span class="sp"></span>${extra}<span class="xr-sticker" title="">${trefoil()}</span>${led}</div>`;
+  }
+  // small 240° dial (console readouts)
+  function miniDial(frac, label, value, unit) {
+    const R = 30, C = 40, A0 = 150, SW = 240, f = clamp(frac, 0, 1);
+    const pt = (t, r = R) => { const a = (A0 + SW * t) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+    const arc = (t0, t1, r = R) => { const [x0, y0] = pt(t0, r), [x1, y1] = pt(t1, r); return `M${x0.toFixed(1)} ${y0.toFixed(1)}A${r} ${r} 0 ${(t1 - t0) * SW > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
+    let ticks = ''; for (let i = 0; i <= 8; i++) { const [a, b] = pt(i / 8, R + 5), [c, e] = pt(i / 8, R + (i % 4 ? 8 : 10)); ticks += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${e.toFixed(1)}"/>`; }
+    return `<svg viewBox="0 0 80 70"><path class="trk" d="${arc(0, 1)}"/><path class="fill" d="${arc(0, Math.max(f, 0.01))}"/><g class="tk">${ticks}</g></svg><div class="dv"><span class="xr-k">${esc(label)}</span><b>${esc(value)}<small>${esc(unit)}</small></b></div>`;
+  }
+  // score as a status ring (the HUD's ring language), value in the middle
+  function scoreRing(score, size = 64) {
+    const v = clamp(Number(score) || 0, 0, 100), R = 26, C = 2 * Math.PI * R;
+    const tone = v >= 72 ? 'ok' : v >= 45 ? 'warn' : 'bad';
+    return `<span class="xr-ring ${tone}" style="width:${size}px;height:${size}px"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="${R}"/><circle class="tk" cx="32" cy="32" r="${R + 5}"/><circle class="fg" cx="32" cy="32" r="${R}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - v / 100)).toFixed(1)}"/></svg><b>${Math.round(v)}</b></span>`;
   }
   function trefoil() {
     return '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2.2"/><path d="M12 9.2 8.6 3.3A10 10 0 0 0 3.2 12h6.6a2.3 2.3 0 0 1 2.2-2.8zM12 9.2l3.4-5.9A10 10 0 0 1 20.8 12h-6.6A2.3 2.3 0 0 0 12 9.2zM10.6 14.4l-3.3 5.8a10 10 0 0 0 9.4 0l-3.3-5.8a2.3 2.3 0 0 1-2.8 0z"/></svg>';
@@ -1194,15 +1247,16 @@
     // ── lightbox
     const box = NZA.el('div', 'xr-dev xr-box nza-int');
     box.innerHTML = `
-      <div class="xr-box-top"><span class="nz-mark" style="width:13px;height:13px;border-radius:3px"></span><b>NAYZEEE</b> RADIOLOGY · ${esc(T('viewer', 'Film viewer'))}<span class="sp"></span><span class="sw"><span class="xr-led on" data-led></span><span data-lt>${esc(T('light_on', 'Light on'))}</span></span></div>
+      <div class="xr-box-top"><span class="xr-plate">LB-2</span><b>${esc(T('viewer', 'Film illuminator'))}</b><span class="sp"></span><span class="sw"><span class="xr-led on" data-led></span><span data-lt>${esc(T('light_on', 'Lamp lit'))}</span></span></div>
       <div class="xr-panel on" data-panel>
         <div class="xr-clip"></div>
         <div class="xr-stage" data-stage>
           <div class="xr-film hide" data-sheet><canvas width="720" height="900"></canvas><div class="xr-film-tint"></div><svg class="xr-measure" data-meas viewBox="0 0 536 670" preserveAspectRatio="none"></svg><div class="xr-pins" data-pins></div></div>
         </div>
-        <div class="xr-drop" data-drop><span class="ring"></span>${esc(T('drag_film', 'Drag a film onto the viewer'))}</div>
+        <div class="xr-drop" data-drop><i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+          <div class="chip"><span class="ic">${icon('xray')}</span><div><b>${esc(T('drag_film', 'Pull a film up from the jacket'))}</b><small>${esc(F(T('drag_film_sub', 'or press %s to clip the AP film'), keyCap(KEY('switch', 'KeyF'))))}</small></div></div></div>
       </div>
-      <div class="xr-box-bot"><span class="screw"></span><span>${esc(T('contrast', 'Contrast'))}: <b data-ct style="color:#fff">${esc(T('ct_0', 'Normal'))}</b></span><span class="sp"></span><span class="xr-zoom" data-zoom>100%</span><span class="screw"></span></div>`;
+      <div class="xr-box-bot"><span class="screw"></span><span>${esc(T('contrast', 'Window'))} <b data-ct style="color:#fff">${esc(T('ct_0', 'Soft'))}</b></span><span class="sp"></span><span class="xr-zoom" data-zoom>100%</span><span class="screw"></span></div>`;
     wrap.appendChild(box);
 
     // ── report window (right)
@@ -1224,7 +1278,7 @@
         const th = jacket.querySelector(`.xr-thumb[data-film="${w}"] canvas`);
         th.getContext('2d').drawImage(renders[w], 0, 0, 240, 300);
       });
-      if (st.hung) hang(st.hung, true);
+      if (st.hung) hang(st.hung, true); else panelText();
     });
 
     function sideHTML() {
@@ -1245,19 +1299,18 @@
     function resultHTML() {
       const r = st.result;
       if (r.error) return `<div class="xr-sec"><div class="xr-note red">${esc(r.error)}</div></div>`;
-      const g = r.grade || 'C';
       const rows = (r.rows || []).map(row => {
         const cls = row.confirmed ? 'ok' : (row.ap || row.lat) ? 'part' : 'miss';
         return `<div class="xr-row ${cls}"><span class="ic">${icon(cls === 'ok' ? 'check' : cls === 'part' ? 'alert' : 'x')}</span><span class="tx">${esc(row.label || '')}<small>AP ${row.ap ? '✓' : '—'} · ${esc(T('lateral', 'Lateral'))} ${row.lat ? '✓' : '—'}</small></span></div>`;
       }).join('');
       return `
-        <div class="xr-res"><span class="grade g-${esc(g)}">${esc(g)}</span><div><div class="sc">${esc(r.score)}<small>/100</small></div><p>${esc(r.msg || '')}</p></div></div>
+        <div class="xr-res">${scoreRing(r.score, 72)}<div><div class="xr-k">${esc(T('score', 'Score'))}</div><div class="sc">${esc(r.score)}<small>/100</small></div><p>${esc(r.msg || '')}</p></div></div>
         <div class="xr-sec"><h5>${esc(T('findings', 'Findings'))}</h5>${rows || `<div class="xr-note">${esc(T('no_findings', 'No fracture or fragment on these films.'))}</div>`}
           ${r.falsePins ? `<div class="xr-note red">${esc(F(T('false_pins', '%d pin(s) marked nothing.'), r.falsePins))}</div>` : ''}
           ${r.measure ? `<div class="xr-note ${r.measure.ok ? '' : 'amber'}">${esc(F(T('measure_res', 'Angle: you measured %s°, the film shows %s°.'), r.measure.yours, r.measure.truth))}</div>` : ''}
           ${r.offline ? `<div class="xr-note amber">${esc(T('offline', 'The patient is not here: the reading was saved on the film only.'))}</div>` : ''}
           ${r.applied ? `<div class="xr-note">${esc(F(T('applied', '%d diagnosis confirmed in the patient record.'), r.applied))}</div>` : ''}</div>
-        <div class="xr-sec"><div class="xr-note">${esc(T('result_hint', 'The rings on the films show where everything really is. F switches film. Enter closes.'))}</div></div>`;
+        <div class="xr-sec"><div class="xr-note">${esc(T('result_hint', 'The rings show where each finding really is. F flips the film, Enter closes.'))}</div></div>`;
     }
     const renderSide = () => { win.main.innerHTML = sideHTML(); };
 
@@ -1265,7 +1318,7 @@
       ['ap', 'lat'].forEach(w => {
         const th = jacket.querySelector(`.xr-thumb[data-film="${w}"]`);
         th.classList.toggle('up', st.hung === w);
-        th.querySelector('[data-st]').textContent = st.hung === w ? T('on_viewer', 'On viewer') : T('in_jacket', 'In jacket');
+        th.querySelector('[data-st]').textContent = st.hung === w ? T('on_viewer', 'On lamp') : T('in_jacket', 'In jacket');
         const pc = th.querySelector('[data-pc]'); pc.textContent = st.pins[w].length; pc.classList.toggle('on', st.pins[w].length > 0);
       });
     }
@@ -1283,11 +1336,11 @@
       panel.classList.toggle('on', st.light);
       sheet.classList.toggle('off', !st.light);
       q('[data-led]').className = `xr-led ${st.light ? 'on' : ''}`;
-      q('[data-lt]').textContent = st.light ? T('light_on', 'Light on') : T('light_off', 'Light off');
+      q('[data-lt]').textContent = st.light ? T('light_on', 'Lamp lit') : T('light_off', 'Lamp dark');
     }
     function applyContrast() {
       sheet.classList.remove('c1', 'c2'); if (st.contrast) sheet.classList.add(`c${st.contrast}`);
-      q('[data-ct]').textContent = T(`ct_${st.contrast}`, ['Normal', 'Bone', 'Hot light'][st.contrast]);
+      q('[data-ct]').textContent = T(`ct_${st.contrast}`, ['Soft', 'Bone', 'Bright'][st.contrast]);
     }
     function applyView() {
       stage.style.transform = `translate(${st.panX}px,${st.panY}px) scale(${st.zoom})`;
@@ -1333,56 +1386,92 @@
 
     function toolsList() {
       const st2 = (k) => (st.tool === k ? 'active' : '');
-      if (st.result) return [{ key: keyCap(KEY('switch', 'KeyF')), label: T('tool_switch', 'Switch film') }, { key: keyCap(KEY('contrast', 'KeyC')), label: T('tool_contrast', 'Contrast') }];
+      const swap = { key: keyCap(KEY('switch', 'KeyF')), label: T('tool_switch', 'Other film'), sub: st.hung === 'ap' ? T('to_lat', 'to lateral') : st.hung === 'lat' ? T('to_ap', 'to AP') : '', icon: 'swap' };
+      const win = { key: keyCap(KEY('contrast', 'KeyC')), label: T('tool_contrast', 'Window'), sub: T(`ct_${st.contrast}`, ['Soft', 'Bone', 'Bright'][st.contrast]), icon: 'sliders' };
+      if (st.result) return [swap, win];
       const t = [];
-      t.push({ key: keyCap(KEY('move', 'Digit1')), label: T('tool_move', 'Move film'), state: st2('move') });
+      t.push({ key: keyCap(KEY('move', 'Digit1')), label: T('tool_move', 'Hand'), icon: 'hand', state: st2('move') });
       if (!viewOnly) {
-        t.push({ key: keyCap(KEY('mark', 'Digit2')), label: T('tool_mark', 'Mark tool'), state: st2('mark') });
-        t.push({ key: keyCap(KEY('measure', 'Digit3')), label: T('tool_measure', 'Measure'), state: st2('measure') });
+        t.push({ key: keyCap(KEY('mark', 'Digit2')), label: T('tool_mark', 'Pin'), icon: 'target', state: st2('mark') });
+        t.push({ key: keyCap(KEY('measure', 'Digit3')), label: T('tool_measure', 'Angle'), icon: 'ruler', state: st2('measure') });
       }
-      t.push({ key: keyCap(KEY('switch', 'KeyF')), label: T('tool_switch', 'Switch film') });
-      t.push({ key: keyCap(KEY('light', 'KeyL')), label: st.light ? T('tool_light_off', 'Viewer off') : T('tool_light_on', 'Viewer on') });
-      t.push({ key: keyCap(KEY('contrast', 'KeyC')), label: T('tool_contrast', 'Contrast') });
+      t.push(swap);
+      t.push({ key: keyCap(KEY('light', 'KeyL')), label: st.light ? T('tool_light_off', 'Lamp off') : T('tool_light_on', 'Lamp on'), icon: 'light', state: st.light ? '' : 'need' });
+      t.push(win);
       return t;
+    }
+    const STEPS = viewOnly ? [T('step_hang', 'Hang a film'), T('step_view', 'Study the films')] : [T('step_hang', 'Hang a film'), T('step_mark', 'Pin every finding'), T('step_file', 'File the report')];
+    function reviewDial() {
+      const left = Math.max(0, minMs - (performance.now() - st.opened));
+      const frac = minMs > 0 ? clamp(1 - left / minMs, 0, 1) : 1;
+      if (st.result) {
+        const sc = st.result.error ? 0 : (st.result.score || 0);
+        return { label: T('score', 'Score'), value: st.result.error ? '--' : sc, unit: st.result.error ? '' : '/100', tone: sc >= 72 ? 'teal' : sc >= 45 ? 'amber' : 'red', meter: { value: sc / 100, tone: sc >= 72 ? '' : sc >= 45 ? 'amber' : 'red' }, caption: '' };
+      }
+      if (viewOnly) return null;
+      return left > 0
+        ? { label: T('s_review', 'Review'), value: Math.ceil(left / 1000), unit: 's', meter: { value: frac, tone: 'white' }, caption: T('s_unlock', 'until the report opens') }
+        : { label: T('s_review', 'Review'), value: T('s_open', 'Open'), tone: 'teal', meter: { value: 1 }, caption: T('s_ready', 'File it with {Enter}'), captionTone: 'teal' };
+    }
+    function pairHTML() {
+      return ['ap', 'lat'].map(w => {
+        const n = st.pins[w].length;
+        const dots = st.pins[w].slice(0, 6).map(p => `<i style="left:${(p.x * 100).toFixed(1)}%;top:${(p.y * 100).toFixed(1)}%"></i>`).join('');
+        return `<div class="t ${st.hung === w ? 'hung' : ''} ${n ? 'ok' : ''}">
+          <span class="mini"><canvas width="60" height="76" data-mini="${w}"></canvas><span class="fr">${dots}</span>${n ? `<span class="ck">${icon('check')}</span>` : ''}</span>
+          <span class="tx"><b>${w === 'ap' ? 'AP' : esc(T('lateral', 'Lateral'))}</b><small>${viewOnly ? esc(st.hung === w ? T('on_viewer', 'On lamp') : T('in_jacket', 'In jacket')) : n ? esc(F(T('pins_n', '%d pinned'), n)) : esc(T('pins_0', 'Nothing pinned'))}</small></span>
+        </div>`;
+      }).join('');
     }
     function panelText() {
       if (!S.pp) return;
-      const filmName = st.hung === 'lat' ? T('lateral', 'Lateral') : st.hung === 'ap' ? 'AP' : '—';
+      const filmName = st.hung === 'lat' ? T('lateral', 'Lateral') : st.hung === 'ap' ? 'AP' : T('empty', 'Empty');
       const stats = [
-        { id: 'viewer', label: T('s_viewer', 'Viewer'), value: st.light ? T('on', 'On') : T('off', 'Off'), small: true, tone: st.light ? 'teal' : 'amber' },
-        { id: 'film', label: T('s_on_viewer', 'On the viewer'), value: filmName, small: true },
-        { id: 'ap', label: 'AP', value: viewOnly ? '—' : st.pins.ap.length || '—', small: true },
-        { id: 'lat', label: T('s_lateral', 'Lateral'), value: viewOnly ? '—' : st.pins.lat.length || '—', small: true },
+        { id: 'lamp', label: T('s_viewer', 'Lamp'), value: st.light ? T('lit', 'Lit') : T('dark', 'Dark'), small: true, tone: st.light ? 'teal' : 'amber' },
+        { id: 'film', label: T('s_on_viewer', 'Clipped'), value: filmName, small: true },
       ];
+      if (st.result && !st.result.error) {
+        const rows = st.result.rows || [];
+        stats.splice(0, 2,
+          { id: 'conf', label: T('s_confirmed', 'Confirmed'), value: `${rows.filter(x => x.confirmed).length}/${rows.length}`, tone: rows.every(x => x.confirmed) ? 'teal' : 'amber' },
+          { id: 'false', label: T('s_false', 'Stray pins'), value: String(st.result.falsePins || 0), tone: st.result.falsePins ? 'red' : '' });
+      }
       let title, text;
       if (st.result) {
         title = st.result.error ? T('read_error', 'Report not saved') : T('read_done', 'Report filed');
         text = st.result.error ? st.result.error : T('read_done_text', 'Compare your pins with the rings. Press {Enter} to close.');
       } else if (!st.hung) {
-        title = T('step_hang', 'Put the film up'); text = T('step_hang_text', 'Drag a film from the jacket onto the viewer. {L} switches the viewer light.');
+        title = T('step_hang', 'Hang a film'); text = T('step_hang_text', 'Drag the AP or lateral film from the jacket onto the lamp. {L} switches the lamp.');
       } else if (viewOnly) {
-        title = T('step_view', 'Look at the films'); text = T('step_view_text', '{F} switches film, scroll to zoom, {C} contrast, {R} resets the view.');
+        title = T('step_view', 'Study the films'); text = T('step_view_text', '{F} flips to the other film, scroll to zoom, {C} changes the window, {R} recentres.');
       } else {
-        title = T('step_mark', 'Mark the break');
-        text = T('step_mark_text', 'Press {2} and pin the break on the AP film, then press {F} for the lateral film and pin the same break. {1} moves a film.');
+        title = T('step_mark', 'Pin every finding');
+        text = T('step_mark_text', 'Pin each break or fragment on the AP film with {2}, flip to the lateral with {F} and pin it there too. {1} grabs the film.');
       }
-      S.pp.set({ step: st.result ? 2 : st.hung ? 2 : 1, total: 2, title, titleTone: st.result && !st.result.error ? 'ok' : '', text, stats, tools: toolsList() });
+      S.pp.set({ step: st.result ? 3 : st.hung ? 2 : 1, total: STEPS.length, steps: STEPS, title, titleTone: st.result && !st.result.error ? 'ok' : st.result ? 'bad' : '', text, stats, wide: reviewDial(), tools: toolsList() });
+      if (pair) {
+        pair.innerHTML = pairHTML();
+        pair.querySelectorAll('[data-mini]').forEach(c => { const r = renders[c.dataset.mini]; if (r) c.getContext('2d').drawImage(r, 0, 0, 60, 76); });
+      }
     }
+    let pair = null;
 
     S.pp = NZA.ui.ProcPanel(root, {
-      step: 1, total: 2, tag: T('tag_read', 'X-ray reading'), title: '', text: '', stats: [], tools: [],
-      hints: [{ keys: [keyCap(KEY('reset', 'KeyR'))], label: T('hint_reset', 'Reset view') }, { keys: [T('scroll', 'Scroll')], label: T('hint_zoom', 'Zoom') }, { keys: [T('rdrag', 'Right-drag')], label: T('hint_look', 'Look around') }],
+      step: 1, total: STEPS.length, steps: STEPS, tag: T('tag_read', 'Film review'), title: '', text: '', stats: [], tools: [],
+      hints: [{ keys: [keyCap(KEY('reset', 'KeyR'))], label: T('hint_reset', 'Recentre') }, { keys: [T('scroll', 'Scroll')], label: T('hint_zoom', 'Zoom') }, { keys: [T('rdrag', 'Right-drag')], label: T('hint_look', 'Orbit') }],
       abort: viewOnly ? { key: 'ESC', label: T('hold_close', 'Hold to close'), seconds: 0.6 } : abortBtn(),
       onAbort: () => { if (st.result) NZA.close(APP); else post('abort'); },
       onTool: (k) => toolKey(k),
     });
+    pair = NZA.el('div', 'xr-pair');
+    S.pp.slot.prepend(pair);
 
     function toolKey(k) {
       const map = { [keyCap(KEY('move', 'Digit1'))]: 'move', [keyCap(KEY('mark', 'Digit2'))]: 'mark', [keyCap(KEY('measure', 'Digit3'))]: 'measure' };
       if (map[k]) { if (viewOnly && map[k] !== 'move') return; if (st.result) return; st.tool = map[k]; sound('click'); sheetCursor(); panelText(); return; }
       if (k === keyCap(KEY('switch', 'KeyF'))) return switchFilm();
       if (k === keyCap(KEY('light', 'KeyL'))) { st.light = !st.light; sound('click', st.light ? 900 : 500); applyLight(); panelText(); return; }
-      if (k === keyCap(KEY('contrast', 'KeyC'))) { st.contrast = (st.contrast + 1) % 3; sound('click'); applyContrast(); }
+      if (k === keyCap(KEY('contrast', 'KeyC'))) { st.contrast = (st.contrast + 1) % 3; sound('click'); applyContrast(); panelText(); }
     }
     function sheetCursor() { sheet.classList.toggle('mark', st.tool === 'mark' || st.tool === 'measure'); sheet.classList.toggle('move', st.tool === 'move'); }
     function switchFilm() {
@@ -1402,7 +1491,7 @@
       e.preventDefault();
       if (st.result) return;
       if (st.tool === 'mark' && !viewOnly) {
-        if (!st.light) { S.pp.flash('warn', T('light_needed', 'Switch the viewer on first ({L}).'), 2000); return; }
+        if (!st.light) { S.pp.flash('warn', T('light_needed', 'Switch the lamp on first ({L}).'), 2000); return; }
         const list = st.pins[st.hung];
         if (list.length >= 8) { S.pp.flash('warn', T('too_many', 'Eight pins per film at most.'), 2000); return; }
         list.push(filmPos(e)); sound('click', 1100); drawPins(); thumbs(); panelText(); renderSide();
@@ -1465,7 +1554,7 @@
       if (viewOnly || st.result || st.sent) return;
       const elapsed = performance.now() - st.opened;
       if (elapsed < minMs) { S.pp.flash('warn', F(T('too_soon', 'Take a closer look first (%ss).'), Math.ceil((minMs - elapsed) / 1000)), 2000); return; }
-      if (!normal && (!st.pins.ap.length || !st.pins.lat.length)) { S.pp.flash('warn', T('need_both', 'Pin the break on both films (AP and lateral) or press {N} for a normal film.'), 2600); return; }
+      if (!normal && (!st.pins.ap.length || !st.pins.lat.length)) { S.pp.flash('warn', T('need_both', 'Pin each finding on both films (AP and lateral), or press {N} if the films are normal.'), 2600); return; }
       st.sent = true; st.normal = !!normal;
       const meas = st.measure.ap && st.measure.ap.b ? { film: 'ap', angle: st.measure.ap.angle } : st.measure.lat && st.measure.lat.b ? { film: 'lat', angle: st.measure.lat.angle } : null;
       const res = { marks: { ap: st.pins.ap, lat: st.pins.lat }, normal: !!normal, measure: meas };
@@ -1476,7 +1565,7 @@
     }
 
     let tick = 0;
-    frame(() => { if (++tick % 30 === 0 && !st.result) { const t = win.el.querySelector('[data-timer]'); if (t) t.textContent = NZA.fmt.time((performance.now() - st.opened) / 1000); if (!st.result) renderSide(); } });
+    frame(() => { if (++tick % 30 === 0 && !st.result) { const t = win.el.querySelector('[data-timer]'); if (t) t.textContent = NZA.fmt.time((performance.now() - st.opened) / 1000); renderSide(); if (S.pp && !viewOnly) S.pp.wide(reviewDial()); } });
 
     applyLight(); applyContrast(); applyView(); sheetCursor(); thumbs(); panelText(); renderSide();
 
@@ -1510,12 +1599,13 @@
         }));
         st.tool = 'move';
         jacket.querySelector('[data-legend]').style.display = '';
-        win.setStatus([{ key: 'Enter', label: T('done', 'Done') }, { key: keyCap(KEY('switch', 'KeyF')), label: T('tool_switch', 'Switch film') }]);
+        win.setStatus([{ key: 'Enter', label: T('done', 'Done') }, { key: keyCap(KEY('switch', 'KeyF')), label: T('tool_switch', 'Other film') }]);
         sound((r && r.score >= 50) ? 'success' : 'fail');
         drawPins(); panelText(); renderSide(); sheetCursor();
         if (S.pp) S.pp.set({ abort: { key: 'ESC', label: T('hold_close', 'Hold to close'), seconds: 0.5 } });
         S.pp.complete({ title: T('read_done', 'Report filed'), text: (r && r.msg) || '', onDone: () => NZA.close(APP) });
-        S.pp.set({ stats: [{ id: 'score', label: T('score', 'Score'), value: r && r.score !== undefined ? r.score : '--', unit: '/100', tone: (r && r.score >= 50) ? 'teal' : 'amber' }, { id: 'grade', label: T('grade', 'Grade'), value: (r && r.grade) || '-' }] });
+        panelText();
+        S.pp.set({ tools: [] });
       },
       error(e) { st.result = { error: (e && e.msg) || T('err', 'Something went wrong') }; renderSide(); panelText(); later(() => NZA.close(APP), 3500); },
     };
@@ -1564,7 +1654,7 @@
     // DOM
     const dev = NZA.el('div', 'xr-dev xr-fluoro nza-int');
     dev.innerHTML = `
-      <div class="xr-dev-head"><span class="nz-mark"></span><b>NAYZEEE</b> FLUORO · C-ARM<span class="sp"></span><span class="xr-led" data-led></span></div>
+      ${devHead('CA-9', T('dev_carm', 'Mobile C-arm'), '<span class="xr-led" data-led></span>')}
       <div class="xr-scr xr-fl-scr"><canvas width="560" height="560" data-cv></canvas>
         <div class="xr-fl-ov">
           <div class="tl">${esc((d.name || '').toUpperCase())}<br>${esc((d.regionLabel || '').toUpperCase())} · ${esc((d.boneLabel || '').toUpperCase())}<br>AP · 62 kV · 2.1 mA</div>
@@ -1636,11 +1726,7 @@
       const face = q('[data-face]'); face.className = `xr-face ${sim.pain > 0.85 ? 'bad' : sim.pain > 0.5 ? 'warn' : ''}`;
       // gauge: force trace
       gauge();
-      if (S.pp) {
-        S.pp.stat('ang', { value: Math.round(sim.shownAng), tone: sim.shownAng <= tol ? 'teal' : '' });
-        S.pp.stat('short', { value: Math.round(sim.shownShort), tone: sim.shownShort <= 1 ? 'teal' : '' });
-        S.pp.stat('dose', { value: sim.fluoro.toFixed(1), tone: sim.fluoro > (d.fluoroBudget || 12) ? 'amber' : '' });
-      }
+      if (S.pp) readout();
     }
     const trace = [];
     function gauge() {
@@ -1720,11 +1806,27 @@
         if (sim.step === 1 && sim.short <= 1 && sim.force >= NEED) { sim.held += dt; if (sim.held > 0.6) setStep(2); } else if (sim.step === 1) sim.held = 0;
         if (sim.step === 2 && Math.abs(sim.ang) <= tol && sim.short <= 1.5 && sim.force >= NEED * 0.85) { sim.held += dt; if (sim.held > 1.0) setStep(3); } else if (sim.step === 2) sim.held = 0;
         if (sim.step === 3 && Math.abs(sim.ang) > tol + 1.5) setStep(2);
-        if (sim.step === 3) S.pp && S.pp.stat('rel', { value: sim.force < 0.08 ? T('released', 'Released') : T('holding', 'Holding'), tone: sim.force < 0.08 ? 'teal' : '' });
       }
       paint();
     });
 
+    let roKey = '';
+    function readout() {
+      const ang = Math.round(sim.shownAng), sh = Math.round(sim.shownShort), fl = sim.fluoro.toFixed(1), grip = sim.force < 0.08 ? 0 : 1;
+      const key = `${ang}|${sh}|${fl}|${grip}|${sim.step}`;
+      if (key === roKey) return;
+      roKey = key;
+      const span = Math.max(startAng, 20), ok = ang <= tol;
+      S.pp.set({
+        wide: { label: T('angle', 'Angle'), value: ang, unit: '°', tone: ok ? 'teal' : '', meter: { value: clamp(ang / span, 0, 1), zone: [0, tol / span], tone: ok ? '' : 'amber' },
+          caption: sim.step === 3 ? (grip ? T('holding', 'Holding') : T('released', 'Released')) : F(T('angle_goal', 'Bring it under %s°'), tol), captionTone: ok ? 'teal' : '' },
+        stats: [
+          { id: 'short', label: T('shortening', 'Shortening'), value: sh, unit: 'mm', tone: sh <= 1 ? 'teal' : 'amber' },
+          { id: 'dose', label: T('dose', 'Fluoro'), value: fl, unit: 's', tone: sim.fluoro > (d.fluoroBudget || 12) ? 'amber' : '' },
+          { id: 'rel', label: T('grip', 'Grip'), value: grip ? T('holding', 'Holding') : T('released', 'Released'), small: true, tone: grip ? '' : 'teal' },
+        ],
+      });
+    }
     function setStep(n) {
       sim.step = n; sim.held = 0; sound('success');
       const texts = {
@@ -1732,7 +1834,7 @@
         2: [T('red_2', 'Correct the angle'), T('red_2_text', 'Keep the traction and **move sideways** to bring the angle to 0°. Tap {F} to check, too much force hurts.')],
         3: [T('red_3', 'Release and check'), T('red_3_text', 'Ease off **slowly**: move the mouse back before you let go. Take a check image with {F}, then press {Enter}.')],
       };
-      S.pp.set({ step: n, title: texts[n][0], text: texts[n][1], tools: toolsR() });
+      S.pp.set({ step: n, steps: [texts[1][0], texts[2][0], texts[3][0]], title: texts[n][0], text: texts[n][1], tools: toolsR() });
     }
     const toolsR = () => [
       { key: 'LMB', label: T('tool_pull', 'Pull / align'), icon: 'hand', state: sim.grab ? 'active' : '' },
@@ -1741,14 +1843,10 @@
     ];
     S.pp = NZA.ui.ProcPanel(root, {
       step: 1, total: 3, tag: T('tag_reduce', 'Set the bone'), title: '', text: '',
-      stats: [
-        { id: 'ang', label: T('angle', 'Angle'), value: startAng, unit: '°' },
-        { id: 'short', label: T('shortening', 'Shortening'), value: d.short || 10, unit: 'mm' },
-        { id: 'dose', label: T('dose', 'Fluoro'), value: '0.0', unit: 's' },
-      ],
-      tools: [], abort: abortBtn(), onAbort: () => post('abort'),
+      stats: [], tools: [], abort: abortBtn(), onAbort: () => post('abort'),
     });
     setStep(1);
+    readout();
     function finish() {
       if (sim.done) return;
       if (sim.step < 3) { S.pp.flash('warn', T('not_yet', 'The bone is not set yet.'), 1800); return; }
@@ -1776,9 +1874,8 @@
 
   function resultCard(r, rows) {
     r = r || {};
-    const g = r.grade || 'C';
-    const card = NZA.el('div', 'xr-card nza-hud solid rail nza-int');
-    card.innerHTML = `<div class="hd"><span class="grade g-${esc(g)}">${esc(g)}</span><div><h4>${esc(r.score ?? '--')}<span style="font-size:12px;color:var(--ink-3);font-weight:500">/100</span></h4><p>${esc(r.msg || '')}</p></div></div>
+    const card = NZA.el('div', 'xr-card nza-hud solid nza-int');
+    card.innerHTML = `<div class="hd">${scoreRing(r.score, 72)}<div><div class="xr-k">${esc(T('score', 'Score'))}</div><h4>${esc(r.score ?? '--')}<span style="font-size:12px;color:var(--ink-3);font-weight:500">/100</span></h4><p>${esc(r.msg || '')}</p></div></div>
       <div class="rows">${rows.map(x => `<div class="rw"><span>${esc(x[0])}</span><b class="${x[2] || ''}">${esc(x[1])}</b></div>`).join('')}</div>
       <div class="ft"><button class="btn-teal" data-ok><kbd style="background:rgba(0,0,0,.18);border-color:rgba(0,0,0,.25);color:var(--on-teal)">Enter</kbd>${esc(T('done', 'Done'))}</button></div>`;
     root.appendChild(card);
@@ -1845,13 +1942,36 @@
       }
     });
 
+    // procedure drape under the limb (cached): woven blue cloth, folds, soft key light
+    const drape = mk(CW, CH);
+    (() => {
+      const dg = drape.getContext('2d');
+      const base = dg.createLinearGradient(0, 0, 0, CH); base.addColorStop(0, '#16303a'); base.addColorStop(0.5, '#1d4150'); base.addColorStop(1, '#122630');
+      dg.fillStyle = base; dg.fillRect(0, 0, CW, CH);
+      const R = mulberry(77);
+      dg.globalAlpha = 0.07;
+      for (let y = 0; y < CH; y += 3) { dg.fillStyle = y % 6 ? '#000' : '#9fd'; dg.fillRect(0, y, CW, 1); }
+      for (let x = 0; x < CW; x += 3) { dg.fillStyle = x % 6 ? '#000' : '#8cf'; dg.fillRect(x, 0, 1, CH); }
+      dg.globalAlpha = 1;
+      for (let i = 0; i < 7; i++) {            // soft folds
+        const y = 60 + R() * (CH - 120), a = (R() - 0.5) * 0.12;
+        const fg = dg.createLinearGradient(0, y - 30, 0, y + 30); fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(0.5, 'rgba(0,0,0,.22)'); fg.addColorStop(0.56, 'rgba(160,220,235,.08)'); fg.addColorStop(1, 'rgba(0,0,0,0)');
+        dg.save(); dg.translate(CW / 2, y); dg.rotate(a); dg.fillStyle = fg; dg.fillRect(-CW, -30, CW * 2, 60); dg.restore();
+      }
+      const key = dg.createRadialGradient(CW * 0.45, CH * 0.35, 40, CW * 0.45, CH * 0.4, CW * 0.65);
+      key.addColorStop(0, 'rgba(255,248,235,.16)'); key.addColorStop(1, 'rgba(0,0,0,.45)');
+      dg.fillStyle = key; dg.fillRect(0, 0, CW, CH);
+    })();
     function paint(now) {
       g.clearRect(0, 0, CW, CH);
+      g.drawImage(drape, 0, 0);
       // table shadow & limb
       g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse((x0 + x1) / 2, cy + 190, (x1 - x0) / 2 + 160, 40, 0, 0, TAU); g.fill();
       const top = [], bot = [];
       for (let x = -40; x <= x1 + 40; x += 20) { const r = radiusAt(x); top.push([x, cy - r]); bot.push([x, cy + r]); }
-      const skin = g.createLinearGradient(0, cy - 160, 0, cy + 160); skin.addColorStop(0, '#b98a6a'); skin.addColorStop(0.45, '#d8a988'); skin.addColorStop(1, '#7d553e');
+      const skin = g.createLinearGradient(0, cy - 160, 0, cy + 160); skin.addColorStop(0, '#a87a5c'); skin.addColorStop(0.18, '#cf9f80'); skin.addColorStop(0.42, '#e2b494'); skin.addColorStop(0.75, '#b07c5c'); skin.addColorStop(1, '#6a4532');
+      // contact shadow right under the limb
+      g.save(); g.filter = 'blur(18px)'; g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse((x0 + x1) / 2 + 40, cy + 150, (x1 - x0) / 2 + 120, 34, 0, 0, TAU); g.fill(); g.restore();
       g.beginPath(); top.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); bot.slice().reverse().forEach(p => g.lineTo(p[0], p[1])); g.closePath(); g.fillStyle = skin; g.fill();
       // hand / foot at the distal end
       g.fillStyle = skin;
@@ -1859,6 +1979,15 @@
         g.beginPath(); g.moveTo(x1 + 10, cy - 88); g.bezierCurveTo(x1 + 60, cy - 120, x1 + 70, cy - 230, x1 + 90, cy - 300);
         g.bezierCurveTo(x1 + 100, cy - 330, x1 + 150, cy - 335, x1 + 165, cy - 305); g.bezierCurveTo(x1 + 190, cy - 230, x1 + 205, cy - 120, x1 + 215, cy - 20);
         g.bezierCurveTo(x1 + 225, cy + 60, x1 + 190, cy + 105, x1 + 140, cy + 100); g.lineTo(x1 + 10, cy + 92); g.closePath(); g.fill();
+        // foot form: sole in shade, ankle knuckle, toe creases
+        g.save(); g.clip();
+        const fs = g.createLinearGradient(x1 + 60, 0, x1 + 225, 0); fs.addColorStop(0, 'rgba(255,230,210,.10)'); fs.addColorStop(0.55, 'rgba(0,0,0,0)'); fs.addColorStop(1, 'rgba(40,20,10,.45)');
+        g.fillStyle = fs; g.fillRect(x1, cy - 340, 240, 460);
+        const ank = g.createRadialGradient(x1 + 40, cy - 10, 4, x1 + 40, cy - 10, 60); ank.addColorStop(0, 'rgba(255,236,220,.32)'); ank.addColorStop(1, 'rgba(255,236,220,0)');
+        g.fillStyle = ank; g.beginPath(); g.ellipse(x1 + 40, cy - 10, 60, 48, 0, 0, TAU); g.fill();
+        g.strokeStyle = 'rgba(90,50,30,.35)'; g.lineWidth = 2.5;
+        [[cy - 262, 0.0], [cy - 284, 0.08], [cy - 304, 0.14]].forEach(([y, k]) => { g.beginPath(); g.moveTo(x1 + 104 + k * 60, y); g.quadraticCurveTo(x1 + 140, y - 8, x1 + 176 - k * 40, y + 4); g.stroke(); });
+        g.restore();
       }
       else { g.beginPath(); g.moveTo(x1 + 20, cy - 70); g.quadraticCurveTo(x1 + 200, cy - 110, x1 + 300, cy - 40); g.quadraticCurveTo(x1 + 330, cy + 10, x1 + 300, cy + 60); g.quadraticCurveTo(x1 + 200, cy + 100, x1 + 20, cy + 76); g.closePath(); g.fill(); }
       // fracture zone marker
@@ -1937,7 +2066,7 @@
         2: [T('cast_2', 'Wrap the plaster'), F(T('cast_2_text', 'Hold the mouse and **circle** over the limb: every circle lays one plaster turn there. Give every part %s to %s layers.'), minL, maxL)],
         3: [T('cast_3', 'Mould and let it set'), T('cast_3_text', 'Hold {Space} with the cursor on the **break** to mould the plaster, release in the green band, then keep the mouse still while it sets.')],
       };
-      S.pp.set({ step: n, title: t[n][0], text: t[n][1], stats: statsC(), tools: toolsC() });
+      S.pp.set({ step: n, steps: [t[1][0], t[2][0], t[3][0]], title: t[n][0], text: t[n][1], stats: statsC(), tools: toolsC() });
     }
     const toolsC = () => [
       { key: 'LMB', label: st.step === 1 ? T('tool_pad', 'Roll padding') : T('tool_wrap', 'Wrap plaster'), icon: 'gauze', state: st.step < 3 ? 'active' : 'done' },
@@ -2051,7 +2180,7 @@
     label: (v) => ({ head: 'Head', neck: 'Neck', chest: 'Chest', abdomen: 'Abdomen', l_arm: 'Left arm', r_arm: 'Right arm', l_leg: 'Left leg', r_leg: 'Right leg' })[v] || v,
     views: () => ['head', 'neck', 'chest', 'abdomen', 'l_arm', 'r_arm', 'l_leg', 'r_leg'].map(v => ({ id: v, label: DEMO.label(v), sev: v === 'r_leg' ? 3 : v === 'chest' ? 2 : null })),
     film(view) {
-      const base = { id: 'A2034', pid: 'p:ABC123', name: 'Michael Garcia', sex: 'm', age: 34, view, viewLabel: DEMO.label(view), seed: 2034, quality: 'sharp', sev: 3, by: 'Dr. N. Ayzee', hospital: 'Pillbox Medical', dateText: '14/10/2026 21:42', kv: 65, mas: 10 };
+      const base = { id: 'RX-4471', pid: 'p:ABC123', name: 'Michael Garcia', sex: 'm', age: 34, view, viewLabel: DEMO.label(view), seed: 2034, quality: 'sharp', sev: 3, by: 'Dr. N. Ayzee', hospital: 'Pillbox Medical', dateText: '14/10/2026 21:42', kv: 65, mas: 10 };
       const F = {
         r_leg: [
           { id: 'f1', k: 'fx', inj: 'i7', bone: 'tibia', kind: 'closed', disp: true, ang: 18, phi: 0.55, shift: 0.6, short: 9, ap: { x: 0.503, y: 0.683 }, lat: { x: 0.51, y: 0.672 }, r: 0.06, label: 'Closed fracture of the tibia' },

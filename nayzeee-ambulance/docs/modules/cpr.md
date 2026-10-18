@@ -1,9 +1,9 @@
 # CPR & defibrillator (`cpr`)
 
 Resuscitation for cardiac arrest: chest compressions as a rhythm game, rescue breaths (bag-valve
-mask or mouth to mouth), a rugged NAYZEEE **RESQ 360** monitor / defibrillator (pads, analysis,
+mask or mouth to mouth), an unbranded **DF-7** portrait monitor / defibrillator (pads, analysis,
 charge, stand clear, shock), adrenaline, reversible causes, two-rescuer codes with role swaps,
-ROSC and a graded debrief. The server owns every clinical decision.
+ROSC and a scored debrief. The server owns every clinical decision.
 
 | File | What |
 |---|---|
@@ -32,11 +32,14 @@ ROSC and a graded debrief. The server owns every clinical decision.
   runs; `NZA.Patients.Cpr(pid, src, quality)` is called every second while compressions (or a
   planned pause: breaths, analysis, charging, ≤ 10 s charged) are going on, so the core pauses the
   arrest → death timer and the wounded HUD shows **CPR IN PROGRESS** with the medic's name.
-- **Rhythm game** (bottom ProcPanel): metronome click (100–120/min, default 110), beat lane with a
-  PERFECT / GOOD band, timing popups (PERFECT, GOOD, EARLY, LATE, OFF BEAT, PUSH DEEPER, LET IT
-  RECOIL), live depth gauge (5–6 cm band: hold Space too short = shallow, too long = leaning / no
-  recoil), rate meter with PERFECT / TOO FAST / TOO SLOW, counter n/30, quality %. Idle > 1.6 s =
-  "Keep going!". Compressor fatigue (server) lowers depth after 2 minutes; swap to recover.
+- **Metronome ring** (procedure column, `pp.slot`): a click at 100–120/min (default 110) and a hand
+  that sweeps the inner ring once per push; press as it crosses the window at the top. The outer
+  ring holds the 30 pushes of the set, each segment coloured by its quality; your presses land as
+  dots at their timing error. Short calls under the count (SPOT ON, GOOD, EARLY, LATE, MISSED,
+  DEEPER, LIFT OFF), a depth tube with the 5–6 cm band (hold Space too short = shallow, too long =
+  leaning / no recoil), early / in time / late bars for the set and recoil %. The rate dial in the
+  readout card and a vertical rate gauge on the device show 100–120 as the target band. Idle > 1.6 s
+  = "Keep going!". Compressor fatigue (server) lowers depth after 2 minutes; swap to recover.
 - **Breaths** after 30 compressions: hold Space ~1 s per breath and watch the chest-rise meter
   (too short = chest barely rose, too long = air into the stomach). Without a BVM item it is mouth to
   mouth: longer hold, 60 % effect. Intubated + ventilated patients get continuous compressions.
@@ -45,7 +48,7 @@ ROSC and a graded debrief. The server owns every clinical decision.
   ambulance treatment bay (`meta.bay`) or on a hospital bed / near a hospital): drag the **sternum**
   and **apex** pads onto glowing targets on the chest (world anchors) or onto the torso card
   (P places both). The monitor then shows the real rhythm (VF / VT / PEA / ASYSTOLE / sinus …) with
-  a live ECG (`NZA.vitals.Trace`), a CPR-depth bar graph and capnography (EtCO₂).
+  a live ECG (`NZA.vitals.Trace`), a CPR-depth trace and capnography (EtCO₂).
   **Analyse** (hands off 4 s: any compression = "motion detected") → VF/VT **shock advised** →
   **charge** (the AED charges by itself; manual mode = any time, energy knob 120–360 J) →
   **stand clear** (any compression while charged = the compressor gets shocked: ragdoll, health,
@@ -68,36 +71,50 @@ ROSC and a graded debrief. The server owns every clinical decision.
   instructions.
 - **Code-team HUD** (top left): arrest type, patient, downtime, CCF (hands-on %), shocks, adrenaline,
   roles with fatigue, Hs & Ts card (suspect / treating / ok / unknown from findings), code log.
-- **AED voice prompts** over the device, phase banners (ANALYSING, SHOCK ADVISED, STAND CLEAR, SHOCK
+- **AED voice prompts** on the device's message line (speaker + level bars), phase banners (ANALYSING, SHOCK ADVISED, STAND CLEAR, SHOCK
   DELIVERED, NO SHOCK ADVISED, ROSC, RE-ARREST, MOTION DETECTED, YOU WERE SHOCKED), sounds
   (metronome, compression thump, BVM breath, charge whine, ready beeps, shock, QRS beeps).
-- **Debrief** (grade S–F): duration, compressions, shocks, adrenaline, quality, hands-on, breaths,
-  protocol (bad shocks, rescuer shocks, long pauses, motion aborts, missing adrenaline) and tips.
+- **Debrief** (score ring 0–100 with a one-word verdict: STRONG / SOLID / FAIR / WEAK / POOR, from the
+  server grade): duration, compressions, shocks, adrenaline, quality, hands-on, breaths, protocol
+  (bad shocks, rescuer shocks, long pauses, motion aborts, missing adrenaline) and notes.
   A medical record entry (players) and optional billing for ROSC / shocks.
 - **Easy mode** (per department `easy.cpr` or `Config.EasyMode.default`): Space toggles automatic
-  compressions on the beat, breaths finish by themselves, P places both pads; the server scores easy
+  compressions in time with the metronome, breaths finish by themselves, P places both pads; the server scores easy
   compressions / breaths with `Config.EasyMode.score`.
 
 ## Screen layout
 
-- **Bottom right**: the RESQ 360 device (rhythm pill, code timer, ECG / CPR-depth bars / CO₂,
-  HR · energy · shocks · EtCO₂, rate and compression meters, prompt line with cycle and adrenaline
-  timers, 4 soft keys, energy knob, AED / MAN switch, CHARGE, round SHOCK button). AED voice
-  prompts appear above it; the pads tray (torso card + two draggable pads) above that.
-- **Bottom left**: the shared procedure HUD (`NZA.ui.ProcPanel`): readout dial (this set n/30 or the
-  cycle timer) with rate / depth / quality (airway role: ventilation / breaths / EtCO₂), the step card
-  (Compress · Breaths · Analyse · Charge · Shock), the beat-lane card (metronome lane, chest-rise
-  meter during breaths, phase overlays, depth gauge) inserted at `pp.slot`, key hints.
-  The tool belt is docked against the device's left edge (`#app-cpr .pp-belt`), the centre stays clear.
-- **Top left**: code-team card; on short screens (the kit zoom is clamped to 0.75) it drops the log,
-  then the join hint and the Hs & Ts, so it never covers the instruction column.
-- **Top centre**: phase banners. The debrief replaces the procedure HUD and dims the device.
+Follows the shared HUD contract (docs/ARCHITECTURE.md §10.2, docs/design/ORIGINAL.md): nothing sits
+bottom-centre, the scene keeps the centre.
+
+- **Right-middle, left of the tool belt** (`right: 300px`): the **DF-7** device, a portrait unit with
+  our own industrial design and generic labelling only (model code, type, ADULT / CHILD slide switch,
+  `DANGER · HIGH VOLTAGE · STAND CLEAR` sticker, reference print, screws, side grips, cable port that
+  shows the pads plug). Screen: status bar (pads link, alarm bell, battery, clock), ECG pane
+  (`II · ×1.0 · 25 mm/s`, HR box, rhythm tag bottom-left; during analysis the tag becomes an
+  ANALYSING / HANDS OFF tag with a progress rule), CO₂ pane with EtCO₂, CPR-depth pane with the rate
+  and a vertical 100–120 gauge, then the cycle ring (code time inside, countdown to the rhythm check
+  beside it) and an instrument list (energy, shocks with bolt pips, adrenaline timer), and a two-line
+  message line for the unit's spoken prompts. Controls: ANALYSE / CHARGE keys and the AED / MAN rocker
+  on the left, the 120–360 J energy ring with the SHOCK button in its centre, PADS / DRUG / SWAP or
+  PULSE keys on the right. The pad map (torso + two draggable pads) is drawn on the screen.
+- **Bottom left**: the shared procedure HUD (`NZA.ui.ProcPanel`): readout dial (rate, or the cycle
+  timer for the airway role) with depth / recoil / quality (airway role: ventilation / breaths /
+  EtCO₂), the step card with named steps (Compressions · Breaths · Rhythm check · Charge · Shock),
+  the metronome card at `pp.slot` (ring, depth tube, timing bars; breaths: hold ring + chest rise; a
+  status panel replaces the bars for hands-off moments and shows the partner's rate / quality), key
+  hints. The tool belt and hold-to-stop ring sit on the right edge.
+- **Top left**: code-team card (status rings for downtime, hands-on %, cycle and adrenaline, roles with
+  fatigue, Hs & Ts, code log); on short screens it drops the log, then the join hint and the Hs & Ts,
+  so it never covers the instruction column.
+- **Top centre**: phase banners (transient). On the debrief the device slides out to the right and the
+  summary card takes the centre.
 
 ## Controls (in the CPR screen, `Config.Cpr.Keys`, JS `KeyboardEvent.code`)
 
 | Key | Action |
 |---|---|
-| Space | compress on the beat · hold for a breath |
+| Space | compress as the metronome hand crosses the top · hold for a breath |
 | P | pads (open the pad tray; again = place both) |
 | A | analyse |
 | C | charge (again / Z = disarm) |

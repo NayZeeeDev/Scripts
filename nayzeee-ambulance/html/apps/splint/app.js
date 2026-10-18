@@ -2302,24 +2302,52 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         <g class="blk"><rect x="38" y="0" width="44" height="6" rx="3"/></g>
       </svg>`;
     },
-    // top view of the crutch gait: crutch tips, the good foot and the splinted foot held off the ground
+    // top view of the crutch gait (forward = up): both forearm crutches (rubber tip, shaft, grip, cuff),
+    // the good foot that swings through, the splinted / broken foot held off the ground (dashed, lifted
+    // shadow), the prints already left behind, and scrolling crutch lanes while walking
     crutchSVG(side) {
-      const foot = (x, y, cls) => `<path class="${cls}" d="M${x} ${y} c-5 0 -7 -8 -6 -15 c1 -6 3 -10 6 -10 c3 0 5 4 6 10 c1 7 -1 15 -6 15 z"/>`;
+      const foot = (x, y, cls, flip) => {
+        const m = flip ? -1 : 1;
+        return `<g class="${cls}" transform="translate(${x} ${y}) scale(${m} 1)">
+          <path class="sole" d="M0 0 c-5.4 0 -7.4 -8.4 -6.6 -15.2 c.8 -6.6 3.2 -10.6 6.6 -10.6 c3.6 0 5.8 4.2 6.4 10.6 c.7 7 -1 15.2 -6.4 15.2 z"/>
+          <path class="ftr" d="M-4.4 -19 h8.6 M-5 -15 h10 M-5 -11 h10 M-4.2 -3.4 h8.2 M-3.4 -.6 h6.6"/>
+        </g>`;
+      };
+      // a forearm crutch seen from above, tilted forward: tip on the ground, cuff at the forearm
+      const crutch = (tx, ty, cx, cy, cls) => `<g class="cr ${cls}">
+          <ellipse class="tsh" cx="${tx + 1.5}" cy="${ty + 2}" rx="5.5" ry="3"/>
+          <line class="shaft" x1="${tx}" y1="${ty}" x2="${cx}" y2="${cy}"/>
+          <line class="shaft hi" x1="${tx - 0.5}" y1="${ty}" x2="${cx - 0.5}" y2="${cy}"/>
+          <line class="grip" x1="${cx + (cx < 55 ? 7 : -7)}" y1="${cy - 4}" x2="${cx}" y2="${cy - 1}"/>
+          <path class="cuff" d="M${cx - 4.5} ${cy + 5} a5 5 0 0 1 9 0"/>
+          <circle class="tip" cx="${tx}" cy="${ty}" r="4.2"/>
+        </g>`;
       const hurt = side === 'l' || side === 'r';
       const gx = side === 'l' ? 66 : 44, hx = side === 'l' ? 44 : 66;
-      return `<svg viewBox="0 0 110 132">
-        <defs><radialGradient id="sph-csh" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="rgba(0,0,0,.5)"/><stop offset="1" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>
-        <ellipse cx="55" cy="70" rx="52" ry="60" fill="url(#sph-csh)"/>
-        <path class="lane" d="M24 6 V126 M86 6 V126"/>
-        <path class="fwd" d="M55 4 L61 12 L57 12 L57 20 L53 20 L53 12 L49 12 Z"/>
-        <g class="tips ph-a"><circle cx="24" cy="32" r="5"/><circle cx="86" cy="32" r="5"/></g>
-        <g class="tips ph-b"><circle cx="24" cy="66" r="5"/><circle cx="86" cy="66" r="5"/></g>
-        <path class="swing" d="M${gx} 98 C${gx} 84 ${gx} 76 ${gx} 70"/>
-        <g class="good ph-a">${foot(gx, 68, 'ft')}</g>
-        <g class="good ph-b">${foot(gx, 102, 'ft')}</g>
+      const flipG = gx < 55, flipH = hx < 55;
+      return `<svg viewBox="0 0 110 140">
+        <defs>
+          <radialGradient id="sph-csh" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="rgba(0,0,0,.5)"/><stop offset="1" stop-color="rgba(0,0,0,0)"/></radialGradient>
+          <linearGradient id="sph-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".7" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+          <mask id="sph-cmask"><rect x="0" y="0" width="110" height="140" fill="url(#sph-fade)"/></mask>
+        </defs>
+        <ellipse cx="55" cy="74" rx="52" ry="64" fill="url(#sph-csh)"/>
+        <g mask="url(#sph-cmask)">
+          <path class="lane" d="M24 2 V138 M86 2 V138"/>
+          <g class="trail">${foot(gx, 138, 'ft old', flipG)}
+            <circle class="old-tip" cx="24" cy="100" r="2.4"/><circle class="old-tip" cx="86" cy="100" r="2.4"/>
+            <circle class="old-tip o2" cx="24" cy="134" r="2.4"/><circle class="old-tip o2" cx="86" cy="134" r="2.4"/></g>
+        </g>
+        <path class="fwd" d="M55 2 L61 10 L57 10 L57 18 L53 18 L53 10 L49 10 Z"/>
+        <g class="tips ph-a">${crutch(24, 30, 33, 58, 'l')}${crutch(86, 30, 77, 58, 'r')}</g>
+        <g class="tips ph-b">${crutch(24, 66, 33, 92, 'l')}${crutch(86, 66, 77, 92, 'r')}</g>
+        <path class="swing" d="M${gx} 98 C${gx} 86 ${gx} 78 ${gx} 70"/>
+        <g class="good ph-a">${foot(gx, 70, 'ft', flipG)}</g>
+        <g class="good ph-b">${foot(gx, 104, 'ft', flipG)}</g>
         ${hurt
-          ? `<g class="hurt"><ellipse class="hov" cx="${hx}" cy="106" rx="7" ry="3.5"/>${foot(hx, 98, 'ft nwb')}</g>`
-          : `<g class="good ph-a">${foot(hx, 68, 'ft')}</g><g class="good ph-b">${foot(hx, 102, 'ft')}</g>`}
+          ? `<g class="hurt"><ellipse class="hov" cx="${hx + 2}" cy="${94}" rx="7.5" ry="13" /><g class="lift">${foot(hx, 98, 'ft nwb', flipH)}</g>
+             <text class="nwbt" x="${hx}" y="114" text-anchor="middle">${esc(T('hud_nwb', 'NWB'))}</text></g>`
+          : `<g class="good ph-a">${foot(hx, 70, 'ft', flipH)}</g><g class="good ph-b">${foot(hx, 104, 'ft', flipH)}</g>`}
       </svg>`;
     },
     hudBuild(kind) {
@@ -2336,9 +2364,16 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
             <div class="ins">
               <div class="ttl"></div><div class="sub"></div>
               <div class="row"><span>${esc(T('hud_steps', 'Steps'))}</span><span class="odo-h steps"></span></div>
+              <div class="row"><span>${esc(T('hud_cadence', 'Cadence'))}</span><b class="cad"></b><em>${esc(T('hud_per_min', '/min'))}</em></div>
               <div class="row"><span>${esc(T('hud_weight', 'Weight on'))}</span><b class="wt"></b></div>
               <div class="row"><span>${esc(T('hud_pace', 'Pace'))}</span><b class="pace"></b></div>
             </div>
+          </div>
+          <div class="gait">
+            <span class="gs" data-i="0"><i>1</i><em>${esc(T('hud_gait_0', 'Tips ahead'))}</em></span>
+            <span class="gs" data-i="1"><i>2</i><em>${esc(T('hud_gait_1', 'Swing'))}</em></span>
+            <span class="gs" data-i="2"><i>3</i><em>${esc(T('hud_gait_2', 'Plant'))}</em></span>
+            <b class="gbar"><u></u></b>
           </div>
           <div class="keys"></div>`;
         R.steps = NZA.ui.FlipClock(el.querySelector('.steps'), { value: '000', small: true });
@@ -2380,7 +2415,19 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         const st = o.state || (o.moving ? 'walk' : 'stand');
         R.st.textContent = st === 'vehicle' ? T('hud_st_vehicle', 'Stowed') : o.moving ? T('hud_st_walk', 'Walking') : T('hud_st_stand', 'Standing');
         R.st.className = `chipx sm st ${o.moving ? 'teal' : ''}`;
-        R.steps.set(String(Math.min(999, Math.max(0, Math.floor(Number(o.steps) || 0)))).padStart(3, '0'));
+        const steps = Math.max(0, Math.floor(Number(o.steps) || 0));
+        R.steps.set(String(Math.min(999, steps)).padStart(3, '0'));
+        // cadence: steps per minute over the last ~8 s of samples (or the value the client sends)
+        const now = performance.now();
+        R.hist = (R.hist || []).filter(h => now - h.t < 8000 && h.s <= steps);
+        R.hist.push({ t: now, s: steps });
+        let cad = Number(o.cadence);
+        if (!Number.isFinite(cad)) {
+          const a = R.hist[0], b = R.hist[R.hist.length - 1];
+          cad = o.moving && b.t - a.t > 1500 ? (b.s - a.s) / ((b.t - a.t) / 60000) : 0;
+        }
+        R.cad = o.moving ? (R.cad ? R.cad + (cad - R.cad) * 0.35 : cad) : 0;
+        el.querySelector('.cad').textContent = o.moving && R.cad > 0.5 ? String(Math.round(R.cad)) : '--';
         el.querySelector('.wt').textContent = o.side === 'l' ? T('hud_w_right', 'Right leg only') : o.side === 'r' ? T('hud_w_left', 'Left leg only') : T('hud_w_both', 'Both legs, light');
         el.querySelector('.pace').textContent = st === 'vehicle' ? '--' : o.moving ? T('hud_pace_walk', 'Walk · no running') : T('hud_pace_rest', 'Resting');
         const side = o.side === 'l' || o.side === 'r' ? o.side : '';
@@ -2471,7 +2518,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
           'hud-chair': { kind: 'chair', title: 'Self-propelled', sub: 'Rims under both hands', state: 'drive', speed: 1.42, max: 1.9, slope: -4, turn: 0.35, dist: 126, keys: drive },
           'hud-blocked': { kind: 'chair', title: 'Self-propelled', sub: 'Back off and find a ramp', state: 'blocked', blocked: 'Curb too high', speed: 0, max: 1.9, slope: 2, turn: 0, dist: 131, keys: drive },
           'hud-push': { kind: 'push', title: 'Pushing a wheelchair', sub: 'Michael Garcia', state: 'push', speed: 1.1, max: 1.9, slope: 6, turn: 0, dist: 48, keys: [{ keys: ['G'], label: 'Let go' }] },
-          'hud-crutch': { kind: 'crutch', title: 'On crutches', sub: 'Splinted right lower leg', state: 'walk', moving: true, steps: 37, side: 'r', keys: [{ keys: ['/crutches'], label: 'Put away' }] },
+          'hud-crutch': { kind: 'crutch', title: 'On crutches', sub: 'Splinted right lower leg', state: 'walk', moving: true, steps: 37, cadence: 46, side: 'r', keys: [{ keys: ['/crutches'], label: 'Put away' }] },
         }[stage] || {};
         NZA.demo(APP, { mode: 'hud', hud: hudDemo });
         if (stage === 'hud-crutch') this.hudEl.dataset.ph = '1';
@@ -2898,7 +2945,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       seg(V3(0, 0.05, 0), V3(0, 0.55, 0), 80); seg(J.rSh, J.rEl, 24); seg(J.rEl, J.rWr, 22); seg(J.head, J.head, 60);
       const decal = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.5), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: new THREE.CanvasTexture(c), transparent: true, opacity: 0.55, depthWrite: false }));
       decal.position.set(0, 0, 0.0018);
-      scene.add(decal);
+      body.add(decal); // hides with the patient (HUD previews)
     })();
 
     // ── camera rig

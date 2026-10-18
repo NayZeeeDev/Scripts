@@ -240,19 +240,23 @@
       if (c > 0.02) {
         // dirt packed into the cut: this is what the jet has to rinse out
         for (let i = 0; i < pts.length; i += 2) S.layers.splat('grime', jit(pts[i], 1.2), (1.1 + R() * 1.1) * MM, clamp(0.35 + c * 0.6, 0, 1), { seed: 11 + i, count: 5 });
-        // road dirt smeared over the edges: soft granular smudges dragged along the injury
-        const n = Math.round(5 + c * 12);
+        // road dirt ground into the edges: soft, broad, uneven smudges that hug the lips of the cut
+        const n = Math.round(4 + c * 8);
         for (let k = 0; k < n; k++) {
-          const tN = 0.04 + R() * 0.92, sd = side(), at = w.at(tN);
-          const a = w.edge(tN, sd, (0.8 + R() * R() * 6.5) * MM);
-          const ang = Math.atan2(at.dir[1], at.dir[0]) + (R() - 0.5) * 0.7;
-          S.layers.paint('grime', a, [(1.4 + R() * 3.4) * MM, (0.4 + R() * 0.8) * MM], (0.16 + R() * 0.2) * (0.4 + c),
-            { hardness: 0.05, grain: 0.75, grainScale: 1100 + R() * 900, angle: ang });
+          const tN = 0.05 + R() * 0.9, sd = side(), at = w.at(tN);
+          const a = w.edge(tN, sd, (0.6 + R() * R() * 3.5) * MM);
+          const ang = Math.atan2(at.dir[1], at.dir[0]) + (R() - 0.5) * 0.5;
+          const r = (1.6 + R() * 2.6) * MM;
+          S.layers.paint('grime', a, [r, r * (0.55 + R() * 0.3)], (0.16 + R() * 0.16) * (0.4 + c),
+            { hardness: 0.02, grain: 0.45, grainScale: 260 + R() * 160, angle: ang });
         }
-        // grit: fine specks within a few millimetres of the edges
-        const nd = Math.round(18 + c * 46);
+        // grit: sparse specks within a few millimetres of the edges, in small clusters
+        const nd = Math.round(8 + c * 20);
         for (let k = 0; k < nd; k++) {
-          S.layers.paint('grime', w.edge(R(), side(), (0.2 + R() * R() * 5.5) * MM), (0.12 + R() * 0.3) * MM, 0.55 + R() * 0.45, { hardness: 0.55 });
+          const tN = R(), sd = side(), off = (0.3 + R() * R() * 4.5) * MM;
+          for (let q = 0, m = 1 + Math.floor(R() * 3); q < m; q++) {
+            S.layers.paint('grime', w.edge(clamp(tN + (R() - 0.5) * 0.02, 0, 1), sd, off + (R() - 0.5) * 0.8 * MM), (0.1 + R() * 0.22) * MM, 0.5 + R() * 0.45, { hardness: 0.6 });
+          }
         }
       }
       // clots in the groove
@@ -275,7 +279,12 @@
         const b = [a[0] + dx / S.patch.W, a[1] - dy / S.patch.H];
         S.layers.stroke('clot', a, b, 0.0006, 0.035, { hardness: 0.45, grain: 0.4, grainScale: 120 });
       }
-      S.layers.splat('bruise', w.at(0.5).uv, (10 + this.Lmm * 0.12) * MM, 0.09 + sev * 0.025, { seed: 3, count: 7 });
+      // a diffuse contusion around the middle of the cut (blunt force tears skin, it also bruises it)
+      for (let k = 0; k < 5; k++) {
+        const tN = 0.3 + R() * 0.4, sd = side(), r = (6 + R() * 6 + this.Lmm * 0.08) * MM;
+        S.layers.paint('bruise', w.edge(tN, sd, (2 + R() * 6) * MM), [r, r * (0.6 + R() * 0.3)], (0.035 + sev * 0.012) * (0.6 + R() * 0.6),
+          { hardness: 0, grain: 0.3, grainScale: 90 + R() * 60, angle: R() * Math.PI });
+      }
     },
 
     /* ═════════════ HUD (cards) ═════════════ */
@@ -286,7 +295,7 @@
       this.ptEl.innerHTML = `
         <div class="hd"><span class="av">${icon('user')}</span><div style="min-width:0"><div class="nm">${esc(name)}</div><div class="inj">${esc(injLabel)} · ${esc(inj.regionLabel || inj.region || '')}</div></div></div>
         <div class="row"><span class="nza-label">${esc(T('pain', 'Pain'))}</span><span class="v pv"></span></div>
-        <div class="pm"></div>
+        <div class="sz-pm"></div>
         <div class="chips"></div>`;
       this.planEl.innerHTML = `
         <div class="hd"><span class="nza-label">${esc(T('plan', 'Closure plan'))}</span><span class="tm">00:00</span></div>
@@ -301,7 +310,7 @@
       const pv = this.ptEl.querySelector('.pv');
       pv.textContent = `${p}%`;
       pv.className = `v pv ${p >= 60 ? 'red' : p >= 30 ? 'amber' : 'teal'}`;
-      this.ptEl.querySelector('.pm').innerHTML = NZA.ui.meterHTML({ value: p / 100, tone: p >= 60 ? 'red' : p >= 30 ? 'amber' : '' });
+      this.ptEl.querySelector('.sz-pm').innerHTML = NZA.ui.meterHTML({ value: p / 100, tone: p >= 60 ? 'red' : p >= 30 ? 'amber' : '' });
       const numb = this.numbFrac();
       const chips = [];
       if (g.done[2]) chips.push(`<span class="sz-chip teal">${icon('check')}${esc(T('chip_numb', 'Anaesthetised'))}</span>`);
@@ -1171,7 +1180,7 @@
       this.pp = NZA.ui.ProcPanel(this.ui, {
         step: 1, total: 1, tag: T('tag', 'Suture'), title: T('fb_title', 'Closing the wound'),
         text: T('fb_text', '3D view unavailable on this client — the wound is closed with a standard technique.'),
-        stats: [{ label: T('st_site', 'Site'), value: inj.regionLabel || inj.region || '', small: true }, { label: T('st_length', 'Length'), value: String(Math.round(this.Lmm)), unit: 'mm' }],
+        stats: [{ label: T('st_site', 'Region'), value: inj.regionLabel || inj.region || '', small: true }, { label: T('st_length', 'Cut length'), value: String(Math.round(this.Lmm)), unit: 'mm' }],
         wide: { label: T('w_progress', 'Progress'), value: '0', unit: '%', meter: { value: 0 } },
         tools: [], abort: { label: T('hold_stop', 'Hold to stop'), key: 'ESC', seconds: 1.2 }, onAbort: () => this.abort(),
       });

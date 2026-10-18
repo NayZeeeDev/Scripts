@@ -1755,7 +1755,7 @@ void main(){
       },
       tick() { ventTick(); },
       wide() {
-        return { label: T('w_reserve', 'O₂ reserve'), value: Math.round(S.reserve * 100), unit: '%', meter: { value: S.reserve, zone: [0.8, 1] },
+        return { label: T('w_reserve', 'Reserve'), value: Math.round(S.reserve * 100), unit: '%', meter: { value: S.reserve, zone: [0.8, 1] },
           caption: S.reserve >= 0.8 ? T('c_reserve_ok', 'Full — safe to start') : Tf('c_reserve', 'Breath %s of %s · keep the rhythm', Math.min(S.pre.good + 1, S.cfg.breaths), S.cfg.breaths), captionTone: S.reserve >= 0.8 ? 'teal' : '' };
       },
       enterKey() { if (S.pre.n >= 3) this.next(); else flash('warn', T('f_three', 'Give at least 3 breaths first.')); },
@@ -1852,7 +1852,7 @@ void main(){
       },
       wide() {
         const cov = S.soil.coverage(), f = clamp(cov / Math.max(S.suc.c0, 0.02), 0, 1);
-        return { label: T('w_soil', 'Airway soiling'), value: Math.round(f * 100), unit: '%', meter: { value: f, tone: 'red', zone: [0, 0.06] },
+        return { label: T('w_soil', 'Soiling'), value: Math.round(f * 100), unit: '%', meter: { value: f, tone: 'red', zone: [0, 0.06] },
           caption: Tf('c_canister', 'Canister %s ml', Math.round(S.suc.ml)), captionTone: f < 0.1 ? 'teal' : '' };
       },
       enterKey() {

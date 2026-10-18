@@ -673,16 +673,16 @@ end
 
 do
     local states = cfg('Take').states or { alive = true, wounded = true }
-    for i, view in ipairs(VIEWS) do
-        NZA.Interact.Add({
-            name = 'nza_xray_' .. view, label = L('opt_view', L('view_' .. view)), icon = 'xray', order = 59 + i,
-            perm = takePerm(), states = states, distance = 3.0,
-            canInteract = function(entity, _, st)
-                return busy == nil and notPlaced(st) and X.TablePoint(entity) ~= nil
-            end,
-            onSelect = function(entity, target) X.Take(entity, target, view) end,
-        })
-    end
+    -- one option on a patient lying on the table: the console picks the body part (no list of
+    -- per-view entries in the target menu)
+    NZA.Interact.Add({
+        name = 'nza_xray_table', label = L('opt_take_patient'), icon = 'xray', order = 60,
+        perm = takePerm(), states = states, distance = 3.0,
+        canInteract = function(entity, _, st)
+            return busy == nil and notPlaced(st) and X.TablePoint(entity) ~= nil
+        end,
+        onSelect = function(entity, target) X.Console(entity, target) end,
+    })
     NZA.Interact.Add({
         name = 'nza_xray_any', label = L('opt_any'), icon = 'xray', order = 60,
         perm = takePerm(), states = states, distance = 3.0,

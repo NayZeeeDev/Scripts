@@ -136,17 +136,47 @@ Config.Ultrasound = {
         lift      = 0.012,       -- metres the probe floats above the skin when not pressed
     },
 
+    -- World camera while you work (the chest drain / decompression close-up is drawn in the NUI;
+    -- this camera only frames the patient behind it). dist m · pitch / fov degrees · enabled = false skips it
     Camera = {
         scan       = { dist = 1.05, pitch = 72, fov = 46 },  -- looking down at the torso
         pericardio = { dist = 0.62, pitch = 58, fov = 42 },
+        drain      = { dist = 0.7, pitch = 55, fov = 44 },   -- side of the chest
         decompress = { dist = 0.7, pitch = 60, fov = 44 },
+    },
+
+    -- Where the probe sits on the patient's torso (fine tuning for custom ped models)
+    Torso = {
+        width    = 1.0,          -- × default half width of the torso
+        depth    = 1.0,          -- × default half depth (front to back)
+        pubis    = -0.05,        -- metres from the pelvis bone to the bottom of the scan area
+        collar   = -0.015,       -- metres from the collarbones to the top of the scan area
+        front    = 0.0,          -- metres the skin surface is pushed forward at the hips
+        frontTop = -0.01,        -- … and at the collarbones
     },
 
     Anim = {
         stand = { dict = 'anim@amb@clubhouse@tutorial@bkr_tut_ig3@', clip = 'machinic_loop_mechandplayer', flag = 1 },
         kneel = { dict = 'amb@medic@standing@tendtodead@base', clip = 'base', flag = 1 },
         lowPatient = 0.55,       -- patient pelvis lower than this (m above your feet) → kneel
+        ik         = true,       -- the right hand reaches for the probe while it is on the skin
     },
+
+    -- Patient menu options (third-eye / built-in prompt)
+    Interact = {
+        enabled     = true,      -- false = no ultrasound options on patients (cart target + radial still work)
+        distance    = 2.2,       -- metres
+        needItems   = true,      -- hide chest drain / decompression / pericardiocentesis without the items
+        orderScan   = 60,        -- menu order (procedures band 60)
+        orderDrain  = 62,
+        orderPeri   = 63,
+        orderDecomp = 34,        -- decompression sits with the resuscitation options
+    },
+    examRoutes = true,           -- treatment buttons in the examination screen (drain, decompress, pericardio, scan)
+    radial     = true,           -- 'Ultrasound' / 'Decompress' in the EMS radial (Patient ▸ …)
+    speech     = true,           -- the patient complains when you cut without numbing / touch the heart
+    askSide    = false,          -- true = always ask which side, even when the scan already found it
+    maxDist    = 6.0,            -- metres you may walk away while reading a finished scan before it closes
 
     usable    = true,            -- using a chest drain kit / decompression needle starts it on the nearest patient
     useRange  = 3.0,             -- metres for that nearest patient

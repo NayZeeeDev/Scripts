@@ -118,7 +118,8 @@
       <div class="syr-side">
         <div class="syr-k">${esc(o.label)}</div>
         <div class="syr-v"><b class="vol">0.0</b><i>/ ${o.cap} ml</i></div>
-        ${o.band ? `<div class="syr-dial"><div class="sd"></div><div class="sdv"><b class="rate">0.00</b><i>ml/s</i></div></div><div class="syr-st"><span class="dot"></span><span class="rl"></span></div>` : '<div class="syr-ret"></div>'}
+        ${o.band ? `<div class="syr-dial"><div class="sd"></div><div class="sdv"><b class="rate">0.00</b><i>ml/s</i></div></div><div class="syr-bar"><span class="zn" style="left:${(clamp(o.band[0] / o.maxRate, 0, 1) * 100).toFixed(1)}%;width:${((clamp(o.band[1] / o.maxRate, 0, 1) - clamp(o.band[0] / o.maxRate, 0, 1)) * 100).toFixed(1)}%"></span><span class="nd"></span><span class="sc"><i>0</i><i class="rv">0.00 ml/s</i><i>${o.maxRate.toFixed(1)}</i></span></div><div class="syr-st"><span class="dot"></span><span class="rl"></span></div>`
+          : `${o.flashAt ? `<div class="syr-dial fc"><div class="sd"></div><div class="sdv"><b class="fcv">0.0</b><i>${esc(L('syr_of', 'of {n} ml', { n: o.flashAt }))}</i></div><span class="fcl">${esc(L('syr_drawn', 'Drawn'))}</span></div>` : ''}<div class="syr-ret"></div>`}
       </div>`;
     host.appendChild(root);
     let vol = o.vol, rate = 0, dragging = false, lastMove = now(), acc = 0, flashed = false, fluid = o.fluid, dead = false;
@@ -130,12 +131,24 @@
       liq.setAttribute('fill', fluidCol[fluid] || fluidCol.clear);
       pl.setAttribute('transform', `translate(0,${y.toFixed(1)})`);
       root.querySelector('.vol').textContent = fmt1(vol);
+      if (!o.band && o.flashAt) {
+        const f = clamp(vol / o.flashAt, 0, 1), tone = flashed ? 'red' : f > 0.01 ? 'teal' : '';
+        root.querySelector('.fc .sd').innerHTML = dialSVG(f, { zone: [0.92, 1], tone, ticks: 9 });
+        const fb = root.querySelector('.fcv');
+        fb.textContent = fmt1(Math.min(vol, o.flashAt));
+        fb.className = `fcv ${tone}`;
+        root.querySelector('.fc').classList.toggle('hit', flashed);
+      }
       if (o.band) {
         const tone = rate > o.band[1] ? 'red' : rate >= o.band[0] && rate > 0.01 ? 'teal' : rate > 0.01 ? 'amber' : '';
         root.querySelector('.sd').innerHTML = dialSVG(rate / o.maxRate, { zone: [o.band[0] / o.maxRate, Math.min(1, o.band[1] / o.maxRate)], tone, ticks: 9 });
         const rb = root.querySelector('.rate');
         rb.textContent = rate.toFixed(2);
         rb.className = `rate ${tone}`;
+        const nd = root.querySelector('.syr-bar .nd');
+        nd.style.left = `${(clamp(rate / o.maxRate, 0, 1) * 100).toFixed(1)}%`;
+        nd.className = `nd ${tone}`;
+        root.querySelector('.syr-bar .rv').textContent = `${rate.toFixed(2)} ml/s`;
         const st = root.querySelector('.syr-st');
         st.className = `syr-st ${tone}`;
         root.querySelector('.rl').textContent = rate < 0.01 ? L('syr_idle', 'Idle') : rate > o.band[1] ? L('syr_fast', 'Too fast') : rate >= o.band[0] ? L('syr_band', 'On target') : L('syr_slow', 'Too slow');
@@ -177,7 +190,7 @@
     return {
       el: root, get vol() { return vol; }, get rate() { return rate; }, get dragging() { return dragging; },
       set(v) { vol = clamp(v, 0, o.cap); draw(); },
-      fluid(f) { fluid = f; draw(); },
+      fluid(f) { fluid = f; if (f === 'marrow') flashed = true; draw(); },
       ret(html) { const r = root.querySelector('.syr-ret'); if (r) r.innerHTML = html; },
       destroy() { dead = true; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); root.remove(); },
     };
@@ -424,7 +437,7 @@
       const b = S.b;
       const [lo, hi] = b.band;
       const teeth = Array.from({ length: 18 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
-      devFrame(L('d_binder', 'Strap tension'), `
+      devFrame(L('d_binder', 'Belt tension'), `
         <div class="m-split">
           <div class="m-dial bt"><div class="dzh">${dialSVG(0, { zone: [lo / 120, hi / 120], ticks: 12 })}</div><div class="dv"><span class="tn"></span><i>%</i></div><span class="dl">${esc(L('d_tension', 'Tension'))}</span></div>
           <div class="m-list">
@@ -577,7 +590,7 @@
   /* ═══════════════════════════ STEPS 2-5 · INTRAOSSEOUS ═══════════════════════════ */
   const IO_SITES = ['r_tibia', 'l_tibia', 'r_humerus', 'l_humerus'];
   const SITE_EN = { r_tibia: 'Right tibia', l_tibia: 'Left tibia', r_humerus: 'Right humeral head', l_humerus: 'Left humeral head' };
-  const LAYER_EN = { air: 'Above skin', soft: 'Tissue', cortex: 'Bone wall', marrow: 'Marrow', far: 'Back wall', through: 'Out the back' };
+  const LAYER_EN = { air: 'Air', soft: 'Tissue', cortex: 'Bone wall', marrow: 'Marrow', far: 'Back wall', through: 'Out the back' };
   const WHY_EN = { fracture: 'Fracture', tourniquet: 'Tourniquet', burn: 'Burn', wound: 'Wound', invalid: 'Not possible' };
   const siteName = id => L(`site_${id}`, SITE_EN[id] || id);
   const LAYER_ORDER = ['soft', 'cortex', 'marrow', 'far'];
@@ -742,7 +755,7 @@
       mark('site', { anchor: io.site, label: L('m_io', 'IO needle'), dot: 'fd-dia white' });
       devFrame(L('d_confirm', 'Draw back'), `<div class="syrh"></div><div class="m-note cn"><span class="ni">${icon('info')}</span><span>${esc(L('confirm_note', 'About 1 ml is enough.'))}</span></div>`, { unit: 'sx', right: `<span class="m-chip">10 ml</span>` });
       io.syr = Syringe(ui.dev.querySelector('.syrh'), {
-        cap: 10, vol: 0, mode: 'pull', fluid: 'clear', label: L('syr_aspirate', 'Draw back'), flashAt: S.data.aspirateMl || 1,
+        cap: 10, vol: 0, mode: 'pull', fluid: 'clear', label: L('syr_barrel', 'In the barrel'), flashAt: S.data.aspirateMl || 1,
         onFlash: () => {
           io.aspirated = true; NZA.audio.success();
           ui.pp.flash('ok', L('confirm_ok', 'Dark return in the barrel — you are in the marrow.'));
@@ -770,7 +783,7 @@
         tools: [
           { key: '1', label: L('tool_ext', 'Extension line'), icon: 'tube', state: io.ext ? 'done' : io.tool === 'ext' ? 'active' : '' },
           { key: '2', label: L('tool_lido', 'Lidocaine 2%'), icon: 'syringe', state: io.lido.ml >= (d.lidoMl || 2) - 0.05 ? 'done' : !io.ext || !hasLido ? 'locked' : io.tool === 'lido' ? 'active' : '', sub: hasLido ? `${d.lidoMl || 2} ml` : '×0' },
-          { key: '3', label: L('tool_flush', 'Saline flush'), icon: 'drop', state: io.flush.ml >= (d.flushMl || 10) - 0.1 ? 'done' : !io.ext ? 'locked' : io.tool === 'flush' ? 'active' : '', sub: `${d.flushMl || 10} ml` },
+          { key: '3', label: L('tool_flush', 'Flush syringe'), icon: 'drop', state: io.flush.ml >= (d.flushMl || 10) - 0.1 ? 'done' : !io.ext ? 'locked' : io.tool === 'flush' ? 'active' : '', sub: `${d.flushMl || 10} ml` },
         ],
       });
     },
@@ -784,7 +797,7 @@
       else text = L('flush_pick', 'Push **saline** through the line (3).');
       ui.pp.set({ text });
       const n = q('.fn');
-      if (n) n.innerHTML = `<span class="ni">${icon(io.tool ? 'arrow-down' : 'syringe')}</span><span>${NZA.rich(io.tool ? L('flush_drag', 'Drag the plunger down. Keep the needle in the green arc.') : L('flush_pick_tool', 'Choose a syringe.'))}</span>`;
+      if (n) n.innerHTML = `<span class="ni">${icon(io.tool ? 'arrow-down' : 'syringe')}</span><span>${NZA.rich(io.tool ? L('flush_drag', 'Drag the plunger down. Keep the needle in the teal arc.') : L('flush_pick_tool', 'Choose a syringe.'))}</span>`;
       const fc = q('.fc');
       if (fc) fc.innerHTML = `${io.ext ? icon('check') : icon('x')}${esc(L('fc_line', 'Line'))}`;
       if (fc) fc.className = `m-chip fc ${io.ext ? 'teal' : ''}`;
@@ -799,7 +812,7 @@
       const rec = kind === 'lido' ? io.lido : io.flush;
       io.syr = Syringe(host, {
         cap: kind === 'lido' ? 5 : 10, vol: cap - rec.ml, mode: 'push', fluid: kind === 'lido' ? 'lido' : 'clear', band, maxRate: band[1] * 1.8,
-        label: kind === 'lido' ? L('tool_lido', 'Lidocaine 2%') : L('tool_flush', 'Saline flush'),
+        label: kind === 'lido' ? L('tool_lido', 'Lidocaine 2%') : L('tool_flush', 'Flush syringe'),
         onChange: (vol, rate) => {
           rec.ml = clamp(cap - vol, 0, cap);
           if (rate > 0.01) { rec.samples = (rec.samples || 0) + 1; rec.rateSum = (rec.rateSum || 0) + rate; rec.peak = Math.max(rec.peak, rate); }
@@ -1055,7 +1068,7 @@
       S.clot = null;
       ui.pp.set({
         title: L('s_resus', 'Hold the pressure'), tag: d.access ? `${d.access.kind === 'io' ? 'IO' : 'IV'} · ${d.access.siteLabel || d.access.site || ''}` : '',
-        text: L('resus_text', 'Hang fluid, pump the bulb and open the roller clamp until MAP reaches the target arc. Keep it there until the clot sets.'),
+        text: L('resus_text', 'Hang fluid, pump the bulb and open the clamp until MAP sits on the target arc. Keep it there until the clot sets.'),
         hints: [{ keys: [keyName(S.keys.squeeze || 'Space')], label: L('h_squeeze', 'pump') }, { keys: ['Q', 'E'], label: L('h_clamp', 'clamp') }].concat(hintsCam()),
       });
       this.tools();
@@ -1076,7 +1089,7 @@
         <div class="m-trend"><span>${esc(L('c_trend', 'MAP trend'))}</span><canvas class="d-strip"></canvas></div>`, { right: '<span class="m-chip ch"></span>' });
       const inf = moduleHTML('pi', L('d_infuser', 'Line & pressure'), `
         <div class="pi-top">
-          <div class="m-dial pi"><div class="dzh"></div><div class="dv"><span class="pv"></span><i>mmHg</i></div><span class="dl">${esc(L('i_pressure', 'Bag pressure'))}</span></div>
+          <div class="m-dial pi"><div class="dzh"></div><div class="dv"><span class="pv"></span><i>mmHg</i></div><span class="dl">${esc(L('i_pressure', 'Cuff pressure'))}</span></div>
           <div class="pi-stand"><div class="pi-hook"></div><div class="fd-bags"></div></div>
           <div class="pi-clamp"><span class="ck">${esc(L('i_clamp', 'Clamp'))}</span><button class="wheel" data-wheel="1"><i class="rid"></i><i class="cap up">${icon('chev-u')}</i><i class="cap dn">${icon('chev-d')}</i></button><b class="cl">66%</b></div>
         </div>

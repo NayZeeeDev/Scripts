@@ -25,7 +25,7 @@
 #app-suture .sz-pt .row{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
 #app-suture .sz-pt .row .v{font-size:12px;font-weight:700;color:var(--white);font-variant-numeric:tabular-nums}
 #app-suture .sz-pt .row .v.red{color:#ff7478} #app-suture .sz-pt .row .v.amber{color:#f3c35a} #app-suture .sz-pt .row .v.teal{color:var(--teal-hi)}
-#app-suture .sz-pt .mtr{margin-top:7px}
+#app-suture .sz-pt .sz-pm{margin-top:7px;width:100%}
 #app-suture .sz-pt .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
 #app-suture .sz-chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:6px;font-size:10.5px;font-weight:600;
   color:var(--ink-2);background:rgba(255,255,255,.05);border:1px solid var(--line-hair);white-space:nowrap}
@@ -56,11 +56,6 @@
 #app-suture .sz-plan li.skip .b{border-color:var(--amber-edge);color:#f3c35a;background:var(--amber-wash)}
 #app-suture .sz-plan li.skip .x{color:#f3c35a}
 #app-suture .sz-plan .ft{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);flex-wrap:wrap}
-
-/* ── camera hints (bottom right, above the panel edge) ── */
-#app-suture .sz-cam{position:absolute;right:24px;bottom:26px;display:flex;flex-direction:column;gap:7px;padding:10px 12px;font-size:11px;color:var(--ink-3)}
-#app-suture .sz-cam span{display:flex;align-items:center;gap:7px}
-#app-suture .sz-cam kbd{height:18px;min-width:18px;font-size:9.5px;padding:0 5px}
 
 /* ── cursor ring (hold progress / hints at the pointer) ── */
 #app-suture .sz-cur{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;zoom:1;opacity:0;transition:opacity 140ms}

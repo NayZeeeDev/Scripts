@@ -98,10 +98,13 @@ replicated); the local player walks with `Crutches.clipset` (default the planted
 crutches" (`crutches_give`, `givePerm`) moves one crutches item from the medic to the player patient and
 equips it (`autoEquip`), bill `Billing.crutches`.
 
-Crutch card (bottom-right, `Crutches.hud`): gait drawing (crutch tips, the good foot swinging through,
-the splinted / broken foot dashed amber and held off the ground — side taken from the self snapshot),
-"Keep the left / right leg off the ground", rolling step counter (`Crutches.stride` m per step), weight
-on, pace, key to put them away.
+Crutch card (bottom-right, `Crutches.hud`): top-view gait drawing — both forearm crutches (rubber tip,
+shaft, grip, cuff) planting ahead, the good foot swinging through, the splinted / broken foot dashed amber,
+lifted off the ground with its shadow and an `NWB` (non-weight-bearing) tag (side taken from the self
+snapshot), the prints already left behind and crutch lanes that scroll while walking; a three-phase gait
+strip (1 Tips ahead · 2 Swing · 3 Plant) that follows the step rhythm; rolling step counter
+(`Crutches.stride` m per step), cadence (steps / min, worked out in the app from the step count over the
+last ~8 s, or `cadence` when the client sends it), weight on, pace, key to put them away.
 
 ## 3. Wheelchair
 
@@ -159,7 +162,7 @@ NUI app `splint`: open `{ mode = 'proc', … }` (see the app.js header) or `{ mo
 actions `result`, `hud`, `hudOff`; anchors `prox dist cms core`; callbacks `splint:finish`,
 `splint:abort`, `splint:done`, `splint:close`.
 Card data: chair / push `{ kind, title, sub, state, speed, max, slope, turn, dist, blocked, keys }`,
-crutch `{ kind, title, sub, state, moving, steps, side, keys }`.
+crutch `{ kind, title, sub, state, moving, steps, cadence?, side, keys }`.
 
 Browser preview (renders a 3D street scene with a patient so the overlay can be judged in context; stages
 are set up synchronously): `index.html?app=splint&stage=place|aligned|pad|shape|strap|cmsready|cms|cmsbad|done`,

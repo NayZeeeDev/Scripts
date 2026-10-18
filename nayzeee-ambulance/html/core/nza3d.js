@@ -199,8 +199,8 @@
 
   /* ─────────────────────────── skin tones ─────────────────────────── */
   const TONES = [
-    [0.00, [246, 219, 204]], [0.18, [239, 199, 176]], [0.36, [224, 172, 141]],
-    [0.55, [190, 131, 98]], [0.75, [138, 90, 65]], [1.00, [86, 56, 42]],
+    [0.00, [244, 214, 196]], [0.18, [236, 190, 162]], [0.36, [219, 160, 125]],
+    [0.55, [184, 122, 87]], [0.75, [134, 86, 60]], [1.00, [84, 54, 40]],
   ];
   function toneRGB(t) {
     t = clamp(+t || 0, 0, 1);
@@ -336,7 +336,7 @@
   // Tiling micro detail (one tile ≈ o.tile metres): furrow network, pores, hair.
   // returns { normal: canvas (RGB normal), detail: canvas (R cavity, G hair, B roughness var, A 255) }
   function makeSkinMicro(o) {
-    return cached(`micro:${o.seed}:${o.hairAngle.toFixed(2)}:${o.hairCount}:${o.hairLen}`, () => {
+    return cached(`micro2:${o.seed}:${o.hairAngle.toFixed(2)}:${o.hairCount}:${o.hairLen}`, () => {
       const N = 512, R = rng(o.seed * 13 + 5);
       const hgt = new Float32Array(N * N), cav = new Float32Array(N * N);
       // furrows: worley F2-F1 over jittered cells (≈0.5 mm)
@@ -345,7 +345,7 @@
         pts[(j * C + i) * 2] = (i + 0.1 + R() * 0.8) * cs; pts[(j * C + i) * 2 + 1] = (j + 0.1 + R() * 0.8) * cs;
       }
       const poreAt = new Float32Array(C * C), edgeW = new Float32Array(C * C);
-      for (let i = 0; i < poreAt.length; i++) { poreAt[i] = R() < 0.3 ? 0.9 + R() * 1.3 : 0; edgeW[i] = 0.25 + R() * 0.75; }
+      for (let i = 0; i < poreAt.length; i++) { poreAt[i] = R() < 0.2 ? 0.6 + R() * 0.9 : 0; edgeW[i] = 0.25 + R() * 0.75; }
       for (let y = 0; y < N; y++) {
         const cy = Math.floor(y / cs);
         for (let x = 0; x < N; x++) {
@@ -365,8 +365,8 @@
           const pore = poreAt[id1] ? 1 - smooth(poreAt[id1] * 0.45, poreAt[id1] * 1.25, pr) : 0;
           const fine = noiseAt(0, x / N * 8, y / N * 8) * 0.5 + noiseAt(1, x / N * 16, y / N * 16) * 0.5;
           const i = y * N + x;
-          hgt[i] = 1 - furrow * 0.5 - pore * 0.8 + fine * 0.18;
-          cav[i] = clamp(furrow * 0.4 + pore * 0.85, 0, 1);
+          hgt[i] = 1 - furrow * 0.3 - pore * 0.85 + fine * 0.26;
+          cav[i] = clamp(furrow * 0.3 + pore * 0.9, 0, 1);
         }
       }
       const normal = canvas(N, N);
@@ -486,29 +486,38 @@
         c.fillRect(px + R() * pw, py + R() * ph, 1.2, 1.2);
       }
       c.restore();
-      // brand print in a corner of the border
+      // generic product print in a corner of the border (no brand): size, sterile box, lot
       const bx = w - 16 - rc * 0.55, by = h - 13;
       c.save();
-      c.font = '600 11px Lexend, sans-serif'; c.textAlign = 'right'; c.textBaseline = 'middle';
-      c.fillStyle = 'rgba(80,90,92,.55)';
-      c.fillText('NAYZEEE · STERILE', bx - 16, by);
-      drawMark(c, bx - 11, by - 6, 12);
+      c.font = '600 10px Lexend, sans-serif'; c.textAlign = 'right'; c.textBaseline = 'middle';
+      c.fillStyle = 'rgba(80,90,92,.5)';
+      const sizeTxt = `${Math.round(wM * 100)} × ${Math.round(hM * 100)} cm · LOT ${String(1000 + (seed % 9000)).padStart(4, '0')}`;
+      c.fillText(sizeTxt, bx - 44, by);
+      drawGlyph(c, bx - 40, by - 6, 12, 'sterile');
       c.restore();
       c.restore();
       return cv;
     });
   }
 
-  // NAYZEEE mark (teal chamfered tile with the inner bar) on a 2D canvas
-  function drawMark(c, x, y, s) {
-    const g = c.createLinearGradient(x, y, x + s, y + s);
-    g.addColorStop(0, '#0fd4c4'); g.addColorStop(1, '#067d74');
-    c.fillStyle = g;
-    c.beginPath();
-    c.moveTo(x, y); c.lineTo(x + s, y); c.lineTo(x + s, y + s * 0.56); c.lineTo(x + s * 0.56, y + s); c.lineTo(x, y + s); c.closePath();
-    c.fill();
-    c.fillStyle = 'rgba(0,0,0,.85)';
-    c.fillRect(x + s * 0.22, y + s * 0.22, s * 0.56, s * 0.22);
+  // Generic device labelling glyphs (no brand anywhere on props): s = glyph height in px
+  //   'sterile'  boxed "STERILE"      'single'  do-not-reuse (a 2 in a struck circle)
+  function drawGlyph(c, x, y, s, kind, color = 'rgba(40,46,50,.72)') {
+    c.save();
+    c.strokeStyle = color; c.fillStyle = color; c.lineWidth = Math.max(1, s * 0.09);
+    if (kind === 'single') {
+      const r = s / 2, cx = x + r, cy = y + r;
+      c.beginPath(); c.arc(cx, cy, r - c.lineWidth / 2, 0, TAU); c.stroke();
+      c.font = `700 ${Math.round(s * 0.7)}px Lexend, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('2', cx, cy + s * 0.04);
+      c.beginPath(); c.moveTo(cx - r * 0.72, cy + r * 0.72); c.lineTo(cx + r * 0.72, cy - r * 0.72); c.stroke();
+    } else {
+      c.font = `700 ${Math.round(s * 0.62)}px Lexend, sans-serif`; c.textBaseline = 'middle'; c.textAlign = 'left';
+      const tw = c.measureText('STERILE').width, pad = s * 0.28;
+      c.strokeRect(x, y, tw + pad * 2, s);
+      c.fillText('STERILE', x + pad, y + s / 2 + s * 0.04);
+    }
+    c.restore();
   }
 
   // printed label for bottles / syringes
@@ -517,17 +526,18 @@
       const w = 512, h = 256, cv = canvas(w, h), c = cv.getContext('2d');
       if (kind === 'saline') {
         c.fillStyle = '#f4f6f6'; c.fillRect(0, 0, w, h);
-        c.fillStyle = '#0a8f85'; c.fillRect(0, 0, w, 34); c.fillRect(0, h - 22, w, 22);
-        drawMark(c, 22, 64, 54);
+        c.fillStyle = '#1f6fa8'; c.fillRect(0, 0, w, 34); c.fillRect(0, h - 22, w, 22);
         c.fillStyle = '#16191b'; c.font = '700 54px Lexend, sans-serif'; c.textBaseline = 'alphabetic';
-        c.fillText('NaCl 0.9%', 96, 112);
-        c.font = '500 25px Lexend, sans-serif'; c.fillStyle = '#3c4246';
-        c.fillText('Sterile saline · irrigation', 98, 150);
-        c.font = '600 22px "JetBrains Mono", monospace'; c.fillStyle = '#0a8f85';
-        c.fillText('250 mL', 98, 190);
-        c.fillStyle = 'rgba(0,0,0,.55)'; c.font = '600 15px Lexend, sans-serif';
-        c.fillText('NAYZEEE MEDICAL', 22, 230);
-        c.fillStyle = '#fff'; c.font = '700 16px Lexend, sans-serif'; c.fillText('FOR EXTERNAL USE', 22, 23);
+        c.fillText('NaCl 0.9%', 24, 108);
+        c.font = '500 24px Lexend, sans-serif'; c.fillStyle = '#3c4246';
+        c.fillText('Sodium chloride · irrigation', 26, 146);
+        c.font = '600 24px "JetBrains Mono", monospace'; c.fillStyle = '#1f6fa8';
+        c.fillText('250 mL', 26, 186);
+        drawGlyph(c, 300, 166, 26, 'sterile');
+        drawGlyph(c, 430, 166, 26, 'single');
+        c.fillStyle = 'rgba(0,0,0,.55)'; c.font = '500 14px "JetBrains Mono", monospace';
+        c.fillText('IR-250 · LOT 24K118 · EXP 2027-09', 24, 222);
+        c.fillStyle = '#fff'; c.font = '700 16px Lexend, sans-serif'; c.fillText('FOR IRRIGATION ONLY · NOT FOR INJECTION', 22, 23);
       } else if (kind === 'syringe') {
         c.clearRect(0, 0, w, h);
         c.strokeStyle = 'rgba(20,24,26,.9)'; c.fillStyle = 'rgba(20,24,26,.9)';
@@ -539,8 +549,9 @@
           if (big) c.fillText(String(i / 10), x - 5, 112);
         }
         c.fillStyle = 'rgba(8,143,133,.95)'; c.font = '700 20px Lexend, sans-serif';
-        c.fillText('LIDOCAINE 2%', 46, 170);
-        c.fillStyle = 'rgba(20,24,26,.7)'; c.font = '500 15px Lexend, sans-serif'; c.fillText('5 mL · NAYZEEE', 46, 200);
+        c.fillText('LIDOCAINE 1%', 46, 170);
+        c.fillStyle = 'rgba(20,24,26,.7)'; c.font = '500 15px Lexend, sans-serif'; c.fillText('10 mg/mL · 5 mL · LA-05', 46, 200);
+        drawGlyph(c, 300, 186, 22, 'single', 'rgba(20,24,26,.7)');
       } else if (kind === 'irrigator') {
         c.clearRect(0, 0, w, h);
         c.strokeStyle = 'rgba(20,24,26,.88)'; c.fillStyle = 'rgba(20,24,26,.88)';
@@ -553,14 +564,16 @@
         }
         c.fillStyle = 'rgba(8,143,133,.95)'; c.font = '700 22px Lexend, sans-serif';
         c.fillText('NaCl 0.9%', 34, 156);
-        c.fillStyle = 'rgba(20,24,26,.7)'; c.font = '500 15px Lexend, sans-serif'; c.fillText('IRRIGATION · 30 mL · NAYZEEE', 34, 186);
-        drawMark(c, 34, 206, 22);
+        c.fillStyle = 'rgba(20,24,26,.7)'; c.font = '500 15px Lexend, sans-serif'; c.fillText('IRRIGATION · 30 mL · IS-30', 34, 186);
+        drawGlyph(c, 34, 204, 22, 'single', 'rgba(20,24,26,.7)');
+        drawGlyph(c, 66, 204, 22, 'sterile', 'rgba(20,24,26,.7)');
       } else if (kind === 'stapler') {
         c.fillStyle = '#e9edee'; c.fillRect(0, 0, w, h);
-        drawMark(c, 30, 90, 70);
         c.fillStyle = '#16191b'; c.font = '700 44px Lexend, sans-serif'; c.textBaseline = 'middle';
-        c.fillText('NAYZEEE', 120, 112); c.font = '500 26px Lexend, sans-serif'; c.fillStyle = '#4a5155';
-        c.fillText('SKIN STAPLER 35W', 120, 160);
+        c.fillText('SKIN STAPLER', 30, 100); c.font = '500 26px "JetBrains Mono", monospace'; c.fillStyle = '#4a5155';
+        c.fillText('35W · SS-35', 30, 150);
+        drawGlyph(c, 30, 190, 30, 'sterile', '#4a5155');
+        drawGlyph(c, 210, 190, 30, 'single', '#4a5155');
       }
       return cv;
     });
@@ -737,7 +750,7 @@
     if (!THREE) throw new Error('NZA3D: three.js is not loaded');
     const o = Object.assign({
       tone: 0.25, region: 'chest', sex: 'm', seed: 1, hair: null, size: null, focus: null, drape: false,
-      quality: 'high', exposure: 0.62, vignette: 0.72, work: null, keys: true, fullscreen: true, gravity: [0, 1], background: 0x050607,
+      quality: 'high', exposure: 0.56, vignette: 0.72, work: null, keys: true, fullscreen: true, gravity: [0, 1], background: 0x050607,
     }, opts);
     const entry = acquireRenderer();
     if (!entry) throw new Error('NZA3D: WebGL2 is not available');
@@ -835,7 +848,7 @@
     // lamp placement relative to the framed point: [right, toward viewer, up] (m) · pool = light
     // pool radius in view half-widths. Mutable (placeLights() reads it every frame).
     S.lightRig = {
-      key: [0.18, 0.12, 0.82], keyB: [0.04, 0.18, 0.8], key2: [-0.05, 0.32, 0.78], fill: [-0.42, -0.25, 0.6], pool: 1.8,
+      key: [-0.3, -0.1, 0.78], keyB: [-0.18, -0.02, 0.8], key2: [0.1, 0.3, 0.8], fill: [0.42, 0.25, 0.6], pool: 1.8,
     };
     const keyDir = new THREE.Vector3();
 
@@ -964,8 +977,8 @@
       uFieldEnc: { value: FIELD_ENC },
       uMicroRep: { value: 1 / 0.036 }, uHair: { value: hairAmt }, uHairColor: { value: hairColor },
       uKeyDir: { value: new THREE.Vector3(0, 1, 0) }, uKeyColor: { value: new THREE.Color(1, 0.96, 0.9) },
-      uMicroNormal: { value: 1.6 }, uSkinRough: { value: 0.38 }, uFieldNormal: { value: 1.15 }, uSSS: { value: 0.75 },
-      uDark: { value: o.tone }, uLayerTexel: { value: new THREE.Vector2(1 / LW, 1 / LH) }, uSebum: { value: 0.36 },
+      uMicroNormal: { value: 2.0 }, uSkinRough: { value: 0.38 }, uFieldNormal: { value: 1.15 }, uSSS: { value: 0.75 },
+      uDark: { value: o.tone }, uLayerTexel: { value: new THREE.Vector2(1 / LW, 1 / LH) }, uSebum: { value: 0.3 },
       uInsideLod: { value: clamp(Math.log2(0.0017 / (WR.W / LW)), 0, 6) },
     };
     S.uniforms = U;
@@ -1960,7 +1973,7 @@
     // yaw: screen angle of the handle (0 = right, π/2 = up) · roll: spin about the axis
     const POSE = {
       saline:       { lift: 0.045, pressLift: 0.045, tilt: 0.58, yaw: 1.85, roll: 0.0, shadow: 0.02 },
-      irrigator:    { lift: 0.012, pressLift: 0.012, tilt: 1.0, yaw: 0.95, roll: 0.0, shadow: 0.014 },
+      irrigator:    { lift: 0.01, pressLift: 0.01, tilt: 1.28, yaw: 1.2, roll: 0.0, shadow: 0.014 },
       syringe:      { lift: 0.008, pressLift: -0.0038, tilt: 1.05, yaw: 0.45, roll: 0.0, shadow: 0.01 },
       needleDriver: { lift: 0.004, pressLift: -0.0012, tilt: 0.85, yaw: 0.8, roll: 0.5, shadow: 0.016 },
       forceps:      { lift: 0.006, pressLift: 0.0, tilt: 0.55, yaw: 1.25, roll: 0, shadow: 0.012 },
@@ -2580,7 +2593,7 @@
             const damp = contact[k] ? 0.55 : D.state === 'carried' ? 0.86 : 0.985;
             const vx = (pos[i3] - prev[i3]) * damp, vy = (pos[i3 + 1] - prev[i3 + 1]) * damp, vz = (pos[i3 + 2] - prev[i3 + 2]) * damp;
             prev[i3] = pos[i3]; prev[i3 + 1] = pos[i3 + 1]; prev[i3 + 2] = pos[i3 + 2];
-            pos[i3] += vx; pos[i3 + 1] += vy + gy * h2 * h2 * 0.35; pos[i3 + 2] += vz;
+            pos[i3] += vx; pos[i3 + 1] += vy + gy * h2 * h2 * (D.state === 'carried' ? 0.9 : 0.35); pos[i3 + 2] += vz;
           }
           for (let rep = 0; rep < 5; rep++) {
             for (let c = 0; c < consArr.length; c += 4) {
@@ -2601,9 +2614,10 @@
           if (D.state === 'carried') {
             for (let k = 0; k < N; k++) {
               if (pinned[k]) continue;
-              const i3 = k * 3, cw = carryW[k], up = lift * (1 - 0.72 * cw);
+              // the held edge is up at the fingers, the far edge hangs down to the skin: a soft S-curve
+              const i3 = k * 3, cw = carryW[k], up = lift * (1 - 1.08 * Math.pow(cw, 0.8));
               const tx = D._target.x + tn.x * up + pinOff[i3], ty = D._target.y + tn.y * up + pinOff[i3 + 1], tz = D._target.z + tn.z * up + pinOff[i3 + 2];
-              const kk = 0.38 * (1 - 0.4 * cw);
+              const kk = 0.3 * Math.pow(1 - cw, 1.4) + 0.035;
               pos[i3] += (tx - pos[i3]) * kk; pos[i3 + 1] += (ty - pos[i3 + 1]) * kk; pos[i3 + 2] += (tz - pos[i3 + 2]) * kk;
             }
           }
@@ -3066,13 +3080,16 @@
     vec2 nzaWq = vec2((nzaP.x + 0.25 * nzaP.y) * 1000.0, nzaDmm * 1.15 + nzaP.y * 300.0);
     // fat lobules: soft domes of two sizes (worley F1 → 1 at the lobule centre), no drawn septa —
     // the gaps between them simply stay in shadow and fill with blood
-    float nzaLobA = texture2D(tNoise, nzaWq / 10.0 + vec2(0.13, 0.57)).b;
-    float nzaLobB = texture2D(tNoise, nzaWq / 4.2 + vec2(0.41, 0.07)).b;
-    float nzaDome = 1.0 - smoothstep(0.08, 0.72, min(nzaLobA * 0.85, nzaLobB * 1.05 + 0.12));
+    float nzaLobA = texture2D(tNoise, nzaWq / 9.0 + vec2(0.13, 0.57)).b;
+    float nzaLobB = texture2D(tNoise, nzaWq / 4.6 + vec2(0.41, 0.07)).b;
+    float nzaDome = 1.0 - smoothstep(0.05, 0.8, min(nzaLobA * 0.9, nzaLobB * 1.1 + 0.1));
     float nzaFatBand = smoothstep(1.6, 2.9, nzaDmm + (nzaN3.r - 0.5) * 1.4) * (1.0 - smoothstep(5.6, 8.2, nzaDmm + (nzaN3.g - 0.5) * 1.8));
+    // the fat is torn open in a few clumps along the cut, not as an even band of lobules
+    float nzaClump = smoothstep(0.44, 0.64, texture2D(tNoise, nzaWq / 34.0 + vec2(0.37, 0.11)).g);
+    nzaFatBand *= nzaClump;
     // fresh blood stains most of the tissue: the fat only shows through in irregular patches
     float nzaStain = smoothstep(0.38, 0.66, texture2D(tNoise, nzaWq / 26.0 + vec2(0.71, 0.23)).r + (nzaN2.g - 0.5) * 0.35);
-    float nzaFat = nzaFatBand * smoothstep(0.05, 0.55, nzaDome) * (1.0 - nzaStain * 0.7);
+    float nzaFat = nzaFatBand * smoothstep(0.1, 0.6, nzaDome) * (1.0 - nzaStain * 0.75);
     // epidermis lip → glistening dermis → (fat) → dark pooled blood at the bottom
     vec3 nzaTis = mix(vec3(0.8, 0.55, 0.47), vec3(0.66, 0.15, 0.12), smoothstep(0.1, 0.55, nzaDmm));
     nzaTis = mix(nzaTis, vec3(0.5, 0.06, 0.045), smoothstep(1.1, 2.4, nzaDmm));
@@ -3081,7 +3098,7 @@
     nzaFatC = mix(nzaFatC, nzaFatC * vec3(0.86, 0.5, 0.36), smoothstep(0.4, 0.85, nzaN3.b) * 0.5);
     nzaTis = mix(nzaTis, nzaFatC, nzaFat);
     // shadowed crevices between the lobules
-    nzaTis *= 1.0 - nzaFatBand * (1.0 - nzaDome) * 0.35;
+    nzaTis *= 1.0 - nzaFatBand * (1.0 - nzaDome) * 0.16;
     nzaTis = mix(nzaTis, vec3(0.13, 0.008, 0.006), smoothstep(4.5, 9.0, nzaDmm) * (1.0 - nzaFat * 0.5));
     nzaCol = mix(nzaCol, nzaTis, nzaInside);
     // raised skin (lidocaine wheal, blister dome) is pale and slightly translucent
@@ -3112,13 +3129,18 @@
     vec3 nzaDirt = mix(vec3(0.52, 0.47, 0.4), vec3(0.27, 0.24, 0.2), nzaGn);
     vec3 nzaDirtCol = mix(nzaCol * nzaDirt, nzaDirt * vec3(0.34, 0.3, 0.26), max(nzaThin, nzaInside) * 0.75);
     // inside the cut, dirt is mud and grit stuck to wet tissue: dark specks over a brown film
-    float nzaSpk = smoothstep(0.52, 0.78, nzaN3.a);
+    vec2 nzaSq = nzaWq * 0.9 + vec2(0.29, 0.83);
+    float nzaSpkR = textureLod(tNoise, (floor(nzaSq * 8.0 / 6.0) + 0.5) / 8.0 + vec2(0.0031), 0.0).a;
+    float nzaSpkIn = (1.0 - smoothstep(0.1, 0.24, texture2D(tNoise, nzaSq / 6.0).b)) * step(0.55, nzaSpkR);
+    float nzaSpk = mix(smoothstep(0.52, 0.78, nzaN3.a), nzaSpkIn, step(0.5, nzaInside));
     nzaDirtCol = mix(nzaDirtCol, mix(vec3(0.27, 0.18, 0.12), vec3(0.055, 0.045, 0.035), nzaSpk), nzaInside);
     nzaGf = mix(nzaGf, smoothstep(0.05, 0.5, nzaGr) * (0.22 + 0.78 * nzaSpk), nzaInside);
     nzaCol = mix(nzaCol, nzaDirtCol, nzaGf * 0.92);
     // ... and grit: sparse sand / road-dirt particles where the grime is heavy (one random value per worley cell)
-    vec2 nzaGc1 = nzaP * 41.0 + vec2(0.41, 0.17);
-    vec2 nzaGc2 = nzaP * 97.0 + vec2(0.71, 0.29);
+    // (inside the groove the grit follows the wall coordinates so it never smears into streaks)
+    float nzaOnWall = step(0.5, nzaInside);
+    vec2 nzaGc1 = mix(nzaP * 41.0, nzaWq * 0.041, nzaOnWall) + vec2(0.41, 0.17);
+    vec2 nzaGc2 = mix(nzaP * 97.0, nzaWq * 0.097, nzaOnWall) + vec2(0.71, 0.29);
     float nzaR1 = textureLod(tNoise, (floor(nzaGc1 * 8.0) + 0.5) / 8.0 + vec2(0.0019), 0.0).a;
     float nzaR2 = textureLod(tNoise, (floor(nzaGc2 * 8.0) + 0.5) / 8.0 + vec2(0.0023), 0.0).a;
     float nzaS1 = texture2D(tNoise, nzaGc1).b / (0.6 + 0.8 * nzaR1);

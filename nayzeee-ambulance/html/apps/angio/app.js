@@ -667,15 +667,19 @@
       const gr = g.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, W * 0.6);
       gr.addColorStop(0, 'rgba(8,175,162,.10)'); gr.addColorStop(1, 'rgba(8,175,162,0)');
       g.fillStyle = gr; g.fillRect(0, 0, W, H);
-      drawMark(g, W / 2 - 34 * s, H / 2 - 70 * s, 68 * s);
+      // detector ready ring: slow sweep around the radiation sign, model code under it
+      const cx0 = W / 2, cy0 = H / 2 - 30 * s, rr = 62 * s;
+      g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = 3 * s; g.beginPath(); g.arc(cx0, cy0, rr, 0, TAU); g.stroke();
+      const a0 = (now / 1400) % TAU;
+      g.strokeStyle = 'rgba(15,212,196,.85)'; g.lineWidth = 3 * s; g.lineCap = 'round';
+      g.beginPath(); g.arc(cx0, cy0, rr, a0, a0 + 1.1); g.stroke(); g.lineCap = 'butt';
+      for (let i = 0; i < 48; i++) { const a = i / 48 * TAU; g.strokeStyle = `rgba(255,255,255,${i % 4 ? 0.08 : 0.2})`; g.lineWidth = 1 * s; g.beginPath(); g.moveTo(cx0 + Math.cos(a) * (rr + 8 * s), cy0 + Math.sin(a) * (rr + 8 * s)); g.lineTo(cx0 + Math.cos(a) * (rr + (i % 4 ? 12 : 16) * s), cy0 + Math.sin(a) * (rr + (i % 4 ? 12 : 16) * s)); g.stroke(); }
+      drawTrefoil(g, cx0, cy0, 30 * s, 'rgba(242,194,48,.9)');
       g.textAlign = 'center';
-      g.fillStyle = '#ffffff'; g.font = `700 ${30 * s}px Lexend, sans-serif`;
-      g.fillText('NAYZEEE', W / 2, H / 2 + 34 * s);
-      g.fillStyle = 'rgba(255,255,255,.5)'; g.font = `500 ${13 * s}px "JetBrains Mono", monospace`;
-      g.fillText(this.L('screen.standby', 'ANGIOGRAPHY SUITE · STANDBY'), W / 2, H / 2 + 62 * s);
-      const p = (Math.sin(now / 600) + 1) / 2;
-      g.fillStyle = `rgba(8,175,162,${0.4 + p * 0.6})`;
-      g.beginPath(); g.arc(W / 2, H / 2 + 92 * s, 4 * s, 0, TAU); g.fill();
+      g.fillStyle = '#ffffff'; g.font = `700 ${22 * s}px "JetBrains Mono", monospace`;
+      g.fillText(this.L('screen.model', 'AX-3'), W / 2, cy0 + rr + 52 * s);
+      g.fillStyle = 'rgba(255,255,255,.5)'; g.font = `500 ${12 * s}px "JetBrains Mono", monospace`;
+      g.fillText(this.L('screen.standby', 'ANGIOGRAPHY · STANDBY'), W / 2, cy0 + rr + 76 * s);
       g.textAlign = 'left';
     }
     /* st = state (see Sim.snapshot) */
@@ -891,18 +895,28 @@
       g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 2 * s;
       roundRect(g, ix, 6 * s, imgW, H - 12 * s, 26 * s); g.stroke();
 
-      // BLEED tag
+      // leak marker: corner-bracket reticle round the blush, pulsing diamond, label chip under it
       if (st.bs) {
         const b = sc.bleed;
         const bx = PX(b.x, b.z), by = PY(b.y);
-        const lbl = this.L('screen.bleed', 'BLEED');
-        g.font = `700 ${12 * s}px Lexend, sans-serif`;
-        const tw = g.measureText(lbl).width + 16 * s;
-        const tx = bx + 14 * s, ty = by - b.R * scale - 26 * s;
-        g.strokeStyle = 'rgba(229,72,77,.9)'; g.lineWidth = 1.5 * s;
-        g.beginPath(); g.moveTo(bx, by - b.R * scale * 0.4); g.lineTo(tx + 6 * s, ty + 20 * s); g.stroke();
-        g.fillStyle = '#e5484d'; roundRect(g, tx, ty, tw, 20 * s, 5 * s); g.fill();
-        g.fillStyle = '#fff'; g.fillText(lbl, tx + 8 * s, ty + 14.5 * s);
+        const half = Math.max(22 * s, b.R * scale * 1.15);
+        const pulse = (Math.sin(now / 260) + 1) / 2;
+        const arm = Math.min(14 * s, half * 0.5);
+        g.strokeStyle = `rgba(255,96,100,${0.75 + pulse * 0.25})`; g.lineWidth = 2 * s;
+        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
+          const x = bx + sx * half, y = by + sy * half;
+          g.beginPath(); g.moveTo(x, y - sy * arm); g.lineTo(x, y); g.lineTo(x - sx * arm, y); g.stroke();
+        });
+        const d = (5 + pulse * 2) * s;
+        g.fillStyle = 'rgba(255,90,95,.95)';
+        g.beginPath(); g.moveTo(bx, by - half - d - 6 * s); g.lineTo(bx + d, by - half - 6 * s); g.lineTo(bx, by - half + d - 6 * s); g.lineTo(bx - d, by - half - 6 * s); g.closePath(); g.fill();
+        const lbl = this.L('screen.bleed', 'LEAK');
+        g.font = `700 ${10.5 * s}px "JetBrains Mono", monospace`;
+        const tw = g.measureText(lbl).width + 14 * s;
+        const tx = bx - tw / 2, ty = by + half + 6 * s;
+        g.fillStyle = 'rgba(8,9,11,.88)'; roundRect(g, tx, ty, tw, 18 * s, 4 * s); g.fill();
+        g.fillStyle = '#e5484d'; g.fillRect(tx, ty + 3 * s, 2 * s, 12 * s);
+        g.fillStyle = '#ff8a8d'; g.fillText(lbl, tx + 8 * s, ty + 13 * s);
       }
 
       this.hud(st, W, H, s, ix, imgW, now);
@@ -916,24 +930,29 @@
       const lex = (px, w = 600) => `${w} ${px * s}px Lexend, sans-serif`;
       const bandL = ix, x0 = 18 * s;
       g.textBaseline = 'alphabetic';
-      // left band: brand, patient, exposure
-      drawMark(g, x0, 20 * s, 24 * s);
-      g.fillStyle = '#fff'; g.font = lex(14, 700); g.fillText('NAYZEEE', x0 + 32 * s, 32 * s);
-      g.fillStyle = 'rgba(255,255,255,.45)'; g.font = mono(9.5); g.fillText(L('screen.suite', 'ANGIO SUITE'), x0 + 32 * s, 45 * s);
+      // left band: device plate (model code + radiation sign, no brand), patient, exposure
+      const plateW = Math.min(bandL - x0 - 12 * s, 112 * s);
+      g.fillStyle = 'rgba(255,255,255,.06)'; roundRect(g, x0, 16 * s, plateW, 34 * s, 6 * s); g.fill();
+      g.strokeStyle = 'rgba(255,255,255,.1)'; g.lineWidth = 1 * s; roundRect(g, x0, 16 * s, plateW, 34 * s, 6 * s); g.stroke();
+      drawTrefoil(g, x0 + 17 * s, 33 * s, 9 * s, 'rgba(242,194,48,.95)');
+      g.fillStyle = '#fff'; g.font = mono(13, 700); g.fillText(L('screen.model', 'AX-3'), x0 + 32 * s, 31 * s);
+      g.fillStyle = 'rgba(255,255,255,.45)'; g.font = mono(8.5); g.fillText(L('screen.suite', 'ANGIO'), x0 + 32 * s, 44 * s);
       const rows = [
         [L('screen.patient', 'PATIENT'), h.name || '--', h.sexAge],
         [L('screen.case', 'CASE'), h.caseId || '--'],
-        [L('screen.exposure', 'EXPOSURE'), `${Math.round(h.kv || 72)} kV · ${(h.ma || 3.2).toFixed(1)} mA`],
+        [L('screen.exposure', 'EXPOSURE'), `${Math.round(h.kv || 81)} kV`, `${(h.ma || 2.4).toFixed(1)} mA · 15 f/s`],
         [L('screen.fluoro', 'FLUORO'), fmtTime(h.fl || 0)],
         [L('screen.dose', 'DOSE'), `${(h.dose || 0).toFixed(1)} mGy`],
       ];
-      let y = 86 * s;
+      let y = 84 * s;
       const fitText = (txt, maxW) => { let t = String(txt); while (t.length > 3 && g.measureText(t).width > maxW) t = t.slice(0, -2); return t === String(txt) ? t : `${t}…`; };
-      rows.forEach(([k, v, sub2]) => {
-        g.fillStyle = 'rgba(255,255,255,.4)'; g.font = mono(9.5); g.fillText(k, x0, y);
-        g.fillStyle = 'rgba(255,255,255,.9)'; g.font = mono(12.5, 500); g.fillText(fitText(v, bandL - x0 - 10 * s), x0, y + 18 * s);
-        if (sub2) { g.fillStyle = 'rgba(255,255,255,.5)'; g.font = mono(10.5); g.fillText(fitText(sub2, bandL - x0 - 10 * s), x0, y + 34 * s); y += 16 * s; }
-        y += 46 * s;
+      rows.forEach(([k, v, sub2], i) => {
+        // instrument row: tone notch on the left, label over value
+        g.fillStyle = i === 3 && (st.xr || st.run) ? '#f2b33d' : 'rgba(255,255,255,.16)'; g.fillRect(x0, y - 8 * s, 2 * s, (sub2 ? 44 : 28) * s);
+        g.fillStyle = 'rgba(255,255,255,.4)'; g.font = mono(9); g.fillText(k, x0 + 9 * s, y);
+        g.fillStyle = 'rgba(255,255,255,.92)'; g.font = mono(12.5, 500); g.fillText(fitText(v, bandL - x0 - 19 * s), x0 + 9 * s, y + 17 * s);
+        if (sub2) { g.fillStyle = 'rgba(255,255,255,.5)'; g.font = mono(10); g.fillText(fitText(sub2, bandL - x0 - 19 * s), x0 + 9 * s, y + 32 * s); y += 15 * s; }
+        y += 44 * s;
       });
       // scale bar (5 cm)
       const sc5 = 5 * (imgW / FOV_W) * (this.mag || 1);
@@ -953,33 +972,41 @@
       g.fillText(st.dsa > 0.3 ? L('screen.dsa', 'DSA') : L('screen.fluoroMode', 'FLUORO'), rx + 18 * s, 33 * s);
       g.fillStyle = 'rgba(255,255,255,.45)'; g.font = mono(9.5);
       g.fillText(live ? L('screen.live', 'LIVE · 15 f/s') : L('screen.lih', 'LAST IMAGE HOLD'), rx, 52 * s);
+      // current run, right under the mode lamp
+      const label = String(h.label || '');
+      if (label) {
+        const parts = label.split(' · ');
+        g.fillStyle = 'rgba(242,179,61,.16)'; roundRect(g, rx - 2 * s, 60 * s, rw + 2 * s, parts[1] ? 36 * s : 20 * s, 5 * s); g.fill();
+        g.fillStyle = '#f3c35a'; g.font = mono(9, 700); g.fillText(fitText(parts[0].toUpperCase(), rw - 10 * s), rx + 5 * s, 73 * s);
+        if (parts[1]) { g.fillStyle = 'rgba(255,255,255,.88)'; g.font = mono(10.5, 500); g.fillText(fitText(parts[1], rw - 10 * s), rx + 5 * s, 89 * s); }
+      }
       const rrows = [
         [L('screen.run', 'RUN'), String(h.run || 0).padStart(2, '0')],
-        [L('screen.carm', 'C-ARM'), h.carmLabel || 'AP'],
         [L('screen.field', 'FIELD'), `${Math.round(FOV_W / (this.mag || 1))} cm${(this.mag || 1) > 1.05 ? ` · ${L('screen.mag', 'MAG')}` : ''}`],
         [L('screen.contrast', 'CONTRAST'), `${Math.round(h.ml || 0)} mL`],
         [L('screen.coils', 'COILS'), String(h.coils || 0)],
       ];
-      y = 86 * s;
-      rrows.forEach(([k, v]) => {
-        g.fillStyle = 'rgba(255,255,255,.4)'; g.font = mono(9.5); g.fillText(k, rx, y);
-        g.fillStyle = 'rgba(255,255,255,.9)'; g.font = mono(12.5, 500); g.fillText(fitText(v, rw), rx, y + 18 * s);
-        y += 46 * s;
+      y = 118 * s;
+      rrows.forEach(([k, v], i) => {
+        g.fillStyle = 'rgba(255,255,255,.16)'; g.fillRect(rx, y - 8 * s, 2 * s, 28 * s);
+        g.fillStyle = 'rgba(255,255,255,.4)'; g.font = mono(9); g.fillText(k, rx + 9 * s, y);
+        g.fillStyle = 'rgba(255,255,255,.92)'; g.font = mono(12.5, 500); g.fillText(fitText(v, rw - 9 * s), rx + 9 * s, y + 17 * s);
+        y += 42 * s;
+        void i;
       });
-      // C-arm dial
-      const dy = y + 14 * s, dr = 18 * s, dcx = rx + dr + 2 * s;
-      g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2 * s;
-      g.beginPath(); g.arc(dcx, dy + dr, dr, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
-      const da = -Math.PI / 2 + (st.carm || 0) * DEG;
-      g.strokeStyle = '#08afa2'; g.lineWidth = 2.5 * s;
-      g.beginPath(); g.moveTo(dcx, dy + dr); g.lineTo(dcx + Math.cos(da) * dr, dy + dr + Math.sin(da) * dr); g.stroke();
-      // run label (two lines: kind / vessel)
-      const label = String(h.label || '');
-      if (label) {
-        const parts = label.split(' · ');
-        g.fillStyle = 'rgba(255,255,255,.4)'; g.font = mono(9.5); g.fillText(fitText(parts[0], rw), rx, H - 92 * s);
-        if (parts[1]) { g.fillStyle = 'rgba(255,255,255,.85)'; g.font = mono(11.5, 500); g.fillText(fitText(parts[1], rw), rx, H - 76 * s); }
-      }
+      // C-arm: 240° dial, needle at the projection angle (RAO left, LAO right)
+      const dr = Math.min(26 * s, rw * 0.32), dcx = rx + rw / 2, dcy = y + dr + 6 * s;
+      const A0 = 150 * DEG, SW = 240 * DEG, tf = clamp(((st.carm || 0) + 45) / 90, 0, 1);
+      g.lineCap = 'round';
+      g.strokeStyle = 'rgba(255,255,255,.1)'; g.lineWidth = 4 * s; g.beginPath(); g.arc(dcx, dcy, dr, A0, A0 + SW); g.stroke();
+      g.strokeStyle = 'rgba(15,212,196,.35)'; g.lineWidth = 7 * s; g.beginPath(); g.arc(dcx, dcy, dr, A0 + SW * 0.47, A0 + SW * 0.53); g.stroke();
+      for (let i = 0; i <= 6; i++) { const a = A0 + SW * i / 6; g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 1 * s; g.beginPath(); g.moveTo(dcx + Math.cos(a) * (dr + 5 * s), dcy + Math.sin(a) * (dr + 5 * s)); g.lineTo(dcx + Math.cos(a) * (dr + 9 * s), dcy + Math.sin(a) * (dr + 9 * s)); g.stroke(); }
+      const na = A0 + SW * tf;
+      g.strokeStyle = '#0fd4c4'; g.lineWidth = 2.5 * s; g.beginPath(); g.moveTo(dcx + Math.cos(na) * (dr - 8 * s), dcy + Math.sin(na) * (dr - 8 * s)); g.lineTo(dcx + Math.cos(na) * (dr + 6 * s), dcy + Math.sin(na) * (dr + 6 * s)); g.stroke();
+      g.lineCap = 'butt';
+      g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,.85)'; g.font = mono(10.5, 600); g.fillText(h.carmLabel || 'AP', dcx, dcy + 4 * s);
+      g.fillStyle = 'rgba(255,255,255,.35)'; g.font = mono(8); g.fillText(L('screen.carm', 'C-ARM'), dcx, dcy + dr + 4 * s);
+      g.textAlign = 'left';
       // ECG strip
       const ex = rx, ew = rw, ey = H - 52 * s, eh = 30 * s;
       g.fillStyle = 'rgba(255,255,255,.38)'; g.font = mono(9);
@@ -1079,7 +1106,18 @@
     g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r); g.lineTo(x + w, y + h - r);
     g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath();
   }
-  // the NAYZEEE mark: teal tile, bottom-right corner cut, dark bar
+  // radiation warning sign (trefoil) - generic device marking, centred on cx, cy
+  function drawTrefoil(g, cx, cy, r, color) {
+    g.save();
+    g.fillStyle = color || '#f2c230';
+    g.beginPath(); g.arc(cx, cy, r * 0.2, 0, TAU); g.fill();
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + i * TAU / 3;
+      g.beginPath(); g.arc(cx, cy, r, a - 0.52, a + 0.52); g.arc(cx, cy, r * 0.32, a + 0.52, a - 0.52, true); g.closePath(); g.fill();
+    }
+    g.restore();
+  }
+  // legacy tile mark (kept for the export; no longer drawn on device faces)
   function drawMark(g, x, y, size) {
     const gr = g.createLinearGradient(x, y, x + size * 0.6, y + size);
     gr.addColorStop(0, '#0fd4c4'); gr.addColorStop(1, '#067d74');
@@ -1114,14 +1152,14 @@
     const rm = new Set(); for (let i = 0; i < flush.arr.length; i++) if (isFinite(flush.arr[i])) rm.add(nd.v[i]);
     const tip = lerpPos(sc, p[p.length - 2], p[p.length - 1], 0.4);
     return {
-      sc: sc.params, p, f: 0.4, phi: 1.2, carm: 0, cx: (tip[0] + sc.bleed.x) / 2 * 0.8, cy: (tip[1] + sc.bleed.y) / 2,
-      coils: [], rm: [...rm], bs: true, stain: 0.3, cd: 2, xr: true, dsa: t > 0 ? 0.9 : 0,
+      sc: sc.params, p, f: 0.4, phi: 1.2, cx: (tip[0] + sc.bleed.x) / 2 * 0.8, cy: (tip[1] + sc.bleed.y) / 2,
+      coils: [], rm: [...rm], bs: true, stain: 0.3, cd: 2, xr: true, dsa: t > 0 ? 0.9 : 0, carm: 12,
       run: t > 0 ? { id: 1, a: p[p.length - 2], b: p[p.length - 1], f: 0.4, k: 'run', t } : null,
-      hud: { name: 'Michael Garcia', sexAge: 'M · 34 · O-', caseId: 'A-0412', kv: 72, ma: 3.2, fl: 52, dose: 119.1, run: 2, carmLabel: 'AP', ml: 26, coils: 0, label: 'Selective angiogram · Jejunal arcade', hr: 112 },
+      hud: { name: 'Michael Garcia', sexAge: 'M · 34 · O-', caseId: 'A-0412', kv: 84, ma: 2.6, fl: 214, dose: 86.4, run: 3, carmLabel: 'LAO 12°', ml: 34, coils: 0, label: 'Selective run · Jejunal arcade', hr: 112 },
     };
   }
 
-  window.NZAAngio = { buildScene, computeArrival, FluoroView, drawMark, demoState, BLEEDS, MIN_R, fmtTime };
+  window.NZAAngio = { buildScene, computeArrival, FluoroView, drawMark, drawTrefoil, demoState, BLEEDS, MIN_R, fmtTime };
 
   /* everything below is the NUI overlay - the DUI page stops here */
   if (!window.NZA || typeof window.NZA.app !== 'function') return;
@@ -1306,7 +1344,7 @@
       el.innerHTML = `
         <div class="ag-col">
           <div class="nza-hud ag-card ag-console">
-            <div class="ag-h"><span class="nz-mark xs"></span><span class="nza-label" data-x="conTitle">Angio console</span><span class="ag-xr" data-x="xr"><i></i><b data-x="xrl">X-RAY</b></span></div>
+            <div class="ag-h"><span class="ag-plate">CC-4</span><span class="nza-label" data-x="conTitle">Catheter console</span><span class="ag-xr" data-x="xr"><i></i><b data-x="xrl">X-RAY</b></span></div>
             <div class="ag-vit" data-x="vit"></div>
             <div class="ag-sec">
               <div class="ag-sl"><span data-x="tipLbl">Tip</span><span class="ag-sv" data-x="tipVal">0°</span></div>
@@ -1326,7 +1364,7 @@
             <div class="ag-sec ag-keys" data-x="keys"></div>
           </div>
           <div class="nza-hud ag-card ag-access">
-            <div class="ag-h"><span class="nz-mark xs"></span><span class="nza-label" data-x="accTitle">Access</span><span class="chipx sm teal" data-x="accChip">US-guided</span></div>
+            <div class="ag-h"><span class="ag-plate">US-2</span><span class="nza-label" data-x="accTitle">Access</span><span class="chipx sm teal" data-x="accChip">US-guided</span></div>
             <div class="ag-plan" data-x="plan"></div>
             <div class="ag-us"><canvas data-x="cvT"></canvas><span class="ag-cap" data-x="capT">Transverse</span></div>
             <div class="ag-us"><canvas data-x="cvL"></canvas><span class="ag-cap" data-x="capL">Longitudinal</span></div>
@@ -1339,7 +1377,7 @@
         </div>
         <div class="ag-screen" data-x="screen">
           <div class="dev ag-dev">
-            <div class="ag-devtop"><span class="dev-brand"><span class="nz-mark"></span>NAYZEEE · <span data-x="devName">Fluoroscopy</span></span><span class="dev-led" data-x="led"></span></div>
+            <div class="ag-devtop"><span class="dev-brand"><span class="ag-plate">AX-3</span><span data-x="devName">Fluoroscopy monitor</span></span><span class="ag-devr"><span class="ag-sticker"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2.2"/><path d="M12 9.2 8.6 3.3A10 10 0 0 0 3.2 12h6.6a2.3 2.3 0 0 1 2.2-2.8zM12 9.2l3.4-5.9A10 10 0 0 1 20.8 12h-6.6A2.3 2.3 0 0 0 12 9.2zM10.6 14.4l-3.3 5.8a10 10 0 0 0 9.4 0l-3.3-5.8a2.3 2.3 0 0 1-2.8 0z"/></svg></span><span class="dev-led" data-x="led"></span></span></div>
             <div class="dev-screen"><canvas data-x="fluoro"></canvas></div>
           </div>
         </div>
@@ -1426,9 +1464,10 @@
     buildUi();
     A.fv = new FluoroView(def.$.fluoro, { locale: screenLocale() });
     A.pp = NZA.ui.ProcPanel(def.el, {
-      step: 1, total: STEPS, tag: L('tag', 'Angiography'), title: L('s1.title', 'Access'), text: '',
+      step: 1, total: STEPS, tag: L('tag', 'Angiography'), title: L('s1.title', 'Get access'), text: '',
+      steps: [L('s1.title', 'Get access'), L('s2.title', 'Navigate'), L('s3.title', 'Shoot the run'), L('s4.title', 'Pack the leak'), L('s5.title', 'Check the seal'), L('s6.title', 'Close the access')],
       stats: [], tools: [], hints: [],
-      abort: { label: L('abort', 'Hold to abort'), key: 'ESC', seconds: 1.2 },
+      abort: { label: L('abort', 'Hold to cancel'), key: 'ESC', seconds: 1.2 },
       onAbort: () => { if (A && !A.done) { NZA.post('angio:abort', {}); } },
       onTool: k => onTool(k),
     });
@@ -1456,14 +1495,14 @@
   function buildUi() {
     const $ = A.$;
     $.xrl.textContent = L('ui.xray', 'X-RAY');
-    $.conTitle.textContent = L('ui.console', 'Angio console');
+    $.conTitle.textContent = L('ui.console', 'Catheter console');
     $.tipLbl.textContent = L('ui.tip', 'Tip rotation');
     $.carmLbl.textContent = L('ui.carm', 'C-arm');
     $.dyeLbl.textContent = L('ui.contrast', 'Contrast');
     $.coilLbl.textContent = L('ui.coils', 'Coils');
     $.doseLbl.textContent = L('ui.dose', 'Dose');
     $.viewLbl.textContent = L('ui.view', 'View');
-    $.devName.textContent = L('ui.device', 'Fluoroscopy');
+    $.devName.textContent = L('ui.device', 'Fluoroscopy monitor');
     $.capT.textContent = L('ui.transverse', 'Transverse');
     $.capL.textContent = L('ui.longitudinal', 'Longitudinal');
     $.accChip.textContent = L('ui.usGuided', 'US-guided');
@@ -1589,22 +1628,22 @@
     const ph = A.phase, s = A.sim;
     const gateName = vesselLabel(A.scene.vessels[A.scene.bleed.gate]);
     switch (ph) {
-      case 'choose': return [L('s1.title', 'Access'), L('s1.choose', 'Pick the way in. {1} right groin, {2} left groin, {3} right wrist.')];
+      case 'choose': return [L('s1.title', 'Get access'), L('s1.choose', 'Pick the way in. {1} right groin, {2} left groin, {3} right wrist.')];
       case 'aim': return [L('s1.needle', 'Needle in'), A.acc && A.acc.flash === 'venous' ? L('s1.venous', 'Dark, slow blood: that is the vein. Pull back with {S} and aim over the pulse.') : A.acc && A.acc.back ? L('s1.back', 'Through the back wall. Pull back slowly with {S} until the flash returns.') : L('s1.aim', 'Aim over the pulsing artery with {A}/{D}, set {Q}/{E} to **45°**, hold {W} until you see flashback.')];
       case 'wire': return [L('s1.wire', 'Feed the wire'), L('s1.wireT', 'Hold {W} to feed the guide wire through the needle. Stop if it fights you.')];
       case 'sheath': return [L('s1.sheath', 'Slide the sheath'), L('s1.sheathT', 'Hold {E} to slide the sheath over the wire into the artery.')];
-      case 'needle': return [L('s1.remove', 'Remove the needle'), L('s1.removeT', 'Pull the needle out. The port stays in. Tap {R}.')];
+      case 'needle': return [L('s1.remove', 'Withdraw the needle'), L('s1.removeT', 'The sheath is in the artery. Tap {R} to draw the needle back out of it.')];
       case 'nav': return [L('s2.title', 'Navigate'), F(L('s2.text', 'Get the catheter into the **%s**. {W}/{S} advance, {A}/{D} turn the tip at a branch. {X} puff, {C} contrast run.'), gateName)];
-      case 'select': return [L('s3.title', 'Contrast run'), A.hasButton ? L('s3.textBtn', 'You are in. Press the big red button ({Z} room) or {C} and watch the screen.') : L('s3.text', 'You are in. Press {C} for a contrast run and watch the screen.')];
+      case 'select': return [L('s3.title', 'Shoot the run'), A.hasButton ? L('s3.textBtn', 'Tip in place. Hit the red pedal button ({Z} to walk over) or {C}, then watch the screen.') : L('s3.text', 'Tip in place. Press {C} to inject contrast and watch the screen.')];
       case 'coil': {
-        if (s.deploy && s.deploy.pct >= 100) return [L('s4.title', 'Coil it'), L('s4.out', 'Coil out. {F} to release, {R} to pull back.')];
-        if (A.released) return [L('s4.title', 'Coil it'), L('s4.placed', 'Coil placed. {R} to pull back, then a confirm run.')];
-        return [L('s4.title', 'Coil it'), F(L('s4.text', 'Bring the tip within **%s cm** of the bleed, then hold {F} to push the coil out.'), A.cfg.coilDist)];
+        if (s.deploy && s.deploy.pct >= 100) return [L('s4.title', 'Pack the leak'), L('s4.out', 'The coil is fully out of the tip. {F} detaches it, {R} backs the catheter off.')];
+        if (A.released) return [L('s4.title', 'Pack the leak'), L('s4.placed', 'Coil detached. {R} backs the catheter off, then check the seal.')];
+        return [L('s4.title', 'Pack the leak'), F(L('s4.text', 'Steer the tip to within **%s cm** of the leak, then hold {F} to feed the coil out.'), A.cfg.coilDist)];
       }
-      case 'confirm': return [L('s5.title', 'Confirm run'), A.hasButton ? L('s5.textBtn', 'Run contrast again: red button ({Z}) or {C}. No blush = sealed.') : L('s5.text', 'Run contrast again with {C}. No blush = sealed.')];
-      case 'pull': return [L('s6.title', 'Close the access'), L('s6.pull', 'Remove the sheath. Tap {R}.')];
+      case 'confirm': return [L('s5.title', 'Check the seal'), A.hasButton ? L('s5.textBtn', 'Inject again: red pedal button ({Z}) or {C}. No contrast pooling means it is sealed.') : L('s5.text', 'Inject again with {C}. No contrast pooling means it is sealed.')];
+      case 'pull': return [L('s6.title', 'Close the access'), L('s6.pull', 'Slide the sheath out. Tap {R}.')];
       case 'press': return [L('s6.title', 'Close the access'), L('s6.press', 'Hold {Space} to press on the puncture. Keep the pressure in the band.')];
-      case 'done': return [L('done.title', 'Bleed coiled'), ''];
+      case 'done': return [L('done.title', 'Leak sealed'), ''];
     }
     return ['', ''];
   }
@@ -1612,8 +1651,8 @@
   // the overlay has no focus while walking: only the keys the game reads are shown
   function roomPanel() {
     A.pp.set({
-      title: L('room.title', 'Walk to the button'), text: A.hasButton ? L('room.text', 'Walk to the red button and press {E}. {Z} back to the monitor.') : '',
-      tools: [{ key: 'E', label: L('t.button', 'Red button'), icon: 'target', state: 'active' }, { key: 'Z', label: L('t.monitor', 'Monitor'), icon: 'monitor' }],
+      title: L('room.title', 'Walk to the pedal'), text: A.hasButton ? L('room.text', 'Walk to the red pedal button and press {E}. {Z} takes you back to the console.') : '',
+      tools: [{ key: 'E', label: L('t.button', 'Pedal button'), icon: 'target', state: 'active' }, { key: 'Z', label: L('t.monitor', 'Back to console'), icon: 'monitor' }],
       hints: [], abort: false,
     });
     renderStats();
@@ -1634,26 +1673,25 @@
       tools.push({ key: 'W', label: L('t.needle', 'Needle'), state: ph === 'aim' ? 'active' : 'done', icon: 'needle' });
       tools.push({ key: 'W', label: L('t.wire', 'Wire'), state: ph === 'wire' ? 'active' : (['sheath', 'needle'].includes(ph) ? 'done' : 'locked'), icon: 'tube' });
       tools.push({ key: 'E', label: L('t.sheath', 'Sheath'), state: ph === 'sheath' ? 'active' : (ph === 'needle' ? 'done' : 'locked'), icon: 'iv' });
-      tools.push({ key: 'R', label: L('t.remove', 'Needle out'), state: ph === 'needle' ? 'active' : 'locked', icon: 'arrow-up' });
+      tools.push({ key: 'R', label: L('t.remove', 'Withdraw needle'), state: ph === 'needle' ? 'active' : 'locked', icon: 'arrow-up' });
       if (ph === 'aim') hints.push({ keys: ['A', 'D'], label: L('h.aim', 'aim') }, { keys: ['Q', 'E'], label: L('h.angle', 'angle') }, { keys: ['Shift'], label: L('h.faster', 'faster') });
       else if (ph === 'wire') hints.push({ keys: ['Q'], label: L('h.flatten', 'flatten') });
-      if (ph !== 'aim' && NZA.inGame) hints.push({ keys: ['RMB'], label: L('h.look', 'look around') });
+      if (ph !== 'aim' && NZA.inGame) hints.push({ keys: ['RMB'], label: L('h.look', 'orbit') });
     } else if (A.step === 6) {
-      tools.push({ key: 'R', label: L('t.sheathOut', 'Sheath out'), state: ph === 'pull' ? 'active' : 'done', icon: 'arrow-up' });
+      tools.push({ key: 'R', label: L('t.sheathOut', 'Remove sheath'), state: ph === 'pull' ? 'active' : 'done', icon: 'arrow-up' });
       tools.push({ key: 'Space', label: L('t.pressure', 'Pressure'), state: ph === 'press' ? 'active' : (ph === 'done' ? 'done' : 'locked'), icon: 'hand' });
-      if (NZA.inGame) hints.push({ keys: ['RMB'], label: L('h.look', 'look around') });
+      if (NZA.inGame) hints.push({ keys: ['RMB'], label: L('h.look', 'orbit') });
     } else {
       const dyeOut = s.left < A.cfg.selectiveMl;
-      tools.push({ key: 'C', label: L('t.run', 'Contrast run'), icon: 'drop', state: ph === 'select' || ph === 'confirm' ? 'active' : (dyeOut ? 'need' : '') });
-      tools.push({ key: 'X', label: L('t.puff', 'Puff'), icon: 'syringe', state: dyeOut ? 'need' : '' });
-      if (ph === 'coil' || ph === 'confirm') tools.push({ key: 'F', label: s.deploy && s.deploy.pct >= 100 ? L('t.release', 'Release coil') : L('t.coil', 'Coil'), icon: 'spring', state: ph === 'coil' && !A.released ? 'active' : '', count: String(A.coilsLeft) });
-      if (ph === 'coil') tools.push({ key: 'R', label: L('t.pull', 'Pull back'), icon: 'arrow-down', state: A.released ? 'active' : '' });
-      if (A.hasButton) tools.push({ key: 'Z', label: L('t.room', 'Room'), icon: 'walk' });
+      tools.push({ key: 'C', label: L('t.run', 'Inject'), sub: `${A.cfg.selectiveMl}–${A.cfg.runMl} mL`, icon: 'flask', state: ph === 'select' || ph === 'confirm' ? 'active' : (dyeOut ? 'need' : '') });
+      tools.push({ key: 'X', label: L('t.puff', 'Test puff'), sub: `${A.cfg.puffMl} mL`, icon: 'syringe', state: dyeOut ? 'need' : '' });
+      if (ph === 'coil' || ph === 'confirm') tools.push({ key: 'F', label: s.deploy && s.deploy.pct >= 100 ? L('t.release', 'Detach coil') : L('t.coil', 'Feed coil'), icon: 'spring', state: ph === 'coil' && !A.released ? 'active' : '', count: String(A.coilsLeft) });
+      if (ph === 'coil') tools.push({ key: 'R', label: L('t.pull', 'Back off'), icon: 'arrow-down', state: A.released ? 'active' : '' });
+      if (A.hasButton) tools.push({ key: 'Z', label: L('t.room', 'Walk to button'), icon: 'walk' });
       if (dyeOut && A.bottles > 0) tools.push({ key: 'B', label: L('t.bottle', 'New bottle'), icon: 'bottle', state: 'need', count: String(A.bottles) });
       renderKeys();
     }
     A.pp.set({ step: A.step, title, text, tools, hints, titleTone: ph === 'done' ? 'ok' : '' });
-    A.pp.el.classList.toggle('ag-many', tools.length >= 5);
     renderStats();
   }
 
@@ -1684,6 +1722,7 @@
       });
       return;
     }
+    A.roKey = '';
     if (A.step === 1 || A.step === 6) {
       const acc = A.acc || {};
       const stats = [
@@ -1706,13 +1745,18 @@
     const prog = clamp(1 - dist / Math.max(1, A.startDist || 30), 0, 1);
     const coilPct = s.deploy ? s.deploy.pct : (A.released ? 100 : 0);
     const near = tb.feeds && dist <= A.cfg.coilDist;
+    const span = Math.max(4, A.startDist || 30);
+    const key = `${dist.toFixed(1)}|${tb.past ? 1 : 0}|${near ? 1 : 0}|${Math.round(coilPct)}|${v ? v.idx : -1}|${A.coilsLeft}|${A.bleedCaption || ''}`;
+    if (key === A.roKey) return;
+    A.roKey = key;
     A.pp.set({
+      wide: { label: L('st.toBleed', 'Leak gap'), value: tb.past ? `-${dist.toFixed(1)}` : dist.toFixed(1), unit: 'cm', tone: near ? 'teal' : (tb.past ? 'amber' : ''),
+        meter: { value: prog, zone: [clamp(1 - A.cfg.coilDist / span, 0, 1), 1], tone: near ? '' : 'white' }, caption: A.bleedCaption || '', captionTone: 'red' },
       stats: [
-        { id: 'dist', label: L('st.toBleed', 'To bleed'), value: tb.past ? `-${dist.toFixed(1)}` : dist.toFixed(1), unit: 'cm', tone: near ? 'teal' : (tb.past ? 'amber' : '') },
-        { id: 'coil', label: L('st.coil', 'Coil'), value: String(Math.round(coilPct)), unit: '%', tone: coilPct >= 100 ? 'teal' : '' },
-        { id: 'carm', label: L('st.carm', 'C-arm'), value: carmLabel(s.carm), small: true, meter: { value: 0.5, noFill: true, mark: (s.carm + 45) / 90, zone: [0.47, 0.53] } },
+        { id: 'vessel', label: L('st.cathIn', 'Vessel'), value: vesselLabel(v), small: true, tone: near ? 'teal' : '' },
+        { id: 'coil', label: L('st.coil', 'Deployed'), value: String(Math.round(coilPct)), unit: '%', tone: coilPct >= 100 ? 'teal' : '' },
+        { id: 'left', label: L('st.coilsLeft', 'Coils left'), value: String(A.coilsLeft), tone: A.coilsLeft ? '' : 'red' },
       ],
-      wide: { label: L('st.cathIn', 'Catheter in'), value: vesselLabel(v), meter: { value: prog, tone: near ? '' : 'white' }, caption: A.bleedCaption || '', captionTone: 'red' },
     });
   }
 
@@ -1757,7 +1801,7 @@
     renderPanel();
   }
   function onRelease(code) {
-    if (code === 'KeyF' && A.sim.deploy && A.sim.deploy.pct < 100) A.pp.flash('warn', L('f.coilHalf', 'Coil half out. Hold {F} to finish, or {S} to draw it back.'), 2200);
+    if (code === 'KeyF' && A.sim.deploy && A.sim.deploy.pct < 100) A.pp.flash('warn', L('f.coilHalf', 'Coil half out. Keep holding {F}, or {S} draws it back in.'), 2200);
   }
   function onTool(k) {
     if (!A) return;
@@ -1781,7 +1825,7 @@
   function needleOut() {
     if (A.acc.out) return;
     A.acc.out = true;
-    A.pp.flash('ok', L('f.portIn', 'Needle out. The port stays in.'), 2400);
+    A.pp.flash('ok', L('f.portIn', 'Needle out. The sheath holds the way in.'), 2400);
     sfx.thunk();
     const acc = A.acc;
     const angErr = Math.abs((acc.flashAngle ?? acc.angle) - 45);
@@ -2077,7 +2121,7 @@
     if (A.room) adv = 0;
     // coil deployment holds the catheter still
     if (s.deploy) {
-      if (h.KeyF && s.deploy.pct < 100) { s.deploy.pct = clamp(s.deploy.pct + dt * 55, 0, 100); if (Math.random() < dt * 14) sfx.coil(); input(); renderStats(); if (s.deploy.pct >= 100) { renderPanel(); A.pp.flash('ok', L('f.coilOut', 'Coil fully out. {F} to release.'), 2200); } }
+      if (h.KeyF && s.deploy.pct < 100) { s.deploy.pct = clamp(s.deploy.pct + dt * 55, 0, 100); if (Math.random() < dt * 14) sfx.coil(); input(); renderStats(); if (s.deploy.pct >= 100) { renderPanel(); A.pp.flash('ok', L('f.coilOut', 'Coil fully out. {F} detaches it.'), 2200); } }
       if (adv < 0) { s.deploy.pct = clamp(s.deploy.pct - dt * 80, 0, 100); if (s.deploy.pct <= 0) { s.deploy = null; renderPanel(); } renderStats(); }
       adv = 0;
     }
@@ -2123,7 +2167,7 @@
       const R = s.run.res;
       if (isFinite(R.bleedT) && s.run.t > R.bleedT + 0.6 && !s.run.seen) {
         s.run.seen = true; s.bleedSeen = true;
-        A.bleedCaption = L('st.blush', 'Blush: active bleed');
+        A.bleedCaption = L('st.blush', 'Leak lit up on the run');
         renderStats();
       }
       if (s.run.t >= RUN_LEN[s.run.kind]) endRun();
@@ -2224,7 +2268,7 @@
     const blush = isFinite(res.bleedT);
     A.busy = true;
     const vname = vesselLabel(s.vessel());
-    NZA.toast({ title: L('inj.title', 'Injector'), message: L('inj.text', 'Dye going in. Watch the screen.'), type: 'info', icon: 'syringe', duration: 2800 });
+    NZA.toast({ title: L('inj.title', 'Contrast away'), message: L('inj.text', 'The power injector is pushing contrast. Eyes on the monitor.'), type: 'info', icon: 'flask', duration: 2800 });
     sfx.whirr();
     const r = await NZA.post('angio:run', { kind: 'run', selective, blush, fromButton: !!fromButton, ml, vessel: vname });
     A && (A.busy = false);
@@ -2238,7 +2282,7 @@
     s.runId++; s.runs++;
     // in game the camera may cut to the injector first: the dye reaches the patient after `delay` s
     const delay = clamp(Number(r.delay) || 0, 0, 4);
-    s.run = { id: s.runId, inj, kind: 'run', t: -delay, res, blush, label: F(selective ? L('run.selective', 'Selective angiogram · %s') : L('run.flush', 'Flush aortogram · %s'), vname), selective };
+    s.run = { id: s.runId, inj, kind: 'run', t: -delay, res, blush, label: F(selective ? L('run.selective', 'Selective run · %s') : L('run.flush', 'Aortogram · %s'), vname), selective };
     injectorMarker(ml, delay);
     if (A.phase === 'select' || A.phase === 'confirm' || (A.phase === 'coil' && A.released)) A.runPhase = A.phase;
     else A.runPhase = A.phase;
@@ -2284,22 +2328,22 @@
     const ph = A.phase;
     if (run.blush) {
       s.bleedSeen = true;
-      A.bleedCaption = L('st.blush', 'Blush: active bleed');
+      A.bleedCaption = L('st.blush', 'Leak lit up on the run');
       if (ph === 'nav' || ph === 'select') {
-        if (s.inGate()) { setPhase('coil'); A.pp.flash('bad', F(L('f.found', 'There is the bleed: a blush off the %s. Coil it.'), vesselLabel(A.scene.vessels[A.scene.bleed.vessel])), 3600); }
-        else A.pp.flash('ok', F(L('f.seenFlush', 'Bleed seen. Now get into the %s.'), vesselLabel(A.scene.vessels[A.scene.bleed.gate])), 3600);
+        if (s.inGate()) { setPhase('coil'); A.pp.flash('bad', F(L('f.found', 'Leak found: contrast pooling off the %s. Pack it with a coil.'), vesselLabel(A.scene.vessels[A.scene.bleed.vessel])), 3600); }
+        else A.pp.flash('ok', F(L('f.seenFlush', 'Leak spotted. Now steer into the %s.'), vesselLabel(A.scene.vessels[A.scene.bleed.gate])), 3600);
       } else if (ph === 'confirm' || (ph === 'coil' && A.released)) {
         A.released = false;
         setPhase('coil');
-        A.pp.flash('bad', L('f.still', 'Still filling. Place another coil, closer.'), 3400);
+        A.pp.flash('bad', L('f.still', 'Still pooling. Place another coil, closer.'), 3400);
       }
     } else {
       if (ph === 'select' || ph === 'nav') {
-        if (s.inGate() || run.selective) { s.stats.wrongRuns++; A.pp.flash('warn', L('f.noBleed', 'No bleed from this vessel. Try another branch.'), 3000); if (ph === 'select') setPhase('nav'); }
+        if (s.inGate() || run.selective) { s.stats.wrongRuns++; A.pp.flash('warn', L('f.noBleed', 'Nothing leaks from this vessel. Try another branch.'), 3000); if (ph === 'select') setPhase('nav'); }
         else A.pp.flash('ok', L('f.mapped', 'Vessels mapped. The road-map stays on screen.'), 2600);
       } else if (ph === 'confirm' || (ph === 'coil' && A.released)) {
         if (s.coils.length && s.coils.some(c => c.eff)) sealed();
-        else { A.pp.flash('warn', L('f.noBlushNoCoil', 'No blush from here. Run from closer to the coil.'), 3000); }
+        else { A.pp.flash('warn', L('f.noBlushNoCoil', 'No pooling from here. Inject closer to the coil.'), 3000); }
       }
     }
     renderPanel();
@@ -2328,7 +2372,7 @@
   /* coils */
   async function coilPress() {
     const s = A.sim;
-    if (!(A.phase === 'coil' || A.phase === 'confirm')) { A.pp.flash('warn', L('f.coilWhen', 'Find the bleed with a contrast run first.'), 2200); return; }
+    if (!(A.phase === 'coil' || A.phase === 'confirm')) { A.pp.flash('warn', L('f.coilWhen', 'Find the leak with an injection first.'), 2200); return; }
     if (s.run || A.busy) return;
     if (!s.deploy) {
       if (A.coilsLeft <= 0) { A.pp.flash('bad', L('f.noCoils', 'No coils left.'), 2400); return; }
@@ -2359,7 +2403,7 @@
     if (c.eff) s.stats.bestDist = Math.min(s.stats.bestDist, eff.dist);
     A.released = true;
     sfx.thunk();
-    A.pp.flash(c.eff ? 'ok' : 'warn', c.eff ? L('f.released', 'Coil released. Pull back with {R}.') : (eff.onPath ? F(L('f.far', 'Coil released %s cm from the bleed. That may not hold.'), eff.dist.toFixed(1)) : L('f.offTarget', 'Coil released off target.')), 3000);
+    A.pp.flash(c.eff ? 'ok' : 'warn', c.eff ? L('f.released', 'Coil detached. Back off with {R}.') : (eff.onPath ? F(L('f.far', 'Coil detached %s cm short of the leak. It may not hold.'), eff.dist.toFixed(1)) : L('f.offTarget', 'Coil detached off target.')), 3000);
     updateSupplies(); renderPanel();
   }
   function pullBack() {
@@ -2368,7 +2412,7 @@
     setTimeout(() => { if (A && A.released && A.phase === 'coil') setPhase('confirm'); }, 600);
   }
   function sealed() {
-    A.pp.flash('ok', L('f.sealed', 'No blush. The bleed is sealed.'), 3200);
+    A.pp.flash('ok', L('f.sealed', 'No pooling. The leak is sealed.'), 3200);
     NZA.audio.success();
     A.bleedCaption = L('st.sealed', 'Sealed');
     setTimeout(() => {
@@ -2418,10 +2462,14 @@
     const sc = scoreParts();
     A.result = sc;
     const s = A.sim;
-    const grade = sc.total >= 95 ? 'S' : sc.total >= 85 ? 'A' : sc.total >= 72 ? 'B' : sc.total >= 58 ? 'C' : sc.total >= 40 ? 'D' : 'F';
-    const row = (k, fb, v, extra) => `<div class="ag-rrow"><span>${esc(L(k, fb))}</span><div class="mtr ${v < 60 ? 'amber' : ''}"><i style="width:${Math.round(v)}%"></i></div><b>${Math.round(v)}</b>${extra ? `<small>${esc(extra)}</small>` : ''}</div>`;
+    const tone = v => (v >= 72 ? '' : v >= 45 ? 'amber' : 'red');
+    const row = (k, fb, v, extra) => `<div class="ag-rrow ${tone(v)}"><i class="nt"></i><span class="lb">${esc(L(k, fb))}${extra ? `<small>${esc(extra)}</small>` : ''}</span><b>${Math.round(v)}</b></div>`;
+    const R = 34, C = 2 * Math.PI * R, tot = clamp(sc.total, 0, 100);
     A.$.result.innerHTML = `
-      <div class="ag-rhead"><div class="grade g-${grade}">${grade}</div><div><span class="nza-label">${esc(L('res.label', 'Angiography'))}</span><h3>${esc(L('res.title', 'Bleed coiled'))}</h3><p>${esc(F(L('res.sub', '%s · %d coil(s) · %d mL contrast · %s fluoro'), L(`acc.${A.access}`, ACCESS_EN[A.access]), s.coils.length, Math.round(s.contrastMl), fmtTime(s.fl)))}</p></div><div class="ag-rscore"><b>${sc.total}</b><span>/100</span></div></div>
+      <div class="ag-rhead">
+        <span class="ag-ring ${tone(tot)}"><svg viewBox="0 0 84 84"><circle class="bg" cx="42" cy="42" r="${R}"/><circle class="tk" cx="42" cy="42" r="${R + 6}"/><circle class="fg" cx="42" cy="42" r="${R}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - tot / 100)).toFixed(1)}"/></svg><b>${sc.total}</b><em>${esc(L('res.score', 'Score'))}</em></span>
+        <div><span class="nza-label">${esc(L('res.label', 'Angiography'))}</span><h3>${esc(L('res.title', 'Leak sealed'))}</h3><p>${esc(F(L('res.sub', '%s · %d coil(s) · %d mL contrast · %s fluoro'), L(`acc.${A.access}`, ACCESS_EN[A.access]), s.coils.length, Math.round(s.contrastMl), fmtTime(s.fl)))}</p></div>
+      </div>
       <div class="ag-rbody">
         ${row('res.access', 'Access', sc.access, A.stats.angleErr !== null ? `${Math.round(45 + (A.stats.angleErr || 0))}°` : '')}
         ${row('res.nav', 'Navigation', sc.nav, `${s.runs} ${L('res.runs', 'runs')}`)}
@@ -2433,7 +2481,7 @@
     A.$.result.classList.add('on');
     NZA.audio.success();
     A.pp.set({ abort: false });
-    A.pp.complete({ title: L('done.title', 'Bleed coiled'), text: L('done.text', 'Access closed, the bleed is sealed. Press {Enter} to finish.'), label: L('done.btn', 'Finish'), onDone: () => finish() });
+    A.pp.complete({ title: L('done.title', 'Leak sealed'), text: L('done.text', 'The coil holds and the puncture is closed. Press {Enter} to finish.'), label: L('done.btn', 'Finish'), onDone: () => finish() });
     NZA.post('angio:step', { phase: 'done', step: 6, cam: 'access', access: A.access });
   }
   function finish() {
@@ -2465,11 +2513,11 @@
     A.room = on;
     A.def.el.classList.toggle('ag-room', on);
     if (on) {
-      NZA.ui.Marker('angio', 'button', { label: L('room.button', 'Contrast run'), dot: 'red', tone: 'red', anchor: 'button' });
+      NZA.ui.Marker('angio', 'button', { label: L('room.button', 'Inject contrast'), dot: 'red', tone: 'red', anchor: 'button' });
       roomPanel();
     } else {
       NZA.ui.Marker('angio', 'button').remove();
-      A.pp.set({ abort: { label: L('abort', 'Hold to abort'), key: 'ESC', seconds: 1.2 } });
+      A.pp.set({ abort: { label: L('abort', 'Hold to cancel'), key: 'ESC', seconds: 1.2 } });
       renderPanel();
     }
     if (!fromLua) NZA.post('angio:room', { on });
@@ -2520,7 +2568,7 @@
     const v = A.vitals || {};
     return {
       name: p.name || '', sexAge: [p.sex ? String(p.sex).toUpperCase() : '', p.age || '', p.bloodType || ''].filter(Boolean).join(' · '),
-      caseId: A.data.caseId || '', kv: 70 + Math.abs(s.carm) * 0.25 + (A.xr ? 2 : 0), ma: 3.0 + Math.abs(s.carm) * 0.012, fl: s.fl, dose: s.dose,
+      caseId: A.data.caseId || '', kv: 78 + Math.abs(s.carm) * 0.3 + (A.xr ? 3 : 0), ma: 2.2 + Math.abs(s.carm) * 0.015, fl: s.fl, dose: s.dose,
       run: s.runs, carmLabel: carmLabel(s.carm), ml: s.contrastMl, coils: s.coils.length, label: s.run ? s.run.label : (A.lastLabel || ''), hr: v.hr || 0,
     };
   }
@@ -2579,11 +2627,11 @@
     if (step === 'run' || step === 'select') route(sc.byId.sma.own[9], 0); else route(sc.bleed.node, 2.1);
     s.carm = 0; s.phi = 1.3; s.runs = 2; s.contrastMl = 26; s.left = 74; s.fl = 96; s.dose = 104.2;
     s.cam = { x: s.tip()[0] * 0.7, y: s.tip()[1] };
-    A.bleedCaption = L('st.blush', 'Blush: active bleed');
+    A.bleedCaption = L('st.blush', 'Leak lit up on the run');
     if (step === 'run' || step === 'select') {
       setPhase('select');
       const inj = s.injection();
-      s.runId = 9; s.run = { id: 9, inj, kind: 'run', t: 2.4, res: computeArrival(sc, inj, [], 'run', 2), blush: true, label: F(L('run.selective', 'Selective angiogram · %s'), vesselLabel(s.vessel())) };
+      s.runId = 9; s.run = { id: 9, inj, kind: 'run', t: 2.4, res: computeArrival(sc, inj, [], 'run', 2), blush: true, label: F(L('run.selective', 'Selective run · %s'), vesselLabel(s.vessel())) };
       A.lastInput = performance.now() + 1e7;
       return;
     }
@@ -2594,7 +2642,7 @@
       const [a, b] = s.edge();
       const c = { a, b, f: s.f, pct: 100, rel: true }; const e = s.coilEffect(c); c.eff = true; c.dist = e.dist;
       s.coils.push(c); A.coilsLeft = 2; A.released = true; s.move(-1.4); s.stain = 0.2; setPhase('confirm');
-      const inj = s.injection(); s.runId = 11; s.run = { id: 11, inj, kind: 'run', t: 3.1, res: computeArrival(sc, inj, s.coils, 'run', 2), blush: false, label: F(L('run.selective', 'Selective angiogram · %s'), vesselLabel(s.vessel())) };
+      const inj = s.injection(); s.runId = 11; s.run = { id: 11, inj, kind: 'run', t: 3.1, res: computeArrival(sc, inj, s.coils, 'run', 2), blush: false, label: F(L('run.selective', 'Selective run · %s'), vesselLabel(s.vessel())) };
       return;
     }
     if (step === 'press' || step === 'pull') {

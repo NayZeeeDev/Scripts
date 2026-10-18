@@ -2,7 +2,7 @@
     NAYZEEE AMBULANCE - CPR & defibrillator (client)                          NZA.Cpr
 
     Starts / joins a code on a patient in cardiac arrest (or wounded, unresponsive and not
-    breathing), opens the NUI app 'cpr' (rugged NAYZEEE defibrillator, rhythm game, pads,
+    breathing), opens the NUI app 'cpr' (unbranded DF-7 defibrillator, metronome, pads,
     analyse / charge / shock, breaths, adrenaline, swap, debrief) and relays it to the
     authoritative server (server/modules/cpr.lua). The world side lives in cpr_scene.lua.
 

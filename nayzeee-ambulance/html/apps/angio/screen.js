@@ -4,7 +4,7 @@
 
    Messages (SendDuiMessage, JSON):
      { type: 'state', state }    full screen state from the procedure overlay (~20 Hz)
-     { type: 'standby' }         NAYZEEE standby screen
+     { type: 'standby' }         standby screen (model code + radiation sign, no brand)
      { type: 'locale', locale }  'screen.*' strings (prefix kept)
    Between two states the running contrast run keeps animating on the page's own clock.
    ═══════════════════════════════════════════════════════════ */
@@ -36,7 +36,7 @@
     if (demo) {
       const t = ((now - demoT0) / 1000) % 8;
       s = window.NZAAngio.demoState({ seed: 4127, key: 'jejunal', sev: 3 }, t > 1 ? t - 1 : 0);
-      s.run && (s.hud.label = 'Selective angiogram · Superior mesenteric');
+      s.run && (s.hud.label = 'Selective run · Superior mesenteric');
     } else if (s && s.run) {
       // keep the run moving between updates (capped so a stalled sender freezes it)
       const extra = Math.min(0.3, (now - recvAt) / 1000);

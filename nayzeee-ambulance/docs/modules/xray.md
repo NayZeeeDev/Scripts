@@ -22,14 +22,15 @@ cast**. Every film is built from the patient's real injuries and drawn procedura
 - The transport module lays patients on the table (`patient.meta.bed = { point, type = 'xray' }`,
   state bag `nzaTr = { m = 'bed', bt = 'xray', b = pointId }`). Without a transport placement the
   client falls back to "patient within `Take.tableRadius` of an xray point".
-- Patient options on a patient lying on the table: **X-ray: Head / Neck / Chest / Abdomen / Left arm
-  / Right arm / Left leg / Right leg** (order 60–67, perm `Take.perm`) and **Help patient off the
-  table** (order 10). The transport module owns help-off when loaded
+- Patient options on a patient lying on the table: one **Radiograph this patient** option (order 60,
+  perm `Take.perm`; the console picks the body part — no per-view list in the target menu) and
+  **Help them down from the table** (order 10). The transport module owns help-off when loaded
   (`NZA.Transport.OwnsHelpOff / HelpOff`); otherwise this module clears `meta.bed`, releases the bed
   point and stands the patient up beside the table (NPC by the medic, players on their own client).
-- Table target **Take X-ray** and radial **Take X-ray** open the **X-ray console**: body figure
-  with the 8 views, injured views tagged (from the medic snapshot), kVp / mAs per view, 1–8 / click,
-  Enter to take.
+- Table target **Take X-ray**, the patient option and radial **Take X-ray** open the **X-ray
+  console** (device face `RX-10 · Radiographic console`, generic model plate + radiation sticker, no
+  brand): holographic body figure with a scan sweep and the 8 views, injured views tagged (from the
+  medic snapshot), kVp / mAs as 240° dials per view, 1–8 / click, Enter to take.
 - Easy mode (`Take.easyAnywhere`): a single **X-ray…** option on any patient opens the console.
 
 ### Taking a film (`NZA.Proc 'xray'`)
@@ -64,8 +65,10 @@ patient's right on the viewer's left, lateral films show anterior on the left. T
 Drawn on canvas from the film data: soft tissue (fat stripe, lungs carved as air, bowel gas),
 bones as unions of parts per bone (cortex, medullary canal, trabecular texture; separate bones add
 up like real density), metal fragments pure white with a halo, grain, heel effect, vignette,
-burned-in labels (NAYZEEE MEDICAL / RADIOLOGY, film id, view, patient, kV/mAs, date, hospital) and
-a lead **R / L** marker.
+burned-in annotation in our own arrangement: a rotated series strip along the left edge (film id,
+view, projection, series / image), the lead **R / L** side marker with the projection tag under it,
+a calibration ruler bottom-left and a pale photographic **ID flash card** bottom-right (hospital,
+patient, id, date, kV / mAs, motion). No brand on the film.
 - **Views**: skull & face & C1–C2 (AP / lateral), C-spine C2–T1 with clavicles and trachea, chest
   (ribs, clavicles, scapulae, humeral heads, T-spine, heart & mediastinum, diaphragm, gastric
   bubble / lateral with sternum and kyphotic spine), abdomen (T12–L5 with pedicles and transverse
@@ -86,17 +89,23 @@ a lead **R / L** marker.
   film** (context menu when you carry several films). Needs a lightbox nearby
   (`Read.requireLightbox`, server-checked against the hospital points) — skipped in easy mode.
 - Camera on the lightbox prop (`Read.cameraOffset / cameraDist`), clipboard pose.
-- Layout: **film jacket** (patient, study, radiographer, quality, AP + lateral thumbnails with pin
-  counts) · **lightbox device** (NAYZEEE film viewer, light panel, clip) · **report window**
-  (request, your pins, angle, timer, result) · procedure panel.
-- Step 1 **Put the film up**: drag a film from the jacket onto the viewer.
-  Step 2 **Mark the break**: **2** mark tool — click to pin (click a pin to remove it, 8 per film),
-  **F** switch AP ↔ lateral, **1** move the film, **3** measure (draw a line along each piece of a
-  displaced break → angle), **L** viewer light on/off (the film is unreadable with the light off),
-  **C** contrast (normal / bone / hot light), scroll zoom (1–4×), **R** reset view, right-drag look
-  around, **N** normal film, **Enter** submit (after `Read.minTime`), hold **ESC** abort.
-- Result: grade + score, every finding confirmed / seen on one film / missed, wrong pins, your
-  measured angle vs the film's, the true positions drawn as rings on both films (F still switches).
+- Layout (1080p; 720p scales with the kit zoom): **film jacket** top-left (patient, study,
+  radiographer, quality, AP + lateral thumbnails with pin counts) · **lightbox** `LB-2 · Film
+  illuminator` left of centre (x 440, light panel, clip, corner-bracket hanging frame) · **report
+  window** right of it, kept ≥ 300 px from the right edge so the tool belt never covers it ·
+  procedure HUD bottom-left (readout: a *Review* dial that fills until the report opens + an
+  instrument list *Lamp* / *Clipped*; step card; a **film pair** widget in `pp.slot` with both
+  film thumbnails, their pins and a check once pinned) · tool belt on the right edge.
+- Step 1 **Hang a film**: drag a film from the jacket onto the lamp (or **F** clips the AP film).
+  Step 2 **Pin every finding**: **2** Pin — click to pin (click a pin to remove it, 8 per film),
+  **F** Other film (AP ↔ lateral), **1** Hand (move the film), **3** Angle (draw a line along each
+  piece of a displaced break → angle), **L** Lamp on/off (the film is unreadable in the dark),
+  **C** Window (soft / bone / bright), scroll zoom (1–4×), **R** recentre, right-drag orbit,
+  **N** normal film, **Enter** files the report (after `Read.minTime`), hold **ESC** to cancel.
+  Step 3 **File the report**.
+- Result: score as a status ring (no letter grade) in the report and on the HUD dial, every
+  finding confirmed / seen on one film / missed, stray pins, your measured angle vs the film's, the
+  true positions drawn as rings on both films (F still flips).
 - Mode `view` (no `Read.perm`, `Read.viewWithoutPerm`): look only, no marking, no lightbox needed.
 
 **Scoring (server)** — pins are matched greedily to findings per film within
@@ -121,7 +130,7 @@ on BOTH films is confirmed:
 - For displaced limb fractures (`fracture.displaced`, angle > `Reduce.tolerance`) that were read
   on a film (`Reduce.requireXray`) with the patient on a hospital point (`Reduce.requireHospital`)
   — both skipped in easy mode. Optional items `Reduce.items` (e.g. lidocaine).
-- **NAYZEEE FLUORO C-arm** monitor with the real fracture (static image + live distal fragment),
+- **`CA-9 · Mobile C-arm`** monitor (generic device face) with the real fracture (static image + live distal fragment),
   last-image-hold, LIVE indicator, dose timer, angle and shortening read-outs; traction panel with
   a force trace (pain line, out-to-length band), force and pain meters, patient mood.
 - 1/3 **Pull it out to length**: grab the lower piece on the screen and pull along the bone; the

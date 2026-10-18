@@ -57,9 +57,9 @@
 #app-burn .dv-list .dr.teal::before{background:var(--teal-hi);box-shadow:0 0 6px var(--teal-hi)} #app-burn .dv-list .dr.teal b{color:var(--teal-hi)}
 #app-burn .dv-list .dr.amber::before{background:#f3c35a} #app-burn .dv-list .dr.amber b{color:#f3c35a}
 #app-burn .dv-list .dr.red::before{background:#ff6b70;box-shadow:0 0 6px rgba(229,72,77,.7)} #app-burn .dv-list .dr.red b{color:#ff8a8d}
-#app-burn .dv-foot{position:relative;margin-top:6px}
+#app-burn .dv-foot{position:relative;display:flex;flex-direction:column;gap:3px;margin-top:6px}
 #app-burn .dv-trend{display:block;width:100%;height:38px;border-radius:4px}
-#app-burn .dv-cap{position:absolute;left:6px;top:3px;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#6d777e}
+#app-burn .dv-cap{order:-1;padding:0 2px;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#6d777e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #app-burn .dv-keys{display:flex;align-items:center;gap:8px;padding:9px 2px 0}
 #app-burn .dv-k{position:relative;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 8px;border-radius:8px;cursor:pointer;
   font:700 9.5px/1 var(--font);letter-spacing:.12em;text-transform:uppercase;color:#aeb6bb;

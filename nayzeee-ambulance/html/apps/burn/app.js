@@ -530,11 +530,14 @@
       const i = y * w + x, X = x * mmX, Y = y * mmY, e = soft[i];
       const b1 = fbm(n, X * 0.08, Y * 0.08, 4);
       let col = mixC(RED, RED2, smooth(0.3, 0.75, b1));
-      // fat lobules where the excision went into the subcutis
-      const L = wy(X * 0.55, Y * 0.55), lob = 1 - smooth(0.32, 0.5, L.f1), sept = 1 - smooth(0.0, 0.06, L.f2 - L.f1);
-      const fatA = smooth(0.5, 0.66, fbm(n, X * 0.05 + 20, Y * 0.05, 3)) * lob;
-      col = mixC(col, mixC(FAT, FAT2, L.id), fatA * 0.9);
-      col = mixC(col, [120, 18, 14], sept * fatA * 0.7);
+      // fat lobules where the excision went into the subcutis: polygonal, warped cells packed edge to
+      // edge, each a slightly different yellow, split by thin red septa with a tiny vessel in them
+      const wX = (fbm(n, X * 0.07 + 11, Y * 0.07, 3) - 0.5) * 3.4, wY = (fbm(n, X * 0.07, Y * 0.07 + 31, 3) - 0.5) * 3.4;
+      const L = wy(X * 0.42 + wX, Y * 0.42 + wY), edge = L.f2 - L.f1;
+      const lob = smooth(0.02, 0.16, edge), sept = 1 - smooth(0.0, 0.05, edge);
+      const fatZ = smooth(0.5, 0.66, fbm(n, X * 0.05 + 20, Y * 0.05, 3)), fatA = fatZ * lob;
+      col = mixC(col, mixC(mixC(FAT, FAT2, L.id), [244, 214, 128], smooth(0.1, 0.5, edge) * 0.35), fatA * 0.9);
+      col = mixC(col, [120, 18, 14], sept * fatZ * 0.75);
       // fibrin film
       col = mixC(col, FIB, smooth(0.62, 0.78, fbm(n, X * 0.12 + 50, Y * 0.12, 3)) * 0.38);
       // wall shadow and the pale cut edge of the skin
@@ -545,7 +548,7 @@
       const gr = (n(X * 2.5, Y * 2.5) - 0.5) * 18;
       const o = i * 4;
       d[o] = col[0] + gr; d[o + 1] = col[1] + gr * 0.6; d[o + 2] = col[2] + gr * 0.5; d[o + 3] = mask[i] * 255;
-      hgt[i] = b1 * 0.4 + lob * fatA * 0.7 - sept * 0.2 - wall * 0.8;
+      hgt[i] = b1 * 0.4 + fatA * (0.45 + 0.35 * smooth(0.0, 0.3, edge)) - sept * fatZ * 0.25 - wall * 0.8;
     }
     c.putImageData(id, 0, 0);
     // punctate bleeders: dark dots with a small wet halo
@@ -1853,7 +1856,7 @@
       }
       // instruments
       this.tb = {
-        bottle: mkTool(S, bin, 'bottle', buildBottle(bin, M), { lift: 0.05, pressLift: 0.05, tilt: 0.6, yaw: 1.9, roll: 0, shadow: 0.025 }),
+        bottle: mkTool(S, bin, 'bottle', buildBottle(bin, M), { lift: 0.042, pressLift: 0.042, tilt: 0.98, yaw: 1.72, roll: 0, shadow: 0.025 }),
         diascope: mkTool(S, bin, 'diascope', buildDiascope(bin, M), { lift: 0.007, pressLift: 0.0002, tilt: 0.0, yaw: 0.6, roll: 0, shadow: 0.02 }),
         stapler: mkTool(S, bin, 'stapler', buildStapler(bin, M), { lift: 0.006, pressLift: 0.0005, tilt: 0.55, yaw: 1.3, roll: 0, shadow: 0.03 }),
       };
@@ -2194,6 +2197,11 @@
       const g = this.g, cv = this.devTrend, c = cv.getContext('2d'), W = cv.width, H = cv.height;
       c.clearRect(0, 0, W, H);
       c.fillStyle = 'rgba(255,255,255,.035)'; c.fillRect(0, 0, W, H);
+      // faint grid: eight time columns, two value rows
+      c.strokeStyle = 'rgba(255,255,255,.05)'; c.lineWidth = 1; c.beginPath();
+      for (let i = 1; i < 8; i++) { const x = Math.round(i * W / 8) + 0.5; c.moveTo(x, 0); c.lineTo(x, H); }
+      for (let i = 1; i < 3; i++) { const y = Math.round(i * H / 3) + 0.5; c.moveTo(0, y); c.lineTo(W, y); }
+      c.stroke();
       let data = [], lo = 0, hi = 1, line = null, color = '#0fd4c4';
       if (mode === 'thermal' || mode === 'depth' || mode === 'tissue') {
         data = g.cool.trend; [lo, hi] = this.tempRange(); line = this.cfg.target;
@@ -3234,7 +3242,11 @@
       const bed = this.bedAreaMm2() || 1800;
       const Lneed = clamp(Math.round(bed / (cfg.graftWidth * 1.45)), 25, 135);
       const L3 = clamp(Math.round(bed / (cfg.graftWidth * 2.6)), 15, 135);
-      const sStart = -0.07, Lmax = 140;
+      // the planned strip is centred in the clear middle of the screen (HUD column left, tool belt right)
+      const sStart = -clamp(Lneed * MM / 2 + 0.01, 0.03, 0.078), Lmax = 140;
+      // a slightly oblique view from the side the blade travels to: the trailing handle leans away and
+      // the raw donor bed behind the head stays in sight
+      SB.controls.frame(SB.stToUv(sStart + Lneed * MM * 0.5, 0.004), clamp((Lneed * MM + 0.1) / 0.62, 0.24, 0.36), { yaw: 0.42, pitch: 1.02 });
       g.hv = {
         sStart, Lneed, L3, Lmax, cut: 0, front: sStart, p: 0.56, drift: 0, cutting: false, speed: 0,
         thin: new Float32Array(Lmax + 2).fill(1), wobble: new Float32Array(Lmax + 2), qual: new Float32Array(Lmax + 2).fill(1),
@@ -3248,8 +3260,18 @@
       const r1 = new THREE.Mesh(bin.own(ribbonGeo(SB, this.densify(rect, 0.002), 0.001, 0.0002, true)), ink); r1.renderOrder = 6; SB.scene.add(r1);
       const tick = [[sStart + L3 * MM, -W2 - 0.004], [sStart + L3 * MM, -W2 + 0.006]];
       const r2 = new THREE.Mesh(bin.own(ribbonGeo(SB, this.densify(tick, 0.001), 0.001, 0.0002, false)), ink); r2.renderOrder = 6; SB.scene.add(r2);
-      // dermatome
-      const tilt = 0.85;
+      // skin prep: povidone-iodine painted on in long, overlapping swab strokes round the planned strip
+      {
+        const R = rng((this.seed + 5) >>> 0), prepW = cfg.graftWidth * MM + 0.042, n = 8;
+        for (let i = 0; i < n; i++) {
+          const t = -prepW / 2 + (i + 0.5) * prepW / n + (R() - 0.5) * 0.003;
+          const s0 = sStart - 0.024 - R() * 0.008, s1 = sStart + Lneed * MM + 0.022 + R() * 0.01;
+          SB.layers.stroke('iodine', SB.stToUv(s0, t), SB.stToUv(s1, t + (R() - 0.5) * 0.004), 0.0052 + R() * 0.0018, 0.3 + R() * 0.14, { hardness: 0.22, grain: 0.65, grainScale: 70 });
+        }
+        for (let i = 0; i < 5; i++) SB.layers.paint('iodine', SB.stToUv(sStart - 0.02 + R() * (Lneed * MM + 0.04), (R() - 0.5) * prepW), (1 + R() * 2.5) * MM, 0.35 + R() * 0.3, { hardness: 0.4, grain: 0.5 });
+      }
+      // dermatome: held about 35° off the skin, handle trailing behind the blade (see alignDerm)
+      const tilt = 0.95;
       this.tbB = { derm: mkTool(SB, bin, 'dermatome', buildDermatome(bin, M, tilt), { lift: 0.0042, pressLift: 0.0003, tilt, yaw: Math.PI * 0.97, roll: 0, shadow: 0.07 }) };
       this.tbB.derm.group.visible = true; this.tbB.derm.group.position.set(0, -5, 0);
       SB.prewarm([], false);
@@ -3290,8 +3312,16 @@
       if (!g || !this.alive || g.scene !== 'B') return;
       g.t += dt;
       this.updatePain(dt);
-      if (g.step === 5) this.tickHarvest(dt);
+      if (g.step === 5) { this.alignDerm(); this.tickHarvest(dt); }
       this.tickCommon(dt);
+    },
+    // keep the dermatome handle trailing straight back along the strip (−s), whatever the camera does
+    alignDerm() {
+      const SB = this.SB, d = this.tbB && this.tbB.derm, hit = SB && SB.tools.hit;
+      if (!d || !hit) return;
+      const a = SB.project(SB.stToUv(hit.s, hit.t)), b = SB.project(SB.stToUv(hit.s - 0.03, hit.t));
+      const dx = (b.x - a.x) * window.innerWidth, dy = (a.y - b.y) * window.innerHeight;
+      if (dx * dx + dy * dy > 4) d.pose.yaw = Math.atan2(dy, dx);
     },
     startCut() {
       const g = this.g, SB = this.SB, hv = g.hv, hit = SB && SB.tools.hit;

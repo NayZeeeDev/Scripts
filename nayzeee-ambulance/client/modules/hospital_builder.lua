@@ -7,8 +7,10 @@
 
     Aim with the camera: a ray from the screen centre finds the floor / furniture under it.
       prop types    translucent ghost of the type's prop, bottom resting on the surface
-      marker types  glowing teal sphere + beam + ring (red while the spot is invalid)
+      marker types  survey pin: a bobbing inverted cone over a dashed plumb line, a small floor ring
+                    and a soft light pool (teal; red while the spot is invalid)
       vehicle types ghost car / helicopter (first garage vehicle of that kind)
+      every kind    floor corner brackets around the footprint + a facing arrow
     Controls (game input stays free to walk / look):
       E confirm · Q / X / Backspace / ESC cancel · ← → (hold) or mouse wheel rotate
       Shift faster · Alt fine · Page Up / Page Down raise / lower · G snap heading
@@ -16,6 +18,7 @@
     under the crosshair = invalid, E is refused.
 
     NUI app 'builder' (opened without focus): actions open, state, flash
+      state carries keys = { fast, fine, turn, wheel, lift } so the HUD can light the held keys
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -94,19 +97,28 @@ local function baseOffset(ent)
     return -(mn and mn.z or 0.0)
 end
 
-local function radiusOf(ent, kind)
+-- half extents + centre offset of the footprint in the entity's own axes (x = right, y = forward)
+local function footprintOf(ent, kind)
     if ent and ent ~= 0 then
         local mn, mx = GetModelDimensions(GetEntityModel(ent))
         if mn and mx then
-            return math.max(0.6, math.max(mx.x - mn.x, mx.y - mn.y) * 0.55)
+            return {
+                hx = math.max(0.35, (mx.x - mn.x) * 0.5), hy = math.max(0.35, (mx.y - mn.y) * 0.5),
+                cx = (mx.x + mn.x) * 0.5, cy = (mx.y + mn.y) * 0.5,
+            }
         end
     end
-    return kind == 'marker' and 0.6 or 1.0
+    local r = kind == 'marker' and 0.55 or 1.0
+    return { hx = r, hy = r, cx = 0.0, cy = 0.0 }
 end
 
 local function snapHeading(h, step)
     if not step or step <= 0 then return h end
     return (math.floor(h / step + 0.5) * step) % 360.0
+end
+
+local function line(a, b, r, g, bl, al)
+    DrawLine(a.x, a.y, a.z, b.x, b.y, b.z, r, g, bl, al)
 end
 
 local function draw(state, colour)
@@ -116,31 +128,60 @@ local function draw(state, colour)
     local base = state.surface
     local h = math.rad(state.shownHeading)
     local fwd = vector3(-math.sin(h), math.cos(h), 0.0)
-    local rad = state.radius
+    local right = vector3(math.cos(h), math.sin(h), 0.0)
+    local fp = state.foot
+    local lift = vector3(0.0, 0.0, 0.035)
+    local centre = base + right * fp.cx + fwd * fp.cy + lift
 
-    DrawMarker(25, base.x, base.y, base.z + 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, rad * 2.0, rad * 2.0, 1.0, r, g, b, 150, false, false, 2, false, nil, nil, false)
-    local tip = base + fwd * (rad + 0.45) + vector3(0.0, 0.0, 0.04)
-    DrawLine(base.x, base.y, base.z + 0.04, tip.x, tip.y, tip.z, r, g, b, 230)
-    DrawMarker(28, tip.x, tip.y, tip.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.07, 0.07, r, g, b, 230, false, false, 2, false, nil, nil, false)
+    -- floor corner brackets around the footprint (the NAYZEEE bracket, laid on the ground)
+    local arm = math.min(0.45, math.min(fp.hx, fp.hy) * 0.6)
+    for sx = -1, 1, 2 do
+        for sy = -1, 1, 2 do
+            local c = centre + right * (fp.hx * sx) + fwd * (fp.hy * sy)
+            line(c, c - right * (arm * sx), r, g, b, 235)
+            line(c, c - fwd * (arm * sy), r, g, b, 235)
+        end
+    end
+
+    -- facing arrow from the centre past the front edge
+    local tip = centre + fwd * (fp.hy + 0.55)
+    line(centre + fwd * (fp.hy * 0.35), tip, r, g, b, 235)
+    line(tip, tip - fwd * 0.2 + right * 0.13, r, g, b, 235)
+    line(tip, tip - fwd * 0.2 - right * 0.13, r, g, b, 235)
+
+    -- centre cross on the floor
+    line(centre - right * 0.12, centre + right * 0.12, r, g, b, 170)
+    line(centre - fwd * 0.12, centre + fwd * 0.12, r, g, b, 170)
 
     if state.kind == 'marker' then
-        DrawMarker(1, p.x, p.y, p.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.07, 2.6, r, g, b, 70, false, false, 2, false, nil, nil, false)
-        DrawMarker(28, p.x, p.y, p.z + 0.32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.32, 0.32, 0.32, r, g, b, 175, false, false, 2, false, nil, nil, false)
-        DrawMarker(28, p.x, p.y, p.z + 0.32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.5, r, g, b, 45, false, false, 2, false, nil, nil, false)
-    else
-        DrawMarker(1, base.x, base.y, base.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.04, 0.04, 1.4, r, g, b, 60, false, false, 2, false, nil, nil, false)
+        -- survey pin: bobbing inverted cone over a dashed plumb line + a thin floor ring
+        local top = p.z + 1.05
+        DrawMarker(0, p.x, p.y, top, 0.0, 0.0, 0.0, 0.0, 0.0, state.shownHeading, 0.26, 0.26, 0.34, r, g, b, 215, true, false, 2, false, nil, nil, false)
+        DrawMarker(25, p.x, p.y, base.z + 0.04, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, r, g, b, 120, false, false, 2, false, nil, nil, false)
+        local z0, z1 = base.z + 0.05, top - 0.22
+        local seg, gap = 0.09, 0.06
+        local z = z0
+        while z < z1 do
+            local z2 = math.min(z1, z + seg)
+            DrawLine(p.x, p.y, z, p.x, p.y, z2, r, g, b, 190)
+            z = z2 + gap
+        end
+        if DrawLightWithRange then DrawLightWithRange(p.x, p.y, base.z + 0.6, r, g, b, 2.2, 1.6) end
     end
 end
 
 local function sendState(state, force)
     local now = GetGameTimer()
-    local snapshot = ('%.1f|%.2f|%.1f|%s|%s|%s'):format(state.shownHeading, state.height, state.dist or -1, tostring(state.valid), tostring(state.reason), tostring(state.snap))
+    local k = state.keys or {}
+    local snapshot = ('%.1f|%.2f|%.1f|%s|%s|%s|%s%s%s%s%s'):format(state.shownHeading, state.height, state.dist or -1, tostring(state.valid), tostring(state.reason), tostring(state.snap),
+        k.fast and 1 or 0, k.fine and 1 or 0, k.turn and 1 or 0, k.wheel and 1 or 0, k.lift and 1 or 0)
     if not force and (snapshot == state.lastSent or now - (state.lastAt or 0) < 90) then return end
     state.lastSent, state.lastAt = snapshot, now
     NZA.UI.Send(APP, 'state', {
         heading = state.shownHeading, height = state.height, dist = state.dist, max = state.max,
         valid = state.valid, reason = state.reason, snap = state.snap, snapStep = bcfg().snapAngle or 15.0,
         coords = state.pos and { x = state.pos.x, y = state.pos.y, z = state.pos.z } or nil,
+        keys = k,
     })
 end
 
@@ -169,7 +210,8 @@ function C.Place(opts)
     end
     state.kind = kind
     local zBase = baseOffset(ghost)
-    state.radius = radiusOf(ghost, kind)
+    state.foot = footprintOf(ghost, kind)
+    state.keys = {}
     active = { ghost = ghost }
 
     NZA.UI.Open(APP, {
@@ -189,12 +231,21 @@ function C.Place(opts)
         if IsPedInAnyVehicle(ped, false) then reason = 'vehicle'; break end
 
         -- input
-        local mult = IsControlPressed(0, CTRL.shift) and fast or (IsControlPressed(0, CTRL.alt) and fine or 1.0)
+        local fastHeld, fineHeld = IsControlPressed(0, CTRL.shift), IsControlPressed(0, CTRL.alt)
+        local mult = fastHeld and fast or (fineHeld and fine or 1.0)
         local rot = 0.0
+        local turning = IsDisabledControlPressed(0, CTRL.left) or IsDisabledControlPressed(0, CTRL.right)
+        local wheeled = IsDisabledControlJustPressed(0, CTRL.wheelUp) or IsDisabledControlJustPressed(0, CTRL.wheelDown)
         if IsDisabledControlPressed(0, CTRL.left) then rot = rot + (bc.rotateSpeed or 90.0) * dt * mult end
         if IsDisabledControlPressed(0, CTRL.right) then rot = rot - (bc.rotateSpeed or 90.0) * dt * mult end
         if IsDisabledControlJustPressed(0, CTRL.wheelUp) then rot = rot + (bc.scrollStep or 7.5) * mult end
         if IsDisabledControlJustPressed(0, CTRL.wheelDown) then rot = rot - (bc.scrollStep or 7.5) * mult end
+        if wheeled then state.wheelUntil = GetGameTimer() + 220 end
+        state.keys = {
+            fast = fastHeld, fine = fineHeld and not fastHeld, turn = turning,
+            wheel = (state.wheelUntil or 0) > GetGameTimer(),
+            lift = IsDisabledControlPressed(0, CTRL.up) or IsDisabledControlPressed(0, CTRL.down),
+        }
         state.heading = (state.heading + rot) % 360.0
         if IsDisabledControlJustPressed(0, CTRL.snap) then state.snap = not state.snap end
         state.shownHeading = state.snap and snapHeading(state.heading, bc.snapAngle or 15.0) or state.heading
