@@ -77,7 +77,7 @@ local function entOf(net, wait)
     if not net then return 0 end
     local deadline = GetGameTimer() + (wait or 0)
     repeat
-        if NetworkDoesNetIdExist(net) then
+        if NetworkDoesNetworkIdExist(net) then
             local ent = NetworkGetEntityFromNetworkId(net)
             if ent and ent ~= 0 and DoesEntityExist(ent) then return ent end
         end
@@ -619,7 +619,7 @@ local function unseatFromChair(ent)
     if not st or not st.occ then return end
     local ped = 0
     if st.occNpc then
-        if NetworkDoesNetIdExist(st.occ) then ped = NetworkGetEntityFromNetworkId(st.occ) end
+        if NetworkDoesNetworkIdExist(st.occ) then ped = NetworkGetEntityFromNetworkId(st.occ) end
     else
         local pl = GetPlayerFromServerId(st.occ)
         if pl and pl ~= -1 then ped = GetPlayerPed(pl) end
