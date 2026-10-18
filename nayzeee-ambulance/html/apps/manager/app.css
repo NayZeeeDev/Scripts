@@ -475,6 +475,8 @@ button.mx-mr.on em{color:var(--teal-hi)}
 #app-manager .nza-win.mx-cw.wide{width:900px}
 #app-manager .mx-cw .w-main{overflow:hidden}
 #app-manager .mx-cw .w-main::before{display:none}
+#app-manager .mx-cw .w-brand{width:auto;min-width:248px;padding-right:20px}
+#app-manager .mx-cw .w-brand .t{white-space:nowrap}
 .mx-cbody{padding:18px 20px 20px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;max-height:calc(84vh / var(--nza-zoom) - 120px)}
 .mx-li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:11px;background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.008));border:1px solid var(--line-soft);transition:border-color var(--fast);animation:mx-swap 220ms both}
 .mx-li:hover{border-color:var(--line)}
