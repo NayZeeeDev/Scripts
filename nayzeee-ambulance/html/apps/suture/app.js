@@ -37,7 +37,7 @@
   const DEFAULTS = {
     quality: 'high',
     salineMl: 250, syringeMl: 30, salineFlow: 12, refillTime: 0.75, jetRadius: 4.5, cleanDone: 2,
-    lidoSyringe: 5, lidoDose: 0.5, lidoRate: 0.7, lidoMaxPoint: 0.9, lidoSpacing: 14, lidoOffset: 3.5, lidoPick: 4,
+    lidoSyringe: 5, lidoVial: 20, lidoDose: 0.5, lidoRate: 0.7, lidoMaxPoint: 0.9, lidoSpacing: 14, lidoOffset: 3.5, lidoPick: 4,
     mmPerStitch: 8, minStitches: 3, maxStitches: 12, extraStitches: 3, bite: 4, biteMin: 1.2, biteMax: 9.5, minDrag: 0.3,
     gauzeRadius: 16, gauzeCapacity: 160, gauzeMax: 6,
     flinchPain: 42, flinchChance: 0.55,
@@ -190,7 +190,8 @@
         bleed0: Math.max(0, +inj.bleed || 0),
         pain0: clamp(+inj.pain || 40, 5, 100), painSpike: 0, pain: 0,
         irr: { ml: Math.max(0, cfg.salineMl - cfg.syringeMl), syr: Math.min(cfg.syringeMl, cfg.salineMl), refill: 0, used: 0, cont: 0, sum0: 1, mask: null, done: false, onWound: 0 },
-        lido: { have: (d.items && +d.items.lidocaine) || 0, ml: 0, points: [], inj: null, done: false, said: false },
+        // loaded = mL in the 5 mL syringe; vial = what is left in the vial to draw up again
+        lido: { have: (d.items && +d.items.lidocaine) || 0, ml: 0, loaded: this.cfg.lidoSyringe, vial: this.cfg.lidoVial - this.cfg.lidoSyringe, points: [], inj: null, done: false, said: false },
         gz: { have: Math.min((d.items && +d.items.gauze) || 0, cfg.gauzeMax), used: 0, swab: null, stainT: 0, absorbed: 0 },
         sut: { N: 0, list: [], misses: 0, drag: null, done: false, last: null },
         dr: { D: null, rub: false, done: false, cover: 0, settledT: 0, warnT: 0 },
@@ -481,7 +482,7 @@
       g.tool = id;
       const et = ENGINE_TOOL[id];
       const tool = S.tools.use(et || null);
-      if (tool && id === 'lido') tool.set({ plunger: clamp(g.lido.ml / this.cfg.lidoSyringe, 0, 1) });
+      if (tool && id === 'lido') tool.set({ plunger: clamp(1 - g.lido.loaded / this.cfg.lidoSyringe, 0, 1) });
       if (tool && id === 'saline') tool.set({ plunger: clamp(1 - g.irr.syr / this.cfg.syringeMl, 0, 1) });
       this.stage.classList.toggle('busy', false);
       this.refreshTools();
@@ -657,11 +658,24 @@
       const g = this.g;
       for (const p of g.lido.points) this.S.markers.set(p.id, { uv: p.uv, kind: p.done ? 'check' : 'ring', size: p.done ? 0.0036 : 0.0032, color: 0x0fd4c4, pulse: !p.done, opacity: p.done ? 0.85 : 1 });
     },
+    // the syringe ran dry: draw up again from the vial (one vial does a whole wound)
+    refillLido() {
+      const g = this.g, cfg = this.cfg;
+      if (g.lido.vial <= 0.01) return false;
+      const take = Math.min(cfg.lidoSyringe - g.lido.loaded, g.lido.vial);
+      if (take <= 0.01) return false;
+      g.lido.loaded += take; g.lido.vial -= take;
+      const tool = this.S.tools.active;
+      if (tool && g.tool === 'lido') tool.set({ plunger: clamp(1 - g.lido.loaded / cfg.lidoSyringe, 0, 1) });
+      this.snd('click', 620);
+      this.flash('ok', T('lido_refill', 'Syringe refilled from the vial (%s mL left in it).', g.lido.vial.toFixed(0)), 1800);
+      return true;
+    },
     startInject() {
       const g = this.g, S = this.S, cfg = this.cfg;
       if (g.step !== 2) return this.flash('warn', T('lido_wrong_step', 'Not now — finish the current step first.'));
       if (!g.lido.have) return this.flash('bad', T('lido_none', 'You carry no lidocaine.'));
-      if (g.lido.ml >= cfg.lidoSyringe - 0.01) return this.flash('bad', T('lido_empty', 'The syringe is empty.'));
+      if (g.lido.loaded <= 0.01 && !this.refillLido()) return this.flash('bad', T('lido_vial_empty', 'The vial is empty.'));
       const hit = S.tools.hit;
       if (!hit) return this.flash('warn', T('no_skin', 'Put the tool on the skin first.'), 1600);   // never a silent click
       let best = null, bd = Infinity;
@@ -694,13 +708,15 @@
       inj.t += dt;
       if (inj.t < 0.18) return;   // needle going in
       const p = inj.p;
-      const add = Math.min(cfg.lidoRate * dt, cfg.lidoSyringe - g.lido.ml, cfg.lidoMaxPoint - p.ml);
+      // empty mid-dose: draw up again and carry on
+      if (g.lido.loaded <= 0.01 && !this.refillLido()) { this.stopInject(); return this.flash('bad', T('lido_vial_empty', 'The vial is empty.')); }
+      const add = Math.min(cfg.lidoRate * dt, g.lido.loaded, cfg.lidoMaxPoint - p.ml);
       if (add <= 0) {
         this.stopInject();
-        return this.flash('warn', g.lido.ml >= cfg.lidoSyringe - 0.01 ? T('lido_empty', 'The syringe is empty.') : T('lido_enough', 'Enough here — move to the next point.'));
+        return this.flash('warn', T('lido_enough', 'Enough here — move to the next point.'));
       }
-      p.ml += add; g.lido.ml += add;
-      if (tool) tool.set({ plunger: clamp(g.lido.ml / cfg.lidoSyringe, 0, 1) });
+      p.ml += add; g.lido.ml += add; g.lido.loaded -= add;
+      if (tool) tool.set({ plunger: clamp(1 - g.lido.loaded / cfg.lidoSyringe, 0, 1) });
       const f = clamp(p.ml / cfg.lidoDose, 0, 1.6);
       if (!p.bump) p.bump = S.bumps.add({ uv: p.uv, radius: 0.0012, height: 0.0001 });
       p.bump.set({ radius: (1.2 + 1.9 * Math.min(f, 1.3)) * MM, height: (0.12 + 0.42 * Math.min(f, 1.3)) * MM });

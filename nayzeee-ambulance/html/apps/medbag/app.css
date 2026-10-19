@@ -516,3 +516,16 @@
 #app-medbag .mb-lv b.inf{font-size:26px;color:var(--teal-hi,#3fe0d0);line-height:1;margin-top:-4px}
 #app-medbag .mb-slot.inf .q{color:var(--teal-hi,#3fe0d0);border-color:rgba(8,175,162,.4);font-size:12px;line-height:15px}
 #app-medbag .mb-slot.inf{cursor:pointer}
+
+/* ── clean bag: the colour outline stays, no fabric / mesh / zipper / loops; plain square slots ── */
+#app-medbag .shell{background:rgba(10,11,13,.55);border:1.5px solid var(--bc);border-radius:14px!important;padding:8px!important;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 0 18px -6px var(--bc)}
+#app-medbag .shell::before{display:none}
+#app-medbag .inner,#app-medbag .inner.mesh{background:none;box-shadow:none;padding:0;border-radius:0!important}
+#app-medbag .mb-hinge,#app-medbag .zpull,#app-medbag .reflect,#app-medbag .mb-slot .loop,#app-medbag .mb-slot .flap,#app-medbag .mb-slot img.stk{display:none}
+#app-medbag .mb-lid{margin-bottom:10px}
+#app-medbag .mb-slot{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);border-radius:10px;box-shadow:none;padding:0 4px 8px}
+#app-medbag .mb-slot:not(.empty):hover{background:rgba(255,255,255,.06);border-color:var(--bc)}
+#app-medbag .mb-slot.empty{background:rgba(255,255,255,.015);border-style:dashed;border-color:rgba(255,255,255,.06)}
+#app-medbag .mb-slot img{margin-top:10px}
+#app-medbag .mb-slot.tall .q{top:4px}
+#app-medbag .mb-open.opening .mb-lid{animation:none}

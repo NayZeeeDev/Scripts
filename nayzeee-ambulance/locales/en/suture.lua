@@ -130,6 +130,8 @@ NZA.AddLocale('en', {
 
     -- anaesthetic
     ['suture.lido_empty'] = 'The syringe is empty.',
+    ['suture.lido_refill'] = 'Syringe refilled from the vial (%s mL left in it).',
+    ['suture.lido_vial_empty'] = 'The vial is empty.',
     ['suture.lido_enough'] = 'Enough here — move to the next point.',
     ['suture.lido_none'] = 'You carry no lidocaine.',
     ['suture.lido_none_why'] = 'You carry no lidocaine, so you cannot numb the wound. Stitch without it (the patient will flinch) or bring lidocaine.',
