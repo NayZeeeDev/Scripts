@@ -297,7 +297,9 @@ local function giveDrug(p, g)
     end
     Wait(tonumber(a.duration) or 2600)
     pcall(NZA.Anim.Stop, me)
-    local ok = NZA.Treat.Do('fa_med', p.target, { drug = g.drug, dose = g.dose, route = g.route })
+    -- the panel waits for 'given': an error here must still answer it
+    local called, ok = pcall(NZA.Treat.Do, 'fa_med', p.target, { drug = g.drug, dose = g.dose, route = g.route })
+    if not called then NZA.Debug('fa_med failed', ok); ok = false end
     if p.closed then return end
     if ok and not mc.keepOpen then
         NZA.UI.Send(APP, 'given', { ok = true })
@@ -305,9 +307,9 @@ local function giveDrug(p, g)
         p.closed = true
         return
     end
-    local info = lib.callback.await('nza:firstaid:meds', false, p.target)
+    local got, info = pcall(lib.callback.await, 'nza:firstaid:meds', false, p.target)
     NZA.UI.Send(APP, 'given', { ok = ok, drugs = buildDrugs() })
-    if info then NZA.UI.Send(APP, 'meds', info) end
+    if got and info then NZA.UI.Send(APP, 'meds', info) end
 end
 
 function Start.meds(entity, target, preset)

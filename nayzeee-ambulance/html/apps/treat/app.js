@@ -77,7 +77,7 @@
         if (Math.hypot(o.dx - dx, o.dy - dy) < Math.min(o.r, r) * 0.5) { o.r = Math.min(o.r + r * 0.06, 7); o.a = Math.min(0.8, o.a + a * 0.2); return; }
       }
       s.push({ dx, dy, r, a: Math.min(0.8, a), seed: Math.random(), rot: Math.random() * 3 });
-      if (s.length > 360) s.splice(0, s.length - 360);
+      if (s.length > 160) s.splice(0, s.length - 160);   // each stain is a gradient fill every frame: keep the count modest
     },
     update(dt, w) {
       for (let i = this.parts.length - 1; i >= 0; i--) {
@@ -96,7 +96,7 @@
           p.vx *= 1 - 0.6 * dt; p.vy *= 1 - 0.6 * dt;
           p.x += Math.sin(p.life * 7 + p.seed * 9) * 0.25 * w.cm * dt;
           p.trail -= dt;
-          if (p.trail <= 0) { p.trail = 0.05; this.stain((p.x - w.x) / w.cm, (p.y - w.y) / w.cm, (p.r * 0.95) / w.cm, 0.2); }
+          if (p.trail <= 0) { p.trail = 0.1; this.stain((p.x - w.x) / w.cm, (p.y - w.y) / w.cm, (p.r * 0.95) / w.cm, 0.2); }
           if (p.life <= 0) this.parts.splice(i, 1);
         }
       }
@@ -601,9 +601,10 @@
     msg: {
       vitals(d) { const a = app; if (!a.G || !d) return; a.G.hr = d.hr || a.G.hr; a.G.sys = d.sys || a.G.sys; a.vit = d; a.renderVitals(); },
       result(o) { app.showResult(o || {}); },
-      meds(info) { if (app.mode === 'meds' && info) { app.d.info = info; app.medsEl.classList.remove('busy'); app.renderMeds(); } },
+      meds(info) { if (app.mode === 'meds' && info) { clearTimeout(app.busyT); app.d.info = info; app.medsEl.classList.remove('busy'); app.renderMeds(); } },
       given(d) {
         const a = app; if (a.mode !== 'meds') return;
+        clearTimeout(a.busyT);
         a.medsEl.classList.remove('busy');
         if (d && d.ok) { NZA.audio.success(); if (d.drugs) a.d.drugs = d.drugs; } else NZA.audio.fail();
         a.renderMeds();
@@ -656,7 +657,9 @@
 
     /* ─────────────── frame ─────────────── */
     frame() {
-      const t = now(); const dt = Math.min(0.05, (t - this.last) / 1000); this.last = t;
+      // dt up to 0.1 s (holds keep real time down to 10 fps); gesture speeds use the real frame time
+      const t = now(), raw = (t - this.last) / 1000; this.last = t;
+      const dt = Math.min(0.1, raw); this.realDt = clamp(raw, 0.001, 0.5);
       const G = this.G; if (!G) return;
       G.t += dt;
       const fit = NZA.fitCanvas(this.cv); const W = fit.w, H = fit.h;
@@ -668,7 +671,15 @@
       const w = this.geo();
       c.clearRect(0, 0, W, H);
       if (!NZA.inGame && this.preset) Backdrop.draw(c, W, H, anc, this.preset);
-      if (!w) { this.pp && this.statusTick(dt); return; }
+      if (!w) {
+        // never a silent dead screen: say what is missing
+        G.noGeo = (G.noGeo || 0) + dt;
+        if (G.noGeo > 1.2 && !G.noGeoSaid && this.pp) { G.noGeoSaid = true; this.pp.flash('warn', T('see_wound', 'Turn the view (right-drag) until the wounded part is on screen.'), 0); }
+        this.pp && this.statusTick(dt);
+        return;
+      }
+      if (G.noGeoSaid) { G.noGeoSaid = false; if (this.pp) this.pp.flash(null); }
+      G.noGeo = 0;
       G.w = w;
       if (this.ph && this.ph.update) this.ph.update(dt, w);
       this.bleedTick(dt, w);
@@ -700,11 +711,15 @@
       }
       const limbSeg = this.limbSeg();
       if (limbSeg) {
-        const j0 = A('j0'), j1 = A('j1'), j2 = A('j2');
-        if (!j0 || !j1 || !j2) return null;
+        let j0 = A('j0'), j1 = A('j1'), j2 = A('j2');
         const leg = (d.limb || (d.injury && d.injury.limb)) === 'leg';
-        const L1 = dist(j0, j1), L2 = dist(j1, j2);
         const seg = limbSeg.seg, frac = limbSeg.frac;
+        // only the wounded segment has to be on screen: a joint past the edge of the close-up (the
+        // foot when the thigh bleeds) is extended from the visible segment so everything else works
+        if (seg === 'upper' && j0 && j1 && !j2) j2 = add(j1, mul(norm(sub(j1, j0)), dist(j0, j1) * (leg ? 42 / 44 : 26 / 30)));
+        if (seg === 'lower' && j1 && j2 && !j0) j0 = sub(j1, mul(norm(sub(j2, j1)), dist(j1, j2) * (leg ? 44 / 42 : 30 / 26)));
+        if (!j0 || !j1 || !j2) return null;
+        const L1 = dist(j0, j1), L2 = dist(j1, j2);
         const a = seg === 'upper' ? j0 : j1, b = seg === 'upper' ? j1 : j2;
         const axis = norm(sub(b, a));
         // segment lengths: thigh 44 cm, lower leg 42, upper arm 30, forearm 26 · widths 16 / 11 / 10 / 8 cm
@@ -1202,7 +1217,7 @@
             const da = angDiff(ang, this.lastAng);
             if (!this.dir && Math.abs(da) > 0.02) this.dir = Math.sign(da);
             const fwd = da * (this.dir || 1);
-            const inst = Math.abs(da) / Math.max(dt, 1e-3);
+            const inst = Math.abs(da) / Math.max(app.realDt || dt, 1e-3);
             this.omega = lerp(this.omega, fwd > 0 ? inst : 0, 0.12);
             if (fwd > 0) {
               this.acc += fwd;
@@ -1653,7 +1668,7 @@
           if (Math.hypot(dx, dy) > 3 * G.U) {
             const ang = Math.atan2(dy, dx);
             if (ph.la !== null && ph.la !== undefined) {
-              const da = clamp(angDiff(ang, ph.la), -0.75, 0.75);
+              const capA = Math.min(2.8, 0.75 * Math.max(1, (app.realDt || 0.016) / 0.016)), da = clamp(angDiff(ang, ph.la), -capA, capA);   // per-frame cap grows with long frames
               if (!ph.dir && Math.abs(da) > 0.06) ph.dir = da > 0 ? 1 : -1;
               const fwd = da * (ph.dir || 1);
               q.theta += fwd;
@@ -2256,8 +2271,20 @@
       const dr = this.curDrug(); if (!dr) return;
       const { out, block } = this.medWarnings(dr);
       if (block) { NZA.audio.fail(); return; }
-      if (out.some(x => x.tone === 'red') && !forced) { NZA.audio.fail(); return; }
+      if (out.some(x => x.tone === 'red') && !forced) {
+        NZA.audio.fail();
+        NZA.toast({ type: 'warning', message: T('med_hold', 'There is a red warning: hold the red button for a second to give it anyway.'), duration: 3200 });
+        return;
+      }
       this.medsEl.classList.add('busy');
+      // the panel unlocks when Lua answers ('given' / 'meds'); never leave it greyed out for good
+      clearTimeout(this.busyT);
+      this.busyT = setTimeout(() => {
+        if (!this.medsEl.classList.contains('busy')) return;
+        this.medsEl.classList.remove('busy');
+        NZA.audio.fail();
+        NZA.toast({ type: 'error', message: T('med_noreply', 'The dose did not go through. Try again.'), duration: 3200 });
+      }, 9000);
       NZA.post('treat:give', { drug: dr.id, dose: this.ms.dose, route: this.ms.route });
     },
 

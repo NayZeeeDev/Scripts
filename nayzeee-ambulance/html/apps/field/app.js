@@ -137,6 +137,11 @@
       </div>`;
     host.appendChild(root);
     let vol = o.vol, rate = 0, dragging = false, lastMove = now(), acc = 0, flashed = false, fluid = o.fluid, dead = false;
+    // Holding the plunger still moves it by itself at a steady speed inside the target band (a drag
+    // of a few pixels a second is not something a mouse can do); dragging still works for fine
+    // control and takes over while the mouse moves. api.auto(true) runs it without a hold (keys).
+    const autoRate = o.autoRate || (o.band ? o.band[0] + (o.band[1] - o.band[0]) * 0.7 : 1.2);
+    let lastDrag = 0, lastY = null, autoOn = false;
     const liq = root.querySelector('.liq'), pl = root.querySelector('.pl');
     const draw = () => {
       const y = BOT - clamp(vol / o.cap, 0, 1) * LEN;
@@ -169,20 +174,26 @@
       }
     };
     const barrelPx = () => Math.max(40, root.querySelector('.syr-col svg').getBoundingClientRect().height * (LEN / VH));
-    const onDown = e => { if (e.button !== 0 || dead) return; dragging = true; root.classList.add('drag'); e.preventDefault(); e.stopPropagation(); };
-    const onMove = e => {
-      if (!dragging || dead) return;
-      const dv = -(e.movementY / barrelPx()) * o.cap;
-      let nv = vol + dv;
+    const applyVol = nv => {
       if (o.mode === 'push') nv = Math.min(vol, nv); else nv = Math.max(vol, nv);
       nv = clamp(nv, 0, o.cap);
       const d = Math.abs(nv - vol);
       if (d > 0) { acc += d; vol = nv; lastMove = now(); }
-      if (o.flashAt !== null && !flashed && o.mode === 'pull' && vol >= o.flashAt) { flashed = true; fluid = 'marrow'; o.onFlash && o.onFlash(); }
+      if (o.flashAt !== null && !flashed && o.mode === 'pull' && vol >= o.flashAt) { flashed = true; fluid = 'marrow'; autoOn = false; o.onFlash && o.onFlash(); }
       draw();
       o.onChange && o.onChange(vol, rate);
     };
-    const onUp = () => { if (!dragging) return; dragging = false; root.classList.remove('drag'); o.onRelease && o.onRelease(vol, rate); };
+    const onDown = e => { if (e.button !== 0 || dead) return; dragging = true; lastY = e.clientY; lastDrag = 0; root.classList.add('drag'); e.preventDefault(); e.stopPropagation(); };
+    const onMove = e => {
+      if (!dragging || dead) return;
+      // screen distance since the last event (movementY can be missing in embedded browsers)
+      const dy = lastY === null ? 0 : e.clientY - lastY;
+      lastY = e.clientY;
+      if (!dy) return;
+      lastDrag = now();
+      applyVol(vol - (dy / barrelPx()) * o.cap);
+    };
+    const onUp = () => { if (!dragging) return; dragging = false; lastY = null; root.classList.remove('drag'); o.onRelease && o.onRelease(vol, rate); };
     root.querySelector('.syr-col').addEventListener('mousedown', onDown);
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -190,6 +201,12 @@
     const tick = () => {
       if (dead) return;
       const t = now(), dt = Math.max(0.001, (t - tPrev) / 1000); tPrev = t;
+      // held still (or auto): the plunger moves at the steady speed
+      if ((dragging && t - lastDrag > 180) || autoOn) {
+        const full = o.mode === 'push' ? vol <= 0 : vol >= o.cap;
+        if (!full) applyVol(vol + autoRate * Math.min(dt, 0.25) * (o.mode === 'push' ? -1 : 1));
+        else autoOn = false;
+      }
       const inst = acc / dt; acc = 0;
       const k = 1 - Math.exp(-dt / 0.35);
       rate += (inst - rate) * k;
@@ -203,6 +220,7 @@
     draw();
     return {
       el: root, get vol() { return vol; }, get rate() { return rate; }, get dragging() { return dragging; },
+      auto(on) { autoOn = !!on && !dead; },
       set(v) { vol = clamp(v, 0, o.cap); draw(); },
       fluid(f) { fluid = f; if (f === 'marrow') flashed = true; draw(); },
       ret(html) { const r = root.querySelector('.syr-ret'); if (r) r.innerHTML = html; },
@@ -783,7 +801,7 @@
       post('phase', { proc: 'io', phase: 'confirm', site: io.site });
       ui.pp.set({
         step: 4, title: L('s_aspirate', 'Draw back'), tag: siteName(io.site),
-        text: L('confirm_text', 'Remove the stylet, fit the syringe and **draw the plunger up**. Dark blood in the barrel means you are in.'),
+        text: L('confirm_text', 'Remove the stylet, fit the syringe and **hold the plunger** (or press 1) to draw back. Dark blood in the barrel means you are in.'),
         tools: [{ key: '1', label: L('tool_syringe', 'Syringe 10 ml'), icon: 'syringe', state: 'active' }],
         hints: hintsCam(),
       });
@@ -832,7 +850,7 @@
       else text = L('flush_pick', 'Push **saline** through the line (3).');
       ui.pp.set({ text });
       const n = q('.fn');
-      if (n) n.innerHTML = `<span class="ni">${icon(io.tool ? 'arrow-down' : 'syringe')}</span><span>${NZA.rich(io.tool ? L('flush_drag', 'Drag the plunger down. Keep the needle in the teal arc.') : L('flush_pick_tool', 'Choose a syringe.'))}</span>`;
+      if (n) n.innerHTML = `<span class="ni">${icon(io.tool ? 'arrow-down' : 'syringe')}</span><span>${NZA.rich(io.tool ? L('flush_drag', 'Hold the plunger to push at a steady speed, or drag it down. Keep the needle in the teal arc.') : L('flush_pick_tool', 'Choose a syringe.'))}</span>`;
       const fc = q('.fc');
       if (fc) fc.innerHTML = `${io.ext ? icon('check') : icon('x')}${esc(L('fc_line', 'Line'))}`;
       if (fc) fc.className = `m-chip fc ${io.ext ? 'teal' : ''}`;
@@ -884,6 +902,7 @@
       if (K === 'N' && (io.phase === 'site' || io.failed)) return skip();
       if (io.phase === 'site' && /^[1-4]$/.test(k)) return this.pick(IO_SITES[Number(k) - 1]);
       if (io.phase === 'drill' && K === 'R') return this.newNeedle();
+      if (io.phase === 'confirm' && k === '1' && io.syr && !io.aspirated) return io.syr.auto(true);
       if (io.phase === 'flush') {
         if (k === '1' && !io.ext) { io.ext = true; NZA.audio.click(900); ui.pp.flash('ok', L('ext_ok', 'Extension line primed and locked.')); this.flushTools(); this.flushText(); return; }
         if (k === '2' && io.ext && S.data.lidocaine !== false && io.lido.ml < (S.data.lidoMl || 2) - 0.05) return this.useSyringe('lido');
@@ -1255,7 +1274,7 @@
       if ((rs.counts.txa || 0) < 1) { ui.pp.flash('bad', L('no_txa', 'No TXA in the kit.')); return; }
       const box = ui.inf.querySelector('.fd-txa-h');
       const push = S.data.txaPush || 10;
-      box.innerHTML = `<div class="fd-txa"><div class="t"><b>${esc(L('txa_title', 'TXA 1 g / 10 ml'))}</b><span>${esc(L('txa_slow', 'Push over ≥ {s} s', { s: push }))}</span></div><div class="sh"></div></div>`;
+      box.innerHTML = `<div class="fd-txa"><div class="t"><b>${esc(L('txa_title', 'TXA 1 g / 10 ml'))}</b><span>${esc(L('txa_slow', 'Hold the plunger · over ≥ {s} s', { s: push }))}</span></div><div class="sh"></div></div>`;
       const t0 = { start: 0 };
       rs.txa = Syringe(box.querySelector('.sh'), {
         cap: 10, vol: 10, mode: 'push', fluid: 'txa', band: [0.15, 10 / push], maxRate: (10 / push) * 2, label: L('tool_txa', 'TXA 1 g'), compact: true,
@@ -1827,7 +1846,7 @@
   /* ═══════════════════════════ LOOP ═══════════════════════════ */
   function loop(t) {
     if (!S.open) return;
-    const dt = Math.min(0.05, (t - (lastT || t)) / 1000); lastT = t;
+    const dt = Math.min(0.1, (t - (lastT || t)) / 1000); lastT = t;   // real time down to 10 fps
     const h = H_[S.proc];
     if (h && h.frame && S.status === 'run') { try { h.frame(dt); } catch (err) { console.error('[field]', err); } }
     if (S.preview && ui.scene) drawScene();
