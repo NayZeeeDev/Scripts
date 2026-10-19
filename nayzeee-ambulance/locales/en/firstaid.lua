@@ -555,7 +555,7 @@ NZA.AddLocale('en', {
     ['firstaid.step_measure']                = 'Sizing',
     ['firstaid.step_fasten']                 = 'Fit',
     -- minigame hints
-    ['firstaid.see_wound'] = 'Turn the view (right-drag) until the wounded part is on screen.',
+    ['firstaid.see_wound'] = 'Turn the view (right-drag) or scroll out until the wounded part is on screen.',
     ['firstaid.med_hold'] = 'There is a red warning: hold the red button for a second to give it anyway.',
     ['firstaid.med_noreply'] = 'The dose did not go through. Try again.',
 })

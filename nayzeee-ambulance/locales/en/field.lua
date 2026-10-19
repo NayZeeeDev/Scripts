@@ -342,7 +342,7 @@ NZA.AddLocale('en', {
     ['field.iv_tq_off'] = 'Tourniquet off.',
     ['field.iv_tq_on'] = 'Tourniquet on. Veins filling…',
     ['field.iv_tq_on_short'] = 'On',
-    ['field.iv_withdraw'] = 'Press above the tip and **drag the needle out** of the cannula.',
+    ['field.iv_withdraw'] = 'Press above the tip and **drag the needle out** of the cannula (or just hold it).',
     ['field.iv_withdraw_tq'] = 'Take the **tourniquet** off (1) before the needle comes out.',
     ['field.k_click'] = 'Click',
     ['field.k_hold'] = 'Hold',

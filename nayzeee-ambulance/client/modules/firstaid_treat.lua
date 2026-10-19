@@ -101,7 +101,9 @@ local function cameraFor(ped, data)
         cfg = FA.Cfg('StopBleed').camera or {}
         bone = NZA.Const.RegionBone[data.injury and data.injury.region or 'chest'] or 24818
     end
-    local ok = pcall(NZA.Cam.Close, ped, bone, { dist = cfg.dist or 0.95, pitch = cfg.pitch or 58.0, fov = cfg.fov or 42.0 })
+    -- right-drag turns the close-up (so a wound at the edge of the frame can be brought into view), wheel zooms
+    local ok = pcall(NZA.Cam.Close, ped, bone, { dist = cfg.dist or 0.95, pitch = cfg.pitch or 58.0, fov = cfg.fov or 42.0,
+        orbit = cfg.orbit ~= false, minPitch = 25.0, maxPitch = 85.0 })
     if not ok then pcall(NZA.Cam.Orbit, ped, { dist = 1.6, pitch = 55.0 }) end
 end
 

@@ -674,7 +674,7 @@
       if (!w) {
         // never a silent dead screen: say what is missing
         G.noGeo = (G.noGeo || 0) + dt;
-        if (G.noGeo > 1.2 && !G.noGeoSaid && this.pp) { G.noGeoSaid = true; this.pp.flash('warn', T('see_wound', 'Turn the view (right-drag) until the wounded part is on screen.'), 0); }
+        if (G.noGeo > 1.2 && !G.noGeoSaid && this.pp) { G.noGeoSaid = true; this.pp.flash('warn', T('see_wound', 'Turn the view (right-drag) or scroll out until the wounded part is on screen.'), 0); }
         this.pp && this.statusTick(dt);
         return;
       }

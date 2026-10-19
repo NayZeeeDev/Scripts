@@ -1541,7 +1541,7 @@
         find: iv.fill < 1 ? L('iv_fill', 'Veins filling… {p}%', { p: Math.round(iv.fill * 100) }) : L('iv_find', 'Hold {Click} on the forearm and press. A good vein springs back — let go to mark it.'),
         insert: iv.inVein ? L('iv_flash', 'Blood in the chamber — stop there.') : L('iv_insert', 'Set {a}–{b}° with the wheel or ↑ ↓, then hold {{key}} to go in.', { a: a[0], b: a[1], key: keyName(S.keys.insert || 'Space') }),
         advance: L('iv_advance', 'Drop the angle and hold {{key}} to slide the cannula home. {p}%', { key: keyName(S.keys.advance || 'KeyE'), p: Math.round(iv.cannula * 100) }),
-        withdraw: iv.tq ? L('iv_withdraw_tq', 'Take the **tourniquet** off (1) before the needle comes out.') : L('iv_withdraw', 'Press above the tip and **drag the needle out** of the cannula.'),
+        withdraw: iv.tq ? L('iv_withdraw_tq', 'Take the **tourniquet** off (1) before the needle comes out.') : L('iv_withdraw', 'Press above the tip and **drag the needle out** of the cannula (or just hold it).'),
         secure: !iv.secured ? L('iv_secure', 'Cover the hub with the **dressing** (3).') : !iv.flushed ? L('iv_flush', 'Flush it (4) to prove it runs.') : L('iv_done', 'Line in and running.'),
       }[iv.phase];
       ui.pp.set({ text: t });
@@ -1625,17 +1625,34 @@
           </div></div>`, { unit: 'nc', right: `<span class="m-chip">${S.data.gauge || 18}G</span>` });
       const cv = ui.dev.querySelector('.d-xsec');
       cv.addEventListener('wheel', e => { e.preventDefault(); this.setAngle(S.iv.angle - Math.sign(e.deltaY) * 1); }, { passive: false });
-      cv.addEventListener('mousedown', e => { if (e.button === 0 && S.iv.phase === 'withdraw') { e.stopPropagation(); S.iv.dragNeedle = true; } });
+      // drag left to pull the needle out (screen distance between events: movementX can be missing in
+      // embedded browsers); holding still on it draws it out slowly by itself
+      cv.addEventListener('mousedown', e => {
+        if (e.button !== 0 || S.iv.phase !== 'withdraw') return;
+        e.stopPropagation();
+        S.iv.dragNeedle = true; S.iv.lastX = e.clientX; S.iv.lastDragT = now();
+        const hold = () => {
+          const iv = S.iv;
+          if (!iv || !iv.dragNeedle || iv.phase !== 'withdraw' || !cv.isConnected) return;
+          if (now() - iv.lastDragT > 250) { iv.withdraw = clamp((iv.withdraw || 0) + 0.016 * 0.55, 0, 1); if (iv.withdraw >= 1) { this.withdrawn(); return; } }
+          requestAnimationFrame(hold);
+        };
+        requestAnimationFrame(hold);
+      });
       if (this._mv) window.removeEventListener('mousemove', this._mv);
       if (this._mu) window.removeEventListener('mouseup', this._mu);
       window.addEventListener('mousemove', this._mv = e => {
         const iv = S.iv;
         if (!iv || !iv.dragNeedle || iv.phase !== 'withdraw' || !cv.isConnected) return;
+        const dx = iv.lastX == null ? 0 : e.clientX - iv.lastX;
+        iv.lastX = e.clientX;
+        if (!dx) return;
+        iv.lastDragT = now();
         const px = Math.max(40, cv.offsetWidth * (NZA.zoom || 1));
-        iv.withdraw = clamp((iv.withdraw || 0) + Math.max(0, -(e.movementX || 0)) / px * 2.2, 0, 1);
+        iv.withdraw = clamp((iv.withdraw || 0) + Math.max(0, -dx) / px * 2.2, 0, 1);
         if (iv.withdraw >= 1) this.withdrawn();
       });
-      window.addEventListener('mouseup', this._mu = () => { if (S.iv) S.iv.dragNeedle = false; });
+      window.addEventListener('mouseup', this._mu = () => { if (S.iv) { S.iv.dragNeedle = false; S.iv.lastX = null; } });
     },
     setAngle(a) {
       const iv = S.iv;
