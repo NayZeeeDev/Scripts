@@ -384,6 +384,8 @@
       teardown();
       if (NZA.inGame) NZA.post('monitor:unbind', {});
     },
+    // hidden under a 3D close-up: the sweeping traces stop (the numbers and alarms keep running)
+    cover(on) { Object.values(M.traces).forEach(t => (on || !M.power ? t.stop() : t.start())); },
     msg: {
       vitals(v) {
         if (!v) return;

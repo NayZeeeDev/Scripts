@@ -134,7 +134,7 @@ Config.Bullet = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Game = {
-        quality      = 'high',   -- 3D quality: 'high' | 'medium' | 'low' (lower = faster on weak PCs)
+        quality      = 'high',   -- 3D detail: 'high' | 'medium' | 'low'; capped by Config.UI.quality3d ('auto' = medium in game)
 
         -- 1 · locate
         probeSpeed   = 8,        -- mm per second the probe slides down a clean track

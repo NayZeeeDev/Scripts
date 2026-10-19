@@ -324,8 +324,12 @@ end)
 
 -- live numbers on the LCD
 CreateThread(function()
+    local lastSig
     while true do
-        if P.visible then
+        local top = NZA.UI.Top()
+        if P.visible and top and top ~= APP and top ~= 'callcard' then
+            Wait(1000)   -- a focused procedure is on top: the pager is out of sight
+        elseif P.visible then
             local live = { time = clock(), calls = {} }
             local n = 0
             for _, c in ipairs(D.Calls and D.Calls() or {}) do
@@ -337,7 +341,8 @@ CreateThread(function()
                 n = n + 1
                 if n >= 12 then break end
             end
-            NZA.UI.Send(APP, 'live', live)
+            local sig = json.encode(live)
+            if sig ~= lastSig then lastSig = sig; NZA.UI.Send(APP, 'live', live) end
             Wait(500)
         else
             Wait(800)

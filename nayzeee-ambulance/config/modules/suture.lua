@@ -92,7 +92,7 @@ Config.Suture = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Game = {
-        quality      = 'high',   -- 3D quality: 'high' | 'medium' | 'low' (lower = faster on weak PCs)
+        quality      = 'high',   -- 3D detail: 'high' | 'medium' | 'low'; capped by Config.UI.quality3d ('auto' = medium in game)
 
         -- 1 · irrigation
         salineMl     = 250,      -- mL of saline in the bottle

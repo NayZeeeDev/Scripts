@@ -401,7 +401,7 @@
   }
 
   NZA.app('bullet', {
-    escClose: false, full: true, noscale: true, camInput: false,
+    escClose: false, full: true, noscale: true, camInput: false, opaque: true,
 
     init(el) {
       this.el = el;
@@ -588,7 +588,8 @@
       mine.forEach(t => { t.group.visible = false; });
       this.frags.forEach(f => { f.mesh.visible = false; });
 
-      S.on('frame', dt => this.frame(dt));
+      // render = false on sim-only sub-steps (low frame rate): skip the per-frame DOM work then
+      S.on('frame', (dt, render) => { this.drawing = render !== false; this.frame(dt); });
       S.on('down', e => this.down(e));
       S.on('up', e => this.up(e));
       S.start();
@@ -1503,8 +1504,7 @@
       this.tickBleeding(dt);
       this.placeFrags(dt);
       this.checkProgress(dt);
-      this.renderTags();
-      this.updateCursor();
+      if (this.drawing !== false) { this.renderTags(); this.updateCursor(); }
       g.uiT -= dt;
       if (g.uiT <= 0) { g.uiT = 0.1; this.updatePanel(); this.renderPlan(); this.renderDev(); this.renderMon(); }
     },

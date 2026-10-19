@@ -1632,7 +1632,7 @@
   };
 
   NZA.app('burn', {
-    escClose: false, full: true, noscale: true, camInput: false,
+    escClose: false, full: true, noscale: true, camInput: false, opaque: true,
 
     init(el) {
       this.el = el;
@@ -1833,7 +1833,8 @@
       this.buildSceneA(resumed);
       S.layers.decay('wet', 0.05);
       g.cool.sootTotal0 = Math.max(1e-6, this.sootTotal(true));
-      S.on('frame', dt => this.frameA(dt));
+      // render = false on sim-only sub-steps (low frame rate): skip the per-frame DOM work then
+      S.on('frame', (dt, render) => { this.drawing = render !== false; this.frameA(dt); });
       S.on('down', e => this.down(e));
       S.on('up', e => this.up(e));
       S.start();
@@ -2882,8 +2883,7 @@
       if (g.uiT <= 0) { g.uiT = 0.12; this.updatePanel(); }
       if (g.devT <= 0) { g.devT = 0.09; this.drawDevice(); }
       if (g.caseT <= 0) { g.caseT = 0.3; this.renderCase(); }
-      this.updateCursor();
-      this.updateTags();
+      if (this.drawing !== false) { this.updateCursor(); this.updateTags(); }
     },
     updatePain(dt) {
       const g = this.g, st = this.lastStats;
@@ -3567,7 +3567,7 @@
       this.tbB.derm.group.visible = false;
       this.stripTex = canvasTex(bin, texGraft({ seed: this.seed, length: 50, width: cfg.graftWidth, mode: 'raw', pxmm: 4 }).map);
       SB.layers.decay('wet', 0.05);
-      SB.on('frame', dt => this.frameB(dt));
+      SB.on('frame', (dt, render) => { this.drawing = render !== false; this.frameB(dt); });
       SB.on('down', e => this.down(e));
       SB.on('up', e => this.up(e));
       SB.start();
@@ -3836,6 +3836,7 @@
         this.benchRaf = requestAnimationFrame(loop);
         // real time even at a low frame rate (the crank rate below divides by this dt)
         const dt = clamp((now - last) / 1000, 0, 0.25); last = now;
+        this.drawing = true;
         try { this.frameBench(dt); r.render(bench.scene, bench.cam); } catch (err) { console.error('[burn] bench', err); }
       };
       this.benchRaf = requestAnimationFrame(loop);

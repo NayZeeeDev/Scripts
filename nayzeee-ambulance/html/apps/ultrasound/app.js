@@ -1670,12 +1670,15 @@
         S.sendT = 0;
         const st = dev.engine.st;
         const sid = !S.p.contact ? 'air' : v.qPos < 0.08 ? (S.p.y > 0.8 ? (S.p.x < 0 ? 'lung_r' : 'lung_l') : 'bowel') : v.win.id;
-        // the cart screen (DUI) mirrors the same picture from these numbers
-        NZA.post('ultrasound:probe', {
+        // the cart screen (DUI) mirrors the same picture from these numbers: sent when they change
+        // (plus a 1 s heartbeat), not 15 times a second while the probe rests
+        const msg = {
           x: +S.p.x.toFixed(3), y: +S.p.y.toFixed(3), rot: Math.round(S.p.rot), tilt: Math.round(S.p.tilt), contact: S.p.contact,
           win: sid, q: +q.toFixed(2), shift: +(v.shift || 0).toFixed(2), vis: +(v.vis === undefined ? 1 : v.vis).toFixed(2),
           depth: st.depth, gain: Math.round(st.gain), focus: +(+st.focus).toFixed(1), frozen: !!S.frozen, mm: !!(dev.state && dev.state.mmode),
-        });
+        };
+        const sig = JSON.stringify(msg), tNow = performance.now();
+        if (sig !== S.lastSig || tNow - (S.lastSent || 0) > 1000) { S.lastSig = sig; S.lastSent = tNow; NZA.post('ultrasound:probe', msg); }
       }
       S.uiT += dt;
       if (S.uiT > 0.1) { S.uiT = 0; updateUI(); paintMarkers(true); } else paintMarkers(false);
@@ -3687,9 +3690,12 @@
         this.last = performance.now();
         const loop = now => {
           if (!this.alive) return;
-          const dt = Math.min(0.1, Math.max(0.001, (now - this.last) / 1000));
+          // real time at any frame rate: a long frame runs in chunks of at most 0.1 s
+          let left = Math.min(0.3, Math.max(0.001, (now - this.last) / 1000));
           this.last = now;
-          if (this.mode && this.mode.frame) { try { this.mode.frame(dt, now); } catch (e) { console.error('[ultrasound] frame', e); } }
+          if (this.mode && this.mode.frame) {
+            try { while (left > 1e-4) { const dt = Math.min(left, 0.1); left -= dt; this.mode.frame(dt, now); } } catch (e) { console.error('[ultrasound] frame', e); }
+          }
           this.raf = requestAnimationFrame(loop);
         };
         this.raf = requestAnimationFrame(loop);

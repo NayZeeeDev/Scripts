@@ -657,9 +657,10 @@
   function acquireRenderer() {
     if (pool && !pool.busy) { pool.busy = true; return pool; }
     const cv = canvas(16, 16);
-    const gl = cv.getContext('webgl2', { antialias: true, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: false });
+    const msaa = (QUALITY[qualityCap()] || QUALITY.high).msaa !== false;   // a context attribute: fixed for the pooled context
+    const gl = cv.getContext('webgl2', { antialias: msaa, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     if (!gl) return null;
-    const renderer = new THREE.WebGLRenderer({ canvas: cv, context: gl, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ canvas: cv, context: gl, antialias: msaa });
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.shadowMap.enabled = true;
@@ -742,11 +743,21 @@
     return REGION[r] || REGION.chest;
   }
 
+  // scaleMax = largest share of the window the scene renders at (the governor moves below it);
+  // sheen / coat = skin material lobes (each costs a shader branch per pixel); msaa = antialias
   const QUALITY = {
-    high:   { grid: 300, layer: 1024, field: 1024, macro: 1024, shadow: 2048, blur: 3.2, cells: 2, particles: 1400 },
-    medium: { grid: 220, layer: 768,  field: 768,  macro: 1024, shadow: 1536, blur: 2.6, cells: 2, particles: 900 },
-    low:    { grid: 150, layer: 512,  field: 512,  macro: 768,  shadow: 1024, blur: 2.0, cells: 1, particles: 500 },
+    high:   { grid: 300, layer: 1024, field: 1024, macro: 1024, shadow: 2048, blur: 3.2, cells: 2, particles: 1400, scaleMax: 1, sheen: true, coat: true, msaa: true },
+    medium: { grid: 220, layer: 768,  field: 768,  macro: 1024, shadow: 1024, blur: 2.6, cells: 1, particles: 900, scaleMax: 0.85, sheen: false, coat: true, msaa: true },
+    low:    { grid: 150, layer: 512,  field: 512,  macro: 768,  shadow: 1024, blur: 2.0, cells: 1, particles: 500, scaleMax: 0.7, sheen: false, coat: false, msaa: false },
   };
+  // Config.UI.quality3d: 'auto' = 'medium' in game (the NUI shares the GPU with GTA), the app's own
+  // tier in the browser preview; 'high' | 'medium' | 'low' caps every scene
+  const uiCfg = () => (window.NZA && window.NZA.cfg) || {};
+  function qualityCap() {
+    const q = uiCfg().quality3d;
+    if (QUALITY[q]) return q;
+    return window.NZA && window.NZA.inGame ? 'medium' : null;
+  }
 
   /* ═══════════════════════════════════════════════════════════════════════════
      createScene
@@ -760,11 +771,12 @@
     const entry = acquireRenderer();
     if (!entry) throw new Error('NZA3D: WebGL2 is not available');
     const renderer = entry.renderer;
-    // Config.UI.quality3d (pushed to NZA.cfg): 'auto' keeps the app's tier, 'high' | 'medium' | 'low' caps it
-    const ui = (window.NZA && window.NZA.cfg) || {};
+    // the app's tier, capped by Config.UI.quality3d (see qualityCap)
+    const ui = uiCfg();
     const RANK = { low: 0, medium: 1, high: 2 };
     let qName = QUALITY[o.quality] ? o.quality : 'high';
-    if (QUALITY[ui.quality3d] && RANK[ui.quality3d] < RANK[qName]) qName = ui.quality3d;
+    const qCap = qualityCap();
+    if (qCap && RANK[qCap] < RANK[qName]) qName = qCap;
     o.quality = qName;
     const Q = QUALITY[qName];
     const preset = regionPreset(o.region);
@@ -994,8 +1006,8 @@
     };
     S.uniforms = U;
     const skinMat = keep(new THREE.MeshPhysicalMaterial({
-      map: macroTex, normalMap: microN, roughness: 0.46, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.1,
-      sheen: 0.05, sheenRoughness: 0.7, sheenColor: new THREE.Color(1.0, 0.82, 0.74), ior: 1.4, specularIntensity: 0.62,
+      map: macroTex, normalMap: microN, roughness: 0.46, metalness: 0, clearcoat: Q.coat === false ? 0 : 1, clearcoatRoughness: 0.1,
+      sheen: Q.sheen === false ? 0 : 0.05, sheenRoughness: 0.7, sheenColor: new THREE.Color(1.0, 0.82, 0.74), ior: 1.4, specularIntensity: 0.62,
     }));
     skinMat.envMapIntensity = 0.32;
     skinMat.onBeforeCompile = sh => {
@@ -1531,6 +1543,8 @@
     function pointerFrac(p) {
       if (!p) return S.pointer;
       if (p.clientX !== undefined) {
+        // a full-screen canvas covers the viewport: no layout read on every pointer event
+        if (o.fullscreen) return { x: clamp(p.clientX / Math.max(1, window.innerWidth), 0, 1), y: clamp(p.clientY / Math.max(1, window.innerHeight), 0, 1), zx: cv.width / Math.max(1, window.innerWidth) };
         const r = cv.getBoundingClientRect();
         const zx = r.width ? cv.width / r.width : 1;
         return { x: clamp((p.clientX - r.left) / (r.width || 1), 0, 1), y: clamp((p.clientY - r.top) / (r.height || 1), 0, 1), zx };
@@ -2585,12 +2599,17 @@
         D._target.copy(hit.point);
         D._lift = 0;
         D.state = 'carried';
+        wake();
         return true;
       };
-      D.move = hit => { if (D.state === 'carried' && hit) { D._target.copy(hit.point); D._normal = hit.normal.clone(); } };
-      D.release = () => { if (D.state === 'carried') { pinned.fill(0); D.state = 'falling'; D._settle = 0; } };
+      // a placed sheet that nobody touches and that has stopped moving sleeps (its cloth + skin
+      // collision is the heaviest CPU work of a scene); any grab / move / rub wakes it
+      const wake = () => { D.asleep = false; D._quiet = 0; };
+      D.move = hit => { if (D.state === 'carried' && hit) { wake(); D._target.copy(hit.point); D._normal = hit.normal.clone(); } };
+      D.release = () => { if (D.state === 'carried') { wake(); pinned.fill(0); D.state = 'falling'; D._settle = 0; } };
       D.rub = (hit, dt) => {
         if (!hit || D.state === 'carried') return 0;
+        wake();
         const R2 = 0.014;
         let touched = 0;
         for (let k = 0; k < N; k++) {
@@ -2635,7 +2654,7 @@
       D.center = () => { let x = 0, y = 0, z = 0; for (let k = 0; k < N; k++) { x += pos[k * 3]; y += pos[k * 3 + 1]; z += pos[k * 3 + 2]; } return new THREE.Vector3(x / N, y / N, z / N); };
       D.remove = () => { scene.remove(mesh); const i = dressings.indexOf(D); if (i >= 0) dressings.splice(i, 1); };
       D.step = dt => {
-        if (D.state === 'rest') return;   // lying on the tray / beside the wound until picked up
+        if (D.state === 'rest' || D.asleep) return;   // on the tray until picked up · or settled and untouched
         const sub = 3, h2 = Math.min(dt, 0.04) / sub;
         const gy = -9.8;
         const lift = D.state === 'carried' ? (D._lift = lerp(D._lift || 0, D.carriedLift, 1 - Math.exp(-dt * 10))) : 0;
@@ -2709,6 +2728,11 @@
             moving += Math.abs(pos[i3 + 1] - prev[i3 + 1]);
           }
           if (D.state === 'falling') { D._settle = moving < 0.00002 * N ? (D._settle || 0) + h2 : 0; if (D._settle > 0.35) D.state = 'placed'; }
+          D._moving = moving;
+        }
+        if (D.state === 'placed') {
+          D._quiet = (D._moving || 0) < 0.00001 * N ? (D._quiet || 0) + dt : 0;
+          if (D._quiet > 0.5) D.asleep = true;
         }
         let s = 0, ws = 0;
         for (let k = 0; k < N; k++) { s += stick[k] * wgt[k]; ws += wgt[k]; }
@@ -2801,15 +2825,18 @@
 
     /* ═════════════ LOOP ═════════════ */
     let lastW = 0, lastH = 0, lastScale = 0, raf = 0, running = false, lastT = 0;
-    // Frame-time governor. Once a second it compares the average frame interval with the best
-    // interval seen (the host's refresh / NUI frame cap) and an absolute floor: too slow → render
-    // fewer pixels (scale 1 → 0.5 of the window), then drop the second shadow cell and halve the
-    // shadow map; plenty of headroom → scale back up. Config.UI.renderScale caps the top scale,
-    // Config.UI.adaptive = false turns the governor off. S.perf → { scale, fps, level }.
+    // Frame-time governor. Once a second it looks at the scene's own frame interval and the game's
+    // frame time (Lua sends it while an app has focus: NZA.perf.gameMs). Too slow → fewer pixels
+    // (render scale down to half the window), then smaller shadow maps (no shader recompile);
+    // steady headroom → scale back up. It starts a step below the tier's maximum and climbs.
+    // Config.UI: renderScale caps the top, adaptive = false turns it off, fps3d caps the frame rate
+    // (default 30 in game: the browser leaves the rest of the GPU to GTA). S.perf = its state.
     const perf = {
       auto: ui.adaptive !== false && o.adaptive !== false,
-      max: clamp(+(o.renderScale || ui.renderScale) || 1, 0.4, 1), min: 0.5,
+      max: clamp(Math.min(+(o.renderScale || ui.renderScale) || 1, Q.scaleMax || 1), 0.4, 1), min: 0.5,
+      cap: Math.max(0, +(o.fps || ui.fps3d) || (window.NZA && window.NZA.inGame ? 30 : 0)),
       scale: 1, fps: 0, level: 0, best: 1e9, sum: 0, n: 0, t0: 0, prev: 0, good: 0, warm: 0,
+      settle(now) { this.warm = now + 1500; this.sum = 0; this.n = 0; this.prev = 0; },   // a change costs a hitch: don't count it
       sample(now) {
         if (this.prev) { this.sum += now - this.prev; this.n++; }
         this.prev = now;
@@ -2820,28 +2847,32 @@
         this.fps = Math.round(1000 / ms);
         if (!this.auto || now < this.warm) return;
         this.best = Math.min(this.best, ms);
-        const slow = ms > 45 || ms > Math.max(26, this.best * 1.45);
-        if (slow) {
+        const g = window.NZA && window.NZA.perf;
+        const gameMs = g && g.gameMs && performance.now() - g.at < 3000 ? g.gameMs : 0;
+        const eff = Math.max(ms, gameMs);
+        if (eff > 40 || ms > this.best * 1.35 + 2) {         // under 25 fps (game or scene)
           this.good = 0;
-          if (this.scale > this.min + 1e-3) this.scale = Math.max(this.min, this.scale - (ms > 70 ? 0.2 : 0.1));
-          else this.cheaper();
-        } else if (ms < this.best * 1.15 + 2 && ++this.good >= 3) {
+          if (this.scale > this.min + 1e-3) { this.scale = Math.max(this.min, this.scale - (eff > 70 ? 0.2 : 0.1)); this.settle(now); }
+          else this.cheaper(now);
+        } else if (eff < 30 && ms < this.best * 1.15 + 2 && ++this.good >= 3) {
           this.good = 0;
-          if (this.scale < this.max - 1e-3) this.scale = Math.min(this.max, this.scale + 0.1);
+          if (this.scale < this.max - 1e-3) { this.scale = Math.min(this.max, this.scale + 0.1); this.settle(now); }
         }
       },
-      // last resort below the minimum scale: fewer / smaller shadow maps (one shader recompile)
-      cheaper() {
+      // below the minimum scale: halve the shadow maps (twice at most)
+      cheaper(now) {
         if (this.level >= 2) return;
         this.level++;
-        if (this.level === 1 && keyB.castShadow) { keyB.castShadow = false; return; }
-        const size = Math.max(512, (key.shadow.mapSize.x / 2) | 0);
-        if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; }
-        key.shadow.mapSize.set(size, size);
-        this.level = 2;
+        [key, keyB].forEach(l => {
+          if (!l.castShadow) return;
+          const size = Math.max(512, (l.shadow.mapSize.x / 2) | 0);
+          if (l.shadow.map) { l.shadow.map.dispose(); l.shadow.map = null; }
+          l.shadow.mapSize.set(size, size);
+        });
+        this.settle(now);
       },
     };
-    perf.scale = perf.max;
+    perf.scale = Math.min(perf.max, 0.8);
     S.perf = perf;
     function effectiveZoom(el) {
       let z = 1;
@@ -2876,22 +2907,24 @@
       const ang = clamp(Math.atan(reach / rig.key[2]), 0.08, 0.6);
       key.angle = keyB.angle = ang; key2.angle = ang * 1.15;
     }
+    // render = false (a sim-only sub-step): gameplay advances, GPU uploads / lights / markers wait
+    // for the step that draws. Apps get it too: S.on('frame', (dt, render) => …) can skip DOM work.
     function step(dt, render = true) {
       S.time += dt;
-      resize();
+      if (render) resize();
       applyCamera(dt);
-      placeLights();
+      if (render) placeLights();
       updateTools(dt);
       updateFluids(dt);
       for (let i = 0; i < dressings.length; i++) dressings[i].step(dt);
-      emit('frame', dt);
+      emit('frame', dt, render);
       applyDecays(dt);
+      if (!render) return;
       flushBrushes();
       if (fieldDirty) renderField();
       updateMarkers(S.time);
       keyDir.copy(key.position).sub(key.target.position).normalize().transformDirection(camera.matrixWorldInverse);
       U.uKeyDir.value.copy(keyDir);
-      if (!render) return;
       renderer.setRenderTarget(null);
       renderer.render(scene, camera);
     }
@@ -2903,9 +2936,13 @@
     // true. S.frameDt = the real length of this frame (s).
     const SUB_DT = 1 / 30, MAX_FRAME = 0.2;
     const pFrom = { x: 0.5, y: 0.5 }, pTo = { x: 0.5, y: 0.5 };
+    let lastDraw = 0;
     function frame(now) {
       if (!running) return;
       raf = requestAnimationFrame(frame);
+      // frame cap: skipped frames are covered by the next drawn frame's sub-steps (lastT stays)
+      if (perf.cap && now - lastDraw < 1000 / perf.cap - 2) return;
+      lastDraw = now;
       const real = clamp((now - lastT) / 1000, 0, MAX_FRAME);
       lastT = now;
       S.frameDt = real;

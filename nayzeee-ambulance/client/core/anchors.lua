@@ -15,7 +15,7 @@
       NZA.Anchors.Clear(app)           stop tracking; sends one empty 'anchors' so JS hides them
       NZA.Anchors.Project(def) → x, y, visible, dist   (one-off projection)
 
-    Only sends when something moved (> 0.0005 of the screen) or visibility changed.
+    Only sends when something moved (> 0.0015 of the screen) or visibility changed.
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -24,7 +24,7 @@ NZA.Anchors = NZA.Anchors or {}
 local A = NZA.Anchors
 
 local INTERVAL = 33
-local EPS = 0.0005
+local EPS = 0.0015      -- ~2 px at 1080p: a breathing patient's bones don't resend the map every tick
 
 local tracked = {}     -- [app] = { [id] = def }
 local lastSent = {}    -- [app] = { [id] = { x, y, visible } }

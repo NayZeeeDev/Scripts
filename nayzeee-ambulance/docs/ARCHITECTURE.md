@@ -396,8 +396,17 @@ In-game rules every minigame follows (the NUI runs inside GTA, often at a low fr
   (its tools, abort ring and Done button opt back in). Check with `document.elementFromPoint` over the scene.
 - Gameplay time is real time: `nza3d` splits a long frame into 1/30 s sub-steps (the pointer is walked across
   them) and exposes `S.frameDt`; app loops divide speeds by the real frame time, never by a clamped dt.
-- `nza3d` has a frame-time governor (render scale 1 → 0.5, then fewer shadows) tuned by `Config.UI.quality3d`,
-  `renderScale`, `adaptive`; `S.perf` shows its state. A locked ProcPanel tool explains itself on click (`tool.why`).
+- `nza3d` performance: `Config.UI.quality3d` ('auto' = 'medium' in game: 1 shadow cell, no sheen, scale ≤ 0.85;
+  'high' / 'low'), a frame cap `fps3d` (30: the browser leaves the rest of the GPU to GTA), and a frame-time
+  governor fed with the game's own frame time (Lua `_core` 'perf' while an app has focus → `NZA.perf`): render
+  scale down to 0.5 of the window, then smaller shadow maps; `renderScale` / `adaptive` tune it, `S.perf` shows it.
+  Sim-only sub-steps skip GPU and DOM work (`S.on('frame', (dt, render) => …)`); a settled dressing sleeps.
+- An app with `opaque: true` on top (the 3D close-ups) hides the open apps under it (`.nza-covered`, no paint or
+  clicks; `def.cover(on)` pauses their loops, e.g. the monitor traces). Every open app that is not on top gets
+  `.nza-under` (the monitor HUD is click-through then). Callcard / pager live numbers and the call-scene prompt
+  loop pause while a focused app is open.
+- A locked ProcPanel tool explains itself on click (`tool.why`); tool buttons are patched in place, never rebuilt
+  between a press and its release.
 
 ### 10.1 Messages
 Lua → JS: `NZA.UI.Send(app, action, data)` = `SendNUIMessage({ app = app, action = action, data = data })`.

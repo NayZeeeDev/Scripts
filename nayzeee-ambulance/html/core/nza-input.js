@@ -120,12 +120,20 @@
     return legacyZoom;
   }
   const nativeRect = Element.prototype.getBoundingClientRect;
+  // the zoom chain of an element rarely changes: remembered per element, forgotten on resize
+  // (the page zoom follows the window height) and when the config re-applies --nza-zoom
+  let zoomCache = new WeakMap();
+  const forget = () => { zoomCache = new WeakMap(); };
+  window.addEventListener('resize', forget);
   function ancestorZoom(el) {
+    const hit = zoomCache.get(el);
+    if (hit !== undefined) return hit;
     let z = 1;
     for (let n = el; n; n = n.parentElement) {   // the element's own zoom counts too
       const v = parseFloat(getComputedStyle(n).zoom);
       if (v > 0 && v !== 1) z *= v;
     }
+    zoomCache.set(el, z);
     return z;
   }
   Element.prototype.getBoundingClientRect = function () {
@@ -141,6 +149,7 @@
     get buttons() { return st.buttons; },
     get synth() { return st.synth; },
     get legacyZoom() { return detectZoom(); },
+    zoomChanged: forget,
     reset,
   };
 })();

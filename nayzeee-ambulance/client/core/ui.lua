@@ -150,6 +150,25 @@ local function keepInputLoop()
     end)
 end
 
+-- While an app has focus the page gets the game's own frame time once a second ('_core' 'perf'
+-- { ms }): the 3D close-ups lower their resolution when GTA slows down, not only when they do.
+local perfActive = false
+local function perfLoop()
+    if perfActive then return end
+    perfActive = true
+    CreateThread(function()
+        local sum, n, t0 = 0.0, 0, GetGameTimer()
+        while perfActive do
+            Wait(0)
+            sum, n = sum + GetFrameTime(), n + 1
+            if GetGameTimer() - t0 >= 1000 then
+                if ready and n > 0 then rawSend(CORE, 'perf', { ms = math.floor(sum / n * 10000 + 0.5) / 10 }) end
+                sum, n, t0 = 0.0, 0, GetGameTimer()
+            end
+        end
+    end)
+end
+
 local function refreshFocus()
     local focus, cursor, keep = false, false, false
     for i = 1, #stack do
@@ -163,6 +182,7 @@ local function refreshFocus()
     SetNuiFocus(focus, cursor)
     SetNuiFocusKeepInput(focus and keep)
     if focus and keep then keepInputLoop() end
+    if focus then perfLoop() else perfActive = false end
 
     local apps = {}
     for i = 1, #stack do apps[i] = stack[i] end
@@ -467,7 +487,7 @@ function UI.PushConfig()
         scale = c.scale,
         sounds = c.sounds,
         signature = c.signature,
-        quality3d = c.quality3d, renderScale = c.renderScale, adaptive = c.adaptive,
+        quality3d = c.quality3d, renderScale = c.renderScale, adaptive = c.adaptive, fps3d = c.fps3d,
         locale = uiLocale(),
         lang = Config.Locale or 'en',
         resource = NZA.Resource,

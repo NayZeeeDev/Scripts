@@ -118,7 +118,7 @@ Config.Burn = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Game = {
-        quality     = 'high',    -- 3D quality: 'high' | 'medium' | 'low' (lower = faster on weak PCs)
+        quality     = 'high',    -- 3D detail: 'high' | 'medium' | 'low'; capped by Config.UI.quality3d ('auto' = medium in game)
 
         -- 1 · cool
         bottleMl    = 250,       -- mL per saline bottle

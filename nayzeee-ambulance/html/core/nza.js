@@ -27,6 +27,7 @@
   const apps = {};
   const stack = [];         // open apps, last = top
   const mocks = {};
+  const perfState = { gameMs: 0, at: 0 };   // NZA.perf: the game's frame time while an app has focus
   let locale = {};
   let cfg = { font: 'Lexend', shape: 'cut', scale: 1, sounds: true, signature: true };
   const $ = (s, r = document) => r.querySelector(s);
@@ -99,6 +100,7 @@
     const z = clamp((cfg.scale || 1) * auto, 0.6, 2.6);
     document.documentElement.style.setProperty('--nza-zoom', z.toFixed(3));
     NZA.zoom = z;
+    if (window.NZAInput) NZAInput.zoomChanged();
   }
   window.addEventListener('resize', applyZoom);
   function applyConfig(c) {
@@ -146,6 +148,26 @@
 
   function isOpen(name) { return stack.includes(name); }
 
+  // An opaque full-screen app on top (def.opaque: the 3D close-ups) hides the open apps drawn under
+  // it (earlier in the page): no paint, no hit-testing, and def.cover(true / false) lets them pause
+  // their own loops. Every open app that is not the top one also gets .nza-under.
+  function setCovered(a, on) {
+    if (!!a.covered === on) return;
+    a.covered = on;
+    a.el.classList.toggle('nza-covered', on);
+    try { a.cover && a.cover(on); } catch (e) { console.error(`[nza] ${a.name}.cover`, e); }
+  }
+  function updateCover() {
+    const topName = stack[stack.length - 1];
+    const top = topName ? apps[topName] : null;
+    const opaque = !!(top && (typeof top.opaque === 'function' ? top.opaque() : top.opaque));
+    Object.values(apps).forEach(a => {
+      const open = isOpen(a.name);
+      a.el.classList.toggle('nza-under', open && a !== top);
+      setCovered(a, !!(opaque && open && a !== top && (a.el.compareDocumentPosition(top.el) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    });
+  }
+
   function open(name, data) {
     const a = apps[name];
     if (!a) return console.warn('[nza] unknown app', name);
@@ -153,6 +175,7 @@
     a.el.classList.add('nza-on');
     audio.unlock();
     try { a.open && a.open(data || {}); } catch (e) { console.error(`[nza] ${name}.open`, e); }
+    updateCover();
   }
 
   function close(name, notify = true) {
@@ -163,6 +186,8 @@
     if (i !== -1) stack.splice(i, 1);
     a.el.classList.remove('nza-on');
     try { a.close && a.close(); } catch (e) { console.error(`[nza] ${name}.close`, e); }
+    setCovered(a, false);
+    updateCover();
     clearMarkers(name);
     if (notify) post(`${name}:close`, {});
     if (!inGame && notify && previewApp === name) showReopen(name);
@@ -203,10 +228,12 @@
       case 'closeAll': return [...stack].forEach(n => close(n, false));
       case 'sound': return audio.play(data.name, data);
       case 'locale': locale = Object.assign(locale, data || {}); return;
+      case 'perf': perfState.gameMs = +(data && data.ms) || 0; perfState.at = performance.now(); return;   // game frame time (ms), see nza3d
       case 'focus': {   // Lua focus stack → the focused app gets keyboard priority
         const top = data && data.top;
         const i = top ? stack.indexOf(top) : -1;
         if (i !== -1 && i !== stack.length - 1) { stack.splice(i, 1); stack.push(top); }
+        updateCover();
         return;
       }
     }
@@ -951,6 +978,6 @@
     post, mock: (name, v) => { mocks[name] = v; }, toast, speech, prompt, promptHide,
     audio, fmt, t, icon, rich, esc, el, clamp, fitCanvas, pointer, get stack() { return [...stack]; }, get cfg() { return cfg; },
     ui: { ProcPanel, FlipClock, Hold, Segmented, Toggle, Slider, Chips, Modal, Win, Anchors, Marker, Meter, meterHTML, KeyHints, BodyGlyph, Ring, ScoreRing, Grade: ScoreRing },
-    apps,
+    apps, perf: perfState,
   };
 })();

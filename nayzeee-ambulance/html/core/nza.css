@@ -57,7 +57,9 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .nza-app.nza-on{display:block}
 .nza-app.noscale{zoom:1}
 .nza-app .nza-int,.nza-app .nza-hud,.nza-app .nza-win,.nza-app button,.nza-app input,.nza-app select,.nza-app textarea,.nza-app canvas.int{pointer-events:auto}
-.nza-app.nza-full{pointer-events:auto}               /* app that captures the whole screen (3D scenes, windows with dim) */
+.nza-app.nza-full{pointer-events:auto}
+.nza-app.nza-covered{visibility:hidden}         /* under an opaque full-screen app (3D close-up): no paint, no clicks */
+#app-monitor.nza-under .mon{pointer-events:none}   /* the monitor HUD never eats clicks meant for the procedure on top */               /* app that captures the whole screen (3D scenes, windows with dim) */
 .nza-dim{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 50%,rgba(0,0,0,.35),rgba(0,0,0,.72));pointer-events:auto}
 #nza-layer-anchors,#nza-layer-speech,#nza-layer-prompt,#nza-layer-toasts{position:fixed;inset:0;pointer-events:none;zoom:var(--nza-zoom)}
 #nza-layer-anchors{zoom:1}

@@ -94,8 +94,12 @@
     ring(448, cy, R, rr ? rr / 40 : 0, '#f2d64b', [0.25, 0.6], 'RESP', '/min', rr ?? '--', v.etco2 !== undefined ? `EtCO2 ${Math.round(v.etco2)}` : '', rr !== null && (rr <= 0 || rr > 30), blink);
   }
 
-  function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+  // ~20 fps on a timer instead of every display frame: this is a second browser drawn into a prop
+  // texture, the game pays for every redraw; the header / rings only every quarter second or on a beat
+  let topT = 0;
+  function frame() {
+    const now = performance.now();
+    const dt = Math.min(0.12, (now - last) / 1000); last = now; t += dt;
     const px = Math.max(1, Math.round(TW * 0.25 * dt));
     const rate = (v.ecgRate ?? v.hr) || 0;
     traces.forEach(tr => {
@@ -105,7 +109,7 @@
         const val = NZA.vitals.wave(tr.type, tt, { rhythm: v.rhythm || 'sinus', rate, rr: v.rr ?? 14, spo2: v.spo2 ?? 98, etco2: v.etco2 ?? 38,
           amp: tr.type === 'pleth' ? Math.max(0.25, Math.min(1, ((ovr || {}).map ?? v.map ?? 80) / 85)) : 1 });
         const y = tr.y + tr.h / 2 - val * tr.h * 0.4;
-        if (tr.prev !== null && tr.x > 0) { c.strokeStyle = tr.color; c.lineWidth = 2; c.shadowColor = tr.color; c.shadowBlur = 5; c.beginPath(); c.moveTo(tr.x - 1, tr.prev); c.lineTo(tr.x, y); c.stroke(); c.shadowBlur = 0; }
+        if (tr.prev !== null && tr.x > 0) { c.strokeStyle = tr.color; c.lineWidth = 2; c.beginPath(); c.moveTo(tr.x - 1, tr.prev); c.lineTo(tr.x, y); c.stroke(); }
         tr.prev = y; tr.x += 1;
         if (tr.x >= TW) { tr.x = 0; tr.prev = null; }
       }
@@ -116,12 +120,13 @@
     if (rate > 0 && !['vf', 'asystole'].includes(v.rhythm)) {
       const per = v.rhythm === 'vt' ? 60 / 180 : 60 / Math.max(1, rate);
       const b = Math.floor((t - per * 0.3) / per);
-      if (b !== lastBeat) { lastBeat = b; beatAt = t; }
+      if (b !== lastBeat) { lastBeat = b; beatAt = t; topT = 0; }
     }
-    top();
-    requestAnimationFrame(frame);
+    topT -= dt;
+    if (topT <= 0) { topT = t - beatAt < 0.3 ? 0.05 : 0.25; top(); }
+    setTimeout(frame, 50);
   }
-  requestAnimationFrame(frame);
+  setTimeout(frame, 50);
 
   if (/demo=1/.test(location.search)) {
     v = { hr: 131, ecgRate: 131, spo2: 94, rr: 22, etco2: 33, rhythm: 'stach', state: 'wounded', name: 'Pavel Lindqvist' };

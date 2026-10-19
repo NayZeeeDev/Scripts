@@ -857,6 +857,11 @@ CreateThread(function()
         if not near then
             if shown then NZA.UI.HidePrompt('calls_act') shown = nil end
             Wait(750)
+        elseif NZA.UI.Top() then
+            -- a focused procedure / window is open: no prompts or per-frame checks under it
+            if shown then NZA.UI.HidePrompt('calls_act') shown = nil end
+            if sprayShown then NZA.UI.HidePrompt('calls_spray') sprayShown = false lastSprayQ = -1 end
+            Wait(300)
         else
             local frames = 0
             local last = GetGameTimer()

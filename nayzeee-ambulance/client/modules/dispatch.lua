@@ -514,7 +514,14 @@ CreateThread(function()
                     out.active = { id = c.id, dist = dist, dir = dir, rel = rel, eta = eta }
                 end
             end
-            NZA.UI.Send(APP, 'live', out)
+            -- under a focused procedure the card is out of sight: no live numbers; otherwise only on change
+            local top = NZA.UI.Top()
+            if top and top ~= APP and top ~= 'pager' then
+                wait = 1000
+            else
+                local sig = json.encode(out)
+                if sig ~= S.liveSig then S.liveSig = sig; NZA.UI.Send(APP, 'live', out) end
+            end
         elseif S.cardOpen and not S.card and #S.queue > 0 and cardAllowed() then
             showNext()
         end

@@ -74,7 +74,7 @@ Config.Ultrasound = {
         drainNow  = 0.85,        -- share of the blood in the chest drained while you watch (the tube drains the rest)
         price     = 900,         -- billed to player patients (0 = free)
         numbing   = true,        -- offer the lidocaine step when the medic carries Config.Items.lidocaine
-        quality   = 'high',      -- 3D quality: 'high' | 'medium' | 'low'
+        quality   = 'high',      -- 3D detail: 'high' | 'medium' | 'low'; capped by Config.UI.quality3d ('auto' = medium in game)
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

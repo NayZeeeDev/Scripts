@@ -63,7 +63,7 @@
   };
 
   NZA.app('suture', {
-    escClose: false, full: true, noscale: true, camInput: false,
+    escClose: false, full: true, noscale: true, camInput: false, opaque: true,
 
     init(el) {
       this.el = el;
@@ -219,7 +219,8 @@
 
       // compile the tool and dressing shaders now, behind the loading veil
       S.prewarm(['irrigator', 'syringe', 'gauze', 'needleDriver'], true);
-      S.on('frame', dt => this.frame(dt));
+      // render = false on sim-only sub-steps (low frame rate): skip the per-frame DOM work then
+      S.on('frame', (dt, render) => { this.drawing = render !== false; this.frame(dt); });
       S.on('down', (e, f) => this.down(e, f));
       S.on('up', (e, f) => this.up(e, f));
       S.start();
@@ -543,7 +544,7 @@
       }
       if (g.step === 1 && !g.done[1]) this.measureIrrigation();
       if (g.step === 3 && !g.done[3]) this.hiddenField();
-      this.updateCursor();
+      if (this.drawing !== false) this.updateCursor();
       g.uiT -= dt;
       if (g.uiT <= 0) { g.uiT = 0.12; this.updatePanel(); this.renderHud(); }
       void S;
