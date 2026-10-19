@@ -218,4 +218,5 @@ NZA.AddLocale('en', {
     -- no-WebGL fallback
     ['suture.fb_text'] = '3D view unavailable on this client — the wound is closed with a standard technique.',
     ['suture.fb_title'] = 'Closing the wound',
+    ['suture.no_skin'] = 'Put the tool on the skin first.',
 })

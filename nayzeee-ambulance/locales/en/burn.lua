@@ -380,4 +380,5 @@ NZA.AddLocale('en', {
     ['burn.w_tested'] = 'Tested',
     ['burn.w_tested_cap'] = 'Full thickness ≈ %s%',
     ['burn.w_tested_cap0'] = 'Press the glass on the burn',
+    ['burn.no_skin'] = 'Put the tool on the skin first.',
 })

@@ -15,7 +15,7 @@
 #app-ultrasound .us-ui .nza-hud{pointer-events:none}
 #app-ultrasound .us-ui .pp,#app-ultrasound .us-ui .us-dev,#app-ultrasound .us-ui .us-plan{pointer-events:auto}
 #app-ultrasound .us-ui .pp{pointer-events:none}
-#app-ultrasound .us-ui .pp .pp-card,#app-ultrasound .us-ui .pp .pp-belt,#app-ultrasound .us-ui .pp .pp-read{pointer-events:auto}
+#app-ultrasound .us-ui .pp .pp-card,#app-ultrasound .us-ui .pp .pp-read{pointer-events:auto}   /* belt: only its tools take clicks */
 #app-ultrasound.us-m-scan,#app-ultrasound.us-m-pericardio{cursor:none}
 #app-ultrasound.us-m-scan .us-dev,#app-ultrasound.us-m-scan .us-plan,#app-ultrasound.us-m-scan .pp-card,#app-ultrasound.us-m-scan .pp-belt,
 #app-ultrasound.us-m-pericardio .us-dev,#app-ultrasound.us-m-pericardio .pp-card,#app-ultrasound.us-m-pericardio .pp-belt{cursor:default}

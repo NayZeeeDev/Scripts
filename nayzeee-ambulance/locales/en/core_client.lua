@@ -27,6 +27,7 @@ NZA.AddLocale('en', {
     ['core_client.proc.verdict_1']    = 'Needs another go',   -- below 35
     ['core_client.proc.busy']         = 'Finish what you are doing first',
     ['core_client.proc.aborted']      = 'Procedure aborted',
+    ['core_client.proc.finishing']    = 'Finishing up: saved in %d s.',
     ['core_client.proc.cancel_cancel'] = 'Procedure cancelled',
     ['core_client.proc.cancel_far']   = 'You moved away from the patient',
     ['core_client.proc.cancel_gone']  = 'The patient is gone',

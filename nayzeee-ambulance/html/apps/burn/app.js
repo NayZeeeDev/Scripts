@@ -1661,7 +1661,7 @@
       this.onMouse = e => { this.mx = e.clientX; this.my = e.clientY; };
       window.addEventListener('mousemove', this.onMouse);
       const heard = e => { if (e.isTrusted) this.heard = true; };
-      window.addEventListener('pointerdown', heard, true);
+      window.addEventListener('pointerdown', heard, true); window.addEventListener('mousedown', heard, true);
       window.addEventListener('keydown', heard, true);
       this.onWheel = e => this.wheel(e);
       window.addEventListener('wheel', this.onWheel, { passive: false });
@@ -3032,7 +3032,7 @@
     onBurn(s, t, pad = 1.1) { return this.plan.dn(s, t) < pad; },
     pressDiascope() {
       const g = this.g, S = this.S, hit = S.tools.hit;
-      if (!hit) return;
+      if (!hit) return this.flash('warn', T('no_skin', 'Put the tool on the skin first.'), 1600);   // never a silent click
       if (!this.onBurn(hit.s, hit.t, 1.15)) { this.flash('warn', T('dia_off', 'Press the glass **on the burn**.'), 1800); return; }
       g.as.press = { t: 0, s: hit.s, tt: hit.t, uv: hit.uv, read: false };
       S.tools.press(true);
@@ -3128,7 +3128,7 @@
     },
     grip() {
       const g = this.g, S = this.S, hit = S.tools.hit, fc = S.tools.active;
-      if (!hit) return;
+      if (!hit) return this.flash('warn', T('no_skin', 'Put the tool on the skin first.'), 1600);   // never a silent click
       const it = this.nearItem(hit.s, hit.t);
       if (!it) { if (fc) fc.set({ open: 0.15 }); this.flash('warn', T('db_nothing', 'Grip a **blister** or **loose skin**.'), 1600); return; }
       g.db.grip = { item: it, s0: hit.s, t0: hit.t, pull: 0 };

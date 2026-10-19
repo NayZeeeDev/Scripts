@@ -426,7 +426,7 @@
       this.mx = window.innerWidth / 2; this.my = window.innerHeight / 2;
       window.addEventListener('mousemove', e => { this.mx = e.clientX; this.my = e.clientY; });
       const heard = e => { if (e.isTrusted) this.heard = true; };
-      window.addEventListener('pointerdown', heard, true);
+      window.addEventListener('pointerdown', heard, true); window.addEventListener('mousedown', heard, true);
       window.addEventListener('keydown', heard, true);
       this.keys = {};
       ['1', '2', '3', '4', '5', '6', '7', '8'].forEach(k => { this.keys[k] = () => this.pickTool(k); });
@@ -1596,7 +1596,7 @@
     /* ═════════════ 1 · LOCATE (probe) ═════════════ */
     startProbe() {
       const g = this.g, S = this.S, hit = S.tools.hit, cfg = this.cfg;
-      if (!hit) return;
+      if (!hit) return this.flash('warn', T('no_skin', 'Put the tool on the skin first.'), 1600);   // never a silent click
       if (g.done[3]) return this.flash('warn', T('probe_late', 'The cut is open — you can see the fragment now.'));
       if (!this.inWindow(hit.uv)) return this.flash('warn', T('off_window', 'Work inside the drape window.'));
       const pr = g.pr;
@@ -1860,7 +1860,7 @@
     /* ═════════════ 3 · INCISE ═════════════ */
     startCut() {
       const g = this.g, S = this.S, c = g.cut, hit = S.tools.hit;
-      if (!hit) return;
+      if (!hit) return this.flash('warn', T('no_skin', 'Put the tool on the skin first.'), 1600);   // never a silent click
       if (g.step < 3) return;
       if (g.step > 5 || (g.xt.out.length && !this.remaining().length)) return this.flash('warn', T('cut_late', 'No more cutting — the fragments are out.'));
       if (g.xt.grip) return;
@@ -2220,7 +2220,7 @@
     startStitch() {
       const g = this.g, S = this.S, cfg = this.cfg, hit = S.tools.hit;
       if (g.step !== 7 || !g.cut.w) return this.flash('warn', T('sut_wrong_step', 'Not yet — finish the current step first.'));
-      if (!hit) return;
+      if (!hit) return this.flash('warn', T('no_skin', 'Put the tool on the skin first.'), 1600);   // never a silent click
       const { loc, mm } = this.edgeDist(hit.uv);
       if (loc.tN < 0.03 || loc.tN > 0.97) return this.flash('bad', T('sut_ends', 'Stay along the cut, not past its ends.'));
       if (loc.side !== this.near) return this.flash('bad', T('sut_near', 'Start on the **near** edge — the side closest to you.'));

@@ -376,4 +376,5 @@ NZA.AddLocale('en', {
     ['bullet.say_5'] = 'Ahh… is it out yet?',
     ['bullet.say_6'] = 'Please, stop for a second…',
     ['bullet.loc_field'] = 'Field surgery',
+    ['bullet.no_skin'] = 'Put the tool on the skin first.',
 })

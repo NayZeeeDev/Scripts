@@ -296,7 +296,13 @@ function Proc.Run(name, target, payload, runner, opts)
         -- never hand the server a finish it would reject as too fast
         if minTime and not ctx.easy then
             local wait = minTime - ctx.elapsed()
-            if wait > 0 then Wait(math.floor(wait * 1000) + 150) end
+            if wait > 0 then
+                -- a quick run waits out the minimum time: say so (the toast bar counts it down)
+                if wait > 1.5 and not opts.silent then
+                    NZA.UI.Toast({ type = 'info', title = label, message = NZA.L('core_client.proc.finishing', math.ceil(wait)), duration = math.floor(wait * 1000) })
+                end
+                Wait(math.floor(wait * 1000) + 150)
+            end
         end
         local ok, res = pcall(lib.callback.await, 'nza:proc:finish', false, ctx.token, result)
         if not ok or type(res) ~= 'table' or not res.ok then

@@ -88,7 +88,7 @@
       this.onMouse = e => { this.mx = e.clientX; this.my = e.clientY; };
       window.addEventListener('mousemove', this.onMouse);
       const heard = e => { if (e.isTrusted) this.heard = true; };
-      window.addEventListener('pointerdown', heard, true);
+      window.addEventListener('pointerdown', heard, true); window.addEventListener('mousedown', heard, true);
       window.addEventListener('keydown', heard, true);
       this.keys = {};
       ['1', '2', '3', '4', '5'].forEach(k => { this.keys[k] = () => this.pickTool(k); });
@@ -663,7 +663,7 @@
       if (!g.lido.have) return this.flash('bad', T('lido_none', 'You carry no lidocaine.'));
       if (g.lido.ml >= cfg.lidoSyringe - 0.01) return this.flash('bad', T('lido_empty', 'The syringe is empty.'));
       const hit = S.tools.hit;
-      if (!hit) return;
+      if (!hit) return this.flash('warn', T('no_skin', 'Put the tool on the skin first.'), 1600);   // never a silent click
       let best = null, bd = Infinity;
       for (const p of g.lido.points) {
         const dd = S.distanceUv(hit.uv, p.uv) / MM;
@@ -803,7 +803,7 @@
       const g = this.g, S = this.S, cfg = this.cfg;
       if (g.step !== 3) return this.flash('warn', T('sut_wrong_step', 'Not yet — finish the current step first.'));
       const hit = S.tools.hit;
-      if (!hit) return;
+      if (!hit) return this.flash('warn', T('no_skin', 'Put the tool on the skin first.'), 1600);   // never a silent click
       const { loc, mm } = this.edgeDist(hit.uv);
       if (loc.tN < 0.03 || loc.tN > 0.97) return this.flash('bad', T('sut_ends', 'Stay along the cut, not past its ends.'));
       if (loc.side !== this.near) return this.flash('bad', T('sut_near', 'Start on the **near** edge — the side closest to you.'));
