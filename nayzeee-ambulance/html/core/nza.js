@@ -228,7 +228,7 @@
   /* ─────────────── camera input → Lua NZA.Cam (client/core/cam.lua) ───────────────
      With full NUI focus the game can't read the mouse, so right-drag / wheel are forwarded.
      An app opts out with def.camInput = false, or by calling e.preventDefault() in its own
-     mousedown/wheel handler. R = recentre only for apps with def.camInput === true. */
+     mousedown/wheel handler (any listener, window included: the decision waits a tick). R = recentre only for apps with def.camInput === true. */
   const cam = { down: false, dx: 0, dy: 0, wheel: 0, pan: false, raf: 0 };
   const camApp = () => { const n = stack[stack.length - 1]; return n ? apps[n] : null; };
   const camOk = () => { const a = camApp(); return inGame && a && a.camInput !== false; };
@@ -239,7 +239,11 @@
     cam.dx = 0; cam.dy = 0; cam.wheel = 0;
   };
   const camQueue = () => { if (!cam.raf) cam.raf = requestAnimationFrame(camFlush); };
-  window.addEventListener('mousedown', e => { if (e.button === 2 && !e.defaultPrevented && camOk()) cam.down = true; });
+  // decided a tick later: app listeners registered after this one (on window too) get to preventDefault first
+  window.addEventListener('mousedown', e => {
+    if (e.button !== 2) return;
+    setTimeout(() => { if (!e.defaultPrevented && camOk() && (!window.NZAInput || (NZAInput.buttons & 2))) cam.down = true; }, 0);
+  });
   window.addEventListener('mouseup', e => { if (e.button === 2) cam.down = false; });
   window.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('mousemove', e => {
@@ -247,9 +251,11 @@
     cam.dx += e.movementX / window.innerWidth; cam.dy += e.movementY / window.innerHeight; cam.pan = e.shiftKey; camQueue();
   });
   window.addEventListener('wheel', e => {
-    if (e.defaultPrevented || !camOk()) return;
-    if (e.target && e.target.closest && e.target.closest('.nza-scroll,.w-pbody,.w-side,input,select,textarea,[data-wheel]')) return;
-    cam.wheel += Math.sign(e.deltaY); camQueue();
+    setTimeout(() => {
+      if (e.defaultPrevented || !camOk()) return;
+      if (e.target && e.target.closest && e.target.closest('.nza-scroll,.w-pbody,.w-side,input,select,textarea,[data-wheel]')) return;
+      cam.wheel += Math.sign(e.deltaY); camQueue();
+    }, 0);
   });
   window.addEventListener('keydown', e => {
     const a = camApp();
@@ -398,7 +404,8 @@
      pp.set({ skipped }) updates them. total <= 1 hides the spine and the body takes the full width.
      pp.set() replays the title/text swap only when title, text or titleTone actually change.
      opts.next (rich text) replaces the 'Next: <following step>' line; '' hides it, undefined goes back to steps[step].
-     pp.flash(type, text, ms) shows a note under the text; pp.flash(null) / pp.clearFlash() hides it at once. */
+     pp.flash(type, text, ms) shows a note under the text; pp.flash(null) / pp.clearFlash() hides it at once.
+     A tool with state 'locked' stays clickable: the click flashes tool.why (or a generic line). */
   const TOOL_ICONS = [
     [/saline|flush|irrigat|water|rinse|cool/i, 'drop'], [/lido|syringe|inject|txa|adrenal|epi|amio|naloxone|morphine|push|dose|cuff syr/i, 'syringe'],
     [/gauze|pack/i, 'gauze'], [/dressing|bandage|foil|plaster|tape/i, 'bandage'], [/needle|suture|stitch|driver/i, 'needle'],
@@ -469,11 +476,15 @@
       nx.innerHTML = name ? `<span>${esc(t('ui.next', 'Next'))}</span>${own ? rich(name) : esc(name)}` : '';
       nx.style.display = name ? '' : 'none';
     }
-    function renderText() {
+    // the swap-in animation plays for a new instruction, not when only a number in it changes
+    // (live values such as '4.2 ml pushed' update quietly, no fade and no forced layout)
+    const textShape = s => String(s ?? '').replace(/[\d.,:%]+/g, '#');
+    function renderText(prev) {
       const ti = q('.pp-title');
       ti.textContent = o.title || '';
       ti.className = `pp-title ${o.titleTone || ''}`;
       q('.pp-text').innerHTML = rich(o.text);
+      if (prev && prev.title === o.title && prev.titleTone === o.titleTone && textShape(prev.text) === textShape(o.text)) return;
       const b = q('.pp-body');
       b.classList.remove('swap'); void b.offsetWidth; b.classList.add('swap');
     }
@@ -520,19 +531,48 @@
           ${s.meter ? `<div class="m">${meterHTML(s.meter)}</div>` : ''}
         </div>`).join('');
     }
+    // Same tool list (keys + icons) as before → patch the existing buttons in place. Apps re-send
+    // their tools several times a second (counts, states); rebuilding the buttons between a press
+    // and its release would swallow the click.
+    function toolInner(tl) {
+      return `<span class="tl"><b>${esc(tl.label)}</b>${tl.sub ? `<small>${esc(tl.sub)}</small>` : ''}</span>
+          <span class="slot"><span class="ico">${toolIcon(tl)}</span>${tl.key ? `<kbd>${esc(tl.key)}</kbd>` : ''}${tl.count ? `<span class="cnt">${esc(tl.count)}</span>` : ''}<span class="ok">${icon('check')}</span></span>`;
+    }
+    function patchTool(b, tl) {
+      const cls = `pp-tool ${tl.state || ''}`;
+      if (b.className !== cls) b.className = cls;
+      const tlEl = b.querySelector('.tl'), lb = tlEl.querySelector('b');
+      if (lb.textContent !== String(tl.label ?? '')) lb.textContent = tl.label ?? '';
+      let sm = tlEl.querySelector('small');
+      if (tl.sub) { if (!sm) { sm = document.createElement('small'); tlEl.appendChild(sm); } if (sm.textContent !== String(tl.sub)) sm.textContent = tl.sub; }
+      else if (sm) sm.remove();
+      const slot = b.querySelector('.slot');
+      let cnt = slot.querySelector('.cnt');
+      if (tl.count) { if (!cnt) { cnt = el('span', 'cnt'); slot.insertBefore(cnt, slot.querySelector('.ok')); } if (cnt.textContent !== String(tl.count)) cnt.textContent = tl.count; }
+      else if (cnt) cnt.remove();
+    }
     function renderTools() {
       const box = q('.pp-tools');
       const tools = o.tools || [];
-      box.innerHTML = tools.map(tl => `
-        <button class="pp-tool ${tl.state || ''}" data-key="${esc(tl.key)}">
-          <span class="tl"><b>${esc(tl.label)}</b>${tl.sub ? `<small>${esc(tl.sub)}</small>` : ''}</span>
-          <span class="slot"><span class="ico">${toolIcon(tl)}</span>${tl.key ? `<kbd>${esc(tl.key)}</kbd>` : ''}${tl.count ? `<span class="cnt">${esc(tl.count)}</span>` : ''}<span class="ok">${icon('check')}</span></span>
-        </button>`).join('');
+      const sig = tools.map(tl => `${tl.key}|${tl.icon || ''}|${tl.img || ''}`).join(',');
+      const btns = box.querySelectorAll('.pp-tool');
+      if (sig === box._sig && btns.length === tools.length) {
+        tools.forEach((tl, i) => patchTool(btns[i], tl));
+      } else {
+        box._sig = sig;
+        box.innerHTML = tools.map(tl => `<button class="pp-tool ${tl.state || ''}" data-key="${esc(tl.key)}">${toolInner(tl)}</button>`).join('');
+        // a locked tool still answers a click: it says why instead of silently ignoring it (tl.why)
+        box.querySelectorAll('.pp-tool').forEach((b, i) => b.addEventListener('click', () => {
+          const tl = (o.tools || [])[i];
+          if (tl && tl.state === 'locked') { lockedNote(tl); return; }
+          if (o.onTool) o.onTool(b.dataset.key);
+        }));
+      }
       box.style.display = tools.length ? '' : 'none';
       root.classList.toggle('pp--dense', tools.length > 7);
-      box.querySelectorAll('.pp-tool').forEach(b => b.addEventListener('click', () => o.onTool && o.onTool(b.dataset.key)));
       syncBelt();
     }
+    function lockedNote(tl) { api.flash('warn', tl.why || t('ui.toolLocked', 'You cannot use this right now.'), 2600); }
     function syncBelt() {
       const has = (o.tools || []).length || (o.abort !== false && o.onAbort);
       q('.pp-belt').style.display = has ? '' : 'none';
@@ -564,7 +604,7 @@
         const prev = o; o = Object.assign({}, o, n);
         if ('step' in n || 'total' in n || 'tag' in n || 'steps' in n || 'skipped' in n || 'next' in n) renderStep();
         // only a real change replays the text swap (apps that re-send the same title/tone every tick stay still)
-        if (('title' in n && n.title !== prev.title) || ('text' in n && n.text !== prev.text) || ('titleTone' in n && n.titleTone !== prev.titleTone)) renderText();
+        if (('title' in n && n.title !== prev.title) || ('text' in n && n.text !== prev.text) || ('titleTone' in n && n.titleTone !== prev.titleTone)) renderText(prev);
         if ('stats' in n || 'wide' in n) renderStats();
         if ('tools' in n) renderTools();
         if ('hints' in n || 'abort' in n) renderHints();
@@ -609,7 +649,8 @@
       key(e) {
         if (e.key === 'Enter' && doneHandler) { doneHandler(); return true; }
         const tl = (o.tools || []).find(x => String(x.key).toLowerCase() === String(e.key).toLowerCase());
-        if (tl && tl.state !== 'locked' && o.onTool) { o.onTool(tl.key); return true; }
+        if (tl && tl.state === 'locked') { lockedNote(tl); return true; }
+        if (tl && o.onTool) { o.onTool(tl.key); return true; }
         return false;
       },
       // a container in the column (above the key legend) for app widgets
@@ -887,6 +928,9 @@
     const params = new URLSearchParams(location.search);
     const name = params.get('app');
     if (params.get('font')) applyConfig({ font: params.get('font') });
+    // preview: ?q3d=low|medium|high caps the 3D detail, ?rs=0.5 the render scale (like Config.UI)
+    if (params.get('q3d')) cfg.quality3d = params.get('q3d');
+    if (params.get('rs')) cfg.renderScale = +params.get('rs');
     document.body.prepend(el('div', 'nza-bg'));
     if (name && apps[name]) {
       previewApp = name;

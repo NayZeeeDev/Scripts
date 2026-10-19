@@ -74,6 +74,7 @@ NZA.AddLocale('en', {
     ['ui.abort']          = 'Abort',
     ['ui.hold_abort']     = 'Hold to cancel',
     ['ui.holdAbort']      = 'Hold to cancel',
+    ['ui.toolLocked']     = 'You cannot use this right now.',
     ['ui.complete']       = 'Complete',
     ['ui.hold']           = 'Hold',
     ['ui.press']          = 'Press',

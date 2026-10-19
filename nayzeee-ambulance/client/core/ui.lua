@@ -467,6 +467,7 @@ function UI.PushConfig()
         scale = c.scale,
         sounds = c.sounds,
         signature = c.signature,
+        quality3d = c.quality3d, renderScale = c.renderScale, adaptive = c.adaptive,
         locale = uiLocale(),
         lang = Config.Locale or 'en',
         resource = NZA.Resource,

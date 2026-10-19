@@ -383,10 +383,21 @@ NZA.Blood.CreateBag(meta) → metadata table  NZA.Blood.Compatible(recipient, do
 
 ## 10. NUI — one page, many apps
 
-`html/index.html` loads `core/nz-core.css`, `core/nz-core.js` (NAYZEEE UI pack, untouched),
+`html/index.html` loads `core/nza-input.js` first (input compat for the FiveM NUI browser: tracks the held
+mouse buttons, fixes `buttons = 0` on moves and, if the host never sends Pointer Events, re-dispatches mouse
+input as pointerdown / pointermove / pointerup - apps keep using plain pointer handlers), then
+`core/nz-core.css`, `core/nz-core.js` (NAYZEEE UI pack, untouched),
 `core/nza.css`, `core/nza.js` (EMS UI kit, lead), `core/nza-vitals.js` (waveforms, lead),
 `vendor/three.min.js`, `core/nza3d.js` (shared WebGL close-up engine, owned by `suture` module),
 then every app's `apps/<app>/app.css` + `apps/<app>/app.js`. The app list is fixed in index.html.
+
+In-game rules every minigame follows (the NUI runs inside GTA, often at a low frame rate):
+- Nothing full-screen may take clicks over a canvas: the ProcPanel root `.pp` is `pointer-events:none!important`
+  (its tools, abort ring and Done button opt back in). Check with `document.elementFromPoint` over the scene.
+- Gameplay time is real time: `nza3d` splits a long frame into 1/30 s sub-steps (the pointer is walked across
+  them) and exposes `S.frameDt`; app loops divide speeds by the real frame time, never by a clamped dt.
+- `nza3d` has a frame-time governor (render scale 1 → 0.5, then fewer shadows) tuned by `Config.UI.quality3d`,
+  `renderScale`, `adaptive`; `S.perf` shows its state. A locked ProcPanel tool explains itself on click (`tool.why`).
 
 ### 10.1 Messages
 Lua → JS: `NZA.UI.Send(app, action, data)` = `SendNUIMessage({ app = app, action = action, data = data })`.

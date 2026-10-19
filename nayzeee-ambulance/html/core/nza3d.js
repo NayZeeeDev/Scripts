@@ -29,6 +29,10 @@
            drape false | { radius (m), uv:[u,v], color } surgical drape with a round window
            quality 'high'|'medium'|'low' · exposure · keys (R recentre) · fullscreen (true)
            gravity [gs, gt] direction blood runs on the patch (default [0, 1] = toward viewer)
+           renderScale (max fraction of the window rendered, default Config.UI.renderScale or 1)
+           adaptive (false = no frame-time governor; default Config.UI.adaptive)
+     Frame loop: real-time simulation at any frame rate (long frames are split into 1/30 s
+     sub-steps, only the last renders). S.perf { scale, fps, level } = the governor's state.
      S.renderer S.scene S.camera S.patch {W,H} S.canvas S.quality S.region S.shape {axis,R}
      S.on('frame'|'pointer'|'down'|'up'|'resize', fn) S.off(name, fn)   S.start() S.stop()
      S.step(dt, render = true)  advance one frame by hand (render false: simulate only)
@@ -756,7 +760,13 @@
     const entry = acquireRenderer();
     if (!entry) throw new Error('NZA3D: WebGL2 is not available');
     const renderer = entry.renderer;
-    const Q = QUALITY[o.quality] || QUALITY.high;
+    // Config.UI.quality3d (pushed to NZA.cfg): 'auto' keeps the app's tier, 'high' | 'medium' | 'low' caps it
+    const ui = (window.NZA && window.NZA.cfg) || {};
+    const RANK = { low: 0, medium: 1, high: 2 };
+    let qName = QUALITY[o.quality] ? o.quality : 'high';
+    if (QUALITY[ui.quality3d] && RANK[ui.quality3d] < RANK[qName]) qName = ui.quality3d;
+    o.quality = qName;
+    const Q = QUALITY[qName];
     const preset = regionPreset(o.region);
     const W = (o.size && o.size[0]) || preset.size[0];
     const H = (o.size && o.size[1]) || preset.size[1];
@@ -1641,10 +1651,21 @@
 
     /* input */
     let drag = null;
+    // the tool's skin contact is otherwise refreshed once per rendered frame: at a low frame rate a
+    // press / release would act on where the cursor was a frame ago, so re-pick it from the event
+    const freshHit = () => {
+      // the next frame walks the pointer from here, not from where it was a frame ago (a hold that
+      // starts on a ring must not "slip" through the old path)
+      pFrom.x = S.pointer.x; pFrom.y = S.pointer.y;
+      if (!tools.active || !tools.follow) return;
+      const hit = raycast(S.pointer);
+      if (hit) tools.hit = hit;
+    };
     const onDown = e => {
       S.buttons = e.buttons;
       const f = pointerFrac(e); S.pointer.x = f.x; S.pointer.y = f.y;
       if (e.button === 2 && ctl.enabled) { drag = { x: e.clientX, y: e.clientY, pan: e.shiftKey }; e.preventDefault(); }
+      freshHit();
       emit('down', e, f);
     };
     const onMove = e => {
@@ -1668,7 +1689,9 @@
     const onUp = e => {
       S.buttons = e.buttons;
       if (e.button === 2) drag = null;
-      emit('up', e, pointerFrac(e));
+      const f = pointerFrac(e); S.pointer.x = f.x; S.pointer.y = f.y;
+      freshHit();
+      emit('up', e, f);
     };
     const onWheel = e => {
       if (!ctl.enabled) return;
@@ -2777,7 +2800,49 @@
     }
 
     /* ═════════════ LOOP ═════════════ */
-    let lastW = 0, lastH = 0, raf = 0, running = false, lastT = 0;
+    let lastW = 0, lastH = 0, lastScale = 0, raf = 0, running = false, lastT = 0;
+    // Frame-time governor. Once a second it compares the average frame interval with the best
+    // interval seen (the host's refresh / NUI frame cap) and an absolute floor: too slow → render
+    // fewer pixels (scale 1 → 0.5 of the window), then drop the second shadow cell and halve the
+    // shadow map; plenty of headroom → scale back up. Config.UI.renderScale caps the top scale,
+    // Config.UI.adaptive = false turns the governor off. S.perf → { scale, fps, level }.
+    const perf = {
+      auto: ui.adaptive !== false && o.adaptive !== false,
+      max: clamp(+(o.renderScale || ui.renderScale) || 1, 0.4, 1), min: 0.5,
+      scale: 1, fps: 0, level: 0, best: 1e9, sum: 0, n: 0, t0: 0, prev: 0, good: 0, warm: 0,
+      sample(now) {
+        if (this.prev) { this.sum += now - this.prev; this.n++; }
+        this.prev = now;
+        if (!this.t0) { this.t0 = now; this.warm = now + 1500; return; }   // skip shader-compile hitches
+        if (now - this.t0 < 1000 || this.n < 4) return;
+        const ms = this.sum / this.n;
+        this.sum = 0; this.n = 0; this.t0 = now;
+        this.fps = Math.round(1000 / ms);
+        if (!this.auto || now < this.warm) return;
+        this.best = Math.min(this.best, ms);
+        const slow = ms > 45 || ms > Math.max(26, this.best * 1.45);
+        if (slow) {
+          this.good = 0;
+          if (this.scale > this.min + 1e-3) this.scale = Math.max(this.min, this.scale - (ms > 70 ? 0.2 : 0.1));
+          else this.cheaper();
+        } else if (ms < this.best * 1.15 + 2 && ++this.good >= 3) {
+          this.good = 0;
+          if (this.scale < this.max - 1e-3) this.scale = Math.min(this.max, this.scale + 0.1);
+        }
+      },
+      // last resort below the minimum scale: fewer / smaller shadow maps (one shader recompile)
+      cheaper() {
+        if (this.level >= 2) return;
+        this.level++;
+        if (this.level === 1 && keyB.castShadow) { keyB.castShadow = false; return; }
+        const size = Math.max(512, (key.shadow.mapSize.x / 2) | 0);
+        if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; }
+        key.shadow.mapSize.set(size, size);
+        this.level = 2;
+      },
+    };
+    perf.scale = perf.max;
+    S.perf = perf;
     function effectiveZoom(el) {
       let z = 1;
       for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const v = parseFloat(getComputedStyle(n).zoom); if (v > 0) z *= v; }
@@ -2788,13 +2853,15 @@
       if (o.fullscreen) { w = window.innerWidth; h = window.innerHeight; }
       else { w = container.clientWidth; h = container.clientHeight; }
       w = Math.max(2, Math.floor(w)); h = Math.max(2, Math.floor(h));
-      if (w === lastW && h === lastH) return;
-      lastW = w; lastH = h;
-      renderer.setSize(w, h, false);
+      if (w === lastW && h === lastH && perf.scale === lastScale) return;
+      lastW = w; lastH = h; lastScale = perf.scale;
+      // the drawing buffer follows the governor's render scale; the canvas keeps its CSS size
+      const rw = Math.max(2, Math.round(w * perf.scale)), rh = Math.max(2, Math.round(h * perf.scale));
+      renderer.setSize(rw, rh, false);
       if (o.fullscreen) { const z = effectiveZoom(container); cv.style.width = `${w / z}px`; cv.style.height = `${h / z}px`; }
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      pMat.uniforms.uScale.value = h / (2 * Math.tan((camera.fov * Math.PI) / 360));
+      pMat.uniforms.uScale.value = rh / (2 * Math.tan((camera.fov * Math.PI) / 360));
       emit('resize', w, h);
     }
     S.resize = () => { lastW = 0; resize(); };
@@ -2828,12 +2895,31 @@
       renderer.setRenderTarget(null);
       renderer.render(scene, camera);
     }
+    // At a low frame rate (heavy scene on top of the game) the simulation still runs in real time:
+    // a long frame is split into sub-steps of at most 1/30 s (only the last one renders), up to
+    // MAX_FRAME s per frame, so holds, timers and drags take the time they say on screen.
+    // The pointer is walked from last frame's position to this one across the sub-steps, so a
+    // drag is sampled as finely as at a high frame rate and per-step speeds (distance / dt) stay
+    // true. S.frameDt = the real length of this frame (s).
+    const SUB_DT = 1 / 30, MAX_FRAME = 0.2;
+    const pFrom = { x: 0.5, y: 0.5 }, pTo = { x: 0.5, y: 0.5 };
     function frame(now) {
       if (!running) return;
       raf = requestAnimationFrame(frame);
-      const dt = clamp((now - lastT) / 1000, 0, 0.05);
+      const real = clamp((now - lastT) / 1000, 0, MAX_FRAME);
       lastT = now;
-      try { step(dt); } catch (e) { console.error('[NZA3D] frame', e); }
+      S.frameDt = real;
+      const n = Math.max(1, Math.ceil(real / SUB_DT - 1e-4)), d = Math.max(real, 1e-4) / n;
+      pTo.x = S.pointer.x; pTo.y = S.pointer.y;
+      try {
+        for (let i = 1; i <= n; i++) {
+          if (n > 1) { const k = i / n; S.pointer.x = pFrom.x + (pTo.x - pFrom.x) * k; S.pointer.y = pFrom.y + (pTo.y - pFrom.y) * k; }
+          step(d, i === n);
+        }
+      } catch (e) { console.error('[NZA3D] frame', e); }
+      S.pointer.x = pTo.x; S.pointer.y = pTo.y;
+      pFrom.x = pTo.x; pFrom.y = pTo.y;
+      perf.sample(now);
     }
     S.start = () => { if (running || S.disposed) return; running = true; lastT = performance.now(); raf = requestAnimationFrame(frame); };
     S.stop = () => { running = false; cancelAnimationFrame(raf); };

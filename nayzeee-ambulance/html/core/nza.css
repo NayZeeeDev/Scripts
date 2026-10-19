@@ -231,7 +231,7 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 /* ═══════════════ PROCEDURE HUD ═══════════════
    Instruction column bottom-left · tool belt on the right edge · centre left clear.
    .pp--mirror swaps the sides. */
-.pp{position:absolute;inset:0;pointer-events:none}
+.pp{position:absolute;inset:0;pointer-events:none!important}   /* full-screen root over the scene / canvas: clicks pass through (tools, ring, Done opt in) */
 .pp-col{position:absolute;left:28px;bottom:28px;width:392px;max-height:calc(100% - 56px);display:flex;flex-direction:column;justify-content:flex-end;gap:10px;animation:pp-in-l 320ms cubic-bezier(.2,.7,.2,1) both}
 .pp-belt{position:absolute;right:26px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:flex-end;gap:14px;animation:pp-in-r 320ms cubic-bezier(.2,.7,.2,1) both}
 .pp--mirror .pp-col{left:auto;right:28px;animation-name:pp-in-r}
@@ -376,7 +376,7 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .pp-tool.done .slot .ok{display:grid}
 .pp-tool.done .tl b{color:var(--ink-3);font-weight:500;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
 /* locked: dim the content, never the chip — the label keeps its dark backing over a bright scene */
-.pp-tool.locked{pointer-events:none}
+.pp-tool.locked{cursor:not-allowed}   /* still clickable: the kit flashes why it is locked */
 .pp-tool.locked .tl b,.pp-tool.locked .tl small,.pp-tool.locked .ico,.pp-tool.locked .slot .cnt{opacity:.38}
 .pp-tool.locked .slot{background:linear-gradient(160deg,#15171b,#0c0d10)}
 .pp-tool.locked .slot kbd{color:var(--ink-3);border-color:rgba(255,255,255,.1)}   /* the cap overhangs the slot: keep it opaque */

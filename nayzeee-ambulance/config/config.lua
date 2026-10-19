@@ -88,6 +88,10 @@ Config.UI = {
     scale     = 1.0,       -- 0.8 - 1.2
     sounds    = true,      -- monitor beeps, defib, pager
     signature = true,      -- small NAYZEEE signature on windows
+    -- 3D close-ups (suture, bullet, burn, chest drain): they run inside the game's browser, on top of GTA
+    quality3d   = 'auto',  -- 'auto' (each minigame's own detail) or a cap: 'high' | 'medium' | 'low'
+    renderScale = 1.0,     -- max share of the screen resolution the 3D scene renders at (0.5 - 1.0)
+    adaptive    = true,    -- lower the 3D resolution / shadows by itself when the frame rate drops
 }
 
 -- ═══════════════════════════════════════════════════════════════════════════

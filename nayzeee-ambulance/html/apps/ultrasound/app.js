@@ -3316,7 +3316,9 @@
             let da = ang - G.lastAng;
             while (da > Math.PI) da -= 2 * Math.PI;
             while (da < -Math.PI) da += 2 * Math.PI;
-            if (Math.abs(da) < 1.2) G.sweep = Math.min(1, G.sweep + Math.abs(da) / (Math.PI * 4));
+            // the mouse angle is sampled once per frame: at a low frame rate a normal circle is a big
+            // step, so only near-half-turn jumps (direction unknowable) are thrown away
+            if (Math.abs(da) < 2.6) G.sweep = Math.min(1, G.sweep + Math.abs(da) / (Math.PI * 4));
           }
           G.lastAng = ang;
           ring = G.sweep; rtext = `${Math.round(G.sweep * 100)}%`; rtone = 'teal';

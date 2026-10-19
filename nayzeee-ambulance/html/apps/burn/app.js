@@ -3834,7 +3834,8 @@
       const loop = now => {
         if (!this.alive || this.bench !== bench) return;
         this.benchRaf = requestAnimationFrame(loop);
-        const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
+        // real time even at a low frame rate (the crank rate below divides by this dt)
+        const dt = clamp((now - last) / 1000, 0, 0.25); last = now;
         try { this.frameBench(dt); r.render(bench.scene, bench.cam); } catch (err) { console.error('[burn] bench', err); }
       };
       this.benchRaf = requestAnimationFrame(loop);

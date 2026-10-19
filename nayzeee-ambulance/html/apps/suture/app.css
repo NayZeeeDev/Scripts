@@ -12,7 +12,8 @@
 #app-suture .sz-stage.busy{cursor:none}
 #app-suture .sz-ui{position:fixed;inset:0;pointer-events:none;zoom:var(--nza-zoom)}
 #app-suture .sz-ui .nza-hud{pointer-events:none}
-#app-suture .sz-ui .pp,#app-suture .sz-ui .sz-result{pointer-events:auto}
+#app-suture .sz-ui .sz-result{pointer-events:auto}
+#app-suture .sz-ui .pp{pointer-events:none}   /* full-screen root: it must never sit over the canvas (only its tools / ring take clicks) */
 
 /* ── top-left: patient card ── */
 #app-suture .sz-pt{position:absolute;left:24px;top:24px;width:272px;padding:13px 15px 14px}

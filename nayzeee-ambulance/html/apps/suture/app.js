@@ -388,8 +388,8 @@
         if (g) {
           const st = TOOL_STEP[t.id];
           if (st && (g.done[st] || g.skipped[st]) && st < g.step) state = 'done';
-          if (t.id === 'lido') { o.count = String(g.lido.have); if (!g.lido.have && !g.done[2]) state = 'locked'; }
-          if (t.id === 'gauze') { o.count = String(Math.max(0, g.gz.have - g.gz.used + (g.gz.swab ? 1 : 0))); if (!g.gz.have || g.step === 4) state = 'locked'; }
+          if (t.id === 'lido') { o.count = String(g.lido.have); if (!g.lido.have && !g.done[2]) { state = 'locked'; o.why = T('lido_none_why', 'You carry no lidocaine, so you cannot numb the wound. Stitch without it (the patient will flinch) or bring lidocaine.'); } }
+          if (t.id === 'gauze') { o.count = String(Math.max(0, g.gz.have - g.gz.used + (g.gz.swab ? 1 : 0))); if (!g.gz.have || g.step === 4) { state = 'locked'; o.why = g.gz.have ? T('gauze_done_why', 'No more swabbing: dress the wound now.') : T('gauze_none_why', 'You carry no gauze.'); } }
           if (t.id === 'dressing' && g.step < 4) state = state || '';
           if (g.tool === t.id) state = 'active';
         }

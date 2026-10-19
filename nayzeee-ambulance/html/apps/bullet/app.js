@@ -2101,7 +2101,8 @@
       const f = x.grip;
       const dy = (this.my - x.lastY) / window.innerHeight;
       x.lastY = this.my;
-      const v = Math.abs(dy) / Math.max(dt, 1e-3);
+      // the mouse moves once per real frame (sub-steps after the first see dy = 0): divide by the frame
+      const v = Math.abs(dy) / Math.max(S.frameDt || dt, 1e-3);
       x.speed = lerp(x.speed, v, 1 - Math.exp(-dt / 0.12));
       if (f.lodge > 0) {
         f.prog = Math.min(f.prog + Math.max(0, dy) / cfg.pullDist * 0.25, 0.12);
