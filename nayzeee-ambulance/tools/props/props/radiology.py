@@ -19,7 +19,7 @@ from .parts import (boost, caster, caster_top, collar, m_hosp_dark, m_hosp_grey,
 from .screens import draw_angio_ui, draw_lightbox_panel
 
 # =============================================================================================
-# X-ray table + floor-rail tube stand
+# X-ray table (with the floor rail) + the tube stand that slides along it
 # =============================================================================================
 XR_TOP = 0.825          # patient surface (top of the pad)
 XR_COL = (-0.68, 0.35)  # tube stand column (x, y)
@@ -27,17 +27,17 @@ XR_TUBE = (0.0, 0.35)   # focal spot (x, y) over the table
 XR_COLLIMATOR_Z = 1.42  # bottom of the collimator
 
 
-@prop("nz_amb_xray_table", atlas=2048, lod=120, hd=18, static=True, falloff=70, preview={
-    "cams": [{"name": "detail", "pos": [0.75, 0.0, 1.62], "target": [0.0, 0.35, 1.52], "fov": 36}]}, doc={
-    "title": "Radiography table + floor-rail X-ray tube stand",
+XR_ARM = XR_TUBE[0] - XR_COL[0]   # focal spot ahead of the column, across the table (+X)
+
+
+@prop("nz_amb_xray_table", atlas=2048, lod=120, hd=18, static=True, falloff=70, doc={
+    "title": "Radiography table with the floor rail for the X-ray tube stand",
     "origin": "floor, under the centre of the table top",
-    "axes": "table length along Y (patient head end +Y), operator side +X; tube stand column at -X on a floor rail, "
-            "swivel arm reaching over the table",
-    "attach": f"patient lies on the pad (surface z = {XR_TOP}) head towards +Y: attach the ped to the table entity at "
-              f"(0.0, 0.0, {XR_TOP}) + the lying clip's root height, rot (0, 0, 180) for a clip whose ped faces up with feet "
-              f"along its +Y; tube focal spot at ({XR_TUBE[0]}, {XR_TUBE[1]}, 1.66), collimator light field bottom at z "
-              f"{XR_COLLIMATOR_Z} (point a camera from there straight down for a 'film' view); medic stands at (+0.75, 0.0) "
-              "facing -X",
+    "axes": "table length along Y (patient head end +Y), operator side +X; the floor rail for the tube stand "
+            f"(nz_amb_xray_tube) runs along Y at x = {XR_COL[0]}",
+    "attach": f"patient lies on the pad (surface z = {XR_TOP}); the tube stand stands on the rail: place nz_amb_xray_tube "
+              f"at table offset ({XR_COL[0]}, y, 0) with the table's heading, y = -1.0 .. 1.0 (its focal spot is then over "
+              f"(0, y) of the table); rest position y = {XR_COL[1]}; medic stands at (+0.75, 0.0) facing -X",
 })
 def xray_table(b):
     white = m_hosp_white(b)
@@ -51,7 +51,6 @@ def xray_table(b):
     pad = m_vinyl(b, "pad_vinyl", (34, 96, 120))
     carbon = b.mat("carbon", color=(58, 61, 66), spec=0.45, gloss=0.6, bump="fabric", bump_amp=0.00006, bump_scale=0.0022,
                    grain=0.02, grain_scale=0.05, edge=0.35, color2=(44, 47, 52))
-    glass = b.mat("coll_glass", color=(30, 40, 44), spec=0.9, gloss=0.92, edge=0.1)
 
     # ---- table pedestal ----------------------------------------------------------------------
     b.add(box((0.64, 1.02, 0.05), dark, r=0.02, seg=2, center=(0, -0.05, 0.025), face_density={"-z": 0.2}))
@@ -83,13 +82,60 @@ def xray_table(b):
     cab = catmull([(0.42, -0.86, 0.665), (0.42, -0.86, 0.70), (0.40, -0.84, 0.735), (0.375, -0.80, 0.745)], n=6)
     b.add(tube(cab, 0.004, blk, segs=8))
 
-    # ---- floor rail ----------------------------------------------------------------------------
-    cx, cy = XR_COL
+    # ---- floor rail (the tube stand nz_amb_xray_tube rides on it) ------------------------------
+    cx = XR_COL[0]
     b.add(box((0.16, 2.30, 0.03), alu, r=0.008, seg=2, center=(cx, 0, 0.015), face_density={"-z": 0.1}))
     b.add(box((0.05, 2.28, 0.006), dark, center=(cx, 0, 0.031), faces="+z +x -x"))
     for sy in (-1, 1):
         b.add(box((0.17, 0.04, 0.045), blk, r=0.01, seg=2, center=(cx, sy * 1.15, 0.0225)))
-    # ---- tube stand column -----------------------------------------------------------------
+
+    # ---- decals -------------------------------------------------------------------------------
+    lab = label_canvas(0.30, 0.05, "RADIOGRAPHY TABLE", "RT-4  ·  FLOATING TOP", ppm=2200, color=(40, 44, 48), sub_color=TEAL)
+    b.decal(lab, center=(0.0, -0.05 + 0.4201, 0.50), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
+    b.decal(lab, center=(0.2601, -0.05, 0.50), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
+    for sx in (-1, 1):
+        r = ruler(1.9, 0.026, step=0.01, ppm=1400, numbers=10, start=0, unit_step=10, bg=(186, 190, 194))
+        b.decal(r, center=(sx * 0.3961, 0.0, 0.77), normal=(sx, 0, 0), up=(0, 0, 1), mats=["alu"], depth=0.006)
+    rr = ruler(2.2, 0.04, step=0.05, ppm=900, numbers=2, start=0, unit_step=10)
+    b.decal(rr, center=(cx + 0.055, 0.0, 0.0301), normal=(0, 0, 1), up=(1, 0, 0), mats=["alu"], depth=0.004)
+    pend = DecalCanvas(0.05, 0.03, ppm=6000)
+    pend.text(0.003, 0.0065, "TABLE", 0.0045, fnt="label", anchor="lm", color=(230, 234, 236))
+    pend.text(0.025, 0.022, "UP  ·  DOWN  ·  FLOAT", 0.0028, fnt="label-semi", color=(160, 168, 172))
+    b.decal(pend, center=(0.42, -0.8771, 0.665), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.004)
+    b.decal(rating_plate(0.10, 0.035, "RADIOGRAPHY TABLE", "RT-4", "SN 26-04230", rating="400 V 3~  50/60 Hz  ·  SWL 230 kg",
+                         ppm=3500), center=(-0.2601, -0.05, 0.25), normal=(-1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
+    b.decal(cal_sticker(0.03, 0.018, title="QA TESTED"), center=(-0.2601, -0.05, 0.33), normal=(-1, 0, 0), up=(0, 0, 1),
+            mats=["hosp_white"], depth=0.02)
+
+    for c in b.geo.charts:
+        zmax = float(c.pos[:, 2].max())
+        if zmax < 0.6 and c.mat not in ("hosp_white",):
+            c.density *= 0.5
+    boost(b, 2.5, mats=["hosp_white"], zmin=0.52, zmax=0.68)     # hand pendant
+    b.col_box((-0.395, -1.1, 0.70), (0.395, 1.1, XR_TOP), "PLASTIC_HIGH_DENSITY")
+    b.col_box((-0.32, -0.56, 0.0), (0.32, 0.46, 0.70), "PLASTIC_HIGH_DENSITY")
+    b.col_box((cx - 0.08, -1.17, 0.0), (cx + 0.08, 1.17, 0.045), "METAL_SOLID_MEDIUM")
+
+
+@prop("nz_amb_xray_tube", atlas=2048, lod=120, hd=18, static=False, falloff=70, preview={
+    "cams": [{"name": "detail", "pos": [XR_ARM + 0.75, 0.0, 1.62], "target": [XR_ARM, 0.0, 1.52], "fov": 36}]}, doc={
+    "title": "X-ray tube stand: column on a rail carriage, swivel arm, tube head and collimator",
+    "origin": "floor, under the column on the table's floor rail",
+    "axes": "same as nz_amb_xray_table (spawn it with the table's heading): the arm reaches +X over the table",
+    "attach": f"place it at table offset ({XR_COL[0]}, y, 0): the focal spot is at ({XR_ARM:.2f}, 0, 1.66) of this prop, "
+              f"so over (0, y) of the table; collimator light field bottom at z {XR_COLLIMATOR_Z}. Slide it along the "
+              "table's Y (rail) to the body part being imaged",
+})
+def xray_tube(b):
+    white = m_hosp_white(b)
+    grey = m_hosp_grey(b)
+    dark = m_hosp_dark(b)
+    led = m_teal_led(b)
+    glass = b.mat("coll_glass", color=(30, 40, 44), spec=0.9, gloss=0.92, edge=0.1)
+    cx, cy = 0.0, 0.0
+    tx, ty = XR_ARM, 0.0
+
+    # ---- rail carriage + column ----------------------------------------------------------------
     b.add(box((0.34, 0.42, 0.12), dark, r=0.03, seg=2, center=(cx, cy, 0.09)))
     b.add(box((0.35, 0.43, 0.008), led, center=(cx, cy, 0.034), faces="+x -x +y -y"))
     b.add(box((0.22, 0.30, 2.27), white, r=0.035, seg=3, center=(cx, cy, 0.15 + 1.135), face_density={"+z": 0.3}))
@@ -102,11 +148,10 @@ def xray_table(b):
     b.add(box((0.30, 0.36, 0.26), white, r=0.04, seg=3, center=(cx + 0.01, cy, zc)))
     for dz in (-0.135, 0.135):
         b.add(box((0.306, 0.366, 0.012), dark, r=0.005, seg=1, center=(cx + 0.01, cy, zc + dz)))
-    b.add(box((0.56, 0.16, 0.14), white, r=0.035, seg=3, center=((cx + 0.15 + 0.0) / 2 + 0.01, cy, zc)))
-    b.add(cylinder(0.085, 0.16, dark, segs=32, bevel=0.012, z0=zc - 0.08).translate(XR_TUBE[0], XR_TUBE[1], 0))
-    b.add(cylinder(0.087, 0.008, led, segs=32, z0=zc - 0.004, caps=(False, False)).translate(XR_TUBE[0], XR_TUBE[1], 0))
+    b.add(box((0.56, 0.16, 0.14), white, r=0.035, seg=3, center=(cx + (tx - cx) * 0.625, cy, zc)))
+    b.add(cylinder(0.085, 0.16, dark, segs=32, bevel=0.012, z0=zc - 0.08).translate(tx, ty, 0))
+    b.add(cylinder(0.087, 0.008, led, segs=32, z0=zc - 0.004, caps=(False, False)).translate(tx, ty, 0))
     # ---- tube head (housing along Y) + collimator -------------------------------------------------
-    tx, ty = XR_TUBE
     zt = 1.70
     b.add(box((0.12, 0.10, 0.10), dark, r=0.02, seg=2, center=(tx, ty, (zt + zc) / 2 + 0.02)))
     housing = lathe([(0.0, -0.21), (0.10, -0.21), (0.118, -0.195), (0.122, -0.17), (0.122, 0.17), (0.118, 0.195), (0.10, 0.21),
@@ -136,9 +181,6 @@ def xray_table(b):
     # ---- decals -------------------------------------------------------------------------------
     vb = label_canvas(0.62, 0.10, "RADIOGRAPHY", "RT-4  ·  FLOOR RAIL TUBE STAND", ppm=1800, color=(236, 240, 242), sub_color=TEAL_HI)
     b.decal(vb, center=(cx + 0.1151, cy - 0.02, 1.12), normal=(1, 0, 0), up=(0, -1, 0), mats=["hosp_dark"], depth=0.008)
-    lab = label_canvas(0.30, 0.05, "RADIOGRAPHY TABLE", "RT-4  ·  FLOATING TOP", ppm=2200, color=(40, 44, 48), sub_color=TEAL)
-    b.decal(lab, center=(0.0, -0.05 + 0.4201, 0.50), normal=(0, 1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
-    b.decal(lab, center=(0.2601, -0.05, 0.50), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
     scr = DecalCanvas(0.18, 0.09, ppm=2600)
     scr.rect(0, 0, 0.18, 0.09, r=0.004, color=(6, 8, 10))
     scr.text(0.01, 0.016, "SID", 0.008, fnt="label-semi", anchor="lm", color=(130, 140, 146))
@@ -149,36 +191,14 @@ def xray_table(b):
     b.decal(scr, center=(tx + 0.1331, ty, 1.535), normal=(1, 0, 0), up=(0, 0, 1), mats=["gloss_black"], depth=0.004)
     b.decal(radiation_label(0.05), center=(tx, ty - 0.1301, 1.556), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_grey"], depth=0.01)
     b.decal(radiation_label(0.06), center=(cx + 0.1101, cy - 0.02, 1.72), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.01)
+    b.decal(caution_label(0.10, 0.045, "CAUTION", ["X-RAY  -  authorised operators only", "Keep clear of moving parts"], ppm=3000),
+            center=(cx + 0.1101, cy - 0.02, 0.40), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_dark"], depth=0.01)
     cross = DecalCanvas(0.17, 0.17, ppm=2000)
     cross.rect(0.084, 0.01, 0.002, 0.15, color=(40, 230, 210))
     cross.rect(0.01, 0.084, 0.15, 0.002, color=(40, 230, 210))
     b.decal(cross, center=(tx, ty, zc0 - 0.001), normal=(0, 0, -1), up=(0, 1, 0), mats=["coll_glass"], depth=0.004)
-    for sx in (-1, 1):
-        r = ruler(1.9, 0.026, step=0.01, ppm=1400, numbers=10, start=0, unit_step=10, bg=(186, 190, 194))
-        b.decal(r, center=(sx * 0.3961, 0.0, 0.77), normal=(sx, 0, 0), up=(0, 0, 1), mats=["alu"], depth=0.006)
-    rr = ruler(2.2, 0.04, step=0.05, ppm=900, numbers=2, start=0, unit_step=10)
-    b.decal(rr, center=(cx + 0.055, 0.0, 0.0301), normal=(0, 0, 1), up=(1, 0, 0), mats=["alu"], depth=0.004)
-    pend = DecalCanvas(0.05, 0.03, ppm=6000)
-    pend.text(0.003, 0.0065, "TABLE", 0.0045, fnt="label", anchor="lm", color=(230, 234, 236))
-    pend.text(0.025, 0.022, "UP  ·  DOWN  ·  FLOAT", 0.0028, fnt="label-semi", color=(160, 168, 172))
-    b.decal(pend, center=(0.42, -0.8771, 0.665), normal=(0, -1, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.004)
-    b.decal(rating_plate(0.10, 0.035, "RADIOGRAPHY TABLE", "RT-4", "SN 26-04230", rating="400 V 3~  50/60 Hz  ·  SWL 230 kg",
-                         ppm=3500), center=(-0.2601, -0.05, 0.25), normal=(-1, 0, 0), up=(0, 0, 1), mats=["hosp_white"], depth=0.02)
-    b.decal(caution_label(0.10, 0.045, "CAUTION", ["X-RAY  -  authorised operators only", "Keep clear of moving parts"], ppm=3000),
-            center=(cx + 0.1101, cy - 0.02, 0.40), normal=(1, 0, 0), up=(0, 0, 1), mats=["hosp_dark"], depth=0.01)
-    b.decal(cal_sticker(0.03, 0.018, title="QA TESTED"), center=(-0.2601, -0.05, 0.33), normal=(-1, 0, 0), up=(0, 0, 1),
-            mats=["hosp_white"], depth=0.02)
 
-    # texel budget: what the camera sees (top, tube head, column face) gets the texels
-    for c in b.geo.charts:
-        zmax = float(c.pos[:, 2].max())
-        if zmax < 0.6 and c.mat not in ("hosp_white",):
-            c.density *= 0.5
     boost(b, 3.0, mats=["gloss_black"])
-    boost(b, 2.5, mats=["hosp_white"], zmin=0.52, zmax=0.68)     # hand pendant
-    b.col_box((-0.395, -1.1, 0.70), (0.395, 1.1, XR_TOP), "PLASTIC_HIGH_DENSITY")
-    b.col_box((-0.32, -0.56, 0.0), (0.32, 0.46, 0.70), "PLASTIC_HIGH_DENSITY")
-    b.col_box((cx - 0.08, -1.17, 0.0), (cx + 0.08, 1.17, 0.045), "METAL_SOLID_MEDIUM")
     b.col_box((cx - 0.17, cy - 0.21, 0.03), (cx + 0.17, cy + 0.21, 0.15), "METAL_SOLID_MEDIUM")
     b.col_box((cx - 0.13, cy - 0.17, 0.15), (cx + 0.13, cy + 0.17, 2.48), "PLASTIC_HIGH_DENSITY")
     b.col_box((cx + 0.13, cy - 0.09, zc - 0.08), (tx + 0.09, ty + 0.09, zc + 0.08), "PLASTIC_HIGH_DENSITY")

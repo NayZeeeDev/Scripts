@@ -56,7 +56,8 @@ Config.Props = {
     bodybag          = 'xm_prop_body_bag',        -- native (Doomsday DLC)
 
     -- hospital equipment (placed with the in-game builder)
-    xray_table       = 'nz_amb_xray_table',       -- table + gantry arm
+    xray_table       = 'nz_amb_xray_table',       -- table + floor rail
+    xray_tube        = 'nz_amb_xray_tube',        -- tube stand that slides along the rail to the imaged body part
     lightbox         = 'nz_amb_lightbox',         -- film viewer on a stand
     us_cart          = 'nz_amb_us_cart',          -- ultrasound cart
     injector         = 'nz_amb_injector',         -- contrast power injector on a tray

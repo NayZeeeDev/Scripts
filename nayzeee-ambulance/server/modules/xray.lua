@@ -902,6 +902,19 @@ lib.callback.register('nza:xray:read:finish', function(src, token, res)
     return { ok = true, outcome = outcome }
 end)
 
+-- the X-ray tube stand slid to a body part: everyone nearby sees it move
+local tubeAt = {}
+RegisterNetEvent('nza:xray:tube', function(pointId, y)
+    local src = source
+    pointId, y = tonumber(pointId), tonumber(y)
+    if not pointId or not y or y ~= y then return end
+    local now = GetGameTimer()
+    if (tubeAt[src] or 0) > now then return end
+    tubeAt[src] = now + 400
+    TriggerClientEvent('nza:xray:tube', -1, pointId, math.max(-1.2, math.min(1.2, y)), src)
+end)
+AddEventHandler('playerDropped', function() tubeAt[source] = nil end)
+
 RegisterNetEvent('nza:xray:read:cancel', function(token)
     local src = source
     local s = reads[src]

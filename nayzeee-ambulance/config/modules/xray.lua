@@ -60,6 +60,16 @@ Config.Xray = {
         flash = { range = 4.0, intensity = 12.0, ms = 140 },   -- in-world light flash on exposure
     },
 
+    -- The tube stand (Config.Props.xray_tube) on the table's floor rail. Before an exposure it slides
+    -- along the table until the tube is over the body part being imaged (everyone nearby sees it).
+    Tube = {
+        enabled = true,
+        x       = -0.68,     -- rail position across the table (table space, metres)
+        rest    = 0.35,      -- where it waits along the table (+Y = head end of the pad)
+        reach   = 1.0,       -- how far along the rail it may travel each way
+        speed   = 0.45,      -- metres per second
+    },
+
     -- ═══════════════════════════════════════════════════════════════════════
     -- READING FILMS (lightbox)
     -- ═══════════════════════════════════════════════════════════════════════

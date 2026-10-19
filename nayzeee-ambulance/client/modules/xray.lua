@@ -3,7 +3,9 @@
 
     Hospital points (NZA.Points.RegisterType, ARCHITECTURE §8)
         'xray'      Config.Props.xray_table - target "Take X-ray" opens the console (choose the view)
-                    for the patient lying on the table (the transport module places patients on it)
+                    for the patient lying on the table (the transport module places patients on it).
+                    The tube stand (Config.Props.xray_tube) stands on the table's floor rail and slides to
+                    the body part being imaged (Config.Xray.Tube); everyone nearby sees it move.
         'lightbox'  Config.Props.lightbox   - target "Read X-ray film" (pick one of your films)
     Patient options (NZA.Interact, ARCHITECTURE §11) - patient lying on an X-ray table:
         nza_xray_<view>  'X-ray: Head' ... 'X-ray: Right leg'   order 60-67, perm Config.Xray.Take.perm
@@ -21,7 +23,8 @@
         Lua → open { mode = 'choose'|'expose'|'read'|'view'|'reduce'|'cast', ... }, filmReady, result, error
         JS  → xray:choose {view}  xray:expose {breath}  xray:finish {result}  xray:abort  xray:close
     Callbacks used: nza:xray:films, nza:xray:open, nza:xray:read:finish, nza:xray:offTable (+ core proc)
-    Net events: nza:xray:read (payload) S→C, nza:xray:standUp S→C, nza:xray:read:cancel C→S
+    Net events: nza:xray:read (payload) S→C, nza:xray:standUp S→C, nza:xray:read:cancel C→S,
+                nza:xray:tube (pointId, y) C→S→C
     Lua API (runtime, also used by xray_ortho.lua): NZA.Xray.Take(entity, target, view),
         NZA.Xray.Console(entity, target), NZA.Xray.Read(payload), NZA.Xray.ReadAt(point),
         NZA.Xray.OffTable(entity, target), NZA.Xray.TablePoint(entity) → point|nil,
@@ -337,9 +340,93 @@ local function stepBack(entity, metres)
     TaskTurnPedToFaceEntity(me, entity, 700)
 end
 
+-- ════════════════════════════════════════════════════════════════════════
+-- TUBE STAND (slides along the table's floor rail to the imaged body part)
+-- ════════════════════════════════════════════════════════════════════════
+
+local tubes = {}   -- [point id] = { ent, table, x, y, gen }
+-- the bone the collimator centres on for each view
+local VIEW_BONE = { head = 31086, neck = 39317, chest = 24818, abdomen = 23553, l_arm = 61163, r_arm = 28252, l_leg = 63931, r_leg = 36864 }
+
+local function tubeCfg() return cfg('Tube') end
+
+local function placeTube(t, y)
+    if not DoesEntityExist(t.ent) or not DoesEntityExist(t.table) then return end
+    local p = GetOffsetFromEntityInWorldCoords(t.table, t.x, y, 0.0)
+    SetEntityCoordsNoOffset(t.ent, p.x, p.y, p.z, false, false, false)
+    SetEntityHeading(t.ent, GetEntityHeading(t.table))
+    t.y = y
+end
+
+local function spawnTube(point, tableEnt)
+    local tc = tubeCfg()
+    if tc.enabled == false or not (Config.Props and Config.Props.xray_tube) or not tableEnt or tableEnt == 0 then return end
+    if tubes[point.id] then return end
+    tubes[point.id] = false
+    CreateThread(function()
+        local x, rest = tonumber(tc.x) or -0.68, tonumber(tc.rest) or 0.35
+        local at = GetOffsetFromEntityInWorldCoords(tableEnt, x, rest, 0.0)
+        local ent = NZA.Props.Spawn('xray_tube', at, { heading = GetEntityHeading(tableEnt), group = 'xray_tube', freeze = true })
+        if tubes[point.id] ~= false or not DoesEntityExist(tableEnt) then
+            if ent ~= 0 then NZA.Props.Delete(ent) end
+            return
+        end
+        if ent == 0 then tubes[point.id] = nil return end
+        tubes[point.id] = { ent = ent, table = tableEnt, x = x, y = rest, gen = 0 }
+    end)
+end
+
+local function removeTube(point)
+    local t = tubes[point.id]
+    tubes[point.id] = nil
+    if t then NZA.Props.Delete(t.ent) end
+end
+
+-- slide the tube of an X-ray table to y (table space, along the patient); broadcast = tell everyone nearby
+function X.SlideTube(pointId, y, broadcast)
+    local t = tubes[pointId]
+    if not t then return end
+    local reach = tonumber(tubeCfg().reach) or 1.0
+    y = math.max(-reach, math.min(reach, tonumber(y) or t.y))
+    if broadcast then TriggerServerEvent('nza:xray:tube', pointId, y) end
+    t.gen = t.gen + 1
+    local gen = t.gen
+    CreateThread(function()
+        local speed = tonumber(tubeCfg().speed) or 0.45
+        local last = GetGameTimer()
+        while tubes[pointId] == t and t.gen == gen and math.abs(t.y - y) > 0.004 do
+            Wait(0)
+            local now = GetGameTimer()
+            local step = speed * (now - last) / 1000
+            last = now
+            placeTube(t, t.y + math.max(-step, math.min(step, y - t.y)))
+        end
+    end)
+end
+
+-- where along the table (table space y) the view's body part of a patient lying on it is
+function X.ViewY(pointId, ped, view)
+    local t = tubes[pointId]
+    local bone = VIEW_BONE[view]
+    if not t or not bone or not ped or not DoesEntityExist(ped) or not DoesEntityExist(t.table) then return nil end
+    local w = GetPedBoneCoords(ped, bone, 0.0, 0.0, 0.0)
+    return GetOffsetFromEntityGivenWorldCoords(t.table, w.x, w.y, w.z).y
+end
+
+RegisterNetEvent('nza:xray:tube', function(pointId, y, src)
+    if src == GetPlayerServerId(PlayerId()) then return end
+    X.SlideTube(tonumber(pointId), tonumber(y), false)
+end)
+
 function X.Take(entity, target, view)
     if type(target) ~= 'table' then target = NZA.Target.FromEntity(entity) end
     if not target then return false end
+    -- the tube travels over the body part first
+    local tablePt = X.TablePoint(entity)
+    if tablePt then
+        local y = X.ViewY(tablePt.id, entity, view)
+        if y then X.SlideTube(tablePt.id, y, true) end
+    end
     local viewLabel = L('view_' .. view)
     local ok, outcome = X.RunApp({
         name = 'xray', mode = 'expose', entity = entity, target = target, payload = { view = view },
@@ -632,6 +719,8 @@ end)
 
 NZA.Points.RegisterType('xray', {
     label = L('point_xray'), icon = 'xray', prop = Config.Props.xray_table, needsHeading = true,
+    onSpawn = function(point, ent) spawnTube(point, ent) end,
+    onRemove = function(point) removeTube(point) end,
     target = {
         {
             name = 'nza_xray_console', label = L('opt_take_table'), icon = 'xray', perm = takePerm(), distance = 3.0,
