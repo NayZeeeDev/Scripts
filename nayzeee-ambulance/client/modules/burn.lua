@@ -10,7 +10,7 @@
     starts and the app carries on at step 4 without closing.
 
     Entry points
-      * Examination treatment list: NZA.ExamRoutes 'burn' and 'graft'
+      * Patient exam, wound list: NZA.ExamRoutes 'burn' and 'graft'
       * Patient interaction menu: "Burn care" (perm Config.Burn.perm), "Skin graft" (perm Config.Burn.Graft.perm)
       * EMS radial menu, Patient: the same two entries (NZA.RadialItems 'burn_care', 'burn_graft')
       * Using the graft kit item: net event 'nza:burn:use' → nearest patient

@@ -8,7 +8,7 @@
       NZA.Transport.Str.TakeOff(ent)                                  patient off the cot, next to it
       NZA.Transport.Str.Load(veh) / Unload(veh)                       roll into / out of the ambulance (animated slide)
       NZA.Transport.Str.Store(ent, veh?, point?)                      put an empty cot away
-      NZA.Transport.Str.FreeNear(coords, range?) → ent | nil          free cot (no patient, not loaded)
+      NZA.Transport.Str.FreeNear(coords, range?) → ent | nil          free cot (no patient / body bag, not loaded)
       NZA.Transport.Str.All(coords, range) → { { ent, bag, d } }      NZA.Transport.Str.Models() → { hash }
       NZA.Transport.LowModelActive(ent) → bool
 
@@ -113,16 +113,21 @@ local function pusherOk(bag)
     return not bag.pusher or bag.pusher == mySid()
 end
 
+-- a body bag lies on the cot (medbag module, entity state bag 'nzaBodyOn'): not free, cannot be put away
+local function bodyOn(ent)
+    return ent ~= nil and ent ~= 0 and Entity(ent).state.nzaBodyOn ~= nil
+end
+
 function St.FreeNear(coords, range)
     for _, s in ipairs(St.All(coords, range or sc().findRange or 6.0)) do
-        if not s.bag.pid and not s.bag.veh and pusherOk(s.bag) then return s.ent end
+        if not s.bag.pid and not s.bag.veh and pusherOk(s.bag) and not bodyOn(s.ent) then return s.ent end
     end
     return nil
 end
 
 local function emptyNear(coords, range)
     for _, s in ipairs(St.All(coords, range)) do
-        if not s.bag.pid and not s.bag.veh and pusherOk(s.bag) then return s.ent end
+        if not s.bag.pid and not s.bag.veh and pusherOk(s.bag) and not bodyOn(s.ent) then return s.ent end
     end
     return nil
 end
@@ -292,7 +297,7 @@ local function context(cur)
             local vb = Tr.VehBag(veh)
             if not vb or not vb.str or vb.str == cur.net then return { kind = 'load', veh = veh, label = Tr.L('p_load') } end
         end
-    else
+    elseif not bodyOn(ent) then
         if veh then
             local vb = Tr.VehBag(veh)
             if not vb or not vb.inside then return { kind = 'return', veh = veh, label = Tr.L('p_return') } end
@@ -750,7 +755,7 @@ local function strOptions()
             canInteract = function(ent)
                 if not canUse() or (Tr.Busy() and Tr.Busy() ~= 'push' and Tr.Busy() ~= 'carry') then return false end
                 local b = Tr.StrBag(ent)
-                if not b or b.pid or b.veh or not pusherOk(b) then return false end
+                if not b or b.pid or b.veh or not pusherOk(b) or bodyOn(ent) then return false end
                 if S().carrying then return true end
                 return nearestFreePatient(GetEntityCoords(ent), 3.5) ~= nil
             end,
@@ -795,7 +800,7 @@ local function strOptions()
             canInteract = function(ent)
                 if not canUse() or (Tr.Busy() and Tr.Busy() ~= 'push') then return false end
                 local b = Tr.StrBag(ent)
-                if not b or b.pid or b.veh or not pusherOk(b) then return false end
+                if not b or b.pid or b.veh or not pusherOk(b) or bodyOn(ent) then return false end
                 return St.Ambulance((sc().rearReach or 2.3) + 3.0) ~= nil or rackNear(GetEntityCoords(ent), 4.0) ~= nil
             end,
             onSelect = function(ent)
@@ -849,7 +854,7 @@ local function vehOptions()
                 local cur = S().pushing
                 if cur then
                     local b = Tr.StrBag(cur.ent)
-                    return b ~= nil and not b.pid
+                    return b ~= nil and not b.pid and not bodyOn(cur.ent)
                 end
                 if Tr.Busy() then return false end
                 return emptyNear(GetEntityCoords(PlayerPedId()), 4.0) ~= nil
@@ -892,7 +897,7 @@ NZA.Points.RegisterType('stretcher', {
                 local cur = S().pushing
                 if cur then
                     local b = Tr.StrBag(cur.ent)
-                    return b ~= nil and not b.pid
+                    return b ~= nil and not b.pid and not bodyOn(cur.ent)
                 end
                 if Tr.Busy() then return false end
                 local c = point.coords

@@ -33,6 +33,7 @@ NZA.AddLocale('en', {
     ['firstaid.opt_foil']                    = 'Foil blanket',
     ['firstaid.opt_foil_off']                = 'Remove foil blanket',
     ['firstaid.opt_kit']                     = 'First aid…',
+    ['firstaid.opt_recovery']                = 'Recovery position',
     ['firstaid.route_stopbleed']             = 'Control the bleed',
     ['firstaid.route_tq']                    = 'Apply a tourniquet',
     ['firstaid.route_collar']                = 'Cervical collar',
@@ -61,6 +62,7 @@ NZA.AddLocale('en', {
     ['firstaid.use_tq_off']                  = 'Releasing the tourniquet…',
     ['firstaid.use_collar_off']              = 'Removing the collar…',
     ['firstaid.use_foil_off']                = 'Removing the foil blanket…',
+    ['firstaid.use_recovery']                = 'Rolling them onto their side…',
 
     -- ── errors ────────────────────────────────────────────────────────────
     ['firstaid.err_busy']                    = 'You are busy with something else.',
@@ -100,6 +102,11 @@ NZA.AddLocale('en', {
     ['firstaid.err_bad_route']               = 'That drug cannot be given that way.',
     ['firstaid.err_bad_dose']                = 'Pick a dose.',
     ['firstaid.err_no_access']               = 'No IV / IO access: place a line first.',
+    ['firstaid.err_recovery_disabled']       = 'The recovery position is turned off on this server.',
+    ['firstaid.err_already_recovery']        = 'Already on their side with the airway open.',
+    ['firstaid.err_recovery_tube']           = 'The tube already keeps the airway open.',
+    ['firstaid.err_recovery_held']           = 'Lay them on the ground first.',
+    ['firstaid.err_recovery_awake']          = 'They are awake enough to keep their own airway open.',
 
     -- ── results ───────────────────────────────────────────────────────────
     ['firstaid.ok_bandage']                  = 'Bandaged: %s · %s.',
@@ -116,6 +123,8 @@ NZA.AddLocale('en', {
     ['firstaid.ok_collar_wrong']             = 'Collar fitted (%s), but it should have been %s.',
     ['firstaid.ok_collar_off']               = 'Cervical collar removed.',
     ['firstaid.ok_collar_off_spinal']        = 'Collar removed. Careful: the spine is not cleared.',
+    ['firstaid.ok_recovery']                 = 'On their side: the tongue falls forward and the snoring stops.',
+    ['firstaid.ok_recovery_logroll']         = 'Log-rolled onto their side, head kept in line. The airway is open.',
     ['firstaid.ok_bleed']                    = '%s · %s. Bleeding now %.1f mL/min.',
     ['firstaid.bleed_failed']                = '%s: the bleeding is not controlled. Try again.',
     ['firstaid.ok_tq']                       = 'Tourniquet on: %s at %s. Bleeding stopped.',
@@ -145,6 +154,7 @@ NZA.AddLocale('en', {
     ['firstaid.rec_oxygen']                  = 'Oxygen mask, high flow',
     ['firstaid.rec_collar']                  = 'Cervical collar (%s), score %d',
     ['firstaid.rec_collar_off']              = 'Cervical collar removed',
+    ['firstaid.rec_recovery']                = 'Recovery position (airway)',
     ['firstaid.rec_bleed']                   = 'Haemorrhage control: %s, %s (%s), score %d',
     ['firstaid.rec_bleed_failed']            = 'Haemorrhage control failed: %s, %s',
     ['firstaid.rec_tq']                      = 'Tourniquet: %s at %s, score %d',

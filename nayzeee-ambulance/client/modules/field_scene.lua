@@ -437,7 +437,6 @@ local function stepResus(s)
         if d and d.infusions then syncBags(s, d.infusions) end
     end)
     s.resusToken = nil
-    if NZA.Monitor then NZA.Monitor.Override(nil) end
     if s.req.abort then return false end
     if ok and type(out) == 'table' and not out.failed and p.easy and p.easy.resus then
         -- easy mode hung a bag on the server: show it on the stand
@@ -536,7 +535,6 @@ local function cleanup(s)
         if k ~= 'stand' and k ~= 'infuser' then del(ent) end
     end
     if s.mode == 'resus' and NZA.Monitor then
-        NZA.Monitor.Override(nil)
         if cfg('Resus').keepMonitor ~= false then NZA.Monitor.Scene(false) else NZA.Monitor.Detach() end
     end
     if S == s then S = nil end
@@ -850,7 +848,7 @@ RegisterNetEvent('nza:field:resus', function(state)
     local s = scene()
     if not s or type(state) ~= 'table' or not s.resusToken or state.token ~= s.resusToken then return end
     NZA.UI.Send(APP, 'clot', state)
-    if NZA.Monitor then NZA.Monitor.Override({ map = state.map, sys = state.sys, dia = state.dia }) end
+    -- the monitors get the field pressure from the core vitals (server NZA.Physiology.SetModifier)
     if type(state.bags) == 'table' then
         s.bags = {}
         for _, b in ipairs(state.bags) do if b.mine then s.bags[b.id] = b end end

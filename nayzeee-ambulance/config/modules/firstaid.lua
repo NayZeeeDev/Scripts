@@ -47,12 +47,13 @@ Config.Firstaid = {
         collar     = true,     -- 'Apply cervical collar' / 'Remove collar'
         oxygen     = true,     -- 'Oxygen mask' on / off
         foil       = true,     -- 'Foil blanket' on / off
+        recovery   = true,     -- 'Recovery position' (unconscious patients on the ground)
         kit        = true,     -- 'First aid…' (use your bandage, ice pack, medkit... on someone else)
         minBleed   = 1,        -- state bag bleed level (0 none, 1 minor, 2 heavy, 3 massive) for 'Stop bleeding'
         tqBleed    = 2,        -- bleed level at which 'Apply tourniquet' shows
         icons = {              -- NAYZEEE icon names (target scripts get the matching Font Awesome icon)
             stopBleed = 'drop', tourniquet = 'clamp', tqOff = 'clamp', meds = 'syringe', collar = 'collar',
-            collarOff = 'collar', oxygen = 'wind', foil = 'blanket', kit = 'medkit',
+            collarOff = 'collar', oxygen = 'wind', foil = 'blanket', kit = 'medkit', recovery = 'person',
         },
     },
 
@@ -162,6 +163,19 @@ Config.Firstaid = {
         consume = true,        -- the mask is used up when applied
         removeReturns = false, -- taking it off gives the mask back
         anim = { dict = 'mini@repair', clip = 'fixing_a_ped', duration = 2500 },
+    },
+
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- RECOVERY POSITION (basic airway) - an unconscious patient (AVPU P / U) lying on their back
+    -- snores (the tongue blocks the airway, SpO2 drops). Rolled onto their side the airway stays
+    -- open until they are carried, put on a stretcher / bed, intubated or leave the wounded state.
+    -- With a collar or a spinal injury they are log-rolled with the head kept in line.
+    -- ═══════════════════════════════════════════════════════════════════════
+
+    Recovery = {
+        enabled  = true,
+        perm     = 'basic',
+        duration = 3500,       -- ms of the progress bar
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

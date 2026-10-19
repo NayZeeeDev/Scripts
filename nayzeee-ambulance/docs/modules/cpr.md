@@ -43,7 +43,9 @@ ROSC and a scored debrief. The server owns every clinical decision.
 - **Breaths** after 30 compressions: hold Space ~1 s per breath and watch the chest-rise meter
   (too short = chest barely rose, too long = air into the stomach). Without a BVM item it is mouth to
   mouth: longer hold, 60 % effect. Intubated + ventilated patients get continuous compressions.
-  Good breaths clear water / smoke hypoxia. The BVM prop sits on the patient's face during breaths.
+  Good breaths clear water / smoke hypoxia. Through a tube in the oesophagus (`meta.tube.placed ==
+  'oesophagus'`) every breath scores 0: it ventilates nothing and clears nothing. The BVM prop sits
+  on the patient's face during breaths.
 - **Defibrillator** (needs `Config.Items.defibrillator` or `trauma_kit`, or the patient in the
   ambulance treatment bay (`meta.bay`) or on a hospital bed / near a hospital): drag the **sternum**
   and **apex** pads onto glowing targets on the chest (world anchors) or onto the torso card

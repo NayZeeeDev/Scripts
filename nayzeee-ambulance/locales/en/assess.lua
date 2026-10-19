@@ -392,6 +392,7 @@ NZA.AddLocale('en', {
     ['assess.see_asym']            = 'The %s side of the chest barely moves',
     ['assess.see_flail']           = 'A piece of the chest sucks in when they breathe in (flail)',
     ['assess.see_calm']            = 'Chest rises evenly on both sides',
+    ['assess.see_epigastric']      = 'The belly swells with each breath, not the chest, and it gurgles',
     ['assess.summary_breathing']   = 'Breathing %s/min, %s',
     ['assess.summary_apnoea']      = 'Not breathing: open the airway and ventilate.',
     ['assess.fb_norise_ok']        = 'Right: no chest rise. Open the airway and start ventilating.',
@@ -418,6 +419,7 @@ NZA.AddLocale('en', {
     ['assess.finding_gurgle']      = 'Gurgling: fluid in the airway',
     ['assess.finding_airway']      = 'Airway compromise',
     ['assess.finding_apnoea']      = 'Not breathing',
+    ['assess.finding_tube_oes']    = 'No air entry over either lung: the tube may be in the oesophagus',
 
     -- ── ask to walk ───────────────────────────────────────────────────────
     ['assess.walk_down']           = 'They cannot get up right now.',

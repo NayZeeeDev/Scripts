@@ -47,14 +47,14 @@ CREATE TABLE IF NOT EXISTS `nza_blood` (
   `updated` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`serial`),
   KEY `bank_used` (`bank`, `used`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS `nza_blood_donors` (
   `identifier` VARCHAR(80) NOT NULL,
   `last` INT NOT NULL DEFAULT 0,
   `count` INT NOT NULL DEFAULT 0,
   `weak_until` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`identifier`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS `nza_blood_log` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `bank` VARCHAR(64) NULL,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `nza_blood_log` (
   `at` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `bank_at` (`bank`, `at`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
 ## 4. pharmacy / storage / transport (supplies)

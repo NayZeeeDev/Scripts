@@ -10,13 +10,15 @@
     Client API (NZA.Firstaid)
       FA.UseItem(key, entity?, target?, injuryId?)   use a first aid item on yourself (no target) or a
                                                       patient: preview → progress + anim → NZA.Treat.Do
-      FA.Start.bleed / tq / collar / meds / kit / oxygen / tqOff / collarOff / foilOff (firstaid_treat.lua)
+      FA.Start.bleed / tq / collar / meds / kit / oxygen / tqOff / collarOff / foilOff / recovery
+                                                      (firstaid_treat.lua)
       FA.NearestPatient(range) → entity, target      FA.Bag(entity) → 'nzaFa' state bag or nil
       FA.Lying(entity) → bool                         FA.NeedsPack(inj) / FA.Plan(inj) (mirror of the server)
 
     Registers
       NZA.Interact.Add  nza_fa_stopbleed nza_fa_tq nza_fa_tqoff nza_fa_meds nza_fa_collar nza_fa_collaroff
-                        nza_fa_oxygen nza_fa_oxygenoff nza_fa_foil nza_fa_foiloff nza_fa_kit   (order 40-49)
+                        nza_fa_oxygen nza_fa_oxygenoff nza_fa_foil nza_fa_foiloff nza_fa_kit
+                        nza_fa_recovery   (order 40-49)
       NZA.ExamRoutes    stopbleed tourniquet collar ice painrelief morphine burndressing
       NZA.RadialItems   fa_stopbleed fa_tourniquet fa_meds fa_kit (parent 'patient')
     Net events: nza:firstaid:use (S→C, itemKey)   nza:firstaid:agitated (S→C, netId)
@@ -542,6 +544,20 @@ do
             perm = fc.perm, states = ALL, distance = dist,
             canInteract = function(entity) local fa = FA.Bag(entity); return type(fa) == 'table' and fa.foil == true end,
             onSelect = start('foilOff'),
+        })
+    end
+    local rc = FA.Cfg('Recovery')
+    if ic.recovery ~= false and rc.enabled ~= false then
+        NZA.Interact.Add({
+            name = 'nza_fa_recovery', label = L('opt_recovery'), icon = icons.recovery or 'person', order = 42,
+            perm = rc.perm or 'basic', states = { wounded = true }, distance = dist,
+            canInteract = function(entity, _, st)
+                if not notPlaced(st) or type(st) ~= 'table' or st.intub or st.stretcher then return false end
+                if st.avpu ~= 'P' and st.avpu ~= 'U' then return false end
+                local fa = FA.Bag(entity)
+                return not (type(fa) == 'table' and fa.rec)
+            end,
+            onSelect = start('recovery'),
         })
     end
     if ic.kit ~= false then

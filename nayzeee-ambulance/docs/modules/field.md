@@ -62,14 +62,17 @@ and forms the clot at `Config.EasyMode.score`.
 ### The pressure / clot model (server, authoritative)
 
 Every second while a `resus` session runs: `response += (Σ rate × Resus.response[kind] − response)
-× (1 − e^(−dt/tau))`, field MAP = real MAP + response (sys/dia scaled). Clot firmness rises at
+× (1 − e^(−dt/tau))`. The response goes onto the core vitals with
+`NZA.Physiology.SetModifier(pid, 'field_resus', { sys = response × 1.3, dia = response × 0.85, ttl = 3 })`
+(cleared on finish / abort), so the field MAP is the patient's MAP on every monitor and HUD, and the
+model reads it back from the vitals. Clot firmness rises at
 `100 / Resus.hold` %/s × speed: band 1, below band 0.35, under `lowMap` 0, above the band because of
 your fluids 0.25 (above the band on the patient's own pressure 0.8 — no fluids needed), × TXA 1.3,
 cold without foil 0.6 (with foil 0.85), dilution 0.7. MAP more than `popMargin` above the band from
 your fluids for `popAfter` s pops the clot: firmness 0, target injuries' base bleed × `popFactor`
 (capped at `maxPop` × the start). Finishing needs 100 %: target injuries' base bleed ×
 (1 − `clotFactor` × quality); `meta.fieldClot` is set. The client gets `nza:field:resus` each second
-and the monitor shows that pressure (`NZA.Monitor.Override`).
+(clot panel); the monitors need no override.
 
 ## IV cannulation (patient option *IV cannulation*, order 44)
 
@@ -101,7 +104,7 @@ NZA.Monitor.Close()
 -- or directly, without focus:
 NZA.UI.Open('monitor', { target = target, compact = true }, { focus = false })
 NZA.UI.Send('monitor', 'nibp', {})                  -- cycle the cuff
-NZA.UI.Send('monitor', 'override', { map, sys, dia }) -- or false
+NZA.UI.Send('monitor', 'override', { map, sys, dia }) -- or false (generic display override, unused by this module)
 NZA.Monitor.Attach(entity, target)  /  NZA.Monitor.Detach()   -- device on the patient (+ prop, DUI screen)
 NZA.Monitor.Focus(true|false)       -- mouse on the monitor buttons (command Monitor.command / key Monitor.focusKey)
 ```

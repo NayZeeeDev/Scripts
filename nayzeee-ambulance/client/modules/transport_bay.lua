@@ -39,7 +39,7 @@ local U = NZA.Util
 local APP = 'bay'
 local GROUP = 'transport_bay'
 
-local shell = { slot = nil, ents = {}, cot = 0, zones = {}, lights = false }
+local shell = { slot = nil, ents = {}, cot = 0, zones = {}, lights = false, dry = false }
 
 local function S() return Tr.S end
 local function bc() return Tr.Cfg('Bay') end
@@ -132,6 +132,10 @@ local function clearShell()
     shell.zones = {}
     NZA.Props.Clear(GROUP)
     shell.ents, shell.cot, shell.slot = {}, 0, nil
+    if shell.dry then
+        shell.dry = false
+        SetRainLevel(-1.0)     -- back to the weather's own rain
+    end
 end
 
 local function asList(v)
@@ -161,6 +165,9 @@ local function spawnShell(slot, medic)
     end
     shell.slot = slot
     shell.ents = { ent }
+    -- the shell is a prop, not an interior: rain particles are not occluded inside it
+    shell.dry = true
+    SetRainLevel(0.0)
     local cot = Bay.CotSpot(slot)
     shell.cot = NZA.Props.Spawn(Tr.Cfg('Stretcher').model or 'stretcher', cot,
         { group = GROUP, network = false, freeze = true, collision = true, fallbackKey = 'stretcher' })

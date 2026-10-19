@@ -30,6 +30,14 @@ waxy-white to leathery-brown eschar with charred crust, grey ash bloom, sparse f
 vessels and a dark junction line. Intact blisters are glossy, fluid-filled domes over raised skin; loose
 dead skin is curled, translucent sheets with soot caught in them. Soot is a washable black haze, heavier
 patches and fine ash flecks (engine layers). Steam rises while the burn is hot under saline.
+Every instrument in the burn scene is the app's own, unbranded model (generic model codes only):
+an irrigation bottle with a moulded shell, live fill level and label; a diascope with an engraved
+reticle; Adson tissue forceps (bevelled tines that visibly open and close, 1×2 teeth, cross-hatched
+thumb pads, guide pin, brazed heel, etched `AD-12`); a scalpel (bevelled curved blade with grind line
+and fitting slot, rounded handle with a knurled grip and an etched rule); an electric dermatome (white
+motor housing, steel head, oscillating blade, LED ring, depth lever, cable); a skin stapler with a
+staple window; and a machined graft mesher (bevelled frames, cap screws, bearing caps, 52 cutting
+discs, teal crank).
 
 1. **Cool the burn** — hold LMB: a saline bottle pours a real stream (engine jet) that washes soot and
    wets the skin. A 2D heat model (surface + deep reservoir, diffusion, perfusion, evaporating saline
@@ -42,9 +50,11 @@ patches and fine ash flecks (engine layers). Steam rises while the burn is hot u
    the case card shows the estimated full-thickness percentage.
 3. **Debride** — forceps: grip a blister roof or a loose sheet and pull it about `pullMm` away; let go
    early and it falls back. The base underneath turns raw, wet and pink (the burn surface texture is
-   repainted live).
+   repainted live) and the loose epidermis around each piece comes away with it; when the step
+   completes the last shreds are rinsed off (the deep-partial pallor stays — it is anatomy).
 4. **Excise** — knife: trace the marked outline round each full-thickness area within `traceTol` mm; the
-   eschar lifts off and leaves a glistening, bleeding bed. Straying into healthy skin bleeds and costs.
+   eschar lifts off and leaves a glistening, bleeding bed. The cut is drawn as a dark open groove over
+   a wet seep, and blood beads along it as you go. Straying into healthy skin bleeds and costs.
 5. **Harvest** — a second scene on the donor thigh (the side away from the burn): hold LMB at the start
    line and push the dermatome at a steady `speedMin–speedMax` mm/s, wheel = pressure (keep it in the
    band while it drifts). The strip quality (thin / ragged / stalls) follows your hand.
@@ -55,14 +65,23 @@ patches and fine ash flecks (engine layers). Steam rises while the burn is hot u
 7. **Lay & staple** — pick the meshed graft up, lay it over the bed (Q/E turn while carried), then staple
    every marked point round the edge (`stapleSpacing` mm). Enough staples → Enter to go on.
 8. **Dress** — pick the burn dressing up by an edge, lay it over the whole burn, rub it down until it
-   sticks. Burns ≥ `secureAbove` cm² get the optional sterile dressing on top when carried.
+   sticks (`stuckDone`). On a large burn the far band of the sheet wraps round the limb out of reach:
+   once the sheet covers `coverMin` of the burn and is within 0.2 of `stuckDone`, the step also ends
+   when rubbing stops gaining (under 1.2 points per 2 s) or when the medic presses Enter (the tip says so).
+   Burns ≥ `secureAbove` cm² get the optional sterile dressing on top when carried.
 
 **HUD.** Core `NZA.ui.ProcPanel` (left instruction column with the 240° dial + instrument list, step
-spine, "Next" line; right-edge tool belt 1–8 with the hold-to-cancel ring). Top-left: the handheld
+spine with skipped steps dashed via the kit's `skipped` option, "Next" line; `pp.slot` holds the
+carrier picker; right-edge tool belt 1–8 with the hold-to-cancel ring). Nothing sits in the screen
+centre or bottom-centre. Top-left: the handheld
 wound imager (generic device: model code `WI-6`, lens, LED, laser warning sticker — no brand) with a
 live heat map (palettes lava / iron / grey, freeze, AR overlay on the burn with T), depth map, tissue
 map, excision map, donor map, expansion plan, graft-fit and cover views, a per-mode instrument list
-and a trend trace. Top-right: the case card (patient ring with initials, body map with the burn and
+and a trend trace. The heat map is the simulation drawn like a real microbolometer frame (3 px per
+cell, bilinear): skin perfusion mottling and warm superficial veins on healthy skin, lens fall-off,
+fixed column noise and live frame noise — display only, the numbers come from the simulation. The
+other views frame the burn tightly over a visible-light rendition of it (skin tone, inflamed margin,
+dermis, eschar) with the legend on a dark band. Top-right: the case card (patient ring with initials, body map with the burn and
 donor site, depth / area · %TBSA / core temp / pain bar, result chips). Patient lines use `NZA.speech`.
 The result page shows the grade and the server outcome. A loading veil covers shader warm-up.
 
@@ -77,7 +96,7 @@ The result page shows the grade and the server outcome. A loading veil covers sh
 | T | heat overlay on the burn |
 | Q / E | carrier ratio (step 6) · turn the graft / dressing while carried |
 | G / D | graft now / dress and graft later (decision after the depth test) |
-| Enter | go on when a step is good enough · close the result |
+| Enter | go on when a step is good enough (debride, harvest, lay / staple the graft, a pressed-down dressing) · close the result |
 | Esc (hold) | cancel the procedure |
 
 ## Config (`config/modules/burn.lua` → `Config.Burn`)

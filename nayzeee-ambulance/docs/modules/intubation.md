@@ -171,10 +171,12 @@ camera{enabled,preox,scope,confirm,bvm,ease}`
 
 ## Known limits
 
-- Mask ventilation (no tube) relieves hypoxia once per round and sets `meta.bagUntil`; the core only
-  treats `meta.ventilated` as ventilation together with `devices.intubated` (request filed).
-- The assess module hears an oesophageal tube like a correct one until it reads `meta.tube.placed`
-  (request filed); the capnography check of this module always finds it.
+- Mask ventilation (no tube) relieves hypoxia once per round and sets `meta.bagUntil`, which the core
+  counts as ventilation while it lasts.
+- A misplaced tube is heard by the assess module's breathing check (`meta.tube`: oesophageal → no air
+  entry on either side and an epigastric gurgle, a correct call records `tube_oesophageal`; mainstem →
+  the left side quiet), and CPR rescue breaths through an oesophageal tube ventilate nothing. The
+  capnography check of this module always finds it.
 - Prop offsets follow `docs/modules/props.md` start values; per-ped tuning lives in `Config.Intubation.props`.
 - `externalMonitor = true` uses the field module's monitor overlay (`NZA.Monitor.Open`, kept on screen
   with `NZA.Monitor.Scene(true)`), which shows server vitals, not the minigame's simulated desaturation.

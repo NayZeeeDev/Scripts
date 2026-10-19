@@ -45,9 +45,12 @@ Config.Props = {
     splint_leg       = 'nz_amb_splint_leg',
     splint_arm       = 'nz_amb_splint_arm',
     collar           = 'nz_amb_collar',
+    oxygen_mask      = 'nz_amb_o2mask',           -- worn non-rebreather mask + reservoir bag (attach to SKEL_Head)
+    foil_blanket     = 'nz_amb_foil',             -- worn rescue blanket wrapped around the torso (attach to SKEL_Spine3)
 
     -- transport
     stretcher        = 'nz_amb_stretcher',
+    stretcher_low    = 'nz_amb_stretcher_low',    -- the same cot lowered (scissor lift folded), swapped in while lowered
     medbag           = 'nz_amb_medbag_red',       -- medic bag: nz_amb_medbag_red | _orange | _green | _magenta
     wheelchair       = 'prop_wheelchair_01',      -- native
     bodybag          = 'xm_prop_body_bag',        -- native (Doomsday DLC)
@@ -89,6 +92,7 @@ Config.PropFallbacks = {
     defib          = 'prop_ld_case_01',
     ivstand        = 'v_med_cor_emblmtable',
     stretcher      = 'v_med_emptybed',
+    stretcher_low  = 'v_med_emptybed',
     tv_board       = 'prop_tv_flat_01',
     syringe        = 'prop_syringe_01',
     pager          = 'prop_cs_phone_01',

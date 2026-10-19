@@ -24,6 +24,10 @@ Proposal: `NZA.Physiology.SetModifier(pid, key, { sys = +n, dia = +n, hr = +n, t
 applied at the end of `computeVitals` (before smoothing) and dropped after `ttl`. The field module
 would then call it every model tick (`key = 'field_resus'`, `ttl = 3`) and the override path could go.
 
+Status: done. The core added `SetModifier`; `server/modules/field_procs.lua` sets `'field_resus'` every
+model tick (cleared on finish / abort) and reads the pressure back from the vitals; the client no
+longer calls `NZA.Monitor.Override`.
+
 ## 3. Notes for other modules (no change needed)
 
 - `NZA.UI.Open('monitor', { target = t, compact = true }, { focus = false })` works from any module;

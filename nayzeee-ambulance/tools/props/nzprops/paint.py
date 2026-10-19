@@ -83,7 +83,7 @@ class Mat:
     metal      metalness for the glTF preview only (GTA's spec workflow has no metal channel)
     grain      low frequency colour variation (fraction) ; grain_scale its size in metres
     bump       height pattern: none stipple brushed fabric webbing foam rubber knurl ribs leather
-               orange_peel  (bump_amp metres, bump_scale metres)
+               orange_peel crinkle (crumpled foil) ...  (bump_amp metres, bump_scale metres)
     edge       convex edge brightening (worn edges / highlights) 0..1
     ao         how much baked ambient occlusion darkens this material 0..1
     alpha      opacity for layer 'alpha' (translucent bags), 1 elsewhere

@@ -115,8 +115,9 @@ Cinematic letterbox; the centre stays clear for the death camera.
   (`Your body can still be collected` / `Your body is bagged`) and `G Ask for body pickup`
   (✓ `Pickup requested` + cooldown).
 - Left card `What happened`: the lead cause in a red capsule, then contributing lines on a vertical
-  spine — the three worst injuries ("Critical gunshot wound · Chest"), blood lost (% and litres), up
-  to two conditions, time without a pulse, "+N more injuries".
+  spine — what stopped the heart when an arrest ended in death (`p.cause.arrestCause`, e.g. "Lost
+  too much blood"), the three worst injuries ("Critical gunshot wound · Chest"), blood lost (% and
+  litres), up to two conditions, time without a pulse, "+N more injuries".
 - Right card `Wake up in hospital`: hospital name, a respawn **status ring** that fills while
   `Config.Death.respawnTimer` runs (rolling counter inside), then turns into the hold ring
   (`Hold E to wake up at <hospital>`, white hold arc); the bill as an instrument list (treatment

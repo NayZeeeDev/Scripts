@@ -59,7 +59,9 @@ NZA.UI.PushConfig()
 - Messages sent before the page is up are queued until `_core:ready` (or 8 s).
 - Toasts go to the NUI; before it is ready they fall back to `Bridge.Notify` / `lib.notify`.
 - `_core` config: `{ font, shape, scale, sounds, signature, locale = NZA.LocaleTable('ui'), lang, resource }`
-  sent on ready, on start and on player loaded.
+  sent on ready, on start and on player loaded. The `ui.*` strings live in
+  `locales/en/core_client.lua`; they include `ui.back_tag` (the `BACK` tag on
+  `NZA.ui.BodyGlyph`) and `ui.hold_abort` / `ui.holdAbort` (both 'Hold to cancel').
 
 Net events handled: `nza:ui:toast`, `nza:ui:speech`.
 

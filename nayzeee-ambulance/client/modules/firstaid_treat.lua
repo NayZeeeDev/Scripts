@@ -8,6 +8,7 @@
       FA.Start.kit(entity, target)                       first aid item chooser → FA.UseItem
       FA.Start.oxygen(entity, target, on)                NZA.Treat 'fa_oxygen' / 'fa_oxygen_off'
       FA.Start.tqOff / collarOff / foilOff(entity, target)
+      FA.Start.recovery(entity, target)                  NZA.Treat 'fa_recovery' (recovery position)
       FA.TqPlacing() → { ped } while a tourniquet minigame shows its own strap prop
 
     Close-up camera (NZA.Cam.Close on Const.RegionBone / the limb joint / the neck), the medic kneels
@@ -461,6 +462,12 @@ function Start.foilOff(entity, target)
     if anyBusy() then FA.Toast(L('err_busy'), 'error') return end
     local t = quick(entity, target, 1500, L('use_foil_off'))
     if t then NZA.Treat.Do('fa_foil_off', t) end
+end
+
+function Start.recovery(entity, target)
+    if anyBusy() then FA.Toast(L('err_busy'), 'error') return end
+    local t = quick(entity, target, tonumber(FA.Cfg('Recovery').duration) or 3500, L('use_recovery'))
+    if t then NZA.Treat.Do('fa_recovery', t) end
 end
 
 -- ════════════════════════════════════════════════════════════════════════

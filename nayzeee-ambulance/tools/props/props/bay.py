@@ -5,13 +5,18 @@ Room (inside): 2.30 W (X) x 4.30 L (Y) x 2.05 H (Z), origin = floor centre, +Y =
 (bulkhead), -Y = rear doors. Patient side (stretcher + O2 panel) on -X, bench + counter on +X.
 
 Texture sets:
-    shell  walls / floor / ceiling                        <name>_shell_d/_n/_s   2048 (normal / spec 1024)
-    main   furniture, doors, fixtures                     <name>_d/_n/_s         2048 (normal / spec 1024)
-    supl   left supply cabinets + their labelled stock    <name>_supl_d/_n/_s    1024
-    supr   right supply cabinets + their labelled stock   <name>_supr_d/_n/_s    1024
-    alpha  cabinet glass                                  <name>_ad/_an/_as       512
+    shell  walls / floor / ceiling                        <name>_shell_d/_n/_s   2048 (normal 1024, spec 512)
+    main   furniture, doors, fixtures                     <name>_d/_n/_s         2048 (normal 1024, spec 512)
+    supl   left supply cabinets + their labelled stock    <name>_supl_d/_n/_s    1024 (normal / spec 512)
+    supr   right supply cabinets + their labelled stock   <name>_supr_d/_n/_s    1024 (normal / spec 512)
+    alpha  cabinet glass                                  <name>_ad/_an/_as       256
     glow   ceiling panels, under-cabinet LEDs             <name>_g                128
     screen bulkhead monitor 'nz_amb_screen' 512 x 256 (dark standby; DUI-replaceable)
+
+GPU budget: FiveM warns about (and may fail to stream) drawables above 16 MiB of physical memory. The
+diffuse atlases (labels, prints) keep their size; the spec maps (intensity + gloss, low frequency) and the
+supply sets' normal maps (stock seen through the cabinet glass) are reduced instead (maps=...), which takes
+the drawable from 24 MiB to 13 MiB of graphics pages. build.py refuses any drawable above 16 MiB.
 """
 from __future__ import annotations
 
@@ -477,6 +482,7 @@ def _cabinet_run(b, side):
 
 # ---------------------------------------------------------------------------------------------
 @prop("nz_amb_bay_shell", atlas=2048, alpha_atlas=256, glow_atlas=128, layers={"shell": 2048, "supl": 1024, "supr": 1024},
+      maps={"main": {"s": 512}, "shell": {"s": 512}, "supl": {"n": 512, "s": 512}, "supr": {"n": 512, "s": 512}},
       lod=120, hd=25, static=True, falloff=70, glow_mult=1.6, doc={
           "title": "Ambulance treatment bay interior (walk-in patient compartment)",
           "origin": "floor centre of the room",

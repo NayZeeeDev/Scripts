@@ -46,6 +46,7 @@ from nzprops.cwxml import ytyp_xml  # noqa: E402
 
 YTYP_NAME = "nz_amb_props"
 DEFAULT_WORK = "/tmp/nza-work/props"
+PAGE_LIMIT = 16 * 1048576        # FiveM: assets above 16 MiB of physical / virtual memory "can and WILL" fail to stream
 CODEWALKER_GIT = "https://github.com/dexyfex/CodeWalker"
 
 
@@ -204,6 +205,40 @@ def convert(cw, out, names, all_manifests):
     return bin_dir
 
 
+def rsc_pages(path):
+    """(virtual / system bytes, physical / graphics bytes) of an RSC7 resource, decoded from its page flags
+    (CodeWalker RpfResourcePageFlags) - what the game allocates for it, not the compressed file size."""
+    import struct
+    with open(path, "rb") as f:
+        head = f.read(16)
+    if len(head) < 16 or head[:4] != b"RSC7":
+        return None
+
+    def size(fl):
+        counts = (((fl >> 27) & 1), ((fl >> 26) & 1) << 1, ((fl >> 25) & 1) << 2, ((fl >> 24) & 1) << 3,
+                  ((fl >> 17) & 0x7F) << 4, ((fl >> 11) & 0x3F) << 5, ((fl >> 7) & 0xF) << 6, ((fl >> 5) & 3) << 7,
+                  ((fl >> 4) & 1) << 8)
+        return (0x200 << (fl & 0xF)) * sum(counts)
+    _, _, sysf, gfxf = struct.unpack("<4sIII", head)
+    return size(sysf), size(gfxf)
+
+
+def check_budget(bin_dir, names):
+    """Refuse drawables above PAGE_LIMIT before anything is copied to stream/."""
+    over = []
+    for n in names:
+        p = os.path.join(bin_dir, n + ".ydr")
+        pg = rsc_pages(p) if os.path.exists(p) else None
+        if pg and (pg[0] > PAGE_LIMIT or pg[1] > PAGE_LIMIT):
+            over.append(f"{n}: virtual {pg[0] / 1048576:.1f} MiB, physical {pg[1] / 1048576:.1f} MiB")
+    if over:
+        for o in over:
+            print("  OVER BUDGET", o)
+        raise SystemExit(f"{len(over)} drawable(s) above {PAGE_LIMIT // 1048576} MiB of pages - shrink their textures "
+                         "(@prop maps= / atlas sizes) or split them")
+    log(f"memory budget ok: every drawable <= {PAGE_LIMIT // 1048576} MiB virtual and physical")
+
+
 def install_stream(bin_dir, stream, names):
     os.makedirs(stream, exist_ok=True)
     for n in names:
@@ -292,6 +327,16 @@ def config_keys(config_path):
     return keys
 
 
+def _maps_note(t):
+    """' (normal 1024 / spec 512)' when a texture set's maps differ from the default rule (full size up to 1024,
+    half size above) - i.e. a prop that sets @prop(maps=...)."""
+    mp, S = t.get("maps"), t.get("size")
+    if not mp or isinstance(S, list):
+        return ""
+    d = S if S <= 1024 else S // 2
+    return "" if mp == [d, d] else f" (normal {mp[0]} / spec {mp[1]})"
+
+
 def catalog_md(manifests, config_path=None):
     """Per-prop reference (generated from the @prop doc dicts + build manifests)."""
     keys = config_keys(config_path)
@@ -323,11 +368,13 @@ def catalog_md(manifests, config_path=None):
                 cols[(c["type"], c["material"])] = cols.get((c["type"], c["material"]), 0) + 1
             out.append("| Collision | " + ", ".join(f"{v} {t} {mat}" for (t, mat), v in sorted(cols.items())) + " (embedded composite) |")
             tex = ", ".join(f"{t['name']} {t['size'] if not isinstance(t['size'], list) else 'x'.join(map(str, t['size']))}"
-                            for t in m["textures"])
+                            + _maps_note(t) for t in m["textures"])
             out.append(f"| Textures (txd = `{n}`) | {tex} |")
             out.append(f"| Mesh | {m['tris']} tris, {m['verts']} verts, shaders: {', '.join(sorted(set(m['shaders'])))} |")
             if m.get("ydr_bytes"):
                 out[-1] = out[-1][:-2] + f", .ydr {m['ydr_bytes'] / 1024:.0f} KB |"
+            if m.get("pages_mib"):
+                out[-1] = out[-1][:-2] + f", memory {m['pages_mib'][0]:g} MiB virtual / {m['pages_mib'][1]:g} MiB physical |"
             out.append("")
     return "\n".join(out) + "\n"
 
@@ -339,6 +386,9 @@ def write_tables(out, manifests, docs=None, stream=None):
             p = os.path.join(stream, n + ".ydr")
             if os.path.exists(p):
                 slim[n]["ydr_bytes"] = os.path.getsize(p)
+                pg = rsc_pages(p)
+                if pg:
+                    slim[n]["pages_mib"] = [round(pg[0] / 1048576, 2), round(pg[1] / 1048576, 2)]
     with open(os.path.join(out, "props_manifest.json"), "w") as f:
         json.dump(slim, f, indent=1)
     lines = ["| Model | Size X x Y x Z (m) | bbMin | bbMax | Tris | lodDist | Type | Screens | Collision |",
@@ -448,6 +498,7 @@ def main():
             missing = [n for n in names_all if not os.path.exists(os.path.join(bin_dir, n + ".ydr"))]
             if missing:
                 bin_dir = convert(cw, args.out, names_all, all_m)
+        check_budget(bin_dir, names_all)
         if args.stream:
             install_stream(bin_dir, args.stream, names_all)
     if not args.no_preview:

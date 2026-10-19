@@ -1,6 +1,6 @@
 """
 Airway management: bag-valve mask, portable suction unit with canister + Yankauer, endotracheal
-tube with tube holder.
+tube with tube holder, non-rebreather oxygen mask (worn by the patient).
 """
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ import math
 
 import numpy as np
 
-from nzprops import (TEAL, DecalCanvas, box, catmull, cylinder, lathe, polyline_fillet, prop, rrect, sphere, sweep, torus,
-                     tube)
+from nzprops import (TEAL, DecalCanvas, Geo, box, catmull, cylinder, lathe, noise3, pillow, polyline_fillet, prop, rrect, sphere,
+                     sweep, torus, tube)
 
-from .common import (align, cal_sticker, caution_label, knob, label_canvas, m_chrome, m_gloss_black,
+from .common import (align, cal_sticker, caution_label, knob, label_canvas, m_alu, m_chrome, m_gloss_black,
                      m_led, m_rubber, m_teal, m_white_plastic, rating_plate, screws)
 from .parts import boost, m_hosp_dark, m_hosp_grey, m_hosp_white, vents
 
@@ -346,3 +346,154 @@ def ett(b):
         b.decal(lab, center=(sx * 0.031, 0.0041, 0.0), normal=(0, 1, 0), up=(0, 0, 1), mats=["teal"], depth=0.003)
     boost(b, 3.0, mats=["teal"])
     b.col_box((-0.08, -0.14, -0.14), (0.08, 0.11, 0.02), "PLASTIC")
+
+
+# =============================================================================================
+# non-rebreather oxygen mask (worn by the patient)
+# =============================================================================================
+# Modelled in the BVM's mask frame (rim on XY, face side -Z, dome +Z, nose end +Y) and turned at the
+# end into the worn frame that the firstaid attach expects: SKEL_Head, rot (0, 90, 180) maps the
+# prop's +Y into the face and its +Z down towards the neck, i.e. worn = (-x, -z, -y) of the mask frame.
+_O2_T = np.array([[-1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, -1.0, 0.0]])
+O2_R = 0.05                     # mask half width before the teardrop mapping (same outline as the BVM mask)
+O2_PROF = [(1.0, 0.004), (0.97, 0.014), (0.88, 0.028), (0.70, 0.040), (0.48, 0.048), (0.25, 0.052), (0.0, 0.053)]
+
+
+def _o2(v):
+    return tuple(float(c) for c in _O2_T @ np.asarray(v, float))
+
+
+def _o2_shape(p):
+    """Unit-disc lathe -> mask dome: teardrop outline, deeper at the nose end (room for the nose)."""
+    q = _teardrop(p, O2_R)
+    t = np.clip(p[:, 1], -1.2, 1.2)
+    q[:, 2] = p[:, 2] * (1.0 + 0.16 * t)
+    return q
+
+
+def _o2_dome(ux, uy, lift=0.0):
+    """Point + outward normal on the mask dome at unit-disc (ux, uy)."""
+    rr = [r for r, _ in O2_PROF][::-1]
+    zz = [z for _, z in O2_PROF][::-1]
+
+    def P(u, v):
+        r = math.hypot(u, v)
+        z = float(np.interp(min(r, 1.0), rr, zz))
+        return _o2_shape(np.array([[u, v, z]]))[0]
+    e = 1e-4
+    p0 = P(ux, uy)
+    n = np.cross(P(ux + e, uy) - P(ux - e, uy), P(ux, uy + e) - P(ux, uy - e))
+    n = n / np.linalg.norm(n)
+    if n[2] < 0:
+        n = -n
+    return p0 + n * lift, n
+
+
+@prop("nz_amb_o2mask", atlas=512, alpha_atlas=512, lod=30, hd=5, preview={
+    "cams": [{"name": "detail", "pos": [0.22, -0.30, 0.12], "target": [0.0, 0.0, 0.07], "fov": 38}]}, doc={
+    "title": "Non-rebreather oxygen mask (adult): clear mask, nose clip, side exhalation valves, 1 L reservoir bag, green O2 tubing",
+    "origin": "centre of the mask rim (the face contact plane), like nz_amb_bvm",
+    "axes": "worn frame for the firstaid attach: +Y = into the face (the rim's face side; the dome bulges towards -Y), -Z = "
+            "nose end, +Z = chin end - the reservoir bag hangs from the chin end along +Z and leans towards +Y (the neck / "
+            "chest); the tubing runs down the -X side and ends 0.43 m below the mask; X across the face",
+    "attach": "SKEL_Head (31086) pos (0.04, 0.12, 0.0) rot (0, 90, 180) - the defaults already in Config.Firstaid.Props.oxygen "
+              "(the head bone's +X runs up through the crown and +Y out of the face, so this rotation puts the prop's +Y into "
+              "the face and its +Z down towards the neck); start values, tune per ped like the BVM; collision off",
+})
+def o2mask(b):
+    pvc = _clear(b, "nrb_pvc", 0.30, (220, 240, 230))
+    bagm = b.mat("nrb_bag", color=(192, 228, 204), spec=0.7, gloss=0.8, alpha=0.46, layer="alpha", grain=0.03, grain_scale=0.03)
+    valve = _clear(b, "nrb_valve", 0.55, (236, 242, 240))
+    flap = b.mat("nrb_flap", color=(214, 218, 216), spec=0.3, gloss=0.4, alpha=0.8, layer="alpha", grain=0.0)
+    alu = m_alu(b)
+    white = m_white_plastic(b)
+    elastic = b.mat("nrb_elastic", color=(236, 236, 228), spec=0.1, gloss=0.2, bump="webbing", bump_amp=0.00008,
+                    bump_scale=0.0008, grain=0.03, grain_scale=0.02, edge=0.1)
+    o2 = b.mat("o2_tube", color=(118, 204, 150), spec=0.6, gloss=0.75, edge=0.1)
+    g = Geo()
+    # clear dome + rolled rim
+    g += lathe(O2_PROF, pvc, segs=48, smooth_angle=60, planar_caps=False).deform(_o2_shape)
+    t = np.linspace(0, 2 * math.pi, 72, endpoint=False)
+    rim = _teardrop(np.stack([np.cos(t), np.sin(t), np.zeros_like(t)], axis=1), O2_R)
+    rim[:, 2] = 0.0035
+    g += tube(rim, 0.0035, pvc, segs=8, closed_path=True, tag="rim")
+    # aluminium nose clip bent over the bridge of the nose
+    clip = np.array([_o2_dome(u, 0.74, 0.0012)[0] for u in np.linspace(-0.62, 0.62, 11)])
+    g += sweep(rrect(0.0075, 0.0009, 0.0003, 1), clip, alu, up=(0, 0.25, 1), tag="noseclip", smooth_angle=40)
+    # side exhalation ports with one-way flap valves
+    for sx in (-1, 1):
+        pp_, nn_ = _o2_dome(sx * 0.66, -0.08, 0.0)
+        g += align(torus(0.0085, 0.0016, valve, segs=24, tube_segs=6), nn_, (0, 1, 0), pp_ + nn_ * 0.0012)
+        g += align(cylinder(0.0098, 0.0008, flap, segs=24, caps=(True, True)), nn_, (0, 1, 0), pp_ + nn_ * 0.0028)
+        g += align(cylinder(0.0022, 0.0035, white, segs=10, bevel=0.0006, bevel_seg=1), nn_, (0, 1, 0), pp_ + nn_ * 0.0008)
+        # strap anchor + elastic head strap running back past the cheek (it disappears into the head)
+        a = np.array([sx * 0.0505, -0.008, 0.006])
+        g += box((0.006, 0.012, 0.006), white, r=0.0015, seg=1, center=tuple(a))
+        sp = catmull([tuple(a + np.array([sx * 0.002, 0, 0])), (sx * 0.061, -0.004, -0.004), (sx * 0.071, 0.002, -0.028),
+                      (sx * 0.076, 0.008, -0.062)], n=6)
+        g += sweep(rrect(0.0012, 0.0062, 0.0004, 1), sp, elastic, up=(0, 1, 0), tag="strap", smooth_angle=40)
+    # bottom inlet: valve housing + collar, the reservoir bag hangs below the chin
+    cp, cn = _o2_dome(0.0, -0.66, 0.0)
+    cdir = cn * 0.45 + np.array([0.0, -1.0, 0.0])
+    cdir = cdir / np.linalg.norm(cdir)
+    g += align(lathe([(0.0, 0.0), (0.0105, 0.0), (0.0105, 0.004), (0.0118, 0.006), (0.0118, 0.016), (0.0098, 0.022), (0.0, 0.022)],
+                     valve, segs=24, smooth_angle=40), cdir, (0, 0, 1), cp - cdir * 0.003)
+    top = cp + cdir * 0.019
+    g += align(torus(0.0102, 0.0018, white, segs=24, tube_segs=6), cdir, (0, 0, 1), top)
+    # O2 nipple on the +X side of the valve housing (green tubing pushed on)
+    side = np.array([1.0, 0.0, 0.0])
+    nip = cp + cdir * 0.010 + side * 0.0115
+    g += align(lathe([(0.0, 0.0), (0.0032, 0.0), (0.0032, 0.006), (0.0024, 0.012), (0.0028, 0.014), (0.0020, 0.020), (0.0, 0.020)],
+                     white, segs=14, smooth_angle=40), side, (0, 0, 1), nip)
+    # 1 L reservoir bag: soft, partly filled, welded seam, wrinkled; leans back towards the neck
+    bw, bh = 0.092, 0.150
+    bag = pillow(bw, bh, 0.05, bagm, nx=16, nz=22, seam=0.004, power=2.2, tag="nrbbag")
+
+    def neck(p):                              # the end at the valve (pillow z = -h/2) narrows into the connector
+        q = p.copy()
+        f = np.clip((p[:, 2] + bh / 2) / 0.04, 0.0, 1.0)
+        f = 0.26 + 0.74 * f * f * (3 - 2 * f)
+        q[:, 0] *= f
+        q[:, 1] *= np.sqrt(f)
+        return q
+    bag.deform(neck)
+    bag.rotate(90, 0, 0)                      # height along -Y, thickness along Z
+    bag.translate(top[0], top[1] - 0.006 - bh / 2, top[2] - 0.002)
+
+    def wrinkle(p):
+        q = p.copy()
+        q[:, 2] += 0.0022 * noise3(p / 0.018, 41) + 0.0012 * noise3(p / 0.007, 43)
+        return q
+    bag.deform(wrinkle)
+    bag.rotate(14, 0, 0, origin=tuple(top))
+    g += bag
+    g += align(cylinder(0.0115, 0.010, white, segs=24, bevel=0.0015), (0, -1, 0), (0, 0, 1), top + np.array([0.0, -0.002, -0.001]))
+    # green O2 tubing from the nipple down the -X (worn) side to a free end with its connector
+    t0 = nip + side * 0.016
+    tp = catmull([tuple(t0), tuple(t0 + np.array([0.012, -0.008, 0.0])), (0.064, -0.09, top[2] - 0.004), (0.068, -0.19, top[2] - 0.022),
+                  (0.074, -0.29, top[2] - 0.05), (0.09, -0.37, top[2] - 0.066), (0.102, -0.43, top[2] - 0.072)], n=8)
+    g += tube(tp, 0.0028, o2, segs=8, tag="o2")
+    end_dir = tp[-1] - tp[-3]
+    end_dir = end_dir / np.linalg.norm(end_dir)
+    g += align(lathe([(0.0, 0.0), (0.0042, 0.0), (0.0042, 0.012), (0.0034, 0.014), (0.0034, 0.020), (0.0, 0.020)], white, segs=14,
+                     smooth_angle=40), end_dir, (0, 0, 1), tp[-1] - end_dir * 0.004)
+    g.transform(_O2_T)
+    b.add(g)
+    # prints (placed in the mask frame, converted to the worn frame)
+    mk = DecalCanvas(0.034, 0.02, ppm=9000)
+    mk.text(0.017, 0.007, "ADULT", 0.0034, fnt="label", color=(120, 136, 132), height=0.00012, spacing=0.0003)
+    mk.text(0.017, 0.014, "NRB  ·  HIGH CONC.", 0.0022, fnt="label-semi", color=(120, 136, 132), height=0.0001)
+    pc, pn = _o2_dome(0.0, -0.22, 0.0)
+    b.decal(mk, center=_o2(pc), normal=_o2(pn), up=_o2((0, 1, 0)), mats=["nrb_pvc"], depth=0.01, min_dot=0.4)
+    bl = DecalCanvas(0.06, 0.05, ppm=6000)
+    bl.text(0.03, 0.012, "1000 mL", 0.0052, fnt="label", color=(36, 92, 64), spacing=0.0004)
+    bl.text(0.03, 0.022, "RESERVOIR", 0.0030, fnt="label-semi", color=(36, 92, 64))
+    bl.text(0.03, 0.031, "SINGLE PATIENT USE  ·  LATEX FREE", 0.0019, fnt="label-semi", color=(60, 104, 82))
+    bl.icon("noreuse", 0.022, 0.041, 0.0055, color=(60, 104, 82))
+    bl.icon("latex", 0.038, 0.041, 0.0055, color=(60, 104, 82))
+    bc = top + np.array([0.0, -0.075, 0.016])
+    b.decal(bl, center=_o2(bc), normal=_o2((0, -0.24, 0.97)), up=_o2((0, 1, 0)), mats=["nrb_bag"], depth=0.02, min_dot=0.4)
+    for (mn, mx), mat in ((((-0.062, -0.07, -0.004), (0.062, 0.062, 0.062)), "PLASTIC"),
+                          (((-0.06, -0.24, -0.05), (0.06, -0.06, 0.05)), "PLASTIC_HOLLOW_CLEAR")):
+        c = np.array([_o2((x, y, z)) for x in (mn[0], mx[0]) for y in (mn[1], mx[1]) for z in (mn[2], mx[2])])
+        b.col_box(c.min(axis=0), c.max(axis=0), mat)

@@ -164,6 +164,9 @@ NZA.AddLocale('en', {
     ['wounded.cause_tamponade']    = 'Blood around the heart stopped it',
     ['wounded.cause_hypothermia']  = 'Froze to death',
     ['wounded.cause_stimulant']    = 'An overdose stopped the heart',
+    ['wounded.cause_electrocution'] = 'A shock threw the heart out of rhythm',
+    ['wounded.cause_pericardio']   = 'The heart stopped while fluid was drawn from around it',
+    ['wounded.cause_condition']    = 'Their body gave out',
     ['wounded.cause_admin']        = 'Killed by an admin',
     ['wounded.cause_unknown']      = 'Unknown causes',
     ['wounded.cause_injury']       = '%s %s · %s',      -- "Critical gunshot wound · Chest"

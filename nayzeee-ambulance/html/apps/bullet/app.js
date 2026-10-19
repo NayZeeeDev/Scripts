@@ -1,24 +1,27 @@
 /* ═══════════════════════════════════════════════════════════
-   NAYZEEE AMBULANCE · Bullet extraction (app 'bullet')          module: bullet
-   Remove a bullet / shrapnel fragments in a draped surgical field, full-screen 3D close-up
-   built on core/nza3d.js (skin, wounds, layers, fluids, stitches, dressing). Tools this app
-   adds inside its own files: iodine swab stick, Yankauer suction, ring (bullet) forceps and the
-   fragment meshes.
+   NAYZEEE AMBULANCE · Projectile removal (app 'bullet')          module: bullet
+   Remove a bullet / shrapnel pieces in a draped surgical field: full-screen 3D close-up built on
+   core/nza3d.js (skin, wounds, layers, fluids, stitches, dressing). Parts this app adds in its own
+   files: foam prep sponge, Yankauer suction, ring bullet forceps, small self-retaining retractor,
+   towel clamps, kidney dish, the fragment meshes (mushroomed bullet / steel shards).
 
-   Steps (NZA.ui.ProcPanel, checklist on the right):
-     1 Locate        1 Probe      hold LMB in the wound: the probe follows the track — steer it with
-                                  the mouse (resistance arrow) until it clicks on metal; on intact skin
-                                  it palpates shallow fragments. X = read an X-ray film of the region
-     2 Disinfect     2 Iodine     hold LMB and scrub outward from the site until the ring is 100 %
-     3 Incise        3 Scalpel    Q / E blade depth, hold LMB and draw the cut over the fragment;
-                                  start at an end to lengthen it. Too long / deep = blood loss
-     4 Expose        4 Suction    hold Space to spread the edges, suction (4) / gauze (6) the blood
-     5 Extract       5 Forceps    click the fragment to grip, draw the mouse back SLOWLY (grip /
-                                  traction meters); A / D rock a lodged fragment; L leaves the rest
-     6 Control bleed 6 Gauze      press on the bleeding point until the bleed is under the limit
-     7 Suture        7 Suture kit near edge → pull across → release (same as the suture app)
-     8 Dressing      8 Dressing   pick it up by an edge, lay it over, rub it down
-   Then the result card (grade, eight parts, feedback) — Enter closes.
+   Steps (kit ProcPanel column bottom-left, tool belt right edge; plan matrix top-right):
+     1 Find the metal  1 Probe     hold LMB in the entry hole: the probe follows the track — steer it
+                                   with the mouse (resistance arrow) until it clicks on metal; on intact
+                                   skin it palpates shallow pieces. X = read the X-ray film you carry
+     2 Prep the skin   2 Sponge    hold LMB and scrub outward from the mark until the ring is covered
+     3 Open over it    3 Scalpel   Q / E blade depth, hold LMB and draw the cut over the mark;
+                                   start at an end to lengthen it. Too long / deep = blood loss
+     4 Get eyes on it  4 Suction   hold Space to open the retractor, suction (4) / gauze (6) the pool
+     5 Lift it out     5 Forceps   click the metal to close the jaws, move the mouse toward you
+                                   SLOWLY (traction dial + grip); A / D rock a lodged piece; L leaves the rest
+     6 Stop the ooze   6 Gauze     press on the bleeding point until the bleed is under the limit
+     7 Close the cut   7 Driver    near edge → pull across → release (the suture app's mechanics)
+     8 Cover it        8 Dressing  pick it up by an edge, lay it over, rub it down
+   Then the debrief card (grade, eight parts, notes) — Enter closes.
+
+   HUD: monitor card + notes top-left · operative plan top-right · instrument card / film viewer
+   right-middle (left of the belt) · fragment tags in the scene · cursor ring · debrief bottom-left.
 
    Lua → JS   open { locale, cfg, patient{name,sex,bloodType,conscious,numb}, injury{id,type,region,
                      regionLabel,label,severity,bleed,retained,depth,contamination,pain},
@@ -27,7 +30,7 @@
                      location{kind,label}, bay, bloodWarn, vitals }
               vitals { hr, ecgRate, rhythm, spo2, sys, dia, map, rr, bloodPct, drip, infusing }
               result (server outcome)      abort (the server ended the session)
-   JS → Lua   bullet:finish { result } → { ok, pending }     bullet:abort {}     bullet:exitBay {}
+   JS → Lua   bullet:finish { result } → { ok, pending }     bullet:abort { loss }     bullet:exitBay { loss }
               bullet:flinch { pain }       bullet:close (core)
    Preview    index.html?app=bullet (&demo=shrapnel)   NZA.apps.bullet.demoTo('<stage>')
    ═══════════════════════════════════════════════════════════ */
@@ -61,25 +64,25 @@
     fallbackTime: 18,
   };
   const STEPS = [
-    { n: 1, id: 'locate', label: ['plan_1', 'Locate fragment'] },
-    { n: 2, id: 'disinfect', label: ['plan_2', 'Disinfect site'] },
-    { n: 3, id: 'incise', label: ['plan_3', 'Incise'] },
-    { n: 4, id: 'expose', label: ['plan_4', 'Expose fragment'] },
-    { n: 5, id: 'extract', label: ['plan_5', 'Extract projectile'] },
-    { n: 6, id: 'control', label: ['plan_6', 'Control bleeding'] },
-    { n: 7, id: 'suture', label: ['plan_7', 'Suture wound'] },
-    { n: 8, id: 'dressing', label: ['plan_8', 'Apply dressing'] },
+    { n: 1, id: 'locate', label: ['plan_1', 'Find the metal'] },
+    { n: 2, id: 'disinfect', label: ['plan_2', 'Prep the skin'] },
+    { n: 3, id: 'incise', label: ['plan_3', 'Open over it'] },
+    { n: 4, id: 'expose', label: ['plan_4', 'Get eyes on it'] },
+    { n: 5, id: 'extract', label: ['plan_5', 'Lift it out'] },
+    { n: 6, id: 'control', label: ['plan_6', 'Stop the ooze'] },
+    { n: 7, id: 'suture', label: ['plan_7', 'Close the cut'] },
+    { n: 8, id: 'dressing', label: ['plan_8', 'Cover it'] },
   ];
   const TOOLS = [
     { key: '1', id: 'probe', icon: 'probe', label: ['tool_probe', 'Probe'] },
-    { key: '2', id: 'iodine', icon: 'drop', label: ['tool_iodine', 'Iodine swab'] },
+    { key: '2', id: 'iodine', icon: 'drop', label: ['tool_iodine', 'Prep swab'] },
     { key: '3', id: 'scalpel', icon: 'scalpel', label: ['tool_scalpel', 'Scalpel'] },
     { key: '4', id: 'suction', icon: 'wind', label: ['tool_suction', 'Suction'] },
     { key: '5', id: 'forceps', icon: 'forceps', label: ['tool_forceps', 'Forceps'] },
     { key: '6', id: 'gauze', icon: 'gauze', label: ['tool_gauze', 'Gauze'] },
-    { key: '7', id: 'driver', icon: 'needle', label: ['tool_suture', 'Suture kit'] },
+    { key: '7', id: 'driver', icon: 'needle', label: ['tool_suture', 'Needle driver'] },
     { key: '8', id: 'dressing', icon: 'bandage', label: ['tool_dressing', 'Dressing'] },
-    { key: 'X', id: 'xray', icon: 'xray', label: ['tool_xray', 'X-ray film'] },
+    { key: 'X', id: 'xray', icon: 'xray', label: ['tool_xray', 'Film'] },
   ];
   const MAIN = { 1: 'probe', 2: 'iodine', 3: 'scalpel', 4: 'suction', 5: 'forceps', 6: 'gauze', 7: 'driver', 8: 'dressing' };
   const ENGINE = { probe: 'probe', scalpel: 'scalpel', gauze: 'gauze', driver: 'needleDriver' };
@@ -197,24 +200,131 @@
     g.add(new THREE.Mesh(new THREE.TubeGeometry(c3, 40, 0.0042, 14, false), M.tubing));
     return { group: g, set(p) { if (p.flow !== undefined) blood.opacity = clamp(p.flow, 0, 1) * 0.92; } };
   }
-  // sponge stick soaked in povidone-iodine; set({ load 0..1 (dry → wet), squash 0..1 })
+  // foam sponge stick soaked in povidone-iodine; set({ load 0..1 (spent → freshly soaked), squash 0..1 })
   function buildSwab(M) {
     const THREE = T3(), g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.0021, 0.0021, 0.15, 14).translate(0, 0.096, 0), M.white));
-    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.0034, 0.0034, 0.012, 16).translate(0, 0.024, 0), M.teal));
-    const geo = new THREE.BoxGeometry(0.014, 0.02, 0.0095, 8, 10, 6);
-    const p = geo.attributes.position, v = new THREE.Vector3();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.0021, 0.0024, 0.15, 16).translate(0, 0.098, 0), M.white));
+    // a ribbed grip collar and the foam holder
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.0034, 0.0034, 0.012, 20).translate(0, 0.026, 0), M.teal));
+    for (let i = 0; i < 4; i++) g.add(new THREE.Mesh(new THREE.TorusGeometry(0.0035, 0.00035, 6, 20).rotateX(Math.PI / 2).translate(0, 0.0215 + i * 0.003, 0), M.teal));
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.0035, 0.0062).translate(0, 0.0195, 0), M.white));
+    // foam pad: a rounded block (superellipsoid) with open-cell pits
+    const geo = new THREE.SphereGeometry(1, 40, 28);
+    const p = geo.attributes.position, half = [0.0072, 0.0098, 0.0048];
+    // position-hashed pits so the seam vertices get the same value
+    const pitAt = (x, y, z) => { const v = Math.sin(Math.round(x * 400) * 12.9898 + Math.round(y * 400) * 78.233 + Math.round(z * 400) * 37.719) * 43758.5453; return v - Math.floor(v); };
     for (let i = 0; i < p.count; i++) {
-      v.set(p.getX(i) / 0.007, p.getY(i) / 0.01, p.getZ(i) / 0.00475);
-      const n = v.clone().normalize();
-      v.lerp(n.multiplyScalar(Math.max(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z))), 0.55);
-      p.setXYZ(i, v.x * 0.007, v.y * 0.01 + 0.0098, v.z * 0.00475);
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const n = Math.pow(Math.pow(Math.abs(x), 3.4) + Math.pow(Math.abs(y), 3.4) + Math.pow(Math.abs(z), 3.4), 1 / 3.4) || 1;
+      const pit = 1 - pitAt(x, y, z) * 0.05;
+      p.setXYZ(i, x / n * half[0] * pit, y / n * half[1] * pit + 0.0082, z / n * half[2] * pit);
     }
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ color: 0x7a2a0a, roughness: 0.93 });
+    const mat = new THREE.MeshStandardMaterial({ color: 0x7a2a0a, roughness: 0.97, metalness: 0 });
     const head = new THREE.Mesh(geo, mat); g.add(head);
-    const dry = new THREE.Color(0xe2c9a6), wet = new THREE.Color(0x7a2a0a);
-    return { group: g, set(q) { if (q.load !== undefined) mat.color.copy(dry).lerp(wet, clamp(q.load, 0, 1)); if (q.squash !== undefined) head.scale.y = 1 - clamp(q.squash, 0, 1) * 0.22; } };
+    const spent = new THREE.Color(0x8a4c1e), wet = new THREE.Color(0x3a0f03);
+    return { group: g, set(q) { if (q.load !== undefined) mat.color.copy(spent).lerp(wet, clamp(q.load, 0, 1)); if (q.squash !== undefined) head.scale.y = 1 - clamp(q.squash, 0, 1) * 0.22; } };
+  }
+
+  // stainless kidney dish (bean outline, rolled rim, brushed floor); origin = floor centre, rim up +Y
+  function buildKidneyDish(M) {
+    const THREE = T3(), N = 96, A = 0.062, B = 0.027;
+    const outline = [];
+    for (let i = 0; i < N; i++) {
+      const t = (i / N) * TAU;
+      // the concave side of the bean is +Z
+      const dent = 1 - 0.36 * Math.exp(-Math.pow(Math.atan2(Math.sin(t - Math.PI / 2), Math.cos(t - Math.PI / 2)), 2) / 0.32);
+      outline.push([Math.cos(t) * A, Math.sin(t) * B * (Math.sin(t) > 0 ? dent * 1.0 : 1)]);
+    }
+    // wall profile from the floor up to a rolled lip: [scale, y]
+    const prof = [[0.8, 0.0], [0.84, 0.0016], [0.9, 0.006], [0.95, 0.012], [0.985, 0.0165], [1.0, 0.0185], [1.025, 0.0196], [1.045, 0.0188], [1.05, 0.0176]];
+    const pos = [], idx = [];
+    prof.forEach(([k, y]) => outline.forEach(([x, z]) => pos.push(x * k, y, z * k)));
+    for (let r = 0; r < prof.length - 1; r++) for (let i = 0; i < N; i++) {
+      const a = r * N + i, b = r * N + (i + 1) % N, c = a + N, d = b + N;
+      idx.push(a, b, d, a, d, c);
+    }
+    const ctr = pos.length / 3;
+    pos.push(0, 0, 0);
+    for (let i = 0; i < N; i++) idx.push(ctr, (i + 1) % N, i);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xd4dadf, metalness: 1, roughness: 0.27, clearcoat: 0.4, clearcoatRoughness: 0.35, side: THREE.DoubleSide });
+    const dish = new THREE.Mesh(g, mat);
+    dish.castShadow = true; dish.receiveShadow = true;
+    const grp = new THREE.Group(); grp.add(dish);
+    // a little saline pooled in the floor
+    const film = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshPhysicalMaterial({ color: 0xc9e9ef, roughness: 0.05, clearcoat: 1, transparent: true, opacity: 0.3, depthWrite: false }));
+    film.rotation.x = -Math.PI / 2; film.scale.set(A * 0.62, B * 0.5, 1); film.position.y = 0.0012; grp.add(film);
+    return grp;
+  }
+  // small self-retaining retractor (Alm type): two 4-prong rakes, short arms crossing at a box hinge,
+  // finger rings and a ratchet bar. Local frame: X across the cut, Y up (skin normal), Z along the cut.
+  // set({ spread (m, half gape at the rakes), length (m, incision length) })
+  function buildRetractor(M) {
+    const THREE = T3(), root = new THREE.Group(), halves = [];
+    const tube = (pts, r, mat) => new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2]))), 30, r, 8, false), mat);
+    for (const sd of [-1, 1]) {
+      const rake = new THREE.Group();
+      // blunt prongs hooking under the wound edge (tips point outward, under the skin)
+      for (const z of [-0.0039, -0.0013, 0.0013, 0.0039]) {
+        rake.add(tube([[sd * 0.0016, -0.0034, z], [sd * 0.0004, -0.003, z], [-sd * 0.0003, -0.001, z], [0, 0.0012, z], [-sd * 0.0004, 0.0031, z]], 0.00036, M.satin));
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.00046, 8, 6), M.satin); tip.position.set(sd * 0.0016, -0.0034, z); rake.add(tip);
+      }
+      rake.add(tube([[-sd * 0.0004, 0.0031, -0.0047], [-sd * 0.0004, 0.0034, 0.0047]], 0.0006, M.satin));
+      root.add(rake);
+      halves.push({ rake, sd });
+    }
+    const hinge = new THREE.Mesh(new THREE.BoxGeometry(0.0038, 0.0022, 0.0048), M.satin);
+    const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 0.001, 0.0028, 14), M.steel);
+    root.add(hinge); root.add(screw);
+    const bar = new THREE.Group(); root.add(bar);
+    const api = {
+      group: root, spread: 0.004, L: 0.03, arms: [],
+      set(p) {
+        if (p.spread !== undefined) api.spread = clamp(p.spread, 0.0012, 0.016);
+        if (p.length !== undefined) api.L = clamp(p.length, 0.012, 0.08);
+        const s = api.spread, hz = Math.min(api.L * 0.5, 0.02) + 0.006;
+        halves.forEach(h => { h.rake.position.set(h.sd * s, 0, 0); });
+        hinge.position.set(0, 0.0072, hz); screw.position.set(0, 0.0072, hz);
+        api.arms.forEach(m => { root.remove(m); m.geometry.dispose(); });
+        api.arms = [];
+        for (const sd of [-1, 1]) {
+          // arm: from the rake up and along the cut, crossing at the hinge, out to the finger ring on the other side
+          const pts = [[sd * s - sd * 0.0004, 0.0033, 0.0], [sd * s * 0.95, 0.0043, hz * 0.34], [sd * s * 0.5, 0.0062, hz * 0.74], [0, 0.0072, hz],
+            [-sd * 0.003, 0.008, hz + 0.011], [-sd * 0.0066, 0.0088, hz + 0.022], [-sd * 0.0084, 0.0093, hz + 0.03]];
+          const arm = tube(pts, 0.0007, M.satin); root.add(arm); api.arms.push(arm);
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0042, 0.0009, 10, 32), M.steel);
+          ring.position.set(-sd * 0.0108, 0.0097, hz + 0.0355); ring.rotation.x = Math.PI / 2 - 0.2; ring.rotation.z = sd * 0.15;
+          root.add(ring); api.arms.push(ring);
+        }
+        // ratchet bar between the handles, with teeth
+        bar.children.slice().forEach(c => { bar.remove(c); c.geometry.dispose(); });
+        const rb = new THREE.Mesh(new THREE.BoxGeometry(0.0138, 0.0008, 0.0016), M.satin);
+        rb.position.set(0, 0.0091, hz + 0.0255); bar.add(rb);
+        for (let i = 0; i < 7; i++) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.0006, 0.0008, 0.0016), M.dark); t.position.set(-0.0054 + i * 0.0018, 0.0098, hz + 0.0255); bar.add(t); }
+        root.traverse(c => { if (c.isMesh) c.castShadow = true; });
+      },
+    };
+    api.set({ spread: 0.004 });
+    return api;
+  }
+  // towel clamp holding the drape at the window rim: finger rings, shanks, box lock, curved pointed jaws.
+  // Local frame: +X from the jaws out to the rings, +Y up.
+  function buildTowelClamp(M) {
+    const THREE = T3(), g = new THREE.Group();
+    const tube = (pts, r) => new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2]))), 28, r, 8, false), M.satin);
+    for (const sd of [-1, 1]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0058, 0.0012, 10, 32), M.steel);
+      ring.rotation.x = Math.PI / 2 - 0.12; ring.position.set(0.058, 0.0042, sd * 0.0078); g.add(ring);
+      g.add(tube([[0.052, 0.0044, sd * 0.0062], [0.04, 0.0047, sd * 0.004], [0.028, 0.0046, sd * 0.0018], [0.019, 0.0044, 0]], 0.0011));
+      // jaw: from the lock, curving down and crossing to a point that pierces the drape
+      g.add(tube([[0.017, 0.0044, sd * 0.0006], [0.011, 0.0048, sd * 0.0022], [0.005, 0.0036, sd * 0.0026], [0.0012, 0.0008, sd * 0.0012], [0.0, -0.0012, -sd * 0.0006]], 0.0008));
+    }
+    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.0046, 0.0028, 0.0042), M.satin); lock.position.set(0.0185, 0.0044, 0); g.add(lock);
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.0011, 0.0011, 0.0036, 14), M.steel); pin.position.set(0.0185, 0.0046, 0); g.add(pin);
+    g.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    return g;
   }
   // deformed bullet (mushroomed jacket, lead showing) or a jagged steel shard; size = length (mm)
   function buildFragment(f, seed) {
@@ -263,6 +373,18 @@
     return mesh;
   }
 
+  // half-ring traction dial (0 = left, 1 = right): safe band, caution band, slip zone and a needle
+  function arcSVG(v, safe, slip, live) {
+    const R = 54, C = [70, 66];
+    const pt = (f, r = R) => { const a = Math.PI * (1 - clamp(f, 0, 1)); return [C[0] + r * Math.cos(a), C[1] - r * Math.sin(a)]; };
+    const arc = (f0, f1, r = R) => { const [x0, y0] = pt(f0, r), [x1, y1] = pt(f1, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+    let ticks = '';
+    for (let i = 0; i <= 20; i++) { const [a, b] = pt(i / 20, R + 7), [c, d] = pt(i / 20, R + (i % 5 ? 10 : 13)); ticks += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`; }
+    const [nx, ny] = pt(v, R - 12);
+    return `<svg viewBox="0 0 140 76"><path class="trk" d="${arc(0, 1)}"/><path class="z0" d="${arc(0, safe)}"/><path class="z1" d="${arc(safe, slip)}"/><path class="z2" d="${arc(slip, 1)}"/>
+      <g class="tk">${ticks}</g>${live ? `<line class="ndl" x1="${C[0]}" y1="${C[1]}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}"/>` : ''}<circle class="hub" cx="${C[0]}" cy="${C[1]}" r="4.5"/></svg>`;
+  }
+
   NZA.app('bullet', {
     escClose: false, full: true, noscale: true, camInput: false,
 
@@ -270,20 +392,20 @@
       this.el = el;
       el.innerHTML = `
         <div class="bx-stage"></div>
+        <div class="bx-lamp"></div>
         <div class="bx-tags"></div>
         <div class="bx-ui">
-          <header class="bx-strip nza-hud solid"></header>
-          <div class="bx-notes"></div>
-          <aside class="bx-plan nza-hud solid"></aside>
+          <div class="bx-tl"><section class="bx-mon nza-hud solid"></section><div class="bx-notes"></div></div>
+          <section class="bx-case nza-hud solid"></section>
           <aside class="bx-dev nza-hud solid"></aside>
-          <aside class="bx-film nza-hud solid"></aside>
+          <aside class="bx-film"></aside>
           <div class="bx-result-wrap"></div>
         </div>
         <div class="bx-cur"><svg viewBox="0 0 46 46"><circle class="bg" cx="23" cy="23" r="19"/><circle class="fg" cx="23" cy="23" r="19" stroke-dasharray="0 120"/></svg><span class="tx"></span></div>
         <div class="bx-load"><div class="in"><span class="ring"></span><span class="lt"></span></div></div>`;
       const q = s => el.querySelector(s);
       this.stage = q('.bx-stage'); this.tags = q('.bx-tags'); this.ui = q('.bx-ui');
-      this.stripEl = q('.bx-strip'); this.notesEl = q('.bx-notes'); this.planEl = q('.bx-plan');
+      this.monEl = q('.bx-mon'); this.tlEl = q('.bx-tl'); this.notesEl = q('.bx-notes'); this.caseEl = q('.bx-case');
       this.devEl = q('.bx-dev'); this.filmEl = q('.bx-film'); this.resWrap = q('.bx-result-wrap');
       this.cur = q('.bx-cur'); this.curFg = q('.bx-cur .fg'); this.curTx = q('.bx-cur .tx'); this.loadEl = q('.bx-load');
       this.mx = window.innerWidth / 2; this.my = window.innerHeight / 2;
@@ -316,8 +438,10 @@
       this.loadEl.classList.remove('out');
       this.loadEl.querySelector('.lt').textContent = T('loading', 'Preparing the surgical field…');
       this.resWrap.innerHTML = '';
-      [this.stripEl, this.planEl, this.devEl, this.notesEl].forEach(x => { x.style.display = ''; });
+      this.notesHtml = this.devHtml = this.ivHtml = this.chipsHtml = this.planHtml = this.ringHtml = this.tagsHtml = null;
+      [this.tlEl, this.caseEl, this.devEl, this.notesEl].forEach(x => { x.style.display = ''; });
       this.filmEl.classList.remove('on');
+      this.devEl.classList.remove('on');
       const token = this.openToken = (this.openToken || 0) + 1;
       requestAnimationFrame(() => requestAnimationFrame(() => { if (this.alive && token === this.openToken) this.boot(); }));
     },
@@ -330,6 +454,7 @@
       if (this.ecg) { this.ecg.stop(); this.ecg = null; }
       if (this.pleth) { this.pleth.stop(); this.pleth = null; }
       if (this.bayHold) { this.bayHold.destroy(); this.bayHold = null; }
+      if (this.clock) this.clock = null;
       if (this.fallbackTimer) { clearInterval(this.fallbackTimer); this.fallbackTimer = null; }
       if (this.demoVitals) { clearInterval(this.demoVitals); this.demoVitals = null; }
       clearTimeout(this.stepTimer);
@@ -380,7 +505,7 @@
       const region = inj.region || 'chest';
       const kind = String(region).replace(/^[lr]_/, '');
       const limb = /arm|leg/.test(region);
-      this.R0 = limb ? (/lower/.test(region) ? 0.034 : 0.04) : 0.05;
+      this.R0 = limb ? (/lower/.test(region) ? 0.032 : 0.037) : 0.044;
       this.fat = FAT[kind] || 10;
       this.boneDepth = BONE[kind] || 40;
       let S;
@@ -396,6 +521,10 @@
         return this.fallback();
       }
       this.S = S;
+      // a tighter lamp pool: the field glows, the drape falls off toward the edges
+      if (S.lightRig) S.lightRig.pool = 1.15;
+      // softer micro relief: under the theatre light the skin reads smooth and slightly oily, not crazed
+      if (S.uniforms) { if (S.uniforms.uMicroNormal) S.uniforms.uMicroNormal.value = 1.2; if (S.uniforms.uSebum) S.uniforms.uSebum.value = 0.42; }
       this.entryUv = [0.5, 0.5];
       // fragments (mm offsets from the entry wound, +y toward the medic)
       const list = Array.isArray(d.fragments) && d.fragments.length ? d.fragments : [{ id: 'f1', x: 5, y: -2, depth: +inj.depth || 20, size: inj.type === 'gunshot' ? 10 : 5, shape: inj.type === 'gunshot' ? 'bullet' : 'shard', rot: 0.6 }];
@@ -447,7 +576,7 @@
       S.start();
       this.buildPanel();
       this.enterStep(1, true);
-      if (d.bloodWarn) setTimeout(() => { if (this.alive && this.g === g) this.flash('bad', T('warn_blood_flash', 'Low blood volume and nothing running — hang a unit before you cut.'), 4200); }, 900);
+      if (d.bloodWarn) setTimeout(() => { if (this.alive && this.g === g) this.flash('bad', T('warn_blood_flash', 'Blood volume is low and no line is running — start a unit before the first cut.'), 4200); }, 900);
       setTimeout(() => this.loadEl.classList.add('out'), 140);
     },
 
@@ -469,7 +598,19 @@
       S.layers.splat('clot', this.entryUv, (gun ? 4.5 : 3.5) * MM, 0.5, { seed: 3, count: 8 });
       S.layers.paint('blood', this.entryUv, (gun ? 3 : 2.2) * MM, 0.55, { hardness: 0.3 });
       const t0 = S.uvToST(this.entryUv);
-      S.layers.stroke('clot', this.entryUv, S.stToUv(t0[0] + (R() - 0.5) * 0.004, t0[1] + 0.012 + R() * 0.008), 0.0008, 0.32, { hardness: 0.4, grain: 0.4, grainScale: 120 });
+      // a dried trickle: a short, wandering run away from the hole that thins out
+      {
+        let p = t0.slice(), dir = 0.9 + (R() - 0.5) * 0.9;
+        const n = 5 + Math.floor(R() * 3);
+        for (let k = 0; k < n; k++) {
+          dir += (R() - 0.5) * 0.7;
+          const len = (1.6 + R() * 1.6) * MM, q = [p[0] + Math.cos(dir) * len, p[1] + Math.sin(dir) * len];
+          const w = lerp(0.85, 0.3, k / n) * MM;
+          S.layers.stroke('clot', S.stToUv(p[0], p[1]), S.stToUv(q[0], q[1]), w, lerp(0.42, 0.18, k / n), { hardness: 0.5, grain: 0.45, grainScale: 140 });
+          p = q;
+        }
+        S.layers.paint('clot', S.stToUv(p[0], p[1]), 0.6 * MM, 0.28, { hardness: 0.55 });
+      }
       S.layers.splat('bruise', this.entryUv, (9 + sev * 2.5) * MM, 0.16 + sev * 0.03, { seed: 5, count: 7 });
       if (gun && R() < 0.65) {
         // powder stippling: a close shot leaves burnt grains around the hole
@@ -492,83 +633,168 @@
       this.frags.forEach((f, i) => { f.mesh = buildFragment(f, seed + i * 77); S.scene.add(f.mesh); });
       this.fragBlood = new (T3().Color)(0.5, 0.06, 0.05);
       this._v = new (T3().Vector3)(); this._w = new (T3().Vector3)();
+      // kidney dish on the drape beside the window (extracted pieces land in it)
+      const W = S.patch.W, H = S.patch.H;
+      this.dishUv = S.stToUv(Math.min(this.R0 + 0.046, W * 0.4), Math.max(-0.022, -H * 0.4));
+      this.dish = buildKidneyDish(M);
+      S.scene.add(this.dish);
+      this.placeOnPatch(this.dish, this.dishUv, 0.35, 0.0045);
+      // self-retaining retractor (shown while the incision is spread)
+      // towel clamps holding the drape at the rim of the window
+      this.clamps = [-35, 35, 145, 215].map((deg, i) => {
+        const a = deg * Math.PI / 180, r = this.R0 + 0.0035;
+        const c = buildTowelClamp(M);
+        S.scene.add(c);
+        this.placeOnPatch(c, S.stToUv(Math.cos(a) * r, Math.sin(a) * r), a + (i % 2 ? 0.12 : -0.12), 0.0028);
+        return c;
+      });
+      this.retr = buildRetractor(M);
+      this.retr.group.visible = false;
+      S.scene.add(this.retr.group);
+      this.retrKey = '';
+    },
+    // put an object on the patch at uv: +Y along the surface normal, +X along the patch s axis turned by angle
+    placeOnPatch(obj, uv, angle = 0, lift = 0) {
+      const THREE = T3(), S = this.S;
+      const sp = S.surfaceAt(uv), st = S.uvToST(uv), e = 0.003;
+      const q = S.surfaceAt(S.stToUv(st[0] + Math.cos(angle) * e, st[1] + Math.sin(angle) * e)).point;
+      const N = sp.normal.clone().normalize();
+      const X = q.clone().sub(sp.point); X.addScaledVector(N, -X.dot(N)).normalize();
+      const Z = new THREE.Vector3().crossVectors(X, N).normalize();
+      obj.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, N, Z));
+      obj.position.copy(sp.point).addScaledVector(N, lift);
+    },
+    // the retractor sits across the middle of the cut, rakes on both edges, handles out past the end that is on the right
+    updateRetractor() {
+      const g = this.g, S = this.S, r = this.retr;
+      if (!r || !S) return;
+      const w = g && g.cut.w;
+      const show = !!(w && !this.finished && g.step >= 4 && g.step <= 6 && g.ex.spread > 0.08);
+      r.group.visible = show;
+      if (!show) return;
+      const THREE = T3(), mid = w.at(0.5);
+      const hg = w.halfGape(0.5) + 0.0004, L = w.length;
+      const key = `${(hg * 1e4).toFixed(0)}:${(L * 1e3).toFixed(0)}:${mid.uv[0].toFixed(4)}:${mid.uv[1].toFixed(4)}`;
+      if (key === this.retrKey) return;
+      this.retrKey = key;
+      r.set({ spread: hg, length: L });
+      const sp = S.surfaceAt(mid.uv), N = sp.normal.clone().normalize();
+      const ePt = S.surfaceAt(w.edge(0.5, 1, 0.004)).point;
+      let X = ePt.sub(sp.point); X.addScaledVector(N, -X.dot(N)).normalize();
+      let Z = new THREE.Vector3().crossVectors(X, N).normalize();
+      const a = S.project(sp.point.clone().addScaledVector(Z, 0.03)), b = S.project(sp.point.clone().addScaledVector(Z, -0.03));
+      if (a.x < b.x) { X.negate(); Z.negate(); }
+      r.group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, N, Z));
+      r.group.position.copy(sp.point).addScaledVector(N, -0.0005);
+    },
+    // after a piece comes out the camera glances at the dish, then returns
+    peekDish() {
+      const S = this.S, home = this.lastFrame;
+      if (!S || !this.dishUv || !home) return;
+      const a = S.uvToST(home.uv), b = S.uvToST(this.dishUv);
+      const mid = S.stToUv((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+      S.controls.frame(mid, clamp(Math.hypot(a[0] - b[0], a[1] - b[1]) + 0.09, 0.1, this.R0 * 4), { instant: false });
+      clearTimeout(this.peekT);
+      this.peekT = setTimeout(() => { if (this.S === S && this.alive && !this.finished) { const h = this.lastFrame; S.controls.frame(h.uv, h.w, { instant: false }); } }, 1900);
     },
 
-    /* ═════════════ HUD ═════════════ */
+    /* ═════════════ HUD ═════════════
+       top-left  monitor card (traces, numbers, blood ring, IV line, bay key) + notes under it
+       top-right operative plan (2 × 4 step matrix, case clock, location)
+       right-middle (left of the tool belt) instrument card · film viewer
+       bottom-left the kit's procedure column, right edge the kit's tool belt */
     buildHud() {
-      const d = this.d;
-      const inj = this.inj;
-      const name = (d.patient && d.patient.name) || T('patient', 'Patient');
+      const d = this.d, inj = this.inj, p = d.patient || {};
+      const name = p.name || T('patient', 'Patient');
+      const ini = String(name).trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
       const loc = d.location || {};
-      const mid = d.bay
-        ? `<div class="bx-exit"><span class="bx-hk"><kbd>${esc(T('key_backspace', 'BACKSPACE'))}</kbd><i></i></span><b>${esc(T('exit_bay', 'Exit treatment bay'))}</b></div>`
-        : `<div class="bx-loc">${icon(loc.kind === 'surgery' ? 'hospital' : loc.kind === 'bed' ? 'bed' : 'medkit')}<b>${esc(loc.label || T('loc_field', 'Field surgery'))}</b></div>`;
-      this.stripEl.innerHTML = `
-        <div class="bx-tr">
-          <canvas class="cv-ecg"></canvas><canvas class="cv-pleth"></canvas>
-          <span class="l1">II</span><span class="l2">PLETH</span>
-          <div class="ft"><span class="rh"></span><span class="dr"></span></div>
+      const bay = d.bay ? `
+        <footer class="bay"><span class="hk"><svg viewBox="0 0 36 36"><circle class="b" cx="18" cy="18" r="15"/><circle class="f" cx="18" cy="18" r="15"/></svg><kbd>${esc(T('key_backspace_s', '⌫'))}</kbd></span>
+          <div><b>${esc(T('bay_leave', 'Step out of the ambulance'))}</b><small>${esc(T('bay_leave_sub', 'Hold Backspace · stops the operation'))}</small></div></footer>` : '';
+      this.monEl.innerHTML = `
+        <header class="mh">
+          <span class="av"><b>${esc(ini)}</b></span>
+          <div class="who"><b>${esc(name)}</b><span>${esc(inj.label || '')} · ${esc(inj.regionLabel || '')}</span></div>
+          ${p.bloodType ? `<span class="bt">${icon('drop')}${esc(p.bloodType)}</span>` : ''}
+          <span class="live"><i></i>${esc(T('live', 'Live'))}</span>
+        </header>
+        <div class="scr">
+          <div class="row ecg"><span class="ld">II</span><canvas class="cv-ecg"></canvas><div class="num hr"><span class="k">${esc(T('v_hr', 'HR'))}</span><b>--</b><small>${esc(T('u_bpm', 'bpm'))}</small></div></div>
+          <div class="row pl"><span class="ld">${esc(T('v_pleth', 'Pleth'))}</span><canvas class="cv-pleth"></canvas><div class="num sp"><span class="k">${esc(T('v_spo2', 'SpO₂'))}</span><b>--</b><small>%</small></div></div>
         </div>
-        <div class="bx-mid">${mid}<div class="pt"><span class="dot"></span>${esc(name)}${d.patient && d.patient.bloodType ? ` · <b>${esc(d.patient.bloodType)}</b>` : ''} · ${esc(inj.label || '')} · ${esc(inj.regionLabel || '')}</div></div>
-        <div class="bx-tiles">
-          <div class="tile hr"><span class="l">${esc(T('v_hr', 'HR'))}</span><b>--</b><small>${esc(T('u_bpm', 'bpm'))}</small></div>
-          <div class="tile sp"><span class="l">${esc(T('v_spo2', 'SpO₂'))}</span><b>--</b><small>%</small></div>
-          <div class="tile bp"><span class="l">${esc(T('v_nibp', 'NIBP'))}</span><b>--</b><small></small></div>
-          <div class="tile bl"><span class="l">${esc(T('v_loss', 'Blood loss'))}</span><b>0</b><small>${esc(T('u_ml', 'mL'))}</small></div>
-        </div>`;
-      const q = s => this.stripEl.querySelector(s);
-      this.ecg = NZA.vitals.Trace(q('.cv-ecg'), { type: 'ecg', rhythm: this.vit.rhythm || 'sinus', rate: this.vit.ecgRate || this.vit.hr || 80, color: '#3ddc84', speed: 0.2, gain: 0.34 });
-      this.pleth = NZA.vitals.Trace(q('.cv-pleth'), { type: 'pleth', rhythm: this.vit.rhythm || 'sinus', rate: this.vit.ecgRate || this.vit.hr || 80, color: '#3fd0ff', speed: 0.2, gain: 0.3, line: 1.5 });
+        <div class="ins">
+          <div class="ir bp"><span>${esc(T('v_nibp', 'NIBP'))}</span><b>--</b><em></em></div>
+          <div class="ir rr"><span>${esc(T('v_rr', 'Resp'))}</span><b>--</b><em>${esc(T('u_min', '/min'))}</em></div>
+        </div>
+        <div class="ebl"><div class="rg"></div><div class="vol"><div class="vl"><span>${esc(T('v_volume', 'Blood volume'))}</span><b>--</b></div><div class="vb"><i></i><s style="left:85%"></s><s style="left:70%"></s></div><div class="iv"></div></div></div>
+        ${bay}`;
+      const q = s => this.monEl.querySelector(s);
+      this.ecg = NZA.vitals.Trace(q('.cv-ecg'), { type: 'ecg', rhythm: this.vit.rhythm || 'sinus', rate: this.vit.ecgRate || this.vit.hr || 80, color: '#3ddc84', speed: 0.2, gain: 0.36 });
+      this.pleth = NZA.vitals.Trace(q('.cv-pleth'), { type: 'pleth', rhythm: this.vit.rhythm || 'sinus', rate: this.vit.ecgRate || this.vit.hr || 80, color: '#3fd0ff', speed: 0.2, gain: 0.32, line: 1.5 });
       if (d.bay) {
-        const hk = this.stripEl.querySelector('.bx-exit');
-        this.bayHold = NZA.ui.Hold({ key: 'Backspace', seconds: 1.0, el: hk, onProgress: p => { hk.style.setProperty('--p', p); hk.classList.toggle('on', p > 0); }, onDone: () => this.exitBay() });
+        const ft = q('.bay');
+        this.bayHold = NZA.ui.Hold({ key: 'Backspace', seconds: 1.0, el: ft, onProgress: v => { ft.style.setProperty('--p', v); ft.classList.toggle('on', v > 0); }, onDone: () => this.exitBay() });
       }
-      this.planEl.innerHTML = `
-        <div class="hd"><span class="nza-label">${esc(T('plan', 'Procedure'))}</span><span class="tm">00:00</span></div>
-        <ol></ol>
-        <div class="ft"></div>`;
+      const locIcon = loc.kind === 'bay' ? 'ambulance' : loc.kind === 'surgery' ? 'hospital' : loc.kind === 'bed' ? 'bed' : 'medkit';
+      this.caseEl.innerHTML = `
+        <header class="ch"><div class="tt"><span class="kick">${esc(T('plan', 'Operative plan'))}</span><span class="loc">${icon(locIcon)}${esc(loc.label || T('loc_field', 'Field surgery'))}</span></div><span class="clk"></span></header>
+        <ol class="mx"></ol>
+        <footer class="cf"></footer>`;
+      this.clock = NZA.ui.FlipClock(this.caseEl.querySelector('.clk'), { value: '00:00', small: true });
       this.devEl.innerHTML = '';
-      this.renderStrip();
+      this.renderMon();
       this.renderNotes();
     },
     onVitals(v) {
       this.vit = Object.assign(this.vit || {}, v);
       if (this.ecg) this.ecg.set({ rhythm: this.vit.rhythm || 'sinus', rate: this.vit.ecgRate || this.vit.hr || 0 });
       if (this.pleth) this.pleth.set({ rhythm: this.vit.rhythm || 'sinus', rate: this.vit.ecgRate || this.vit.hr || 0, amp: clamp((this.vit.map || 80) / 85, 0.25, 1) });
-      this.renderStrip();
+      this.renderMon();
       this.renderNotes();
     },
-    renderStrip() {
-      const v = this.vit || {}, el = this.stripEl;
-      if (!el || !el.querySelector('.bx-tiles')) return;
-      const set = (cls, val, tone, sub) => {
-        const t = el.querySelector(`.tile.${cls}`); if (!t) return;
-        const b = t.querySelector('b'); const s = String(val);
+    renderMon() {
+      const v = this.vit || {}, el = this.monEl;
+      if (!el || !el.querySelector('.scr')) return;
+      const put = (sel, html, tone) => {
+        const n = el.querySelector(sel); if (!n) return;
+        const b = n.querySelector('b'), s = String(html);
         if (b.textContent !== s) b.textContent = s;
-        t.classList.toggle('alarm', tone === 'red'); t.classList.toggle('warn', tone === 'amber');
-        if (sub !== undefined) { const sm = t.querySelector('small'); if (sm.textContent !== sub) sm.textContent = sub; }
+        n.classList.toggle('red', tone === 'red'); n.classList.toggle('amber', tone === 'amber');
       };
-      const hr = v.hr !== undefined ? Math.round(v.hr) : '--';
-      set('hr', hr, (v.hr > 130 || v.hr < 45) ? 'red' : v.hr > 110 ? 'amber' : '');
-      set('sp', v.spo2 !== undefined ? Math.round(v.spo2) : '--', v.spo2 < 90 ? 'red' : v.spo2 < 94 ? 'amber' : '');
-      set('bp', v.sys !== undefined ? `${Math.round(v.sys)}/${Math.round(v.dia || 0)}` : '--', v.sys < 85 ? 'red' : v.sys < 100 ? 'amber' : '', v.map !== undefined ? T('v_map', 'MAP %s mmHg', Math.round(v.map)) : T('u_mmhg', 'mmHg'));
+      const has = k => v[k] !== undefined && v[k] !== null;
+      put('.num.hr', has('hr') ? Math.round(v.hr) : '--', (v.hr > 130 || v.hr < 45) ? 'red' : v.hr > 110 ? 'amber' : '');
+      put('.num.sp', has('spo2') ? Math.round(v.spo2) : '--', v.spo2 < 90 ? 'red' : v.spo2 < 94 ? 'amber' : '');
+      put('.ir.bp', has('sys') ? `${Math.round(v.sys)}/${Math.round(v.dia || 0)}` : '--', v.sys < 85 ? 'red' : v.sys < 100 ? 'amber' : '');
+      put('.ir.rr', has('rr') && v.rr ? Math.round(v.rr) : '--', v.rr > 28 || (v.rr && v.rr < 8) ? 'red' : v.rr > 22 ? 'amber' : '');
+      const em = el.querySelector('.ir.bp em'), mt = has('map') ? T('v_map', 'MAP %s', Math.round(v.map)) : '';
+      if (em.textContent !== mt) em.textContent = mt;
+      // estimated surgical blood loss: a ring that fills toward 400 mL
       const loss = this.g ? Math.round(this.g.loss) : 0;
-      set('bl', loss, loss >= 250 ? 'red' : loss >= 120 ? 'amber' : '', v.bloodPct !== undefined ? T('v_blood', 'mL · blood %s%', Math.round(v.bloodPct)) : T('u_ml', 'mL'));
-      const rh = el.querySelector('.ft .rh'), dr = el.querySelector('.ft .dr');
-      const rt = `${String(v.rhythm || 'sinus').toUpperCase()} · ${hr} ${T('u_bpm_up', 'BPM')}`;
-      if (rh.textContent !== rt) rh.textContent = rt;
+      const tone = loss >= 250 ? 'red' : loss >= 120 ? 'amber' : 'teal';
+      const ring = NZA.ui.Ring({ value: String(loss), frac: clamp(loss / 400, 0, 1), tone, label: T('v_loss', 'Est. loss'), unit: T('u_ml', 'mL') });
+      const rg = el.querySelector('.ebl .rg');
+      if (this.ringHtml !== ring) { this.ringHtml = ring; rg.innerHTML = ring; }
+      const pctV = has('bloodPct') ? clamp(v.bloodPct - (this.g ? this.g.loss / 50 : 0), 0, 110) : null;
+      const vol = el.querySelector('.ebl .vl b'), vs = pctV === null ? '--' : `${Math.round(pctV)}%`;
+      if (vol.textContent !== vs) vol.textContent = vs;
+      const bar = el.querySelector('.ebl .vb i');
+      bar.style.width = `${clamp(pctV === null ? 0 : pctV, 0, 100)}%`;
+      bar.className = pctV !== null && pctV < 70 ? 'red' : pctV !== null && pctV < 85 ? 'amber' : '';
       const drip = Math.round(+v.drip || 0);
-      const dh = drip > 0 ? `${T('drip', 'DRIP')} <b>${drip}</b> ${esc(T('u_mlmin', 'mL/min'))}` : `${T('drip', 'DRIP')} <b class="off">${esc(T('drip_off', 'NONE'))}</b>`;
-      if (dr.innerHTML !== dh) dr.innerHTML = dh;
+      const iv = drip > 0
+        ? `<span class="on">${icon(v.infusing ? 'bloodbag' : 'iv')}${esc(v.infusing ? T('iv_blood', 'Blood running') : T('iv_fluid', 'Line running'))}<b>${drip}</b>${esc(T('u_mlmin', 'mL/min'))}</span>`
+        : `<span class="off">${icon('iv')}${esc(T('iv_none', 'No line running'))}</span>`;
+      const ivEl = el.querySelector('.ebl .iv');
+      if (this.ivHtml !== iv) { this.ivHtml = iv; ivEl.innerHTML = iv; }
     },
     renderNotes() {
       const d = this.d || {}, v = this.vit || {};
       const notes = [];
       const lowBlood = v.bloodPct !== undefined ? v.bloodPct < 85 : true;
-      if (d.bloodWarn && !v.infusing && lowBlood) notes.push(['red', 'bloodbag', T('n_blood', 'Blood first'), T('n_blood_t', 'Surgery costs the patient blood — hang a unit on the IV stand before you open the wound.')]);
-      if (this.g && this.g.pain0 >= 35 && !(d.patient && d.patient.numb) && this.g.step <= 5) notes.push(['amber', 'syringe', T('n_pain', 'Not numbed'), T('n_pain_t', 'The patient is awake and feels everything. Expect flinches.')]);
+      if (d.bloodWarn && !v.infusing && lowBlood && (!this.g || this.g.step <= 3)) notes.push(['red', 'bloodbag', T('n_blood', 'Low blood volume'), T('n_blood_t', 'Each step from here loses blood. Start a unit on the IV before the first incision.')]);
+      if (this.g && this.g.pain0 >= 35 && !(d.patient && d.patient.numb) && this.g.step <= 5) notes.push(['amber', 'syringe', T('n_pain', 'Awake, not numbed'), T('n_pain_t', 'Expect the patient to flinch on every painful move.')]);
       const html = notes.map(n => `<div class="note-x ${n[0]}"><span class="ni">${icon(n[1])}</span><div><b>${esc(n[2])}</b><p>${esc(n[3])}</p></div></div>`).join('');
-      if (this.notesEl.innerHTML !== html) this.notesEl.innerHTML = html;
+      if (this.notesHtml !== html) { this.notesHtml = html; this.notesEl.innerHTML = html; }
     },
 
     renderPlan(full) {
@@ -576,32 +802,33 @@
       if (!g) return;
       const N = this.frags.length, found = this.frags.filter(f => f.found).length, out = g.xt.out.length;
       const vals = {
-        1: g.done[1] ? (g.film.used ? T('plan_xray', 'X-ray') : `${found}/${N}`) : g.skipped[1] ? T('skipped', 'Skipped') : `${found}/${N}`,
+        1: g.done[1] ? (g.film.used ? T('plan_xray', 'Film') : `${found}/${N}`) : g.skipped[1] ? T('skipped', 'Skipped') : `${found}/${N}`,
         2: g.skipped[2] ? T('skipped', 'Skipped') : `${pct(g.io.cov)}%`,
-        3: g.cut.w ? `${Math.round(g.cut.L || g.cut.w.length / MM)} mm` : '',
-        4: g.step >= 4 ? `${pct(Math.min(1, g.ex.spread))}%` : '',
+        3: g.cut.w ? `${Math.round(g.cut.L || g.cut.w.length / MM)} mm` : '—',
+        4: g.step >= 4 ? `${pct(Math.min(1, this.exposure()))}%` : '—',
         5: `${out}/${N}`,
-        6: g.cut.w && g.step >= 5 ? `${f1(this.bleedNow())}` : '',
-        7: g.skipped[7] ? T('skipped', 'Skipped') : g.sut.N ? `${g.sut.list.length}/${g.sut.N}` : '',
-        8: g.dr.D ? `${pct(g.dr.D.stuck)}%` : g.skipped[8] ? T('skipped', 'Skipped') : '',
+        6: g.cut.w && g.step >= 5 ? `${f1(this.bleedNow())}` : '—',
+        7: g.skipped[7] ? T('skipped', 'Skipped') : g.sut.N ? `${g.sut.list.length}/${g.sut.N}` : '—',
+        8: g.dr.D ? `${pct(g.dr.D.stuck)}%` : g.skipped[8] ? T('skipped', 'Skipped') : '—',
       };
-      const ol = STEPS.map(s => {
+      const cells = STEPS.map(s => {
         const n = s.n;
-        const cls = g.done[n] ? 'done' : g.skipped[n] ? 'skip' : g.step === n ? 'cur' : '';
-        const b = g.done[n] ? icon('check') : g.skipped[n] ? icon('minus') : '';
-        return `<li class="${cls}"><span class="b">${b}</span><span class="t">${esc(T(s.label[0], s.label[1]))}</span><span class="x">${esc(vals[n])}</span></li>`;
+        const cls = g.done[n] ? 'done' : g.skipped[n] ? 'skip' : g.step === n ? 'cur' : n < g.step ? 'past' : '';
+        const node = g.done[n] ? icon('check') : g.skipped[n] ? icon('minus') : `<b>${n}</b>`;
+        return `<li class="${cls}" style="--i:${n - 1}"><span class="nd">${node}</span><span class="t">${esc(T(s.label[0], s.label[1]))}</span><span class="x">${esc(vals[n])}</span></li>`;
       }).join('');
-      const olEl = this.planEl.querySelector('ol');
-      if (full || olEl.innerHTML !== ol) olEl.innerHTML = ol;
-      this.planEl.querySelector('.tm').textContent = NZA.fmt.time(g.t);
+      const ol = this.caseEl.querySelector('.mx');
+      if (full || this.planHtml !== cells) { this.planHtml = cells; ol.innerHTML = cells; }
+      if (this.clock) this.clock.set(NZA.fmt.time(g.t));
       const ft = [];
-      ft.push(`<span class="bx-chip ${out === N ? 'teal' : ''}">${icon('crosshair')}${esc(T('chip_frags', 'Fragments %s/%s', out, N))}</span>`);
+      const left = this.remaining().length;
+      ft.push(`<span class="bx-chip ${left ? '' : 'teal'}">${icon('crosshair')}${esc(left ? T('chip_left', '%s in the wound', left) : T('chip_clear', 'Metal out'))}</span>`);
       if (g.gz.have) ft.push(`<span class="bx-chip">${icon('gauze')}${esc(T('chip_swabs', 'Gauze %s/%s', g.gz.used, g.gz.have))}</span>`);
       if (g.su.ml > 0.5) ft.push(`<span class="bx-chip">${icon('wind')}${esc(T('chip_suction', '%s mL', Math.round(g.su.ml)))}</span>`);
-      if (g.flinches) ft.push(`<span class="bx-chip red">${esc(T('chip_flinch', 'Flinched ×%s', g.flinches))}</span>`);
+      if (g.flinches) ft.push(`<span class="bx-chip red">${icon('alert')}${esc(T('chip_flinch', '×%s flinch', g.flinches))}</span>`);
       const fh = ft.join('');
-      const ftEl = this.planEl.querySelector('.ft');
-      if (ftEl.innerHTML !== fh) ftEl.innerHTML = fh;
+      const ftEl = this.caseEl.querySelector('.cf');
+      if (this.chipsHtml !== fh) { this.chipsHtml = fh; ftEl.innerHTML = fh; }
     },
 
     /* the instrument card (left): probe depth, blade depth, retractor, grip/traction, bleeding */
@@ -671,16 +898,19 @@
           <div class="dv-kv"><span>${esc(T('cut_aim', 'Aim'))}</span><b>~${Math.round(c.ideal)} mm</b></div></div>
           ${this.layersHTML(maxD, { band, tip: c.blade, tipTone: tone })}</div>`;
       } else if (mode === 'grip') {
+        // traction dial: a half ring with the safe band, the caution band and the slip zone, needle = pull speed
         const x = g.xt, f = x.grip;
-        const sp = clamp(x.speed / (cfg.pullSlip * 1.15), 0, 1), safe = cfg.pullSafe / (cfg.pullSlip * 1.15);
-        const prog = f ? f.prog : 0;
-        html = `<div class="dv-hd"><span class="nza-label">${esc(T('dv_extract', 'Extraction'))}</span><span class="dv-tag ${f ? 'teal' : ''}">${esc(f ? T('gr_held', 'Gripped') : T('gr_free', 'Open'))}</span></div>
-          <div class="dv-row"><div class="dv-bars">
-            <div class="vb"><span class="vl">${esc(T('dv_grip', 'Grip'))}</span><div class="vt"><i class="vf ${x.strength < 0.35 ? 'red' : x.strength < 0.6 ? 'amber' : ''}" style="height:${pct(f ? x.strength : 0)}%"></i></div></div>
-            <div class="vb"><span class="vl">${esc(T('dv_traction', 'Traction'))}</span><div class="vt tr"><i class="zn" style="height:${(safe * 100).toFixed(1)}%"></i><i class="vf ${sp > 0.85 ? 'red' : sp > safe ? 'amber' : 'teal'}" style="height:${(sp * 100).toFixed(1)}%"></i></div></div>
-            <div class="vb"><span class="vl">${esc(T('dv_out', 'Out'))}</span><div class="vt"><i class="vf white" style="height:${pct(prog)}%"></i></div></div>
-          </div><div class="dv-l"><div class="dv-big"><b>${pct(prog)}</b><span>%</span></div>
-          <div class="dv-sub">${NZA.rich(f && f.lodge > 0 ? T('gr_lodged', 'Lodged — rock it free: {A} {D}') : f ? T('gr_pull', 'Draw the mouse back **slowly**') : T('gr_aim', 'Aim at the fragment and press {LMB}'))}</div></div></div>`;
+        const top = cfg.pullSlip * 1.15;
+        const sp = clamp(x.speed / top, 0, 1), safe = cfg.pullSafe / top, slip = cfg.pullSlip / top;
+        const prog = f ? f.prog : 0, grip = f ? x.strength : 0;
+        const tone = !f ? '' : sp > slip * 0.92 ? 'red' : sp > safe ? 'amber' : 'teal';
+        const lodged = f && f.lodge > 0;
+        const pips = lodged ? Array.from({ length: cfg.rocks }, (_, i) => `<i class="${i < Math.round((1 - f.lodge) * cfg.rocks) ? 'on' : ''}"></i>`).join('') : '';
+        html = `<div class="dv-hd"><span class="nza-label">${esc(T('dv_extract', 'Traction'))}</span><span class="dv-tag ${f ? (lodged ? 'amber' : 'teal') : ''}">${esc(!f ? T('gr_free', 'Jaws open') : lodged ? T('gr_stuck', 'Lodged') : T('gr_held', 'Held'))}</span></div>
+          <div class="dv-arc ${tone}">${arcSVG(sp, safe, slip, !!f)}<div class="av"><b>${pct(prog)}</b><span>${esc(T('dv_out', '% out'))}</span></div></div>
+          <div class="dv-kv2"><span>${esc(T('dv_grip', 'Grip'))}</span>${NZA.ui.meterHTML({ value: grip, tone: grip < 0.35 ? 'red' : grip < 0.6 ? 'amber' : '' })}<b>${pct(grip)}%</b></div>
+          ${lodged ? `<div class="dv-rock"><span>${NZA.rich(T('gr_rock', 'Rock it {A} {D}'))}</span><span class="pp2">${pips}</span></div>` : ''}
+          <div class="dv-sub">${NZA.rich(lodged ? T('gr_lodged', 'Bedded in tissue — rock it side to side before you pull.') : f ? T('gr_pull', 'Move the mouse **toward you**, slowly — keep the needle in the teal band.') : T('gr_aim', 'Put the jaws on the metal and press {LMB}.'))}</div>`;
       } else if (mode === 'spread') {
         const s = g.ex.spread, clear = this.fieldClear();
         html = `<div class="dv-hd"><span class="nza-label">${esc(T('dv_retractor', 'Retractor'))}</span><span class="dv-tag ${s > cfg.tearAt ? 'red' : s >= cfg.exposeSpread ? 'teal' : ''}">${esc(s > cfg.tearAt ? T('rt_tear', 'Tearing') : s >= cfg.exposeSpread ? T('rt_open', 'Open') : T('rt_closed', 'Spread {Space}').replace(/[{}]/g, ''))}</span></div>
@@ -694,7 +924,7 @@
           <div class="dv-sub">${NZA.rich(T('bl_tip', 'Gauze {6} — hold {LMB} on the bleeding point. Target under **%s**.', f1(cfg.bleedDone)))}</div></div>
           <div class="dv-bars one"><div class="vb"><span class="vl">${esc(T('dv_rate', 'Rate'))}</span><div class="vt"><i class="zn" style="height:${(cfg.bleedDone / top * 100).toFixed(1)}%"></i><i class="vf ${b <= cfg.bleedDone ? 'teal' : 'red'}" style="height:${(clamp(b / top, 0, 1) * 100).toFixed(1)}%"></i></div></div></div></div>`;
       }
-      if (el.innerHTML !== html) el.innerHTML = html;
+      if (this.devHtml !== html) { this.devHtml = html; el.innerHTML = html; }
     },
 
     // world-anchored labels for located fragments
@@ -714,18 +944,18 @@
     /* ═════════════ panel ═════════════ */
     buildPanel() {
       this.pp = NZA.ui.ProcPanel(this.ui, {
-        step: 1, total: 8, tag: T('tag', 'Bullet extraction'), steps: STEPS.map(s => T(s.label[0], s.label[1])),
+        step: 1, total: 8, tag: T('tag', 'Projectile removal'), steps: STEPS.map(s => T(s.label[0], s.label[1])),
         title: '', text: '', stats: this.stats(), tools: this.toolList(), hints: this.hints(),
-        abort: { label: T('hold_abort', 'Hold to abort'), key: 'ESC', seconds: 1.2 },
+        abort: { label: T('abort', 'Stop surgery'), key: 'ESC', seconds: 1.2 },
         onAbort: () => this.abort(),
         onTool: key => this.pickTool(key),
       });
-      const body = this.pp.el.querySelector('.pp-body') || this.pp.el;
-      const after = body.querySelector('.pp-text');
+      // app widgets in the kit's slot (above the key legend): the coaching tip and the stitch row
+      const slot = this.pp.slot;
       this.dots = document.createElement('div'); this.dots.className = 'bx-dots';
       this.tip = document.createElement('div'); this.tip.className = 'bx-tip';
-      if (after && after.nextSibling) { body.insertBefore(this.tip, after.nextSibling); body.insertBefore(this.dots, this.tip); }
-      else { body.appendChild(this.dots); body.appendChild(this.tip); }
+      slot.insertBefore(this.dots, slot.firstChild);
+      slot.insertBefore(this.tip, slot.firstChild);
     },
     hints() {
       const g = this.g, out = [{ keys: ['RMB'], label: T('cam_look', 'Look') }, { keys: [T('key_wheel', 'Wheel')], label: T('cam_zoom', 'Zoom') }, { keys: ['R'], label: T('cam_recenter', 'Recentre') }];
@@ -815,7 +1045,7 @@
           const f = g.xt.grip, out = g.xt.out.length;
           wide = { label: T('w_extract', 'Fragment %s', Math.min(N, out + 1)), value: String(pct(f ? f.prog : 0)), unit: '%', tone: f ? 'teal' : '',
             meter: { value: f ? f.prog : 0 },
-            caption: f ? (f.lodge > 0 ? T('gr_lodged', 'Lodged — rock it free: {A} {D}') : T('w_extract_pull', 'Slow and steady — watch the traction')) : T('w_extract_cap', '%s of %s out', out, N),
+            caption: f ? (f.lodge > 0 ? T('w_lodged', 'Bedded in — rock it {A} {D}') : T('w_extract_pull', 'Slow and steady — watch the traction')) : T('w_extract_cap', '%s of %s out', out, N),
             captionTone: f && g.xt.speed > cfg.pullSafe ? 'amber' : '' };
           break;
         }
@@ -848,14 +1078,14 @@
     texts(n) {
       const film = !!this.d.film;
       return {
-        1: [T('s1_title', 'Locate the fragment'), film ? T('s1_text', 'Press the probe into the wound and feel for it — follow the track until it clicks on metal. Or press {X} to read the film.') : T('s1_text_nofilm', 'Press the probe into the wound and feel for it — follow the track until it clicks on metal.')],
-        2: [T('s2_title', 'Disinfect the site'), T('s2_text', 'Iodine swab — hold {LMB} and scrub in circles from the incision site outward until the ring is fully covered.')],
-        3: [T('s3_title', 'Incise over the fragment'), T('s3_text', 'Set the blade with {Q} / {E}, then hold {LMB} and draw a straight cut over the marked fragment.')],
-        4: [T('s4_title', 'Expose the fragment'), T('s4_text', 'Hold {Space} to spread the edges, then suction {4} and blot {6} until you can see the metal.')],
-        5: [T('s5_title', 'Extract the projectile'), T('s5_text', 'Forceps — click the fragment to grip it, then draw the mouse back **slowly** to work it free.')],
-        6: [T('s6_title', 'Control the bleeding'), T('s6_text', 'Gauze — hold {LMB} on the bleeding point and keep the pressure on until the bleed is under the limit.')],
-        7: [T('s7_title', 'Suture the incision'), T('s7_text', 'Press on the near edge at the marker, pull across to the far edge, release to tie the stitch.')],
-        8: [T('s8_title', 'Apply the dressing'), T('s8_text', 'Pick the dressing up by its edge, lay it over the wound and the entry hole, then rub it down.')],
+        1: [T('s1_title', 'Find the metal'), film ? T('s1_text', 'Work the probe down the wound track until it clicks on metal — or check the X-ray film {X}.') : T('s1_text_nofilm', 'Work the probe down the wound track until it clicks on metal.')],
+        2: [T('s2_title', 'Prep the skin'), T('s2_text', 'Hold {LMB} and scrub the prep swab in small circles, from the mark outward, until the whole ring is stained.')],
+        3: [T('s3_title', 'Open over the fragment'), T('s3_text', 'Set the blade depth with {Q} / {E}, then hold {LMB} and draw one straight line over the mark.')],
+        4: [T('s4_title', 'Get eyes on it'), T('s4_text', 'Hold {Space} to open the retractor, then clear the blood with suction {4} or gauze {6} until the metal shows.')],
+        5: [T('s5_title', 'Lift it out'), T('s5_text', 'Close the jaws on the metal with {LMB}, then ease it out by moving the mouse toward you — slow and even.')],
+        6: [T('s6_title', 'Stop the ooze'), T('s6_text', 'Press gauze {LMB} onto the bleeding point and hold the pressure until the flow drops under the line.')],
+        7: [T('s7_title', 'Close the cut'), T('s7_text', 'Press on the near edge at the marker, pull across to the far edge and let go to tie each stitch.')],
+        8: [T('s8_title', 'Cover it'), T('s8_text', 'Lift the dressing by an edge, lay it over the cut and the entry hole, then rub it down.')],
       }[n];
     },
     enterStep(n, first) {
@@ -868,8 +1098,8 @@
       S.markers.remove('in'); S.markers.remove('inR'); S.markers.remove('out');
       if (n === 1) this.frame0();
       if (n === 2) this.startPrep();
-      if (n === 3) this.frameOn(this.cutCentre(), Math.max(g.cut.ideal * 3.2 * MM, this.R0 * 1.6));
-      if (n === 4) this.frameOn(this.cutCentre(), Math.max((g.cut.L || g.cut.ideal) * 2.6 * MM, 0.05));
+      if (n === 3) this.frameOn(this.cutCentre(), Math.max(g.cut.ideal * 4.6 * MM, this.R0 * 2.3));
+      if (n === 4) this.frameOn(this.cutCentre(), Math.max((g.cut.L || g.cut.ideal) * 3.9 * MM, 0.092));
       if (n === 6) { g.hm.start = Math.max(this.bleedNow(), this.cfg.bleedDone * 1.5); }
       if (n === 7) this.startSuture();
       if (n === 8) this.startDressing();
@@ -967,6 +1197,7 @@
       else S.tools.use(null);
       if (tool && tool.base) Object.assign(tool.pose, tool.base);
       if (id === 'probe' && tool) Object.assign(tool.pose, { pressLift: -0.002, tilt: 0.45, yaw: 1.4 });
+      if (id === 'scalpel' && tool) Object.assign(tool.pose, { tilt: 0.6 });
       if (id === 'iodine') this.tl.swab.set({ load: g.io.load });
       if (id === 'forceps') this.tl.forceps.set({ open: 0.75 });
       S.tools.follow = true;
@@ -994,7 +1225,7 @@
         case 2: return this.setTip(T('tip_2', 'Begin over the fragment mark, spiral outward and do not come back over the centre.'));
         case 3: return this.setTip(T('tip_3', 'Through skin and fat only — about **%s mm** deep here. Start at an end to lengthen the cut.', Math.round(this.band()[1])), '');
         case 4: return this.setTip(T('tip_4', 'Do not over-spread: past the green band the tissue tears.'), 'amber');
-        case 5: return this.setTip(T('tip_5', 'If the traction bar turns amber, slow down. Red = it slips and tears the tissue.'), 'amber');
+        case 5: return this.setTip(T('tip_5', 'Keep the traction needle in the **teal** band. Amber is too quick; red and it slips and tears.'), 'amber');
         case 6: return this.setTip(T('tip_6', 'Clear the field with suction {4} to see where it bleeds from, then press there.'));
         case 7: return this.setTip(T('tip_7', 'Bite about **%s mm** from the edge on both sides and pull straight across.', this.cfg.bite));
         case 8: return this.setTip(T('tip_8', 'Grab the dressing by an **edge**, cover the incision and the entry hole, rub from the centre out.'));
@@ -1030,8 +1261,8 @@
       const found = this.frags.filter(f => f.found && !f.out);
       return this.fragCentroid(found.length ? found : null);
     },
-    frame0() { this.S.controls.frame([0.5, 0.5], this.R0 * 2.7, { instant: false }); },
-    frameOn(uv, width) { this.S.controls.frame(uv, clamp(width, 0.04, this.R0 * 3), { instant: false }); },
+    frame0() { this.frameOn([0.5, 0.5], this.R0 * 3.8); },
+    frameOn(uv, width) { const w = clamp(width, 0.05, this.R0 * 4); this.lastFrame = { uv: uv.slice(), w }; this.S.controls.frame(uv, w, { instant: false }); },
     underCut(f) {
       const w = this.g.cut.w;
       if (!w) return false;
@@ -1093,7 +1324,7 @@
         S.fluids.bleed(g.cut.w, b > 0.1 && g.step < 8 ? clamp(b * 0.5, 0.4, 9) : 0);
       } else {
         const b = (+this.inj.bleed || 0) * 0.3;
-        S.fluids.bleed(this.entry, b > 0.2 ? clamp(b, 0.4, 4) : 0);
+        S.fluids.bleed(this.entry, b > 1.8 ? clamp(b * 0.22, 0.3, 1.2) : 0);
       }
     },
     tickBleeding(dt) {
@@ -1221,13 +1452,13 @@
       this.renderTags();
       this.updateCursor();
       g.uiT -= dt;
-      if (g.uiT <= 0) { g.uiT = 0.1; this.updatePanel(); this.renderPlan(); this.renderDev(); this.renderStrip(); }
+      if (g.uiT <= 0) { g.uiT = 0.1; this.updatePanel(); this.renderPlan(); this.renderDev(); this.renderMon(); }
     },
     checkProgress() {
       const g = this.g, cfg = this.cfg;
       if (this.finished) return;
       if (g.step === 2 && g.io.mask && !g.done[2]) {
-        g.io.cov = g.io.mask.coverage('iodine', 0.3);
+        g.io.cov = g.io.mask.coverage('iodine', 0.2);
         if (g.io.cov >= cfg.prepDone) { g.io.cov = 1; this.completeStep(2, T('s2_done', 'Site prepped — the field is sterile.')); }
       }
       if (g.step === 4 && !g.done[4] && this.exposure() >= 1) {
@@ -1266,10 +1497,15 @@
           m.position.lerpVectors(f.flyFrom, f.flyTo, k);
           m.position.addScaledVector(f.flyUp, Math.sin(k * Math.PI) * 0.02);
           m.rotation.x += dt * 6;
-          if (k >= 1) { m.visible = false; delete f.flyT; if (!f.clinked) { f.clinked = true; this.snd('tone', 2400, 50, { vol: 0.05, type: 'triangle' }); this.snd('tone', 3700, 80, { vol: 0.035, type: 'triangle', at: 0.04 }); } }
+          if (k >= 1) {
+            delete f.flyT; f.inDish = true;
+            m.position.copy(f.flyTo); if (f.flyQ) m.quaternion.copy(f.flyQ);
+            m.material.color.setRGB(1, 1, 1).lerp(this.fragBlood, 0.35);
+            if (!f.clinked) { f.clinked = true; this.snd('tone', 2400, 50, { vol: 0.05, type: 'triangle' }); this.snd('tone', 3700, 80, { vol: 0.035, type: 'triangle', at: 0.04 }); }
+          }
           continue;
         }
-        if (f.out) { m.visible = false; continue; }
+        if (f.out) { m.visible = !!f.inDish; continue; }
         const under = g.cut.w && this.underCut(f);
         if (!under || g.ex.spread < 0.3 || g.step >= 7) { m.visible = false; continue; }
         m.visible = true;
@@ -1421,11 +1657,13 @@
       const d = this.d, film = d.film, inj = this.inj;
       const motion = film.quality === 'motion';
       this.filmEl.innerHTML = `
-        <div class="fh"><span class="nza-label">${esc(T('film_title', 'X-ray film'))}</span><span class="id">${esc(film.id || '')}</span><kbd>X</kbd></div>
-        <div class="fv"><canvas></canvas></div>
-        <div class="fm"><span>${esc(film.viewLabel || inj.regionLabel || '')} · ${esc(T('film_ap', 'AP + LAT'))}</span><span>${esc(film.taken || '')}</span></div>
-        <div class="ff">${motion ? `<span class="bx-chip amber">${icon('alert')}${esc(T('film_motion', 'Motion blur — marks are approximate'))}</span>` : `<span class="bx-chip ${film.marked ? 'teal' : ''}">${icon(film.marked ? 'check' : 'xray')}${esc(film.marked ? T('film_read', 'Read on a lightbox') : T('film_unread', 'Not reported'))}</span>`}
-          <span class="bx-chip">${icon('crosshair')}${esc(T('film_n', '%s metal fragment(s)', this.frags.length))}</span></div>`;
+        <div class="fb">
+          <header class="fh"><span class="kick">${esc(T('film_title', 'Film on the viewer'))}</span><span class="id">${esc(film.id || '')}</span><span class="cl"><kbd>X</kbd>${esc(T('film_close', 'put away'))}</span></header>
+          <div class="fv"><canvas></canvas><span class="clip a"></span><span class="clip b"></span></div>
+          <div class="fm"><span>${esc(film.viewLabel || inj.regionLabel || '')} · ${esc(T('film_ap', 'AP + lateral'))}</span><span>${esc(film.taken || '')}</span></div>
+          <div class="ff">${motion ? `<span class="bx-chip amber">${icon('alert')}${esc(T('film_motion', 'Blurred film — marks are rough'))}</span>` : `<span class="bx-chip ${film.marked ? 'teal' : ''}">${icon(film.marked ? 'check' : 'xray')}${esc(film.marked ? T('film_read', 'Read on a lightbox') : T('film_unread', 'Not reported yet'))}</span>`}
+            <span class="bx-chip">${icon('crosshair')}${esc(T('film_n', '%s metal piece(s)', this.frags.length))}</span></div>
+        </div>`;
       const cv = this.filmEl.querySelector('canvas');
       requestAnimationFrame(() => { if (this.alive) this.drawFilm(cv); });
     },
@@ -1501,8 +1739,8 @@
       // labels
       const fs = Math.round(10 * (dpr / 1.5));
       x.font = `600 ${fs}px "JetBrains Mono", monospace`; x.fillStyle = 'rgba(255,255,255,.75)'; x.textBaseline = 'top';
-      x.fillText('NAYZEEE RADIOLOGY', 8 * (dpr / 1.5), 8 * (dpr / 1.5));
-      x.fillText(`${film.id || ''} AP`, 8 * (dpr / 1.5), 8 * (dpr / 1.5) + fs * 1.3);
+      x.fillText(`${film.id || ''} · ${T('film_ap_s', 'AP')}`, 8 * (dpr / 1.5), 8 * (dpr / 1.5));
+      x.fillText(`${String(film.taken || '')}`, 8 * (dpr / 1.5), 8 * (dpr / 1.5) + fs * 1.3);
       x.fillText('LAT', lat.x + 6 * (dpr / 1.5), 8 * (dpr / 1.5));
       x.font = `700 ${Math.round(fs * 1.8)}px "JetBrains Mono", monospace`; x.fillText('R', ap.w - fs * 2, 8 * (dpr / 1.5));
       x.font = `600 ${fs}px "JetBrains Mono", monospace`;
@@ -1542,8 +1780,10 @@
       if (io.last) {
         const dmm = S.distanceUv(io.last, cur) / MM;
         if (dmm > 0.3) {
-          const amt = 0.5 * (0.35 + 0.65 * io.load);
-          S.layers.stroke('iodine', io.last, cur, cfg.swabRadius * MM, amt, { hardness: 0.3, grain: 0.3, grainScale: 90 });
+          // the stain builds up toward a translucent amber, never an opaque coat
+          const have = S.layers.sample('iodine', cur);
+          const amt = 0.34 * (0.35 + 0.65 * io.load) * clamp((0.5 - have) / 0.5, 0.08, 1);
+          S.layers.stroke('iodine', io.last, cur, cfg.swabRadius * MM, amt, { hardness: 0.25, grain: 0.55, grainScale: 70 });
           S.layers.stroke('wet', io.last, cur, cfg.swabRadius * MM, 0.3, { hardness: 0.2 });
           io.load = Math.max(0, io.load - dmm / cfg.swabReach);
           io.dist += dmm;
@@ -1558,7 +1798,7 @@
           io.last = cur;
         }
       } else {
-        S.layers.paint('iodine', cur, cfg.swabRadius * MM, 0.3, { hardness: 0.3 });
+        S.layers.paint('iodine', cur, cfg.swabRadius * MM, 0.2, { hardness: 0.25, grain: 0.5, grainScale: 70 });
         io.last = cur;
       }
     },
@@ -1680,6 +1920,7 @@
       }
       const want = Math.round(this.gapeNow() * 20) / 20;
       if (want !== ex.applied) { ex.applied = want; c.w.set({ gape: want * MM, depth: this.depthVis() * MM }); }
+      this.updateRetractor();
     },
     tickSuction(dt) {
       const g = this.g, S = this.S, cfg = this.cfg, hit = S.tools.hit, tool = this.tl.suction;
@@ -1768,7 +2009,7 @@
       S.tools.follow = false;
       S.tools.press(true);
       this.hurt(8, cfg.flinchChance * 0.4);
-      this.flash('ok', best.lodge > 0 ? T('grip_lodged', 'Gripped — it is lodged. Rock it free with {A} / {D}.') : T('grip_ok', 'Gripped (%s%) — now draw the mouse back slowly.', pct(x.strength)), 2200);
+      this.flash('ok', best.lodge > 0 ? T('grip_lodged', 'Gripped — it is lodged. Rock it free with {A} / {D}.') : T('grip_ok', 'Held at %s% grip — now ease it toward you, slowly.', pct(x.strength)), 2200);
     },
     releaseGrip(byUser) {
       const g = this.g, x = g.xt, S = this.S;
@@ -1790,7 +2031,7 @@
       setTimeout(() => { if (this.tl) this.tl.forceps.pose.roll = 0; }, 160);
       this.hurt(6, this.cfg.flinchChance * 0.3);
       this.snd('tone', 700 + Math.random() * 200, 40, { vol: 0.03, type: 'triangle' });
-      if (x.grip.lodge <= 0) this.flash('ok', T('rock_free', 'It moved — now draw it out slowly.'), 2000);
+      if (x.grip.lodge <= 0) this.flash('ok', T('rock_free', 'It moved — now ease it out, slowly.'), 2000);
     },
     tickForceps(dt) {
       const g = this.g, S = this.S, cfg = this.cfg, x = g.xt, tool = this.tl.forceps;
@@ -1842,14 +2083,17 @@
       // into the kidney dish
       const m = f.mesh;
       f.flyT = 0; f.flyFrom = m.position.clone();
-      const side = S.surfaceAt(S.stToUv(this.R0 * 1.6, -this.R0 * 0.4)).point;
-      f.flyTo = side.clone().add(new (T3().Vector3)(0, 0.05, 0));
-      f.flyUp = new (T3().Vector3)(0, 1, 0);
+      const n = x.out.length, dishN = new (T3().Vector3)(0, 1, 0).applyQuaternion(this.dish.quaternion);
+      const dishX = new (T3().Vector3)(1, 0, 0).applyQuaternion(this.dish.quaternion);
+      f.flyTo = this.dish.position.clone().addScaledVector(dishN, 0.0035 + m.userData.thick * 0.3).addScaledVector(dishX, (n - 1) * 0.011 - 0.012);
+      f.flyUp = dishN.clone();
+      f.flyQ = new (T3().Quaternion)().setFromAxisAngle(dishN, 0.6 + n * 1.3).multiply(new (T3().Quaternion)().setFromAxisAngle(dishX, Math.PI / 2)).premultiply(new (T3().Quaternion)());
       this.releaseGrip(false);
       g.bl.rate += 1.5;
       S.layers.splat('blood', f.uv, 2.4 * MM, 0.45, { seed: x.out.length * 13 });
       this.markFrags();
       this.refreshTools();
+      this.peekDish();
       const left = this.remaining().length;
       if (!left) this.completeStep(5, this.frags.length > 1 ? T('s5_done_n', 'All %s fragments are out.', this.frags.length) : T('s5_done', 'Projectile out — in the dish.'));
       else this.flash('ok', T('xt_one', 'Fragment %s out — %s to go.', f.n, left), 2400);
@@ -1884,7 +2128,7 @@
       g.sut.N = clamp(Math.round(L / cfg.mmPerStitch), cfg.minStitches, cfg.maxStitches);
       const pa = S.project(w.edge(0.5, 1, 0.004)), pb = S.project(w.edge(0.5, -1, 0.004));
       this.near = pa.y > pb.y ? 1 : -1;
-      this.frameOn(w.at(0.5).uv, clamp(L * 2.1 * MM, 0.05, 0.12));
+      this.frameOn(w.at(0.5).uv, clamp(L * 3.3 * MM, 0.085, 0.13));
       this.sutureMarkers();
       this.renderDots();
     },
@@ -2226,7 +2470,7 @@
     showResult(res, outcome) {
       this.resultShown = true;
       if (this.pp) { this.pp.destroy(); this.pp = null; }
-      this.planEl.style.display = 'none'; this.notesEl.style.display = 'none';
+      this.caseEl.style.display = 'none'; this.notesEl.style.display = 'none';
       this.devEl.classList.remove('on'); this.filmEl.classList.remove('on');
       this.tags.innerHTML = ''; this.tagsHtml = '';
       const score = outcome && outcome.score !== undefined ? outcome.score : res.score;
@@ -2244,7 +2488,7 @@
         [T('r_suture', 'Closure'), res.skipped.includes(7) ? T('r_open', 'Left open') : `${res.stitches}`, res.skipped.includes(7) ? '' : T('r_stitches', 'stitches · %s% even', res.evenQ), P.suture],
         [T('r_dressing', 'Dressing'), `${Math.round(res.cover * 100)}%`, T('r_dressing_sub', 'covered · %s% stuck', Math.round(res.stuck * 100)), P.dressing],
       ];
-      const tone = v => (v >= 75 ? '' : v >= 45 ? 'amber' : 'red');
+      const tone = v => (v >= 75 ? 'teal' : v >= 45 ? 'amber' : 'red');
       const fb = this.feedback(res);
       const waiting = !outcome;
       const err = outcome && outcome.error;
@@ -2256,10 +2500,12 @@
             <div><h3>${esc(res.left.length ? T('r_title_part', 'Partly extracted') : T('r_title', 'Projectile removed'))}</h3><p>${esc(inj.label || '')} · ${esc(inj.regionLabel || '')} · ${esc(NZA.fmt.time(res.seconds))}</p></div>
             <div class="rk"><span>${esc(T('r_loss', 'Blood loss'))}</span><b class="${lost >= 250 ? 'red' : lost >= 120 ? 'amber' : ''}">${lost}<i>mL</i></b></div>
             <div class="sc"><b>${esc(score)}</b><span>${esc(T('r_score', 'Score'))}</span></div></div>
-          <table>${rows.map(r => `<tr><td class="k">${esc(r[0])}</td><td class="d">${esc(r[1])}<i>${esc(r[2])}</i></td><td class="m">${NZA.ui.meterHTML({ value: r[3] / 100, tone: tone(r[3]) })}</td><td class="n">${esc(r[3])}</td></tr>`).join('')}</table>
-          <ul class="fb">${fb.map(f => `<li class="${f[0]}">${esc(f[1])}</li>`).join('')}</ul>
-          ${outcome && outcome.msg ? `<div class="msg">${esc(outcome.msg)}</div>` : ''}
-          ${err ? `<div class="msg err">${esc(err)}</div>` : ''}
+          <div class="rb">
+            <ol class="parts">${rows.map((r, i) => `<li class="${tone(r[3])}" style="--i:${i}"><span class="nn">${i + 1}</span><span class="k">${esc(r[0])}</span><span class="d">${esc(r[1])}<i>${esc(r[2])}</i></span><span class="m">${NZA.ui.meterHTML({ value: r[3] / 100, tone: tone(r[3]) })}</span><b class="n">${esc(r[3])}</b></li>`).join('')}</ol>
+            <div class="side"><span class="nza-label">${esc(T('r_notes', 'Debrief'))}</span><ul class="fb">${fb.map(f => `<li class="${f[0]}">${esc(f[1])}</li>`).join('')}</ul>
+              ${outcome && outcome.msg ? `<div class="msg">${icon('check')}<span>${esc(outcome.msg)}</span></div>` : ''}
+              ${err ? `<div class="msg err">${icon('alert')}<span>${esc(err)}</span></div>` : ''}</div>
+          </div>
           <div class="act">${waiting ? `<span class="wait"><span class="ring"></span>${esc(T('r_saving', 'Saving the procedure…'))}</span>` : ''}
             <button class="pp-done" ${waiting ? 'disabled style="opacity:.45;pointer-events:none"' : ''}><kbd>Enter</kbd>${esc(T('done', 'Done'))}</button></div>
         </div>`;
@@ -2273,12 +2519,12 @@
     },
     abort() {
       if (this.finished) { if (this.canClose) this.closeNow(); return; }
-      NZA.post('bullet:abort', {});
+      NZA.post('bullet:abort', { loss: this.g ? Math.round(this.g.loss) : 0 });
       NZA.close('bullet');
     },
     exitBay() {
       if (this.finished && !this.canClose) return;
-      NZA.post('bullet:exitBay', {});
+      NZA.post('bullet:exitBay', { loss: this.g && !this.finished ? Math.round(this.g.loss) : 0 });
       if (!NZA.inGame) NZA.close('bullet');
     },
     closeNow() { NZA.close('bullet'); },
@@ -2289,13 +2535,13 @@
       const inj = this.inj || DEMO.injury;
       const frs = (this.d.fragments || []).map(f => String(f.id));
       this.g = null;
-      this.planEl.style.display = 'none';
+      this.caseEl.style.display = 'none';
       this.pp = NZA.ui.ProcPanel(this.ui, {
-        step: 1, total: 1, tag: T('tag', 'Bullet extraction'), title: T('fbk_title', 'Removing the projectile'),
+        step: 1, total: 1, tag: T('tag', 'Projectile removal'), title: T('fbk_title', 'Removing the projectile'),
         text: T('fbk_text', '3D view unavailable on this client — the fragment is removed with a standard technique.'),
         stats: [{ label: T('st_site', 'Site'), value: inj.regionLabel || inj.region || '', small: true }, { label: T('st_left', 'Retained'), value: String(frs.length || 1) }],
         wide: { label: T('w_progress', 'Progress'), value: '0', unit: '%', meter: { value: 0 } },
-        tools: [], abort: { label: T('hold_abort', 'Hold to abort'), key: 'ESC', seconds: 1.2 }, onAbort: () => this.abort(),
+        tools: [], abort: { label: T('abort', 'Stop surgery'), key: 'ESC', seconds: 1.2 }, onAbort: () => this.abort(),
       });
       const dur = Math.max(8, +(this.cfg && this.cfg.fallbackTime) || 18);
       let t = 0;

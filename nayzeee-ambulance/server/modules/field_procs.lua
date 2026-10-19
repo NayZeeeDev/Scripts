@@ -13,9 +13,10 @@
                 result { site = 'l_lower_arm'|'r_lower_arm', attempts, angle, secured }
                                                                 → devices.iv = { site, kind = 'iv', gauge, at, by }
       'resus'   perm Infusion.perm (needs IV / IO access)       payload {}
-                The server runs a haemodynamic model for the step: field MAP = real MAP + the
-                response to the fluids actually running (rate x Resus.response[kind], time
-                constant tau). Clot firmness grows while that MAP sits in Resus.band; fluids that
+                The server runs a haemodynamic model for the step: the response to the fluids
+                actually running (rate x Resus.response[kind], time constant tau) is put on the
+                core vitals with NZA.Physiology.SetModifier(pid, 'field_resus', ...), so every
+                monitor shows the same field MAP and the model reads it back. Clot firmness grows while that MAP sits in Resus.band; fluids that
                 push it popMargin above the band for popAfter s pop the clot (base bleed x
                 popFactor). Finish needs a firm clot: target injuries' base bleed x (1 - clotFactor * q).
                 Easy mode: hangs one saline bag (item reserved) and forms the clot at the easy score.
@@ -382,6 +383,19 @@ local function popClot(r, p)
     TriggerClientEvent('nza:field:popped', r.src)
 end
 
+-- the fluid response on the core vitals (every monitor and the HUDs see it); ttl drops it by itself
+local MOD_KEY = 'field_resus'
+
+local function setPressure(r)
+    if not (NZA.Physiology and type(NZA.Physiology.SetModifier) == 'function') then return end
+    NZA.Physiology.SetModifier(r.pid, MOD_KEY, { sys = r.response * 1.3, dia = r.response * 0.85, hr = 0, ttl = 3 })
+end
+
+local function clearPressure(r)
+    if not (r and r.pid and NZA.Physiology and type(NZA.Physiology.SetModifier) == 'function') then return end
+    NZA.Physiology.SetModifier(r.pid, MOD_KEY, nil)
+end
+
 local function stepModel(r, p, dt)
     local rc = resusCfg()
     local band = rc.band or { 60, 70 }
@@ -390,10 +404,12 @@ local function stepModel(r, p, dt)
     local drive, flow = fluidDrive(p)
     local k = 1 - math.exp(-dt / math.max(0.5, resp.tau or 6))
     r.response = r.response + (drive - r.response) * k
+    setPressure(r)
+    -- the vitals already carry the response (MAP offset = response, sys x 1.3, dia x 0.85)
     local v = p.vitals or {}
-    local map = math.floor((v.map or 0) + r.response + 0.5)
-    local sys = math.floor((v.sys or 0) + r.response * 1.3 + 0.5)
-    local dia = math.floor((v.dia or 0) + r.response * 0.85 + 0.5)
+    local map = math.floor((v.map or 0) + 0.5)
+    local sys = math.floor((v.sys or 0) + 0.5)
+    local dia = math.floor((v.dia or 0) + 0.5)
 
     local state, factor = 'band', 1
     if p.state == 'arrest' or p.state == 'dead' then
@@ -449,6 +465,7 @@ CreateThread(function()
             local p = NZA.Patients.Get(r.pid)
             if not s or not p then
                 F.Resus[token] = nil
+                clearPressure(r)
             elseif not r.easy then
                 local ok, err = pcall(stepModel, r, p, dt)
                 if not ok then
@@ -469,7 +486,10 @@ end)
 NZA.Bus.On('proc:aborted', function(src, p, name)
     if name ~= 'resus' then return end
     for token, r in pairs(F.Resus) do
-        if r.src == src and not NZA.Proc.Session(token) then F.Resus[token] = nil end
+        if r.src == src and not NZA.Proc.Session(token) then
+            F.Resus[token] = nil
+            clearPressure(r)
+        end
     end
 end)
 
@@ -501,6 +521,7 @@ NZA.Proc.Register('resus', {
         local rc = resusCfg()
         local r = F.Resus[s.token]
         F.Resus[s.token] = nil
+        clearPressure(r)
         local easyScore = (Config.EasyMode and Config.EasyMode.score) or 78
         local targets = r and r.targets or targetsOf(p)
         if s.easy then
@@ -538,6 +559,9 @@ NZA.Proc.Register('resus', {
         }
     end,
     onAbort = function(src, p, s)
-        if s and s.token then F.Resus[s.token] = nil end
+        if s and s.token then
+            clearPressure(F.Resus[s.token])
+            F.Resus[s.token] = nil
+        end
     end,
 })

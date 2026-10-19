@@ -199,6 +199,15 @@ function W.CauseLines(p)
             out[#out + 1] = { icon = reason == 'gave_up' and 'flag' or 'skull', text = txt, tone = 'red', lead = true }
         end
     end
+    -- what stopped the heart, when an arrest ended in death (core keeps it in p.cause.arrestCause)
+    local arrestCause = type(p.cause) == 'table' and p.cause.arrestCause or nil
+    if arrestCause and arrestCause ~= reason then
+        local key = 'wounded.cause_' .. tostring(arrestCause)
+        local txt = NZA.L(key)
+        if txt ~= key then
+            out[#out + 1] = { icon = 'heart', text = txt, tone = 'red', lead = #out == 0 or nil }
+        end
+    end
 
     local inj = injuryList(p)
     for i = 1, math.min(3, #inj) do

@@ -21,11 +21,10 @@ ends of the arc. The burn app now uses one-word labels (Surface, Tested, Debride
 Meshing, Staples, Covered, Adhered), so this is no longer visible in burn. Suggested for everyone:
 `.pp-gauge .gv{top:50px}` and `.pp-gauge .gv .l{padding:0 30px;font-size:8px}`.
 
-## 3. nza.js ProcPanel — skipped steps on the spine
+## 3. nza.js ProcPanel — skipped steps on the spine · RESOLVED
 
-The burn app marks skipped steps itself (`.pp-segs i.skip`, styled in `apps/burn/app.css`) after
-every `pp.set({ step })`. A built-in `skipped: [n…]` option on ProcPanel would let every app do it.
-Not blocking.
+ProcPanel now has `skipped: [n…]`; the burn app passes it (`pp.set({ skipped })`) and its own
+`.pp-segs i.skip` override is gone.
 
 ## 4. nza3d.js — partial-thickness burn colouring (FYI for the suture module)
 
@@ -38,7 +37,7 @@ compile time (it replaces the block from `vec3 nzaPart =` to
 patch is skipped silently and burn falls back to the engine look. Other apps using `type: 'burn'`
 wounds would also benefit from non-round noise there.
 
-## 5. nza3d.js — `fluids.drops(point, count, color)` always lands as blood
+## 5. nza3d.js — `fluids.drops(point, count, color)` always lands as blood · STILL OPEN
 
 `updateFluids` paints `layers.paint('blood', …)` for every kind-2 particle that lands, whatever its
 colour, so clear / serous droplets leave red dots. Burn no longer calls it for blister serum.
@@ -49,7 +48,7 @@ Suggested: only paint blood when the colour is blood-red, or paint `'wet'` other
 The burn routes list `Config.Items.saline` + `burn_dressing` (care) and `graft_kit` + `burn_dressing`
 (graft). The exam's "have / need" counts read the bag; nothing else needed.
 
-## 7. nza3d.js dressing — a placed sheet creeps down a curved limb
+## 7. nza3d.js dressing — a placed sheet creeps down a curved limb · STILL OPEN
 
 `S.dressing` has no tangential friction: a placed, un-rubbed dressing slides under gravity along the
 curve of a limb (on the thigh a 17 × 12 cm burn dressing left alone for ~6 s slid off the patch;
@@ -57,3 +56,12 @@ curve of a limb (on the thigh a 17 × 12 cm burn dressing left alone for ~6 s sl
 (`tackDressing`: nine `D.rub(...)` presses round the centre ≈ 13 % stuck, the rest still has to be
 rubbed on). Suggested engine fix for every app: when a free vertex is in contact, remove the
 tangential part of its velocity (or scale it by ~0.1) — i.e. static friction for contact vertices.
+
+## 8. nza3d.js — forceps / scalpel read flat from the close-up camera (FYI, burn has its own)
+
+Seen from the burn camera (≈ top-down) the engine forceps' two lofted halves overlap into one grey
+slab and the scalpel's extruded blade has no edge highlight. Burn now builds its own instruments
+(`buildForceps`: bevelled Adson tines that splay sideways, 1×2 teeth, cross-hatched thumb pads, guide
+pin, brazed heel, etched `AD-12` code; `buildScalpel`: bevelled curved blade with grind line and
+fitting slot on a rounded handle with a knurl normal map and an etched rule) and registers them with
+`S.tools.use(toolObject)`. Free to copy into the engine if other apps want them.

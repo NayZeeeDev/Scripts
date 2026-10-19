@@ -240,6 +240,7 @@ Config.Transport = {
                 { item = 'iv_kit',          category = 'fluids', max = 6 },
                 { item = 'saline',          category = 'fluids', max = 6 },
                 { item = 'txa',             category = 'fluids', max = 3 },
+                { item = 'empty_blood_bag', category = 'fluids', max = 2 },   -- blood: 'Bag a unit' needs one (Config.Blood.Bank.needEmptyBag)
                 { item = 'oxygen_mask',     category = 'airway', max = 3 },
                 { item = 'bvm',             category = 'airway', max = 1 },
                 { item = 'decomp_needle',   category = 'airway', max = 2 },

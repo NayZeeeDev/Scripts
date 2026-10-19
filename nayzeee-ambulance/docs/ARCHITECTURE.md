@@ -368,6 +368,7 @@ NZA.Dispatch.Create(call)   -- server; call = { code='10-52', priority=1..3, tit
                             --   npc = bool, source = 'player'|'npc'|'system', blip = { sprite, colour } } → callId
 NZA.Dispatch.Update(callId, patch)   NZA.Dispatch.Close(callId, reason)   NZA.Dispatch.Get(callId)
 NZA.Dispatch.SetStatus(callId, src, status)  -- 'DSP'|'ENR'|'SCN'|'CARE'|'TRN'|'HSP' (CARE = first treatment on scene)
+NZA.Dispatch.Page(src, { kind?, priority = 1..3, title, text?, hospital? }) → bool   -- one line on that medic's pager
 NZA.Billing.Charge(target, amount, reason, opts) -- target = src | identifier ; applies insurance; pays society
 NZA.Insurance.Get(identifier) → { plan, expires, cover = 0..1 } | nil
 NZA.Blood.CreateBag(meta) → metadata table  NZA.Blood.Compatible(recipient, donor) → bool
@@ -447,10 +448,12 @@ Every app MUST implement `preview()`.
 - Text tone: short, plain, imperative ("Press the probe into the skin and feel for it").
 
 ### 10.3 Shared JS kit (core/nza.js, lead) — use these, don't re-implement
-`NZA.ui.ProcPanel`, `NZA.ui.FlipClock` (rolling counter), `NZA.ui.Toasts` (`NZA.toast`), `NZA.ui.KeyHints`,
+`NZA.ui.ProcPanel`, `NZA.ui.FlipClock` (rolling counter), `NZA.toast` (`{ grade }` shows the A–F result
+badge), `NZA.speech`, `NZA.prompt`, `NZA.ui.KeyHints`,
 `NZA.ui.Segmented`, `NZA.ui.Toggle`, `NZA.ui.Slider`, `NZA.ui.Chips`, `NZA.ui.Modal`,
-`NZA.ui.Win` (window shell builder), `NZA.ui.Anchors` (world-anchored markers fed by Lua),
-`NZA.ui.Hold` (hold-to-confirm), `NZA.ui.Meter`, `NZA.ui.Grade` (A–F result badge),
+`NZA.ui.Win` (window shell builder), `NZA.ui.Anchors` / `NZA.ui.Marker` (world-anchored markers fed by Lua),
+`NZA.ui.Hold` (hold-to-confirm), `NZA.ui.Meter` / `NZA.ui.meterHTML`, `NZA.ui.BodyGlyph` (15-region body
+SVG) and `NZA.ui.Ring` (status ring) — the last two return HTML,
 `NZA.audio` (WebAudio beeps: `beep(freq, ms)`, `heartbeat()`, `charge()`, `shock()`, `click()`, `noise()`),
 `NZA.vitals` (core/nza-vitals.js): `NZA.vitals.Trace(canvas, { type: 'ecg'|'pleth'|'resp'|'co2', rhythm, rate, color })`,
 `NZA.vitals.Monitor(el, opts)` full bedside monitor widget (HR/SpO2/NIBP/MAP/RR/Temp + traces),
@@ -553,6 +556,7 @@ Bridge.GetIdentifier(src)  → string      Bridge.GetSourceFromIdentifier(id) �
 Bridge.GetName(src)        → 'First Last'   Bridge.GetCharInfo(src) → { firstname, lastname, dob, sex = 'm'|'f', phone }
 Bridge.GetJob(src)         → { name, label, grade, gradeLabel, onDuty, isBoss }
 Bridge.IsMedic(src) / Bridge.IsPolice(src) / Bridge.IsOnDuty(src) / Bridge.SetDuty(src, bool)
+Bridge.SetJob(src, job, grade) → bool    Bridge.HasLicense(src, name) → bool   (as built: core-api.md "Bridge additions")
 Bridge.IsAdmin(src)        → bool (ace Config.Admin.ace or framework group)
 Bridge.GetPlayers()        → { src, ... }    Bridge.GetMedics(onDutyOnly) → { src, ... }
 Bridge.GetMoney(src, account) → number      Bridge.RemoveMoney(src, account, amount, reason) → bool
@@ -565,6 +569,7 @@ Bridge.Inv.GetSlot(src, slot) → item|nil          Bridge.Inv.SetMetadata(src, 
 Bridge.Inv.Search(src, name) → { items with metadata }   -- e.g. every blood_bag with its metadata
 Bridge.Inv.RegisterUsable(name, fn(src, item))    Bridge.Inv.Label(name) → label
 Bridge.Inv.Clear(src, keep?)                      Bridge.Inv.Image(name) → 'nui://...png' url for NUI
+Bridge.Inv.OpenStash(src, id, { label, slots, weight, owner? }) → bool   -- ox, qb, ps, lj, qs; false = use own storage
 Bridge.Notify(src, { title, message, type = 'success'|'error'|'warning'|'info', duration })
 Bridge.Phone.Notify(src, { title, message, app?, icon? })   Bridge.Phone.Mail(src, { sender, subject, message })
 Bridge.Phone.Number(src) → string|nil             Bridge.Phone.Resource → 'lb-phone'|'qs-smartphone'|'qs-smartphone-pro'|'npwd'|'yseries'|'gksphone'|'okokPhone'|'roadphone'|'high-phone'|nil
@@ -667,3 +672,15 @@ type's `target` list (each option gets `(point, entity)`), calls `onSpawn/onRemo
 - Wounded module server API: `NZA.Wounded.Help(srcOrPid, { eta, unit, ai, status })`,
   `NZA.Wounded.ForceRespawn(src, { coords, label, fee, bed })`; client `NZA.Wounded.SuspendPose(name, on)`.
 - Assess module server API: `NZA.Findings.Add(pid, key, data)` (discovered findings shown in the exam).
+- Bridge (server) gained `Bridge.SetJob(src, job, grade)` (hospital staff sync with a linked framework job),
+  `Bridge.HasLicense(src, name)` (pharmacy licence products; ESX waits for esx_license, so call it from a
+  thread) and `Bridge.Inv.OpenStash(src, id, opts)` (staff store; `false` = the hospital's own
+  `nza_hospital_stash` storage). Exact behaviour per framework / inventory: core-api.md "Bridge additions".
+- Dispatch: `NZA.Dispatch.Page(src, msg)` puts one line on a medic's pager (S→C `nza:dispatch:page`);
+  check-in uses it for new tickets (`Config.Checkin.queue.notify.pager`). The ops board's ER intake page has
+  "Call next" (`nza:checkin:callNext`, same permission as the reception desk).
+- NUI kit: `NZA.ui.BodyGlyph`, `NZA.ui.Ring`, ProcPanel `side` / `steps` / `skipped` / `slot`, and the class
+  names `.nza-tg` (toggle) / `.nza-hold` (hold ring) with `button.tg` / `span.hold` as legacy aliases. Bare
+  `.tg` / `.hold` are free for apps. Signatures: core-api.md "NUI kit".
+- Point type `surgery` (operating table) is registered by the bullet module (client/modules/bullet.lua) and
+  lies a patient on it like a bed (`data.bed = true`, `data.lie`).

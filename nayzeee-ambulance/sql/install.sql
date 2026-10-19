@@ -25,8 +25,11 @@
 --    dispatch   nza_calls                             server/modules/dispatch_log.lua
 --    medbag     nza_bags                              server/modules/medbag.lua
 --
---  Every column matches the statement in the file named above. If a module
---  ever changes its table, change it here too.
+--  Every column, key and default matches the statement in the file named
+--  above. If a module ever changes its table, change it here too. Every
+--  table here names ENGINE=InnoDB; where a module's own statement leaves the
+--  engine out (hospital, pharmacy, billing) the server default applies, which
+--  is InnoDB on MySQL 5.7+ / MariaDB 10.3+, so the tables come out the same.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 

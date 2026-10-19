@@ -9,42 +9,12 @@
    tone notches, holographic body glyph, generic device labelling.
    ═══════════════════════════════════════════════════════════ */
 
-#app-treat{--tr-green:#3ddc84;--tr-cyan:#3fd0ff;--tr-yellow:#f2d64b}
 #app-treat .tr-stage{position:absolute;inset:0;width:100%;height:100%;display:block}
 #app-treat .tr-stage.nocur{cursor:none}
 #app-treat .tr-stage.grab{cursor:grab}
 #app-treat .tr-stage.grabbing{cursor:grabbing}
 
-/* ─────────────── status rings (shared by the card and the medication panel) ─────────────── */
-#app-treat .vr{--vc:rgba(255,255,255,.5);display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
-#app-treat .vr .rg{position:relative;width:46px;height:46px;display:grid;place-items:center}
-#app-treat .vr svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
-#app-treat .vr circle{fill:none;stroke-width:3.2}
-#app-treat .vr .b{stroke:rgba(255,255,255,.08);fill:rgba(6,7,9,.55)}
-#app-treat .vr .f{stroke:var(--vc);stroke-linecap:round;filter:drop-shadow(0 0 3px var(--vc));transition:stroke-dashoffset 640ms cubic-bezier(.2,.7,.2,1)}
-#app-treat .vr b{position:relative;font:700 14px/1 var(--mono);color:var(--vc);letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
-#app-treat .vr em{font-style:normal;font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
-#app-treat .vr em small{font:600 9px var(--mono);letter-spacing:0;margin-left:2px;color:var(--ink-3);text-transform:none}
-#app-treat .vr.green{--vc:var(--tr-green)} #app-treat .vr.cyan{--vc:var(--tr-cyan)} #app-treat .vr.yellow{--vc:var(--tr-yellow)}
-#app-treat .vr.white{--vc:#fff} #app-treat .vr.teal{--vc:var(--teal-hi)} #app-treat .vr.amber{--vc:#f3c35a} #app-treat .vr.red{--vc:#ff6b70}
-#app-treat .vr .bt{position:absolute;inset:-2px;border-radius:50%;border:1.5px solid var(--vc);opacity:0;animation:tr-beat var(--beat,1s) ease-out infinite;pointer-events:none}
-@keyframes tr-beat{0%{opacity:.75;transform:scale(.9)}70%{opacity:0;transform:scale(1.16)}100%{opacity:0;transform:scale(1.16)}}
-
-/* ─────────────── holographic body glyph ─────────────── */
-#app-treat .bglyph{display:block;width:100%;height:100%;overflow:visible}
-#app-treat .bglyph .bs{fill:rgba(15,212,196,.07);stroke:rgba(15,212,196,.5);stroke-width:.6;transition:fill 240ms}
-#app-treat .bglyph .bs.red{fill:rgba(229,72,77,.42);stroke:#ff6b70}
-#app-treat .bglyph .bs.amber{fill:rgba(229,165,10,.34);stroke:#f3c35a}
-#app-treat .bglyph .bs.teal{fill:rgba(15,212,196,.32);stroke:var(--teal-hi)}
-#app-treat .bglyph .bs.fx{animation:tr-seg 1.6s ease-in-out infinite}
-@keyframes tr-seg{50%{fill-opacity:.45;stroke-opacity:.6}}
-#app-treat .bglyph .pad{fill:rgba(15,212,196,.16)}
-#app-treat .bglyph .hot{--hc:#ff5a60}
-#app-treat .bglyph .hot.amber{--hc:#f3c35a} #app-treat .bglyph .hot.teal{--hc:var(--teal-hi)}
-#app-treat .bglyph .hot .dm{fill:#fff;stroke:var(--hc);stroke-width:.9}
-#app-treat .bglyph .hot .pl{fill:none;stroke:var(--hc);stroke-width:.8;transform-box:fill-box;transform-origin:center;animation:tr-ping 1.6s ease-out infinite}
-#app-treat .bglyph .bk{font:700 4px var(--font);fill:rgba(255,255,255,.7);text-anchor:middle;letter-spacing:.4px}
-@keyframes tr-ping{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.3);opacity:0}}
+/* status rings and the body glyph: the core widgets (.nza-ring / .nza-body, html/core/nza.css) */
 
 /* ─────────────── top-left context card ─────────────── */
 #app-treat .tr-card{position:absolute;left:28px;top:28px;width:344px;padding:0;display:none;overflow:hidden;border-radius:14px;
@@ -292,5 +262,5 @@
 
 @media (prefers-reduced-motion: reduce){
   #app-treat .tr-card.on,#app-treat .tr-dev.on,#app-treat .tr-meds.on,#app-treat .tr-kit.on,#app-treat .tr-tag.on{animation:none}
-  #app-treat .vr .bt,#app-treat .bglyph .hot .pl,#app-treat .bglyph .bs.fx,#app-treat .tc-av .f{animation:none}
+  #app-treat .tc-av .f{animation:none}
 }

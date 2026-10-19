@@ -8,7 +8,8 @@
       NZA.Monitor.Attach(entity, target, { silent, scene })   NZA.Treat 'monitor' → prop + overlay
       NZA.Monitor.Detach()               NZA.Treat 'monitor_off' → removes prop + overlay
       NZA.Monitor.AttachedTo(entity) → bool     NZA.Monitor.Target() → target | nil   NZA.Monitor.Scene(on)
-      NZA.Monitor.Override(map)          { map, sys, dia } | nil  (field resuscitate pressure model)
+      NZA.Monitor.Override(map)          { map, sys, dia } | nil  (generic display override; the field
+                                         resuscitate step puts its pressure on the core vitals instead)
       NZA.Monitor.Nibp()                 cycle the cuff now      NZA.Monitor.Focus(on)   mouse on the buttons
 
     Other modules (bay, bed, CPR, intubation) may also open the app directly:

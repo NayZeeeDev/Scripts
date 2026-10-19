@@ -174,7 +174,8 @@ apps: `window.NZABlood = { labelHTML, bagSVG, barcode, fmtType, dateText, relDay
 
 ## 5. Data
 `nza_blood` (units), `nza_blood_donors` (cooldown, count, weakness), `nza_blood_log` (bank log) — created on
-start; SQL in `docs/requests/blood.md`. KVP `nza_blood_seed:<bank>` marks seeded banks.
+start (`ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`, identical to `sql/install.sql`, so donor / actor names keep any
+character); SQL in `docs/requests/blood.md`. KVP `nza_blood_seed:<bank>` marks seeded banks.
 
 ## 6. Known limits
 - The reclined sit clip (`Donation.sit`) and its chair offset are a best guess for `nz_amb_donation_chair`;

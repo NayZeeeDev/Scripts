@@ -23,6 +23,10 @@ Layers (picked from each chart's material):
                than one atlas gives (e.g. labelled supply shelves): declare it with
                @prop(..., layers={"sup": 1024}) and give materials layer="sup".
 
+Normal / spec map sizes: full size up to 1024, half size above. @prop(..., maps={"sup": {"n": 512, "s": 512}})
+overrides them per layer (main / alpha / custom layers) - the GPU-memory lever for big props: every
+streamed drawable must stay <= 16 MiB of physical (graphics) pages, which build.py checks.
+
 Preview options (tools/props/preview, never shipped): @prop(..., preview={...})
     views   list of view names used on the contact sheet instead of the global ones
     cams    [{"name", "pos", "target", "fov", "clipZ"?}] extra cameras in GTA prop space
@@ -67,6 +71,7 @@ class PropSpec:
     spec_mult: float = 1.0        # specularIntensityMult
     glow_mult: float = 2.0        # emissiveMultiplier for the glow layer
     layers: dict = field(default_factory=dict)    # extra normal_spec atlases {layer name: size}
+    maps: dict = field(default_factory=dict)      # per-layer normal / spec map sizes {layer: {"n": px, "s": px}}
     preview: dict = field(default_factory=dict)   # preview-only cameras / lights / views
     module: str = ""
 
@@ -84,8 +89,15 @@ def prop(name, **kw):
 def register(name, fn, **kw):
     if name in REGISTRY:
         raise ValueError(f"prop {name} registered twice")
-    REGISTRY[name] = PropSpec(name=name, fn=fn, module=getattr(fn, "__module__", ""), **kw)
-    return REGISTRY[name]
+    spec = PropSpec(name=name, fn=fn, module=getattr(fn, "__module__", ""), **kw)
+    for layer, ov in spec.maps.items():
+        if layer not in ("main", "alpha") and layer not in spec.layers:
+            raise ValueError(f"prop {name}: maps= names layer '{layer}' that has no normal / spec maps")
+        for k, v in ov.items():
+            if k not in ("n", "s") or int(v) < 4 or int(v) & (int(v) - 1):
+                raise ValueError(f"prop {name}: maps['{layer}'] needs 'n' / 's' power-of-two sizes, got {k}={v}")
+    REGISTRY[name] = spec
+    return spec
 
 
 # ---------------------------------------------------------------------------------------------
@@ -282,12 +294,14 @@ def build_prop(spec: PropSpec, out_root: str, quick=False):
         dfmt = "DXT5" if layer == "alpha" else "DXT1"
         md = write_dds(os.path.join(dds_dir, tn_d + ".dds"), imgs["diffuse"], dfmt)
         NS = S if S <= 1024 else S // 2      # sharp normal / spec detail up to 1024, half size above
-        nimg = imgs["normal_dx"].resize((NS, NS), Image.LANCZOS) if NS != S else imgs["normal_dx"]
-        simg = imgs["spec"].resize((NS, NS), Image.LANCZOS) if NS != S else imgs["spec"]
+        ov = spec.maps.get(layer, {})
+        NN, NSP = int(ov.get("n", NS)), int(ov.get("s", NS))    # per-layer override (GPU memory budget)
+        nimg = imgs["normal_dx"].resize((NN, NN), Image.LANCZOS) if NN != S else imgs["normal_dx"]
+        simg = imgs["spec"].resize((NSP, NSP), Image.LANCZOS) if NSP != S else imgs["spec"]
         mn = write_dds(os.path.join(dds_dir, tn_n + ".dds"), nimg, "DXT5", normal_map=True)
         ms = write_dds(os.path.join(dds_dir, tn_s + ".dds"), simg, "DXT5")
-        textures += [(tn_d, "DIFFUSE", S, S, md, FORMATS[dfmt]), (tn_n, "NORMAL", NS, NS, mn, FORMATS["DXT5"]),
-                     (tn_s, "SPECULAR", NS, NS, ms, FORMATS["DXT5"])]
+        textures += [(tn_d, "DIFFUSE", S, S, md, FORMATS[dfmt]), (tn_n, "NORMAL", NN, NN, mn, FORMATS["DXT5"]),
+                     (tn_s, "SPECULAR", NSP, NSP, ms, FORMATS["DXT5"])]
         shader = "normal_spec_alpha" if layer == "alpha" else "normal_spec"
         geoms.append(ShaderGeom(shader, {"DiffuseSampler": tn_d, "BumpSampler": tn_n, "SpecSampler": tn_s},
                                 {"specularFalloffMult": (spec.falloff,), "specularIntensityMult": (spec.spec_mult,),
@@ -298,7 +312,8 @@ def build_prop(spec: PropSpec, out_root: str, quick=False):
         glb_groups.append({"pos": V_pos, "nrm": V_nrm, "uv": V_uv, "tan": tan, "idx": T_v,
                            "material": {"kind": "alpha" if layer == "alpha" else "pbr", "name": layer,
                                         "base": imgs["diffuse"], "normal": imgs["normal_gl"], "mr": imgs["mr"]}})
-        tex_summary.append({"name": tn_d, "size": S, "density": round(dens, 1), "coverage": round(imgs["coverage"], 3)})
+        tex_summary.append({"name": tn_d, "size": S, "density": round(dens, 1), "coverage": round(imgs["coverage"], 3),
+                            "maps": [NN, NSP]})
 
     # screens (fixed UVs, emissive)
     for texname, (img, mult, size) in b.screens.items():

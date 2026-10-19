@@ -94,6 +94,7 @@ NZA.AddLocale('en', {
     ['transport.err_loaded']        = 'The stretcher is inside the ambulance.',
     ['transport.err_occupied']      = 'Someone is already lying there.',
     ['transport.err_not_empty']     = 'Take the patient off first.',
+    ['transport.err_body_on']       = 'There is a body bag on this stretcher. Take it off first.',
     ['transport.err_no_point']      = 'There is no bed or table here.',
     ['transport.err_in_bay']        = 'The patient is in the back of an ambulance.',
     ['transport.err_bay_full']      = 'Every patient cabin is in use. Try again in a moment.',

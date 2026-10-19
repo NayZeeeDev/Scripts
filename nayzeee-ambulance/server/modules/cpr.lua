@@ -573,11 +573,16 @@ RegisterNetEvent('nza:cpr:breath', function(d)
     local bvm = m.bvm == true
     if not bvm and sub('Breaths').mouthToMouth == false then return end
     local q = Logic.Breath(hold, bvm, m.easy)
+    local p = P.Get(code.pid)
+    -- a tube in the oesophagus sends every breath into the stomach (intubation module's meta.tube)
+    if p and p.devices and p.devices.intubated and type(p.meta) == 'table' and type(p.meta.tube) == 'table'
+        and p.meta.tube.placed == 'oesophagus' then
+        q = 0
+    end
     code.vent = code.ventN == 0 and q or (code.vent + (q - code.vent) * 0.35)
     code.ventN = code.ventN + 1
     code.breathsLeft = math.max(0, code.breathsLeft - 1)
     -- good breaths push water / smoke out of the lungs
-    local p = P.Get(code.pid)
     if p and q >= 50 and p.conditions and p.conditions.hypoxia then
         local hx = U.deepcopy(p.conditions.hypoxia)
         if hx.water then hx.water = math.max(0, (tonumber(hx.water) or 0) - 3 * q / 100) end

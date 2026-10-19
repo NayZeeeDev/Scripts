@@ -345,6 +345,14 @@ def _bump(m: Mat, P, C, seed):
         warp = (cu + cv) % 2 == 0
         h = np.where(warp, np.abs(np.sin(np.pi * u)), np.abs(np.sin(np.pi * v))) - 0.5 + 0.2 * noise3(P / (sc * 3), seed)
         return (h * amp).astype(np.float32), (1 + 0.10 * h).astype(np.float32)
+    if m.bump == "crinkle":
+        # crumpled metallised film (rescue blanket): ridged creases at three scales + per-facet brightness
+        r1 = 1 - np.abs(noise3(P / sc, seed))
+        r2 = 1 - np.abs(noise3(P / (sc * 0.43), seed + 3))
+        r3 = 1 - np.abs(noise3(P / (sc * 0.19), seed + 6))
+        h = r1 ** 4 * 0.6 + r2 ** 4 * 0.3 + r3 ** 4 * 0.15 - 0.25
+        facet = noise3(P / (sc * 0.55), seed + 9)
+        return (h * amp).astype(np.float32), (1 + 0.14 * facet + 0.05 * (r2 - 0.5)).astype(np.float32)
     if m.bump == "velcro":
         n1 = noise3(P / sc, seed)
         n2 = noise3(P / (sc * 0.4), seed + 3)
@@ -435,7 +443,7 @@ def eval_materials(mats: dict, matname, P, C, seed=11):
         else:
             L["wear_rgb"][sel] = alb + (255.0 - alb) * 0.28
         auto_s = (0.1 if clear else 0.12 + 0.4 * m.gloss) if m.bump not in ("fabric", "webbing", "foam", "pluck", "eggcrate",
-                                                                               "velcro", "cordura", "twill") else 0.0
+                                                                               "velcro", "cordura", "twill", "crinkle") else 0.0
         L["scratch"][sel] = auto_s if m.scratch < 0 else m.scratch
         L["smudge"][sel] = (0.25 + 0.6 * m.gloss if not clear else 0.35) if m.smudge < 0 else m.smudge
         L["cavity"][sel] = m.cavity

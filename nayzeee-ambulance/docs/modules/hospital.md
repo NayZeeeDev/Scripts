@@ -120,8 +120,9 @@ Paychecks: on-duty members of standalone departments get their grade salary ever
 Record fields: `hospital dept deptLabel grade gradeLabel gradeName salary perms easy easyDefault
 onDuty medic police job jobLabel isBoss linked frameworkMedic` (+ `excluded` for fired linked members).
 `easy` = the department switch, then per-permission overrides. `easyDefault` (read by
-`NZA.Staff.Easy` / `NZA.Easy` for anything not in `easy`) is true only when every permission
-of the department is easy, so `Config.EasyMode.default` never overrides a department. Duty: framework medics follow
+`NZA.Staff.Easy` / `NZA.Easy` for anything not in `easy`: a permission outside `NZA.Const.Perms`
+or no permission) is the department switch (`dept.easy == true`), the same fallback `easy` uses for a
+permission without an override, so `Config.EasyMode.default` never overrides a department. Duty: framework medics follow
 the framework duty, everyone else uses the module's own duty. Every manager change refreshes
 the affected players (`NZA.Staff.Refresh` → `nza:staff:update`).
 

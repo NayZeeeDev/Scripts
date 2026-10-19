@@ -54,17 +54,7 @@
 #app-bay .pt-map::before,#app-bay .pt-map::after{content:'';position:absolute;width:8px;height:8px;border-color:rgba(15,212,196,.6);border-style:solid;pointer-events:none}
 #app-bay .pt-map::before{left:4px;top:4px;border-width:1px 0 0 1px}
 #app-bay .pt-map::after{right:4px;bottom:4px;border-width:0 1px 1px 0}
-#app-bay .bglyph{display:block;width:100%;height:100%;overflow:visible}
-#app-bay .bglyph .bs{fill:rgba(15,212,196,.07);stroke:rgba(15,212,196,.5);stroke-width:.6}
-#app-bay .bglyph .bs.red{fill:rgba(229,72,77,.42);stroke:#ff6b70}
-#app-bay .bglyph .bs.amber{fill:rgba(229,165,10,.34);stroke:#f3c35a}
-#app-bay .bglyph .bs.teal{fill:rgba(15,212,196,.3);stroke:var(--teal-hi)}
-#app-bay .bglyph .pad{fill:rgba(15,212,196,.16)}
-#app-bay .bglyph .hot{--hc:#ff5a60}
-#app-bay .bglyph .hot.amber{--hc:#f3c35a} #app-bay .bglyph .hot.teal{--hc:var(--teal-hi)}
-#app-bay .bglyph .hot .dm{fill:#fff;stroke:var(--hc);stroke-width:.9}
-#app-bay .bglyph .hot .pl{fill:none;stroke:var(--hc);stroke-width:.8;transform-box:fill-box;transform-origin:center;animation:bay-ping 1.6s ease-out infinite}
-@keyframes bay-ping{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.3);opacity:0}}
+/* the body glyph is the core widget (.nza-body, html/core/nza.css) */
 
 #app-bay h4{display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px}
 #app-bay h4 span{font:600 10px var(--mono);letter-spacing:0;color:var(--ink-2)}
@@ -334,5 +324,5 @@
 @keyframes bay-in-t{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){
   #app-bay .bay-left,#app-bay .bay-right,#app-bay .bay-dock,#app-bay .bay-mon.on,#app-bay .alrt,#app-bay.compact .bay-tab{animation:none}
-  #app-bay .bglyph .hot .pl,#app-bay .tb-hr .hb .nz-ic,#app-bay .cab-ft .drip i{animation:none}
+  #app-bay .tb-hr .hb .nz-ic,#app-bay .cab-ft .drip i{animation:none}
 }

@@ -11,14 +11,15 @@
       * the breath sound of each of the 6 lung zones (R/L upper, mid, lower) and its air
         entry: vesicular, reduced, absent (pneumothorax / haemothorax side), crackles
         (drowning), wheeze (smoke), stridor / gurgling (airway), silence (apnoea).
-        Chest drains and intubation change what you hear.
+        Chest drains and intubation change what you hear (an oesophageal tube: no air entry
+        on either side, the belly gurgles; a mainstem tube: the left side goes quiet).
       Schedule and zones go to the client obfuscated (NZA.Assess.Encode).
     Stethoscope: Config.Items.stethoscope enables step 2 (never consumed).
 
     Finish: scores the breath count against the schedule, the listening coverage and the
     call, records findings (NZA.Findings: breathing, haemothorax_suspected_<side>,
     pneumothorax_suspected_<side>, aspiration_suspected, bronchospasm_suspected,
-    airway_compromise, apnoea) and returns the result card.
+    airway_compromise, apnoea, tube_oesophageal) and returns the result card.
 
     Client result payload (ctx.finish):
       { nonce, countStart = ms, countMs = ms, taps = { ms, ... }, noRise = bool,
@@ -140,8 +141,24 @@ local function describe(p)
         for _, z in ipairs(ZONES) do zones[z].entry = zones[z].entry * (pattern == 'agonal' and 0.4 or 0.6) end
     end
 
+    -- a misplaced tube (meta.tube from the intubation module; devices.intubated stays true)
+    local tube = type(p.meta) == 'table' and p.meta.tube or nil
+    local epigastric = false
+    if not apnoea and intubated and type(tube) == 'table' then
+        if tube.placed == 'oesophagus' then
+            -- the air goes into the stomach: no air entry over either lung, the belly gurgles
+            epigastric = true
+            for _, z in ipairs(ZONES) do zones[z].sound, zones[z].entry = 'absent', 0 end
+            sides.l.state, sides.r.state = 'absent', 'absent'
+        elseif tube.mainstem then
+            -- too deep: the tip sits in the right main bronchus and the left lung barely fills
+            set('lu', 'absent', 0.05); set('lm', 'absent', 0.08); set('ll', 'reduced', 0.3)
+            sides.l.state = 'absent'
+        end
+    end
+
     -- the expected call (and acceptable secondary calls)
-    local call, also = 'normal', {}
+    local call, also, same = 'normal', {}, nil
     local function sideCall()
         local best, worst = nil, 0
         for _, s in ipairs({ 'r', 'l' }) do
@@ -153,6 +170,10 @@ local function describe(p)
     local sSide, sLevel = sideCall()
     if apnoea then
         call = 'none'
+    elseif epigastric then
+        -- both sides are silent on ventilation: either side call is right, 'airway' is close
+        call, same = 'absent_l', { absent_r = true }
+        also.reduced_l, also.reduced_r, also.airway = true, true, true
     elseif sLevel > 0 then
         call = (sLevel == 2 and 'absent_' or 'reduced_') .. sSide
         also[(sLevel == 2 and 'reduced_' or 'absent_') .. sSide] = true
@@ -183,7 +204,8 @@ local function describe(p)
         if pattern == 'shallow' then see('shallow', 'warn') end
         if gurgle then see('gurgling', 'bad') end
         if stridor then see(airway == 'snoring' and 'snoring' or 'stridor', 'bad') end
-        if sLevel == 2 then see('asym', 'warn', L('side_' .. sSide)) end
+        if epigastric then see('epigastric', 'bad')
+        elseif sLevel == 2 then see('asym', 'warn', L('side_' .. sSide)) end
         for _, inj in pairs(p.injuries) do
             if inj.type == 'fracture' and inj.fracture and inj.fracture.bone == 'ribs' and (inj.severity or 1) >= 3
                 and (inj.fracture.kind == 'comminuted' or inj.fracture.displaced) then
@@ -198,8 +220,8 @@ local function describe(p)
 
     return {
         rr = apnoea and 0 or rr, pattern = apnoea and 'absent' or pattern, apnoea = apnoea,
-        zones = zones, sides = sides, call = call, also = also, look = look,
-        crackles = crackles, wheeze = wheeze, stridor = stridor, gurgle = gurgle,
+        zones = zones, sides = sides, call = call, also = also, same = same, look = look,
+        crackles = crackles, wheeze = wheeze, stridor = stridor, gurgle = gurgle, epigastric = epigastric,
     }
 end
 
@@ -318,7 +340,7 @@ local function score(s, t, res)
 
     -- ── call (35)
     local call = CALLS[res.call] and res.call or nil
-    if call == t.call then
+    if call and (call == t.call or (t.same and t.same[call])) then
         out.callOk = true
         pts = pts + 35
         if call ~= 'normal' then add('ok', 'fb_call_ok', callLabel(call)) end
@@ -386,6 +408,10 @@ local function addFindings(src, p, t, res, out, easy)
     end
     if (t.stridor or t.gurgle) and (easy or (credit and (call == 'airway' or t.call == 'airway'))) then
         add('airway_compromise', { cond = 'airway', group = 'neck', text = L(t.stridor and 'finding_stridor' or 'finding_gurgle') }, L('finding_airway'))
+    end
+    -- same key as the intubation module's capnography check, so the exam offers the re-tube route
+    if t.epigastric and (easy or (credit and (call == 'absent_l' or call == 'absent_r' or call == 'airway'))) then
+        add('tube_oesophageal', { cond = 'hypoxia', group = 'chest', text = L('finding_tube_oes') }, L('finding_tube_oes'))
     end
     local rate = easy and t.rr or out.counted
     if rate then

@@ -121,7 +121,11 @@ Core procedure HUD; steps *Watch and count → Sweep the zones → Name the soun
 - Truth: pneumothorax (big / tension → absent, else reduced, drained → recovers),
   haemothorax by volume (bases first), drowning water → crackles (and gurgling), smoke →
   wheeze, airway obstruction / swelling / snoring → stridor, intubation → secured,
-  apnoea → silence.
+  apnoea → silence. A misplaced tube (`meta.tube` from the intubation module): oesophageal →
+  no air entry over either lung (both side calls are correct, *noisy airway* is close) and the
+  belly swells and gurgles on sight; a correct call records `tube_oesophageal` (the same key
+  as the capnography check, so the exam offers the re-tube route). Mainstem (too deep) → the
+  left side reduced / absent.
 
 ### Help them walk
 - **NPC** patient who is `alive`, conscious (AVPU A/V), not carried / on a stretcher / in a
@@ -191,7 +195,8 @@ are cleared on ROSC. Bus: `findings:changed (p, key, finding|nil)`.
 Keys this module writes: `pulse` `{ rate, site, rhythm, strength }`, `breathing`
 `{ rate, call }`, `no_radial_pulse`, `pulseless`, `irregular_pulse`, `tamponade_suspected`,
 `haemothorax_suspected_<side>`, `pneumothorax_suspected_<side>`, `aspiration_suspected`,
-`bronchospasm_suspected`, `airway_compromise`, `apnoea`.
+`bronchospasm_suspected`, `airway_compromise`, `apnoea`, `tube_oesophageal` (shared with the
+intubation module).
 
 **How other checks reveal hidden problems in the exam**
 - Suspected condition card: any finding with `cond` set to a condition that is still

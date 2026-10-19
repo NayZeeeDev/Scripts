@@ -4,8 +4,8 @@ Everything a first aider or medic does at the roadside to keep a patient alive: 
 **Bleed control** minigame (direct pressure → wound packing → wrap / pressure dressing), a
 three-step **Tourniquet** (place high & tight + pull the slack → twist the windlass → lock the
 clip, time written on the strap), a two-step **Cervical collar** (measure & size → fasten while
-holding the head in line), the medic **Medication** dose panel, **Oxygen mask**, **Foil blanket**
-and the six **first aid items** usable from the inventory or on someone else.
+holding the head in line), the medic **Medication** dose panel, **Oxygen mask**, **Foil blanket**,
+the **Recovery position** (basic airway for an unconscious patient) and the six **first aid items** usable from the inventory or on someone else.
 
 | Side | Files |
 |---|---|
@@ -154,6 +154,17 @@ to dress"), keys 1–6.
 `devices.oxygen` (SpO₂ support in physiology, faster smoke clearance). Refused when intubated.
 `consume` / `removeReturns` configurable.
 
+### Recovery position (`NZA.Treat 'fa_recovery'`, perm `Recovery.perm` = basic)
+Patient option **Recovery position** (order 42) on a `wounded` patient with AVPU **P / U** who lies
+on the ground (not carried, on a stretcher / bed / in the bay or a vehicle, not bagged) and has no
+tube. Progress bar (`Recovery.duration`), then `meta.recovery = true`: core physiology stops the
+unconscious patient's snoring airway (no 4 % SpO₂ penalty; the breathing check stops hearing
+snoring). With a collar or a spinal injury the patient is log-rolled with the head in line (same
+effect, different message). `FA.ClearRecovery(p)` undoes it when they leave the wounded state
+(`state:changed`), are picked up (`transport:carry`), intubated (`device:changed`), or the 15 s
+timer finds them on a stretcher / bed / in the bay / a vehicle / a body bag. The ped keeps its
+downed pose (no side-lying animation). `nzaFa.rec` mirrors the flag for the option.
+
 ### Worn props (every client)
 From the `nza` state bag (`tq`, `collar`) and this module's `nzaFa` bag (`o2`, `foil`, exact
 tourniquet positions) every client attaches local props to patients within `Props.range`:
@@ -186,13 +197,14 @@ tourniquet positions) every client attaches local props to patients within `Prop
 | Key | Meaning |
 |---|---|
 | `Keys.confirm / lock` | minigame keys |
-| `Interact.distance / stopBleed / tourniquet / meds / collar / oxygen / foil / kit / minBleed / tqBleed / icons` | patient options |
+| `Interact.distance / stopBleed / tourniquet / meds / collar / oxygen / foil / recovery / kit / minBleed / tqBleed / icons` | patient options |
 | `Radial.enabled / range` | EMS radial (Patient) entries |
 | `StopBleed.perm / types / minBleed / abrasionMin / pack / packDepth / items.{pack,wrap,dressing} / minTime / maxTime / easyTime / failScore / qualityBonus / pressureTarget / pressureHold / packStrips / wrapTurns / tensionBand / anim / camera / soak.{enabled,minBleed,quality,after}` | bleed control |
 | `Tourniquet.perm / item / minTime / maxTime / easyTime / minBleed / jointZone / idealAbove / armLength / legLength / occlusion.{arm,leg,min,max} / turnGain / overMargin / unwind / clipWindow / overPain / clock / warnAfter / damageAfter / damage / checkEvery / removeReturns / removePerm / camera` | tourniquet |
 | `Collar.perm / item / minTime / maxTime / easyTime / fastenSeconds / drift / removeReturns / camera` | collar |
 | `Oxygen.perm / item / consume / removeReturns / anim` | oxygen mask |
 | `Foil.perm / item / removeReturns` | foil blanket |
+| `Recovery.enabled / perm / duration` | recovery position (basic airway) |
 | `Items.<key>.enabled / self / duration / anim / …` (+ `bandage.maxBleed / quality`, `medkit.maxSeverity / heal`, `painkillers.stack`, `ice_pack.fracturePain`, `burn_dressing.maxDegree / maxSeverity`), `Items.othersAnim` | first aid items |
 | `Meds.perm / anim / prop / keepOpen / morphineRR / morphineSys / lowRRDepression / naloxoneWake / agitated / camera / drugs[]` | medication (drug list: id, item key, icon, routes, doses { dose, mg }, default, access) |
 | `Props.range / tourniquet.{prop, default} / collar / oxygen / foil` | worn props (prop key, bone, pos, rot) |
@@ -211,22 +223,23 @@ Props (`Config.Props`): tourniquet_worn collar syringe (+ requested oxygen_mask 
 | `NZA.Proc 'stopbleed'` | proc | payload `{ injury? }`; items per step; states alive/wounded/arrest; result `{ score, steps, lost }` |
 | `NZA.Proc 'tourniquet'` | proc | payload `{ injury?, region? }`; result `{ score, seg, frac, pressure, over, misLocks, time, steps }`; server re-checks occlusion |
 | `NZA.Proc 'collar'` | proc | result `{ score, size, align, measured }`; server re-scores size vs truth |
-| `NZA.Treat` | treat | `fa_bandage fa_medkit fa_painkillers fa_ice fa_burn fa_foil` (self allowed, payload `{ injury? }`), `fa_foil_off fa_oxygen fa_oxygen_off fa_collar_off fa_tq_off { region }`, `fa_med { drug, dose (index), route }` |
+| `NZA.Treat` | treat | `fa_bandage fa_medkit fa_painkillers fa_ice fa_burn fa_foil` (self allowed, payload `{ injury? }`), `fa_foil_off fa_oxygen fa_oxygen_off fa_collar_off fa_tq_off { region }`, `fa_recovery` (states wounded), `fa_med { drug, dose (index), route }` |
 | `nza:firstaid:kit (target)` | callback | → `{ name, self, state, items = { { key, item, usable, text } } }` (4/s, ≤ 4.5 m) |
 | `nza:firstaid:meds (target)` | callback | → panel data `{ now, name, state, pain, vitals, access, active, given, lastAdrenaline, bleeding }` (perm meds) |
 | `nza:firstaid:use` | S→C | item key, after an inventory use |
 | `nza:firstaid:agitated` | S→C | NPC net id, naloxone wake-up reaction on the medic's client |
-| state bag `nzaFa` | replicated | `{ o2, foil, tq = { [region] = { s, f } | false } }` |
+| state bag `nzaFa` | replicated | `{ o2, foil, rec, tq = { [region] = { s, f } | false } }` |
 | bus (server) | | `firstaid:tq_warn (p, region)` `firstaid:tq_damage (p, region)` `firstaid:soaked (p, inj)` |
 | NUI `treat` | | JS → Lua `treat:finish {result}` `treat:abort` `treat:tqPlace {seg, frac}` `treat:give {drug, dose, route}` `treat:use {key}` `treat:close`; Lua → JS `open` `anchors` `vitals` `result` `given` `meds` |
 | `NZA.ExamRoutes` | client | `stopbleed` (order 10), `tourniquet` (12), `collar` (14, neck), `ice` (30), `burndressing` (34), `painrelief` (40), `morphine` (41, opens the dose panel) |
-| `NZA.Interact.Add` | client | `nza_fa_stopbleed` 40 · `nza_fa_tq` 41 · `nza_fa_meds` 43 · `nza_fa_collar` 44 · `nza_fa_oxygen` 45 · `nza_fa_foil` 46 · `nza_fa_kit` 47 · `nza_fa_tqoff` 48 · `nza_fa_collaroff / oxygenoff / foiloff` 49 |
+| `NZA.Interact.Add` | client | `nza_fa_stopbleed` 40 · `nza_fa_tq` 41 · `nza_fa_recovery` 42 · `nza_fa_meds` 43 · `nza_fa_collar` 44 · `nza_fa_oxygen` 45 · `nza_fa_foil` 46 · `nza_fa_kit` 47 · `nza_fa_tqoff` 48 · `nza_fa_collaroff / oxygenoff / foiloff` 49 |
 | `NZA.RadialItems` | client | parent `patient`: `fa_stopbleed fa_tourniquet fa_meds fa_kit` |
 
-Client API: `NZA.Firstaid.Start.bleed/tq/collar/meds/kit/oxygen/tqOff/collarOff/foilOff(entity,
+Client API: `NZA.Firstaid.Start.bleed/tq/collar/meds/kit/oxygen/tqOff/collarOff/foilOff/recovery(entity,
 target, …)`, `NZA.Firstaid.UseItem(key, entity?, target?, injuryId?)`.
 Server API: `NZA.Firstaid.Plan(p, inj)`, `.Eligible[key](p, preferId)`, `.TqCovers(p, region)`,
-`.SyncBag(p)`, `.ReconcileTq(p)`, `.Notify(p, msg)`, `.Bill(src, p, kind)`.
+`.SyncBag(p)`, `.ReconcileTq(p)`, `.Notify(p, msg)`, `.Bill(src, p, kind)`, `.RecoveryHeld(p)`,
+`.ClearRecovery(p)`.
 
 ## Security
 - Every action goes through `NZA.Treat` / `NZA.Proc` (permission, server-side distance, items,

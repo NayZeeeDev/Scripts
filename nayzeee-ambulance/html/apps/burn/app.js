@@ -721,7 +721,7 @@
       const m = polyMask(polyOffset(Z.poly, 0.002), box, w, h, Math.max(2, Math.round(7 / mmX)));
       for (let i = 0; i < near.length; i++) near[i] = Math.max(near[i], m[i]);
     });
-    const cv = mkCanvas(w, h), c = cv.getContext('2d'), id = c.createImageData(w, h), d = id.data;
+    const cv = mkCanvas(w, h), c = cv.getContext('2d', { willReadFrequently: true }), id = c.createImageData(w, h), d = id.data;
     const hgt = new Float32Array(w * h);
     const deg = clamp(degree | 0, 1, 3);
     const memAmt = deg <= 1 ? 0 : 1, palAmt = deg <= 1 ? 0 : deg === 2 ? 0.62 : 0.95;
@@ -998,7 +998,8 @@
       clear: o(new THREE.MeshPhysicalMaterial({ color: 0xf4fbff, roughness: 0.05, transparent: true, opacity: 0.3, clearcoat: 1, depthWrite: false })),
       amber: o(new THREE.MeshPhysicalMaterial({ color: 0xe5a50a, roughness: 0.4, clearcoat: 0.5 })),
       ink: o(new THREE.MeshStandardMaterial({ color: 0x4a2276, roughness: 0.55, transparent: true, opacity: 0.88, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 })),
-      cut: o(new THREE.MeshPhysicalMaterial({ color: 0x5a0806, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1, polygonOffset: true, polygonOffsetFactor: -5 })),
+      cut: o(new THREE.MeshPhysicalMaterial({ color: 0x6e0907, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5 })),
+      cutCore: o(new THREE.MeshStandardMaterial({ color: 0x120101, roughness: 0.62, metalness: 0, envMapIntensity: 0.15, polygonOffset: true, polygonOffsetFactor: -6 })),
     };
   }
   const lathe = (pts, seg = 40) => new window.THREE.LatheGeometry(pts.map(p => new window.THREE.Vector2(p[0], p[1])), seg);
@@ -1199,8 +1200,10 @@
     lev.position.set(0.0295, 0.0055, -0.006); lev.rotation.x = -0.35;
     addMesh(bin, head, new THREE.CylinderGeometry(0.0036, 0.0036, 0.004, 24).rotateZ(Math.PI / 2).translate(0.0295, 0.0045, -0.006), M.darkSteel);
     // neck & body
-    addMesh(bin, g, loftRound([{ y: 0.004, w: 0.048, t: 0.016, z: -0.004 }, { y: 0.02, w: 0.04, t: 0.024, z: -0.002 }, { y: 0.034, w: 0.033, t: 0.033 }], 20), M.darkSteel);
-    addMesh(bin, g, new THREE.CylinderGeometry(0.0168, 0.0172, 0.142, 40).translate(0, 0.104, 0), M.brushed);
+    addMesh(bin, g, loftRound([{ y: 0.004, w: 0.048, t: 0.016, z: -0.004 }, { y: 0.02, w: 0.04, t: 0.024, z: -0.002 }, { y: 0.034, w: 0.033, t: 0.033 }], 20), M.satin);
+    // white polymer motor housing with a satin steel collar where it meets the head
+    addMesh(bin, g, new THREE.CylinderGeometry(0.0168, 0.0172, 0.142, 40).translate(0, 0.104, 0), M.poly);
+    addMesh(bin, g, new THREE.CylinderGeometry(0.0175, 0.0175, 0.008, 40).translate(0, 0.037, 0), M.brushed);
     // rubber grip sleeve with a teal thumb switch
     addMesh(bin, g, new THREE.CylinderGeometry(0.0176, 0.0176, 0.064, 40, 1, true).translate(0, 0.1, 0), M.rubber, false);
     addMesh(bin, g, new THREE.BoxGeometry(0.008, 0.014, 0.004).translate(0, 0.062, 0.0175), M.teal);
@@ -1210,7 +1213,7 @@
     lab.position.y = 0.154;
     const led = addMesh(bin, g, new THREE.TorusGeometry(0.0171, 0.0009, 8, 40), bin.own(M.tealGlow.clone()), false);
     led.rotation.x = Math.PI / 2; led.position.y = 0.04;
-    addMesh(bin, g, lathe([[0.0172, 0.175], [0.0168, 0.18], [0.012, 0.186], [0.006, 0.188], [0, 0.1885]], 32), M.graphite);
+    addMesh(bin, g, lathe([[0.0172, 0.175], [0.0168, 0.18], [0.012, 0.186], [0.006, 0.188], [0, 0.1885]], 32), M.polyGrey);
     addMesh(bin, g, new THREE.CylinderGeometry(0.0045, 0.006, 0.016, 20).translate(0, 0.195, 0), M.rubber);
     addMesh(bin, g, tubeGeo([[0, 0.2, 0], [0, 0.24, -0.006], [0.01, 0.3, -0.03], [0.03, 0.38, -0.06], [0.04, 0.5, -0.08]], 0.0032, 40, 8), M.rubber);
     // the graft strip curling up over the head (grows while cutting)
@@ -1248,6 +1251,138 @@
     return { group: g, set(p) { if (p.fire !== undefined) trig.rotation.x = -0.32 + p.fire * 0.3; } };
   }
 
+  // laser-etched marking on a steel instrument (generic model code, transparent canvas)
+  function texEtch(text) {
+    const cv = mkCanvas(512, 64), c = cv.getContext('2d');
+    c.font = '600 34px "JetBrains Mono", monospace'; c.fillStyle = 'rgba(28,32,35,.92)'; c.textBaseline = 'middle';
+    c.fillText(text, 8, 34);
+    return cv;
+  }
+
+  // Tissue forceps (Adson pattern, 1×2 teeth): two bevelled tines that meet at the tip and splay
+  // sideways when open (seen from above), cross-hatched thumb pads, guide pin, spring heel.
+  // Tip at the origin, heel along +Y; set({ open 0..1 }).
+  function buildForceps(bin, M) {
+    const THREE = window.THREE, g = new THREE.Group(), L = 0.12, TH = 0.0013, halves = [];
+    const etch = bin.own(new THREE.MeshStandardMaterial({ map: canvasTex(bin, texEtch('AD-12  1×2  STAINLESS')), transparent: true, depthWrite: false, metalness: 0.6, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2 }));
+    for (const sd of [1, -1]) {
+      const h = new THREE.Group(); g.add(h); halves.push(h);
+      h.position.y = L;                                     // pivot at the heel
+      const P = [[0.00012, 0], [0.0011, 0], [0.0013, 0.007], [0.0016, 0.026], [0.0021, 0.034], [0.0046, 0.044], [0.0055, 0.06],
+        [0.0056, 0.084], [0.0049, 0.1], [0.0034, 0.113], [0.0019, 0.12], [0.0004, 0.12], [0.0005, 0.1], [0.0011, 0.072], [0.0009, 0.04], [0.0003, 0.012]];
+      const sh = new THREE.Shape(P.map(p => new THREE.Vector2(p[0] * sd, p[1] - L)));
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: TH, bevelEnabled: true, bevelThickness: 0.00022, bevelSize: 0.00022, bevelSegments: 2, curveSegments: 4 });
+      geo.translate(0, 0, -TH / 2);
+      addMesh(bin, h, geo, M.satin);
+      // thumb pad: transverse ridges and a centre groove (cross-hatch)
+      const zTop = TH / 2 + 0.00022;
+      for (let i = 0; i < 15; i++) {
+        const y = 0.05 + i * 0.0024 - L, w = 0.0062 - Math.abs(i - 7) * 0.00012;
+        const rb = addMesh(bin, h, new THREE.BoxGeometry(w, 0.00065, 0.00026), M.darkSteel, false);
+        rb.position.set(sd * 0.0031, y, zTop);
+      }
+      const gv = addMesh(bin, h, new THREE.BoxGeometry(0.00035, 0.036, 0.0003), M.steel, false);
+      gv.position.set(sd * 0.0031, 0.067 - L, zTop + 0.00008);
+      // polished jaw near the tip, with the tooth (1 on one side, 2 on the other)
+      const jaw = addMesh(bin, h, new THREE.BoxGeometry(0.0009, 0.009, TH * 0.9).translate(sd * 0.00062, 0.0045 - L, 0), M.steel, false);
+      void jaw;
+      const teeth = sd > 0 ? [0] : [-0.00042, 0.00042];
+      teeth.forEach(z => {
+        const tth = addMesh(bin, h, new THREE.ConeGeometry(0.00028, 0.0008, 6).rotateZ(sd * Math.PI / 2), M.steel, false);
+        tth.position.set(sd * 0.00005, 0.0007 - L, z);
+      });
+      // fine serrations on the jaw's top face
+      for (let i = 0; i < 6; i++) { const s = addMesh(bin, h, new THREE.BoxGeometry(0.0011, 0.00018, 0.0002), M.darkSteel, false); s.position.set(sd * 0.00062, 0.0016 + i * 0.0011 - L, TH / 2 + 0.00012); }
+      if (sd > 0) {
+        const lab = addMesh(bin, h, new THREE.PlaneGeometry(0.03, 0.0038), etch, false);
+        lab.position.set(0.0029, 0.1 - L - 0.003, zTop + 0.00004); lab.rotation.z = Math.PI / 2;
+        lab.scale.set(0.42, 0.6, 1);
+      }
+    }
+    // guide pin on one tine, the hole ring on the other
+    const pin = addMesh(bin, halves[0], new THREE.CylinderGeometry(0.00045, 0.00045, 0.0012, 12).rotateZ(Math.PI / 2), M.steel, false);
+    pin.position.set(-0.0002, 0.036 - L, 0);
+    // spring heel: the two tines are brazed together
+    addMesh(bin, g, loftRound([{ y: L - 0.004, w: 0.0052, t: TH + 0.0003 }, { y: L, w: 0.0064, t: TH + 0.0005 }, { y: L + 0.0035, w: 0.0052, t: TH + 0.0004 }, { y: L + 0.0045, w: 0.0001, t: 0.0001 }], 18), M.satin);
+    const api = { group: g, open: 1, set(p) { if (p.open !== undefined) { api.open = clamp(p.open, 0, 1); halves[0].rotation.z = api.open * 0.034; halves[1].rotation.z = -api.open * 0.034; } } };
+    api.set({ open: 1 });
+    return api;
+  }
+
+  // diamond knurl height → normal map (the grip of a steel handle)
+  function texKnurl() {
+    const w = 64, h = 64, hgt = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const a = Math.abs(Math.sin((x + y) / w * Math.PI * 4)), b = Math.abs(Math.sin((x - y) / w * Math.PI * 4));
+      hgt[y * w + x] = 0.5 + 0.5 * Math.min(a, b);
+    }
+    return normalFromHeight(hgt, w, h, 3.2);
+  }
+  // etched millimetre rule + model code on the rear of the handle (transparent)
+  function texRule() {
+    const W = 128, H = 512, cv = mkCanvas(W, H), c = cv.getContext('2d');
+    c.strokeStyle = 'rgba(24,28,31,.9)'; c.fillStyle = 'rgba(24,28,31,.9)'; c.lineWidth = 2;
+    for (let i = 0; i <= 30; i++) {
+      const y = 20 + i * 14, l = i % 10 === 0 ? 46 : i % 5 === 0 ? 32 : 20;
+      c.beginPath(); c.moveTo(W - 8, y); c.lineTo(W - 8 - l, y); c.stroke();
+    }
+    c.font = '700 26px "JetBrains Mono", monospace';
+    c.save(); c.translate(36, H - 20); c.rotate(-Math.PI / 2); c.fillText('SH-4   STAINLESS', 0, 0); c.restore();
+    return cv;
+  }
+  // Scalpel: large curved blade (bevelled, ground edge line, fitting slot) on a flat steel handle
+  // with rounded edges, a knurled grip and an etched rule. Tip at the origin, handle along +Y.
+  function buildScalpel(bin, M) {
+    const THREE = window.THREE, g = new THREE.Group();
+    // blade: belly on −x, straight spine on +x
+    const bl = new THREE.Shape();
+    bl.moveTo(0, 0);
+    bl.bezierCurveTo(-0.0042, 0.0012, -0.0064, 0.0068, -0.0058, 0.0145);
+    bl.lineTo(-0.0036, 0.0262); bl.lineTo(0.0024, 0.0262); bl.lineTo(0.0024, 0.011);
+    bl.quadraticCurveTo(0.0021, 0.0035, 0, 0);
+    const slot = new THREE.Path();
+    slot.moveTo(-0.0006, 0.0175); slot.lineTo(-0.0006, 0.0255); slot.lineTo(0.0010, 0.0255); slot.lineTo(0.0010, 0.0175); slot.lineTo(-0.0006, 0.0175);
+    bl.holes.push(slot);
+    const bGeo = new THREE.ExtrudeGeometry(bl, { depth: 0.00026, bevelEnabled: true, bevelThickness: 0.00008, bevelSize: 0.00012, bevelSegments: 2, curveSegments: 18 });
+    bGeo.translate(0, 0, -0.00013);
+    addMesh(bin, g, bGeo, M.steel);
+    // grind line: where the ground edge meets the flat of the blade
+    const gl = [];
+    for (let i = 0; i <= 16; i++) {
+      const u = i / 16, a = 1 - u;
+      const x = a * a * a * 0 + 3 * a * a * u * -0.0042 + 3 * a * u * u * -0.0064 + u * u * u * -0.0058;
+      const y = 3 * a * a * u * 0.0012 + 3 * a * u * u * 0.0068 + u * u * u * 0.0145;
+      if (u > 0.08) gl.push(new THREE.Vector3(x + 0.0011, y + 0.0004, 0.00023));
+    }
+    gl.push(new THREE.Vector3(-0.0026, 0.0235, 0.00023));
+    addMesh(bin, g, tubeGeo(gl, 0.00006, 30, 4), M.darkSteel, false);
+    // handle outline (rounded flat bar), the narrow fitting at the front
+    const hw = [[0.0235, 0.0016], [0.034, 0.0018], [0.041, 0.0038], [0.05, 0.0046], [0.128, 0.0052], [0.138, 0.0047], [0.1425, 0.0032], [0.1435, 0.0008]];
+    const hs = new THREE.Shape();
+    hs.moveTo(0, hw[0][0]);
+    hw.forEach(([y, x]) => hs.lineTo(x, y));
+    hs.lineTo(0, 0.1438);
+    for (let i = hw.length - 1; i >= 0; i--) hs.lineTo(-hw[i][1], hw[i][0]);
+    hs.lineTo(0, hw[0][0]);
+    const TH = 0.0021;
+    const hGeo = new THREE.ExtrudeGeometry(hs, { depth: TH, bevelEnabled: true, bevelThickness: 0.0004, bevelSize: 0.0004, bevelSegments: 3, curveSegments: 6 });
+    hGeo.translate(0, 0, -TH / 2);
+    addMesh(bin, g, hGeo, M.satin);
+    // the fitting rib the blade slot slides onto
+    addMesh(bin, g, new THREE.BoxGeometry(0.0013, 0.0085, 0.0008).translate(0.0002, 0.0215, 0.00045), M.steel, false);
+    const top = TH / 2 + 0.0004 + 0.00003;
+    // knurled grip
+    const kn = canvasTex(bin, texKnurl(), false); kn.wrapS = kn.wrapT = window.THREE.RepeatWrapping; kn.repeat.set(3, 16);
+    const knM = bin.own(new THREE.MeshStandardMaterial({ color: 0xb7bfc4, metalness: 1, roughness: 0.46, normalMap: kn, normalScale: new THREE.Vector2(1.2, 1.2), polygonOffset: true, polygonOffsetFactor: -2 }));
+    const knP = addMesh(bin, g, new THREE.PlaneGeometry(0.0078, 0.046), knM, false);
+    knP.position.set(0, 0.078, top);
+    // etched rule and model code on the rear
+    const ru = bin.own(new THREE.MeshStandardMaterial({ map: canvasTex(bin, texRule()), transparent: true, depthWrite: false, metalness: 0.5, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -3 }));
+    const ruP = addMesh(bin, g, new THREE.PlaneGeometry(0.0082, 0.032), ru, false);
+    ruP.position.set(0, 0.1185, top);
+    return { group: g, set() {} };
+  }
+
   // one placed skin staple: centre [s, t], dir = [ds, dt] across the graft edge (unit)
   function stapleMesh(S, bin, M, c, dir) {
     const THREE = window.THREE;
@@ -1266,6 +1401,23 @@
 
   /* ═════════════ the mesher bench (own three.js scene, drawn with the donor scene's renderer) ═════════════
      Feed runs along +x through the rollers at x = 0; the crank turns about +z on the near side. */
+  // machined block: w (x) × h (y) × d (z), corners rounded by r in the top view, edges bevelled by bev
+  function rbox(w, h, d, r, bev = 0.0006) {
+    const THREE = window.THREE, sh = new THREE.Shape(), x = w / 2 - bev, z = d / 2 - bev, rr = Math.max(0.0001, Math.min(r, x, z));
+    sh.moveTo(-x + rr, -z); sh.lineTo(x - rr, -z); sh.quadraticCurveTo(x, -z, x, -z + rr); sh.lineTo(x, z - rr); sh.quadraticCurveTo(x, z, x - rr, z);
+    sh.lineTo(-x + rr, z); sh.quadraticCurveTo(-x, z, -x, z - rr); sh.lineTo(-x, -z + rr); sh.quadraticCurveTo(-x, -z, -x + rr, -z);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: Math.max(0.0001, h - bev * 2), bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 6 });
+    g.rotateX(-Math.PI / 2);
+    g.translate(0, bev - h / 2, 0);
+    return g;
+  }
+  // socket-head cap screw seen from its head (axis +Y)
+  function capScrew(bin, parent, M, r) {
+    const THREE = window.THREE, grp = new THREE.Group(); parent.add(grp);
+    addMesh(bin, grp, new THREE.CylinderGeometry(r, r, r * 0.9, 20).translate(0, r * 0.45, 0), M.steel, false);
+    addMesh(bin, grp, new THREE.CylinderGeometry(r * 0.45, r * 0.45, r * 0.3, 6).translate(0, r * 0.8, 0), M.rubber, false);
+    return grp;
+  }
   function buildBench(bin, env, o) {
     const THREE = window.THREE, M = makeMats(bin);
     const scene = new THREE.Scene();
@@ -1312,10 +1464,17 @@
 
     // ── mesher body
     const dev = new THREE.Group(); scene.add(dev);
-    addMesh(bin, dev, new THREE.BoxGeometry(0.16, 0.008, 0.118).translate(0, 0.004, 0), M.brushed);
+    addMesh(bin, dev, rbox(0.16, 0.008, 0.118, 0.009, 0.0012).translate(0, 0.004, 0), M.brushed);
+    // corner screws in the base
+    for (const x of [-0.072, 0.072]) for (const z of [-0.051, 0.051]) { const sc = capScrew(bin, dev, M, 0.0024); sc.position.set(x, 0.0078, z); }
     for (const x of [-0.07, 0.07]) for (const z of [-0.05, 0.05]) addMesh(bin, dev, new THREE.CylinderGeometry(0.006, 0.0065, 0.004, 16).translate(x, -0.001, z), M.rubber);
     for (const z of [-0.05, 0.05]) {
-      addMesh(bin, dev, new THREE.BoxGeometry(0.05, 0.062, 0.012).translate(0, 0.039, z), M.satin);
+      addMesh(bin, dev, rbox(0.05, 0.062, 0.012, 0.004, 0.0009).translate(0, 0.039, z), M.satin);
+      // four cap screws hold each side frame (heads face out)
+      for (const x of [-0.018, 0.018]) for (const y of [0.016, 0.062]) {
+        const sc = capScrew(bin, dev, M, 0.0021);
+        sc.rotation.x = Math.sign(z) * Math.PI / 2; sc.position.set(x, y, z + Math.sign(z) * 0.0058);
+      }
       // bearing caps for both rollers
       for (const y of [0.0215, 0.0455]) addMesh(bin, dev, new THREE.CylinderGeometry(0.0085, 0.0085, 0.004, 28).rotateX(Math.PI / 2).translate(0, y, z + Math.sign(z) * 0.008), M.steel);
       // tension screws on top
@@ -1338,9 +1497,9 @@
     // slot marks on the blades so the turning reads
     for (let k = 0; k < 6; k++) { const s = addMesh(bin, rollTop, new THREE.BoxGeometry(0.0016, 0.0016, 0.083), M.darkSteel, false); const a = k / 6 * TAU; s.position.set(Math.cos(a) * 0.0108, Math.sin(a) * 0.0108, 0); s.rotation.z = a; }
     // feed tables
-    addMesh(bin, dev, new THREE.BoxGeometry(0.07, 0.0025, 0.088).translate(-0.047, 0.0315, 0), M.brushed);
-    addMesh(bin, dev, new THREE.BoxGeometry(0.07, 0.0025, 0.088).translate(0.047, 0.0315, 0), M.brushed);
-    for (const x of [-0.08, 0.08]) addMesh(bin, dev, new THREE.BoxGeometry(0.004, 0.006, 0.09).translate(x, 0.0335, 0), M.satin);
+    addMesh(bin, dev, rbox(0.07, 0.0025, 0.088, 0.003, 0.0005).translate(-0.047, 0.0315, 0), M.brushed);
+    addMesh(bin, dev, rbox(0.07, 0.0025, 0.088, 0.003, 0.0005).translate(0.047, 0.0315, 0), M.brushed);
+    for (const x of [-0.08, 0.08]) addMesh(bin, dev, rbox(0.004, 0.006, 0.09, 0.0015, 0.0006).translate(x, 0.0335, 0), M.satin);
     // crank (near side, turns about +z)
     const hub = new THREE.Vector3(0, 0.0455, 0.07);
     addMesh(bin, dev, new THREE.CylinderGeometry(0.0072, 0.0072, 0.012, 28).rotateX(Math.PI / 2).translate(0, 0.0455, 0.063), M.steel);
@@ -1559,6 +1718,7 @@
       if (this.tagsEl) this.tagsEl.innerHTML = '';
       this.tags = {};
       this.g = null; this.plan = null; this.heat = null;
+      this.thDet = null; this.photoImg = null; this.photoKey = null; this.heatImg = null; this.heatId = null; this.det = null; this.wiping = false;
     },
 
     msg: {
@@ -1598,6 +1758,7 @@
       const rx = Math.sqrt(A * 1e-4 * asp / Math.PI), ry = rx / asp;
       const seed = (+d.seed || hash(`${inj.id}:${(d.patient && d.patient.name) || ''}`)) >>> 0;
       this.seed = seed;
+      this.tone = d.tone !== undefined ? clamp(+d.tone || 0, 0, 1) : 0.3;
       const viewW = clamp(rx * 2 * 1.85, 0.11, 0.34);
       let S;
       try {
@@ -1667,6 +1828,7 @@
       if (this.mode === 'graft' && +b.excised >= cfg.minExcised) plan.zones.forEach(Z => { Z.excised = true; Z.preExcised = true; });
 
       this.patchSkin(plan, deg, seed);
+      if (resumed.debrided && this.det) this.fadeMembrane(this.det, 0);
       this.paintInitial(seed, resumed);
       this.buildSceneA(resumed);
       S.layers.decay('wet', 0.05);
@@ -1732,6 +1894,39 @@
       gr.addColorStop(0, 'rgba(10,0,255,1)'); gr.addColorStop(0.7, 'rgba(10,0,255,.85)'); gr.addColorStop(1, 'rgba(10,0,255,0)');
       D.ctx.fillStyle = gr;
       D.ctx.beginPath(); D.ctx.arc(x, y, rp, 0, TAU); D.ctx.fill();
+      // the loose epidermis round it comes away with the piece (membrane channel only; the
+      // pallor of deeper skin stays where it is)
+      const R2 = rp * 2.1, x0 = Math.max(0, Math.floor(x - R2)), y0 = Math.max(0, Math.floor(y - R2));
+      const x1 = Math.min(D.w, Math.ceil(x + R2)), y1 = Math.min(D.h, Math.ceil(y + R2));
+      if (x1 > x0 && y1 > y0) {
+        const id = D.ctx.getImageData(x0, y0, x1 - x0, y1 - y0), d = id.data, iw = x1 - x0;
+        for (let k = 0; k < d.length; k += 4) {
+          const px = x0 + (k / 4) % iw, py = y0 + Math.floor(k / 4 / iw), q = Math.hypot(px - x, py - y) / R2;
+          const f = 1 - smooth(0.55, 1, q);
+          d[k + 1] *= 1 - f; d[k + 2] = Math.max(d[k + 2], 230 * f);
+        }
+        D.ctx.putImageData(id, x0, y0);
+      }
+      D.tex.needsUpdate = true;
+    },
+    // end of debridement: the last shreds of dead skin are rinsed off (a short fade)
+    wipeMembrane() {
+      const D = this.det;
+      if (!D || this.wiping) return;
+      this.wiping = true;
+      let n = 0;
+      const tick = () => {
+        if (this.det !== D) { this.wiping = false; return; }
+        this.fadeMembrane(D, 0.62);
+        if (++n < 9) setTimeout(tick, 70); else { this.fadeMembrane(D, 0); this.wiping = false; }
+      };
+      tick();
+    },
+    // membrane channel × keep (0 = gone); what was under it reads wet
+    fadeMembrane(D, keep) {
+      const id = D.ctx.getImageData(0, 0, D.w, D.h), d = id.data;
+      for (let k = 0; k < d.length; k += 4) { if (d[k + 1]) { d[k + 2] = Math.max(d[k + 2], d[k + 1] * 0.8); d[k + 1] *= keep; } }
+      D.ctx.putImageData(id, 0, 0);
       D.tex.needsUpdate = true;
     },
 
@@ -1862,11 +2057,13 @@
         bottle: mkTool(S, bin, 'bottle', buildBottle(bin, M), { lift: 0.055, pressLift: 0.055, tilt: 0.42, yaw: 1.62, roll: 0, shadow: 0.025 }),
         diascope: mkTool(S, bin, 'diascope', buildDiascope(bin, M), { lift: 0.007, pressLift: 0.0002, tilt: 0.0, yaw: 0.6, roll: 0, shadow: 0.02 }),
         stapler: mkTool(S, bin, 'stapler', buildStapler(bin, M), { lift: 0.006, pressLift: 0.0005, tilt: 0.55, yaw: 1.3, roll: 0, shadow: 0.03 }),
+        forceps: mkTool(S, bin, 'forceps', buildForceps(bin, M), { lift: 0.0055, pressLift: 0.0, tilt: 0.62, yaw: 1.25, roll: 0, shadow: 0.014 }),
+        scalpel: mkTool(S, bin, 'scalpel', buildScalpel(bin, M), { lift: 0.006, pressLift: -0.0008, tilt: 0.9, yaw: 0.65, roll: 0, shadow: 0.012 }),
       };
       // compile everything behind the veil
       Object.values(this.tb).forEach(t => { t.group.visible = true; t.group.position.set(0, -5, 0); });
       this.ovMesh.visible = true;
-      S.prewarm(['forceps', 'scalpel'], true);
+      S.prewarm([], true);
       Object.values(this.tb).forEach(t => { t.group.visible = false; });
       this.ovMesh.visible = false;
     },
@@ -1982,8 +2179,15 @@
       this.devEl.querySelector('.dv-cap').textContent = cap;
     },
     // patch metres → device pixels (the burn's frame, letterboxed)
-    devXf(W, H, pad = 8) {
+    // tight > 0: frame the burn itself (± rx·tight, ± ry·tight) over the whole picture, legend row kept free
+    devXf(W, H, pad = 8, tight = 0) {
       const Hh = this.heat, w = (Hh.nx - 1) * Hh.ds, h = (Hh.ny - 1) * Hh.dt;
+      if (tight > 0 && this.plan) {
+        const bw = this.plan.rx * 2 * tight, bh = this.plan.ry * 2 * tight, Hv = H - 16;
+        const k = Math.min((W - pad * 2) / bw, (Hv - pad * 2) / bh), cx = W / 2, cy = Hv / 2;
+        const x = s => cx + s * k, y = t => cy + t * k;
+        return { k, x, y, w: w * k, h: h * k, ox: x(Hh.s0), oy: y(Hh.t0) };
+      }
       const k = Math.min((W - pad * 2 - 30) / w, (H - pad * 2) / h);
       const ox = pad + (W - pad * 2 - 30 - w * k) / 2, oy = pad + (H - pad * 2 - h * k) / 2;
       return { k, x: s => ox + (s - Hh.s0) * k, y: t => oy + (t - Hh.t0) * k, w: w * k, h: h * k, ox, oy };
@@ -2002,20 +2206,62 @@
       }
       c.stroke();
     },
-    tempRange() { return [16, Math.max(46, Math.ceil((this.heat.peak || 50) / 2) * 2 + 2)]; },
+    tempRange() { return [20, Math.max(46, Math.ceil((this.heat.peak || 50) / 2) * 2 + 2)]; },
+    // display-only thermal texture (°C offsets, 3 px per heat cell), built once per burn:
+    // perfusion mottling and ridged superficial veins on healthy skin (veins read warm on a
+    // thermogram), a faint texture inside the burn, radial lens fall-off and fixed column noise.
+    thermalDetail() {
+      const Hh = this.heat;
+      if (this.thDet && this.thDet.heat === Hh) return this.thDet;
+      const w = (Hh.nx - 1) * 3 + 1, h = (Hh.ny - 1) * 3 + 1, n = w * h;
+      const det = new Float32Array(n), vig = new Float32Array(n), col = new Float32Array(w);
+      const seed = (this.seed || 1) >>> 0, np = valueNoise(seed ^ 0x3b1), nv = valueNoise(seed ^ 0x5c7), nw = valueNoise(seed ^ 0x2d9);
+      const R = rng(seed ^ 0x6a1);
+      for (let x = 0; x < w; x++) col[x] = (R() - 0.5) * 0.09;
+      const M = Hh.mask, nx0 = Hh.nx;
+      for (let y = 0, k = 0; y < h; y++) {
+        const gy = Math.min(y / 3, Hh.ny - 1.001), j = Math.floor(gy), fy = gy - j, t = Hh.t0 + gy * Hh.dt;
+        for (let x = 0; x < w; x++, k++) {
+          const gx = Math.min(x / 3, nx0 - 1.001), i = Math.floor(gx), fx = gx - i, q = j * nx0 + i, s = Hh.s0 + gx * Hh.ds;
+          const m = (M[q] * (1 - fx) + M[q + 1] * fx) * (1 - fy) + (M[q + nx0] * (1 - fx) + M[q + nx0 + 1] * fx) * fy;
+          const perf = (fbm(np, s * 34, t * 34, 4) - 0.5) * 2.4;
+          // two families of veins, slightly wavy, along the limb
+          const wob = (fbm(nw, s * 9, t * 9, 2) - 0.5) * 0.9;
+          const r1 = 1 - Math.abs(fbm(nv, s * 13 + wob, t * 26, 3) * 2 - 1);
+          const r2 = 1 - Math.abs(fbm(nv, s * 31 + 7.3, t * 17 + wob, 3) * 2 - 1);
+          const vein = smooth(0.84, 0.975, r1) * 1.6 + smooth(0.88, 0.985, r2) * 0.8;
+          det[k] = (1 - m) * (perf + vein) + m * perf * 0.4;
+          const cx = x / (w - 1) - 0.5, cy = y / (h - 1) - 0.5;
+          vig[k] = -(cx * cx + cy * cy) * 2.6;
+        }
+      }
+      this.thDet = { heat: Hh, w, h, det, vig, col };
+      return this.thDet;
+    },
     devThermal(c, W, H) {
       const g = this.g, Hh = this.heat, cfg = this.cfg, X = this.devXf(W, H);
       if (!this.lut || this.lutName !== g.pal) { this.lut = palLUT(g.pal); this.lutName = g.pal; }
       const [lo, hi] = this.tempRange();
-      const small = this.heatImg || (this.heatImg = mkCanvas(Hh.nx, Hh.ny));
-      const sc = small.getContext('2d'), id = sc.createImageData(Hh.nx, Hh.ny), d = id.data, lut = this.lut;
-      for (let k = 0; k < Hh.T.length; k++) {
-        const v = clamp(Math.round((Hh.T[k] - lo) / (hi - lo) * 255), 0, 255);
-        d[k * 4] = lut[v * 3]; d[k * 4 + 1] = lut[v * 3 + 1]; d[k * 4 + 2] = lut[v * 3 + 2]; d[k * 4 + 3] = 255;
+      // the sensor image: the simulated surface (bilinear, 3 px per cell) plus what a real
+      // microbolometer adds on top — skin perfusion, warm veins, lens fall-off, frame noise
+      const Dt = this.thermalDetail(), w = Dt.w, h = Dt.h, det = Dt.det, col = Dt.col, vig = Dt.vig;
+      if (!this.heatImg || this.heatImg.width !== w || this.heatImg.height !== h) { this.heatImg = mkCanvas(w, h); this.heatId = null; }
+      const sc = this.heatImg.getContext('2d');
+      const id = this.heatId || (this.heatId = sc.createImageData(w, h)), d = id.data, lut = this.lut;
+      const Tt0 = Hh.T, nx0 = Hh.nx, span = 255 / (hi - lo);
+      for (let y = 0, k = 0; y < h; y++) {
+        const gy = Math.min(y / 3, Hh.ny - 1.001), j = Math.floor(gy), fy = gy - j;
+        for (let x = 0; x < w; x++, k++) {
+          const gx = Math.min(x / 3, nx0 - 1.001), i = Math.floor(gx), fx = gx - i, q = j * nx0 + i;
+          const tv = (Tt0[q] * (1 - fx) + Tt0[q + 1] * fx) * (1 - fy) + (Tt0[q + nx0] * (1 - fx) + Tt0[q + nx0 + 1] * fx) * fy;
+          const v = clamp(Math.round((tv + det[k] + vig[k] + col[x] + (Math.random() - 0.5) * 0.14 - lo) * span), 0, 255);
+          const o = k * 4;
+          d[o] = lut[v * 3]; d[o + 1] = lut[v * 3 + 1]; d[o + 2] = lut[v * 3 + 2]; d[o + 3] = 255;
+        }
       }
       sc.putImageData(id, 0, 0);
       c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
-      c.drawImage(small, X.ox, X.oy, X.w, X.h);
+      c.drawImage(this.heatImg, X.ox, X.oy, X.w, X.h);
       // isotherm at the target (marching squares, white dashed)
       c.save();
       c.setLineDash([3, 3]); c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 1.2;
@@ -2079,7 +2325,7 @@
       ];
     },
     devDepth(c, W, H) {
-      const g = this.g, plan = this.plan, X = this.devXf(W, H);
+      const g = this.g, plan = this.plan, X = this.devXf(W, H, 8, 1.3);
       c.fillStyle = '#0b1014'; c.fillRect(X.ox, X.oy, X.w, X.h);
       // grid
       c.strokeStyle = 'rgba(255,255,255,.04)'; c.lineWidth = 1;
@@ -2110,6 +2356,9 @@
       ];
     },
     legend(c, W, H, items) {
+      const band = c.createLinearGradient(0, H - 22, 0, H);
+      band.addColorStop(0, 'rgba(4,7,10,0)'); band.addColorStop(0.45, 'rgba(4,7,10,.82)'); band.addColorStop(1, 'rgba(4,7,10,.9)');
+      c.fillStyle = band; c.fillRect(0, H - 22, W, 22);
       c.font = '500 10px Lexend, sans-serif';
       let x = 10;
       const y = H - 9;
@@ -2120,7 +2369,7 @@
       });
     },
     devTissue(c, W, H) {
-      const plan = this.plan, g = this.g, X = this.devXf(W, H);
+      const plan = this.plan, g = this.g, X = this.devXf(W, H, 8, 1.3);
       this.devPhoto(c, X);
       [...plan.blisters, ...plan.flaps].forEach(it => {
         const x = X.x(it.s), y = X.y(it.t), r = Math.max(3, (it.r || it.w / 2) * X.k);
@@ -2141,24 +2390,43 @@
       ];
     },
     // a calm "visible light" rendition of the burn for the non-thermal modes
+    // (dimmed so the overlays stay readable; rebuilt for every burn)
     devPhoto(c, X) {
-      const Hh = this.heat;
-      const small = this.photoImg || (this.photoImg = mkCanvas(Hh.nx, Hh.ny));
-      if (!this.photoDone) {
-        const sc = small.getContext('2d'), id = sc.createImageData(Hh.nx, Hh.ny), d = id.data;
-        for (let k = 0; k < Hh.mask.length; k++) {
-          const m = Hh.mask[k];
-          d[k * 4] = lerp(52, 120, m); d[k * 4 + 1] = lerp(44, 40, m); d[k * 4 + 2] = lerp(40, 38, m); d[k * 4 + 3] = 255;
+      const Hh = this.heat, plan = this.plan;
+      if (!this.photoImg || this.photoKey !== Hh) {
+        const w = (Hh.nx - 1) * 2 + 1, h = (Hh.ny - 1) * 2 + 1;
+        const cv = this.photoImg = mkCanvas(w, h), sc = cv.getContext('2d'), id = sc.createImageData(w, h), d = id.data;
+        const seed = (this.seed || 1) >>> 0, n1 = valueNoise(seed ^ 0x41), n2 = valueNoise(seed ^ 0x87);
+        const tone = this.tone !== undefined ? this.tone : 0.3;
+        const skin = mixC([206, 160, 132], [92, 60, 44], tone), part = [176, 70, 62], pale = [214, 196, 170], esch = [96, 64, 44];
+        const M = Hh.mask, nx0 = Hh.nx;
+        for (let y = 0, k = 0; y < h; y++) {
+          const gy = Math.min(y / 2, Hh.ny - 1.001), j = Math.floor(gy), fy = gy - j, t = Hh.t0 + gy * Hh.dt;
+          for (let x = 0; x < w; x++, k++) {
+            const gx = Math.min(x / 2, nx0 - 1.001), i = Math.floor(gx), fx = gx - i, q = j * nx0 + i, s = Hh.s0 + gx * Hh.ds;
+            const m = (M[q] * (1 - fx) + M[q + 1] * fx) * (1 - fy) + (M[q + nx0] * (1 - fx) + M[q + nx0 + 1] * fx) * fy;
+            const a = fbm(n1, s * 60, t * 60, 4), b = fbm(n2, s * 140, t * 140, 2);
+            let C = mixC(skin, [skin[0] * 0.92, skin[1] * 0.86, skin[2] * 0.84], a);
+            const ring = smooth(0.05, 0.5, m) * (1 - smooth(0.6, 1, m));        // red inflamed margin
+            C = mixC(C, [196, 92, 78], ring * 0.7);
+            C = mixC(C, mixC(part, [150, 52, 50], b), smooth(0.45, 0.8, m));
+            if (plan && plan.inZone(s, t)) {
+              const z = mixC(pale, esch, smooth(0.35, 0.7, a));
+              C = mixC(C, mixC(z, [40, 30, 26], smooth(0.72, 0.9, b) * 0.6), smooth(0.5, 0.9, m));
+            }
+            const o = k * 4, dim = 0.62;
+            d[o] = C[0] * dim; d[o + 1] = C[1] * dim; d[o + 2] = C[2] * dim; d[o + 3] = 255;
+          }
         }
         sc.putImageData(id, 0, 0);
-        this.photoDone = true;
+        this.photoKey = Hh;
       }
-      c.imageSmoothingEnabled = true;
-      c.drawImage(small, X.ox, X.oy, X.w, X.h);
+      c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+      c.drawImage(this.photoImg, X.ox, X.oy, X.w, X.h);
       this.devOutline(c, X, 0.3);
     },
     devExcise(c, W, H) {
-      const plan = this.plan, g = this.g, X = this.devXf(W, H);
+      const plan = this.plan, g = this.g, X = this.devXf(W, H, 8, 1.3);
       this.devPhoto(c, X);
       let cutAll = 0;
       plan.zones.forEach(Z => {
@@ -2306,8 +2574,9 @@
       this.tip = document.createElement('div'); this.tip.className = 'bn-tip';
       if (after && after.nextSibling) body.insertBefore(this.tip, after.nextSibling); else body.appendChild(this.tip);
       this.slot = document.createElement('div'); this.slot.className = 'bn-slot';
+      // the kit's slot (above the key legend) holds the carrier picker
       const ppSlot = this.pp.slot;
-      if (ppSlot && ppSlot.parentNode) ppSlot.parentNode.insertBefore(this.slot, ppSlot);
+      if (ppSlot) ppSlot.insertBefore(this.slot, ppSlot.firstChild);
     },
     stats() {
       const g = this.g, inj = this.inj, plan = this.plan;
@@ -2344,10 +2613,11 @@
       this.tip.innerHTML = text ? `<span>${NZA.rich(text)}</span>` : '';
     },
     flash(type, text, ms) { if (this.pp) this.pp.flash(type, text, ms); },
+    // skipped steps on the spine (kit option: dashed nodes)
     markSkips() {
       if (!this.pp) return;
-      const g = this.g, segs = this.pp.el.querySelectorAll('.pp-segs i');
-      segs.forEach((el, i) => el.classList.toggle('skip', !!(g && g.skipped[i + 1])));
+      const g = this.g;
+      this.pp.set({ skipped: g ? Object.keys(g.skipped).filter(k => g.skipped[k]).map(Number) : [] });
     },
 
     /* ═════════════ steps ═════════════ */
@@ -2408,6 +2678,7 @@
       const g = this.g;
       if (!g || g.done[n] || g.step !== n) return;
       g.done[n] = true;
+      if (n === 3) this.wipeMembrane();
       this.flash(type, msg, 2600);
       this.refreshTools();
       clearTimeout(this.stepTimer);
@@ -2481,9 +2752,9 @@
       if (S === this.S) {
         if (id === 'saline') tool = S.tools.use(this.tb.bottle);
         else if (id === 'diascope') tool = S.tools.use(this.tb.diascope);
-        else if (id === 'forceps') { tool = S.tools.use('forceps'); if (tool) tool.set({ open: 1 }); }
-        else if (id === 'knife') tool = S.tools.use('scalpel');
-        else if (id === 'stapler') tool = S.tools.use(g.gr && g.gr.phase === 'place' ? 'forceps' : this.tb.stapler);
+        else if (id === 'forceps') { tool = S.tools.use(this.tb.forceps); if (tool) tool.set({ open: 1 }); }
+        else if (id === 'knife') tool = S.tools.use(this.tb.scalpel);
+        else if (id === 'stapler') tool = S.tools.use(g.gr && g.gr.phase === 'place' ? this.tb.forceps : this.tb.stapler);
         else S.tools.use(null);
         if (tool && id === 'saline') tool.set({ fill: g.cool.ml / this.cfg.bottleMl, squeeze: 0 });
       } else if (S === this.SB) {
@@ -2563,6 +2834,7 @@
       if (g.deciding) return this.decide('graft');
       if (g.step === 3 && g.db.total && g.db.removed / g.db.total >= this.cfg.debridedMin) { this.completeStep(3, T('s3_done_part', 'Enough dead skin removed.')); return true; }
       if (g.step === 5 && g.hv && !g.hv.cutting && g.hv.cut >= 15) { this.finishHarvest(); return true; }
+      if (g.step === 8 && !g.done[8] && this.dressFirm()) { this.finishDressing(); return true; }
       if (g.step === 7 && g.gr) {
         if (g.gr.phase === 'place' && g.gr.placed) { this.toStapling(); return true; }
         if (g.gr.phase === 'staple' && this.stapledFrac() >= this.cfg.minStaples) { this.completeStep(7, T('s7_done_part', 'Graft stapled.')); return true; }
@@ -3138,8 +3410,11 @@
         const a = (i / N) * L, b = ((j + 1) / N) * L;
         for (let x = a; x <= b + 1e-6; x += 0.0008) pts.push(this.polyAt(Z, Math.min(x, b)));
         if (pts.length >= 2) {
-          const me = new THREE.Mesh(ribbonGeo(S, pts, 0.0008, 0.0003, false), this.MA.cut);
-          me.renderOrder = 7; grp.add(me);
+          // wet blood seeping from both lips, the dark open groove in the middle
+          const seep = new THREE.Mesh(ribbonGeo(S, pts, 0.0017, 0.00026, false), this.MA.cut);
+          seep.renderOrder = 7; grp.add(seep);
+          const core = new THREE.Mesh(ribbonGeo(S, pts, 0.00055, 0.00034, false), this.MA.cutCore);
+          core.renderOrder = 8; grp.add(core);
         }
         i = j + 1;
       }
@@ -3161,7 +3436,16 @@
         if (!moving) return;
         const N = Z.bins.length, k = Math.floor(near.at * N);
         let changed = false;
-        for (let q = -1; q <= 1; q++) { const ii = (k + q + N) % N; if (!Z.bins[ii]) { Z.bins[ii] = 1; changed = true; } }
+        for (let q = -1; q <= 1; q++) {
+          const ii = (k + q + N) % N;
+          if (Z.bins[ii]) continue;
+          Z.bins[ii] = 1; changed = true;
+          // blood beads up along the fresh cut, a little to either side of it
+          if (Math.random() < 0.55) {
+            const L = Z.cum[Z.cutPoly.length], p = this.polyAt(Z, ((ii + 0.5) / N) * L), j = (Math.random() - 0.5) * 0.0014;
+            S.layers.paint('blood', S.stToUv(p[0] + j, p[1] - j), 0.0007 + Math.random() * 0.0008, 0.55, { hardness: 0.55 });
+          }
+        }
         g.ex.devSum += near.d; g.ex.devN++;
         if (changed) Z.dirty = true;
       });
@@ -3249,7 +3533,7 @@
       const sStart = -clamp(Lneed * MM / 2 + 0.01, 0.03, 0.078), Lmax = 140;
       // a slightly oblique view from the side the blade travels to: the trailing handle leans away and
       // the raw donor bed behind the head stays in sight
-      SB.controls.frame(SB.stToUv(sStart + Lneed * MM * 0.5, 0.006), clamp((Lneed * MM + 0.1) / 0.56, 0.26, 0.38), { yaw: 0.3, pitch: 1.08 });
+      SB.controls.frame(SB.stToUv(sStart + Lneed * MM * 0.5, 0.006), clamp((Lneed * MM + 0.13) / 0.52, 0.3, 0.42), { yaw: 0.3, pitch: 1.08 });
       g.hv = {
         sStart, Lneed, L3, Lmax, cut: 0, front: sStart, p: 0.56, drift: 0, cutting: false, speed: 0,
         thin: new Float32Array(Lmax + 2).fill(1), wobble: new Float32Array(Lmax + 2), qual: new Float32Array(Lmax + 2).fill(1),
@@ -3887,7 +4171,7 @@
       const hit = S.raycast();
       const pick = D.pick(hit);
       if (pick === 'edge' && D.stuck < 0.25 && D.state !== 'carried') {
-        if (D.grab(hit)) { this.stage.classList.add('grabbing'); this.snd('tone', 300, 40, { vol: 0.03, type: 'triangle' }); return; }
+        if (D.grab(hit)) { g.dr.flat = false; g.dr.win0 = undefined; g.dr.winT = 0; this.stage.classList.add('grabbing'); this.snd('tone', 300, 40, { vol: 0.03, type: 'triangle' }); return; }
       }
       if (D.state === 'placed' || D.state === 'falling') { g.dr.rub = true; return; }
       if (pick === 'body') this.flash('warn', T('dr_edge', 'Pick it up by its **edge**.'));
@@ -3930,18 +4214,35 @@
       }
       if (g.dr.rub && g.lmb && hit && (D.state === 'placed' || D.state === 'falling')) {
         D.rub(hit, dt);
+        // adherence that stops rising while rubbing = all the sheet you can reach is down (the far
+        // band of a big sheet wraps round the limb, out of reach)
+        // (measured over 2 s windows of rubbing: less than 1.2 points gained = plateau)
+        g.dr.winT = (g.dr.winT || 0) + dt;
+        if (g.dr.win0 === undefined) g.dr.win0 = D.stuck;
+        if (g.dr.winT >= 2) { g.dr.flat = D.stuck - g.dr.win0 < 0.012; g.dr.winT = 0; g.dr.win0 = D.stuck; }
         this.cursorProgress(D.stuck, '');
+        if (!g.dr.firmTip && D.stuck >= cfg.stuckDone - 0.2 && this.dressFirm()) { g.dr.firmTip = true; this.setTip(T('tip_8b', 'It is down over the burn — press {Enter} to finish, or keep rubbing the edges.')); }
       }
       if (D.state === 'placed' && g.dr.settledT > 0.6 && g.dr.cover < cfg.coverMin && D.stuck < 0.25) {
         g.dr.warnT -= dt;
         if (g.dr.warnT <= 0) { g.dr.warnT = 5; this.flash('warn', T('dr_cover', 'The pad covers only %s% of the burn — lift it by an edge and try again.', pct(g.dr.cover)), 3600); }
       }
-      if (!g.done[8] && D.stuck >= cfg.stuckDone && g.dr.settledT > 0.4) {
-        g.dr.cover = D.covers(this.burnUvs);
-        const big = (this.plan.A || 0) >= cfg.secureAbove && ((this.d.items && +this.d.items.dressing) || 0) > 0;
-        g.dr.secured = big;
-        this.completeStep(8, big ? T('s8_done_secured', 'Dressed and secured — %s% of the burn covered.', pct(g.dr.cover)) : T('s8_done', 'Dressed — %s% of the burn covered.', pct(g.dr.cover)));
-      }
+      if (!g.done[8] && g.dr.settledT > 0.4 && (D.stuck >= cfg.stuckDone || (g.dr.flat && this.dressFirm()))) this.finishDressing();
+    },
+    // pressed down well enough to finish by hand (Enter) or by a rubbing plateau
+    dressFirm() {
+      const g = this.g, D = g && g.dr.D, cfg = this.cfg;
+      if (!D || D.state !== 'placed') return false;
+      g.dr.cover = D.covers(this.burnUvs);
+      return D.stuck >= cfg.stuckDone - 0.2 && g.dr.cover >= cfg.coverMin;
+    },
+    finishDressing() {
+      const g = this.g, D = g.dr.D, cfg = this.cfg;
+      if (!D || g.done[8]) return;
+      g.dr.cover = D.covers(this.burnUvs);
+      const big = (this.plan.A || 0) >= cfg.secureAbove && ((this.d.items && +this.d.items.dressing) || 0) > 0;
+      g.dr.secured = big;
+      this.completeStep(8, big ? T('s8_done_secured', 'Dressed and secured — %s% of the burn covered.', pct(g.dr.cover)) : T('s8_done', 'Dressed — %s% of the burn covered.', pct(g.dr.cover)));
     },
 
     /* ═════════════ imager pages for the graft ═════════════ */
@@ -3981,7 +4282,7 @@
       ];
     },
     devMesh(c, W, H) {
-      const g = this.g, ms = g.ms, plan = this.plan, X = this.devXf(W, H);
+      const g = this.g, ms = g.ms, plan = this.plan, X = this.devXf(W, H, 8, 1.75);
       if (!ms) return [];
       this.devPhoto(c, X);
       plan.zones.forEach(Z => { if (!Z.excised) return; c.fillStyle = 'rgba(190,40,34,.9)'; this.polyPath(c, Z.cutPoly, X); c.fill(); });
@@ -4012,7 +4313,7 @@
       ].concat(cov < 0.85 ? [[T('dl_short', 'Short'), T('dl_short_v', 'graft'), 'red']] : []);
     },
     devGraft(c, W, H) {
-      const g = this.g, gr = g.gr, plan = this.plan, X = this.devXf(W, H);
+      const g = this.g, gr = g.gr, plan = this.plan, X = this.devXf(W, H, 8, 1.3);
       if (!gr) return [];
       this.devPhoto(c, X);
       plan.zones.forEach(Z => { if (!Z.excised) return; c.fillStyle = 'rgba(190,40,34,.9)'; this.polyPath(c, Z.cutPoly, X); c.fill(); });
@@ -4037,7 +4338,7 @@
       ];
     },
     devCover(c, W, H) {
-      const g = this.g, plan = this.plan, X = this.devXf(W, H), D = g.dr.D;
+      const g = this.g, plan = this.plan, X = this.devXf(W, H, 8, 1.45), D = g.dr.D;
       this.devPhoto(c, X);
       plan.zones.forEach(Z => { if (!Z.excised) return; c.fillStyle = 'rgba(190,40,34,.8)'; this.polyPath(c, Z.cutPoly, X); c.fill(); });
       if (D && D.state !== 'rest') {
@@ -4233,7 +4534,7 @@
         cooled: !g.skipped[1] && (c.done || st.frac >= cfg.coolFrac), surfaceTemp: +f1(mean), sootLeft: Math.round(c.soot), overcool: +f1(c.overcool), salineMl: Math.round(c.used),
         tested: g.as.tests > 0 || !!this.inj.burn.assessed, testCover: +g.as.cover.toFixed(3), fullEst: Math.round(g.as.est || 0), truth: Math.round(truth),
         debrided: tot ? +(g.db.removed / tot).toFixed(3) : 1, debrideTotal: tot, fumbles: g.db.fumbles,
-        dressed: !cont && !!(D && D.stuck >= cfg.stuckDone * 0.95), stuck: D ? +D.stuck.toFixed(3) : 0, cover: +(g.dr.cover || 0).toFixed(3), secured: !!g.dr.secured,
+        dressed: !cont && !!(D && (g.done[8] || D.stuck >= cfg.stuckDone * 0.95)), stuck: D ? +D.stuck.toFixed(3) : 0, cover: +(g.dr.cover || 0).toFixed(3), secured: !!g.dr.secured,
         continue: !!cont, seconds: Math.round(g.t), skipped: Object.keys(g.skipped).map(Number),
       };
     },
@@ -4258,7 +4559,7 @@
         excised: +exF.toFixed(3), excisedCm2: +(plan.zones.filter(Z => Z.excised).reduce((a, Z) => a + Z.cutArea, 0) * 1e4).toFixed(1),
         donorCm2: +(hv.cut * cfg.graftWidth / 100).toFixed(1), graftMm: Math.round(hv.cut), coverage: +(gr.coverage || 0).toFixed(3), staples: +this.stapledFrac().toFixed(3),
         stapleCount: gr.staples ? gr.staples.length : 0, misses: gr.misses || 0, ratio: ms.ratio, tears: ms.tears.length, offLineMm: +dev.toFixed(2),
-        dressed: !!(D && D.stuck >= cfg.stuckDone * 0.95), stuck: D ? +D.stuck.toFixed(3) : 0, cover: +(g.dr.cover || 0).toFixed(3),
+        dressed: !!(D && (g.done[8] || D.stuck >= cfg.stuckDone * 0.95)), stuck: D ? +D.stuck.toFixed(3) : 0, cover: +(g.dr.cover || 0).toFixed(3),
         seconds: Math.round(g.t),
       };
     },
@@ -4557,8 +4858,13 @@
             sim(0.9, f => aim(lerp(e0[0], e1[0], f), lerp(e0[1], e1[1], f)));
             release(); sim(1.4);
             aim(0, 0); sim(0.05); press();
-            for (let k = 0; k < 14 && !g.done[8]; k++) sim(2, f => aim(Math.sin(f * Math.PI * 6 + k) * D.size[0] * 0.49, Math.sin(f * Math.PI * 2 + k * 1.3) * D.size[1] * 0.49));
+            // rub it down row by row, edge to edge (a raster over the whole sheet), then once more
+            for (let k = 0; k < 18 && !g.done[8]; k++) {
+              const row = ((k % 9) / 8 - 0.5) * D.size[1] * 0.94, dir = k % 2;
+              sim(1.4, f => aim(lerp(-0.47, 0.47, dir ? 1 - f : f) * D.size[0], row + Math.sin(f * 9) * 0.002));
+            }
             release(); sim(0.3);
+            if (!g.done[8]) this.enterKey();
             S.start();
             resolve(true);
           };

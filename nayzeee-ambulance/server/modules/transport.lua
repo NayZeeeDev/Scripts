@@ -675,12 +675,19 @@ local function deleteStretcher(rec)
 end
 T.DeleteStretcher = deleteStretcher
 
+-- a body bag on the cot (medbag module: cot state bag 'nzaBodyOn') keeps rec.pid empty
+local function bodyOn(rec)
+    local e = entFromNet(rec.net)
+    return e ~= 0 and Entity(e).state.nzaBodyOn ~= nil
+end
+
 lib.callback.register('nza:transport:str:store', function(src, net, vehNet, pointId)
     if not rate(src, 'store', 4, 2000) then return fail('rate') end
     if not can(src, cfg().perm) then return fail('no_perm') end
     local rec = T.stretchers[tonumber(net) or -1]
     if not rec then return fail('no_stretcher') end
     if rec.pid then return fail('not_empty') end
+    if bodyOn(rec) then return fail('body_on') end
     if rec.pusher and rec.pusher ~= src then return fail('pushed') end
     local ent = entFromNet(rec.net)
     local me = srcCoords(src)
@@ -808,6 +815,7 @@ lib.callback.register('nza:transport:str:place', function(src, net, target)
     local rec = T.stretchers[tonumber(net) or -1]
     if not rec then return fail('no_stretcher') end
     if rec.pid then return fail('not_empty') end
+    if bodyOn(rec) then return fail('body_on') end
     if rec.veh then return fail('loaded') end
     if rec.pusher and rec.pusher ~= src then return fail('pushed') end
     local p = resolve(target)

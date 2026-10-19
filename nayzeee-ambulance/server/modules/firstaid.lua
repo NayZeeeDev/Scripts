@@ -21,16 +21,20 @@
       FA.Notify(p, key, kind, ...)            toast the patient (players) + the medics watching
 
     State bag 'nzaFa' (player: Player(src).state, NPC: Entity(ped).state), set only here:
-      { o2 = true|nil, foil = true|nil, tq = { [region] = fraction along the bone } }
+      { o2 = true|nil, foil = true|nil, rec = true|nil, tq = { [region] = fraction along the bone } }
     Core's 'nza' bag already carries tq{ region = true } and collar (used for the props too).
 
     Treatments registered (NZA.Treat, callback 'nza:treat')
       fa_bandage   fa_medkit   fa_painkillers   fa_ice   fa_burn         (self + others, item each)
       fa_foil  fa_foil_off  fa_oxygen  fa_oxygen_off  fa_tq_off  fa_collar_off
+      fa_recovery  (recovery position: sets meta.recovery, which core physiology reads to stop an
+                    unconscious patient's snoring airway; cleared again when they are moved,
+                    intubated or leave the wounded state)
 
     Callbacks:  nza:firstaid:kit (target) → { name, self, items = { { key, item, usable, text } } }
     Net events: nza:firstaid:use (S→C, itemKey) - the player used a first aid item from the inventory
-    Bus listened: device:changed, patient:created, patient:revived, player:loaded
+    Bus listened: device:changed, patient:created, patient:revived, player:loaded, state:changed,
+                  transport:carry
     Bus emitted:  firstaid:tq_warn (p, region), firstaid:tq_damage (p, region), firstaid:soaked (p, inj)
 ]]
 
@@ -339,7 +343,8 @@ function FA.BagValue(p)
         local at = pos[region]
         tq[region] = type(at) == 'table' and { s = at.s, f = tonumber(at.f) } or false
     end
-    return { o2 = d.oxygen and true or nil, foil = d.foil and true or nil, tq = tq }
+    local rec = type(p.meta) == 'table' and p.meta.recovery and true or nil
+    return { o2 = d.oxygen and true or nil, foil = d.foil and true or nil, rec = rec, tq = tq }
 end
 
 function FA.SyncBag(p, force)
@@ -350,7 +355,7 @@ function FA.SyncBag(p, force)
     local enc = json.encode(v)
     if not force and lastBag[p.pid] == enc then return end
     lastBag[p.pid] = enc
-    if v.o2 == nil and v.foil == nil and v.tq == nil then
+    if v.o2 == nil and v.foil == nil and v.rec == nil and v.tq == nil then
         bag:set('nzaFa', nil, true)
     else
         bag:set('nzaFa', v, true)
@@ -442,6 +447,29 @@ local function soakTick(p, now)
     end
 end
 
+-- recovery position (meta.recovery): only while wounded, lying on the ground, without a tube
+local HELD = { 'carried', 'stretcher', 'bed', 'inBed', 'bay', 'vehicle', 'bodybag' }
+
+function FA.RecoveryHeld(p)
+    local m = type(p.meta) == 'table' and p.meta or {}
+    for _, k in ipairs(HELD) do
+        if m[k] then return true end
+    end
+    return false
+end
+
+function FA.ClearRecovery(p)
+    if not (p and type(p.meta) == 'table' and p.meta.recovery) then return false end
+    NZA.Patients.SetMeta(p.pid, 'recovery', nil)
+    FA.SyncBag(p)
+    return true
+end
+
+local function recoveryTick(p)
+    if not (type(p.meta) == 'table' and p.meta.recovery) then return end
+    if p.state ~= 'wounded' or (p.devices and p.devices.intubated) or FA.RecoveryHeld(p) then FA.ClearRecovery(p) end
+end
+
 CreateThread(function()
     Wait(5000)
     while true do
@@ -453,6 +481,7 @@ CreateThread(function()
                     tqTick(p, now)
                     soakTick(p, now)
                 end
+                recoveryTick(p)
                 FA.SyncBag(p)
             end)
             if not ok then NZA.Warn('firstaid timer failed: ' .. tostring(err)) end
@@ -461,9 +490,16 @@ CreateThread(function()
     end
 end)
 
-NZA.Bus.On('device:changed', function(p, name)
+NZA.Bus.On('device:changed', function(p, name, value)
     if name == 'tourniquet' then FA.ReconcileTq(p) end
     if name == 'tourniquet' or name == 'oxygen' or name == 'foil' then FA.SyncBag(p) end
+    if name == 'intubated' and value then FA.ClearRecovery(p) end
+end)
+NZA.Bus.On('state:changed', function(p, _, new)
+    if new ~= 'wounded' then FA.ClearRecovery(p) end
+end)
+NZA.Bus.On('transport:carry', function(_, p, on)
+    if on and type(p) == 'table' then FA.ClearRecovery(p) end
 end)
 NZA.Bus.On('patient:created', function(p) SetTimeout(500, function() FA.SyncBag(p, true) end) end)
 NZA.Bus.On('patient:revived', function(p) SetTimeout(250, function() FA.SyncBag(p, true) end) end)
@@ -700,6 +736,29 @@ NZA.Treat.Register('fa_tq_off', {
             msg = L('ok_tq_off', regionLabel(region), mins)
         end
         return true, { msg = msg, record = L('rec_tq_off', regionLabel(region), mins) }
+    end,
+})
+
+-- ════════════════════════════════════════════════════════════════════════
+-- RECOVERY POSITION (basic airway: an unconscious patient on their back snores,
+-- core physiology reads meta.recovery; FA.ClearRecovery undoes it)
+-- ════════════════════════════════════════════════════════════════════════
+
+NZA.Treat.Register('fa_recovery', {
+    perm = FA.Cfg('Recovery').perm or 'basic', self = false, maxDist = 3.0,
+    states = { wounded = true },
+    handler = function(src, p)
+        if FA.Cfg('Recovery').enabled == false then return failMsg('recovery_disabled') end
+        if p.meta.recovery then return failMsg('already_recovery') end
+        if p.devices.intubated then return failMsg('recovery_tube') end
+        if FA.RecoveryHeld(p) then return failMsg('recovery_held') end
+        local avpu = p.vitals and p.vitals.avpu or 'A'
+        if avpu == 'A' or avpu == 'V' then return failMsg('recovery_awake') end
+        -- a collar or a spinal injury: log-roll with the head kept in line
+        local spine = (p.devices.collar or (p.conditions and p.conditions.spinal)) and true or false
+        NZA.Patients.SetMeta(p.pid, 'recovery', true)
+        FA.SyncBag(p)
+        return true, { msg = L(spine and 'ok_recovery_logroll' or 'ok_recovery'), record = L('rec_recovery') }
     end,
 })
 

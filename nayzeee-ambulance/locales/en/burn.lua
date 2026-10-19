@@ -341,6 +341,7 @@ NZA.AddLocale('en', {
     ['burn.tip_7b'] = 'Staples every %s mm hold the graft while it takes. Miss the marks and it can shift.',
     ['burn.tip_7c'] = 'Enough to hold it — press {Enter} to dress, or finish the ring.',
     ['burn.tip_8'] = 'Grab the dressing by an **edge**, lay the pad over the whole burn, then rub from the centre out.',
+    ['burn.tip_8b'] = 'It is down over the burn — press {Enter} to finish, or keep rubbing the edges.',
     ['burn.tool_dermatome'] = 'Dermatome',
     ['burn.tool_diascope'] = 'Diascope',
     ['burn.tool_dressing'] = 'Dressing',

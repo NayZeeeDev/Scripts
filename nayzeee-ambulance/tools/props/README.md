@@ -48,6 +48,9 @@ python3 tools/props/build.py \
 * builds every registered prop in parallel (`--jobs`, default 4),
 * converts + validates with cwtool (`### n end rc=0` for every line of `<out>/cwtool_log.txt`); any
   error aborts **before** `stream/` is touched,
+* checks the memory budget of every drawable (virtual + physical pages decoded from the RSC7 header):
+  anything above **16 MiB** aborts before `stream/` is touched - FiveM warns that such assets "can and WILL"
+  fail to stream,
 * copies the binaries into `stream/` and deletes stale `nz_amb_*.ydr` that are no longer registered,
 * renders 3 views per prop (+ any extra cameras a prop declares) and writes `<out>/sheets/contact_NN.png`,
 * writes `<out>/props_manifest.json`, `props_table.md`, `props_catalog.md` and refreshes the generated
@@ -118,7 +121,12 @@ def example(b):
 * Texture budgets (size on screen decides): hand-held tools seen in close-ups `atlas=1024` (syringe 512
   + 512 alpha), carried devices / field kit / furniture `2048`, simple or distant props `256..1024`, the
   bay shell 2048 main + shell and 1024 supply sets (`layers={...}`). Normal + spec maps are full size up
-  to 1024 and half size above (a 2048 prop gets 1024 normal / spec, like the imported bag).
+  to 1024 and half size above (a 2048 prop gets 1024 normal / spec, like the imported bag);
+  `maps={"layer": {"n": 512, "s": 512}}` shrinks them per layer.
+* Memory: a drawable must stay <= 16 MiB of physical (texture) pages - the build refuses more. Pages are
+  power-of-two blocks, so ~14 MiB of texture data already rounds up past 16. Lower the spec maps first
+  (intensity + gloss are low frequency), then the normal maps of surfaces seen from a distance, and keep
+  the diffuse atlases (labels) - the bay shell does exactly that (`maps=` in `props/bay.py`, 13 MiB).
 * Triangle budgets: hand-held <= 12k, carts / devices <= 30k, furniture <= 40k, the bay shell <= 120k.
 * Detail checklist: bevelled edges (`box(r=...)`), split lines (`DecalCanvas.groove`), screws
   (`common.screw/screws`), feet and bumpers, strain reliefs and coiled cords, legends on buttons,
@@ -131,8 +139,8 @@ def example(b):
 | Module | What |
 |---|---|
 | `mesh` | `box` (rounded / chamfered, per-face material + texel density), `lathe`, `cylinder`, `sphere`, `capsule`, `torus`, `sweep` (profile along a path, per-point scale, twist), `tube`, `extrude` (bevelled polygons), `plane`, `quad` (oriented, `fixed_uv` for screens), `pillow` (soft bags), `slab_with_holes`, `pocket`; path helpers `catmull`, `bezier`, `polyline_fillet`, `rrect`, `arc_points`. `Geo` has `translate / rotate / rotate_axis / scale / mirror / transform / deform / taper / flip / set_density / set_tag` |
-| `paint` | `Mat(color, spec, gloss, metal, grain, bump, edge, ao, alpha, layer, dirt, wear, wear_color, scratch, smudge, cavity)`; bumps: `stipple orange_peel rubber brushed fabric webbing foam eggcrate pluck knurl ribs ribs_u leather phillips hexsocket diamond dimple perf twill cordura velcro`; `DecalCanvas` (metres; `rect circle line polygon text groove groove_rect stitch stitch_rect screw rivet perforate slots barcode datamatrix star_of_life cross icon`) with per-ink height / spec / gloss; `font()` bundled Lexend (`label*` keys) / JetBrains Mono / VT323 |
-| `prop` | `@prop(name, atlas, alpha_atlas, glow_atlas, layers, lod, hd, static, falloff, spec_mult, glow_mult, doc, preview)`, `Builder.mat / add / screen / decal / chart_decal / col_box / col_cyl` |
+| `paint` | `Mat(color, spec, gloss, metal, grain, bump, edge, ao, alpha, layer, dirt, wear, wear_color, scratch, smudge, cavity)`; bumps: `stipple orange_peel rubber brushed fabric webbing foam eggcrate pluck knurl ribs ribs_u leather phillips hexsocket diamond dimple perf twill cordura velcro crinkle`; `DecalCanvas` (metres; `rect circle line polygon text groove groove_rect stitch stitch_rect screw rivet perforate slots barcode datamatrix star_of_life cross icon`) with per-ink height / spec / gloss; `font()` bundled Lexend (`label*` keys) / JetBrains Mono / VT323 |
+| `prop` | `@prop(name, atlas, alpha_atlas, glow_atlas, layers, maps, lod, hd, static, falloff, spec_mult, glow_mult, doc, preview)`, `Builder.mat / add / screen / decal / chart_decal / col_box / col_cyl` |
 | `bake`, `atlas`, `dds`, `cwxml`, `gltf` | internals: texel baker (AO, edge wear, scratches, smudges, grime, dust), chart packer, DXT writer, CodeWalker XML, glb preview |
 
 Material layers: `main` → `normal_spec` (`<name>_d/_n/_s`), `alpha` → `normal_spec_alpha`

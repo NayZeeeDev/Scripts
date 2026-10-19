@@ -1,6 +1,6 @@
 """
 Orthopaedic / haemorrhage control: pelvic binder (flat + worn), tourniquet (applied), forearm
-crutch, posterior leg + arm splints, cervical collar.
+crutch, posterior leg + arm splints, cervical collar; worn rescue (foil) blanket.
 """
 from __future__ import annotations
 
@@ -8,8 +8,9 @@ import math
 
 import numpy as np
 
-from nzprops import (TEAL_HI, WHITE, DecalCanvas, box, catmull, cylinder, extrude, lathe, polyline_fillet, prop, torus,
-                     rrect, sphere, sweep, tube, vec)
+from nzprops import (TEAL_HI, WHITE, Chart, DecalCanvas, box, catmull, cylinder, extrude, fbm3, lathe, normalize, polyline_fillet,
+                     prop, torus, rrect, sphere, sweep, tube, vec)
+from nzprops.mesh import grid_tris
 
 from .common import (align, m_alu, m_black_plastic, m_chrome, m_foam, m_rubber, m_teal, m_webbing, m_white_plastic)
 
@@ -427,3 +428,125 @@ def collar(b):
     b.col_box((-0.075, -0.08, -0.04), (0.075, 0.09, 0.07), "PLASTIC")
 
 
+
+
+# =============================================================================================
+# rescue (foil) blanket wrapped around the torso
+# =============================================================================================
+FOIL_HEM, FOIL_NECK = -0.56, 0.165      # hem / neck-opening height in SKEL_Spine3 space (shoulder line at z 0)
+FOIL_FLAP = 0.55                        # radians of overlap: the closing flap at the front-left
+
+
+def _foil_rows(nb=26, ns=18, nc=3):
+    """(k, z) per row from the hem up: k = 1 body section ... 0 neck opening (k < 0 hugs the neck)."""
+    rows = [(1.0, float(z)) for z in np.linspace(FOIL_HEM, 0.0, nb, endpoint=False)]
+    sh = catmull([(1.0, 0.0), (0.975, 0.04), (0.89, 0.076), (0.71, 0.106), (0.46, 0.13), (0.23, 0.149), (0.06, 0.162),
+                  (0.0, FOIL_NECK)], n=10)
+    seg = np.linalg.norm(np.diff(sh * np.array([0.2, 1.0]), axis=0), axis=1)     # k * 0.2 ~ metres across the shoulder
+    sl = np.concatenate([[0.0], np.cumsum(seg)])
+    for d in np.linspace(0.0, sl[-1], ns, endpoint=False):
+        rows.append((float(np.interp(d, sl, sh[:, 0])), float(np.interp(d, sl, sh[:, 1]))))
+    for k in range(nc + 1):
+        f = k / nc
+        rows.append((-0.07 * f, FOIL_NECK + 0.03 * f))
+    return rows
+
+
+def _foil_sheet(nu=104, seed=5):
+    """Outer surface of the wrap (rows from the hem to the neck, columns once around + the flap) and its
+    outward normals."""
+    th0 = math.pi / 2 + 0.22
+    th = th0 + np.linspace(0.0, 2 * math.pi + FOIL_FLAP, nu)
+    grow = 1.0 + 0.03 * (th - th0) / (2 * math.pi + FOIL_FLAP)       # the flap lies just outside the first layer
+    rows = _foil_rows()
+    nv = len(rows)
+    P = np.zeros((nv, nu, 3))
+    cth, sth = np.cos(th), np.sin(th)
+    for j, (k, z) in enumerate(rows):
+        down = min(max(-z / -FOIL_HEM, 0.0), 1.0)
+        ab, bb = 0.275 + 0.055 * down, 0.155 + 0.035 * down             # body half width / depth, flaring to the hem
+        a = 0.092 + k * (ab - 0.092)
+        bd = 0.082 + k * (bb - 0.082)
+        n = 2.0 + max(k, 0.0) * 0.8                                      # ellipse at the neck, a little squarer over the torso
+        x = a * np.sign(cth) * np.abs(cth) ** (2 / n) * grow
+        y = 0.02 + bd * np.sign(sth) * np.abs(sth) ** (2 / n) * grow
+        zz = np.full(nu, z)
+        if z < 0:                                                        # uneven hem, fading out towards the chest
+            ring = np.stack([2.2 * cth, 2.2 * sth, np.full(nu, 0.5)], axis=1)
+            zz = zz + 0.022 * fbm3(ring, 2, seed + 3) * down ** 2
+        P[j] = np.stack([x, y, zz], axis=1)
+
+    def normals(Q):
+        du = np.gradient(Q, axis=1)
+        dv = np.gradient(Q, axis=0)
+        N = normalize(np.cross(du, dv))
+        radial = Q - np.array([0.0, 0.02, 0.0])
+        radial[..., 2] = np.clip(Q[..., 2] - 0.0, 0.0, None) * 2.0       # over the shoulders "outward" also means up
+        if float(np.sum(N * radial)) < 0:
+            N = -N
+        return N
+    N = normals(P)
+    # drape folds (deepest at the hem, irregular spacing), folds gathered at the neck, sharp crumple creases everywhere
+    zv = P[..., 2]
+    kk = np.array([k for k, _ in rows])[:, None]
+    hang = np.clip(-zv / -FOIL_HEM, 0.0, 1.0) ** 1.2
+    T = th[None, :]
+    ring = np.stack([1.7 * np.cos(T + 0 * zv), 1.7 * np.sin(T + 0 * zv), 4.0 * zv], axis=-1)
+    jit = 1.6 * fbm3(ring, 2, seed + 11)
+    fold = (0.003 + 0.03 * hang) * (0.6 * np.sin(6 * T + 2.5 * zv + 0.7 + jit) + 0.4 * np.sin(11 * T - 4.0 * zv + 2.1 - jit))
+    gather = 0.008 * np.clip(1.0 - kk / 0.6, 0.0, 1.0) ** 1.5 * np.sin(10 * T + 1.3 * jit)
+    ridge = (1.0 - np.abs(fbm3(P / 0.09, 2, seed))) ** 2
+    crumple = 0.007 * (ridge - 0.45) + 0.002 * fbm3(P / 0.035, 2, seed + 5)
+    P = P + N * (fold + gather + crumple)[..., None]
+    return P, normals(P), th
+
+
+@prop("nz_amb_foil", atlas=1024, lod=45, hd=8, preview={
+    "cams": [{"name": "detail", "pos": [0.55, 0.75, 0.30], "target": [0.0, 0.02, -0.05], "fov": 42}]}, doc={
+    "title": "Rescue (foil) blanket wrapped around the torso: gold outside, silver inside, open at the neck",
+    "origin": "the SKEL_Spine3 joint inside the upper chest (axis of the wrap); shoulder line z 0.0, neck opening z 0.165 - 0.195, "
+              "hem z -0.56 (covers the hips)",
+    "axes": "body axes: +Z up the spine (towards the head), +Y out of the chest, +X the wearer's right; the closing flap overlaps at "
+            "the front-left; inside 0.58 m wide (arms at the sides fit) x 0.33 m deep, neck opening 0.18 x 0.16 m",
+    "attach": "SKEL_Spine3 (24818) pos (0.0, 0.0, 0.0) rot (0, 90, 0) - the defaults already in Config.Firstaid.Props.foil (the "
+              "spine bone's +X runs up the spine and +Y out of the chest, so rot (0, 90, 0) turns the prop's +Z up the spine); "
+              "a ped whose spine +Y points backwards needs rot (0, -90, 180); collision off",
+})
+def foil(b):
+    gold = b.mat("foil_gold", color=(208, 166, 78), spec=0.95, gloss=0.8, metal=0.9, bump="crinkle", bump_amp=0.0006,
+                 bump_scale=0.03, grain=0.03, grain_scale=0.16, ao=0.6, dirt=0.03, smudge=0.12, cavity=0.3)
+    silver = b.mat("foil_silver", color=(180, 184, 188), spec=0.95, gloss=0.82, metal=0.9, bump="crinkle", bump_amp=0.0006,
+                   bump_scale=0.03, grain=0.03, grain_scale=0.16, ao=0.7, dirt=0.0, smudge=0.1, cavity=0.3)
+    P, N, th = _foil_sheet()
+    nv, nu = P.shape[:2]
+    thick = 0.0015
+    Pin = P - N * thick
+
+    def charts(Q, NQ, mat, dens, tag, flip=False):
+        step = 14
+        for c0 in range(0, nu - 1, step):
+            c1 = min(c0 + step, nu - 1)
+            q = Q[:, c0:c1 + 1]
+            nq = NQ[:, c0:c1 + 1]
+            u = np.concatenate([np.zeros((nv, 1)), np.cumsum(np.linalg.norm(np.diff(q, axis=1), axis=2), axis=1)], axis=1)
+            v = np.concatenate([np.zeros((1, q.shape[1])), np.cumsum(np.linalg.norm(np.diff(q, axis=0), axis=2), axis=0)], axis=0)
+            uv = np.stack([-u if flip else u, v], axis=-1)
+            w = c1 - c0 + 1
+            ch = Chart(q.reshape(-1, 3), nq.reshape(-1, 3), uv.reshape(-1, 2), grid_tris(w, nv), mat, dens, f"{tag}:{c0 // step}")
+            b.geo.charts.append(ch.clean())
+    charts(P, N, gold, 1.0, "foil_out")
+    charts(Pin, -N, silver, 0.55, "foil_in", flip=True)
+    # closed edges (hem, neck, the two vertical edges) so the 1.5 mm sheet never shows a gap
+    edges = ((P[0], Pin[0]), (P[-1], Pin[-1]), (P[:, 0], Pin[:, 0]), (P[:, -1], Pin[:, -1]))
+    for k, (o, i) in enumerate(edges):
+        q = np.stack([o, i])
+        if k < 2:
+            dirv = (P[0] - P[1]) if k == 0 else (P[-1] - P[-2])
+        else:
+            dirv = (P[:, 0] - P[:, 1]) if k == 2 else (P[:, -1] - P[:, -2])
+        nq = np.stack([normalize(dirv), normalize(dirv)])
+        L = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(o, axis=0), axis=1))])
+        uv = np.stack([np.stack([L, L]), np.stack([np.zeros_like(L), np.full_like(L, thick)])], axis=-1)
+        ch = Chart(q.reshape(-1, 3), nq.reshape(-1, 3), uv.reshape(-1, 2), grid_tris(len(o), 2), gold, 0.3, f"foil_edge:{k}")
+        b.geo.charts.append(ch.clean())
+    b.col_box((-0.34, -0.17, FOIL_HEM - 0.02), (0.34, 0.21, FOIL_NECK + 0.03), "CLOTH")

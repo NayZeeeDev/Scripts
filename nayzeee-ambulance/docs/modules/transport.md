@@ -59,6 +59,8 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
   it the server emits bus **`transport:loaded (src, p, vehNet, strNet)`** (dispatch → TRN) and sets
   `meta.vehicle`. **Unload** (ambulance target / radial) rolls it out and you push it again.
 - **Return**: an empty cot at an ambulance (any configured one) or at a stretcher bay is put away.
+  A cot carrying a body bag (medbag module, entity state bag `nzaBodyOn`) is not empty: it cannot
+  be put away and no patient can be placed on it (`err_body_on`).
   Empty cots nobody touched for `abandon` s are removed; cots whose ambulance was deleted too.
 
 ### Beds & tables
@@ -84,7 +86,9 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
   with `DrawLightWithRange` (`Bay.lights`), dressed with local props (`Bay.props`: monitor on the
   shelf, sharps bin, kit case) and a local cot at `Bay.stretcher`. Medics appear at `Bay.medics`
   spots; collision is waited for; the minimap is hidden (`hideRadar`). If the interior model is
-  missing a native block (`fallbackFloor`) is used so nobody falls.
+  missing a native block (`fallbackFloor`) is used so nobody falls. The shell is a prop, so rain is
+  turned off locally while it exists (`SetRainLevel(0.0)`) and handed back to the weather when it
+  is cleared (`SetRainLevel(-1.0)`, every exit path).
 - The patient on the loaded stretcher comes along with the first medic: `patient.meta.bay = vehNet`
   for the patient AND every medic inside (core view rules + procedures). Player patients move
   themselves (their client spawns the interior too); NPCs are moved by the medic.

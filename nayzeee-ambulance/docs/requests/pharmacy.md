@@ -75,12 +75,18 @@ would also like a target option on the desk. In `client/modules/checkin.lua → 
 The server already accepts `checkin` positions for the window (desk mode: Bills + Insurance,
 no shop) and checks the distance to that desk.
 
+Status: done. `client/modules/checkin.lua → targets()` has the `bills` option (resolved at call
+time, hidden while the pharmacy window is open or `Config.Pharmacy.desk.enabled = false`).
+
 ## 3. Bridge (server, optional): `Bridge.HasLicense(src, name) → bool`
 
 Products can need a framework licence (`license = 'weapon'` in `Config.Pharmacy.products`).
 `server/modules/pharmacy.lua` checks it itself today: QBCore/Qbox `PlayerData.metadata.licences`,
 ESX `esx_license:checkLicense`, standalone ace `nza.license.<name>`. If the bridge gets a
 `HasLicense`, the pharmacy will be switched to it (one place for every framework).
+
+Status: done. `hasLicense` uses `Bridge.HasLicense` when the bridge has it; the old checks stay
+as the fallback.
 
 ## 4. Lead: `config/config.lua → Config.Billing`
 

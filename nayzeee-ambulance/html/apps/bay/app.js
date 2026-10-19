@@ -67,42 +67,19 @@
   const CAT_ICON = { wound: 'bandage', fluids: 'iv', airway: 'lungs', ortho: 'splint', meds: 'pill' };
   const keyCap = k => (String(k || '').toUpperCase() === 'BACKSPACE' ? 'BKSP' : String(k || ''));
 
-  /* ── holographic body glyph (front view; the patient's left on the viewer's right) ── */
-  const BODY_SEGS = [
-    ['head', '<ellipse cx="32" cy="11" rx="7.2" ry="8.8"/>'],
-    ['neck', '<rect x="28.6" y="20.2" width="6.8" height="5.8" rx="2"/>'],
-    ['chest', '<path d="M21.5 26.6h21a5 5 0 0 1 5 5v11.6h-31V31.6a5 5 0 0 1 5-5z"/>'],
-    ['abdomen', '<rect x="18.8" y="44.6" width="26.4" height="10.8" rx="2.6"/>'],
-    ['pelvis', '<path d="M18.8 56.8h26.4v5.6a4.6 4.6 0 0 1-4.6 4.6H23.4a4.6 4.6 0 0 1-4.6-4.6z"/>'],
-    ['r_upper_arm', '<rect x="10.8" y="28.4" width="6.4" height="17" rx="3.2" transform="rotate(9 14 28.4)"/>'],
-    ['r_lower_arm', '<rect x="8.3" y="46.4" width="5.8" height="18" rx="2.9" transform="rotate(5 11.2 46.4)"/>'],
-    ['l_upper_arm', '<rect x="46.8" y="28.4" width="6.4" height="17" rx="3.2" transform="rotate(-9 50 28.4)"/>'],
-    ['l_lower_arm', '<rect x="49.9" y="46.4" width="5.8" height="18" rx="2.9" transform="rotate(-5 52.8 46.4)"/>'],
-    ['r_upper_leg', '<rect x="20.4" y="68.4" width="10.2" height="27" rx="5"/>'],
-    ['r_lower_leg', '<rect x="21.4" y="96.8" width="8.2" height="28.4" rx="4"/>'],
-    ['l_upper_leg', '<rect x="33.4" y="68.4" width="10.2" height="27" rx="5"/>'],
-    ['l_lower_leg', '<rect x="34.4" y="96.8" width="8.2" height="28.4" rx="4"/>'],
-  ];
-  const BODY_ALIAS = { face: 'head', back: 'chest' };
-  const BODY_PT = {
-    head: [32, 11], face: [32, 13], neck: [32, 23], chest: [32, 35], back: [32, 35], abdomen: [32, 50], pelvis: [32, 61.5],
-    r_upper_arm: [12.7, 37], r_lower_arm: [10.4, 55.4], l_upper_arm: [51.3, 37], l_lower_arm: [53.6, 55.4],
-    r_upper_leg: [25.5, 81.5], r_lower_leg: [25.5, 110], l_upper_leg: [38.5, 81.5], l_lower_leg: [38.5, 110],
-  };
+  /* ── holographic body glyph: the core widget (NZA.ui.BodyGlyph), worst tone per region,
+     a hotspot on every open injury ── */
   const TONE_RANK = { '': 0, teal: 1, amber: 2, red: 3 };
+  const BODY_ALIAS = { face: 'head', back: 'chest' };
   function bodyGlyph(injuries) {
     const st = {}, hot = [];
     (injuries || []).forEach(i => {
       const r = BODY_ALIAS[i.region] || i.region;
       const tone = i.status === 'treated' || i.status === 'healing' ? 'teal' : (SEV_TONE[i.severity || 1] || 'amber');
       if ((TONE_RANK[tone] || 0) > (TONE_RANK[st[r] || ''] || 0)) st[r] = tone;
-      if (i.status === 'open' && BODY_PT[i.region]) hot.push([BODY_PT[i.region], tone]);
+      if (i.status === 'open' && i.region) hot.push({ region: i.region, tone });
     });
-    const segs = BODY_SEGS.map(([r, shape]) => `<g class="bs ${st[r] || ''}">${shape}</g>`).join('');
-    const dia = hot.map(([p, tone], k) => `<g class="hot ${tone}" transform="translate(${p[0]} ${p[1]})"><circle class="pl" r="4.6" style="animation-delay:${(k * 0.4).toFixed(1)}s"/><path class="dm" d="M0 -3.2 3.2 0 0 3.2 -3.2 0z"/></g>`).join('');
-    return `<svg class="bglyph" viewBox="0 0 64 132" aria-hidden="true">
-      <defs><pattern id="bay-scan" width="4" height="2.2" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="rgba(255,255,255,.07)"/></pattern></defs>
-      <ellipse class="pad" cx="32" cy="128.4" rx="17" ry="2.6"/>${segs}<rect width="64" height="132" fill="url(#bay-scan)"/>${dia}</svg>`;
+    return NZA.ui.BodyGlyph(st, hot);
   }
   // a hanging IV bag glyph; liquid level = fraction left
   function bagGlyph(frac, kind) {

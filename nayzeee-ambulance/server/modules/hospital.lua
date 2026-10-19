@@ -747,13 +747,11 @@ local function provider(src, base)
     local perms = {}
     for _, p in ipairs(g and g.perms or {}) do perms[p] = true end
     -- the department decides easy mode for every permission (easySet); easyDefault covers
-    -- the rest (NZA.Staff.Easy / NZA.Easy) so Config.EasyMode.default never overrides a
-    -- department: true only when every permission of the department is easy
+    -- the rest (NZA.Staff.Easy / NZA.Easy: a perm outside NZA.Const.Perms or no perm) with
+    -- the department switch, the same fallback easySet uses for a perm without an override,
+    -- so Config.EasyMode.default never overrides a department
     local easy = easySet(d)
-    local easyDefault = true
-    for _, p in ipairs(NZA.Const.Perms) do
-        if not easy[p.key] then easyDefault = false break end
-    end
+    local easyDefault = d.easy == true
 
     local onDuty
     local own = ownDuty[src]

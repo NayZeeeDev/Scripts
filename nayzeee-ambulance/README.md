@@ -71,6 +71,9 @@ recorded voices, billing and insurance. One resource, every framework.
 - **Pulse check**, **breathing check** with a stethoscope and synthesised breath sounds.
 - **Bleed control** (pressure, packing, dressing), **tourniquet** (time written on the strap),
   **cervical collar**, **oxygen mask**, **foil blanket**, medication with doses.
+- **Recovery position**: an unconscious patient on their back snores and loses oxygen; roll them on
+  their side to keep the airway open (log-rolled with the head in line when a spinal injury or
+  collar is present).
 - **Field resuscitation** from the trauma kit: pelvic binder, IO drill, IV access, fluids,
   pressure infuser, TXA. The **patient monitor** works on its own and inside other procedures.
 - **CPR & defibrillator**: compressions to a metronome, rescue breaths, an unbranded monitor /
@@ -86,6 +89,9 @@ recorded voices, billing and insurance. One resource, every framework.
 
 ### Hospital procedures
 - **Wound closure (suture)** in a full-screen 3D close-up.
+- **Bullet and fragment removal** on the operating table or in the treatment bay: locate (probe or
+  X-ray film), disinfect, incise, expose, extract, control the bleeding, close and dress. The
+  patient keeps losing blood while the wound is open.
 - **Burn care and skin graft**: cool, test the depth, debride, excise, harvest, mesh, staple, dress.
 - **X-ray**: AP and lateral films built from the patient's real injuries, read on a lightbox,
   **set displaced bones** under live fluoroscopy, **apply a cast**.
@@ -100,10 +106,11 @@ recorded voices, billing and insurance. One resource, every framework.
 - **Departments** with ranks, salaries, permissions per rank, uniforms, vehicles and a map pin.
 - Sites: shift clock, uniform locker, staff store, command desk, supply cabinet, vehicle bay,
   helipad, lift stops, ward beds, recovery points, reception desk, waiting area board, pharmacy,
-  blood bank, blood donation chair, X-ray table, lightbox, ultrasound cart, angiography suite,
-  morgue, stretcher bay.
+  blood bank, blood donation chair, operating table, X-ray table, lightbox, ultrasound cart,
+  angiography suite, morgue, stretcher bay.
 - **Check-in desk** with an NPC receptionist, queue numbers, a live waiting area board, staff
-  calls to free beds and an **AI doctor** when nobody is on duty.
+  calls to free beds and an **AI doctor** when nobody is on duty. New patients reach on-duty
+  staff as a toast and a pager line; "Call next" also works from the ops board.
 - **Pharmacy** counter, **health insurance** plans with a card, **billing** (insurance share,
   unpaid bills paid later, society money and a medic cut, external invoice scripts).
 
@@ -231,6 +238,7 @@ Every config file is open (not escrowed) and every option has a short comment.
 | `intubation.lua` | BVM, suction, intubation difficulty and outcomes |
 | `splint.lua` | Splints, crutches (key / command), wheelchair |
 | `suture.lua` | Wound closure procedure and its supplies |
+| `bullet.lua` | Bullet / fragment removal: supplies, where it may be done (operating table, treatment bay), blood loss, the operating table props |
 | `burn.lua` | Burn care and skin graft |
 | `xray.lua` | X-ray table, films, lightbox reading, setting bones, casts |
 | `ultrasound.lua` | eFAST scan, chest drain, needle decompression, pericardiocentesis |
@@ -294,6 +302,7 @@ same console from their **Command Desk**, limited to their own department.
    | Wards | Ward Bed, Recovery Point (where the dead wake up) |
    | Dispensary | Pharmacy |
    | Blood service | Blood bank, Blood donation chair |
+   | Theatre | Operating table |
    | Imaging | X-ray table, Lightbox |
    | Sonography | Ultrasound cart |
    | Cath lab | Angiography suite |
@@ -343,6 +352,7 @@ turned off in `config/config.lua` and the module configs.
 | `/crutches` | Use or put away crutches (key unbound) |
 | `/nzamonitor` | Take the mouse on the patient monitor |
 | **Backspace** · **F1–F4** | Treatment bay: leave · check · supplies · IV stand · monitor |
+| **X** | Stand up from the blood donation chair while waiting |
 
 Every key is a FiveM key mapping: players can rebind them in **Settings → Key Bindings → FiveM**.
 
@@ -446,6 +456,12 @@ ox_inventory loads them from this resource. Every other inventory needs
 - Check the medic's rank has the permission (`/nzadmin` → Ranks), or `Config.DefaultPerms`
   before any department exists.
 - No target script running? Look for the built-in **[E]** prompt or use `/nzainteract`.
+
+**Where do medics get trauma kits, intubation kits, surgical kits and other supplies?**
+From the **Supply Cabinet** site (Staff base zone): on-duty staff take them for free, limited
+per shift, and some only with the matching rank permission. Change the list in
+`config/modules/hospital.lua` → `storage.items`. The ambulance treatment bay has its own supply
+shelves (`config/modules/transport.lua` → `Bay.supplies`).
 
 **The database user may not create tables.**
 Run `sql/install.sql` once.

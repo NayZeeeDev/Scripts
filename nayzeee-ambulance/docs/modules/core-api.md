@@ -331,6 +331,85 @@ Keybind `nza_interact` (unbound) + command `Config.Commands.interact` (default `
 
 ---------------------------------------------------------------------------------------
 
+## NUI KIT (html/core/nza.js · nza.css)
+
+The full kit list is the header of `html/core/nza.js`. These are the parts apps asked for after the
+first pass; use them instead of private copies.
+
+```js
+NZA.ui.BodyGlyph(states, focus) → '<svg class="nza-body">…'      // returns HTML; size it with the parent box
+  // front view, 15 regions, the patient's left on the viewer's right
+  // states { [region]: 'red' | 'amber' | 'teal' }   aliases: face → head, back → chest
+  // focus  region → one pulsing diamond hotspot + that segment pulses ('back' adds a BACK tag, locale ui.back_tag)
+  //        [region | { region, tone }, …] → several hotspots (tone defaults to the region's state, else red)
+  // no <pattern> ids: any number of glyphs can share a page
+NZA.ui.Ring({ value = '--', frac = 0..1, tone = '', label = '', unit = '', beat = 0 }) → '<div class="nza-ring">…'
+  // value in the middle, track + fill (frac), label and unit under it
+  // tone '' | teal | red | amber | white | green | cyan | yellow    beat = seconds per heartbeat ping (0 = off)
+```
+
+**ProcPanel** `NZA.ui.ProcPanel(host, opts) → pp`
+
+| opts | |
+|---|---|
+| `step, total` | 1-based; `total <= 1` hides the step spine and the body takes the full width (`.pp--flat`) |
+| `steps` | step names in order (plain 0-based array): the card shows `Next <steps[step]>`, i.e. the name of the step after the current one; hidden when there is none |
+| `skipped` | `[n, …]` 1-based step numbers (a `Set` or `{ [n]: true }` also works): those spine nodes draw dashed; `complete()` keeps them dashed |
+| `side: 'right'` | mirrors the layout (`.pp--mirror`): instruction column on the right, tool belt on the left |
+| `tag title titleTone text` | `text` takes `{Key}` key caps and `**bold**` |
+| `stats wide tools hints` | readouts, the dial (`wide.meter` draws a 240° gauge), the tool belt, the key legend |
+| `abort onAbort onTool` | `abort` defaults to `{ label = ui.holdAbort ('Hold to cancel'), key = 'ESC', seconds = 1.2 }`; `abort: false` hides the ring |
+
+`pp.set(patch)` re-renders only what changed (`step total tag steps skipped` → spine). Also
+`pp.stat(id, patch)`, `pp.wide(patch)`, `pp.tool(key, state)`, `pp.active(key)`,
+`pp.flash(type, text, ms = 2600)` (type `ok` / `bad` / anything else = alert icon; `ms = 0` keeps it),
+`pp.complete({ title, text, label, onDone })` (Done button, Enter), `pp.key(e)` (a tool's `key` → `onTool`,
+Enter → done; return it from the app's key handler), `pp.slot` (the column container above the key
+legend, for app widgets) and `pp.destroy()`.
+
+**FlipClock** `NZA.ui.FlipClock(host, { value = '00:00', tone, small }) → { el, set(v), tone(t), paused(p) }`:
+a rolling counter (each digit rolls like an odometer). Non-digit characters are `.odo .c` and blink
+once a second; `paused(true)` stops the blink and dims the digits. There is no option to keep a
+running counter from blinking yet: apps that show values such as `148,250` scope
+`.odo .c{animation:none}` in their own app.css.
+
+**Class names** (`nza.css`):
+- `.nza-tg` is the toggle switch that `NZA.ui.Toggle(host, { on, onChange }) → { el, set(v), get() }`
+  renders (as `button.tg.nza-tg`). `button.tg` is kept as the legacy alias, so a plain `.tg` span stays
+  free for app styles.
+- `.nza-hold` wraps a control with a progress ring (`.nza-hold.red` for the red ring). `span.hold` is the
+  legacy alias. A bare `.hold` is left free as a state class (`.prompt.hold` is the prompt with a
+  progress ring, from `NZA.prompt(id, { progress })`; apps use it on their own buttons).
+
+---------------------------------------------------------------------------------------
+
+## BRIDGE ADDITIONS (server, used by modules through `NZA.Core.B` / `NZA.Core.Has`)
+
+```lua
+Bridge.SetJob(src, job, grade) → bool                       -- bridge/server/framework.lua
+  -- false when the job or grade does not exist, the player is not loaded, or the framework has no
+  -- jobs to give (standalone: jobs are aces). ESX checks ESX.DoesJobExist; QBCore refuses a grade the
+  -- job does not have; Qbox lets qbx_core:SetJob check. Same job, new grade keeps the duty state
+  -- (ESX 'off<job>' stays off duty). Refreshes Player(src).state.nzaJob and emits 'bridge:jobChanged'.
+  -- Used by hospital_manager.lua: hire / promote / demote set the linked framework job and grade,
+  -- fire sets Config.Hospital.staff.fireJob (default unemployed, grade 0); syncFrameworkJob = false turns hiring sync off.
+Bridge.HasLicense(src, name) → bool                         -- bridge/server/framework.lua
+  -- QBCore / Qbox: PlayerData.metadata.licences (or .licenses)[name] == true
+  -- ESX: esx_license:checkLicense (awaits up to 2 s: call it from a thread or handler)
+  -- framework cannot tell (standalone, ESX without esx_license): the ace 'nza.license.<name>'
+  -- Used by pharmacy.lua (licence-restricted products).
+Bridge.Inv.OpenStash(src, id, { label = id, slots = 50, weight = 100000, owner? }) → bool   -- bridge/server/inventory.lua
+  -- opens a stash of the running inventory for the player; the caller checks access first
+  -- ox_inventory: RegisterStash (owner → one stash per player) + forceOpenInventory
+  -- qb-inventory 2.x: OpenInventory export   ps-inventory: its OpenInventory export
+  -- qb-inventory 1.x, lj-inventory, qs-inventory: client event 'nza:bridge:inv:openStash'
+  --   (bridge/client/inventory.lua) → the classic inventory:server:OpenInventory stash flow
+  -- false (codem, origen, tgiann, core_inventory, plain ESX / QB, none): the caller uses its own
+  --   storage (hospital_runtime.lua staff store → nza_hospital_stash)
+```
+
+---------------------------------------------------------------------------------------
+
 ## Integration review — what was changed
 
 - `nza:proc:start` now returns `maxDist`, `label`, `allowDead`; `easyTime` is always set (default

@@ -24,8 +24,11 @@ CREATE TABLE IF NOT EXISTS `nza_tickets` (
   PRIMARY KEY (`id`),
   KEY `idx_nza_tickets_day` (`hospital`, `day`, `prefix`),
   KEY `idx_nza_tickets_status` (`status`)
-) DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
+
+Status: done. `sql/install.sql` has the table, and the module's own statement
+(`server/modules/checkin.lua`, start thread) is the same one (InnoDB, utf8mb4).
 
 ## 2. Dispatch (server): pager line API `NZA.Dispatch.Page(src, msg)`
 
@@ -35,6 +38,9 @@ text = 'New patient A-014 · P2 Urgent', hospital = 'Pillbox Medical' })` when t
 Request: expose it (push one line to that medic's pager history / LCD, with the pager beep).
 Until then staff get the toast + pager sound in the NUI and the phone notification when paired.
 
+Status: done. `NZA.Dispatch.Page` (`server/modules/dispatch.lua`) sends `nza:dispatch:page`; the
+pager (`client/modules/dispatch_pager.lua`) logs the line, shows it on the glass and beeps.
+
 ## 3. Dispatch (client/NUI): "Call next patient" on the board's Hospital queue page
 
 The board already lists `NZA.Checkin.Queue()`. A button (and key) on that page should send
@@ -42,6 +48,9 @@ The board already lists `NZA.Checkin.Queue()`. A button (and key) on that page s
 `Config.Checkin.desk.perm` permission, resolves the medic's department (or the given one for
 admins), calls the next ticket to a free bed and answers with a toast. The radial already has
 `checkin_next` / `checkin_queue` under Dispatch.
+
+Status: done. The ER intake page has "Call next" (key N) for staff with `desk.perm`
+(`html/apps/dispatch/app.js` → `dispatch:callNext` in `client/modules/dispatch_board.lua`).
 
 ## 4. Wounded (NUI, optional): hide the downed HUD during the AI doctor
 
