@@ -1,0 +1,10 @@
+{
+  "name": "nza-item-renders",
+  "private": true,
+  "type": "module",
+  "description": "Headless three.js product renders for html/img/items (inventory) and html/img/tools (minigame tool belt). Dev only, never shipped.",
+  "dependencies": {
+    "three": "0.170.0",
+    "playwright-core": "1.56.1"
+  }
+}

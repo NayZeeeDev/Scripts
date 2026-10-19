@@ -507,6 +507,8 @@
      opts.next (rich text) replaces the 'Next: <following step>' line; '' hides it, undefined goes back to steps[step].
      pp.flash(type, text, ms) shows a note under the text; pp.flash(null) / pp.clearFlash() hides it at once.
      A tool with state 'locked' stays clickable: the click flashes tool.why (or a generic line).
+     Tool slots show a rendered picture of the tool (html/img/tools) when one exists for its label / icon;
+     tool.img sets one explicitly, tool.noImg = true keeps the line icon.
      opts.pause = () => snapshot | null turns on "Step away" (P / click, above the cancel ring): the
      app's snapshot goes to Lua ('_proc:pause'), the server parks the procedure and the app closes
      as on any end; using the same option again reopens it with data.resume = that snapshot. Return
@@ -523,8 +525,28 @@
     [/measure|ruler|length/i, 'ruler'], [/mark|pin|target|aim/i, 'target'], [/move|drag|hand|press/i, 'hand'], [/room|exit|door/i, 'door'],
     [/pull|back|retract/i, 'arrow-l'], [/release|drop/i, 'arrow-down'], [/puff|run/i, 'play'], [/rotate|turn/i, 'rot-r'], [/zoom|look/i, 'search'],
   ];
+  // rendered tool pictures (html/img/tools/<name>.png, made by tools/items): the label picks the right one where an
+  // icon name stands for several tools; a picture that would be wrong for that label falls back to the line icon
+  const TOOL_IMG = new Set(['bandage', 'blanket', 'bloodbag', 'bn-dermatome', 'bn-diascope', 'bn-mesher', 'bn-stapler', 'bone', 'bottle', 'cannula', 'clamp', 'collar', 'cuff', 'defib', 'dressing-pad', 'drill', 'drop', 'edit', 'flask', 'forceps', 'gauge', 'gauze', 'gauze-roll', 'itb-bvm', 'itb-holder', 'itb-scope', 'itb-suction', 'itb-tube', 'iv', 'kit', 'light', 'monitor', 'needle', 'needle-driver', 'probe', 'refresh', 'ruler', 'scalpel', 'scissors', 'splint', 'spring', 'stetho', 'syringe', 'timer', 'tq-clip', 'tq-strap', 'tube', 'us-probe', 'wind', 'xray']);
+  const TOOL_IMG_LABEL = [
+    [/suture|stitch|needle.?driver|needle holder/i, 'needle-driver'], [/cannula|catheter|venflon/i, 'cannula'],
+    [/scissor/i, 'scissors'], [/ultrasound|echo|us probe/i, 'us-probe'],
+  ];
+  const TOOL_IMG_SKIP = { cuff: /\bbp\b|nibp|blood pressure|strap/i, refresh: /retry|again|reset|redo/i };
+  function toolImg(tl) {
+    if (tl.img) return tl.img;
+    const byLabel = TOOL_IMG_LABEL.find(([re]) => re.test(tl.label || ''));
+    if (byLabel && TOOL_IMG.has(byLabel[1])) return `img/tools/${byLabel[1]}.png`;
+    const hit = TOOL_ICONS.find(([re]) => re.test(tl.label || ''));
+    const name = tl.icon || (hit && hit[1]);
+    if (!name || !TOOL_IMG.has(name)) return null;
+    const skip = TOOL_IMG_SKIP[name];
+    if (skip && skip.test(tl.label || '')) return null;
+    return `img/tools/${name}.png`;
+  }
   function toolIcon(tl) {
-    if (tl.img) return `<img src="${esc(tl.img)}" alt="">`;
+    const img = tl.noImg ? null : toolImg(tl);
+    if (img) return `<img src="${esc(img)}" alt="" draggable="false">`;
     if (tl.icon) return icon(tl.icon);
     const hit = TOOL_ICONS.find(([re]) => re.test(tl.label || ''));
     if (hit) return icon(hit[1]);
@@ -660,7 +682,7 @@
     function renderTools() {
       const box = q('.pp-tools');
       const tools = o.tools || [];
-      const sig = tools.map(tl => `${tl.key}|${tl.icon || ''}|${tl.img || ''}`).join(',');
+      const sig = tools.map(tl => `${tl.key}|${tl.icon || ''}|${tl.img || ''}|${tl.label || ''}`).join(',');
       const btns = box.querySelectorAll('.pp-tool');
       if (sig === box._sig && btns.length === tools.length) {
         tools.forEach((tl, i) => patchTool(btns[i], tl));

@@ -360,7 +360,10 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
   border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 20px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06);transition:all var(--fast)}
 .pp-tool .ico{display:grid;place-items:center;color:var(--ink-2);transition:color var(--fast)}
 .pp-tool .ico .nz-ic{width:24px;height:24px}
-.pp-tool .ico img{max-width:34px;max-height:34px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.pp-tool .ico img{width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55));pointer-events:none;user-select:none;transition:transform var(--fast)}
+.pp-tool.active .ico img,.pp-tool:hover .ico img{transform:scale(1.06)}
+.pp-tool.locked .ico img{filter:grayscale(1) brightness(.6)}
+.pp--dense .pp-tool .ico img{width:40px;height:40px}
 .pp-tool .ico .mono{font:700 15px/1 var(--mono);letter-spacing:.02em}
 .pp-tool .slot kbd{position:absolute;left:-7px;top:-7px;height:19px;min-width:19px;font-size:9.5px;padding:0 5px;background:#0d0f12;border-color:rgba(255,255,255,.2);box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .pp-tool .slot .cnt{position:absolute;right:4px;bottom:3px;font:700 9px/1 var(--mono);color:var(--ink-3)}
