@@ -61,7 +61,7 @@ Config.Field = {
     },
 
     Exam = {
-        enabled = true,        -- show the treatments as buttons in the examination 'Injuries to treat' card
+        enabled = true,        -- show the treatments as buttons under 'Next care step' in the head-to-toe check's Findings card
         heavyBleed = 25,       -- mL/min of one injury that offers 'Field resuscitation' in the exam
     },
 

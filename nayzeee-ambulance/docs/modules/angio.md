@@ -80,7 +80,7 @@ Native fallbacks are used when a custom model is missing (then no DUI: the overl
 
 - Patient option `nza_angio` "Angiography" (order 60, perm `angio`, alive / wounded) when the
   patient has an internal or fracture tag and lies on an angio table (or easy mode / `requireSuite = false`).
-- Examination → Injuries to treat: `NZA.ExamRoutes` id `angio` for `internal` (organs in
+- Examination → Next care step card: `NZA.ExamRoutes` id `angio` for `internal` (organs in
   `Config.Angio.organs`) and bleeding fractures of `Config.Angio.fractures`; greyed with
   "Needs the angiography suite" until `snap.meta.bed.type == 'angio'` (not in easy mode). Items shown:
   angio kit, contrast, coil.

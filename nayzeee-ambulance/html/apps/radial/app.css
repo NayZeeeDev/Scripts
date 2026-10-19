@@ -38,9 +38,10 @@
 #app-radial .u-full.teal{stroke:var(--teal);filter:drop-shadow(0 0 5px rgba(15,212,196,.6));animation:rd-breathe 3s ease-in-out infinite}
 #app-radial .u-full.amber{stroke:var(--amber);opacity:.85}
 #app-radial .u-full.off{stroke:rgba(255,255,255,.2);stroke-dasharray:2 5}
-#app-radial .u-seg{fill:none;stroke:rgba(255,255,255,.13);stroke-width:7}
-#app-radial .u-seg.dn{stroke:var(--teal);filter:drop-shadow(0 0 3px rgba(15,212,196,.55))}
-#app-radial .u-seg.cur{stroke:#fff;filter:drop-shadow(0 0 5px rgba(255,255,255,.8));animation:rd-breathe 1.4s ease-in-out infinite}
+#app-radial .u-fill{fill:none;stroke:var(--teal);stroke-width:7;stroke-linecap:round;filter:drop-shadow(0 0 3px rgba(15,212,196,.55))}
+#app-radial .u-nd{fill:#0a0c0d;stroke:rgba(255,255,255,.34);stroke-width:2.4}
+#app-radial .u-nd.dn{fill:var(--teal);stroke:#0a0c0d}
+#app-radial .u-nd.cur{fill:#fff;stroke:#0a0c0d;filter:drop-shadow(0 0 5px rgba(255,255,255,.8));animation:rd-breathe 1.4s ease-in-out infinite}
 @keyframes rd-breathe{50%{opacity:.5}}
 
 /* hub text */
@@ -145,6 +146,6 @@
 #app-radial .rd-foot kbd{height:17px;min-width:17px;font-size:9px;padding:0 5px}
 
 @media (prefers-reduced-motion:reduce){
-  #app-radial .rd-orbit,#app-radial .rd-beam,#app-radial .u-full.teal,#app-radial .u-seg.cur{animation:none}
+  #app-radial .rd-orbit,#app-radial .rd-beam,#app-radial .u-full.teal,#app-radial .u-nd.cur{animation:none}
   #app-radial .rd-nodes.fly .rd-node,#app-radial .rd-nodes.fly .rd-lab{animation-duration:1ms}
 }

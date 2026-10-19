@@ -16,29 +16,31 @@ phone linking and the EMS radial job menu.
 | `client/modules/dispatch_radial.lua` | the EMS radial job menu (`radial`) and `NZA.RadialItems` |
 | `config/modules/dispatch.lua` | `Config.Dispatch` |
 | `locales/en/dispatch.lua` | `dispatch.*` strings (also sent to the four apps) |
-| `html/apps/callcard/` | incoming-call strip + on-call strip; also defines `window.NZD` (helpers shared by the four apps: stage words, `stageRing`, priority words, formatting) and the global `.nzd-ring` styles |
+| `html/apps/callcard/` | incoming-call strip + on-call strip; also defines `window.NZD` (helpers shared by the four apps: call phases `phase` / `fill` / `stageWord` / `stageShort`, the progress ring `stageRing`, priority words, formatting) and the global `.nzd-ring` styles |
 | `html/apps/pager/` | RX-10 receiver with the OLED glass |
 | `html/apps/dispatch/` | ops board window |
 | `html/apps/radial/` | radial job menu (orbit of nodes, unit badge centre) |
 
 ## Features
 
-### Calls and the status chain
+### Calls and their progress
 
-Every call moves through six stages (server codes `DSP ENR SCN CARE TRN HSP`; on screen:
-Paged, Rolling, On scene, Treating, Transporting, Handover, drawn as the 6-arc stage ring). Each unit on a call has its
-own stage, and the call shows the furthest one. The server moves units along by itself,
+The server tracks every call with six internal status codes (`DSP ENR SCN CARE TRN HSP`, the
+values of `NZA.Dispatch.SetStatus`). The codes are never shown. On screen a call has **four
+phases** in our own words — Paged (`DSP`), Rolling (`ENR`), With patient (`SCN`, `CARE`), To
+hospital (`TRN`, `HSP`) — drawn as one progress ring (`NZD.stageRing`, see below). Each unit on
+a call has its own code, and the call shows the furthest one. The server moves units along by itself,
 using server-side positions every `Config.Dispatch.status.tick` ms. The pass only does work
 while calls are open.
 
-| Stage | Reached when |
+| Code (phase) | Reached when |
 |---|---|
-| DSP | the call is created, or the last unit leaves before reaching the scene (the call is paged again) |
-| ENR | the unit takes the call (strip E, pager TAKE, radial Take next call, board), or dispatch assigns it. GPS route and blip route are set. The downed patient gets `nza:wounded:help { eta, unit, status = 'enroute' }`, and the ETA is refreshed every `etaUpdate` s |
-| SCN | the unit is within `sceneRadius` of the call. Toast: "On scene. Find your patient." The patient gets `status = 'onscene'` |
-| CARE | the first `treat:done` or `proc:done` on a call patient. A medic who treats a call patient without responding joins the call (`autoAttach`) |
-| TRN | bus `transport:loaded (src, p, vehNet, strNet)` from the transport module. The fallback: the patient is in a vehicle, ambulance bay or on a stretcher, `transportDistance` m from the scene, or in the same vehicle as the unit. GPS goes to the nearest hospital |
-| HSP | the unit is within `hospitalRadius` of a hospital, or bus `transport:bed` / `patient.meta.bed` (patient placed on a hospital point). The call closes `closeAfterHospital` s later |
+| DSP (Paged) | the call is created, or the last unit leaves before reaching the scene (the call is paged again) |
+| ENR (Rolling) | the unit takes the call (strip E, pager TAKE, radial Take next call, board), or dispatch assigns it. GPS route and blip route are set. The downed patient gets `nza:wounded:help { eta, unit, status = 'enroute' }`, and the ETA is refreshed every `etaUpdate` s |
+| SCN (With patient) | the unit is within `sceneRadius` of the call. Toast: "On scene. Find your patient." The patient gets `status = 'onscene'` |
+| CARE (With patient) | the first `treat:done` or `proc:done` on a call patient. A medic who treats a call patient without responding joins the call (`autoAttach`) |
+| TRN (To hospital) | bus `transport:loaded (src, p, vehNet, strNet)` from the transport module. The fallback: the patient is in a vehicle, ambulance bay or on a stretcher, `transportDistance` m from the scene, or in the same vehicle as the unit. GPS goes to the nearest hospital |
+| HSP (To hospital, ring full) | the unit is within `hospitalRadius` of a hospital, or bus `transport:bed` / `patient.meta.bed` (patient placed on a hospital point). The call closes `closeAfterHospital` s later |
 
 Other behaviour:
 - **Merging:** a new call for a patient who already has an open call updates that call (higher
@@ -52,7 +54,8 @@ Other behaviour:
 - **Leaving a call:** the last unit to clear a call that was reached closes it ("cleared"). If it
   was never reached, it goes back to DSP and is paged again (`realertOnDrop`).
 - **Unit statuses:** `10-8` available, `10-7` out of service (no call cards unless
-  `outOfServiceAlerts`), and while on a call `ENR SCN CARE TRN HSP`.
+  `outOfServiceAlerts`), and while on a call the server code (`ENR SCN CARE TRN HSP`), shown as
+  its phase word.
 - **Callsigns:** `Unit %02d` (server id) by default. `/callsign 4-ADAM` stores one per character
   (resource KVP). A `callsign` field in the hospital staff record is used when present.
 - **Street names:** the first medic client works out the street and zone and reports them back
@@ -79,14 +82,18 @@ colour, slides in from the right edge.
   ahead". P1 calls jump the queue. An alert tone per priority (3, 2 or 1 bursts) and a red pulse
   on P1.
 - **On call** strip (above it): while you are on a call (and the pager is not showing it) — the
-  6-stage ring (`NZD.stageRing`: done arcs teal, current arc white and pulsing, stage icon in the
-  centre), "On call · C-0409 · P2", the title, the current stage word → the next one, and a range
-  readout (arrow relative to the camera, distance, drive time).
+  progress ring, "On call · C-0409 · P2", the title, the current phase word → the next one, and a
+  range readout (arrow relative to the camera, distance, drive time).
 - Police get the same strip as an "EMS notice" in blue for violent calls
   (`Config.Dispatch.police`): `E` Mark map sets the GPS and `⌫` passes. They also get a flashing
   blip for `blipTime`.
-- Stage words on screen (the server keeps the codes): DSP Paged · ENR Rolling · SCN On scene ·
-  CARE Treating · TRN Transporting · HSP Handover (`dispatch.unit_*`, short forms `st_*_s`).
+- **Progress ring** (`NZD.stageRing`, global `.nzd-ring` styles in `callcard/app.css`, used by
+  the strip and the ops board; the radial draws the same ring in its hub): one continuous teal arc
+  over a dim track — each phase owns a quarter and later codes inside a phase fill it further
+  (`NZD.fill`) — with four phase nodes at 12 / 3 / 6 / 9 o'clock (passed teal, current white and
+  pulsing, ahead hollow) and the phase icon in the centre (a check once the patient is handed
+  over). Phase words: `dispatch.ph_paged / ph_rolling / ph_patient / ph_hospital`, short forms
+  for the pager glass `ph_*_s`.
 
 ### Pager (`pager`, bottom right) — "RX-10" two-way receiver
 A generic device (no NAYZEEE name or logo): rubber band around a brushed graphite faceplate
@@ -101,13 +108,17 @@ serial plate along the bottom.
 - The pager key (`F7`), `/pager` or using the item takes it in your hand. This gives focus with
   the cursor and keeps game input, so you can still walk. Phone and arrow controls are blocked.
 - Glass status row: callsign, the phone-link and silent icons, signal, game clock, battery.
-- CALL page: a pixel **ring** on the left (seconds left to take the call; on your own call the
-  route progress with the drive time, then the time on the call once on scene). Beside it, top
-  line: the priority box (P1 blinks), the range (arrow relative to the camera, distance, compass
-  word) and `DRV 0:34`; under it the call type in full words (`CARDIAC ARREST`, two lines max).
-  The bottom **stage row** holds the stage pips (six cells + the stage word), the street and zone
-  as a scrolling ticker, and the call index `1/3`. A legend column on the right edge of the glass labels the keys: `● TAKE` / `✕ PASS` /
-  `◀ SETUP` (on your own call `● NAV` / `✕ END`).
+- CALL page: a pixel **range dial** on the left — the distance in the centre with the unit and
+  compass word under it, a blip on the rim at the call's bearing (relative to the camera), and the
+  arc = the answer window (other calls) or the route progress (your call while rolling). Once you
+  are with the patient the dial shows the time on the call and the arc the call progress. Beside
+  the dial: the call type in full words (`CARDIAC ARREST`, two lines max) over a short
+  **instrument list** with dotted leaders: `DRV 0:34` and `TAKE IN 21 SEC` (blinks under 8 s;
+  `HELD 2:10` once the window ran out), on your own call `DRV` and `TIME`, then `SCENE 40M`.
+  The **foot row** holds the priority box (P1 blinks), the phase as a pixel quarter ring + word
+  (`ROLLING`; a new phase rolls in), the street and zone as a scrolling ticker, and the call
+  index `1/3`. A legend column on the right edge of the glass labels the keys: `● TAKE` /
+  `✕ PASS` / `◀ SETUP` (on your own call `● NAV` / `✕ END`).
 - Keys: ◀ opens Setup or goes back, ▲ ▼ scroll calls and Setup, ● / ▶ take or open, ✕ pass or go
   back. Keyboard: arrows, Enter/→, Backspace, ESC or the pager key to put it away. Mouse
   clicks work on every key.
@@ -134,13 +145,13 @@ serial plate along the bottom.
   - the nav, with counts: Ops board, Open calls, Crews, Live map · Logbook, ER intake.
 - Ops board: city clock and four stat tiles (open calls with the P1 count, free crews, average
   response today, ER intake with inbound crews). Below them the open calls and the crews list.
-- Every call card has a left rail with its **stage ring** and P chip, a corner bracket in the
-  priority colour, the type, code · id and live age, title, location, then the stage word, the
+- Every call card has a left rail with its **progress ring** and P chip, a corner bracket in the
+  priority colour, the type, code · id and live age, title, location, then the phase word, the
   crews on it (status dots) or "No crew yet", patients and declines.
 - Open calls: a list and a detail pane.
   - Detail header: priority, code, id and live age, plus the P1/P2/P3 control (dispatchers).
-  - Title, location and distance, then a stage readout (large stage ring, stage word, "Next ·
-    …", `2/6`) next to the actions: Take call (R), Stand down, Route (G), Send a crew (popover),
+  - Title, location and distance, then a phase readout (large progress ring, phase word,
+    "Next · …") next to the actions: Take call (R), Stand down, Route (G), Send a crew (popover),
     Close out (confirm modal).
   - Body: caller box, patients with triage (Immediate / Delayed / Minor) and state, crews on it
     (take off), timeline.
@@ -156,7 +167,7 @@ serial plate along the bottom.
   - Hovering shows a tooltip and clicking a call selects it. A side panel holds Take call / Route.
 - Logbook: the newest `nza_calls` rows. Filter by P1/P2/P3 and search the id, title, street,
   zone, caller or crews. Columns: time, call, priority, location, crews, response time, duration,
-  final stage (small ring + word) and reason. Without a database it shows this session's calls.
+  final phase (small ring + word) and reason. Without a database it shows this session's calls.
 - ER intake: `NZA.Checkin.Queue()` check-ins (ticket, name, priority, time in, status), and
   inbound crews with their hospital and drive time. Staff with `Config.Checkin.desk.perm`
   (board data `canCallNext`) get **Call next** (key N) → `nza:checkin:callNext`, which calls the
@@ -172,7 +183,7 @@ serial plate along the bottom.
   Submenus fly out from the centre. Drawn without backdrop-filter and scaled with a transform, so
   mouse angles stay exact. A soft dark disc behind keeps it readable over bright scenes.
 - **Centre = unit badge**: "Unit" kicker, callsign, name, status chip (dot + word) and the shift
-  clock. Around it the **unit ring** (6-stage ring while on a call, solid teal when available,
+  clock. Around it the **unit ring** (progress arc + four phase nodes while on a call, solid teal when available,
   amber when unavailable, dashed grey off shift) inside the **duty ring** (60 minute ticks, the
   current hour of your shift filled teal). In a submenu the centre shows "← Back", the group icon
   and title; clicking the centre (or RMB / Backspace) goes back — there is no Back node.

@@ -3,7 +3,7 @@
 
     Keeps the local copy of the active calls (pushed by server/modules/dispatch.lua), shows
     the call card (NUI app 'callcard', top right, no focus: respond / dismiss work with
-    keybinds), the "your call" strip with the status chain, map blips per call and the
+    keybinds), the "your call" strip with the call progress ring, map blips per call and the
     GPS route to the call you respond to (and to the hospital once you transport).
 
     NUI app 'callcard' (opened without focus while on duty, or for police notices)
@@ -34,7 +34,9 @@ local S = D.S
 
 local APP = 'callcard'
 
-D.Stages = { 'DSP', 'ENR', 'SCN', 'CARE', 'TRN', 'HSP' }
+D.Stages = { 'DSP', 'ENR', 'SCN', 'CARE', 'TRN', 'HSP' }   -- server codes (internal, never shown)
+-- what players see: four phases (locale 'dispatch.ph_<phase>'), see html/apps/callcard/app.js (NZD)
+D.Phase = { DSP = 'paged', ENR = 'rolling', SCN = 'patient', CARE = 'patient', TRN = 'hospital', HSP = 'hospital' }
 
 S.calls = S.calls or {}       -- id → call
 S.units = S.units or {}
@@ -292,7 +294,6 @@ local function ensureCardApp()
         keys = { respond = keyLabel(cfg('card', 'respondKey', 'E')), dismiss = keyLabel(cfg('card', 'dismissKey', 'BACK')) },
         timeout = tonumber(cfg('card', 'timeout', 30)) or 30,
         voiceVolume = tonumber(cfg('card', 'voiceVolume', 0.85)) or 0.85,
-        chain = D.Stages,
     }, { focus = false })
 end
 
@@ -450,7 +451,7 @@ local function onDismissKey()
     end
 end
 
--- "your call" strip with the status chain
+-- "your call" strip with the call progress ring
 local function refreshActive()
     if not S.cardOpen then return end
     local c = D.Current()

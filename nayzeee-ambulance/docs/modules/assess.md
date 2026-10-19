@@ -41,8 +41,9 @@ No device face carries a brand.
   site, status, plain findings with tone notches (bleeding word, no exit wound / fragments,
   X-ray results, contamination, size, open fracture / deformity angle, burn depth & area,
   soot, tourniquet time), treatments already done, healing bar, and the **next care step**
-  from `NZA.ExamRoutes`: a supplies table (carried / uses, red when short), the primary
-  action button (**Enter**) and the alternatives under *Or instead*. Suspected problems
+  from `NZA.ExamRoutes`: the primary action button (**Enter**) carries the supplies as chips
+  on a second row (item · ×uses · *n on you*, red when short; no separate count table) and
+  the alternatives sit under *Or instead*. Suspected problems
   have a dashed amber card.
 - **Hidden problems** only appear after a check found them (`patient.meta.findings`):
   internal bleeding, haemothorax, pneumothorax, tamponade, airway compromise, fluid / spasm
@@ -74,8 +75,9 @@ Core procedure HUD (column bottom-left, tool belt right edge). Steps named in th
    nothing at the neck; only allowed after `absentAfter` seconds of palpation (the **N** slot
    on the belt counts down *after n s* → *can log*).
 2. **Count the beats** – **Space** opens the 15 s window (amber arc on the scope rim), tap
-   **Space** on every beat; the count rolls in the scope centre, taps land on the rim (teal
-   on a beat, red between beats) and in the scope's instrument list.
+   **Space** with each pulse; the count rolls in the scope centre, taps land on the rim (teal
+   when matched, red when off-beat) and in the scope's instrument list (*Matched taps* /
+   *Off-beat taps* / *Timer*).
 3. **Describe it** – verdict picker with glyph keys: **1/2** regular / irregular, **3/4/5**
    weak / normal / bounding; **Enter** submits, **R** counts again.
 - **Debrief** card (top-right, slides in): score ring with a rolling score and a one-word

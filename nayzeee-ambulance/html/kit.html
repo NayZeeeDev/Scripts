@@ -37,7 +37,7 @@ NZA.app('kit', {
           <div class="nza-sep"></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-teal">Respond</button><button class="btn-line">Decline</button><button class="btn-red">Abort</button><button class="pill-close">Close</button></div>
           <div class="nza-sep"></div>
-          <div style="display:flex;gap:10px;align-items:center"><div class="grade">A</div><div class="grade g-C">C</div><div class="grade g-F">F</div>
+          <div style="display:flex;gap:10px;align-items:center"><div id="scores" style="display:flex;gap:10px;align-items:center"></div>
             <div style="display:flex;gap:6px"><kbd>E</kbd><kbd class="teal">Space</kbd><kbd class="red">ESC</kbd></div></div>
         </div>
         <div class="nza-hud" style="padding:12px 14px;width:360px;display:flex;gap:18px;align-items:center">
@@ -53,6 +53,8 @@ NZA.app('kit', {
     setInterval(() => { s = s > 0 ? s - 1 : 120; flip.set(NZA.fmt.time(s)); flip.tone(s < 30 ? 'red' : ''); down(s); }, 1000);
     const mon = NZA.vitals.Monitor(el.querySelector('#mon'), { compact: true, height: 140, beep: false });
     mon.update({ hr: 124, spo2: 93, sys: 96, dia: 61, map: 73, rr: 24, temp: 36.4, rhythm: 'stach' });
+    // results are score rings (teal ≥ 72 · amber ≥ 40 · red), never letter grades
+    el.querySelector('#scores').innerHTML = [92, 61, 28].map(v => NZA.ui.ScoreRing({ score: v, size: 'lg' })).join('');
     el.querySelector('#glyph').innerHTML = NZA.ui.BodyGlyph({ l_upper_leg: 'red', chest: 'amber', r_lower_arm: 'teal' }, 'l_upper_leg');
     el.querySelector('#rings').innerHTML = [
       NZA.ui.Ring({ value: 124, frac: 0.66, tone: 'green', label: 'HR', beat: 60 / 124 }),
@@ -92,6 +94,7 @@ NZA.app('kitwin', {
 NZA.demo('kit', {}); NZA.demo('kitwin', {});
 NZA.applyBg = (() => { document.body.prepend(NZA.el('div', 'nza-bg')); })();
 NZA.toast({ title: 'Report filed', message: 'MED-215 was saved to the patient record.' });
+NZA.toast({ title: 'Wound closed', message: 'Nine even stitches · bleeding stopped.', score: 86 });
 NZA.toast({ title: "You're not on duty", message: 'Sign in at the station terminal.', type: 'error' });
 NZA.speech({ name: 'Dana Whitlock', text: 'Ow — is it bad?', ms: 60000 });
 NZA.prompt('desk', { key: 'E', label: 'Register at the desk', sub: 'Front desk' });

@@ -7,6 +7,7 @@ Nothing blocks the module; these are improvements for lead-owned files.
    analysis pause. Proposal: `Trace(canvas, { artifact: 0..1 })` adds `artifact * 0.55 * sin(2π·t·rate/60)`
    to the `ecg` wave (rate = compression rate). The cpr app would set it from its own compressions
    and set it to 0 during `analyse`. No change needed for other apps (default 0).
+   Status: done. `html/core/nza-vitals.js` takes `artifact` (0..1, default 0) and `cprRate`.
 
 2. **Core state bag `nza.cpr`** — already requested by the wounded module (docs/requests/wounded.md).
    Until then the cpr server sets its own replicated state bag `nzaCpr` (= compressor server id) on the

@@ -2,8 +2,8 @@
     NAYZEEE AMBULANCE - Dispatch (client): EMS radial job menu (NUI app 'radial')
 
     Opened with Config.Dispatch.radial.key (F6) by medics, on or off duty. Round nodes on an
-    orbit; the centre is the unit badge: callsign + name, status word, the unit ring (6-stage
-    ring while on a call) inside the duty ring (shift clock).
+    orbit; the centre is the unit badge: callsign + name, status word, the unit ring (call
+    progress with four phase nodes while on a call) inside the duty ring (shift clock).
     Root (clockwise from 12): Status (on duty: go (un)available, end shift; off duty: start shift),
     Calls, Care, Pager + every root item other modules add. Calls: take next call, stand down,
     Board (Ops board on the fitting tab), street calls (toggle), link phone (phone.alerts = 'paired').
@@ -304,7 +304,8 @@ local function header()
         callsign = duty and m.callsign or nil,
         grade = m.grade,
         status = status,
-        statusLabel = duty and L('dispatch.unit_' .. status:gsub('%-', '')) or L('dispatch.r_shift_off'),
+        statusLabel = duty and (D.Phase[status] and L('dispatch.ph_' .. D.Phase[status])
+            or L('dispatch.unit_' .. status:gsub('%-', ''))) or L('dispatch.r_shift_off'),
         tone = duty and (STATUS_TONE[status] or 'off') or 'off',
         onDuty = duty,
         shift = shiftSeconds(),

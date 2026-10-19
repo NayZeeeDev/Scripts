@@ -9,8 +9,8 @@
     AMBULANCE SYSTEM - ASSESSMENT
     Discord: discord.gg/nayzeeedev
 
-    Examine Patient (top-down body map + injuries to treat), Check Pulse,
-    Check Breathing (look, listen with a stethoscope, call it) and Ask to Walk.
+    Head-to-toe check (top-down body map + findings card), Take a pulse,
+    Assess breathing (look, listen with a stethoscope, call it) and Help them walk.
 
     Keys use JavaScript KeyboardEvent.code names: 'Space', 'Enter', 'KeyN',
     'Digit1' ... ('KeyX' = the X key, 'Digit3' = the 3 key above the letters).
@@ -43,7 +43,7 @@ Config.Assess = {
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
-    -- EXAMINATION (top-down body map)
+    -- HEAD-TO-TOE CHECK (top-down body map)
     -- ═══════════════════════════════════════════════════════════════════════
 
     Exam = {
@@ -52,7 +52,7 @@ Config.Assess = {
         maxDistance = 4.0,      -- the exam closes when you are further than this from the patient
         anim = { dict = 'amb@medic@standing@kneel@base', clip = 'base' },            -- medic kneels
         idle = { dict = 'amb@medic@standing@tendtodead@idle_a', clip = 'idle_a' },  -- played when you touch a region
-        reopenAfterTreat = true, -- come back to the examination after a treatment finished
+        reopenAfterTreat = true, -- come back to the head-to-toe check after a treatment finished
         reopenWait = 600,       -- seconds a treatment may take before we stop waiting to reopen
         notifyPatient = true,   -- tell a player patient that a medic is examining them
     },
@@ -65,7 +65,7 @@ Config.Assess = {
     Speech = {
         enabled  = true,
         players  = false,      -- also show lines for PLAYER patients (they usually speak for themselves)
-        onOpen   = true,       -- say something when the examination opens
+        onOpen   = true,       -- say something when the head-to-toe check opens
         onTouch  = true,       -- say something when you touch a painful region
         cooldown = 4,          -- seconds between two lines
         duration = 3800,       -- ms a subtitle stays on screen
@@ -156,7 +156,7 @@ Config.Assess = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Billing = {
-        exam      = 0,      -- charge for an examination (0 = free)
+        exam      = 0,      -- charge for a head-to-toe check (0 = free)
         pulse     = 0,      -- charge for a pulse check
         breathing = 0,      -- charge for a breathing check
         npc       = false,  -- also "charge" NPC patients (pays the medic cut from society)

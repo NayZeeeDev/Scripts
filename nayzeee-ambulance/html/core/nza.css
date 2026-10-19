@@ -398,6 +398,8 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .pp-abort kbd{position:relative;height:18px;font-size:9px;padding:0 4px;background:transparent;border:0;color:var(--ink-2)}
 .pp-abort.on .al{color:#ff8a8d}
 .pp-abort.on kbd{color:#ff8a8d}
+/* finished panel: the result owns the column, Enter finishes; the cancel ring has no job left */
+.pp--done .pp-abort{display:none}
 
 /* meter (generic) */
 .mtr{position:relative;height:6px;border-radius:99px;background:rgba(255,255,255,.1);overflow:visible}
@@ -408,7 +410,8 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .mtr.lg{height:8px}
 .mtr.segs > i{background:repeating-linear-gradient(90deg,var(--teal) 0 14px,transparent 14px 17px)}
 
-/* grade badge */
+/* legacy letter badge: core no longer draws it (toasts and the kit use .nza-sring); the rules stay
+   only so app markup that still uses .grade keeps its look until that app moves to NZA.ui.ScoreRing */
 .grade{display:grid;place-items:center;width:56px;height:56px;border-radius:12px;font-size:26px;font-weight:800;color:#fff;
   background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));box-shadow:0 6px 20px rgba(8,175,162,.3)}
 .grade.g-C,.grade.g-D{background:linear-gradient(155deg,#f3c35a,#b37d05);box-shadow:0 6px 20px rgba(229,165,10,.25)}
@@ -542,6 +545,29 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .nza-ring .bt{position:absolute;inset:-2px;border-radius:50%;border:1.5px solid var(--vc);opacity:0;animation:nza-ring-beat var(--beat,1s) ease-out infinite;pointer-events:none}
 @keyframes nza-ring-beat{0%{opacity:.75;transform:scale(.9)}70%{opacity:0;transform:scale(1.16)}100%{opacity:0;transform:scale(1.16)}}
 
+/* ═══════════════ SCORE RING (NZA.ui.ScoreRing / NZA.ui.Grade, toast score) ═══════════════
+   a result is a status ring filled to the score with the percentage inside — never a letter */
+.nza-sring{--vc:var(--teal-hi);--vr:15,212,196;display:inline-flex;flex-direction:column;align-items:center;gap:5px;flex:none;vertical-align:middle}
+.nza-sring .rg{position:relative;width:34px;height:34px;display:grid;place-items:center}
+.nza-sring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
+.nza-sring circle{fill:none;stroke-width:3}
+.nza-sring .b{stroke:rgba(var(--vr),.16);fill:rgba(var(--vr),.08)}
+.nza-sring .f{stroke:var(--vc);stroke-linecap:round;filter:drop-shadow(0 0 3px var(--vc));animation:nza-sring-fill 760ms cubic-bezier(.2,.7,.2,1) 120ms both}
+@keyframes nza-sring-fill{from{stroke-dashoffset:94.25}}
+.nza-sring b{position:relative;display:flex;align-items:baseline;font:700 10.5px/1 var(--mono);color:var(--vc);letter-spacing:-.05em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nza-sring b small{font-size:7px;font-weight:600;letter-spacing:0;margin-left:1px;opacity:.75}
+.nza-sring em{font-style:normal;font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+.nza-sring.amber{--vc:#f3c35a;--vr:229,165,10}
+.nza-sring.red{--vc:#ff6b70;--vr:229,72,77}
+.nza-sring.none{--vc:var(--ink-3);--vr:255,255,255}
+.nza-sring.sm .rg{width:28px;height:28px}
+.nza-sring.sm b{font-size:9px}
+.nza-sring.sm b small{display:none}
+.nza-sring.lg .rg{width:56px;height:56px}
+.nza-sring.lg circle{stroke-width:2.6}
+.nza-sring.lg b{font-size:17px}
+.nza-sring.lg b small{font-size:10px}
+
 /* ═══════════════ BODY GLYPH (NZA.ui.BodyGlyph) ═══════════════ */
 .nza-body{display:block;width:100%;height:100%;overflow:visible}
 .nza-body .bs{fill:rgba(15,212,196,.07);stroke:rgba(15,212,196,.5);stroke-width:.6;transition:fill 240ms}
@@ -559,7 +585,7 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .nza-body .bk{font:700 4px var(--font);fill:rgba(255,255,255,.7);text-anchor:middle;letter-spacing:.4px;text-transform:uppercase}
 @keyframes nza-body-ping{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.3);opacity:0}}
 @media (prefers-reduced-motion: reduce){
-  .nza-ring .bt,.nza-body .hot .pl,.nza-body .bs.fx{animation:none}
+  .nza-ring .bt,.nza-body .hot .pl,.nza-body .bs.fx,.nza-sring .f{animation:none}
 }
 
 /* ═══════════════ BEDSIDE MONITOR (nza-vitals.js) ═══════════════ */

@@ -38,7 +38,7 @@ NZA.UI.Close(app)                 NZA.UI.SetFocus(app, opts)        NZA.UI.Close
 NZA.UI.Send(app, action, data)    -- SendNUIMessage({ app, action, data })
 NZA.UI.On(app, event, fn)         -- RegisterNUICallback('<app>:<event>') → fn(data, cb)
 NZA.UI.Off(app, event, fn)        NZA.UI.IsOpen(app)  NZA.UI.Top()  NZA.UI.OpenApps()  NZA.UI.Ready()
-NZA.UI.Toast({ title, message, type = 'success'|'error'|'warning'|'info', duration })
+NZA.UI.Toast({ title, message, type = 'success'|'error'|'warning'|'info', duration, icon, score, grade })  -- score/grade passed through to the NUI as-is
 NZA.UI.Speech(name, text, ms, extra)
 NZA.UI.Prompt(id, { key = 'E', label, hold = seconds, progress = 0..1, danger })
 NZA.UI.PromptProgress(id, 0..1)   NZA.UI.HidePrompt(id)
@@ -218,7 +218,10 @@ NZA.Anim.Kneel(ped)  -- enter → loop, NZA.Anim.Stop(ped) plays the exit clip
   `maxDist + 2` m away (server aborts at +4), patient died during it, `maxTime` reached.
   Server-side aborts arrive as `nza:proc:aborted (token, reason, msg)`.
 - `ctx.finish` waits out `minTime` before calling the server so a fast player is never
-  rejected; the result toast shows the server message and the grade (`NZA.Util.Grade`).
+  rejected; the result toast shows the server message, the score and a verdict word
+  (`<msg> · 86% · Well done`, `core_client.proc.result` + `core_client.proc.verdict_1..5`,
+  bands 90 / 75 / 55 / 35) and carries `score` for the NUI score ring. No letter grade is
+  shown to the player (docs/design/ORIGINAL.md); `NZA.Util.Grade` stays for server records.
 - Error toasts use the server's localized `msg`, else `core_client.err.<code>`.
 - Bus: `proc:started (ctx)`, `proc:ended (name, ok, outcome|reason)`.
 

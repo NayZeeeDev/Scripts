@@ -196,7 +196,10 @@ Server API (`NZA.Wounded`):
 - `Help(srcOrPid, { eta, unit, ai, status })` — show help on the downed player's HUD (dispatch, AI medic).
 - `ForceRespawn(src, { coords = vec4?, label?, fee = false?, bed = false? })` — run the respawn flow now
   (morgue processing, admin tools).
-- `RespawnPoint(src, p)`, `RespawnPreview(src, p)`, `CauseLines(p)`, `OnDuty()`.
+- `RespawnPoint(src, p)`, `RespawnPreview(src, p)`, `CauseLines(p, opts?)`, `OnDuty()`.
+  `CauseLines(p, { you = true })` words the lines for the player's own death screen ("Your body
+  gave out", "Lost 52% of your blood"; locale keys with a `_you` twin); without `opts` they read as
+  a record about the patient ("Their body gave out", "Stopped fighting"), e.g. the body-bag toe tag.
 - Bus (server): `wounded:called (src, p, callId)`, `wounded:gaveUp (src, p)`, `wounded:respawned (src, p, spot)`.
 
 Client API (`NZA.Wounded`):

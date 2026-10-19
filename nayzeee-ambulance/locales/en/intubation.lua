@@ -14,7 +14,7 @@ NZA.AddLocale('en', {
     ['intubation.proc_intubate'] = "Intubation",
     ['intubation.proc_bvm'] = "Bag-valve-mask ventilation",
 
-    -- ═══ patient options / examination / radial ═══
+    -- ═══ patient options / head-to-toe check / radial ═══
     ['intubation.opt_bvm'] = "Ventilate (BVM)",
     ['intubation.opt_bvm_desc'] = "Breathe for the patient with the bag-valve mask",
     ['intubation.opt_intubate'] = "Intubate",

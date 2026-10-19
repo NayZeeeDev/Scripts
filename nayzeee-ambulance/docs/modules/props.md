@@ -930,11 +930,11 @@ appears upside down: its chin end is +Z). The imported medic bag is not rendered
 | Origin / pivot | centre of the BACK face - the prop sits flat on a wall when placed at the wall surface |
 | Axes | screen faces +Y (into the room), +Z up, everything at y >= 0 (depth 0.033) |
 | Attach / use | place against a wall: position = wall surface point at the desired screen-centre height (about 2.0 - 2.3 m), heading = the wall normal's heading (screen +Y points into the room) |
-| Screen | nz_amb_screen - 1024 x 576 texture embedded in the drawable's own dictionary (txd 'nz_amb_tv_board'), quad 1.568 x 0.882 m (16:9) centred at (0, 0.0343, 0.008), UV 0..1 = visible screen, top-left = (0,0); default = waiting-room information board (now serving / queue / clock). Replace it with a DUI (AddReplaceTexture('nz_amb_tv_board', 'nz_amb_screen', duiTxd, duiTex)) |
+| Screen | nz_amb_screen - 1024 x 576 texture embedded in the drawable's own dictionary (txd 'nz_amb_tv_board'), quad 1.568 x 0.882 m (16:9) centred at (0, 0.0343, 0.008), UV 0..1 = visible screen, top-left = (0,0); default = waiting-room information board (beds / triage lanes / clock). Replace it with a DUI (AddReplaceTexture('nz_amb_tv_board', 'nz_amb_screen', duiTxd, duiTex)) |
 | LOD / type | lodDist 80 m, hdTextureDist 15 m, static (archetype flag 32 - never moves, cheapest) |
 | Collision | 1 box PLASTIC_HIGH_DENSITY (embedded composite) |
 | Textures (txd = `nz_amb_tv_board`) | nz_amb_tv_board_d 512, nz_amb_tv_board_g 64, nz_amb_screen 1024x576 |
-| Mesh | 424 tris, 348 verts, shaders: emissive, normal_spec, .ydr 303 KB, memory 0.03 MiB virtual / 1.75 MiB physical |
+| Mesh | 424 tris, 348 verts, shaders: emissive, normal_spec, .ydr 302 KB, memory 0.03 MiB virtual / 1.75 MiB physical |
 
 #### `nz_amb_us_cart` - Point-of-care ultrasound cart (eFAST) with monitor, console and probe holders
 

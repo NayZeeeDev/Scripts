@@ -249,19 +249,9 @@
 #app-exam .ij-care.none .nz-ic{width:14px;height:14px}
 #app-exam .ij-care .ck{display:flex;align-items:center;gap:10px;font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
 #app-exam .ij-care .ck::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.1),rgba(255,255,255,0))}
-#app-exam .sup{list-style:none;margin-top:6px;border-radius:9px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.05);padding:2px 10px}
-#app-exam .sup li{position:relative;display:grid;grid-template-columns:1fr 78px 34px;align-items:center;gap:8px;min-height:28px;padding-left:12px;font-size:12px;color:var(--ink);border-bottom:1px solid rgba(255,255,255,.035)}
-#app-exam .sup li:last-child{border-bottom:0}
-#app-exam .sup li.hd{min-height:22px;font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
-#app-exam .sup li.hd em,#app-exam .sup li.hd b{font:700 8px var(--font);letter-spacing:.14em;color:var(--ink-3)}
-#app-exam .sup li em{font-style:normal;font:500 10.5px var(--mono);color:var(--ink-3);text-align:right}
-#app-exam .sup li b{font:700 12px var(--mono);color:var(--white);text-align:right}
-#app-exam .sup li .no{top:8px;bottom:8px}
-#app-exam .sup li.ok .no{background:var(--teal-hi);box-shadow:0 0 8px rgba(15,212,196,.6)}
-#app-exam .sup li.no{color:#ff9a9d} #app-exam .sup li.no .no{background:var(--red);box-shadow:0 0 8px rgba(229,72,77,.7)} #app-exam .sup li.no em{color:#ff8a8d}
 #app-exam .why{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px;color:var(--ex-amber)}
 #app-exam .why .nz-ic{width:13px;height:13px;flex:none}
-#app-exam .ij-go{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:44px;margin-top:10px;padding:0 8px 0 6px;border-radius:11px;overflow:hidden;
+#app-exam .ij-go{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:10px;row-gap:6px;width:100%;min-height:44px;margin-top:10px;padding:6px 8px 6px 6px;border-radius:11px;overflow:hidden;
   background:linear-gradient(180deg,#12c2b4,var(--teal) 45%,var(--teal-lo));color:var(--on-teal);font-size:13px;font-weight:700;text-align:left;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -2px 0 rgba(0,0,0,.18),0 10px 24px rgba(8,175,162,.25);transition:filter var(--fast),transform var(--fast)}
 #app-exam .ij-go::after{content:'';position:absolute;top:0;bottom:0;left:-40%;width:30%;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.28),rgba(255,255,255,0));transform:skewX(-20deg);animation:ex-shine 3.2s ease-in-out infinite}
@@ -276,6 +266,16 @@
 #app-exam .ij-go:disabled::after{display:none}
 #app-exam .ij-go:disabled .gi{background:rgba(255,255,255,.04)}
 #app-exam .ij-go > .nz-ic{width:14px;height:14px;margin-right:6px}
+/* supplies as chips inside the button (second row, under the label) */
+#app-exam .ij-go .gs{flex:1 0 100%;display:flex;flex-wrap:wrap;gap:4px;padding-left:42px}
+#app-exam .ij-go .sc{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px 0 6px;border-radius:6px;background:rgba(0,0,0,.17);box-shadow:inset 0 1px 0 rgba(255,255,255,.14);font-size:10.5px;font-weight:600;white-space:nowrap}
+#app-exam .ij-go .sc i{width:5px;height:5px;flex:none;border-radius:50%;background:currentColor;opacity:.55}
+#app-exam .ij-go .sc b{font:700 10.5px var(--mono)}
+#app-exam .ij-go .sc em{font:500 9.5px var(--mono);opacity:.72}
+#app-exam .ij-go .sc.sc-short{background:rgba(229,72,77,.14);color:#ff9a9d;box-shadow:inset 0 0 0 1px rgba(229,72,77,.4)}
+#app-exam .ij-go .sc.sc-short i{background:var(--red);opacity:1;box-shadow:0 0 6px rgba(229,72,77,.7)}
+#app-exam .ij-go:disabled .sc.sc-ok{background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);color:var(--ink-2)}
+#app-exam .ij-go:disabled .sc.sc-ok i{background:var(--teal-hi);opacity:1}
 #app-exam .alts{display:flex;flex-direction:column;gap:5px;margin-top:9px}
 #app-exam .alts .al{font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
 #app-exam .ij-alt{display:flex;align-items:center;gap:8px;min-height:32px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.02);color:var(--ink-2);font-size:12px;text-align:left;transition:all var(--fast)}

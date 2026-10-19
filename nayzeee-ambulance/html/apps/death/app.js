@@ -341,14 +341,14 @@
           { icon: 'flag', text: 'You let go', tone: 'red', lead: true },
           { icon: 'knife', text: 'Serious stab wound · Abdomen', tone: 'red' },
           { icon: 'cut', text: 'Moderate deep laceration · Left forearm', tone: 'amber' },
-          { icon: 'drop', text: 'Lost 31% of their blood (1.6 L)', tone: 'amber' },
+          { icon: 'drop', text: 'Lost 31% of your blood (1.6 L)', tone: 'amber' },
         ]
         : [
           { icon: 'skull', text: 'Bled out before help arrived', tone: 'red', lead: true },
           { icon: 'crosshair', text: 'Critical gunshot wound · Chest', tone: 'red' },
           { icon: 'drop', text: 'Moderate internal bleeding · Abdomen', tone: 'amber' },
           { icon: 'lungs', text: 'Blood around a lung', tone: 'amber' },
-          { icon: 'drop', text: 'Lost 52% of their blood (2.6 L)', tone: 'red' },
+          { icon: 'drop', text: 'Lost 52% of your blood (2.6 L)', tone: 'red' },
           { icon: 'ecg', text: 'No pulse for 05:00', tone: 'dim' },
         ];
       const respawn = demo === 'free'

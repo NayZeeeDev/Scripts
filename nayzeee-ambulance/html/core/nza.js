@@ -17,7 +17,7 @@
      NZA.mock('<app>:<event>', fnOrValue)          preview-only replies for NZA.post
 
    KIT  NZA.ui.ProcPanel · FlipClock · Hold · Segmented · Toggle · Slider · Chips · Modal
-        Win · Anchors · Marker · Meter · KeyHints · BodyGlyph · Ring (the last two return HTML)
+        Win · Anchors · Marker · Meter · KeyHints · BodyGlyph · Ring · ScoreRing (the last three return HTML)
         NZA.toast · NZA.speech · NZA.prompt · NZA.audio · NZA.fmt · NZA.t · NZA.icon
    ═══════════════════════════════════════════════════════════ */
 (() => {
@@ -251,11 +251,14 @@
 
   /* ─────────────── toasts ─────────────── */
   const TOAST_ICON = { success: 'check', error: 'x', warning: 'alert', info: 'info' };
-  function toast({ title, message, type = 'success', duration = 4500, icon: ic, grade } = {}) {
+  // score (0..100) draws a status ring filled to the score with the percentage inside;
+  // `grade` is still accepted from older callers but never drawn (no letter badges)
+  function toast({ title, message, type = 'success', duration = 4500, icon: ic, score } = {}) {
     const layer = document.getElementById('nza-layer-toasts');
     if (!layer) return;
     const n = el('div', `note ${type === 'success' ? '' : type}`);
-    const badge = grade ? `<span class="grade g-${esc(grade)}" style="width:30px;height:30px;font-size:15px;border-radius:9px;flex:none;box-shadow:none">${esc(grade)}</span>` : `<span class="ni">${icon(ic || TOAST_ICON[type] || 'info')}</span>`;
+    const sc = score === null || score === undefined || score === '' ? NaN : Number(score);
+    const badge = Number.isFinite(sc) ? ScoreRing({ score: sc }) : `<span class="ni">${icon(ic || TOAST_ICON[type] || 'info')}</span>`;
     n.innerHTML = `${badge}<div>${title ? `<b>${esc(title)}</b>` : ''}${message ? `<p>${esc(message)}</p>` : ''}</div><i class="bar"></i>`;
     const bar = n.querySelector('.bar');
     bar.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration, easing: 'linear', fill: 'forwards' });
@@ -832,6 +835,21 @@
     return `<div class="nza-ring ${esc(tone || '')}"${b > 0 ? ` style="--beat:${b.toFixed(2)}s"` : ''}><span class="rg"><svg viewBox="0 0 44 44"><circle class="b" cx="22" cy="22" r="18"/><circle class="f" cx="22" cy="22" r="18" stroke-dasharray="${RING_C.toFixed(1)}" stroke-dashoffset="${(RING_C * (1 - f)).toFixed(1)}"/></svg><b>${esc(String(value ?? '--'))}</b>${b > 0 ? '<i class="bt"></i>' : ''}</span><em>${esc(String(label ?? ''))}${unit ? `<small>${esc(String(unit))}</small>` : ''}</em></div>`;
   }
 
+  /* ── Score ring: a result as the HUD status ring — filled to the score, percentage inside ──
+     NZA.ui.ScoreRing({ score 0..100, size 'sm' | 'lg', label }) → html   (also NZA.ui.ScoreRing(86))
+       tone follows the score: teal ≥ 72 · amber ≥ 40 · red below (same bands as NZA.Util.Grade)
+     NZA.ui.Grade is the same component, kept for compatibility: it never draws a letter. */
+  const SRING_C = 2 * Math.PI * 15;   // keep in step with the nza-sring-fill keyframes in nza.css
+  const scoreTone = sc => (sc >= 72 ? 'teal' : sc >= 40 ? 'amber' : 'red');
+  function ScoreRing(o = {}) {
+    if (typeof o !== 'object' || o === null) o = { score: o };
+    const raw = o.score === null || o.score === undefined || o.score === '' ? NaN : Number(o.score);
+    const has = Number.isFinite(raw), sc = has ? Math.round(clamp(raw, 0, 100)) : 0;   // no score → empty grey ring, '--'
+    const size = o.size === 'lg' || o.size === 'sm' ? ` ${o.size}` : '';
+    const lbl = o.label ? `<em>${esc(String(o.label))}</em>` : '';
+    return `<span class="nza-sring ${has ? scoreTone(sc) : 'none'}${size}" role="img" aria-label="${has ? `${sc}%` : '--'}"><span class="rg"><svg viewBox="0 0 36 36"><circle class="b" cx="18" cy="18" r="15"/><circle class="f" cx="18" cy="18" r="15" stroke-dasharray="${SRING_C.toFixed(2)}" stroke-dashoffset="${(SRING_C * (1 - sc / 100)).toFixed(2)}"/></svg><b>${has ? `${sc}<small>%</small>` : '--'}</b></span>${lbl}</span>`;
+  }
+
   /* ── canvas sizing that respects app zoom + device pixel ratio ── */
   function fitCanvas(cv, zoomed = true) {
     const z = zoomed ? (NZA.zoom || 1) : 1;
@@ -878,7 +896,7 @@
     inGame, resource, app, open, close: (n) => close(n, true), closeLocal: (n) => close(n, false), isOpen, demo, boot,
     post, mock: (name, v) => { mocks[name] = v; }, toast, speech, prompt, promptHide,
     audio, fmt, t, icon, rich, esc, el, clamp, fitCanvas, pointer, get stack() { return [...stack]; }, get cfg() { return cfg; },
-    ui: { ProcPanel, FlipClock, Hold, Segmented, Toggle, Slider, Chips, Modal, Win, Anchors, Marker, Meter, meterHTML, KeyHints, BodyGlyph, Ring },
+    ui: { ProcPanel, FlipClock, Hold, Segmented, Toggle, Slider, Chips, Modal, Win, Anchors, Marker, Meter, meterHTML, KeyHints, BodyGlyph, Ring, ScoreRing, Grade: ScoreRing },
     apps,
   };
 })();

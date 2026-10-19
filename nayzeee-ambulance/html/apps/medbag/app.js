@@ -30,7 +30,9 @@
    Mouse: click = move the dial quantity · hold = pour one by one (release to move) ·
           Shift + click = whole stack · right click = one · drag = onto a bag slot / the pockets ·
           click a shadow outline = pack that supply up to its par level.
-   Keys:  1 2 3 4 = quantity 1 / 5 / 10 / stack · + − = step · F = filter · Esc = close.
+   Dial:  a count arc (1 … 40, notches 1 and 3) then two share notches: half (of the clicked
+          stack, rounded up) and the whole stack.
+   Keys:  1 2 3 4 = quantity 1 / 3 / half / stack · + − = step · F = filter · Esc = close.
    ═══════════════════════════════════════════════════════════ */
 (() => {
   const esc = NZA.esc;
@@ -68,10 +70,11 @@
   const normMe = m => (m ? Object.assign({}, m, { items: normItems(m.items) }) : null);
 
   /* ─────────────── state ─────────────── */
-  const PRESETS = [1, 5, 10, 'stack'];
+  // our own notch set: two counts, then two shares of the clicked stack (half, whole)
+  const PRESETS = [1, 3, 'half', 'stack'];
   const S = {
     on: false, mode: 'bag', bag: null, me: null, kit: [], kitOn: false, colours: [], layout: null,
-    qty: 1, stack: false, filter: '', log: [],
+    qty: 1, stack: false, half: false, filter: '', log: [],
     queue: Promise.resolve(), busy: 0,
     press: null, drag: null, pour: null, tipFor: null, styling: false, pickColour: null,
     zip: null, tagTimer: null,
@@ -85,21 +88,25 @@
     const [x0, y0] = pt(cx, cy, r, f0), [x1, y1] = pt(cx, cy, r, f1);
     return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${(f1 - f0) * SW > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
   };
-  // quantity ↔ dial position (1 → 0, 5 → ⅓, 10 → ⅔, stack → 1)
+  // quantity ↔ dial position: the count arc runs 1 → 0, 3 → ⅓, 40 → NUM_END;
+  // past it sit the two share notches, half → ⅔ and stack → 1
+  const NUM_END = 0.6, NUM_MAX = 40;
   const qtyPos = () => {
     if (S.stack) return 1;
+    if (S.half) return 2 / 3;
     const q = S.qty;
     if (q <= 1) return 0;
-    if (q <= 5) return ((q - 1) / 4) / 3;
-    if (q <= 10) return 1 / 3 + ((q - 5) / 5) / 3;
-    return 2 / 3 + Math.min(1, (q - 10) / 40) / 3 * 0.92;
+    if (q <= 3) return ((q - 1) / 2) / 3;
+    return 1 / 3 + Math.min(1, (q - 3) / (NUM_MAX - 3)) * (NUM_END - 1 / 3);
   };
   const posQty = f => {
-    if (f >= 0.985) return 'stack';
-    if (f <= 1 / 3) return Math.round(1 + f * 3 * 4);
-    if (f <= 2 / 3) return Math.round(5 + (f - 1 / 3) * 3 * 5);
-    return Math.round(10 + ((f - 2 / 3) * 3 / 0.92) * 40);
+    if (f >= 0.84) return 'stack';
+    if (f > NUM_END + 0.02) return 'half';
+    if (f <= 1 / 3) return Math.round(1 + f * 3 * 2);
+    return Math.round(3 + Math.min(1, (f - 1 / 3) / (NUM_END - 1 / 3)) * (NUM_MAX - 3));
   };
+  // what a click moves of a stack of n (half rounds up, never 0)
+  const halfOf = n => Math.max(1, Math.ceil((Number(n) || 0) / 2));
 
   /* ─────────────── bag illustration bits ─────────────── */
   // front view of the bag in its colour (header identity tile)
@@ -217,7 +224,7 @@
       const st = e.target.closest('[data-step]');
       if (st) { step(Number(st.dataset.step)); return; }
       const p = e.target.closest('[data-preset]');
-      if (p) { setQty(p.dataset.preset === 'stack' ? 'stack' : Number(p.dataset.preset)); }
+      if (p) { const v = p.dataset.preset; setQty(v === 'stack' || v === 'half' ? v : Number(v)); }
     });
     R.dialSvg.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
@@ -485,7 +492,9 @@
     const f = qtyPos();
     let ticks = '';
     for (let i = 0; i <= 24; i++) {
-      const [a, b] = pt(70, 66, 60, i / 24), [c, d] = pt(70, 66, i % 8 ? 57 : 54, i / 24);
+      const major = i % 8 === 0;
+      if (!major && i / 24 > NUM_END) continue; // fine ticks only along the count arc; the shares get one notch each
+      const [a, b] = pt(70, 66, 60, i / 24), [c, d] = pt(70, 66, major ? 54 : 57, i / 24);
       ticks += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`;
     }
     const [kx, ky] = pt(70, 66, 47, f);
@@ -493,15 +502,17 @@
       <path class="fill" d="${arcD(70, 66, 47, 0, Math.max(f, 0.004))}"/>
       <g class="ticks">${ticks}</g>
       <circle class="knob" cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" r="5.5"/>`;
+    const share = shareWord();
     R.pre.innerHTML = PRESETS.map((v, i) => {
       const [x, y] = pt(70, 66, 70, i / 3);
-      const on = (v === 'stack' && S.stack) || (!S.stack && v === S.qty);
-      return `<button data-preset="${v}" class="${on ? 'on' : ''}" style="left:${(x / 140 * 100).toFixed(2)}%;top:${(y / 124 * 100).toFixed(2)}%">${esc(v === 'stack' ? t('ui_stack', 'Stack') : v)}</button>`;
+      const on = (v === 'stack' && S.stack) || (v === 'half' && S.half) || (!share && v === S.qty);
+      const label = v === 'stack' ? t('ui_stack', 'Stack') : v === 'half' ? t('ui_half', 'Half') : v;
+      return `<button data-preset="${v}" class="${on ? 'on' : ''}" style="left:${(x / 140 * 100).toFixed(2)}%;top:${(y / 124 * 100).toFixed(2)}%">${esc(label)}</button>`;
     }).join('');
-    R.odoHost.style.display = S.stack ? 'none' : '';
-    R.stk.style.display = S.stack ? '' : 'none';
-    R.stk.textContent = t('ui_stack', 'Stack');
-    if (!S.stack) odo.set(String(S.qty));
+    R.odoHost.style.display = share ? 'none' : '';
+    R.stk.style.display = share ? '' : 'none';
+    R.stk.textContent = share || '';
+    if (!share) odo.set(String(S.qty));
   }
 
   function renderStyle() {
@@ -557,17 +568,22 @@
   function renderAll() { renderBag(); renderMe(); renderQty(); renderLog(); }
 
   /* ─────────────── quantity ─────────────── */
+  // a share notch is set (half / stack): its word, else null (a plain count)
+  function shareWord() { return S.stack ? t('ui_stack', 'Stack') : S.half ? t('ui_half', 'Half') : null; }
   function setQty(v) {
-    if (v === 'stack') S.stack = true;
-    else { S.stack = false; S.qty = clamp(Math.floor(Number(v) || 1), 1, 999); }
+    if (v === 'stack' || v === 'half') { S.stack = v === 'stack'; S.half = v === 'half'; }
+    else { S.stack = false; S.half = false; S.qty = clamp(Math.floor(Number(v) || 1), 1, 999); }
     renderQty(); NZA.audio.tick();
   }
+  // + − walk the dial: count ↔ … ; stack −→ half −→ the last count, half +→ stack
   function step(d) {
-    if (S.stack) { S.stack = false; S.qty = d > 0 ? 50 : 10; }
+    if (S.stack) { if (d < 0) { S.stack = false; S.half = true; } }
+    else if (S.half) { S.half = false; S.stack = d > 0; }
     else S.qty = clamp(S.qty + d, 1, 999);
     renderQty(); NZA.audio.tick();
   }
-  const curCount = () => (S.stack ? 'all' : S.qty);
+  // count to send for a click on a stack of n
+  const curCount = n => (S.stack ? 'all' : S.half ? halfOf(n) : S.qty);
 
   /* ─────────────── positions inside the app (zoom-safe: layout offsets, not client rects) ─────────────── */
   function posIn(node) {
@@ -640,7 +656,7 @@
       ${it.desc ? `<p class="d">${esc(it.desc)}</p>` : ''}${notes}
       <ul>${rows.map(([l, v]) => `<li><span>${esc(l)}</span><b>${v}</b></li>`).join('')}</ul>
       ${dis ? `<div class="no">${icon('ban')}${esc(t('ui_stays', 'Stays in your pockets'))}</div>`
-            : `<div class="hk"><kbd>Click</kbd><span>${esc(S.stack ? t('ui_stack', 'Stack') : `${S.qty}×`)} ${esc(where)}</span></div>`}`;
+            : `<div class="hk"><kbd>Click</kbd><span>${esc(S.stack ? t('ui_stack', 'Stack') : `${S.half ? halfOf(it.count) : S.qty}×`)} ${esc(where)}</span></div>`}`;
     placeTip(node, side);
   }
   function hideTip() { S.tipFor = null; if (R.tip) R.tip.classList.remove('on'); }
@@ -739,7 +755,7 @@
       return;
     }
     if (p.dis) return shake(p.el);
-    doMove(p, p.button === 2 ? 1 : (p.shift || e.shiftKey ? 'all' : curCount()));
+    doMove(p, p.button === 2 ? 1 : (p.shift || e.shiftKey ? 'all' : curCount(p.max)));
   }
   function doMove(p, count) {
     move(p.side === 'me' ? { dir: 'in', from: p.slot, count, name: p.name } : { dir: 'out', from: p.slot, count, name: p.name }, p.el);
@@ -748,12 +764,12 @@
     const it = findItem(p.side, p.slot);
     if (!it) return;
     hideTip();
-    S.drag = { side: p.side, slot: p.slot, name: p.name, el: p.el, shift: p.shift };
+    S.drag = { side: p.side, slot: p.slot, name: p.name, el: p.el, shift: p.shift, max: it.count };
     p.el.classList.add('lifted');
     A.el.classList.add('dragging');
     ghost = document.createElement('div');
     ghost.className = 'mb-ghost';
-    const n = p.shift || S.stack ? it.count : Math.min(S.qty, it.count);
+    const n = p.shift || S.stack ? it.count : Math.min(S.half ? halfOf(it.count) : S.qty, it.count);
     ghost.innerHTML = `<img src="${imgOf(it)}" alt="" onerror="${imgFallback}"><b>${esc(n)}</b>`;
     ghost.style.setProperty('--z', String(NZA.zoom || 1));
     ghost.style.left = `${p.x}px`; ghost.style.top = `${p.y}px`;
@@ -774,7 +790,7 @@
     clearDrop();
     const under = document.elementFromPoint(e.clientX, e.clientY);
     if (!under || !under.closest) return;
-    const count = d.shift || e.shiftKey ? 'all' : curCount();
+    const count = d.shift || e.shiftKey ? 'all' : curCount(d.max);
     const slot = under.closest('.mb-slot');
     if (d.side === 'me' && (slot || under.closest('.mb-bag'))) {
       move({ dir: 'in', from: d.slot, to: slot ? Number(slot.dataset.slot) : undefined, count, name: d.name }, d.el, slot);
@@ -1067,8 +1083,8 @@
     },
     keys: {
       '1'(e) { if (S.mode !== 'bag' || typing(e)) return false; setQty(1); },
-      '2'(e) { if (S.mode !== 'bag' || typing(e)) return false; setQty(5); },
-      '3'(e) { if (S.mode !== 'bag' || typing(e)) return false; setQty(10); },
+      '2'(e) { if (S.mode !== 'bag' || typing(e)) return false; setQty(3); },
+      '3'(e) { if (S.mode !== 'bag' || typing(e)) return false; setQty('half'); },
       '4'(e) { if (S.mode !== 'bag' || typing(e)) return false; setQty('stack'); },
       '+'(e) { if (S.mode !== 'bag' || typing(e)) return false; step(1); },
       '='(e) { if (S.mode !== 'bag' || typing(e)) return false; step(1); },
@@ -1257,6 +1273,7 @@
     if (demo === 'tipme') setTimeout(() => showTip(node('.mb-list .mb-row[data-slot="17"]')), 300);
     if (demo === 'style') setTimeout(() => { toggleStyle(true); S.pickColour = 'green'; renderStyle(); R.bagCard.style.setProperty('--bc', '#2fb36b'); }, 300);
     if (demo === 'stack') setTimeout(() => setQty('stack'), 300);
+    if (demo === 'half') setTimeout(() => setQty('half'), 300);
     if (demo === 'pour') setTimeout(() => {
       const el = node('.mb-list .mb-row[data-slot="5"]');
       S.press = { el, side: 'me', slot: 5, name: 'bandage', x: 0, y: 0, button: 0, shift: false, max: 9, dis: false };

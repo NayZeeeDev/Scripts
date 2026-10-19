@@ -2,7 +2,7 @@
     NAYZEEE AMBULANCE - CPR & defibrillator (server, authoritative)          NZA.Cpr
 
     One "code" (resuscitation) per patient, run by up to Config.Cpr.maxTeam medics:
-      comp  the compressor (Space on the beat; breaths too when alone)
+      comp  the compressor (Space in time with the metronome; breaths too when alone)
       air   the partner: breaths, pads, analysis, charge / shock, adrenaline; swap at the 2-min check
     The server owns the phase machine and every clinical decision:
       compress → (30 compressions) breaths → compress …   analyse (hands off) → advised | no shock

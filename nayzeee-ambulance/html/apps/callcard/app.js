@@ -4,12 +4,12 @@
    (answer-window ring, blip pointing at the call relative to the camera, distance in the
    centre), the call itself with an instrument list in the middle and a vertical key rail
    on the right (E take · X pass). Above it, while you are on a call, the "on call" strip
-   with the 6-stage ring. Opened WITHOUT focus while on duty; take / pass are game
+   with the call progress ring. Opened WITHOUT focus while on duty; take / pass are game
    keybinds handled in Lua (client/modules/dispatch.lua). Also defines window.NZD, small
    helpers shared by the pager, dispatch and radial apps (loaded after this file).
 
    Lua → JS actions
-     open   { locale, keys: { respond, dismiss }, timeout, voiceVolume, chain }
+     open   { locale, keys: { respond, dismiss }, timeout, voiceVolume }
      alert  { call, queue, police, sound, voice }      show a call (replaces the current one)
      alertUpdate { call }                              same call, new data (units, patients…)
      alertResponded { id }                             flip to "rolling"
@@ -21,11 +21,15 @@
    ═══════════════════════════════════════════════════════════ */
 (() => {
   /* ─────────── shared dispatch helpers (window.NZD) ─────────── */
-  // internal stage codes (server) → our own words on screen
-  const STAGES = ['DSP', 'ENR', 'SCN', 'CARE', 'TRN', 'HSP'];
-  const STAGE_WORD = { DSP: 'Paged', ENR: 'Rolling', SCN: 'On scene', CARE: 'Treating', TRN: 'Transporting', HSP: 'Handover' };
-  const STAGE_SHORT = { DSP: 'PAGED', ENR: 'ROLLING', SCN: 'ON SCENE', CARE: 'TREATING', TRN: 'TRANSPORT', HSP: 'HANDOVER' };
-  const STAGE_ICON = { DSP: 'bell-ring', ENR: 'nav', SCN: 'pin', CARE: 'medkit', TRN: 'ambulance', HSP: 'hospital' };
+  // The server tracks a call with internal status codes. They are never shown: on screen a
+  // call has four phases in our own words, drawn as one progress ring with four phase nodes.
+  const PHASE_OF = { DSP: 0, ENR: 1, SCN: 2, CARE: 2, TRN: 3, HSP: 3 };
+  const PHASES = ['paged', 'rolling', 'patient', 'hospital'];
+  const PHASE_WORD = ['Paged', 'Rolling', 'With patient', 'To hospital'];
+  const PHASE_SHORT = ['PAGED', 'ROLLING', 'WITH PT', 'TO HOSP'];
+  const PHASE_ICON = ['bell-ring', 'nav', 'medkit', 'hospital'];
+  // ring fill: each phase owns a quarter, later steps inside a phase fill it further
+  const FILL = { DSP: 0.1, ENR: 0.35, SCN: 0.56, CARE: 0.68, TRN: 0.84, HSP: 1 };
   const UNIT_WORD = { 108: 'Available', 107: 'Unavailable' };
   const PRIO_WORD = ['', 'Life threat', 'Serious', 'Minor'];
   const TYPE_ICON = {
@@ -35,11 +39,13 @@
     fire: 'flame', assault: 'hand', medical: 'medkit', unknown: 'alert',
   };
   const P = (r, deg) => [+(r * Math.cos(deg * Math.PI / 180)).toFixed(2), +(r * Math.sin(deg * Math.PI / 180)).toFixed(2)];
-  const arcD = (r, a0, a1) => { const [x0, y0] = P(r, a0), [x1, y1] = P(r, a1); return `M${x0} ${y0}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1} ${y1}`; };
 
   const NZD = window.NZD = {
-    STAGES, STAGE_ICON,
-    stageIdx: s => Math.max(0, STAGES.indexOf(s)),
+    PHASES,
+    onCall: s => Object.prototype.hasOwnProperty.call(PHASE_OF, s),
+    phase: s => (NZD.onCall(s) ? PHASE_OF[s] : 0),            // server code → 0..3
+    fill: s => (NZD.onCall(s) ? FILL[s] : 0),                  // server code → 0..1
+    done: s => s === 'HSP',
     typeIcon: t => TYPE_ICON[String(t || '').toLowerCase()] || 'medkit',
     prio: p => Math.min(3, Math.max(1, Number(p) || 2)),
     tr(loc) { return (k, fb) => (loc && loc[k] != null ? loc[k] : fb); },
@@ -52,26 +58,32 @@
     age(s) { return NZA.fmt.time(s); },
     where(c) { return [c.zone, c.street].filter(Boolean).join(' · '); },
     prioWord: (p, tr) => (tr ? tr('p' + p + '_word', PRIO_WORD[p]) : PRIO_WORD[p]),
-    stageWord: (s, tr) => { const k = STAGES.includes(s) ? s : 'DSP'; return tr ? tr('unit_' + k, STAGE_WORD[k]) : STAGE_WORD[k]; },
-    stageShort: (s, tr) => { const k = STAGES.includes(s) ? s : 'DSP'; return tr ? tr('st_' + k.toLowerCase() + '_s', STAGE_SHORT[k]) : STAGE_SHORT[k]; },
-    // unit status (10-8 / 10-7 / stage code) → word
+    phaseWord: (i, tr) => (tr ? tr('ph_' + PHASES[i], PHASE_WORD[i]) : PHASE_WORD[i]),
+    stageWord: (s, tr) => NZD.phaseWord(NZD.phase(s), tr),
+    stageShort: (s, tr) => { const i = NZD.phase(s); return tr ? tr('ph_' + PHASES[i] + '_s', PHASE_SHORT[i]) : PHASE_SHORT[i]; },
+    // unit status (10-8 / 10-7 / server code) → word
     unitWord(s, tr) {
       const k = String(s || '').replace('-', '');
       if (UNIT_WORD[k]) return tr ? tr('unit_' + k, UNIT_WORD[k]) : UNIT_WORD[k];
       return NZD.stageWord(s, tr);
     },
-    unitStatusTone(s) { return ({ '10-8': 'teal', '10-7': 'off', DSP: 'amber', ENR: 'amber', SCN: 'red', CARE: 'red', TRN: 'white', HSP: 'teal' })[s] || 'off'; },
-    /* Stage ring: six arcs round a dial, done = teal, current = white + pulse, ahead = dim.
+    unitStatusTone(s) {
+      if (s === '10-8' || s === 'HSP') return 'teal';
+      if (!NZD.onCall(s)) return 'off';
+      return ['amber', 'amber', 'red', 'white'][NZD.phase(s)];
+    },
+    /* Progress ring: one continuous arc (how far the call has come) over a dim track, four
+       phase nodes at 12 / 3 / 6 / 9 o'clock (passed = teal, current = white + pulse, ahead =
+       hollow) and the phase icon in the centre; a check once the patient is handed over.
        Styles: .nzd-ring in callcard/app.css (loaded globally, used by every dispatch app). */
-    stageRing(cur, { size = 44, icon: withIcon = true, cls = '' } = {}) {
-      const ci = STAGES.includes(cur) ? STAGES.indexOf(cur) : 0;
-      const seg = 60, gap = 9;
-      const arcs = STAGES.map((s, i) => {
-        const a0 = -90 + i * seg + gap / 2, a1 = -90 + (i + 1) * seg - gap / 2;
-        return `<path class="${i < ci ? 'dn' : i === ci ? 'cur' : ''}" d="${arcD(40, a0, a1)}"/>`;
+    stageRing(code, { size = 44, icon: withIcon = true, cls = '' } = {}) {
+      const ph = NZD.phase(code), done = NZD.done(code);
+      const f = Math.max(0.02, NZD.fill(code));
+      const nodes = PHASES.map((_, i) => {
+        const [x, y] = P(40, -90 + i * 90);
+        return `<circle class="nd ${i < ph || done ? 'dn' : i === ph ? 'cur' : ''}" cx="${x}" cy="${y}" r="6.5"/>`;
       }).join('');
-      const ticks = STAGES.map((s, i) => { const [x0, y0] = P(47, -90 + i * seg), [x1, y1] = P(50, -90 + i * seg); return `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; }).join('');
-      return `<span class="nzd-ring s${ci} ${cls}" style="--sz:${size}px"><svg viewBox="-52 -52 104 104"><circle class="bk" r="40"/>${arcs}<g class="tk">${ticks}</g></svg>${withIcon ? `<i>${NZA.icon(STAGE_ICON[STAGES[ci]])}</i>` : ''}</span>`;
+      return `<span class="nzd-ring ph${ph}${done ? ' done' : ''} ${cls}" style="--sz:${size}px"><svg viewBox="-52 -52 104 104"><circle class="bk" r="40"/><circle class="tr" r="40"/><circle class="fl" r="40" pathLength="100" stroke-dasharray="${(f * 100).toFixed(1)} 100" transform="rotate(-90)"/>${nodes}</svg>${withIcon ? `<i>${NZA.icon(done ? 'check' : PHASE_ICON[ph])}</i>` : ''}</span>`;
     },
     // dispatch alert tone (P1 three bursts, P2 two, P3 one)
     tone(p) {
@@ -186,14 +198,14 @@
     if (!act) { activeEl.classList.remove('on'); activeEl.innerHTML = ''; return; }
     const c = act.call, p = NZD.prio(c.priority);
     const stage = act.stage || c.status || 'DSP';
-    const ni = NZD.stageIdx(stage) + 1;
+    const ph = NZD.phase(stage);
     activeEl.className = `cc-active on p${p}`;
     activeEl.innerHTML = `
       ${NZD.stageRing(stage, { size: 54 })}
       <div class="ca-txt">
         <span class="ca-k">${esc(tr('cc_your_call', 'On call'))}<i>${esc(c.id)}</i><em>P${p}</em></span>
         <b class="ca-t">${esc(c.title || '')}</b>
-        <span class="ca-s"><em>${esc(NZD.stageWord(stage, tr))}</em>${ni < 6 ? `<span class="nx">${icon('chev-r')}${esc(NZD.stageWord(NZD.STAGES[ni], tr))}</span>` : ''}</span>
+        <span class="ca-s"><em>${esc(NZD.stageWord(stage, tr))}</em>${ph < 3 ? `<span class="nx">${icon('chev-r')}${esc(NZD.phaseWord(ph + 1, tr))}</span>` : ''}</span>
       </div>
       <div class="ca-rng">
         <span class="ca-ar"><svg class="cc-arrow" viewBox="0 0 24 24"><path d="M12 3l6.5 15.5L12 15l-6.5 3.5z"/></svg></span>

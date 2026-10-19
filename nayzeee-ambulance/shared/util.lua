@@ -103,7 +103,7 @@ function U.shuffle(t)
     return t
 end
 
--- 0..100 score → letter grade
+-- 0..100 score → letter grade (internal records only; players see the score and a verdict word)
 function U.Grade(score)
     score = score or 0
     if score >= 95 then return 'S' end

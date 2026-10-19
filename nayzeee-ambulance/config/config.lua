@@ -173,9 +173,9 @@ Config.Wounded = {
     enabled      = true,
     lossDown     = 0.30,    -- blood loss fraction that knocks a player down
     maxClock     = 300,     -- the bleed-out clock never shows more than this (seconds). It runs in real time for
-                            -- heavy bleeding, slower for a minor ooze, and pauses when the patient is stabilized
+                            -- heavy bleeding, slower for a minor ooze, and stops while the patient holds steady
     minClock     = 60,      -- ...and starts at least at this
-    stableBleed  = 1.0,     -- total bleed (mL/min) under this = STABILIZED, clock paused
+    stableBleed  = 1.0,     -- total bleed (mL/min) under this = holding steady, the bleed-out clock stops
     controlledBleed = 5.0,  -- ...and under this when every bleeding wound is under control (bandaged, packed,
                             -- tourniquet, treated) and no haemothorax is still filling
     noBleedClock = 600,     -- downed without bleeding (e.g. fractures): seconds before you can only give up

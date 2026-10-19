@@ -18,7 +18,12 @@ NZA.AddLocale('en', {
     -- ── procedures ───────────────────────────────────────────────────────
     ['core_client.proc.working']      = 'Treating patient',
     ['core_client.proc.done']         = 'Done',
-    ['core_client.proc.grade']        = 'Grade %s (%d)',
+    ['core_client.proc.result']       = '%d%% · %s',          -- score, verdict word
+    ['core_client.proc.verdict_5']    = 'Clean work',         -- 90+
+    ['core_client.proc.verdict_4']    = 'Well done',          -- 75+
+    ['core_client.proc.verdict_3']    = 'Good enough',        -- 55+
+    ['core_client.proc.verdict_2']    = 'Rough',              -- 35+
+    ['core_client.proc.verdict_1']    = 'Needs another go',   -- below 35
     ['core_client.proc.busy']         = 'Finish what you are doing first',
     ['core_client.proc.aborted']      = 'Procedure aborted',
     ['core_client.proc.cancel_cancel'] = 'Procedure cancelled',

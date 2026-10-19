@@ -111,8 +111,6 @@
 #app-dispatch .db-stage .sg-t{display:flex;flex-direction:column;gap:2px;min-width:0;white-space:nowrap}
 #app-dispatch .db-stage .sg-t b{font-size:14px;font-weight:600;color:var(--white)}
 #app-dispatch .db-stage .sg-t span{font-size:11px;color:var(--ink-3)}
-#app-dispatch .db-stage .sg-n{font:700 20px var(--mono);color:var(--white);letter-spacing:-.03em;padding-left:12px;margin-left:4px;border-left:1px solid var(--line-soft)}
-#app-dispatch .db-stage .sg-n i{font-style:normal;font-size:12px;color:var(--ink-3)}
 #app-dispatch .db-lst{display:inline-flex;align-items:center;gap:8px}
 #app-dispatch .db-lst > span:last-child{display:flex;flex-direction:column;line-height:1.25}
 #app-dispatch .db-lst b{font-size:11.5px;font-weight:600;color:var(--ink)}

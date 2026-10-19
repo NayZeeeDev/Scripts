@@ -58,9 +58,12 @@ above** — not a slot grid:
   bridge): picture, name, category and unit weight, count, a go-button. A status ring around the
   header icon fills with your own load (`ox_inventory` / QB / ESX limit, or `personalMax`); filter
   field. Items that may not go in a bag stay dimmed with "Stays in your pockets".
-- **Quantity dial** (under the pockets): a 240° dial with a rolling counter in the centre, preset
-  notches on the arc (`1 · 5 · 10 · Stack`), click the arc / mouse wheel / − + to set it, and a
-  gesture list (Click, Hold, Shift, RMB, Drag).
+- **Quantity dial** (under the pockets): a 240° dial with a rolling counter in the centre. The arc is
+  a count range (1 … 40, fine ticks, notches `1 · 3`) followed by two share notches, `Half` (half of
+  the clicked stack, rounded up, never 0) and `Stack` (all of it); the centre shows the word instead
+  of the counter when a share is set. Click the arc / a notch, mouse wheel or − + to set it (− from
+  Stack → Half → the last count, + from Half → Stack), and a gesture list (Click, Hold, Shift, RMB,
+  Drag).
 - **Name & colour**: the owner names the bag ("Trauma", "Airway", max `nameLength`) and picks one of
   `Bag.colours` (red / orange / green / magenta models). The whole open bag previews the colour live;
   on save the bag on the ground switches model at once; the inventory item shows the name.
@@ -79,7 +82,7 @@ above** — not a slot grid:
 - Several medics can have the same bag open; everyone sees each other's moves live (and in the log).
   Walking away, the bag being taken, losing access or going down closes the window. Pockets refresh
   every 4 s while open.
-- Keys: `1/2/3/4` = 1 / 5 / 10 / stack, `+`/`-` step, `F` filter, `Enter` save the name, `Esc` close.
+- Keys: `1/2/3/4` = 1 / 3 / half / stack, `+`/`-` step, `F` filter, `Enter` save the name, `Esc` close.
 
 ### Body bag
 - **Place in body bag** (patient option, order 90; also in the radial *Patient* submenu): dead
@@ -132,7 +135,7 @@ above** — not a slot grid:
 |---|---|---|
 | holding a medical bag | G / E / H | put down / open / pack into inventory |
 | storage window | click, Shift + click, right click, drag | move amount / all / one / to a slot |
-| storage window | 1 2 3 4, + −, F, Esc | amount 1/5/10/all, step, search, close |
+| storage window | 1 2 3 4, + −, F, Esc | amount 1 / 3 / half / all, step, search, close |
 | storage window | click a shadow outline | pack that supply up to its par level |
 | bagging a body | X | stop (zip-up card) |
 | carrying a body bag | G / E | put down / context (morgue, stretcher, vehicle) |
@@ -186,7 +189,7 @@ Procedure: `bodybag` (`NZA.Proc`, states `{ dead = true }`, item used at the fin
 - `open { mode = 'zip', locale, zip = { name, sub, steps = { { label, share } }, key, keyLabel } }`, then
   `zipStep { i, ms }` per step and `zipDone {}` (no focus).
 - `open { mode = 'tag', locale, ms, tag = { id, name, kind, tod, date, cause, by, where, sex, age, blood, call } }` (no focus).
-Preview `index.html?app=medbag` (`&demo=tip|tippar|ghost|tipme|drag|pour|fly|style|stack|locked|empty|bare|full|zip|zipdone|tag|tagnpc`);
+Preview `index.html?app=medbag` (`&demo=tip|tippar|ghost|tipme|drag|pour|fly|style|stack|half|locked|empty|bare|full|zip|zipdone|tag|tagnpc`);
 the preview simulates every move, restock and shadow-outline click locally.
 
 **Exports (server)**: `GetMedbagContents(id) → { { slot, name, count, metadata } }`,

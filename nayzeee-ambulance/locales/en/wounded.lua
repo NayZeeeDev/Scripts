@@ -150,7 +150,10 @@ NZA.AddLocale('en', {
     ['wounded.death_hr']           = 'HR',
 
     -- ── cause of death (plain words) ────────────────────────────────────
-    ['wounded.cause_gave_up']      = 'You let go',
+    -- a '_you' twin is used on the player's own death screen; the plain key is the record wording
+    -- (body bag toe tag, morgue)
+    ['wounded.cause_gave_up']      = 'Stopped fighting',
+    ['wounded.cause_gave_up_you']  = 'You let go',
     ['wounded.cause_bleedout']     = 'Bled out before help arrived',
     ['wounded.cause_exsanguination'] = 'Bled to death',
     ['wounded.cause_hypovolemia']  = 'Lost too much blood',
@@ -167,10 +170,12 @@ NZA.AddLocale('en', {
     ['wounded.cause_electrocution'] = 'A shock threw the heart out of rhythm',
     ['wounded.cause_pericardio']   = 'The heart stopped while fluid was drawn from around it',
     ['wounded.cause_condition']    = 'Their body gave out',
+    ['wounded.cause_condition_you'] = 'Your body gave out',
     ['wounded.cause_admin']        = 'Killed by an admin',
     ['wounded.cause_unknown']      = 'Unknown causes',
     ['wounded.cause_injury']       = '%s %s · %s',      -- "Critical gunshot wound · Chest"
     ['wounded.cause_blood']        = 'Lost %d%% of their blood (%s L)',
+    ['wounded.cause_blood_you']    = 'Lost %d%% of your blood (%s L)',
     ['wounded.cause_arrest_time']  = 'No pulse for %s',
     ['wounded.cause_more']         = '+%d more injuries',
 

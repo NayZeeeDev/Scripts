@@ -3,7 +3,7 @@
 
     Discovered findings (what medics have found out about a patient)
       Hidden problems (haemothorax, pneumothorax, tamponade, internal bleeding, airway...)
-      only show up in the Examination screen once a check found them. Every check
+      only show up in the head-to-toe check once a check found them. Every check
       (pulse, breathing, ultrasound, X-ray, ...) adds what it found here; the list lives in
       patient.meta.findings (saved with player patients) and is part of the medic snapshot.
 

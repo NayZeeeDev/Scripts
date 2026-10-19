@@ -372,7 +372,7 @@ select.nz-input option{background:var(--panel)}
 
 /* preview-only shape picker (core injects it outside the game) */
 .nz-shapes{position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:9998;display:flex;align-items:center;gap:3px;
-  padding:3px;border-radius:999px;background:rgba(8,9,10,.86);box-shadow:0 0 0 1px var(--line) inset;backdrop-filter:blur(8px);
+  padding:3px;border-radius:999px;background:rgba(8,9,10,.86);box-shadow:0 0 0 1px var(--line) inset;
   font-size:10px;color:var(--ink-3);opacity:.55;transition:opacity var(--fast)}
 .nz-shapes:hover{opacity:1}
 .nz-shapes span{padding:0 8px 0 10px;letter-spacing:.04em}

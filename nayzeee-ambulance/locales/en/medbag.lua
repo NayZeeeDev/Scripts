@@ -98,6 +98,7 @@ NZA.AddLocale('en', {
     ['medbag.ui_qty']           = 'Quantity',
     ['medbag.ui_qty_sub']       = 'per click',
     ['medbag.ui_stack']         = 'Stack',
+    ['medbag.ui_half']          = 'Half',
     ['medbag.ui_g_click']       = 'Click',
     ['medbag.ui_g_click_d']     = 'move the quantity',
     ['medbag.ui_g_hold']        = 'Hold',

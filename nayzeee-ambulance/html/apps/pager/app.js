@@ -6,10 +6,13 @@
    without focus when a call comes in; taken in hand (focus + cursor, game input kept)
    with the pager key / item.
 
-   Screens: CALL (answer / route ring; top line priority + range + drive time, then the call
-            type in full words, then the stage row: pips, stage and the street as a ticker,
-            key legend), SETUP (call list, link phone, silent, street calls,
-            availability, page log, stand down), PAGE LOG, STANDBY (clock, status)
+   Screens: CALL (range dial on the left: range in the centre, a blip on the rim at the
+            call's bearing, the arc = answer window / route / call progress; the call type
+            in full words beside it over a short instrument list (drive time, answer
+            window or time on the call); a foot row with the priority, the call phase as a
+            pixel quarter ring + word, the street as a ticker and the list index; key
+            legend), SETUP (call list, link phone, silent, street calls, availability,
+            page log, stand down), PAGE LOG, STANDBY (clock, status)
    Keys (focused): ◀ / ArrowLeft setup-back · ▲▼ scroll · Enter / ArrowRight take-open ·
                    Backspace pass-back · ESC or the pager key: put it away
 
@@ -54,26 +57,41 @@
   }
 
   /* ── pixel widgets ── */
-  function ringSVG(frac, big, small) {
+  // dial: dotted track, arc, 24 rim dots; optional blip on the rim at a bearing (degrees,
+  // relative to the camera)
+  function ringSVG(frac, big, small, rel) {
     const f = Math.max(0, Math.min(1, frac || 0));
     let ticks = '';
     for (let i = 0; i < 24; i++) { const a = (i * 15 - 90) * Math.PI / 180; ticks += `<rect x="${(31 * Math.cos(a) - 1).toFixed(1)}" y="${(31 * Math.sin(a) - 1).toFixed(1)}" width="2" height="2" class="${i / 24 < f ? 'on' : ''}"/>`; }
-    return `<div class="px-ring"><svg viewBox="-36 -36 72 72"><circle class="trk" r="26"/><circle class="arc" r="26" pathLength="100" stroke-dasharray="${(f * 100).toFixed(1)} 100"/>${ticks}</svg>
+    const blip = rel != null ? `<path class="blip" transform="rotate(${Number(rel).toFixed(1)})" d="M0 -37.5L3.6 -31.5H-3.6Z"/>` : '';
+    return `<div class="px-ring"><svg viewBox="-36 -36 72 72"><circle class="trk" r="26"/><circle class="arc" r="26" pathLength="100" stroke-dasharray="${(f * 100).toFixed(1)} 100"/>${ticks}${blip}</svg>
       <div class="rv"><b>${esc(big)}</b><span>${esc(small)}</span></div></div>`;
   }
-  // stage row: pips + stage word, then the street scrolling as a ticker and the call index.
-  // The ticker keeps its phase across re-renders (negative delay from the clock).
-  function stagePips(stage, street, idx) {
-    const ci = K.stageIdx(stage);
+  // instrument rows: label left, dotted leader, value right
+  const inst = rows => rows.map(r => `<div class="ln iv ${r.hot ? 'hot' : ''}"><span class="dm">${esc(up(r.k))}</span><span class="lead"></span><span class="vl">${esc(up(r.v))}</span></div>`).join('');
+  // foot row: priority, the call phase (pixel quarter ring + word), the street as a ticker,
+  // the list index. The ticker keeps its position across re-renders (negative delay from
+  // the clock); a new phase word rolls in once.
+  const QUAD = [0, 1, 2, 3].map(i => {
+    const a0 = (i * 90 - 90 + 7) * Math.PI / 180, a1 = ((i + 1) * 90 - 90 - 7) * Math.PI / 180;
+    return `M${(6 * Math.cos(a0)).toFixed(2)} ${(6 * Math.sin(a0)).toFixed(2)}A6 6 0 0 1 ${(6 * Math.cos(a1)).toFixed(2)} ${(6 * Math.sin(a1)).toFixed(2)}`;
+  });
+  let phaseSeen = {};
+  function footRow(c, p, street, idx) {
+    const ph = K.phase(c.status), done = K.done(c.status), now = performance.now();
+    const seen = phaseSeen[c.id];
+    if (!seen || seen.ph !== ph) phaseSeen[c.id] = { ph, t: seen ? now : -1e9 };
+    const since = now - phaseSeen[c.id].t;
+    const roll = since < 600 ? ` class="roll" style="animation-delay:-${since.toFixed(0)}ms"` : '';
+    const quad = `<svg class="pq" viewBox="-8 -8 16 16">${QUAD.map((dd, i) => `<path class="${i < ph || done ? 'dn' : i === ph ? 'cur' : ''}" d="${dd}"/>`).join('')}</svg>`;
     let tick = '<span class="sp"></span>';
     if (street) {
       const dur = Math.max(6, street.length * 0.42);
-      const phase = ((performance.now() / 1000) % dur).toFixed(2);
-      tick = `<span class="tk"><em style="animation-duration:${dur.toFixed(2)}s;animation-delay:-${phase}s">${esc(street)}</em></span>`;
+      const at = ((now / 1000) % dur).toFixed(2);
+      tick = `<span class="tk"><em style="animation-duration:${dur.toFixed(2)}s;animation-delay:-${at}s">${esc(street)}</em></span>`;
     }
-    return `<div class="ln pips">${K.STAGES.map((s, i) => `<i class="${i < ci ? 'dn' : i === ci ? 'cur' : ''}"></i>`).join('')}<span class="sw">${esc(up(K.stageShort(stage, tr)))}</span>${tick}<span class="sn">${esc(idx || `${ci + 1}/6`)}</span></div>`;
+    return `<div class="ln ft ${p === 1 ? 'p1' : ''}"><span class="inv pr">P${p}</span>${quad}<span class="pw"><em${roll}>${esc(up(K.stageShort(c.status, tr)))}</em></span>${tick}<span class="sn">${esc(idx)}</span></div>`;
   }
-  const arrow = rel => `<svg class="px-arr" viewBox="0 0 16 16" style="transform:rotate(${rel || 0}deg)"><path d="M8 1l5 12-5-3-5 3z"/></svg>`;
   function legend(rows) {
     const html = rows.filter(Boolean).map(r => `<div class="lg ${r.cls || ''}"><span class="g">${r.g}</span><span>${esc(up(r.t))}</span></div>`).join('');
     if (legEl.innerHTML !== html) legEl.innerHTML = html;
@@ -105,24 +123,32 @@
     const type = up(tr('type_' + c.type, c.title || SHORT[c.type] || c.type));
     const where = up([c.street, c.zone].filter(Boolean).join(' · ') || tr('unknown_location', 'UNKNOWN LOCATION'));
     const ageNow = c.age != null ? c.age + (performance.now() - (c._at || performance.now())) / 1000 : 0;
-    let ring;
-    if (isMine(c)) {
-      if (K.stageIdx(c.status) > 1) ring = ringSVG((K.stageIdx(c.status) + 1) / 6, K.eta(ageNow), tr('pg_time', 'TIME'));
-      else ring = ringSVG(L.prog != null ? L.prog : 0, K.eta(L.eta), tr('pg_eta', 'DRV'));
+    const range = up([dist.u, L.dir].filter(Boolean).join(' '));
+    const drv = { k: tr('pg_eta', 'DRV'), v: K.eta(L.eta) };
+    const onIt = { k: tr('pg_time', 'TIME'), v: K.eta(ageNow) };
+    let ring, rows;
+    if (isMine(c) && K.phase(c.status) >= 2) {
+      // with the patient / to hospital: time on the call in the dial, the scene range below
+      ring = ringSVG(K.fill(c.status), K.eta(ageNow), tr('pg_time', 'TIME'));
+      rows = [{ k: tr('pg_scene', 'Scene'), v: dist.v + dist.u }];
+    } else if (isMine(c)) {
+      ring = ringSVG(L.prog != null ? L.prog : 0, dist.v, range, L.rel);
+      rows = [drv, onIt];
     } else {
       const win = Number(d.ackWindow) || 30;
       const left = Math.max(0, win - ageNow);
-      ring = left > 0 ? ringSVG(left / win, String(Math.ceil(left)), tr('pg_sec', 'SEC')) : ringSVG(0, K.eta(ageNow), tr('pg_held', 'HELD'));
+      ring = ringSVG(left / win, dist.v, range, L.rel);
+      rows = [drv, left > 0 ? { k: tr('pg_take_in', 'Take in'), v: `${Math.ceil(left)} ${tr('pg_sec', 'SEC')}`, hot: left <= 8 } : { k: tr('pg_held', 'HELD'), v: K.eta(ageNow) }];
     }
     body.innerHTML = `
-      <div class="pg-call ${p === 1 ? 'p1' : ''}">
+      <div class="pg-call">
         ${ring}
         <div class="ci">
-          <div class="ln rg"><span class="inv pr">P${p}</span>${L.rel != null ? arrow(L.rel) : ''}<span>${esc(up(dist.v + dist.u))}</span><span class="dm">${esc(L.dir || '')}</span><span class="sp"></span><span class="dm">${esc(up(tr('pg_eta', 'DRV')))}</span><span>${esc(K.eta(L.eta))}</span></div>
           <div class="ln tw"><span>${esc(type)}</span></div>
+          ${inst(rows)}
         </div>
       </div>
-      ${stagePips(c.status, where, `${sel + 1}/${calls().length}`)}`;
+      ${footRow(c, p, where, `${sel + 1}/${calls().length}`)}`;
     if (isMine(c)) legend([{ g: G.ok, t: tr('pg_gps', 'Nav'), cls: 'hot' }, { g: G.x, t: tr('pg_clr', 'End') }, { g: G.l, t: tr('pg_menu', 'Setup') }]);
     else legend([{ g: G.ok, t: tr('pg_ack', 'Take'), cls: 'hot' }, { g: G.x, t: tr('pg_decl', 'Pass') }, { g: G.l, t: tr('pg_menu', 'Setup') }]);
   }
@@ -273,6 +299,9 @@
     if (p && p.locale) tr = K.tr(p.locale);
     const now = performance.now();
     (d.calls || []).forEach(c => { c._at = now; });
+    const seen = {};
+    (d.calls || []).forEach(c => { if (phaseSeen[c.id]) seen[c.id] = phaseSeen[c.id]; });
+    phaseSeen = seen;
     if (keepId) { const i = calls().findIndex(c => c.id === keepId); if (i >= 0) sel = i; }
     if (sel >= calls().length) sel = 0;
     render();

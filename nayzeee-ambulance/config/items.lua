@@ -129,6 +129,6 @@ Config.ItemDefs = {
     crutches        = { label = 'Crutches',            weight = 1500, stack = false, category = 'orthopedic', description = 'Walk with a broken leg.' },
     bodybag         = { label = 'Body Bag',            weight = 1200, stack = true,  category = 'equipment',  description = 'For transporting the deceased to the morgue.' },
     xray_film       = { label = 'X-ray Film',          weight = 50,   stack = false, category = 'documents',  description = 'Read it on a lightbox.' },
-    triage_ticket   = { label = 'Triage Ticket',       weight = 1,    stack = false, category = 'documents',  description = 'Your number at the hospital. Watch the screen.' },
+    triage_ticket   = { label = 'Queue Pass',          weight = 1,    stack = false, category = 'documents',  description = 'Hospital queue pass. The waiting-area board calls its code.' },
     insurance_card  = { label = 'Insurance Card',      weight = 1,    stack = false, category = 'documents',  description = 'Proof of health insurance.' },
 }

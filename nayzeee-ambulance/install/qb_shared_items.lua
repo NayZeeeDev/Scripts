@@ -74,6 +74,6 @@ return {
 
     -- DOCUMENTS
     ['insurance_card'] = { name = 'insurance_card', label = 'Insurance Card', weight = 1, type = 'item', image = 'insurance_card.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'Proof of health insurance.' },
-    ['triage_ticket'] = { name = 'triage_ticket', label = 'Triage Ticket', weight = 1, type = 'item', image = 'triage_ticket.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'Your number at the hospital. Watch the screen.' },
+    ['triage_ticket'] = { name = 'triage_ticket', label = 'Queue Pass', weight = 1, type = 'item', image = 'triage_ticket.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'Hospital queue pass. The waiting-area board calls its code.' },
     ['xray_film'] = { name = 'xray_film', label = 'X-ray Film', weight = 50, type = 'item', image = 'xray_film.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'Read it on a lightbox.' },
 }

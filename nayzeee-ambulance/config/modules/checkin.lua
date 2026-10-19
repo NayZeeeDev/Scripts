@@ -177,8 +177,8 @@ Config.Checkin = {
         chimeDistance = 22.0,
         arriving      = 150.0,    -- ambulances closer than this show "Arriving"
         etaSpeed      = 19.0,     -- m/s for ambulance ETAs (Config.Dispatch.status.etaSpeed wins when set)
-        maxWaiting    = 7,        -- rows in the waiting list
-        maxIncoming   = 3,        -- incoming ambulance cards
+        maxWaiting    = 7,        -- tickets shown in the triage lanes on the board (all lanes together)
+        maxIncoming   = 3,        -- crews shown in the en-route column
         -- native TVs: "existing" boards and the fallback model draw into the model's render target
         existingModels = { 'prop_tv_flat_01', 'prop_tv_flat_02', 'prop_tv_flat_02b', 'prop_tv_flat_03',
                            'prop_tv_flat_03b', 'prop_tv_flat_michael', 'prop_trev_tv_01', 'prop_tv_03' },

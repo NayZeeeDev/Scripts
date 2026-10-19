@@ -2,8 +2,9 @@
    NAYZEEE AMBULANCE · radial — EMS job menu ("orbit")
    Separate round nodes on an orbit (first node at 12 o'clock), labels as dark chips
    outside the orbit, a beam from the centre to the node under the mouse. Centre: the
-   unit badge — unit ring (6-stage ring on a call, status colour otherwise) inside the
-   duty ring (shift clock). A detail card under the orbit explains the hovered node.
+   unit badge — unit ring (call progress with four phase nodes on a call, status colour
+   otherwise) inside the duty ring (shift clock). A detail card under the orbit explains
+   the hovered node.
    Submenus fly out from the centre; the centre, RMB or Backspace goes back (no Back node).
    Mouse angle selection like a weapon wheel.
 
@@ -47,11 +48,13 @@
   function hubRings() {
     const onDuty = data.onDuty !== false;
     const st = data.status || (onDuty ? '10-8' : '10-7');
-    const onCall = K && K.STAGES.includes(st);
+    const onCall = !!(K && K.onCall(st));
     let unit = '';
     if (onCall) {
-      const ci = K.stageIdx(st);
-      unit = K.STAGES.map((s, i) => `<path class="u-seg ${i < ci ? 'dn' : i === ci ? 'cur' : ''}" d="${arc(78, -90 + i * 60 + 4, -90 + (i + 1) * 60 - 4)}"/>`).join('');
+      // one progress arc + four phase nodes (12 / 3 / 6 / 9 o'clock)
+      const ph = K.phase(st), done = K.done(st), f = Math.max(0.02, K.fill(st));
+      unit = `<path class="u-fill" d="${f >= 1 ? `${arc(78, -90, 89.9)}${arc(78, 89.9, 269.9)}` : arc(78, -90, -90 + f * 360)}"/>` +
+        K.PHASES.map((_, i) => { const [x, y] = pt(78, -90 + i * 90); return `<circle class="u-nd ${i < ph || done ? 'dn' : i === ph ? 'cur' : ''}" cx="${x}" cy="${y}" r="7"/>`; }).join('');
     } else {
       unit = `<circle class="u-full ${!onDuty ? 'off' : st === '10-7' ? 'amber' : 'teal'}" r="78"/>`;
     }

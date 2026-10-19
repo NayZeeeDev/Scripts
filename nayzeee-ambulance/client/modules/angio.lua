@@ -396,7 +396,7 @@ if cfg().interact ~= false then
     })
 end
 
--- Examination → "Injuries to treat"
+-- Examination → "Next care step" card
 NZA.ExamRoutes = NZA.ExamRoutes or {}
 do
     local items = {}

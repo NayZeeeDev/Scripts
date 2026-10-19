@@ -10,13 +10,14 @@
     Discord: discord.gg/nayzeeedev
 
     Calls reach on-duty medics as a call card (top right), on the pager (needs the
-    pager item) and on the paired phone. Every call has a status chain
-    DSP > ENR > SCN > CARE > TRN > HSP that advances by itself:
-      respond            → ENR  (GPS route to the scene)
-      arrive at scene    → SCN
-      first treatment    → CARE
-      patient loaded     → TRN  (ambulance / stretcher)
-      reach a hospital   → HSP  (call closes a few seconds later)
+    pager item) and on the paired phone. A call moves along by itself, and players see
+    four phases on a progress ring:
+      Paged         the call is waiting for a crew
+      Rolling       a crew took it; GPS route to the call
+      With patient  the crew got close to the call, then treats the patient
+      To hospital   the patient is loaded (ambulance / stretcher); GPS route to the
+                    nearest hospital. Once the crew is at the hospital the call closes
+                    a few seconds later.
 
     Keys can be rebound by every player in Settings → Key Bindings → FiveM.
     Text is in locales/en/dispatch.lua.
@@ -39,9 +40,9 @@ Config.Dispatch = {
         maxActive      = 60,       -- oldest unassigned calls are closed when there are more open calls than this
         unassignedTimeout = 900,   -- seconds an unanswered call stays open before it expires
         staleTimeout   = 2700,     -- seconds a call with units but no status change stays open
-        closeAfterHospital = 15,   -- seconds after HSP before the call closes by itself
+        closeAfterHospital = 15,   -- seconds after the crew reaches the hospital before the call closes by itself
         maxUnits       = 4,        -- units that may respond to one call (0 = no limit)
-        autoAttach     = true,     -- a medic who treats a call patient without responding joins the call (CARE)
+        autoAttach     = true,     -- a medic who treats a call patient without taking the call joins it
         realertOnDrop  = true,     -- page available units again when the last unit clears a call before reaching it
         upgradeOnArrest = true,    -- a call patient going into cardiac arrest makes the call P1
         closeWhenRecovered = true, -- close calls with no units when every patient is back on their feet
@@ -51,14 +52,14 @@ Config.Dispatch = {
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
-    -- STATUS CHAIN (automatic)
+    -- CALL PROGRESS (automatic)
     -- ═══════════════════════════════════════════════════════════════════════
 
     status = {
-        auto           = true,     -- advance ENR → SCN → TRN → HSP by itself
-        sceneRadius    = 35.0,     -- metres from the call that count as "arrived at the scene"
-        hospitalRadius = 70.0,     -- metres from a hospital that count as "arrived at hospital"
-        transportDistance = 60.0,  -- patient in a vehicle / bay / stretcher this far from the scene → TRN (fallback when the transport module sends nothing)
+        auto           = true,     -- move calls along by themselves (rolling → with patient → to hospital)
+        sceneRadius    = 35.0,     -- metres from the call that count as on scene
+        hospitalRadius = 70.0,     -- metres from a hospital that count as at the hospital
+        transportDistance = 60.0,  -- patient in a vehicle / bay / stretcher this far from the call counts as on the way to hospital (fallback when the transport module sends nothing)
         tick           = 1500,     -- ms between server checks (only runs while calls have units)
         etaSpeed       = 19.0,     -- average driving speed (m/s) used for ETAs (19 m/s ≈ 68 km/h)
         etaUpdate      = 10,       -- seconds between ETA updates sent to the patient's downed HUD
@@ -96,7 +97,7 @@ Config.Dispatch = {
         sound       = true,        -- alert tone
         voice       = true,        -- play the call's voice recording (NPC calls)
         voiceVolume = 0.85,        -- 0.0 - 1.0
-        activeStrip = true,        -- compact "your call" strip with the status chain while you are on a call (hidden while the pager shows it)
+        activeStrip = true,        -- compact "your call" strip with the progress ring while you are on a call (hidden while the pager shows it)
         hideWhenDown = true,       -- no cards while you are wounded / dead yourself
         minPriority = 3,           -- show cards for priorities up to this (1 = P1 only)
     },

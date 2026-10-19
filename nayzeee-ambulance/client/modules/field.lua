@@ -275,7 +275,7 @@ do
 end
 
 -- ════════════════════════════════════════════════════════════════════════
--- EXAMINATION ROUTES ('Injuries to treat' card of the assess module)
+-- EXAM ROUTES ('Next care step' in the assess module's Findings card)
 -- ════════════════════════════════════════════════════════════════════════
 
 NZA.ExamRoutes = NZA.ExamRoutes or {}

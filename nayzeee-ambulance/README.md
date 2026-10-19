@@ -60,7 +60,7 @@ recorded voices, billing and insurance. One resource, every framework.
 
 ### Being the patient
 - Downed stage with a pose and **crawl**, a **bleed-out clock** that runs with your real bleed
-  rate and pauses once you are stabilised.
+  rate and stops once the bleeding is held.
 - **Call EMS** with one key (G), **give up** after a minimum time, cardiac arrest, death screen,
   **respawn at the nearest hospital** recovery point (fee, insurance, optional item loss).
 - Screen effects that match your state: limp, shaking, blur, tunnel vision, cold, breathlessness.
@@ -100,6 +100,8 @@ recorded voices, billing and insurance. One resource, every framework.
   and seal it with a coil, on the in-world monitor.
 - **Blood service**: donation chair, blood bank, labelled blood units with group and expiry,
   IV stand, transfusion. The wrong group causes a reaction.
+- **Every procedure is scored** from 0 to 100 %: the result shows as a score ring with the
+  percentage and a short verdict.
 
 ### Hospitals and departments
 - **Hospitals are built in game** with `/nzadmin`. No coordinates in config files.
@@ -117,6 +119,8 @@ recorded voices, billing and insurance. One resource, every framework.
 ### Dispatch and calls
 - Incoming-call card, an **RX-10 pager**, unit statuses, the **ops board**, `/911`, callsigns,
   phone integration and the **EMS radial menu** (F6).
+- Calls move along by themselves through four phases (Paged, Rolling, With patient, To
+  hospital), shown on a progress ring.
 - **NPC 911 calls**: 11 data-driven scenarios (overdose, car crash, fall, gunshot, stabbing,
   drowning, burn, cardiac arrest, elderly fall, assault, crush) with real NPC patients you treat
   with the full toolset, **recorded caller voices**, scene props, fire and smoke, hand-over
@@ -345,7 +349,7 @@ turned off in `config/config.lua` and the module configs.
 | hold **E** | Give up (after the minimum time) · respawn on the death screen |
 | **F6** · `/emsmenu` | EMS radial menu (duty, dispatch, patient, stretcher, bag, NPC calls) |
 | **F7** · `/pager` | Show or hide the pager |
-| **E** · **X** | Respond to · dismiss the incoming call |
+| **E** · **Backspace** | Take · pass the incoming call |
 | `/dispatch` | Ops board (no default key) |
 | `/911 <what happened>` | Call EMS from chat |
 | `/callsign <name>` | Set your unit callsign |

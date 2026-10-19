@@ -28,7 +28,8 @@
       NZA.Wounded.Help(target, data)   target = src | pid. Show "medic on the way · ETA" etc. on
                                        that player's HUD. data = { eta = sec, unit = 'Unit 04 · J. Doe',
                                        ai = bool, status = 'enroute'|'onscene'|'cancelled' }
-      NZA.Wounded.CauseLines(p)        plain-words cause of death lines (used by the death screen)
+      NZA.Wounded.CauseLines(p, opts?)  plain-words cause of death lines; opts.you = true for the
+                                       player's own death screen (second person), none = record wording
       NZA.Wounded.OnDuty()             on-duty medic sources
     Bus events emitted (server): wounded:called (src, p, callId), wounded:gaveUp (src, p)
 ]]
@@ -188,12 +189,26 @@ local function injuryList(p)
     return arr
 end
 
-function W.CauseLines(p)
+-- opts.you = true: the dead player's own death screen ("Your body gave out"); without it the
+-- lines read as a record about the patient (toe tag: "Their body gave out"). A key with a
+-- '_you' twin uses the twin on the death screen.
+local function causeKey(key, you)
+    if you then
+        local k = key .. '_you'
+        local locs = NZA.Locales or {}
+        local lang = (Config and Config.Locale) or 'en'
+        if (locs[lang] and locs[lang][k]) or (locs.en and locs.en[k]) then return k end
+    end
+    return key
+end
+
+function W.CauseLines(p, opts)
     local out = {}
     if not p then return out end
+    local you = type(opts) == 'table' and opts.you == true
     local reason = type(p.cause) == 'table' and p.cause.reason or nil
     if reason then
-        local key = 'wounded.cause_' .. tostring(reason)
+        local key = causeKey('wounded.cause_' .. tostring(reason), you)
         local txt = NZA.L(key)
         if txt ~= key then
             out[#out + 1] = { icon = reason == 'gave_up' and 'flag' or 'skull', text = txt, tone = 'red', lead = true }
@@ -202,7 +217,7 @@ function W.CauseLines(p)
     -- what stopped the heart, when an arrest ended in death (core keeps it in p.cause.arrestCause)
     local arrestCause = type(p.cause) == 'table' and p.cause.arrestCause or nil
     if arrestCause and arrestCause ~= reason then
-        local key = 'wounded.cause_' .. tostring(arrestCause)
+        local key = causeKey('wounded.cause_' .. tostring(arrestCause), you)
         local txt = NZA.L(key)
         if txt ~= key then
             out[#out + 1] = { icon = 'heart', text = txt, tone = 'red', lead = #out == 0 or nil }
@@ -228,7 +243,7 @@ function W.CauseLines(p)
         local litres = math.max(0, max - (tonumber(p.blood) or max)) / 1000
         out[#out + 1] = {
             icon = 'drop',
-            text = NZA.L('wounded.cause_blood', math.floor(loss * 100 + 0.5), string.format('%.1f', litres)),
+            text = NZA.L(causeKey('wounded.cause_blood', you), math.floor(loss * 100 + 0.5), string.format('%.1f', litres)),
             tone = loss >= 0.35 and 'red' or 'amber',
         }
     end
@@ -451,7 +466,7 @@ lib.callback.register('nza:wounded:info', function(src)
             hold = tonumber(cfg('Death', 'respawnHold', 3)) or 3,
             tod = os.date(ui('timeFormat', '%H:%M'), deadAt),
             name = p.name,
-            cause = W.CauseLines(p),
+            cause = W.CauseLines(p, { you = true }),
             bagged = (p.meta and p.meta.bodybag) and true or false,
             respawn = respawn,
         }

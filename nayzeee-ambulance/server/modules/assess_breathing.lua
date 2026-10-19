@@ -478,7 +478,10 @@ local function onFinish(src, p, session, result)
         fb = { { tone = 'info', text = L('fb_easy') } }
         out = { counted = t.rr, coverage = 6, callOk = true }
         result.call = t.call
-    else
+    end
+    -- only whitelisted call ids reach scoring, NZA.Findings and the result rows
+    if not CALLS[result.call] then result.call = nil end
+    if not easy then
         pts, fb, out = score(s, t, result)
     end
     local recorded = addFindings(src, p, t, result, out, easy)

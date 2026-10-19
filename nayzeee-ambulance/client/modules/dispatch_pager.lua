@@ -92,7 +92,6 @@ local function payload()
         time = clock(),
         key = cfg('pager', 'key', 'F7'),
         ackWindow = tonumber(cfg('card', 'timeout', 30)) or 30,
-        chain = D.Stages,
     }
 end
 

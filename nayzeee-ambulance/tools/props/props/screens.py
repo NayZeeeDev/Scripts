@@ -168,24 +168,37 @@ def draw_waiting_board(w=1024, h=576):
     _star(d, int(44 * s), int(35 * s), 46 * s)
     d.text((int(82 * s), int(35 * s)), "EMERGENCY DEPARTMENT  ·  PATIENT INFORMATION", font=font("label", 24 * s), fill=(230, 236, 240), anchor="lm")
     d.text((w - int(28 * s), int(35 * s)), "12:04", font=font("mono-bold", 28 * s), fill=(230, 236, 240), anchor="rm")
-    # now serving tile
-    d.rounded_rectangle([int(28 * s), int(96 * s), int(500 * s), int(420 * s)], radius=int(14 * s), fill=(12, 34, 40))
-    d.text((int(60 * s), int(132 * s)), "NOW SERVING", font=font("label-semi", 26 * s), fill=TEAL_HI, anchor="lm")
-    d.text((int(264 * s), int(262 * s)), "A-014", font=font("label", 128 * s), fill=(240, 244, 246), anchor="mm")
-    d.text((int(264 * s), int(370 * s)), "TRIAGE  ROOM 2", font=font("label-semi", 30 * s), fill=(170, 200, 206), anchor="mm")
-    # queue list
+    # bed bay grid (matches the live board in html/dui/tv.html: beds + triage lanes)
+    d.rounded_rectangle([int(28 * s), int(96 * s), int(500 * s), int(420 * s)], radius=int(14 * s), fill=(12, 26, 32))
+    d.text((int(56 * s), int(126 * s)), "BEDS", font=font("label-semi", 24 * s), fill=TEAL_HI, anchor="lm")
+    d.text((int(472 * s), int(126 * s)), "3 FREE", font=font("mono-bold", 22 * s), fill=(170, 200, 206), anchor="rm")
+    states = ["busy", "busy", "free", "called", "busy", "free", "busy", "free"]
+    for k, st in enumerate(states):
+        cx, cy = k % 4, k // 4
+        x = int((56 + cx * 108) * s)
+        y = int((160 + cy * 124) * s)
+        fill = {"busy": (20, 44, 50), "free": (14, 20, 26), "called": (54, 44, 12)}[st]
+        edge = {"busy": TEAL_HI, "free": (60, 70, 76), "called": AMBER}[st]
+        d.rounded_rectangle([x, y, x + int(92 * s), y + int(104 * s)], radius=int(10 * s), fill=fill, outline=edge, width=max(1, int(2 * s)))
+        d.text((x + int(46 * s), y + int(38 * s)), str(k + 1), font=font("mono-bold", 34 * s), fill=(230, 236, 240), anchor="mm")
+        d.text((x + int(46 * s), y + int(80 * s)), {"busy": "IN CARE", "free": "OPEN", "called": "GO NOW"}[st],
+               font=font("label-semi", 14 * s), fill=edge, anchor="mm")
+    # triage lanes
     x0 = int(530 * s)
-    d.text((x0, int(112 * s)), "NEXT", font=font("label-semi", 22 * s), fill=(150, 162, 170), anchor="lm")
-    rows = [("A-015", "TRIAGE", "4 min"), ("B-007", "X-RAY", "9 min"), ("A-016", "TRIAGE", "12 min"), ("C-002", "BLOOD", "15 min")]
-    for k, (t, room, eta) in enumerate(rows):
-        y = int((150 + k * 66) * s)
-        d.rounded_rectangle([x0, y, w - int(28 * s), y + int(54 * s)], radius=int(8 * s), fill=(14, 20, 26))
-        d.text((x0 + int(18 * s), y + int(27 * s)), t, font=font("mono-bold", 28 * s), fill=(220, 226, 230), anchor="lm")
-        d.text((x0 + int(190 * s), y + int(27 * s)), room, font=font("label-semi", 22 * s), fill=(150, 162, 170), anchor="lm")
-        d.text((w - int(46 * s), y + int(27 * s)), eta, font=font("mono", 22 * s), fill=AMBER, anchor="rm")
+    d.text((x0, int(112 * s)), "TRIAGE LANES", font=font("label-semi", 22 * s), fill=(150, 162, 170), anchor="lm")
+    lanes = [("P1", "Critical", (229, 72, 77), 1), ("P2", "Urgent", AMBER, 3), ("P3", "Stable", TEAL_HI, 5)]
+    for k, (code, word, col, n) in enumerate(lanes):
+        y = int((150 + k * 88) * s)
+        d.rounded_rectangle([x0, y, w - int(28 * s), y + int(72 * s)], radius=int(8 * s), fill=(14, 20, 26))
+        d.rectangle([x0, y + int(10 * s), x0 + int(5 * s), y + int(62 * s)], fill=col)
+        d.text((x0 + int(24 * s), y + int(36 * s)), code, font=font("mono-bold", 30 * s), fill=col, anchor="lm")
+        d.text((x0 + int(92 * s), y + int(36 * s)), word, font=font("label-semi", 24 * s), fill=(210, 218, 222), anchor="lm")
+        for j in range(n):
+            px = w - int((60 + j * 26) * s)
+            d.ellipse([px - int(9 * s), y + int(27 * s), px + int(9 * s), y + int(45 * s)], fill=col)
     # footer notice
     d.rectangle([0, h - int(110 * s), w, h], fill=(12, 16, 20))
-    d.text((int(28 * s), h - int(76 * s)), "Average wait  38 min", font=font("label-semi", 24 * s), fill=(200, 210, 214), anchor="lm")
+    d.text((int(28 * s), h - int(76 * s)), "Check in at the desk  ·  Typical wait 38 min", font=font("label-semi", 24 * s), fill=(200, 210, 214), anchor="lm")
     d.text((int(28 * s), h - int(38 * s)), "Please clean your hands at the entrance  ·  Tell staff if your condition gets worse",
            font=font("label-reg", 20 * s), fill=(130, 140, 146), anchor="lm")
     return img

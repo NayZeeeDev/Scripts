@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · dispatch board — "Ops board" (UI v5 window)
-   Ops board · Open calls (stage ring, detail, timeline, patients, send a crew) · Crews ·
+   Ops board · Open calls (progress ring, detail, timeline, patients, send a crew) · Crews ·
    Live map (canvas, world → map projection) · Logbook (nza_calls) · ER intake (check-in
-   module + inbound crews). Calls show their progress as the 6-stage ring (NZD.stageRing).
+   module + inbound crews). Calls show their progress as the four-phase ring (NZD.stageRing).
 
    Lua → JS: open (board data + tab + locale + logLimit) · data (board data, every ~2 s)
      board data = { now, clock, self {x,y}, calls[], units[], hospitals[], queue[] | nil,
@@ -35,10 +35,10 @@
   const SRC = { player: 'Player', npc: 'Local', system: 'System' };
   const QST = { waiting: 'In the lobby', called: 'Called up', treatment: 'In treatment' };
   const REASON = { closed: 'Closed out', cleared: 'Stood down', hospital: 'Handed over', expired: 'Nobody took it', stale: 'Timed out' };
-  // stage readout: ring + word + what comes next
+  // phase readout: progress ring + phase word + what comes next
   function stageBlock(st, size, cls = '') {
-    const ci = K.stageIdx(st);
-    return `<div class="db-stage ${cls}">${K.stageRing(st, { size })}<div class="sg-t"><b>${esc(K.stageWord(st, tr))}</b><span>${ci < 5 ? `${esc(tr('db_next', 'Next'))} · ${esc(K.stageWord(K.STAGES[ci + 1], tr))}` : esc(tr('db_last', 'Last stage'))}</span></div><span class="sg-n">${ci + 1}<i>/6</i></span></div>`;
+    const ph = K.phase(st);
+    return `<div class="db-stage ${cls}">${K.stageRing(st, { size })}<div class="sg-t"><b>${esc(K.stageWord(st, tr))}</b><span>${ph < 3 ? `${esc(tr('db_next', 'Next'))} · ${esc(K.phaseWord(ph + 1, tr))}` : esc(tr('db_last', 'Last phase'))}</span></div></div>`;
   }
   const initials = n => String(n || '?').split(/\s+/).map(x => x[0] || '').join('').slice(0, 2).toUpperCase();
   const hhmm = t => { if (!t) return '--:--'; const d = new Date(t * 1000); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };

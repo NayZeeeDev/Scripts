@@ -12,7 +12,8 @@
             2. easy mode → ox_lib progress (Config.EasyMode.style 'bar' | 'circle') with a
                fitting medic animation, result { score = Config.EasyMode.score, easy = true }
                otherwise → runner(ctx) runs the module's minigame
-            3. ctx.finish(result) → 'nza:proc:finish' (token, result) → toast with the grade
+            3. ctx.finish(result) → 'nza:proc:finish' (token, result) → toast with the score
+               and a verdict word (never a letter grade, docs/design/ORIGINAL.md)
                ctx.abort(reason) → event 'nza:proc:abort' (token)
           ctx = { token, data, easy, target, name, payload, entity, startedAt, label,
                   finish(result) → ok, outcome, abort(reason), onEnd(fn(outcome|nil, reason)),
@@ -69,6 +70,19 @@ local function errText(err)
     local loc = NZA.L(key)
     if loc ~= key then return loc end
     return err
+end
+
+-- 0..100 score → short verdict word (our own wording; the player never sees a letter grade)
+local VERDICTS = {
+    { 90, 'core_client.proc.verdict_5' }, { 75, 'core_client.proc.verdict_4' },
+    { 55, 'core_client.proc.verdict_3' }, { 35, 'core_client.proc.verdict_2' },
+}
+
+local function verdict(score)
+    for i = 1, #VERDICTS do
+        if score >= VERDICTS[i][1] then return NZA.L(VERDICTS[i][2]) end
+    end
+    return NZA.L('core_client.proc.verdict_1')
 end
 
 local function toast(kind, title, message, extra)
@@ -294,11 +308,11 @@ function Proc.Run(name, target, payload, runner, opts)
         local outcome = res.outcome or {}
         if not opts.silent then
             local score = U.clamp(math.floor(tonumber(outcome.score) or result.score), 0, 100)
-            local grade = U.Grade(score)
             local msg = outcome.msg or outcome.message or NZA.L('core_client.proc.done')
+            -- score + verdict word; the NUI draws a score ring when `score` is present
             toast(score >= 40 and 'success' or 'warning', label,
-                msg .. ' · ' .. NZA.L('core_client.proc.grade', grade, score),
-                { grade = grade, score = score })
+                msg .. ' · ' .. NZA.L('core_client.proc.result', score, verdict(score)),
+                { score = score })
         end
         close(true, outcome, nil)
         return true, outcome

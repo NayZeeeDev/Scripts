@@ -456,7 +456,7 @@ TV_SCREEN = (1.568, 0.882)
     "axes": "screen faces +Y (into the room), +Z up, everything at y >= 0 (depth 0.033)",
     "screen": f"nz_amb_screen - 1024 x 576 texture embedded in the drawable's own dictionary (txd 'nz_amb_tv_board'), quad "
               f"{TV_SCREEN[0]} x {TV_SCREEN[1]} m (16:9) centred at (0, 0.0343, 0.008), UV 0..1 = visible screen, top-left = "
-              "(0,0); default = waiting-room information board (now serving / queue / clock). Replace it with a DUI (AddReplaceTexture('nz_amb_tv_board', "
+              "(0,0); default = waiting-room information board (beds / triage lanes / clock). Replace it with a DUI (AddReplaceTexture('nz_amb_tv_board', "
               "'nz_amb_screen', duiTxd, duiTex))",
     "attach": "place against a wall: position = wall surface point at the desired screen-centre height (about 2.0 - 2.3 m), "
               "heading = the wall normal's heading (screen +Y points into the room)",

@@ -68,7 +68,7 @@ Config.Bullet = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Blood = {
-        warnBelow   = 85,    -- % blood volume under which the surgeon is warned to hang a unit first
+        warnBelow   = 85,    -- % blood volume under which the surgeon is warned to start blood before cutting
         base        = 45,    -- mL a clean operation costs
         perFragment = 20,    -- extra mL for every fragment taken out
         poorWork    = 220,   -- extra mL at a score of 0 (scaled by how bad the work was)

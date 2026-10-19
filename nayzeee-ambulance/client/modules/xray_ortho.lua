@@ -1,7 +1,7 @@
 --[[
     NAYZEEE AMBULANCE - Fracture care (client): X-ray route, set the bone, apply a cast
 
-    Examination routes (NZA.ExamRoutes, shown in the exam's "Injuries to treat" card)
+    Examination routes (NZA.ExamRoutes, shown in the exam's "Next care step" card)
         xray_take    'X-ray needed'  fractures / retained fragments that were not read on a film yet
                                       (available while the patient lies on an X-ray table, or in easy mode)
         xray_reduce  'Set the bone'  displaced limb fracture, read on a film     (perm Config.Xray.Reduce.perm)

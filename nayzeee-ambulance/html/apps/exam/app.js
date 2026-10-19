@@ -7,7 +7,7 @@
                   status, injury pins (diamonds), hover tooltip, scan beam, legend
      centre       diamond markers on the 3D body (NZA anchors), chip on the selected one
      right        findings stack for the selected region: severity rings, accordion of
-                  problems, instrument-list findings, supplies, next care step
+                  problems, instrument-list findings, next care step (supplies as chips)
      right edge   check dock: Pulse / Breathing / Bleed control (status rings, key badges)
      bottom-left  key legend chips
    Lua → JS   open { locale, groups, view, patient, perms }   view (live)   anchors (stream)
@@ -532,12 +532,12 @@
       const main = routes[0];
       let care = '';
       if (main) {
-        const items = (main.items || []).map(it => `<li class="${it.ok ? 'ok' : 'no'}"><i class="no"></i><span>${esc(it.label)}</span><em>${esc(T('have_n', '%d on you', it.have))}</em><b>×${it.need}</b></li>`).join('');
+        // supplies ride inside the action button as chips: item · uses · how many you carry
+        const chips = (main.items || []).map(it => `<span class="sc ${it.ok ? 'sc-ok' : 'sc-short'}"><i></i><span>${esc(it.label)}</span><b>×${esc(String(it.need))}</b><em>${esc(T('have_n', '%d on you', it.have))}</em></span>`).join('');
         care = `<div class="ij-care">
           <div class="ck"><span>${esc(T('next_care', 'Next care step'))}</span></div>
-          ${items ? `<ul class="sup"><li class="hd"><span>${esc(T('supplies', 'Supplies'))}</span><em>${esc(T('carried', 'Carried'))}</em><b>${esc(T('uses', 'Uses'))}</b></li>${items}</ul>` : ''}
           ${main.reason ? `<div class="why">${icon('alert')}<span>${esc(main.reason)}</span></div>` : ''}
-          <button class="ij-go" data-inj="${esc(i.id)}" data-route="${esc(main.id)}" ${main.ok ? '' : 'disabled'}><span class="gi">${icon(main.icon || 'medkit')}</span><span class="gl">${esc(main.label)}</span>${main.ok ? '<kbd>Enter</kbd>' : icon('lock')}</button>
+          <button class="ij-go" data-inj="${esc(i.id)}" data-route="${esc(main.id)}" ${main.ok ? '' : 'disabled'}><span class="gi">${icon(main.icon || 'medkit')}</span><span class="gl">${esc(main.label)}</span>${main.ok ? '<kbd>Enter</kbd>' : icon('lock')}${chips ? `<span class="gs">${chips}</span>` : ''}</button>
           ${routes.length > 1 ? `<div class="alts"><span class="al">${esc(T('alt_care', 'Or instead'))}</span>${routes.slice(1).map(r => `<button class="ij-alt" data-inj="${esc(i.id)}" data-route="${esc(r.id)}" ${r.ok ? '' : 'disabled'}>${icon(r.icon || 'chev-r')}<span>${esc(r.label)}</span>${r.reason ? `<em>${esc(r.reason)}</em>` : icon('chev-r')}</button>`).join('')}</div>` : ''}
         </div>`;
       } else if (active) {

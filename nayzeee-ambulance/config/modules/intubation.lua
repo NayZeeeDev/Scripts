@@ -34,7 +34,7 @@ Config.Intubation = {
     allowSelf     = false,        -- you cannot intubate yourself
 
     -- ═══════════════════════════════════════════════════════════════════════
-    -- MENUS (patient options, examination buttons, EMS radial)
+    -- MENUS (patient options, head-to-toe check buttons, EMS radial)
     -- ═══════════════════════════════════════════════════════════════════════
 
     interact = {
@@ -43,7 +43,7 @@ Config.Intubation = {
         orderBvm  = 31,           -- order band 30 = resuscitation
         orderTube = 61,           -- order band 60 = procedures
     },
-    examRoute = true,             -- 'Intubate' / 'Ventilate' buttons in the examination screen
+    examRoute = true,             -- 'Intubate' / 'Ventilate' buttons in the head-to-toe check
     radial    = true,             -- Patient ▸ Ventilate / Intubate in the EMS radial menu
     radialRange = 3.0,            -- metres to look for a patient from the radial menu
 

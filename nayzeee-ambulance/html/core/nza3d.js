@@ -80,6 +80,7 @@
           .jet(false) stops. .onImpact(fn(hit, dt)) per-frame callback while the jet hits skin.
      .bleed(wound, mlPerMin) ooze from a wound (pools in the groove, overflows as rivulets)
      .drip(uv, volume)  one rivulet   .drops(point, count, color)  burst of droplets   .clear()
+          (drops color [r,g,b] | 0xRRGGBB | '#hex'; blood-red stains the skin, any other colour only wets it)
 
    TOOLS  S.tools   meshes: saline (bottle) irrigator (30 mL syringe) syringe (5 mL) probe needleDriver forceps
                     scalpel gauze stapler dermatome
@@ -2239,6 +2240,19 @@
       pCol[i * 3] = col[0]; pCol[i * 3 + 1] = col[1]; pCol[i * 3 + 2] = col[2];
     }
     const WATER = [0.86, 0.94, 1.0], BLOODC = [0.42, 0.02, 0.02];
+    function dropColor(c) {
+      if (Array.isArray(c) && c.length >= 3) return [+c[0] || 0, +c[1] || 0, +c[2] || 0];
+      if (typeof c === 'number' && Number.isFinite(c)) return [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
+      if (typeof c === 'string') {
+        let h = c.trim().replace(/^#/, '');
+        if (/^[0-9a-f]{3}$/i.test(h)) h = h.replace(/./g, x => x + x);
+        if (/^[0-9a-f]{6}$/i.test(h)) return dropColor(parseInt(h, 16));
+      }
+      if (c && typeof c === 'object' && 'r' in c && 'g' in c && 'b' in c) return [+c.r || 0, +c.g || 0, +c.b || 0];
+      return BLOODC;
+    }
+    // red that clearly dominates green and blue reads as blood (fresh, dark or clotting)
+    const isBloodCol = i => { const r = pCol[i * 3]; return r > 0.08 && pCol[i * 3 + 1] < r * 0.45 && pCol[i * 3 + 2] < r * 0.45; };
     const jetMat = keep(new THREE.ShaderMaterial({
       uniforms: { p0: { value: new THREE.Vector3() }, p1: { value: new THREE.Vector3() }, p2: { value: new THREE.Vector3() }, uRadius: { value: 0.0011 }, uTime: { value: 0 }, uAlpha: { value: 0 } },
       vertexShader: JET_VERT, fragmentShader: JET_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -2270,10 +2284,13 @@
         const st = uvToST(uv);
         rivulets.push({ s: st[0], t: st[1], vol: Math.min(vol, 0.12), dir: dir || G.slice(), ph: Math.random() * 10 });
       },
+      // color: [r, g, b] 0..1 | 0xRRGGBB | '#rgb' / '#rrggbb' | { r, g, b } (THREE.Color); default blood.
+      // Blood-red drops stain the skin with blood where they land, any other colour only wets it.
       drops(point, count = 8, color = BLOODC, speed = 0.3) {
+        const col = dropColor(color);
         for (let i = 0; i < count; i++) {
           const a = Math.random() * TAU, sp = speed * (0.4 + Math.random() * 0.8);
-          spawn(2, point.x, point.y, point.z, Math.cos(a) * sp * 0.6, sp, Math.sin(a) * sp * 0.6, 0.35 + Math.random() * 0.4, 0.0011 + Math.random() * 0.0012, color, 0.95);
+          spawn(2, point.x, point.y, point.z, Math.cos(a) * sp * 0.6, sp, Math.sin(a) * sp * 0.6, 0.35 + Math.random() * 0.4, 0.0011 + Math.random() * 0.0012, col, 0.95);
         }
       },
       clear() { pLife.fill(0); rivulets.length = 0; oozes.clear(); jet.on = false; },
@@ -2331,7 +2348,10 @@
           _jp.set(pPos[i * 3], pPos[i * 3 + 1], pPos[i * 3 + 2]);
           const q = toSurf(_jp);
           if (Math.abs(q.s) < W / 2 && Math.abs(q.t) < H / 2 && q.h < heightAt(q.s, q.t)) {
-            if (pKind[i] === 2) layers.paint('blood', stToUv(q.s, q.t), 0.0004 + pSize[i] * 0.3, 0.36, { hardness: 0.45, grain: 0.35, grainScale: 220 });
+            if (pKind[i] === 2) {
+              if (isBloodCol(i)) layers.paint('blood', stToUv(q.s, q.t), 0.0004 + pSize[i] * 0.3, 0.36, { hardness: 0.45, grain: 0.35, grainScale: 220 });
+              else layers.paint('wet', stToUv(q.s, q.t), 0.0006 + pSize[i] * 0.45, 0.3, { hardness: 0.25 });
+            }
             pLife[i] = 0;
           }
         }
@@ -2400,6 +2420,7 @@
       const stick = new Float32Array(N), stuck = new Uint8Array(N), pinned = new Uint8Array(N), contact = new Uint8Array(N);
       const padMask = new Float32Array(N), wgt = new Float32Array(N), local = new Float32Array(N * 2);
       const pinOff = new Float32Array(N * 3), carryW = new Float32Array(N);
+      const GRIP_SLIP2 = 0.0004 * 0.0004;   // static-friction limit: tangential slip per sub-step (m²)
       const c0 = uvToST(d.uv || [0.5, 0.5]), ang = d.angle || 0, ca = Math.cos(ang), sa = -Math.sin(ang);
       const P = new THREE.Vector3(), Nn = new THREE.Vector3();
       for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
@@ -2639,6 +2660,7 @@
           }
           // collide with the skin
           let moving = 0;
+          const grip = D.state !== 'carried';   // a laid sheet grips the skin (static friction); a carried one drags freely
           for (let k = 0; k < N; k++) {
             if (stuck[k]) { contact[k] = 1; continue; }
             const i3 = k * 3;
@@ -2647,6 +2669,16 @@
             const hs = heightAt(q.s, q.t) + thick + padMask[k] * 0.0002 + stitchClear(q.s, q.t);
             if (q.h < hs) {
               surf(q.s, q.t, P, Nn); P.addScaledVector(Nn, hs);
+              if (grip) {
+                // friction: drop the part of this sub-step's move that slides along the skin (prev is
+                // where the vertex started the sub-step). Small slips (gravity creep on a curved limb)
+                // stop dead; big pulls (the sheet draping as it lands) keep 10 % so it can still settle.
+                const dx = P.x - prev[i3], dy = P.y - prev[i3 + 1], dz = P.z - prev[i3 + 2];
+                const dn = dx * Nn.x + dy * Nn.y + dz * Nn.z;
+                const tx = dx - Nn.x * dn, ty = dy - Nn.y * dn, tz = dz - Nn.z * dn;
+                const keepT = tx * tx + ty * ty + tz * tz < GRIP_SLIP2 ? 0 : 0.1;
+                P.x -= tx * (1 - keepT); P.y -= ty * (1 - keepT); P.z -= tz * (1 - keepT);
+              }
               pos[i3] = P.x; pos[i3 + 1] = P.y; pos[i3 + 2] = P.z;
               prev[i3] = lerp(prev[i3], pos[i3], 0.7); prev[i3 + 1] = lerp(prev[i3 + 1], pos[i3 + 1], 0.7); prev[i3 + 2] = lerp(prev[i3 + 2], pos[i3 + 2], 0.7);
               contact[k] = 1;

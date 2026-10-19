@@ -9,7 +9,7 @@
     Registrations (file top level):
       NZA.Interact.Add  nza_cpr       'Start CPR'  (perm Config.Cpr.perm, order 30, arrest / wounded U)
                         nza_cpr_join  'Join CPR'   (a code is running: take the airway / defib / drugs)
-      NZA.ExamRoutes    'cpr'         'Start CPR' button in the Examination screen (arrest, or U + not breathing)
+      NZA.ExamRoutes    'cpr'         'Start CPR' button in the head-to-toe check (arrest, or U + not breathing)
       NZA.RadialItems   'cpr_start'   Patient ▸ Start CPR on the nearest patient in arrest
     API:
       NZA.Cpr.Start(entity?, target?) → bool      (blocks for the server reply; call from a thread)

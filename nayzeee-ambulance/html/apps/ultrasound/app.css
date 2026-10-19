@@ -337,9 +337,9 @@
 /* drain unit (top-right) */
 #app-ultrasound .us-drw{position:absolute;right:28px;top:28px;width:316px;padding:12px 14px 12px;border-radius:14px;animation:us-dev-in2 340ms cubic-bezier(.2,.7,.2,1) both}
 @keyframes us-dev-in2{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
-#app-ultrasound .us-drw header{display:flex;align-items:center;justify-content:space-between}
-#app-ultrasound .us-drw header .k{font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-hi)}
-#app-ultrasound .us-drw header .st{font:600 10px var(--mono);color:var(--ink-3);padding:2px 7px;border-radius:5px;border:1px solid var(--line-soft)}
+#app-ultrasound .us-drw header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#app-ultrasound .us-drw header .k{min-width:0;white-space:nowrap;font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-hi)}
+#app-ultrasound .us-drw header .st{flex:none;white-space:nowrap;font:600 10px var(--mono);color:var(--ink-3);padding:2px 7px;border-radius:5px;border:1px solid var(--line-soft)}
 #app-ultrasound .us-drw.on header .st{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
 #app-ultrasound .dr-body{display:grid;grid-template-columns:150px 1fr;gap:12px;margin-top:9px;align-items:center}
 #app-ultrasound .dr-svg{width:150px;height:128px;display:block}
@@ -374,7 +374,7 @@
 #app-ultrasound .us-ov3 .lens .ll.sp.hi{fill:var(--teal-hi)}
 #app-ultrasound .us-ov3 .trl rect{fill:rgba(10,12,14,.82);stroke:rgba(15,212,196,.5)}
 #app-ultrasound .us-ov3 .trl text{font:700 9.5px var(--font);letter-spacing:.16em;fill:var(--teal-hi);text-anchor:middle}
-#app-ultrasound .us-drw header .k em{font-style:normal;font-weight:600;letter-spacing:.08em;text-transform:none;color:var(--ink-3);margin-left:8px;font-family:var(--mono)}
+#app-ultrasound .us-drw header .k em{display:block;margin-top:3px;font-style:normal;font-weight:600;letter-spacing:.08em;text-transform:none;color:var(--ink-3);font-family:var(--mono)}
 #app-ultrasound .dr-svg .mns{stroke:rgba(255,170,170,.55);stroke-width:.8}
 #app-ultrasound .dr-read .drate{font-size:12px}
 

@@ -9,7 +9,7 @@
     AMBULANCE SYSTEM - CPR & DEFIBRILLATOR
     Discord: discord.gg/nayzeeedev
 
-    Chest compressions on the beat (30:2), rescue breaths (bag-valve mask or mouth to
+    Chest compressions in time with the metronome (30:2), rescue breaths (bag-valve mask or mouth to
     mouth), pads, rhythm analysis, charge / stand clear / shock, adrenaline and ROSC.
     Two medics can run a code together: one compresses, the other does airway, defib and
     drugs, and they swap at the 2-minute rhythm check (compressors get tired).
@@ -36,7 +36,7 @@ Config.Cpr = {
     order         = 30,         -- patient menu order (30 = resuscitation band)
     radial        = true,       -- 'Start CPR' in the EMS radial menu (Patient)
     radialRange   = 3.0,        -- the radial acts on the nearest patient in arrest within this many metres
-    examRoute     = true,       -- 'Start CPR' button in the Examination screen
+    examRoute     = true,       -- 'Start CPR' button in the head-to-toe check
     usableDefib   = true,       -- using the defibrillator item starts CPR on the nearest patient in arrest
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -44,7 +44,7 @@ Config.Cpr = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Keys = {
-        compress   = 'Space',    -- compress on the beat / hold for a breath
+        compress   = 'Space',    -- compress in time with the metronome / hold for a breath
         pads       = 'KeyP',     -- attach the pads (drag them, or press this to place them)
         analyse    = 'KeyA',     -- analyse the rhythm (hands off!)
         charge     = 'KeyC',     -- charge the defibrillator
@@ -72,7 +72,7 @@ Config.Cpr = {
         good       = 0.17,      -- ...as GOOD (anything later / earlier is EARLY / LATE)
         pressMin   = 0.07,      -- holding Space shorter than this = too shallow
         pressMax   = 0.30,      -- holding longer than this (or through the next beat) = leaning, no recoil
-        metronome  = true,      -- click on every beat
+        metronome  = true,      -- audible click that paces the compressions
         idleWarn   = 1.6,       -- seconds without a compression before "Keep going!"
         fatigue = {
             enabled   = true,

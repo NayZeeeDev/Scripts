@@ -50,5 +50,5 @@ INSERT IGNORE INTO `items` (`name`, `label`, `weight`, `rare`, `can_remove`) VAL
     ('trauma_kit', 'Trauma Kit', 6, 0, 1),
     ('wheelchair', 'Wheelchair', 8, 0, 1),
     ('insurance_card', 'Insurance Card', 1, 0, 1),
-    ('triage_ticket', 'Triage Ticket', 1, 0, 1),
+    ('triage_ticket', 'Queue Pass', 1, 0, 1),
     ('xray_film', 'X-ray Film', 1, 0, 1);

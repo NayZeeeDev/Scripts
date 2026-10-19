@@ -290,8 +290,9 @@ end)
 ```
 `NZA.Proc.Run` handles: start callback, easy mode (progress bar `Config.EasyMode` style,
 result `{ score = Config.EasyMode.score, easy = true }`), cancel when the patient moves away
-or dies, finish callback, result toast. `result.score` 0..100 is mandatory;
-`NZA.Util.Grade(score)` → `S A B C D F`.
+or dies, finish callback, result toast (score ring + percentage + verdict word). `result.score` 0..100 is
+mandatory; `NZA.Util.Grade(score)` → `S A B C D F` is for internal records only — never show a letter
+grade to players (docs/design/ORIGINAL.md).
 Server callbacks: `nza:proc:start (name, target, payload) → { ok, token, data, easy }`,
 `nza:proc:finish (token, result) → { ok, outcome }`, event `nza:proc:abort (token)`.
 Only one session per medic. Session stores `startedAt`, items reserved.
@@ -368,6 +369,7 @@ NZA.Dispatch.Create(call)   -- server; call = { code='10-52', priority=1..3, tit
                             --   npc = bool, source = 'player'|'npc'|'system', blip = { sprite, colour } } → callId
 NZA.Dispatch.Update(callId, patch)   NZA.Dispatch.Close(callId, reason)   NZA.Dispatch.Get(callId)
 NZA.Dispatch.SetStatus(callId, src, status)  -- 'DSP'|'ENR'|'SCN'|'CARE'|'TRN'|'HSP' (CARE = first treatment on scene)
+                            --   internal codes only: players see four phases (Paged · Rolling · With patient · To hospital)
 NZA.Dispatch.Page(src, { kind?, priority = 1..3, title, text?, hospital? }) → bool   -- one line on that medic's pager
 NZA.Billing.Charge(target, amount, reason, opts) -- target = src | identifier ; applies insurance; pays society
 NZA.Insurance.Get(identifier) → { plan, expires, cover = 0..1 } | nil
@@ -448,8 +450,8 @@ Every app MUST implement `preview()`.
 - Text tone: short, plain, imperative ("Press the probe into the skin and feel for it").
 
 ### 10.3 Shared JS kit (core/nza.js, lead) — use these, don't re-implement
-`NZA.ui.ProcPanel`, `NZA.ui.FlipClock` (rolling counter), `NZA.toast` (`{ grade }` shows the A–F result
-badge), `NZA.speech`, `NZA.prompt`, `NZA.ui.KeyHints`,
+`NZA.ui.ProcPanel`, `NZA.ui.FlipClock` (rolling counter), `NZA.toast` (`{ score }` draws a score ring with the
+percentage; `grade` is ignored), `NZA.ui.ScoreRing` (`NZA.ui.Grade` is an alias), `NZA.speech`, `NZA.prompt`, `NZA.ui.KeyHints`,
 `NZA.ui.Segmented`, `NZA.ui.Toggle`, `NZA.ui.Slider`, `NZA.ui.Chips`, `NZA.ui.Modal`,
 `NZA.ui.Win` (window shell builder), `NZA.ui.Anchors` / `NZA.ui.Marker` (world-anchored markers fed by Lua),
 `NZA.ui.Hold` (hold-to-confirm), `NZA.ui.Meter` / `NZA.ui.meterHTML`, `NZA.ui.BodyGlyph` (15-region body
@@ -606,13 +608,14 @@ Bridge.Phone.IsOpen() → bool
 | `nza:damage` | C→S | `{ weapon, bone, region, damage, attacker (server id or 0), attackerNet, melee, fall (m), speedDrop (km/h), fire, drown }` | core-server |
 | `nza:down` | C→S | `{ weapon, attacker, region }` — GTA health hit 0, client already resurrected itself in place | core-server |
 | `nza:self:update` | S→C | self snapshot | core-client |
-| `nza:patient:update` | S→C | `pid, snapshot` (watchers only) | core-client |
+| `nza:patient:update` | S→C | `pid, snapshot \| nil` (watchers only; nil = the watch ended) | core-client |
 | `nza:staff:update` | S→C | `{ hospital, dept, grade, gradeLabel, perms, easy, onDuty, medic }` | core-client |
 | `nza:points:sync` | S→C | `points[]` full list (on join and after big changes) | core-client (NZA.Points) |
 | `nza:points:upsert` | S→C | `point` | core-client |
 | `nza:points:remove` | S→C | `pointId` | core-client |
 | `nza:ui:toast` | S→C | `{ title, message, type, duration }` (core-client shows it in the NUI; Bridge.Notify is the fallback) | core-client |
-| `nza:ui:speech` | S→C | `{ name, text, ms }` patient speech subtitle | core-client |
+| `nza:ui:speech` | S→C | `{ name, text, ms, ...extra }` patient speech subtitle (server helper `NZA.Core.Speech(src, name, text, ms, extra)`) | core-client |
+| `nza:proc:aborted` | S→C | `token, reason, msg` — the server ended a procedure session | core-client (NZA.Proc.Run) |
 | `nza:revived` | S→C | `opts` — client must clear wounded/death visuals, stand up | core-client emits bus `self:revived` |
 | `nza:respawn` | C→S | — | wounded module |
 
@@ -663,7 +666,8 @@ type's `target` list (each option gets `(point, entity)`), calls `onSpawn/onRemo
 
 - §5.2 procedure callbacks:
   `nza:proc:start (name, target, payload) → { ok, token, data, easy, easyTime, minTime, maxTime, maxDist, label, allowDead } | { ok = false, err, msg }`;
-  `nza:proc:finish (token, result) → { ok, outcome } | { ok = false, err, msg }` (outcome has score, grade, easy);
+  `nza:proc:finish (token, result) → { ok, outcome } | { ok = false, err, msg }` (outcome has score, grade, easy;
+  `grade` stays in server records only, the client toast shows the score and a verdict word);
   C→S `nza:proc:abort (token)`, S→C `nza:proc:aborted (token, reason, msg)`. `easyTime` defaults to `minTime`
   clamped to 4–10 s and is the easy-mode minimum on the server. `NZA.Proc.Run` blocks (call it from a thread)
   and returns `true, outcome` or `false, reason`; optional 5th arg `{ label, anim, maxDist, silent }`.
@@ -678,7 +682,8 @@ type's `target` list (each option gets `(point, entity)`), calls `onSpawn/onRemo
 - NUI router (`html/core/nza.js`): `_core` action `focus { top }` gives the Lua-focused app keyboard priority;
   right-drag / wheel are forwarded to `NZA.Cam` via `_core:camInput` while an app has NUI focus — an app opts
   out with `camInput: false` (or `preventDefault()` in its own handler); `camInput: true` also forwards R (recentre).
-  `NZA.toast({ grade })` shows the grade badge.
+  `NZA.toast({ score })` draws a score ring filled to the score (teal / amber / red) with the percentage inside;
+  `grade` is accepted but never drawn (no letter grades anywhere, docs/design/ORIGINAL.md).
 - Wounded module server API: `NZA.Wounded.Help(srcOrPid, { eta, unit, ai, status })`,
   `NZA.Wounded.ForceRespawn(src, { coords, label, fee, bed })`; client `NZA.Wounded.SuspendPose(name, on)`.
 - Assess module server API: `NZA.Findings.Add(pid, key, data)` (discovered findings shown in the exam).

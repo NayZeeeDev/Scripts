@@ -536,12 +536,12 @@ return {
         },
     },
     ['triage_ticket'] = {
-        label = 'Triage Ticket',
+        label = 'Queue Pass',
         weight = 1,
         stack = false,
         close = true,
         consume = 0,
-        description = 'Your number at the hospital. Watch the screen.',
+        description = 'Hospital queue pass. The waiting-area board calls its code.',
         client = {
             image = 'nui://nayzeee-ambulance/html/img/items/triage_ticket.png',
         },

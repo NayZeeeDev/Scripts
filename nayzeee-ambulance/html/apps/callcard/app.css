@@ -4,19 +4,22 @@
    instrument list │ vertical key rail. Corner bracket in the priority colour.
    ═══════════════════════════════════════════════════════════ */
 
-/* ── shared stage ring (window.NZD.stageRing) — used by callcard, pager, dispatch, radial ── */
+/* ── shared call progress ring (window.NZD.stageRing) — used by callcard, dispatch ──
+   one continuous arc over a dim track + four phase nodes (12 / 3 / 6 / 9 o'clock) */
 .nzd-ring{position:relative;flex:none;display:inline-grid;place-items:center;width:var(--sz,44px);height:var(--sz,44px)}
 .nzd-ring > svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .nzd-ring > svg .bk{fill:rgba(6,8,9,.92);stroke:rgba(255,255,255,.06);stroke-width:1}
-.nzd-ring > svg > path{fill:none;stroke:rgba(255,255,255,.12);stroke-width:7}
-.nzd-ring > svg > path.dn{stroke:var(--teal);filter:drop-shadow(0 0 2px rgba(15,212,196,.45))}
-.nzd-ring > svg > path.cur{stroke:#fff;filter:drop-shadow(0 0 4px rgba(255,255,255,.75));animation:nzd-cur 1.4s ease-in-out infinite}
-.nzd-ring > svg .tk line{stroke:rgba(255,255,255,.28);stroke-width:1.6}
+.nzd-ring > svg .tr{fill:none;stroke:rgba(255,255,255,.1);stroke-width:7}
+.nzd-ring > svg .fl{fill:none;stroke:var(--teal);stroke-width:7;stroke-linecap:round;filter:drop-shadow(0 0 2px rgba(15,212,196,.45))}
+.nzd-ring > svg .nd{fill:#0b0e0f;stroke:rgba(255,255,255,.32);stroke-width:2.4}
+.nzd-ring > svg .nd.dn{fill:var(--teal);stroke:#0b0e0f}
+.nzd-ring > svg .nd.cur{fill:#fff;stroke:#0b0e0f;filter:drop-shadow(0 0 4px rgba(255,255,255,.75));animation:nzd-cur 1.4s ease-in-out infinite}
 .nzd-ring i{position:relative;display:grid;place-items:center;color:#fff;font-style:normal}
 .nzd-ring i .nz-ic{width:calc(var(--sz,44px) * .36);height:calc(var(--sz,44px) * .36)}
-.nzd-ring.s5 > svg > path.cur{stroke:var(--teal-hi);animation:none}
+.nzd-ring.done > svg .fl{stroke:var(--teal-hi)}
+.nzd-ring.done i{color:var(--teal-hi)}
 @keyframes nzd-cur{50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){.nzd-ring > svg > path.cur{animation:none}}
+@media (prefers-reduced-motion:reduce){.nzd-ring > svg .nd.cur{animation:none}}
 
 /* ── layout ── */
 #app-callcard .cc-root{position:absolute;top:22px;right:356px;width:496px;display:flex;flex-direction:column;align-items:stretch;gap:10px}

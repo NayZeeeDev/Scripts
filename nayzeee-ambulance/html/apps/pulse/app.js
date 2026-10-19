@@ -6,7 +6,7 @@
                           quality, what is logged). The palpation scope (pp.slot) is a polar trace swept
                           like a radar: beats only show inside the right pressure band (too
                           light = flat, too hard = flattened artery, amber). N = nothing here.
-     2 Count              Space starts the timer; tap Space on every beat. The beat count rolls
+     2 Count              Space starts the timer; tap Space with each pulse. The beat count rolls
                           in the centre of the scope, taps are marked on its rim.
      3 Describe it        rhythm (regular / irregular) and strength (weak / normal / bounding)
                           in the verdict picker (pp.slot, keys 1-5), Enter submits.
@@ -196,7 +196,7 @@
       const total = this.d.countSeconds || 15;
       const left = this.count ? Math.max(0, total - (now() - this.count.started) / 1000) : total;
       const row = (cls, l, v) => `<li class="${cls}"><i class="no"></i><span>${esc(l)}</span><b>${esc(v)}</b></li>`;
-      this.scList.innerHTML = row('t-teal', T('sc_on', 'On a beat'), String(good)) + row(bad ? 't-red' : '', T('sc_off', 'Between beats'), String(bad)) +
+      this.scList.innerHTML = row('t-teal', T('sc_on', 'Matched taps'), String(good)) + row(bad ? 't-red' : '', T('sc_off', 'Off-beat taps'), String(bad)) +
         row(this.step === 2 ? 't-amber' : '', T('sc_window', 'Timer'), `${Math.ceil(left)} s`);
     },
     renderVerdict() {
@@ -260,13 +260,13 @@
       } else {
         const off = (this.tapMarks || []).filter(t => !t.good).length;
         s.push({ id: 'count', label: T('st_counted', 'Beats'), value: this.taps.length });
-        s.push({ id: 'off', label: T('sc_off', 'Between beats'), value: off, tone: off ? 'amber' : '' });
+        s.push({ id: 'off', label: T('sc_off', 'Off-beat taps'), value: off, tone: off ? 'amber' : '' });
       }
       return s;
     },
     hints() {
       if (this.step === 3) return [{ keys: ['1-2'], label: T('h_rhythm', 'rhythm') }, { keys: ['3-5'], label: T('h_strength', 'strength') }, { keys: ['R'], label: T('h_recount', 'count again') }];
-      if (this.step === 2) return [{ keys: ['Space'], label: T('h_beat', 'on every beat') }, { keys: ['Scroll'], label: T('h_hold', 'keep the pressure') }];
+      if (this.step === 2) return [{ keys: ['Space'], label: T('h_beat', 'tap with each pulse') }, { keys: ['Scroll'], label: T('h_hold', 'keep the pressure') }];
       return [{ keys: ['Scroll'], label: T('h_press', 'finger pressure') }, { keys: ['↑', '↓'], label: T('h_fine', 'fine adjust') }];
     },
     tools() {
