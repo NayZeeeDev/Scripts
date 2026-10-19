@@ -554,12 +554,9 @@ local function wornTick()
         local ply = Player(GetPlayerServerId(pl))
         consider(ped, ply and ply.state and ply.state.nza)
     end
-    for _, ped in ipairs(GetGamePool('CPed')) do
-        if not IsPedAPlayer(ped) and NetworkGetEntityIsNetworked(ped) then
-            local ent = Entity(ped)
-            local bag = ent and ent.state and ent.state.nza
-            if bag then consider(ped, bag) end
-        end
+    for _, ped in ipairs(NZA.Scan.Peds()) do
+        local bag = Entity(ped).state.nza
+        if bag then consider(ped, bag) end
     end
     for ped in pairs(worn) do
         if not seen[ped] then clearWorn(ped) end

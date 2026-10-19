@@ -546,7 +546,7 @@ CreateThread(function()
             local hash = GetHashKey(model)
             local coords = GetEntityCoords(PlayerPedId())
             local seen = {}
-            for _, obj in ipairs(GetGamePool('CObject')) do
+            for _, obj in ipairs(NZA.Scan.Near('CObject')) do
                 if GetEntityModel(obj) == hash and #(coords - GetEntityCoords(obj)) < BAG_RANGE then
                     seen[obj] = true
                     if not bags[obj] then registerBag(obj) end

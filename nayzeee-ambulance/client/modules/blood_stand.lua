@@ -475,8 +475,8 @@ CreateThread(function()
                 if type(v) == 'table' then found['p' .. sid] = v end
             end
         end
-        for _, ped in ipairs(GetGamePool('CPed')) do
-            if not IsPedAPlayer(ped) and NetworkGetEntityIsNetworked(ped) and #(GetEntityCoords(ped) - me) < 45.0 then
+        for _, ped in ipairs(NZA.Scan.Peds()) do
+            if #(GetEntityCoords(ped) - me) < 45.0 then
                 local v = Entity(ped).state.nzaStand
                 if type(v) == 'table' then found['n' .. NetworkGetNetworkIdFromEntity(ped)] = v end
             end

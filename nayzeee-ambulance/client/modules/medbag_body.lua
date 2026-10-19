@@ -353,8 +353,8 @@ local function rearVehicle(pos, range, wantBodies)
     local vc = B('Vehicle')
     if vc.enabled == false then return nil end
     local best, bestD = nil, range
-    for _, veh in ipairs(GetGamePool('CVehicle')) do
-        if #(pos - GetEntityCoords(veh)) < 9.0 and NetworkGetEntityIsNetworked(veh) and vehicleOk(veh) and GetPedInVehicleSeat(veh, -1) ~= PlayerPedId() then
+    for _, veh in ipairs(NZA.Scan.Near('CVehicle')) do
+        if DoesEntityExist(veh) and #(pos - GetEntityCoords(veh)) < 9.0 and NetworkGetEntityIsNetworked(veh) and vehicleOk(veh) and GetPedInVehicleSeat(veh, -1) ~= PlayerPedId() then
             local d = #(pos - vehicleRear(veh))
             if d <= bestD then
                 local st = Entity(veh).state.nzaBodies
@@ -816,7 +816,7 @@ end)
 local function nearestBodyTo(pos, range)
     local best, bestD = nil, range
     local model = GetHashKey((Config.Props and Config.Props.bodybag) or 'xm_prop_body_bag')
-    for _, obj in ipairs(GetGamePool('CObject')) do
+    for _, obj in ipairs(NZA.Scan.Near('CObject')) do
         if GetEntityModel(obj) == model then
             local st = bodyOf(obj)
             if st and (st.mode == 'ground' or st.mode == 'stretcher') then
@@ -868,9 +868,7 @@ local function nearestDeadPatient(range)
         if t then best, bestT, bestD = ped, t, d end
     end
     for _, pid in ipairs(GetActivePlayers()) do consider(GetPlayerPed(pid)) end
-    for _, ped in ipairs(GetGamePool('CPed')) do
-        if not IsPedAPlayer(ped) and NetworkGetEntityIsNetworked(ped) then consider(ped) end
-    end
+    for _, ped in ipairs(NZA.Scan.Peds()) do consider(ped) end
     return best, bestT
 end
 

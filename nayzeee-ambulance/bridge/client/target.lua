@@ -530,6 +530,12 @@ local function hasAnything()
     return #R.player > 0 or #R.ped > 0 or next(R.entity) ~= nil or next(R.model) ~= nil or next(R.zone) ~= nil
 end
 
+-- entities near you, shared with the rest of the resource (NZA.Scan refreshes them every 2 s)
+local function nearPool(pool)
+    if NZA.Scan and NZA.Scan.Near then return NZA.Scan.Near(pool) end
+    return GetGamePool(pool)
+end
+
 local function scan()
     local me = PlayerPedId()
     local pos = GetEntityCoords(me)
@@ -577,8 +583,8 @@ local function scan()
     local wantPeds, wantModels = #R.ped > 0, next(R.model) ~= nil
     if wantPeds or wantModels then
         local pedReach = wantPeds and maxDistance(R.ped) or 0.0
-        for _, ped in ipairs(GetGamePool('CPed')) do
-            if ped ~= me then
+        for _, ped in ipairs(nearPool('CPed')) do
+            if ped ~= me and DoesEntityExist(ped) then
                 local c = GetEntityCoords(ped)
                 local d = #(pos - c)
                 if d <= 6.0 then
@@ -592,8 +598,8 @@ local function scan()
 
     if wantModels then
         for _, pool in ipairs({ 'CObject', 'CVehicle' }) do
-            for _, ent in ipairs(GetGamePool(pool)) do
-                local mopts = R.model[GetEntityModel(ent)]
+            for _, ent in ipairs(nearPool(pool)) do
+                local mopts = DoesEntityExist(ent) and R.model[GetEntityModel(ent)]
                 if mopts then
                     local c = GetEntityCoords(ent)
                     local d = #(pos - c)

@@ -415,12 +415,10 @@ CreateThread(function()
             local bag, fa = st.nza, st.nzaFa
             if bag or fa then consider(ped, bag, fa) end
         end
-        for _, ped in ipairs(GetGamePool('CPed')) do
-            if not IsPedAPlayer(ped) and NetworkGetEntityIsNetworked(ped) then
-                local st = Entity(ped).state
-                local bag = st.nza
-                if bag then consider(ped, bag, st.nzaFa) end
-            end
+        for _, ped in ipairs(NZA.Scan.Peds()) do
+            local st = Entity(ped).state
+            local bag = st.nza
+            if bag then consider(ped, bag, st.nzaFa) end
         end
         -- the tourniquet being placed in our own minigame has its own temporary prop
         local skip = FA.TqPlacing and FA.TqPlacing() or nil

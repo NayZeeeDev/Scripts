@@ -171,8 +171,8 @@ CreateThread(function()
             local bag = Player(GetPlayerServerId(pl)).state.nza
             if type(bag) == 'table' and bag.binder and DoesEntityExist(ped) and #(GetEntityCoords(ped) - pos) < range then want[ped] = true end
         end
-        for _, ped in ipairs(GetGamePool('CPed')) do
-            if not IsPedAPlayer(ped) and NetworkGetEntityIsNetworked(ped) and #(GetEntityCoords(ped) - pos) < range then
+        for _, ped in ipairs(NZA.Scan.Peds()) do
+            if #(GetEntityCoords(ped) - pos) < range then
                 local bag = Entity(ped).state.nza
                 if type(bag) == 'table' and bag.binder and not bag.bag then want[ped] = true end
             end

@@ -296,16 +296,14 @@ CreateThread(function()
             local me = GetEntityCoords(PlayerPedId())
             local radius = tonumber(cfg().radius) or 120.0
             local now = GetGameTimer()
-            for _, ped in ipairs(GetGamePool('CPed')) do
-                if not IsPedAPlayer(ped) and NetworkGetEntityIsNetworked(ped) then
-                    local bag = Entity(ped).state.nza
-                    if type(bag) == 'table' and #(GetEntityCoords(ped) - me) <= radius then
-                        local ok, err = pcall(cosmeticTick, ped, now)
-                        if not ok then NZA.Debug('calls npc cosmetic', err) end
-                        if NetworkHasControlOfEntity(ped) then
-                            ok, err = pcall(ownerTick, ped, bag, now)
-                            if not ok then NZA.Debug('calls npc', err) end
-                        end
+            for _, ped in ipairs(NZA.Scan.Peds()) do
+                local bag = Entity(ped).state.nza
+                if type(bag) == 'table' and #(GetEntityCoords(ped) - me) <= radius then
+                    local ok, err = pcall(cosmeticTick, ped, now)
+                    if not ok then NZA.Debug('calls npc cosmetic', err) end
+                    if NetworkHasControlOfEntity(ped) then
+                        ok, err = pcall(ownerTick, ped, bag, now)
+                        if not ok then NZA.Debug('calls npc', err) end
                     end
                 end
             end

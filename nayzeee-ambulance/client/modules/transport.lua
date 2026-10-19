@@ -630,9 +630,8 @@ CreateThread(function()
     while true do
         Wait(1000)
         local pos = GetEntityCoords(PlayerPedId())
-        for _, ped in ipairs(GetGamePool('CPed')) do
-            if not IsPedAPlayer(ped) and NetworkGetEntityIsNetworked(ped) and NetworkHasControlOfEntity(ped)
-                and #(pos - GetEntityCoords(ped)) < 80.0 then
+        for _, ped in ipairs(NZA.Scan.Peds()) do
+            if NetworkHasControlOfEntity(ped) and #(pos - GetEntityCoords(ped)) < 80.0 then
                 local bag = Entity(ped).state.nzaTr
                 if type(bag) == 'table' and heldModes[bag.m] then
                     if applied[ped] ~= bag.n then

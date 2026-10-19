@@ -289,7 +289,9 @@ CreateThread(function()
             local mc = GetEntityCoords(me)
             local seen = {}
             local scene = Sc.active
-            for _, ped in ipairs(GetGamePool('CPed')) do
+            local cands = NZA.Scan.Peds()
+            for _, pl in ipairs(GetActivePlayers()) do cands[#cands + 1] = GetPlayerPed(pl) end
+            for _, ped in ipairs(cands) do
                 if DoesEntityExist(ped) and #(GetEntityCoords(ped) - mc) <= range and intubated(ped)
                     and not (scene and scene.entity == ped) then
                     seen[ped] = true
