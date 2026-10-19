@@ -23,8 +23,8 @@ the AI medic.
 ### Call generation
 - A server timer runs while at least `generation.minMedics` medics are on duty with NPC calls on.
   The switch is `Player(src).state.nzaNpcCalls`, owned by the dispatch module (radial → Dispatch
-  → NPC calls, pager menu, dispatch board). A medic who never used the switch counts as opted in
-  (`optInDefault`).
+  → NPC calls, pager menu, dispatch board). NPC calls are off until a medic switches them on;
+  `optInDefault = true` makes a medic who never used the switch count as opted in.
 - The first call comes `firstDelay` seconds after enough medics are on duty. After that, one comes
   every `interval` seconds. Each extra medic makes the wait 15 % shorter, up to 60 % (`perMedicSpeedup`).
 - Caps: `maxActive` calls at once, and at most `maxPerMedic` per opted-in medic.

@@ -168,7 +168,7 @@ Config.Dispatch = {
     },
 
     npcCalls = {
-        defaultOn = true,          -- new medics receive NPC calls (toggle in the radial → Dispatch → NPC calls)
+        defaultOn = false,         -- new medics receive NPC calls (off: they switch it on in the job menu → Dispatch → NPC calls)
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

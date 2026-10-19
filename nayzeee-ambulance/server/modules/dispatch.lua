@@ -209,7 +209,7 @@ local function ensureUnit(src)
         oos = false, call = nil, since = now(),
     }
     -- NPC call preference (read by the calls module from the player state bag)
-    local npc = cfg('npcCalls', 'defaultOn', true) == true
+    local npc = cfg('npcCalls', 'defaultOn', false) == true
     if ident then
         local saved = GetResourceKvpString(kvpKey('npccalls', ident))
         if saved == '1' then npc = true elseif saved == '0' then npc = false end

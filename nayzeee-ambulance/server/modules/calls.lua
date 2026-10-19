@@ -94,7 +94,7 @@ I.OnDuty = onDuty
 
 function C.OptedMedics()
     local out = {}
-    local default = cfg('generation').optInDefault ~= false
+    local default = cfg('generation').optInDefault == true
     for _, src in ipairs(onDuty()) do
         src = tonumber(src)
         local pl = src and Player(src)
