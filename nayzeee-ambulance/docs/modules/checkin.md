@@ -32,7 +32,7 @@ board, the bedside monitor or any device face.
 - Local receptionist ped (scenario `PROP_HUMAN_SEAT_COMPUTER` / `WORLD_HUMAN_CLIPBOARD`) spawned with
   the point, invincible, removed with the point / resource.
 - Prompt (context tag beside the crosshair, `NZA.prompt`): `[E]` kicker = the point label (or
-  "Front desk"), label `Take a queue number`; with a number it shows `Queue pass A-014 · 2 ahead of
+  "Front desk"), label `Take a queue number`; with a number it shows `Queue pass B-024 · 2 ahead of
   you` / `Go to Bed 3` / `In treatment`. Staff also get `[G] Reception queue`; while you wait, a red
   hold prompt `[X] Leave the queue` (`desk.leaveControl`, hold `leaveHold` s) works with every target
   system, also the built-in one. Target options: Take a
@@ -53,15 +53,15 @@ board, the bedside monitor or any device face.
 Dark glass card that slides in from the left edge with a scan sweep: teal corner bracket, "Queue
 pass" kicker, department + desk + `#0014`, status chip (In queue / Called / In treatment / Not
 valid), a queue ring (ticked bezel, arc = progress from the first count of people ahead, centre =
-people ahead / "Go" / icon), rolling queue number `A-014` (odometer digits), triage chip, an
+people ahead / "Go" / icon), rolling queue number `B-024` (odometer digits), triage chip, an
 instrument list (name, time in queue live, expected call / bed), the journey spine (Registered →
 In the queue → Called to a bed → Treatment, current node pulses) and a footer "Pass saved to your
 pockets" + short id. Stays `desk.receiptTime` seconds (0 = until you walk away from the desk).
 
 ### Queue dock (top-left while you wait)
-Compact card in the same corner: mini ring + `A-014` + triage chip + time in queue + expected call;
-called → teal ring with a bed icon, `A-014 → Bed 3`, blinking "Go now" + countdown; in treatment
-(AI doctor) → `A-014 · Bed 3 / Stay on the bed`.
+Compact card in the same corner: mini ring + `B-024` + triage chip + time in queue + expected call;
+called → teal ring with a bed icon, `B-024 → Bed 3`, blinking "Go now" + countdown; in treatment
+(AI doctor) → `B-024 · Bed 3 / Stay on the bed`.
 
 ### Waiting-area board (`tv` position, DUI)
 - `Config.Props.tv_board` (board screen model; `Config.PropScreens.tv_board` texture replaced by the DUI)
@@ -74,14 +74,17 @@ called → teal ring with a bed icon, `A-014 → Bed 3`, blinking "Go now" + cou
   lines, smaller for long names) + "Emergency · waiting area", rolling clock (game or real) with
   date, three status rings (beds open x/y, staff on shift / "AI doctor on call" / "No staff on
   shift", people in the queue + in treatment), "En route" unit cards at the bottom (unit, priority,
-  ETA min / blinking "At the door" — units in `TRN` whose nearest hospital is this department, via
-  `NZA.Dispatch.Units/NearestHospital`). Right: the BEDS bay map (one tile per bed, called tiles
-  glow teal with "Go to your bed", treatment tiles show the number with "In treatment", open tiles
-  are dashed "Open · Ready for the next patient", other occupied beds "In use"; 3–4 columns,
-  balanced rows, up to 8 tiles) and the QUEUE as three triage lanes (P1 / P2 / P3 head with count,
-  number tokens in call order with live wait time, amber after 15 min, "+N", "Nobody in this lane").
-  Info ticker at the bottom.
-- A newly called number takes over the screen for 7 s (ring sweep, "Number called", `A-014 → Bed 3`,
+  ETA min / blinking "At the door"; one card per ambulance whose nearest hospital is this
+  department: dispatch units in `TRN` (`NZA.Dispatch.Units/NearestHospital`), ambulances that loaded
+  a patient without a 911 call (`NZA.Transport.trips` while the patient is still in the vehicle;
+  driver's callsign, else the plate) and the AI ambulance in its transport stage
+  (`NZA.AIMedic.Jobs`, "AI Ambulance", heading for its booked bed)). Right: the BEDS bay map (one
+  tile per bed, called tiles glow teal with "Go to your bed", treatment tiles show the number with
+  "In treatment", open tiles are dashed "Open · Ready for the next patient", other occupied beds "In
+  use"; 3–4 columns, balanced rows, up to 8 tiles) and the QUEUE as three triage lanes (P1 / P2 / P3
+  head with count, number tokens in call order with live wait time, amber after 15 min, "+N",
+  "Nobody in this lane"). Info ticker at the bottom.
+- A newly called number takes over the screen for 7 s (ring sweep, "Number called", `B-024 → Bed 3`,
   "That is you" when it is yours) with a two-tone chime (volume by distance, `tv.chime`,
   `tv.chimeDistance`). Your own number is outlined white with a "You" mark.
 
@@ -103,7 +106,7 @@ called → teal ring with a bed icon, `A-014 → Bed 3`, blinking "Go now" + cou
   who never come are closed as no-show after `queue.noShow` s. Offline patients keep their place for
   `queue.offlineGrace` s; tickets expire after `queue.expire` s; triage is re-checked while waiting
   (worse → staff toast).
-- Staff notification on every check-in: toast "New patient A-014 · P2 Urgent" (P1 red with pager
+- Staff notification on every check-in: toast "New patient B-024 · P2 Urgent" (P1 red with pager
   beep), phone notification (`queue.notify.phone`: always / only paired pagers) and a pager line
   through `NZA.Dispatch.Page` (page log + a few seconds on the pager glass + beep; `queue.notify.pager`).
 - A patient who dies while waiting or called gives the ticket up (closed as `left`, bed released).

@@ -2,7 +2,7 @@
     NAYZEEE AMBULANCE - Check-in (client): desk, receptionist, ticket, reception queue, calls
 
     Position type 'checkin' (NZA.Points.RegisterType): a receptionist NPC behind the desk
-    (local ped, seated or standing scenario), "[E] Check in — treat injuries · Check-in Desk"
+    (local ped, seated or standing scenario), "[E] Take a queue number"
     when you are close (no target needed) plus target options. Staff with
     Config.Checkin.desk.perm get "[G] Reception queue" and "Call next patient". With the
     pharmacy module the desk also has "Pay medical bills" (NZA.Pharmacy.Open, desk mode).

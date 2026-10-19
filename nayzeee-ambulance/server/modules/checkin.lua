@@ -368,27 +368,143 @@ local function pushMine(t, event)
 end
 C.PushMine = pushMine
 
+-- ── ambulances on the way (waiting room board) ──────────────────────────
+
+local function vehEnt(net)
+    net = tonumber(net)
+    if not net then return 0 end
+    local e = NetworkGetEntityFromNetworkId(net)
+    if not e or e == 0 or not DoesEntityExist(e) then return 0 end
+    return e
+end
+
+local function pedVehNet(ped)
+    if not ped or ped == 0 then return nil end
+    local veh = GetVehiclePedIsIn(ped, false)
+    if not veh or veh == 0 then return nil end
+    return NetworkGetNetworkIdFromEntity(veh)
+end
+
+-- department nearest to coords → id, distance (dispatch's rule, else the hospital module's)
+local function nearestDept(coords)
+    local D = NZA.Dispatch
+    if D and D.NearestHospital then
+        local ok, h, d = pcall(D.NearestHospital, coords)
+        if ok and h and d and d < math.huge then return h.id, d end
+        return nil
+    end
+    local H = NZA.Hospitals
+    if H and H.Nearest then
+        local ok, h, d = pcall(H.Nearest, coords)
+        if ok and type(h) == 'table' and d then return h.id, d end
+    end
+    return nil
+end
+
+local function plateOf(veh)
+    local ok, plate = pcall(GetVehicleNumberPlateText, veh)
+    plate = ok and type(plate) == 'string' and plate:gsub('^%s+', ''):gsub('%s+$', '') or ''
+    return plate ~= '' and plate or nil
+end
+
+-- Units in TRN (dispatch calls), ambulances that loaded a patient without a 911 call
+-- (NZA.Transport.trips) and the AI ambulance in its transport stage (NZA.AIMedic.Jobs),
+-- when their nearest department is this one. One card per vehicle.
 local function incoming(hospital)
     local out = {}
     local D = NZA.Dispatch
-    if not (D and D.Units and D.NearestHospital) then return out end
-    local ok, units = pcall(D.Units, true)
-    if not ok or type(units) ~= 'table' then return out end
     local dcfg = Config.Dispatch and Config.Dispatch.status or {}
     local speed = tonumber(dcfg.etaSpeed) or tonumber(cfg('tv', 'etaSpeed', 19.0)) or 19.0
     local arriving = tonumber(cfg('tv', 'arriving', 150.0)) or 150.0
-    for _, u in ipairs(units) do
-        if u.status == 'TRN' and u.x and u.y then
-            local hok, h, d = pcall(D.NearestHospital, vector3(u.x + 0.0, u.y + 0.0, (u.z or 0.0) + 0.0))
-            if hok and h and h.id == hospital and d and d < math.huge then
-                local call = u.call and D.Get and D.Get(u.call) or nil
-                out[#out + 1] = {
-                    unit = u.callsign or u.short or u.name or '?',
-                    priority = call and tonumber(call.priority) or 3,
-                    eta = math.max(0, math.floor(d / math.max(1.0, speed))),
-                    arriving = d <= arriving,
-                    title = call and call.title or nil,
-                }
+    local seenVeh, seenSrc, seenCall = {}, {}, {}
+    local function add(unit, priority, d, title)
+        out[#out + 1] = {
+            unit = unit or '?',
+            priority = tonumber(priority) or 3,
+            eta = math.max(0, math.floor(d / math.max(1.0, speed))),
+            arriving = d <= arriving,
+            title = title,
+        }
+    end
+    local unitBySrc = {}
+    if D and D.Units and D.NearestHospital then
+        local ok, units = pcall(D.Units, true)
+        if ok and type(units) == 'table' then
+            for _, u in ipairs(units) do
+                if u.src then unitBySrc[u.src] = u end
+                if u.status == 'TRN' and u.x and u.y then
+                    local hok, h, d = pcall(D.NearestHospital, vector3(u.x + 0.0, u.y + 0.0, (u.z or 0.0) + 0.0))
+                    if hok and h and h.id == hospital and d and d < math.huge then
+                        local call = u.call and D.Get and D.Get(u.call) or nil
+                        add(u.callsign or u.short or u.name, call and call.priority or 3, d, call and call.title or nil)
+                        if u.src then
+                            seenSrc[u.src] = true
+                            local vn = pedVehNet(GetPlayerPed(u.src))
+                            if vn then seenVeh[vn] = true end
+                        end
+                        if u.call then seenCall[u.call] = true end
+                    end
+                end
+            end
+        end
+    end
+    -- ambulance trips (stretcher loaded) — also the ones without a dispatch call
+    local Tr = NZA.Transport
+    local P = NZA.Patients
+    if Tr and type(Tr.trips) == 'table' and P and P.Get then
+        for pid, trip in pairs(Tr.trips) do
+            local vn = tonumber(trip.veh)
+            local veh = vn and not seenVeh[vn] and vehEnt(vn) or 0
+            local p = veh ~= 0 and P.Get(pid) or nil
+            local m = p and p.meta or {}
+            -- still in that ambulance (unloaded patients keep the trip until they reach a bed)
+            if p and (tonumber(m.vehicle) == vn or tonumber(m.bay) == vn) then
+                local call = D and D.CallForPatient and D.CallForPatient(p) or nil
+                local driverSrc
+                local drv = GetPedInVehicleSeat(veh, -1)
+                if drv and drv ~= 0 then
+                    for src, _ in pairs(unitBySrc) do
+                        if GetPlayerPed(src) == drv then driverSrc = src break end
+                    end
+                end
+                if not (call and seenCall[call.id]) and not (driverSrc and seenSrc[driverSrc]) then
+                    local id, d = nearestDept(GetEntityCoords(veh))
+                    if id == hospital and d then
+                        local u = driverSrc and unitBySrc[driverSrc] or nil
+                        local tri = (call and tonumber(call.priority)) or (P.Triage and P.Triage(pid)) or 3
+                        add((u and (u.callsign or u.short)) or plateOf(veh), tri, d, call and call.title or nil)
+                        seenVeh[vn] = true
+                        if driverSrc then seenSrc[driverSrc] = true end
+                        if call then seenCall[call.id] = true end
+                    end
+                end
+            end
+        end
+    end
+    -- AI ambulance driving a patient in
+    local A = NZA.AIMedic
+    if A and A.Jobs and P and P.Get then
+        local ok, jobs = pcall(A.Jobs)
+        if ok and type(jobs) == 'table' then
+            for _, job in pairs(jobs) do
+                local vn = tonumber(job.veh)
+                local veh = job.state == 'transport' and vn and not seenVeh[vn] and vehEnt(vn) or 0
+                if veh ~= 0 and not (job.callId and seenCall[job.callId]) then
+                    local c = GetEntityCoords(veh)
+                    local dest = job.hospital
+                    local id, d
+                    if type(dest) == 'table' and dest.hospital and dest.coords then
+                        id = dest.hospital
+                        d = #(c - vector3(dest.coords.x + 0.0, dest.coords.y + 0.0, dest.coords.z + 0.0))
+                    else
+                        id, d = nearestDept(c)
+                    end
+                    if id == hospital and d then
+                        local tri = P.Triage and P.Get(job.pid) and P.Triage(job.pid) or 3
+                        add(NZA.L('calls.ai_unit'), tri, d, nil)
+                        seenVeh[vn] = true
+                    end
+                end
             end
         end
     end

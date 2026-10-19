@@ -12,7 +12,8 @@
     Place the positions in game (/nzadmin → your department → Positions):
       Check-in Desk   where the receptionist sits / stands, facing the patients.
                       Each desk can set its own ticket letter (A, B, ...) in the manager.
-      Waiting Room TV the live board (now serving, waiting list, incoming ambulances).
+      Waiting Room TV the live board (beds and who is called to them, the queue,
+                      ambulances on the way).
                       Put it against a wall, or tick "existing" to take over a TV that is
                       already in the map (one of tv.existingModels).
       Bed             the hospital module's beds - the queue assigns them, the AI doctor
@@ -78,7 +79,7 @@ Config.Checkin = {
         offlineGrace  = 300,      -- seconds an offline patient keeps their place
         noShow        = 240,      -- seconds a called patient has to reach the bed (then: no-show)
         estimate      = { 4, 8, 12 }, -- minutes per patient ahead for the estimated wait (P1, P2, P3 tickets)
-        maxServing    = 3,        -- "Now serving" tickets on the board
+        maxServing    = 3,        -- called / in-treatment tickets shown on the bed tiles of the board
         keepServing   = 120,      -- seconds a ticket stays on the board after the patient reached the bed
         autoTreatment = true,     -- the ticket turns "In treatment" when the patient lies on the assigned bed
         doneOnLeave   = true,     -- a staff-called ticket closes as treated when the patient leaves the bed healed
