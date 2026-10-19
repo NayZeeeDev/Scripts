@@ -48,12 +48,7 @@
 #app-bay .pst .pc{margin-left:auto;flex:none}
 #app-bay .pst .odo{font-size:26px}
 
-#app-bay .pt-body{display:grid;grid-template-columns:78px 1fr;gap:12px;margin:12px 14px 0}
-#app-bay .pt-map{position:relative;height:156px;padding:8px 6px 6px;border-radius:10px;border:1px solid rgba(15,212,196,.16);
-  background:radial-gradient(70% 55% at 50% 92%,rgba(15,212,196,.16),transparent 70%),radial-gradient(90% 70% at 50% 30%,rgba(15,212,196,.06),transparent 70%),#07090a;box-shadow:inset 0 0 18px rgba(0,0,0,.6)}
-#app-bay .pt-map::before,#app-bay .pt-map::after{content:'';position:absolute;width:8px;height:8px;border-color:rgba(15,212,196,.6);border-style:solid;pointer-events:none}
-#app-bay .pt-map::before{left:4px;top:4px;border-width:1px 0 0 1px}
-#app-bay .pt-map::after{right:4px;bottom:4px;border-width:0 1px 1px 0}
+#app-bay .pt-body{display:block;margin:12px 14px 0}
 /* the body glyph is the core widget (.nza-body, html/core/nza.css) */
 
 #app-bay h4{display:flex;align-items:center;justify-content:space-between;font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px}

@@ -3,8 +3,6 @@
    Layout (NAYZEEE HUD language):
      top-left     patient card: name, triage, state, open problems, time-left status ring
                   with a rolling counter, observation list (tone notches), devices
-     left         holographic body map card: front / back, 8 region hotspots coloured by
-                  status, injury pins (diamonds), hover tooltip, scan beam, legend
      centre       diamond markers on the 3D body (NZA anchors), chip on the selected one
      right        findings stack for the selected region: severity rings, accordion of
                   problems, instrument-list findings, next care step (supplies as chips)
@@ -13,7 +11,7 @@
    Lua → JS   open { locale, groups, view, patient, perms }   view (live)   anchors (stream)
    JS → Lua   exam:touch { group }   exam:treat { id, route }   exam:action { action, group }
               exam:close (ESC)
-   Keys: ↑/↓ or Tab region · F front/back · Enter start the next care step · 1 pulse ·
+   Keys: ↑/↓ or Tab region · Enter start the next care step · 1 pulse ·
          2 breathing · 3 bleed control · ESC close
 
    Also defines window.NZAAssess (preview-only body renderer shared by exam / pulse /
@@ -118,29 +116,6 @@
   const BLEED_TONE = ['teal', 'amber', 'amber', 'red', 'red'];
   const ACTIVE = s => s === 'open' || s === 'controlled' || s === undefined || s === null;
 
-  /* ─────────────── holographic body (front view coordinates; back = mirrored) ─────────────── */
-  const VB = { x: -70, y: -8, w: 340, h: 456 };
-  const BODY = {
-    head: 'M100,8 C112,8 121,18 121,33 C121,48 112,60 100,60 C88,60 79,48 79,33 C79,18 88,8 100,8 Z',
-    neck: 'M90,54 C90,62 89,68 86,74 L114,74 C111,68 110,62 110,54 C106,58 94,58 90,54 Z',
-    chest: 'M86,74 C77,76 66,78 60,84 C55,90 55,100 57,112 C59,126 61,142 63,160 L137,160 C139,142 141,126 143,112 C145,100 145,90 140,84 C134,78 123,76 114,74 C108,77 92,77 86,74 Z',
-    abdomen: 'M63,160 L137,160 C138,178 140,196 142,214 C143,222 140,230 134,234 C124,238 112,240 100,240 C88,240 76,238 66,234 C60,230 57,222 58,214 C60,196 62,178 63,160 Z',
-    r_arm: 'M60,84 C50,86 44,94 42,106 C40,124 38,142 36,158 C34,176 30,196 27,214 C25,226 23,236 22,246 C21,254 24,262 29,262 C34,262 37,256 37,248 C38,238 40,228 42,216 C46,198 50,180 52,164 C54,148 56,132 57,116 C56,104 56,92 60,84 Z',
-    l_arm: 'M140,84 C150,86 156,94 158,106 C160,124 162,142 164,158 C166,176 170,196 173,214 C175,226 177,236 178,246 C179,254 176,262 171,262 C166,262 163,256 163,248 C162,238 160,228 158,216 C154,198 150,180 148,164 C146,148 144,132 143,116 C144,104 144,92 140,84 Z',
-    r_leg: 'M66,234 C76,238 88,240 98,240 L97,262 C96,290 94,318 92,344 C91,364 90,384 90,404 C90,412 92,420 92,426 C92,432 86,434 78,434 C70,434 68,430 70,424 C72,416 72,408 72,402 C70,382 68,362 67,344 C64,316 61,290 60,262 C59,250 61,240 66,234 Z',
-    l_leg: 'M134,234 C124,238 112,240 102,240 L103,262 C104,290 106,318 108,344 C109,364 110,384 110,404 C110,412 108,420 108,426 C108,432 114,434 122,434 C130,434 132,430 130,424 C128,416 128,408 128,402 C130,382 132,362 133,344 C136,316 139,290 140,262 C141,250 139,240 134,234 Z',
-  };
-  const DETAIL_FRONT = 'M72,85 C84,89 94,87 100,90 C106,87 116,89 128,85 M100,92 L100,150 M70,118 C82,128 94,126 100,121 C106,126 118,128 130,118 M100,164 L100,228 M86,176 L114,176 M85,194 L115,194 M90,62 C96,66 104,66 110,62 M80,346 C84,350 90,350 92,346 M108,346 C110,350 116,350 120,346 M92,30 L96,30 M104,30 L108,30 M97,44 C99,46 101,46 103,44';
-  const DETAIL_BACK = 'M100,62 L100,232 M70,96 C76,112 86,118 93,108 M130,96 C124,112 114,118 107,108 M66,226 C80,240 96,238 100,228 C104,238 120,240 134,226 M82,18 C90,12 110,12 118,18 M80,350 L92,350 M108,350 L120,350';
-  const CENTER = { head: [100, 30], neck: [100, 64], chest: [100, 116], abdomen: [100, 198], r_arm: [36, 176], l_arm: [164, 176], r_leg: [80, 334], l_leg: [120, 334] };
-  const PIN = {
-    head: [100, 22], face: [100, 44], neck: [100, 66], chest: [100, 110], back: [100, 124], abdomen: [100, 186], pelvis: [100, 224],
-    r_upper_arm: [50, 120], r_lower_arm: [36, 198], l_upper_arm: [150, 120], l_lower_arm: [164, 198],
-    r_upper_leg: [80, 292], r_lower_leg: [80, 382], l_upper_leg: [120, 292], l_lower_leg: [120, 382],
-  };
-  const FRONT_ONLY = { face: 1, chest: 1, abdomen: 1, pelvis: 1 };
-  const BACK_ONLY = { back: 1 };
-
   // 4-segment severity ring with an icon inside
   function sevRing(sev, tone, ic, cls = '') {
     const R = 15, C = 2 * Math.PI * R, q = C / 4, gap = 2.6, seg = q - gap;
@@ -162,29 +137,19 @@
         <div class="ex-marks"></div>
         <aside class="ex-colL">
           <section class="ex-pt nza-hud solid nza-int"></section>
-          <section class="ex-map nza-hud solid nza-int">
-            <header class="mh"><span class="kick">${icon('as-body')}<span class="mt"></span></span><div class="seg"><button data-v="front"></button><button data-v="back"></button><kbd>F</kbd></div></header>
-            <div class="ex-holo"><div class="hz"></div><div class="htip"></div></div>
-            <footer class="ml"></footer>
-          </section>
         </aside>
         <aside class="ex-colR"><section class="ex-care nza-hud solid nza-int"></section><section class="ex-find nza-hud solid nza-int"></section></aside>
         <nav class="ex-dock nza-int"></nav>
         <div class="ex-keys"></div>`;
       this.$ = s => el.querySelector(s);
       this.marks = this.$('.ex-marks');
-      this.holo = this.$('.ex-holo .hz');
-      this.tip = this.$('.ex-holo .htip');
       this.diamonds = {};
-      this.face = 'front';
       this.anc = NZA.ui.Anchors('exam');
       this.anc.on(() => this.layout());
       window.addEventListener('resize', () => { if (NZA.isOpen('exam')) this.layout(); });
       this.$('.ex-find').addEventListener('click', e => this.onFindClick(e));
       this.$('.ex-care').addEventListener('click', e => { const b = e.target.closest('button[data-step]'); if (b && !b.disabled) this.startStep(Number(b.dataset.step)); });
       this.$('.ex-dock').addEventListener('click', e => { const b = e.target.closest('button[data-act]'); if (b && !b.classList.contains('off')) this.action(b.dataset.act); });
-      this.$('.ex-map .seg').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) this.flip(b.dataset.v); });
-      this.buildHolo();
     },
 
     open(d) {
@@ -199,10 +164,6 @@
       this.marks.innerHTML = '';
       this.diamonds = {};
       this.groups.forEach(g => this.makeDiamond(g));
-      this.$('.ex-map .mt').textContent = T('map_title', 'Body map');
-      this.$('.ex-map .seg [data-v="front"]').textContent = T('map_front', 'Front');
-      this.$('.ex-map .seg [data-v="back"]').textContent = T('map_back', 'Back');
-      this.flip('front', true);
       this.renderKeys();
       this.renderAll();
       this.layout();
@@ -227,7 +188,6 @@
       ArrowUp() { NZA.apps.exam.step(-1); },
       Tab(e) { NZA.apps.exam.step(e.shiftKey ? -1 : 1); },
       Enter() { const a = NZA.apps.exam; if (!a.careFirst()) a.treatFirst(); },
-      KeyF() { const a = NZA.apps.exam; a.flip(a.face === 'front' ? 'back' : 'front'); },
       Digit1() { NZA.apps.exam.action('pulse'); },
       Digit2() { NZA.apps.exam.action('breathing'); },
       Digit3() { NZA.apps.exam.action('stopbleed'); },
@@ -251,7 +211,6 @@
       if (!name) return;
       if (name !== this.sel) this.expanded = null;
       this.sel = name;
-      this.renderHoloState();
       this.renderDiamonds();
       this.renderFindings();
       this.layout();
@@ -302,8 +261,8 @@
       b.dataset.g = g.name;
       b.innerHTML = '<span class="dm"><i></i></span><span class="halo"></span><span class="chip"><b></b><em></em></span>';
       b.addEventListener('click', () => this.select(g.name));
-      b.addEventListener('mouseenter', () => { this.hover = g.name; this.renderDiamonds(); this.showTip(g.name); });
-      b.addEventListener('mouseleave', () => { this.hover = null; this.renderDiamonds(); this.showTip(null); });
+      b.addEventListener('mouseenter', () => { this.hover = g.name; this.renderDiamonds(); });
+      b.addEventListener('mouseleave', () => { this.hover = null; this.renderDiamonds(); });
       this.marks.appendChild(b);
       this.diamonds[g.name] = b;
     },
@@ -330,105 +289,6 @@
         // chip goes to the side with more room
         b.classList.toggle('flipL', a.x > 0.56);
       });
-    },
-
-    /* ── holographic body map ── */
-    buildHolo() {
-      const regions = face => ORDER.map(n => `<path class="rg" data-g="${n}" d="${BODY[n]}"/>`).join('');
-      const scan = Object.values(BODY).map(d => `<path d="${d}"/>`).join('');
-      const ticks = Array.from({ length: 23 }, (_, i) => `<line x1="-52" x2="${i % 5 ? -46 : -40}" y1="${8 + i * 19}" y2="${8 + i * 19}"/>`).join('');
-      this.holo.innerHTML = `<svg class="hs" viewBox="${VB.x} ${VB.y} ${VB.w} ${VB.h}" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <linearGradient id="exHg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0fd4c4" stop-opacity=".30"/><stop offset=".55" stop-color="#08afa2" stop-opacity=".13"/><stop offset="1" stop-color="#08afa2" stop-opacity=".05"/></linearGradient>
-          <pattern id="exScan" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#7ff5ea" fill-opacity=".16"/></pattern>
-          <linearGradient id="exBeam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0fd4c4" stop-opacity="0"/><stop offset=".85" stop-color="#0fd4c4" stop-opacity=".35"/><stop offset="1" stop-color="#bffcf6" stop-opacity=".9"/></linearGradient>
-          <radialGradient id="exFloor"><stop offset="0" stop-color="#0fd4c4" stop-opacity=".35"/><stop offset="1" stop-color="#0fd4c4" stop-opacity="0"/></radialGradient>
-          <clipPath id="exClipF">${scan}</clipPath>
-          <clipPath id="exClipB"><g transform="matrix(-1 0 0 1 200 0)">${scan}</g></clipPath>
-          <filter id="exGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        </defs>
-        <g class="grid">${Array.from({ length: 9 }, (_, i) => `<line x1="${-60 + i * 40}" y1="-8" x2="${-60 + i * 40}" y2="448"/>`).join('')}${Array.from({ length: 12 }, (_, i) => `<line x1="-70" y1="${i * 40}" x2="270" y2="${i * 40}"/>`).join('')}</g>
-        <g class="ruler">${ticks}<text x="-40" y="4">0</text><text x="-40" y="444">${esc(T('map_scale', '1.8 m'))}</text></g>
-        <ellipse class="floor" cx="100" cy="438" rx="92" ry="15" fill="url(#exFloor)"/>
-        <ellipse class="fring a" cx="100" cy="438" rx="78" ry="11"/><ellipse class="fring b" cx="100" cy="438" rx="58" ry="8"/>
-        <g class="view front">
-          <g class="body" filter="url(#exGlow)">${regions('front')}</g>
-          <g class="scanl" clip-path="url(#exClipF)">${scan.replace(/<path /g, '<path fill="url(#exScan)" ')}<path class="dt" d="${DETAIL_FRONT}"/><rect class="beam" x="-10" y="-60" width="220" height="60" fill="url(#exBeam)"/></g>
-          <g class="pins"></g>
-        </g>
-        <g class="view back">
-          <g transform="matrix(-1 0 0 1 200 0)"><g class="body" filter="url(#exGlow)">${regions('back')}</g></g>
-          <g class="scanl" clip-path="url(#exClipB)"><g transform="matrix(-1 0 0 1 200 0)">${scan.replace(/<path /g, '<path fill="url(#exScan)" ')}</g><path class="dt" d="${DETAIL_BACK}"/><rect class="beam" x="-10" y="-60" width="220" height="60" fill="url(#exBeam)"/></g>
-          <g class="pins"></g>
-        </g>
-        <text class="side l" x="-6" y="96"></text><text class="side r" x="206" y="96"></text>
-      </svg>`;
-      this.holo.querySelectorAll('.rg').forEach(p => {
-        p.addEventListener('click', () => this.select(p.dataset.g));
-        p.addEventListener('mouseenter', () => { this.hover = p.dataset.g; this.renderHoloState(); this.renderDiamonds(); this.showTip(p.dataset.g); });
-        p.addEventListener('mouseleave', () => { this.hover = null; this.renderHoloState(); this.renderDiamonds(); this.showTip(null); });
-      });
-    },
-    flip(face, instant) {
-      if (face !== 'front' && face !== 'back') return;
-      const changed = face !== this.face;
-      this.face = face;
-      this.$('.ex-map .seg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === face));
-      const svg = this.holo.querySelector('svg');
-      const apply = () => {
-        svg.classList.toggle('is-back', face === 'back');
-        // patient's right is on the viewer's left when facing us
-        svg.querySelector('.side.l').textContent = face === 'front' ? T('side_r_short', 'R') : T('side_l_short', 'L');
-        svg.querySelector('.side.r').textContent = face === 'front' ? T('side_l_short', 'L') : T('side_r_short', 'R');
-        this.renderPins();
-      };
-      if (instant || !changed) { apply(); return; }
-      this.holo.classList.remove('flipping'); void this.holo.offsetWidth; this.holo.classList.add('flipping');
-      NZA.audio.click(520);
-      setTimeout(apply, 170);
-    },
-    renderHoloState() {
-      this.holo.querySelectorAll('.rg').forEach(p => {
-        const n = p.dataset.g, v = this.gview(n);
-        p.setAttribute('class', `rg t-${TONE[v.status] || 'clear'}${n === this.sel ? ' on' : ''}${n === this.hover ? ' hov' : ''}`);
-      });
-    },
-    renderPins() {
-      const svg = this.holo.querySelector('svg');
-      if (!svg) return;
-      ['front', 'back'].forEach(face => {
-        const box = svg.querySelector(`.view.${face} .pins`);
-        const by = {};
-        ORDER.forEach(g => (this.gview(g).injuries || []).forEach(i => {
-          const r = i.region || g;
-          if (face === 'front' && BACK_ONLY[r]) return;
-          if (face === 'back' && FRONT_ONLY[r]) return;
-          (by[r] = by[r] || []).push(i);
-        }));
-        let out = '';
-        Object.entries(by).forEach(([r, list]) => {
-          const p = PIN[r]; if (!p) return;
-          list.forEach((i, k) => {
-            let x = p[0] + (k - (list.length - 1) / 2) * 12;
-            if (face === 'back') x = 200 - x;
-            const tone = i.suspected ? 'sus' : (!ACTIVE(i.status) ? 'teal' : ({ 1: 'white', 2: 'amber', 3: 'red', 4: 'crit' })[i.severity] || 'white');
-            out += `<g class="pin t-${tone}" transform="translate(${x.toFixed(1)} ${p[1]})"><rect class="pg" x="-7" y="-7" width="14" height="14" transform="rotate(45)"/><rect class="pd" x="-4" y="-4" width="8" height="8" transform="rotate(45)"/></g>`;
-          });
-        });
-        box.innerHTML = out;
-      });
-    },
-    showTip(name) {
-      const t = this.tip;
-      if (!name) { t.classList.remove('on'); return; }
-      const v = this.gview(name);
-      const c = CENTER[name]; if (!c) return;
-      const x = this.face === 'back' ? 200 - c[0] : c[0];
-      t.style.left = `${((x - VB.x) / VB.w) * 100}%`;
-      t.style.top = `${((c[1] - VB.y) / VB.h) * 100}%`;
-      const n = this.openCount(v);
-      t.className = `htip on t-${TONE[v.status] || 'clear'}${x > 100 ? ' l' : ''}`;
-      t.innerHTML = `<b>${esc(this.glabel(name))}</b><span><i></i>${esc(this.gstatus(v))}</span><em>${esc(n ? T('open_n_short', '%d open', n) : T('open_none', 'nothing open'))}${v.pain ? ` · ${esc(T('pain_short', 'pain %d', v.pain))}` : ''}</em>`;
     },
 
     /* ── render ── */
@@ -469,9 +329,6 @@
     renderAll() {
       this.renderCare();
       this.renderPatient();
-      this.renderHoloState();
-      this.renderPins();
-      this.renderLegend();
       this.renderDiamonds();
       this.renderFindings();
       this.renderDock();
@@ -527,13 +384,9 @@
       const r = this.$('.ex-pt .pc-ring');
       if (r) r.classList.toggle('t-red', left < 60);
     },
-    renderLegend() {
-      const it = (tone, k, fb) => `<span class="t-${tone}"><i></i>${esc(T(k, fb))}</span>`;
-      this.$('.ex-map .ml').innerHTML = it('crit', 'gs_critical', 'Severe') + it('red', 'gs_serious', 'Serious') + it('amber', 'gs_minor', 'Minor') + it('teal', 'gs_treated', 'Treated') + it('clear', 'gs_healthy', 'Clear');
-    },
     renderKeys() {
       const k = (keys, label) => `<span>${keys.map(x => `<kbd>${esc(x)}</kbd>`).join('')}<em>${esc(label)}</em></span>`;
-      this.$('.ex-keys').innerHTML = k(['↑', '↓'], T('regions', 'Region')) + k(['F'], T('map_flip', 'Turn the map')) + k(['Enter'], T('key_start_next', 'Start the next step')) + k(['ESC'], T('close', 'Close'));
+      this.$('.ex-keys').innerHTML = k(['↑', '↓'], T('regions', 'Region')) + k(['Enter'], T('key_start_next', 'Start the next step')) + k(['ESC'], T('close', 'Close'));
     },
     renderFindings() {
       const name = this.sel;

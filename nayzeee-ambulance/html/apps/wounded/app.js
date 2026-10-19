@@ -5,7 +5,7 @@
                      sector, heart glyph that beats with the pulse, rolling counter inside),
                      awareness tag, plain-words headline, live heartbeat trace, state chips
      2. response     EMS response card (status ring + rolling ETA)          only when relevant
-     3. injuries     holographic body figure with region diamonds + instrument list
+     3. injuries     instrument list (region, injury, status tag)
      4. actions      compact vertical key list (crawl / lie still / turn / call / let go)
    Opened from Lua without focus (client/modules/wounded.lua):
      open    { L, state, injuries, maxChips, pulseLine, overlay, heartbeat, volume }
@@ -37,49 +37,6 @@
   const DIAL_R = 80;                       // arc radius in the 200×200 dial viewBox
   const HEART = '<svg viewBox="0 0 24 24"><path d="M12 21l-7-7C3.5 12.5 2 10.8 2 8.5A5.5 5.5 0 0 1 7.5 3c1.8 0 3 .5 4.5 2 1.5-1.5 2.7-2 4.5-2A5.5 5.5 0 0 1 22 8.5c0 2.3-1.5 4-3 5.5z"/></svg>';
   const TONE_RANK = { red: 4, amber: 3, white: 2, teal: 1 };
-
-  /* holographic body figure (front view; the patient's left is on the viewer's right) */
-  const limb = (r, x1, y1, x2, y2, w, extra = '') => `<g class="sg" data-r="${r}"><line class="o" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w + 1.5}"/><line class="i" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}"/>${extra}</g>`;
-  const hand = (x, y) => `<circle class="s" cx="${x}" cy="${y}" r="2.8"/>`;
-  const SCAN = (id, base, line) => `<pattern id="${id}" width="4" height="2.6" patternUnits="userSpaceOnUse"><rect width="4" height="2.6" fill="${base}"/><rect width="4" height=".9" fill="${line}"/></pattern>`;
-  const BODY = `
-    <svg class="fig" viewBox="0 0 80 160" aria-hidden="true">
-      <defs>
-        ${SCAN('wdp-base', '#0b2321', 'rgba(15,212,196,.28)')}
-        ${SCAN('wdp-red', '#3a1214', 'rgba(255,107,112,.45)')}
-        ${SCAN('wdp-amber', '#33270a', 'rgba(243,195,90,.42)')}
-        ${SCAN('wdp-white', '#1d2224', 'rgba(255,255,255,.3)')}
-        ${SCAN('wdp-teal', '#0c3430', 'rgba(15,212,196,.55)')}
-        <radialGradient id="wdp-pad" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#0fd4c4" stop-opacity=".45"/><stop offset="1" stop-color="#0fd4c4" stop-opacity="0"/></radialGradient>
-      </defs>
-      <ellipse class="pad" cx="40" cy="153" rx="26" ry="4.5" fill="url(#wdp-pad)"/>
-      <ellipse class="pad-ring" cx="40" cy="153" rx="17" ry="2.4"/>
-      <g class="segs">
-        ${limb('r_upper_arm', 25.5, 33.5, 20.6, 56.5, 6.4)}
-        ${limb('r_lower_arm', 20.4, 58.2, 16.8, 80, 5.4, hand(16.3, 84.6))}
-        ${limb('l_upper_arm', 54.5, 33.5, 59.4, 56.5, 6.4)}
-        ${limb('l_lower_arm', 59.6, 58.2, 63.2, 80, 5.4, hand(63.7, 84.6))}
-        ${limb('r_upper_leg', 34.6, 84, 33.9, 114, 8.4)}
-        ${limb('r_lower_leg', 33.9, 116.4, 33.3, 145, 6.4, '<path class="s" d="M30.2 145.5h6.2l.4 3.6h-8.6z"/>')}
-        ${limb('l_upper_leg', 45.4, 84, 46.1, 114, 8.4)}
-        ${limb('l_lower_leg', 46.1, 116.4, 46.7, 145, 6.4, '<path class="s" d="M43.6 145.5h6.2l1.9 3.6h-8.6z"/>')}
-        ${limb('neck', 40, 21.5, 40, 29, 5.6)}
-        <g class="sg" data-r="pelvis"><path class="s" d="M29.4 69.6Q40 71.8 50.6 69.6L51.6 81.6Q40 86.2 28.4 81.6Z"/></g>
-        <g class="sg" data-r="abdomen"><path class="s" d="M27.6 53.4Q40 56 52.4 53.4L50.6 68Q40 70.2 29.4 68Z"/></g>
-        <g class="sg" data-r="chest back"><path class="s" d="M26.4 30.6Q40 27.2 53.6 30.6L52.4 51.8Q40 54.4 27.6 51.8Z"/><path class="ln" d="M40 31.5v19M31 41.5q9 2.4 18 0"/></g>
-        <g class="sg" data-r="head face"><ellipse class="s" cx="40" cy="12.6" rx="7.8" ry="9.4"/></g>
-      </g>
-      <g class="mks"></g>
-    </svg>`;
-  const PTS = {
-    head: [40, 8.6], face: [40, 15.4], neck: [40, 25.4],
-    chest: [36.6, 40.6], back: [43.6, 46.2],
-    abdomen: [40, 61.4], pelvis: [40, 76.2],
-    r_upper_arm: [23, 45], r_lower_arm: [18.6, 69.2],
-    l_upper_arm: [57, 45], l_lower_arm: [61.4, 69.2],
-    r_upper_leg: [34.3, 99], r_lower_leg: [33.6, 130.5],
-    l_upper_leg: [45.7, 99], l_lower_leg: [46.4, 130.5],
-  };
 
   const A = {
     st: null, recvAt: 0,
@@ -165,7 +122,6 @@
         <section class="wd-inj nza-hud solid">
           <header class="wd-h"><span class="nza-label"></span><b class="wd-cnt"></b></header>
           <div class="wd-injb">
-            <div class="wd-body">${BODY}<i class="sweep"></i></div>
             <ul class="wd-list"></ul>
           </div>
         </section>
@@ -180,8 +136,7 @@
       aware: q('.wd-aware span'), title: q('.wd-title'), beat: q('.wd-beat'), chips: q('.wd-chips'), flash: q('.wd-flash'),
       resp: q('.wd-resp'), respFg: q('.wd-resp .fg'), respIc: q('.wd-resp .ic'), respK: q('.wd-resp .tx small'),
       respT: q('.wd-resp .tx b'), respP: q('.wd-resp .tx p'), respEta: q('.wd-resp .eta'), respEtaK: q('.wd-resp .eta small'), route: q('.wd-route'),
-      inj: q('.wd-inj'), injH: q('.wd-inj .nza-label'), injCnt: q('.wd-cnt'), list: q('.wd-list'), mks: q('.wd-body .mks'),
-      segs: [...el.querySelectorAll('.wd-body .sg')],
+      inj: q('.wd-inj'), injH: q('.wd-inj .nza-label'), injCnt: q('.wd-cnt'), list: q('.wd-list'),
       keys: q('.wd-keys'), klist: q('.wd-klist'),
     };
     odo = NZA.ui.FlipClock(q('.wd-odo'), { value: '00:00' });
@@ -355,7 +310,7 @@
     ui.respFg.style.opacity = p > 0.002 || c.wait ? '' : '0';
   }
 
-  /* ─────────────── injuries: body figure + instrument list ─────────────── */
+  /* ─────────────── injuries: instrument list ─────────────── */
   function injTone(j) {
     if (j.bleeding && !j.tourniquet) return 'red';
     if (j.tourniquet || j.splinted || j.treated) return 'teal';
@@ -373,7 +328,7 @@
 
   function renderInj() {
     const raw = Array.isArray(A.inj) ? A.inj : [];
-    if (!raw.length) { ui.inj.classList.remove('on'); setHTML('list', ui.list, ''); setHTML('mks', ui.mks, ''); return; }
+    if (!raw.length) { ui.inj.classList.remove('on'); setHTML('list', ui.list, ''); return; }
     ui.inj.classList.add('on');
     const list = raw.map((j, i) => ({ j, i, t: injTone(j) }))
       .sort((a, b) => (TONE_RANK[b.t] - TONE_RANK[a.t]) || ((b.j.severity || 1) - (a.j.severity || 1)) || (a.i - b.i));
@@ -387,25 +342,6 @@
     }).join('');
     if (list.length > max) rows += `<li class="more"><span>${esc(T('inj_more', '+%d more', list.length - max))}</span></li>`;
     setHTML('list', ui.list, rows);
-
-    // worst tone per region → tint the body segment + one diamond per region
-    const worst = {};
-    list.forEach(({ j, t }) => {
-      const r = j.region;
-      if (!r) return;
-      if (!worst[r] || TONE_RANK[t] > TONE_RANK[worst[r]]) worst[r] = t;
-    });
-    ui.segs.forEach(g => {
-      let best = null;
-      g.dataset.r.split(' ').forEach(r => { const t = worst[r]; if (t && (!best || TONE_RANK[t] > TONE_RANK[best])) best = t; });
-      g.setAttribute('class', `sg${best ? ` hit ${best}` : ''}`);
-    });
-    const mk = Object.keys(worst).filter(r => PTS[r]).map(r => {
-      const [x, y] = PTS[r];
-      const t = worst[r];
-      return `<g class="mk ${t}${r === 'back' ? ' back' : ''}" transform="translate(${x} ${y})">${t === 'red' ? '<circle class="pl" r="4"/>' : ''}<rect class="d" x="-2.6" y="-2.6" width="5.2" height="5.2" transform="rotate(45)"/></g>`;
-    }).join('');
-    setHTML('mks', ui.mks, mk);
   }
 
   /* ─────────────── action list ─────────────── */

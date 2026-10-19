@@ -67,20 +67,6 @@
   const CAT_ICON = { wound: 'bandage', fluids: 'iv', airway: 'lungs', ortho: 'splint', meds: 'pill' };
   const keyCap = k => (String(k || '').toUpperCase() === 'BACKSPACE' ? 'BKSP' : String(k || ''));
 
-  /* ── holographic body glyph: the core widget (NZA.ui.BodyGlyph), worst tone per region,
-     a hotspot on every open injury ── */
-  const TONE_RANK = { '': 0, teal: 1, amber: 2, red: 3 };
-  const BODY_ALIAS = { face: 'head', back: 'chest' };
-  function bodyGlyph(injuries) {
-    const st = {}, hot = [];
-    (injuries || []).forEach(i => {
-      const r = BODY_ALIAS[i.region] || i.region;
-      const tone = i.status === 'treated' || i.status === 'healing' ? 'teal' : (SEV_TONE[i.severity || 1] || 'amber');
-      if ((TONE_RANK[tone] || 0) > (TONE_RANK[st[r] || ''] || 0)) st[r] = tone;
-      if (i.status === 'open' && i.region) hot.push({ region: i.region, tone });
-    });
-    return NZA.ui.BodyGlyph(st, hot);
-  }
   // a hanging IV bag glyph; liquid level = fraction left
   function bagGlyph(frac, kind) {
     const f = clamp(frac, 0, 1), top = 6 + (1 - f) * 20;
@@ -268,7 +254,6 @@
       </div>
       ${stateBlock(p)}
       <div class="pt-body">
-        <div class="pt-map">${bodyGlyph(inj)}</div>
         <div class="pt-inj"><h4>${esc(t('injuries'))}<span>${p.injuryCount || inj.length}</span></h4>
           ${shown.length ? shown.map(i => {
             const tone = i.status === 'treated' || i.status === 'healing' ? 'teal' : (SEV_TONE[i.severity || 1] || 'amber');

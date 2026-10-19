@@ -169,45 +169,6 @@
 #app-wounded .wd-h::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line-soft),rgba(255,255,255,0))}
 #app-wounded .wd-injb{display:flex;align-items:flex-start;gap:12px}
 
-/* holographic body figure */
-#app-wounded .wd-body{position:relative;width:76px;height:148px;flex:none;border-radius:10px;overflow:hidden;
-  background:radial-gradient(70% 50% at 50% 55%,rgba(15,212,196,.09),rgba(15,212,196,0) 75%),linear-gradient(rgba(255,255,255,.02),rgba(255,255,255,0));
-  box-shadow:inset 0 0 0 1px rgba(15,212,196,.1)}
-#app-wounded .wd-body::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.5;
-  background-image:linear-gradient(rgba(15,212,196,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(15,212,196,.07) 1px,transparent 1px);background-size:8px 8px;background-position:-1px -1px}
-#app-wounded .wd-body .fig{position:absolute;left:0;top:-1px;width:76px;height:152px;overflow:visible;filter:drop-shadow(0 0 3px rgba(15,212,196,.35))}
-#app-wounded .wd-body .sweep{position:absolute;left:0;right:0;top:0;height:22px;pointer-events:none;
-  background:linear-gradient(rgba(15,212,196,0),rgba(15,212,196,.16) 70%,rgba(160,255,247,.4) 96%,rgba(15,212,196,0));animation:wd-sweep 4.2s cubic-bezier(.45,0,.55,1) infinite}
-@keyframes wd-sweep{0%{transform:translateY(-24px);opacity:0}12%{opacity:1}88%{opacity:1}100%{transform:translateY(150px);opacity:0}}
-#app-wounded .fig .pad{opacity:.9}
-#app-wounded .fig .pad-ring{fill:none;stroke:rgba(15,212,196,.55);stroke-width:.6}
-#app-wounded .fig .sg .o{stroke:rgba(15,212,196,.62);stroke-linecap:round}
-#app-wounded .fig .sg .i{stroke:url(#wdp-base);stroke-linecap:round}
-#app-wounded .fig .sg .s{fill:url(#wdp-base);stroke:rgba(15,212,196,.62);stroke-width:.75}
-#app-wounded .fig .sg .ln{fill:none;stroke:rgba(15,212,196,.22);stroke-width:.5}
-#app-wounded .fig .sg.red .o,#app-wounded .fig .sg.red .s{stroke:#ff6b70}
-#app-wounded .fig .sg.red .i{stroke:url(#wdp-red)}
-#app-wounded .fig .sg.red .s{fill:url(#wdp-red)}
-#app-wounded .fig .sg.amber .o,#app-wounded .fig .sg.amber .s{stroke:#f3c35a}
-#app-wounded .fig .sg.amber .i{stroke:url(#wdp-amber)}
-#app-wounded .fig .sg.amber .s{fill:url(#wdp-amber)}
-#app-wounded .fig .sg.white .o,#app-wounded .fig .sg.white .s{stroke:rgba(255,255,255,.75)}
-#app-wounded .fig .sg.white .i{stroke:url(#wdp-white)}
-#app-wounded .fig .sg.white .s{fill:url(#wdp-white)}
-#app-wounded .fig .sg.teal .o,#app-wounded .fig .sg.teal .s{stroke:#0fd4c4}
-#app-wounded .fig .sg.teal .i{stroke:url(#wdp-teal)}
-#app-wounded .fig .sg.teal .s{fill:url(#wdp-teal)}
-#app-wounded .fig .mk .d{stroke:#08090a;stroke-width:.8}
-#app-wounded .fig .mk.red .d{fill:#ff5d62}
-#app-wounded .fig .mk.amber .d{fill:#f3c35a}
-#app-wounded .fig .mk.white .d{fill:#fff}
-#app-wounded .fig .mk.teal .d{fill:#0fd4c4}
-#app-wounded .fig .mk.back .d{fill:#08090a;stroke-width:1;stroke-dasharray:1.4 1}
-#app-wounded .fig .mk.back.red .d{stroke:#ff5d62} #app-wounded .fig .mk.back.amber .d{stroke:#f3c35a}
-#app-wounded .fig .mk.back.white .d{stroke:#fff} #app-wounded .fig .mk.back.teal .d{stroke:#0fd4c4}
-#app-wounded .fig .mk .pl{fill:none;stroke:#ff5d62;stroke-width:1;transform-box:fill-box;transform-origin:center;animation:wd-mk 1.3s ease-out infinite}
-@keyframes wd-mk{from{transform:scale(.5);opacity:1}to{transform:scale(2.1);opacity:0}}
-
 /* instrument list */
 #app-wounded .wd-list{flex:1;min-width:0;list-style:none;display:flex;flex-direction:column;gap:4px}
 #app-wounded .wd-list li{position:relative;display:flex;align-items:center;gap:7px;height:24px;padding:0 6px 0 9px;border-radius:6px;
@@ -277,5 +238,5 @@
 
 @media (prefers-reduced-motion:reduce){
   #app-wounded .wd-fx.unc .wd-lid,#app-wounded .wd-fx.arrest .wd-lid{animation:none;opacity:.25}
-  #app-wounded .wd-sheen,#app-wounded .wd-body .sweep,#app-wounded .wd-route .unit::after,#app-wounded .wd-kr.hot,#app-wounded .wd-col.in > section{animation:none}
+  #app-wounded .wd-sheen,#app-wounded .wd-route .unit::after,#app-wounded .wd-kr.hot,#app-wounded .wd-col.in > section{animation:none}
 }
