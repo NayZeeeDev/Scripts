@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
-   app 'checkin' · queue pass (top-left) · queue dock · reception window
-   NAYZEEE language: corner bracket, queue ring with bezel ticks, rolling number,
-   instrument list, vertical journey spine. Everything sits on dark glass.
+   app 'checkin' · paper queue ticket (top-left) · ticket stub · reception window
+   The ticket is a printed thermal slip; the reception window uses the NAYZEEE dark glass
+   language (corner bracket, rings with bezel ticks, instrument strips).
    ═══════════════════════════════════════════════════════════ */
 #app-checkin .ci-dockwrap,#app-checkin .ci-passwrap,#app-checkin .ci-deskwrap{display:none}
 #app-checkin .ci-dockwrap.on,#app-checkin .ci-passwrap.on,#app-checkin .ci-deskwrap.on{display:block}
@@ -39,128 +39,91 @@
 #app-checkin .ci-tri.sm{height:20px;padding:0 7px 0 6px;gap:5px;font-size:10px}
 #app-checkin .ci-tri.sm i{height:10px}
 
-/* ─────────── QUEUE PASS (top-left, slides in from the left edge) ─────────── */
-#app-checkin .ci-passwrap{position:absolute;left:32px;top:32px;width:344px;pointer-events:none}
-#app-checkin .ci-passwrap.on{animation:ci-in-l 380ms cubic-bezier(.2,.8,.2,1) both}
+/* ─────────── PAPER TICKET (top-left, feeds out of the printer) ───────────
+   thermal paper, monospaced print, inverted number band, rubber stamps */
+#app-checkin .ci-passwrap{position:absolute;left:34px;top:30px;width:262px;pointer-events:none}
+#app-checkin .ci-passwrap.on{animation:ci-in-d 320ms cubic-bezier(.2,.8,.2,1) both}
 #app-checkin .ci-passwrap.out{animation:ci-out-l 280ms ease-in both}
-@keyframes ci-in-l{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
+@keyframes ci-in-d{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
 @keyframes ci-out-l{to{opacity:0;transform:translateX(-36px)}}
-#app-checkin .ci-pass{overflow:hidden;border-radius:16px;
-  background:linear-gradient(180deg,rgba(22,25,29,.97),rgba(11,12,15,.97));
-  box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 0 0 1px rgba(0,0,0,.5),0 18px 44px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.35)}
-#app-checkin .ci-pass::before{content:'';position:absolute;left:0;top:0;width:52px;height:52px;border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:16px;pointer-events:none;z-index:3;filter:drop-shadow(0 0 6px rgba(15,212,196,.5))}
-#app-checkin .ci-pass::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:16px;
-  background:radial-gradient(70% 45% at 22% 30%,var(--rg,rgba(15,212,196,.3)),transparent 70%);opacity:.22}
-#app-checkin .ci-pass > *{position:relative;z-index:1}
-/* issue sweep */
-#app-checkin .ci-scan{position:absolute;left:0;right:0;top:-30%;height:28%;z-index:2;pointer-events:none;opacity:0;
-  background:linear-gradient(180deg,rgba(15,212,196,0),rgba(15,212,196,.16) 70%,rgba(15,212,196,.65) 98%,rgba(15,212,196,0));border-bottom:1px solid rgba(15,212,196,.9)}
-#app-checkin .ci-pass.issuing .ci-scan{animation:ci-scan 1100ms cubic-bezier(.4,0,.2,1) 120ms both}
-@keyframes ci-scan{0%{opacity:1;top:-30%}85%{opacity:1}100%{opacity:0;top:104%}}
-#app-checkin .ci-pass.issuing .ci-pmain,#app-checkin .ci-pass.issuing .ci-ilist,#app-checkin .ci-pass.issuing .ci-jr,#app-checkin .ci-pass.issuing .ci-pf{animation:ci-reveal 520ms cubic-bezier(.2,.7,.2,1) both}
-#app-checkin .ci-pass.issuing .ci-pmain{animation-delay:260ms}
-#app-checkin .ci-pass.issuing .ci-ilist{animation-delay:520ms}
-#app-checkin .ci-pass.issuing .ci-jr{animation-delay:720ms}
-#app-checkin .ci-pass.issuing .ci-pf{animation-delay:950ms}
-@keyframes ci-reveal{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-#app-checkin .ci-ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 16px 12px 20px;border-bottom:1px solid var(--line-hair)}
-#app-checkin .ci-pk{min-width:0}
-#app-checkin .ci-pk small{display:block;font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--teal-hi)}
-#app-checkin .ci-pk b{display:block;margin-top:6px;font-size:15px;font-weight:600;color:var(--white);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app-checkin .ci-pk span{display:block;margin-top:3px;font-size:11px;color:var(--ink-3);white-space:nowrap}
-#app-checkin .ci-pk em{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--ink-2)}
-#app-checkin .ci-pst{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;
-  background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink-2)}
-#app-checkin .ci-pst .nz-ic{width:11px;height:11px}
-#app-checkin .ci-pst i{width:6px;height:6px;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 8px var(--teal-hi);animation:nza-blink 1.4s steps(1) infinite}
-#app-checkin .ci-pst.live{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
-#app-checkin .ci-pst.teal{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
-#app-checkin .ci-pst.teal.on{color:var(--on-teal);background:linear-gradient(var(--teal),var(--teal-lo));border-color:transparent;animation:nza-glow 1.6s infinite}
-#app-checkin .ci-pst.teal.on i{background:var(--on-teal);box-shadow:none}
-#app-checkin .ci-pst.white{color:#fff;border-color:rgba(255,255,255,.3)}
-#app-checkin .ci-pst.red{color:#ff8a8d;border-color:var(--red-edge);background:var(--red-wash)}
+#app-checkin .tk,#app-checkin .tk-mini{--paper:#f3f1ea;--paper-2:#e9e6dc;--pink:#1c1d1f;--pink-2:#5d6064;--pink-3:#8d9094;--tc:#0b7f76;
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.35)) drop-shadow(0 12px 22px rgba(0,0,0,.42));transform:rotate(-1.6deg);transform-origin:50% 0}
+#app-checkin .tk.tri1,#app-checkin .tk-mini.tri1{--tc:#c8262c}
+#app-checkin .tk.tri2,#app-checkin .tk-mini.tri2{--tc:#a66a00}
+#app-checkin .tk-paper{position:relative;padding:14px 18px 12px;color:var(--pink);font-family:var(--mono);
+  background:
+    repeating-linear-gradient(0deg,rgba(0,0,0,.012) 0 1px,transparent 1px 3px),
+    linear-gradient(100deg,var(--paper) 0%,#f8f6f0 46%,var(--paper-2) 100%)}
+/* torn sawtooth edges, top and bottom */
+#app-checkin .tk-paper::before,#app-checkin .tk-paper::after{content:'';position:absolute;left:0;right:0;height:7px;background-repeat:repeat-x;background-size:10px 7px}
+#app-checkin .tk-paper::before{top:-7px;background-image:linear-gradient(135deg,transparent 50%,var(--paper) 50%),linear-gradient(225deg,transparent 50%,var(--paper) 50%);background-position:0 0,0 0}
+#app-checkin .tk-paper::after{bottom:-7px;background-image:linear-gradient(45deg,transparent 50%,var(--paper-2) 50%),linear-gradient(-45deg,transparent 50%,var(--paper-2) 50%);background-position:0 0,0 0}
 
-#app-checkin .ci-pmain{display:flex;align-items:center;gap:18px;padding:16px 16px 16px 18px}
-#app-checkin .ci-ring.big{width:112px;height:112px}
-#app-checkin .ci-ring.big::before{content:'';position:absolute;inset:16px;border-radius:50%;background:radial-gradient(circle at 50% 35%,rgba(255,255,255,.06),rgba(0,0,0,.35) 70%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 -6px 14px rgba(0,0,0,.4)}
-#app-checkin .ci-ring.big .ci-rc b{font-size:34px}
-#app-checkin .ci-ring.big .ci-rc.ic .nz-ic{width:28px;height:28px}
-#app-checkin .ci-ring.big .ci-rc.ic small{margin-top:6px}
-#app-checkin .ci-pass.scalled .ci-ring.big{animation:ci-beat 1.6s ease-in-out infinite}
-@keyframes ci-beat{50%{transform:scale(1.035)}}
-#app-checkin .ci-pid{min-width:0;flex:1}
-#app-checkin .ci-pid > small{display:block;font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
-#app-checkin .ci-code{margin:6px 0 10px;height:46px;display:flex;align-items:center}
-#app-checkin .ci-code .odo{font-size:46px;letter-spacing:-.04em;text-shadow:0 2px 14px rgba(0,0,0,.6)}
-#app-checkin .ci-code .odo .c{width:.6em;animation:none;color:var(--ink-3)}
-#app-checkin .ci-code .odo .c:first-child{color:var(--white)}
-#app-checkin .ci-code .odo .d .st{transition-duration:900ms}
-#app-checkin .ci-pass.void .ci-code .odo{color:var(--ink-3);text-decoration:line-through;text-decoration-color:rgba(229,72,77,.7)}
+#app-checkin .tk-h{display:flex;align-items:center;gap:10px}
+#app-checkin .tk-x{flex:none;width:26px;height:26px;display:grid;place-items:center}
+#app-checkin .tk-x svg{width:26px;height:26px}
+#app-checkin .tk-x circle{fill:none;stroke:var(--pink);stroke-width:3}
+#app-checkin .tk-x path{fill:var(--pink)}
+#app-checkin .tk-h b{display:block;font:700 12.5px/1.15 var(--mono);letter-spacing:.06em;text-transform:uppercase}
+#app-checkin .tk-h small{display:block;margin-top:2px;font-size:9.5px;color:var(--pink-2);letter-spacing:.04em}
+#app-checkin .tk-rule{height:0;margin:11px -2px;border-top:1.5px dashed rgba(28,29,31,.38)}
+#app-checkin .tk-k{display:block;text-align:center;font-size:9px;font-weight:700;letter-spacing:.32em;text-transform:uppercase;color:var(--pink-2)}
+#app-checkin .tk-num{margin:5px -18px 0;padding:6px 0 5px;text-align:center;background:var(--pink);color:var(--paper);
+  font:700 38px/1 var(--mono);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+#app-checkin .tk-tri{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:9px}
+#app-checkin .tk-tri b{padding:2px 6px;border:1.5px solid var(--tc);color:var(--tc);font:700 11px/1.1 var(--mono)}
+#app-checkin .tk-tri span{font:700 11px var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--tc)}
+#app-checkin .tk-rows{margin-top:10px;display:flex;flex-direction:column;gap:4px}
+#app-checkin .tk-row{display:flex;align-items:baseline;gap:6px;font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--pink-2)}
+#app-checkin .tk-row i{flex:1;min-width:10px;border-bottom:1.5px dotted rgba(28,29,31,.35);transform:translateY(-3px)}
+#app-checkin .tk-row b{font-weight:700;color:var(--pink);font-variant-numeric:tabular-nums;white-space:nowrap;max-width:62%;overflow:hidden;text-overflow:ellipsis}
+#app-checkin .tk-row.strong{color:var(--pink)}
+#app-checkin .tk-row.strong b{font-size:12.5px}
+#app-checkin .tk-code{display:flex;align-items:center;gap:11px}
+#app-checkin .tk-dots{flex:none;width:52px;height:52px}
+#app-checkin .tk-dots rect{fill:var(--pink)}
+#app-checkin .tk-dots rect.f{fill:none;stroke:var(--pink);stroke-width:.6}
+#app-checkin .tk-code b{display:block;font-size:10px;letter-spacing:.24em}
+#app-checkin .tk-code span{display:block;margin-top:1px;font-size:9px;color:var(--pink-2);letter-spacing:.12em}
+#app-checkin .tk-code p{margin:5px 0 0;font-size:8.5px;line-height:1.35;color:var(--pink-2)}
+/* perforation + stub */
+#app-checkin .tk-perf{position:relative;height:0;margin:12px -18px 0;border-top:2px dotted rgba(28,29,31,.32)}
+#app-checkin .tk-perf::before,#app-checkin .tk-perf::after{content:'';position:absolute;top:-6px;width:10px;height:10px;border-radius:50%;background:rgba(20,22,24,.55);box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+#app-checkin .tk-perf::before{left:-5px} #app-checkin .tk-perf::after{right:-5px}
+#app-checkin .tk-stub{display:flex;align-items:center;justify-content:space-between;padding-top:8px;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--pink-2)}
+#app-checkin .tk-stub b{font:700 14px var(--mono);letter-spacing:.06em;color:var(--pink)}
+/* rubber stamp */
+#app-checkin .tk-stamp{position:absolute;left:50%;top:57%;transform:translate(-50%,-50%) rotate(-13deg);pointer-events:none;mix-blend-mode:multiply;opacity:.86}
+#app-checkin .tk-stamp span{display:block;padding:5px 12px;border:3px double var(--sc);border-radius:5px;color:var(--sc);
+  font:800 17px/1 var(--font);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;
+  -webkit-mask-image:repeating-linear-gradient(115deg,#000 0 7px,rgba(0,0,0,.72) 7px 9px)}
+#app-checkin .tk-stamp.teal{--sc:#08877d} #app-checkin .tk-stamp.red{--sc:#c8262c} #app-checkin .tk-stamp.blue{--sc:#2a5ab8}
+#app-checkin .tk-stamp.thunk{animation:tk-thunk 380ms cubic-bezier(.3,1.5,.5,1) both}
+@keyframes tk-thunk{from{opacity:0;transform:translate(-50%,-50%) rotate(-13deg) scale(1.7)}to{opacity:.86;transform:translate(-50%,-50%) rotate(-13deg) scale(1)}}
+#app-checkin .tk.sexpired .tk-paper > :not(.tk-stamp),#app-checkin .tk.sleft .tk-paper > :not(.tk-stamp),
+#app-checkin .tk.snoshow .tk-paper > :not(.tk-stamp),#app-checkin .tk.scancelled .tk-paper > :not(.tk-stamp){opacity:.55}
+/* feeding out of the printer: the slip appears line by line from the top */
+#app-checkin .tk.printing .tk-paper{animation:tk-feed 1100ms steps(16,end) both}
+@keyframes tk-feed{from{clip-path:inset(-10px -10px 100% -10px)}to{clip-path:inset(-10px -10px -10px -10px)}}
 
-/* instrument list */
-#app-checkin .ci-ilist{display:flex;flex-direction:column;border-top:1px solid var(--line-hair)}
-#app-checkin .ci-ilist:empty{display:none}
-#app-checkin .ci-irow{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;padding:0 18px 0 20px;border-bottom:1px solid var(--line-hair)}
-#app-checkin .ci-irow::before{content:'';position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:0 3px 3px 0;background:rgba(255,255,255,.14)}
-#app-checkin .ci-irow.teal::before{background:var(--teal-hi);box-shadow:0 0 8px rgba(15,212,196,.55)}
-#app-checkin .ci-irow.white::before{background:#fff}
-#app-checkin .ci-irow span{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
-#app-checkin .ci-irow b{font:600 14px/1 var(--mono);color:var(--white);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
-#app-checkin .ci-irow.teal b{color:var(--teal-hi)}
-
-/* journey spine */
-#app-checkin .ci-jr{position:relative;padding:12px 18px 12px 20px;display:flex;flex-direction:column;gap:10px}
-#app-checkin .ci-jr .trk{position:absolute;left:25px;top:20px;bottom:20px;width:2px;border-radius:2px;background:rgba(255,255,255,.1)}
-#app-checkin .ci-jr .trk i{position:absolute;left:0;right:0;top:0;border-radius:2px;background:linear-gradient(var(--teal-hi),var(--teal));box-shadow:0 0 8px rgba(15,212,196,.5);transition:height 700ms cubic-bezier(.2,.7,.2,1)}
-#app-checkin .ci-jr.void .trk i{background:linear-gradient(var(--teal-hi),#ff6b70)}
-#app-checkin .ci-jn{position:relative;display:flex;align-items:center;gap:12px;min-height:18px}
-#app-checkin .ci-jn i{position:relative;z-index:1;flex:none;width:12px;height:12px;margin-left:0;border-radius:50%;background:#15181c;border:1.5px solid rgba(255,255,255,.25)}
-#app-checkin .ci-jn span{flex:1;font-size:12px;color:var(--ink-3)}
-#app-checkin .ci-jn b{font:500 11px var(--mono);color:var(--ink-3);white-space:nowrap}
-#app-checkin .ci-jn.done i{background:var(--teal);border-color:var(--teal-hi)}
-#app-checkin .ci-jn.done span{color:var(--ink-2)}
-#app-checkin .ci-jn.cur i{background:#fff;border:3px solid var(--teal);box-shadow:0 0 0 4px rgba(8,175,162,.18),0 0 12px rgba(15,212,196,.55);animation:pp-node 1.8s ease-in-out infinite}
-#app-checkin .ci-jn.cur span{color:var(--white);font-weight:500}
-#app-checkin .ci-jn.cur b{color:var(--teal-hi)}
-#app-checkin .ci-jn.bad i{background:var(--red);border-color:#ff8a8d;box-shadow:0 0 10px rgba(229,72,77,.6)}
-#app-checkin .ci-jn.bad span{color:#ff8a8d}
-
-#app-checkin .ci-pf{display:flex;align-items:center;gap:8px;padding:10px 18px 12px 20px;border-top:1px solid var(--line-hair);background:rgba(0,0,0,.22);font-size:11px;color:var(--ink-3)}
-#app-checkin .ci-pf .nz-ic{width:14px;height:14px;color:var(--teal)}
-#app-checkin .ci-pf span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app-checkin .ci-pf b{font:500 10px var(--mono);letter-spacing:.22em;color:var(--ink-2)}
-#app-checkin .ci-pass.void{filter:saturate(.6)}
-#app-checkin .ci-pass.void::before{border-color:var(--red);filter:drop-shadow(0 0 6px rgba(229,72,77,.5))}
-
-/* ─────────── QUEUE DOCK (top-left while you wait) ─────────── */
-#app-checkin .ci-dockwrap{position:absolute;left:32px;top:32px;pointer-events:none}
-#app-checkin .ci-dock{display:flex;align-items:center;gap:14px;min-width:272px;max-width:380px;padding:10px 18px 10px 12px;border-radius:14px;overflow:hidden;
-  background:linear-gradient(180deg,rgba(22,25,29,.95),rgba(11,12,15,.95));box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 14px 34px rgba(0,0,0,.45);
-  animation:ci-in-l 320ms cubic-bezier(.2,.8,.2,1) both}
-#app-checkin .ci-dock.still{animation:none}
-#app-checkin .ci-dspine{position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--rc);box-shadow:0 0 10px var(--rc)}
-#app-checkin .ci-ring.sm{width:54px;height:54px}
-#app-checkin .ci-ring.sm .ci-rc b{font-size:20px}
-#app-checkin .ci-ring.sm .ci-rc b.nx{font-size:10px;letter-spacing:.1em}
-#app-checkin .ci-ring.sm .ci-rc small{margin-top:3px;font-size:7px;letter-spacing:.14em}
-#app-checkin .ci-ring.sm .ci-rc.ic .nz-ic{width:20px;height:20px}
-#app-checkin .ci-dtx{min-width:0}
-#app-checkin .ci-dl1{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}
-#app-checkin .ci-dl1 small{flex-basis:100%;font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3)}
-#app-checkin .ci-dl1 .cd{display:flex;align-items:center;gap:7px;font:700 21px/1 var(--mono);color:var(--white);letter-spacing:-.02em}
-#app-checkin .ci-dl1 .cd em{font-style:normal;display:flex;color:var(--teal-hi);font-family:var(--font);font-weight:500}
-#app-checkin .ci-dl1 .cd em .nz-ic{width:16px;height:16px}
-#app-checkin .ci-dl2{display:flex;align-items:center;gap:9px;margin-top:7px;font-size:11px;color:var(--ink-3);white-space:nowrap}
-#app-checkin .ci-dl2 b{font:600 11.5px var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
-#app-checkin .ci-dl2 .sep{width:1px;height:11px;background:var(--line)}
-#app-checkin .ci-dl2 .go{display:inline-flex;align-items:center;gap:6px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:10px;color:var(--teal-hi)}
-#app-checkin .ci-dl2 .go i{width:7px;height:7px;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 10px var(--teal-hi);animation:nza-blink 1s steps(1) infinite}
-#app-checkin .ci-dock.called{--rc:var(--teal-hi);--rg:rgba(15,212,196,.6);box-shadow:0 0 0 1px rgba(8,175,162,.55),0 0 26px rgba(8,175,162,.25),0 14px 34px rgba(0,0,0,.45);animation:ci-in-l 320ms cubic-bezier(.2,.8,.2,1) both,nza-glow 1.8s 320ms infinite}
-#app-checkin .ci-dock.called.still{animation:nza-glow 1.8s infinite}
-#app-checkin .ci-dock.called .ci-dl1 small{color:var(--teal-hi)}
-#app-checkin .ci-dock.called .ci-ring.sm{animation:ci-beat 1.4s ease-in-out infinite}
-#app-checkin .ci-dock.treat{--rc:#fff;--rg:rgba(255,255,255,.4)}
+/* ─────────── TICKET STUB (top-left while you wait) ─────────── */
+#app-checkin .ci-dockwrap{position:absolute;left:34px;top:30px;pointer-events:none}
+#app-checkin .tk-mini{width:206px;animation:ci-in-d 300ms cubic-bezier(.2,.8,.2,1) both}
+#app-checkin .tk-mini.still{animation:none}
+#app-checkin .tk-mini .tk-paper{padding:9px 13px 9px}
+#app-checkin .tk-mh{display:flex;align-items:center;justify-content:space-between}
+#app-checkin .tk-mh small{font-size:8.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--pink-2)}
+#app-checkin .tk-mp{padding:1px 5px;border:1.5px solid var(--tc);color:var(--tc);font:700 10px/1.1 var(--mono)}
+#app-checkin .tk-mn{margin:5px -13px 0;padding:4px 0 3px;text-align:center;background:var(--pink);color:var(--paper);font:700 26px/1 var(--mono);letter-spacing:.04em}
+#app-checkin .tk-ml{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:7px;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--pink-2);white-space:nowrap}
+#app-checkin .tk-ml b{color:var(--pink);font-weight:700;font-variant-numeric:tabular-nums}
+#app-checkin .tk-ml .go{display:inline-flex;align-items:center;gap:5px;font-weight:800;color:#08877d}
+#app-checkin .tk-ml .go i{width:6px;height:6px;border-radius:50%;background:#08877d;animation:nza-blink 1s steps(1) infinite}
+#app-checkin .tk-mini.called .tk-mn{background:#08877d}
+#app-checkin .tk-mini.called{animation:tk-nudge 2.4s ease-in-out infinite}
+#app-checkin .tk-mini.treat .tk-mn{background:#2a5ab8}
+@keyframes tk-nudge{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(-1.6deg) translateY(3px)}}
 /* the AI doctor's treatment screen shows ticket and bed itself */
 body.nza-bed-ai #app-checkin .ci-dockwrap{opacity:0;transition:opacity .4s}
 
