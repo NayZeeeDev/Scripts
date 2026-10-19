@@ -10,7 +10,7 @@
    Lua → JS  open { locale, keys, cfg, data, bay }   data (panel data)   snap (live patient)
    JS → Lua  ivstand:hang { kind, serial?, slot?, force?, rate, hook } → { ok, result | err, msg }
              ivstand:rate { id, rate }   ivstand:takedown { id }   ivstand:txa { seconds }
-             ivstand:type   ivstand:iv   ivstand:fill { type }   ivstand:refresh   ivstand:close
+             ivstand:type   ivstand:iv   ivstand:fill { type }   ivstand:close
    Keys (Config.Blood.Stand.keys, KeyboardEvent.code): squeeze Space · clamp Q / E · TXA hold T
         (Shift = faster) · hooks 1 / 2 · ESC close
    ═══════════════════════════════════════════════════════════ */
@@ -743,13 +743,13 @@
   function demoData(variant) {
     const typed = variant !== 'untyped';
     return {
-      patient: { pid: 'p:ABC', name: 'Michael Garcia', state: 'wounded', typed, bloodType: typed ? 'A+' : null, bloodPct: 71, fluid: 420, bleed: 18.4,
+      patient: { pid: 'p:ABC', name: 'Tomasz Kowalski', state: 'wounded', typed, bloodType: typed ? 'A+' : null, bloodPct: 71, fluid: 420, bleed: 18.4,
         given: { saline: 650, blood: 120, txa: 0 }, txaActive: false, vitals: { hr: 118, sys: 92, dia: 58, map: 69, spo2: 96, temp: 35.9 },
         reaction: variant === 'react' ? { stage: 2, ml: 160 } : null },
       access: variant === 'noline' ? null : { kind: 'iv', site: 'l_lower_arm' },
       infusions: variant === 'noline' ? [] : [
         { id: 'f1', kind: 'saline', ml: 500, left: 312, rate: 38, hook: 1 },
-        { id: 'f2', kind: 'blood', ml: 450, left: 380, rate: 24, hook: 2, bag: { type: variant === 'react' ? 'B+' : 'O-', serial: 'BB-482913', donor: 'M. Garcia', created: NOW - 9 * DAY, expires: NOW + 26 * DAY, ml: 450 }, incompatible: variant === 'react' ? true : null },
+        { id: 'f2', kind: 'blood', ml: 450, left: 380, rate: 24, hook: 2, bag: { type: variant === 'react' ? 'B+' : 'O-', serial: 'BB-482913', donor: 'R. Moreau', created: NOW - 9 * DAY, expires: NOW + 26 * DAY, ml: 450 }, incompatible: variant === 'react' ? true : null },
       ],
       inventory: { saline: 2, txa: 1, empty: 1, ivkit: 2, bags: [
         { slot: 4, serial: 'BB-300918', type: 'O-', ml: 450, donor: 'K. Lee', created: NOW - 3 * DAY, expires: NOW + 32 * DAY, compatible: true },

@@ -23,8 +23,8 @@
                               AIActive() → bool
     Net events handled: nza:checkin:bed ({ point, on }), nza:checkin:ai (action, data)
     Callbacks used:     nza:checkin:lie, nza:checkin:rest
-    NUI (bed app) actions sent: open, step, vitals, done, abort, hold, cam, rest, close
-    NUI callbacks: bed:hidden
+    NUI (bed app) actions sent: open, step, vitals, done, hold, cam, rest, close
+    NUI callbacks: none (this file closes the app itself on done / abort / get up)
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -115,11 +115,6 @@ local function closeBed()
     appOpen = false
     NZA.UI.Close(APP)
 end
-
-NZA.UI.On(APP, 'hidden', function(_, cb)
-    cb({ ok = true })
-    if not ai and not rest then closeBed() end
-end)
 
 NZA.Bus.On('ui:closed', function(app)
     if app == APP then appOpen = false end

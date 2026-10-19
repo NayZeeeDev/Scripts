@@ -68,6 +68,7 @@ Config.Pharmacy = {
     },
 
     npc = {
+        enabled  = true,      -- spawn pharmacist NPCs at all positions (false = none, whatever the position says)
         models   = { 's_f_y_scrubs_01', 's_m_m_doctor_01' },  -- picked by position id, so a counter always has the same face
         scenario = 'WORLD_HUMAN_STAND_IMPATIENT_UPRIGHT',       -- idle; '' = stand still
         greet    = { dict = 'gestures@m@standing@casual', clip = 'gesture_hello' },  -- played when you open the shop
@@ -75,6 +76,7 @@ Config.Pharmacy = {
     },
 
     blip = {
+        enabled    = true,    -- map blips for pharmacy positions (false = none, whatever the position says)
         sprite     = 51,      -- pill bottle
         colour     = 2,       -- green
         scale      = 0.75,
@@ -105,12 +107,26 @@ Config.Pharmacy = {
 
     -- Shop categories in the order they appear. Labels: locales/en/pharmacy.lua ('pharmacy.cat_<id>').
     categories = {
-        { id = 'first_aid',  icon = 'medkit' },
-        { id = 'medication', icon = 'pill' },
-        { id = 'wound_care', icon = 'bandage' },
-        { id = 'fluids',     icon = 'iv' },
-        { id = 'orthopedic', icon = 'bone' },
-        { id = 'equipment',  icon = 'kit' },
+        { id = 'medicines', icon = 'pill' },
+        { id = 'dressings', icon = 'bandage' },
+        { id = 'lines',     icon = 'iv' },
+        { id = 'airway',    icon = 'lungs' },
+        { id = 'bones',     icon = 'bone' },
+        { id = 'devices',   icon = 'kit' },
+    },
+
+    -- Products without their own 'category' use the item's category from config/items.lua
+    -- (ItemDefs), mapped onto the shop categories above with this table.
+    itemCategory = {
+        medication = 'medicines',
+        first_aid  = 'dressings',
+        wound_care = 'dressings',
+        fluids     = 'lines',
+        airway     = 'airway',
+        orthopedic = 'bones',
+        equipment  = 'devices',
+        surgery    = 'devices',
+        documents  = 'devices',
     },
 
     --[[ The catalogue. One entry per product:
@@ -130,52 +146,52 @@ Config.Pharmacy = {
          featured    shown first in "All products"
          label / description   override the item's own text (config/items.lua → ItemDefs)       ]]
     products = {
-        -- first aid
-        { item = 'bandage',        price = 25,   discount = 0.28, category = 'first_aid',  stock = false, featured = true },
-        { item = 'tourniquet',     price = 60,   discount = 0.25, category = 'first_aid',  stock = false, featured = true },
-        { item = 'ice_pack',       price = 20,   discount = 0.25, category = 'first_aid',  stock = false },
-        { item = 'medkit',         price = 150,  discount = 0.25, category = 'first_aid',  stock = 40, featured = true },
-        { item = 'foil_blanket',   price = 30,                    category = 'first_aid',  stock = false },
+        -- medicines
+        { item = 'painkillers',    price = 40,   discount = 0.25, category = 'medicines', stock = false, featured = true },
+        { item = 'antibiotics',    price = 120,                   category = 'medicines', stock = 30 },
+        { item = 'txa',            price = 180,                   category = 'medicines', stock = 20, perm = 'meds' },
+        { item = 'morphine',       price = 250,                   category = 'medicines', stock = 20, perm = 'meds', limit = 5 },
+        { item = 'adrenaline',     price = 220,                   category = 'medicines', stock = 20, perm = 'meds', limit = 5 },
+        { item = 'naloxone',       price = 160,                   category = 'medicines', stock = 20, perm = 'meds' },
+        { item = 'lidocaine',      price = 90,                    category = 'medicines', stock = 30, perm = 'suture' },
 
-        -- medication
-        { item = 'painkillers',    price = 40,   discount = 0.25, category = 'medication', stock = false, featured = true },
-        { item = 'antibiotics',    price = 120,                   category = 'medication', stock = 30 },
-        { item = 'txa',            price = 180,                   category = 'medication', stock = 20, perm = 'meds' },
-        { item = 'morphine',       price = 250,                   category = 'medication', stock = 20, perm = 'meds', limit = 5 },
-        { item = 'adrenaline',     price = 220,                   category = 'medication', stock = 20, perm = 'meds', limit = 5 },
-        { item = 'naloxone',       price = 160,                   category = 'medication', stock = 20, perm = 'meds' },
-        { item = 'lidocaine',      price = 90,                    category = 'medication', stock = 30, perm = 'suture' },
+        -- bleeding & dressings
+        { item = 'bandage',        price = 25,   discount = 0.28, category = 'dressings', stock = false, featured = true },
+        { item = 'tourniquet',     price = 60,   discount = 0.25, category = 'dressings', stock = false, featured = true },
+        { item = 'gauze',          price = 15,                    category = 'dressings', stock = false },
+        { item = 'dressing',       price = 20,                    category = 'dressings', stock = false },
+        { item = 'burn_dressing',  price = 60,   discount = 0.25, category = 'dressings', stock = false },
+        { item = 'iodine',         price = 10,                    category = 'dressings', stock = false },
+        { item = 'suture_kit',     price = 140,                   category = 'dressings', stock = 30 },
 
-        -- wound care
-        { item = 'burn_dressing',  price = 60,   discount = 0.25, category = 'wound_care', stock = false },
-        { item = 'suture_kit',     price = 140,                   category = 'wound_care', stock = 30 },
-        { item = 'gauze',          price = 15,                    category = 'wound_care', stock = false },
-        { item = 'dressing',       price = 20,                    category = 'wound_care', stock = false },
-        { item = 'iodine',         price = 10,                    category = 'wound_care', stock = false },
+        -- drips & lines
+        { item = 'saline',         price = 35,                    category = 'lines',     stock = false },
+        { item = 'iv_kit',         price = 120,                   category = 'lines',     stock = 30, perm = 'iv' },
+        { item = 'saline_bag',     price = 90,                    category = 'lines',     stock = 30, perm = 'iv' },
+        { item = 'io_kit',         price = 160,                   category = 'lines',     stock = 15, perm = 'iv' },
+        { item = 'empty_blood_bag', price = 25,                   category = 'lines',     stock = 25, perm = 'blood' },
 
-        -- fluids & IV
-        { item = 'saline',         price = 35,                    category = 'fluids',     stock = false },
-        { item = 'iv_kit',         price = 120,                   category = 'fluids',     stock = 30, perm = 'iv' },
-        { item = 'saline_bag',     price = 90,                    category = 'fluids',     stock = 30, perm = 'iv' },
-        { item = 'io_kit',         price = 160,                   category = 'fluids',     stock = 15, perm = 'iv' },
-        { item = 'empty_blood_bag', price = 25,                   category = 'fluids',     stock = 25, perm = 'blood' },
+        -- airway
+        { item = 'oxygen_mask',    price = 260,                   category = 'airway',    stock = 12, perm = 'airway' },
+        { item = 'bvm',            price = 380,                   category = 'airway',    stock = 8,  perm = 'airway' },
 
-        -- orthopedic
-        { item = 'splint',         price = 180,  discount = 0.15, category = 'orthopedic', stock = 20 },
-        { item = 'cervical_collar', price = 220,                  category = 'orthopedic', stock = 15, perm = 'splint' },
-        { item = 'crutches',       price = 350,                   category = 'orthopedic', stock = 10 },
-        { item = 'cast',           price = 260,                   category = 'orthopedic', stock = 15, perm = 'splint' },
-        { item = 'pelvic_binder',  price = 420,                   category = 'orthopedic', stock = 8,  perm = 'binder' },
+        -- bones & joints
+        { item = 'splint',         price = 180,  discount = 0.15, category = 'bones',     stock = 20 },
+        { item = 'ice_pack',       price = 20,   discount = 0.25, category = 'bones',     stock = false },
+        { item = 'cast',           price = 260,                   category = 'bones',     stock = 15, perm = 'splint' },
+        { item = 'cervical_collar', price = 220,                  category = 'bones',     stock = 15, perm = 'splint' },
+        { item = 'pelvic_binder',  price = 420,                   category = 'bones',     stock = 8,  perm = 'binder' },
+        { item = 'crutches',       price = 350,                   category = 'bones',     stock = 10 },
 
-        -- equipment
-        { item = 'stethoscope',    price = 300,                   category = 'equipment',  stock = 10, medicOnly = true },
-        { item = 'oxygen_mask',    price = 260,                   category = 'equipment',  stock = 12, perm = 'airway' },
-        { item = 'bvm',            price = 380,                   category = 'equipment',  stock = 8,  perm = 'airway' },
-        { item = 'defibrillator',  price = 4500,                  category = 'equipment',  stock = 4,  perm = 'defib', limit = 1 },
-        { item = 'medbag',         price = 900,                   category = 'equipment',  stock = 6,  medicOnly = true, limit = 1 },
-        { item = 'pager',          price = 600,                   category = 'equipment',  stock = 10, medicOnly = true, limit = 1 },
-        { item = 'wheelchair',     price = 2400,                  category = 'equipment',  stock = 4,  limit = 1 },
-        { item = 'bodybag',        price = 150,                   category = 'equipment',  stock = 20, perm = 'bodybag' },
+        -- kit & devices
+        { item = 'medkit',         price = 150,  discount = 0.25, category = 'devices',   stock = 40, featured = true },
+        { item = 'foil_blanket',   price = 30,                    category = 'devices',   stock = false },
+        { item = 'stethoscope',    price = 300,                   category = 'devices',   stock = 10, medicOnly = true },
+        { item = 'defibrillator',  price = 4500,                  category = 'devices',   stock = 4,  perm = 'defib', limit = 1 },
+        { item = 'medbag',         price = 900,                   category = 'devices',   stock = 6,  medicOnly = true, limit = 1 },
+        { item = 'pager',          price = 600,                   category = 'devices',   stock = 10, medicOnly = true, limit = 1 },
+        { item = 'wheelchair',     price = 2400,                  category = 'devices',   stock = 4,  limit = 1 },
+        { item = 'bodybag',        price = 150,                   category = 'devices',   stock = 20, perm = 'bodybag' },
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

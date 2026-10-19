@@ -10,8 +10,8 @@
 
    Lua → JS   open { mode, session | point/bed/how, keys { getUp, hospitalGetUp, cam, hold }, cinematic, locale, clock }
               step { index, elapsed } · vitals {…} · done { bill, paid, amount, unpaid, msg }
-              hold { p 0..1 } · cam { on } · rest { … } · abort {}
-   JS → Lua   bed:hidden
+              hold { p 0..1 } · cam { on } · rest { … }
+   JS → Lua   none (Lua closes the app itself: done, abort, get up)
    ═══════════════════════════════════════════════════════════ */
 (() => {
   const esc = NZA.esc, icon = NZA.icon;
@@ -319,7 +319,6 @@
       },
       cam(d) { S.cam = !!d.on; const root = S.el.querySelector('.bd-ai'); if (root) root.classList.toggle('nocam', !S.cam); },
       rest(d) { if (S.mode === 'rest') updateRest(d || {}); },
-      abort() { NZA.post('bed:hidden', {}); },
     },
 
     preview() {
@@ -342,11 +341,11 @@
       ];
       const total = steps.reduce((a, s) => a + s.time, 0);
       const bill = { enabled: true, lines: [{ label: 'Consultation & bed', amount: 150 }, { label: 'Transfusion (O+)', amount: 220 }, { label: 'Gunshot wound — Abdomen', amount: 480 }, { label: 'Fracture — Left lower leg', amount: 375 }, { label: 'Deep laceration — Right lower arm', amount: 150 }], subtotal: 1375, cover: 0.6, coverAmount: 825, plan: 'Silver', total: 550 };
-      const session = { ticket: 'A-014', bed: 'Bed 3', hospital: 'Pillbox Medical', point: 13, steps, total, elapsed: view === 'done' ? total : 47, index: 3, doctor: 'Dr. Hale (AI)', bill, name: 'Ben Carter',
+      const session = { ticket: 'B-024', bed: 'Bed 3', hospital: 'Pillbox Medical', point: 13, steps, total, elapsed: view === 'done' ? total : 47, index: 3, doctor: 'Dr. Hale (AI)', bill, name: 'Ben Carter',
         vitals: { hr: 104, spo2: 95, sys: 108, dia: 66, map: 80, rr: 19, temp: 36.4, rhythm: 'stach' } };
       NZA.demo('bed', { mode: 'ai', session, cinematic: view !== 'nocam', keys: { getUp: 'X', cam: 'C', hold: 1.5, summary: 9 }, locale });
       if (view === 'hold') setTimeout(() => NZA.apps.bed.msg.hold({ p: 0.6 }), 200);
-      if (view === 'done') setTimeout(() => NZA.apps.bed.msg.done({ bill, paid: true, amount: 550, msg: 'Treatment finished. Ticket A-014 closed — take care!' }), 150);
+      if (view === 'done') setTimeout(() => NZA.apps.bed.msg.done({ bill, paid: true, amount: 550, msg: 'Treatment finished. Ticket B-024 closed — take care!' }), 150);
     },
   });
 })();

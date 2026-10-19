@@ -14,7 +14,7 @@
     NUI app 'field' callbacks: result skip abort done close focus binderDrop phase drill needle hang
                                rate takedown txa foil nibp bags ivTq
     Net events handled: nza:field:resus (server pressure / clot model), nza:field:popped
-    Camera focus keys (in the app): Config.Field.Keys.focus = { patient, site, stand, kit }
+    Camera view key (in the app): Config.Field.Keys.focus cycles patient → site → stand → kit
 ]]
 
 if not NAYZEEE_LOCK_OK then return end

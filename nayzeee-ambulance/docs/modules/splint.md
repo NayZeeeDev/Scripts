@@ -55,8 +55,8 @@ All keys in `Config.Splint.Splint.keys` (KeyboardEvent codes).
 | Step | What you do | Controls |
 |---|---|---|
 | 1 Lay the splint | Drag the splint under the limb until both ends reach past the joint above and below (diamond targets on the joints turn teal "Seated", mm-off readout in the tags and the readout column, fit dial). It sets after `lockHold` s steady (or Space). | Drag · Q / E turn · arrows nudge · Shift fine · X start over · Space set · right-drag rotate view · wheel zoom |
-| 2 Pad & shape | **2 Padding**: click the bony points (knee / ankle, elbow / wrist …) — foam pads appear between limb and wall. **3 Shape**: press & hold each point until the walls close on the limb; release inside the band (`shapeZone`) — over-squeezing leaves a pressure point. Shaping next to an unpadded bony point is refused. Amber gap bands show where the wall still stands off the limb. | Click / hold · 2 / 3 switch tool · Shift gentle |
-| 3 Strap & check | **4 Straps**: click a strap → it flips over the limb and through its D-ring; click (or Space) when the needle of the tension gauge is in the band (`strapZone`); above `strapTight` = too tight. **5 Distal check**: click the toes / fingers → circulation (live pleth trace + capillary refill ring), movement and feeling (the patient answers in the voice card when responsive). A tight strap cuts the pulse off → the step turns into "Loosen the tight strap", the strap is outlined red → click it to loosen, cinch again, re-check. | Click · Space cinch · 5 check |
+| 2 Pad & shape | **2 Padding**: click the bony points (knee / ankle, elbow / wrist …) — foam pads appear between limb and wall. **3 Shape**: press & hold each point until the walls close on the limb; release while the pressure dial sits on the teal arc (`shapeZone`) — over-squeezing leaves a pressure point. Shaping next to an unpadded bony point is refused. Amber gap bands show where the wall still stands off the limb. | Click / hold · 2 / 3 switch tool · Shift gentle |
+| 3 Strap & check | **4 Straps**: click a strap → it flips over the limb and through its D-ring; click (or Space) when the needle of the tension gauge is on the teal arc (`strapZone`); above `strapTight` = too tight. **5 Distal check**: click the toes / fingers → circulation (live pleth trace + capillary refill ring), movement and feeling (the patient answers in the voice card when responsive). A tight strap cuts the pulse off → the step turns into "Loosen the tight strap", the strap is outlined red → click it to loosen, cinch again, re-check. | Click · Space cinch · 5 check |
 
 HUD (NZA.ui.ProcPanel: left column + right tool belt; screen centre and bottom-centre stay clear):
 readout dial + instrument list (fit → contact / pressure → tension / straps → score), step card with the
@@ -159,7 +159,7 @@ Cleanup: players leaving free their seat / handles; an empty chair whose owner l
 | `nza:splint:chair:seated` | S→C | `net, on` |
 
 NUI app `splint`: open `{ mode = 'proc', … }` (see the app.js header) or `{ mode = 'hud', hud }`;
-actions `result`, `hud`, `hudOff`; anchors `prox dist cms core`; callbacks `splint:finish`,
+actions `result`, `hud` (the mobility card closes with the app); anchors `prox dist cms core`; callbacks `splint:finish`,
 `splint:abort`, `splint:done`, `splint:close`.
 Card data: chair / push `{ kind, title, sub, state, speed, max, slope, turn, dist, blocked, keys }`,
 crutch `{ kind, title, sub, state, moving, steps, cadence?, side, keys }`.

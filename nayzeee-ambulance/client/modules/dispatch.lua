@@ -9,7 +9,7 @@
     NUI app 'callcard' (opened without focus while on duty, or for police notices)
       actions sent: open, alert, alertUpdate, alertResponded, alertHide, queue, active, live
     Keybinds: nza_dispatch_respond (Config.Dispatch.card.respondKey, E)
-              nza_dispatch_dismiss (Config.Dispatch.card.dismissKey, X)
+              nza_dispatch_dismiss (Config.Dispatch.card.dismissKey, BACK = Backspace)
     Net events handled: nza:dispatch:sync, :call, :update, :close, :me, :units, :stage,
                         :assigned, :police
     Net events sent:    nza:dispatch:respond, :decline, :clear, :street, :unitStatus, :npc, :pair, :duty
@@ -58,6 +58,26 @@ local function cfg(section, key, default)
     return v
 end
 D.Cfg = cfg
+
+-- phone alerts: 'paired' | 'always' | false (same rule as the server, see Config.Dispatch.phone)
+function D.PhoneMode()
+    local m = cfg('phone', 'alerts', nil)
+    if m == nil then return cfg('pager', 'phonePairing', true) ~= false and 'paired' or false end
+    if m == 'always' or m == 'paired' then return m end
+    return false
+end
+
+-- what the card shows for a keyboard mapper key name (FiveM names like BACK, RETURN)
+local KEY_LABELS = {
+    BACK = '⌫', RETURN = 'Enter', SPACE = 'Space', ESCAPE = 'Esc', DELETE = 'Del', INSERT = 'Ins',
+    LSHIFT = 'Shift', RSHIFT = 'Shift', LCONTROL = 'Ctrl', RCONTROL = 'Ctrl', LMENU = 'Alt', RMENU = 'Alt',
+    TAB = 'Tab', HOME = 'Home', END = 'End', PAGEUP = 'PgUp', PAGEDOWN = 'PgDn',
+    UP = '↑', DOWN = '↓', LEFT = '←', RIGHT = '→',
+}
+local function keyLabel(k)
+    k = tostring(k or '')
+    return KEY_LABELS[k:upper()] or k
+end
 
 local function L(key, ...) return NZA.L(key, ...) end
 
@@ -269,7 +289,7 @@ local function ensureCardApp()
     S.cardOpen = true
     NZA.UI.Open(APP, {
         locale = cardLocale(),
-        keys = { respond = cfg('card', 'respondKey', 'E'), dismiss = cfg('card', 'dismissKey', 'X') },
+        keys = { respond = keyLabel(cfg('card', 'respondKey', 'E')), dismiss = keyLabel(cfg('card', 'dismissKey', 'BACK')) },
         timeout = tonumber(cfg('card', 'timeout', 30)) or 30,
         voiceVolume = tonumber(cfg('card', 'voiceVolume', 0.85)) or 0.85,
         chain = D.Stages,
@@ -683,7 +703,7 @@ CreateThread(function()
         name = 'nza_dispatch_dismiss',
         description = L('dispatch.bind_dismiss'),
         defaultMapper = 'keyboard',
-        defaultKey = cfg('card', 'dismissKey', 'X'),
+        defaultKey = cfg('card', 'dismissKey', 'BACK'),
         onPressed = onDismissKey,
     })
 end)

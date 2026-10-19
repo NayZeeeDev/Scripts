@@ -178,6 +178,7 @@ NZA.AddLocale('en', {
     ['cpr.p_continuous'] = 'CONTINUOUS CPR · VENTILATED',
     ['cpr.p_waitbreath'] = 'STOP · BREATHS NEXT',
     ['cpr.p_nopads'] = 'CONNECT THE PADS',
+    ['cpr.p_nodefib'] = 'CPR ONLY · BRING A DEFIBRILLATOR',
     -- team card
     ['cpr.t_arrest'] = 'Cardiac arrest',
     ['cpr.t_resp'] = 'Respiratory arrest',
@@ -407,4 +408,8 @@ NZA.AddLocale('en', {
     ['cpr.r_breathing'] = 'breathing on their own',
     ['cpr.r_error'] = 'error',
     ['cpr.r_replaced'] = 'started another code',
+    -- easy mode (timed CPR, no device screen)
+    ['cpr.easy_comp'] = 'Chest compressions · cycle %s',
+    ['cpr.easy_air'] = 'Airway and defibrillator · cycle %s',
+    ['cpr.easy_done'] = 'CPR over (%s): %s compressions, %s shock(s).',
 })

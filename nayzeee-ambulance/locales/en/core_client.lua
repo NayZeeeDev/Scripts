@@ -122,7 +122,5 @@ NZA.AddLocale('en', {
     ['ui.critical']       = 'Critical',
     ['ui.urgent']         = 'Urgent',
     ['ui.standard']       = 'Standard',
-    ['ui.stabilized']     = 'Stabilized',
-    ['ui.clock_paused']   = 'Clock paused',
     ['ui.signature']      = 'NAYZEEE',
 })

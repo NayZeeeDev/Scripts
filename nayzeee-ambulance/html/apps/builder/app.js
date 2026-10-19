@@ -95,7 +95,7 @@
         </section>
         <section class="bx-pad">
           ${tile('set', ['E'], T('bx_confirm', 'Set here'), '', 'go')}
-          ${tile('back', ['Q'], T('bx_cancel', 'Back out'), '')}
+          ${tile('back', ['⌫'], T('bx_cancel', 'Back out'), '')}
           ${tile('turn', ['←', '→'], T('bx_rotate', 'Turn'), '')}
           ${tile('wheel', [T('bx_wheel', 'Wheel')], T('bx_nudge', 'Nudge'), T('bx_step', '±%s°', 7.5))}
           ${tile('lift', ['PgUp', 'PgDn'], T('bx_raise', 'Lift'), '')}
@@ -195,14 +195,14 @@
         ${kind === 'marker' ? '<span class="plumb"></span><span class="pin"></span>' : '<span class="ghost"></span>'}`);
       document.body.appendChild(demo);
       const types = {
-        marker: { type: 'checkin', label: 'Check-in Desk', icon: 'ticket', kind: 'marker' },
+        marker: { type: 'pharmacy', label: 'Pharmacy counter', icon: 'pill', kind: 'marker' },
         prop: { type: 'xray', label: 'X-ray Table', icon: 'xray', kind: 'prop', replace: true },
         heli: { type: 'heli', label: 'Helipad', icon: 'heli', kind: 'heli' },
       };
       NZA.open(APP, Object.assign({ dept: 'Los Santos Medical', snapStep: 15, max: 25, locale: {} }, types[kind] || types.marker));
       const far = bad === 'far' || bad === '1';
       NZA.apps[APP].msg.state({
-        heading: kind === 'prop' ? 165 : 87.5, height: kind === 'prop' ? 0 : 0.1, dist: far ? 31.4 : 4.2, max: 25,
+        heading: kind === 'prop' ? 165 : 212.0, height: kind === 'prop' ? 0 : 0.1, dist: far ? 31.4 : 4.2, max: 25,
         valid: !bad, reason: far ? 'far' : (bad ? 'nosurface' : null), snap: kind === 'prop', snapStep: 15,
         coords: { x: 307.4, y: -595.1, z: 43.28 }, keys: { fast: kind === 'heli', turn: kind === 'marker', fine: false, lift: false },
       });

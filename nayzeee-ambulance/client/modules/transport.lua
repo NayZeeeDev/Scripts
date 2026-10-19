@@ -16,8 +16,8 @@
         Ground(v) → z               Busy() → reason|nil           Held(bag) → bool
         Apply(ped, cmd, isSelf)     position a patient ped for a command (attach, lie down, seat, free)
         NearestPatient(range, filter) → entity, target, bag
-    Patient options (NZA.Interact, order band 10): Carry, Help up, Place on Stretcher, Take off the
-    stretcher, Move to the bed / table, Help patient off the table, Take out of the vehicle.
+    Patient options (NZA.Interact, order band 10): Carry, Help up, Lift onto the stretcher, Take off the
+    stretcher, Move to the bed / table, Help them down, Take out of the vehicle.
     Radial (NZA.RadialItems): parent 'patient' (carry, put down, help up) and 'stretcher' (see
     transport_stretcher.lua / transport_bay.lua).
     Bus (client) emitted: transport:mine (mode, cmd) when the local player is moved.
@@ -848,7 +848,7 @@ AddEventHandler('onResourceStop', function(res)
     NZA.UI.HidePrompt('nza_tr_getup')
 end)
 
--- other modules (X-ray table) hand their 'Help patient off the table' over to this module
+-- other modules (X-ray table) hand their 'help off the table' option over to this module ('Help them down')
 Tr.OwnsHelpOff = true
 function Tr.HelpOff(entity, target)
     if Tr.Bed and Tr.Bed.HelpOff then return Tr.Bed.HelpOff(entity, target) end

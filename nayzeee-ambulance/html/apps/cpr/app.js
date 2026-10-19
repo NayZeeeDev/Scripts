@@ -1545,7 +1545,7 @@
   const DEMO_LOG = [{ t: 0, text: 'CPR started by Ava Moreno', tone: 'teal' }, { t: 41, text: 'Pads on (Ava Moreno)' }, { t: 47, text: 'Analysis: VF, shock advised', tone: 'amber' }, { t: 52, text: 'Shock 1 at 200 J', tone: 'amber' }, { t: 64, text: 'Liam Carter joined the code', tone: 'teal' }];
   function demoView(o = {}) {
     return Object.assign({
-      id: 'code_demo', pid: 'n:4512', name: 'Michael Garcia', sex: 'm', npc: false, role: 'comp', solo: false, compName: 'Ava Moreno', airName: 'Liam Carter', partner: 'Liam Carter',
+      id: 'code_demo', pid: 'n:4512', name: 'Dario Kemp', sex: 'm', npc: false, role: 'comp', solo: false, compName: 'Ava Moreno', airName: 'Liam Carter', partner: 'Liam Carter',
       phase: 'compress', phaseLeft: null, state: 'arrest', kind: 'arrest', rhythm: 'vf', monitor: true, hr: 0, etco2: 14, set: 12, perSet: 30, total: 214,
       cycleNo: 2, cycleElapsed: 84, cycleLength: 120, quality: 86, rate: 110, depth: 88, recoil: 95, ccf: 84, vent: 72, ventN: 6, fatigue: 9, compFatigue: 9,
       pads: true, mode: 'manual', canManual: true, canAed: true, defib: 'item', energy: 200, energies: DEF_CFG.energies, aedEnergies: DEF_CFG.aedEnergies, advice: null, shocks: 1, lastEnergy: 200,
@@ -1668,7 +1668,7 @@
     if (name === 'charged') { banner('clear', 'red pulse', 'alert', T('b_clear'), T('b_clear_s')); voice(T('v_charged'), 60000); }
     if (name === 'rosc') { banner('rosc', 'teal', 'heart', T('b_rosc'), T('b_rosc_s'), 60000); voice(T('v_rosc'), 60000); }
     if (name === 'breaths') { st.breath = { at: now(), frozen: 0.86 }; st.breathLog = [{ hold: 1.04, cls: 'ok' }]; }
-    if (name === 'debrief') ended({ reason: 'rosc', rosc: true, duration: 412, compressions: 618, cycles: 6, shocks: 2, adrenaline: 1, score: 84, grade: 'A', parts: { quality: 86, ccf: 78, vent: 71, protocol: 90 }, rhythmStart: 'vf', rhythmEnd: 'stach', name: 'Michael Garcia' });
+    if (name === 'debrief') ended({ reason: 'rosc', rosc: true, duration: 412, compressions: 618, cycles: 6, shocks: 2, adrenaline: 1, score: 84, grade: 'A', parts: { quality: 86, ccf: 78, vent: 71, protocol: 90 }, rhythmStart: 'vf', rhythmEnd: 'stach', name: 'Dario Kemp' });
   }
 
   NZA.app(APP, {

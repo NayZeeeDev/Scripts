@@ -51,7 +51,7 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
   cot entity is swapped for the folded model), **[E]** context: *Load into the ambulance* (patient
   on it, at the back doors), *Return the stretcher* (empty, at an ambulance or a stretcher bay),
   *Transfer to the &lt;bed&gt;*.
-- **Place on Stretcher** (patient option, order 12, needs a free cot within `findRange` m) / **Put
+- **Lift onto the stretcher** (patient option, order 12, needs a free cot within `findRange` m) / **Put
   the patient on it** (cot target) / from a carry (prompt). The patient lies on the mattress
   (`patient.pos/rot/anim`), attached to the cot. **Take off the stretcher** lays them beside it.
 - **Load**: the cot rolls in through the doors (keyframed slide, `load.slideMs`) to the per-model
@@ -71,7 +71,7 @@ tables, and the walk-in **ambulance treatment bay** with its HUD and supplies sh
   the lying anim (`donation` sits). The server sets **`patient.meta.bed = { point, type, hospital }`**
   (procedures read it), `meta.inBed` for `heal` types, and reserves the point with
   `NZA.Hospitals.OccupyBed` (released on every move). Emits `transport:bed (src, p, point)`.
-- **Help patient off the table** (order 13; the X-ray module hands its own option over through
+- **Help them down** (order 13; the X-ray module hands its own option over through
   `NZA.Transport.OwnsHelpOff / HelpOff`) — needs a patient who can stand; they get up beside it.
   An *alive* player on a bed can also hold **[X] Get up** (`Beds.selfLeave`). Carrying / placing
   the patient on a stretcher from a bed also clears the bed.
@@ -198,7 +198,7 @@ tr_str_height tr_str_load tr_str_unload tr_str_return tr_bay_enter`), root while
 configured ambulance models.
 
 **NUI app `bay`**: Lua → `open { locale, keys, unit, crew, me, warnings, tools }`, `patient (lite | false)`,
-`crew`, `tick`, `monitor { on }`, `tools`, `supplies (list)`, `suppliesClose`; JS → `bay:take { key, count }`,
+`crew`, `tick`, `monitor { on }`, `supplies (list)`, `suppliesClose`; JS → `bay:take { key, count }`,
 `bay:supplies { open = false }`, `bay:action { id }`.
 Preview: `index.html?app=bay` (`&demo=empty|stable|supplies|monitor|arrest|moving|compact`).
 

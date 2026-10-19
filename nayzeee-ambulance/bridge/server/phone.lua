@@ -5,7 +5,7 @@
 
     OPEN FILE (escrow_ignore). Phone adapters: lb-phone, qs-smartphone,
     qs-smartphone-pro, npwd, yseries, gksphone, okokPhone, roadphone,
-    high-phone, renewed-phone.
+    high-phone, renewed-phone, qb-phone.
 
     API
       Bridge.Phone.Resource                       detected adapter name or nil (kept up to date)
@@ -310,6 +310,31 @@ P['renewed-phone'] = {
             subject = data.subject,
             message = data.message,
         })
+        return true
+    end,
+    number = frameworkPhone,
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- qb-phone (verified against qb-phone 1.5 source: client event
+-- 'qb-phone:client:CustomNotification' (title, text, icon, color, timeout) and
+-- server export sendNewMailToOffline(citizenid, mailData); older releases had
+-- the same function as the server event 'qb-phone:server:sendNewMailToOffline').
+-- Number: charinfo.phone through the framework. No 911 / services hook.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+P['qb-phone'] = {
+    notify = function(src, data)
+        TriggerClientEvent('qb-phone:client:CustomNotification', src,
+            data.title or 'EMS', data.message, data.icon or 'fas fa-truck-medical', '#08afa2', data.duration or 6000)
+        return true
+    end,
+    mail = function(src, data)
+        local citizenid = Bridge.GetIdentifier(src)
+        if not citizenid then return false end
+        local mail = { sender = data.sender or phoneSender(), subject = data.subject, message = data.message }
+        local ok = pcall(function() exports['qb-phone']:sendNewMailToOffline(citizenid, mail) end)
+        if not ok then TriggerEvent('qb-phone:server:sendNewMailToOffline', citizenid, mail) end
         return true
     end,
     number = frameworkPhone,

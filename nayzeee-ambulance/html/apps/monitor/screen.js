@@ -124,7 +124,7 @@
   requestAnimationFrame(frame);
 
   if (/demo=1/.test(location.search)) {
-    v = { hr: 138, ecgRate: 138, spo2: 96, rr: 22, etco2: 33, rhythm: 'stach', state: 'wounded', name: 'Michael Garcia' };
-    nibp = { sys: 89, dia: 53, map: 65 };
+    v = { hr: 131, ecgRate: 131, spo2: 94, rr: 22, etco2: 33, rhythm: 'stach', state: 'wounded', name: 'Pavel Lindqvist' };
+    nibp = { sys: 94, dia: 57, map: 69 };
   }
 })();

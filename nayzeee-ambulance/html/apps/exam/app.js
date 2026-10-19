@@ -580,7 +580,7 @@
       const body = NZAAssess.body({ focus: 'full', wounds: ['chest', 'thigh_l', 'head'] });
       const route = (id, label, ic, items, ok = true, reason = null) => ({ id, label, icon: ic, ok, avail: ok, reason, items });
       const view = {
-        name: 'Michael Garcia', state: 'wounded', stateLabel: 'Wounded', triage: { level: 1, code: 'P1', label: 'Immediate' },
+        name: 'Tomas Reyna', state: 'wounded', stateLabel: 'Wounded', triage: { level: 1, code: 'P1', label: 'Immediate' },
         bleed: 'heavy', bleedLabel: 'Heavy', toTreat: 4, clock: 134, stabilized: false, canStop: true,
         devices: ['IV line', 'Oxygen'],
         checks: { pulse: { rate: 124, ago: '1 min ago' } },
@@ -613,12 +613,12 @@
           r_leg: { status: 'healthy', statusLabel: 'Clear', injuries: [], notes: [] },
         },
       };
-      NZA.demo('exam', { patient: { name: 'Michael Garcia', sex: 'm', npc: true }, view, locale: {} });
+      NZA.demo('exam', { patient: { name: 'Tomas Reyna', sex: 'm', npc: true }, view, locale: {} });
       NZAAssess.feed('exam', [...ORDER, 'center'], body);
       NZA.mock('exam:treat', () => { NZA.toast({ title: 'Care step', message: 'In game this starts the procedure.', type: 'info' }); return { ok: true }; });
       NZA.mock('exam:action', d => { NZA.toast({ title: 'Head-to-toe check', message: `In game this starts: ${d.action}`, type: 'info' }); return { ok: true }; });
-      NZA.mock('exam:touch', d => { const lines = { chest: 'Argh... my chest, it burns.', l_leg: 'Not the leg, please!', head: 'Easy... my head is spinning.' }; if (lines[d.group]) NZA.speech({ name: 'Michael Garcia', text: lines[d.group], ms: 3800 }); return { ok: true }; });
-      setTimeout(() => NZA.speech({ name: 'Michael Garcia', text: 'Argh... my chest, it burns.', ms: 60000 }), 300);
+      NZA.mock('exam:touch', d => { const lines = { chest: 'Argh... my chest, it burns.', l_leg: 'Not the leg, please!', head: 'Easy... my head is spinning.' }; if (lines[d.group]) NZA.speech({ name: 'Tomas Reyna', text: lines[d.group], ms: 3800 }); return { ok: true }; });
+      setTimeout(() => NZA.speech({ name: 'Tomas Reyna', text: 'Argh... my chest, it burns.', ms: 60000 }), 300);
     },
   });
 })();

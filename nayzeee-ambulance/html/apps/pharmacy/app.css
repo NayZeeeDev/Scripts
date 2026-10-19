@@ -417,13 +417,13 @@
 .ph-plan .act small.w{color:#f3c35a}
 
 /* ── bills ── */
-.w-stat .si{width:40px;height:40px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft);color:var(--ink-2)}
-.w-stat .si .nz-ic{width:18px;height:18px}
-.w-stat .si.teal{color:var(--teal);background:var(--teal-wash);border-color:var(--teal-edge)}
-.w-stat .si.red{color:var(--red);background:var(--red-wash);border-color:var(--red-edge)}
-.w-stat .si.amber{color:var(--amber);background:var(--amber-wash);border-color:var(--amber-edge)}
-.w-stat b.red{color:#ff8a8d}
-.w-stat small{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:1px}
+#app-pharmacy .w-stat .si{width:40px;height:40px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;background:var(--inset);border:1px solid var(--line-soft);color:var(--ink-2)}
+#app-pharmacy .w-stat .si .nz-ic{width:18px;height:18px}
+#app-pharmacy .w-stat .si.teal{color:var(--teal);background:var(--teal-wash);border-color:var(--teal-edge)}
+#app-pharmacy .w-stat .si.red{color:var(--red);background:var(--red-wash);border-color:var(--red-edge)}
+#app-pharmacy .w-stat .si.amber{color:var(--amber);background:var(--amber-wash);border-color:var(--amber-edge)}
+#app-pharmacy .w-stat b.red{color:#ff8a8d}
+#app-pharmacy .w-stat small{display:block;font-size:10.5px;color:var(--ink-3);font-weight:300;margin-top:1px}
 .ph-bill{display:grid;grid-template-columns:38px 1fr auto auto;align-items:center;gap:13px;padding:11px 12px;background:var(--inset);border:1px solid var(--line-hair);
   border-radius:var(--r-sm);transition:border-color var(--fast);animation:nz-rise .25s both}
 .ph-bill:hover{border-color:var(--line)}

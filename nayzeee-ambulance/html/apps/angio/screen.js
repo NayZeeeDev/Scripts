@@ -35,7 +35,7 @@
     let s = st;
     if (demo) {
       const t = ((now - demoT0) / 1000) % 8;
-      s = window.NZAAngio.demoState({ seed: 4127, key: 'jejunal', sev: 3 }, t > 1 ? t - 1 : 0);
+      s = window.NZAAngio.demoState({ seed: 4127, key: 'ileal', sev: 3 }, t > 1 ? t - 1 : 0);
       s.run && (s.hud.label = 'Selective run · Superior mesenteric');
     } else if (s && s.run) {
       // keep the run moving between updates (capped so a stalled sender freezes it)

@@ -168,7 +168,7 @@ NZA.AddLocale('en', {
     ['bullet.w_bleed_cap'] = 'Press on the bleeding point · under %s',
     ['bullet.w_section'] = 'Section',
     ['bullet.w_section_cap'] = 'Bite %s mm each side · straight across',
-    ['bullet.w_stuck'] = 'Dressing stuck',
+    ['bullet.w_stuck'] = 'Seal',
     ['bullet.w_cover_d'] = 'Covers %s% of the wound',
     ['bullet.w_stuck_cap'] = 'Lay it over the wound, then rub it down',
     ['bullet.s1_title'] = 'Find the metal',

@@ -17,7 +17,7 @@
 
     NUI callbacks: ivstand:hang { kind, serial?, slot?, force?, rate, hook? } → { ok, result | err, msg }
                    ivstand:rate { id, rate }   ivstand:takedown { id }   ivstand:txa { seconds }
-                   ivstand:type   ivstand:iv   ivstand:fill { type }   ivstand:refresh   ivstand:close
+                   ivstand:type   ivstand:iv   ivstand:fill { type }   ivstand:close
     Lua → JS: open { locale, keys, cfg, data, bay }, data (panel data), snap (live patient), result
     Callbacks used: nza:blood:stand:info, nza:blood:stand:fill (+ NZA.Treat 'ivstand:*')
 ]]
@@ -299,11 +299,6 @@ NZA.UI.On(APP, 'fill', function(data, cb)
     toast(res.msg, res.ok and 'success' or 'error')
     cb(res)
     if res.ok then refresh(s) end
-end)
-
-NZA.UI.On(APP, 'refresh', function(_, cb)
-    cb({ ok = true })
-    refresh(stand)
 end)
 
 NZA.UI.On(APP, 'close', function(_, cb)

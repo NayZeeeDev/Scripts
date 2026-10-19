@@ -10,15 +10,15 @@ the rest of the resource.
 
 | File | What it does |
 |---|---|
-| `bridge/shared.lua` | `Bridge` global, config access, detection (`Bridge.Pick`), priority lists and resource maps, framework detection, job helpers, item helpers, icon map (NAYZEEE icon → Font Awesome), throttle |
-| `bridge/server/framework.lua` | ESX / QBCore / Qbox / standalone adapters, player lifecycle hooks, job, duty, money, admin, `nzaJob` state bag |
+| `bridge/shared.lua` | `Bridge` global, config access, detection (`Bridge.Pick`), priority lists and resource maps, framework detection, job helpers (including the ox_core group → job normalisation `Bridge.OxJob`, used by both sides), item helpers, icon map (NAYZEEE icon → Font Awesome), throttle |
+| `bridge/server/framework.lua` | ESX / QBCore / Qbox / ox_core / standalone adapters, player lifecycle hooks, job, duty, money, admin, `nzaJob` state bag |
 | `bridge/server/inventory.lua` | 10 inventory adapters, metadata emulation (KVP), usable items, labels, images, client count callback |
-| `bridge/server/society.lua` | society/business accounts |
+| `bridge/server/society.lua` | society/business accounts (8 adapters, including ox_core group accounts) |
 | `bridge/server/notify.lua` | `Bridge.Notify(src, data)`: our NUI toast, or a notify resource |
-| `bridge/server/phone.lua` | 10 phone adapters, 911/EMS forwarding, `CallEMS` export |
+| `bridge/server/phone.lua` | 11 phone adapters, 911/EMS forwarding, `CallEMS` export |
 | `bridge/server/dispatch.lua` | `Bridge.Dispatch.External(call)`: mirror to an external dispatch/MDT |
 | `bridge/server/vehicle.lua` | plates, server-side keys (qb/qbx), keys net event |
-| `bridge/client/framework.lua` | player data, job, lifecycle hooks |
+| `bridge/client/framework.lua` | player data, job, lifecycle hooks (ESX / QBCore / Qbox / ox_core / standalone) |
 | `bridge/client/notify.lua` | notify adapters (nza toast, nayzeee-notify, ox_lib, okok, codem, mythic, brutal, t-notify, qb, esx, native) |
 | `bridge/client/target.lua` | ox_target, qb-target, qtarget, interact, sleepless_interact, built-in [E] fallback, and a registry |
 | `bridge/client/inventory.lua` | non-blocking `Has`/`Count`, labels, images |
@@ -39,10 +39,14 @@ adapter → resource map (`Bridge.Resources.<kind>`) in `bridge/shared.lua`.
 Aliases such as `'okokNotify'`, `'qb'` and `'qbx'` are accepted. If a forced
 adapter is not running, the bridge warns and falls back to auto-detection.
 
-- Framework: qbx_core, then es_extended, then qb-core, else standalone. Qbox
-  goes first because it provides `qb-core`. `Config.Bridge.framework` overrides
-  `Config.Framework` when it is not `'auto'`. `Bridge.Framework` is set when
+- Framework: qbx_core, then ox_core, then es_extended, then qb-core, else
+  standalone. Qbox goes first because it provides `qb-core`.
+  `Config.Bridge.framework` overrides `Config.Framework` when it is not
+  `'auto'`; it accepts `'ox'` (or `'ox_core'`) besides `'esx'`, `'qbcore'`,
+  `'qbox'` and `'standalone'`. `Bridge.Framework` is set when
   `bridge/shared.lua` loads, so every later file can read it at top level.
+- Phone: renewed-phone is checked before qb-phone because it provides
+  `qb-phone`.
 - Optional kinds are resolved lazily and resolved again when a matching resource
   starts or stops.
 - sleepless_interact is checked before ox_target because it provides
@@ -61,6 +65,7 @@ adapter is not running, the bridge warns and falls back to auto-detection.
 | `standaloneMoneyItem` | `'money'` | cash item when standalone runs ox_inventory |
 | `standaloneFreeBills` / `standaloneFreeItems` | `true` / `false` | standalone without a money or inventory system |
 | `offDutyPrefix` | `'off'` | ESX `offambulance` = ambulance, off duty |
+| `oxOnDuty` | `true` (not in the shipped file; add it to `Config.Bridge` to change it) | ox_core: duty state of a character after login |
 | `phoneEmergency` | see file | 911 numbers, EMS company names, cooldown, reply, extra events |
 | `phoneApp` | per phone | app id used for EMS phone notifications |
 | `builtinTarget` | E, 2.0 m, 250 ms | built-in target key, reach, scan rate, optional markers |
@@ -83,8 +88,9 @@ Bridge.GetIdentifier(src)  Bridge.GetSourceFromIdentifier(id)
 Bridge.GetName(src)  Bridge.GetCharInfo(src) → { firstname, lastname, dob, sex = 'm'|'f', phone }
 Bridge.GetJob(src) → { name, label, grade, gradeLabel, onDuty, isBoss }
 Bridge.IsMedic(src) Bridge.IsPolice(src) Bridge.IsOnDuty(src) Bridge.SetDuty(src, bool)
-Bridge.SetJob(src, job, grade) → bool              -- framework job; false on standalone
+Bridge.SetJob(src, job, grade) → bool              -- framework job (ox_core: group); false on standalone
 Bridge.HasLicense(src, name) → bool                -- framework licence, else ace nza.license.<name>
+Bridge.OxGroup(name)  Bridge.OxJob(groups, activeGroup, onDuty)   -- ox_core helpers (shared, also on the client)
 Bridge.IsAdmin(src)            -- ace Config.Admin.ace, or a framework group in Config.Admin.groups
 Bridge.GetPlayers()  Bridge.GetMedics(onDutyOnly)
 Bridge.GetMoney(src, 'cash'|'bank')  Bridge.RemoveMoney(src, account, amount, reason) → bool  Bridge.AddMoney(...)
@@ -118,13 +124,20 @@ Notes:
   - Qbox: `exports.qbx_core:SetJob`, which checks job and grade itself. The
     `qbx:setjob_replaces` convar decides whether the old job stays in the
     player's job list.
+  - ox_core: `setGroup(job, grade + 1)` through `CallPlayer`. Refused when the
+    group does not exist or has no such grade, or when ox_core refuses it (the
+    character already has another group of the same type). `'unemployed'` (the
+    hospital's `fireJob`) is no ox group: it removes the character's EMS group
+    (grade 0): the active group if it is a medic job, else the first
+    `Config.Jobs.medic` group, then a police group. Unrelated groups are kept.
   - A grade change on the same job keeps the current duty state, including ESX
     `off<job>`. A new job uses the framework's default duty.
   - Standalone returns false (jobs are aces), so the hospital keeps its
     "excluded" staff row.
-- `Bridge.HasLicense` checks QBCore / Qbox `metadata.licences[name]` and ESX
-  `esx_license:checkLicense` (2 s timeout; it yields, so call it from a thread).
-  Standalone, and ESX without esx_license, use the ace `nza.license.<name>`.
+- `Bridge.HasLicense` checks QBCore / Qbox `metadata.licences[name]`, ESX
+  `esx_license:checkLicense` (2 s timeout; it yields, so call it from a thread)
+  and ox_core `getLicense(name)`. Standalone, and ESX without esx_license, use
+  the ace `nza.license.<name>`.
 - `Bridge.Inv.OpenStash` opens the stash itself; the caller checks access first.
   - ox_inventory: `RegisterStash(id, label, slots, weight, owner and true)`,
     then `forceOpenInventory(src, 'stash', id)`.
@@ -137,6 +150,35 @@ Notes:
   - codem, origen, tgiann, core_inventory and plain ESX/QB return false, and the
     caller falls back to its own storage. Add `openStash = fn(src, id, opts)` to
     the adapter to support one.
+
+## ox_core
+
+Checked against the ox_core 1.x source (overextended and CommunityOx). The
+adapter uses the raw exports, so `@ox_core/lib/init.lua` is not needed in the
+fxmanifest: `GetPlayer` / `GetPlayers` / `GetPlayerFromCharId` return plain
+data (`source`, `userId`, `charId`, `stateId`, ...), and player and account
+methods go through `CallPlayer(src, method, ...)` and
+`CallAccount(accountId, method, ...)`.
+
+| | ox_core |
+|---|---|
+| Loaded | server `ox:playerLoaded` (src, userId, charId); a character switch is `ox:playerLogout` then `ox:playerLoaded`, so the patient is saved and reloaded |
+| Identifier | `char:<charId>`, one per character. `GetSourceFromIdentifier` uses `GetPlayerFromCharId`. At character selection there is no identifier and the player is not in `Bridge.GetPlayers()` |
+| Character | `get('firstName' / 'lastName' / 'dateOfBirth' / 'gender' / 'phoneNumber')` |
+| Job | `Bridge.OxJob(getGroups(), get('activeGroup'), duty)`: the active group if it is an EMS or police group, else the first `Config.Jobs.medic` group, then the first police group, then the active group. Label and grade labels come from `GlobalState['group.<name>']`. `isBoss` = highest grade, or the grade's account role is `owner` |
+| Grades | ox grade 1 (the lowest) is bridge grade 0, so `Config.DefaultPerms` and hospital grade levels mean the same on every framework. `rawGrade` keeps the ox grade |
+| Duty | ox_core has no duty: the bridge keeps it per character. `Config.Bridge.oxOnDuty` (default `true`) is the state after login; logout resets it |
+| Job changes | server `ox:setGroup` and `ox:setActiveGroup` refresh the `nzaJob` state bag. The job is cached for 1 s per player (3 exports per read); these events, duty changes and `SetJob` clear the cache |
+| Cash / bank | cash is the ox_inventory money item (`standaloneMoneyItem`); bank is the character's default account (`GetCharacterAccount(charId)`, then `get 'balance'`, `addBalance`, `removeBalance` without overdraw) |
+| Society | adapter `ox_core`: `GetGroupAccount(job)`. The group needs `hasAccount` |
+| Admin | the ace `Config.Admin.ace`, or an ox group named in `Config.Admin.groups` |
+| Usable items | the ox_inventory `usingItem` hook (ox_core has no usable-item API of its own) |
+| Client | the job comes from the server through the `nzaJob` state bag (it carries the duty). Until the first bag arrives it is built from the groups with the same `Bridge.OxJob`. Groups follow `ox:setActiveCharacter`, `ox:setGroup` and `ox:setPlayerData` (activeGroup); `ox:playerLoaded` / `ox:playerLogout` (local) drive loaded / unloaded |
+
+ox_core account exports answer asynchronously. Like the ESX society calls,
+`GetMoney` / `AddMoney` / `RemoveMoney` and `Bridge.Society.*` must run in a
+thread or an event handler. In the ox_core harness runs (pharmacy, billing,
+respawn, hospital) no call came from outside a thread.
 
 ## Client API
 
@@ -227,6 +269,7 @@ handling the event (for example as a fallback), a guard sends it to
 | roadphone | `roadphone:notify` (multijob) | client `sendMail` (community) | framework | none known |
 | high-phone | `high_phone:notification` (multijob) | becomes a notification | framework | none known |
 | renewed-phone | `qb-phone:client:CustomNotification` | `sendNewMailToOffline` (qb-phone API, unverified on renewed) | framework | none known |
+| qb-phone | `qb-phone:client:CustomNotification` (qb-phone 1.5 source) | export `sendNewMailToOffline(citizenid, mail)` (source); older releases: the server event of the same name | framework (`charinfo.phone`) | none |
 
 The undocumented lb-phone payloads are read defensively: the reader looks for
 job, message, number, source and coordinates under any common key name.
@@ -239,6 +282,7 @@ job, message, number, source and coordinates under any common key name.
 `Bridge.Phone.IsOpen()` uses lb-phone `IsOpen` and npwd `isPhoneVisible`, both
 verified. Other phones try the common export names once through pcall and
 remember the one that answers. The last resort is `LocalPlayer.state.phoneOpen`.
+Stock qb-phone exports no open state, so it always ends on that last resort.
 
 ## External dispatch: what was verified
 
@@ -314,11 +358,28 @@ additions:
 - The client count cache. A medic idling 60 s next to a patient on standalone
   sends 36 requests per minute, none throttled. Before the fix it was 87, with
   28 answered nil.
+- ox_core: a copy of the server harness with an ox_core stub that mirrors the
+  1.x exports (plain data from `GetPlayer`, methods through `CallPlayer` /
+  `CallAccount`, events with the source first, `GlobalState['group.*']`). 60
+  checks pass: identifier and reverse lookup, character info, job and grade
+  shift, active group, duty, hire / promote / bad grade / unknown group / fire
+  (also with police active, and with only an unrelated group),
+  licences, admin, bank and cash, society, logout, character switch with duty
+  reset. With the SQL emulator, a downed character A, a switch to character B
+  (a new, alive patient) and back to A (down again) keep one patient record per
+  character. The integration flows server_flow, flow3, flow6, flow10 and flow11
+  (wounded, treatment, respawn, hospital, money) run on it; their only error,
+  the flow10 check-in `no_desk`, happens on the standalone baseline too. The
+  client harness copy passes 14 loaded / job / group / logout / relog checks.
+  116/116 server and 127/127 client files load in every mode.
+- qb-phone on QBCore: detection, notification event, mail through the export
+  and through the old event, number from `charinfo`, and renewed-phone winning
+  when both run.
 
 ## Known limits
 
-- yseries, gksphone, okokPhone, roadphone, high-phone and renewed-phone expose
-  no public 911/services hook. Server owners add their phone's event to
+- yseries, gksphone, okokPhone, roadphone, high-phone, renewed-phone and
+  qb-phone expose no public 911/services hook. Server owners add their phone's event to
   `Config.Bridge.phoneEmergency.events`, or call the `CallEMS` export from the
   phone's open config.
 - npwd `onMessage` keeps one handler per number. If another script also handles
@@ -329,3 +390,9 @@ additions:
   ESX's `items.weight` column is an integer.
 - Clothing restore needs the same ped model as when it was saved; the native
   snapshot refuses otherwise.
+- ox_core pays no salaries. Hospital paychecks only pay departments that are not
+  linked to a framework job by default (`Config.Hospital.paycheck.standaloneOnly`);
+  on ox_core set it to `false` to pay EMS groups.
+- ox_core grades start at 1 and the bridge shifts them to start at 0 (see the
+  ox_core section). Hospital grade levels linked to an ox group therefore map
+  level 0 to ox grade 1.

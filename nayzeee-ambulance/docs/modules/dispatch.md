@@ -70,11 +70,12 @@ colour, slides in from the right edge.
   teal), code · id, type icon tile + title (two lines max), zone and street on a coloured spine,
   then an **instrument list**: drive time, casualties (count + worst triage), crews on it, and
   "Holding" (call age as a rolling counter, `NZA.ui.FlipClock`).
-- **Key rail** (right, full height): `E` Take call (teal, light sheen) over `X` Pass. Both are game
+- **Key rail** (right, full height): `E` Take call (teal, light sheen) over `⌫` Pass (Backspace,
+  `card.dismissKey = 'BACK'`; FiveM key names are shown with a readable label). Both are game
   keybinds and need no NUI focus; players can rebind them in the FiveM key bindings.
 - Under the columns: the caller (name, phone, quoted message, live-audio waveform while
   `call.voice` plays from `audio/...`) and chips for injury types and "Street call".
-- Several calls queue up: a ghost edge under the strip and a chip "2 more in the queue · X skips
+- Several calls queue up: a ghost edge under the strip and a chip "2 more in the queue · ⌫ skips
   ahead". P1 calls jump the queue. An alert tone per priority (3, 2 or 1 bursts) and a red pulse
   on P1.
 - **On call** strip (above it): while you are on a call (and the pager is not showing it) — the
@@ -82,7 +83,7 @@ colour, slides in from the right edge.
   centre), "On call · C-0409 · P2", the title, the current stage word → the next one, and a range
   readout (arrow relative to the camera, distance, drive time).
 - Police get the same strip as an "EMS notice" in blue for violent calls
-  (`Config.Dispatch.police`): `E` Mark map sets the GPS and `X` passes. They also get a flashing
+  (`Config.Dispatch.police`): `E` Mark map sets the GPS and `⌫` passes. They also get a flashing
   blip for `blipTime`.
 - Stage words on screen (the server keeps the codes): DSP Paged · ENR Rolling · SCN On scene ·
   CARE Treating · TRN Transporting · HSP Handover (`dispatch.unit_*`, short forms `st_*_s`).
@@ -101,23 +102,29 @@ serial plate along the bottom.
   the cursor and keeps game input, so you can still walk. Phone and arrow controls are blocked.
 - Glass status row: callsign, the phone-link and silent icons, signal, game clock, battery.
 - CALL page: a pixel **ring** on the left (seconds left to take the call; on your own call the
-  route progress with the drive time, then the time on the call once on scene), the priority box
-  + short type (`P2 OD`, P1 blinks) and `1/3`, the street, the range line (arrow relative to the
-  camera, distance, compass word, `DRV 0:34`), and **stage pips** (six cells + the stage word +
-  `2/6`). A legend column on the right edge of the glass labels the keys: `● TAKE` / `✕ PASS` /
+  route progress with the drive time, then the time on the call once on scene). Beside it, top
+  line: the priority box (P1 blinks), the range (arrow relative to the camera, distance, compass
+  word) and `DRV 0:34`; under it the call type in full words (`CARDIAC ARREST`, two lines max).
+  The bottom **stage row** holds the stage pips (six cells + the stage word), the street and zone
+  as a scrolling ticker, and the call index `1/3`. A legend column on the right edge of the glass labels the keys: `● TAKE` / `✕ PASS` /
   `◀ SETUP` (on your own call `● NAV` / `✕ END`).
 - Keys: ◀ opens Setup or goes back, ▲ ▼ scroll calls and Setup, ● / ▶ take or open, ✕ pass or go
-  back. Keyboard: arrows, `Y`/Enter/→, Backspace, ESC or the pager key to put it away. Mouse
+  back. Keyboard: arrows, Enter/→, Backspace, ESC or the pager key to put it away. Mouse
   clicks work on every key.
 - SETUP: call list, link phone, silent, street calls, availability (10-8 / 10-7), page log, stand
   down — dotted leaders to the values, page dots in the header.
 - PAGE LOG lists the last `history` pages, each marked open or done (lines paged through
   `NZA.Dispatch.Page`, e.g. a new hospital check-in, are marked PAGE). Such a line also shows on
-  the glass for 10 s over the call / standby screen (title, text, hospital; Y or ✕ clears it)
+  the glass for 10 s over the call / standby screen (title, text, hospital; Enter or ✕ clears it)
   with the beep and the MSG LED. STANDBY shows a large clock,
   your status and "No open calls" beside a status ring.
-- Phone linking: LINK PHONE sends every call to `Bridge.Phone.Notify`, and to `Bridge.Phone.Mail`
-  when `phoneMail` is on. The link is kept per character.
+- Phone alerts (`Config.Dispatch.phone`): with `alerts = 'paired'` (default) LINK PHONE in the pager
+  SETUP, or radial Calls ▸ Link phone, sends every call you get a card for to `Bridge.Phone.Notify`
+  (yseries, lb-phone, qs, npwd, ...), and to `Bridge.Phone.Mail` when `phone.mail` is on. Linking
+  needs the pager item while `phone.linkNeedsPager` is on (and `pager.requireItem`); set it to false
+  for servers that use phones instead of pagers. `alerts = 'always'` sends the alerts to every medic
+  who gets the card, no linking; `false` turns phone alerts off. The link is kept per character.
+  Old configs with `pager.phonePairing` / `pager.phoneMail` still work.
 
 ### Ops board (`dispatch`, UI v5 window)
 - The sidebar shows who you are (name, callsign, grade). Below that:
@@ -171,14 +178,26 @@ serial plate along the bottom.
   and title; clicking the centre (or RMB / Backspace) goes back — there is no Back node.
 - A detail card under the orbit explains the hovered node (icon, label, ON tag, description or the
   reason it is locked in amber, its quick-pick key).
-- Root (clockwise from 12): Calls, Care, Gurney, Start / End shift, plus every root item other
-  modules add (their `order` decides the place).
-  - Care and Gurney list the items of the assess and transport modules (`parent = 'patient'` /
-    `'stretcher'`). They are locked with a reason when empty.
-  - Calls needs an active shift.
-- Calls ring (clockwise from 12): Take next call, Stand down, Live map, Logbook, ER intake, Street
-  calls, Go unavailable / Go available, Pager.
-  - Street calls and the availability toggle keep the menu open and show `ON` when on.
+- Root (clockwise from 12): **Status**, **Calls**, **Care**, **Pager**, plus every root item other
+  modules add (their `order` decides the place; ours use 10-40).
+  - Status (on duty) holds Go unavailable / Go available (10-7 / 10-8, keeps the menu open, `ON`
+    while unavailable) and End shift. Off duty the Status place is a direct **Start shift**.
+  - Calls needs an active shift. Care lists the patient items of every module (`parent =
+    'patient'`) and the **Gurney** sub-ring (`id = 'stretcher'`, parent `patient`, order 55; only
+    shown while one of its `parent = 'stretcher'` entries can be used). Care is locked with a reason
+    when it is empty. Pager (on duty) toggles the pager in your hand.
+- Calls ring (clockwise from 12): Take next call, Stand down, (check-in: Call next patient,
+  Reception queue), **Board** (the Ops board on the live map while you are on a call, else on the
+  overview; open calls, crews, logbook and ER intake are its tabs), Street calls, **Link phone**
+  (only with `phone.alerts = 'paired'` and a phone resource; needs the pager item while
+  `phone.linkNeedsPager` is on).
+  - Street calls keeps the menu open and shows `ON` when on.
+- **No ring shows more than 9 nodes** (quick pick 1-9). When Care has more than 9 visible entries it
+  is split into sub-rings by the interaction order bands of ARCHITECTURE §11: Assess (< 30),
+  Resus & treat (30-49), Move (50-59, with the gurney), Procedures (60-89), Other (90+). A band with
+  one entry shows that entry directly. Any other ring (and the root) that would pass 9 nodes keeps
+  the first 8 and puts the rest behind a **More** node (`dispatch.r_more`), recursively. Nothing is
+  dropped any more.
 - Input: mouse hover/click, RMB or Backspace for back, 1-9 quick pick, ←/→ + Enter, ESC or the
   menu key to close. Locked items shake.
 - Start / End shift uses `NZA.Hospitals.ToggleDuty` when the medic belongs to a department. That
@@ -211,7 +230,8 @@ when going off duty, and on resource stop.
 | `status` | `auto sceneRadius hospitalRadius transportDistance tick etaSpeed etaUpdate fallbackHospitals` (used only while no hospital is built) |
 | `units` | `callsignFormat callsignCommand callsignMax outOfServiceAlerts showOffDutyInRoster` |
 | `card` | `enabled respondKey dismissKey timeout queue sound voice voiceVolume activeStrip hideWhenDown minPriority` |
-| `pager` | `enabled requireItem key command popup popupTime showWhileOnCall beep phonePairing phoneMail history` |
+| `pager` | `enabled requireItem key command popup popupTime showWhileOnCall beep history` |
+| `phone` | `alerts ('paired' \| 'always' \| false) linkNeedsPager mail` |
 | `board` | `enabled command key assignPerm refresh logLimit` |
 | `radial` | `enabled key command dutyToggle dutyPointDistance` |
 | `player911` | `enabled command minLength maxLength` |
@@ -237,7 +257,7 @@ NZA.Dispatch.Page(src, { kind?, priority 1..3, title, text?, hospital? }) → bo
 NZA.Dispatch.Advance(callId, src, stage)       -- forward only
 NZA.Dispatch.Active()  CallOf(src)  CallForPatient(p)  CallPatients(call)  Recent()
 NZA.Dispatch.Unit(src)  Units(withCoords)  UnitStatus(src)  SetOutOfService(src, bool)  SetCallsign(src, text)
-NZA.Dispatch.Paired(src)  SetPaired(src, bool)  NpcCalls(src)  SetNpcCalls(src, bool)
+NZA.Dispatch.Paired(src)  SetPaired(src, bool)  PhoneMode() → 'paired'|'always'|false  NpcCalls(src)  SetNpcCalls(src, bool)
 NZA.Dispatch.Hospitals()  NearestHospital(coords) → h, dist   Board(src)  Public(call, full)  Me(src)  Tick()
 NZA.DispatchLog.Insert(call)  Close(call)  Recent({ limit, priority, search }) → rows   Ready()
 ```
@@ -256,7 +276,7 @@ NPC calls. The calls module reads it. It is saved per character and defaults to
 ```lua
 NZA.Dispatch.Calls()  Get(id)  Me()  Current()  Units()  Recent()  Live(call) → dist, dir, relAngle, eta
 NZA.Dispatch.Respond(id?)  Decline(id)  Clear()  SetStatus('10-8'|'10-7')  SetNpcCalls(bool)  Pair(bool)  SetDuty(bool)
-NZA.Dispatch.OpenBoard(tab?)  OpenRadial()  TogglePager()  PagerVisible()  HasPager()
+NZA.Dispatch.OpenBoard(tab?)  OpenRadial()  TogglePager()  PagerVisible()  HasPager()  PhoneMode()
 ```
 Client bus: `dispatch:sync (S)`, `dispatch:call (call, flags)`, `dispatch:update (call)`,
 `dispatch:close (id, reason)`, `dispatch:me (me)`, `dispatch:stage (id, stage)`.
@@ -264,8 +284,10 @@ Client bus: `dispatch:sync (S)`, `dispatch:call (call, flags)`, `dispatch:update
 Radial entries from other modules:
 ```lua
 NZA.RadialItems = NZA.RadialItems or {}
-table.insert(NZA.RadialItems, { id, parent = nil | 'dispatch' | 'patient' | 'stretcher' | <id>, label, icon, order, perm,
-    desc?, danger?, keepOpen?, active = fn → bool, canShow = fn → bool, onSelect = fn })
+table.insert(NZA.RadialItems, { id, parent = nil | 'status' | 'dispatch' | 'patient' | 'stretcher' | <id>, label, icon, order, perm,
+    desc?, danger?, keepOpen?, hideEmpty?, active = fn → bool, canShow = fn → bool, onSelect = fn })
+-- 'patient' entries: use the §11 order bands (10-29 assess, 30-49 resus/treat, 50-59 move,
+-- 60-89 procedures, 90+ other) — they decide the sub-ring once Care has more than 9 entries
 ```
 
 ## Network
@@ -288,7 +310,8 @@ positions are server-side.
 
 NUI callbacks:
 - `pager:ack decl clear gps pair mute npc status hide`
-- `dispatch:respond assign unassign clear closeCall priority gps status npc refresh log callNext`
+- `dispatch:respond assign unassign clear closeCall priority gps status npc log callNext` (no refresh call:
+  Lua pushes `data` every `board.refresh` ms and right after every action)
 - `radial:select`
 
 ## Database

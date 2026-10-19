@@ -41,11 +41,14 @@ in-world boom monitor** (DUI), with a NUI fallback.
    vessels fill in flow order, organ blush, and the leak lights up — marked on the screen with a
    red corner-bracket reticle, a pulsing diamond and a dark **LEAK** chip (no leader line).
    A run that does not reach the bleed costs points; flush runs from the aorta map everything.
-4. **Pack the leak** — bring the tip within `coilDist` cm of the leak (the *Leak gap* dial in the
-   procedure HUD, its teal band is the coil range; instrument list: vessel, coil deployed %, coils
-   left), hold `F` to feed the coil out (visible spring on the image), `F` detaches it, `R` backs
-   the catheter off. A coil too far or off
-   the bleeding branch lets collaterals refill it.
+4. **Pack the leak** — bring the tip within `coilDist` cm of the leak. The distance is shown on the
+   image only: a gap ring round the LEAK tag tightens as the tip closes in (amber on the feeding
+   branch, dashed white off it) and locks solid teal onto the dotted coil-range ring once the tip is
+   in range. Procedure HUD: the *Seal* dial (leak flow drop measured on the last run: 0 % full
+   pooling, about 45 % when collaterals refill past a far coil, 100 % sealed) and an instrument list
+   (vessel, contrast left, coils packed n/kit). Hold `F` to feed the coil out (visible spring on the
+   image), `F` detaches it, `R` backs the catheter off. A coil too far or off the bleeding branch
+   lets collaterals refill it.
 5. **Check the seal** — inject again: no pooling = sealed, otherwise another coil (extra coils come out of
    the inventory).
 6. **Close the access** — tap `R` to pull the sheath (it bleeds), hold `Space` to press on the
@@ -126,7 +129,7 @@ Bus: `angio:done (src, patient, injury, outcome)`. Net event S→C `nza:angio:us
 `NZA.Angio.Start(entity?, target?, injuryId?)` (blocking), `Suite(id)`, `SuiteNear(coords, r)`,
 `PatientOnTable(suite)`, `ToWorld(suite, vec3)`, `Eligible(inj)`, `Runner(ctx)`.
 NUI app `angio` — open data `{ data = proc data, locale = NZA.LocaleTable('angio'), dui, hasButton }`;
-actions in: `vitals`, `room { on }`, `pressed`, `flash { type, text }`, `anchors` (`button`, `injector`);
+actions in: `vitals`, `room { on }`, `pressed`, `anchors` (`button`, `injector`);
 callbacks out: `angio:step { phase, step, cam, access, view }`, `angio:screen { state }` (~20 Hz → DUI),
 `angio:run { kind, selective, blush, fromButton }` → `{ ok, left, delay }`, `angio:refill`, `angio:coil
 { dist, onPath }`, `angio:room { on }`, `angio:view { mode }`, `angio:say { line }`, `angio:finish

@@ -256,21 +256,27 @@
     renderView();
   }
 
-  /* camera VIEW selector (lives in the step column) */
+  /* camera VIEW selector (lives in the step column): one key cycles the views, or click one */
+  const viewKey = () => (typeof S.keys.focus === 'string' && S.keys.focus !== '' ? S.keys.focus : 'Tab');
+  const standOk = () => !!(S.proc === 'resus' || S.proc === 'reassess' || (S.rs && S.rs.stand));
+  const viewItems = () => (S.mode === 'iv'
+    ? [['patient', L('f_patient', 'Body'), 'person'], ['site', L('f_arm', 'Arm'), 'target']]
+    : [['patient', L('f_patient', 'Body'), 'person'], ['site', L('f_site', 'Access'), 'target'], ['stand', L('f_stand', 'Drip'), 'iv'], ['kit', L('f_kit', 'Kit'), 'kit']]);
   function renderView() {
     if (!ui.view) return;
-    const f = S.keys.focus || { patient: 'F1', site: 'F2', stand: 'F3', kit: 'F4' };
-    const items = S.mode === 'iv'
-      ? [['patient', f.patient, L('f_patient', 'Body'), 'person'], ['site', f.site, L('f_arm', 'Arm'), 'target']]
-      : [['patient', f.patient, L('f_patient', 'Body'), 'person'], ['site', f.site, L('f_site', 'Access'), 'target'], ['stand', f.stand, L('f_stand', 'Drip'), 'iv'], ['kit', f.kit, L('f_kit', 'Kit'), 'kit']];
-    const standOk = S.proc === 'resus' || S.proc === 'reassess' || (S.rs && S.rs.stand);
-    ui.view.innerHTML = `<span class="vl">${icon('camera')}<span>${esc(L('view', 'View'))}</span></span><span class="vs">${items.map(([id, key, label, ic]) => `<button data-f="${id}" class="${S.focus === id ? 'on' : ''} ${id === 'stand' && !standOk ? 'off' : ''}"><span class="vi">${icon(ic)}</span><span class="vt"><b>${esc(label)}</b><kbd>${esc(key)}</kbd></span></button>`).join('')}</span>`;
+    const ok = standOk();
+    ui.view.innerHTML = `<span class="vl">${icon('camera')}<span>${esc(L('view', 'View'))}</span><kbd class="vk">${esc(keyName(viewKey()))}</kbd></span><span class="vs">${viewItems().map(([id, label, ic]) => `<button data-f="${id}" class="${S.focus === id ? 'on' : ''} ${id === 'stand' && !ok ? 'off' : ''}"><span class="vi">${icon(ic)}</span><span class="vt"><b>${esc(label)}</b></span></button>`).join('')}</span>`;
     ui.view.querySelectorAll('button').forEach(b => b.addEventListener('click', () => focusCam(b.dataset.f)));
   }
   const renderFocus = renderView;
   function focusCam(what) {
-    if (what === 'stand' && !(S.proc === 'resus' || S.proc === 'reassess' || (S.rs && S.rs.stand))) return;
+    if (what === 'stand' && !standOk()) return;
     S.focus = what; renderView(); post('focus', { what }); NZA.audio.click(700);
+  }
+  function cycleView(dir) {
+    const ids = viewItems().map(v => v[0]).filter(id => id !== 'stand' || standOk());
+    const i = ids.indexOf(S.focus);
+    focusCam(ids[((i < 0 ? 0 : i + dir) % ids.length + ids.length) % ids.length]);
   }
 
   const q = sel => ui.host && ui.host.querySelector(sel);
@@ -1065,6 +1071,8 @@
         foil: !!d.foilOn, mapHist: [], tegHist: [], lastPost: 0, lastRate: {}, salineIn: 0, bloodIn: 0, given: {}, stand: true, firmAt: 0, confirmBlood: 0, popped: 0 };
       const rs = S.rs;
       if (rs.bags.length) rs.sel = rs.bags[0].id;
+      // the counts in the plan date from when the app opened: refresh what the medic carries now
+      if (!S.preview) post('bags', {});
       S.clot = null;
       ui.pp.set({
         title: L('s_resus', 'Hold the pressure'), tag: d.access ? `${d.access.kind === 'io' ? 'IO' : 'IV'} · ${d.access.siteLabel || d.access.site || ''}` : '',
@@ -1772,11 +1780,8 @@
 
   function keyDown(e) {
     S.held[e.code] = true; S.held[e.key] = true;
-    if (/^F[1-4]$/.test(e.key)) {
-      const f = S.keys.focus || {};
-      const map = { [f.patient || 'F1']: 'patient', [f.site || 'F2']: 'site', [f.stand || 'F3']: 'stand', [f.kit || 'F4']: 'kit' };
-      if (map[e.key]) { focusCam(map[e.key]); return true; }
-    }
+    const vk = viewKey();
+    if (e.code === vk || e.key === vk) { if (!e.repeat) cycleView(e.shiftKey ? -1 : 1); return true; }
     const h = H_[S.proc];
     if (h && h.key && S.status === 'run' && h.key(e, true)) return true;
     if (e.key === 'Enter' && ui.pp && ui.pp.key(e)) return true;
@@ -1964,12 +1969,12 @@
       S.preview = true;
       ui.scene = document.createElement('canvas'); ui.scene.className = 'fd-scene';
       document.body.appendChild(ui.scene);
-      const plan = { band: [60, 70], bleed: 101, injury: { region: 'abdomen', regionLabel: 'Abdomen', type: 'internal' } };
-      NZA.open(APP, { mode: 'resus', plan, keys: { drill: 'Space', squeeze: 'Space', clampDown: 'KeyQ', clampUp: 'KeyE', insert: 'Space', advance: 'KeyE', focus: { patient: 'F1', site: 'F2', stand: 'F3', kit: 'F4' } } });
+      const plan = { band: [60, 70], bleed: 88, injury: { region: 'pelvis', regionLabel: 'Pelvis', type: 'internal' } };
+      NZA.open(APP, { mode: 'resus', plan, keys: { drill: 'Space', squeeze: 'Space', clampDown: 'KeyQ', clampUp: 'KeyE', insert: 'Space', advance: 'KeyE', focus: 'Tab' } });
       previewAnchors();
-      NZA.demo('monitor', { name: 'Michael Garcia', nibpAuto: 30, nibpTime: 2.5 });
-      const vit = { hr: 139, ecgRate: 139, spo2: 97, sys: 87, dia: 51, map: 63, rr: 22, temp: 35.6, etco2: 33, rhythm: 'stach', state: 'wounded' };
-      NZA.apps[APP].msg.vitals({ map: 63, hr: 139, spo2: 97 });
+      NZA.demo('monitor', { name: 'Pavel Lindqvist', nibpAuto: 30, nibpTime: 2.5 });
+      const vit = { hr: 128, ecgRate: 128, spo2: 95, sys: 84, dia: 45, map: 58, rr: 22, temp: 35.6, etco2: 33, rhythm: 'stach', state: 'wounded' };
+      NZA.apps[APP].msg.vitals({ map: 58, hr: 128, spo2: 95 });
       setInterval(() => NZA.apps.monitor.msg.vitals(Object.assign({}, vit, { hr: vit.hr + Math.round(Math.random() * 2) })), 1000);
       NZA.apps.monitor.msg.vitals(vit);
       setTimeout(() => NZA.apps.monitor.msg.nibp(), 200);
@@ -1980,8 +1985,8 @@
       const sites = { r_tibia: { ok: true, region: 'r_lower_leg' }, l_tibia: { ok: false, why: 'fracture', region: 'l_lower_leg' }, r_humerus: { ok: true, region: 'r_upper_arm' }, l_humerus: { ok: true, region: 'l_upper_arm' } };
       const ioData = { sites, layers: { tibia: { soft: 6.5, cortex: 3.2, marrow: 13, far: 3 }, humerus: { soft: 12, cortex: 2.6, marrow: 16, far: 3 } }, maxAngle: 15, bendAngle: 26, attempts: 3,
         speed: { soft: 7, cortex: 1.3, marrow: 8, far: 1.1 }, pxPerDeg: 3.2, tremor: 7, aspirateMl: 1, lidoMl: 2, lidoRate: [0.08, 0.45], flushMl: 10, flushRate: [1.5, 6], lidocaine: true, responsive: true,
-        injury: { region: 'abdomen', regionLabel: 'Abdomen' }, bleed: 101 };
-      if (which === 'binder') { setStep('binder', 'run', { indicated: true, why: 'fracture', band: [60, 80], count: 1, injury: { regionLabel: 'Pelvis' }, bleed: 241 }); if (sub === 'strap') { S.b.phase = 'strap'; clearMarks(); H_.binder.ui(); S.b.tension = 72; S.b.drag = true; S.b.tab = null; const A = apx('strapA'), B = apx('strapB'); if (A && B) S.b.tab = { x: A.x + (B.x - A.x) * 0.72, y: A.y + (B.y - A.y) * 0.72 }; H_.binder.devTick(); } }
+        injury: { region: 'pelvis', regionLabel: 'Pelvis' }, bleed: 88 };
+      if (which === 'binder') { setStep('binder', 'run', { indicated: true, why: 'fracture', band: [60, 80], count: 1, injury: { regionLabel: 'Pelvis' }, bleed: 196 }); if (sub === 'strap') { S.b.phase = 'strap'; clearMarks(); H_.binder.ui(); S.b.tension = 72; S.b.drag = true; S.b.tab = null; const A = apx('strapA'), B = apx('strapB'); if (A && B) S.b.tab = { x: A.x + (B.x - A.x) * 0.72, y: A.y + (B.y - A.y) * 0.72 }; H_.binder.devTick(); } }
       if (which === 'site') setStep('io', 'run', ioData);
       if (which === 'drill') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); const p = apx('r_tibia'); S.mouse.x = p.x + 30; S.mouse.y = p.y - 26; S.mouse.down = true; S.io.lift = 0; S.io.depth = 7.8; S.io.drilling = false; S.io.torque = Array.from({ length: 80 }, (_, i) => (i < 30 ? 0.25 : 0.88) + (Math.random() - 0.5) * 0.1); }
       if (which === 'confirm') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); S.io.depth = 11.2; H_.io.confirmUi(); S.io.syr.set(1.4); S.io.syr.fluid('marrow'); setRow('.r-ret', `${icon('drop')}${esc(L('ret_marrow', 'Marrow'))}`, 'red'); ui.pp.flash('ok', L('confirm_ok', 'Dark return in the barrel — you are in the marrow.'), 0); }
@@ -1990,7 +1995,7 @@
         setStep('resus', 'run', { band: [60, 70], hold: 24, lowMap: 52, autoContinue: 1.6, access: { kind: 'io', site: 'r_lower_leg', siteLabel: 'Right tibia' }, maxRate: 66, txaPush: 10,
           infusion: { gravity: 60, ioFactor: 0.45, pressureGain: 1.4, maxPressure: 300, leak: 6, pump: 22, maxBags: 3, dilution: 1000 },
           counts: { saline: 2, txa: 1, foil: 1 }, blood: true, bags: [{ serial: 'BB-0042', type: 'O-', ml: 450, compatible: true }],
-          infusions: [{ id: 'i1', kind: 'saline', ml: 500, left: 382, rate: 58, mine: true }, { id: 'i2', kind: 'blood', ml: 450, left: 301, rate: 24, mine: true, bag: { type: 'O−' } }], injury: { regionLabel: 'Abdomen' }, bleed: 19 });
+          infusions: [{ id: 'i1', kind: 'saline', ml: 500, left: 382, rate: 58, mine: true }, { id: 'i2', kind: 'blood', ml: 450, left: 301, rate: 24, mine: true, bag: { type: 'O−' } }], injury: { regionLabel: 'Pelvis' }, bleed: 19 });
         S.rs.pressure = 186; S.rs.clamp = 0.66; S.rs.salineIn = 0;
         const hist = [52, 53, 55, 57, 58, 60, 61, 62, 63, 64, 63, 64, 65, 64, 63, 63, 64, 62, 63, 64, 65, 66, 64, 63];
         hist.forEach((m, i) => { S.clot = { map: m, firm: Math.min(93, i * 4.3), state: 'band', eta: 8, pops: 0, mods: { txa: false, cold: true, foil: false, dil: 12 }, bleed: 19 }; H_.resus.clotTick(); });
@@ -1998,7 +2003,7 @@
       }
       if (which === 'reassess') {
         setStep('reassess', 'run', {});
-        H_.reassess.show({ before: { bleed: 241, map: 52, hr: 141, spo2: 93 }, after: { bleed: 11.4, map: 64, hr: 118, spo2: 97 }, grade: 'A',
+        H_.reassess.show({ before: { bleed: 196, map: 52, hr: 136, spo2: 93 }, after: { bleed: 11.4, map: 64, hr: 118, spo2: 97 }, grade: 'A',
           steps: [{ label: 'Pelvic binder', grade: 'A', score: 88, note: 'strap 68%' }, { label: 'IO access · right tibia', grade: 'B', score: 74, note: '1 needle' }, { label: 'Hold the pressure', grade: 'S', score: 94, note: 'no breaks' }],
           devices: ['Binder', 'IO R tibia', 'Saline 380 ml', 'TXA 1 g', 'Clot 100%'] });
       }
@@ -2006,7 +2011,7 @@
         NZA.close('monitor');
         NZA.open(APP, { mode: 'iv', plan: {}, keys: S.keys });
         previewAnchors();
-        setStep('iv', 'run', { site: 'r_lower_arm', siteLabel: 'Right forearm', angle: [15, 30], attempts: 2, gauge: 18, tourniquetFill: 3, flash: 0.9, responsive: true, name: 'Michael Garcia',
+        setStep('iv', 'run', { site: 'r_lower_arm', siteLabel: 'Right forearm', angle: [15, 30], attempts: 2, gauge: 18, tourniquetFill: 3, flash: 0.9, responsive: true, name: 'Pavel Lindqvist',
           map: { veins: [{ y: 0.28, bend: 0.04, width: 0.7, depth: 3.5 }, { y: 0.52, bend: 0.01, width: 1.15, depth: 3 }, { y: 0.76, bend: -0.06, width: 0.65, depth: 5 }], best: 1, spot: 0.5 } });
         if (sub === 'find') { S.iv.tq = true; S.iv.fill = 1; H_.iv.go('find'); H_.iv.palpate({ x: 150, y: 80 }); S.iv.palp = false; }
         if (sub === 'insert') { S.iv.tq = true; S.iv.fill = 1; S.iv.mark = { x: 150, y: 78 }; S.iv.palpQ = 0.85; S.iv.vein = S.data.map.veins[1]; H_.iv.go('insert'); S.iv.angle = 22; S.iv.tip = 58; }

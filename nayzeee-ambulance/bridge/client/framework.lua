@@ -3,11 +3,12 @@
     NAYZEEE AMBULANCE - Bridge: framework (client)
     ═══════════════════════════════════════════════════════════════════════════
 
-    OPEN FILE (escrow_ignore). ESX / QBCore / Qbox / standalone player data.
-    Everything is event driven, nothing polls the framework.
+    OPEN FILE (escrow_ignore). ESX / QBCore / Qbox / ox_core / standalone player
+    data. Everything is event driven, nothing polls the framework.
 
       Bridge.Framework
-      Bridge.PlayerData() → table                 raw framework player data (standalone: { name, job })
+      Bridge.PlayerData() → table                 raw framework player data (standalone: { name, job },
+                                                  ox_core: { userId, charId, stateId, groups, activeGroup, job })
       Bridge.IsLoaded()   → bool                  a character is selected
       Bridge.OnPlayerLoaded(fn, replay?)          replay = call fn now if already loaded
       Bridge.OnPlayerUnloaded(fn)                 Bridge.OnJobChanged(fn(job))
@@ -198,6 +199,94 @@ local function setupESX()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- OX_CORE
+-- The server builds the job with Bridge.OxJob and keeps duty (ox_core has
+-- none), and publishes both in the 'nzaJob' state bag. Until that bag exists
+-- the job is built here from the character's groups with the same Bridge.OxJob.
+-- Groups follow ox_core's own events: ox:setActiveCharacter, ox:setGroup and
+-- ox:setPlayerData (net), ox:playerLoaded / ox:playerLogout (local).
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local function setupOx()
+    PD = { groups = {} }
+
+    readJob = function()
+        if not PD.charId then return nil end   -- character selection: the bag still holds the last character
+        local st = LocalPlayer.state.nzaJob
+        if type(st) == 'table' and st.name then return jobFromState(st) end
+        return Bridge.OxJob(PD.groups or {}, PD.activeGroup, Bridge.Cfg('oxOnDuty', true) == true)
+    end
+
+    local function oxCall(method, ...)
+        local args = table.pack(...)
+        local ok, value = pcall(function()
+            return exports.ox_core:CallPlayer(method, table.unpack(args, 1, args.n))
+        end)
+        return ok and value or nil
+    end
+
+    local function refresh()
+        local ok, data = pcall(function() return exports.ox_core:GetPlayer() end)
+        if ok and type(data) == 'table' then
+            PD.userId, PD.charId, PD.stateId = data.userId, data.charId, data.stateId
+        end
+        if not PD.charId then return end
+        local groups = oxCall('getGroups')
+        if type(groups) == 'table' then
+            PD.groups = {}
+            for name, grade in pairs(groups) do PD.groups[name] = grade end
+        end
+        PD.activeGroup = oxCall('get', 'activeGroup')
+        PD.job = LocalPlayer.state.nzaJob
+    end
+
+    local function reset()
+        setLoaded(false)
+        PD = { groups = {} }
+    end
+
+    refresh()
+    if PD.charId then setLoaded(true) end
+
+    AddEventHandler('ox:playerLoaded', function(data)
+        if type(data) == 'table' and data.charId then
+            PD.userId, PD.charId, PD.stateId = data.userId, data.charId, data.stateId
+        end
+        refresh()
+        setLoaded(true)
+        checkJob()
+    end)
+    AddEventHandler('ox:playerLogout', reset)
+    RegisterNetEvent('ox:startCharacterSelect', function()
+        if loaded then reset() end
+    end)
+    RegisterNetEvent('ox:setActiveCharacter', function(character, groups)
+        if type(character) == 'table' then PD.charId, PD.stateId = character.charId, character.stateId end
+        PD.groups = {}
+        if type(groups) == 'table' then
+            for name, grade in pairs(groups) do PD.groups[name] = grade end
+        end
+    end)
+    RegisterNetEvent('ox:setGroup', function(name, grade)
+        if type(name) ~= 'string' then return end
+        grade = tonumber(grade)
+        PD.groups = PD.groups or {}
+        PD.groups[name] = (grade and grade > 0) and grade or nil
+        checkJob()
+    end)
+    RegisterNetEvent('ox:setPlayerData', function(key, value)
+        if key ~= 'activeGroup' then return end
+        PD.activeGroup = value
+        checkJob()
+    end)
+    AddStateBagChangeHandler('nzaJob', ('player:%s'):format(GetPlayerServerId(PlayerId())), function(_, _, value)
+        PD.job = value
+        -- the handler runs before LocalPlayer.state is updated
+        SetTimeout(0, checkJob)
+    end)
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- STANDALONE (job comes from the server through the 'nzaJob' state bag)
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -278,6 +367,8 @@ elseif Bridge.Framework == 'qbox' then
     setupQB(true)
 elseif Bridge.Framework == 'esx' then
     setupESX()
+elseif Bridge.Framework == 'ox' then
+    setupOx()
 else
     setupStandalone()
 end

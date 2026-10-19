@@ -128,7 +128,7 @@ Items are `Config.Items` keys (`chest_drain_kit`, `decomp_needle`, `iv_kit`, `li
 - Patient meta written: `efast = { at, by, pos = { [window] = true }, score }`. Conditions changed: `haemothorax` (drained), `pneumothorax` (cleared / tension released), `tamponade` (drawn off), `arrest` (VF on heart puncture). Devices: `chestDrain[side] = true`.
 - Net event S→C `nza:us:use (kind)`.
 - Client API: `NZA.Ultrasound.Scan(entity, target)`, `.Pericardio(entity, target)`, `.ChestDrain(entity, target, side?)`, `.Decompress(entity, target, side?)` (all block — call from a thread), `.Busy()`, `.CanHere(section, ped, perm)`, `.Nearest(range?, filter?)`; `NZA.Ultrasound.World.*` (see the header of `ultrasound_world.lua`).
-- NUI callbacks: `ultrasound:probe`, `ultrasound:needle`, `ultrasound:finish`, `ultrasound:launch`, `ultrasound:flinch`, `ultrasound:abort`, `ultrasound:close` (core). NUI actions: `open`, `vitals`, `result`, `launchFailed`, `abort`, `anchors` (core).
+- NUI callbacks: `ultrasound:probe`, `ultrasound:needle`, `ultrasound:finish`, `ultrasound:launch`, `ultrasound:flinch`, `ultrasound:abort`, `ultrasound:close` (core). NUI actions: `open`, `vitals`, `result`, `abort`, `anchors` (core). A refused launch comes back in the `ultrasound:launch` reply `{ ok = false, msg }`.
 - DUI messages (`screen.html`): `init`, `probe`, `needle`, `vitals`, `freeze`.
 
 ## Security

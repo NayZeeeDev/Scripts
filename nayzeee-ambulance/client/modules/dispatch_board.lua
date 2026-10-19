@@ -11,7 +11,7 @@
       dispatch:respond {id}   dispatch:assign {id, src}   dispatch:unassign {id, src}
       dispatch:clear {id}     dispatch:closeCall {id}     dispatch:priority {id, priority}
       dispatch:gps {id} | {x, y}   dispatch:status {code}  dispatch:npc {on}
-      dispatch:refresh → board data     dispatch:log {priority, search} → { rows, db }
+      dispatch:log {priority, search} → { rows, db }
       dispatch:callNext {hospital?}    ER intake: call the next check-in ticket (nza:checkin:callNext)
     Actions sent: open (board data + tab + locale), data (board data)
     Callbacks used: nza:dispatch:board, nza:dispatch:log
@@ -174,10 +174,6 @@ NZA.UI.On(APP, 'callNext', function(d, cb)
     TriggerServerEvent('nza:checkin:callNext', hospital)
     cb({ ok = true })
     refreshSoon(600)
-end)
-
-NZA.UI.On(APP, 'refresh', function(_, cb)
-    cb(fetch() or { ok = false })
 end)
 
 NZA.UI.On(APP, 'log', function(d, cb)

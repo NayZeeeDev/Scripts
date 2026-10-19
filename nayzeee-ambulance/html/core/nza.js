@@ -385,7 +385,9 @@
      it. The centre and bottom-centre of the screen stay clear for the scene.
      opts.side 'right' mirrors it (column right, belt left) for apps that need the left.
      opts.skipped [n…] (1-based step numbers) draws those spine nodes as skipped (dashed);
-     pp.set({ skipped }) updates them. total <= 1 hides the spine and the body takes the full width. */
+     pp.set({ skipped }) updates them. total <= 1 hides the spine and the body takes the full width.
+     pp.set() replays the title/text swap only when title, text or titleTone actually change.
+     pp.flash(type, text, ms) shows a note under the text; pp.flash(null) / pp.clearFlash() hides it at once. */
   const TOOL_ICONS = [
     [/saline|flush|irrigat|water|rinse|cool/i, 'drop'], [/lido|syringe|inject|txa|adrenal|epi|amio|naloxone|morphine|push|dose|cuff syr/i, 'syringe'],
     [/gauze|pack/i, 'gauze'], [/dressing|bandage|foil|plaster|tape/i, 'bandage'], [/needle|suture|stitch|driver/i, 'needle'],
@@ -548,7 +550,8 @@
       set(n) {
         const prev = o; o = Object.assign({}, o, n);
         if ('step' in n || 'total' in n || 'tag' in n || 'steps' in n || 'skipped' in n) renderStep();
-        if (('title' in n && n.title !== prev.title) || ('text' in n && n.text !== prev.text) || 'titleTone' in n) renderText();
+        // only a real change replays the text swap (apps that re-send the same title/tone every tick stay still)
+        if (('title' in n && n.title !== prev.title) || ('text' in n && n.text !== prev.text) || ('titleTone' in n && n.titleTone !== prev.titleTone)) renderText();
         if ('stats' in n || 'wide' in n) renderStats();
         if ('tools' in n) renderTools();
         if ('hints' in n || 'abort' in n) renderHints();
@@ -560,13 +563,20 @@
       wide(patch) { o.wide = Object.assign({}, o.wide || {}, patch); renderStats(); return api; },
       tool(key, state) { o.tools = (o.tools || []).map(tl => (tl.key === key ? Object.assign({}, tl, { state }) : tl)); renderTools(); return api; },
       active(key) { o.tools = (o.tools || []).map(tl => Object.assign({}, tl, { state: tl.key === key ? 'active' : (tl.state === 'active' ? '' : tl.state) })); renderTools(); return api; },
+      // pp.flash('ok' | 'bad' | 'warn', text, ms = 2600; 0 = stays)   pp.flash(null) / pp.clearFlash() hides it now
       flash(type, text, ms = 2600) {
         const f = q('.pp-flash');
+        if (type === null || type === false || (type === undefined && text === undefined)) {
+          clearTimeout(flashTimer); flashTimer = null;
+          f.className = 'pp-flash'; f.innerHTML = '';
+          return api;
+        }
         f.className = `pp-flash on ${type}`; f.innerHTML = `<span class="fi">${icon(type === 'ok' ? 'check' : type === 'bad' ? 'x' : 'alert')}</span><span>${rich(text)}</span>`;
         clearTimeout(flashTimer);
         if (ms) flashTimer = setTimeout(() => { f.className = 'pp-flash'; }, ms);
         return api;
       },
+      clearFlash() { return api.flash(null); },
       // Show a finished state with a Done button (Enter)
       complete({ title, text, label = t('ui.done', 'Done'), onDone } = {}) {
         o.step = o.total; renderStep();
@@ -597,9 +607,13 @@
   }
 
   /* ── Rolling counter (timers / counters): each digit rolls like an odometer ──
-     NZA.ui.FlipClock(host, { value, tone, small }) → { set(v), tone(t), paused(p) } (name kept for compatibility) */
-  function FlipClock(host, { value = '00:00', tone = '', small = false } = {}) {
-    const root = el('div', `odo ${tone} ${small ? 'sm' : ''}`);
+     NZA.ui.FlipClock(host, { value, tone, small, blink }) → { set(v), tone(t), paused(p) } (name kept for compatibility)
+       Every non-digit is a static <span class="c"> separator ('.', ',', '$', '°', '-', letters…).
+       Only ':' blinks (it also carries .colon) — the clock tick. blink:false keeps ':' still too
+       (root class .noblink), e.g. for a time of day or a code. paused(true) also stops the blink. */
+  function FlipClock(host, { value = '00:00', tone = '', small = false, blink = true } = {}) {
+    const cls = tn => `odo ${tn || ''} ${small ? 'sm' : ''}${blink === false ? ' noblink' : ''}`;
+    const root = el('div', cls(tone));
     host.appendChild(root);
     let cur = '';
     const strip = '<span class="st">' + '0123456789'.split('').map(d => `<i>${d}</i>`).join('') + '</span>';
@@ -608,13 +622,13 @@
       const shape = [...v].map(ch => (/[0-9]/.test(ch) ? 'd' : ch)).join('');
       const curShape = [...cur].map(ch => (/[0-9]/.test(ch) ? 'd' : ch)).join('');
       if (shape !== curShape) {
-        root.innerHTML = [...v].map(ch => (/[0-9]/.test(ch) ? `<span class="d">${strip}</span>` : `<span class="c">${esc(ch)}</span>`)).join('');
+        root.innerHTML = [...v].map(ch => (/[0-9]/.test(ch) ? `<span class="d">${strip}</span>` : `<span class="c${ch === ':' ? ' colon' : ''}">${esc(ch)}</span>`)).join('');
       }
       [...v].forEach((ch, i) => { const d = root.children[i]; if (d && d.classList.contains('d')) d.firstChild.style.transform = `translateY(${-Number(ch)}em)`; });
       cur = v;
     }
     set(value);
-    return { el: root, set, tone(tn) { root.className = `odo ${tn || ''} ${small ? 'sm' : ''} ${root.classList.contains('paused') ? 'paused' : ''}`; }, paused(p) { root.classList.toggle('paused', !!p); } };
+    return { el: root, set, tone(tn) { root.className = `${cls(tn)} ${root.classList.contains('paused') ? 'paused' : ''}`; }, paused(p) { root.classList.toggle('paused', !!p); } };
   }
 
   /* ── Segmented / Toggle / Slider / Chips (HUD design controls) ── */

@@ -76,7 +76,7 @@ Config.Transport = {
         model     = 'stretcher',     -- Config.Props key (config/props.lua). Native fallback: Config.PropFallbacks.stretcher
         lowModel  = 'stretcher_low', -- Config.Props key of a folded / lowered cot; when it does not exist the cot keeps its model
         distance  = 2.4,             -- metres for the stretcher target options
-        findRange = 6.0,             -- 'Place on Stretcher' looks for a free stretcher this close to the patient
+        findRange = 6.0,             -- 'Lift onto the stretcher' looks for a free stretcher this close to the patient
         maxPerVehicle = 1,           -- stretchers one ambulance can have out at the same time
         abandon   = 1200,            -- an EMPTY stretcher nobody touched for this many seconds is put away (0 = never)
 

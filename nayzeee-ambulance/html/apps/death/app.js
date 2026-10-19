@@ -356,7 +356,7 @@
         : { hospital: 'Pillbox Hill Medical Center', fee: 500, cover: 0.8, plan: 'Gold', pay: 100, loseItems: false, loseCash: true, heal: true };
       NZA.demo('death', {
         L: {},
-        name: 'Michael Garcia', tod: '21:47', hold: 3, timer: 300, cause, recovery: true, respawn,
+        name: 'Ruth Okafor', tod: '21:47', hold: 3, timer: 300, cause, recovery: true, respawn,
         respawnIn: ready ? 0 : 252, ready, loading: false, respawning: demo === 'respawning', bagged: demo === 'bagged', carried: false, deadFor: ready ? 318 : 48,
         call: { allowed: true, left: demo === 'bagged' ? 0 : (ready ? 0 : 37), called: !ready, pending: false },
         keys: { respawn: 'E', call: 'G' },

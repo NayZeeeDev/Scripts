@@ -42,8 +42,10 @@
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const pad = n => String(n).padStart(2, '0');
 
-  const CAT_ICON = { first_aid: 'medkit', medication: 'pill', wound_care: 'bandage', fluids: 'iv', orthopedic: 'bone', equipment: 'kit', airway: 'lungs', surgery: 'scalpel', documents: 'file' };
-  const CAT_FB = { first_aid: 'First Aid', medication: 'Medication', wound_care: 'Wound Care', fluids: 'Fluids & IV', orthopedic: 'Orthopedic', equipment: 'Equipment', airway: 'Airway', surgery: 'Surgery', documents: 'Documents' };
+  const CAT_ICON = { medicines: 'pill', dressings: 'bandage', lines: 'iv', airway: 'lungs', bones: 'bone', devices: 'kit',
+    first_aid: 'medkit', medication: 'pill', wound_care: 'bandage', fluids: 'iv', orthopedic: 'bone', equipment: 'kit', surgery: 'scalpel', documents: 'file' };
+  const CAT_FB = { medicines: 'Medicines', dressings: 'Bleeding & dressings', lines: 'Drips & lines', airway: 'Airway', bones: 'Bones & joints', devices: 'Kit & devices',
+    first_aid: 'First response', medication: 'Medicines', wound_care: 'Bleeding & dressings', fluids: 'Drips & lines', orthopedic: 'Bones & joints', equipment: 'Kit & devices', surgery: 'Theatre', documents: 'Paperwork' };
   const kindIcon = k => {
     k = String(k || '');
     if (/transport/.test(k)) return 'ambulance';
@@ -1078,31 +1080,32 @@
     const im = n => `img/items/${n}.png`;
     const P = (id, name, label, cat, price, extra = {}) => Object.assign({ id, name, label, category: cat, price, limit: 25, image: im(name), order: 0 }, extra);
     const products = [
-      P('bandage', 'bandage', 'Bandage', 'first_aid', 18, { was: 25, discount: 0.28, featured: true, description: 'Elastic roll for dressing cuts and slowing a bleed.' }),
-      P('tourniquet', 'tourniquet', 'Tourniquet', 'first_aid', 45, { was: 60, discount: 0.25, featured: true, description: 'Windlass strap that stops heavy bleeding from a limb.' }),
-      P('ice_pack', 'ice_pack', 'Ice Pack', 'first_aid', 15, { was: 20, discount: 0.25, description: 'Instant cold pack for sprains and swelling.' }),
-      P('medkit', 'medikit', 'Medkit', 'first_aid', 112, { was: 150, discount: 0.25, stock: 3, max: 40, low: true, featured: true, description: 'Complete first-aid kit for patching yourself up.' }),
-      P('foil_blanket', 'foil_blanket', 'Foil Blanket', 'first_aid', 30, { description: 'Keeps a patient warm and fights hypothermia.' }),
-      P('painkillers', 'painkillers', 'Painkillers', 'medication', 30, { was: 40, discount: 0.25, featured: true, description: 'Fast-acting pain relief tablets.' }),
-      P('antibiotics', 'antibiotics', 'Antibiotics', 'medication', 120, { stock: 22, max: 30, description: 'Treats and prevents wound infection.' }),
-      P('morphine', 'morphine', 'Morphine', 'medication', 250, { stock: 14, max: 20, limit: 5, locked: true, lock: 'perm', lockText: 'Needs a medical permission', description: 'Strong pain relief. Watch the breathing.' }),
-      P('adrenaline', 'adrenaline', 'Adrenaline 1 mg', 'medication', 220, { stock: 9, max: 20, limit: 5, locked: true, lock: 'perm', lockText: 'Needs a medical permission', description: 'For cardiac arrest, every 3-5 minutes.' }),
-      P('burn_dressing', 'burn_dressing', 'Burn Dressing', 'wound_care', 45, { was: 60, discount: 0.25, description: 'Sterile hydrogel dressing that cools and covers burns.' }),
-      P('suture_kit', 'suture_kit', 'Suture Kit', 'wound_care', 140, { stock: 0, max: 30, description: 'Needle, thread and tools to close a wound.' }),
-      P('gauze', 'gauze', 'Gauze', 'wound_care', 15, { description: 'Sterile gauze for packing wounds and soaking up blood.' }),
-      P('dressing', 'sterile_dressing', 'Sterile Dressing', 'wound_care', 20, { description: 'Adhesive sterile dressing for closed wounds.' }),
-      P('saline', 'saline', 'Saline', 'fluids', 35, { description: 'Sterile 0.9% saline for flushing wounds.' }),
-      P('iv_kit', 'iv_kit', 'IV Kit', 'fluids', 120, { stock: 18, max: 30, description: 'Cannula, line and fittings for IV access.' }),
-      P('saline_bag', 'saline_bag', 'Saline 500 ml', 'fluids', 90, { stock: 26, max: 30, description: 'Bag of 0.9% saline for infusion.' }),
-      P('splint', 'splint', 'Splint', 'orthopedic', 153, { was: 180, discount: 0.15, stock: 12, max: 20, description: 'Mouldable splint for a broken arm or leg.' }),
-      P('crutches', 'crutches', 'Crutches', 'orthopedic', 350, { stock: 6, max: 10, description: 'Walk with a broken leg.' }),
-      P('stethoscope', 'stethoscope', 'Stethoscope', 'equipment', 300, { stock: 8, max: 10, locked: true, lock: 'medics', lockText: 'On-duty medics only', description: 'Listen to the heart and lungs.' }),
-      P('wheelchair', 'wheelchair', 'Wheelchair', 'equipment', 2400, { stock: 4, max: 4, limit: 1, description: 'Folding wheelchair.' }),
-      P('bodybag', 'bodybag', 'Body Bag', 'equipment', 150, { stock: 20, max: 20, locked: true, lock: 'perm', lockText: 'Needs a medical permission', description: 'For transporting the deceased to the morgue.' }),
+      P('painkillers', 'painkillers', 'Painkillers', 'medicines', 30, { was: 40, discount: 0.25, featured: true, description: 'Fast-acting pain relief tablets.' }),
+      P('antibiotics', 'antibiotics', 'Antibiotics', 'medicines', 120, { stock: 22, max: 30, description: 'Treats and prevents wound infection.' }),
+      P('morphine', 'morphine', 'Morphine', 'medicines', 250, { stock: 14, max: 20, limit: 5, locked: true, lock: 'perm', lockText: 'Needs a medical permission', description: 'Strong pain relief. Watch the breathing.' }),
+      P('adrenaline', 'adrenaline', 'Adrenaline 1 mg', 'medicines', 220, { stock: 9, max: 20, limit: 5, locked: true, lock: 'perm', lockText: 'Needs a medical permission', description: 'For cardiac arrest, every 3-5 minutes.' }),
+      P('bandage', 'bandage', 'Bandage', 'dressings', 18, { was: 25, discount: 0.28, featured: true, description: 'Elastic roll for dressing cuts and slowing a bleed.' }),
+      P('tourniquet', 'tourniquet', 'Tourniquet', 'dressings', 45, { was: 60, discount: 0.25, featured: true, description: 'Windlass strap that stops heavy bleeding from a limb.' }),
+      P('gauze', 'gauze', 'Gauze', 'dressings', 15, { description: 'Sterile gauze for packing wounds and soaking up blood.' }),
+      P('dressing', 'sterile_dressing', 'Sterile Dressing', 'dressings', 20, { description: 'Adhesive sterile dressing for closed wounds.' }),
+      P('burn_dressing', 'burn_dressing', 'Burn Dressing', 'dressings', 45, { was: 60, discount: 0.25, description: 'Sterile hydrogel dressing that cools and covers burns.' }),
+      P('suture_kit', 'suture_kit', 'Suture Kit', 'dressings', 140, { stock: 0, max: 30, description: 'Needle, thread and tools to close a wound.' }),
+      P('saline', 'saline', 'Saline', 'lines', 35, { description: 'Sterile 0.9% saline for flushing wounds.' }),
+      P('iv_kit', 'iv_kit', 'IV Kit', 'lines', 120, { stock: 18, max: 30, description: 'Cannula, line and fittings for IV access.' }),
+      P('saline_bag', 'saline_bag', 'Saline 500 ml', 'lines', 90, { stock: 26, max: 30, description: 'Bag of 0.9% saline for infusion.' }),
+      P('oxygen_mask', 'oxygen_mask', 'Oxygen Mask', 'airway', 260, { stock: 7, max: 12, locked: true, lock: 'perm', lockText: 'Needs a medical permission', description: 'High-flow oxygen for low saturation.' }),
+      P('splint', 'splint', 'Splint', 'bones', 153, { was: 180, discount: 0.15, stock: 12, max: 20, description: 'Mouldable splint for a broken arm or leg.' }),
+      P('ice_pack', 'ice_pack', 'Ice Pack', 'bones', 15, { was: 20, discount: 0.25, description: 'Instant cold pack for sprains and swelling.' }),
+      P('crutches', 'crutches', 'Crutches', 'bones', 350, { stock: 6, max: 10, description: 'Walk with a broken leg.' }),
+      P('medkit', 'medikit', 'Medkit', 'devices', 112, { was: 150, discount: 0.25, stock: 3, max: 40, low: true, featured: true, description: 'Complete first-aid kit for patching yourself up.' }),
+      P('foil_blanket', 'foil_blanket', 'Foil Blanket', 'devices', 30, { description: 'Keeps a patient warm and fights hypothermia.' }),
+      P('stethoscope', 'stethoscope', 'Stethoscope', 'devices', 300, { stock: 8, max: 10, locked: true, lock: 'medics', lockText: 'On-duty medics only', description: 'Listen to the heart and lungs.' }),
+      P('wheelchair', 'wheelchair', 'Wheelchair', 'devices', 2400, { stock: 4, max: 4, limit: 1, description: 'Folding wheelchair.' }),
+      P('bodybag', 'bodybag', 'Body Bag', 'devices', 150, { stock: 20, max: 20, locked: true, lock: 'perm', lockText: 'Needs a medical permission', description: 'For transporting the deceased to the morgue.' }),
     ].map((p, i) => Object.assign(p, { order: i + 1 }));
     const counts = {};
     products.forEach(p => { counts[p.category] = (counts[p.category] || 0) + 1; });
-    const cats = [['first_aid', 'medkit', 'First Aid'], ['medication', 'pill', 'Medication'], ['wound_care', 'bandage', 'Wound Care'], ['fluids', 'iv', 'Fluids & IV'], ['orthopedic', 'bone', 'Orthopedic'], ['equipment', 'kit', 'Equipment']]
+    const cats = [['medicines', 'pill', 'Medicines'], ['dressings', 'bandage', 'Bleeding & dressings'], ['lines', 'iv', 'Drips & lines'], ['airway', 'lungs', 'Airway'], ['bones', 'bone', 'Bones & joints'], ['devices', 'kit', 'Kit & devices']]
       .map(([id, ic, label]) => ({ id, icon: ic, label, count: counts[id] || 0 }));
     const plans = [
       { id: 'basic', label: 'Basic', desc: 'Essential cover for the occasional patch-up.', price: 1500, days: 7, cover: 0.4, pharmacy: 0.1, icon: 'shield', action: 'switch', credit: 0, pay: 1500, allowed: true, newExpires: now + 7 * 86400 },
@@ -1129,12 +1132,12 @@
           { id: 1029, amount: 225, covered: 0, reason: 'Hospital respawn', kind: 'respawn', status: 'unpaid', created: now - 86400 * 3 },
         ],
         history: [
-          { id: 1011, amount: 240, covered: 445, reason: 'Treatment - deep laceration', kind: 'firstaid_suture', medicName: 'John Doe', status: 'paid', created: now - 86400 * 6, paidAt: now - 86400 * 5 },
+          { id: 1011, amount: 240, covered: 445, reason: 'Treatment - deep laceration', kind: 'firstaid_suture', medicName: 'Priya Nair', status: 'paid', created: now - 86400 * 6, paidAt: now - 86400 * 5 },
           { id: 998, amount: 90, covered: 0, reason: 'Consultation', kind: 'invoice', medicName: 'Sam Brooks', status: 'paid', created: now - 86400 * 9, paidAt: now - 86400 * 9 },
         ],
         total: 2055,
       },
-      canManage: true, me: { name: 'Michael Garcia' }, now,
+      canManage: true, me: { name: 'Ilse Varga' }, now,
     };
     if (view === 'desk') { data.categories = []; data.canManage = false; }
     const staff = {
@@ -1143,7 +1146,7 @@
       society: { name: 'society_ambulance', balance: 84210 },
       products: products.filter(p => p.max).map(p => ({ id: p.id, name: p.name, label: p.label, category: p.category, image: p.image, stock: p.stock, max: p.max, price: p.price, orderUnit: Math.ceil((p.was || p.price) * 0.45), have: p.id === 'splint' ? 4 : p.id === 'iv_kit' ? 9 : 0 })),
       sales: [
-        { id: 311, name: 'Michael Garcia', items: [{ id: 'bandage', label: 'Bandage', qty: 4 }, { id: 'painkillers', label: 'Painkillers', qty: 2 }], total: 106, discount: 26, method: 'bank', kind: 'shop', created: now - 420 },
+        { id: 311, name: 'Ilse Varga', items: [{ id: 'bandage', label: 'Bandage', qty: 4 }, { id: 'painkillers', label: 'Painkillers', qty: 2 }], total: 106, discount: 26, method: 'bank', kind: 'shop', created: now - 420 },
         { id: 310, name: 'Lena Ortiz', items: [{ id: 'insurance:premium', label: 'Insurance - Premium', qty: 1 }], total: 9000, discount: 0, method: 'bank', kind: 'insurance', created: now - 1900 },
         { id: 309, name: 'Dr. Maya Reyes', items: [{ id: 'iv_kit', label: 'IV Kit', qty: 5 }, { id: 'saline_bag', label: 'Saline 500 ml', qty: 4 }], total: 768, discount: 192, method: 'bank', kind: 'shop', created: now - 3600 },
         { id: 308, name: 'Jamal Price', items: [{ id: 'crutches', label: 'Crutches', qty: 1 }], total: 350, discount: 0, method: 'cash', kind: 'shop', created: now - 7400 },
@@ -1187,7 +1190,7 @@
 
     if (view === 'invoice') {
       NZA.demo(APP, {
-        mode: 'invoice', sid: 27, name: 'Michael Garcia', max: 15000, wait: 0, cut: 0.25,
+        mode: 'invoice', sid: 27, name: 'Ilse Varga', max: 15000, wait: 0, cut: 0.25,
         insurance: { label: 'Plus', cover: 0.65 },
         presets: [{ key: 'consult', amount: 250, label: 'Consultation' }, { key: 'treatment', amount: 750, label: 'Treatment' }, { key: 'transport', amount: 500, label: 'Ambulance transport' }, { key: 'surgery', amount: 2500, label: 'Surgery' }],
       });

@@ -13,9 +13,9 @@ NZA.AddLocale('en', {
     ['transport.carry']             = 'Carry',
     ['transport.drop']              = 'Put down',
     ['transport.help_up']           = 'Help up',
-    ['transport.place_stretcher']   = 'Place on Stretcher',
+    ['transport.place_stretcher']   = 'Lift onto the stretcher',
     ['transport.take_off']          = 'Take off the stretcher',
-    ['transport.bed_leave']         = 'Help patient off the table',
+    ['transport.bed_leave']         = 'Help them down',
     ['transport.to_bed']            = 'Move to %s',
     ['transport.out_vehicle']       = 'Take out of the vehicle',
 

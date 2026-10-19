@@ -62,14 +62,17 @@ No device face carries a brand.
 ### Pulse check (`pulse`, `NZA.Proc 'pulse'`)
 Core procedure HUD (column bottom-left, tool belt right edge). Steps named in the spine:
 *Locate the artery → Count the beats → Describe it*.
-1. **Locate the artery** – pick the site on the belt (**1** neck, **2** wrist; the wrist is
-   the left one when the right arm has a tourniquet), **scroll** (or ↑/↓) sets finger
-   pressure on the readout's 240° dial (*Feather → Hard*). The **palpation scope** in the
+1. **Locate the artery** – pick the site on the belt (**1** neck, **2** wrist, at the top of
+   the belt; the wrist is the left one when the right arm has a tourniquet; the panel tag
+   reads *Pulse check · <site>*), **scroll** (or ↑/↓) sets finger pressure on the readout's
+   240° dial (*Feather → Hard*). Stats: beats felt at this site, signal quality %, what is
+   logged. The **palpation scope** in the
    column (a polar radar trace swept once every 4 s) only lifts on beats inside the right
    pressure band: too light = flat, too hard = flattened artery (trace turns amber). Each
    site has its own band, narrower for a weak pulse. A world marker on the wrist / neck
    throbs on every beat you can feel. **N** = nothing at the wrist (moves to the neck) or
-   nothing at the neck; only allowed after `absentAfter` seconds of palpation.
+   nothing at the neck; only allowed after `absentAfter` seconds of palpation (the **N** slot
+   on the belt counts down *after n s* → *can log*).
 2. **Count the beats** – **Space** opens the 15 s window (amber arc on the scope rim), tap
    **Space** on every beat; the count rolls in the scope centre, taps land on the rim (teal
    on a beat, red between beats) and in the scope's instrument list.
@@ -95,8 +98,8 @@ Core procedure HUD; steps *Watch and count → Sweep the zones → Name the soun
 1. **Watch and count** – the world marker on the chest rises with every breath (real RR and
    depth: laboured, shallow, agonal gasps, apnoea). **Space** opens a 15 s **count window**
    (strip in the column with a moving head and a tick per tap, rolling count), tap on every
-   rise. **N** = no chest rise (after `noBreathAfter` s). The **On sight** list in the
-   column (tone notches): dusky lips (SpO₂ < 90), accessory muscles, gurgling, stridor /
+   rise. **N** = no chest rise (after `noBreathAfter` s). The **Seen at a glance** list in the
+   column (tone notches): blue tinge (SpO₂ < 90), straining neck muscles, gurgling, stridor /
    snoring, which side barely moves, shallow / agonal, flail segment, unresponsive.
 2. **Sweep the zones** – needs `Config.Items.stethoscope` (never consumed; the medic holds
    `Config.Props.stethoscope`). The 6 zones (R/L upper, middle, lower) are anchored on the
@@ -106,7 +109,9 @@ Core procedure HUD; steps *Watch and count → Sweep the zones → Name the soun
    sticker, no brand): zone tag + LIVE indicator, a scrolling **log-frequency spectrogram**
    (60 Hz – 1.6 kHz: breath noise blooms, crackles as clicks, wheeze / stridor as tonal
    lines), a **6-pad chest map** (hex pads with dwell rings, ticked when heard) and an
-   instrument list (zone, dwell bar, sides 0/2, **R·L air-entry balance** meter). Breath
+   instrument list (zone, dwell bar, live **level in dB**, **left vs right** difference in dB
+   with the quieter side, amber from 6 dB). The column stats are zone, loudest zone and the
+   same left-vs-right figure; the dial counts zones heard n/6. Breath
    sounds are synthesised with WebAudio per zone and condition: vesicular, reduced, absent,
    crackles, wheeze, stridor, gurgling, silence. Without a stethoscope this step is skipped.
 3. **Name the sound** – picker in the column: *Both sides* (**1** normal, **6** crackles,

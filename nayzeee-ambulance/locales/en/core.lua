@@ -10,7 +10,7 @@ if not NAYZEEE_LOCK_OK then return end
 NZA.AddLocale('en', {
     -- ── general
     ['core.title']              = 'Ambulance',
-    ['core.stabilized']         = 'STABILIZED - CLOCK PAUSED',
+    ['core.stabilized']         = 'Holding steady - timer on hold',
     ['core.bleedout']           = 'BLEEDING OUT',
 
     -- ── states

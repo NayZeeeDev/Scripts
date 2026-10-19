@@ -74,7 +74,7 @@
     { key: '8', id: 'dressing', step: 8, icon: 'bandage', label: ['tool_dressing', 'Dressing'] },
   ];
   const STEP_NAMES = [null, ['sn_1', 'Cool the burn'], ['sn_2', 'Test the depth'], ['sn_3', 'Debride'], ['sn_4', 'Excise the eschar'],
-    ['sn_5', 'Harvest the graft'], ['sn_6', 'Mesh the graft'], ['sn_7', 'Apply & staple'], ['sn_8', 'Dress the burn']];
+    ['sn_5', 'Harvest the graft'], ['sn_6', 'Run it through the mesher'], ['sn_7', 'Apply & staple'], ['sn_8', 'Dress the burn']];
 
   NZ.addIcons({
     'bn-diascope': '<circle cx="9" cy="15" r="5.5"/><path d="M6.5 13.2a3 3 0 0 1 2.8-1.7"/><path class="a" d="M13 11l7-7" style="stroke:var(--nzi-accent,currentColor)"/><path d="M18.5 3.5l2 2"/>',
@@ -1620,10 +1620,10 @@
 
   const DEMO = {
     mode: 'care',
-    patient: { name: 'Michael Garcia', sex: 'm', temp: 36.9, avpu: 'A', kind: 'player' },
+    patient: { name: 'Ruben Castell', sex: 'm', temp: 36.9, avpu: 'A', kind: 'player' },
     injury: {
       id: 'i4', type: 'burn', region: 'r_upper_leg', regionLabel: 'Right thigh', label: 'Burn', severity: 4, pain: 72, contamination: 34,
-      burn: { degree: 3, area: 99, temp: 52.6, soot: 78, full: 46, assessed: false },
+      burn: { degree: 3, area: 132, temp: 52.6, soot: 78, full: 46, assessed: false },
       treat: { cooled: false, debrided: false, dressed: false, grafted: false },
     },
     tone: 0.3, seed: 4512, donor: 'l_upper_leg', donorLabel: 'Left thigh',
@@ -2629,7 +2629,7 @@
         case 3: return [T('s3_title', 'Debride'), T('s3_text', 'Grip a blister roof or loose dead skin with {LMB} and pull it away.')];
         case 4: return [T('s4_title', 'Excise the eschar'), T('s4_text', 'Hold {LMB} and trace the **purple line** round each full-thickness area. When the line is cut the eschar lifts off.')];
         case 5: return [T('s5_title', 'Harvest the graft'), T('s5_text', 'Hold {LMB} at the start line and push the dermatome along the thigh at a steady pace. Keep the pressure in the band with the **wheel**.')];
-        case 6: return [T('s6_title', 'Mesh the graft'), T('s6_text', 'Pick a carrier with {Q} / {E}, then hold {LMB} and circle the pointer clockwise round the crank to feed the graft through.')];
+        case 6: return [T('s6_title', 'Run it through the mesher'), T('s6_text', 'Pick a carrier with {Q} / {E}, then hold {LMB} and circle the pointer clockwise round the crank to feed the graft through.')];
         case 7: return g && g.gr && g.gr.phase === 'staple'
           ? [T('s7b_title', 'Staple the graft'), T('s7b_text', 'Click each **marked point** round the edge to fire a staple through the graft into the skin.')]
           : [T('s7_title', 'Lay the graft'), T('s7_text', 'Pick the graft up with {LMB}, lay it over the raw bed and let go. {Q} / {E} turn it while you hold it.')];

@@ -4,12 +4,13 @@
     ═══════════════════════════════════════════════════════════════════════════
 
     OPEN FILE (escrow_ignore). One adapter per framework: es_extended (ESX
-    Legacy), qb-core, qbx_core (Qbox) and standalone (license identifier, ace
-    based medic job). Fix or extend an adapter here if your framework fork
-    differs - nothing else in the resource talks to the framework directly.
+    Legacy), qb-core, qbx_core (Qbox), ox_core and standalone (license
+    identifier, ace based medic job). Fix or extend an adapter here if your
+    framework fork differs - nothing else in the resource talks to the
+    framework directly.
 
     API
-      Bridge.Framework                          'esx' | 'qbcore' | 'qbox' | 'standalone'
+      Bridge.Framework                          'esx' | 'qbcore' | 'qbox' | 'ox' | 'standalone'
       Bridge.OnPlayerLoaded(fn(src), replay?)   replay = also call fn for players already loaded
       Bridge.OnPlayerUnloaded(fn(src))          Bridge.OnJobChanged(fn(src, job))
       Bridge.IsLoaded(src)                      Bridge.GetPlayer(src) → raw framework player
@@ -659,6 +660,262 @@ AddEventHandler('playerDropped', function()
 end)
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- OX_CORE (checked against ox_core 1.x: GetPlayer / CallPlayer / GetPlayers /
+-- GetPlayerFromCharId / GetCharacterAccount / GetGroupAccount / CallAccount,
+-- server events ox:playerLoaded, ox:playerLogout, ox:setGroup, ox:setActiveGroup)
+--
+-- The raw exports return plain data ({ source, userId, charId, stateId, ... });
+-- player and account methods go through CallPlayer / CallAccount, so the
+-- @ox_core/lib/init.lua import is not needed. Accounts answer asynchronously:
+-- like ESX society accounts, call money functions from a thread or handler.
+--   identifier  'char:<charId>' (one per character, like a QBCore citizenid)
+--   job         an ox group, see Bridge.OxJob in bridge/shared.lua (grades from 0)
+--   duty        ox_core has none: kept here per character, Config.Bridge.oxOnDuty
+--               (default true) is the state after login
+--   cash        the ox_inventory money item (Config.Bridge.standaloneMoneyItem)
+--   bank        the character's default ox_core account
+-- ═══════════════════════════════════════════════════════════════════════════
+
+FW.ox = {}
+
+local oxDuty = {}       -- [src] = bool, cleared on logout / drop
+local oxJobCache = {}   -- [src] = { at, job | false }: GetJob runs often and each read is 3 exports
+local OX_JOB_TTL = 1000 -- ms; group, duty and character events clear it at once
+
+local function oxCall(src, method, ...)
+    return exports.ox_core:CallPlayer(src, method, ...)
+end
+
+-- player with an active character (nil at character selection)
+local function oxCharacter(src)
+    local p = exports.ox_core:GetPlayer(src)
+    if type(p) ~= 'table' or not p.charId then return nil end
+    return p
+end
+
+function FW.ox.player(src)
+    return oxCharacter(src)
+end
+
+function FW.ox.identifier(src)
+    local p = oxCharacter(src)
+    return p and ('char:%s'):format(math.floor(tonumber(p.charId) or 0)) or nil
+end
+
+function FW.ox.sourceFromIdentifier(identifier)
+    local charId = tonumber(tostring(identifier):match('^char:(%d+)$'))
+    if not charId then return nil end
+    local p = exports.ox_core:GetPlayerFromCharId(charId)
+    return type(p) == 'table' and toSource(p.source) or nil
+end
+
+function FW.ox.charInfo(src)
+    if not oxCharacter(src) then return nil end
+    local first, last = oxCall(src, 'get', 'firstName'), oxCall(src, 'get', 'lastName')
+    if type(first) ~= 'string' or first == '' then
+        first, last = splitName(oxCall(src, 'get', 'name') or GetPlayerName(tostring(src)))
+    end
+    return {
+        firstname = first,
+        lastname = type(last) == 'string' and last or '',
+        dob = oxCall(src, 'get', 'dateOfBirth'),
+        sex = normalizeSex(oxCall(src, 'get', 'gender')),
+        phone = oxCall(src, 'get', 'phoneNumber'),
+    }
+end
+
+local function oxOnDuty(src)
+    local onDuty = oxDuty[src]
+    if onDuty == nil then onDuty = Bridge.Cfg('oxOnDuty', true) == true end
+    return onDuty
+end
+
+function FW.ox.invalidate(src)
+    if src then oxJobCache[src] = nil end
+end
+
+local function copyJob(job)
+    if not job then return nil end
+    local out = {}
+    for k, v in pairs(job) do out[k] = v end
+    return out
+end
+
+function FW.ox.job(src)
+    local now = GetGameTimer()
+    local hit = oxJobCache[src]
+    if hit and now - hit.at < OX_JOB_TTL then return copyJob(hit.job or nil) end
+    local job = nil
+    if oxCharacter(src) then
+        local groups = oxCall(src, 'getGroups')
+        job = Bridge.OxJob(type(groups) == 'table' and groups or {}, oxCall(src, 'get', 'activeGroup'), oxOnDuty(src))
+    end
+    oxJobCache[src] = { at = now, job = job or false }
+    return copyJob(job)
+end
+
+function FW.ox.setDuty(src, onDuty)
+    if not oxCharacter(src) then return false end
+    oxDuty[src] = onDuty == true
+    FW.ox.invalidate(src)
+    return true
+end
+
+-- The EMS group a fire takes away: the active group when it is a medic job, else the
+-- first Config.Jobs.medic group, then the first police group (Bridge.OxJob order).
+local function oxJobGroupToRemove(src)
+    local groups = oxCall(src, 'getGroups')
+    groups = type(groups) == 'table' and groups or {}
+    local active = oxCall(src, 'get', 'activeGroup')
+    if type(active) == 'string' and Bridge.IsMedicJob(active) and (tonumber(groups[active]) or 0) > 0 then return active end
+    local job = Bridge.OxJob(groups, nil, false)
+    return job and job.name or nil
+end
+
+-- Bridge grade g is ox grade g + 1. 'unemployed' (the hospital's fireJob) is no ox group:
+-- the character's EMS group (or police group) is removed instead (ox grade 0), never
+-- an unrelated one. Groups are additive in ox_core, so hiring keeps the other groups.
+function FW.ox.setJob(src, job, grade)
+    if not oxCharacter(src) then return false end
+    FW.ox.invalidate(src)
+    local def = Bridge.OxGroup(job)
+    if not def then
+        if job ~= 'unemployed' then
+            Bridge.Warn(('ox_core group "%s" does not exist - cannot give it to player %d'):format(job, src))
+            return false
+        end
+        local name = oxJobGroupToRemove(src)
+        if not name then return true end
+        return oxCall(src, 'setGroup', name, 0) == true
+    end
+    local oxGrade = grade + 1
+    local _, count = Bridge.OxGrades(def)
+    if oxGrade > count then
+        Bridge.Warn(('ox_core group "%s" has no grade %d (bridge grade %d) - cannot give it to player %d'):format(job, oxGrade, grade, src))
+        return false
+    end
+    if tonumber(oxCall(src, 'getGroup', job)) == oxGrade then return true end
+    -- setGroup refuses (returns nothing) when the character already has another group of the same type
+    return oxCall(src, 'setGroup', job, oxGrade) == true
+end
+
+function FW.ox.hasLicense(src, name)
+    if not oxCharacter(src) then return false end
+    local license = oxCall(src, 'getLicense', name)
+    return license ~= nil and license ~= false
+end
+
+local function oxAccountId(account)
+    return type(account) == 'table' and tonumber(account.accountId) or nil
+end
+
+local function oxBankId(src)
+    local p = oxCharacter(src)
+    return p and oxAccountId(exports.ox_core:GetCharacterAccount(p.charId)) or nil
+end
+
+-- addBalance / removeBalance answer { success, message? }
+local function oxBalanceDone(result)
+    if type(result) == 'table' then return result.success == true end
+    return result == true
+end
+
+Bridge.OxAccount = {
+    id = oxAccountId,
+    balance = function(accountId)
+        return tonumber(exports.ox_core:CallAccount(accountId, 'get', 'balance')) or 0
+    end,
+    add = function(accountId, amount, reason)
+        return oxBalanceDone(exports.ox_core:CallAccount(accountId, 'addBalance', { amount = amount, message = reason }))
+    end,
+    remove = function(accountId, amount, reason)
+        return oxBalanceDone(exports.ox_core:CallAccount(accountId, 'removeBalance', { amount = amount, message = reason, overdraw = false }))
+    end,
+}
+
+-- ox_core cash is an ox_inventory item; any account other than 'bank' is an item too
+local function oxItemFor(account)
+    if account == 'cash' or account == 'money' then return oxMoneyItem() end
+    if not Bridge.Started('ox_inventory') then return nil end
+    return account
+end
+
+function FW.ox.getMoney(src, account)
+    if account == 'bank' then
+        local id = oxBankId(src)
+        return id and Bridge.OxAccount.balance(id) or 0
+    end
+    local item = oxItemFor(account)
+    return item and (tonumber(exports.ox_inventory:GetItemCount(src, item)) or 0) or 0
+end
+
+function FW.ox.removeMoney(src, account, amount, reason)
+    if account == 'bank' then
+        local id = oxBankId(src)
+        return id ~= nil and Bridge.OxAccount.remove(id, amount, reason)
+    end
+    local item = oxItemFor(account)
+    if not item or FW.ox.getMoney(src, account) < amount then return false end
+    return exports.ox_inventory:RemoveItem(src, item, amount) == true
+end
+
+function FW.ox.addMoney(src, account, amount, reason)
+    if account == 'bank' then
+        local id = oxBankId(src)
+        return id ~= nil and Bridge.OxAccount.add(id, amount, reason)
+    end
+    local item = oxItemFor(account)
+    return item ~= nil and exports.ox_inventory:AddItem(src, item, amount) == true
+end
+
+-- an ox group named in Config.Admin.groups ('admin' ...); aces are checked by Bridge.IsAdmin
+function FW.ox.isAdmin(src)
+    if not oxCharacter(src) then return false end
+    for _, group in ipairs((Config.Admin and Config.Admin.groups) or {}) do
+        if (tonumber(oxCall(src, 'getGroup', group)) or 0) > 0 then return true end
+    end
+    return false
+end
+
+function FW.ox.players()
+    local out = {}
+    for _, p in pairs(exports.ox_core:GetPlayers() or {}) do
+        local src = type(p) == 'table' and p.charId and toSource(p.source)
+        if src then out[#out + 1] = src end
+    end
+    return out
+end
+
+function FW.ox.hooks(emit)
+    -- server-local events (ox_core emit), each with the player's source first
+    local function changed(playerId)
+        local src = toSource(playerId)
+        FW.ox.invalidate(src)
+        emit.job(src)
+    end
+    AddEventHandler('ox:playerLoaded', function(playerId)
+        local src = toSource(playerId)
+        FW.ox.invalidate(src)
+        emit.loaded(src)
+    end)
+    AddEventHandler('ox:playerLogout', function(playerId)
+        local src = toSource(playerId)
+        if src then oxDuty[src] = nil end
+        FW.ox.invalidate(src)
+        emit.unloaded(src)
+    end)
+    AddEventHandler('ox:setGroup', changed)
+    AddEventHandler('ox:setActiveGroup', changed)
+end
+
+AddEventHandler('playerDropped', function()
+    local src = toSource(source)
+    if not src then return end
+    oxDuty[src] = nil
+    oxJobCache[src] = nil
+end)
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- ACTIVE ADAPTER
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -730,6 +987,7 @@ function emit.job(src)
     -- defer one tick: frameworks fire the event before every field is updated
     SetTimeout(0, function()
         if not loaded[src] then return end
+        if A.invalidate then A.invalidate(src) end   -- adapters that cache the job (ox_core)
         local job = Bridge.GetJob(src)
         local key = jobKey(job)
         if key == lastJobKey[src] then return end
@@ -889,7 +1147,7 @@ function Bridge.SetJob(src, job, grade)
     return false
 end
 
--- Framework licence check: QBCore / Qbox metadata.licences, ESX esx_license.
+-- Framework licence check: QBCore / Qbox metadata.licences, ESX esx_license, ox_core getLicense.
 -- Where the framework cannot tell (standalone, ESX without esx_license) the ace
 -- 'nza.license.<name>' decides. ESX waits for esx_license: call it from a thread.
 function Bridge.HasLicense(src, name)

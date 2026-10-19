@@ -114,10 +114,12 @@ product-card grid with struck old prices, no order column, no white thermal rece
 ## Config (`Config.Pharmacy`)
 `enabled` · `interact` (target, prompt, key, keyLabel, distance, maxDistance) · `desk`
 (enabled, onlyWithBills, key, keyLabel, distance) · `pointDefaults` (npc, staffOnly, blip,
-insurance, bills) · `npc` (models, scenario, greet, faceTime) · `blip` (sprite, colour,
+insurance, bills) · `npc` (enabled, models, scenario, greet, faceTime) · `blip` (enabled, sprite, colour,
 scale, shortRange) · `payment` (cash, bank, default) · `tax` · `staffDiscount` ·
 `stackDiscounts` · `maxLines` · `maxQuantity` · `showRestricted` · `income` (toSociety, share)
-· `categories[{ id, icon }]` · `products[{ item | name, price, discount, category, stock,
+· `categories[{ id, icon }]` (default order: Medicines, Bleeding & dressings, Drips & lines, Airway,
+Bones & joints, Kit & devices) · `itemCategory` (config/items.lua category → shop category, for
+products without their own `category`) · `products[{ item | name, price, discount, category, stock,
 limit, perm, medicOnly, jobs, minGrade, license, featured, label, description }]` · `stock`
 (enabled, orderCost, orderMax, fromInventory, autoRestock{ enabled, interval, amount, charge },
 lowAt) · `staff` (perm, salesLog, keepDays) · `insurance` (enabled, giveCard,

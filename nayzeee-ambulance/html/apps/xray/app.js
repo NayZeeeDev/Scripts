@@ -1411,7 +1411,7 @@
       if (viewOnly) return null;
       return left > 0
         ? { label: T('s_review', 'Review'), value: Math.ceil(left / 1000), unit: 's', meter: { value: frac, tone: 'white' }, caption: T('s_unlock', 'until the report opens') }
-        : { label: T('s_review', 'Review'), value: T('s_open', 'Open'), tone: 'teal', meter: { value: 1 }, caption: T('s_ready', 'File it with {Enter}'), captionTone: 'teal' };
+        : { label: T('s_review', 'Review'), value: T('s_open', 'Open'), unit: '', tone: 'teal', meter: { value: 1 }, caption: T('s_ready', 'File it with {Enter}'), captionTone: 'teal' };
     }
     function pairHTML() {
       return ['ap', 'lat'].map(w => {
@@ -2159,10 +2159,10 @@
       const view = p.get('view') || 'r_leg';
       const film = DEMO.film(view);
       if (mode === 'sheet') return sheet((p.get('views') || 'r_leg,chest').split(','), Number(p.get('w') || 480));
-      if (mode === 'choose') return NZA.demo(APP, { mode, name: 'Michael Garcia', views: DEMO.views() });
-      if (mode === 'expose') return NZA.demo(APP, { mode, view, viewLabel: DEMO.label(view), name: 'Michael Garcia', kv: 110, mas: 4, breath: view === 'chest', breathWindow: 5 });
-      if (mode === 'reduce') return NZA.demo(APP, { mode, injury: 'i7', region: 'r_lower_leg', regionLabel: 'Right lower leg', bone: 'tibia', boneLabel: 'Tibia', kind: 'closed', angle: 18, short: 11, view: 'r_leg', analgesia: 0.35, tolerance: 3, fluoroBudget: 12, name: 'Michael Garcia' });
-      if (mode === 'cast') return NZA.demo(APP, { mode, injury: 'i7', region: 'r_lower_leg', regionLabel: 'Right lower leg', bone: 'tibia', boneLabel: 'Tibia', castType: 'short_leg', leg: true, layersMin: 3, layersMax: 6, name: 'Michael Garcia' });
+      if (mode === 'choose') return NZA.demo(APP, { mode, name: 'Samuel Hart', views: DEMO.views() });
+      if (mode === 'expose') return NZA.demo(APP, { mode, view, viewLabel: DEMO.label(view), name: 'Samuel Hart', kv: 110, mas: 4, breath: view === 'chest', breathWindow: 5 });
+      if (mode === 'reduce') return NZA.demo(APP, { mode, injury: 'i7', region: 'r_lower_leg', regionLabel: 'Right lower leg', bone: 'tibia', boneLabel: 'Tibia', kind: 'closed', angle: 18, short: 11, view: 'r_leg', analgesia: 0.35, tolerance: 3, fluoroBudget: 12, name: 'Samuel Hart' });
+      if (mode === 'cast') return NZA.demo(APP, { mode, injury: 'i7', region: 'r_lower_leg', regionLabel: 'Right lower leg', bone: 'tibia', boneLabel: 'Tibia', castType: 'short_leg', leg: true, layersMin: 3, layersMax: 6, name: 'Samuel Hart' });
       NZA.demo(APP, { mode: mode === 'view' ? 'view' : 'read', token: 'demo', film, tolerance: 0.06, minTime: p.get('fast') ? 0 : 8 });
       if (p.get('hang')) later(() => S.m && S.m.hang && S.m.hang(p.get('hang')), 300);
     },
@@ -2180,7 +2180,7 @@
     label: (v) => ({ head: 'Head', neck: 'Neck', chest: 'Chest', abdomen: 'Abdomen', l_arm: 'Left arm', r_arm: 'Right arm', l_leg: 'Left leg', r_leg: 'Right leg' })[v] || v,
     views: () => ['head', 'neck', 'chest', 'abdomen', 'l_arm', 'r_arm', 'l_leg', 'r_leg'].map(v => ({ id: v, label: DEMO.label(v), sev: v === 'r_leg' ? 3 : v === 'chest' ? 2 : null })),
     film(view) {
-      const base = { id: 'RX-4471', pid: 'p:ABC123', name: 'Michael Garcia', sex: 'm', age: 34, view, viewLabel: DEMO.label(view), seed: 2034, quality: 'sharp', sev: 3, by: 'Dr. N. Ayzee', hospital: 'Pillbox Medical', dateText: '14/10/2026 21:42', kv: 65, mas: 10 };
+      const base = { id: 'RX-4471', pid: 'p:ABC123', name: 'Samuel Hart', sex: 'm', age: 34, view, viewLabel: DEMO.label(view), seed: 2034, quality: 'sharp', sev: 3, by: 'Dr. R. Okafor', hospital: 'Pillbox Medical', dateText: '14/10/2026 21:42', kv: 65, mas: 10 };
       const F = {
         r_leg: [
           { id: 'f1', k: 'fx', inj: 'i7', bone: 'tibia', kind: 'closed', disp: true, ang: 18, phi: 0.55, shift: 0.6, short: 9, ap: { x: 0.503, y: 0.683 }, lat: { x: 0.51, y: 0.672 }, r: 0.06, label: 'Closed fracture of the tibia' },

@@ -461,8 +461,11 @@ SVG) and `NZA.ui.Ring` (status ring) — the last two return HTML,
 
 ### 10.4 World anchors (in-world minigames)
 Lua `NZA.Anchors.Track(app, { id = { entity=, bone=, offset=vec3 } | { coords=vec3 } })` streams
-screen positions (0..1) to the app as action `anchors` at ~30 Hz while tracked;
-`NZA.Anchors.Clear(app)`. JS `NZA.ui.Anchors(app)` gives `onUpdate(fn)` and `get(id)`.
+screen positions (0..1) to the app as action `anchors` at ~30 Hz while tracked (only when something
+moved or changed visibility); `NZA.Anchors.Set(app, id, def)` / `NZA.Anchors.Remove(app, id)` change one
+anchor, `NZA.Anchors.Clear(app)` stops and sends one empty `anchors` (client/core/anchors.lua).
+JS `NZA.ui.Anchors(app)` → `{ on(fn), off(fn), get(id), all() }`; `fn` receives the whole map
+`{ [id] = { x, y, visible, d } }` (`d` = metres from the camera) on every update (html/core/nza.js).
 `NZA.Cam` (client/core): `NZA.Cam.Orbit(target, { dist, height, fov, pitch })` (right-click orbit,
 Shift+right-click pan, scroll zoom, R recentre), `NZA.Cam.Close(focusEntity, boneOrOffset, opts)`,
 `NZA.Cam.TopDown(entity, height)`, `NZA.Cam.Stop()`. `NZA.Cam.Raycast()` → world hit under cursor.
@@ -627,7 +630,7 @@ Module bus events (stable signatures — other modules may listen; `p` = Patient
 | medbag | `medbag:placed (src, id)` · `medbag:picked (src, id)` · `medbag:moved (src, id, moved)` · `bodybag:bagged (src, body)` · `bodybag:morgue (src, body, point)` | — |
 | xray | `xray:taken (src, p, meta)` · `xray:read (src, p, film, outcome)` · `xray:offTable (src, p)` · `xray:reduced (src, p, inj, outcome)` · `xray:cast (src, p, inj, outcome)` | — |
 | assess | `assess:done (src, p, kind, data)` · `assess:exam (src, p)` · `findings:changed (p, key, finding \| nil)` | — |
-| procedures | `suture:done` · `burn:done` · `graft:done` · `angio:done (src, p, inj, outcome)` · `splint:applied (src, p, inj, score)` · `splint:removed (src, p, region)` · `intubation:done (src, p, outcome)` · `intubation:extubated (p, reason)` · `ultrasound:scan` · `ultrasound:drain` · `ultrasound:decompress` · `ultrasound:pericardio (src, p, outcome)` | `suture:flinch (entity, pain)` · `burn:pain (entity, pain)` · `angio:suiteRemoved (pointId)` |
+| procedures | `suture:done` · `burn:done` · `graft:done` · `bullet:done (src, p, inj, outcome)` · `angio:done (src, p, inj, outcome)` · `splint:applied (src, p, inj, score)` · `splint:removed (src, p, region)` · `intubation:done (src, p, outcome)` · `intubation:extubated (p, reason)` · `ultrasound:scan` · `ultrasound:drain` · `ultrasound:decompress` · `ultrasound:pericardio (src, p, outcome)` | `suture:flinch (entity, pain)` · `bullet:flinch (entity, pain)` · `burn:pain (entity, pain)` · `angio:suiteRemoved (pointId)` |
 | cpr | `cpr:started (p, code)` · `cpr:rosc (p, code)` · `cpr:shock (p, src, energy, result)` · `cpr:ended (p, code, reason, summary)` | `cpr:started (action)` · `cpr:ended (summary)` |
 | firstaid | `firstaid:tq_warn (p, region)` · `firstaid:tq_damage (p, region)` · `firstaid:soaked (p, inj)` | — |
 | blood | `blood:typed (src, p, bloodType)` · `blood:hung (src, p, inf)` · `blood:reaction (p, stage)` · `blood:donated (src, p, ml, meta)` | `blood:typed (target, bloodType)` |
@@ -641,6 +644,13 @@ Module bus events (stable signatures — other modules may listen; `p` = Patient
 
 Consumers today: dispatch, checkin and calls listen to `transport:loaded` / `transport:bed`
 (the patient reached an ambulance / a hospital bed).
+
+`bullet:done` outcome (server/modules/bullet.lua): `{ score, msg, extracted, left, sutured, dressed,
+disinfected, haemostasis, bloodLoss, quality, used, record }` — `extracted` / `left` are piece counts,
+`bloodLoss` is mL, `used` = `{ suture_kit, dressing, gauze, surgical_kit }` (Config.Items keys → counts).
+Core adds `grade` and `easy` to the same table after `onFinish` returns (server/core/proc.lua), i.e. after
+this synchronous emit; read them from `proc:done (src, p, 'bullet', outcome)`. `bullet:flinch` (client)
+fires with the patient entity (0 when unknown) and the pain value the minigame reported.
 
 `NZA.Points` point table: `{ id, hospital, type, coords = vector4, data = {}, label? }`.
 Server side (hospital module): `NZA.Hospitals.*` as in §8 and it must broadcast the three

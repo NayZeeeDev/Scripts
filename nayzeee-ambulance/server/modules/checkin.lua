@@ -7,7 +7,7 @@
     queue (P1 first, then by time). Staff with Config.Checkin.desk.perm call the next patient
     to a free bed; with nobody on duty the AI doctor (checkin_ai.lua) takes them.
 
-    Ticket life:  waiting → called (bed assigned, "Now serving") → treatment → closed
+    Ticket life:  waiting → called (bed assigned, shown on the board) → treatment → closed
                   closed = done | noshow | left | cancelled
 
     SERVER API (everyone)

@@ -520,7 +520,7 @@ function MB.BagView(bag, src)
         canStyle = mine or (src and NZA.Core.IsAdmin(src)) or false,
         canLock = mine and C('Access').lock ~= false or (src and NZA.Core.IsAdmin(src) and bag.locked) or false,
         slots = max, items = items, weight = bagWeight(bag),
-        maxWeight = tonumber(C('Storage').maxWeight) or 20000,
+        maxWeight = tonumber(C('Storage').maxWeight) or 18000,
         held = src and MB.carry[src] == bag.id or false,
     }
 end
@@ -975,7 +975,7 @@ end
 local function weightRoom(bag, name)
     local uw = unitWeight(name)
     if uw <= 0 then return math.huge end
-    local room = (tonumber(C('Storage').maxWeight) or 20000) - bagWeight(bag)
+    local room = (tonumber(C('Storage').maxWeight) or 18000) - bagWeight(bag)
     return math.max(0, math.floor((room + 0.0001) / uw))
 end
 
@@ -1004,7 +1004,7 @@ local function deposit(src, bag, data)
     local mk = meta and canon(meta) or ''
     local want = wantCount(data.count, tonumber(it.count) or 1)
     local wfit = weightRoom(bag, name)
-    if wfit < 1 then return fail('heavy', ('%.1f %s'):format((tonumber(C('Storage').maxWeight) or 20000) / 1000, L('ui_kg'))) end
+    if wfit < 1 then return fail('heavy', ('%.1f %s'):format((tonumber(C('Storage').maxWeight) or 18000) / 1000, L('ui_kg'))) end
     local n = math.min(want, wfit)
     local list, fits = plan(bag, name, mk, n, tonumber(data.to))
     if fits < 1 then return fail('full') end

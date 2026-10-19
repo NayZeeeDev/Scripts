@@ -336,7 +336,7 @@ NZA.AddLocale('en', {
     ['ultrasound.cd_t_finger']               = 'Finger',
     ['ultrasound.cd_t_tube']                 = 'Chest tube',
     ['ultrasound.cd_t_drain']                = 'Drain unit',
-    ['ultrasound.cd_x_mark']                 = 'Feel for the ribs with {1}: hold {LMB} and sweep down from the armpit, they light up under your fingers. Then mark the **5th rib space in the middle of the armpit line** with {2}.',
+    ['ultrasound.cd_x_mark']                 = 'Feel for the ribs with {1}: hold {LMB} and sweep down from the armpit and each rib glows as you pass over it. Then mark the **5th rib space in the middle of the armpit line** with {2}.',
     ['ultrasound.cd_x_clean']                = 'Hold {LMB} and scrub the antiseptic over the mark until the whole area is brown. The sterile drape goes on after.',
     ['ultrasound.cd_x_numb']                 = 'Hold {LMB} on the mark to raise a bleb of lidocaine, then down to the top of the rib. {N} skips it (it will hurt).',
     ['ultrasound.cd_x_cut']                  = 'Press at one end of the dashed line and draw the blade **along the top of the rib**, 2–3 cm.',

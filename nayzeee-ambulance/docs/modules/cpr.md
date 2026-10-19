@@ -80,9 +80,22 @@ ROSC and a scored debrief. The server owns every clinical decision.
   server grade): duration, compressions, shocks, adrenaline, quality, hands-on, breaths, protocol
   (bad shocks, rescuer shocks, long pauses, motion aborts, missing adrenaline) and notes.
   A medical record entry (players) and optional billing for ROSC / shocks.
-- **Easy mode** (per department `easy.cpr` or `Config.EasyMode.default`): Space toggles automatic
-  compressions in time with the metronome, breaths finish by themselves, P places both pads; the server scores easy
-  compressions / breaths with `Config.EasyMode.score`.
+- **Easy mode** (per department `easy.cpr` or `Config.EasyMode.default`; `Config.Cpr.easyTimed`, default
+  on): an easy medic does CPR as a **timed action** without the device screen. Same kneeling scene and
+  animations, one ox_lib progress (`Config.EasyMode.style` bar / circle) per 2-minute cycle (*Chest
+  compressions · cycle n* / *Airway and defibrillator · cycle n*; a rhythm check or a swap starts a new
+  one; cancelling it (X) leaves the code). The client reports compressions at `Compressions.target` while
+  the chest is free; the server gives a timed breather's breaths (`Easy.breathGap`) and ignores a timed
+  compressor's hands during analysis / stand clear. When **every** team member is timed the server runs
+  the AED protocol itself (`Easy.autoDefib`): pads as soon as a defibrillator is available (else CPR
+  only, retried every 5 s), analysis at the start and at every cycle end, charge after `Easy.chargeAfter`
+  and shock after `Easy.shockAfter` when a shock is advised (AED energies), adrenaline when due from a
+  team member who carries it. Device moments arrive as toasts (analysing, shock advised / no shock,
+  stand clear, shock delivered, ROSC, re-arrest, adrenaline, team changes) and the end as a one-line
+  summary. A non-easy medic in the same code keeps the full device screen and runs whatever the timed
+  medic cannot. Easy compressions / breaths score `Config.EasyMode.score`. With `easyTimed = false`
+  easy medics get the device screen with help instead: Space toggles automatic compressions in time
+  with the metronome, breaths finish by themselves, P places both pads.
 
 ## Screen layout
 
@@ -137,6 +150,7 @@ bottom-centre, the scene keeps the centre.
 `Compressions { target rateMin rateMax perSet perfect good pressMin pressMax metronome idleWarn fatigue { enabled after perMinute max recover } }` ·
 `Breaths { perSet hold tooShort tooLong timeout mouthToMouth mouthQuality mouthSlower bvmProp bvmAttach continuousIfVentilated }` ·
 `Cycle { length checkGrace }` · `Adrenaline { enabled perm minGap due needAccess }` ·
+`easyTimed` · `Easy { autoDefib breathGap chargeAfter shockAfter }` ·
 `Defib { perm aedPerm items bay hospital hospitalRadius energies energy aedEnergies analyseTime chargeTime chargedFor clearWindow rescuerShock { ragdoll health efficacy } prop propOffset }` ·
 `Pads { snap sternum apex lift }` ·
 `Rosc { shockBase peaBase asystoleBase max energy adrenaline noAdrenaline lowFlowDecay noFlowDecay minTime ventilation asystoleToVf peaToVf degrade causes { hypovolemia tension tamponade haemothorax hypothermia hypoxia airway toxins } rearrestWatch }` ·
@@ -174,7 +188,7 @@ Exports: `IsInCpr(pidOrSrc) → bool`, `GetCode(pidOrSrc) → { id, pid, comp, a
 `NZA.Cpr.Nearest(maxDist?) → ped, target`, `NZA.Cpr.WaitEnd()`, `NZA.Cpr.Bag(ped) → compressor id | nil`.
 Client bus: `cpr:started (code)`, `cpr:ended (summary)`.
 
-NUI app `cpr`: open `{ view, keys, cfg, locale, easy }`, actions `state`, `event`, `ended`, `anchors`
+NUI app `cpr` (not opened for timed easy medics, `view.timed`): open `{ view, keys, cfg, locale, easy }`, actions `state`, `event`, `ended`, `anchors`
 (`padR`, `padL`); callbacks `cpr:press`, `cpr:report`, `cpr:hands`, `cpr:breathStart`, `cpr:breath`,
 `cpr:action { name, data }`, `cpr:leave`. Preview: `html/index.html?app=cpr&demo=` `compress | breaths |
 pads | analyse | charged | rosc | air | easy | nodefib | debrief` (playable: the preview has a small

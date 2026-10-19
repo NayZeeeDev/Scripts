@@ -65,7 +65,7 @@ above** — not a slot grid:
   `Bag.colours` (red / orange / green / magenta models). The whole open bag previews the colour live;
   on save the bag on the ground switches model at once; the inventory item shows the name.
 - **Bag log** (under the bag): the latest moves (time, picture, item, "into the bag" / "to pockets"
-  or "J. Doe took it" with the colleague's initials, `+5` / `−1`). It gives way first when space is
+  or "P. Nair took it" with the colleague's initials, `+5` / `−1`). It gives way first when space is
   short (fades out at the bottom).
 - **Moving items**: click = the dial quantity · **hold = pour** (a ring fills around the item and a
   `+n` counter climbs faster the longer you hold; release to move that many) · Shift + click =

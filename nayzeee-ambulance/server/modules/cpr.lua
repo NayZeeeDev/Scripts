@@ -11,6 +11,11 @@
     clamps every client number and keeps the arrest → death timer paused with NZA.Patients.Cpr while
     CPR is really happening (compressions in the last 1.5 s or a planned pause).
     ROSC = NZA.Patients.Revive(pid, { rosc = true }) → patient 'wounded' with a perfusing rhythm.
+    Easy mode (Config.Cpr.easyTimed ~= false): an easy medic runs CPR as timed actions (no device
+    screen). The server then gives a timed breather's breaths, ignores a timed compressor's hands
+    during analysis / stand clear, and when the whole team is timed it runs the AED protocol itself:
+    pads on, analyse at the start and at every cycle end, charge + shock when advised (AED energies),
+    adrenaline when due and someone carries it.
 
     Callbacks (lib.callback, all return { ok, err?, msg?, ... }):
       nza:cpr:start    (target, { origin = { x, y, z, h } })  start a code or join one as the partner
@@ -206,6 +211,14 @@ local function continuous(p)
     return d.intubated == true and (p.meta and p.meta.ventilated) and true or false
 end
 
+-- easy-mode medics run CPR as timed actions; when nobody in the team has the device screen
+-- the server runs the AED protocol for them (autoStep)
+local function allTimed(code)
+    if not next(code.team) then return false end
+    for _, m in pairs(code.team) do if not m.timed then return false end end
+    return true
+end
+
 -- ════════════════════════════════════════════════════════════════════════
 -- VIEW (what each participant's device shows)
 -- ════════════════════════════════════════════════════════════════════════
@@ -268,7 +281,8 @@ local function view(code, src, p)
         causes = Logic.Causes(p, code),
         log = { table.unpack(code.log, math.max(1, #code.log - 7), #code.log) },
         codeTime = os.time() - code.started, arrestTime = os.time() - (p.arrestAt or code.arrestAt),
-        easy = m.easy == true, rosc = code.rosc ~= nil, maxTeam = cfg().maxTeam or 2, bed = bedLike(p),
+        easy = m.easy == true, timed = m.timed == true, auto = allTimed(code),
+        rosc = code.rosc ~= nil, maxTeam = cfg().maxTeam or 2, bed = bedLike(p),
     }
 end
 
@@ -385,9 +399,10 @@ C.Leave = leaveAll
 -- ════════════════════════════════════════════════════════════════════════
 
 local function newMember(src, p)
+    local easy = NZA.Staff.Easy(src, cfg().perm or 'cpr') == true
     return {
         src = src, name = Core.Name(src) or ('#' .. src), joined = os.time(),
-        easy = NZA.Staff.Easy(src, cfg().perm or 'cpr') == true,
+        easy = easy, timed = easy and cfg().easyTimed ~= false,   -- timed: no device screen (see autoStep)
         bvm = hasItem(src, 'bvm'), fatigue = 0, compTime = 0, lastReport = nowMs(), lastBreath = 0,
         adCount = countItem(src, 'adrenaline'),
     }
@@ -531,11 +546,12 @@ RegisterNetEvent('nza:cpr:cycle', function(d)
     local maxN = math.floor(math.max(0, dt) / 1000 * 2.7) + 2
     if n > maxN then n = maxN end
     if code.phase == 'analyse' then
+        if m.timed then return end   -- a timed compressor's hands come off by themselves
         if not code.motion then emit(code, { kind = 'motion' }) end
         code.motion = true
         return
     end
-    if code.phase == 'charged' then code.handsAt = now end
+    if code.phase == 'charged' and not m.timed then code.handsAt = now end
     if not COMPRESS_OK[code.phase] then return end
 
     local q = Logic.Compression(d, m.fatigue, m.easy)
@@ -561,15 +577,9 @@ RegisterNetEvent('nza:cpr:cycle', function(d)
     dirty(code)
 end)
 
-RegisterNetEvent('nza:cpr:breath', function(d)
-    local src = source
-    if not Core.Rate('nza:cpr:breath', src, 4, 1000) then return end
-    local code, m = memberCode(src)
-    if not code or type(d) ~= 'table' or code.phase ~= 'breaths' or breather(code) ~= src then return end
-    local now = nowMs()
-    local hold = clamp(d.hold, 0, 5)
-    if now - (m.lastBreath or 0) < math.max(450, hold * 1000 - 300) then return end
-    m.lastBreath = now
+-- one rescue breath by the breather `m` (hold = seconds; easy medics score Config.EasyMode.score)
+local function applyBreath(code, m, hold)
+    m.lastBreath = nowMs()
     local bvm = m.bvm == true
     if not bvm and sub('Breaths').mouthToMouth == false then return end
     local q = Logic.Breath(hold, bvm, m.easy)
@@ -591,6 +601,16 @@ RegisterNetEvent('nza:cpr:breath', function(d)
     end
     emit(code, { kind = 'breath', q = round(q), left = code.breathsLeft, bvm = bvm })
     if code.breathsLeft <= 0 then endBreaths(code, 0) else dirty(code) end
+end
+
+RegisterNetEvent('nza:cpr:breath', function(d)
+    local src = source
+    if not Core.Rate('nza:cpr:breath', src, 4, 1000) then return end
+    local code, m = memberCode(src)
+    if not code or type(d) ~= 'table' or code.phase ~= 'breaths' or breather(code) ~= src then return end
+    local hold = clamp(d.hold, 0, 5)
+    if nowMs() - (m.lastBreath or 0) < math.max(450, hold * 1000 - 300) then return end
+    applyBreath(code, m, hold)
 end)
 
 RegisterNetEvent('nza:cpr:hands', function()
@@ -646,7 +666,7 @@ local function doRosc(code, p, how)
     return true
 end
 
-action('pads', function(src, code, m, p)
+local function doPads(src, code, m, p)
     if code.pads then return { ok = true } end
     local s = defibSource(src, p) or codeDefib(code, p)
     if not s then return fail('no_defib') end
@@ -655,7 +675,8 @@ action('pads', function(src, code, m, p)
     log(code, 'pads', nil, m.name)
     dirty(code)
     return { ok = true }
-end)
+end
+action('pads', doPads)
 
 action('mode', function(src, code, m, p, d)
     local mode = d.mode == 'manual' and 'manual' or 'aed'
@@ -685,7 +706,7 @@ action('energy', function(src, code, m, p, d)
     return { ok = true, energy = e }
 end)
 
-action('analyse', function(src, code, m, p)
+local function doAnalyse(src, code, m, p)
     if not code.pads then return fail('no_pads') end
     if code.phase == 'analyse' then return { ok = true } end
     if code.phase == 'breaths' or code.phase == 'charging' or code.phase == 'charged' or code.phase == 'rosc' then
@@ -701,13 +722,14 @@ action('analyse', function(src, code, m, p)
     emit(code, { kind = 'analysing' })
     dirty(code)
     return { ok = true }
-end)
+end
+action('analyse', doAnalyse)
 
 local function chargeTime(energy)
     return (sub('Defib').chargeTime or 2.5) * ((tonumber(energy) or 200) / 200) ^ 0.6
 end
 
-action('charge', function(src, code, m, p, d)
+local function doCharge(src, code, m, p)
     if not code.pads then return fail('no_pads') end
     if code.phase == 'charging' or code.phase == 'charged' then return { ok = true } end
     if code.phase == 'analyse' or code.phase == 'rosc' or code.phase == 'breaths' then return fail('phase_' .. code.phase) end
@@ -727,7 +749,8 @@ action('charge', function(src, code, m, p, d)
     emit(code, { kind = 'charging', energy = code.energy, ms = code.chargeEnd - code.phaseAt })
     dirty(code)
     return { ok = true, energy = code.energy }
-end)
+end
+action('charge', doCharge)
 
 action('disarm', function(src, code)
     if code.phase ~= 'charging' and code.phase ~= 'charged' then return { ok = true } end
@@ -740,7 +763,7 @@ action('disarm', function(src, code)
     return { ok = true }
 end)
 
-action('shock', function(src, code, m, p)
+local function doShock(src, code, m, p)
     if code.phase ~= 'charged' then return fail('not_charged') end
     if code.mode == 'manual' and not canManual(src) then return fail('perm_defib') end
     if code.mode ~= 'manual' and (not canAed(src) or code.advice ~= 'shock') then return fail('not_advised') end
@@ -808,7 +831,8 @@ action('shock', function(src, code, m, p)
     if result == 'rosc' then doRosc(code, p, 'shock') end
     dirty(code)
     return { ok = true, result = result, energy = energy, touching = touching }
-end)
+end
+action('shock', doShock)
 
 action('swap', function(src, code)
     if not code.air or not code.team[code.air] then return fail('no_partner') end
@@ -990,6 +1014,69 @@ local function second(code, p, now)
     dirty(code)   -- the device timers move every second
 end
 
+-- ════════════════════════════════════════════════════════════════════════
+-- EASY MODE (timed medics have no device screen)
+-- ════════════════════════════════════════════════════════════════════════
+
+local function adrenalineDue(code, p)
+    local ad = sub('Adrenaline')
+    if ad.enabled == false or p.state ~= 'arrest' then return false end
+    local last = code.adrenaline.last
+    if last then return os.time() - last >= (ad.due or 240) end
+    return code.needAdrenaline == true
+end
+
+local function autoStep(code, p, now)
+    local ph = code.phase
+    local ez = sub('Easy')
+    -- a timed breather's breaths go in by themselves, one every `breathGap` seconds
+    local b = breather(code)
+    local bm = b and code.team[b]
+    if ph == 'breaths' and bm and bm.timed then
+        local given = (sub('Breaths').perSet or 2) - code.breathsLeft
+        if now - code.phaseAt >= (tonumber(ez.breathGap) or 1.3) * 1000 * (given + 1) then
+            applyBreath(code, bm, sub('Breaths').hold or 1.0)
+        end
+        return
+    end
+    if not allTimed(code) or ez.autoDefib == false then return end
+    local src = code.comp
+    local m = code.team[src]
+    if not m or (code.autoWait or 0) > now then return end
+    if code.mode ~= 'aed' and ph ~= 'charging' and ph ~= 'charged' then code.mode = 'aed' end
+    if not code.pads then
+        -- no defibrillator around: CPR only, try again now and then (someone may bring one)
+        code.autoWait = now + 5000
+        doPads(src, code, m, p)
+        return
+    end
+    if ph == 'compress' then
+        local cycle = (sub('Cycle').length or 120) * 1000
+        if not code.autoAnalysed or now - code.cycleStart >= cycle then
+            code.autoAnalysed = true
+            code.autoWait = now + 3000
+            doAnalyse(src, code, m, p)
+            return
+        end
+        if adrenalineDue(code, p) then
+            code.autoWait = now + 15000
+            for s, mm in pairs(code.team) do
+                if (mm.adCount or 0) > 0 then
+                    local ok = NZA.Treat.Run(s, 'cpr_adrenaline', p.pid, {})
+                    if ok then break end
+                end
+            end
+        end
+    elseif ph == 'advised' and now - code.phaseAt >= (tonumber(ez.chargeAfter) or 1.2) * 1000 then
+        code.autoWait = now + 3000
+        doCharge(src, code, m, p)
+    elseif ph == 'charged' and now - code.chargedAt >= (tonumber(ez.shockAfter) or 1.5) * 1000 then
+        code.handsAt = 0   -- the timed team is off the patient for the shock
+        code.autoWait = now + 3000
+        doShock(src, code, m, p)
+    end
+end
+
 local function step(code, now)
     local p = P.Get(code.pid)
     if not p then return endCode(code, 'gone') end
@@ -1061,6 +1148,7 @@ local function step(code, now)
         return endCode(code, 'rosc')
     end
 
+    if codes[code.pid] == code then autoStep(code, p, now) end
     if code.dirty and codes[code.pid] == code then push(code, p) end
 end
 

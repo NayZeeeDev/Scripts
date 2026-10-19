@@ -125,7 +125,7 @@ function P.Catalogue()
                 local prod = {
                     id = id, name = name, key = e.item, order = i,
                     label = e.label or def.label, description = e.description or def.description or '',
-                    category = e.category or def.category or 'equipment',
+                    category = e.category or (def.category and (cfg().itemCategory or {})[def.category]) or def.category or 'devices',
                     base = base, price = unit, was = disc > 0 and base or nil, discount = disc,
                     stock = st, limit = math.max(1, math.floor(tonumber(e.limit) or maxQ)),
                     perm = e.perm, medicOnly = e.medicOnly == true, jobs = e.jobs, minGrade = tonumber(e.minGrade),

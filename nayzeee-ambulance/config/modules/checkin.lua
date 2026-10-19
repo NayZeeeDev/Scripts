@@ -39,6 +39,9 @@ Config.Checkin = {
         control        = 38,      -- INPUT_PICKUP (E)
         staffKey       = 'G',     -- staff: open the reception queue at the desk
         staffControl   = 47,      -- INPUT_DETONATE (G)
+        leaveKey       = 'X',     -- patients: hold at the desk to leave the queue (shown in the prompt)
+        leaveControl   = 73,      -- INPUT_VEH_DUCK (X); false = no leave prompt (target option only)
+        leaveHold      = 1.0,     -- seconds to hold it
         target         = true,    -- also add target options (ox_target, qb-target...) on the desk
         perm           = 'checkin', -- staff permission for the queue, calling patients, marking them treated
         requireInjury  = true,    -- only players with something to treat get a ticket

@@ -6,7 +6,7 @@ Nothing here blocks the apps; both work with the core as it is.
 
 `.pp-gauge .gv .l` has `padding:0 26px` inside a 150 px gauge, so a dial label longer than about
 nine upper-case characters is clipped by the arc (e.g. "GAP TO LEAK" lost its first letter).
-The apps now use short labels (*Leak gap*, *Review*, *Angle*, *kVp*, *Developer*). If the padding
+The apps now use short labels (*Seal*, *Review*, *Angle*, *kVp*, *Developer*). If the padding
 could drop to ~18 px, or the label could shrink (`font-size: 8px; letter-spacing: .1em`) when it
 overflows, apps could use slightly longer words.
 

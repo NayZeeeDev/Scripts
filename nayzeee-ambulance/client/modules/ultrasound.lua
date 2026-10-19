@@ -29,8 +29,8 @@
     NUI callbacks: ultrasound:probe {x,y,rot,tilt,contact,…} · ultrasound:needle {phase,depth,ang,draw,touch}
       · ultrasound:finish {result} · ultrasound:launch {action, side, result} · ultrasound:flinch {pain}
       · ultrasound:abort · ultrasound:close (core)
-    NUI messages: open (mode + server data + locale + inv + perms + stepItems) · vitals · result
-      · launchFailed {msg} · abort
+    NUI messages: open (mode + server data + locale + inv + perms + stepItems) · vitals · result · abort
+      (a refused launch is answered in the ultrasound:launch reply { ok = false, msg })
     Net events: nza:us:use (kind) S→C - a chest drain kit / decompression needle was used
 ]]
 

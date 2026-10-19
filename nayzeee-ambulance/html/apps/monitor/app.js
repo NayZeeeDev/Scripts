@@ -79,7 +79,7 @@
     const wrap = NZA.el('div', `mon nza-int pos-${o.position || 'tl'} ${compact ? 'compact' : ''}`);
     wrap.innerHTML = `
       <div class="pm-handle"><i></i></div>
-      <div class="pm">
+      <div class="pm-body">
         <i class="pm-bump tl"></i><i class="pm-bump tr"></i><i class="pm-bump bl"></i><i class="pm-bump br"></i>
         <div class="pm-lamp"><i></i></div>
         <div class="pm-plate">
@@ -403,13 +403,13 @@
     },
     preview() {
       const big = !/compact/.test(location.hash);
-      NZA.open('monitor', { name: 'Michael Garcia', position: 'tl', nibpAuto: 20, nibpTime: 2.5, compact: !big });
+      NZA.open('monitor', { name: 'Pavel Lindqvist', position: 'tl', nibpAuto: 20, nibpTime: 2.5, compact: !big });
       let t = 0;
-      const base = { hr: 138, ecgRate: 138, spo2: 88, sys: 89, dia: 53, map: 65, rr: 24, temp: 35.4, etco2: 31, rhythm: 'stach', state: 'wounded' };
+      const base = { hr: 131, ecgRate: 131, spo2: 88, sys: 94, dia: 57, map: 69, rr: 24, temp: 35.4, etco2: 31, rhythm: 'stach', state: 'wounded' };
       const push = () => {
         t += 1;
         const w = Math.sin(t / 7);
-        NZA.apps.monitor.msg.vitals(Object.assign({}, base, { hr: 138 + Math.round(w * 3), ecgRate: 138 + Math.round(w * 3), spo2: 88 + Math.round(w), sys: 89 + Math.round(w * 2) }));
+        NZA.apps.monitor.msg.vitals(Object.assign({}, base, { hr: 131 + Math.round(w * 3), ecgRate: 131 + Math.round(w * 3), spo2: 88 + Math.round(w), sys: 94 + Math.round(w * 2) }));
       };
       push(); setInterval(push, 1000);
       setTimeout(() => startNibp(), 300);

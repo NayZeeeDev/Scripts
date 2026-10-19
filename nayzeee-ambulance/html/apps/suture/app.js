@@ -57,8 +57,8 @@
   const SAY = [['say_1', 'Ow! Careful!'], ['say_2', 'That stings!'], ['say_3', 'Argh — easy, please!'], ['say_4', 'I can feel that…'], ['say_5', 'Ah! Okay… okay.'], ['say_6', 'Is it nearly done?']];
 
   const DEMO = {
-    patient: { name: 'Michael Garcia', sex: 'm' },
-    injury: { id: 'i7', type: 'laceration', region: 'chest', regionLabel: 'Chest', label: 'Deep laceration', severity: 3, length: 56, depth: 8, bleed: 6.1, contamination: 62, pain: 55 },
+    patient: { name: 'Daniel Okoro', sex: 'm' },
+    injury: { id: 'i7', type: 'laceration', region: 'l_lower_arm', regionLabel: 'Left forearm', label: 'Deep laceration', severity: 3, length: 43, depth: 6, bleed: 3.8, contamination: 47, pain: 48 },
     tone: 0.3, seed: 4512, items: { lidocaine: 2, gauze: 4 },
   };
 

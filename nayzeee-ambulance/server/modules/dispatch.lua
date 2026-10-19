@@ -93,6 +93,15 @@ local function cfg(section, key, default)
 end
 D.Cfg = cfg
 
+-- phone alerts: 'paired' = only medics who linked their phone (pager SETUP or radial Calls ▸ Link phone),
+-- 'always' = every medic who gets the call card, false = never. Old configs: pager.phonePairing.
+function D.PhoneMode()
+    local m = cfg('phone', 'alerts', nil)
+    if m == nil then return cfg('pager', 'phonePairing', true) ~= false and 'paired' or false end
+    if m == 'always' or m == 'paired' then return m end
+    return false
+end
+
 local function str(v, max)
     if type(v) == 'number' then v = tostring(v) end
     if type(v) ~= 'string' then return nil end
@@ -560,14 +569,14 @@ end
 -- ════════════════════════════════════════════════════════════════════════
 
 local function phoneNotify(src, c)
-    if not cfg('pager', 'phonePairing', true) then return end
+    if D.PhoneMode() == false then return end
     local title = NZA.L('dispatch.phone_title', c.priority, c.code or '', c.title or '')
     local where = c.street or c.zone or NZA.L('dispatch.unknown_location')
     local msg = c.caller and NZA.L('dispatch.phone_msg_caller', where, c.caller) or where
     if Bridge and Bridge.Phone and Bridge.Phone.Notify then
         pcall(Bridge.Phone.Notify, src, { title = title, message = msg, icon = 'ambulance' })
     end
-    if cfg('pager', 'phoneMail', false) and Bridge and Bridge.Phone and Bridge.Phone.Mail then
+    if cfg('phone', 'mail', cfg('pager', 'phoneMail', false)) and Bridge and Bridge.Phone and Bridge.Phone.Mail then
         pcall(Bridge.Phone.Mail, src, {
             sender = NZA.L('dispatch.mail_sender'), subject = ('%s · %s'):format(c.id, title),
             message = NZA.L('dispatch.mail_body', c.id, c.title or '', where, c.caller or '-', c.message or '-'),
@@ -582,12 +591,13 @@ end
 local function alert(c, opts)
     local pub = D.Public(c)
     local oosAlerts = cfg('units', 'outOfServiceAlerts', false) == true
+    local phone = D.PhoneMode()
     for _, src in ipairs(medics()) do
         local u = ensureUnit(src)
         local wants = u ~= nil and (not u.oos or oosAlerts) and c.priority <= minPriority()
         if opts and opts.realert then wants = wants and (u.call == nil) end
         TriggerClientEvent('nza:dispatch:call', src, pub, { alert = wants, realert = opts and opts.realert or nil })
-        if wants and paired[src] then phoneNotify(src, c) end
+        if wants and (phone == 'always' or (phone == 'paired' and paired[src])) then phoneNotify(src, c) end
     end
 end
 

@@ -86,7 +86,7 @@
   /* ─────────── app ─────────── */
   const esc = NZA.esc, icon = NZA.icon;
   let tr = NZD.tr({});
-  let cfg = { keys: { respond: 'E', dismiss: 'X' }, timeout: 30, voiceVolume: 0.85 };
+  let cfg = { keys: { respond: 'E', dismiss: '⌫' }, timeout: 30, voiceVolume: 0.85 };
   let root, cardHost, moreEl, activeEl;
   let card = null;              // { call, police, at (ms), ageAt, voice, playing, ok, live }
   let act = null;               // { call, stage, live }
@@ -313,25 +313,25 @@
       },
     },
     preview() {
-      NZA.demo('callcard', { keys: { respond: 'E', dismiss: 'X' }, timeout: 30 });
+      NZA.demo('callcard', { keys: { respond: 'E', dismiss: '⌫' }, timeout: 30 });
       showAlert({
         call: {
-          id: 'C-0412', code: '10-52', priority: 1, title: 'Shot in the chest', type: 'gunshot', zone: 'Vespucci Canals',
-          street: 'Imagination Ct / Prosperity St', caller: 'Michael Garcia', phone: '555-0142',
-          message: 'He took one in the chest outside the laundromat, he is still breathing but it is fast. Please hurry.', age: 9,
-          patients: [{ pid: 'n:1', tri: 1 }], tags: ['gunshot', 'internal'], units: [], npc: true,
+          id: 'C-0412', code: '10-53', priority: 1, title: 'Fell from scaffolding', type: 'fall', zone: 'Little Seoul',
+          street: 'Ginger St / Palomino Fwy', caller: 'Kofi Mensah', phone: '555-0187',
+          message: 'A worker came off the scaffolding, two floors down. He is awake but he cannot feel his legs. Please be quick.', age: 14,
+          patients: [{ pid: 'n:1', tri: 1 }], tags: ['fall', 'fracture'], units: [], npc: true,
         },
         queue: 2, sound: false, voice: null,
       });
       card.voice = 'audio/calls/demo.ogg'; card.playing = true; renderCard();
       NZA.apps.callcard.msg.active({
-        call: { id: 'C-0409', code: '10-50', priority: 2, title: 'Two-car collision', type: 'mva', zone: 'Pillbox Hill', street: 'Palomino Ave', status: 'SCN' },
+        call: { id: 'C-0409', code: '10-50', priority: 2, title: 'Two-car collision', type: 'mva', zone: 'Pillbox Hill', street: 'Elgin Ave', status: 'SCN' },
         stage: 'ENR',
       });
       let rel = 212;
       const step = () => {
         rel = (rel + 1.5) % 360;
-        NZA.apps.callcard.msg.live({ alert: { id: 'C-0412', dist: 312, dir: 'SW', rel, eta: 19 }, active: { id: 'C-0409', dist: 1460, dir: 'NE', rel: (rel + 140) % 360, eta: 74 } });
+        NZA.apps.callcard.msg.live({ alert: { id: 'C-0412', dist: 540, dir: 'E', rel, eta: 41 }, active: { id: 'C-0409', dist: 1460, dir: 'NE', rel: (rel + 140) % 360, eta: 74 } });
       };
       step(); setInterval(step, 200);
     },

@@ -82,7 +82,7 @@ spine, rolling counters and an edge dock.
   (`Config.Hospital.garage.carModel / heliModel` when it has none). The ghost never collides.
   Types with `parts` in their def (the angio suite: monitor, injector tray, red button) show
   each part as an extra ghost at its type-space offset, turned with the main ghost.
-- Keys: E set here, Q / X / Backspace / ESC back out, ← → turn (hold), wheel nudges, Shift
+- Keys: E set here, Backspace / Q / X / ESC back out (the pad shows ⌫), ← → turn (hold), wheel nudges, Shift
   coarse, Alt fine, Page Up / Down lift, G lock to the snap angle. Max distance check, invalid
   spots refuse E (state note shakes).
 - HUD (left column, vertically centred; nothing bottom-centre or on the right edge): survey

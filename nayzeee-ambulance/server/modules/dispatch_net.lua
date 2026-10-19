@@ -187,10 +187,10 @@ end
 RegisterNetEvent('nza:dispatch:pair', function(on)
     local src = valid(source)
     if not src or not rate(src, 'pair', 3, 3000) then return end
-    if not D().Cfg('pager', 'phonePairing', true) then return end
+    if D().PhoneMode() ~= 'paired' then return end
     on = on == true
     if on then
-        if not hasPager(src) then return notify(src, 'error', 'dispatch.err_no_pager') end
+        if D().Cfg('phone', 'linkNeedsPager', true) ~= false and not hasPager(src) then return notify(src, 'error', 'dispatch.err_no_pager') end
         local phoneRes = Bridge and Bridge.Phone and Bridge.Phone.Resource
         if not phoneRes then return notify(src, 'error', 'dispatch.err_no_phone') end
     end

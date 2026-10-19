@@ -164,6 +164,7 @@ local function padOffsets(patient)
 end
 
 local function trackPads(a)
+    if a.timed then return end   -- easy mode: no device screen, nothing to drag the pads to
     local p = a.entity
     if not p or p == 0 or not DoesEntityExist(p) then return end
     local r, l = padOffsets(p)

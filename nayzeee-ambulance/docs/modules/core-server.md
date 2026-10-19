@@ -75,8 +75,9 @@ folder works in any glob order (the smoke test loads it forwards and backwards).
   size and tension `pressure` (0.55 / s, 100 = arrest; needle decompression = set `tension = false`),
   tamponade `ml` (350 mL = PEA arrest).
 - Airway: drowning water and smoke (cleared by coughing / oxygen / CPR), airway swelling closes the
-  airway unless intubated, unconscious patients snore (unless `meta.recovery`), gurgling with water,
-  facial bleeding or vomiting drunks.
+  airway unless intubated, unconscious patients snore, gurgling with water, facial bleeding or
+  vomiting drunks. The recovery position (`meta.recovery`) stops the snoring and drains the facial
+  blood / vomit gurgle; water in the lungs still gurgles until it is cleared.
 - Ventilation: a tube on the bag / ventilator (`devices.intubated` + `meta.ventilated`, RR =
   `meta.ventRate` or 14) or a bag-valve-mask round (`meta.bagUntil` in the future: RR at least
   `meta.ventRate` or 10, absent / agonal / shallow breathing reads `normal`) adds SpO2 +4 and removes
@@ -234,8 +235,8 @@ living patient puts them in arrest (clearing it in arrest is ignored — use `Re
 `NZA.Records.Add/Get`, `NZA.Notify(src, msg, type, title, duration)`, `NZA.Core.*`.
 
 Meta keys core reads: `inBed` (×4 healing, rewarming), `bay`, `bed` (view rules), `wet` (timestamp),
-`recovery` (no snoring), `ventilated` + `ventRate` (BVM / ventilator on an intubated patient),
-`bagUntil` (timestamp: bag-valve-mask ventilation without a tube),
+`recovery` (no snoring, no blood / vomit gurgle), `ventilated` + `ventRate` (BVM / ventilator on an
+intubated patient), `bagUntil` (timestamp: bag-valve-mask ventilation without a tube),
 `cprQuality` (0–100, EtCO2 / pressures during CPR), `keep` (NPC survives ped deletion),
 `bodybag`, `carried`, `stretcher` (state bag).
 

@@ -3,7 +3,7 @@
 
    One app, four modes (Lua sends `mode` in the open data):
      donate  the donation minigame (bottom ProcPanel + collection monitor device):
-               1 Inflate the cuff   hold Space, let go inside the band
+               1 Inflate the cuff   hold Space, release while the pressure is in the marked zone
                2 Pump with the pulse  Space as each pulse peak crosses the window, until the bag is full
                3 Seal the bag       C clamp the line, hold E to slide the needle out
              → donation:progress { ml } (throttled), donation:finish { score, ml }, donation:abort
@@ -466,12 +466,12 @@
     if (n === 1) {
       G.pp.set({
         step: 1, title: T('s1_title', 'Inflate the cuff'),
-        text: F(T(self ? 's1_text_self' : 's1_text', 'Hold {%s} to pump the arm cuff and let go inside the band. The veins fill, then the needle goes in.'), keyCap(k.squeeze)),
+        text: F(T(self ? 's1_text_self' : 's1_text', 'Hold {%s} to pump the cuff, then release while the pressure is in the marked zone. The veins fill and the needle goes in.'), keyCap(k.squeeze)),
         stats: [
-          { id: 'band', label: T('st_band', 'Band'), value: `${G.flow.cuffBand[0]}-${G.flow.cuffBand[1]}`, unit: 'mmHg' },
+          { id: 'band', label: T('st_band', 'Target'), value: `${G.flow.cuffBand[0]}-${G.flow.cuffBand[1]}`, unit: 'mmHg' },
           { id: 'tries', label: T('st_tries', 'Tries'), value: `${G.cuff.tries}/3` },
         ],
-        wide: { label: T('w_cuff', 'Cuff'), value: '0', unit: 'mmHg', meter: { value: 0, zone: [G.flow.cuffBand[0] / 100, G.flow.cuffBand[1] / 100] }, caption: F(T('w_cuff_cap', 'Let go between %s and %s mmHg'), G.flow.cuffBand[0], G.flow.cuffBand[1]) },
+        wide: { label: T('w_cuff', 'Cuff'), value: '0', unit: 'mmHg', meter: { value: 0, zone: [G.flow.cuffBand[0] / 100, G.flow.cuffBand[1] / 100] }, caption: F(T('w_cuff_cap', 'Release between %s and %s mmHg'), G.flow.cuffBand[0], G.flow.cuffBand[1]) },
         tools: tools(),
         hints: [{ keys: [keyCap(k.squeeze)], label: T('hint_hold_pump', 'hold to pump') }],
       });
@@ -1049,7 +1049,7 @@
 
   const NOW = 1792000000;
   const demoUnits = () => [
-    { serial: 'BB-482913', type: 'O-', ml: 450, donor: 'M. Garcia', created: NOW - 9 * DAY, expires: NOW + 26 * DAY },
+    { serial: 'BB-482913', type: 'O-', ml: 450, donor: 'R. Moreau', created: NOW - 9 * DAY, expires: NOW + 26 * DAY },
     { serial: 'BB-118204', type: 'O-', ml: 450, donor: 'City donor', created: NOW - 33 * DAY, expires: NOW + 2 * DAY, soon: true },
     { serial: 'BB-730551', type: 'O+', ml: 450, donor: 'J. Chen', created: NOW - 4 * DAY, expires: NOW + 31 * DAY },
     { serial: 'BB-602117', type: 'O+', ml: 440, donor: 'City donor', created: NOW - 12 * DAY, expires: NOW + 23 * DAY },
@@ -1069,7 +1069,7 @@
         { slot: 7, serial: 'BB-118870', type: 'B-', ml: 450, donor: 'City donor', created: NOW - 36 * DAY, expires: NOW - DAY, expired: true },
       ],
       log: [
-        { action: 'donated', serial: 'BB-482913', type: 'O-', actor: 'Michael Garcia', at: NOW - 140 },
+        { action: 'donated', serial: 'BB-482913', type: 'O-', actor: 'Rafael Moreau', at: NOW - 140 },
         { action: 'fill', serial: 'BB-300918', type: 'O-', actor: 'Dr. Ana Ruiz', at: NOW - 1200 },
         { action: 'in', serial: 'BB-602117', type: 'O+', actor: 'Paramedic Cole', at: NOW - 5400 },
         { action: 'expired', serial: 'BB-100223', type: 'A-', actor: null, at: NOW - 3 * 3600 },
@@ -1102,7 +1102,7 @@
       });
       NZA.demo(APP, { mode: 'bank', data });
     } else if (m === 'label') {
-      NZA.demo(APP, { mode: 'label', bag: { serial: 'BB-482913', type: 'O-', ml: 450, donor: 'M. Garcia', created: NOW - 9 * DAY, expires: NOW + 26 * DAY, now: NOW, product: 'Red cells in SAG-M', bagSize: 500 } });
+      NZA.demo(APP, { mode: 'label', bag: { serial: 'BB-482913', type: 'O-', ml: 450, donor: 'R. Moreau', created: NOW - 9 * DAY, expires: NOW + 26 * DAY, now: NOW, product: 'Red cells in SAG-M', bagSize: 500 } });
     } else if (m === 'watch') {
       NZA.demo(APP, { mode: 'watch', data: { target: 450, bagSize: 500, ml: 0 } });
       let ml = 0;
@@ -1111,14 +1111,14 @@
       NZA.mock(`${APP}:finish`, () => {
         setTimeout(() => def.msg.result({
           ml: 450, usable: true, serial: 'BB-730551', bloodType: 'O+', dest: 'bank', count: 4, score: 91, grade: 'A',
-          label: { serial: 'BB-730551', type: 'O+', ml: 450, donor: 'Michael Garcia', created: NOW, expires: NOW + 35 * DAY, product: 'Red cells in SAG-M' },
+          label: { serial: 'BB-730551', type: 'O+', ml: 450, donor: 'Rafael Moreau', created: NOW, expires: NOW + 35 * DAY, product: 'Red cells in SAG-M' },
         }), 600);
         return { ok: true };
       });
       setTimeout(() => { if (G.on) G.auto = true; }, 50);
       NZA.demo(APP, {
         mode: 'donate', self: true, keys: { squeeze: 'Space', clamp: 'KeyC', needle: 'KeyE' },
-        data: { point: 3, self: true, name: 'Michael Garcia', count: 3, bpm: 72, target: 450, bagSize: 500, typed: true, bloodType: 'O+',
+        data: { point: 3, self: true, name: 'Rafael Moreau', count: 3, bpm: 72, target: 450, bagSize: 500, typed: true, bloodType: 'O+',
           flow: { perfect: 0.06, good: 0.15, maxFlow: 12, trickle: 1.6, ease: 0.35, cuffBand: [40, 60], cuffRate: 38, sealHold: 1.5 } },
       });
     }

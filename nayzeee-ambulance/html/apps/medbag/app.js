@@ -382,7 +382,7 @@
     R.sty.style.display = b.canStyle && S.colours.length ? '' : 'none';
 
     const items = b.items || [];
-    const max = b.maxWeight || 20000;
+    const max = b.maxWeight || 18000;
     const p = clamp(max > 0 ? (b.weight || 0) / max : 0, 0, 1);
     R.loadSvg.innerHTML = loadDial(p);
     R.loadV.textContent = `${Math.round(p * 100)}`;
@@ -1099,7 +1099,7 @@
     const img = n => `img/items/${n}.png`;
 
     if (demo === 'zip' || demo === 'zipdone') {
-      NZA.demo('medbag', { mode: 'zip', zip: { name: 'Michael Garcia', sub: 'Deceased 14:32 · Gunshot wound, chest', key: 'X',
+      NZA.demo('medbag', { mode: 'zip', zip: { name: 'Rafael Moreau', sub: 'Deceased 14:32 · Gunshot wound, chest', key: 'X',
         steps: [{ label: 'Unfold the bag beside the body', share: 0.3 }, { label: 'Roll the body in', share: 0.4 }, { label: 'Zip it closed', share: 0.3 }] } });
       if (demo === 'zipdone') { zipStep({ i: 3, ms: 200 }); setTimeout(zipDone, 260); } else { zipStep({ i: 2, ms: 2600 }); }
       return;
@@ -1107,7 +1107,7 @@
     if (demo === 'tag' || demo === 'tagnpc') {
       NZA.demo('medbag', { mode: 'tag', ms: 0, tag: demo === 'tagnpc'
         ? { id: 'BB-Q7M2D', name: 'Unknown male', kind: 'npc', date: '14 Oct', tod: '22:07', cause: 'Fall from height · Head', where: 'Alta St, Pillbox Hill', by: 'D. Okafor', sex: 'm', age: 41, call: 'C-0042' }
-        : { id: 'BB-7K2QF', name: 'Michael Garcia', kind: 'player', date: '14 Oct', tod: '14:32', cause: 'Gunshot wound · Chest', where: 'Palomino Ave, La Mesa', by: 'Maya Reyes', sex: 'm', age: 34, blood: 'O-' } });
+        : { id: 'BB-7K2QF', name: 'Rafael Moreau', kind: 'player', date: '14 Oct', tod: '14:32', cause: 'Gunshot wound · Chest', where: 'Palomino Ave, La Mesa', by: 'Maya Reyes', sex: 'm', age: 34, blood: 'O-' } });
       return;
     }
 
@@ -1136,13 +1136,13 @@
       { id: 'right', place: 'right', slots: 2, label: 'Pouch R' },
     ];
     const mk = (name, count, slot, meta) => ({ slot, name, label: L[name] || name, image: img(['phone', 'water', 'lockpick'].includes(name) ? 'nza_unknown' : name), count, weight: W[name] || 100, desc: D[name], cat: C[name] || 'other', meta, allowed: OWN.has(name) });
-    const bag = { id: 'MB-7K2QF', name: 'Trauma', colour: 'red', hex: '#e5484d', owner: 'Maya Reyes', mine: true, locked: false, canLock: true, canStyle: true, slots: 20, maxWeight: 20000, items: [
+    const bag = { id: 'MB-7K2QF', name: 'Trauma', colour: 'red', hex: '#e5484d', owner: 'Maya Reyes', mine: true, locked: false, canLock: true, canStyle: true, slots: 20, maxWeight: 18000, items: [
       mk('bandage', 18, 1), mk('gauze', 7, 2), mk('tourniquet', 4, 3), mk('painkillers', 12, 4), mk('burn_dressing', 4, 5), mk('iv_kit', 1, 6),
       mk('morphine', 2, 7), mk('adrenaline', 3, 8),
       mk('splint', 2, 13), mk('cervical_collar', 1, 14),
       mk('saline_bag', 2, 17), mk('blood_bag', 1, 19, [{ k: 'type', v: 'O-' }, { k: 'ml', v: '450' }, { k: 'serial', v: 'LS-04172' }]),
     ] };
-    const me = { maxWeight: 85000, items: [
+    const me = { maxWeight: 60000, items: [
       mk('blood_bag', 1, 1, [{ k: 'type', v: 'A+' }, { k: 'ml', v: '450' }, { k: 'serial', v: 'LS-04188' }]), mk('ems_pager', 1, 2), mk('stethoscope', 1, 3), mk('morphine', 3, 4),
       mk('bandage', 9, 5), mk('sterile_dressing', 6, 6), mk('foil_blanket', 2, 7), mk('gauze', 5, 8), mk('adrenaline', 4, 9), mk('suture_kit', 2, 10),
       mk('txa', 3, 11), mk('iv_kit', 2, 12), mk('pelvic_binder', 1, 13), mk('oxygen_mask', 2, 14), mk('medikit', 1, 15),
@@ -1180,7 +1180,7 @@
         if (!it.allowed) return reply({ ok: false, msg: `${it.label} does not belong in a medical bag` });
         let n = d.count === 'all' ? it.count : Math.min(d.count, it.count);
         n = Math.min(n, Math.floor((bag.maxWeight - wsum(bag.items)) / it.weight));
-        if (n < 1) return reply({ ok: false, msg: 'Too heavy. The bag can hold 20.0 kg' });
+        if (n < 1) return reply({ ok: false, msg: 'Too heavy. The bag can hold 18.0 kg' });
         n = addToBag(it, n, d.to);
         if (n < 1) return reply({ ok: false, msg: 'The bag has no free slot for that' });
         it.count -= n; if (it.count <= 0) me.items.splice(me.items.indexOf(it), 1);
@@ -1231,7 +1231,7 @@
       return reply({ ok: false });
     });
 
-    if (demo === 'locked') Object.assign(bag, { mine: false, owner: 'J. Doe', locked: true, canLock: false, canStyle: false, name: null, colour: 'green', hex: '#2fb36b' });
+    if (demo === 'locked') Object.assign(bag, { mine: false, owner: 'P. Nair', locked: true, canLock: false, canStyle: false, name: null, colour: 'green', hex: '#2fb36b' });
     if (demo === 'empty' || demo === 'bare') bag.items.length = 0;
     if (demo === 'bare') KIT.length = 0;
     if (demo === 'full') {
@@ -1246,7 +1246,7 @@
 
     // a short history: our own moves and one by a colleague (arrives through 'sync')
     logMove({ name: 'splint', label: 'Splint', image: img('splint'), count: 1, dir: 'out' });
-    logMove({ name: 'painkillers', label: 'Painkillers', image: img('painkillers'), count: 2, dir: 'out' }, 'J. Doe');
+    logMove({ name: 'gauze', label: 'Gauze', image: img('gauze'), count: 2, dir: 'out' }, 'P. Nair');
     logMove({ name: 'bandage', label: 'Bandage', image: img('bandage'), count: 5, dir: 'in' });
     setQty(5);
 

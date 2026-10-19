@@ -4,14 +4,17 @@
     Opened with Config.Dispatch.radial.key (F6) by medics, on or off duty. Round nodes on an
     orbit; the centre is the unit badge: callsign + name, status word, the unit ring (6-stage
     ring while on a call) inside the duty ring (shift clock).
-    Root (clockwise from 12): Calls, Care, Gurney, Start/End shift + every root item other
-    modules add. Calls: take next call, stand down, live map, logbook, ER intake, street calls
-    (toggle), go (un)available, pager. Back = centre / right click (no back node).
+    Root (clockwise from 12): Status (on duty: go (un)available, end shift; off duty: start shift),
+    Calls, Care, Pager + every root item other modules add. Calls: take next call, stand down,
+    Board (Ops board on the fitting tab), street calls (toggle), link phone (phone.alerts = 'paired').
+    Care holds the gurney sub-ring (move band). A ring never shows more than 9 nodes: Care is split
+    into sub-rings by the §11 order bands (Assess / Resus & treat / Move / Procedures / Other) once it
+    has more than 9 entries; any other ring gets a "More" node. Back = centre / right click.
 
     Other modules add entries at their file top level:
       NZA.RadialItems = NZA.RadialItems or {}
-      table.insert(NZA.RadialItems, { id, parent = nil | 'dispatch' | 'patient' | 'stretcher' | <any id>,
-          label, icon, order, perm, desc?, danger?, keepOpen?,
+      table.insert(NZA.RadialItems, { id, parent = nil | 'status' | 'dispatch' | 'patient' | 'stretcher' | <any id>,
+          label, icon, order, perm, desc?, danger?, keepOpen?, hideEmpty? (group hidden without entries),
           active = function() return bool end,     -- highlighted (toggle on)
           canShow = function() return bool end, onSelect = function() end })
     parent = nil puts it on the root ring; an item whose id is used as parent becomes a submenu.
@@ -49,28 +52,55 @@ local function isMedic() return me().medic == true or (NZA.IsMedic and NZA.IsMed
 -- BUILT-IN ITEMS
 -- ════════════════════════════════════════════════════════════════════════
 
-local function board(tab) return function() if D.OpenBoard then D.OpenBoard(tab) end end end
+-- the Ops board on the tab that fits: your call on the live map, else the overview
+-- (the logbook, crews and ER intake are tabs of the same window)
+local function openBoard()
+    if not D.OpenBoard then return end
+    D.OpenBoard(me().call and 'map' or 'overview')
+end
 
 local function builtins()
     local m = me()
-    -- root ring, clockwise from 12 o'clock: Calls · Care · Gurney · Shift
-    local list = {
-        { id = 'dispatch', label = L('dispatch.r_dispatch'), icon = 'broadcast', order = 10, desc = L('dispatch.r_dispatch_d'),
-          disabledText = (not onDuty()) and L('dispatch.r_need_duty') or nil },
-        { id = 'patient', label = L('dispatch.r_patient'), icon = 'heart', order = 20, desc = L('dispatch.r_patient_d'),
-          emptyText = L('dispatch.r_patient_empty') },
-        { id = 'stretcher', label = L('dispatch.r_stretcher'), icon = 'bed', order = 30, desc = L('dispatch.r_stretcher_d'),
-          emptyText = L('dispatch.r_stretcher_empty') },
-    }
-    if cfg('radial', 'dutyToggle', true) then
-        list[#list + 1] = {
-            id = 'duty', label = onDuty() and L('dispatch.r_duty_off') or L('dispatch.r_duty_on'), icon = onDuty() and 'logout' or 'login', order = 40,
-            danger = onDuty(), desc = onDuty() and L('dispatch.r_duty_off_d') or L('dispatch.r_duty_on_d'),
-            onSelect = function() D.SetDuty(not onDuty()) end,
-        }
+    local duty = onDuty()
+    local dutyToggle = cfg('radial', 'dutyToggle', true) ~= false
+    -- root ring, clockwise from 12 o'clock: Status · Calls · Care · Pager (+ root entries of other modules)
+    local list = {}
+    if duty then
+        list[#list + 1] = { id = 'status', label = L('dispatch.r_status'), icon = 'radio', order = 10,
+            desc = L('dispatch.r_status_d', m.oos and L('dispatch.unit_107') or L('dispatch.unit_108')) }
+        list[#list + 1] = { id = 'd_status', parent = 'status', order = 10, keepOpen = true,
+            label = m.oos and L('dispatch.r_in_service') or L('dispatch.r_oos'), icon = m.oos and 'play' or 'pause',
+            active = function() return me().oos == true end,
+            desc = m.oos and L('dispatch.r_in_service_d') or L('dispatch.r_oos_d'),
+            disabledText = m.call and L('dispatch.r_oos_busy') or nil,
+            onSelect = function()
+                local oos = not (me().oos == true)
+                me().oos = oos
+                me().status = oos and '10-7' or '10-8'
+                D.SetStatus(oos and '10-7' or '10-8')
+            end }
+        if dutyToggle then
+            list[#list + 1] = { id = 'duty', parent = 'status', order = 20, label = L('dispatch.r_duty_off'), icon = 'logout',
+                danger = true, desc = L('dispatch.r_duty_off_d'), onSelect = function() D.SetDuty(false) end }
+        end
+    elseif dutyToggle then
+        list[#list + 1] = { id = 'duty', label = L('dispatch.r_duty_on'), icon = 'login', order = 10,
+            desc = L('dispatch.r_duty_on_d'), onSelect = function() D.SetDuty(true) end }
     end
-    if onDuty() then
-        -- Calls ring, clockwise from 12 o'clock
+    list[#list + 1] = { id = 'dispatch', label = L('dispatch.r_dispatch'), icon = 'broadcast', order = 20, desc = L('dispatch.r_dispatch_d'),
+        disabledText = (not duty) and L('dispatch.r_need_duty') or nil }
+    list[#list + 1] = { id = 'patient', label = L('dispatch.r_patient'), icon = 'heart', order = 30, desc = L('dispatch.r_patient_d'),
+        emptyText = L('dispatch.r_patient_empty') }
+    -- the gurney is part of Care (move band); it only shows when one of its entries can be used
+    list[#list + 1] = { id = 'stretcher', parent = 'patient', label = L('dispatch.r_stretcher'), icon = 'bed', order = 55,
+        desc = L('dispatch.r_stretcher_d'), hideEmpty = true }
+    if duty and cfg('pager', 'enabled', true) ~= false then
+        list[#list + 1] = { id = 'd_pager', label = L('dispatch.r_pager'), icon = 'pager', order = 40,
+            disabledText = (not D.HasPager()) and L('dispatch.err_no_pager') or nil,
+            onSelect = function() D.TogglePager() end }
+    end
+    if duty then
+        -- Calls ring, clockwise from 12 o'clock (check-in adds 'Call next patient' 25 / 'Reception queue' 26)
         local dsp = {
             { id = 'd_respond', label = L('dispatch.r_respond'), icon = 'siren', order = 10, desc = L('dispatch.r_respond_d'),
               onSelect = function() D.Respond() end },
@@ -78,9 +108,8 @@ local function builtins()
               disabledText = (not m.call) and L('dispatch.err_not_on_call') or nil,
               desc = m.call and L('dispatch.r_clear_d', m.call) or nil,
               onSelect = function() D.Clear() end },
-            { id = 'd_map', label = L('dispatch.r_map'), icon = 'map', order = 30, onSelect = board('map') },
-            { id = 'd_log', label = L('dispatch.r_log'), icon = 'list', order = 40, onSelect = board('log') },
-            { id = 'd_queue', label = L('dispatch.r_queue'), icon = 'hospital', order = 50, onSelect = board('queue') },
+            { id = 'd_board', label = L('dispatch.r_board'), icon = 'grid', order = 30,
+              desc = m.call and L('dispatch.r_board_call') or L('dispatch.r_board_d'), onSelect = openBoard },
             { id = 'd_npc', label = L('dispatch.r_npc'), icon = 'call', order = 60, keepOpen = true,
               active = function() return me().npc == true end,
               desc = m.npc and L('dispatch.r_npc_on') or L('dispatch.r_npc_off'),
@@ -89,21 +118,16 @@ local function builtins()
                   me().npc = on
                   D.SetNpcCalls(on)
               end },
-            { id = 'd_status', label = m.oos and L('dispatch.r_in_service') or L('dispatch.r_oos'), icon = m.oos and 'play' or 'pause',
-              order = 70, keepOpen = true, active = function() return me().oos == true end,
-              desc = m.oos and L('dispatch.r_in_service_d') or L('dispatch.r_oos_d'),
-              disabledText = m.call and L('dispatch.r_oos_busy') or nil,
-              onSelect = function()
-                  local oos = not (me().oos == true)
-                  me().oos = oos
-                  me().status = oos and '10-7' or '10-8'
-                  D.SetStatus(oos and '10-7' or '10-8')
-              end },
         }
-        if cfg('pager', 'enabled', true) ~= false then
-            dsp[#dsp + 1] = { id = 'd_pager', label = L('dispatch.r_pager'), icon = 'pager', order = 80,
-                disabledText = (not D.HasPager()) and L('dispatch.err_no_pager') or nil,
-                onSelect = function() D.TogglePager() end }
+        -- phone alerts for medics without the pager menu at hand (Config.Dispatch.phone.alerts = 'paired')
+        local hasPhone = Bridge and Bridge.Phone and Bridge.Phone.Resource ~= nil
+        if D.PhoneMode and D.PhoneMode() == 'paired' and (hasPhone or m.paired) then
+            local needPager = cfg('phone', 'linkNeedsPager', true) ~= false
+            dsp[#dsp + 1] = { id = 'd_phone', label = L('dispatch.r_phone'), icon = 'phone', order = 70,
+                active = function() return me().paired == true end,
+                desc = m.paired and L('dispatch.r_phone_on') or L('dispatch.r_phone_off'),
+                disabledText = (not m.paired and needPager and not D.HasPager()) and L('dispatch.err_no_pager') or nil,
+                onSelect = function() D.Pair(not (me().paired == true)) end }
         end
         for _, it in ipairs(dsp) do it.parent = 'dispatch'; list[#list + 1] = it end
     end
@@ -113,6 +137,17 @@ end
 -- ════════════════════════════════════════════════════════════════════════
 -- TREE
 -- ════════════════════════════════════════════════════════════════════════
+
+local MAX_RING = 9    -- nodes per ring (quick pick 1-9); the rest goes into a "More" sub-ring
+
+-- Care is split by the interaction order bands (ARCHITECTURE §11) once it has more than MAX_RING entries
+local BANDS = {
+    { key = 'assess', from = -math.huge, to = 29, icon = 'stetho' },
+    { key = 'treat',  from = 30, to = 49, icon = 'medkit' },
+    { key = 'move',   from = 50, to = 59, icon = 'walk' },
+    { key = 'proc',   from = 60, to = 89, icon = 'scalpel' },
+    { key = 'other',  from = 90, to = math.huge, icon = 'clipboard' },
+}
 
 local function allowed(def)
     if def.perm and not NZA.Perm(def.perm) then return false end
@@ -135,13 +170,70 @@ local function isActive(def)
     return def.active == true
 end
 
+local function byOrder(a, b)
+    local oa, ob = tonumber(a.order) or 50, tonumber(b.order) or 50
+    if oa ~= ob then return oa < ob end
+    return tostring(a.id) < tostring(b.id)
+end
+
+-- built nodes → at most MAX_RING entries; the overflow becomes a synthetic "More" node (the JS
+-- descends into any node with items, so synthetic nodes need no entry in `current`)
+local function overflow(nodes, baseId)
+    if #nodes <= MAX_RING then return nodes end
+    local out, rest = {}, {}
+    for i = 1, #nodes do
+        if i < MAX_RING then out[#out + 1] = nodes[i] else rest[#rest + 1] = nodes[i] end
+    end
+    local id = baseId .. ':more'
+    out[#out + 1] = { id = id, label = L('dispatch.r_more'), icon = 'more', desc = L('dispatch.r_more_d', #rest),
+        items = overflow(rest, id) }
+    return out
+end
+
+local function summary(nodes)
+    local names = {}
+    for i = 1, math.min(3, #nodes) do names[i] = nodes[i].label end
+    return table.concat(names, ' · ') .. (#nodes > 3 and ' …' or '')
+end
+
+-- defs and their built nodes (same order) → sub-rings per order band
+local function banded(defs, nodes, baseId)
+    local groups, keys = {}, {}
+    for i, d in ipairs(defs) do
+        local o = tonumber(d.order) or 50
+        for _, band in ipairs(BANDS) do
+            if o >= band.from and o <= band.to then
+                if not groups[band.key] then
+                    groups[band.key] = { band = band, list = {} }
+                    keys[#keys + 1] = band.key
+                end
+                table.insert(groups[band.key].list, nodes[i])
+                break
+            end
+        end
+    end
+    if #keys < 2 then return overflow(nodes, baseId) end
+    local out = {}
+    for _, key in ipairs(keys) do
+        local g = groups[key]
+        if #g.list == 1 then
+            out[#out + 1] = g.list[1]
+        else
+            local id = baseId .. ':' .. key
+            out[#out + 1] = { id = id, label = L('dispatch.r_band_' .. key), icon = g.band.icon, desc = summary(g.list),
+                items = overflow(g.list, id) }
+        end
+    end
+    return overflow(out, baseId)
+end
+
 local function build()
     current = {}
     local defs = {}
     for _, d in ipairs(builtins()) do defs[#defs + 1] = d end
     local ownDuty = cfg('radial', 'dutyToggle', true) ~= false
     for _, d in ipairs(NZA.RadialItems) do
-        -- the hospital module's duty entry does the same as our "Go on/off duty" segment
+        -- the hospital module's duty entry does the same as our Status ▸ shift entry
         if type(d) == 'table' and type(d.id) == 'string' and not (ownDuty and d.id == 'hospital_duty') then defs[#defs + 1] = d end
     end
     local byParent = {}
@@ -160,13 +252,20 @@ local function build()
         }
         local kids = byParent[d.id]
         if kids and depth < 4 then
-            table.sort(kids, function(a, b) return (a.order or 50) < (b.order or 50) end)
-            n.items = {}
-            for _, k in ipairs(kids) do n.items[#n.items + 1] = node(k, depth + 1) end
-            if #n.items > 9 then
-                for i = #n.items, 10, -1 do table.remove(n.items, i) end
+            table.sort(kids, byOrder)
+            local keptDefs, built = {}, {}
+            for _, k in ipairs(kids) do
+                local c = node(k, depth + 1)
+                if c then
+                    keptDefs[#keptDefs + 1] = k
+                    built[#built + 1] = c
+                end
+            end
+            if #built > 0 then
+                n.items = d.id == 'patient' and banded(keptDefs, built, d.id) or overflow(built, d.id)
             end
         end
+        if d.hideEmpty and not n.items then return nil end
         if d.disabledText then
             n.disabled = true
             n.desc = d.disabledText
@@ -177,13 +276,13 @@ local function build()
         return n
     end
     local root = byParent._root or {}
-    table.sort(root, function(a, b) return (a.order or 50) < (b.order or 50) end)
+    table.sort(root, byOrder)
     local out = {}
     for _, d in ipairs(root) do
-        out[#out + 1] = node(d, 1)
-        if #out >= 10 then break end
+        local n = node(d, 1)
+        if n then out[#out + 1] = n end
     end
-    return out
+    return overflow(out, '_root')
 end
 
 local STATUS_TONE = { ['10-8'] = 'teal', ['10-7'] = 'amber', DSP = 'amber', ENR = 'amber', SCN = 'red', CARE = 'red', TRN = 'white', HSP = 'teal' }

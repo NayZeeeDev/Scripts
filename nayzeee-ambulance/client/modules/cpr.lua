@@ -20,6 +20,10 @@
                  ← nza:cpr:state, nza:cpr:event, nza:cpr:ended, nza:cpr:pose (patient side), nza:cpr:use (defib item)
     NUI callbacks: cpr:press, cpr:report, cpr:hands, cpr:breathStart, cpr:breath, cpr:action, cpr:leave
     Client bus: cpr:started (code), cpr:ended (summary)
+    Easy mode (view.timed, Config.Cpr.easyTimed): no device screen. The medic kneels in the same
+    scene and runs an ox_lib progress (Config.EasyMode.style) per 2-minute cycle; compressions are
+    reported at the target rate, the server gives the breaths and (for an all-easy team) runs the
+    AED protocol; server moments show as toasts. Cancelling the progress (X) leaves the code.
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -110,6 +114,106 @@ end
 -- START / JOIN
 -- ════════════════════════════════════════════════════════════════════════
 
+-- ════════════════════════════════════════════════════════════════════════
+-- EASY MODE: CPR as a timed action (no device screen)
+-- ════════════════════════════════════════════════════════════════════════
+
+local FEED = { compress = true, advised = true, charging = true }   -- phases with hands on the chest
+
+local function easyProgress(ms, label)
+    local data = {
+        duration = ms, label = label, useWhileDead = false, canCancel = true, allowRagdoll = true,
+        disable = { move = true, car = true, combat = true, sprint = true },
+    }
+    if Config.EasyMode and Config.EasyMode.style == 'circle' then
+        data.position = 'bottom'
+        return lib.progressCircle(data)
+    end
+    return lib.progressBar(data)
+end
+
+local function restartBar(a)
+    if lib.progressActive and lib.progressActive() then
+        a.barRestart = true
+        lib.cancelProgress()
+    end
+end
+
+-- one progress per CPR cycle; a new cycle (rhythm check) or a role swap starts a fresh one
+local function timedBar(a)
+    CreateThread(function()
+        while active == a and a.active do
+            local v = a.view or {}
+            local cyc = math.max(20, tonumber(v.cycleLength) or 120)
+            local el = math.max(0, tonumber(v.cycleElapsed) or 0)
+            local left = cyc - (el % cyc)
+            local n = v.pads and (tonumber(v.cycleNo) or 1) or (math.floor(el / cyc) + 1)
+            a.barCycle, a.barRole, a.barRestart = v.cycleNo, a.role, false
+            local done = easyProgress(math.floor(math.max(3, left) * 1000), L(a.role == 'comp' and 'easy_comp' or 'easy_air', n))
+            if active ~= a or not a.active then break end
+            if not done and not a.barRestart then
+                -- cancelled by the medic: leave the code (the server sends nza:cpr:ended)
+                TriggerServerEvent('nza:cpr:leave')
+                break
+            end
+        end
+    end)
+end
+
+-- the compressor's hands keep the target rate while the chest is free (not during breaths,
+-- analysis or stand clear)
+local function timedFeed(a)
+    CreateThread(function()
+        local rate = tonumber(sub('Compressions').target) or 110
+        local acc, last = 0.0, GetGameTimer()
+        while active == a and a.active do
+            Wait(400)
+            local now = GetGameTimer()
+            local dt = (now - last) / 1000
+            last = now
+            if a.role == 'comp' and a.view and FEED[a.view.phase] then
+                pcall(Scene().Press, a, rate)
+                acc = acc + dt * rate / 60
+                local n = math.floor(acc)
+                if n > 0 then
+                    acc = acc - n
+                    TriggerServerEvent('nza:cpr:cycle', { n = n, timing = 100, depth = 100, recoil = 100, rate = rate, done = false })
+                end
+            else
+                acc = 0.0
+            end
+        end
+    end)
+end
+
+local function rhythmName(r) return r and NZA.L('cpr.rhythm_' .. tostring(r)) or '' end
+
+-- server moments as toasts (the device screen shows them otherwise)
+local function easyEvent(ev)
+    local k = ev.kind
+    if k == 'analysing' then toast('info', L('b_analyse_s'), L('b_analyse'))
+    elseif k == 'advice' then
+        if ev.advice == 'shock' then toast('warning', L('b_shock_s', rhythmName(ev.rhythm)), L('b_shock'))
+        elseif ev.advice == 'noshock' then toast('info', L('b_noshock_s', rhythmName(ev.rhythm)), L('b_noshock'))
+        elseif ev.advice == 'motion' then toast('error', L('b_motion_s'), L('b_motion')) end
+    elseif k == 'charged' then toast('warning', L('b_clear_s'), L('b_clear'))
+    elseif k == 'shock' then
+        if ev.result == 'induced' then toast('error', L('b_induced_s'), L('b_induced'))
+        elseif ev.result == 'no_effect' then toast('error', L('b_noeffect_s'), L('b_noeffect'))
+        else toast('success', L('b_shocked_s', ev.energy or 0, ev.n or 1), L('b_shocked')) end
+    elseif k == 'rosc' then toast('success', L('b_rosc_s'), L('b_rosc'))
+    elseif k == 'rearrest' then toast('error', L('b_rearrest_s'), L('b_rearrest'))
+    elseif k == 'arrested' then toast('error', L('b_arrested_s'), L('b_arrested'))
+    elseif k == 'zapped' then toast('error', L('b_zapped_s'), L('b_zapped'))
+    elseif k == 'adrenaline' then toast('success', L('e_adren', ev.n or 1))
+    elseif k == 'joined' then toast('info', L('e_joined', ev.name or ''))
+    elseif k == 'partner_left' then toast('info', L('e_left', ev.name or ''))
+    elseif k == 'promoted' then toast('info', L('e_promoted', ev.name or ''))
+    elseif k == 'swap' then toast('info', L('e_swap', ev.compName or ''))
+    elseif k == 'breaths_missed' then toast('warning', L('e_missed', ev.n or 1))
+    end
+end
+
 local function loop(a)
     CreateThread(function()
         while active == a and a.active do
@@ -129,16 +233,24 @@ local function begin(target, entity, res)
     local view = res.view or {}
     local a = {
         active = true, target = target, entity = entity, pid = view.pid, origin = res.origin, role = view.role or 'comp',
-        view = view, npc = view.npc == true, easy = view.easy == true, startedAt = GetGameTimer(), lastState = GetGameTimer(),
+        view = view, npc = view.npc == true, easy = view.easy == true, timed = view.timed == true,
+        startedAt = GetGameTimer(), lastState = GetGameTimer(),
         joined = res.joined == true, rate = tonumber(sub('Compressions').target) or 110,
     }
     active = a
-    NZA.UI.Open(APP, {
-        view = view, keys = sub('Keys'), cfg = uiCfg(), locale = NZA.LocaleTable('cpr'), easy = a.easy,
-    }, { focus = true, cursor = true })
+    if not a.timed then
+        NZA.UI.Open(APP, {
+            view = view, keys = sub('Keys'), cfg = uiCfg(), locale = NZA.LocaleTable('cpr'), easy = a.easy,
+        }, { focus = true, cursor = true })
+    end
     local ok, err = pcall(Scene().Enter, a)
     if not ok then NZA.Debug('cpr scene enter', err) end
     loop(a)
+    if a.timed then
+        if view.auto and not view.pads and not view.defib then toast('warning', L('err_no_defib')) end
+        timedBar(a)
+        timedFeed(a)
+    end
     NZA.Bus.Emit('cpr:started', a)
 end
 
@@ -168,6 +280,16 @@ function C.Finish(summary)
     a.ended, a.active = true, false
     local ok, err = pcall(Scene().Leave, a)
     if not ok then NZA.Debug('cpr scene leave', err) end
+    if a.timed then
+        -- no device screen: a short summary instead of the debrief
+        local s = summary or {}
+        restartBar(a)
+        active = nil
+        toast(s.rosc and 'success' or 'info', L('easy_done', s.rosc and L('r_rosc') or L('r_' .. tostring(s.reason or 'stopped')),
+            tonumber(s.compressions) or 0, tonumber(s.shocks) or 0))
+        NZA.Bus.Emit('cpr:ended', s)
+        return
+    end
     NZA.UI.Send(APP, 'ended', summary or {})
     NZA.Bus.Emit('cpr:ended', summary or {})
     SetTimeout(45000, function()
@@ -196,16 +318,21 @@ RegisterNetEvent('nza:cpr:state', function(view)
     local oldRole, oldPhase, oldPads = a.role, a.view and a.view.phase, a.view and a.view.pads
     a.view, a.role, a.lastState = view, view.role or a.role, GetGameTimer()
     if view.bed ~= nil then a.bed = view.bed == true end
-    NZA.UI.Send(APP, 'state', view)
+    if a.timed then
+        -- a rhythm check opened a new cycle, or the roles were swapped: fresh progress
+        if view.cycleNo ~= a.barCycle or a.role ~= a.barRole then restartBar(a) end
+    else
+        NZA.UI.Send(APP, 'state', view)
+    end
     if oldRole ~= a.role then CreateThread(function() pcall(Scene().Role, a) end) end
     if oldPhase ~= view.phase then pcall(Scene().Phase, a, view.phase) end
-    if view.pads and not oldPads and a.padsMine then pcall(Scene().PadsPlaced, a) end
+    if view.pads and not oldPads and (a.padsMine or (a.timed and a.role == 'comp')) then pcall(Scene().PadsPlaced, a) end
 end)
 
 RegisterNetEvent('nza:cpr:event', function(ev)
     local a = active
     if not a or a.ended or type(ev) ~= 'table' then return end
-    NZA.UI.Send(APP, 'event', ev)
+    if a.timed then easyEvent(ev) else NZA.UI.Send(APP, 'event', ev) end
     CreateThread(function() pcall(Scene().Event, a, ev) end)
 end)
 
@@ -372,6 +499,7 @@ AddEventHandler('onResourceStop', function(res)
     local a = active
     if a then
         a.active = false
+        if a.timed then restartBar(a) end
         pcall(Scene().Leave, a)
         NZA.UI.Close(APP)
         active = nil

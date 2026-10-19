@@ -1572,27 +1572,33 @@ void main(){
 
   /* ─────────────── panels ─────────────── */
   const TOOL_DEF = () => [
-    { key: '1', icon: 'itb-bvm', label: T('tool_bvm', 'BVM bag') },
-    { key: '2', icon: 'itb-scope', label: T('tool_scope', 'Video laryngoscope') },
-    { key: '3', icon: 'itb-suction', label: T('tool_suction', 'Suction') },
-    { key: '4', icon: 'itb-tube', label: Tf('tool_tube', 'ETT %s', S.A.tube) },
-    { key: '5', icon: 'syringe', label: T('tool_cuff', '10 ml syringe') },
-    { key: '6', icon: 'itb-holder', label: T('tool_holder', 'Tube fixation') },
+    { key: '1', icon: 'itb-bvm', label: T('tool_bvm', 'BVM bag'), act: T('act_bvm', 'SQUEEZE') },
+    { key: '2', icon: 'itb-scope', label: T('tool_scope', 'Video laryngoscope'), act: T('act_scope', 'LOOK') },
+    { key: '3', icon: 'itb-suction', label: T('tool_suction', 'Suction'), act: T('act_suction', 'SWEEP') },
+    { key: '4', icon: 'itb-tube', label: Tf('tool_tube', 'ETT %s', S.A.tube), act: T('act_tube', 'PASS') },
+    { key: '5', icon: 'syringe', label: T('tool_cuff', '10 ml syringe'), act: T('act_cuff', 'FILL') },
+    { key: '6', icon: 'itb-holder', label: T('tool_holder', 'Tube fixation'), act: T('act_holder', 'SECURE') },
   ];
   function tools(active, done = []) {
     if (S.mode === 'bvm') {
       return [
-        { key: '1', icon: 'itb-bvm', label: S.A.intubated ? T('tool_bvm_tube', 'Bag on the tube') : T('tool_bvm', 'BVM bag'), state: 'active', sub: T('in_use', 'IN HAND') },
+        { key: '1', icon: 'itb-bvm', label: S.A.intubated ? T('tool_bvm_tube', 'Bag on the tube') : T('tool_bvm', 'BVM bag'), state: 'active', sub: T('act_bvm', 'SQUEEZE') },
         { key: '2', icon: 'drop', label: T('tool_o2', 'Oxygen 15 L/min'), state: 'done' },
       ];
     }
-    return TOOL_DEF().map(t => Object.assign(t, t.key === active ? { state: 'active', sub: T('in_use', 'IN HAND') } : done.includes(t.key) ? { state: 'done' } : {}));
+    return TOOL_DEF().map(({ act, ...t }) => Object.assign(t, t.key === active ? { state: 'active', sub: act } : done.includes(t.key) ? { state: 'done' } : {}));
   }
   const STEP_NAMES = () => [T('n1', 'Pre-oxygenate'), T('n2', 'Position the head'), T('n3', 'Suction'), T('n4', 'Insert the blade'), T('n5', 'Lift'), T('n6', 'Pass the tube'), T('n7', 'Inflate the cuff'), T('n8', 'Confirm & secure')];
   function setPanel(o) {
     UI.pp.set(Object.assign({ step: S.mode === 'bvm' ? 1 : S.step, total: S.mode === 'bvm' ? 1 : 8, titleTone: '', steps: S.mode === 'bvm' ? null : STEP_NAMES() }, o));
     UI.ppHints = o.hints || UI.ppHints;
     updateStats();
+  }
+  // seconds without an effective breath (the attempt clock while the mask is off); -1 while ventilated
+  function apnoeaSec() {
+    if (S.attemptOn) return (now() - S.attemptT0) / 1000;
+    const since = S.lastGood ? (now() - S.lastGood) / 1000 : -1;
+    return since >= 0 && since < S.cfg.cadence * 1.7 ? -1 : since;
   }
   function statList() {
     const sp = Math.round(S.spo2Disp);
@@ -1602,10 +1608,16 @@ void main(){
         { id: 'br', label: T('st_breaths', 'Breaths'), value: S.bvm.n, unit: `/${S.cfg.bvmBreaths}` },
         { id: 'rate', label: T('st_rate', 'Rate'), value: S.rr || '--', unit: '/min' }];
     }
-    const att = S.attemptOn ? (now() - S.attemptT0) / 1000 : -1;
-    return [spo2,
-      { id: 'att', label: T('st_attempt', 'Attempt'), value: att >= 0 ? tfmt(att) : '--:--', tone: att > 45 ? 'amber' : '' },
-      { id: 'step', label: T('st_step', 'Step time'), value: tfmt((now() - S.stepT0) / 1000) }];
+    // the SpO₂ lives on the monitor face; the panel shows it only when there is no monitor
+    const ap = apnoeaSec();
+    const list = [
+      { id: 'apn', label: T('st_apnoea', 'Apnoea'), value: ap >= 0 ? tfmt(ap) : '--:--', tone: ap > 30 ? 'red' : ap > 15 ? 'amber' : '' },
+      S.step === 1
+        ? { id: 'br', label: T('st_breaths', 'Breaths'), value: S.pre.good, unit: `/${S.cfg.breaths}` }
+        : { id: 'res', label: T('st_reserve', 'Reserve'), value: Math.round(S.reserve * 100), unit: '%', tone: S.reserve < 0.25 ? 'amber' : '' },
+      { id: 'att', label: T('st_attempts', 'Attempts'), value: S.attemptNo, unit: `/${S.cfg.attempts}`, tone: S.attemptsUsed ? 'amber' : '' },
+    ];
+    return UI && UI.mon ? list : [spo2].concat(list);
   }
   function updateStats() {
     if (!UI || !UI.pp || S.done) return;
@@ -1729,7 +1741,7 @@ void main(){
           title: S.reox ? T('s1_title_re', 'Re-oxygenate') : T('s1_title', 'Pre-oxygenate'),
           text: S.reox ? Tf('s1_text_re', 'Mask back on. Give a smooth {Space} squeeze of about a second, one breath every %s s, until the SpO₂ climbs again.', S.cfg.cadence)
             : Tf('s1_text', 'Seal the mask and give a smooth {Space} squeeze of about a second, one breath every %s s. Fill the oxygen reserve before the mask comes off.', S.cfg.cadence),
-          tag: S.reox ? Tf('tag_attempt', 'Attempt %s of %s', S.attemptsUsed + 1, S.cfg.attempts) : '',
+          tag: S.reox ? Tf('tag_attempt', 'Airway · attempt %s of %s', S.attemptsUsed + 1, S.cfg.attempts) : T('tag', 'Airway'),
           tools: tools('1'),
           hints: [H(['Space'], T('h_squeeze', 'squeeze')), H(['Enter'], T('h_continue', 'continue'))],
         });
@@ -1774,7 +1786,7 @@ void main(){
           title: T('s2_title', 'Position the head'),
           text: S.A.cspine ? T('s2_text_c', 'Suspected **neck injury** — keep the head neutral. No towel, no tilt: drag the chin up to thrust the jaw.')
             : T('s2_text', 'Make the **sniffing position**: towel under the head {T}, drag the forehead to tilt the head and the chin to thrust the jaw until the axes line up.'),
-          tag: '', tools: tools('1'),
+          tag: T('tag', 'Airway'), tools: tools('1'),
           hints: [H(['Drag'], T('h_handles', 'forehead / chin')), H(['W', 'S'], T('h_tilt', 'tilt')), H(['A', 'D'], T('h_jaw', 'jaw')), H(['T'], T('h_towel', 'towel')), H(['Space'], T('h_keepbag', 'keep bagging'))],
         });
         S.pos.hold = 0;
@@ -1827,7 +1839,7 @@ void main(){
           title: T('s3_title', 'Suction the airway'),
           text: S.suc.soiled ? Tf('s3_text', 'The airway is **gurgling** with %s. Hold {Click} on the screen and sweep the suction tip through it.', what)
             : T('s3_text_clear', 'The airway is clear — no suction needed. Press {Enter} to insert the blade.'),
-          tag: Tf('tag_attempt', 'Attempt %s of %s', S.attemptNo, S.cfg.attempts),
+          tag: Tf('tag_attempt', 'Airway · attempt %s of %s', S.attemptNo, S.cfg.attempts),
           tools: tools('3', ['1']),
           hints: S.suc.soiled ? [H(['Click'], T('h_suck', 'suction (hold)')), H(['Enter'], T('h_skip', 'skip')), H(['B'], T('h_abort_att', 'abort attempt'))] : [H(['Enter'], T('h_continue', 'continue')), H(['B'], T('h_abort_att', 'abort attempt'))],
         });
@@ -1872,7 +1884,7 @@ void main(){
         setPanel({
           title: T('s4_title', 'Insert the blade'),
           text: T('s4_text', 'Drag up to slide the video laryngoscope over the tongue. Stop with the tip in the **vallecula**, just in front of the epiglottis.'),
-          tag: Tf('tag_attempt', 'Attempt %s of %s', S.attemptNo, S.cfg.attempts),
+          tag: Tf('tag_attempt', 'Airway · attempt %s of %s', S.attemptNo, S.cfg.attempts),
           tools: tools('2', ['1', S.suc.done || S.suc.skipped ? '3' : '']),
           hints: [H(['Drag'], T('h_advance', 'advance / steer')), H(['W', 'S'], T('h_fine', 'fine')), H(['3'], T('h_suck', 'suction (hold)')), H(['B'], T('h_abort_att', 'abort attempt'))],
         });
@@ -2420,7 +2432,7 @@ void main(){
       else if (S.attemptOn || (!ventOk && S.A.apnoeic)) { status = T('mon_apnoeic', 'APNOEIC'); tone = 'amber'; }
       else if (ventOk) { status = T('mon_vent', 'VENTILATING'); tone = 'teal'; }
       UI.mon.status(status, tone);
-      const apSec = S.attemptOn ? (now() - S.attemptT0) / 1000 : (ventOk ? -1 : since);
+      const apSec = apnoeaSec();
       UI.mon.foot({ apnoea: apSec >= 0 ? tfmt(apSec) : '--:--', apFrac: apSec >= 0 ? apSec / Math.max(15, S.A.safe) : 0, apTone: apSec > 30 ? 'red' : apSec > 15 ? 'amber' : '',
         attempt: S.attemptNo, max: S.cfg.attempts, used: S.attemptsUsed });
     }
@@ -2496,7 +2508,7 @@ void main(){
     UI = { root, anchors: NZA.ui.Anchors(APP), dockR: el('div', 'itb-dock r'), dockC: el('div', 'itb-dock c') };
     root.append(UI.dockC, UI.dockR);
     if (d.monitor !== false) UI.mon = MonitorDev(root); else root.classList.add('no-mon');
-    UI.pp = NZA.ui.ProcPanel(root, { step: 1, total: S.mode === 'bvm' ? 1 : 8, abort: { label: T('abort', 'Hold to cancel'), key: 'ESC', seconds: 1.2 }, onAbort: abortProc, onTool: k => toolInfo(k) });
+    UI.pp = NZA.ui.ProcPanel(root, { step: 1, total: S.mode === 'bvm' ? 1 : 8, tag: S.mode === 'bvm' ? T('tag_bvm', 'Airway · bag & mask') : T('tag', 'Airway'), abort: { label: T('abort', 'Hold to cancel'), key: 'ESC', seconds: 1.2 }, onAbort: abortProc, onTool: k => toolInfo(k) });
     UI.anc = el('div', 'itb-anc');
     UI.anc.innerHTML = `<span class="dia"><svg viewBox="0 0 44 44"><circle class="t" cx="22" cy="22" r="19"/><circle class="p" cx="22" cy="22" r="19" transform="rotate(-90 22 22)" stroke-dasharray="0 119.4"/></svg><i></i></span><span class="chip"><small>${esc(T('anc_kicker', 'BVM · 15 L O₂'))}</small><b></b></span>`;
     root.appendChild(UI.anc);
@@ -2524,7 +2536,7 @@ void main(){
 
   const DEMO = mode => ({
     mode, monitor: true,
-    patient: { name: 'Michael Garcia', sex: 'm', age: 34 },
+    patient: { name: 'Omar Haddad', sex: 'm', age: 34 },
     vitals: { hr: 118, sys: 96, dia: 58, map: 71, spo2: 86, rr: 0, temp: 36.2, rhythm: 'stach' },
     anat: { grade: 2, soil: 0.55, soilKind: 'blood', bleed: 0.3, cspine: false, tube: 7.5, depth: 23, cuffMl: 8.6, open: 0.9, gx: 0.02, gy: 0, aryt: 1, tongue: 0.2, ant: 0.2,
       desat: 1.1, safe: 55, apnoeic: true, gastric: 8, intubated: mode === 'bvm' ? false : undefined },
@@ -2575,7 +2587,6 @@ void main(){
         ['hr', 'sys', 'dia', 'map', 'temp'].forEach(k => { if (typeof v[k] === 'number') S.vit[k] = v[k]; });
         if (typeof v.rhythm === 'string') S.vit.rhythm = v.rhythm;
       },
-      abort(d) { NZA.toast({ title: T('t_stopped', 'Procedure stopped'), message: (d && d.reason) || '', type: 'error' }); },
     },
     keys, keysUp,
     preview() {

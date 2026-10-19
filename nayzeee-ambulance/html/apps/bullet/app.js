@@ -92,14 +92,14 @@
   const SAY = [['say_1', 'Argh! Careful!'], ['say_2', 'That hurts — what are you doing?!'], ['say_3', 'Easy… easy!'], ['say_4', 'I can feel that!'], ['say_5', 'Ahh… is it out yet?'], ['say_6', 'Please, stop for a second…']];
 
   const DEMO = {
-    patient: { name: 'Michael Garcia', sex: 'm', bloodType: 'O-', conscious: true, numb: false },
+    patient: { name: 'Marcus Webb', sex: 'm', bloodType: 'O-', conscious: true, numb: false },
     injury: { id: 'i3', type: 'gunshot', region: 'chest', regionLabel: 'Chest', label: 'Gunshot wound', severity: 3, bleed: 9.2, retained: 1, depth: 23, contamination: 34, pain: 62 },
     fragments: [{ id: 'f1', x: 6.5, y: -3.4, depth: 23, size: 10.5, shape: 'bullet', rot: 0.7, lodge: 0 }],
     tone: 0.3, seed: 4512,
-    film: { id: 'A2034', view: 'chest', viewLabel: 'Chest', taken: '14/10 12:41', quality: 'sharp', marked: true },
+    film: { id: 'RX-7719', view: 'chest', viewLabel: 'Chest', taken: '14/10 12:41', quality: 'sharp', marked: true },
     items: { gauze: 4 },
     location: { kind: 'bay', label: 'Ambulance · EMS 12' }, bay: true, bloodWarn: true,
-    vitals: { hr: 88, ecgRate: 88, rhythm: 'sinus', spo2: 97, sys: 97, dia: 60, map: 72, rr: 18, bloodPct: 81, drip: 0, infusing: false },
+    vitals: { hr: 94, ecgRate: 94, rhythm: 'sinus', spo2: 95, sys: 104, dia: 66, map: 79, rr: 18, bloodPct: 81, drip: 0, infusing: false },
   };
   const DEMO_SHRAPNEL = {
     patient: { name: 'Dana Whitfield', sex: 'f', bloodType: 'A+', conscious: true, numb: true },
@@ -1119,7 +1119,7 @@
         }
         case 8: {
           const D = g.dr.D, s = D ? D.stuck : 0;
-          wide = { label: T('w_stuck', 'Dressing stuck'), value: String(pct(s)), unit: '%', tone: s >= 0.9 ? 'teal' : '', meter: { value: s, zone: [cfg.stuckDone, 1] },
+          wide = { label: T('w_stuck', 'Seal'), value: String(pct(s)), unit: '%', tone: s >= 0.9 ? 'teal' : '', meter: { value: s, zone: [cfg.stuckDone, 1] },
             caption: D && D.state !== 'rest' && D.state !== 'carried' ? T('w_cover_d', 'Covers %s% of the wound', pct(g.dr.cover)) : T('w_stuck_cap', 'Lay it over the wound, then rub it down'),
             captionTone: D && D.state === 'placed' && g.dr.cover < cfg.coverMin ? 'amber' : '' };
           break;

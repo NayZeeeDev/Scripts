@@ -12,7 +12,9 @@
               desk (desk payload)   deskClosed   hideReceipt
    JS → Lua   checkin:action { action, id, bed, hospital } → { ok, msg }
               checkin:deskClose · checkin:refresh { hospital } → { ok, desk }
-              checkin:hospital { id } → { ok, desk } · checkin:leave · checkin:hidden
+              checkin:hospital { id } → { ok, desk } · checkin:hidden
+              (leaving the queue is a desk prompt / target option, not a NUI control: the pass and
+              the dock are shown without focus)
    ═══════════════════════════════════════════════════════════ */
 (() => {
   const esc = NZA.esc, icon = NZA.icon;
@@ -608,23 +610,23 @@
       const view = p.get('view') || 'ticket';
       const inj = (type, label, short, region, severity) => ({ type, label, short, region, severity, status: 'open' });
       const tickets = [
-        { id: 'T8F3A21', code: 'A-013', number: 13, triage: 1, triageLabel: 'Critical', name: 'Rosa Diaz', status: 'waiting', issued: now - 142, ahead: 0, estimate: 0, online: true, blood: 71, injuryCount: 3, injuries: [inj('gunshot', 'Gunshot wound', 'GSW', 'Abdomen', 3), inj('fracture', 'Fracture', 'Fracture', 'Left lower leg', 2), inj('abrasion', 'Abrasion', 'Abrasion', 'Right upper arm', 1)] },
-        { id: 'T8F3A22', code: 'A-014', number: 14, triage: 2, triageLabel: 'Urgent', name: 'Ben Carter', status: 'waiting', issued: now - 1018, ahead: 1, estimate: 240, online: true, blood: 92, injuryCount: 2, injuries: [inj('laceration', 'Deep laceration', 'Laceration', 'Left lower arm', 2), inj('contusion', 'Contusion', 'Contusion', 'Chest', 1)] },
-        { id: 'T8F3A23', code: 'A-015', number: 15, triage: 3, triageLabel: 'Standard', name: 'Lily Chen', status: 'waiting', issued: now - 1595, ahead: 2, estimate: 720, online: false, blood: 99, injuryCount: 1, injuries: [inj('burn', 'Burn', 'Burn', 'Right lower arm', 1)] },
-        { id: 'T8F3A19', code: 'A-011', number: 11, triage: 2, triageLabel: 'Urgent', name: 'Marcus Webb', status: 'called', issued: now - 905, called: now - 64, bed: 'Bed 2', bedId: 12, online: true, blood: 84, injuryCount: 1, injuries: [inj('stab', 'Stab wound', 'Stab', 'Chest', 2)] },
-        { id: 'T8F3A17', code: 'A-009', number: 9, triage: 1, triageLabel: 'Critical', name: 'Ana Lopez', status: 'treatment', issued: now - 1520, called: now - 610, treatmentAt: now - 560, bed: 'Bed 1', bedId: 11, ai: false, by: 'Dr. K. Brooks', online: true, blood: 77, injuryCount: 2, injuries: [inj('internal', 'Internal bleeding', 'Internal', 'Abdomen', 3), inj('shrapnel', 'Shrapnel wound', 'Shrapnel', 'Right upper leg', 2)] },
+        { id: 'T8F3A21', code: 'B-021', number: 21, triage: 1, triageLabel: 'Critical', name: 'Rosa Diaz', status: 'waiting', issued: now - 71, ahead: 0, estimate: 0, online: true, blood: 71, injuryCount: 3, injuries: [inj('gunshot', 'Gunshot wound', 'GSW', 'Abdomen', 3), inj('fracture', 'Fracture', 'Fracture', 'Left lower leg', 2), inj('abrasion', 'Abrasion', 'Abrasion', 'Right upper arm', 1)] },
+        { id: 'T8F3A22', code: 'B-024', number: 24, triage: 2, triageLabel: 'Urgent', name: 'Ben Carter', status: 'waiting', issued: now - 1018, ahead: 1, estimate: 240, online: true, blood: 92, injuryCount: 2, injuries: [inj('laceration', 'Deep laceration', 'Laceration', 'Left lower arm', 2), inj('contusion', 'Contusion', 'Contusion', 'Chest', 1)] },
+        { id: 'T8F3A23', code: 'B-027', number: 27, triage: 3, triageLabel: 'Standard', name: 'Lily Chen', status: 'waiting', issued: now - 1595, ahead: 2, estimate: 720, online: false, blood: 99, injuryCount: 1, injuries: [inj('burn', 'Burn', 'Burn', 'Right lower arm', 1)] },
+        { id: 'T8F3A19', code: 'B-018', number: 18, triage: 2, triageLabel: 'Urgent', name: 'Marcus Webb', status: 'called', issued: now - 905, called: now - 64, bed: 'Bed 2', bedId: 12, online: true, blood: 84, injuryCount: 1, injuries: [inj('stab', 'Stab wound', 'Stab', 'Chest', 2)] },
+        { id: 'T8F3A17', code: 'B-016', number: 16, triage: 1, triageLabel: 'Critical', name: 'Ana Lopez', status: 'treatment', issued: now - 1520, called: now - 610, treatmentAt: now - 560, bed: 'Bed 1', bedId: 11, ai: false, by: 'Dr. K. Brooks', online: true, blood: 77, injuryCount: 2, injuries: [inj('internal', 'Internal bleeding', 'Internal', 'Abdomen', 3), inj('shrapnel', 'Shrapnel wound', 'Shrapnel', 'Right upper leg', 2)] },
       ];
-      const beds = [{ id: 11, label: 'Bed 1', state: 'occupied', ticket: 'A-009', name: 'Ana Lopez' }, { id: 12, label: 'Bed 2', state: 'reserved', ticket: 'A-011', name: 'Marcus Webb' }, { id: 13, label: 'Bed 3', state: 'free' }, { id: 14, label: 'Bed 4', state: 'free' }, { id: 15, label: 'Bed 5', state: 'occupied', name: 'Unknown NPC' }, { id: 16, label: 'Bed 6', state: 'free' }];
+      const beds = [{ id: 11, label: 'Bed 1', state: 'occupied', ticket: 'B-016', name: 'Ana Lopez' }, { id: 12, label: 'Bed 2', state: 'reserved', ticket: 'B-018', name: 'Marcus Webb' }, { id: 13, label: 'Bed 3', state: 'free' }, { id: 14, label: 'Bed 4', state: 'free' }, { id: 15, label: 'Bed 5', state: 'occupied', name: 'Unknown NPC' }, { id: 16, label: 'Bed 6', state: 'free' }];
       const history = [
-        { code: 'A-008', triage: 3, name: 'Tom Hughes', status: 'done', waited: 312, by: 'Dr. K. Brooks', closed: now - 900 },
-        { code: 'A-007', triage: 2, name: 'Sara Kim', status: 'done', waited: 188, by: 'Dr. Hale (AI)', closed: now - 1600 },
-        { code: 'A-006', triage: 3, name: 'Dev Patel', status: 'noshow', waited: 640, by: 'Dr. K. Brooks', closed: now - 2300 },
-        { code: 'A-005', triage: 1, name: 'Jon Ruiz', status: 'done', waited: 35, by: 'Dr. K. Brooks', closed: now - 3100 },
-        { code: 'A-004', triage: 3, name: 'Mia Ford', status: 'left', waited: null, by: null, closed: now - 3900 },
+        { code: 'B-015', triage: 3, name: 'Tom Hughes', status: 'done', waited: 312, by: 'Dr. K. Brooks', closed: now - 900 },
+        { code: 'B-013', triage: 2, name: 'Sara Kim', status: 'done', waited: 188, by: 'Dr. Hale (AI)', closed: now - 1600 },
+        { code: 'B-012', triage: 3, name: 'Dev Patel', status: 'noshow', waited: 640, by: 'Dr. K. Brooks', closed: now - 2300 },
+        { code: 'B-010', triage: 1, name: 'Jon Ruiz', status: 'done', waited: 35, by: 'Dr. K. Brooks', closed: now - 3100 },
+        { code: 'B-009', triage: 3, name: 'Mia Ford', status: 'left', waited: null, by: null, closed: now - 3900 },
       ];
       const desk = { hospital: 'pillbox', label: 'Pillbox Medical', now, tickets, beds, history, staff: 2, ai: { enabled: true, standby: false, treating: 0, timeout: 600 }, stats: { served: 3, noshow: 1, avgWait: 278 }, hospitals: [{ id: 'pillbox', label: 'Pillbox Medical' }, { id: 'sandy', label: 'Sandy Shores Medical' }] };
-      const mine = { id: 'T8F3A22', code: 'A-014', number: 14, prefix: 'A', hospital: 'pillbox', hospitalLabel: 'Pillbox Medical', desk: 'Front desk', status: 'waiting', triage: 2, triageLabel: 'Urgent', issued: now - 64, ahead: 2, estimate: 960, now, name: 'Ben Carter' };
-      const base = { cfg: { receiptTime: 0, ticketHud: true, printSound: false }, clock: { mode: 'game', h: 12, m: 1, msPerMin: 2000 } };
+      const mine = { id: 'T8F3A22', code: 'B-024', number: 24, prefix: 'B', hospital: 'pillbox', hospitalLabel: 'Pillbox Medical', desk: 'Front desk', status: 'waiting', triage: 2, triageLabel: 'Urgent', issued: now - 64, ahead: 2, estimate: 960, now, name: 'Ben Carter' };
+      const base = { cfg: { receiptTime: 0, ticketHud: true, printSound: false }, clock: { mode: 'game', h: 15, m: 37, msPerMin: 2000 } };
       NZA.mock('checkin:action', d => {
         const t = desk.tickets.find(x => x.id === d.id);
         if (d.action === 'callNext' || (d.action === 'call' && t)) {
@@ -638,11 +640,11 @@
         }
         if (t && (d.action === 'treated' || d.action === 'noshow' || d.action === 'cancel')) {
           desk.tickets = desk.tickets.filter(x => x !== t);
-          desk.history.unshift({ code: t.code, triage: t.triage, name: t.name, status: d.action === 'treated' ? 'done' : d.action === 'cancel' ? 'cancelled' : 'noshow', waited: 200, by: 'John Doe', closed: Math.floor(Date.now() / 1000) });
+          desk.history.unshift({ code: t.code, triage: t.triage, name: t.name, status: d.action === 'treated' ? 'done' : d.action === 'cancel' ? 'cancelled' : 'noshow', waited: 200, by: 'Priya Nair', closed: Math.floor(Date.now() / 1000) });
           setTimeout(() => NZA.apps.checkin.msg.desk(desk), 120);
           return { ok: true, msg: `${t.code} updated.` };
         }
-        if (t && d.action === 'treatment') { t.status = 'treatment'; t.by = 'John Doe'; setTimeout(() => NZA.apps.checkin.msg.desk(desk), 120); return { ok: true }; }
+        if (t && d.action === 'treatment') { t.status = 'treatment'; t.by = 'Priya Nair'; setTimeout(() => NZA.apps.checkin.msg.desk(desk), 120); return { ok: true }; }
         if (t && d.action === 'requeue') { t.status = 'waiting'; t.bed = null; setTimeout(() => NZA.apps.checkin.msg.desk(desk), 120); return { ok: true, msg: `${t.code} is back in the queue.` }; }
         return { ok: true, msg: 'Done.' };
       });
@@ -667,14 +669,14 @@
         return;
       }
       if (view === 'expired') {
-        NZA.demo('checkin', Object.assign({}, base, { mode: 'ticket', ticket: { code: 'A-006', hospitalLabel: 'Pillbox Medical', status: 'expired', triage: 3, issued: now - 4000, now }, mine: null }));
+        NZA.demo('checkin', Object.assign({}, base, { mode: 'ticket', ticket: { code: 'B-012', hospitalLabel: 'Pillbox Medical', status: 'expired', triage: 3, issued: now - 4000, now }, mine: null }));
         return;
       }
-      const ticket = view === 'p1' ? Object.assign({}, mine, { code: 'A-001', number: 1, triage: 1, triageLabel: 'Critical', ahead: 0, estimate: 0, issued: now - 1 }) : mine;
+      const ticket = view === 'p1' ? Object.assign({}, mine, { code: 'B-019', number: 19, triage: 1, triageLabel: 'Critical', ahead: 0, estimate: 0, issued: now - 1 }) : mine;
       if (view !== 'p1') S.maxAhead[ticket.id] = 4;
       NZA.demo('checkin', Object.assign({}, base, {
         mode: 'ticket', ticket, mine: ticket, print: p.get('print') === '1',
-        say: { name: 'Maria', role: 'Reception', text: ticket.triage === 1 ? 'You need a doctor right away. Number A-001 — you go first.' : 'Number A-014 is yours. Two people are ahead of you — grab a seat, the board will call you.' },
+        say: { name: 'Maria', role: 'Reception', text: ticket.triage === 1 ? 'You need a doctor right away. Number B-019 — you go first.' : 'Number B-024 is yours. Two people are ahead of you — grab a seat, the board will call you.' },
       }));
     },
   });

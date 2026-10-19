@@ -6,13 +6,14 @@
     This file is OPEN (escrow_ignore). It holds what both sides of the bridge
     share:
 
-      Bridge.Framework            'esx' | 'qbcore' | 'qbox' | 'standalone'
+      Bridge.Framework            'esx' | 'qbcore' | 'qbox' | 'ox' | 'standalone'
       Bridge.Started(resource)    true while a resource is started/starting
       Bridge.Pick(kind, ...)      adapter detection (override → priority list)
-      Bridge.Core()               ESX / QBCore shared object (cached)
+      Bridge.Core()               ESX / QBCore shared object (cached; nil on ox_core)
       Bridge.Cfg(key, default)    read Config.Bridge safely
       Bridge.IsMedicJob(name) / Bridge.IsPoliceJob(name)
       Bridge.SplitDutyJob(name)   ESX 'offambulance' → 'ambulance', false
+      Bridge.OxGroup(name) / Bridge.OxJob(groups, activeGroup, onDuty)   ox_core groups → job
       Bridge.ItemKey(name) / Bridge.ItemDef(name) / Bridge.ItemLabel(name)
       Bridge.FaIcon(icon)         NAYZEEE icon name → Font Awesome class
       Bridge.Throttle(src, key, ms)
@@ -88,7 +89,7 @@ end
 
 Bridge.Priority = {
     -- qbx_core provides 'qb-core', so Qbox is checked before QBCore
-    framework = { 'qbox', 'esx', 'qbcore' },
+    framework = { 'qbox', 'ox', 'esx', 'qbcore' },
 
     inventory = {
         'ox_inventory', 'qs-inventory', 'codem-inventory', 'origen_inventory', 'tgiann-inventory',
@@ -101,9 +102,10 @@ Bridge.Priority = {
     -- 'nza' is our own NUI toast and is always available
     notify = { 'nza', 'nayzeee', 'ox_lib', 'okok', 'codem', 'mythic', 'brutal', 't-notify', 'qb', 'esx', 'native' },
 
+    -- renewed-phone provides 'qb-phone', so it goes before qb-phone
     phone = {
         'lb-phone', 'qs-smartphone-pro', 'qs-smartphone', 'yseries', 'npwd', 'gksphone',
-        'okokPhone', 'roadphone', 'high-phone', 'renewed-phone',
+        'okokPhone', 'roadphone', 'high-phone', 'renewed-phone', 'qb-phone',
     },
 
     dispatch = {
@@ -130,13 +132,14 @@ Bridge.Priority = {
         esx        = { 'esx_addonaccount', 'okokBanking', 'fd_banking' },
         qbcore     = { 'Renewed-Banking', 'okokBanking', 'fd_banking', 'qb-banking', 'qb-management' },
         qbox       = { 'Renewed-Banking', 'okokBanking', 'fd_banking', 'qb-banking', 'qbx_management' },
+        ox         = { 'ox_core' },
         standalone = { 'Renewed-Banking', 'okokBanking', 'fd_banking' },
     },
 }
 
 -- adapter name → resource that must be started (true = built in)
 Bridge.Resources = {
-    framework = { qbox = 'qbx_core', esx = 'es_extended', qbcore = 'qb-core' },
+    framework = { qbox = 'qbx_core', ox = 'ox_core', esx = 'es_extended', qbcore = 'qb-core' },
 
     inventory = {
         ['ox_inventory']     = 'ox_inventory',
@@ -185,6 +188,7 @@ Bridge.Resources = {
         ['roadphone']         = 'roadphone',
         ['high-phone']        = 'high-phone',
         ['renewed-phone']     = 'renewed-phone',
+        ['qb-phone']          = 'qb-phone',
     },
 
     dispatch = {
@@ -239,12 +243,14 @@ Bridge.Resources = {
         ['qb-banking']       = 'qb-banking',
         ['qb-management']    = 'qb-management',
         ['qbx_management']   = 'qbx_management',
+        ['ox_core']          = 'ox_core',
     },
 }
 
 -- Aliases people tend to type in the config
 local ALIASES = {
-    framework = { qb = 'qbcore', ['qb-core'] = 'qbcore', qbx = 'qbox', qbx_core = 'qbox', es_extended = 'esx', none = 'standalone' },
+    framework = { qb = 'qbcore', ['qb-core'] = 'qbcore', qbx = 'qbox', qbx_core = 'qbox', es_extended = 'esx',
+                  ox_core = 'ox', oxcore = 'ox', none = 'standalone' },
     notify    = { nayzeee_notify = 'nayzeee', ['nayzeee-notify'] = 'nayzeee', okokNotify = 'okok', mythic_notify = 'mythic',
                   brutal_notify = 'brutal', ['codem-notification'] = 'codem', ['qb-core'] = 'qb', es_extended = 'esx', ox = 'ox_lib' },
     keys      = { vehicles_keys = 'jaksam', mrnewbvehiclekeys = 'MrNewbVehicleKeys', ['renewed-vehiclekeys'] = 'Renewed-Vehiclekeys' },
@@ -333,6 +339,7 @@ Bridge.Framework = detectFramework()
 local coreObject = nil
 
 --- ESX shared object, QBCore core object (QBCore and Qbox compat) or nil.
+--- ox_core has no core object: its adapters call exports.ox_core directly.
 function Bridge.Core()
     if coreObject then return coreObject end
     local fw = Bridge.Framework
@@ -389,6 +396,78 @@ function Bridge.SplitDutyJob(name)
         end
     end
     return name, nil
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- OX_CORE GROUPS  (shared: the server adapter and the client both build the job here)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+--- ox_core group definition { name, label, grades = { [grade] = label }, accountRoles, type }.
+--- ox_core replicates every group as GlobalState['group.<name>'] on server and clients.
+function Bridge.OxGroup(name)
+    if type(name) ~= 'string' or name == '' then return nil end
+    local ok, def = pcall(function() return GlobalState['group.' .. name] end)
+    if ok and type(def) == 'table' then return def end
+    return nil
+end
+
+--- Grade labels by ox grade (1 = lowest) and the highest grade of a group definition.
+function Bridge.OxGrades(def)
+    local labels, count = {}, 0
+    local grades = type(def) == 'table' and def.grades or nil
+    if type(grades) ~= 'table' then return labels, 0 end
+    for k, v in pairs(grades) do
+        local i = tonumber(k)
+        if i and i >= 1 and type(v) == 'string' then
+            labels[i] = v
+            if i > count then count = i end
+        end
+    end
+    return labels, count
+end
+
+local function oxHeld(groups, name)
+    return type(name) == 'string' and (tonumber(groups[name]) or 0) > 0
+end
+
+--- ox_core groups ({ [name] = grade }) → bridge job, or nil when no group counts as a job.
+--- The job is the active group when it is an EMS / police group, else the first
+--- Config.Jobs.medic group the character holds, then the first police group, then the
+--- active group. ox_core grades start at 1 (0 = not in the group); the bridge counts
+--- from 0 like ESX / QBCore, so Config.DefaultPerms and hospital grade levels mean
+--- the same on every framework (ox grade 1 = bridge grade 0, rawGrade keeps the ox one).
+function Bridge.OxJob(groups, activeGroup, onDuty)
+    if type(groups) ~= 'table' then return nil end
+    local name
+    if oxHeld(groups, activeGroup) and (Bridge.IsMedicJob(activeGroup) or Bridge.IsPoliceJob(activeGroup)) then
+        name = activeGroup
+    else
+        for _, list in ipairs({ Bridge.MedicJobs(), Bridge.PoliceJobs() }) do
+            if type(list) == 'string' then list = { list } end
+            for _, job in ipairs(type(list) == 'table' and list or {}) do
+                if oxHeld(groups, job) then name = job break end
+            end
+            if name then break end
+        end
+        if not name and oxHeld(groups, activeGroup) then name = activeGroup end
+    end
+    if not name then return nil end
+
+    local grade = math.floor(tonumber(groups[name]))
+    local def = Bridge.OxGroup(name) or {}
+    local labels, count = Bridge.OxGrades(def)
+    local roles = type(def.accountRoles) == 'table' and def.accountRoles or {}
+    local role = roles[grade] or roles[tostring(grade)]
+    return {
+        name = name,
+        label = type(def.label) == 'string' and def.label or name,
+        grade = grade - 1,
+        rawGrade = grade,
+        gradeLabel = labels[grade] or tostring(grade),
+        onDuty = onDuty == true,
+        isBoss = (count > 0 and grade >= count) or role == 'owner',
+        type = def.type,
+    }
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════

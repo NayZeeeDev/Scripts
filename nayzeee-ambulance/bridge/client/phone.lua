@@ -33,6 +33,8 @@ local OPEN_EXPORTS = {
     ['roadphone']         = { 'isPhoneOpen', 'IsPhoneOpen', 'isOpen' },
     ['high-phone']        = { 'isPhoneOpen', 'IsPhoneOpen', 'isOpen' },
     ['renewed-phone']     = { 'isPhoneOpen', 'IsPhoneOpen', 'IsOpen' },
+    -- stock qb-phone exports no open state (forks may): falls back to LocalPlayer.state.phoneOpen
+    ['qb-phone']          = { 'IsPhoneOpen', 'isPhoneOpen' },
 }
 Bridge.PhoneOpenExports = OPEN_EXPORTS
 

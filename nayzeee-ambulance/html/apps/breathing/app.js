@@ -5,7 +5,8 @@
        and in its slot our widgets: "On sight" observation list, the count window strip
        (step 1) and the sound picker (step 3, grouped: whole chest / one side matrix)
      · AX-4 auscultation unit top-right (generic device, no brand): live spectrogram,
-       6-pad chest map, instrument list with dwell / sides / R·L air-entry balance
+       6-pad chest map (each heard pad fills), instrument list with zone / dwell / level dB /
+       left-vs-right difference dB
      · tool belt right edge (core), debrief card slides in under the unit at the end
    3 steps:
      1 Watch and count   the chest marker rises with every breath; Space opens a 15 s count
@@ -167,8 +168,8 @@
                 <ul class="ax-list">
                   <li><span class="k-zone"></span><b class="v-zone">--</b></li>
                   <li><span class="k-dwell"></span><b class="v-dwell">0.0<small>s</small></b><i class="dw"><i></i></i></li>
-                  <li><span class="k-sides"></span><b class="v-sides">0<small>/2</small></b></li>
-                  <li class="bal"><span class="k-bal"></span><span class="balm"><i class="r"></i><i class="l"></i></span></li>
+                  <li><span class="k-lvl"></span><b class="v-lvl">--</b></li>
+                  <li><span class="k-lr"></span><b class="v-lr">--</b></li>
                 </ul>
               </div>
               <div class="ax-leg"></div>
@@ -268,8 +269,8 @@
       this.$('.ax-bar .md').textContent = T('ax_mode', 'Diaphragm · 50–1600 Hz');
       this.$('.k-zone').textContent = T('st_zone', 'Zone');
       this.$('.k-dwell').textContent = T('ax_dwell', 'Dwell');
-      this.$('.k-sides').textContent = T('st_sides', 'Sides');
-      this.$('.k-bal').textContent = T('ax_balance', 'R · L entry');
+      this.$('.k-lvl').textContent = T('ax_level', 'Level');
+      this.$('.k-lr').textContent = T('ax_lr', 'Left vs right');
       this.$('.ax-foot .stk').innerHTML = `${icon('alert')}${esc(T('ax_sticker', 'Wipe the chest piece between patients'))}`;
       this.$('.ax-leg').innerHTML = [['v', T('lg_normal', 'Normal')], ['r', T('lg_reduced', 'Reduced')], ['a', T('lg_absent', 'Absent')], ['x', T('lg_added', 'Added sound')]]
         .map(([c, l]) => `<span><i class="${c}"></i>${esc(l)}</span>`).join('');
@@ -310,7 +311,7 @@
     renderSight() {
       const list = this.d.look || [];
       const box = this.slot.querySelector('.br-sight');
-      box.querySelector('.st').textContent = T('see_title', 'On sight');
+      box.querySelector('.st').textContent = T('see_title', 'Seen at a glance');
       box.querySelector('.n').textContent = list.length ? String(list.length) : '';
       const tone = t => (t === 'bad' ? 't-red' : t === 'warn' ? 't-amber' : t === 'ok' ? 't-teal' : '');
       box.querySelector('ul').innerHTML = list.map((l, i) => `<li class="${tone(l.tone)}" style="animation-delay:${120 + i * 70}ms"><i class="no"></i><span>${esc(l.text)}</span></li>`).join('')
@@ -374,11 +375,11 @@
         ];
       }
       if (this.step === 2) {
-        const sides = this.sidesDone();
+        const loud = this.loudest(), lr = this.sideDiff();
         return [
           { id: 'zone', label: T('st_zone', 'Zone'), value: this.zone ? T(`zone_${this.zone}`, ZONE_FB[this.zone]) : '--', small: true, tone: this.zone ? 'teal' : '' },
-          { id: 'sides', label: T('st_sides', 'Sides'), value: sides, unit: '/2', tone: sides >= 2 ? 'teal' : '' },
-          { id: 'entry', label: T('br_air', 'Air entry'), value: Math.round(this.entryPeak * 100), unit: '%' },
+          { id: 'loud', label: T('st_loudest', 'Loudest zone'), value: loud ? ZONE_TAG[loud] : '--', small: true },
+          { id: 'lr', label: T('ax_lr', 'Left vs right'), value: this.lrText(lr), unit: lr && lr.db >= 2 ? 'dB' : '', small: true, tone: lr && lr.db >= 6 ? 'amber' : '' },
         ];
       }
       return [
@@ -566,6 +567,22 @@
       const side = s => ZONES.filter(z => z[0] === s && this.listened[z] >= need).length >= 2;
       return (side('r') ? 1 : 0) + (side('l') ? 1 : 0);
     },
+    // loudness in dB below a full vesicular sound (null when nothing is heard)
+    lvlDb(x) { return x > 0.005 ? Math.round(20 * Math.log10(Math.min(1, x))) : null; },
+    // how many dB the quieter side sits under the other (null until both sides have a zone)
+    sideDiff() {
+      const avg = s => { const zs = ZONES.filter(x => x[0] === s && this.listened[x] > 0.3); return zs.length ? zs.reduce((a, x) => a + this.level[x], 0) / zs.length : null; };
+      const r = avg('r'), l = avg('l');
+      if (r === null || l === null) return null;
+      const d = 20 * Math.log10(Math.max(r, 0.005) / Math.max(l, 0.005));
+      return { db: Math.round(Math.abs(d)), quiet: d < 0 ? 'R' : 'L' };
+    },
+    lrText(lr) { return !lr ? '--' : lr.db < 2 ? T('ax_even', 'Even') : `${lr.quiet} −${lr.db}`; },
+    loudest() {
+      let best = null, bv = 0;
+      ZONES.forEach(z => { if (this.listened[z] > 0.3 && this.level[z] > bv) { bv = this.level[z]; best = z; } });
+      return best;
+    },
 
     submit() {
       const left = (this.d.minTime ?? 10) - (now() - this.opened) / 1000;
@@ -712,10 +729,14 @@
       this.$('.v-dwell').innerHTML = `${Math.min(dw, 99).toFixed(1)}<small>s</small>`;
       this.$('.ax-list .dw i').style.width = `${clamp(dw / need, 0, 1) * 100}%`;
       this.$('.ax-list .dw').classList.toggle('ok', dw >= need);
-      this.$('.v-sides').innerHTML = `${this.sidesDone()}<small>/2</small>`;
-      const avg = s => { const zs = ZONES.filter(x => x[0] === s && this.listened[x] > 0.3); return zs.length ? zs.reduce((a, x) => a + this.level[x], 0) / zs.length : 0; };
-      this.$('.balm .r').style.width = `${clamp(avg('r'), 0, 1) * 50}%`;
-      this.$('.balm .l').style.width = `${clamp(avg('l'), 0, 1) * 50}%`;
+      const db = live ? this.lvlDb(this.entryPeak) : null;
+      const lv = db === null ? '--' : `${db}<small>dB</small>`;
+      const vl = this.$('.v-lvl');
+      if (vl.innerHTML !== lv) vl.innerHTML = lv;
+      const lr = this.sideDiff(), lt = `${esc(this.lrText(lr))}${lr && lr.db >= 2 ? '<small>dB</small>' : ''}`;
+      const vr = this.$('.v-lr');
+      if (vr.innerHTML !== lt) vr.innerHTML = lt;
+      vr.classList.toggle('warn', !!(lr && lr.db >= 6));
     },
     // scrolling spectrogram (log frequency, newest on the right)
     drawSpec(snd, ev) {
@@ -894,7 +915,7 @@
       ZONES.forEach(z => vals.push(zones[z][0], zones[z][1]));
       NZA.demo('breathing', {
         k: seed, s: encode(seed, vals), stetho: true, countSeconds: 15, listenSeconds: 1.8, noBreathAfter: 6, minTime: 10,
-        look: [{ key: 'dusky', tone: 'bad', text: 'Lips and nail beds dusky blue' }, { key: 'accessory', tone: 'warn', text: 'Neck and shoulder muscles pull with each breath' }, { key: 'asym', tone: 'warn', text: 'The right side of the chest barely moves' }],
+        look: [{ key: 'dusky', tone: 'bad', text: 'Blue tinge round the mouth and fingertips' }, { key: 'accessory', tone: 'warn', text: 'Straining neck muscles on every breath in' }, { key: 'asym', tone: 'warn', text: 'The right side of the chest barely moves' }],
         patient: { name: 'Lucas Brandt', sex: 'm' }, locale: {},
       });
       NZAAssess.feed('breathing', [], { map: () => { const o = { chest: body.at('chest') }; ZONES.forEach(z => { o[z] = body.at(z); }); return o; } });

@@ -45,7 +45,7 @@ main{flex:1;display:flex;min-height:0}
 .side{flex:0 0 32%;display:flex;flex-direction:column;min-width:0}
 .blk{border-bottom:1px solid var(--line);padding:1.6vh 1.6vw;position:relative}
 .blk .lbl{display:block;font:700 2.1vh var(--mono);letter-spacing:.2em;color:var(--ink3)}
-.view .wname{display:block;font:600 3.2vh var(--font);color:var(--ink);margin:.6vh 0 1vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.view .wname{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;overflow:hidden;font:600 2.8vh var(--font);line-height:1.2;color:var(--ink);margin:.6vh 0 1vh}
 .qbar{display:flex;gap:.5vw;align-items:flex-end;height:2.6vh}
 .qbar i{flex:0 0 1.1vw;background:rgba(147,169,173,.2);border-radius:.3vh}
 .qbar i:nth-child(1){height:30%}.qbar i:nth-child(2){height:47%}.qbar i:nth-child(3){height:64%}.qbar i:nth-child(4){height:82%}.qbar i:nth-child(5){height:100%}

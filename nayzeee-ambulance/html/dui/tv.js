@@ -88,7 +88,7 @@
     const lines = [
       tr('tv_t1', 'P1 critical patients always go first'),
       tr('tv_t2', 'Keep your queue pass on you'),
-      tr('tv_t3', 'Your number lights up here together with your bed'),
+      tr('tv_t3', 'Look for your code beside a bed number'),
       tr('tv_t4', 'Feeling worse while you wait? Tell the front desk right away'),
     ];
     $('.tv-tick').innerHTML = lines.concat(lines).map(l => `<span><i></i>${esc(l)}</span>`).join('');
@@ -112,7 +112,7 @@
     grid.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`;
     grid.classList.toggle('two', shown.length > cols);
     if (!shown.length) {
-      grid.innerHTML = `<div class="tv-bnone">${ICON.bed}<p>${esc(tr('tv_seat', 'Take a seat — your number shows up here with your bed.'))}</p></div>`;
+      grid.innerHTML = `<div class="tv-bnone">${ICON.bed}<p>${esc(tr('tv_seat', 'Sit tight — free beds and their codes pop up here.'))}</p></div>`;
       return;
     }
     grid.innerHTML = shown.map((t, i) => {
@@ -245,22 +245,22 @@
     const now = Math.floor(Date.now() / 1000);
     const board = {
       hospital: 'pillbox', label: 'Pillbox Medical', now,
-      serving: [{ code: 'A-011', triage: 2, bed: 'Bed 2', status: 'called', at: now - 40 }, { code: 'A-009', triage: 1, bed: 'Bed 1', status: 'treatment', at: now - 600 }, { code: 'A-008', triage: 3, bed: 'Bed 4', status: 'treatment', at: now - 900 }],
-      waiting: [{ code: 'A-013', triage: 1, issued: now - 142 }, { code: 'A-014', triage: 2, issued: now - 418 }, { code: 'A-016', triage: 2, issued: now - 95 }, { code: 'A-015', triage: 3, issued: now - 1195 }, { code: 'A-017', triage: 3, issued: now - 61 }],
+      serving: [{ code: 'B-018', triage: 2, bed: 'Bed 2', status: 'called', at: now - 25 }, { code: 'B-016', triage: 1, bed: 'Bed 1', status: 'treatment', at: now - 540 }, { code: 'B-015', triage: 3, bed: 'Bed 4', status: 'treatment', at: now - 870 }],
+      waiting: [{ code: 'B-021', triage: 1, issued: now - 71 }, { code: 'B-024', triage: 2, issued: now - 388 }, { code: 'B-026', triage: 2, issued: now - 133 }, { code: 'B-027', triage: 3, issued: now - 1046 }, { code: 'B-029', triage: 3, issued: now - 48 }],
       waitingMore: 0,
-      incoming: [{ unit: 'MEDIC 12', priority: 1, eta: 40, arriving: true }, { unit: 'RESCUE 7', priority: 2, eta: 190, arriving: false }],
-      counts: { waiting: 5, treatment: 2, bedsFree: 1, bedsTotal: 5, staff: 1 }, ai: false,
+      incoming: [{ unit: 'AMB 3', priority: 2, eta: 55, arriving: false }, { unit: 'AIR 1', priority: 1, eta: 260, arriving: false }],
+      counts: { waiting: 5, treatment: 2, bedsFree: 2, bedsTotal: 6, staff: 3 }, ai: false,
     };
     if (state === 'busy') {
-      board.waiting = board.waiting.concat([{ code: 'A-018', triage: 3, issued: now - 40 }, { code: 'A-019', triage: 2, issued: now - 30 }, { code: 'A-020', triage: 3, issued: now - 20 }, { code: 'A-021', triage: 3, issued: now - 12 }, { code: 'A-022', triage: 3, issued: now - 5 }, { code: 'A-023', triage: 3, issued: now - 2 }]);
-      board.waitingMore = 4; board.counts = { waiting: 15, treatment: 6, bedsFree: 0, bedsTotal: 8, staff: 3 };
-      board.serving = board.serving.concat([{ code: 'A-005', triage: 2, bed: 'Bed 5', status: 'treatment', at: now - 1200 }, { code: 'A-006', triage: 3, bed: 'Bed 6', status: 'treatment', at: now - 1300 }, { code: 'A-007', triage: 3, bed: 'Bed 7', status: 'treatment', at: now - 1400 }]);
+      board.waiting = board.waiting.concat([{ code: 'B-030', triage: 3, issued: now - 40 }, { code: 'B-031', triage: 2, issued: now - 30 }, { code: 'B-032', triage: 3, issued: now - 20 }, { code: 'B-033', triage: 3, issued: now - 12 }, { code: 'B-034', triage: 3, issued: now - 5 }, { code: 'B-035', triage: 3, issued: now - 2 }]);
+      board.waitingMore = 4; board.counts = { waiting: 15, treatment: 6, bedsFree: 0, bedsTotal: 8, staff: 4 };
+      board.serving = board.serving.concat([{ code: 'B-010', triage: 2, bed: 'Bed 5', status: 'treatment', at: now - 1200 }, { code: 'B-012', triage: 3, bed: 'Bed 6', status: 'treatment', at: now - 1300 }, { code: 'B-013', triage: 3, bed: 'Bed 7', status: 'treatment', at: now - 1400 }]);
     }
     if (state === 'empty') { board.serving = []; board.waiting = []; board.incoming = []; board.counts = { waiting: 0, treatment: 0, bedsFree: 3, bedsTotal: 3, staff: 0 }; board.ai = true; }
     if (state !== 'standby') {
-      handle({ type: 'init', locale: {}, clock: { mode: 'game', h: 12, m: 0, msPerMin: 2000 } });
-      handle({ type: 'board', board, mine: state === 'mine' ? 'A-014' : null });
-      if (state === 'flash') { S.lastCalled = 'x'; handle({ type: 'board', board: Object.assign({}, board, { serving: [{ code: 'A-014', triage: 2, bed: 'Bed 3', status: 'called', at: now }].concat(board.serving) }), mine: 'A-014' }); }
+      handle({ type: 'init', locale: {}, clock: { mode: 'game', h: 15, m: 37, msPerMin: 2000 } });
+      handle({ type: 'board', board, mine: state === 'mine' ? 'B-024' : null });
+      if (state === 'flash') { S.lastCalled = 'x'; handle({ type: 'board', board: Object.assign({}, board, { serving: [{ code: 'B-024', triage: 2, bed: 'Bed 3', status: 'called', at: now }].concat(board.serving) }), mine: 'B-024' }); }
     }
   }
 })();

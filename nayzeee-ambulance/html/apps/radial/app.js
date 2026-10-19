@@ -267,32 +267,45 @@
       6() { quick(6); }, 7() { quick(7); }, 8() { quick(8); }, 9() { quick(9); },
     },
     preview() {
+      const find = (list, id) => { for (const it of list || []) { if (it.id === id) return it; const f = find(it.items, id); if (f) return f; } return null; };
       NZA.mock('radial:select', d => {
-        if (d.id === 'd_npc') { const it = data.items[0].items.find(x => x.id === 'd_npc'); it.active = !it.active; return { items: data.items }; }
+        if (d.id === 'd_npc') { const it = find(data.items, 'd_npc'); it.active = !it.active; return { items: data.items }; }
         NZA.toast({ title: 'Job menu', message: `Selected ${d.id}`, type: 'info' });
         return { close: true };
       });
       NZA.demo('radial', {
         name: 'Dana Whitfield', callsign: 'Medic 12', grade: 'Paramedic', status: 'ENR', statusLabel: 'Rolling', tone: 'amber', onDuty: true, shift: 8040, call: 'C-0416', key: 'F6',
         items: [
-          { id: 'dispatch', label: 'Calls', icon: 'broadcast', desc: 'Take calls, see the live map and the logbook', items: [
+          { id: 'status', label: 'Status', icon: 'radio', desc: 'Available · availability and your shift', items: [
+            { id: 'd_status', label: 'Go unavailable', icon: 'pause', disabled: true, desc: 'Stand down from your call first' },
+            { id: 'duty', label: 'End shift', icon: 'logout', danger: true, desc: 'Clock out and stop getting paged' },
+          ] },
+          { id: 'dispatch', label: 'Calls', icon: 'broadcast', desc: 'Take or drop calls, open the board, street calls', items: [
             { id: 'd_respond', label: 'Take next call', icon: 'siren', desc: 'Take the most urgent open call' },
             { id: 'd_clear', label: 'Stand down', icon: 'x', danger: true, desc: 'Leave C-0416 and become available' },
-            { id: 'd_map', label: 'Live map', icon: 'map' }, { id: 'd_log', label: 'Logbook', icon: 'list' },
-            { id: 'd_queue', label: 'ER intake', icon: 'hospital' },
+            { id: 'checkin_next', label: 'Call next patient', icon: 'bell', desc: 'Next number to an open bed' },
+            { id: 'd_board', label: 'Board', icon: 'grid', desc: 'Ops board on the live map with your call' },
             { id: 'd_npc', label: 'Street calls', icon: 'call', active: true, desc: 'Locals can page you. Click to stop.' },
-            { id: 'd_status', label: 'Go unavailable', icon: 'pause', disabled: true, desc: 'Stand down from your call first' },
-            { id: 'd_pager', label: 'Pager', icon: 'pager' },
+            { id: 'd_phone', label: 'Link phone', icon: 'phone', desc: 'Get every call on your phone too.' },
           ] },
-          { id: 'patient', label: 'Care', icon: 'heart', desc: 'Treat the closest patient', items: [
-            { id: 'p_exam', label: 'Head-to-toe', icon: 'stetho' }, { id: 'p_pulse', label: 'Pulse', icon: 'pulse' },
-            { id: 'p_breath', label: 'Breathing', icon: 'lungs' }, { id: 'p_walk', label: 'Walk them', icon: 'walk' },
+          { id: 'patient', label: 'Care', icon: 'heart', desc: 'Treat the closest patient or work the gurney', items: [
+            { id: 'patient:assess', label: 'Assess', icon: 'stetho', desc: 'Ask to walk · Examine · Pulse …', items: [
+              { id: 'assess_walk', label: 'Ask to walk', icon: 'walk' }, { id: 'assess_exam', label: 'Examine', icon: 'stetho' },
+              { id: 'assess_pulse', label: 'Pulse', icon: 'pulse' }, { id: 'assess_breath', label: 'Breathing', icon: 'lungs' },
+            ] },
+            { id: 'patient:treat', label: 'Resus & treat', icon: 'medkit', desc: 'Stop the bleed · Tourniquet · Meds …', items: [
+              { id: 'fa_stopbleed', label: 'Stop the bleed', icon: 'drop' }, { id: 'fa_tourniquet', label: 'Tourniquet', icon: 'bandage' },
+              { id: 'fa_meds', label: 'Meds', icon: 'pill' }, { id: 'field_iv', label: 'IV line', icon: 'iv' },
+            ] },
+            { id: 'patient:move', label: 'Move', icon: 'walk', desc: 'Carry · Gurney', items: [
+              { id: 'tr_carry', label: 'Carry', icon: 'hand' }, { id: 'stretcher', label: 'Gurney', icon: 'bed', items: [{ id: 'tr_str_take', label: 'Take gurney', icon: 'bed' }] },
+            ] },
+            { id: 'pharmacy_bill', label: 'Send bill', icon: 'receipt' },
           ] },
-          { id: 'stretcher', label: 'Gurney', icon: 'bed', disabled: true, desc: 'No gurney close by' },
-          { id: 'duty', label: 'End shift', icon: 'logout', danger: true, desc: 'Clock out and stop getting paged' },
+          { id: 'd_pager', label: 'Pager', icon: 'pager' },
         ],
       });
-      path = ['dispatch']; render(); highlight(5);
+      path = ['dispatch']; render(); highlight(4);
     },
   });
 

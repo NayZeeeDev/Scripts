@@ -204,6 +204,33 @@ S['fd_banking'] = {
 }
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- ox_core group accounts (GetGroupAccount + CallAccount get 'balance' /
+-- addBalance / removeBalance). The group needs hasAccount; ox_core then keeps
+-- its default account. Account calls are asynchronous: call from a thread.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local function oxGroupAccount(name)
+    local OA = Bridge.OxAccount
+    if not OA then return nil end
+    return OA.id(exports.ox_core:GetGroupAccount(name)), OA
+end
+
+S['ox_core'] = {
+    get = function(name)
+        local id, OA = oxGroupAccount(name)
+        return id and OA.balance(id) or 0
+    end,
+    add = function(name, amount)
+        local id, OA = oxGroupAccount(name)
+        return id ~= nil and OA.add(id, amount, 'nayzeee-ambulance')
+    end,
+    remove = function(name, amount)
+        local id, OA = oxGroupAccount(name)
+        return id ~= nil and OA.remove(id, amount, 'nayzeee-ambulance')
+    end,
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- RESOLVE
 -- ═══════════════════════════════════════════════════════════════════════════
 

@@ -10,7 +10,7 @@
    JS → Lua: dispatch:respond {id} · dispatch:assign {id, src} · dispatch:unassign {id, src}
              dispatch:clear {id} · dispatch:closeCall {id} · dispatch:priority {id, priority}
              dispatch:gps {id} | {x, y} · dispatch:status {code} · dispatch:npc {on}
-             dispatch:log {priority, search} → { rows, db } · dispatch:refresh → data
+             dispatch:log {priority, search} → { rows, db }   (board data is pushed, no refresh call)
              dispatch:callNext {} (ER intake: call the next check-in ticket)
    Keys: ↑/↓ select call · R respond · G GPS · M map · N call next (ER intake) · ESC close
    ═══════════════════════════════════════════════════════════ */
@@ -634,34 +634,34 @@
       const now = Math.floor(Date.now() / 1000);
       const demo = {
         clock: '16:42', now, self: { x: 310, y: -600 },
-        me: { src: 1, name: 'John Doe', callsign: 'Unit 04', grade: 'Paramedic', status: 'ENR', call: 'C-0416', npc: true, oos: false, canAssign: true },
+        me: { src: 1, name: 'Priya Nair', callsign: 'Unit 04', grade: 'Paramedic', status: 'ENR', call: 'C-0416', npc: true, oos: false, canAssign: true },
         calls: [
-          { id: 'C-0418', code: '10-52', priority: 1, title: 'Shot in the chest', type: 'gunshot', x: -1120, y: -1250, zone: 'Vespucci Canals', street: 'Imagination Ct / Prosperity St', caller: 'Michael Garcia', phone: '555-0142',
-            message: "My friend's been shot in the chest, he's bleeding a lot!", age: 42, status: 'DSP', units: [], declined: 1, source: 'player',
-            patients: [{ pid: 'p:1', name: 'Tony Russo', tri: 1, st: 'wounded', tags: ['gunshot'] }], history: [{ s: 'DSP', t: now - 42 }], created: now - 42 },
-          { id: 'C-0416', code: '10-50', priority: 2, title: 'Two-car collision', type: 'mva', x: 120, y: -1010, zone: 'Pillbox Hill', street: 'Palomino Ave', caller: 'Witness', age: 260, status: 'ENR', source: 'npc', npc: true,
-            units: [{ src: 1, callsign: 'Unit 04', short: 'J. Doe', stage: 'ENR' }, { src: 3, callsign: 'Unit 09', short: 'T. Kane', stage: 'SCN' }],
+          { id: 'C-0418', code: '10-53', priority: 1, title: 'Fell from scaffolding', type: 'fall', x: -640, y: -880, zone: 'Little Seoul', street: 'Ginger St / Palomino Fwy', caller: 'Kofi Mensah', phone: '555-0187',
+            message: 'A worker came off the scaffolding, two floors down. He cannot feel his legs!', age: 42, status: 'DSP', units: [], declined: 1, source: 'player',
+            patients: [{ pid: 'p:1', name: 'Tony Russo', tri: 1, st: 'wounded', tags: ['fall', 'fracture'] }], history: [{ s: 'DSP', t: now - 42 }], created: now - 42 },
+          { id: 'C-0416', code: '10-50', priority: 2, title: 'Two-car collision', type: 'mva', x: 120, y: -1010, zone: 'Pillbox Hill', street: 'Elgin Ave', caller: 'Witness', age: 260, status: 'ENR', source: 'npc', npc: true,
+            units: [{ src: 1, callsign: 'Unit 04', short: 'P. Nair', stage: 'ENR' }, { src: 3, callsign: 'Unit 09', short: 'T. Kane', stage: 'SCN' }],
             patients: [{ pid: 'n:1', name: 'Ana Silva', tri: 2, st: 'wounded', tags: ['fracture', 'laceration'] }, { pid: 'n:2', name: 'Dean Price', tri: 3, st: 'alive', tags: ['contusion'] }],
             history: [{ s: 'DSP', t: now - 260 }, { s: 'JOIN', t: now - 200, u: 'Unit 09' }, { s: 'ENR', t: now - 200, u: 'Unit 09' }, { s: 'SCN', t: now - 80, u: 'Unit 09' }, { s: 'JOIN', t: now - 30, u: 'Unit 04' }], created: now - 260 },
           { id: 'C-0415', code: '10-56', priority: 3, title: 'Unresponsive after pills', type: 'overdose', x: 1700, y: 3650, zone: 'Sandy Shores', street: 'Alhambra Dr', age: 610, status: 'TRN', source: 'npc', npc: true,
             units: [{ src: 5, callsign: 'Unit 12', short: 'M. Reyes', stage: 'TRN' }], patients: [{ pid: 'n:3', name: 'Kyle Ward', tri: 2, st: 'wounded', tags: [] }], history: [{ s: 'DSP', t: now - 610 }], created: now - 610 },
         ],
         units: [
-          { src: 1, name: 'John Doe', short: 'J. Doe', callsign: 'Unit 04', grade: 'Paramedic', status: 'ENR', call: 'C-0416', x: 300, y: -620, h: 20, veh: true },
+          { src: 1, name: 'Priya Nair', short: 'P. Nair', callsign: 'Unit 04', grade: 'Paramedic', status: 'ENR', call: 'C-0416', x: 300, y: -620, h: 20, veh: true },
           { src: 3, name: 'Theo Kane', short: 'T. Kane', callsign: 'Unit 09', grade: 'EMT', status: 'SCN', call: 'C-0416', x: 130, y: -1000, h: 200 },
           { src: 5, name: 'Maya Reyes', short: 'M. Reyes', callsign: 'Unit 12', grade: 'Paramedic', status: 'TRN', call: 'C-0415', x: 1500, y: 3000, h: 160, veh: true },
           { src: 7, name: 'Sam Brooks', short: 'S. Brooks', callsign: 'Unit 15', grade: 'Trainee', status: '10-8', x: -400, y: -300, h: 90 },
           { src: 8, name: 'Lena Ortiz', short: 'L. Ortiz', callsign: 'Unit 21', grade: 'Doctor', status: '10-7', x: 320, y: -560, h: 0 },
         ],
         hospitals: [{ id: 'h1', label: 'Pillbox Medical', x: 298, y: -584 }, { id: 'h2', label: 'Sandy Shores Medical', x: 1839, y: 3672 }, { id: 'h3', label: 'Paleto Bay Clinic', x: -247, y: 6331 }],
-        queue: [{ ticket: 'A-014', name: 'Rosa Diaz', priority: 2, wait: 380, status: 'waiting', hospital: 'Pillbox' }, { ticket: 'A-015', name: 'Ben Carter', priority: 3, wait: 140, status: 'waiting' }, { ticket: 'A-012', name: 'Lily Chen', priority: 1, wait: 620, status: 'treatment' }],
+        queue: [{ ticket: 'B-024', name: 'Rosa Diaz', priority: 2, wait: 380, status: 'waiting', hospital: 'Pillbox' }, { ticket: 'B-027', name: 'Ben Carter', priority: 3, wait: 140, status: 'waiting' }, { ticket: 'B-016', name: 'Lily Chen', priority: 1, wait: 620, status: 'treatment' }],
         queueAvailable: true, canCallNext: true,
         incoming: [{ callsign: 'Unit 12', name: 'M. Reyes', call: 'C-0415', title: 'Unresponsive after pills', priority: 3, hospital: 'Sandy Shores Medical', eta: 64 }],
         stats: { active: 3, p1: 1, available: 1, onDuty: 5, onCall: 3, avgResponse: 236, served: 14, waiting: 3 },
         locale: {}, tab: 'overview',
       };
       NZA.mock('dispatch:log', () => ({ db: true, rows: [
-        { id: 'C-0414', code: '10-52', priority: 1, title: 'Stabbed outside a bar', type: 'stab', zone: 'Davis', street: 'Grove St', units: ['Unit 04', 'Unit 09'], status: 'HSP', reason: 'hospital', created: now - 3600, arrived: now - 3330, closed: now - 2700 },
+        { id: 'C-0414', code: '10-54', priority: 1, title: 'Stabbed outside a bar', type: 'stab', zone: 'Davis', street: 'Grove St', units: ['Unit 04', 'Unit 09'], status: 'HSP', reason: 'hospital', created: now - 3600, arrived: now - 3330, closed: now - 2700 },
         { id: 'C-0413', code: '10-50', priority: 2, title: 'Two-car collision', type: 'mva', zone: 'Rockford Hills', street: 'Portola Dr', units: ['Unit 12'], status: 'SCN', reason: 'cleared', created: now - 5400, arrived: now - 5100, closed: now - 4600 },
         { id: 'C-0411', code: '10-52', priority: 3, title: 'Fell from a ladder', type: 'fall', zone: 'Vinewood', street: 'Hawick Ave', units: [], status: 'DSP', reason: 'expired', created: now - 9000, closed: now - 8100 },
       ] }));

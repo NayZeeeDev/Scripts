@@ -1744,7 +1744,6 @@
           NZA.audio[missed.length ? 'fail' : 'success']();
           paintMarkers(true);
         },
-        launchFailed(r) { S.launching = false; plan.el.classList.remove('busy'); pp.flash('bad', (r && r.msg) || T('err_generic', 'Something went wrong.'), 3500); },
       },
       destroy() {
         app.el.removeEventListener('mousemove', onMove);
@@ -2944,7 +2943,7 @@
     const STEP_TOOL = { mark: 'pen', clean: 'swab', numb: 'lido', cut: 'scalpel', dissect: 'clamp', sweep: 'finger', tube: 'tube', connect: 'drain' };
     const stepId = () => (STEPS[G.step] || STEPS[STEPS.length - 1])[0];
     const TXT = {
-      mark: T('cd_x_mark', 'Feel for the ribs with {1}: hold {LMB} and sweep down from the armpit, they light up under your fingers. Then mark the **5th rib space in the middle of the armpit line** with {2}.'),
+      mark: T('cd_x_mark', 'Feel for the ribs with {1}: hold {LMB} and sweep down from the armpit and each rib glows as you pass over it. Then mark the **5th rib space in the middle of the armpit line** with {2}.'),
       clean: T('cd_x_clean', 'Hold {LMB} and scrub the antiseptic over the mark until the whole area is brown. The sterile drape goes on after.'),
       numb: T('cd_x_numb', 'Hold {LMB} on the mark to raise a bleb of lidocaine, then down to the top of the rib. {N} skips it (it will hurt).'),
       cut: T('cd_x_cut', 'Press at one end of the dashed line and draw the blade **along the top of the rib**, 2–3 cm.'),
@@ -3632,7 +3631,7 @@
                      stepItems, …server data (views, seed, study, patient, vitals, plan, drains, labels,
                      minSeen | ml, mm, syringe, drawRate, leftOver | side, haemo, ptx, tension, numbing) }
               anchors (core: torso grid g<i>_<j>)   vitals { hr, rhythm, sys, dia, spo2, rr }
-              result (server outcome)               abort ()            launchFailed { msg }
+              result (server outcome)               abort ()
    JS → Lua   ultrasound:probe { x, y, rot, tilt, contact }      ultrasound:needle { depth, ang, draw, touch, phase }
               ultrasound:finish { result } → { ok, outcome? }     ultrasound:launch { action, side, result } → { ok, msg? }
               ultrasound:flinch { pain }    ultrasound:abort {}   ultrasound:close (core)
@@ -3725,7 +3724,6 @@
     msg: {
       vitals(v) { const a = NZA.apps.ultrasound; if (a.mode && a.mode.msg && a.mode.msg.vitals) a.mode.msg.vitals(v); },
       result(o) { const a = NZA.apps.ultrasound; if (a.mode && a.mode.msg && a.mode.msg.result) a.mode.msg.result(o || {}); },
-      launchFailed(r) { const a = NZA.apps.ultrasound; if (a.mode && a.mode.msg && a.mode.msg.launchFailed) a.mode.msg.launchFailed(r || {}); },
       abort() { const a = NZA.apps.ultrasound; a.teardown(); NZA.closeLocal('ultrasound'); },
     },
 
@@ -3742,7 +3740,7 @@
         mode, inv, perms: { chestdrain: true, pericardio: true, decompress: true },
         stepItems: { chestdrain: { chest_drain_kit: 1 }, decompress: { decomp_needle: 1 }, pericardio: { iv_kit: 1 }, angio: { angio_kit: 1, contrast: 1, coil: 1 } },
         locale: { rg_r_upper_leg: 'right thigh', rg_chest: 'chest', rg_abdomen: 'abdomen' },
-        seed: 4512, study: 'US-04512', patient: { name: 'Michael Garcia', sex: 'm', age: 34 },
+        seed: 4512, study: 'US-04512', patient: { name: 'Jonah Pereira', sex: 'm', age: 34 },
         vitals: { hr: 118, ecgRate: 118, rhythm: 'stach', sys: 84, dia: 52, spo2: 91, rr: 26 },
       };
       const demo = {

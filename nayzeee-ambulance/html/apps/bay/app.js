@@ -577,7 +577,6 @@
       },
       crew(c) { if (!st) return; st.crew = Array.isArray(c) ? c : []; renderCrew(); },
       tick(d) { if (!st) return; st.speed = Math.round(Number(d.speed) || 0); if (d.plate) st.unit.plate = d.plate; renderCab(); renderWarnings(); },
-      tools(d) { if (!st) return; st.tools = Object.assign(st.tools, d || {}); renderDock(); },
       monitor(d) { if (!st) return; setBigMonitor(d && d.on); },
       supplies(d) { if (!st) return; openSupplies(d); },
       suppliesClose() { closeSupplies(false); },

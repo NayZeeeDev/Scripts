@@ -902,6 +902,35 @@
         const half = Math.max(22 * s, b.R * scale * 1.15);
         const pulse = (Math.sin(now / 260) + 1) / 2;
         const arm = Math.min(14 * s, half * 0.5);
+        // gap ring: tightens round the leak as the catheter tip closes in; the dotted ring is the coil
+        // range, the ring locks onto it (solid teal) once the tip is in range on the feeding branch
+        const gp = Array.isArray(st.gp) ? st.gp : null;
+        if (gp) {
+          const cd = st.cd || 2, lockR = half + 12 * s;
+          const far = clamp((Number(gp[0]) - cd) / Math.max(1, (Number(gp[3]) || 30) - cd), 0, 1);
+          g.save();
+          g.setLineDash([1.5 * s, 4.5 * s]); g.lineWidth = 1.2 * s; g.strokeStyle = 'rgba(255,255,255,.32)';
+          g.beginPath(); g.arc(bx, by, lockR, 0, TAU); g.stroke();
+          g.setLineDash([]);
+          if (gp[1]) {
+            g.strokeStyle = `rgba(31,224,200,${0.7 + pulse * 0.3})`; g.lineWidth = 2.4 * s;
+            g.shadowColor = 'rgba(31,224,200,.7)'; g.shadowBlur = 8 * s;
+            g.beginPath(); g.arc(bx, by, lockR, 0, TAU); g.stroke();
+          } else {
+            const rr = lockR + (6 + Math.sqrt(far) * 70) * s;
+            g.strokeStyle = gp[2] ? 'rgba(243,195,90,.85)' : 'rgba(255,255,255,.4)'; g.lineWidth = 1.8 * s;
+            g.setLineDash(gp[2] ? [] : [6 * s, 5 * s]);
+            g.beginPath(); g.arc(bx, by, rr, 0, TAU); g.stroke();
+            g.setLineDash([]);
+            // four ticks on the ring point inward: the ring closes toward the dotted coil range
+            g.lineWidth = 1.6 * s;
+            for (let k = 0; k < 4; k++) {
+              const a = k * Math.PI / 2 + Math.PI / 4;
+              g.beginPath(); g.moveTo(bx + Math.cos(a) * rr, by + Math.sin(a) * rr); g.lineTo(bx + Math.cos(a) * (rr - 6 * s), by + Math.sin(a) * (rr - 6 * s)); g.stroke();
+            }
+          }
+          g.restore();
+        }
         g.strokeStyle = `rgba(255,96,100,${0.75 + pulse * 0.25})`; g.lineWidth = 2 * s;
         [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
           const x = bx + sx * half, y = by + sy * half;
@@ -1155,7 +1184,7 @@
       sc: sc.params, p, f: 0.4, phi: 1.2, cx: (tip[0] + sc.bleed.x) / 2 * 0.8, cy: (tip[1] + sc.bleed.y) / 2,
       coils: [], rm: [...rm], bs: true, stain: 0.3, cd: 2, xr: true, dsa: t > 0 ? 0.9 : 0, carm: 12,
       run: t > 0 ? { id: 1, a: p[p.length - 2], b: p[p.length - 1], f: 0.4, k: 'run', t } : null,
-      hud: { name: 'Michael Garcia', sexAge: 'M · 34 · O-', caseId: 'A-0412', kv: 84, ma: 2.6, fl: 214, dose: 86.4, run: 3, carmLabel: 'LAO 12°', ml: 34, coils: 0, label: 'Selective run · Jejunal arcade', hr: 112 },
+      hud: { name: 'Tomas Lindqvist', sexAge: 'M · 34 · O-', caseId: 'A-0412', kv: 84, ma: 2.6, fl: 214, dose: 86.4, run: 3, carmLabel: 'LAO 12°', ml: 34, coils: 0, label: 'Selective run · Ileal arcade', hr: 112 },
     };
   }
 
@@ -1391,7 +1420,6 @@
       vitals(d) { if (A) onVitals(d); },
       room(d) { if (A) setRoom(!!(d && d.on), true); },
       pressed() { if (A) contrastRun(true); },
-      flash(d) { if (A && A.pp && d) A.pp.flash(d.type || 'warn', d.text || '', d.ms || 2600); },
     },
     keys: {},
     keysUp: {},
@@ -1458,7 +1486,7 @@
       phase: 'choose', step: 1, access: null, acc: null, busy: false, done: false, lastInput: 0, wheel: 0, raf: 0,
       vitals: (d.patient && d.patient.vitals) || null, coilsLeft: Math.max(0, cfg.coils | 0), patient: d.patient || {},
       stats: { attempts: 0, angleErr: null, accessT: 0, hold: 0, holdIn: 0, over: 0 }, sendT: 0,
-      bottles: Math.max(0, cfg.bottles | 0), budgetMax: cfg.budget, lastLabel: '', carmTarget: null,
+      bottles: Math.max(0, cfg.bottles | 0), budgetMax: cfg.budget, lastLabel: '', carmTarget: null, seal: null,
     };
     def.el.classList.toggle('ag-dui', A.dui);
     buildUi();
@@ -1634,7 +1662,7 @@
       case 'sheath': return [L('s1.sheath', 'Slide the sheath'), L('s1.sheathT', 'Hold {E} to slide the sheath over the wire into the artery.')];
       case 'needle': return [L('s1.remove', 'Withdraw the needle'), L('s1.removeT', 'The sheath is in the artery. Tap {R} to draw the needle back out of it.')];
       case 'nav': return [L('s2.title', 'Navigate'), F(L('s2.text', 'Get the catheter into the **%s**. {W}/{S} advance, {A}/{D} turn the tip at a branch. {X} puff, {C} contrast run.'), gateName)];
-      case 'select': return [L('s3.title', 'Shoot the run'), A.hasButton ? L('s3.textBtn', 'Tip in place. Hit the red pedal button ({Z} to walk over) or {C}, then watch the screen.') : L('s3.text', 'Tip in place. Press {C} to inject contrast and watch the screen.')];
+      case 'select': return [L('s3.title', 'Shoot the run'), A.hasButton ? L('s3.textBtn', 'Tip in place. Hit the red pedal button ({Z} to walk over) or {C}, then follow the dye on the monitor.') : L('s3.text', 'Tip in place. Press {C} to inject contrast and follow the dye on the monitor.')];
       case 'coil': {
         if (s.deploy && s.deploy.pct >= 100) return [L('s4.title', 'Pack the leak'), L('s4.out', 'The coil is fully out of the tip. {F} detaches it, {R} backs the catheter off.')];
         if (A.released) return [L('s4.title', 'Pack the leak'), L('s4.placed', 'Coil detached. {R} backs the catheter off, then check the seal.')];
@@ -1739,25 +1767,32 @@
       }
       return;
     }
-    const tb = s.toBleed();
+    // the distance to the leak lives on the image only (gap ring round the LEAK tag, see FluoroView);
+    // the panel reads the seal (leak flow drop measured on the last run) and the supplies
+    const gap = leakGap();
     const v = s.vessel();
-    const dist = Math.max(0, tb.d);
-    const prog = clamp(1 - dist / Math.max(1, A.startDist || 30), 0, 1);
-    const coilPct = s.deploy ? s.deploy.pct : (A.released ? 100 : 0);
-    const near = tb.feeds && dist <= A.cfg.coilDist;
-    const span = Math.max(4, A.startDist || 30);
-    const key = `${dist.toFixed(1)}|${tb.past ? 1 : 0}|${near ? 1 : 0}|${Math.round(coilPct)}|${v ? v.idx : -1}|${A.coilsLeft}|${A.bleedCaption || ''}`;
+    const seal = A.seal;
+    const packed = s.coils.length, kit = packed + Math.max(0, A.coilsLeft | 0);
+    const ml = Math.max(0, Math.round(s.left));
+    const sealed = seal !== null && seal >= 100;
+    const key = `${gap.near ? 1 : 0}|${v ? v.idx : -1}|${seal}|${ml}|${packed}|${A.coilsLeft}|${A.bleedCaption || ''}`;
     if (key === A.roKey) return;
     A.roKey = key;
     A.pp.set({
-      wide: { label: L('st.toBleed', 'Leak gap'), value: tb.past ? `-${dist.toFixed(1)}` : dist.toFixed(1), unit: 'cm', tone: near ? 'teal' : (tb.past ? 'amber' : ''),
-        meter: { value: prog, zone: [clamp(1 - A.cfg.coilDist / span, 0, 1), 1], tone: near ? '' : 'white' }, caption: A.bleedCaption || '', captionTone: 'red' },
+      wide: { label: L('st.seal', 'Seal'), value: seal === null ? '--' : String(seal), unit: seal === null ? '' : '%', tone: sealed ? 'teal' : seal > 0 ? 'amber' : '',
+        meter: { value: (seal || 0) / 100, zone: [0.95, 1], tone: sealed ? '' : 'amber' }, caption: A.bleedCaption || '', captionTone: sealed ? 'teal' : 'red' },
       stats: [
-        { id: 'vessel', label: L('st.cathIn', 'Vessel'), value: vesselLabel(v), small: true, tone: near ? 'teal' : '' },
-        { id: 'coil', label: L('st.coil', 'Deployed'), value: String(Math.round(coilPct)), unit: '%', tone: coilPct >= 100 ? 'teal' : '' },
-        { id: 'left', label: L('st.coilsLeft', 'Coils left'), value: String(A.coilsLeft), tone: A.coilsLeft ? '' : 'red' },
+        { id: 'vessel', label: L('st.vessel', 'Vessel'), value: vesselLabel(v), small: true, tone: gap.near ? 'teal' : '' },
+        { id: 'dye', label: L('st.dyeLeft', 'Contrast left'), value: String(ml), unit: 'mL', tone: ml < A.cfg.selectiveMl ? 'red' : ml < A.cfg.runMl ? 'amber' : '' },
+        { id: 'packed', label: L('st.packed', 'Coils packed'), value: `${packed}/${kit}`, tone: sealed ? 'teal' : A.coilsLeft ? '' : 'red' },
       ],
     });
+  }
+  // tree distance tip → leak, for the gap ring on the image: { d, near, feeds, span }
+  function leakGap() {
+    const tb = A.sim.toBleed();
+    const d = Math.max(0, tb.d);
+    return { d, near: !!tb.feeds && d <= A.cfg.coilDist, feeds: !!tb.feeds, span: Math.max(4, A.startDist || 30) };
   }
 
   /* ═══════════════════════════ INPUT ═══════════════════════════ */
@@ -2327,6 +2362,8 @@
     if (run.blush) { s.stain = Math.max(s.stain, (run.res.bleedI || 1) * 0.85); }
     const ph = A.phase;
     if (run.blush) {
+      // seal = how much the leak flow dropped on this run (full blush 0 %, collateral refill ≈ 45 %)
+      A.seal = s.coils.length ? Math.round(clamp(1 - (run.res.bleedI || 1), 0, 1) * 100) : 0;
       s.bleedSeen = true;
       A.bleedCaption = L('st.blush', 'Leak lit up on the run');
       if (ph === 'nav' || ph === 'select') {
@@ -2415,6 +2452,7 @@
     A.pp.flash('ok', L('f.sealed', 'No pooling. The leak is sealed.'), 3200);
     NZA.audio.success();
     A.bleedCaption = L('st.sealed', 'Sealed');
+    A.seal = 100;
     setTimeout(() => {
       if (!A) return;
       A.press = { pull: 0, p: 0, held: 0, need: (A.cfg.holdTime && A.cfg.holdTime[A.accKind]) || (A.accKind === 'radial' ? 6 : 12), bleed: ACCESS[A.accKind].bleed, over: 0 };
@@ -2539,7 +2577,7 @@
     else if (A.step >= 2 && A.step <= 5) updateCatheter(dt, now);
     // fluoroscopy image (NUI canvas when shown, DUI frames when live)
     if (A.step >= 2 && A.step <= 5) {
-      const snap = A.sim.snapshot({ xr: !!A.xr, dsa: A.sim.run && A.sim.run.kind === 'run' ? smooth(A.sim.run.t / 0.6) * (1 - smooth((A.sim.run.t - (RUN_LEN.run - 1.2)) / 1.2)) : 0, hud: hudInfo() });
+      const snap = A.sim.snapshot({ xr: !!A.xr, dsa: A.sim.run && A.sim.run.kind === 'run' ? smooth(A.sim.run.t / 0.6) * (1 - smooth((A.sim.run.t - (RUN_LEN.run - 1.2)) / 1.2)) : 0, hud: hudInfo(), gp: gapState() });
       if (!A.dui || A.view === 'screen' || !NZA.inGame) {
         const cv = A.$.fluoro;
         NZA.fitCanvas(cv);
@@ -2560,8 +2598,14 @@
     return {
       sc: st.sc, p: st.p, f: r(st.f), phi: r(st.phi), carm: r(st.carm), mag: st.mag || 1, cx: r(st.cx), cy: r(st.cy), coils: st.coils.map(c => [c[0], c[1], r(c[2]), Math.round(c[3]), c[4]]),
       rm: st.rm, bs: st.bs, stain: r(st.stain), cd: st.cd, run: st.run ? { id: st.run.id, a: st.run.a, b: st.run.b, f: r(st.run.f), k: st.run.k, t: r(st.run.t) } : null,
-      xr: st.xr, dsa: r(st.dsa || 0), hud: st.hud,
+      xr: st.xr, dsa: r(st.dsa || 0), hud: st.hud, gp: st.gp || null,
     };
+  }
+  // [gap cm, in coil range, on the feeding branch, start gap] while the leak is marked and a coil can still go in
+  function gapState() {
+    if (!A.sim.bleedSeen || A.seal === 100 || !(A.phase === 'nav' || A.phase === 'select' || A.phase === 'coil' || A.phase === 'confirm')) return null;
+    const g = leakGap();
+    return [Math.round(g.d * 10) / 10, g.near ? 1 : 0, g.feeds ? 1 : 0, Math.round(g.span)];
   }
   function hudInfo() {
     const s = A.sim, p = A.patient || {};
@@ -2579,8 +2623,8 @@
       locale: {},
       dui: false, hasButton: true,
       data: {
-        seed: 4127, bleed: { key: 'jejunal', side: '' }, injury: { id: 'i7', region: 'abdomen', type: 'internal', severity: 3, organ: 'bowel', vessel: 'jejunal', bleed: 84 },
-        patient: { name: 'Michael Garcia', sex: 'm', age: 34, bloodType: 'O-', avpu: 'V', vitals: { hr: 118, sys: 92, dia: 56, map: 68, spo2: 95, rr: 22, rhythm: 'stach' } },
+        seed: 4127, bleed: { key: 'ileal', side: '' }, injury: { id: 'i7', region: 'abdomen', type: 'internal', severity: 3, organ: 'bowel', vessel: 'ileal', bleed: 84 },
+        patient: { name: 'Tomas Lindqvist', sex: 'm', age: 34, bloodType: 'O-', avpu: 'V', vitals: { hr: 118, sys: 92, dia: 56, map: 68, spo2: 95, rr: 22, rhythm: 'stach' } },
         budget: 100, coils: 3, bottles: 1, maxCoils: 6, coilDist: 2, holdTime: { femoral: 12, radial: 6 }, runMl: 18, selectiveMl: 8, puffMl: 3,
         catheterSpeed: 4, parContrast: 45, parFluoro: 150, caseId: 'A-0412',
       },
@@ -2628,6 +2672,7 @@
     s.carm = 0; s.phi = 1.3; s.runs = 2; s.contrastMl = 26; s.left = 74; s.fl = 96; s.dose = 104.2;
     s.cam = { x: s.tip()[0] * 0.7, y: s.tip()[1] };
     A.bleedCaption = L('st.blush', 'Leak lit up on the run');
+    A.seal = 0;
     if (step === 'run' || step === 'select') {
       setPhase('select');
       const inj = s.injection();

@@ -6,10 +6,11 @@
    without focus when a call comes in; taken in hand (focus + cursor, game input kept)
    with the pager key / item.
 
-   Screens: CALL (answer / route ring, priority + type, street, range + drive time, stage
-            pips, key legend), SETUP (call list, link phone, silent, street calls,
+   Screens: CALL (answer / route ring; top line priority + range + drive time, then the call
+            type in full words, then the stage row: pips, stage and the street as a ticker,
+            key legend), SETUP (call list, link phone, silent, street calls,
             availability, page log, stand down), PAGE LOG, STANDBY (clock, status)
-   Keys (focused): ◀ / ArrowLeft setup-back · ▲▼ scroll · Y / Enter / ArrowRight take-open ·
+   Keys (focused): ◀ / ArrowLeft setup-back · ▲▼ scroll · Enter / ArrowRight take-open ·
                    Backspace pass-back · ESC or the pager key: put it away
 
    Lua → JS: open (payload) · state (payload) · page { id, priority, beep, line? } · live { time, calls } · focus { on }
@@ -60,9 +61,17 @@
     return `<div class="px-ring"><svg viewBox="-36 -36 72 72"><circle class="trk" r="26"/><circle class="arc" r="26" pathLength="100" stroke-dasharray="${(f * 100).toFixed(1)} 100"/>${ticks}</svg>
       <div class="rv"><b>${esc(big)}</b><span>${esc(small)}</span></div></div>`;
   }
-  function stagePips(stage) {
+  // stage row: pips + stage word, then the street scrolling as a ticker and the call index.
+  // The ticker keeps its phase across re-renders (negative delay from the clock).
+  function stagePips(stage, street, idx) {
     const ci = K.stageIdx(stage);
-    return `<div class="ln pips">${K.STAGES.map((s, i) => `<i class="${i < ci ? 'dn' : i === ci ? 'cur' : ''}"></i>`).join('')}<span class="sw">${esc(up(K.stageShort(stage, tr)))}</span><span class="sp"></span><span class="sn">${ci + 1}/6</span></div>`;
+    let tick = '<span class="sp"></span>';
+    if (street) {
+      const dur = Math.max(6, street.length * 0.42);
+      const phase = ((performance.now() / 1000) % dur).toFixed(2);
+      tick = `<span class="tk"><em style="animation-duration:${dur.toFixed(2)}s;animation-delay:-${phase}s">${esc(street)}</em></span>`;
+    }
+    return `<div class="ln pips">${K.STAGES.map((s, i) => `<i class="${i < ci ? 'dn' : i === ci ? 'cur' : ''}"></i>`).join('')}<span class="sw">${esc(up(K.stageShort(stage, tr)))}</span>${tick}<span class="sn">${esc(idx || `${ci + 1}/6`)}</span></div>`;
   }
   const arrow = rel => `<svg class="px-arr" viewBox="0 0 16 16" style="transform:rotate(${rel || 0}deg)"><path d="M8 1l5 12-5-3-5 3z"/></svg>`;
   function legend(rows) {
@@ -92,7 +101,9 @@
     const L = live.calls[c.id] || {};
     const dist = L.dist != null ? K.dist(L.dist) : { v: '--', u: 'm' };
     const p = K.prio(c.priority);
-    const type = up(tr('type_' + c.type + '_s', SHORT[c.type] || tr('type_' + c.type, c.title || c.type)));
+    // the type in full words (the short glass codes are kept for the page log)
+    const type = up(tr('type_' + c.type, c.title || SHORT[c.type] || c.type));
+    const where = up([c.street, c.zone].filter(Boolean).join(' · ') || tr('unknown_location', 'UNKNOWN LOCATION'));
     const ageNow = c.age != null ? c.age + (performance.now() - (c._at || performance.now())) / 1000 : 0;
     let ring;
     if (isMine(c)) {
@@ -107,12 +118,11 @@
       <div class="pg-call ${p === 1 ? 'p1' : ''}">
         ${ring}
         <div class="ci">
-          <div class="ln l1"><span class="inv pr">P${p}</span><span class="tt">${esc(type)}</span><span class="sp"></span><span class="ix">${sel + 1}/${calls().length}</span></div>
-          <div class="ln st">${esc(up(c.street || c.zone || tr('unknown_location', 'UNKNOWN LOCATION')))}</div>
-          <div class="ln rg">${L.rel != null ? arrow(L.rel) : ''}<span>${esc(up(dist.v + dist.u))}</span><span class="dm">${esc(L.dir || '')}</span><span class="sp"></span><span class="dm">${esc(up(tr('pg_eta', 'DRV')))}</span><span>${esc(K.eta(L.eta))}</span></div>
+          <div class="ln rg"><span class="inv pr">P${p}</span>${L.rel != null ? arrow(L.rel) : ''}<span>${esc(up(dist.v + dist.u))}</span><span class="dm">${esc(L.dir || '')}</span><span class="sp"></span><span class="dm">${esc(up(tr('pg_eta', 'DRV')))}</span><span>${esc(K.eta(L.eta))}</span></div>
+          <div class="ln tw"><span>${esc(type)}</span></div>
         </div>
       </div>
-      ${stagePips(c.status)}`;
+      ${stagePips(c.status, where, `${sel + 1}/${calls().length}`)}`;
     if (isMine(c)) legend([{ g: G.ok, t: tr('pg_gps', 'Nav'), cls: 'hot' }, { g: G.x, t: tr('pg_clr', 'End') }, { g: G.l, t: tr('pg_menu', 'Setup') }]);
     else legend([{ g: G.ok, t: tr('pg_ack', 'Take'), cls: 'hot' }, { g: G.x, t: tr('pg_decl', 'Pass') }, { g: G.l, t: tr('pg_menu', 'Setup') }]);
   }
@@ -175,7 +185,7 @@
   function renderHints() {
     const k = esc(d.key || 'F7');
     const html = `<span><kbd>◀</kbd>${esc(tr('pg_h_menu', 'Setup'))}</span><span><kbd>▲</kbd><kbd>▼</kbd>${esc(tr('pg_h_scroll', 'Scroll'))}</span>` +
-      `<span><kbd>Y</kbd>${esc(tr('pg_h_ack', 'Take'))}</span><span><kbd>⌫</kbd>${esc(tr('pg_h_back', 'Pass / back'))}</span><span><kbd>${k}</kbd>${esc(tr('pg_h_hide', 'Put away'))}</span>`;
+      `<span><kbd>Enter</kbd>${esc(tr('pg_h_ack', 'Take'))}</span><span><kbd>⌫</kbd>${esc(tr('pg_h_back', 'Pass / back'))}</span><span><kbd>${k}</kbd>${esc(tr('pg_h_hide', 'Put away'))}</span>`;
     if (hintsEl.innerHTML !== html) hintsEl.innerHTML = html;
   }
 
@@ -366,8 +376,6 @@
       ArrowRight() { if (!d.focused) return false; press('ack'); },
       ArrowUp() { if (!d.focused) return false; press('up'); },
       ArrowDown() { if (!d.focused) return false; press('down'); },
-      y() { if (!d.focused) return false; press('ack'); },
-      Y() { if (!d.focused) return false; press('ack'); },
       Enter() { if (!d.focused) return false; press('ack'); },
       Backspace() { if (!d.focused) return false; press('back'); },
       Escape() { if (!d.focused) return false; NZA.post('pager:hide', {}); },
@@ -377,19 +385,19 @@
         focused: true, time: '16:42', muted: false, phone: true, key: 'F7', ackWindow: 30,
         me: { callsign: 'Unit 04', status: '10-8', paired: true, npc: true, call: null },
         calls: [
-          { id: 'C-0417', code: '10-56', priority: 2, title: 'Overdose', type: 'overdose', street: 'Mirror Park Blvd', zone: 'Mirror Park', status: 'DSP', age: 9 },
+          { id: 'C-0417', code: '10-57', priority: 1, title: 'Collapsed, not breathing', type: 'arrest', street: 'Sinner St', zone: 'Mission Row', status: 'DSP', age: 6 },
           { id: 'C-0416', code: '10-50', priority: 1, title: 'Two-car collision', type: 'mva', street: 'Strawberry Ave', zone: 'Strawberry', status: 'ENR', age: 140 },
           { id: 'C-0412', code: '10-52', priority: 3, title: 'Fall', type: 'fall', street: 'Vespucci Blvd', zone: 'Vespucci', status: 'DSP', age: 310 },
         ],
         history: [
-          { id: 'C-0417', priority: 2, title: 'Overdose', type: 'overdose', time: '16:41' },
+          { id: 'C-0417', priority: 1, title: 'Collapsed, not breathing', type: 'arrest', time: '16:41' },
           { id: 'C-0410', priority: 1, title: 'Gunshot', type: 'gunshot', time: '16:12', closed: true },
           { id: 'C-0407', priority: 3, title: 'Fall', type: 'fall', time: '15:48', closed: true },
         ],
         locale: {},
       });
-      live = { time: '16:42', calls: { 'C-0417': { dist: 640, dir: 'NE', rel: 38, eta: 34, prog: 0.2 }, 'C-0416': { dist: 1240, dir: 'SW', rel: 205, eta: 71 } } };
-      NZA.apps.pager.msg.page({ id: 'C-0417', priority: 2, beep: false });
+      live = { time: '16:42', calls: { 'C-0417': { dist: 820, dir: 'W', rel: 262, eta: 46, prog: 0.2 }, 'C-0416': { dist: 1240, dir: 'SW', rel: 205, eta: 71 } } };
+      NZA.apps.pager.msg.page({ id: 'C-0417', priority: 1, beep: false });
     },
   });
 })();

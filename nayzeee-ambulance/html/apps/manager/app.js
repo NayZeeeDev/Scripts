@@ -1204,7 +1204,7 @@
       { id: 'lsfd', label: 'LSFD Rescue', description: 'Fire department paramedics.', job: 'fire', discord: null, society: null, easy: false, easyPerms: {}, hq: null,
         blip: { enabled: true, sprite: 61, colour: 17, scale: 0.85, shortRange: true }, grades: grades().slice(0, 3), outfits: [], vehicles: [] },
     ];
-    const names = [['Maya Reyes', 4, 1, 1], ['John Doe', 3, 1, 1], ['Theo Kane', 2, 1, 0], ['Sam Brooks', 0, 1, 1], ['Lena Park', 2, 0, 0], ['Ravi Shah', 1, 0, 0], ['Ella Novak', 1, 1, 1], ['Owen Price', 0, 0, 0]];
+    const names = [['Maya Reyes', 4, 1, 1], ['Priya Nair', 3, 1, 1], ['Theo Kane', 2, 1, 0], ['Sam Brooks', 0, 1, 1], ['Lena Park', 2, 0, 0], ['Ravi Shah', 1, 0, 0], ['Ella Novak', 1, 1, 1], ['Owen Price', 0, 0, 0]];
     const staff = {
       lsmd: names.map(([n, g, on, duty], i) => ({ identifier: `char1:${(0x5f3a2c + i * 7919).toString(16)}e9a${i}`, name: n, grade: g, online: !!on, src: on ? 3 + i * 4 : null, onDuty: !!duty, created: `2026-0${(i % 8) + 1}-1${i} 18:22:01`, linked: i === 6 })),
       sandy: [{ identifier: 'char1:77aa21', name: 'Hank Miller', grade: 2, online: true, src: 41, onDuty: true, created: '2026-09-02 12:00:00' }],

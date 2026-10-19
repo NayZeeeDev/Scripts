@@ -27,8 +27,8 @@ Shown to medics with any perm of `Config.Field.Resus.perms` (`iv`, `binder`) who
 a radial entry (Patient → Field resuscitation) and using the trauma kit item.
 
 Scene: kneel animation, orbit camera over the pelvis (`NZA.Cam.Orbit`, right-drag turn,
-Shift + right-drag slide, wheel zoom), camera views **F1 Body · F2 Access · F3 Drip · F4 Kit**
-(`Config.Field.Keys.focus`), props via `NZA.Props` (open kit case, sharps bin, monitor; IV stand,
+Shift + right-drag slide, wheel zoom), camera views **Body → Access → Drip → Kit**,
+cycled with one key (`Config.Field.Keys.focus`, default **Tab**, Shift+Tab back) or clicked in the view strip, props via `NZA.Props` (open kit case, sharps bin, monitor; IV stand,
 bags and pressure infuser in step 6).
 
 ### Screen layout (NAYZEEE look, see `docs/design/ORIGINAL.md`)
@@ -120,7 +120,7 @@ warns while the pelvis still bleeds) · *Remove IV / IO line* (49, running bags 
 
 ## Config keys (`Config.Field`)
 
-`Keys` (drill, advance, clampDown, clampUp, squeeze, insert, focus{}), `Interact` (distance, toggles,
+`Keys` (drill, advance, clampDown, clampUp, squeeze, insert, focus), `Interact` (distance, toggles,
 resusBleed, icons), `Radial` (enabled, range), `Exam` (enabled, heavyBleed), `Resus` (perms, kit, band,
 hold, minTime/maxTime/easyTime, clotFactor, popFactor, maxPop, popMargin, popAfter, lowMap,
 response{saline, blood, plasma, tau, own}, speed{below, high, own, txa, cold, foil, dilution,
@@ -143,7 +143,7 @@ command, position), `Billing` (binder, io, iv, resus).
 | `nza:field:resus` | S→C | resus model state `{ token, map, sys, dia, response, firm, state, pops, warn, eta, flow, bleed, mods, bags, maxRate, txa, foil }` |
 | `nza:field:popped` | S→C | the clot popped |
 | `nza:field:use` | S→C | `'resus' \| 'iv'` from the usable trauma kit / IV kit |
-| NUI `field:*` | callbacks | result skip abort done close focus binderDrop phase drill needle hang rate takedown txa foil nibp bags ivTq |
+| NUI `field:*` | callbacks | result skip abort done close focus binderDrop phase drill needle hang rate takedown txa foil nibp bags ivTq (`bags` is posted when the resus step starts and answers with a `bags` message: fresh saline / TXA / foil counts and blood bags) |
 | NUI `monitor:*` | callbacks | bind unbind nibp |
 
 Server API: `NZA.Field.*` helpers (`Access`, `BinderIndicated`, `TargetInjuries`, `SiteContra`,

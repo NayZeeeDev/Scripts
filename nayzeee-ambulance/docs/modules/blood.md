@@ -51,7 +51,7 @@ Owner files: `server/modules/blood.lua`, `server/modules/blood_donation.lua`, `s
 - Mode `self` / `medic` / `both`: the donor presses **E** to run it alone, or a medic uses **Draw blood** on the
   chair (perm `Donation.perm`); the donor then sees the collection scale passively (mode `watch`).
 - Minigame (`NZA.Proc 'donation'`, app `donation` mode `donate`, kit ProcPanel):
-  1. **Inflate the cuff** — hold Space, let go inside the band (40–60 mmHg); 3 tries.
+  1. **Inflate the cuff** — hold Space, release while the pressure is in the marked zone (40–60 mmHg); 3 tries.
   2. **Pump with the pulse** — the donor's pulse wave scrolls through the **CM-450 collection scale**
      (top-left: bag gauge on a rocking mixer tray, volume rolling counter, flow, donor pulse, elapsed, pleth lane
      with the squeeze window); press Space as each systolic peak crosses the window. Timing quality (dial) drives
@@ -169,7 +169,7 @@ Registries: point types `bloodbank`, `donation`; `NZA.Interact` `nza_blood_type`
 browser preview: `NZA.apps.donation._demo('collect'|'seal'|'done')`, `?mode=bank|label|watch`; IV stand
 `?state=react|noline|untyped|field`, `NZA.apps.ivstand._demo('squeeze'|'picker'|'sel2')`), msgs `result`, `watch`,
 `bank`; posts `donation:progress|finish|abort|bank|close`. `ivstand`: open `{ locale, keys, cfg, data, bay }`, msgs
-`data`, `snap`; posts `ivstand:hang|rate|takedown|txa|type|iv|fill|refresh|close`. Shared JS helpers for both
+`data`, `snap`; posts `ivstand:hang|rate|takedown|txa|type|iv|fill|close`. Shared JS helpers for both
 apps: `window.NZABlood = { labelHTML, bagSVG, barcode, fmtType, dateText, relDays, expiryTone }`.
 
 ## 5. Data

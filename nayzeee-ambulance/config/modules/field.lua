@@ -36,7 +36,7 @@ Config.Field = {
         clampUp    = 'KeyE',   -- roller clamp + (also ] and →)
         squeeze    = 'Space',  -- pump the pressure infuser (resuscitate step)
         insert     = 'Space',  -- IV cannulation: hold to advance the needle
-        focus      = { patient = 'F1', site = 'F2', stand = 'F3', kit = 'F4' },  -- camera focus keys
+        focus      = 'Tab',    -- cycles the camera view Body → Access → Drip → Kit (Shift = back; the views are also clickable)
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
@@ -237,7 +237,8 @@ Config.Field = {
         nibpAuto    = 60,                 -- seconds between automatic NIBP cycles (standalone monitor)
         nibpTime    = 4.0,                -- seconds a cuff cycle takes
         alarms      = true,               -- alarm tones (also needs Config.UI.sounds)
-        silence     = 120,                -- seconds the alarm silence button mutes the alarms
+        beep        = true,               -- beat / SpO2 tone on the overlay monitor (also needs Config.UI.sounds)
+        silence     = 120,               -- seconds the alarm silence button mutes the alarms
         prop        = true,               -- place the monitor prop next to the patient
         place       = { side = 0.62, along = 0.82 },   -- beside the chest, away from the medic (m)
         screen      = true,               -- live vitals on the prop screen (DUI) for the medic who attached it

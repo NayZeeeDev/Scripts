@@ -122,7 +122,7 @@ function X.Bill(src, p, key, reason)
     if not (NZA.Billing and type(NZA.Billing.Charge) == 'function') then return end
     local target = p.src or p.identifier
     if not target then return end
-    local ok, err = pcall(NZA.Billing.Charge, target, amount, reason or L('bill_' .. key), { medic = src, module = 'xray' })
+    local ok, err = pcall(NZA.Billing.Charge, target, amount, reason or L('bill_' .. key), { medic = src, kind = 'xray_' .. tostring(key) })
     if not ok then NZA.Warn('xray billing failed: ' .. tostring(err)) end
 end
 

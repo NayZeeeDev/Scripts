@@ -87,7 +87,7 @@ local function payload()
         me = me,
         muted = muted(),
         beep = cfg('pager', 'beep', true) ~= false,
-        phone = cfg('pager', 'phonePairing', true) ~= false,
+        phone = D.PhoneMode() == 'paired',
         focused = P.focused,
         time = clock(),
         key = cfg('pager', 'key', 'F7'),

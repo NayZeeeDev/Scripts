@@ -90,7 +90,7 @@ Config.Dispatch = {
     card = {
         enabled     = true,
         respondKey  = 'E',         -- respond to the call on the card (works without the mouse)
-        dismissKey  = 'X',         -- dismiss the card (next call in the queue shows)
+        dismissKey  = 'BACK',      -- pass on the card (next call in the queue shows); BACK = Backspace (FiveM key names)
         timeout     = 30,          -- seconds a card stays before it dismisses itself
         queue       = 6,           -- max cards waiting in the queue
         sound       = true,        -- alert tone
@@ -114,9 +114,20 @@ Config.Dispatch = {
         popupTime   = 12,          -- seconds it stays up after a call (unless you are using it)
         showWhileOnCall = true,    -- keep it on screen while you are assigned to a call
         beep        = true,        -- pager beeps (players can mute it in the pager menu)
-        phonePairing = true,       -- PAIR in the pager menu also sends calls to your phone
-        phoneMail   = false,       -- paired phones also get an e-mail per call
         history     = 20,          -- calls kept in the pager history
+    },
+
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- PHONE (call alerts as phone notifications through Bridge.Phone: yseries, lb-phone, qs, ...)
+    -- ═══════════════════════════════════════════════════════════════════════
+
+    phone = {
+        alerts         = 'paired', -- 'paired' = medics who link their phone (pager SETUP or radial Calls ▸ Link phone)
+                                   -- 'always' = every medic who gets the call card, no linking needed
+                                   -- false    = no phone alerts
+        linkNeedsPager = true,     -- linking needs the pager item (when pager.requireItem is on);
+                                   -- false = any medic can link the phone from the radial
+        mail           = false,    -- phones that get alerts also get an e-mail per call
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

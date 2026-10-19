@@ -13,10 +13,10 @@
                          or with Space.
      2 Pad & shape       2 Padding: click the bony points to pad them.
                          3 Shape: press and hold along the splint until the
-                         walls close on the limb (stop in the band - too much
+                         walls close on the limb (stop on the teal arc - too much
                          leaves a pressure point).
      3 Strap & check     4 Straps: click a strap to wrap it, click / Space when
-                         the tension needle is in the band. 5 Check: click the
+                         the tension needle is on the teal arc. 5 Check: click the
                          toes / fingers ('cms' anchor) for circulation, motor and
                          sensation. A strap that is too tight cuts the pulse off:
                          click it to loosen, cinch again and re-check.
@@ -34,7 +34,7 @@
                      boneLabel, displaced, angle }, open, dressed, severity, pulse, pulseWhy, hr,
                      sys, refill, responsive, name, sex, pain, size { width, depth, wall,
                      limbRadius }, segLen, fov, upright, tune, keys }
-              open { mode = 'hud', locale, hud }     hud (data)    hudOff    result (outcome)
+              open { mode = 'hud', locale, hud }     hud (data)    result (outcome)
               hud data: chair/push { kind, title, sub, state, speed, max, slope, turn, dist, blocked, keys }
                         crutch     { kind, title, sub, state, moving, steps, side ('l'|'r'), keys }
               anchors { prox, dist, cms, core }
@@ -924,9 +924,6 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     msg: {
       result(o) { A.showResult(o || {}); },
       hud(d) { A.hudShow(d || {}); },
-      hudOff() { A.hudHide(); },
-      procEnd() { A.procStop(); },
-      error(d) { if (A.pp) A.pp.flash('bad', (d && d.msg) || T('err', 'Something went wrong'), 3200); },
     },
 
     keys: {},
@@ -1129,17 +1126,17 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         title = S.tool === 'pad' ? T('s2_title_pad', 'Pad the bony points') : T('s2_title_shape', 'Shape it to the limb');
         text = S.tool === 'pad'
           ? T('s2_text_pad', 'Click the marked spots at the **%s** and **%s** to pad them, so nothing hard presses on bone.', prox.toLowerCase(), dist.toLowerCase())
-          : T('s2_text_shape', 'Press and hold each point until the walls close on the limb. Let go **inside the band** - squeezing past it leaves a pressure point.');
+          : T('s2_text_shape', 'Press and hold each point until the walls close on the limb. Release while the pressure dial sits on the **teal arc** - squeezing past it leaves a pressure point.');
       } else {
         const allLocked = S.straps.every(s => s.state === 'locked');
         if (allLocked && S.cms.state === 'bad') {
           title = T('s3_title_bad', 'Loosen the tight strap');
-          text = T('s3_text_bad', 'Click the strap marked in red to loosen it, cinch it again **inside the band**, then check the **%s** again.', cmsName);
+          text = T('s3_text_bad', 'Click the strap marked in red to loosen it, cinch it again on the **teal arc**, then check the **%s** again.', cmsName);
         } else {
           title = allLocked ? T('s3_title_cms', 'Check below the splint') : T('s3_title', 'Strap it in place');
           text = allLocked
             ? T('s3_text_cms', 'Click the **%s** to check circulation, movement and feeling below the splint.', cmsName)
-            : T('s3_text', 'Click a strap to wrap it over the limb, then click again (or {%s}) when the needle sits **in the band**. Keep straps off the break.', keyLabel(this.K.set));
+            : T('s3_text', 'Click a strap to wrap it over the limb, then click again (or {%s}) when the needle reaches the **teal arc**. Keep straps off the break.', keyLabel(this.K.set));
         }
       }
       this.pp.set({ step: n, title, text, tools: this.toolsFor(), hints: this.hintsFor(n) });
@@ -1188,7 +1185,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
           const inZ = sw.tension >= z[0] && sw.tension <= z[1];
           wide = { label: T('tension', 'Tension'), value: Math.round(sw.tension * 100), unit: '%', tone: sw.tension > t.strapTight ? 'red' : inZ ? 'teal' : '',
                    meter: { value: sw.tension, zone: z, mark: sw.tension, noFill: false, tone: sw.tension > t.strapTight ? 'red' : inZ ? '' : 'white' },
-                   caption: inZ ? T('cap_cinch', 'Cinch now') : sw.tension > t.strapTight ? T('cap_tight', 'Too tight') : T('cap_wait', 'Wait for the band'), captionTone: inZ ? 'teal' : sw.tension > t.strapTight ? 'red' : '' };
+                   caption: inZ ? T('cap_cinch', 'Cinch now') : sw.tension > t.strapTight ? T('cap_tight', 'Too tight') : T('cap_wait', 'Wait for the arc'), captionTone: inZ ? 'teal' : sw.tension > t.strapTight ? 'red' : '' };
         } else {
           const cmsTone = S.cms.state === 'ok' ? 'teal' : S.cms.state === 'bad' ? 'red' : '';
           wide = { label: T('straps', 'Straps'), value: `${locked}/3`, tone: locked === 3 ? 'teal' : '', meter: { value: locked / 3, tone: locked === 3 ? '' : 'white' },
@@ -2517,7 +2514,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         const hudDemo = {
           'hud-chair': { kind: 'chair', title: 'Self-propelled', sub: 'Rims under both hands', state: 'drive', speed: 1.42, max: 1.9, slope: -4, turn: 0.35, dist: 126, keys: drive },
           'hud-blocked': { kind: 'chair', title: 'Self-propelled', sub: 'Back off and find a ramp', state: 'blocked', blocked: 'Curb too high', speed: 0, max: 1.9, slope: 2, turn: 0, dist: 131, keys: drive },
-          'hud-push': { kind: 'push', title: 'Pushing a wheelchair', sub: 'Michael Garcia', state: 'push', speed: 1.1, max: 1.9, slope: 6, turn: 0, dist: 48, keys: [{ keys: ['G'], label: 'Let go' }] },
+          'hud-push': { kind: 'push', title: 'Pushing a wheelchair', sub: 'Elias Brandt', state: 'push', speed: 1.1, max: 1.9, slope: 6, turn: 0, dist: 48, keys: [{ keys: ['G'], label: 'Let go' }] },
           'hud-crutch': { kind: 'crutch', title: 'On crutches', sub: 'Splinted right lower leg', state: 'walk', moving: true, steps: 37, cadence: 46, side: 'r', keys: [{ keys: ['/crutches'], label: 'Put away' }] },
         }[stage] || {};
         NZA.demo(APP, { mode: 'hud', hud: hudDemo });
@@ -2531,14 +2528,14 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
         deviceLabel: 'Contour arm splint', deviceModel: 'CS-40',
         joints: { prox: 'Elbow', dist: 'Wrist', cms: 'fingers', proxKey: 'elbow', distKey: 'wrist', cmsKey: 'fingers' },
         fracture: { kind: 'closed', kindLabel: 'Closed fracture', bone: 'radius_ulna', boneLabel: 'Radius and ulna', displaced: false, angle: 0, at: 0.62 },
-        open: false, severity: 2, pulse: 'present', hr: 96, sys: 128, refill: 1.4, responsive: true, name: 'Michael Garcia', pain: 64,
+        open: false, severity: 2, pulse: 'present', hr: 96, sys: 128, refill: 1.4, responsive: true, name: 'Elias Brandt', pain: 64,
         size: { width: 0.105, depth: 0.05, wall: 0.008, limbRadius: 0.04 }, segLen: J ? J.segLen : 0.26, fov: 50,
       } : {
         mode: 'proc', region: 'r_lower_leg', regionLabel: 'Right lower leg', limb: 'leg', device: 'leg', segment: 'lower',
         deviceLabel: 'Contour leg splint', deviceModel: 'CS-76',
         joints: { prox: 'Knee', dist: 'Ankle', cms: 'toes', proxKey: 'knee', distKey: 'ankle', cmsKey: 'toes' },
         fracture: { kind: 'closed', kindLabel: 'Closed fracture', bone: 'tibia_fibula', boneLabel: 'Tibia and fibula', displaced: true, angle: 14, at: 0.52 },
-        open: false, severity: 3, pulse: 'present', hr: 104, sys: 122, refill: 1.4, responsive: true, name: 'Michael Garcia', pain: 72,
+        open: false, severity: 3, pulse: 'present', hr: 104, sys: 122, refill: 1.4, responsive: true, name: 'Elias Brandt', pain: 72,
         size: { width: 0.15, depth: 0.07, wall: 0.01, limbRadius: 0.055 }, segLen: J ? J.segLen : 0.43, fov: 50,
       };
       d.keys = { rotateLeft: 'KeyQ', rotateRight: 'KeyE', reset: 'KeyX', set: 'Space' };

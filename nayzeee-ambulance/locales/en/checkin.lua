@@ -49,7 +49,7 @@ NZA.AddLocale('en', {
     ['checkin.r_queue']             = 'Reception queue',
     ['checkin.r_queue_d']           = 'Queue, beds and today',
 
-    -- ── receptionist lines (ticket code, patients ahead) ──────────────────
+    -- ── receptionist lines (ticket code, people before you) ──────────────
     ['checkin.say_p1']              = 'You need a doctor right now. Number %s — you go first.',
     ['checkin.say_next']            = 'Number %s is yours. You are next — grab a seat.',
     ['checkin.say_wait']            = 'Number %s is yours. %d people are ahead of you — grab a seat, the board will call you.',
@@ -65,7 +65,7 @@ NZA.AddLocale('en', {
     ['checkin.closed_cancelled']    = 'Number %s was cancelled by the reception.',
     ['checkin.left_queue']          = 'You left the queue (%s).',
     ['checkin.item_label']          = 'Queue pass %s',
-    ['checkin.item_desc']           = 'Queue pass %s · %s. Your number lights up on the board with your bed.',
+    ['checkin.item_desc']           = 'Queue pass %s · %s. Your code lights up on the board next to your bed.',
 
     -- ── staff ─────────────────────────────────────────────────────────────
     ['checkin.called_ok']           = 'Called %s to %s.',
@@ -117,7 +117,7 @@ NZA.AddLocale('en', {
     ['checkin.ai_abort_gone']       = 'The treatment was stopped.',
     ['checkin.ai_abort_died']       = 'The treatment was stopped.',
     ['checkin.ai_abort_error']      = 'The treatment was interrupted.',
-    ['checkin.ai_abort_closed']     = 'The reception closed your number.',
+    ['checkin.ai_abort_closed']     = 'Reception closed your queue pass.',
     ['checkin.ai_abort_requeue']    = 'The reception put you back in the queue.',
     ['checkin.ai_abort_staff']      = 'A medic takes over your treatment.',
     ['checkin.ai_abort_stopped']    = 'The treatment was stopped.',
@@ -175,13 +175,12 @@ NZA.AddLocale('en', {
     -- ════════════════════════════════════════════════════════════════════
     ['checkin.your_number']         = 'Queue number',
     ['checkin.r_patient']           = 'Name',
-    ['checkin.r_ahead']             = 'Patients ahead',
     ['checkin.r_waiting']           = 'Time in queue',
     ['checkin.r_estimate']          = 'Expected call',
     ['checkin.r_soon']              = 'Any moment',
     ['checkin.r_bed']               = 'Head to',
     ['checkin.r_issued']            = 'Issued',
-    ['checkin.receipt_foot']        = 'Your number lights up on the board with your bed.',
+    ['checkin.receipt_foot']        = 'Watch the board — your code appears with a bed.',
     ['checkin.receipt_hint']        = 'Pass saved to your pockets',
     ['checkin.stamp_called']        = 'Called',
     ['checkin.stamp_treatment']     = 'In treatment',
@@ -315,7 +314,7 @@ NZA.AddLocale('en', {
     ['checkin.incoming']            = 'En route',
     ['checkin.standby_title']       = 'Waiting area',
     ['checkin.tv_room']             = 'Emergency · waiting area',
-    ['checkin.tv_seat']             = 'Take a seat — your number shows up here with your bed.',
+    ['checkin.tv_seat']             = 'Sit tight — free beds and their codes pop up here.',
     ['checkin.tv_go']               = 'Go to your bed',
     ['checkin.tv_in']               = 'In treatment',
     ['checkin.tv_yours']            = 'That is you',
@@ -337,7 +336,7 @@ NZA.AddLocale('en', {
     ['checkin.tv_months']           = 'Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec',
     ['checkin.tv_t1']               = 'P1 critical patients always go first',
     ['checkin.tv_t2']               = 'Keep your queue pass on you',
-    ['checkin.tv_t3']               = 'Your number lights up here together with your bed',
+    ['checkin.tv_t3']               = 'Look for your code beside a bed number',
     ['checkin.tv_t4']               = 'Feeling worse while you wait? Tell the front desk right away',
 
     -- ── NUI · redesign (added keys) ─────────────────────────────────────

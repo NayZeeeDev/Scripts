@@ -331,12 +331,14 @@ local function airwayOf(p, avpu)
     if c.airway and (c.airway.kind == 'obstructed' or (c.airway.level or 0) >= 100) then return 'obstructed' end
     if c.hypoxia and (c.hypoxia.water or 0) > 50 then return 'gurgling' end
     local down = avpu == 'P' or avpu == 'U'
-    if down then
+    -- the recovery position (meta.recovery) lets vomit and blood drain out of the mouth and the
+    -- tongue fall forward; water in the lungs (above) keeps gurgling until it is coughed up
+    if down and not p.meta.recovery then
         if c.overdose and c.overdose.drug == 'alcohol' and (c.overdose.amount or 0) > 80 then return 'gurgling' end
         for _, inj in pairs(p.injuries) do
             if (inj.region == 'face' or inj.region == 'neck') and (inj.bleed or 0) >= 20 then return 'gurgling' end
         end
-        if not p.meta.recovery then return 'snoring' end
+        return 'snoring'
     end
     if c.airway and c.airway.kind == 'swelling' and (c.airway.level or 0) >= 50 then return 'snoring' end
     return 'clear'

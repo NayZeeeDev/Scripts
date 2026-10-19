@@ -45,15 +45,21 @@ NZA.AddLocale('en', {
 
     -- ── categories ───────────────────────────────────────────────────────
     ['pharmacy.cat_all']            = 'Full formulary',
-    ['pharmacy.cat_first_aid']      = 'First Aid',
-    ['pharmacy.cat_medication']     = 'Medication',
-    ['pharmacy.cat_wound_care']     = 'Wound Care',
-    ['pharmacy.cat_fluids']         = 'Fluids & IV',
-    ['pharmacy.cat_orthopedic']     = 'Orthopedic',
-    ['pharmacy.cat_equipment']      = 'Equipment',
+    ['pharmacy.cat_medicines']      = 'Medicines',
+    ['pharmacy.cat_dressings']      = 'Bleeding & dressings',
+    ['pharmacy.cat_lines']          = 'Drips & lines',
     ['pharmacy.cat_airway']         = 'Airway',
-    ['pharmacy.cat_surgery']        = 'Surgery',
-    ['pharmacy.cat_documents']      = 'Documents',
+    ['pharmacy.cat_bones']          = 'Bones & joints',
+    ['pharmacy.cat_devices']        = 'Kit & devices',
+    -- item categories from config/items.lua, used only when Config.Pharmacy.itemCategory has no match
+    ['pharmacy.cat_first_aid']      = 'First response',
+    ['pharmacy.cat_medication']     = 'Medicines',
+    ['pharmacy.cat_wound_care']     = 'Bleeding & dressings',
+    ['pharmacy.cat_fluids']         = 'Drips & lines',
+    ['pharmacy.cat_orthopedic']     = 'Bones & joints',
+    ['pharmacy.cat_equipment']      = 'Kit & devices',
+    ['pharmacy.cat_surgery']        = 'Theatre',
+    ['pharmacy.cat_documents']      = 'Paperwork',
 
     -- ── restrictions ─────────────────────────────────────────────────────
     ['pharmacy.lock_medics']        = 'On-duty medics only',

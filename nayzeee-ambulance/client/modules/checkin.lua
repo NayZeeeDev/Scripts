@@ -10,7 +10,7 @@
     The 'checkin' NUI app shows the thermal-paper receipt (mode 'ticket'), the small ticket chip
     while you wait, the receptionist's subtitles and the staff reception window (mode 'desk').
 
-    When your number is called you get a toast, a waypoint and a marker on the bed
+    When your queue pass is called you get a toast, a waypoint and a marker on the bed
     ("[E] Lie down — Bed 3"). AI doctor calls can teleport you into the bed (config).
 
     Client API
@@ -357,11 +357,6 @@ NZA.UI.On('checkin', 'hospital', function(data, cb)
     cb(res)
 end)
 
-NZA.UI.On('checkin', 'leave', function(_, cb)
-    cb({ ok = true })
-    CreateThread(leaveQueue)
-end)
-
 -- ════════════════════════════════════════════════════════════════════════
 -- STAFF NOTIFICATIONS
 -- ════════════════════════════════════════════════════════════════════════
@@ -506,7 +501,7 @@ local function canUseDesk(ped)
 end
 
 CreateThread(function()
-    local shown, staffShown = false, false
+    local shown, staffShown, leaveShown, leaveAt = false, false, false, nil
     while true do
         local sleep = 600
         local ped = PlayerPedId()
@@ -535,6 +530,33 @@ CreateThread(function()
                 NZA.UI.HidePrompt('nza_checkin_staff')
                 staffShown = false
             end
+            -- leave the queue: hold the key (works with every target system, also the built-in [E] one)
+            local leaveCtrl = tonumber(cfg('desk', 'leaveControl', 73))
+            if mine and mine.status == 'waiting' and leaveCtrl then
+                local holdS = math.max(0.1, tonumber(cfg('desk', 'leaveHold', 1.0)) or 1.0)
+                if not leaveShown then
+                    NZA.UI.Prompt('nza_checkin_leave', { key = cfg('desk', 'leaveKey', 'X'), label = L('t_leave'), hold = holdS, progress = 0, tone = 'red' })
+                    leaveShown = true
+                end
+                local prog = 0
+                if IsControlPressed(0, leaveCtrl) then
+                    leaveAt = leaveAt or GetGameTimer()
+                    prog = math.min(1.0, (GetGameTimer() - leaveAt) / (holdS * 1000))
+                else
+                    leaveAt = nil
+                end
+                NZA.UI.PromptProgress('nza_checkin_leave', prog)
+                if prog >= 1.0 then
+                    leaveAt = nil
+                    NZA.UI.HidePrompt('nza_checkin_leave')
+                    leaveShown = false
+                    CreateThread(leaveQueue)
+                    Wait(600)
+                end
+            elseif leaveShown then
+                NZA.UI.HidePrompt('nza_checkin_leave')
+                leaveShown, leaveAt = false, nil
+            end
             if IsControlJustReleased(0, tonumber(cfg('desk', 'control', 38)) or 38) then
                 local p = pt
                 CreateThread(function() checkIn(p) end)
@@ -543,6 +565,7 @@ CreateThread(function()
         else
             if shown then NZA.UI.HidePrompt('nza_checkin') shown = false end
             if staffShown then NZA.UI.HidePrompt('nza_checkin_staff') staffShown = false end
+            if leaveShown then NZA.UI.HidePrompt('nza_checkin_leave') leaveShown, leaveAt = false, nil end
         end
         Wait(sleep)
     end

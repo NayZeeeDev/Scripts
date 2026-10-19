@@ -62,6 +62,9 @@ NZA.UI.PushConfig()
   sent on ready, on start and on player loaded. The `ui.*` strings live in
   `locales/en/core_client.lua`; they include `ui.back_tag` (the `BACK` tag on
   `NZA.ui.BodyGlyph`) and `ui.hold_abort` / `ui.holdAbort` (both 'Hold to cancel').
+  There is no shared "stabilized" / "clock paused" string pair (that pairing rebuilds a
+  phrase ORIGINAL.md §1 forbids). Apps keep their own wording, e.g. 'Holding steady' and
+  `wounded.clock_paused` 'On hold'.
 
 Net events handled: `nza:ui:toast`, `nza:ui:speech`.
 

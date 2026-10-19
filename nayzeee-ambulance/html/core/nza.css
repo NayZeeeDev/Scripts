@@ -375,7 +375,11 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .pp-tool.done .ico{color:var(--ink-3);opacity:.6}
 .pp-tool.done .slot .ok{display:grid}
 .pp-tool.done .tl b{color:var(--ink-3);font-weight:500;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
-.pp-tool.locked{opacity:.32;pointer-events:none}
+/* locked: dim the content, never the chip — the label keeps its dark backing over a bright scene */
+.pp-tool.locked{pointer-events:none}
+.pp-tool.locked .tl b,.pp-tool.locked .tl small,.pp-tool.locked .ico,.pp-tool.locked .slot .cnt{opacity:.38}
+.pp-tool.locked .slot{background:linear-gradient(160deg,#15171b,#0c0d10)}
+.pp-tool.locked .slot kbd{color:var(--ink-3);border-color:rgba(255,255,255,.1)}   /* the cap overhangs the slot: keep it opaque */
 .pp-tool.need .slot{border-color:var(--red);animation:nza-redglow 1.2s infinite}
 .pp-tool.need .tl{color:#ff9a9d;border-color:var(--red-edge);background:rgba(40,10,12,.92)}
 .pp--dense .pp-tools{gap:5px}
@@ -416,8 +420,9 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
   -webkit-mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent)}
 .odo .d .st{position:absolute;left:0;top:0;display:flex;flex-direction:column;transition:transform 420ms cubic-bezier(.2,.8,.2,1)}
 .odo .d .st i{font-style:normal;display:block;height:1em;line-height:1em;text-align:center;width:.62em}
-.odo .c{display:inline-block;width:.34em;text-align:center;color:var(--ink-3);font-weight:500;animation:nza-blink 1s steps(1) infinite}
-.odo.paused .c{animation:none}
+.odo .c{display:inline-block;width:.34em;text-align:center;color:var(--ink-3);font-weight:500}
+.odo .c.colon{animation:nza-blink 1s steps(1) infinite}   /* only ':' ticks; '.', ',', '$', '°'… stay still */
+.odo.paused .c,.odo.noblink .c,.odo.paused .c.colon,.odo.noblink .c.colon{animation:none}
 .odo.paused .d{opacity:.55}
 .odo.red{color:#ff7478;text-shadow:0 0 18px rgba(229,72,77,.35)}
 .odo.teal{color:var(--teal-hi);text-shadow:0 0 18px rgba(15,212,196,.3)}

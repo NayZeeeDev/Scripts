@@ -121,6 +121,19 @@ Config.Cpr = {
     },
 
     -- ═══════════════════════════════════════════════════════════════════════
+    -- EASY MODE (departments with easy mode for 'cpr', see Config.EasyMode)
+    -- ═══════════════════════════════════════════════════════════════════════
+
+    easyTimed = true,           -- easy medics do CPR as a timed action (ox_lib progress per 2-min cycle, no
+                                -- device screen); false = they get the device screen with automatic help
+    Easy = {
+        autoDefib   = true,     -- a team of timed medics: pads, analysis, charge / shock and adrenaline run by themselves
+        breathGap   = 1.3,      -- seconds between the automatic rescue breaths
+        chargeAfter = 1.2,      -- seconds after "shock advised" before the automatic charge
+        shockAfter  = 1.5,      -- seconds of "stand clear" before the automatic shock
+    },
+
+    -- ═══════════════════════════════════════════════════════════════════════
     -- DEFIBRILLATOR
     -- ═══════════════════════════════════════════════════════════════════════
 

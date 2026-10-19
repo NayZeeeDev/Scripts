@@ -79,7 +79,7 @@ Config.Medbag = {
 
     Storage = {
         slots        = 20,       -- slots per bag
-        maxWeight    = 20000,    -- grams (20 kg)
+        maxWeight    = 18000,    -- grams (18 kg)
         maxStack     = 50,       -- units per slot for stackable items
         mode         = 'medical', -- 'medical' = only this resource's items (config/items.lua) + extra ; 'all' = everything not blocked
         extra        = {},       -- extra item names allowed in 'medical' mode, e.g. { 'water', 'sandwich' }

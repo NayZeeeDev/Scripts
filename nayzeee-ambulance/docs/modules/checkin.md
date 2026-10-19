@@ -33,7 +33,9 @@ board, the bedside monitor or any device face.
   the point, invincible, removed with the point / resource.
 - Prompt (context tag beside the crosshair, `NZA.prompt`): `[E]` kicker = the point label (or
   "Front desk"), label `Take a queue number`; with a number it shows `Queue pass A-014 · 2 ahead of
-  you` / `Go to Bed 3` / `In treatment`. Staff also get `[G] Reception queue`. Target options: Take a
+  you` / `Go to Bed 3` / `In treatment`. Staff also get `[G] Reception queue`; while you wait, a red
+  hold prompt `[X] Leave the queue` (`desk.leaveControl`, hold `leaveHold` s) works with every target
+  system, also the built-in one. Target options: Take a
   queue number, Show my queue pass, Leave the queue, Reception queue,
   Call next patient (staff) — skipped when the bridge target is the built-in prompt.
 - Server: ticket per department per desk letter per day (`A-001`, `A-002`…; counters survive
@@ -152,13 +154,14 @@ get-up prompt (`rest.hideBedPrompt`).
 |---|---|---|
 | `E` (`desk.control`) | desk | take a queue number / show your queue pass |
 | `G` (`desk.staffControl`) | desk, staff | reception window |
+| hold `X` (`desk.leaveControl`, `leaveHold` s) | desk, while waiting | leave the queue (also a target option) |
 | `E` | at your called bed | lie down |
 | `X` (`rest.getUpControl`) | in a called bed | get up (hold `ai.getUpHold` s while the AI works) |
 | `C` (`ai.cameraControl`) | AI treatment | cinematic / own camera |
 | `N`, `↑↓`, `Enter`, `Esc` | reception window | call next, select, call selected, close |
 
 ## Config (`Config.Checkin`)
-`desk` (promptDistance, key/control, staffKey/staffControl, target, perm, requireInjury, allowDowned,
+`desk` (promptDistance, key/control, staffKey/staffControl, leaveKey/leaveControl/leaveHold, target, perm, requireInjury, allowDowned,
 cooldown, prefix, digits, giveItem, takeBack, receiptTime, ticketHud, printSound) ·
 `receptionist` (enabled, models, sitScenario, standScenario, spawnDistance, talk) ·
 `queue` (expire, offlineGrace, noShow, estimate, maxServing, keepServing, autoTreatment, doneOnLeave,
@@ -197,7 +200,7 @@ Net events: C→S `nza:checkin:callNext (hospital?)`; S→C `nza:checkin:mine (t
 `:ai (action, data)` (start step vitals done abort).
 Server bus: listens `hospital:bed transport:bed treat:done proc:done patient:death player:loaded player:unloaded`;
 emits `checkin:issued (t)`, `checkin:called (t)`, `checkin:treatment (t)`, `checkin:closed (t, status)`, `checkin:ai (t, outcome)`.
-NUI: `checkin:action deskClose refresh hospital leave hidden`, `bed:hidden`.
+NUI: `checkin:action deskClose refresh hospital hidden` (the bed app posts nothing; Lua closes it).
 Radial (`NZA.RadialItems`, parent `dispatch`): `checkin_next`, `checkin_queue`.
 
 ## Data

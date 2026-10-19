@@ -12,7 +12,7 @@
       NZA.Transport.Bed.Occupied(point) → bool        (someone placed there through this module)
       NZA.Transport.Bed.Transfer(point, stretcherEnt) → bool     stretcher → bed
       NZA.Transport.Bed.PlaceFromCarry(point, target) → bool     shoulder → bed
-      NZA.Transport.Bed.HelpOff(entity, target)                  'Help patient off the table'
+      NZA.Transport.Bed.HelpOff(entity, target)                  'Help them down'
       NZA.Transport.Bed.PointFromSpot(vector4) → point | nil
     Callbacks used: nza:transport:bed:place, nza:transport:bed:leave
 ]]

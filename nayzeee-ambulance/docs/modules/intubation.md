@@ -62,8 +62,11 @@ everyone within `worldRange`.
 
 ## NUI app `intubation`
 
-Layout (NAYZEEE HUD, nothing in the bottom-centre): procedure column bottom-left (core ProcPanel:
-SpO₂ with trend arrow, attempt timer, step timer, a dial per step), tool belt on the right edge,
+Layout (NAYZEEE HUD, nothing in the bottom-centre): procedure column bottom-left (core ProcPanel
+with an `Airway` eyebrow tag, `Airway · attempt n of N` during an attempt: apnoea clock, O₂ reserve
+(good breaths during pre-oxygenation), attempts n/N, a dial per step; SpO₂ with its trend arrow is
+added to the panel only when the monitor is off), tool belt on the right edge (the active tool shows
+its action: SQUEEZE / LOOK / SWEEP / PASS / FILL / SECURE),
 airway monitor device top-right (generic `AM-7` face: SpO₂ dial with the alarm limit, ECG / pleth /
 CO₂ sweep traces, HR / NIBP / EtCO₂ / RR list, apnoea ring timer, attempt pips, lowest SpO₂, status
 pill VENTILATING / APNOEIC / SAT FALLING / LOW SpO₂), blade cut-away top-left (steps 4–6), video
@@ -104,7 +107,6 @@ three-line readout (cuff to wall, mucosal flow, air past the cuff).
 |---|---|
 | `open` | `{ mode = 'intubate'|'bvm', patient{name,sex,age}, vitals{hr,sys,dia,map,spo2,rr,temp,rhythm}, anat{grade, soil, soilKind, bleed, cspine, tube, depth, cuffMl, open, gx, gy, aryt, tongue, ant, desat, safe, apnoeic, gastric, intubated, misplaced}, cfg{attempts, cadence, squeeze, preoxBreaths, abortSpo2, crashSpo2, cuffBand, breaths}, locale, monitor = bool }` |
 | `vitals` | live `{ hr, sys, dia, map, temp, rhythm }` from `NZA.Patient.Watch` |
-| `abort` | `{ reason }` |
 | `anchors` (core) | `bvm`, `mouth` |
 
 | JS → Lua callback | data |
