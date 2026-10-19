@@ -6,7 +6,7 @@
 <title>NAYZEEE Admin Jail</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,7 +27,7 @@
     <div class="bar-mid">
       <span class="dot"></span>
       <p><b data-bind="serving">0</b> serving · <b data-bind="offline">0</b> waiting offline</p>
-      <span class="ver" data-bind="version">v2.0.0</span>
+      <span class="ver" data-bind="version">v1.0.0</span>
     </div>
     <button class="pill-close" data-action="close">Close</button>
   </header>
@@ -40,14 +40,17 @@
       </div>
       <div class="shift"><span data-bind="clock">00:00:00</span><b><span class="dot"></span>Live</b></div>
 
-      <button class="nav on" data-view="overview"><i data-icon="grid"></i>Overview</button>
+      <div class="navs">
+        <span class="nav-glide" id="nav-glide"></span>
+        <button class="nav on" data-view="overview"><i data-icon="grid"></i>Overview</button>
 
-      <div class="grp">Sentencing</div>
-      <button class="nav" data-view="sentence"><i data-icon="gavel"></i>New sentence</button>
-      <button class="nav" data-view="inmates"><i data-icon="users"></i>Inmates <span class="tally" data-bind="tally">0</span></button>
+        <div class="grp">Sentencing</div>
+        <button class="nav" data-view="sentence"><i data-icon="gavel"></i>New sentence</button>
+        <button class="nav" data-view="inmates"><i data-icon="users"></i>Inmates <span class="tally" data-bind="tally">0</span></button>
 
-      <div class="grp">Records</div>
-      <button class="nav" data-view="history"><i data-icon="file"></i>History</button>
+        <div class="grp">Records</div>
+        <button class="nav" data-view="history"><i data-icon="file"></i>History</button>
+      </div>
 
       <div class="side-note">
         <i data-icon="shield"></i>
@@ -62,24 +65,29 @@
         <div class="head">
           <div>
             <h1>Overview</h1>
-            <p>Who is serving right now, today's numbers and the latest closed sentences.</p>
+            <p>Who is serving right now, this week's activity and the latest closed sentences.</p>
           </div>
           <div class="clock"><b data-bind="clockShort">00:00</b><span data-bind="date">-</span></div>
         </div>
 
         <div class="stats">
-          <div class="stat">
+          <div class="stat" style="--i:0">
             <div class="tile"><i data-icon="lock"></i></div>
-            <div class="stat-txt"><span>Serving now</span><b data-bind="serving">0</b></div>
+            <div class="stat-txt"><span>Serving now</span><b data-count="serving">0</b></div>
             <div class="delta muted" data-bind="offlineDelta"></div>
           </div>
-          <div class="stat">
+          <div class="stat" style="--i:1">
             <div class="tile"><i data-icon="gavel"></i></div>
-            <div class="stat-txt"><span>Sentenced today</span><b data-bind="sentenced">0</b></div>
+            <div class="stat-txt"><span>Sentenced today</span><b data-count="sentenced">0</b></div>
           </div>
-          <div class="stat">
+          <div class="stat" style="--i:2">
             <div class="tile red"><i data-icon="alert"></i></div>
-            <div class="stat-txt"><span>Escape attempts today</span><b data-bind="escapes">0</b></div>
+            <div class="stat-txt"><span>Escapes today</span><b data-count="escapes">0</b></div>
+          </div>
+          <div class="stat chart" style="--i:3">
+            <div class="chart-head"><span>Last 7 days</span><b data-count="weekTotal">0</b></div>
+            <div class="bars" id="week-bars"></div>
+            <div class="bar-tip hidden" id="bar-tip"></div>
           </div>
         </div>
 
@@ -108,6 +116,12 @@
             <h1>New sentence</h1>
             <p>Pick a player, set the length and choose where they serve it.</p>
           </div>
+          <div class="steps" id="steps">
+            <span data-step="player"><em>1</em>Player</span>
+            <span data-step="length"><em>2</em>Length</span>
+            <span data-step="reason"><em>3</em>Reason</span>
+            <span data-step="location"><em>4</em>Location</span>
+          </div>
         </div>
 
         <div class="cols cols-sentence">
@@ -123,16 +137,16 @@
             <div class="p-body" id="pick-list"></div>
           </section>
 
-          <section class="panel">
-            <div class="p-head">
-              <div><h2>Sentence</h2><p>Only counts down while they're in jail</p></div>
-            </div>
-            <div class="p-body form">
-              <div id="picked"></div>
+          <section class="panel sentence-panel">
+            <div class="p-head picked-head" id="picked"></div>
+            <div class="form">
               <div class="field">
-                <label for="f-minutes">Length in minutes</label>
+                <label for="f-minutes">Length</label>
                 <div class="inline">
-                  <input id="f-minutes" type="number" min="1" placeholder="30">
+                  <div class="num">
+                    <input id="f-minutes" type="number" min="1" placeholder="30">
+                    <span>min</span>
+                  </div>
                   <div class="chips" id="f-durations"></div>
                 </div>
               </div>
@@ -150,6 +164,7 @@
               <span id="f-summary">Select a player to continue</span>
               <button class="btn-teal" id="f-submit" disabled><i data-icon="gavel"></i>Sentence player</button>
             </div>
+            <div class="stamp-wrap" id="f-stamp"><div class="stamp">SENTENCED</div></div>
           </section>
         </div>
       </section>
@@ -221,20 +236,21 @@
 <div class="hud-shell">
 
   <div class="hud-bar">
-    <div class="mark sm"></div>
+    <div class="hud-av" id="hud-av"><div class="mark sm"></div></div>
     <div class="bar-name">
       <div class="title-txt">ADMIN JAIL</div>
       <div class="sub" id="hud-loc">-</div>
     </div>
-    <span class="tag live" id="hud-status">Serving</span>
+    <span class="tag live" id="hud-status"><i class="pulse"></i>Serving</span>
     <b class="hud-mini" id="hud-mini">00:00</b>
   </div>
 
   <div class="hud-full">
     <div class="ring-wrap">
       <svg viewBox="0 0 140 140">
-        <circle class="ring-bg" cx="70" cy="70" r="62"/>
-        <circle class="ring-fg" id="hud-ring" cx="70" cy="70" r="62"/>
+        <g id="hud-ticks" class="ticks"></g>
+        <circle class="ring-bg" cx="70" cy="70" r="56"/>
+        <circle class="ring-fg" id="hud-ring" cx="70" cy="70" r="56"/>
       </svg>
       <div class="ring-center">
         <b id="hud-time">00:00</b>
@@ -243,9 +259,11 @@
       <div class="flash" id="hud-flash"></div>
     </div>
     <div class="hud-meta">
+      <span id="hud-case">AJ-</span>
+      <span class="sep"></span>
       <span>Sentence <b id="hud-total">0m</b></span>
       <span class="sep"></span>
-      <span><b id="hud-escapes">0</b> escape attempts</span>
+      <span><b id="hud-escapes">0</b> escapes</span>
     </div>
 
     <div class="hud-cards">
@@ -261,10 +279,10 @@
 
     <div class="hud-work" id="hud-work">
       <div class="hw-head"><span>Work program</span><span class="tag live" id="hw-tag">Active</span></div>
-      <div class="hw-task"><i data-icon="wrench"></i><span id="hw-task">Waiting for a task…</span></div>
+      <div class="hw-task"><i data-icon="wrench" id="hw-icon"></i><span id="hw-task">Waiting for a task…</span></div>
       <div class="segs" id="hw-segs"></div>
       <div class="hw-stats">
-        <div><b id="hw-reduced">0m</b><span>Reduced</span></div>
+        <div><b id="hw-reduced">0m</b><span>Worked off</span></div>
         <div><b id="hw-cycles">0</b><span>Cycles</span></div>
         <div><b id="hw-hour">0/10m</b><span>This hour</span></div>
       </div>
@@ -284,6 +302,90 @@
 </div>
 </div>
 </aside>
+
+<!-- ═══════════════ CINEMATIC OVERLAYS ═══════════════ -->
+<div class="fx-flash" id="fx-flash"></div>
+
+<div class="fx-alarm hidden" id="fx-alarm">
+  <div class="alarm-vignette"></div>
+  <div class="alarm-scan"></div>
+  <div class="alarm-banner">
+    <div class="alarm-icon"><i data-icon="siren"></i></div>
+    <div class="alarm-txt">
+      <span>Perimeter breach</span>
+      <b>ESCAPE ATTEMPT</b>
+      <em id="alarm-sub">+5 minutes · attempt #1</em>
+    </div>
+  </div>
+</div>
+
+<div class="booking hidden" id="booking">
+  <div class="bk-frame"><div class="bk-shell">
+    <div class="bk-photo">
+      <div class="bk-ruler">
+        <span style="--h:0">6'6</span><span style="--h:1">6'0</span><span style="--h:2">5'6</span><span style="--h:3">5'0</span><span style="--h:4">4'6</span>
+      </div>
+      <img id="bk-img" alt="">
+      <div class="bk-noimg" id="bk-noimg"><div class="mark"></div></div>
+      <div class="bk-scan"></div>
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div class="bk-plate" id="bk-plate">AJ-</div>
+    </div>
+    <div class="bk-info">
+      <div class="bk-top"><div class="mark sm"></div><span>Booking record</span><b id="bk-date">-</b></div>
+      <h2 id="bk-name">-</h2>
+      <div class="bk-rows">
+        <div style="--i:0"><span>Offence</span><b id="bk-reason">-</b></div>
+        <div style="--i:1"><span>Sentence</span><b id="bk-length">-</b></div>
+        <div style="--i:2"><span>Facility</span><b id="bk-loc">-</b></div>
+        <div style="--i:3"><span>Ordered by</span><b id="bk-admin">-</b></div>
+      </div>
+      <div class="bk-bar"><i></i></div>
+    </div>
+    <div class="stamp-wrap"><div class="stamp">SENTENCED</div></div>
+  </div></div>
+</div>
+
+<div class="resume hidden" id="resume">
+  <div class="rs-frame"><div class="rs-shell">
+    <div class="rs-av" id="rs-av"><div class="mark sm"></div></div>
+    <div class="rs-txt"><span>Sentence resumed</span><b id="rs-time">00:00</b><em id="rs-loc">-</em></div>
+    <div class="rs-ring"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17"/><circle class="fg" id="rs-ring" cx="20" cy="20" r="17"/></svg></div>
+  </div></div>
+</div>
+
+<div class="release hidden" id="release">
+  <div class="rl-frame"><div class="rl-shell">
+    <div class="rl-glow"></div>
+    <div class="rl-head">
+      <div class="rl-icon"><i data-icon="unlock"></i></div>
+      <span id="rl-case">AJ-</span>
+      <h2>You're free</h2>
+      <p id="rl-by">Sentence served in full</p>
+    </div>
+    <div class="rl-stats">
+      <div style="--i:0"><b id="rl-served">0m</b><span>Time served</span></div>
+      <div style="--i:1"><b id="rl-escapes">0</b><span>Escape attempts</span></div>
+      <div style="--i:2"><b id="rl-cycles">0</b><span>Work cycles</span></div>
+      <div style="--i:3"><b id="rl-reduced">0m</b><span>Worked off</span></div>
+    </div>
+    <div class="rl-foot"><span class="dot"></span>Record closed · stay out of trouble</div>
+  </div></div>
+</div>
+
+<div class="prompt hidden" id="prompt"><span class="key lg" id="prompt-key">E</span><b id="prompt-label">-</b></div>
+
+<div class="task hidden" id="task">
+  <div class="task-frame"><div class="task-shell">
+    <div class="task-ring">
+      <svg viewBox="0 0 52 52"><circle class="tr-bg" cx="26" cy="26" r="22"/><circle class="tr-fg" id="task-ring" cx="26" cy="26" r="22"/></svg>
+      <i data-icon="wrench" id="task-icon"></i>
+      <i data-icon="check" class="task-done"></i>
+    </div>
+    <div class="task-txt"><b id="task-label">-</b><span id="task-sub">Task 1 of 5</span></div>
+    <div class="task-cancel"><span class="key">X</span>Cancel</div>
+  </div></div>
+</div>
 
 <script src="app.js"></script>
 </body>

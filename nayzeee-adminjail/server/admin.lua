@@ -49,6 +49,27 @@ local function inmates()
     return list
 end
 
+local function occupancy()
+    local out = {}
+    for _, e in pairs(Sentences.All()) do out[e.location] = (out[e.location] or 0) + 1 end
+    return out
+end
+
+--- Sentences per day for the last 7 days, oldest first (today last).
+local function week()
+    local since = midnight() - 6 * 86400
+    local counts = DB.Week(since)
+    for _, e in pairs(Sentences.All()) do
+        if e.jailedAt >= since then
+            local d = (e.jailedAt - since) // 86400
+            counts[d] = (counts[d] or 0) + 1
+        end
+    end
+    local out = {}
+    for d = 0, 6 do out[d + 1] = { ts = since + d * 86400, count = counts[d] or 0 } end
+    return out
+end
+
 local function stats()
     local since = midnight()
     local today = DB.TodayStats(since)
@@ -84,15 +105,17 @@ register('open', function(src)
         stats = stats(),
         inmates = inmates(),
         recent = DB.Recent(6),
+        week = week(),
+        occupancy = occupancy(),
     }
 end)
 
 register('overview', function()
-    return { ok = true, stats = stats(), inmates = inmates(), recent = DB.Recent(6) }
+    return { ok = true, stats = stats(), inmates = inmates(), recent = DB.Recent(6), week = week(), occupancy = occupancy() }
 end)
 
 register('inmates', function()
-    return { ok = true, inmates = inmates() }
+    return { ok = true, inmates = inmates(), occupancy = occupancy() }
 end)
 
 register('players', function()
@@ -170,6 +193,20 @@ register('adjust', withInmate(function(src, data, e)
     local ok, err = Sentences.Adjust(e, data.minutes, adminName(src))
     if not ok then return { ok = false, msg = err } end
     return { ok = true, msg = locale('adjusted_admin', e.name, ('%+d'):format(math.floor(tonumber(data.minutes) or 0))) }
+end))
+
+-- Admin teleports to the inmate (or to their jail when they're offline).
+register('teleport', withInmate(function(_, _, e)
+    local loc = AJ.GetLocation(e.location)
+    local c = loc.spawn
+    if e.source then
+        local ped = GetPlayerPed(e.source)
+        if ped ~= 0 then
+            local p = GetEntityCoords(ped)
+            if p.x ~= 0.0 or p.y ~= 0.0 then c = vector4(p.x + 1.5, p.y, p.z, loc.spawn.w) end
+        end
+    end
+    return { ok = true, coords = { x = c.x, y = c.y, z = c.z, w = c.w or 0.0 } }
 end))
 
 register('transfer', withInmate(function(src, data, e)

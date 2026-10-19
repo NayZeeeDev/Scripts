@@ -28,6 +28,21 @@ function Bridge.IsLoaded()
     return NetworkIsPlayerActive(cache.playerId) and DoesEntityExist(cache.ped)
 end
 
+--- Stable id of the loaded character (used to key the saved outfit).
+function Bridge.CharId()
+    if framework == 'qb' then
+        local data = QB.Functions.GetPlayerData()
+        return data and data.citizenid or 'default'
+    elseif framework == 'qbx' then
+        local ok, data = pcall(exports.qbx_core.GetPlayerData, exports.qbx_core)
+        return ok and data and data.citizenid or 'default'
+    elseif framework == 'esx' then
+        local data = ESX.GetPlayerData()
+        return data and data.identifier or 'default'
+    end
+    return 'default'
+end
+
 function Bridge.Notify(msg, kind)
     kind = kind or 'inform'
     if Config.Notify == 'nayzeee' then

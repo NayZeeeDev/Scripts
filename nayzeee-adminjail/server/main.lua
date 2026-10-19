@@ -49,6 +49,10 @@ local function hourCap() return Config.Work.maxPerHour * 60 end
 local function payload(e)
     local loc = AJ.GetLocation(e.location)
     return {
+        name = e.name,
+        caseId = AJ.CaseId(e.jailedAt),
+        jailedAt = e.jailedAt,
+        bookedOn = os.date('%d %b %Y', e.jailedAt),
         location = e.location,
         locationName = loc and loc.name,
         remaining = remaining(e),
@@ -306,7 +310,17 @@ function Sentences.Release(e, outcome, by)
     if src then
         Sources[src] = nil
         setBag(src, false)
-        TriggerClientEvent(Event('client:release'), src, releaseCoords(e))
+        TriggerClientEvent(Event('client:release'), src, {
+            coords = releaseCoords(e),
+            outcome = outcome,
+            by = by,
+            caseId = AJ.CaseId(e.jailedAt),
+            served = math.max(0, e.total - e.remaining),
+            total = e.total,
+            escapes = e.escapes,
+            cycles = e.cycles,
+            reduced = e.reduced,
+        })
         Bridge.Notify(src, locale('released'), 'success')
     end
 
@@ -408,6 +422,14 @@ local function onOutside(e, fromServer, spawned)
 
     if Config.Escape.broadcast then
         TriggerClientEvent(Event('client:notify'), -1, locale('escape_broadcast', e.name, penalty), 'error')
+    elseif Config.Escape.alertStaff then
+        local alert = { name = e.name, penalty = penalty, attempt = e.escapes, location = AJ.GetLocation(e.location).name }
+        for _, id in ipairs(GetPlayers()) do
+            local staff = tonumber(id)
+            if staff ~= e.source and Bridge.HasPermission(staff) then
+                TriggerClientEvent(Event('client:staffAlert'), staff, alert)
+            end
+        end
     end
 
     Webhook('escape', 'Escape attempt', {
@@ -605,18 +627,3 @@ exports('AdjustTime', function(target, minutes, by)
     return Sentences.Adjust(e, minutes, by or 'System')
 end)
 
--- v1 export names
-exports('IsPlayerJailed', function(src) return Sentences.BySource(src) ~= nil end)
-exports('GetJailedData', function(src) return public(Sentences.BySource(src)) end)
-exports('JailPlayer', function(src, minutes, reason, location, admin)
-    return (Sentences.Jail({ source = src, minutes = minutes, reason = reason, location = location, admin = admin or 'System' }))
-end)
-exports('ReleasePlayer', function(src)
-    local e = Sentences.BySource(src)
-    return e and Sentences.Release(e, 'released', 'Export') or false
-end)
-exports('GetAllJailed', function()
-    local out = {}
-    for _, e in pairs(Jailed) do out[#out + 1] = public(e) end
-    return out
-end)

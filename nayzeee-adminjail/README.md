@@ -1,4 +1,4 @@
-# NAYZEEE Admin Jail v2
+# NAYZEEE Admin Jail 1.0.0
 
 Server-authoritative OOC admin jail for QBCore, Qbox, ESX and standalone.
 `discord.gg/nayzeeedev`
@@ -11,7 +11,7 @@ Server-authoritative OOC admin jail for QBCore, Qbox, ESX and standalone.
    add_ace group.admin nayzeee.adminjail allow
    ```
    or list their framework groups in `Config.Permissions.groups`.
-3. Start the server. Tables are created automatically, and v1 sentences and history are imported once.
+3. Start the server. Tables are created automatically.
    (`install/nayzeee-adminjail.sql` is only there if you want to create the tables yourself.)
 
 Requires OneSync (the server checks player positions itself).
@@ -35,27 +35,47 @@ Requires OneSync (the server checks player positions itself).
 - **Resource restarts:** players who are online get re-attached automatically.
 - `Config.Scope = 'license'` (default) jails the whole account, so switching characters doesn't dodge it. Use `'character'` to jail one character only.
 
+## Cinematics
+
+All of it can be toggled in `Config.Cinematic`.
+
+- **Sentencing:** the GTA character-switch camera lifts the player into the sky, they're put in the prison jumpsuit off-camera, and the camera drops them into the jail. Then comes a **mugshot booking**: they hold a printed booking board (name, case number, date), and two camera flashes go off, front and side profile. Meanwhile a **booking card** shows their real in-game headshot against a height chart, with the case number and a "SENTENCED" stamp.
+- **Reconnect or respawn:** a quick fade back into jail and a "Sentence resumed" card with the time left.
+- **Escape attempt:** an alarm sound, a red pulsing screen, camera shake and an "ESCAPE ATTEMPT" banner, then they're dragged back. Online staff get a live alert.
+- **Release:** a "You're free" summary card (time served, escape attempts, work cycles, time worked off), and the sky camera takes them to the release point with their own outfit back on.
+
+## Prison outfit
+
+Jailed players wear a jumpsuit (`Config.Outfit`, per gender, freemode peds). Their real outfit is saved in resource KVP on their own PC, keyed by sentence and character, so it comes back on release even after a server restart, reconnect or character swap.
+
+## Inmate tags
+
+Other players see an "ADMIN JAIL · INMATE" tag above jailed players' heads (`Config.Overhead`). It's driven by state bags, so nothing runs while nobody is jailed.
+
 ## Escapes
 
 The client reports leaving the zone right away, and the server also checks positions itself through OneSync every `serverInterval` ms. That catches noclip and mod menus that skip the client check. Penalties stack: `penalty + escalation × previous attempts`, capped at `maxPenalty`.
 
 ## Work program
 
-The server picks each task at random from the location's `work` points. It checks the player is standing at the point when they start and when they finish, and that the full duration passed. Remote-triggering the events does nothing. The reduction per cycle and the hourly cap are tracked server side and survive reconnects. Task types (`sweep`, `scrub`, `trash`) use GTA scenarios, or you can add your own with `anim` + `prop`.
+The server picks each task at random from the location's `work` points. It checks the player is standing at the point when they start and when they finish, and that the full duration passed. Remote-triggering the events does nothing. The reduction per cycle and the hourly cap are tracked server side and survive reconnects.
+
+There are six task types: sweep (broom), mop, scrub (sponge), pick up litter, repair the fence (hammer) and wipe windows. Each has its own animation and hand prop, plus optional particles. Add your own with `anim` + `prop`, or a GTA `scenario`. Progress uses a built-in ring that matches the UI (`Config.Progress = 'nayzeee'`), with X to cancel, or ox_lib's bar or circle.
 
 ## Admin panel
 
-- **Overview:** live timers, today's sentences and escapes, recently closed sentences
+- **Overview:** live timers, today's sentences and escapes, a 7-day sentence chart, recently closed sentences, live escape alerts
 - **New sentence:** search online players, or players who **left in the last 3 hours** (jail combat-loggers; the sentence starts when they rejoin). Prior sentence counts, reason presets, quick durations and location picker.
-- **Inmates:** every open sentence (online and offline): add or remove time, transfer to another location, release
+- **Inmates:** every open sentence (online and offline): add or remove time, transfer to another location, release, or teleport to the inmate
 - **History:** searchable by player or staff, paginated
 
-Open `web/index.html` in a normal browser to preview the UI with demo data (`?view=sentence`, `?view=hud`, …).
+Open `web/index.html` in a normal browser to preview the UI with demo data: `?view=sentence`, `?view=hud`, `?fx=booking`, `?fx=release`, `?fx=alarm`, `?fx=resume`, `?fx=task`.
 
 ## Performance
 
 - Not jailed: **no threads** on the client.
 - Jailed: one 1000 ms watcher. The work marker only draws per-frame while you're within `viewDistance` of the current task.
+- Cinematics only run during the moment itself (a few seconds), and nothing stays resident.
 - Melee, weapons, godmode and inventory are blocked through native state and state bags, not per-frame control disabling.
 - Server: one 1 s loop over the jailed list only.
 
@@ -70,7 +90,6 @@ exports['nayzeee-adminjail']:Jail(src, minutes, reason, locationId, adminName)
 exports['nayzeee-adminjail']:JailOffline(identifier, minutes, reason, locationId, adminName, name)
 exports['nayzeee-adminjail']:Release(target, by)
 exports['nayzeee-adminjail']:AdjustTime(target, minutes, by)
--- v1 names still work: IsPlayerJailed, GetJailedData, JailPlayer, ReleasePlayer, GetAllJailed
 
 -- client
 exports['nayzeee-adminjail']:IsJailed()

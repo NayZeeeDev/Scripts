@@ -52,7 +52,7 @@ local function state(e)
     local point = e.work.point and AJ.GetLocation(e.location).work[e.work.point]
     if point then
         local task = cfg.tasks[point.task] or cfg.tasks.sweep
-        data.point = { index = e.work.point, coords = point.coords, task = point.task, label = task.label, duration = task.duration }
+        data.point = { index = e.work.point, coords = point.coords, task = point.task, label = task.label, icon = task.icon, duration = task.duration }
     end
     return data
 end

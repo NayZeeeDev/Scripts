@@ -6,7 +6,7 @@
     ██║ ╚████║██║  ██║   ██║   ███████╗███████╗███████╗███████╗
     ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝╚══════╝╚══════╝
 
-    NAYZEEE ADMIN JAIL - 2.0.0
+    NAYZEEE ADMIN JAIL - 1.0.0
     Discord: discord.gg/nayzeeedev
 ]]
 
@@ -136,6 +136,7 @@ Config.Escape = {
     maxPenalty  = 30,    -- cap per attempt
     grace       = 10,    -- seconds of immunity after placement / an attempt
     broadcast   = false, -- notify the whole server
+    alertStaff  = true,  -- notify online staff (and the open admin panel) on every attempt
     serverCheck = true,  -- OneSync position check on the server (catches noclip / menus)
     serverInterval = 3000,
 }
@@ -177,19 +178,44 @@ Config.Work = {
     viewDistance   = 40.0,  -- marker draw distance
     interactDistance = 1.6,
     blip           = true,
+    cancelKey      = 73,    -- X — cancels the current task
 
-    -- Task types. Use a GTA scenario (handles the prop for you) or anim + prop.
+    --[[
+        Task types. Each one uses either:
+          anim     = { dict, clip, flag }   + optional prop = { model, bone, pos, rot }
+          scenario = 'WORLD_HUMAN_...'      (GTA handles the prop itself)
+        ptfx (optional) = { asset, name, scale, offset } — looped particle on the player while working
+        Prop offsets are tuned for freemode peds; nudge pos/rot if you use custom models.
+    ]]
     tasks = {
-        sweep = { label = 'Sweep the floor',   duration = 6000, scenario = 'WORLD_HUMAN_JANITOR' },
-        scrub = { label = 'Scrub the surface', duration = 6000, scenario = 'WORLD_HUMAN_MAID_CLEAN' },
-        trash = { label = 'Pick up trash',     duration = 5000, scenario = 'WORLD_HUMAN_GARDENER_PLANT' },
-        --[[ anim example:
-        mop = {
-            label = 'Mop', duration = 6000,
-            anim = { dict = 'move_mop', clip = 'idle_scrub_small_player', flag = 49 },
-            prop = { model = 'prop_cs_mop_s', bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) },
+        sweep = {
+            label = 'Sweep the floor', icon = 'broom', duration = 7000,
+            anim = { dict = 'amb@world_human_janitor@male@idle_a', clip = 'idle_a', flag = 1 },
+            prop = { model = 'prop_tool_broom', bone = 28422, pos = vec3(-0.01, 0.04, -0.03), rot = vec3(0.0, 0.0, 0.0) },
+            ptfx = { asset = 'core', name = 'ent_anim_dusty_hands', scale = 1.4, offset = vec3(0.0, 0.6, -0.95) },
         },
-        ]]
+        mop = {
+            label = 'Mop the floor', icon = 'mop', duration = 7000,
+            anim = { dict = 'missfbi_s4mop', clip = 'idle_scrub', flag = 1 },
+            prop = { model = 'prop_cs_mop_s', bone = 28422, pos = vec3(0.0, 0.0, 0.12), rot = vec3(0.0, 0.0, 0.0) },
+        },
+        scrub = {
+            label = 'Scrub the surface', icon = 'sponge', duration = 6500,
+            anim = { dict = 'timetable@floyd@clean_kitchen@base', clip = 'base', flag = 1 },
+            prop = { model = 'prop_sponge_01', bone = 28422, pos = vec3(0.0, 0.0, -0.01), rot = vec3(90.0, 0.0, 0.0) },
+        },
+        trash = {
+            label = 'Pick up litter', icon = 'trash', duration = 6000,
+            anim = { dict = 'pickup_object', clip = 'pickup_low', flag = 1 },
+        },
+        repair = {
+            label = 'Repair the fence', icon = 'hammer', duration = 8000,
+            scenario = 'WORLD_HUMAN_HAMMERING',
+        },
+        wipe = {
+            label = 'Wipe the windows', icon = 'sponge', duration = 6500,
+            scenario = 'WORLD_HUMAN_MAID_CLEAN',
+        },
     },
 }
 
@@ -228,10 +254,10 @@ Config.Locations = {
         },
         work = {
             { coords = vec3(3046.41, -4715.99, 15.26), task = 'sweep' },
-            { coords = vec3(3060.23, -4680.54, 15.26), task = 'scrub' },
-            { coords = vec3(3080.08, -4717.49, 15.26), task = 'sweep' },
-            { coords = vec3(3053.08, -4750.20, 15.26), task = 'trash' },
-            { coords = vec3(3081.39, -4759.89, 15.26), task = 'sweep' },
+            { coords = vec3(3060.23, -4680.54, 15.26), task = 'mop' },
+            { coords = vec3(3080.08, -4717.49, 15.26), task = 'trash' },
+            { coords = vec3(3053.08, -4750.20, 15.26), task = 'repair' },
+            { coords = vec3(3081.39, -4759.89, 15.26), task = 'scrub' },
         },
     },
     {
@@ -252,10 +278,10 @@ Config.Locations = {
         },
         work = {
             { coords = vec3(1656.47, 2522.59, 45.56), task = 'sweep' },
-            { coords = vec3(1699.13, 2516.40, 45.56), task = 'trash' },
-            { coords = vec3(1693.89, 2491.02, 45.56), task = 'sweep' },
-            { coords = vec3(1668.44, 2507.46, 45.56), task = 'scrub' },
-            { coords = vec3(1654.31, 2542.92, 45.56), task = 'sweep' },
+            { coords = vec3(1699.13, 2516.40, 45.56), task = 'mop' },
+            { coords = vec3(1693.89, 2491.02, 45.56), task = 'trash' },
+            { coords = vec3(1668.44, 2507.46, 45.56), task = 'repair' },
+            { coords = vec3(1654.31, 2542.92, 45.56), task = 'scrub' },
         },
     },
     {
@@ -275,10 +301,10 @@ Config.Locations = {
         },
         work = {
             { coords = vec3(-2047.4, 3132.1, 32.8), task = 'sweep' },
-            { coords = vec3(-2052.1, 3138.7, 32.8), task = 'trash' },
-            { coords = vec3(-2042.8, 3142.3, 32.8), task = 'sweep' },
-            { coords = vec3(-2038.2, 3128.9, 32.8), task = 'scrub' },
-            { coords = vec3(-2055.6, 3125.4, 32.8), task = 'sweep' },
+            { coords = vec3(-2052.1, 3138.7, 32.8), task = 'mop' },
+            { coords = vec3(-2042.8, 3142.3, 32.8), task = 'trash' },
+            { coords = vec3(-2038.2, 3128.9, 32.8), task = 'repair' },
+            { coords = vec3(-2055.6, 3125.4, 32.8), task = 'scrub' },
         },
     },
     {
@@ -298,10 +324,10 @@ Config.Locations = {
         },
         work = {
             { coords = vec3(461.60, -994.50, 24.91), task = 'sweep' },
-            { coords = vec3(465.20, -998.10, 24.91), task = 'scrub' },
-            { coords = vec3(458.30, -1001.70, 24.91), task = 'sweep' },
-            { coords = vec3(460.60, -1004.90, 24.91), task = 'trash' },
-            { coords = vec3(463.70, -1006.60, 24.91), task = 'sweep' },
+            { coords = vec3(465.20, -998.10, 24.91), task = 'mop' },
+            { coords = vec3(458.30, -1001.70, 24.91), task = 'trash' },
+            { coords = vec3(460.60, -1004.90, 24.91), task = 'repair' },
+            { coords = vec3(463.70, -1006.60, 24.91), task = 'scrub' },
         },
     },
 }
@@ -314,14 +340,12 @@ Config.Locations = {
     ██████╔╝██║  ██║   ██║   ██║  ██║██████╔╝██║  ██║███████║███████╗
     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝
 
-    Tables are created automatically. Sentences from v1 (`nayzeee_adminjail` /
-    `nayzeee_adminjail_history`) are imported once on first start when legacyImport = true.
+    Tables are created automatically on start.
 ]]
 
 Config.Database = {
     active        = 'nayzeee_adminjail_active',
     history       = 'nayzeee_adminjail_log',
-    legacyImport  = true,
     flushInterval = 30, -- seconds between saves of running sentences (crash safety)
 }
 
@@ -369,6 +393,84 @@ Config.Rules = {
 }
 
 --[[
+     ██████╗██╗███╗   ██╗███████╗███╗   ███╗ █████╗ ████████╗██╗ ██████╗
+    ██╔════╝██║████╗  ██║██╔════╝████╗ ████║██╔══██╗╚══██╔══╝██║██╔════╝
+    ██║     ██║██╔██╗ ██║█████╗  ██╔████╔██║███████║   ██║   ██║██║
+    ██║     ██║██║╚██╗██║██╔══╝  ██║╚██╔╝██║██╔══██║   ██║   ██║██║
+    ╚██████╗██║██║ ╚████║███████╗██║ ╚═╝ ██║██║  ██║   ██║   ██║╚██████╗
+     ╚═════╝╚═╝╚═╝  ╚═══╝╚══════╝╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝
+
+    Sentencing:  sky camera out -> jumpsuit on -> sky camera in -> mugshot booking
+                 (player holds a printed booking board, two camera flashes, front + side)
+                 with a booking card showing their real in-game headshot.
+    Reconnect:   quick fade + "sentence resumed" card.
+    Escape:      alarm, red screen pulse, camera shake, then dragged back.
+    Release:     summary card (time served, escapes, work), sky camera to the release point.
+]]
+
+Config.Cinematic = {
+    enabled  = true,
+    skyCam   = true,          -- GTA character-switch camera for sentencing, transfers and release
+    mugshot  = true,          -- booking board + camera flashes after a fresh sentence
+    board    = 'ADMIN JAIL',  -- top line printed on the booking board
+    sounds   = true,
+    effects  = true,          -- screen effects / camera shake
+}
+
+--[[
+     ██████╗ ██╗   ██╗████████╗███████╗██╗████████╗
+    ██╔═══██╗██║   ██║╚══██╔══╝██╔════╝██║╚══██╔══╝
+    ██║   ██║██║   ██║   ██║   █████╗  ██║   ██║
+    ██║   ██║██║   ██║   ██║   ██╔══╝  ██║   ██║
+    ╚██████╔╝╚██████╔╝   ██║   ██║     ██║   ██║
+     ╚═════╝  ╚═════╝    ╚═╝   ╚═╝     ╚═╝   ╚═╝
+
+    Prison jumpsuit while jailed. The real outfit is saved on the player's PC (resource KVP),
+    so it comes back on release even after a server restart or a reconnect.
+    Only applied to freemode peds. [component] = { drawable, texture }
+    Defaults are the classic orange jumpsuit - change them to match your clothing packs.
+]]
+
+Config.Outfit = {
+    enabled = true,
+    clearProps = true, -- remove hats, glasses, watches...
+    male = {
+        [3]  = { 0, 0 },   -- arms
+        [4]  = { 3, 7 },   -- pants
+        [6]  = { 1, 0 },   -- shoes
+        [7]  = { 0, 0 },   -- accessories
+        [8]  = { 15, 0 },  -- undershirt
+        [11] = { 146, 0 }, -- top (jumpsuit)
+    },
+    female = {
+        [3]  = { 0, 0 },
+        [4]  = { 3, 15 },
+        [6]  = { 1, 0 },
+        [7]  = { 0, 0 },
+        [8]  = { 14, 0 },
+        [11] = { 141, 0 },
+    },
+}
+
+--[[
+     ██████╗ ██╗   ██╗███████╗██████╗ ██╗  ██╗███████╗ █████╗ ██████╗
+    ██╔═══██╗██║   ██║██╔════╝██╔══██╗██║  ██║██╔════╝██╔══██╗██╔══██╗
+    ██║   ██║██║   ██║█████╗  ██████╔╝███████║█████╗  ███████║██║  ██║
+    ██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗██╔══██║██╔══╝  ██╔══██║██║  ██║
+    ╚██████╔╝ ╚████╔╝ ███████╗██║  ██║██║  ██║███████╗██║  ██║██████╔╝
+     ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝
+
+    Floating tag above inmates for other players nearby. Costs nothing while
+    nobody on the server is jailed (driven by state bags, no polling).
+]]
+
+Config.Overhead = {
+    enabled  = true,
+    distance = 15.0,
+    label    = 'ADMIN JAIL',
+}
+
+--[[
     ███╗   ██╗ ██████╗ ████████╗██╗███████╗██╗   ██╗
     ████╗  ██║██╔═══██╗╚══██╔══╝██║██╔════╝╚██╗ ██╔╝
     ██╔██╗ ██║██║   ██║   ██║   ██║█████╗   ╚████╔╝
@@ -378,4 +480,4 @@ Config.Rules = {
 ]]
 
 Config.Notify = 'ox' -- 'ox', 'qb', 'esx', 'nayzeee'
-Config.Progress = 'circle' -- 'circle' or 'bar' (ox_lib)
+Config.Progress = 'nayzeee' -- 'nayzeee' (built-in, matches the UI), 'circle' or 'bar' (ox_lib)

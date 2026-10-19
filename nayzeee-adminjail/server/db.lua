@@ -51,48 +51,8 @@ local function createTables()
     ]]):format(HISTORY))
 end
 
-local function tableExists(name)
-    return MySQL.scalar.await(
-        'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?',
-        { name }
-    ) > 0
-end
-
---- One-time import of v1 data (minutes -> seconds, old column names).
-local function importLegacy()
-    if not Config.Database.legacyImport then return end
-    if not tableExists('nayzeee_adminjail') then return end
-
-    local already = MySQL.scalar.await(('SELECT COUNT(*) FROM `%s`'):format(ACTIVE)) > 0
-        or MySQL.scalar.await(('SELECT COUNT(*) FROM `%s`'):format(HISTORY)) > 0
-    if already then return end
-
-    local imported = MySQL.update.await(([[
-        INSERT IGNORE INTO `%s` (identifier, name, reason, admin, location, total, remaining, escapes, cycles, reduced, jailed_at, updated_at)
-        SELECT identifier, player_name, LEFT(reason, 255), admin_name, COALESCE(location_id, ?), jail_time * 60, jail_time * 60,
-               escape_attempts, work_completed, time_reduced * 60, jailed_at, updated_at
-        FROM `nayzeee_adminjail`
-    ]]):format(ACTIVE), { AJ.DefaultLocation().id }) or 0
-
-    local history = 0
-    if tableExists('nayzeee_adminjail_history') then
-        history = MySQL.update.await(([[
-            INSERT INTO `%s` (identifier, name, reason, admin, location, total, served, escapes, cycles, reduced, outcome, jailed_at, released_at)
-            SELECT identifier, player_name, LEFT(reason, 255), admin_name, location_id, jail_time * 60, jail_time * 60,
-                   escape_attempts, work_completed, time_reduced * 60,
-                   CASE WHEN release_type = 'Time Served' THEN 'served' ELSE 'released' END,
-                   jailed_at, released_at
-            FROM `nayzeee_adminjail_history`
-        ]]):format(HISTORY)) or 0
-    end
-
-    print(('^2[%s]^7 Imported ^5%d^7 active sentences and ^5%d^7 history records from v1'):format(AJ.Resource, imported, history))
-end
-
 function DB.Init()
     createTables()
-    local ok, err = pcall(importLegacy)
-    if not ok then print(('^3[%s]^7 Legacy import skipped: %s'):format(AJ.Resource, err)) end
 end
 
 function DB.LoadActive()
@@ -190,4 +150,15 @@ end
 
 function DB.Recent(limit)
     return MySQL.query.await(('SELECT * FROM `%s` ORDER BY id DESC LIMIT ?'):format(HISTORY), { limit }) or {}
+end
+
+--- Sentences handed out per day for the last `days` days -> { [dayIndex 0..days-1] = count }
+function DB.Week(since)
+    local rows = MySQL.query.await(
+        ('SELECT FLOOR((jailed_at - ?) / 86400) AS d, COUNT(*) AS c FROM `%s` WHERE jailed_at >= ? GROUP BY d'):format(HISTORY),
+        { since, since }
+    ) or {}
+    local out = {}
+    for i = 1, #rows do out[math.floor(rows[i].d)] = rows[i].c end
+    return out
 end

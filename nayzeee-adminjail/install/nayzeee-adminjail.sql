@@ -1,4 +1,4 @@
--- NAYZEEE Admin Jail v2 — optional, the resource creates these tables on start.
+-- NAYZEEE Admin Jail 1.0.0 — optional, the resource creates these tables on start.
 
 CREATE TABLE IF NOT EXISTS `nayzeee_adminjail_active` (
     `identifier`     VARCHAR(80)  NOT NULL PRIMARY KEY,

@@ -17,6 +17,8 @@ local phase = 'idle' -- 'idle' | 'placing' | 'active'
 local token = 0      -- bumps on every enforce/release so stale placement threads bail out
 local watching = false
 local lastSpawnAt = 0
+local shown = false     -- HUD is on screen
+local announced = false -- player has been told about this sentence (booking / resumed card)
 
 function Jail.Phase() return phase end
 function Jail.Sentence() return sentence end
@@ -49,25 +51,6 @@ local function waitForSpawn(myToken)
         Wait(500)
     end
     return false
-end
-
-local function teleport(coords)
-    local ped = PlayerPedId()
-    DoScreenFadeOut(300)
-    local timeout = GetGameTimer() + 1500
-    while not IsScreenFadedOut() and GetGameTimer() < timeout do Wait(0) end
-
-    if IsPedInAnyVehicle(ped, false) then ClearPedTasksImmediately(ped) end
-    RequestCollisionAtCoord(coords.x, coords.y, coords.z)
-    SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, false)
-    SetEntityHeading(ped, coords.w or 0.0)
-    FreezeEntityPosition(ped, true)
-
-    timeout = GetGameTimer() + 5000
-    while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < timeout do Wait(50) end
-
-    FreezeEntityPosition(ped, false)
-    DoScreenFadeIn(500)
 end
 
 --[[ Restrictions — all native state, nothing per-frame ]]
@@ -157,39 +140,74 @@ end
 
 --[[ Server events ]]
 
+--[[
+    One enforce handler for every reason the server moves a player:
+      jail      fresh sentence  -> sky camera, jumpsuit, mugshot booking
+      restore   (re)joined / respawned / resource restart -> fade in, "sentence resumed"
+      transfer  admin moved them -> sky camera
+      escape    left the zone -> alarm, dragged back
+      pullback  left during a grace window -> quiet fade back
+
+    Several enforces can arrive while one is still waiting for the spawn to settle
+    (framework load + spawn events). Only the newest runs, and HUD/notifications are
+    keyed off `shown` / `announced`, not off which enforce happened to finish.
+]]
 RegisterNetEvent(Event('client:enforce'), function(data)
     token = token + 1
     local myToken = token
-    local wasIdle = phase == 'idle'
 
     sentence, syncedAt = data, GetGameTimer()
     phase = 'placing'
-    if not wasIdle then Hud.Sync(data) end
+    if shown then Hud.Sync(data) end
 
     CreateThread(function()
         if not data.instant and not waitForSpawn(myToken) then return end
         if myToken ~= token then return end
 
+        local kind = data.kind
         local loc = AJ.GetLocation(data.location)
-        local inside = AJ.InZone(loc, GetEntityCoords(PlayerPedId()))
-        if not (inside and (data.kind == 'restore' or data.kind == 'pullback')) then
-            teleport(loc.spawn)
+        local outfitKey = data.jailedAt or 0
+        local function place()
+            Outfit.Apply(outfitKey)
+            Fx.Place(loc.spawn)
+        end
+
+        if kind == 'jail' or kind == 'transfer' then
+            Fx.Sky(place)
+        elseif kind == 'escape' then
+            Fx.Escape(data.penalty, data.escapes)
+            Wait(900)
+            Fx.Fade(place, 250)
+        elseif AJ.InZone(loc, GetEntityCoords(PlayerPedId())) then
+            Outfit.Apply(outfitKey) -- already inside (resource restart, death respawn in jail)
+        else
+            Fx.Fade(place)
         end
         if myToken ~= token then return end
 
+        local avatar = not shown and Fx.Headshot() or nil
+        if kind == 'jail' and not announced then
+            announced = true
+            Fx.Booking(data, avatar) -- timer is still paused during the booking scene
+            if myToken ~= token then return end
+        end
+
         phase = 'active'
         restrict(PlayerPedId())
-        if wasIdle then
-            Hud.Show(sentence)
+        if not shown then
+            shown = true
+            Hud.Show(sentence, avatar)
             debugZone()
         end
         watch()
         TriggerServerEvent(Event('server:placed'))
 
-        if data.kind == 'escape' then
+        if kind == 'escape' then
             Bridge.Notify(locale('escape_target', data.penalty), 'error')
             Hud.Flash('red', ('+%d min'):format(data.penalty))
-        elseif data.kind == 'restore' and wasIdle then
+        elseif not announced then
+            announced = true
+            Hud.Fx('resume', data)
             Bridge.Notify(locale('restored', fmt(data.remaining)), 'inform')
         end
     end)
@@ -205,14 +223,16 @@ local function stop()
     token = token + 1
     phase = 'idle'
     sentence = nil
+    shown, announced = false, false
     Work.Stop()
     unrestrict()
     Hud.Hide()
+    Fx.FreeHeadshot()
 end
 
-RegisterNetEvent(Event('client:release'), function(coords)
+RegisterNetEvent(Event('client:release'), function(summary)
     stop()
-    CreateThread(function() teleport(coords) end)
+    CreateThread(function() Fx.Release(summary) end)
 end)
 
 RegisterNetEvent(Event('client:suspend'), stop)
@@ -239,6 +259,8 @@ AddEventHandler('onResourceStop', function(res)
     if res ~= AJ.Resource or phase == 'idle' then return end
     Work.Stop()
     unrestrict()
+    Fx.FreeHeadshot()
+    RenderScriptCams(false, false, 0, true, true)
     FreezeEntityPosition(PlayerPedId(), false)
     if IsScreenFadedOut() or IsScreenFadingOut() then DoScreenFadeIn(0) end
 end)

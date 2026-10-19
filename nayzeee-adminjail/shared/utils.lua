@@ -76,3 +76,14 @@ end
 function AJ.Debug(...)
     if Config.Debug then print(('^5[%s]^7'):format(AJ.Resource), ...) end
 end
+
+--- Short, readable case number derived from the sentence timestamp (e.g. AJ-T3K9QF)
+function AJ.CaseId(ts)
+    local chars, n, out = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ', math.floor(ts or 0), ''
+    repeat
+        local r = n % #chars
+        out = chars:sub(r + 1, r + 1) .. out
+        n = n // #chars
+    until n == 0
+    return 'AJ-' .. out
+end

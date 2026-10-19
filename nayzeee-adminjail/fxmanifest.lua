@@ -6,7 +6,7 @@ use_experimental_fxv2_oal 'yes'
 name 'nayzeee-adminjail'
 author 'NayZeee Development'
 description 'NAYZEEE Admin Jail - server authoritative OOC jail'
-version '2.0.0'
+version '1.0.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
@@ -17,8 +17,11 @@ shared_scripts {
 client_scripts {
     'bridge/client.lua',
     'client/hud.lua',
+    'client/fx.lua',
+    'client/outfit.lua',
     'client/main.lua',
     'client/work.lua',
+    'client/overhead.lua',
 }
 
 server_scripts {
