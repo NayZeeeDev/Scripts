@@ -63,6 +63,20 @@
     return { x: a.x * W(), y: a.y * H() };
   }
   const pxScale = () => H() / 1080;
+  // is the pointer over the open kit case? (screen box of its corners, else a ring around the centre)
+  const KIT_PTS = ['kitA', 'kitB', 'kitC', 'kitD', 'kitE', 'kitF'];
+  function overKit(x, y) {
+    const pts = KIT_PTS.map(apx).filter(Boolean);
+    const c = apx('kit');
+    if (c) pts.push(c);
+    if (!pts.length) return false;
+    if (pts.length >= 3) {
+      const pad = 16 * pxScale();
+      const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+      if (x >= Math.min(...xs) - pad && x <= Math.max(...xs) + pad && y >= Math.min(...ys) - pad && y <= Math.max(...ys) + pad) return true;
+    }
+    return !!c && Math.hypot(x - c.x, y - c.y) < 110 * pxScale();
+  }
 
   /* ═══════════════════════════ DRAWING HELPERS ═══════════════════════════ */
   // 240° dial (value / zone 0..1) — used by the tensioner, the syringe rate and the infuser
@@ -424,7 +438,7 @@
       if (b.phase === 'drop') {
         ui.pp.set({
           title: L('s_binder', 'Bind the pelvis'), tag: why,
-          text: L('binder_drop', 'Pick up the **binder** at the kit and lay it under the hips.'),
+          text: L('binder_drop', 'Click the **binder** in the kit (or press 1), then click the **hip marker** to lay it under the hips.'),
           tools: [{ key: '1', label: L('tool_binder', 'Pelvic binder'), icon: 'cuff', state: 'active', sub: d.count !== undefined ? `×${d.count}` : '' },
             { key: 'N', label: d.indicated ? L('tool_skip', 'Skip') : L('tool_skip_ok', 'Skip — not needed'), icon: 'arrow-r' }],
         });
@@ -475,15 +489,22 @@
       metric({ label: L('st_tension', 'Tension'), value: Math.round(t), unit: '%', tone });
       if (b.phase === 'strap') setText(L('binder_strap', 'Grab the strap handle and draw it across the hips. Release when the ring turns teal. Tension {t}%.', { t: Math.round(t) }));
     },
+    carryText() {
+      ui.pp.set({ text: L('binder_carry_text', 'You have the **binder**. Now click the **hip marker** to lay it under the hips.') });
+    },
     tool(k) {
       if (k.toUpperCase() === 'N') return skip();
-      if (k === '1' && S.b.phase === 'drop') { S.b.carry = true; S.b.drag = true; ui.host.classList.add('grab'); }
+      if (k === '1' && S.b.phase === 'drop') { S.b.carry = true; S.b.drag = true; S.b.sticky = true; S.b.from = null; ui.host.classList.add('grab'); this.carryText(); }
     },
     down(e) {
       const b = S.b;
       if (b.phase === 'drop') {
-        const k = apx('kit');
-        if (k && Math.hypot(e.clientX - k.x, e.clientY - k.y) < 90 * pxScale()) { b.drag = true; ui.host.classList.add('grab'); NZA.audio.click(500); }
+        // already carrying (picked with a click or the tool key): this click drops it - see up()
+        if (!b.drag && overKit(e.clientX, e.clientY)) {
+          b.drag = true; b.sticky = false; b.from = { x: e.clientX, y: e.clientY };
+          ui.host.classList.add('grab'); NZA.audio.click(500);
+          this.move(e);
+        }
       } else if (b.phase === 'strap') {
         const tab = b.tab || apx('strapA');
         if (tab && Math.hypot(e.clientX - tab.x, e.clientY - tab.y) < 70 * pxScale()) { b.drag = true; ui.host.classList.add('grab'); NZA.audio.click(500); }
@@ -512,9 +533,16 @@
     up(e) {
       const b = S.b;
       if (b.phase === 'drop' && b.drag) {
-        b.drag = false; ui.host.classList.remove('grab'); ghost(false);
         const p = apx('pelvis');
-        if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 80 * pxScale()) {
+        const onHips = p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 80 * pxScale();
+        // a click (no drag) on the case picks the binder up: keep carrying until the next click
+        if (!onHips && b.from && Math.hypot(e.clientX - b.from.x, e.clientY - b.from.y) < 14 * pxScale()) {
+          b.sticky = true; b.from = null; this.carryText();
+          return;
+        }
+        if (!onHips && b.sticky && overKit(e.clientX, e.clientY)) return;   // clicked the case again: still holding it
+        b.drag = false; b.sticky = false; b.from = null; ui.host.classList.remove('grab'); ghost(false);
+        if (onHips) {
           b.phase = 'wait';
           const go = r => {
             if (!S.b || S.proc !== 'binder') return;
@@ -525,7 +553,8 @@
           };
           if (S.preview) go({ ok: true }); else post('binderDrop', {}).then(go);
         } else {
-          ui.pp.flash('warn', L('binder_miss', 'Missed — let go over the hip marker.'));
+          ui.pp.flash('warn', L('binder_miss', 'Missed — drop it on the hip marker.'));
+          this.ui();
         }
       } else if (b.phase === 'strap' && b.drag) {
         b.drag = false; ui.host.classList.remove('grab');
@@ -1808,6 +1837,7 @@
   /* ═══════════════════════════ PREVIEW SCENE (browser only) ═══════════════════════════ */
   const PREV = {
     pelvis: { x: 0.47, y: 0.5 }, strapA: { x: 0.47, y: 0.64 }, strapB: { x: 0.47, y: 0.36 }, kit: { x: 0.45, y: 0.19 }, stand: { x: 0.4, y: 0.79 },
+    kitA: { x: 0.37, y: 0.2 }, kitB: { x: 0.53, y: 0.2 }, kitC: { x: 0.37, y: 0.33 }, kitD: { x: 0.53, y: 0.33 }, kitE: { x: 0.37, y: 0.08 }, kitF: { x: 0.53, y: 0.08 },
     l_tibia: { x: 0.6, y: 0.43 }, r_tibia: { x: 0.6, y: 0.57 }, l_humerus: { x: 0.31, y: 0.36 }, r_humerus: { x: 0.31, y: 0.64 }, access: { x: 0.6, y: 0.57 },
     tq: { x: 0.32, y: 0.5 }, site: { x: 0.52, y: 0.5 },
   };

@@ -186,7 +186,17 @@ local function trackAnchors(s)
         strapA = { coords = fr.pelvis - fr.side * 0.30 + vector3(0.0, 0.0, 0.04) },
         strapB = { coords = fr.pelvis + fr.side * 0.30 + vector3(0.0, 0.0, 0.04) },
     }
-    if s.props.kit and s.props.kit ~= 0 then map.kit = { entity = s.props.kit, offset = vector3(0.0, 0.02, 0.18) } end
+    if s.props.kit and s.props.kit ~= 0 then
+        map.kit = { entity = s.props.kit, offset = vector3(0.0, 0.02, 0.18) }
+        -- corners of the open case (tray + lid): a click anywhere on the case picks a tool up
+        local k = s.props.kit
+        map.kitA = { entity = k, offset = vector3(-0.31, -0.05, 0.12) }
+        map.kitB = { entity = k, offset = vector3(0.31, -0.05, 0.12) }
+        map.kitC = { entity = k, offset = vector3(-0.31, 0.26, 0.12) }
+        map.kitD = { entity = k, offset = vector3(0.31, 0.26, 0.12) }
+        map.kitE = { entity = k, offset = vector3(-0.31, -0.34, 0.52) }
+        map.kitF = { entity = k, offset = vector3(0.31, -0.34, 0.52) }
+    end
     for id, def in pairs(cfg('IO').sites or {}) do
         map[id] = { entity = s.entity, bone = def.bone, offset = vec(def.offset) }
     end
