@@ -1938,6 +1938,9 @@
       if (this._mu) window.removeEventListener('mouseup', this._mu);
     },
   };
+  // 3D forearm close-up (apps/field/iv3d.js) when WebGL works: same posts and data, the 2D handler above is the fallback
+  const IV2D = H_.iv, IV_CTX = { S, ui, L, post, sendResult, keyName, clearMarks, IV2D };
+  Object.defineProperty(H_, 'iv', { enumerable: true, get: () => { const m = window.NZAFieldIV3D; return m && m.usable() ? m.handler(IV_CTX) : IV2D; } });
 
   /* ═══════════════════════════ INPUT ═══════════════════════════ */
   function keyName(code) {
@@ -2129,6 +2132,7 @@
       outcome(d) {
         if (!d) return;
         S.waiting = false;
+        if (!ui.pp) return;   // the answer can land after the panel closed (finish, abort, 3D game torn down)
         const o = d.outcome || {};
         if (d.ok && !o.failed) {
           S.results.push({ proc: d.proc, score: o.score, grade: o.grade });
@@ -2146,7 +2150,7 @@
         stats();
       },
       clot(c) { if (!c || S.proc !== 'resus' || !S.rs) return; S.clot = c; H_.resus.clotTick(); },
-      popped() { if (S.proc !== 'resus') return; NZA.audio.alarm(2); ui.pp.flash('bad', L('popped', 'Clot broke loose! Bleeding is up again.'), 3200); if (S.rs) S.rs.popped += 1; },
+      popped() { if (S.proc !== 'resus' || !ui.pp) return; NZA.audio.alarm(2); ui.pp.flash('bad', L('popped', 'Clot broke loose! Bleeding is up again.'), 3200); if (S.rs) S.rs.popped += 1; },
       focus(d) { if (d && d.what) { S.focus = d.what; renderFocus(); } },
       summary(s) { if (S.proc !== 'reassess') setStep('reassess', 'run', {}); H_.reassess.show(s || {}); },
       bags(b) { if (!b || !S.rs) return; if (b.counts) S.rs.counts = b.counts; if (b.bags) S.data.bags = b.bags; H_.resus.tools(); },
@@ -2165,7 +2169,8 @@
       setInterval(() => NZA.apps.monitor.msg.vitals(Object.assign({}, vit, { hr: vit.hr + Math.round(Math.random() * 2) })), 1000);
       NZA.apps.monitor.msg.vitals(vit);
       setTimeout(() => NZA.apps.monitor.msg.nibp(), 200);
-      NZA.apps[APP].demoStep('binder');
+      const q = new URLSearchParams(location.search);   // ?mode=iv&stage=… opens the IV close-up at that stage
+      if (q.get('mode') === 'iv') NZA.apps[APP].demoStep('iv', q.get('stage') || ''); else NZA.apps[APP].demoStep('binder');
     },
     // browser preview helper: jump to a step / phase with demo data
     demoStep(which, sub) {
@@ -2203,6 +2208,7 @@
         previewAnchors();
         setStep('iv', 'run', { site: 'r_lower_arm', siteLabel: 'Right forearm', angle: [15, 30], attempts: 2, gauge: 18, tourniquetFill: 3, flash: 0.9, responsive: true, name: 'Pavel Lindqvist',
           map: { veins: [{ y: 0.28, bend: 0.04, width: 0.7, depth: 3.5 }, { y: 0.52, bend: 0.01, width: 1.15, depth: 3 }, { y: 0.76, bend: -0.06, width: 0.65, depth: 5 }], best: 1, spot: 0.5 } });
+        if (H_.iv.demo) { H_.iv.demo(sub || 'tq'); return; }   // the 3D close-up plays itself to the stage
         if (sub === 'find') { S.iv.tq = true; S.iv.fill = 1; H_.iv.go('find'); H_.iv.palpate({ x: 150, y: 80 }); S.iv.palp = false; }
         if (sub === 'insert') { S.iv.tq = true; S.iv.fill = 1; S.iv.mark = { x: 150, y: 78 }; S.iv.palpQ = 0.85; S.iv.vein = S.data.map.veins[1]; H_.iv.go('insert'); S.iv.angle = 22; S.iv.tip = 58; }
       }

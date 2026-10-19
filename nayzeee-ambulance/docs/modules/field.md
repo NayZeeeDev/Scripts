@@ -86,6 +86,27 @@ your fluids for `popAfter` s pops the clot: firmness 0, target injuries' base bl
 ## IV cannulation (patient option *IV cannulation*, order 44)
 
 `NZA.Proc 'iv'` (perm `iv`, item `iv_kit`), close-up on the forearm (the server picks a free arm).
+
+**3D close-up** (`html/apps/field/iv3d.js`, on the shared NZA3D engine, whenever WebGL works): the
+patient's forearm (skin tone and sex from the step data: `tone` picks from an optional `IV.skinTones`, else
+`Suture.skinTones`) with the same six steps on the procedure HUD: 1 hold Click on the upper-arm ring
+until the strap is tight (or press 1) — the veins of the server's vein map rise and turn bluish
+over `IV.tourniquetFill` s → 2 hold Click with the gloved fingers on the forearm (rebound ring at the
+cursor), let go on a springy vein to mark it, then scrub the mark with the alcohol swab until the
+ring is full → 3 wheel / ↑↓ set the angle (band from `IV.angle`, protractor at the needle), hold Click
+(or `Keys.insert`) on the mark: the cannula goes in along the vein, blood fills the flash chamber →
+let go (holding on goes through the back wall: bruise and swelling, the cannula comes out and the
+next attempt starts again at step 2 on a fresh part of a vein, up to `IV.attempts`; the last one
+used up ends with `failed`; `IV.flash` = seconds in the lumen at the middle of the band) → 4 hold
+Click (or `Keys.advance`) to slide the cannula off the needle: it lies down flat with its wings on the
+skin → 5 click the strap (or 1) to release the tourniquet, hold on the hub to draw the needle into the
+sharps bin (still banded = blood spills), hold on the hub to screw the cap on → 6 lift the clear film
+by its teal-tabbed border and let go over the site (close enough and it is laid down square, the
+notch at the luer end), then rub it down (a palm-wide footprint); the film shows over the hub. Same
+NUI posts and result fields as the 2D panels below; preview:
+`index.html?app=field&mode=iv&stage=tq|tighten|fill|palpate|swab|insert|flash|advance|tqoff|withdraw|cap|dress|carry|laid|done|blown`.
+
+**2D panels** (no WebGL):
 1 tourniquet on (prop on the upper arm, veins fill) → 2 feel for a vein on the VF-2 vein finder
 (hold Click, rebound meter; the straight, springy vein is best) → 3 needle in: set 15–30° (wheel /
 ↑↓, angle dial in the column) and hold Space; the NC-1 needle cam shows the tip, the flash chamber

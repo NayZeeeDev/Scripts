@@ -78,6 +78,34 @@ Preview: `html/index.html?app=treat` (+ `&step=pack|wrap`), `&demo=torso[&step=d
 - Already under a tourniquet: the minigame starts with a trickle so you can pack and dress the
   wound before converting the tourniquet.
 
+### Bleed control as a 3D close-up (`html/apps/treat/bleed3d.js`)
+Where the NUI has WebGL2, bleed control runs as a full-screen 3D close-up on the shared engine
+(`core/nza3d.js`, the suture / burn look) instead of the overlay above, which stays as the
+fallback. Same steps, same scores, same posts (`treat:finish { result }` / `treat:abort`).
+- **Scene** – the wounded region with real skin (`tone` / `seed` from the server, the same pick as
+  the suture / burn close-ups, so a patient looks the same in all), the wound from the data
+  (gunshot hole, shrapnel holes, stab slit, laceration, graze; deeper and wider when `deep`),
+  ooze that pools and runs, arterial spurts on each heartbeat, a pool that spreads with the loss.
+- **Pressure** – a gloved hand (in from your side, lower right) holds a gauze pad that follows the
+  cursor; **hold LMB** with the pad on the wound (red ring): the pad moulds to the skin and soaks,
+  the ooze and spurts drop, the pressure gauge fills. Let go and it bleeds again. The camera keeps
+  the hand to about a fifth of the view, so the wound, the pad and the ring stay readable.
+- **Pack** – a finger feeds haemostatic gauze from a roll on the skin: **hold LMB** on the wound
+  until the ring fills, **let go**, push again; the strip slides into the wound and the cavity
+  fills. Then press a pad on the packing until the bleeding stops.
+- **Wrap** (limbs) – the pad stays on the wound; **drag the roll up** over the limb from the near
+  side to the far side (it goes round underneath by itself), each turn half over the last; a steady
+  drag = even tension (too fast = tight, too slow = loose); blood seeps through the turns over the
+  wound. Then **click the clip** (or **E** / Space) on the end.
+- **Dressing** (torso / head / neck) – pick the dressing up, lay its pad over the wound, let go,
+  then **hold LMB and rub** it down until it sticks all round.
+- HUD: the treat context card + the shared procedure panel (steps, gauges, tool belt, flashes,
+  key hints: RMB look around, wheel zoom, R recentre). Quality follows `Config.UI.quality3d`.
+- Browser preview: `index.html?app=treat&mode=bleed&stage=pressure|pack|hold|wrap|secure|dressing|seal|done`
+  plus `&wound=gunshot|stab|laceration|shrapnel|abrasion`, `&site=thigh|leg|arm|forearm|chest|abdomen|back|neck`,
+  `&deep=0|1`, `&tone=0..1`, `&sex=m|f`, `&turns=0..4` (`&partial=0..1` part of the next turn);
+  `&no3d=1` shows the 2D fallback.
+
 ### Tourniquet (`NZA.Proc 'tourniquet'`, perm basic, item tourniquet)
 1. **Place it high and tight** – a rail runs along the whole limb (the elbow / knee joint zone in
    red, the wound ring); drag the strap along it. Live readout "6 cm above the wound", "On the

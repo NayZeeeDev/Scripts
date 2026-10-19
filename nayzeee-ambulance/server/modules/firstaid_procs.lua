@@ -5,6 +5,7 @@
           payload { injury = id? }  (default: the worst external bleed this treats)
           steps   pressure → pack (deep gunshot / stab / shrapnel...) → wrap (limbs) | dressing (torso)
           items   per step from Config.Firstaid.StopBleed.items (consumed on finish)
+          data    + tone / seed for the 3D close-up (same skin as the suture / burn close-ups)
           result  { score, steps = { pressure, pack, wrap|dressing } (0..100), lost (mL) }
           effects treat.packed / treat.bandaged + quality, base bleed lowered by quality,
                   soak-through timer for unpacked heavy bleeds, optional fee
@@ -56,6 +57,21 @@ local function summary(p, inj)
     }
 end
 FA.Summary = summary
+
+-- skin tone + seed for the 3D close-up (NUI apps/treat/bleed3d.js): the same pick as the suture /
+-- burn / bullet close-ups (their skinTones, hashed on the patient id) so a patient looks the same in all
+local function hash(str)
+    local h = 5381
+    str = tostring(str)
+    for i = 1, #str do h = (h * 33 + str:byte(i)) % 2147483647 end
+    return h
+end
+
+local function skinTone(p)
+    local tones = (Config.Suture and Config.Suture.skinTones) or (Config.Burn and Config.Burn.skinTones)
+        or (Config.Bullet and Config.Bullet.skinTones) or { 0.12, 0.22, 0.3, 0.38, 0.5, 0.62, 0.75, 0.88 }
+    return tones[(hash(p.pid) % #tones) + 1] or 0.3
+end
 
 local function vitalsOf(p)
     local v = p.vitals or {}
@@ -117,6 +133,7 @@ do
                 mode = 'bleed', injury = summary(p, inj), steps = plan.steps, stepLabels = labels,
                 method = plan.method, deep = plan.deep, underTq = FA.TqCovers(p, inj.region),
                 vitals = vitalsOf(p), patient = { name = p.name, sex = p.sex, kind = p.kind },
+                tone = skinTone(p), seed = hash(tostring(p.pid) .. ':' .. tostring(inj.id)),
                 tune = {
                     pressureTarget = sb.pressureTarget or 0.3, pressureHold = sb.pressureHold or 2.5,
                     packStrips = sb.packStrips or 4, wrapTurns = sb.wrapTurns or 4,

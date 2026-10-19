@@ -292,6 +292,14 @@ local function veinMap()
     return { veins = veins, best = best, spot = U.round(0.35 + math.random() * 0.3, 3) }
 end
 
+-- skin tone of the 3D forearm close-up: the same per-patient pick as the suture close-up
+local function skinTone(p)
+    local tones = cfg('IV').skinTones or (Config.Suture and Config.Suture.skinTones) or { 0.12, 0.22, 0.3, 0.38, 0.5, 0.62, 0.75, 0.88 }
+    local h, s = 5381, tostring(p.pid or p.name or '')
+    for i = 1, #s do h = (h * 33 + s:byte(i)) % 2147483647 end
+    return tones[(h % #tones) + 1] or 0.3
+end
+
 NZA.Proc.Register('iv', {
     perm = cfg('IV').perm or 'iv', maxDist = 3.0, label = L('title_iv'),
     minTime = cfg('IV').minTime or 12, maxTime = cfg('IV').maxTime or 360, easyTime = cfg('IV').easyTime or 8,
@@ -307,6 +315,7 @@ NZA.Proc.Register('iv', {
             site = arm, map = map, angle = c.angle or { 15, 30 }, attempts = c.attempts or 2, gauge = c.gauge or 18,
             tourniquetFill = c.tourniquetFill or 3, flash = c.flash or 0.9,
             responsive = responsive(p), name = p.name, injury = F.Summary(p, F.MainInjury(p)), bleed = F.TotalBleed(p),
+            tone = skinTone(p), sex = p.sex,
         }
     end,
     onFinish = function(src, p, s, result)

@@ -3,6 +3,7 @@
 
    Modes (Lua NZA.UI.Open('treat', data) with data.mode):
      bleed   BLEED CONTROL   pressure → pack (deep wounds) → wrap (limbs) | dressing (torso)
+                             3D close-up in apps/treat/bleed3d.js when WebGL2 works (this file's 2D overlay = fallback)
      tq      TOURNIQUET      place high & tight + pull the slack → twist the windlass → lock the clip
      collar  CERVICAL COLLAR measure & size → fasten while holding the head in line
      meds    MEDICATION      dose panel: drug, dose, route, live warnings, administer
@@ -568,6 +569,8 @@
       this.card.classList.add('on');
       this.dev.classList.add('on');
       this.pp = NZA.ui.ProcPanel(this.root, { onAbort: () => this.abort(), onTool: () => {} });
+      // bleed control as a 3D close-up (apps/treat/bleed3d.js) where WebGL2 works; the 2D overlay below is the fallback
+      if (this.mode === 'bleed' && window.TreatBleed3D && TreatBleed3D.ok()) { this.b3 = TreatBleed3D.start(this, data); this.renderCard(); return; }
       if (this.mode === 'bleed') this.initBleed(); else if (this.mode === 'tq') this.initTq(); else this.initCollar();
       this.renderCard();
       this.last = now();
@@ -578,6 +581,7 @@
     close() { this.teardown(); },
 
     teardown() {
+      if (this.b3) { this.b3.dispose(); this.b3 = null; }
       cancelAnimationFrame(this.raf); this.raf = 0;
       if (this.pp) { this.pp.destroy(); this.pp = null; }
       if (this.holdBtn) { this.holdBtn.destroy(); this.holdBtn = null; }
@@ -2318,7 +2322,10 @@
     /* ═════════════════════════════ PREVIEW ═════════════════════════════ */
     preview() {
       const q = new URLSearchParams(location.search);
-      const demo = q.get('demo') || 'bleed';
+      // ?demo= / ?mode= picks the demo, ?step= / ?stage= the step (the 3D bleed game: see bleed3d.js)
+      let demo = q.get('demo') || q.get('mode') || 'bleed';
+      const stage = q.get('step') || q.get('stage');
+      if (demo === 'bleed' && (stage === 'dressing' || stage === 'seal')) demo = 'torso';
       const vit = { hr: 128, sys: 94, dia: 58, spo2: 95, rr: 24 };
       const pt = { name: 'Lena Okafor', sex: 'f', kind: 'npc' };
       NZA.mock('treat:finish', res => {
@@ -2392,6 +2399,7 @@
           injury: { id: 'i3', region: 'chest', regionLabel: 'Chest', type: 'laceration', typeLabel: 'Deep laceration', severity: 2, sevLabel: 'Moderate', bleed: 14.2, limb: false, length: 64, spot: { x: 0.42, y: 0.5 } },
           tune: { pressureTarget: 0.3, pressureHold: 2.5, packStrips: 4, wrapTurns: 4, tensionBand: [0.38, 0.72] },
         });
+        if (this.b3) { if (stage) this.b3.jump(stage); return; }
         if (q.get('step') === 'dressing') { this.G.steps.pressure = 88; this.nextStep(); }
         return;
       }
@@ -2401,6 +2409,7 @@
         injury: { id: 'i7', region: 'l_upper_leg', regionLabel: 'Left thigh', type: 'gunshot', typeLabel: 'Gunshot wound', severity: 3, sevLabel: 'Serious', bleed: 64.8, limb: 'leg', frac: 0.55, arterial: true, spot: { x: 0.55, y: 0.6 } },
         tune: { pressureTarget: 0.3, pressureHold: 2.5, packStrips: 4, wrapTurns: 4, tensionBand: [0.38, 0.72] },
       });
+      if (this.b3) { if (stage) this.b3.jump(stage); return; }
       const step = q.get('step');
       if (step === 'pack') { this.G.steps.pressure = 91; this.nextStep(); }
       if (step === 'wrap') { this.G.steps.pressure = 91; this.G.steps.pack = 84; this.stepIdx = 1; this.nextStep(); }
