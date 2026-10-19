@@ -937,6 +937,14 @@ lib.callback.register('nza:xray:offTable', function(src, target)
     end
     local bed = p.meta and p.meta.bed
     local T = NZA.Transport
+    -- stable but still down: on their feet like 'Help up' (Free only stands up alive patients)
+    if p.state == 'wounded' then
+        NZA.Patients.SetState(p, 'alive', 'helped_up')
+        if p.kind == 'player' and p.src then
+            TriggerClientEvent('nza:revived', p.src, { reason = 'helped_up' })
+            NZA.Patients.Sync(p)
+        end
+    end
     if T and type(T.Free) == 'function' then
         pcall(T.Free, p)                      -- the transport module stands the patient up beside the table
         NZA.Bus.Emit('xray:offTable', src, p)
