@@ -9,9 +9,11 @@
        control pad (key tiles that light up while held)
      · screen centre: bracket reticle (the placement ray starts there) + range chip
 
-   Lua → JS   open  { type, label, icon, kind, dept, replace, locale, snapStep, max }
+   Lua → JS   open  { type, label, icon, kind ('prop'|'marker'|'npc'|'bed'|'car'|'heli'), dept, replace,
+                      locale, snapStep, max }
               state { heading, height, dist, max, valid, reason = nil|'far'|'nosurface',
-                      snap, snapStep, coords, keys = { fast, fine, turn, wheel, lift } }
+                      snap, snapStep, coords, keys = { fast, fine, turn, wheel, lift, slide },
+                      beds: phase = 'pick'|'pose', pose (label), target (a bed under the reticle) }
               flash { reason }                      E pressed on an invalid spot
    JS → Lua   none
    ═══════════════════════════════════════════════════════════ */
@@ -25,7 +27,9 @@
   const KIND = {
     prop: ['box', 'k_prop', 'Prop'], marker: ['pin', 'k_marker', 'Marker'],
     car: ['car', 'k_car', 'Vehicle bay'], heli: ['heli', 'k_heli', 'Helipad'],
+    npc: ['user', 'k_npc', 'Staff NPC'], bed: ['bed', 'k_bed', 'Bed'],
   };
+  let padPhase = null;
   const R = 15.5, CIRC = 2 * Math.PI * R;
 
   // compass rose: 72 ticks, cardinal letters; rotated as a whole so the fixed pointer reads the bearing
@@ -88,24 +92,43 @@
               <div class="bx-row"><span>${esc(T('bx_height', 'Lift'))}</span><b data-s="z">+0.00<small>m</small></b></div>
               <div class="bx-row" data-s="rrow"><span>${esc(T('bx_distance', 'Range'))}</span><b data-s="d">--<small>m</small></b><em class="bar"><i data-s="dbar"></i></em></div>
               <div class="bx-row" data-s="lrow"><span>${esc(T('bx_lock', 'Lock'))}</span><b data-s="lock">--</b></div>
+              ${cfg.kind === 'bed' ? `<div class="bx-row" data-s="prow"><span>${esc(T('bx_pose_row', 'Pose'))}</span><b data-s="pose">--</b></div>` : ''}
               <div class="bx-row grid"><span>${esc(T('bx_grid', 'Grid'))}</span><b data-s="xyz">--</b></div>
             </div>
           </div>
           <div class="bx-state" data-s="msg"><span class="ic"></span><p></p></div>
         </section>
-        <section class="bx-pad">
-          ${tile('set', ['E'], T('bx_confirm', 'Set here'), '', 'go')}
-          ${tile('back', ['⌫'], T('bx_cancel', 'Back out'), '')}
-          ${tile('turn', ['←', '→'], T('bx_rotate', 'Turn'), '')}
-          ${tile('wheel', [T('bx_wheel', 'Wheel')], T('bx_nudge', 'Nudge'), T('bx_step', '±%s°', 7.5))}
-          ${tile('lift', ['PgUp', 'PgDn'], T('bx_raise', 'Lift'), '')}
-          ${tile('fast', ['Shift'], T('bx_faster', 'Coarse'), '×3')}
-          ${tile('fine', ['Alt'], T('bx_fine', 'Fine'), '×0.2')}
-          ${tile('snap', ['G'], T('bx_snap', 'Lock %s°', step), '')}
-        </section>
+        <section class="bx-pad">${padHTML(last.phase)}</section>
       </aside>`;
+    padPhase = last.phase || null;
     odo = NZA.ui.FlipClock(root.querySelector('[data-s=odo]'), { value: '000.0', small: true });
     update(last);
+  }
+
+  // key pad; beds have a pick step (aim + E) and a pose step (turn, slide, lift, pose)
+  function padHTML(phase) {
+    const step = Number(cfg.snapStep || 15);
+    if (cfg.kind === 'bed' && phase !== 'pose') {
+      return tile('set', ['E'], T('bx_pick', 'Pick bed'), '', 'go') + tile('back', ['⌫'], T('bx_cancel', 'Back out'), '');
+    }
+    if (cfg.kind === 'bed') {
+      return tile('set', ['E'], T('bx_confirm', 'Set here'), '', 'go')
+        + tile('back', ['⌫'], T('bx_rebed', 'Other bed'), '')
+        + tile('turn', ['←', '→'], T('bx_rotate', 'Turn'), '')
+        + tile('slide', ['↑', '↓'], T('bx_slide', 'Slide'), '')
+        + tile('lift', ['PgUp', 'PgDn'], T('bx_raise', 'Lift'), '')
+        + tile('pose', ['R'], T('bx_pose', 'Pose'), '')
+        + tile('flip', ['G'], T('bx_flip', 'Turn round'), '')
+        + tile('fine', ['Alt'], T('bx_fine', 'Fine'), '×0.2');
+    }
+    return tile('set', ['E'], T('bx_confirm', 'Set here'), '', 'go')
+      + tile('back', ['⌫'], T('bx_cancel', 'Back out'), '')
+      + tile('turn', ['←', '→'], T('bx_rotate', 'Turn'), '')
+      + tile('wheel', [T('bx_wheel', 'Wheel')], T('bx_nudge', 'Nudge'), T('bx_step', '±%s°', 7.5))
+      + tile('lift', ['PgUp', 'PgDn'], T('bx_raise', 'Lift'), '')
+      + tile('fast', ['Shift'], T('bx_faster', 'Coarse'), '×3')
+      + tile('fine', ['Alt'], T('bx_fine', 'Fine'), '×0.2')
+      + tile('snap', ['G'], T('bx_snap', 'Lock %s°', step), '');
   }
 
   function tile(id, keys, label, note, extra = '') {
@@ -115,6 +138,11 @@
   function update(st) {
     if (!root || !root.querySelector('.bx-card')) return;
     const q = s => root.querySelector(`[data-s=${s}]`);
+    if (cfg.kind === 'bed' && (st.phase || null) !== padPhase) {
+      padPhase = st.phase || null;
+      root.querySelector('.bx-pad').innerHTML = padHTML(padPhase);
+    }
+    if (q('pose')) { q('pose').textContent = st.pose || '--'; q('prow').style.display = st.phase === 'pose' ? '' : 'none'; }
     const h = ((Number(st.heading || 0) % 360) + 360) % 360;
     const tone = st.valid === false ? (st.reason === 'nosurface' ? 'amber' : 'red') : 'teal';
     root.classList.remove('t-teal', 't-red', 't-amber');
@@ -153,6 +181,8 @@
     let text, ic;
     if (st.reason === 'far') { text = T('bx_far', 'Out of reach. Walk within %s m of the spot.', max.toFixed(0)); ic = 'alert'; }
     else if (st.reason === 'nosurface') { text = T('bx_nosurface', 'Nothing under the reticle. Aim at the floor or a counter.'); ic = 'crosshair'; }
+    else if (cfg.kind === 'bed' && st.phase === 'pose') { text = T('bx_bed_pose', 'Lay the patient the way they should lie. E saves it.'); ic = 'bed'; }
+    else if (cfg.kind === 'bed') { text = st.target ? T('bx_bed_found', 'Bed found. E picks it.') : T('bx_bed_aim', 'Aim at a bed. E on a mattress or the floor sets a free spot.'); ic = st.target ? 'check' : 'crosshair'; }
     else { text = T('bx_valid', 'Spot is clear. E sets it here.'); ic = 'check'; }
     const msg = q('msg');
     msg.querySelector('.ic').innerHTML = icon(ic);
@@ -161,7 +191,7 @@
     // key tiles light up while held
     const keys = st.keys || {};
     const lit = (k, on) => { const el = root.querySelector(`.bx-t[data-k=${k}]`); if (el) el.classList.toggle('on', !!on); };
-    lit('fast', keys.fast); lit('fine', keys.fine); lit('turn', keys.turn); lit('wheel', keys.wheel); lit('lift', keys.lift); lit('snap', st.snap);
+    lit('fast', keys.fast); lit('fine', keys.fine); lit('turn', keys.turn); lit('wheel', keys.wheel); lit('lift', keys.lift); lit('snap', st.snap); lit('slide', keys.slide);
     const go = root.querySelector('.bx-t[data-k=set]');
     go.classList.toggle('off', st.valid === false);
   }
@@ -198,6 +228,8 @@
         marker: { type: 'pharmacy', label: 'Pharmacy counter', icon: 'pill', kind: 'marker' },
         prop: { type: 'xray', label: 'X-ray Table', icon: 'xray', kind: 'prop', replace: true },
         heli: { type: 'heli', label: 'Helipad', icon: 'heli', kind: 'heli' },
+        npc: { type: 'checkin', label: 'Check-in Desk', icon: 'ticket', kind: 'npc' },
+        bed: { type: 'bed', label: 'Hospital Bed', icon: 'bed', kind: 'bed' },
       };
       NZA.open(APP, Object.assign({ dept: 'Los Santos Medical', snapStep: 15, max: 25, locale: {} }, types[kind] || types.marker));
       const far = bad === 'far' || bad === '1';
@@ -205,6 +237,7 @@
         heading: kind === 'prop' ? 165 : 212.0, height: kind === 'prop' ? 0 : 0.1, dist: far ? 31.4 : 4.2, max: 25,
         valid: !bad, reason: far ? 'far' : (bad ? 'nosurface' : null), snap: kind === 'prop', snapStep: 15,
         coords: { x: 307.4, y: -595.1, z: 43.28 }, keys: { fast: kind === 'heli', turn: kind === 'marker', fine: false, lift: false },
+        phase: kind === 'bed' ? (params.get('phase') || 'pose') : undefined, pose: kind === 'bed' ? 'Flat on the back' : undefined, target: true,
       });
     },
   });

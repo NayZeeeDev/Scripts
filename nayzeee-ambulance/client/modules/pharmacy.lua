@@ -446,6 +446,7 @@ defaults.model = ''
 
 NZA.Points.RegisterType('pharmacy', {
     label = L('type_pharmacy'), icon = 'pill', needsHeading = true, radius = 1.4,
+    ghost = 'npc', ghostModel = (cfg('npc').models or {})[1] or 's_f_y_scrubs_01',
     distance = tonumber(cfg('interact').distance) or 2.0, desc = L('type_pharmacy_desc'),
     data = defaults,
     onSpawn = function(p) spawnPed(p) end,

@@ -67,12 +67,15 @@ end
 
 local function v3(c) return vector3((c.x or 0.0) + 0.0, (c.y or 0.0) + 0.0, (c.z or 0.0) + 0.0) end
 
--- lying pose: the hospital module's bed settings win so every bed looks the same
-local function pose()
+-- lying pose: the pose the bed was set up with in the builder, else the hospital module's bed
+-- settings (so every bed looks the same), else the check-in rest pose
+local function pose(at)
     local hb = Config.Hospital and Config.Hospital.bed or {}
+    local Tr = NZA.Transport
+    local tp = at and Tr and Tr.PoseAt and Tr.PoseAt(at) or nil
     return {
-        dict = hb.dict or cfg('rest', 'dict', 'anim@gangops@morgue@table@'),
-        clip = hb.clip or cfg('rest', 'clip', 'body_search'),
+        dict = tp and tp.dict or hb.dict or cfg('rest', 'dict', 'anim@gangops@morgue@table@'),
+        clip = tp and tp.clip or hb.clip or cfg('rest', 'clip', 'body_search'),
         z = tonumber(hb.zOffset) or tonumber(cfg('rest', 'zOffset', 0.0)) or 0.0,
         side = tonumber(hb.exitSide) or tonumber(cfg('rest', 'exitSide', 1.1)) or 1.1,
     }
@@ -303,8 +306,8 @@ end
 -- LYING DOWN / GETTING UP
 -- ════════════════════════════════════════════════════════════════════════
 
-local function playPose(ped)
-    local p = pose()
+local function playPose(ped, at)
+    local p = pose(at)
     return NZA.Anim.Play(ped, p.dict, p.clip, { flag = 1 })
 end
 
@@ -343,7 +346,9 @@ end
 local function lyingLoop()
     local gen = lyingGen
     CreateThread(function()
-        local p = pose()
+        local lc = lying and lying.coords
+        local at = lc and vector4(lc.x + 0.0, lc.y + 0.0, lc.z + 0.0, (lc.w or 0.0) + 0.0) or nil
+        local p = pose(at)
         local holdStart, lastSent = nil, -1
         local control = tonumber(cfg('rest', 'getUpControl', 73)) or 73
         local tick = 0
@@ -358,7 +363,7 @@ local function lyingLoop()
             DisableControlAction(0, 140, true)  -- melee
             DisableControlAction(0, control, true)
             tick = tick + 1
-            if tick % 20 == 0 and not IsEntityPlayingAnim(ped, p.dict, p.clip, 3) then playPose(ped) end
+            if tick % 20 == 0 and not IsEntityPlayingAnim(ped, p.dict, p.clip, 3) then playPose(ped, at) end
             local need = ai and (tonumber(cfg('ai', 'getUpHold', 1.5)) or 1.5) or 0
             if IsDisabledControlPressed(0, control) then
                 if need <= 0 then
@@ -402,8 +407,8 @@ function K.LieDown(ticket, teleport)
     if NZA.Wounded and NZA.Wounded.SuspendPose then NZA.Wounded.SuspendPose('checkin_bed', true) end
     ped = PlayerPedId()
     ClearPedTasksImmediately(ped)
-    local p = pose()
     local at = vector4(c.x + 0.0, c.y + 0.0, c.z + 0.0, (c.w or 0.0) + 0.0)
+    local p = pose(at)
     -- on the mattress, not in it (the transport module finds the top and lifts the body onto it)
     local Tr = NZA.Transport
     local spot, lift = at, 0.0
@@ -411,7 +416,7 @@ function K.LieDown(ticket, teleport)
     SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + p.z, false, false, false)
     SetEntityHeading(ped, (c.w or 0.0) + 0.0)
     FreezeEntityPosition(ped, true)
-    playPose(ped)
+    playPose(ped, at)
     -- the body rests on the mattress once its height is measured
     if Tr and Tr.SettleLying and lift > 0.0 then
         Tr.SettleLying(ped, { dict = p.dict, clip = p.clip }, lift, function(d)

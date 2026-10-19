@@ -642,13 +642,15 @@ local function lieDown(point)
     local Tr = NZA.Transport
     local spot, lift = at, 0.0
     if Tr and Tr.BedSpot then spot, lift = Tr.BedSpot(at, 'bed', ped) end
+    -- the pose this bed was set up with in the builder, else the hospital bed pose
+    local anim = (Tr and Tr.PoseAt and Tr.PoseAt(at)) or { dict = bc.dict or 'anim@gangops@morgue@table@', clip = bc.clip or 'body_search' }
     SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + (bc.zOffset or 0.0), false, false, false)
     SetEntityHeading(ped, (c.w or 0.0) + 0.0)
     FreezeEntityPosition(ped, true)
-    local ok, token = NZA.Anim.Play(ped, bc.dict or 'anim@gangops@morgue@table@', bc.clip or 'body_search', { flag = 1 })
+    local ok, token = NZA.Anim.Play(ped, anim.dict, anim.clip, { flag = 1 })
     -- the body rests on the mattress once its height is measured
     if Tr and Tr.SettleLying and lift > 0.0 then
-        Tr.SettleLying(ped, { dict = bc.dict or 'anim@gangops@morgue@table@', clip = bc.clip or 'body_search' }, lift, function(d)
+        Tr.SettleLying(ped, anim, lift, function(d)
             if lying and lying.point == point.id then SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + (bc.zOffset or 0.0) + d, false, false, false) end
         end)
     end
@@ -665,8 +667,8 @@ local function lieDown(point)
                 getUp(true)
                 break
             end
-            if lying and lying.token and not IsEntityPlayingAnim(ped, bc.dict or 'anim@gangops@morgue@table@', bc.clip or 'body_search', 3) then
-                NZA.Anim.Play(ped, bc.dict or 'anim@gangops@morgue@table@', bc.clip or 'body_search', { flag = 1 })
+            if lying and lying.token and not IsEntityPlayingAnim(ped, anim.dict, anim.clip, 3) then
+                NZA.Anim.Play(ped, anim.dict, anim.clip, { flag = 1 })
             end
             Wait(0)
         end
@@ -716,6 +718,7 @@ NZA.Points.RegisterType('boss', {
 
 NZA.Points.RegisterType('storage', {
     label = L('type_storage'), icon = 'medkit', radius = 1.0, desc = L('type_storage_desc'), needsHeading = true,
+    ghost = 'npc', ghostModel = ((hc('storage', {}).npc or {}).models or {})[1] or 's_m_m_paramedic_01',
     data = { npc = true },
     onSpawn = function(p) spawnOfficer(p) end,
     onRemove = function(p) removeOfficer(p.id) end,
@@ -749,7 +752,7 @@ NZA.Points.RegisterType('elevator', {
 })
 
 NZA.Points.RegisterType('bed', {
-    label = L('type_bed'), icon = 'bed', radius = 1.1, desc = L('type_bed_desc'),
+    label = L('type_bed'), icon = 'bed', radius = 1.1, desc = L('type_bed_desc'), ghost = 'bed',
     target = {
         opt(L('bed_lie'), 'bed', function() return lying == nil and not IsPedInAnyVehicle(PlayerPedId(), false) end, lieDown, { name = 'lie' }),
     },

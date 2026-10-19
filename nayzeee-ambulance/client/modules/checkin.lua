@@ -489,6 +489,7 @@ end
 
 NZA.Points.RegisterType('checkin', {
     label = L('type_checkin'), icon = 'ticket', needsHeading = true, radius = 1.6,
+    ghost = 'npc', ghostModel = (cfg('receptionist', 'models', {}) or {})[1] or 's_f_y_scrubs_01',
     distance = tonumber(cfg('desk', 'promptDistance', 2.6)) or 2.6, desc = L('type_checkin_desc'),
     data = { prefix = cfg('desk', 'prefix', 'A'), ped = true, pose = 'sit', model = '', name = '', z = 0.0 },
     onSpawn = function(point) spawnReceptionist(point) end,

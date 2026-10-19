@@ -157,6 +157,14 @@ Config.Transport = {
                            anim = { dict = 'timetable@ron@ig_3_couch', clip = 'base', flag = 1 } },
         },
         anim = { dict = 'anim@gangops@morgue@table@', clip = 'body_search', flag = 1 },   -- default lying animation
+        -- Lying poses a bed position can be set up with in the builder (aim at the bed, E, then R
+        -- changes the pose). Patients and players on that bed use the same pose and spot.
+        poses = {
+            { key = 'flat',    label = 'Flat on the back',        dict = 'anim@gangops@morgue@table@',                clip = 'body_search',        flag = 1 },
+            { key = 'still',   label = 'Still, arms at the side', dict = 'mini@cpr@char_b@cpr_def',                   clip = 'cpr_pumpchest_idle', flag = 1 },
+            { key = 'relaxed', label = 'On the back, relaxed',    dict = 'amb@world_human_sunbathe@male@back@base',   clip = 'base',               flag = 1 },
+            { key = 'raised',  label = 'Head end raised',         dict = 'amb@prop_human_seat_sunlounger@male@base',  clip = 'base',               flag = 1 },
+        },
         leaveSide = 1.0,         -- a patient helped off the table stands this far beside it
         selfLeave = { enabled = true, control = 73, label = 'X', hold = 1.5 },  -- an ALIVE patient may get up by themselves
     },

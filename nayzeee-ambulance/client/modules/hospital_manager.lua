@@ -150,9 +150,12 @@ NZA.UI.On(APP, 'place', function(data, cb)
         elseif data.hq and d and d.hq then
             from = d.hq
         end
-        local coords = C.Place({
+        local existing = data.point and NZA.Points.Get(tonumber(data.point) or data.point) or nil
+        local coords, _, extra = C.Place({
             type = typeName, label = def.label or typeName, icon = def.icon, kind = kind, prop = def.prop,
             model = (kind == 'car' or kind == 'heli') and vehicleModel(data.dept, kind) or nil,
+            ghostModel = def.ghostModel, radius = def.radius,
+            lie = existing and type(existing.data) == 'table' and existing.data.lie or nil,
             parts = type(def.parts) == 'table' and def.parts or nil,
             dept = data.dept, deptLabel = d and d.label or data.dept, from = from,
         })
@@ -163,8 +166,18 @@ NZA.UI.On(APP, 'place', function(data, cb)
                 res = call('nza:hospital:mgr:hq', { dept = data.dept, coords = coords })
             elseif data.point then
                 res = call('nza:hospital:mgr:point:move', { id = data.point, coords = coords })
+                -- a bed keeps how the patient lies on it in its data
+                if res.ok and extra and extra.lie and existing then
+                    local pdata = {}
+                    for k, v in pairs(type(existing.data) == 'table' and existing.data or {}) do pdata[k] = v end
+                    pdata.lie = extra.lie
+                    res = call('nza:hospital:mgr:point:data', { id = data.point, data = pdata, label = existing.label })
+                end
             else
-                res = call('nza:hospital:mgr:point:add', { dept = data.dept, type = typeName, coords = coords, data = def.data or {} })
+                local pdata = {}
+                for k, v in pairs(def.data or {}) do pdata[k] = v end
+                if extra and extra.lie then pdata.lie = extra.lie end
+                res = call('nza:hospital:mgr:point:add', { dept = data.dept, type = typeName, coords = coords, data = pdata })
             end
             note = { ok = res.ok, msg = res.msg, point = res.point, hq = res.hq }
         end

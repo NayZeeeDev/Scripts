@@ -337,7 +337,21 @@ local function lieOnStretcher(ped, strEnt)
 end
 Tr.LieOnStretcher = lieOnStretcher
 
-function Tr.BedAnim(bt)
+-- the lying pose a bed point was set up with in the builder (Config.Transport.Beds.poses), or nil
+function Tr.PoseAt(at)
+    local pt = at and Tr.Bed and Tr.Bed.PointFromSpot and Tr.Bed.PointFromSpot(at) or nil
+    local lie = pt and type(pt.data) == 'table' and type(pt.data.lie) == 'table' and pt.data.lie or nil
+    if not lie or not lie.pose then return nil end
+    for _, p in ipairs(Tr.Cfg('Beds').poses or {}) do
+        if type(p) == 'table' and p.key == lie.pose and p.dict then return p end
+    end
+    return nil
+end
+
+-- at (the point coords) = use the pose that bed was set up with
+function Tr.BedAnim(bt, at)
+    local p = at and Tr.PoseAt(at)
+    if p then return p end
     local tc = (Tr.Cfg('Beds').types or {})[bt or ''] or {}
     return tc.anim or Tr.Cfg('Beds').anim or lyingAnim()
 end
@@ -366,6 +380,8 @@ function Tr.BedSpot(at, bt, ped)
         local p = def and type(def.lie) == 'table' and def.lie.pos or nil
         if p then lie = { x = p.x, y = p.y, z = p.z } end
     end
+    -- set up in the builder with a lying patient: the point is exactly where the body goes
+    if lie and lie.exact then return vector4(at.x, at.y, at.z, (at.w or 0.0) % 360.0), 0.0 end
     if lie then
         off = vector3(tonumber(lie.x) or off.x, tonumber(lie.y) or off.y, tonumber(lie.z) or off.z)
     end
@@ -376,7 +392,7 @@ function Tr.BedSpot(at, bt, ped)
     local y = at.y + off.x * sn + off.y * cs
     local z = at.z + off.z
     local lift = tonumber(tc.lift)
-    if not lift then lift = Tr.LieLift(Tr.BedAnim(bt)) end
+    if not lift then lift = Tr.LieLift(Tr.BedAnim(bt, at)) end
     local probe = tc.probe
     if probe == nil then probe = bc.probe end
     if probe ~= false and lift > 0.0 then
@@ -424,7 +440,7 @@ function Tr.Apply(ped, cmd, isSelf, prevMode)
         SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z, false, false, false)
         SetEntityHeading(ped, spot.w)
         FreezeEntityPosition(ped, true)
-        local anim = Tr.BedAnim(cmd.bt)
+        local anim = Tr.BedAnim(cmd.bt, at)
         Tr.Play(ped, anim, { blendIn = 8.0 })
         if lift > 0.0 then
             Tr.SettleLying(ped, anim, lift, function(d)
@@ -520,7 +536,7 @@ local function ensureMine()
         if not Tr.Playing(ped, lyingAnim()) then Tr.Play(ped, lyingAnim()) end
     elseif m == 'bed' then
         if not IsEntityPositionFrozen(ped) then FreezeEntityPosition(ped, true) end
-        local a = Tr.BedAnim(cmd.bt)
+        local a = Tr.BedAnim(cmd.bt, Tr.V4(cmd.at))
         if not Tr.Playing(ped, a) then Tr.Play(ped, a) end
     elseif m == 'bay' then
         if Tr.Bay and Tr.Bay.EnsurePatient then Tr.Bay.EnsurePatient(ped, cmd) end
@@ -646,7 +662,7 @@ CreateThread(function()
                             local se = Tr.Ent(bag.s)
                             ok = se == 0 or (IsEntityAttachedToEntity(ped, se) and Tr.Playing(ped, lyingAnim()))
                         elseif bag.m == 'bed' then
-                            ok = IsEntityPositionFrozen(ped) and Tr.Playing(ped, Tr.BedAnim(bag.bt))
+                            ok = IsEntityPositionFrozen(ped) and Tr.Playing(ped, Tr.BedAnim(bag.bt, Tr.V4(bag.at)))
                         elseif bag.m == 'bay' then
                             ok = not Tr.Bay or not Tr.Bay.NpcNeedsFix or not Tr.Bay.NpcNeedsFix(ped, bag)
                         end

@@ -77,8 +77,9 @@ Config.Hospital = {
         heightSpeed  = 0.5,       -- metres per second with Page Up / Page Down
         maxHeight    = 3.0,       -- how far a position may be lifted / lowered from the surface
         ghostAlpha   = 165,       -- 0-255 transparency of the ghost prop / vehicle
-        markerColour = { 8, 175, 162 },   -- glowing sphere + beam for marker positions (teal)
-        badColour    = { 229, 72, 77 },   -- the same marker while the spot is invalid (red)
+        markerColour = { 8, 175, 162 },   -- the third-eye sphere / outline for positions (teal)
+        badColour    = { 229, 72, 77 },   -- the same while the spot is invalid (red)
+        patientModel = 'a_m_y_genstreet_01',   -- the lying patient shown while setting up a bed
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

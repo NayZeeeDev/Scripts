@@ -406,6 +406,8 @@ NZA.AddLocale('en', {
     ['hospital.k_marker']           = 'Marker',
     ['hospital.k_car']              = 'Vehicle bay',
     ['hospital.k_heli']             = 'Helipad',
+    ['hospital.k_npc']              = 'Staff NPC',
+    ['hospital.k_bed']              = 'Bed',
 
     -- ── Site survey HUD (html/apps/builder) ───────────────────────────
     ['hospital.bx_replace']         = 'Moving an existing site',
@@ -432,6 +434,15 @@ NZA.AddLocale('en', {
     ['hospital.bx_far']             = 'Out of reach. Walk within %s m of the spot.',
     ['hospital.bx_nosurface']       = 'Nothing under the reticle. Aim at the floor or a counter.',
     ['hospital.bx_valid']           = 'Spot is clear. E sets it here.',
+    ['hospital.bx_pick']            = 'Pick bed',
+    ['hospital.bx_rebed']           = 'Other bed',
+    ['hospital.bx_slide']           = 'Slide',
+    ['hospital.bx_pose']            = 'Pose',
+    ['hospital.bx_flip']            = 'Turn round',
+    ['hospital.bx_pose_row']        = 'Pose',
+    ['hospital.bx_bed_found']       = 'Bed found. E picks it.',
+    ['hospital.bx_bed_aim']         = 'Aim at a bed. E on a mattress or the floor sets a free spot.',
+    ['hospital.bx_bed_pose']        = 'Lay the patient the way they should lie. E saves it.',
 
     -- ── Zone board (Sites) and site settings fields ───────────────────
     ['hospital.folder_station']     = 'Staff base',
