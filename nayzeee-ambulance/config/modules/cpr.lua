@@ -97,7 +97,7 @@ Config.Cpr = {
         mouthQuality  = 60,     -- % a mouth-to-mouth breath is worth compared with the BVM
         mouthSlower   = 1.25,   -- mouth-to-mouth needs this much longer to fill the chest
         bvmProp       = true,   -- show the BVM on the patient's face while ventilating
-        bvmAttach     = {       -- BVM on the patient's face (SKEL_Head), see docs/modules/props.md
+        bvmAttach     = {       -- BVM on the patient's face (SKEL_Head)
             bone = 31086, pos = { x = 0.06, y = 0.11, z = 0.0 }, rot = { x = 0.0, y = -90.0, z = -90.0 },
         },
         continuousIfVentilated = true, -- intubated + on a ventilator → continuous compressions, no pauses

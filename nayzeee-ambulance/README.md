@@ -191,7 +191,7 @@ has a picture for each one. Pick your inventory:
 | **codem-inventory** | Add the `qb_shared_items.lua` entries to its item list (on ESX also run `install/esx_items.sql`). Pictures into `codem-inventory/html/itemimages/`. |
 | **tgiann-inventory** | Add the `qb_shared_items.lua` entries to its item list. Pictures into `inventory_images/images/`. |
 | **origen_inventory / core_inventory** | QBCore: the `qb_shared_items.lua` entries. ESX: run `install/esx_items.sql`. Pictures into `origen_inventory/html/images/` or `core_inventory/html/img/`. |
-| **ESX default inventory** | Run `install/esx_items.sql`. Weights are in kg; for gram-based servers regenerate it with `lua5.4 install/generate.lua --esx-grams`. |
+| **ESX default inventory** | Run `install/esx_items.sql`. Weights are in kg; gram-based servers can take the gram weights from `install/ox_inventory_items.lua`. |
 
 Restart the server after adding items. More detail, item renaming and picture order:
 `install/README.md`.
@@ -427,9 +427,8 @@ Player(src).state.nzaJob    -- { name, label, grade, gradeLabel, onDuty, isBoss,
 LocalPlayer.state.isDead    -- also dead, inLastStand, laststand, isDowned (for HUDs)
 ```
 
-Developer documentation: `docs/ARCHITECTURE.md` (contracts), `docs/modules/core-api.md` (the
-core API) and `docs/modules/<module>.md` for each feature. The `bridge/` folder is open: add or
-fix an adapter for any script there.
+Each file starts with a header that lists its API and events. The `bridge/` folder is open: add
+or fix an adapter for any script there.
 
 ---
 
@@ -447,8 +446,8 @@ Start your framework before this resource, or force it: `Config.Framework = 'esx
 
 **Items do nothing or show as unknown.**
 Add the items for your inventory (Step 4) and restart the inventory. On ox_inventory every item
-must keep `consume = 0`. If you renamed an item in `config/items.lua`, regenerate the install
-files with `lua5.4 install/generate.lua` and rename the picture too.
+must keep `consume = 0`. If you renamed an item in `config/items.lua`, rename it in the install
+file you used and rename the picture too.
 
 **Item pictures are missing.**
 ox_inventory loads them from this resource. Every other inventory needs

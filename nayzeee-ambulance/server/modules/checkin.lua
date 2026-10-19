@@ -44,7 +44,7 @@
                   patient:death (a waiting / called ticket is closed 'left')
          emits:   checkin:issued (t) checkin:called (t) checkin:treatment (t) checkin:closed (t, status)
 
-    DATA  nza_tickets (created on start; SQL in docs/modules/checkin.md)
+    DATA  nza_tickets (created on start; also in sql/install.sql)
 ]]
 
 if not NAYZEEE_LOCK_OK then return end

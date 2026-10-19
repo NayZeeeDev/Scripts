@@ -14,7 +14,7 @@
       AddInfusion(pid, inf) StopInfusion(pid, id) GiveMed(pid, name, opts) AddBlood(pid, ml)
       SetState(pid, state, reason) Revive(pid, opts) Heal(pid, amount)
       Snapshot(pid, level) Sync(pid) Watch(pid, src, on) Triage(pid) Save(pid)
-    Extras (documented in docs/modules/core-server.md)
+    Extras
       SetMeta(pid, key, value)     meta field + resync (carried, stretcher, bodybag, bay, bed, inBed...)
       Cpr(pid, src, quality)       mark CPR in progress (pauses the arrest → death timer)
       CanStand(pid)                → ok, reason  (wounded → alive rules of §6)

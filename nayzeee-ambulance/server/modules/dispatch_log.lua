@@ -12,7 +12,7 @@
                                               (awaits the database; call from a handler/thread)
       NZA.DispatchLog.Ready() → bool
 
-    Table (also in docs/modules/dispatch.md for sql/install.sql):
+    Table (also in sql/install.sql):
       nza_calls (id PK, code, priority, title, type, x, y, z, street, zone, caller, message,
                  source, npc, status, units LONGTEXT (json), reason, created, responded,
                  arrived, closed)

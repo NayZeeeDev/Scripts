@@ -13,7 +13,7 @@
                fitting medic animation, result { score = Config.EasyMode.score, easy = true }
                otherwise → runner(ctx) runs the module's minigame
             3. ctx.finish(result) → 'nza:proc:finish' (token, result) → toast with the score
-               and a verdict word (never a letter grade, docs/design/ORIGINAL.md)
+               and a verdict word (never a letter grade)
                ctx.abort(reason) → event 'nza:proc:abort' (token)
           ctx = { token, data, easy, target, name, payload, entity, startedAt, label,
                   finish(result) → ok, outcome, abort(reason), onEnd(fn(outcome|nil, reason)),

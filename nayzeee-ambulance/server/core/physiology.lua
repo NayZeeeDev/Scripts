@@ -69,7 +69,7 @@ end
 
 local function r1(n) return math.floor(n * 10 + 0.5) / 10 end
 
--- Internal tuning (documented in docs/modules/core-server.md)
+-- Internal tuning
 local K = {
     regen        = 6,      -- mL/min blood regeneration while alive and not bleeding (×4 in bed)
     arrestBleed  = 0.15,   -- bleed multiplier in cardiac arrest without CPR

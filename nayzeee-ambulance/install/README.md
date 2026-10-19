@@ -9,7 +9,6 @@ every item (`<item_name>.png`).
 | `ox_inventory_items.lua` | ox_inventory (ESX, Qbox, QBCore, standalone) |
 | `qb_shared_items.lua` | qb-core shared items: qb-inventory, ps-inventory, lj-inventory, qs-inventory, codem-inventory, tgiann-inventory |
 | `esx_items.sql` | ESX `items` table: default ESX inventory, and inventories that read the ESX items table |
-| `generate.lua` | rebuilds the three files above from `config/items.lua` |
 
 Item metadata (blood bag type and volume, X-ray film findings) is stored in the
 inventory itself when it supports metadata. The plain ESX inventory has no
@@ -79,8 +78,8 @@ Then copy the pictures:
 ## ESX default inventory
 
 Run `install/esx_items.sql` on your database. Weights are in kg, with a minimum of
-1. If your server uses grams, regenerate the file with
-`lua5.4 install/generate.lua --esx-grams`.
+1. If your server uses grams, take the weights from `ox_inventory_items.lua`
+(those are in grams).
 
 ## Standalone (no framework)
 
@@ -98,10 +97,8 @@ instead of `bandage`:
 
 1. In `config/items.lua`, change only the value:
    `bandage = 'firstaid'`. Never change the key.
-2. Rebuild the install files:
-   ```
-   lua5.4 install/generate.lua
-   ```
+2. Rename it the same way in the install file you used (`ox_inventory_items.lua`,
+   `qb_shared_items.lua` or `esx_items.sql`).
 3. Rename the picture in `html/img/items/` to match, e.g. `firstaid.png`. You can
    also set `image = 'bandage.png'` on that item in `Config.ItemDefs`.
 

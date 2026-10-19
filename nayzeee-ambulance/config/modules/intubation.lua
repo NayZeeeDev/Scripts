@@ -158,7 +158,7 @@ Config.Intubation = {
     externalMonitor = false,      -- true: open the field module's patient monitor instead of the built-in one
     monitorProp = true,           -- put a monitor prop on the ground beside the head (when the field module has none)
 
-    -- Attach offsets on the PATIENT (bone = ped bone id; 31086 = SKEL_Head) - see docs/modules/props.md
+    -- Attach offsets on the PATIENT (bone = ped bone id; 31086 = SKEL_Head)
     props = {
         bvm    = { bone = 31086, pos = vector3(0.06, 0.11, 0.0),  rot = vector3(0.0, -90.0, -90.0) },  -- mask on the face
         bvmEtt = { bone = 31086, pos = vector3(-0.02, 0.19, 0.0), rot = vector3(0.0, -90.0, -90.0) },  -- bag on the tube

@@ -178,7 +178,7 @@ Config.Transport = {
         maxSlots = 36,           -- ambulances with an open bay at the same time
 
         -- Positions inside the bay (shell space: origin = the floor centre, +Y = towards the cab, -Y = the
-        -- rear doors, patient side -X, bench + counter +X; room 2.30 x 4.30 x 2.05 m - see docs/modules/props.md)
+        -- rear doors, patient side -X, bench + counter +X; room 2.30 x 4.30 x 2.05 m)
         stretcher = vec4(-0.42, 0.10, 0.0, 0.0),        -- where the cot stands (head end towards the cab)
         medics = {                                       -- where medics appear (one spot per medic, in order)
             vec4(0.25, -0.30, 0.0, 90.0),                --   beside the patient's hips, facing the cot
