@@ -218,7 +218,15 @@ function Care.Plan(p)
             if not (t.splinted or t.cast) and R and R.splint and R.splint ~= 'collar' and R.splint ~= 'binder' then
                 add('splint', { r = inj.region, i = inj.id, u = (inj.bleed or 0) >= 5 })
             end
-            if not t.cast and ((inj.severity or 1) >= 2 or f.displaced) then hosp('xray', { r = inj.region, i = inj.id }) end
+            -- limbs: X-ray, set the bone, cast. Ribs, pelvis, skull ...: no cast, the X-ray itself is the step
+            local castable = R and R.limb and true or false
+            local cc = Config.Xray and Config.Xray.Cast and Config.Xray.Cast.regions
+            if type(cc) == 'table' then castable = cc[inj.region] and true or false end
+            if castable then
+                if not t.cast and ((inj.severity or 1) >= 2 or f.displaced) then hosp('xray', { r = inj.region, i = inj.id }) end
+            elseif R and R.xray and not t.xrayMarked and (inj.severity or 1) >= 2 then
+                hosp('xray', { r = inj.region, i = inj.id })
+            end
         elseif kind == 'burn' then
             local deg = inj.burn and inj.burn.degree or 1
             if deg >= 3 and not t.grafted then
@@ -228,7 +236,11 @@ function Care.Plan(p)
                 add('burn', { r = inj.region, i = inj.id })
             end
         elseif kind == 'internal' then
-            if not (t.coiled or t.sutured) and (inj.severity or 1) >= 2 then
+            -- only bleeds angiography can coil (Config.Angio.organs); the others stop on their own
+            local organs = Config.Angio and Config.Angio.organs
+            local organ = inj.internal and inj.internal.organ
+            local coilable = type(organs) ~= 'table' or (organ ~= nil and organs[organ] == true)
+            if coilable and not (t.coiled or t.sutured) and (inj.severity or 1) >= 2 and ((inj.bleed or 0) > 0 or (inj.bleedBase or 0) > 0) then
                 if internalKnown(inj, fs) then hosp('internal', { r = inj.region, i = inj.id })
                 else internalHidden = true end
             end
@@ -250,16 +262,29 @@ function Care.Plan(p)
     if c.infection and not medOn('antibiotics') then add('infection') end
 
     -- 6. chest & hidden bleeding (hospital)
-    local hm = c.haemothorax
-    if hm and (hm.ml or 0) >= 300 then
-        if condKnown(fs, 'haemothorax') then hosp('drain') else internalHidden = true end
+    local drains = d.chestDrain or {}
+    local function drained(side)
+        if side == 'left' or side == 'right' then return drains[side] and true or false end
+        return (drains.left or drains.right) and true or false
     end
+    local hm = c.haemothorax
+    local pn = c.pneumothorax
+    local needDrain = false
+    if hm and (hm.ml or 0) >= 300 and not drained(hm.side) then
+        if condKnown(fs, 'haemothorax') then needDrain = true else internalHidden = true end
+    end
+    -- a collapsed lung that is not under pressure (or was needled) still needs a drain
+    if pn and not pn.tension and not drained(pn.side) and condKnown(fs, 'pneumothorax') then needDrain = true end
+    if needDrain then hosp('drain') end
     local tp = c.tamponade
     if tp and (tp.ml or 0) >= 50 then
         if condKnown(fs, 'tamponade') then hosp('tamponade', { u = true }) else internalHidden = true end
     end
     if c.pneumothorax and c.pneumothorax.tension and not condKnown(fs, 'pneumothorax') then internalHidden = true end
-    if internalHidden then table.insert(hospital, 1, { c = 'scan', w = 'hospital' }) end
+    -- a scan in the last 15 minutes counts, even when it could not see a small bleed yet
+    local efast = type(p.meta) == 'table' and p.meta.efast
+    local scanned = type(efast) == 'table' and (os.time() - (tonumber(efast.at) or 0)) < cfg('rescan', 900)
+    if internalHidden and not scanned then table.insert(hospital, 1, { c = 'scan', w = 'hospital' }) end
 
     -- 7. stable: back on their feet
     if p.state == 'wounded' then

@@ -65,7 +65,7 @@ Care.Actions = {
     drain     = { routes = { 'us_drain' },                          options = { 'nza_us_drain' },                           icon = 'lungs' },
     tamponade = { routes = { 'us_peri' },                           options = { 'nza_us_peri' },                            icon = 'heart' },
     bullet    = { routes = { 'bullet' },                            options = { 'nza_bullet' },                             icon = 'scalpel' },
-    xray      = { routes = { 'xray_take', 'xray_reduce', 'xray_cast' }, options = { 'nza_xray_table', 'nza_xray_reduce', 'nza_xray_cast' }, icon = 'bone' },
+    xray      = { routes = { 'xray_take', 'xray_reduce', 'xray_cast' }, options = { 'nza_xray_table', 'nza_xray_any', 'nza_xray_reduce', 'nza_xray_cast' }, icon = 'bone' },
     graft     = { routes = { 'graft' },                             options = { 'nza_graft' },                              icon = 'flame' },
     hospital  = { routes = {},                                      options = { 'nza_tr_tobed', 'nza_tr_onstretcher', 'nza_tr_carry' }, icon = 'ambulance' },
     bodybag   = { routes = {},                                      options = { 'nza_bodybag' },                            icon = 'bag' },
