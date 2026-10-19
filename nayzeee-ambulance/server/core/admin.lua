@@ -5,6 +5,7 @@
       /revive [id]                               full revive + heal (no id = yourself)
       /heal [id]                                 remove injuries; revives too if the target is down
       /injure [id] [region|random] [type] [sev]  add an injury (testing)
+      /injure npc [region|random] [type] [sev]   same, on the nearest NPC patient (within 6 m)
       /kill [id] [arrest]                        dead, or cardiac arrest with 'arrest' (only when Config.Commands.kill is set)
     /nzadmin belongs to the hospital module and is NOT registered here.
 
@@ -41,6 +42,25 @@ end
 
 local function patientOf(id)
     return P.GetBySource(id) or P.LoadPlayer(id)
+end
+
+-- The nearest NPC patient within 6 m of an admin (for /injure npc: solo testing)
+local function nearestNpc(src)
+    if src <= 0 then return nil end
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return nil end
+    local me = GetEntityCoords(ped)
+    local best, bestD = nil, 6.0
+    for _, p in pairs(P.All()) do
+        if p.kind == 'npc' and p.state ~= 'dead' then
+            local c = P.Coords(p)
+            if c then
+                local d = #(vector3(c.x, c.y, c.z) - me)
+                if d < bestD then best, bestD = p, d end
+            end
+        end
+    end
+    return best
 end
 
 local function register(key, help, params, fn)
@@ -111,16 +131,23 @@ local function registerAll()
         { name = 'type', help = NZA.L('core.cmd_param_type') },
         { name = 'severity', help = NZA.L('core.cmd_param_severity') },
     }, function(src, args)
-        local i, id = 1, nil
-        if tonumber(args[1]) then
-            id = targetOf(src, args[1])
+        local i, id, p = 1, nil, nil
+        if args[1] == 'npc' then
+            -- /injure npc [region] [type] [sev]: the nearest NPC patient (solo testing)
+            p = nearestNpc(src)
+            if not p then return reply(src, NZA.L('core.cmd_no_npc'), 'error') end
             i = 2
         else
-            id = src > 0 and src or nil
+            if tonumber(args[1]) then
+                id = targetOf(src, args[1])
+                i = 2
+            else
+                id = src > 0 and src or nil
+            end
+            if not id then return reply(src, NZA.L('core.cmd_no_target'), 'error') end
+            p = patientOf(id)
+            if not p then return reply(src, NZA.L('core.cmd_not_loaded'), 'error') end
         end
-        if not id then return reply(src, NZA.L('core.cmd_no_target'), 'error') end
-        local p = patientOf(id)
-        if not p then return reply(src, NZA.L('core.cmd_not_loaded'), 'error') end
 
         local region = args[i]
         if not region or region == 'random' then
@@ -138,7 +165,7 @@ local function registerAll()
         local sev = math.max(1, math.min(4, math.floor(tonumber(args[i + 2]) or 2)))
         local inj = P.AddInjury(p, { region = region, type = kind, severity = sev, cause = 'admin' })
         if not inj then return reply(src, NZA.L('core.err_failed'), 'error') end
-        reply(src, NZA.L('core.cmd_injured', Core.Name(id), NZA.Util.InjuryLabel(kind), NZA.Util.RegionLabel(region), sev), 'success')
+        reply(src, NZA.L('core.cmd_injured', id and Core.Name(id) or (p.name or 'NPC'), NZA.Util.InjuryLabel(kind), NZA.Util.RegionLabel(region), sev), 'success')
     end)
 
     register('kill', NZA.L('core.cmd_kill_help'), {

@@ -177,6 +177,7 @@ NZA.AddLocale('en', {
     -- ── admin commands
     ['core.cmd_no_perm']        = 'You are not allowed to use this command',
     ['core.cmd_no_target']      = 'Player not found',
+    ['core.cmd_no_npc']         = 'No NPC patient within 6 m. Stand next to one (for example after /nzacall gunshot here)',
     ['core.cmd_not_loaded']     = 'That player has no character loaded',
     ['core.cmd_revive_help']    = 'Revive and fully heal a player',
     ['core.cmd_heal_help']      = 'Remove all injuries from a player',
