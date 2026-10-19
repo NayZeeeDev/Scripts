@@ -72,6 +72,12 @@ Config.Field = {
     Resus = {
         perms      = { 'iv', 'binder' },  -- medics with ANY of these see 'Field resuscitation'
         kit        = 'trauma_kit',        -- item KEY the medic must carry (not consumed)
+        -- The trauma kit carries the pelvic binder, the IO driver + needle sets, lidocaine and the flush
+        -- syringes: no separate items needed, and those tools work by themselves - each one comes out of
+        -- the case, does its job on the patient (the binder tensions, the driver drills, the syringes
+        -- draw back and flush) and goes back. false = separate items (Binder.item, IO.item, ...) and the
+        -- hands-on minigames.
+        kitTools   = true,
         band       = { 60, 70 },          -- permissive hypotension: target MAP (mmHg) while the clot forms
         hold       = 24,                  -- seconds of MAP inside the band that firm the clot to 100 %
         minTime    = 18,                  -- anti-cheat: shortest possible resuscitate step (s)
@@ -122,7 +128,7 @@ Config.Field = {
 
     Binder = {
         perm       = 'binder',
-        item       = 'pelvic_binder',     -- item KEY consumed when applied (false = part of the trauma kit)
+        item       = 'pelvic_binder',     -- item KEY consumed when applied (false or Resus.kitTools = part of the trauma kit)
         band       = { 60, 80 },          -- strap tension % accepted on release
         minTime    = 5,  maxTime = 240, easyTime = 6,
         bleedBonus = 0.25,                -- a perfect strap lowers the base bleed of pelvic injuries by up to 25 %
@@ -140,9 +146,9 @@ Config.Field = {
 
     IO = {
         perm     = 'iv',
-        item     = 'io_kit',              -- IO needle set KEY (one per attempt; a failed drill needs a new one)
-        lidocaine = 'lidocaine',          -- optional: used for the flush if the medic carries it (not required)
-        saline    = 'saline',             -- optional: saline flush syringe (not required)
+        item     = 'io_kit',              -- IO needle set KEY (one per attempt; a failed drill needs a new one) - not with Resus.kitTools
+        lidocaine = 'lidocaine',          -- optional: used for the flush if the medic carries it (in the kit with Resus.kitTools)
+        saline    = 'saline',             -- optional: saline flush syringe (in the kit with Resus.kitTools)
         minTime  = 14, maxTime = 420, easyTime = 10,
         maxAngle = 15,                    -- degrees off the bone axis the driver may be
         bendAngle = 26,                   -- degrees off-axis while drilling cortex that bends the needle

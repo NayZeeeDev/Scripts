@@ -447,8 +447,57 @@
   H_.binder = {
     enter() {
       const d = S.data;
-      S.b = { phase: 'drop', drag: false, tension: 0, attempts: 1, tab: null, band: d.band || [60, 80] };
+      S.b = { phase: 'drop', drag: false, tension: 0, attempts: 1, tab: null, band: d.band || [60, 80], t0: now() };
       this.ui();
+      if (d.auto) this.auto();
+    },
+    /* ── trauma kit tools (Resus.kitTools): the binder comes out of the case, goes under the hips and
+       tensions itself; the medic only watches (Skip still works) ── */
+    auto() {
+      const b = S.b;
+      b.auto = true;
+      const tools = [{ key: '1', label: L('tool_binder', 'Pelvic binder'), icon: 'cuff', state: 'active', sub: L('auto_sub', 'from the kit') },
+        { key: 'N', label: L('tool_skip', 'Skip'), icon: 'arrow-r' }];
+      ui.pp.set({ text: L('auto_binder', 'The **pelvic binder** comes out of the trauma kit and goes under the hips.'), tools });
+      clearMarks();
+      const card = `<span class="ic">${icon('cuff')}</span><span class="gt"><b>${esc(L('tool_binder', 'Pelvic binder'))}</b><small>${esc(L('auto_sub', 'from the kit'))}</small></span>`;
+      const t0 = now();
+      if (!S.preview) post('binderDrop', {});   // the world binder flies out of the case at the same time
+      const fly = () => {
+        if (S.b !== b || S.proc !== 'binder') { ghost(false); return; }
+        const f = clamp((now() - t0) / 1100, 0, 1), e = f * f * (3 - 2 * f);
+        const A = apx('kit'), B = apx('pelvis');
+        if (A && B) ghost(true, card, A.x + (B.x - A.x) * e, A.y + (B.y - A.y) * e - Math.sin(f * Math.PI) * 70 * pxScale(), f > 0.75);
+        if (f < 1) { requestAnimationFrame(fly); return; }
+        ghost(false);
+        b.phase = 'strap'; NZA.audio.success();
+        this.ui();
+        ui.pp.set({ tools: [{ key: '1', label: L('tool_binder', 'Pelvic binder'), icon: 'cuff', state: 'done' }, { key: 'N', label: L('tool_skip', 'Skip'), icon: 'arrow-r' }] });
+        this.autoStrap();
+      };
+      requestAnimationFrame(fly);
+    },
+    autoStrap() {
+      const b = S.b;
+      const [lo, hi] = b.band, goal = (lo + hi) / 2;
+      const t0 = now();
+      b.drag = true;   // the grip chip shows the tension while it pulls
+      const step = () => {
+        if (S.b !== b || S.proc !== 'binder' || b.phase !== 'strap') return;
+        const f = clamp((now() - t0) / 2600, 0, 1), e = 1 - (1 - f) * (1 - f);
+        const prev = b.tension;
+        b.tension = goal * e;
+        const A = apx('strapA'), B = apx('strapB');
+        if (A && B) { const t = b.tension / 100; b.tab = { x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t }; }
+        if (Math.floor(prev / (120 / 18)) !== Math.floor(b.tension / (120 / 18))) NZA.audio.tick();
+        this.devTick();
+        if (f < 1) { requestAnimationFrame(step); return; }
+        b.phase = 'done'; b.drag = false; NZA.audio.success();
+        // the server times the step: never answer before its shortest time
+        const wait = Math.max(700, (Number(S.data.autoMs) || 0) - (now() - b.t0));
+        setTimeout(() => { if (S.b === b && S.proc === 'binder') sendResult('binder', { tension: Math.round(goal), attempts: 1, score: 96 }); }, wait);
+      };
+      requestAnimationFrame(step);
     },
     ui() {
       const b = S.b, d = S.data;
@@ -502,20 +551,23 @@
       const st = q('.bst');
       if (st && b.phase !== 'drop') {
         st.className = `m-state bst ${tone}`;
-        st.querySelector('.tx').textContent = t > hi ? L('bs_over', 'Over-tight — ease back') : t >= lo ? L('bs_ok', 'On target — let go') : t > 0 ? L('bs_under', 'Keep drawing across') : L('d_binder_band', 'Release between {lo} and {hi}%.', { lo, hi });
+        st.querySelector('.tx').textContent = t > hi ? L('bs_over', 'Over-tight — ease back') : t >= lo ? (b.auto ? L('bs_ok_auto', 'On target') : L('bs_ok', 'On target — let go')) : t > 0 ? L('bs_under', 'Keep drawing across') : L('d_binder_band', 'Release between {lo} and {hi}%.', { lo, hi });
       }
       metric({ label: L('st_tension', 'Tension'), value: Math.round(t), unit: '%', tone });
-      if (b.phase === 'strap') setText(L('binder_strap', 'Grab the strap handle and draw it across the hips. Release when the ring turns teal. Tension {t}%.', { t: Math.round(t) }));
+      if (b.phase === 'strap') setText(b.auto ? L('auto_binder_t', 'The strap draws itself across the hips. Tension {t}%.', { t: Math.round(t) })
+        : L('binder_strap', 'Grab the strap handle and draw it across the hips. Release when the ring turns teal. Tension {t}%.', { t: Math.round(t) }));
     },
     carryText() {
       ui.pp.set({ text: L('binder_carry_text', 'You have the **binder**. Now click the **hip marker** to lay it under the hips.') });
     },
     tool(k) {
       if (k.toUpperCase() === 'N') return skip();
+      if (S.b.auto) return;
       if (k === '1' && S.b.phase === 'drop') { S.b.carry = true; S.b.drag = true; S.b.sticky = true; S.b.from = null; ui.host.classList.add('grab'); this.carryText(); }
     },
     down(e) {
       const b = S.b;
+      if (b.auto) return;
       if (b.phase === 'drop') {
         // already carrying (picked with a click or the tool key): this click drops it - see up()
         if (!b.drag && overKit(e.clientX, e.clientY)) {
@@ -530,6 +582,7 @@
     },
     move(e) {
       const b = S.b;
+      if (b.auto) return;
       if (b.phase === 'drop' && b.drag) {
         const p = apx('pelvis');
         const near = p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 80 * pxScale();
@@ -550,6 +603,7 @@
     },
     up(e) {
       const b = S.b;
+      if (b.auto) return;
       if (b.phase === 'drop' && b.drag) {
         const p = apx('pelvis');
         const onHips = p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 80 * pxScale();
@@ -666,9 +720,24 @@
   H_.io = {
     enter() {
       S.io = { phase: 'site', site: null, needles: 1, depth: 0, lift: 1, drilling: false, drift: { x: 0, y: 0 }, aim: { x: 0, y: 0 }, angle: 0, ax: 0, ay: 0,
-        angleSum: 0, angleN: 0, maxAngle: 0, torque: [], fails: 0, aspirated: false, ext: false, lido: { ml: 0, rate: 0, peak: 0 }, flush: { ml: 0, rate: 0, peak: 0 }, layer: 'air', snd: 0, lostRes: false };
+        angleSum: 0, angleN: 0, maxAngle: 0, torque: [], fails: 0, aspirated: false, ext: false, lido: { ml: 0, rate: 0, peak: 0 }, flush: { ml: 0, rate: 0, peak: 0 }, layer: 'air', snd: 0, lostRes: false,
+        auto: !!S.data.auto, t0: now() };
       this.site();
+      if (S.io.auto) this.autoSite();
     },
+    /* ── trauma kit tools (Resus.kitTools): the IO driver comes out of the case, picks a clear site,
+       seats itself, drills to the marrow, then the syringes draw back and flush - no input needed ── */
+    autoSite() {
+      const io = S.io, sites = S.data.sites || {};
+      const id = IO_SITES.find(s => !(sites[s] && sites[s].ok === false));
+      if (!id) return;
+      ui.pp.set({ text: L('auto_io_site', 'The **IO driver** comes out of the trauma kit. Site: **{site}**.', { site: siteName(id) }),
+        tools: [{ key: '1', label: L('tool_driver', 'IO driver'), icon: 'drill', state: 'active', sub: L('auto_sub', 'from the kit') }, { key: 'N', label: L('tool_skip', 'Skip'), icon: 'arrow-r' }] });
+      const btn = ui.dev && ui.dev.querySelector(`.d-site[data-s="${id}"]`);
+      if (btn) btn.classList.add('auto');
+      setTimeout(() => { if (S.io === io && io.phase === 'site') this.pick(id); }, 1200);
+    },
+    autoText(t) { ui.pp.set({ text: t }); },
     /* ── step 2 · site ── */
     site() {
       const io = S.io, sites = S.data.sites || {};
@@ -728,7 +797,11 @@
         hints: [{ keys: [L('k_hold', 'Hold'), keyName(k)], label: L('h_drill', 'drive') }, { keys: [L('k_click', 'Click')], label: L('h_pressure', 'seat') }].concat(hintsCam()),
       });
       mark('site', { anchor: io.site, label: '', dot: 'fd-dia white' });
-      ui.host.classList.add('aim');
+      if (io.auto) {
+        io.autoT = 0; io.lastF = 0;
+        ui.pp.set({ text: L('auto_io_drill', 'The driver seats itself on the bone and drills through the wall.'), hints: hintsCam(),
+          tools: [{ key: '1', label: L('tool_driver', 'IO driver'), icon: 'drill', state: 'active', sub: L('auto_sub', 'from the kit') }, { key: 'N', label: L('tool_skip', 'Skip'), icon: 'arrow-r' }] });
+      } else ui.host.classList.add('aim');
       io.total = 4 + ly.soft + ly.cortex + ly.marrow + ly.far + 5;
       const tolR = (maxA / 30) * 40;
       let rings = '';
@@ -818,6 +891,11 @@
         },
       });
       io.syr.ret(`<div class="m-list">${row('r-ret', L('d_return', 'Return'), esc(L('ret_none', 'None yet')), 'dim')}${row('r-dep', L('d_depth', 'Depth'), `${fmt1(io.depth)}<small>mm</small>`)}${row('r-st', L('st_site', 'Site'), esc(siteName(io.site)))}</div>`);
+      if (io.auto) {
+        this.autoText(L('auto_io_draw', 'The syringe draws back by itself. Dark blood means the needle is in the marrow.'));
+        const syr = io.syr;
+        setTimeout(() => { if (S.io === io && io.syr === syr) syr.auto(true); }, 500);
+      }
     },
     /* ── step 5 · flush ── */
     flushUi() {
@@ -828,6 +906,22 @@
       this.flushTools();
       devFrame(L('d_flush', 'Flush'), `<div class="syrh"></div><div class="m-note fn"></div>`, { unit: 'sx', right: '<span class="m-chip fc"></span>' });
       this.flushText();
+      if (io.auto) {
+        setTimeout(() => {
+          if (S.io !== io || io.phase !== 'flush') return;
+          io.ext = true; NZA.audio.click(900); ui.pp.flash('ok', L('ext_ok', 'Extension line primed and locked.'));
+          this.flushTools(); this.flushText();
+          setTimeout(() => { if (S.io === io && io.phase === 'flush') this.autoNextSyringe(); }, 700);
+        }, 500);
+      }
+    },
+    // auto: lidocaine first (awake patient), then the saline flush; each syringe pushes itself
+    autoNextSyringe() {
+      const io = S.io, d = S.data;
+      if (d.lidocaine !== false && io.lido.ml < (d.lidoMl || 2) - 0.05) this.useSyringe('lido');
+      else if (io.flush.ml < (d.flushMl || 10) - 0.1) this.useSyringe('flush');
+      else return;
+      if (io.syr) io.syr.auto(true);
     },
     flushTools() {
       const io = S.io, d = S.data;
@@ -876,6 +970,7 @@
             NZA.audio.success();
             io.tool = null; this.flushTools(); this.flushText();
             if (kind === 'flush') setTimeout(() => this.finish(), 700);
+            else if (io.auto) setTimeout(() => { if (S.io === io && io.phase === 'flush') this.autoNextSyringe(); }, 600);
           }
         },
       });
@@ -883,6 +978,11 @@
     },
     finish() {
       const io = S.io, d = S.data;
+      // auto: the server times the step - never answer before its shortest time
+      if (io.auto && !io.finWait) {
+        const wait = (Number(d.autoMs) || 0) - (now() - io.t0);
+        if (wait > 0) { io.finWait = true; setTimeout(() => { if (S.io === io) this.finish(); }, wait); return; }
+      }
       const avgAngle = io.angleN ? io.angleSum / io.angleN : 0;
       let score = 100 - avgAngle * 1.6 - Math.max(0, io.maxAngle - (d.maxAngle || 15)) * 1.5 - (io.needles - 1) * 15 - (io.overshoot || 0) * 12;
       const lr = d.lidoRate || [0.08, 0.45], fr = d.flushRate || [1.5, 6];
@@ -899,7 +999,8 @@
     tool(k) {
       const io = S.io;
       const K = k.toUpperCase();
-      if (K === 'N' && (io.phase === 'site' || io.failed)) return skip();
+      if (K === 'N' && (io.phase === 'site' || io.failed || io.auto)) return skip();
+      if (io.auto) return;
       if (io.phase === 'site' && /^[1-4]$/.test(k)) return this.pick(IO_SITES[Number(k) - 1]);
       if (io.phase === 'drill' && K === 'R') return this.newNeedle();
       if (io.phase === 'confirm' && k === '1' && io.syr && !io.aspirated) return io.syr.auto(true);
@@ -914,6 +1015,7 @@
     },
     down(e) {
       const io = S.io;
+      if (io.auto) return;
       if (io.phase === 'site') {
         let best = null, bd = 60 * pxScale();
         IO_SITES.forEach(id => { const p = apx(id); if (p) { const d = Math.hypot(e.clientX - p.x, e.clientY - p.y); if (d < bd) { bd = d; best = id; } } });
@@ -923,7 +1025,7 @@
     key(e, downKey) {
       const io = S.io;
       const k = S.keys.drill || 'Space';
-      if (io.phase !== 'drill' || io.failed) return false;
+      if (io.phase !== 'drill' || io.failed || io.auto) return false;
       if (e.code !== k && e.key !== k) return false;
       if (downKey) {
         if (e.repeat) return true;
@@ -940,7 +1042,13 @@
     frame(dt) {
       const io = S.io;
       if (!io) return;
-      if (io.phase === 'drill') this.drillFrame(dt);
+      if (io.phase === 'drill' && io.auto) {
+        // auto runs on real time even when the game hitches (the loop caps dt at 0.1 s)
+        const t = now();
+        let real = io.lastF ? Math.min(0.6, (t - io.lastF) / 1000) : dt;
+        io.lastF = t;
+        while (real > 1e-4 && io.phase === 'drill') { const d = Math.min(0.1, real); this.drillFrame(d); real -= d; }
+      } else if (io.phase === 'drill') this.drillFrame(dt);
       else if (io.phase !== 'site') {
         const p = apx(io.site);
         const k = pxScale();
@@ -1022,7 +1130,7 @@
       const site = apx(io.site);
       const k = pxScale();
       // aim = cursor offset from the site; drift = hand tremor fighting the bone
-      if (site) { io.aim.x = (S.mouse.x - site.x) / k; io.aim.y = (S.mouse.y - site.y) / k; }
+      if (site && !io.auto) { io.aim.x = (S.mouse.x - site.x) / k; io.aim.y = (S.mouse.y - site.y) / k; }
       const ppd = d.pxPerDeg || 3.2;
       const layer = this.layerAt(io.depth);
       const trem = (d.tremor || 7) * (io.drilling ? (layer === 'cortex' || layer === 'far' ? 1 : 0.35) : 0);
@@ -1030,11 +1138,18 @@
       const tx = Math.sin(t * 1.3) * 0.6 + Math.sin(t * 2.9 + 1.7) * 0.4, ty = Math.cos(t * 1.1 + 0.5) * 0.6 + Math.sin(t * 2.3) * 0.4;
       io.drift.x += ((tx * trem) - io.drift.x) * Math.min(1, dt * 1.6);
       io.drift.y += ((ty * trem) - io.drift.y) * Math.min(1, dt * 1.6);
+      if (io.auto) {
+        // the driver holds itself level (about 1°) and the reticle sits on the site
+        io.autoT = (io.autoT || 0) + dt;
+        io.aim.x = (1.0 - io.drift.x) * ppd; io.aim.y = -io.drift.y * ppd;
+        if (site) { S.mouse.x = site.x + io.aim.x * k; S.mouse.y = site.y + io.aim.y * k; }
+      }
       const ax = io.aim.x / ppd + io.drift.x, ay = io.aim.y / ppd + io.drift.y;
       io.ax = ax; io.ay = ay;
       io.angle = Math.min(60, Math.hypot(ax, ay));
-      const target = S.mouse.down ? 0 : 1;
+      const target = io.auto ? (io.autoT > 0.9 ? 0 : 1) : (S.mouse.down ? 0 : 1);
       io.lift += (target - io.lift) * Math.min(1, dt * 7);
+      if (io.auto && !io.drilling && !io.autoDone && !io.failed && io.autoT > 1.5 && io.lift < 0.08) io.drilling = true;
       if (io.drilling && io.lift > 0.3) { io.drilling = false; }
       if (io.drilling && !io.failed) {
         const sp = d.speed || { soft: 7, cortex: 1.3, marrow: 8, far: 1.1 };
@@ -1045,6 +1160,11 @@
         if ((nl === 'cortex' || nl === 'far') && io.angle > (d.bendAngle || 26)) return this.drillFail('bent');
         if (nl === 'marrow' && !io.lostRes) { io.lostRes = true; ui.pp.flash('ok', L('drill_loss', 'It gave way — release the trigger now!'), 1600); NZA.audio.beep(1250, 70, 0.06); }
         if (nl === 'through') return this.drillFail('through');
+        // auto: stop once the tip is a little way into the marrow
+        if (io.auto && nl === 'marrow') {
+          const ly = this.layers();
+          if (io.depth >= ly.soft + ly.cortex + Math.min(1.5, ly.marrow * 0.3)) { io.autoDone = true; io.drilling = false; this.drillDone(); return; }
+        }
         io.snd -= dt;
         if (io.snd <= 0) { io.snd = 0.075; NZA.audio.tone(nl === 'cortex' || nl === 'far' ? 135 : nl === 'marrow' ? 430 : 290, 85, { vol: 0.028, type: 'sawtooth' }); }
       }
@@ -1080,7 +1200,8 @@
         io.torque.forEach((v, i) => { const x = (i / 119) * w, y = h - 2 - clamp(v, 0, 1) * (h - 6); if (i) c.lineTo(x, y); else c.moveTo(x, y); });
         c.stroke();
       }
-      if (!io.failed) setText((io.lift > 0.3
+      if (io.auto) setText(io.drilling && io.layer === 'cortex' ? L('auto_io_wall', 'Through the bone wall...') : io.drilling ? L('auto_io_deep', 'Drilling... {d} mm.', { d: fmt1(io.depth) }) : L('auto_io_drill', 'The driver seats itself on the bone and drills through the wall.'));
+      else if (!io.failed) setText((io.lift > 0.3
         ? L('drill_text_aim', 'Center the bubble inside the ring (under {max}°), then press {Click} to seat the needle. Off by {a}°.', { max: maxA, a: Math.round(io.angle) })
         : io.drilling ? (io.layer === 'cortex' ? L('drill_text_cortex', 'Through the bone wall — keep it level. Off by {a}°.', { a: Math.round(io.angle) }) : io.layer === 'marrow' ? L('drill_loss', 'It gave way — release the trigger now!') : L('drill_text_drilling', 'Driving… {d} mm.', { d: fmt1(io.depth) }))
           : L('drill_text_ready', 'Needle on the skin. Hold {{key}} to drive it in. Off by {a}°.', { key: keyName(S.keys.drill || 'Space'), a: Math.round(io.angle) })));
@@ -2053,6 +2174,9 @@
         speed: { soft: 7, cortex: 1.3, marrow: 8, far: 1.1 }, pxPerDeg: 3.2, tremor: 7, aspirateMl: 1, lidoMl: 2, lidoRate: [0.08, 0.45], flushMl: 10, flushRate: [1.5, 6], lidocaine: true, responsive: true,
         injury: { region: 'pelvis', regionLabel: 'Pelvis' }, bleed: 88 };
       if (which === 'binder') { setStep('binder', 'run', { indicated: true, why: 'fracture', band: [60, 80], count: 1, injury: { regionLabel: 'Pelvis' }, bleed: 196 }); if (sub === 'strap') { S.b.phase = 'strap'; clearMarks(); H_.binder.ui(); S.b.tension = 72; S.b.drag = true; S.b.tab = null; const A = apx('strapA'), B = apx('strapB'); if (A && B) S.b.tab = { x: A.x + (B.x - A.x) * 0.72, y: A.y + (B.y - A.y) * 0.72 }; H_.binder.devTick(); } }
+      // trauma kit tools running by themselves (Resus.kitTools)
+      if (which === 'binderauto') setStep('binder', 'run', { indicated: true, why: 'fracture', band: [60, 80], count: 1, injury: { regionLabel: 'Pelvis' }, bleed: 196, auto: true, autoMs: 6500 });
+      if (which === 'ioauto') setStep('io', 'run', Object.assign({}, ioData, { auto: true, autoMs: 15500 }));
       if (which === 'site') setStep('io', 'run', ioData);
       if (which === 'drill') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); const p = apx('r_tibia'); S.mouse.x = p.x + 30; S.mouse.y = p.y - 26; S.mouse.down = true; S.io.lift = 0; S.io.depth = 7.8; S.io.drilling = false; S.io.torque = Array.from({ length: 80 }, (_, i) => (i < 30 ? 0.25 : 0.88) + (Math.random() - 0.5) * 0.1); }
       if (which === 'confirm') { setStep('io', 'run', ioData); H_.io.pick('r_tibia'); S.io.depth = 11.2; H_.io.confirmUi(); S.io.syr.set(1.4); S.io.syr.fluid('marrow'); setRow('.r-ret', `${icon('drop')}${esc(L('ret_marrow', 'Marrow'))}`, 'red'); ui.pp.flash('ok', L('confirm_ok', 'Dark return in the barrel — you are in the marrow.'), 0); }

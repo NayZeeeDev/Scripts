@@ -493,7 +493,11 @@ F.Needles = F.Needles or {}
 NZA.Treat.Register('io_needle', {
     perm = F.Cfg('IO').perm or 'iv', maxDist = 3.5, cooldown = 600,
     states = { alive = true, wounded = true, arrest = true },
-    items = function() return F.Items({ [F.Cfg('IO').item or 'io_kit'] = 1 }) end,
+    items = function()
+        local key = F.Cfg('IO').item
+        if key == false or F.Cfg('Resus').kitTools ~= false then return {} end   -- needles come from the trauma kit
+        return F.Items({ [key or 'io_kit'] = 1 })
+    end,
     handler = function(src, p)
         local s = NZA.Proc.Active(src)
         if not s or s.name ~= 'io' or s.pid ~= p.pid then return fail('no_session') end
@@ -530,7 +534,8 @@ NZA.Treat.Register('binder_off', {
             end
         end
         local cfg = F.Cfg('Binder')
-        if cfg.removeReturns ~= false and cfg.item then giveBack(src, cfg.item) end
+        -- (a trauma-kit binder goes back in the kit, not into the pockets)
+        if cfg.removeReturns ~= false and cfg.item and F.Cfg('Resus').kitTools == false then giveBack(src, cfg.item) end
         local warn = F.BinderIndicated(p) and p.state ~= 'dead'
         return true, { msg = warn and L('ok_binder_off_warn') or L('ok_binder_off'), record = L('rec_binder_off') }
     end,

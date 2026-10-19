@@ -46,6 +46,14 @@ local function items(map)
 end
 
 local LIVE = { alive = true, wounded = true, arrest = true }
+
+-- Resus.kitTools: the trauma kit carries the binder, the IO driver + needles, lidocaine and the
+-- flush syringes. No separate items, and those steps run by themselves (auto).
+local function kitTools() return cfg('Resus').kitTools ~= false end
+local function autoData(minTime)
+    if not kitTools() then return nil, nil end
+    return true, math.floor(((tonumber(minTime) or 5) + 1.5) * 1000)
+end
 local PELVIC = { pelvic = true, femoral = true }
 
 local function responsive(p)
@@ -88,11 +96,12 @@ NZA.Proc.Register('binder', {
     consume = 'finish', states = LIVE,
     items = function()
         local key = cfg('Binder').item
-        if not key then return {} end
+        if not key or kitTools() then return {} end
         return items({ [key] = 1 })
     end,
     onStart = function(src, p)
         if p.devices.binder then return fail('binder_on') end
+        local auto, autoMs = autoData(cfg('Binder').minTime or 5)
         local indicated, why = F.BinderIndicated(p)
         local main
         for _, id in ipairs(pelvicInjuries(p)) do
@@ -102,6 +111,7 @@ NZA.Proc.Register('binder', {
         return true, {
             indicated = indicated, why = why, band = cfg('Binder').band or { 60, 80 },
             injury = F.Summary(p, main or F.MainInjury(p)), bleed = F.TotalBleed(p),
+            auto = auto, autoMs = autoMs,
         }
     end,
     onFinish = function(src, p, s, result)
@@ -159,10 +169,15 @@ NZA.Proc.Register('io', {
     perm = cfg('IO').perm or 'iv', maxDist = 3.5, label = L('title_io'),
     minTime = cfg('IO').minTime or 14, maxTime = cfg('IO').maxTime or 420, easyTime = cfg('IO').easyTime or 10,
     consume = 'finish', states = LIVE,
-    items = function() return items({ [cfg('IO').item or 'io_kit'] = 1 }) end,
+    items = function()
+        local key = cfg('IO').item
+        if key == false or kitTools() then return {} end
+        return items({ [key or 'io_kit'] = 1 })
+    end,
     onStart = function(src, p)
         if F.Access(p) then return fail('has_access') end
         local io = cfg('IO')
+        local auto, autoMs = autoData(io.minTime or 14)
         local sites = F.Sites(p, io.sites)
         local any = false
         for _, st in pairs(sites) do if st.ok then any = true end end
@@ -174,8 +189,9 @@ NZA.Proc.Register('io', {
             aspirateMl = io.aspirateMl or 1.0,
             lidoMl = io.lidoMl or 2, lidoRate = io.lidoRate or { 0.08, 0.45 },
             flushMl = io.flushMl or 10, flushRate = io.flushRate or { 1.5, 6 },
-            lidocaine = io.lidocaine and hasItem(src, io.lidocaine) or false,
+            lidocaine = kitTools() or (io.lidocaine and hasItem(src, io.lidocaine)) or false,
             responsive = responsive(p), injury = F.Summary(p, F.MainInjury(p)), bleed = F.TotalBleed(p),
+            auto = auto, autoMs = autoMs,
         }
     end,
     onFinish = function(src, p, s, result)
@@ -204,7 +220,7 @@ NZA.Proc.Register('io', {
         local lidoMl = U.clamp(tonumber(lido.ml) or 0, 0, (io.lidoMl or 2) + 0.5)
         if s.easy then lidoMl = io.lidoMl or 2 end
         local gaveLido = false
-        if lidoMl >= 1.0 and io.lidocaine and hasItem(src, io.lidocaine) and takeItem(src, io.lidocaine) then
+        if lidoMl >= 1.0 and (kitTools() or (io.lidocaine and hasItem(src, io.lidocaine) and takeItem(src, io.lidocaine))) then
             gaveLido = true
             NZA.Patients.GiveMed(p.pid, 'lidocaine', { region = site.region, dose = lidoMl, route = 'io', by = src })
             if not s.easy and (tonumber(lido.rate) or 0) > (lr[2] or 0.45) * 1.25 then
@@ -213,7 +229,7 @@ NZA.Proc.Register('io', {
             end
         end
         if (tonumber(flush.ml) or 0) >= 1 or s.easy then
-            if io.saline and hasItem(src, io.saline) then takeItem(src, io.saline) end
+            if not kitTools() and io.saline and hasItem(src, io.saline) then takeItem(src, io.saline) end
             local rate = tonumber(flush.rate) or 0
             if not gaveLido then
                 speak(src, p, 'say_flush_pain')

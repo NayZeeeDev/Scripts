@@ -44,6 +44,15 @@ bags and pressure infuser in step 6).
 Devices slide in from the right edge, values roll (odometer counters), rings fill and the current
 step node pulses. Everything fits at 1920×1080 and 1280×720 (the rack scales with `--nza-zoom`).
 
+**Trauma kit tools (`Resus.kitTools`, default on).** The trauma kit carries the pelvic binder, the IO
+driver with its needle sets, lidocaine and the flush syringes, so steps 1-5 need no separate items
+(`pelvic_binder`, `io_kit`, `lidocaine`, `saline` are not checked or used) and run by themselves: the
+binder flies out of the open case and under the hips and tensions itself to the middle of the band;
+the IO driver comes out of the case, takes the first clear site, seats, drills to the marrow, the
+syringe draws back and the lidocaine and saline push themselves, and the driver goes back into the case.
+The medic only watches (Skip still works); the server still times each step (`minTime`). Set
+`kitTools = false` for separate items and the hands-on minigames described below.
+
 | # | Step | Server | Interaction |
 |---|---|---|---|
 | 1 | Bind the pelvis | `NZA.Proc 'binder'` (item `pelvic_binder`) | pick the binder up at the kit and let go over the *Under the hips* marker → `binder_flat` under the patient; grab the strap handle and draw it across the hips, release when the BT-3 ring turns teal (60–80 %, too slack / over-tight retries). → `devices.binder`, pelvic base bleed × (1 − 0.25 × quality), over-tight = pain; every client attaches `binder_worn` to SKEL_Pelvis from the state bag |

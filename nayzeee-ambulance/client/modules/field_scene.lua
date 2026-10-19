@@ -210,6 +210,34 @@ end
 -- IO DRIVER / SYRINGE PROPS
 -- ════════════════════════════════════════════════════════════════════════
 
+-- Resus.kitTools: the binder and the IO driver come out of the open trauma case and go back
+local function kitTools() return cfg('Resus').kitTools ~= false end
+
+-- just above the open trauma case (where tools come from / go back to)
+local function kitPos(s)
+    local k = s.props and s.props.kit
+    if k and k ~= 0 and DoesEntityExist(k) then return GetEntityCoords(k) + vector3(0.0, 0.0, 0.16) end
+    return nil
+end
+
+local function smooth01(f) f = U.clamp(f, 0.0, 1.0) return f * f * (3.0 - 2.0 * f) end
+
+-- move an entity from a to b over ms along a little arc (runs in its own thread)
+local function flyEntity(ent, a, b, ms, onDone)
+    CreateThread(function()
+        local t0 = GetGameTimer()
+        while ent and ent ~= 0 and DoesEntityExist(ent) do
+            local f = (GetGameTimer() - t0) / ms
+            local e = smooth01(f)
+            local p = a + (b - a) * e + vector3(0.0, 0.0, math.sin(math.min(f, 1.0) * math.pi) * 0.22)
+            SetEntityCoordsNoOffset(ent, p.x, p.y, p.z, false, false, false)
+            if f >= 1.0 then break end
+            Wait(0)
+        end
+        if onDone then onDone() end
+    end)
+end
+
 local function drillPose(s)
     local d = s.drill
     if not d or not d.ent or d.ent == 0 or not DoesEntityExist(d.ent) then return end
@@ -230,6 +258,19 @@ local function drillPose(s)
     local tip = p + vector3(0.0, 0.0, lift) + dir * ((tonumber(w.depth) or 0.0) / 1000.0)
     local pos = tip - dir * 0.108
     local target = { pos = pos, pitch = math.deg(math.asin(U.clamp(dir.z, -1.0, 1.0))), yaw = math.deg(math.atan(-dir.x, dir.y)) }
+    -- out of the trauma case first, then it follows the procedure
+    if d.from then
+        local f = (GetGameTimer() - d.t0) / 900.0
+        if f < 1.0 then
+            local e = smooth01(f)
+            local at = d.from + (target.pos - d.from) * e + vector3(0.0, 0.0, math.sin(f * math.pi) * 0.25)
+            SetEntityCoordsNoOffset(d.ent, at.x, at.y, at.z, false, false, false)
+            SetEntityRotation(d.ent, target.pitch * e, 0.0, target.yaw, 2, false)
+            d.cur = { pos = at, pitch = target.pitch * e, yaw = target.yaw }
+            return
+        end
+        d.from = nil
+    end
     d.cur = d.cur or target
     local k = 0.35
     d.cur.pos = d.cur.pos + (target.pos - d.cur.pos) * k
@@ -245,9 +286,11 @@ local function startDrill(s)
     local site = ioSite(s.site)
     if not site then return end
     local p = GetPedBoneCoords(s.entity, site.bone, site.offset.x, site.offset.y, site.offset.z)
-    local ok, ent = pcall(NZA.Props.Spawn, 'iodrill', vector3(p.x, p.y, p.z + 0.2), { group = 'field_scene', collision = false })
+    local from = kitTools() and kitPos(s) or nil
+    local at = from or vector3(p.x, p.y, p.z + 0.2)
+    local ok, ent = pcall(NZA.Props.Spawn, 'iodrill', at, { group = 'field_scene', collision = false })
     if not ok or not ent or ent == 0 then return end
-    local d = { ent = ent, want = { angle = 20, dx = 0.0, dy = 0.0, lift = 1.0, depth = 0 } }
+    local d = { ent = ent, want = { angle = 20, dx = 0.0, dy = 0.0, lift = 1.0, depth = 0 }, from = from, t0 = GetGameTimer() }
     s.drill = d
     CreateThread(function()
         while S == s and s.drill == d and not s.ended do
@@ -259,8 +302,16 @@ end
 
 local function stopDrill(s)
     if not s.drill then return end
-    del(s.drill.ent)
+    local d = s.drill
     s.drill = nil
+    -- the driver goes back into the trauma case
+    local back = kitTools() and kitPos(s) or nil
+    if back and d.ent and d.ent ~= 0 and DoesEntityExist(d.ent) then
+        SetEntityRotation(d.ent, 0.0, 0.0, GetEntityHeading(d.ent), 2, false)
+        flyEntity(d.ent, GetEntityCoords(d.ent), back, 800, function() del(d.ent) end)
+        return
+    end
+    del(d.ent)
 end
 
 local function placeSyringe(s)
@@ -738,8 +789,12 @@ NZA.UI.On(APP, 'binderDrop', function(_, cb)
     del(s.props.flat)
     local fr = s.frame
     local z = F.Ground(fr.pelvis) + 0.012
-    local ok, ent = pcall(NZA.Props.Spawn, 'binder_flat', vector3(fr.pelvis.x, fr.pelvis.y, z), { group = 'field_scene', heading = F.HeadingX(fr.side), collision = false })
+    local to = vector3(fr.pelvis.x, fr.pelvis.y, z)
+    local from = kitTools() and kitPos(s) or nil
+    local ok, ent = pcall(NZA.Props.Spawn, 'binder_flat', from or to, { group = 'field_scene', heading = F.HeadingX(fr.side), collision = false })
     s.props.flat = ok and ent or 0
+    -- out of the trauma case and under the hips
+    if from and s.props.flat ~= 0 then flyEntity(s.props.flat, from, to, 1000) end
     cb({ ok = true })
 end)
 
