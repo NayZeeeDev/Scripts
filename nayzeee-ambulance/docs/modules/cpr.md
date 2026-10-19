@@ -10,7 +10,7 @@ ROSC and a scored debrief. The server owns every clinical decision.
 | `server/modules/cpr.lua` | the code (one per patient): phase machine, validation, callbacks, net events, tick, records, billing, exports |
 | `server/modules/cpr_logic.lua` | pure maths `NZA.Cpr.Logic`: compression / breath quality, ROSC chance, rhythm evolution, Hs & Ts, score |
 | `client/modules/cpr.lua` | interact options, exam route, radial item, start / join, NUI ⇄ server relay, cleanup |
-| `client/modules/cpr_scene.lua` | world side `NZA.Cpr.Scene`: synced anims, NPC patient control, bed mode, BVM / defib case props, camera, pad anchors, player-patient pose |
+| `client/modules/cpr_scene.lua` | world side `NZA.Cpr.Scene`: kneel-beside-the-chest (or synced) anims, NPC patient control, bed mode, BVM / defib case props, camera, pad anchors, player-patient pose |
 | `config/modules/cpr.lua` | `Config.Cpr` |
 | `locales/en/cpr.lua` | `cpr.*` strings (server, client and every NUI string) |
 | `html/apps/cpr/app.js · app.css` | NUI app `cpr` |
@@ -22,9 +22,13 @@ ROSC and a scored debrief. The server owns every clinical decision.
   position"). Also from the **Examination** screen (`NZA.ExamRoutes` id `cpr`, first button on every
   injury card while the patient is in arrest), the EMS radial (**Patient ▸ Start CPR** on the nearest
   patient in arrest) and by **using the defibrillator item** next to the patient.
-- **Synced animation**: medic `mini@cpr@char_a@cpr_str cpr_pumpchest` and patient
-  `mini@cpr@char_b` at one origin (intro, pump, idle, kiss-of-life, success). The pump clip runs at
-  the medic's real compression rate. NPC patients are animated by the compressor (network control);
+- **Kneel beside the chest** (`Anim.placement = 'side'`, default): the patient's
+  `mini@cpr@char_b` clip plays in place first, then the medic kneels beside the chest - the spot
+  comes from the patient's bones (spine3 + `Anim.kneel.side`, on the side the medic walked up on,
+  facing the chest) - and plays `mini@cpr@char_a` in place (intro, pump, idle, kiss-of-life,
+  success). If the body moves more than `Anim.kneel.drift` from the medic (a player's pose arriving
+  late, someone shifting the patient) the medic re-kneels. `placement = 'synced'` plays both clips at
+  one shared origin instead (`Anim.origin`). The pump clip runs at the medic's real compression rate. NPC patients are animated by the compressor (network control);
   player patients lay themselves flat from the server event `nza:cpr:pose` (the wounded downed pose
   is suspended with `NZA.Wounded.SuspendPose('cpr')`). Patients on a **bed / stretcher / in the
   ambulance bay** are never moved: the medic stands beside them (`Anim.bed`).
@@ -115,7 +119,10 @@ bottom-centre, the scene keeps the centre.
   PULSE keys on the right. The pad map (torso + two draggable pads) is drawn on the screen.
 - **Bottom left**: the shared procedure HUD (`NZA.ui.ProcPanel`): readout dial (rate, or the cycle
   timer for the airway role) with depth / recoil / quality (airway role: ventilation / breaths /
-  EtCO₂), the step card with named steps (Compressions · Breaths · Rhythm check · Charge · Shock),
+  EtCO₂), the step card with four steps for the loop (CPR · 30 pushes, 2 breaths → Rhythm check → Shock if
+  advised → Pulse back; pushes and breaths are one step, so the rail only goes back to step 1 after a
+  check or a shock) and a **Next** line that says what ends the cycle (put the pads on / no
+  defibrillator here / rhythm check in m:ss / rhythm check now),
   the metronome card at `pp.slot` (ring, depth tube, timing bars; breaths: hold ring + chest rise; a
   status panel replaces the bars for hands-off moments and shows the partner's rate / quality), key
   hints. The tool belt and hold-to-stop ring sit on the right edge.
@@ -154,7 +161,7 @@ bottom-centre, the scene keeps the centre.
 `Defib { perm aedPerm items bay hospital hospitalRadius energies energy aedEnergies analyseTime chargeTime chargedFor clearWindow rescuerShock { ragdoll health efficacy } prop propOffset }` ·
 `Pads { snap sternum apex lift }` ·
 `Rosc { shockBase peaBase asystoleBase max energy adrenaline noAdrenaline lowFlowDecay noFlowDecay minTime ventilation asystoleToVf peaToVf degrade causes { hypovolemia tension tamponade haemothorax hypothermia hypoxia airway toxins } rearrestWatch }` ·
-`Anim { medic patient bed helper helperBed helperDist npcRest origin baseRate introMs patientPose }` ·
+`Anim { medic patient bed helper helperBed helperDist npcRest placement kneel { side along drift } origin baseRate introMs patientPose }` ·
 `Camera { enabled dist pitch fov }` · `record` · `Billing { rosc shock }`.
 
 ## Server API
@@ -197,8 +204,9 @@ stand-in for the server).
 ## Known limits
 
 - The CPR / kneel animation dicts are base-game (`mini@cpr@…`, `missheistfbi3b_ig8_2`,
-  `amb@medic@…`); the synced origin (`Anim.origin`, default ground + 1.0 m, medic heading) may need a
-  small z tweak for some ped models. Pad target positions come from bones (`Pads.*`).
+  `amb@medic@…`); with `placement = 'side'` the kneel distance (`Anim.kneel.side`, 0.55 m) may need a
+  small tweak for some ped models; with `'synced'` the origin (`Anim.origin`, default ground + 1.0 m,
+  medic heading) may need a small z tweak. Pad target positions come from bones (`Pads.*`).
 - The ECG trace is the shared `NZA.vitals.Trace`; it does not draw CPR compression artefacts.
 - Client-side only medics see the device; bystanders see the animations and the props.
 - Verified with the browser preview (all states, 1920×1080 and 1280×720) and stubbed-native Lua smoke

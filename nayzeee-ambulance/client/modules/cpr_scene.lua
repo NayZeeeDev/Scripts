@@ -16,9 +16,15 @@
       Scene.Pose({ on, origin, mode, rate })      from the server event 'nza:cpr:pose'
       Scene.PoseStop()
 
-    Synced pair: medic Config.Cpr.Anim.medic (mini@cpr@char_a) and patient Config.Cpr.Anim.patient
-    (mini@cpr@char_b) both play with TaskPlayAnimAdvanced at the same origin. Patients on a bed /
-    stretcher / in the bay are never moved: the medic stands beside them (Config.Cpr.Anim.bed).
+    Placement (Config.Cpr.Anim.placement):
+      'side'    (default) the patient's clip (mini@cpr@char_b) plays in place first, then the medic
+                kneels beside the chest - the spot comes from the patient's bones (spine3 + side
+                offset, Config.Cpr.Anim.kneel), facing the chest - and plays mini@cpr@char_a in
+                place. Works whatever way the body lies and whether or not we own the NPC; if the
+                body moves under the medic (late pose sync, someone shifts it) the medic re-kneels.
+      'synced'  both clips play with TaskPlayAnimAdvanced at one shared origin (Scene.Origin).
+    Patients on a bed / stretcher / in the bay are never moved: the medic stands beside them
+    (Config.Cpr.Anim.bed).
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -35,6 +41,7 @@ local GROUP_BVM, GROUP_CASE = 'cpr_bvm', 'cpr_case'
 local function cfg() return Config.Cpr or {} end
 local function sub(name) return cfg()[name] or {} end
 local function animCfg() return sub('Anim') end
+local function synced() return animCfg().placement == 'synced' end
 
 local function v3(t, def)
     if type(t) == 'vector3' then return t end
@@ -129,16 +136,27 @@ local function helperSpot(patient, bed)
     return vector3(pos.x, pos.y, z), GetHeadingFromVector_2d(-dir.x, -dir.y)
 end
 
--- a medic doing CPR at a bed / stretcher stands beside the chest, on the side they are on
-local function bedSpot(patient)
+-- beside the chest on the side the medic is on, facing it: `dist` metres out, `along` towards the head
+local function chestSide(patient, dist, along)
     local chest = bone(patient, BONE.spine3)
     local axis = bodyAxis(patient)
     local side = vector3(-axis.y, axis.x, 0.0)
     local me = GetEntityCoords(PlayerPedId())
     local toMe = me - chest
     if toMe.x * side.x + toMe.y * side.y < 0 then side = -side end
-    local pos = chest + side * (tonumber((animCfg().bed or {}).side) or 0.65)
+    local pos = chest + side * dist + axis * (along or 0.0)
     return vector3(pos.x, pos.y, me.z), GetHeadingFromVector_2d(-side.x, -side.y)
+end
+
+-- a medic doing CPR at a bed / stretcher stands beside the chest
+local function bedSpot(patient)
+    return chestSide(patient, tonumber((animCfg().bed or {}).side) or 0.65, 0.0)
+end
+
+-- ...and kneels beside it on the ground ('side' placement)
+local function kneelSpot(patient)
+    local k = animCfg().kneel or {}
+    return chestSide(patient, tonumber(k.side) or 0.55, tonumber(k.along) or 0.0)
 end
 
 local function moveTo(ped, pos, heading)
@@ -198,7 +216,21 @@ local function npcPatient(a)
     return a.npc and a.entity and a.entity ~= 0 and DoesEntityExist(a.entity) and not IsPedAPlayer(a.entity)
 end
 
--- compressor: kneel at the synced origin (or stand at the bed) and run the pump / idle clips
+-- 'side': lay an NPC patient in the CPR pose (in place) first, so its bones are where the body
+-- stays; a player patient poses itself (nza:cpr:pose), give that a moment to reach us
+local function settlePatient(a)
+    if npcPatient(a) then
+        if requestControl(a.entity, 800) and play(a.entity, patientAnim('idle'), nil, true, 8.0) then
+            a.panim = patientAnim('idle')
+        end
+        Wait(300)
+    elseif not a.npc then
+        Wait(600)
+    end
+end
+
+-- compressor: kneel beside the chest (or at the synced origin, or stand at the bed) and run the
+-- pump / idle clips
 local function enterComp(a, intro)
     local me = PlayerPedId()
     a.mode = nil
@@ -209,6 +241,17 @@ local function enterComp(a, intro)
         return
     end
     local A = animCfg()
+    if not synced() then
+        settlePatient(a)
+        local pos, h = kneelSpot(a.entity)
+        moveTo(me, pos, h)
+        a.kneeling = true
+        if intro and play(me, (A.medic or {}).intro, nil, false, 8.0) then
+            a.introUntil = GetGameTimer() + (tonumber(A.introMs) or 1800)
+        end
+        Sc.SetMode(a, 'idle')
+        return
+    end
     if intro and play(me, (A.medic or {}).intro, a.origin, false, 8.0) then
         if npcPatient(a) and requestControl(a.entity, 800) then play(a.entity, patientAnim('intro'), a.origin, false, 8.0) end
         a.introUntil = GetGameTimer() + (tonumber(A.introMs) or 1800)
@@ -218,7 +261,7 @@ end
 
 local function enterAir(a)
     local me = PlayerPedId()
-    a.mode = nil
+    a.mode, a.kneeling = nil, false
     local pos, h = helperSpot(a.entity, a.bed)
     moveTo(me, pos, h)
     local A = animCfg()
@@ -235,15 +278,12 @@ function Sc.SetMode(a, mode)
     local anim = medicAnim(a, mode)
     if not anim and mode == 'breath' then anim = medicAnim(a, 'idle') end
     local loop = mode ~= 'success'
-    if a.bed then
-        play(me, anim, nil, loop)
-    else
-        play(me, anim, a.origin, loop)
-    end
+    local at = (not a.bed and synced()) and a.origin or nil
+    play(me, anim, at, loop)
     a.mode, a.anim = mode, anim
     if npcPatient(a) and not a.bed and NetworkHasControlOfEntity(a.entity) then
         local pa = patientAnim(mode == 'breath' and 'breath' or mode) or patientAnim('idle')
-        if play(a.entity, pa, a.origin, loop) then a.panim = pa end
+        if play(a.entity, pa, at, loop) then a.panim = pa end
     end
 end
 
@@ -359,6 +399,8 @@ end
 function Sc.Tick(a)
     local me = PlayerPedId()
     local now = GetGameTimer()
+    -- kneeling right against the body: the two capsules must not shove the medic off the chest
+    if a.kneeling and a.entity and DoesEntityExist(a.entity) then SetEntityNoCollisionEntity(me, a.entity, true) end
     if a.introUntil and now >= a.introUntil then
         a.introUntil = nil
         Sc.SetMode(a, a.pending or 'idle')
@@ -394,7 +436,16 @@ function Sc.Tick(a)
                 NetworkRequestControlOfEntity(a.entity)
             else
                 local want = patientAnim(a.mode == 'breath' and 'breath' or (a.mode or 'idle')) or patientAnim('idle')
-                if not playing(a.entity, want) and play(a.entity, want, a.origin, true) then a.panim = want end
+                if not playing(a.entity, want) and play(a.entity, want, synced() and a.origin or nil, true) then a.panim = want end
+            end
+        end
+        -- 'side': stay beside the chest (a player's pose can arrive late, or the body gets moved)
+        if a.role == 'comp' and a.kneeling and not a.bed and not a.introUntil and a.mode ~= 'success' and not IsPedRagdoll(me) then
+            local pos, h = kneelSpot(a.entity)
+            local mc = GetEntityCoords(me)
+            if #(vector2(pos.x, pos.y) - vector2(mc.x, mc.y)) > (tonumber((animCfg().kneel or {}).drift) or 0.35) then
+                SetEntityCoordsNoOffset(me, pos.x, pos.y, mc.z, false, false, false)
+                SetEntityHeading(me, h)
             end
         end
         if not a.padsAt or now - a.padsAt > 1500 then trackPads(a) end
@@ -426,7 +477,7 @@ function Sc.Leave(a)
 end
 
 -- ════════════════════════════════════════════════════════════════════════
--- PATIENT SIDE (a player patient lies flat in the synced pose)
+-- PATIENT SIDE (a player patient lies flat in the CPR pose)
 -- ════════════════════════════════════════════════════════════════════════
 
 local pose = nil   -- { origin, mode, rate, anim }
@@ -461,7 +512,8 @@ function Sc.Pose(d)
     if first then
         suspendWounded(true)
         local me = PlayerPedId()
-        if play(me, poseAnim('intro'), origin, false, 8.0) then pose.introUntil = GetGameTimer() + (tonumber(animCfg().introMs) or 1800) end
+        -- 'side' placement: in place and no intro, so the body stays where the medic kneels beside it
+        if synced() and play(me, poseAnim('intro'), origin, false, 8.0) then pose.introUntil = GetGameTimer() + (tonumber(animCfg().introMs) or 1800) end
         CreateThread(function()
             while pose do
                 local p = pose
@@ -473,7 +525,7 @@ function Sc.Pose(d)
                     p.introUntil = nil
                     local want = poseAnim(p.mode)
                     if (p.anim ~= want or not playing(me2, want)) and not IsPedRagdoll(me2) and (not p.retryAt or now >= p.retryAt) then
-                        play(me2, want, p.origin, true)
+                        play(me2, want, synced() and p.origin or nil, true)
                         p.anim = want
                         p.retryAt = now + 500
                     end

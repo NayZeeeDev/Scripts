@@ -233,10 +233,17 @@ Config.Cpr = {
         helperBed = { 'amb@medic@standing@timeofdeath@base', 'base' }, -- ...or stands at the head of a bed
         helperDist = 0.55,       -- metres beyond the patient's head
         npcRest  = { 'dead', 'dead_a' },   -- an NPC patient lies like this after CPR
-        origin   = { x = 0.0, y = 0.0, z = 1.0, h = 0.0 }, -- scene origin from the patient's ground spot (raise z if peds sink)
+        placement = 'side',      -- 'side': the medic kneels beside the patient's chest (spot from the patient's bones),
+                                 -- both clips play in place; 'synced': both clips at one shared origin (below)
+        kneel    = {             -- 'side' placement
+            side  = 0.55,        -- metres from the chest out to where the medic kneels (more = further away)
+            along = 0.0,         -- metres towards the head (negative = towards the hips)
+            drift = 0.35,        -- the medic re-kneels when the body moved this far away from them
+        },
+        origin   = { x = 0.0, y = 0.0, z = 1.0, h = 0.0 }, -- 'synced': scene origin from the patient's ground spot (raise z if peds sink)
         baseRate = 105,          -- compressions per minute the pump clip plays at normal speed
         introMs  = 1800,         -- ms of the kneel-down intro before the first compression
-        patientPose = true,      -- lay a player patient flat in the synced pose (off: their downed pose stays)
+        patientPose = true,      -- lay a player patient flat in the CPR pose (off: their downed pose stays)
     },
 
     Camera = {

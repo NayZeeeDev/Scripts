@@ -397,6 +397,7 @@
      opts.skipped [n…] (1-based step numbers) draws those spine nodes as skipped (dashed);
      pp.set({ skipped }) updates them. total <= 1 hides the spine and the body takes the full width.
      pp.set() replays the title/text swap only when title, text or titleTone actually change.
+     opts.next (rich text) replaces the 'Next: <following step>' line; '' hides it, undefined goes back to steps[step].
      pp.flash(type, text, ms) shows a note under the text; pp.flash(null) / pp.clearFlash() hides it at once. */
   const TOOL_ICONS = [
     [/saline|flush|irrigat|water|rinse|cool/i, 'drop'], [/lido|syringe|inject|txa|adrenal|epi|amio|naloxone|morphine|push|dose|cuff syr/i, 'syringe'],
@@ -462,8 +463,10 @@
       root.classList.toggle('pp--flat', total <= 1);
       q('.pp-tag').textContent = o.tag || '';
       const nx = q('.pp-next');
-      const name = Array.isArray(o.steps) ? o.steps[step] : null;
-      nx.innerHTML = name ? `<span>${esc(t('ui.next', 'Next'))}</span>${esc(name)}` : '';
+      // o.next (rich text) replaces the name of the following step, e.g. 'Rhythm check in 1:24'
+      const own = typeof o.next === 'string';
+      const name = own ? o.next : (Array.isArray(o.steps) ? o.steps[step] : null);
+      nx.innerHTML = name ? `<span>${esc(t('ui.next', 'Next'))}</span>${own ? rich(name) : esc(name)}` : '';
       nx.style.display = name ? '' : 'none';
     }
     function renderText() {
@@ -559,7 +562,7 @@
       el: root,
       set(n) {
         const prev = o; o = Object.assign({}, o, n);
-        if ('step' in n || 'total' in n || 'tag' in n || 'steps' in n || 'skipped' in n) renderStep();
+        if ('step' in n || 'total' in n || 'tag' in n || 'steps' in n || 'skipped' in n || 'next' in n) renderStep();
         // only a real change replays the text swap (apps that re-send the same title/tone every tick stay still)
         if (('title' in n && n.title !== prev.title) || ('text' in n && n.text !== prev.text) || ('titleTone' in n && n.titleTone !== prev.titleTone)) renderText();
         if ('stats' in n || 'wide' in n) renderStats();

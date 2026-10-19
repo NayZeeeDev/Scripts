@@ -54,7 +54,7 @@
     pads_title: 'Pad placement', pads_text: 'Drag each pad onto the chest. **Sternum**: under the right collarbone. **Apex**: left side, below the armpit. {%s} sticks both.',
     pad_r: 'STERNUM', pad_l: 'APEX', pad_wrong: 'Wrong spot: that is where the %s pad goes.', pad_ok: '%s pad on.', pads_done: 'Both pads on. Reading the rhythm.',
     // procedure HUD
-    pp_compress: 'Compress the chest', pp_compress_t: 'Press {%s} as the metronome hand crosses the top: 100 to 120 a minute, 5 to 6 cm deep, let the chest rise fully. 30 pushes, then 2 breaths.',
+    pp_compress: 'Compress the chest', pp_compress_t: 'Press {%s} each time the hand crosses the top. **30 pushes, then 2 breaths**, and again, until the rhythm check. CPR ends when the pulse comes back.',
     pp_compress_easy: 'Easy mode: press {%s} once and the compressions keep time by themselves.',
     pp_partner: 'Your partner is compressing', pp_partner_t: 'Put the pads on, analyse every 2 minutes, charge, shock and give adrenaline. Swap with {%s} when they tire.',
     pp_breaths: 'Give %s breaths', pp_breaths_1: 'Give the last breath', pp_breaths_bvm: 'Hold {%s} about 1 second per breath on the bag and watch the chest rise.',
@@ -69,7 +69,10 @@
     pp_cont: 'Continuous compressions', pp_cont_t: 'Intubated and ventilated: push without pauses, {%s} with the metronome.',
     s_depth: 'Depth', s_recoil: 'Recoil', s_quality: 'Quality', s_vent: 'Ventilation', s_breaths: 'Breaths', s_etco2: 'EtCO₂', w_rate: 'Rate', w_cycle: 'Cycle %s',
     cap_check: 'Rhythm check in %s', cap_due: 'Rhythm check due: analyse', cap_adr_due: 'Adrenaline due', tag_cycle: 'CPR · cycle %s', tag_easy: 'CPR · easy mode',
-    st_push: 'Compressions', st_breathe: 'Breaths', st_analyse: 'Rhythm check', st_charge: 'Charge', st_shock: 'Shock',
+    st_cycle: 'CPR · 30 pushes, 2 breaths', st_analyse: 'Rhythm check', st_shock: 'Shock if advised', st_rosc: 'Pulse back',
+    nx_pads: 'Put the pads on {%s}. Without them there is no rhythm check.', nx_no_defib: 'No defibrillator here: bring one (or a trauma kit) for the rhythm check.',
+    nx_check: 'Rhythm check in %s', nx_due: 'Rhythm check now: press {%s}', nx_breaths: '30 more pushes · rhythm check in %s',
+    nx_analyse: 'Shock if advised, otherwise straight back to CPR', nx_shock: 'Straight back to CPR after the shock',
     tool_pads: 'Pads', tool_analyse: 'Analyse', tool_charge: 'Charge', tool_disarm: 'Disarm', tool_shock: 'Shock', tool_adren: 'Adrenaline', tool_swap: 'Swap', tool_pulse: 'Pulse',
     hint_causes: 'Hs & Ts', hint_energy: 'energy', hint_orbit: 'orbit', hint_rmb: 'Right click', abort: 'Stop CPR',
     // metronome card (in the procedure column)
@@ -354,7 +357,7 @@
     if (pp) pp.destroy();
     st.ppText = '';
     pp = NZA.ui.ProcPanel(root.querySelector('.cp-wrap'), {
-      step: 1, total: 5, tag: T('tag_cycle', 1), title: T('pp_compress'), text: '', steps: stepNames(), abort: { label: T('abort'), key: 'ESC', seconds: 1.2 },
+      step: 1, total: 4, tag: T('tag_cycle', 1), title: T('pp_compress'), text: '', steps: stepNames(), abort: { label: T('abort'), key: 'ESC', seconds: 1.2 },
       hints: [{ keys: [keyLabel(st.keys.causes)], label: T('hint_causes') }],
       onAbort: () => { if (!st.ended) post('leave'); }, onTool: k => toolKey(k),
     });
@@ -371,7 +374,8 @@
     cancelAnimationFrame(st.raf);
     st.raf = requestAnimationFrame(frame);
   }
-  const stepNames = () => [T('st_push'), T('st_breathe'), T('st_analyse'), T('st_charge'), T('st_shock')];
+  // one step per stage of the loop: 30:2 cycles → rhythm check → shock if advised → (back to cycles) … pulse back
+  const stepNames = () => [T('st_cycle'), T('st_analyse'), T('st_shock'), T('st_rosc')];
   function beatFlash() { const h = $('#cpNHr'); if (!h) return; h.classList.remove('beat'); void h.offsetWidth; h.classList.add('beat'); }
 
   function close() {
@@ -681,7 +685,19 @@
   }
 
   /* ─────────────── procedure HUD ─────────────── */
-  function stepOf(ph) { return ({ compress: 1, breaths: 2, analyse: 3, advised: 4, charging: 4, charged: 5, rosc: 5 })[ph] || 1; }
+  // pushes and breaths are one step (the 30:2 cycle), so the rail does not jump 1 → 2 → 1 every set
+  function stepOf(ph) { return ({ compress: 1, breaths: 1, analyse: 2, advised: 3, charging: 3, charged: 3, rosc: 4 })[ph] || 1; }
+  // the 'Next' line: what ends this cycle and when (pads first: no pads, no rhythm check, no pulse back)
+  function nextLine(v) {
+    const ph = v.phase;
+    if (ph === 'rosc') return '';
+    if (ph === 'analyse') return T('nx_analyse');
+    if (ph === 'advised' || ph === 'charging' || ph === 'charged') return T('nx_shock');
+    if (!v.pads) return v.defib ? T('nx_pads', keyLabel(st.keys.pads)) : T('nx_no_defib');
+    if (checkDue()) return T('nx_due', keyLabel(st.keys.analyse));
+    const left = NZA.fmt.time(Math.max(0, (v.cycleLength || st.cfg.cycleLength) - cycleElapsed()));
+    return ph === 'breaths' && !v.continuous ? T('nx_breaths', left) : T('nx_check', left);
+  }
   function renderPP(force) {
     if (!pp) return;
     const v = v_();
@@ -732,11 +748,12 @@
 
     const tools = toolList();
     const tag = st.easy ? T('tag_easy') : T('tag_cycle', v.cycleNo || 1);
-    const sig = JSON.stringify([stepOf(ph), title, text, tone, stats, wide, tools, tag]);
+    const next = nextLine(v);
+    const sig = JSON.stringify([stepOf(ph), title, text, tone, stats, wide, tools, tag, next]);
     if (!force && sig === st.lastPP) return;
     st.lastPP = sig;
     const upd = {
-      step: stepOf(ph), total: 5, steps: stepNames(), tag, stats, wide, tools,
+      step: stepOf(ph), total: 4, steps: stepNames(), next, tag, stats, wide, tools,
       hints: [{ keys: [keyLabel(st.keys.causes)], label: T('hint_causes') }].concat(v.mode === 'manual' ? [{ keys: [keyLabel(st.keys.energyDown), keyLabel(st.keys.energyUp)], label: T('hint_energy') }] : [], tools.length <= 4 ? [{ keys: [T('hint_rmb')], label: T('hint_orbit') }] : []),
     };
     // only hand the text over when it changed: the kit replays its swap-in animation on every text update
