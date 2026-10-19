@@ -226,6 +226,7 @@
       case 'toast': return toast(data);
       case 'speech': return speech(data);
       case 'captions': return captions(data);
+      case 'proc': procPausable = !(data && data.pausable === false); pauseArmers.forEach(fn => { try { fn(); } catch (e) { /* panel gone */ } }); return;
       case 'captionsStop': return captionsStop();
       case 'prompt': return prompt(data.id || 'default', data);
       case 'promptHide': return promptHide(data.id || 'default');
@@ -554,6 +555,11 @@
     return `<span class="mono">${esc((words[0][0] + (words[1] ? words[1][0] : '')).toUpperCase())}</span>`;
   }
 
+  // "Step away" is offered only while the running procedure can be parked (Lua '_core' 'proc' { pausable });
+  // the browser preview (no Lua) keeps it on
+  let procPausable = true;
+  const pauseArmers = new Set();
+
   function ProcPanel(host, opts = {}) {
     const root = el('div', `pp${opts.side === 'right' ? ' pp--mirror' : ''}`);
     host.appendChild(root);
@@ -739,7 +745,9 @@
     function armPause() {
       const pz = q('.pp-pause');
       if (pauseKey) { window.removeEventListener('keydown', pauseKey, true); pauseKey = null; }
-      const on = typeof o.pause === 'function';
+      const on = typeof o.pause === 'function' && procPausable;
+      pausing = false;
+      pz.classList.remove('on');
       pz.style.display = on ? '' : 'none';
       syncBelt();
       if (!on) return;
@@ -755,6 +763,7 @@
       window.addEventListener('keydown', pauseKey, true);
     }
     renderStep(); renderText(); renderStats(); renderTools(); renderHints(); armAbort(); armPause();
+    pauseArmers.add(armPause);
 
     const api = {
       el: root,
@@ -814,7 +823,7 @@
       },
       // a container in the column (above the key legend) for app widgets
       get slot() { return q('.pp-bot'); },
-      destroy() { if (hold) hold.destroy(); if (pauseKey) window.removeEventListener('keydown', pauseKey, true); clearTimeout(flashTimer); root.remove(); },
+      destroy() { if (hold) hold.destroy(); pauseArmers.delete(armPause); if (pauseKey) window.removeEventListener('keydown', pauseKey, true); clearTimeout(flashTimer); root.remove(); },
     };
     return api;
   }

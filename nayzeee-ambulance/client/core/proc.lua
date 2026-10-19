@@ -261,10 +261,14 @@ function Proc.Run(name, target, payload, runner, opts)
     ctx.label = label
     ctx.resumed = resp.resumed == true
     ctx.resume = ctx.resumed and ctx.data.resume or nil
+    ctx.pausable = resp.pausable == true
+    -- the procedure HUD shows "Step away" only while the running procedure can be parked
+    NZA.UI.Send('_core', 'proc', { pausable = ctx.pausable and not ctx.easy })
     if ctx.resumed and not opts.silent then toast('info', label, NZA.L('core_client.proc.resumed')) end
 
     local function close(ok, outcome, reason)
         if active == ctx then active = nil end
+        NZA.UI.Send('_core', 'proc', { pausable = false })
         for _, fn in ipairs(endFns) do
             local s, err = pcall(fn, ok and outcome or nil, reason)
             if not s then NZA.Warn('proc onEnd failed: ' .. tostring(err)) end
@@ -422,8 +426,8 @@ CreateThread(function()
             cb({ ok = false })
             return
         end
-        cb({ ok = true })
-        CreateThread(function() ctx.pause(data.snapshot) end)
+        -- answer with the real result: a refused pause gives the HUD its button back
+        CreateThread(function() cb({ ok = ctx.pause(data.snapshot) == true }) end)
     end)
 end)
 

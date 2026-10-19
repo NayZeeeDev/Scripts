@@ -109,14 +109,15 @@
 
 /* ─────────── TICKET STUB (top-left while you wait) ─────────── */
 #app-checkin .ci-dockwrap{position:absolute;left:34px;top:30px;pointer-events:none}
-#app-checkin .tk-mini{width:206px;animation:ci-in-d 300ms cubic-bezier(.2,.8,.2,1) both}
+@keyframes tk-in{from{opacity:0;transform:rotate(-1.6deg) translateY(-14px)}to{opacity:1;transform:rotate(-1.6deg)}}
+#app-checkin .tk-mini{width:206px;animation:tk-in 300ms cubic-bezier(.2,.8,.2,1) both}
 #app-checkin .tk-mini.still{animation:none}
 #app-checkin .tk-mini .tk-paper{padding:9px 13px 9px}
 #app-checkin .tk-mh{display:flex;align-items:center;justify-content:space-between}
 #app-checkin .tk-mh small{font-size:8.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--pink-2)}
 #app-checkin .tk-mp{padding:1px 5px;border:1.5px solid var(--tc);color:var(--tc);font:700 10px/1.1 var(--mono)}
 #app-checkin .tk-mn{margin:5px -13px 0;padding:4px 0 3px;text-align:center;background:var(--pink);color:var(--paper);font:700 26px/1 var(--mono);letter-spacing:.04em}
-#app-checkin .tk-ml{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:7px;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--pink-2);white-space:nowrap}
+#app-checkin .tk-ml{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:3px 8px;margin-top:7px;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--pink-2);white-space:nowrap}
 #app-checkin .tk-ml b{color:var(--pink);font-weight:700;font-variant-numeric:tabular-nums}
 #app-checkin .tk-ml .go{display:inline-flex;align-items:center;gap:5px;font-weight:800;color:#08877d}
 #app-checkin .tk-ml .go i{width:6px;height:6px;border-radius:50%;background:#08877d;animation:nza-blink 1s steps(1) infinite}
@@ -140,6 +141,8 @@ body.nza-bed-ai #app-checkin .ci-dockwrap{opacity:0;transition:opacity .4s}
 #app-checkin .ci-st.red{--rc:#ff6b70;--rg:rgba(229,72,77,.55)}
 #app-checkin .ci-st.amber{--rc:#f3c35a;--rg:rgba(229,165,10,.5)}
 #app-checkin .ci-st.white{--rc:#fff;--rg:rgba(255,255,255,.4)}
+#app-checkin .ci-ring.sm{width:54px;height:54px}
+#app-checkin .ci-ring.sm .ci-rc.ic .nz-ic{width:20px;height:20px}
 #app-checkin .ci-ring.xs{width:44px;height:44px;color:var(--ink-2)}
 #app-checkin .ci-ring.xs .ci-rc.ic .nz-ic{width:17px;height:17px}
 #app-checkin .ci-stt span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}

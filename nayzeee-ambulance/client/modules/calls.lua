@@ -948,9 +948,11 @@ CreateThread(function()
                 end
                 sprayShown = spraying
                 local a = nil
-                -- [E] only without a third eye (with one: the zones above and 'Cut free' on the ped)
-                if not busy and not IsPedInAnyVehicle(PlayerPedId(), false) and NZA.UI.WorldPrompts() then
+                -- [E] only without a third eye (with one: the zones above and 'Cut free' on the ped);
+                -- nearestAction still runs either way for its "this fire needs an extinguisher" warning
+                if not busy and not IsPedInAnyVehicle(PlayerPedId(), false) then
                     if frames % 10 == 1 then a = nearestAction(me) else a = shown end
+                    if not NZA.UI.WorldPrompts() then a = nil end
                 end
                 if a then
                     local label = a.kind == 'cut' and L('calls.cut_engine') or (a.kind == 'smother' and L('calls.smother') or L('calls.opt_extricate'))

@@ -233,10 +233,11 @@ local function sendState(state, force)
     if not force and (snapshot == state.lastSent or now - (state.lastAt or 0) < 90) then return end
     state.lastSent, state.lastAt = snapshot, now
     NZA.UI.Send(APP, 'state', {
-        heading = state.shownHeading, height = state.height, dist = state.dist, max = state.max,
-        valid = state.valid, reason = state.reason, snap = state.snap, snapStep = bcfg().snapAngle or 15.0,
-        coords = state.pos and { x = state.pos.x, y = state.pos.y, z = state.pos.z } or nil,
-        keys = k, phase = state.phase, pose = state.poseLabel, target = state.target,
+        heading = state.shownHeading, height = state.height, dist = state.dist or -1, max = state.max,
+        -- nil-able fields go as false/-1: the HUD merges states, so a missing key would keep the old value
+        valid = state.valid, reason = state.reason or false, snap = state.snap, snapStep = bcfg().snapAngle or 15.0,
+        coords = state.pos and { x = state.pos.x, y = state.pos.y, z = state.pos.z } or false,
+        keys = k, phase = state.phase or false, pose = state.poseLabel or false, target = state.target == true,
     })
 end
 
@@ -555,16 +556,17 @@ function C.PlaceBed(opts)
                 end
                 NZA.UI.Send(APP, 'flash', { reason = state.reason })
                 PlaySoundFrontend(-1, 'ERROR', 'HUD_FRONTEND_DEFAULT_SOUNDSET', true)
+            elseif cancelPressed() then
+                -- ESC also fires the back control (177): test cancel first so ESC leaves
+                reason = 'cancel'
+                break
             elseif IsDisabledControlJustPressed(0, CTRL.back) then
-                -- pick another bed
+                -- Backspace: pick another bed
                 deleteGhost(ghost)
                 ghost, active.ghost = 0, 0
                 clearOutline(picked.ent)
                 picked = nil
                 state.phase, state.poseLabel = 'pick', nil
-            elseif cancelPressed() then
-                reason = 'cancel'
-                break
             end
         end
 

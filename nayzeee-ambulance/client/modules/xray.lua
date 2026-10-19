@@ -372,7 +372,12 @@ local function spawnTube(point, tableEnt)
             return
         end
         if ent == 0 then tubes[point.id] = nil return end
-        tubes[point.id] = { ent = ent, table = tableEnt, x = x, y = rest, gen = 0 }
+        local t = { ent = ent, table = tableEnt, x = x, y = rest, gen = 0 }
+        tubes[point.id] = t
+        -- where the last exposure left it (server GlobalState), read after the spawn so a slide during it counts
+        local reach = tonumber(tc.reach) or 1.0
+        local y0 = tonumber(GlobalState['nzaXrTube:' .. tostring(point.id)])
+        if y0 then placeTube(t, math.max(-reach, math.min(reach, y0))) end
     end)
 end
 

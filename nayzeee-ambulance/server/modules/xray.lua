@@ -911,7 +911,12 @@ RegisterNetEvent('nza:xray:tube', function(pointId, y)
     local now = GetGameTimer()
     if (tubeAt[src] or 0) > now then return end
     tubeAt[src] = now + 400
-    TriggerClientEvent('nza:xray:tube', -1, pointId, math.max(-1.2, math.min(1.2, y)), src)
+    local pt = NZA.Hospitals and NZA.Hospitals.Point and NZA.Hospitals.Point(pointId)
+    if not pt or pt.type ~= 'xray' then return end
+    y = math.max(-1.2, math.min(1.2, y))
+    -- remembered, so players who stream the room in later see the tube where it is
+    GlobalState:set('nzaXrTube:' .. pointId, y, true)
+    TriggerClientEvent('nza:xray:tube', -1, pointId, y, src)
 end)
 AddEventHandler('playerDropped', function() tubeAt[source] = nil end)
 

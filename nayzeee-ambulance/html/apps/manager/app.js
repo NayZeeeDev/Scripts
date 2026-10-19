@@ -843,7 +843,7 @@
       <div class="foot"><button class="btn-line btn-sm" data-a="cancel">${esc(T('cancel', 'Keep it'))}</button><button class="btn-teal btn-sm" data-a="savep">${icon('save')}${esc(T('save', 'Save'))}</button></div></div>`;
   }
 
-  const kindLabel = k => ({ prop: T('k_prop', 'Prop'), marker: T('k_marker', 'Marker'), car: T('k_car', 'Vehicle bay'), heli: T('k_heli', 'Helipad') }[k] || k);
+  const kindLabel = k => ({ prop: T('k_prop', 'Prop'), marker: T('k_marker', 'Marker'), car: T('k_car', 'Vehicle bay'), heli: T('k_heli', 'Helipad'), npc: T('k_npc', 'Staff NPC'), bed: T('k_bed', 'Bed') }[k] || k);
 
   function siteRow(p, editing) {
     const t = typeDef(p.type);

@@ -314,9 +314,11 @@ local function cardAllowed()
     return true
 end
 
--- false (default) = new calls arrive on the pager only; the call card never pops up for them
+-- false (default) = new calls arrive on the pager only; the call card never pops up for them.
+-- With the pager switched off (Config.Dispatch.pager.enabled = false) the card pops up as before.
 local function cardPopups()
-    return cfg('card', 'enabled', true) ~= false and cfg('card', 'popup', false) == true
+    if cfg('card', 'enabled', true) == false then return false end
+    return cfg('card', 'popup', false) == true or cfg('pager', 'enabled', true) == false
 end
 
 -- ── 911 recording as captions (bottom centre) ──
@@ -627,7 +629,8 @@ RegisterNetEvent('nza:dispatch:call', function(c, flags)
         else
             playCaptions(c)
             if not (D.HasPager and D.HasPager()) then
-                toast('info', 'dispatch.call_no_pager', c.title or '', c.street or c.zone or '')
+                resolveStreet(c)
+                toast('info', 'dispatch.call_no_pager', c.title or '', c.street or c.zone or L('dispatch.unknown_location'))
             end
         end
     end

@@ -56,6 +56,14 @@ local byMedic = {}    -- src → token
 local paused = {}     -- 'src:pid:name' → { snapshot, active (s), consumed, items, at (os.time) }
 
 local function pauseKey(src, pid, name) return ('%s:%s:%s'):format(tostring(src), tostring(pid), tostring(name)) end
+-- a parked session only resumes for the same payload (e.g. the same wound): flat values compared as text
+local function samePayload(a, b)
+    a = type(a) == 'table' and a or {}
+    b = type(b) == 'table' and b or {}
+    for k, v in pairs(a) do if type(v) ~= 'table' and tostring(b[k]) ~= tostring(v) then return false end end
+    for k, v in pairs(b) do if type(v) ~= 'table' and tostring(a[k]) ~= tostring(v) then return false end end
+    return true
+end
 local function pauseCfg() return Config.ProcPause or {} end
 local function peekPaused(key)
     local e = paused[key]
@@ -151,6 +159,7 @@ function Pr.Start(src, name, target, payload)
     -- carrying on after stepping away (Config.ProcPause): the saved state and the active time come back
     local resumeKey = pauseKey(src, p.pid, name)
     local resume = peekPaused(resumeKey)
+    if resume and not samePayload(resume.payload, payload) then resume = nil end   -- parked on another wound: leave it parked
 
     local items = Core.ResolveItems(def, src, p, payload)
     if not items then return fail('failed') end
@@ -189,7 +198,7 @@ function Pr.Start(src, name, target, payload)
         consumed = true
     end
 
-    paused[resumeKey] = nil
+    if resume then paused[resumeKey] = nil end
     local resumed = resume ~= nil and not easy
     local active = resumed and (tonumber(resume.active) or 0) or 0
     if resumed then
@@ -211,6 +220,7 @@ function Pr.Start(src, name, target, payload)
         maxDist = def.maxDist, label = def.label,
         allowDead = type(def.states) == 'table' and def.states.dead == true or nil,
         resumed = resumed or nil, elapsed = resumed and active or nil,
+        pausable = (pauseCfg().enabled ~= false and def.pause ~= false and not easy) and true or false,
     }
 end
 
@@ -227,7 +237,7 @@ function Pr.Pause(src, token, snapshot)
     local active = (GetGameTimer() - s.startedAt) / 1000
     if active > (s.def.maxTime or 900) then return fail('expired') end
     paused[pauseKey(src, s.pid, s.name)] = {
-        snapshot = snapshot, active = active, consumed = s.consumed, items = s.items, at = os.time(),
+        snapshot = snapshot, active = active, consumed = s.consumed, items = s.items, payload = s.payload, at = os.time(),
     }
     abort(s, 'paused', false)
     return { ok = true, keep = tonumber(pc.keep) or 600 }

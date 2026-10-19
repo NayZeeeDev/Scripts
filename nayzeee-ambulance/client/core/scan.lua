@@ -69,8 +69,22 @@ for _, key in ipairs(KEYS) do
     AddStateBagChangeHandler(key, nil, function(bagName, _, value)
         if value == nil or not bagName:find('^entity:') then return end
         local ent = GetEntityFromStateBagName(bagName)
-        -- 0 = not created on this client yet: the sweep picks it up once it streams in
-        if ent ~= 0 and IsEntityAPed(ent) then Scan.Track(ent) end
+        if ent ~= 0 then
+            if IsEntityAPed(ent) then Scan.Track(ent) end
+            return
+        end
+        -- not created on this client yet (the value can arrive just before the entity): look again for a
+        -- few seconds; the sweep still catches anything later
+        CreateThread(function()
+            for _ = 1, 25 do
+                Wait(200)
+                local e = GetEntityFromStateBagName(bagName)
+                if e ~= 0 then
+                    if IsEntityAPed(e) then Scan.Track(e) end
+                    return
+                end
+            end
+        end)
     end)
 end
 
@@ -78,11 +92,14 @@ CreateThread(function()
     Wait(1500)
     while true do
         local pos = GetEntityCoords(PlayerPedId())
+        -- far enough for the NPC-call upkeep radius (Config.Calls.npc.radius) when that is set higher
+        local npcR = tonumber((Config.Calls and Config.Calls.npc or {}).radius) or 0.0
+        local range = math.max(SWEEP_RANGE, npcR + 10.0)
         local peds = GetGamePool('CPed')
         for i = 1, #peds do
             local ped = peds[i]
             if not tracked[ped] and DoesEntityExist(ped) and not IsPedAPlayer(ped) and NetworkGetEntityIsNetworked(ped)
-                and #(pos - GetEntityCoords(ped)) < SWEEP_RANGE and hasState(ped) then
+                and #(pos - GetEntityCoords(ped)) < range and hasState(ped) then
                 tracked[ped] = true
             end
             if i % SWEEP_SLICE == 0 then Wait(0) end

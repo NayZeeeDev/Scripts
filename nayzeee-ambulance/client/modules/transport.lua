@@ -125,6 +125,14 @@ function Tr.StopAnim(ped, anim)
     end
 end
 
+-- every lying clip a bed can use: the default, each bed type's own and the builder poses
+local function stopBedAnims(ped)
+    local bc = Tr.Cfg('Beds')
+    Tr.StopAnim(ped, bc.anim)
+    for _, p in ipairs(bc.poses or {}) do Tr.StopAnim(ped, p) end
+    for _, tc in pairs(bc.types or {}) do Tr.StopAnim(ped, tc.anim) end
+end
+
 function Tr.Bag(ped)
     if not ped or ped == 0 or not DoesEntityExist(ped) then return nil end
     if IsPedAPlayer(ped) then
@@ -477,7 +485,7 @@ function Tr.Apply(ped, cmd, isSelf, prevMode)
         if wasHeld then
             Tr.StopAnim(ped, Tr.Cfg('Carry').carried)
             Tr.StopAnim(ped, lyingAnim())
-            Tr.StopAnim(ped, Tr.Cfg('Beds').anim)
+            stopBedAnims(ped)
             if at then placeAt(ped, at) end
             if not isSelf and cmd.stand then
                 ClearPedTasks(ped)
@@ -580,7 +588,7 @@ local function releaseMine(prev)
         FreezeEntityPosition(ped, false)
         Tr.StopAnim(ped, Tr.Cfg('Carry').carried)
         Tr.StopAnim(ped, lyingAnim())
-        Tr.StopAnim(ped, Tr.Cfg('Beds').anim)
+        stopBedAnims(ped)
     end
     if Tr.Bay and Tr.Bay.ClearPatientShell then Tr.Bay.ClearPatientShell() end
 end

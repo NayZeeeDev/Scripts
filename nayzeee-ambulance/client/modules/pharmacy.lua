@@ -513,8 +513,11 @@ CreateThread(function()
                 wantShop = near
             end
         end
-        -- (with a third eye the check-in desk carries a 'bills' option instead)
-        if active and dc.enabled ~= false and NZA.UI.WorldPrompts() and (bills.count > 0 or dc.onlyWithBills == false) then
+        -- [H] without a third eye, or when the check-in desk has its target options turned off
+        -- (with a third eye the desk otherwise carries a 'bills' option instead)
+        local ckDesk = type(Config.Checkin) == 'table' and type(Config.Checkin.desk) == 'table' and Config.Checkin.desk or {}
+        local deskPrompts = NZA.UI.WorldPrompts() or ckDesk.target == false
+        if active and dc.enabled ~= false and deskPrompts and (bills.count > 0 or dc.onlyWithBills == false) then
             local desk, dd = NZA.Points.Nearest('checkin', me, 12.0)
             if desk and dd then sleep = math.min(sleep, 250) end
             if desk and dd and dd <= (tonumber(dc.distance) or 2.6) and canPrompt(ped) then

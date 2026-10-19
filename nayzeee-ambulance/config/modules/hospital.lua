@@ -172,6 +172,9 @@ Config.Hospital = {
             { key = 'morphine',        limit = 4, perm = 'meds' },   -- perm: only shown to grades with it
             { key = 'adrenaline',      limit = 4, perm = 'meds' },
             { key = 'txa',             limit = 4, perm = 'meds' },
+            { key = 'stethoscope',     limit = 1 },                      -- breathing check, step 2 (listen)
+            { key = 'cast',            limit = 4, perm = 'splint' },     -- X-ray: apply a cast
+            { key = 'bodybag',         limit = 4, perm = 'bodybag' },    -- body bags (Config.Medbag.Body.requireItem)
             -- procedure kits (no other source in the resource; remove a line to hand them out elsewhere)
             { key = 'empty_blood_bag', limit = 4, perm = 'blood' },      -- blood donation (medic mode)
             { key = 'trauma_kit',      limit = 1, perm = 'iv' },         -- field resuscitation case (+ defib)
