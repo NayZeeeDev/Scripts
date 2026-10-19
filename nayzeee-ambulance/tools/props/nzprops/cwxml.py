@@ -325,6 +325,8 @@ def drawable_xml(name, geoms: list[ShaderGeom], textures: list, shapes: list[Col
 # archetypes
 # ---------------------------------------------------------------------------------------------
 def archetype_xml(name, bmin, bmax, center, radius, lod_dist, flags, hd_dist):
+    # physicsDictionary = the model's own name: the game only uses the collision embedded in the
+    # .ydr when the archetype names it (empty = no physics: walk-through, raycasts and targets miss)
     return f"""    <Item type="CBaseArchetypeDef">
       <lodDist value="{lod_dist:g}" />
       <flags value="{int(flags)}" />
@@ -338,7 +340,7 @@ def archetype_xml(name, bmin, bmax, center, radius, lod_dist, flags, hd_dist):
       <textureDictionary />
       <clipDictionary />
       <drawableDictionary />
-      <physicsDictionary />
+      <physicsDictionary>{name}</physicsDictionary>
       <assetType>ASSET_TYPE_DRAWABLE</assetType>
       <assetName>{name}</assetName>
       <extensions />

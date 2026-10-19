@@ -125,10 +125,16 @@ def external_manifests():
     return res
 
 
+def with_physics(name, xml):
+    """Every prop has embedded collision: its archetype must name it as physicsDictionary
+    (manifests built before that fix still carry an empty <physicsDictionary />)."""
+    return xml.replace("<physicsDictionary />", f"<physicsDictionary>{name}</physicsDictionary>")
+
+
 def all_archetypes(all_manifests):
     ext = external_manifests()
     merged = {**ext, **all_manifests}
-    return [merged[n]["archetype_xml"] for n in sorted(merged)], len(merged)
+    return [with_physics(n, merged[n]["archetype_xml"]) for n in sorted(merged)], len(merged)
 
 
 def write_ytyp(cw, out):
