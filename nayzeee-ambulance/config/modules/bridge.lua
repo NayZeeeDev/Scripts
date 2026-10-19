@@ -26,7 +26,7 @@ Config.Bridge = {
     -- WHICH SCRIPTS TO USE   ('auto' = detect what is started)
     -- ═══════════════════════════════════════════════════════════════════════
 
-    framework = 'auto',   -- 'auto' (uses Config.Framework) | 'esx' | 'qbcore' | 'qbox' | 'standalone'
+    framework = 'auto',   -- 'auto' (uses Config.Framework) | 'esx' | 'qbcore' | 'qbox' | 'ox' (ox_core) | 'standalone'
 
     inventory = 'auto',   -- 'ox_inventory' | 'qb-inventory' | 'qs-inventory' | 'codem-inventory' | 'origen_inventory'
                           -- 'tgiann-inventory' | 'core_inventory' | 'ps-inventory' | 'lj-inventory' | 'framework'
@@ -38,7 +38,7 @@ Config.Bridge = {
                           -- 'nayzeee' | 'ox_lib' | 'okok' | 'codem' | 'mythic' | 'brutal' | 't-notify' | 'qb' | 'esx' | 'native'
 
     phone     = 'auto',   -- 'lb-phone' | 'qs-smartphone-pro' | 'qs-smartphone' | 'npwd' | 'yseries' | 'gksphone'
-                          -- 'okokPhone' | 'roadphone' | 'high-phone' | 'renewed-phone' | false (no phone)
+                          -- 'okokPhone' | 'roadphone' | 'high-phone' | 'renewed-phone' | 'qb-phone' | false (no phone)
 
     dispatch  = 'auto',   -- external dispatch/MDT used when externalDispatch = true:
                           -- 'cd_dispatch' | 'ps-dispatch' | 'qs-dispatch' | 'rcore_dispatch' | 'core_dispatch'
@@ -89,6 +89,10 @@ Config.Bridge = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     offDutyPrefix = 'off',
+
+    -- ox_core: a medic character logs in on duty (true) or off duty (false).
+    -- Duty is then toggled at the hospital duty point.
+    oxOnDuty = true,
 
     -- ═══════════════════════════════════════════════════════════════════════
     -- PHONE  - 911 / EMS messages and calls become dispatch calls

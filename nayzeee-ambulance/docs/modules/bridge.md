@@ -65,7 +65,7 @@ adapter is not running, the bridge warns and falls back to auto-detection.
 | `standaloneMoneyItem` | `'money'` | cash item when standalone runs ox_inventory |
 | `standaloneFreeBills` / `standaloneFreeItems` | `true` / `false` | standalone without a money or inventory system |
 | `offDutyPrefix` | `'off'` | ESX `offambulance` = ambulance, off duty |
-| `oxOnDuty` | `true` (not in the shipped file; add it to `Config.Bridge` to change it) | ox_core: duty state of a character after login |
+| `oxOnDuty` | `true` | ox_core: duty state of a character after login |
 | `phoneEmergency` | see file | 911 numbers, EMS company names, cooldown, reply, extra events |
 | `phoneApp` | per phone | app id used for EMS phone notifications |
 | `builtinTarget` | E, 2.0 m, 250 ms | built-in target key, reach, scan rate, optional markers |

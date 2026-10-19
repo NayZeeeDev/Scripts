@@ -21,7 +21,7 @@ A complete EMS job for FiveM. Real injuries instead of a health bar, field care 
 procedures you actually perform, hospitals you build in game, dispatch, NPC 911 calls with
 recorded voices, billing and insurance. One resource, every framework.
 
-- **ESX · QBCore · Qbox · Standalone**, detected by itself.
+- **ESX · QBCore · Qbox · ox_core · Standalone**, detected by itself.
 - **10 inventories, 5 target scripts (or none), 10 phones, 8 dispatch scripts**, all optional.
 - **Server-authoritative.** The server owns every injury, vital sign, item and dollar.
 - **Easy mode** per department: every minigame can become a short timed action.
@@ -132,13 +132,13 @@ recorded voices, billing and insurance. One resource, every framework.
 | **FiveM server** | OneSync enabled (`set onesync on`) |
 | **[ox_lib](https://github.com/overextended/ox_lib)** | required |
 | **[oxmysql](https://github.com/overextended/oxmysql)** | required, with a MySQL or MariaDB database |
-| **Framework** | ESX, QBCore, Qbox, or none (standalone) |
+| **Framework** | ESX, QBCore, Qbox, ox_core, or none (standalone) |
 | **Inventory** | ox_inventory, qb-inventory, ps-inventory, lj-inventory, qs-inventory, codem-inventory, tgiann-inventory, origen_inventory, core_inventory or the ESX default inventory |
 | **Target** (optional) | ox_target, qb-target, qtarget, interact, sleepless_interact. Without one, a built-in **[E]** prompt is used |
 
 Everything else is optional and detected automatically: notifications, phones (lb-phone,
 qs-smartphone, qs-smartphone-pro, npwd, yseries, gksphone, okokPhone, roadphone, high-phone,
-renewed-phone), external dispatch (cd_dispatch, ps-dispatch, qs-dispatch, rcore_dispatch,
+renewed-phone, qb-phone), external dispatch (cd_dispatch, ps-dispatch, qs-dispatch, rcore_dispatch,
 core_dispatch, tk_dispatch, origen_police, lb-tablet), vehicle keys, fuel, clothing and
 society banking.
 
@@ -198,6 +198,7 @@ Restart the server after adding items. More detail, item renaming and picture or
 | **ESX** | Medic jobs are `Config.Jobs.medic` (`ambulance`, `ems`). Duty uses `job.onDuty`; older servers with an `offambulance` job work too (`Config.Bridge.offDutyPrefix`). Society money goes to `esx_addonaccount` (or okokBanking / fd_banking). |
 | **QBCore** | Same jobs. Duty is the QBCore duty. Society money uses Renewed-Banking, okokBanking, fd_banking, qb-banking or qb-management (detected). |
 | **Qbox** | Detected before QBCore. Same as QBCore, society through qbx_management or a banking script. |
+| **ox_core** | Detected after Qbox. Medic jobs are ox_core groups with the names in `Config.Jobs.medic` (group grade = job grade). Characters log in on duty (`Config.Bridge.oxOnDuty = true`); duty is toggled at the hospital duty point. Society money uses the group's ox_core account. ox_core pays no salaries, so hospital paychecks follow `Config.Hospital.paycheck`. |
 | **Standalone** | Medics are players with an ace: `add_ace identifier.license:xxxx nza.medic allow` (optional grade `nza.medic.3`, boss `nza.medic.boss`). Police: `nza.police`. Use ox_inventory for items. Without any inventory, `Config.Bridge.standaloneFreeItems = true` makes every medical item count as present (test servers). |
 
 You can force any integration in `config/modules/bridge.lua` (`framework`, `inventory`,
