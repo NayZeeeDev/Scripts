@@ -405,11 +405,19 @@ function K.LieDown(ticket, teleport)
     local p = pose()
     local at = vector4(c.x + 0.0, c.y + 0.0, c.z + 0.0, (c.w or 0.0) + 0.0)
     -- on the mattress, not in it (the transport module finds the top and lifts the body onto it)
-    local spot = NZA.Transport and NZA.Transport.BedSpot and NZA.Transport.BedSpot(at, 'bed', ped) or at
+    local Tr = NZA.Transport
+    local spot, lift = at, 0.0
+    if Tr and Tr.BedSpot then spot, lift = Tr.BedSpot(at, 'bed', ped) end
     SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + p.z, false, false, false)
     SetEntityHeading(ped, (c.w or 0.0) + 0.0)
     FreezeEntityPosition(ped, true)
     playPose(ped)
+    -- the body rests on the mattress once its height is measured
+    if Tr and Tr.SettleLying and lift > 0.0 then
+        Tr.SettleLying(ped, { dict = p.dict, clip = p.clip }, lift, function(d)
+            if lying and lying.point == ticket.bedId then SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + p.z + d, false, false, false) end
+        end)
+    end
     lyingGen = lyingGen + 1
     lying = { point = ticket.bedId, coords = c, label = res.label, gen = lyingGen }
     lyingLoop()

@@ -91,7 +91,9 @@ Config.Transport = {
         },
 
         patient = {
-            pos  = vec3(0.0, 0.05, 1.33),         -- patient on the mattress (stretcher entity space)
+            surface = 0.885,                      -- top of the mattress above the cot's origin (nz_amb_stretcher)
+            pos  = vec3(0.0, 0.05, 0.0),          -- nudge on the mattress (stretcher entity space); the height above
+                                                  -- the mattress comes from Beds.lift / the measured lying height
             rot  = vec3(0.0, 0.0, 180.0),
             lowZ = -0.42,                         -- added to pos.z while the cot is lowered (only with a low model)
             anim = { dict = 'anim@gangops@morgue@table@', clip = 'body_search', flag = 1 },
@@ -131,12 +133,13 @@ Config.Transport = {
     Beds = {
         enabled = true,
         range   = 3.0,           -- metres between the stretcher / you and a bed for 'Transfer to ...'
-        -- How high a lying patient sits: the lying animation keeps the body 'lift' metres under the
-        -- ped, so the ped is put that far above the mattress / table top. 'probe' = look for the real
-        -- surface with a ray from this many metres above the expected top (false = trust pos / lie).
-        -- Same value as the stretcher (patient.pos.z 1.33 - mattress 0.885). Raise it if patients
-        -- sink in, lower it if they float.
-        lift  = 0.445,
+        -- How high a lying patient sits. A lying animation keeps the body some way under the ped; the
+        -- first time an animation plays, the pelvis bone is measured and the ped is lifted so the back
+        -- rests 'back' metres above the mattress / table top / stretcher (remembered per animation).
+        -- 'lift' is only the first guess before that measurement. 'probe' = look for the real surface
+        -- with a ray from this many metres above the expected top (false = trust pos / lie).
+        lift  = 0.95,
+        back  = 0.11,
         probe = 0.5,
         -- Point types a patient can lie on. Any other point type whose data has bed = true works too.
         --   pos / heading  where the mattress / table top is from the point (point space; a point's

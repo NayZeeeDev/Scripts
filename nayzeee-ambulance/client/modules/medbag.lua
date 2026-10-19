@@ -291,6 +291,10 @@ local function endCarry()
     NZA.UI.HidePrompt(PROMPT_STOW)
     local ped = PlayerPedId()
     if cur and cur.animToken then NZA.Anim.Stop(ped, { token = cur.animToken }) end
+    -- the put-down / pick-up animation takes the anim slot over, so the token above may be stale:
+    -- stop the arm pose itself too
+    local a = (C('Bag').Carry or {}).anim
+    if type(a) == 'table' and a.dict and IsEntityPlayingAnim(ped, a.dict, a.clip, 3) then StopAnimTask(ped, a.dict, a.clip, 2.0) end
     NZA.Props.Clear('medbag_hand')
 end
 MB.EndCarry = endCarry

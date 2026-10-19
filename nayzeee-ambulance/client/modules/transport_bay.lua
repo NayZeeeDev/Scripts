@@ -73,13 +73,33 @@ function Bay.CotSpot(slot)
     return world(slot, bc().stretcher or vector4(-0.42, 0.10, 0.0, 0.0))
 end
 
+local function lyingAnim()
+    return (Tr.Cfg('Stretcher').patient or {}).anim or Tr.Cfg('Beds').anim
+end
+
+-- the patient on the cot in the bay: on the mattress, lifted by the lying animation's measured height
 function Bay.PatientSpot(slot)
     local cot = Bay.CotSpot(slot)
     local pc = Tr.Cfg('Stretcher').patient or {}
-    local pos = pc.pos or vector3(0.0, 0.05, 1.33)
+    local pos = pc.pos or vector3(0.0, 0.05, 0.0)
     local rot = pc.rot or vector3(0.0, 0.0, 180.0)
     local x, y = rotate(pos.x, pos.y, cot.w)
-    return vector4(cot.x + x, cot.y + y, cot.z + pos.z, (cot.w + rot.z) % 360.0)
+    local lift = Tr.LieLift(pc.anim or Tr.Cfg('Beds').anim)
+    local z = cot.z + (tonumber(pc.surface) or 0.885) + lift + (pos.z or 0.0)
+    return vector4(cot.x + x, cot.y + y, z, (cot.w + rot.z) % 360.0), lift
+end
+
+-- put a ped on the bay cot and correct the height once the lying animation is measured
+local function layOnCot(ped, slot)
+    local spot, lift = Bay.PatientSpot(slot)
+    SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z, false, false, false)
+    SetEntityHeading(ped, spot.w)
+    FreezeEntityPosition(ped, true)
+    local anim = lyingAnim()
+    Tr.Play(ped, anim, { blendIn = 8.0 })
+    Tr.SettleLying(ped, anim, lift, function(d)
+        SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + d, false, false, false)
+    end)
 end
 
 local function medicSpot(slot, idx)
@@ -89,9 +109,6 @@ local function medicSpot(slot, idx)
     return world(slot, list[i])
 end
 
-local function lyingAnim()
-    return (Tr.Cfg('Stretcher').patient or {}).anim or Tr.Cfg('Beds').anim
-end
 
 local function fadeOut(ms)
     DoScreenFadeOut(ms)
@@ -384,12 +401,8 @@ end
 local function moveNpcIn(net, slot)
     local npc = Tr.Ent(net, 1500)
     if npc == 0 or not Tr.Control(npc, 1500) then return end
-    local spot = Bay.PatientSpot(slot)
     DetachEntity(npc, true, false)
-    SetEntityCoordsNoOffset(npc, spot.x, spot.y, spot.z, false, false, false)
-    SetEntityHeading(npc, spot.w)
-    FreezeEntityPosition(npc, true)
-    Tr.Play(npc, lyingAnim(), { blendIn = 8.0 })
+    layOnCot(npc, slot)
 end
 
 function Bay.Active()
@@ -539,8 +552,7 @@ function Bay.Exit(kicked, at)
         local se = r.s and Tr.Ent(r.s, 4000) or 0
         if se ~= 0 and Tr.Control(npc, 1000) then
             FreezeEntityPosition(npc, false)
-            Tr.AttachToStretcher(npc, se)
-            Tr.Play(npc, lyingAnim(), { blendIn = 8.0 })
+            Tr.LieOnStretcher(npc, se)
         elseif Tr.Control(npc, 500) then
             FreezeEntityPosition(npc, false)
             local p = GetEntityCoords(me)
@@ -559,7 +571,6 @@ end
 function Bay.PlacePatient(ped, cmd, isSelf)
     local slot = tonumber(cmd.slot)
     if not slot then return false end
-    local spot = Bay.PatientSpot(slot)
     if isSelf then
         local fade = bc().fadeMs or 550
         fadeOut(fade)
@@ -568,10 +579,7 @@ function Bay.PlacePatient(ped, cmd, isSelf)
         S().patientBay = { slot = slot, veh = cmd.v }
     end
     DetachEntity(ped, true, false)
-    SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z, false, false, false)
-    SetEntityHeading(ped, spot.w)
-    FreezeEntityPosition(ped, true)
-    Tr.Play(ped, lyingAnim(), { blendIn = 8.0 })
+    layOnCot(ped, slot)
     if isSelf then
         local t = GetGameTimer() + 1500
         while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < t do Wait(50) end

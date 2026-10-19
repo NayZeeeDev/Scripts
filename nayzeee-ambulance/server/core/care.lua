@@ -35,7 +35,10 @@
       drain      blood in the chest (chest drain)                hospital
       tamponade  blood around the heart                          hospital
       bullet     bullet / fragment still inside                  hospital
-      xray       fracture that needs X-ray, reduction or a cast  hospital
+      xray       fracture that needs an X-ray                    hospital
+      xray_read  the X-ray is taken: read the film on a lightbox hospital
+      reduce     read, displaced: set the bone                   hospital
+      cast       read and aligned: put on a cast                 hospital
       graft      deep burn (skin graft)                          hospital
       hospital   take them to hospital (when any hospital step)  -
       release    NPC from a call with nothing left: release      field
@@ -236,10 +239,20 @@ function Care.Plan(p)
             local castable = R and R.limb and true or false
             local cc = Config.Xray and Config.Xray.Cast and Config.Xray.Cast.regions
             if type(cc) == 'table' then castable = cc[inj.region] and true or false end
+            -- one step at a time: take the X-ray → read the film → set the bone (displaced) → cast
+            local X = NZA.Xray
+            local function filmStep()
+                local pending = X and X.PendingFilm and X.PendingFilm(p.pid, inj.id)
+                hosp(pending and 'xray_read' or 'xray', { r = inj.region, i = inj.id })
+            end
             if castable then
-                if not t.cast and ((inj.severity or 1) >= 2 or f.displaced) then hosp('xray', { r = inj.region, i = inj.id }) end
+                if not t.cast and ((inj.severity or 1) >= 2 or f.displaced) then
+                    if not (t.xray or t.xrayMarked) then filmStep()
+                    elseif f.displaced and not t.reduced then hosp('reduce', { r = inj.region, i = inj.id })
+                    else hosp('cast', { r = inj.region, i = inj.id }) end
+                end
             elseif R and R.xray and not t.xrayMarked and (inj.severity or 1) >= 2 then
-                hosp('xray', { r = inj.region, i = inj.id })
+                filmStep()
             end
         elseif kind == 'burn' then
             local deg = inj.burn and inj.burn.degree or 1

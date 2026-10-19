@@ -108,25 +108,26 @@ Config.WoundedUI = {
 
     ragdollMs = 1800,              -- you fall over for this long before settling into a pose
 
+    -- Every lying pose is face up, so medics can see the patient.
     poses = {
-        -- conscious, torso wounds (gunshot / stab in chest, abdomen) - clutching and writhing
+        -- conscious, torso wounds (gunshot / stab in chest, abdomen) - on the back, clutching and writhing
         writhe = {
             { dict = 'combat@damage@writhe', clip = 'writhe_loop' },
             { dict = 'combat@damage@writheidle_a', clip = 'writhe_idle_a' },
         },
         -- conscious, leg / pelvis / head injuries - on the back, in pain
         back = {
-            { dict = 'combat@damage@rb_writhe', clip = 'rb_writhe_loop' },
             { dict = 'combat@damage@writhe', clip = 'writhe_loop' },
+            { dict = 'combat@damage@writheidle_a', clip = 'writhe_idle_a' },
         },
-        -- conscious, arm or minor injuries - curled on the side
+        -- conscious, arm or minor injuries - lying on the back, quiet
         side = {
-            { dict = 'amb@world_human_bum_slumped@male@laying_on_left_side@base', clip = 'base' },
+            { dict = 'amb@world_human_bum_slumped@male@laying_on_back@base', clip = 'base' },
             { dict = 'combat@damage@writhe', clip = 'writhe_loop' },
         },
-        -- unconscious (AVPU P / U), cardiac arrest and dead - completely still
+        -- unconscious (AVPU P / U), cardiac arrest and dead - flat on the back, completely still
         still = {
-            { dict = 'dead', clip = 'dead_a' },
+            { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' },
             { dict = 'missarmenian2', clip = 'corpse_search_exit_ped' },
         },
         -- crawling on the front
@@ -137,7 +138,7 @@ Config.WoundedUI = {
         -- lying in a hospital bed after a respawn
         bed = {
             { dict = 'anim@gangops@morgue@table@', clip = 'body_search' },
-            { dict = 'dead', clip = 'dead_a' },
+            { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' },
         },
         -- getting up after a revive (played in order)
         getUp = {

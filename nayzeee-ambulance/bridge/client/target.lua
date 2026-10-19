@@ -613,9 +613,13 @@ local function promptText(target)
     return text
 end
 
+-- the [E] pill of the resource's own prompt layer (the same style as every other prompt);
+-- ox_lib's text UI only when the NUI is not there
+local function usePills() return NZA and NZA.UI and NZA.UI.Prompt ~= nil end
+
 local function hidePrompt()
     if BI.shown then
-        lib.hideTextUI()
+        if usePills() then NZA.UI.HidePrompt('nza_builtin_target') else lib.hideTextUI() end
         BI.shown = nil
     end
 end
@@ -667,7 +671,12 @@ local function startBuiltin()
             if target then
                 local text = promptText(target)
                 if BI.shown ~= text then
-                    lib.showTextUI(text)
+                    if usePills() then
+                        local more = #target.options > 1 and NZA.L('bridge.target_more', #target.options - 1) or nil
+                        NZA.UI.Prompt('nza_builtin_target', { key = builtinCfg().keyLabel or 'E', label = target.options[1].label, sub = more and more:match('^%s*(.-)%s*$') or nil })
+                    else
+                        lib.showTextUI(text)
+                    end
                     BI.shown = text
                 end
                 local cfg = builtinCfg()

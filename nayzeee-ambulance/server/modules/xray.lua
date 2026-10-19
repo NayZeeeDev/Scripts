@@ -455,6 +455,20 @@ function X.Film(p, view, quality, src)
     return meta
 end
 
+-- a film of this patient that shows this injury (any injury when injId is nil) and nobody read yet:
+-- the care plan's 'Read the X-ray' step
+function X.PendingFilm(pid, injId)
+    for _, m in pairs(films) do
+        if m.pid == pid and not m.read then
+            if injId == nil then return m.id end
+            for _, f in ipairs(m.findings or {}) do
+                if f.inj == injId then return m.id end
+            end
+        end
+    end
+    return nil
+end
+
 -- ════════════════════════════════════════════════════════════════════════
 -- WHERE IS EVERYONE
 -- ════════════════════════════════════════════════════════════════════════
@@ -558,6 +572,8 @@ do
                 films[meta.id] = nil
                 return { msg = L('err_inventory'), failed = true, record = L('record_take_failed', viewLabel(view)) }
             end
+            -- the care steps move on to 'Read the X-ray'
+            if NZA.Patients.Touch then NZA.Patients.Touch(p) end
             X.Bill(src, p, 'take', L('bill_take', viewLabel(view)))
             if p.kind == 'player' and p.src and p.src ~= src and cfg('Take').notifyPatient ~= false then
                 X.Notify(p.src, L('take_patient', viewLabel(view)), 'info')
@@ -858,6 +874,7 @@ lib.callback.register('nza:xray:read:finish', function(src, token, res)
     -- the film remembers its reading
     local meta = U.deepcopy(film)
     meta.read = { by = core().Name and core().Name(src) or '?', score = outcome.score, grade = outcome.grade, at = os.time(), confirmed = outcome.applied or 0 }
+    if film.id and films[film.id] then films[film.id].read = meta.read end
     if core().Has and core().Has('Inv.SetMetadata') and item.slot then
         core().B('Inv.SetMetadata', src, item.slot, meta)
     end

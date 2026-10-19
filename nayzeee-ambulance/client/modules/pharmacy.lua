@@ -506,12 +506,14 @@ CreateThread(function()
         if active and ic.prompt ~= false then
             local near, nd = NZA.Points.Nearest('pharmacy', me, 12.0)
             if near and nd then sleep = 250 end
-            if near and nd and nd <= (tonumber(ic.distance) or 2.0) and not (ic.target ~= false and builtinTarget())
+            -- the counter's options are third-eye / built-in target options; our own [E] only when it has none
+            if near and nd and nd <= (tonumber(ic.distance) or 2.0) and ic.target == false
                 and canUse(near) and canPrompt(ped) then
                 wantShop = near
             end
         end
-        if active and dc.enabled ~= false and (bills.count > 0 or dc.onlyWithBills == false) then
+        -- (with a third eye the check-in desk carries a 'bills' option instead)
+        if active and dc.enabled ~= false and NZA.UI.WorldPrompts() and (bills.count > 0 or dc.onlyWithBills == false) then
             local desk, dd = NZA.Points.Nearest('checkin', me, 12.0)
             if desk and dd then sleep = math.min(sleep, 250) end
             if desk and dd and dd <= (tonumber(dc.distance) or 2.6) and canPrompt(ped) then

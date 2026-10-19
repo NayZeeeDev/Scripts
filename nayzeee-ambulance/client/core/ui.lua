@@ -416,6 +416,20 @@ end
 -- true while the third eye is open: a module's own [E] check can skip the key then
 function UI.PromptsBlocked() return promptsOff end
 
+-- [E] prompts for world interactions (desks, counters, scene actions) only exist when there is
+-- no third eye: with ox_target / qb-target / ... those actions are third-eye options instead.
+-- (Action keys while carrying / pushing / seated are not world interactions and always show.)
+local worldPromptsAt, worldPromptsOn = 0, true
+function UI.WorldPrompts()
+    local now = GetGameTimer()
+    if now - worldPromptsAt > 2000 then
+        worldPromptsAt = now
+        local ok, res = pcall(function() return Bridge and Bridge.Target and Bridge.Target.Resource and Bridge.Target.Resource() end)
+        worldPromptsOn = not ok or res == nil or res == 'builtin'
+    end
+    return worldPromptsOn
+end
+
 function UI.Prompt(id, opts)
     if id == nil then return end
     opts = opts or {}

@@ -232,7 +232,7 @@ Config.Cpr = {
         helper   = { 'amb@medic@standing@kneel@base', 'base' }, -- the partner kneels at the head
         helperBed = { 'amb@medic@standing@timeofdeath@base', 'base' }, -- ...or stands at the head of a bed
         helperDist = 0.55,       -- metres beyond the patient's head
-        npcRest  = { 'dead', 'dead_a' },   -- an NPC patient lies like this after CPR
+        npcRest  = { 'mini@cpr@char_b@cpr_def', 'cpr_pumpchest_idle' },   -- an NPC patient lies like this after CPR (face up)
         placement = 'side',      -- 'side': the medic kneels beside the patient's chest (spot from the patient's bones),
                                  -- both clips play in place; 'synced': both clips at one shared origin (below)
         kneel    = {             -- 'side' placement

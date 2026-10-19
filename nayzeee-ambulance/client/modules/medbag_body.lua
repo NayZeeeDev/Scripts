@@ -283,6 +283,9 @@ local function endBodyCarry()
     NZA.UI.HidePrompt(PROMPT_CTX)
     local ped = PlayerPedId()
     if cur and cur.animToken then NZA.Anim.Stop(ped, { token = cur.animToken }) end
+    -- (a put-down animation may have taken the anim slot over: stop the shoulder pose itself too)
+    local a = (((Config.Medbag or {}).Body or {}).Carry or {}).anim
+    if type(a) == 'table' and a.dict and IsEntityPlayingAnim(ped, a.dict, a.clip, 3) then StopAnimTask(ped, a.dict, a.clip, 2.0) end
     NZA.Props.Clear('medbag_body_hand')
 end
 

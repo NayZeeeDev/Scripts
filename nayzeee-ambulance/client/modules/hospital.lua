@@ -629,17 +629,29 @@ local function lieDown(point)
     if lying then return end
     local ped = PlayerPedId()
     if IsPedInAnyVehicle(ped, false) then return end
+    -- the bed the check-in desk called you to: lie down for that ticket (the doctor comes)
+    local K = NZA.CheckinC
+    local called = K and K.CalledBed and K.CalledBed(point.id)
+    if called and K.LieDown then K.LieDown(called, false) return end
     local res = call('nza:hospital:bed', { point = point.id, on = true })
     if not res.ok then return failToast(res) end
     local bc = hc('bed', {})
     local c = point.coords
     local at = vector4(c.x + 0.0, c.y + 0.0, c.z + 0.0, (c.w or 0.0) + 0.0)
     -- on the mattress, not in it (the transport module finds the top and lifts the body onto it)
-    local spot = NZA.Transport and NZA.Transport.BedSpot and NZA.Transport.BedSpot(at, 'bed', ped) or at
+    local Tr = NZA.Transport
+    local spot, lift = at, 0.0
+    if Tr and Tr.BedSpot then spot, lift = Tr.BedSpot(at, 'bed', ped) end
     SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + (bc.zOffset or 0.0), false, false, false)
     SetEntityHeading(ped, (c.w or 0.0) + 0.0)
     FreezeEntityPosition(ped, true)
     local ok, token = NZA.Anim.Play(ped, bc.dict or 'anim@gangops@morgue@table@', bc.clip or 'body_search', { flag = 1 })
+    -- the body rests on the mattress once its height is measured
+    if Tr and Tr.SettleLying and lift > 0.0 then
+        Tr.SettleLying(ped, { dict = bc.dict or 'anim@gangops@morgue@table@', clip = bc.clip or 'body_search' }, lift, function(d)
+            if lying and lying.point == point.id then SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + (bc.zOffset or 0.0) + d, false, false, false) end
+        end)
+    end
     lying = { point = point.id, token = ok and token or nil }
     NZA.UI.Prompt('nza_hospital_bed', { key = bc.getUpKey or 'X', label = L('bed_get_up'), sub = L('bed_resting') })
     CreateThread(function()

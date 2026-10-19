@@ -54,7 +54,7 @@ local restUntil = 0
 local lastGetUp = 0
 local getUpGen = 0
 
-local FALLBACK_STILL = { dict = 'dead', clip = 'dead_a' }
+local FALLBACK_STILL = { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' }   -- face up
 local ARM_REGIONS = { l_upper_arm = true, l_lower_arm = true, r_upper_arm = true, r_lower_arm = true }
 
 -- ════════════════════════════════════════════════════════════════════════

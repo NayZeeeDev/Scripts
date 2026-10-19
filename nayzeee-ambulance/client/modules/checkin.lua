@@ -35,6 +35,13 @@ local peds = {}           -- [pointId] = receptionist ped
 local deskOpen = false    -- reception window open
 local appOpen = false     -- checkin app open (any mode)
 local guide = nil         -- { ticket, gen } walking to the called bed
+
+-- the bed point the desk called you to (the hospital 'Lie down' option lies you down for this ticket)
+function K.CalledBed(pointId)
+    local t = guide and guide.ticket
+    if not t or t.bedId == nil or tostring(t.bedId) ~= tostring(pointId) then return nil end
+    return t
+end
 local guideGen = 0
 local receiptGen = 0      -- receipt that waits for you to walk away (receiptTime 0)
 
@@ -199,7 +206,8 @@ local function startGuide(ticket)
                 DrawMarker(25, target.x, target.y, target.z + 0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.4, 1.4, 1.0,
                     col[1], col[2], col[3], 110, false, false, 2, false, nil, nil, false)
             end
-            if d < 2.4 and not IsPedInAnyVehicle(ped, false) and K.Lying and not K.Lying() then
+            -- (with a third eye: 'Lie down' on the bed itself, routed to this ticket by K.CalledBed)
+            if d < 2.4 and not IsPedInAnyVehicle(ped, false) and K.Lying and not K.Lying() and NZA.UI.WorldPrompts() then
                 NZA.UI.Prompt('nza_checkin_bed', { key = cfg('desk', 'key', 'E'), label = L('p_lie'), sub = guide.ticket.bed or L('bed') })
                 if IsControlJustReleased(0, tonumber(cfg('desk', 'control', 38)) or 38) then
                     NZA.UI.HidePrompt('nza_checkin_bed')
@@ -507,7 +515,8 @@ CreateThread(function()
         local ped = PlayerPedId()
         local me = GetEntityCoords(ped)
         local range = tonumber(cfg('desk', 'promptDistance', 2.6)) or 2.6
-        local pt = NZA.Points.Nearest('checkin', me, range)
+        -- with a third eye the desk's options are on the desk itself (targets() above): no [E] here
+        local pt = (cfg('desk', 'target', true) == false or NZA.UI.WorldPrompts()) and NZA.Points.Nearest('checkin', me, range) or nil
         if pt and canUseDesk(ped) then
             sleep = 0
             if mine then

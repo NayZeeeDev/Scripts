@@ -237,15 +237,64 @@ local function lyingAnim()
     return Tr.Cfg('Stretcher').patient and Tr.Cfg('Stretcher').patient.anim or Tr.Cfg('Beds').anim
 end
 
+-- ── lying height ─────────────────────────────────────────────────────────
+-- A lying animation keeps the body some way under the ped's root, and how far differs per
+-- animation. It is measured once per animation from the pelvis bone (Tr.SettleLying) and the
+-- ped is then put that far above the mattress / table top, so the back rests ON the surface.
+local PELVIS = 11816
+local lieDrop = {}        -- ['dict/clip'] = metres from the ped root down to the pelvis while lying
+
+local function animKey(a) return type(a) == 'table' and a.dict and (a.dict .. '/' .. tostring(a.clip)) or '?' end
+
+-- metres the ped goes above the surface it lies on, for this animation
+function Tr.LieLift(anim)
+    local bc = Tr.Cfg('Beds')
+    local drop = lieDrop[animKey(anim)]
+    if drop then return drop + (tonumber(bc.back) or 0.11) end
+    return tonumber(bc.lift) or 0.95
+end
+
+-- once the lying animation plays: measure where the body ended up, remember it for this
+-- animation, and call apply(delta) with how far the ped has to move up (+) or down (-)
+function Tr.SettleLying(ped, anim, usedLift, apply)
+    if type(anim) ~= 'table' or not anim.dict or type(apply) ~= 'function' then return end
+    CreateThread(function()
+        local t = GetGameTimer() + 1500
+        while GetGameTimer() < t and DoesEntityExist(ped) and not Tr.Playing(ped, anim) do Wait(50) end
+        if not DoesEntityExist(ped) or not Tr.Playing(ped, anim) then return end
+        Wait(400)   -- fully blended in
+        if not DoesEntityExist(ped) or not Tr.Playing(ped, anim) then return end
+        local root = GetEntityCoords(ped)
+        local pel = GetPedBoneCoords(ped, PELVIS, 0.0, 0.0, 0.0)
+        local drop = root.z - pel.z
+        if drop < -0.4 or drop > 1.8 then return end
+        lieDrop[animKey(anim)] = drop
+        local delta = Tr.LieLift(anim) - (tonumber(usedLift) or 0.0)
+        if math.abs(delta) > 0.025 then apply(delta) end
+    end)
+end
+
+-- top of the mattress in stretcher entity space (our cot, or the fallback model's height)
+local function mattressTop(strEnt)
+    local pc = Tr.Cfg('Stretcher').patient or {}
+    local model = GetEntityModel(strEnt)
+    local ours = Config.Props and (model == GetHashKey(Config.Props.stretcher or '') or model == GetHashKey(Config.Props.stretcher_low or ''))
+    if ours or not model or model == 0 then return tonumber(pc.surface) or 0.885 end
+    local _, mx = GetModelDimensions(model)
+    return (mx and mx.z > 0.2) and (mx.z - 0.03) or (tonumber(pc.surface) or 0.885)
+end
+Tr.MattressTop = mattressTop
+
 local function stretcherOffset(strEnt)
     local pc = Tr.Cfg('Stretcher').patient or {}
-    local pos = pc.pos or vector3(0.0, 0.05, 1.33)
+    local nudge = pc.pos or vector3(0.0, 0.05, 0.0)
     local rot = pc.rot or vector3(0.0, 0.0, 180.0)
+    local z = mattressTop(strEnt) + Tr.LieLift(pc.anim or Tr.Cfg('Beds').anim) + (nudge.z or 0.0)
     local bag = Tr.StrBag(strEnt)
     if bag and bag.low and Tr.LowModelActive and Tr.LowModelActive(strEnt) then
-        pos = vector3(pos.x, pos.y, pos.z + (pc.lowZ or 0.0))
+        z = z + (pc.lowZ or 0.0)
     end
-    return pos, rot
+    return vector3(nudge.x, nudge.y, z), rot
 end
 Tr.StretcherOffset = stretcherOffset
 
@@ -272,8 +321,21 @@ end
 local function attachToStretcher(ped, strEnt)
     local pos, rot = stretcherOffset(strEnt)
     AttachEntityToEntity(ped, strEnt, 0, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, false, false, false, false, 2, true)
+    return pos.z
 end
 Tr.AttachToStretcher = attachToStretcher
+
+-- on the cot and lying on the mattress (re-attached once the body height is measured)
+local function lieOnStretcher(ped, strEnt)
+    local anim = lyingAnim()
+    local used = Tr.LieLift(anim)
+    attachToStretcher(ped, strEnt)
+    Tr.Play(ped, anim, { blendIn = 8.0 })
+    Tr.SettleLying(ped, anim, used, function()
+        if DoesEntityExist(strEnt) and IsEntityAttachedToEntity(ped, strEnt) then attachToStretcher(ped, strEnt) end
+    end)
+end
+Tr.LieOnStretcher = lieOnStretcher
 
 function Tr.BedAnim(bt)
     local tc = (Tr.Cfg('Beds').types or {})[bt or ''] or {}
@@ -290,8 +352,9 @@ end
 
 -- where a patient lies on a bed point (vector4: the ped's root while the lying animation plays).
 -- The point's lie offset (or the type's pos) says where the mattress / table top is; a ray down
--- from above it finds the real surface, and the root goes 'lift' above it (the lying animation
+-- from above it finds the real surface, and the root goes Tr.LieLift above it (the lying animation
 -- keeps the body that far under the root), so nobody sinks into a table or the floor.
+-- Returns spot, lift (the lift used; Tr.SettleLying corrects it once the body is measured).
 function Tr.BedSpot(at, bt, ped)
     local bc = Tr.Cfg('Beds')
     local tc = (bc.types or {})[bt or ''] or {}
@@ -312,7 +375,8 @@ function Tr.BedSpot(at, bt, ped)
     local x = at.x + off.x * cs - off.y * sn
     local y = at.y + off.x * sn + off.y * cs
     local z = at.z + off.z
-    local lift = tonumber(tc.lift or bc.lift) or 0.0
+    local lift = tonumber(tc.lift)
+    if not lift then lift = Tr.LieLift(Tr.BedAnim(bt)) end
     local probe = tc.probe
     if probe == nil then probe = bc.probe end
     if probe ~= false and lift > 0.0 then
@@ -320,7 +384,7 @@ function Tr.BedSpot(at, bt, ped)
         local top = surfaceBelow(x, y, z + up, z - 1.2, ped)
         if top then z = top end
     end
-    return vector4(x, y, z + lift, h % 360.0)
+    return vector4(x, y, z + lift, h % 360.0), lift
 end
 
 -- Apply a command to a patient ped we control. isSelf = our own player ped.
@@ -350,18 +414,24 @@ function Tr.Apply(ped, cmd, isSelf, prevMode)
         FreezeEntityPosition(ped, false)
         detach(ped)
         if IsPedInAnyVehicle(ped, false) then SetEntityCoordsNoOffset(ped, GetEntityCoords(strEnt), false, false, false) end
-        attachToStretcher(ped, strEnt)
-        Tr.Play(ped, lyingAnim(), { blendIn = 8.0 })
+        lieOnStretcher(ped, strEnt)
         return true
     elseif m == 'bed' then
         local at = Tr.V4(cmd.at)
         if not at then return false end
         detach(ped)
-        local spot = Tr.BedSpot(at, cmd.bt, ped)
+        local spot, lift = Tr.BedSpot(at, cmd.bt, ped)
         SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z, false, false, false)
         SetEntityHeading(ped, spot.w)
         FreezeEntityPosition(ped, true)
-        Tr.Play(ped, Tr.BedAnim(cmd.bt), { blendIn = 8.0 })
+        local anim = Tr.BedAnim(cmd.bt)
+        Tr.Play(ped, anim, { blendIn = 8.0 })
+        if lift > 0.0 then
+            Tr.SettleLying(ped, anim, lift, function(d)
+                if IsEntityAttached(ped) then return end
+                SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + d, false, false, false)
+            end)
+        end
         return true
     elseif m == 'bay' then
         if Tr.Bay and Tr.Bay.PlacePatient then return Tr.Bay.PlacePatient(ped, cmd, isSelf) end

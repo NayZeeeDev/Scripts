@@ -840,9 +840,73 @@ local function sprayTick(me, dt)
     return false
 end
 
+-- With a third eye, cutting an engine / smothering a fire are options on a small zone at the
+-- smoke / fire instead of an [E] prompt (trapped victims already have 'Cut free' on the ped).
+local fxZones = {}   -- [scene:fx] = { id, kind }
+
+local function fxActionKind(s, f)
+    if not f.on then return nil end
+    local fc = cfg('fx')
+    if f.kind == 'smoke' and f.net and not anyFireOn(s, f.net) then return 'cut' end
+    if f.kind == 'groundSmoke' or ((f.kind == 'fire' or f.kind == 'groundFire') and fc.fireNeedsExtinguisher == false) then return 'smother' end
+    return nil
+end
+
+local function syncFxZones(me, near)
+    local want = {}
+    if near and not NZA.UI.WorldPrompts() and Bridge and Bridge.Target and Bridge.Target.Sphere then
+        for id, s in pairs(scenes) do
+            if s.c and #(vector3(s.c.x, s.c.y, s.c.z) - me) < 60.0 then
+                for _, f in ipairs(s.fx or {}) do
+                    local kind = fxActionKind(s, f)
+                    if kind then want[id .. ':' .. tostring(f.id)] = { kind = kind, scene = id, fx = f } end
+                end
+            end
+        end
+    end
+    for key, z in pairs(fxZones) do
+        if not want[key] or want[key].kind ~= z.kind then
+            pcall(Bridge.Target.Remove, z.id)
+            fxZones[key] = nil
+        end
+    end
+    for key, w in pairs(want) do
+        if not fxZones[key] then
+            local pos = fxPos(w.fx)
+            if pos then
+                local fc = cfg('fx')
+                local dist = w.kind == 'cut' and (tonumber((fc.cutEngine or {}).distance) or 3.2) or (tonumber((fc.smother or {}).distance) or 2.6)
+                local opts = { {
+                    name = 'nza_calls_fx', icon = w.kind == 'cut' and 'car' or 'flame', distance = dist,
+                    label = w.kind == 'cut' and L('calls.cut_engine') or L('calls.smother'),
+                    canInteract = function() return not busy and not IsPedInAnyVehicle(PlayerPedId(), false) end,
+                    onSelect = function()
+                        if busy then return end
+                        busy = true
+                        CreateThread(function()
+                            local ok2, err2 = pcall(doFxAction, { kind = w.kind, scene = w.scene, fx = w.fx, pos = fxPos(w.fx) or pos })
+                            if not ok2 then NZA.Debug('calls fx action', err2) end
+                            busy = false
+                        end)
+                    end,
+                } }
+                local ok, zid = pcall(Bridge.Target.Sphere, 'nza_fx_' .. key, pos, 1.3, opts)
+                if ok and zid then fxZones[key] = { id = zid, kind = w.kind } end
+            end
+        end
+    end
+end
+
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    for _, z in pairs(fxZones) do pcall(Bridge.Target.Remove, z.id) end
+    fxZones = {}
+end)
+
 CreateThread(function()
     local shown = nil
     local sprayShown = false
+    local zonesAt = 0
     while true do
         local me = GetEntityCoords(PlayerPedId())
         local ok, err = pcall(effectsTick, me)
@@ -853,6 +917,11 @@ CreateThread(function()
         local near = false
         for _, s in pairs(scenes) do
             if s.c and #(vector3(s.c.x, s.c.y, s.c.z) - me) < 40.0 then near = true break end
+        end
+        if GetGameTimer() - zonesAt > 1000 then
+            zonesAt = GetGameTimer()
+            local okz, errz = pcall(syncFxZones, me, near)
+            if not okz then NZA.Debug('calls fx zones', errz) end
         end
         if not near then
             if shown then NZA.UI.HidePrompt('calls_act') shown = nil end
@@ -879,7 +948,8 @@ CreateThread(function()
                 end
                 sprayShown = spraying
                 local a = nil
-                if not busy and not IsPedInAnyVehicle(PlayerPedId(), false) then
+                -- [E] only without a third eye (with one: the zones above and 'Cut free' on the ped)
+                if not busy and not IsPedInAnyVehicle(PlayerPedId(), false) and NZA.UI.WorldPrompts() then
                     if frames % 10 == 1 then a = nearestAction(me) else a = shown end
                 end
                 if a then

@@ -65,7 +65,10 @@ Care.Actions = {
     drain     = { routes = { 'us_drain' },                          options = { 'nza_us_drain' },                           icon = 'lungs' },
     tamponade = { routes = { 'us_peri' },                           options = { 'nza_us_peri' },                            icon = 'heart' },
     bullet    = { routes = { 'bullet' },                            options = { 'nza_bullet' },                             icon = 'scalpel' },
-    xray      = { routes = { 'xray_take', 'xray_reduce', 'xray_cast' }, options = { 'nza_xray_table', 'nza_xray_any', 'nza_xray_reduce', 'nza_xray_cast' }, icon = 'bone' },
+    xray      = { routes = { 'xray_take' },                         options = { 'nza_xray_table', 'nza_xray_any' },         icon = 'xray' },
+    xray_read = { routes = {},                                      options = {},                                           icon = 'xray' },
+    reduce    = { routes = { 'xray_reduce' },                       options = { 'nza_xray_reduce' },                        icon = 'bone' },
+    cast      = { routes = { 'xray_cast' },                         options = { 'nza_xray_cast' },                          icon = 'splint' },
     graft     = { routes = { 'graft' },                             options = { 'nza_graft' },                              icon = 'flame' },
     hospital  = { routes = {},                                      options = { 'nza_tr_tobed', 'nza_tr_onstretcher', 'nza_tr_carry' }, icon = 'ambulance' },
     bodybag   = { routes = {},                                      options = { 'nza_bodybag' },                            icon = 'bag' },
@@ -275,7 +278,8 @@ end
 -- ════════════════════════════════════════════════════════════════════════
 
 -- the step codes whose own option is already on the third eye (help up, stretcher, body bag)
-local NO_STEP_OPTION = { standup = true, hospital = true, bodybag = true, extricate = true, release = true }
+-- (xray_read happens at the lightbox with the film, not on the patient)
+local NO_STEP_OPTION = { standup = true, hospital = true, bodybag = true, extricate = true, release = true, xray_read = true }
 
 local function guided() return cfg('guided', true) ~= false end
 
