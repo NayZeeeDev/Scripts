@@ -1013,7 +1013,7 @@ NZA.Interact.Add({
         local rc = Config.Calls and Config.Calls.npc and Config.Calls.npc.release or {}
         if rc.enabled == false then return false end
         local b = Entity(entity).state.nzaNpc
-        return type(b) == 'table' and b.c ~= nil and not b.rel and not b.ho and not b.tr
+        return type(b) == 'table' and b.c ~= nil and not b.rel and not b.tr
     end,
     onSelect = function(entity, target)
         local ok, res = pcall(lib.callback.await, 'nza:calls:release', false, target)

@@ -145,7 +145,7 @@ NZA.AddLocale('en', {
 
     -- ── scene interactions ──────────────────────────────────────────────
     ['calls.opt_extricate']    = 'Cut free',
-    ['calls.opt_release']      = 'Release on scene',
+    ['calls.opt_release']      = 'Release patient',
     ['calls.extricating']      = 'Cutting the patient free...',
     ['calls.extricated']       = '%s is free. You can move them now.',
     ['calls.extricate_fail']   = 'Could not cut the patient free.',
@@ -158,7 +158,7 @@ NZA.AddLocale('en', {
     ['calls.engine_cut']       = 'Engine cut. The smoke is clearing.',
     ['calls.fire_out']         = 'The fire is out.',
     ['calls.spraying']         = 'Spray at the base of the flames',
-    ['calls.released']         = '%s was released on scene.',
+    ['calls.released']         = '%s was released and can go home.',
     ['calls.release_fail']     = 'This patient still needs treatment or transport.',
     ['calls.handover']         = '%s was handed over to the hospital.',
     ['calls.reward']           = 'Hand-over: %s · $%d',

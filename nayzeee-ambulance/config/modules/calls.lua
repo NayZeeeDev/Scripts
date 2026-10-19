@@ -212,7 +212,7 @@ Config.Calls = {
 
     handover = {
         types        = { bed = true },     -- hospital point types that count as "handed over" (ward bed)
-        despawnDelay = 90,                 -- seconds the patient stays in the bed before being admitted (removed)
+        despawnDelay = 900,                -- seconds a handed-over patient stays in the bed if nobody releases them (then admitted / removed)
         notify       = true,               -- toast the crew with the reward
     },
 

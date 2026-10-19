@@ -59,8 +59,9 @@
       el.innerHTML = '<aside class="cs nza-hud solid rail"></aside>';
       root = el.querySelector('.cs');
     },
-    open(d) { render(d); root.classList.remove('in'); void root.offsetWidth; root.classList.add('in'); },
-    close() {},
+    // the card holds the right edge: [E] prompts move left of it while it is shown
+    open(d) { render(d); root.classList.remove('in'); void root.offsetWidth; root.classList.add('in'); document.body.classList.add('nza-rail-r'); },
+    close() { document.body.classList.remove('nza-rail-r'); },
     msg: { update(d) { render(d); } },
     preview() {
       NZA.open('care', {

@@ -227,6 +227,7 @@
       case 'speech': return speech(data);
       case 'prompt': return prompt(data.id || 'default', data);
       case 'promptHide': return promptHide(data.id || 'default');
+      case 'promptsOff': { const l = document.getElementById('nza-layer-prompt'); if (l) l.classList.toggle('off', !!(data && data.on)); return; }   // third eye open
       case 'closeAll': return [...stack].forEach(n => close(n, false));
       case 'sound': return audio.play(data.name, data);
       case 'locale': locale = Object.assign(locale, data || {}); return;
@@ -326,15 +327,17 @@
 
   /* ─────────────── prompts (context tag beside the crosshair) ─────────────── */
   const prompts = {};
+  // [E] prompts: a stack of pills at the right edge, middle of the screen (key cap + label · sub)
   function prompt(id, { key = 'E', label = '', sub = '', progress = null, tone = '' } = {}) {
     const layer = document.getElementById('nza-layer-prompt');
     let p = prompts[id];
-    if (!p) { p = el('div', 'prompt'); layer.appendChild(p); prompts[id] = p; }
+    if (!p) { p = el('div', 'prompt nza-hud solid'); layer.appendChild(p); prompts[id] = p; }
     const prog = progress !== null && progress !== undefined ? clamp(progress, 0, 1) : null;
-    const C = 2 * Math.PI * 15;
-    p.className = `prompt ${tone || ''}${prog !== null ? ' hold' : ''}`;
-    p.innerHTML = `<span class="kr"><svg viewBox="0 0 36 36"><circle class="bg" cx="18" cy="18" r="15"/>${prog !== null ? `<circle class="fg" cx="18" cy="18" r="15" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - prog)).toFixed(1)}"/>` : ''}</svg><b>${esc(key)}</b></span>
-      <span class="pt">${sub ? `<small>${esc(sub)}</small>` : ''}<span>${esc(label)}</span></span>`;
+    const ring = prog !== null
+      ? `<span class="ring"><svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" stroke="rgba(255,255,255,.12)"/><circle cx="13" cy="13" r="11" stroke="${tone === 'red' ? 'var(--red)' : 'var(--teal)'}" stroke-dasharray="${(prog * 69.1).toFixed(1)} 69.1"/></svg><kbd>${esc(key)}</kbd></span>`
+      : `<kbd class="${esc(tone || '')}">${esc(key)}</kbd>`;
+    p.className = `prompt nza-hud solid ${tone || ''}`;
+    p.innerHTML = `${ring}<span class="t">${esc(label)}${sub ? ` <span>· ${esc(sub)}</span>` : ''}</span>`;
   }
   function promptHide(id) { if (prompts[id]) { prompts[id].remove(); delete prompts[id]; } }
 

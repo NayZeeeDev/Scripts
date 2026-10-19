@@ -20,6 +20,7 @@
                                                             '_core' action 'prompt'
       NZA.UI.PromptProgress(id, 0..1)                       re-sends 'prompt' with progress
       NZA.UI.HidePrompt(id)                                 '_core' action 'promptHide'
+      NZA.UI.PromptsBlocked() → bool   the third eye is open (prompts are hidden meanwhile)
       NZA.UI.Hold(id, opts) → bool     blocking "hold [E] to ..." helper driven from Lua
       NZA.UI.PushConfig()              '_core' action 'config' (font, shape, scale, sounds,
                                        signature, locale = NZA.LocaleTable('ui') with every key
@@ -396,6 +397,25 @@ end
 
 -- opts = { key = 'E', label, sub (small grey suffix), hold = seconds, progress = 0..1
 --          (shows the fill ring), tone = 'red' | danger = true }
+-- [E] prompts never show together with the third eye: while it is open the prompt layer hides
+local promptsOff, promptWatch = false, false
+local function watchTarget()
+    if promptWatch then return end
+    promptWatch = true
+    CreateThread(function()
+        while next(prompts) ~= nil do
+            local on = Bridge and Bridge.Target and Bridge.Target.IsActive and Bridge.Target.IsActive() or false
+            if on ~= promptsOff then promptsOff = on; UI.Send(CORE, 'promptsOff', { on = on }) end
+            Wait(100)
+        end
+        if promptsOff then promptsOff = false; UI.Send(CORE, 'promptsOff', { on = false }) end
+        promptWatch = false
+    end)
+end
+
+-- true while the third eye is open: a module's own [E] check can skip the key then
+function UI.PromptsBlocked() return promptsOff end
+
 function UI.Prompt(id, opts)
     if id == nil then return end
     opts = opts or {}
@@ -411,6 +431,7 @@ function UI.Prompt(id, opts)
     if samePrompt(prompts[id], p) then return end
     prompts[id] = p
     UI.Send(CORE, 'prompt', p)
+    watchTarget()
 end
 
 function UI.PromptProgress(id, progress)

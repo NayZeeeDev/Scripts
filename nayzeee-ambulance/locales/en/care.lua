@@ -13,7 +13,7 @@ NZA.AddLocale('en', {
     -- ── steps ─────────────────────────────────────────────────────────────
     ['care.do_extricate']  = 'Cut them free',
     ['care.why_extricate'] = 'Trapped in the wreck. Free them before anything else.',
-    ['care.do_release']    = 'Release on scene',
+    ['care.do_release']    = 'Release patient',
     ['care.why_release']   = 'Nothing left to treat. They can go home.',
     ['care.do_cpr']        = 'Start CPR',
     ['care.why_cpr']       = 'No pulse. Push hard and fast, use the defibrillator.',

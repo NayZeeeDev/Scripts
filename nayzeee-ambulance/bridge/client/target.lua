@@ -16,6 +16,7 @@
       Bridge.Target.Box(name, coords, size, heading, options)  → id
       Bridge.Target.Remove(id)
       Bridge.Target.Resource() → adapter name
+      Bridge.Target.IsActive() → bool               the third eye is open right now
 
     OPTION FORMAT
       { name = 'nza_pulse', label = 'Check Pulse', icon = 'heart' (NAYZEEE icon or 'fa-solid fa-...'),
@@ -727,6 +728,20 @@ local function resolve()
     }) or 'builtin'
     Bridge.Debug('target:', resolved)
     return resolved
+end
+
+-- true while the player holds the third eye open ([E] prompts step aside meanwhile)
+function Bridge.Target.IsActive()
+    local res = Bridge.Target.Resource()
+    if res == 'ox_target' then
+        local ok, v = pcall(function() return exports.ox_target:isActive() end)
+        if ok and v ~= nil then return v == true end
+    elseif res == 'qb-target' or res == 'qtarget' then
+        local ok, v = pcall(function() return exports[res]:IsTargetActive() end)
+        if ok and v ~= nil then return v == true end
+    end
+    -- no export to ask: the usual third-eye key (left Alt) held down
+    return IsControlPressed(0, 19) or IsDisabledControlPressed(0, 19)
 end
 
 function Bridge.Target.Resource()

@@ -431,10 +431,12 @@ local function handover(src, p, pointType)
     pushBag(p, true)
     if src and tonumber(src) and cfg('handover').notify ~= false then toast(src, L('calls.handover', p.name or '?'), 'success') end
     NZA.Bus.Emit('calls:handover', scene, p, p.state, amount)
+    -- the patient stays in the bed so the crew can finish treatment and release them; this is
+    -- only the safety net for one nobody releases
     local pid = p.pid
-    SetTimeout(math.max(5, tonumber(cfg('handover').despawnDelay) or 90) * 1000, function()
+    SetTimeout(math.max(30, tonumber(cfg('handover').despawnDelay) or 900) * 1000, function()
         local cur = NZA.Patients.Get(pid)
-        if not cur then return end
+        if not cur or v.released then return end
         I.orphans[pid] = nil
         I.RemoveVictim(scene, pid, 'handover')
     end)
@@ -482,17 +484,28 @@ lib.callback.register('nza:calls:release', function(src, target)
     local p = NZA.Patients.Resolve(target)
     if not p or p.kind ~= 'npc' then return fail('state', L('calls.scene_unknown')) end
     local scene, v = findVictim(p.pid)
-    if not v or v.handed or v.released then return fail('state', L('calls.scene_unknown')) end
+    if not v or v.released then return fail('state', L('calls.scene_unknown')) end
     if NZA.Core.DistanceTo(src, p) > 4.0 then return fail('far') end
     if not releasable(p) then return fail('state', L('calls.release_fail')) end
     v.released = true
-    I.Reward(scene, v, p, tonumber(cfg('rewards').released) or 0.55, src)
-    pushBag(p, true)
+    -- handed over at the hospital: already paid at the hand-over, this is the discharge
+    if not v.handed then I.Reward(scene, v, p, tonumber(cfg('rewards').released) or 0.55, src) end
     if NZA.Patients.SetMeta then pcall(NZA.Patients.SetMeta, p, 'escort', nil) end
-    TriggerClientEvent('nza:calls:released', -1, p.net)
+    -- off the bed / stretcher / seat first: the transport module stands them up beside it
+    local m = p.meta or {}
+    local held = m.bed ~= nil or m.inBed ~= nil or m.stretcher ~= nil or m.carried ~= nil or m.bay ~= nil or m.vehicle ~= nil
+    local T = NZA.Transport
+    if held and T and type(T.Free) == 'function' then pcall(T.Free, p) end
+    pushBag(p, true)
+    local net = p.net
+    if held then
+        SetTimeout(2500, function() TriggerClientEvent('nza:calls:released', -1, net) end)
+    else
+        TriggerClientEvent('nza:calls:released', -1, net)
+    end
     NZA.Bus.Emit('calls:released', scene, p)
     local pid = p.pid
-    SetTimeout(math.max(5, tonumber(rc.walkTime) or 25) * 1000, function()
+    SetTimeout(math.max(5, tonumber(rc.walkTime) or 25) * 1000 + (held and 2500 or 0), function()
         if NZA.Patients.Get(pid) then
             I.orphans[pid] = nil
             I.RemoveVictim(scene, pid, 'released')

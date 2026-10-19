@@ -468,24 +468,18 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .speech.out{animation:nza-note-out 200ms both}
 
 /* ═══════════════ PROMPT (context tag beside the crosshair) ═══════════════ */
-#nza-layer-prompt{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:8px;padding:calc(50vh + 26px) 0 0 calc(50vw + 26px)}
-.prompt{position:relative;display:flex;align-items:center;gap:10px;animation:pr-in 220ms cubic-bezier(.2,.7,.2,1) both}
-.prompt::before{content:'';position:absolute;left:-22px;top:-22px;width:20px;height:20px;border-left:1.5px solid rgba(255,255,255,.35);border-bottom:1.5px solid rgba(255,255,255,.35);border-bottom-left-radius:6px;transform:translateY(-2px)}
-@keyframes pr-in{from{opacity:0;transform:translate(-8px,-6px)}to{opacity:1;transform:none}}
-.prompt .kr{position:relative;flex:none;width:36px;height:36px;display:grid;place-items:center}
-.prompt .kr svg{position:absolute;inset:0;transform:rotate(-90deg)}
-.prompt .kr circle{fill:rgba(12,13,16,.9);stroke-width:2.5}
-.prompt .kr circle.bg{stroke:var(--teal)}
-.prompt.hold .kr circle.bg{stroke:rgba(255,255,255,.16)}
-.prompt .kr circle.fg{fill:none;stroke:var(--teal-hi);stroke-linecap:round;filter:drop-shadow(0 0 3px rgba(15,212,196,.7))}
-.prompt .kr b{position:relative;font:700 13px var(--font);color:var(--white)}
-.prompt .pt{display:flex;flex-direction:column;gap:1px;padding:6px 12px 6px 10px;border-radius:9px;background:rgba(12,13,16,.86);border:1px solid rgba(255,255,255,.06)}
-.prompt .pt small{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-hi)}
-.prompt .pt span{font-size:13.5px;font-weight:600;color:var(--white);white-space:nowrap}
-.prompt.red .kr circle.bg,.prompt.red .kr circle.fg{stroke:var(--red)}
-.prompt.red .pt small{color:#ff8a8d}
-.prompt.amber .kr circle.bg{stroke:var(--amber)}
-.prompt.amber .pt small{color:#f3c35a}
+#nza-layer-prompt{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;padding-right:22px;transition:padding 160ms}
+#nza-layer-prompt.off{display:none}                       /* the third eye is open */
+body.nza-rail-r #nza-layer-prompt{padding-right:372px}   /* the care steps card holds the right edge */
+.prompt{display:flex;align-items:center;gap:10px;padding:7px 14px 7px 7px;animation:nza-note-in 200ms both}
+.prompt kbd{height:26px;min-width:26px;font-size:12px}
+.prompt kbd.red{border-color:var(--red-edge);color:#ff9a9d}
+.prompt .t{font-size:13.5px;font-weight:600;color:var(--white);white-space:nowrap}
+.prompt .t span{color:var(--ink-3);font-weight:400}
+.prompt .ring{width:26px;height:26px;position:relative;flex:none}
+.prompt .ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.prompt .ring circle{fill:none;stroke-width:3}
+.prompt .ring kbd{position:absolute;inset:3px;min-width:0;height:auto;font-size:10px}
 
 /* ═══════════════ ANCHORS (world markers) ═══════════════ */
 .anc{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px;pointer-events:none;transition:opacity 120ms}

@@ -115,6 +115,20 @@ end
 -- PLAN
 -- ════════════════════════════════════════════════════════════════════════
 
+-- the patient is at a hospital: in a bed / on a hospital point, or within Config.Care.hospitalRadius
+-- of one. Hospital work is then done right here, without a 'take them to hospital' line first.
+local function atHospital(p)
+    local m = p.meta or {}
+    if m.bed ~= nil or m.inBed then return true end
+    local H = NZA.Hospitals
+    if not (H and type(H.Nearest) == 'function' and NZA.Core and NZA.Core.PatientCoords) then return false end
+    local ok, c = pcall(NZA.Core.PatientCoords, p)
+    if not ok or not c then return false end
+    local ok2, dept, dist = pcall(H.Nearest, c)
+    return ok2 and dept ~= nil and dist ~= nil and dist <= (tonumber(cfg('hospitalRadius', 60.0)) or 60.0)
+end
+Care.AtHospital = atHospital
+
 function Care.Plan(p)
     local out = {}
     if type(p) ~= 'table' then return out end
@@ -293,11 +307,16 @@ function Care.Plan(p)
         if ok and can then add('standup') end
     end
 
-    -- hospital work last, behind one 'take them to hospital' line
-    if #hospital > 0 then
+    -- hospital work last, behind one 'take them to hospital' line - or, at the hospital, as
+    -- ordinary steps to do here
+    local here = #hospital > 0 and atHospital(p)
+    if #hospital > 0 and not here then
         add('hospital', { w = 'hospital', n = #hospital })
         for _, s in ipairs(hospital) do out[#out + 1] = s end
-    elseif npcCall and p.state == 'alive' then
+    elseif here then
+        for _, s in ipairs(hospital) do s.w = 'field'; out[#out + 1] = s end
+    end
+    if #hospital == 0 and npcCall and p.state == 'alive' then
         -- walking wounded from a call with nothing left: let them go home
         local Calls = NZA.Calls
         local ok, can = true, true
