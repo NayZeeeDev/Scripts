@@ -2854,7 +2854,9 @@
           this.good = 0;
           if (this.scale > this.min + 1e-3) { this.scale = Math.max(this.min, this.scale - (eff > 70 ? 0.2 : 0.1)); this.settle(now); }
           else this.cheaper(now);
-        } else if (eff < 30 && ms < this.best * 1.15 + 2 && ++this.good >= 3) {
+        } else if (gameMs < 30 && ms < Math.max((this.cap ? 1000 / this.cap : 1000 / 60) * 1.1, this.best * 1.15 + 2) && ++this.good >= 3) {
+          // headroom: the game above ~33 fps and the scene at its cap (with the 30 fps cap the scene's
+          // own interval never drops under 33 ms, so it is compared with the cap, not a fixed 30 ms)
           this.good = 0;
           if (this.scale < this.max - 1e-3) { this.scale = Math.min(this.max, this.scale + 0.1); this.settle(now); }
         }
