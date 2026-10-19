@@ -214,7 +214,7 @@ Config.Hospital = {
     bed = {
         dict      = 'anim@gangops@morgue@table@',   -- lying on the back
         clip      = 'body_search',
-        zOffset   = 0.0,          -- lift the body above the placed point
+        zOffset   = 0.0,          -- fine tune on top of Config.Transport.Beds.lift (the body is laid on the mattress)
         getUpKey  = 'X',          -- shown in the prompt; control 73 (INPUT_VEH_DUCK)
         exitSide  = 1.1,          -- metres to the side you stand up to
     },

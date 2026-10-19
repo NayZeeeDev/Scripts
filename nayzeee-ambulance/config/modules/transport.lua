@@ -131,17 +131,26 @@ Config.Transport = {
     Beds = {
         enabled = true,
         range   = 3.0,           -- metres between the stretcher / you and a bed for 'Transfer to ...'
+        -- How high a lying patient sits: the lying animation keeps the body 'lift' metres under the
+        -- ped, so the ped is put that far above the mattress / table top. 'probe' = look for the real
+        -- surface with a ray from this many metres above the expected top (false = trust pos / lie).
+        -- Same value as the stretcher (patient.pos.z 1.33 - mattress 0.885). Raise it if patients
+        -- sink in, lower it if they float.
+        lift  = 0.445,
+        probe = 0.5,
         -- Point types a patient can lie on. Any other point type whose data has bed = true works too.
-        --   pos / heading  nudge from the point (point space) so the body lies on the mattress / table top
+        --   pos / heading  where the mattress / table top is from the point (point space; a point's
+        --                  own data.lie wins) - the ray then finds the exact top
+        --   lift / probe   per type overrides of the two values above
         --   anim           lying (or sitting) animation
         --   heal           counts as a hospital bed (faster healing, rewarming)
         types = {
-            bed        = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = true },
-            surgery    = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = false },
-            xray       = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = false },
-            angio      = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = false },
-            ultrasound = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = false },
-            donation   = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = false,
+            bed        = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = true, probe = 1.4 },    -- marker on the bed or the floor beside it
+            surgery    = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = false },                -- table top from Config.Bullet.Table.lie
+            xray       = { pos = vec3(0.0, 0.0, 0.825), heading = 0.0, heal = false },              -- nz_amb_xray_table pad top
+            angio      = { pos = vec3(0.0, 0.0, 0.825), heading = 0.0, heal = false },              -- (Config.Angio.Suite.lie)
+            ultrasound = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = false, probe = 1.4 },   -- a bed beside the cart, or the floor
+            donation   = { pos = vec3(0.0, 0.0, 0.0), heading = 0.0, heal = false, lift = 0.0, probe = false,
                            anim = { dict = 'timetable@ron@ig_3_couch', clip = 'base', flag = 1 } },
         },
         anim = { dict = 'anim@gangops@morgue@table@', clip = 'body_search', flag = 1 },   -- default lying animation

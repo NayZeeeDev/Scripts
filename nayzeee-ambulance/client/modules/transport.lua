@@ -280,20 +280,47 @@ function Tr.BedAnim(bt)
     return tc.anim or Tr.Cfg('Beds').anim or lyingAnim()
 end
 
--- where a patient lies on a bed point (vector4)
-function Tr.BedSpot(at, bt)
-    local tc = (Tr.Cfg('Beds').types or {})[bt or ''] or {}
+-- the top of whatever is under (x, y): mattress, table top or floor (peds are ignored)
+local function surfaceBelow(x, y, fromZ, toZ, ignore)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(x, y, fromZ, x, y, toZ, 1 + 16, ignore or 0, 7)
+    local _, hit, pos = GetShapeTestResult(ray)
+    if (hit == 1 or hit == true) and pos then return pos.z end
+    return nil
+end
+
+-- where a patient lies on a bed point (vector4: the ped's root while the lying animation plays).
+-- The point's lie offset (or the type's pos) says where the mattress / table top is; a ray down
+-- from above it finds the real surface, and the root goes 'lift' above it (the lying animation
+-- keeps the body that far under the root), so nobody sinks into a table or the floor.
+function Tr.BedSpot(at, bt, ped)
+    local bc = Tr.Cfg('Beds')
+    local tc = (bc.types or {})[bt or ''] or {}
     local off = tc.pos or vector3(0.0, 0.0, 0.0)
     local pt = Tr.Bed and Tr.Bed.PointFromSpot and Tr.Bed.PointFromSpot(at) or nil
-    if pt and type(pt.data) == 'table' and type(pt.data.lie) == 'table' then
-        off = vector3(tonumber(pt.data.lie.x) or off.x, tonumber(pt.data.lie.y) or off.y, tonumber(pt.data.lie.z) or off.z)
+    local lie = pt and type(pt.data) == 'table' and type(pt.data.lie) == 'table' and pt.data.lie or nil
+    if not lie and pt then
+        local def = NZA.Points.Type and NZA.Points.Type(pt.type)
+        local p = def and type(def.lie) == 'table' and def.lie.pos or nil
+        if p then lie = { x = p.x, y = p.y, z = p.z } end
+    end
+    if lie then
+        off = vector3(tonumber(lie.x) or off.x, tonumber(lie.y) or off.y, tonumber(lie.z) or off.z)
     end
     local h = (at.w or 0.0) + (tc.heading or 0.0)
     local r = math.rad(at.w or 0.0)
     local cs, sn = math.cos(r), math.sin(r)
     local x = at.x + off.x * cs - off.y * sn
     local y = at.y + off.x * sn + off.y * cs
-    return vector4(x, y, at.z + off.z, h % 360.0)
+    local z = at.z + off.z
+    local lift = tonumber(tc.lift or bc.lift) or 0.0
+    local probe = tc.probe
+    if probe == nil then probe = bc.probe end
+    if probe ~= false and lift > 0.0 then
+        local up = tonumber(probe) or 0.5
+        local top = surfaceBelow(x, y, z + up, z - 1.2, ped)
+        if top then z = top end
+    end
+    return vector4(x, y, z + lift, h % 360.0)
 end
 
 -- Apply a command to a patient ped we control. isSelf = our own player ped.
@@ -330,7 +357,7 @@ function Tr.Apply(ped, cmd, isSelf, prevMode)
         local at = Tr.V4(cmd.at)
         if not at then return false end
         detach(ped)
-        local spot = Tr.BedSpot(at, cmd.bt)
+        local spot = Tr.BedSpot(at, cmd.bt, ped)
         SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z, false, false, false)
         SetEntityHeading(ped, spot.w)
         FreezeEntityPosition(ped, true)

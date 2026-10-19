@@ -108,7 +108,7 @@ Config.Angio = {
             button   = { prop = 'contrast_button', fallback = 'prop_parknmeter_01',   pos = vector3(1.30, 0.55, 0.0),  h = 90.0,  anchor = vector3(0.0, 0.0, 1.16) },
         },
         operator = vector3(0.75, -0.25, 0.0),   -- where the medic stands (table space, at the groin)
-        lie      = vector3(0.0, 0.0, 0.825),    -- patient position on the table top (for the transport module)
+        lie      = vector3(0.0, 0.0, 0.825),    -- the table top under the patient (the transport module lays them on it)
 
         -- Screen of the monitor model (monitor model space; the screen faces +Y of the model)
         screen   = { pos = vector3(0.0, 0.6585, 1.55), dist = 1.05, drop = 0.16, pitch = 2.0, fov = 42.0 },

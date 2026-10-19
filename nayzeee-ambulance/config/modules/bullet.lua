@@ -117,7 +117,8 @@ Config.Bullet = {
     Table = {
         model     = 'v_med_emptybed',   -- table model spawned at the point (false = use the map's own table:
                                         -- then place the point on the table top)
-        lie       = vec3(0.0, 0.0, 0.62), -- where the patient lies, from the point (point space, metres)
+        lie       = vec3(0.0, 0.0, 0.62), -- the table top under the patient, from the point (point space, metres;
+                                        -- the transport module finds the exact top and lays the patient on it)
         tray      = 'surgery_tray',     -- Config.Props key of the instrument tray (false = none)
         trayPos   = vec3(1.05, 0.15, 0.0), -- tray offset from the point (+X right of the table, +Y head end)
         trayHeading = 90.0,             -- tray heading relative to the point

@@ -633,7 +633,10 @@ local function lieDown(point)
     if not res.ok then return failToast(res) end
     local bc = hc('bed', {})
     local c = point.coords
-    SetEntityCoords(ped, c.x + 0.0, c.y + 0.0, c.z + (bc.zOffset or 0.0), false, false, false, false)
+    local at = vector4(c.x + 0.0, c.y + 0.0, c.z + 0.0, (c.w or 0.0) + 0.0)
+    -- on the mattress, not in it (the transport module finds the top and lifts the body onto it)
+    local spot = NZA.Transport and NZA.Transport.BedSpot and NZA.Transport.BedSpot(at, 'bed', ped) or at
+    SetEntityCoordsNoOffset(ped, spot.x, spot.y, spot.z + (bc.zOffset or 0.0), false, false, false)
     SetEntityHeading(ped, (c.w or 0.0) + 0.0)
     FreezeEntityPosition(ped, true)
     local ok, token = NZA.Anim.Play(ped, bc.dict or 'anim@gangops@morgue@table@', bc.clip or 'body_search', { flag = 1 })
