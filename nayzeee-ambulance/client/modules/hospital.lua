@@ -308,12 +308,74 @@ NZA.UI.On('manager', 'stashMove', function(data, cb)
     cb(res)
 end)
 
--- ── SUPPLY CABINET ───────────────────────────────────────────────────────
+-- ── SUPPLY OFFICER (medical bag + supplies) ─────────────────────────────
 
+local greetOfficer
 local function openStorage(point)
+    if greetOfficer then greetOfficer(point) end
     local res = call('nza:hospital:storage', point.id)
     if not res.ok then return failToast(res) end
     openCompact('storage', point, { items = res.items })
+end
+
+-- the supply officer: an NPC standing at the supply point (Config.Hospital.storage.npc)
+local officers = {}       -- [pointId] = ped | false (loading)
+
+local function removeOfficer(id)
+    local ped = officers[id]
+    officers[id] = nil
+    if ped and ped ~= 0 and DoesEntityExist(ped) then
+        SetEntityAsMissionEntity(ped, true, true)
+        DeleteEntity(ped)
+    end
+end
+
+local function spawnOfficer(point)
+    local nc = (hc('storage', {}).npc) or {}
+    if nc.enabled == false or (type(point.data) == 'table' and point.data.npc == false) then return end
+    if officers[point.id] ~= nil then return end
+    officers[point.id] = false
+    CreateThread(function()
+        local models = {}
+        for _, m in ipairs(nc.models or { 's_m_m_paramedic_01' }) do models[#models + 1] = m end
+        local hash
+        for i = 0, #models - 1 do
+            local h = joaat(models[((tonumber(point.id) or 0) + i) % #models + 1])
+            if IsModelInCdimage(h) and IsModelAPed(h) then hash = h break end
+        end
+        if not hash then officers[point.id] = nil return end
+        local ok = pcall(lib.requestModel, hash, 8000)
+        if not ok or not HasModelLoaded(hash) or officers[point.id] ~= false or not NZA.Points.Get(point.id) then
+            if officers[point.id] == false then officers[point.id] = nil end
+            return
+        end
+        local c = point.coords
+        local x, y, z, h = (tonumber(c.x) or 0.0) + 0.0, (tonumber(c.y) or 0.0) + 0.0, (tonumber(c.z) or 0.0) + 0.0, (tonumber(c.w or c.h) or 0.0) + 0.0
+        local ped = CreatePed(4, hash, x, y, z, h, false, true)
+        SetModelAsNoLongerNeeded(hash)
+        if not ped or ped == 0 then officers[point.id] = nil return end
+        if officers[point.id] ~= false or not NZA.Points.Get(point.id) then DeleteEntity(ped) return end
+        officers[point.id] = ped
+        SetEntityAsMissionEntity(ped, true, true)
+        SetEntityHeading(ped, h)
+        SetBlockingOfNonTemporaryEvents(ped, true)
+        SetEntityInvincible(ped, true)
+        SetEntityCanBeDamaged(ped, false)
+        SetPedCanRagdoll(ped, false)
+        SetPedFleeAttributes(ped, 0, false)
+        SetPedDiesWhenInjured(ped, false)
+        SetPedCanBeTargetted(ped, false)
+        SetPedKeepTask(ped, true)
+        SetPedConfigFlag(ped, 17, true)
+        FreezeEntityPosition(ped, true)
+        if type(nc.scenario) == 'string' and nc.scenario ~= '' then TaskStartScenarioInPlace(ped, nc.scenario, 0, true) end
+    end)
+end
+
+greetOfficer = function(point)
+    local ped = officers[point.id]
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return end
+    PlayPedAmbientSpeechNative(ped, 'GENERIC_HI', 'SPEECH_PARAMS_FORCE_NORMAL_CLEAR')
 end
 
 NZA.UI.On('manager', 'take', function(data, cb)
@@ -638,7 +700,10 @@ NZA.Points.RegisterType('boss', {
 })
 
 NZA.Points.RegisterType('storage', {
-    label = L('type_storage'), icon = 'medkit', radius = 1.0, desc = L('type_storage_desc'),
+    label = L('type_storage'), icon = 'medkit', radius = 1.0, desc = L('type_storage_desc'), needsHeading = true,
+    data = { npc = true },
+    onSpawn = function(p) spawnOfficer(p) end,
+    onRemove = function(p) removeOfficer(p.id) end,
     target = { opt(L('open_storage'), 'medkit', function(p) return onDutyMember(p) end, openStorage, { name = 'open' }) },
 })
 
@@ -720,6 +785,7 @@ end)
 AddEventHandler('onResourceStop', function(res)
     if res ~= NZA.Resource then return end
     clearBlips()
+    for id in pairs(officers) do removeOfficer(id) end
     NZA.UI.HidePrompt('nza_hospital_store')
     if lying then
         local ped = PlayerPedId()

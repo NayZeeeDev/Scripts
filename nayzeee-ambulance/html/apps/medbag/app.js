@@ -2,7 +2,10 @@
    NAYZEEE AMBULANCE · app 'medbag'
    One app, three modes:
 
-   'bag'  The medical bag window. Your pockets dock on the LEFT edge (quantity dial under it), the
+   'bag'  The medical bag window. With unlimited supplies (bag.unlimited, the default) only the bag dock
+          shows: every supply has ∞ stock, a click takes one into your inventory (Shift = up to its
+          'hold' limit, hold LMB = one after another) and the item flies into the bag log.
+          Storage mode (bag.unlimited off): your pockets dock on the LEFT edge (quantity dial under it), the
           bag dock on the RIGHT edge with the bag drawn OPEN from above: the lid flipped back with
           its mesh pocket, the zipper hinge, the main compartment with elastic loops and the two
           side pouches. Par levels come from the restock list: stocked supplies carry a par bar,
@@ -70,6 +73,7 @@
   const normMe = m => (m ? Object.assign({}, m, { items: normItems(m.items) }) : null);
 
   /* ─────────────── state ─────────────── */
+  const unl = () => !!(S.bag && S.bag.unlimited);
   // our own notch set: two counts, then two shares of the clicked stack (half, whole)
   const PRESETS = [1, 3, 'half', 'stack'];
   const S = {
@@ -177,6 +181,7 @@
             <footer class="mb-foot">
               <button class="mb-act teal" data-act="kit">${icon('arrow-down')}<span></span><em></em></button>
               <button class="mb-act" data-act="empty">${icon('arrow-up')}<span></span></button>
+              <ul class="mb-hint"></ul>
             </footer>
           </section>
           <section class="mb-card mb-log nza-hud solid">
@@ -210,7 +215,7 @@
       kit: q('[data-act="kit"]'), emp: q('[data-act="empty"]'), sty: q('[data-act="style"]'), sort: q('[data-act="sort"]'),
       lock: q('[data-act="lock"]'), close: q('[data-act="close"]'),
       logH: q('.mb-lh b'), logS: q('.mb-lh span'), logL: q('.mb-logl'),
-      tip: q('.mb-tip'), fx: q('.mb-fx'),
+      tip: q('.mb-tip'), fx: q('.mb-fx'), hint: q('.mb-hint'),
       zip: q('.mb-zip'), zk: q('.mb-zip .zk'), zt: q('.mb-zip .zt'), zav: q('.mb-zip .zav b'), zn: q('.mb-zip .zn'), zs: q('.mb-zip .zs'),
       zsp: q('.mb-zip .zsp'), zsvg: q('.mb-zip .zzip svg'), zodo: q('.mb-zip .zodo'), zkey: q('.mb-zip .zkey'),
       tagw: q('.mb-tagw'),
@@ -271,6 +276,11 @@
       [t('ui_g_shift', 'Shift'), t('ui_g_shift_d', 'the whole stack')],
       [t('ui_g_right', 'RMB'), t('ui_g_right_d', 'just one')],
       [t('ui_g_drag', 'Drag'), t('ui_g_drag_d', 'onto a slot')],
+    ].map(([k, d]) => `<li><kbd>${esc(k)}</kbd><span>${esc(d)}</span></li>`).join('');
+    R.hint.innerHTML = [
+      [t('ui_g_click', 'Click'), t('ui_g_unl_click', 'take one')],
+      [t('ui_g_shift', 'Shift'), t('ui_g_unl_shift', 'up to the limit')],
+      [t('ui_g_hold', 'Hold'), t('ui_g_unl_hold', 'one after another')],
     ].map(([k, d]) => `<li><kbd>${esc(k)}</kbd><span>${esc(d)}</span></li>`).join('');
   }
 
@@ -342,9 +352,9 @@
     const n = Number(it.count) || 0;
     const stack = tall ? '' : (n >= 2 ? `<img class="stk s1" src="${imgOf(it)}" alt="" draggable="false" onerror="${imgFallback}">` : '')
       + (!tall && n >= 6 ? `<img class="stk s2" src="${imgOf(it)}" alt="" draggable="false" onerror="${imgFallback}">` : '');
-    return `<div class="mb-slot${tall ? ' tall' : ''}${p && p.need ? ' short' : ''}" data-item data-side="bag" data-slot="${it.slot}" data-name="${esc(it.name)}">
+    return `<div class="mb-slot${tall ? ' tall' : ''}${p && p.need ? ' short' : ''}${it.inf ? ' inf' : ''}" data-item data-side="bag" data-slot="${it.slot}" data-name="${esc(it.name)}">
       ${extra}${stack}<img class="main" src="${imgOf(it)}" alt="" draggable="false" onerror="${imgFallback}">
-      <b class="q">${esc(it.count)}</b>
+      <b class="q">${it.inf ? '∞' : esc(it.count)}</b>
       <span class="nm">${esc(it.label)}</span>${parBar}
     </div>`;
   }
@@ -361,13 +371,13 @@
 
   function loadTone(p) { return p >= 0.95 ? 'red' : p >= 0.8 ? 'amber' : ''; }
 
-  function loadDial(p) {
+  function loadDial(p, toneOver) {
     let ticks = '';
     for (let i = 0; i <= 10; i++) {
       const [a, b] = pt(60, 58, 52, i / 10), [c, d] = pt(60, 58, i % 5 ? 49 : 46, i / 10);
       ticks += `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}"/>`;
     }
-    const tone = loadTone(p);
+    const tone = toneOver !== undefined ? toneOver : loadTone(p);
     const fill = p > 0.002 ? `<path class="fill ${tone}" d="${arcD(60, 58, 40, 0, Math.max(p, 0.004))}"/>` : '';
     const zone = `<path class="zone" d="${arcD(60, 58, 40, 0.8, 1)}"/>`;
     const [kx, ky] = pt(60, 58, 40, p);
@@ -391,10 +401,13 @@
     const items = b.items || [];
     const max = b.maxWeight || 18000;
     const p = clamp(max > 0 ? (b.weight || 0) / max : 0, 0, 1);
-    R.loadSvg.innerHTML = loadDial(p);
-    R.loadV.textContent = `${Math.round(p * 100)}`;
-    R.loadV.className = loadTone(p);
-    R.loadU.textContent = '%';
+    A.el.classList.toggle('mb-unl', unl());
+    R.sort.style.display = unl() ? 'none' : '';
+    R.loadSvg.innerHTML = unl() ? loadDial(1, 'teal') : loadDial(p);
+    R.loadV.textContent = unl() ? '∞' : `${Math.round(p * 100)}`;
+    R.loadV.className = unl() ? 'inf' : loadTone(p);
+    R.loadU.textContent = unl() ? '' : '%';
+    R.loadC.textContent = unl() ? '' : t('ui_load_l', 'Load');
     const n = Math.max(b.slots || 20, ...items.map(i => i.slot));
     const units = items.reduce((a, i) => a + (Number(i.count) || 0), 0);
     const sTone = items.length >= n ? 'red' : items.length >= n * 0.8 ? 'amber' : '';
@@ -405,6 +418,10 @@
       [t('ui_units', 'Units'), `${units}`, ''],
     ];
     if (par.lines) rows.push([t('ui_par', 'Par'), `${par.stocked}<i> / ${par.lines} ${esc(t('ui_par_lines', 'stocked'))}</i>`, par.stocked >= par.lines ? 'teal' : 'amber']);
+    if (unl()) {
+      rows.length = 0;
+      rows.push([t('ui_unl_items', 'Items'), `${items.length}`, 'teal'], [t('ui_unl_stock', 'Stock'), `∞<i> ${esc(t('ui_unl_sub', 'Never runs out'))}</i>`, 'teal']);
+    }
     R.inst.innerHTML = rows.map(([l, v, tone]) => `<li class="${tone}"><span>${esc(l)}</span><b>${v}</b></li>`).join('');
 
     // compartments
@@ -465,7 +482,7 @@
 
   function renderMe() {
     const m = S.me;
-    if (!m) return;
+    if (!m || unl()) return;
     const all = m.items || [];
     const par = parInfo();
     const list = S.filter ? all.filter(it => `${it.label} ${it.name}`.toLowerCase().includes(S.filter)) : all;
@@ -650,6 +667,19 @@
     (it.meta || []).filter(m => m.k).forEach(m => rows.push([keyLabel(m.k), esc(m.v)]));
     const notes = (it.meta || []).filter(m => !m.k).map(m => `<p class="md">${esc(m.v)}</p>`).join('');
     const where = side === 'bag' ? t('ui_tip_bag', 'to your pockets') : t('ui_tip_me', 'into the bag');
+    if (it.inf) {
+      const hold = Number(it.hold) || Number(it.count) || 1;
+      R.tip.innerHTML = `
+        <div class="th"><span class="ti"><img src="${imgOf(it)}" alt="" onerror="${imgFallback}"></span>
+          <div><b>${esc(it.label)}</b><span class="cat">${esc(catLabel(it.cat))}</span></div></div>
+        ${it.desc ? `<p class="d">${esc(it.desc)}</p>` : ''}
+        <ul><li><span>${esc(t('ui_unl', 'Supplies'))}</span><b>∞ <em>${esc(t('ui_unl_sub', 'Never runs out'))}</em></b></li>
+          <li><span>${esc(t('ui_unl_hold', 'You can carry'))}</span><b>${esc(t('ui_unl_have', 'Up to %d', hold))}</b></li></ul>
+        <div class="hk"><kbd>Click</kbd><span>${esc(t('ui_unl_one', 'take one'))}</span></div>
+        <div class="hk"><kbd>Shift</kbd><span>${esc(t('ui_unl_max', 'take up to %d', hold))}</span></div>`;
+      placeTip(node, side);
+      return;
+    }
     R.tip.innerHTML = `
       <div class="th"><span class="ti"><img src="${imgOf(it)}" alt="" onerror="${imgFallback}"></span>
         <div><b>${esc(it.label)}</b><span class="cat">${esc(catLabel(it.cat))}</span></div></div>
@@ -728,7 +758,7 @@
   function onMove(e) {
     const p = S.press;
     if (!p) return;
-    if (!S.drag && !S.pour && p.button === 0 && !p.dis && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6) { clearTimeout(p.timer); startDrag(p); }
+    if (!S.drag && !S.pour && p.button === 0 && !p.dis && !unl() && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6) { clearTimeout(p.timer); startDrag(p); }
     if (!S.drag) return;
     ghost.style.left = `${e.clientX}px`; ghost.style.top = `${e.clientY}px`;
     const under = document.elementFromPoint(e.clientX, e.clientY);
@@ -755,6 +785,7 @@
       return;
     }
     if (p.dis) return shake(p.el);
+    if (unl()) return doMove(p, p.button === 2 ? 1 : (p.shift || e.shiftKey ? 'all' : 1));
     doMove(p, p.button === 2 ? 1 : (p.shift || e.shiftKey ? 'all' : curCount(p.max)));
   }
   function doMove(p, count) {
@@ -865,6 +896,8 @@
         const items = S.bag.items || [];
         const it = items.find(i => i.name === m.name && data.to && i.slot === data.to) || items.find(i => i.name === m.name);
         fly(m, fromBox, (it && slotNode(it.slot)) || R.bagCard);
+      } else if (m.dir === 'out' && unl()) {
+        fly(m, fromBox, R.logL.firstElementChild || R.logL);
       } else if (m.dir === 'out') {
         fly(m, fromBox, R.list.querySelector(`.mb-row[data-name="${cssEsc(m.name)}"]`) || R.pk);
       } else if (toEl) {
@@ -1247,6 +1280,27 @@
       return reply({ ok: false });
     });
 
+    if (demo === 'unl' || demo === 'unltip') {
+      const SUP = [['bandage', 10], ['gauze', 10], ['tourniquet', 4], ['sterile_dressing', 6], ['burn_dressing', 4], ['painkillers', 6], ['iv_kit', 4], ['suture_kit', 3],
+        ['morphine', 4], ['adrenaline', 4], ['txa', 2], ['ice_pack', 2], ['splint', 2], ['cervical_collar', 1], ['foil_blanket', 2], ['oxygen_mask', 1], ['saline_bag', 3], ['pelvic_binder', 1]];
+      Object.assign(bag, { unlimited: true, weight: 0 });
+      bag.items = SUP.map(([n, h], i) => Object.assign(mk(n, h, i + 1), { hold: h, inf: true }));
+      const held = {};
+      NZA.mock('medbag:move', d => {
+        const it = bag.items.find(i => i.slot === d.from);
+        if (!it || d.dir !== 'out') return { ok: false, bag: clone(bag), msg: 'This bag never runs out. Nothing needs packing' };
+        const room = it.hold - (held[it.name] || 0);
+        if (room < 1) return { ok: false, bag: clone(bag), msg: `You already carry ${it.hold} ${it.label}` };
+        const n = d.count === 'all' ? room : Math.min(room, d.count || 1);
+        held[it.name] = (held[it.name] || 0) + n;
+        return { ok: true, bag: clone(bag), moved: mv(it, n, 'out') };
+      });
+      NZA.demo('medbag', { bag: clone(bag), kit: [], colours: COLOURS, layout: LAYOUT });
+      logMove({ name: 'gauze', label: 'Gauze', image: img('gauze'), count: 2, dir: 'out' });
+      logMove({ name: 'tourniquet', label: 'Tourniquet', image: img('tourniquet'), count: 1, dir: 'out' }, 'P. Nair');
+      if (demo === 'unltip') setTimeout(() => showTip(A.el.querySelector('.mb-open .mb-slot[data-slot="3"]')), 300);
+      return;
+    }
     if (demo === 'locked') Object.assign(bag, { mine: false, owner: 'P. Nair', locked: true, canLock: false, canStyle: false, name: null, colour: 'green', hex: '#2fb36b' });
     if (demo === 'empty' || demo === 'bare') bag.items.length = 0;
     if (demo === 'bare') KIT.length = 0;

@@ -1060,7 +1060,7 @@
       body.querySelectorAll('[data-wear]').forEach(b => { b.onclick = async () => { const r = await NZA.post(`${APP}:wear`, { id: b.dataset.wear }); if (r && r.ok === false && r.msg) toast(r.msg, 'error'); }; });
       body.querySelector('[data-a=civ]').onclick = () => NZA.post(`${APP}:civvies`, {});
     } else if (C.mode === 'storage') {
-      const body = compactWin(T('storage', 'Supply cabinet'), d.dept || '');
+      const body = compactWin(T('storage', 'Supply officer'), d.dept || '');
       C.qty = C.qty || {};
       body.innerHTML = `<div class="mx-note">${esc(T('storage_note', 'Free while you are on shift. Every item has a limit per shift.'))}</div>` + ((d.items || []).length ? (d.items || []).map(it => {
         const left = Math.max(0, (it.limit || 0) - (it.taken || 0));
@@ -1228,7 +1228,7 @@
     const types = [
       t('duty', 'Shift Clock', 'clock', 'marker', {}, 'Clock on and off here.'), t('locker', 'Uniform Locker', 'hanger', 'marker', {}, 'Change into the department uniforms.'),
       t('stash', 'Staff Store', 'box', 'marker', { slots: 80, weight: 250000, personal: false, minGrade: 0 }, 'Shared department storage.'),
-      t('boss', 'Command Desk', 'crown', 'marker', {}, 'Staff, ranks, uniforms, fleet and account.'), t('storage', 'Supply Cabinet', 'medkit', 'marker', {}, 'Free supplies per shift.'),
+      t('boss', 'Command Desk', 'crown', 'marker', {}, 'Staff, ranks, uniforms, fleet and account.'), t('storage', 'Supply Officer', 'medkit', 'marker', {}, 'Medical bag and free supplies per shift.'),
       t('garage', 'Vehicle Bay', 'car', 'car', {}, 'Vehicles come out here.'), t('heli', 'Helipad', 'heli', 'heli', {}, 'Helicopters come out here.'),
       t('elevator', 'Lift Stop', 'building', 'marker', { group: 'main', floor: 'Ground floor', order: 0, staffOnly: false }, 'Stops with the same group are linked floors.'),
       t('bed', 'Ward Bed', 'bed', 'marker', {}, 'Lie down to heal four times faster.'), t('respawn', 'Recovery Point', 'heart', 'marker', {}, 'Where the dead wake up.'),

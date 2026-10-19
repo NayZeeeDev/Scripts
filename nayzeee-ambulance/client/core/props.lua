@@ -4,7 +4,7 @@
       NZA.Props.Spawn(model, where, opts) → entity (0 on failure), netId|nil
           model  Config.Props key ('ivstand') or a model name / hash
           where  vector3 / vector4 / { x, y, z, w } coords
-                 or { attach = { entity, bone, pos = vec3, rot = vec3, collision, fixedRot } }
+                 or { attach = { entity, bone, pos = vec3, rot = vec3, collision, fixedRot, rotOrder = 2 } }
           opts   { group = 'default', network = false, freeze = true, collision = true,
                    heading, rot = vec3, fallbackKey, ground = false, alpha, timeout = 5000,
                    invincible = true }
@@ -132,7 +132,7 @@ function Props.Spawn(model, where, opts)
         end
         local p, r = toVec3(attach.pos), toVec3(attach.rot)
         AttachEntityToEntity(obj, ent, boneIndex, p.x, p.y, p.z, r.x, r.y, r.z,
-            false, false, attach.collision == true, IsEntityAPed(ent), 2, attach.fixedRot ~= false)
+            false, false, attach.collision == true, IsEntityAPed(ent), tonumber(attach.rotOrder) or 2, attach.fixedRot ~= false)
     else
         if opts.rot then
             local r = toVec3(opts.rot)

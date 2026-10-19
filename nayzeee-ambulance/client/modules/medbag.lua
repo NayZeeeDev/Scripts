@@ -191,6 +191,7 @@ function MB.Open(id)
     }, { focus = true, cursor = true })
     -- keep the pockets panel fresh (items given / used elsewhere while the window is open)
     local id = S.open
+    if res.bag.unlimited then return end   -- no pockets panel
     CreateThread(function()
         while S.open == id do
             Wait(4000)
@@ -346,7 +347,7 @@ local function startCarry(res)
     local ped = PlayerPedId()
     local model = (res.models and res.models[1]) or MB.Models()[1]
     local ent, net = NZA.Props.Spawn(model, {
-        attach = { entity = ped, bone = c.bone or 28422, pos = c.pos or vector3(0.0, 0.0, -0.40), rot = c.rot or vector3(0.0, 0.0, 0.0) },
+        attach = { entity = ped, bone = c.bone or 57005, pos = c.pos or vector3(0.39, -0.06, -0.06), rot = c.rot or vector3(-100.0, -180.0, -78.0), rotOrder = c.rotOrder or 1 },
     }, { network = true, group = 'medbag_hand', collision = false, fallbackKey = 'medbag' })
     S.carry = { id = res.id, ent = ent }
     if net then lib.callback.await('nza:medbag:held', false, res.token, net) end

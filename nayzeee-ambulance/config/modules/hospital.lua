@@ -145,7 +145,14 @@ Config.Hospital = {
     storage = {
         shiftReset = true,        -- going off duty resets your taken counts
         shiftHours = 4,           -- ...and so does this many hours on duty
+        -- the supply officer NPC standing at every supply point (a point can turn it off in the builder: npc = false)
+        npc = {
+            enabled  = true,
+            models   = { 's_m_m_paramedic_01', 's_f_y_scrubs_01' },   -- picked by point id, so a desk always has the same face
+            scenario = 'WORLD_HUMAN_CLIPBOARD',                     -- idle ('' = stand still)
+        },
         items = {
+            { key = 'medbag',          limit = 1 },    -- the medical bag (unlimited supplies: Config.Medbag.Storage)
             { key = 'bandage',         limit = 20 },
             { key = 'gauze',           limit = 20 },
             { key = 'tourniquet',      limit = 4 },

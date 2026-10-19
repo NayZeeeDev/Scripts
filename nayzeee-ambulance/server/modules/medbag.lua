@@ -499,17 +499,47 @@ end
 -- VIEWS (what the NUI gets)
 -- ════════════════════════════════════════════════════════════════════════
 
+-- unlimited supplies: every bag hands out the supplies list and never runs out
+local function unlimited() return C('Storage').unlimited ~= false end
+MB.Unlimited = unlimited
+
+-- the supplies an unlimited bag hands out, slot by slot: { { name, hold } }
+-- (hold = the most of it one player may carry; taking stops there)
+local function supplies()
+    local out, seen = {}, {}
+    local max = math.max(1, math.floor(tonumber(C('Storage').slots) or 20))
+    for _, k in ipairs(C('Storage').supplies or C('Storage').kit or {}) do
+        local name = type(k) == 'table' and k.item or nil
+        if type(name) == 'string' and not seen[name] and allowed(name) and #out < max then
+            seen[name] = true
+            out[#out + 1] = { name = name, hold = math.max(1, math.floor(tonumber(k.hold or k.count) or 5)) }
+        end
+    end
+    return out
+end
+
 function MB.BagView(bag, src)
     local items = {}
     local max = slotCount(bag)
-    for slot = 1, max do
-        local e = bag.slots[slot]
-        if e then
-            local i = info(e.name)
+    local unl = unlimited()
+    if unl then
+        for slot, s in ipairs(supplies()) do
+            local i = info(s.name)
             items[#items + 1] = {
-                slot = slot, name = e.name, label = i.label, image = i.image, count = e.count,
-                weight = unitWeight(e.name), desc = i.desc, cat = i.cat, meta = metaLines(e.meta),
+                slot = slot, name = s.name, label = i.label, image = i.image, count = s.hold, hold = s.hold, inf = true,
+                weight = unitWeight(s.name), desc = i.desc, cat = i.cat,
             }
+        end
+    else
+        for slot = 1, max do
+            local e = bag.slots[slot]
+            if e then
+                local i = info(e.name)
+                items[#items + 1] = {
+                    slot = slot, name = e.name, label = i.label, image = i.image, count = e.count,
+                    weight = unitWeight(e.name), desc = i.desc, cat = i.cat, meta = metaLines(e.meta),
+                }
+            end
         end
     end
     local mine = src and MB.IsOwner(src, bag) or false
@@ -519,9 +549,10 @@ function MB.BagView(bag, src)
         name = bag.name, colour = col and col.id or nil, hex = col and col.hex or nil,
         canStyle = mine or (src and NZA.Core.IsAdmin(src)) or false,
         canLock = mine and C('Access').lock ~= false or (src and NZA.Core.IsAdmin(src) and bag.locked) or false,
-        slots = max, items = items, weight = bagWeight(bag),
+        slots = max, items = items, weight = unl and 0 or bagWeight(bag),
         maxWeight = tonumber(C('Storage').maxWeight) or 18000,
         held = src and MB.carry[src] == bag.id or false,
+        unlimited = unl or nil,
     }
 end
 
@@ -901,6 +932,9 @@ lib.callback.register('nza:medbag:open', function(src, id)
     local okA, why = MB.CanAccess(src, bag)
     if not okA then return accessFail(why, bag) end
     addViewer(src, id)
+    if unlimited() then
+        return { ok = true, bag = MB.BagView(bag, src), kit = {}, colours = MB.ColourView() }
+    end
     return { ok = true, bag = MB.BagView(bag, src), me = MB.MeView(src), kit = kitView(), colours = MB.ColourView() }
 end)
 
@@ -1042,6 +1076,26 @@ local function withdraw(src, bag, data)
     return { ok = true, moved = movedInfo(name, n, 'out') }
 end
 
+-- unlimited bag → pockets: the bag keeps its supplies; you take up to the item's 'hold'
+local function take(src, data)
+    local from = tonumber(data.from)
+    local s = from and supplies()[from]
+    if not s then return fail('empty_slot') end
+    if data.name and s.name ~= data.name then return fail('changed') end
+    local have = math.floor(tonumber(NZA.Core.B('Inv.Count', src, s.name)) or 0)
+    local room = s.hold - have
+    if room < 1 then return fail('hold_max', s.hold, info(s.name).label) end
+    local n = data.count == 'all' and room or math.min(room, math.max(1, math.floor(tonumber(data.count) or 1)))
+    local tries = 0
+    while n > 0 and NZA.Core.B('Inv.CanCarry', src, s.name, n) == false and tries < 6 do
+        n = (n > 1) and math.floor(n / 2) or 0
+        tries = tries + 1
+    end
+    if n < 1 then return fail('pockets_full') end
+    if not NZA.Core.B('Inv.AddItem', src, s.name, n) then return fail('pockets_full') end
+    return { ok = true, moved = movedInfo(s.name, n, 'out'), static = true }
+end
+
 -- slot → slot inside the bag
 local function rearrange(bag, data)
     local from, to = tonumber(data.from), tonumber(data.to)
@@ -1083,13 +1137,14 @@ local function checkViewer(src, id)
 end
 
 local function finishMove(src, bag, res)
-    if res.ok then
+    if res.ok and not res.static then
         save(bag)
         syncViewers(bag, src, res.moved or (res.movedList and res.movedList[1]) or nil)
         if res.moved then NZA.Bus.Emit('medbag:moved', src, bag.id, res.moved) end
     end
+    res.static = nil
     res.bag = MB.BagView(bag, src)
-    res.me = MB.MeView(src)
+    if not unlimited() then res.me = MB.MeView(src) end
     return res
 end
 
@@ -1101,6 +1156,11 @@ lib.callback.register('nza:medbag:move', function(src, id, data)
     if not bag then return err end
     return withLock(id, function()
         local res
+        if unlimited() then
+            res = data.dir == 'out' and take(src, data) or fail('unlimited')
+            if res.ok then NZA.Bus.Emit('medbag:moved', src, bag.id, res.moved) end
+            return finishMove(src, bag, res)
+        end
         if data.dir == 'in' then res = deposit(src, bag, data)
         elseif data.dir == 'out' then res = withdraw(src, bag, data)
         elseif data.dir == 'bag' then res = rearrange(bag, data)
@@ -1194,6 +1254,9 @@ lib.callback.register('nza:medbag:action', function(src, id, action, data)
     if not bag then return err end
     return withLock(id, function()
         local res = { ok = true }
+        if unlimited() and (action == 'sort' or action == 'kit' or action == 'empty') then
+            return finishMove(src, bag, fail('unlimited'))
+        end
         if action == 'sort' then
             sortBag(bag)
             res.msg = L('ok_sorted')

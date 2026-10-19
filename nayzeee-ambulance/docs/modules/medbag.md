@@ -18,14 +18,21 @@ deceased patient to the morgue.
 ## Features
 
 ### Medical bag
+- **Get one** from the **Supply Officer** NPC at the hospital (point type `storage`, built with the
+  hospital builder; `Config.Hospital.storage.items` → `medbag`, one per shift).
+- **Unlimited supplies** (`Storage.unlimited`, default on): every bag carries the `Storage.supplies`
+  list and never runs out. Open it and click a supply to take one (Shift + click: up to its `hold`,
+  hold LMB: one after another). `hold` is the most of that item one player may carry; the bag stops
+  handing it out there. Nothing is packed into the bag, so the window shows the bag only (no pockets
+  dock, no quantity dial, no restock / unpack). Set `unlimited = false` for the storage bag below.
 - **Use the item** (`Config.Items.medbag`): bend down and set the bag on the ground in front of you
   (never through a wall; pockets face you). The bag is a networked object created by the server
   (`Config.Props.medbag`, `Bag.model` to override, `extraModels` count as bags too).
 - Every bag has an id (`MB-7K2QF`) stored in the item's metadata. Pick it up again and the contents
   stay with it; the item description shows `Bag MB-7K2QF · 14 items · 2.3 kg`.
 - **Target options** on the bag: *Open medical bag*, *Carry medical bag*, *Pick up medical bag*.
-- **Carry in hand**: the prop hangs from the right hand (`Bag.Carry.bone/pos/rot`, jerry-can arm
-  pose), jog speed by default. Prompts: **[G]** put down, **[E]** open it while holding it,
+- **Carry in hand**: held by the top handle at your side (`Bag.Carry.bone/pos/rot/rotOrder`, jerry-can
+  arm pose on the upper body only), so you can walk, run and sprint with it (`maxSpeed = 3.0`). Prompts: **[G]** put down, **[E]** open it while holding it,
   **[H]** pack it away. Weapons and vehicles are blocked while carrying. Going down drops the bag.
 - **Ground bags survive restarts** (`Bag.persist`); bags removed by cleanup scripts come back.
   `maxOut` limits how many bags one player can leave on the ground. A duplicated item with an id
@@ -34,6 +41,7 @@ deceased patient to the morgue.
   admins. The owner can **lock** a bag (only the owner and admins can open or take it then).
 
 ### Bag window (NUI `medbag`, mode `bag`) — our own composition (docs/design/ORIGINAL.md)
+(With unlimited supplies only the right dock and the bag log show; every slot reads ∞.)
 Two docks on the screen edges around a clear centre, so the bag on the floor stays in view and
 moved items visibly travel between you and the bag. The bag itself is drawn **open, seen from
 above** — not a slot grid:
@@ -148,8 +156,8 @@ Keys are GTA controls in `Config.Medbag.Bag.Carry.keys`, `Config.Medbag.Body.Car
 
 - `radial`
 - `Bag { enabled model extraModels colours { { id model hex } } defaultColour nameLength whoCanPlace placeAhead
-  distance openRange maxOut persist putDown pickUp Carry { enabled bone pos rot anim maxSpeed keys { drop open stow } } }`
-- `Storage { slots maxWeight maxStack mode extra blocked blockWeapons weights defaultWeight personalMax
+  distance openRange maxOut persist putDown pickUp Carry { enabled bone pos rot rotOrder anim maxSpeed keys { drop open stow } } }`
+- `Storage { unlimited supplies { { item, hold } } slots maxWeight maxStack mode extra blocked blockWeapons weights defaultWeight personalMax
   personalFallback moveRate { count window } compartments { { id place slots cols } } kit { { item, count } } }`
   (`kit` = the par levels: restock targets, par bars and shadow outlines)
 - `Access { owner medics perm police anyone lock admins }`

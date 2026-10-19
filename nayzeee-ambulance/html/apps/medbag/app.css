@@ -503,3 +503,16 @@
   #app-medbag .mb-zip,#app-medbag .mb-tagw.in .tag,#app-medbag .mb-tagw.in .string,#app-medbag .zsp li.cur i{animation:none}
   #app-medbag .mb-slot,#app-medbag .mb-row,#app-medbag .mb-tip,#app-medbag .zzip .tp rect{transition:none}
 }
+
+/* ── unlimited supplies: the bag only (no pockets dock), ∞ stock, click to take ── */
+#app-medbag.mb-unl .mb-left{display:none}
+#app-medbag.mb-unl .mb-foot .mb-act{display:none}
+#app-medbag .mb-hint{display:none}
+#app-medbag.mb-unl .mb-hint{flex:1;min-width:0;list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 14px}
+#app-medbag.mb-unl .mb-hint li{position:relative;display:flex;align-items:center;gap:8px;padding:3px 0 3px 10px;font-size:10.5px;color:var(--ink-2);white-space:nowrap}
+#app-medbag.mb-unl .mb-hint li::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:2px;background:rgba(255,255,255,.14)}
+#app-medbag.mb-unl .mb-hint li:first-child::before{background:var(--teal);box-shadow:0 0 6px rgba(8,175,162,.6)}
+#app-medbag.mb-unl .mb-hint kbd{min-width:42px;height:18px;font-size:9px;justify-content:center}
+#app-medbag .mb-lv b.inf{font-size:26px;color:var(--teal-hi,#3fe0d0);line-height:1;margin-top:-4px}
+#app-medbag .mb-slot.inf .q{color:var(--teal-hi,#3fe0d0);border-color:rgba(8,175,162,.4);font-size:12px;line-height:15px}
+#app-medbag .mb-slot.inf{cursor:pointer}

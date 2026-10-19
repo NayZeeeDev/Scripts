@@ -9,10 +9,10 @@
     AMBULANCE SYSTEM - MEDICAL BAG, BODY BAG & MORGUE
     Discord: discord.gg/nayzeeedev
 
-    MEDICAL BAG   Use the medical bag item to put the bag on the ground. Open it to move
-                  supplies between the bag and your pockets (every inventory works). Carry it
-                  in your hand, or pick it up again: the item keeps its bag id, so the
-                  contents stay with the bag.
+    MEDICAL BAG   Use the medical bag item to put the bag on the ground. Open it and take the
+                  supplies you need: the bag never runs out (Storage.unlimited). Carry it in
+                  your hand while you walk or run, or pick it up again. Medics get the bag from
+                  the supply officer NPC at the hospital (Config.Hospital.storage).
     BODY BAG      Zip a deceased patient (player or NPC) into a body bag, carry it, put it on
                   a stretcher or in a vehicle, and deliver it to a MORGUE point (built in game
                   with /nzadmin). Players wake up at the hospital; NPCs pay a reward.
@@ -60,11 +60,13 @@ Config.Medbag = {
 
         Carry = {
             enabled  = true,
-            bone     = 28422,                       -- PH_R_Hand
-            pos      = vec3(0.0, 0.0, -0.40),        -- held by the top handles (prop origin = bottom centre)
-            rot      = vec3(0.0, 0.0, 0.0),
-            anim     = { dict = 'move_weapon@jerrycan@generic', clip = 'idle', flag = 49 },  -- arm down, holding a handle (false = none)
-            maxSpeed = 2.0,                         -- 1.0 walk, 2.0 jog, 3.0 sprint
+            -- held by the top handle at your side, arm down (SKEL_R_Hand; rotOrder 1 = the order these angles are in)
+            bone     = 57005,
+            pos      = vec3(0.39, -0.06, -0.06),
+            rot      = vec3(-100.0, -180.0, -78.0),
+            rotOrder = 1,
+            anim     = { dict = 'move_weapon@jerrycan@generic', clip = 'idle', flag = 49 },  -- upper body only: you can walk, run and sprint (false = none)
+            maxSpeed = 3.0,                         -- 1.0 walk, 2.0 jog, 3.0 sprint
             keys = {
                 drop = { control = 47, label = 'G' },   -- put the bag down
                 open = { control = 38, label = 'E' },   -- open it while holding it
@@ -78,6 +80,35 @@ Config.Medbag = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Storage = {
+        -- UNLIMITED SUPPLIES: every bag carries the 'supplies' list below and never runs out. Click a
+        -- supply to take one (Shift = up to its 'hold'); nothing is packed into the bag, so the window
+        -- shows the bag only (no pockets panel). false = a real storage bag (pockets, restock, par levels).
+        unlimited    = true,
+        -- what an unlimited bag hands out, in slot order (main compartment 1-12, lid 13-16, pouches 17-20).
+        -- hold = the most of it one player may carry; the bag stops handing it out at that count.
+        supplies = {
+            { item = Config.Items.bandage,         hold = 10 },
+            { item = Config.Items.gauze,           hold = 10 },
+            { item = Config.Items.tourniquet,      hold = 4 },
+            { item = Config.Items.dressing,        hold = 6 },
+            { item = Config.Items.burn_dressing,   hold = 4 },
+            { item = Config.Items.painkillers,     hold = 6 },
+            { item = Config.Items.iv_kit,          hold = 4 },
+            { item = Config.Items.suture_kit,      hold = 3 },
+            { item = Config.Items.iodine,          hold = 6 },
+            { item = Config.Items.lidocaine,       hold = 4 },
+            { item = Config.Items.morphine,        hold = 4 },
+            { item = Config.Items.adrenaline,      hold = 4 },
+            { item = Config.Items.splint,          hold = 2 },
+            { item = Config.Items.cervical_collar, hold = 1 },
+            { item = Config.Items.ice_pack,        hold = 2 },
+            { item = Config.Items.foil_blanket,    hold = 2 },
+            { item = Config.Items.saline_bag,      hold = 3 },
+            { item = Config.Items.saline,          hold = 3 },
+            { item = Config.Items.oxygen_mask,     hold = 1 },
+            { item = Config.Items.txa,             hold = 2 },
+        },
+
         slots        = 20,       -- slots per bag
         maxWeight    = 18000,    -- grams (18 kg)
         maxStack     = 50,       -- units per slot for stackable items
@@ -101,7 +132,7 @@ Config.Medbag = {
             { id = 'right', place = 'right', slots = 2 },
         },
 
-        -- Par levels: what a stocked bag carries. "Restock" tops the bag up to these counts from
+        -- (unlimited = false only) Par levels: what a stocked bag carries. "Restock" tops the bag up to these counts from
         -- your pockets; the window shows a par bar on stocked supplies and a shadow outline for
         -- missing ones (click it to pack that supply). {} = no restock button.
         kit = {
