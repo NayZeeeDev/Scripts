@@ -207,6 +207,7 @@ NZA.AddLocale('en', {
     ['cpr.pad_r'] = 'STERNUM',
     ['cpr.pad_l'] = 'APEX',
     ['cpr.pad_wrong'] = 'Wrong spot: that is where the %s pad goes.',
+    ['cpr.pad_miss'] = 'Drop the pad on its dashed marker on the chest.',
     ['cpr.pad_ok'] = '%s pad on.',
     ['cpr.pads_done'] = 'Both pads on. Reading the rhythm.',
     -- procedure HUD

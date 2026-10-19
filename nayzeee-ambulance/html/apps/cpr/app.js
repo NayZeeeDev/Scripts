@@ -52,7 +52,7 @@
     c_hypovolemia: 'Hypovolaemia', c_hypoxia: 'Hypoxia', c_hypothermia: 'Hypothermia', c_tension: 'Tension pneumo', c_tamponade: 'Tamponade', c_toxins: 'Toxins',
     // pads (drawn on the device screen)
     pads_title: 'Pad placement', pads_text: 'Drag each pad onto the chest. **Sternum**: under the right collarbone. **Apex**: left side, below the armpit. {%s} sticks both.',
-    pad_r: 'STERNUM', pad_l: 'APEX', pad_wrong: 'Wrong spot: that is where the %s pad goes.', pad_ok: '%s pad on.', pads_done: 'Both pads on. Reading the rhythm.',
+    pad_r: 'STERNUM', pad_l: 'APEX', pad_wrong: 'Wrong spot: that is where the %s pad goes.', pad_miss: 'Drop the pad on its dashed marker on the chest.', pad_ok: '%s pad on.', pads_done: 'Both pads on. Reading the rhythm.',
     // procedure HUD
     pp_compress: 'Compress the chest', pp_compress_t: 'Press {%s} each time the hand crosses the top. **30 pushes, then 2 breaths**, and again, until the rhythm check. CPR ends when the pulse comes back.',
     pp_compress_easy: 'Easy mode: press {%s} once and the compressions keep time by themselves.',
@@ -886,12 +886,12 @@
     $('#cpGhost').classList.remove('on');
     if (cancel || !e) return;
     const hit = dropTarget(e.clientX, e.clientY);
-    if (!hit) return;
+    if (!hit) { pp && pp.flash('warn', T('pad_miss'), 2200); return; }
     if (hit !== k) { pp && pp.flash('warn', T('pad_wrong', hit === 'R' ? T('pad_r') : T('pad_l')), 2600); return; }
     placePad(k);
   }
   function dropTarget(x, y) {
-    const snap = st.cfg.snap || 70;
+    const snap = (st.cfg.snap || 70) * (NZA.zoom || 1);   // 1080p pixels: the pads and markers scale with the UI
     let best = null, bd = Infinity;
     ['R', 'L'].forEach(k => {
       const a = anchors.get(`pad${k}`);

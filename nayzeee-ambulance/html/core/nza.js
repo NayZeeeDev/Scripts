@@ -161,9 +161,11 @@
     const topName = stack[stack.length - 1];
     const top = topName ? apps[topName] : null;
     const opaque = !!(top && (typeof top.opaque === 'function' ? top.opaque() : top.opaque));
+    const fullOpen = stack.some(n => apps[n] && apps[n].full);
     Object.values(apps).forEach(a => {
       const open = isOpen(a.name);
       a.el.classList.toggle('nza-under', open && a !== top);
+      if (a.hideUnderFull) a.el.classList.toggle('nza-off', open && fullOpen && !a.full);
       setCovered(a, !!(opaque && open && a !== top && (a.el.compareDocumentPosition(top.el) & Node.DOCUMENT_POSITION_FOLLOWING)));
     });
   }

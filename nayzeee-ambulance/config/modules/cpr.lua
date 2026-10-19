@@ -165,7 +165,7 @@ Config.Cpr = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     Pads = {
-        snap      = 70,         -- pixels: how close to the chest target a pad must be dropped
+        snap      = 70,         -- pixels at 1080p (scales with the UI): how close to the chest target a pad must be dropped
         sternum   = 0.42,       -- right pad: share of the way from the upper chest to the right shoulder
         apex      = 0.85,       -- left pad: share of the way out to the left side (mid-axillary line)
         lift      = 0.09,       -- metres above the spine bones (the chest surface)

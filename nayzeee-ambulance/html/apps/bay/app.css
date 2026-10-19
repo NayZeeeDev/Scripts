@@ -326,3 +326,5 @@
   #app-bay .bay-left,#app-bay .bay-right,#app-bay .bay-dock,#app-bay .bay-mon.on,#app-bay .alrt,#app-bay.compact .bay-tab{animation:none}
   #app-bay .tb-hr .hb .nz-ic,#app-bay .cab-ft .drip i{animation:none}
 }
+/* the dock only takes clicks when the bay is the focused app (not under a procedure) */
+#app-bay.nza-under,#app-bay.nza-under *{pointer-events:none!important}

@@ -68,3 +68,5 @@
   font-size:10.5px;color:var(--ink-3)}
 #app-care .cs-hint .nz-ic{width:13px;height:13px;color:var(--teal-hi);flex:none}
 @media (prefers-reduced-motion:reduce){#app-care .cs.in,#app-care .cs-step.next .nd,#app-care .cs-step.done{animation:none}}
+/* read-only card, the top-most layer of the page: it must never take a click meant for a procedure under it */
+#app-care,#app-care *{pointer-events:none!important}

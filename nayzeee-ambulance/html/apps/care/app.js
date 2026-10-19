@@ -54,6 +54,7 @@
 
   NZA.app('care', {
     noscale: false,
+    hideUnderFull: true,   // out of sight the moment a full-screen procedure opens (Lua also closes it)
     init(el) {
       el.innerHTML = '<aside class="cs nza-hud solid rail"></aside>';
       root = el.querySelector('.cs');
