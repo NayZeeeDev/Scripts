@@ -174,7 +174,14 @@
     const data = d.data !== undefined ? d.data : {};
     if (d.app === '_core') return core(d.action, data);
     const a = apps[d.app];
-    if (!a) return;
+    if (!a) {
+      // App files missing (e.g. not served by the manifest): hand the cursor back to the game
+      if (d.action === 'open') {
+        console.error(`[nza] app "${d.app}" is not loaded - check fxmanifest files {}`);
+        post(`${d.app}:close`, { missing: true });
+      }
+      return;
+    }
     if (d.action === 'open') return open(d.app, data);
     if (d.action === 'close') return close(d.app, false);
     if (d.action === 'anchors') {

@@ -18,10 +18,14 @@ Requires: OneSync, `ox_lib`, `oxmysql`. Optional: everything else is behind `Bri
 ```
 shared:  @ox_lib/init.lua → lock.lua → shared/init.lua → shared/const.lua → shared/util.lua
          → config/config.lua → config/items.lua → config/props.lua → config/modules/*.lua
-         → locales/*/*.lua → bridge/shared.lua
+         → locales/**/*.lua → bridge/shared.lua
 client:  bridge/client/*.lua → client/core/*.lua → client/modules/*.lua
 server:  @oxmysql/lib/MySQL.lua → bridge/server/*.lua → server/core/*.lua → server/modules/*.lua
 ```
+
+Globs that reach into sub folders must use `**` (`locales/**/*.lua`, `html/apps/**/*`).
+FiveM's manifest matcher drops a folder written as a lone `*`, so `html/apps/*/*` matches
+nothing: no app files are served and no locale is loaded.
 
 Rules:
 - Every Lua file starts with `if not NAYZEEE_LOCK_OK then return end` (right after its header

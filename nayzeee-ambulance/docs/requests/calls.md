@@ -17,6 +17,6 @@
   'audio/calls/'`). §9 could say so, to stop other callers using the `nui://` form.
 
 ## 3. Nothing else is needed
-- `fxmanifest.lua` already ships `html/audio/*/*`, so the 77 voice files are included.
+- `fxmanifest.lua` already ships `html/audio/**/*`, so the 77 voice files are included.
 - `config/modules/calls.lua` defines `Config.Calls` and `Config.AIMedic`, as the brief asked
   (`Config.AIMedic` is named in the AI medic spec).

@@ -17,7 +17,7 @@ shared_scripts {
     'config/items.lua',
     'config/props.lua',
     'config/modules/*.lua',
-    'locales/*/*.lua',
+    'locales/**/*.lua',
     'bridge/shared.lua',
 }
 
@@ -36,22 +36,20 @@ server_scripts {
 
 ui_page 'html/index.html'
 
+-- Sub folders need '**'. FiveM cannot match a folder written as a lone '*'
+-- ('html/apps/*/*' matches nothing), so never use that form here.
 files {
     'html/index.html',
-    'html/core/*',
-    'html/core/fonts/*',
-    'html/vendor/*',
-    'html/apps/*/*',
-    'html/apps/*/*/*',
-    'html/dui/*',
-    'html/img/*',
-    'html/img/*/*',
-    'html/audio/*',
-    'html/audio/*/*',
-    'stream/*.ytyp',
+    'html/core/**/*',
+    'html/vendor/**/*',
+    'html/apps/**/*',
+    'html/dui/**/*',
+    'html/img/**/*',
+    'html/audio/**/*',
+    'stream/nz_amb_props.ytyp',
 }
 
-data_file 'DLC_ITYP_REQUEST' 'stream/*.ytyp'
+data_file 'DLC_ITYP_REQUEST' 'stream/nz_amb_props.ytyp'
 
 dependencies {
     '/onesync',
@@ -62,9 +60,9 @@ dependencies {
 escrow_ignore {
     'config/*.lua',
     'config/modules/*.lua',
-    'locales/*/*.lua',
+    'locales/**/*.lua',
     'bridge/*.lua',
-    'bridge/*/*.lua',
+    'bridge/**/*.lua',
     'install/*',
     'sql/*',
 }
