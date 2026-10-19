@@ -225,6 +225,8 @@
       case 'config': return applyConfig(data);
       case 'toast': return toast(data);
       case 'speech': return speech(data);
+      case 'captions': return captions(data);
+      case 'captionsStop': return captionsStop();
       case 'prompt': return prompt(data.id || 'default', data);
       case 'promptHide': return promptHide(data.id || 'default');
       case 'promptsOff': { const l = document.getElementById('nza-layer-prompt'); if (l) l.classList.toggle('off', !!(data && data.on)); return; }   // third eye open
@@ -323,6 +325,73 @@
     layer.appendChild(s);
     clearTimeout(speechTimer);
     speechTimer = setTimeout(() => { s.classList.add('out'); setTimeout(() => s.remove(), 200); }, ms || Math.max(2600, text.length * 75));
+  }
+
+  /* ─────────────── captions (911 recordings, bottom centre) ─────────────── */
+  // parts = [{ who, text, src?, radio? }]: each part plays its recording (when given) while its
+  // text shows in short pieces; without a recording the pieces are timed by length.
+  let capRun = 0, capAudio = null;
+  const capWait = ms => new Promise(r => setTimeout(r, Math.max(0, ms)));
+  function captionsStop() {
+    capRun++;
+    if (capAudio) { try { capAudio.pause(); } catch (e) { /* ignore */ } capAudio = null; }
+    const layer = document.getElementById('nza-layer-captions');
+    if (layer) layer.innerHTML = '';
+  }
+  function capPieces(text) {
+    const out = [];
+    let cur = '';
+    for (const w of String(text || '').split(/\s+/).filter(Boolean)) {
+      if (cur && (cur + ' ' + w).length > 84) { out.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w;
+      if (/[.!?]$/.test(w) && cur.length > 38) { out.push(cur); cur = ''; }
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+  async function captions({ parts, volume } = {}) {
+    captionsStop();
+    const run = capRun;
+    const layer = document.getElementById('nza-layer-captions');
+    if (!layer || !Array.isArray(parts) || !parts.length) return;
+    const box = el('div', 'cap');
+    box.innerHTML = '<span class="who"></span><span class="txt"></span>';
+    const who = box.querySelector('.who'), txt = box.querySelector('.txt');
+    layer.appendChild(box);
+    for (const p of parts) {
+      if (run !== capRun) return;
+      const pieces = capPieces(p.text);
+      if (!pieces.length) continue;
+      who.textContent = p.who || '';
+      box.classList.toggle('radio', !!p.radio);
+      let dur = Math.max(1.6, pieces.join(' ').length * 0.062);
+      let audio = null;
+      if (p.src) {
+        audio = new Audio(p.src);
+        audio.volume = Math.max(0, Math.min(1, volume == null ? 0.85 : +volume));
+        capAudio = audio;
+        await new Promise(res => {
+          audio.addEventListener('loadedmetadata', res, { once: true });
+          audio.addEventListener('error', res, { once: true });
+          setTimeout(res, 1500);
+        });
+        if (run !== capRun) return;
+        if (isFinite(audio.duration) && audio.duration > 0.5) dur = audio.duration;
+        try { await audio.play(); } catch (e) { audio = null; }
+      }
+      const total = pieces.reduce((n, x) => n + x.length, 0) || 1;
+      for (const piece of pieces) {
+        if (run !== capRun) return;
+        txt.textContent = piece;
+        box.classList.remove('in'); void box.offsetWidth; box.classList.add('in');
+        await capWait(dur * 1000 * piece.length / total);
+      }
+      if (audio) { const until = performance.now() + 1500; while (run === capRun && !audio.ended && !audio.paused && performance.now() < until) await capWait(100); }
+      await capWait(220);
+    }
+    if (run !== capRun) return;
+    box.classList.add('out');
+    await capWait(240);
+    if (run === capRun) { box.remove(); capAudio = null; }
   }
 
   /* ─────────────── prompts (context tag beside the crosshair) ─────────────── */
@@ -980,7 +1049,7 @@
 
   window.NZA = {
     inGame, resource, app, open, close: (n) => close(n, true), closeLocal: (n) => close(n, false), isOpen, demo, boot,
-    post, mock: (name, v) => { mocks[name] = v; }, toast, speech, prompt, promptHide,
+    post, mock: (name, v) => { mocks[name] = v; }, toast, speech, captions, captionsStop, prompt, promptHide,
     audio, fmt, t, icon, rich, esc, el, clamp, fitCanvas, pointer, get stack() { return [...stack]; }, get cfg() { return cfg; },
     ui: { ProcPanel, FlipClock, Hold, Segmented, Toggle, Slider, Chips, Modal, Win, Anchors, Marker, Meter, meterHTML, KeyHints, BodyGlyph, Ring, ScoreRing, Grade: ScoreRing },
     apps, perf: perfState,

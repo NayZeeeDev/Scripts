@@ -62,7 +62,7 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .nza-app.nza-off{display:none!important}           /* HUD with hideUnderFull while a full-screen app is open */         /* under an opaque full-screen app (3D close-up): no paint, no clicks */
 #app-monitor.nza-under .mon{pointer-events:none}   /* the monitor HUD never eats clicks meant for the procedure on top */               /* app that captures the whole screen (3D scenes, windows with dim) */
 .nza-dim{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 50%,rgba(0,0,0,.35),rgba(0,0,0,.72));pointer-events:auto}
-#nza-layer-anchors,#nza-layer-speech,#nza-layer-prompt,#nza-layer-toasts{position:fixed;inset:0;pointer-events:none;zoom:var(--nza-zoom)}
+#nza-layer-anchors,#nza-layer-speech,#nza-layer-captions,#nza-layer-prompt,#nza-layer-toasts{position:fixed;inset:0;pointer-events:none;zoom:var(--nza-zoom)}
 #nza-layer-anchors{zoom:1}
 
 @keyframes nza-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -466,6 +466,20 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .speech .who em{font-style:normal;margin-left:8px;font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-hi)}
 .speech .txt{font-size:15px;font-weight:400;color:var(--white);line-height:1.4}
 .speech.out{animation:nza-note-out 200ms both}
+
+/* ═══════════════ CAPTIONS (911 recordings, bottom centre) ═══════════════ */
+#nza-layer-captions{display:flex;align-items:flex-end;justify-content:center;padding:0 24px 9vh}
+.cap{display:flex;flex-direction:column;align-items:center;gap:5px;max-width:min(760px,70vw);padding:9px 20px 11px;border-radius:var(--r-md);
+  background:rgba(6,7,8,.80);border:1px solid var(--line-soft);box-shadow:0 10px 30px rgba(0,0,0,.35);text-align:center}
+.cap .who{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-hi)}
+.cap .who::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;animation:nza-cap-dot 1.1s ease-in-out infinite}
+.cap.radio .who{color:var(--amber)}
+.cap .txt{font-size:17px;font-weight:400;line-height:1.4;color:var(--white);text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.cap.in .txt{animation:nza-cap-in 180ms ease-out both}
+.cap.out{animation:nza-cap-out 220ms ease-in both}
+@keyframes nza-cap-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+@keyframes nza-cap-dot{50%{opacity:.35}}
+@keyframes nza-cap-out{to{opacity:0;transform:translateY(6px)}}
 
 /* ═══════════════ PROMPT (context tag beside the crosshair) ═══════════════ */
 #nza-layer-prompt{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;padding-right:22px;transition:padding 160ms}

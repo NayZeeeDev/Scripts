@@ -16,6 +16,7 @@
       NZA.UI.IsOpen(app) / Top() / OpenApps() / CloseAll() / Ready()
       NZA.UI.Toast({ title, message, type, duration })      '_core' action 'toast'
       NZA.UI.Speech(name, text, ms, extra)                  '_core' action 'speech'
+      NZA.UI.Captions(parts, volume) / CaptionsStop()      '_core' 'captions' (bottom centre, plays the recordings)
       NZA.UI.Prompt(id, { key = 'E', label, sub, hold, progress, tone = 'red' | danger })
                                                             '_core' action 'prompt'
       NZA.UI.PromptProgress(id, 0..1)                       re-sends 'prompt' with progress
@@ -380,6 +381,13 @@ function UI.Toast(data)
     lib.notify({ title = t.title, description = t.message, type = t.type == 'info' and 'inform' or t.type, duration = t.duration })
 end
 UI.Notify = UI.Toast
+
+-- parts = { { who, text, src = 'audio/…ogg' (under html/), radio = bool }, ... } → bottom-centre captions
+function UI.Captions(parts, volume)
+    if type(parts) ~= 'table' or #parts == 0 then return end
+    UI.Send(CORE, 'captions', { parts = parts, volume = volume })
+end
+function UI.CaptionsStop() UI.Send(CORE, 'captionsStop', {}) end
 
 function UI.Speech(name, text, ms, extra)
     if type(text) ~= 'string' or text == '' then return end

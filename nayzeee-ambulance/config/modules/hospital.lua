@@ -153,6 +153,7 @@ Config.Hospital = {
         },
         items = {
             { key = 'medbag',          limit = 1 },    -- the medical bag (unlimited supplies: Config.Medbag.Storage)
+            { key = 'pager',           limit = 1 },    -- dispatch calls arrive on the pager (Config.Dispatch.pager)
             { key = 'bandage',         limit = 20 },
             { key = 'gauze',           limit = 20 },
             { key = 'tourniquet',      limit = 4 },

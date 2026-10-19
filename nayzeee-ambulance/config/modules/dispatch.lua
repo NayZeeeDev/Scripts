@@ -90,6 +90,9 @@ Config.Dispatch = {
 
     card = {
         enabled     = true,
+        popup       = false,       -- false = new calls arrive on the pager only (no call card pop-up);
+                                   -- true  = the call card also pops up top right (respond / pass keys below)
+        captions    = true,        -- the 911 recording plays with captions at the bottom centre
         respondKey  = 'E',         -- respond to the call on the card (works without the mouse)
         dismissKey  = 'BACK',      -- pass on the card (next call in the queue shows); BACK = Backspace (FiveM key names)
         timeout     = 30,          -- seconds a card stays before it dismisses itself

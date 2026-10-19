@@ -314,6 +314,51 @@ local function cardAllowed()
     return true
 end
 
+-- false (default) = new calls arrive on the pager only; the call card never pops up for them
+local function cardPopups()
+    return cfg('card', 'enabled', true) ~= false and cfg('card', 'popup', false) == true
+end
+
+-- ── 911 recording as captions (bottom centre) ──
+local dispatcherOf = nil   -- [caller line id] = dispatcher line id
+local function dispatcherFor(line)
+    if not dispatcherOf then
+        dispatcherOf = {}
+        local tpls = Config.Calls and Config.Calls.templates or {}
+        for _, tpl in pairs(tpls) do
+            if type(tpl) == 'table' and tpl.dispatcher then
+                for _, c in ipairs(tpl.callers or {}) do
+                    if type(c) == 'table' and c.line then dispatcherOf[c.line] = tpl.dispatcher end
+                end
+            end
+        end
+    end
+    return dispatcherOf[line]
+end
+
+local function playCaptions(c)
+    if cfg('card', 'voice', true) == false or cfg('card', 'captions', true) == false then return end
+    local voice = type(c.voice) == 'string' and c.voice or nil
+    if not voice then return end
+    local folder, file = voice:match('^(.-)([^/]+)%.ogg$')
+    if not file then return end
+    local vol = tonumber(cfg('card', 'voiceVolume', 0.85)) or 0.85
+    local dispatchWho, callerWho = L('dispatch.cap_dispatch'), c.caller or L('dispatch.cap_caller')
+    local parts = {}
+    local line = file:match('^(.-)_full$')
+    if line then
+        -- the full call is the dispatcher over the radio, then the caller on the phone
+        local disp = dispatcherFor(line)
+        if disp then parts[#parts + 1] = { who = dispatchWho, text = L('calls.line.' .. disp), src = folder .. disp .. '.ogg', radio = true } end
+        parts[#parts + 1] = { who = callerWho, text = c.message or L('calls.line.' .. line), src = folder .. line .. '.ogg' }
+    elseif file:match('_d$') then
+        parts[#parts + 1] = { who = dispatchWho, text = L('calls.line.' .. file), src = voice, radio = true }
+    elseif c.message then
+        parts[#parts + 1] = { who = callerWho, text = c.message, src = voice }
+    end
+    if #parts > 0 then NZA.UI.Captions(parts, vol) end
+end
+
 local function inQueue(id)
     for _, x in ipairs(S.queue) do if x == id then return true end end
     return false
@@ -576,7 +621,16 @@ RegisterNetEvent('nza:dispatch:call', function(c, flags)
     syncBlip(c, true)
     flags = type(flags) == 'table' and flags or {}
     if flags.realert then S.dismissed[c.id] = nil end
-    if flags.alert and cardAllowed() and not S.dismissed[c.id] then enqueue(c.id, c.priority == 1) end
+    if flags.alert and cardAllowed() and not S.dismissed[c.id] then
+        if cardPopups() then
+            enqueue(c.id, c.priority == 1)
+        else
+            playCaptions(c)
+            if not (D.HasPager and D.HasPager()) then
+                toast('info', 'dispatch.call_no_pager', c.title or '', c.street or c.zone or '')
+            end
+        end
+    end
     NZA.Bus.Emit('dispatch:call', c, flags)
 end)
 
@@ -685,7 +739,7 @@ RegisterNetEvent('nza:dispatch:police', function(c)
             dropFromQueue(c.id)
         end
     end)
-    if cfg('card', 'enabled', true) ~= false then
+    if cardPopups() then
         ensureCardApp()
         enqueue(c.id, false)
     else
@@ -699,7 +753,7 @@ end)
 
 CreateThread(function()
     Wait(0)
-    if cfg('card', 'enabled', true) == false then return end
+    if not cardPopups() then return end   -- calls are taken on the pager
     lib.addKeybind({
         name = 'nza_dispatch_respond',
         description = L('dispatch.bind_respond'),
