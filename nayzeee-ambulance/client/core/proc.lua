@@ -17,7 +17,13 @@
                ctx.abort(reason) → event 'nza:proc:abort' (token)
           ctx = { token, data, easy, target, name, payload, entity, startedAt, label,
                   finish(result) → ok, outcome, abort(reason), onEnd(fn(outcome|nil, reason)),
-                  done() → bool, elapsed() → seconds }
+                  done() → bool, elapsed() → seconds,
+                  pause(snapshot) → bool, resumed, resume (= data.resume, the snapshot to restore) }
+          Step away (Config.ProcPause): ctx.pause(snapshot) parks the session on the server with the
+          game's state; onEnd fires with reason 'paused' (modules close their NUI as on any end) and
+          Run returns false, 'silent'. The next Run of the same procedure on the same patient gets
+          resp.resumed + data.resume, and elapsed() continues from the active time already spent.
+          NUI: the procedure HUD (NZA.ui.ProcPanel opts.pause) posts '_proc:pause' { snapshot }.
           Errors are shown with the server's localized msg when it sends one.
           The session is cancelled automatically when the patient entity disappears, the
           medic moves further than maxDist + 2 m (maxDist from the server's registration;
@@ -250,8 +256,12 @@ function Proc.Run(name, target, payload, runner, opts)
     ctx.data = resp.data or {}
     ctx.easy = resp.easy == true
     ctx.entity = entity
-    ctx.startedAt = GetGameTimer()
+    -- a resumed session keeps the active time of its first part (minTime / maxTime)
+    ctx.startedAt = GetGameTimer() - math.floor((tonumber(resp.elapsed) or 0) * 1000)
     ctx.label = label
+    ctx.resumed = resp.resumed == true
+    ctx.resume = ctx.resumed and ctx.data.resume or nil
+    if ctx.resumed and not opts.silent then toast('info', label, NZA.L('core_client.proc.resumed')) end
 
     local function close(ok, outcome, reason)
         if active == ctx then active = nil end
@@ -286,6 +296,25 @@ function Proc.Run(name, target, payload, runner, opts)
             toast('error', label, msg)
         end
         close(false, nil, reason)
+    end
+
+    -- step away: the server keeps the game state; using the same option again carries on
+    function ctx.pause(snapshot)
+        if isDone or ctx.easy or type(snapshot) ~= 'table' then return false end
+        local ok, res = pcall(lib.callback.await, 'nza:proc:pause', false, ctx.token, snapshot)
+        if not ok or type(res) ~= 'table' or not res.ok then
+            if not opts.silent then toast('error', label, NZA.L('core_client.proc.pause_failed')) end
+            return false
+        end
+        isDone = true
+        ctx.serverEnded = true
+        ctx.paused = true
+        if lib.progressActive() then lib.cancelProgress() end
+        if not opts.silent then
+            toast('info', label, NZA.L('core_client.proc.paused', math.max(1, math.floor((tonumber(res.keep) or 600) / 60))))
+        end
+        close(false, nil, 'paused')
+        return true
     end
 
     function ctx.finish(result)
@@ -380,8 +409,23 @@ function Proc.Run(name, target, payload, runner, opts)
     end
 
     local r = Citizen.Await(finished)
+    if r[2] == 'paused' then return false, 'silent' end   -- the pause toast already said it
     return r[1], r[2]
 end
+
+-- the procedure HUD's "Step away" (P): park the running session with the game's state
+-- (registered once every core file is loaded: client/core/ui.lua comes after this one)
+CreateThread(function()
+    NZA.UI.On('_proc', 'pause', function(data, cb)
+        local ctx = active
+        if not ctx or not ctx.pause or type(data) ~= 'table' or type(data.snapshot) ~= 'table' then
+            cb({ ok = false })
+            return
+        end
+        cb({ ok = true })
+        CreateThread(function() ctx.pause(data.snapshot) end)
+    end)
+end)
 
 -- the server ended the session itself (patient died / left, medic too far, timeout)
 RegisterNetEvent('nza:proc:aborted', function(token, reason, msg)

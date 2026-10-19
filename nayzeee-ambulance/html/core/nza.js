@@ -506,7 +506,11 @@
      pp.set() replays the title/text swap only when title, text or titleTone actually change.
      opts.next (rich text) replaces the 'Next: <following step>' line; '' hides it, undefined goes back to steps[step].
      pp.flash(type, text, ms) shows a note under the text; pp.flash(null) / pp.clearFlash() hides it at once.
-     A tool with state 'locked' stays clickable: the click flashes tool.why (or a generic line). */
+     A tool with state 'locked' stays clickable: the click flashes tool.why (or a generic line).
+     opts.pause = () => snapshot | null turns on "Step away" (P / click, above the cancel ring): the
+     app's snapshot goes to Lua ('_proc:pause'), the server parks the procedure and the app closes
+     as on any end; using the same option again reopens it with data.resume = that snapshot. Return
+     null while a move is half done (a flash asks to finish it first). opts.pause = false hides it. */
   const TOOL_ICONS = [
     [/saline|flush|irrigat|water|rinse|cool/i, 'drop'], [/lido|syringe|inject|txa|adrenal|epi|amio|naloxone|morphine|push|dose|cuff syr/i, 'syringe'],
     [/gauze|pack/i, 'gauze'], [/dressing|bandage|foil|plaster|tape/i, 'bandage'], [/needle|suture|stitch|driver/i, 'needle'],
@@ -532,7 +536,7 @@
     const root = el('div', `pp${opts.side === 'right' ? ' pp--mirror' : ''}`);
     host.appendChild(root);
     let o = Object.assign({ step: 1, total: 1, tag: '', title: '', text: '', steps: null, stats: [], wide: null, tools: [], hints: [], abort: { label: t('ui.holdAbort', 'Hold to cancel'), key: 'ESC', seconds: 1.2 } }, opts);
-    let flashTimer = null, hold = null, doneHandler = null;
+    let flashTimer = null, hold = null, doneHandler = null, pauseKey = null, pausing = false;
     const RING = 2 * Math.PI * 19;
 
     root.innerHTML = `
@@ -549,6 +553,7 @@
       </aside>
       <nav class="pp-belt">
         <div class="pp-tools"></div>
+        <div class="pp-pause nza-int" style="display:none"><span class="pl"></span><kbd>P</kbd></div>
         <div class="pp-abort nza-int"><span class="al"></span><span class="ring"><svg viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="19"/><circle class="fg" cx="22" cy="22" r="19" stroke-dasharray="${RING}" stroke-dashoffset="${RING}"/></svg><kbd></kbd></span></div>
       </nav>`;
     const q = s => root.querySelector(s);
@@ -675,7 +680,7 @@
     }
     function lockedNote(tl) { api.flash('warn', tl.why || t('ui.toolLocked', 'You cannot use this right now.'), 2600); }
     function syncBelt() {
-      const has = (o.tools || []).length || (o.abort !== false && o.onAbort);
+      const has = (o.tools || []).length || (o.abort !== false && o.onAbort) || typeof o.pause === 'function';
       q('.pp-belt').style.display = has ? '' : 'none';
     }
     function renderHints() {
@@ -697,7 +702,37 @@
       const fg = q('.pp-abort .fg'), ab = q('.pp-abort');
       hold = Hold({ key: 'Escape', el: ab, seconds: o.abort.seconds || 1.2, onProgress: p => { fg.style.strokeDashoffset = `${RING * (1 - p)}`; ab.classList.toggle('on', p > 0); }, onDone: () => o.onAbort && o.onAbort() });
     }
-    renderStep(); renderText(); renderStats(); renderTools(); renderHints(); armAbort();
+    // "Step away": park the procedure with the app's snapshot (see opts.pause above)
+    function doPause() {
+      if (pausing || typeof o.pause !== 'function') return;
+      let snap = null;
+      try { snap = o.pause(); } catch (err) { console.error('[nza] pause snapshot', err); }
+      if (!snap || typeof snap !== 'object') { api.flash('warn', t('ui.pauseFinishMove', 'Finish this move first, then step away.'), 2600); return; }
+      pausing = true;
+      q('.pp-pause').classList.add('on');
+      Promise.resolve(post('_proc:pause', { snapshot: snap })).then(r => {
+        if (!r || r.ok === false) { pausing = false; q('.pp-pause').classList.remove('on'); }
+      }).catch(() => { pausing = false; q('.pp-pause').classList.remove('on'); });
+    }
+    function armPause() {
+      const pz = q('.pp-pause');
+      if (pauseKey) { window.removeEventListener('keydown', pauseKey, true); pauseKey = null; }
+      const on = typeof o.pause === 'function';
+      pz.style.display = on ? '' : 'none';
+      syncBelt();
+      if (!on) return;
+      pz.querySelector('.pl').textContent = o.pauseLabel || t('ui.stepAway', 'Step away');
+      pz.onclick = doPause;
+      pauseKey = e => {
+        if (e.repeat || (e.code !== 'KeyP' && String(e.key).toLowerCase() !== 'p')) return;
+        const tg = e.target && e.target.tagName;
+        if (tg === 'INPUT' || tg === 'TEXTAREA' || !root.isConnected) return;
+        e.preventDefault();
+        doPause();
+      };
+      window.addEventListener('keydown', pauseKey, true);
+    }
+    renderStep(); renderText(); renderStats(); renderTools(); renderHints(); armAbort(); armPause();
 
     const api = {
       el: root,
@@ -710,6 +745,7 @@
         if ('tools' in n) renderTools();
         if ('hints' in n || 'abort' in n) renderHints();
         if ('onAbort' in n && n.onAbort !== prev.onAbort) armAbort();
+        if (('pause' in n && n.pause !== prev.pause) || ('pauseLabel' in n && n.pauseLabel !== prev.pauseLabel)) armPause();
         return api;
       },
       // update one stat in place: pp.stat('bleed', { value: '2.4', tone: 'red' })
@@ -756,7 +792,7 @@
       },
       // a container in the column (above the key legend) for app widgets
       get slot() { return q('.pp-bot'); },
-      destroy() { if (hold) hold.destroy(); clearTimeout(flashTimer); root.remove(); },
+      destroy() { if (hold) hold.destroy(); if (pauseKey) window.removeEventListener('keydown', pauseKey, true); clearTimeout(flashTimer); root.remove(); },
     };
     return api;
   }

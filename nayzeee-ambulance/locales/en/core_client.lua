@@ -27,6 +27,9 @@ NZA.AddLocale('en', {
     ['core_client.proc.verdict_1']    = 'Needs another go',   -- below 35
     ['core_client.proc.busy']         = 'Finish what you are doing first',
     ['core_client.proc.aborted']      = 'Procedure aborted',
+    ['core_client.proc.paused']       = 'Stepped away. Get what you need, then use the same option on the patient within %d min to carry on.',
+    ['core_client.proc.resumed']      = 'Carrying on where you left off',
+    ['core_client.proc.pause_failed'] = 'You cannot step away from this right now',
     ['core_client.proc.finishing']    = 'Finishing up: saved in %d s.',
     ['core_client.proc.cancel_cancel'] = 'Procedure cancelled',
     ['core_client.proc.cancel_far']   = 'You moved away from the patient',
@@ -75,6 +78,8 @@ NZA.AddLocale('en', {
     ['ui.abort']          = 'Abort',
     ['ui.hold_abort']     = 'Hold to cancel',
     ['ui.holdAbort']      = 'Hold to cancel',
+    ['ui.stepAway']       = 'Step away',
+    ['ui.pauseFinishMove'] = 'Finish this move first, then step away.',
     ['ui.toolLocked']     = 'You cannot use this right now.',
     ['ui.complete']       = 'Complete',
     ['ui.hold']           = 'Hold',

@@ -390,6 +390,13 @@ kbd.red{background:var(--red-wash);border-color:var(--red-edge);color:#ff8a8d}
 .pp--dense .pp-tool .ico .nz-ic{width:20px;height:20px}
 
 /* hold-to-abort ring */
+.pp-pause{display:flex;align-items:center;gap:8px;cursor:pointer;pointer-events:auto;padding:5px 6px 5px 11px;border-radius:9px;
+  background:rgba(12,13,16,.86);border:1px solid rgba(255,255,255,.08);transition:border-color var(--fast),background var(--fast)}
+.pp-pause .pl{font-size:11px;font-weight:600;color:var(--ink-2)}
+.pp-pause kbd{height:18px;min-width:18px;font-size:9.5px}
+.pp-pause:hover,.pp-pause.on{border-color:var(--teal-edge);background:rgba(8,40,38,.9)}
+.pp-pause:hover .pl,.pp-pause.on .pl{color:var(--teal-hi)}
+.pp--mirror .pp-pause{flex-direction:row-reverse;padding:5px 11px 5px 6px}
 .pp-abort{display:flex;align-items:center;gap:10px;cursor:pointer;pointer-events:auto}
 .pp--mirror .pp-abort{flex-direction:row-reverse}
 .pp-abort .al{font-size:11px;font-weight:600;color:var(--ink-2);padding:5px 10px;border-radius:8px;background:rgba(12,13,16,.86);border:1px solid rgba(255,255,255,.06);transition:color var(--fast)}

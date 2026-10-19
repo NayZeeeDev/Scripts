@@ -243,6 +243,14 @@ Config.EasyMode = {
     style   = 'bar',     -- 'bar' or 'circle' (ox_lib progress)
 }
 
+-- Step away from a 3D procedure (P / the "Step away" button) to fetch more supplies and carry on
+-- later from the same point: use the same option on the same patient again.
+Config.ProcPause = {
+    enabled  = true,
+    keep     = 600,      -- seconds a paused procedure waits for you (then it starts over)
+    maxBytes = 24000,    -- largest saved game state a client may send (JSON bytes)
+}
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PERSISTENCE (injuries and death survive relog & restart)
 -- ═══════════════════════════════════════════════════════════════════════════
