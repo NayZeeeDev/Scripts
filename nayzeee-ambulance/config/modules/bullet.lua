@@ -195,6 +195,7 @@ Config.Bullet = {
         -- 8 · dressing
         stuckDone    = 0.92,
         coverMin     = 0.85,
+        layTime      = 0.45,     -- seconds the held edge takes to come down to the skin after letting go
 
         -- pain
         flinchPain   = 40,       -- pain % above which painful moves can make the patient flinch

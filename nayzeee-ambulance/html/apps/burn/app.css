@@ -252,6 +252,10 @@
 @media (max-height: 820px){
   #app-burn .dv-foot{display:none}
   #app-burn .dv-keys{padding-top:7px}
+  /* the case card keeps clear of the tool belt under it */
+  #app-burn .cs-chips{display:none}
+  #app-burn .bn-case{padding-bottom:9px}
+  #app-burn .cs-body{margin-top:8px;padding-top:8px}
 }
 
 @media (prefers-reduced-motion: reduce){

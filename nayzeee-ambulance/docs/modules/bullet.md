@@ -15,8 +15,8 @@ Owner files
 A gunshot or shrapnel wound that still holds metal is opened, cleared and closed in a full-screen,
 real-time 3D close-up (shared engine `html/core/nza3d.js`) of the draped patient.
 
-- **Surgical field**: blue drape with a round window over the wound, adhesive film rim, four towel
-  clamps at the rim, a stainless kidney dish on the drape (every piece you take out lands in it and
+- **Surgical field**: teal drape with a round window over the wound, adhesive film rim, four towel
+  clamps at the rim, a stainless kidney dish resting on the drape folds (every piece you take out lands in it and
   stays there, the camera glances at it after each extraction), a tight theatre-lamp pool with the
   room falling off into the dark. The entry wound has an abrasion collar, bruising, a short dried
   trickle, powder stippling on close-range gunshots, peppering and satellite holes for shrapnel and
@@ -28,7 +28,9 @@ real-time 3D close-up (shared engine `html/core/nza3d.js`) of the draped patient
   foam prep sponge on a ribbed stick (stains from fresh brown to spent tan), Yankauer suction with
   ringed tubing that runs red while it works, ring-handled bullet forceps with serrated jaws and a
   box lock, a small self-retaining retractor (two 4-prong rakes, crossing arms, box hinge, finger
-  rings, ratchet bar) that sits in the incision and opens with the spread.
+  rings, ratchet bar) that opens with the spread. Its rakes hook the edges just past the outermost
+  piece and its body leaves along the cut by the end with the most room, so the arms never lie over
+  the metal.
 - **Eight steps** (the kit's procedure column bottom-left, tool belt right edge):
   1. **Find the metal** — tool 1 probe: hold LMB in the entry hole, the probe slides down the track;
      drift off the track and it resists (steer arrow), push on and you make a false passage (blood,
@@ -53,12 +55,16 @@ real-time 3D close-up (shared engine `html/core/nza3d.js`) of the draped patient
      bleed is under `Game.bleedDone`.
   7. **Close the cut** — the suture mechanics of the suture app (near edge → far edge, bite, angle,
      spacing judged per stitch).
-  8. **Cover it** — pick the dressing up by its edge, lay it over the incision and the entry hole,
-     rub it down.
+  8. **Cover it** — the drapes, towel clamps and dish come off first (the prepped skin around the
+     window shows); pick the dressing up by its edge, carry it over the incision and the entry hole
+     and let go — the held edge comes down to the skin first (`Game.layTime`) so the sheet lands
+     flat; press LMB again during that moment to keep holding it. Rub it down from the middle.
 - **Pain**: an awake patient who is not numbed (lidocaine / morphine active) flinches on painful
   moves (camera shake, voice line top-centre, the hand jumps); flinches cost score.
 - **Blood**: the cut, the bleeding and every mistake add to a live **estimated loss** shown on the
-  monitor card (ring) and taken off the blood volume bar; the server applies it on finish.
+  monitor card (ring) and taken off the blood volume bar; the server applies it on finish — and when
+  the surgeon stops half way (the client reports the estimate, the server caps it by
+  `Blood.perMinute` × minutes and `Blood.max`).
 - **HUD (our own layout)**: monitor card top-left (ECG + pleth traces, HR / SpO₂ numbers, NIBP with
   MAP, respiration, estimated-loss ring, blood volume bar with 85 / 70 % ticks, IV line state, and in
   the ambulance bay a hold-Backspace key to step out), notes under it (low blood with no line
@@ -123,7 +129,7 @@ real-time 3D close-up (shared engine `html/core/nza3d.js`) of the draped patient
 | `consumeKit gauzeMax` | surgical kit single-use? · most gauze swabs per operation |
 | `types` | wound types that qualify |
 | `requireLocation locations` | room rule (`surgery`, `bay`) |
-| `Blood.*` | warning threshold, expected loss model, clamps, easy loss |
+| `Blood.*` | warning threshold, expected loss model, clamps, easy loss, `perMinute` cap for a stopped operation |
 | `Bleed.controlled / open` | bleed base factor after the operation |
 | `Infection.*` | contamination after prep / no prep / pieces left |
 | `numbed` | medications that count as numbed |
@@ -142,10 +148,11 @@ Props: `Config.Props.surgery_tray` (+ `Config.Bullet.Table.model`).
 |---|---|---|
 | `bullet` | `NZA.Proc` | payload `{ injury }`; data = the case below |
 | `nza:bullet:use` | S→C | the surgical kit item was used → nearest patient (table first) |
+| `nza:bullet:partial (token, loss)` | C→S | right before a stop: the blood the open wound cost so far (session owner only, capped, applied in `onAbort`) |
 | `bullet:done (src, p, inj, outcome)` | server bus | after a finished operation |
 | `bullet:flinch (entity, pain)` | client bus | the patient flinched in the minigame |
 | `bullet:finish` | NUI → Lua | `result` → `{ ok, pending }`, then action `result` (outcome) |
-| `bullet:abort` · `bullet:flinch` · `bullet:exitBay` · `bullet:close` | NUI → Lua | stop · flinch · stop and leave the bay · closed |
+| `bullet:abort { loss }` · `bullet:flinch { pain }` · `bullet:exitBay { loss }` · `bullet:close` | NUI → Lua | stop · flinch · stop and leave the bay · closed |
 | `open` · `vitals` · `result` · `abort` | Lua → NUI | case · live monitor (from `NZA.Patient.Watch`) · server outcome · server ended the session |
 
 Case (`open`): `{ locale, cfg, patient { name, sex, bloodType, conscious, numb }, injury { id, type,
@@ -180,4 +187,5 @@ Preview: `html/index.html?app=bullet` (gunshot, ambulance bay, low blood, film i
   `docs/requests/bullet.md`); with `Table.model = false` the point uses the map's own table.
 - The X-ray film overlay is drawn from the session's fragment layout (the same truth the server
   used), not by re-reading the xray module's film image.
-- The live blood estimate is only applied on finish (an aborted operation costs no blood).
+- The blood a stopped operation cost comes from the client's estimate (capped per minute on the
+  server); a client that crashes mid-operation reports nothing.

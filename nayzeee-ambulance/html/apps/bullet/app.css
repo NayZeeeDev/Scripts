@@ -343,6 +343,11 @@
   #app-bullet .note-x{padding:8px 12px}
   #app-bullet .note-x p{display:none}
   #app-bullet .note-x .ni{width:22px;height:22px}
+  #app-bullet .bx-case .ch{padding:9px 14px 4px 16px}
+  #app-bullet .bx-case .mx li{height:25px}
+  #app-bullet .bx-case .mx li::after{top:21px;height:8px}
+  #app-bullet .bx-case .cf{padding-bottom:9px}
+  #app-bullet .bx-case .clk .odo{font-size:16px}
 }
 
 @media (prefers-reduced-motion: reduce){

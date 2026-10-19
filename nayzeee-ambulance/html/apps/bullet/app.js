@@ -58,7 +58,7 @@
     bleedDone: 1.5, pressRate: 0.24, pressRadius: 10, poolRate: 0.006,
     gauzeRadius: 13, gauzeCapacity: 140, gauzeMax: 6, suctionRadius: 3.6,
     mmPerStitch: 8, minStitches: 2, maxStitches: 7, extraStitches: 2, bite: 4, biteMin: 1.2, biteMax: 9.5, minDrag: 0.3,
-    stuckDone: 0.92, coverMin: 0.85,
+    stuckDone: 0.92, coverMin: 0.85, layTime: 0.45,
     flinchPain: 40, flinchChance: 0.5,
     weights: { locate: 10, disinfect: 10, incise: 15, expose: 10, extract: 25, haemostasis: 10, suture: 12, dressing: 8 },
     fallbackTime: 18,
@@ -228,7 +228,7 @@
 
   // stainless kidney dish (bean outline, rolled rim, brushed floor); origin = floor centre, rim up +Y
   function buildKidneyDish(M) {
-    const THREE = T3(), N = 96, A = 0.062, B = 0.027;
+    const THREE = T3(), N = 96, A = 0.031, B = 0.0138;
     const outline = [];
     for (let i = 0; i < N; i++) {
       const t = (i / N) * TAU;
@@ -237,7 +237,7 @@
       outline.push([Math.cos(t) * A, Math.sin(t) * B * (Math.sin(t) > 0 ? dent * 1.0 : 1)]);
     }
     // wall profile from the floor up to a rolled lip: [scale, y]
-    const prof = [[0.8, 0.0], [0.84, 0.0016], [0.9, 0.006], [0.95, 0.012], [0.985, 0.0165], [1.0, 0.0185], [1.025, 0.0196], [1.045, 0.0188], [1.05, 0.0176]];
+    const prof = [[0.76, 0.0], [0.82, 0.0009], [0.885, 0.0034], [0.94, 0.0068], [0.98, 0.0093], [1.0, 0.0104], [1.03, 0.0111], [1.052, 0.0106], [1.058, 0.0098]];
     const pos = [], idx = [];
     prof.forEach(([k, y]) => outline.forEach(([x, z]) => pos.push(x * k, y, z * k)));
     for (let r = 0; r < prof.length - 1; r++) for (let i = 0; i < N; i++) {
@@ -260,7 +260,9 @@
   }
   // small self-retaining retractor (Alm type): two 4-prong rakes, short arms crossing at a box hinge,
   // finger rings and a ratchet bar. Local frame: X across the cut, Y up (skin normal), Z along the cut.
-  // set({ spread (m, half gape at the rakes), length (m, incision length) })
+  // The body (arms, hinge, handles) leaves the wound along h = (hx, hz) in the X/Z plane, so it can be
+  // turned away from the camera (foreshortened, out of the field) while the rakes stay on the edges.
+  // set({ spread (m, half gape at the rakes), h: [hx, hz] })
   function buildRetractor(M) {
     const THREE = T3(), root = new THREE.Group(), halves = [];
     const tube = (pts, r, mat) => new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2]))), 30, r, 8, false), mat);
@@ -271,38 +273,51 @@
         rake.add(tube([[sd * 0.0016, -0.0034, z], [sd * 0.0004, -0.003, z], [-sd * 0.0003, -0.001, z], [0, 0.0012, z], [-sd * 0.0004, 0.0031, z]], 0.00036, M.satin));
         const tip = new THREE.Mesh(new THREE.SphereGeometry(0.00046, 8, 6), M.satin); tip.position.set(sd * 0.0016, -0.0034, z); rake.add(tip);
       }
-      rake.add(tube([[-sd * 0.0004, 0.0031, -0.0047], [-sd * 0.0004, 0.0034, 0.0047]], 0.0006, M.satin));
+      rake.add(tube([[-sd * 0.0004, 0.0031, -0.0044], [-sd * 0.0004, 0.0034, 0.0044]], 0.00055, M.dark));
       root.add(rake);
       halves.push({ rake, sd });
     }
-    const hinge = new THREE.Mesh(new THREE.BoxGeometry(0.0038, 0.0022, 0.0048), M.satin);
-    const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 0.001, 0.0028, 14), M.steel);
-    root.add(hinge); root.add(screw);
+    // round box joint: two stacked leaves, a domed screw head with its slot
+    const hinge = new THREE.Group();
+    for (const y of [-0.00047, 0.00047]) { const leaf = new THREE.Mesh(new THREE.CylinderGeometry(0.0019, 0.0019, 0.00084, 24), M.satin); leaf.position.y = y; hinge.add(leaf); }
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.0011, 18, 8, 0, TAU, 0, Math.PI / 2), M.steel); head.scale.y = 0.45; head.position.y = 0.00088; hinge.add(head);
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.0018, 0.00024, 0.00026), M.dark); slot.position.y = 0.00128; hinge.add(slot);
+    root.add(hinge);
     const bar = new THREE.Group(); root.add(bar);
     const api = {
-      group: root, spread: 0.004, L: 0.03, arms: [],
+      group: root, spread: 0.004, h: [0, 1], arms: [],
       set(p) {
         if (p.spread !== undefined) api.spread = clamp(p.spread, 0.0012, 0.016);
-        if (p.length !== undefined) api.L = clamp(p.length, 0.012, 0.08);
-        const s = api.spread, hz = Math.min(api.L * 0.5, 0.02) + 0.006;
+        if (p.h) { const l = Math.hypot(p.h[0], p.h[1]) || 1; api.h = [p.h[0] / l, p.h[1] / l]; }
+        const s = api.spread, [hx, hz] = api.h, px = hz, pz = -hx;   // h = handle direction, p = across it
+        const at = (along, across, y) => [hx * along + px * across, y, hz * along + pz * across];
         halves.forEach(h => { h.rake.position.set(h.sd * s, 0, 0); });
-        hinge.position.set(0, 0.0072, hz); screw.position.set(0, 0.0072, hz);
+        // compact: the hinge sits just past the end of the cut, the finger rings stay close to the field
+        if (p.reach !== undefined) api.reach = p.reach;
+        const H = clamp((api.reach || 0.005) + 0.004, 0.0075, 0.016);
+        const hp = at(H, 0, 0.0062);
+        hinge.position.set(hp[0], hp[1], hp[2]);
+        hinge.rotation.set(0, Math.atan2(hx, hz), 0);
         api.arms.forEach(m => { root.remove(m); m.geometry.dispose(); });
         api.arms = [];
         for (const sd of [-1, 1]) {
-          // arm: from the rake up and along the cut, crossing at the hinge, out to the finger ring on the other side
-          const pts = [[sd * s - sd * 0.0004, 0.0033, 0.0], [sd * s * 0.95, 0.0043, hz * 0.34], [sd * s * 0.5, 0.0062, hz * 0.74], [0, 0.0072, hz],
-            [-sd * 0.003, 0.008, hz + 0.011], [-sd * 0.0066, 0.0088, hz + 0.022], [-sd * 0.0084, 0.0093, hz + 0.03]];
-          const arm = tube(pts, 0.0007, M.satin); root.add(arm); api.arms.push(arm);
-          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0042, 0.0009, 10, 32), M.steel);
-          ring.position.set(-sd * 0.0108, 0.0097, hz + 0.0355); ring.rotation.x = Math.PI / 2 - 0.2; ring.rotation.z = sd * 0.15;
+          // from the rake top, rising, converging at the hinge, crossing over to the other side's ring
+          const r0 = [sd * s - sd * 0.0004, 0.0033, 0], r1 = at(H * 0.45, 0, 0.005);
+          const pts = [r0, [lerp(r0[0], r1[0], 0.4) + sd * 0.001, 0.0042, lerp(r0[2], r1[2], 0.4)], hp,
+            at(H + 0.0050, -sd * 0.0019, 0.0067), at(H + 0.0094, -sd * 0.0034, 0.007)];
+          const arm = tube(pts, 0.00066, M.satin); root.add(arm); api.arms.push(arm);
+          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.00066, 10, 8), M.satin);
+          const cp = pts[pts.length - 1]; cap.position.set(cp[0], cp[1], cp[2]); root.add(cap); api.arms.push(cap);
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0026, 0.00062, 10, 30), M.steel);
+          const rp = at(H + 0.0121, -sd * 0.0046, 0.0072);
+          ring.position.set(rp[0], rp[1], rp[2]); ring.rotation.order = 'YXZ'; ring.rotation.set(Math.PI / 2 - 0.12, Math.atan2(hx, hz), 0);
           root.add(ring); api.arms.push(ring);
         }
-        // ratchet bar between the handles, with teeth
+        // ratchet bar between the arms
         bar.children.slice().forEach(c => { bar.remove(c); c.geometry.dispose(); });
-        const rb = new THREE.Mesh(new THREE.BoxGeometry(0.0138, 0.0008, 0.0016), M.satin);
-        rb.position.set(0, 0.0091, hz + 0.0255); bar.add(rb);
-        for (let i = 0; i < 7; i++) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.0006, 0.0008, 0.0016), M.dark); t.position.set(-0.0054 + i * 0.0018, 0.0098, hz + 0.0255); bar.add(t); }
+        const bp = at(H + 0.0070, 0, 0.0069);
+        bar.position.set(bp[0], bp[1], bp[2]); bar.rotation.set(0, Math.atan2(hx, hz), 0);
+        bar.add(new THREE.Mesh(new THREE.CylinderGeometry(0.0004, 0.0004, 0.0062, 10).rotateZ(Math.PI / 2), M.satin));
         root.traverse(c => { if (c.isMesh) c.castShadow = true; });
       },
     };
@@ -349,7 +364,7 @@
         x *= 1 - dent; z *= 1 - dent;
         p.setXYZ(i, x, y, z);
         const lead = smooth(0.08 * L, 0.24 * L, y) * (0.6 + 0.4 * Math.abs(Math.sin(a * 5 + ph)));
-        cols.push(lerp(0.76, 0.56, lead), lerp(0.45, 0.58, lead), lerp(0.27, 0.6, lead));
+        cols.push(lerp(0.56, 0.33, lead), lerp(0.24, 0.34, lead), lerp(0.1, 0.36, lead));
       }
     } else {
       geo = new THREE.IcosahedronGeometry(L / 2, 1);
@@ -361,12 +376,12 @@
         const s = key[k];
         p.setXYZ(i, x * s * 1.35, y * s * 0.95, z * s * 0.45);
         const rust = Math.max(0, Math.sin(x * 900 + y * 700) * 0.5 + R() * 0.2);
-        cols.push(lerp(0.42, 0.5, rust), lerp(0.44, 0.31, rust), lerp(0.46, 0.2, rust));
+        cols.push(lerp(0.36, 0.42, rust), lerp(0.37, 0.26, rust), lerp(0.39, 0.16, rust));
       }
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: f.shape === 'bullet' ? 0.92 : 0.8, roughness: f.shape === 'bullet' ? 0.36 : 0.55, color: 0xffffff });
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: f.shape === 'bullet' ? 0.72 : 0.62, roughness: f.shape === 'bullet' ? 0.34 : 0.52, color: 0xffffff, envMapIntensity: 0.38 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.visible = false;
     mesh.userData.thick = f.shape === 'bullet' ? L * 0.74 : L * 0.42;
@@ -439,6 +454,7 @@
       this.loadEl.querySelector('.lt').textContent = T('loading', 'Preparing the surgical field…');
       this.resWrap.innerHTML = '';
       this.notesHtml = this.devHtml = this.ivHtml = this.chipsHtml = this.planHtml = this.ringHtml = this.tagsHtml = null;
+      this.undraped = false;
       [this.tlEl, this.caseEl, this.devEl, this.notesEl].forEach(x => { x.style.display = ''; });
       this.filmEl.classList.remove('on');
       this.devEl.classList.remove('on');
@@ -457,7 +473,7 @@
       if (this.clock) this.clock = null;
       if (this.fallbackTimer) { clearInterval(this.fallbackTimer); this.fallbackTimer = null; }
       if (this.demoVitals) { clearInterval(this.demoVitals); this.demoVitals = null; }
-      clearTimeout(this.stepTimer);
+      clearTimeout(this.stepTimer); clearTimeout(this.peekT);
       if (this.cur) this.cur.classList.remove('on');
       if (this.stage) { this.stage.innerHTML = ''; this.stage.className = 'bx-stage'; }
       if (this.tags) this.tags.innerHTML = '';
@@ -514,6 +530,8 @@
           tone: d.tone !== undefined ? +d.tone : 0.3, region, sex: (d.patient && d.patient.sex) || 'm', seed,
           hair: d.hair !== undefined && d.hair !== null ? +d.hair : null, quality: cfg.quality,
           drape: { radius: this.R0, uv: [0.5, 0.5] },
+          // supine torso: blood runs off toward the flank, not straight at the surgeon
+          gravity: limb ? [0, 1] : [0.72, 0.69],
           focus: { uv: [0.5, 0.5], size: [this.R0 * 1.5, this.R0 * 1.5], view: this.R0 * 2.7 },
         });
       } catch (e) {
@@ -556,7 +574,7 @@
         su: { ml: 0, flowT: 0 },
         gz: { have: Math.min((d.items && +d.items.gauze) || 0, cfg.gauzeMax), used: 0, swab: null, stainT: 0, absorbed: 0 },
         sut: { N: 0, list: [], misses: 0, drag: null, last: null },
-        dr: { D: null, rub: false, cover: 0, settledT: 0, warnT: 0 },
+        dr: { D: null, rub: false, cover: 0, settledT: 0, warnT: 0, lay: 0, lift0: 0 },
       };
       g.pain = g.pain0;
       S.layers.decay('wet', 0.05);
@@ -584,7 +602,7 @@
     paintInitial(R) {
       const S = this.S, inj = this.inj, gun = inj.type === 'gunshot', sev = clamp(+inj.severity || 2, 1, 4);
       const jit = (uv, mm) => [uv[0] + (R() - 0.5) * mm * MM / S.patch.W, uv[1] + (R() - 0.5) * mm * MM / S.patch.H];
-      this.entry = S.wounds.add({ type: 'gunshot', uv: this.entryUv, radius: (gun ? 3.3 : 2.4) * MM, ring: (gun ? 1.7 : 0.9) * MM, depth: 9 * MM, jagged: gun ? 0.35 : 0.85, seed: 17 });
+      this.entry = S.wounds.add({ type: 'gunshot', uv: this.entryUv, radius: (gun ? 3.0 : 2.3) * MM, ring: (gun ? 1.6 : 0.9) * MM, depth: 5.5 * MM, jagged: gun ? 0.35 : 0.85, seed: 17 });
       this.sats = [];
       if (!gun) {
         const n = Math.min(3, this.frags.length + 1);
@@ -635,10 +653,12 @@
       this._v = new (T3().Vector3)(); this._w = new (T3().Vector3)();
       // kidney dish on the drape beside the window (extracted pieces land in it)
       const W = S.patch.W, H = S.patch.H;
-      this.dishUv = S.stToUv(Math.min(this.R0 + 0.046, W * 0.4), Math.max(-0.022, -H * 0.4));
+      this.dishUv = S.stToUv(Math.min(this.R0 + 0.027, W * 0.4), Math.max(-0.016, -H * 0.4));
       this.dish = buildKidneyDish(M);
       S.scene.add(this.dish);
       this.placeOnPatch(this.dish, this.dishUv, 0.35, 0.0045);
+      // the drape folds stand proud of the skin: lift the dish until its floor clears every crease under it
+      this.restOnDrape(this.dish, [[0, 0], [0.026, 0], [-0.026, 0], [0.013, 0.008], [-0.013, 0.008], [0.013, -0.009], [-0.013, -0.009], [0, 0.011], [0, -0.012]], 0.0007);
       // self-retaining retractor (shown while the incision is spread)
       // towel clamps holding the drape at the rim of the window
       this.clamps = [-35, 35, 145, 215].map((deg, i) => {
@@ -651,7 +671,7 @@
       this.retr = buildRetractor(M);
       this.retr.group.visible = false;
       S.scene.add(this.retr.group);
-      this.retrKey = '';
+      this.retrKey = ''; this.retrAt = null;
     },
     // put an object on the patch at uv: +Y along the surface normal, +X along the patch s axis turned by angle
     placeOnPatch(obj, uv, angle = 0, lift = 0) {
@@ -664,7 +684,39 @@
       obj.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, N, Z));
       obj.position.copy(sp.point).addScaledVector(N, lift);
     },
-    // the retractor sits across the middle of the cut, rakes on both edges, handles out past the end that is on the right
+    // raise an object already placed with placeOnPatch so the drape under its footprint (local [x, z] points) stays below it
+    restOnDrape(obj, foot, pad = 0.0005) {
+      const THREE = T3(), S = this.S, mesh = S.drape && S.drape.mesh;
+      if (!mesh) return;
+      const N = new THREE.Vector3(0, 1, 0).applyQuaternion(obj.quaternion);
+      const X = new THREE.Vector3(1, 0, 0).applyQuaternion(obj.quaternion), Z = new THREE.Vector3(0, 0, 1).applyQuaternion(obj.quaternion);
+      const ray = new THREE.Raycaster(), down = N.clone().negate(), o = new THREE.Vector3(), base = obj.position.clone();
+      let need = 0;
+      for (const [x, z] of foot) {
+        o.copy(base).addScaledVector(X, x).addScaledVector(Z, z).addScaledVector(N, 0.04);
+        ray.set(o, down); ray.far = 0.08;
+        const hit = ray.intersectObject(mesh, false)[0];
+        if (hit) need = Math.max(need, 0.04 - hit.distance + pad);
+      }
+      if (need > 0) obj.position.addScaledVector(N, need);
+    },
+    // where the retractor goes, chosen once per opening: its rakes hook the edges just past the outermost
+    // piece on the side of the cut with the most room, and its body leaves by that end of the cut, so the
+    // arms never lie over the metal. → { t (0..1 along the cut), end (0 | 1) }
+    retrSpot(w) {
+      const S = this.S, a = S.uvToST(w.at(0).uv), b = S.uvToST(w.at(1).uv);
+      const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1e-9, L = Math.sqrt(l2);
+      const left = this.frags.filter(f => !f.out);
+      if (!left.length) return { t: 0.7, end: 1 };
+      let lo = 1, hi = 0;
+      for (const f of left) {
+        const t = ((f.x * MM - a[0]) * dx + (f.y * MM - a[1]) * dy) / l2, hs = (+f.size || 6) * MM * 0.5 / L;
+        lo = Math.min(lo, t - hs); hi = Math.max(hi, t + hs);
+      }
+      const end = 1 - hi >= lo ? 1 : 0, m = 0.0025 / L;
+      return { t: end ? clamp(hi + m, 0.55, 0.86) : clamp(lo - m, 0.14, 0.45), end };
+    },
+    // the retractor: rakes on both edges, the arms rising and running along the cut out past its end
     updateRetractor() {
       const g = this.g, S = this.S, r = this.retr;
       if (!r || !S) return;
@@ -672,18 +724,21 @@
       const show = !!(w && !this.finished && g.step >= 4 && g.step <= 6 && g.ex.spread > 0.08);
       r.group.visible = show;
       if (!show) return;
-      const THREE = T3(), mid = w.at(0.5);
-      const hg = w.halfGape(0.5) + 0.0004, L = w.length;
-      const key = `${(hg * 1e4).toFixed(0)}:${(L * 1e3).toFixed(0)}:${mid.uv[0].toFixed(4)}:${mid.uv[1].toFixed(4)}`;
+      if (!this.retrAt || this.retrAt.w !== w) this.retrAt = Object.assign({ w }, this.retrSpot(w));
+      const THREE = T3(), { t, end } = this.retrAt, at = w.at(t);
+      const hg = w.halfGape(t) + 0.0004;
+      const key = `${(hg * 1e4).toFixed(0)}:${at.uv[0].toFixed(4)}:${at.uv[1].toFixed(4)}`;
       if (key === this.retrKey) return;
       this.retrKey = key;
-      r.set({ spread: hg, length: L });
-      const sp = S.surfaceAt(mid.uv), N = sp.normal.clone().normalize();
-      const ePt = S.surfaceAt(w.edge(0.5, 1, 0.004)).point;
-      let X = ePt.sub(sp.point); X.addScaledVector(N, -X.dot(N)).normalize();
-      let Z = new THREE.Vector3().crossVectors(X, N).normalize();
-      const a = S.project(sp.point.clone().addScaledVector(Z, 0.03)), b = S.project(sp.point.clone().addScaledVector(Z, -0.03));
-      if (a.x < b.x) { X.negate(); Z.negate(); }
+      const sp = S.surfaceAt(at.uv), N = sp.normal.clone().normalize();
+      const ePt = S.surfaceAt(w.edge(t, 1, 0.004)).point;
+      const X = ePt.sub(sp.point); X.addScaledVector(N, -X.dot(N)).normalize();
+      const Z = new THREE.Vector3().crossVectors(X, N).normalize();
+      // out past the chosen end of the cut and away from the camera (foreshortened, clear of the field)
+      const toEnd = S.surfaceAt(w.at(end).uv).point.sub(sp.point);
+      const fwd = S.camera.getWorldDirection(new THREE.Vector3());
+      const hz = (toEnd.dot(Z) >= 0 ? 1 : -1) * 0.62, hx = (fwd.dot(X) >= 0 ? 1 : -1) * 0.78;
+      r.set({ spread: hg, h: [hx, hz], reach: toEnd.length() });
       r.group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, N, Z));
       r.group.position.copy(sp.point).addScaledVector(N, -0.0005);
     },
@@ -691,11 +746,10 @@
     peekDish() {
       const S = this.S, home = this.lastFrame;
       if (!S || !this.dishUv || !home) return;
-      const a = S.uvToST(home.uv), b = S.uvToST(this.dishUv);
-      const mid = S.stToUv((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-      S.controls.frame(mid, clamp(Math.hypot(a[0] - b[0], a[1] - b[1]) + 0.09, 0.1, this.R0 * 4), { instant: false });
+      // a close look at the dish as the piece lands in it
+      S.controls.frame(this.dishUv, 0.12, { instant: false, pitch: 1.05 });
       clearTimeout(this.peekT);
-      this.peekT = setTimeout(() => { if (this.S === S && this.alive && !this.finished) { const h = this.lastFrame; S.controls.frame(h.uv, h.w, { instant: false }); } }, 1900);
+      this.peekT = setTimeout(() => { if (this.S === S && this.alive && !this.finished) { const h = this.lastFrame; S.controls.frame(h.uv, h.w, { instant: false }); } }, 1700);
     },
 
     /* ═════════════ HUD ═════════════
@@ -805,7 +859,7 @@
         1: g.done[1] ? (g.film.used ? T('plan_xray', 'Film') : `${found}/${N}`) : g.skipped[1] ? T('skipped', 'Skipped') : `${found}/${N}`,
         2: g.skipped[2] ? T('skipped', 'Skipped') : `${pct(g.io.cov)}%`,
         3: g.cut.w ? `${Math.round(g.cut.L || g.cut.w.length / MM)} mm` : '—',
-        4: g.step >= 4 ? `${pct(Math.min(1, this.exposure()))}%` : '—',
+        4: g.done[4] ? '100%' : g.step >= 4 ? `${pct(Math.min(1, this.exposure()))}%` : '—',
         5: `${out}/${N}`,
         6: g.cut.w && g.step >= 5 ? `${f1(this.bleedNow())}` : '—',
         7: g.skipped[7] ? T('skipped', 'Skipped') : g.sut.N ? `${g.sut.list.length}/${g.sut.N}` : '—',
@@ -867,7 +921,7 @@
       if (mode === 'probe') {
         const pr = g.pr, maxD = this.boneDepth + 10;
         const tissue = pr.contact ? ['teal', T('ts_metal', 'Metal')] : pr.bone ? ['amber', T('ts_bone', 'Bone')] : !pr.on ? ['', T('ts_idle', 'Ready')]
-          : pr.depth < 2 ? ['', T('ts_skin', 'Skin')] : pr.depth < this.fat ? ['', T('ts_fat', 'Fat')] : ['', T('ts_muscle', 'Soft tissue')];
+          : pr.depth < 2 ? ['', T('ts_skin', 'Skin')] : pr.depth < this.fat ? ['', T('ts_fat', 'Fat')] : ['', T('ts_muscle', 'Muscle')];
         let feel;
         if (!pr.on) feel = T('feel_idle', 'Hold {LMB} in the wound to probe the track');
         else if (pr.contact) feel = T('feel_metal', 'Hard, gritty click — that is metal');
@@ -877,7 +931,7 @@
         else feel = T('feel_track', 'Sliding down the track');
         const steer = pr.on && pr.track && pr.steer && !pr.contact && pr.err > cfg.steerTol * 0.7
           ? `<div class="dv-steer ${pr.err > cfg.steerTol ? 'warn' : ''}"><span class="ar" style="transform:rotate(${(pr.steer * 180 / Math.PI).toFixed(0)}deg)">${icon('arrow-r')}</span>${esc(T('steer', 'Steer'))}</div>` : '';
-        html = `<div class="dv-hd"><span class="nza-label">${esc(T('dv_probe', 'Probe depth'))}</span><span class="dv-tag ${tissue[0]}">${esc(tissue[1])}</span></div>
+        html = `<div class="dv-hd"><span class="nza-label">${esc(T('dv_probe', 'Track depth'))}</span><span class="dv-tag ${tissue[0]}">${esc(tissue[1])}</span></div>
           <div class="dv-row"><div class="dv-l"><div class="dv-big ${pr.contact ? 'teal' : ''}"><b>${f1(pr.depth)}</b><span>mm</span></div>
           <div class="dv-sub">${NZA.rich(feel)}</div>${steer}</div>
           ${this.layersHTML(maxD, { tip: pr.depth, tipTone: pr.contact ? 'teal' : pr.blocked ? 'red' : '', frags: this.frags.filter(f => f.found && !f.out) })}</div>`;
@@ -1098,11 +1152,11 @@
       S.markers.remove('in'); S.markers.remove('inR'); S.markers.remove('out');
       if (n === 1) this.frame0();
       if (n === 2) this.startPrep();
-      if (n === 3) this.frameOn(this.cutCentre(), Math.max(g.cut.ideal * 4.6 * MM, this.R0 * 2.3));
+      if (n === 3) this.frameOn(this.cutCentre(), Math.max(g.cut.ideal * 5.5 * MM, this.R0 * 2.9));
       if (n === 4) this.frameOn(this.cutCentre(), Math.max((g.cut.L || g.cut.ideal) * 3.9 * MM, 0.092));
       if (n === 6) { g.hm.start = Math.max(this.bleedNow(), this.cfg.bleedDone * 1.5); }
       if (n === 7) this.startSuture();
-      if (n === 8) this.startDressing();
+      if (n === 8) { this.startDressing(); if (!first) setTimeout(() => { if (this.g === g && this.alive && !this.finished) this.flash('ok', T('undraped', 'Drapes off — the field is clear for the dressing.'), 2400); }, 60); }
       this.dots.style.display = n === 7 ? '' : 'none';
       this.markFrags();
       this.stepTip();
@@ -1321,7 +1375,7 @@
       if (g && g.cut.w) {
         S.fluids.bleed(this.entry, 0);
         const b = this.bleedNow();
-        S.fluids.bleed(g.cut.w, b > 0.1 && g.step < 8 ? clamp(b * 0.5, 0.4, 9) : 0);
+        S.fluids.bleed(g.cut.w, b > 0.1 && g.step < 8 ? clamp(b * 0.32, 0.3, 6) : 0);
       } else {
         const b = (+this.inj.bleed || 0) * 0.3;
         S.fluids.bleed(this.entry, b > 1.8 ? clamp(b * 0.22, 0.3, 1.2) : 0);
@@ -1363,7 +1417,7 @@
       const numb = this.d.patient && this.d.patient.numb ? 0.7 : 0;
       g.painSpike = Math.min(60, g.painSpike + amount * (1 - numb));
       g.pain = clamp(g.pain0 + g.painSpike, 0, 100);
-      if (chance && g.pain >= this.cfg.flinchPain && Math.random() < chance * (1 - numb)) { this.flinch(); return true; }
+      if (chance && !this.demoCalm && g.pain >= this.cfg.flinchPain && Math.random() < chance * (1 - numb)) { this.flinch(); return true; }
       return false;
     },
     flinch() {
@@ -2085,9 +2139,10 @@
       f.flyT = 0; f.flyFrom = m.position.clone();
       const n = x.out.length, dishN = new (T3().Vector3)(0, 1, 0).applyQuaternion(this.dish.quaternion);
       const dishX = new (T3().Vector3)(1, 0, 0).applyQuaternion(this.dish.quaternion);
-      f.flyTo = this.dish.position.clone().addScaledVector(dishN, 0.0035 + m.userData.thick * 0.3).addScaledVector(dishX, (n - 1) * 0.011 - 0.012);
+      f.flyTo = this.dish.position.clone().addScaledVector(dishN, 0.0004 + m.userData.thick * (f.shape === 'bullet' ? 0.55 : 0.45)).addScaledVector(dishX, (n - 1) * 0.0068 - 0.006);
       f.flyUp = dishN.clone();
-      f.flyQ = new (T3().Quaternion)().setFromAxisAngle(dishN, 0.6 + n * 1.3).multiply(new (T3().Quaternion)().setFromAxisAngle(dishX, Math.PI / 2)).premultiply(new (T3().Quaternion)());
+      // lying on its side on the floor of the dish, each piece turned a little differently
+      f.flyQ = new (T3().Quaternion)().setFromAxisAngle(dishN, 0.6 + n * 1.3).multiply(this.dish.quaternion.clone()).multiply(new (T3().Quaternion)().setFromAxisAngle(new (T3().Vector3)(1, 0, 0), Math.PI / 2));
       this.releaseGrip(false);
       g.bl.rate += 1.5;
       S.layers.splat('blood', f.uv, 2.4 * MM, 0.45, { seed: x.out.length * 13 });
@@ -2271,34 +2326,55 @@
       const g = this.g, pts = g.cut.w ? g.cut.w.points() : [];
       return pts.concat([this.entryUv]);
     },
+    // the wound is closed: drapes, clamps and the dish come off before the dressing goes on
+    undrape() {
+      const S = this.S;
+      if (!S || this.undraped) return;
+      this.undraped = true;
+      if (S.drape && S.drape.mesh) S.drape.mesh.visible = false;
+      S.scene.traverse(o => { if (o.isMesh && o.geometry && o.geometry.type === 'RingGeometry' && o.material && o.material.transparent && o.renderOrder === 4) o.visible = false; });
+      (this.clamps || []).forEach(c => { c.visible = false; });
+      if (this.dish) this.dish.visible = false;
+      this.frags.forEach(f => { if (f.inDish && f.mesh) f.mesh.visible = false; f.inDish = false; });
+      if (this.retr) this.retr.group.visible = false;
+    },
     startDressing() {
       const g = this.g, S = this.S;
       if (g.dr.D) return;
+      this.undrape();
       if (g.ex.spread > 0 && g.cut.w) { g.ex.spread = 0; g.cut.w.set({ gape: 2.4 * MM, depth: 5 * MM }); }
       const pts = this.coverPts().map(p => S.uvToST(p));
       const w = g.cut.w, mid = w ? w.at(0.5) : { s: 0, t: 0, dir: [1, 0], nrm: [0, 1] };
       const dir = mid.dir, nrm = [-dir[1], dir[0]];
       let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
       pts.forEach(p => { const dx = p[0] - mid.s, dy = p[1] - mid.t, u = dx * dir[0] + dy * dir[1], v = dx * nrm[0] + dy * nrm[1]; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); });
-      const pw = clamp((u1 - u0) / MM + 12, 26, 80), ph = clamp((v1 - v0) / MM + 12, 18, 60);
-      const dw = pw + 16, dh = ph + 16;
+      const pw = clamp((u1 - u0) / MM + 9, 24, 64), ph = clamp((v1 - v0) / MM + 9, 16, 44);
+      const dw = pw + 12, dh = ph + 12;
       const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2;
       const cs = mid.s + dir[0] * cu + nrm[0] * cv, ct = mid.t + dir[1] * cu + nrm[1] * cv;
       g.dr.target = [cs, ct]; g.dr.nrm = nrm; g.dr.dh = dh;
       const viewW = clamp((Math.max(dw, dh) + 50) * MM, 0.08, this.R0 * 3);
       S.controls.frame(S.stToUv(cs, ct), viewW, { instant: false, pitch: 1.24 });
-      const near = this.near || 1, off = (dh / 2 + 15) * MM, far = -near;
+      // the drapes are off: it waits on the skin on the far side of the cut, ready to be drawn over it
+      const near = this.near || 1, off = (dh / 2 + 10) * MM, far = -near;
       const uv = S.stToUv(cs + nrm[0] * off * far, ct + nrm[1] * off * far);
       const ang = Math.atan2(-dir[1], dir[0]) + 0.1;
       g.dr.D = S.dressing.create({ size: [dw * MM, dh * MM], pad: [pw * MM, ph * MM], uv, angle: ang });
+      // the pad sits over a closed gunshot track and a fresh incision: pull it a hair forward in depth so
+      // sub-millimetre dips into the swollen wound lips never let the skin show through the cloth
+      if (g.dr.D.mesh) g.dr.D.mesh.traverse(o => { (Array.isArray(o.material) ? o.material : o.material ? [o.material] : []).forEach(m => { m.polygonOffset = true; m.polygonOffsetFactor = -4; m.polygonOffsetUnits = -16; m.needsUpdate = true; }); });
       g.dr.restUv = uv;
+      g.dr.lift0 = g.dr.D.carriedLift;
     },
     dressDown() {
       const g = this.g, S = this.S, D = g.dr.D;
       if (!D) return;
       const hit = S.raycast();
+      // pressed again while it is being laid down: it stays in the hand
+      if (D.state === 'carried') { g.dr.lay = 0; D.carriedLift = g.dr.lift0; this.stage.classList.add('grabbing'); return; }
       const pick = D.pick(hit);
-      if (pick === 'edge' && D.stuck < 0.25 && D.state !== 'carried') {
+      if (pick === 'edge' && D.stuck < 0.25) {
+        D.carriedLift = g.dr.lift0;
         if (D.grab(hit)) { this.stage.classList.add('grabbing'); this.snd('tone', 300, 40, { vol: 0.03, type: 'triangle' }); return; }
       }
       if (D.state === 'placed' || D.state === 'falling') { g.dr.rub = true; return; }
@@ -2309,13 +2385,19 @@
       const g = this.g, D = g.dr.D;
       g.dr.rub = false;
       if (!D) return;
-      if (D.state === 'carried') { D.release(); g.dr.settledT = 0; this.stage.classList.remove('grabbing'); }
+      // letting go lays it down: the held edge comes down to the skin first so the sheet lands flat
+      // (dropped from the fingers its border would fold under itself)
+      if (D.state === 'carried') { g.dr.lay = this.cfg.layTime || 0.45; D.carriedLift = 0; this.stage.classList.remove('grabbing'); }
     },
     tickDressing(dt) {
       const g = this.g, S = this.S, cfg = this.cfg, D = g.dr.D;
       if (!D) return;
       const hit = S.raycast();
-      if (D.state === 'carried') { if (hit) D.move(hit); return; }
+      if (D.state === 'carried') {
+        if (hit) D.move(hit);
+        if (g.dr.lay > 0) { g.dr.lay -= dt; if (g.dr.lay <= 0) { g.dr.lay = 0; D.release(); g.dr.settledT = 0; } }
+        return;
+      }
       if (!g.lmb) {
         const pick = hit ? D.pick(hit) : null;
         this.stage.classList.toggle('grab', pick === 'edge' && D.stuck < 0.25);
@@ -2568,6 +2650,7 @@
       const S = this.S, g = this.g;
       if (!S || !g) return false;
       S.stop();
+      this.demoCalm = true;   // the scripted demo is not interrupted by flinches
       const sim = (sec, fn) => { const n = Math.ceil(sec * 30); for (let i = 0; i < n; i++) { if (fn) fn(i / n, i); S.step(1 / 30, false); } };
       const aim = uv => { const p = S.project(uv); S.pointer.x = p.x; S.pointer.y = p.y; this.mx = p.x * window.innerWidth; this.my = p.y * window.innerHeight; };
       const press = () => this.down({ button: 0 }), release = () => this.up({ button: 0 });
@@ -2584,6 +2667,7 @@
         if (cut) { aim(S.stToUv(f.x * 0.9 * MM, f.y * 0.1 * MM)); sim(0.2); return done(); }
         release(); sim(0.3);
       }
+      this.frags.forEach(f => { if (!f.found) this.locate(f, 'probe'); });
       clearTimeout(this.stepTimer); if (g.step === 1) this.enterStep(2);
       if (stage === 'located') { sim(0.6); return done(); }
       // 2 disinfect: spiral outward
@@ -2639,6 +2723,8 @@
         release(); sim(0.7);
       }
       clearTimeout(this.stepTimer); if (g.step === 5) this.enterStep(6);
+      // skip the glance at the dish: back to the working view at once
+      clearTimeout(this.peekT); if (this.lastFrame) S.controls.frame(this.lastFrame.uv, this.lastFrame.w);
       // 6 control: gauze pressure on the bleeder
       this.useTool('gauze');
       aim(this.bleederUv()); sim(0.05); press();
@@ -2669,11 +2755,15 @@
       aim(S.stToUv(e0[0], e0[1])); sim(0.05); press();
       sim(0.8, k => aim(S.stToUv(lerp(e0[0], e1[0], k), lerp(e0[1], e1[1], k))));
       release(); sim(1.4);
+      // rub from the middle of the pad (pressing on its edge again would pick it up)
+      aim(S.stToUv(tg[0], tg[1])); sim(0.05);
       press();
       const dir = w.at(0.5).dir, hw = [D.size[0] / 2 - 0.004, D.size[1] / 2 - 0.004];
       for (let k = 0; k < 8 && !g.done[8]; k++) {
         sim(2, q => { const x = Math.sin(q * Math.PI * 6 + k) * hw[0], y = Math.sin(q * Math.PI * 2 + k * 1.3) * hw[1]; aim(S.stToUv(tg[0] + dir[0] * x + nrm[0] * y, tg[1] + dir[1] * x + nrm[1] * y)); });
       }
+      // smooth both long borders flat
+      for (const sy of [1, -1]) sim(1.2, q => { const x = (q * 2 - 1) * hw[0], y = sy * hw[1] * 0.96; aim(S.stToUv(tg[0] + dir[0] * x + nrm[0] * y, tg[1] + dir[1] * x + nrm[1] * y)); });
       release(); sim(0.3);
       return done();
     },

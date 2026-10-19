@@ -73,7 +73,8 @@ discs, teal crank).
 **HUD.** Core `NZA.ui.ProcPanel` (left instruction column with the 240° dial + instrument list, step
 spine with skipped steps dashed via the kit's `skipped` option, "Next" line; `pp.slot` holds the
 carrier picker; right-edge tool belt 1–8 with the hold-to-cancel ring). Nothing sits in the screen
-centre or bottom-centre. Top-left: the handheld
+centre or bottom-centre. On screens 820 px tall or less (1280×720) the imager hides its trend strip
+and the case card its result chips, so neither touches the column or the belt. Top-left: the handheld
 wound imager (generic device: model code `WI-6`, lens, LED, laser warning sticker — no brand) with a
 live heat map (palettes lava / iron / grey, freeze, AR overlay on the burn with T), depth map, tissue
 map, excision map, donor map, expansion plan, graft-fit and cover views, a per-mode instrument list
