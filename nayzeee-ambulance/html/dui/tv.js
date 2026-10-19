@@ -91,7 +91,20 @@
       tr('tv_t3', 'Look for your code beside a bed number'),
       tr('tv_t4', 'Feeling worse while you wait? Tell the front desk right away'),
     ];
-    $('.tv-tick').innerHTML = lines.concat(lines).map(l => `<span><i></i>${esc(l)}</span>`).join('');
+    // one line at a time: a scrolling crawl shimmers once the page is drawn onto the in-game screen
+    $('.tv-tick').innerHTML = lines.map((l, i) => `<span class="${i === 0 ? 'on' : ''}"><i></i>${esc(l)}</span>`).join('');
+    S.tickAt = 0;
+  }
+  function rotateTicker() {
+    const items = document.querySelectorAll('.tv-tick span');
+    if (items.length < 2) return;
+    const cur = S.tickAt || 0, next = (cur + 1) % items.length;
+    items[cur].classList.remove('on');
+    items[cur].classList.add('off');
+    items[next].classList.remove('off');
+    items[next].classList.add('on');
+    setTimeout(() => items[cur].classList.remove('off'), 700);
+    S.tickAt = next;
   }
 
   /* ── bed bay map ── */
@@ -235,6 +248,7 @@
     });
   }
   setInterval(tick, 1000);
+  setInterval(rotateTicker, 7000);
   renderStatic();
   tick();
 

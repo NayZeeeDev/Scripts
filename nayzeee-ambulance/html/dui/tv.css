@@ -166,11 +166,13 @@ body{font-family:'Lexend',system-ui,sans-serif;color:var(--ink);-webkit-font-smo
 /* ═══════════ ticker ═══════════ */
 .tv-ticker{grid-column:1 / -1;grid-row:2;display:flex;align-items:stretch;background:#0b0e0f;border-top:.1vw solid rgba(15,212,196,.28)}
 .tv-tlbl{flex:none;display:flex;align-items:center;padding:0 1.6vw 0 2.4vw;background:linear-gradient(90deg,var(--teal),#067d74);color:#02221f;font-size:.9vw;font-weight:800;letter-spacing:.26em;text-transform:uppercase;clip-path:polygon(0 0,100% 0,calc(100% - 1vw) 100%,0 100%)}
-.tv-tickw{flex:1;min-width:0;overflow:hidden;display:flex;align-items:center}
-.tv-tick{display:flex;white-space:nowrap;animation:tvTick 46s linear infinite}
-.tv-tick span{display:inline-flex;align-items:center;gap:1vw;padding:0 2.4vw;font-size:1.05vw;font-weight:500;letter-spacing:.04em;color:#d7dbdd}
-.tv-tick span i{width:.45vw;height:.45vw;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 .6vw var(--teal-hi)}
-@keyframes tvTick{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tv-tickw{flex:1;min-width:0;overflow:hidden;position:relative}
+.tv-tick{position:absolute;inset:0}
+.tv-tick span{position:absolute;inset:0;display:flex;align-items:center;gap:1vw;padding:0 2.4vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:1.05vw;font-weight:500;letter-spacing:.04em;color:#d7dbdd;opacity:0;transform:translateY(100%);transition:opacity .5s ease,transform .5s ease}
+.tv-tick span.on{opacity:1;transform:none}
+.tv-tick span.off{opacity:0;transform:translateY(-100%)}
+.tv-tick span i{flex:none;width:.45vw;height:.45vw;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 .6vw var(--teal-hi)}
 
 /* ═══════════ number called (full screen) ═══════════ */
 .tv-flash{position:absolute!important;inset:0;z-index:5!important;display:grid;place-items:center;opacity:0;pointer-events:none;

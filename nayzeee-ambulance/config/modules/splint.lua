@@ -154,8 +154,11 @@ Config.Splint = {
         maxMoveBlend = 1.0,        -- 1.0 = no jogging / sprinting on crutches
         key       = '',            -- default key to pick up / put away (players can rebind; '' = unbound)
         command   = 'crutches',    -- chat command that does the same (false = none)
-        right = { bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) },   -- PH_R_Hand
-        left  = { bone = 60309, pos = vec3(0.0, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) },   -- PH_L_Hand
+        -- Upright at your sides: attached to the body (bone 0 = root, +X right, +Y forward, +Z up) so the
+        -- crutch never turns sideways with the arm. The crutch's origin is its hand grip; the tip is 0.86 m
+        -- below it. pos.z puts the tip on the ground, rot.y leans the tip out a little.
+        right = { bone = 0, pos = vec3(0.30, 0.10, -0.13), rot = vec3(0.0, -5.0, 0.0) },
+        left  = { bone = 0, pos = vec3(-0.30, 0.10, -0.13), rot = vec3(0.0, 5.0, 0.0) },
         blockControls = { 21, 22, 24, 25, 36, 37, 44, 140, 141, 142, 143, 257, 263, 264 }, -- sprint, jump, attack, aim, duck, weapon wheel, cover, melee
         hideInVehicle = true,      -- crutches disappear while seated in a vehicle
         checkEvery    = 15,        -- seconds between server checks that you still carry the item
