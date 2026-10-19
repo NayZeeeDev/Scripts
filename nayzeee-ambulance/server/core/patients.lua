@@ -875,6 +875,7 @@ local function summary(p)
         stretcher = m.stretcher,
         name = shortName(p.name),
         npc = p.kind == 'npc' or nil,
+        plan = NZA.Care and NZA.Care.Compact(p) or nil,   -- what this patient still needs (core/care.lua)
     }
 end
 
@@ -993,6 +994,7 @@ function P.Snapshot(pid, level)
     out.lossPct = math.floor(P.Loss(p) * 1000 + 0.5) / 10
     out.src = p.src
     out.clockText = NZA.Util.formatTime(p.state == 'arrest' and (p.arrestLeft or 0) or (p.clock or 0))
+    out.care = NZA.Care and NZA.Care.Plan(p) or {}
     return out
 end
 

@@ -14,6 +14,7 @@ NZA.AddLocale('en', {
     ['core_client.interact.self']     = 'Yourself',
     ['core_client.interact.patient']  = 'Patient',
     ['core_client.interact.none']     = 'Nothing you can do here',
+    ['core_client.interact.more_title'] = 'All tools · %s',
 
     -- ── procedures ───────────────────────────────────────────────────────
     ['core_client.proc.working']      = 'Treating patient',

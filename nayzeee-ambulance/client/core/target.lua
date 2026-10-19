@@ -208,10 +208,27 @@ local function selfDown()
     return NZA.Self and NZA.Self.State and NZA.Self.State() ~= 'alive'
 end
 
-local function allowed(opt, entity, distance)
+-- Guided care (Config.Care.guided): on other people the third eye only keeps the care
+-- options (opt.guided, client/core/care.lua) and the moving / utility options listed in
+-- NZA.Care.AlwaysShow. Every other option is still in 'More...' (I.Open(entity, true)).
+local function guidedHidden(opt, entity, me)
+    if opt.guided then return false end
+    if entity == me then return false end
+    if not IsEntityAPed(entity) then return false end      -- body bag props keep their options
+    local C = Config.Care
+    if type(C) ~= 'table' or C.guided == false then return false end
+    -- only medics get the short version (civilians keep their few first-aid options)
+    if not (NZA.Perm and NZA.Perm('assess')) then return false end
+    local Care = NZA.Care
+    if Care and Care.AlwaysShow and Care.AlwaysShow(opt.name) then return false end
+    return true
+end
+
+local function allowed(opt, entity, distance, all)
     if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
     if not opt.whileDown and selfDown() then return false end
     local me = PlayerPedId()
+    if not all and guidedHidden(opt, entity, me) then return false end
     local isPed = IsEntityAPed(entity)
     if entity == me then
         if not opt.self then return false end
@@ -387,16 +404,31 @@ function I.All()
     return sorted()
 end
 
-function I.Options(entity)
+-- all = true: every option that applies, also the ones guided care keeps off the third eye
+function I.Options(entity, all)
     local out = {}
     if not entity or entity == 0 or not DoesEntityExist(entity) then return out end
     local me = PlayerPedId()
     local dist = entity == me and 0.0 or #(GetEntityCoords(me) - GetEntityCoords(entity))
     lookups[entity] = nil
     for _, opt in ipairs(sorted()) do
-        if allowed(opt, entity, dist) then out[#out + 1] = opt end
+        if allowed(opt, entity, dist, all) then out[#out + 1] = opt end
     end
     return out
+end
+
+-- one option's rules for one entity (all = ignore guided care), and running it like a target click
+function I.Allowed(opt, entity, all)
+    if type(opt) == 'string' then opt = registry[opt] end
+    if type(opt) ~= 'table' then return false end
+    return allowed(opt, entity, nil, all)
+end
+
+function I.Run(opt, entity)
+    if type(opt) == 'string' then opt = registry[opt] end
+    if type(opt) ~= 'table' or not opt.onSelect then return false end
+    runSelect(opt, entity)
+    return true
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -428,9 +460,9 @@ local function faName(opt)
     return icon
 end
 
-function I.Open(entity)
+function I.Open(entity, all)
     entity = entity or PlayerPedId()
-    local list = I.Options(entity)
+    local list = I.Options(entity, all)
     if #list == 0 then
         NZA.UI.Toast({ type = 'info', message = NZA.L('core_client.interact.none') })
         return false
@@ -444,7 +476,7 @@ function I.Open(entity)
             onSelect = function() runSelect(opt, entity) end,
         }
     end
-    lib.registerContext({ id = 'nza_interact', title = menuTitle(entity), options = options })
+    lib.registerContext({ id = 'nza_interact', title = all and NZA.L('core_client.interact.more_title', menuTitle(entity)) or menuTitle(entity), options = options })
     lib.showContext('nza_interact')
     return true
 end

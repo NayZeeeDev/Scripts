@@ -168,7 +168,7 @@
             <footer class="ml"></footer>
           </section>
         </aside>
-        <aside class="ex-colR"><section class="ex-find nza-hud solid nza-int"></section></aside>
+        <aside class="ex-colR"><section class="ex-care nza-hud solid nza-int"></section><section class="ex-find nza-hud solid nza-int"></section></aside>
         <nav class="ex-dock nza-int"></nav>
         <div class="ex-keys"></div>`;
       this.$ = s => el.querySelector(s);
@@ -181,6 +181,7 @@
       this.anc.on(() => this.layout());
       window.addEventListener('resize', () => { if (NZA.isOpen('exam')) this.layout(); });
       this.$('.ex-find').addEventListener('click', e => this.onFindClick(e));
+      this.$('.ex-care').addEventListener('click', e => { const b = e.target.closest('button[data-step]'); if (b && !b.disabled) this.startStep(Number(b.dataset.step)); });
       this.$('.ex-dock').addEventListener('click', e => { const b = e.target.closest('button[data-act]'); if (b && !b.classList.contains('off')) this.action(b.dataset.act); });
       this.$('.ex-map .seg').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) this.flip(b.dataset.v); });
       this.buildHolo();
@@ -225,7 +226,7 @@
       ArrowDown() { NZA.apps.exam.step(1); },
       ArrowUp() { NZA.apps.exam.step(-1); },
       Tab(e) { NZA.apps.exam.step(e.shiftKey ? -1 : 1); },
-      Enter() { NZA.apps.exam.treatFirst(); },
+      Enter() { const a = NZA.apps.exam; if (!a.careFirst()) a.treatFirst(); },
       KeyF() { const a = NZA.apps.exam; a.flip(a.face === 'front' ? 'back' : 'front'); },
       Digit1() { NZA.apps.exam.action('pulse'); },
       Digit2() { NZA.apps.exam.action('breathing'); },
@@ -431,7 +432,42 @@
     },
 
     /* ── render ── */
+    // Care steps: the whole patient, in order (core/care.lua) — Start runs the right treatment
+    careList() { return Array.isArray(this.view.care) ? this.view.care : []; },
+    careFirst() {
+      const s = this.careList().find(x => x.can && x.where !== 'hospital') || this.careList().find(x => x.can);
+      if (!s) return false;
+      this.startStep(s.index);
+      return true;
+    },
+    async startStep(index) {
+      NZA.audio.click(520);
+      await NZA.post('exam:step', { index });
+    },
+    renderCare() {
+      const box = this.$('.ex-care');
+      const list = this.careList();
+      if (this.view.care == null) { box.style.display = 'none'; return; }
+      box.style.display = '';
+      const first = list.findIndex(x => x.can && x.where !== 'hospital');
+      const rows = list.map((s, i) => {
+        const cls = ['cr', i === first ? 'next' : '', s.urgent ? 'urgent' : '', s.where === 'hospital' ? 'hosp' : '', s.can ? '' : 'off'].filter(Boolean).join(' ');
+        const node = i === first ? icon(s.icon || 'medkit') : String(i + 1);
+        const btn = s.can
+          ? `<button class="go" data-step="${s.index}">${i === first ? `<kbd>Enter</kbd>` : ''}${esc(T('care_start', 'Start'))}</button>`
+          : (s.where === 'hospital'
+            ? `<span class="why-not hp">${icon('hospital')}${esc(T('care_hospital', 'Hospital'))}</span>`
+            : `<span class="why-not">${icon('lock')}${esc(s.reason || '')}</span>`);
+        return `<li class="${cls}"><span class="nd">${node}</span><span class="tx"><b>${esc(s.title || '')}</b><small>${esc(s.why || '')}</small></span>${btn}</li>`;
+      }).join('');
+      const left = list.filter(x => x.where !== 'hospital').length;
+      box.innerHTML = `
+        <header class="ch"><span class="kick">${icon('clipboard')}<span>${esc(T('care_title', 'Care steps'))}</span></span>
+          <span class="cnt">${list.length ? esc(T('care_left', '%d left').replace('%d', left || list.length)) : ''}</span></header>
+        ${list.length ? `<ol class="cl">${rows}</ol>` : `<div class="cdone">${icon('check')}<span>${esc(T('care_all_done', 'Nothing left to do. Help them up or let them go.'))}</span></div>`}`;
+    },
     renderAll() {
+      this.renderCare();
       this.renderPatient();
       this.renderHoloState();
       this.renderPins();
@@ -497,7 +533,7 @@
     },
     renderKeys() {
       const k = (keys, label) => `<span>${keys.map(x => `<kbd>${esc(x)}</kbd>`).join('')}<em>${esc(label)}</em></span>`;
-      this.$('.ex-keys').innerHTML = k(['↑', '↓'], T('regions', 'Region')) + k(['F'], T('map_flip', 'Turn the map')) + k(['Enter'], T('key_start', 'Start care')) + k(['ESC'], T('close', 'Close'));
+      this.$('.ex-keys').innerHTML = k(['↑', '↓'], T('regions', 'Region')) + k(['F'], T('map_flip', 'Turn the map')) + k(['Enter'], T('key_start_next', 'Start the next step')) + k(['ESC'], T('close', 'Close'));
     },
     renderFindings() {
       const name = this.sel;
@@ -537,7 +573,7 @@
         care = `<div class="ij-care">
           <div class="ck"><span>${esc(T('next_care', 'Next care step'))}</span></div>
           ${main.reason ? `<div class="why">${icon('alert')}<span>${esc(main.reason)}</span></div>` : ''}
-          <button class="ij-go" data-inj="${esc(i.id)}" data-route="${esc(main.id)}" ${main.ok ? '' : 'disabled'}><span class="gi">${icon(main.icon || 'medkit')}</span><span class="gl">${esc(main.label)}</span>${main.ok ? '<kbd>Enter</kbd>' : icon('lock')}${chips ? `<span class="gs">${chips}</span>` : ''}</button>
+          <button class="ij-go" data-inj="${esc(i.id)}" data-route="${esc(main.id)}" ${main.ok ? '' : 'disabled'}><span class="gi">${icon(main.icon || 'medkit')}</span><span class="gl">${esc(main.label)}</span>${main.ok ? (this.careList().length ? '' : '<kbd>Enter</kbd>') : icon('lock')}${chips ? `<span class="gs">${chips}</span>` : ''}</button>
           ${routes.length > 1 ? `<div class="alts"><span class="al">${esc(T('alt_care', 'Or instead'))}</span>${routes.slice(1).map(r => `<button class="ij-alt" data-inj="${esc(i.id)}" data-route="${esc(r.id)}" ${r.ok ? '' : 'disabled'}>${icon(r.icon || 'chev-r')}<span>${esc(r.label)}</span>${r.reason ? `<em>${esc(r.reason)}</em>` : icon('chev-r')}</button>`).join('')}</div>` : ''}
         </div>`;
       } else if (active) {
@@ -589,6 +625,14 @@
           { icon: 'drop', text: 'Pale and clammy', tone: 'amber' },
           { icon: 'pulse', text: 'Pulse 124 · wrist · weak · 1 min ago', tone: 'teal' },
         ],
+        care: [
+          { index: 1, code: 'bleed', title: 'Stop the bleeding', why: 'Chest is bleeding.', where: 'field', urgent: true, icon: 'drop', can: true },
+          { index: 2, code: 'fluids', title: 'Give fluids', why: 'Lost a lot of blood. IV or IO line, then fluids or blood.', where: 'field', urgent: true, icon: 'iv', can: true },
+          { index: 3, code: 'wound', title: 'Close the wound', why: 'Face has an open wound. Dress or stitch it.', where: 'field', icon: 'needle', can: true },
+          { index: 4, code: 'hospital', title: 'Take them to hospital', why: 'Stretcher, ambulance, hospital. 2 step(s) there.', where: 'hospital', icon: 'ambulance', can: true },
+          { index: 5, code: 'bullet', title: 'Remove the bullet', why: 'Something is still inside the left thigh. Operating table.', where: 'hospital', icon: 'scalpel', can: false, reason: 'This is done at the hospital.' },
+          { index: 6, code: 'drain', title: 'Drain the chest', why: 'Blood in the chest. Chest drain (ultrasound cart).', where: 'hospital', icon: 'lungs', can: false, reason: 'This is done at the hospital.' },
+        ],
         groups: {
           head: { status: 'minor', statusLabel: 'Minor', pain: 30, notes: [{ text: 'Dazed, repeats the same question', tone: 'amber' }], injuries: [
             { id: 'i3', region: 'face', regionLabel: 'Face', type: 'abrasion', typeLabel: 'Abrasion', icon: 'scrape', severity: 1, sevLabel: 'Minor', status: 'open', statusLabel: 'Open',
@@ -615,6 +659,7 @@
       };
       NZA.demo('exam', { patient: { name: 'Tomas Reyna', sex: 'm', npc: true }, view, locale: {} });
       NZAAssess.feed('exam', [...ORDER, 'center'], body);
+      NZA.mock('exam:step', d => { NZA.toast({ title: 'Care steps', message: `In game this starts step ${d.index}.`, type: 'info' }); return { ok: true }; });
       NZA.mock('exam:treat', () => { NZA.toast({ title: 'Care step', message: 'In game this starts the procedure.', type: 'info' }); return { ok: true }; });
       NZA.mock('exam:action', d => { NZA.toast({ title: 'Head-to-toe check', message: `In game this starts: ${d.action}`, type: 'info' }); return { ok: true }; });
       NZA.mock('exam:touch', d => { const lines = { chest: 'Argh... my chest, it burns.', l_leg: 'Not the leg, please!', head: 'Easy... my head is spinning.' }; if (lines[d.group]) NZA.speech({ name: 'Tomas Reyna', text: lines[d.group], ms: 3800 }); return { ok: true }; });

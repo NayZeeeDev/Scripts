@@ -1,0 +1,88 @@
+--[[
+    NAYZEEE AMBULANCE - Guided care strings (English)
+
+    Keys 'care.*'. A care step (server/core/care.lua) has three texts:
+      care.do_<code>    the third-eye option and the Start button ("Stop the bleeding")
+      care.why_<code>   one short line under it: why the patient needs it
+    '%s' is a body part (region label) when the step belongs to one wound.
+]]
+
+if not NAYZEEE_LOCK_OK then return end
+
+NZA.AddLocale('en', {
+    -- ── steps ─────────────────────────────────────────────────────────────
+    ['care.do_extricate']  = 'Cut them free',
+    ['care.why_extricate'] = 'Trapped in the wreck. Free them before anything else.',
+    ['care.do_release']    = 'Release on scene',
+    ['care.why_release']   = 'Nothing left to treat. They can go home.',
+    ['care.do_cpr']        = 'Start CPR',
+    ['care.why_cpr']       = 'No pulse. Push hard and fast, use the defibrillator.',
+    ['care.do_bleed']      = 'Stop the bleeding',
+    ['care.why_bleed']     = '%s is bleeding.',
+    ['care.do_airway']     = 'Open the airway',
+    ['care.why_airway']    = 'The airway is closing. Bag or tube them.',
+    ['care.do_recovery']   = 'Roll them on their side',
+    ['care.why_recovery']  = 'Unconscious and snoring. Recovery position keeps the airway open.',
+    ['care.do_infection']  = 'Give antibiotics',
+    ['care.why_infection'] = 'A wound is infected.',
+    ['care.do_breathing']  = 'Help them breathe',
+    ['care.why_breathing'] = 'Low oxygen. Oxygen mask, or the bag if they barely breathe.',
+    ['care.do_chest']      = 'Release chest pressure',
+    ['care.why_chest']     = 'Collapsed lung under pressure. Needle the chest.',
+    ['care.do_overdose']   = 'Reverse the overdose',
+    ['care.why_overdose']  = 'Opioid overdose. Give naloxone.',
+    ['care.do_binder']     = 'Bind the pelvis',
+    ['care.why_binder']    = 'Broken or bleeding pelvis. Pelvic binder (trauma kit).',
+    ['care.do_fluids']     = 'Give fluids',
+    ['care.why_fluids']    = 'Lost a lot of blood. IV or IO line, then fluids or blood.',
+    ['care.do_warm']       = 'Keep them warm',
+    ['care.why_warm']      = 'Body temperature is low. Foil blanket.',
+    ['care.do_collar']     = 'Put on a neck collar',
+    ['care.why_collar']    = 'Neck or spine injury. Keep the head still.',
+    ['care.do_splint']     = 'Splint the fracture',
+    ['care.why_splint']    = '%s is broken.',
+    ['care.do_burn']       = 'Treat the burn',
+    ['care.why_burn']      = '%s is burned. Cool and dress it.',
+    ['care.do_wound']      = 'Close the wound',
+    ['care.why_wound']     = '%s has an open wound. Dress or stitch it.',
+    ['care.do_cool']       = 'Cool the bruise',
+    ['care.why_cool']      = '%s is bruised. Ice pack.',
+    ['care.do_pain']       = 'Give pain relief',
+    ['care.why_pain']      = 'A lot of pain.',
+    ['care.do_standup']    = 'Help them up',
+    ['care.why_standup']   = 'Stable now. They can stand up.',
+    ['care.do_scan']       = 'Scan for hidden bleeding',
+    ['care.why_scan']      = 'Signs of bleeding inside. Ultrasound at the hospital.',
+    ['care.do_internal']   = 'Stop the internal bleeding',
+    ['care.why_internal']  = 'Bleeding inside the %s. Angiography suite.',
+    ['care.do_drain']      = 'Drain the chest',
+    ['care.why_drain']     = 'Blood in the chest. Chest drain (ultrasound cart).',
+    ['care.do_tamponade']  = 'Drain around the heart',
+    ['care.why_tamponade'] = 'Blood around the heart. Ultrasound cart.',
+    ['care.do_bullet']     = 'Remove the bullet',
+    ['care.why_bullet']    = 'Something is still inside the %s. Operating table.',
+    ['care.do_xray']       = 'X-ray and cast',
+    ['care.why_xray']      = '%s fracture. X-ray, set the bone, cast.',
+    ['care.do_graft']      = 'Skin graft',
+    ['care.why_graft']     = 'Deep burn on the %s. Operating table.',
+    ['care.do_hospital']   = 'Take them to hospital',
+    ['care.why_hospital']  = 'Stretcher, ambulance, hospital. %d step(s) there.',
+    ['care.do_bodybag']    = 'Body bag',
+    ['care.why_bodybag']   = 'They did not make it.',
+
+    -- ── cards & menus ─────────────────────────────────────────────────────
+    ['care.title']         = 'Care steps',
+    ['care.wound_generic'] = 'A wound',
+    ['care.next']          = 'Next',
+    ['care.field']         = 'Here',
+    ['care.hospital']      = 'Hospital',
+    ['care.start']         = 'Start',
+    ['care.done']          = 'Done',
+    ['care.check_first']   = 'Check the patient first: third eye → Check patient.',
+    ['care.all_done']      = 'Nothing left to do. Help them up or let them go.',
+    ['care.hint']          = 'Third eye on the patient → the next step',
+    ['care.more']          = 'More…',
+    ['care.no_action']     = 'You cannot do this step here.',
+    ['care.need_item']     = 'You need: %s',
+    ['care.at_hospital']   = 'This is done at the hospital.',
+})

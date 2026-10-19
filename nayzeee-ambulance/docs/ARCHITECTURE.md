@@ -199,7 +199,8 @@ replicated, set by core only:
   stab = bool, clock = sec, inj = count, tri = 1|2|3, tags = { 'gunshot', 'fracture' },
   tq = { [region] = true }, splints = { [region] = true }, binder = bool, collar = bool,
   iv = bool, intub = bool, bag = bool (in body bag), carried = bool, stretcher = netId|nil,
-  name = 'M. Garcia' }
+  name = 'M. Garcia',
+  plan = { { c = 'bleed', r = 'l_upper_leg', i = 'i3', w = 'field', u = true }, ... } }  -- §11.1
 ```
 
 Reserved module state bags (replicated, server-set unless noted). Only the owner writes them;
@@ -495,6 +496,27 @@ NZA.Interact.Add({
 Order bands: 10 movement (ask to walk, carry, stretcher, help off table), 20 assessment
 (examine, pulse, breathing), 30 resuscitation (CPR, field resus), 40 treatment, 50 transport,
 60 procedures, 90 misc (body bag).
+
+### 11.1 Guided care (Config.Care)
+
+The server works out what each patient still needs, most urgent first
+(`server/core/care.lua` → `NZA.Care.Plan(p)`; state bag `summary.plan`, the medic snapshot
+`care`). Codes: extricate, cpr, bleed, airway, breathing, recovery, chest, overdose, binder,
+fluids, warm, collar, splint, burn, wound, cool, pain, infection, standup, the hospital ones
+scan, internal, drain, tamponade, bullet, xray, graft (behind one 'hospital' line), release
+(NPC call patient with nothing left) and bodybag.
+
+On the client (`client/core/care.lua`):
+- `Config.Care.guided` keeps the third eye short on other people: the head-to-toe check, the
+  next field step by name ("Stop the bleeding", option `nza_care_<code>`), moving / handing
+  over options (`NZA.Care.AlwaysShow`) and `More...` (`NZA.Interact.Open(entity, true)`, every
+  option). Options with `guided = true` decide for themselves; self-care is never filtered.
+- The steps show after a head-to-toe check (`Config.Care.needCheck`; CPR and heavy bleeding
+  always show). The check calls `NZA.Care.MarkChecked`.
+- A step runs through `NZA.Care.Run`: an exam route for that wound (`NZA.ExamRoutes`) first,
+  else the module's option (`NZA.Care.Actions[code]`). The head-to-toe check shows the whole
+  list as 'Care steps' with a Start on each (Enter = the next one), and reopens after each
+  treatment. The `care` app is a small steps card near a patient you checked.
 
 ## 12. Data (oxmysql) — each owner creates its tables with `CREATE TABLE IF NOT EXISTS` on start
 

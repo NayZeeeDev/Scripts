@@ -629,6 +629,13 @@ NZA.Interact.Add({
     canInteract = function(entity, _, bag)
         if Tr.Cfg('HelpUp').enabled == false or Tr.Busy() then return false end
         if type(bag) ~= 'table' or not bag.stab or (bag.avpu and bag.avpu ~= 'A') then return false end
+        -- the care plan uses the server's own rule (P.CanStand: blood volume, chest): no 'standup'
+        -- step in a short plan means helping up would fail
+        if type(bag.plan) == 'table' and #bag.plan < ((Config.Care and Config.Care.maxSteps) or 8) then
+            local ok = false
+            for _, s in ipairs(bag.plan) do if s.c == 'standup' then ok = true break end end
+            if not ok then return false end
+        end
         return freeToMove(bag, Tr.Bag(entity))
     end,
     onSelect = function(entity, target)

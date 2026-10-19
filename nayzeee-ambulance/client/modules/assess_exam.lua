@@ -508,6 +508,29 @@ local function anchors(ped)
     return defs
 end
 
+-- Care steps (core/care.lua): what the whole patient still needs, in order, each with a Start
+local function careFor(s, snap)
+    local Care = NZA.Care
+    if not Care or type(snap.care) ~= 'table' then return nil end
+    local out = {}
+    for i, step in ipairs(snap.care) do
+        local d = Care.Describe(step)
+        local act, why = Care.Resolve(s.entity, s.target, step, snap)
+        d.index = i
+        d.can = act ~= nil
+        d.reason = (not act) and why or nil
+        out[#out + 1] = d
+        if #out >= 8 then break end
+    end
+    return out
+end
+
+local function viewFor(s, snap)
+    local v = buildView(snap)
+    v.care = careFor(s, snap)
+    return v
+end
+
 local function openUi(s, snap)
     local groups = {}
     for _, g in ipairs(NZA.Const.Groups) do
@@ -516,7 +539,7 @@ local function openUi(s, snap)
     NZA.UI.Open(APP, {
         locale = A.Locale(),
         groups = groups,
-        view = buildView(snap),
+        view = viewFor(s, snap),
         patient = { name = snap.name, sex = snap.sex, npc = snap.kind == 'npc' },
         perms = { pulse = NZA.Perm(A.Cfg('Interact').perm or 'assess'), breathing = NZA.Perm(A.Cfg('Interact').perm or 'assess') },
     }, { focus = true, cursor = true })
@@ -538,6 +561,7 @@ local function begin(entity, target, quiet)
     end
     local s = { entity = entity, target = target, snap = snap, started = GetGameTimer() }
     exam = s
+    if NZA.Care and NZA.Care.MarkChecked then NZA.Care.MarkChecked(target, snap.pid) end
 
     TaskTurnPedToFaceEntity(me, entity, 800)
     Wait(500)
@@ -558,7 +582,7 @@ local function begin(entity, target, quiet)
             return
         end
         s.snap = fresh
-        NZA.UI.Send(APP, 'view', buildView(fresh))
+        NZA.UI.Send(APP, 'view', viewFor(s, fresh))
     end, { initial = false, maxDist = (ec.maxDistance or 4.0) + 1.0 })
 
     -- distance / own state guard
@@ -728,6 +752,28 @@ NZA.UI.On(APP, 'action', function(data, cb)
         end
         runRoute(route, best)
     end
+end)
+
+-- a Care steps 'Start' button: an exam route for that wound, else the module's own option
+NZA.UI.On(APP, 'step', function(data, cb)
+    cb({ ok = true })
+    local s = exam
+    if not s or type(data) ~= 'table' or not NZA.Care then return end
+    local step = type(s.snap.care) == 'table' and s.snap.care[tonumber(data.index) or 0]
+    if not step then return end
+    local act, why = NZA.Care.Resolve(s.entity, s.target, step, s.snap)
+    if not act then
+        NZA.UI.Toast({ title = NZA.L('care.title'), message = why or NZA.L('care.no_action'), type = 'error' })
+        return
+    end
+    if act.kind == 'route' then return runRoute(act.route, act.inj) end
+    local entity, target = s.entity, s.target
+    s.keepPose = true
+    cleanup('treat')
+    CreateThread(function()
+        NZA.Interact.Run(act.opt, entity)
+        reopenLater(entity, target)
+    end)
 end)
 
 NZA.UI.On(APP, 'close', function(_, cb)

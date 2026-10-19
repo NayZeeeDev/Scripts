@@ -205,6 +205,29 @@ Config.Death = {
 }
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- GUIDED CARE (what to do next)
+-- Every patient gets a list of the steps they still need (stop the bleeding, CPR,
+-- splint, fluids, help them up, take them to hospital ...). The head-to-toe check
+-- shows the list with a Start button on each step, and the third eye stays short.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+Config.Care = {
+    guided    = true,    -- short third eye: Check patient, the next step, moving the patient, More...
+                         -- false = every treatment option on the third eye (old style)
+    needCheck = true,    -- steps show after you checked the patient (CPR and heavy bleeding always show)
+    nextSteps = 1,       -- how many of the next steps get their own third-eye option
+    more      = true,    -- 'More...' option: every other tool for this patient in one list
+    card      = true,    -- small steps card on screen while you stand near a patient you checked
+    cardRange = 4.0,     -- metres
+    maxSteps  = 8,       -- steps sent per patient
+    loss      = 0.20,    -- blood loss (share of all blood) that adds 'Give fluids'
+    pain      = 60,      -- pain (0-100) that adds 'Pain relief'
+    cold      = 35.0,    -- body temperature (°C) that adds 'Keep them warm'
+    spo2      = 90,      -- oxygen saturation (%) below this adds 'Help them breathe'
+    alwaysShow = {},     -- extra option names the short third eye keeps, e.g. { 'nza_field_monitor' }
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- EASY MODE (minigames become progress bars) - per department in game;
 -- this is the default for new departments and for medics without one.
 -- ═══════════════════════════════════════════════════════════════════════════

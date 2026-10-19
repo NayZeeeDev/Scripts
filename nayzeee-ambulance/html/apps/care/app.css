@@ -1,0 +1,70 @@
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE AMBULANCE · care — steps card
+   Right edge, vertically centred (free while no procedure is open). A step spine:
+   numbered nodes, the next step lit teal with its icon, urgent steps in red, hospital
+   steps dimmed with a hospital tag, done steps ticked.
+   ═══════════════════════════════════════════════════════════ */
+
+#app-care .cs{position:absolute;right:24px;top:50%;transform:translateY(-50%);width:318px;padding:14px 14px 12px;
+  display:flex;flex-direction:column;gap:10px}
+#app-care .cs.in{animation:cs-in 300ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes cs-in{from{opacity:0;transform:translate(36px,-50%)}to{opacity:1;transform:translateY(-50%)}}
+
+#app-care .cs-head{display:flex;align-items:center;gap:10px}
+#app-care .cs-ic{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:8px;
+  background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--teal-hi)}
+#app-care .cs-ic .nz-ic{width:16px;height:16px}
+#app-care .cs-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+#app-care .cs-t .lb{font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-hi)}
+#app-care .cs-t b{font-size:14px;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-care .cs-tri{flex:none;font:700 10.5px/1 var(--mono);padding:5px 7px;border-radius:5px;border:1px solid}
+#app-care .cs-tri.p1{color:#ff9a9d;background:var(--red-wash);border-color:var(--red-edge)}
+#app-care .cs-tri.p2{color:#f3c35a;background:var(--amber-wash);border-color:var(--amber-edge)}
+#app-care .cs-tri.p3{color:var(--teal-hi);background:var(--teal-wash);border-color:var(--teal-edge)}
+
+/* the spine */
+#app-care .cs-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;position:relative}
+#app-care .cs-list::before{content:'';position:absolute;left:13px;top:14px;bottom:14px;width:2px;border-radius:2px;
+  background:linear-gradient(var(--hud-line),rgba(255,255,255,.04))}
+#app-care .cs-step{position:relative;display:flex;align-items:flex-start;gap:10px;padding:6px 0}
+#app-care .cs-step .nd{position:relative;z-index:1;flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+  font:700 11px/1 var(--mono);color:var(--ink-2);background:#0d1011;border:2px solid rgba(255,255,255,.14)}
+#app-care .cs-step .nd .nz-ic{width:14px;height:14px}
+#app-care .cs-step .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding-top:4px}
+#app-care .cs-step .tx b{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.25}
+#app-care .cs-step .tx small{font-size:11px;font-weight:300;color:var(--ink-2);line-height:1.35}
+#app-care .cs-step .tag{flex:none;margin-top:5px;display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 6px;border-radius:4px;border:1px solid var(--hud-line);color:var(--ink-3)}
+#app-care .cs-step .tag .nz-ic{width:11px;height:11px}
+
+/* next */
+#app-care .cs-step.next .nd{color:var(--on-teal);background:linear-gradient(var(--teal-hi),var(--teal));border-color:transparent;
+  box-shadow:0 0 0 4px var(--teal-wash);animation:cs-pulse 1.8s ease-in-out infinite}
+#app-care .cs-step.next .tx b{color:var(--white);font-size:13.5px}
+#app-care .cs-step.next .tag.nx{color:var(--on-teal);background:var(--teal);border-color:var(--teal)}
+@keyframes cs-pulse{50%{box-shadow:0 0 0 7px rgba(8,175,162,.08)}}
+
+/* urgent (life threat) */
+#app-care .cs-step.urgent .nd{border-color:var(--red-edge);color:#ff9a9d}
+#app-care .cs-step.urgent.next .nd{background:linear-gradient(#ff6b70,var(--red));color:#fff;box-shadow:0 0 0 4px var(--red-wash);animation-name:cs-pulse-r}
+#app-care .cs-step.urgent.next .tag.nx{background:var(--red);border-color:var(--red);color:#fff}
+@keyframes cs-pulse-r{50%{box-shadow:0 0 0 7px rgba(229,72,77,.1)}}
+
+/* hospital */
+#app-care .cs-step.hosp .tx b{color:var(--ink-2)}
+#app-care .cs-step.hosp .tag.hp{color:#9fc4ff;border-color:rgba(88,166,255,.3);background:rgba(88,166,255,.08)}
+
+/* done */
+#app-care .cs-step.done .nd{color:var(--on-teal);background:var(--teal-lo);border-color:transparent}
+#app-care .cs-step.done .tx b{color:var(--ink-3);text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
+#app-care .cs-step.done .tag.dn{color:var(--teal-hi);border-color:var(--teal-edge);background:var(--teal-wash)}
+#app-care .cs-step.done{animation:cs-done 600ms ease both}
+@keyframes cs-done{from{opacity:.4}to{opacity:1}}
+
+#app-care .cs-empty{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--teal-wash);
+  border:1px solid var(--teal-edge);color:var(--teal-hi);font-size:12px}
+#app-care .cs-empty .nz-ic{width:15px;height:15px;flex:none}
+#app-care .cs-hint{display:flex;align-items:center;gap:7px;padding-top:9px;border-top:1px solid var(--hud-line);
+  font-size:10.5px;color:var(--ink-3)}
+#app-care .cs-hint .nz-ic{width:13px;height:13px;color:var(--teal-hi);flex:none}
+@media (prefers-reduced-motion:reduce){#app-care .cs.in,#app-care .cs-step.next .nd,#app-care .cs-step.done{animation:none}}

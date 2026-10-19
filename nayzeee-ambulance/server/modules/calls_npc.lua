@@ -472,6 +472,8 @@ local function releasable(p)
     return true
 end
 
+C.Releasable = releasable   -- core/care.lua: 'Release on scene' step
+
 lib.callback.register('nza:calls:release', function(src, target)
     local rc = npcCfg('release')
     if rc.enabled == false then return fail('state') end
