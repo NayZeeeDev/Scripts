@@ -15,7 +15,10 @@
     API     NZA.Suture.Start(entityOrTarget, injuryId) → ok, outcome | reason  (blocks; call from a thread)
             NZA.Suture.Pick(entity, target)            choose a wound, then Start
             NZA.Suture.Eligible(injury) → ok, reasonText
-    NUI     suture:finish (result) → { ok, pending }   then action 'result' (outcome) is sent
+    NUI     open data = the server case (ctx.data) + locale + cfg; after "Step away" (P on the
+            procedure HUD, core '_proc:pause') the next start of the same procedure on the same
+            patient carries data.resume = the game's snapshot and the app rebuilds that point
+            suture:finish (result) → { ok, pending }   then action 'result' (outcome) is sent
             suture:abort  suture:flinch  suture:close (core)
     Events  nza:suture:use (S→C, item used)
     Bus     suture:flinch (patientEntity, pain) when the patient flinches in the minigame
@@ -117,7 +120,10 @@ end
 local function gameCfg()
     local g = {}
     for k, v in pairs(cfg().Game or {}) do g[k] = v end
-    g.gauzeMax = tonumber((cfg().optional or {}).gauze) or 0
+    local opt = cfg().optional or {}
+    g.gauzeMax = tonumber(opt.gauze) or 0
+    -- false: lidocaine is not used by this server at all (the game then never says "fetch more")
+    g.lidoItem = (tonumber(opt.lidocaine) or 0) > 0
     return g
 end
 
@@ -137,6 +143,7 @@ function Su.Start(target, injuryId)
             s.ended = true
             if s.anim then NZA.Anim.Stop(PlayerPedId(), { token = s.anim }) s.anim = nil end
             -- a finished closure keeps the NUI open for the result card; anything else closes it
+            -- (reason 'paused' too: the core already said "paused", no toast here)
             if not outcome then cleanup(s) end
         end)
         startAnim(s)

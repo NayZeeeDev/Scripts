@@ -169,6 +169,17 @@ NZA.AddLocale('en', {
     ['suture.sut_taken'] = 'There is already a stitch here.',
     ['suture.sut_wrong_step'] = 'Not yet — finish the current step first.',
 
+    -- running out mid-way: step away (P on the procedure panel), fetch more, carry on later
+    ['suture.out_saline'] = 'Out of saline — %s% of the dirt is still in the cut. Press {P} to step away, fetch more, then use the same option to carry on. Or press {2} to move on.',
+    ['suture.out_lido'] = 'Out of lidocaine. Press {P} to step away, fetch more, then use the same option to carry on — or press {4} to stitch without it.',
+    ['suture.out_lido_vial'] = 'The vial is empty — out of lidocaine. Press {P} to step away, fetch more, then use the same option to carry on — or press {4} to stitch without it.',
+    ['suture.out_gauze'] = 'Out of gauze. Press {P} to step away, fetch more, then use the same option to carry on.',
+    ['suture.blood_hides_out'] = 'Blood is hiding the edges and you are out of gauze. Press {P} to step away, fetch more, then use the same option to carry on.',
+    ['suture.resume_flash'] = 'Carrying on where you left off.',
+    ['suture.resume_saline'] = 'Carrying on where you left off — with a fresh bottle of saline.',
+    ['suture.resume_lido'] = 'Carrying on where you left off — with a fresh vial of lidocaine.',
+    ['suture.resume_other'] = 'You stepped away from a different wound — this one starts from the beginning.',
+
     -- dressing
     ['suture.dress_cover'] = 'The pad covers only %s% of the cut — lift it by an edge and try again.',
     ['suture.dress_edge'] = 'Pick it up by its **edge**.',

@@ -377,4 +377,10 @@ NZA.AddLocale('en', {
     ['bullet.say_6'] = 'Please, stop for a second…',
     ['bullet.loc_field'] = 'Field surgery',
     ['bullet.no_skin'] = 'Put the tool on the skin first.',
+
+    -- step away (P on the procedure panel) to fetch supplies, then carry on from the same point
+    ['bullet.out_gauze'] = 'Out of gauze. Press {P} to step away, fetch more, then use the same option to carry on.',
+    ['bullet.out_gauze_6'] = 'Out of gauze — nothing left to press on the bleeding point. Press {P} to step away, fetch more, then use the same option to carry on — or press {7} to close it as it is.',
+    ['bullet.resume_ok'] = 'Carrying on where you left off.',
+    ['bullet.resume_other'] = 'You stepped away from a different wound — this one starts from the beginning.',
 })

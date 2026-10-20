@@ -76,6 +76,18 @@ real-time 3D close-up (shared engine `html/core/nza3d.js`) of the draped patient
   `pp.slot`.
 - **Debrief card** bottom-left: grade, score, blood lost, eight scored parts (value, detail, meter)
   and plain-language notes; Enter closes once the server confirmed.
+- **Step away** (`Config.ProcPause`; **P** or the *Step away* button above the stop ring): parks the
+  operation to fetch supplies. The server keeps the game's snapshot for `Config.ProcPause.keep` seconds;
+  using the same option on the same wound of the same patient opens it again where it was: the step and
+  the plan, pieces located / rocked / half pulled / in the dish, the prep stain, the incision (same path,
+  blade depth, retractor spread), blood and dried clot in the field, the bleeding rate, swabs already
+  opened (and the one in the hand), every stitch where it was tied, the dressing where it lay and how
+  well it stuck, the counters, the blood lost so far and the case clock. Counts come fresh from the
+  server (more gauze fetched = more swabs to hand). Refused while a move is half done (probe in the
+  track, blade on the skin, Space held, jaws on a piece, a stitch being pulled, the dressing in the
+  hand); another wound or a changed fragment layout starts afresh. Running out of gauze (the last swab
+  soaked, nothing left to press on the bleeding point in step 6) says so in the flash, the step text and
+  the locked gauze tool, and points at P — unless the swab cap `gauzeMax` is what ran out.
 - **No WebGL2**: a manual fallback (progress bar, standard technique, score 60).
 - **Easy mode** (per department or `Config.EasyMode.default`): no minigame, `NZA.Proc` progress
   bar; no room rule — only the supplies are needed. Everything comes out, is closed and dressed;
@@ -94,6 +106,7 @@ real-time 3D close-up (shared engine `html/core/nza3d.js`) of the draped patient
 | L (twice) | leave the remaining pieces in (step 5) |
 | Right-drag · Shift+right-drag · wheel · R | look around · pan · zoom · recentre (engine camera) |
 | Backspace (hold) | in the ambulance bay: stop and step out of the ambulance |
+| P | step away (park the operation, fetch supplies, carry on later with the same option) |
 | Esc (hold) | stop the operation |
 | Enter | close the debrief |
 | Pressing a later tool twice | skip ahead (confirm) — skipped steps score 0 |
@@ -159,7 +172,9 @@ Case (`open`): `{ locale, cfg, patient { name, sex, bloodType, conscious, numb }
 region, regionLabel, label, severity, bleed, retained, depth, contamination, pain }, fragments [{ id,
 x, y, depth, size, shape, rot, lodge }], tone, seed, film { id, view, viewLabel, taken, quality,
 marked } | nil, items { gauze }, location { kind, label }, bay, bloodWarn, vitals { hr, ecgRate,
-rhythm, spo2, sys, dia, map, rr, bloodPct, drip, infusing } }`.
+rhythm, spo2, sys, dia, map, rr, bloodPct, drip, infusing }, resume? }` (`resume` = the snapshot
+after *Step away*: `{ v, w (wound + fragment layout key), step, t, done, skip, loss, fr, out, io, cut,
+ex, xt, bl, hm, su, gz, sut, dr, lay (paint layers as run-length grids) }`, kept under 17 kB of JSON).
 
 Result (`bullet:finish`): `{ score, parts { locate, disinfect, incise, expose, extract, haemostasis,
 suture, dressing }, located, method, falses, film, disinfected, coverage, backtracks, incision {
@@ -179,7 +194,10 @@ not on a table / in the bay), `NZA.Interact` `nza_bullet`, `NZA.Points.RegisterT
 Preview: `html/index.html?app=bullet` (gunshot, ambulance bay, low blood, film in the pocket) and
 `?app=bullet&demo=shrapnel` (three shards, one lodged, operating table, numbed). Browser helper
 `NZA.apps.bullet.demoTo('probe' | 'located' | 'film' | 'disinfect' | 'incise' | 'cut' | 'expose' |
-'extract' | 'pull' | 'control' | 'suture' | 'dressing' | 'done')`.
+'extract' | 'pull' | 'control' | 'suture' | 'dressing' | 'placed' | 'done')`. `&resume=prep | cut |
+expose | extract | control | suture | dressing` plays to that point, steps away and opens again from the
+snapshot; *P* in the preview parks the game and *Reopen* carries on. `window.BulletDebug()` returns the
+game state (tests).
 
 ## Known limits
 

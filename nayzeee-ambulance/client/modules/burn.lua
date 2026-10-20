@@ -20,8 +20,13 @@
             NZA.Burn.Pick(entity, target, mode)       choose a burn, then Start ('care' | 'graft' | nil = best)
             NZA.Burn.CareEligible(inj) / GraftEligible(inj, snap?) → ok, reasonText
     NUI     burn:finish (result) → { ok, pending } then action 'careDone' (continue) / 'result' (outcome)
-            burn:graftCheck {} → { ok, msg }        burn:abort        burn:pain { pain }      burn:close (core)
+            burn:graftCheck {} → { ok, msg, err }   burn:abort        burn:pain { pain }      burn:close (core)
             Lua → JS: open (case) · careDone (outcome) · graft (case) · graftFail { msg } · result (outcome)
+    Step away  the app's P / "Step away" parks the session (core '_proc:pause'); onEnd(nil, 'paused')
+            closes the app like any end. The next start of the same procedure on this patient opens it
+            with ctx.data.resume (the game's snapshot), copied to the app with the rest of the case.
+            A graft parked after it went on from burn care is carried on by the next "Burn care" or
+            "Skin graft" on that burn (started again with its own payload { injury, continue = true }).
     Events  nza:burn:use (S→C, graft kit used)
     Bus     burn:pain (patientEntity, pain) when the patient reacts in the minigame
 ]]
@@ -32,7 +37,11 @@ NZA.Burn = NZA.Burn or {}
 local Bn = NZA.Burn
 
 local APP = 'burn'
-local run = nil      -- active session { entity, target, injury, mode, ctx, closed, finished, chain, anim }
+local run = nil      -- active session { entity, target, injury, mode, ctx, closed, finished, chain, paused, anim }
+-- a graft that went on straight from burn care and was parked with Step away: its server session was
+-- started with { continue = true } and resumes only with that payload, so the next "Burn care" /
+-- "Skin graft" on that burn carries on with it.  ['<patient key>|<injury id>'] = GetGameTimer()
+local chainParked = {}
 
 local function cfg()
     return Config.Burn or {}
@@ -160,6 +169,8 @@ local function gameCfg()
     g.sootLeftMax = cfg().sootLeftMax
     g.debridedMin = cfg().debridedMin
     g.secureAbove = cfg().secureAbove
+    -- the optional sterile dressing is part of the kit (else the app never asks for one)
+    g.secureItem = (tonumber((cfg().optional or {}).dressing) or 0) > 0
     g.minCoverage = gcfg().minCoverage
     g.minStaples = gcfg().minStaples
     g.minExcised = gcfg().minExcised
@@ -171,7 +182,9 @@ local function session(s, name, payload, first)
     return NZA.Proc.Run(name, s.target, payload, function(ctx)
         s.ctx = ctx
         s.finished = false
-        ctx.onEnd(function(outcome)
+        ctx.onEnd(function(outcome, reason)
+            -- stepped away (P): the server keeps the game state; the app closes like on any other end
+            s.paused = reason == 'paused' and name or nil
             -- a finished session keeps the app (result card or the graft that follows); an abort closes it
             if not outcome then cleanup(s) end
         end)
@@ -208,8 +221,22 @@ function Bn.Start(target, injuryId, mode)
     local s = { entity = entity, target = tgt, injury = injuryId, mode = mode }
     run = s
 
+    local ck = NZA.Target.Key(tgt)
+    ck = ck and (ck .. '|' .. tostring(injuryId)) or nil
+    local parkedAt = ck and chainParked[ck]
+    if parkedAt and GetGameTimer() - parkedAt > (tonumber((Config.ProcPause or {}).keep) or 600) * 1000 then
+        chainParked[ck], parkedAt = nil, nil
+    end
+
     local ok, res
-    if mode == 'care' then
+    if parkedAt then
+        -- carry on with the graft that followed burn care (same payload as when it was parked)
+        s.mode = 'graft'
+        s.chain = true
+        ok, res = session(s, 'graft', { injury = injuryId, continue = true }, true)
+        -- it could not start again (room, kit, burn changed): the option works as usual next time
+        if not s.ctx then chainParked[ck] = nil end
+    elseif mode == 'care' then
         ok, res = session(s, 'burn', { injury = injuryId }, true)
         if ok and type(res) == 'table' and res.continue and not s.closed then
             -- straight on to the graft: same app, same patient
@@ -231,6 +258,10 @@ function Bn.Start(target, injuryId, mode)
         end
     else
         ok, res = session(s, 'graft', { injury = injuryId }, true)
+    end
+    if ck and s.chain then
+        if s.paused == 'graft' then chainParked[ck] = GetGameTimer()
+        elseif s.ctx and s.ctx.done() then chainParked[ck] = nil end
     end
 
     if NZA.UI.IsOpen(APP) and not s.closed then

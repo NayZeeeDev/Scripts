@@ -27,6 +27,10 @@
     NUI     bullet:finish (result) → { ok, pending }, then action 'result' (outcome)
             bullet:abort { loss }  bullet:flinch { pain }  bullet:exitBay { loss }  bullet:close (core)
             Lua → JS: open (case), vitals (live monitor), result, abort
+    Step away  P / "Step away" on the procedure HUD (core '_proc:pause') parks the session with the
+            game's snapshot; onEnd(nil, 'paused') closes the app like any other stop (the core says
+            "paused", no toast here). The next start on the same wound of this patient opens the app
+            with ctx.data.resume (the snapshot), copied to the app with the rest of the case.
     Events  nza:bullet:use (S→C, item used)   nza:bullet:partial (C→S, blood the open wound cost before a stop)
     Bus     bullet:flinch (patientEntity, pain) when the patient flinches in the minigame
 ]]
@@ -346,11 +350,12 @@ function Bx.Start(target, injuryId)
             if s.stopWatch then pcall(s.stopWatch) s.stopWatch = nil end
             if s.anim then NZA.Anim.Stop(PlayerPedId(), { token = s.anim }) s.anim = nil end
             -- a finished operation keeps the NUI open for the result card; anything else closes it
+            -- (reason 'paused' too: the game state waits on the server, the core already said so)
             if not outcome then cleanup(s) end
         end)
         startAnim(s)
         if ctx.done() then return end
-        local data = ctx.data or {}
+        local data = ctx.data or {}   -- the server's case (+ data.resume after "Step away")
         data.locale = NZA.LocaleTable('bullet')
         data.cfg = gameCfg()
         data.bay = data.bay == true and inBay()

@@ -27,8 +27,14 @@
                      donorLabel, items{burnDressing,dressing,graftKit,saline}, graft{ok,msg}, cfg }
               careDone (care outcome, the graft follows) · graft (graft case) · graftFail { msg }
               result (outcome) · abort
-   JS → Lua   burn:finish { result } → { ok, pending }     burn:graftCheck {} → { ok, msg }
+   JS → Lua   burn:finish { result } → { ok, pending }     burn:graftCheck {} → { ok, msg, err }
               burn:abort {}     burn:pain { pain }     burn:close (core)
+   Step away  P on the procedure HUD: snapshot() → '_proc:pause' (core); the server parks the session and
+              Lua closes the app. Using the same option again opens it with data.resume = that snapshot and
+              the game carries on at the same step (see "step away" below). Running out of saline keeps the
+              cooling step open (P to fetch more, Enter to go on); a missing graft kit at the graft question
+              and a missing sterile dressing on a large burn say the same.
+   Preview    index.html?app=burn[&mode=graft][&deg=2][&resume=<demoTo stage>]   window.BurnDebug() → state
    ═══════════════════════════════════════════════════════════ */
 (() => {
   'use strict';
@@ -44,6 +50,49 @@
   const rng = seed => { let a = seed >>> 0 || 1; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
   const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 
+  /* ═════════════ step away: compact, JSON-safe packing for the snapshot ═════════════
+     The snapshot travels NUI → Lua → server → Lua → NUI, so it holds only plain numbers, short
+     strings and small arrays (no sparse arrays, no NaN). Big fields are packed into URL-safe
+     base64 strings: 6 bits per char (enc6), 12 bits per two chars (enc12), bit sets (packBits). */
+  const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const B64I = {};
+  for (let i = 0; i < 64; i++) B64I[B64[i]] = i;
+  const enc6 = v => B64[clamp(Math.round(+v || 0), 0, 63)];
+  const dec6 = c => (B64I[c] !== undefined ? B64I[c] : 0);
+  const enc12 = v => { const q = clamp(Math.round(+v || 0), 0, 4095); return B64[q >> 6] + B64[q & 63]; };
+  const dec12 = (s, i) => dec6(s[i]) * 64 + dec6(s[i + 1]);
+  const packBits = (list, n = list.length) => { let out = ''; for (let i = 0; i < n; i += 6) { let v = 0; for (let k = 0; k < 6 && i + k < n; k++) if (list[i + k]) v |= 1 << k; out += B64[v]; } return out; };
+  const unpackBits = (s, n) => { const out = new Array(n).fill(false); if (typeof s !== 'string') return out; for (let i = 0; i < n; i++) { const c = s[Math.floor(i / 6)]; if (c !== undefined && (dec6(c) >> (i % 6)) & 1) out[i] = true; } return out; };
+  const num = (v, d = 0) => { const x = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? +v : NaN; return isFinite(x) ? x : d; };
+  const rnd = (v, d = 3) => { const m = Math.pow(10, d); return Math.round(num(v) * m) / m; };
+  // an array that went through Lua may come back as an object with numeric keys (or {} when empty)
+  const arr = v => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.keys(v).sort((a, b) => a - b).map(k => v[k]) : []);
+  const str = v => (typeof v === 'string' ? v : '');
+  // a 2D field (nx × ny) sampled at every k-th node, 12 bits per value (°C × 40 → 0.025 °C)
+  const fieldDims = (n, k) => Math.ceil((n - 1) / k) + 1;
+  function encField(A, nx, ny, k) {
+    const gx = fieldDims(nx, k), gy = fieldDims(ny, k);
+    let s = '';
+    for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) s += enc12(A[Math.min(ny - 1, j * k) * nx + Math.min(nx - 1, i * k)] * 40);
+    return s;
+  }
+  function decField(s, A, nx, ny, k) {
+    const gx = fieldDims(nx, k), gy = fieldDims(ny, k);
+    if (typeof s !== 'string' || s.length !== gx * gy * 2) return false;
+    const G = new Float32Array(gx * gy);
+    for (let q = 0; q < G.length; q++) G[q] = dec12(s, q * 2) / 40;
+    const at = (n, gn, x) => { let a = Math.min(gn - 2, Math.floor(x / k)); a = Math.max(0, a); const x0 = a * k, x1 = Math.min(n - 1, (a + 1) * k); return [a, x1 > x0 ? clamp((x - x0) / (x1 - x0), 0, 1) : 0]; };
+    for (let j = 0; j < ny; j++) {
+      const [b, fy] = gy > 1 ? at(ny, gy, j) : [0, 0];
+      for (let i = 0; i < nx; i++) {
+        const [a, fx] = gx > 1 ? at(nx, gx, i) : [0, 0];
+        const a1 = Math.min(gx - 1, a + 1), b1 = Math.min(gy - 1, b + 1);
+        A[j * nx + i] = lerp(lerp(G[b * gx + a], G[b * gx + a1], fx), lerp(G[b1 * gx + a], G[b1 * gx + a1], fx), fy);
+      }
+    }
+    return true;
+  }
+
   // gameplay tuning; Config.Burn.Game overrides (sent as data.cfg)
   const DEFAULTS = {
     quality: 'high',
@@ -56,6 +105,7 @@
     feedPerTurn: 14, crankMax: 2.4,
     stapleSpacing: 11, stapleTol: 3.5,
     stuckDone: 0.9, coverMin: 0.85,
+    secureItem: true,      // the optional sterile dressing is configured (Lua: Config.Burn.optional.dressing > 0)
     cooledBelow: 31, sootLeftMax: 25, debridedMin: 0.75, secureAbove: 60, minCoverage: 0.7, minStaples: 0.6, minExcised: 0.7,
     weights: { cool: 35, assess: 15, debride: 25, dressing: 25 },
     graftWeights: { excise: 25, harvest: 20, mesh: 15, graft: 25, dressing: 15 },
@@ -1636,6 +1686,8 @@
 
     init(el) {
       this.el = el;
+      this.pauseFn = () => this.snapshot();
+      window.BurnDebug = () => (NZA.apps.burn && NZA.apps.burn.debugState ? NZA.apps.burn.debugState() : null);
       el.innerHTML = `
         <div class="bn-stage"></div>
         <div class="bn-tags"></div>
@@ -1687,6 +1739,7 @@
       if (!Array.isArray(this.cfg.pressureBand) || this.cfg.pressureBand.length < 2) this.cfg.pressureBand = DEFAULTS.pressureBand.slice();
       this.alive = true;
       this.resultShown = false; this.canClose = false; this.finished = false; this.result = null; this.careOutcome = null; this.careResult = null;
+      this.restoreFailed = false; this.resumeStale = false; this.restored = null; this.restoredFrom = null; this.pendingHv = null; this.pendingMs = null;
       this.resWrap.innerHTML = '';
       this.devEl.style.display = ''; this.caseEl.style.display = '';
       this.mx = window.innerWidth / 2; this.my = window.innerHeight / 2;
@@ -1702,6 +1755,10 @@
       if (this.benchRaf) { cancelAnimationFrame(this.benchRaf); this.benchRaf = 0; }
       if (this.benchOff) { this.benchOff(); this.benchOff = null; }
       if (this.bench) { try { this.bench.dispose(); } catch (e) { console.error('[burn] bench', e); } this.bench = null; }
+      if (this.binBench) { this.binBench.dispose(); this.binBench = null; }
+      if (this.crankEl) { this.crankEl.remove(); this.crankEl = null; }
+      // per-scene objects: a reopen (e.g. after stepping away mid-harvest) builds them again
+      this.donorMesh = null; this.stripMat = null; this.tbB = null; this.inkTex = null; this.lifts = null; this.fxList = null;
       for (const k of ['SB', 'S']) {
         const S = this[k];
         if (!S) continue;
@@ -1717,7 +1774,7 @@
       if (this.stage) { this.stage.innerHTML = ''; this.stage.className = 'bn-stage'; }
       if (this.tagsEl) this.tagsEl.innerHTML = '';
       this.tags = {};
-      this.g = null; this.plan = null; this.heat = null;
+      this.g = null; this.plan = null; this.heat = null; this.lastStats = null; this.sootInit = null; this.pendingHv = null; this.pendingMs = null;
       this.thDet = null; this.photoImg = null; this.photoKey = null; this.heatImg = null; this.heatId = null; this.det = null; this.wiping = false;
     },
 
@@ -1827,12 +1884,20 @@
       }
       if (this.mode === 'graft' && +b.excised >= cfg.minExcised) plan.zones.forEach(Z => { Z.excised = true; Z.preExcised = true; });
 
+      // stepped away earlier (data.resume): the saved state of this same burn comes back
+      this.fpBase = `${inj.id || ''}|${inj.region || ''}|${deg}|${Math.round(A)}|${Math.round(deg >= 3 ? clamp(+b.full || 0, 0, 100) : 0)}|${seed}`;
+      const R = this.resumeData();
+      if (R) { try { this.restorePre(R); } catch (e) { console.error('[burn] resume', e); this.restoreFailed = true; } }
+
       this.patchSkin(plan, deg, seed);
       if (resumed.debrided && this.det) this.fadeMembrane(this.det, 0);
       this.paintInitial(seed, resumed);
+      // the fresh soot / ash film, kept to measure (and restore) how much of it was washed off
+      this.sootInit = { soot: Float32Array.from(S.layers._mirror.soot || []), grime: Float32Array.from(S.layers._mirror.grime || []) };
       this.buildSceneA(resumed);
       S.layers.decay('wet', 0.05);
       g.cool.sootTotal0 = Math.max(1e-6, this.sootTotal(true));
+      if (R && !this.restoreFailed) { try { this.restorePaint(R); } catch (e) { console.error('[burn] resume paint', e); } g.cool._sootAt = 0; }
       // render = false on sim-only sub-steps (low frame rate): skip the per-frame DOM work then
       S.on('frame', (dt, render) => { this.drawing = render !== false; this.frameA(dt); });
       S.on('down', e => this.down(e));
@@ -1842,6 +1907,9 @@
       this.buildDevice();
       this.buildCase();
       this.buildPanel();
+      if (R && !this.restoreFailed) {
+        try { this.restoreEnter(R); if (g.scene === 'A') this.hideVeil(160); return; } catch (e) { console.error('[burn] resume step', e); }
+      }
       let first;
       if (this.mode === 'graft') first = plan.zones.every(Z => Z.excised) ? 5 : 4;
       else first = !resumed.cooled ? 1 : !resumed.assessed ? 2 : !resumed.debrided && g.db.total ? 3 : 8;
@@ -1849,6 +1917,8 @@
       this.enterStep(first, true);
       this.hideVeil(160);
       if (this.mode === 'care' && g.conscious && first === 1) this.sayLater('say_hot', 'It burns… please, cool it down!', 1600);
+      // a saved state that does not fit this burn any more (it changed while the medic was away)
+      if (this.resumeStale) this.flash('warn', T('resume_new', 'The burn has changed since you stepped away — starting afresh.'), 4200);
     },
 
     // The engine colours partial-thickness burns with its own round noise cells. For a burn that has
@@ -2569,6 +2639,8 @@
         abort: { label: T('hold_cancel', 'Hold to cancel'), key: 'ESC', seconds: 1.2 },
         onAbort: () => this.abort(),
         onTool: key => this.pickTool(key),
+        // "Step away" (P): park the procedure with this game's state to fetch supplies, carry on later
+        pause: this.pauseFn,
       });
       const body = this.pp.el.querySelector('.pp-body') || this.pp.el;
       const after = body.querySelector('.pp-text');
@@ -2769,7 +2841,8 @@
       const g = this.g, cfg = this.cfg;
       if (!g) return;
       switch (g.step) {
-        case 1: return this.setTip(g.cool.done ? '' : T('tip_1', 'Sweep the stream slowly over the hottest areas — the imager shows them. Stop when it is cool: the deep heat warms the surface back up if you stop too early.'));
+        case 1: if (!g.cool.done && !this.salineLeft()) return this.setTip(T('tip_1_out', 'Out of saline. Press {P} to step away, fetch more, then use the same option to carry on — or press {Enter} to go on with the burn as it is.'), 'amber');
+          return this.setTip(g.cool.done ? '' : T('tip_1', 'Sweep the stream slowly over the hottest areas — the imager shows them. Stop when it is cool: the deep heat warms the surface back up if you stop too early.'));
         case 2: return this.setTip(T('tip_2', 'Test at least **%s%** of the burn. Hold and slide: the glass lifts and presses again every few millimetres.', Math.round(cfg.assessCover * 100)));
         case 3: return this.setTip(g.db.total ? T('tip_3', 'Pull each piece about **%s mm** away to tear it free. Let go early and it falls back.', cfg.pullMm) : '');
         case 4: return this.setTip(T('tip_4', 'Stay within **%s mm** of the line. Cutting into healthy skin bleeds and costs you.', f1(cfg.traceTol)));
@@ -2833,6 +2906,7 @@
       if (this.resultShown) { if (this.canClose) this.closeNow(); return true; }
       if (!g) return false;
       if (g.deciding) return this.decide('graft');
+      if (g.step === 1 && !g.done[1] && g.scene === 'A' && !g.cool.pouring && !this.salineLeft()) { this.coolOutDone(); return true; }
       if (g.step === 3 && g.db.total && g.db.removed / g.db.total >= this.cfg.debridedMin) { this.completeStep(3, T('s3_done_part', 'Enough dead skin removed.')); return true; }
       if (g.step === 5 && g.hv && !g.hv.cutting && g.hv.cut >= 15) { this.finishHarvest(); return true; }
       if (g.step === 8 && !g.done[8] && this.dressFirm()) { this.finishDressing(); return true; }
@@ -2975,10 +3049,26 @@
         if (c.bottle < cfg.bottles) { c.refill = cfg.refillTime; }
         else if (!g.done[1]) {
           c.partial = true;
-          this.flash('warn', T('cool_out', 'Out of saline — the surface is %s °C.', f1(this.lastStats.mean)), 3200);
+          this.salineOut();
         }
       }
       this.measureCool(dt);
+    },
+    salineLeft() { const c = this.g.cool; return c.ml > 0.001 || c.bottle < this.cfg.bottles || c.refill > 0; },
+    // the last bottle is empty before the burn is done: the step stays open — step away (P) to fetch
+    // more saline and carry on, or Enter to go on with the burn as it is
+    salineOut() {
+      const g = this.g;
+      if (!g || g.done[1]) return;
+      this.flash('warn', T('cool_out_p', 'Out of saline — the surface is %s °C. Press {P} to step away, fetch more, then use the same option to carry on.', f1(this.lastStats ? this.lastStats.mean : 0)), 6500);
+      this.setTip(T('tip_1_out', 'Out of saline. Press {P} to step away, fetch more, then use the same option to carry on — or press {Enter} to go on with the burn as it is.'), 'amber');
+    },
+    // Enter after the saline ran out: the step ends with what was reached
+    coolOutDone() {
+      const g = this.g, cfg = this.cfg, c = g.cool, st = this.lastStats || this.heat.stats(cfg.target);
+      if (g.done[1] || g.step !== 1) return;
+      c.done = st.frac >= cfg.coolFrac; c.final = st.mean;
+      this.completeStep(1, c.done ? T('s1_done', 'Cooled — %s °C, soot %s%.', f1(st.mean), Math.round(c.soot)) : T('s1_done_warm', 'Saline used up — the burn is still %s °C.', f1(st.mean)), c.done ? 'ok' : 'warn');
     },
     measureCool(dt) {
       const g = this.g, cfg = this.cfg, c = g.cool, st = this.lastStats;
@@ -2997,19 +3087,16 @@
         c.holdT += dt;
         this.cursorProgress(clamp(c.holdT / cfg.holdTime, 0, 1), T('cur_hold', 'Holding under %s °C', cfg.target));
         if (c.holdT >= cfg.holdTime) {
-          if (c.soot <= cfg.sootDone || (c.ml <= 0 && c.bottle >= cfg.bottles)) {
+          if (c.soot <= cfg.sootDone) {
             c.done = true; c.final = st.mean;
             this.completeStep(1, T('s1_done', 'Cooled — %s °C, soot %s%.', f1(st.mean), Math.round(c.soot)));
-          } else if (!c.sootWarned) {
+          } else if (!c.sootWarned && this.salineLeft()) {
             c.sootWarned = true;
             this.flash('warn', T('cool_soot', 'Cool enough — but **%s%** soot is left. Wash it off.', Math.round(c.soot)), 3600);
           }
         }
       } else c.holdT = 0;
-      if (c.partial && !c.pouring && !g.done[1]) {
-        c.done = st.frac >= cfg.coolFrac; c.final = st.mean;
-        this.completeStep(1, c.done ? T('s1_done', 'Cooled — %s °C, soot %s%.', f1(st.mean), Math.round(c.soot)) : T('s1_done_warm', 'Saline used up — the burn is still %s °C.', f1(st.mean)), c.done ? 'ok' : 'warn');
-      }
+      // out of saline (soot left or still warm): the step waits — {P} steps away for more, {Enter} goes on
     },
     puff(point, normal, k) {
       const it = this.steam && this.steam.find(x => x.life <= 0);
@@ -3297,7 +3384,11 @@
       NZA.post('burn:graftCheck', {}).then(r => {
         if (!this.alive || this.g !== g || !g.deciding) return;
         g.graftOk = !!(r && r.ok);
+        g.graftErr = (r && r.err) || null;
+        g.graftMsg = (r && r.msg) || '';
         this.renderDecision(g.graftOk ? T('dec_ready', 'Graft kit and theatre ready.') : ((r && r.msg) || T('dec_no', 'The graft cannot be done here.')), g.graftOk ? 'ok' : 'bad');
+        // the graft kit (or another graft supply) is missing: step away for it and come back here
+        if (!g.graftOk && g.graftErr === 'missing_item') this.flash('warn', T('dec_fetch', 'Press {P} to step away, fetch it, then use the same option to carry on.'), 6500);
       });
     },
     renderDecision(status, tone) {
@@ -3316,6 +3407,7 @@
       const g = this.g;
       if (!g || !g.deciding) return false;
       if (kind === 'graft') {
+        if (g.graftOk === false && g.graftErr === 'missing_item') { this.flash('bad', `${g.graftMsg ? `${g.graftMsg} ` : ''}${T('dec_fetch', 'Press {P} to step away, fetch it, then use the same option to carry on.')}`, 4200); return true; }
         if (g.graftOk !== true) { this.flash('bad', g.graftOk === false ? T('dec_cannot', 'The graft is not possible here — dress the burn.') : T('dec_wait', 'Still checking…'), 2000); return true; }
         g.deciding = false;
         this.finishCare(true);
@@ -3337,7 +3429,8 @@
       this.stopAll();
       this.careResult = this.careResultCalc(cont);
       g.waitGraft = true;
-      this.pp.set({ title: T('cont_title', 'Getting the graft ready'), titleTone: '', text: T('cont_text', 'Saving the burn care and opening the graft kit…') });
+      // burn care is being saved and no graft session runs yet: nothing to step away from
+      this.pp.set({ title: T('cont_title', 'Getting the graft ready'), titleTone: '', text: T('cont_text', 'Saving the burn care and opening the graft kit…'), pause: false });
       const act = this.pp.el.querySelector('.pp-act');
       if (act) act.innerHTML = `<div class="bn-dec"><div class="st"><span class="ring"></span>${esc(T('cont_wait', 'One moment…'))}</div></div>`;
       NZA.post('burn:finish', this.careResult).then(r => {
@@ -3355,13 +3448,20 @@
       if (!g || !this.alive) return;
       if (!this.S) { this.d = Object.assign({}, this.d, d); return; }
       if (this.mode === 'graft' && g.step >= 4) return;      // already on the graft
+      // this graft was parked earlier (Step away): the graft session carries on from its saved state
+      if (d.resume && typeof d.resume === 'object' && d.resume.mode === 'graft') {
+        const co = this.careOutcome, cr = this.careResult;
+        this.open(Object.assign({}, d, { mode: 'graft', locale: this.d.locale, cfg: d.cfg || this.d.cfg }));
+        this.careOutcome = co; this.careResult = cr;
+        return;
+      }
       g.waitGraft = false;
       this.mode = 'graft';
       this.d.graftCase = d;
       g.sedated = true;
       g.done[1] = g.done[1] || !g.skipped[1];
       this.plan.zones.forEach(Z => { Z.found = true; });
-      this.pp.set({ tag: T('tag_graft', 'Skin graft') });
+      this.pp.set({ tag: T('tag_graft', 'Skin graft'), pause: this.pauseFn });
       const act = this.pp.el.querySelector('.pp-act');
       if (act) act.innerHTML = '';
       this.enterStep(this.plan.zones.every(Z => Z.excised) ? 5 : 4);
@@ -3570,10 +3670,18 @@
       SB.on('frame', (dt, render) => { this.drawing = render !== false; this.frameB(dt); });
       SB.on('down', e => this.down(e));
       SB.on('up', e => this.up(e));
+      // carrying on after stepping away: the strip cut so far comes back
+      const P = this.pendingHv;
+      this.pendingHv = null;
+      if (P) { try { this.restoreHarvest(P); } catch (e) { console.error('[burn] resume harvest', e); } }
       SB.start();
       g.scene = 'B';
       this.hideVeil(150);
+      // on to the mesher only with a strip that could have been taken (else the harvest carries on)
+      if (P && this.pendingMs && g.hv.cut >= 15) { g.hv.done = true; g.done[5] = true; this.enterStep(6, true); return; }
+      if (this.pendingMs) { this.pendingMs = null; delete g.done[5]; delete g.done[6]; }
       this.harvestReady();
+      if (P && g.hv.cut >= 15 && !g.hv.done) this.setTip(T('hv_paused', 'Stopped at **%s mm**. Carry on from the end of the cut, or press {Enter} to take this graft.', Math.round(g.hv.cut)), 'amber');
     },
     densify(P, step) {
       const out = [];
@@ -3801,11 +3909,20 @@
       const bed = this.bedAreaMm2() || 1800, area = hv.cut * cfg.graftWidth;
       const cov15 = area * 1.45 / bed, cov3 = area * 2.6 / bed;
       g.ms = { ratio: cov15 >= 0.98 ? '1:1.5' : '1:3', feed: 0, angle: 0, rate: 0, tears: [], rateTrace: [], traceT: 0, lastAng: null, cranking: false, locked: false, done: false, warnT: 0, tearAcc: 0, cov15, cov3, clickT: 0 };
+      // carrying on after stepping away: the carrier, the graft fed so far and its tears come back
+      const PM = this.pendingMs;
+      this.pendingMs = null;
+      if (PM) {
+        if (PM.r === '1:1.5' || PM.r === '1:3') g.ms.ratio = PM.r;
+        g.ms.tears = arr(PM.t).map(t => arr(t)).filter(t => t.length >= 3).map(t => ({ x: num(t[0]), y: num(t[1]), r: num(t[2], 3) })).slice(0, 40);
+        g.ms.angle = num(PM.a); g.ms.tearAcc = clamp(num(PM.ta), 0, 1); g.ms.locked = !!PM.lk;
+      }
       this.binBench = makeBin();
       const bench = this.bench = buildBench(this.binBench, SB.scene.environment, { ratio: g.ms.ratio });
       g.ms.rawTex = canvasTex(this.binBench, texGraft({ seed: this.seed, length: hv.cut, width: cfg.graftWidth, thin: hv.thin, wobble: hv.wobble, mode: 'raw', pxmm: 5 }).map);
-      this.setSlitTex();
       g.ms.need = bench.needFeed;
+      if (PM) { g.ms.feed = clamp(num(PM.f) * MM, 0, g.ms.need * 0.999); bench.setCrank(g.ms.angle); }
+      this.setSlitTex();
       const r = SB.renderer;
       r.localClippingEnabled = true;
       const cv = SB.canvas;
@@ -3845,6 +3962,7 @@
       // carrier picker in the procedure column
       this.slot.innerHTML = `<div class="bn-ratio"><span class="lb">${esc(T('ratio_label', 'Carrier'))}</span><div class="sg"></div><span class="kq"><kbd>Q</kbd><kbd>E</kbd></span></div>`;
       this.seg = NZA.ui.Segmented(this.slot.querySelector('.sg'), { options: [{ value: '1:1.5', label: '1:1.5' }, { value: '1:3', label: '1:3' }], value: g.ms.ratio, onChange: v => this.setRatio(v) });
+      if (g.ms.locked && this.seg.el) this.seg.el.classList.add('locked');
       this.crankEl = document.createElement('div');
       this.crankEl.className = 'bn-crank';
       this.crankEl.innerHTML = `<svg viewBox="0 0 200 200"><circle class="trk" cx="100" cy="100" r="84"/><path class="red" d=""/><circle class="fg" cx="100" cy="100" r="84"/><g class="arrows"><path d="M100 10 l10 6 -10 6z"/><path d="M190 100 l-6 10 -6 -10z"/><path d="M100 190 l-10 -6 10 -6z"/><path d="M10 100 l6 -10 6 10z"/></g></svg><span class="rt"><b>0.0</b><i>${esc(T('u_tps', 'turns/s'))}</i></span>`;
@@ -4150,7 +4268,7 @@
       const g = this.g, S = this.S, plan = this.plan;
       if (g.scene !== 'A') this.backToA();
       if (g.dr.D) return;
-      const dw = plan.rx * 2 + 0.028, dh = plan.ry * 2 + 0.028, pw = dw - 0.014, ph = dh - 0.014;
+      const dw = plan.rx * 2 + 0.028, dh = plan.ry * 2 + 0.028;
       const Hh = S.patch.H / 2, Wh = S.patch.W / 2;
       let uv, ctr;
       // beside the burn (the wide screen has room left and right), else below it
@@ -4158,14 +4276,27 @@
       else if (plan.ry + dh + 0.01 < Hh) { ctr = [plan.rx * 0.08, plan.ry + dh / 2 + 0.008]; }
       else ctr = [plan.rx * 0.08, Math.min(Hh - dh / 2, plan.ry + dh / 2 + 0.004)];
       uv = S.stToUv(ctr[0], ctr[1]);
-      g.dr.D = S.dressing.create({ size: [dw, dh], pad: [pw, ph], uv, angle: 0.06 });
-      // our own hydrogel burn dressing print on the engine's dressing (its material is per dressing)
-      const dm = g.dr.D.mesh && g.dr.D.mesh.material;
-      if (dm) { dm.map = canvasTex(this.binA, texBurnDressing(dw, dh, pw, ph, this.seed)); dm.color.setRGB(1, 1, 1); dm.roughness = 0.7; dm.needsUpdate = true; }
+      g.dr.D = this.makeDressing(uv, 0.06);
       g.dr.restUv = uv; g.dr.ctr = ctr;
       const mid = S.stToUv(ctr[0] / 2, ctr[1] / 2);
       S.controls.frame(mid, clamp(Math.max(this.viewW * 1.25, Math.abs(ctr[0]) + dw + 0.05, (Math.abs(ctr[1]) + dh) * 1.9), 0.12, 0.42), { instant: false, pitch: 1.24 });
       this.burnUvs = plan.pts.filter((_, i) => i % 2 === 0).map(p => S.stToUv(p[0], p[1]));
+      // burn care secures a large burn with a sterile dressing on top when one is carried: say so when it
+      // is not (the graft's own dressing step does not use one)
+      const cfg = this.cfg;
+      if (this.mode === 'care' && (plan.A || 0) >= cfg.secureAbove && cfg.secureItem !== false && this.d.items && num(this.d.items.dressing, -1) === 0) {
+        this.flash('warn', T('dr_secure_out', 'No sterile dressing to secure this large burn. Press {P} to step away, fetch one, then use the same option to carry on.'), 6500);
+      }
+    },
+    // the hydrogel burn dressing (size from the burn), resting at uv; curl 0 = lies flat
+    makeDressing(uv, angle, curl) {
+      const S = this.S, plan = this.plan;
+      const dw = plan.rx * 2 + 0.028, dh = plan.ry * 2 + 0.028, pw = dw - 0.014, ph = dh - 0.014;
+      const D = S.dressing.create({ size: [dw, dh], pad: [pw, ph], uv, angle, curl });
+      // our own hydrogel burn dressing print on the engine's dressing (its material is per dressing)
+      const dm = D.mesh && D.mesh.material;
+      if (dm) { dm.map = canvasTex(this.binA, texBurnDressing(dw, dh, pw, ph, this.seed)); dm.color.setRGB(1, 1, 1); dm.roughness = 0.7; dm.needsUpdate = true; }
+      return D;
     },
     dressDown() {
       const g = this.g, S = this.S, D = g.dr.D;
@@ -4570,6 +4701,7 @@
       if (this.finished || !g) return;
       this.finished = true;
       this.stopAll();
+      if (this.pp) this.pp.set({ pause: false });
       if (this.S) { this.S.tools.use(null); this.S.fluids.jet(false); this.S.markers.clear(); }
       this.stage.classList.remove('grab', 'grabbing');
       this.clearTags();
@@ -4707,6 +4839,430 @@
       }, 250);
     },
 
+    /* ═════════════ step away (P): snapshot, and carry on from data.resume ═════════════
+       snapshot() → a compact JSON-safe object with what it takes to rebuild this game at the same
+       point, or null while a move is half done / the next step is opening / the result is up.
+       Supply counts are never stored: saline bottles, dressings and kits come fresh with the open data.
+       A saved state comes back only for the same burn (mode + this.fpBase: injury, region, depth, area,
+       full thickness, seed); otherwise the burn starts afresh (resume_new).
+         v 1 · mode · fp · step · dec (graft question up) · done / skip (step digits) · t (s) · core (°C) · spk
+         care   tmp / sot (burn temp, soot when saved: a changed burn restarts the cooling)
+                cool { u mL used, oc over-cooled s, d, p, f final °C, b best, fe, sw, s soot %, tr trend }
+                heat { nx, ny, T (every 2nd node), D (every 3rd) } · soot { gx, gy, s, g: left per 6×6 block }
+                as { n tests, fx fixed, est, cv, c tested cells, z found areas, m marks (s, t, fixed) }
+                db { r removed pieces, f slips, en }
+         graft  ex { z [{ x excised, pre, n, b cut-line bins }], s, ds, dn, bl, a } · hv { cut, p, ln, l3, th, wo, q }
+                ms { r, f mm fed, a, ta, lk, c15, c3, t tears [x, y, r] } · gr { ph, c, a, pl, cv, mi, en, n, p stapled }
+         both   dr { st 'p' (laid on the burn), c, a, k stuck, cv, ft } */
+    busy() {
+      const g = this.g;
+      if (g.done[g.step] && !g.deciding) return true;       // the step just ended, the next one is opening
+      switch (g.step) {
+        case 1: return !!g.cool.pouring;
+        case 2: return !!g.as.press;
+        case 3: return !!g.db.grip;
+        case 4: return !!(g.lmb && g.ex.last);
+        case 5: return !g.hv || !!g.hv.cutting || !!g.hv.done;
+        case 6: return !g.ms || !!g.ms.cranking || !!g.ms.done;
+        case 7: return !g.gr || !!g.gr.carried || g.gr.settleT !== undefined;
+        case 8: { const D = g.dr.D; return !D || D.state === 'carried' || D.state === 'falling' || !!(g.dr.rub && g.lmb); }
+      }
+      return false;
+    },
+    snapshot() {
+      const g = this.g, S = this.S, plan = this.plan;
+      if (!g || !S || !plan || !this.alive || this.finished || this.resultShown || g.waitGraft) return null;
+      if (g.scene !== 'A' && g.scene !== 'B' && g.scene !== 'bench') return null;
+      if (this.busy()) return null;
+      const digits = o => Object.keys(o).filter(k => o[k]).map(Number).filter(n => n >= 1 && n <= 8).sort().join('');
+      const o = {
+        v: 1, app: 'burn', mode: this.mode, fp: `${this.mode}|${this.fpBase}`, step: g.step, dec: g.deciding ? 1 : 0,
+        done: digits(g.done), skip: digits(g.skipped), t: rnd(g.t, 1), core: rnd(g.coreT, 2),
+        spk: Object.keys(g.spoke).filter(k => g.spoke[k]).join(','),
+      };
+      if (this.mode === 'care') {
+        const c = g.cool, b = this.inj.burn, H = this.heat;
+        o.tmp = rnd(b.temp, 1); o.sot = Math.round(num(b.soot));
+        o.cool = {
+          u: rnd(c.used, 1), oc: rnd(c.overcool, 2), d: c.done ? 1 : 0, p: c.partial ? 1 : 0, f: c.final !== undefined ? rnd(c.final, 2) : -1,
+          b: rnd(Math.min(99, c.best), 2), fe: c.felt ? 1 : 0, sw: c.sootWarned ? 1 : 0, s: rnd(c.soot, 2),
+          tr: c.trend.slice(-120).map(v => enc12(v * 40)).join(''),
+        };
+        o.heat = { nx: H.nx, ny: H.ny, T: encField(H.T, H.nx, H.ny, 2), D: encField(H.D, H.nx, H.ny, 3) };
+        const sg = this.sootGrids();
+        if (sg) o.soot = sg;
+        o.as = {
+          n: g.as.tests, fx: g.as.fixed, est: g.as.est === null || g.as.est === undefined ? -1 : rnd(g.as.est, 2), cv: rnd(g.as.cover, 4),
+          c: packBits(plan.cells.map(x => x.tested)), z: packBits(plan.zones.map(Z => Z.found)),
+          m: (g.as.marks || []).slice(-300).map(mk => { const st = S.uvToST(mk.uv); return enc12((st[0] + 0.2) * 10000) + enc12((st[1] + 0.2) * 10000) + (mk.color === 0x8c4ee6 ? '1' : '0'); }).join(''),
+        };
+        o.db = { r: packBits([...plan.blisters, ...plan.flaps].map(x => x.removed)), f: g.db.fumbles, en: g.db.enough ? 1 : 0 };
+      } else {
+        const ex = g.ex;
+        o.ex = {
+          s: rnd(ex.strays, 2), ds: rnd(ex.devSum, 5), dn: ex.devN, bl: rnd(ex.blood, 1), a: rnd(ex.excisedArea, 7),
+          z: plan.zones.map(Z => ({ x: Z.excised ? 1 : 0, pre: Z.preExcised ? 1 : 0, n: Z.bins.length, b: packBits(Z.bins) })),
+        };
+        const hv = g.hv;
+        if (hv) {
+          const n = Math.floor(hv.cut), th = [], wo = [], q = [];
+          for (let mm = 1; mm <= n; mm++) { th.push(enc6(hv.thin[mm] / 2.2 * 63)); wo.push(enc6(hv.wobble[mm] * 63)); q.push(enc6(hv.qual[mm] * 63)); }
+          o.hv = { cut: rnd(hv.cut, 2), p: rnd(hv.p, 3), ln: hv.Lneed, l3: rnd(hv.L3, 2), th: th.join(''), wo: wo.join(''), q: q.join('') };
+        }
+        const ms = g.ms;
+        if (ms) o.ms = { r: ms.ratio, f: rnd(ms.feed / MM, 2), a: rnd(ms.angle, 3), ta: rnd(ms.tearAcc, 3), lk: ms.locked ? 1 : 0, c15: rnd(ms.cov15, 3), c3: rnd(ms.cov3, 3), t: ms.tears.map(t => [rnd(t.x, 1), rnd(t.y, 1), rnd(t.r, 2)]) };
+        const gr = g.gr;
+        if (gr) o.gr = { ph: gr.phase, c: [rnd(gr.c[0], 5), rnd(gr.c[1], 5)], a: rnd(gr.ang, 4), pl: gr.placed ? 1 : 0, cv: rnd(gr.coverage, 4), mi: gr.misses, en: gr.enough ? 1 : 0, n: gr.points ? gr.points.length : 0, p: gr.points ? packBits(gr.points.map(p => p.done)) : '' };
+      }
+      const D = g.dr.D;
+      if (D && g.step === 8 && D.state === 'placed') {
+        const ps = this.dressPose(D);
+        o.dr = { st: 'p', c: [rnd(ps.s, 5), rnd(ps.t, 5)], a: rnd(ps.a, 4), k: rnd(D.stuck, 4), cv: rnd(g.dr.cover, 4), ft: g.dr.firmTip ? 1 : 0 };
+      }
+      return o;
+    },
+    // where a laid dressing sits on the skin: centre (s, t) and the angle of its long side
+    dressPose(D) {
+      const S = this.S, THREE = window.THREE, q = S._toSurf(D.center());
+      const pa = D.mesh && D.mesh.geometry && D.mesh.geometry.attributes.position, NX = 32;
+      let a = 0.06;
+      if (pa && pa.count >= NX * 2 && pa.count % NX === 0) {
+        const row = Math.floor(pa.count / NX / 2) * NX;
+        const p0 = S._toSurf(new THREE.Vector3().fromBufferAttribute(pa, row)), p1 = S._toSurf(new THREE.Vector3().fromBufferAttribute(pa, row + NX - 1));
+        a = Math.atan2(-(p1.t - p0.t), p1.s - p0.s);
+      }
+      return { s: q.s, t: q.t, a };
+    },
+    // soot / ash film: the CPU mirror of each layer, measured in 6×6-cell blocks against the fresh film
+    sootDims() {
+      const S = this.S, m = S && S.layers._mirror && S.layers._mirror.soot;
+      if (!m || !S.work) return null;
+      const MH = Math.max(16, Math.round(240 * S.work.size[1] / S.work.size[0])), MW = m.length / MH;
+      if (!Number.isInteger(MW) || MW < 12) return null;
+      return { MW, MH, B: 6, GX: Math.ceil(MW / 6), GY: Math.ceil(MH / 6) };
+    },
+    sootGrids() {
+      const S = this.S, dm = this.sootDims(), M = S.layers._mirror;
+      if (!dm || !this.sootInit) return null;
+      const { MW, MH, B, GX, GY } = dm;
+      const code = name => {
+        const m = M[name], m0 = this.sootInit[name];
+        if (!m || !m0 || m.length !== m0.length) return '';
+        let s = '';
+        for (let by = 0; by < GY; by++) for (let bx = 0; bx < GX; bx++) {
+          let a = 0, b = 0;
+          for (let y = by * B; y < Math.min(MH, by * B + B); y++) for (let x = bx * B; x < Math.min(MW, bx * B + B); x++) { a += m[y * MW + x]; b += m0[y * MW + x]; }
+          s += enc6(b > 1e-3 ? clamp(a / b, 0, 1) * 63 : 63);
+        }
+        return s;
+      };
+      return { gx: GX, gy: GY, s: code('soot'), g: code('grime') };
+    },
+    restoreSoot(name, gx, gy, codeIn) {
+      const S = this.S, dm = this.sootDims(), m = S.layers._mirror && S.layers._mirror[name], m0 = this.sootInit && this.sootInit[name], code = str(codeIn);
+      if (!dm || !m || !m0 || m0.length !== m.length) return false;
+      const { MW, MH, B, GX, GY } = dm;
+      if (num(gx) !== GX || num(gy) !== GY || code.length !== GX * GY) return false;
+      const rect = S.work.rect, du = rect[2] - rect[0], dv = rect[3] - rect[1];
+      const bw = S.work.size[0] * B / MW, bh = S.work.size[1] * B / MH;
+      const ratio = new Float32Array(GX * GY);
+      for (let q = 0; q < ratio.length; q++) ratio[q] = dec6(code[q]) / 63;
+      // the picture: wash each block down by what was taken off it
+      for (let by = 0; by < GY; by++) for (let bx = 0; bx < GX; bx++) {
+        const r = ratio[by * GX + bx];
+        if (r > 0.985) continue;
+        let vmax = 0;
+        const x1 = Math.min(MW, bx * B + B), y1 = Math.min(MH, by * B + B);
+        for (let y = by * B; y < y1; y++) for (let x = bx * B; x < x1; x++) vmax = Math.max(vmax, m0[y * MW + x]);
+        if (vmax < 0.003) continue;
+        const cu = (bx * B + x1) / 2 / MW, cv = (by * B + y1) / 2 / MH;
+        S.layers.erase(name, [rect[0] + cu * du, rect[1] + cv * dv], [bw * 0.72, bh * 0.72], clamp((1 - r) * vmax * 1.1, 0, 1), { hardness: 0.55 });
+      }
+      // the gameplay copy exactly: fresh film × the part of it that was left, block by block
+      for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { const i = y * MW + x; m[i] = m0[i] * ratio[Math.floor(y / B) * GX + Math.floor(x / B)]; }
+      return true;
+    },
+
+    // data.resume when it belongs to this burn and this procedure (else null; resumeStale = it did not fit)
+    resumeData() {
+      const R = this.d && this.d.resume;
+      if (!R || typeof R !== 'object' || Array.isArray(R)) return null;
+      const step = Math.round(num(R.step));
+      const ok = num(R.v) === 1 && R.fp === `${this.mode}|${this.fpBase}` && R.mode === this.mode && step >= 1 && step <= 8 &&
+        (this.mode === 'care' ? step <= 3 || step === 8 : step >= 4);
+      if (!ok) { this.resumeStale = true; return null; }
+      return R;
+    },
+    // before the scene is built: progress numbers, the burn's pieces (removed, tested, excised), heat
+    restorePre(R) {
+      const g = this.g, plan = this.plan, step = Math.round(num(R.step));
+      const stepsOf = s => str(s).split('').map(Number).filter(n => n >= 1 && n <= 8);
+      const items = [...plan.blisters, ...plan.flaps];
+      this.restored = { heat: false, soot: false, cool: true };
+      // a step can only be done or skipped before the one the game was on (the graft question comes
+      // after burn care's steps 1-3): a flag on a later step would keep that step from ever ending
+      const dec = this.mode === 'care' && !!num(R.dec) && step <= 3 && plan.zones.length > 0;
+      const open = n => n >= (dec ? 4 : step);
+      g.done = {}; stepsOf(R.done).forEach(n => { if (!open(n)) g.done[n] = true; });
+      g.skipped = {}; stepsOf(R.skip).forEach(n => { if (!open(n)) g.skipped[n] = true; });
+      g.t = Math.max(0, num(R.t)); g.coreT = clamp(num(R.core, g.coreT), 30, 42);
+      str(R.spk).split(',').filter(Boolean).slice(0, 20).forEach(k => { g.spoke[k] = true; });
+      if (this.mode === 'care') {
+        const C = R.cool && typeof R.cool === 'object' ? R.cool : {}, c = g.cool, b = this.inj.burn;
+        // first aid or more fire changed the burn while the medic was away: the cooling starts afresh
+        const same = Math.abs(num(R.tmp, -99) - num(b.temp)) < 0.06 && Math.round(num(R.sot, -1)) === Math.round(num(b.soot));
+        if (same || g.done[1]) {
+          c.used = Math.max(0, num(C.u)); c.overcool = Math.max(0, num(C.oc)); c.done = !!num(C.d);
+          // the saline comes fresh with the reopen, but having run dry once still counts (stepping away
+          // must not wipe that penalty: the bottles of the first part were never paid for twice)
+          c.partial = !!num(C.p);
+          if (num(C.f, -1) >= 0) c.final = num(C.f);
+          c.best = num(C.b, 99); c.felt = !!num(C.fe); c.sootWarned = !!num(C.sw);
+          if (num(C.s, -1) >= 0) c.soot = clamp(num(C.s), 0, 100);
+          const tr = str(C.tr);
+          c.trend = [];
+          for (let i = 0; i + 1 < tr.length && c.trend.length < 120; i += 2) c.trend.push(dec12(tr, i) / 40);
+          const Hd = R.heat && typeof R.heat === 'object' ? R.heat : {}, H = this.heat;
+          if (num(Hd.nx) === H.nx && num(Hd.ny) === H.ny) {
+            const T = new Float32Array(H.T.length), D = new Float32Array(H.D.length);
+            if (decField(Hd.T, T, H.nx, H.ny, 2) && decField(Hd.D, D, H.nx, H.ny, 3)) { H.T.set(T); H.D.set(D); H.wet.fill(0); this.restored.heat = true; }
+          }
+          this.restored.soot = !!(R.soot && typeof R.soot === 'object');
+        } else this.restored.cool = false;
+        // depth test: tested cells, found areas, the marks on the skin
+        const A = R.as && typeof R.as === 'object' ? R.as : {};
+        const cells = unpackBits(A.c, plan.cells.length), zf = unpackBits(A.z, plan.zones.length);
+        plan.cells.forEach((cl, i) => { if (cells[i]) cl.tested = true; });
+        plan.zones.forEach((Z, i) => { if (zf[i]) Z.found = true; });
+        g.as.tests = Math.max(0, Math.round(num(A.n))); g.as.fixed = Math.max(0, Math.round(num(A.fx)));
+        if (num(A.est, -1) >= 0) g.as.est = num(A.est);
+        g.as.cover = clamp(num(A.cv, g.as.cover), 0, 1);
+        const mk = str(A.m);
+        g.as.marks = [];
+        for (let i = 0; i + 5 <= mk.length && g.as.marks.length < 300; i += 5) {
+          const s = dec12(mk, i) / 10000 - 0.2, t = dec12(mk, i + 2) / 10000 - 0.2, fixed = mk[i + 4] === '1';
+          g.as.marks.push({ uv: this.S.stToUv(s, t), kind: 'dot', size: 0.0036, color: fixed ? 0x8c4ee6 : 0x0fd4c4, pulse: false, opacity: 0.95 });
+        }
+        // debridement: the pieces already pulled off
+        const Db = R.db && typeof R.db === 'object' ? R.db : {};
+        const rm = unpackBits(Db.r, items.length);
+        items.forEach((it, i) => { if (rm[i]) it.removed = true; });
+        if (g.db.total) g.db.removed = items.filter(x => x.removed).length;
+        g.db.fumbles = Math.max(0, Math.round(num(Db.f))); g.db.enough = !!num(Db.en);
+      } else {
+        // excision: the cut line so far and the areas already lifted off
+        const E = R.ex && typeof R.ex === 'object' ? R.ex : {};
+        arr(E.z).forEach((z, i) => {
+          const Z = plan.zones[i];
+          if (!Z || !z || typeof z !== 'object') return;
+          if (Math.round(num(z.n)) === Z.bins.length) unpackBits(z.b, Z.bins.length).forEach((v, k) => { if (v) Z.bins[k] = 1; });
+          if (num(z.x)) Z.excised = true;
+          if (num(z.pre)) Z.preExcised = true;
+        });
+        g.ex.strays = Math.max(0, num(E.s)); g.ex.devSum = Math.max(0, num(E.ds)); g.ex.devN = Math.max(0, Math.round(num(E.dn)));
+        g.ex.blood = Math.max(0, num(E.bl)); g.ex.excisedArea = Math.max(0, num(E.a));
+      }
+      void step;
+    },
+    // after the scene is built: soot washed off, raw dermis where pieces came away, fresh blood
+    restorePaint(R) {
+      const g = this.g, S = this.S, plan = this.plan;
+      if (this.mode === 'care') {
+        const sg = R.soot;
+        if (this.restored && this.restored.soot && sg) { this.restoreSoot('soot', sg.gx, sg.gy, sg.s); this.restoreSoot('grime', sg.gx, sg.gy, sg.g); }
+        if (!this.inj.treat.debrided) {
+          [...plan.blisters, ...plan.flaps].forEach(it => {
+            if (!it.removed) return;
+            const r = it.kind === 'blister' ? it.r * 1.3 : Math.max(it.w, it.h) * 0.62;
+            this.bareDetail(it.s, it.t, r);
+            S.layers.paint('wet', S.stToUv(it.s, it.t), r * 0.95, 0.6, { hardness: 0.2 });
+          });
+          if (g.done[3] && this.det) this.fadeMembrane(this.det, 0);
+        }
+        return;
+      }
+      const Rr = rng((this.seed ^ 0xb100d) >>> 0);
+      plan.zones.forEach(Z => {
+        if (Z.excised) {
+          if (Z.preExcised) return;
+          for (let i = 0; i < 26; i++) { const p = Z.cutPoly[Math.floor(Rr() * Z.cutPoly.length)]; S.layers.paint('blood', S.stToUv(p[0], p[1]), (0.5 + Rr() * 0.9) * MM, 0.35, { hardness: 0.4 }); }
+          return;
+        }
+        const N = Z.bins.length, L = Z.cum[Z.cutPoly.length];
+        for (let i = 0; i < N; i++) {
+          if (!Z.bins[i] || Rr() > 0.55) continue;
+          const p = this.polyAt(Z, ((i + 0.5) / N) * L);
+          S.layers.paint('blood', S.stToUv(p[0], p[1]), 0.0007 + Rr() * 0.0008, 0.55, { hardness: 0.55 });
+        }
+      });
+    },
+    // open the saved step and put back what was done in it
+    restoreEnter(R) {
+      const g = this.g, plan = this.plan, step = Math.round(num(R.step));
+      // said first: a supply note of the step (no sterile dressing, no graft kit) may replace it
+      if (this.mode === 'care' && step === 1 && this.restored && !this.restored.cool) this.resumeStale = true;
+      if (this.resumeStale) this.flash('warn', T('resume_new', 'The burn has changed since you stepped away — starting afresh.'), 4200);
+      else this.flash('ok', T('resume_ok', 'Carrying on where you left off.'), 3200);
+      if (this.mode === 'care') {
+        if (num(R.dec) && step <= 3 && plan.zones.length) {
+          // the "graft now or later" question was up
+          g.step = step;
+          this.pp.set({ step });
+          this.markSkips();
+          this.askGraft();
+          this.updatePanel(true);
+          this.renderCase();
+        } else {
+          this.enterStep(step, true);
+          if (step === 3 && g.db.total && g.db.enough && !g.done[3]) this.setTip(T('tip_3b', 'Enough is off to dress it — press {Enter} to move on, or finish the rest.'), '');
+          if (step === 8) this.restoreDressing(R.dr);
+        }
+      } else if (step === 5 || step === 6 || (step >= 7 && !this.stripOk(R.hv))) {
+        // the donor scene (and the mesher) are built a moment later: they pick these up. A later step
+        // whose strip did not come back starts again at the harvest (there is no graft without one).
+        if (step >= 7) { for (let k = 5; k <= 8; k++) { delete g.done[k]; delete g.skipped[k]; } }
+        this.pendingHv = R.hv && typeof R.hv === 'object' ? R.hv : {};
+        this.pendingMs = step === 6 ? (R.ms && typeof R.ms === 'object' ? R.ms : {}) : null;
+        this.enterStep(5, true);
+      } else if (step >= 7) {
+        this.rebuildHvMs(R);
+        if (step === 7) {
+          this.enterStep(7, true);
+          this.restoreGraft(R.gr);
+        } else {
+          if (R.gr && typeof R.gr === 'object') { this.startGraft(); this.restoreGraft(R.gr); }
+          this.enterStep(8, true);
+          this.restoreDressing(R.dr);
+        }
+      } else {
+        this.enterStep(4, true);
+        plan.zones.forEach(Z => { if (!Z.excised && Z.bins.some(Boolean)) this.rebuildCut(Z); });
+      }
+      this.refreshTools();
+      this.restoredFrom = step;
+    },
+    // a saved strip long enough to have been taken (the harvest ends at 15 mm at the earliest)
+    stripOk(P) { return !!(P && typeof P === 'object' && num(P.cut) >= 15); },
+    // a saved position on the skin, kept on the close-up's patch
+    onPatch(s, t, pad = 0) {
+      const S = this.S, Wh = S && S.patch ? S.patch.W / 2 - pad : 0.2, Hh = S && S.patch ? S.patch.H / 2 - pad : 0.2;
+      return [clamp(num(s), -Math.max(0, Wh), Math.max(0, Wh)), clamp(num(t), -Math.max(0, Hh), Math.max(0, Hh))];
+    },
+    // the per-mm strip quality (thickness, wobble, quality) back into hv
+    decodeStrip(hv, P) {
+      const n = Math.floor(hv.cut), th = str(P.th), wo = str(P.wo), q = str(P.q);
+      for (let mm = 1; mm <= n && mm < hv.thin.length; mm++) {
+        hv.thin[mm] = th.length >= mm ? dec6(th[mm - 1]) / 63 * 2.2 : 1;
+        hv.wobble[mm] = wo.length >= mm ? dec6(wo[mm - 1]) / 63 : 0;
+        hv.qual[mm] = q.length >= mm ? dec6(q[mm - 1]) / 63 : 0.7;
+      }
+    },
+    restoreHarvest(P) {
+      const g = this.g, hv = g.hv, SB = this.SB, cfg = this.cfg;
+      const cut = clamp(num(P.cut), 0, hv.Lmax);
+      if (!(cut > 0.5)) return;
+      hv.cut = cut; hv.front = hv.sStart + cut * MM; hv.p = clamp(num(P.p, hv.p), 0, 1);
+      this.decodeStrip(hv, P);
+      hv.blood = cut * cfg.graftWidth / 100 * 0.3;
+      hv.built = 0; hv.texT = 0;
+      this.growDonor(0);
+      // pin-point bleeding over the raw donor strip
+      const R = rng((this.seed + 9) >>> 0);
+      for (let i = 0; i < Math.min(140, cut * 1.2); i++) SB.layers.paint('blood', SB.stToUv(hv.sStart + R() * cut * MM, (R() - 0.5) * cfg.graftWidth * MM * 0.9), (0.3 + R() * 0.5) * MM, 0.3, { hardness: 0.5 });
+    },
+    // the harvested strip and the meshed graft, for the steps after the mesher (no scene needed)
+    rebuildHvMs(R) {
+      const g = this.g, cfg = this.cfg, P = R.hv && typeof R.hv === 'object' ? R.hv : {}, M = R.ms && typeof R.ms === 'object' ? R.ms : {};
+      const bed = this.bedAreaMm2() || 1800;
+      const Lneed = clamp(Math.round(num(P.ln, clamp(Math.round(bed / (cfg.graftWidth * 1.45)), 25, 135))), 1, 140);
+      const cut = clamp(num(P.cut, Lneed), 1, 140);
+      const hv = g.hv = { sStart: 0, Lneed, L3: num(P.l3, Lneed / 2), Lmax: 140, cut, front: cut * MM, p: clamp(num(P.p, 0.55), 0, 1), speed: 0,
+        thin: new Float32Array(142).fill(1), wobble: new Float32Array(142), qual: new Float32Array(142).fill(0.7),
+        speedTrace: [], pressTrace: [], blood: cut * cfg.graftWidth / 100 * 0.3, done: true, cutting: false };
+      this.decodeStrip(hv, P);
+      const area = cut * cfg.graftWidth;
+      g.ms = { ratio: M.r === '1:3' ? '1:3' : '1:1.5', feed: 1, need: 1, angle: num(M.a), rate: 0, rateTrace: [], done: true, locked: true, cranking: false, tearAcc: 0,
+        cov15: num(M.c15, area * 1.45 / bed), cov3: num(M.c3, area * 2.6 / bed),
+        tears: arr(M.t).map(t => arr(t)).filter(t => t.length >= 3).map(t => ({ x: num(t[0]), y: num(t[1]), r: num(t[2], 3) })).slice(0, 40) };
+      g.done[5] = true; g.done[6] = true;
+    },
+    // the graft sheet where it was laid, trimmed and stapled as far as it got
+    restoreGraft(P) {
+      const g = this.g, gr = g.gr, S = this.S, cfg = this.cfg;
+      if (!gr || !P || typeof P !== 'object') return;
+      const c = arr(P.c);
+      if (c.length >= 2) { gr.c = this.onPatch(num(c[0], gr.c[0]), num(c[1], gr.c[1])); gr.cGoal = gr.c.slice(); }
+      gr.ang = gr.angGoal = clamp(num(P.a, gr.ang), -TAU, TAU);
+      gr.placed = !!num(P.pl); gr.carried = false;
+      gr.lift = gr.liftGoal = gr.placed ? 0.0002 : 0.0003;
+      gr.misses = Math.max(0, Math.round(num(P.mi)));
+      this.rebuildSheet(); gr.dirty = false;
+      gr.coverage = gr.placed ? this.graftCoverage() : clamp(num(P.cv), 0, 1);
+      if (P.ph === 'staple' || (gr.placed && gr.coverage >= cfg.minCoverage)) {
+        this.toStapling();
+        const done = unpackBits(P.p, gr.points.length);
+        if (Math.round(num(P.n)) === gr.points.length) {
+          gr.points.forEach((p, i) => {
+            if (!done[i]) return;
+            p.done = true;
+            gr.staples.push(stapleMesh(S, this.binA, this.MA, [p.s, p.t], p.dir));
+            S.markers.remove(p.id);
+          });
+        }
+        gr.enough = !!num(P.en);
+        if (g.step === 7 && gr.enough) this.setTip(T('tip_7c', 'Enough to hold it — press {Enter} to dress, or finish the ring.'), '');
+      }
+      this.refreshTools();
+    },
+    // the burn dressing laid where it was and pressed down as far as it was
+    restoreDressing(P) {
+      const g = this.g, S = this.S;
+      if (!P || typeof P !== 'object' || P.st !== 'p' || !g.dr.D) return;
+      const c = arr(P.c);
+      if (c.length < 2) return;
+      const [s, t] = this.onPatch(c[0], c[1]), a = clamp(num(P.a, 0.06), -TAU, TAU), target = clamp(num(P.k), 0, 1);
+      g.dr.D.remove();
+      const D = g.dr.D = this.makeDressing(S.stToUv(s, t), a, 0);
+      D.state = 'falling'; D._settle = 0;
+      // rubbed down evenly over the whole sheet until it is as stuck as it was
+      const ca = Math.cos(a), sa = -Math.sin(a), pts = [];
+      const nx = Math.max(4, Math.ceil(D.size[0] / 0.01)), ny = Math.max(3, Math.ceil(D.size[1] / 0.01));
+      for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) {
+        const lx = (i / nx - 0.5) * D.size[0] * 0.96, ly = (j / ny - 0.5) * D.size[1] * 0.96;
+        const sp = S.surfaceAt(S.stToUv(s + lx * ca - ly * sa, t + lx * sa + ly * ca));
+        if (sp && sp.point) pts.push({ point: sp.point, normal: sp.normal });
+      }
+      for (let it = 0; it < 160 && target > 0.01 && D.stuck < target - 0.004; it++) {
+        pts.forEach(h => D.rub(h, 0.004));
+        D.step(1 / 30);
+      }
+      g.dr.settledT = 1; g.dr.tacked = true; g.dr.rub = false; g.dr.win0 = undefined; g.dr.winT = 0; g.dr.flat = false;
+      g.dr.cover = D.covers(this.burnUvs);
+      g.dr.firmTip = !!num(P.ft);
+      if (g.dr.firmTip && this.dressFirm()) this.setTip(T('tip_8b', 'It is down over the burn — press {Enter} to finish, or keep rubbing the edges.'));
+    },
+    // test / screenshot handle: window.BurnDebug()
+    debugState() {
+      const g = this.g, plan = this.plan;
+      if (!g || !plan) return null;
+      const st = this.heat ? this.heat.stats(this.cfg.target) : null, D = g.dr.D;
+      return {
+        mode: this.mode, step: g.step, scene: g.scene, deciding: !!g.deciding, finished: !!this.finished, t: g.t,
+        done: Object.keys(g.done).filter(k => g.done[k]).map(Number), skipped: Object.keys(g.skipped).filter(k => g.skipped[k]).map(Number),
+        cool: { used: g.cool.used, soot: g.cool.soot, done: !!g.cool.done, partial: !!g.cool.partial, ml: g.cool.ml, bottle: g.cool.bottle, overcool: g.cool.overcool, salineLeft: this.salineLeft() },
+        heat: st ? { mean: st.mean, max: st.max, frac: st.frac } : null,
+        sootFrac: this.S && g.cool.sootTotal0 ? this.S.layers.total('soot') + this.S.layers.total('grime') * 0.6 : null,
+        tested: plan.cells.filter(c => c.tested).length, tests: g.as.tests, marks: (g.as.marks || []).length, est: g.as.est, cover: g.as.cover,
+        removed: [...plan.blisters, ...plan.flaps].filter(x => x.removed).length, dbTotal: g.db.total, dbRemoved: g.db.removed,
+        zones: plan.zones.map(Z => ({ excised: !!Z.excised, found: !!Z.found, cut: Z.bins.reduce((x, y) => x + y, 0) / Z.bins.length })),
+        hv: g.hv ? { cut: g.hv.cut, done: !!g.hv.done, quality: this.harvestQ() } : null,
+        ms: g.ms ? { ratio: g.ms.ratio, feed: g.ms.need ? g.ms.feed / g.ms.need : 0, tears: g.ms.tears.length, done: !!g.ms.done } : null,
+        gr: g.gr ? { phase: g.gr.phase, placed: !!g.gr.placed, coverage: g.gr.coverage, staples: g.gr.staples.length, points: g.gr.points ? g.gr.points.length : 0 } : null,
+        dr: D ? { state: D.state, stuck: D.stuck, cover: g.dr.cover } : null,
+        restoredFrom: this.restoredFrom || null, stale: !!this.resumeStale, pause: !!this.snapshot(),
+      };
+    },
+
     /* ═════════════ browser preview ═════════════ */
     preview() {
       const app = this;
@@ -4730,12 +5286,30 @@
       });
       const q = new URLSearchParams(location.search);
       const data = Object.assign({}, DEMO, { locale: {} });
-      if (q.get('mode') === 'graft') {
-        data.mode = 'graft';
-        data.injury = Object.assign({}, DEMO.injury, { treat: { cooled: true, debrided: true, dressed: true, grafted: false }, burn: Object.assign({}, DEMO.injury.burn, { assessed: true, assessedFull: 44, soot: 6 }) });
-      }
+      const graftCase = d => Object.assign({}, d, { mode: 'graft', injury: Object.assign({}, d.injury, { treat: { cooled: true, debrided: true, dressed: true, grafted: false }, burn: Object.assign({}, d.injury.burn, { assessed: true, assessedFull: 44, soot: 6 }) }) });
       if (q.get('deg') === '2') data.injury = Object.assign({}, DEMO.injury, { burn: Object.assign({}, DEMO.injury.burn, { degree: 2, full: 0, area: 64, temp: 47 }) });
+      if (q.get('mode') === 'graft') Object.assign(data, graftCase(data));
+      // ?resume=<demo stage>: play to that point, step away (P) and reopen from the snapshot
+      if (q.get('resume')) { this.previewResume(q.get('resume'), data, graftCase); return; }
       NZA.demo('burn', data);
+    },
+    async previewResume(stage, data, graftCase) {
+      const app = this, sleep = ms => new Promise(r => setTimeout(r, ms));
+      NZA.mock('_proc:pause', () => ({ ok: true }));
+      NZA.demo('burn', data);
+      for (let i = 0; i < 3000 && !(app.g && app.S && app.pp); i++) await sleep(100);
+      if (!app.g) return;
+      try { await app.demoTo(stage); } catch (e) { console.error('[burn] preview demo', e); }
+      // let go of what the demo still holds; wait until the move has settled
+      if (app.g && app.g.lmb) app.up({ button: 0 });
+      let snap = null;
+      for (let i = 0; i < 600 && app.g && !(snap = app.snapshot()); i++) await sleep(100);
+      if (!snap) { console.warn('[burn] preview: no snapshot at', stage); return; }
+      window.__burnSnap = snap;
+      window.__burnSnapBytes = JSON.stringify(snap).length;
+      const d2 = snap.mode === 'graft' && data.mode !== 'graft' ? graftCase(data) : data;
+      NZA.closeLocal('burn');
+      NZA.demo('burn', Object.assign({}, d2, { resume: JSON.parse(JSON.stringify(snap)) }));
     },
 
     /* ═════════════ demo automation (preview / screenshots) ═════════════

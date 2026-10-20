@@ -23,16 +23,28 @@
    HUD: monitor card + notes top-left · operative plan top-right · instrument card / film viewer
    right-middle (left of the belt) · fragment tags in the scene · cursor ring · debrief bottom-left.
 
+   Step away (P on the panel, core ProcPanel opts.pause): snapshot() goes to Lua ('_proc:pause'), the
+   server parks the session and the app closes. Using the same option again opens it with
+   data.resume = that snapshot and boot() rebuilds the same point (restore / restoreAfter): the step
+   and the checklist, fragments located / rocked / half pulled / in the dish, the prep stain, the
+   incision (same path, blade, spread), blood and clot in the field, bleeding rate, swabs opened,
+   every stitch where it was tied, the dressing where it lay, counters, blood loss and the clock.
+   Supply counts are never in it (d.items comes fresh). Running out of gauze says so and points at P.
+   A snapshot of another wound (or another fragment layout) is ignored: the case starts afresh.
+
    Lua → JS   open { locale, cfg, patient{name,sex,bloodType,conscious,numb}, injury{id,type,region,
                      regionLabel,label,severity,bleed,retained,depth,contamination,pain},
                      fragments[{id,x,y,depth,size,shape,rot,lodge}], tone, hair, seed,
                      film{id,view,viewLabel,taken,quality,marked}|null, items{gauze},
-                     location{kind,label}, bay, bloodWarn, vitals }
+                     location{kind,label}, bay, bloodWarn, vitals, resume? }
               vitals { hr, ecgRate, rhythm, spo2, sys, dia, map, rr, bloodPct, drip, infusing }
               result (server outcome)      abort (the server ended the session)
    JS → Lua   bullet:finish { result } → { ok, pending }     bullet:abort { loss }     bullet:exitBay { loss }
               bullet:flinch { pain }       bullet:close (core)
    Preview    index.html?app=bullet (&demo=shrapnel)   NZA.apps.bullet.demoTo('<stage>')
+              &resume=prep|cut|expose|extract|control|suture|dressing plays to that point, steps away
+              and opens again from the snapshot (P in the preview parks it; Reopen carries on)
+   Debug      window.BulletDebug() → compact game state (tests)
    ═══════════════════════════════════════════════════════════ */
 (() => {
   'use strict';
@@ -46,6 +58,26 @@
   const f1 = v => (Math.round((+v || 0) * 10) / 10).toFixed(1);
   const hash = s => { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
   const rng = seed => { let a = seed >>> 0 || 1; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+  // step away / carry on: tolerant readers for a snapshot that may be old, partial or hand-edited
+  const num = (v, fb) => { const n = Number(v); return v !== null && v !== '' && v !== undefined && Number.isFinite(n) ? n : fb; };
+  const uvOk = a => Array.isArray(a) && a.length >= 2 && Number.isFinite(+a[0]) && Number.isFinite(+a[1]);
+  const rnd = (v, k) => { const m = Math.pow(10, k); return Math.round((+v || 0) * m) / m; };
+  const HOW = ['', 'probe', 'palpate', 'xray'];
+  // paint layers kept as grids of mirror cells, one base-36 digit per cell (0..35), long runs as ~<digit><count>~
+  const QL = 35;
+  const rle = s => { let out = ''; for (let i = 0; i < s.length;) { const ch = s[i]; let j = i + 1; while (j < s.length && s[j] === ch) j++; const n = j - i; out += n >= 4 ? `~${ch}${n.toString(36)}~` : ch.repeat(n); i = j; } return out; };
+  const unrle = s => {
+    if (typeof s !== 'string') return null;
+    let out = '';
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (ch !== '~') { out += ch; continue; }
+      const c = s[i + 1], e = s.indexOf('~', i + 2), n = e > 0 ? parseInt(s.slice(i + 2, e), 36) : NaN;
+      if (!c || !(n > 0) || n > 1e6) return null;
+      out += c.repeat(n); i = e;
+    }
+    return /^[0-9a-z]*$/.test(out) ? out : null;
+  };
 
   // gameplay tuning; Config.Bullet.Game overrides (sent as data.cfg)
   const DEFAULTS = {
@@ -439,6 +471,9 @@
       this.keys.l = this.keys.L = () => this.leaveRest();
       this.keys.Enter = () => { if (this.resultShown && this.canClose) { this.closeNow(); return true; } return false; };
       this.keysUp = { ' ': () => this.spreadKey(false) };
+      // one function for the panel's "Step away" (a stable reference: pp.set only re-arms on change)
+      this.pauseFn = () => this.snapshot();
+      window.BulletDebug = () => this.debugState();
     },
 
     /* ═════════════ lifecycle ═════════════ */
@@ -449,6 +484,7 @@
       this.cfg = Object.assign({}, DEFAULTS, d.cfg || {});
       this.cfg.weights = Object.assign({}, DEFAULTS.weights, (d.cfg && d.cfg.weights) || {});
       this.alive = true; this.resultShown = false; this.canClose = false; this.finished = false; this.result = null;
+      this.resumed = false; this.resumeNear = undefined; this.stepText = '';
       this.vit = Object.assign({}, d.vitals || {});
       this.loadEl.classList.remove('out');
       this.loadEl.querySelector('.lt').textContent = T('loading', 'Preparing the surgical field…');
@@ -494,8 +530,17 @@
       NZA.mock('bullet:abort', { ok: true });
       NZA.mock('bullet:flinch', { ok: true });
       NZA.mock('bullet:exitBay', { ok: true });
+      // "Step away" in the browser: keep the snapshot and close; Reopen carries on from it (in game:
+      // using the same option again within Config.ProcPause.keep)
+      NZA.mock('_proc:pause', r => { this.parked = r && r.snapshot; setTimeout(() => NZA.close('bullet'), 80); return { ok: true }; });
       const shrap = /shrapnel/.test(location.search);
       const data = JSON.parse(JSON.stringify(shrap ? DEMO_SHRAPNEL : DEMO));
+      if (this.parked) { data.resume = this.parked; this.parked = null; }
+      else if (!this.previewResumed) {
+        // index.html?app=bullet&resume=<stage>: play to that point, step away and carry on (once per page)
+        const st = new URLSearchParams(location.search).get('resume');
+        if (st) { this.previewResume = st; this.previewResumed = true; }
+      }
       NZA.demo('bullet', Object.assign(data, { locale: {} }));
       // the monitor drifts a little in the preview (in game the Lua watch pushes 'vitals')
       clearInterval(this.demoVitals);
@@ -518,6 +563,7 @@
       const seed = (+d.seed || hash(`${inj.id}:${(d.patient && d.patient.name) || ''}`)) >>> 0;
       const R = rng(seed);
       this.R = R;
+      this.seed = seed;
       const region = inj.region || 'chest';
       const kind = String(region).replace(/^[lr]_/, '');
       const limb = /arm|leg/.test(region);
@@ -594,9 +640,32 @@
       S.on('up', e => this.up(e));
       S.start();
       this.buildPanel();
-      this.enterStep(1, true);
-      if (d.bloodWarn) setTimeout(() => { if (this.alive && this.g === g) this.flash('bad', T('warn_blood_flash', 'Blood volume is low and no line is running — start a unit before the first cut.'), 4200); }, 900);
+      // carrying on after "Step away": rebuild the saved point (a bad snapshot never stops the game)
+      let first = 1, snap = d.resume && typeof d.resume === 'object' && !Array.isArray(d.resume) ? d.resume : null, other = false;
+      // (a pause is kept per patient + procedure + wound: a changed wound or layout starts afresh)
+      if (snap && (num(snap.v, 0) !== 1 || !this.sameCase(snap.w))) { other = !!(snap.w && typeof snap.w === 'object'); snap = null; }
+      if (snap) {
+        this.restoring = true;
+        try { first = this.restore(snap); this.resumed = true; } catch (e) { console.error('[bullet] restore', e); first = clamp(g.step || 1, 1, 8); }
+      }
+      this.enterStep(first, true);
+      if (this.resumed) {
+        try { this.restoreAfter(snap, first); } catch (e) { console.error('[bullet] restore (scene)', e); }
+      }
+      this.restoring = false;
+      if (this.resumed) {
+        setTimeout(() => { if (this.alive && this.g === g && !this.finished) this.flash('ok', T('resume_ok', 'Carrying on where you left off.'), 3200); }, 300);
+      } else if (other) {
+        setTimeout(() => { if (this.alive && this.g === g) this.flash('warn', T('resume_other', 'You stepped away from a different wound — this one starts from the beginning.'), 4200); }, 300);
+      }
+      this.resumeNear = undefined;
+      if (d.bloodWarn && first <= 3) setTimeout(() => { if (this.alive && this.g === g) this.flash('bad', T('warn_blood_flash', 'Blood volume is low and no line is running — start a unit before the first cut.'), 4200); }, this.resumed ? 3600 : 900);
       setTimeout(() => this.loadEl.classList.add('out'), 140);
+      // preview: ?resume=<stage> plays to that point, steps away and carries on (see preview())
+      if (this.previewResume && !NZA.inGame) {
+        const st = this.previewResume; this.previewResume = null;
+        setTimeout(() => { if (this.alive && this.g === g) this.previewPark(st); }, 80);
+      }
     },
 
     // entry wound, bruising, dried blood, powder stippling, shrapnel peppering
@@ -1004,6 +1073,7 @@
         abort: { label: T('abort', 'Stop surgery'), key: 'ESC', seconds: 1.2 },
         onAbort: () => this.abort(),
         onTool: key => this.pickTool(key),
+        pause: this.pauseFn,          // "Step away" (P): park the operation, fetch supplies, carry on later
       });
       // app widgets in the kit's slot (above the key legend): the coaching tip and the stitch row
       const slot = this.pp.slot;
@@ -1045,12 +1115,21 @@
             case 'scalpel': if (g.xt.out.length && !this.remaining().length || g.step > 5) state = 'done'; break;
             case 'suction': if (!cut || g.step >= 8) state = 'locked'; break;
             case 'forceps': if (g.step > 5 || (g.xt.out.length && !this.remaining().length)) state = 'done'; break;
-            case 'gauze': o.count = String(Math.max(0, g.gz.have - g.gz.used + (g.gz.swab ? 1 : 0))); if (!g.gz.have || !cut || g.step >= 8) state = 'locked'; break;
+            case 'gauze': {
+              const left = this.gauzeLeft();
+              o.count = String(left);
+              if (!g.gz.have || !left || !cut || g.step >= 8) state = 'locked';
+              // none left (or none carried): the click says so, and how to get more when that can help
+              if (cut && g.step < 8 && !left) o.why = this.canFetchGauze() ? this.gauzeOutText() : g.gz.have ? T('gauze_last', 'That was your last swab.') : T('gauze_none', 'You carry no gauze.');
+              break;
+            }
             case 'driver': if (g.done[7]) state = 'done'; break;
             case 'xray': if (!d.film) { state = 'locked'; o.count = '0'; } else if (g.film.open) state = 'active'; break;
           }
           if (g.tool === t.id) state = 'active';
           if (t.id === 'xray' && d.film && g.film.open) state = 'active';
+          // in the hand with nothing left to open: still locked (a click says why)
+          if (t.id === 'gauze' && o.why) state = 'locked';
         }
         o.state = state;
         return o;
@@ -1138,7 +1217,8 @@
         3: [T('s3_title', 'Open over the fragment'), T('s3_text', 'Set the blade depth with {Q} / {E}, then hold {LMB} and draw one straight line over the mark.')],
         4: [T('s4_title', 'Get eyes on it'), T('s4_text', 'Hold {Space} to open the retractor, then clear the blood with suction {4} or gauze {6} until the metal shows.')],
         5: [T('s5_title', 'Lift it out'), T('s5_text', 'Close the jaws on the metal with {LMB}, then ease it out by moving the mouse toward you — slow and even.')],
-        6: [T('s6_title', 'Stop the ooze'), T('s6_text', 'Press gauze {LMB} onto the bleeding point and hold the pressure until the flow drops under the line.')],
+        // pressure needs gauze: with none left, say how to get more (step away) or how to move on
+        6: [T('s6_title', 'Stop the ooze'), this.g && !this.gauzeLeft() && this.canFetchGauze() ? this.gauzeOutText(true) : T('s6_text', 'Press gauze {LMB} onto the bleeding point and hold the pressure until the flow drops under the line.')],
         7: [T('s7_title', 'Close the cut'), T('s7_text', 'Press on the near edge at the marker, pull across to the far edge and let go to tie each stitch.')],
         8: [T('s8_title', 'Cover it'), T('s8_text', 'Lift the dressing by an edge, lay it over the cut and the entry hole, then rub it down.')],
       }[n];
@@ -1147,6 +1227,7 @@
       const g = this.g, S = this.S;
       g.step = n;
       const tx = this.texts(n);
+      this.stepTitle = tx[0]; this.stepText = tx[1];
       this.pp.set({ step: n, title: tx[0], titleTone: '', text: tx[1] });
       this.useTool(MAIN[n]);
       S.markers.remove('prep');
@@ -1156,7 +1237,7 @@
       if (n === 3) this.frameOn(this.cutCentre(), Math.max(g.cut.ideal * 5.5 * MM, this.R0 * 2.9));
       if (n === 4) this.frameOn(this.cutCentre(), Math.max((g.cut.L || g.cut.ideal) * 3.9 * MM, 0.092));
       if (n === 6) { g.hm.start = Math.max(this.bleedNow(), this.cfg.bleedDone * 1.5); }
-      if (n === 7) this.startSuture();
+      if (n === 7) this.startSuture(this.resumeNear);
       if (n === 8) { this.startDressing(); if (!first) setTimeout(() => { if (this.g === g && this.alive && !this.finished) this.flash('ok', T('undraped', 'Drapes off — the field is clear for the dressing.'), 2400); }, 60); }
       this.dots.style.display = n === 7 ? '' : 'none';
       this.markFrags();
@@ -1214,7 +1295,11 @@
         case 'suction': case 'gauze': {
           if (!cut) return this.flash('warn', T('util_early', 'Nothing to clear yet — make the incision first.'));
           if (g.step >= 8) return this.flash('warn', T('util_late', 'The wound is closed.'));
-          if (t.id === 'gauze' && !g.gz.have) return this.flash('bad', T('gauze_none', 'You carry no gauze.'));
+          if (t.id === 'gauze' && g.tool !== 'gauze' && !this.gauzeLeft()) {
+            // none carried / none left: say so (and point at "Step away" when fetching more can help)
+            if (this.canFetchGauze()) return this.flash('bad', this.gauzeOutText(), 5000);
+            return this.flash('bad', g.gz.have ? T('gauze_last', 'That was your last swab.') : T('gauze_none', 'You carry no gauze.'));
+          }
           if (g.tool === t.id && MAIN[g.step] !== t.id) return this.useTool(MAIN[g.step]);
           return this.useTool(t.id);
         }
@@ -1447,7 +1532,10 @@
         case 'scalpel': this.startCut(); break;
         case 'suction': S.tools.press(true); break;
         case 'forceps': this.grab(); break;
-        case 'gauze': S.tools.press(true); break;
+        case 'gauze':
+          S.tools.press(true);
+          if (!g.gz.swab && g.gz.used >= g.gz.have) this.flash('bad', this.canFetchGauze() ? this.gauzeOutText(g.step === 6) : T('gauze_last', 'That was your last swab.'), this.canFetchGauze() ? 5000 : 2600);
+          break;
         case 'driver': this.startStitch(); break;
         case 'dressing': this.dressDown(); break;
       }
@@ -2029,7 +2117,12 @@
       if (g.step !== 6) this.cursorProgress(clamp(gz.swab.load / cfg.gauzeCapacity, 0, 1), '', true);
       if (gz.swab.load >= cfg.gauzeCapacity) {
         gz.swab = null;
-        this.flash('warn', gz.used < gz.have ? T('gauze_soaked', 'That swab is soaked — the next press opens a fresh one.') : T('gauze_last', 'That was your last swab.'));
+        if (gz.used < gz.have) this.flash('warn', T('gauze_soaked', 'That swab is soaked — the next press opens a fresh one.'));
+        else if (this.canFetchGauze()) {
+          // the last swab is spent: step away for more, or (step 6) move on with the bleeding as it is
+          this.flash('warn', this.gauzeOutText(g.step === 6), 6000);
+          if (g.step === 6) { this.stepText = this.texts(6)[1]; this.pp.set({ text: this.stepText }); }
+        } else this.flash('warn', T('gauze_last', 'That was your last swab.'));
         this.refreshTools();
       }
     },
@@ -2136,14 +2229,9 @@
       f.out = true; f.prog = 1;
       x.out.push(f.id);
       // into the kidney dish
-      const m = f.mesh;
+      const m = f.mesh, spot = this.dishSpot(f, x.out.length);
       f.flyT = 0; f.flyFrom = m.position.clone();
-      const n = x.out.length, dishN = new (T3().Vector3)(0, 1, 0).applyQuaternion(this.dish.quaternion);
-      const dishX = new (T3().Vector3)(1, 0, 0).applyQuaternion(this.dish.quaternion);
-      f.flyTo = this.dish.position.clone().addScaledVector(dishN, 0.0004 + m.userData.thick * (f.shape === 'bullet' ? 0.55 : 0.45)).addScaledVector(dishX, (n - 1) * 0.0068 - 0.006);
-      f.flyUp = dishN.clone();
-      // lying on its side on the floor of the dish, each piece turned a little differently
-      f.flyQ = new (T3().Quaternion)().setFromAxisAngle(dishN, 0.6 + n * 1.3).multiply(this.dish.quaternion.clone()).multiply(new (T3().Quaternion)().setFromAxisAngle(new (T3().Vector3)(1, 0, 0), Math.PI / 2));
+      f.flyTo = spot.to; f.flyUp = spot.up; f.flyQ = spot.q;
       this.releaseGrip(false);
       g.bl.rate += 1.5;
       S.layers.splat('blood', f.uv, 2.4 * MM, 0.45, { seed: x.out.length * 13 });
@@ -2154,6 +2242,18 @@
       if (!left) this.completeStep(5, this.frags.length > 1 ? T('s5_done_n', 'All %s fragments are out.', this.frags.length) : T('s5_done', 'Projectile out — in the dish.'));
       else this.flash('ok', T('xt_one', 'Fragment %s out — %s to go.', f.n, left), 2400);
       this.snd('success');
+    },
+    // where the n-th extracted piece rests in the kidney dish → { to (position), up, q (orientation) }
+    dishSpot(f, n) {
+      const THREE = T3(), m = f.mesh;
+      const dishN = new THREE.Vector3(0, 1, 0).applyQuaternion(this.dish.quaternion);
+      const dishX = new THREE.Vector3(1, 0, 0).applyQuaternion(this.dish.quaternion);
+      return {
+        to: this.dish.position.clone().addScaledVector(dishN, 0.0004 + m.userData.thick * (f.shape === 'bullet' ? 0.55 : 0.45)).addScaledVector(dishX, (n - 1) * 0.0068 - 0.006),
+        up: dishN.clone(),
+        // lying on its side on the floor of the dish, each piece turned a little differently
+        q: new THREE.Quaternion().setFromAxisAngle(dishN, 0.6 + n * 1.3).multiply(this.dish.quaternion.clone()).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)),
+      };
     },
     leaveRest() {
       const g = this.g;
@@ -2172,21 +2272,30 @@
     },
 
     /* ═════════════ 7 · SUTURE ═════════════ */
-    startSuture() {
-      const g = this.g, S = this.S, w = g.cut.w, cfg = this.cfg;
+    // near = the side the surgeon stands on (±1; a resumed game keeps the side it was stitching from)
+    startSuture(near) {
+      const g = this.g, S = this.S, w = g.cut.w;
       if (!w) return;
+      this.suturePrep(near);
+      const L = this.Lmm;
+      // (a resumed game brings the field back as it was, this wipe included)
+      if (!this.restoring) S.layers.erase('blood', w.at(0.5).uv, (L / 2 + 3) * MM, 0.5, { hardness: 0.2 });
+      this.frameOn(w.at(0.5).uv, clamp(L * 3.3 * MM, 0.085, 0.13));
+      this.sutureMarkers();
+      this.renderDots();
+    },
+    // retractor out, the edges brought together, the sections of the cut, which edge is near
+    suturePrep(near) {
+      const g = this.g, S = this.S, w = g.cut.w, cfg = this.cfg;
       g.ex.spread = 0; g.ex.space = false;
       w.set({ gape: 2.4 * MM, depth: Math.min(this.depthVis(), 5) * MM, open: 1 });
       g.ex.applied = 2.4;
       const L = w.length / MM;
       this.Lmm = L;
-      S.layers.erase('blood', w.at(0.5).uv, (L / 2 + 3) * MM, 0.5, { hardness: 0.2 });
       g.sut.N = clamp(Math.round(L / cfg.mmPerStitch), cfg.minStitches, cfg.maxStitches);
+      if (near === 1 || near === -1) { this.near = near; return; }
       const pa = S.project(w.edge(0.5, 1, 0.004)), pb = S.project(w.edge(0.5, -1, 0.004));
       this.near = pa.y > pb.y ? 1 : -1;
-      this.frameOn(w.at(0.5).uv, clamp(L * 3.3 * MM, 0.085, 0.13));
-      this.sutureMarkers();
-      this.renderDots();
     },
     closedFrac() {
       const g = this.g;
@@ -2289,7 +2398,8 @@
       const q = clamp(0.4 * biteQ + 0.3 * perpQ + 0.3 * spaceQ - (fast ? 15 : 0) - (d.flinch ? 8 : 0), 0, 100);
       S.stitches.add({ a: d.a, b: bUv, knot: 'b', seed: g.sut.list.length * 31 + 7 });
       w.close(tMid, 1, 0.5 / g.sut.N);
-      g.sut.list.push({ tN: tMid, q, bite: [d.aMm, mm], perp, space: spaceMm, fast, flinch: d.flinch });
+      // a / b (skin uv) let a resumed game tie the stitch again exactly where it was
+      g.sut.list.push({ a: [d.a[0], d.a[1]], b: [bUv[0], bUv[1]], tN: tMid, q, bite: [d.aMm, mm], perp, space: spaceMm, fast, flinch: d.flinch });
       this.hurt(6, 0);
       this.setBleed();
       S.layers.paint('blood', at.uv, [(this.Lmm / g.sut.N) * 0.45 * MM, (w.halfGape(tMid) + 0.0009)], 0.25, { hardness: 0.35, grain: 0.3, grainScale: 160, angle: Math.atan2(at.dir[1], at.dir[0]) });
@@ -2361,11 +2471,14 @@
       const uv = S.stToUv(cs + nrm[0] * off * far, ct + nrm[1] * off * far);
       const ang = Math.atan2(-dir[1], dir[0]) + 0.1;
       g.dr.D = S.dressing.create({ size: [dw * MM, dh * MM], pad: [pw * MM, ph * MM], uv, angle: ang });
-      // the pad sits over a closed gunshot track and a fresh incision: pull it a hair forward in depth so
-      // sub-millimetre dips into the swollen wound lips never let the skin show through the cloth
-      if (g.dr.D.mesh) g.dr.D.mesh.traverse(o => { (Array.isArray(o.material) ? o.material : o.material ? [o.material] : []).forEach(m => { m.polygonOffset = true; m.polygonOffsetFactor = -4; m.polygonOffsetUnits = -16; m.needsUpdate = true; }); });
+      this.padOffset(g.dr.D);
       g.dr.restUv = uv;
       g.dr.lift0 = g.dr.D.carriedLift;
+    },
+    // the pad sits over a closed gunshot track and a fresh incision: pull it a hair forward in depth so
+    // sub-millimetre dips into the swollen wound lips never let the skin show through the cloth
+    padOffset(D) {
+      if (D && D.mesh) D.mesh.traverse(o => { (Array.isArray(o.material) ? o.material : o.material ? [o.material] : []).forEach(m => { m.polygonOffset = true; m.polygonOffsetFactor = -4; m.polygonOffsetUnits = -16; m.needsUpdate = true; }); });
     },
     dressDown() {
       const g = this.g, S = this.S, D = g.dr.D;
@@ -2521,6 +2634,7 @@
       this.S.markers.clear();
       const res = this.computeResult();
       this.result = res;
+      if (this.pp) this.pp.set({ pause: false });   // nothing left to step away from
       setTimeout(() => {
         if (!this.alive || this.g !== g) return;
         this.showResult(res, null);
@@ -2645,8 +2759,424 @@
       }, 250);
     },
 
+    /* ═════════════ supplies: what "out of gauze" means and whether fetching more can help ═════════════ */
+    // the panel shows "Step away" only while this procedure can be parked (the core hides it when
+    // Config.ProcPause is off or in easy mode): without it, "press P" would point at nothing
+    canStepAway() {
+      const pz = this.pp && this.pp.el && this.pp.el.querySelector('.pp-pause');
+      return !!pz && pz.style.display !== 'none';
+    },
+    // swabs still to hand: unopened ones plus the one in the hand
+    gauzeLeft() { const gz = this.g && this.g.gz; return gz ? Math.max(0, gz.have - gz.used) + (gz.swab ? 1 : 0) : 0; },
+    // the server opens at most gauzeMax swabs per operation: fetching more only helps below that
+    canFetchGauze() { const g = this.g, max = +this.cfg.gauzeMax || 0; return !!g && max > 0 && g.gz.have < max && this.canStepAway(); },
+    gauzeOutText(step6) {
+      return step6 ? T('out_gauze_6', 'Out of gauze — nothing left to press on the bleeding point. Press {P} to step away, fetch more, then use the same option to carry on — or press {7} to close it as it is.')
+        : T('out_gauze', 'Out of gauze. Press {P} to step away, fetch more, then use the same option to carry on.');
+    },
+
+    /* ═════════════ step away / carry on ═════════════
+       snapshot() → a small JSON-safe object (null while a move is half done: the probe in the track, the
+       blade on the skin, Space held on the retractor, the jaws on a fragment, a stitch being pulled, the
+       dressing in the hand). The next open of the same procedure carries it back as data.resume:
+       boot() → restore() (state, incision, fragments, stitches) → enterStep() → restoreAfter() (paint
+       layers, prep ring, dressing, camera). Same wound + same seed → the same scene underneath. */
+    caseKey() {
+      const inj = this.inj || {};
+      return {
+        id: String(inj.id === undefined ? '' : inj.id), type: String(inj.type || ''), region: String(inj.region || ''), seed: this.seed >>> 0,
+        fr: (this.frags || []).map(f => `${f.id}:${f.x.toFixed(1)}:${f.y.toFixed(1)}:${f.depth.toFixed(1)}`).join('|'),
+      };
+    },
+    sameCase(w) {
+      if (!w || typeof w !== 'object') return false;
+      const k = this.caseKey();
+      return ['id', 'type', 'region', 'fr'].every(n => String(w[n]) === k[n]) && num(w.seed, -1) === k.seed;
+    },
+    // a paint layer over a circle as a grid of mirror cells (b × b cells per entry, averaged)
+    layerGrid(name, uv, radius, b) {
+      const S = this.S, m = S.layers._mirror && S.layers._mirror[name], wk = S.work;
+      if (!m || !wk || !wk.rect) return null;
+      const MW = 240, MH = Math.round(m.length / MW);
+      if (MW * MH !== m.length) return null;
+      const du = wk.rect[2] - wk.rect[0], dv = wk.rect[3] - wk.rect[1];
+      const cx = (uv[0] - wk.rect[0]) / du * MW, cy = (uv[1] - wk.rect[1]) / dv * MH;
+      const rx = radius / wk.size[0] * MW, ry = radius / wk.size[1] * MH;
+      const x0 = Math.max(0, Math.floor(cx - rx)), x1 = Math.min(MW - 1, Math.ceil(cx + rx));
+      const y0 = Math.max(0, Math.floor(cy - ry)), y1 = Math.min(MH - 1, Math.ceil(cy + ry));
+      if (x1 < x0 || y1 < y0) return null;
+      const w = Math.ceil((x1 - x0 + 1) / b), h = Math.ceil((y1 - y0 + 1) / b);
+      let s = '';
+      for (let by = 0; by < h; by++) for (let bx = 0; bx < w; bx++) {
+        let sum = 0, n = 0;
+        for (let y = y0 + by * b; y < Math.min(y1 + 1, y0 + (by + 1) * b); y++) for (let x = x0 + bx * b; x < Math.min(x1 + 1, x0 + (bx + 1) * b); x++) { sum += m[y * MW + x]; n++; }
+        s += Math.round(clamp(n ? sum / n : 0, 0, 1) * QL).toString(36);
+      }
+      return { x: x0, y: y0, w, h, b, x1, y1, mw: MW, mh: MH, d: rle(s) };
+    },
+    // paint a saved grid back over what the fresh scene painted there (same seed → the same start):
+    // the GPU layer gets the difference per entry as soft stamps (a smooth bump per entry, the bumps sum
+    // to a flat fill; added and taken off in one batch, so no clearing pass that would be applied after
+    // them), the CPU mirror (all the gameplay maths) gets the saved values exactly
+    restoreGrid(name, G) {
+      const S = this.S, m = S.layers._mirror && S.layers._mirror[name], wk = S.work;
+      if (!m || !wk || !G || typeof G !== 'object') return false;
+      const MW = 240, MH = Math.round(m.length / MW);
+      const b = Math.round(num(G.b, 0)), w = Math.round(num(G.w, 0)), h = Math.round(num(G.h, 0));
+      const x0 = Math.round(num(G.x, -1)), y0 = Math.round(num(G.y, -1)), x1 = Math.round(num(G.x1, -1)), y1 = Math.round(num(G.y1, -1));
+      if (num(G.mw, 0) !== MW || num(G.mh, 0) !== MH || b < 1 || b > 8 || x0 < 0 || y0 < 0 || x1 >= MW || y1 >= MH || x1 < x0 || y1 < y0) return false;
+      if (w !== Math.ceil((x1 - x0 + 1) / b) || h !== Math.ceil((y1 - y0 + 1) / b)) return false;
+      const s = unrle(G.d);
+      if (!s || s.length !== w * h) return false;
+      const du = wk.rect[2] - wk.rect[0], dv = wk.rect[3] - wk.rect[1];
+      const cell = [wk.size[0] / MW, wk.size[1] / MH];
+      // (the saved values already carry the texture of the strokes: little grain on top, none on the prep stain)
+      const grain = name === 'iodine' ? 0 : 0.2;
+      // every difference first (each stamp also touches the mirror around it)
+      const ops = [];
+      for (let by = 0; by < h; by++) for (let bx = 0; bx < w; bx++) {
+        const v = parseInt(s[by * w + bx], 36) / QL;
+        const ex0 = x0 + bx * b, ey0 = y0 + by * b, ex1 = Math.min(x1 + 1, ex0 + b), ey1 = Math.min(y1 + 1, ey0 + b);
+        let cur = 0, n = 0;
+        for (let y = ey0; y < ey1; y++) for (let x = ex0; x < ex1; x++) { cur += m[y * MW + x]; n++; }
+        cur = n ? cur / n : 0;
+        if (Math.abs(v - cur) >= 0.5 / QL) ops.push([wk.rect[0] + ((ex0 + ex1) / 2) / MW * du, wk.rect[1] + ((ey0 + ey1) / 2) / MH * dv, v - cur]);
+      }
+      // a soft bump (hardness 0) 1.03 entries wide integrates to one entry's area: neighbours sum to a flat fill
+      const rad = [cell[0] * b * 1.03, cell[1] * b * 1.03];
+      for (const [u, vv, dlt] of ops) {
+        if (dlt > 0) S.layers.paint(name, [u, vv], rad, dlt, grain ? { hardness: 0, grain, grainScale: 70 } : { hardness: 0 });
+        else S.layers.erase(name, [u, vv], rad, -dlt, { hardness: 0 });
+      }
+      for (let by = 0; by < h; by++) for (let bx = 0; bx < w; bx++) {
+        const v = parseInt(s[by * w + bx], 36) / QL;
+        for (let y = y0 + by * b; y < Math.min(y1 + 1, y0 + (by + 1) * b); y++) for (let x = x0 + bx * b; x < Math.min(x1 + 1, x0 + (bx + 1) * b); x++) m[y * MW + x] = v;
+      }
+      return true;
+    },
+    // where a laid dressing sits: centre uv + angle (the convention of S.dressing.create)
+    dressPose(D) {
+      const S = this.S, attr = D.mesh && D.mesh.geometry && D.mesh.geometry.attributes;
+      if (!attr || !attr.position || !attr.uv || !S._toSurf) return null;
+      const pos = attr.position.array, uvs = attr.uv.array, N = pos.length / 3;
+      let NX = 1;
+      while (NX < N && Math.abs(uvs[NX * 2 + 1] - uvs[1]) < 1e-6) NX++;
+      const NY = Math.max(1, Math.floor(N / NX)), j = Math.floor(NY / 2);
+      const at = k => S._toSurf({ x: pos[k * 3], y: pos[k * 3 + 1], z: pos[k * 3 + 2] });
+      const c = S._toSurf(D.center()), a = at(j * NX), b = at(j * NX + NX - 1);
+      return { uv: S.stToUv(c.s, c.t), ang: Math.atan2(-(b.t - a.t), b.s - a.s) };
+    },
+
+    snapshot() {
+      const g = this.g, S = this.S;
+      if (!g || !S || !this.alive || this.finished || !this.pp) return null;
+      const D = g.dr.D;
+      // a move half done: finish it first (the panel says so)
+      if (g.pr.on || g.cut.drawing || g.ex.space || g.xt.grip || g.sut.drag || (D && (D.state === 'carried' || g.dr.lay > 0))) return null;
+      const keys = o => [1, 2, 3, 4, 5, 6, 7, 8].filter(k => o[k]);
+      const uv6 = p => [rnd(p[0], 6), rnd(p[1], 6)];
+      const c = g.cut, io = g.io, x = g.xt;
+      let dr = null;
+      if (D && (D.state === 'placed' || D.state === 'falling')) {
+        const pose = this.dressPose(D);
+        if (pose) dr = { uv: uv6(pose.uv), ang: rnd(pose.ang, 4), stuck: rnd(D.stuck, 3), cover: rnd(g.dr.cover || 0, 3) };
+      }
+      const snap = {
+        v: 1,
+        w: this.caseKey(),
+        step: g.step, t: rnd(g.t, 2), done: keys(g.done), skip: keys(g.skipped),
+        loss: rnd(g.loss, 2), ev: g.lossEv.slice(-24).map(e => [String(e[0]).slice(0, 12), Math.round(+e[1] || 0)]), flinch: g.flinches,
+        // per fragment: id, found, how, exposed, out, pulled, still lodged
+        fr: this.frags.map(f => [f.id, f.found ? 1 : 0, Math.max(0, HOW.indexOf(f.how)), f.exposed ? 1 : 0, f.out ? 1 : 0, rnd(f.prog, 3), rnd(f.lodge, 3)]),
+        out: x.out.slice(),
+        pr: { falses: g.pr.falses }, film: g.film.used ? 1 : 0,
+        io: io.center ? { c: uv6(io.center), r: rnd(io.radius, 2), load: rnd(io.redip > 0 ? 1 : io.load, 3), dips: io.dips, back: io.back, rMax: rnd(io.rMax, 2), dist: rnd(io.dist, 1), cov: rnd(io.cov, 4) } : null,
+        cut: {
+          p: c.w ? c.path.map(uv6) : [], blade: c.blade, L: rnd(c.L || 0, 2), strokes: c.strokes, ext: c.ext, muscle: c.muscle ? 1 : 0, deep: c.deepMax,
+          shallow: c.shallow, fast: rnd(c.fast, 2), jag: rnd(c.jag, 3), covered: c.covered ? 1 : 0, refused: c.refused,
+        },
+        ex: { s: rnd(g.ex.spread, 3), tears: g.ex.tears },
+        xt: { slips: x.slips, misses: x.misses, pushes: x.pushes, left: x.left ? 1 : 0 },
+        bl: { rate: rnd(g.bl.rate, 3), boost: rnd(g.bl.boost, 3) },
+        hm: { start: rnd(g.hm.start, 3), press: rnd(g.hm.press, 2) },
+        su: rnd(g.su.ml, 1),
+        gz: { used: g.gz.used, abs: rnd(g.gz.absorbed, 1), swab: g.gz.swab ? rnd(g.gz.swab.load, 1) : null, st: g.gz.swab ? g.gz.swab.stains : 0 },
+        sut: g.sut.N ? {
+          N: g.sut.N, near: this.near === -1 ? -1 : 1, miss: g.sut.misses,
+          last: g.sut.last ? [String(g.sut.last[0]), String(g.sut.last[1]).slice(0, 160)] : null,
+          list: g.sut.list.filter(s => uvOk(s.a) && uvOk(s.b)).map(s => ({
+            a: uv6(s.a), b: uv6(s.b), tN: rnd(s.tN, 5), q: rnd(s.q, 2), bite: [rnd(s.bite[0], 2), rnd(s.bite[1], 2)],
+            perp: rnd(s.perp, 1), space: rnd(s.space, 2), fast: s.fast ? 1 : 0, flinch: s.flinch ? 1 : 0,
+          })),
+        } : null,
+        dr,
+      };
+      // the field as it looks: the prep stain (cell-exact while the prep step runs: its coverage is the
+      // step's progress), the blood and the dried clot in the drape window
+      const iodine = !!io.center;
+      const lay = b => ({
+        i: iodine ? this.layerGrid('iodine', [0.5, 0.5], this.R0, g.step === 2 && !g.done[2] ? 1 : b[0]) : null,
+        b: this.layerGrid('blood', [0.5, 0.5], this.R0, b[1]),
+        c: this.layerGrid('clot', [0.5, 0.5], this.R0, b[1]),
+      });
+      snap.lay = lay([1, 3]);
+      // keep it well under the server limit: coarser grids, then without the clot / blood
+      const size = () => JSON.stringify(snap).length;
+      if (size() > 17000) snap.lay = lay([2, 3]);
+      if (size() > 17000) snap.lay = lay([2, 4]);
+      if (size() > 17000) snap.lay.c = null;
+      if (size() > 17000) snap.lay.b = null;
+      if (size() > 17000 && snap.lay.i && snap.lay.i.b === 1) snap.lay.i = this.layerGrid('iodine', [0.5, 0.5], this.R0, 2);
+      if (size() > 17000) snap.lay.i = null;
+      return snap;
+    },
+
+    // rebuild the saved game state on a freshly built scene (before the step opens) → the step to open
+    restore(r) {
+      const g = this.g, S = this.S, cfg = this.cfg;
+      const part = (name, fn) => { try { fn(); } catch (e) { console.error(`[bullet] restore ${name}`, e); } };
+      const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+      const ks = a => (Array.isArray(a) ? a : []).map(k => Math.round(num(k, 0))).filter(k => k >= 1 && k <= 8);
+      ks(r.done).forEach(k => { g.done[k] = true; });
+      ks(r.skip).forEach(k => { if (!g.done[k]) g.skipped[k] = true; });
+      let step = clamp(Math.round(num(r.step, 1)), 1, 8);
+      for (let k = 1; k < step; k++) if (!g.done[k] && !g.skipped[k]) g.skipped[k] = true;
+      for (let k = step + 1; k <= 8; k++) { delete g.done[k]; delete g.skipped[k]; }
+      delete g.done[8]; delete g.skipped[8];
+      // paused in the moment between finishing a step and the next one opening: carry on with the next
+      while (step < 8 && (g.done[step] || g.skipped[step])) step++;
+      g.step = step;
+      g.t = Math.max(0, num(r.t, 0));
+      g.loss = Math.max(0, num(r.loss, 0));
+      g.flinches = Math.max(0, Math.round(num(r.flinch, 0)));
+      g.lossEv = (Array.isArray(r.ev) ? r.ev : []).filter(Array.isArray).map(e => [String(e[0]), num(e[1], 0)]);
+
+      // 1 · fragments: located (how), exposed, out, pulled part-way, rocked loose; the probe and the film
+      part('fragments', () => {
+        const byId = new Map((Array.isArray(r.fr) ? r.fr : []).filter(Array.isArray).map(e => [String(e[0]), e]));
+        for (const f of this.frags) {
+          const e = byId.get(f.id);
+          if (!e) continue;
+          f.found = !!e[1];
+          f.how = f.found ? (HOW[Math.round(num(e[2], 1))] || 'probe') : '';
+          f.exposed = !!e[3]; f.out = !!e[4];
+          f.prog = f.out ? 1 : clamp(num(e[5], 0), 0, 0.95);
+          f.lodge = clamp(num(e[6], f.lodge), 0, 1);
+        }
+        const outs = (Array.isArray(r.out) ? r.out : []).map(String).filter(id => this.frags.some(f => f.id === id && f.out));
+        this.frags.forEach(f => { if (f.out && !outs.includes(f.id)) outs.push(f.id); });
+        g.xt.out = outs;
+      });
+      g.pr.falses = Math.max(0, Math.round(num(obj(r.pr).falses, 0)));
+      g.film.used = !!r.film;
+      // 2 · prep: where the ring was, the swab, how the scrub went (the stain itself comes in restoreAfter)
+      part('prep', () => {
+        const I = obj(r.io);
+        if (!uvOk(I.c)) return;
+        const io = g.io;
+        io.center = [+I.c[0], +I.c[1]];
+        io.radius = clamp(num(I.r, cfg.prepRadius), 4, 60);
+        io.load = clamp(num(I.load, 1), 0, 1);
+        io.dips = Math.max(0, Math.round(num(I.dips, 0)));
+        io.back = Math.max(0, Math.round(num(I.back, 0)));
+        io.rMax = Math.max(0, num(I.rMax, 0));
+        io.dist = Math.max(0, num(I.dist, 0));
+        io.cov = clamp(num(I.cov, 0), 0, 1);
+      });
+      // 3 · the incision: the same path (same direction: the sides and the stitch sections depend on it)
+      part('incision', () => {
+        const C = obj(r.cut), c = g.cut;
+        c.blade = clamp(Math.round(num(C.blade, c.blade)), cfg.bladeMin, cfg.bladeMax);
+        c.strokes = Math.max(0, Math.round(num(C.strokes, 0)));
+        c.ext = Math.max(0, Math.round(num(C.ext, 0)));
+        c.muscle = !!C.muscle;
+        c.deepMax = clamp(num(C.deep, 0), 0, cfg.bladeMax);
+        c.shallow = Math.max(0, Math.round(num(C.shallow, 0)));
+        c.fast = Math.max(0, num(C.fast, 0));
+        c.jag = clamp(num(C.jag, 0), 0, 0.6);
+        c.covered = !!C.covered;
+        c.refused = Math.max(0, Math.round(num(C.refused, 0)));
+        const path = (Array.isArray(C.p) ? C.p : []).filter(uvOk).map(p => [+p[0], +p[1]]).slice(0, cfg.maxPoints);
+        if (path.length >= 2) {
+          c.path = path;
+          g.ex.spread = clamp(num(obj(r.ex).s, 0), 0, 1.3);
+          this.buildIncision();
+          c.L = c.w ? (num(C.L, 0) > 0 ? num(C.L, 0) : c.w.length / MM) : 0;
+        }
+      });
+      // every later step works in the open incision: without it the game carries on from the cut
+      if (step > 3 && !g.cut.w) {
+        step = g.step = 3;
+        for (let k = 3; k <= 8; k++) { delete g.done[k]; delete g.skipped[k]; }
+        this.frags.forEach(f => { f.out = false; f.prog = 0; f.exposed = false; });
+        g.xt.out = [];
+        g.ex.spread = 0;
+      }
+      if (!g.cut.w) g.ex.spread = 0;
+      g.ex.tears = Math.max(0, Math.round(num(obj(r.ex).tears, 0)));
+      // 5 · extraction counters; the pieces already out lie in the dish
+      const X = obj(r.xt);
+      g.xt.slips = Math.max(0, Math.round(num(X.slips, 0)));
+      g.xt.misses = Math.max(0, Math.round(num(X.misses, 0)));
+      g.xt.pushes = Math.max(0, Math.round(num(X.pushes, 0)));
+      g.xt.left = !!X.left && !!g.done[5];
+      part('dish', () => {
+        g.xt.out.forEach((id, i) => {
+          const f = this.frags.find(q => q.id === id), m = f && f.mesh;
+          if (!m) return;
+          const spot = this.dishSpot(f, i + 1);
+          m.position.copy(spot.to); m.quaternion.copy(spot.q);
+          m.material.color.setRGB(1, 1, 1).lerp(this.fragBlood, 0.35);
+          f.inDish = true; f.clinked = true;
+        });
+      });
+      // bleeding, pressure, suction, swabs opened (and the one in the hand)
+      const B = obj(r.bl), Hm = obj(r.hm), Z = obj(r.gz);
+      if (g.cut.w) { g.bl.rate = clamp(num(B.rate, g.bl.rate), 0, 40); g.bl.boost = clamp(num(B.boost, 0), 0, 40); }
+      g.hm.press = Math.max(0, num(Hm.press, 0));
+      g.hm.start = Math.max(0, num(Hm.start, 0));
+      g.su.ml = Math.max(0, num(r.su, 0));
+      part('gauze', () => {
+        g.gz.used = Math.max(0, Math.round(num(Z.used, 0)));
+        g.gz.absorbed = Math.max(0, num(Z.abs, 0));
+        const load = num(Z.swab, -1);
+        if (load >= 0 && g.gz.used > 0 && load < cfg.gauzeCapacity) {
+          g.gz.swab = { load, stains: 0 };
+          const tool = S.tools.get('gauze'), k = clamp(load / cfg.gauzeCapacity, 0, 1);
+          if (tool) {
+            tool.set({ fresh: true });
+            const n = clamp(Math.round(num(Z.st, k * 12)), 0, 14);
+            for (let i = 0; i < n; i++) tool.set({ stain: { x: 0.5 + (Math.random() - 0.5) * (0.25 + k * 0.4), y: 0.5 + (Math.random() - 0.5) * (0.25 + k * 0.4), r: 0.08 + k * 0.22, a: 0.55 + k * 0.4 } });
+            g.gz.swab.stains = n;
+          }
+        }
+      });
+      // 7 · closing (also needed under the dressing): the sections, the near side, every stitch tied again
+      if (step >= 7 && g.cut.w) {
+        part('stitches', () => {
+          const U = obj(r.sut), w = g.cut.w;
+          const near = num(U.near, 0);
+          this.resumeNear = near === 1 || near === -1 ? near : undefined;
+          this.suturePrep(this.resumeNear);
+          this.resumeNear = this.near;
+          for (const s of Array.isArray(U.list) ? U.list : []) {
+            if (!s || !uvOk(s.a) || !uvOk(s.b) || g.sut.list.length >= g.sut.N + cfg.extraStitches) continue;
+            const tN = num(s.tN, -1);
+            if (tN < 0 || tN > 1) continue;
+            const a = [+s.a[0], +s.a[1]], b = [+s.b[0], +s.b[1]], bite = Array.isArray(s.bite) ? s.bite : [];
+            S.stitches.add({ a, b, knot: 'b', seed: g.sut.list.length * 31 + 7 });
+            w.close(tN, 1, 0.5 / g.sut.N);
+            g.sut.list.push({ a, b, tN, q: clamp(num(s.q, 0), 0, 100), bite: [num(bite[0], cfg.bite), num(bite[1], cfg.bite)], perp: num(s.perp, 0), space: num(s.space, 0), fast: !!s.fast, flinch: !!s.flinch });
+          }
+          g.sut.misses = Math.max(0, Math.round(num(U.miss, 0)));
+          g.sut.last = Array.isArray(U.last) && U.last.length === 2 ? [String(U.last[0]), String(U.last[1])] : null;
+        });
+      }
+      this.setBleed();
+      return step;
+    },
+
+    // after the step opened: the field paint, the prep ring, the camera, the dressing where it lay
+    restoreAfter(r, step) {
+      const g = this.g, S = this.S, cfg = this.cfg;
+      const part = (name, fn) => { try { fn(); } catch (e) { console.error(`[bullet] restore ${name}`, e); } };
+      const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+      const L = obj(r.lay);
+      part('iodine', () => { if (L.i) this.restoreGrid('iodine', L.i); });
+      part('blood', () => { if (L.b) this.restoreGrid('blood', L.b); });
+      part('clot', () => { if (L.c) this.restoreGrid('clot', L.c); });
+      // the prep ring where it was drawn (its coverage is the step's progress)
+      if (step === 2 && g.io.center) {
+        part('prep ring', () => {
+          const io = g.io;
+          io.mask = S.layers.mask([io.center], io.radius * MM);
+          S.markers.set('prep', { uv: io.center, kind: 'dashed', size: io.radius * 2 * MM, color: 0xffffff, pulse: false, opacity: 0.5 });
+          io.cov = io.mask.coverage('iodine', 0.2);
+          if (io.cov >= cfg.prepDone) io.cov = 1;
+        });
+      }
+      // step 2 works in the view of step 1, steps 5 / 6 in the view step 4 set up
+      if (step === 2) this.frame0();
+      if ((step === 5 || step === 6) && g.cut.w) this.frameOn(this.cutCentre(), Math.max((g.cut.L || g.cut.ideal) * 3.9 * MM, 0.092));
+      if (step === 6) g.hm.start = Math.max(num(obj(r.hm).start, 0), this.bleedNow(), cfg.bleedDone * 1.5);
+      if (step === 7) { this.sutureMarkers(); this.renderDots(); }
+      if (step === 8 && r.dr) part('dressing', () => this.restoreDressing(r.dr));
+      this.setBleed();
+      this.markFrags();
+      if (step === 6 && !this.gauzeLeft() && this.canFetchGauze()) { this.stepText = this.texts(6)[1]; this.pp.set({ text: this.stepText }); }
+      this.refreshTools(); this.stepTip(); this.renderDev();
+      this.updatePanel(); this.renderPlan(true); this.renderNotes();
+    },
+    // step 8: lay the dressing where it was and rub it back to how firmly it stuck
+    restoreDressing(dr) {
+      const g = this.g, S = this.S, old = g.dr.D;
+      if (!old || !dr || typeof dr !== 'object' || !uvOk(dr.uv)) return;
+      const uv = [+dr.uv[0], +dr.uv[1]], ang = num(dr.ang, 0);
+      const D = S.dressing.create({ size: old.size, pad: old.pad, uv, angle: ang, curl: 0 });
+      this.padOffset(D);
+      old.remove();
+      g.dr.D = D;
+      g.dr.lift0 = D.carriedLift;
+      D.state = 'falling'; D._settle = 0;   // it lies on the skin and settles like a released one
+      const target = clamp(num(dr.stuck, 0), 0, 1);
+      if (target > 0.01) {
+        const c = S.uvToST(uv), ca = Math.cos(ang), sa = -Math.sin(ang), hw = D.size[0] / 2 - 0.002, hh = D.size[1] / 2 - 0.002;
+        const grid = [];
+        for (let i = 0; i < 7; i++) for (let j = 0; j < 4; j++) {
+          const lx = (i / 6 - 0.5) * 2 * hw, ly = (j / 3 - 0.5) * 2 * hh;
+          grid.push(S.surfaceAt(S.stToUv(c[0] + lx * ca - ly * sa, c[1] + lx * sa + ly * ca)));
+        }
+        for (let pass = 0; pass < 60 && D.stuck < target - 0.01; pass++) {
+          for (const hit of grid) D.rub(hit, 0.004);
+          D.step(1 / 30);
+        }
+      }
+      g.dr.cover = clamp(num(dr.cover, 0), 0, 1);
+      g.dr.settledT = 0;
+    },
+
+    // compact state for tests / the browser console (window.BulletDebug())
+    debugState() {
+      const g = this.g, S = this.S;
+      if (!g || !S) return null;
+      const res = this.computeResult(), w = g.cut.w, mir = S.layers._mirror || {};
+      let closure = 0;
+      if (w && w.closureAt) { for (let i = 0; i <= 40; i++) closure += w.closureAt(i / 40); closure /= 41; }
+      const sum = n => { const m = mir[n]; let s = 0; if (m) for (let i = 0; i < m.length; i++) s += m[i]; return s; };
+      const D = g.dr.D;
+      return {
+        step: g.step, done: [1, 2, 3, 4, 5, 6, 7, 8].filter(k => g.done[k]), skipped: [1, 2, 3, 4, 5, 6, 7, 8].filter(k => g.skipped[k]),
+        t: g.t, loss: g.loss, flinches: g.flinches, falses: g.pr.falses, film: g.film.used,
+        frags: this.frags.map(f => ({ id: f.id, found: f.found, how: f.how, out: f.out, prog: f.prog, lodge: f.lodge, inDish: !!f.inDish, visible: !!(f.mesh && f.mesh.visible) })),
+        out: g.xt.out.slice(), slips: g.xt.slips, misses: g.xt.misses,
+        cov: g.io.cov, prepC: g.io.center, iodine: sum('iodine'), blood: sum('blood'), clot: sum('clot'),
+        path: g.cut.path.length, cutLen: w ? w.length / MM : 0, L: g.cut.L, blade: g.cut.blade, spread: g.ex.spread, tears: g.ex.tears,
+        exposure: g.step >= 4 && w ? this.exposure() : 0, rate: g.bl.rate, bleed: this.bleedNow(), hmStart: g.hm.start,
+        gauze: { have: g.gz.have, used: g.gz.used, swab: g.gz.swab ? g.gz.swab.load : null, left: this.gauzeLeft() },
+        N: g.sut.N, near: this.near, stitches: g.sut.list.map(s => s.tN), drawn: S.stitches.list.length, misses7: g.sut.misses, closure,
+        dr: D ? { state: D.state, stuck: D.stuck, cover: g.dr.cover } : null,
+        score: res.parts, total: res.score, resumed: !!this.resumed, finished: !!this.finished,
+        title: this.stepTitle || '', text: this.stepText || '', pausable: this.canStepAway(),
+      };
+    },
+
+    // preview only: drive the demo to a mid-game point, take the snapshot and open again with it
+    previewPark(stage) {
+      if (!this.g || !this.S) return;
+      const to = { locate: 'located', prep: 'disinfect', disinfect: 'disinfect', cut: 'cut', incise: 'cut', expose: 'expose', extract: 'pull', pull: 'pull', control: 'control', suture: 'suture', dressing: 'placed' }[stage] || 'suture';
+      this.demoTo(to);
+      // let go of the move demoTo leaves half done (a cut being drawn, the jaws on a piece, pressure on gauze)
+      this.stopActions(); this.up({ button: 0 }); this.spreadKey(false);
+      if (this.g.dr.D && this.g.dr.D.state === 'carried') this.g.dr.D.release();
+      const snap = this.snapshot();
+      if (!snap) return;
+      const d = JSON.parse(JSON.stringify(this.d));
+      delete d.resume;
+      NZA.demo('bullet', Object.assign(d, { resume: snap }));
+    },
+
     /* ═════════════ demo automation (browser preview / screenshots) ═════════════
-       NZA.apps.bullet.demoTo('probe'|'located'|'film'|'disinfect'|'incise'|'cut'|'expose'|'extract'|'pull'|'control'|'suture'|'dressing'|'done') */
+       NZA.apps.bullet.demoTo('probe'|'located'|'film'|'disinfect'|'incise'|'cut'|'expose'|'extract'|'pull'|'control'|'suture'|'dressing'|'placed'|'done') */
     demoTo(stage) {
       const S = this.S, g = this.g;
       if (!S || !g) return false;
@@ -2760,6 +3290,8 @@
       aim(S.stToUv(tg[0], tg[1])); sim(0.05);
       press();
       const dir = w.at(0.5).dir, hw = [D.size[0] / 2 - 0.004, D.size[1] / 2 - 0.004];
+      // 'placed': laid and rubbed down a little, not stuck yet
+      if (stage === 'placed') { sim(1.2, q => { const x = Math.sin(q * Math.PI * 4) * hw[0], y = Math.sin(q * Math.PI * 2) * hw[1] * 0.6; aim(S.stToUv(tg[0] + dir[0] * x + nrm[0] * y, tg[1] + dir[1] * x + nrm[1] * y)); }); release(); sim(0.3); return done(); }
       for (let k = 0; k < 8 && !g.done[8]; k++) {
         sim(2, q => { const x = Math.sin(q * Math.PI * 6 + k) * hw[0], y = Math.sin(q * Math.PI * 2 + k * 1.3) * hw[1]; aim(S.stToUv(tg[0] + dir[0] * x + nrm[0] * y, tg[1] + dir[1] * x + nrm[1] * y)); });
       }

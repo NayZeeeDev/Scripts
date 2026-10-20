@@ -381,4 +381,12 @@ NZA.AddLocale('en', {
     ['burn.w_tested_cap'] = 'Full thickness ≈ %s%',
     ['burn.w_tested_cap0'] = 'Press the glass on the burn',
     ['burn.no_skin'] = 'Put the tool on the skin first.',
+
+    -- step away (P) to fetch supplies, then carry on from the same point
+    ['burn.cool_out_p'] = 'Out of saline — the surface is %s °C. Press {P} to step away, fetch more, then use the same option to carry on.',
+    ['burn.tip_1_out'] = 'Out of saline. Press {P} to step away, fetch more, then use the same option to carry on — or press {Enter} to go on with the burn as it is.',
+    ['burn.dec_fetch'] = 'Press {P} to step away, fetch it, then use the same option to carry on.',
+    ['burn.dr_secure_out'] = 'No sterile dressing to secure this large burn. Press {P} to step away, fetch one, then use the same option to carry on.',
+    ['burn.resume_ok'] = 'Carrying on where you left off.',
+    ['burn.resume_new'] = 'The burn has changed since you stepped away — starting afresh.',
 })
