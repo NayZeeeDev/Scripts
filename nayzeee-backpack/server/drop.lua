@@ -56,6 +56,7 @@ function Drop.bag(src, bagKey, coords, skipLog)
 
     if dropId then
         active[dropId] = { at = os.time() }
+        if Sounds then Sounds.play('drop', coords) end
     end
 
     RefreshBagState(src)

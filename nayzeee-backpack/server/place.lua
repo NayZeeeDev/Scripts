@@ -178,6 +178,7 @@ RegisterNetEvent('nayzeee-backpack:place', function(bagKey, coords, heading, acc
 
     RefreshBagState(src)
     BroadcastPlaced(entry)
+    if Sounds then Sounds.play('drop', target) end
     TriggerEvent('nayzeee-backpack:server:placed', src, bagKey, target, id)
 
     if Logs then Logs.place(src, bagKey, target, access, id) end
@@ -206,6 +207,7 @@ RegisterNetEvent('nayzeee-backpack:openPlaced', function(id)
     end
 
     TriggerClientEvent('nayzeee-backpack:open', src, PrepareStash(entry.bag, bagid))
+    if Sounds then Sounds.play('zip_open', entry.coords, 250) end
 end)
 
 -----------------------------------------------------------------
@@ -250,6 +252,7 @@ RegisterNetEvent('nayzeee-backpack:pickup', function(id)
     if Logs then Logs.pickup(src, entry.bag, entry.coords, mine, id) end
 
     TriggerClientEvent('nayzeee-backpack:removePlaced', -1, id)
+    if Sounds then Sounds.play('rustle', entry.coords) end
     TriggerClientEvent('nayzeee-backpack:notify', src, Strings.picked_up, 'success')
 end)
 

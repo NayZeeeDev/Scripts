@@ -199,6 +199,8 @@ local function openBackpack(src, item)
     end
 
     TriggerClientEvent('nayzeee-backpack:open', src, id, info)
+    -- kneeling down takes a moment before the zip
+    if Sounds then Sounds.play('zip_open', src, info.style == 'kneel' and 900 or 250) end
     if Logs then Logs.simple('open', 'Backpack opened', src, item.name) end
 end
 
@@ -226,6 +228,9 @@ ox:registerHook('swapItems', function(payload)
 end, { inventoryFilter = { '^backpack_' } })
 
 AddEventHandler('ox_inventory:closedInventory', function(playerId, inventoryId)
+    if Sounds and type(inventoryId) == 'string' and inventoryId:find('^backpack_') then
+        Sounds.play('zip_close', playerId)
+    end
     local w = inventoryId and watching[inventoryId]
     if w and w.src == playerId then watching[inventoryId] = nil end
 end)
@@ -271,6 +276,7 @@ RegisterNetEvent('nayzeee-backpack:setStowed', function(stowed)
     meta.stowed = stowed and true or nil
     ox:SetMetadata(src, item.slot, meta)
     RefreshBagState(src)
+    if Sounds then Sounds.play('strap', src, 500) end
 
     if Logs then
         Logs.simple('stow', stowed and 'Backpack taken off' or 'Backpack put on', src, item.name)

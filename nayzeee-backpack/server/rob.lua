@@ -84,6 +84,7 @@ RegisterNetEvent('nayzeee-backpack:rob', function(victimId)
         RefreshBagState(victimId)
     end
 
+    if Sounds then Sounds.play('rustle', src) end
     TriggerClientEvent('nayzeee-backpack:notify', src, Strings.rob_success, 'success')
     TriggerClientEvent('nayzeee-backpack:robbed', victimId)
     TriggerEvent('nayzeee-backpack:server:robbed', src, victimId, bagKey)

@@ -156,6 +156,11 @@ RegisterNetEvent('nayzeee-backpack:handoff:answer', function(accept)
     busy[src], busy[taker] = true, true
     Player(src).state:set('nb_hand', { to = taker, model = model, texture = texture or 0, worn = worn }, true)
 
+    if Sounds then
+        if worn then Sounds.play('strap', src, 200) end
+        Sounds.play('rustle', src, (worn and cfg.takeOff or 0) + cfg.swap)
+    end
+
     local total = (worn and cfg.takeOff or 0) + cfg.finish
     SetTimeout(total, function()
         if not online(src) or not online(taker) then return finish(src, taker) end

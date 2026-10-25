@@ -241,11 +241,13 @@ lib.callback.register('nayzeee-backpack:outfit:place', function(src, coords, slo
     if metadata.public == nil then metadata.public = not cfg.access.defaultLocked end
     placed[src] = { object = object, metadata = metadata }
     syncPlaced(src)
+    if Sounds then Sounds.play('drop', vector3(coords.x, coords.y, coords.z)) end
     startMonitor()
     return NetworkGetNetworkIdFromEntity(object)
 end)
 
 lib.callback.register('nayzeee-backpack:outfit:pickup', function(src)
+    if placed[src] and Sounds then Sounds.play('rustle', src) end
     return removeBag(src, 'pickup')
 end)
 

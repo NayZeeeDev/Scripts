@@ -270,6 +270,27 @@ Config.Robbery = {
     dispatchChance = 100, -- % chance an alert goes out
 }
 
+-- Zips, buckles, thuds and locks, heard by everyone nearby with distance
+-- and left / right. Generated live, so there are no sound files to ship.
+-- Prefer recordings? Put .ogg files in web/sounds/ and name them in `files`.
+Config.Sounds = {
+    enabled = true,
+    volume  = 0.6,   -- Master volume, 0 - 1
+    range   = 12.0,  -- Metres a sound carries
+
+    -- Per sound, 0 = off
+    levels = {
+        zip_open = 1.0, zip_close = 1.0,  -- opening / closing a bag
+        strap    = 0.8,                   -- putting it on / taking it off
+        rustle   = 0.7,                   -- handing over, picking up
+        drop     = 0.9,                   -- setting down, dropping
+        lock = 1.0, unlock = 1.0, pick = 0.9, cut = 1.0, -- padlocks
+    },
+
+    -- Recordings instead of the generated sound, e.g. zip_open = 'sounds/zip_open.ogg'
+    files = {},
+}
+
 -- Hand a bag to someone: you take it off, hold it out, they take it.
 -- Everyone sees the bag go from your hand to theirs. Works for every
 -- backpack, purse and duffel (contents and all) and for the outfit bag.

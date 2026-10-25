@@ -144,6 +144,7 @@ end
 local function closeMenu()
     if not open then return end
     open = nil
+    if Sound then Sound.near('zip_close') end
     endPreview()
     SetNuiFocus(false, false)
     SendNUIMessage({ action = 'obClose' })
@@ -200,6 +201,7 @@ local function openPlaced(netId)
 
     open = { handle = { netId = netId }, entity = bag.entity, isOwner = isOwner, outfits = bag.state.outfits or {} }
     SetNuiFocus(true, true)
+    if Sound then Sound.near('zip_open') end
     sendOpen(open.outfits, bag.state.public, isOwner)
     watchOpen(open)
 end
@@ -210,6 +212,7 @@ local function openQuick(slot)
     if not data then return end
     open = { handle = { slot = slot }, isOwner = true, outfits = data.outfits or {} }
     SetNuiFocus(true, true)
+    if Sound then Sound.near('zip_open') end
     sendOpen(open.outfits, data.public, true)
     watchOpen(open)
 end

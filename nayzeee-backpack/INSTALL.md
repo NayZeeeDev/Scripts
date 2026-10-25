@@ -238,6 +238,18 @@ carry the weight, or can't use a job bag. Job bags can't be handed over unless
 `Config.Handoff.jobBags = true`. Everything is checked again at the moment the
 bag changes hands, and every hand-off is logged with the contents.
 
+## Sounds
+
+Bags zip open and shut, buckles click when you put one on or take it off,
+it thuds when it's set down or dropped, fabric rustles when it changes hands,
+and padlocks click, scrape and snap. Everyone within `Config.Sounds.range`
+hears it, quieter with distance and from the side it came from.
+
+The sounds are generated live in the browser (no audio files, nothing to
+license). Rather use recordings? Put `.ogg` files in `web/sounds/` and map
+them in `Config.Sounds.files`, e.g. `zip_open = 'sounds/zip_open.ogg'`.
+Turn any one off with `levels.<name> = 0`.
+
 ## Finding your bags
 
 Bag menu → **Find my bags** (or `/mybags`) lists every bag you've set down,

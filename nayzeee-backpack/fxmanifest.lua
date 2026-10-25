@@ -16,6 +16,7 @@ shared_scripts {
 
 client_scripts {
     'client/util.lua',
+    'client/sounds.lua',
     'client/anim.lua',
     'client/status.lua',
     'client/main.lua',
@@ -36,6 +37,7 @@ client_scripts {
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server/logs.lua',
+    'server/sounds.lua',
     'server/overrides.lua',
     'server/main.lua',
     'server/jobs.lua',
@@ -58,6 +60,7 @@ files {
     'web/css/*.css',
     'web/js/*.js',
     'web/images/outfit/*.png',
+    'web/sounds/*.ogg',
 }
 
 -- Models, textures and animations live in nayzeee-backpack-props (or any
