@@ -4991,6 +4991,12 @@
       const ok = num(R.v) === 1 && R.fp === `${this.mode}|${this.fpBase}` && R.mode === this.mode && step >= 1 && step <= 8 &&
         (this.mode === 'care' ? step <= 3 || step === 8 : step >= 4);
       if (!ok) { this.resumeStale = true; return null; }
+      // parked while cooling and the burn changed meanwhile (first aid cooled / dressed it, more fire):
+      // a clean start of this burn as it is now, exactly as without a saved state (the cooling may
+      // already be done), not the old heat picture on a step that no longer fits
+      const b = this.inj && this.inj.burn;
+      if (this.mode === 'care' && step === 1 && b &&
+        !(Math.abs(num(R.tmp, -99) - num(b.temp)) < 0.06 && Math.round(num(R.sot, -1)) === Math.round(num(b.soot)))) { this.resumeStale = true; return null; }
       return R;
     },
     // before the scene is built: progress numbers, the burn's pieces (removed, tested, excised), heat
