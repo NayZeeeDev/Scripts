@@ -17,6 +17,7 @@ shared_scripts {
 client_scripts {
     'client/util.lua',
     'client/sounds.lua',
+    'client/vehicle.lua',
     'client/anim.lua',
     'client/status.lua',
     'client/main.lua',

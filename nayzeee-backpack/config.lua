@@ -37,7 +37,19 @@ Config.PropsResource = 'nayzeee-backpack-props'
 
 Config.OneBagOnly    = true  -- Only one backpack in a player's inventory at a time
 Config.BlockBagInBag = true  -- Stop a backpack being stuffed inside another backpack
-Config.ShowInVehicle = false -- Keep the prop visible on the player's back while driving
+Config.ShowInVehicle = false -- Only when Config.Vehicle is off: keep the bag on your back while driving
+
+-- Bags in cars: get in and your bag goes on a free seat (front passenger
+-- first). A passenger getting in always wins: the bag moves to the next
+-- free seat before they sit, or out of sight if the car is full.
+Config.Vehicle = {
+    enabled     = true,
+    seats       = { 0, 2, 1, 4, 3 }, -- Order to try: 0 front passenger, 1 rear left, 2 rear right, 3+ further back
+    wornClasses = { 8, 13 },         -- Motorcycles and bicycles: it stays on your back
+    fallback    = 'hidden',          -- No free seat: 'hidden' (footwell) or 'worn'
+    lift        = 0.02,              -- Raise the bag off the seat (m)
+    back        = -0.10,             -- Push it back against the seat back (m)
+}
 
 -- Who counts as an admin for the studio (/bagtune), live storage edits and /bagitems.
 -- Either the ACE below, or one of the framework groups.

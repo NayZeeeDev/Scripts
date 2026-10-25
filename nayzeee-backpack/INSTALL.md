@@ -303,6 +303,22 @@ Bag menu → **Find my bags** (or `/mybags`) lists every bag you've set down,
 nearest first, with the street, the distance and whether it's locked. Pick one
 for a waypoint.
 
+## Bags in cars
+
+Get in a car and your bag goes on a free seat: front passenger first, then
+the back (`Config.Vehicle.seats`). It sits upright and leans against the seat
+back, the same way round it sits on you, for any bag model.
+
+Passengers come first. A seat someone is climbing into counts as taken, so the
+bag moves to the next free seat (or out of sight if the car is full) before
+they sit down. Two people with bags each get their own seat. On motorcycles and
+bicycles the bag stays on your back (`wornClasses`). Get out and it's back on
+you. Every client works the seats out the same way from who's in the car, so
+everyone sees the bag on the same seat with no extra network traffic.
+
+`Config.Vehicle.enabled = false` goes back to hiding bags in cars (or keeping
+them on your back with `Config.ShowInVehicle = true`).
+
 ## Taking a bag off
 
 **Take off** is saved on the item, so a stowed bag stays stowed through
@@ -412,7 +428,7 @@ Every loop idles and only goes per-frame while it has work:
 
 | Thread | Idle | Per-frame only when |
 |---|---|---|
-| Worn bag scope / vehicle check | 2000ms | someone near you wears a bag (750ms) |
+| Worn bag scope / vehicle seats | 2000ms | someone near you wears a bag (750ms), a bag is in a car (250ms) |
 | Carry pose check | 1500ms | wearing a purse (600ms, never per-frame) |
 | Status publisher | 1000ms | — (statebag only written on change) |
 | Placement | — | placing |

@@ -88,7 +88,7 @@ local function attachProp(serverId, state)
     local current = props[serverId]
     local sig = sigOf(state, serverId)
     if current and current.sig == sig and DoesEntityExist(current.entity)
-       and (current.grounded or IsEntityAttachedToEntity(current.entity, ped)) then
+       and (current.grounded or IsEntityAttachedToEntity(current.entity, current.holder or ped)) then
         return true
     end
 
@@ -120,12 +120,25 @@ local function attachProp(serverId, state)
         Util.attach(entity, ped, bone, pos, rot)
     end
 
-    if (serverId == myId and localHidden)
-       or (not Config.ShowInVehicle and IsPedInAnyVehicle(ped, false)) then
+    -- in a vehicle: hidden until the scope loop finds it a seat (a moment later)
+    if (serverId == myId and localHidden) or IsPedInAnyVehicle(ped, false) then
         SetEntityVisible(entity, false, false)
     end
 
-    props[serverId] = { entity = entity, sig = sig, ped = ped, grounded = grounded }
+    props[serverId] = { entity = entity, sig = sig, ped = ped, grounded = grounded, holder = ped, place = 'worn' }
+
+    -- learn how this bag sits on a wearer, for putting it on car seats later
+    if not grounded and VehicleBags and VehicleBags.enabled and not IsPedInAnyVehicle(ped, false) then
+        local key = state.bag .. '|' .. tostring(state.variant)
+        if not VehicleBags.hasMeasure(key) then
+            CreateThread(function()
+                Wait(0); Wait(0)
+                if not IsPedInAnyVehicle(ped, false) and not IsPedRagdoll(ped) then
+                    VehicleBags.measure(key, entity, ped)
+                end
+            end)
+        end
+    end
     Bags.debug('attached', state.bag, 'to', serverId)
     return true
 end
@@ -309,16 +322,67 @@ AddStateBagChangeHandler('nb_open', nil, function(bagName, _, value)
 end)
 
 -----------------------------------------------------------------
+-- where a bag goes: back, car seat, hidden
+-----------------------------------------------------------------
+
+local placing = {} -- [serverId] = true while a bag is being moved (seat <-> back)
+
+--- Put a bag where it should be: on its wearer, on a car seat, or hidden.
+local function setPlacement(serverId, place)
+    placing[serverId] = true
+    local p, state, ped = props[serverId], wanted[serverId], pedFor(serverId)
+    if not p or not state or ped == 0 or not DoesEntityExist(p.entity) then placing[serverId] = nil return end
+
+    local function wear(visible)
+        ResetEntityAlpha(p.entity)
+        if p.holder ~= ped or not IsEntityAttachedToEntity(p.entity, ped) then
+            local bone, pos, rot = Bags.offset(state.bag)
+            Util.attach(p.entity, ped, bone, pos, rot)
+            p.holder = ped
+        end
+        SetEntityVisible(p.entity, visible and not (serverId == myId and localHidden), false)
+    end
+
+    if place == 'worn' then
+        wear(true)
+    elseif place == 'hidden' then
+        wear(false)
+    else
+        local veh, seat = place:match('^seat:(%-?%d+):(%-?%d+)$')
+        veh, seat = tonumber(veh), tonumber(seat)
+        local key = state.bag .. '|' .. tostring(state.variant)
+        if not VehicleBags.hasMeasure(key) then
+            -- never seen on foot: measure it on the seated wearer (stood upright)
+            wear(false)
+            Wait(0); Wait(0)
+            VehicleBags.measure(key, p.entity, ped)
+        end
+        if veh and DoesEntityExist(veh) and VehicleBags.place(p.entity, GetEntityModel(p.entity), key, veh, seat) then
+            p.holder = veh
+        else
+            wear(false)
+            place = 'hidden'
+        end
+    end
+
+    p.place = place
+    placing[serverId] = nil
+end
+
+-----------------------------------------------------------------
 -- scope + vehicle loop
 --
 -- Peds stream in and out, change model, get in cars. One cheap loop
--- keeps every bag attached to the right ped and hidden in vehicles.
--- Idles at 2s with no bags around.
+-- keeps every bag on the right ped (or car seat). Idles at 2s with no
+-- bags around, 250ms while a bag sits in a car so a passenger climbing
+-- in never ends up sitting on it.
 -----------------------------------------------------------------
 
 CreateThread(function()
     while true do
-        local any = false
+        local any, inCar = false, false
+        local desired = {}  -- [serverId] = placement
+        local cars = {}     -- [veh] = { { id, ped }, ... }
 
         for serverId, state in pairs(wanted) do
             if shown(serverId, state) then
@@ -329,22 +393,47 @@ CreateThread(function()
                 if ped == 0 or not DoesEntityExist(ped) then
                     if p then removeProp(serverId) end
                 elseif not p or not DoesEntityExist(p.entity)
-                    or (not p.grounded and not IsEntityAttachedToEntity(p.entity, ped)) then
+                    or (not p.grounded and not placing[serverId]
+                        and not IsEntityAttachedToEntity(p.entity, p.holder or ped)) then
                     -- own thread: a model load may wait, and we're mid-iteration
                     if not attaching[serverId] then
                         local id = serverId
                         CreateThread(function() apply(id) end)
                     end
-                elseif not p.grounded and not (serverId == myId and localHidden) then
-                    local show = Config.ShowInVehicle or not IsPedInAnyVehicle(ped, false)
-                    if show ~= IsEntityVisible(p.entity) then
-                        SetEntityVisible(p.entity, show, false)
+                elseif not p.grounded then
+                    local veh = GetVehiclePedIsIn(ped, false)
+                    if veh ~= 0 then
+                        cars[veh] = cars[veh] or {}
+                        cars[veh][#cars[veh] + 1] = { id = serverId, ped = ped }
+                    else
+                        desired[serverId] = 'worn'
                     end
                 end
             end
         end
 
-        Wait(any and 750 or 2000)
+        for veh, holders in pairs(cars) do
+            inCar = true
+            local mode = VehicleBags and VehicleBags.modeFor(veh) or (Config.ShowInVehicle and 'worn' or 'hidden')
+            if mode == 'seat' then
+                local seats = VehicleBags.assign(veh, holders)
+                local fallback = (Config.Vehicle and Config.Vehicle.fallback == 'worn') and 'worn' or 'hidden'
+                for _, h in ipairs(holders) do
+                    desired[h.id] = seats[h.id] and ('seat:%d:%d'):format(veh, seats[h.id]) or fallback
+                end
+            else
+                for _, h in ipairs(holders) do desired[h.id] = mode end
+            end
+        end
+
+        for id, place in pairs(desired) do
+            local p = props[id]
+            if p and p.place ~= place and not placing[id] and not attaching[id] then
+                CreateThread(function() setPlacement(id, place) end)
+            end
+        end
+
+        Wait(inCar and 250 or (any and 750 or 2000))
     end
 end)
 
