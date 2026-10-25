@@ -1,5 +1,10 @@
 # Licensed poses: one copy per server, never commit them publicly
 stream/**/*.ycd
 
+# Bag models are large; they ship in the zip
+stream/**/*.ydr
+stream/**/*.ytd
+stream/**/*.ytyp
+
 # Third-party props (bzzz) are regenerated with tools/rename_bzzz.py and shipped in the zip
 stream/duffel/

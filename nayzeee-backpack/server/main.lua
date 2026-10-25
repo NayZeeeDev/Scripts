@@ -308,6 +308,12 @@ end)
 
 -- resource restart: everyone online gets their state back
 CreateThread(function()
+    local props = Config.PropsResource
+    if props and GetResourceState(props) ~= 'started' then
+        print(('^3[nayzeee-backpack] %s is not running: bags will be invisible. ' ..
+            'ensure it BEFORE nayzeee-backpack (or set Config.PropsResource = false).^0'):format(props))
+    end
+
     Wait(2000)
     for _, id in ipairs(GetPlayers()) do
         RefreshBagState(tonumber(id))

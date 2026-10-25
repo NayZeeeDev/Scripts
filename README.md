@@ -11,4 +11,4 @@ Backpacks, purses and job bags for ox_inventory (ESX / Qbox / QBCore / standalon
 - Admin studio `/bagtune`: character-relative fitting, presets, live storage edits, icon studio
 - Job bags with kits, duty checks, police search, wasabi / qb / esx / dispatch integrations
 
-See [`nayzeee-backpack/INSTALL.md`](nayzeee-backpack/INSTALL.md).
+Two folders: `nayzeee-backpack` (script) and `nayzeee-backpack-props` (models). See [`nayzeee-backpack/INSTALL.md`](nayzeee-backpack/INSTALL.md).

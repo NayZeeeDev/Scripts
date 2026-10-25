@@ -1,6 +1,6 @@
 """
 Renames the bzzz_money duffel props and the wash-money clip so they can live
-inside nayzeee-backpack without clashing with an installed bzzz_money resource
+inside nayzeee-backpack-props without clashing with an installed bzzz_money resource
 (bzzz: loading the same .ytyp twice breaks the props).
 
 Every new name has the SAME length as the old one, so the resource layout of

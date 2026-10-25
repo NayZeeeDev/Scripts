@@ -11,11 +11,22 @@
 
 The framework is detected automatically (`Config.Framework = 'auto'`).
 
+It comes as **two folders**: put both in `resources/`.
+
+| Folder | What's in it |
+|---|---|
+| `nayzeee-backpack-props` | bag models, textures, purse poses, the duffel props, no code |
+| `nayzeee-backpack` | the script and its UI, no props |
+
+Keeping them apart means restarting or updating the script never makes
+players re-download a single model, and adding a bag never touches the script.
+
 ```
 ensure ox_lib
 ensure ox_inventory
 ensure ox_target
 ensure screenshot-basic
+ensure nayzeee-backpack-props
 ensure nayzeee-backpack
 ```
 
@@ -33,12 +44,15 @@ Add this and restart (icons are still saved in `icons/` either way):
 add_filesystem_permission nayzeee-backpack write ox_inventory
 ```
 
-## 2. Stream files
+## 2. Props
 
-See [`stream/README.md`](stream/README.md). Short version: every bag needs a
-`.ydr`, `.ytd` **and** `.ytyp`, and every `.ytyp` needs a `data_file
-'DLC_ITYP_REQUEST'` line in `fxmanifest.lua`. Purse poses (`.ycd`) go in
-`stream/anims/` and need nothing else.
+Everything streams from `nayzeee-backpack-props/stream/` (see its
+[README](../nayzeee-backpack-props/stream/README.md)). Every bag needs a
+`.ydr`, `.ytd` **and** `.ytyp` in its own folder; the props manifest registers
+every `.ytyp` by itself. Purse poses (`.ycd`) go in `stream/anims/`.
+
+Your props in another resource? Set `Config.PropsResource` to its name (or
+`false`); the script only needs the model **names** in `Config.Backpacks`.
 
 ## 3. Items
 
@@ -84,7 +98,7 @@ Run `install.sql` if `Config.Placement.persist = true`.
 
 ## Adding a new bag or purse
 
-1. Drop the `.ydr / .ytd / .ytyp` in `stream/` and add its `data_file` line.
+1. Drop the `.ydr / .ytd / .ytyp` in a new folder in `nayzeee-backpack-props/stream/`.
 2. Add an entry to `Config.Backpacks` (purses: `category = 'pocketbook'`, `carry = 'purse'`).
 3. `/bagitems` → paste the item into ox_inventory.
 4. `/bagtune` → pick the bag → **Carry preset** → nudge → **Save fit to server**.
@@ -205,7 +219,8 @@ The open duffel models and the cash grab animation are by **BzZz**
 `nayzeee_duffel_typ`, `nayzeee_grab_cash_01`) so they never clash with an
 installed bzzz_money, and they are in `escrow_ignore`: BzZz's licence says his
 props are never escrowed. To re-make them from a newer bzzz_money:
-`python3 tools/rename_bzzz.py <bzzz_money folder> stream`.
+`python3 tools/rename_bzzz.py <bzzz_money folder> stream` (run inside
+`nayzeee-backpack-props`).
 
 ## Handing a bag over
 
@@ -351,7 +366,8 @@ Every loop idles and only goes per-frame while it has work:
 
 ## Escrow
 
-`fxmanifest.lua` already has `escrow_ignore` (config, integrations, the
-framework bridge, BzZz's duffel props and animation) and the `/assetpacks`
-dependency. Escrow only encrypts
-`.lua` files, so `web/` and `server/icons.js` ship readable.
+Both manifests already have `escrow_ignore` and the `/assetpacks` dependency:
+the script leaves config, integrations and the framework bridge readable, and
+the props resource leaves BzZz's duffel props and animation unescrowed (his
+licence). Escrow only encrypts `.lua` files, so `web/` and `server/icons.js`
+ship readable.

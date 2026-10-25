@@ -58,43 +58,11 @@ files {
     'web/css/*.css',
     'web/js/*.js',
     'web/images/outfit/*.png',
-    'stream/**.ytyp',
 }
 
--- Bag models can live here or in your own stream resource. The script only
--- needs the model NAME in Config.Backpacks, not the files themselves.
---
--- Purse poses (.ycd) just go in stream/anims/, they need no data_file line.
-
--- REQUIRED for any .ytyp you put in stream/.
--- Without this line the game never registers the archetype and the script
--- reports "model is not registered" even though the .ydr is present.
--- Add one line per ytyp. Delete them if your props live in another resource,
--- since that resource declares its own.
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_cutebear/nayzeee_backpack_cutebear.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_snorlax/nayzeee_backpack_snorlax.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_alyx/nayzeee_backpack_alyx.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_lifesaver/nayzeee_backpack_lifesaver.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_shoulderbag_01/nayzeee_backpack_shoulderbag_01.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_shoulderbag_02/nayzeee_backpack_shoulderbag_02.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_heartpurse/nayzeee_backpack_heartpurse.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_heart/nayzeee_backpack_heart.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_alien/nayzeee_backpack_alien.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_blueshark/nayzeee_backpack_blueshark.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_pug/nayzeee_backpack_pug.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_puruplegoth/nayzeee_backpack_puruplegoth.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_rick/nayzeee_backpack_rick.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_space/nayzeee_backpack_space.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_street/nayzeee_backpack_street.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_survivor/nayzeee_backpack_survivor.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_usahanna/nayzeee_backpack_usahanna.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_teddyburger/nayzeee_backpack_teddyburger.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_teddyskull/nayzeee_backpack_teddyskull.ytyp'
-data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_lean/nayzeee_backpack_lean.ytyp'
-
--- Duffel open models (BzZz, renamed so they never clash with bzzz_money)
-data_file 'DLC_ITYP_REQUEST' 'stream/duffel/nayzeee_duffel_typ.ytyp'
+-- Models, textures and animations live in nayzeee-backpack-props (or any
+-- stream resource of yours). This resource is code and UI only, so
+-- restarting it never re-streams a single prop.
 
 dependencies {
     '/assetpacks',       -- needed once the resource is escrowed through Tebex
@@ -111,8 +79,4 @@ escrow_ignore {
     'bridge/*.lua',
     'install.sql',
     'INSTALL.md',
-
-    -- BzZz's licence: his props must never be escrowed
-    'stream/duffel/*',
-    'stream/anims/nayzeee_grab_cash_01.ycd',
 }

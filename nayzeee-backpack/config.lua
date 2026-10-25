@@ -31,6 +31,10 @@ Config.Debug = false -- Console debug prints
 -- 'auto' picks whichever is running: es_extended, qbx_core, qb-core, or none
 Config.Framework = 'auto'
 
+-- The resource your bag models stream from. Only used for a startup check
+-- that warns when it isn't running. false = your props live elsewhere.
+Config.PropsResource = 'nayzeee-backpack-props'
+
 Config.OneBagOnly    = true  -- Only one backpack in a player's inventory at a time
 Config.BlockBagInBag = true  -- Stop a backpack being stuffed inside another backpack
 Config.ShowInVehicle = false -- Keep the prop visible on the player's back while driving
@@ -90,7 +94,7 @@ Config.DefaultOffset = {
 -- with a weapon out, and whenever another script (emotes, progress bars) is
 -- playing its own animation. It comes back on its own afterwards.
 --
--- Pose files (.ycd) go in stream/anims/ — see stream/README.md.
+-- Pose files (.ycd) go in nayzeee-backpack-props/stream/anims/ (see its README).
 Config.Carry = {
     enabled = true,
 
