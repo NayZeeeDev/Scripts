@@ -41,10 +41,13 @@ Config.Scope = 'license'
 
 Config.Permissions = {
     -- Any of these ACE permissions grants access.
-    -- e.g. server.cfg:  add_ace group.admin nayzeee.adminjail allow
-    aces = { 'nayzeee.adminjail' },
+    --   'nayzeee.adminjail' -> server.cfg:  add_ace group.admin nayzeee.adminjail allow
+    --   'command'           -> every default server.cfg already has:  add_ace group.admin command allow
+    aces = { 'nayzeee.adminjail', 'command' },
 
-    -- Framework groups (QB/QBX permission, ESX group). Also checked as ACE 'group.<name>'.
+    -- Staff groups. Each one is checked as:
+    --   ACE 'group.<name>' and ACE '<name>'  (Qbox / QBCore style permissions)
+    --   QBCore HasPermission, Qbox HasPermission, ESX getGroup()
     groups = { 'god', 'superadmin', 'admin', 'mod' },
 }
 
@@ -57,10 +60,12 @@ Config.Permissions = {
      ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚══════╝
 ]]
 
+-- Avoid 'jail' / 'unjail': police and prison scripts (qb-policejob, esx_jail, ...) register
+-- those too, and whichever resource starts last silently takes the command over.
 Config.Commands = {
-    panel  = 'adminjail', -- /adminjail                       opens the admin panel
-    jail   = 'jail',      -- /jail [id] [minutes] [reason]    works from console too
-    unjail = 'unjail',    -- /unjail [id]
+    panel  = 'adminjail', -- /adminjail                        opens the admin panel
+    jail   = 'ajail',     -- /ajail [id] [minutes] [reason]    works from the server console too
+    unjail = 'aunjail',   -- /aunjail [id]
 }
 
 Config.HudKey = 'HOME' -- players can rebind in Settings > Key Bindings > FiveM (toggle jail HUD)

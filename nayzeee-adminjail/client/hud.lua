@@ -54,8 +54,11 @@ end
 RegisterCommand(Config.Commands.panel, function()
     if panelOpen then return end
     local res = lib.callback.await(Event('server:admin:open'), false)
-    if not res or not res.ok then
-        return Bridge.Notify(res and res.msg or locale('no_permission'), 'error')
+    if not res then
+        return Bridge.Notify('Admin jail did not respond - check the server console', 'error')
+    end
+    if not res.ok then
+        return Bridge.Notify(res.msg or locale('no_permission'), 'error')
     end
     panelOpen = true
     SetNuiFocus(true, true)
@@ -63,6 +66,14 @@ RegisterCommand(Config.Commands.panel, function()
 end, false)
 
 TriggerEvent('chat:addSuggestion', '/' .. Config.Commands.panel, locale('cmd_panel'))
+TriggerEvent('chat:addSuggestion', '/' .. Config.Commands.jail, locale('cmd_jail'), {
+    { name = 'id', help = locale('cmd_target') },
+    { name = 'minutes', help = locale('cmd_minutes') },
+    { name = 'reason', help = locale('cmd_reason') },
+})
+TriggerEvent('chat:addSuggestion', '/' .. Config.Commands.unjail, locale('cmd_unjail'), {
+    { name = 'id', help = locale('cmd_target') },
+})
 
 RegisterNUICallback('close', function(_, cb)
     closePanel()

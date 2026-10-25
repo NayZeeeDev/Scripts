@@ -21,9 +21,21 @@ Requires OneSync (the server checks player positions itself).
 | Command | |
 |---|---|
 | `/adminjail` | Admin panel |
-| `/jail [id] [minutes] [reason]` | Works from the server console too |
-| `/unjail [id]` | |
+| `/ajail [id] [minutes] [reason]` | Works from the server console too. `me` works as the id |
+| `/aunjail [id]` | |
 | `HOME` (rebindable) | Collapse / expand the jail HUD |
+
+Command names can be changed in `Config.Commands`. Avoid `jail` / `unjail`: police and prison scripts register those too, and whichever resource starts last takes the command over.
+
+### Commands not working?
+
+Run this in the **server console** (F8 won't work):
+
+```
+adminjail_perms [server id]
+```
+
+It prints whether that player has access, which check granted it, and the exact `add_ace` line to give them access if not.
 
 ## How restarts, reconnects and spawn selectors are handled
 

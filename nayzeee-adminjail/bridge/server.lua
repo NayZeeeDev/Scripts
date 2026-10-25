@@ -62,23 +62,28 @@ function Bridge.GetAccountName(src)
     return GetPlayerName(src) or ('Player %s'):format(src)
 end
 
+--- Returns true/false plus the check that granted access (used by the adminjail_perms console command).
 function Bridge.HasPermission(src)
-    if src == 0 then return true end
+    src = tonumber(src)
+    if src == 0 then return true, 'console' end
+    if not src or not GetPlayerName(src) then return false end
     local perms = Config.Permissions
 
     for i = 1, #perms.aces do
-        if IsPlayerAceAllowed(src, perms.aces[i]) then return true end
+        if IsPlayerAceAllowed(src, perms.aces[i]) then return true, 'ace ' .. perms.aces[i] end
     end
 
     for i = 1, #perms.groups do
         local group = perms.groups[i]
-        if IsPlayerAceAllowed(src, 'group.' .. group) then return true end
+        if IsPlayerAceAllowed(src, 'group.' .. group) then return true, 'ace group.' .. group end
+        if IsPlayerAceAllowed(src, group) then return true, 'ace ' .. group end
 
         if framework == 'qb' then
-            if QB.Functions.HasPermission(src, group) then return true end
+            local ok, allowed = pcall(QB.Functions.HasPermission, src, group)
+            if ok and allowed then return true, 'qb-core permission ' .. group end
         elseif framework == 'qbx' then
             local ok, allowed = pcall(exports.qbx_core.HasPermission, exports.qbx_core, src, 'group.' .. group)
-            if ok and allowed then return true end
+            if ok and allowed then return true, 'qbx_core group.' .. group end
         end
     end
 
@@ -87,7 +92,7 @@ function Bridge.HasPermission(src)
         local group = player and player.getGroup and player.getGroup()
         if group then
             for i = 1, #perms.groups do
-                if perms.groups[i] == group then return true end
+                if perms.groups[i] == group then return true, 'esx group ' .. group end
             end
         end
     end
