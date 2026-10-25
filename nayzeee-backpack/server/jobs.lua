@@ -141,7 +141,23 @@ RegisterNetEvent('nayzeee-backpack:policeSearch', function(targetId)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.search_none, 'error')
     end
 
-    local id = PrepareStash(item.name, item.metadata.bagid)
-    if Logs then Logs.search(src, targetId, item.name) end
-    TriggerClientEvent('nayzeee-backpack:open', src, id)
+    local slot, bagid = item.slot, item.metadata.bagid
+    Locks.gate(src, item.metadata, {
+        bag = item.name,
+        police = true,
+        open = function()
+            local now = ox:GetSlot(targetId, slot)
+            if not now or not now.metadata or now.metadata.bagid ~= bagid then return end
+            if Logs then Logs.search(src, targetId, now.name) end
+            TriggerClientEvent('nayzeee-backpack:open', src, PrepareStash(now.name, bagid))
+        end,
+        getMeta = function()
+            local now = ox:GetSlot(targetId, slot)
+            return now and now.metadata
+        end,
+        save = function(m)
+            ox:SetMetadata(targetId, slot, m)
+            RefreshBagState(targetId)
+        end,
+    })
 end)

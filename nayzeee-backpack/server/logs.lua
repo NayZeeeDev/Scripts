@@ -129,6 +129,19 @@ function Logs.handoff(giver, taker, itemName, metadata)
     send('handoff', 'Bag handed over', fields, cfg.colors and cfg.colors.info)
 end
 
+local LOCK_TITLES = {
+    locked = 'Bag padlocked', picked = 'Padlock picked', cut = 'Padlock cut off',
+}
+
+function Logs.lock(src, bagKey, how)
+    local name, license = Logs.who(src)
+    local bag = Config.Backpacks[bagKey]
+    send('lock', LOCK_TITLES[how] or 'Padlock', {
+        { name = 'Player', value = ('%s\n%s'):format(name, license), inline = true },
+        { name = 'Bag', value = (bag and bag.label or bagKey or '-'), inline = true },
+    }, how == 'locked' and (cfg.colors and cfg.colors.info) or (cfg.colors and cfg.colors.rob))
+end
+
 function Logs.drop(src, bagKey, metadata, coords, reason)
     local name, license = Logs.who(src)
     local bag = Config.Backpacks[bagKey]

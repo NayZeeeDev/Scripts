@@ -238,6 +238,29 @@ carry the weight, or can't use a job bag. Job bags can't be handed over unless
 `Config.Handoff.jobBags = true`. Everything is checked again at the moment the
 bag changes hands, and every hand-off is logged with the contents.
 
+## Padlocks
+
+Wear a bag and use a **Bag Padlock** (or bag menu → **Padlock it**), then
+pick a 4-digit code. The lock is on the bag itself, so it stays locked
+wherever the bag goes: robbed, dropped on death, handed over, set down.
+
+Opening a padlocked bag:
+
+| Who | What happens |
+|---|---|
+| Whoever locked it | Opens as normal (`ownerSkipsCode`) |
+| Someone who knows the code | Types it once, then opens as normal until a restart or the code changes (`rememberCode`) |
+| Anyone else | **Enter the code**, **Pick the lock** (lockpick + ox_lib skill check; a fail can snap the pick) or **Cut it off** (bolt cutters, 6s) |
+| Police searching | Same as anyone else, unless `policeOpen = true` |
+
+Three wrong codes lock you out for a minute. Picking or cutting destroys the
+padlock; the owner taking it off (bag menu → **Take the padlock off**) gets it
+back. The item tooltip shows *Padlocked*, every lock, pick and cut is logged,
+and the code itself is stored as a salted hash only the server can check.
+
+`/bagitems` prints the padlock, lockpick and bolt cutter items if you don't
+have them yet.
+
 ## Sounds
 
 Bags zip open and shut, buckles click when you put one on or take it off,

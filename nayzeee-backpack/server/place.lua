@@ -50,7 +50,7 @@ local function saveOne(p)
     if not hasDb then return end
     MySQL.insert('INSERT INTO nayzeee_placed_bags (id, bag, metadata, x, y, z, heading, owner, variant, access) '..
                  'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '..
-                 'ON DUPLICATE KEY UPDATE x=VALUES(x), y=VALUES(y), z=VALUES(z), access=VALUES(access)',
+                 'ON DUPLICATE KEY UPDATE x=VALUES(x), y=VALUES(y), z=VALUES(z), access=VALUES(access), metadata=VALUES(metadata)',
         { p.id, p.bag, json.encode(p.metadata or {}), p.coords.x, p.coords.y, p.coords.z,
           p.heading or 0.0, p.owner, p.variant or 0, p.access or 'private' })
 end
@@ -206,8 +206,26 @@ RegisterNetEvent('nayzeee-backpack:openPlaced', function(id)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.cannot_open, 'error')
     end
 
-    TriggerClientEvent('nayzeee-backpack:open', src, PrepareStash(entry.bag, bagid))
-    if Sounds then Sounds.play('zip_open', entry.coords, 250) end
+    local placedId = tonumber(id)
+    Locks.gate(src, entry.metadata, {
+        bag = entry.bag,
+        open = function()
+            local now = placed[placedId]
+            if not now or #(GetEntityCoords(GetPlayerPed(src)) - now.coords) > 3.0 then return end
+            TriggerClientEvent('nayzeee-backpack:open', src, PrepareStash(now.bag, bagid))
+            if Sounds then Sounds.play('zip_open', now.coords, 250) end
+        end,
+        getMeta = function()
+            local now = placed[placedId]
+            return now and now.metadata
+        end,
+        save = function(m)
+            local now = placed[placedId]
+            if not now then return end
+            now.metadata = m
+            saveOne(now)
+        end,
+    })
 end)
 
 -----------------------------------------------------------------

@@ -36,6 +36,22 @@ lib.addCommand('bagitems', {
             out[#out + 1] = entryFor(key)
         end
     end
+    local lock = Config.Padlock
+    if lock and lock.enabled then
+        local extra = {
+            { lock.item, 'Bag Padlock', 150, "server = { export = '%s.usePadlock' }," },
+            { lock.lockpick and lock.lockpick.item, 'Lockpick', 100, nil },
+            { lock.cutter and lock.cutter.item, 'Bolt Cutters', 2500, nil },
+        }
+        for _, e in ipairs(extra) do
+            if e[1] and not ox:Items(e[1]) then
+                missing = missing + 1
+                out[#out + 1] = ("['%s'] = {\n    label = '%s',\n    weight = %d,\n    stack = true,\n    close = true,%s\n},"):format(
+                    e[1], e[2], e[3], e[4] and ('\n    ' .. e[4]:format(GetCurrentResourceName())) or '')
+            end
+        end
+    end
+
     local ob = Config.OutfitBag
     if ob and ob.enabled and not ox:Items(ob.item) then
         missing = missing + 1

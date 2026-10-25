@@ -74,11 +74,13 @@ function RefreshBagState(src)
         stowed = m.stowed and true or nil,
         pose = m.pose,
         slot = item.slot,
+        locked = m.lock and true or nil,
     }
 
     -- only write when something changed; statebag writes go to everyone
     if not current or current.bag ~= state.bag or current.variant ~= state.variant
-       or current.stowed ~= state.stowed or current.pose ~= state.pose or current.slot ~= state.slot then
+       or current.stowed ~= state.stowed or current.pose ~= state.pose or current.slot ~= state.slot
+       or current.locked ~= state.locked then
         Player(src).state:set('nayzeee_backpack', state, true)
         if Logs and (not current or current.bag ~= state.bag) then
             Logs.simple('equip', 'Backpack equipped', src, state.bag)
@@ -94,9 +96,12 @@ end
 local itemFilter = {}
 for name in pairs(Config.Backpacks) do itemFilter[name] = true end
 
-local function describe(bagKey)
+--- Item tooltip: storage, plus whether it's padlocked.
+function BagDescription(bagKey, meta)
     local storage = Bags.storage(bagKey)
-    return ('%d slots · %.1fkg'):format(storage.slots, storage.weight / 1000)
+    local text = ('%d slots · %.1fkg'):format(storage.slots, storage.weight / 1000)
+    if meta and meta.lock then text = text .. ' · Padlocked' end
+    return text
 end
 
 ox:registerHook('createItem', function(payload)
@@ -106,7 +111,7 @@ ox:registerHook('createItem', function(payload)
     if not meta.bagid then
         meta.bagid = ('%s%s'):format(os.time(), math.random(100000, 999999))
     end
-    meta.description = meta.description or describe(name)
+    meta.description = meta.description or BagDescription(name, meta)
     return meta
 end, { itemFilter = itemFilter })
 
@@ -178,11 +183,33 @@ end
 
 local watching = {} -- [stashId] = { bag, src } while a bag with a cash model / grab anim is open
 
+local openUnlocked -- forward
+
+--- Open a bag in your own inventory (asks for the code if it's padlocked).
 local function openBackpack(src, item)
     local meta = item and item.metadata
     if not meta or not meta.bagid then
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.cannot_open, 'error')
     end
+    if Player(src).state.nb_open then return end
+
+    local slot, bagid = item.slot, meta.bagid
+    Locks.gate(src, meta, {
+        bag = item.name,
+        open = function()
+            local now = ox:GetSlot(src, slot)
+            if now and now.metadata and now.metadata.bagid == bagid then openUnlocked(src, now) end
+        end,
+        getMeta = function()
+            local now = ox:GetSlot(src, slot)
+            return now and now.metadata
+        end,
+        save = function(m) ox:SetMetadata(src, slot, m) RefreshBagState(src) end,
+    })
+end
+
+openUnlocked = function(src, item)
+    local meta = item.metadata
 
     local id = PrepareStash(item.name, meta.bagid)
     local info = Bags.openInfo(item.name)
@@ -192,7 +219,7 @@ local function openBackpack(src, item)
     end
 
     -- keep the item tooltip honest after a storage edit
-    local desc = describe(item.name)
+    local desc = BagDescription(item.name, meta)
     if meta.description ~= desc then
         meta.description = desc
         ox:SetMetadata(src, item.slot, meta)

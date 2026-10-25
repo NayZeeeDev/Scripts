@@ -291,6 +291,42 @@ Config.Sounds = {
     files = {},
 }
 
+-- Padlocks. Use the padlock item while wearing a bag and pick a code. The
+-- lock stays on the bag wherever it goes: robbed, dropped, handed over or
+-- set down. Whoever doesn't know the code has to pick it or cut it off.
+--
+-- ox_inventory items (/bagitems prints any that are missing):
+--   bag_padlock  server = { export = 'nayzeee-backpack.usePadlock' }
+--   lockpick, bolt_cutter   (plain items; use your own names below)
+Config.Padlock = {
+    enabled = true,
+    item    = 'bag_padlock',
+    digits  = 4,
+
+    ownerSkipsCode = true, -- Whoever put the lock on never has to type it
+    rememberCode   = true, -- Typed it right once? Not asked again until a restart or the code changes
+    returnPadlock  = true, -- Taking your own lock off gives the padlock back
+
+    maxTries = 3,   -- Wrong codes before a lockout
+    lockout  = 60,  -- Seconds
+
+    lockpick = {
+        item = 'lockpick',
+        difficulty = { 'easy', 'medium', 'medium', 'hard' }, -- ox_lib skill check
+        keys = { 'w', 'a', 's', 'd' },
+        breakChance = 35, -- % a failed attempt snaps the lockpick
+        anim = { dict = 'anim@amb@clubhouse@tutorial@bkr_tut_ig3@', clip = 'machinic_loop_mechandplayer' },
+    },
+
+    cutter = {
+        item = 'bolt_cutter',
+        time = 6000, -- ms
+        anim = { dict = 'mini@repair', clip = 'fixing_a_ped' },
+    },
+
+    policeOpen = false, -- true: police searches open padlocked bags without cutting
+}
+
 -- Hand a bag to someone: you take it off, hold it out, they take it.
 -- Everyone sees the bag go from your hand to theirs. Works for every
 -- backpack, purse and duffel (contents and all) and for the outfit bag.
@@ -547,6 +583,7 @@ Config.Logs = {
         stow     = false,
         rob      = true,  -- Who took what from whom
         handoff  = true,  -- Bag handed to another player
+        lock     = true,  -- Padlocks put on, picked, cut
         search   = true,  -- Police searches
         drop     = true,  -- Death drops
         place    = true,  -- Bag set down, with coords
@@ -1083,6 +1120,32 @@ Strings = {
     ho_ask_text      = 'Someone is handing you a **%s**.',
     ho_take          = 'Take it',
     ho_refuse        = 'No thanks',
+
+    lk_title         = 'Padlocked',
+    lk_code          = 'Enter the code',
+    lk_pick          = 'Pick the lock',
+    lk_cut           = 'Cut it off',
+    lk_set_title     = 'Padlock your %s',
+    lk_set_label     = 'Choose a %d digit code',
+    lk_locked        = 'Padlocked. Only you, and anyone you tell the code, can open it.',
+    lk_already       = 'This bag already has a padlock.',
+    lk_no_padlock    = "You don't have a padlock.",
+    lk_bad_code      = 'The code has to be %d digits.',
+    lk_wrong         = 'Wrong code. %d tries left.',
+    lk_wrong_plain   = 'Wrong code.',
+    lk_lockout       = 'Too many wrong codes. Try again in %ds.',
+    lk_no_pick       = 'You need a lockpick.',
+    lk_no_cutter     = 'You need bolt cutters.',
+    lk_picked        = 'The padlock pops open.',
+    lk_pick_failed   = "The lock didn't give.",
+    lk_pick_broke    = 'Your lockpick snapped.',
+    lk_cut           = 'You cut the padlock off.',
+    lk_cutting       = 'Cutting the padlock...',
+    lk_removed       = 'Padlock removed.',
+    lk_changed       = 'Code changed.',
+    lk_menu_lock     = 'Padlock it',
+    lk_menu_change   = 'Change padlock code',
+    lk_menu_remove   = 'Take the padlock off',
 
     ob_title         = 'Outfit Bag',
     ob_placing       = 'Setting the outfit bag down...',

@@ -85,6 +85,10 @@ function OpenBackpackMenu(bagKey)
         }
     end
 
+    if Locks and Locks.menuOptions then
+        for _, o in ipairs(Locks.menuOptions()) do options[#options + 1] = o end
+    end
+
     if Handoff then
         options[#options + 1] = {
             title = P.handoff,
