@@ -64,6 +64,9 @@ and a server-side VF chance → pull out. Vitals recover on screen while the sac
 2. **Clean the skin** — scrub iodine until the area is covered; a fenestrated spun-bond drape (fibre texture,
    bond points, adhesive window film) drops over the field.
 3. **Numb** (when the medic carries `Config.Items.lidocaine`) — bleb of lidocaine rises under the needle; N skips it (pain, flinches, lower score).
+   With none carried (the server's start data `numbing = false`, `ChestDrain.numbing` on) the step stays:
+   the lidocaine tool is locked and the step text / flash say *Out of lidocaine. Press P to step away,
+   fetch more, then use the same option to carry on* — or N goes on without it.
 4. **Cut along the rib** — scalpel drag on the upper border of the rib below the mark, 2–3 cm, deviation scored.
 5. **Through the chest wall** — curved artery clamp (Roberts pattern: curved serrated jaws, box joint,
    ratchet, rings) pushed into the cut until it pops; Space spreads the jaws ×3; dark blood wells up (haemothorax) or air hisses.
@@ -76,6 +79,25 @@ and a server-side VF chance → pull out. Vitals recover on screen while the sac
 ### Needle decompression (`mode = 'decompress'`)
 Palpate the collarbone, count down to the 2nd space in the mid-clavicular line, mark it, push the 14 G orange
 cannula over the top of the 3rd rib until the hiss; the needle comes out and the catheter stays in place.
+
+### Step away (`Config.ProcPause`)
+**P** or *Step away* (above the stop ring on the procedure panel) parks the chest drain, the needle
+decompression or the pericardiocentesis to fetch supplies; using the same option again (same side for
+the chest procedures) within `Config.ProcPause.keep` seconds opens it where it was. Saved (the snapshot,
+well under 20 kB of JSON; never a supply count — lidocaine comes fresh from the server):
+- **chest drain**: the step, the mark (ink cross and its score, ribs felt), the antiseptic stain (dabs on a
+  4 mm grid, so a half-done prep keeps its coverage), the drape, the lidocaine bleb (or skipped), the
+  incision as far as it was cut and how far the clamp opened it (popped, spreads) with its blood, the finger
+  sweep, the tube at its depth (clamped or not), the drain unit (time draining, drained, air out), every
+  step score, flinches and the clock;
+- **decompression**: the mark and its score, the step, how far the cannula is in;
+- **pericardiocentesis**: the phase, needle angle / depth, the syringe content, what was drawn (the sac
+  restarts from the server's current volume less that), heart touches, passes and the clock;
+- the no-WebGL fallback keeps its step.
+
+Refused while a move is half done (LMB held: palpating, scrubbing, injecting, cutting, pushing the clamp,
+sweeping, feeding the tube; the needle buttons / F held), and gone once the result is being graded. A
+snapshot for another case (other side, other patient seed, another mode) starts afresh with a note.
 
 ### Easy mode
 `NZA.Easy(perm)` / `NZA.Staff.Easy`: no room / location requirement, only the supplies; procedures run as the
@@ -94,9 +116,9 @@ core progress bar. The easy scan then opens the device in review mode with the s
 | Mode | Input |
 |---|---|
 | scan | Mouse slide probe · Wheel turn marker · Q / E tilt · ↑ / ↓ depth · ← / → gain · Space freeze · C calipers (click two edges) · M B / M-mode · P positive · N clear · Enter finish · RMB look around · Esc (hold) put the probe down |
-| pericardio | Mouse probe / needle angle · F needle in / hold to draw · LMB advance · RMB pull back · T empty syringe · Esc (hold) stop |
-| chest drain | 1–9 tools · LMB use · Space spread clamp · Enter clamp the tube · N skip numbing · RMB look · Wheel zoom · R recentre · Esc (hold) stop |
-| decompress | 1 palpate · 2 marker · LMB push · RMB look · Wheel zoom |
+| pericardio | Mouse probe / needle angle · F needle in / hold to draw · LMB advance · RMB pull back · T empty syringe · P step away · Esc (hold) stop |
+| chest drain | 1–9 tools · LMB use · Space spread clamp · Enter clamp the tube · N skip numbing · P step away · RMB look · Wheel zoom · R recentre · Esc (hold) stop |
+| decompress | 1 palpate · 2 marker · LMB push · P step away · RMB look · Wheel zoom |
 
 ## Config keys (`Config.Ultrasound`)
 
@@ -141,7 +163,11 @@ heart touches clamped; billing and item use on the server; usable items rate-lim
 ## Preview
 
 `html/index.html?app=ultrasound&mode=scan|pericardio|chestdrain|decompress` (stand-in WebGL torso for the
-imaging modes), `html/apps/ultrasound/screen.html?demo=1[&win=ruq|cardiac|lung_l|pelvis]` for the cart screen.
+imaging modes), `&lido=0` (chest drain without lidocaine), `&resume=<stage>` plays to that point, steps
+away and carries on (chest drain `clean|numb|cut|dissect|spread|sweep|tube|connect`, pericardio
+`needle|draw`, decompression `needle`); P in the preview parks it and *Reopen* carries on;
+`window.UltrasoundDebug()` returns the running procedure's state.
+`html/apps/ultrasound/screen.html?demo=1[&win=ruq|cardiac|lung_l|pelvis]` for the cart screen.
 
 ## Known limits
 

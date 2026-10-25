@@ -29,8 +29,12 @@
     NUI callbacks: ultrasound:probe {x,y,rot,tilt,contact,…} · ultrasound:needle {phase,depth,ang,draw,touch}
       · ultrasound:finish {result} · ultrasound:launch {action, side, result} · ultrasound:flinch {pain}
       · ultrasound:abort · ultrasound:close (core)
-    NUI messages: open (mode + server data + locale + inv + perms + stepItems) · vitals · result · abort
+    NUI messages: open (mode + server data + locale + inv + perms + stepItems; chest drain + numbOffer) · vitals · result · abort
       (a refused launch is answered in the ultrasound:launch reply { ok = false, msg })
+    Step away (core Config.ProcPause): the chest drain, decompression and pericardiocentesis HUDs
+      offer "Step away" (P). The core parks the session; 'proc:ended' (reason 'paused') closes the app
+      and the world scene like any end, without an error toast. Using the same option again (same side)
+      carries on: the server's start data brings data.resume (the game's snapshot) with the open.
     Net events: nza:us:use (kind) S→C - a chest drain kit / decompression needle was used
 ]]
 
@@ -275,6 +279,9 @@ local function openApp(s, mode, d)
     }
     data.keys = cfg().keys
     data.quality = data.quality or cfg('ChestDrain').quality
+    -- chest drain: the numbing step is offered (the server sends numbing = false when none is carried:
+    -- the app then says "out of lidocaine, step away to fetch some"); data.resume rides along from ctx.data
+    if mode == 'chestdrain' then data.numbOffer = cfg('ChestDrain').numbing ~= false and itemName('lidocaine') ~= nil end
     s.open = NZA.UI.Open(APP, data, { focus = true, cursor = true }) ~= false
     if s.open then
         s.stopWatch = NZA.Patient.Watch(s.target, function(snap)

@@ -449,4 +449,13 @@ NZA.AddLocale('en', {
     ['ultrasound.fb_prog']                   = 'Step',
     ['ultrasound.done_t']                    = 'Done · %s',
     ['ultrasound.loading']                   = 'Preparing the field…',
+
+    -- ── step away (P on the procedure panel) to fetch supplies, then carry on from the same point ──
+    ['ultrasound.cd_fl_lido_out']            = 'Out of lidocaine. Press {P} to step away, fetch more, then use the same option to carry on.',
+    ['ultrasound.cd_lido_none']              = 'No lidocaine on you.',
+    ['ultrasound.cd_x_numb_out']             = 'Out of lidocaine. Press {P} to step away, fetch more, then use the same option to carry on — or press {N} to go on without it (it will hurt).',
+    ['ultrasound.cd_x_numb_none']            = 'No lidocaine on you. Press {N} to go on without it (it will hurt).',
+    ['ultrasound.resume_ok']                 = 'Carrying on where you left off.',
+    ['ultrasound.resume_lido']               = 'Carrying on where you left off — with lidocaine to hand now.',
+    ['ultrasound.resume_other']              = 'Things have changed since you stepped away — this one starts from the beginning.',
 })

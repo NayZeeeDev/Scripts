@@ -1840,6 +1840,7 @@
       abort: { label: T('hold_stop_needle', 'Hold to stop'), key: 'ESC', seconds: 1.2 },
       onAbort: () => app.abort(),
       onTool: k => { if (k === 'F') pressF(); if (k === 'T') empty(); },
+      pause: () => snapshot(),
     });
     pp.slot.prepend(syr);
     function tools() {
@@ -1910,9 +1911,84 @@
         <div class="nl-r wall"><span>${esc(T('ndl_wall', 'heart'))}</span><b>${wall !== null ? wall.toFixed(1) : '--'}</b></div>`;
     }
 
+    /* step away / carry on: the phase, the probe / needle (angle, depth), what is in the syringe, what
+       was drawn, heart touches, passes and the clock; null while a button is held (advancing, pulling
+       back, aspirating) or once finished. The sac is what the server sends now (d.ml) less what was
+       drawn: the server only takes it off when the procedure is graded. */
+    const caseKey = () => ({ seed });
+    function snapshot() {
+      if (S.done || S.lmb || S.rmb || S.f) return null;
+      const r = (x, n) => Math.round((+x || 0) * Math.pow(10, n)) / Math.pow(10, n);
+      return {
+        v: 1, m: 'pc', w: caseKey(), ph: S.phase, t: r(S.t, 2), p: [r(S.p.x, 4), r(S.p.y, 4)], hold: r(S.hold, 2),
+        ang: r(S.angT, 4), dep: r(S.depth, 3), drawn: r(S.drawn, 2), syr: r(S.syr, 2), tch: S.touches, pas: S.passes,
+        inH: S.inHeart ? 1 : 0, wasIn: S.wasIn ? 1 : 0,
+      };
+    }
+    function restore(r) {
+      const num = (v, dflt) => (typeof v === 'number' && Number.isFinite(v) ? v : dflt);
+      const ph = ['window', 'needle', 'draw', 'out'].includes(r.ph) ? r.ph : 'window';
+      S.t = Math.max(0, num(r.t, 0));
+      S.touches = clamp(Math.round(num(r.tch, 0)), 0, 50);
+      S.passes = clamp(Math.round(num(r.pas, 0)), 0, 99);
+      S.drawn = clamp(num(r.drawn, 0), 0, 2000);
+      S.ml = Math.max(0, ml0 - S.drawn);
+      S.syr = clamp(num(r.syr, 0), 0, S.syrMax);
+      S.ang = S.angT = clamp(num(r.ang, 0.86), 0.45, 1.25);
+      if (Array.isArray(r.p)) { S.p.x = S.tgt.x = clamp(num(r.p[0], S.p.x), -1.3, 1.3); S.p.y = S.tgt.y = clamp(num(r.p[1], S.p.y), -0.2, 1.2); }
+      if (S.touches) pp.stat('touch', { value: String(S.touches), tone: 'red' });
+      if (ph === 'window') {
+        S.hold = clamp(num(r.hold, 0), 0, 0.79);
+        setPhase('window');
+      } else {
+        S.depth = clamp(num(r.dep, 0), 0, 13);
+        S.inHeart = !!r.inH; S.wasIn = !!r.wasIn;
+        S.p.contact = true;
+        dev.state.needle = { on: S.depth > 0.05, guide: true, ex: -6.6, ez: 0, ang: S.ang, depth: S.depth, inPlane: 1 };
+        dev.engine.set({ needle: dev.state.needle });
+        setPhase(ph);
+        // the syringe back in the patient's chest in the world (Lua), then its depth every 0.1 s
+        app.post('needle', { phase: 'in', depth: +S.depth.toFixed(2), ang: +S.ang.toFixed(2) });
+      }
+      S.resumed = true;
+    }
+    // browser preview / tests: needle in ('needle' part way, 'draw' in the sac and drawing)
+    function demoTo(stage) {
+      const run = sec => { const n = Math.max(1, Math.ceil(sec * 30)); for (let i = 0; i < n && !S.done; i++) frame(1 / 30, performance.now()); };
+      if (S.phase === 'window') {
+        // the probe on the heart window (as a medic holding a clear view), then the needle in
+        const w = UI.WIN.cardiac;
+        S.mouse = null; S.p.x = S.tgt.x = w.x; S.p.y = S.tgt.y = w.y; S.p.contact = true;
+        run(0.4);
+        S.hold = 1; pressF(); run(0.1);
+      }
+      // aim where the black band is widest along the needle line (what the dotted guide shows)
+      if (S.depth < 0.05) {
+        let best = null;
+        for (let a = 0.45; a <= 1.25; a += 0.01) {
+          dev.engine.set({ needle: { on: false, guide: true, ex: -6.6, ez: 0, ang: a, depth: 0, inPlane: 1 } });
+          const p = dev.engine.needlePath();
+          if (p && p.sac !== null && p.wall !== null && (!best || p.wall - p.sac > best.w)) best = { a, w: p.wall - p.sac };
+        }
+        if (best) S.ang = S.angT = best.a;
+      }
+      if (stage === 'needle') { S.lmb = true; run(1.2); S.lmb = false; run(0.1); return state(); }
+      S.lmb = true;
+      for (let k = 0; k < 600 && S.phase === 'needle'; k++) run(1 / 30);
+      S.lmb = false;
+      S.f = true; run(4); S.f = false;
+      run(0.1);
+      return state();
+    }
+    function state() {
+      const tx = pp.el.querySelector('.pp-text');
+      return { mode: 'pericardio', phase: S.phase, t: S.t, ml: S.ml, ml0, drawn: S.drawn, syr: S.syr, depth: S.depth, ang: S.ang, touches: S.touches, passes: S.passes, hold: S.hold, done: S.done, resumed: !!S.resumed, lmb: S.lmb, rmb: S.rmb, f: S.f, text: tx ? tx.textContent : '' };
+    }
+
     function finish() {
       if (S.done) return;
       S.done = true;
+      pp.set({ pause: false });
       let score = 100 - S.touches * 18 - Math.max(0, S.t - 70) * 0.25;
       const resid = Math.max(0, S.ml - S.leftOver) / ml0;
       score -= resid * 60;
@@ -2032,6 +2108,7 @@
         vitals(v) { S.vit = Object.assign(S.vit, v || {}); },
         result(o) {
           S.done = true;
+          pp.set({ pause: false });
           const good = !o.failed && !o.vf;
           dev.flag(o.vf ? T('pc_res_vf', 'VF — start CPR') : good ? T('pc_res_ok', 'SAC DRAINED') : T('pc_res_none', 'NOTHING DRAWN'), good ? 'teal' : 'red');
           pp.complete({
@@ -2048,9 +2125,18 @@
         window.removeEventListener('mouseup', onUp);
         pp.destroy(); dev.destroy(); ppHost.remove(); reticle.remove();
       },
-      _dbg: { S, dev, pressF, setPhase },
+      snapshot, state,
+      _dbg: { S, dev, pressF, setPhase, snapshot, state, demoTo, frame },
     };
     setPhase('window');
+    const snap0 = d.resume && typeof d.resume === 'object' && !Array.isArray(d.resume) ? d.resume : null;
+    if (snap0) {
+      const w = snap0.w && typeof snap0.w === 'object' ? snap0.w : {};
+      if (snap0.v === 1 && snap0.m === 'pc' && (Number(w.seed) >>> 0) === seed) {
+        try { restore(snap0); } catch (e) { console.error('[ultrasound] restore', e); setPhase('window'); }
+        pp.flash('ok', T('resume_ok', 'Carrying on where you left off.'), 3200);
+      } else pp.flash('warn', T('resume_other', 'Things have changed since you stepped away — this one starts from the beginning.'), 4200);
+    }
     return api;
   }
 
@@ -2076,6 +2162,13 @@
    Decompression (front of the chest): 1 feel the collarbone and count down, mark the 2nd space
    under the middle of the collarbone · 2 push the 14 G cannula in (hold LMB) until the air hisses
    out; the needle comes back out and the catheter stays in.
+   Step away (P on the panel, core ProcPanel opts.pause): mode.snapshot() goes to Lua ('_proc:pause'),
+   the server parks the procedure and the app closes; using the same option again (same side) opens
+   with d.resume = that snapshot and the mode rebuilds the same point (chest drain: restore(); the
+   decompression and the hold-Space fallback keep their step too). Supplies: lidocaine is the one
+   thing counted (d.numbing, from the server at the start). None carried → the numb step stays, its
+   tool is locked and the step text says "Out of lidocaine. Press P to step away…" ({N} goes on).
+   Debug: window.UltrasoundDebug() · mode._dbg.demoTo(stage) · preview ?mode=chestdrain&resume=tube.
    Custom meshes (meshes(S)): nitrile-gloved hand (swept fingers, knuckles, thenar pad, gown sleeve),
    skin marker, curved artery clamp (Roberts pattern, box joint, ratchet, rings; set({ open })),
    14 G cannula (set({ needle, flash })), 28 Fr chest tube + connector + drain line (depth / fill /
@@ -2150,15 +2243,25 @@
     return api;
   }
 
-  // a hold-to-progress fallback when WebGL is missing (keeps the procedure playable, lower score)
-  function Fallback(app, d, steps, title, extra) {
+  // a hold-to-progress fallback when WebGL is missing (keeps the procedure playable, lower score);
+  // "Step away" keeps the step reached (kind = 'chestdrain' | 'decompress' for the saved case)
+  function Fallback(app, d, steps, title, extra, kind) {
     const sh = Shell(app, d, { sub: title });
     let i = 0, prog = 0, hold = false, done = false;
+    const caseKey = { m: 'fb', k: String(kind || ''), side: String(d.side || ''), n: steps.length };
+    const snapshot = () => (done || hold ? null : Object.assign({ v: 1, i }, caseKey));
     const pp = NZA.ui.ProcPanel(sh.ppHost, {
       tag: title, step: 1, total: steps.length, steps, title: steps[0], text: T('fb_text', 'No 3D view on this PC. Hold {Space} to do each step.'),
       wide: { label: T('fb_prog', 'Step'), value: '0', unit: '%', meter: { value: 0 } }, abort: { label: T('hold_stop_needle', 'Hold to stop'), key: 'ESC' }, onAbort: () => app.abort(),
+      pause: () => snapshot(),
     });
     sh.patient([]);
+    const r = d.resume && typeof d.resume === 'object' && !Array.isArray(d.resume) ? d.resume : null;
+    if (r && r.v === 1 && Object.keys(caseKey).every(k => String(r[k]) === String(caseKey[k]))) {
+      i = clamp(Math.round(+r.i || 0), 0, steps.length - 1);
+      pp.set({ step: i + 1, title: steps[i] });
+      pp.flash('ok', T('resume_ok', 'Carrying on where you left off.'), 3200);
+    }
     const api = {
       key(e) { if (e.key === ' ') { hold = true; return true; } if (e.key === 'Enter' && done) { pp.key(e); return true; } return false; },
       keyUp(e) { if (e.key === ' ') { hold = false; return true; } return false; },
@@ -2169,14 +2272,16 @@
           prog = 0; i++;
           if (i >= steps.length) {
             done = true;
-            app.post('finish', { result: Object.assign({ score: 55 }, extra || {}) }).then(r => { if (r && r.outcome) api.msg.result(r.outcome); });
+            pp.set({ pause: false });
+            app.post('finish', { result: Object.assign({ score: 55 }, extra || {}) }).then(r2 => { if (r2 && r2.outcome) api.msg.result(r2.outcome); });
             return;
           }
           pp.set({ step: i + 1, title: steps[i] }); NZA.audio.success();
         }
         pp.wide({ value: String(Math.round(prog * 100)), meter: { value: prog } });
       },
-      msg: { result(o) { pp.complete({ title: T('done_t', 'Done · %s', o.grade || '-'), text: o.msg || '', label: T('done', 'Done'), onDone: () => app.close() }); } },
+      msg: { result(o) { pp.set({ pause: false }); pp.complete({ title: T('done_t', 'Done · %s', o.grade || '-'), text: o.msg || '', label: T('done', 'Done'), onDone: () => app.close() }); } },
+      snapshot,
       destroy() { pp.destroy(); sh.destroy(); },
     };
     return api;
@@ -2869,16 +2974,20 @@
       ['cut', T('cd_s_cut', 'Open the skin over the rib')], ['dissect', T('cd_s_dissect', 'Through the chest wall')], ['sweep', T('cd_s_sweep', 'Finger sweep')],
       ['tube', T('cd_s_tube', 'Feed the tube')], ['connect', T('cd_s_connect', 'Connect the drain')],
     ];
-    const STEPS = STEPS_ALL.filter(s => s[0] !== 'numb' || d.numbing);
+    // lidocaine: the server counts it at the start (d.numbing). Offered (d.numbOffer, Config) but none
+    // carried → the numb step stays and says how to fetch some (step away, carry on); {N} goes on without
+    const lidoOut = !d.numbing && d.numbOffer !== false;
+    const STEPS = STEPS_ALL.filter(s => s[0] !== 'numb' || d.numbing || lidoOut);
     const tag = T('cd_tag', 'Chest drain · %s side', T('side_' + side, side));
-    if (!window.NZA3D || !NZA3D.supported()) return Fallback(app, d, STEPS.map(s => s[1]), tag, { numbed: false });
+    const FB_STEPS = STEPS_ALL.filter(s => s[0] !== 'numb' || d.numbing).map(s => s[1]);
+    if (!window.NZA3D || !NZA3D.supported()) return Fallback(app, d, FB_STEPS, tag, { numbed: false }, 'chestdrain');
     const ant = side === 'right' ? 1 : -1;                         // the front of the body lies toward +u on the right side
     const sh = Shell(app, d, {
       sub: tag,
       scene: { region: 'chest', size: [0.6, 0.44], hair: 0.22, focus: { uv: [0.5, 0.5], size: [0.12, 0.1] }, gravity: [-0.35 * ant, 1] },
     });
     const S = sh.S;
-    if (!S) { sh.destroy(); return Fallback(app, d, STEPS.map(s => s[1]), tag, { numbed: false }); }
+    if (!S) { sh.destroy(); return Fallback(app, d, FB_STEPS, tag, { numbed: false }, 'chestdrain'); }
     const THREE = window.THREE;
     const MS = meshes(S);
     const ink = Ink(S);
@@ -2925,18 +3034,19 @@
     const G = {
       step: 0, t: 0, tool: null, mark: null, markErr: null, markSpace: null,
       cover: 0, numb: 0, numbed: false, numbSkipped: false, wheal: null,
-      wound: null, cutStart: null, cutDir: null, cutLen: 0, cutDev: [], cutDone: false,
+      wound: null, cutStart: null, cutDir: null, cutLen: 0, cutDev: [], cutDone: false, cutT: 0,
       wall: 0, popped: false, spread: 0, offT: 0,
       sweep: 0, lastAng: null,
       tube: null, depth: 0, dragY: null, tubeSet: false,
       connected: false, drained: 0, lung: 0, bubbles: 0, drainT: 0,
       flinches: 0, done: false, score: {}, lens: 0, felt: {}, drapeK: -1,
+      dabs: new Map(),                                              // antiseptic dabs on a 4 mm grid (step away)
     };
     const tools = [
       { key: '1', id: 'hand', label: T('cd_t_hand', 'Palpate'), icon: 'hand' },
       { key: '2', id: 'pen', label: T('cd_t_pen', 'Skin marker'), icon: 'edit' },
       { key: '3', id: 'swab', label: T('cd_t_swab', 'Antiseptic'), icon: 'drop' },
-      { key: '4', id: 'lido', label: T('cd_t_lido', 'Lidocaine'), icon: 'syringe', hide: !d.numbing },
+      { key: '4', id: 'lido', label: T('cd_t_lido', 'Lidocaine'), icon: 'syringe', hide: !d.numbing && !lidoOut },
       { key: '5', id: 'scalpel', label: T('cd_t_scalpel', 'Scalpel'), icon: 'scalpel' },
       { key: '6', id: 'clamp', label: T('cd_t_clamp', 'Curved clamp'), icon: 'forceps' },
       { key: '7', id: 'finger', label: T('cd_t_finger', 'Finger'), icon: 'hand' },
@@ -2955,6 +3065,16 @@
       tube: T('cd_x_tube', 'Hold {LMB} and drag **toward the head** to feed the tube up and back. Stop at **10–14 cm** and press {Enter} to clamp it there.'),
       connect: T('cd_x_connect', 'Click the drain ({9}) to connect the tube and open the clamp.'),
     };
+    // "Step away" is offered only while the running procedure can be parked (core ProcPanel)
+    const canStepAway = () => { const pz = pp && pp.el && pp.el.querySelector('.pp-pause'); return !!pz && pz.style.display !== 'none'; };
+    const lidoOutText = () => (canStepAway()
+      ? T('cd_fl_lido_out', 'Out of lidocaine. Press {P} to step away, fetch more, then use the same option to carry on.')
+      : T('cd_lido_none', 'No lidocaine on you.'));
+    const txtFor = id => (id === 'numb' && lidoOut
+      ? (canStepAway()
+        ? T('cd_x_numb_out', 'Out of lidocaine. Press {P} to step away, fetch more, then use the same option to carry on — or press {N} to go on without it (it will hurt).')
+        : T('cd_x_numb_none', 'No lidocaine on you. Press {N} to go on without it (it will hurt).'))
+      : TXT[id]);
     const pp = NZA.ui.ProcPanel(sh.ppHost, {
       tag, step: 1, total: STEPS.length, steps: STEPS.map(s => s[1]),
       title: STEPS[0][1], text: TXT.mark,
@@ -2969,7 +3089,10 @@
       abort: { label: T('hold_stop_needle', 'Hold to stop'), key: 'ESC', seconds: 1.2 },
       onAbort: () => app.abort(),
       onTool: k => pick(k),
+      pause: () => snapshot(),
     });
+    // no lidocaine carried: its tool stays locked and says how to get some
+    if (lidoOut) pp.set({ tools: tools.map(t => (t.id === 'lido' ? { key: t.key, label: t.label, icon: t.icon, state: 'locked', why: lidoOutText() } : { key: t.key, label: t.label, icon: t.icon })) });
 
     // drain unit widget (top-right)
     const dw = document.createElement('section');
@@ -3017,6 +3140,7 @@
     function pick(key) {
       const t = tools.find(x => x.key === String(key));
       if (!t || G.done) return;
+      if (t.id === 'lido' && lidoOut) { pp.flash('warn', lidoOutText(), 4200); return; }
       G.tool = t.id;
       pp.active(t.key);
       const engine = { swab: 'gauze', lido: 'syringe', scalpel: 'scalpel', clamp: kel, hand: hand, pen: pen, finger: finger }[t.id] || null;
@@ -3024,19 +3148,30 @@
       if (t.id === 'drain' && stepId() === 'connect') connect();
       NZA.audio.click(640);
     }
+    // the panel, the tool in the hand and the camera for the current step (instant: no camera glide)
+    function showStep(instant) {
+      const id = stepId();
+      frameFor(id, instant);
+      pp.set({ step: G.step + 1, title: STEPS[G.step][1], text: txtFor(id) });
+      let tl = tools.find(t => t.id === STEP_TOOL[id]);
+      if (id === 'mark' && (G.tool === 'hand' || !G.tool)) tl = tools.find(t => t.id === 'hand');
+      if (id === 'numb' && lidoOut) {
+        // nothing to inject: put the swab down, the lidocaine stays locked
+        tl = null; G.tool = null; S.tools.use(null); pp.active(null);
+        pp.flash('warn', lidoOutText(), 6000);
+      }
+      if (tl) pick(tl.key);
+      wideFor(id);
+      const doneKeys = tools.filter(t => Object.keys(STEP_TOOL).slice(0, Object.keys(STEP_TOOL).indexOf(id)).some(s => STEP_TOOL[s] === t.id))
+        .filter(t => t.id !== 'lido' || G.numbed).map(t => t.key);
+      doneKeys.forEach(k => pp.tool(k, 'done'));
+      if (tl) pp.active(tl.key);
+    }
     function nextStep() {
       G.step++;
       if (G.step >= STEPS.length) return;
-      const id = stepId();
-      frameFor(id, false);
-      pp.set({ step: G.step + 1, title: STEPS[G.step][1], text: TXT[id] });
-      const tl = tools.find(t => t.id === STEP_TOOL[id]);
-      if (tl) pick(tl.key);
-      wideFor(id);
+      showStep(false);
       NZA.audio.success();
-      const doneKeys = tools.filter(t => Object.keys(STEP_TOOL).slice(0, Object.keys(STEP_TOOL).indexOf(id)).some(s => STEP_TOOL[s] === t.id)).map(t => t.key);
-      doneKeys.forEach(k => pp.tool(k, 'done'));
-      if (tl) pp.active(tl.key);
     }
     function wideFor(id) {
       const Wd = {
@@ -3068,8 +3203,7 @@
     const mmBetween = (a, b) => S.distanceUv(a, b) / MM;
 
     // ── input ──
-    S.on('down', (e) => {
-      if (e.button !== 0 || G.done) return;
+    function onDown() {
       G.lmb = true;
       const hit = sh.hit();
       const id = stepId();
@@ -3079,21 +3213,26 @@
       if (G.tool === 'tube' && id === 'tube') G.dragY = sh.state.mouse.cy;
       if (G.tool === 'drain' && id === 'connect') connect();
       S.tools.press(true);
-    });
-    S.on('up', (e) => { if (e.button !== 0) return; G.lmb = false; S.tools.press(false); if (G.cutStart && !G.cutDone) endCut(); G.dragY = null; });
+    }
+    function onUp() { G.lmb = false; S.tools.press(false); if (G.cutStart && !G.cutDone) endCut(); G.dragY = null; }
+    S.on('down', (e) => { if (e.button !== 0 || G.done) return; onDown(); });
+    S.on('up', (e) => { if (e.button !== 0) return; onUp(); });
 
-    function placeMark(uv) {
-      G.mark = uv;
-      G.markErr = mmBetween(uv, target);
-      const where = ribAt(uv);
-      G.markSpace = where;
-      // ink: an X on the spot and a short stroke along the rib below it
+    // ink: an X on the spot and a short stroke along the rib below it
+    function drawMark(uv) {
       if (ink) {
         ink.cross(uv, 0.009, -Math.atan(slope * H / W));
         const half = 0.012 / W;
         ink.line([uv[0] - half, uv[1] - slope * half - SP * 0.42], [uv[0] + half, uv[1] + slope * half - SP * 0.42], 0.0009, undefined, 0.6);
         ink.flush();
       } else S.markers.set('mark', { uv, kind: 'cross', color: 0x5b2f9c, size: 0.007, opacity: 0.95, pulse: false });
+    }
+    function placeMark(uv) {
+      G.mark = uv;
+      G.markErr = mmBetween(uv, target);
+      const where = ribAt(uv);
+      G.markSpace = where;
+      drawMark(uv);
       const errTone = G.markErr <= 10 ? 'ok' : G.markErr <= 20 ? 'warn' : 'bad';
       const whereTxt = where.rib ? T('cd_on_rib', 'on the %s rib', ORD(where.rib)) : where.space ? T('cd_in_space', 'in the %s space', ORD(where.space)) : '';
       pp.wide({ value: String(Math.round(G.markErr)), meter: { value: clamp(G.markErr / 50, 0, 1), zone: [0, 0.2], tone: errTone === 'ok' ? '' : errTone === 'warn' ? 'amber' : 'red' }, caption: whereTxt });
@@ -3123,10 +3262,15 @@
       const from = dA < dB ? L.a : L.b, to = dA < dB ? L.b : L.a;
       const dir = [to[0] - from[0], to[1] - from[1]];
       G.cutStart = from; G.cutDir = dir;
+      addWound(from, dir, 0.001);
+      if (!G.numbed) flinch();
+    }
+    function addWound(from, dir, cut, open, depthMm) {
       const pts = [];
       for (let i = 0; i <= 12; i++) pts.push([from[0] + dir[0] * i / 12, from[1] + dir[1] * i / 12]);
-      G.wound = S.wounds.add({ type: 'incision', points: pts, cut: 0.001, gape: 2.2 * MM, depth: 5 * MM, open: 1, seed: (d.seed || 7) % 9973 });
-      if (!G.numbed) flinch();
+      G.wound = S.wounds.add({ type: 'incision', points: pts, cut, gape: 2.2 * MM, depth: (depthMm || 5) * MM, open: open || 1, seed: (d.seed || 7) % 9973 });
+      G.woundFrom = from; G.woundDir = dir; G.cutT = cut;
+      return G.wound;
     }
     function endCut() {
       G.cutDone = G.cutLen >= 14;
@@ -3144,24 +3288,373 @@
       app.post('flinch', { pain: 70 });
     }
 
-    function connect() {
+    // the chest tube: out of the incision, over onto the drape, running down and back toward the
+    // drain unit beside the bed; the drain tubing carries on off the edge of the bed
+    function buildTube() {
+      if (G.tube || !G.wound) return G.tube;
+      const mid = G.wound.at(0.5).uv;
+      const sf = S.surfaceAt(mid);
+      const n = sf.normal.clone();
+      // toward the back of the chest (the side of the bed and the floor), a little toward the feet
+      let dx = -ant, dy = -0.38;
+      const dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
+      const uvAt = k => [mid[0] + dx * k / W, mid[1] + dy * k / H];
+      const lie = 0.0047 + 0.0029;
+      const onSurf = (k, up) => { const q = S.surfaceAt(uvAt(k)); return q.point.clone().addScaledVector(q.normal, up); };
+      const dW = S.surfaceAt(uvAt(0.012)).point.sub(sf.point).normalize();
+      const p0 = sf.point.clone().addScaledVector(n, -0.004);
+      const p1 = sf.point.clone().addScaledVector(n, 0.017).addScaledVector(dW, 0.005);
+      const pts = [p0, p1, onSurf(0.045, lie + 0.004), onSurf(0.085, lie), onSurf(0.13, lie), onSurf(0.175, lie)];
+      const kEdge = Math.max(0.19, Math.min(0.32, (ant > 0 ? mid[0] - 0.03 : 0.97 - mid[0]) * W / Math.max(0.2, Math.abs(dx))));
+      const last = onSurf(kEdge, 0.0052 + 0.0029);
+      const tail = [onSurf((0.2 + kEdge) / 2, 0.0052 + 0.0029), last,
+        last.clone().addScaledVector(dW, 0.06).add(new THREE.Vector3(0, -0.035, 0)),
+        last.clone().addScaledVector(dW, 0.1).add(new THREE.Vector3(0, -0.3, 0))];
+      G.tube = MS.tube(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), tail);
+      G.tube.depth(0);
+      return G.tube;
+    }
+
+    function connect(quiet) {
       if (G.connected || stepId() !== 'connect') return;
       G.connected = true;
       dw.classList.add('on');
       dw.querySelector('.st').textContent = T('dr_on', 'draining');
       if (G.tube) G.tube.open(true);
-      NZA.audio.click(520);
+      if (!quiet) NZA.audio.click(520);
       G.score.connect = 5;
     }
 
     function finish() {
       if (G.done) return;
       G.done = true;
+      pp.set({ pause: false });
       S.tools.use(null);
       const s = G.score;
       const total = clamp(Math.round((s.mark || 0) + (s.clean || 0) + (s.numb || 0) + (s.cut || 0) + (s.dissect || 0) + (s.sweep || 0) + (s.tube || 0) + (s.connect || 0) - G.flinches * 2), 0, 100);
       pp.set({ title: T('reading_peri', 'Checking the result…'), text: '' });
       app.post('finish', { result: { score: total, numbed: G.numbed, drained: Math.round(G.drained), depth: +G.depth.toFixed(1) } }).then(r => { if (r && r.outcome) api.msg.result(r.outcome); });
+    }
+
+    /* ─────────── step away / carry on ───────────
+       snapshot() → a small JSON-safe object, or null while a move is half done (LMB held: palpating,
+       scrubbing, injecting, drawing the blade, pushing the clamp, sweeping, feeding the tube) or once
+       the drain is being graded. The next open of the same procedure (same side) brings it back as
+       d.resume and restore() rebuilds, in order: the mark, the antiseptic stain (dabs on a 4 mm grid),
+       the drape, the lidocaine bleb, the incision as far as it was cut and opened (and its blood), the
+       tube at its depth, the drain unit — plus the step scores, flinches and the clock — then opens the
+       first step not finished. Supply counts are never saved: lidocaine comes fresh (d.numbing). */
+    const DAB = 0.004;
+    const rnd = (x, n) => { const p = Math.pow(10, n); return Math.round((+x || 0) * p) / p; };
+    const uv5 = p => [rnd(p[0], 5), rnd(p[1], 5)];
+    // one antiseptic dab (also what the restore replays)
+    function swab(uv, a) {
+      S.layers.paint('iodine', uv, 0.019, a, { hardness: 0.3, grain: 0.55 });
+      S.layers.paint('wet', uv, 0.02, Math.min(1, a / 1.7), { hardness: 0.3 });
+      const st = S.uvToST(uv), k = `${Math.round(st[0] / DAB)},${Math.round(st[1] / DAB)}`;
+      G.dabs.set(k, Math.min(4, (G.dabs.get(k) || 0) + a));
+    }
+    // the sterile drape over the prepped skin (k 0 = drops in now, 1 = already lying there)
+    function putDrape(k) {
+      if (drape || !G.mark) return drape;
+      try {
+        drape = MS.drape(G.mark, 0.052);
+        G.drapeK = k;
+        if (k >= 1) drape.drop(1);
+      } catch (e) { console.warn('[ultrasound] drape', e); drape = null; }
+      return drape;
+    }
+    const caseKey = () => ({ side, seed: (d.seed || 0) >>> 0 });
+    function snapshot() {
+      if (G.done || G.step >= STEPS.length || G.lmb) return null;
+      // the prep stain: dab amounts per grid cell, relative to the mark (coarser if it ever got big)
+      let io = null;
+      if (G.dabs.size && G.mark) {
+        const base = S.uvToST(G.mark);
+        for (let g = 1; g <= 4; g++) {
+          const m = new Map();
+          G.dabs.forEach((a, k) => {
+            const ij = k.split(',').map(Number), kk = `${Math.round(ij[0] / g)},${Math.round(ij[1] / g)}`;
+            m.set(kk, Math.min(4, (m.get(kk) || 0) + a));
+          });
+          if (m.size > 700 && g < 4) continue;
+          const oi = Math.round(base[0] / (DAB * g)), oj = Math.round(base[1] / (DAB * g)), flat = [];
+          m.forEach((a, k) => { const ij = k.split(',').map(Number); flat.push(ij[0] - oi, ij[1] - oj, Math.round(a * 100)); });
+          io = { g, d: flat };
+          break;
+        }
+      }
+      const sc = {};
+      Object.keys(G.score).forEach(k => { if (typeof G.score[k] === 'number' && Number.isFinite(G.score[k])) sc[k] = rnd(G.score[k], 2); });
+      const devSum = G.cutDev.reduce((a, b) => a + b, 0);
+      return {
+        v: 1, m: 'cd', w: caseKey(),
+        step: stepId(), t: rnd(G.t, 2), tool: G.tool || '', sc, fl: G.flinches,
+        felt: Object.keys(G.felt).map(Number).filter(n => n > 0),
+        mk: G.mark ? uv5(G.mark) : null, io,
+        nb: rnd(G.numb, 3), nd: G.numbed ? 1 : 0, ns: G.numbSkipped ? 1 : 0, lo: lidoOut ? 1 : 0,
+        wd: G.wound && G.woundFrom ? { a: uv5(G.woundFrom), d: [rnd(G.woundDir[0], 6), rnd(G.woundDir[1], 6)], c: rnd(G.cutT, 4) } : null,
+        cut: { len: rnd(G.cutLen, 2), dev: [rnd(devSum, 2), G.cutDev.length], done: G.cutDone ? 1 : 0 },
+        wall: rnd(G.wall, 3), pop: G.popped ? 1 : 0, spr: G.spread, off: rnd(G.offT, 2),
+        sw: rnd(G.sweep, 3), dep: rnd(G.depth, 2), tset: G.tubeSet ? 1 : 0,
+        con: G.connected ? { t: rnd(G.drainT, 2), ml: rnd(G.drained, 1), air: G.airOut ? 1 : 0 } : null,
+      };
+    }
+    // rebuild the saved point on the freshly built scene → true when it was used
+    function restore(r) {
+      const num = (v, dflt) => (typeof v === 'number' && Number.isFinite(v) ? v : dflt);
+      const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+      const uvOk = p => Array.isArray(p) && p.length === 2 && p.every(x => typeof x === 'number' && Number.isFinite(x) && x > 0 && x < 1);
+      const at = id => STEPS_ALL.findIndex(s => s[0] === id);
+      const savedAt = Math.max(0, at(String(r.step)));
+      const sc = obj(r.sc);
+      G.t = Math.max(0, num(r.t, 0));
+      G.flinches = clamp(Math.round(num(r.fl, 0)), 0, 999);
+      (Array.isArray(r.felt) ? r.felt : []).forEach(n => { n = Math.round(num(n, 0)); if (n >= 2 && n <= 11) G.felt[n] = true; });
+      ['mark', 'clean', 'numb', 'cut', 'dissect', 'sweep', 'tube', 'connect'].forEach(k => { const v = num(sc[k], NaN); if (Number.isFinite(v)) G.score[k] = clamp(v, -10, 40); });
+      // each part rebuilds its own state and says whether that step was finished; the first unfinished
+      // step is where the game carries on (a later part never comes back without the ones before it)
+      const PART = {
+        mark() {
+          if (!uvOk(r.mk)) return false;
+          G.mark = r.mk.slice();
+          G.markErr = mmBetween(G.mark, target);
+          G.markSpace = ribAt(G.mark);
+          drawMark(G.mark);
+          if (G.score.mark === undefined) G.score.mark = G.markErr <= 8 ? 25 : G.markErr <= 15 ? 19 : G.markErr <= 25 ? 11 : 4;
+          return true;
+        },
+        clean() {
+          const io = obj(r.io);
+          if (Array.isArray(io.d)) {
+            const g = clamp(Math.round(num(io.g, 1)), 1, 8), a = io.d, base = S.uvToST(G.mark);
+            const oi = Math.round(base[0] / (DAB * g)), oj = Math.round(base[1] / (DAB * g));
+            for (let k = 0; k + 2 < a.length && k < 9000; k += 3) {
+              const i = num(a[k], NaN), j = num(a[k + 1], NaN), amt = clamp(num(a[k + 2], 0) / 100, 0, 4);
+              if (!Number.isFinite(i) || !Number.isFinite(j) || !(amt > 0)) continue;
+              const uv = S.stToUv((i + oi) * DAB * g, (j + oj) * DAB * g);
+              // one paint adds at most 1: replay the amount in pieces so the stain adds up as it did
+              for (let left = amt; left > 1e-3; left -= 1) swab(uv, Math.min(1, left));
+            }
+          }
+          if (G.score.clean !== undefined && !G.dabs.size) {
+            // finished prep without its dabs: brown over the whole drape window
+            for (let rr = 0; rr <= 0.045; rr += 0.009) for (let k = 0, n = Math.max(1, Math.round(rr / 0.004)); k < n; k++) {
+              const st = S.uvToST(G.mark), a2 = k / n * Math.PI * 2;
+              swab(S.stToUv(st[0] + Math.cos(a2) * rr, st[1] + Math.sin(a2) * rr), 1);
+            }
+          }
+          G.cover = S.layers.coverage('iodine', G.mark, 0.04, 0.3);
+          if (G.score.clean === undefined) return false;
+          putDrape(1);
+          if (!drape) { delete G.score.clean; return false; }
+          return true;
+        },
+        numb() {
+          G.numbed = !!r.nd;
+          G.numb = G.numbed ? 1 : clamp(num(r.nb, 0), 0, 0.99);
+          // a step past the numbing without it: it was skipped
+          G.numbSkipped = !G.numbed && (!!r.ns || savedAt > at('numb'));
+          if (G.numb > 0) G.wheal = S.bumps.add({ uv: G.mark, radius: 0.004 + 0.007 * G.numb, height: 0.0002 + 0.0016 * G.numb });
+          if (G.numbed) { G.score.numb = 5; sh.row('numb', T('pt_numb_yes', '5 mL lidocaine'), 'teal'); } else if (G.numbSkipped) { G.score.numb = 0; sh.row('numb', T('pt_numb_skip', 'skipped'), 'red'); }
+          return G.numbed || G.numbSkipped;
+        },
+        cut() {
+          const c = obj(r.cut), wd = obj(r.wd);
+          if (!uvOk(wd.a) || !Array.isArray(wd.d)) { G.cutLen = 0; return false; }
+          const dir = [num(wd.d[0], 0), num(wd.d[1], 0)];
+          if (Math.hypot(dir[0], dir[1]) < 1e-4 || Math.hypot(dir[0], dir[1]) > 0.3) return false;
+          G.cutLen = clamp(num(c.len, 0), 0, 60);
+          const dv = Array.isArray(c.dev) ? c.dev : [], nDev = clamp(Math.round(num(dv[1], 0)), 0, 3000);
+          G.cutDev = new Array(nDev).fill(nDev ? clamp(num(dv[0], 0), 0, 99 * nDev) / nDev : 0);
+          G.cutDone = !!c.done && G.cutLen >= 14;
+          if (G.cutDone) {
+            G.wall = clamp(num(r.wall, 0), 0, 1);
+            G.popped = !!r.pop && G.wall >= 1;
+            G.spread = G.popped ? clamp(Math.round(num(r.spr, 0)), 0, 20) : 0;
+            G.offT = Math.max(0, num(r.off, 0));
+          }
+          addWound(wd.a.slice(), dir, clamp(num(wd.c, 0.001), 0.001, 1), G.spread > 0 ? 2.4 + G.spread * 0.35 : 1 + G.wall * 1.4, 5 + G.wall * 7);
+          // the blood of the cut (and of the chest when it popped): same seed → the same splashes
+          const R = U.rng((((d.seed || 7) >>> 0) + 17) >>> 0), n = Math.round(clamp(G.cutLen, 0, 40) / 4);
+          for (let i = 0; i < n; i++) S.layers.splat('blood', G.wound.at(G.cutT * (n > 1 ? i / (n - 1) : 0.5)).uv, 0.0016, 0.35, { seed: Math.floor(R() * 1e9) });
+          if (G.popped && ml0 > 0) {
+            const mid = G.wound.at(0.5).uv;
+            for (let i = 0; i < 6; i++) S.layers.splat('blood', [mid[0] + (R() - 0.5) * 0.03, mid[1] - R() * 0.05], 0.004 + R() * 0.004, 0.7, { seed: Math.floor(R() * 1e9) });
+          }
+          if (!G.cutDone) return false;
+          S.fluids.bleed(G.wound, G.popped && ml0 > 0 ? 14 : 1.6);
+          G.cutStart = G.woundFrom; G.cutDir = G.woundDir;
+          if (G.score.cut === undefined) {
+            const dev = nDev ? G.cutDev[0] : 0;
+            G.score.cut = (G.cutLen >= 22 && G.cutLen <= 36 ? 15 : G.cutLen >= 16 ? 10 : 5) + (dev <= 3 ? 5 : dev <= 6 ? 2 : 0);
+          }
+          return true;
+        },
+        dissect() {
+          if (!G.popped || G.spread < 3) return false;
+          if (G.score.dissect === undefined) G.score.dissect = G.offT < 1.5 ? 10 : G.offT < 4 ? 6 : 3;
+          return true;
+        },
+        sweep() {
+          G.sweep = clamp(num(r.sw, 0), 0, 1);
+          if (G.sweep < 1) return false;
+          G.score.sweep = 5;
+          return true;
+        },
+        tube() {
+          G.depth = clamp(num(r.dep, 0), 0, 18);
+          buildTube();
+          if (G.tube) { G.tube.depth(G.depth); if (ml0 > 0 && G.depth > 3) G.tube.fill(Math.min(0.45, (G.depth - 3) / 25)); }
+          G.tubeSet = !!r.tset && G.depth > 2;
+          if (!G.tubeSet) return false;
+          if (G.score.tube === undefined) G.score.tube = G.depth >= 10 && G.depth <= 14 ? 20 : (G.depth >= 8 && G.depth <= 16 ? 10 : 3);
+          return true;
+        },
+        connect() {
+          const c = r.con && typeof r.con === 'object' ? r.con : null;
+          if (!c) return false;
+          G.connected = true;
+          dw.classList.add('on');
+          dw.querySelector('.st').textContent = T('dr_on', 'draining');
+          if (G.tube) G.tube.open(true);
+          G.score.connect = 5;
+          G.drainT = clamp(num(c.t, 0), 0, 7.45);
+          G.drained = clamp(num(c.ml, 0), 0, ml0);
+          G.lung = Math.min(1, G.drainT / 7);
+          if (c.air && air) { G.airOut = true; sh.row('air', T('pt_air_out', 'evacuated'), 'teal'); }
+          odo.set(String(Math.round(G.drained)).padStart(4, '0'));
+          return false;
+        },
+      };
+      let idx = STEPS.length - 1;
+      for (let k = 0; k < STEPS.length; k++) {
+        let done = false;
+        try { done = PART[STEPS[k][0]]() === true; } catch (e) { console.error(`[ultrasound] restore ${STEPS[k][0]}`, e); }
+        if (!done) { idx = k; break; }
+      }
+      // nothing of the steps not reached yet counts
+      STEPS.forEach((s, k) => { if (k > idx || (k === idx && s[0] !== 'connect')) delete G.score[s[0]]; });
+      if (!G.mark) delete G.score.mark;
+      G.step = idx;
+      if (idx === 0) G.tool = r.tool === 'pen' ? 'pen' : 'hand';
+      G.resumed = true;
+      return true;
+    }
+    // the meter of the step as it stood (the frame keeps the continuous ones up to date)
+    function wideNow() {
+      const id = stepId();
+      if (id === 'clean') pp.wide({ value: String(Math.round(G.cover * 100)), meter: { value: G.cover, zone: [0.85, 1] } });
+      if (id === 'numb') pp.wide({ value: (G.numb * 5).toFixed(1), meter: { value: G.numb, zone: [0.8, 1] } });
+      if (id === 'cut') pp.wide({ value: String(Math.round(G.cutLen)), meter: { value: clamp(G.cutLen / 40, 0, 1), zone: [0.55, 0.9] } });
+      if (id === 'connect' && G.connected) pp.wide({ value: String(Math.round(G.drained)), meter: { value: clamp(G.lung, 0, 1) } });
+    }
+    // compact state for tests / the browser console (window.UltrasoundDebug())
+    function state() {
+      const tx = pp.el.querySelector('.pp-text'), ti = pp.el.querySelector('.pp-title');
+      return {
+        mode: 'chestdrain', step: stepId(), idx: G.step, steps: STEPS.map(s => s[0]), tool: G.tool, t: G.t, score: Object.assign({}, G.score), flinches: G.flinches,
+        mark: G.mark, markErr: G.markErr, cover: G.cover, dabs: G.dabs.size, iodine: S.layers.total('iodine'), blood: S.layers.total('blood'),
+        numb: G.numb, numbed: G.numbed, numbSkipped: G.numbSkipped, wheal: !!G.wheal, drape: !!drape,
+        wound: !!G.wound, cutT: G.cutT, cutLen: G.cutLen, cutDone: G.cutDone, wall: G.wall, popped: G.popped, spread: G.spread, offT: G.offT,
+        sweep: G.sweep, tube: !!G.tube, depth: G.depth, tubeSet: G.tubeSet, connected: G.connected, drained: G.drained, drainT: G.drainT,
+        done: G.done, resumed: !!G.resumed, lidoOut, numbing: !!d.numbing, pausable: canStepAway(), lmb: !!G.lmb,
+        title: ti ? ti.textContent : '', text: tx ? tx.textContent : '',
+        lidoTool: (pp.el.querySelector('.pp-tool[data-key="4"]') || {}).className || '',
+      };
+    }
+    /* drive the game to a point with its own input paths (browser preview ?resume=<stage>, tests):
+       demoTo('clean'|'numb'|'cut'|'dissect'|'spread'|'sweep'|'tube'|'connect'|'done') — the step named
+       is left half done, every step before it finished */
+    function demoTo(stage) {
+      const ORDER = ['clean', 'numb', 'cut', 'dissect', 'spread', 'sweep', 'tube', 'connect', 'done'];
+      const goal = ORDER.indexOf(stage) < 0 ? ORDER.indexOf('tube') : ORDER.indexOf(stage);
+      const past = s => goal > ORDER.indexOf(s);
+      const sim = (sec, fn) => { const n = Math.max(1, Math.ceil(sec * 30)); for (let i = 0; i < n && !G.done; i++) { if (fn) fn(i / n); frame(1 / 30); S.step(1 / 30, false); } };
+      const aimAt = p => { S.pointer.x = p.x; S.pointer.y = p.y; sh.state.moved = true; sh.state.mouse = { x: p.x, y: p.y, cx: p.x * window.innerWidth, cy: p.y * window.innerHeight }; };
+      const aim = uv => aimAt(S.project(uv));
+      // over an opened cut: aim at skin level above it (the bottom of a deep cut projects onto its near rim)
+      const aimCut = uv => { const q = S.surfaceAt(uv); aimAt(S.project(q.point.clone().addScaledVector(q.normal, -Math.min(0, q.height || 0)))); };
+      const press = () => onDown(), release = () => onUp();
+      const keyOf = k => ({ key: k, code: k === ' ' ? 'Space' : k === 'Enter' ? 'Enter' : `Key${k.toUpperCase()}`, preventDefault() {} });
+      // 1 · feel three ribs, mark next to the 5th space
+      if (stepId() === 'mark') {
+        pick('1');
+        aim([0.5, ribV(3, 0.5)]); sim(0.05); press();
+        sim(1.2, k => aim([0.5, lerp(ribV(3, 0.5), ribV(7, 0.5), k)]));
+        release();
+        pick('2'); aim([target[0] + 0.004, target[1] - 0.002]); sim(0.05); press(); release();
+        if (stepId() === 'mark') nextStep();
+      }
+      // 2 · scrub in widening circles (half way for 'clean')
+      if (stepId() === 'clean' && G.mark) {
+        const c = S.uvToST(G.mark);
+        aim(G.mark); sim(0.05); press();
+        let t = 0;
+        while (stepId() === 'clean' && t < 30 && (past('clean') || G.cover < 0.5)) {
+          sim(0.25, k => { const a = (t + k * 0.25) * 9, rr = 0.004 + ((t * 0.37 + k * 0.1) % 1) * 0.04; aim(S.stToUv(c[0] + Math.cos(a) * rr, c[1] + Math.sin(a) * rr)); });
+          t += 0.25;
+        }
+        release();
+        sim(0.1);
+      }
+      if (!past('clean')) return state();
+      // 3 · lidocaine on the mark (or go on without it)
+      if (stepId() === 'numb') {
+        if (lidoOut) { if (past('numb')) api.key(keyOf('n')); }
+        else {
+          aim(G.mark); sim(0.05); press();
+          for (let k = 0; k < 120 && stepId() === 'numb' && G.numb < (past('numb') ? 1 : 0.45); k++) sim(0.1, () => aim(G.mark));
+          release(); sim(0.1);
+        }
+      }
+      if (!past('numb')) return state();
+      // 4 · the cut along the top of the rib (a short, released one for 'cut')
+      if (stepId() === 'cut') {
+        const L = cutLine(), to = past('cut') ? 1 : 0.35;
+        aim(L.a); sim(0.05); press();
+        sim(1.4, k => aim([lerp(L.a[0], L.b[0], k * to), lerp(L.a[1], L.b[1], k * to)]));
+        if (G.lmb) release();
+        if (stepId() === 'cut' && G.cutDone) nextStep();
+      }
+      if (!past('cut')) return state();
+      // 5 · clamp through the wall (pop), spread the jaws
+      if (stepId() === 'dissect' && G.wound) {
+        const mid = G.wound.at(0.5).uv;
+        aimCut(mid); sim(0.05); press();
+        for (let k = 0; k < 150 && !G.popped && G.wall < (past('dissect') ? 1 : 0.55); k++) sim(0.1, () => aimCut(mid));
+        release(); sim(0.1);
+        if (past('dissect')) for (let i = 0; i < (past('spread') ? 3 : 1) && stepId() === 'dissect'; i++) { api.key(keyOf(' ')); sim(0.1); }
+      }
+      if (!past('spread')) return state();
+      // 6 · finger round the hole
+      if (stepId() === 'sweep' && G.wound) {
+        const mid = G.wound.at(0.5).uv, pm = S.uvToST(mid);
+        aim(mid); sim(0.05); press();
+        let a = 0;
+        for (let k = 0; k < 150 && stepId() === 'sweep' && G.sweep < (past('sweep') ? 1 : 0.45); k++) sim(0.1, () => { a += 0.35; aim(S.stToUv(pm[0] + Math.cos(a) * 0.012, pm[1] + Math.sin(a) * 0.012)); });
+        release(); sim(0.1);
+      }
+      if (!past('sweep')) return state();
+      // 7 · feed the tube toward the head, clamp it at 12 cm (7 cm half way)
+      if (stepId() === 'tube' && G.wound) {
+        const mid = G.wound.at(0.5).uv;
+        aimCut(mid); sim(0.1); press();
+        const want = past('tube') ? 12 : 7;
+        for (let i = 0; i < 400 && G.depth < want - 0.05; i++) {
+          sh.state.mouse = Object.assign({}, sh.state.mouse, { cy: sh.state.mouse.cy - Math.max(1, Math.min(20, (want - G.depth) / 0.035)) });
+          sim(1 / 30);
+        }
+        release(); sim(0.05);
+        if (past('tube')) api.key(keyOf('Enter'));
+      }
+      if (!past('tube')) return state();
+      // 8 · connect the drain (draining half way for 'connect')
+      if (stepId() === 'connect') {
+        pick('9');
+        sim(past('connect') ? 8 : 3);
+      }
+      return state();
     }
 
     // rib curves for the palpation lens
@@ -3227,14 +3720,13 @@
       }
 
       if (id === 'clean' && G.tool === 'swab' && G.lmb && hit && G.mark) {
-        S.layers.paint('iodine', hit.uv, 0.019, Math.min(1, dt * 3.4), { hardness: 0.3, grain: 0.55 });
-        S.layers.paint('wet', hit.uv, 0.02, Math.min(1, dt * 2), { hardness: 0.3 });
+        swab(hit.uv, Math.min(1, dt * 3.4));
         G.cover = S.layers.coverage('iodine', G.mark, 0.04, 0.3);
         pp.wide({ value: String(Math.round(G.cover * 100)), meter: { value: G.cover, zone: [0.85, 1] } });
         if (G.cover >= 0.86) {
           G.score.clean = 10;
           // sterile field: the drape with its window settles over the prepped skin
-          try { drape = MS.drape(G.mark, 0.052); G.drapeK = 0; } catch (e) { console.warn('[ultrasound] drape', e); }
+          putDrape(0);
           NZA.audio.noise(420, { vol: 0.05, lp: 1400, hp: 120, attack: 0.05, release: 0.4 });
           pp.flash('ok', T('cd_fl_draped', 'Prepped. The sterile drape is on.'), 2200);
           nextStep();
@@ -3262,7 +3754,8 @@
           const newLen = tN * fullLen;
           if (newLen > G.cutLen) {
             G.cutLen = newLen; G.cutDev.push(dev);
-            G.wound.set({ cut: clamp(tN, 0.001, 1) });
+            G.cutT = clamp(tN, 0.001, 1);
+            G.wound.set({ cut: G.cutT });
             if (Math.random() < dt * 6) S.layers.splat('blood', onLine, 0.0016, 0.35);
           }
           ring = clamp(G.cutLen / 30, 0, 1); rtext = `${Math.round(G.cutLen)} mm`; rtone = G.cutLen > 36 ? 'red' : 'teal';
@@ -3332,30 +3825,7 @@
       }
       if (id !== 'sweep' && !S.tools.follow) S.tools.follow = true;
       if (id === 'tube' && G.wound) {
-        if (!G.tube) {
-          // outside part: out of the incision, over onto the drape, running down and back toward the
-          // drain unit beside the bed; the drain tubing carries on off the edge of the bed
-          const mid = G.wound.at(0.5).uv;
-          const sf = S.surfaceAt(mid);
-          const n = sf.normal.clone();
-          // toward the back of the chest (the side of the bed and the floor), a little toward the feet
-          let dx = -ant, dy = -0.38;
-          const dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
-          const uvAt = k => [mid[0] + dx * k / W, mid[1] + dy * k / H];
-          const lie = 0.0047 + 0.0029;
-          const onSurf = (k, up) => { const q = S.surfaceAt(uvAt(k)); return q.point.clone().addScaledVector(q.normal, up); };
-          const dW = S.surfaceAt(uvAt(0.012)).point.sub(sf.point).normalize();
-          const p0 = sf.point.clone().addScaledVector(n, -0.004);
-          const p1 = sf.point.clone().addScaledVector(n, 0.017).addScaledVector(dW, 0.005);
-          const pts = [p0, p1, onSurf(0.045, lie + 0.004), onSurf(0.085, lie), onSurf(0.13, lie), onSurf(0.175, lie)];
-          const kEdge = Math.max(0.19, Math.min(0.32, (ant > 0 ? mid[0] - 0.03 : 0.97 - mid[0]) * W / Math.max(0.2, Math.abs(dx))));
-          const last = onSurf(kEdge, 0.0052 + 0.0029);
-          const tail = [onSurf((0.2 + kEdge) / 2, 0.0052 + 0.0029), last,
-            last.clone().addScaledVector(dW, 0.06).add(new THREE.Vector3(0, -0.035, 0)),
-            last.clone().addScaledVector(dW, 0.1).add(new THREE.Vector3(0, -0.3, 0))];
-          G.tube = MS.tube(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), tail);
-          G.tube.depth(0);
-        }
+        if (!G.tube) buildTube();
         if (G.lmb && G.tool === 'tube' && !G.tubeSet && G.dragY !== null) {
           const dy = G.dragY - sh.state.mouse.cy;
           if (dy > 0) { G.depth = clamp(G.depth + dy * 0.035, 0, 18); G.dragY = sh.state.mouse.cy; }
@@ -3448,6 +3918,7 @@
         vitals(v) { d.vitals = Object.assign(d.vitals || {}, v || {}); pp.stat('hr', { value: String(Math.round(v.hr || v.ecgRate || 0) || '--') }); },
         result(o) {
           G.done = true;
+          pp.set({ pause: false });
           const ok = !o.failed;
           dw.querySelector('.st').textContent = ok ? T('dr_done', 'secured') : T('dr_fail', 'no flow');
           pp.complete({ title: ok ? T('cd_res_t', 'Drain in · %s', o.grade || '-') : T('cd_res_fail', 'The tube is not in the chest'), text: o.msg || '', label: T('done', 'Done'), onDone: () => app.close() });
@@ -3455,9 +3926,25 @@
           NZA.audio[ok ? 'success' : 'fail']();
         },
       },
+      snapshot, state,
       destroy() { pp.destroy(); dw.remove(); if (ink) ink.dispose(); MS.dispose(); sh.destroy(); },
-      _dbg: { S, G, target, cutLine: () => cutLine(), startCut, pick, connect, ribV, nextStep, placeMark, MS, hand, finger, pen },
+      _dbg: { S, G, target, cutLine: () => cutLine(), startCut, pick, connect, ribV, nextStep, placeMark, MS, hand, finger, pen, demoTo, snapshot, state, onDown, onUp },
     };
+
+    // carrying on after "Step away" (same side): rebuild the saved point; a bad snapshot never stops
+    // the game (whatever could not come back starts at that step)
+    const snap0 = d.resume && typeof d.resume === 'object' && !Array.isArray(d.resume) ? d.resume : null;
+    if (snap0) {
+      const w = snap0.w && typeof snap0.w === 'object' ? snap0.w : {}, k = caseKey();
+      if (snap0.v === 1 && snap0.m === 'cd' && w.side === k.side && (Number(w.seed) >>> 0) === k.seed) {
+        try { restore(snap0); } catch (e) { console.error('[ultrasound] restore', e); }
+        try { showStep(true); wideNow(); } catch (e) { console.error('[ultrasound] restore (panel)', e); }
+        const id = stepId();
+        if (!(id === 'numb' && lidoOut)) {
+          pp.flash('ok', id === 'numb' && snap0.lo && d.numbing ? T('resume_lido', 'Carrying on where you left off — with lidocaine to hand now.') : T('resume_ok', 'Carrying on where you left off.'), 3600);
+        }
+      } else pp.flash('warn', T('resume_other', 'Things have changed since you stepped away — this one starts from the beginning.'), 4200);
+    }
     return api;
   }
 
@@ -3466,10 +3953,10 @@
     const side = d.side === 'left' ? 'left' : 'right';
     const tag = T('dc_tag', 'Needle decompression · %s side', T('side_' + side, side));
     const STEPS = [T('dc_s1', 'Find the 2nd rib space'), T('dc_s2', 'Push the needle in')];
-    if (!window.NZA3D || !NZA3D.supported()) return Fallback(app, d, STEPS, tag, {});
+    if (!window.NZA3D || !NZA3D.supported()) return Fallback(app, d, STEPS, tag, {}, 'decompress');
     const sh = Shell(app, d, { sub: tag, scene: { region: 'chest', size: [0.6, 0.44], hair: 0.3, focus: { uv: [0.5, 0.6], size: [0.1, 0.1] } } });
     const S = sh.S;
-    if (!S) { sh.destroy(); return Fallback(app, d, STEPS, tag, {}); }
+    if (!S) { sh.destroy(); return Fallback(app, d, STEPS, tag, {}, 'decompress'); }
     const THREE = window.THREE;
     const H = S.patch.H, W = S.patch.W;
     const med = side === 'right' ? 1 : -1;                       // the breastbone lies toward +u on the right side
@@ -3511,6 +3998,7 @@
       hints: [{ keys: [T('k_rmb', 'RMB')], label: T('h_look3', 'look around') }, { keys: [T('k_wheel', 'Wheel')], label: T('h_zoom', 'zoom') }],
       abort: { label: T('hold_stop_needle', 'Hold to stop'), key: 'ESC', seconds: 1.2 }, onAbort: () => app.abort(),
       onTool: k => pickTool(k),
+      pause: () => snapshot(),
     });
     sh.patient([
       { id: 'side', label: T('pt_side', 'Side'), value: T('side_' + side, side) },
@@ -3533,9 +4021,15 @@
       const hit = sh.hit();
       if (G.step === 0 && hit && G.tool === 'pen') placeMark(hit.uv);
     });
+    const drawMark = uv => { if (ink) { ink.cross(uv, 0.008, 0); ink.flush(); } else S.markers.set('mark', { uv: uv, kind: 'cross', color: 0x5b2f9c, size: 0.007 }); };
+    const needleStep = () => {
+      pp.set({ step: 2, title: STEPS[1], text: T('dc_x2', 'Hold {LMB} on the mark and push straight down, just over the top of the 3rd rib, until you hear the hiss.'), tools: tlist(), wide: { label: T('dc_w_push', 'Depth'), value: String(Math.round(G.push * 100)), unit: '%', meter: { value: G.push, zone: [0.95, 1] } } });
+      S.tools.use(can);
+      can.pose.pressLift = -0.052 * G.push;
+    };
     function placeMark(uv) {
       G.mark = uv;
-      if (ink) { ink.cross(uv, 0.008, 0); ink.flush(); } else S.markers.set('mark', { uv: uv, kind: 'cross', color: 0x5b2f9c, size: 0.007 });
+      drawMark(uv);
       G.err = S.distanceUv(uv, target) / MM;
       const tone = G.err <= 10 ? 'ok' : G.err <= 22 ? 'warn' : 'bad';
       pp.wide({ value: String(Math.round(G.err)), meter: { value: clamp(G.err / 50, 0, 1), zone: [0, 0.2], tone: tone === 'ok' ? '' : tone === 'warn' ? 'amber' : 'red' } });
@@ -3543,10 +4037,7 @@
       pp.flash(tone, tooMed ? T('dc_fl_med', 'Too close to the breastbone: big vessels run there.') : tone === 'ok' ? T('dc_fl_ok', 'Right spot.') : T('dc_fl_off', '%s mm from the ideal spot.', Math.round(G.err)), 2600);
       G.score = (G.err <= 8 ? 55 : G.err <= 15 ? 45 : G.err <= 25 ? 30 : 12) - (tooMed ? 15 : 0);
       G.step = 1;
-      setTimeout(() => {
-        pp.set({ step: 2, title: STEPS[1], text: T('dc_x2', 'Hold {LMB} on the mark and push straight down, just over the top of the 3rd rib, until you hear the hiss.'), tools: tlist(), wide: { label: T('dc_w_push', 'Depth'), value: '0', unit: '%', meter: { value: 0, zone: [0.95, 1] } } });
-        S.tools.use(can);
-      }, 700);
+      setTimeout(() => { if (!G.done && !G.popped) needleStep(); }, 700);
     }
     S.on('up', e => { if (e.button === 0) { G.lmb = false; S.tools.press(false); } });
     const curves = [{ cls: 'cl', pts: Array.from({ length: 22 }, (_, i) => { const u = 0.06 + i * 0.042; return [u, clavV(u)]; }) }];
@@ -3600,9 +4091,47 @@
         pp.stat('sys', { value: String(Math.round((v.sys || 80) + (104 - (v.sys || 80)) * G.rec)), tone: 'teal' });
       }
     }
+    /* step away / carry on: the mark (and its score), the step and how far the needle is in; null while
+       LMB is held or once the air is out (the procedure is being graded) */
+    const caseKey = () => ({ side, seed: (d.seed || 0) >>> 0 });
+    function snapshot() {
+      if (G.done || G.lmb || G.popped) return null;
+      const r = (x, n) => Math.round((+x || 0) * Math.pow(10, n)) / Math.pow(10, n);
+      return { v: 1, m: 'dc', w: caseKey(), step: G.step, t: r(G.t, 2), tool: G.tool, mk: G.mark ? [r(G.mark[0], 5), r(G.mark[1], 5)] : null, sc: r(G.score, 2), push: r(G.push, 3) };
+    }
+    function restore(s) {
+      const num = (v, dflt) => (typeof v === 'number' && Number.isFinite(v) ? v : dflt);
+      const uvOk = p => Array.isArray(p) && p.length === 2 && p.every(x => typeof x === 'number' && Number.isFinite(x) && x > 0 && x < 1);
+      G.t = Math.max(0, num(s.t, 0));
+      if (num(s.step, 0) >= 1 && uvOk(s.mk)) {
+        G.mark = s.mk.slice();
+        drawMark(G.mark);
+        G.err = S.distanceUv(G.mark, target) / MM;
+        G.score = clamp(num(s.sc, 12), -20, 60);
+        G.push = clamp(num(s.push, 0), 0, 0.99);
+        G.step = 1;
+        needleStep();
+      } else {
+        G.tool = s.tool === 'pen' ? 'pen' : 'hand';
+        S.tools.use(G.tool === 'hand' ? hand : pen);
+        pp.set({ tools: tlist() });
+      }
+      G.resumed = true;
+    }
+    // browser preview / tests: the mark placed, the needle part way in
+    function demoTo(stage) {
+      if (G.step === 0) { pickTool('2'); placeMark([target[0] + 0.003, target[1] + 0.002]); needleStep(); }
+      if (stage === 'needle' && !G.popped) { G.push = Math.max(G.push, 0.45); can.pose.pressLift = -0.052 * G.push; }
+      return state();
+    }
+    function state() {
+      const tx = pp.el.querySelector('.pp-text');
+      return { mode: 'decompress', step: G.step, tool: G.tool, mark: G.mark, err: G.err, score: G.score, push: G.push, popped: G.popped, done: G.done, t: G.t, resumed: !!G.resumed, lmb: !!G.lmb, text: tx ? tx.textContent : '' };
+    }
     function finish() {
       if (G.done) return;
       G.done = true;
+      pp.set({ pause: false });
       if (!G.popped) S.tools.use(null);                 // a placed catheter stays in view
       app.post('finish', { result: { score: clamp(Math.round(G.score), 0, 100) } }).then(r => { if (r && r.outcome) api.msg.result(r.outcome); });
     }
@@ -3615,14 +4144,25 @@
       frame,
       msg: {
         result(o) {
+          G.done = true;
+          pp.set({ pause: false });
           const ok = !o.failed;
           pp.complete({ title: ok ? T('dc_res_t', 'Air released · %s', o.grade || '-') : T('dc_res_fail', 'No air came out'), text: o.msg || '', label: T('done', 'Done'), onDone: () => app.close() });
           NZA.audio[ok ? 'success' : 'fail']();
         },
       },
+      snapshot, state,
       destroy() { pp.destroy(); if (ink) ink.dispose(); MS.dispose(); sh.destroy(); },
-      _dbg: { S, G, target, hand, pen, can, placeMark, pickTool },
+      _dbg: { S, G, target, hand, pen, can, placeMark, pickTool, snapshot, state, demoTo },
     };
+    const snap0 = d.resume && typeof d.resume === 'object' && !Array.isArray(d.resume) ? d.resume : null;
+    if (snap0) {
+      const w = snap0.w && typeof snap0.w === 'object' ? snap0.w : {}, k = caseKey();
+      if (snap0.v === 1 && snap0.m === 'dc' && w.side === k.side && (Number(w.seed) >>> 0) === k.seed) {
+        try { restore(snap0); } catch (e) { console.error('[ultrasound] restore', e); }
+        pp.flash('ok', T('resume_ok', 'Carrying on where you left off.'), 3200);
+      } else pp.flash('warn', T('resume_other', 'Things have changed since you stepped away — this one starts from the beginning.'), 4200);
+    }
     return api;
   }
 
@@ -3687,6 +4227,12 @@
         if (!this.alive) return;
         try { this.mode = Mode(ctx, d); } catch (e) { console.error('[ultrasound] mode', e); this.mode = null; }
         this.loadEl.classList.add('out');
+        // preview: ?resume=<stage> plays to that point, steps away and carries on (see preview())
+        if (this.previewResume && !NZA.inGame && this.mode) {
+          const st = this.previewResume, m = this.mode;
+          this.previewResume = null;
+          setTimeout(() => { if (this.alive && this.mode === m) this.previewPark(st); }, 120);
+        }
         this.last = performance.now();
         const loop = now => {
           if (!this.alive) return;
@@ -3735,9 +4281,27 @@
       abort() { const a = NZA.apps.ultrasound; a.teardown(); NZA.closeLocal('ultrasound'); },
     },
 
-    /* ═════════════ browser preview ═════════════ */
+    // preview only: drive the demo to a mid-game point, take the snapshot and open again with it
+    previewPark(stage) {
+      const m = this.mode;
+      if (!m || !m._dbg || !m._dbg.demoTo || !m.snapshot) return;
+      try { m._dbg.demoTo(stage); } catch (e) { console.error('[ultrasound] demo', e); }
+      const snap = m.snapshot();
+      if (!snap) { console.warn('[ultrasound] no snapshot at', stage); return; }
+      const d = JSON.parse(JSON.stringify(this.d));
+      delete d.resume;
+      this.teardown();
+      NZA.demo('ultrasound', Object.assign(d, { resume: snap }));
+    },
+
+    /* ═════════════ browser preview ═════════════
+       ?mode=scan|pericardio|chestdrain|decompress · chest drain: &lido=0 (no lidocaine carried)
+       &resume=<stage> plays to that point, steps away and carries on (chest drain: clean|numb|cut|
+       dissect|spread|sweep|tube|connect · pericardio: needle|draw · decompression: needle)
+       "Step away" (P) keeps the snapshot and closes; Reopen carries on from it */
     preview() {
-      const mode = new URLSearchParams(location.search).get('mode') || 'scan';
+      const qs = new URLSearchParams(location.search);
+      const mode = qs.get('mode') || 'scan';
       const inv = {
         chest_drain_kit: { label: 'Chest Drain Kit', count: 1 }, decomp_needle: { label: 'Decompression Needle', count: 2 },
         iv_kit: { label: 'IV Kit', count: 3 }, tourniquet: { label: 'Tourniquet', count: 1 }, bandage: { label: 'Bandage', count: 4 },
@@ -3756,12 +4320,16 @@
           plan: [{ id: 'bleeding', kind: 'bleeding', regions: ['r_upper_leg'], items: { tourniquet: 1 }, order: 10 }, { id: 'fragments', kind: 'fragments', regions: ['chest'], items: { surgical_kit: 1 }, order: 90 }],
           drains: { left: false, right: false }, labels: true, minSeen: 1.2 },
         pericardio: { ml: 210, rate: 9, syringe: 60, drawRate: 7, leftOver: 20, mm: 15, views: { cardiac: { effusion: 15, collapse: true } }, labels: true },
-        chestdrain: { side: 'right', haemo: 1100, haemoRate: 14, ptx: 25, tension: false, numbing: true, quality: 'high' },
+        chestdrain: { side: 'right', haemo: 1100, haemoRate: 14, ptx: 25, tension: false, numbing: qs.get('lido') !== '0', quality: 'high' },
         decompress: { side: 'left' },
       };
       const data = Object.assign({}, base, demo[mode] || demo.scan);
-      const qp = new URLSearchParams(location.search).get('q');
+      if (qs.get('lido') === '0') data.inv = Object.assign({}, inv, { lidocaine: { label: 'Lidocaine 2%', count: 0 } });
+      const qp = qs.get('q');
       if (qp) data.quality = qp;
+      NZA.mock('_proc:pause', r => { this.parked = r && r.snapshot; setTimeout(() => NZA.close('ultrasound'), 80); return { ok: true }; });
+      if (this.parked) { data.resume = this.parked; this.parked = null; }
+      else if (!this.previewResumed && qs.get('resume')) { this.previewResume = qs.get('resume'); this.previewResumed = true; }
       NZA.mock('ultrasound:finish', r => new Promise(res => setTimeout(() => {
         const R = (r && r.result) || {};
         if (mode === 'scan') {
@@ -3895,6 +4463,9 @@
       tick();
     },
   });
+
+  // compact state of the running procedure for tests / the browser console
+  window.UltrasoundDebug = () => { const a = NZA.apps.ultrasound, m = a && a.mode; return m && m.state ? m.state() : null; };
 
   // keep camera input off while the pointer works the device panel / plan card
   document.addEventListener('mouseover', e => {
