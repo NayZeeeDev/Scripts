@@ -110,6 +110,25 @@ function Logs.rob(robber, victim, bagKey, metadata, droppedInstead)
     send('rob', 'Backpack robbed', fields, cfg.colors and cfg.colors.rob)
 end
 
+function Logs.handoff(giver, taker, itemName, metadata)
+    local gName, gLicense = Logs.who(giver)
+    local tName, tLicense = Logs.who(taker)
+    local bag = Config.Backpacks[itemName]
+
+    local fields = {
+        { name = 'From', value = ('%s\n%s'):format(gName, gLicense), inline = true },
+        { name = 'To',   value = ('%s\n%s'):format(tName, tLicense), inline = true },
+        { name = 'Bag',  value = (bag and bag.label or itemName), inline = true },
+    }
+
+    local contents = bag and Logs.contents(metadata)
+    if contents then
+        fields[#fields + 1] = { name = 'Contents', value = contents, inline = false }
+    end
+
+    send('handoff', 'Bag handed over', fields, cfg.colors and cfg.colors.info)
+end
+
 function Logs.drop(src, bagKey, metadata, coords, reason)
     local name, license = Logs.who(src)
     local bag = Config.Backpacks[bagKey]

@@ -85,6 +85,15 @@ function OpenBackpackMenu(bagKey)
         }
     end
 
+    if Handoff then
+        options[#options + 1] = {
+            title = P.handoff,
+            description = 'Give it to the person closest to you, contents and all',
+            icon = 'hand-holding',
+            onSelect = function() Handoff.offerNearest() end,
+        }
+    end
+
     local mine = MyPlacedBags and MyPlacedBags() or {}
     if #mine > 0 then
         options[#options + 1] = {

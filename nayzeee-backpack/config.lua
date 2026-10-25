@@ -266,6 +266,26 @@ Config.Robbery = {
     dispatchChance = 100, -- % chance an alert goes out
 }
 
+-- Hand a bag to someone: you take it off, hold it out, they take it.
+-- Everyone sees the bag go from your hand to theirs. Works for every
+-- backpack, purse and duffel (contents and all) and for the outfit bag.
+-- Bag menu > Hand to someone, third-eye a player, or /handbag.
+Config.Handoff = {
+    enabled  = true,
+    distance = 2.5,   -- Max meters between the two players
+    timeout  = 10,    -- Seconds they have to accept
+    jobBags  = false, -- Job-issued bags can be handed over
+    target   = true,  -- "Hand over bag" third-eye option on players (ox_target)
+
+    -- Timing (ms). A bag you're wearing comes off your back first.
+    takeOff = 1000,   -- Taking a worn bag off
+    swap    = 1150,   -- Into the give animation, when the bag changes hands
+    finish  = 2300,   -- Give animation done, the bag is theirs
+
+    giveAnim = { dict = 'mp_common', clip = 'givetake1_a' },
+    takeAnim = { dict = 'mp_common', clip = 'givetake1_b' },
+}
+
 -- ██████╗ ██╗      █████╗  ██████╗██╗███╗   ██╗ ██████╗
 -- ██╔══██╗██║     ██╔══██╗██╔════╝██║████╗  ██║██╔════╝
 -- ██████╔╝██║     ███████║██║     ██║██╔██╗ ██║██║  ███╗
@@ -468,6 +488,8 @@ Config.Prompts = {
     makePrivate   = 'Make private',
     makePublic    = 'Make public',
     findBags      = 'Find my bags',  -- Waypoint to a bag you set down (also /mybags)
+    handoff       = 'Hand to someone', -- Give the bag to the nearest player (also /handbag)
+    handoffTarget = 'Hand over bag',   -- Third-eye option on another player
 }
 
 -- Default keys. Players can still rebind them in Settings > Key Bindings > FiveM.
@@ -499,13 +521,14 @@ Config.Logs = {
         open     = false, -- Very noisy, only for investigating
         stow     = false,
         rob      = true,  -- Who took what from whom
+        handoff  = true,  -- Bag handed to another player
         search   = true,  -- Police searches
         drop     = true,  -- Death drops
         place    = true,  -- Bag set down, with coords
         pickup   = true,  -- Placed bag picked up
         access   = false, -- Private/public toggles
         admin    = true,  -- Studio saves / storage edits
-        contents = true,  -- Snapshot what was inside on rob and drop
+        contents = true,  -- Snapshot what was inside on rob, drop and hand-off
     },
 
     maxContentLines = 12, -- Item lines to include in a contents snapshot
@@ -890,7 +913,9 @@ Config.Backpacks = {
             model     = 'nayzeee_duffel_a',
             cashModel = 'nayzeee_duffel_b',
             heading   = 0.0,                -- open model faces the player as-is
-            grabAnim  = { dict = 'nayzeee_grab_cash_01', clip = 'nayzeee_grab_cash_01', time = 4200 },
+            -- swapAt: ms into the grab when the hand is in the bag; taking the
+            -- last of the cash swaps to the empty model right then
+            grabAnim  = { dict = 'nayzeee_grab_cash_01', clip = 'nayzeee_grab_cash_01', time = 4200, swapAt = 1400 },
         },
     },
 
@@ -1015,6 +1040,24 @@ Strings = {
     first_hint       = 'New bag! Use it from your inventory (or /bagmenu) to open it, set it down or take it off.',
     waypoint_set     = 'Waypoint set to your bag.',
     no_placed        = "You haven't set any bags down.",
+
+    ho_nobody        = 'Nobody close enough to hand it to.',
+    ho_offered       = 'You hold out your %s.',
+    ho_declined      = "They didn't want it.",
+    ho_expired       = "They didn't take it.",
+    ho_has_bag       = 'They already have a bag.',
+    ho_cant_carry    = "They can't carry that.",
+    ho_cant_use      = "They can't use that bag.",
+    ho_job           = 'Job bags stay with you.',
+    ho_close_first   = 'Close your bag first.',
+    ho_busy          = 'Not right now.',
+    ho_moved         = 'You moved too far apart.',
+    ho_given         = 'You handed over your %s.',
+    ho_received      = 'You took the %s.',
+    ho_ask_title     = 'Bag offered',
+    ho_ask_text      = 'Someone is handing you a **%s**.',
+    ho_take          = 'Take it',
+    ho_refuse        = 'No thanks',
 
     ob_title         = 'Outfit Bag',
     ob_placing       = 'Setting the outfit bag down...',

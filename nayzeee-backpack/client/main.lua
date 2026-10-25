@@ -14,6 +14,13 @@ local lastSig = nil -- what we last told the server about our inventory
 local attaching = {} -- [serverId] = true while a model is loading
 local localHidden = false -- shop / studio hide the worn bag
 local openState = {} -- [serverId] = nb_open statebag: the bag is set down and open
+local handHidden = {} -- [serverId] = true while the bag is in someone's hand (client/handoff.lua)
+local quietUntil = 0  -- no equip/unequip animation before this (a hand-off animates itself)
+
+--- Should this player's worn bag be drawn?
+local function shown(serverId, state)
+    return state and state.bag and (not state.stowed or openState[serverId]) and not handHidden[serverId]
+end
 
 local function pedFor(serverId)
     if serverId == myId then return PlayerPedId() end
@@ -101,7 +108,7 @@ local function attachProp(serverId, state)
 
     -- the state may have changed while the model loaded
     local now = wanted[serverId]
-    local visible = now and now.bag and (not now.stowed or openState[serverId])
+    local visible = shown(serverId, now)
     if not visible or sigOf(now, serverId) ~= sig or not DoesEntityExist(ped) then
         Util.delete(entity)
         if visible then CreateThread(function() apply(serverId) end) end
@@ -125,7 +132,7 @@ end
 
 apply = function(serverId)
     local state = wanted[serverId]
-    if state and state.bag and (not state.stowed or openState[serverId]) and Bags.exists(state.bag) then
+    if shown(serverId, state) and Bags.exists(state.bag) then
         attachProp(serverId, state)
     else
         removeProp(serverId)
@@ -148,6 +155,17 @@ function SetWornPropVisible(visible)
     if p and DoesEntityExist(p.entity) then
         SetEntityVisible(p.entity, visible, false)
     end
+end
+
+--- The hand-off draws the bag in a hand; the worn one steps aside.
+function SetHandoffHidden(serverId, hidden)
+    handHidden[serverId] = hidden or nil
+    CreateThread(function() apply(serverId) end)
+end
+
+--- Skip the equip / unequip animation for the next inventory change.
+function QuietBagAnims(ms)
+    quietUntil = GetGameTimer() + (ms or 3000)
 end
 
 function GetWornProp()
@@ -208,7 +226,7 @@ local function syncBackpack(skipAnim)
     local hadBag = lastSig ~= nil and lastSig ~= 'none'
     lastSig = sig
 
-    if not skipAnim and Config.Animations and Config.Animations.enabled then
+    if not skipAnim and GetGameTimer() > quietUntil and Config.Animations and Config.Animations.enabled then
         local stowed = meta and meta.stowed
         if bagKey and not hadBag and not stowed then
             Anim.playAsync('equip')
@@ -265,6 +283,7 @@ end)
 RegisterNetEvent('nayzeee-backpack:clear', function(serverId)
     wanted[serverId] = nil
     openState[serverId] = nil
+    handHidden[serverId] = nil
     removeProp(serverId)
 end)
 
@@ -290,7 +309,7 @@ CreateThread(function()
         local any = false
 
         for serverId, state in pairs(wanted) do
-            if state and state.bag and (not state.stowed or openState[serverId]) then
+            if shown(serverId, state) then
                 any = true
                 local ped = pedFor(serverId)
                 local p = props[serverId]

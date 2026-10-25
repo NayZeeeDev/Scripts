@@ -185,9 +185,11 @@ you and go through it (`Config.OpenBag`):
 
 - **Backpacks** — kneel, unzip, rummage (`style = 'kneel'`).
 - **Duffels** — stand over it (`style = 'stand'`). The **Duffel Bag** lies
-  open on the ground, shows the cash inside when it holds `money`,
-  `black_money` or `markedbills` (`cashItems`), and you reach in and grab
-  cash with its own animation every time you take some out.
+  open on the ground. The money only shows while there is money in it
+  (`money`, `black_money` or `markedbills`, see `cashItems`); put cash in
+  and it fills, take the last of it out and it empties the moment your hand
+  reaches in. Every time you take cash out you reach in and grab it with its
+  own animation.
 - **Purses / hand-carry bags** open the quick way, in your hands.
 
 Everyone nearby sees the bag on the floor. Closing the inventory picks it back
@@ -204,6 +206,22 @@ The open duffel models and the cash grab animation are by **BzZz**
 installed bzzz_money, and they are in `escrow_ignore`: BzZz's licence says his
 props are never escrowed. To re-make them from a newer bzzz_money:
 `python3 tools/rename_bzzz.py <bzzz_money folder> stream`.
+
+## Handing a bag over
+
+Bag menu → **Hand to someone**, third-eye a player → **Hand over bag**, or
+`/handbag`. The other player gets a **Take it / No thanks** prompt
+(`Config.Handoff.timeout`). When they take it, everyone around sees it: a bag
+you're wearing comes off your back, you hold it out, it's in their hand, and
+then on their back. The contents go with it. Works for every backpack, purse
+and duffel, and for the outfit bag (its own menu → **Hand to someone**, outfits
+and all).
+
+It's refused when either of you is dead, cuffed or in a car, when your bag is
+open on the ground, when they already have a bag (`Config.OneBagOnly`), can't
+carry the weight, or can't use a job bag. Job bags can't be handed over unless
+`Config.Handoff.jobBags = true`. Everything is checked again at the moment the
+bag changes hands, and every hand-off is logged with the contents.
 
 ## Finding your bags
 
@@ -310,6 +328,7 @@ exports['nayzeee-backpack']:GiveBag(src, key, variant)
 | `/givebag id bag [variant]` | admin / console | give a bag |
 | `/bagmenu` `/openbag` `/placebag` `/bagnearby` | everyone | bindable in key settings (defaults: `Config.Keybinds`) |
 | `/mybags` | everyone | find bags you've set down |
+| `/handbag` | everyone | hand your bag to the closest player |
 | `/robbag` `/searchbag` | everyone / police | fallbacks without ox_target |
 | `/bagstore` | everyone | when `Config.Shop.openMode` is `command` or `both` |
 
@@ -327,6 +346,7 @@ Every loop idles and only goes per-frame while it has work:
 | Shop | — | store open |
 | Outfit bag | — | a bag is on the ground near you (500ms) or the menu is open (300ms) |
 | Open bag (kneel / duffel) | — | the bag is open (250ms) |
+| Hand-off | — | per frame for the ~3s a bag changes hands near you |
 | Studio / icon box | — | studio open |
 
 ## Escrow

@@ -110,13 +110,21 @@ function Open.start(stashId, opening)
 end
 
 --- The server tells us when cash goes in or out of the open bag.
+--- The money only shows while there's money in the bag. Taking the last
+--- of it out swaps the model when your hand reaches in, not before.
 RegisterNetEvent('nayzeee-backpack:openCash', function(hasCash, withdrew)
     if not Open.active or not info then return end
-    if hasCash ~= info.cash then
-        info.cash = hasCash
-        setState({ style = info.style, cash = hasCash })
-    end
-    if withdrew and info.style == 'stand' then playGrab() end
+    local grab = withdrew and info.style == 'stand' and info.grabAnim
+    if grab then playGrab() end
+    if hasCash == info.cash then return end
+
+    info.cash = hasCash
+    local opening = info
+    SetTimeout(grab and (grab.swapAt or 1400) or 0, function()
+        if Open.active and info == opening and info.cash == hasCash then
+            setState({ style = info.style, cash = hasCash })
+        end
+    end)
 end)
 
 AddEventHandler('onResourceStop', function(res)

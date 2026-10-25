@@ -382,6 +382,8 @@ local function useItem(slot)
               disabled = myNetId ~= nil, onSelect = function() setDown(slot) end },
             { title = 'Quick change', description = 'Open it right here, no set-down', icon = 'shirt',
               onSelect = function() openQuick(slot) end },
+            Handoff and { title = Config.Prompts.handoff, description = 'Give it to the person closest to you, outfits and all',
+              icon = 'hand-holding', onSelect = function() Handoff.offerNearest(slot) end } or nil,
         },
     })
     lib.showContext('nayzeee_outfitbag_use')
