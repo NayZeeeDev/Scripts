@@ -932,6 +932,8 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     /* ═════════════════════ PROCEDURE ═════════════════════ */
     procStart(d) {
       this.procStop();
+      // the 3D close-up (apps/splint/splint3d.js) when WebGL works; the 2D game below is the fallback
+      if (window.Splint3D && Splint3D.ok()) { this.d = d; this.g3 = Splint3D.start(this, d); return; }
       this.d = d;
       this.tune = Object.assign({}, DEF_TUNE, d.tune || {});
       this.K = Object.assign({}, DEF_KEYS, d.keys || {});
@@ -1000,6 +1002,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     },
 
     procStop() {
+      if (this.g3) { this.g3.dispose(); this.g3 = null; }
       if (this.S) this.S.active = false;
       this.S = null;
       this.held.clear();
@@ -1334,7 +1337,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
 
     pointerDown(e) {
       const S = this.S;
-      if (!S || !S.active || S.finished || e.button !== 0 || this.overUi(e)) return;
+      if (this.g3 || !S || !S.active || S.finished || e.button !== 0 || this.overUi(e)) return;
       const f = this.frame();
       if (!f) return;
       const p = this.px(e);
@@ -2504,7 +2507,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     },
     previewRun(stage) {
       LOC = {};
-      const W = previewWorld(this);
+      const W = !stage.startsWith('hud') && window.Splint3D && Splint3D.ok() ? null : previewWorld(this);
       const arm = stage === 'arm' || stage.startsWith('arm-');
       NZA.mock(`${APP}:finish`, r => ({ ok: true, outcome: { score: r.score, grade: r.score >= 90 ? 'S' : r.score >= 80 ? 'A' : r.score >= 68 ? 'B' : 'C', msg: arm ? 'Right forearm splinted · pain easing' : 'Right lower leg splinted · pain easing' } }));
       if (stage.startsWith('hud')) {
@@ -2540,6 +2543,7 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
       };
       d.keys = { rotateLeft: 'KeyQ', rotateRight: 'KeyE', reset: 'KeyX', set: 'Space' };
       NZA.demo(APP, d);
+      if (this.g3) { this.g3.jump(stage.replace(/^arm-?/, '') || 'place'); return; }
       this.previewStage(stage.replace(/^arm-?/, '') || 'place');
     },
     // Puts the running procedure straight into a stage (synchronous - software WebGL frames are slow,

@@ -10,7 +10,7 @@
                    data → { injury, region, regionLabel, device, deviceLabel, deviceModel, limb, segment, joints,
                             fracture { kind, kindLabel, bone, boneLabel, displaced, angle }, open, dressed, severity,
                             pulse ('present'|'weak'|'absent'), pulseWhy, hr, sys, refill, responsive, name, sex, pain,
-                            size { width, depth, wall, limbRadius }, tune {...} }
+                            tone, seed (the 3D close-up's skin), size { width, depth, wall, limbRadius }, tune {...} }
         onFinish → result { score, align, mould, straps, checks, pressure, padded, tight, loose, resets, time } is
                    clamped; devices.splints[region] = 'leg'|'arm', treat.splinted, quality.splinted, extra pain
                    relief, bill. A score under minScore fails (the splint item is handed back).
@@ -208,6 +208,21 @@ local function bill(src, p, key)
     if not ok then NZA.Warn('splint billing failed: ' .. tostring(err)) end
 end
 
+-- skin tone + seed for the 3D close-up (NUI apps/splint/splint3d.js): the same pick as the suture / burn /
+-- bullet close-ups (their skinTones, hashed on the patient id) so a patient looks the same in all of them
+local function hashStr(str)
+    local h = 5381
+    str = tostring(str)
+    for i = 1, #str do h = (h * 33 + str:byte(i)) % 2147483647 end
+    return h
+end
+
+local function skinTone(p)
+    local tones = (Config.Suture and Config.Suture.skinTones) or (Config.Burn and Config.Burn.skinTones)
+        or (Config.Bullet and Config.Bullet.skinTones) or { 0.12, 0.22, 0.3, 0.38, 0.5, 0.62, 0.75, 0.88 }
+    return tones[(hashStr(p.pid) % #tones) + 1] or 0.3
+end
+
 local function pose(p, on)
     if type(p) ~= 'table' or p.kind ~= 'player' or not p.src then return end
     if C('Splint').patientPose == false then return end
@@ -270,6 +285,7 @@ if C('Splint').enabled ~= false then
                 pulse = pulse, pulseWhy = why2, hr = math.floor(hr), sys = math.floor(sys), refill = refill,
                 responsive = (avpu == 'A' or avpu == 'V') and p.state ~= 'arrest',
                 name = p.name, sex = p.sex, pain = math.floor(tonumber(inj.pain) or tonumber(p.pain) or 0),
+                tone = skinTone(p), seed = hashStr(tostring(p.pid) .. ':' .. tostring(inj.id)),
                 size = {
                     width = tonumber(dev.width) or (device == 'leg' and 0.15 or 0.105),
                     depth = tonumber(dev.depth) or (device == 'leg' and 0.07 or 0.05),
