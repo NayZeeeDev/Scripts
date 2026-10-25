@@ -398,11 +398,15 @@ exports['nayzeee-backpack']:RegisterIntegration('my_script', {
 
 The full hook list is at the top of `integrations.lua`.
 
+Bag stashes only open for a player right after this script (or
+`GetBagStash`) opened them, so nobody can open a bag from the client by its
+stash id and skip a padlock or a private placed bag.
+
 ### Exports (server)
 
 ```lua
 exports['nayzeee-backpack']:GetWornBag(src)        -- bagKey, state
-exports['nayzeee-backpack']:GetBagStash(src)       -- stash id of the worn bag
+exports['nayzeee-backpack']:GetBagStash(src)       -- stash id of the worn bag (that player may open it once, within 15s)
 exports['nayzeee-backpack']:OpenBag(src)
 exports['nayzeee-backpack']:GiveBag(src, key, variant)
 ```
