@@ -14,8 +14,8 @@ function Util.loadModel(model, quiet)
         if not quiet and not warned[hash] then
             warned[hash] = true
             print(('^1[nayzeee-backpack] model "%s" is not registered.^0'):format(tostring(model)))
-            print('^3  - is the .ydr in a stream/ folder?^0')
-            print('^3  - is its .ytyp there too, AND declared with data_file DLC_ITYP_REQUEST?^0')
+            print('^3  - is nayzeee-backpack-props started (before this script)?^0')
+            print('^3  - is the .ydr in its stream/ folder, with its .ytd and .ytyp next to it?^0')
             print('^3  - does the filename match the model name in Config.Backpacks exactly?^0')
         end
         return nil
