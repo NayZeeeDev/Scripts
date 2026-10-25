@@ -139,17 +139,7 @@
 .m-teeth i.on{background:#cfd6da}
 .m-teeth i.on.teal{background:var(--teal-hi)} .m-teeth i.on.red{background:#ff6b70}
 
-/* IO site check: holographic body map + site list */
-.m-body{flex:none;width:92px;height:155px;overflow:visible}
-.m-body .sil{fill:url(#fdholo);stroke:rgba(15,212,196,.55);stroke-width:.8;stroke-linejoin:round}
-.m-body .scan{animation:fd-scan 2.8s linear infinite}
-.m-body .scan rect{fill:rgba(15,212,196,.35)}
-@keyframes fd-scan{from{transform:translateY(0)}to{transform:translateY(166px)}}
-.m-body .st{cursor:pointer}
-.m-body .st rect{fill:rgba(15,212,196,.28);stroke:var(--teal-hi);stroke-width:1.4;transition:fill var(--fast)}
-.m-body .st.bad rect{fill:rgba(229,72,77,.35);stroke:#ff6b70}
-.m-body .st text{font:700 7px var(--mono);fill:rgba(255,255,255,.7)}
-.m-body .st.hl rect,.m-body .st.ok:hover rect{fill:var(--teal-hi)}
+/* IO site check: site list */
 .m-sites{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
 .d-site{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:8px;text-align:left;cursor:pointer;color:#fff;
   background:linear-gradient(rgba(255,255,255,.04),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.06);transition:border-color var(--fast),background var(--fast)}
@@ -395,7 +385,7 @@
 .fd-scene{position:fixed;inset:0;width:100%;height:100%;z-index:-1}
 
 @media (prefers-reduced-motion:reduce){
-  .fd-rack.in,.m-body .scan,.fd-bag .dc i,.m-state .dot,.syr-st .dot{animation:none}
+  .fd-rack.in,.fd-bag .dc i,.m-state .dot,.syr-st .dot{animation:none}
 }
 
 /* trauma kit tools (auto): the site the IO driver picked */

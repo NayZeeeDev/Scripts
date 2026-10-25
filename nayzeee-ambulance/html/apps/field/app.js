@@ -701,22 +701,6 @@
   const WHY_EN = { fracture: 'Fracture', tourniquet: 'Tourniquet', burn: 'Burn', wound: 'Wound', invalid: 'Not possible' };
   const siteName = id => L(`site_${id}`, SITE_EN[id] || id);
   const LAYER_ORDER = ['soft', 'cortex', 'marrow', 'far'];
-  // body map positions (front view, patient's right on the viewer's left)
-  const SITE_XY = { r_humerus: [27, 38], l_humerus: [73, 38], r_tibia: [40, 132], l_tibia: [60, 132] };
-  function bodySVG(sites) {
-    const dia = (id, i) => {
-      const st = sites[id] || { ok: true }, [x, y] = SITE_XY[id];
-      return `<g class="st ${st.ok === false ? 'bad' : 'ok'}" data-s="${id}" transform="translate(${x} ${y})"><rect x="-5" y="-5" width="10" height="10" rx="1.5" transform="rotate(45)"/><text x="${x < 50 ? -10 : 10}" y="3" text-anchor="${x < 50 ? 'end' : 'start'}">${i + 1}</text></g>`;
-    };
-    return `<svg viewBox="0 0 100 168" class="m-body">
-      <defs><linearGradient id="fdholo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(15,212,196,.22)"/><stop offset="1" stop-color="rgba(15,212,196,.04)"/></linearGradient></defs>
-      <g class="sil"><circle cx="50" cy="13" r="9"/>
-        <path d="M38 26h24l6 6 4 34-6 2-4-26v30l2 30h-10l-2-26-2 26h-10l2-30V42l-4 26-6-2 4-34z"/>
-        <path d="M41 92h8v68h-9zM51 92h8l1 68h-9z"/></g>
-      <g class="scan"><rect x="0" y="0" width="100" height="2"/></g>
-      ${IO_SITES.map(dia).join('')}
-    </svg>`;
-  }
   H_.io = {
     enter() {
       S.io = { phase: 'site', site: null, needles: 1, depth: 0, lift: 1, drilling: false, drift: { x: 0, y: 0 }, aim: { x: 0, y: 0 }, angle: 0, ax: 0, ay: 0,
@@ -755,7 +739,6 @@
       const okN = IO_SITES.filter(id => !(sites[id] && sites[id].ok === false)).length;
       devFrame(L('d_site', 'Site check'), `
         <div class="m-split top">
-          ${bodySVG(sites)}
           <div class="m-sites">${IO_SITES.map((id, i) => {
             const st = sites[id] || { ok: true };
             return `<button class="d-site ${st.ok === false ? 'bad' : ''}" data-s="${id}"><kbd>${i + 1}</kbd><span class="sn">${esc(siteName(id))}<small>${esc(st.ok === false ? L(`why_site_${st.why}`, WHY_EN[st.why] || st.why || '') : L('site_ok', 'Clear'))}</small></span><span class="sd">${icon(st.ok === false ? 'x' : 'check')}</span></button>`;
@@ -763,12 +746,7 @@
         </div>
         <div class="m-note amber"><span class="ni">${icon('alert')}</span><span>${NZA.rich(L('site_note', 'No drilling into a **broken** bone or below a **tourniquet**.'))}</span></div>`,
       { unit: 'io', right: `<span class="m-chip">${okN}/4 ${esc(L('site_clear', 'clear'))}</span>` });
-      ui.dev.querySelectorAll('.d-site').forEach(b => {
-        b.addEventListener('click', () => this.pick(b.dataset.s));
-        b.addEventListener('mouseenter', () => { const g = ui.dev.querySelector(`.m-body .st[data-s="${b.dataset.s}"]`); if (g) g.classList.add('hl'); });
-        b.addEventListener('mouseleave', () => ui.dev.querySelectorAll('.m-body .st').forEach(g => g.classList.remove('hl')));
-      });
-      ui.dev.querySelectorAll('.m-body .st').forEach(g => g.addEventListener('click', () => this.pick(g.dataset.s)));
+      ui.dev.querySelectorAll('.d-site').forEach(b => b.addEventListener('click', () => this.pick(b.dataset.s)));
     },
     pick(id) {
       const st = (S.data.sites || {})[id];
@@ -848,6 +826,7 @@
       const io = S.io;
       if (!io.failed) return;
       const go = r => {
+        if (!S.open || S.io !== io) return;   // closed or moved on while the answer was on its way
         if (!r || r.ok === false) { ui.pp.flash('bad', (r && r.msg) || L('no_needle', 'No IO needle set left.')); return; }
         io.needles = r.needles || io.needles + 1; io.failed = null;
         ui.pp.flash('ok', L('needle_new', 'Fresh needle loaded.'));
@@ -863,7 +842,7 @@
       if (intoFar > 1.0) return this.drillFail('far');
       NZA.audio.success();
       ui.pp.flash(intoFar > 0 ? 'warn' : 'ok', intoFar > 0 ? L('drill_touch_far', 'Seated — the tip just touches the back wall.') : L('drill_ok', 'Seated in the marrow.'));
-      setTimeout(() => this.confirmUi(), 900);
+      setTimeout(() => { if (S.open && S.io === io) this.confirmUi(); }, 900);
     },
     /* ── step 4 · draw back ── */
     confirmUi() {
@@ -887,7 +866,7 @@
           ui.pp.flash('ok', L('confirm_ok', 'Dark return in the barrel — you are in the marrow.'));
           setRow('.r-ret', `${icon('drop')}${esc(L('ret_marrow', 'Marrow'))}`, 'red');
           const n = q('.cn'); if (n) { n.className = 'm-note teal cn'; n.innerHTML = `<span class="ni">${icon('check')}</span><span>${esc(L('confirm_ok', 'Dark return in the barrel — you are in the marrow.'))}</span>`; }
-          setTimeout(() => this.flushUi(), 1300);
+          setTimeout(() => { if (S.open && S.io === io) this.flushUi(); }, 1300);
         },
       });
       io.syr.ret(`<div class="m-list">${row('r-ret', L('d_return', 'Return'), esc(L('ret_none', 'None yet')), 'dim')}${row('r-dep', L('d_depth', 'Depth'), `${fmt1(io.depth)}<small>mm</small>`)}${row('r-st', L('st_site', 'Site'), esc(siteName(io.site)))}</div>`);
@@ -969,7 +948,7 @@
             rec.done = true; rec.rate = rec.samples ? rec.rateSum / rec.samples : 0;
             NZA.audio.success();
             io.tool = null; this.flushTools(); this.flushText();
-            if (kind === 'flush') setTimeout(() => this.finish(), 700);
+            if (kind === 'flush') setTimeout(() => { if (S.open && S.io === io) this.finish(); }, 700);
             else if (io.auto) setTimeout(() => { if (S.io === io && io.phase === 'flush') this.autoNextSyringe(); }, 600);
           }
         },
@@ -1351,6 +1330,7 @@
       } else if ((rs.counts.saline || 0) < 1) { ui.pp.flash('bad', L('no_saline', 'No saline bag left.')); return; }
       const rate = Math.max(1, Math.round(this.rateFor(kind)));
       const go = r => {
+        if (!S.open || S.rs !== rs) return;
         if (!r || r.ok === false || !r.inf) { ui.pp.flash('bad', (r && r.msg) || L('hang_fail', 'The bag would not hang.')); return; }
         rs.bags.push(Object.assign({ mine: true }, r.inf));
         rs.sel = r.inf.id;
@@ -1366,6 +1346,7 @@
     takeDown(id) {
       const rs = S.rs;
       const go = r => {
+        if (!S.open || S.rs !== rs) return;
         if (!r || r.ok === false) { ui.pp.flash('bad', (r && r.msg) || L('takedown_fail', 'The bag would not come down.')); return; }
         const b = rs.bags.find(x => x.id === id);
         if (b) { if (b.kind === 'blood') rs.bloodIn += (b.ml - b.left); else rs.salineIn += (b.ml - b.left); }
@@ -1405,10 +1386,11 @@
             const secs = (now() - t0.start) / 1000;
             rs.txaDone = true;
             const fin = r => {
+              if (!S.open || S.rs !== rs) return;
               if (r && r.ok === false) { rs.txaDone = false; ui.pp.flash('bad', r.msg || L('txa_fail', 'TXA not given.')); return; }
               ui.pp.flash(secs < push * 0.6 ? 'warn' : 'ok', secs < push * 0.6 ? L('txa_fast', 'TXA in — too fast, pressure dips.') : L('txa_ok', 'TXA in. The clot will hold better.'));
               rs.counts.txa = Math.max(0, (rs.counts.txa || 1) - 1);
-              setTimeout(() => { if (rs.txa) { rs.txa.destroy(); rs.txa = null; box.innerHTML = ''; } this.tools(); }, 900);
+              setTimeout(() => { if (!S.open || S.rs !== rs) return; if (rs.txa) { rs.txa.destroy(); rs.txa = null; box.innerHTML = ''; } this.tools(); }, 900);
             };
             if (S.preview) fin({ ok: true }); else post('txa', { seconds: Math.round(secs * 10) / 10 }).then(fin);
           }
@@ -1420,7 +1402,7 @@
     foil() {
       const rs = S.rs;
       if (rs.foil) return;
-      const go = r => { if (r && r.ok === false) { ui.pp.flash('bad', r.msg || L('foil_fail', 'No foil blanket.')); return; } rs.foil = true; ui.pp.flash('ok', L('foil_ok', 'Foil on — keep the heat in.')); this.tools(); };
+      const go = r => { if (!S.open || S.rs !== rs) return; if (r && r.ok === false) { ui.pp.flash('bad', r.msg || L('foil_fail', 'No foil blanket.')); return; } rs.foil = true; ui.pp.flash('ok', L('foil_ok', 'Foil on — keep the heat in.')); this.tools(); };
       if (S.preview) go({ ok: true }); else post('foil', {}).then(go);
     },
     tool(k) {
@@ -1893,7 +1875,7 @@
       if (iv.tq) { iv.spill = true; ui.pp.flash('bad', L('iv_spill', 'Blood everywhere — the tourniquet was still on.')); }
       else { NZA.audio.success(); ui.pp.flash('ok', L('iv_needle_out', 'Needle out and into the sharps bin.')); }
       iv.withdraw = 1;
-      setTimeout(() => this.go('secure'), 700);
+      setTimeout(() => { if (S.open && S.iv === iv) this.go('secure'); }, 700);
     },
     finish(failed) {
       const iv = S.iv;
@@ -1913,7 +1895,7 @@
       if (k === '3' && iv.phase === 'secure' && !iv.secured) { iv.secured = true; NZA.audio.click(900); ui.pp.flash('ok', L('iv_secured', 'Hub covered and taped.')); this.tools(); this.text(); return; }
       if (k === '4' && iv.phase === 'secure' && iv.secured && !iv.flushed) {
         iv.flushed = true; NZA.audio.success(); ui.pp.flash('ok', L('iv_flushed', 'Runs freely — no swelling.')); this.tools(); this.text();
-        setTimeout(() => this.finish(false), 700);
+        setTimeout(() => { if (S.open && S.iv === iv) this.finish(false); }, 700);
       }
       if (k === 'Enter' && iv.phase === 'secure' && iv.secured) this.finish(false);
     },
@@ -2128,7 +2110,8 @@
     keys: new Proxy({}, { get: (_, k) => (k === 'Escape' ? undefined : e => (S.open ? keyDown(e) : false)) }),
     keysUp: new Proxy({}, { get: () => e => (S.open ? keyUp(e) : false) }),
     msg: {
-      step(d) { if (!d) return; setStep(d.proc, d.status || 'run', d.data, d.reason); },
+      // every message below can land after the panel closed (finish, abort, 3D game torn down): ignore it then
+      step(d) { if (!d || !S.open || !ui.pp) return; setStep(d.proc, d.status || 'run', d.data, d.reason); },
       outcome(d) {
         if (!d) return;
         S.waiting = false;
@@ -2149,11 +2132,11 @@
         if (v.injury) S.injury = v.injury;
         stats();
       },
-      clot(c) { if (!c || S.proc !== 'resus' || !S.rs) return; S.clot = c; H_.resus.clotTick(); },
+      clot(c) { if (!c || !S.open || !ui.pp || S.proc !== 'resus' || !S.rs) return; S.clot = c; H_.resus.clotTick(); },
       popped() { if (S.proc !== 'resus' || !ui.pp) return; NZA.audio.alarm(2); ui.pp.flash('bad', L('popped', 'Clot broke loose! Bleeding is up again.'), 3200); if (S.rs) S.rs.popped += 1; },
-      focus(d) { if (d && d.what) { S.focus = d.what; renderFocus(); } },
-      summary(s) { if (S.proc !== 'reassess') setStep('reassess', 'run', {}); H_.reassess.show(s || {}); },
-      bags(b) { if (!b || !S.rs) return; if (b.counts) S.rs.counts = b.counts; if (b.bags) S.data.bags = b.bags; H_.resus.tools(); },
+      focus(d) { if (d && d.what && S.open && ui.pp) { S.focus = d.what; renderFocus(); } },
+      summary(s) { if (!S.open || !ui.pp) return; if (S.proc !== 'reassess') setStep('reassess', 'run', {}); H_.reassess.show(s || {}); },
+      bags(b) { if (!b || !S.open || !ui.pp || !S.rs) return; if (b.counts) S.rs.counts = b.counts; if (b.bags) S.data.bags = b.bags; H_.resus.tools(); },
       drill(d) { if (d && d.flash && ui.pp) ui.pp.flash(d.type || 'warn', d.flash); },
     },
     preview() {
