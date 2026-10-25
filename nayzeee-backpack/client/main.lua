@@ -168,6 +168,18 @@ function QuietBagAnims(ms)
     quietUntil = GetGameTimer() + (ms or 3000)
 end
 
+--- Worn bags that carry a name tag and are on screen-able right now.
+function BagTagTargets()
+    local list = {}
+    for serverId, p in pairs(props) do
+        local st = wanted[serverId]
+        if st and st.tag and p.entity and DoesEntityExist(p.entity) and IsEntityVisible(p.entity) then
+            list[#list + 1] = { id = serverId, entity = p.entity, tag = st.tag, locked = st.locked }
+        end
+    end
+    return list
+end
+
 function GetWornProp()
     local p = props[myId]
     return p and p.entity

@@ -303,6 +303,18 @@ RegisterNetEvent('nayzeee-backpack:syncPlaced', function(list)
     end
 end)
 
+--- Spawned placed bags that carry a name tag.
+function PlacedTagTargets()
+    local list = {}
+    for id, entity in pairs(placed) do
+        local data = placedData[id]
+        if data and data.tag and DoesEntityExist(entity) then
+            list[#list + 1] = { id = id, entity = entity, tag = data.tag }
+        end
+    end
+    return list
+end
+
 --- Your own bags on the ground, nearest first (for the "find my bags" menu).
 function MyPlacedBags()
     local me = GetEntityCoords(PlayerPedId())

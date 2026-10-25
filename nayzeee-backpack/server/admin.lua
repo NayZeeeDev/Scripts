@@ -40,6 +40,7 @@ lib.addCommand('bagitems', {
     if lock and lock.enabled then
         local extra = {
             { lock.item, 'Bag Padlock', 150, "server = { export = '%s.usePadlock' }," },
+            { Config.NameTags and Config.NameTags.enabled and Config.NameTags.item, 'Bag Name Tag', 20, "server = { export = '%s.useNameTag' }," },
             { lock.lockpick and lock.lockpick.item, 'Lockpick', 100, nil },
             { lock.cutter and lock.cutter.item, 'Bolt Cutters', 2500, nil },
         }

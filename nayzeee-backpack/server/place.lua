@@ -40,6 +40,7 @@ local function listFor(src)
             id = entry.id, bag = entry.bag, coords = entry.coords,
             heading = entry.heading, variant = entry.variant,
             access = entry.access,
+            tag = entry.metadata and entry.metadata.tag,
             mine = entry.owner == identifier,
         }
     end
@@ -110,6 +111,7 @@ function BroadcastPlaced(entry)
             id = entry.id, bag = entry.bag, coords = entry.coords,
             heading = entry.heading, variant = entry.variant,
             access = entry.access,
+            tag = entry.metadata and entry.metadata.tag,
             mine = entry.owner == ownerOf(src),
         }
         TriggerClientEvent('nayzeee-backpack:spawnPlaced', src, copy)

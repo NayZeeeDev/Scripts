@@ -85,6 +85,16 @@ function OpenBackpackMenu(bagKey)
         }
     end
 
+    if Config.NameTags and Config.NameTags.enabled then
+        local st = worn()
+        options[#options + 1] = {
+            title = Strings.nt_menu,
+            description = st.tag and st.tag.t or 'Your own tag: font, colours, effects',
+            icon = 'tag',
+            onSelect = function() TriggerServerEvent('nayzeee-backpack:tag:open') end,
+        }
+    end
+
     if Locks and Locks.menuOptions then
         for _, o in ipairs(Locks.menuOptions()) do options[#options + 1] = o end
     end

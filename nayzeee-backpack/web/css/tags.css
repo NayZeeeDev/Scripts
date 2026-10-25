@@ -1,0 +1,221 @@
+/* ==========================================================
+   NAYZEEE BACKPACK — NAME TAGS
+   One tag renderer for the world (#tagLayer) and the editor
+   preview (#tagEditor). Colours come in as --c1 / --c2.
+   ========================================================== */
+
+/* ---------- world layer ---------- */
+
+#tagLayer{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+#tagLayer .nbt-anchor{
+  position:absolute;left:0;top:0;will-change:transform,opacity;
+  transform-origin:0 0;transition:opacity .25s ease;
+}
+
+/* ---------- the tag ---------- */
+
+.nbt{
+  --c1:#fff; --c2:var(--c1); --font:'Lexend';
+  position:relative;display:inline-flex;align-items:flex-start;
+  transform-origin:12px -26px;
+  animation:nbt-sway 4.2s ease-in-out infinite;
+}
+@keyframes nbt-sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+
+/* the string it hangs from */
+.nbt::before{
+  content:'';position:absolute;left:11px;top:-26px;width:2px;height:30px;border-radius:2px;
+  background:linear-gradient(#c9c2b4,#8f877a);opacity:.9;
+}
+
+.nbt-body{
+  position:relative;display:flex;align-items:center;gap:8px;
+  min-height:34px;padding:7px 14px 7px 26px;
+  clip-path:polygon(12px 0,100% 0,100% 100%,12px 100%,0 50%);
+  border-radius:0 6px 6px 0;
+}
+.nbt-hole{
+  position:absolute;left:8px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;
+  background:rgba(0,0,0,.55);box-shadow:inset 0 1px 1px rgba(0,0,0,.6),0 0 0 1.5px rgba(255,255,255,.35);
+}
+.nbt-text{
+  position:relative;display:inline-block;white-space:nowrap;
+  font-family:var(--font),'Lexend',sans-serif;font-size:16px;line-height:1.1;
+  color:var(--c1);letter-spacing:.01em;
+}
+.nbt.grad .nbt-text{
+  background:linear-gradient(90deg,var(--c1),var(--c2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.nbt-lock{width:11px;height:11px;flex:none;opacity:.75;color:var(--c1)}
+
+/* tag bodies */
+.nbt.s-leather .nbt-body{
+  background:linear-gradient(160deg,#7a4a2a,#4b2c17 70%);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);
+}
+.nbt.s-leather .nbt-body::after{ /* stitching */
+  content:'';position:absolute;inset:4px 5px 4px 16px;border:1px dashed rgba(255,226,190,.45);border-radius:2px;pointer-events:none;
+}
+.nbt.s-metal .nbt-body{
+  background:linear-gradient(160deg,#eef1f4,#b8bec5 45%,#8c939b 55%,#d3d8dd);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(0,0,0,.25);
+}
+.nbt.s-dark .nbt-body{
+  background:linear-gradient(#15181a,#0b0c0d);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);
+}
+.nbt.s-dark .nbt-body::after{
+  content:'';position:absolute;left:12px;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--c1),transparent);
+}
+.nbt.s-paper .nbt-body{
+  background:repeating-linear-gradient(#f4ecd9 0 9px,#e9dec6 9px 10px);
+  box-shadow:inset 0 0 0 1px rgba(120,100,70,.25);
+}
+.nbt.s-neon .nbt-body{
+  background:rgba(8,9,10,.88);
+  box-shadow:inset 0 0 0 2px var(--c1),inset 0 0 14px rgba(255,255,255,.05);
+  filter:drop-shadow(0 0 6px var(--c1));
+}
+.nbt.s-clear .nbt-body{background:none;clip-path:none;padding-left:4px}
+.nbt.s-clear .nbt-hole,.nbt.s-clear::before{display:none}
+.nbt.s-clear .nbt-text{filter:drop-shadow(0 1px 1px rgba(0,0,0,.9)) drop-shadow(0 0 3px rgba(0,0,0,.6))}
+
+/* ---------- text effects ---------- */
+
+.nbt.e-glow .nbt-text{filter:drop-shadow(0 0 3px var(--c1)) drop-shadow(0 0 9px var(--c1))}
+
+.nbt.e-neon .nbt-text{
+  filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 6px var(--c1)) drop-shadow(0 0 14px var(--c1));
+  animation:nbt-flicker 3.2s linear infinite;
+}
+@keyframes nbt-flicker{
+  0%,18%,22%,62%,64%,100%{opacity:1}
+  20%,63%{opacity:.35}
+}
+
+.nbt.e-shimmer .nbt-text{
+  background:linear-gradient(110deg,var(--c1) 35%,#ffffff 50%,var(--c2) 65%);
+  background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:nbt-shimmer 2.6s linear infinite;
+}
+@keyframes nbt-shimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+
+.nbt.e-rainbow .nbt-text{animation:nbt-hue 4s linear infinite}
+@keyframes nbt-hue{from{filter:hue-rotate(0deg) saturate(1.4)}to{filter:hue-rotate(360deg) saturate(1.4)}}
+
+.nbt.e-pulse .nbt-text{animation:nbt-pulse 1.6s ease-in-out infinite}
+@keyframes nbt-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+
+.nbt-text i{font-style:normal;display:inline-block}
+.nbt.e-wave .nbt-text i{animation:nbt-wave 1.4s ease-in-out infinite;animation-delay:calc(var(--n) * 80ms)}
+@keyframes nbt-wave{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
+.nbt.e-glitch .nbt-text{animation:nbt-glitch 2.4s steps(1) infinite}
+@keyframes nbt-glitch{
+  0%,86%,100%{text-shadow:none;transform:none}
+  88%{text-shadow:2px 0 #ff2a6d,-2px 0 #05d9e8;transform:translateX(1px)}
+  91%{text-shadow:-2px 0 #ff2a6d,2px 0 #05d9e8;transform:translateX(-1px) skewX(-6deg)}
+  94%{text-shadow:1px 0 #ff2a6d,-1px 0 #05d9e8;transform:none}
+}
+
+.nbt.e-outline .nbt-text{-webkit-text-stroke:1.2px var(--c2);paint-order:stroke fill}
+.nbt.e-outline.grad .nbt-text{-webkit-text-stroke:0;filter:drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000)}
+
+/* ---------- particles ---------- */
+
+.nbt-fx{position:absolute;left:-10px;right:-10px;top:-30px;bottom:-12px;pointer-events:none;overflow:visible}
+.nbt-fx b{
+  position:absolute;bottom:6px;font-weight:400;line-height:1;opacity:0;
+  color:var(--c1);font-family:'Segoe UI Symbol','Lexend',sans-serif;
+  animation:nbt-rise var(--d,2.4s) ease-out infinite;animation-delay:var(--w,0s);
+}
+@keyframes nbt-rise{
+  0%{opacity:0;transform:translate(0,0) scale(.6)}
+  15%{opacity:1}
+  100%{opacity:0;transform:translate(var(--x,0px),-38px) scale(1.05)}
+}
+.nbt-fx.p-snow b{bottom:auto;top:0;animation-name:nbt-fall;color:#fff}
+@keyframes nbt-fall{
+  0%{opacity:0;transform:translate(0,0)}
+  15%{opacity:.95}
+  100%{opacity:0;transform:translate(var(--x,0px),46px) rotate(120deg)}
+}
+.nbt-fx.p-stars b{bottom:auto;top:var(--y,30%);animation-name:nbt-twinkle;color:#ffe680}
+@keyframes nbt-twinkle{0%,100%{opacity:0;transform:scale(.3)}50%{opacity:1;transform:scale(1.1) rotate(25deg)}}
+.nbt-fx.p-sparkles b{bottom:auto;top:var(--y,30%);animation-name:nbt-twinkle;color:#fff;text-shadow:0 0 6px var(--c1)}
+.nbt-fx.p-hearts b{color:#ff4d7d}
+.nbt-fx.p-embers b{
+  width:4px;height:4px;border-radius:50%;font-size:0!important;
+  background:#ffb347;box-shadow:0 0 6px #ff7b1a,0 0 2px #fff4d6;
+}
+.nbt-fx.p-bubbles b{
+  width:var(--s,8px);height:var(--s,8px);border-radius:50%;font-size:0!important;
+  border:1px solid rgba(255,255,255,.75);background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.6),transparent 45%);
+}
+.nbt-fx.p-money b{color:#22c55e;font-family:'Lexend',sans-serif;font-weight:700;text-shadow:0 1px 1px rgba(0,0,0,.5)}
+.nbt-fx.p-notes b{color:var(--c1)}
+
+/* ==========================================================
+   EDITOR (NAYZEEE v3 window)
+   ========================================================== */
+
+#tagEditor{position:fixed;inset:0;pointer-events:none;z-index:25}
+#tagEditor .frame{top:50%;right:26px;width:420px;height:min(780px,calc(100vh - 48px));transform:translateY(-50%);animation:te-in .26s cubic-bezier(.2,.8,.2,1)}
+@keyframes te-in{from{opacity:0;transform:translate(26px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
+
+.te-preview{
+  position:relative;flex:none;height:150px;margin:12px;border-radius:var(--r-md);
+  display:grid;place-items:center;overflow:hidden;
+  background:
+    radial-gradient(120% 90% at 50% 0%,rgba(8,175,162,.08),transparent 60%),
+    repeating-conic-gradient(#121517 0 25%,#0d0f10 0 50%) 0 0/18px 18px;
+  border:1px solid var(--line-soft);
+}
+.te-preview .nbt{transform-origin:12px -26px;scale:1.35;margin-top:22px}
+.te-preview .te-bag{position:absolute;left:50%;top:-30px;width:56px;height:56px;margin-left:-62px;border-radius:12px;background:#1c2023;border:1px solid var(--line);opacity:.0}
+
+.te-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:10px}
+.te-scroll::-webkit-scrollbar{width:8px}
+.te-scroll::-webkit-scrollbar-thumb{background:var(--raise-2);border-radius:99px;border:2px solid var(--base)}
+
+.te-text{position:relative}
+.te-text input{
+  width:100%;height:38px;padding:0 54px 0 12px;border-radius:var(--r-xs);outline:none;
+  background:var(--inset);border:1px solid var(--line);color:var(--white);font-size:13px;
+  transition:border-color var(--fast),box-shadow var(--fast);
+}
+.te-text input:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
+.te-text span{position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:10.5px;color:var(--ink-3)}
+
+.te-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.te-grid.four{grid-template-columns:repeat(4,1fr)}
+.te-opt{
+  height:34px;padding:0 6px;border-radius:var(--r-xs);border:1px solid var(--line);color:var(--ink-2);
+  font-size:11.5px;font-weight:300;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all var(--fast);
+}
+.te-opt:hover{border-color:var(--ink-3);color:var(--white)}
+.te-opt.on{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash);font-weight:500}
+.te-opt.font{font-size:14px;height:38px}
+
+.te-swatches{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.te-sw{
+  width:22px;height:22px;border-radius:50%;background:var(--c);
+  box-shadow:0 0 0 2px var(--panel),0 0 0 3px rgba(255,255,255,.12);transition:box-shadow var(--fast),transform var(--fast);
+}
+.te-sw:hover{transform:scale(1.1)}
+.te-sw.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--teal)}
+.te-pick{position:relative;width:22px;height:22px;border-radius:50%;overflow:hidden;
+  background:conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);box-shadow:0 0 0 2px var(--panel),0 0 0 3px rgba(255,255,255,.12)}
+.te-pick input{position:absolute;inset:-6px;width:34px;height:34px;opacity:0;cursor:pointer}
+
+.te-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.te-toggle{display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-2)}
+.te-toggle i{position:relative;width:30px;height:17px;border-radius:99px;background:var(--raise-2);transition:background var(--fast)}
+.te-toggle i::after{content:'';position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:var(--ink-2);transition:transform var(--fast),background var(--fast)}
+.te-toggle.on i{background:var(--teal-lo)}
+.te-toggle.on i::after{transform:translateX(13px);background:#fff}
+
+#tagEditor .foot{flex-wrap:wrap}
+.te-cost{width:100%;font-size:10.5px;color:var(--ink-3);text-align:center;margin-top:-2px}
+.te-remove{flex:none!important;width:auto;padding:0 12px}
+.te-remove:hover{border-color:var(--red)!important;color:var(--red)!important}

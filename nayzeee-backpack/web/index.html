@@ -8,6 +8,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/ui.css">
 <link rel="stylesheet" href="css/outfit.css">
+<link rel="stylesheet" href="css/tags.css">
+<!-- name tag fonts (only downloaded once a tag uses them) -->
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@600&family=Creepster&family=Fredoka:wght@500&family=Lobster&family=Monoton&family=Orbitron:wght@600&family=Pacifico&family=Permanent+Marker&family=Press+Start+2P&family=Righteous&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -393,10 +396,64 @@
   <div class="ob-toast" id="obToast"><div class="ti" id="obToastIcon"></div><div><b id="obToastTitle"></b><p id="obToastText"></p></div></div>
 </div>
 
+<!-- ============================================================
+     NAME TAGS
+     ============================================================ -->
+<div id="tagLayer"></div>
+
+<div id="tagEditor" class="hide">
+  <div class="frame">
+    <div class="shell">
+      <div class="bar">
+        <div class="bar-brand"><div class="mark"></div><span class="ver">Tag</span></div>
+        <div class="bar-mid"><span class="dot"></span><p>Name tag · <b id="teBag">Backpack</b></p></div>
+        <button class="pill-close" id="teClose">Close</button>
+      </div>
+
+      <div class="te-preview" id="tePreview"></div>
+
+      <div class="te-scroll">
+        <div class="card">
+          <div class="card-h">Text</div>
+          <div class="te-text"><input id="teText" type="text" placeholder="Your name, a nickname..." autocomplete="off" spellcheck="false"><span id="teCount">0/18</span></div>
+        </div>
+        <div class="card">
+          <div class="card-h">Tag</div>
+          <div class="te-grid" id="teStyles"></div>
+        </div>
+        <div class="card">
+          <div class="card-h">Font</div>
+          <div class="te-grid" id="teFonts"></div>
+        </div>
+        <div class="card">
+          <div class="te-row card-h"><span>Colour</span><button class="te-toggle" id="teGrad"><i></i>Gradient</button></div>
+          <div class="te-swatches" id="teColors"></div>
+          <div class="te-swatches hide" id="teColors2" style="margin-top:9px"></div>
+        </div>
+        <div class="card">
+          <div class="card-h">Effect</div>
+          <div class="te-grid four" id="teEffects"></div>
+        </div>
+        <div class="card">
+          <div class="card-h">Particles</div>
+          <div class="te-grid four" id="teParticles"></div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button class="btn-ghost te-remove" id="teRemove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Remove</button>
+        <button class="btn-teal" id="teSave"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Save tag</button>
+        <div class="te-cost" id="teCost"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="js/sfx.js"></script>
 <script src="js/keyer.js"></script>
 <script src="js/studio.js"></script>
 <script src="js/shop.js"></script>
 <script src="js/outfit.js"></script>
+<script src="js/tags.js"></script>
 </body>
 </html>

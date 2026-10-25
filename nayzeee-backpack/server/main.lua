@@ -75,12 +75,13 @@ function RefreshBagState(src)
         pose = m.pose,
         slot = item.slot,
         locked = m.lock and true or nil,
+        tag = m.tag,
     }
 
     -- only write when something changed; statebag writes go to everyone
     if not current or current.bag ~= state.bag or current.variant ~= state.variant
        or current.stowed ~= state.stowed or current.pose ~= state.pose or current.slot ~= state.slot
-       or current.locked ~= state.locked then
+       or current.locked ~= state.locked or TagSig(current.tag) ~= TagSig(state.tag) then
         Player(src).state:set('nayzeee_backpack', state, true)
         if Logs and (not current or current.bag ~= state.bag) then
             Logs.simple('equip', 'Backpack equipped', src, state.bag)

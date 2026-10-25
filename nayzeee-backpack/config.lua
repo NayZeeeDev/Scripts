@@ -291,6 +291,83 @@ Config.Sounds = {
     files = {},
 }
 
+-- Name tags: a luggage tag on your bag with your own text, font, colours,
+-- effect and particles. Everyone close by sees it hanging off the bag.
+-- Use the name tag item while wearing a bag (or bag menu > Name tag).
+--
+-- ox_inventory item (/bagitems prints it):
+--   bag_nametag  server = { export = 'nayzeee-backpack.useNameTag' }
+Config.NameTags = {
+    enabled    = true,
+    item       = 'bag_nametag',
+    maxLength  = 18,
+    editFree   = true,  -- Changing a tag you already have doesn't use another item
+    renameItem = true,  -- The bag shows the tag text as its name in the inventory
+
+    distance   = 5.0,   -- Metres you can read a tag from
+    maxVisible = 4,     -- Tags drawn at once (nearest first)
+    showOwn    = true,  -- See the tag on your own bag
+    showPlaced = true,  -- Tags on bags that are set down
+
+    blocked = { 'nigger', 'nigga', 'faggot', 'retard' }, -- Never allowed (case-insensitive)
+
+    -- Google Fonts family names. Add any from fonts.google.com.
+    fonts = {
+        { key = 'clean',   label = 'Clean',       family = 'Lexend' },
+        { key = 'marker',  label = 'Marker',      family = 'Permanent Marker' },
+        { key = 'script',  label = 'Script',      family = 'Pacifico' },
+        { key = 'bold',    label = 'Bold',        family = 'Bebas Neue' },
+        { key = 'hand',    label = 'Handwritten', family = 'Caveat' },
+        { key = 'retro',   label = 'Retro',       family = 'Righteous' },
+        { key = 'pixel',   label = 'Pixel',       family = 'Press Start 2P' },
+        { key = 'neon',    label = 'Neon',        family = 'Monoton' },
+        { key = 'tech',    label = 'Tech',        family = 'Orbitron' },
+        { key = 'spooky',  label = 'Spooky',      family = 'Creepster' },
+        { key = 'bubbly',  label = 'Bubbly',      family = 'Fredoka' },
+        { key = 'classic', label = 'Classic',     family = 'Lobster' },
+    },
+
+    colors = {
+        '#ffffff', '#f2f4f5', '#111111', '#08afa2', '#0fd4c4', '#3b82f6',
+        '#a855f7', '#ec4899', '#e5484d', '#f97316', '#f5a524', '#ffd60a', '#22c55e',
+    },
+    customColors = true, -- Colour picker for any colour, not just the swatches
+
+    -- The tag itself
+    styles = {
+        { key = 'leather', label = 'Leather' },
+        { key = 'metal',   label = 'Metal' },
+        { key = 'dark',    label = 'Dark' },
+        { key = 'paper',   label = 'Paper' },
+        { key = 'neon',    label = 'Neon sign' },
+        { key = 'clear',   label = 'Text only' },
+    },
+
+    effects = {
+        { key = 'none',    label = 'None' },
+        { key = 'glow',    label = 'Glow' },
+        { key = 'neon',    label = 'Flicker' },
+        { key = 'shimmer', label = 'Shimmer' },
+        { key = 'rainbow', label = 'Rainbow' },
+        { key = 'pulse',   label = 'Pulse' },
+        { key = 'wave',    label = 'Wave' },
+        { key = 'glitch',  label = 'Glitch' },
+        { key = 'outline', label = 'Outline' },
+    },
+
+    particles = {
+        { key = 'none',     label = 'None' },
+        { key = 'sparkles', label = 'Sparkles' },
+        { key = 'hearts',   label = 'Hearts' },
+        { key = 'stars',    label = 'Stars' },
+        { key = 'snow',     label = 'Snow' },
+        { key = 'embers',   label = 'Embers' },
+        { key = 'bubbles',  label = 'Bubbles' },
+        { key = 'money',    label = 'Money' },
+        { key = 'notes',    label = 'Music' },
+    },
+}
+
 -- Padlocks. Use the padlock item while wearing a bag and pick a code. The
 -- lock stays on the bag wherever it goes: robbed, dropped, handed over or
 -- set down. Whoever doesn't know the code has to pick it or cut it off.
@@ -1120,6 +1197,12 @@ Strings = {
     ho_ask_text      = 'Someone is handing you a **%s**.',
     ho_take          = 'Take it',
     ho_refuse        = 'No thanks',
+
+    nt_saved         = 'Name tag on.',
+    nt_removed       = 'Name tag taken off.',
+    nt_need_item     = 'You need a name tag.',
+    nt_bad           = "That name tag isn't allowed.",
+    nt_menu          = 'Name tag',
 
     lk_title         = 'Padlocked',
     lk_code          = 'Enter the code',

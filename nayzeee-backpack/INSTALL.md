@@ -238,6 +238,30 @@ carry the weight, or can't use a job bag. Job bags can't be handed over unless
 `Config.Handoff.jobBags = true`. Everything is checked again at the moment the
 bag changes hands, and every hand-off is logged with the contents.
 
+## Name tags
+
+Wear a bag and use a **Bag Name Tag** (or bag menu → **Name tag**). The
+editor shows a live preview while you pick:
+
+| | Options (all in `Config.NameTags`) |
+|---|---|
+| **Text** | up to 18 characters, a blocked-words list keeps it clean |
+| **Tag** | leather (stitched), metal, dark, paper, neon sign, text only |
+| **Font** | 12 Google Fonts: script, marker, pixel, neon, spooky… add any family you like |
+| **Colour** | swatches, any colour from the picker, or a two-colour gradient |
+| **Effect** | glow, flicker, shimmer, rainbow, pulse, wave, glitch, outline |
+| **Particles** | sparkles, hearts, stars, snow, embers, bubbles, money, music notes |
+
+The tag hangs off the bag on a little string and sways. Everyone within
+`distance` (5m) sees it, nearest `maxVisible` first, never through walls; it
+shows on bags that are set down too, and a padlocked bag gets a small lock on
+its tag. The bag is renamed to the tag text in the inventory (`renameItem`).
+The first tag uses the item; changing it later is free (`editFree`). Every
+choice is checked against the config on the server before it's saved.
+
+Cost: nothing runs per frame unless a tagged bag is within reach of your
+camera; then only those few tags are positioned each frame.
+
 ## Padlocks
 
 Wear a bag and use a **Bag Padlock** (or bag menu → **Padlock it**), then
@@ -397,6 +421,7 @@ Every loop idles and only goes per-frame while it has work:
 | Outfit bag | — | a bag is on the ground near you (500ms) or the menu is open (300ms) |
 | Open bag (kneel / duffel) | — | the bag is open (250ms) |
 | Hand-off | — | per frame for the ~3s a bag changes hands near you |
+| Name tags | 750ms | a tagged bag is near your camera (250ms scan, per-frame positions) |
 | Studio / icon box | — | studio open |
 
 ## Escrow
