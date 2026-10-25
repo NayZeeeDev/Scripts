@@ -53,6 +53,8 @@ end)
 -- keybinds
 -----------------------------------------------------------------
 
+local K = Config.Keybinds or {}
+
 RegisterCommand('openbag', function()
     if not worn() then
         return Config.Notify(Strings.no_bag, 'error')
@@ -60,7 +62,7 @@ RegisterCommand('openbag', function()
     TriggerServerEvent('nayzeee-backpack:openWorn')
 end, false)
 
-RegisterKeyMapping('openbag', 'Open your backpack', 'keyboard', '')
+RegisterKeyMapping('openbag', 'Open your backpack', 'keyboard', K.open or '')
 
 RegisterCommand('bagmenu', function()
     local bagKey = worn()
@@ -68,7 +70,7 @@ RegisterCommand('bagmenu', function()
     OpenBackpackMenu(bagKey)
 end, false)
 
-RegisterKeyMapping('bagmenu', 'Backpack menu', 'keyboard', '')
+RegisterKeyMapping('bagmenu', 'Backpack menu', 'keyboard', K.menu or '')
 
 RegisterCommand('placebag', function()
     local bagKey = worn()
@@ -78,4 +80,21 @@ RegisterCommand('placebag', function()
     if StartPlacing then StartPlacing(bagKey) end
 end, false)
 
-RegisterKeyMapping('placebag', 'Set your backpack down', 'keyboard', '')
+RegisterKeyMapping('placebag', 'Set your backpack down', 'keyboard', K.place or '')
+
+RegisterCommand('mybags', function() ShowPlacedMenu() end, false)
+
+-----------------------------------------------------------------
+-- first bag: one hint, once per player (remembered client side)
+-----------------------------------------------------------------
+
+if Config.FirstBagHint ~= false then
+    local HINT = 'nayzeee_backpack_hint_v1'
+    AddStateBagChangeHandler('nayzeee_backpack', ('player:%s'):format(GetPlayerServerId(PlayerId())), function(_, _, value)
+        if not value or GetResourceKvpInt(HINT) == 1 then return end
+        SetResourceKvpInt(HINT, 1)
+        SetTimeout(1500, function()
+            Config.Notify(Strings.first_hint, 'inform')
+        end)
+    end)
+end

@@ -41,6 +41,7 @@ local function blocked(ped)
     if IsPedDeadOrDying(ped, true) or IsPedUsingAnyScenario(ped) then return true end
     if GetSelectedPedWeapon(ped) ~= UNARMED or IsPlayerFreeAiming(PlayerId()) then return true end
     if Anim.isBusy() then return true end
+    if Open and Open.active then return true end
     if LocalPlayer.state.invBusy then return true end
     if lib.progressActive and lib.progressActive() then return true end
     return false

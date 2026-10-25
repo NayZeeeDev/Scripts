@@ -1,11 +1,12 @@
-# nayzeee-backpack 2.0 — install & guide
+# nayzeee-backpack — install & guide
 
 ## 1. Dependencies
 
 | Required | Optional |
 |---|---|
 | `ox_lib`, `ox_inventory` | `ox_target` (third-eye options) |
-| one of `es_extended`, `qbx_core`, `qb-core` (or none) | `oxmysql` (placed bags survive restarts) |
+| one of `es_extended`, `qbx_core`, `qb-core` (or none) | `oxmysql` (placed bags survive restarts, wardrobe import) |
+| | `illenium-appearance` (outfit bag wardrobe import) |
 | | `screenshot-basic` (icon studio) |
 
 The framework is detected automatically (`Config.Framework = 'auto'`).
@@ -56,6 +57,24 @@ doesn't have one yet. They look like this:
     server = { export = 'nayzeee-backpack.usenayzeee_backpack_pug' },
 },
 ```
+
+The outfit bag is a **client** export (it needs the player's clothes), so its
+item looks different. `/bagitems` prints this one too:
+
+```lua
+['outfit_bag'] = {
+    label = 'Outfit Bag',
+    weight = 500,
+    stack = false,
+    close = true,
+    client = { image = 'outfit_bag.png', export = 'nayzeee-backpack.useOutfitBag' },
+},
+```
+
+**Coming from `nayzeee-outfitbag`?** Delete that resource, take it out of
+`server.cfg`, and change the item's export from `nayzeee-outfitbag.useBag` to
+`nayzeee-backpack.useOutfitBag`. Bags people already own keep their outfits:
+the metadata format is the same.
 
 ## 4. Database (optional)
 
@@ -159,6 +178,39 @@ an async raycast and only moves the ghost when the hit changes, so it sits at
 
 Placed bags only exist as props within `renderDistance`.
 
+## Opening a bag
+
+Opening isn't a stash popping up any more. You set the bag down in front of
+you and go through it (`Config.OpenBag`):
+
+- **Backpacks** — kneel, unzip, rummage (`style = 'kneel'`).
+- **Duffels** — stand over it (`style = 'stand'`). The **Duffel Bag** lies
+  open on the ground, shows the cash inside when it holds `money`,
+  `black_money` or `markedbills` (`cashItems`), and you reach in and grab
+  cash with its own animation every time you take some out.
+- **Purses / hand-carry bags** open the quick way, in your hands.
+
+Everyone nearby sees the bag on the floor. Closing the inventory picks it back
+up; getting knocked down, dying or getting in a car closes it for you.
+
+Any bag can get an open look: `open = { style = 'stand', model = 'my_open_prop',
+cashModel = 'my_open_prop_cash', heading = 0.0 }` in its `Config.Backpacks` entry.
+
+### Duffel props & cash grab animation
+
+The open duffel models and the cash grab animation are by **BzZz**
+(bzzz_money), used with permission. They're renamed (`nayzeee_duffel_a/b`,
+`nayzeee_duffel_typ`, `nayzeee_grab_cash_01`) so they never clash with an
+installed bzzz_money, and they are in `escrow_ignore`: BzZz's licence says his
+props are never escrowed. To re-make them from a newer bzzz_money:
+`python3 tools/rename_bzzz.py <bzzz_money folder> stream`.
+
+## Finding your bags
+
+Bag menu → **Find my bags** (or `/mybags`) lists every bag you've set down,
+nearest first, with the street, the distance and whether it's locked. Pick one
+for a waypoint.
+
 ## Taking a bag off
 
 **Take off** is saved on the item, so a stowed bag stays stowed through
@@ -172,12 +224,41 @@ Walk up to the shop keeper: the camera moves over the counter and the bags
 float above it. **A / D**, the arrows or the mouse wheel slide to the next bag,
 drag spins it, **ENTER** buys, **T** tries it on your character, **ESC** leaves.
 Theme chips sit at the top, type chips at the bottom; no side panel.
+Every bag shows how it compares to the one you're wearing (`+3 slots · +5kg vs
+yours`, teal when it's an upgrade, red when it's smaller).
 
 Set `display.bag` to where the bags should float and `display.heading` to the
 way the shop keeper faces; the camera stands `camDistance` back on the
 customer's side. Use `display.cam` for an exact camera spot instead.
 
 ---
+
+## Outfit bag
+
+Use the item and pick:
+
+- **Set it down** — the bag goes on the ground and opens. Walk off past
+  `returnDistance` and it comes back to your pockets on its own.
+- **Quick change** — open it right from your inventory, nothing on the ground.
+
+In the bag:
+
+| | |
+|---|---|
+| **Save current outfit** | saves what you're wearing (hair and hair colour too, `saveHair`) |
+| **Wear** / **1–9** | puts the whole look on with an animation |
+| **Wear one piece** | just the shoes, just the hat… each with its own animation |
+| **Hover** | preview yourself in it before you change (`previewPed`) |
+| **Undo** | back to what you had on before the last change |
+| **Pin** / **Tag** | pinned outfits stay on top; colour tags filter the list |
+| **Update** / **Rename** / **Delete** | update an outfit with what you're wearing now |
+| **Share** | copies a code (`NZO1-...`); paste it into any bag with the paste button |
+| **Import** | pulls your saved outfits from illenium-appearance |
+| **Lock** | locked bags only open for you; unlocked ones can be opened by anyone nearby, who can wear and **copy** outfits into their own bag (`Config.OutfitBag.access`) |
+
+Outfits saved on another character model are greyed out instead of turning
+you into a mess. A bag that's on the ground when the server crashes or you
+disconnect is handed back on your next login.
 
 ## Jobs
 
@@ -227,7 +308,8 @@ exports['nayzeee-backpack']:GiveBag(src, key, variant)
 | `/bagtune` | admin | studio |
 | `/bagitems` | admin / console | print missing ox_inventory items |
 | `/givebag id bag [variant]` | admin / console | give a bag |
-| `/bagmenu` `/openbag` `/placebag` `/bagnearby` | everyone | bindable in key settings |
+| `/bagmenu` `/openbag` `/placebag` `/bagnearby` | everyone | bindable in key settings (defaults: `Config.Keybinds`) |
+| `/mybags` | everyone | find bags you've set down |
 | `/robbag` `/searchbag` | everyone / police | fallbacks without ox_target |
 | `/bagstore` | everyone | when `Config.Shop.openMode` is `command` or `both` |
 
@@ -243,10 +325,13 @@ Every loop idles and only goes per-frame while it has work:
 | Placement | — | placing |
 | Placed bag streaming | 3000ms | bags placed (1500ms) |
 | Shop | — | store open |
+| Outfit bag | — | a bag is on the ground near you (500ms) or the menu is open (300ms) |
+| Open bag (kneel / duffel) | — | the bag is open (250ms) |
 | Studio / icon box | — | studio open |
 
 ## Escrow
 
 `fxmanifest.lua` already has `escrow_ignore` (config, integrations, the
-framework bridge) and the `/assetpacks` dependency. Escrow only encrypts
+framework bridge, BzZz's duffel props and animation) and the `/assetpacks`
+dependency. Escrow only encrypts
 `.lua` files, so `web/` and `server/icons.js` ship readable.

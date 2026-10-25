@@ -20,6 +20,7 @@ client_scripts {
     'client/status.lua',
     'client/main.lua',
     'client/carry.lua',
+    'client/open.lua',
     'client/menu.lua',
     'client/place.lua',
     'client/prompts.lua',
@@ -28,6 +29,7 @@ client_scripts {
     'client/shop.lua',
     'client/studio.lua',
     'client/icons.lua',
+    'client/outfits.lua',
 }
 
 server_scripts {
@@ -44,6 +46,7 @@ server_scripts {
     'server/icons.lua',
     'server/icons.js',
     'server/admin.lua',
+    'server/outfits.lua',
 }
 
 ui_page 'web/index.html'
@@ -52,6 +55,7 @@ files {
     'web/index.html',
     'web/css/*.css',
     'web/js/*.js',
+    'web/images/outfit/*.png',
     'stream/**.ytyp',
 }
 
@@ -87,6 +91,9 @@ data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_teddyburger/nayzeee_backpa
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_teddyskull/nayzeee_backpack_teddyskull.ytyp'
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_backpack_lean/nayzeee_backpack_lean.ytyp'
 
+-- Duffel open models (BzZz, renamed so they never clash with bzzz_money)
+data_file 'DLC_ITYP_REQUEST' 'stream/duffel/nayzeee_duffel_typ.ytyp'
+
 dependencies {
     '/assetpacks',       -- needed once the resource is escrowed through Tebex
     'ox_lib',
@@ -102,4 +109,8 @@ escrow_ignore {
     'bridge/*.lua',
     'install.sql',
     'INSTALL.md',
+
+    -- BzZz's licence: his props must never be escrowed
+    'stream/duffel/*',
+    'stream/anims/nayzeee_grab_cash_01.ycd',
 }

@@ -36,6 +36,19 @@ lib.addCommand('bagitems', {
             out[#out + 1] = entryFor(key)
         end
     end
+    local ob = Config.OutfitBag
+    if ob and ob.enabled and not ox:Items(ob.item) then
+        missing = missing + 1
+        out[#out + 1] = ([[
+['%s'] = {
+    label = 'Outfit Bag',
+    weight = 500,
+    stack = false,
+    close = true,
+    description = 'Set it down or quick change',
+    client = { image = 'outfit_bag.png', export = '%s.useOutfitBag' },
+},]]):format(ob.item, GetCurrentResourceName())
+    end
     if missing == 0 then
         print('^2[nayzeee-backpack] every bag already has an ox_inventory item.^0')
     else

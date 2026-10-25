@@ -164,6 +164,20 @@ function PrepareStash(bagKey, bagid)
     return id
 end
 
+--- Does a stash hold any of these items?
+local function hasAny(stashId, names)
+    local inv = ox:GetInventory(stashId, false)
+    if not inv or not inv.items then return false end
+    local want = {}
+    for _, n in ipairs(names) do want[n] = true end
+    for _, it in pairs(inv.items) do
+        if it and want[it.name] and (it.count or 0) > 0 then return true end
+    end
+    return false
+end
+
+local watching = {} -- [stashId] = { bag, src } while a bag with a cash model / grab anim is open
+
 local function openBackpack(src, item)
     local meta = item and item.metadata
     if not meta or not meta.bagid then
@@ -171,6 +185,11 @@ local function openBackpack(src, item)
     end
 
     local id = PrepareStash(item.name, meta.bagid)
+    local info = Bags.openInfo(item.name)
+    if info.cashModel or info.grabAnim then
+        info.cash = hasAny(id, info.cashItems)
+        watching[id] = { bag = item.name, src = src }
+    end
 
     -- keep the item tooltip honest after a storage edit
     local desc = describe(item.name)
@@ -179,9 +198,37 @@ local function openBackpack(src, item)
         ox:SetMetadata(src, item.slot, meta)
     end
 
-    TriggerClientEvent('nayzeee-backpack:open', src, id)
+    TriggerClientEvent('nayzeee-backpack:open', src, id, info)
     if Logs then Logs.simple('open', 'Backpack opened', src, item.name) end
 end
+
+-- cash going in or out of an open duffel: swap its model, play the grab
+ox:registerHook('swapItems', function(payload)
+    local from, to = payload.fromInventory, payload.toInventory
+    local stash = (type(from) == 'string' and watching[from] and from)
+               or (type(to) == 'string' and watching[to] and to)
+    if not stash then return true end
+
+    local w = watching[stash]
+    local moved = payload.fromSlot and payload.fromSlot.name
+    local info = Bags.openInfo(w.bag)
+    local isCash = false
+    for _, n in ipairs(info.cashItems) do if n == moved then isCash = true end end
+    if not isCash then return true end
+
+    local withdrew = from == stash and to ~= stash
+    local src = payload.source
+    SetTimeout(150, function()
+        if GetPlayerPing(src) == 0 then return end
+        TriggerClientEvent('nayzeee-backpack:openCash', src, hasAny(stash, info.cashItems), withdrew)
+    end)
+    return true
+end, { inventoryFilter = { '^backpack_' } })
+
+AddEventHandler('ox_inventory:closedInventory', function(playerId, inventoryId)
+    local w = inventoryId and watching[inventoryId]
+    if w and w.src == playerId then watching[inventoryId] = nil end
+end)
 
 for name in pairs(Config.Backpacks) do
     exports('use' .. name, function(event, item, inventory)
@@ -251,6 +298,7 @@ end)
 AddEventHandler('playerDropped', function()
     local src = source
     denied[src] = nil
+    for id, w in pairs(watching) do if w.src == src then watching[id] = nil end end
     TriggerClientEvent('nayzeee-backpack:clear', -1, src)
 end)
 

@@ -226,6 +226,32 @@ function Bags.models(key)
 end
 
 -----------------------------------------------------------------
+-- opening
+-----------------------------------------------------------------
+
+--- How a bag opens: { style, model, cashModel, heading, grabAnim, cashItems }
+function Bags.openInfo(key)
+    local bag = Bags.def(key)
+    local cfg = Config.OpenBag or {}
+    local o = (bag and bag.open) or {}
+
+    local style = o.style
+    if not style then
+        style = Bags.carryStyle(key) and 'quick' or (cfg.style or 'kneel')
+    end
+    if cfg.enabled == false then style = 'quick' end
+
+    return {
+        style     = style,
+        model     = o.model,
+        cashModel = o.cashModel,
+        heading   = tonumber(o.heading) or 180.0,
+        grabAnim  = o.grabAnim,
+        cashItems = o.cashItems or cfg.cashItems or { 'money' },
+    }
+end
+
+-----------------------------------------------------------------
 -- jobs
 -----------------------------------------------------------------
 

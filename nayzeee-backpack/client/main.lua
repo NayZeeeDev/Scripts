@@ -13,6 +13,7 @@ local myId = GetPlayerServerId(PlayerId())
 local lastSig = nil -- what we last told the server about our inventory
 local attaching = {} -- [serverId] = true while a model is loading
 local localHidden = false -- shop / studio hide the worn bag
+local openState = {} -- [serverId] = nb_open statebag: the bag is set down and open
 
 local function pedFor(serverId)
     if serverId == myId then return PlayerPedId() end
@@ -21,8 +22,45 @@ local function pedFor(serverId)
     return GetPlayerPed(ply)
 end
 
-local function sigOf(state)
-    return ('%s|%s'):format(state.bag, tostring(state.variant))
+local function sigOf(state, serverId)
+    local o = serverId and openState[serverId]
+    return ('%s|%s|%s'):format(state.bag, tostring(state.variant),
+        o and (o.cash and 'cash' or 'open') or 'worn')
+end
+
+--- Set an opened bag down on the ground in front of its owner.
+--- Uses the bag's open / cash model when it has one.
+local function spawnOpen(serverId, state, ped)
+    local info = Bags.openInfo(state.bag)
+    local o = openState[serverId] or {}
+    local model = (o.cash and info.cashModel) or info.model
+
+    local entity, hash
+    if model then
+        entity, hash = Util.spawnModel(model, 0, GetEntityCoords(ped))
+    end
+    if not entity then
+        entity, hash = Util.spawnBag(state.bag, state.variant, GetEntityCoords(ped))
+    end
+    if not entity then return nil end
+
+    local pc = GetEntityCoords(ped)
+    local h = GetEntityHeading(ped)
+    local r = math.rad(h)
+    local dist = (Config.OpenBag and Config.OpenBag.distance) or 0.55
+    local x, y = pc.x - math.sin(r) * dist, pc.y + math.cos(r) * dist
+    local ok, gz = GetGroundZFor_3dCoord(x, y, pc.z + 0.3, false)
+    local z = ok and gz or (pc.z - 0.98)
+
+    -- mesh bottom-centre on the ground (these props rarely have a sane pivot)
+    local c, mn = Util.modelCentre(hash)
+    local heading = (h + (info.heading or 180.0)) % 360.0
+    local hr = math.rad(heading)
+    local co, si = math.cos(hr), math.sin(hr)
+    SetEntityCoordsNoOffset(entity, x - (c.x * co - c.y * si), y - (c.x * si + c.y * co), z - mn.z, false, false, false)
+    SetEntityHeading(entity, heading)
+    FreezeEntityPosition(entity, true)
+    return entity
 end
 
 -----------------------------------------------------------------
@@ -41,9 +79,9 @@ local function attachProp(serverId, state)
     if ped == 0 or not DoesEntityExist(ped) then return false end
 
     local current = props[serverId]
-    local sig = sigOf(state)
+    local sig = sigOf(state, serverId)
     if current and current.sig == sig and DoesEntityExist(current.entity)
-       and IsEntityAttachedToEntity(current.entity, ped) then
+       and (current.grounded or IsEntityAttachedToEntity(current.entity, ped)) then
         return true
     end
 
@@ -51,34 +89,43 @@ local function attachProp(serverId, state)
     attaching[serverId] = true
     removeProp(serverId)
 
-    local entity = Util.spawnBag(state.bag, state.variant, GetEntityCoords(ped))
+    local grounded = openState[serverId] ~= nil
+    local entity
+    if grounded then
+        entity = spawnOpen(serverId, state, ped)
+    else
+        entity = Util.spawnBag(state.bag, state.variant, GetEntityCoords(ped))
+    end
     attaching[serverId] = nil
     if not entity then return false end
 
     -- the state may have changed while the model loaded
     local now = wanted[serverId]
-    if not now or now.stowed or not now.bag or sigOf(now) ~= sig or not DoesEntityExist(ped) then
+    local visible = now and now.bag and (not now.stowed or openState[serverId])
+    if not visible or sigOf(now, serverId) ~= sig or not DoesEntityExist(ped) then
         Util.delete(entity)
-        if now and now.bag and not now.stowed then CreateThread(function() apply(serverId) end) end
+        if visible then CreateThread(function() apply(serverId) end) end
         return false
     end
 
-    local bone, pos, rot = Bags.offset(state.bag)
-    Util.attach(entity, ped, bone, pos, rot)
+    if not grounded then
+        local bone, pos, rot = Bags.offset(state.bag)
+        Util.attach(entity, ped, bone, pos, rot)
+    end
 
     if (serverId == myId and localHidden)
        or (not Config.ShowInVehicle and IsPedInAnyVehicle(ped, false)) then
         SetEntityVisible(entity, false, false)
     end
 
-    props[serverId] = { entity = entity, sig = sig, ped = ped }
+    props[serverId] = { entity = entity, sig = sig, ped = ped, grounded = grounded }
     Bags.debug('attached', state.bag, 'to', serverId)
     return true
 end
 
 apply = function(serverId)
     local state = wanted[serverId]
-    if state and state.bag and not state.stowed and Bags.exists(state.bag) then
+    if state and state.bag and (not state.stowed or openState[serverId]) and Bags.exists(state.bag) then
         attachProp(serverId, state)
     else
         removeProp(serverId)
@@ -202,6 +249,7 @@ AddEventHandler('onClientResourceStart', function(res)
         local sid = GetPlayerServerId(ply)
         local st = Player(sid).state.nayzeee_backpack
         if st then wanted[sid] = st end
+        openState[sid] = Player(sid).state.nb_open or nil
     end
     SetTimeout(1000, function()
         for id in pairs(wanted) do CreateThread(function() apply(id) end) end
@@ -216,7 +264,17 @@ end)
 
 RegisterNetEvent('nayzeee-backpack:clear', function(serverId)
     wanted[serverId] = nil
+    openState[serverId] = nil
     removeProp(serverId)
+end)
+
+-- a player set their bag down to open it (or picked it back up)
+AddStateBagChangeHandler('nb_open', nil, function(bagName, _, value)
+    local ply = GetPlayerFromStateBagName(bagName)
+    if ply == 0 then return end
+    local serverId = GetPlayerServerId(ply)
+    openState[serverId] = value or nil
+    CreateThread(function() apply(serverId) end)
 end)
 
 -----------------------------------------------------------------
@@ -232,20 +290,21 @@ CreateThread(function()
         local any = false
 
         for serverId, state in pairs(wanted) do
-            if state and state.bag and not state.stowed then
+            if state and state.bag and (not state.stowed or openState[serverId]) then
                 any = true
                 local ped = pedFor(serverId)
                 local p = props[serverId]
 
                 if ped == 0 or not DoesEntityExist(ped) then
                     if p then removeProp(serverId) end
-                elseif not p or not DoesEntityExist(p.entity) or not IsEntityAttachedToEntity(p.entity, ped) then
+                elseif not p or not DoesEntityExist(p.entity)
+                    or (not p.grounded and not IsEntityAttachedToEntity(p.entity, ped)) then
                     -- own thread: a model load may wait, and we're mid-iteration
                     if not attaching[serverId] then
                         local id = serverId
                         CreateThread(function() apply(id) end)
                     end
-                elseif not (serverId == myId and localHidden) then
+                elseif not p.grounded and not (serverId == myId and localHidden) then
                     local show = Config.ShowInVehicle or not IsPedInAnyVehicle(ped, false)
                     if show ~= IsEntityVisible(p.entity) then
                         SetEntityVisible(p.entity, show, false)
@@ -262,7 +321,10 @@ end)
 -- open / notify
 -----------------------------------------------------------------
 
-RegisterNetEvent('nayzeee-backpack:open', function(stashId)
+--- `info` only comes with your OWN worn bag; placed bags and police
+--- searches just open the stash.
+RegisterNetEvent('nayzeee-backpack:open', function(stashId, info)
+    if info and Open and Open.start(stashId, info) then return end
     if Config.Animations and Config.Animations.enabled then
         Anim.play('open')
     end

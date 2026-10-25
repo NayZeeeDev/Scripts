@@ -85,6 +85,17 @@ function OpenBackpackMenu(bagKey)
         }
     end
 
+    local mine = MyPlacedBags and MyPlacedBags() or {}
+    if #mine > 0 then
+        options[#options + 1] = {
+            title = P.findBags,
+            description = ('%d set down'):format(#mine),
+            icon = 'location-dot',
+            arrow = true,
+            onSelect = function() ShowPlacedMenu() end,
+        }
+    end
+
     options[#options + 1] = {
         title = stowed and P.wear or P.stow,
         description = stowed and 'Wear it again' or 'Carry it out of sight',
@@ -104,6 +115,37 @@ function OpenBackpackMenu(bagKey)
     })
 
     lib.showContext('nayzeee_backpack_menu')
+end
+
+local function distanceText(m)
+    return m < 1000 and ('%dm away'):format(math.floor(m)) or ('%.1fkm away'):format(m / 1000)
+end
+
+--- Bags you've set down around the map. Pick one to get a waypoint.
+function ShowPlacedMenu()
+    local options = {}
+    for _, b in ipairs(MyPlacedBags and MyPlacedBags() or {}) do
+        local street = GetStreetNameFromHashKey(GetStreetNameAtCoord(b.coords.x, b.coords.y, b.coords.z))
+        options[#options + 1] = {
+            title = Bags.label(b.bag) or b.bag,
+            description = ('%s · %s · %s'):format(street ~= '' and street or 'Unknown street', distanceText(b.distance),
+                b.access == 'public' and P.accessPublic or P.accessPrivate),
+            icon = b.access == 'public' and 'lock-open' or 'lock',
+            onSelect = function()
+                SetNewWaypoint(b.coords.x, b.coords.y)
+                Config.Notify(Strings.waypoint_set, 'inform')
+            end,
+        }
+    end
+    if #options == 0 then return Config.Notify(Strings.no_placed, 'inform') end
+
+    lib.registerContext({
+        id = 'nayzeee_backpack_placed',
+        title = P.findBags,
+        menu = 'nayzeee_backpack_menu',
+        options = options,
+    })
+    lib.showContext('nayzeee_backpack_placed')
 end
 
 --- Private or public, asked before placement mode starts.

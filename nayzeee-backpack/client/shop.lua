@@ -74,6 +74,14 @@ local function catalog()
     return list
 end
 
+--- The bag you're wearing, for the "+3 slots vs yours" readout.
+local function currentBag()
+    local st = LocalPlayer.state.nayzeee_backpack
+    if not st or not Bags.exists(st.bag) then return nil end
+    local storage = Bags.storage(st.bag)
+    return { key = st.bag, slots = storage.slots, weight = storage.weight }
+end
+
 local function ownedMap()
     local owned = {}
     local items = exports.ox_inventory:GetPlayerItems() or {}
@@ -573,6 +581,7 @@ function OpenShop(location)
         data = {
             items = items,
             owned = ownedMap(),
+            current = currentBag(),
             wallet = wallet,
             themes = cfg.useThemes ~= false and cfg.Themes or nil,
             categories = cfg.useCategories ~= false and cfg.Categories or nil,

@@ -70,7 +70,11 @@ end
 function Util.spawnBag(bagKey, variantId, coords)
     local model, texture = Bags.resolve(bagKey, variantId)
     if not model then return nil end
+    return Util.spawnModel(model, texture, coords)
+end
 
+--- Spawn any prop the same way (local, no collision).
+function Util.spawnModel(model, texture, coords)
     local hash = Util.loadModel(model)
     if not hash then return nil end
 

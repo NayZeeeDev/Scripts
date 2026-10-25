@@ -150,6 +150,46 @@ Config.Carry = {
                 rot  = { x = 0.0,   y = 0.0,   z = 0.0 },
             },
         },
+        duffel = {
+            label = 'Duffel in hand',
+            pose  = 'carry',
+            offset = {
+                bone = 57005, -- SKEL_R_Hand
+                pos  = { x = 0.300, y = 0.000, z = -0.020 },
+                rot  = { x = -90.0, y = 0.0,   z = 90.0 },
+            },
+        },
+    },
+}
+
+--  ██████╗ ██████╗ ███████╗███╗   ██╗
+-- ██╔═══██╗██╔══██╗██╔════╝████╗  ██║
+-- ██║   ██║██████╔╝█████╗  ██╔██╗ ██║
+-- ██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║
+-- ╚██████╔╝██║     ███████╗██║ ╚████║
+--  ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝
+
+-- What opening a bag looks like. Everyone nearby sees it.
+--   'kneel'  set the bag down in front, kneel and rummage while the inventory is open
+--   'stand'  set it down in front and stand over it (duffels)
+--   'quick'  reach back and open it where it is (purses use this)
+-- A bag picks its own style with `open = { style = ... }`, otherwise
+-- purses use 'quick' and everything else uses Config.OpenBag.style.
+--
+-- A bag can also show a different, OPEN model while it's set down:
+--   open = { model = 'my_bag_open' }
+-- and a third model when it holds cash:
+--   open = { model = 'duffel_empty', cashModel = 'duffel_full', cashItems = { 'money' } }
+Config.OpenBag = {
+    enabled = true,
+    style   = 'kneel',
+    distance = 0.55,   -- How far in front of the player the bag is set down
+    cashItems = { 'money', 'black_money', 'markedbills' }, -- what counts as cash for cashModel
+
+    kneel = {
+        enter = { dict = 'amb@medic@standing@kneel@enter', clip = 'enter', time = 900 },
+        loop  = { dict = 'amb@medic@standing@tendtodead@idle_a', clip = 'idle_a' },
+        exit  = { dict = 'amb@medic@standing@kneel@exit', clip = 'exit', time = 900 },
     },
 }
 
@@ -427,7 +467,19 @@ Config.Prompts = {
     accessPublic  = 'Public',       -- Anyone can use it
     makePrivate   = 'Make private',
     makePublic    = 'Make public',
+    findBags      = 'Find my bags',  -- Waypoint to a bag you set down (also /mybags)
 }
+
+-- Default keys. Players can still rebind them in Settings > Key Bindings > FiveM.
+-- '' = unbound. These only apply the first time a player joins.
+Config.Keybinds = {
+    open  = '',   -- e.g. 'B'  open the bag you're wearing
+    menu  = '',   -- e.g. 'K'  bag menu (open, set down, take off, pose, find)
+    place = '',   -- set it down
+}
+
+-- One tip the first time someone wears a bag, then never again
+Config.FirstBagHint = true
 
 -- ██╗      ██████╗  ██████╗ ███████╗
 -- ██║     ██╔═══██╗██╔════╝ ██╔════╝
@@ -489,6 +541,93 @@ Config.Animations = {
 
     open = { -- Quick reach-in when opening the bag
         dict = 'anim@heists@ornate_bank@grab_cash', anim = 'grab', duration = 900, flag = 49,
+    },
+}
+
+--  ██████╗ ██╗   ██╗████████╗███████╗██╗████████╗
+-- ██╔═══██╗██║   ██║╚══██╔══╝██╔════╝██║╚══██╔══╝
+-- ██║   ██║██║   ██║   ██║   █████╗  ██║   ██║
+-- ██║   ██║██║   ██║   ██║   ██╔══╝  ██║   ██║
+-- ╚██████╔╝╚██████╔╝   ██║   ██║     ██║   ██║
+--  ╚═════╝  ╚═════╝    ╚═╝   ╚═╝     ╚═╝   ╚═╝
+
+-- The outfit bag: a portable wardrobe. Use the item, it's set down in front
+-- of you and opens. Save what you're wearing, wear a whole outfit or a single
+-- piece, hover to preview, pin favourites, tag, share outfits with a code,
+-- undo a change, import from illenium-appearance.
+--
+-- ox_inventory item (client export, NOT server):
+--   ['outfit_bag'] = { label = 'Outfit Bag', weight = 500, stack = false, close = true,
+--       client = { export = 'nayzeee-backpack.useOutfitBag' } },
+Config.OutfitBag = {
+    enabled = true,
+    item    = 'outfit_bag',
+    prop    = 'reh_prop_reh_bag_outfit_01a', -- Ground prop (any model works, e.g. 'prop_cs_heist_bag_02')
+
+    maxOutfits       = 12,   -- Per bag. Keep <= 20 (they ride on a statebag while it's set down)
+    maxLabelLength   = 30,
+    interactDistance = 2.0,  -- Third-eye distance
+    closeDistance    = 5.0,  -- The menu closes past this distance from the bag
+    returnDistance   = 12.0, -- Walk further than this and the bag comes back to your pockets
+    setDownDistance  = 0.75, -- How far in front of you it's set down
+    openOnPlace      = true, -- Open the menu as soon as it's set down
+
+    saveHair     = true,     -- Outfits include hair style + colour
+    previewPed   = true,     -- Hover an outfit to see yourself in it
+    previewSlot  = 2,        -- Pause-menu ped slot for the preview (try 1 or 3 if it overlaps)
+    saveSkin     = false,    -- Persist the outfit through relogs (illenium / fivem-appearance / qb-clothing)
+    sharing      = true,     -- Outfit share codes (copy a code, paste it into another bag)
+
+    -- Colour tags players can put on outfits
+    tags = {
+        { key = 'casual', label = 'Casual', color = '#08afa2' },
+        { key = 'work',   label = 'Work',   color = '#3b82f6' },
+        { key = 'formal', label = 'Formal', color = '#a855f7' },
+        { key = 'night',  label = 'Night',  color = '#ec4899' },
+        { key = 'sport',  label = 'Sport',  color = '#f5a524' },
+    },
+
+    -- Someone else's bag. The owner can also lock / unlock their bag from the menu.
+    access = {
+        othersCanWear = true,  -- Unlocked bags can be opened by anyone nearby
+        othersCanSave = false, -- Non-owners can change outfits in it
+        othersCanCopy = true,  -- Non-owners can copy outfits into their own bag
+        defaultLocked = true,  -- New bags start locked
+    },
+
+    -- Import saved outfits from illenium-appearance (needs oxmysql)
+    wardrobe = { enabled = true, table = 'player_outfits' },
+
+    placeAnim  = { dict = 'amb@medic@standing@tendtodead@idle_a', clip = 'idle_a', flag = 0, duration = 2200 },
+    pickupAnim = { dict = 'amb@medic@standing@tendtodead@idle_a', clip = 'idle_b', flag = 0, duration = 2200 },
+
+    -- What gets saved with an outfit
+    components = {
+        ['mask'] = 1, ['arms'] = 3, ['pants'] = 4, ['bag'] = 5, ['shoes'] = 6,
+        ['neck'] = 7, ['t-shirt'] = 8, ['vest'] = 9, ['badge'] = 10, ['torso2'] = 11,
+    },
+    props = {
+        ['hat'] = 0, ['glasses'] = 1, ['ear'] = 2, ['watch'] = 6, ['bracelet'] = 7,
+    },
+
+    wearAnims = {
+        ['all']      = { dict = 'mp_safehouseshower@male@', clip = 'male_shower_towel_dry_to_get_dressed', flag = 0, duration = 3000 },
+        ['hair']     = { dict = 'mp_masks@standard_car@ds@', clip = 'put_on_mask', flag = 51, duration = 800 },
+        ['mask']     = { dict = 'mp_masks@standard_car@ds@', clip = 'put_on_mask', flag = 51, duration = 800 },
+        ['arms']     = { dict = 'nmt_3_rcm-10', clip = 'cs_nigel_dual-10', flag = 51, duration = 1200 },
+        ['pants']    = { dict = 're@construction', clip = 'out_of_breath', flag = 51, duration = 1300 },
+        ['bag']      = { dict = 'anim@heists@ornate_bank@grab_cash', clip = 'intro', flag = 51, duration = 1600 },
+        ['shoes']    = { dict = 'random@domestic', clip = 'pickup_low', flag = 0, duration = 1200 },
+        ['neck']     = { dict = 'clothingtie', clip = 'try_tie_positive_a', flag = 51, duration = 2100 },
+        ['t-shirt']  = { dict = 'clothingtie', clip = 'try_tie_negative_a', flag = 51, duration = 1500 },
+        ['vest']     = { dict = 'clothingtie', clip = 'try_tie_negative_a', flag = 51, duration = 1200 },
+        ['badge']    = { dict = 'clothingtie', clip = 'try_tie_negative_a', flag = 51, duration = 1200 },
+        ['torso2']   = { dict = 'clothingtie', clip = 'try_tie_negative_a', flag = 51, duration = 1500 },
+        ['hat']      = { dict = 'mp_masks@standard_car@ds@', clip = 'put_on_mask', flag = 51, duration = 600 },
+        ['glasses']  = { dict = 'clothingspecs', clip = 'put_on', flag = 51, duration = 2000 },
+        ['ear']      = { dict = 'mp_cp_stolen_tut', clip = 'b_think', flag = 51, duration = 900 },
+        ['watch']    = { dict = 'nmt_3_rcm-10', clip = 'cs_nigel_dual-10', flag = 51, duration = 1200 },
+        ['bracelet'] = { dict = 'nmt_3_rcm-10', clip = 'cs_nigel_dual-10', flag = 51, duration = 1200 },
     },
 }
 
@@ -734,6 +873,27 @@ Config.Backpacks = {
         price    = 2500,
     },
 
+    -- Carried in hand. Set down to open: the bag unzips, and shows the cash
+    -- inside when it holds any. Taking cash out plays the grab-cash animation.
+    -- Open models by BzZz (bzzz.tebex.io), renamed so they never clash with bzzz_money.
+    ['duffel_bag'] = {
+        label    = 'Duffel Bag',
+        model    = 'hei_p_m_bag_var22_arm_s',
+        category = 'duffel',
+        theme    = 'realistic',
+        price    = 4500,
+        slots    = 20,
+        weight   = 40000,
+        carry    = 'duffel',
+        open = {
+            style     = 'stand',
+            model     = 'nayzeee_duffel_a',
+            cashModel = 'nayzeee_duffel_b',
+            heading   = 0.0,                -- open model faces the player as-is
+            grabAnim  = { dict = 'nayzeee_grab_cash_01', clip = 'nayzeee_grab_cash_01', time = 4200 },
+        },
+    },
+
     -- JOB BAGS -------------------------------------------------------------
     -- Only players on the job see these in the shop, and only they can wear
     -- one. price = 0 shows as "Issued" with a Collect button.
@@ -850,4 +1010,39 @@ Strings = {
     job_returned = 'Your job bag was handed back in.',
 
     no_admin     = 'You do not have permission for that.',
+
+    -- outfit bag
+    first_hint       = 'New bag! Use it from your inventory (or /bagmenu) to open it, set it down or take it off.',
+    waypoint_set     = 'Waypoint set to your bag.',
+    no_placed        = "You haven't set any bags down.",
+
+    ob_title         = 'Outfit Bag',
+    ob_placing       = 'Setting the outfit bag down...',
+    ob_taking        = 'Picking up the outfit bag...',
+    ob_pickup        = 'Pick up bag',
+    ob_open          = 'Open outfit bag',
+    ob_saved         = "Outfit '%s' saved.",
+    ob_updated       = "Outfit '%s' updated with your current clothes.",
+    ob_renamed       = 'Outfit renamed.',
+    ob_deleted       = 'Outfit deleted.',
+    ob_changed       = 'You changed your outfit.',
+    ob_undone        = 'Back to what you had on.',
+    ob_full          = 'This bag is full (%s/%s outfits).',
+    ob_not_found     = 'Outfit bag not found.',
+    ob_no_permission = "You can't do that with someone else's bag.",
+    ob_invalid_name  = 'Invalid outfit name.',
+    ob_cooldown      = 'Slow down.',
+    ob_too_far       = 'You walked off - your outfit bag is back in your pockets.',
+    ob_cannot_place  = "You can't set the bag down right now.",
+    ob_copied        = "Outfit '%s' copied to your bag.",
+    ob_your_full     = 'Your bag is full.',
+    ob_need_own      = 'You need an outfit bag of your own to copy into.',
+    ob_locked        = 'Bag locked - only you can open it.',
+    ob_unlocked      = 'Bag unlocked - nearby players can open it.',
+    ob_imported      = "Outfit '%s' imported.",
+    ob_import_failed = 'Could not import that outfit.',
+    ob_wrong_model   = 'That outfit was saved on a different character model.',
+    ob_code_copied   = 'Share code copied to your clipboard.',
+    ob_code_bad      = 'That share code is not valid.',
+    ob_restored      = 'Your outfit bag was returned after a restart.',
 }

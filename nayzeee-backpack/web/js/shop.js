@@ -89,6 +89,20 @@
 
   /* ---------- the featured bag ---------- */
   let swapTimer = null;
+  // "+3 slots · +5kg" against the bag you're wearing right now
+  function compare(item) {
+    const c = D.current;
+    if (!c || c.key === item.key) return '';
+    const ds = item.slots - c.slots, dw = (item.weight - c.weight) / 1000;
+    if (!ds && !dw) return '<span class="cmp">same as yours</span>';
+    const fmt = (v, unit) => (v > 0 ? '+' : '') + (Number.isInteger(v) ? v : v.toFixed(1)) + unit;
+    const parts = [];
+    if (ds) parts.push(fmt(ds, ds === 1 || ds === -1 ? ' slot' : ' slots'));
+    if (dw) parts.push(fmt(dw, 'kg'));
+    const better = ds >= 0 && dw >= 0, worse = ds <= 0 && dw <= 0;
+    return `<span class="cmp ${better ? 'up' : worse ? 'down' : ''}">${parts.join(' · ')} vs yours</span>`;
+  }
+
   function renderItem(animate) {
     const item = cur();
     const label = $('label');
@@ -109,6 +123,7 @@
         `<span>${(item.weight / 1000).toFixed(item.weight % 1000 ? 1 : 0)} kg</span>`,
         item.carry ? '<span>hand carry</span>' : '',
         D.owned && D.owned[item.key] ? '<span class="own">owned</span>' : '',
+        compare(item),
       ].join('');
     };
 

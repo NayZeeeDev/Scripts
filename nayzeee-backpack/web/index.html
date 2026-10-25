@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/ui.css">
+<link rel="stylesheet" href="css/outfit.css">
 </head>
 <body>
 
@@ -299,8 +300,102 @@
   </div>
 </div>
 
+<!-- ============================================================
+     OUTFIT BAG
+     ============================================================ -->
+<div id="outfit" class="hide">
+  <div class="ob-bag">
+    <img class="ob-art" src="images/outfit/bg.png" alt="">
+    <div class="ob-in">
+      <div class="bar">
+        <div class="bar-brand">
+          <div class="mark"></div>
+          <div class="ob-name"><b>Outfit Bag</b><span><i class="dot" id="obDot"></i><em id="obCount">0</em>/<em id="obMax">12</em> · <em id="obSub">Set down</em></span></div>
+        </div>
+        <button class="ob-ib" id="obLock" title="Lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+        <button class="pill-close" id="obClose">Close</button>
+      </div>
+      <div class="ob-meter"><i id="obMeter"></i></div>
+
+      <div class="ob-tools">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="obSearch" type="text" placeholder="Search outfits" maxlength="30" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="ob-ib" id="obCodeBtn" title="Paste a share code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14h6M12 11v6"/></svg></button>
+        <button class="ob-ib" id="obImportBtn" title="Import from your wardrobe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 19h16"/></svg></button>
+      </div>
+
+      <div class="ob-filters" id="obTags"></div>
+
+      <div class="ob-form hide" id="obSaveForm">
+        <input id="obSaveName" type="text" placeholder="Name this look" maxlength="30" autocomplete="off" spellcheck="false">
+        <button class="btn-teal ob-sq" id="obSaveOk" title="Save"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+        <button class="btn-ghost ob-sq" id="obSaveNo" title="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+
+      <div class="ob-body">
+        <div class="ob-list" id="obList"></div>
+
+        <div class="ob-pad hide" id="obEmpty">
+          <div class="empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3l-5 3 2 4 2-1v11h8V9l2 1 2-4-5-3a3 3 0 0 1-6 0z"/></svg>
+            <b id="obEmptyTitle">No outfits saved yet</b>
+            <span id="obEmptyText">Put a look together, then press Save current outfit.</span>
+          </div>
+        </div>
+
+        <div class="ob-sub hide" id="obImport">
+          <div class="ob-sub-h">
+            <button class="ob-ib" id="obImportBack" title="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6"/></svg></button>
+            <div><b>My wardrobe</b><span>Outfits saved at clothing stores</span></div>
+          </div>
+          <div class="ob-list" id="obImportList"></div>
+          <div class="ob-pad hide" id="obImportEmpty">
+            <div class="empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M12 3v18M9.5 12h.01M14.5 12h.01"/></svg>
+              <b>No wardrobe outfits found</b>
+              <span>Save outfits at a clothing store first.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button class="btn-teal" id="obSave"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>Save current outfit</button>
+        <button class="btn-ghost hide" id="obUndo" title="Back to what you had on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
+      </div>
+      <div class="statusbar ob-keys">
+        <span><span class="key">ESC</span>Close</span>
+        <span><span class="key">1-9</span>Wear</span>
+        <span id="obHintHover"><span class="key">/</span>Search</span>
+      </div>
+
+      <div class="ob-veil hide" id="obModal">
+        <div class="modal ob-modal">
+          <div class="modal-b">
+            <div class="ob-warn" id="obModalIcon"></div>
+            <div class="ob-modal-t">
+              <h4 id="obModalTitle">Delete outfit?</h4>
+              <p id="obModalText"></p>
+              <textarea id="obModalInput" class="hide" rows="3" placeholder="NZO1-..." spellcheck="false"></textarea>
+            </div>
+          </div>
+          <div class="modal-f">
+            <button class="btn-line ob-fit" id="obModalNo">Cancel</button>
+            <button class="btn-red" id="obModalOk">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ob-toast" id="obToast"><div class="ti" id="obToastIcon"></div><div><b id="obToastTitle"></b><p id="obToastText"></p></div></div>
+</div>
+
 <script src="js/keyer.js"></script>
 <script src="js/studio.js"></script>
 <script src="js/shop.js"></script>
+<script src="js/outfit.js"></script>
 </body>
 </html>

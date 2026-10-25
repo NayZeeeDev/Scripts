@@ -303,6 +303,20 @@ RegisterNetEvent('nayzeee-backpack:syncPlaced', function(list)
     end
 end)
 
+--- Your own bags on the ground, nearest first (for the "find my bags" menu).
+function MyPlacedBags()
+    local me = GetEntityCoords(PlayerPedId())
+    local list = {}
+    for _, data in pairs(placedData) do
+        if data.mine then
+            list[#list + 1] = { id = data.id, bag = data.bag, coords = data.coords, access = data.access,
+                                distance = #(me - data.coords) }
+        end
+    end
+    table.sort(list, function(a, b) return a.distance < b.distance end)
+    return list
+end
+
 RegisterNetEvent('nayzeee-backpack:removePlaced', function(id)
     removePlaced(id)
 end)
