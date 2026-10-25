@@ -125,7 +125,11 @@ local function attachProp(serverId, state)
         SetEntityVisible(entity, false, false)
     end
 
-    props[serverId] = { entity = entity, sig = sig, ped = ped, grounded = grounded, holder = ped, place = 'worn' }
+    -- 'pending' in a vehicle so the scope loop always places it (seat, back on a bike, or hidden)
+    props[serverId] = {
+        entity = entity, sig = sig, ped = ped, grounded = grounded, holder = ped,
+        place = IsPedInAnyVehicle(ped, false) and 'pending' or 'worn',
+    }
 
     -- learn how this bag sits on a wearer, for putting it on car seats later
     if not grounded and VehicleBags and VehicleBags.enabled and not IsPedInAnyVehicle(ped, false) then
