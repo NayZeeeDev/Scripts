@@ -15,7 +15,7 @@ Steps
   5. copy the binaries to --stream (stale nz_amb_*.ydr there are removed)
   6. headless three.js previews (3 angles per prop) -> <out>/sheets/contact_*.png
   7. <out>/props_manifest.json + props_table.md + props_catalog.md; --docs refreshes the generated
-     <!-- props:table:* --> and <!-- props:catalog:* --> sections of a markdown file (docs/modules/props.md)
+     <!-- props:table:* --> and <!-- props:catalog:* --> sections of a markdown file you pass
 
 Requirements: python3 with numpy + Pillow, .NET 8 SDK, git, node 18+ (previews), chromium.
 """

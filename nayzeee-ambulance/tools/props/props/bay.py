@@ -498,7 +498,7 @@ def _cabinet_run(b, side):
                     f"{MEDIC_SPAWN} heading +0; exit marker {EXIT}; bench seats (0.93, "
                     + " / ".join(f"{BENCH[1] + (BENCH[2] - BENCH[1]) / 3 * (k + 0.5):.3f}" for k in range(3))
                     + f", {SEAT_Z}) heading +90; attendant seat (-0.42, 1.86, 0.48) heading +180; supply cabinet slots: "
-                    "see docs/modules/props.md section 5",
+                    "see props_catalog.md from the build",
       }, preview={
           "views": ["int_rear", "int_front", "plan"],
           "cams": [

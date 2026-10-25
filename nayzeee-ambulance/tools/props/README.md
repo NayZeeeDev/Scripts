@@ -41,8 +41,7 @@ output live in the work folder (`--work`, default `/tmp/nza-work/props`).
 ```bash
 python3 tools/props/build.py \
     --out    /tmp/nza-work/props/out \
-    --stream nayzeee-ambulance/stream \
-    --docs   nayzeee-ambulance/docs/modules/props.md
+    --stream nayzeee-ambulance/stream
 ```
 
 * builds every registered prop in parallel (`--jobs`, default 4),
@@ -53,8 +52,8 @@ python3 tools/props/build.py \
   fail to stream,
 * copies the binaries into `stream/` and deletes stale `nz_amb_*.ydr` that are no longer registered,
 * renders 3 views per prop (+ any extra cameras a prop declares) and writes `<out>/sheets/contact_NN.png`,
-* writes `<out>/props_manifest.json`, `props_table.md`, `props_catalog.md` and refreshes the generated
-  sections of `docs/modules/props.md` (between `<!-- props:table:* -->` / `<!-- props:catalog:* -->`).
+* writes `<out>/props_manifest.json`, `props_table.md` and `props_catalog.md` (`--docs <file.md>` also refreshes
+  the `<!-- props:table:* -->` / `<!-- props:catalog:* -->` sections of a markdown file of your own).
 
 A full build takes ~15-20 minutes on 4 cores (2048 atlases + ambient occlusion; the treatment bay,
 the stretcher and the 2048 devices take 2-4 minutes each). Useful flags:
@@ -74,8 +73,7 @@ contact sheets in `<out>/sheets/`. LOOK at them after every change.
 
 ## Adding a prop
 
-1. Add the model name to `config/props.lua` (lead-owned: file a request in `docs/requests/props.md`
-   if you are not the lead) - names are `nz_amb_<thing>`.
+1. Add the model name to `config/props.lua` - names are `nz_amb_<thing>`.
 2. Write the prop in a module under `tools/props/props/` (every module there is imported
    automatically):
 
@@ -113,7 +111,7 @@ def example(b):
   the grip for hand-held tools, the hanging slot for bags, the limb / neck axis for worn props.
 * Write the `doc` dict for every prop: `title`, `origin`, `axes`, `attach` (bone + offset/rotation
   or the entity offsets other modules need), `screen` when it has one. It is published in
-  `docs/modules/props.md` automatically.
+  `<out>/props_catalog.md` automatically.
 * Collision: `b.col_box(min, max, material)` / `b.col_cyl(center, r, length, axis, material)`;
   materials are the names in `nzprops/cwxml.py: COL_MATERIALS`.
 * `static=True` for furniture that never moves (archetype flag 32); dynamic props (carried,
