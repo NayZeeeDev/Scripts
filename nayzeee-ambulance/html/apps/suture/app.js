@@ -191,6 +191,7 @@
       this.seed = seed;
       const R = rng(seed);
       const sev = clamp(+inj.severity || 2, 1, 4);
+      this.sev = sev;
       const limb = /arm|leg/.test(inj.region || '');
       const angle = (R() - 0.5) * (limb ? 0.3 : 0.45);
       let def;
@@ -273,11 +274,20 @@
       let first = g.irr.done ? 2 : 1;
       // carrying on after "Step away": rebuild the saved point (a bad snapshot never stops the game)
       let snap = d.resume && typeof d.resume === 'object' && !Array.isArray(d.resume) ? d.resume : null;
-      let other = false;
-      // (a pause is kept per patient + procedure: it may belong to another wound, or be unreadable)
-      if (snap && !this.sameWound(snap.w)) { other = !!(snap.w && typeof snap.w === 'object'); snap = null; }
+      let other = this.restartNote || null;
+      this.restartNote = null;
+      // (a pause is kept per patient + procedure: it may belong to another wound, to this wound before it
+      // changed — hit again, longer — or be unreadable)
       if (snap) {
-        try { first = this.restore(snap, first); this.resumed = true; } catch (e) { console.error('[suture] restore', e); }
+        const m = this.woundMatch(snap.w);
+        if (m !== 'same') { if (snap.w && typeof snap.w === 'object') other = m; snap = null; }
+      }
+      if (snap) {
+        try { first = this.restore(snap, first); this.resumed = true; } catch (e) {
+          // never carry on from a half-rebuilt scene: start this wound cleanly
+          console.error('[suture] restore', e);
+          return this.restartClean();
+        }
       }
       this.enterStep(first, true);
       if (snap && this.resumed) {
@@ -288,7 +298,9 @@
             : T('resume_flash', 'Carrying on where you left off.');
         this.flash('ok', msg, 3200);
       } else if (other) {
-        this.flash('warn', T('resume_other', 'You stepped away from a different wound — this one starts from the beginning.'), 4200);
+        this.flash('warn', other === 'changed' ? T('resume_changed', 'This wound has changed since you stepped away — it starts from the beginning.')
+          : other === 'bad' ? T('resume_bad', 'Could not carry on from where you left off — this wound starts from the beginning.')
+            : T('resume_other', 'You stepped away from a different wound — this one starts from the beginning.'), 4200);
       }
       setTimeout(() => this.loadEl.classList.add('out'), 120);
       this.booted = true;
@@ -505,7 +517,9 @@
       g.done[n] = true;
       this.flash('ok', msg, 2400);
       if (n === 4) { this.finish(); return; }
-      const next = n + 1;
+      // (a resumed game can carry a later step already done: open the first one still to do)
+      let next = n + 1;
+      while (next < 4 && g.done[next]) next++;
       clearTimeout(this.stepTimer);
       this.stepTimer = setTimeout(() => { if (this.g === g && this.alive && g.step === n) this.enterStep(next); }, 700);
     },
@@ -1057,7 +1071,7 @@
       const hit = S.raycast();
       const pick = D.pick(hit);
       if (pick === 'edge' && D.stuck < 0.25 && D.state !== 'carried') {
-        if (D.grab(hit)) { this.stage.classList.add('grabbing'); this.snd('tone', 300, 40, { vol: 0.03, type: 'triangle' }); return; }
+        if (D.grab(hit)) { g.dr.coverCap = null; this.stage.classList.add('grabbing'); this.snd('tone', 300, 40, { vol: 0.03, type: 'triangle' }); return; }
       }
       if (D.state === 'placed' || D.state === 'falling') { g.dr.rub = true; return; }
       if (pick === 'body') this.flash('warn', T('dress_edge', 'Pick it up by its **edge**.'));
@@ -1082,7 +1096,7 @@
       if (D.state === 'placed' || D.state === 'falling') {
         g.dr.settledT += dt;
         if (g.dr.settledT > 0.4) {
-          g.dr.cover = D.covers(this.pts);
+          g.dr.cover = this.capCover(D.covers(this.pts));
           D.seep(clamp(0.12 + this.bleedNow() / 8, 0, 0.7) * clamp(g.dr.cover, 0.3, 1), this.w.at(0.5).uv);
         }
       }
@@ -1096,7 +1110,7 @@
         if (g.dr.warnT <= 0) { g.dr.warnT = 5; this.flash('warn', T('dress_cover', 'The pad covers only %s% of the cut — lift it by an edge and try again.', pct(g.dr.cover)), 3600); }
       }
       if (!g.done[4] && D.stuck >= cfg.stuckDone && g.dr.settledT > 0.4) {
-        g.dr.cover = D.covers(this.pts);
+        g.dr.cover = this.capCover(D.covers(this.pts));
         this.completeStep(4, T('s4_done', 'Dressing on — %s% of the cut covered.', pct(g.dr.cover)));
       }
     },
@@ -1367,11 +1381,24 @@
        dose being injected, the dressing in the hand). The next open of the same procedure carries it
        back as data.resume and boot() → restore() rebuilds that point on the same wound (same seed →
        same scene), then redraws what was done on it. */
-    sameWound(w) {
-      if (!w || typeof w !== 'object') return false;
+    // which wound a snapshot was taken on: 'same', 'changed' (this wound, but no longer the cut that was
+    // left: hit again and longer, another severity → another cut shape and paint) or 'other'
+    woundMatch(w) {
+      if (!w || typeof w !== 'object') return 'other';
       const inj = this.inj || {};
-      return String(w.id) === String(inj.id) && String(w.type) === String(inj.type || '')
-        && Math.abs(num(w.len, -99) - (this.Lmm || 0)) < 0.6 && num(w.seed, -1) === (this.seed >>> 0);
+      if (String(w.id) !== String(inj.id)) return 'other';
+      const same = String(w.type) === String(inj.type || '')
+        && Math.abs(num(w.len, -99) - (this.Lmm || 0)) < 0.6 && num(w.seed, -1) === (this.seed >>> 0)
+        && (w.reg === undefined || String(w.reg) === String(inj.region || ''))
+        && (w.sev === undefined || num(w.sev, -1) === this.sev);
+      return same ? 'same' : 'changed';
+    },
+    // a snapshot that could not be rebuilt: open this wound again from the start (never a half-rebuilt scene)
+    restartClean() {
+      const d = Object.assign({}, this.d);
+      delete d.resume;
+      this.open(d);
+      this.restartNote = 'bad';
     },
     // the rinse is kept as the dirt / clot / blood left in a few sections along the cut, relative to
     // what the scene painted there at the start (the same seed paints the same start)
@@ -1444,16 +1471,20 @@
       let dr = null;
       if (D && (D.state === 'placed' || D.state === 'falling')) {
         const pose = this.dressPose(D);
-        if (pose) dr = { uv: [rnd(pose.uv[0], 6), rnd(pose.uv[1], 6)], ang: rnd(pose.ang, 4), stuck: rnd(D.stuck, 3), cover: rnd(g.dr.cover || 0, 3) };
+        // cover: what the pad covered once it had settled (or the cap a resumed one still carries);
+        // null right after it was dropped, before it was measured
+        const measured = g.dr.settledT > 0.4 || !!g.dr.coverCap;
+        if (pose) dr = { uv: [rnd(pose.uv[0], 6), rnd(pose.uv[1], 6)], ang: rnd(pose.ang, 4), stuck: rnd(D.stuck, 3), cover: measured ? rnd(g.dr.cover || 0, 3) : null };
       }
       const keys = o => [1, 2, 3, 4].filter(k => o[k]);
       return {
         v: 1,
-        w: { id: String(this.inj.id === undefined ? '' : this.inj.id), type: String(this.inj.type || ''), len: rnd(this.Lmm, 1), seed: this.seed >>> 0 },
+        w: { id: String(this.inj.id === undefined ? '' : this.inj.id), type: String(this.inj.type || ''), len: rnd(this.Lmm, 1), seed: this.seed >>> 0, reg: String(this.inj.region || ''), sev: this.sev },
         step: g.step, t: rnd(g.t, 2), done: keys(g.done), skip: keys(g.skipped), flinch: g.flinches,
         irr: {
           g: this.binFracs('g'), c: this.binFracs('c'), b: this.binFracs('b'),
-          cont: rnd(irr.cont, 4), used: rnd(irr.used, 2), ml: rnd(ml, 2), syr: rnd(syr, 2),
+          // c0: the contamination this rinse started from (antibiotics in between lower it: the share left is kept)
+          cont: rnd(irr.cont, 4), c0: rnd(g.cont0, 4), used: rnd(irr.used, 2), ml: rnd(ml, 2), syr: rnd(syr, 2),
           out: irr.out ? 1 : 0, partial: irr.partial ? 1 : 0, wound: rnd(irr.onWound, 2),
         },
         lido: {
@@ -1473,44 +1504,50 @@
     },
 
     // rebuild the saved point on a freshly built scene → the step to enter
+    // Only what the game itself can reach is taken back: a step is entered only when every step before
+    // it was done or skipped, rinsing and numbing are the only steps that can be skipped, numbing / the
+    // closure count as done exactly when the points / stitches on the wound say so, and a stitch must sit
+    // across this cut. Anything else falls back to the start of the step it belongs to.
     restore(r, first) {
       const g = this.g, S = this.S, cfg = this.cfg, w = this.w;
       const part = (name, fn) => { try { fn(); } catch (e) { console.error(`[suture] restore ${name}`, e); } };
-      const ks = a => (Array.isArray(a) ? a : []).map(k => Math.round(num(k, 0))).filter(k => k >= 1 && k <= 4);
-      ks(r.done).forEach(k => { g.done[k] = true; });
-      ks(r.skip).forEach(k => { if (!g.done[k]) g.skipped[k] = true; });
-      let step = clamp(Math.round(num(r.step, first)), 1, 4);
-      if (step < first) step = first;
-      for (let k = 1; k < step; k++) if (!g.done[k] && !g.skipped[k]) g.skipped[k] = true;
-      // paused while the next step was about to open: carry on there
-      while (step < 4 && (g.done[step] || g.skipped[step])) step++;
-      delete g.done[4]; delete g.skipped[4];
-      g.t = Math.max(0, num(r.t, 0));
-      g.flinches = Math.max(0, Math.round(num(r.flinch, 0)));
+      const ks = a => (Array.isArray(a) ? a : []).map(k => num(k, 0)).filter(k => Number.isInteger(k) && k >= 1 && k <= 4);
+      ks(r.done).forEach(k => { if (k < 4) g.done[k] = true; });
+      ks(r.skip).forEach(k => { if (k <= 2 && !g.done[k]) g.skipped[k] = true; });
+      g.t = clamp(num(r.t, 0), 0, 3600);
+      g.flinches = clamp(Math.round(num(r.flinch, 0)), 0, 999);
+      const settled = k => !!(g.done[k] || g.skipped[k]);
+      // the step it was on: an integer 1…4 (anything else: the first step), never past a step left open
+      let step = num(r.step, NaN);
+      step = Number.isInteger(step) && step >= 1 && step <= 4 ? Math.max(step, first) : first;
+      for (let k = 1; k < step; k++) if (!settled(k)) { step = k; break; }
 
       // 1 · rinse: the dirt, clot and blood left along the cut; the saline left
       const R = r.irr && typeof r.irr === 'object' ? r.irr : {};
       const irr = g.irr;
+      // share of the starting dirt still in the cut (kept as a share: antibiotics in between lower the start)
+      const c0 = num(R.c0, g.cont0) > 0.02 ? num(R.c0, g.cont0) : g.cont0;
+      const want = num(R.cont, -1), left = want >= 0 && c0 > 0.02 ? clamp(want / c0, 0, 1) : -1;
       part('rinse', () => {
         for (const key in BIN_LAYERS) this.restoreBins(key, R[key]);
-        // then match the dirt left over the whole cut (what the step measures) to the saved value
-        const want = num(R.cont, -1);
-        if (want >= 0 && g.cont0 > 0.02) {
-          const G = clamp(want / g.cont0, 0, 1) * irr.sum0 - 0.5 * irr.mask.sum('clot');
-          if (G >= 0) this.seekLayer('grime', this.pts, irr.mask, G, Math.max(0.003 * irr.sum0, 0.05), true, 10);
+        // then match the dirt left over the whole cut (what the step measures) to the saved share
+        if (left >= 0 && g.cont0 > 0.02) {
+          const W = left * irr.sum0, tol = Math.max(0.003 * irr.sum0, 0.05);
+          const G = W - 0.5 * irr.mask.sum('clot');
+          this.seekLayer('grime', this.pts, irr.mask, Math.max(0, G), tol, true, 10);
+          // nearly clean, and what is left is mostly clot: the grime alone cannot get there
+          if (G < 0) this.seekLayer('clot', this.pts, irr.mask, 2 * W, 2 * tol, false, 10);
         }
       });
-      irr.used = Math.max(0, num(R.used, 0));
-      irr.onWound = Math.max(0, num(R.wound, 0));
+      irr.used = clamp(num(R.used, 0), 0, 1e5);
+      irr.onWound = clamp(num(R.wound, 0), 0, 3600);
       irr.partial = !!R.partial && !!g.done[1];
-      if (step > 1 || g.done[1]) irr.cont = clamp(num(R.cont, irr.cont), 0, 1);
-      else irr.cont = g.cont0 * clamp((irr.mask.sum('grime') + 0.5 * irr.mask.sum('clot')) / irr.sum0, 0, 1);
       const ml = num(R.ml, -1), syr = num(R.syr, -1);
       if (ml >= 0 && syr >= 0) {
         if (ml + syr > 0.01) {
           irr.ml = Math.min(ml, cfg.salineMl); irr.syr = Math.min(syr, cfg.syringeMl);
           if (irr.syr <= 0.001 && irr.ml > 0) { const k = Math.min(cfg.syringeMl, irr.ml); irr.ml -= k; irr.syr = k; }
-        } else if (!g.done[1] && !g.skipped[1]) this.freshSaline = true;   // ran dry while rinsing: a fresh bottle was fetched (the start values)
+        } else if (!settled(1)) this.freshSaline = true;   // ran dry while rinsing: a fresh bottle was fetched (the start values)
         else { irr.ml = 0; irr.syr = 0; }      // rinsing is behind: the empty bottle stays as it was shown
       }
 
@@ -1523,7 +1560,7 @@
           const x = byId.get(p.id);
           if (!x) continue;
           p.ml = clamp(num(x[1], 0), 0, cfg.lidoMaxPoint);
-          p.err = Math.max(0, num(x[2], 0));
+          p.err = clamp(num(x[2], 0), 0, 50);
           p.done = !!x[3] && p.ml > 0;
           given += p.ml;
           if (p.ml > 0) {
@@ -1536,19 +1573,22 @@
         const loaded = num(L.loaded, -1), vial = num(L.vial, -1);
         if (loaded >= 0 && vial >= 0) {
           if (loaded + vial > 0.01) { g.lido.loaded = Math.min(loaded, cfg.lidoSyringe); g.lido.vial = Math.min(vial, cfg.lidoVial); }
-          else if (g.lido.have) this.freshLido = !g.done[2] && !g.skipped[2];   // fetched lidocaine: a new vial
+          else if (g.lido.have) this.freshLido = true;   // fetched lidocaine: a new vial (only said while numbing)
           else { g.lido.loaded = 0; g.lido.vial = 0; }
         }
       });
+      // numbing is done exactly when every point is (the game completes it on the last one)
+      const pts = g.lido.points;
+      if (pts.length && pts.every(p => p.done)) { g.done[2] = true; delete g.skipped[2]; } else delete g.done[2];
 
       // gauze: swabs already opened (the server takes them at the end) and the one in the hand
       part('gauze', () => {
         const Z = r.gz && typeof r.gz === 'object' ? r.gz : {};
-        g.gz.used = Math.max(0, Math.round(num(Z.used, 0)));
+        g.gz.used = clamp(Math.round(num(Z.used, 0)), 0, Math.max(0, Math.round(+cfg.gauzeMax || 0)));
         g.gz.absorbed = Math.max(0, num(Z.abs, 0));
         const load = num(Z.swab, -1);
         if (load >= 0 && g.gz.used > 0) {
-          g.gz.swab = { load, stains: 0 };
+          g.gz.swab = { load: Math.min(load, cfg.gauzeCapacity), stains: 0 };
           const tool = S.tools.get('gauze'), k = clamp(load / cfg.gauzeCapacity, 0, 1);
           if (tool) {
             tool.set({ fresh: true });
@@ -1559,50 +1599,96 @@
         }
       });
 
-      // 3 · stitches: each one tied again where it was, the cut closed around it
-      part('stitches', () => {
-        const U = r.sut && typeof r.sut === 'object' ? r.sut : {};
-        const Ns = clamp(Math.round(num(U.N, g.sut.N)), 2, 20);
-        for (const s of Array.isArray(U.list) ? U.list : []) {
-          if (!s || !uvOk(s.a) || !uvOk(s.b) || g.sut.list.length >= g.sut.N + cfg.extraStitches) continue;
-          const tN = num(s.tN, -1);
-          if (tN < 0 || tN > 1) continue;
-          const a = [+s.a[0], +s.a[1]], b = [+s.b[0], +s.b[1]];
-          S.stitches.add({ a, b, knot: 'a', tails: 1, seed: g.sut.list.length * 31 + 7 });
-          w.close(tN, 1, 0.5 / Ns);
-          const bite = Array.isArray(s.bite) ? s.bite : [];
-          g.sut.list.push({ a, b, tN, q: clamp(num(s.q, 0), 0, 100), bite: [num(bite[0], cfg.bite), num(bite[1], cfg.bite)], perp: num(s.perp, 0), space: num(s.space, 0), fast: !!s.fast, flinch: !!s.flinch });
-        }
-        g.sut.misses = Math.max(0, Math.round(num(U.miss, 0)));
-        g.sut.last = Array.isArray(U.last) && U.last.length === 2 ? [String(U.last[0]), String(U.last[1])] : null;
-      });
+      // 3 · stitches (only once rinsing and numbing are behind): each one tied again where it was, the
+      // cut closed around it
+      for (let k = 1; k < step; k++) if (!settled(k)) { step = k; break; }
+      // paused while the next step was about to open: carry on there
+      while (step < 3 && settled(step)) step++;
+      if (step >= 3) {
+        part('stitches', () => {
+          const U = r.sut && typeof r.sut === 'object' ? r.sut : {};
+          const Ns = clamp(Math.round(num(U.N, g.sut.N)), 2, 20);
+          const reach = (cfg.biteMax + 8) * MM;      // the farthest a tied end can sit from the cut
+          for (const s of Array.isArray(U.list) ? U.list : []) {
+            if (!s || !uvOk(s.a) || !uvOk(s.b) || g.sut.list.length >= g.sut.N + cfg.extraStitches) continue;
+            const tN = num(s.tN, -1);
+            if (tN < 0 || tN > 1) continue;
+            const a = [+s.a[0], +s.a[1]], b = [+s.b[0], +s.b[1]];
+            // both ends beside this cut, on opposite sides of it, and not a copy of one already tied
+            const la = w.locate(a), lb = w.locate(b), hg = w.halfGape(tN);
+            if (la.d > hg + reach || lb.d > hg + reach || la.side === lb.side || Math.abs(la.tN - tN) > 0.25 || Math.abs(lb.tN - tN) > 0.25) continue;
+            if (g.sut.list.some(o => Math.abs(o.tN - tN) * this.Lmm < 0.25)) continue;
+            S.stitches.add({ a, b, knot: 'a', tails: 1, seed: g.sut.list.length * 31 + 7 });
+            w.close(tN, 1, 0.5 / Ns);
+            const bite = Array.isArray(s.bite) ? s.bite : [];
+            g.sut.list.push({ a, b, tN, q: clamp(num(s.q, 0), 0, 100), bite: [num(bite[0], cfg.bite), num(bite[1], cfg.bite)], perp: clamp(num(s.perp, 0), 0, 90), space: Math.max(0, num(s.space, 0)), fast: !!s.fast, flinch: !!s.flinch });
+          }
+          g.sut.misses = clamp(Math.round(num(U.miss, 0)), 0, 999);
+          g.sut.last = Array.isArray(U.last) && U.last.length === 2 ? [String(U.last[0]), String(U.last[1]).slice(0, 160)] : null;
+        });
+      }
+      // the closure is done exactly when the stitches cover every section, or the thread ran out
+      // (what ends step 3 in the game) — never a dressing over an open cut, never a step 3 with no way on
+      if (g.sut.list.length && (this.coveredSlots().every(Boolean) || g.sut.list.length >= g.sut.N + cfg.extraStitches)) g.done[3] = true;
+      else delete g.done[3];
+      if (step === 4 && !g.done[3]) step = 3;
+      while (step < 4 && settled(step)) step++;
+      if (step !== 2) this.freshLido = false;
+      if (step !== 1) this.freshSaline = false;
+
+      // what the rinse step shows: measured on the cut while rinsing, the saved share once it is behind
+      if (step > 1 || g.done[1]) irr.cont = left >= 0 ? left * g.cont0 : g.done[1] && !irr.partial ? 0 : irr.cont;
+      else irr.cont = g.cont0 * clamp((irr.mask.sum('grime') + 0.5 * irr.mask.sum('clot')) / irr.sum0, 0, 1);
       this.setBleed();
       return step;
     },
-    // step 4: lay the dressing where it was and rub it back to how firmly it stuck
+    // step 4: lay the dressing where it was and rub it back to how firmly it stuck (a pose the game could
+    // not have made — off the skin in view — keeps the fresh dressing at rest instead)
     restoreDressing(dr) {
       const g = this.g, S = this.S, old = g.dr.D;
       if (!old || !dr || typeof dr !== 'object' || !uvOk(dr.uv)) return;
       const uv = [+dr.uv[0], +dr.uv[1]], ang = num(dr.ang, 0);
-      const D = S.dressing.create({ size: old.size, pad: old.pad, uv, angle: ang, curl: 0 });
+      if (uv.some(v => v < 0.02 || v > 0.98)) return;
+      let D = null;
+      try {
+        D = S.dressing.create({ size: old.size, pad: old.pad, uv, angle: ang, curl: 0 });
+        D.state = 'falling'; D._settle = 0;   // it lies on the skin and settles like a released one
+        const target = clamp(num(dr.stuck, 0), 0, 1);
+        if (target > 0.01) {
+          const c = S.uvToST(uv), ca = Math.cos(ang), sa = -Math.sin(ang), hw = D.size[0] / 2 - 0.002, hh = D.size[1] / 2 - 0.002;
+          const grid = [];
+          for (let i = 0; i < 7; i++) for (let j = 0; j < 4; j++) {
+            const lx = (i / 6 - 0.5) * 2 * hw, ly = (j / 3 - 0.5) * 2 * hh;
+            grid.push(S.surfaceAt(S.stToUv(c[0] + lx * ca - ly * sa, c[1] + lx * sa + ly * ca)));
+          }
+          // small presses near the target: it comes back as stuck as it was, not stuck-er
+          for (let pass = 0; pass < 120 && D.stuck < target - 0.005; pass++) {
+            const amt = clamp((target - D.stuck) * 0.2, 0.0008, 0.004);
+            for (const hit of grid) D.rub(hit, amt);
+            D.step(1 / 30);
+          }
+        }
+      } catch (e) {
+        if (D) { try { D.remove(); } catch (e2) { /* already gone */ } }
+        throw e;
+      }
       old.remove();
       g.dr.D = D;
-      D.state = 'falling'; D._settle = 0;   // it lies on the skin and settles like a released one
-      const target = clamp(num(dr.stuck, 0), 0, 1);
-      if (target > 0.01) {
-        const c = S.uvToST(uv), ca = Math.cos(ang), sa = -Math.sin(ang), hw = D.size[0] / 2 - 0.002, hh = D.size[1] / 2 - 0.002;
-        const grid = [];
-        for (let i = 0; i < 7; i++) for (let j = 0; j < 4; j++) {
-          const lx = (i / 6 - 0.5) * 2 * hw, ly = (j / 3 - 0.5) * 2 * hh;
-          grid.push(S.surfaceAt(S.stToUv(c[0] + lx * ca - ly * sa, c[1] + lx * sa + ly * ca)));
-        }
-        for (let pass = 0; pass < 60 && D.stuck < target - 0.01; pass++) {
-          for (const hit of grid) D.rub(hit, 0.004);
-          D.step(1 / 30);
-        }
-      }
-      g.dr.cover = clamp(num(dr.cover, 0), 0, 1);
+      const cv = num(dr.cover, -1);
+      g.dr.cover = cv >= 0 ? clamp(cv, 0, 1) : 0;
+      // it is rebuilt lying flat: a curled or folded part that missed the cut must not come back
+      // covering it — the pad covers no more than it did until it is rubbed down (see capCover) or
+      // lifted and laid again
+      g.dr.coverCap = cv >= 0 ? { c: clamp(cv, 0, 1), s: D.stuck } : null;
       g.dr.settledT = 0;
+    },
+    // the cover a resumed dressing may show: the saved cover, rising to what the pad really covers as it
+    // is rubbed from where it was down to stuck (a curled edge flattens under the fingers)
+    capCover(c) {
+      const g = this.g, cap = g && g.dr.coverCap, D = g && g.dr.D;
+      if (!cap || !D) return c;
+      const k = clamp((D.stuck - cap.s) / Math.max(0.05, this.cfg.stuckDone - cap.s), 0, 1);
+      return Math.min(c, cap.c + (1 - cap.c) * k);
     },
 
     // compact state for tests / the browser console (window.SutureDebug())

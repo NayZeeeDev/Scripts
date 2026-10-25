@@ -272,7 +272,8 @@ end
 
 local function onAbort(src, p, session, reason)
     if p and p.kind == 'player' and p.src and p.src ~= src and reason ~= 'replaced' then
-        core().Notify(p.src, L('notify_patient_stop'), 'info', L('label'))
+        -- stepping away (Config.ProcPause) is not stopping: the medic is fetching supplies and carries on
+        core().Notify(p.src, L(reason == 'paused' and 'notify_patient_paused' or 'notify_patient_stop'), 'info', L('label'))
     end
 end
 

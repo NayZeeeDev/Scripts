@@ -29,6 +29,7 @@ NZA.AddLocale('en', {
     ['suture.err_location'] = 'Put the patient on a bed or surgery table, or in the ambulance treatment bay, first.',
     ['suture.notify_patient'] = 'A medic is closing your wound.',
     ['suture.notify_patient_stop'] = 'The medic stopped closing your wound.',
+    ['suture.notify_patient_paused'] = 'The medic stepped away to fetch supplies and will carry on closing your wound.',
     ['suture.gone'] = 'The wound was already gone when you finished.',
     ['suture.done_msg'] = 'Wound closed with %d stitches and dressed.',
     ['suture.done_msg_nodress'] = 'Wound closed with %d stitches — it still needs a dressing.',
@@ -179,6 +180,8 @@ NZA.AddLocale('en', {
     ['suture.resume_saline'] = 'Carrying on where you left off — with a fresh bottle of saline.',
     ['suture.resume_lido'] = 'Carrying on where you left off — with a fresh vial of lidocaine.',
     ['suture.resume_other'] = 'You stepped away from a different wound — this one starts from the beginning.',
+    ['suture.resume_changed'] = 'This wound has changed since you stepped away — it starts from the beginning.',
+    ['suture.resume_bad'] = 'Could not carry on from where you left off — this wound starts from the beginning.',
 
     -- dressing
     ['suture.dress_cover'] = 'The pad covers only %s% of the cut — lift it by an edge and try again.',
