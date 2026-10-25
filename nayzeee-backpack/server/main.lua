@@ -170,6 +170,32 @@ function PrepareStash(bagKey, bagid)
     return id
 end
 
+-----------------------------------------------------------------
+-- Bag stashes only open when the server opened them. Without this,
+-- anyone who once saw a bag's id could open it from anywhere with
+-- ox_inventory's client export and walk straight past padlocks.
+-----------------------------------------------------------------
+
+local allowed = {} -- [src] = { [stashId] = expires (game timer) }
+
+--- Let `src` open stash `id` once, within the next 15 seconds.
+function AllowStash(src, id)
+    allowed[src] = allowed[src] or {}
+    allowed[src][id] = GetGameTimer() + 15000
+end
+
+ox:registerHook('openInventory', function(payload)
+    local id = payload.inventoryId
+    if type(id) ~= 'string' or not id:find('^backpack_') then return true end
+    local mine = allowed[payload.source]
+    local expires = mine and mine[id]
+    if expires and GetGameTimer() <= expires then
+        mine[id] = nil
+        return true
+    end
+    return false
+end, { inventoryFilter = { '^backpack_' } })
+
 --- Does a stash hold any of these items?
 local function hasAny(stashId, names)
     local inv = ox:GetInventory(stashId, false)
@@ -193,6 +219,7 @@ local function openBackpack(src, item)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.cannot_open, 'error')
     end
     if Player(src).state.nb_open then return end
+    if HandoffBusy and HandoffBusy(src) then return end
 
     local slot, bagid = item.slot, meta.bagid
     Locks.gate(src, meta, {
@@ -226,6 +253,7 @@ openUnlocked = function(src, item)
         ox:SetMetadata(src, item.slot, meta)
     end
 
+    AllowStash(src, id)
     TriggerClientEvent('nayzeee-backpack:open', src, id, info)
     -- kneeling down takes a moment before the zip
     if Sounds then Sounds.play('zip_open', src, info.style == 'kneel' and 900 or 250) end
@@ -332,6 +360,7 @@ end)
 AddEventHandler('playerDropped', function()
     local src = source
     denied[src] = nil
+    allowed[src] = nil
     for id, w in pairs(watching) do if w.src == src then watching[id] = nil end end
     TriggerClientEvent('nayzeee-backpack:clear', -1, src)
 end)
@@ -363,10 +392,14 @@ exports('GetWornBag', function(src)
     return st and st.bag or nil, st
 end)
 
+--- Stash id of the worn bag. The player may open it once in the next
+--- 15s (other resources usually open it right after asking).
 exports('GetBagStash', function(src)
     local item = FindBagItem(src)
     if not item or not item.metadata or not item.metadata.bagid then return nil end
-    return PrepareStash(item.name, item.metadata.bagid)
+    local id = PrepareStash(item.name, item.metadata.bagid)
+    AllowStash(src, id)
+    return id
 end)
 
 exports('OpenBag', function(src)

@@ -364,8 +364,9 @@ local function setPlacement(serverId, place)
         if veh and DoesEntityExist(veh) and VehicleBags.place(p.entity, GetEntityModel(p.entity), key, veh, seat) then
             p.holder = veh
         else
+            -- couldn't seat it: keep it out of sight, and remember we tried this
+            -- seat so the loop doesn't try again every tick
             wear(false)
-            place = 'hidden'
         end
     end
 

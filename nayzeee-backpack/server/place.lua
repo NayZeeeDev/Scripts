@@ -211,10 +211,16 @@ RegisterNetEvent('nayzeee-backpack:openPlaced', function(id)
     local placedId = tonumber(id)
     Locks.gate(src, entry.metadata, {
         bag = entry.bag,
+        near = function()
+            local now = placed[placedId]
+            return now ~= nil and #(GetEntityCoords(GetPlayerPed(src)) - now.coords) <= 3.0
+        end,
         open = function()
             local now = placed[placedId]
             if not now or #(GetEntityCoords(GetPlayerPed(src)) - now.coords) > 3.0 then return end
-            TriggerClientEvent('nayzeee-backpack:open', src, PrepareStash(now.bag, bagid))
+            local stash = PrepareStash(now.bag, bagid)
+            AllowStash(src, stash)
+            TriggerClientEvent('nayzeee-backpack:open', src, stash)
             if Sounds then Sounds.play('zip_open', now.coords, 250) end
         end,
         getMeta = function()

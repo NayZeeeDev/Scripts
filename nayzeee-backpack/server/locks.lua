@@ -80,14 +80,14 @@ end
 local pending = {} -- [src] = { bagid, open, getMeta, save, label, at }
 local fails = {}   -- [src .. bagid] = { n, until }
 
----@param opts { open: fun(), getMeta: fun(): table?, save: fun(meta: table), bag: string, police?: boolean }
+---@param opts { open: fun(), getMeta: fun(): table?, save: fun(meta: table), bag: string, police?: boolean, near?: fun(): boolean }
 function Locks.gate(src, meta, opts)
     if not Locks.isLocked(meta) or trusted(src, meta) then return opts.open() end
     if opts.police and cfg.policeOpen then return opts.open() end
 
     pending[src] = {
         bagid = meta.bagid, open = opts.open, getMeta = opts.getMeta, save = opts.save,
-        bag = opts.bag, at = os.time(),
+        bag = opts.bag, at = os.time(), started = GetGameTimer(), near = opts.near,
     }
     sound('lock', src) -- the rattle of a locked zip
     TriggerClientEvent('nayzeee-backpack:lock:prompt', src, {
@@ -101,6 +101,12 @@ end
 local function current(src)
     local p = pending[src]
     if not p or os.time() - p.at > 120 then pending[src] = nil return nil end
+    -- walked off (or they did): nothing to pick any more
+    if p.near and not p.near() then
+        pending[src] = nil
+        tell(src, 'ho_moved')
+        return nil
+    end
     local meta = p.getMeta()
     if not meta or meta.bagid ~= p.bagid then pending[src] = nil return nil end
     return p, meta
@@ -150,25 +156,31 @@ RegisterNetEvent('nayzeee-backpack:lock:try', function(method, value)
     elseif method == 'pick' then
         local lp = cfg.lockpick or {}
         if not hasItem(src, lp.item) then return tell(src, 'lk_no_pick') end
-        -- the client minigame takes a few seconds; anything faster isn't a person
-        if os.time() - p.at < 2 then return end
+        -- each skill check takes a person most of a second; faster isn't a person
+        local minMs = #(lp.difficulty or { 1, 2, 3 }) * 700
+        if GetGameTimer() - p.started < minMs then
+            p.started = GetGameTimer()
+            return tell(src, 'lk_pick_failed')
+        end
+        p.started = GetGameTimer()
+
+        -- every attempt wears the pick, a clean one included
+        local broke = math.random(100) <= (lp.breakChance or 35) * (value == true and 0.5 or 1)
+        if broke then ox:RemoveItem(src, lp.item, 1) end
+
         if value == true then
             sound('unlock', src)
-            tell(src, 'lk_picked', 'success')
+            tell(src, broke and 'lk_picked_broke' or 'lk_picked', 'success')
             return breakLock(src, p, meta, 'picked')
         end
-        if math.random(100) <= (lp.breakChance or 35) then
-            ox:RemoveItem(src, lp.item, 1)
-            tell(src, 'lk_pick_broke')
-        else
-            tell(src, 'lk_pick_failed')
-        end
-        p.at = os.time()
+        tell(src, broke and 'lk_pick_broke' or 'lk_pick_failed')
 
     elseif method == 'cut' then
         local c = cfg.cutter or {}
         if not hasItem(src, c.item) then return tell(src, 'lk_no_cutter') end
-        if os.time() - p.at < math.floor((c.time or 6000) / 1000) - 1 then return end
+        if GetGameTimer() - p.started < (c.time or 6000) - 750 then
+            return tell(src, 'lk_cut_short')
+        end
         sound('cut', src)
         tell(src, 'lk_cut', 'success')
         return breakLock(src, p, meta, 'cut')

@@ -145,11 +145,19 @@ RegisterNetEvent('nayzeee-backpack:policeSearch', function(targetId)
     Locks.gate(src, item.metadata, {
         bag = item.name,
         police = true,
+        near = function()
+            local a2, b2 = GetPlayerPed(src), GetPlayerPed(targetId)
+            return a2 ~= 0 and b2 ~= 0 and #(GetEntityCoords(a2) - GetEntityCoords(b2)) <= (search.distance or 2.0) + 1.5
+        end,
         open = function()
             local now = ox:GetSlot(targetId, slot)
             if not now or not now.metadata or now.metadata.bagid ~= bagid then return end
+            local a2, b2 = GetPlayerPed(src), GetPlayerPed(targetId)
+            if a2 == 0 or b2 == 0 or #(GetEntityCoords(a2) - GetEntityCoords(b2)) > (search.distance or 2.0) + 1.5 then return end
             if Logs then Logs.search(src, targetId, now.name) end
-            TriggerClientEvent('nayzeee-backpack:open', src, PrepareStash(now.name, bagid))
+            local stash = PrepareStash(now.name, bagid)
+            AllowStash(src, stash)
+            TriggerClientEvent('nayzeee-backpack:open', src, stash)
         end,
         getMeta = function()
             local now = ox:GetSlot(targetId, slot)

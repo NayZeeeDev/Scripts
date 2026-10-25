@@ -82,7 +82,7 @@ local PERMS = {
 }
 local I3 = { 1, 0, 0, 0, 1, 0, 0, 0, 1 }
 
-local conv = nil -- { order, sign, L, R }
+local conv = nil -- { order, sign, L, R }; false once calibration failed (don't retry all session)
 
 local function eulerM(rot, c)
     local o, s = c.order, c.sign
@@ -169,7 +169,7 @@ local function calibrate(entity, veh, bone)
     for i, r in ipairs(probes) do
         AttachEntityToEntity(entity, veh, bone, 0.0, 0.0, 0.0, r.x, r.y, r.z, false, false, false, false, 2, true)
         Wait(0); Wait(0)
-        if not DoesEntityExist(entity) or not DoesEntityExist(veh) then return false end
+        if not DoesEntityExist(entity) or not DoesEntityExist(veh) then return nil end -- interrupted, try again later
         mats[i] = rel(veh, entity)
     end
     ResetEntityAlpha(entity)
@@ -279,7 +279,12 @@ function VehicleBags.place(entity, hash, key, veh, seat)
     if seatBone == -1 then return false end
 
     local bone = vehicleBone(veh)
-    if not conv and not calibrate(entity, veh, bone) then return false end
+    if conv == false then return false end
+    if not conv then
+        local ok = calibrate(entity, veh, bone)
+        if ok == false then conv = false end -- the game didn't behave as expected: hidden in cars from now on
+        if not ok then return false end
+    end
 
     local rot = solveEuler(R)
     if not rot then return false end

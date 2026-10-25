@@ -15,6 +15,9 @@ local ox = exports.ox_inventory
 local offers = {} -- [taker] = { from, slot, name, bagid, expires }
 local busy = {}   -- [src] = true while giving or taking
 
+--- Giving or taking a bag right now? (nobody opens it mid hand-off)
+function HandoffBusy(src) return busy[src] == true end
+
 local function S(key, ...) return select('#', ...) > 0 and Strings[key]:format(...) or Strings[key] end
 local function tell(src, key, kind, ...) TriggerClientEvent('nayzeee-backpack:notify', src, S(key, ...), kind or 'error') end
 
@@ -154,6 +157,8 @@ RegisterNetEvent('nayzeee-backpack:handoff:answer', function(accept)
     end
 
     busy[src], busy[taker] = true, true
+    -- whatever the giver had open (their bag's stash) closes now
+    TriggerClientEvent('ox_inventory:closeInventory', src)
     Player(src).state:set('nb_hand', { to = taker, model = model, texture = texture or 0, worn = worn }, true)
 
     if Sounds then
@@ -170,8 +175,18 @@ RegisterNetEvent('nayzeee-backpack:handoff:answer', function(accept)
         end
 
         local now = itemFor(src, offer.slot)
-        if not now or now.name ~= offer.name or (now.metadata and now.metadata.bagid) ~= offer.bagid
-           or not transfer(src, taker, now) then
+        if not now or now.name ~= offer.name or (now.metadata and now.metadata.bagid) ~= offer.bagid then
+            tell(src, 'no_bag')
+            return finish(src, taker)
+        end
+        -- anything could have changed in 3 seconds (a second bag, a death, cuffs)
+        local late = blocked(src, taker, now)
+        if late then
+            tell(src, late); tell(taker, late)
+            return finish(src, taker)
+        end
+        TriggerClientEvent('ox_inventory:closeInventory', src)
+        if not transfer(src, taker, now) then
             tell(src, 'ho_cant_carry'); tell(taker, 'ho_cant_carry')
             return finish(src, taker)
         end

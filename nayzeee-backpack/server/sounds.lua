@@ -35,7 +35,7 @@ end
 
 -- A few sounds the client may ask for at its own position (menus the
 -- server never sees open). Rate-limited.
-local ASKABLE = { zip_open = true, zip_close = true, rustle = true }
+local ASKABLE = { zip_open = true, zip_close = true, rustle = true, pick = true }
 local lastAsk = {}
 
 RegisterNetEvent('nayzeee-backpack:sound:ask', function(name)
