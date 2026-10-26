@@ -1,43 +1,130 @@
--- Turntable records: every record item is a whole album that plays in order.
-Vinyl = {}
-local RES = GetCurrentResourceName()
+--[[
+    Records for the turntable. Every record item is a whole album that plays in order.
 
-Records = {}            -- item -> { artist, album, year, cover, tracks = { {title, search|id} } }
-local covers = {}       -- item -> fetched cover url (so we only ask Spotify once)
+    Every player's turntable props (client/turntable.lua) are driven from Vinyl.View, so this file
+    also owns their timing: when a record goes on, or the arm moves to another track, the music is
+    held back until the tonearm has had time to swing over and drop the needle.
+]]
+Vinyl = {}
+Records = {}            -- item -> { item, artist, album, year, cover, tracks = { { title, id | url | search } }, titles, custom }
+
+local RES = GetCurrentResourceName()
+local T = Config.Turntable or {}
+
+local function now() return GetGameTimer() end
+
+---------------------------------------------------------------- needle drop timing
+--[[
+    Seconds from the moment something happens until the needle lands (client/turntable.lua animates
+    exactly this, keep the two in step):
+      insert  the record shows in the hand at 0.55, is let go at 1.05, sits on the spindle at 2.35,
+              then the arm lifts (0.35 s), swings to the lead-in (about 0.9 s) and lowers (0.5 s)
+      rest    play pressed while the arm is home: lift + swing + lower
+      skip    the arm lifts out of one groove, moves to the next track and lowers
+      swap    a record goes on while another is playing: the old one comes off first
+    MIN_CUE is the least warning players get, for a song that took a while to find.
+]]
+local INSERT_LEAD, REST_LEAD, SKIP_LEAD, SWAP_DELAY, MIN_CUE = 4.4, 2.0, 1.7, 2.6, 0.9
+
+-- Only wait for a needle when players can actually see one: 'auto' = once the turntable props are
+-- in stream/ (until the new models are converted the music starts right away, like before).
+local function propsShipped()
+    for _, name in ipairs({ 'nayzeee_tt_platter', 'nayzeee_tt_arm', 'nayzeee_vinyl' }) do
+        local found = false
+        for _, dir in ipairs({ 'stream/', 'stream/turntable/', 'stream/props/' }) do
+            if LoadResourceFile(RES, dir .. name .. '.ydr') then found = true break end
+        end
+        if not found then return false end
+    end
+    return true
+end
+
+local NEEDLE = T.needleDrop
+if T.visuals == false then
+    NEEDLE = false
+elseif NEEDLE == nil or NEEDLE == 'auto' then
+    NEEDLE = propsShipped()
+else
+    NEEDLE = NEEDLE == true
+end
+Vinyl.NeedleDrop = NEEDLE
+
+-- tell everyone about a change; linked speakers mirror their leader
+local function push(e)
+    Broadcast(e)
+    if e.group and Links then Links.Sync(e) end
+end
 
 ---------------------------------------------------------------- record list
 local function normalise(item, raw)
-    local tracks = {}
+    local tracks, titles = {}, {}
+    local artist = raw.artist or ''
     for i, t in ipairs(raw.tracks or {}) do
+        local tr
         if type(t) == 'string' then
-            tracks[i] = { title = t, search = ('%s %s'):format(raw.artist or '', t) }
+            tr = { title = t }
         elseif type(t) == 'table' then
-            tracks[i] = {
+            local link = type(t.link) == 'string' and t.link or nil
+            local kind, value = NZ.ParseInput(link)
+            tr = {
                 title = t.title or ('Track %d'):format(i),
-                id = t.id or (type(t.link) == 'string' and (NZ.ParseInput(t.link) == 'yt' and select(2, NZ.ParseInput(t.link)) or nil)) or nil,
-                url = type(t.link) == 'string' and t.link:match('^https://') and not t.link:find('youtu') and t.link or nil,
-                search = t.search or (t.link and nil) or ('%s %s'):format(raw.artist or '', t.title or ''),
+                id = t.id or (kind == 'yt' and value or nil),
+                url = kind == 'url' and value or nil,
+                search = t.search,
             }
+        end
+        if tr then
+            -- searching "<artist> <title>" is always there as the last resort
+            tr.search = tr.search or ('%s %s'):format(artist, tr.title)
+            tracks[#tracks + 1] = tr
+            titles[#titles + 1] = tr.title
         end
     end
     return {
-        item = item, artist = raw.artist or '', album = raw.album or item,
-        year = tonumber(raw.year), cover = raw.cover, tracks = tracks, custom = raw.custom or false,
+        item = item, artist = artist, album = raw.album or item,
+        year = tonumber(raw.year), cover = raw.cover, tracks = tracks, titles = titles, custom = raw.custom or false,
     }
+end
+
+local registered = {}
+local function use(item)
+    return function(src)
+        local e = Vinyl.Nearest(src)
+        if not e then return Notify(src, 'no_turntable') end
+        if not Guard(src, e.id, true) then return end
+        Vinyl.Insert(src, e, item)
+    end
+end
+
+-- using a record from the inventory puts it on the closest turntable
+function Vinyl.RegisterItems()
+    for item in pairs(Records) do
+        if not registered[item] then
+            registered[item] = true
+            Bridge.RegisterUsable(item, use(item))
+            Bridge.OnUse[item] = use(item)
+        end
+    end
 end
 
 function Vinyl.Reload()
     Records = {}
-    for item, raw in pairs(Config.Vinyls or {}) do Records[item] = normalise(item, raw) end
+    local n = 0
+    for item, raw in pairs(Config.Vinyls or {}) do
+        Records[item] = normalise(item, raw)
+        n = n + 1
+    end
     local rows = MySQL.query.await('SELECT item, data FROM nayzeee_speaker_vinyls') or {}
     for _, r in ipairs(rows) do
         local ok, d = pcall(json.decode, r.data)
-        if ok and d then
+        if ok and type(d) == 'table' then
             d.custom = true
+            if not Records[r.item] then n = n + 1 end
             Records[r.item] = normalise(r.item, d)
         end
     end
-    NZ.Debug(('loaded %d records'):format(#Records))
+    Vinyl.RegisterItems()
+    NZ.Debug(('loaded %d records'):format(n))
 end
 
 local function saveRecord(item, data)
@@ -48,7 +135,7 @@ local function saveRecord(item, data)
 end
 
 CreateThread(function()
-    Wait(1500)
+    Wait(1500)          -- server/db.lua creates the table first
     Vinyl.Reload()
 end)
 
@@ -64,17 +151,42 @@ local function coverFor(rec)
     end)
 end
 
+-- cover art for any record item (nil while it is still being looked up)
+function Vinyl.Cover(item)
+    local a = Records[item]
+    return a and coverFor(a) or nil
+end
+
 ---------------------------------------------------------------- view
 local function album(e) return e.vinyl and Records[e.vinyl.item] end
 
+local function phase(e, v)
+    if v.loading then return 'loading' end
+    if not e.track then return 'idle' end
+    if not e.playing then return 'paused' end
+    if (e.startedAt or 0) > now() then return 'cue' end
+    return 'playing'
+end
+
+--[[
+    What players get in emitter.vinyl. The turntable props use:
+      by / at   server id of the player who put it on, and when (server ms; in the future while an
+                old record is still coming off)
+      on        the deck it was put on (linked decks show the same record without the hand)
+      move      how the arm reaches the current track: 'drop' (lift, move, lower) | 'flow' (stays down)
+      moveAt    when that started (server ms)
+      land      when the needle lands (server ms; the real value is emitter.startedAt once known)
+      phase     loading | cue | playing | paused | idle, as of this broadcast
+]]
 function Vinyl.View(e)
     local a = album(e)
     if not a then return nil end
-    local tracks = {}
-    for i, t in ipairs(a.tracks) do tracks[i] = t.title end
+    local v = e.vinyl
     return {
         item = a.item, artist = a.artist, album = a.album, year = a.year, cover = coverFor(a),
-        idx = e.vinyl.idx or 1, tracks = tracks, loading = e.vinyl.loading or false,
+        idx = v.idx or 1, tracks = a.titles, loading = v.loading or false,
+        by = v.by, at = v.at, on = v.on, move = v.move, moveAt = v.moveAt, land = v.land,
+        phase = phase(e, v),
     }
 end
 
@@ -82,49 +194,73 @@ end
 local function resolveTrack(a, idx)
     local t = a.tracks[idx]
     if not t then return nil end
-    if t.id then return Tracks.Resolve(t.id) end
-    if t.url then return Tracks.Resolve(t.url) end
-    if t.search then
-        local id = Search.Song(t.search)
-        if id then
-            t.id = id       -- remember it so the next play is instant
-            return Tracks.Resolve(id)
-        end
+    local track = t.id and Tracks.Resolve(t.id) or t.url and Tracks.Resolve(t.url) or nil
+    if track then return track end
+    local id = t.search and Search.Song(t.search)
+    if id then
+        t.id = id       -- remember it so the next play is instant
+        return Tracks.Resolve(id)
     end
     return nil
 end
 
-function Vinyl.PlayIndex(e, idx)
+-- warm up the next track while this one plays, so the gap between songs is short
+local function prefetch(a, idx)
+    local nxt = a.tracks[idx + 1]
+    if not nxt or nxt.id or nxt.url or not nxt.search then return end
+    CreateThread(function()
+        local found = Search.Song(nxt.search)
+        if found then nxt.id = found end
+    end)
+end
+
+--[[
+    how = 'insert' (the record just went on), 'flow' (the album carries on into the next groove and the
+    needle stays down) or nil (the arm lifts and drops onto the track).
+]]
+function Vinyl.PlayIndex(e, idx, how)
     local a = album(e)
     if not a or not idx or not a.tracks[idx] then return end
+    local v = e.vinyl
+    local t = now()
     local token = {}
-    e.vinyl.token = token
-    e.vinyl.idx = idx
-    e.vinyl.loading = true
-    Broadcast(e)
+    v.token, v.idx, v.loading = token, idx, true
+    v.move, v.moveAt = how == 'flow' and 'flow' or 'drop', t
+
+    local land = t
+    if NEEDLE then
+        if how == 'insert' then
+            land = (v.at or t) + math.floor(INSERT_LEAD * 1000)
+        elseif how ~= 'flow' then
+            land = t + math.floor((e.track and SKIP_LEAD or REST_LEAD) * 1000)
+        end
+    end
+    v.land = land
+    -- the old song stops while the next one is found (and the arm moves). This also keeps the
+    -- song-end watcher from firing again for a song that already ended while the search runs,
+    -- which used to skip straight through a record whenever a track took a while to find.
+    if e.track and e.playing then e.pos, e.playing = Elapsed(e), false end
+    push(e)
+
     CreateThread(function()
         local track = resolveTrack(a, idx)
-        if not e.vinyl or e.vinyl.token ~= token or not Emitters[e.id] then return end
-        e.vinyl.loading = false
+        if e.vinyl ~= v or v.token ~= token or not Emitters[e.id] then return end
+        v.loading = false
         if not track then
-            if a.tracks[idx + 1] then return Vinyl.PlayIndex(e, idx + 1) end
+            if a.tracks[idx + 1] then return Vinyl.PlayIndex(e, idx + 1, how == 'insert' and 'insert' or nil) end
             e.track, e.playing = nil, false
-            return Broadcast(e)
+            return push(e)
         end
         track.title = a.tracks[idx].title or track.title
         track.author = a.artist
         track.thumb = coverFor(a) or track.thumb
         track.by = nil
-        StartTrack(e, track)
-        Broadcast(e)
-        -- warm up the next track while this one plays, so the gap between songs is instant
-        local nxt = a.tracks[idx + 1]
-        if nxt and not nxt.id and nxt.search then
-            CreateThread(function()
-                local found = Search.Song(nxt.search)
-                if found then nxt.id = found end
-            end)
-        end
+        local cue = 0
+        if NEEDLE and how ~= 'flow' then cue = math.max((land - now()) / 1000, MIN_CUE) end
+        StartTrack(e, track, 0, cue)
+        v.land = e.startedAt
+        push(e)
+        prefetch(a, idx)
     end)
 end
 
@@ -139,10 +275,15 @@ function Vinyl.Advance(e, manual)
     else
         nextIdx = idx + 1
     end
-    if a.tracks[nextIdx] then return Vinyl.PlayIndex(e, nextIdx) end
+    if a.tracks[nextIdx] then
+        -- straight on to the next song: on a real record that is just the next groove
+        return Vinyl.PlayIndex(e, nextIdx, (not manual and nextIdx == idx + 1) and 'flow' or nil)
+    end
+    -- end of the record: the arm goes home
     e.track, e.playing, e.pos = nil, false, 0
     e.vinyl.idx = 1
-    Broadcast(e)
+    e.vinyl.loading = false
+    push(e)
 end
 
 function Vinyl.Prev(e, pos)
@@ -151,17 +292,40 @@ function Vinyl.Prev(e, pos)
     Vinyl.PlayIndex(e, idx - 1)
 end
 
-function Vinyl.Return(e, src)
-    if not e.vinyl then return end
+--[[
+    Takes the record off a deck and hands the item back. usedId = the deck the player actually used
+    (players near it see the record go back to that player's hand).
+    A linked deck only mirrors its leader's record: clearing the mirror hands nothing back, and the
+    leader's record clears every mirror, so one record can never come back twice.
+]]
+function Vinyl.Return(e, src, usedId)
+    local v = e.vinyl
+    if not v then return end
+    local lead = Links and Links.Leader(e) or e
+    if lead ~= e and lead.vinyl == v then
+        e.vinyl = nil
+        return
+    end
     local to = src
-    if Config.VinylReturn == 'owner' and e.vinyl.ownerSrc and GetPlayerName(e.vinyl.ownerSrc) then to = e.vinyl.ownerSrc end
-    if to and GetPlayerName(to) then Bridge.AddItem(to, e.vinyl.item) end
-    e.vinyl = nil
+    if Config.VinylReturn == 'owner' and v.ownerSrc and GetPlayerName(v.ownerSrc) then to = v.ownerSrc end
+    if to and GetPlayerName(to) then Bridge.AddItem(to, v.item) else to = nil end
+    -- linked speakers played this record too: they stop with it (told here, because a deck that is
+    -- packed up or broken leaves its group without telling anyone)
+    if e.group and Links then
+        for _, m in ipairs(Links.Members(e)) do
+            if m ~= e and m.vinyl == v then
+                m.vinyl, m.track, m.playing, m.pos = nil, nil, false, 0
+                Broadcast(m)
+            end
+        end
+    end
+    e.vinyl, v.token = nil, nil
     e.track, e.playing, e.pos = nil, false, 0
+    TriggerClientEvent(RES .. ':client:vinylOff', -1, usedId or e.id, to or false, now())
 end
 
 ---------------------------------------------------------------- putting records on
-local function nearestTurntable(src)
+function Vinyl.Nearest(src)
     local pos = GetEntityCoords(GetPlayerPed(src))
     local best, bestD
     for _, e in pairs(Emitters) do
@@ -173,30 +337,47 @@ local function nearestTurntable(src)
     return best
 end
 
-local function insert(src, e, item)
+function Vinyl.Insert(src, e, item)
     if not Records[item] then return end
     if not Bridge.HasItem(src, item) or not Bridge.RemoveItem(src, item) then return Notify(src, 'no_item') end
-    if e.vinyl then Vinyl.Return(e, src) end
-    e.vinyl = { item = item, owner = Bridge.GetIdentifier(src), ownerSrc = src, idx = 1 }
-    e.queue = {}
+    -- linked decks share one record: it goes on the deck that leads the music (a deck following
+    -- an ordinary speaker leaves that group to play it)
+    local lead = Links and Links.Leader(e) or e
+    if lead ~= e and not IsTurntable(lead) then
+        Links.Detach(e)
+        lead = e
+    end
+    local at = now()
+    if lead.vinyl then
+        Vinyl.Return(lead, src, e.id)
+        if NEEDLE then at = at + math.floor(SWAP_DELAY * 1000) end
+    end
+    lead.track, lead.playing, lead.pos = nil, false, 0
+    lead.vinyl = {
+        item = item, owner = Bridge.GetIdentifier(src), ownerSrc = src, idx = 1,
+        by = src, at = at, on = e.id,
+    }
+    lead.queue = {}
     Notify(src, 'vinyl_on', 'success')
-    Vinyl.PlayIndex(e, 1)
+    Vinyl.PlayIndex(lead, 1, 'insert')
 end
 
 RegisterNetEvent(RES .. ':vinyl:insert', function(id, item)
     local src = source
     local e = Guard(src, id, true)
-    if not e or not IsTurntable(e) then return end
-    insert(src, e, item)
+    if not e or not IsTurntable(e) or type(item) ~= 'string' then return end
+    Vinyl.Insert(src, e, item)
 end)
 
 RegisterNetEvent(RES .. ':vinyl:eject', function(id)
     local src = source
     local e = Guard(src, id, true)
-    if not e or not e.vinyl then return end
-    Vinyl.Return(e, src)
+    if not e then return end
+    local lead = Links and Links.Leader(e) or e
+    if not lead.vinyl then return end
+    Vinyl.Return(lead, src, e.id)
     Notify(src, 'vinyl_off', 'inform')
-    Broadcast(e)
+    push(lead)
 end)
 
 NZ.RegisterCallback('vinyl:owned', function(src)
@@ -210,31 +391,6 @@ NZ.RegisterCallback('vinyl:owned', function(src)
     return out
 end)
 
--- using a record from the inventory puts it on the closest turntable
-local registered = {}
-function Vinyl.RegisterItems()
-    for item in pairs(Records) do
-        if not registered[item] then
-            registered[item] = true
-            local function use(src)
-                local e = nearestTurntable(src)
-                if not e then return Notify(src, 'no_turntable') end
-                if not Guard(src, e.id, true) then return end
-                insert(src, e, item)
-            end
-            Bridge.RegisterUsable(item, use)
-            Bridge.OnUse[item] = use
-        end
-    end
-end
-
-CreateThread(function()
-    while true do
-        Wait(5000)
-        if next(Records) then Vinyl.RegisterItems() end
-    end
-end)
-
 ---------------------------------------------------------------- import
 local function slugify(s)
     s = tostring(s):lower():gsub('[^%w]+', '')
@@ -243,18 +399,15 @@ end
 
 -- link: a Spotify album/playlist link or a YouTube playlist link
 function Vinyl.Import(link, src)
-    local data, err
+    local data
     if tostring(link):find('spotify') then
-        local d, e2 = Spotify.Import(link)
-        if not d then return nil, e2 end
-        data = {
-            artist = d.artist, album = d.title, year = d.year, cover = d.cover,
-            tracks = {},
-        }
+        local d, err = Spotify.Import(link)
+        if not d then return nil, err end
+        data = { artist = d.artist, album = d.title, year = d.year, cover = d.cover, tracks = {} }
         for i, t in ipairs(d.tracks) do data.tracks[i] = { title = t.title, search = t.search } end
     else
-        local d, e2 = Search.Playlist(link)
-        if not d then return nil, e2 end
+        local d, err = Search.Playlist(link)
+        if not d then return nil, err end
         data = { artist = d.title or 'Playlist', album = d.title or 'Playlist', tracks = {} }
         for i, t in ipairs(d.tracks) do data.tracks[i] = { title = t.title, id = t.id } end
     end
@@ -283,9 +436,8 @@ RegisterCommand('vinylimport', function(src, args)
             if src == 0 then print('[speaker] import failed: ' .. why) else Notify(src, why) end
             return
         end
-        local line = ('[speaker] imported "%s - %s" as item %s (%d tracks). Add that item to your inventory.')
-            :format(data.artist, data.album, item, #data.tracks)
-        print(line)
+        print(('[speaker] imported "%s - %s" as item %s (%d tracks). Add that item to your inventory.')
+            :format(data.artist, data.album, item, #data.tracks))
         if src ~= 0 then
             Notify(src, 'vinyl_imported', 'success', data.album, item)
             Log('Record imported', ('**%s** imported `%s` — %s, %d tracks'):format(GetPlayerName(src), item, data.album, #data.tracks))

@@ -43,6 +43,7 @@ function NuiPack(e)
         portable = e.item and Config.Boomboxes[e.item] and Config.Boomboxes[e.item].portable or false,
         unit = e.kind == 'vehicle' and Config.Carplay.install.use or false,
         turntable = e.turntable or false, vinyl = e.vinyl,
+        xfade = e.xfade,
     }
 end
 
@@ -93,12 +94,30 @@ RegisterNetEvent(RES .. ':client:loading', function(id, on)
     SendNUIMessage({ action = 'loading', id = id, on = on })
 end)
 
+-- server clock (ms) estimated locally; startedAt values are on this clock
+local clockOffset = 0
+function ServerTime() return GetGameTimer() + clockOffset end
+
 local function syncClock()
     local t0 = GetGameTimer()
     local server = NZ.Callback('time')
     if not server then return end
     local t1 = GetGameTimer()
-    SendNUIMessage({ action = 'clock', server = server + (t1 - t0) / 2 })
+    local at = server + (t1 - t0) / 2
+    clockOffset = at - t1
+    SendNUIMessage({ action = 'clock', server = at })
+end
+
+-- what the NUI audio engine needs from Config.Audio (anything missing falls back to the engine's defaults)
+local function audioConfig()
+    local A = Config.Audio
+    return {
+        panning = A.panning, syncCheck = A.syncCheck, drift = A.driftTolerance,
+        doppler = A.doppler, dopplerAmount = A.dopplerAmount, maxDoppler = A.maxDoppler,
+        updateRate = A.updateRate, near = A.fullVolumeDistance, rolloff = A.rolloff,
+        closeStereo = A.closeStereo, airAbsorption = A.distanceMuffle ~= false,
+        reverbLevel = A.reverbLevel, voices = A.voices,
+    }
 end
 
 local nuiReady = false
@@ -115,8 +134,7 @@ local function boot()
     local ui = (Locales[Config.Locale] or Locales.en).ui
     SendNUIMessage({
         action = 'init', locale = ui, version = Config.Version,
-        audio = { panning = Config.Audio.panning, syncCheck = Config.Audio.syncCheck, drift = Config.Audio.driftTolerance,
-            doppler = Config.Audio.doppler, dopplerAmount = Config.Audio.dopplerAmount },
+        audio = audioConfig(),
         streamerAllowed = Config.StreamerMode.enabled,
         nowPlaying = { enabled = Config.NowPlaying.enabled, nearby = Config.NowPlaying.nearby, minLevel = Config.NowPlaying.minLevel,
             x = Config.NowPlaying.x, y = Config.NowPlaying.y, scale = Config.NowPlaying.scale },

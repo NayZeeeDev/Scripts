@@ -155,6 +155,9 @@ RegisterNetEvent(RES .. ':pl:play', function(emitterId, plId, mode)
     local ok, tracks = pcall(json.decode, r.tracks)
     if not ok or #tracks == 0 then return Notify(src, 'pl_empty') end
 
+    -- songs from a mixed playlist carry their crossfade length; the end watcher hands over early
+    local mix = r.mixed == 1 and Config.Social.mixed ~= false and (Config.Social.mixedFade or 4.0) or nil
+
     TriggerClientEvent(RES .. ':client:loading', src, e.id, true)
     local added, first = 0, nil
     for i, saved in ipairs(tracks) do
@@ -162,6 +165,7 @@ RegisterNetEvent(RES .. ':pl:play', function(emitterId, plId, mode)
         local track = Tracks.FromSaved(saved)
         if track then
             track.by = Bridge.GetName(src)
+            track.mix = mix
             if i == 1 and mode ~= 'queue' then first = track
             else e.queue[#e.queue + 1] = track end
             added = added + 1

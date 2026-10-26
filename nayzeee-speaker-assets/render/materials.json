@@ -1,0 +1,37 @@
+{
+  "_about": "Renderer-only material hints, keyed by GLB material name. They never reach the game files. anisotropy.mode: uv-radial (grooves are circles around uv 'center', e.g. records and spun metal mapped with uv_radial), tangent (grooves run along U, e.g. brushed metal), model-radial (circles around the model's Z axis at model-space 'center'). roughness_across = perceptual roughness across the grooves; along the grooves the material's own roughness is used. mask_roughness [lo, hi] fades the effect in where the roughness map is between lo and hi (records: grooves are rougher than the smooth track gaps). Other keys: roughness, metallic, base_color [r,g,b(,a)] linear, emissive_scale, normal_scale.",
+  "vinyl_black": {
+    "anisotropy": {
+      "mode": "uv-radial",
+      "center": [
+        0.5,
+        0.5
+      ],
+      "strength": 1.0,
+      "roughness_across": 0.6,
+      "roughness_along": 0.1,
+      "mask_roughness": [
+        0.14,
+        0.17
+      ]
+    }
+  },
+  "brushed_aluminium_radial": {
+    "anisotropy": {
+      "mode": "uv-radial",
+      "center": [
+        0.5,
+        0.5
+      ],
+      "strength": 0.85,
+      "roughness_across": 0.55
+    }
+  },
+  "brushed_aluminium": {
+    "anisotropy": {
+      "mode": "tangent",
+      "strength": 0.8,
+      "roughness_across": 0.55
+    }
+  }
+}

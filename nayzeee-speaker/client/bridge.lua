@@ -70,3 +70,80 @@ function Bridge.RemoveModelTarget(models, names)
     if targetRes == 'ox_target' then exports.ox_target:removeModel(models, names)
     elseif targetRes == 'qb-target' then exports['qb-target']:RemoveTargetModel(models) end
 end
+
+---------------------------------------------------------------- shop helpers (record shop)
+-- Targets on one local (non-networked) entity, e.g. a shopkeeper ped.
+-- options: { { name, label, icon, action(entity), canInteract(entity)? } }
+function Bridge.AddEntityTarget(entity, options, distance)
+    distance = distance or Config.Actions.useRange
+    if targetRes == 'ox_target' then
+        local list = {}
+        for _, o in ipairs(options) do
+            list[#list + 1] = {
+                name = o.name, label = o.label, icon = o.icon, distance = distance,
+                canInteract = o.canInteract and function(ent) return o.canInteract(ent) end or nil,
+                onSelect = function(data) o.action(data.entity) end,
+            }
+        end
+        exports.ox_target:addLocalEntity(entity, list)
+        return true
+    elseif targetRes == 'qb-target' then
+        local list = {}
+        for _, o in ipairs(options) do
+            list[#list + 1] = {
+                label = o.label, icon = o.icon,
+                canInteract = o.canInteract and function(ent) return o.canInteract(ent) end or nil,
+                action = function(ent) o.action(ent) end,
+            }
+        end
+        exports['qb-target']:AddTargetEntity(entity, { options = list, distance = distance })
+        return true
+    end
+    return false
+end
+
+function Bridge.RemoveEntityTarget(entity, names)
+    if targetRes == 'ox_target' then
+        pcall(function() exports.ox_target:removeLocalEntity(entity, names) end)
+    elseif targetRes == 'qb-target' then
+        pcall(function() exports['qb-target']:RemoveTargetEntity(entity) end)
+    end
+end
+
+-- Loads a model, returns its hash (nil if it isn't in the game files or didn't load in time).
+function Bridge.LoadModel(model, timeout)
+    local hash = type(model) == 'number' and model or joaat(model)
+    if not IsModelInCdimage(hash) then return nil end
+    RequestModel(hash)
+    local t = GetGameTimer()
+    while not HasModelLoaded(hash) and GetGameTimer() - t < (timeout or 5000) do Wait(0) end
+    return HasModelLoaded(hash) and hash or nil
+end
+
+-- A local shopkeeper standing still at `coords` (feet on the ground below it), facing `heading`.
+function Bridge.SpawnShopPed(model, coords, heading, scenario)
+    local hash = Bridge.LoadModel(model)
+    if not hash then return nil end
+    local ped = CreatePed(4, hash, coords.x, coords.y, coords.z - 1.0, heading or 0.0, false, false)
+    SetModelAsNoLongerNeeded(hash)
+    if not ped or ped == 0 then return nil end
+    SetEntityAsMissionEntity(ped, true, true)
+    FreezeEntityPosition(ped, true)
+    SetEntityInvincible(ped, true)
+    SetBlockingOfNonTemporaryEvents(ped, true)
+    SetPedCanRagdoll(ped, false)
+    SetPedFleeAttributes(ped, 0, false)
+    SetPedDiesWhenInjured(ped, false)
+    if scenario and scenario ~= '' then TaskStartScenarioInPlace(ped, scenario, 0, true) end
+    return ped
+end
+
+-- One frame of a small floating prompt (the same look as the speaker's [E] prompt).
+function Bridge.DrawPrompt(pos, text)
+    SetDrawOrigin(pos.x, pos.y, pos.z, 0)
+    BeginTextCommandDisplayText('STRING')
+    AddTextComponentSubstringPlayerName(text)
+    SetTextScale(0.32, 0.32) SetTextFont(4) SetTextCentre(true) SetTextOutline()
+    EndTextCommandDisplayText(0.0, 0.0)
+    ClearDrawOrigin()
+end

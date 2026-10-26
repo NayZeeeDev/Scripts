@@ -22,9 +22,22 @@ local function log(title, desc)
 end
 Log = log
 
+-- mode tells the NUI whether it got a real audio file (full 3D) or the YouTube embed (volume only);
+-- mix marks a song queued from a mixed playlist (seconds of crossfade into the next one)
 local function publicTrack(t)
     if not t then return nil end
-    return { src = t.src, id = t.id, url = t.url, title = t.title, author = t.author, duration = t.duration, thumb = t.thumb, by = t.by }
+    return { src = t.src, id = t.id, url = t.url, mode = t.mode, mix = t.mix,
+        title = t.title, author = t.author, duration = t.duration, thumb = t.thumb, by = t.by }
+end
+
+local function trackKey(t) return t and (t.id or t.url) or nil end
+
+-- the crossfade that is running right now (linked followers show their leader's)
+local function liveXfade(e)
+    local lead = e.group and Links and Links.Leader(e) or e
+    local x = lead.xfade
+    if x and now() - x.at < (x.secs + 5) * 1000 then return x end
+    return nil
 end
 
 local function queueView(q)
@@ -48,6 +61,7 @@ function Pack(e)
         leader = e.group and Groups[e.group] and Groups[e.group].leader == e.id or false,
         health = e.health, maxHealth = Config.Damage.health,
         listeners = e.listeners,
+        xfade = liveXfade(e),
     }
 end
 
@@ -123,19 +137,28 @@ function Guard(src, id, control)
 end
 
 ---------------------------------------------------------------- playback core
-function StartTrack(e, track, at)
+-- at  = start this many seconds into the song
+-- cue = start this many seconds from now: every client waits silently at 0:00 and starts on the
+--       dot (the turntable uses it so the music begins when the needle lands)
+function StartTrack(e, track, at, cue)
     e.track = track
     e.playing = true
     e.pos = 0
-    e.startedAt = now() - math.floor((at or 0) * 1000)
+    e.startedAt = now() - math.floor((at or 0) * 1000) + math.floor((cue or 0) * 1000)
     e.endReported = nil
+    e.xfade = nil
 end
 
-function Advance(e, manual)
+-- fade = seconds of crossfade from the song that is ending into the next one (mixed playlists)
+function Advance(e, manual, fade)
     if e.vinyl then return Vinyl.Advance(e, manual) end
     if e.track and e.loop and not manual then
-        StartTrack(e, e.track) return Broadcast(e)
+        StartTrack(e, e.track)
+        Broadcast(e)
+        if e.group then Links.Sync(e) end
+        return
     end
+    local from = trackKey(e.track)
     if e.track then
         e.history[#e.history + 1] = e.track
         if #e.history > 20 then table.remove(e.history, 1) end
@@ -143,11 +166,19 @@ function Advance(e, manual)
     if #e.queue > 0 then
         local idx = e.shuffle and math.random(1, #e.queue) or 1
         StartTrack(e, table.remove(e.queue, idx))
+        if fade and fade > 0 and from then e.xfade = { from = from, secs = fade, at = now() } end
     else
-        e.track, e.playing, e.pos = nil, false, 0
+        e.track, e.playing, e.pos, e.xfade = nil, false, 0, nil
     end
     Broadcast(e)
     if e.group then Links.Sync(e) end
+end
+
+-- seconds before the end at which a mixed-playlist song hands over to the next one (0 = plays out)
+local function mixFade(e)
+    local mix = Config.Social.mixed ~= false and tonumber(e.track.mix) or 0
+    if mix <= 0 or e.loop or e.vinyl or #e.queue == 0 then return 0 end
+    return math.min(mix, e.track.duration / 4)
 end
 
 function StopEmitter(e)
@@ -162,14 +193,20 @@ function PauseEmitter(e)
     Broadcast(e)
 end
 
--- song end watcher
+-- song end watcher. Only group leaders advance: followers mirror them through Links.Sync.
 CreateThread(function()
     while true do
-        Wait(500)
+        Wait(250)
         local t = now()
         for _, e in pairs(Emitters) do
-            if e.playing and e.track and (e.track.duration or 0) > 0 then
-                if t >= e.startedAt + e.track.duration * 1000 + 800 then Advance(e) end
+            local dur = e.playing and e.track and e.track.duration or 0
+            if dur > 0 and (not e.group or Links.Leader(e) == e) then
+                local fade = mixFade(e)
+                if fade > 0 then
+                    if t >= e.startedAt + (dur - fade) * 1000 then Advance(e, false, fade) end
+                elseif t >= e.startedAt + dur * 1000 + 800 then
+                    Advance(e)
+                end
             end
         end
     end
@@ -435,6 +472,7 @@ end)
 
 RegisterNetEvent(RES .. ':ended', function(id, key)
     local e = Emitters[id]
+    if e and e.group then e = Links.Leader(e) end
     if not e or not e.track or not e.playing then return end
     if (e.track.id or e.track.url) ~= key or e.endReported then return end
     if (e.track.duration or 0) > 0 and Elapsed(e) < e.track.duration - 3 then return end

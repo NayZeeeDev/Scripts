@@ -1,0 +1,79 @@
+{
+ "axes": "+Z up, +Y front, +X viewer's left",
+ "models": {
+  "nayzeee_vinyl": {
+   "anchors": {
+    "bottom_centre": {
+     "note": "model origin, sits on the slipmat",
+     "pos": [0.0, 0.0, 0.0],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "edge_grip": {
+     "note": "edge of the disc for a hand-held carry",
+     "pos": [0.1515, 0.0, 0.0011],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "label_top": {
+     "note": "top of the centre label",
+     "pos": [0.0, 0.0, 0.00235],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "play_surface": {
+     "note": "groove surface height (stylus contact)",
+     "pos": [0.0, 0.0, 0.0022],
+     "rot": [0.0, 0.0, 0.0]
+    }
+   },
+   "bbox": {
+    "max": [0.1515, 0.1515, 0.0025],
+    "min": [-0.1515, -0.1515, 0.0],
+    "size": [0.303, 0.303, 0.0025]
+   },
+   "collision": {
+    "max": [0.1515, 0.1515, 0.0025],
+    "min": [-0.1515, -0.1515, 0.0],
+    "shapes": 1,
+    "volume": 0.00018
+   },
+   "description": "12in record, glossy black vinyl with grooves; centre label texture nayzeee_vinyl_label is runtime-replaceable.",
+   "export": true,
+   "flags": 537001984,
+   "lod_distances": {
+    "archetype": 60.0,
+    "high": 6.0,
+    "medium": 9998.0
+   },
+   "lods": {
+    "high": {
+     "tris": 3904,
+     "verts": 2646
+    },
+    "medium": {
+     "detail": 0.35,
+     "tris": 922,
+     "verts": 714
+    }
+   },
+   "materials": ["vinyl_black", "vinyl_label"],
+   "meta": {
+    "console_attach_offset": [0.3, 0.0, 0.811],
+    "groove_lead_in_radius": 0.146,
+    "groove_run_out_radius": 0.062,
+    "label_radius": 0.05,
+    "label_texture": "nayzeee_vinyl_label",
+    "radius": 0.1515,
+    "spin_axis": "+Z",
+    "spin_deg_per_s_33rpm": 200.0,
+    "spindle_hole_radius": 0.0037,
+    "thickness": 0.0022
+   },
+   "sphere": {
+    "centre": [0.0, 0.0, 0.00125],
+    "radius": 0.1515
+   }
+  }
+ },
+ "txd": "nayzeee_audio_texture",
+ "units": "metres",
+ "ytyp": "nayzeee_audio"
+}
