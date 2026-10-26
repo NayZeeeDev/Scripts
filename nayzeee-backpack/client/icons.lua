@@ -65,7 +65,7 @@ local function spawnProp(k, v)
     Util.delete(prop)
     prop = nil
     local mine = session
-    local entity, hash = Util.spawnBag(k, v, stage())
+    local entity, hash = Util.spawnBag(k, v, stage(), true)
     if not entity then return false end
     if mine ~= session then
         Util.delete(entity)

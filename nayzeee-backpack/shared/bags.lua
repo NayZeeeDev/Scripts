@@ -204,11 +204,16 @@ function Bags.defaultVariant(key)
 end
 
 --- model name + texture index to actually spawn.
-function Bags.resolve(key, variantId)
+--- `loose`: the bag isn't on a back (set down, in a hand, on a seat, in the
+--- shop). Bags with `loose = true` then use '<model>_loose', the same bag
+--- with its shoulder straps lying flat instead of wrapped round a wearer.
+function Bags.resolve(key, variantId, loose)
     local bag = Bags.def(key)
     if not bag then return nil, 0 end
     local v = Bags.variant(key, variantId)
-    return (v and v.model) or bag.model, (v and v.texture) or 0
+    local model = (v and v.model) or bag.model
+    if loose and bag.loose then model = model .. '_loose' end
+    return model, (v and v.texture) or 0
 end
 
 --- Every model a bag can spawn as, for preloading / item checks.
@@ -221,6 +226,9 @@ function Bags.models(key)
             seen[v.model] = true
             out[#out + 1] = v.model
         end
+    end
+    if bag.loose then
+        for i = 1, #out do out[#out + 1] = out[i] .. '_loose' end
     end
     return out
 end

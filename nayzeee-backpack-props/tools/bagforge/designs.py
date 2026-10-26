@@ -201,12 +201,36 @@ def weekender(scale=1.0):
 #    (ped frame: bag from 0.08 to 0.52 up, back face 0.16 out, straps resting
 #    on the wearer's back at ~0.12) and fits on Config.DefaultOffset. Its own atlas layout lives in packtex.py.
 # ---------------------------------------------------------------------------
+def catmull(points, n=8):
+    """Smooth curve through every point (Catmull-Rom), n steps per span."""
+    P = [np.array(p, float) for p in points]
+    P = [2 * P[0] - P[1]] + P + [2 * P[-1] - P[-2]]
+    out = []
+    for i in range(1, len(P) - 2):
+        p0, p1, p2, p3 = P[i - 1], P[i], P[i + 1], P[i + 2]
+        for k in range(n):
+            t = k / n
+            out.append(0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t ** 3))
+    out.append(P[-2])
+    return out
+
+
+# Where a worn strap runs, in the ped frame (+X = wearer's left... mirrored per
+# side, +Y = behind the wearer), traced from the converted clothing backpacks:
+# off the top of the bag, over the shoulder, down the chest, a buckle, then
+# webbing back under the arm to the bag's bottom corner.
+STRAP_PAD = [(0.050, 0.140, 0.470), (0.100, 0.112, 0.538), (0.135, 0.058, 0.560), (0.150, -0.012, 0.545),
+             (0.160, -0.070, 0.490), (0.170, -0.098, 0.420), (0.178, -0.104, 0.340), (0.183, -0.096, 0.285)]
+STRAP_WEB = [(0.183, -0.096, 0.285), (0.188, -0.045, 0.248), (0.181, 0.030, 0.215), (0.152, 0.100, 0.172),
+             (0.120, 0.140, 0.130)]
+
+
 def half_len(sec):
     _, arc, h = M.shell_frame(sec)
     return arc[h]
 
 
-def backpack(scale=1.0):
+def backpack(scale=1.0, loose=False):
     import packtex as PT
     m = M.Mesh()
     W, H, D = PT.W, PT.H, PT.D
@@ -265,8 +289,19 @@ def backpack(scale=1.0):
                     band_uv=PT.strip_uv(PT.SOLID, half_len(bsec), 0.02))
     panel.transform(t=(0, yb + 0.004, zc - 0.01)); m.add(panel)
 
-    # shoulder straps: padded, lying against the back panel, adjusters at the bottom
     yp = yb + 0.016
+    if not loose:
+        # worn: straps round the shoulders (ped frame -> design frame is x, y negated)
+        for sx in (-1, 1):
+            d = lambda pts: [np.array((-sx * x, -y, z)) for (x, y, z) in pts]
+            m.add(M.sweep(catmull(d(STRAP_PAD), 8), 0.028, sides=12, region=TRIM, flat_n=0.26, twist_up=(1, 0, 0)))
+            m.add(M.sweep(catmull(d(STRAP_WEB), 8), 0.0125, sides=8, region=TRIM, flat_n=0.2, twist_up=(0, 0, 1)))
+            bx, by, bz = d([STRAP_PAD[-1]])[0]
+            bk = M.box(0.034, 0.006, 0.014, r=0.002, region=METAL); bk.transform(t=(bx, by + 0.006, bz)); m.add(bk)
+        top = M.box(0.11, 0.012, 0.03, r=0.006, region=TRIM); top.transform(t=(0, yp - 0.002, zc + H / 2 - 0.05)); m.add(top)
+        return m
+
+    # off the back: the same straps lying flat against the back panel
     for sx in (-1, 1):
         path = M.bezier([(sx * 0.045, yp, zc + H / 2 - 0.05), (sx * 0.06, yp + 0.025, zc + 0.12),
                          (sx * 0.11, yp + 0.02, zc - 0.10), (sx * 0.12, yp, zc - H / 2 + 0.05)], 30)

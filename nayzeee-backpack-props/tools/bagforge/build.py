@@ -8,6 +8,8 @@ Writes, for CodeWalker to import:
   <work>/<model>.ydr.xml + <work>/<model>/<model>_n.dds    (shared shape + relief)
   <work>/t<i>/<name>.ytd.xml + dds                          (one per colour: _d + _s)
   <work>/bounds.json
+  <work>/<model>_loose.ydr.xml + bounds_loose.json   (catalog `loose`: worn bags
+                                                       get a straps-flat twin)
 """
 import io
 import json
@@ -95,7 +97,8 @@ def param_vec(params, name, x=0, y=0, z=0, w=0):
     el(params, 'Item', name=name, type='Vector', x=x, y=y, z=z, w=w)
 
 
-def write_ydr(model, mesh, outdir):
+def write_ydr(model, mesh, outdir, tex=None):
+    tex = tex or model                    # texture names (a _loose model borrows its bag's)
     P, N, UV, I = mesh.arrays()
     Tn = M.tangents(P, N, UV, I)
     mn, mx = P.min(0), P.max(0)
@@ -113,13 +116,13 @@ def write_ydr(model, mesh, outdir):
         el(d, t, value=0)
     sg = el(d, 'ShaderGroup')
     td = el(sg, 'TextureDictionary')
-    tex_item(td, model + '_n', 'NORMAL')
+    tex_item(td, tex + '_n', 'NORMAL')
     sh = el(el(sg, 'Shaders'), 'Item')
     el(sh, 'Name', 'normal_spec'); el(sh, 'FileName', 'normal_spec.sps'); el(sh, 'RenderBucket', value=0)
     ps = el(sh, 'Parameters')
-    param_tex(ps, 'DiffuseSampler', model + '_d')
-    param_tex(ps, 'BumpSampler', model + '_n')
-    param_tex(ps, 'SpecSampler', model + '_s')
+    param_tex(ps, 'DiffuseSampler', tex + '_d')
+    param_tex(ps, 'BumpSampler', tex + '_n')
+    param_tex(ps, 'SpecSampler', tex + '_s')
     param_vec(ps, 'specularFresnel', 0.97)
     param_vec(ps, 'specularFalloffMult', 120)
     param_vec(ps, 'specularIntensityMult', 1.0)
@@ -194,6 +197,11 @@ def build(key, work):
         mesh.transform(M.rot_z(180))      # designs face -Y, GTA props face +Y
         bounds = write_ydr(model, mesh, out)
         json.dump(bounds, open(os.path.join(out, 'bounds.json'), 'w'))
+        if item.get('loose'):   # the bag off the back: straps flat, same textures
+            lm = DESIGNS[item['design']](loose=True)
+            lm.transform(M.rot_z(180))
+            lb = write_ydr(model + '_loose', lm, out, tex=model)
+            json.dump(lb, open(os.path.join(out, 'bounds_loose.json'), 'w'))
         normal_done = False
         for i, (label, spec) in enumerate(group, 1):
             name = model if i == 1 else f'{model}_{i}'

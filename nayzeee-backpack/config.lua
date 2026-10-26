@@ -866,6 +866,8 @@ Config.IconCapture = {
 -- offset   = optional, overrides Config.DefaultOffset (use /bagtune to get these)
 -- carry    = optional, a Config.Carry.Styles key ('purse', 'forearm' ...)
 -- pose     = optional, default pose key for this bag (Config.Carry.Poses)
+-- loose    = optional, true when every model also has a '<model>_loose' twin with the
+--            shoulder straps lying flat: shown whenever the bag isn't on a back
 -- variants = optional skins, any of these formats:
 --              { [0] = 'Default', [1] = 'Red' }                 -- texture variations
 --              { { label = 'Red', texture = 1 }, ... }           -- same, explicit
@@ -1397,12 +1399,15 @@ Config.Backpacks = {
         },
     },
     -- Street backpacks (bagforge): built to sit where the converted backpacks do,
-    -- so they start on the default fit. Nudge with /bagtune if needed.
+    -- so they start on the default fit (nudge with /bagtune if needed). Worn, the
+    -- straps wrap round the shoulders; set down, handed over, on a car seat or in
+    -- the shop they show their '_loose' twin with the straps lying flat.
 
     ['nayzeee_backpack_graffiti'] = {
         label    = 'Graffiti Backpack',
         model    = 'nayzeee_backpack_graffiti',
         category = 'backpack',
+        loose    = true,
         theme    = 'realistic',
         price    = 3000,
         slots    = 10,
@@ -1419,6 +1424,7 @@ Config.Backpacks = {
         label    = 'Split Check Backpack',
         model    = 'nayzeee_backpack_check',
         category = 'backpack',
+        loose    = true,
         theme    = 'realistic',
         price    = 3000,
         slots    = 10,
@@ -1435,6 +1441,7 @@ Config.Backpacks = {
         label    = 'Drip Backpack',
         model    = 'nayzeee_backpack_drip',
         category = 'backpack',
+        loose    = true,
         theme    = 'realistic',
         price    = 3200,
         slots    = 10,
@@ -1452,6 +1459,7 @@ Config.Backpacks = {
         label    = 'Monogram Backpack',
         model    = 'nayzeee_backpack_mono',
         category = 'backpack',
+        loose    = true,
         theme    = 'realistic',
         price    = 3500,
         slots    = 10,

@@ -149,7 +149,7 @@ RegisterNetEvent('nayzeee-backpack:handoff:answer', function(accept)
 
     local model, texture, worn
     if Config.Backpacks[item.name] then
-        model, texture = Bags.resolve(item.name, item.metadata and item.metadata.variant)
+        model, texture = Bags.resolve(item.name, item.metadata and item.metadata.variant, true)
         local wearing = FindBagItem(src)
         worn = wearing and wearing.slot == item.slot and not (item.metadata and item.metadata.stowed) or false
     else

@@ -63,7 +63,11 @@ Then match the `variants` list in `Config.Backpacks`. Handbags pivot on the
 top of their handles, so the purse hold grips them by the handles. Backpacks
 sit where the converted clothing backpacks do, so they use the default worn
 fit; their texture layout (front art, back, sides, label patch) is in
-`packtex.py`.
+`packtex.py`. Worn, their straps wrap over the shoulders and under the arms;
+each also has a `<model>_loose.ydr` twin with the straps lying flat, and a
+`<colour>_loose` archetype per colour that reuses that colour's `.ytd`. The
+script shows the loose twin whenever the bag isn't on a back (`loose = true`
+in `Config.Backpacks`).
 
 ## Poses
 

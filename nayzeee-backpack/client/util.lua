@@ -67,8 +67,9 @@ function Util.loadClipset(set)
 end
 
 --- Spawn a bag prop (local, no collision). Applies the variant's model + texture.
-function Util.spawnBag(bagKey, variantId, coords)
-    local model, texture = Bags.resolve(bagKey, variantId)
+--- `loose`: the bag isn't being worn (see Bags.resolve).
+function Util.spawnBag(bagKey, variantId, coords, loose)
+    local model, texture = Bags.resolve(bagKey, variantId, loose)
     if not model then return nil end
     return Util.spawnModel(model, texture, coords)
 end

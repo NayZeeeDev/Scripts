@@ -171,7 +171,7 @@ local function ease(t) return t < 0.5 and 4 * t * t * t or 1 - (-2 * t + 2) ^ 3 
 -----------------------------------------------------------------
 
 local function spawnSlot(key, variant, offset)
-    local entity, hash = Util.spawnBag(key, variant, view.anchor - UP * 3.0)
+    local entity, hash = Util.spawnBag(key, variant, view.anchor - UP * 3.0, true)
     if not entity then return nil end
     FreezeEntityPosition(entity, true)
     SetEntityAlpha(entity, 0, false)
@@ -260,8 +260,8 @@ end
 local function setCentreVariant(key, variant)
     for i, it in ipairs(live) do
         if it.to == 0 and it.key == key then
-            local model, texture = Bags.resolve(key, variant)
-            local oldModel = Bags.resolve(key, it.variant)
+            local model, texture = Bags.resolve(key, variant, true)
+            local oldModel = Bags.resolve(key, it.variant, true)
             if model == oldModel then
                 SetObjectTextureVariation(it.entity, texture or 0)
                 it.variant = variant

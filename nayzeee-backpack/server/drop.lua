@@ -43,7 +43,7 @@ function Drop.bag(src, bagKey, coords, skipLog)
     coords = coords or GetEntityCoords(GetPlayerPed(src))
 
     local storage = Bags.storage(bagKey)
-    local model = Bags.resolve(bagKey, metadata.variant)
+    local model = Bags.resolve(bagKey, metadata.variant, true)
     local dropId = ox:CustomDrop(
         Bags.label(bagKey),
         { { bagKey, 1, metadata } },

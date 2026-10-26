@@ -5,7 +5,7 @@ Clothing bag (.ydd ped component, CodeWalker XML) -> prop (.ydr) XML.
   python3 conv.py drawable <src.ydd.xml> <item index> <model> <out dir>
   python3 conv.py prop     <src.ydr.xml> <model> <out dir>          (already a prop: rename only)
   python3 conv.py texture  <src.ytd.xml> <new texture name> <out xml>
-  python3 conv.py ytyp     <model> <variant count> <bounds.json> <out xml> [--alpha] [--no-txd]
+  python3 conv.py ytyp     <model> <variant count> <bounds.json> <out xml> [--alpha] [--no-txd] [--loose=<bounds.json>]
 
 What `drawable` does:
   * DrawableDictionary item -> Drawable root, named <model>
@@ -273,14 +273,19 @@ def texture(src, newname, outxml):
     tree.write(outxml, encoding='UTF-8', xml_declaration=True)
 
 
-def ytyp(model, count, bounds_path, outxml, alpha=False, no_txd=False, lod=100):
+def ytyp(model, count, bounds_path, outxml, alpha=False, no_txd=False, lod=100, loose=None):
+    """`loose`: bounds of <model>_loose (the same bag off the back, straps
+    lying flat). Each colour then also gets <colour>_loose, drawing that
+    model with the colour's own textures."""
     b = json.load(open(bounds_path))
     flags = 537001984 + (32 if alpha or b.get('alpha') else 0)
     root = ET.Element('CMapTypes', {'name': model})
     ET.SubElement(root, 'extensions')
     arch = ET.SubElement(root, 'archetypes')
-    for i in range(1, int(count) + 1):
-        name = model if i == 1 else f'{model}_{i}'
+    kinds = [('', b)] + ([('_loose', json.load(open(loose)))] if loose else [])
+    for (suffix, b), i in ((k, i) for k in kinds for i in range(1, int(count) + 1)):
+        txdname = model if i == 1 else f'{model}_{i}'
+        name = txdname + suffix
         it = ET.SubElement(arch, 'Item', {'type': 'CBaseArchetypeDef'})
         ET.SubElement(it, 'lodDist', {'value': str(lod)})
         ET.SubElement(it, 'flags', {'value': str(flags)})
@@ -293,12 +298,12 @@ def ytyp(model, count, bounds_path, outxml, alpha=False, no_txd=False, lod=100):
         ET.SubElement(it, 'name').text = name
         txd = ET.SubElement(it, 'textureDictionary')
         if not no_txd:
-            txd.text = name
+            txd.text = txdname
         ET.SubElement(it, 'clipDictionary')
         ET.SubElement(it, 'drawableDictionary')
         ET.SubElement(it, 'physicsDictionary')
         ET.SubElement(it, 'assetType').text = 'ASSET_TYPE_DRAWABLE'
-        ET.SubElement(it, 'assetName').text = model  # every colour shares the one model
+        ET.SubElement(it, 'assetName').text = model + suffix  # every colour shares the one model
         ET.SubElement(it, 'extensions')
     ET.SubElement(root, 'name').text = model
     ET.SubElement(root, 'dependencies')
@@ -316,4 +321,5 @@ if __name__ == '__main__':
         texture(sys.argv[2], sys.argv[3], sys.argv[4])
     elif cmd == 'ytyp':
         lod = next((int(a.split('=')[1]) for a in sys.argv if a.startswith('--lod=')), 100)
-        ytyp(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], '--alpha' in sys.argv, '--no-txd' in sys.argv, lod)
+        loose = next((a.split('=', 1)[1] for a in sys.argv if a.startswith('--loose=')), None)
+        ytyp(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], '--alpha' in sys.argv, '--no-txd' in sys.argv, lod, loose)

@@ -118,6 +118,8 @@ CATALOG = {
 
 
 # ---- backpacks (packtex layout) ---------------------------------------------------
+# `loose`: also build <model>_loose, the bag with its straps lying flat, which
+# the script shows whenever the bag isn't on someone's back.
 
 def graffiti(base, inks, tag, trim='#141414', metal='gunmetal'):
     return {'style': 'graffiti', 'colour': base, 'inks': inks, 'tag': tag, 'trim': trim, 'metal': metal}
@@ -139,7 +141,7 @@ GREYS = ['#8c8c8c', '#b9b9b9', '#6a6a6a']
 
 CATALOG.update({
     'graffiti': {
-        'item': 'nayzeee_backpack_graffiti', 'label': 'Graffiti Backpack', 'design': 'backpack',
+        'item': 'nayzeee_backpack_graffiti', 'label': 'Graffiti Backpack', 'design': 'backpack', 'loose': True,
         'models': {'nayzeee_backpack_graffiti': [
             ('Blackout', graffiti('#141414', GREYS, '#efe6cf')),
             ('Whiteout', graffiti('#ecebe6', ['#3a3a3a', '#5e5e5e', '#8a8a8a'], '#121212', trim='#ecebe6', metal='silver')),
@@ -148,7 +150,7 @@ CATALOG.update({
         ]},
     },
     'check': {
-        'item': 'nayzeee_backpack_check', 'label': 'Split Check Backpack', 'design': 'backpack',
+        'item': 'nayzeee_backpack_check', 'label': 'Split Check Backpack', 'design': 'backpack', 'loose': True,
         'models': {'nayzeee_backpack_check': [
             ('Black White', check(['#1d1d1d', '#303030'], ['#ececec', '#cfcfcf'])),
             ('Charcoal Grey', check(['#2b2b2d', '#3d3d40'], ['#a9a9ad', '#8f8f94'])),
@@ -157,7 +159,7 @@ CATALOG.update({
         ]},
     },
     'drip': {
-        'item': 'nayzeee_backpack_drip', 'label': 'Drip Backpack', 'design': 'backpack',
+        'item': 'nayzeee_backpack_drip', 'label': 'Drip Backpack', 'design': 'backpack', 'loose': True,
         'models': {'nayzeee_backpack_drip': [
             ('Black Drip', drip('#060606')),
             ('Red Drip', drip('#c3121f')),
@@ -167,7 +169,7 @@ CATALOG.update({
         ]},
     },
     'mono': {
-        'item': 'nayzeee_backpack_mono', 'label': 'Monogram Backpack', 'design': 'backpack',
+        'item': 'nayzeee_backpack_mono', 'label': 'Monogram Backpack', 'design': 'backpack', 'loose': True,
         'models': {'nayzeee_backpack_mono': [
             ('Charcoal', mono('#2a2c2e', '#3e4245')),
             ('Black', mono('#121212', '#262626')),

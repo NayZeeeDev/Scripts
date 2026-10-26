@@ -73,7 +73,7 @@ function StartPlacing(bagKey, access)
     end
 
     local st = LocalPlayer.state.nayzeee_backpack or {}
-    local ghost, hash = Util.spawnBag(bagKey, st.variant, GetEntityCoords(ped))
+    local ghost, hash = Util.spawnBag(bagKey, st.variant, GetEntityCoords(ped), true)
     if not ghost then return end
 
     FreezeEntityPosition(ghost, true)
@@ -272,7 +272,7 @@ local function spawnPlaced(data)
     despawnPlaced(data.id)
     if not Bags.exists(data.bag) then return end
 
-    local entity, hash = Util.spawnBag(data.bag, data.variant, data.coords)
+    local entity, hash = Util.spawnBag(data.bag, data.variant, data.coords, true)
     if not entity then return end
 
     SetEntityCoordsNoOffset(entity, data.coords.x, data.coords.y, data.coords.z, false, false, false)

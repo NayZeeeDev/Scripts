@@ -47,7 +47,7 @@ local function spawnOpen(serverId, state, ped)
         entity, hash = Util.spawnModel(model, 0, GetEntityCoords(ped))
     end
     if not entity then
-        entity, hash = Util.spawnBag(state.bag, state.variant, GetEntityCoords(ped))
+        entity, hash = Util.spawnBag(state.bag, state.variant, GetEntityCoords(ped), true)
     end
     if not entity then return nil end
 
@@ -77,6 +77,7 @@ end
 local function removeProp(serverId)
     local p = props[serverId]
     if not p then return end
+    Util.delete(p.seat)
     Util.delete(p.entity)
     props[serverId] = nil
 end
@@ -190,8 +191,9 @@ function BagTagTargets()
     local list = {}
     for serverId, p in pairs(props) do
         local st = wanted[serverId]
-        if st and st.tag and p.entity and DoesEntityExist(p.entity) and IsEntityVisible(p.entity) then
-            list[#list + 1] = { id = serverId, entity = p.entity, tag = st.tag, locked = st.locked }
+        local e = (p.seat and DoesEntityExist(p.seat)) and p.seat or p.entity   -- on a car seat: the seat prop
+        if st and st.tag and e and DoesEntityExist(e) and IsEntityVisible(e) then
+            list[#list + 1] = { id = serverId, entity = e, tag = st.tag, locked = st.locked }
         end
     end
     return list
@@ -338,6 +340,7 @@ local function setPlacement(serverId, place)
     if not p or not state or ped == 0 or not DoesEntityExist(p.entity) then placing[serverId] = nil return end
 
     local function wear(visible)
+        if p.seat then Util.delete(p.seat); p.seat = nil end
         ResetEntityAlpha(p.entity)
         if p.holder ~= ped or not IsEntityAttachedToEntity(p.entity, ped) then
             local bone, pos, rot = Bags.offset(state.bag)
@@ -361,8 +364,23 @@ local function setPlacement(serverId, place)
             Wait(0); Wait(0)
             VehicleBags.measure(key, p.entity, ped)
         end
-        if veh and DoesEntityExist(veh) and VehicleBags.place(p.entity, GetEntityModel(p.entity), key, veh, seat) then
-            p.holder = veh
+        -- a bag with a straps-flat model sits on the seat as that (its own
+        -- prop), so the straps aren't wrapped round an empty seat; the worn
+        -- prop stays on its wearer out of sight
+        local onSeat = p.entity
+        if Bags.def(state.bag).loose then
+            if not (p.seat and DoesEntityExist(p.seat)) then
+                local model, texture = Bags.resolve(state.bag, state.variant, true)
+                p.seat = Util.spawnModel(model, texture, GetEntityCoords(ped))
+            end
+            onSeat = p.seat or p.entity
+        end
+        if veh and DoesEntityExist(veh) and VehicleBags.place(onSeat, GetEntityModel(onSeat), key, veh, seat) then
+            if onSeat == p.entity then
+                p.holder = veh
+            else
+                SetEntityVisible(p.entity, false, false)
+            end
         else
             -- couldn't seat it: keep it out of sight, and remember we tried this
             -- seat so the loop doesn't try again every tick
