@@ -351,6 +351,10 @@ NZA.AddLocale('en', {
     ['splint.g3_toe']              = 'toe',
     ['splint.g3_finger']           = 'finger',
     ['splint.g3_cms_fail']         = 'No good pulse below the splint: a strap is too tight. Hold on the strap marked red to loosen it and pull it again, then check again.',
+    -- step away (P) and carry on: the note the close-up opens with
+    ['splint.g3_resume']           = 'Carrying on where you left off.',
+    ['splint.g3_resume_other']     = 'You stepped away from a different fracture - this one starts from the beginning.',
+    ['splint.g3_resume_bad']       = 'Could not carry on from where you left off - this splint starts from the beginning.',
 
     -- ── NUI 3D close-up (apps/splint/splint3d.js): key hints ─────────────────
     ['splint.g3_k_rmb']            = 'RMB',

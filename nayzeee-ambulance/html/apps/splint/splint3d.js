@@ -28,13 +28,35 @@
               simulation clock (simMs: at most 0.2 s per drawn frame), so a hitch never carries a press
               past what the screen showed; the shaping press slows through the teal band (SHAPE_ZONE_S).
               The result's `time` is real seconds (the server's minTime / maxTime see the real session).
+   Step away  P / "Step away" on the procedure HUD (core ProcPanel opts.pause, shown once the scene is up,
+              off on the record): snapshot() goes to Lua ('_proc:pause'), the server parks the session for
+              Config.ProcPause.keep and the app closes. Using the same option on the same fracture again
+              opens it with data.resume = that snapshot and boot() → restore() rebuilds the same point on a
+              fresh scene: the splint where it lay (beside / under the limb, its offset, set or not), the pads
+              in, every shaping point's press (set, pressed too far, let go short), every strap open /
+              wrapped / locked at its tension (a tight one still red after a failed check), the checks done,
+              resets, scores and the clock. Positions are kept as offsets / indices, so a slightly different
+              limb length still fits. null while a move is half done (dragging the splint, pressing a wall
+              point, pulling a strap, pressing a nail, the refill check running): the HUD says to finish it.
+              Every field is checked: an unreadable one starts its own step over, a step is entered only when
+              the ones before it are done, content of a step later than the one it was on is never taken;
+              a snapshot for another fracture / limb (injury, region, scene seed) or an unreadable one (not
+              even where the splint lay can be read) starts fresh with a note; one that throws while
+              rebuilding restarts the game cleanly.
+              Supplies: the game counts none (the splint item is checked when it opens and taken on success;
+              padding and straps come with it), so nothing here can run out part-way.
    Lua → JS   the app's open data (see app.js) + tone / seed (server/modules/splint.lua; without them
-              the skin is picked from a hash of the patient name, like the other close-ups)
+              the skin is picked from a hash of the patient name, like the other close-ups) + resume?
+              (client/modules/splint.lua copies ctx.data into the open payload)
    JS → Lua   exactly the 2D posts: splint:finish { score, align, mould, straps, cms, checks, pressure,
               padded, tight, loose, resets, time } · splint:abort {} · splint:done {} (app.showResult)
+              · '_proc:pause' { snapshot } (core, Step away)
    Preview    index.html?app=splint&mode=proc&stage=place|aligned|pad|shape|strap|tension|cmsready|cms|
               cmsbad|done  (arm-<stage> = forearm)  &region=r_upper_leg|l_lower_arm|…  &tone=0..1  &sex=m|f
               &open=1 &dressed=1 &displaced=0|1 &no3d=1 (the 2D game)
+              index.html?app=splint&resume=lay|pad|shape|strap|loosen|cms: sets that mid-game point, steps
+              away and opens again from the snapshot (P in the preview parks it, Reopen carries on).
+   Debug      Splint3D.debug() / window.SplintDebug() → the running game's progress (emulator scenarios).
    Everything 3D the engine lacks (limb shape, foot / hand, splint, padding, straps, gloved hands,
    markers) is built here with THREE on S.scene and freed with the scene (S.dispose + this bin).
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -74,6 +96,19 @@
   const BLANCH = 0.7;           // s of pressing a nail until it is white
   const WRAP_T = 0.45;          // s for a strap to go round the limb
   const SHAPE_ZONE_S = 0.8;     // s at least that a shaping press stays in the teal band
+  // step away / carry on (see the header)
+  const num = (v, fb) => { const n = Number(v); return v !== null && v !== '' && typeof v !== 'boolean' && Number.isFinite(n) ? n : fb; };
+  const rnd = (v, k) => { const m = Math.pow(10, k); return Math.round(v * m) / m; };
+  const bit = v => (v === 1 || v === true ? 1 : v === 0 || v === false ? 0 : -1);
+  const intIn = (v, lo, hi) => { const n = num(v, NaN); return Number.isInteger(n) && n >= lo && n <= hi ? n : null; };
+  const numIn = (v, lo, hi) => { const n = num(v, NaN); return n >= lo && n <= hi ? n : null; };
+  const plain = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  const MAX_SNAP_T = 3600;
+  let PARKED = null;            // preview: the snapshot "Step away" kept (Reopen carries on from it)
+  let PREVIEW_MOCKED = false;   // preview: the '_proc:pause' mock is installed once per page (a test may replace it)
+  let PREVIEW_PARKED = false;   // preview: ?resume=<stage> runs once per page
+  let NEXT_NOTE = null;         // the note the next game opens with (a snapshot that could not be rebuilt)
+  let CURRENT = null;           // the running game (Splint3D.debug)
 
   // limb radius scale r (of the engine's R) and vertical squash e along the segment
   // (q = 0 at the proximal joint, 1 at the distal one); the bottom of the limb stays on the blanket
@@ -633,6 +668,13 @@
     if (q.get('dressed') !== null) d.dressed = q.get('dressed') === '1';
     if (q.get('displaced') !== null) d.fracture = Object.assign({}, d.fracture || {}, { displaced: q.get('displaced') === '1', angle: q.get('displaced') === '1' ? (d.fracture && d.fracture.angle) || 14 : 0 });
     if (q.get('pulse')) d.pulse = q.get('pulse');
+    // "Step away" in the browser: keep the snapshot and close; Reopen carries on from it (in game: using
+    // the same option again within Config.ProcPause.keep). A test may replace this mock after the first open.
+    if (!PREVIEW_MOCKED) {
+      PREVIEW_MOCKED = true;
+      NZA.mock('_proc:pause', r => { PARKED = r && r.snapshot; setTimeout(() => NZA.close(APP), 80); return { ok: true }; });
+    }
+    if (PARKED && d.resume === undefined) { d.resume = PARKED; PARKED = null; }
   }
 
   /* ═════════════════════════════ THE GAME ═════════════════════════════ */
@@ -686,6 +728,12 @@
         cms: { state: 'hidden', checks: 0, fixed: false, rows: null, tight: false, refill: 0, shown: 0 },
         tightEver: 0, s1: 0, s2: 0, s3: 0, resets: 0, shapeDone: false,
       };
+      // carrying on after "Step away": data.resume (checked and rebuilt in boot → restore)
+      this.hasResume = d.resume !== undefined && d.resume !== null;
+      this.resumed = false; this.note = NEXT_NOTE; NEXT_NOTE = null;
+      // one function for the panel's "Step away" (a stable reference: pp.set only re-arms on change)
+      this.pauseFn = () => this.snapshot();
+      CURRENT = this;
       this.alive = true; this.ready = false; this.step = 0; this.t = 0; this.lmb = false; this.shift = false; this.uiAt = 0;
       this.held = new Set();
       this.cur = { p: null, text: '', tone: '', zone: null };
@@ -712,8 +760,12 @@
       });
       try { app.renderFracture(); } catch (e) { console.error('[splint] card', e); }
       const S0 = this.st;
-      if (d.open) setTimeout(() => this.alive && this.st === S0 && this.step <= 1 && this.pp.flash('warn', d.dressed ? T('open_dressed', 'Open fracture, already covered. Keep the dressing clean under the splint.') : T('open_warn', 'Open fracture: the bone broke the skin. Cover it before you strap over it.'), 5200), 700);
-      else if (fr.displaced) setTimeout(() => this.alive && this.st === S0 && this.step <= 1 && this.pp.flash('warn', T('displaced', 'Displaced %s°. Splint it where it lies - it is set in hospital.', Math.round(fr.angle || 0)), 4600), 700);
+      // the opening warning (open / displaced fracture): at the start of a fresh game; a game that opens
+      // with a note (a snapshot that did not fit) shows it after the note; a resumed one showed it before
+      const warnText = d.open ? (d.dressed ? T('open_dressed', 'Open fracture, already covered. Keep the dressing clean under the splint.') : T('open_warn', 'Open fracture: the bone broke the skin. Cover it before you strap over it.'))
+        : fr.displaced ? T('displaced', 'Displaced %s°. Splint it where it lies - it is set in hospital.', Math.round(fr.angle || 0)) : null;
+      this.openWarn = warnText ? () => { if (this.alive && this.st === S0 && this.step <= 1) this.pp.flash('warn', warnText, d.open ? 5200 : 4600); } : null;
+      if (this.openWarn && !this.hasResume && !this.note) setTimeout(this.openWarn, 700);
 
       // keys (the app's key maps: the core routes them to the top app)
       const K = this.K;
@@ -749,6 +801,7 @@
       const d = this.d;
       const name = d.name || (d.patient && d.patient.name) || '';
       const seed = (+d.seed || hash(`${name}:${d.region || ''}:splint`)) >>> 0;
+      this.seed = seed;
       this.R0 = rng(seed);
       const tone = d.tone !== undefined && d.tone !== null && d.tone !== '' ? clamp(+d.tone || 0, 0, 1) : TONES[hash(name || 'patient') % TONES.length];
       const sex = /^f/i.test(String(d.sex || (d.patient && d.patient.sex) || 'm')) ? 'f' : 'm';
@@ -800,10 +853,37 @@
       S.on('pointer', () => { if (this.ready && !this.st.finished) this.pointer(); });
       S.start();
       this.ready = true;
-      this.enter(1, true);
+      // carrying on after "Step away" (data.resume): rebuild the saved point on this fresh scene. A snapshot
+      // for another fracture or an unreadable one starts fresh with a note; one that cannot be rebuilt
+      // restarts the game cleanly (never a half-rebuilt scene)
+      let first = 1, note = this.note;
+      if (this.hasResume) {
+        const snap = plain(d.resume) ? d.resume : null;
+        const m = snap ? this.limbMatch(snap.w) : 'bad';
+        if (m === 'same') {
+          // (nothing readable, not even where the splint lay: a fresh start, said as such)
+          try { first = this.restore(snap); this.resumed = !this.restoreEmpty; if (!this.resumed) note = 'bad'; } catch (e) {
+            console.error('[splint] restore', e);
+            return this.restartClean();
+          }
+        } else note = m;
+      }
+      this.enter(first, true);
+      this.pp.set({ pause: this.pauseFn });          // "Step away" (P): park the splint, carry on later
+      if (this.resumed) { this.refreshTools(); this.pp.flash('ok', T('g3_resume', 'Carrying on where you left off.'), 3200); }
+      else if (note) {
+        this.pp.flash('warn', note === 'bad' ? T('g3_resume_bad', 'Could not carry on from where you left off - this splint starts from the beginning.') : T('g3_resume_other', 'You stepped away from a different fracture - this one starts from the beginning.'), 4200);
+        if (this.openWarn) setTimeout(this.openWarn, 4400);
+      }
+      this.noteShown = this.resumed ? 'resumed' : note || null;
       setTimeout(() => this.loadEl && this.loadEl.classList.add('out'), 160);
       setTimeout(() => { if (this.loadEl) this.loadEl.style.display = 'none'; }, 520);
-      if (this.pendingJump) { const j = this.pendingJump; this.pendingJump = null; this.jump(j); }
+      // (a resumed game opens where it was: no preview jump on top of it)
+      if (this.pendingJump && !this.resumed) { const j = this.pendingJump; this.pendingJump = null; this.jump(j); }
+      this.pendingJump = null;
+      // preview: ?resume=<stage> sets that point, steps away and carries on (once per page)
+      const pr = !NZA.inGame && !this.hasResume && !PREVIEW_PARKED ? new URLSearchParams(location.search).get('resume') : null;
+      if (pr) { PREVIEW_PARKED = true; setTimeout(() => { if (this.alive) this.previewPark(pr); }, 120); }
     }
 
     // 3D could not start after all: the 2D game takes the session
@@ -2084,13 +2164,17 @@
       const st = this.st;
       if (st.shapeDone || !st.points.every(p => p.done)) return;
       st.shapeDone = true;
-      const [z0, z1] = this.tune.shapeZone;
-      const q = st.points.map(p => (p.tight ? 52 : clamp(100 - Math.abs(p.f - (z0 + z1) / 2) * 140, 60, 100)));
-      st.s2 = Math.round(q.reduce((a, b) => a + b, 0) / q.length);
+      st.s2 = this.shapeScore();
       NZA.audio.success();
       this.pp.flash('ok', T('shape_ok', 'Splint shaped to the limb.'), 2000);
       const S0 = st;
       setTimeout(() => { if (this.alive && this.st === S0 && this.step === 3) { this.enter(4); this.refreshTools(); } }, 800);
+    }
+    // the shaping score from how each point was pressed (a pressure point scores low)
+    shapeScore() {
+      const [z0, z1] = this.tune.shapeZone, pts = this.st.points;
+      const q = pts.map(p => (p.tight ? 52 : clamp(100 - Math.abs(p.f - (z0 + z1) / 2) * 140, 60, 100)));
+      return Math.round(q.reduce((a, b) => a + b, 0) / q.length);
     }
     tickShape() {
       const n = this.simMs();
@@ -2137,11 +2221,9 @@
       this.lockStrap(p.i);
     }
     lockStrap(i) {
-      const st = this.st, s = st.straps[i], z = this.tune.strapZone, tn = s.tension;
+      const st = this.st, s = st.straps[i];
       s.state = 'locked'; s.locks += 1;
-      s.quality = tn > this.tune.strapTight ? 30 : tn < z[0] ? clamp(78 - (z[0] - tn) * 160, 30, 78) : clamp(100 - Math.abs(tn - (z[0] + z[1]) / 2) * 90, 80, 100);
-      s.tight = tn > this.tune.strapTight;
-      s.loose = tn < z[0];
+      this.strapGrade(s);
       if (s.tight) st.tightEver += 1;
       NZA.audio.click(s.tight ? 300 : s.loose ? 520 : 940);
       this.pp.flash(s.tight ? 'bad' : s.loose ? 'warn' : 'ok', s.tight ? T('strap_tight', 'Strap %s is very tight.', i + 1) : s.loose ? T('strap_loose', 'Strap %s is loose - the splint can slip.', i + 1) : T('strap_ok', 'Strap %s secured.', i + 1), 1800);
@@ -2151,6 +2233,13 @@
         const S0 = st;
         setTimeout(() => { if (this.alive && this.st === S0 && this.step === 4 && st.straps.every(x => x.state === 'locked')) { this.enter(5); this.refreshTools(); } }, 800);
       } else this.pp.set({ title: this.title(), text: this.text() });
+    }
+    // a cinched strap's grade from its tension: quality, too tight (cuts the circulation off), loose
+    strapGrade(s) {
+      const z = this.tune.strapZone, tn = s.tension;
+      s.quality = tn > this.tune.strapTight ? 30 : tn < z[0] ? clamp(78 - (z[0] - tn) * 160, 30, 78) : clamp(100 - Math.abs(tn - (z[0] + z[1]) / 2) * 90, 80, 100);
+      s.tight = tn > this.tune.strapTight;
+      s.loose = tn < z[0];
     }
     tickStrap(dt) {
       const st = this.st, n = this.simMs();
@@ -2264,6 +2353,7 @@
       const st = this.st;
       if (st.finished) return;
       st.finished = true;
+      this.pp.set({ pause: false });   // nothing left to step away from
       const q = st.straps.map(s => s.quality), strapAvg = q.reduce((a, b) => a + b, 0) / q.length;
       const checksPenalty = Math.max(0, st.cms.checks - (st.cms.fixed ? 2 : 1)) * 4;
       st.s3 = Math.round(clamp(strapAvg + (st.cms.fixed ? 4 : 0) - checksPenalty, 25, 100));
@@ -2515,6 +2605,190 @@
       void force;
     }
 
+    /* ═════════════ step away / carry on ═════════════
+       snapshot() → a small JSON-safe object, or null while a move is half done. The next open of the same
+       procedure on the same fracture carries it back as data.resume; boot() → restore() rebuilds that point
+       on the fresh scene (built from the fresh open data) and returns the step to enter. */
+    snapshot() {
+      const st = this.st, sp = this.sp, c = st.cms;
+      if (!this.ready || !this.alive || !this.S || st.finished || this.app.S !== st) return null;
+      // finish the move first: the splint in the hand, a wall point / strap / nail held, the refill check running
+      if (sp.drag || this.press || this.pull || this.blanch || c.state === 'blanch' || c.state === 'checking') return null;
+      const r4 = v => rnd(+v || 0, 4);
+      // (a slide still easing in or out: where it is going)
+      const z = sp.anim && sp.anim.z1 !== undefined ? sp.anim.z1 : sp.z;
+      return {
+        v: 1,
+        w: { inj: String(this.d.injury === undefined || this.d.injury === null ? '' : this.d.injury), reg: String(this.d.region || ''), seed: this.seed >>> 0 },
+        step: this.step, t: rnd(clamp((performance.now() - st.t0) / 1000, 0, MAX_SNAP_T), 1),
+        lay: { lk: sp.locked ? 1 : 0, u: sp.under ? 1 : 0, mv: sp.moved ? 1 : 0, dx: rnd(sp.x - this.xT, 5), dz: sp.under ? 0 : rnd(z - sp.z0, 5), s1: st.s1, rs: st.resets },
+        pad: st.sites.map(s => (s.padded ? 1 : 0)),
+        pts: st.points.map(p => [r4(p.f), p.done ? 1 : 0, p.tight ? 1 : 0]),
+        // 0 open · 1 wrapped round the limb (not cinched) · 2 cinched at its tension; times cinched
+        str: st.straps.map(s => [s.state === 'locked' ? 2 : s.state === 'open' ? 0 : 1, s.state === 'locked' ? r4(s.tension) : 0, s.locks | 0]),
+        te: st.tightEver | 0,
+        cms: { n: c.checks | 0, fx: c.fixed ? 1 : 0, bad: c.state === 'bad' ? 1 : 0 },
+      };
+    }
+    // which fracture a snapshot was taken on: 'same', 'other' (another injury / limb / patient) or 'bad'
+    limbMatch(w) {
+      if (!plain(w)) return 'bad';
+      const d = this.d, inj = d.injury === undefined || d.injury === null ? '' : String(d.injury);
+      const same = String(w.inj === undefined || w.inj === null ? '' : w.inj) === inj && String(w.reg || '') === String(d.region || '') && num(w.seed, -1) === (this.seed >>> 0);
+      return same ? 'same' : 'other';
+    }
+    // the splint set under the limb on its outline (step 1 done)
+    setLaid() {
+      const sp = this.sp;
+      Object.assign(sp, { under: true, z: 0, drop: 1, anim: null, drag: null, hold: 0, moved: true, locked: true, ok: true, x: this.xT });
+      this.placed = true;
+      this.ghostG.visible = false;
+      this.placeSplint(1);
+    }
+    // Rebuild the saved point → the step to enter. Only what the game itself can reach is taken back:
+    // a step is entered only when every step before it is done; content of a step later than the one the
+    // snapshot was on is never applied; an unreadable / out-of-range field starts its own step over (the
+    // steps after it with it). Scores that follow from what is on the limb (shaping, strap grades) are
+    // worked out again, not read.
+    restore(r) {
+      const st = this.st, sp = this.sp, tn = this.tune, c = st.cms;
+      const at = intIn(r.step, 1, 5) || 1;
+      const t = numIn(r.t, 0, MAX_SNAP_T);
+      st.t0 = performance.now() - (t === null ? 0 : t) * 1000;
+      let step = 1;
+
+      // 1 · lay: set on the outline, or where it lay (beside the limb / under it, its offset)
+      const L = plain(r.lay) ? r.lay : null;
+      if (L) {
+        const lk = bit(L.lk), u = bit(L.u), mv = bit(L.mv), rs = intIn(L.rs, 0, 999), s1 = intIn(L.s1, 35, 100);
+        const dx = numIn(L.dx, -0.32, 0.32), dz = numIn(L.dz, -1, 1);
+        if (lk === 1 && s1 !== null && rs !== null) {
+          st.resets = rs; st.s1 = s1;
+          this.setLaid();
+          step = 2;
+        } else if (lk === 0 && u >= 0 && mv >= 0 && rs !== null && dx !== null && (u === 1 || dz !== null)) {
+          st.resets = rs;
+          const snapZ = this.so.hw0 * 0.9 + this.R * 0.6;
+          Object.assign(sp, { under: u === 1, moved: mv === 1 || u === 1, x: this.xT + dx, z: u === 1 ? 0 : clamp(sp.z0 + dz, snapZ * 0.95, sp.z0 + 0.12), drop: u === 1 ? 1 : 0, anim: null, drag: null, hold: 0 });
+          this.placeSplint(sp.drop);
+        } else this.restoreEmpty = true;
+      } else this.restoreEmpty = true;
+
+      // 2 · pads at the joints
+      if (step === 2 && at >= 2) {
+        const P = Array.isArray(r.pad) && r.pad.length === st.sites.length ? r.pad.map(bit) : null;
+        if (P && P.every(b => b >= 0)) P.forEach((b, i) => { const s = st.sites[i]; s.padded = b === 1; s.k = b; s.pop = 0; });
+        if (st.sites.every(s => s.padded)) step = 3;
+      }
+
+      // 3 · shaping: each point's press (set in the band, pressed too far, let go short of it)
+      if (step === 3 && at >= 3) {
+        const z0 = tn.shapeZone[0], z1 = tn.shapeZone[1], eps = 1e-3;
+        const ok = Array.isArray(r.pts) && r.pts.length === st.points.length && r.pts.every(p => {
+          if (!Array.isArray(p) || p.length < 3) return false;
+          const f = numIn(p[0], 0, 1.08), dn = bit(p[1]), ti = bit(p[2]);
+          if (f === null || dn < 0 || ti < 0) return false;
+          if (ti === 1) return dn === 1 && f >= z1 - eps;            // pressed past the band: a pressure point
+          return dn === 1 ? f >= z0 - eps && f <= z1 + eps : f < z0 + eps;
+        });
+        if (ok) r.pts.forEach((p, i) => { const pt = st.points[i]; pt.f = +p[0]; pt.done = bit(p[1]) === 1; pt.tight = bit(p[2]) === 1; pt.pop = 0; });
+        if (st.points.every(p => p.done)) { st.shapeDone = true; st.s2 = this.shapeScore(); step = 4; }
+      }
+
+      // 4 · straps (open / wrapped / cinched at a tension) and 5 · the checks done so far
+      if (step === 4 && at >= 4) {
+        const te = intIn(r.te, 0, 99);
+        const ok = te !== null && Array.isArray(r.str) && r.str.length === st.straps.length && r.str.every(x => {
+          if (!Array.isArray(x) || x.length < 3) return false;
+          const code = intIn(x[0], 0, 2), ten = numIn(x[1], 0, 1), lk = intIn(x[2], 0, 99);
+          if (code === null || ten === null || lk === null) return false;
+          return code === 2 ? lk >= 1 : ten === 0 && (code === 1 || lk === 0);
+        });
+        if (ok) {
+          r.str.forEach((x, i) => {
+            const s = st.straps[i], code = +x[0];
+            s.state = ['open', 'wrapped', 'locked'][code]; s.k = code ? 1 : 0; s.tension = code === 2 ? +x[1] : 0; s.locks = +x[2];
+            if (code === 2) this.strapGrade(s); else { s.quality = 0; s.tight = false; s.loose = false; }
+          });
+          // every strap pulled too tight on the limb now was counted when it was cinched
+          st.tightEver = Math.max(te, st.straps.filter(s => s.tight).length);
+        }
+        // (the checks go with the straps: unreadable straps start step 4 over with no check done)
+        const C = plain(r.cms) ? r.cms : {};
+        const n = intIn(C.n, 0, 99), fx = bit(C.fx), bad = bit(C.bad);
+        const cOk = ok && n !== null && fx >= 0 && bad >= 0 && (fx === 0 || n >= 1) && (bad === 0 || fx === 1);
+        if (cOk) { c.checks = n; c.fixed = fx === 1; }
+        if (st.straps.every(s => s.state === 'locked')) {
+          // a failed check sends you back to loosen the tight strap; otherwise the check is next
+          if (cOk && bad === 1 && this.badStrap() >= 0) c.state = 'bad';
+          else { c.state = 'ready'; step = 5; }
+        } else c.state = 'hidden';
+      }
+      this.refillTrough();
+      return step;
+    }
+    // a snapshot that could not be rebuilt: open this splint again from the start (never a half-rebuilt scene)
+    restartClean() {
+      const a = this.app, d = Object.assign({}, this.d);
+      delete d.resume;
+      NEXT_NOTE = 'bad';
+      try { a.procStart(d); } catch (e) { console.error('[splint] restart', e); }
+      NEXT_NOTE = null;   // (the new game took it; the 2D fallback has no note)
+    }
+    // preview only (?resume=<stage>): set a mid-game point the way playing leaves it (no move half done),
+    // step away and open again from the snapshot
+    previewPark(stage) {
+      if (!this.alive || !this.ready || NZA.inGame) return;
+      const st = this.st, sp = this.sp, s = String(stage || '').toLowerCase();
+      const steps = { lay: 1, pad: 2, shape: 3, strap: 4, loosen: 4, cms: 5 };
+      const to = steps[s] || 1;
+      st.resets = 1;
+      // (under the limb, 50 mm short of the outline: past the tolerance, so it does not set itself)
+      Object.assign(sp, { under: true, z: 0, drop: 1, anim: null, drag: null, moved: true, x: this.xT + 0.05 });
+      this.placeSplint(1);
+      if (to >= 2) {
+        st.s1 = 93; this.setLaid();
+        st.sites[0].padded = true; st.sites[0].k = 1;
+      }
+      if (to >= 3) {
+        st.sites[1].padded = true; st.sites[1].k = 1;
+        // two set in the band, one pressed too far (a pressure point), one let go short
+        [0.84, 0.9, 1.04, 0.41].forEach((f, i) => { const p = st.points[i]; if (p) { p.f = f; p.done = i < 3; p.tight = i === 2; } });
+      }
+      if (to >= 4) {
+        st.points.forEach((p, i) => { if (!p.done) { p.f = [0.86, 0.88, 0.85, 0.9, 0.87][i % 5]; p.done = true; } });
+        st.shapeDone = true; st.s2 = this.shapeScore();
+        const cinch = (i, ten) => { const x = st.straps[i]; x.state = 'locked'; x.k = 1; x.tension = ten; x.locks = 1; this.strapGrade(x); if (x.tight) st.tightEver += 1; };
+        cinch(0, 0.68);
+        if (s === 'strap') Object.assign(st.straps[1], { state: 'wrapped', k: 1 });
+        else {
+          cinch(1, s === 'loosen' ? 0.93 : 0.71); cinch(2, 0.64);
+          if (s === 'loosen') Object.assign(st.cms, { checks: 1, fixed: true, state: 'bad' });
+          else st.cms.state = 'ready';
+        }
+      }
+      this.step = to;
+      st.t0 = performance.now() - 74000;
+      const snap = this.snapshot();
+      if (!snap) return;
+      const d = JSON.parse(JSON.stringify(this.d));
+      d.resume = JSON.parse(JSON.stringify(snap));
+      NZA.demo(APP, d);
+    }
+    // the running game's progress (emulator scenarios: Splint3D.debug())
+    debugState() {
+      const st = this.st, sp = this.sp || {}, c = st.cms;
+      return {
+        ready: !!this.ready, alive: !!this.alive, step: this.step, resumed: !!this.resumed, note: this.noteShown || null, finished: !!st.finished,
+        t: rnd((performance.now() - st.t0) / 1000, 1), pause: !!(this.pp && this.pp.el && this.pp.el.querySelector('.pp-pause') && this.pp.el.querySelector('.pp-pause').style.display !== 'none'),
+        lay: { locked: !!sp.locked, under: !!sp.under, dx: rnd((sp.x || 0) - (this.xT || 0), 4), s1: st.s1, resets: st.resets, placed: !!this.placed },
+        pads: st.sites.map(s => !!s.padded),
+        pts: st.points.map(p => [rnd(p.f, 3), p.done ? 1 : 0, p.tight ? 1 : 0]), shapeDone: !!st.shapeDone, s2: st.s2,
+        straps: st.straps.map(s => ({ state: s.state, k: rnd(s.k, 3), tension: rnd(s.tension, 3), tight: !!s.tight, loose: !!s.loose, quality: Math.round(s.quality), locks: s.locks })),
+        tightEver: st.tightEver, cms: { state: c.state, checks: c.checks, fixed: !!c.fixed },
+      };
+    }
+
     /* ─────────────── preview: open at a stage ─────────────── */
     jump(stage) {
       if (!this.ready) { this.pendingJump = stage; return; }
@@ -2604,6 +2878,7 @@
     dispose() {
       if (!this.alive) return;
       this.alive = false;
+      if (CURRENT === this) CURRENT = null;
       const app = this.app;
       window.removeEventListener('blur', this.onBlur);
       window.removeEventListener('resize', this.onResize);
@@ -2632,5 +2907,8 @@
       try { return !!NZA3D.supported(); } catch (e) { return false; }
     },
     start(app, data) { return new Game(app, data); },
+    // the running game's progress, or null (emulator scenarios)
+    debug() { return CURRENT && CURRENT.alive ? CURRENT.debugState() : null; },
   };
+  window.SplintDebug = () => window.Splint3D.debug();
 })();
