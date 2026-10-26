@@ -28,7 +28,8 @@
                              being rolled on (centre, how far up)
                 dip          how soaked the roll is and whether it was left lying in the water
                 mould        the mould of each of the 24 sections, the working time left, setting or not, how
-                             far it has set, every crack (where it was pressed; drawn again the same)
+                             far it has set, every crack (where it was pressed, drawn again the same: the
+                             first 50, plus how many there were, so each press stays a penalty)
                 fold         each stockinette end folded or not
                 cms          pressing (start again) or how far the refill check has run
               plus the step, the active time (minTime counts both parts) and the scene seed. Never the 3D
@@ -101,6 +102,7 @@
   const MAX_EL = 3600;                                    // s: the active time a snapshot may carry
   const MAX_TURNS = 120;                                  // hand-laid turns a wrap may carry
   const CMS_END = 4.4;                                    // s: the refill check is done here
+  const MAX_CRACKS = 50;                                  // crack positions a snapshot carries (the count: all of them)
   const num = (v, fb) => { const n = Number(v); return v !== null && v !== '' && typeof v !== 'boolean' && typeof v !== 'object' && Number.isFinite(n) ? n : fb; };
   const rnd = (v, k) => { const m = Math.pow(10, k); return Math.round((+v || 0) * m) / m; };
   const bit = v => (v === 1 || v === true ? 1 : v === 0 || v === false ? 0 : -1);
@@ -2241,7 +2243,9 @@
           m: Array.from(this.mouldM, v => rnd(v, 4)), wk: m4 ? rnd(clamp(m4.work, 0, WORK_TIME), 2) : 0, ph: !m4 || m4.phase === 'setting' ? 1 : 0,
           set: !m4 || m4.setting >= 1 ? 1 : Math.floor(clamp(m4.setting, 0, 1) * 1000) / 1000, ow: m4 && m4.overWarned ? 1 : 0,
         };
-        snap.cr = this.crackList.map(c => [rnd(c.s, 5), rnd(c.a, 4)]);
+        // (where the first MAX_CRACKS were pressed, and how many there were: every press stays a penalty)
+        snap.cr = this.crackList.slice(0, MAX_CRACKS).map(c => [rnd(c.s, 5), rnd(c.a, 4)]);
+        snap.cn = this.res.cracks;
       }
       // 6 · fold: each stockinette end (one easing over or back: where it is going)
       if (at >= 5) {
@@ -2327,9 +2331,11 @@
         const M = plain(r.ml) ? r.ml : null, m = M ? list(M.m) : null, cr = list(r.cr);
         const wk = M ? numIn(M.wk, 0, WORK_TIME) : null, mp = M ? bit(M.ph) : -1, sf = M ? numIn(M.set, 0, 1) : null, ow = M ? bit(M.ow) : -1;
         const mOk = !!m && m.length === CELLS && m.every(x => numIn(x, 0, 1.25) !== null);
-        const crOk = !!cr && cr.length <= 50 && cr.every(c => Array.isArray(c) && c.length === 2 && numIn(c[0], this.sP - 0.006, this.sD + 0.006) !== null && numIn(c[1], -3.15, 3.15) !== null);
+        const crOk = !!cr && cr.length <= MAX_CRACKS && cr.every(c => Array.isArray(c) && c.length === 2 && numIn(c[0], this.sP - 0.006, this.sD + 0.006) !== null && numIn(c[1], -3.15, 3.15) !== null);
+        // how many cracks (a snapshot without the count: the ones drawn)
+        const cn = !cr ? null : r.cn === undefined || r.cn === null ? cr.length : intIn(r.cn, cr.length, 100000);
         // (setting progress and cracks only once it sets: while it is moulded nothing has set yet)
-        if (mOk && crOk && wk !== null && mp >= 0 && sf !== null && ow >= 0 && (mp === 1 || (sf === 0 && !cr.length))) {
+        if (mOk && crOk && cn !== null && wk !== null && mp >= 0 && sf !== null && ow >= 0 && (mp === 1 || (sf === 0 && !cn))) {
           m.forEach((x, i) => { this.mouldM[i] = +x; });
           this.layShell();
           ph.work = wk; ph.overWarned = ow === 1;
@@ -2338,7 +2344,7 @@
             ph.toSetting(wk <= 0);
             ph.setting = sf;
             cr.forEach(c => this.addCrack(+c[0], +c[1]));
-            this.res.cracks = this.crackList.length;
+            this.res.cracks = Math.max(cn, this.crackList.length);
             set = sf >= 1;
           }
         }
