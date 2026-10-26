@@ -30,6 +30,37 @@
                     down (a palm-wide footprint) → result. Over the device a tent of film fades in.
    Preview: index.html?app=field&mode=iv&stage=<tq|tighten|fill|palpate|swab|insert|flash|advance|tqoff|
             withdraw|cap|dress|carry|laid|done|blown>
+            &resume=<fill|swab|insert|advance|tqoff|withdraw|cap|laid|blown> plays to that point, steps
+            away and opens it again from the snapshot (P in the preview does the same).
+
+   Step away (P / "Step away" on the procedure HUD, core ProcPanel opts.pause): snapshot() goes to Lua
+   ('_proc:pause'), the server parks the session and Lua closes the app (field_scene.lua runIV: the
+   runner sees ctx.done(), Proc.Run returns false, 'silent', cleanup closes the NUI — no error toast).
+   Using the IV option on the same patient (same payload) within Config.ProcPause.keep opens it again
+   with the step data carrying data.resume = that snapshot (runIV sends ctx.data whole), and enter() →
+   restore() rebuilds the same point:
+     · the scene: the vein map is the snapshot's (the server draws a new random map on every start);
+       the seed (name + site) and the tone are the patient's own, so the arm is the same arm
+     · step + sub-step; what was done: the tourniquet (on, or released and lying loose — the world strap
+       is asked for again with ivTq on), the vein fill, every blown spot (bruise, swelling, entry blood,
+       the vein collapsed there), the mark on its vein, the alcohol scrub (the wet film back to the same
+       share of the ring, or drying), the needle angle, the needle in the vein (entry, direction, depth,
+       flashback), how far the cannula slid, how far the needle came out, the needle in the bin, any
+       spill, the cap on the hub, the film where it lay and how firmly it stuck
+     · the counters the score reads: attempts, misses, the first angle used, the rebound of the mark
+   A step that was about to open when P was pressed (the short timer after a move) comes back as that
+   step. snapshot() is null while a move is half done (any held press or key, the band tightening by
+   itself, the needle going in / backing out / through the wall, the needle flying to the bin, the cap
+   screwing on, the film in the hand or gliding down): the HUD asks to finish the move first.
+   Restore checks everything: an unknown step opens step 1; a step opens only when the work of the steps
+   before it is there (a mark on a vein that is not blown, a full scrub, a needle tip inside a vein, the
+   cannula home, the needle in the sharps bin, the cap on — snapshot adv / wd / cap),
+   otherwise it falls back to the start of the step that work belongs to. A snapshot for the other arm,
+   or one that cannot be read, starts fresh with a short note; a restore that throws starts this arm
+   again cleanly (never a half-rebuilt scene).
+   Supplies: the game counts none (the IV kit is checked when the option starts and taken by the
+   server at the finish; Config.Field.IV.attempts is a limit, not a stock), so there is no "out of"
+   point here and nothing to fetch mid-game.
    ═══════════════════════════════════════════════════════════════════════════ */
 (() => {
   'use strict';
@@ -624,8 +655,28 @@
   }
 
   /* ═════════════════════════ vein model ═════════════════════════ */
+  const DEFAULT_MAP = { veins: [{ y: 0.3, bend: 0.04, width: 0.75, depth: 3.6 }, { y: 0.55, bend: 0.01, width: 1.12, depth: 3.0 }, { y: 0.76, bend: -0.05, width: 0.68, depth: 4.6 }], best: 2, spot: 0.5 };
+  const mapOf = d => (d.map && Array.isArray(d.map.veins) && d.map.veins.length ? d.map : DEFAULT_MAP);
+  // a plain copy of the fields of a map that shape the veins (the snapshot keeps it: the server draws a
+  // new random map every time the option starts). Fed back to makeVeins it builds the very same veins.
+  const MAP_V = ['y', 'bend', 'width', 'depth', 'seed'];
+  function copyMap(m) {
+    const pick = (o, keys) => { const r = {}; keys.forEach(k => { const v = o[k]; if (typeof v === 'number' ? Number.isFinite(v) : (typeof v === 'string' && v !== '' && Number.isFinite(+v))) r[k] = +v; }); return r; };
+    return Object.assign({ veins: m.veins.slice(0, 3).map(v => pick(v && typeof v === 'object' ? v : {}, MAP_V)) }, pick(m, ['best', 'spot']));
+  }
+  // a map from a snapshot: 1–3 veins, each with a place, a width and a depth, every field a number → its copy, or null
+  function readMap(m) {
+    if (!m || typeof m !== 'object' || !Array.isArray(m.veins) || !m.veins.length || m.veins.length > 3) return null;
+    for (const v of m.veins) {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+      if (!['y', 'width', 'depth'].every(k => typeof v[k] === 'number' && Number.isFinite(v[k]))) return null;
+      if (MAP_V.some(k => v[k] !== undefined && !(typeof v[k] === 'number' && Number.isFinite(v[k])))) return null;
+    }
+    if (['best', 'spot'].some(k => m[k] !== undefined && !(typeof m[k] === 'number' && Number.isFinite(m[k])))) return null;
+    return copyMap(m);
+  }
   function makeVeins(d) {
-    const map = d.map && Array.isArray(d.map.veins) && d.map.veins.length ? d.map : { veins: [{ y: 0.3, bend: 0.04, width: 0.75, depth: 3.6 }, { y: 0.55, bend: 0.01, width: 1.12, depth: 3.0 }, { y: 0.76, bend: -0.05, width: 0.68, depth: 4.6 }], best: 2, spot: 0.5 };
+    const map = mapOf(d);
     const raw = map.veins;
     // Lua sends a 1-based index; the browser demo data a 0-based one: the wider of the two candidates
     const b1 = clamp((+map.best || 1) - 1, 0, raw.length - 1), b2 = clamp(+map.best || 0, 0, raw.length - 1);
@@ -687,7 +738,8 @@
   const blownAt = (v, s) => G.blows.some(b => b.v === v && Math.abs(b.s - s) < 0.016);
 
   /* ═════════════════════════ boot / teardown ═════════════════════════ */
-  function boot(d) {
+  // mapOverride: the vein map a snapshot was taken on (carrying on after "Step away")
+  function boot(d, mapOverride) {
     const FS = X.S;
     injectCss();
     const host = X.ui.host;
@@ -699,7 +751,8 @@
     stage.className = 'fiv-stage';
     host.prepend(stage);
     host.classList.add('fiv-on');
-    const vm = makeVeins(d);
+    const mapUsed = mapOverride || mapOf(d);
+    const vm = makeVeins({ map: mapUsed });
     const focusUv = [(WORK.s / ARM_W) + 0.5, 0.5];
     let S;
     try {
@@ -717,7 +770,7 @@
       band: Array.isArray(d.angle) && d.angle.length >= 2 ? [+d.angle[0], +d.angle[1]] : [15, 30],
       maxAtt: Math.max(1, Math.round(+d.attempts || 2)), gauge,
       fillTime: Math.max(0.5, +d.tourniquetFill || 3), flashT: clamp(+d.flash || 0.9, 0.3, 3),
-      veins: vm.veins, bestVein: vm.best, spot: vm.spot,
+      veins: vm.veins, bestVein: vm.best, spot: vm.spot, mapRaw: copyMap(mapUsed),
       ph: 'tq', sub: '', lmb: false, mx: innerWidth / 2, my: innerHeight / 2, moved: false,
       fill: 0, fillVis: 0, bumpT: 0, bumpDirty: true,
       tq: { on: false, prog: 0, slack: 1, release: 0 },
@@ -782,6 +835,8 @@
     G = null;
     if (!g) return;
     g.alive = false;
+    g.booted = false;
+    if (X && X.ui.pp) X.ui.pp.set({ pause: false });   // nothing to step away from
     clearTimeout(g.timer);
     try { g.stage.removeEventListener('wheel', g.onWheel, { capture: true }); } catch (e) { /* gone */ }
     window.removeEventListener('mousemove', g.onMove, true);
@@ -1378,23 +1433,28 @@
   function blowVein(ts, tt) {
     const g = G, S = g.S, nd = g.nd, iv = X.S.iv;
     nd.st = 'blown'; iv.blown = true; iv.inVein = false;
-    const v = nd.v;
-    g.blows.push({ v, s: ts });
-    g.bumpDirty = true;
-    // blood leaks into the tissue: a spreading bruise and a firm swelling
-    const uv = S.stToUv(ts, tt);
-    S.layers.splat('bruise', uv, 0.006, 0.55, { seed: 31 + g.blows.length, count: 6 });
-    S.layers.paint('bruise', uv, [0.011, 0.008], 0.28, { hardness: 0, grain: 0.3, grainScale: 90 });
-    const hem = S.bumps.add({ uv, radius: 0.0001, height: 0.000001 });
-    g.hems = g.hems || [];
-    g.hems.push({ b: hem, t: 0 });
-    S.layers.paint('blood', S.stToUv(nd.E[0], nd.E[1]), 0.0011, 0.6, { hardness: 0.4 });
+    paintBlow(nd.v, ts, tt, nd.E, false);
     S.controls.shake(0.55, 420);
     snd('fail');
     flash('bad', T2('iv_blown', 'Through the back wall — that vein is gone.'), 0);
     if (!X.S.preview && g.d.responsive) NZA.speech({ name: g.d.name || '', text: T2('say_ouch', 'Ouch!'), ms: 1800 });
     // pull the needle out, then a new cannula (or the attempt is over)
     nd.blownT = 0;
+  }
+  // a blown spot (ts, tt on vein v, the needle went in at E): blood leaks into the tissue — a spreading
+  // bruise and a firm swelling (grown = already full size: a resumed game), the vein collapses there
+  function paintBlow(v, ts, tt, E, grown) {
+    const g = G, S = g.S;
+    g.blows.push({ v, s: ts, t: tt, E: [E[0], E[1]] });
+    g.bumpDirty = true;
+    const uv = S.stToUv(ts, tt);
+    S.layers.splat('bruise', uv, 0.006, 0.55, { seed: 31 + g.blows.length, count: 6 });
+    S.layers.paint('bruise', uv, [0.011, 0.008], 0.28, { hardness: 0, grain: 0.3, grainScale: 90 });
+    const hem = S.bumps.add({ uv, radius: 0.0001, height: 0.000001 });
+    if (grown) hem.set({ radius: 0.0091, height: 0.0011 });
+    g.hems = g.hems || [];
+    g.hems.push({ b: hem, t: grown ? 1 : 0 });
+    S.layers.paint('blood', S.stToUv(E[0], E[1]), 0.0011, 0.6, { hardness: 0.4 });
   }
   function blownTick(dt) {
     const g = G, nd = g.nd;
@@ -1610,7 +1670,18 @@
     // out of its pack it rests on the forearm on the wrist side of the hub, a little toward the top
     // of the arm (clear of the panel), the tab edge toward the site
     const cs = E[0] - 0.074, ct = E[1] - 0.006;
-    const D = S.dressing.create({ size: [FILM.w, FILM.h], pad: [-1, -1], uv: S.stToUv(cs, ct), angle: -Math.atan2(f[1], f[0]), curl: 0.6 });
+    const D = makeFilm(S.stToUv(cs, ct), -Math.atan2(f[1], f[0]), 0.6);
+    g.dress.D = D;
+    g.dress.rest = [cs, ct];
+    g.dress.size = [FILM.w, FILM.h];
+    g.dress.siteOn = true;
+    S.markers.set('site', { uv: S.stToUv(...filmGoal()), kind: 'dashed', size: 0.034, pulse: true, opacity: 0.7 });
+    buildTent();
+  }
+  // the clear film as a dressing sheet centred at uv, turned by angle (S.dressing.create's convention)
+  function makeFilm(uv, angle, curl) {
+    const g = G, S = g.S;
+    const D = S.dressing.create({ size: [FILM.w, FILM.h], pad: [-1, -1], uv, angle, curl });
     // a clear film: see-through window, frosted border
     const tx = new THREE.CanvasTexture(filmCanvas()); tx.encoding = THREE.sRGBEncoding; tx.anisotropy = 4;
     const mat = new THREE.MeshPhysicalMaterial({ map: tx, transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.08, metalness: 0, envMapIntensity: 1.2 });
@@ -1618,12 +1689,7 @@
     D.mesh.material = mat;
     D.mesh.castShadow = false;
     D.mesh.renderOrder = 4;
-    g.dress.D = D;
-    g.dress.rest = [cs, ct];
-    g.dress.size = [FILM.w, FILM.h];
-    g.dress.siteOn = true;
-    S.markers.set('site', { uv: S.stToUv(...filmGoal()), kind: 'dashed', size: 0.034, pulse: true, opacity: 0.7 });
-    buildTent();
+    return D;
   }
   // the film shrunk over the hub, the cap and the wings: the dressing engine's sheet only lies on the
   // skin, so where it crosses the device this tent takes over (fades in once the window covers the hub).
@@ -1723,7 +1789,7 @@
     const hit = g.hit;
     const pick = D.pick(hit);
     if (pick === 'edge' && D.stuck < 0.25 && D.state !== 'carried') {
-      if (D.grab(hit)) { g.dress.cover = 0; g.stage.classList.add('grabbing'); snd('tone', 300, 40, { vol: 0.03, type: 'triangle' }); return; }
+      if (D.grab(hit)) { g.dress.cover = 0; g.dress.coverCap = null; g.stage.classList.add('grabbing'); snd('tone', 300, 40, { vol: 0.03, type: 'triangle' }); return; }
     }
     if (D.state === 'placed' || D.state === 'falling') { g.dress.rub = true; return; }
     if (pick === 'body') flash('warn', T('dress_edge', 'Pick it up by its **border**.'));
@@ -1783,7 +1849,7 @@
     if (D.state === 'placed' || D.state === 'falling') {
       dr.settledT += dt;
       dr.measT = (dr.measT || 0) - dt;
-      if (dr.settledT > 0.4 && dr.measT <= 0) { dr.measT = 0.25; dr.cover = filmCovers(); }
+      if (dr.settledT > 0.4 && dr.measT <= 0) { dr.measT = 0.25; dr.cover = capCover(filmCovers()); }
     }
     // the target ring goes once the film lies over the site (back if it is lifted off again)
     const siteOn = !(dr.cover >= 1 && D.state !== 'carried');
@@ -1794,7 +1860,7 @@
       if (dr.warnT <= 0) { dr.warnT = 5; flash('warn', T('dress_cover', 'Cover the hub and the entry point — lift it by the border and try again.'), 3600); }
     }
     if (D.stuck >= 0.9 && dr.settledT > 0.4) {
-      dr.cover = filmCovers();
+      dr.cover = capCover(filmCovers());
       iv.secured = true;
       pressAll();
       // peel the paper frame off
@@ -1815,6 +1881,7 @@
     const g = G, iv = X.S.iv;
     if (!g || g.finished) return;
     g.finished = true;
+    if (X.ui.pp) X.ui.pp.set({ pause: false });   // nothing left to step away from
     g.S.tools.use(null);
     g.S.markers.clear();
     g.prot.mesh.visible = false;
@@ -1952,6 +2019,342 @@
     }
   }
 
+  /* ═════════════════════════ step away / carry on ═════════════════════════
+     snapshot() → a small JSON-safe object (no supply counts: the game has none), or null while a move
+     is half done. The next open of the same procedure carries it back as data.resume; enter() checks
+     that it belongs to this arm, builds the scene on the snapshot's vein map and restore() redraws what
+     was done on it (see the header). Lua's JSON may hand an empty list back as {} and drops nulls:
+     every list is read with Array.isArray and a missing field means "not there". */
+  const num = (v, fb) => (typeof v === 'number' && Number.isFinite(v) ? v : fb);
+  const flag = v => v === true || v === 1;
+  const rnd = (v, k) => { const m = Math.pow(10, k); return Math.round(v * m) / m; };
+  const pair = a => (Array.isArray(a) && a.length >= 2 && Number.isFinite(num(a[0], NaN)) && Number.isFinite(num(a[1], NaN)) ? [a[0], a[1]] : null);
+  const onArm = (s, t) => s > V0 - 0.03 && s < V1 + 0.03 && Math.abs(t) < 0.06;
+  const pauseFn = () => snapshot();       // one function for the panel (pp.set re-arms only on a change)
+  let restartNote = null;                 // why the last enter() started fresh ('other' | 'bad')
+
+  function snapshot() {
+    const g = G, iv = X && X.S.iv;
+    if (!g || !g.alive || !g.booted || g.finished || !iv || iv.secured) return null;
+    // finish the move first: a press or a key held, or a move that is playing out by itself
+    if (g.lmb || g.palp.on || held(insertKey()) || held(advKey())) return null;
+    if (g.ph === 'tq' && g.tq.auto) return null;
+    const nd = g.nd, D = g.dress.D;
+    if (g.ph === 'insert' && (!nd || nd.st !== 'aim')) return null;               // going in, backing out, blown
+    if (g.ph === 'withdraw' && g.sub === 'needle' && g.wdFly >= 0 && !g.wdDone) return null;   // on its way to the bin
+    if (g.ph === 'withdraw' && g.sub === 'cap' && g.cap.on && !g.cap.done) return null;       // screwing on
+    if (g.ph === 'secure' && (g.dress.snap || (D && D.state === 'carried'))) return null;      // the film in the hand
+    // a step about to open (the short timer after a move) is saved as that step
+    let ph = g.ph, sub = g.sub;
+    if (ph === 'find' && sub === 'palp' && g.mark) sub = 'swab';
+    if (ph === 'advance' && g.advDone) { ph = 'withdraw'; sub = 'needle'; }
+    if (ph === 'withdraw' && sub === 'needle' && g.wdDone) sub = 'cap';
+    if (ph === 'withdraw' && sub === 'cap' && g.cap.done) { ph = 'secure'; sub = ''; }
+    const vi = v => g.veins.indexOf(v);
+    const out = {
+      v: 1, game: 'iv',
+      w: { site: String(g.d.site || ''), gauge: g.gauge },
+      map: g.mapRaw,
+      ph, sub, t: rnd(g.t, 2),
+      tq: g.tq.on ? 1 : 0, fill: rnd(g.fill, 3),
+      att: iv.attempts, miss: iv.misses || 0, ang: iv.angleUsed.length ? Math.round(iv.angleUsed[0]) : 0,
+      palpQ: rnd(iv.palpQ || 0, 3), spill: iv.spill ? 1 : 0,
+      blows: g.blows.filter(b => vi(b.v) >= 0 && b.E).map(b => [vi(b.v), rnd(b.s, 5), rnd(b.t, 5), rnd(b.E[0], 5), rnd(b.E[1], 5)]),
+      deg: nd && nd.deg ? Math.round(nd.deg) : 34,
+    };
+    if (g.mark && vi(g.mark.v) >= 0) {
+      out.mark = [vi(g.mark.v), rnd(g.mark.s, 5), rnd(g.mark.t, 5)];
+      out.swab = { cov: rnd(g.swab.cov || 0, 3), done: g.swab.done ? 1 : 0, t: rnd(g.swab.t || 0, 2) };
+    }
+    if (STEP_IDS.indexOf(ph) >= 3 && nd && nd.E && nd.v) {
+      out.nd = { vi: vi(nd.v), E: [rnd(nd.E[0], 6), rnd(nd.E[1], 6)], f: [rnd(nd.f[0], 5), rnd(nd.f[1], 5)], deg: Math.round(nd.deg), L: rnd(nd.L, 3), flash: rnd(nd.flash, 3) };
+      out.adv = ph === 'advance' ? rnd(g.adv, 3) : 1;
+      // the proof restore() asks for before steps 5 / 6: the needle in the bin (wd 1), the cap on
+      if (ph !== 'advance') out.wd = ph === 'withdraw' && sub === 'needle' ? rnd(g.wd, 3) : 1;
+      if (ph === 'secure') out.cap = 1;
+    }
+    if (ph === 'secure' && D && (D.state === 'placed' || D.state === 'falling')) {
+      const pose = dressPose(D);
+      if (pose) out.dr = { uv: [rnd(pose.uv[0], 6), rnd(pose.uv[1], 6)], ang: rnd(pose.ang, 4), stuck: rnd(D.stuck, 3), cover: rnd(g.dress.cover || 0, 3) };
+    }
+    return out;
+  }
+
+  // which arm a snapshot was taken on: 'same', 'other' (the server picked the other forearm this time)
+  // or 'bad' (not a snapshot of this game, or its vein map cannot be read)
+  function resumeMatch(r, d) {
+    const w = r.w && typeof r.w === 'object' && !Array.isArray(r.w) ? r.w : null;
+    if (r.game !== 'iv' || !w || typeof w.site !== 'string') return 'bad';
+    if (w.site !== String(d.site || '')) return 'other';
+    return readMap(r.map) ? 'same' : 'bad';
+  }
+  // a snapshot that could not be rebuilt: this arm again from the start (never a half-rebuilt scene)
+  function restartClean() {
+    const d = X.S.data;
+    if (d) delete d.resume;
+    restartNote = 'bad';
+    H.enter();
+  }
+
+  // the needle of a snapshot: in a vein of this map, its tip inside that vein (what the flashback
+  // said), on a part that is not blown → the needle state of a cannula that went in, or null
+  function needleFrom(N) {
+    const g = G;
+    if (!N || typeof N !== 'object') return null;
+    const k = num(N.vi, -1), v = Number.isInteger(k) && k >= 0 && k < g.veins.length ? g.veins[k] : null;
+    const E = pair(N.E), f = pair(N.f), deg = num(N.deg, NaN), L = num(N.L, NaN);
+    if (!v || !E || !f || !(deg >= 5 && deg <= 50) || !(L > 0.3 && L <= NEEDLE_LEN) || !onArm(E[0], E[1])) return null;
+    const fl = Math.hypot(f[0], f[1]);
+    if (!(fl > 0.3 && fl < 1.05)) return null;
+    const a = deg * DEG, Lm = L * MM;
+    const ts = E[0] + f[0] * Lm * Math.cos(a), tt = E[1] + f[1] * Lm * Math.cos(a), depth = Lm * Math.sin(a);
+    if (blownAt(v, ts)) return null;
+    const n = nearest(v, ts, tt), rv = v.rv * 1.15;
+    if (n.d >= rv || Math.abs(depth - v.dv) > Math.sqrt(rv * rv - n.d * n.d) + 0.0003) return null;
+    return { st: 'in', done: true, deg: Math.round(deg), L, E, f, tent: 1, inVein: true, wasIn: true, inT: 0.4, flash: clamp(num(N.flash, 1), 0.5, 1),
+      hold: 0, retract: 0, v, lat: n.d, rv: v.rv };
+  }
+
+  // the alcohol film round the mark, scrubbed out from the middle until it covers the same share of the ring
+  function paintWet(target) {
+    const g = G, S = g.S, m = g.mark, muv = S.stToUv(m.s, m.t), n = 160;
+    S.layers.clear('wet'); S.layers.decay('wet', 0);
+    let cov = 0;
+    for (let i = 0; i < n && cov < target; i++) {
+      const r = SWAB_R * 1.05 * Math.sqrt((i + 0.5) / n), a = i * 2.39996;
+      S.layers.paint('wet', S.stToUv(m.s + Math.cos(a) * r, m.t + Math.sin(a) * r), 0.0028, 0.9, { hardness: 0.5 });
+      if (i % 3 === 2) cov = S.layers.coverage('wet', muv, SWAB_R, 0.28);
+    }
+    return S.layers.coverage('wet', muv, SWAB_R, 0.28);
+  }
+
+  // where a laid film sits: centre uv + angle (the convention of S.dressing.create)
+  function dressPose(D) {
+    const S = G.S, attr = D.mesh && D.mesh.geometry && D.mesh.geometry.attributes;
+    if (!attr || !attr.position || !attr.uv || !S._toSurf) return null;
+    const pos = attr.position.array, uvs = attr.uv.array, N = pos.length / 3;
+    let NX = 1;
+    while (NX < N && Math.abs(uvs[NX * 2 + 1] - uvs[1]) < 1e-6) NX++;
+    const NY = Math.max(1, Math.floor(N / NX)), j = Math.floor(NY / 2);
+    const at = k => S._toSurf({ x: pos[k * 3], y: pos[k * 3 + 1], z: pos[k * 3 + 2] });
+    const c = S._toSurf(D.center()), a = at(j * NX), b = at(j * NX + NX - 1);
+    if (![c.s, c.t, a.s, a.t, b.s, b.t].every(Number.isFinite)) return null;
+    return { uv: S.stToUv(c.s, c.t), ang: Math.atan2(-(b.t - a.t), b.s - a.s) };
+  }
+  // the film where it lay, rubbed back to how firmly it stuck (off the forearm: the fresh film stays at rest)
+  function restoreFilm(dr) {
+    const g = G, S = g.S, old = g.dress.D;
+    if (!old || !dr || typeof dr !== 'object') return;
+    const uv = pair(dr.uv), ang = num(dr.ang, NaN);
+    if (!uv || !Number.isFinite(ang) || uv.some(x => x < 0.02 || x > 0.98)) return;
+    const c = S.uvToST(uv);
+    if (Math.abs(c[0]) > ARM_W / 2 - 0.035 || Math.abs(c[1]) > 0.1) return;
+    let D = null;
+    try {
+      D = makeFilm(uv, ang, 0);
+      D.state = 'falling'; D._settle = 0;   // it lies on the skin and settles like a released one
+      const target = clamp(num(dr.stuck, 0), 0, 0.89);
+      if (target > 0.01) {
+        const ca = Math.cos(ang), sa = -Math.sin(ang), hw = FILM.w / 2 - 0.003, hh = FILM.h / 2 - 0.003, grid = [];
+        for (let i = 0; i < 7; i++) for (let j2 = 0; j2 < 6; j2++) {
+          const lx = (i / 6 - 0.5) * 2 * hw, ly = (j2 / 5 - 0.5) * 2 * hh;
+          grid.push(S.surfaceAt(S.stToUv(c[0] + lx * ca - ly * sa, c[1] + lx * sa + ly * ca)));
+        }
+        // small presses: it comes back as stuck as it was, not stuck-er
+        for (let pass = 0; pass < 140 && D.stuck < target - 0.005; pass++) {
+          const amt = clamp((target - D.stuck) * 0.2, 0.0008, 0.004);
+          for (const hit of grid) D.rub(hit, amt);
+          D.step(1 / 30);
+        }
+      }
+    } catch (e) {
+      if (D) { try { D.remove(); } catch (e2) { /* already gone */ } }
+      throw e;
+    }
+    old.remove();
+    g.dress.D = D;
+    const cv = num(dr.cover, -1);
+    g.dress.cover = cv >= 0 ? clamp(cv, 0, 1) : 0;
+    // rebuilt lying flat: a curled edge that missed the site must not come back covering it — the film
+    // covers no more than it did until it is rubbed down (capCover) or lifted and laid again
+    g.dress.coverCap = cv >= 0 ? { c: g.dress.cover, s: D.stuck } : null;
+    g.dress.settledT = 0;
+  }
+  function capCover(c) {
+    const g = G, cap = g && g.dress.coverCap, D = g && g.dress.D;
+    if (!cap || !D) return c;
+    const k = clamp((D.stuck - cap.s) / Math.max(0.05, 0.9 - cap.s), 0, 1);
+    return Math.min(c, cap.c + (1 - cap.c) * k);
+  }
+
+  // rebuild the saved point on the freshly built scene (enter() has opened step 1)
+  function restore(r) {
+    const g = G, S = g.S, iv = X.S.iv, R = S.shape.R;
+    const vein = k => { const n = num(k, -1); return Number.isInteger(n) && n >= 0 && n < g.veins.length ? g.veins[n] : null; };
+    g.t = clamp(num(r.t, 0), 0, 3600);
+    iv.misses = clamp(Math.round(num(r.miss, 0)), 0, 99);
+    const ang = num(r.ang, 0);
+    iv.angleUsed = ang >= 5 && ang <= 50 ? [Math.round(ang)] : [];
+    // blown spots (each one was an attempt: never more than the attempts that leave one to go)
+    let nBlow = 0;
+    for (const b of Array.isArray(r.blows) ? r.blows : []) {
+      if (nBlow >= g.maxAtt - 1 || !Array.isArray(b)) continue;
+      const v = vein(b[0]), s = num(b[1], NaN), t = num(b[2], NaN), es = num(b[3], NaN), et = num(b[4], NaN);
+      if (!v || ![s, t, es, et].every(Number.isFinite) || !onArm(s, t) || !onArm(es, et)) continue;
+      paintBlow(v, s, t, [es, et], true);
+      nBlow++;
+    }
+    iv.attempts = clamp(Math.max(Math.round(num(r.att, 1)), 1 + nBlow), 1, g.maxAtt);
+
+    // the step: never one whose earlier work is not there — back to the start of the step it belongs to
+    let k = STEP_IDS.indexOf(r.ph);
+    if (k < 0) k = 0;
+    let sub = typeof r.sub === 'string' ? r.sub : '';
+    let mark = null;
+    const M = Array.isArray(r.mark) && r.mark.length >= 3 ? r.mark : null;
+    if (M && k >= 1) {
+      const v = vein(M[0]), s = num(M[1], NaN), t = num(M[2], NaN);
+      if (v && Number.isFinite(s) && Number.isFinite(t) && onArm(s, t)) {
+        const n = nearest(v, s, t);
+        if (n.d < 0.0015 && !blownAt(v, n.s)) mark = { s: n.s, t: n.t, v, dir: n.dir };
+      }
+    }
+    const W = r.swab && typeof r.swab === 'object' ? r.swab : {};
+    const cov = clamp(num(W.cov, 0), 0, 1), swabbed = flag(W.done) && cov >= 0.85;
+    const nd = k >= 3 ? needleFrom(r.nd) : null;
+    if (k >= 3 && !nd) k = 2;                       // no needle in a vein: aim again
+    if (k >= 2 && (!mark || !swabbed)) k = 1;       // no clean mark to aim at: back to finding one
+    // 5 and 6 each need the step before done: the cannula home, the needle in the bin, the cap on
+    if (k >= 4 && !(num(r.adv, 0) >= 1)) k = 3;
+    if (k === 5 && !flag(r.cap)) { k = 4; sub = 'cap'; }
+    if (k === 4 && sub === 'cap' && !(num(r.wd, 0) >= 1)) sub = 'needle';
+    if (k === 1) sub = !mark ? 'palp' : !swabbed ? 'swab' : 'dry';
+    if (k === 4 && sub !== 'cap') sub = 'needle';
+    // the first angle used and the misses exist once a needle has gone in (this attempt or a blown one)
+    if (k < 2 && !nBlow) { iv.angleUsed = []; iv.misses = 0; }
+    if (k >= 3 && !iv.angleUsed.length) iv.angleUsed = [nd.deg];
+
+    // 1 · the tourniquet: on up to the needle in the vein; from the slide on (key 1 releases it there)
+    // on or released as it was
+    const tqOn = k >= 1 && (k <= 2 || flag(r.tq));
+    if (k >= 1) {
+      g.tq.on = tqOn; g.tq.prog = 1; g.tq.auto = false;
+      g.tqm.group.visible = true;
+      if (tqOn) g.tqm.set(TAU + 0.5, R + 0.0003);
+      else { g.tq.release = 1; g.tqm.set(TAU + 0.5, R + 0.0055); }
+      // the veins: still filling under the band, full, or going down after it
+      g.fill = k === 1 && !mark ? clamp(num(r.fill, 0), 0, 1) : tqOn ? 1 : clamp(num(r.fill, 0.35), 0.35, 1);
+      iv.tq = tqOn; iv.fill = g.fill;
+    }
+    // 2 · the mark and the scrub round it
+    if (mark) {
+      g.mark = mark;
+      iv.mark = { x: (mark.s - V0) / (V1 - V0) * 300, y: (mark.t / T_SPAN + 0.5) * 150 };
+      iv.palpQ = clamp(num(r.palpQ, 0.35), 0.35, 1);
+      iv.vein = { width: mark.v.width, depth: mark.v.depth };
+    }
+    if (k === 1 && sub === 'swab') { g.swab = { cov: 0, done: false, t: 0 }; if (cov > 0.005) g.swab.cov = paintWet(cov); }
+    else if (k === 1 && sub === 'dry') { paintWet(0.86); S.layers.decay('wet', 0.42); g.swab = { cov: Math.max(cov, 0.85), done: true, t: clamp(num(W.t, 0), 0, 1.1) }; }
+    else if (k >= 2) g.swab = { cov: Math.max(cov, 0.85), done: true, t: 2 };
+
+    const deg = clamp(Math.round(num(r.deg, 34)), 5, 50);
+    if (k === 1) {
+      if (nBlow) g.nd = { deg };   // after a blown vein the next cannula is aimed from the last angle
+      go('find', sub);
+    } else if (k === 2) { g.nd = { deg }; go('insert'); }
+    else if (k >= 3) {
+      // 3 · the needle in the vein: entry wound, dimple, flashback, the skin cutting the device off
+      const E = nd.E;
+      g.nd = nd;
+      nd.fr = devFrame(E[0], E[1], nd.f, nd.deg);
+      nd.dimple = S.bumps.add({ uv: S.stToUv(E[0], E[1]), radius: 0.003, height: -0.00018 });
+      S.layers.paint('blood', S.stToUv(E[0], E[1]), 0.0005, 0.45, { hardness: 0.6 });
+      setClip(g.clip, true); setClip(g.clipN, true);
+      g.can.needleG.position.set(0, 0, 0); g.can.cathG.position.set(0, 0, 0); g.can.needleG.rotation.set(0, 0, 0);
+      g.can.needleG.visible = true;
+      g.can.blood.scale.y = Math.max(0.001, nd.flash);
+      Object.assign(iv, { angle: nd.deg, tip: nd.L, inVein: true, inT: 0.4, flash: nd.flash, blown: false });
+      g.wdFly = -1; g.handOn = false; g.wd = 0; g.wdDone = false;
+      if (k === 3) {
+        // 4 · how far the cannula slid (advanceTick poses the device from it every frame)
+        g.adv = clamp(num(r.adv, 0), 0, 0.999); g.advDone = false; iv.cannula = g.adv;
+        poseCannula(nd.fr, nd.fr.point.clone().addScaledVector(nd.fr.d, nd.L * MM));
+        go('advance');
+      } else {
+        // the cannula home: the device lies flat, the catheter slid off the needle up to the hub
+        g.adv = 1; g.advDone = true; iv.cannula = 1;
+        const fr = devFrame(E[0], E[1], nd.f, LIE_DEG);
+        nd.frAdv = fr;
+        poseCannula(fr, fr.point.clone().addScaledVector(fr.d, nd.L * MM));
+        g.can.cathG.position.y = -Math.max(0, NEEDLE_LEN - HUB_OFF - nd.L) * MM;
+        if (k === 4 && sub === 'needle') {
+          // 5 · how far the needle came out
+          g.wd = clamp(num(r.wd, 0), 0, 0.995); iv.withdraw = g.wd;
+          g.can.needleG.position.y = 48 * MM * smooth(0, 1, g.wd);
+          go('withdraw', 'needle');
+        } else {
+          // the needle is in the sharps bin (and what spilled when it came out with the band on)
+          g.wd = 1; g.wdFly = 2; g.wdDone = true; iv.withdraw = 1;
+          g.can.needleG.visible = false;
+          setClip(g.clipN, false);
+          iv.spill = flag(r.spill);
+          if (iv.spill) S.layers.splat('blood', hubUv(), 0.006, 0.7, { seed: 7, count: 7 });
+          if (k === 4) go('withdraw', 'cap');
+          else {
+            // 6 · capped: the cap sits on the hub; the film where it lay
+            const cap = g.capT.group;
+            g.can.cathG.add(cap);
+            cap.position.set(0, 46.7 * MM, 0); cap.quaternion.identity(); cap.rotateY(Math.PI * 0.6);
+            g.cap = { on: false, prog: 1, done: true };
+            iv.flushed = true;
+            go('secure');
+            cap.visible = true;
+            if (r.dr) restoreFilm(r.dr);
+          }
+        }
+      }
+    }
+    // last: the world strap goes back on the arm (Lua took it off when the session was parked)
+    if (tqOn) X.post('ivTq', { on: true });
+    return k;
+  }
+
+  // browser preview: P keeps the snapshot, closes and opens the close-up again from it (in game: the
+  // same option on the same patient within Config.ProcPause.keep); ?resume=<stage> plays there first
+  let previewMocked = false, previewParked = false;
+  function previewHooks() {
+    if (!X.S.preview || NZA.inGame || previewMocked) return;
+    previewMocked = true;
+    NZA.mock('_proc:pause', r => { const snap = r && r.snapshot; setTimeout(() => previewReopen(snap), 80); return { ok: true }; });
+  }
+  function previewReopen(snap) {
+    const base = JSON.parse(JSON.stringify(Object.assign({}, X.S.data, { resume: undefined })));
+    const keys = X.S.keys;
+    NZA.closeLocal('field');
+    setTimeout(() => {
+      NZA.open('field', { mode: 'iv', plan: {}, keys });
+      if (NZA.apps.field && NZA.apps.field.msg) NZA.apps.field.msg.step({ proc: 'iv', status: 'run', data: Object.assign(base, snap ? { resume: JSON.parse(JSON.stringify(snap)) } : {}) });
+    }, 400);
+  }
+  const PARK = { fill: 'fill', swab: 'swab', insert: 'insert', advance: 'advance', tqoff: 'tqoff', withdraw: 'withdraw', cap: 'cap', laid: 'laid', dress: 'laid', blown: 'blown' };
+  function previewPark(stage) {
+    const g = G;
+    if (!g) return;
+    const st = PARK[stage] || 'advance';
+    demo(st);
+    if (G !== g) return;
+    g.frozen = false;
+    // let go of the move the stage leaves held, then let a blown vein play out to the next attempt
+    const S = g.S;
+    S.stop();
+    if (g.lmb) up({ button: 0 });
+    for (let i = 0; i < 150 && G === g && st === 'blown' && g.ph !== 'find'; i++) S.step(1 / 30, false);
+    S.step(1 / 30, false);
+    if (G === g) S.start();
+    const snap = snapshot();
+    if (snap) previewReopen(snap);
+  }
+
   /* ═════════════════════════ the handler app.js calls ═════════════════════════ */
   const H = {
     enter() {
@@ -1962,7 +2365,12 @@
       FS.iv = { phase: 'tq', tq: false, fill: 0, attempts: 1, angle: 0, tip: 0, inVein: false, inT: 0, blown: false, flash: 0, mark: null, bounce: 0, palpQ: 0,
         cannula: 0, withdraw: 0, secured: false, flushed: false, spill: false, misses: 0, angleUsed: [], palp: false };
       X.clearMarks();
-      try { boot(d); }
+      // carrying on after "Step away": a snapshot of this game on this arm (else a fresh start, with a note)
+      let snap = d.resume && typeof d.resume === 'object' && !Array.isArray(d.resume) ? d.resume : null;
+      let note = restartNote;
+      restartNote = null;
+      if (snap) { const m = resumeMatch(snap, d); if (m !== 'same') { note = m; snap = null; } }
+      try { boot(d, snap ? readMap(snap.map) : null); }
       catch (e) {
         console.error('[field iv3d] 3D view unavailable, using the 2D panels', e);
         failed = true; teardown();
@@ -1970,6 +2378,22 @@
         return;
       }
       go('tq');
+      if (snap) {
+        try { restore(snap); G.resumed = true; } catch (e) {
+          // never carry on from a half-rebuilt scene: this arm again from the start
+          console.error('[field iv3d] restore', e);
+          return restartClean();
+        }
+      }
+      G.booted = true;
+      // "Step away" (P) on the procedure HUD while the close-up runs (finish / teardown turn it off)
+      if (X.ui.pp) X.ui.pp.set({ pause: pauseFn });
+      if (G.resumed) flash('ok', T('resume_flash', 'Carrying on where you left off.'), 3200);
+      else if (note) {
+        flash('warn', note === 'other' ? T('resume_other', 'You stepped away from the other arm — this one starts from the beginning.')
+          : T('resume_bad', 'Could not carry on from where you left off — this one starts from the beginning.'), 4200);
+      }
+      previewHooks();
     },
     go(ph) { if (G) go(ph); },
     tools() { refreshTools(); },
@@ -1996,7 +2420,12 @@
     },
     frame() { /* the 3D scene runs its own loop (S.on('frame')) */ },
     leave() { teardown(); },
-    demo(stage) { demo(stage); },
+    demo(stage) {
+      // preview ?resume=<stage>: play to that point, step away and carry on from the snapshot (once)
+      const rs = X.S.preview && !previewParked ? new URLSearchParams(location.search).get('resume') : null;
+      if (rs) { previewParked = true; previewPark(rs); return; }
+      demo(stage);
+    },
   };
 
   /* ═════════════════════════ preview stages (sim, then run live) ═════════════════════════ */
@@ -2089,6 +2518,40 @@
       get g() { return G; },
       get iv() { return X && X.S.iv; },
       get last() { return X && X.S.lastResult; },
+      // step away: what P would send (null while a move is half done)
+      snapshot: () => snapshot(),
+      // compact state for the step-away tests
+      state() {
+        const g = G, iv = X && X.S.iv;
+        if (!g || !iv) return null;
+        const D = g.dress.D, nd = g.nd, S = g.S;
+        return {
+          ph: g.ph, sub: g.sub, t: g.t, booted: !!g.booted, resumed: !!g.resumed, finished: !!g.finished,
+          tq: g.tq.on, tqProg: g.tq.prog, released: g.tq.release > 0, tqVisible: g.tqm.group.visible, fill: g.fill,
+          att: iv.attempts, miss: iv.misses, ang: iv.angleUsed[0] || 0, palpQ: iv.palpQ, spill: !!iv.spill, flushed: !!iv.flushed,
+          blows: g.blows.map(b => [g.veins.indexOf(b.v), b.s, b.t]), hems: (g.hems || []).map(h => h.t), bruise: S.layers.total('bruise'),
+          mark: g.mark ? [g.veins.indexOf(g.mark.v), g.mark.s, g.mark.t] : null, swab: g.swab.cov, swabDone: !!g.swab.done,
+          wet: g.mark ? S.layers.coverage('wet', S.stToUv(g.mark.s, g.mark.t), SWAB_R, 0.28) : 0,
+          deg: nd ? nd.deg : 0, nd: nd ? nd.st || '' : '', E: nd && nd.E ? nd.E.slice() : null, L: nd ? nd.L || 0 : 0, inVein: !!(nd && nd.inVein),
+          adv: g.adv, wd: g.wd, wdDone: !!g.wdDone, needleIn: g.can.needleG.visible, cap: !!g.cap.done, capOnHub: g.capT.group.parent === g.can.cathG,
+          dr: D ? { state: D.state, stuck: D.stuck, cover: g.dress.cover } : null, secured: !!iv.secured,
+          map: g.mapRaw, veins: g.veins.length, pausable: !!(X.ui.pp && X.ui.pp.el.querySelector('.pp-pause') && X.ui.pp.el.querySelector('.pp-pause').style.display !== 'none'),
+        };
+      },
+      // run sim steps with the live loop stopped (fn gets { g, S, sim(sec, f), aim(s, t), aimHub(), press(), release(), setAngle, … })
+      drive(fn) {
+        const g = G;
+        if (!g) return null;
+        const S = g.S;
+        S.stop();
+        const sim = (sec, f) => { const n = Math.ceil(sec * 30); for (let i = 0; i < n && G === g; i++) { if (f) f(i / n, i); S.step(1 / 30, false); } };
+        const aim = (s, t) => { const p = S.project(S.stToUv(s, t)); S.pointer.x = p.x; S.pointer.y = p.y; g.mx = p.x * innerWidth; g.my = p.y * innerHeight; g.moved = true; };
+        const aimHub = () => { const p = S.project(hubWorld()); S.pointer.x = p.x; S.pointer.y = p.y; g.mx = p.x * innerWidth; g.my = p.y * innerHeight; g.moved = true; };
+        let out;
+        try { out = fn({ g, S, sim, aim, aimHub, press: () => down({ button: 0 }), release: () => up({ button: 0 }), setAngle, filmEdge, filmGoal, nearest }); }
+        finally { if (G === g && g.alive) { S.step(1 / 30, true); S.start(); } }
+        return out;
+      },
       screen(what) {
         const g = G;
         if (!g) return null;

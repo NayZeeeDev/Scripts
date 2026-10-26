@@ -556,6 +556,10 @@ NZA.AddLocale('en', {
     ['field.iv3_needle_where'] = 'Aim at the marked vein on the forearm.',
     ['field.iv3_on_skin'] = 'Put your fingers on the forearm.',
     ['field.iv3_on_skin_swab'] = 'Put the swab on the forearm.',
+    -- step away (P) and carry on later: the close-up opens again at the same point
+    ['field.iv3_resume_bad'] = 'Could not carry on from where you left off — this one starts from the beginning.',
+    ['field.iv3_resume_flash'] = 'Carrying on where you left off.',
+    ['field.iv3_resume_other'] = 'You stepped away from the other arm — this one starts from the beginning.',
     ['field.iv3_s_advance'] = 'Hold {LMB} (or {{key}}) to slide the cannula off the needle into the vein. {p}%',
     ['field.iv3_s_blown'] = 'Through the back wall. The cannula comes out; then a fresh one on another spot.',
     ['field.iv3_s_blown_last'] = 'Through the back wall — and that was the last attempt.',
