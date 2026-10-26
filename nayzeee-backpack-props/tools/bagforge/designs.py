@@ -195,6 +195,88 @@ def weekender(scale=1.0):
     return m
 
 
+# ---------------------------------------------------------------------------
+# 6. Street backpack: dome-top daypack, front pocket, padded straps
+#    Worn on the back, so it sits where the converted clothing backpacks do
+#    (ped frame: bag from 0.08 to 0.52 up, back face 0.16 out, straps resting
+#    on the wearer's back at ~0.12) and fits on Config.DefaultOffset. Its own atlas layout lives in packtex.py.
+# ---------------------------------------------------------------------------
+def half_len(sec):
+    _, arc, h = M.shell_frame(sec)
+    return arc[h]
+
+
+def backpack(scale=1.0):
+    import packtex as PT
+    m = M.Mesh()
+    W, H, D = PT.W, PT.H, PT.D
+    yc = -(0.16 + D / 2)                  # body centre (design front is -Y)
+    zc = 0.08 + H / 2
+    L = D / 2
+    sec = PT.section()
+    body = M.shell(sec, D, k=6, nt=30, swell=PT.SWELL, front_uv=PT.front_uv(), back_uv=PT.back_uv(), band_uv=PT.band_uv())
+    body.transform(t=(0, yc, zc)); m.add(body)
+
+    # piping round the front and back edges
+    for t in (-0.9, 0.9):
+        s = (1 - abs(t) ** 6) ** (1 / 6) * (1 + PT.SWELL * (1 - t * t)) * 1.012
+        ring = [np.array((x * s, yc + t * L, zc + y * s)) for (x, y) in sec[::2]]
+        m.add(M.sweep(ring + [ring[0]], 0.0028, sides=6, region=TRIM))
+
+    # main zip over the top, at mid depth, with two pulls meeting at the top
+    zs = 1 + PT.SWELL + 0.006
+    arcpts = [p for p in sec if p[1] > -0.06]
+    arcpts.sort(key=lambda p: math.atan2(p[1] + 0.06, p[0]))
+    zip_path = [np.array((x * zs, yc, zc + y * zs)) for (x, y) in arcpts]
+    m.add(M.sweep(zip_path, 0.007, sides=6, region=TRIM, flat_n=0.3, twist_up=(0, 1, 0)))   # tape
+    zipper(m, [np.array((x * (zs + 0.003), yc, zc + y * (zs + 0.003))) for (x, y) in arcpts], w=0.0035)
+    for sx in (-1, 1):
+        pull = M.box(0.009, 0.004, 0.026, r=0.002, region=METAL)
+        pull.transform(M.rot_y(sx * 18), (sx * 0.035, yc, zc + H / 2 * zs + 0.004 - 0.013)); m.add(pull)
+
+    # front pocket, its art lined up with the body's
+    pw, ph, pd, pz = PT.POCKET
+    psec = M.rounded_rect(pw, ph, 0.035, n=72)
+    pocket = M.shell(psec, pd, k=8, nt=20, swell=0.04, front_uv=PT.front_uv(dz=pz), back_uv=PT.area_uv(PT.SOLID, 300, 300),
+                     band_uv=PT.strip_uv(PT.PBAND, half_len(psec), pd))
+    py = yc - L - pd / 2 + 0.01
+    pocket.transform(t=(0, py, zc + pz)); m.add(pocket)
+    ptop = zc + pz + ph / 2 * 1.04
+    zipper(m, [np.array((x, py - pd * 0.22, ptop - 0.004 - 0.0004 * (x * 40) ** 2)) for x in np.linspace(-pw * 0.4, pw * 0.4, 24)], w=0.003)
+    pull = M.box(0.009, 0.004, 0.024, r=0.002, region=METAL); pull.transform(t=(pw * 0.4, py - pd * 0.24, ptop - 0.018)); m.add(pull)
+
+    # label patch on the front, above the tag
+    tsec = M.rounded_rect(0.07, 0.025, 0.004, n=32)
+    patch = M.shell(tsec, 0.003, k=8, nt=12,
+                    front_uv=PT.area_uv(PT.PATCH), back_uv=PT.area_uv(PT.PATCH),
+                    band_uv=PT.strip_uv(PT.PATCH, half_len(tsec), 0.003))
+    patch.transform(t=(0, yc - L - 0.0025, zc + 0.125)); m.add(patch)
+
+    # top grab handle (flat webbing), near the back
+    yb = yc + L                           # back face
+    hz = zc + H / 2 - 0.004
+    m.add(M.sweep(M.arc_path((-0.04, yb - 0.03, hz), (0.04, yb - 0.03, hz), 0.055, n=28), 0.012, sides=8,
+                  region=TRIM, flat_n=0.3, twist_up=(0, 1, 0)))
+
+    # padded back panel (air mesh)
+    bsec = M.rounded_rect(0.26, 0.36, 0.06, n=64)
+    panel = M.shell(bsec, 0.02, k=5, nt=14,
+                    front_uv=PT.area_uv(PT.SOLID, 600, 600), back_uv=PT.area_uv(PT.SOLID, 600, 600),
+                    band_uv=PT.strip_uv(PT.SOLID, half_len(bsec), 0.02))
+    panel.transform(t=(0, yb + 0.004, zc - 0.01)); m.add(panel)
+
+    # shoulder straps: padded, lying against the back panel, adjusters at the bottom
+    yp = yb + 0.016
+    for sx in (-1, 1):
+        path = M.bezier([(sx * 0.045, yp, zc + H / 2 - 0.05), (sx * 0.06, yp + 0.025, zc + 0.12),
+                         (sx * 0.11, yp + 0.02, zc - 0.10), (sx * 0.12, yp, zc - H / 2 + 0.05)], 30)
+        m.add(M.sweep(path, 0.029, sides=12, region=TRIM, flat_n=0.28, twist_up=(1, 0, 0)))
+        web = M.box(0.024, 0.004, 0.05, r=0.001, region=TRIM); web.transform(t=(sx * 0.125, yp - 0.004, zc - H / 2 + 0.03)); m.add(web)
+        bk = M.box(0.03, 0.006, 0.012, r=0.002, region=METAL); bk.transform(t=(sx * 0.122, yp + 0.004, zc - H / 2 + 0.075)); m.add(bk)
+    top = M.box(0.11, 0.012, 0.03, r=0.006, region=TRIM); top.transform(t=(0, yp - 0.002, zc + H / 2 - 0.05)); m.add(top)
+    return m
+
+
 DESIGNS = {
     'barrel': barrel,
     'dome': dome_satchel,
@@ -202,4 +284,5 @@ DESIGNS = {
     'sweetheart': lambda: tophandle(W=0.28, D=0.13, H=0.20, flap=False, hearts=True),
     'crochet': crochet_hobo,
     'weekender': weekender,
+    'backpack': backpack,
 }

@@ -197,6 +197,25 @@ MOTIFS = {'cherry': (cherry, 0.045, 0.085), 'rose': (rose, 0.05, 0.09),
           'butterfly': (butterfly, 0.05, 0.10), 'hearts': (heart_motif, 0.03, 0.07)}
 
 
+def trim_metal(dif, hgt, shine, gloss, spec, rng, ppm=1300):
+    """Fill the shared trim (leather) and metal strips of an atlas in place."""
+    # trim: leather with a stitch line down each edge
+    x0, y0, x1, y1 = px(TRIM); w, h = x1 - x0, y1 - y0
+    col, hh = leather(w, h, hexrgb(spec.get('trim', '#c98a4b')), rng, ppm=ppm)
+    for sx in (int(w * 0.12), int(w * 0.88)):
+        for y in range(0, h, 10):
+            col[y:y + 6, max(0, sx - 1):sx + 1] *= 0.75
+            hh[y:y + 6, max(0, sx - 1):sx + 1] -= 0.6
+    dif[y0:y1, x0:x1] = col; hgt[y0:y1, x0:x1] = hh; shine[y0:y1, x0:x1] = 0.45; gloss[y0:y1, x0:x1] = 0.55
+
+    # metal
+    x0, y0, x1, y1 = px(METAL); w, h = x1 - x0, y1 - y0
+    m = {'gold': ('#e8c46a', '#9c7a2c'), 'silver': ('#eceff2', '#8d949b'), 'gunmetal': ('#7a7f86', '#33373c')}[spec.get('metal', 'gold')]
+    t = np.linspace(0, 1, w)[None, :, None]
+    col = hexrgb(m[0]) * (1 - t) + hexrgb(m[1]) * t
+    dif[y0:y1, x0:x1] = np.repeat(col, h, axis=0); hgt[y0:y1, x0:x1] = 0; shine[y0:y1, x0:x1] = 1.0; gloss[y0:y1, x0:x1] = 0.95
+
+
 # ---- atlas ------------------------------------------------------------------------
 
 def atlas(spec, seed=1):
@@ -243,21 +262,7 @@ def atlas(spec, seed=1):
         raise ValueError(kind)
     dif[y0:y1, x0:x1] = col; hgt[y0:y1, x0:x1] = hh; shine[y0:y1, x0:x1] = sh; gloss[y0:y1, x0:x1] = gl
 
-    # trim: leather with a stitch line down each edge
-    x0, y0, x1, y1 = px(TRIM); w, h = x1 - x0, y1 - y0
-    col, hh = leather(w, h, hexrgb(spec.get('trim', '#c98a4b')), rng, ppm=ppm)
-    for sx in (int(w * 0.12), int(w * 0.88)):
-        for y in range(0, h, 10):
-            col[y:y + 6, max(0, sx - 1):sx + 1] *= 0.75
-            hh[y:y + 6, max(0, sx - 1):sx + 1] -= 0.6
-    dif[y0:y1, x0:x1] = col; hgt[y0:y1, x0:x1] = hh; shine[y0:y1, x0:x1] = 0.45; gloss[y0:y1, x0:x1] = 0.55
-
-    # metal
-    x0, y0, x1, y1 = px(METAL); w, h = x1 - x0, y1 - y0
-    m = {'gold': ('#e8c46a', '#9c7a2c'), 'silver': ('#eceff2', '#8d949b'), 'gunmetal': ('#7a7f86', '#33373c')}[spec.get('metal', 'gold')]
-    t = np.linspace(0, 1, w)[None, :, None]
-    col = hexrgb(m[0]) * (1 - t) + hexrgb(m[1]) * t
-    dif[y0:y1, x0:x1] = np.repeat(col, h, axis=0); hgt[y0:y1, x0:x1] = 0; shine[y0:y1, x0:x1] = 1.0; gloss[y0:y1, x0:x1] = 0.95
+    trim_metal(dif, hgt, shine, gloss, spec, rng, ppm)
 
     diffuse = Image.fromarray(np.clip(dif, 0, 255).astype(np.uint8)).convert('RGBA')
     normal = Image.fromarray(normal_from_height(hgt, 1.6))

@@ -48,7 +48,8 @@ before it goes in game.
 ## Nayzeee originals (bagforge)
 
 Barrel Bag, Dome Satchel, Croc Top-Handle, Sweetheart Tote, Crochet Hobo and
-Velvet Weekender are built entirely from code in `tools/bagforge`: shapes in
+Velvet Weekender, plus the Graffiti, Split Check, Drip and Monogram
+backpacks, are built entirely from code in `tools/bagforge`: shapes in
 `designs.py`, materials (leather, patent, croc, velvet, crochet, tartan,
 prints) in `textures.py`, and the colour list in `catalog.py`. To change a
 colour or add one, edit `catalog.py` and rebuild:
@@ -58,8 +59,11 @@ tools/forge_bags.sh              # every bag
 tools/forge_bags.sh barrel       # just one
 ```
 
-Then match the `variants` list in `Config.Backpacks`. Every model pivots on
-the top of its handles, so the purse hold grips it by the handles.
+Then match the `variants` list in `Config.Backpacks`. Handbags pivot on the
+top of their handles, so the purse hold grips them by the handles. Backpacks
+sit where the converted clothing backpacks do, so they use the default worn
+fit; their texture layout (front art, back, sides, label patch) is in
+`packtex.py`.
 
 ## Poses
 

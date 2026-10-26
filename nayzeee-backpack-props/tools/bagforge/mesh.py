@@ -106,6 +106,19 @@ def rounded_rect(w, h, r, n=64, bulge=0.0):
     return pts
 
 
+def arch_rect(w, h, rt, rb, n=96):
+    """Closed CCW outline, centred: rounded rect with big top corners
+    (`rt`) and small bottom ones (`rb`), the classic backpack front."""
+    pts = []
+    corners = [(w / 2 - rt, h / 2 - rt, rt, 0), (-w / 2 + rt, h / 2 - rt, rt, 90),
+               (-w / 2 + rb, -h / 2 + rb, rb, 180), (w / 2 - rb, -h / 2 + rb, rb, 270)]
+    for cx, cy, r, a0 in corners:
+        for k in range(24):
+            a = math.radians(a0 + 90 * k / 23)
+            pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return resample(pts, n)
+
+
 def superellipse(w, h, e=4.0, n=64):
     pts = []
     for k in range(n):
@@ -255,6 +268,70 @@ def pillow(section, length, k=6.0, nt=40, region=(0, 0, 1, 1), density=None,
             m.add(_grid(P[rows], u0 + (Q[rows, :, 0] - lo[0]) * dens, v0 + (Q[rows, :, 1] - lo[1]) * dens, True, flip=flip))
         else:
             m.add(_grid(P[rows], U[rows], V[rows], True, flip=flip))
+    smooth_normals(m)
+    return m
+
+
+def shell_frame(section):
+    """How shell() walks a section: starting at the bottom centre, the
+    running arc length at each point, and the index where the halves meet."""
+    sec = list(section)
+    ns = len(sec)
+    ymin = min(p[1] for p in sec)
+    st = min((i for i in range(ns) if sec[i][1] < ymin + 1e-3), key=lambda i: abs(sec[i][0]))
+    sec = sec[st:] + sec[:st]
+    arc = [0.0]
+    for i in range(1, ns + 1):
+        arc.append(arc[-1] + float(np.linalg.norm(np.subtract(sec[i % ns], sec[i - 1]))))
+    h = min(range(ns + 1), key=lambda i: abs(arc[i] - arc[-1] / 2))
+    return sec, arc, h
+
+
+def shell(section, depth, k=6.0, nt=30, swell=0.0, cap=0.88, front_uv=None, back_uv=None, band_uv=None):
+    """
+    A pillow standing upright (section in X/Z, `depth` along Y) whose three
+    faces each get their own UVs, so front art isn't repeated on the back:
+      front_uv(x, z) / back_uv(x, z)   the -Y / +Y faces, from section coords
+      band_uv(half, s, d)              the sides: half 0 = +X side, 1 = -X side,
+                                       s metres from the bottom centre, d metres
+                                       from the front
+    """
+    sec, arc, h = shell_frame(section)
+    ns = len(sec)
+    L = depth / 2
+    ts = [math.copysign(abs(a) ** 0.6, a) for a in (-1 + 2 * j / nt for j in range(nt + 1))]
+
+    P = np.zeros((nt + 1, ns + 1, 3)); Q = np.zeros((nt + 1, ns + 1, 2))
+    for j, t in enumerate(ts):
+        s = (1 - abs(t) ** k) ** (1 / k) if abs(t) < 1 else 0.0
+        s *= 1 + swell * (1 - t * t)
+        for i in range(ns + 1):
+            x, y = sec[i % ns]
+            P[j, i] = (x * s, t * L, y * s)
+            Q[j, i] = (x * s, y * s)
+    a = next(j for j, t in enumerate(ts) if t > -cap)
+    b = max(j for j, t in enumerate(ts) if t < cap)
+
+    def uvs(rows, cols, fn):
+        U = np.zeros((len(rows), len(cols))); V = np.zeros_like(U)
+        for jj, j in enumerate(rows):
+            for ii, i in enumerate(cols):
+                U[jj, ii], V[jj, ii] = fn(j, i)
+        return U, V
+
+    m = Mesh()
+    pieces = [
+        (range(0, a), range(0, ns + 1), lambda j, i: front_uv(*Q[j, i])),
+        (range(b + 1, nt + 1), range(0, ns + 1), lambda j, i: back_uv(*Q[j, i])),
+        (range(a - 1, b + 2), range(0, h + 1), lambda j, i: band_uv(0, arc[i], (ts[j] + 1) * L)),
+        (range(a - 1, b + 2), range(h, ns + 1), lambda j, i: band_uv(1, arc[i] - arc[h], (ts[j] + 1) * L)),
+    ]
+    for rows, cols, fn in pieces:
+        rows, cols = list(rows), list(cols)
+        if len(rows) < 2:
+            continue
+        U, V = uvs(rows, cols, fn)
+        m.add(_grid(P[np.ix_(rows, cols)], U, V, False, flip=True))
     smooth_normals(m)
     return m
 

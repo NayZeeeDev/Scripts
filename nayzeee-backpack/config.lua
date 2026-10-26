@@ -1396,6 +1396,74 @@ Config.Backpacks = {
             { label = 'Brown Croc', model = 'nayzeee_bag_weekender_croc_2' },
         },
     },
+    -- Street backpacks (bagforge): built to sit where the converted backpacks do,
+    -- so they start on the default fit. Nudge with /bagtune if needed.
+
+    ['nayzeee_backpack_graffiti'] = {
+        label    = 'Graffiti Backpack',
+        model    = 'nayzeee_backpack_graffiti',
+        category = 'backpack',
+        theme    = 'realistic',
+        price    = 3000,
+        slots    = 10,
+        weight   = 12000,
+        variants = {
+            { label = 'Blackout', model = 'nayzeee_backpack_graffiti' },
+            { label = 'Whiteout', model = 'nayzeee_backpack_graffiti_2' },
+            { label = 'Blood Red', model = 'nayzeee_backpack_graffiti_3' },
+            { label = 'Teal Tag', model = 'nayzeee_backpack_graffiti_4' },
+        },
+    },
+
+    ['nayzeee_backpack_check'] = {
+        label    = 'Split Check Backpack',
+        model    = 'nayzeee_backpack_check',
+        category = 'backpack',
+        theme    = 'realistic',
+        price    = 3000,
+        slots    = 10,
+        weight   = 12000,
+        variants = {
+            { label = 'Black White', model = 'nayzeee_backpack_check' },
+            { label = 'Charcoal Grey', model = 'nayzeee_backpack_check_2' },
+            { label = 'Black Pink', model = 'nayzeee_backpack_check_3' },
+            { label = 'Black Teal', model = 'nayzeee_backpack_check_4' },
+        },
+    },
+
+    ['nayzeee_backpack_drip'] = {
+        label    = 'Drip Backpack',
+        model    = 'nayzeee_backpack_drip',
+        category = 'backpack',
+        theme    = 'realistic',
+        price    = 3200,
+        slots    = 10,
+        weight   = 12000,
+        variants = {
+            { label = 'Black Drip', model = 'nayzeee_backpack_drip' },
+            { label = 'Red Drip', model = 'nayzeee_backpack_drip_2' },
+            { label = 'Purple Drip', model = 'nayzeee_backpack_drip_3' },
+            { label = 'Teal Drip', model = 'nayzeee_backpack_drip_4' },
+            { label = 'Chrome Drip', model = 'nayzeee_backpack_drip_5' },
+        },
+    },
+
+    ['nayzeee_backpack_mono'] = {
+        label    = 'Monogram Backpack',
+        model    = 'nayzeee_backpack_mono',
+        category = 'backpack',
+        theme    = 'realistic',
+        price    = 3500,
+        slots    = 10,
+        weight   = 12000,
+        variants = {
+            { label = 'Charcoal', model = 'nayzeee_backpack_mono' },
+            { label = 'Black', model = 'nayzeee_backpack_mono_2' },
+            { label = 'Chocolate', model = 'nayzeee_backpack_mono_3' },
+            { label = 'Navy', model = 'nayzeee_backpack_mono_4' },
+            { label = 'Olive', model = 'nayzeee_backpack_mono_5' },
+        },
+    },
     -- JOB BAGS -------------------------------------------------------------
     -- Only players on the job see these in the shop, and only they can wear
     -- one. price = 0 shows as "Issued" with a Collect button.

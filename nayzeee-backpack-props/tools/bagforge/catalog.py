@@ -115,3 +115,65 @@ CATALOG = {
         },
     },
 }
+
+
+# ---- backpacks (packtex layout) ---------------------------------------------------
+
+def graffiti(base, inks, tag, trim='#141414', metal='gunmetal'):
+    return {'style': 'graffiti', 'colour': base, 'inks': inks, 'tag': tag, 'trim': trim, 'metal': metal}
+
+
+def check(dark, light, trim='#141414', metal='silver'):
+    return {'style': 'check', 'colour': dark[0], 'dark': dark, 'light': light, 'trim': trim, 'metal': metal}
+
+
+def drip(paint, base='#121212', metal='gunmetal'):
+    return {'style': 'drip', 'colour': base, 'paint': paint, 'trim': base, 'metal': metal}
+
+
+def mono(base, motif, trim='#161616', metal='gunmetal'):
+    return {'style': 'mono', 'colour': base, 'motif': motif, 'trim': trim, 'metal': metal}
+
+
+GREYS = ['#8c8c8c', '#b9b9b9', '#6a6a6a']
+
+CATALOG.update({
+    'graffiti': {
+        'item': 'nayzeee_backpack_graffiti', 'label': 'Graffiti Backpack', 'design': 'backpack',
+        'models': {'nayzeee_backpack_graffiti': [
+            ('Blackout', graffiti('#141414', GREYS, '#efe6cf')),
+            ('Whiteout', graffiti('#ecebe6', ['#3a3a3a', '#5e5e5e', '#8a8a8a'], '#121212', trim='#ecebe6', metal='silver')),
+            ('Blood Red', graffiti('#7d0d14', ['#1a1a1a', '#3a0508', '#d9d0c0'], '#f4efe4', trim='#1a1a1a')),
+            ('Teal Tag', graffiti('#141414', ['#0b8c82', '#5b5b5b', '#2f6f6a'], '#08afa2')),
+        ]},
+    },
+    'check': {
+        'item': 'nayzeee_backpack_check', 'label': 'Split Check Backpack', 'design': 'backpack',
+        'models': {'nayzeee_backpack_check': [
+            ('Black White', check(['#1d1d1d', '#303030'], ['#ececec', '#cfcfcf'])),
+            ('Charcoal Grey', check(['#2b2b2d', '#3d3d40'], ['#a9a9ad', '#8f8f94'])),
+            ('Black Pink', check(['#1d1d1d', '#303030'], ['#f6c6d6', '#ec9fbb'])),
+            ('Black Teal', check(['#1d1d1d', '#303030'], ['#7fd8d0', '#08afa2'])),
+        ]},
+    },
+    'drip': {
+        'item': 'nayzeee_backpack_drip', 'label': 'Drip Backpack', 'design': 'backpack',
+        'models': {'nayzeee_backpack_drip': [
+            ('Black Drip', drip('#060606')),
+            ('Red Drip', drip('#c3121f')),
+            ('Purple Drip', drip('#5d1d9e')),
+            ('Teal Drip', drip('#08afa2')),
+            ('Chrome Drip', drip('#c9ced4', metal='silver')),
+        ]},
+    },
+    'mono': {
+        'item': 'nayzeee_backpack_mono', 'label': 'Monogram Backpack', 'design': 'backpack',
+        'models': {'nayzeee_backpack_mono': [
+            ('Charcoal', mono('#2a2c2e', '#3e4245')),
+            ('Black', mono('#121212', '#262626')),
+            ('Chocolate', mono('#3a2619', '#56392a', trim='#24170f', metal='gold')),
+            ('Navy', mono('#141c33', '#25304f', trim='#0e1324')),
+            ('Olive', mono('#3a3d26', '#53573a', trim='#262818')),
+        ]},
+    },
+})

@@ -23,6 +23,7 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mesh as M          # noqa: E402
 import textures as T      # noqa: E402
+import packtex as PT      # noqa: E402
 from catalog import CATALOG  # noqa: E402
 from designs import DESIGNS  # noqa: E402
 
@@ -196,7 +197,10 @@ def build(key, work):
         normal_done = False
         for i, (label, spec) in enumerate(group, 1):
             name = model if i == 1 else f'{model}_{i}'
-            dif, nrm, spc = T.atlas(spec, seed=zlib.crc32(label.encode()) & 0xffff)
+            if 'style' in spec:   # backpack layout; one seed per model so every colour shares the relief
+                dif, nrm, spc = PT.pack_atlas(spec, seed=zlib.crc32(model.encode()) & 0xffff)
+            else:
+                dif, nrm, spc = T.atlas(spec, seed=zlib.crc32(label.encode()) & 0xffff)
             if not normal_done:   # every colour of one model shares its relief
                 save_dds(nrm, os.path.join(out, model, model + '_n.dds'), 'DXT1')
                 normal_done = True
