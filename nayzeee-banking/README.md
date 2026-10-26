@@ -228,6 +228,14 @@ When one of these **is** running, it keeps its own invoices, and they show in th
 | TGG Billing | its invoice table, found on start (read only); invoices still awaiting acceptance are left out | Its `PayInvoice` export, from the personal account; the total includes the company's tax |
 | Bablo Billing | its invoice table, found on start (read only) | Its `payInvoice` export, from the personal account |
 
+New invoices from these scripts are noticed while the player is in the city (`Config.Bridge.watch`, every 30 seconds by default):
+
+- an open bank or phone updates by itself, and so does one when an invoice is paid inside the billing script
+- the player gets a **New bill** alert, unless they turned notifications off in Settings
+- players who switched on **auto-pay** in Settings have it paid straight away when their personal account covers it (needs `Config.Bills.autoPay`)
+
+If your billing script already sends its own alert, set `watch.notify = false` so players are not told twice. Late fees and due dates stay the billing script's own; this bank adds none of its own on top.
+
 Turn any of them off, or point one at a renamed table, in `Config.Bridge.external`. On start each one checks that the tables, columns or exports it uses are there; if a version has changed its layout, that adapter switches itself off and the console says what it looked for, rather than reading the wrong thing. The adapters live in `server/sv_invoices.lua`, which is left open so you can adjust one to your version.
 
 {% hint style="info" %}

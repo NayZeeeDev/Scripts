@@ -326,6 +326,21 @@ ADAPTERS.okokBilling = {
         return true
     end,
 
+    --- What an offline player owes, straight from okok's table when it has the
+    --- usual columns. Checked once, quietly: V3 may lay it out differently.
+    offline = function(self, identifier)
+        if self.offlineOk == nil then
+            local tbl = self.o.table or 'okokbilling'
+            local have = tbl:match('^[%w_]+$') and columns(tbl) or {}
+            self.offlineOk = (have.id and have.receiver_identifier and have.invoice_value and have.status and have.item) and true or false
+            if self.offlineOk then okokTable.tbl, okokTable.cols = tbl, have end
+        end
+        if not self.offlineOk then return {} end
+        local rows = okokTable.list(okokTable, identifier)
+        for _, b in ipairs(rows) do b.payable = false end
+        return rows
+    end,
+
     --- No getInvoices export: an okokBilling from before V3.
     fallBack = function(self)
         note('okokBilling', 'no getInvoices export (a version before V3?), reading its table instead')
@@ -349,9 +364,10 @@ ADAPTERS.okokBilling = {
         if self.legacy then return okokTable.list(okokTable, identifier) end
         if self.legacy == false then return {} end
 
-        -- the export takes a server id, so only players in the city
+        -- the export takes a server id, so a player out of the city is read
+        -- from okok's table instead (for getSummary and the like), unpayable
         local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
-        if not xPlayer then return {} end
+        if not xPlayer then return self:offline(identifier) end
         local res = self:fetch(xPlayer.source)
         if not res then return self.legacy and okokTable.list(okokTable, identifier) or {} end
 
@@ -839,6 +855,96 @@ function Bank.externalBills(identifier)
     end
     return out
 end
+
+-- ═══════════════════════════════════════════════════════════
+--  WATCHING FOR NEW INVOICES
+--  Few billing scripts announce a new invoice, so online players are
+--  checked in the background. Something new: auto-pay it if the player
+--  switched that on and can cover it, otherwise tell them; either way
+--  an open bank or phone refreshes. One that went away (paid in the
+--  billing script itself) refreshes them too. The first look after a
+--  player joins only takes note, so old invoices raise nothing.
+-- ═══════════════════════════════════════════════════════════
+local WATCH = (Config.Bridge and Config.Bridge.watch) or {}
+local seen  = {}     -- [identifier] = { [bill id] = true }
+local owner = {}     -- [server id] = identifier, since a dropped player can no longer be looked up
+
+AddEventHandler('playerDropped', function()
+    local src = source
+    if owner[src] then seen[owner[src]] = nil end
+    owner[src] = nil
+end)
+
+local function playerSettings(identifier)
+    return MySQL.single.await('SELECT auto_pay_bills, notifications FROM nz_bank_settings WHERE identifier = ?', { identifier }) or {}
+end
+
+local function look(xPlayer)
+    local identifier, src = xPlayer.identifier, xPlayer.source
+    -- a character switch on the same server id starts fresh
+    if owner[src] and owner[src] ~= identifier then seen[owner[src]] = nil end
+    owner[src] = identifier
+    local rows = Bank.externalBills(identifier)
+
+    local now, fresh = {}, {}
+    for _, b in ipairs(rows) do
+        now[b.id] = true
+        if seen[identifier] and not seen[identifier][b.id] then fresh[#fresh + 1] = b end
+    end
+
+    local before = seen[identifier]
+    seen[identifier] = now
+    if not before then return end    -- first look: take note only
+
+    local changed = #fresh > 0
+    for id in pairs(before) do
+        if not now[id] then changed = true break end
+    end
+    if not changed then return end
+
+    if #fresh > 0 then
+        local s = playerSettings(identifier)
+        for _, b in ipairs(fresh) do
+            local paid = false
+            if WATCH.autoPay ~= false and Config.Bills.autoPay and s.auto_pay_bills == 1 and b.payable then
+                local personal = Bank.getPersonal(identifier)
+                if personal and personal.balance >= b.amount then
+                    paid = Bank.payExternalBill(src, b.id, personal.id)
+                    if paid then
+                        seen[identifier][b.id] = nil
+                        Bank.notify(src, 'Bill paid automatically',
+                            ('%s%s to %s'):format(Config.Currency, b.amount, b.issuer_label), 'inform')
+                    end
+                end
+            end
+            if not paid and WATCH.notify ~= false and s.notifications ~= 0 then
+                Bank.notify(src, 'New bill',
+                    ('%s%s from %s. Pay it in your bank.'):format(Config.Currency, b.amount, b.issuer_label), 'inform')
+            end
+        end
+    end
+    TriggerClientEvent('nz_bank:refresh', src)
+end
+
+CreateThread(function()
+    if WATCH.enabled == false then return end
+    local every = math.max(10, tonumber(WATCH.seconds) or 30) * 1000
+    while true do
+        Wait(every)
+        if next(live) then
+            -- spread over the interval so a full server is not read in one tick
+            local players = ESX.GetExtendedPlayers()
+            local gap = math.min(250, math.floor(every / math.max(1, #players)))
+            for _, xPlayer in ipairs(players) do
+                if xPlayer.identifier and xPlayer.source then
+                    local ok, err = pcall(look, xPlayer)
+                    if not ok then Bank.debug('invoice watch failed', err) end
+                end
+                Wait(gap)
+            end
+        end
+    end
+end)
 
 --- Pay one of them. `id` is the 'x:<script>:<ref>' from the list.
 function Bank.payExternalBill(src, id, accountId)

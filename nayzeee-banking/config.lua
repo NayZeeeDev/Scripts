@@ -786,6 +786,18 @@ Config.Bridge = {
     -- tgg-billing, bablo-billing: no export lists a player's invoices, so their
     --   invoice table is found in the database and read (never written); the
     --   console names the table it found. Set `table` if it guesses wrong.
+    -- New invoices from those scripts are noticed while the player is in the
+    -- city: an open bank or phone updates by itself, and the player is told,
+    -- or the bill is paid straight away if they switched auto-pay on in
+    -- Settings and Config.Bills.autoPay is on. If your billing script already
+    -- sends its own alert, set notify = false so they are not told twice.
+    watch = {
+        enabled = true,
+        seconds = 30,      -- How often online players are checked (10 minimum)
+        notify  = true,    -- 'New bill' alert from the bank
+        autoPay = true,    -- Auto-pay new ones for players who switched it on
+    },
+
     external = {
         esx_billing        = { table = 'billing' },
         okokBilling        = { table = 'okokbilling' },
