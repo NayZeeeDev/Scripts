@@ -391,15 +391,17 @@ ADAPTERS.okokBilling = {
 
 -- ═══════════════════════════════════════════════════════════
 --  BCS Company Manager
---  Invoices in `billings`; paid through its PayBill export so the
---  company's own balance and the employee cut are kept.
+--  Invoices in `billings`; paid through
+--  PayBill(id, price, company, issuer, xPlayer, reason) so the
+--  company's own balance and the employee cut are kept. `issuer` is
+--  the identifier of whoever sent the bill (biller_id).
 -- ═══════════════════════════════════════════════════════════
 ADAPTERS.bcs_companymanager = {
     resource = 'bcs_companymanager', label = 'Company Manager', mode = 'export',
 
     check = function(self, o)
         self.tbl = o.table or 'billings'
-        return needColumns('bcs_companymanager', self.tbl, { 'id', 'identifier', 'company', 'description', 'price', 'status' })
+        return needColumns('bcs_companymanager', self.tbl, { 'id', 'identifier', 'company', 'biller_id', 'description', 'price', 'status' })
     end,
 
     list = function(self, identifier)
@@ -416,12 +418,17 @@ ADAPTERS.bcs_companymanager = {
     end,
 
     pay = function(self, src, bill)
-        local row = MySQL.single.await(('SELECT company FROM `%s` WHERE id = ?'):format(self.tbl), { bill.ref })
+        local sql = ('SELECT company, biller_id, status FROM `%s` WHERE id = ?'):format(self.tbl)
+        local row = MySQL.single.await(sql, { bill.ref })
         if not row then return false, 'That invoice is gone.' end
         return viaExport(src, bill, function(xPlayer)
+            -- BCS wants the framework's own player object: the ESX xPlayer, or the QBCore / Qbox Player
             local res, _, ran = call('bcs_companymanager', 'bcs_companymanager', 'PayBill',
-                bill.ref, bill.amount, row.company, src, xPlayer.raw or xPlayer)
-            return ran and res ~= false
+                bill.ref, bill.amount, row.company, row.biller_id, xPlayer.raw or xPlayer, bill.reason)
+            if not ran or res == false then return false end
+            -- no documented return value: it worked if the bill is no longer unpaid
+            local after = MySQL.single.await(sql, { bill.ref })
+            return not after or tostring(after.status):lower() ~= 'unpaid'
         end)
     end,
 }
