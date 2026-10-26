@@ -46,9 +46,7 @@
     'dressing-pad': '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><rect x="8" y="9" width="8" height="6" rx="1"/><path d="M3.5 9h2M18.5 9h2M3.5 15h2M18.5 15h2"/>',
   });
 
-  /* ── holographic body glyph + status rings: the core widgets (NZA.ui.BodyGlyph / NZA.ui.Ring) ──
-     states { region: 'red' | 'amber' | 'teal' }, focus = region with the pulsing diamond */
-  const bodyGlyph = (states, focus) => NZA.ui.BodyGlyph(states, focus);
+  /* ── status rings: the core widget (NZA.ui.Ring) ── */
   const vring = o => NZA.ui.Ring(o);
   const initialsOf = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
 
@@ -571,6 +569,8 @@
       this.pp = NZA.ui.ProcPanel(this.root, { onAbort: () => this.abort(), onTool: () => {} });
       // bleed control as a 3D close-up (apps/treat/bleed3d.js) where WebGL2 works; the 2D overlay below is the fallback
       if (this.mode === 'bleed' && window.TreatBleed3D && TreatBleed3D.ok()) { this.b3 = TreatBleed3D.start(this, data); this.renderCard(); return; }
+      // tourniquet as a 3D close-up (apps/treat/tq3d.js); initTq below stays the 2D fallback
+      if (this.mode === 'tq' && window.TreatTq3D && TreatTq3D.ok()) { this.b3 = TreatTq3D.start(this, data); this.renderCard(); return; }
       if (this.mode === 'bleed') this.initBleed(); else if (this.mode === 'tq') this.initTq(); else this.initCollar();
       this.renderCard();
       this.last = now();
@@ -828,15 +828,12 @@
     },
 
     /* ─────────────── top-left context card ───────────────
-       corner bracket · avatar status ring · holographic body glyph with the wound diamond ·
-       instrument list (type / site / flow / grade) · four vital rings · glowing-bar note */
+       corner bracket · avatar status ring · instrument list (type / site / flow / grade) ·
+       four vital rings · glowing-bar note */
     renderCard() {
       const d = this.d, inj = d.injury, pt = d.patient || {};
       const sev = inj ? (inj.severity || 0) : 0;
       const sevTone = sev >= 3 ? 'red' : sev === 2 ? 'amber' : 'teal';
-      const region = inj ? inj.region : (this.mode === 'collar' ? 'neck' : d.region);
-      const states = {};
-      if (region) states[region] = this.mode === 'collar' ? 'amber' : sevTone;
       const rows = inj
         ? [
           [T('c_type', 'Wound'), esc(inj.typeLabel || ''), ''],
@@ -855,7 +852,6 @@
           ${inj ? `<span class="tc-sev ${sevTone}"><i></i>${esc(inj.sevLabel || '')}</span>` : ''}
         </div>
         <div class="tc-body">
-          <div class="tc-map">${bodyGlyph(states, region)}</div>
           <div class="tc-list">${rows.map(([k, v, t]) => `<div class="tc-row" data-t="${t}"><span>${esc(k)}</span><b>${v}</b></div>`).join('')}</div>
         </div>
         <div class="tc-vit"></div>
@@ -2373,6 +2369,7 @@
           tune: { occlusion: 194, turnGain: 68, overMargin: 110, unwind: 22, clipWindow: 14, jointZone: 0.1, idealAbove: [5, 8], length: 88 },
           time: '14:32',
         });
+        if (this.b3) { if (stage) this.b3.jump(stage); return; }   // the 3D tourniquet (tq3d.js: &stage= / &resume=)
         const step = q.get('step');
         if (step === 'twist' || step === 'lock') {
           setTimeout(() => {

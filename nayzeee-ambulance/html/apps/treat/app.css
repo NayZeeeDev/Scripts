@@ -38,13 +38,7 @@
   font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--sc)}
 #app-treat .tc-sev i{width:7px;height:7px;transform:rotate(45deg);background:var(--sc);box-shadow:0 0 6px var(--sc)}
 #app-treat .tc-sev.amber{--sc:#f3c35a} #app-treat .tc-sev.teal{--sc:var(--teal-hi)}
-#app-treat .tc-body{display:grid;grid-template-columns:80px 1fr;gap:14px;padding:14px 16px 14px 16px;border-top:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.2)}
-#app-treat .tc-map{position:relative;height:150px;padding:8px 6px 6px;border-radius:10px;border:1px solid rgba(15,212,196,.16);
-  background:radial-gradient(70% 55% at 50% 92%,rgba(15,212,196,.16),transparent 70%),radial-gradient(90% 70% at 50% 30%,rgba(15,212,196,.06),transparent 70%),#07090a;
-  box-shadow:inset 0 0 18px rgba(0,0,0,.6)}
-#app-treat .tc-map::before,#app-treat .tc-map::after{content:'';position:absolute;width:8px;height:8px;border-color:rgba(15,212,196,.6);border-style:solid;pointer-events:none}
-#app-treat .tc-map::before{left:4px;top:4px;border-width:1px 0 0 1px}
-#app-treat .tc-map::after{right:4px;bottom:4px;border-width:0 1px 1px 0}
+#app-treat .tc-body{display:block;padding:10px 16px;border-top:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.2)}
 #app-treat .tc-list{display:flex;flex-direction:column;justify-content:center;min-width:0}
 #app-treat .tc-row{position:relative;display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:8px 0 8px 12px;border-bottom:1px solid rgba(255,255,255,.04)}
 #app-treat .tc-row:last-child{border-bottom:0}

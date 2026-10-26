@@ -12,6 +12,7 @@
 
       NZA.Proc 'tourniquet'  perm Config.Firstaid.Tourniquet.perm ('basic'), item tourniquet
           payload { injury = id? , region = limb region? }
+          data    + tone / seed for the 3D close-up (the same skin as the other close-ups)
           result  { score, seg = 'upper'|'lower', frac = 0..1 along that bone, pressure (mmHg),
                     over (s over-tightened), misLocks }
           effects devices.tourniquet[region] = os.time() (region = where it really sits),
@@ -258,6 +259,8 @@ do
                 limb = limb.kind, upper = limb.upper, lower = limb.lower, woundSeg = limb.seg, woundFrac = woundFrac(inj),
                 side = (NZA.Const.Region[region] or {}).side,
                 vitals = v, patient = { name = p.name, sex = p.sex, kind = p.kind },
+                -- the 3D close-up (NUI apps/treat/tq3d.js): the patient's skin, as in the other close-ups
+                tone = skinTone(p), seed = hash(tostring(p.pid) .. ':tq:' .. tostring(region)),
                 tune = {
                     occlusion = occlusion, turnGain = gain, overMargin = tc.overMargin or 110, unwind = tc.unwind or 22,
                     clipWindow = tc.clipWindow or 14, jointZone = tc.jointZone or 0.1, idealAbove = tc.idealAbove or { 5, 8 },
