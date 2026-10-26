@@ -778,11 +778,10 @@ Config.Bridge = {
     -- esx_billing, qs-billing: this bank moves the money, from any account the
     --   player can spend from, to the company's account here, and marks the
     --   invoice paid in their table.
-    -- okokBilling V3, bcs_companymanager, RxBilling, tgg-billing, bablo-billing:
+    -- okokBilling V3, wasabi_billing, bcs_companymanager, RxBilling, tgg-billing, bablo-billing:
     --   paid through their own export from the personal account, so their
     --   commission, VAT and company payout run as normal. An okokBilling from
     --   before V3 has no exports; its table is read instead, as for qs-billing.
-    -- wasabi_billing: invoices show; they are paid from Wasabi's own menu.
     -- bablo-billing: no export lists a player's invoices, so its invoice table
     --   is found in the database and read (never written); the console names
     --   the table it found. Set `table` if it guesses wrong.

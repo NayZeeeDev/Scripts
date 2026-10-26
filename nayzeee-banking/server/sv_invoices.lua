@@ -89,6 +89,13 @@ local function companyLabel(job, fallback)
     return (jobs[job] and jobs[job].label) or fallback or job
 end
 
+--- '2026-04-24 18:00:00' → time, or nil
+local function parseDate(s)
+    local y, m, d, h, mi = tostring(s or ''):match('^(%d+)-(%d+)-(%d+)[ T](%d+):(%d+)')
+    if not y then return nil end
+    return os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = tonumber(h), min = tonumber(mi) })
+end
+
 local function pick(t, ...)
     for _, k in ipairs({ ... }) do
         if t[k] ~= nil and t[k] ~= '' then return t[k] end
@@ -300,13 +307,6 @@ ADAPTERS['qs-billing'] = invoiceTable('qs-billing', 'qs-billing', 'Quasar Billin
 -- ═══════════════════════════════════════════════════════════
 local okokTable = invoiceTable('okokBilling', 'okokBilling', 'okokBilling', 'okokbilling')
 
---- '2026-04-24 18:00:00' → time, or nil
-local function parseDate(s)
-    local y, m, d, h, mi = tostring(s or ''):match('^(%d+)-(%d+)-(%d+)[ T](%d+):(%d+)')
-    if not y then return nil end
-    return os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = tonumber(h), min = tonumber(mi) })
-end
-
 local OKOK_OPEN = { pending = true, unpaid = true, overdue = true, late = true }
 
 ADAPTERS.okokBilling = {
@@ -482,12 +482,51 @@ ADAPTERS.RxBilling = exportAdapter('RxBilling', 'RxBilling', 'RX Billing', {
     payArgs  = function(src, _, ref) return src, ref end,
 })
 
--- no pay export is documented: its invoices show, paid from its own menu
-ADAPTERS.wasabi_billing = exportAdapter('wasabi_billing', 'wasabi_billing', 'Wasabi Billing', {
-    listExport = 'GetInvoicesByIdentifier',
-    listArgs = function(identifier) return identifier end,
-    payArgs  = function(src, _, ref) return src, ref end,
-})
+-- ═══════════════════════════════════════════════════════════
+--  Wasabi Billing
+--  GetInvoicesByIdentifier(identifier) returns what the player sent
+--  as well as what they owe, so only rows addressed to them as a
+--  person are kept. Paid with PayInvoiceByReference(src, ref, 'bank'):
+--  Wasabi's VAT and society payout apply.
+-- ═══════════════════════════════════════════════════════════
+local WASABI_OPEN = { unpaid = true, overdue = true }
+
+ADAPTERS.wasabi_billing = {
+    resource = 'wasabi_billing', label = 'Wasabi Billing', mode = 'export',
+
+    check = function() return true end,
+
+    list = function(_, identifier)
+        local res, _, ran = call('wasabi_billing', 'wasabi_billing', 'GetInvoicesByIdentifier', identifier)
+        if not ran or type(res) ~= 'table' then return {} end
+        local out = {}
+        for _, inv in ipairs(res) do
+            if type(inv) == 'table' and inv.reference_id
+                and inv.receiver_identifier == identifier
+                and (inv.receiver_type or 'personal') == 'personal'
+                and WASABI_OPEN[tostring(inv.status):lower()] then
+                local due = parseDate(inv.limit_pay_date)
+                out[#out + 1] = {
+                    ref = inv.reference_id,
+                    -- what is owed includes VAT; amount alone is before it
+                    amount = tonumber(inv.total_amount) or ((tonumber(inv.amount) or 0) + (tonumber(inv.vat_amount) or 0)),
+                    reason = inv.reason or 'Invoice',
+                    issuer = inv.author_name or 'Invoice',
+                    due = due and os.date('%d %b %H:%M', due) or nil,
+                    overdue = tostring(inv.status):lower() == 'overdue',
+                }
+            end
+        end
+        return out
+    end,
+
+    pay = function(_, src, bill)
+        return viaExport(src, bill, function()
+            local res, _, ran = call('wasabi_billing', 'wasabi_billing', 'PayInvoiceByReference', src, bill.ref, 'bank')
+            return ran and res == true
+        end)
+    end,
+}
 
 ADAPTERS['tgg-billing'] = exportAdapter('tgg-billing', 'tgg-billing', 'TGG Billing', {
     payExport = 'PayInvoice',

@@ -224,7 +224,7 @@ When one of these **is** running, it keeps its own invoices, and they show in th
 | Quasar Billing (`qs-billing`) | `qs_billing` table | This bank, from any account; marked paid in Quasar |
 | BCS Company Manager | `billings` table | Its `PayBill` export, from the personal account, so the company balance and employee cut are BCS's own |
 | RX Billing | `GetPlayerInvoices` export | Its `PayInvoice` export, from the personal account |
-| Wasabi Billing | `GetInvoicesByIdentifier` export | Shown only; paid from Wasabi's own menu |
+| Wasabi Billing | `GetInvoicesByIdentifier` export (only invoices addressed to the player) | Its `PayInvoiceByReference` export from the bank, so Wasabi's VAT and society payout apply. The total shown includes VAT |
 | TGG Billing | set `listExport` | Its `PayInvoice` export |
 | Bablo Billing | its invoice table, found on start (read only) | Its `payInvoice` export, from the personal account |
 
