@@ -9,6 +9,8 @@
 - Rollbacks report stacks that couldn't be given back (item no longer exists or no room) instead of saying everything was restored
 
 🟠 **Fixed**
+- Staff could see the editor pages but got "You do not have permission for that" on every action in them (seen on Qbox). Permission answers from the server are now always a plain yes or no, so the panel and the server agree
+- The framework is detected again if ESX, QBCore or Qbox starts after this script
 - Scrolling down a list (Items, Weapons, Shops, Stashes, Crafting, Other data, Code & backups) and clicking an entry jumped back to the top of the list. Lists, the editor form and the code view now stay where you left them, also after adding a row, capturing a location or saving
 - Small blurry black corners showed at the top-left and bottom-left of the panel (and pop-ups): the panel's drop shadow leaked out around the rounded corners
 - qb-core money bridge never switched on for online players, so money always showed as coming from `qb-core`

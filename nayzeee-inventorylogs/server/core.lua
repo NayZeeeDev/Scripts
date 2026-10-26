@@ -182,6 +182,15 @@ end
 local TIERS = { 'view', 'manage', 'global', 'editor', 'rollback', 'wipe' }
 NZ.Tiers = TIERS
 
+--- IsPlayerAceAllowed as a real boolean. Depending on the server build it can answer 1/0 instead of
+--- true/false; the panel treated 1 as allowed while the server's checks wanted `true`, so staff saw the
+--- editor pages and then got "You do not have permission" on every action in them.
+local function ace(src, object)
+    local v = IsPlayerAceAllowed(tostring(src), object)
+    return v == true or v == 1 or v == '1' or v == 'true'
+end
+NZ.Ace = ace
+
 local function frameworkGroups(src)
     local groups = {}
     if NZ.Framework == 'esx' and ESX then
@@ -189,7 +198,7 @@ local function frameworkGroups(src)
         if x and x.getGroup then groups[x.getGroup()] = true end
     elseif NZ.Framework == 'qbx' or QB then
         for _, g in ipairs({ 'god', 'admin', 'mod', 'owner', 'superadmin' }) do
-            if IsPlayerAceAllowed(src, g) then groups[g] = true end
+            if ace(src, g) then groups[g] = true end
         end
         if QB and QB.Functions.GetPermission then
             local ok, perms = pcall(QB.Functions.GetPermission, src)
@@ -209,13 +218,13 @@ function NZ.Perms(src)
     end
     local groups = frameworkGroups(src)
     for _, tier in ipairs(TIERS) do
-        local ok = IsPlayerAceAllowed(src, 'nayzeee.inventory.' .. tier)
+        local ok = ace(src, 'nayzeee.inventory.' .. tier)
         if not ok then
             for _, g in ipairs(Config.Permissions[tier] or {}) do
                 if groups[g] then ok = true break end
             end
         end
-        out[tier] = ok
+        out[tier] = ok == true
     end
     -- every higher tier implies view
     for _, t in ipairs(TIERS) do if out[t] then out.view = true end end
@@ -308,7 +317,7 @@ local function explainDenied(src, name, tier)
     for g in pairs(frameworkGroups(src)) do groups[#groups + 1] = g end
     NZ.Print(('%s (id %s) was refused "%s": it needs the "%s" tier. They have: %s. Framework groups seen: %s. ACE nayzeee.inventory.%s = %s. (answered by resource %s)')
         :format(GetPlayerName(src) or '?', src, name, tier, #have > 0 and table.concat(have, ', ') or 'none',
-            #groups > 0 and table.concat(groups, ', ') or 'none', tier, tostring(IsPlayerAceAllowed(src, 'nayzeee.inventory.' .. tier)), NZ.Resource), 'warn')
+            #groups > 0 and table.concat(groups, ', ') or 'none', tier, tostring(IsPlayerAceAllowed(tostring(src), 'nayzeee.inventory.' .. tier)), NZ.Resource), 'warn')
 end
 
 lib.callback.register('nzinv:rpc', function(src, name, data)
