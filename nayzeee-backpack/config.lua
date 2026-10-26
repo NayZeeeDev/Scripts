@@ -1098,6 +1098,29 @@ Config.Backpacks = {
         },
     },
 
+    ['nayzeee_purse_knot'] = {
+        label    = 'Knot Strap Handbag',
+        model    = 'nayzeee_purse_knot',
+        category = 'pocketbook',
+        theme    = 'realistic',
+        price    = 3800,
+        slots    = 6,
+        weight   = 6000,
+        carry    = 'purse',
+        variants = {
+            { label = 'Black', model = 'nayzeee_purse_knot' },
+            { label = 'Caramel', model = 'nayzeee_purse_knot_2' },
+            { label = 'Cobalt', model = 'nayzeee_purse_knot_3' },
+            { label = 'Grey', model = 'nayzeee_purse_knot_4' },
+            { label = 'Forest', model = 'nayzeee_purse_knot_5' },
+            { label = 'Navy', model = 'nayzeee_purse_knot_6' },
+            { label = 'Brown', model = 'nayzeee_purse_knot_7' },
+            { label = 'Denim', model = 'nayzeee_purse_knot_8' },
+            { label = 'Red', model = 'nayzeee_purse_knot_9' },
+            { label = 'White', model = 'nayzeee_purse_knot_10' },
+        },
+    },
+
     ['nayzeee_purse_pearl'] = {
         label    = 'Heart Croc Bag',
         model    = 'nayzeee_purse_pearl',
