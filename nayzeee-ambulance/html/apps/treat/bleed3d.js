@@ -22,7 +22,37 @@
               close-ups); without them both fall back to a hash of the patient name
    JS → Lua   through the app, exactly the 2D posts: treat:finish { result: { score, steps, lost } }
               · treat:abort {}
+   Step away  P / "Step away" on the HUD (ProcPanel opts.pause = snapshot()). snapshot() → null while a
+              move is half done (any LMB hold: pressing, a push, dragging the roll, carrying or rubbing
+              the dressing; the roll still rolling to where it was let go; the dressing settling; the
+              result on its way after the last step). Otherwise a small JSON-safe object:
+                { v: 1, w (the wound it belongs to: id, type, region, severity, deep, length, depth,
+                  spot, seed, steps), k (step index to carry on with), t (game clock), lost, b (bleed
+                  0..1), sc (scores of the steps before k), pool (blood splats on the skin), pad (pad
+                  soak), kit { fed, soak }, s (the step's own state:
+                  pressure { el, on, pr, hold } · pack { el, ph 0 feed | 1 hold, accs (accuracy per
+                  push), waste, hold } · wrap { el, ph 0 wrap | 1 secure, turns [[q, 0 even | 1 tight
+                  | 2 loose]], part (rad into this turn), ten, smp (tension samples of this turn), seep }
+                  · dressing { el, ph 0 place | 1 rub, seep, cov, dr { uv, ang, stuck } }) }
+              Between a finished step and the next one it saves the next one. The server parks it and
+              the app closes (Lua closes the NUI on onEnd 'paused'); the same option again opens with
+              data.resume = that snapshot and boot() → restore() rebuilds the same point on the same
+              scene (same seed): scores, elapsed step time, blood lost, the bleeding, the soaked pad,
+              the packing (recomputed from the pushes), every bandage turn and the partial one, the
+              clip end, the dressing where it was laid and as stuck as it was. Every field is checked:
+              a step is entered only when every step before it has a score, anything unreadable falls
+              back to the start of the step it belongs to; a snapshot of another wound / limb, of this
+              wound after it changed (hit again, packed or dressed by someone else) or an unreadable
+              one starts the wound afresh with a short note, and a restore that throws reopens the
+              wound cleanly. The dressing step's 'place' phase comes back with the dressing on its spot
+              beside the wound. The game counts no consumables (the server checks the gauze / bandage
+              before it starts and takes them on finish), so nothing can run out half-way and there is
+              no "out of" message.
+   Debug      window.TreatBleed3DDebug() → { step, kind, k, phase, scores, hold, packed, turns, part,
+              stuck, cov, resumed, note, restored{…} } (tests / the browser console)
    Preview    index.html?app=treat&mode=bleed&stage=pressure|pack|hold|wrap|secure|dressing|seal|done
+              &resume=pressure|pack|hold|wrap|secure|dressing|seal (plays to that point, steps away and
+              opens again from the snapshot; P in the preview parks it, "Reopen" carries on)
               &wound=gunshot|stab|laceration|shrapnel|abrasion  &site=thigh|leg|arm|forearm|chest|
               abdomen|back|neck  &deep=0|1  &tone=0..1  &sex=m|f  &turns=0..4  &partial=0..1  &no3d=1 (2D fallback)
    Everything 3D that the engine lacks (gloved hands, gauze pad, packing roll + ribbon, packed
@@ -40,6 +70,21 @@
   const rng = seed => { let a = seed >>> 0 || 1; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
   const hash = s => { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
   const keyLabel = code => (code === 'Space' ? 'Space' : code === 'Enter' ? 'Enter' : String(code || '').replace(/^Key|^Digit/, ''));
+  // tolerant snapshot readers (null / '' / booleans / NaN → fallback; a Lua round trip turns an empty
+  // array into an object, so anything that is not an array reads as empty)
+  const num = (v, fb) => { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return fb; const n = Number(v); return Number.isFinite(n) ? n : fb; };
+  const rnd = (v, k) => { const m = Math.pow(10, k); return Math.round((+v || 0) * m) / m; };
+  const arr = a => (Array.isArray(a) ? a : []);
+  const obj = o => (o && typeof o === 'object' && !Array.isArray(o) ? o : null);
+  const uvOk = a => Array.isArray(a) && a.length >= 2 && Number.isFinite(num(a[0], NaN)) && Number.isFinite(num(a[1], NaN));
+  const thin = (a, max) => { if (a.length <= max) return a.slice(); const out = []; for (let i = 0; i < max; i++) out.push(a[Math.floor((i * a.length) / max)]); return out; };
+  const TURN_KIND = ['even', 'tight', 'loose'];
+  const MAX_T = 3600;            // a snapshot's clocks never exceed an hour
+  const MAX_PUSH = 64;           // packing pushes a snapshot keeps (filling takes up to 2 × tune.packStrips)
+  let PARKED = null;             // preview: the snapshot "Step away" kept (Reopen carries on from it)
+  let PREVIEW_MOCKED = false;    // preview: the '_proc:pause' mock is installed once per page (a test may replace it)
+  let PREVIEW_RESUMED = false;   // preview: ?resume=<stage> runs once per page
+  let RESTART_NOTE = null;       // a restore that failed reopens the wound cleanly with this note
 
   let LOC = {};
   const T = (k, fb, ...a) => { let s = LOC[k] !== undefined ? String(LOC[k]) : fb; a.forEach(v => { s = s.replace(/%[sd]|%\.\df/, v); }); return s; };
@@ -340,6 +385,13 @@
       d.method = limb ? 'wrap' : 'dressing';
       d.steps = ['pressure'].concat(d.deep ? ['pack'] : [], [d.method]);
     }
+    // "Step away" in the browser: keep the snapshot and close; Reopen carries on from it (in game:
+    // using the same option again within Config.ProcPause.keep)
+    if (!PREVIEW_MOCKED) {
+      PREVIEW_MOCKED = true;
+      NZA.mock('_proc:pause', r => { PARKED = r && r.snapshot; setTimeout(() => NZA.close('treat'), 80); return { ok: true }; });
+    }
+    if (PARKED && !d.resume) { d.resume = PARKED; PARKED = null; }
   }
 
   /* ═════════════════════════════ meshes ═════════════════════════════ */
@@ -497,6 +549,9 @@
       const G = this.G = app.G;
       G.b = data.underTq ? 0.12 : 1; G.maxB = G.b; G.cover = false; G.strips = [];
       this.alive = true; this.ready = false; this.stepIdx = -1; this.t = 0; this.lmb = false; this.uiAt = 0;
+      // restartClean()'s note belongs to this open only (taken here: a game closed before it booted
+      // must not leave it for the next, unrelated one)
+      this.restartNote = RESTART_NOTE; RESTART_NOTE = null;
       this.cur = { p: null, text: '', tone: '' };
       this.bin = new Set();
       // the app shell: an opaque full-screen close-up, no game-camera input, no 2D stage / device
@@ -515,9 +570,12 @@
       if (data.underTq) app.setTip(T('tip_under_tq', 'A tourniquet is holding this bleed. Pack and dress it now so it can come off later.'), 'amber');
       else if (data.deep) app.setTip(T('tip_deep', '**Deep wound.** Pressure alone will not hold it: pack it with gauze, then dress it.'), 'red');
       else app.setTip(T('tip_shallow', 'Firm, direct pressure first. Then cover it so it stays controlled.'));
-      // keys reach the game through the app's phase hook; the tool belt through onTool
+      // keys reach the game through the app's phase hook; the tool belt through onTool; "Step away" (P)
+      // through the panel (one stable function: pp.set only re-arms on change)
       app.ph = { key: e => this.key(e), keyUp: () => false };
-      app.pp.set({ onTool: k => this.pickTool(k) });
+      this.pauseFn = () => this.snapshot();
+      app.pp.set({ onTool: k => this.pickTool(k), pause: this.pauseFn });
+      window.TreatBleed3DDebug = () => this.debugState();
       this.onBlur = () => { if (this.lmb) this.up({ button: 0 }); };
       this.onResize = () => { this.zoom = 0; };
       window.addEventListener('blur', this.onBlur);
@@ -532,6 +590,7 @@
       const d = this.d, inj = this.inj, L = this.limb;
       const name = (d.patient && d.patient.name) || '';
       const seed = (+d.seed || hash(`${inj.id}:${name}`)) >>> 0;
+      this.seed = seed;
       this.R = rng(seed);
       const tone = d.tone !== undefined && d.tone !== null && d.tone !== '' ? clamp(+d.tone || 0, 0, 1) : TONES[hash(name || inj.id) % TONES.length];
       const sex = (d.patient && d.patient.sex) === 'f' ? 'f' : 'm';
@@ -576,9 +635,50 @@
       S.on('pointer', () => { if (this.ready && this.ph && this.ph.pointer && !this.finished) this.ph.pointer(); });
       S.start();
       this.ready = true;
-      this.nextStep();
+      // carrying on after "Step away": rebuild the saved point (a bad snapshot never stops the game).
+      // A pause is kept per patient + procedure: it may belong to another wound, to this wound before it
+      // changed, or be unreadable — then this wound starts from the beginning with a short note
+      let snap = d.resume !== undefined && d.resume !== null ? obj(d.resume) : null;
+      let note = this.restartNote;
+      if (d.resume !== undefined && d.resume !== null && (!snap || num(snap.v, 0) !== 1)) { note = 'bad'; snap = null; }
+      if (snap) {
+        const m = this.woundMatch(snap.w);
+        if (m !== 'same') { note = m; snap = null; }
+      }
+      if (snap) {
+        try {
+          this.restore(snap);
+          // nothing of the saved point was usable (no step before it had a score): say so, not "carrying on"
+          if (this.restored && this.restored.fresh && this.restored.k === 0) note = 'bad'; else this.resumed = true;
+        } catch (e) {
+          // never carry on from a half-rebuilt scene: open this wound again from the start
+          console.error('[treat] bleed restore', e);
+          return this.restartClean();
+        }
+      } else this.nextStep();
+      this.note = note;
+      const msg = this.resumed ? T('b3_resume', 'Carrying on where you left off.')
+        : note === 'changed' ? T('b3_resume_changed', 'This wound has changed since you stepped away: it starts from the beginning.')
+          : note === 'other' ? T('b3_resume_other', 'You stepped away from a different wound: this one starts from the beginning.')
+            : note === 'bad' ? T('b3_resume_bad', 'Could not carry on from where you left off: this wound starts from the beginning.') : '';
+      if (msg) setTimeout(() => { if (this.alive && !this.finished) this.app.pp.flash(this.resumed ? 'ok' : 'warn', msg, this.resumed ? 3200 : 4200); }, 300);
       setTimeout(() => this.loadEl && this.loadEl.classList.add('out'), 140);
+      this.booted = true;
       if (this.pendingJump) { const j = this.pendingJump; this.pendingJump = null; this.jump(j); }
+      // preview: ?resume=<stage> plays to that point, steps away and carries on from the snapshot
+      if (!NZA.inGame && !d.resume && !PREVIEW_RESUMED) {
+        const st = new URLSearchParams(location.search).get('resume');
+        if (st) { PREVIEW_RESUMED = true; setTimeout(() => { if (this.alive) this.previewPark(st); }, 120); }
+      }
+    }
+
+    // a snapshot that could not be rebuilt: open this wound again from the start (never a half-rebuilt
+    // scene); the next boot says so
+    restartClean() {
+      const d = Object.assign({}, this.d);
+      delete d.resume;
+      RESTART_NOTE = 'bad';
+      this.app.open(d);
     }
 
     // 3D could not start after all: hand the session to the 2D game
@@ -589,7 +689,7 @@
       if (a.cv) a.cv.style.display = '';
       if (a.dev) a.dev.classList.add('on');
       a.ph = null;
-      a.pp.set({ onTool: () => {} });
+      a.pp.set({ onTool: () => {}, pause: false });   // the 2D game cannot step away
       a.initBleed(); a.renderCard();
       a.last = performance.now();
       const loop = () => { a.raf = requestAnimationFrame(loop); a.frame(); };
@@ -1300,6 +1400,7 @@
     finish() {
       if (this.finished) return;
       this.finished = true;
+      this.app.pp.set({ pause: false });   // nothing left to step away from
       const G = this.G;
       if (this.ph && this.ph.exit) this.ph.exit();
       this.ph = { name: 'done', panel() {}, tick() {} };
@@ -1406,11 +1507,16 @@
       this.poolT = (this.poolT || 0) - dt;
       if (this.poolT <= 0 && open && intensity > 0.03 && !res) {
         this.poolT = 0.32;
-        const R = Math.random, grow = 1 + Math.min(2.2, G.lost / 160);
-        const a = R() * TAU, dd = this.wRad + (1 + R() * 5) * MM * grow;
-        const uv = this.S.stToUv(this.wST[0] + Math.cos(a) * dd, this.wST[1] + Math.abs(Math.sin(a)) * dd * 0.8 + R() * 4 * MM * grow);
-        S.layers.paint('blood', uv, [(1.6 + R() * 3) * MM * grow, (1.2 + R() * 2) * MM * grow], 0.05 + 0.14 * intensity, { hardness: 0.3, grain: 0.3, grainScale: 150, angle: R() * Math.PI });
+        this.poolSplat(intensity, G.lost);
+        this.poolN = (this.poolN || 0) + 1;   // a resumed game paints as many again (snapshot.pool)
       }
+    }
+    // one splat of the pool that spreads round the wound (bigger the more blood is lost)
+    poolSplat(intensity, lost) {
+      const S = this.S, R = Math.random, grow = 1 + Math.min(2.2, lost / 160);
+      const a = R() * TAU, dd = this.wRad + (1 + R() * 5) * MM * grow;
+      const uv = S.stToUv(this.wST[0] + Math.cos(a) * dd, this.wST[1] + Math.abs(Math.sin(a)) * dd * 0.8 + R() * 4 * MM * grow);
+      S.layers.paint('blood', uv, [(1.6 + R() * 3) * MM * grow, (1.2 + R() * 2) * MM * grow], 0.05 + 0.14 * intensity, { hardness: 0.3, grain: 0.3, grainScale: 150, angle: R() * Math.PI });
     }
 
     /* ═════════════════════════════ 1. DIRECT PRESSURE ═════════════════════════════ */
@@ -1590,19 +1696,24 @@
           this.needRelease = true;
           if (p.acc < 0.35) g.app.pp.flash('warn', T('pack_edge', 'Too close to the edge: push it into the deepest part.'), 1600);
           if (this.packed >= 1) {
-            this.phase = 'hold';
-            kit.show(false);
-            kit.setPacked(1);
-            g.useTool('press');
-            g.ring.set(g.wST, Math.max(g.padReach(), g.wRad + 6 * MM), 0xe5484d);
-            // the pad and hand need the wider pressure view (the hand stays a small part of it)
-            g.frameStep('pressure');
-            g.app.pp.set({
-              title: T('ph_pack_hold', 'Hold pressure on the packing'), text: T('b3_pack_hold_t', 'Packed tight. Put a pad on it and **hold {LMB}** to press the packing down until the bleeding stops.'),
-              hints: g.hintsFor([{ keys: [T('k_lmb', 'Hold LMB')], label: T('h_press', 'press') }]),
-            });
+            this.toHold();
             g.app.pp.flash('ok', T('ok_packed', 'Wound packed.'), 1500);
           }
+        },
+        // packed full: hold pressure on the packing (also where a resumed game carries on)
+        toHold(instant) {
+          this.phase = 'hold';
+          this.packed = 1;
+          kit.show(false);
+          kit.setPacked(1);
+          g.useTool('press');
+          g.ring.set(g.wST, Math.max(g.padReach(), g.wRad + 6 * MM), 0xe5484d);
+          // the pad and hand need the wider pressure view (the hand stays a small part of it)
+          g.frameStep('pressure', instant);
+          g.app.pp.set({
+            title: T('ph_pack_hold', 'Hold pressure on the packing'), text: T('b3_pack_hold_t', 'Packed tight. Put a pad on it and **hold {LMB}** to press the packing down until the bleeding stops.'),
+            hints: g.hintsFor([{ keys: [T('k_lmb', 'Hold LMB')], label: T('h_press', 'press') }]),
+          });
         },
         exit() {
           g.covered = false;
@@ -1918,15 +2029,20 @@
           const c = D.center(), cs = g.S._toSurf(c), dd = Math.hypot(cs.s - g.wST[0], cs.t - g.wST[1]);
           const centred = clamp(1 - dd / (Math.min(dr.pad[0], dr.pad[1]) * 0.55), 0, 1);
           if (cov < 0.6) { NZA.audio.fail(); g.app.pp.flash('bad', T('dress_miss', 'The pad is not over the wound. Try again.'), 1700); g.ring.set(g.wST, Math.max(dr.pad[0], dr.pad[1]) * 0.5, 0xe5484d); return; }
-          this.cov = clamp(0.5 * cov + 0.5 * centred, 0, 1);
+          this.toRub(clamp(0.5 * cov + 0.5 * centred, 0, 1));
+          G.b = Math.max(0.1, G.b * (1 - 0.4 * this.cov));
+          NZA.audio.click(700);
+        },
+        // the pad lies on the wound: rub it down (also where a resumed game carries on; its wound is
+        // eased shut already)
+        toRub(cov, resumed) {
+          this.cov = cov;
           this.phase = 'rub';
           G.cover = true; g.covered = true;
-          g.easeWound();
-          G.b = Math.max(0.1, G.b * (1 - 0.4 * this.cov));
+          if (!resumed) g.easeWound();
           g.ring.hide();
           g.useTool('rub');
-          g.S.controls.frame(g.wUv, g.viewFor('pressure'), { pitch: 1.12, instant: false });   // the pressure view: room for the rubbing hand
-          NZA.audio.click(700);
+          g.S.controls.frame(g.wUv, g.viewFor('pressure'), { pitch: 1.12, instant: !!resumed });   // the pressure view: room for the rubbing hand
           g.app.pp.set({ title: T('ph_seal', 'Seal the edges'), text: T('b3_seal_t', '**Hold {LMB} and rub** over the dressing, from the middle out to every edge, until it sticks all round.') });
         },
         exit() {},
@@ -1941,6 +2057,302 @@
         },
       };
       return ph;
+    }
+
+    /* ─────────────── step away / carry on (see the header) ─────────────── */
+    // which phase a step name runs ('wrap' on a torso is the pressure dressing)
+    kindOf(name) { return name === 'pressure' || name === 'pack' ? name : name === 'wrap' && this.limb ? 'wrap' : 'dressing'; }
+    // the wound a snapshot belongs to: the scene is rebuilt from these and the seed
+    woundKey() {
+      const inj = this.inj, sp = inj.spot || {};
+      return {
+        id: String(inj.id === undefined ? '' : inj.id), type: String(inj.type || ''), reg: String(inj.region || ''),
+        sev: this.sev, deep: this.d.deep ? 1 : 0, len: rnd(+inj.length || 0, 1), dep: rnd(+inj.depth || 0, 1),
+        sx: rnd(+sp.x || 0.5, 3), sy: rnd(+sp.y || 0.5, 3), seed: this.seed >>> 0, steps: this.steps.join(','),
+      };
+    }
+    // 'same' · 'changed' (this wound, but not as it was left: hit again, or packed / dressed by someone
+    // else so its steps differ) · 'other' (another wound or limb) · 'bad' (unreadable)
+    woundMatch(w) {
+      w = obj(w);
+      if (!w) return 'bad';
+      const me = this.woundKey();
+      if (String(w.id) !== me.id || String(w.reg) !== me.reg) return 'other';
+      const near = (a, b, tol) => Math.abs(num(a, -1e9) - b) <= tol;
+      const same = String(w.type) === me.type && num(w.sev, -1) === me.sev && num(w.deep, -1) === me.deep
+        && near(w.len, me.len, 0.6) && near(w.dep, me.dep, 0.6) && near(w.sx, me.sx, 0.002) && near(w.sy, me.sy, 0.002)
+        && num(w.seed, -1) === me.seed && String(w.steps) === me.steps;
+      return same ? 'same' : 'changed';
+    }
+    // the gauze pad soaks while it is pressed on: stain it back to the saved soak (the stains sit where
+    // the wound is under it)
+    restorePad(soak) {
+      const p = this.pad, S0 = clamp(soak, 0, 1);
+      if (!p || S0 <= 0.005) return;
+      const s = p.s, t = p.t;
+      p.s = this.wST[0]; p.t = this.wST[1];
+      const n = clamp(Math.round(S0 * 40), 1, 40);
+      for (let i = 0; i < n; i++) p.stain(0.3, (S0 - p.soak) / ((n - i) * 0.3));
+      p.s = s; p.t = t;
+    }
+    // the pool that spread round the wound: as many splats again, growing with the blood lost
+    replayPool(n, lost) {
+      const intensity = clamp(Math.log10(1 + Math.max(0, +this.inj.bleed || 0)) / 2.4, 0.15, 1) * 0.6;
+      for (let i = 0; i < n; i++) this.poolSplat(intensity, lost * (i + 1) / n);
+      this.poolN = n;
+    }
+    // where a laid dressing sits: centre uv + angle (the convention of S.dressing.create)
+    dressPose(D) {
+      const S = this.S, attr = D && D.mesh && D.mesh.geometry && D.mesh.geometry.attributes;
+      if (!attr || !attr.position || !attr.uv || !S._toSurf) return null;
+      const pos = attr.position.array, uvs = attr.uv.array, N = pos.length / 3;
+      let NX = 1;
+      while (NX < N && Math.abs(uvs[NX * 2 + 1] - uvs[1]) < 1e-6) NX++;
+      const NY = Math.max(1, Math.floor(N / NX)), j = Math.floor(NY / 2);
+      const at = k => S._toSurf(new THREE.Vector3(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]));
+      const c = S._toSurf(D.center()), a = at(j * NX), b = at(j * NX + NX - 1);
+      const uv = S.stToUv(c.s, c.t), ang = Math.atan2(-(b.t - a.t), b.s - a.s);
+      return uvOk(uv) && Number.isFinite(ang) ? { uv, ang } : null;
+    }
+    // the score's cover part, as the game works it out when the pad lands (cover + how centred it is)
+    coverScore(cov) {
+      const dr = this.dress, cs = this.S._toSurf(dr.D.center()), dd = Math.hypot(cs.s - this.wST[0], cs.t - this.wST[1]);
+      return clamp(0.5 * cov + 0.5 * clamp(1 - dd / (Math.min(dr.pad[0], dr.pad[1]) * 0.55), 0, 1), 0, 1);
+    }
+    // carrying on while rubbing the dressing down: lay one where it was, check its pad is over the wound
+    // (else → null: the step starts again with the dressing on its spot), ease the wound shut under it
+    // as the game does when it lands, and rub it back to how stuck it was (not stuck-er)
+    layDressing(uv, ang, stuck) {
+      const S = this.S, dr = this.dress, old = dr.D;
+      let D = null;
+      try {
+        D = S.dressing.create({ size: dr.size, pad: dr.pad, uv, angle: ang, curl: 0 });
+        D.state = 'falling'; D._settle = 0;   // it lies on the skin and settles like a released one
+        for (let k = 0; k < 40; k++) D.step(1 / 30);
+        dr.D = D;
+        const cov = this.padCover();
+        if (cov < 0.6) { dr.D = old; D.remove(); return null; }
+        old.remove();
+        this.easeWound();
+        for (let k = 0; k < 30; k++) D.step(1 / 30);
+        const target = clamp(stuck, 0, 0.88);
+        if (target > 0.01) {
+          const c = S.uvToST(uv), ca = Math.cos(ang), sa = -Math.sin(ang), hw = dr.size[0] / 2 - 0.003, hh = dr.size[1] / 2 - 0.003;
+          const grid = [];
+          for (let i = 0; i < 9; i++) for (let j = 0; j < 6; j++) {
+            const lx = (i / 8 - 0.5) * 2 * hw, ly = (j / 5 - 0.5) * 2 * hh;
+            grid.push(S.surfaceAt(S.stToUv(c[0] + lx * ca - ly * sa, c[1] + lx * sa + ly * ca)));
+          }
+          // small presses near the target
+          for (let pass = 0; pass < 140 && D.stuck < target - 0.005; pass++) {
+            const amt = clamp((target - D.stuck) * 0.2, 0.0008, 0.004);
+            for (const hit of grid) D.rub(hit, amt);
+            D.step(1 / 30);
+          }
+        }
+        return cov;
+      } catch (e) {
+        dr.D = old;
+        if (D) { try { D.remove(); } catch (e2) { /* already gone */ } }
+        throw e;
+      }
+    }
+
+    // step away: a compact JSON-safe snapshot (see the header), null while a move is half done
+    snapshot() {
+      const ph = this.ph, S = this.S, G = this.G;
+      if (!S || !this.alive || !this.ready || !this.booted || this.finished || this.app.result || !ph || !ph.panelInit) return null;
+      if (this.lmb) return null;     // a hand is on it: pressing, pushing, dragging the roll, carrying or rubbing
+      let k = this.stepIdx;
+      if (k < 0 || k >= this.steps.length) return null;
+      const kind = this.kindOf(ph.name);
+      let s = { el: rnd(clamp(this.t - (ph.t0 || 0), 0, MAX_T), 2) };
+      if (ph.finished) {
+        // between a finished step and the next one: carry on with the next (after the last one the
+        // result is already on its way)
+        if (k + 1 >= this.steps.length) return null;
+        k += 1; s = { el: 0 };
+      } else if (kind === 'pressure') {
+        Object.assign(s, { on: rnd(ph.onT, 2), pr: rnd(ph.pressT, 2), hold: rnd(ph.holdT, 2) });
+      } else if (kind === 'pack') {
+        if (ph.push) return null;
+        Object.assign(s, { ph: ph.phase === 'hold' ? 1 : 0, accs: ph.accs.slice(0, MAX_PUSH).map(a => rnd(a, 3)), waste: ph.waste, hold: rnd(ph.holdT, 2) });
+      } else if (kind === 'wrap') {
+        if (ph.grab) return null;
+        const N = this.tune.wrapTurns || 4, PASS = WRAP_A0 - WRAP_AFAR;
+        let turn = ph.turn, phi = ph.phi;
+        if (ph.pass) { turn += 1; phi = ph.pass.to; }                          // a finished turn going round underneath: it is done
+        else if (ph.phase === 'wrap' && ph.target > phi + 1e-3) return null;   // the roll is still rolling to where it was let go
+        const secure = ph.phase === 'secure' || ph.turns.length >= N;
+        Object.assign(s, {
+          ph: secure ? 1 : 0, turns: ph.turns.slice(0, N).map(x => [rnd(x.q, 3), Math.max(0, TURN_KIND.indexOf(x.kind))]),
+          part: secure || ph.pass ? 0 : rnd(clamp(phi - turn * TAU, 0, PASS), 4), ten: rnd(ph.tension, 3),
+          smp: secure || ph.pass ? [] : thin(ph.samples, 240).map(x => rnd(x, 2)), seep: rnd(ph.seep, 3),
+        });
+      } else {
+        if (ph.carrying || ph.letGo > 0 || ph.settle > 0) return null;   // in the hand, or still settling
+        Object.assign(s, { ph: ph.phase === 'rub' ? 1 : 0, seep: rnd(ph.seep, 3) });
+        if (ph.phase === 'rub') {
+          const D = this.dress && this.dress.D, pose = D && this.dressPose(D);
+          if (!pose) return null;
+          Object.assign(s, { cov: rnd(ph.cov, 3), dr: { uv: [rnd(pose.uv[0], 6), rnd(pose.uv[1], 6)], ang: rnd(pose.ang, 4), stuck: rnd(D.stuck, 3) } });
+        }
+      }
+      const sc = {};
+      for (let i = 0; i < k; i++) { const v = G.steps[this.steps[i]]; if (typeof v === 'number') sc[this.steps[i]] = v; }
+      return {
+        v: 1, w: this.woundKey(), k, t: rnd(this.t, 2), lost: rnd(G.lost || 0, 1), b: rnd(G.b, 3), sc,
+        pool: Math.min(this.poolN || 0, 300), pad: rnd(this.pad ? this.pad.soak : 0, 3),
+        kit: this.kit ? { fed: rnd(this.kit.fed, 4), soak: rnd(this.kit.soak, 3) } : null,
+        s,
+      };
+    }
+
+    // a snapshot of this wound → the same point on the freshly built scene. A step is entered only when
+    // every step before it has a score; a field it cannot read falls back to the start of its step
+    restore(r) {
+      const G = this.G, steps = this.steps, n = steps.length, tune = this.tune;
+      const sc = obj(r.sc) || {};
+      const k0 = num(r.k, -1);
+      let k = Number.isInteger(k0) && k0 >= 0 && k0 < n ? k0 : 0;
+      const scores = {};
+      for (let i = 0; i < k; i++) {
+        const v = num(sc[steps[i]], NaN);
+        if (!(v >= 0 && v <= 100)) { k = i; break; }
+        scores[steps[i]] = Math.round(v);
+      }
+      // the step's own state only when it is the step that was saved; else it starts from its beginning
+      const s = k === k0 ? (obj(r.s) || {}) : {};
+      const kind = this.kindOf(steps[k]);
+      this.t = clamp(num(r.t, 0), 0, MAX_T);
+      const el = clamp(num(s.el, 0), 0, this.t);
+      G.lost = clamp(num(r.lost, 0), 0, 1e5);
+      Object.keys(G.steps).forEach(x => { delete G.steps[x]; });
+      Object.assign(G.steps, scores);
+      G.b = k === 0 && !('el' in s) ? G.maxB : clamp(num(r.b, G.maxB), 0.04, G.maxB);
+      // the skin: the pool that spread round the wound; the pad: as soaked as it was
+      this.replayPool(clamp(Math.round(num(r.pool, 0)), 0, 300), G.lost);
+      this.restorePad(num(r.pad, 0));
+      // the packing: in the wound, full once its step is behind
+      const K = obj(r.kit) || {}, kit = this.kit, packAt = steps.indexOf('pack');
+      if (kit) { kit.fed = clamp(num(K.fed, 0), 0, 100); kit.soak = clamp(num(K.soak, 0), 0, 1); }
+      if (kit && packAt > -1 && packAt < k) { kit.setPacked(1); kit.show(false); kit.update(0.016, null); }
+      const enter = () => { this.stepIdx = k - 1; this.nextStep(); return this.ph; };
+      let ph;
+      if (kind === 'pressure') {
+        ph = enter();
+        ph.onT = clamp(num(s.on, 0), 0, MAX_T);
+        ph.pressT = clamp(num(s.pr, 0), ph.onT, MAX_T);
+        ph.holdT = clamp(num(s.hold, 0), 0, tune.pressureHold * 0.96);
+      } else if (kind === 'pack') {
+        // the packing is what the pushes put in (recomputed: never more than they could have)
+        const strips = Math.max(1, tune.packStrips || 4), accs = [];
+        let packed = 0;
+        for (const x of arr(s.accs)) {
+          const a = num(x, NaN);
+          if (!(a >= 0 && a <= 1) || packed >= 1 || accs.length >= MAX_PUSH) break;
+          accs.push(a);
+          packed = Math.min(1, packed + (0.5 + 0.5 * a) / strips);
+        }
+        if (kit) kit.setPacked(packed);
+        ph = enter();
+        ph.packed = packed; ph.accs = accs;
+        ph.waste = clamp(Math.round(num(s.waste, 0)), 0, 99);
+        if (packed >= 1) { ph.toHold(true); ph.holdT = clamp(num(s.hold, 0), 0, 1.5); } else this.frameStep('pack', true);
+      } else if (kind === 'wrap') {
+        const N = tune.wrapTurns || 4, PASS = WRAP_A0 - WRAP_AFAR, turns = [];
+        let clean = true;
+        for (const x of arr(s.turns)) {
+          const q = Array.isArray(x) ? num(x[0], NaN) : NaN, c = Array.isArray(x) ? num(x[1], NaN) : NaN;
+          if (!(q >= 0 && q <= 1) || !(c === 0 || c === 1 || c === 2)) { clean = false; break; }   // carry on from the last turn it can read
+          if (turns.length >= N) break;
+          turns.push({ q, kind: TURN_KIND[c] });
+        }
+        ph = enter();
+        const bd = this.bd;
+        ph.turns = turns; ph.turn = turns.length;
+        ph.seep = clamp(num(s.seep, 0.18), 0.18, 0.85);
+        if (turns.length >= N) ph.toSecure();
+        else {
+          // the turn under way: as far round as it was, with its tension so far (a turn it could not read
+          // starts again from its beginning)
+          ph.phi = ph.target = turns.length * TAU + (clean ? clamp(num(s.part, 0), 0, PASS - 0.02) : 0);
+          ph.tension = clean ? clamp(num(s.ten, 0), 0, 1) : 0;
+          ph.samples = clean ? arr(s.smp).map(x => num(x, NaN)).filter(x => x >= 0 && x <= 1).slice(0, 400) : [];
+          bd.setPhi(ph.phi);
+        }
+        bd.tint(ph.seep);
+        this.frameStep('wrap', true);
+      } else {
+        this.dressing();
+        let cov = null;
+        const D0 = obj(s.dr);
+        if (num(s.ph, 0) === 1 && D0 && uvOk(D0.uv)) {
+          const uv = [+D0.uv[0], +D0.uv[1]];
+          if (uv.every(v => v > 0.02 && v < 0.98)) cov = this.layDressing(uv, num(D0.ang, 0), clamp(num(D0.stuck, 0), 0, 0.88));
+        }
+        ph = enter();
+        ph.seep = clamp(num(s.seep, 0.1), 0.1, 0.75);
+        if (cov !== null) {
+          const sv = num(s.cov, -1);
+          ph.toRub(sv >= 0 && sv <= 1 ? sv : this.coverScore(cov), true);
+          this.dress.D.seep(ph.seep, this.wUv);
+        } else this.frameStep('dressing', true);
+      }
+      ph.t0 = this.t - el;
+      const D = this.dress && this.dress.D;
+      this.restored = {
+        k, kind, fresh: k !== k0, phase: ph.phase || '', el, b: G.b, scores: Object.assign({}, scores),
+        on: ph.onT, pr: ph.pressT, hold: ph.holdT, packed: ph.packed, accs: ph.accs ? ph.accs.length : undefined, waste: ph.waste,
+        turns: ph.turns ? ph.turns.length : undefined, part: ph.turns && ph.phase === 'wrap' ? ph.phi - ph.turn * TAU : undefined,
+        stuck: D ? D.stuck : undefined, cov: ph.cov, pool: this.poolN || 0, pad: this.pad ? this.pad.soak : 0,
+      };
+    }
+
+    // compact state for tests / the browser console (window.TreatBleed3DDebug())
+    debugState() {
+      const ph = this.ph, G = this.G, D = this.dress && this.dress.D;
+      const live = ph && ph.panelInit;
+      return {
+        alive: this.alive, ready: this.ready, booted: !!this.booted, resumed: !!this.resumed, note: this.note || null, finished: !!this.finished,
+        step: ph ? ph.name : null, kind: live ? this.kindOf(ph.name) : null, k: this.stepIdx, phase: live ? ph.phase || '' : '', stepDone: !!(ph && ph.finished),
+        t: this.t, el: live ? this.t - (ph.t0 || 0) : 0, b: G ? G.b : 0, lost: G ? G.lost : 0, scores: G ? Object.assign({}, G.steps) : {},
+        on: live ? ph.onT : undefined, pr: live ? ph.pressT : undefined, hold: live ? ph.holdT : undefined,
+        packed: live && ph.name === 'pack' ? ph.packed : (this.kit ? this.kit.packed : 0), accs: live && ph.accs ? ph.accs.length : 0, waste: live ? ph.waste : undefined,
+        turns: live && ph.turns ? ph.turns.length : 0, part: live && ph.turns && ph.phase === 'wrap' ? ph.phi - ph.turn * TAU : 0, seep: live ? ph.seep : undefined,
+        stuck: D ? D.stuck : 0, drState: D ? D.state : null, cov: live ? ph.cov : undefined, lmb: !!this.lmb,
+        pool: this.poolN || 0, pad: this.pad ? this.pad.soak : 0, kitSoak: this.kit ? this.kit.soak : 0,
+        restored: this.restored || null,
+      };
+    }
+
+    // preview: drive the game to a mid-game point, take the snapshot and open again with it
+    previewPark(stage) {
+      const st = String(stage || '').toLowerCase(), G = this.G;
+      if (st === 'pressure') {
+        const ph = this.ph;
+        if (!ph || ph.name !== 'pressure') return;
+        ph.t0 = this.t - 6.4; ph.onT = 2.9; ph.pressT = 3.4; ph.holdT = 1.2; G.b = 0.46; G.lost = 6;
+        this.restorePad(0.32); this.replayPool(18, 6);
+      } else if (st === 'pack') {
+        this.jump('pack');
+        const ph = this.ph;
+        if (!ph || ph.name !== 'pack') return;
+        ph.fold({ acc: 0.86 }); ph.fold({ acc: 0.7 }); ph.needRelease = false; this.kit.feed(0.09);
+      } else if (st === 'wrap') {
+        this.jump('wrap');
+        const ph = this.ph;
+        if (!ph || ph.name !== 'wrap' || !this.bd) return;
+        for (let k = 0; k < 2; k++) { ph.turns.push({ q: 0.86, kind: k ? 'tight' : 'even' }); ph.turn = k + 1; }
+        ph.phi = ph.target = 2 * TAU + 0.55 * (WRAP_A0 - WRAP_AFAR); ph.seep = 0.42; ph.samples = [0.5, 0.55, 0.6, 0.58]; ph.tension = 0.58;
+        G.b = 0.22; this.covered = true;
+        this.bd.setPhi(ph.phi); this.bd.tint(ph.seep);
+      } else this.jump(st);   // hold · secure · dressing · seal
+      setTimeout(() => {
+        if (!this.alive) return;
+        const snap = this.snapshot();
+        if (snap) NZA.demo('treat', Object.assign({}, this.d, { resume: snap }));
+      }, 250);
     }
 
     /* ─────────────── preview: open at a stage (index.html?app=treat&mode=bleed&stage=…) ─────────────── */
