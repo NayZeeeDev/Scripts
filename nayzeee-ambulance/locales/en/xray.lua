@@ -465,4 +465,8 @@ NZA.AddLocale('en', {
     ['xray.c3_st_s']               = 'Sensation',
     ['xray.c3_w_refill']           = 'Cap refill',
     ['xray.c3_cap_refill']         = 'Under 2 seconds',
+    -- step away (P) and carry on later with the same option
+    ['xray.c3_resume']             = 'Carrying on where you left off.',
+    ['xray.c3_resume_bad']         = 'Could not carry on from where you left off - this cast starts from the beginning.',
+    ['xray.c3_resume_other']       = 'You stepped away from a different fracture - this one starts from the beginning.',
 })

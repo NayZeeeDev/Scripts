@@ -16,12 +16,44 @@
                     meter is in the green band; then hands off while it sets (a press = a crack)
      6 fold         drag each stockinette end in over the edge of the cast
      7 cms          press the skin past the cast, let go: capillary refill, then motor / sensation
+   Step away  P / "Step away" on the procedure HUD (core ProcPanel opts.pause, on once the scene is up, off
+              on the result): snapshot() goes to Lua ('_proc:pause'), the server parks the session for
+              Config.ProcPause.keep and the app closes. Using "Apply cast" on the same fracture again opens it
+              with data.resume = that snapshot and boot() → restore() rebuilds the same point on the fresh scene
+              by running the game's own step machine through it (quietly: no sounds, notes or step timers):
+                stockinette  how far it is rolled on
+                padding /    the centre of every turn laid by hand (the anchor turns, the passes up and back
+                plaster      and the end of the wrap follow from them as in play: each turn sits on the last,
+                             so the layers, the overlap scores and the bands come back exactly), plus the turn
+                             being rolled on (centre, how far up)
+                dip          how soaked the roll is and whether it was left lying in the water
+                mould        the mould of each of the 24 sections, the working time left, setting or not, how
+                             far it has set, every crack (where it was pressed; drawn again the same)
+                fold         each stockinette end folded or not
+                cms          pressing (start again) or how far the refill check has run
+              plus the step, the active time (minTime counts both parts) and the scene seed. Never the 3D
+              meshes or thickness fields: those are rebuilt from the turns. null while a move is half done
+              (a roll / cuff in the hand, rubbing, the plaster roll held, pressing the skin, the last check
+              done and the result being saved): the HUD says to finish it first. Every field is checked: an
+              unreadable or out-of-range one starts its own step over (a wrap that does not replay cleanly
+              is taken off again), a step is entered only when the ones before it are done, and data of a
+              step later than the one it was on is never read. A snapshot for another fracture (injury,
+              region, scene seed) or an unreadable one starts fresh with a note; one that throws while it
+              is rebuilt restarts the game cleanly (restartClean: a new scene, never a half-rebuilt one).
+              Supplies: the open data counts none (the cast item is checked when it opens and taken on the
+              finish; stockinette, padding and plaster come with it), so nothing can run out part-way.
    Lua → JS   open { injury, region, regionLabel, bone, boneLabel, castType, side, leg, layersMin,
-              layersMax, name, upper, tone?, sex?, seed?, keys, locale } · result (server outcome)
+              layersMax, name, upper, tone?, sex?, seed?, keys, locale, resume? } · result (server outcome)
+              (client/modules/xray.lua RunApp copies every ctx.data field, data.resume with them, and
+              closes the app when the session ends, also on a pause)
    JS → Lua   exactly the 2D posts: xray:finish { score, coverage, layersMin, layersMax, cracks, mould }
-              · xray:abort {} (hold ESC). The finish is never posted before minTime (14 s) after open.
+              · xray:abort {} (hold ESC) · '_proc:pause' { snapshot } (core, Step away). The finish is never
+              posted before minTime (14 s) of active time.
    Preview    index.html?app=xray&mode=cast&stage=stockinette|padding|dip|plaster|mould|setting|fold|cms|done
               &site=forearm|arm|leg|thigh &tone=0..1 &sex=m|f &pass=0..2 &turns=0..3 &no3d=1 (2D fallback)
+              &resume=stockinette|padding|dip|plaster|mould|setting|fold|cms: plays to a point in that step,
+              steps away and opens again from the snapshot (P in the preview parks it, Reopen carries on)
+   Debug      XrayCast3D.debug.state() → the running game's progress (emulator scenarios)
    Everything the engine lacks (stockinette tube + roll, padding / plaster bands that wrap the limb,
    rolls, water basin with bubbles and drips, moulded cast shell, gloved hands, folded cuffs) is built
    here with THREE on S.scene and freed with the scene (S.dispose + this file's own bin).
@@ -65,6 +97,22 @@
   const MIN_TIME = 15;                                    // s: the server's minTime (14) + slack before the finish post
   const STEPS = ['stockinette', 'padding', 'dip', 'plaster', 'mould', 'fold', 'cms'];
   const STEP_ICON = { stockinette: 'bandage', padding: 'gauze', dip: 'drop', plaster: 'splint', mould: 'hand', fold: 'rot-l', cms: 'pulse' };
+  // step away / carry on (see the header): readers that never trust a snapshot field
+  const MAX_EL = 3600;                                    // s: the active time a snapshot may carry
+  const MAX_TURNS = 120;                                  // hand-laid turns a wrap may carry
+  const CMS_END = 4.4;                                    // s: the refill check is done here
+  const num = (v, fb) => { const n = Number(v); return v !== null && v !== '' && typeof v !== 'boolean' && typeof v !== 'object' && Number.isFinite(n) ? n : fb; };
+  const rnd = (v, k) => { const m = Math.pow(10, k); return Math.round((+v || 0) * m) / m; };
+  const bit = v => (v === 1 || v === true ? 1 : v === 0 || v === false ? 0 : -1);
+  const intIn = (v, lo, hi) => { const n = num(v, NaN); return Number.isInteger(n) && n >= lo && n <= hi ? n : null; };
+  const numIn = (v, lo, hi) => { const n = num(v, NaN); return n >= lo && n <= hi ? n : null; };
+  const plain = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  // a list (an empty one may come back from Lua as {})
+  const list = v => (Array.isArray(v) ? v : plain(v) && !Object.keys(v).length ? [] : null);
+  let PARKED = null;            // preview: the snapshot "Step away" kept (Reopen carries on from it)
+  let PREVIEW_MOCKED = false;   // preview: the '_proc:pause' mock is installed once (a test may replace it)
+  let PREVIEW_PARKED = false;   // preview: ?resume=<stage> runs once per page
+  let NEXT_NOTE = null;         // the note the next game opens with (a snapshot that could not be rebuilt)
 
   /* ═════════════════════════════ CSS (stage, cursor ring, loading veil) ═════════════════════════════ */
   const CSS = `
@@ -455,6 +503,13 @@
     if (s) Object.assign(d, { region: s[0], regionLabel: s[1], bone: s[2], boneLabel: s[3], castType: s[4], leg: s[5], upper: /upper/.test(s[0]) });
     if (q.get('tone') !== null) d.tone = clamp(+q.get('tone') || 0, 0, 1);
     if (q.get('sex')) d.sex = q.get('sex') === 'f' ? 'f' : 'm';
+    // "Step away" in the browser: keep the snapshot and close; Reopen carries on from it (in game: the
+    // same option on the same fracture within Config.ProcPause.keep). A test may replace this mock.
+    if (!PREVIEW_MOCKED) {
+      PREVIEW_MOCKED = true;
+      NZA.mock('_proc:pause', r => { PARKED = r && r.snapshot; setTimeout(() => NZA.close('xray'), 80); return { ok: true }; });
+    }
+    if (PARKED && d.resume === undefined) { d.resume = PARKED; PARKED = null; }
   }
 
   /* ═════════════════════════════ materials ═════════════════════════════ */
@@ -493,11 +548,18 @@
   /* ═════════════════════════════ THE GAME ═════════════════════════════ */
   class Game {
     // ctx: { root, app (NZA.apps.xray), state (the app's S: .pp), d, post, sound, abortBtn, resultCard, fallback }
-    constructor(ctx) {
-      this.ctx = ctx; this.d = Object.assign({}, ctx.d);
+    // holder: { g } the app's mode handle reads (restartClean swaps the game in it)
+    constructor(ctx, holder) {
+      this.ctx = ctx; this.holder = holder || null; this.d = Object.assign({}, ctx.d);
       LOC = Object.assign({}, this.d.locale || {});
       previewTweak(this.d);
       const d = this.d;
+      // carrying on after "Step away": data.resume (checked and rebuilt in boot → restore)
+      this.hasResume = d.resume !== undefined && d.resume !== null;
+      this.resumed = false; this.note = NEXT_NOTE; NEXT_NOTE = null;
+      this.quiet = 0; this.restoring = false; this.crackList = [];
+      // one function for the panel's "Step away" (a stable reference: pp.set only re-arms on a change)
+      this.pauseFn = () => this.snapshot();
       this.key3 = String(d.region || (d.leg ? 'r_lower_leg' : 'r_lower_arm')).replace(/^[lr]_/, '');
       if (!LIMB[this.key3]) this.key3 = d.leg ? (d.upper ? 'upper_leg' : 'lower_leg') : (d.upper ? 'upper_arm' : 'lower_arm');
       this.L = LIMB[this.key3];
@@ -541,6 +603,7 @@
       const d = this.d, L = this.L;
       const name = d.name || '';
       const seed = (+d.seed || hash(`${d.injury || 'i'}:${name}`)) >>> 0;
+      this.seed = seed;
       this.R0 = rng(seed);
       const tone = d.tone !== undefined && d.tone !== null && d.tone !== '' ? clamp(+d.tone || 0, 0, 1) : TONES[hash(name || d.injury || 'x') % TONES.length];
       const sex = d.sex === 'f' ? 'f' : 'm';
@@ -585,9 +648,38 @@
       S.on('pointer', () => { if (this.ready && this.ph && this.ph.pointer && !this.finished) this.ph.pointer(); });
       S.start();
       this.ready = true;
-      this.nextStep();
+      // carrying on after "Step away" (data.resume): rebuild the saved point on this fresh scene. A snapshot
+      // for another fracture or an unreadable one starts fresh with a note; one that cannot be rebuilt
+      // restarts the game cleanly (never a half-rebuilt scene)
+      let note = this.note;
+      if (this.hasResume) {
+        const snap = plain(d.resume) ? d.resume : null;
+        const m = snap ? this.limbMatch(snap) : 'bad';
+        if (m === 'same') {
+          this.quiet += 1; this.restoring = true;
+          try { this.restore(snap); this.resumed = true; } catch (e) {
+            console.error('[xray] cast restore', e);
+            this.quiet -= 1; this.restoring = false;
+            return this.restartClean();
+          }
+          this.quiet -= 1; this.restoring = false;
+        } else note = m;
+      }
+      if (!this.resumed) this.nextStep();
+      this.pp.set({ pause: this.pauseFn });          // "Step away" (P): park the cast, carry on later
+      if (this.resumed) this.flash('ok', T('c3_resume', 'Carrying on where you left off.'), 3200);
+      else if (note) {
+        this.flash('warn', note === 'bad' ? T('c3_resume_bad', 'Could not carry on from where you left off - this cast starts from the beginning.')
+          : T('c3_resume_other', 'You stepped away from a different fracture - this one starts from the beginning.'), 4200);
+      }
+      this.noteShown = this.resumed ? 'resumed' : note || null;
       setTimeout(() => this.loadEl && this.loadEl.classList.add('out'), 140);
-      if (this.pendingJump) { const j = this.pendingJump; this.pendingJump = null; this.jump(j); }
+      // (a resumed game opens where it was: no preview jump on top of it)
+      if (this.pendingJump && !this.resumed) { const j = this.pendingJump; this.pendingJump = null; this.jump(j); }
+      this.pendingJump = null;
+      // preview: ?resume=<stage> plays to a point in that step, steps away and carries on (once per page)
+      const pr = !NZA.inGame && !this.hasResume && !PREVIEW_PARKED ? new URLSearchParams(location.search).get('resume') : null;
+      if (pr) { PREVIEW_PARKED = true; setTimeout(() => { if (this.alive) this.previewPark(pr); }, 150); }
     }
 
     // 3D could not start after all: hand the session to the 2D game
@@ -1174,21 +1266,27 @@
     pickTool(key) {
       const i = (+key || 0) - 1;
       if (!this.ph || this.finished || i === this.stepIdx || i < 0 || i >= STEPS.length) return;
-      if (i < this.stepIdx) this.pp.flash('warn', T('c3_tool_done', 'That step is done.'), 1600);
+      if (i < this.stepIdx) this.flash('warn', T('c3_tool_done', 'That step is done.'), 1600);
     }
     stepDone(flash) {
       const ph = this.ph;
       if (!ph || ph.finished) return;
       ph.finished = true;
-      this.ctx.sound('success');
-      if (flash) this.pp.flash('ok', flash, 1800);
+      // (a restore runs the steps through quietly and moves on itself)
+      if (this.quiet) return;
+      this.snd('success');
+      if (flash) this.flash('ok', flash, 1800);
       this.cursor(null, '');
       const name = ph.name;
       setTimeout(() => { if (this.alive && this.ph === ph && ph.name === name) this.nextStep(); }, 900);
     }
     stageCursor(cls) { const c = `xc3-stage ${cls || ''}`.trim(); if (this.stage.className !== c) this.stage.className = c; }
     cursor(p, text, tone) { this.cur.p = p; this.cur.text = text || ''; this.cur.tone = tone || ''; }
-    flashOnce(type, text, ms) { const n = performance.now(); if (this.lastFlash === text && n - this.lastFlashAt < 1800) return; this.lastFlash = text; this.lastFlashAt = n; this.pp.flash(type, text, ms || 2000); }
+    flashOnce(type, text, ms) { if (this.quiet) return; const n = performance.now(); if (this.lastFlash === text && n - this.lastFlashAt < 1800) return; this.lastFlash = text; this.lastFlashAt = n; this.flash(type, text, ms || 2000); }
+    // sounds and notes go through these: a restore replays the game quietly
+    flash(type, text, ms) { if (!this.quiet && this.pp) this.pp.flash(type, text, ms); }
+    snd(...a) { if (!this.quiet) this.ctx.sound(...a); }
+    click(f) { if (!this.quiet) NZA.audio.click(f); }
 
     /* ─────────────── input ─────────────── */
     down(e) {
@@ -1256,7 +1354,7 @@
         },
         // where the cursor is along the limb (on the line over the top of the roll)
         curS() { return g.sAtPointer(0.25, g.R + 0.006); },
-        down() { this.grab = true; this.gS = this.curS(); this.gR = st.target; NZA.audio.click(520); },
+        down() { this.grab = true; this.gS = this.curS(); this.gR = st.target; g.click(520); },
         pointer() { if (this.grab && g.lmb) st.target = clamp(Math.min(st.target, this.gR + (this.curS() - this.gS)), st.sE, st.s0); },
         up() { this.pointer(); this.grab = false; },
         tick(dt) {
@@ -1264,7 +1362,7 @@
           if (st.ring > st.target + 1e-5) {
             st.ring = Math.max(st.target, st.ring - 0.45 * dt);
             g.layStock();
-            if (Math.random() < dt * 6) g.ctx.sound('noise', 60, { vol: 0.025, lp: 2600, hp: 900 });
+            if (Math.random() < dt * 6) g.snd('noise', 60, { vol: 0.025, lp: 2600, hp: 900 });
           }
           const prog = clamp((st.s0 - st.ring) / total, 0, 1);
           if (st.ring <= st.sE + 0.0015 && !this.finished) {
@@ -1301,7 +1399,7 @@
       this.frameStep(isPad ? 'padding' : 'plaster');
       this.useHand(null);
       const ph = {
-        w, pass: -1, dir: -1, phase: 'idle', turn: null, target: 0, grab: false, evt: [], anchorsLeft: 0, endC: 0, startC: 0,
+        w, roll, pass: -1, dir: -1, phase: 'idle', turn: null, target: 0, grab: false, evt: [], anchorsLeft: 0, endC: 0, startC: 0,
         ov: 0.5, ovShow: false, turnsUser: 0, nudge: 0, drift: 0, drift0: 0,
         hints: [{ keys: [T('c3_k_drag', 'Drag')], label: T('c3_h_wrap', 'roll it up over the limb') }, { keys: [T('c3_k_side', '← →')], label: T('c3_h_steer', 'steer the overlap') }],
         panelInit() {
@@ -1411,7 +1509,7 @@
           const held = this.grab && g.lmb;
           if (held) this.pointer();
           const phi = Math.min(PASS, t.phi + Math.max(0, Math.min(this.target - t.phi, CATCH * dt)));
-          if (phi > t.phi + 1e-5) { g.growTurn(t, phi); if (Math.random() < dt * 8) g.ctx.sound('noise', 70, { vol: 0.03, lp: isPad ? 2400 : 1600, hp: 500 }); }
+          if (phi > t.phi + 1e-5) { g.growTurn(t, phi); if (Math.random() < dt * 8) g.snd('noise', 70, { vol: 0.03, lp: isPad ? 2400 : 1600, hp: 500 }); }
           g.rollAt(w, t, roll);
           // (the guide only moves with the ideal: nothing under it changes until the pass is stamped)
           if (g.guide.C !== this.ideal) g.setGuide(this.ideal, bw);
@@ -1430,7 +1528,7 @@
           const q = clamp(1 - Math.abs(ov - 0.5) / 0.38, 0, 1);
           (isPad ? g.res.padQ : g.res.plQ).push(q);
           this.turnsUser += 1;
-          NZA.audio.click(q > 0.7 ? 720 : 480);
+          g.click(q > 0.7 ? 720 : 480);
           if (ov < 0.3) g.flashOnce('warn', T('c3_ov_gap', 'That turn barely overlaps: thin spot. Keep half over the last turn.'), 1800);
           else if (ov > 0.72) g.flashOnce('warn', T('c3_ov_thick', 'Too much overlap: it builds up thick there.'), 1800);
           this.grab = false; this.ovShow = false;
@@ -1504,10 +1602,17 @@
       const pos = b.home.clone(), goal = b.home.clone();
       const carryY = b.floor + b.H + 0.045;
       const ph = {
-        held: false, soak: 0, inWater: false, lifting: 0, spin: 0.3,
+        held: false, soak: 0, inWater: false, lifting: 0, spin: 0.3, pos, goal,
         hints: [{ keys: [T('c3_k_lmb', 'Hold LMB')], label: T('c3_h_dip', 'carry it, hold it under') }],
         panelInit() { return { title: T('c3_p_dip', 'Wet the plaster roll'), text: T('c3_p_dip_t', '**Pick up the plaster roll** (click and hold it), carry it into the water and **keep it under** until the bubbles stop. Then let go.') }; },
         overWater(P) { return P && Math.hypot(P.x - b.x, P.z - b.z) < b.wr - roll.r * 0.6; },
+        // (carrying on) the roll lies under the water in the middle of the basin, where it was let go
+        sink() {
+          const W = new THREE.Vector3(b.x, Math.max(b.floor + 0.007 + roll.r, b.waterY - roll.r * 1.08), b.z);
+          pos.copy(W); goal.copy(W);
+          this.inWater = true;
+          g.setRoll(roll, pos, this.spin, roll.r);
+        },
         // is the cursor on the roll (its whole length, plus a margin)? screen distance to its axis vs its screen radius
         onRoll() {
           const S = g.S, W = window.innerWidth, Hh = window.innerHeight, v = new THREE.Vector3();
@@ -1522,7 +1627,7 @@
           if (this.lifting) return;
           const near = this.onRoll() || (this.inWater && g.pxTo(new THREE.Vector3(b.x, b.waterY, b.z)) < Math.max(140, window.innerHeight * 0.16));
           if (!near) { g.flashOnce('warn', T('c3_dip_pick', 'Click and hold the plaster roll to pick it up.'), 1600); return; }
-          this.held = true; NZA.audio.click(500);
+          this.held = true; g.click(500);
         },
         up() {
           if (!this.held) return;
@@ -1550,7 +1655,7 @@
         },
         lift() {
           this.lifting = 0.001;
-          g.ctx.sound('noise', 220, { vol: 0.05, lp: 1800, hp: 300 });
+          g.snd('noise', 220, { vol: 0.05, lp: 1800, hp: 300 });
           g.wet = 1; g.dripOn = true;
           b.milk = Math.min(1, b.milk + 0.5);
         },
@@ -1577,7 +1682,7 @@
             const rate = (1 - this.soak) * 70;
             for (let k = 0; k < 4 && Math.random() < rate * dt / 4; k++) b.bubbles.push({ p: pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * roll.w * 0.8, roll.r * (Math.random() - 0.3), (Math.random() - 0.5) * roll.r)), v: 0.08 + Math.random() * 0.08, r: 0.0009 + Math.random() * 0.0022, ph: Math.random() * 9 });
             if (b.bubbles.length > 48) b.bubbles.splice(0, b.bubbles.length - 48);
-            if (prev < 1 && this.soak >= 1) { NZA.audio.click(820); g.flashOnce('ok', T('c3_dip_full', 'The bubbles stopped: let go to lift it out.'), 1800); }
+            if (prev < 1 && this.soak >= 1) { g.click(820); g.flashOnce('ok', T('c3_dip_full', 'The bubbles stopped: let go to lift it out.'), 1800); }
             if (prev === 0) g.ripple(pos, 0.05);
             if (!this.held && this.soak >= 1) this.lift();
           }
@@ -1744,16 +1849,9 @@
         pointer() { if (this.phase === 'mould' && g.lmb) { const c = this.contact(); if (c) { this.rub(c); hs.s = c.s; hs.a = c.a; } else this.last = null; } },
         crack(hit) {
           g.res.cracks += 1;
-          g.ctx.sound('fail');
-          g.pp.flash('bad', T('c3_crack', 'You pressed on it while it was setting: the plaster cracked.'), 2200);
-          // a hairline crack where it was pressed
-          const S2 = g.S, pts = [], r0 = g.under(hit.s, hit.a) + 0.0004;
-          let s = hit.s - 0.012, a = hit.a - 0.04;
-          for (let k = 0; k < 7; k++) { pts.push(g.cyl(s, a, g.under(s, a) + 0.0004)); s += 0.004; a += (Math.random() - 0.5) * 0.06 + 0.012; }
-          const geo = g.keep(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0004, 4, false));
-          const m = new THREE.Mesh(geo, g.M.crack); m.renderOrder = 5;
-          S2.scene.add(m);
-          void r0;
+          g.snd('fail');
+          g.flash('bad', T('c3_crack', 'You pressed on it while it was setting: the plaster cracked.'), 2200);
+          g.addCrack(hit.s, hit.a);
         },
         mould() { let a = 0; for (let i = 0; i < CELLS; i++) a += Math.min(1.1, g.mouldM[i]); return a / CELLS; },
         minM() { let m = Infinity; for (let i = 0; i < CELLS; i++) m = Math.min(m, g.mouldM[i]); return m; },
@@ -1765,10 +1863,10 @@
           g.res.mould = this.result();
           g.useHand(null);
           const ok = g.res.mould >= 0.62 && g.res.mould <= 0.86;
-          if (timeUp) g.pp.flash('warn', T('c3_mould_late', 'The plaster started to set before you finished moulding.'), 2400);
-          else g.pp.flash(ok ? 'ok' : 'warn', ok ? T('mould_ok', 'Nicely moulded. Keep still while it sets.') : T('c3_mould_off', 'Moulding is uneven. Hands off while it sets.'), 2400);
+          if (timeUp) g.flash('warn', T('c3_mould_late', 'The plaster started to set before you finished moulding.'), 2400);
+          else g.flash(ok ? 'ok' : 'warn', ok ? T('mould_ok', 'Nicely moulded. Keep still while it sets.') : T('c3_mould_off', 'Moulding is uneven. Hands off while it sets.'), 2400);
           g.pp.set({ title: T('c3_p_set', 'Let it set'), text: T('c3_p_set_t', '**Hands off.** Do not press on the cast while the plaster sets.'), hints: g.hintsFor([]) });
-          g.ctx.sound('success');
+          g.snd('success');
         },
         tick(dt) {
           if (this.phase === 'mould') {
@@ -1913,7 +2011,7 @@
           const pt = this.pick();
           if (!pt) { g.flashOnce('warn', T('c3_fold_here', 'Grab an end of the stockinette (the teal markers).'), 1600); return; }
           this.grab = { pt, s0: this.curS(), f0: pt.fold };
-          NZA.audio.click(540);
+          g.click(540);
         },
         pointer() {
           const gb = this.grab;
@@ -1940,7 +2038,7 @@
             g.layFold(pt);
             if (pt.fold === an.to) {
               this.anim.splice(i, 1);
-              if (an.to === 1) { NZA.audio.click(760); g.S.markers.remove(`fold${flaps.indexOf(pt)}`); }
+              if (an.to === 1) { g.click(760); g.S.markers.remove(`fold${flaps.indexOf(pt)}`); }
             }
           }
           const n = flaps.filter(p => p.fold >= 1).length;
@@ -1987,7 +2085,7 @@
           if (this.phase !== 'press' || !this.pressing) return;
           this.pressing = false;
           S.tools.press(false);
-          if (this.hold >= 0.8) { this.phase = 'refill'; this.refill = 0; NZA.audio.click(700); S.markers.remove('cms'); }
+          if (this.hold >= 0.8) { this.phase = 'refill'; this.refill = 0; g.click(700); S.markers.remove('cms'); }
           else if (this.hold > 0.05) g.flashOnce('warn', T('c3_cms_short', 'Hold it a moment longer, until the ring fills.'), 1500);
           this.hold = 0;
         },
@@ -2015,11 +2113,27 @@
             this.refill += dt;
             g.M.blanch.opacity = 0.75 * clamp(1 - this.refill / 1.3, 0, 1);
             g.cursor(null, '', '');
-            if (this.refill >= 1.4 && !this.c) { this.c = true; g.useHand(null); g.pp.flash('ok', T('c3_cms_c', 'Pink again in about 1.5 s: circulation is fine.'), 1800); NZA.audio.click(760); }
-            if (this.refill >= 2.6 && !this.m) { this.m = true; g.pp.flash('ok', T('c3_cms_m', 'They move their %s: motor fine.', digits), 1600); NZA.audio.click(780); g.S.controls.shake(0.06, 300); }
-            if (this.refill >= 3.8 && !this.s) { this.s = true; g.pp.flash('ok', T('c3_cms_s', '"Yes, I can feel that." Sensation fine.'), 1800); NZA.audio.click(800); }
-            if (this.refill >= 4.4 && !this.finished) { bl.visible = false; g.stepDone(T('c3_ok_cms', 'CMS checked: circulation, movement and feeling all fine.')); }
+            if (this.refill >= 1.4 && !this.c) { this.c = true; g.useHand(null); g.flash('ok', T('c3_cms_c', 'Pink again in about 1.5 s: circulation is fine.'), 1800); g.click(760); }
+            if (this.refill >= 2.6 && !this.m) { this.m = true; g.flash('ok', T('c3_cms_m', 'They move their %s: motor fine.', digits), 1600); g.click(780); g.S.controls.shake(0.06, 300); }
+            if (this.refill >= 3.8 && !this.s) { this.s = true; g.flash('ok', T('c3_cms_s', '"Yes, I can feel that." Sensation fine.'), 1800); g.click(800); }
+            if (this.refill >= CMS_END && !this.finished) { bl.visible = false; g.stepDone(T('c3_ok_cms', 'CMS checked: circulation, movement and feeling all fine.')); }
           }
+        },
+        // (carrying on) the press was done r s ago: the refill check runs on from there
+        toRefill(r) {
+          this.phase = 'refill'; this.refill = r; this.pressing = false; this.hold = 0;
+          S.tools.press(false); S.markers.remove('cms');
+          this.c = r >= 1.4; this.m = r >= 2.6; this.s = r >= 3.8;
+          if (this.c) g.useHand(null);
+          const bl = g.blanch, hit = r < 1.3 ? S.surfaceAt(uv) : null;
+          if (hit && hit.point && hit.normal) {
+            bl.visible = true;
+            bl.position.copy(hit.point).addScaledVector(hit.normal, 0.0004);
+            bl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), hit.normal);
+            bl.scale.setScalar(0.0075);
+            g.M.blanch.color.copy(g.blanchColor());
+            g.M.blanch.opacity = 0.75 * clamp(1 - r / 1.3, 0, 1);
+          } else { bl.visible = false; g.M.blanch.opacity = 0; }
         },
         exit() { S.markers.remove('cms'); g.useHand(null); g.blanch.visible = false; },
         panel() {
@@ -2037,11 +2151,24 @@
       const c = t ? new THREE.Color(t[0] !== undefined ? t[0] : t.r, t[1] !== undefined ? t[1] : t.g, t[2] !== undefined ? t[2] : t.b) : new THREE.Color(0.85, 0.66, 0.55);
       return c.lerp(new THREE.Color(1, 0.96, 0.92), 0.45);
     }
+    // a hairline crack where the setting cast was pressed (its own seeded wobble: a restored crack is drawn
+    // again the same)
+    addCrack(s0, a0) {
+      const k = this.crackList.length, r = rng(((this.seed >>> 0) ^ Math.imul(k + 1, 0x9E3779B1)) >>> 0);
+      this.crackList.push({ s: s0, a: a0 });
+      const pts = [];
+      let s = s0 - 0.012, a = a0 - 0.04;
+      for (let i = 0; i < 7; i++) { pts.push(this.cyl(s, a, this.under(s, a) + 0.0004)); s += 0.004; a += (r() - 0.5) * 0.06 + 0.012; }
+      const geo = this.keep(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0004, 4, false));
+      const m = new THREE.Mesh(geo, this.M.crack); m.renderOrder = 5;
+      this.S.scene.add(m);
+    }
 
     /* ─────────────── finish: the same result as the 2D game ─────────────── */
     finish() {
       if (this.finished) return;
       this.finished = true;
+      if (this.pp) this.pp.set({ pause: false });   // nothing left to step away from
       if (this.ph && this.ph.exit) this.ph.exit();
       this.ph = { name: 'done', panel() {}, tick() {} };
       this.useHand(null);
@@ -2079,10 +2206,292 @@
       ]);
     }
 
+    /* ═════════════════════════════ step away / carry on ═════════════════════════════
+       snapshot() → a small JSON-safe object, or null while a move is half done. The next open of the same
+       procedure on the same fracture carries it back as data.resume; boot() → restore() rebuilds that point
+       on the fresh scene (built from the fresh open data) by running the steps through again. */
+    snapshot() {
+      const ph = this.ph;
+      if (!this.ready || !this.alive || !this.S || this.finished || this.restoring || !ph) return null;
+      const at = this.stepIdx, name = ph.name;
+      if (STEPS[at] !== name) return null;
+      // finish the move first: a roll or a cuff in the hand, the palm rubbing, the plaster roll held, a press
+      // on the skin (holding on the setting cast is no move: the crack is made when it is pressed)
+      const setting = name === 'mould' && ph.phase === 'setting';
+      if ((this.lmb && !setting) || ph.grab || ph.held || ph.pressing) return null;
+      // the last check is done: the result is being saved
+      if (name === 'cms' && ph.finished) return null;
+      const st = this.stk;
+      const snap = {
+        v: 1,
+        w: { inj: String(this.d.injury === undefined || this.d.injury === null ? '' : this.d.injury), reg: String(this.d.region || ''), seed: this.seed >>> 0 },
+        step: at, el: rnd(clamp((performance.now() - this.openAt) / 1000, 0, MAX_EL), 1), t: rnd(clamp(this.t, 0, 1e6), 2),
+        // 1 · how far the stockinette is rolled on (where the roll is heading)
+        stk: st.done || at > 0 ? 1 : rnd(clamp((st.s0 - Math.min(st.ring, st.target)) / (st.s0 - st.sE), 0, 0.9999), 4),
+      };
+      // 2 · padding / 4 · plaster: the centre of every turn laid by hand + the turn being rolled on
+      if (at >= 1) snap.pad = this.wrapSnap(this.wPad, at === 1 ? ph : null);
+      // 3 · dip: how soaked, and whether it lies in the water (lifting out: soaked)
+      if (at >= 2) snap.dip = at > 2 || ph.lifting || ph.soak >= 1 ? { s: 1, w: 0 } : { s: Math.floor(clamp(ph.soak, 0, 1) * 1000) / 1000, w: ph.inWater ? 1 : 0 };
+      if (at >= 3) snap.pl = this.wrapSnap(this.wPl, at === 3 ? ph : null);
+      // 5 · mould: every section, the working time left, setting or not and how far, the cracks
+      if (at >= 4) {
+        const m4 = at === 4 ? ph : null;
+        snap.ml = {
+          m: Array.from(this.mouldM, v => rnd(v, 4)), wk: m4 ? rnd(clamp(m4.work, 0, WORK_TIME), 2) : 0, ph: !m4 || m4.phase === 'setting' ? 1 : 0,
+          set: !m4 || m4.setting >= 1 ? 1 : Math.floor(clamp(m4.setting, 0, 1) * 1000) / 1000, ow: m4 && m4.overWarned ? 1 : 0,
+        };
+        snap.cr = this.crackList.map(c => [rnd(c.s, 5), rnd(c.a, 4)]);
+      }
+      // 6 · fold: each stockinette end (one easing over or back: where it is going)
+      if (at >= 5) {
+        snap.fold = [st.parts[0], st.parts[2]].map(pt => {
+          if (at > 5) return 1;
+          const an = (ph.anim || []).find(x => x.pt === pt);
+          return an ? an.to : rnd(clamp(pt.fold, 0, 1), 3);
+        });
+      }
+      // 7 · cms: still to press (-1) or how far the refill check has run
+      if (at >= 6) snap.cms = { r: ph.phase === 'refill' ? Math.floor(clamp(ph.refill, 0, CMS_END - 0.01) * 100) / 100 : -1 };
+      return snap;
+    }
+    wrapSnap(w, ph) {
+      const c = w ? w.turns.filter(t => !t.anchor && t.passStamped).map(t => rnd(t.C, 6)) : [];
+      const t = ph && ph.turn;
+      const cur = t && (ph.phase === 'wait' || ph.phase === 'drag') && !t.anchor && !t.passStamped ? [rnd(t.C, 6), rnd(clamp(t.phi, 0, PASS - 0.002), 4)] : null;
+      return { c, cur };
+    }
+    // which fracture a snapshot was taken on: 'same', 'other' (another injury / limb / patient) or 'bad'
+    limbMatch(snap) {
+      const w = snap.w;
+      if (snap.v !== 1 || !plain(w)) return 'bad';
+      const d = this.d, inj = d.injury === undefined || d.injury === null ? '' : String(d.injury);
+      const same = String(w.inj === undefined || w.inj === null ? '' : w.inj) === inj && String(w.reg || '') === String(d.region || '') && num(w.seed, -1) === (this.seed >>> 0);
+      return same ? 'same' : 'other';
+    }
+    // Rebuild the saved point → the step it opens on. Every step runs through the game's own step machine
+    // (enter → its saved state → done → the next), so what follows from what is on the limb (the bands,
+    // layer counts, overlap scores, the moulded shell, the mould result) is worked out again, not read. A
+    // step is entered only when every step before it is done; data of a step later than the one the
+    // snapshot was on is never read; an unreadable / out-of-range field starts its own step over.
+    restore(r) {
+      const at0 = intIn(r.step, 0, STEPS.length - 1), AT = at0 === null ? 0 : at0;
+      const el = numIn(r.el, 0, MAX_EL), t = numIn(r.t, 0, 1e6);
+      if (el !== null) this.openAt = performance.now() - el * 1000;
+      if (t !== null) this.t = t;
+      const go = name => { this.stepIdx = STEPS.indexOf(name); this.enter(name); return this.ph; };
+      const end = name => { this.frameStep(name, true); this.updateTools(); if (this.ph.panel) this.ph.panel(); return name; };
+      const st = this.stk;
+
+      // 1 · stockinette
+      let ph = go('stockinette');
+      const sp = numIn(r.stk, 0, 1);
+      if (sp !== null) {
+        st.ring = st.target = sp >= 1 ? st.sE : st.s0 - sp * (st.s0 - st.sE);
+        if (st.ring <= st.sE + 0.0015) { st.ring = st.target = st.sE; st.done = true; ph.finished = true; }
+        this.layStock();
+      }
+      if (!st.done) return end('stockinette');
+
+      // 2 · padding
+      ph = go('padding');
+      if (AT >= 1 && !this.replayWrap(ph, r.pad, AT === 1)) ph = this.resetWrap(true);
+      if (ph.phase !== 'done') return end('padding');
+
+      // 3 · dip
+      ph = go('dip');
+      let soaked = false;
+      if (AT >= 2) {
+        const D = plain(r.dip) ? r.dip : null, s = D ? numIn(D.s, 0, 1) : null, w = D ? bit(D.w) : -1;
+        if (s !== null && w >= 0) {
+          if (s >= 1) soaked = true;
+          else { ph.soak = s; if (w === 1) ph.sink(); }
+        }
+      }
+      if (!soaked) return end('dip');
+      // lifted out soaked (as lift() leaves it)
+      ph.soak = 1; ph.finished = true;
+      this.plRoll.inner.children[0].material = this.M.plaster;
+      this.basin.milk = Math.min(1, this.basin.milk + 0.5);
+      this.wet = 1; this.dripOn = true;
+
+      // 4 · plaster
+      ph = go('plaster');
+      if (AT >= 3 && !this.replayWrap(ph, r.pl, AT === 3)) ph = this.resetWrap(false);
+      if (ph.phase !== 'done') return end('plaster');
+
+      // 5 · mould and set
+      ph = go('mould');
+      let set = false;
+      if (AT >= 4) {
+        const M = plain(r.ml) ? r.ml : null, m = M ? list(M.m) : null, cr = list(r.cr);
+        const wk = M ? numIn(M.wk, 0, WORK_TIME) : null, mp = M ? bit(M.ph) : -1, sf = M ? numIn(M.set, 0, 1) : null, ow = M ? bit(M.ow) : -1;
+        const mOk = !!m && m.length === CELLS && m.every(x => numIn(x, 0, 1.25) !== null);
+        const crOk = !!cr && cr.length <= 50 && cr.every(c => Array.isArray(c) && c.length === 2 && numIn(c[0], this.sP - 0.006, this.sD + 0.006) !== null && numIn(c[1], -3.15, 3.15) !== null);
+        // (setting progress and cracks only once it sets: while it is moulded nothing has set yet)
+        if (mOk && crOk && wk !== null && mp >= 0 && sf !== null && ow >= 0 && (mp === 1 || (sf === 0 && !cr.length))) {
+          m.forEach((x, i) => { this.mouldM[i] = +x; });
+          this.layShell();
+          ph.work = wk; ph.overWarned = ow === 1;
+          this.M.plaster.normalScale.setScalar(lerp(0.75, 0.25, clamp(ph.mould(), 0, 1)));
+          if (mp === 1) {
+            ph.toSetting(wk <= 0);
+            ph.setting = sf;
+            cr.forEach(c => this.addCrack(+c[0], +c[1]));
+            this.res.cracks = this.crackList.length;
+            set = sf >= 1;
+          }
+        }
+      }
+      if (!set) return end('mould');
+      ph.finished = true;
+
+      // 6 · fold the ends
+      ph = go('fold');
+      if (AT >= 5) {
+        const F = list(r.fold);
+        if (F && F.length === 2 && F.every(f => numIn(f, 0, 1) !== null)) {
+          [st.parts[0], st.parts[2]].forEach((pt, i) => { pt.fold = +F[i]; this.layFold(pt); if (pt.fold >= 1) this.S.markers.remove(`fold${i}`); });
+        }
+      }
+      if (!(st.parts[0].fold >= 1 && st.parts[2].fold >= 1)) return end('fold');
+      ph.finished = true;
+
+      // 7 · CMS
+      ph = go('cms');
+      if (AT >= 6) {
+        const C = plain(r.cms) ? r.cms : null, rf = C ? num(C.r, NaN) : NaN;
+        if (rf >= 0 && rf < CMS_END) ph.toRefill(rf);
+      }
+      return end('cms');
+    }
+    // play a wrap step through again from the centres of the turns laid by hand: the game's own machine lays
+    // the anchor turns, starts each pass and ends the wrap, each turn on the last as in play
+    // → false: not a wrap this game could have laid (the caller takes it off and starts the step over)
+    replayWrap(ph, W, withCur) {
+      if (!plain(W)) return false;
+      const cs = list(W.c);
+      if (!cs || cs.length > MAX_TURNS || !cs.every(c => Number.isFinite(num(c, NaN)))) return false;
+      const bw = ph.w.bw;
+      // (a centre a player can lay: 15 % to a whole band past the last turn, never past the end of the pass)
+      const fits = (C, t) => !!t && !!t.prev && Math.abs(ph.clampC(C, t.prev.C) - C) <= 2e-5;
+      let i = 0;
+      ph.tick(0);                       // the first pass and its anchor turn
+      for (let guard = 0; guard < 4 * MAX_TURNS && ph.phase !== 'done'; guard++) {
+        const t = ph.turn;
+        if (ph.phase === 'anchor') {
+          // up to the end of its visible pass (stamped there), then round underneath: as play lays it
+          if (!t.passStamped) { ph.animT = 0.7 * (PASS + 1e-6) / TAU; ph.tick(0); }
+          ph.animT = 1e3; ph.tick(0);
+        } else if (ph.phase === 'round') { ph.animT = 1e3; ph.tick(0); }
+        else if (ph.phase === 'wait' || ph.phase === 'drag') {
+          if (i >= cs.length) break;      // the next turn was not laid yet
+          const C = +cs[i++];
+          if (!fits(C, t)) return false;
+          ph.nudge = C - ph.ideal; ph.drift = 0; ph.applyC();
+          this.growTurn(t, PASS); ph.endPass();
+        } else return false;
+      }
+      if (i < cs.length) return false;   // turns left over: not this wrap
+      const cur = W.cur;
+      if (cur === null || cur === undefined) return ph.phase === 'done' || ph.phase === 'wait';
+      // the turn that was being rolled on: its centre and how far up it was
+      if (!withCur || !Array.isArray(cur) || cur.length !== 2 || ph.phase !== 'wait') return false;
+      const C = num(cur[0], NaN), phi = numIn(cur[1], 0, PASS - 1e-3), t = ph.turn;
+      if (!Number.isFinite(C) || phi === null || !fits(C, t)) return false;
+      ph.nudge = clamp(C - ph.ideal, -bw, bw); ph.drift = 0; ph.applyC();
+      if (phi > 1e-4) { this.growTurn(t, phi); ph.target = phi; if (phi > 0.02) ph.phase = 'drag'; }
+      this.rollAt(ph.w, t, ph.roll);
+      return true;
+    }
+    // a wrap that did not replay cleanly: take it off again (its bands, thickness, layer counts and scores)
+    // and open that step from its start
+    resetWrap(isPad) {
+      const w = isPad ? this.wPad : this.wPl;
+      if (w) w.turns.forEach(t => { this.S.scene.remove(t.mesh); t.geo.dispose(); this.bin.delete(t.geo); });
+      (isPad ? this.fPad : this.fPl).fill(0);
+      (isPad ? this.padLayers : this.layers).fill(0);
+      this.res[isPad ? 'padQ' : 'plQ'] = [];
+      if (isPad) this.wPad = null; else this.wPl = null;
+      (isPad ? this.padRoll : this.plRoll).group.visible = false;
+      this.hideGuide();
+      this.ph = null;                    // (no exit: nothing of it is kept)
+      this.enter(isPad ? 'padding' : 'plaster');
+      return this.ph;
+    }
+    // a snapshot that could not be rebuilt: open this cast again from the start on a new scene (never a
+    // half-rebuilt one), with a note
+    restartClean() {
+      const ctx = Object.assign({}, this.ctx, { d: Object.assign({}, this.ctx.d) });
+      delete ctx.d.resume;
+      const holder = this.holder, pp = this.pp;
+      this.dispose();
+      if (pp && ctx.state.pp === pp) { try { pp.destroy(); } catch (e) { /* gone */ } ctx.state.pp = null; }
+      NEXT_NOTE = 'bad';
+      let g = null;
+      try { g = new Game(ctx, holder); } catch (e) { console.error('[xray] cast restart', e); }
+      NEXT_NOTE = null;   // (the new game took it)
+      if (!g) { if (ctx.fallback) ctx.fallback(); return; }
+      if (holder) holder.g = g;
+      Game.current = g;
+    }
+    // preview only (?resume=<stage>): play to a point in that step the way playing leaves it (no move half
+    // done), step away and open again from the snapshot
+    previewPark(stage) {
+      if (!this.alive || !this.ready || NZA.inGame || this.finished) return;
+      const s = String(stage || '').toLowerCase();
+      const plan = {
+        stockinette: ['stockinette'], padding: ['padding', { turns: 1 }], dip: ['dip'], plaster: ['plaster', { pass: 1, turns: 1 }],
+        mould: ['mould'], setting: ['setting', { set: 0.45 }], fold: ['fold'], cms: ['cms'],
+      }[s] || ['plaster', { pass: 1, turns: 1 }];
+      this.quiet += 1;
+      try {
+        if (s !== 'stockinette') this.jump(plan[0], plan[1] || {});
+        const ph = this.ph;
+        if (s === 'stockinette') { const st = this.stk; st.ring = st.target = lerp(st.s0, st.sE, 0.55); this.layStock(); }
+        // (the next turn half rolled on)
+        if (ph.w && ph.turn && ph.phase === 'wait') { this.growTurn(ph.turn, PASS * 0.5); ph.target = PASS * 0.5; ph.phase = 'drag'; this.rollAt(ph.w, ph.turn, ph.roll); }
+        if (s === 'dip') { ph.soak = 0.45; ph.sink(); }
+        if (s === 'mould') { for (let i = 0; i < CELLS; i++) this.mouldM[i] = i < 15 ? 0.62 + 0.08 * Math.sin(i * 1.3) : 0.08; this.layShell(); ph.work = 17.5; }
+        if (s === 'setting') { this.addCrack(this.sP + (this.sD - this.sP) * 0.68, 0.22); this.res.cracks = this.crackList.length; }
+        if (s === 'fold') { const pt = this.stk.parts[2]; pt.fold = 1; this.layFold(pt); this.S.markers.remove('fold1'); }
+        if (s === 'cms') ph.toRefill(2);
+      } finally { this.quiet -= 1; }
+      this.openAt = performance.now() - 96000;
+      const snap = this.snapshot();
+      if (!snap) return;
+      const d = JSON.parse(JSON.stringify(this.ctx.d));
+      d.resume = JSON.parse(JSON.stringify(snap));
+      NZA.demo('xray', d);
+    }
+    // the running game's progress (emulator scenarios: XrayCast3D.debug.state())
+    debugState() {
+      const ph = this.ph || {}, st = this.stk, pz = this.pp && this.pp.el && this.pp.el.querySelector('.pp-pause');
+      const wr = w => (w ? w.turns.filter(t => !t.anchor && t.passStamped).map(t => rnd(t.C, 6)) : []);
+      const cur = ph.turn && !ph.turn.anchor && !ph.turn.passStamped ? [rnd(ph.turn.C, 6), rnd(ph.turn.phi, 4)] : null;
+      const ttl = this.pp && this.pp.el && this.pp.el.querySelector('.pp-title');
+      return {
+        ready: !!this.ready, alive: !!this.alive, resumed: !!this.resumed, note: this.noteShown || null, finished: !!this.finished,
+        idx: this.stepIdx, step: ph.name || null, phase: ph.phase || '', fin: !!ph.finished, lmb: !!this.lmb,
+        pause: !!pz && pz.style.display !== 'none', title: ttl ? ttl.textContent : '',
+        stk: st ? rnd(clamp((st.s0 - st.ring) / (st.s0 - st.sE), 0, 1), 4) : 0, stkDone: !!(st && st.done),
+        pad: wr(this.wPad), padN: this.wPad ? this.wPad.turns.length : 0, padL: Array.from(this.padLayers || []), padQ: this.res.padQ.map(q => rnd(q, 4)),
+        pl: wr(this.wPl), plN: this.wPl ? this.wPl.turns.length : 0, layers: Array.from(this.layers || []), plQ: this.res.plQ.map(q => rnd(q, 4)),
+        cur: ph.w ? cur : null, pass: ph.pass === undefined ? null : ph.pass,
+        soak: ph.soak === undefined ? null : rnd(ph.soak, 3), inWater: !!ph.inWater, milk: this.basin ? this.basin.milk : 0,
+        mould: Array.from(this.mouldM || [], v => rnd(v, 4)), work: ph.work === undefined ? null : rnd(ph.work, 2), setting: ph.setting === undefined ? null : rnd(ph.setting, 3),
+        resMould: rnd(this.res.mould, 4), cracks: this.res.cracks, crackN: this.crackList.length,
+        folds: st ? [rnd(st.parts[0].fold, 3), rnd(st.parts[2].fold, 3)] : [],
+        cms: ph.name === 'cms' ? { phase: ph.phase, refill: rnd(ph.refill, 2), c: !!ph.c, m: !!ph.m, s: !!ph.s } : null,
+        el: rnd((performance.now() - this.openAt) / 1000, 1), t: rnd(this.t, 2),
+      };
+    }
+
     /* ─────────────── preview: open at a stage (index.html?app=xray&mode=cast&stage=…) ─────────────── */
-    jump(stage) {
+    // opt: the stage's own numbers instead of the page's query (pass, turns, m, set, f)
+    jump(stage, opt) {
       if (!this.ready) { this.pendingJump = stage; return; }
-      const q = new URLSearchParams(location.search);
+      const q = opt ? { get: k => (opt[k] === undefined || opt[k] === null ? null : String(opt[k])) } : new URLSearchParams(location.search);
       const st = String(stage || '').toLowerCase();
       const order = ['stockinette', 'padding', 'dip', 'plaster', 'mould', 'setting', 'fold', 'cms', 'done'];
       const k = order.indexOf(st);
@@ -2188,19 +2597,27 @@
       if (!NZA.inGame && /[?&]no3d=1\b/.test(location.search)) return false;
       try { return !!NZA3D.supported(); } catch (e) { return false; }
     },
-    // → the app's mode handle (S.m): key / keyUp / result / destroy
+    // → the app's mode handle (S.m): key / keyUp / result / destroy (on whichever game runs: a restore
+    // that could not be rebuilt swaps in a fresh one)
     start(ctx) {
-      const g = new Game(ctx);
+      const h = { g: null };
+      const g = new Game(ctx, h);
+      h.g = g;
       Game.current = g;
       if (!NZA.inGame) { const st = new URLSearchParams(location.search).get('stage'); if (st) g.jump(st); }
       return {
-        key: e => g.key(e),
+        key: e => (h.g ? h.g.key(e) : false),
         keyUp: () => false,
-        result: r => g.showResult(r || {}),
-        destroy: () => g.dispose(),
-        _game: g,
+        result: r => { if (h.g) h.g.showResult(r || {}); },
+        destroy: () => { if (h.g) h.g.dispose(); },
+        get _game() { return h.g; },
       };
     },
-    get debug() { return { g: Game.current, screen: w => Game.current && Game.current.screen(w) }; },
+    get debug() {
+      return {
+        g: Game.current, screen: w => Game.current && Game.current.screen(w), state: () => Game.current && Game.current.debugState(),
+        K: { A0, AFAR, PASS, CELLS, WORK_TIME, CMS_END, STEPS: STEPS.slice() },
+      };
+    },
   };
 })();
