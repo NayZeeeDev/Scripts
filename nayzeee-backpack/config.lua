@@ -1282,6 +1282,120 @@ Config.Backpacks = {
         price    = 2500,
     },
 
+    -- NAYZEEE ORIGINALS ----------------------------------------------------
+    -- Built from code (nayzeee-backpack-props/tools/bagforge). Each pivots on
+    -- the handle grip, so the purse hold starts close; fine-tune with /bagtune.
+
+    ['nayzeee_bag_barrel'] = {
+        label    = 'Barrel Bag',
+        model    = 'nayzeee_bag_barrel',
+        category = 'pocketbook',
+        theme    = 'realistic',
+        price    = 2400,
+        slots    = 5,
+        weight   = 5000,
+        carry    = 'purse',
+        variants = {
+            { label = 'Cherry', model = 'nayzeee_bag_barrel' },
+            { label = 'Rose', model = 'nayzeee_bag_barrel_2' },
+            { label = 'Butterfly', model = 'nayzeee_bag_barrel_3' },
+            { label = 'Sky', model = 'nayzeee_bag_barrel_4' },
+            { label = 'Cream', model = 'nayzeee_bag_barrel_5' },
+            { label = 'Black', model = 'nayzeee_bag_barrel_6' },
+            { label = 'Rose Plaid', model = 'nayzeee_bag_barrel_plaid' },
+            { label = 'Red Plaid', model = 'nayzeee_bag_barrel_plaid_2' },
+        },
+    },
+
+    ['nayzeee_bag_dome'] = {
+        label    = 'Dome Satchel',
+        model    = 'nayzeee_bag_dome',
+        category = 'pocketbook',
+        theme    = 'realistic',
+        price    = 2600,
+        slots    = 5,
+        weight   = 5000,
+        carry    = 'purse',
+        variants = {
+            { label = 'Cream', model = 'nayzeee_bag_dome' },
+            { label = 'Cherry Red', model = 'nayzeee_bag_dome_2' },
+            { label = 'Blush', model = 'nayzeee_bag_dome_3' },
+            { label = 'Black', model = 'nayzeee_bag_dome_4' },
+            { label = 'Olive', model = 'nayzeee_bag_dome_5' },
+        },
+    },
+
+    ['nayzeee_bag_croc'] = {
+        label    = 'Croc Top-Handle',
+        model    = 'nayzeee_bag_croc',
+        category = 'pocketbook',
+        theme    = 'realistic',
+        price    = 3200,
+        slots    = 5,
+        weight   = 5000,
+        carry    = 'purse',
+        variants = {
+            { label = 'Lavender', model = 'nayzeee_bag_croc' },
+            { label = 'Black', model = 'nayzeee_bag_croc_2' },
+            { label = 'Red', model = 'nayzeee_bag_croc_3' },
+            { label = 'Blush', model = 'nayzeee_bag_croc_4' },
+            { label = 'Cream', model = 'nayzeee_bag_croc_5' },
+        },
+    },
+
+    ['nayzeee_bag_sweetheart'] = {
+        label    = 'Sweetheart Tote',
+        model    = 'nayzeee_bag_sweetheart',
+        category = 'pocketbook',
+        theme    = 'realistic',
+        price    = 2800,
+        slots    = 5,
+        weight   = 5000,
+        carry    = 'purse',
+        variants = {
+            { label = 'Red', model = 'nayzeee_bag_sweetheart' },
+            { label = 'Pink', model = 'nayzeee_bag_sweetheart_2' },
+            { label = 'White', model = 'nayzeee_bag_sweetheart_3' },
+            { label = 'Black', model = 'nayzeee_bag_sweetheart_4' },
+        },
+    },
+
+    ['nayzeee_bag_crochet'] = {
+        label    = 'Crochet Hobo',
+        model    = 'nayzeee_bag_crochet',
+        category = 'shoulder',
+        theme    = 'realistic',
+        price    = 1800,
+        slots    = 6,
+        weight   = 6000,
+        carry    = 'purse',
+        variants = {
+            { label = 'Red Zigzag', model = 'nayzeee_bag_crochet' },
+            { label = 'Green Argyle', model = 'nayzeee_bag_crochet_2' },
+            { label = 'Pastel', model = 'nayzeee_bag_crochet_3' },
+            { label = 'Black White', model = 'nayzeee_bag_crochet_4' },
+        },
+    },
+
+    ['nayzeee_bag_weekender'] = {
+        label    = 'Velvet Weekender',
+        model    = 'nayzeee_bag_weekender',
+        category = 'duffel',
+        theme    = 'realistic',
+        price    = 4000,
+        slots    = 15,
+        weight   = 30000,
+        carry    = 'purse',
+        open     = { style = 'stand' },
+        variants = {
+            { label = 'Black', model = 'nayzeee_bag_weekender' },
+            { label = 'Navy', model = 'nayzeee_bag_weekender_2' },
+            { label = 'Wine', model = 'nayzeee_bag_weekender_3' },
+            { label = 'Forest', model = 'nayzeee_bag_weekender_4' },
+            { label = 'Black Croc', model = 'nayzeee_bag_weekender_croc' },
+            { label = 'Brown Croc', model = 'nayzeee_bag_weekender_croc_2' },
+        },
+    },
     -- JOB BAGS -------------------------------------------------------------
     -- Only players on the job see these in the shop, and only they can wear
     -- one. price = 0 shows as "Issued" with a Collect button.

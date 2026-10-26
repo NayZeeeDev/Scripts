@@ -8,3 +8,6 @@ stream/**/*.ytyp
 
 # Third-party props (bzzz) are regenerated with tools/rename_bzzz.py and shipped in the zip
 stream/duffel/
+
+# Python caches from the tools
+__pycache__/

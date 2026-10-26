@@ -45,6 +45,22 @@ source (see the top of the script). `tools/render_bag.py` and
 `tools/variants_sheet.py` draw the result (every colour) so you can check it
 before it goes in game.
 
+## Nayzeee originals (bagforge)
+
+Barrel Bag, Dome Satchel, Croc Top-Handle, Sweetheart Tote, Crochet Hobo and
+Velvet Weekender are built entirely from code in `tools/bagforge`: shapes in
+`designs.py`, materials (leather, patent, croc, velvet, crochet, tartan,
+prints) in `textures.py`, and the colour list in `catalog.py`. To change a
+colour or add one, edit `catalog.py` and rebuild:
+
+```
+tools/forge_bags.sh              # every bag
+tools/forge_bags.sh barrel       # just one
+```
+
+Then match the `variants` list in `Config.Backpacks`. Every model pivots on
+the top of its handles, so the purse hold grips it by the handles.
+
 ## Poses
 
 `.ycd` files anywhere in `stream/` just work. The dict / clip names are set in
