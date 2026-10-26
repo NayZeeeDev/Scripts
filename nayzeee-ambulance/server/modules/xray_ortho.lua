@@ -14,6 +14,8 @@
         payload { injury = 'i7' }
         onStart  → limb fracture without a cast, aligned (not displaced or reduced), open fractures cleaned /
                    closed first (Cast.openNeedsWoundCare), patient on a hospital point (skipped in easy mode)
+                   data → { injury, region, regionLabel, bone, boneLabel, castType, side, leg, layersMin, layersMax,
+                            name, upper, tone, sex, seed (tone / sex / seed: the 3D close-up's skin) }
         onFinish → treat.cast, quality.cast, heal boost (Cast.healBoost × score), removes the splint of that limb,
                    leg casts recommend / give crutches (Cast.crutches), bills.
     Bus events emitted: xray:reduced (src, p, injury, outcome), xray:cast (src, p, injury, outcome)
@@ -233,6 +235,21 @@ local function woundCared(inj)
     return t.irrigated or t.sutured or t.dressed or t.bandaged
 end
 
+-- skin tone for the cast's 3D close-up (NUI apps/xray/cast3d.js): the same pick as the suture / burn /
+-- bullet / splint close-ups (their skinTones, djb2-hashed on the patient id) so a patient looks the same
+local function hashStr(str)
+    local h = 5381
+    str = tostring(str)
+    for i = 1, #str do h = (h * 33 + str:byte(i)) % 2147483647 end
+    return h
+end
+
+local function skinTone(p)
+    local tones = (Config.Suture and Config.Suture.skinTones) or (Config.Burn and Config.Burn.skinTones)
+        or (Config.Bullet and Config.Bullet.skinTones) or { 0.12, 0.22, 0.3, 0.38, 0.5, 0.62, 0.75, 0.88 }
+    return tones[(hashStr(p.pid) % #tones) + 1] or 0.3
+end
+
 do
     local cc = cfg('Cast')
     NZA.Proc.Register('xray_cast', {
@@ -269,6 +286,7 @@ do
                 boneLabel = boneLabel(f.bone), castType = castType(inj), side = R and R.side or 'r',
                 leg = legRegion(inj.region), layersMin = tonumber(layers[1]) or 3, layersMax = tonumber(layers[2]) or 6,
                 name = p.name, upper = tostring(inj.region):find('upper') ~= nil,
+                tone = skinTone(p), sex = p.sex, seed = hashStr(tostring(p.pid) .. ':' .. tostring(inj.id)),
             }
         end,
 

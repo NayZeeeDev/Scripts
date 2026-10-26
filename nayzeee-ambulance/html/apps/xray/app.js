@@ -13,6 +13,7 @@
      reduce   set the bone under live fluoroscopy (drag the lower piece, F live image)
               → xray:finish { score, angle, short, slips, painOver, fluoro }
      cast     padding, plaster turns, moulding → xray:finish { score, coverage, layersMin, layersMax, cracks }
+              3D close-up in apps/xray/cast3d.js when WebGL works (modeCast's 2D canvas game = fallback)
    Every mode: xray:abort (hold ESC) · xray:close (router)
 
    The radiographs are drawn procedurally (ANAT) from the film metadata the server built
@@ -1885,7 +1886,12 @@
   }
 
   /* ═══════════════════════════ MODE: CAST ═══════════════════════════ */
-  function modeCast(d) {
+  function modeCast(d, no3d) {
+    // the 3D close-up (apps/xray/cast3d.js) when WebGL works; the 2D canvas game below is the fallback
+    if (!no3d && window.XrayCast3D && XrayCast3D.ok()) {
+      S.m = XrayCast3D.start({ root, app: NZA.apps[APP], state: S, d, post, sound, abortBtn, resultCard, fallback: () => { S.m = null; modeCast(d, true); } });
+      return;
+    }
     const leg = !!d.leg;
     const minL = d.layersMin || 3, maxL = d.layersMax || 6;
     const N = 24;                                   // cells along the cast
