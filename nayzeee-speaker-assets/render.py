@@ -528,10 +528,8 @@ def main(argv=None) -> int:
 
     (img, st), = run_jobs([make_job(opts, parts, glbs, label)], a.verbose)
     save_png(img, out)
-    ms = st["ms"]
-    log(f"render: {out} {img.shape[1]}x{img.shape[0]}, {st['tris']:,} tris, {st['frames']} spp, "
-        f"{st['aoDirections']} AO dirs ({ms['setup'] + ms['visibility'] + ms['lighting'] + ms['post']} ms render, "
-        f"{time.time() - t_start:.1f} s total)")
+    log(f"render: {out} {img.shape[1]}x{img.shape[0]}, {st['tris']:,} tris, {st['envFrames']}+{st['frames']} frames, "
+        f"{st['aoDirections']} AO dirs ({sum(st['ms'].values()) / 1000:.1f} s render, {time.time() - t_start:.1f} s total)")
     return 0
 
 
