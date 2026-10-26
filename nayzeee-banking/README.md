@@ -220,18 +220,18 @@ When one of these **is** running, it keeps its own invoices, and they show in th
 | Script | Invoices read from | Paid by |
 |---|---|---|
 | esx_billing | `billing` table | This bank, from any account; society bills go to the company account, private bills to the sender. Fires `esx_billing:paidBill` as esx_billing does |
-| okokBilling | `okokbilling` table | This bank, from any account; marked paid in okok. Late fees are included; okok's VAT and author cut are not applied |
-| Quasar Billing (`qs-billing`) | `qs_billing` table | As okokBilling |
+| okokBilling V3 | `getInvoices` export | Its `payReference` export, from the personal account, so okok's VAT, author cut and society payout apply. Late fees are included. Older okokBilling: read from the `okokbilling` table and paid by this bank, as Quasar |
+| Quasar Billing (`qs-billing`) | `qs_billing` table | This bank, from any account; marked paid in Quasar |
 | BCS Company Manager | `billings` table | Its `PayBill` export, from the personal account, so the company balance and employee cut are BCS's own |
 | RX Billing | `GetPlayerInvoices` export | Its `PayInvoice` export, from the personal account |
 | Wasabi Billing | `GetInvoicesByIdentifier` export | Shown only; paid from Wasabi's own menu |
 | TGG Billing | set `listExport` | Its `PayInvoice` export |
-| Bablo Billing | set `listExport` | Its `payInvoice` export |
+| Bablo Billing | its invoice table, found on start (read only) | Its `payInvoice` export, from the personal account |
 
 Turn any of them off, or point one at a renamed table, in `Config.Bridge.external`. On start each one checks that the tables, columns or exports it uses are there; if a version has changed its layout, that adapter switches itself off and the console says what it looked for, rather than reading the wrong thing. The adapters live in `server/sv_invoices.lua`, which is left open so you can adjust one to your version.
 
 {% hint style="info" %}
-TGG and Bablo do not document an export that lists a player's invoices. Once you know theirs, set `listExport` for that script in `Config.Bridge.external` and its invoices appear.
+TGG does not document an export that lists a player's invoices. Once you know it, set `listExport` for `tgg-billing` in `Config.Bridge.external` and its invoices appear. Bablo has none either, so its invoice table is found and read instead; the console names the table on start.
 {% endhint %}
 
 {% hint style="warning" %}

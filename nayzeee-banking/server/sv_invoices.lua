@@ -289,8 +289,96 @@ local function invoiceTable(key, resource, label, defaultTable)
     }
 end
 
-ADAPTERS.okokBilling   = invoiceTable('okokBilling', 'okokBilling', 'okokBilling', 'okokbilling')
 ADAPTERS['qs-billing'] = invoiceTable('qs-billing', 'qs-billing', 'Quasar Billing', 'qs_billing')
+
+-- ═══════════════════════════════════════════════════════════
+--  okokBilling
+--  V3: getInvoices(serverId) and payReference(serverId, ref), so
+--  okok's own VAT, commission and society payout all apply.
+--  Older versions have no such exports; their table is read instead
+--  and this bank moves the money, as for Quasar above.
+-- ═══════════════════════════════════════════════════════════
+local okokTable = invoiceTable('okokBilling', 'okokBilling', 'okokBilling', 'okokbilling')
+
+--- '2026-04-24 18:00:00' → time, or nil
+local function parseDate(s)
+    local y, m, d, h, mi = tostring(s or ''):match('^(%d+)-(%d+)-(%d+)[ T](%d+):(%d+)')
+    if not y then return nil end
+    return os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = tonumber(h), min = tonumber(mi) })
+end
+
+local OKOK_OPEN = { pending = true, unpaid = true, overdue = true, late = true }
+
+ADAPTERS.okokBilling = {
+    resource = 'okokBilling', label = 'okokBilling', mode = 'export',
+
+    check = function(self, o)
+        self.o, self.legacy, self.mode = o, nil, 'export'
+        return true
+    end,
+
+    --- No getInvoices export: an okokBilling from before V3.
+    fallBack = function(self)
+        note('okokBilling', 'no getInvoices export (a version before V3?), reading its table instead')
+        self.legacy = okokTable.check(okokTable, self.o) and true or false
+        self.mode = self.legacy and 'bank' or 'export'
+    end,
+
+    fetch = function(self, src)
+        local ok, res = pcall(function() return exports.okokBilling:getInvoices(src) end)
+        if not ok then
+            if tostring(res):find('No such export') then self:fallBack() end
+            if self.legacy == nil then note('okokBilling', 'getInvoices failed (' .. tostring(res):sub(1, 120) .. ')') end
+            return nil
+        end
+        if type(res) ~= 'table' then return {} end
+        if res.id or res.ref_id then res = { res } end   -- a single invoice
+        return res
+    end,
+
+    list = function(self, identifier)
+        if self.legacy then return okokTable.list(okokTable, identifier) end
+        if self.legacy == false then return {} end
+
+        -- the export takes a server id, so only players in the city
+        local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
+        if not xPlayer then return {} end
+        local res = self:fetch(xPlayer.source)
+        if not res then return self.legacy and okokTable.list(okokTable, identifier) or {} end
+
+        local out = {}
+        for _, inv in ipairs(res) do
+            if type(inv) == 'table' and inv.ref_id and OKOK_OPEN[tostring(inv.status):lower()] then
+                local fees = tonumber(inv.fees) or 0
+                local due = parseDate(inv.dueDate)
+                out[#out + 1] = {
+                    ref = inv.ref_id,
+                    amount = (tonumber(inv.amount) or 0) + fees,
+                    reason = fees > 0 and ('%s (incl. %s%s fees)'):format(inv.reason or 'Invoice', Config.Currency, fees) or inv.reason,
+                    issuer = inv.sender or 'Invoice',
+                    due = due and os.date('%d %b %H:%M', due) or nil,
+                    overdue = tostring(inv.status):lower() == 'overdue' or (due ~= nil and due < os.time()),
+                }
+            end
+        end
+        return out
+    end,
+
+    pay = function(self, src, bill, accountId)
+        if self.legacy then return okokTable.pay(okokTable, src, bill, accountId) end
+        return viaExport(src, bill, function()
+            local _, _, ran = call('okokBilling', 'okokBilling', 'payReference', src, bill.ref)
+            if not ran then return false end
+            -- payReference returns nothing documented: it worked if the invoice is no longer owed
+            for _, inv in ipairs(self:fetch(src) or {}) do
+                if type(inv) == 'table' and inv.ref_id == bill.ref and OKOK_OPEN[tostring(inv.status):lower()] then
+                    return false
+                end
+            end
+            return true
+        end)
+    end,
+}
 
 -- ═══════════════════════════════════════════════════════════
 --  BCS Company Manager
@@ -407,11 +495,81 @@ ADAPTERS['tgg-billing'] = exportAdapter('tgg-billing', 'tgg-billing', 'TGG Billi
     payArgs  = function(src, _, ref) return src, ref end,
 })
 
-ADAPTERS['bablo-billing'] = exportAdapter('bablo-billing', 'bablo-billing', 'Bablo Billing', {
-    payExport = 'payInvoice',
-    listArgs = function(identifier) return identifier end,
-    payArgs  = function(_, xPlayer, ref) return ref, xPlayer.identifier end,
-})
+-- ═══════════════════════════════════════════════════════════
+--  Bablo Billing
+--  Pays through payInvoice(uuid, identifier). It has no export that
+--  lists a player's invoices (only getInvoice by id), so its invoice
+--  table is found in the database and read; nothing is written to it.
+-- ═══════════════════════════════════════════════════════════
+local BABLO_COLS = {
+    ref    = { 'uuid', 'invoice_id', 'id' },
+    to     = { 'to', 'to_identifier', 'recipient', 'recipient_identifier', 'receiver', 'receiver_identifier', 'target' },
+    amount = { 'amount', 'total', 'price' },
+}
+
+local function firstOf(have, list)
+    for _, c in ipairs(list) do if have[c] then return c end end
+end
+
+ADAPTERS['bablo-billing'] = {
+    resource = 'bablo-billing', label = 'Bablo Billing', mode = 'export',
+
+    check = function(self, o)
+        -- an export named in config wins over reading the table
+        if o.listExport then
+            self.viaExport = exportAdapter('bablo-billing', 'bablo-billing', 'Bablo Billing', {
+                payExport = 'payInvoice',
+                listArgs = function(identifier) return identifier end,
+                payArgs  = function(_, xPlayer, ref) return ref, xPlayer.identifier end,
+            })
+            return self.viaExport.check(self.viaExport, o)
+        end
+
+        -- the table: named in config, or the bablo table that holds invoices
+        local names = {}
+        if o.table then names[1] = o.table else
+            for _, r in ipairs(MySQL.query.await([[
+                SELECT DISTINCT TABLE_NAME AS t FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'bablo%' AND TABLE_NAME LIKE '%invoice%'
+            ]]) or {}) do names[#names + 1] = r.t end
+        end
+
+        for _, t in ipairs(names) do
+            local have = t:match('^[%w_]+$') and columns(t) or {}
+            local ref, to, amount = firstOf(have, BABLO_COLS.ref), firstOf(have, BABLO_COLS.to), firstOf(have, BABLO_COLS.amount)
+            if ref and to and amount then
+                self.tbl, self.ref, self.to, self.cols = t, ref, to, have
+                print(('^2[nayzeee-banking]^7 Bablo Billing: reading invoices from `%s` (%s, %s, %s)'):format(t, ref, to, amount))
+                return true
+            end
+        end
+        note('bablo-billing', 'could not find its invoice table; set Config.Bridge.external["bablo-billing"].table')
+        return nil
+    end,
+
+    list = function(self, identifier)
+        if self.viaExport then return self.viaExport.list(self.viaExport, identifier) end
+        local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `%s` = ? LIMIT 40'):format(self.tbl, self.to), { identifier }) or {}
+        local out = {}
+        for _, r in ipairs(rows) do
+            -- a paid flag column, where there is one instead of a status
+            local paid = r.paid == true or r.paid == 1 or r.is_paid == true or r.is_paid == 1
+            local b = not paid and fromObject(r)
+            if b then
+                b.ref = r[self.ref]
+                if b.ref and b.amount > 0 then out[#out + 1] = b end
+            end
+        end
+        return out
+    end,
+
+    pay = function(self, src, bill)
+        return viaExport(src, bill, function(xPlayer)
+            local res, _, ran = call('bablo-billing', 'bablo-billing', 'payInvoice', bill.ref, xPlayer.identifier)
+            return ran and res ~= false and res ~= nil
+        end)
+    end,
+}
 
 -- ═══════════════════════════════════════════════════════════
 --  WIRING
@@ -457,7 +615,7 @@ function Bank.externalBills(identifier)
                         issuer_label = b.issuer, sender_name = b.sender,
                         amount = Bank.round(b.amount), reason = tostring(b.reason or 'Invoice'):sub(1, 120),
                         status = b.overdue and 'overdue' or 'pending',
-                        stamp = a.label, dueIn = 0,
+                        stamp = b.due and ('%s · due %s'):format(a.label, b.due) or a.label, dueIn = 0,
                         ext = a.label,
                         payable = b.payable ~= false,
                         anyAccount = a.mode == 'bank',

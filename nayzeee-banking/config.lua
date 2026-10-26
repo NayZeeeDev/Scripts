@@ -775,16 +775,19 @@ Config.Bridge = {
     -- if not. false turns one off. `table` = that script's invoice table if you
     -- renamed it in its config.
     --
-    -- esx_billing, okokBilling, qs-billing: this bank moves the money, from any
-    --   account the player can spend from, to the company's account here, and
-    --   marks the invoice paid in their table. okok's VAT and author commission
-    --   are not applied this way.
-    -- bcs_companymanager, RxBilling, tgg-billing, bablo-billing: paid through
-    --   their own export from the personal account, so their commission, tax
-    --   and company payout run as normal.
+    -- esx_billing, qs-billing: this bank moves the money, from any account the
+    --   player can spend from, to the company's account here, and marks the
+    --   invoice paid in their table.
+    -- okokBilling V3, bcs_companymanager, RxBilling, tgg-billing, bablo-billing:
+    --   paid through their own export from the personal account, so their
+    --   commission, VAT and company payout run as normal. An okokBilling from
+    --   before V3 has no exports; its table is read instead, as for qs-billing.
     -- wasabi_billing: invoices show; they are paid from Wasabi's own menu.
-    -- tgg-billing, bablo-billing: their docs name no export that lists a
-    --   player's invoices. Set `listExport` once you know it.
+    -- bablo-billing: no export lists a player's invoices, so its invoice table
+    --   is found in the database and read (never written); the console names
+    --   the table it found. Set `table` if it guesses wrong.
+    -- tgg-billing: its docs name no export that lists a player's invoices.
+    --   Set `listExport` once you know it.
     external = {
         esx_billing        = { table = 'billing' },
         okokBilling        = { table = 'okokbilling' },
@@ -793,7 +796,7 @@ Config.Bridge = {
         RxBilling          = true,
         wasabi_billing     = true,
         ['tgg-billing']    = { listExport = nil },
-        ['bablo-billing']  = { listExport = nil },
+        ['bablo-billing']  = { table = nil },
     },
 }
 
