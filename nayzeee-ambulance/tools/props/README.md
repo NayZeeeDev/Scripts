@@ -1,6 +1,6 @@
 # Props pipeline (`tools/props`)
 
-Every generated model in `stream/` (`nz_amb_*.ydr` + the single `nz_amb_props.ytyp`) is built
+Every generated model in `nayzeee-ambulance-props/stream/` (`nz_amb_*.ydr` + the single `nz_amb_props.ytyp`) is built
 from code in this folder - no Blender, no OpenIV, no binary sources in the repo. A prop is a
 Python function that builds geometry from primitives, assigns materials and paints labels; the
 pipeline unwraps it, bakes the textures, writes CodeWalker XML and converts it to the real GTA V
@@ -41,7 +41,7 @@ output live in the work folder (`--work`, default `/tmp/nza-work/props`).
 ```bash
 python3 tools/props/build.py \
     --out    /tmp/nza-work/props/out \
-    --stream nayzeee-ambulance/stream
+    --stream nayzeee-ambulance-props/stream
 ```
 
 * builds every registered prop in parallel (`--jobs`, default 4),
@@ -191,7 +191,7 @@ geometries / textures / bounds and validates it) and `batch`. `build.py` clones 
 Manual use:
 
 ```bash
-dotnet /tmp/nza-work/props/cwtool/bin/Release/net8.0/cwtool.dll inspect stream/nz_amb_bay_shell.ydr
+dotnet /tmp/nza-work/props/cwtool/bin/Release/net8.0/cwtool.dll inspect ../nayzeee-ambulance-props/stream/nz_amb_bay_shell.ydr
 ```
 
 ## Licences

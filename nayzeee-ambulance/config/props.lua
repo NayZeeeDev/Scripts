@@ -1,7 +1,7 @@
 --[[
     NAYZEEE AMBULANCE - Prop models
 
-    Every custom prop is streamed from stream/ (built by tools/props). Swap any of
+    Every custom prop is streamed by the nayzeee-ambulance-props resource (built by tools/props). Swap any of
     them for your own model by changing the name here. 'fallback' models are native
     GTA props used when a custom model fails to load.
 ]]

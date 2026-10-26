@@ -46,15 +46,14 @@ files {
     'html/dui/**/*',
     'html/img/**/*',
     'html/audio/**/*',
-    'stream/nz_amb_props.ytyp',
 }
 
-data_file 'DLC_ITYP_REQUEST' 'stream/nz_amb_props.ytyp'
-
+-- the props (models) are their own resource, so restarting this one does not stream them again
 dependencies {
     '/onesync',
     'ox_lib',
     'oxmysql',
+    'nayzeee-ambulance-props',
 }
 
 escrow_ignore {

@@ -150,11 +150,16 @@ society banking.
 
 ## 3. Installation
 
-### Step 1 · Put the resource in place
-1. Extract the download into your `resources` folder.
-2. The folder **must be named exactly `nayzeee-ambulance`**. Any other name stops the resource
-   with a red message in the console, because exports, events, the NUI and the streamed props
-   all use that name.
+### Step 1 · Put the resources in place
+1. Extract the download into your `resources` folder. It holds two resources:
+   - `nayzeee-ambulance`: the script.
+   - `nayzeee-ambulance-props`: the streamed props (models only). They are kept apart so that
+     restarting the script after a config change or an update does not make every player load
+     the props again.
+2. The script folder **must be named exactly `nayzeee-ambulance`**. Any other name stops the
+   resource with a red message in the console, because exports, events and the NUI use that
+   name. Keep the props folder named `nayzeee-ambulance-props`: the script lists it as a
+   dependency and will not start without it.
 
 ### Step 2 · server.cfg
 Start it **after** ox_lib, oxmysql, your framework, your inventory and your target script:
@@ -166,6 +171,7 @@ ensure es_extended        # or qb-core / qbx_core (leave out for standalone)
 ensure ox_inventory       # your inventory
 ensure ox_target          # your target script (optional)
 
+ensure nayzeee-ambulance-props
 ensure nayzeee-ambulance
 
 # admins: hospital builder, /revive, /heal, NPC call tools
@@ -471,7 +477,9 @@ shelves (`config/modules/transport.lua` → `Bay.supplies`).
 Run `sql/install.sql` once.
 
 **Props are invisible or fall back to plain GTA models.**
-Do not rename or remove files in `stream/`. Clear your client cache after an update. The
+Make sure `nayzeee-ambulance-props` is in your resources and started (`ensure
+nayzeee-ambulance-props` before the script). Do not rename or remove files in its `stream/`
+folder. Clear your client cache after an update. The
 fallback models in `Config.PropFallbacks` are used when a custom model cannot load.
 
 **No NPC calls come in.**

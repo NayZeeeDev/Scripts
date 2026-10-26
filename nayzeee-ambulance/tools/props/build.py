@@ -430,7 +430,7 @@ def write_tables(out, manifests, docs=None, stream=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=os.path.join(DEFAULT_WORK, "out"), help="build folder (XML, DDS, glb, renders)")
-    ap.add_argument("--stream", default=None, help="resource stream/ folder to install .ydr/.ytyp into")
+    ap.add_argument("--stream", default=None, help="stream/ folder to install .ydr/.ytyp into (nayzeee-ambulance-props/stream)")
     ap.add_argument("--work", default=DEFAULT_WORK, help="tool cache (CodeWalker clone, cwtool build, node modules)")
     ap.add_argument("--codewalker", default=None, help="existing CodeWalker checkout to use")
     ap.add_argument("--only", default=None, help="comma separated names/globs to rebuild (others reuse <out>)")
