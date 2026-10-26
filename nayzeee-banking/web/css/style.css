@@ -239,7 +239,7 @@ button:disabled{opacity:.4;pointer-events:none}
 .tag.live{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
 .tag.hot{color:var(--red);border-color:var(--red-edge);background:var(--red-wash)}
 .tag.off{color:var(--ink-3);border-color:var(--line-soft);background:var(--raise)}
-.tag.warn{color:var(--amber);border-color:rgba(229,165,10,.34);background:rgba(229,165,10,.11)}
+.tag.warn{width:auto;height:auto;display:inline-block;border-radius:999px;color:var(--amber);border-color:rgba(229,165,10,.34);background:rgba(229,165,10,.11)}
 .chip{font-size:9.5px;font-weight:600;letter-spacing:.03em;padding:2.5px 8px;border-radius:var(--r-xs);
   color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
 
@@ -881,3 +881,4 @@ body.paper-only .frame,body.paper-only .intro,body.paper-only .pinpad{display:no
 .pc-h b{text-align:right;font-weight:600}
 .paper .fdot.off{background:#c6c8ca}
 .paper-chart{height:50px;border-bottom:1px solid var(--pl)}
+.row .tag{white-space:nowrap;flex:none}

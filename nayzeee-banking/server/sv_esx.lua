@@ -21,6 +21,14 @@ if BankLocked then return end
 local SYNC_SECONDS = 15   -- how often the mirror reconciles
 
 local lastBank    = {}   -- [identifier] = balance we last wrote into ESX
+local named       = {}   -- [identifier] = { amount, label, at }: a payment we know is coming
+
+--- Another resource is about to take `amount` from this player's bank figure
+--- for a reason we know (a billing script's pay export). The mirror books it
+--- under that label instead of a bare 'Payment'.
+function Bank.expectExternal(identifier, amount, label)
+    named[identifier] = { amount = amount, label = label, at = os.time() }
+end
 local lastSociety = {}   -- [job]        = balance we last wrote into esx_addonaccount
 
 -- ═══════════════════════════════════════════════════════════
@@ -69,10 +77,13 @@ local function syncPlayerNow(xPlayer)
                 category = 'deposit', label = 'Deposit', actorName = 'External'
             })
         else
+            local n = named[identifier]
+            local known = n and n.amount == -delta and os.time() - n.at < 60
             ok, why = foldDebit(acc.id, -delta, {
-                category = 'withdraw', label = 'Payment', actorName = 'External'
+                category = known and 'bill' or 'withdraw', label = known and n.label or 'Payment', actorName = 'External'
             }, Bank.fullName(xPlayer))
         end
+        named[identifier] = nil
 
         -- busy or a database error: leave the gap for the next pass. A
         -- frozen account refusing money in is the one failure that stands,
@@ -100,6 +111,14 @@ end
 --- never fold the same gap twice.
 local function syncPlayer(xPlayer)
     return Bank.serial('esx:' .. tostring(xPlayer.identifier), syncPlayerNow, xPlayer)
+end
+
+--- Reconcile one player now rather than on the next pass.
+function Bank.syncNow(identifier)
+    local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
+    if not xPlayer then return end
+    local ok, err = pcall(syncPlayer, xPlayer)
+    if not ok then Bank.debug('bank sync failed', err) end
 end
 
 -- push our balance out the moment it changes rather than waiting on the loop

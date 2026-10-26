@@ -767,6 +767,34 @@ Config.Bridge = {
 
     -- Per player: seconds between bills, and most bills in a minute
     rateLimit = { gapSeconds = 5, perMinute = 6 },
+
+    -- Billing scripts that keep their own invoices. While one is running, its
+    -- unpaid invoices show in the Bills tab (and the phone) beside this bank's
+    -- own and can be paid from here. Each checks on start that its tables or
+    -- exports are where expected, and switches itself off with a console line
+    -- if not. false turns one off. `table` = that script's invoice table if you
+    -- renamed it in its config.
+    --
+    -- esx_billing, okokBilling, qs-billing: this bank moves the money, from any
+    --   account the player can spend from, to the company's account here, and
+    --   marks the invoice paid in their table. okok's VAT and author commission
+    --   are not applied this way.
+    -- bcs_companymanager, RxBilling, tgg-billing, bablo-billing: paid through
+    --   their own export from the personal account, so their commission, tax
+    --   and company payout run as normal.
+    -- wasabi_billing: invoices show; they are paid from Wasabi's own menu.
+    -- tgg-billing, bablo-billing: their docs name no export that lists a
+    --   player's invoices. Set `listExport` once you know it.
+    external = {
+        esx_billing        = { table = 'billing' },
+        okokBilling        = { table = 'okokbilling' },
+        ['qs-billing']     = { table = 'qs_billing' },
+        bcs_companymanager = { table = 'billings' },
+        RxBilling          = true,
+        wasabi_billing     = true,
+        ['tgg-billing']    = { listExport = nil },
+        ['bablo-billing']  = { listExport = nil },
+    },
 }
 
 -- ██████╗ ██╗  ██╗ ██████╗ ███╗   ██╗███████╗

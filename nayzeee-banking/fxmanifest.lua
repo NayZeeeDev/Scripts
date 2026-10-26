@@ -38,6 +38,7 @@ server_scripts {
     'server/sv_overdraft.lua',
     'server/sv_statements.lua',
     'server/sv_bills.lua',
+    'server/sv_invoices.lua',      -- other billing scripts' invoices in the Bills tab
     'server/sv_payroll.lua',
     'server/sv_market.lua',
     'server/sv_phone.lua',
@@ -89,6 +90,7 @@ escrow_ignore {
     'locales/*.lua',
     'install/*',
     'server/sv_bridge.lua',     -- billing integrations
+    'server/sv_invoices.lua',   -- other billing scripts' invoices
     'server/sv_esx.lua',        -- framework mirror
     'server/sv_multijob.lua',   -- multi-job adapters
     'server/sv_phone.lua',      -- phone contacts lookup

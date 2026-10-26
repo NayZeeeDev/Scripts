@@ -86,7 +86,7 @@ Existing money is not migrated. If you're moving off another banking script, run
 
 **Joint cards** — member-specific cards on shared accounts with their own daily limits.
 
-**Billing bridge** — invoices from esx_billing, okokBilling, QBCore and lb-phone land in this bank's bills tab.
+**Billing bridge** — invoices from esx_billing, okokBilling, Quasar, Wasabi, BCS Company Manager, RX, TGG, Bablo, QBCore and lb-phone show in this bank's Bills tab and can be paid there.
 
 **Scheduled transfers** — standing orders on an hourly, daily or weekly rhythm. Pauses itself after three failed runs.
 
@@ -203,13 +203,36 @@ Members see and can change the PIN on their own card. Everything else — limit,
 
 Invoices raised by other creators' resources land in this bank instead of their own tables, so players only ever look in one place. Handlers are always registered and simply never fire if that resource isn't installed.
 
+When the billing resource is **not** installed, its events are caught and the bill is raised here instead:
+
 | Resource | Event caught |
 |---|---|
 | esx_billing | `esx_billing:sendBill` |
-| okokBilling | `okokBilling:createBill` |
+| okokBilling | `okokBilling:createInvoiceSociety`, `okokBilling:createInvoicePlayer` |
 | QBCore invoices | `qb-phone:server:sendNewMail` |
 | lb-phone | `lb-phone:invoice:create` |
 | Anything else | `nz_bank:bridgeBill` |
+
+### Keeping your billing script
+
+When one of these **is** running, it keeps its own invoices, and they show in the Bills tab and on the phone beside this bank's, tagged with where they came from. Players pay them here.
+
+| Script | Invoices read from | Paid by |
+|---|---|---|
+| esx_billing | `billing` table | This bank, from any account; society bills go to the company account, private bills to the sender. Fires `esx_billing:paidBill` as esx_billing does |
+| okokBilling | `okokbilling` table | This bank, from any account; marked paid in okok. Late fees are included; okok's VAT and author cut are not applied |
+| Quasar Billing (`qs-billing`) | `qs_billing` table | As okokBilling |
+| BCS Company Manager | `billings` table | Its `PayBill` export, from the personal account, so the company balance and employee cut are BCS's own |
+| RX Billing | `GetPlayerInvoices` export | Its `PayInvoice` export, from the personal account |
+| Wasabi Billing | `GetInvoicesByIdentifier` export | Shown only; paid from Wasabi's own menu |
+| TGG Billing | set `listExport` | Its `PayInvoice` export |
+| Bablo Billing | set `listExport` | Its `payInvoice` export |
+
+Turn any of them off, or point one at a renamed table, in `Config.Bridge.external`. On start each one checks that the tables, columns or exports it uses are there; if a version has changed its layout, that adapter switches itself off and the console says what it looked for, rather than reading the wrong thing. The adapters live in `server/sv_invoices.lua`, which is left open so you can adjust one to your version.
+
+{% hint style="info" %}
+TGG and Bablo do not document an export that lists a player's invoices. Once you know theirs, set `listExport` for that script in `Config.Bridge.external` and its invoices appear.
+{% endhint %}
 
 {% hint style="warning" %}
 Event names drift between forks and versions. If a billing resource isn't coming through, check its actual event name and set it in `Config.Bridge`.

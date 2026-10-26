@@ -868,8 +868,8 @@ async function loadActivity() {
     upcoming.push(`<div class="entry">
       <div class="ava ${b.status === 'overdue' ? 'bad' : ''}">${I.bill}</div>
       <div class="txt"><b>${esc(b.issuer_label)}</b>
-        <span>${esc(b.reason)} · ${b.status === 'overdue' ? 'Overdue' : countdown(b.dueIn) + ' left'}</span></div>
-      <button class="go" data-bill="${b.id}">Pay</button>
+        <span>${esc(b.reason)} · ${b.status === 'overdue' ? 'Overdue' : b.ext ? esc(b.ext) : countdown(b.dueIn) + ' left'}</span></div>
+      <button class="go" data-bill="${esc(b.id)}">Pay</button>
     </div>`);
   });
 
@@ -1080,8 +1080,8 @@ function renderBills() {
       <div class="ava ${x.status === 'overdue' ? 'bad' : ''}">${I.bill}</div>
       <div class="txt"><b>${esc(x.reason)}</b>
         <span>${esc(x.issuer_label)} · ${x.status === 'overdue'
-          ? 'Overdue' : countdown(x.dueIn) + ' left'}</span></div>
-      <button class="go" data-bill="${x.id}">${money(x.amount)}</button>
+          ? 'Overdue' : x.ext ? esc(x.ext) : countdown(x.dueIn) + ' left'}</span></div>
+      <button class="go" data-bill="${esc(x.id)}">${money(x.amount)}</button>
     </div>`).join('');
 }
 
@@ -1306,7 +1306,8 @@ document.addEventListener('click', async (e) => {
   if (billBtn && !P.busy) {
     P.busy = true;
     const res = await call('phone:payBill', {
-      bill: parseInt(billBtn.dataset.bill, 10),
+      // other billing scripts' invoices keep their 'x:script:ref' id
+      bill: /^\d+$/.test(billBtn.dataset.bill) ? parseInt(billBtn.dataset.bill, 10) : billBtn.dataset.bill,
       account: P.data.primary
     });
     P.busy = false;

@@ -18,6 +18,15 @@ function Bank.getBills(identifier)
         total = total + b.amount
         b.dueIn = math.max(0, math.floor((b.due_at - os.time()) / 60))
     end
+
+    -- invoices other billing scripts are holding (sv_invoices.lua)
+    if Bank.externalBills then
+        local ok, ext = pcall(Bank.externalBills, identifier)
+        for _, b in ipairs(ok and ext or {}) do
+            rows[#rows + 1] = b
+            total = total + b.amount
+        end
+    end
     return { rows = rows, total = total, count = #rows }
 end
 
@@ -121,6 +130,13 @@ end
 Bank.callback('nz_bank:payBill', function(src, billId, accountId)
     local identifier = Bank.identifier(src)
     if not identifier then return { ok = false, msg = 'Player not found.' } end
+
+    -- an invoice held by another billing script
+    if type(billId) == 'string' and billId:sub(1, 2) == 'x:' and Bank.payExternalBill then
+        local ok, msg = Bank.payExternalBill(src, billId, accountId)
+        if ok then TriggerClientEvent('nz_bank:refresh', src) end
+        return { ok = ok, msg = msg }
+    end
 
     local acc, perms = Bank.access(src, accountId)
     if not acc then return { ok = false, msg = 'You cannot use that account.' } end

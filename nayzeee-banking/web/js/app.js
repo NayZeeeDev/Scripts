@@ -1556,10 +1556,13 @@ function pageBills() {
       <div class="ic out">${ICON.bill}</div>
       <div class="row-txt"><b>${esc(x.reason)}</b>
         <span>${esc(x.issuer_label)}${x.sender_name ? ' · ' + esc(x.sender_name) : ''} · ${esc(x.stamp)}</span></div>
-      ${x.status === 'overdue' ? '<span class="tag hot">Overdue</span>'
+      ${x.ext ? `<span class="tag ${x.status === 'overdue' ? 'hot' : 'off'}">${x.status === 'overdue' ? 'Overdue' : 'Due'}</span>`
+        : x.status === 'overdue' ? '<span class="tag hot">Overdue</span>'
         : `<span class="tag ${x.dueIn < 60 ? 'warn' : 'off'}">${x.dueIn > 0 ? x.dueIn + ' min left' : 'Due'}</span>`}
       <div class="amount out">${money(x.amount)}</div>
-      <button class="btn-teal" data-act="bill-pay" data-id="${x.id}">Pay</button>
+      ${x.payable === false
+        ? `<span class="tag off" title="Pay it from ${esc(x.ext)}'s own menu">In ${esc(x.ext)}</span>`
+        : `<button class="btn-teal" data-act="bill-pay" data-id="${esc(x.id)}">Pay</button>`}
     </div>`).join('') || `<div class="empty">${ICON.check}<b>Nothing owed</b>
       <span>Invoices from the city, businesses and departments land here.</span></div>`;
 
@@ -2320,7 +2323,7 @@ document.getElementById('view').addEventListener('click', async (e) => {
     }
 
     /* bills */
-    case 'bill-pay': billPayModal(id); break;
+    case 'bill-pay': billPayModal(el.dataset.id); break;
     case 'bill-issue': billIssueModal(); break;
 
     /* scheduled */
@@ -2775,16 +2778,22 @@ function loanPayoffModal(loanId) {
 }
 
 function billPayModal(billId) {
-  const bill = S.data.bills.rows.find(b => b.id === billId);
+  // invoices from other billing scripts carry ids like 'x:okokBilling:12'
+  const bill = S.data.bills.rows.find(b => String(b.id) === String(billId));
   if (!bill) return;
+  const fixed = bill.ext && !bill.anyAccount;
   openModal({
     title: `Pay ${bill.issuer_label}?`,
     text: `${bill.reason} — ${money(bill.amount)}`,
     confirm: 'Pay bill',
-    body: `<div class="field"><label>Pay from</label>
-      <select data-name="account">${accountOptions(S.data.primary, a => a.can.withdraw)}</select></div>`,
+    body: fixed
+      ? `<div class="kv"><span>Pay from</span><b>Personal</b></div>
+         <p class="fine-print">${esc(bill.ext)} takes this from your personal account and handles the rest itself.</p>`
+      : `<div class="field"><label>Pay from</label>
+      <select data-name="account">${accountOptions(S.data.primary, a => a.can.withdraw)}</select></div>
+      ${bill.ext ? `<p class="fine-print">Issued through ${esc(bill.ext)}. It is marked paid there too.</p>` : ''}`,
     onConfirm: async (v) => {
-      const res = await post('nz_bank:payBill', billId, parseInt(v.account, 10));
+      const res = await post('nz_bank:payBill', bill.id, fixed ? S.data.primary : parseInt(v.account, 10));
       closeModal();
       if (reply(res)) refresh();
     }
