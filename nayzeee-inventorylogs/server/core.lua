@@ -281,10 +281,29 @@ end
 function NZ.Fail(msg) error({ nz = true, msg = msg }, 0) end
 
 local busy = {}
+local denied = {}
+
+--- Console line explaining a refused action, at most once a minute per player and tier
+local function explainDenied(src, name, tier)
+    local k = src .. ':' .. tier
+    if denied[k] and os.time() - denied[k] < 60 then return end
+    denied[k] = os.time()
+    local have = {}
+    for _, t in ipairs(TIERS) do if NZ.Perms(src)[t] then have[#have + 1] = t end end
+    local groups = {}
+    for g in pairs(frameworkGroups(src)) do groups[#groups + 1] = g end
+    NZ.Print(('%s (id %s) was refused "%s": it needs the "%s" tier. They have: %s. Framework groups seen: %s. ACE nayzeee.inventory.%s = %s. (answered by resource %s)')
+        :format(GetPlayerName(src) or '?', src, name, tier, #have > 0 and table.concat(have, ', ') or 'none',
+            #groups > 0 and table.concat(groups, ', ') or 'none', tier, tostring(IsPlayerAceAllowed(src, 'nayzeee.inventory.' .. tier)), NZ.Resource), 'warn')
+end
+
 lib.callback.register('nzinv:rpc', function(src, name, data)
     local route = Routes[name]
     if not route then return { ok = false, err = 'Unknown action' } end
-    if not NZ.Can(src, route.tier) then return { ok = false, err = 'You do not have permission for that.' } end
+    if not NZ.Can(src, route.tier) then
+        explainDenied(src, name, route.tier)
+        return { ok = false, err = ('You do not have permission for that (needs %s). Check the server console.'):format(route.tier) }
+    end
     local key = src .. ':' .. name
     if busy[key] and route.tier ~= 'view' then return { ok = false, err = 'Still working on the last request.' } end
     busy[key] = true
