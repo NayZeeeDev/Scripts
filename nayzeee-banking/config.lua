@@ -783,11 +783,9 @@ Config.Bridge = {
     --   personal account, so their commission, VAT and company payout run as
     --   normal. Older okokBilling and Quasar have no exports; their table is
     --   read instead and this bank moves the money, as for esx_billing.
-    -- bablo-billing: no export lists a player's invoices, so its invoice table
-    --   is found in the database and read (never written); the console names
-    --   the table it found. Set `table` if it guesses wrong.
-    -- tgg-billing: its docs name no export that lists a player's invoices.
-    --   Set `listExport` once you know it.
+    -- tgg-billing, bablo-billing: no export lists a player's invoices, so their
+    --   invoice table is found in the database and read (never written); the
+    --   console names the table it found. Set `table` if it guesses wrong.
     external = {
         esx_billing        = { table = 'billing' },
         okokBilling        = { table = 'okokbilling' },
@@ -795,7 +793,7 @@ Config.Bridge = {
         bcs_companymanager = { table = 'billings' },
         RxBilling          = true,
         wasabi_billing     = true,
-        ['tgg-billing']    = { listExport = nil },
+        ['tgg-billing']    = { table = nil },
         ['bablo-billing']  = { table = nil },
     },
 }

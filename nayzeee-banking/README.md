@@ -225,13 +225,13 @@ When one of these **is** running, it keeps its own invoices, and they show in th
 | BCS Company Manager | `billings` table | Its `PayBill` export, from the personal account, so the company balance and employee cut are BCS's own |
 | RX Billing | `GetPlayerInvoices` export (incoming) | Its `PayInvoice` export, from the personal account; checked with `GetInvoiceById` afterwards |
 | Wasabi Billing | `GetInvoicesByIdentifier` export (only invoices addressed to the player) | Its `PayInvoiceByReference` export from the bank, so Wasabi's VAT and society payout apply. The total shown includes VAT |
-| TGG Billing | set `listExport` | Its `PayInvoice` export |
+| TGG Billing | its invoice table, found on start (read only); invoices still awaiting acceptance are left out | Its `PayInvoice` export, from the personal account; the total includes the company's tax |
 | Bablo Billing | its invoice table, found on start (read only) | Its `payInvoice` export, from the personal account |
 
 Turn any of them off, or point one at a renamed table, in `Config.Bridge.external`. On start each one checks that the tables, columns or exports it uses are there; if a version has changed its layout, that adapter switches itself off and the console says what it looked for, rather than reading the wrong thing. The adapters live in `server/sv_invoices.lua`, which is left open so you can adjust one to your version.
 
 {% hint style="info" %}
-TGG does not document an export that lists a player's invoices. Once you know it, set `listExport` for `tgg-billing` in `Config.Bridge.external` and its invoices appear. Bablo has none either, so its invoice table is found and read instead; the console names the table on start.
+TGG and Bablo have no export that lists a player's invoices, so their invoice table is found in the database and only read; paying still goes through their own export. The console names the table it found on start. If it picks the wrong one, set `table` for that script in `Config.Bridge.external`.
 {% endhint %}
 
 {% hint style="warning" %}

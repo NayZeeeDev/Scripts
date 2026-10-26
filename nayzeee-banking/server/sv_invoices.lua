@@ -179,7 +179,14 @@ local function viaExport(src, bill, fn)
     if Bank.expectExternal then
         Bank.expectExternal(xPlayer.identifier, bill.amount, ('%s · %s'):format(bill.issuer, bill.reason):sub(1, 90))
     end
-    local ok = fn(xPlayer)
+    local ok, charged = fn(xPlayer)
+    -- the script said what it took (tax and all): book that figure
+    if ok and charged and charged > 0 and charged ~= bill.amount then
+        bill.amount = Bank.round(charged)
+        if Bank.expectExternal then
+            Bank.expectExternal(xPlayer.identifier, bill.amount, ('%s · %s'):format(bill.issuer, bill.reason):sub(1, 90))
+        end
+    end
     if Bank.syncNow then Bank.syncNow(xPlayer.identifier) end
     if not ok then return false, ('%s did not take the payment.'):format(bill.source) end
 
@@ -631,81 +638,137 @@ ADAPTERS.wasabi_billing = {
     end,
 }
 
-ADAPTERS['tgg-billing'] = exportAdapter('tgg-billing', 'tgg-billing', 'TGG Billing', {
-    payExport = 'PayInvoice',
-    listArgs = function(identifier) return identifier end,
-    payArgs  = function(src, _, ref) return src, ref end,
-})
-
 -- ═══════════════════════════════════════════════════════════
---  Bablo Billing
---  Pays through payInvoice(uuid, identifier). It has no export that
---  lists a player's invoices (only getInvoice by id), so its invoice
---  table is found in the database and read; nothing is written to it.
+--  Scripts with no export that lists a player's invoices (TGG,
+--  Bablo): their invoice table is found in the database and read.
+--  Nothing is written to it; paying still goes through their export.
 -- ═══════════════════════════════════════════════════════════
-local BABLO_COLS = {
-    ref    = { 'uuid', 'invoice_id', 'id' },
-    to     = { 'to', 'to_identifier', 'recipient', 'recipient_identifier', 'receiver', 'receiver_identifier', 'target' },
-    amount = { 'amount', 'total', 'price' },
-}
-
 local function firstOf(have, list)
     for _, c in ipairs(list) do if have[c] then return c end end
 end
 
+--- The table that holds this script's invoices: the one named in config, or a
+--- table starting with `prefix` and containing 'invoice' that has a column for
+--- each role in `spec`. Returns the table and { role = column }.
+local function findTable(key, label, prefix, o, spec)
+    local names = {}
+    if o.table then names[1] = o.table else
+        for _, r in ipairs(MySQL.query.await([[
+            SELECT DISTINCT TABLE_NAME AS t FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE ? AND TABLE_NAME LIKE '%invoice%'
+        ]], { prefix .. '%' }) or {}) do names[#names + 1] = r.t end
+    end
+
+    for _, t in ipairs(names) do
+        local have = t:match('^[%w_]+$') and columns(t) or {}
+        local map, ok = { have = have }, true
+        for role, list in pairs(spec) do
+            map[role] = firstOf(have, list)
+            if not map[role] then ok = false end
+        end
+        if ok then
+            local used = {}
+            for role in pairs(spec) do used[#used + 1] = map[role] end
+            table.sort(used)
+            print(('^2[nayzeee-banking]^7 %s: reading invoices from `%s` (%s)'):format(label, t, table.concat(used, ', ')))
+            return t, map
+        end
+    end
+    note(key, ('could not find its invoice table; set Config.Bridge.external["%s"].table'):format(key))
+end
+
+--- A JSON column of line items, or nil.
+local function firstItem(v)
+    if type(v) == 'string' and v:sub(1, 1) == '[' then
+        local ok, t = pcall(json.decode, v)
+        v = ok and t or nil
+    end
+    return type(v) == 'table' and type(v[1]) == 'table' and (v[1].label or v[1].name) or nil
+end
+
+-- ── TGG Billing ─────────────────────────────────────────────
+--  PayInvoice(source, invoiceId) → success, amountPaid. Invoices waiting
+--  for the player to accept them are not payable yet, so only 'unpaid'
+--  ones show. `total` is before tax; taxPercentage is added on top.
+local TGG_OPEN = { unpaid = true, overdue = true }
+
+ADAPTERS['tgg-billing'] = {
+    resource = 'tgg-billing', label = 'TGG Billing', mode = 'export',
+
+    check = function(self, o)
+        self.tbl, self.map = findTable('tgg-billing', 'TGG Billing', 'tgg', o, {
+            ref    = { 'id' },
+            to     = { 'recipient_id', 'recipientId', 'recipient_identifier', 'recipient' },
+            amount = { 'total', 'amount' },
+            status = { 'status' },
+        })
+        return self.tbl ~= nil
+    end,
+
+    list = function(self, identifier)
+        local m = self.map
+        local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `%s` = ? ORDER BY `%s` DESC LIMIT 40')
+            :format(self.tbl, m.to, m.ref), { identifier }) or {}
+        local out = {}
+        for _, r in ipairs(rows) do
+            local kind = pick(r, 'recipient_type', 'recipientType')
+            if TGG_OPEN[tostring(r[m.status]):lower()] and (kind == nil or kind == 'player') then
+                local tax = tonumber(pick(r, 'tax_percentage', 'taxPercentage')) or 0
+                local total = tonumber(pick(r, 'total_with_tax', 'grand_total', 'totalWithTax')) or
+                    math.floor((tonumber(r[m.amount]) or 0) * (1 + tax / 100) + 0.5)
+                local sender = pick(r, 'sender')
+                local personal = sender == nil or sender == '__personal'
+                out[#out + 1] = {
+                    ref = r[m.ref], amount = total,
+                    reason = pick(r, 'notes') or firstItem(r.items) or 'Invoice',
+                    issuer = (not personal and companyLabel(sender, pick(r, 'sender_company_name', 'senderCompanyName')))
+                        or pick(r, 'sender_name', 'senderName') or 'Private invoice',
+                    sender = not personal and pick(r, 'sender_name', 'senderName') or nil,
+                    overdue = tostring(r[m.status]):lower() == 'overdue',
+                }
+            end
+        end
+        return out
+    end,
+
+    pay = function(_, src, bill)
+        return viaExport(src, bill, function()
+            local ok, paid, ran = call('tgg-billing', 'tgg-billing', 'PayInvoice', src, tonumber(bill.ref) or bill.ref)
+            return ran and ok == true, tonumber(paid)
+        end)
+    end,
+}
+
+-- ── Bablo Billing ───────────────────────────────────────────
+--  payInvoice(uuid, identifier) → success. getInvoice reads one by id,
+--  nothing lists them, so the table is read.
 ADAPTERS['bablo-billing'] = {
     resource = 'bablo-billing', label = 'Bablo Billing', mode = 'export',
 
     check = function(self, o)
-        -- an export named in config wins over reading the table
-        if o.listExport then
-            self.viaExport = exportAdapter('bablo-billing', 'bablo-billing', 'Bablo Billing', {
-                payExport = 'payInvoice',
-                listArgs = function(identifier) return identifier end,
-                payArgs  = function(_, xPlayer, ref) return ref, xPlayer.identifier end,
-            })
-            return self.viaExport.check(self.viaExport, o)
-        end
-
-        -- the table: named in config, or the bablo table that holds invoices
-        local names = {}
-        if o.table then names[1] = o.table else
-            for _, r in ipairs(MySQL.query.await([[
-                SELECT DISTINCT TABLE_NAME AS t FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'bablo%' AND TABLE_NAME LIKE '%invoice%'
-            ]]) or {}) do names[#names + 1] = r.t end
-        end
-
-        for _, t in ipairs(names) do
-            local have = t:match('^[%w_]+$') and columns(t) or {}
-            local ref, to, amount = firstOf(have, BABLO_COLS.ref), firstOf(have, BABLO_COLS.to), firstOf(have, BABLO_COLS.amount)
-            if ref and to and amount then
-                self.tbl, self.ref, self.to, self.cols = t, ref, to, have
-                print(('^2[nayzeee-banking]^7 Bablo Billing: reading invoices from `%s` (%s, %s, %s)'):format(t, ref, to, amount))
-                return true
-            end
-        end
-        note('bablo-billing', 'could not find its invoice table; set Config.Bridge.external["bablo-billing"].table')
-        return nil
+        self.tbl, self.map = findTable('bablo-billing', 'Bablo Billing', 'bablo', o, {
+            ref    = { 'uuid', 'invoice_id', 'id' },
+            to     = { 'to', 'to_identifier', 'recipient', 'recipient_identifier', 'receiver', 'receiver_identifier', 'target' },
+            amount = { 'amount', 'total', 'price' },
+        })
+        return self.tbl ~= nil
     end,
 
     list = function(self, identifier)
-        if self.viaExport then return self.viaExport.list(self.viaExport, identifier) end
-        local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `%s` = ? LIMIT 40'):format(self.tbl, self.to), { identifier }) or {}
+        local m = self.map
+        local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `%s` = ? LIMIT 40'):format(self.tbl, m.to), { identifier }) or {}
         local out = {}
         for _, r in ipairs(rows) do
-            -- a paid flag column, where there is one instead of a status
-            local paid = r.paid == true or r.paid == 1 or r.is_paid == true or r.is_paid == 1
-            local b = not paid and fromObject(r)
+            local b = fromObject(r)
             if b then
-                b.ref = r[self.ref]
+                b.ref = r[m.ref]
                 if b.ref and b.amount > 0 then out[#out + 1] = b end
             end
         end
         return out
     end,
 
-    pay = function(self, src, bill)
+    pay = function(_, src, bill)
         return viaExport(src, bill, function(xPlayer)
             local res, _, ran = call('bablo-billing', 'bablo-billing', 'payInvoice', bill.ref, xPlayer.identifier)
             return ran and res ~= false and res ~= nil
