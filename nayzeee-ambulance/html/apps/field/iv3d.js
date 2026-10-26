@@ -2226,7 +2226,7 @@
     if (k >= 2 && (!mark || !swabbed)) k = 1;       // no clean mark to aim at: back to finding one
     // 5 and 6 each need the step before done: the cannula home, the needle in the bin, the cap on
     if (k >= 4 && !(num(r.adv, 0) >= 1)) k = 3;
-    if (k === 5 && !flag(r.cap)) { k = 4; sub = 'cap'; }
+    if (k === 5 && !(flag(r.cap) && num(r.wd, 0) >= 1)) { k = 4; sub = 'cap'; }
     if (k === 4 && sub === 'cap' && !(num(r.wd, 0) >= 1)) sub = 'needle';
     if (k === 1) sub = !mark ? 'palp' : !swabbed ? 'swab' : 'dry';
     if (k === 4 && sub !== 'cap') sub = 'needle';
