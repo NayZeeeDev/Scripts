@@ -425,9 +425,18 @@ ADAPTERS.bcs_companymanager = {
 --  Field names are read loosely, since few of them document the
 --  invoice object.
 -- ═══════════════════════════════════════════════════════════
+local CLOSED = { paid = true, cancelled = true, canceled = true, refused = true, rejected = true, deleted = true }
+
+--- Is this invoice object settled? A status word, or a paid flag where there is no status.
+local function settled(inv)
+    if CLOSED[tostring(pick(inv, 'status', 'state') or ''):lower()] then return true end
+    local p = pick(inv, 'paid', 'is_paid', 'isPaid')
+    return p == true or p == 1 or p == '1'
+end
+
 local function fromObject(inv)
     local status = tostring(pick(inv, 'status', 'state') or 'unpaid'):lower()
-    if status == 'paid' or status == 'cancelled' or status == 'canceled' or status == 'refused' or status == 'rejected' then return nil end
+    if settled(inv) then return nil end
     local job = bareJob(pick(inv, 'job', 'society', 'company', 'sender_job', 'senderJob'))
     return {
         ref = pick(inv, 'id', 'invoiceId', 'invoice_id', 'uuid', 'reference'),
@@ -472,14 +481,18 @@ local function exportAdapter(key, resource, label, o)
             end
             return viaExport(src, bill, function(xPlayer)
                 local res, _, ran = call(key, resource, self.payExport, o.payArgs(src, xPlayer, bill.ref))
-                return ran and res ~= false and res ~= nil
+                if not ran or res == false then return false end
+                if res ~= nil or not o.getExport then return res ~= nil end
+                -- nothing returned: it worked if the invoice now reads as settled or gone
+                local inv, _, read = call(key, resource, o.getExport, bill.ref)
+                return read and (type(inv) ~= 'table' or settled(inv))
             end)
         end,
     }
 end
 
 ADAPTERS.RxBilling = exportAdapter('RxBilling', 'RxBilling', 'RX Billing', {
-    listExport = 'GetPlayerInvoices', payExport = 'PayInvoice',
+    listExport = 'GetPlayerInvoices', payExport = 'PayInvoice', getExport = 'GetInvoiceById',
     listArgs = function(identifier) return identifier, 'incoming' end,
     payArgs  = function(src, _, ref) return src, ref end,
 })
