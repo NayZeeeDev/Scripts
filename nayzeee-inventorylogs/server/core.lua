@@ -23,6 +23,20 @@ local function detect()
 end
 detect()
 
+-- the framework may start after this resource (server.cfg order): look again when it does
+local FRAMEWORKS = { es_extended = true, qbx_core = true, ['qb-core'] = true }
+AddEventHandler('onServerResourceStart', function(res)
+    if not FRAMEWORKS[res] then return end
+    local before = NZ.Framework
+    SetTimeout(500, function()
+        detect()
+        if NZ.Framework ~= before then
+            if Inv and Inv.id and Inv.id ~= 'none' then NZ.SetDBLayout(Inv.id, Inv.a.db) end
+            NZ.Print(('Framework: %s (it started after this resource; ensure it earlier in server.cfg)'):format(NZ.Framework), 'warn')
+        end
+    end)
+end)
+
 -- Character + vehicle tables. On ox_inventory these follow its `inventory:framework` convar
 -- (mirrors ox_inventory/modules/mysql/server.lua); other inventories go by the framework and
 -- can override it from their integration file (`db = { ... }`).
