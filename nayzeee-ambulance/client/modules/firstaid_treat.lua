@@ -32,6 +32,7 @@ local APP = 'treat'
 local session = nil   -- running procedure (bleed / tq / collar)
 local panel = nil     -- meds / kit panel
 local tqTemp = nil    -- { entity, ped } temporary strap prop while placing a tourniquet
+local tqSeq = 0       -- one per tqPlace post: a spawn that finishes after a newer post drops its prop
 
 local KNEEL = { dict = 'amb@medic@standing@kneel@base', clip = 'base' }
 local STAND = { dict = 'mini@repair', clip = 'fixing_a_ped' }
@@ -233,6 +234,8 @@ NZA.UI.On(APP, 'tqPlace', function(data, cb)
     if not s or s.data.mode ~= 'tq' or type(data) ~= 'table' then return end
     local seg = data.seg == 'lower' and 'lower' or 'upper'
     local frac = math.max(0.0, math.min(1.0, tonumber(data.frac) or 0.2))
+    tqSeq = tqSeq + 1
+    local seq = tqSeq
     CreateThread(function()
         clearTqTemp()
         local ped = s.entity
@@ -242,7 +245,11 @@ NZA.UI.On(APP, 'tqPlace', function(data, cb)
         if not at or not key then return end
         local ent = NZA.Props.Spawn(key, { attach = { entity = ped, bone = at.bone, pos = at.pos, rot = at.rot, collision = false } },
             { group = 'firstaid_proc', collision = false })
-        if session == s then tqTemp = { entity = ent, ped = ped } elseif ent and ent ~= 0 then NZA.Props.Delete(ent) end
+        -- Spawn can yield while the model loads: only the newest post keeps its strap
+        if session == s and seq == tqSeq then
+            clearTqTemp()
+            tqTemp = { entity = ent, ped = ped }
+        elseif ent and ent ~= 0 then NZA.Props.Delete(ent) end
     end)
 end)
 

@@ -1125,6 +1125,8 @@
     }
     enter(name, opts) {
       if (this.ph && this.ph.exit) this.ph.exit();
+      // a strap carry belongs to the place step: never let one outlive it (it would block P and draw the strap astray)
+      this.carry = null; this.lp.sTarget = undefined;
       const make = { place: this.phPlace, slack: this.phSlack, twist: this.phTwist, lock: this.phLock }[name] || this.phPlace;
       this.ph = make.call(this, opts || {});
       this.ph.name = name;
@@ -1399,7 +1401,7 @@
           };
         },
         down() {
-          if (g.carry) return;
+          if (this.finished || g.carry) return;   // placed: the next step is on its way
           if (g.overStrap()) { g.carry = { t0: g.t }; lp.mode = 'free'; g.carryAim(); NZA.audio.click(520); }
           else g.flashOnce('warn', T('tq3_grab_first', 'Click and hold the tourniquet first, then drag it onto the limb.'), 1800);
         },
@@ -1414,7 +1416,7 @@
             if (lp.mode === 'on') { const sp = g.spot(g.tOfS(lp.sTarget)); g.cursor(null, g.spotText(sp), g.spotTone(sp)); }
             else g.cursor(null, T('tq3_cur_onto', 'Onto the limb, above the wound'), '');
           } else {
-            const over = g.overStrap();
+            const over = !this.finished && g.overStrap();
             g.stageCursor(over ? 'grab' : '');
             g.cursor(null, over ? T('tq3_cur_grab', 'Grab it') : '', '');
           }
@@ -1494,6 +1496,7 @@
       this.confirmPlace(sp);
     }
     confirmPlace(sp, silent) {
+      if (this.ph && this.ph.name === 'place' && this.ph.finished) return;   // placed once: one tqPlace post
       const q = this.q, lp = this.lp;
       q.placeScore = this.placeScoreFor(sp);
       q.placed = true; q.seg = sp.seg; q.frac = sp.frac;
@@ -1589,10 +1592,10 @@
       return { a: Math.atan2(x, z), r: Math.hypot(x, z) };
     }
     nearRod() { const r = this.rodAim(); return !!r && r.r < ROD_L * 0.68; }
-    grabRod() { const r = this.rodAim(); this.rodGrab = { la: r ? r.a : null, tick: 0 }; NZA.audio.click(560); }
+    grabRod() { if (this.q.locked) return; const r = this.rodAim(); this.rodGrab = { la: r ? r.a : null, tick: 0 }; NZA.audio.click(560); }
     // a pointer move while the rod is held: the rod follows the cursor round; each turn tightens
     turnRod() {
-      const gr = this.rodGrab; if (!gr) return;
+      const gr = this.rodGrab; if (!gr || this.q.locked) return;
       const q = this.q, tune = this.tune;
       const r = this.rodAim();
       if (!r || r.r < 0.011) { gr.la = null; return; }
@@ -1710,7 +1713,7 @@
           return true;
         },
         down() {
-          if (this.phase === 'lock') {
+          if (this.phase === 'lock' && !q.locked) {
             if (g.nearRod()) g.grabRod();
             else if (g.nearClip()) g.tryLock();
             else g.flashOnce('warn', T('tq3_rod_grab', 'Hold the button down on the teal rod, then turn it round.'), 1800);
@@ -1808,6 +1811,7 @@
     }
     enterWrite(ph, quiet) {
       ph.phase = 'write';
+      this.rodGrab = null;   // a press held through the lock animation must not block P
       this.frameStep('write');
       this.updateTools();
       this.app.pp.set(Object.assign({ hints: this.hintsFor([{ keys: [T('k_drag', 'Drag')], label: T('tq3_h_write', 'write the time') }, { keys: [keyLabel(this.KEY.lock)], label: T('tq3_h_write_key', 'write it') }]) }, this.writeText()));

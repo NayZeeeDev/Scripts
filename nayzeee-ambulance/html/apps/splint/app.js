@@ -933,7 +933,11 @@ float nzaSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = cla
     procStart(d) {
       this.procStop();
       // the 3D close-up (apps/splint/splint3d.js) when WebGL works; the 2D game below is the fallback
-      if (window.Splint3D && Splint3D.ok()) { this.d = d; this.g3 = Splint3D.start(this, d); return; }
+      if (window.Splint3D && Splint3D.ok()) {
+        this.d = d; this.g3 = Splint3D.start(this, d);
+        this.hudEl.classList.toggle('away', !!this.S);   // the crutch / chair card goes away, as for the 2D game (procStop brings it back)
+        return;
+      }
       this.d = d;
       this.tune = Object.assign({}, DEF_TUNE, d.tune || {});
       this.K = Object.assign({}, DEF_KEYS, d.keys || {});

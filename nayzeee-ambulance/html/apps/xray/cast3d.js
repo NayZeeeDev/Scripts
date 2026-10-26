@@ -94,6 +94,7 @@
   const CELLS = 24;                                       // cast sections for the layer count (as the 2D game)
   const WORK_TIME = 32;                                   // s of working time to mould before the plaster sets
   const SET_TIME = 5;                                     // s to set (as the 2D game)
+  const SET_GRACE = 800;                                  // ms (wall clock) after it starts setting by itself before a press cracks it
   const MOULD_TOUCH = 0.2;                               // every cast section needs at least this much moulding
   const MIN_TIME = 15;                                    // s: the server's minTime (14) + slack before the finish post
   const STEPS = ['stockinette', 'padding', 'dip', 'plaster', 'mould', 'fold', 'cms'];
@@ -1839,6 +1840,9 @@
         },
         down() {
           if (this.phase === 'setting') {
+            // it switched to setting by itself (mid-stroke or time up): the press held then, and any press
+            // before "Hands off" can have been seen, is still the rubbing, not a press on the setting cast
+            if (!this.armed || performance.now() - this.setAt < SET_GRACE) return;
             const hit = g.pickCyl(g.R + 0.012);
             if (hit && hit.s > g.sP - 0.005 && hit.s < g.sD + 0.005) this.crack(hit);
             return;
@@ -1847,7 +1851,7 @@
           this.last = c;
           if (!c) g.flashOnce('warn', T('c3_mould_on', 'Put your palm on the cast.'), 1500);
         },
-        up() { this.last = null; },
+        up() { this.last = null; this.armed = true; },
         pointer() { if (this.phase === 'mould' && g.lmb) { const c = this.contact(); if (c) { this.rub(c); hs.s = c.s; hs.a = c.a; } else this.last = null; } },
         crack(hit) {
           g.res.cracks += 1;
@@ -1862,6 +1866,8 @@
         result() { return clamp(this.mould() + this.over(), 0, 1.25); },
         toSetting(timeUp) {
           this.phase = 'setting';
+          // (wall clock: a slow frame's sub-steps run the sim on before "Hands off" is drawn)
+          this.setAt = performance.now(); this.armed = !g.lmb;
           g.res.mould = this.result();
           g.useHand(null);
           const ok = g.res.mould >= 0.62 && g.res.mould <= 0.86;

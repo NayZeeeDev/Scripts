@@ -825,7 +825,12 @@
     S.on('frame', (dt, render) => frame(dt, render));
     S.on('down', e => down(e));
     S.on('up', e => up(e));
-    S.on('pointer', e => { g.mx = e.clientX; g.my = e.clientY; g.moved = true; });
+    S.on('pointer', e => {
+      g.mx = e.clientX; g.my = e.clientY; g.moved = true;
+      // LMB let go while another button stays down is only a move (no pointerup yet): the move ends
+      // the press (not while a preview still holds a gesture on screen)
+      if (G === g && g.lmb && !g.frozen && typeof e.buttons === 'number' && !(e.buttons & 1)) up({ button: 0, buttons: e.buttons });
+    });
     S.start();
     return g;
   }
@@ -1474,7 +1479,10 @@
       g.can.group.visible = false;
       g.palp.bounce = 0;
       S_clearWet();
-      go('find', 'palp');
+      // the band was let go in step 4: without it the veins go down and never fill for step 2, so
+      // the new attempt starts at step 1 (tighten it again; release 0, or tqTick keeps it drawn loose)
+      if (!g.tq.on) { g.tq.prog = 0; g.tq.release = 0; g.tq.auto = false; go('tq'); }
+      else go('find', 'palp');
       flash('warn', T2('iv_new_site', 'New cannula — pick another spot.'));
     }
   }
@@ -1968,7 +1976,9 @@
   }
   function up(e) {
     const g = G;
-    if (!g || e.button !== 0) return;
+    // a pointerup comes once every button is up: after a chord (LMB let go while RMB was down) it
+    // carries the other button, and still ends a left press that is open
+    if (!g || (e.button !== 0 && (!g.lmb || (e.buttons & 1)))) return;
     g.lmb = false;
     if (g.ph === 'find' && g.sub === 'palp') palpUp();
     if (g.ph === 'find' && g.sub === 'swab') g.S.tools.press(false);

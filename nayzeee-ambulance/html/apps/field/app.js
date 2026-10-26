@@ -2079,10 +2079,13 @@
       window.addEventListener('mousedown', onDown, true);
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
+      // a key or button let go while the page had no focus never reaches keyUp / onUp
+      window.addEventListener('blur', () => { S.held = {}; S.mouse.down = false; });
     },
     open(d) {
       d = d || {};
       S.open = true;
+      S.held = {}; S.mouse.down = false;   // a key held when it last closed was let go in the game
       if (d.locale) loc = Object.assign({}, loc, d.locale);
       S.mode = d.mode === 'iv' ? 'iv' : 'resus';
       S.plan = d.plan || {}; S.keys = d.keys || {}; S.total = S.mode === 'iv' ? 6 : 7; S.results = [];
@@ -2096,6 +2099,7 @@
     },
     close() {
       S.open = false;
+      S.held = {}; S.mouse.down = false;   // the key-ups after this go to the game, not to keyUp
       const h = H_[S.proc]; if (h && h.leave) { try { h.leave(); } catch (e) { /* closing */ } }
       cancelAnimationFrame(raf);
       clearMarks();

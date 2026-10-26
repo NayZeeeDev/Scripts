@@ -109,6 +109,15 @@
   let PREVIEW_PARKED = false;   // preview: ?resume=<stage> runs once per page
   let NEXT_NOTE = null;         // the note the next game opens with (a snapshot that could not be rebuilt)
   let CURRENT = null;           // the running game (Splint3D.debug)
+  // the core works out which open apps a full-screen / opaque app covers on open, close and focus only: after
+  // a change outside those (3D failed, the 2D game took over) ask it again. NZA.restack when the core has it,
+  // else the core's own focus message with no app named (it only recomputes the covers)
+  const restack = () => {
+    try {
+      if (typeof NZA.restack === 'function') NZA.restack();
+      else window.dispatchEvent(new MessageEvent('message', { data: { app: '_core', action: 'focus', data: {} } }));
+    } catch (e) { console.error('[splint] restack', e); }
+  };
 
   // limb radius scale r (of the engine's R) and vertical squash e along the segment
   // (q = 0 at the proximal joint, 1 at the distal one); the bottom of the limb stays on the blanket
@@ -145,7 +154,8 @@
 #app-splint .sg3-load.out{opacity:0}
 #app-splint .sg3-load .in{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--ink-3);font-size:12px}
 #app-splint .sg3-load .ring{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.1);border-top-color:var(--teal);animation:sg3-spin 900ms linear infinite}
-@keyframes sg3-spin{to{transform:rotate(360deg)}}`;
+@keyframes sg3-spin{to{transform:rotate(360deg)}}
+#app-splint.nza-full .sp-hud{visibility:hidden}`;   /* the crutch / chair card: not over the opaque close-up (its entry animation's fill keeps .away at full opacity) */
   function injectCss() {
     if (document.getElementById('sg3-css')) return;
     const s = document.createElement('style');
@@ -893,6 +903,7 @@
       a.g3 = null;
       this.dispose();
       try { a.procStart(d); } catch (e) { console.error('[splint] 2D fallback', e); }
+      restack();   // no longer full-screen and opaque: the apps it covered show again
     }
 
     materials() {
