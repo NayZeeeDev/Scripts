@@ -235,3 +235,19 @@ CREATE TABLE IF NOT EXISTS `nz_bank_payees` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `payee` (`identifier`, `account_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Every investment order, for the trade history on the Investments page
+CREATE TABLE IF NOT EXISTS `nz_bank_trades` (
+  `id`         INT(11) NOT NULL AUTO_INCREMENT,
+  `identifier` VARCHAR(64) NOT NULL,
+  `asset`      VARCHAR(16) NOT NULL,
+  `side`       VARCHAR(4) NOT NULL,
+  `units`      DECIMAL(24,8) NOT NULL,
+  `price`      DECIMAL(18,4) NOT NULL,
+  `total`      BIGINT(20) NOT NULL,
+  `fee`        BIGINT(20) NOT NULL DEFAULT 0,
+  `pl`         BIGINT(20) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `identifier` (`identifier`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

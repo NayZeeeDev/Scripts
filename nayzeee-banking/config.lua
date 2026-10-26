@@ -664,12 +664,20 @@ Config.Market = {
     minTrade    = 100,       -- Smallest order
     maxHolding  = 5000000,   -- Cap on one player's position per asset
 
+    -- kind  = crypto / index / stock (the badge and colour in the app)
+    -- about = one plain line telling players what they are buying
+    -- volatility sets how hard the price swings each tick; the app shows it as a risk level
     assets = {
-        { id = 'BTC', label = 'Bitcoin',    start = 45000, volatility = 0.045, floor = 8000, ceiling = 250000 },
-        { id = 'ETH', label = 'Ethereum',   start = 2800,  volatility = 0.050, floor = 400,  ceiling = 20000  },
-        { id = 'LSX', label = 'LS Index',   start = 620,   volatility = 0.022, floor = 120,  ceiling = 4000   },
-        { id = 'MZE', label = 'Maze Bank',  start = 145,   volatility = 0.030, floor = 20,   ceiling = 1200   },
-        { id = 'PSQ', label = 'Pisswasser', start = 62,    volatility = 0.038, floor = 8,    ceiling = 600    },
+        { id = 'BTC', label = 'Bitcoin',    kind = 'crypto', start = 45000, volatility = 0.045, floor = 8000, ceiling = 250000,
+          about = 'The big digital coin. Huge swings both ways — fortunes are made and lost fast.' },
+        { id = 'ETH', label = 'Ethereum',   kind = 'crypto', start = 2800,  volatility = 0.050, floor = 400,  ceiling = 20000,
+          about = 'The second coin. Even jumpier than Bitcoin, and cheaper to get into.' },
+        { id = 'LSX', label = 'LS Index',   kind = 'index',  start = 620,   volatility = 0.022, floor = 120,  ceiling = 4000,
+          about = 'The whole Los Santos market in one buy. The steadiest thing here — slow, but calm.' },
+        { id = 'MZE', label = 'Maze Bank',  kind = 'stock',  start = 145,   volatility = 0.030, floor = 20,   ceiling = 1200,
+          about = 'Shares in the city\'s biggest bank. Moves with the economy, a middle-ground pick.' },
+        { id = 'PSQ', label = 'Pisswasser', kind = 'stock',  start = 62,    volatility = 0.038, floor = 8,    ceiling = 600,
+          about = 'The beer company. Cheap shares that move on hype — a fun gamble.' },
     },
 }
 

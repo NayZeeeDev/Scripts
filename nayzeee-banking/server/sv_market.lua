@@ -8,7 +8,38 @@ if BankLocked then return end
 
 Bank.market = {}   -- [assetId] = { price, open, history = {} }
 
-local HISTORY_POINTS = 24   -- points kept for the sparkline
+-- a day of prices at the tick rate, for the 1H / 6H / 24H charts
+local HISTORY_POINTS = math.min(600, math.ceil(24 * 60 / math.max(1, Config.Market.tickMinutes or 5)))
+
+local function riskOf(a)
+    local v = a.volatility or 0.03
+    return v < 0.025 and 'low' or v < 0.04 and 'medium' or 'high'
+end
+
+-- every order, so a player can see what they bought and sold and when
+MySQL.ready(function()
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS `nz_bank_trades` (
+          `id`         INT(11) NOT NULL AUTO_INCREMENT,
+          `identifier` VARCHAR(64) NOT NULL,
+          `asset`      VARCHAR(16) NOT NULL,
+          `side`       VARCHAR(4) NOT NULL,
+          `units`      DECIMAL(24,8) NOT NULL,
+          `price`      DECIMAL(18,4) NOT NULL,
+          `total`      BIGINT(20) NOT NULL,
+          `fee`        BIGINT(20) NOT NULL DEFAULT 0,
+          `pl`         BIGINT(20) DEFAULT NULL,
+          `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `identifier` (`identifier`, `id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ]])
+end)
+
+local function logTrade(identifier, asset, side, units, price, total, fee, pl)
+    MySQL.insert('INSERT INTO nz_bank_trades (identifier, asset, side, units, price, total, fee, pl) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        { identifier, asset, side, units, price, total, fee, pl })
+end
 
 local function assetConfig(id)
     for _, a in ipairs(Config.Market.assets) do
@@ -128,12 +159,25 @@ function Bank.getMarketState(identifier)
         local m = Bank.market[a.id]
         if m then
             local change = m.open > 0 and ((m.price - m.open) / m.open) * 100 or 0
+            local first = m.history[1] or m.price
+            local hi, lo = m.price, m.price
+            for _, v in ipairs(m.history) do
+                if v > hi then hi = v end
+                if v < lo then lo = v end
+            end
             assets[#assets + 1] = {
-                id      = a.id,
-                label   = a.label,
-                price   = m.price,
-                change  = math.floor(change * 100) / 100,
-                history = m.history
+                id       = a.id,
+                label    = a.label,
+                kind     = a.kind or 'stock',
+                about    = a.about,
+                risk     = riskOf(a),
+                price    = m.price,
+                open     = m.open,
+                change   = math.floor(change * 100) / 100,                          -- since the hour opened
+                change24 = first > 0 and math.floor(((m.price - first) / first) * 10000) / 100 or 0,
+                high     = hi,
+                low      = lo,
+                history  = m.history
             }
         end
     end
@@ -165,9 +209,24 @@ function Bank.getMarketState(identifier)
         }
     end
 
+    local trades = {}
+    for _, t in ipairs(MySQL.query.await([[
+        SELECT asset, side, units, price, total, fee, pl, UNIX_TIMESTAMP(created_at) AS at
+        FROM nz_bank_trades WHERE identifier = ? ORDER BY id DESC LIMIT 8
+    ]], { identifier }) or {}) do
+        local cfg = assetConfig(t.asset)
+        trades[#trades + 1] = {
+            asset = t.asset, label = cfg and cfg.label or t.asset, side = t.side,
+            units = tonumber(t.units), price = tonumber(t.price), total = t.total, fee = t.fee,
+            pl = t.pl, ago = math.max(0, math.floor((os.time() - (tonumber(t.at) or os.time())) / 60))
+        }
+    end
+
     return {
         assets   = assets,
         holdings = holdings,
+        trades   = trades,
+        history  = HISTORY_POINTS,
         value    = math.floor(value),
         cost     = math.floor(cost),
         pl       = math.floor(value - cost),
@@ -244,6 +303,7 @@ function trade(src, side, assetId, spend, accountId)
                 { xPlayer.identifier, assetId, units, m.price })
         end
 
+        logTrade(xPlayer.identifier, assetId, 'buy', units, m.price, spend, fee, nil)
         return { ok = true, msg = ('Bought %.4f %s at %s%s.'):format(units, assetId, Config.Currency, m.price) }
     end
 
@@ -281,6 +341,7 @@ function trade(src, side, assetId, spend, accountId)
             actorName= Bank.fullName(xPlayer)
         })
 
+        logTrade(xPlayer.identifier, assetId, 'sell', units, m.price, net, fee, pl)
         return { ok = true, msg = ('Sold for %s%s · %s%s%s'):format(
             Config.Currency, net, pl >= 0 and '+' or '-', Config.Currency, math.abs(pl)) }
     end

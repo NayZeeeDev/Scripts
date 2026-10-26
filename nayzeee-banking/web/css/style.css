@@ -663,3 +663,96 @@ body.locked .frame{display:none}
 p.note{font-size:12.5px;line-height:1.55;color:var(--ink-3);margin-top:14px}
 
 @media (max-width:1180px){ .st-grid{grid-template-columns:repeat(2,1fr)} }
+
+/* ═══════════════ INVESTMENTS ═══════════════ */
+.cols.invest-top{grid-template-columns:1fr 340px;flex:none;align-items:start}
+.cols.even{flex:none}
+.invest-help .p-body{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.ih b{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--white)}
+.ih b svg{width:15px;height:15px;stroke-width:1.7;color:var(--teal);flex:none}
+.ih span{display:block;font-size:11.5px;font-weight:300;color:var(--ink-2);line-height:1.55;margin-top:5px}
+
+/* ticker badge, tinted by kind: crypto amber, index teal, stock blue */
+.tick{flex:none;display:grid;place-items:center;min-width:38px;height:26px;padding:0 6px;border-radius:var(--r-sm);
+  font-size:9.5px;font-weight:700;letter-spacing:.06em;color:var(--k);
+  background:var(--kw);border:1px solid var(--ke)}
+.tick.big{min-width:46px;height:38px;font-size:11px;border-radius:var(--r-md)}
+.asset-id{display:flex;align-items:center;gap:12px}
+.asset-id p{display:flex;align-items:center;gap:8px}
+
+.risk{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:500}
+.risk i{width:5px;height:5px;border-radius:50%;background:var(--line)}
+.risk i:last-of-type{margin-right:4px}
+.risk.teal{color:var(--teal)} .risk.teal i.on{background:var(--teal)}
+.risk.amber{color:var(--amber)} .risk.amber i.on{background:var(--amber)}
+.risk.red{color:var(--red)} .risk.red i.on{background:var(--red)}
+
+.range{display:flex;gap:4px;padding:3px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-soft)}
+.range button{height:24px;padding:0 10px;border-radius:4px;font-size:10.5px;font-weight:600;color:var(--ink-3);transition:all var(--fast)}
+.range button:hover{color:var(--white)}
+.range button.on{background:var(--teal-wash);color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal-edge)}
+
+.asset-px{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.asset-px > b{font-size:30px;font-weight:700;letter-spacing:-.04em;color:var(--white)}
+.chg{font-size:12.5px;font-weight:600}
+.chg em{font-style:normal;font-weight:300;color:var(--ink-3);margin-left:2px}
+.chg.soft{font-weight:400;opacity:.85}
+.chg.teal,.astats b.teal,.pos .teal,.mkt-px .teal,.hold .teal,.trade .teal{color:var(--teal)}
+.chg.red,.astats b.red,.pos .red,.mkt-px .red,.hold .red,.trade .red{color:var(--red)}
+
+/* the big chart */
+.ichart{position:relative;height:200px;margin:8px 0 4px}
+.ichart svg{width:100%;height:100%;display:block;overflow:visible}
+.ichart .gl{stroke:var(--line-soft);stroke-width:1;stroke-dasharray:3 4;vector-effect:non-scaling-stroke}
+.ichart .gt{fill:var(--ink-3);font-size:10px;font-family:inherit;font-weight:300}
+.ichart .now{filter:drop-shadow(0 0 6px currentColor)}
+.ich-guide{position:absolute;top:10px;bottom:22px;width:1px;background:var(--line);pointer-events:none}
+.ich-guide i{position:absolute;left:-4px;width:9px;height:9px;margin-top:-4.5px;border-radius:50%;
+  background:var(--white);box-shadow:0 0 0 3px var(--teal-wash)}
+.ich-tip{position:absolute;top:-6px;width:120px;padding:6px 9px;border-radius:var(--r-sm);pointer-events:none;
+  background:var(--raise-2);border:1px solid var(--line);box-shadow:var(--sh-2)}
+.ich-tip b{display:block;font-size:12.5px;font-weight:600;color:var(--white)}
+.ich-tip span{display:block;font-size:10px;font-weight:300;color:var(--ink-3);margin-top:1px}
+
+.astats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.astats div{padding:9px 11px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-soft)}
+.astats span,.pos span{display:block;font-size:10.5px;font-weight:300;color:var(--ink-3)}
+.astats b{display:block;font-size:13px;font-weight:600;color:var(--white);margin-top:3px}
+.about{font-size:12px;font-weight:300;color:var(--ink-2);line-height:1.55;margin-top:12px}
+
+.pos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;padding:12px;border-radius:var(--r-md);
+  background:linear-gradient(var(--teal-wash),var(--teal-wash)),var(--inset);border:1px solid var(--teal-edge)}
+.pos b{display:block;font-size:15px;font-weight:600;color:var(--white);margin-top:3px;letter-spacing:-.02em}
+.pos i{display:block;font-size:10px;font-style:normal;font-weight:300;color:var(--ink-3);margin-top:2px}
+.pos.none{display:flex;align-items:center;gap:10px;background:var(--inset);border-color:var(--line-soft);
+  font-size:12px;font-weight:300;color:var(--ink-2)}
+.pos.none svg{width:16px;height:16px;stroke-width:1.6;color:var(--ink-3);flex:none}
+.asset-acts{display:flex;gap:8px;margin-top:12px}
+.asset-acts button{flex:1;height:36px}
+
+/* market list, holdings and trades share one row shape */
+.mkt,.hold,.trade{display:flex;align-items:center;gap:11px;width:100%;padding:9px 11px;flex:none;text-align:left;
+  background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-md);transition:all var(--fast)}
+.mkt:hover,.hold:hover{border-color:var(--line)}
+.mkt.on{border-color:var(--teal-edge);background:linear-gradient(var(--teal-wash),var(--teal-wash)),var(--inset)}
+.mkt svg{width:64px!important}
+.mkt-txt{flex:1;min-width:0}
+.mkt-txt b{display:block;font-size:12.5px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mkt-txt i{display:block;font-size:10.5px;font-style:normal;font-weight:300;color:var(--ink-3);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mkt-px{text-align:right;flex:none}
+.mkt-px b{display:block;font-size:12.5px;font-weight:600;color:var(--white)}
+.mkt-px i{display:block;font-size:10.5px;font-style:normal;font-weight:500;margin-top:2px;color:var(--ink-3)}
+.hold + .hold,.trade + .trade{margin-top:7px}
+.swatch{width:9px;height:9px;border-radius:3px;flex:none}
+.alloc{display:flex;height:10px;border-radius:99px;overflow:hidden;gap:2px;margin:2px 0 12px;background:var(--inset)}
+.alloc i{display:block;height:100%}
+.p-figure{font-size:16px;font-weight:600;color:var(--white);letter-spacing:-.02em}
+
+/* live order preview in the buy / sell window */
+.trade-prev{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:11px 13px;border-radius:var(--r-sm);
+  background:var(--inset);border:1px solid var(--line-soft);font-size:11.5px}
+.trade-prev span{color:var(--ink-3);font-weight:300}
+.trade-prev b{color:var(--white);font-weight:600;text-align:right}
+.trade-prev b.teal{color:var(--teal)} .trade-prev b.red{color:var(--red)}
+.trade-prev .sum{border-top:1px solid var(--line-soft);padding-top:6px}

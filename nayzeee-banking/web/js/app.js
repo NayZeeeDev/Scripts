@@ -1616,11 +1616,101 @@ function sparkline(points, up) {
       stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
+/* ── investments ──
+   One asset in focus with a real chart and plain-language numbers, the market
+   to pick from, then where your money sits and what you have traded. */
+const KIND = { crypto: { label: 'Crypto', rgb: '229,165,10' }, index: { label: 'Index fund', rgb: '8,175,162' },
+               stock: { label: 'Stock', rgb: '61,155,255' } };
+const RISK = { low: { label: 'Low risk', dots: 1, tone: 'teal' }, medium: { label: 'Medium risk', dots: 2, tone: 'amber' },
+               high: { label: 'High risk', dots: 3, tone: 'red' } };
+const ALLOC = ['#08afa2', '#3d9bff', '#a873ff', '#e5a50a', '#e5484d', '#0fd4c4'];
+const RANGES = [{ id: '1h', label: '1H', minutes: 60 }, { id: '6h', label: '6H', minutes: 360 }, { id: '24h', label: '24H', minutes: 1440 }];
+
+const pct = (n, digits = 2) => `${n >= 0 ? '+' : '−'}${Math.abs(n || 0).toFixed(digits)}%`;
+const signed = (n) => `${n >= 0 ? '+' : '−'}${money(Math.abs(n || 0))}`;
+const ago = (mins) => mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.floor(mins / 60)} h ago` : `${Math.floor(mins / 1440)} d ago`;
+const priceFmt = (v) => v >= 1000 ? money(v) : `${cur()}${Number(v || 0).toFixed(2)}`;
+
+/* the slice of the day's prices a range covers */
+function rangePoints(a, m) {
+  const r = RANGES.find(x => x.id === S.investRange) || RANGES[2];
+  const n = Math.max(2, Math.ceil(r.minutes / Math.max(1, m.tick)) + 1);
+  const pts = (a.history || [a.price]).slice(-n);
+  return pts.length > 1 ? pts : [pts[0] || a.price, a.price];
+}
+
+/* a large price chart: area, four price lines, hover read-out */
+function areaChart(points, up, m) {
+  const W = 640, H = 200, padR = 58, padT = 10, padB = 22;
+  const min = Math.min(...points), max = Math.max(...points);
+  const span = (max - min) || max * 0.01 || 1;
+  const lo = min - span * 0.08, hi = max + span * 0.08;
+  const x = (i) => (i / (points.length - 1)) * (W - padR);
+  const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  const line = points.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const tone = up ? 'var(--teal)' : 'var(--red)';
+  const grid = [0, 1, 2, 3].map(k => {
+    const v = lo + ((hi - lo) * (k + 0.5)) / 4;
+    return `<line x1="0" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}" class="gl"/>
+      <text x="${W - padR + 8}" y="${y(v) + 3.5}" class="gt">${esc(priceFmt(v))}</text>`;
+  }).join('');
+  const minutes = (points.length - 1) * m.tick;
+  const span1 = minutes >= 120 ? `${Math.round(minutes / 60)} h ago` : `${minutes} min ago`;
+  S.chart = { points, tick: m.tick, W, padR, H, padT, padB, lo, hi };
+  return `<div class="ichart" data-up="${up ? 1 : 0}">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <defs><linearGradient id="ifill" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0" stop-color="${up ? '#08afa2' : '#e5484d'}" stop-opacity=".32"/>
+        <stop offset="1" stop-color="${up ? '#08afa2' : '#e5484d'}" stop-opacity="0"/></linearGradient></defs>
+      ${grid}
+      <polygon points="0,${H - padB} ${line} ${x(points.length - 1)},${H - padB}" fill="url(#ifill)"/>
+      <polyline points="${line}" fill="none" stroke="${tone}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+      <circle cx="${x(points.length - 1)}" cy="${y(points[points.length - 1])}" r="3.5" fill="${tone}" class="now"/>
+      <text x="0" y="${H - 6}" class="gt">${span1}</text>
+      <text x="${W - padR}" y="${H - 6}" class="gt" text-anchor="end">now</text>
+    </svg>
+    <div class="ich-guide hidden"><i></i></div>
+    <div class="ich-tip hidden"><b></b><span></span></div>
+  </div>`;
+}
+
+/* hover read-out on the big chart */
+document.addEventListener('mousemove', (e) => {
+  const box = e.target.closest && e.target.closest('.ichart');
+  const all = document.querySelectorAll('.ichart');
+  all.forEach(c => { if (c !== box) { c.querySelector('.ich-guide').classList.add('hidden'); c.querySelector('.ich-tip').classList.add('hidden'); } });
+  if (!box || !S.chart) return;
+  const c = S.chart, r = box.getBoundingClientRect();
+  const plotW = r.width * (c.W - c.padR) / c.W;
+  const fx = Math.min(1, Math.max(0, (e.clientX - r.left) / plotW));
+  const i = Math.round(fx * (c.points.length - 1));
+  const v = c.points[i];
+  const px = (i / (c.points.length - 1)) * plotW;
+  const py = (c.padT + (1 - (v - c.lo) / (c.hi - c.lo)) * (c.H - c.padT - c.padB)) / c.H * r.height;
+  const back = (c.points.length - 1 - i) * c.tick;
+  const guide = box.querySelector('.ich-guide'), tip = box.querySelector('.ich-tip');
+  guide.style.left = `${px}px`; guide.querySelector('i').style.top = `${py}px`;
+  tip.querySelector('b').textContent = priceFmt(v);
+  tip.querySelector('span').textContent = back === 0 ? 'now' : back >= 60 ? `${Math.floor(back / 60)} h ${back % 60} min ago` : `${back} min ago`;
+  tip.style.left = `${Math.min(r.width - 130, Math.max(0, px - 60))}px`;
+  guide.classList.remove('hidden'); tip.classList.remove('hidden');
+});
+
+function riskBadge(risk) {
+  const k = RISK[risk] || RISK.medium;
+  return `<span class="risk ${k.tone}">${[1, 2, 3].map(n => `<i class="${n <= k.dots ? 'on' : ''}"></i>`).join('')}${k.label}</span>`;
+}
+
+function kindBadge(a, big) {
+  const k = KIND[a.kind] || KIND.stock;
+  return `<span class="tick ${big ? 'big' : ''}" style="--k:rgb(${k.rgb});--kw:rgba(${k.rgb},.13);--ke:rgba(${k.rgb},.38)">${esc(a.id)}</span>`;
+}
+
 function pageInvest() {
   const m = S.data.market;
 
   // the market failed to load server-side; say so rather than crash the page
-  if (!m || !Array.isArray(m.assets)) {
+  if (!m || !Array.isArray(m.assets) || !m.assets.length) {
     return `
       <div class="head"><div><h1>Investments</h1><p>Buy into listed assets and track how they move.</p></div></div>
       <section class="panel"><div class="p-body tight">
@@ -1629,52 +1719,133 @@ function pageInvest() {
       </div></section>`;
   }
   m.holdings = m.holdings || [];
+  m.trades = m.trades || [];
+  S.investRange = S.investRange || '24h';
+  if (!m.assets.find(a => a.id === S.investAsset)) {
+    S.investAsset = (m.holdings[0] && m.holdings[0].asset) || m.assets[0].id;
+  }
+  const a = m.assets.find(x => x.id === S.investAsset);
+  const held = m.holdings.find(h => h.asset === a.id);
+  const pts = rangePoints(a, m);
+  const rangeChange = pts[0] > 0 ? ((pts[pts.length - 1] - pts[0]) / pts[0]) * 100 : 0;
+  const up = rangeChange >= 0;
+  const plPct = m.cost > 0 ? (m.pl / m.cost) * 100 : 0;
+  const cash = (account(S.data.primary) || {}).balance || 0;
+  const fee = (m.fee * 100);
+  const breakEven = ((1 + m.fee) / (1 - m.fee) - 1) * 100;
 
-  const assets = m.assets.map(a => {
-    const up = a.change >= 0;
-    return `<div class="row">
-      <div class="ic ${up ? '' : 'out'}" style="font-size:9.5px;font-weight:700">${esc(a.id)}</div>
-      <div class="row-txt"><b>${esc(a.label)}</b><span>${money(a.price)}</span></div>
-      ${sparkline(a.history, up)}
-      <div class="amount ${up ? 'in' : 'out'}" style="width:64px;text-align:right">${up ? '+' : ''}${a.change.toFixed(2)}%</div>
-      <button class="btn-ghost" data-act="trade-buy" data-asset="${esc(a.id)}">Buy</button>
-      <button class="btn-ghost" data-act="trade-sell" data-asset="${esc(a.id)}">Sell</button>
+  const help = S.investHelp ? `
+    <section class="panel invest-help"><div class="p-body tight">
+      <div class="ih"><b>${ICON.clock}Prices move every ${m.tick} minutes</b>
+        <span>Each asset drifts up or down on its own. Riskier ones swing harder, both ways.</span></div>
+      <div class="ih"><b>${ICON.coin}${fee.toFixed(0)}% fee each way</b>
+        <span>Buying and selling both cost ${fee.toFixed(0)}%, so a price has to rise about ${breakEven.toFixed(1)}% before you are in profit.</span></div>
+      <div class="ih"><b>${ICON.chart}Return vs. banked profit</b>
+        <span>Return is what you would make selling right now. It only becomes banked profit once you sell.</span></div>
+    </div></section>` : '';
+
+  const position = held ? (() => {
+    const hPct = held.avgPrice > 0 ? ((held.price - held.avgPrice) / held.avgPrice) * 100 : 0;
+    const share = m.value > 0 ? Math.round((held.value / m.value) * 100) : 0;
+    return `<div class="pos">
+      <div><span>You own</span><b>${held.units.toFixed(4)}</b><i>units</i></div>
+      <div><span>Bought at</span><b>${priceFmt(held.avgPrice)}</b><i>average</i></div>
+      <div><span>Worth now</span><b>${money(held.value)}</b><i>${share}% of portfolio</i></div>
+      <div><span>Return</span><b class="${held.pl >= 0 ? 'teal' : 'red'}">${signed(held.pl)}</b><i class="${held.pl >= 0 ? 'teal' : 'red'}">${pct(hPct)}</i></div>
     </div>`;
+  })() : `<div class="pos none">${ICON.chart}<span>You don't own any ${esc(a.label)} yet. The smallest order is ${money(m.minTrade)}.</span></div>`;
+
+  const market = m.assets.map(x => {
+    const own = m.holdings.find(h => h.asset === x.id);
+    const xup = (x.change24 ?? x.change) >= 0;
+    return `<button class="mkt ${x.id === a.id ? 'on' : ''}" data-act="invest-pick" data-asset="${esc(x.id)}">
+      ${kindBadge(x)}
+      <span class="mkt-txt"><b>${esc(x.label)}</b><i>${own ? `You own ${money(own.value)}` : esc((KIND[x.kind] || KIND.stock).label)}</i></span>
+      ${sparkline((x.history || []).slice(-24), xup)}
+      <span class="mkt-px"><b>${priceFmt(x.price)}</b><i class="${xup ? 'teal' : 'red'}">${pct(x.change24 ?? x.change)}</i></span>
+    </button>`;
   }).join('');
 
-  const holdings = m.holdings.map(h => `
-    <div class="kv"><span>${esc(h.label)} · ${h.units.toFixed(4)}</span>
-      <b class="${h.pl >= 0 ? 'teal' : 'red'}">${money(h.value)} (${h.pl >= 0 ? '+' : '−'}${money(Math.abs(h.pl))})</b></div>`)
-    .join('') || `<div class="empty" style="margin-top:6px">${ICON.chart}<b>Nothing held</b>
-      <span>Buy into an asset and your position shows up here.</span></div>`;
+  const totalVal = m.value || 0;
+  const alloc = m.holdings.length ? `
+    <div class="alloc">${m.holdings.map((h, i) =>
+      `<i style="width:${totalVal > 0 ? (h.value / totalVal) * 100 : 0}%;background:${ALLOC[i % ALLOC.length]}"></i>`).join('')}</div>
+    ${m.holdings.map((h, i) => {
+      const hp = h.avgPrice > 0 ? ((h.price - h.avgPrice) / h.avgPrice) * 100 : 0;
+      return `<button class="hold" data-act="invest-pick" data-asset="${esc(h.asset)}">
+        <i class="swatch" style="background:${ALLOC[i % ALLOC.length]}"></i>
+        <span class="mkt-txt"><b>${esc(h.label)}</b><i>${h.units.toFixed(4)} units · ${totalVal > 0 ? Math.round((h.value / totalVal) * 100) : 0}%</i></span>
+        <span class="mkt-px"><b>${money(h.value)}</b><i class="${h.pl >= 0 ? 'teal' : 'red'}">${signed(h.pl)} · ${pct(hp, 1)}</i></span>
+      </button>`;
+    }).join('')}`
+    : `<div class="empty">${ICON.chart}<b>Nothing held yet</b><span>Pick an asset and buy in — it shows up here with what it has made or lost.</span></div>`;
 
-  const plPct = m.cost > 0 ? Math.min(100, Math.max(0, 50 + (m.pl / m.cost) * 200)) : 50;
+  const trades = m.trades.length ? m.trades.map(t => `
+    <div class="trade">
+      <span class="tag ${t.side === 'buy' ? 'live' : 'off'}">${t.side === 'buy' ? 'Bought' : 'Sold'}</span>
+      <span class="mkt-txt"><b>${esc(t.label)}</b><i>${Number(t.units).toFixed(4)} @ ${priceFmt(t.price)} · ${ago(t.ago)}</i></span>
+      <span class="mkt-px"><b>${money(t.total)}</b>${t.side === 'sell' && t.pl != null
+        ? `<i class="${t.pl >= 0 ? 'teal' : 'red'}">${signed(t.pl)}</i>` : `<i>fee ${money(t.fee)}</i>`}</span>
+    </div>`).join('')
+    : `<div class="empty">${ICON.none}<b>No trades yet</b><span>Every buy and sell is listed here.</span></div>`;
 
   return `
     <div class="head">
       <div><h1>Investments</h1>
-        <p>Prices move every ${m.tick} minutes. A ${(m.fee * 100).toFixed(0)}% fee applies to both sides of a trade.</p></div>
+        <p>Grow money by buying into assets that move with the city. Prices can fall as well as rise.</p></div>
+      <div class="head-act"><button class="btn-line" data-act="invest-help">${S.investHelp ? 'Hide' : 'How it works'}</button></div>
     </div>
 
-    <div class="stats" style="grid-template-columns:repeat(3,1fr)">
-      ${statTile('chart', 'Portfolio value', money(m.value), `${m.holdings.length} position${m.holdings.length === 1 ? '' : 's'}`)}
-      ${statTile(m.pl >= 0 ? 'in' : 'out', 'Unrealised', `${m.pl >= 0 ? '+' : '−'}${money(Math.abs(m.pl))}`, 'On open positions', m.pl < 0)}
-      ${statTile('coin', 'Realised', `${m.realised >= 0 ? '+' : '−'}${money(Math.abs(m.realised))}`, 'Banked profit', m.realised < 0)}
+    <div class="stats">
+      ${statTile('chart', 'Portfolio value', money(m.value), `${m.holdings.length} asset${m.holdings.length === 1 ? '' : 's'} held`)}
+      ${statTile(m.pl >= 0 ? 'interest' : 'out', 'Total return', signed(m.pl), m.cost > 0 ? `${pct(plPct)} on ${money(m.cost)} invested` : 'Nothing invested yet', m.pl < 0)}
+      ${statTile('coin', 'Banked profit', signed(m.realised), 'From assets you sold', m.realised < 0)}
+      ${statTile('bank', 'Ready to invest', money(cash), (account(S.data.primary) || {}).label || 'Personal')}
     </div>
+    ${help}
 
-    <div class="cols">
-      <section class="panel">
-        <div class="p-head"><div><h2>Market</h2><p>Live prices across every listed asset</p></div></div>
-        <div class="p-body">${assets}</div>
+    <div class="cols invest-top">
+      <section class="panel asset">
+        <div class="p-head">
+          <div class="asset-id">${kindBadge(a, true)}<div><h2>${esc(a.label)}</h2>
+            <p>${esc((KIND[a.kind] || KIND.stock).label)} · ${riskBadge(a.risk)}</p></div></div>
+          <div class="range">${RANGES.map(r => `<button class="${r.id === S.investRange ? 'on' : ''}" data-act="invest-range" data-id="${r.id}">${r.label}</button>`).join('')}</div>
+        </div>
+        <div class="p-body tight">
+          <div class="asset-px"><b>${priceFmt(a.price)}</b>
+            <span class="chg ${up ? 'teal' : 'red'}">${pct(rangeChange)} <em>${(RANGES.find(r => r.id === S.investRange) || {}).label}</em></span>
+            <span class="chg ${a.change >= 0 ? 'teal' : 'red'} soft">${pct(a.change)} <em>this hour</em></span></div>
+          ${areaChart(pts, up, m)}
+          <div class="astats">
+            <div><span>24h high</span><b>${priceFmt(a.high ?? a.price)}</b></div>
+            <div><span>24h low</span><b>${priceFmt(a.low ?? a.price)}</b></div>
+            <div><span>Hour open</span><b>${priceFmt(a.open ?? a.price)}</b></div>
+            <div><span>24h change</span><b class="${(a.change24 || 0) >= 0 ? 'teal' : 'red'}">${pct(a.change24 || 0)}</b></div>
+          </div>
+          ${a.about ? `<p class="about">${esc(a.about)}</p>` : ''}
+          ${position}
+          <div class="asset-acts">
+            <button class="btn-teal" data-act="trade-buy" data-asset="${esc(a.id)}">Buy ${esc(a.id)}</button>
+            <button class="btn-line" data-act="trade-sell" data-asset="${esc(a.id)}" ${held ? '' : 'disabled'}>Sell</button>
+          </div>
+        </div>
       </section>
 
       <section class="panel">
-        <div class="p-head"><div><h2>Your positions</h2><p>Value against what you paid</p></div></div>
-        <div class="p-body tight">
-          ${donut(plPct, `${m.pl >= 0 ? '+' : '−'}${short(Math.abs(m.pl))}`, 'PROFIT / LOSS', m.pl < 0 ? 'red' : null)}
-          <div class="kv"><span>Invested</span><b>${money(m.cost)}</b></div>
-          ${holdings}
-        </div>
+        <div class="p-head"><div><h2>Market</h2><p>Tap one to see it in detail</p></div></div>
+        <div class="p-body">${market}</div>
+      </section>
+    </div>
+
+    <div class="cols even">
+      <section class="panel">
+        <div class="p-head"><div><h2>Your portfolio</h2><p>Where your invested money sits</p></div>
+          <b class="p-figure">${money(m.value)}</b></div>
+        <div class="p-body tight">${alloc}</div>
+      </section>
+      <section class="panel">
+        <div class="p-head"><div><h2>Recent trades</h2><p>Your last ${Math.max(m.trades.length, 1)} orders</p></div></div>
+        <div class="p-body tight">${trades}</div>
       </section>
     </div>`;
 }
@@ -1875,6 +2046,14 @@ const PAGES = {
 
 let introSettled = false;
 
+/* redraw the page without jumping back to the top (picking an asset, a chart range) */
+function rerenderKeepScroll() {
+  const view = document.getElementById('view');
+  const top = view ? view.scrollTop : 0;
+  render();
+  if (view) view.scrollTop = top;
+}
+
 function render() {
   if (!S.data) return;
 
@@ -1886,7 +2065,7 @@ function render() {
 
   const view = document.getElementById('view');
   view.innerHTML = (PAGES[S.page] || pageDashboard)();
-  view.classList.toggle('long', S.page === 'settings');
+  view.classList.toggle('long', S.page === 'settings' || S.page === 'invest');
   view.scrollTop = 0;
 
   if (S.page === 'dashboard' && introSettled !== false) loadRecent();
@@ -2067,6 +2246,9 @@ document.getElementById('view').addEventListener('click', async (e) => {
 
     case 'wage-edit': wageModal(parseInt(el.dataset.grade, 10)); break;
     case 'member-card': memberCardModal(el.dataset.id, el.dataset.name); break;
+    case 'invest-pick': S.investAsset = el.dataset.asset; rerenderKeepScroll(); break;
+    case 'invest-range': S.investRange = el.dataset.id; rerenderKeepScroll(); break;
+    case 'invest-help': S.investHelp = !S.investHelp; rerenderKeepScroll(); break;
     case 'trade-buy': tradeModal('buy', el.dataset.asset); break;
     case 'trade-sell': tradeModal('sell', el.dataset.asset); break;
 
@@ -2708,23 +2890,28 @@ function tradeModal(side, assetId) {
 
   if (!buying && !held) return notify('Not completed', `You hold no ${a.label}.`, 'error');
 
-  const steps = buying ? [1000, 5000, 25000] : [Math.round(held.value / 2), held.value];
+  const steps = buying
+    ? [500, 1000, 5000, 25000].filter(v => v >= m.minTrade).map(v => [v, money(v)])
+    : [[0.25, '25%'], [0.5, 'Half'], [1, 'All']].map(([f, l]) => [Math.floor(held.value * f), l]);
+  S.trade = { buying, a, held, m };
 
   openModal({
     title: `${buying ? 'Buy' : 'Sell'} ${a.label}`,
     text: buying
-      ? `${money(a.price)} per unit. A ${(m.fee * 100).toFixed(0)}% fee is added on top.`
-      : `You hold ${held.units.toFixed(4)} worth ${money(held.value)}. A ${(m.fee * 100).toFixed(0)}% fee comes off the sale.`,
+      ? `${priceFmt(a.price)} per unit right now. A ${(m.fee * 100).toFixed(0)}% fee is added on top.`
+      : `You own ${held.units.toFixed(4)} units worth ${money(held.value)}. A ${(m.fee * 100).toFixed(0)}% fee comes off the sale.`,
     confirm: buying ? 'Place buy order' : 'Place sell order',
     body: `
       <div class="field"><label>${buying ? 'Spend from' : 'Pay into'}</label>
         <select data-name="account">${accountOptions(S.data.primary, x => x.type !== 'society')}</select></div>
-      <div class="field"><label>Amount in ${cur()}</label>
-        <input data-name="amount" type="number" min="${m.minTrade}" placeholder="0"></div>
-      <div class="quick">${steps.map(v => `<button data-fill="${v}">${money(v)}</button>`).join('')}</div>`,
+      <div class="field"><label>${buying ? 'How much to invest' : 'How much to sell'} (${cur()})</label>
+        <input data-name="amount" type="number" min="${m.minTrade}" placeholder="${buying ? m.minTrade : Math.floor(held.value)}"></div>
+      <div class="quick">${steps.map(([v, l]) => `<button data-fill="${v}">${l}</button>`).join('')}</div>
+      <div class="trade-prev" id="tradePrev"></div>`,
     onConfirm: async (v) => {
       const amount = parseInt(v.amount, 10);
       if (!amount || amount <= 0) return notify('Not completed', 'Enter an amount above zero.', 'error');
+      if (buying && amount < m.minTrade) return notify('Not completed', `The smallest order is ${money(m.minTrade)}.`, 'error');
       // the server quietly sells everything for an amount over the position
       if (!buying && amount > Math.ceil(held.value)) {
         return notify('Not completed', `You only hold ${money(held.value)}.`, 'error');
@@ -2734,7 +2921,45 @@ function tradeModal(side, assetId) {
       if (reply(res)) refresh();
     }
   });
+  tradePreview();
 }
+
+/* what an order will do, worked out as it is typed */
+function tradePreview() {
+  const box = document.getElementById('tradePrev');
+  const t = S.trade;
+  if (!box || !t) return;
+  const input = document.querySelector('[data-name="amount"]');
+  const amount = Math.max(0, parseInt(input && input.value, 10) || 0);
+  const { a, m, held } = t;
+  const fee = Math.round(amount * m.fee);
+  const units = a.price > 0 ? amount / a.price : 0;
+
+  if (t.buying) {
+    const breakEven = a.price * (1 + m.fee) / (1 - m.fee);
+    box.innerHTML = `
+      <span>Units you get</span><b>${units.toFixed(4)} ${esc(a.id)}</b>
+      <span>Fee (${(m.fee * 100).toFixed(0)}%)</span><b>${money(fee)}</b>
+      <span>Break-even price</span><b>${priceFmt(breakEven)}</b>
+      <span class="sum">Taken from your account</span><b class="sum">${money(amount + fee)}</b>`;
+  } else {
+    const share = held.units > 0 ? Math.min(1, units / held.units) : 0;
+    const basis = units * (held.avgPrice || 0);
+    const pl = Math.round(amount - basis - fee);
+    box.innerHTML = `
+      <span>Units sold</span><b>${Math.min(units, held.units).toFixed(4)} of ${held.units.toFixed(4)}</b>
+      <span>Fee (${(m.fee * 100).toFixed(0)}%)</span><b>${money(fee)}</b>
+      <span>Profit on these units</span><b class="${pl >= 0 ? 'teal' : 'red'}">${signed(pl)}</b>
+      <span class="sum">Paid into your account</span><b class="sum">${money(Math.max(0, amount - fee))}</b>
+      ${share >= 0.999 ? '<span>That closes the position</span><b></b>' : ''}`;
+  }
+}
+document.getElementById('veil').addEventListener('input', (e) => {
+  if (e.target.matches('[data-name="amount"]')) tradePreview();
+});
+document.getElementById('veil').addEventListener('click', (e) => {
+  if (e.target.closest('[data-fill]')) setTimeout(tradePreview, 0);
+});
 
 /* keep the clock ticking */
 setInterval(() => {
