@@ -72,7 +72,9 @@ Existing money is not migrated. If you're moving off another banking script, run
 
 **Loans** — four tiers gated by credit score. Instalments pull automatically, missed payments cost credit, three misses default the loan and add a penalty. Early payoff refunds part of the interest.
 
-**Credit score** — 0–850, moved by on-time payments, late payments, cleared loans and defaults. Defaulted players cannot borrow again until they settle.
+**Credit score** — 0–850, moved by on-time payments, late payments, cleared loans, card usage, overdraft and defaults. A history chart and a full report show what is raising or lowering it. Defaulted players cannot borrow again until they settle.
+
+**Printed papers** — receipts, statements and credit reports print as items players can keep or hand to each other.
 
 **Savings** — interest on a timer, deposit and withdrawal tracking, optional savings goal with a progress ring.
 
@@ -80,7 +82,7 @@ Existing money is not migrated. If you're moving off another banking script, run
 
 **Society payroll** — optional. ESX pays wages by default; switch `Config.Payroll.mode` to `bank` and management sets a wage per grade instead, with direct deposit honoured.
 
-**Investments** — an in-bank market with sparklines, average entry pricing, and separate realised and unrealised profit. Hands price control to `nayzeee-trading` when it's running.
+**Investments** — an in-bank market with hoverable price charts, risk ratings, a portfolio allocation view, trade history, live order previews, average entry pricing, and separate realised and unrealised profit. Hands price control to `nayzeee-trading` when it's running.
 
 **Joint cards** — member-specific cards on shared accounts with their own daily limits.
 
@@ -174,6 +176,8 @@ A market lives inside the bank. Prices walk on a timer with a pull back toward t
 | `Config.Market.minTrade` | `100` | Smallest order |
 | `Config.Market.maxHolding` | `5000000` | Cap on one player's position per asset |
 | `Config.Market.assets` | table | Ticker, label, starting price, volatility, floor, ceiling |
+
+The Investments page explains itself: a short *How it works* panel, a detail view per asset with a 1h / 6h / 24h chart you can hover for the price at any point, its day's high, low and change, a risk rating and what kind of asset it is, your position and its profit, and a live preview of every order (units, fee, total, break-even price) before you confirm. Your portfolio shows as an allocation bar with each holding's share and return, and the last trades are listed under it.
 
 {% hint style="info" %}
 On `auto`, if `nayzeee-trading` is running it becomes the price feed and the internal walk stands down. Any other market resource can drive prices through `setMarketPrice`.
@@ -519,6 +523,43 @@ The opening balance is read off the running balance of the last transaction *bef
 ```lua
 local statement = exports['nayzeee-banking']:getStatement(accountId, 'month')
 ```
+
+---
+
+## 🧾 Printed papers
+
+Receipts, statements and credit reports print as **inventory items**. The whole document rides in the item's metadata, so a player can hand a receipt to a shop owner, show a statement to a landlord or a credit report to a car dealer, and it reads the same whoever opens it, long after the account has moved on.
+
+- **Receipt**: tap any transaction → *Print receipt*. A thermal slip with the amount, account, balance after and reference.
+- **Statement**: Statements → *Print a copy*, or *Print statement* at an ATM. A full page with the summary and the latest lines.
+- **Credit report**: Loans → *Full report* → *Print report*. The score, its band, what is helping or hurting it, and the recent changes.
+
+Printing works at a branch or an ATM (where there would be a printer). Using the item opens the sheet on screen; ESC puts it away.
+
+| Setting | Default | Description |
+|---|---|---|
+| `Config.Paper.enabled` | `true` | Turn printing on or off |
+| `Config.Paper.price` | `0` | Charged from the personal account per print |
+| `Config.Paper.items` | table | The item names for each kind |
+
+Items and images are in `install/items.md` and `install/images/`. The default ESX inventory cannot carry metadata, so printing switches itself off there.
+
+---
+
+## 📊 Credit score history
+
+Every change to a player's score is logged with its reason (*Loan instalment on time*, *Credit card used near its limit*, *Went into overdraft* …). The Loans page shows the score with a chart of its history and the factors affecting it most; **Full report** opens all of them:
+
+| Factor | Reads |
+|---|---|
+| Payment history | On-time against late payments |
+| Credit use | Credit card balances against their limits |
+| Defaults | Loans that went to default |
+| Borrowing | How many loans are running and what is owed |
+| Overdraft | Whether an account sits below zero |
+| Credit history | How long the score has been building |
+
+Each factor is marked *Helping*, *Okay*, *Hurting* or *No effect yet*, so a player can see exactly what to do to raise it.
 
 ---
 

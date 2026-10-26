@@ -632,6 +632,14 @@ printStatement = function()
 
   if alive() then Bank.atmReceiptProp(DUI.entity, DUI.model) end
 
+  -- the paper that came out of the slot ends up in the player's pocket
+  if Config.Paper and Config.Paper.enabled then
+    CreateThread(function()
+      ask('nz_bank:printPaper', 'statement', DUI.data.primary,
+        Config.Statements and Config.Statements.atmPeriod or 'week')
+    end)
+  end
+
   send({ action = 'statement', statement = res.statement })
   DUI.state = 'statement'
   showSides()

@@ -36,9 +36,31 @@ function Bank.getCredit(identifier)
     return row
 end
 
-function Bank.moveCredit(identifier, delta, column)
+-- every score change and why, for the history chart and the credit report
+MySQL.ready(function()
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS `nz_bank_credit_history` (
+          `id`         INT(11) NOT NULL AUTO_INCREMENT,
+          `identifier` VARCHAR(64) NOT NULL,
+          `score`      INT(11) NOT NULL,
+          `delta`      INT(11) NOT NULL,
+          `reason`     VARCHAR(64) NOT NULL,
+          `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `identifier` (`identifier`, `id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ]])
+end)
+
+--- `reason`: a short line for the history ("Loan instalment on time").
+function Bank.moveCredit(identifier, delta, column, reason)
     local row = Bank.getCredit(identifier)
     local score = math.max(Config.Credit.min, math.min(Config.Credit.max, row.score + delta))
+
+    if score ~= row.score then
+        MySQL.insert('INSERT INTO nz_bank_credit_history (identifier, score, delta, reason) VALUES (?, ?, ?, ?)',
+            { identifier, score, score - row.score, tostring(reason or (delta > 0 and 'Score went up' or 'Score went down')):sub(1, 64) })
+    end
 
     if column then
         MySQL.update.await(
@@ -51,6 +73,99 @@ function Bank.moveCredit(identifier, delta, column)
     local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
     if xPlayer then TriggerClientEvent('nz_bank:refresh', xPlayer.source) end
     return score
+end
+
+-- ═══════════════════════════════════════════════════════════
+--  CREDIT REPORT
+--  The score, how it got there, and what is pushing it up or down,
+--  in words a player can act on.
+-- ═══════════════════════════════════════════════════════════
+local function factor(key, label, value, note, impact)
+    return { key = key, label = label, value = value, note = note, impact = impact }
+end
+
+function Bank.creditReport(identifier)
+    local c = Bank.getCredit(identifier)
+    local cur = Config.Currency
+    local factors = {}
+
+    -- 1. paying on time
+    local onTime, late = c.on_time or 0, c.late or 0
+    local paid = onTime + late
+    local rate = paid > 0 and math.floor(onTime / paid * 100) or nil
+    factors[#factors + 1] = factor('payments', 'Payment history',
+        rate and ('%d%% on time'):format(rate) or 'No payments yet',
+        rate and ('%d on time · %d late'):format(onTime, late) or 'Repaying a loan or a card on time builds this.',
+        not rate and 'none' or rate >= 90 and 'good' or rate >= 75 and 'ok' or 'bad')
+
+    -- 2. how much of the credit you have is in use
+    local cards = MySQL.query.await([[
+        SELECT c.balance, c.credit_limit FROM nz_bank_cards c
+        JOIN nz_bank_accounts a ON a.id = c.account_id
+        WHERE c.kind != 'debit' AND (c.holder_identifier = ? OR (c.holder_identifier IS NULL AND a.owner = ?))
+    ]], { identifier, identifier }) or {}
+    local owed, limit = 0, 0
+    for _, r in ipairs(cards) do owed = owed + (r.balance or 0); limit = limit + (r.credit_limit or 0) end
+    local use = limit > 0 and math.floor(owed / limit * 100) or nil
+    factors[#factors + 1] = factor('use', 'Credit use',
+        use and ('%d%% used'):format(use) or 'No credit cards',
+        use and ('%s%s of %s%s across your cards. Under 30%% is best.'):format(cur, owed, cur, limit)
+            or 'A credit card paid off each month helps your score.',
+        not use and 'none' or use < 30 and 'good' or use < 60 and 'ok' or 'bad')
+
+    -- 3. defaults
+    local defaults = c.defaults or 0
+    local open = MySQL.scalar.await('SELECT COUNT(*) FROM nz_bank_loans WHERE identifier = ? AND status = "defaulted"', { identifier }) or 0
+    factors[#factors + 1] = factor('defaults', 'Defaults',
+        defaults == 0 and 'None' or ('%d on record'):format(defaults),
+        open > 0 and 'A defaulted loan is still unpaid. Settling it lifts the block on borrowing.'
+            or defaults > 0 and 'Settled, but they still count against you.' or 'You have never defaulted.',
+        open > 0 and 'bad' or defaults > 0 and 'ok' or 'good')
+
+    -- 4. borrowing right now
+    local loan = MySQL.single.await('SELECT COUNT(*) AS n, COALESCE(SUM(remaining), 0) AS left_ FROM nz_bank_loans WHERE identifier = ? AND status = "active"', { identifier }) or {}
+    local n = tonumber(loan.n) or 0
+    factors[#factors + 1] = factor('loans', 'Borrowing',
+        n == 0 and 'No loans' or ('%d active'):format(n),
+        n == 0 and 'Nothing owed on loans.' or ('%s%s still to repay. Paying on time raises your score.'):format(cur, tonumber(loan.left_) or 0),
+        n == 0 and 'none' or 'ok')
+
+    -- 5. overdraft
+    local personal = Bank.getPersonal(identifier)
+    local overdrawn = personal and personal.balance < 0
+    factors[#factors + 1] = factor('overdraft', 'Overdraft',
+        overdrawn and ('%s%s overdrawn'):format(cur, -personal.balance) or 'In credit',
+        overdrawn and 'Getting back above zero ends the overdraft.' or 'Your account is not overdrawn.',
+        overdrawn and 'bad' or 'good')
+
+    -- 6. how long they have been building it
+    local first = MySQL.single.await([[
+        SELECT UNIX_TIMESTAMP(MIN(created_at)) AS since, COUNT(*) AS n FROM nz_bank_credit_history WHERE identifier = ?
+    ]], { identifier }) or {}
+    local days = first.since and math.floor((os.time() - tonumber(first.since)) / 86400) or 0
+    factors[#factors + 1] = factor('age', 'Credit history',
+        (tonumber(first.n) or 0) == 0 and 'New' or days < 1 and 'Under a day' or ('%d day%s'):format(days, days == 1 and '' or 's'),
+        ('%d change%s on record.'):format(tonumber(first.n) or 0, (tonumber(first.n) or 0) == 1 and '' or 's'),
+        days >= 14 and 'good' or (tonumber(first.n) or 0) > 0 and 'ok' or 'none')
+
+    -- the history, oldest first, for the chart
+    local rows = MySQL.query.await([[
+        SELECT score, delta, reason, DATE_FORMAT(created_at, '%d %b %H:%i') AS stamp FROM nz_bank_credit_history
+        WHERE identifier = ? ORDER BY id DESC LIMIT 40
+    ]], { identifier }) or {}
+    local history = {}
+    for i = #rows, 1, -1 do history[#history + 1] = rows[i] end
+
+    return {
+        score   = c.score,
+        band    = Bank.creditBand(c.score),
+        min     = Config.Credit.min,
+        max     = Config.Credit.max,
+        bands   = Config.Credit.bands,
+        factors = factors,
+        history = history,
+        issued  = os.date('%d %b %Y - %H:%M'),
+    }
 end
 
 function Bank.getLoanState(identifier)
@@ -248,7 +363,7 @@ local function settleLoan(loan, xPlayer)
     local earned = longEnough and paidEnough
 
     if earned then
-        Bank.moveCredit(loan.identifier, Config.Credit.loanCleared)
+        Bank.moveCredit(loan.identifier, Config.Credit.loanCleared, nil, 'Loan paid off')
     end
 
     if xPlayer then
@@ -317,7 +432,7 @@ local function payLoanNow(identifier, loanId, amount, auto)
     end
 
     if counts then
-        Bank.moveCredit(identifier, Config.Credit.loanOnTime, 'on_time')
+        Bank.moveCredit(identifier, Config.Credit.loanOnTime, 'on_time', 'Loan instalment on time')
     end
 
     if remaining <= 0 then
@@ -468,7 +583,7 @@ local function collectDue(loanId)
         MySQL.update.await('UPDATE nz_bank_loans SET missed = ?, next_payment = ? WHERE id = ? AND status = "active"', {
             missed, os.time() + (Config.Loans.paymentIntervalMin * 60), loan.id
         })
-        Bank.moveCredit(loan.identifier, Config.Credit.loanLate, 'late')
+        Bank.moveCredit(loan.identifier, Config.Credit.loanLate, 'late', 'Loan instalment missed')
 
         if xPlayer then
             Bank.notify(xPlayer.source, 'Missed loan payment',
@@ -481,7 +596,7 @@ local function collectDue(loanId)
             MySQL.update.await(
                 'UPDATE nz_bank_loans SET status = "defaulted", remaining = ? WHERE id = ? AND status = "active"',
                 { loan.remaining + penalty, loan.id })
-            Bank.moveCredit(loan.identifier, Config.Credit.loanDefault, 'defaults')
+            Bank.moveCredit(loan.identifier, Config.Credit.loanDefault, 'defaults', 'Loan defaulted')
 
             if xPlayer then
                 Bank.notify(xPlayer.source, 'Loan defaulted',
@@ -539,7 +654,7 @@ Bank.callback('nz_bank:settleDefault', function(src, loanId)
             return { ok = false, msg = 'That debt was already settled.' }
         end
 
-        Bank.moveCredit(xPlayer.identifier, 40)
+        Bank.moveCredit(xPlayer.identifier, 40, nil, 'Defaulted debt settled')
         return { ok = true, msg = 'Debt settled. You can borrow again once the cooling-off period is up.' }
     end)
 end)

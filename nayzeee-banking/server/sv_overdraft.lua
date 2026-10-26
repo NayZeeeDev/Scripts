@@ -162,7 +162,7 @@ function Bank.overdraftCover(acc, amount)
             'UPDATE nz_bank_accounts SET od_since = ? WHERE id = ?', { os.time(), acc.id })
 
         if c.creditPenalty and c.creditPenalty ~= 0 then
-            Bank.moveCredit(acc.owner, c.creditPenalty)
+            Bank.moveCredit(acc.owner, c.creditPenalty, nil, 'Went into overdraft')
         end
     end
 
@@ -202,7 +202,7 @@ function Bank.overdraftSettle(accountId)
     end
 
     if (cfg().creditReward or 0) ~= 0 then
-        Bank.moveCredit(acc.owner, cfg().creditReward)
+        Bank.moveCredit(acc.owner, cfg().creditReward, nil, 'Cleared the overdraft')
     end
 end
 

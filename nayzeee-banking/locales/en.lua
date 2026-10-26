@@ -75,4 +75,5 @@ Locales['en'] = {
     atm_which_card   = 'Which card?',
     atm_use          = 'Use ATM',
     atm_card_refused = 'The machine won\'t take that card.',
+    paper_blank      = 'There is nothing printed on this.',
 }

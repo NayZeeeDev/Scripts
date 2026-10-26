@@ -251,3 +251,15 @@ CREATE TABLE IF NOT EXISTS `nz_bank_trades` (
   PRIMARY KEY (`id`),
   KEY `identifier` (`identifier`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Every credit score change and why, for the history chart and the credit report
+CREATE TABLE IF NOT EXISTS `nz_bank_credit_history` (
+  `id`         INT(11) NOT NULL AUTO_INCREMENT,
+  `identifier` VARCHAR(64) NOT NULL,
+  `score`      INT(11) NOT NULL,
+  `delta`      INT(11) NOT NULL,
+  `reason`     VARCHAR(64) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `identifier` (`identifier`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

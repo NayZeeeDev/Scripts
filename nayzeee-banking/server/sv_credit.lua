@@ -95,7 +95,7 @@ local function payCardNow(src, cardId, amount, accountId, auto)
         local acc = Bank.getAccountById(card.account_id)
         local owner = card.holder_identifier or (acc and acc.owner)
         if Bank.isCharacterId(owner) then
-            Bank.moveCredit(owner, Config.Credit.cardOnTime, 'on_time')
+            Bank.moveCredit(owner, Config.Credit.cardOnTime, 'on_time', 'Card minimum paid on time')
         end
     end
 
@@ -149,7 +149,7 @@ local function cutStatement(card)
     if card.credit_limit > 0 then
         local use = card.balance / card.credit_limit
         if use >= Config.Credit.highUtilisation.threshold and Bank.isCharacterId(owner) then
-            Bank.moveCredit(owner, Config.Credit.highUtilisation.score)
+            Bank.moveCredit(owner, Config.Credit.highUtilisation.score, nil, 'Credit card used near its limit')
         end
     end
 
@@ -182,7 +182,8 @@ local function missStatement(card)
     local acc = Bank.getAccountById(card.account_id)
     local owner = card.holder_identifier or (acc and acc.owner)
     if Bank.isCharacterId(owner) then
-        Bank.moveCredit(owner, freeze and Config.Credit.cardFrozen or Config.Credit.cardLate, 'late')
+        Bank.moveCredit(owner, freeze and Config.Credit.cardFrozen or Config.Credit.cardLate, 'late',
+            freeze and 'Card frozen for missed payments' or 'Card statement missed')
     end
 
     if owner then

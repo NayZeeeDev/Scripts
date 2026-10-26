@@ -31,6 +31,7 @@ server_scripts {
     'server/sv_accounts.lua',
     'server/sv_cards.lua',
     'server/sv_session.lua',
+    'server/sv_paper.lua',
     'server/sv_credit.lua',
     'server/sv_loans.lua',
     'server/sv_savings.lua',

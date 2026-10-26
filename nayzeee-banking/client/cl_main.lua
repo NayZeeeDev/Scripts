@@ -54,7 +54,8 @@ local ALLOWED = {
     ['nz_bank:setOverdraft']    = true,
     ['nz_bank:getPayees']       = true,
     ['nz_bank:savePayee']       = true,
-    ['nz_bank:deletePayee']     = true
+    ['nz_bank:deletePayee']     = true,
+    ['nz_bank:printPaper']      = true
 }
 
 --- Settings that live on the client and never reach the server payload.
@@ -115,6 +116,30 @@ RegisterNUICallback('close', function(_, cb)
     Bank.close()
     cb(1)
 end)
+
+-- ── printed papers ──────────────────────────────────────
+--- Read a receipt, statement or credit report. Over the bank if it is open,
+--- on its own otherwise.
+function Bank.showPaper(doc)
+    if type(doc) ~= 'table' or not doc.kind then
+        return Bank.notify(L('card_title'), L('paper_blank'), 'error')
+    end
+    if not Bank.isOpen then SetNuiFocus(true, true) end
+    SendNUIMessage({ action = 'paper', data = doc })
+end
+
+RegisterNUICallback('paperClose', function(_, cb)
+    if not Bank.isOpen then SetNuiFocus(false, false) end
+    cb(1)
+end)
+
+-- ox_inventory: client = { export = 'nayzeee-banking.usePaper' }
+exports('usePaper', function(data, slot)
+    Bank.showPaper(slot and slot.metadata and slot.metadata.paper)
+end)
+
+-- qs-inventory / the framework's usable items
+RegisterNetEvent('nz_bank:showPaper', function(doc) Bank.showPaper(doc) end)
 
 --- Branches keep hours; ATMs do not care.
 function Bank.branchOpen()

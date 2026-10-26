@@ -395,6 +395,20 @@ Config.ATM = {
 
 Config.ATMModels = { `prop_atm_01`, `prop_atm_02`, `prop_atm_03`, `prop_fleeca_atm` }
 
+-- Printed papers: receipts, statements and credit reports as items you can keep and
+-- hand over. Using one reads it. Printed at a branch or an ATM. Needs an inventory
+-- with metadata (ox_inventory, qs-inventory, qb-inventory) and the items from
+-- install/items.md.
+Config.Paper = {
+    enabled = true,
+    price   = 0,            -- What each print costs, from the personal account
+    items   = {
+        receipt   = 'bank_receipt',
+        statement = 'bank_statement',
+        credit    = 'credit_report',
+    },
+}
+
 -- Cash only moves where the player really is. The server checks the distance on
 -- every deposit and withdrawal, so a menu opened anywhere else can't move cash.
 Config.Security = {

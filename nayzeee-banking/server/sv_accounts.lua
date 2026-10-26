@@ -125,7 +125,8 @@ function Bank.buildPayload(src, context)
             score = credit.score or Config.Credit.starting,
             band  = Bank.creditBand(credit.score or Config.Credit.starting),
             onTime = credit.on_time or 0,
-            late   = credit.late or 0
+            late   = credit.late or 0,
+            report = optional('credit report', Bank.creditReport, identifier)
         },
         savings   = Bank.getSavingsState(identifier),
         overdraft = optional('overdraft', Bank.getOverdraftState, identifier, personal),
@@ -155,6 +156,7 @@ function Bank.buildPayload(src, context)
             },
             currency        = Config.Currency,
             currencyRight   = Config.CurrencyRight or false,
+            paper           = (Config.Paper and Config.Paper.enabled and Bank.inventory() ~= 'esx') or false,
             numberChangeCost= Config.Accounts.numberChangeCost or 0,
             payrollMode     = Config.Payroll.mode,
             hours           = Config.WorkingHours.enabled and {

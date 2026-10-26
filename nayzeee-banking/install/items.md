@@ -1,5 +1,7 @@
 # 💳 Card items
 
+*Printed papers (receipts, statements, credit reports) are further down: [Paper items](#paper-items).*
+
 Only needed when `Config.Cards.physicalItem = true`. One item per card type in `Config.CardTypes` — add or remove entries here to match if you change that list.
 
 Every entry must be **non-stackable**, because the `cardId` in its metadata is what ties the item to a specific card in the database. Two cards sharing a stack would share an identity.
@@ -110,3 +112,64 @@ Config.CardTypes = {
 ```
 
 Set `item = nil` on a type that should not hand out an item at all.
+
+---
+
+## Paper items
+
+Only needed when `Config.Paper.enabled = true` (the default). Players print these at a branch or an ATM:
+
+- **Receipt**: tap any transaction in the app → *Print receipt*
+- **Statement**: Statements → *Print a copy*, or *Print statement* at the ATM
+- **Credit report**: Loans → *Full report* → *Print report*
+
+The whole document travels in the item's metadata, so it can be handed to another player, dropped, or stored, and still reads the same when used. Using the item opens the sheet on screen. Like the cards, these must be **non-stackable**.
+
+Images: `bank_receipt.png`, `bank_statement.png`, `credit_report.png` in `install/images/`. Rebuild them with `python3 tools/papericons.py` if you change the logo.
+
+### ox_inventory
+
+```lua
+['bank_receipt'] = {
+    label = 'Bank Receipt',
+    weight = 5,
+    stack = false,
+    close = true,
+    description = 'A printed transaction slip.',
+    client = { export = 'nayzeee-banking.usePaper' }
+},
+
+['bank_statement'] = {
+    label = 'Bank Statement',
+    weight = 10,
+    stack = false,
+    close = true,
+    description = 'A printed account statement.',
+    client = { export = 'nayzeee-banking.usePaper' }
+},
+
+['credit_report'] = {
+    label = 'Credit Report',
+    weight = 10,
+    stack = false,
+    close = true,
+    description = 'A printed credit score and history.',
+    client = { export = 'nayzeee-banking.usePaper' }
+},
+```
+
+### qb-inventory / qs-inventory
+
+```lua
+['bank_receipt'] = { name = 'bank_receipt', label = 'Bank Receipt', weight = 5, type = 'item', image = 'bank_receipt.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'A printed transaction slip.' },
+['bank_statement'] = { name = 'bank_statement', label = 'Bank Statement', weight = 10, type = 'item', image = 'bank_statement.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'A printed account statement.' },
+['credit_report'] = { name = 'credit_report', label = 'Credit Report', weight = 10, type = 'item', image = 'credit_report.png', unique = true, useable = true, shouldClose = true, combinable = nil, description = 'A printed credit score and history.' },
+```
+
+The resource registers them as usable itself; nothing else to add.
+
+{% hint style="info" %}
+The default ESX inventory cannot carry metadata, so papers are switched off there automatically and the print buttons are hidden.
+{% endhint %}
+
+Rename the items with `Config.Paper.items`, or charge for printing with `Config.Paper.price`.

@@ -176,11 +176,18 @@ window.addEventListener('message', (e) => {
     chrome();
   } else if (m.action === 'close') {
     document.body.classList.remove('up');
+  } else if (m.action === 'paper') {
+    openPaper(m.data);
   }
 });
 
 document.addEventListener('keydown', (e) => {
   if (!document.body.classList.contains('up')) return;
+
+  if (document.getElementById('paperVeil').classList.contains('up')) {
+    if (e.key === 'Escape') closePaper();
+    return;
+  }
 
   if (document.getElementById('pinpad').classList.contains('up')) {
     if (e.key === 'Escape') return cancelPin();
@@ -859,9 +866,12 @@ function skeletonRows(n) {
       <div class="sk" style="height:7px;width:32%;margin-top:7px"></div></div></div>`).join('');
 }
 
+const TX = {};   // [id] = row, for the detail window
+
 function txRow(t) {
   const dir = t.direction === 'in';
-  return `<div class="row">
+  if (t.id) TX[t.id] = t;
+  return `<div class="row ${t.id ? 'click' : ''}" ${t.id ? `data-act="tx-open" data-id="${t.id}"` : ''}>
     <div class="ic ${dir ? '' : 'out'}">${ICON[CAT_ICON[t.category] || (dir ? 'in' : 'out')]}</div>
     <div class="row-txt"><b>${esc(t.label)}</b><span>${esc(t.stamp)}${t.actor_name ? ' · ' + esc(t.actor_name) : ''}</span></div>
     <div class="amount ${dir ? 'in' : 'out'}">${dir ? '+' : '−'} ${money(t.amount)}</div>
@@ -1521,12 +1531,9 @@ function pageLoans() {
 
       <div class="stack">
         <section class="panel" style="flex:none">
-          <div class="p-head"><div><h2>Credit score</h2><p>Built from how you repay</p></div></div>
-          <div class="p-body tight">
-            ${donut(pct, score, String(d.credit.band).toUpperCase())}
-            <div class="kv"><span>On-time</span><b class="teal">${d.credit.onTime}</b></div>
-            <div class="kv"><span>Late</span><b class="${d.credit.late > 0 ? 'red' : ''}">${d.credit.late}</b></div>
-          </div>
+          <div class="p-head"><div><h2>Credit score</h2><p>Built from how you repay</p></div>
+            <button class="btn-ghost" data-act="credit-report">Full report</button></div>
+          <div class="p-body tight">${creditPanel(d.credit)}</div>
         </section>
 
         <section class="panel" style="flex:1;min-height:0">
@@ -1989,7 +1996,9 @@ function pageStatements() {
   return `
     <div class="head">
       <div><h1>Statements</h1><p>${esc(st.account.label)} · ${esc(st.account.number)} · issued ${esc(st.issued)}</p></div>
-      <div class="head-act"><button class="btn-line" data-act="st-clear">New statement</button></div>
+      <div class="head-act">
+        ${paperOn() ? '<button class="btn-teal" data-act="st-print">Print a copy</button>' : ''}
+        <button class="btn-line" data-act="st-clear">New statement</button></div>
     </div>
 
     <section class="panel">
@@ -2065,7 +2074,7 @@ function render() {
 
   const view = document.getElementById('view');
   view.innerHTML = (PAGES[S.page] || pageDashboard)();
-  view.classList.toggle('long', S.page === 'settings' || S.page === 'invest');
+  view.classList.toggle('long', S.page === 'settings' || S.page === 'invest' || S.page === 'loans');
   view.scrollTop = 0;
 
   if (S.page === 'dashboard' && introSettled !== false) loadRecent();
@@ -2246,6 +2255,13 @@ document.getElementById('view').addEventListener('click', async (e) => {
 
     case 'wage-edit': wageModal(parseInt(el.dataset.grade, 10)); break;
     case 'member-card': memberCardModal(el.dataset.id, el.dataset.name); break;
+    case 'tx-open': txModal(Number(el.dataset.id)); break;
+    case 'credit-report': creditModal(); break;
+    case 'st-print': {
+      const res = await post('nz_bank:printPaper', 'statement', S.statementAccount || S.data.primary, S.statementPeriod || 'week');
+      reply(res);
+      break;
+    }
     case 'invest-pick': S.investAsset = el.dataset.asset; rerenderKeepScroll(); break;
     case 'invest-range': S.investRange = el.dataset.id; rerenderKeepScroll(); break;
     case 'invest-help': S.investHelp = !S.investHelp; rerenderKeepScroll(); break;
@@ -2960,6 +2976,216 @@ document.getElementById('veil').addEventListener('input', (e) => {
 document.getElementById('veil').addEventListener('click', (e) => {
   if (e.target.closest('[data-fill]')) setTimeout(tradePreview, 0);
 });
+
+/* ═══════════════ CREDIT ═══════════════ */
+const IMPACT = { good: { label: 'Helping', tone: 'teal' }, ok: { label: 'Okay', tone: 'amber' },
+                 bad: { label: 'Hurting', tone: 'red' }, none: { label: 'No effect yet', tone: 'off' } };
+
+/* the score over time; a flat line when there is no history yet */
+function creditChart(history, score, w = 300, h = 70) {
+  const pts = (history || []).map(r => Number(r.score));
+  if (pts.length < 2) pts.unshift(pts[0] ?? score, score);
+  const min = Math.min(...pts), max = Math.max(...pts);
+  const lo = Math.max(0, min - 20), hi = max + 20;
+  const x = (i) => (i / (pts.length - 1)) * w;
+  const y = (v) => 4 + (1 - (v - lo) / (hi - lo || 1)) * (h - 8);
+  const line = pts.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const up = pts[pts.length - 1] >= pts[0];
+  return `<svg class="cchart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polygon points="0,${h} ${line} ${w},${h}" fill="${up ? 'rgba(8,175,162,.16)' : 'rgba(229,72,77,.14)'}"/>
+    <polyline points="${line}" fill="none" stroke="${up ? 'var(--teal)' : 'var(--red)'}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function factorRow(f) {
+  const k = IMPACT[f.impact] || IMPACT.none;
+  return `<div class="factor">
+    <i class="fdot ${k.tone}"></i>
+    <div class="row-txt"><b>${esc(f.label)}</b><span>${esc(f.note)}</span></div>
+    <div class="fval"><b>${esc(f.value)}</b><span class="${k.tone}">${k.label}</span></div>
+  </div>`;
+}
+
+function creditPanel(c) {
+  const r = c.report;
+  const pct = Math.round((c.score / ((r && r.max) || 850)) * 100);
+  if (!r) {
+    return `${donut(pct, c.score, String(c.band).toUpperCase())}
+      <div class="kv"><span>On-time</span><b class="teal">${c.onTime}</b></div>
+      <div class="kv"><span>Late</span><b class="${c.late > 0 ? 'red' : ''}">${c.late}</b></div>`;
+  }
+  const hist = r.history || [];
+  const moved = hist.length ? c.score - Number(hist[0].score) + Number(hist[0].delta || 0) : 0;
+  const worst = (r.factors || []).filter(f => f.impact === 'bad' || f.impact === 'good')
+    .sort((a, b) => (a.impact === 'bad' ? -1 : 1) - (b.impact === 'bad' ? -1 : 1)).slice(0, 3);
+  return `${donut(pct, c.score, String(c.band).toUpperCase())}
+    <div class="cmove"><span>${hist.length ? `Last ${hist.length} change${hist.length === 1 ? '' : 's'}` : 'No changes yet'}</span>
+      <b class="${moved >= 0 ? 'teal' : 'red'}">${moved >= 0 ? '+' : '−'}${Math.abs(moved)}</b></div>
+    ${creditChart(hist, c.score)}
+    <div class="factors">${worst.map(factorRow).join('')}</div>`;
+}
+
+function creditModal() {
+  const c = S.data.credit, r = c.report;
+  if (!r) return notify('Not completed', 'The credit report is not available right now.', 'error');
+  const hist = (r.history || []).slice().reverse();
+  // bands clipped to the score's range, lowest first
+  const bands = (r.bands || []).slice().sort((a, b) => a.min - b.min)
+    .map((b, i, all) => ({ label: b.label, min: Math.max(b.min, r.min), top: all[i + 1] ? all[i + 1].min : r.max }))
+    .filter(b => b.top > b.min);
+  const pos = Math.max(0, Math.min(100, ((c.score - r.min) / ((r.max - r.min) || 1)) * 100));
+  // each band's share of the range, less its share of the 2px gaps
+  const bandWidth = (b) => `width:calc(${((Math.min(b.top, r.max) - b.min) / ((r.max - r.min) || 1)) * 100}% - ${2 * (bands.length - 1) / bands.length}px)`;
+  openModal({
+    title: `Credit report · ${c.score}`,
+    text: `${c.band}. Here is what is moving your score and what changed it.`,
+    confirm: paperOn() ? 'Print report' : 'Close',
+    cancel: paperOn() ? 'Close' : undefined,
+    body: `
+      <div class="cgauge">
+        <div class="sbar">${bands.map(b => `<i style="${bandWidth(b)}"></i>`).join('')}<em style="left:${pos}%"></em></div>
+        <div class="sbands">${bands.map(b => `<span class="${c.score >= b.min && (c.score < b.top || b.top >= r.max) ? 'on' : ''}" style="${bandWidth(b)}">${esc(b.label)}</span>`).join('')}</div>
+      </div>
+      <div class="factors">${(r.factors || []).map(factorRow).join('')}</div>
+      <div class="chist">${hist.length ? hist.slice(0, 8).map(h => `
+        <div><span>${esc(h.reason)}</span><em>${esc(h.stamp)}</em>
+          <b class="${h.delta >= 0 ? 'teal' : 'red'}">${h.delta >= 0 ? '+' : '−'}${Math.abs(h.delta)}</b></div>`).join('')
+        : '<div class="empty small"><b>No history yet</b><span>Repay a loan or a card to start building it.</span></div>'}</div>`,
+    onConfirm: async () => {
+      if (!paperOn()) return closeModal();
+      const res = await post('nz_bank:printPaper', 'credit');
+      closeModal();
+      reply(res);
+    }
+  });
+}
+
+/* a transaction, with the option of a printed receipt */
+function txModal(id) {
+  const t = TX[id];
+  if (!t) return;
+  const dir = t.direction === 'in';
+  openModal({
+    title: t.label,
+    text: t.stamp,
+    confirm: paperOn() ? 'Print receipt' : 'Close',
+    cancel: paperOn() ? 'Close' : undefined,
+    body: `
+      <div class="kv"><span>Amount</span><b class="${dir ? 'teal' : 'red'}">${dir ? '+' : '−'} ${money(t.amount)}</b></div>
+      <div class="kv"><span>Type</span><b>${esc(cap(t.category || ''))}</b></div>
+      ${t.actor_name ? `<div class="kv"><span>By</span><b>${esc(t.actor_name)}</b></div>` : ''}
+      <div class="kv"><span>Reference</span><b>TX-${String(t.id).padStart(6, '0')}</b></div>
+      ${paperOn() ? '<p class="fine-print">Receipts print at a branch or an ATM and go in your pockets, to keep or hand over.</p>' : ''}`,
+    onConfirm: async () => {
+      if (!paperOn()) return closeModal();
+      const res = await post('nz_bank:printPaper', 'receipt', t.id);
+      closeModal();
+      reply(res);
+    }
+  });
+}
+
+/* ═══════════════ PRINTED PAPERS ═══════════════ */
+const paperOn = () => !!(S.data && S.data.config && S.data.config.paper);
+let paperAlone = false;
+
+function openPaper(doc) {
+  if (!doc || !doc.kind) return;
+  paperAlone = !document.body.classList.contains('up');
+  paperCur = { sign: doc.currency || cur(), right: !!doc.currencyRight };
+  if (paperAlone) document.body.classList.add('up', 'paper-only');
+  const box = document.getElementById('paper');
+  box.className = `paper ${doc.kind}`;
+  box.innerHTML = paperHtml(doc);
+  document.getElementById('paperVeil').classList.add('up');
+}
+
+function closePaper() {
+  document.getElementById('paperVeil').classList.remove('up');
+  if (paperAlone) {
+    document.body.classList.remove('up', 'paper-only');
+    paperAlone = false;
+    fetch(`https://${RES}/paperClose`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: '{}' }).catch(() => {});
+  }
+}
+document.getElementById('paperVeil').addEventListener('click', closePaper);
+
+/* papers keep the currency they were printed in, even read with the bank closed */
+let paperCur = { sign: '$', right: false };
+const pm = (n) => {
+  const num = Math.round(Number(n) || 0);
+  const v = Math.abs(num).toLocaleString('en-US').replace(/,/g, ' ');
+  return `${num < 0 ? '−' : ''}${paperCur.right ? v + paperCur.sign : paperCur.sign + v}`;
+};
+
+function paperHead(doc, title) {
+  return `<div class="ph">
+    <img src="images/mark.png" alt="" onerror="this.remove()">
+    <div><b>${esc(String(doc.bank || 'Bank').toUpperCase())}</b><span>${esc(doc.server || '')}</span></div>
+    <em>${esc(title)}</em>
+  </div>`;
+}
+
+function paperHtml(d) {
+  if (d.kind === 'receipt') {
+    const dir = d.direction === 'in';
+    return `${paperHead(d, 'RECEIPT')}
+      <div class="pr-amt ${dir ? 'in' : 'out'}">${dir ? '+' : '−'}${pm(d.amount)}</div>
+      <div class="pr-label">${esc(d.label)}</div>
+      <div class="pl">
+        <div><span>Date</span><b>${esc(d.stamp)}</b></div>
+        <div><span>Account</span><b>${esc(d.account && d.account.label)} ••${esc(d.account && d.account.last4)}</b></div>
+        <div><span>Type</span><b>${esc(cap(d.category || ''))}</b></div>
+        ${d.by ? `<div><span>By</span><b>${esc(d.by)}</b></div>` : ''}
+        <div><span>Balance after</span><b>${pm(d.balance)}</b></div>
+        <div><span>Reference</span><b>${esc(d.ref)}</b></div>
+      </div>
+      <div class="pbar"></div>
+      <p class="pf">Printed for ${esc(d.holder)} · Thank you for banking with ${esc(d.bank)}</p>`;
+  }
+
+  if (d.kind === 'statement') {
+    return `${paperHead(d, 'ACCOUNT STATEMENT')}
+      <div class="ps-meta">
+        <div><span>Account holder</span><b>${esc(d.holder)}</b></div>
+        <div><span>Account</span><b>${esc(d.account && d.account.label)} ••${esc(d.account && d.account.last4)}</b></div>
+        <div><span>Period</span><b>${esc(d.period || '')}</b></div>
+        <div><span>Issued</span><b>${esc(d.issued || '')}</b></div>
+      </div>
+      <div class="ps-sum">
+        <div><span>Opening</span><b>${pm(d.opening)}</b></div>
+        <div><span>Paid in</span><b class="in">+${pm(d.income)}</b></div>
+        <div><span>Paid out</span><b class="out">−${pm(d.spending)}</b></div>
+        <div><span>Closing</span><b>${pm(d.closing)}</b></div>
+      </div>
+      <table class="ps-rows"><thead><tr><th>Date</th><th>Description</th><th>In</th><th>Out</th><th>Balance</th></tr></thead>
+        <tbody>${(d.rows || []).map(r => `<tr><td>${esc(r.stamp)}</td><td>${esc(r.label)}</td>
+          <td class="in">${r.direction === 'in' ? pm(r.amount) : ''}</td><td class="out">${r.direction === 'out' ? pm(r.amount) : ''}</td>
+          <td>${pm(r.balance)}</td></tr>`).join('') || '<tr><td colspan="5" class="none">No movement in this period</td></tr>'}</tbody></table>
+      ${d.count > d.shown ? `<p class="pf">Showing the last ${d.shown} of ${d.count} lines. The full history is in the bank.</p>` : ''}
+      <p class="pf">${esc(d.bank)} · this statement was printed and does not update.</p>`;
+  }
+
+  if (d.kind === 'credit') {
+    const pos = Math.max(0, Math.min(100, ((d.score - (d.min || 0)) / (((d.max || 850) - (d.min || 0)) || 1)) * 100));
+    return `${paperHead(d, 'CREDIT REPORT')}
+      <div class="pc-top">
+        <div class="pc-score"><b>${d.score}</b><span>${esc(d.band)}</span></div>
+        <div class="pc-meta"><div><span>Prepared for</span><b>${esc(d.holder)}</b></div><div><span>Issued</span><b>${esc(d.issued)}</b></div></div>
+      </div>
+      <div class="pc-gauge"><i></i><em style="left:${pos}%"></em></div>
+      <div class="pc-range"><span>${d.min || 0}</span><span>${d.max || 850}</span></div>
+      <h4>What affects this score</h4>
+      <div class="pc-f">${(d.factors || []).map(f => `<div><i class="fdot ${(IMPACT[f.impact] || IMPACT.none).tone}"></i>
+        <b>${esc(f.label)}</b><span>${esc(f.value)}</span><em>${esc((IMPACT[f.impact] || IMPACT.none).label)}</em></div>`).join('')}</div>
+      <h4>Recent changes</h4>
+      ${creditChart(d.history, d.score, 420, 60).replace('class="cchart"', 'class="cchart paper-chart"')}
+      <div class="pc-h">${(d.history || []).slice().reverse().slice(0, 6).map(h => `<div><span>${esc(h.reason)}</span><em>${esc(h.stamp)}</em>
+        <b class="${h.delta >= 0 ? 'in' : 'out'}">${h.delta >= 0 ? '+' : '−'}${Math.abs(h.delta)}</b></div>`).join('') || '<div><span>No changes on record</span></div>'}</div>
+      <p class="pf">${esc(d.bank)} · for the named holder. Lenders and landlords may ask to see it.</p>`;
+  }
+  return '<p class="pf">Unreadable</p>';
+}
 
 /* keep the clock ticking */
 setInterval(() => {
