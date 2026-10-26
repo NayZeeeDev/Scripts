@@ -109,6 +109,15 @@ client picks up live. **Keep `data/overrides.json` when you update the script.**
 
 ---
 
+### Bags made as clothing
+
+Clothing bags (`.ydd` + a `.ytd` per colour) get converted to props first:
+`nayzeee-backpack-props/tools/convert_bag.sh` (see the props README). Each
+colour becomes its own small texture pack sharing one model, listed as
+`variants` in `Config.Backpacks`. After converting, fit purses once in
+`/bagtune` (**Carry preset → Right hand**, nudge, **Save**). Bags worn on the
+body sit where the clothing did on the default fit.
+
 ## The studio — `/bagtune` (admin)
 
 ### Fit

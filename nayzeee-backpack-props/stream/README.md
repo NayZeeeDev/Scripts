@@ -28,6 +28,23 @@ nayzeee-backpack.
 If the console says *model is not registered*, the `.ytyp` is missing or its
 archetype name doesn't match the `.ydr`'s file name.
 
+## Converting a clothing bag
+
+Bags made as clothing (`.ydd` + a `.ytd` per colour, e.g. `hand_000_u.ydd`,
+`hand_diff_000_a_uni.ytd`) aren't props yet. `tools/convert_bag.sh` turns one
+into a prop: removes the ped skinning, swaps the ped shaders for prop shaders,
+makes every colour a small texture pack sharing one model, shrinks textures
+to 1024 with mipmaps and writes the `.ytyp`:
+
+```
+tools/convert_bag.sh nayzeee_bag_mybag hand_000_u.ydd hand_diff_000_a_uni.ytd hand_diff_000_b_uni.ytd
+```
+
+It needs the .NET 8 SDK, Python 3 with Pillow + numpy, and CodeWalker's
+source (see the top of the script). `tools/render_bag.py` and
+`tools/variants_sheet.py` draw the result (every colour) so you can check it
+before it goes in game.
+
 ## Poses
 
 `.ycd` files anywhere in `stream/` just work. The dict / clip names are set in

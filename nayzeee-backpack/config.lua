@@ -1070,6 +1070,169 @@ Config.Backpacks = {
         },
     },
 
+    -- CONVERTED FROM CLOTHING -------------------------------------------
+    -- Converted from clothing to props. Every colour is its own small texture
+    -- pack sharing one model. Fit them once with /bagtune: purses use
+    -- Carry preset > Right hand, worn bags look right on the default fit.
+
+    ['nayzeee_purse_fluffy'] = {
+        label    = 'Fluffy Flap Purse',
+        model    = 'nayzeee_purse_fluffy',
+        category = 'pocketbook',
+        theme    = 'realistic',
+        price    = 2800,
+        slots    = 5,
+        weight   = 5000,
+        carry    = 'purse',
+        variants = {
+            { label = 'Sky Blue', model = 'nayzeee_purse_fluffy' },
+            { label = 'Pink', model = 'nayzeee_purse_fluffy_2' },
+            { label = 'Lilac', model = 'nayzeee_purse_fluffy_3' },
+            { label = 'Sage', model = 'nayzeee_purse_fluffy_4' },
+            { label = 'Mocha', model = 'nayzeee_purse_fluffy_5' },
+            { label = 'Apricot', model = 'nayzeee_purse_fluffy_6' },
+            { label = 'Coral', model = 'nayzeee_purse_fluffy_7' },
+            { label = 'Black', model = 'nayzeee_purse_fluffy_8' },
+            { label = 'White', model = 'nayzeee_purse_fluffy_9' },
+            { label = 'Cream', model = 'nayzeee_purse_fluffy_10' },
+        },
+    },
+
+    ['nayzeee_purse_pearl'] = {
+        label    = 'Heart Croc Bag',
+        model    = 'nayzeee_purse_pearl',
+        category = 'pocketbook',
+        theme    = 'realistic',
+        price    = 3500,
+        slots    = 5,
+        weight   = 5000,
+        carry    = 'purse',
+        variants = {
+            { label = 'Black', model = 'nayzeee_purse_pearl' },
+            { label = 'Cream', model = 'nayzeee_purse_pearl_2' },
+            { label = 'Burgundy', model = 'nayzeee_purse_pearl_3' },
+            { label = 'Blue', model = 'nayzeee_purse_pearl_4' },
+            { label = 'Chocolate', model = 'nayzeee_purse_pearl_5' },
+            { label = 'Brown', model = 'nayzeee_purse_pearl_6' },
+            { label = 'Green', model = 'nayzeee_purse_pearl_7' },
+            { label = 'Grey', model = 'nayzeee_purse_pearl_8' },
+            { label = 'Purple', model = 'nayzeee_purse_pearl_9' },
+            { label = 'Tan', model = 'nayzeee_purse_pearl_10' },
+        },
+    },
+
+    ['nayzeee_bag_shearling'] = {
+        label    = 'Shearling Tote',
+        model    = 'nayzeee_bag_shearling',
+        category = 'pocketbook',
+        theme    = 'realistic',
+        price    = 3200,
+        slots    = 6,
+        weight   = 6000,
+        carry    = 'purse',
+    },
+
+    ['nayzeee_purse_scarlett'] = {
+        label    = 'Scarlett Chain Bag',
+        model    = 'nayzeee_purse_scarlett',
+        category = 'shoulder',
+        theme    = 'realistic',
+        price    = 2600,
+        slots    = 5,
+        weight   = 5000,
+        variants = {
+            { label = 'Slate', model = 'nayzeee_purse_scarlett' },
+            { label = 'Rose', model = 'nayzeee_purse_scarlett_2' },
+            { label = 'Taupe', model = 'nayzeee_purse_scarlett_3' },
+            { label = 'Sage', model = 'nayzeee_purse_scarlett_4' },
+            { label = 'Teal', model = 'nayzeee_purse_scarlett_5' },
+            { label = 'Periwinkle', model = 'nayzeee_purse_scarlett_6' },
+            { label = 'Lavender', model = 'nayzeee_purse_scarlett_7' },
+        },
+    },
+
+    ['nayzeee_bag_midnight'] = {
+        label    = 'Midnight Crossbody',
+        model    = 'nayzeee_bag_midnight',
+        category = 'shoulder',
+        theme    = 'realistic',
+        price    = 2400,
+        slots    = 5,
+        weight   = 5000,
+    },
+
+    ['nayzeee_bag_designer'] = {
+        label    = 'Urban Sling Bag',
+        model    = 'nayzeee_bag_designer',
+        category = 'shoulder',
+        theme    = 'realistic',
+        price    = 3000,
+        slots    = 10,
+        weight   = 15000,
+        variants = {
+            { label = 'Mud', model = 'nayzeee_bag_designer' },
+            { label = 'Black', model = 'nayzeee_bag_designer_2' },
+            { label = 'Jet', model = 'nayzeee_bag_designer_3' },
+            { label = 'Olive', model = 'nayzeee_bag_designer_4' },
+            { label = 'Moss', model = 'nayzeee_bag_designer_5' },
+            { label = 'Navy', model = 'nayzeee_bag_designer_6' },
+            { label = 'Camo', model = 'nayzeee_bag_designer_7' },
+            { label = 'Desert Camo', model = 'nayzeee_bag_designer_8' },
+            { label = 'Black Red', model = 'nayzeee_bag_designer_9' },
+            { label = 'Red', model = 'nayzeee_bag_designer_10' },
+        },
+    },
+
+    ['nayzeee_bag_gym'] = {
+        label    = 'Drawstring Gym Bag',
+        model    = 'nayzeee_bag_gym',
+        category = 'backpack',
+        theme    = 'realistic',
+        price    = 1500,
+        slots    = 6,
+        weight   = 8000,
+        variants = {
+            { label = 'White Flame', model = 'nayzeee_bag_gym' },
+            { label = 'Charcoal Pro', model = 'nayzeee_bag_gym_2' },
+            { label = 'Black Pro', model = 'nayzeee_bag_gym_3' },
+            { label = 'Black Flame', model = 'nayzeee_bag_gym_4' },
+            { label = 'Grey Flame', model = 'nayzeee_bag_gym_5' },
+            { label = 'White Pro', model = 'nayzeee_bag_gym_6' },
+            { label = 'Silver Flame', model = 'nayzeee_bag_gym_7' },
+            { label = 'Royal Pro', model = 'nayzeee_bag_gym_8' },
+            { label = 'Royal Flame', model = 'nayzeee_bag_gym_9' },
+            { label = 'Red Pro', model = 'nayzeee_bag_gym_10' },
+            { label = 'Red Flame', model = 'nayzeee_bag_gym_11' },
+            { label = 'Green Flame', model = 'nayzeee_bag_gym_12' },
+            { label = 'Green Pro', model = 'nayzeee_bag_gym_13' },
+            { label = 'Magenta Pro', model = 'nayzeee_bag_gym_14' },
+            { label = 'Magenta Flame', model = 'nayzeee_bag_gym_15' },
+            { label = 'Aqua Flame', model = 'nayzeee_bag_gym_16' },
+            { label = 'Aqua Pro', model = 'nayzeee_bag_gym_17' },
+            { label = 'Sunflower', model = 'nayzeee_bag_gym_18' },
+        },
+    },
+
+    ['nayzeee_backpack_moodybear'] = {
+        label    = 'Moody Bear Backpack',
+        model    = 'nayzeee_backpack_moodybear',
+        category = 'backpack',
+        theme    = 'cartoon',
+        price    = 2500,
+        variants = {
+            { label = 'White', model = 'nayzeee_backpack_moodybear' },
+            { label = 'Pink', model = 'nayzeee_backpack_moodybear_2' },
+        },
+    },
+
+    ['nayzeee_backpack_psykitty'] = {
+        label    = 'Psy Kitty Backpack',
+        model    = 'nayzeee_backpack_psykitty',
+        category = 'backpack',
+        theme    = 'cartoon',
+        price    = 2500,
+    },
+
     -- JOB BAGS -------------------------------------------------------------
     -- Only players on the job see these in the shop, and only they can wear
     -- one. price = 0 shows as "Issued" with a Collect button.
