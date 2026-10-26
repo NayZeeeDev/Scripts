@@ -220,8 +220,8 @@ When one of these **is** running, it keeps its own invoices, and they show in th
 | Script | Invoices read from | Paid by |
 |---|---|---|
 | esx_billing | `billing` table | This bank, from any account; society bills go to the company account, private bills to the sender. Fires `esx_billing:paidBill` as esx_billing does |
-| okokBilling V3 | `getInvoices` export | Its `payReference` export, from the personal account, so okok's VAT, author cut and society payout apply. Late fees are included. Older okokBilling: read from the `okokbilling` table and paid by this bank, as Quasar |
-| Quasar Billing (`qs-billing`) | `qs_billing` table | This bank, from any account; marked paid in Quasar |
+| okokBilling V3 | `getInvoices` export | Its `payReference` export, from the personal account, so okok's VAT, author cut and society payout apply. Late fees are included. Older okokBilling: read from the `okokbilling` table and paid by this bank from any account |
+| Quasar Billing (`qs-billing`) | `GetPlayerInvoices` export; part-paid invoices show what is left | Its `PayInvoice` export from the bank, so Quasar's VAT and society payout apply. Older Quasar: read from the `qs_billing` table and paid by this bank |
 | BCS Company Manager | `billings` table | Its `PayBill` export, from the personal account, so the company balance and employee cut are BCS's own |
 | RX Billing | `GetPlayerInvoices` export | Its `PayInvoice` export, from the personal account |
 | Wasabi Billing | `GetInvoicesByIdentifier` export (only invoices addressed to the player) | Its `PayInvoiceByReference` export from the bank, so Wasabi's VAT and society payout apply. The total shown includes VAT |

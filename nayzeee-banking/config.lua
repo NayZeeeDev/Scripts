@@ -775,13 +775,14 @@ Config.Bridge = {
     -- if not. false turns one off. `table` = that script's invoice table if you
     -- renamed it in its config.
     --
-    -- esx_billing, qs-billing: this bank moves the money, from any account the
-    --   player can spend from, to the company's account here, and marks the
-    --   invoice paid in their table.
-    -- okokBilling V3, wasabi_billing, bcs_companymanager, RxBilling, tgg-billing, bablo-billing:
-    --   paid through their own export from the personal account, so their
-    --   commission, VAT and company payout run as normal. An okokBilling from
-    --   before V3 has no exports; its table is read instead, as for qs-billing.
+    -- esx_billing: this bank moves the money, from any account the player can
+    --   spend from, to the company's account here, and removes the bill as
+    --   esx_billing does.
+    -- okokBilling V3, qs-billing, wasabi_billing, bcs_companymanager, RxBilling,
+    --   tgg-billing, bablo-billing: paid through their own export from the
+    --   personal account, so their commission, VAT and company payout run as
+    --   normal. Older okokBilling and Quasar have no exports; their table is
+    --   read instead and this bank moves the money, as for esx_billing.
     -- bablo-billing: no export lists a player's invoices, so its invoice table
     --   is found in the database and read (never written); the console names
     --   the table it found. Set `table` if it guesses wrong.

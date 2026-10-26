@@ -96,10 +96,12 @@ local function parseDate(s)
     return os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = tonumber(h), min = tonumber(mi) })
 end
 
+--- The first of these fields that is set, or nil (never nothing: tonumber() refuses that).
 local function pick(t, ...)
     for _, k in ipairs({ ... }) do
         if t[k] ~= nil and t[k] ~= '' then return t[k] end
     end
+    return nil
 end
 
 --- Call an export without letting a missing or renamed one throw.
@@ -296,7 +298,7 @@ local function invoiceTable(key, resource, label, defaultTable)
     }
 end
 
-ADAPTERS['qs-billing'] = invoiceTable('qs-billing', 'qs-billing', 'Quasar Billing', 'qs_billing')
+local qsTable = invoiceTable('qs-billing', 'qs-billing', 'Quasar Billing', 'qs_billing')
 
 -- ═══════════════════════════════════════════════════════════
 --  okokBilling
@@ -483,6 +485,94 @@ ADAPTERS.RxBilling = exportAdapter('RxBilling', 'RxBilling', 'RX Billing', {
 })
 
 -- ═══════════════════════════════════════════════════════════
+--  Quasar Billing
+--  Current versions: GetPlayerInvoices(identifier, { scope = 'received' }),
+--  PayInvoice(src, reference, 'bank') and GetInvoice(reference), so
+--  Quasar's VAT, society payout and partial payments apply. Invoices
+--  can be part paid, so what is left is what is shown. Older versions
+--  with no exports are read from the qs_billing table instead.
+-- ═══════════════════════════════════════════════════════════
+local QS_OPEN = { pending = true, partial = true, overdue = true, unpaid = true }
+
+--- What is still owed on a Quasar invoice, whichever fields this version uses.
+local function qsOwed(inv)
+    local left = tonumber(pick(inv, 'outstanding', 'remaining', 'balance', 'amountDue', 'amount_due', 'due'))
+    if left then return left end
+    local total = tonumber(pick(inv, 'total', 'totalAmount', 'total_amount', 'amount')) or 0
+    local paid = tonumber(pick(inv, 'paid', 'amountPaid', 'amount_paid', 'paidAmount', 'paid_amount')) or 0
+    return total - paid
+end
+
+local function qsStatus(inv) return tostring(pick(inv, 'status', 'state') or ''):lower() end
+
+ADAPTERS['qs-billing'] = {
+    resource = 'qs-billing', label = 'Quasar Billing', mode = 'export',
+
+    check = function(self, o)
+        self.o, self.legacy, self.mode = o, nil, 'export'
+        return true
+    end,
+
+    fetch = function(self, identifier)
+        local ok, res = pcall(function()
+            return exports['qs-billing']:GetPlayerInvoices(identifier, { scope = 'received' })
+        end)
+        if not ok then
+            if tostring(res):find('No such export') then
+                note('qs-billing', 'no GetPlayerInvoices export (an older version?), reading its table instead')
+                self.legacy = qsTable.check(qsTable, self.o) and true or false
+                self.mode = self.legacy and 'bank' or 'export'
+            else
+                note('qs-billing', 'GetPlayerInvoices failed (' .. tostring(res):sub(1, 120) .. ')')
+            end
+            return nil
+        end
+        return type(res) == 'table' and res or {}
+    end,
+
+    list = function(self, identifier)
+        if self.legacy then return qsTable.list(qsTable, identifier) end
+        if self.legacy == false then return {} end
+        local res = self:fetch(identifier)
+        if not res then return self.legacy and qsTable.list(qsTable, identifier) or {} end
+
+        local out = {}
+        for _, inv in ipairs(res) do
+            local ref = type(inv) == 'table' and pick(inv, 'reference', 'ref', 'reference_id')
+            local owed = ref and qsOwed(inv) or 0
+            if ref and owed > 0 and QS_OPEN[qsStatus(inv)] then
+                local job = bareJob(pick(inv, 'society', 'company', 'job'))
+                local due = parseDate(pick(inv, 'dueAt', 'due_at', 'dueDate', 'due_date'))
+                local lines = type(inv.lines) == 'table' and inv.lines or nil
+                out[#out + 1] = {
+                    ref = ref, amount = owed,
+                    reason = pick(inv, 'title', 'label', 'reason', 'notes')
+                        or (lines and lines[1] and lines[1].label) or pick(inv, 'category') or 'Invoice',
+                    issuer = job and companyLabel(job, pick(inv, 'societyLabel', 'society_label', 'companyLabel'))
+                        or pick(inv, 'issuerName', 'issuer_name', 'senderName', 'sender_name', 'author_name') or 'Private invoice',
+                    due = due and os.date('%d %b %H:%M', due) or nil,
+                    overdue = qsStatus(inv) == 'overdue',
+                    partial = qsStatus(inv) == 'partial',
+                }
+            end
+        end
+        return out
+    end,
+
+    pay = function(self, src, bill, accountId)
+        if self.legacy then return qsTable.pay(qsTable, src, bill, accountId) end
+        return viaExport(src, bill, function()
+            local res, _, ran = call('qs-billing', 'qs-billing', 'PayInvoice', src, bill.ref, 'bank')
+            if not ran or res == false then return false end
+            -- the return value is not documented: it worked if nothing is left on it
+            local inv = call('qs-billing', 'qs-billing', 'GetInvoice', bill.ref)
+            if type(inv) ~= 'table' then return res ~= nil end
+            return not QS_OPEN[qsStatus(inv)] or qsOwed(inv) <= 0
+        end)
+    end,
+}
+
+-- ═══════════════════════════════════════════════════════════
 --  Wasabi Billing
 --  GetInvoicesByIdentifier(identifier) returns what the player sent
 --  as well as what they owe, so only rows addressed to them as a
@@ -652,7 +742,8 @@ function Bank.externalBills(identifier)
                     out[#out + 1] = {
                         id = ('x:%s:%s'):format(key, tostring(b.ref)),
                         issuer_label = b.issuer, sender_name = b.sender,
-                        amount = Bank.round(b.amount), reason = tostring(b.reason or 'Invoice'):sub(1, 120),
+                        amount = Bank.round(b.amount),
+                        reason = (tostring(b.reason or 'Invoice') .. (b.partial and ' (part paid)' or '')):sub(1, 120),
                         status = b.overdue and 'overdue' or 'pending',
                         stamp = b.due and ('%s · due %s'):format(a.label, b.due) or a.label, dueIn = 0,
                         ext = a.label,
