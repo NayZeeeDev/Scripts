@@ -1155,6 +1155,32 @@ Config.Backpacks = {
         carry    = 'purse',
     },
 
+    -- Heavy model (the bunny charm): drawn within 35m only, set in its .ytyp
+    ['nayzeee_bag_heavenly'] = {
+        label    = 'Heavenly Shoulder Bag',
+        model    = 'nayzeee_bag_heavenly',
+        category = 'shoulder',
+        theme    = 'realistic',
+        price    = 3500,
+        slots    = 5,
+        weight   = 5000,
+        variants = {
+            { label = 'Black · White Bunny', model = 'nayzeee_bag_heavenly' },
+            { label = 'All Black', model = 'nayzeee_bag_heavenly_2' },
+            { label = 'White · Black Bunny', model = 'nayzeee_bag_heavenly_3' },
+            { label = 'Blue · White Bunny', model = 'nayzeee_bag_heavenly_4' },
+            { label = 'All Blue', model = 'nayzeee_bag_heavenly_5' },
+            { label = 'Pink · White Bunny', model = 'nayzeee_bag_heavenly_6' },
+            { label = 'Pink · Black Bunny', model = 'nayzeee_bag_heavenly_7' },
+            { label = 'Orange · White Bunny', model = 'nayzeee_bag_heavenly_8' },
+            { label = 'Orange · Black Bunny', model = 'nayzeee_bag_heavenly_9' },
+            { label = 'Brown · Brown Bunny', model = 'nayzeee_bag_heavenly_10' },
+            { label = 'Brown · Black Bunny', model = 'nayzeee_bag_heavenly_11' },
+            { label = 'Navy · White Bunny', model = 'nayzeee_bag_heavenly_12' },
+            { label = 'All Navy', model = 'nayzeee_bag_heavenly_13' },
+        },
+    },
+
     ['nayzeee_purse_scarlett'] = {
         label    = 'Scarlett Chain Bag',
         model    = 'nayzeee_purse_scarlett',

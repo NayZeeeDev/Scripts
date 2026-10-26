@@ -132,8 +132,22 @@ def convert_geometry(g, mins, maxs, stats):
             mins[k] = min(mins[k], p[k]); maxs[k] = max(maxs[k], p[k])
         stats['points'].append(p)
         out.append('   '.join(parts[i] for i in keep_idx))
-    d.text = '\n' + '\n'.join(out) + '\n'
-    stats['verts'] += len(rows)
+    # weld: many clothing meshes give every triangle its own 3 vertices.
+    # Merge rows that are byte-for-byte identical and re-point the triangles;
+    # nothing visible changes, the vertex count and file size drop a lot.
+    remap, uniq, index_of = [], [], {}
+    for row in out:
+        i = index_of.get(row)
+        if i is None:
+            i = index_of[row] = len(uniq)
+            uniq.append(row)
+        remap.append(i)
+    ib = g.find('IndexBuffer').find('Data')
+    idx = [remap[int(v)] for v in ib.text.split()]
+    ib.text = '\n' + '\n'.join(' '.join(str(v) for v in idx[k:k + 24]) for k in range(0, len(idx), 24)) + '\n'
+    d.text = '\n' + '\n'.join(uniq) + '\n'
+    stats['verts'] += len(uniq)
+    stats['raw'] = stats.get('raw', 0) + len(rows)
 
     bmin, bmax = g.find('BoundingBoxMin'), g.find('BoundingBoxMax')
     if bmin is not None:
@@ -207,7 +221,7 @@ def drawable(src, index, model, outdir):
 
     ET.ElementTree(d).write(os.path.join(outdir, model + '.ydr.xml'), encoding='UTF-8', xml_declaration=True)
     bounds = {'min': mins, 'max': maxs, 'centre': centre, 'radius': radius,
-              'alpha': any_alpha, 'verts': stats['verts'], 'shaders': [s.findtext('Name') for s in shaders]}
+              'alpha': any_alpha, 'verts': stats['verts'], 'raw_verts': stats.get('raw', 0), 'shaders': [s.findtext('Name') for s in shaders]}
     json.dump(bounds, open(os.path.join(outdir, 'bounds.json'), 'w'), indent=1)
     print(json.dumps({k: v for k, v in bounds.items()}, default=str))
 
@@ -259,7 +273,7 @@ def texture(src, newname, outxml):
     tree.write(outxml, encoding='UTF-8', xml_declaration=True)
 
 
-def ytyp(model, count, bounds_path, outxml, alpha=False, no_txd=False):
+def ytyp(model, count, bounds_path, outxml, alpha=False, no_txd=False, lod=100):
     b = json.load(open(bounds_path))
     flags = 537001984 + (32 if alpha or b.get('alpha') else 0)
     root = ET.Element('CMapTypes', {'name': model})
@@ -268,7 +282,7 @@ def ytyp(model, count, bounds_path, outxml, alpha=False, no_txd=False):
     for i in range(1, int(count) + 1):
         name = model if i == 1 else f'{model}_{i}'
         it = ET.SubElement(arch, 'Item', {'type': 'CBaseArchetypeDef'})
-        ET.SubElement(it, 'lodDist', {'value': '100'})
+        ET.SubElement(it, 'lodDist', {'value': str(lod)})
         ET.SubElement(it, 'flags', {'value': str(flags)})
         ET.SubElement(it, 'specialAttribute', {'value': '0'})
         ET.SubElement(it, 'bbMin', {k: str(v) for k, v in zip('xyz', b['min'])})
@@ -301,4 +315,5 @@ if __name__ == '__main__':
     elif cmd == 'texture':
         texture(sys.argv[2], sys.argv[3], sys.argv[4])
     elif cmd == 'ytyp':
-        ytyp(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], '--alpha' in sys.argv, '--no-txd' in sys.argv)
+        lod = next((int(a.split('=')[1]) for a in sys.argv if a.startswith('--lod=')), 100)
+        ytyp(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], '--alpha' in sys.argv, '--no-txd' in sys.argv, lod)
