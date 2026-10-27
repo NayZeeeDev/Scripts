@@ -4,21 +4,21 @@ if not NAYZEEE_LOCK_OK then return end
 PropsLayout = {
   handheld = {
     full = 'nzr_handheld', body = 'nzr_handheld_body',
-    screen = { tex = 'nzr_handheld_scr', txd = 'nzr_txd', w = 512, h = 384, center = vec3(0.0, 0.0195, 0.030), size = vec2(0.036, 0.027) },
+    screen = { tex = 'nzr_scr', txd = 'nzr_handheld_body', w = 512, h = 384, center = vec3(0.0, 0.0195, 0.030), size = vec2(0.036, 0.027) },
     focus = vec3(0.0, 0.019, 0.005), camDist = 0.34,
     leds = { tx = vec3(0.012, 0.004, 0.092), rx = vec3(0.012, 0.004, 0.092) },
     keys = {},
   },
   fieldpro = {
     full = 'nzr_fieldpro', body = 'nzr_fieldpro_body',
-    screen = { tex = 'nzr_fieldpro_scr', txd = 'nzr_txd', w = 512, h = 256, center = vec3(0.0, 0.0155, 0.035), size = vec2(0.044, 0.022) },
+    screen = { tex = 'nzr_scr', txd = 'nzr_fieldpro_body', w = 512, h = 256, center = vec3(0.0, 0.0155, 0.035), size = vec2(0.044, 0.022) },
     focus = vec3(0.0, 0.015, 0.012), camDist = 0.30,
     leds = { tx = vec3(0.016, 0.0, 0.062), rx = vec3(0.016, 0.0, 0.062) },
     keys = {},
   },
   military = {
     full = 'nzr_military', body = 'nzr_military_body',
-    screen = { tex = 'nzr_military_scr', txd = 'nzr_txd', w = 512, h = 384, center = vec3(0.0, 0.0215, 0.032), size = vec2(0.042, 0.032) },
+    screen = { tex = 'nzr_scr', txd = 'nzr_military_body', w = 512, h = 384, center = vec3(0.0, 0.0215, 0.032), size = vec2(0.042, 0.032) },
     focus = vec3(0.0, 0.021, 0.006), camDist = 0.38,
     leds = { tx = vec3(0.015, 0.006, 0.098), rx = vec3(0.015, 0.006, 0.098) },
     keys = {},
