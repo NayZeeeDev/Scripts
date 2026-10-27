@@ -403,7 +403,8 @@
     lcd.dataset.view = v;
     if (v === 'off') return;
     // top row
-    const lit = s.nosignal ? 0 : s.rx ? Math.max(1, Math.round(s.rx.q * 4)) : s.bars;
+    // bars: the talker's quality while receiving, else the local estimate; dark during the self test
+    const lit = v === 'boot' || s.nosignal ? 0 : s.rx ? Math.max(1, Math.round(s.rx.q * 4)) : s.bars;
     $$('.lc-bars i', lcd).forEach((b, i) => b.classList.toggle('on', i < lit));
     $('.lc-bars', lcd).classList.toggle('bad', s.nosignal);
     const tag = $('.lc-tag', lcd);

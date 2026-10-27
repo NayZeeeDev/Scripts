@@ -18,6 +18,7 @@ legend plates, fan blades, cable boots ...) is added with b.hi_only(); antennas 
 from __future__ import annotations
 
 import math
+from dataclasses import replace as dc_replace
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -201,6 +202,7 @@ P_BANDS = (("433", (226, 52, 48)), ("868", (238, 120, 32)), ("1.5G", (236, 196, 
            ("3.5G", (40, 120, 220)), ("5.8G", (230, 232, 234)))
 P_WIN = (0.030, 0.0205)        # status window centre (x, y) on the deck
 P_TOG = (-0.017, 0.0205)       # guarded toggle
+P_TOG_D = 0.0215               # guard plate depth (Y): room for the ARM / SAFE legends past the nut
 P_LED = ((-0.038, 0.0175, "red", "TX"), (-0.049, 0.0175, "green", "PWR"))
 
 
@@ -225,7 +227,7 @@ def _pocket_profile():
     return _round(pts, rad, n=4)
 
 
-def _stubby(b, base, axis, length, d, band_col, segs=14, tag="antenna_stub", k=1.0, taper=0.84):
+def _stubby(b, base, axis, length, d, band_col, segs=14, tag="antenna_stub", k=1.0, taper=0.84, ribs=3):
     """Rubber antenna from a hinge knuckle centre `base` along `axis`: rounded collar, ribbed boot,
     coloured band-ID ring, tapering body, rounded tip. k scales the collar / boot / band lengths."""
     rub = b.mat("stub_rubber", color=(23, 24, 26), spec=0.16, gloss=0.28, bump="rubber", bump_amp=0.00003,
@@ -233,7 +235,7 @@ def _stubby(b, base, axis, length, d, band_col, segs=14, tag="antenna_stub", k=1
     R = d / 2
     tipR = R * taper
     prof = [(0.0, 0.0), (R * 0.95, 0.0), (R * 1.02, 0.0012 * k), (R * 1.02, 0.0034 * k), (R * 0.9, 0.0042 * k)]
-    for i in range(3):
+    for i in range(ribs):
         z0 = (0.0046 + i * 0.0034) * k
         prof += [(R * 1.0, z0), (R * 1.1, z0 + 0.0006 * k), (R * 1.1, z0 + 0.0019 * k), (R * 1.0, z0 + 0.0025 * k)]
     zb = prof[-1][1] + 0.001 * k
@@ -367,7 +369,7 @@ def jammer_pocket(b):
 
     # ---- deck: guarded toggle switch ----------------------------------------------------------------------
     tx, ty = P_TOG
-    g = extrude(rrect(0.024, 0.0165, 0.0028, 4), 0.0012, red, bevel=0.0004, bevel_seg=2, z0=PZT, smooth_angle=50, tag="guard_plate")
+    g = extrude(rrect(0.024, P_TOG_D, 0.0028, 4), 0.0012, red, bevel=0.0004, bevel_seg=2, z0=PZT, smooth_angle=50, tag="guard_plate")
     g.translate(tx, ty, 0)
     b.add(g)
     for sx in (-1, 1):
@@ -386,7 +388,7 @@ def jammer_pocket(b):
     bat = lathe([(0.0, 0.0), (0.0013, 0.0), (0.0013, 0.001), (0.00155, 0.0085), (0.00185, 0.0098), (0.0017, 0.0106),
                  (0.0010, 0.0112), (0.0, 0.01135)], chrome, segs=14, smooth_angle=40, tag="tog_bat")
     piv = vec(tx, ty, zt + 0.0058)
-    b.add(bat.rotate(-20, 0, 0).translate(piv))
+    b.add(bat.rotate(22, 0, 0).translate(piv))          # thrown toward ARM (-Y): the status window reads JAM
     # ---- deck: LEDs ----------------------------------------------------------------------------------------
     for x, y, col, _ in P_LED:
         rgb = {"red": (255, 46, 40), "green": (60, 255, 120)}[col]
@@ -423,11 +425,11 @@ def jammer_pocket(b):
     # ---- prints ------------------------------------------------------------------------------------------
     _pocket_deck_prints(b)
     # guard plate legends
-    gp = DecalCanvas(0.024, 0.0165, ppm=12000)
-    gp.text(0.012, 0.0028, "ARM", 0.0019, fnt="label-black", spacing=0.0003, **ink("white"))
-    gp.glyph("up", 0.0050, 0.0028, 0.0016, **ink("white"))
-    gp.glyph("up", 0.0190, 0.0028, 0.0016, **ink("white"))
-    gp.text(0.012, 0.0141, "SAFE", 0.0015, fnt="label", spacing=0.0003, **ink("white"))
+    gp = DecalCanvas(0.024, P_TOG_D, ppm=12000)
+    gp.text(0.012, 0.0027, "ARM", 0.0019, fnt="label-black", spacing=0.0003, **ink("white"))
+    gp.glyph("up", 0.0052, 0.0027, 0.0015, **ink("white"))
+    gp.glyph("up", 0.0188, 0.0027, 0.0015, **ink("white"))
+    gp.text(0.012, P_TOG_D - 0.0026, "SAFE", 0.0016, fnt="label", spacing=0.0003, **ink("white"))
     b.decal(gp, center=(tx, ty, PZT + 0.0012), normal=(0, 0, 1), up=(0, -1, 0), mats=["guard_red"], depth=0.0006, min_dot=0.8)
     # front face: model print + caution sticker
     yf = PD / 2
@@ -498,7 +500,11 @@ C_FAN_Y = -0.112
 C_DISP = (0.085, 0.072)        # display centre (x, y) on the deck
 C_ROCK_Y = 0.136
 C_ROCK_X = (0.140, 0.110, 0.080, 0.050)
-C_BATT = (-0.112, 0.048)       # battery centre (x, y)
+C_BATT = (-0.106, 0.048)       # battery centre (x, y)
+C_BATT_SIZE = (0.088, 0.168, 0.056)
+C_STRAP_Y = (-0.064, 0.064)    # battery strap offsets from the battery centre (clear of the label)
+C_SLOT_Y = -0.036              # brush-grommet slot in front of the amplifier (harness goes under the deck)
+C_GROM_X = 0.161               # |x| of the pigtail grommets beside the rails
 
 
 def _lid_rot():
@@ -535,10 +541,10 @@ def _case_latch(b, x, y_face, hard_dark, steel):
     body += box((0.050, 0.010, 0.008), hard_dark, r=0.0035, seg=1, center=(x, piv[1] + 0.008, piv[2] + 0.063))
     hook = polyline_fillet([(x - 0.017, piv[1] + 0.001, piv[2] + 0.046), (x - 0.017, piv[1] - 0.004, piv[2] + 0.080),
                             (x + 0.017, piv[1] - 0.004, piv[2] + 0.080), (x + 0.017, piv[1] + 0.001, piv[2] + 0.046)], 0.006, 5)
-    body += tube(hook, 0.0016, steel, segs=6, tag="latch_hook")
+    body += tube(hook, 0.0016, steel, segs=6, tag="latch_hook").set_lod("h")
     body.rotate_axis((1, 0, 0), -152.0, origin=piv)
     g += body
-    g += cylinder(0.0024, 0.064, steel, segs=10, bevel=0.0006, bevel_seg=1, z0=-0.032, tag="latch_pin").rotate(0, 90, 0).translate(piv)
+    g += cylinder(0.0024, 0.064, steel, segs=10, bevel=0.0006, bevel_seg=1, z0=-0.032, tag="latch_pin").rotate(0, 90, 0).translate(piv).set_lod("h")
     return g
 
 
@@ -547,10 +553,11 @@ def _case_handle(b, y_face, hard_dark, grip):
     zp = C_ZS - 0.024
     for sx in (-1, 1):
         g += box((0.026, 0.020, 0.026), hard_dark, r=0.007, seg=1, center=(sx * 0.072, y_face + 0.007, zp))
-    path = polyline_fillet([(-0.072, y_face + 0.014, zp), (-0.072, y_face + 0.030, zp - 0.050), (0.072, y_face + 0.030, zp - 0.050),
-                            (0.072, y_face + 0.014, zp)], 0.016, 6)
+    drop = 0.036
+    path = polyline_fillet([(-0.072, y_face + 0.014, zp), (-0.072, y_face + 0.026, zp - drop), (0.072, y_face + 0.026, zp - drop),
+                            (0.072, y_face + 0.014, zp)], 0.014, 6)
     g += sweep(rrect(0.020, 0.016, 0.006, 3), path, hard_dark, side=(0, 1, 0), tag="handle", smooth_angle=55)
-    g += sweep(rrect(0.024, 0.020, 0.008, 3), np.array([(-0.050, y_face + 0.030, zp - 0.050), (0.050, y_face + 0.030, zp - 0.050)]), grip,
+    g += sweep(rrect(0.024, 0.020, 0.008, 3), np.array([(-0.050, y_face + 0.026, zp - drop), (0.050, y_face + 0.026, zp - drop)]), grip,
                side=(0, 1, 0), tag="handle_grip", smooth_angle=55)
     return g
 
@@ -579,16 +586,16 @@ def _fan(b, at, frame_mat, blade_mat, steel_dark):
     guard = Geo()
     zt = z + 0.0095
     for R in (0.0355, 0.0265, 0.0175):
-        guard += torus(R, 0.0007, steel_dark, segs=20, tube_segs=4).translate(0, 0, zt)
+        guard += torus(R, 0.0007, steel_dark, segs=16, tube_segs=3).translate(0, 0, zt)
     for i in range(4):
         sp = cylinder(0.0006, 0.036, steel_dark, segs=4, caps=(False, False)).rotate(0, 90, 0)
         guard += sp.rotate(0, 0, 45 + 90 * i).translate(0, 0, zt)
-    guard += cylinder(0.0085, 0.0014, steel_dark, segs=16, bevel=0.0004, bevel_seg=1, z0=zt - 0.0007)
+    guard += cylinder(0.0085, 0.0014, steel_dark, segs=12, bevel=0.0004, bevel_seg=1, z0=zt - 0.0007)
     b.hi_only(guard.translate(x, y, 0))
     for sx in (-1, 1):
         for sy in (-1, 1):
             b.hi_only(screw(b, (x + sx * 0.0355, y + sy * 0.0355, z + 0.009), (0, 0, 1), (0, -1, 0), d=0.0042, kind="phillips",
-                            color=(60, 62, 66), segs=8))
+                            color=(60, 62, 66), segs=6))
 
 
 def _rocker(b, at, mat, bezel_mat):
@@ -635,7 +642,7 @@ def _rot_decal(b, canvas, center, normal, up, **kw):
 
 
 @prop("nzr_jammer_case", atlas=2048, alpha_atlas=256, glow_atlas=64, lod=150.0, lod_high=20.0, hd=15.0, med_drop=0.006,
-      budget=30000, falloff=80.0,
+      budget=30000, falloff=80.0, layers={"deck": 2048}, maps={"main": {"n": 1024, "s": 512}, "deck": {"n": 512, "s": 512}},
       doc={"title": "JX-40 field jammer case (rugged hard case 46 x 36 x 18 cm, lid open ~100 deg)",
            "origin": "bottom centre (stands on four rubber feet)",
            "axes": "+Y = front (latches, handle, valve), lid hinged at -Y and open ~100 deg, +Z up; 8 folding antennas on "
@@ -655,9 +662,12 @@ def jammer_case(b):
     gasket = b.mat("gasket", color=(18, 19, 20), spec=0.18, gloss=0.3, edge=0.1)
     crate = b.mat("crate_foam", color=(32, 33, 35), spec=0.03, gloss=0.05, bump="eggcrate", bump_amp=0.007, bump_scale=0.040,
                   grain=0.05, grain_scale=0.05, ao=1.0, dirt=0.1)
+    # the electronics deck, its rails, the battery top and the quick-start card carry the small prints: own 2048 atlas
     deck = b.mat("deck_anod", color=(28, 29, 32), spec=0.42, gloss=0.42, metal=0.7, bump="brushed", bump_amp=0.000006,
-                 bump_scale=0.0006, grain=0.025, grain_scale=0.05, edge=0.7, wear_color=(150, 154, 160), dirt=0.2, scratch=0.3)
+                 bump_scale=0.0006, grain=0.025, grain_scale=0.05, edge=0.7, wear_color=(150, 154, 160), dirt=0.2, scratch=0.3,
+                 layer="deck")
     alu = m_anodised_black(b)
+    rail = b.mat_from("rail_anod", dc_replace(b.mats[alu], layer="deck"))
     nickel = m_sma(b, "nickel")
     coax = b.mat("coax_jacket", color=(20, 21, 23), spec=0.32, gloss=0.5, grain=0.02, edge=0.15, dirt=0.15)
     plastic = b.mat("module_plastic", color=(34, 35, 38), spec=0.3, gloss=0.42, bump="stipple", bump_amp=0.00004, bump_scale=0.0008,
@@ -687,7 +697,7 @@ def jammer_case(b):
     b.add(base)
     for sx in (-1, 1):
         for sy in (-1, 1):
-            b.add(rubber_foot(b, sx * 0.180, sy * 0.130, 0.0, r=0.018, h=C_FOOT + 0.002, segs=16))
+            b.add(rubber_foot(b, sx * 0.180, sy * 0.130, 0.0, r=0.018, h=C_FOOT + 0.002, segs=12))
     # front: latches (open), handle, purge valve, padlock eyes
     yf = D2 + 0.002
     for x in C_LATCH_X:
@@ -695,7 +705,7 @@ def jammer_case(b):
         for sx in (-1, 1):
             pass
     b.add(_case_handle(b, yf, hard_dark, grip))
-    b.add(_purge_valve(b, (-0.192, D2, 0.070)))
+    b.hi_only(_purge_valve(b, (-0.192, D2, 0.070)))
     for x in (0.195, -0.195):
         b.add(box((0.016, 0.012, 0.024), hard, r=0.004, seg=1, center=(x, yf + 0.003, C_ZS - 0.016)))
         b.hi_only(torus(0.0040, 0.0012, steel, segs=14, tube_segs=5).rotate(90, 0, 0).translate(x, yf + 0.0095, C_ZS - 0.016))
@@ -704,7 +714,7 @@ def jammer_case(b):
     for x in (-0.150, 0.0, 0.150):
         b.add(box((0.080, 0.004, 0.024), hard_dark, r=0.0015, seg=1, center=(x, yb - 0.002, C_ZS - 0.014)))
         from .common import hinge
-        b.add(hinge(b, (x - 0.040, C_HINGE[1], C_ZS), (x + 0.040, C_HINGE[1], C_ZS), r=0.0075, knuckles=4, mat=hard_dark, segs=10), lod="h")
+        b.add(hinge(b, (x - 0.040, C_HINGE[1], C_ZS), (x + 0.040, C_HINGE[1], C_ZS), r=0.0075, knuckles=3, mat=hard_dark, segs=8), lod="h")
         b.add(cylinder(0.0076, 0.080, hard_dark, segs=6, z0=-0.040, caps=(False, False)).rotate(0, 90, 0).translate(x, C_HINGE[1], C_ZS), lod="m")
 
     # ---- lid, built closed, then swung open about the hinge axis ---------------------------------------------------
@@ -717,7 +727,7 @@ def jammer_case(b):
     lid += sweep(rrect(C_WALL + 0.001, 0.008, 0.0035, 1) + vec(0, 0.004), _outline_path(CW - C_WALL, CD - C_WALL, CR - C_WALL / 2, C_ZS),
                  hard, closed_path=True, up=(0, 0, 1), tag="lidrim", smooth_angle=50)
     lid += sweep(rrect(0.0045, 0.003, 0.0012, 1), _outline_path(CW - C_WALL, CD - C_WALL, CR - C_WALL / 2, C_ZS - 0.0012), gasket,
-                 closed_path=True, up=(0, 0, 1), tag="gasket", smooth_angle=50)
+                 closed_path=True, up=(0, 0, 1), tag="gasket", smooth_angle=50).set_lod("h")
     lid += sweep(rrect(0.006, 0.014, 0.0028, 1), _outline_path(CW + 0.004, CD + 0.004, CR + 0.002, C_ZS + 0.009), hard,
                  closed_path=True, up=(0, 0, 1), tag="lidband", smooth_angle=50)
     top = C_ZS + C_LID
@@ -725,8 +735,17 @@ def jammer_case(b):
         lid += box((0.380, 0.022, 0.012), hard, r=0.005, seg=1, center=(0, yy, top - 0.003), faces="+x -x +y -y +z")
     lid += box((CW - 2 * C_WALL - 0.004, CD - 2 * C_WALL - 0.004, 0.034), crate, r=0.006, seg=1,
                center=(0, 0, top - C_WALL - 0.017), faces="-z +x -x +y -y", face_density={"-z": 1.0})
-    card = b.mat("quick_card", color=(232, 234, 230), spec=0.5, gloss=0.62, edge=0.2, dirt=0.15)
+    card = b.mat("quick_card", color=(232, 234, 230), spec=0.5, gloss=0.62, edge=0.2, dirt=0.15, layer="deck")
     lid += box((0.190, 0.120, 0.0016), card, r=0.002, seg=1, center=(0.07, 0.01, top - C_WALL - 0.0348), faces="-z +x -x +y -y")
+    # clear vinyl sleeve over the card, riveted to the foam backer at the corners
+    sleeve = b.mat("card_sleeve", color=(226, 232, 236), spec=0.9, gloss=0.86, alpha=0.14, layer="alpha", grain=0.0, edge=0.05,
+                   smudge=0.35, scratch=0.15)
+    lid += box((0.202, 0.132, 0.0005), sleeve, r=0.004, seg=1, center=(0.07, 0.01, top - C_WALL - 0.0362), faces="-z",
+               tag="sleeve").set_lod("h")
+    for sx_ in (-1, 1):
+        for sy_ in (-1, 1):
+            lid += cylinder(0.0030, 0.0010, steel, segs=8, bevel=0.0004, bevel_seg=1, z0=-0.0010, caps=(True, False),
+                            tag="rivet").translate(0.07 + sx_ * 0.0955, 0.01 + sy_ * 0.0615, top - C_WALL - 0.0364).set_lod("h")
     for x in C_LATCH_X:
         lid += box((0.048, 0.012, 0.016), hard_dark, r=0.004, seg=1, center=(x, D2 + 0.005, C_ZS + 0.026))
         lid += cylinder(0.0022, 0.040, steel, segs=8, z0=-0.020).rotate(0, 90, 0).translate(x, D2 + 0.012, C_ZS + 0.022)
@@ -747,7 +766,7 @@ def jammer_case(b):
                             color=(70, 72, 76), segs=8))
     # antenna rails
     for sx in (-1, 1):
-        b.add(box((0.016, 0.290, 0.024), alu, r=0.0025, seg=2, center=(sx * C_RAIL_X, 0.0, C_DECK + 0.012), tag="rail"))
+        b.add(box((0.016, 0.290, 0.024), rail, r=0.0025, seg=2, center=(sx * C_RAIL_X, 0.0, C_DECK + 0.012), tag="rail"))
         for yy in (-0.140, 0.140):
             b.hi_only(screw(b, (sx * C_RAIL_X, yy, C_DECK + 0.024), (0, 0, 1), (0, -1, 0), d=0.005, kind="hex", color=(70, 72, 76), segs=8))
     # RF amplifier block with heatsink fins (centre rear)
@@ -788,8 +807,13 @@ def jammer_case(b):
             b.mat("rocker_black", color=(24, 25, 27), spec=0.35, gloss=0.5, edge=0.45, wear_color=(80, 82, 86))
         _rocker(b, (x, C_ROCK_Y, C_DECK), rm, plastic)
     # main input connector + fuse holder (between the display and the battery)
-    from .radio_common import round_connector
-    b.hi_only(round_connector(b, (-0.030, 0.128, C_DECK), (0, 0, 1), (0, -1, 0), d=0.024, pins=4, depth=0.006))
+    # square-flange panel receptacle under the DC plug
+    b.add(box((0.032, 0.032, 0.0024), alu, r=0.0035, seg=1, center=(-0.030, 0.128, C_DECK + 0.0012), faces="+x -x +y -y +z",
+              tag="dc_flange"))
+    for sx_ in (-1, 1):
+        for sy_ in (-1, 1):
+            b.hi_only(screw(b, (-0.030 + sx_ * 0.0115, 0.128 + sy_ * 0.0115, C_DECK + 0.0024), (0, 0, 1), (0, -1, 0), d=0.0036,
+                            kind="phillips", color=(70, 72, 76), segs=6))
     fuse = cylinder(0.0075, 0.016, plastic, segs=16, bevel=0.0012, bevel_seg=2, z0=0.0).translate(-0.030, 0.088, C_DECK)
     fuse += cylinder(0.0055, 0.008, b.mat("fuse_cap", color=(176, 30, 28), spec=0.4, gloss=0.5, bump="ribs_u", bump_amp=0.00008,
                                                   bump_scale=0.0012, edge=0.4), segs=16, bevel=0.001, z0=0.016).translate(-0.030, 0.088, C_DECK)
@@ -799,20 +823,25 @@ def jammer_case(b):
 
     # battery pack + straps + power lead
     bx, by = C_BATT
-    bw, bd, bh = 0.088, 0.168, 0.056
+    bw, bd, bh = C_BATT_SIZE
     batt = b.mat("battery_case", color=(36, 38, 34), spec=0.28, gloss=0.38, bump="stipple", bump_amp=0.00005, bump_scale=0.0011,
-                 grain=0.04, grain_scale=0.06, edge=0.55, dirt=0.25, wear_color=(90, 92, 86))
+                 grain=0.04, grain_scale=0.06, edge=0.55, dirt=0.25, wear_color=(90, 92, 86), layer="deck")
     b.add(box((bw, bd, bh), batt, r=0.006, seg=2, center=(bx, by, C_DECK + bh / 2), tag="battery"))
-    b.add(box((bw - 0.012, 0.020, 0.010), batt, r=0.004, seg=1, center=(bx, by + bd / 2 - 0.016, C_DECK + bh + 0.004), tag="batt_lug"))
+    # moulded lid seam + grip recesses on the ends
+    b.add(box((bw + 0.003, bd + 0.003, 0.006), batt, r=0.003, seg=1, center=(bx, by, C_DECK + bh - 0.012), tag="batt_rim"))
     web = b.mat("strap_web", color=(26, 27, 28), spec=0.14, gloss=0.22, bump="webbing", bump_amp=0.00022, bump_scale=0.0016,
                 grain=0.05, edge=0.15, dirt=0.15)
-    for yy in (by - 0.050, by + 0.030):
-        path = polyline_fillet([(bx + bw / 2 + 0.010, yy, C_DECK + 0.0008), (bx + bw / 2 + 0.0015, yy, C_DECK + 0.004),
-                                (bx + bw / 2 + 0.0015, yy, C_DECK + bh + 0.0015), (bx - bw / 2 - 0.0015, yy, C_DECK + bh + 0.0015),
-                                (bx - bw / 2 - 0.0015, yy, C_DECK + 0.004), (bx - bw / 2 - 0.010, yy, C_DECK + 0.0008)], 0.005, 4)
+    buckle = b.mat("buckle", color=(20, 21, 22), spec=0.35, gloss=0.45, edge=0.5)
+    xo, xi = bx - bw / 2 - 0.0015, bx + bw / 2 + 0.0015     # -X (outer) / +X (inner, buckle) faces
+    zt = C_DECK + bh + 0.0015 + 0.0016
+    for dy in C_STRAP_Y:
+        yy = by + dy
+        path = polyline_fillet([(xo - 0.0025, yy, C_DECK + 0.0008), (xo - 0.0015, yy, C_DECK + 0.004), (xo - 0.0015, yy, zt),
+                                (xi + 0.0015, yy, zt), (xi + 0.0015, yy, C_DECK + 0.004), (xi + 0.0060, yy, C_DECK + 0.0008)], 0.005, 4)
         b.hi_only(sweep(rrect(0.024, 0.0016, 0.0006, 1), path, web, side=(0, 1, 0), tag="strap", smooth_angle=50))
-        b.hi_only(box((0.030, 0.034, 0.005), b.mat("buckle", color=(20, 21, 22), spec=0.35, gloss=0.45, edge=0.5), r=0.0015, seg=1,
-                  center=(bx + 0.012, yy, C_DECK + bh + 0.004)))
+        # cam buckle on the inner side face
+        b.hi_only(box((0.006, 0.030, 0.026), buckle, r=0.0018, seg=1, center=(xi + 0.0045, yy, C_DECK + bh * 0.55), tag="buckle"))
+        b.hi_only(box((0.004, 0.026, 0.008), buckle, r=0.0014, seg=1, center=(xi + 0.0080, yy, C_DECK + bh * 0.55 + 0.009), tag="buckle"))
     # power lead: battery front connector -> loop -> panel input (red + black pair)
     conn = b.mat("anderson_grey", color=(120, 124, 126), spec=0.3, gloss=0.42, edge=0.4, dirt=0.2)
     cy0 = by + bd / 2
@@ -820,26 +849,59 @@ def jammer_case(b):
     red_j = b.mat("lead_red", color=(150, 28, 26), spec=0.3, gloss=0.45, edge=0.2)
     blk_j = b.mat("lead_black", color=(22, 23, 24), spec=0.3, gloss=0.45, edge=0.2)
     for off, m in ((-0.0035, red_j), (0.0035, blk_j)):
-        pts = catmull([(bx + 0.010 + off, cy0 + 0.021, C_DECK + bh - 0.014), (bx + 0.012 + off, cy0 + 0.034, C_DECK + 0.030),
-                       (bx + 0.040 + off, cy0 + 0.030, C_DECK + 0.007), (-0.050 + off * 0.5, 0.150, C_DECK + 0.010),
-                       (-0.030 + off, 0.142, C_DECK + 0.016), (-0.030 + off, 0.130, C_DECK + 0.022)], n=6)
-        b.add(tube(pts, 0.0034, m, segs=7, split=0.2, tag="lead"))
-    # coax runs: amplifier block -> right-angle plugs on the rails' inner faces
+        pts = catmull([(bx + 0.010 + off, cy0 + 0.021, C_DECK + bh - 0.014), (bx + 0.012 + off, cy0 + 0.030, C_DECK + 0.030),
+                       (bx + 0.036 + off, cy0 + 0.027, C_DECK + 0.008), (-0.047 + off * 0.6, 0.149, C_DECK + 0.012),
+                       (-0.033 + off * 0.6, 0.135, C_DECK + 0.040), (-0.030 + off * 0.5, 0.128, C_DECK + 0.031)], n=4)
+        b.hi_only(tube(pts, 0.0034, m, segs=7, split=0.2, tag="lead"))
+    # DC plug seated on the panel input: knurled coupling ring, body, boot the pair enters
+    dcp = lathe([(0.0, 0.004), (0.0124, 0.004), (0.0126, 0.0055), (0.0126, 0.0135), (0.0112, 0.0150)],
+                b.mat("dc_coupling", color=(34, 35, 37), spec=0.45, gloss=0.5, metal=0.6, bump="ribs_u", bump_amp=0.0001,
+                      bump_scale=0.0012, edge=0.6, wear_color=(150, 152, 156)), segs=20, smooth_angle=50, tag="dc_plug")
+    dcp += lathe([(0.0112, 0.0150), (0.0100, 0.0158), (0.0098, 0.0225), (0.0080, 0.0250), (0.0072, 0.0310), (0.0060, 0.0322),
+                  (0.0, 0.0324)], blk_j, segs=16, smooth_angle=45, tag="dc_boot")
+    b.hi_only(dcp.translate(-0.030, 0.128, C_DECK))
+    # RF harness (runs under the deck plate): 8 SMA outputs on the amplifier's front face with short coax loops
+    # into a brush-grommet slot, and at every antenna port a pigtail rising out of a deck grommet into a
+    # right-angle plug on the rail's inner face. Nothing crosses the fans or the battery.
     plug = b.mat("sma_plug", color=(176, 178, 182), spec=0.85, gloss=0.7, metal=1.0, edge=0.3)
+    thr_n = b.mat("sma_thread_nickel", color=(176, 178, 182), spec=0.8, gloss=0.6, metal=1.0, bump="ribs", bump_amp=0.00008,
+                  bump_scale=0.0005, edge=0.3)
+    plug_k = b.mat("sma_plug_knurl", color=(168, 170, 174), spec=0.8, gloss=0.62, metal=1.0, bump="ribs_u", bump_amp=0.00006,
+                   bump_scale=0.0005, edge=0.3)
+    grom = b.mat("grommet_rubber", color=(15, 16, 17), spec=0.12, gloss=0.22, bump="rubber", bump_amp=0.00003, bump_scale=0.0006,
+                 edge=0.2, dirt=0.15)
+    zc_amp = C_DECK + 0.006
+    slot_y = C_SLOT_Y
+    b.add(extrude(rrect(0.136, 0.012, 0.0045, 3), 0.0018, grom, bevel=0.0007, bevel_seg=1, z0=C_DECK, caps=(False, True), smooth_angle=50,
+                  tag="slot").translate(0.0, slot_y, 0.0))
+    for i in range(8):
+        xj = -0.0525 + i * 0.015
+        jk = lathe([(0.0, 0.0), (0.0040, 0.0), (0.0040, 0.0010)], plug, segs=8, smooth_angle=20, tag="pa_jack")
+        jk += cylinder(0.0034, 0.0052, plug_k, segs=8, bevel=0.0003, bevel_seg=1, z0=0.0010, caps=(False, True), tag="pa_plug")
+        jk += lathe([(0.0030, 0.0062), (0.0026, 0.0090), (0.0023, 0.0140), (0.0, 0.0141)], coax, segs=8, smooth_angle=50, tag="pa_boot")
+        b.hi_only(align(jk, (0, 1, 0), (0, 0, 1), (xj, amp_y1, zc_amp)))
+        lean = (i - 3.5) * 0.0012
+        pts = catmull([(xj, amp_y1 + 0.0145, zc_amp), (xj + lean * 0.4, amp_y1 + 0.022, zc_amp + 0.0008),
+                       (xj + lean, slot_y - 0.0035, C_DECK + 0.0045), (xj + lean, slot_y, C_DECK + 0.0005), (xj + lean, slot_y, C_DECK - 0.004)], n=3)
+        b.hi_only(tube(pts, 0.0021, coax, segs=6, split=0.2, tag="coax"))
     for sx in (-1, 1):
         for i, py in enumerate(C_PORT_Y):
-            xa = sx * 0.062
-            ya = amp_y0 + 0.016 + i * 0.018
             xr = sx * (C_RAIL_X - 0.008)
-            pts = catmull([(xa, ya, C_DECK + 0.010), (xa + sx * 0.014, ya, C_DECK + 0.004),
-                           (sx * (0.130 + 0.008 * i), ya + 0.010 + 0.03 * (i - 1.5) * 0.4, C_DECK + 0.003),
-                           (sx * 0.165, py - 0.002, C_DECK + 0.003), (xr - sx * 0.012, py, C_DECK + 0.012), (xr - sx * 0.004, py, C_DECK + 0.014)],
-                          n=4)
-            b.hi_only(tube(pts, 0.0024, coax, segs=5, split=0.2, tag="coax"))
-            pl = cylinder(0.0036, 0.008, plug, segs=8, bevel=0.0005, bevel_seg=1).rotate(0, 90 * sx, 0)
+            pl = cylinder(0.0036, 0.008, plug_k, segs=8, bevel=0.0005, bevel_seg=1).rotate(0, 90 * sx, 0)
             b.hi_only(pl.translate(xr - sx * 0.008, py, C_DECK + 0.014))
             b.hi_only(extrude(_hex(0.0080), 0.004, plug, bevel=0.0003, bevel_seg=1, smooth_angle=20).rotate(0, 90 * sx, 0).translate(
                 xr - sx * 0.002, py, C_DECK + 0.014))
+            # right-angle body + boot, pigtail down into a deck grommet
+            xg = sx * C_GROM_X
+            ra = lathe([(0.0034, 0.0), (0.0034, 0.0035), (0.0028, 0.0048), (0.0024, 0.0065), (0.0, 0.0066)], coax, segs=8,
+                       smooth_angle=50, tag="ra_boot")
+            b.hi_only(align(ra, (-sx, 0, 0), (0, 0, 1), (xr - sx * 0.008, py, C_DECK + 0.014)))
+            x0 = xr - sx * 0.0145
+            pts = catmull([(x0, py, C_DECK + 0.014), (x0 - sx * 0.004, py, C_DECK + 0.0132), (xg + sx * 0.0022, py, C_DECK + 0.0085),
+                           (xg, py, C_DECK + 0.003), (xg, py, C_DECK - 0.003)], n=3)
+            b.hi_only(tube(pts, 0.0021, coax, segs=6, split=0.2, tag="coax"))
+            b.hi_only(lathe([(0.0046, 0.0), (0.0046, 0.0010), (0.0040, 0.0017), (0.0021, 0.0017)], grom, segs=8,
+                            smooth_angle=50, tag="grommet").translate(xg, py, C_DECK))
     # ---- folding antennas on the rails ------------------------------------------------------------------------
     knk = b.mat("knuckle_black", color=(30, 31, 33), spec=0.4, gloss=0.5, edge=0.5, dirt=0.1, wear_color=(90, 92, 96))
     fer = b.mat("ferrule_knurl", color=(32, 33, 36), spec=0.55, gloss=0.5, metal=0.8, bump="ribs_u", bump_amp=0.0001,
@@ -854,17 +916,17 @@ def jammer_case(b):
             ant = Geo()
             ant += extrude(_hex(0.0095), 0.003, nickel, bevel=0.0004, bevel_seg=1, z0=zr, smooth_angle=20, tag="antenna_nut")
             ant += cylinder(0.0036, 0.003, thr, segs=12, z0=zr + 0.0028, caps=(False, False), tag="antenna_thread")
-            ant += cylinder(0.0052, 0.012, fer, segs=14, bevel=0.0006, bevel_seg=1, z0=zr + 0.0055, tag="antenna_ferrule")
+            ant += cylinder(0.0052, 0.012, fer, segs=10, bevel=0.0006, bevel_seg=1, z0=zr + 0.0055, tag="antenna_ferrule")
             kz = zr + 0.0175 + 0.0048
             ant.translate(x, py, 0)
-            ant += cylinder(0.0048, 0.0095, knk, segs=10, bevel=0.0008, bevel_seg=1, z0=-0.00475, tag="antenna_knuckle").rotate(
+            ant += cylinder(0.0048, 0.0095, knk, segs=8, bevel=0.0008, bevel_seg=1, z0=-0.00475, tag="antenna_knuckle").rotate(
                 90, 0, 0).translate(x, py, kz)
             ant += box((0.0068, 0.0075, 0.005), knk, r=0.0012, seg=1, center=(x, py, kz - 0.0032), tag="antenna_yoke")
             tilt = 30.0 if i in (0, 3) else 20.0
             fan_y = (-8.0, -3.0, 3.0, 8.0)[i]
             ax = axis_angle((1, 0, 0), -fan_y) @ axis_angle((0, 1, 0), sx * tilt) @ vec(0, 0, 1)
             L = C_ANT_LEN[i] if si == 0 else C_ANT_LEN[3 - i]
-            ant += _stubby(b, vec(x, py, kz), ax, L, 0.0118, C_ANT_COLS[k], segs=10, k=2.2, taper=0.78)
+            ant += _stubby(b, vec(x, py, kz), ax, L, 0.0118, C_ANT_COLS[k], segs=9, k=2.2, taper=0.78, ribs=2)
             b.add(ant, lod="h")
             med = extrude(_hex(0.0095), 0.017, nickel, z0=zr, caps=(False, True), smooth_angle=20, tag="antenna_med").translate(x, py, 0)
             st = cylinder(0.0060, L, "stub_rubber", segs=6, r_top=0.0045, caps=(False, True), tag="antenna_med")
@@ -913,10 +975,10 @@ def _case_prints(b, dw, dd):
     sd = DecalCanvas(0.180, 0.050, ppm=2600)
     _stencil(sd, 0.090, 0.025, "JX-40", 0.030, sand, spacing=0.004, seed=9)
     b.decal(sd, center=(-W2, 0.0, 0.088), normal=(-1, 0, 0), up=(0, 0, 1), mats=[hard], depth=0.01, min_dot=0.6)
-    # caution sticker on the front (base) beside the valve
+    # caution sticker on the -X end beside the asset tag (the front is all latches + handle)
     cl = caution_label(0.070, 0.034, head="WARNING", lines=("RF TRANSMITTER INSIDE", "Lid open, antennas up", "before switching MAIN on"),
                        kind="warning", ppm=5000)
-    b.decal(cl, center=(0.190, D2, 0.058), normal=(0, 1, 0), up=(0, 0, 1), mats=[hard], depth=0.01, min_dot=0.6)
+    b.decal(cl, center=(-W2, 0.048, 0.044), normal=(-1, 0, 0), up=(0, 0, 1), mats=[hard], depth=0.01, min_dot=0.6)
     # valve legend
     vl = DecalCanvas(0.040, 0.010, ppm=5000)
     vl.text(0.020, 0.005, "PURGE", 0.0045, fnt="label-black", spacing=0.0008, color=sand, alpha=0.85)
@@ -930,37 +992,46 @@ def _case_prints(b, dw, dd):
     for i, (x, word) in enumerate(zip(C_ROCK_X, ("MAIN", "BANK A", "BANK B", "FAN"))):
         cx, cy = P(x, C_ROCK_Y + 0.019)
         dk.text(cx, cy, word, 0.0042, fnt="label", spacing=0.0004, **ink("orange" if i == 0 else "white"))
-    cx, cy = P(C_DISP[0], C_DISP[1] - 0.042)
+    cx, cy = P(C_DISP[0], C_DISP[1] - 0.047)
     dk.text(cx, cy, "JX-40  ·  8-BAND FIELD JAMMER", 0.0050, fnt="label", spacing=0.0006, **ink("white"))
     for x, y, word in ((-0.030, 0.150, "DC IN 24-30 V"), (-0.030, 0.104, "FUSE 30 A"), (-0.016, 0.060, "PWR"), (-0.016, 0.045, "TX")):
         cx, cy = P(x, y)
         dk.text(cx, cy, word, 0.0036, fnt="label", anchor="mm" if x == -0.030 else "lm", **ink("white"))
+    # antenna numbers + band colour chips on the rail tops, in front of each antenna
     for sx in (1, -1):
+        rl = DecalCanvas(0.016, 0.290, ppm=4000)
         for i, py in enumerate(C_PORT_Y):
             k = (0 if sx > 0 else 4) + i
-            cx, cy = P(sx * (C_RAIL_X - 0.024), py)
-            dk.text(cx, cy - 0.004, f"ANT {k + 1}", 0.0036, fnt="label", **ink("white"))
-            dk.rect(cx - 0.006, cy + 0.0005, 0.012, 0.0022, color=C_ANT_COLS[k], spec=0.3, gloss=0.45, height=0.000006)
+            cy = py + 0.145
+            rl.rect(0.003, cy + 0.0112, 0.010, 0.0020, r=0.0004, color=C_ANT_COLS[k], spec=0.3, gloss=0.45, height=0.000006)
+            rl.text(0.008, cy + 0.0175, str(k + 1), 0.0048, fnt="label-black", **ink("white"))
+        b.decal(rl, center=(sx * C_RAIL_X, 0.0, C_DECK + 0.024), normal=(0, 0, 1), up=(0, -1, 0), mats=["rail_anod"], depth=0.002,
+                min_dot=0.8)
     for sx in (1, -1):
         cx, cy = P(sx * C_FAN_X, C_FAN_Y + 0.050)
         dk.text(cx, cy, "AIR OUT  ·  KEEP CLEAR", 0.0034, fnt="label-semi", spacing=0.0003, **ink("grey"))
-    cx, cy = P(0.0, -0.058)
+    cx, cy = P(0.0, C_SLOT_Y + 0.0175)
     dk.text(cx, cy, "PA 8 x 5 W  ·  HOT SURFACE", 0.0036, fnt="label-semi", spacing=0.0003, **ink("orange"))
+    for i in range(8):                     # output numbers above the slot, one per PA jack
+        cx, cy = P(-0.0525 + i * 0.015 + (i - 3.5) * 0.0012, C_SLOT_Y + 0.0088)
+        dk.text(cx, cy, str(8 - i), 0.0028, fnt="label", **ink("grey"))
     b.decal(dk, center=(0.0, 0.0, C_DECK), normal=(0, 0, 1), up=(0, -1, 0), mats=["deck_anod"], depth=0.0015, min_dot=0.8)
-    # battery label
-    bl = DecalCanvas(0.080, 0.150, ppm=3000)
-    bl.rect(0.0, 0.0, 0.080, 0.150, r=0.004, color=(26, 27, 28), spec=0.3, gloss=0.45)
-    bl.rect(0.0, 0.0, 0.080, 0.022, r=0.004, color=(214, 160, 40), spec=0.35, gloss=0.5)
-    bl.text(0.040, 0.011, "BP-40", 0.010, fnt="label-black", spacing=0.001, color=(20, 20, 20))
-    bl.text(0.040, 0.040, "LiFePO4", 0.0075, fnt="label", **ink("white"))
-    bl.text(0.040, 0.056, "25.6 V  20 Ah  512 Wh", 0.0050, fnt="label-semi", max_w=0.072, **ink("white"))
+    # battery label (between the two straps)
+    LW, LH = 0.078, 0.100
+    bl = DecalCanvas(LW, LH, ppm=3200)
+    bl.rect(0.0, 0.0, LW, LH, r=0.004, color=(26, 27, 28), spec=0.3, gloss=0.45)
+    bl.rect(0.0, 0.0, LW, 0.019, r=0.004, color=(214, 160, 40), spec=0.35, gloss=0.5)
+    bl.text(0.039, 0.0095, "BP-40", 0.0095, fnt="label-black", spacing=0.001, color=(20, 20, 20))
+    bl.text(0.039, 0.030, "LiFePO4", 0.0070, fnt="label", **ink("white"))
+    bl.text(0.039, 0.043, "25.6 V  20 Ah  512 Wh", 0.0048, fnt="label-semi", max_w=0.070, **ink("white"))
     for k, t in enumerate(("Charge with the BP-40 charger only.", "Do not short, crush or burn.", "Keep away from heat above 60 C.")):
-        bl.text(0.040, 0.076 + k * 0.009, t, 0.0032, fnt="label-reg", max_w=0.072, **ink("grey"))
+        bl.text(0.039, 0.0555 + k * 0.0072, t, 0.0030, fnt="label-reg", max_w=0.070, **ink("grey"))
     for k, kind in enumerate(("recycle", "bin", "warn")):
-        bl.icon(kind, 0.012 + k * 0.022, 0.104, 0.016, color=INK["white"] if kind != "warn" else (16, 16, 18))
-    bl.barcode(0.006, 0.128, 0.068, 0.016, seed=40, color=INK["white"])
+        bl.icon(kind, 0.011 + k * 0.016, 0.0815, 0.011, color=INK["white"] if kind != "warn" else (16, 16, 18))
+    bl.barcode(0.052, 0.0765, 0.022, 0.011, seed=40, color=INK["white"])
+    bl.text(0.063, 0.0935, "SN 40-2611", 0.0026, fnt="mono-bold", color=INK["grey"])
     bx, by = C_BATT
-    b.decal(bl, center=(bx, by - 0.004, C_DECK + 0.056), normal=(0, 0, 1), up=(0, -1, 0), mats=["battery_case"], depth=0.003, min_dot=0.7)
+    b.decal(bl, center=(bx, by, C_DECK + C_BATT_SIZE[2]), normal=(0, 0, 1), up=(0, -1, 0), mats=["battery_case"], depth=0.003, min_dot=0.7)
     # quick-start card inside the lid
     qc = DecalCanvas(0.190, 0.120, ppm=3200)
     qc.rect(0.0, 0.0, 0.190, 0.020, color=(24, 26, 28))
@@ -992,6 +1063,7 @@ H_LOW = H_ROOF + 0.540         # lower antenna arms
 H_UP = H_ROOF + 0.890          # upper antenna arms
 H_LAMPS = ((0.090, (60, 255, 120), "PWR"), (0.034, (255, 46, 40), "JAM"), (-0.022, (255, 170, 30), "ALM"))   # bezel centres (x)
 H_KEY_X = -0.088
+H_FIELD = (0.0225, 0.0, 0.355, 0.400)    # door field centre x, z offset, w, h (clear of hinges and the latch escutcheon)
 
 
 def _louvre_panel(b, x_face, sx, yc, zc, w, h, n, olive, dark):
@@ -1114,7 +1186,7 @@ def jammer_heavy(b):
             x, y = sx * (W2 - 0.026), sy * (D2 - 0.026)
             b.add(box((0.046, 0.046, 0.014), blk, r=0.003, seg=1, center=(x, y, H_Z0 - 0.034), tag="foot_post"))
             b.add(cylinder(0.026, 0.010, rub, segs=16, bevel=0.002, bevel_seg=1, z0=0.0, tag="foot_pad").translate(x, y, 0))
-            b.add(cylinder(0.012, 0.018, zinc, segs=12, bevel=0.001, bevel_seg=1, z0=0.009, tag="foot_stud").translate(x, y, 0))
+            b.hi_only(cylinder(0.012, 0.018, zinc, segs=12, bevel=0.001, bevel_seg=1, z0=0.009, tag="foot_stud").translate(x, y, 0))
             b.hi_only(extrude(_hex(0.024), 0.008, zinc, bevel=0.0008, bevel_seg=1, z0=0.016, smooth_angle=20).translate(x, y, 0))
 
     # ---- front: door, hinges, swing-handle latch, lamp panel ---------------------------------------------------------
@@ -1127,6 +1199,10 @@ def jammer_heavy(b):
                face_mat={"+y": olive_face})
     b.add(door)
     yd = yf + 0.010            # door face
+    # pressed stiffening field on the door (catches the light along its bevel; the stickers sit on it)
+    field = extrude(rrect(H_FIELD[2], H_FIELD[3], 0.012, 4), 0.0025, olive_face, bevel=0.0018, bevel_seg=2, caps=(False, True),
+                    smooth_angle=45, tag="door_field")
+    b.add(align(field, (0, 1, 0), (0, 0, 1), (H_FIELD[0], yd, H_DOOR_Z + H_FIELD[1])))
     for z in (H_DOOR_Z - 0.165, H_DOOR_Z + 0.165):
         b.add(hinge(b, (W2 - 0.026 + 0.0, yd + 0.002, z - 0.045), (W2 - 0.026, yd + 0.002, z + 0.045), r=0.0075, knuckles=3, mat=olive_d,
                     segs=10))
@@ -1145,7 +1221,8 @@ def jammer_heavy(b):
     b.hi_only(torus(0.0055, 0.0016, zinc, segs=12, tube_segs=5).translate(lx, yd + 0.0095, H_DOOR_Z - 0.098))
     # lamp panel above the door
     pz = H_ZT - 0.026
-    b.add(box((0.250, 0.006, 0.040), blk, r=0.002, seg=1, center=(0, yf + 0.003, pz), faces="+x -x +y +z -z", tag="lamp_plate"))
+    lamp_plate = b.mat_from("lamp_plate", dc_replace(b.mats[blk], layer="face"))     # legends: the door's sharper atlas
+    b.add(box((0.250, 0.006, 0.040), lamp_plate, r=0.002, seg=1, center=(0, yf + 0.003, pz), faces="+x -x +y +z -z", tag="lamp_plate"))
     for x, col, _ in H_LAMPS:
         bez = lathe([(0.0, 0.0), (0.0118, 0.0), (0.0118, 0.0035), (0.0100, 0.0062), (0.0082, 0.0066)], chrome, segs=20, smooth_angle=45,
                     tag="lamp_bezel")
@@ -1178,14 +1255,22 @@ def jammer_heavy(b):
     for i, x in enumerate((0.040, 0.120)):
         gl = lathe([(0.0, 0.0), (0.0145, 0.0), (0.0145, 0.006), (0.0118, 0.009), (0.0105, 0.016), (0.0072, 0.020), (0.0068, 0.040)], blk,
                    segs=14, smooth_angle=45, tag="gland")
-        b.add(align(gl, (0, -1, 0), (0, 0, 1), (x, yb - 0.006, H_Z0 + 0.120)))
+        b.hi_only(align(gl, (0, -1, 0), (0, 0, 1), (x, yb - 0.006, H_Z0 + 0.120)))
         cab_path = catmull([(x, yb - 0.046, H_Z0 + 0.120), (x, yb - 0.080, H_Z0 + 0.090), (x + 0.01, yb - 0.10, H_Z0 + 0.01),
                             (x + 0.04 * (i + 1), yb - 0.20, 0.006)], n=6)
         b.hi_only(tube(cab_path, 0.0065, coax, segs=8, tag="power_cable"))
     from .radio_common import round_connector
-    b.add(round_connector(b, (-0.120, yb, H_Z0 + 0.120), (0, -1, 0), (0, 0, 1), d=0.036, pins=5, depth=0.010))
+    b.hi_only(round_connector(b, (-0.120, yb, H_Z0 + 0.120), (0, -1, 0), (0, 0, 1), d=0.036, pins=5, depth=0.010))
     b.hi_only(align(cylinder(0.006, 0.026, zinc, segs=10, bevel=0.001, bevel_seg=1), (0, -1, 0), (0, 0, 1), (-0.220, yb, H_Z0 + 0.060)))
 
+    # ---- roof: lifting eye bolts at the corners ------------------------------------------------------------------
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            x, y = sx * 0.258, sy * 0.183
+            eb = cylinder(0.0115, 0.006, zinc, segs=12, bevel=0.0012, bevel_seg=1, tag="eyebolt")
+            eb += cylinder(0.0055, 0.008, zinc, segs=8, z0=0.006, caps=(False, False), tag="eyebolt")
+            eb += torus(0.0155, 0.0042, zinc, segs=16, tube_segs=6, tag="eyebolt").rotate(90, 0, 0).translate(0, 0, 0.0285)
+            b.add(eb.rotate(0, 0, math.degrees(math.atan2(y, x)) + 90).translate(x, y, H_ROOF))
     # ---- roof: mast flange, mast, braces, arms, whips, coax ---------------------------------------------------------
     b.add(box((0.170, 0.170, 0.012), olive_d, r=0.003, seg=1, center=(0, 0, H_ROOF + 0.006), tag="flange"))
     for sx in (-1, 1):
@@ -1256,7 +1341,7 @@ def jammer_heavy(b):
         d = _mast_point(0, ang, 1.0)
         bang = ang + 22.5
         bpt = _mast_point(H_ROOF, bang, 0.118 if k < 4 else 0.150)
-        b.add(_n_bulkhead(b, bpt, nickel, boot))
+        b.hi_only(_n_bulkhead(b, bpt, nickel, boot))
         a1 = _mast_point(zl, ang, L) + d * 0.012
         lane = ang + (8.0 if k < 4 else -8.0)
         pts = [a1 + vec(0, 0, -0.030), a1 - d * 0.035 + vec(0, 0, -0.085), _mast_point(zl - 0.120, ang, L * 0.45) + vec(0, 0, -0.03),
@@ -1311,10 +1396,7 @@ def _heavy_prints(b):
     rp = rating_plate(0.090, 0.034, "AREA JAMMER", "JX-90", "SN 26-90031", ref="EQ-JX90-25", rating="230 V~ 50 Hz  900 W  ·  24 V DC",
                       ppm=4000, icons=("factory", "date", "book", "warn"), foot="IP55")
     b.decal(rp, center=(-0.040, yd, H_DOOR_Z - 0.140), normal=(0, 1, 0), up=(0, 0, 1), mats=door, depth=0.004, min_dot=0.6)
-    # pressed bead around the door field + the door gap on the cabinet face
-    bd = DecalCanvas(0.470, 0.462, ppm=1500)
-    bd.groove_rect(0.024, 0.024, 0.422, 0.414, r=0.010, width=0.0035, depth=0.0006, alpha=0.25)
-    b.decal(bd, center=(0.0, yd, H_DOOR_Z), normal=(0, 1, 0), up=(0, 0, 1), mats=door, depth=0.003, min_dot=0.6)
+    # the door gap on the cabinet face
     gp = DecalCanvas(0.490, 0.482, ppm=1500)
     gp.groove_rect(0.004, 0.004, 0.482, 0.474, r=0.006, width=0.004, depth=0.001, alpha=0.75)
     b.decal(gp, center=(0.0, D2, H_DOOR_Z), normal=(0, 1, 0), up=(0, 0, 1), mats=[olive], depth=0.003, min_dot=0.6)
@@ -1324,7 +1406,7 @@ def _heavy_prints(b):
         lp.text(0.125 - x + 0.0155, 0.020, word, 0.0062, fnt="label", anchor="lm", **ink("white"))
     lp.text(0.125 - H_KEY_X + 0.0135, 0.016, "KEY", 0.0046, fnt="label", anchor="lm", **ink("grey"))
     lp.text(0.125 - H_KEY_X + 0.0135, 0.026, "0 / I", 0.0040, fnt="label", anchor="lm", **ink("grey"))
-    b.decal(lp, center=(0.0, D2 + 0.006, H_ZT - 0.026), normal=(0, 1, 0), up=(0, 0, 1), mats=["black_steel"], depth=0.002, min_dot=0.6)
+    b.decal(lp, center=(0.0, D2 + 0.006, H_ZT - 0.026), normal=(0, 1, 0), up=(0, 0, 1), mats=["lamp_plate"], depth=0.002, min_dot=0.6)
     # sides: stencils above the louvres, lifting legend
     for sx in (1, -1):
         st = DecalCanvas(0.300, 0.060, ppm=2000)

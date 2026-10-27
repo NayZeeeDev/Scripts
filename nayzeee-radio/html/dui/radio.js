@@ -47,7 +47,7 @@
 
   const WORDS = {
     mhz: 'MHz', tx: 'TX', rx: 'RX', vol: 'VOL', mute: 'MUTE', hf: 'HF', mem: 'MEM', lock: 'LOCK',
-    standby: 'STANDBY', live: 'MIC LIVE', keyed: 'KEYED', nosignal: 'NO SIGNAL', nosig: 'NO SIG',
+    standby: 'STANDBY', interference: 'INTERFERENCE', live: 'MIC LIVE', keyed: 'KEYED', nosignal: 'NO SIGNAL', nosig: 'NO SIG',
     nochannel: 'NO CHANNEL', keyin: 'KEY IN A CHANNEL', open: 'OPEN', code: 'CODE', job: 'JOB',
     free: 'FREE', idle: 'IDLE', unit: 'UNIT', of: '/', store: 'STORE', net: 'NET', sec: 'SEC',
     clr: 'CLR', sig: 'SIG', jam: 'JAM', link: 'LINK', stby: 'STBY', emerg: 'EMRG',
@@ -490,9 +490,12 @@
         html($('.px-volbar', strip), segBar(Math.round(s.volume / 6.25), 16));
         tog($('.st-idle', strip), 'muted', s.mute);
         set('.st-idle .vv', strip, s.mute ? WORDS.mute : String(s.volume));
+        // the right end of the strip: what the radio is up to when nobody talks
         const em = $('.st-idle em', strip);
-        em.textContent = s.nosignal ? WORDS.nosignal : WORDS.standby;
+        const jammed = !s.nosignal && s.jam >= 0.3;
+        em.textContent = s.nosignal ? WORDS.nosignal : jammed ? WORDS.interference : WORDS.standby;
         tog(em, 'bad', s.nosignal);
+        tog(em, 'warn', jammed);
       }
     },
     needle(scale, pos) {
@@ -526,7 +529,7 @@
       <div class="fx-sd"><em>M</em><span class="js-m"></span></div>
     </div>
     <div class="fx-big"></div>
-    <div class="fx-unit"><b class="an a-mhz">${WORDS.mhz}</b><b class="an a-code">${WORDS.code}</b><span class="fx-vol"><b class="an a-vol">${WORDS.vol}</b><span class="vb"></span></span></div>
+    <div class="fx-unit"><span class="fx-vol"><span class="vb"></span></span><b class="an a-code">${WORDS.code}</b><b class="an a-mhz">${WORDS.mhz}</b></div>
   </div>
   <div class="fx-dot"><span class="cells"></span></div>
   <div class="fx-test"></div>
@@ -536,9 +539,10 @@
       this.big = Seg7($('.fx-big', r), { n: 5, w: 48, h: 90, t: 11, gap: 13 });
       this.ch = Seg7($('.js-ch', r), { n: 1, w: 18, h: 34, t: 5.5, gap: 5, dp: false, cls: 'sm' });
       this.m = Seg7($('.js-m', r), { n: 2, w: 18, h: 34, t: 5.5, gap: 5, dp: false, cls: 'sm' });
-      this.clk = Seg7($('.fx-clk', r), { n: 4, w: 14, h: 26, t: 4.2, gap: 5, dp: false, colon: true, cls: 'xs' });
+      this.clk = Seg7($('.fx-clk', r), { n: 4, w: 13, h: 24, t: 4, gap: 4.5, dp: false, colon: true, cls: 'xs' });
       $('.fx-dot .cells', r).innerHTML = Array.from({ length: DOT_N }, () => '<i><b></b></i>').join('');
-      $('.fx-vol .vb', r).innerHTML = Array.from({ length: 10 }, (_, i) => `<i style="height:${6 + i * 2.2}px"></i>`).join('');
+      // the volume ladder is a segment group: always printed (ghost), lit only while the level is shown
+      $('.fx-vol .vb', r).innerHTML = Array.from({ length: 10 }, (_, i) => `<i style="height:${5 + i * 2.1}px"></i>`).join('');
       this.dotText = '';
       this.dotOpts = {};
       this.marq = 0;
@@ -615,7 +619,7 @@
         this.ch.set('8');
         this.m.set('88');
         this.dot(''.padEnd(DOT_N, BLOCK));
-        this.volShow(false, s);
+        this.volShow(false, s, true);
         return;
       }
 
@@ -665,7 +669,8 @@
           this.dot(`>${up(it.label).slice(0, room).padEnd(room, ' ')} ${right}`.slice(0, DOT_N + 12), {});
         }
       } else if (v === 'boot') {
-        big = '     ';
+        // after the lamp test: 'tESt' on the segments while the dot line fills behind the model code
+        big = ' tESt';
         const p = clamp((now() - live.bootAt - 650) / 800, 0, 1);
         const n = Math.round(p * 8);
         this.dot(`${s.model} ${BLOCK.repeat(n)}`, {});
@@ -678,11 +683,12 @@
       this.volShow(s.showVolume && v !== 'off' && v !== 'boot', s);
       // 'block' characters in the dot line are drawn as filled cells
     },
-    volShow(on, s) {
+    volShow(on, s, lamp = false) {
       const r = this.r;
       tog(r, 'vol', on);
+      const lit = lamp ? 10 : on ? Math.round(s.volume / 10) : 0;
+      $$('.fx-vol .vb i', r).forEach((b, i) => b.classList.toggle('on', i < lit));
       if (!on) return;
-      $$('.fx-vol .vb i', r).forEach((b, i) => b.classList.toggle('on', i < Math.round(s.volume / 10)));
       this.dot(`${s.mute ? WORDS.mute : WORDS.vol} ${String(s.volume).padStart(3, ' ')}`, { center: true });
     },
     // typed digits on the 5 big cells: integer part right-aligned into 3, decimals after the point

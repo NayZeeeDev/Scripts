@@ -1,0 +1,242 @@
+{
+ "name": "nzr_jammer_case",
+ "module": "props.jammers",
+ "dims": [
+  0.6938,
+  0.5401,
+  0.4956
+ ],
+ "geoMin": [
+  -0.34689,
+  -0.30707,
+  0.0
+ ],
+ "geoMax": [
+  0.34689,
+  0.23306,
+  0.49556
+ ],
+ "bbMin": [
+  -0.3469,
+  -0.3102,
+  0.0
+ ],
+ "bbMax": [
+  0.3469,
+  0.2331,
+  0.4956
+ ],
+ "bsCentre": [
+  0.0,
+  -0.0386,
+  0.2478
+ ],
+ "bsRadius": 0.5055,
+ "lodDist": 150.0,
+ "lodHigh": 20.0,
+ "hdTextureDist": 15.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "",
+ "tris": 29824,
+ "verts": 27486,
+ "tris_med": 11242,
+ "verts_med": 9475,
+ "budget": 30000,
+ "shaders": [
+  "normal_spec",
+  "normal_spec",
+  "normal_spec_alpha",
+  "emissive",
+  "emissive"
+ ],
+ "textures": [
+  {
+   "name": "nzr_jammer_case_d",
+   "size": 2048,
+   "density": 1360.2,
+   "coverage": 0.713,
+   "maps": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "nzr_jammer_case_deck_d",
+   "size": 2048,
+   "density": 3427.4,
+   "coverage": 0.845,
+   "maps": [
+    512,
+    512
+   ]
+  },
+  {
+   "name": "nzr_jammer_case_ad",
+   "size": 256,
+   "density": 1728.1,
+   "coverage": 0.84,
+   "maps": [
+    256,
+    256
+   ]
+  },
+  {
+   "name": "nzr_jammer_case_g",
+   "size": 64,
+   "density": 4159.2
+  },
+  {
+   "name": "nzr_jx40_scr",
+   "size": [
+    512,
+    192
+   ],
+   "screen": true
+  }
+ ],
+ "screens": [
+  "nzr_jx40_scr"
+ ],
+ "mem_est": {
+  "physical": 10485760,
+  "virtual": 2228224
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC_HIGH_DENSITY",
+   "center": [
+    0.0,
+    0.004,
+    0.061
+   ],
+   "size": [
+    0.468,
+    0.376,
+    0.122
+   ],
+   "axis": "z"
+  },
+  {
+   "type": "box",
+   "material": "PLASTIC_HIGH_DENSITY",
+   "center": [
+    0.0,
+    -0.2504,
+    0.3031
+   ],
+   "size": [
+    0.46,
+    0.1196,
+    0.3646
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "JX-40 field jammer case (rugged hard case 46 x 36 x 18 cm, lid open ~100 deg)",
+  "origin": "bottom centre (stands on four rubber feet)",
+  "axes": "+Y = front (latches, handle, valve), lid hinged at -Y and open ~100 deg, +Z up; 8 folding antennas on the side rails of the electronics deck",
+  "attach": "placed on the ground (client/modules/jammers.lua): frozen, non-networked; ghost while placing"
+ },
+ "notes": {},
+ "anchors": {
+  "jammer": "case",
+  "interact": [
+   0.0,
+   0.1,
+   0.2
+  ]
+ },
+ "preview": {
+  "views": [
+   "front",
+   "iso",
+   "front34",
+   "top",
+   "back",
+   "left",
+   "face",
+   "back34"
+  ],
+  "cams": [
+   {
+    "name": "deck",
+    "pos": [
+     0.0,
+     0.5620453935217994,
+     1.1399007154941807
+    ],
+    "target": [
+     0.0,
+     0.0,
+     0.11800000000000001
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "panel",
+    "pos": [
+     0.08358096419874295,
+     0.4386477135899436,
+     0.5438096419874295
+    ],
+    "target": [
+     0.04,
+     0.09,
+     0.108
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "fan",
+    "pos": [
+     0.1817342387844464,
+     0.0274684775688928,
+     0.34044746261482134
+    ],
+    "target": [
+     0.112,
+     -0.112,
+     0.108
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "frontface",
+    "pos": [
+     0.27489150351715463,
+     1.2795660140686185,
+     0.34489150351715464
+    ],
+    "target": [
+     0.0,
+     0.18,
+     0.07
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "lid",
+    "pos": [
+     0.0,
+     0.8968220877331274,
+     0.5887322625349711
+    ],
+    "target": [
+     0.0,
+     -0.2346220063682085,
+     0.3058712390096372
+    ],
+    "fov": 30.0
+   }
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793132982.746,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"150\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.346888\" y=\"-0.310195\" z=\"0.000000\" />\n      <bbMax x=\"0.346888\" y=\"0.233055\" z=\"0.495558\" />\n      <bsCentre x=\"0.000000\" y=\"-0.038570\" z=\"0.247779\" />\n      <bsRadius value=\"0.505476\" />\n      <hdTextureDist value=\"15\" />\n      <name>nzr_jammer_case</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_jammer_case</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_jammer_case</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 164.19
+}

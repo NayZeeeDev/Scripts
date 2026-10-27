@@ -64,7 +64,7 @@ def earpiece(b):
     core = lathe([(0.0, 0.0), (0.0016, 0.0), (0.0016, 0.0085), (0.0, 0.0090)], b.mat("tip_core", color=(150, 160, 168), spec=0.5,
                                                                                      gloss=0.6, edge=0.1), segs=12, smooth_angle=50)
     stem = cylinder(0.0021, 0.008, clear, segs=12, z0=-0.0075, caps=(False, False), tag="ear_stem")
-    b.add(align(mush + core + stem, tip_dir, (0, 0, 1), tip_c))
+    b.add(align((mush + core).scale(1.22) + stem, tip_dir, (0, 0, 1), tip_c))
     # ---- coil: an arch from the ear tip over to the transducer ----------------------------------------------------
     a0 = vec(0.040, 0.004, 0.118)
     p_stem = tip_c - tip_dir * 0.0075
@@ -86,8 +86,12 @@ def earpiece(b):
     tb = qd_top + qd_dir * 0.0205
     body = Geo()
     body += box((0.020, 0.012, 0.030), blk, r=0.0045, seg=3, center=(0, 0, -0.015), tag="transducer")
-    body += box((0.012, 0.0016, 0.020), b.mat("ear_grille", color=(14, 15, 16), spec=0.1, gloss=0.2, bump="perf", bump_amp=0.0002,
-                                               bump_scale=0.0009, ao=1.0), r=0.0006, seg=1, center=(0, 0.0058, -0.016), tag="grille")
+    body += box((0.012, 0.0016, 0.011), b.mat("ear_grille", color=(14, 15, 16), spec=0.1, gloss=0.2, bump="perf", bump_amp=0.0002,
+                                               bump_scale=0.0009, ao=1.0), r=0.0006, seg=1, center=(0, 0.0058, -0.0105), tag="grille")
+    # inline talk button: rubber cap in a raised ring
+    ring = cylinder(0.0050, 0.0010, blk, segs=20, bevel=0.0003, bevel_seg=1, tag="ptt_ring")
+    ring += cylinder(0.0038, 0.0019, rub, segs=20, bevel=0.0006, bevel_seg=2, tag="ptt_cap")
+    body += align(ring, (0, 1, 0), (0, 0, 1), (0, 0.0060, -0.0225))
     body += box((0.010, 0.0012, 0.028), steel, r=0.0005, seg=1, center=(0, -0.0085, -0.017), tag="clip")
     body += box((0.010, 0.0035, 0.0018), steel, r=0.0006, seg=1, center=(0, -0.0072, -0.0025), tag="clip")
     body += box((0.008, 0.0028, 0.0050), blk, r=0.0010, seg=1, center=(0, -0.0068, -0.0010), tag="clip_hinge")

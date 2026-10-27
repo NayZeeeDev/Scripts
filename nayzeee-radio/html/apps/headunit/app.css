@@ -173,7 +173,8 @@
 #app-headunit .lc-code i{display:grid;place-items:center;width:40px;height:50px;border:2.5px solid var(--pd);border-radius:4px}
 #app-headunit .lc-code i.on{border-color:var(--px)}
 #app-headunit .lc-code i.on::after{content:'';width:14px;height:14px;border-radius:50%;background:var(--px);box-shadow:0 0 8px rgba(79,243,220,.7)}
-#app-headunit .lc-code i.cur{border-color:var(--pa);animation:hu-cur 1s steps(1) infinite}
+#app-headunit .lc-code i.cur{border-color:var(--pa);box-shadow:0 0 8px rgba(79,243,220,.35);animation:hu-curb 1s steps(1) infinite}
+@keyframes hu-curb{50%{border-color:var(--pd);box-shadow:none}}
 #app-headunit .lc-boot{font:800 46px/1 var(--font);letter-spacing:.14em;padding-left:.14em;animation:hu-boot 520ms cubic-bezier(.16,.84,.3,1) both}
 @keyframes hu-boot{from{opacity:0;transform:scale(.88);filter:blur(3px)}to{opacity:1;transform:none;filter:none}}
 #app-headunit .lc-bot{position:relative;display:flex;align-items:center;gap:7px;flex:none;height:26px;padding-top:4px;border-top:1.5px dotted rgba(140,255,236,.22);font:700 13px/1 var(--mono);white-space:nowrap;overflow:hidden}

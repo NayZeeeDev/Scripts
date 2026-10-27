@@ -1,0 +1,217 @@
+{
+ "name": "nzr_jammer_pocket",
+ "module": "props.jammers",
+ "dims": [
+  0.1681,
+  0.0746,
+  0.1058
+ ],
+ "geoMin": [
+  -0.08405,
+  -0.03914,
+  0.0
+ ],
+ "geoMax": [
+  0.08405,
+  0.0355,
+  0.10576
+ ],
+ "bbMin": [
+  -0.084,
+  -0.0391,
+  0.0
+ ],
+ "bbMax": [
+  0.084,
+  0.0355,
+  0.1058
+ ],
+ "bsCentre": [
+  0.0,
+  -0.0018,
+  0.0529
+ ],
+ "bsRadius": 0.1061,
+ "lodDist": 150.0,
+ "lodHigh": 20.0,
+ "hdTextureDist": 12.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "",
+ "tris": 10754,
+ "verts": 9755,
+ "tris_med": 4308,
+ "verts_med": 4087,
+ "budget": 12000,
+ "shaders": [
+  "normal_spec",
+  "normal_spec_alpha",
+  "emissive",
+  "emissive"
+ ],
+ "textures": [
+  {
+   "name": "nzr_jammer_pocket_d",
+   "size": 2048,
+   "density": 6649.8,
+   "coverage": 0.808,
+   "maps": [
+    1024,
+    1024
+   ]
+  },
+  {
+   "name": "nzr_jammer_pocket_ad",
+   "size": 128,
+   "density": 8929.8,
+   "coverage": 0.227,
+   "maps": [
+    128,
+    128
+   ]
+  },
+  {
+   "name": "nzr_jammer_pocket_g",
+   "size": 32,
+   "density": 1416.7
+  },
+  {
+   "name": "nzr_jx10_scr",
+   "size": [
+    256,
+    64
+   ],
+   "screen": true
+  }
+ ],
+ "screens": [
+  "nzr_jx10_scr"
+ ],
+ "mem_est": {
+  "physical": 8388608,
+  "virtual": 851968
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "METAL_SOLID_SMALL",
+   "center": [
+    0.0,
+    0.0,
+    0.014
+   ],
+   "size": [
+    0.12,
+    0.07,
+    0.028
+   ],
+   "axis": "z"
+  },
+  {
+   "type": "box",
+   "material": "PLASTIC_HIGH_DENSITY",
+   "center": [
+    0.0,
+    -0.026,
+    0.0633
+   ],
+   "size": [
+    0.144,
+    0.02,
+    0.0835
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "JX-10 pocket jammer (120 x 70 x 28 mm brick, 6 stubby antennas)",
+  "origin": "bottom centre (lies flat on the ground on four rubber feet)",
+  "axes": "+Y = front (status window, guarded toggle, LEDs on the deck), +Z up, length along X; antennas on the rear deck",
+  "attach": "placed on the ground (client/modules/jammers.lua): frozen, non-networked; ghost while placing"
+ },
+ "notes": {},
+ "anchors": {
+  "jammer": "pocket",
+  "interact": [
+   0.0,
+   0.0,
+   0.045
+  ]
+ },
+ "preview": {
+  "views": [
+   "front",
+   "iso",
+   "front34",
+   "top",
+   "back",
+   "left",
+   "right",
+   "face"
+  ],
+  "cams": [
+   {
+    "name": "deck",
+    "pos": [
+     0.013924271082957658,
+     0.13886406624436487,
+     0.18248542165915316
+    ],
+    "target": [
+     0.006,
+     0.02,
+     0.024
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "toggle",
+    "pos": [
+     0.007555879082202205,
+     0.10444536880629203,
+     0.08488948972408981
+    ],
+    "target": [
+     -0.022,
+     0.02,
+     0.03
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "antennas",
+    "pos": [
+     0.077770263396459,
+     -0.336081053585836,
+     0.19498647411362618
+    ],
+    "target": [
+     0.0,
+     -0.025,
+     0.055
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "endx",
+    "pos": [
+     -0.2294636976012614,
+     0.05931229416044149,
+     0.06483910928037842
+    ],
+    "target": [
+     -0.06,
+     0.0,
+     0.014
+    ],
+    "fov": 30.0
+   }
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793132912.471,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"150\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.084047\" y=\"-0.039139\" z=\"0.000000\" />\n      <bbMax x=\"0.084047\" y=\"0.035500\" z=\"0.105764\" />\n      <bsCentre x=\"0.000000\" y=\"-0.001819\" z=\"0.052882\" />\n      <bsRadius value=\"0.106081\" />\n      <hdTextureDist value=\"12\" />\n      <name>nzr_jammer_pocket</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_jammer_pocket</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_jammer_pocket</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 93.89
+}

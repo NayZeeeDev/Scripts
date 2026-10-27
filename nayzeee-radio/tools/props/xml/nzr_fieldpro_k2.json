@@ -52,7 +52,7 @@
    "name": "nzr_fieldpro_k2_d",
    "size": 256,
    "density": 8929.8,
-   "coverage": 0.137,
+   "coverage": 0.306,
    "maps": [
     256,
     256
@@ -161,7 +161,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793113935.084,
+ "built_at": 1793132415.379,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.004500\" y=\"-0.002760\" z=\"-0.003000\" />\n      <bbMax x=\"0.004500\" y=\"0.001000\" z=\"0.003000\" />\n      <bsCentre x=\"0.000000\" y=\"-0.000880\" z=\"0.000000\" />\n      <bsRadius value=\"0.005726\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro_k2</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro_k2</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro_k2</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 0.43
+ "build_seconds": 0.83
 }

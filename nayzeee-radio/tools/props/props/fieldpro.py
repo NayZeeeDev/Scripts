@@ -118,6 +118,8 @@ CLIP_TOP, CLIP_LEN = 0.0450, 0.0360
 # bumpers
 BUMP_E, BUMP_A, BUMP_B, BUMP_H = 0.0008, 0.0050, 0.0072, 0.0140
 
+PART_TEX = 2.0                         # texel multiplier of every pressable part (see fieldpro())
+
 
 # ---------------------------------------------------------------------------------------------
 # module-local geometry helpers
@@ -411,8 +413,10 @@ def _mats(r):
     # battery pack: hard glass-filled polymer, a touch glossier than the armour
     batt = r.mat("fx_battery", color=(28, 29, 32), spec=0.2, gloss=0.32, bump="stipple", bump_amp=0.00003, bump_scale=0.00045,
                  grain=0.03, grain_scale=0.03, edge=0.5, dirt=0.12, wear_color=(74, 76, 80), cavity=0.6, layer="side")
-    keys = m_keypad_rubber(r, "black")
-    red = r.mat("fx_emerg_red", color=(206, 34, 30), spec=0.34, gloss=0.48, bump="dimple", bump_amp=0.00004, bump_scale=0.0006,
+    # silicone keypad: smooth satin moulding, no chipped edges (rubber does not wear bright like paint)
+    keys = r.mat("fx_key_rubber", color=(25, 26, 29), spec=0.27, gloss=0.44, bump="stipple", bump_amp=0.000006, bump_scale=0.00032,
+                 grain=0.008, grain_scale=0.02, edge=0.0, dirt=0.05, cavity=0.5, smudge=0.1, scratch=0.02)
+    red = r.mat("fx_emerg_red", color=(206, 34, 30), spec=0.34, gloss=0.48, bump="dimple", bump_amp=0.000022, bump_scale=0.00042,
                 grain=0.03, edge=0.4, dirt=0.12, wear_color=(240, 120, 110))
     shaft = r.mat("fx_shaft", color=(150, 152, 156), spec=0.7, gloss=0.55, metal=1.0, bump="brushed", bump_amp=0.000005,
                   bump_scale=0.0003, edge=0.3, dirt=0.1)
@@ -427,7 +431,7 @@ def _mats(r):
 # ---------------------------------------------------------------------------------------------
 # the radio
 # ---------------------------------------------------------------------------------------------
-@radio("fieldpro", title="FX-280 field handheld", code="FX-280", layers={"face": 1024, "side": 1024},
+@radio("fieldpro", title="FX-280 field handheld", code="FX-280", layers={"face": 1024, "side": 1024}, part_boost=2.5 / PART_TEX,
        maps={"face": {"n": 1024, "s": 512}, "side": {"n": 1024, "s": 512}},
        doc={"screen": "nzr_scr 512 x 256 (grey-green STN) behind smoked glass, visible LCD 44 x 22 mm (layout screen.size)"})
 def fieldpro(r):
@@ -446,6 +450,11 @@ def fieldpro(r):
     _left_side(r, M)
     _right_side(r, M)
     _back_and_bottom(r, M)
+    # part charts carry PART_TEX x texels: the part models (the raised, clicked view) pack their 256 atlases
+    # above the packer's base-density cap; the complete model compensates through part_boost (net 2.5 x)
+    for c in r.geo.charts:
+        if c.part is not None:
+            c.density *= PART_TEX
     _medium(r, M)
     r.anchor(focus=(0.0, FY + 0.0015, 0.0105), camDist=0.28, leds={"tx": insert, "rx": insert},
              grip="PH_R_Hand (28422): palm on the battery / belt clip, fingers round the right side, thumb on the left "
@@ -710,9 +719,14 @@ def _deck(r, M):
           .translate(EM_XY[0], EM_XY[1], ZDK - 0.0001))
     round_button(r, "emerg", (EM_XY[0], EM_XY[1], ZT + FLOOR), normal=(0, 0, 1), up=(0, 1, 0), d=em_d, t=0.0026, mat=M.red,
                  depth=0.0012, dome=0.0003)
+    # orange "EMG" pad print behind the guard (reads from the front, like every deck print)
+    ep = DecalCanvas(0.0060, 0.0020, ppm=40000)
+    ep.text(0.0030, 0.0010, "EMG", 0.00115, fnt="label-semi", anchor="mm", spacing=0.00018, **ink("orange"))
+    r.decal(ep, center=(EM_XY[0] - 0.0006, EM_XY[1] - 0.0058, ZDK), normal=(0, 0, 1), up=(0, -1, 0), depth=0.0006, mats=[M.gun])
     # light pipe (faces +Z like every radio's: the shared nzr_led_* inserts attach with zero rotation)
     pipe, insert = light_pipe(r, (LED_XY[0], LED_XY[1], ZDK), normal=(0, 0, 1), up=(0, 1, 0), d=0.0030, color="white")
-    frost = r.mat("pipe_frost", color=(120, 126, 132), spec=0.55, gloss=0.62, grain=0.02, edge=0.1, ao=0.6, smudge=0.2)
+    # clear polycarbonate light pipe: dark, glossy, a faint milky core (the lit nzr_led_* insert sits on top)
+    frost = r.mat("pipe_frost", color=(58, 62, 66), spec=0.85, gloss=0.86, grain=0.01, edge=0.05, ao=0.6, smudge=0.25)
     for c in pipe.charts:
         if c.tag.startswith("pipe_lens"):
             c.mat = frost
@@ -742,16 +756,17 @@ def _deck(r, M):
     t = 0.0014
     cap = rr_lathe(jw, jl, 0.0018, [(0, 0), (0, t * 0.55), (t * 0.2, t * 0.88), (t * 0.5, t), (jl * 0.25, t + 0.0002), (jl * 0.42, t + 0.0003)],
                    M.plug, n=4, tag="jack_cap", close=True)
+    cap.set_density(2.6)                   # moulded lettering on a 9 mm cover: give it texels
     r.add(cap.translate(jx, jy, ZDK + 0.00025))
     tab = box((0.0034, 0.0030, 0.0011), M.plug, r=0.0005, seg=2, center=(jx + jw / 2 + 0.0008, jy, ZDK + 0.0008), faces="+x -x +y -y +z",
               tag="jack_tab")
     r.add(tab)
     # moulded "MIC/SP" lettering + grip lines at the tab end (raised, a shade lighter); reads from the front
     lab = DecalCanvas(jw, jl, ppm=50000)
-    lab.text(jw * 0.58, jl * 0.52, "MIC/SP", jl * 0.30, fnt="label", anchor="mm", spacing=jl * 0.015, color=(60, 62, 66), height=0.00006,
-             spec=0.3, gloss=0.42)
+    lab.text(jw * 0.585, jl * 0.52, "MIC/SP", jl * 0.235, fnt="label-semi", anchor="mm", spacing=jl * 0.012, max_w=jw * 0.6,
+             color=(62, 64, 68), height=0.00006, spec=0.3, gloss=0.42)
     for k in range(3):
-        lab.rect(jw * 0.05 + k * jw * 0.04, jl * 0.22, jw * 0.016, jl * 0.56, r=jw * 0.008, height=0.00008)
+        lab.rect(jw * 0.11 + k * jw * 0.045, jl * 0.26, jw * 0.018, jl * 0.48, r=jw * 0.008, height=0.00008)
     r.decal(lab, center=(jx, jy, ZDK + 0.0018), normal=(0, 0, 1), up=(0, -1, 0), depth=0.0012, mats=[M.plug])
     return np.asarray(insert, np.float64)
 
@@ -767,10 +782,14 @@ def _knobs(r, M):
     kx, ky = KNOB_XY
     base = vec(kx, ky, ZDK + BOSS_H)
     ax, fr, right = vec(0, 0, 1), vec(0, 1, 0), vec(-1, 0, 0)
-    ring_m = r.mat("fx_knob_ring", color=(31, 32, 35), spec=0.3, gloss=0.4, bump="knurl", bump_amp=0.00009, bump_scale=0.00075,
+    # straight knurl between the flutes (a diamond knurl on a fluted flank reads as a woven pattern)
+    ring_m = r.mat("fx_knob_ring", color=(31, 32, 35), spec=0.3, gloss=0.4, bump="ribs_u", bump_amp=0.00006, bump_scale=0.00042,
                    grain=0.03, edge=0.7, dirt=0.15, wear_color=(96, 98, 102), cavity=0.8)
-    cap_m = r.mat("fx_knob_cap", color=(29, 30, 33), spec=0.28, gloss=0.38, bump="knurl", bump_amp=0.00006, bump_scale=0.00055,
+    cap_m = r.mat("fx_knob_cap", color=(29, 30, 33), spec=0.28, gloss=0.38, bump="ribs_u", bump_amp=0.00004, bump_scale=0.00030,
                   grain=0.03, edge=0.65, dirt=0.12, wear_color=(92, 94, 98), cavity=0.8)
+    # the flat tops, the chamfer bands and the skirt are smooth satin mouldings (knurl only on the flanks)
+    top_m = r.mat("fx_knob_top", color=(32, 33, 36), spec=0.36, gloss=0.5, bump="orange_peel", bump_amp=0.000005, bump_scale=0.0005,
+                  grain=0.02, grain_scale=0.02, edge=0.55, dirt=0.1, wear_color=(98, 100, 104), cavity=0.8, smudge=0.3)
     Ro = KO_D / 2
     ri = KI_D / 2 + 0.0004
     h = KO_H
@@ -779,14 +798,17 @@ def _knobs(r, M):
     with r.part("knob_ch", origin=o_origin, press=-ax, depth=0.0008, u=right * Ro, v=ax * (h / 2), shape="rect", action="knob",
                 value="channel", axis=ax, detents=16):
         Rs = Ro + 0.0004
-        g = lathe([(Rs * 0.96, 0.0), (Rs, sk * 0.4), (Rs, sk * 0.7), (Rs - 0.0003, sk), (Ro - 0.0005, sk)], ring_m,
+        g = lathe([(Rs * 0.96, 0.0), (Rs, sk * 0.4), (Rs, sk * 0.7), (Rs - 0.0003, sk), (Ro - 0.0005, sk)], top_m,
                   segs=40, smooth_angle=40, tag="ring_skirt")
         ol = _flute_outline(Ro, 0.00055, 20, math.pi / 2, land=2)
         g += extrude(ol, h - band - sk, ring_m, z0=sk, caps=(False, True), smooth_angle=28, tag="ring_flutes")
+        for c in g.charts:
+            if c.tag.endswith(":top"):         # only the bore floor shows (under the volume cap): smooth, few texels
+                c.mat, c.density = top_m, 0.3
         prof = [(Ro, h - band), (Ro, h - bev)]
         prof += [(Ro - bev + bev * math.cos(a), h - bev + bev * math.sin(a)) for a in np.linspace(math.pi / 4, math.pi / 2, 2)]
         prof += [(ri + 0.0004, h), (ri, h - 0.0004), (ri, h - 0.0020)]
-        g += lathe(prof, ring_m, segs=40, smooth_angle=40, tag="ring_top")
+        g += lathe(prof, top_m, segs=40, smooth_angle=40, tag="ring_top")
         r.add(g.translate(*base))
         dc = DecalCanvas(KO_D, KO_D, ppm=40000)
         dc.rect(KO_D / 2 - 0.00028, 0.00015, 0.00056, Ro - ri - 0.0007, r=0.0002, **ink("white"))
@@ -802,12 +824,12 @@ def _knobs(r, M):
                 action="knob", value="volume", axis=ax, detents=24):
         Ri = KI_D / 2
         ol = _flute_outline(Ri, 0.00028, 28, math.pi / 2, land=2)
-        g = extrude(ol, hi - 0.0008, cap_m, z0=0.0, caps=(False, True), smooth_angle=28, tag="cap_flutes")
+        g = extrude(ol, hi - 0.0008, cap_m, z0=0.0, caps=(False, False), smooth_angle=28, tag="cap_flutes")   # the domed top closes it
         bv = 0.0006
         prof = [(Ri, hi - 0.0008), (Ri, hi - bv)]
         prof += [(Ri - bv + bv * math.cos(a), hi - bv + bv * math.sin(a)) for a in np.linspace(math.pi / 6, math.pi / 2, 3)]
         prof += [(Ri * 0.55, hi + 0.00028), (0.0, hi + 0.00035)]
-        g += lathe(prof, cap_m, segs=40, smooth_angle=50, tag="cap_top")
+        g += lathe(prof, top_m, segs=40, smooth_angle=50, tag="cap_top")
         r.add(g.translate(*i_base))
         dc = DecalCanvas(KI_D, KI_D, ppm=50000)
         dc.circle(KI_D / 2, KI_D * 0.2, KI_D * 0.075, **ink("white"))
@@ -863,10 +885,6 @@ def _antenna(r, M):
     tip[-1] = (0.0, L - 0.0004)
     g += lathe(tip, duck, segs=20, smooth_angle=55, tag="antenna_duck")
     r.add(g.translate(ax, ay, z0))
-    # moulded mould-line + tiny band marking near the boot (normal map / print)
-    mk = DecalCanvas(0.012, 0.004, ppm=30000)
-    mk.text(0.006, 0.002, "144/430", 0.0011, fnt="label-semi", anchor="mm", spacing=0.0001, **ink("grey"))
-    r.decal(mk, center=(ax, ay + 0.0055, z0 + 0.024), normal=(0, 1, 0), up=(0, 0, 1), depth=0.0012, mats=[duck])
 
 
 def _armour_details(r, M):
@@ -916,6 +934,22 @@ def _left_side(r, M):
     holes += [(0.0, S1_Z - pzc, S1_D / 2 + 0.0004, S1_D / 2 + 0.0004, S1_D / 2 + 0.0004, None, 6)]
     r.add(_side_plate(rrect(pw, pz1 - pz0, 0.0040, 6), 0.0012, holes, pad, [pwell] * 2, (1, 0, 0), (SX, SIDE_YC, pzc), "lpad",
                       wall_mat=pwell))
+    # well floors (seen on the body model with the keys pulled): the moulded switch membrane - a long actuator
+    # land with its tactile dome under the PTT, a dome ring under MONI
+    span = (PTT_Z + PTT_L / 2 + 0.001) - (S1_Z - S1_D / 2 - 0.001)
+    fl = DecalCanvas(PTT_W + 0.001, span, ppm=24000)
+    zc_fl = (PTT_Z + PTT_L / 2 + 0.001 + S1_Z - S1_D / 2 - 0.001) / 2
+    cx = (PTT_W + 0.001) / 2
+
+    def fy(z):
+        return span / 2 - (z - zc_fl)
+    fl.rect(cx - PTT_W * 0.22, fy(PTT_Z + PTT_L * 0.36), PTT_W * 0.44, PTT_L * 0.72, r=PTT_W * 0.2, color=(24, 25, 27), height=0.00009,
+            spec=0.2, gloss=0.35)
+    fl.circle(cx, fy(PTT_Z), 0.0017, fill=False, width=0.0003, color=(12, 12, 13), height=-0.00008)
+    fl.circle(cx, fy(PTT_Z), 0.0011, color=(34, 35, 38), height=0.00012, spec=0.3, gloss=0.45)
+    fl.circle(cx, fy(S1_Z), 0.0017, fill=False, width=0.0003, color=(12, 12, 13), height=-0.00008)
+    fl.circle(cx, fy(S1_Z), 0.0010, color=(34, 35, 38), height=0.00012, spec=0.3, gloss=0.45)
+    r.decal(fl, center=(SX + 0.0004, SIDE_YC, zc_fl), normal=(1, 0, 0), up=(0, 0, 1), depth=0.0012, mats=[pwell], min_dot=0.7)
     o = ptt(r, "ptt", at=(SX + FLOOR, SIDE_YC, PTT_Z), normal=(1, 0, 0), up=(0, 0, 1), length=PTT_L, width=PTT_W, t=PTT_T,
             ridges=6, ridge_h=0.00045, mat=M.keys, emboss=None, depth=0.0016, dome=0.0005, ridge_span=0.6)
     with r.part("ptt"):          # moulded "PTT" a shade lighter / glossier than the rubber
@@ -953,6 +987,7 @@ def _right_side(r, M):
     t = 0.0013
     cap = rr_lathe(cw, chh, 0.0028, [(0, 0), (0, t * 0.55), (t * 0.2, t * 0.88), (t * 0.5, t), (cw * 0.25, t + 0.0002), (cw * 0.42, t + 0.0003)],
                    M.plug, n=4, tag="dc_cap", close=True)
+    cap.set_density(2.2)
     r.add(align(cap, n, (0, 0, 1), (sx - 0.00025, SIDE_YC, cz)))
     tab = box((0.0036, 0.0036, 0.0011), M.plug, r=0.0005, seg=2, center=(0, 0, 0.00075), faces="+x -x +y -y +z", tag="dc_tab")
     r.add(align(tab, n, (0, 0, 1), (sx, SIDE_YC, cz - chh / 2 - 0.0010)))
@@ -1007,14 +1042,17 @@ def _ip_badge(r, M):
 def _back_and_bottom(r, M):
     rub = r.mat("latch_rubber", color=(30, 31, 34), spec=0.16, gloss=0.26, bump="rubber", bump_amp=0.00003, bump_scale=0.0004,
                 edge=0.4, dirt=0.15, wear_color=(76, 78, 82))
-    clip = r.mat("clip_steel", color=(30, 31, 34), spec=0.2, gloss=0.3, metal=0.0, bump="orange_peel", bump_amp=0.000012,
-                 bump_scale=0.0009, grain=0.035, grain_scale=0.03, edge=0.5, wear=0.25, wear_color=(128, 130, 134), dirt=0.16,
-                 scratch=0.12, smudge=0.3)
+    # black powder-coated spring steel: satin coat, bright steel showing through on the rubbed edges and the lip
+    clip = r.mat("clip_steel", color=(31, 32, 35), spec=0.46, gloss=0.52, metal=0.35, bump="orange_peel", bump_amp=0.000010,
+                 bump_scale=0.0008, grain=0.03, grain_scale=0.03, edge=0.75, wear=0.55, wear_color=(150, 153, 158), dirt=0.14,
+                 scratch=0.4, smudge=0.35, cavity=0.7)
     r.add(belt_clip(r, (0.0, BY, CLIP_TOP), normal=(0, -1, 0), up=(0, 0, 1), w=0.026, length=CLIP_LEN, t=0.0018, standoff=0.0032,
                     lip=0.0070, mat=clip, block_mat=M.soft, screw_kind="phillips"))
+    # stamped stiffening channel down the plate + a small embossed arrow
     st = DecalCanvas(0.024, 0.026, ppm=16000)
-    for x in (0.0085, 0.0155):
-        st.groove([(x, 0.002), (x, 0.024)], width=0.0010, depth=0.00026, alpha=0.25)
+    st.groove_rect(0.0072, 0.0016, 0.0096, 0.0228, r=0.0040, width=0.0009, depth=0.00028, alpha=0.3)
+    for x in (0.0098, 0.0142):
+        st.groove([(x, 0.004), (x, 0.0226)], width=0.0007, depth=0.00018, alpha=0.2)
     r.decal(st, center=(0.0, BY - 0.0042, CLIP_TOP - 0.019), normal=(0, -1, 0), up=(0, 0, 1), depth=0.0022, mats=[clip])
     _ip_badge(r, M)
     # moulded label recess round the battery label + two stiffening lines across the pack above the latch
