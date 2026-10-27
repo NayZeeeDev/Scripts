@@ -44,47 +44,26 @@ local DISC_MODEL = 'nayzeee_vinyl'
 local TXD = 'nayzeee_audio_texture'
 
 -- carousel slots: sideways / backwards from the featured spot (metres) and alpha
+local SIDE_ALPHA = cfg.sideSleeves == false and 0 or (cfg.sideAlpha or 170)
 local SLOT = {
     [-2] = { side = -1.05, depth = 0.75, alpha = 0 },
-    [-1] = { side = -0.58, depth = 0.40, alpha = cfg.sideAlpha or 170 },
+    [-1] = { side = -0.58, depth = 0.40, alpha = SIDE_ALPHA },
     [0]  = { side = -0.076, depth = 0.0, alpha = 255 },   -- left by half the record that sticks out: the pair is centred
-    [1]  = { side = 0.58,  depth = 0.40, alpha = cfg.sideAlpha or 170 },
+    [1]  = { side = 0.58,  depth = 0.40, alpha = SIDE_ALPHA },
     [2]  = { side = 1.05,  depth = 0.75, alpha = 0 },
 }
 
 ---------------------------------------------------------------- text
-local TEXT = {      -- used until the locale file has the shop strings
-    shop_prompt = '[E] Record shop', shop_target = 'Browse records', shop_vehicle = 'Not from a vehicle.',
-    shop_far = 'You need to be at the counter.', shop_busy = 'One moment.', shop_gone = "That record isn't sold here any more.",
-    shop_no_money = 'The shop has no money system to take payment with.', shop_broke = 'Not enough cash.',
-    shop_broke_bank = 'Not enough money in the bank.', shop_have = 'You already have this one.',
-    shop_full = 'No room for it in your pockets.', shop_slow = 'Give it a second.',
-    shop_preview_fail = "Couldn't find a preview for this one.", shop_no_preview = 'Previews are turned off.',
-    shop_empty = 'Nothing for sale right now.', shop_no_ui = 'The record shop UI is missing from html/index.html.',
-}
-local UI_TEXT = {
-    title = 'Record Shop', all = 'All', owned = 'Owned', search = 'Search', leave = 'Leave',
-    cash = 'Cash', bank = 'Bank', listen = 'Listen', stop = 'Stop', finding = 'Finding', muted = 'Streamer mode',
-    buy = 'Buy', free = 'Free', take = 'Take it', buying = 'Buying', browse = 'browse', spin = 'drag to spin',
-    flip = 'drag to flip', hint_listen = 'listen', hint_buy = 'buy', hint_leave = 'leave',
-    tracks = '%s tracks', track = '1 track', own = 'owned', own_n = 'owned x%s',
-    nothing = 'Nothing here', nothing_s = 'Try another genre or search', yours = 'Yours now', nope = 'Not this time',
-    of = '%s of %s', preview = 'Preview',
-}
+local L = NZ.L
 
-local function L(key, ...)
-    local s = NZ.L(key, ...)
-    if s ~= key then return s end
-    s = TEXT[key] or key
-    if select('#', ...) > 0 then return s:format(...) end
-    return s
-end
-
+-- the shop screen's strings in the server's language, with English under them
 local function uiText()
-    local pack = Locales[Config.Locale] or Locales.en or {}
     local t = {}
-    for k, v in pairs(UI_TEXT) do t[k] = v end
-    for k, v in pairs(type(pack.shop_ui) == 'table' and pack.shop_ui or {}) do t[k] = v end
+    for _, pack in ipairs({ Locales.en or {}, Locales[Config.Locale] or {} }) do
+        if type(pack.shop_ui) == 'table' then
+            for k, v in pairs(pack.shop_ui) do t[k] = v end
+        end
+    end
     return t
 end
 
@@ -93,7 +72,6 @@ local open, opening = false, false
 local nuiReady = false
 local mode3d = false
 local view = nil              -- anchor / axes / camera of the current counter
-local where = nil             -- location index or 'admin'
 local catalog = {}            -- item -> { cover, album, artist }
 local current = nil           -- featured item
 local cam = nil
@@ -153,10 +131,6 @@ local function slotAt(o)
     local hi = math.min(2, lo + 1)
     local t = o - lo
     local a, b = SLOT[lo], SLOT[hi]
-    if cfg.sideSleeves == false then
-        a = { side = a.side, depth = a.depth, alpha = lo == 0 and 255 or 0 }
-        b = { side = b.side, depth = b.depth, alpha = hi == 0 and 255 or 0 }
-    end
     return a.side + (b.side - a.side) * t, a.depth + (b.depth - a.depth) * t, a.alpha + (b.alpha - a.alpha) * t
 end
 
@@ -545,7 +519,7 @@ end
 local function dropPreview()
     if Emitters[PREVIEW_ID] then
         Emitters[PREVIEW_ID] = nil
-        if ForgetEmitter then ForgetEmitter(PREVIEW_ID) end
+        ForgetEmitter(PREVIEW_ID)
         SendNUIMessage({ action = 'remove', id = PREVIEW_ID })
     end
 end
@@ -618,7 +592,7 @@ local function closeShop(instant)
     local ped = PlayerPedId()
     FreezeEntityPosition(ped, false)
     if savedHeading then SetEntityHeading(ped, savedHeading) end
-    savedHeading, view, current, where = nil, nil, nil, nil
+    savedHeading, view, current = nil, nil, nil
 end
 
 local function frameLoop()
@@ -660,7 +634,7 @@ local function openShop(at)
     if IsEntityDead(ped) then return end
     if IsPedInAnyVehicle(ped, false) then return Notify(L('shop_vehicle'), 'error') end
     opening = true
-    if UI and UI.open then CloseUI() end
+    if UI.open then CloseUI() end
 
     local data, err = NZ.Callback('shop:open', at)
     if type(data) ~= 'table' then
@@ -668,7 +642,6 @@ local function openShop(at)
         return Notify(L(err or 'shop_far'), 'error')
     end
 
-    where = at
     view = buildView(at ~= 'admin' and LOCS[at] or nil)
     catalog = {}
     for _, it in ipairs(data.items) do catalog[it.item] = { cover = it.cover, album = it.album, artist = it.artist } end
@@ -701,9 +674,9 @@ local function openShop(at)
         data = {
             items = data.items, genres = data.genres, owned = data.owned or {}, wallet = data.wallet or 0,
             account = data.account, title = data.title, mode = mode3d and '3d' or '2d',
-            text = uiText(), streamer = Settings and Settings.streamer or false,
+            text = uiText(), streamer = Settings.streamer,
             preview = P.enabled ~= false, previewLength = P.length or 30,
-            brand = Config.Brand and { watermark = Config.Brand.watermark, logo = Config.Brand.logo } or nil,
+            brand = { watermark = Config.Brand.watermark, logo = Config.Brand.logo },
         },
     })
 end
@@ -785,7 +758,8 @@ end)
 ---------------------------------------------------------------- shopkeepers, blips, prompts
 local peds, blips = {}, {}
 local PED_IN, PED_OUT = cfg.pedDistance or 60.0, (cfg.pedDistance or 60.0) + 15.0
-local TARGET = { { name = 'nzspk_recordshop', label = L('shop_target'), icon = 'fa-solid fa-record-vinyl' } }
+local TARGET = 'nzspk_recordshop'
+local PROMPT = L('shop_prompt')
 
 local function spawnPed(i, loc)
     peds[i] = false                           -- loading
@@ -794,7 +768,7 @@ local function spawnPed(i, loc)
     peds[i] = ped
     if Bridge.Target then
         Bridge.AddEntityTarget(ped, { {
-            name = TARGET[1].name, label = TARGET[1].label, icon = TARGET[1].icon,
+            name = TARGET, label = L('shop_target'), icon = 'fa-solid fa-record-vinyl',
             action = function() CreateThread(function() openShop(i) end) end,
         } }, INTERACT)
     end
@@ -804,7 +778,7 @@ local function despawnPed(i)
     local ped = peds[i]
     peds[i] = nil
     if not ped then return end
-    if Bridge.Target then Bridge.RemoveEntityTarget(ped, { TARGET[1].name }) end
+    if Bridge.Target then Bridge.RemoveEntityTarget(ped, { TARGET }) end
     if DoesEntityExist(ped) then DeleteEntity(ped) end
 end
 
@@ -847,7 +821,7 @@ CreateThread(function()
                             m.scale or 0.45, m.scale or 0.45, m.scale or 0.45, 8, 175, 162, 150, true, true, 2, false, nil, nil, false)
                     end
                     if d < INTERACT then
-                        Bridge.DrawPrompt(loc.coords + vector3(0.0, 0.0, ped and 1.0 or 0.8), L('shop_prompt'))
+                        Bridge.DrawPrompt(loc.coords + vector3(0.0, 0.0, ped and 1.0 or 0.8), PROMPT)
                         if IsControlJustPressed(0, 38) and not opening then CreateThread(function() openShop(i) end) end
                     end
                 elseif d < 60.0 and sleep > 400 then

@@ -100,10 +100,6 @@ local function advance(ch, t)
     return ch.v
 end
 
-local function serverNow()
-    return ServerTime and ServerTime() or GetGameTimer()
-end
-
 ---------------------------------------------------------------- state
 local V = {}              -- emitter id -> deck visual
 local offs = {}           -- emitter id -> { by, t }: someone just took the record off
@@ -237,19 +233,24 @@ end
 local REST = { mode = 'rest', theta = 0.0 }
 
 --[[
-    Arm goal and whether the platter turns, from the emitter snapshot.
+    Arm goal and whether the platter turns, from the emitter snapshot. Written into the deck's own
+    goal table (this runs every frame).
       rest   arm home on its rest                  hover  lifted over a groove, waiting for the song
       down   needle in the groove (follows it)     cue    lifted, lands exactly at `land` (local ms)
 ]]
+local function goal(g, mode, theta, land)
+    g.mode, g.theta, g.land = mode, theta, land
+    return g
+end
+
 local function goals(v, e, t, srv)
     local vin = e and e.vinyl
     local rec = v.rec
     if not vin or not rec or rec.phase ~= 'seated' or v.leaving[1] then return REST, false end
-    local n = #(vin.tracks or {})
+    local n = type(vin.tracks) == 'table' and #vin.tracks or 0
     local idx = vin.idx or 1
     if vin.loading then
-        local th = armAngle(grooveRadius(idx, 0.0, n))
-        return { mode = vin.move == 'flow' and 'down' or 'hover', theta = th }, true
+        return goal(v.goal, vin.move == 'flow' and 'down' or 'hover', armAngle(grooveRadius(idx, 0.0, n))), true
     end
     local tr = e.track
     if not tr then return REST, false end
@@ -258,11 +259,11 @@ local function goals(v, e, t, srv)
     if e.playing then
         local start = e.startedAt or srv
         if start > srv then
-            return { mode = 'cue', theta = armAngle(grooveRadius(idx, 0.0, n)), land = t + (start - srv) }, true
+            return goal(v.goal, 'cue', armAngle(grooveRadius(idx, 0.0, n)), t + (start - srv)), true
         end
-        return { mode = 'down', theta = armAngle(grooveRadius(idx, (srv - start) / 1000.0 / dur, n)) }, true
+        return goal(v.goal, 'down', armAngle(grooveRadius(idx, (srv - start) / 1000.0 / dur, n))), true
     end
-    return { mode = 'down', theta = armAngle(grooveRadius(idx, (e.pos or 0) / dur, n)) }, false
+    return goal(v.goal, 'down', armAngle(grooveRadius(idx, (e.pos or 0) / dur, n))), false
 end
 
 -- lift off, swing across, then do what the goal asks
@@ -359,7 +360,8 @@ local function stepIn(v, r, t, srv)
             local x, y, z, p, yaw = inHand(v, ped)
             local obj = ensureObj(v, r, x, y, z)
             if obj then pose(obj, x, y, z, p, yaw) end
-            r.held = { x, y, z, p, yaw }
+            local h = r.held
+            if h then h[1], h[2], h[3], h[4], h[5] = x, y, z, p, yaw else r.held = { x, y, z, p, yaw } end
         end
         return true
     end
@@ -468,6 +470,8 @@ end
 -- the record on the deck changed (on, off or swapped)
 local function syncRecord(v, e, t, srv)
     local vin = e and e.vinyl
+    if vin == v.recVin then return end      -- the same snapshot as last frame
+    v.recVin = vin
     local key = recordKey(vin)
     if key == v.recKey then return end
     local old = v.rec
@@ -500,7 +504,7 @@ local function wipe(v)
     drop(v)
     if v.rec then kill(v.rec.obj) end
     for _, r in ipairs(v.leaving) do kill(r.obj) end
-    v.rec, v.recKey, v.leaving = nil, nil, {}
+    v.rec, v.recKey, v.recVin, v.leaving = nil, nil, nil, {}
 end
 
 -- returns true while anything on this deck still moves
@@ -562,7 +566,7 @@ local function frameLoop()
     while not stopped do
         local t = GetGameTimer()
         local dt = clamp(GetFrameTime(), 0.0, 0.1)
-        local srv = serverNow()
+        local srv = ServerTime()
         local busy = false
         for _, v in pairs(V) do
             if update(v, t, dt, srv) then busy = true end
@@ -585,7 +589,7 @@ local function retire(v)
     if v.dying then return end
     drop(v)
     local r = v.rec
-    v.rec, v.recKey = nil, nil
+    v.rec, v.recKey, v.recVin = nil, nil, nil
     if r then
         if r.phase == 'seated' and r.obj then leave(v, r, GetGameTimer()) else kill(r.obj) end
     end
@@ -626,7 +630,8 @@ local function bind(v, e)
 end
 
 local function newVisual(id)
-    return { id = id, th = chan(0.0), lf = chan(0.0), sp = chan(0.0), spin = 0.0, leaving = {} }
+    return { id = id, th = chan(0.0), lf = chan(0.0), sp = chan(0.0), spin = 0.0, leaving = {},
+        goal = { mode = 'rest', theta = 0.0 } }
 end
 
 -- one album cover on the label of the nearest record (the texture is shared by every record)
@@ -684,17 +689,17 @@ end
 -- is clearly closer, so walking between two decks doesn't flip the label back and forth
 local function pickLabel(me)
     if not LABEL or Settings.streamer then return setLabel(nil) end
-    local best, bestScore, bestId, cur
+    local best, bestScore, bestId, curVin, curScore
     for id, v in pairs(V) do
         local e = Emitters[id]
         local vin = e and e.vinyl
         if v.platter and v.rec and vin and type(vin.cover) == 'string' and vin.cover:match('^https?://') then
             local score = #(me - e.coords) + ((e.playing and e.track) and 0.0 or 1000.0)
-            if id == label.id then cur = { vin, score } end
+            if id == label.id then curVin, curScore = vin, score end
             if not bestScore or score < bestScore then best, bestScore, bestId = vin, score, id end
         end
     end
-    if cur and bestId ~= label.id and bestScore > cur[2] - 2.0 then best, bestId = cur[1], label.id end
+    if curVin and bestId ~= label.id and bestScore > curScore - 2.0 then best, bestId = curVin, label.id end
     label.id = bestId
     setLabel(best)
 end

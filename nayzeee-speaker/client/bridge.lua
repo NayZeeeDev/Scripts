@@ -1,9 +1,9 @@
--- Client bridge: notify, progress, target. Edit freely.
+-- Client bridge: notifications, progress bars, targets and a few game helpers. Edit freely.
 Bridge = {}
 
 function Bridge.Notify(msg, kind) Config.Notify(msg, kind) end
 
--- Plays an animation for `duration` ms. Returns true if it finished.
+-- Plays an animation for `duration` ms (with ox_lib's progress bar when it runs). Returns true if it finished.
 function Bridge.Progress(label, anim, duration)
     if GetResourceState('ox_lib') == 'started' then
         local ok, res = pcall(function()
@@ -16,19 +16,17 @@ function Bridge.Progress(label, anim, duration)
         if ok then return res end
     end
     local ped = PlayerPedId()
-    if anim then
-        RequestAnimDict(anim.dict)
-        local t = GetGameTimer()
-        while not HasAnimDictLoaded(anim.dict) and GetGameTimer() - t < 3000 do Wait(0) end
+    local played = anim and Bridge.LoadAnimDict(anim.dict)
+    if played then
         TaskPlayAnim(ped, anim.dict, anim.clip, 3.0, 3.0, duration, anim.flag or 1, 0, false, false, false)
     end
     local t = GetGameTimer()
     while GetGameTimer() - t < duration do
-        DisableControlAction(0, 30, true) DisableControlAction(0, 31, true)
+        DisableControlAction(0, 30, true) DisableControlAction(0, 31, true)   -- no walking off mid-task
         if IsEntityDead(ped) then ClearPedTasks(ped) return false end
         Wait(0)
     end
-    if anim then StopAnimTask(ped, anim.dict, anim.clip, 1.0) end
+    if played then StopAnimTask(ped, anim.dict, anim.clip, 1.0) end
     return true
 end
 
@@ -71,7 +69,6 @@ function Bridge.RemoveModelTarget(models, names)
     elseif targetRes == 'qb-target' then exports['qb-target']:RemoveTargetModel(models) end
 end
 
----------------------------------------------------------------- shop helpers (record shop)
 -- Targets on one local (non-networked) entity, e.g. a shopkeeper ped.
 -- options: { { name, label, icon, action(entity), canInteract(entity)? } }
 function Bridge.AddEntityTarget(entity, options, distance)
@@ -110,14 +107,26 @@ function Bridge.RemoveEntityTarget(entity, names)
     end
 end
 
+---------------------------------------------------------------- helpers (models, animations, shopkeepers, prompts)
 -- Loads a model, returns its hash (nil if it isn't in the game files or didn't load in time).
 function Bridge.LoadModel(model, timeout)
     local hash = type(model) == 'number' and model or joaat(model)
     if not IsModelInCdimage(hash) then return nil end
+    if HasModelLoaded(hash) then return hash end
     RequestModel(hash)
     local t = GetGameTimer()
     while not HasModelLoaded(hash) and GetGameTimer() - t < (timeout or 5000) do Wait(0) end
     return HasModelLoaded(hash) and hash or nil
+end
+
+-- Loads an animation dictionary. False if it isn't in the game (the 2.0 models ship no clips) or timed out.
+function Bridge.LoadAnimDict(dict, timeout)
+    if type(dict) ~= 'string' or not DoesAnimDictExist(dict) then return false end
+    if HasAnimDictLoaded(dict) then return true end
+    RequestAnimDict(dict)
+    local t = GetGameTimer()
+    while not HasAnimDictLoaded(dict) and GetGameTimer() - t < (timeout or 3000) do Wait(0) end
+    return HasAnimDictLoaded(dict)
 end
 
 -- A local shopkeeper standing still at `coords` (feet on the ground below it), facing `heading`.
@@ -138,7 +147,7 @@ function Bridge.SpawnShopPed(model, coords, heading, scenario)
     return ped
 end
 
--- One frame of a small floating prompt (the same look as the speaker's [E] prompt).
+-- One frame of a small floating prompt (the [E] on speakers and record shops).
 function Bridge.DrawPrompt(pos, text)
     SetDrawOrigin(pos.x, pos.y, pos.z, 0)
     BeginTextCommandDisplayText('STRING')

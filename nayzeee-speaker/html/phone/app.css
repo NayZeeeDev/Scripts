@@ -6,7 +6,7 @@
 @font-face{font-family:'Lexend';src:url(../fonts/lexend.woff2) format('woff2');font-weight:100 900;font-display:block}
 
 :root{
-  --void:#000;--base:#08090a;--panel:#0e1011;--raise:#15181a;--raise-2:#1c2023;--inset:#0b0c0d;
+  --void:#000;--base:#08090a;--panel:#0e1011;--raise:#15181a;--raise-2:#1c2023;
   --line:rgba(255,255,255,.10);--line-soft:rgba(255,255,255,.06);--line-hair:rgba(255,255,255,.035);--lift:rgba(255,255,255,.055);
   --white:#fff;--ink:#f2f4f5;--ink-2:#9ea5aa;--ink-3:#63696d;
   --teal:#08afa2;--teal-hi:#0fd4c4;--teal-lo:#067d74;--teal-wash:rgba(8,175,162,.12);--teal-edge:rgba(8,175,162,.36);
@@ -61,7 +61,6 @@ img{display:block;max-width:100%}
 .brand.custom .mark{display:none}
 .top h1{flex:1;min-width:0;font-size:clamp(20px,5.9vw,24px);font-weight:700;letter-spacing:-.035em;color:var(--white);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.top h1 small{font-size:12px;font-weight:400;letter-spacing:0;color:var(--ink-3);margin-left:6px}
 
 .dev-pill{flex:none;max-width:54%;height:40px;display:flex;align-items:center;gap:8px;padding:0 12px 0 6px;border-radius:999px;
   background:var(--raise);border:1px solid var(--line-soft);transition:background var(--fast),border-color var(--fast)}
@@ -91,8 +90,6 @@ img{display:block;max-width:100%}
 .ib:active{transform:scale(.92)}
 .ib.on{color:var(--teal)}
 .ib.liked{color:var(--teal)}
-.ib.solid{background:var(--white);color:#000}
-.ib.solid:hover{background:var(--white);color:#000;filter:brightness(.92)}
 .ib.teal{background:var(--teal);color:#00201d}
 .ib.teal:hover{background:var(--teal-hi);color:#00201d}
 .ib.sm{font-size:13px}
@@ -105,8 +102,6 @@ img{display:block;max-width:100%}
 .pill.line{border:1px solid var(--line);color:var(--ink)}
 .pill.line:hover{background:var(--lift)}
 .pill.red{background:var(--red-wash);color:var(--red);border:1px solid var(--red-edge)}
-.pill.ghost{background:var(--raise);color:var(--ink)}
-.pill.wide{width:100%}
 .pill.sm{position:relative;height:32px;padding:0 13px;font-size:12px}
 .pill.sm::before{content:'';position:absolute;inset:-4px -2px}
 .pills{display:flex;gap:10px;min-width:0}
@@ -171,14 +166,13 @@ img{display:block;max-width:100%}
 .chip.teal{background:var(--teal-wash);color:var(--teal)}
 .hero .seek{margin-top:12px}
 .transport{display:flex;align-items:center;justify-content:space-between;max-width:320px;margin:4px auto 0}
-.transport .ib{font-size:16px;color:var(--ink)}
+.transport .ib{position:relative;font-size:16px;color:var(--ink)}
 .transport .ib.step{width:44px;height:44px;font-size:18px}
 .transport .ib.play{width:56px;height:56px;font-size:20px;background:var(--white);color:#000;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .transport .ib.play:hover{background:var(--white);filter:brightness(.92)}
 .transport .ib.mode{color:var(--ink-3)}
 .transport .ib.mode.on{color:var(--teal)}
 .transport .ib.mode.on::after{content:'';position:absolute;bottom:5px;width:4px;height:4px;border-radius:50%;background:var(--teal)}
-.transport .ib{position:relative}
 .hero .vol{margin-top:6px}
 
 .idle{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:18px 6px 6px}
@@ -216,7 +210,6 @@ img{display:block;max-width:100%}
 .row .num{width:22px;flex:none;text-align:center;font-size:12px;color:var(--ink-3)}
 .row.now .num{color:var(--teal)}
 .row .acts{display:flex;align-items:center;flex:none}
-.row.dim{opacity:.55}
 
 /* playing bars */
 .eq{display:inline-flex;align-items:flex-end;gap:2px;height:12px;flex:none}

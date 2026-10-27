@@ -1,7 +1,10 @@
+--[[
+    Turns what a player asked for (a pasted link / id, or a saved song) into a playable track:
+    { mode = 'file' | 'iframe', src, id, url, title, author, duration, thumb }
+]]
 Tracks = {}
 
-local meta = {}            -- video id -> { track = ..., at = ... }
-local META_TTL = 6 * 3600
+local meta = NZ.Cache(6 * 3600)     -- video id -> track (title / author / length outlive the stream link)
 
 local function urldecode(s)
     return (s:gsub('+', ' '):gsub('%%(%x%x)', function(h) return string.char(tonumber(h, 16)) end))
@@ -13,16 +16,16 @@ local function copy(t)
     return c
 end
 
--- title / channel / thumbnail without needing an audio source
+-- title / channel without needing an audio source
 local function oembed(id)
     local r = Sources.Http(('https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=%s'):format(id), nil, 8000)
     if r.code ~= 200 or not r.body then return nil end
     local ok, d = pcall(json.decode, r.body)
-    if not ok or not d then return nil end
+    if not ok or type(d) ~= 'table' then return nil end
     return d.title, d.author_name
 end
 
--- Returns track or nil, errorKey
+-- track, or nil + a locale key saying why not
 function Tracks.Resolve(input)
     local kind, value = NZ.ParseInput(input)
     if not kind then return nil, 'invalid_input' end
@@ -38,9 +41,9 @@ function Tracks.Resolve(input)
         }
     end
 
-    local hit = meta[value]
-    if hit and os.time() - hit.at < META_TTL then
-        local t = copy(hit.track)
+    local hit = meta.get(value)
+    if hit then
+        local t = copy(hit)
         -- the audio link itself expires sooner than the title does, so re-check it
         if t.mode == 'file' then
             local f = Sources.File(value)
@@ -74,7 +77,7 @@ function Tracks.Resolve(input)
     if Config.Limits.maxDuration > 0 and track.duration > Config.Limits.maxDuration then
         return nil, 'too_long'
     end
-    meta[value] = { track = copy(track), at = os.time() }
+    meta.set(value, copy(track))
     return track
 end
 
@@ -91,4 +94,3 @@ function Tracks.FromSaved(saved)
     return nil, 'invalid_input'
 end
 
-function Tracks.Forget(id) meta[id] = nil end

@@ -80,7 +80,7 @@ const Engine = (() => {
       updateRate: 120, near: 1.5, rolloff: 3.0, closeStereo: 1.2,
       airAbsorption: true, reverbLevel: 1.0, voices: {},
     },
-    dt: 0.12, lastFrame: 0, timer: 0,
+    dt: 0.12, lastFrame: 0, timer: 0, resuming: false,
     playLag: 0.03,   // s from play() to sound, measured; a cued start calls play() this much early
     ytReady: null, reported: new Set(),
   };
@@ -89,9 +89,10 @@ const Engine = (() => {
   const now = () => performance.now() + S.clock;
   const isFile = t => t && t.mode === 'file' && !!t.url && !S.failed.has(t.url);
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-  const sstep = (a, b, v) => { const x = clamp((v - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
   // the volume slider is perceptual: 50 % sounds like half, not like 80 %
   const volCurve = v => Math.pow(clamp(v === undefined || v === null ? 0.7 : v, 0, 1), 1.5);
+  // bookkeeping sets live as long as the page (hours): start over once they get big
+  const remember = (set, v) => { if (set.size > 256) set.clear(); set.add(v); };
 
   function expected(e) {
     if (!e || !e.track) return 0;
@@ -121,7 +122,11 @@ const Engine = (() => {
       S.master.connect(glue); glue.connect(lim); lim.connect(clip); clip.connect(c.destination);
       S.buses = BUSES.map(buildBus);
     }
-    if (S.ctx.state === 'suspended') S.ctx.resume();
+    // one pending resume at a time (this runs every frame while the page waits for a click)
+    if (S.ctx.state === 'suspended' && !S.resuming) {
+      S.resuming = true;
+      S.ctx.resume().catch(() => {}).then(() => { S.resuming = false; });
+    }
     return S.ctx;
   }
 
@@ -284,8 +289,7 @@ const Engine = (() => {
     el.crossOrigin = 'anonymous';
     el.preload = 'auto';
     el.preservesPitch = false;   // doppler bends the pitch like a real moving source
-    el.mozPreservesPitch = false;
-    el.webkitPreservesPitch = false;
+    el.webkitPreservesPitch = false;   // older CEF builds only know the prefixed name
     const n = base(id, k, 'audio');
     n.el = el;
 
@@ -297,7 +301,7 @@ const Engine = (() => {
       // the audio link died or the host sent no CORS header: fall back to the embed so music keeps playing
       if (n.dead || S.nodes.get(id) !== n) return;
       const em = S.emitters.get(id);
-      S.failed.add(e.track.url);
+      remember(S.failed, e.track.url);
       retire(n, 0);
       if (em && em.track && em.track.id && keyOf(em.track) === k) {
         S.nodes.set(id, mountYT(id, em, k));
@@ -439,7 +443,7 @@ const Engine = (() => {
     if (!e || !e.track || e.track.duration > 0 || !isFinite(dur) || dur <= 0) return;
     const tag = id + '|' + k;
     if (S.reported.has(tag)) return;
-    S.reported.add(tag);
+    remember(S.reported, tag);
     post('duration', { id, key: k, value: dur });
   }
 
@@ -450,6 +454,7 @@ const Engine = (() => {
       // the embed's volume can only be stepped every TICK, so its fades are never shorter than 0.6 s
       n.fFrom = softFade(n, performance.now()); n.fTo = v;
       n.fT0 = performance.now(); n.fDur = Math.max(sec, 0.6) * 1000;
+      ensureTick();
       return;
     }
     if (!n.gate) return;
@@ -627,6 +632,8 @@ const Engine = (() => {
      wr wh ws reverb sends (room, hall, street) · v closing speed m/s (doppler) */
   let pruneT = 0;
   function spatial(list) {
+    // nothing near and nothing left to let go of: no audio graph needed yet
+    if (!list.length && !S.nodes.size && !S.fading.size) return;
     const c = ctx();
     const tp = performance.now();
     if (S.lastFrame) S.dt += (clamp((tp - S.lastFrame) / 1000, 0.02, 1) - S.dt) * 0.25;
@@ -663,7 +670,8 @@ const Engine = (() => {
     n.dist = d;
     const amp = level * reach * g;
 
-    if (!n.fx) { n.vTarget = amp; ensureTick(); return; }
+    // the plain / embed path is a volume the ticker glides to; it only needs waking when that moves
+    if (!n.fx) { if (n.vTarget !== amp) { n.vTarget = amp; ensureTick(); } return; }
 
     // close up you hear the speaker's real stereo; further out it is one point in the world (HRTF).
     // The swap is a short crossfade with hysteresis, so you never stand in a half-and-half zone.
@@ -738,13 +746,16 @@ const Engine = (() => {
   let tickAny = false, tickNow = 0, tickLast = 0, tickDt = TICK / 1000;
   function tickVoice(n) {
     if (n.soft) {
-      tickAny = true;
-      n.vCur += clamp((n.vTarget - n.vCur) * SOFT_K, -SOFT_STEP, SOFT_STEP);
-      const v = clamp(n.vCur * softFade(n, tickNow), 0, 1);
+      let c = n.vCur + clamp((n.vTarget - n.vCur) * SOFT_K, -SOFT_STEP, SOFT_STEP);
+      if (Math.abs(n.vTarget - c) < 0.001) c = n.vTarget;   // land on it, so the ticker can rest
+      n.vCur = c;
+      const v = clamp(c * softFade(n, tickNow), 0, 1);
       if (n.type === 'yt') {
         const q = Math.round(v * 100);
         if (q !== n.vSent && n.player && n.player.setVolume) { n.player.setVolume(q); n.vSent = q; }
       } else if (Math.abs(v - n.vSent) > 0.002) { n.el.volume = v; n.vSent = v; }
+      // still gliding or fading; a player that is not ready yet gets its volume when its gate opens
+      if (c !== n.vTarget || n.fDur > 0) tickAny = true;
       return;
     }
     if (!n.fx || (n.rate === 1 && n.rateTo === 1)) return;
@@ -774,6 +785,7 @@ const Engine = (() => {
 
   /* ─────────── state ─────────── */
   function setEmitter(e) {
+    if (!e || e.id == null) return;
     const prev = S.emitters.get(e.id);
     S.emitters.set(e.id, e);
     const f = S.fading.get(e.id);
@@ -802,7 +814,7 @@ const Engine = (() => {
   function reset(list) {
     for (const n of [...S.nodes.values(), ...S.fading.values()]) retire(n, 0.06);
     S.emitters.clear();
-    list.forEach(e => S.emitters.set(e.id, e));
+    for (const e of list) if (e && e.id != null) S.emitters.set(e.id, e);
   }
 
   function setSettings(s) {
@@ -866,9 +878,6 @@ const Engine = (() => {
     setConfig, setSettings,
     setEmitter, removeEmitter, reset, spatial, levels, expected,
     get: id => S.emitters.get(id),
-    isLoaded: id => { const n = S.nodes.get(id); return !!(n && n.ready); },
-    hasFx: id => { const n = S.nodes.get(id); return !!(n && n.fx); },
     unlock: () => ctx(),
-    keyOf,
   };
 })();

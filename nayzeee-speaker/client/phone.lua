@@ -203,21 +203,20 @@ local function device(e, r, me, active)
     return d
 end
 
-local function visible(e, veh)
-    if e.kind ~= 'vehicle' then return true end
-    return veh ~= 0 and NetworkGetEntityIsNetworked(veh) and VehToNet(veh) == e.vehNet
-end
-
 RegisterNUICallback('phoneState', function(data, cb)
     refreshRoster(type(data) == 'table' and data.fresh == true)
     local active = type(data) == 'table' and data.active or nil
     local ped = PlayerPedId()
     local me = GetEntityCoords(ped)
+    -- a car player only shows while you sit in that car
     local veh = GetVehiclePedIsIn(ped, false)
+    local myCar = veh ~= 0 and NetworkGetEntityIsNetworked(veh) and VehToNet(veh) or nil
     local out = {}
     for id, r in pairs(roster) do
         local e = Emitters[id]
-        if e and visible(e, veh) then out[#out + 1] = device(e, r, me, id == active) end
+        if e and (e.kind ~= 'vehicle' or (myCar and e.vehNet == myCar)) then
+            out[#out + 1] = device(e, r, me, id == active)
+        end
     end
     table.sort(out, function(a, b)
         local pa, pb = a.playing and a.track ~= nil, b.playing and b.track ~= nil

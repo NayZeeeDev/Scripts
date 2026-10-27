@@ -31,30 +31,14 @@ local function b64(data)
     return table.concat(out)
 end
 
-local function post(url, body, headers)
-    local p = promise.new()
-    local done = false
-    PerformHttpRequest(url, function(code, res)
-        if done then return end
-        done = true
-        p:resolve({ code = code, body = res })
-    end, 'POST', body, headers)
-    SetTimeout(10000, function()
-        if done then return end
-        done = true
-        p:resolve({ code = 0 })
-    end)
-    return Citizen.Await(p)
-end
-
 local function auth()
     if token and os.time() - tokenAt < 3300 then return token end
     local id, secret = Config.Spotify.clientId or '', Config.Spotify.clientSecret or ''
     if id == '' or secret == '' then return nil end
-    local r = post('https://accounts.spotify.com/api/token', 'grant_type=client_credentials', {
+    local r = Sources.Http('https://accounts.spotify.com/api/token', {
         ['Content-Type'] = 'application/x-www-form-urlencoded',
-        ['Authorization'] = 'Basic ' .. b64(id .. ":" .. secret),
-    })
+        ['Authorization'] = 'Basic ' .. b64(id .. ':' .. secret),
+    }, 10000, 'POST', 'grant_type=client_credentials')
     if r.code ~= 200 then
         NZ.Debug('spotify auth failed', r.code, r.body)
         return nil
@@ -71,8 +55,18 @@ local function api(path)
     local r = Sources.Http('https://api.spotify.com/v1' .. path, { ['Authorization'] = 'Bearer ' .. t }, 10000)
     if r.code ~= 200 then return nil, 'resolve_failed' end
     local ok, d = pcall(json.decode, r.body)
-    if not ok then return nil, 'resolve_failed' end
+    if not ok or type(d) ~= 'table' then return nil, 'resolve_failed' end
     return d
+end
+
+local function firstArtist(t) return t and t.artists and t.artists[1] and t.artists[1].name or '' end
+
+-- playlist entries -> { title, search = "<artist> <title>" } appended to `out`
+local function addTracks(items, out)
+    for _, it in ipairs(items or {}) do
+        local t = it.track
+        if t and t.name then out[#out + 1] = { title = t.name, search = ('%s %s'):format(firstArtist(t), t.name) } end
+    end
 end
 
 function Spotify.Enabled()
@@ -96,14 +90,15 @@ function Spotify.Import(link)
     if kind == 'album' then
         local d, err = api('/albums/' .. id)
         if not d then return nil, err end
+        local albumArtist = firstArtist(d)
         local tracks = {}
         for _, t in ipairs(d.tracks and d.tracks.items or {}) do
-            local artist = t.artists and t.artists[1] and t.artists[1].name or (d.artists[1] and d.artists[1].name) or ''
-            tracks[#tracks + 1] = { title = t.name, search = ('%s %s'):format(artist, t.name) }
+            local artist = firstArtist(t)
+            tracks[#tracks + 1] = { title = t.name, search = ('%s %s'):format(artist ~= '' and artist or albumArtist, t.name) }
         end
         return {
             kind = 'album', title = d.name,
-            artist = d.artists and d.artists[1] and d.artists[1].name or '',
+            artist = albumArtist,
             year = tonumber((d.release_date or ''):sub(1, 4)),
             cover = d.images and d.images[1] and d.images[1].url,
             tracks = tracks,
@@ -112,26 +107,14 @@ function Spotify.Import(link)
         local d, err = api('/playlists/' .. id .. '?fields=name,images,owner(display_name),tracks(items(track(name,artists(name))),next)')
         if not d then return nil, err end
         local tracks = {}
-        for _, it in ipairs(d.tracks and d.tracks.items or {}) do
-            local t = it.track
-            if t and t.name then
-                local artist = t.artists and t.artists[1] and t.artists[1].name or ''
-                tracks[#tracks + 1] = { title = t.name, search = ('%s %s'):format(artist, t.name) }
-            end
-        end
-        -- pages past the first 100
-        local page, guard = d.tracks and d.tracks.next, 0
-        while page and guard < 4 do
-            guard = guard + 1
-            local more = api(page:gsub('^https://api%.spotify%.com/v1', ''))
+        addTracks(d.tracks and d.tracks.items, tracks)
+        -- pages past the first 100 (up to 500 songs)
+        local page = d.tracks and d.tracks.next
+        for _ = 1, 4 do
+            if type(page) ~= 'string' then break end
+            local more = api((page:gsub('^https://api%.spotify%.com/v1', '')))
             if not more or not more.items then break end
-            for _, it in ipairs(more.items) do
-                local t = it.track
-                if t and t.name then
-                    local artist = t.artists and t.artists[1] and t.artists[1].name or ''
-                    tracks[#tracks + 1] = { title = t.name, search = ('%s %s'):format(artist, t.name) }
-                end
-            end
+            addTracks(more.items, tracks)
             page = more.next
         end
         return {
@@ -143,7 +126,7 @@ function Spotify.Import(link)
     else
         local d, err = api('/tracks/' .. id)
         if not d then return nil, err end
-        local artist = d.artists and d.artists[1] and d.artists[1].name or ''
+        local artist = firstArtist(d)
         return {
             kind = 'track', title = d.name, artist = artist,
             cover = d.album and d.album.images and d.album.images[1] and d.album.images[1].url,

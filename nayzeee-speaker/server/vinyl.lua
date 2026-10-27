@@ -6,9 +6,10 @@
     held back until the tonearm has had time to swing over and drop the needle.
 ]]
 Vinyl = {}
-Records = {}            -- item -> { item, artist, album, year, cover, tracks = { { title, id | url | search } }, titles, custom }
+--[[ item -> { item, artist, album, year, cover, tracks = { { title, id | url, search } }, titles, custom,
+              genre, price, description }   (the last three are for the record shop, all optional) ]]
+Records = {}
 
-local RES = GetCurrentResourceName()
 local T = Config.Turntable or {}
 
 local function now() return GetGameTimer() end
@@ -56,21 +57,23 @@ local function push(e)
 end
 
 ---------------------------------------------------------------- record list
+local function str(v) return type(v) == 'string' and v ~= '' and v or nil end
+
+-- a record from vinyls.lua or the database (imported) the way the rest of the script uses it
 local function normalise(item, raw)
     local tracks, titles = {}, {}
-    local artist = raw.artist or ''
-    for i, t in ipairs(raw.tracks or {}) do
+    local artist = str(raw.artist) or ''
+    for i, t in ipairs(type(raw.tracks) == 'table' and raw.tracks or {}) do
         local tr
         if type(t) == 'string' then
             tr = { title = t }
         elseif type(t) == 'table' then
-            local link = type(t.link) == 'string' and t.link or nil
-            local kind, value = NZ.ParseInput(link)
+            local kind, value = NZ.ParseInput(t.link)
             tr = {
-                title = t.title or ('Track %d'):format(i),
-                id = t.id or (kind == 'yt' and value or nil),
+                title = str(t.title) or ('Track %d'):format(i),
+                id = str(t.id) or (kind == 'yt' and value or nil),
                 url = kind == 'url' and value or nil,
-                search = t.search,
+                search = str(t.search),
             }
         end
         if tr then
@@ -80,29 +83,41 @@ local function normalise(item, raw)
             titles[#titles + 1] = tr.title
         end
     end
+    local price = raw.price
+    if price ~= false then price = tonumber(price) end
     return {
-        item = item, artist = artist, album = raw.album or item,
-        year = tonumber(raw.year), cover = raw.cover, tracks = tracks, titles = titles, custom = raw.custom or false,
+        item = item, artist = artist, album = str(raw.album) or item,
+        year = tonumber(raw.year), cover = str(raw.cover), tracks = tracks, titles = titles, custom = raw.custom or false,
+        genre = str(raw.genre), price = price, description = str(raw.description),
     }
 end
 
-local registered = {}
-local function use(item)
-    return function(src)
-        local e = Vinyl.Nearest(src)
-        if not e then return Notify(src, 'no_turntable') end
-        if not Guard(src, e.id, true) then return end
-        Vinyl.Insert(src, e, item)
-    end
+-- one record change per player per deck every half second: the arm takes seconds anyway, and it
+-- keeps a spammed insert / eject from flooding every client with prop changes
+local lastChange = {}       -- src -> { [deckId] = ms }
+local function tooSoon(src, id)
+    local t = lastChange[src] and lastChange[src][id]
+    return t ~= nil and now() - t < 500
+end
+local function changed(src, id)
+    lastChange[src] = lastChange[src] or {}
+    lastChange[src][id] = now()
 end
 
+AddEventHandler('playerDropped', function() lastChange[source] = nil end)
+
 -- using a record from the inventory puts it on the closest turntable
+local registered = {}
 function Vinyl.RegisterItems()
     for item in pairs(Records) do
         if not registered[item] then
             registered[item] = true
-            Bridge.RegisterUsable(item, use(item))
-            Bridge.OnUse[item] = use(item)
+            Bridge.RegisterUsable(item, function(src)
+                local e = Vinyl.Nearest(src)
+                if not e then return Notify(src, 'no_turntable') end
+                if tooSoon(src, e.id) or not Guard(src, e.id, true) then return end
+                if Vinyl.Insert(src, e, item) then changed(src, e.id) end
+            end)
         end
     end
 end
@@ -326,7 +341,9 @@ end
 
 ---------------------------------------------------------------- putting records on
 function Vinyl.Nearest(src)
-    local pos = GetEntityCoords(GetPlayerPed(src))
+    local ped = GetPlayerPed(src)
+    if ped == 0 then return nil end
+    local pos = GetEntityCoords(ped)
     local best, bestD
     for _, e in pairs(Emitters) do
         if IsTurntable(e) and e.state == 'placed' and e.coords then
@@ -337,8 +354,9 @@ function Vinyl.Nearest(src)
     return best
 end
 
+-- true when the record went on
 function Vinyl.Insert(src, e, item)
-    if not Records[item] then return end
+    if not Records[item] then return false end
     if not Bridge.HasItem(src, item) or not Bridge.RemoveItem(src, item) then return Notify(src, 'no_item') end
     -- linked decks share one record: it goes on the deck that leads the music (a deck following
     -- an ordinary speaker leaves that group to play it)
@@ -360,22 +378,25 @@ function Vinyl.Insert(src, e, item)
     lead.queue = {}
     Notify(src, 'vinyl_on', 'success')
     Vinyl.PlayIndex(lead, 1, 'insert')
+    return true
 end
 
 RegisterNetEvent(RES .. ':vinyl:insert', function(id, item)
     local src = source
+    if type(item) ~= 'string' or tooSoon(src, id) then return end
     local e = Guard(src, id, true)
-    if not e or not IsTurntable(e) or type(item) ~= 'string' then return end
-    Vinyl.Insert(src, e, item)
+    if e and IsTurntable(e) and Vinyl.Insert(src, e, item) then changed(src, id) end
 end)
 
 RegisterNetEvent(RES .. ':vinyl:eject', function(id)
     local src = source
+    if tooSoon(src, id) then return end
     local e = Guard(src, id, true)
     if not e then return end
     local lead = Links and Links.Leader(e) or e
     if not lead.vinyl then return end
     Vinyl.Return(lead, src, e.id)
+    changed(src, id)
     Notify(src, 'vinyl_off', 'inform')
     push(lead)
 end)
@@ -414,15 +435,16 @@ function Vinyl.Import(link, src)
     if #data.tracks == 0 then return nil, 'resolve_failed' end
 
     local item = 'vinyl_' .. slugify(data.album)
+    -- importing a record again keeps what the shop knows about it
+    local old = Records[item]
+    if old then data.genre, data.price, data.description = old.genre, old.price, old.description end
     saveRecord(item, data)
     Vinyl.RegisterItems()
     return item, data
 end
 
-local function isAdmin(src) return src == 0 or Bridge.IsAdmin(src) end
-
 RegisterCommand('vinylimport', function(src, args)
-    if not isAdmin(src) then return Notify(src, 'no_permission') end
+    if not Bridge.IsAdmin(src) then return Notify(src, 'no_permission') end
     local link = args[1]
     if not link then
         local msg = 'usage: /vinylimport <spotify album/playlist link | youtube playlist link>'
@@ -446,7 +468,7 @@ RegisterCommand('vinylimport', function(src, args)
 end, false)
 
 RegisterCommand('vinyllist', function(src)
-    if not isAdmin(src) then return Notify(src, 'no_permission') end
+    if not Bridge.IsAdmin(src) then return Notify(src, 'no_permission') end
     local rows = {}
     for item, a in pairs(Records) do
         rows[#rows + 1] = ('%-28s %s - %s (%d tracks)%s'):format(item, a.artist, a.album, #a.tracks, a.custom and ' [imported]' or '')
@@ -457,13 +479,15 @@ RegisterCommand('vinyllist', function(src)
 end, false)
 
 RegisterCommand('vinyldelete', function(src, args)
-    if not isAdmin(src) then return Notify(src, 'no_permission') end
+    if not Bridge.IsAdmin(src) then return Notify(src, 'no_permission') end
     local item = args[1]
     if not item or not Records[item] then return print('[speaker] no such record') end
     if not Records[item].custom then return print('[speaker] that record comes from vinyls.lua, edit the file instead') end
     MySQL.query.await('DELETE FROM nayzeee_speaker_vinyls WHERE item = ?', { item })
-    Records[item] = nil
-    print('[speaker] removed ' .. item)
+    -- an import that replaced a vinyls.lua record leaves the original behind
+    local base = Config.Vinyls and Config.Vinyls[item]
+    Records[item] = base and normalise(item, base) or nil
+    print(('[speaker] removed %s%s'):format(item, base and ' (the vinyls.lua version is back)' or ''))
 end, false)
 
 exports('ImportRecord', function(link) return Vinyl.Import(link, 0) end)

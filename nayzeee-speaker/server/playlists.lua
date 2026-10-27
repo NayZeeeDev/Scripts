@@ -1,30 +1,39 @@
 --[[
     Playlists: a player's own song lists, optionally shared with the whole city.
-    A shared playlist can be browsed and played by anyone, but only its owner can change it.
+    A shared playlist can be browsed and played by anyone; its owner (and collaborators, see
+    server/social.lua) can change it.
 ]]
 Playlists = {}
-local RES = GetCurrentResourceName()
 
-local function slim(t)
-    return {
-        src = t.src, id = t.id, url = t.src == 'url' and t.url or nil, search = t.search,
-        title = t.title, author = t.author, duration = t.duration, thumb = t.thumb,
-    }
+local function decode(s)
+    local ok, v = pcall(json.decode, s or '[]')
+    return ok and type(v) == 'table' and v or {}
 end
 
+function Playlists.Collaborators(r) return decode(r.collaborators) end
+
+local function isCollaborator(r, ident)
+    for _, c in ipairs(Playlists.Collaborators(r)) do
+        if c == ident then return true end
+    end
+    return false
+end
+
+local function canEdit(r, ident) return r.owner == ident or isCollaborator(r, ident) end
+
 local function row(r, me)
-    local ok, tracks = pcall(json.decode, r.tracks)
-    if not ok then tracks = {} end
-    local ok2, collab = pcall(json.decode, r.collaborators or '[]')
-    if not ok2 or type(collab) ~= 'table' then collab = {} end
-    local canEdit = r.owner == me
-    for _, c in ipairs(collab) do if c == me then canEdit = true break end end
+    local tracks, collab = decode(r.tracks), Playlists.Collaborators(r)
     return {
         id = r.id, name = r.name, shared = r.shared == 1,
         owner = r.owner_name or 'Someone', mine = r.owner == me,
-        kind = r.kind or 'normal', mixed = r.mixed == 1, collabs = #collab, canEdit = canEdit,
+        kind = r.kind or 'normal', mixed = r.mixed == 1, collabs = #collab, canEdit = canEdit(r, me),
         count = #tracks, tracks = tracks,
     }
+end
+
+function Playlists.Get(id)
+    id = tonumber(id)
+    return id and MySQL.single.await('SELECT * FROM nayzeee_speaker_playlists WHERE id = ?', { id }) or nil
 end
 
 -- playlists shared with me as a collaborator
@@ -34,8 +43,7 @@ function Playlists.Collab(identifier)
         { '%' .. identifier .. '%' }) or {}
     local out = {}
     for _, r in ipairs(rows) do
-        local entry = row(r, identifier)
-        if entry.canEdit and not entry.mine then out[#out + 1] = entry end
+        if r.owner ~= identifier and isCollaborator(r, identifier) then out[#out + 1] = row(r, identifier) end
     end
     return out
 end
@@ -55,9 +63,12 @@ function Playlists.Shared(identifier, limit)
     return out
 end
 
-local function get(id)
-    local r = MySQL.single.await('SELECT * FROM nayzeee_speaker_playlists WHERE id = ?', { id })
-    return r
+local function setTracks(id, tracks)
+    MySQL.query.await('UPDATE nayzeee_speaker_playlists SET tracks = ? WHERE id = ?', { json.encode(tracks), id })
+end
+
+local function countMine(ident)
+    return MySQL.scalar.await('SELECT COUNT(*) FROM nayzeee_speaker_playlists WHERE owner = ?', { ident }) or 0
 end
 
 ---------------------------------------------------------------- callbacks
@@ -72,10 +83,9 @@ end)
 NZ.RegisterCallback('pl:create', function(src, name)
     if not Config.Playlists.enabled then return nil end
     local id = Bridge.GetIdentifier(src)
-    name = tostring(name or ''):gsub('^%s+', ''):gsub('%s+$', ''):sub(1, 60)
+    name = NZ.Trim(name, 60)
     if #name == 0 then return nil end
-    local n = MySQL.scalar.await('SELECT COUNT(*) FROM nayzeee_speaker_playlists WHERE owner = ?', { id }) or 0
-    if n >= Config.Playlists.perPlayer then Notify(src, 'pl_full') return nil end
+    if countMine(id) >= Config.Playlists.perPlayer then Notify(src, 'pl_full') return nil end
     MySQL.insert.await('INSERT INTO nayzeee_speaker_playlists (owner, owner_name, name, tracks) VALUES (?, ?, ?, ?)',
         { id, Bridge.GetName(src), name, '[]' })
     Notify(src, 'pl_created', 'success', name)
@@ -83,134 +93,206 @@ NZ.RegisterCallback('pl:create', function(src, name)
 end)
 
 NZ.RegisterCallback('pl:add', function(src, plId, track)
+    if not Config.Playlists.enabled then return nil end
+    local slim = DB.Slim(track)
     local id = Bridge.GetIdentifier(src)
-    local r = get(plId)
-    if not r then return nil end
-    if r.owner ~= id and not row(r, id).canEdit then return nil end
-    if type(track) ~= 'table' or type(track.src) ~= 'string' then return nil end
-    local ok, tracks = pcall(json.decode, r.tracks)
-    if not ok then tracks = {} end
+    local r = slim and Playlists.Get(plId)
+    if not r or not canEdit(r, id) then return nil end
+    local tracks = decode(r.tracks)
     if #tracks >= Config.Playlists.maxTracks then Notify(src, 'pl_track_full') return nil end
-    local key = (track.id or track.url or '')
+    local key = slim.id or slim.url or slim.search
     for _, t in ipairs(tracks) do
-        if (t.id or t.url or '') == key then Notify(src, 'pl_dupe') return nil end
+        if (t.id or t.url or t.search) == key then Notify(src, 'pl_dupe') return nil end
     end
-    tracks[#tracks + 1] = slim(track)
-    MySQL.query.await('UPDATE nayzeee_speaker_playlists SET tracks = ? WHERE id = ?', { json.encode(tracks), plId })
+    tracks[#tracks + 1] = slim
+    setTracks(r.id, tracks)
     Notify(src, 'pl_added', 'success', r.name)
     return Playlists.Mine(id)
 end)
 
 NZ.RegisterCallback('pl:remove', function(src, plId, idx)
     local id = Bridge.GetIdentifier(src)
-    local r = get(plId)
+    local r = Playlists.Get(plId)
     if not r or r.owner ~= id then return nil end
-    local ok, tracks = pcall(json.decode, r.tracks)
-    if not ok then return nil end
+    local tracks = decode(r.tracks)
     idx = tonumber(idx)
     if not idx or not tracks[idx] then return nil end
     table.remove(tracks, idx)
-    MySQL.query.await('UPDATE nayzeee_speaker_playlists SET tracks = ? WHERE id = ?', { json.encode(tracks), plId })
+    setTracks(r.id, tracks)
     return Playlists.Mine(id)
 end)
 
 NZ.RegisterCallback('pl:share', function(src, plId, on)
-    local id = Bridge.GetIdentifier(src)
-    local r = get(plId)
-    if not r or r.owner ~= id then return nil end
     if not Config.Playlists.sharing then return nil end
-    MySQL.query.await('UPDATE nayzeee_speaker_playlists SET shared = ? WHERE id = ?', { on and 1 or 0, plId })
+    local id = Bridge.GetIdentifier(src)
+    local r = Playlists.Get(plId)
+    if not r or r.owner ~= id then return nil end
+    MySQL.query.await('UPDATE nayzeee_speaker_playlists SET shared = ? WHERE id = ?', { on and 1 or 0, r.id })
     Notify(src, on and 'pl_shared' or 'pl_unshared', 'inform', r.name)
     return Playlists.Mine(id)
 end)
 
 NZ.RegisterCallback('pl:delete', function(src, plId)
     local id = Bridge.GetIdentifier(src)
-    local r = get(plId)
+    local r = Playlists.Get(plId)
     if not r or r.owner ~= id then return nil end
-    MySQL.query.await('DELETE FROM nayzeee_speaker_playlists WHERE id = ?', { plId })
+    MySQL.query.await('DELETE FROM nayzeee_speaker_playlists WHERE id = ?', { r.id })
     return Playlists.Mine(id)
 end)
 
 NZ.RegisterCallback('pl:rename', function(src, plId, name)
     local id = Bridge.GetIdentifier(src)
-    local r = get(plId)
+    local r = Playlists.Get(plId)
     if not r or r.owner ~= id then return nil end
-    name = tostring(name or ''):gsub('^%s+', ''):gsub('%s+$', ''):sub(1, 60)
+    name = NZ.Trim(name, 60)
     if #name == 0 then return nil end
-    MySQL.query.await('UPDATE nayzeee_speaker_playlists SET name = ? WHERE id = ?', { name, plId })
+    MySQL.query.await('UPDATE nayzeee_speaker_playlists SET name = ? WHERE id = ?', { name, r.id })
     return Playlists.Mine(id)
 end)
 
--- queue a whole playlist onto a speaker
-RegisterNetEvent(RES .. ':pl:play', function(emitterId, plId, mode)
-    local src = source
-    local e = Guard(src, emitterId, true)
-    if not e then return end
-    e = Links.Leader(e)
-    if IsTurntable(e) then return Notify(src, 'vinyl_only') end
-    local r = get(plId)
-    if not r then return end
-    if r.owner ~= Bridge.GetIdentifier(src) and r.shared ~= 1 then return Notify(src, 'no_access') end
-    local ok, tracks = pcall(json.decode, r.tracks)
-    if not ok or #tracks == 0 then return Notify(src, 'pl_empty') end
-
-    -- songs from a mixed playlist carry their crossfade length; the end watcher hands over early
-    local mix = r.mixed == 1 and Config.Social.mixed ~= false and (Config.Social.mixedFade or 4.0) or nil
-
-    TriggerClientEvent(RES .. ':client:loading', src, e.id, true)
-    local added, first = 0, nil
-    for i, saved in ipairs(tracks) do
-        if #e.queue >= Config.Limits.maxQueue then break end
-        local track = Tracks.FromSaved(saved)
-        if track then
-            track.by = Bridge.GetName(src)
-            track.mix = mix
-            if i == 1 and mode ~= 'queue' then first = track
-            else e.queue[#e.queue + 1] = track end
-            added = added + 1
-        end
-        if i % 4 == 0 then Wait(0) end
-    end
-    TriggerClientEvent(RES .. ':client:loading', src, e.id, false)
-    if added == 0 then return Notify(src, 'resolve_failed') end
-    if first then StartTrack(e, first) end
-    Broadcast(e)
-    Links.Sync(e)
-    Notify(src, 'pl_queued', 'success', added, r.name)
-    Log('Playlist played', ('**%s** queued `%s` (%d songs) on `%s`'):format(GetPlayerName(src), r.name, added, e.id))
-end)
-
--- import a Spotify or YouTube playlist straight into a player's own playlist
+-- import a Spotify or YouTube playlist straight into a player's own playlist (one at a time per player:
+-- an import is a lot of web requests)
+local importing = {}
 NZ.RegisterCallback('pl:import', function(src, link)
-    if not Config.Playlists.enabled then return nil end
+    if not Config.Playlists.enabled or importing[src] then return nil end
+    link = NZ.Trim(link, 500)
     local id = Bridge.GetIdentifier(src)
-    local n = MySQL.scalar.await('SELECT COUNT(*) FROM nayzeee_speaker_playlists WHERE owner = ?', { id }) or 0
-    if n >= Config.Playlists.perPlayer then Notify(src, 'pl_full') return nil end
+    if countMine(id) >= Config.Playlists.perPlayer then Notify(src, 'pl_full') return nil end
 
-    local name, tracks = nil, {}
-    if tostring(link):find('spotify') then
-        local d, err = Spotify.Import(link)
-        if not d then Notify(src, err or 'resolve_failed') return nil end
-        name = d.title
-        for i, t in ipairs(d.tracks) do
+    importing[src] = true
+    local spotify = link:find('spotify', 1, true) ~= nil
+    local ok, d, err = pcall(spotify and Spotify.Import or Search.Playlist, link)
+    importing[src] = nil
+    if not ok or not d then Notify(src, ok and err or 'resolve_failed') return nil end
+
+    local tracks = {}
+    for i, t in ipairs(d.tracks) do
+        if i > Config.Playlists.maxTracks then break end
+        if spotify then
             tracks[i] = { src = 'yt', search = t.search, title = t.title, author = d.artist, duration = 0, thumb = d.cover }
-            if i >= Config.Playlists.maxTracks then break end
-        end
-    else
-        local d, err = Search.Playlist(link)
-        if not d then Notify(src, err or 'resolve_failed') return nil end
-        name = d.title
-        for i, t in ipairs(d.tracks) do
+        else
             tracks[i] = { src = 'yt', id = t.id, title = t.title, author = '', duration = 0,
                 thumb = ('https://i.ytimg.com/vi/%s/mqdefault.jpg'):format(t.id) }
-            if i >= Config.Playlists.maxTracks then break end
         end
     end
     if #tracks == 0 then Notify(src, 'resolve_failed') return nil end
 
+    local name = NZ.Trim(d.title, 60)
+    if name == '' then name = 'Imported' end
     MySQL.insert.await('INSERT INTO nayzeee_speaker_playlists (owner, owner_name, name, tracks) VALUES (?, ?, ?, ?)',
-        { id, Bridge.GetName(src), (name or 'Imported'):sub(1, 60), json.encode(tracks) })
-    Notify(src, 'pl_imported', 'success', #tracks, name or 'playlist')
+        { id, Bridge.GetName(src), name, json.encode(tracks) })
+    Notify(src, 'pl_imported', 'success', #tracks, name)
     return Playlists.Mine(id)
+end)
+
+---------------------------------------------------------------- playing a whole list
+local lastList, fills = {}, {}
+
+AddEventHandler('playerDropped', function()
+    lastList[source], importing[source] = nil, nil
+end)
+
+-- saved songs, display name, crossfade seconds (mixed playlists), or nil when not allowed
+-- which = 'liked' (the player's Liked Songs) or a playlist id
+local function loadList(src, which)
+    local ident = Bridge.GetIdentifier(src)
+    if which == 'liked' then
+        local pack = Locales[Config.Locale] or Locales.en
+        local name = pack.phone and pack.phone.liked or 'Liked Songs'
+        return DB.GetList(ident, 'fav', Config.Limits.favorites), name, nil
+    end
+    if not Config.Playlists.enabled then return nil end
+    local r = Playlists.Get(which)
+    if not r then return nil end
+    if r.owner ~= ident and r.shared ~= 1 and not isCollaborator(r, ident) then Notify(src, 'no_access') return nil end
+    -- songs from a mixed playlist carry their crossfade length; the end watcher hands over early
+    local mix = r.mixed == 1 and Config.Social.mixed ~= false and (Config.Social.mixedFade or 4.0) or nil
+    return decode(r.tracks), r.name, mix
+end
+
+-- the list starting at `start`, optionally shuffled (a tapped song stays first), at most a full queue
+local function order(tracks, start, shuffle)
+    local n = #tracks
+    start = math.floor(tonumber(start) or 1)
+    if start < 1 or start > n then start = 1 end
+    local out = {}
+    for i = 0, n - 1 do out[i + 1] = tracks[(start - 1 + i) % n + 1] end
+    if shuffle then
+        local from = start > 1 and 2 or 1
+        for i = n, from + 1, -1 do
+            local j = math.random(from, i)
+            out[i], out[j] = out[j], out[i]
+        end
+    end
+    for i = n, Config.Limits.maxQueue + 2, -1 do out[i] = nil end
+    return out
+end
+
+--[[
+    Plays a list on a speaker the player has already been checked for: the first song that loads
+    starts right away and the rest are looked up in the background and appended to the queue, so a
+    25-song playlist doesn't keep the speaker silent while every song is found. Starting another list,
+    stopping the speaker or removing it ends the background fill.
+      which   'liked' or a playlist id
+      opts    { start = index of the song to start from, shuffle = bool }
+]]
+function Playlists.Play(src, e, which, opts)
+    opts = opts or {}
+    e = Links.Leader(e)
+    if IsTurntable(e) then return Notify(src, 'vinyl_only') end
+    local t = GetGameTimer()
+    if lastList[src] and t - lastList[src] < Config.Limits.rateLimit * 1000 then return Notify(src, 'rate_limited') end
+    lastList[src] = t
+
+    local tracks, name, mix = loadList(src, which)
+    if not tracks then return end
+    if #tracks == 0 then return Notify(src, 'pl_empty') end
+    local list = order(tracks, opts.start, opts.shuffle == true)
+
+    TriggerClientEvent(RES .. ':client:loading', src, e.id, true)
+    local first, i = nil, 1
+    while not first and i <= math.min(#list, 3) do
+        first = Tracks.FromSaved(list[i])
+        i = i + 1
+    end
+    TriggerClientEvent(RES .. ':client:loading', src, e.id, false)
+    if Emitters[e.id] ~= e then return end
+    if not first then return Notify(src, 'resolve_failed') end
+
+    local by = Bridge.GetName(src)
+    first.by, first.mix = by, mix
+    PushHistory(e)
+    e.queue = {}
+    StartTrack(e, first)
+    Broadcast(e)
+    Links.Sync(e)
+    Log('Playlist played', ('**%s** (%s) played `%s` on `%s`'):format(GetPlayerName(src), src, name or '?', e.id))
+
+    -- the rest, in the background (followers share the leader's queue table, so syncing every few
+    -- songs is enough)
+    local token = {}
+    fills[e.id] = token
+    local function live() return fills[e.id] == token and Emitters[e.id] == e and e.track ~= nil end
+    local added, unsent = 1, 0
+    for j = i, #list do
+        if not live() or #e.queue >= Config.Limits.maxQueue then break end
+        local track = Tracks.FromSaved(list[j])
+        if not live() then break end
+        if track then
+            track.by, track.mix = by, mix
+            e.queue[#e.queue + 1] = track
+            added, unsent = added + 1, unsent + 1
+            if unsent >= 4 then unsent = 0 Broadcast(e) Links.Sync(e) end
+        end
+    end
+    if fills[e.id] == token then fills[e.id] = nil end
+    if unsent > 0 and Emitters[e.id] == e then Broadcast(e) Links.Sync(e) end
+    Notify(src, 'pl_queued', 'success', added, name or '')
+end
+
+-- main player: play a whole playlist on the speaker that is open
+RegisterNetEvent(RES .. ':pl:play', function(emitterId, plId)
+    local src = source
+    local e = Guard(src, emitterId, true)
+    if e then Playlists.Play(src, e, plId) end
 end)

@@ -2,15 +2,18 @@
    Player UI
    Every clickable thing carries data-a="<action>"; ACTIONS below is the
    single place an action is handled, so a button can never fall through.
+   post() comes from engine.js (loaded first).
    ═══════════════════════════════════════════════════════════ */
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// for style="background-image: ..." with a link from the server: a quote or a backslash can't end the url early
+const cssUrl = u => `url("${String(u).replace(/["\\\n\r]/g, encodeURIComponent)}")`;
 
 const App = {
-  L: {}, version: '', open: false, id: null, compact: false, view: 'queue',
+  L: {}, version: '', open: false, id: null, compact: false, view: 'queue', streamerAllowed: true,
   favs: [], recent: [], records: null, playlists: null, links: null, jam: null, jams: null,
-  people: null, search: null, searchQ: '', busy: false,
-  hud: null, hudEdit: false, hudTok: 0, dragSeek: null, confirmFn: null, openPl: null,
+  search: null, searchQ: '', busy: false, loadingId: null, cueT: 0,
+  hud: null, hudEdit: false, hudTok: 0, dragSeek: null, confirmFn: null, promptRes: null, openPl: null,
   brand: { watermark: true, logo: '', name: '' },
   settings: {
     master: 1, effects: true, streamer: false, compact: false,
@@ -19,20 +22,33 @@ const App = {
     font: 'Lexend', animIn: 'fade', animOut: 'fade',
   },
 };
-const t = (k, ...a) => { let s = App.L[k] ?? k; a.forEach(v => { s = s.replace('%s', v); }); return s; };
+
+// English for keys a server's locale file may not have yet, so a raw key never shows
+const EN = { pl_empty: 'Nothing in here yet' };
+const t = (k, ...a) => { let s = App.L[k] ?? EN[k] ?? k; a.forEach(v => { s = s.replace('%s', () => v); }); return s; };
 
 const fmt = s => {
   s = Math.max(0, Math.floor(s || 0));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = String(s % 60).padStart(2, '0');
   return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${m}:${x}`;
 };
+const setText = (el, s) => { if (el.textContent !== s) el.textContent = s; };
 const savedKey = tr => tr ? (tr.id || tr.url || '') : '';
 const isFav = tr => !!tr && Array.isArray(App.favs) && App.favs.some(f => savedKey(f) === savedKey(tr));
 const takeFavs = d => { if (Array.isArray(d)) App.favs = d; };
 const cur = () => App.id ? Engine.get(App.id) : null;
 const canControl = e => !!e && (e.access !== 'owner' || e.mine);
-const hide = () => App.settings.streamer;
+const isHidden = () => App.settings.streamer;   // streamer mode: no song names or covers
+const brandName = () => typeof App.brand.name === 'string' ? App.brand.name : '';
 const LINKISH = /^(https?:\/\/|[A-Za-z0-9_-]{11}$)/;
+const HUD_EDIT = '@edit';   // the card while it is being moved: a stand-in, not a speaker
+
+// elements the frame loop touches, looked up once
+const EL = {
+  seekFill: $('seekFill'), seekKnob: $('seekKnob'), tPos: $('tPos'), tDur: $('tDur'), viz: $('viz'),
+  np: $('np'), npWrap: $('npWrap'), npImg: $('npImg'), npBlur: $('npBlur'), npFill: $('npFill'), npEq: $('npEq'),
+  npTitle: $('npTitle'), npAuthor: $('npAuthor'),
+};
 
 /* ─────────── appearance ─────────── */
 const SKINS = [['compact','Compact'],['boxy','Boxy'],['gallery','Gallery'],['minimal','Minimal'],['macos','macOS'],['shell','Shell'],['bar','Bar']];
@@ -43,9 +59,9 @@ const ANIMS = [['fade','Fade'],['slideLeft','Slide left'],['slideRight','Slide r
 const FONTS = ['Lexend','System','Inter','Roboto','Montserrat','Oswald','Bebas Neue','Courier New'];
 
 function applyAppearance() {
-  const np = $('np'), s = App.settings;
+  const np = EL.np, s = App.settings;
   np.className = 'np';
-  $('npWrap').classList.toggle('edit', !!App.hudEdit);
+  EL.npWrap.classList.toggle('edit', !!App.hudEdit);
   np.classList.add('skin-' + (s.skin || 'compact'), 'cov-' + (s.cover || 'square'));
   if (s.glow) np.classList.add('glow');
   if (s.blur) np.classList.add('blurbg');
@@ -55,7 +71,7 @@ function applyAppearance() {
 }
 
 function playAnim(kind) {
-  const np = $('np'), s = App.settings;
+  const np = EL.np, s = App.settings;
   np.classList.remove('anim-in', 'anim-out', ...[...np.classList].filter(c => c.startsWith('in-') || c.startsWith('out-')));
   void np.offsetWidth;
   if (kind === 'in') np.classList.add('anim-in', 'in-' + (s.animIn || 'fade'));
@@ -66,16 +82,10 @@ function applyBrand() {
   const b = App.brand || {};
   document.querySelectorAll('.mark').forEach(el => {
     el.classList.toggle('hidden', b.watermark === false);
-    if (b.watermark !== false && b.logo) {
-      el.style.backgroundImage = `url("${b.logo}")`;
-      el.classList.add('custom');
-    } else {
-      el.style.backgroundImage = '';
-      el.classList.remove('custom');
-    }
+    const logo = b.watermark !== false && typeof b.logo === 'string' && b.logo;
+    el.style.backgroundImage = logo ? cssUrl(logo) : '';
+    el.classList.toggle('custom', !!logo);
   });
-  const sub = $('ctxSub');
-  if (b.name && sub && !sub.dataset.locked) sub.dataset.brand = b.name;
 }
 
 /* ─────────── locale ─────────── */
@@ -93,30 +103,41 @@ function applyCompact() {
   if (App.compact) { if (row.parentElement !== rail) rail.insertBefore(row, rail.querySelector('.seek')); }
   else if (row.parentElement !== main) main.insertBefore(row, $('list'));
 }
+// `save` = the player chose it (the size button); otherwise it lasts until the player is next opened
+function setCompact(on, save) {
+  App.compact = on;
+  applyCompact();
+  if (save) post('settings', { compact: on });
+  render();
+}
 const entryHidden = (e, view) => !!(e && e.turntable) || (!App.compact && !['queue', 'search'].includes(view));
 
 function openUI(id, compact) {
   App.id = id; App.open = true;
-  const e = cur();
   App.compact = !!compact;
+  const e = cur();
   const vin = !!(e && e.turntable), jam = !!(e && e.kind === 'jam');
   $('player').hidden = false;
-  applyCompact();
   $('player').classList.toggle('vmode', vin);
-  $('ctxTitle').textContent = jam ? t('jam') : e && e.kind === 'vehicle' ? t('carplay') : vin ? t('turntable') : t('boombox');
-  const sub = e && e.kind === 'boombox' ? (e.label || '') : '';
-  $('ctxSub').textContent = sub.toLowerCase() === $('ctxTitle').textContent.toLowerCase() ? '' : sub;
+  applyCompact();
+  const title = jam ? t('jam') : e && e.kind === 'vehicle' ? t('carplay') : vin ? t('turntable') : t('boombox');
+  // the model's own name under the kind (Boombox / Pulse Tower) unless it only repeats it; else the server's brand
+  const label = e && e.kind === 'boombox' && typeof e.label === 'string' ? e.label : '';
+  $('ctxTitle').textContent = title;
+  $('ctxSub').textContent = (label.toLowerCase() !== title.toLowerCase() && label) || brandName();
   $('urlIn').value = '';
   Engine.unlock();
   if (vin && !['tracks','records','settings'].includes(App.view)) App.view = 'tracks';
   if (!vin && ['tracks','records'].includes(App.view)) App.view = 'queue';
   render();
   go(App.view);
+  wake();
 }
 
 function closeUI(tell) {
   if (!App.open) return;
   App.open = false; App.id = null; App.hudEdit = false;
+  clearTimeout(App.cueT);
   $('player').hidden = true;
   $('scrim').hidden = true;
   if (tell) post('close');
@@ -127,7 +148,7 @@ function render() {
   if (!App.open) return;
   const e = cur();
   if (!e) return;
-  const tr = e.track, ctl = canControl(e), hidden = hide();
+  const tr = e.track, ctl = canControl(e), hidden = isHidden();
   const vin = !!e.turntable, rec = e.vinyl, jam = e.kind === 'jam';
 
   $('stDot').className = 'dot' + (tr ? (e.playing ? ' live' : ' paused') : '');
@@ -152,10 +173,15 @@ function render() {
       el.hidden = !cover;
     });
   }
-  const needle = vin && rec && rec.loading;
+  // like the deck itself: "Dropping the needle" from the record going on until the needle lands
+  // (a cued song is already playing, with startedAt in the future)
+  const ahead = vin && rec && tr && e.playing ? e.startedAt - Engine.now() : 0;
+  const needle = !!(vin && rec && (rec.loading || ahead > 0));
+  clearTimeout(App.cueT);
+  if (ahead > 0) App.cueT = setTimeout(render, ahead + 30);
   $('loadTxt').textContent = needle ? t('needle') : t('loading');
-  art.classList.toggle('loading', App.loadingId === e.id || !!needle);
-  art.classList.toggle('needle', !!needle);
+  art.classList.toggle('loading', App.loadingId === e.id || needle);
+  art.classList.toggle('needle', needle);
   $('emptyT').textContent = vin ? t('no_record') : t('nothing');
   $('emptyS').textContent = vin ? t('no_record_s') : t('nothing_sub');
 
@@ -207,11 +233,13 @@ function render() {
 
   $('qCount').textContent = (e.queue || []).length;
   $('fCount').textContent = App.favs.length;
-  $('tCount').textContent = rec ? rec.tracks.length : 0;
+  $('tCount').textContent = rec ? (rec.tracks || []).length : 0;
   const lc = $('lCount');
   lc.textContent = e.groupSize > 1 ? e.groupSize : 0;
   lc.hidden = !(e.groupSize > 1);
-  $('sizeBtn').innerHTML = `<i class="fa-solid fa-${App.compact ? 'up-right-and-down-left-from-center' : 'down-left-and-up-right-to-center'}"></i>`;
+  const size = $('sizeBtn');
+  size.innerHTML = `<i class="fa-solid fa-${App.compact ? 'up-right-and-down-left-from-center' : 'down-left-and-up-right-to-center'}"></i>`;
+  size.title = t(App.compact ? 'expand' : 'compact');
 
   const dragging = document.activeElement && document.activeElement.type === 'range' && $('list').contains(document.activeElement);
   const typing = document.activeElement && document.activeElement.tagName === 'INPUT' && $('list').contains(document.activeElement);
@@ -244,9 +272,11 @@ function emptyState(icon, title, sub) {
   return `<div class="empty"><i class="fa-solid ${icon}"></i><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
 }
 
+const spinner = '<div class="empty"><div class="spin"></div></div>';
+
 function songRow(tr, opts) {
   const o = opts || {};
-  const hidden = hide();
+  const hidden = isHidden();
   const th = tr.thumb && !hidden ? `<img src="${esc(tr.thumb)}" alt="">` : '<i class="fa-solid fa-music"></i>';
   return `<div class="row ${o.now ? 'now' : ''}">
     ${o.idx !== undefined ? `<span class="idx ${o.now ? 'now' : ''}">${o.now && o.playing ? '<i class="fa-solid fa-volume-high"></i>' : o.idx}</span>` : ''}
@@ -303,7 +333,7 @@ const RENDER = {
 
   playlists(e, ctl) {
     const d = App.playlists;
-    if (d === 'loading' || !d) return '<div class="empty"><div class="spin"></div></div>';
+    if (d === 'loading' || !d) return spinner;
     if (App.openPl) return RENDER.playlistOne(e, ctl);
 
     let h = head(t('playlists'), t('pl_none_s'), `<div class="head-acts">
@@ -318,10 +348,11 @@ const RENDER = {
         <button class="btn-line" data-a="plPrompt"><i class="fa-solid fa-sparkles"></i>${esc(t('pr_make'))}</button>
       </div>`;
 
+    // blend playlists can't be made here any more, but ones that exist still show what they are
     const KIND = { blend: ['fa-code-merge', t('k_blend')], collab: ['fa-user-group', t('k_collab')], prompted: ['fa-wand-magic-sparkles', t('k_prompted')] };
     const card = p => {
       const k = KIND[p.kind];
-      return `<div class="pcard" data-a="plOpen" data-pl="${p.id}">
+      return `<div class="pcard" data-a="plOpen" data-pl="${esc(p.id)}">
         <div class="pcard-art"><i class="fa-solid ${k ? k[0] : 'fa-rectangle-list'}"></i></div>
         <div class="pcard-t"><b>${esc(p.name)}</b><span>${esc(t('pl_songs', p.count))}${p.mine ? '' : ' · ' + esc(t('pl_by', p.owner))}</span></div>
         <div class="pcard-tags">
@@ -338,34 +369,33 @@ const RENDER = {
   },
 
   playlistOne(e, ctl) {
-    const d = App.playlists || {};
-    const all = [...(d.mine || []), ...(d.shared || [])];
-    const p = all.find(x => x.id === App.openPl);
+    const p = openPlaylist();
     if (!p) { App.openPl = null; return RENDER.playlists(e, ctl); }
+    const id = esc(p.id);
     let h = `<div class="back" data-a="plBack"><i class="fa-solid fa-chevron-left"></i> ${esc(t('playlists'))}</div>`;
     h += head(p.name, `${t('pl_songs', p.count)}${p.mine ? '' : ' · ' + t('pl_by', p.owner)}`, `<div class="head-acts">
-        <button class="btn-teal" data-a="plPlay" data-pl="${p.id}" ${ctl ? '' : 'disabled'}><i class="fa-solid fa-play"></i>${esc(t('pl_play'))}</button>
-        ${e.track && p.canEdit ? `<button class="btn-line" data-a="plAddNow" data-pl="${p.id}"><i class="fa-solid fa-plus"></i>${esc(t('pl_add_here'))}</button>` : ''}
+        <button class="btn-teal" data-a="plPlay" data-pl="${id}" ${ctl ? '' : 'disabled'}><i class="fa-solid fa-play"></i>${esc(t('pl_play'))}</button>
+        ${e.track && p.canEdit ? `<button class="btn-line" data-a="plAddNow" data-pl="${id}"><i class="fa-solid fa-plus"></i>${esc(t('pl_add_here'))}</button>` : ''}
       </div>`);
     if (p.mine) {
       h += `<div class="chips">
-        <button class="chipb ${p.shared ? 'on' : ''}" data-a="plShare" data-pl="${p.id}"><i class="fa-solid fa-share-nodes"></i>${esc(p.shared ? t('pl_unshare') : t('pl_share'))}</button>
-        <button class="chipb ${p.mixed ? 'on' : ''}" data-a="plMixed" data-pl="${p.id}"><i class="fa-solid fa-sliders"></i>${esc(t('k_mixed'))}</button>
-        <button class="chipb" data-a="plCollab" data-pl="${p.id}"><i class="fa-solid fa-user-group"></i>${esc(t('k_collab'))}${p.collabs ? ` (${p.collabs})` : ''}</button>
-        <button class="chipb del" data-a="plDel" data-pl="${p.id}"><i class="fa-solid fa-trash-can"></i>${esc(t('pl_del'))}</button>
+        <button class="chipb ${p.shared ? 'on' : ''}" data-a="plShare" data-pl="${id}"><i class="fa-solid fa-share-nodes"></i>${esc(p.shared ? t('pl_unshare') : t('pl_share'))}</button>
+        <button class="chipb ${p.mixed ? 'on' : ''}" data-a="plMixed" data-pl="${id}"><i class="fa-solid fa-sliders"></i>${esc(t('k_mixed'))}</button>
+        <button class="chipb" data-a="plCollab" data-pl="${id}"><i class="fa-solid fa-user-group"></i>${esc(t('k_collab'))}${p.collabs ? ` (${esc(p.collabs)})` : ''}</button>
+        <button class="chipb del" data-a="plDel" data-pl="${id}"><i class="fa-solid fa-trash-can"></i>${esc(t('pl_del'))}</button>
       </div>`;
     }
     h += (p.tracks || []).length
       ? p.tracks.map((tr, i) => songRow(tr, { idx: i + 1, acts:
           `<button class="icon-btn" data-a="plTrack" data-i="${i}" ${ctl ? '' : 'disabled'}><i class="fa-solid fa-play"></i></button>
-           ${p.canEdit ? `<button class="icon-btn del" data-a="plTrackDel" data-i="${i}" data-pl="${p.id}"><i class="fa-solid fa-xmark"></i></button>` : ''}` })).join('')
+           ${p.canEdit ? `<button class="icon-btn del" data-a="plTrackDel" data-i="${i}" data-pl="${id}"><i class="fa-solid fa-xmark"></i></button>` : ''}` })).join('')
       : emptyState('fa-music', t('pl_empty'), t('pl_add_here'));
     return h;
   },
 
   records(e, ctl) {
     const list = App.records;
-    if (list === null) return '<div class="empty"><div class="spin"></div></div>';
+    if (list === null) return spinner;
     let h = head(t('records'), t('pl_songs', list.length));
     h += list.length ? `<div class="pgrid">${list.map((r, i) => `
       <div class="pcard" data-a="puton" data-i="${i}">
@@ -380,12 +410,13 @@ const RENDER = {
   tracks(e, ctl) {
     const rec = e.vinyl;
     if (!rec) return emptyState('fa-record-vinyl', t('no_record'), t('no_record_s'));
+    const hidden = isHidden();
     let h = head(rec.album, `${rec.artist}${rec.year ? ` · ${rec.year}` : ''}`, '');
-    h += rec.tracks.map((title, i) => {
+    h += (rec.tracks || []).map((title, i) => {
       const now = e.track && rec.idx === i + 1;
       return `<div class="row ${now ? 'now' : ''}">
         <span class="idx ${now ? 'now' : ''}">${now && e.playing ? '<i class="fa-solid fa-volume-high"></i>' : i + 1}</span>
-        <div class="row-txt"><b>${esc(hide() ? t('hidden') : title)}</b><span>${esc(hide() ? '' : rec.artist)}</span></div>
+        <div class="row-txt"><b>${esc(hidden ? t('hidden') : title)}</b><span>${esc(hidden ? '' : rec.artist)}</span></div>
         <div class="acts"><button class="icon-btn" data-a="vtrack" data-i="${i}" ${ctl ? '' : 'disabled'}><i class="fa-solid fa-play"></i></button></div>
       </div>`;
     }).join('');
@@ -394,26 +425,26 @@ const RENDER = {
 
   links(e, ctl) {
     const list = App.links;
-    if (list === 'loading' || !list) return '<div class="empty"><div class="spin"></div></div>';
+    if (list === 'loading' || !list) return spinner;
     let h = head(t('links'), t('link_this'));
     if (e.group) h += `<div class="chips"><button class="chipb del" data-a="unlink"><i class="fa-solid fa-link-slash"></i>${esc(t('link_drop'))}</button></div>`;
     h += list.length ? list.map(sp => `<div class="row ${sp.linked ? 'now' : ''}">
         <div class="thumb"><i class="fa-solid fa-tower-broadcast"></i></div>
-        <div class="row-txt"><b>${esc(sp.label || 'Speaker')}</b><span>${sp.distance}m${sp.linked ? ' · ' + esc(t('link_in')) : sp.busy ? ' · ' + esc(t('link_busy')) : ''}</span></div>
-        <div class="acts"><button class="icon-btn ${sp.linked ? 'del' : ''}" data-a="${sp.linked ? 'unlinkOne' : 'link'}" data-id="${esc(sp.id)}" ${ctl ? '' : 'disabled'}>
+        <div class="row-txt"><b>${esc(sp.label || 'Speaker')}</b><span>${esc(sp.distance)}m${sp.linked ? ' · ' + esc(t('link_in')) : sp.busy ? ' · ' + esc(t('link_busy')) : ''}</span></div>
+        <div class="acts"><button class="icon-btn ${sp.linked ? 'del' : ''}" data-a="${sp.linked ? 'unlink' : 'link'}" data-id="${esc(sp.id)}" ${ctl ? '' : 'disabled'}>
           <i class="fa-solid fa-${sp.linked ? 'link-slash' : 'link'}"></i></button></div></div>`).join('')
       : emptyState('fa-link-slash', t('link_none'), t('link_none_s'));
     return h;
   },
 
   jam(e, ctl) {
-    if (App.jams === 'loading' || App.jams === null) return '<div class="empty"><div class="spin"></div></div>';
+    if (App.jams === 'loading' || App.jams === null) return spinner;
     let h = head(t('jam'), t('jam_s'), App.jam ? '' : `<div class="head-acts">
         <button class="btn-teal" data-a="jamStart"><i class="fa-solid fa-plus"></i>${esc(t('jam_start'))}</button></div>`);
     if (App.jam) {
       h += `<div class="jam-card">
         <div class="jam-h"><b>${esc(App.jam.name)}</b><span>${esc(t('jam_host', App.jam.host))}</span></div>
-        <div class="jam-m">${App.jam.members.map(m => `<span class="tag ${m.host ? 'teal' : ''}">${esc(m.name)}${m.host ? ' ★' : ''}</span>`).join('')}</div>
+        <div class="jam-m">${(App.jam.members || []).map(m => `<span class="tag ${m.host ? 'teal' : ''}">${esc(m.name)}${m.host ? ' ★' : ''}</span>`).join('')}</div>
         <button class="btn-red" data-a="jamLeave"><i class="fa-solid fa-right-from-bracket"></i>${esc(t('jam_leave'))}</button>
       </div>
       <div class="audio-note ok"><i class="fa-solid fa-headphones"></i><span>${esc(t('jam_note'))}</span></div>`;
@@ -423,7 +454,7 @@ const RENDER = {
       h += `<div class="grp">${esc(t('jam_open'))}</div>` + others.map(j => `<div class="row">
           <div class="thumb"><i class="fa-solid fa-user-group"></i></div>
           <div class="row-txt"><b>${esc(j.name)}</b><span>${esc(t('jam_host', j.host))} · ${esc(t('jam_people', j.count))}</span></div>
-          <div class="acts"><button class="icon-btn" data-a="jamJoin" data-id="${j.id}"><i class="fa-solid fa-right-to-bracket"></i></button></div>
+          <div class="acts"><button class="icon-btn" data-a="jamJoin" data-id="${esc(j.id)}"><i class="fa-solid fa-right-to-bracket"></i></button></div>
         </div>`).join('');
     } else if (!App.jam) {
       h += emptyState('fa-user-group', t('jam_none'), t('jam_none_s'));
@@ -534,11 +565,12 @@ function renderSettings(e) {
 }
 
 /* ─────────── loaders ─────────── */
-async function loadLists() {
-  const d = await post('lists');
-  if (d) { takeFavs(d.favs); if (Array.isArray(d.recent)) App.recent = d.recent; }
-  render();
-}
+const isPlaylists = d => !!d && typeof d === 'object' && (Array.isArray(d.mine) || Array.isArray(d.shared));
+const openPlaylist = () => {
+  const d = isPlaylists(App.playlists) ? App.playlists : {};
+  return [...(d.mine || []), ...(d.shared || [])].find(x => x.id === App.openPl);
+};
+
 async function loadRecords() {
   App.records = null;
   const d = await post('vinylOwned');
@@ -549,7 +581,7 @@ async function loadPlaylists() {
   if (App.playlists === 'loading') return;
   App.playlists = 'loading';
   const d = await post('playlists');
-  App.playlists = d && typeof d === 'object' ? d : { mine: [], shared: [] };
+  App.playlists = isPlaylists(d) ? d : { mine: [], shared: [] };
   if (App.view === 'playlists') renderView();
 }
 async function loadLinks() {
@@ -561,12 +593,12 @@ async function loadLinks() {
 async function loadJams() {
   App.jams = 'loading';
   const d = await post('jamList');
-  App.jams = (d && d.list) || [];
+  App.jams = (d && Array.isArray(d.list)) ? d.list : [];
   App.jam = (d && d.mine) || null;
   if (App.view === 'jam') renderView();
 }
 
-async function runSearch(query, mode) {
+async function runSearch(query) {
   App.searchQ = query;
   App.search = null;
   App.busy = true;
@@ -574,10 +606,6 @@ async function runSearch(query, mode) {
   const res = await post('search', { query });
   App.busy = false;
   App.search = Array.isArray(res) ? res : [];
-  if (mode) {
-    const first = App.search[0];
-    if (first) post('play', { input: first.id, mode });
-  }
   if (App.view === 'search') renderView();
 }
 
@@ -587,6 +615,13 @@ function confirmBox(title, text, okLabel, fn) {
   $('mOk').textContent = okLabel;
   App.confirmFn = fn;
   $('scrim').hidden = false;
+}
+
+// every way out of the modal (Cancel, ESC, a pick) goes through here: a pending text prompt resolves as cancelled
+function closeModal() {
+  $('scrim').hidden = true; $('mOk').hidden = false;
+  App.confirmFn = null;
+  if (App.promptRes) { const r = App.promptRes; App.promptRes = null; r(null); }
 }
 
 function submit(mode) {
@@ -600,9 +635,16 @@ function submit(mode) {
 
 // only accept a real playlist payload; anything else leaves what we already have
 const plAfter = d => {
-  if (d && typeof d === 'object' && (Array.isArray(d.mine) || Array.isArray(d.shared))) App.playlists = d;
+  if (isPlaylists(d)) App.playlists = d;
   renderView();
 };
+// import / generate take a while: a spinner, then the new lists (or the old ones if it failed)
+function plSlow(name, data) {
+  const prev = App.playlists;
+  App.playlists = 'loading'; renderView();
+  post(name, data).then(d => { App.playlists = isPlaylists(d) ? d : prev; renderView(); });
+}
+const onView = (view, fn) => () => { if (App.view === view) fn(); };
 
 const ACTIONS = {
   // nav + transport
@@ -614,7 +656,7 @@ const ACTIONS = {
   shuffle: () => post('shuffle'),
   carry: () => post('carry'),
   pack: () => post('pack'),
-  eject: () => { post('vinylEject'); setTimeout(loadRecords, 400); },
+  eject: () => { post('vinylEject'); setTimeout(onView('records', loadRecords), 400); },
   askStop: () => confirmBox(t('confirm_stop'), t('confirm_stop_s'), t('stop'), () => post('stop')),
   askUnit: () => confirmBox(t('confirm_unit'), t('confirm_unit_s'), t('remove'), () => post('removeUnit')),
   access: (b) => { const e = cur(); if (e) { e.access = b.dataset.v; renderView(); } post('access', { value: b.dataset.v }); },
@@ -638,7 +680,7 @@ const ACTIONS = {
   libFav: async (b, i) => { const tr = App.favs[i]; if (!tr) return; takeFavs(await post('fav', { track: tr })); render(); },
   recPlay: (b, i) => { const tr = App.recent[i]; if (tr) post('playSaved', { track: tr, mode: 'now' }); },
   recFav: async (b, i) => { const tr = App.recent[i]; if (!tr) return; takeFavs(await post('fav', { track: tr })); render(); },
-  recDel: async (b, i) => { const tr = App.recent[i]; if (!tr) return; const d = await post('recentRemove', { track: tr }); if (d) App.recent = d; renderView(); },
+  recDel: async (b, i) => { const tr = App.recent[i]; if (!tr) return; const d = await post('recentRemove', { track: tr }); if (Array.isArray(d)) App.recent = d; renderView(); },
   favNow: async () => { const e = cur(); if (!e || !e.track) return; takeFavs(await post('fav', { track: e.track })); render(); },
 
   // playlists
@@ -649,16 +691,12 @@ const ACTIONS = {
     if (name) post('plCreate', { name }).then(plAfter);
   },
   plImport: () => {
-    const v = ($('plLink') || {}).value || '';
-    if (!v.trim()) return;
-    App.playlists = 'loading'; renderView();
-    post('plImport', { link: v.trim() }).then(d => { App.playlists = d || { mine: [], shared: [] }; renderView(); });
+    const v = (($('plLink') || {}).value || '').trim();
+    if (v) plSlow('plImport', { link: v });
   },
   plPrompt: () => {
-    const v = ($('plPrompt') || {}).value || '';
-    if (!v.trim()) return;
-    App.playlists = 'loading'; renderView();
-    post('plPrompted', { prompt: v.trim() }).then(d => { App.playlists = d || { mine: [], shared: [] }; renderView(); });
+    const v = (($('plPrompt') || {}).value || '').trim();
+    if (v) plSlow('plPrompted', { prompt: v });
   },
   plPlay: (b) => post('plPlay', { playlist: +b.dataset.pl, mode: 'now' }),
   plAddNow: (b) => { const e = cur(); if (e && e.track) post('plAdd', { playlist: +b.dataset.pl, track: e.track }).then(plAfter); },
@@ -669,30 +707,30 @@ const ACTIONS = {
   }),
   plCollab: async (b) => {
     const people = await post('people');
-    if (!people || !people.length) return toast(t('nobody'));
+    if (!Array.isArray(people) || !people.length) return toast(t('nobody'));
     pickPerson(people, t('k_collab'), p => post('plCollab', { playlist: +b.dataset.pl, target: p.src }).then(plAfter));
   },
   plTrack: (b, i) => {
-    const d = App.playlists || {};
-    const p = [...(d.mine || []), ...(d.shared || [])].find(x => x.id === App.openPl);
-    const tr = p && p.tracks[i];
+    const p = openPlaylist();
+    const tr = p && p.tracks && p.tracks[i];
     if (tr) post('playSaved', { track: tr, mode: 'now' });
   },
   plTrackDel: (b, i) => post('plRemove', { playlist: +b.dataset.pl, index: i + 1 }).then(plAfter),
-  blend: async () => {
-    const people = await post('people');
-    if (!people || !people.length) return toast(t('nobody'));
-    pickPerson(people, t('k_blend'), p => post('plBlend', { target: p.src }).then(plAfter));
-  },
 
   // records / turntable
-  puton: (b, i) => { const r = App.records[i]; if (r) { post('vinylInsert', { item: r.item }); setTimeout(() => go('tracks'), 400); } },
+  puton: (b, i) => {
+    const r = App.records && App.records[i];
+    if (!r) return;
+    post('vinylInsert', { item: r.item });
+    // drop to the mini player so the deck is in view while the record goes on and the needle drops
+    go('tracks');
+    if (!App.compact) setCompact(true, false);
+  },
   vtrack: (b, i) => post('queuePlay', { value: i + 1 }),
 
-  // links
-  link: (b) => { post('link', { other: b.dataset.id }); setTimeout(loadLinks, 500); },
-  unlink: () => { post('unlink'); setTimeout(loadLinks, 500); },
-  unlinkOne: () => { post('unlink'); setTimeout(loadLinks, 500); },
+  // links (unlinking always takes this speaker out of its group)
+  link: (b) => { post('link', { other: b.dataset.id }); setTimeout(onView('links', loadLinks), 500); },
+  unlink: () => { post('unlink'); setTimeout(onView('links', loadLinks), 500); },
 
   // jam
   jamStart: async () => {
@@ -701,8 +739,8 @@ const ACTIONS = {
     await post('jamCreate', { name });
     loadJams();
   },
-  jamJoin: (b) => post('jamJoin', { id: +b.dataset.id }).then(() => loadJams()),
-  jamLeave: () => post('jamLeave').then(() => loadJams()),
+  jamJoin: (b) => post('jamJoin', { id: +b.dataset.id }).then(loadJams),
+  jamLeave: () => post('jamLeave').then(loadJams),
 
   // settings
   tog: (b) => {
@@ -737,6 +775,7 @@ const ACTIONS = {
 
 /* inline prompt (window.prompt is blocked inside NUI) */
 function askText(label) {
+  if (App.promptRes) App.promptRes(null);
   $('mTitle').textContent = label;
   $('mText').innerHTML = `<input class="modal-in" id="mInput" maxlength="60" placeholder="${esc(label)}">`;
   $('mOk').textContent = t('ok');
@@ -748,12 +787,12 @@ function askText(label) {
 
 function pickPerson(people, title, fn) {
   $('mTitle').textContent = title;
-  $('mText').innerHTML = `<div class="people">${people.map(p => `<button class="chipb" data-person="${p.src}">${esc(p.name)}</button>`).join('')}</div>`;
+  $('mText').innerHTML = `<div class="people">${people.map(p => `<button class="chipb" data-person="${esc(p.src)}">${esc(p.name)}</button>`).join('')}</div>`;
   $('mOk').hidden = true;
   App.confirmFn = null;
   $('scrim').hidden = false;
   $('mText').querySelectorAll('[data-person]').forEach(b => {
-    b.onclick = () => { $('scrim').hidden = true; $('mOk').hidden = false; fn(people.find(p => p.src == b.dataset.person)); };
+    b.onclick = () => { closeModal(); fn(people.find(p => String(p.src) === b.dataset.person)); };
   });
 }
 function toast(msg) {
@@ -762,15 +801,54 @@ function toast(msg) {
   setTimeout(() => { sub.textContent = prev; delete sub.dataset.prev; }, 2200);
 }
 
-/* ─────────── ticker ─────────── */
+/* ─────────── frame loop ─────────── */
+// Runs on animation frames only while the player is open or the now playing card is up.
+let ticking = false;
+function wake() { if (!ticking) { ticking = true; requestAnimationFrame(tick); } }
+function tick() {
+  if (!App.open && !App.hud) { ticking = false; return; }
+  if (App.open) { const e = cur(); drawSeek(e); drawViz(e); }
+  if (App.hud) drawHud();
+  requestAnimationFrame(tick);
+}
+
+let seekPct = '';
+function drawSeek(e) {
+  let pct = 0, pos = 0, dur = 0;
+  if (e && e.track) {
+    dur = e.track.duration || 0;
+    pos = App.dragSeek != null ? App.dragSeek : Math.min(Engine.expected(e), dur || Infinity);
+    pct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0;
+  }
+  const p = pct.toFixed(2) + '%';
+  if (p !== seekPct) { seekPct = p; EL.seekFill.style.width = p; EL.seekKnob.style.left = p; }
+  setText(EL.tPos, fmt(pos));
+  setText(EL.tDur, e && e.track ? (dur > 0 ? fmt(dur) : '--:--') : '0:00');
+}
+
+// the bar gradient, drawn once: every bar is this strip stretched to its height
+const vizStrip = (() => {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 120;
+  const g = c.getContext('2d'), grd = g.createLinearGradient(0, c.height, 0, 0);
+  grd.addColorStop(0, 'rgba(8,175,162,.95)');
+  grd.addColorStop(1, 'rgba(15,212,196,.55)');
+  g.fillStyle = grd; g.fillRect(0, 0, c.width, c.height);
+  return c;
+})();
+const vizCtx = EL.viz.getContext('2d');
 const vizBuf = new Uint8Array(128);
-function drawViz(id) {
-  const cv = $('viz'), g = cv.getContext('2d');
-  const W = cv.width, H = cv.height;
+let vizStill = '';
+function drawViz(e) {
+  const W = EL.viz.width, H = EL.viz.height, g = vizCtx;
+  const on = !!(e && e.track && App.settings.viz);
+  // paused, empty or turned off it is a still picture: draw it once, not every frame
+  const still = on && e.playing ? '' : `${on}|${App.compact}`;
+  if (still && still === vizStill) return;
+  vizStill = still;
   g.clearRect(0, 0, W, H);
-  const e = id && Engine.get(id);
-  if (!e || !e.track || !App.settings.viz) return;
-  const data = e.playing ? Engine.levels(id, vizBuf) : null;
+  if (!on) return;
+  const data = e.playing ? Engine.levels(App.id, vizBuf) : null;
   const bars = App.compact ? 24 : 48, gap = App.compact ? 3 : 4, bw = (W - gap * (bars - 1)) / bars;
   const tNow = performance.now() / 1000;
   for (let i = 0; i < bars; i++) {
@@ -781,52 +859,27 @@ function drawViz(id) {
       v = sum / (hi - lo) / 255;
     } else v = e.playing ? 0.12 + 0.1 * Math.sin(tNow * 3 + i * 0.5) : 0.06;
     const h = Math.max(3, v * H * 0.95);
-    const x = i * (bw + gap);
-    const grd = g.createLinearGradient(0, H, 0, H - h);
-    grd.addColorStop(0, 'rgba(8,175,162,.95)');
-    grd.addColorStop(1, 'rgba(15,212,196,.55)');
-    g.fillStyle = grd;
-    g.fillRect(x, H - h, bw, h);
+    g.drawImage(vizStrip, 1, 0, 2, vizStrip.height, i * (bw + gap), H - h, bw, h);
   }
-}
-
-function tick() {
-  if (App.open) {
-    const e = cur();
-    if (e && e.track) {
-      const dur = e.track.duration || 0;
-      const pos = App.dragSeek != null ? App.dragSeek : Math.min(Engine.expected(e), dur || Infinity);
-      const pct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0;
-      $('seekFill').style.width = pct + '%';
-      $('seekKnob').style.left = pct + '%';
-      $('tPos').textContent = fmt(pos);
-      $('tDur').textContent = dur > 0 ? fmt(dur) : '--:--';
-    } else {
-      $('seekFill').style.width = '0%'; $('seekKnob').style.left = '0%';
-      $('tPos').textContent = '0:00'; $('tDur').textContent = '0:00';
-    }
-    drawViz(App.id);
-  }
-  if (App.hud) drawHud();
-  requestAnimationFrame(tick);
 }
 
 /* ─────────── now playing card ─────────── */
 const NP = { enabled: true, nearby: true, minLevel: 0.08, x: 98.5, y: 3, scale: 1 };
 
 function pickHud() {
-  if (App.hudEdit) return 'preview';
+  if (App.hudEdit) return HUD_EDIT;
   if (!NP.enabled || App.settings.hud === false) return null;
   const list = Engine.audible();
   const own = list.find(x => (x.kind === 'vehicle' || x.kind === 'jam') && x.dist === 0);
   if (own) return own.id;
   if (!NP.nearby) return null;
-  const best = list.find(x => x.level >= NP.minLevel);
+  // the record shop's preview plays in your own ears only: it is not a speaker nearby
+  const best = list.find(x => x.kind !== 'preview' && x.level >= NP.minLevel);
   return best ? best.id : null;
 }
 
 function placeHud() {
-  const w = $('npWrap'), st = App.settings;
+  const w = EL.npWrap, st = App.settings;
   const x = st.hudX ?? NP.x, y = st.hudY ?? NP.y, sc = st.hudScale ?? NP.scale;
   w.style.left = x + '%';
   w.style.top = y + '%';
@@ -836,7 +889,7 @@ function placeHud() {
 function refreshHud() {
   const id = pickHud();
   const changed = id !== App.hud;
-  const wrap = $('npWrap');
+  const wrap = EL.npWrap;
   if (!id) {
     if (App.hud && !wrap.hidden) {
       playAnim('out');
@@ -849,63 +902,70 @@ function refreshHud() {
   App.hud = id;
   if (changed || wrap.hidden) {
     wrap.hidden = false;
-    App.hudTok = (App.hudTok || 0) + 1;
+    App.hudTok++;
     applyAppearance();
     playAnim('in');
   }
   renderHud();
+  wake();
 }
 setInterval(refreshHud, 300);
 
+function showImg(img, src) {
+  img.hidden = !src;
+  if (src && img.dataset.src !== src) { img.dataset.src = src; img.src = src; }
+}
+
+let hudBlur = '';
 function renderHud() {
-  const np = $('np'), wrap = $('npWrap'), img = $('npImg');
-  if (App.hud === 'preview') {
+  const np = EL.np, wrap = EL.npWrap;
+  if (App.hud === HUD_EDIT) {
     wrap.hidden = false;
     const e = App.id && Engine.get(App.id);
-    const tr = e && e.track;
-    $('npTitle').textContent = tr && !hide() ? tr.title : t('np_preview');
-    $('npAuthor').textContent = tr && !hide() ? tr.author || '' : t('np_preview_s');
-    img.hidden = !(tr && tr.thumb && !hide());
-    if (!img.hidden && img.dataset.src !== tr.thumb) { img.dataset.src = tr.thumb; img.src = tr.thumb; }
+    const tr = e && e.track, shown = tr && !isHidden();
+    setText(EL.npTitle, shown ? tr.title : t('np_preview'));
+    setText(EL.npAuthor, shown ? tr.author || '' : t('np_preview_s'));
+    showImg(EL.npImg, shown && tr.thumb);
     np.classList.remove('muted');
     np.classList.add('np-spin');
     return;
   }
   const e = App.hud && Engine.get(App.hud);
   if (!e || !e.track) { wrap.hidden = true; return; }
-  const hidden = hide();
-  $('npTitle').textContent = hidden ? t('streamer') : e.track.title;
-  $('npAuthor').textContent = hidden ? t('muted_stream') : e.track.author || '';
-  const thumb = !hidden && e.track.thumb ? e.track.thumb : null;
-  if (thumb) { if (img.dataset.src !== thumb) { img.dataset.src = thumb; img.src = thumb; } img.hidden = false; }
-  else img.hidden = true;
-  $('npBlur').style.backgroundImage = thumb ? `url("${thumb}")` : 'none';
+  const hidden = isHidden();
+  setText(EL.npTitle, hidden ? t('streamer') : e.track.title || '');
+  setText(EL.npAuthor, hidden ? t('muted_stream') : e.track.author || '');
+  const thumb = !hidden && e.track.thumb ? e.track.thumb : '';
+  showImg(EL.npImg, thumb);
+  if (thumb !== hudBlur) { hudBlur = thumb; EL.npBlur.style.backgroundImage = thumb ? cssUrl(thumb) : 'none'; }
   np.classList.toggle('muted', hidden || !e.playing);
   np.classList.toggle('np-spin', !!e.playing && !hidden);
 }
 
 const hudBuf = new Uint8Array(128);
+let hudFill = '';
+const hudBars = ['', '', '', ''];
 function drawHud() {
-  if (App.hud === 'preview') {
-    const bars = $('npEq').children, tt = performance.now() / 180;
-    for (let i = 0; i < 4; i++) bars[i].style.height = Math.max(12, (0.35 + 0.3 * Math.sin(tt + i * 1.7)) * 100) + '%';
-    $('npFill').style.width = '40%';
+  const bars = EL.npEq.children, tt = performance.now() / 180;
+  const setBar = (i, v) => { const s = Math.max(12, Math.round(v * 100)) + '%'; if (s !== hudBars[i]) { hudBars[i] = s; bars[i].style.height = s; } };
+  const setFill = s => { if (s !== hudFill) { hudFill = s; EL.npFill.style.width = s; } };
+  if (App.hud === HUD_EDIT) {
+    for (let i = 0; i < 4; i++) setBar(i, 0.35 + 0.3 * Math.sin(tt + i * 1.7));
+    setFill('40%');
     return;
   }
   const e = Engine.get(App.hud);
   if (!e || !e.track) return;
   const dur = e.track.duration || 0;
-  $('npFill').style.width = dur > 0 ? Math.min(100, Engine.expected(e) / dur * 100) + '%' : '0%';
+  setFill(dur > 0 ? Math.min(100, Engine.expected(e) / dur * 100).toFixed(2) + '%' : '0%');
   const d = e.playing ? Engine.levels(App.hud, hudBuf) : null;
-  const bars = $('npEq').children, tt = performance.now() / 180;
   for (let i = 0; i < 4; i++) {
-    const v = d ? d[2 + i * 9] / 255 : (e.playing && !hide() ? 0.35 + 0.3 * Math.sin(tt + i * 1.7) : 0.15);
-    bars[i].style.height = Math.max(12, v * 100) + '%';
+    setBar(i, d ? d[2 + i * 9] / 255 : (e.playing && !isHidden() ? 0.35 + 0.3 * Math.sin(tt + i * 1.7) : 0.15));
   }
 }
 
 function bindHudDrag() {
-  const np = $('npWrap');
+  const np = EL.npWrap;
   np.addEventListener('mousedown', ev => {
     if (!App.hudEdit) return;
     ev.preventDefault();
@@ -931,7 +991,7 @@ function bindHudDrag() {
 /* ─────────── hints ─────────── */
 function showHints(list) {
   const h = $('hints');
-  if (!list) { h.hidden = true; return; }
+  if (!Array.isArray(list)) { h.hidden = true; return; }
   h.innerHTML = list.map(x => `<div><span class="key">${esc(x.key)}</span>${esc(x.label)}</div>`).join('');
   h.hidden = false;
 }
@@ -947,21 +1007,14 @@ function bind() {
   });
 
   $('closeBtn').onclick = () => closeUI(true);
-  $('sizeBtn').onclick = () => {
-    App.compact = !App.compact;
-    applyCompact();
-    post('settings', { compact: App.compact });
-    render();
-  };
-  $('mCancel').onclick = () => {
-    $('scrim').hidden = true; $('mOk').hidden = false;
-    if (App.promptRes) { const r = App.promptRes; App.promptRes = null; r(null); }
-  };
+  $('sizeBtn').onclick = () => setCompact(!App.compact, true);
+  $('mCancel').onclick = closeModal;
   $('mOk').onclick = () => {
-    const input = $('mInput');
+    const input = $('mInput'), res = App.promptRes, fn = App.confirmFn;
+    App.promptRes = null; App.confirmFn = null;
     $('scrim').hidden = true;
-    if (input && App.promptRes) { const r = App.promptRes; App.promptRes = null; r(input.value.trim() || null); return; }
-    if (App.confirmFn) App.confirmFn();
+    if (input && res) return res(input.value.trim() || null);
+    if (fn) fn();
   };
 
   $('urlIn').onkeydown = ev => { if (ev.key === 'Enter') submit(ev.shiftKey ? 'queue' : 'now'); };
@@ -1031,11 +1084,9 @@ function bind() {
   });
 
   document.addEventListener('keydown', ev => {
-    if (!App.open) return;
-    if (ev.key === 'Escape') {
-      if (!$('scrim').hidden) { $('scrim').hidden = true; $('mOk').hidden = false; return; }
-      closeUI(true);
-    }
+    if (!App.open || ev.key !== 'Escape') return;
+    if (!$('scrim').hidden) closeModal();
+    else closeUI(true);
   });
 }
 
@@ -1052,7 +1103,7 @@ window.addEventListener('message', ({ data: m }) => {
       applyLocale(); applyBrand();
       break;
     case 'settings':
-      App.settings = Object.assign(App.settings, m.data);
+      Object.assign(App.settings, m.data || {});
       Engine.setSettings(App.settings);
       applyAppearance();
       if (App.open) render();
@@ -1061,6 +1112,7 @@ window.addEventListener('message', ({ data: m }) => {
     case 'clock': Engine.setClock(m.server); break;
     case 'reset': Engine.reset(m.list || []); render(); renderHud(); break;
     case 'emitter':
+      if (!m.data) break;
       Engine.setEmitter(m.data);
       if (App.open && m.data.id === App.id) render();
       if (App.hud === m.data.id) renderHud();
@@ -1089,5 +1141,4 @@ window.addEventListener('message', ({ data: m }) => {
 
 bind();
 bindHudDrag();
-requestAnimationFrame(tick);
 post('ready');

@@ -1,4 +1,4 @@
-RES = GetCurrentResourceName()
+-- RES comes from shared/callbacks.lua (loaded before every client file)
 Emitters = {}                 -- id -> emitter snapshot from the server
 UI = { open = false, id = nil }
 Settings = {
@@ -79,6 +79,7 @@ end
 
 ---------------------------------------------------------------- server sync
 RegisterNetEvent(RES .. ':client:emitter', function(e)
+    if type(e) ~= 'table' or e.id == nil then return end
     Emitters[e.id] = e
     SendNUIMessage({ action = 'emitter', data = NuiPack(e) })
 end)
@@ -120,6 +121,18 @@ local function audioConfig()
     }
 end
 
+-- the player's strings in the server's language, with English under them so a partial translation
+-- never shows a raw key
+local function uiStrings()
+    local out = {}
+    for _, pack in ipairs({ Locales.en or {}, Locales[Config.Locale] or {} }) do
+        if type(pack.ui) == 'table' then
+            for k, v in pairs(pack.ui) do out[k] = v end
+        end
+    end
+    return out
+end
+
 local nuiReady = false
 RegisterNUICallback('ready', function(_, cb) nuiReady = true cb(1) end)
 
@@ -131,9 +144,8 @@ local function boot()
     Wait(500)
     MyServerId = GetPlayerServerId(PlayerId())
     loadSettings()
-    local ui = (Locales[Config.Locale] or Locales.en).ui
     SendNUIMessage({
-        action = 'init', locale = ui, version = Config.Version,
+        action = 'init', locale = uiStrings(), version = Config.Version,
         audio = audioConfig(),
         streamerAllowed = Config.StreamerMode.enabled,
         nowPlaying = { enabled = Config.NowPlaying.enabled, nearby = Config.NowPlaying.nearby, minLevel = Config.NowPlaying.minLevel,
@@ -332,38 +344,35 @@ end)
 
 RegisterNUICallback('people', function(_, cb) cb(NZ.Callback('social:players') or {}) end)
 
-local function playlistResult(mine)
-    local m, shared = NZ.Callback('pl:list')
-    return { mine = mine or m or {}, shared = shared or {} }
+-- every change answers with both lists fresh from pl:list: the change's own reply leaves out the
+-- playlists you collaborate on, so those dropped off the screen after an edit
+local function playlists()
+    local mine, shared = NZ.Callback('pl:list')
+    return { mine = mine or {}, shared = shared or {} }
 end
 
-RegisterNUICallback('playlists', function(_, cb) cb(playlistResult()) end)
-RegisterNUICallback('plCreate', function(data, cb) cb(playlistResult(NZ.Callback('pl:create', data.name))) end)
-RegisterNUICallback('plAdd', function(data, cb) cb(playlistResult(NZ.Callback('pl:add', data.playlist, data.track))) end)
-RegisterNUICallback('plRemove', function(data, cb) cb(playlistResult(NZ.Callback('pl:remove', data.playlist, data.index))) end)
-RegisterNUICallback('plDelete', function(data, cb) cb(playlistResult(NZ.Callback('pl:delete', data.playlist))) end)
-RegisterNUICallback('plImport', function(data, cb) cb(playlistResult(NZ.Callback('pl:import', data.link))) end)
-RegisterNUICallback('plPrompted', function(data, cb) cb(playlistResult(NZ.Callback('pl:prompted', data.prompt))) end)
-RegisterNUICallback('plBlend', function(data, cb) cb(playlistResult(NZ.Callback('pl:blend', data.target))) end)
-RegisterNUICallback('plCollab', function(data, cb) cb(playlistResult(NZ.Callback('pl:collab', data.playlist, data.target))) end)
+RegisterNUICallback('playlists', function(_, cb) cb(playlists()) end)
+RegisterNUICallback('plCreate', function(data, cb) NZ.Callback('pl:create', data.name) cb(playlists()) end)
+RegisterNUICallback('plAdd', function(data, cb) NZ.Callback('pl:add', data.playlist, data.track) cb(playlists()) end)
+RegisterNUICallback('plRemove', function(data, cb) NZ.Callback('pl:remove', data.playlist, data.index) cb(playlists()) end)
+RegisterNUICallback('plDelete', function(data, cb) NZ.Callback('pl:delete', data.playlist) cb(playlists()) end)
+RegisterNUICallback('plImport', function(data, cb) NZ.Callback('pl:import', data.link) cb(playlists()) end)
+RegisterNUICallback('plPrompted', function(data, cb) NZ.Callback('pl:prompted', data.prompt) cb(playlists()) end)
+RegisterNUICallback('plBlend', function(data, cb) NZ.Callback('pl:blend', data.target) cb(playlists()) end)
+RegisterNUICallback('plCollab', function(data, cb) NZ.Callback('pl:collab', data.playlist, data.target) cb(playlists()) end)
 
-RegisterNUICallback('plShare', function(data, cb)
-    local mine = NZ.Callback('pl:list')
-    local on = true
-    for _, p in ipairs(mine or {}) do
-        if p.id == data.playlist then on = not p.shared break end
-    end
-    cb(playlistResult(NZ.Callback('pl:share', data.playlist, on)))
-end)
-
-RegisterNUICallback('plMixed', function(data, cb)
-    local mine = NZ.Callback('pl:list')
-    local on = true
-    for _, p in ipairs(mine or {}) do
-        if p.id == data.playlist then on = not p.mixed break end
-    end
-    cb(playlistResult(NZ.Callback('pl:mixed', data.playlist, on)))
-end)
+-- share / mixed are toggles: the server is told the opposite of what the playlist has now
+for name, t in pairs({ plShare = { 'shared', 'pl:share' }, plMixed = { 'mixed', 'pl:mixed' } }) do
+    local field, server = t[1], t[2]
+    RegisterNUICallback(name, function(data, cb)
+        local on = true
+        for _, p in ipairs(NZ.Callback('pl:list') or {}) do
+            if p.id == data.playlist then on = not p[field] break end
+        end
+        NZ.Callback(server, data.playlist, on)
+        cb(playlists())
+    end)
+end
 
 RegisterNUICallback('plPlay', function(data, cb)
     if UI.id then TriggerServerEvent(RES .. ':pl:play', UI.id, data.playlist, data.mode) end
@@ -409,6 +418,7 @@ RegisterNUICallback('vinylEject', function(_, cb)
 end)
 
 AddEventHandler('onResourceStop', function(res)
-    if res ~= RES then return end
-    if UI.open then SetNuiFocus(false, false) end
+    if res ~= RES or not UI.open then return end
+    SetNuiFocus(false, false)
+    SetNuiFocusKeepInput(false)
 end)

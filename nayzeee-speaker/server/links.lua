@@ -1,20 +1,14 @@
 --[[
     Linked speakers: two or more speakers that play one song in step.
-    One of them is the leader; the others mirror its track, position, pause and queue.
+    One of them is the leader; the others mirror its track, position, pause, queue and record.
     Controlling any speaker in the group controls the whole group.
 ]]
 Links = {}
-local RES = GetCurrentResourceName()
 
-Groups = {}             -- groupId -> { leader = emitterId, members = { emitterId, ... } }
+local groups = {}           -- groupId -> { id, leader = emitterId, members = { emitterId, ... } }
 local seq = 0
 
-local function newGroupId()
-    seq = seq + 1
-    return ('g%d'):format(seq)
-end
-
-function Links.GroupOf(e) return e and e.group and Groups[e.group] or nil end
+function Links.GroupOf(e) return e and e.group and groups[e.group] or nil end
 
 function Links.Members(e)
     local g = Links.GroupOf(e)
@@ -53,7 +47,8 @@ function Links.Sync(leader)
     end
 end
 
-local function detach(e, silent)
+-- silent = the speaker is going away (packed / broken), so nobody needs to hear about it
+function Links.Detach(e, silent)
     local g = Links.GroupOf(e)
     if not g then return end
     for i, id in ipairs(g.members) do
@@ -65,7 +60,7 @@ local function detach(e, silent)
             local m = Emitters[id]
             if m then m.group = nil if not silent then Broadcast(m) end end
         end
-        Groups[g.id] = nil
+        groups[g.id] = nil
     elseif g.leader == e.id then
         g.leader = g.members[1]
         local lead = Emitters[g.leader]
@@ -73,12 +68,52 @@ local function detach(e, silent)
     end
     if not silent then Broadcast(e) end
 end
-Links.Detach = detach
 
-function Links.RemoveFrom(e) detach(e, true) end
+function Links.RemoveFrom(e) Links.Detach(e, true) end
+
+-- the group `a` is in, or a new one it leads
+local function groupFor(a)
+    local g = Links.GroupOf(a)
+    if g then return g end
+    seq = seq + 1
+    g = { id = ('g%d'):format(seq), leader = a.id, members = {} }
+    groups[g.id] = g
+    return g
+end
+
+-- false when the group is full
+local function join(g, m)
+    if m.group == g.id then return true end
+    if #g.members >= Config.Links.maxGroup then return false end
+    if m.group then Links.Detach(m, true) end
+    m.group = g.id
+    g.members[#g.members + 1] = m.id
+    return true
+end
+
+--[[
+    Picks the leader of a group that just grew. Followers copy the leader, so whatever else was on a
+    follower is overwritten: a deck holding a record leads (a playing record first), otherwise
+    whichever speaker has music. Any other record in the group goes back to `to`, or to whoever put
+    it on, instead of disappearing.
+]]
+local function settle(g, from, to)
+    local function weight(m) return (m.vinyl and 2 or 0) + (m.track and 1 or 0) end
+    local members = Links.Members(from)
+    local lead = Emitters[g.leader] or from
+    for _, m in ipairs(members) do
+        if weight(m) > weight(lead) then lead = m end
+    end
+    g.leader = lead.id
+    for _, m in ipairs(members) do
+        if m ~= lead and m.vinyl and m.vinyl ~= lead.vinyl then Vinyl.Return(m, to or m.vinyl.ownerSrc, m.id) end
+    end
+    return lead
+end
 
 local function canLink(src, e)
-    if not Config.Links.owner then return true end
+    -- a locked speaker (or every speaker, with Config.Links.owner) only links for its owner
+    if not Config.Links.owner and e.access ~= 'owner' then return true end
     return e.owner == Bridge.GetIdentifier(src) or Bridge.IsAdmin(src)
 end
 
@@ -97,28 +132,10 @@ RegisterNetEvent(RES .. ':link', function(id, otherId)
     local ga, gb = Links.GroupOf(a), Links.GroupOf(b)
     if ga and gb and ga.id == gb.id then return end
 
-    local g = ga or gb
-    if not g then
-        g = { id = newGroupId(), leader = a.id, members = {} }
-        Groups[g.id] = g
-    end
-    local function add(m)
-        if m.group == g.id then return true end
-        if #g.members >= Config.Links.maxGroup then return false end
-        if m.group then detach(m, true) end
-        m.group = g.id
-        g.members[#g.members + 1] = m.id
-        return true
-    end
-    if not add(a) or not add(b) then return Notify(src, 'link_full') end
+    local g = ga or gb or groupFor(a)
+    if not join(g, a) or not join(g, b) then return Notify(src, 'link_full') end
 
-    local lead = Emitters[g.leader] or a
-    -- whichever side already has music becomes the leader
-    if not lead.track then
-        for _, m in ipairs(Links.Members(a)) do
-            if m.track then g.leader = m.id lead = m break end
-        end
-    end
+    local lead = settle(g, a, src)
     Broadcast(a) Broadcast(b)
     Links.Sync(lead)
     Notify(src, 'linked', 'success', #g.members)
@@ -130,27 +147,26 @@ RegisterNetEvent(RES .. ':unlink', function(id)
     local e = Guard(src, id, true)
     if not e or not e.group then return end
     if not canLink(src, e) then return Notify(src, 'not_owner') end
-    detach(e)
+    Links.Detach(e)
     Notify(src, 'unlinked', 'inform')
 end)
 
 -- speakers near this one that could be linked to it
 NZ.RegisterCallback('link:nearby', function(src, id)
     local e = Emitters[id]
-    if not e then return {} end
-    local pos = EmitterPosition(e)
+    local pos = e and EmitterPosition(e)
     if not pos then return {} end
+    local me = Bridge.GetIdentifier(src)
     local out = {}
     for oid, other in pairs(Emitters) do
-        if oid ~= id and other.kind == 'boombox' and other.state == 'placed' then
-            local p = EmitterPosition(other)
-            if p and #(pos - p) <= Config.Links.distance then
+        if oid ~= id and other.kind == 'boombox' and other.state == 'placed' and other.coords then
+            local d = #(pos - other.coords)
+            if d <= Config.Links.distance then
                 out[#out + 1] = {
-                    id = oid, label = other.label,
-                    distance = math.floor(#(pos - p)),
+                    id = oid, label = other.label, distance = math.floor(d),
                     linked = other.group ~= nil and other.group == e.group,
                     busy = other.group ~= nil and other.group ~= e.group,
-                    mine = other.owner == Bridge.GetIdentifier(src),
+                    mine = other.owner == me,
                 }
             end
         end
@@ -159,18 +175,14 @@ NZ.RegisterCallback('link:nearby', function(src, id)
     return out
 end)
 
+-- other scripts: link two speakers (no distance / owner checks; a record left over goes to its owner)
 exports('LinkSpeakers', function(idA, idB)
     local a, b = Emitters[idA], Emitters[idB]
-    if not a or not b then return false end
-    local g = Links.GroupOf(a) or { id = newGroupId(), leader = a.id, members = {} }
-    Groups[g.id] = g
-    for _, m in ipairs({ a, b }) do
-        if m.group ~= g.id and #g.members < Config.Links.maxGroup then
-            m.group = g.id
-            g.members[#g.members + 1] = m.id
-            Broadcast(m)
-        end
-    end
-    Links.Sync(Emitters[g.leader] or a)
+    if not a or not b or a == b then return false end
+    local g = groupFor(a)
+    if not join(g, a) or not join(g, b) then return false end
+    local lead = settle(g, a, nil)
+    Broadcast(a) Broadcast(b)
+    Links.Sync(lead)
     return true
 end)

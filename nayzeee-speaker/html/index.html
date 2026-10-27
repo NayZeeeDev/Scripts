@@ -17,7 +17,7 @@
   <!-- top bar -->
   <div class="bar">
     <div class="bar-brand">
-      <div class="mark" id="brandMark"></div>
+      <div class="mark"></div>
       <div class="bar-name">
         <div class="title-txt" id="ctxTitle">Boombox</div>
         <div class="sub" id="ctxSub"></div>
@@ -36,7 +36,7 @@
 
   <!-- three columns: nav | content | now playing -->
   <div class="body">
-    <nav class="nav" id="nav">
+    <nav class="nav">
       <div class="nav-grp" data-l="nav_browse"></div>
       <button class="nav-i on" data-a="go" data-v="queue"><i class="fa-solid fa-list-ul"></i><span data-l="up_next"></span><span class="tally" id="qCount">0</span></button>
       <button class="nav-i" data-a="go" data-v="search"><i class="fa-solid fa-magnifying-glass"></i><span data-l="search"></span></button>
@@ -69,16 +69,16 @@
       <div class="art" id="art">
         <img id="artImg" alt="">
         <div class="stage">
-          <div class="disc" id="vDisc"><div class="grooves"></div><div class="label"><img id="vLabel" alt=""></div><i class="spindle"></i></div>
+          <div class="disc"><div class="grooves"></div><div class="label"><img id="vLabel" alt=""></div><i class="spindle"></i></div>
           <div class="sleeve"><img id="vCover" alt=""></div>
-          <div class="arm" id="vArm"></div>
+          <div class="arm"></div>
         </div>
-        <div class="art-empty" id="artEmpty">
+        <div class="art-empty">
           <div class="mark lg ghost"></div>
           <b id="emptyT"></b>
           <span id="emptyS"></span>
         </div>
-        <div class="art-load" id="artLoad"><div class="spin"></div><span id="loadTxt"></span></div>
+        <div class="art-load"><div class="spin"></div><span id="loadTxt"></span></div>
         <canvas id="viz" width="688" height="120"></canvas>
       </div>
 
@@ -119,7 +119,7 @@
         </div>
       </div>
 
-      <div class="deck-foot" id="deckFoot">
+      <div class="deck-foot">
         <button class="btn-line" id="carryBtn" data-a="carry"><i class="fa-solid fa-person-walking-luggage"></i><span data-l="carry"></span></button>
         <button class="btn-line" id="ejectBtn" data-a="eject"><i class="fa-solid fa-eject"></i><span data-l="eject"></span></button>
         <button class="btn-line" id="packBtn" data-a="pack"><i class="fa-solid fa-box"></i><span data-l="pack"></span></button>

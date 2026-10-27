@@ -3,15 +3,11 @@
    3D: the game draws the sleeves; this page is the label, chips, buttons and hints on top.
    2D: no props in stream/ (or display = '2d'): the records are drawn here as cover cards.
    Builds its own DOM (#nzShop) and only listens while it is open, so it never touches the player UI.
+   Shares post() (engine.js) and esc() (app.js) with the player page, which loads them first.
    ═══════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
-  const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'nayzeee-speaker';
-  const post = (name, data) => fetch(`https://${RES}/${name}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(data || {}),
-  }).catch(() => null);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = n => '$' + Math.max(0, Math.round(n || 0)).toLocaleString('en-US');
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   // covers go into url('...') and src="...": keep only http(s) links and encode anything that could break out
@@ -90,7 +86,7 @@
 
   const isOpen = () => !root.hidden;
   const cur = () => list[index] || null;
-  const tx = (k, ...a) => { let s = T[k] ?? k; a.forEach(v => { s = s.replace('%s', v); }); return s; };
+  const tx = (k, ...a) => { let s = T[k] ?? k; a.forEach(v => { s = s.replace('%s', () => v); }); return s; };
   const ownedN = item => +(D.owned && D.owned[item]) || 0;
 
   /* ─────────── list + filters ─────────── */
@@ -242,7 +238,6 @@
     const short = r && r.price > (D.wallet || 0);
     b.disabled = !r || buying || short;
     b.classList.toggle('nzs-busy', buying);
-    b.classList.toggle('nzs-short', !!short);
     if (!r) b.innerHTML = `${ic('bag')}<span>${esc(T.buy)}</span>`;
     else if (buying) b.innerHTML = `<i class="nzs-spinner"></i><span>${esc(T.buying)}</span>`;
     else b.innerHTML = `${ic('bag')}<span>${r.price > 0 ? `${esc(T.buy)} · ${money(r.price)}` : esc(T.take)}</span>${key('ENTER')}`;

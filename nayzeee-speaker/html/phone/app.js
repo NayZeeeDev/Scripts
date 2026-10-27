@@ -19,7 +19,7 @@ const T = {
   connecting: 'Connecting', noSpeaker: 'No speaker', refresh: 'Refresh', back: 'Back', unknown: 'Unknown song',
   playingOn: 'Playing on', speaker: 'Speaker', nowPlaying: 'Now playing', onDeck: 'On the deck', switchDev: 'Switch',
   nothingPlaying: 'Nothing playing', idleHint: 'Pick a song, a playlist or your liked songs.',
-  idleRecord: 'Put a record on at the turntable to hear it here.',
+  idleRecord: 'Put a record on the record console to hear it here.',
   chooseSpeaker: 'Choose a speaker', chooseSub: 'Everything you play from the app goes to this speaker.',
   pickSub: 'Where should this play?',
   noDevices: 'No speakers in reach', noDevicesSub: 'Place a speaker, get in a car with CarPlay, or start a jam with friends.',
@@ -38,7 +38,7 @@ const T = {
   yourPl: 'Your playlists', sharedPl: 'Shared in the city',
   kBlend: 'Blend', kCollab: 'Collaborative', kPrompted: 'Prompted', kMixed: 'Mixed', kShared: 'Shared',
   play: 'Play', playNow: 'Play now', addQueue: 'Add to queue', like: 'Add to Liked Songs', unlike: 'Remove from Liked Songs',
-  addPl: 'Add to playlist', addPlSub: 'Pick one of your playlists.', noEditable: 'You have no playlists to add to yet.',
+  addPl: 'Add to playlist', noEditable: 'You have no playlists to add to yet.',
   empty: 'Nothing in here yet', emptySub: 'Heart a song to save it here.',
   noPl: 'No playlists yet', noPlSub: 'Create one, or heart songs to fill Liked Songs.',
   jamTitle: 'Listen together', jamSub: 'Everyone in a jam hears the same music in their own ears, anywhere in the city.',
@@ -437,7 +437,7 @@ function trackSheet(sh) {
       + (S.features.playlists && canHeart(tr) ? opt('sPlaylists', 'solid fa-circle-plus', t('addPl')) : '');
   }
   return `<div class="grab"></div>
-    <div class="sheet-head">${art(tr.thumb, { cls: 'sheet-art' })}<div class="st"><h3 class="ell">${esc(sh.step === 'playlists' ? t('addPl') : tr.title || t('unknown'))}</h3>
+    <div class="sheet-head">${art(tr.thumb)}<div class="st"><h3 class="ell">${esc(sh.step === 'playlists' ? t('addPl') : tr.title || t('unknown'))}</h3>
       <p class="ell">${esc(sh.step === 'playlists' ? tr.title || '' : tr.author || '')}</p></div></div>
     <div class="sheet-body">${body}</div>`;
 }
@@ -495,11 +495,14 @@ function toast(msg) {
 }
 
 /* ═══════════════ RENDER ═══════════════ */
+let liveEls = null;   // the [data-live] elements tick() writes to; put() drops them when the markup changes
+
 // Replace a region's markup only when it changed. Covers that are already loaded are moved into the
 // new markup instead of being created again, so a re-render never flashes the artwork.
 function put(el, html) {
   if (!el || el._h === html) return;
   el._h = html;
+  liveEls = null;
   const loaded = new Map();
   el.querySelectorAll('img').forEach(i => {
     if (!i.complete || !i.naturalWidth) return;
@@ -549,7 +552,7 @@ function render() {
 
 // progress, times and volume, written in place (no re-render) a few times a second
 function tick() {
-  const els = document.querySelectorAll('[data-live]');
+  const els = liveEls || (liveEls = document.querySelectorAll('[data-live]'));
   for (let i = 0; i < els.length; i++) {
     const el = els[i], d = S.byId.get(el.dataset.dev);
     if (!d) continue;

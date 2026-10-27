@@ -1,18 +1,20 @@
+--[[
+    Speakers on the server: every emitter (placed / carried boombox, car, jam), who may touch it, and
+    the playback clock every client syncs to (startedAt / pos, in server ms).
+]]
 Emitters = {}               -- id -> emitter
-local carrying = {}         -- src -> emitter id
+local carrying = {}         -- src -> id of the boombox they carry
 local lastSong, lastAction = {}, {}
 local idSeq = 0
-local RES = GetCurrentResourceName()
 
 local function now() return GetGameTimer() end
 
 ---------------------------------------------------------------- helpers
-local function notify(src, key, kind, ...)
+function Notify(src, key, kind, ...)
     TriggerClientEvent(RES .. ':client:notify', src, NZ.L(key, ...), kind or 'error')
 end
-Notify = notify
 
-local function log(title, desc)
+function Log(title, desc)
     local hook = Config.Logs and Config.Logs.webhook
     if not hook or hook == '' then return end
     PerformHttpRequest(hook, function() end, 'POST', json.encode({
@@ -20,7 +22,16 @@ local function log(title, desc)
         embeds = { { title = title, description = desc, color = 569250, timestamp = os.date('!%Y-%m-%dT%H:%M:%SZ') } },
     }), { ['Content-Type'] = 'application/json' })
 end
-Log = log
+
+local function cooldown(bucket, src, secs)
+    local t = bucket[src]
+    if t and now() - t < secs * 1000 then return false end
+    bucket[src] = now()
+    return true
+end
+
+-- a heading in degrees, whatever a client sent
+local function toHeading(h) return NZ.Clamp(h, -720.0, 720.0) % 360.0 end
 
 -- mode tells the NUI whether it got a real audio file (full 3D) or the YouTube embed (volume only);
 -- mix marks a song queued from a mixed playlist (seconds of crossfade into the next one)
@@ -34,8 +45,7 @@ local function trackKey(t) return t and (t.id or t.url) or nil end
 
 -- the crossfade that is running right now (linked followers show their leader's)
 local function liveXfade(e)
-    local lead = e.group and Links and Links.Leader(e) or e
-    local x = lead.xfade
+    local x = (e.group and Links.Leader(e) or e).xfade
     if x and now() - x.at < (x.secs + 5) * 1000 then return x end
     return nil
 end
@@ -48,7 +58,14 @@ local function queueView(q)
     return out
 end
 
+function IsTurntable(e)
+    local cfg = e.item and Config.Boomboxes[e.item]
+    return cfg and cfg.vinyl == true or false
+end
+
+-- what every client gets for an emitter
 function Pack(e)
+    local g = e.group and Links.GroupOf(e)
     return {
         id = e.id, kind = e.kind, item = e.item, label = e.label, model = e.model,
         state = e.state, coords = e.coords, heading = e.heading, netId = e.netId,
@@ -57,17 +74,11 @@ function Pack(e)
         volume = e.volume, range = e.range, loop = e.loop, shuffle = e.shuffle,
         queue = queueView(e.queue), access = e.access,
         turntable = IsTurntable(e), vinyl = Vinyl and Vinyl.View(e) or nil,
-        group = e.group, groupSize = e.group and Groups[e.group] and #Groups[e.group].members or 0,
-        leader = e.group and Groups[e.group] and Groups[e.group].leader == e.id or false,
+        group = e.group, groupSize = g and #g.members or 0, leader = g and g.leader == e.id or false,
         health = e.health, maxHealth = Config.Damage.health,
         listeners = e.listeners,
         xfade = liveXfade(e),
     }
-end
-
-function IsTurntable(e)
-    local cfg = e.item and Config.Boomboxes[e.item]
-    return cfg and cfg.vinyl == true or false
 end
 
 function Broadcast(e)
@@ -92,17 +103,20 @@ function EmitterPosition(e)
     return e.coords
 end
 
-local function isAdmin(src) return Bridge.IsAdmin(src) end
-
-local function cooldown(bucket, src, secs)
-    local t = bucket[src]
-    if t and now() - t < secs * 1000 then return false end
-    bucket[src] = now()
-    return true
+-- true when `pos` is a real point within `max` metres of the player (NaN never is)
+local function near(src, pos, max)
+    local ped = GetPlayerPed(src)
+    if ped == 0 or type(pos) ~= 'vector3' then return false end
+    return #(GetEntityCoords(ped) - pos) <= max
 end
 
--- Can this player act on this emitter? control = change music, false = just be near it
+--[[
+    Can this player act on this emitter? control = change the music, false = only be near it
+    (pick up, pack up). Tells the player why not and returns nil, or returns the emitter.
+    server/phone.lua's PhonePass lets one checked remote command through without standing there.
+]]
 function Guard(src, id, control)
+    if PhonePass and PhonePass(src, id, control) then return Emitters[id] end
     local e = Emitters[id]
     if not e then return nil end
     local ped = GetPlayerPed(src)
@@ -111,29 +125,36 @@ function Guard(src, id, control)
     if e.kind == 'jam' then
         -- a jam has no place in the world; only its members may touch it
         if Social and Social.CanUseJam(src, e) then return e end
-        notify(src, 'no_access')
+        Notify(src, 'no_access')
         return nil
     end
 
     if e.kind == 'vehicle' then
         local veh = NetworkGetEntityFromNetworkId(e.vehNet)
         if veh == 0 or GetVehiclePedIsIn(ped, false) ~= veh then
-            notify(src, 'too_far') return nil
+            Notify(src, 'too_far') return nil
         end
-        if control and Config.Carplay.controlBy == 'driver' and GetPedInVehicleSeat(veh, -1) ~= ped and not isAdmin(src) then
-            notify(src, 'not_driver') return nil
+        if control and Config.Carplay.controlBy == 'driver' and GetPedInVehicleSeat(veh, -1) ~= ped and not Bridge.IsAdmin(src) then
+            Notify(src, 'not_driver') return nil
         end
         return e
     end
 
-    local pos = EmitterPosition(e)
-    if not pos or #(GetEntityCoords(ped) - pos) > Config.Actions.useRange + 2.0 then
-        if e.carrier ~= src then notify(src, 'too_far') return nil end
+    if e.carrier ~= src and not near(src, EmitterPosition(e), Config.Actions.useRange + 2.0) then
+        Notify(src, 'too_far') return nil
     end
-    if control and e.access == 'owner' and e.owner ~= Bridge.GetIdentifier(src) and not isAdmin(src) then
-        notify(src, 'no_access') return nil
+    if control and e.access == 'owner' and e.owner ~= Bridge.GetIdentifier(src) and not Bridge.IsAdmin(src) then
+        Notify(src, 'no_access') return nil
     end
     return e
+end
+
+-- Song reports (length, end) only count from players close enough to have that song loaded, so one
+-- client can't cut or skip songs on speakers across the map.
+local function hears(src, e)
+    if e.kind == 'jam' then return Social ~= nil and Social.CanUseJam(src, e) end
+    local unload = Config.Audio.unloadDistance or 1.35
+    return near(src, EmitterPosition(e), (e.range or 0) * unload + 15.0)
 end
 
 ---------------------------------------------------------------- playback core
@@ -149,26 +170,28 @@ function StartTrack(e, track, at, cue)
     e.xfade = nil
 end
 
+-- the song that is playing goes on the stack the prev button walks back through (last 20)
+function PushHistory(e)
+    if not e.track then return end
+    e.history[#e.history + 1] = e.track
+    if #e.history > 20 then table.remove(e.history, 1) end
+end
+
 -- fade = seconds of crossfade from the song that is ending into the next one (mixed playlists)
 function Advance(e, manual, fade)
     if e.vinyl then return Vinyl.Advance(e, manual) end
     if e.track and e.loop and not manual then
         StartTrack(e, e.track)
-        Broadcast(e)
-        if e.group then Links.Sync(e) end
-        return
-    end
-    local from = trackKey(e.track)
-    if e.track then
-        e.history[#e.history + 1] = e.track
-        if #e.history > 20 then table.remove(e.history, 1) end
-    end
-    if #e.queue > 0 then
-        local idx = e.shuffle and math.random(1, #e.queue) or 1
-        StartTrack(e, table.remove(e.queue, idx))
-        if fade and fade > 0 and from then e.xfade = { from = from, secs = fade, at = now() } end
     else
-        e.track, e.playing, e.pos, e.xfade = nil, false, 0, nil
+        local from = trackKey(e.track)
+        PushHistory(e)
+        if #e.queue > 0 then
+            local idx = e.shuffle and math.random(1, #e.queue) or 1
+            StartTrack(e, table.remove(e.queue, idx))
+            if fade and fade > 0 and from then e.xfade = { from = from, secs = fade, at = now() } end
+        else
+            e.track, e.playing, e.pos, e.xfade = nil, false, 0, nil
+        end
     end
     Broadcast(e)
     if e.group then Links.Sync(e) end
@@ -235,6 +258,7 @@ end
 
 local function spawnObject(e)
     local obj = CreateObjectNoOffset(joaat(e.model), e.coords.x, e.coords.y, e.coords.z, true, true, false)
+    -- the server creates it on the next tick or two; give up after 3 s
     local t = now()
     while not DoesEntityExist(obj) and now() - t < 3000 do Wait(0) end
     if not DoesEntityExist(obj) then return false end
@@ -254,7 +278,7 @@ local function despawnObject(e)
 end
 
 function RemoveEmitter(e)
-    if e.group and Links then Links.RemoveFrom(e) end
+    if e.group then Links.RemoveFrom(e) end
     despawnObject(e)
     if e.carrier then
         carrying[e.carrier] = nil
@@ -271,7 +295,7 @@ NZ.RegisterCallback('snapshot', function(src)
     local id = Bridge.GetIdentifier(src)
     local out = {}
     for _, e in pairs(Emitters) do
-        if e.owner == id then e.ownerSrc = src end
+        if e.owner == id then e.ownerSrc = src end       -- back after a reconnect
         out[#out + 1] = Pack(e)
     end
     return out, now()
@@ -283,24 +307,25 @@ NZ.RegisterCallback('lists', function(src)
 end)
 
 NZ.RegisterCallback('favToggle', function(src, track)
-    if type(track) ~= 'table' or type(track.src) ~= 'string' then return nil end
-    local id = Bridge.GetIdentifier(src)
-    local key = DB.TrackKey(track)
+    local slim = DB.Slim(track)
+    if not slim then return nil end
+    local id, key = Bridge.GetIdentifier(src), DB.TrackKey(slim)
     if DB.Has(id, 'fav', key) then
         DB.Remove(id, 'fav', key)
-        notify(src, 'fav_removed', 'inform')
+        Notify(src, 'fav_removed', 'inform')
     else
-        if DB.Count(id, 'fav') >= Config.Limits.favorites then notify(src, 'fav_full') return nil end
-        DB.Push(id, 'fav', track, Config.Limits.favorites)
-        notify(src, 'fav_added', 'success')
+        if DB.Count(id, 'fav') >= Config.Limits.favorites then Notify(src, 'fav_full') return nil end
+        DB.Push(id, 'fav', slim, Config.Limits.favorites)
+        Notify(src, 'fav_added', 'success')
     end
     return DB.GetList(id, 'fav', Config.Limits.favorites)
 end)
 
 NZ.RegisterCallback('recentRemove', function(src, track)
-    if type(track) ~= 'table' or type(track.src) ~= 'string' then return nil end
+    local slim = DB.Slim(track)
+    if not slim then return nil end
     local id = Bridge.GetIdentifier(src)
-    DB.Remove(id, 'recent', DB.TrackKey(track))
+    DB.Remove(id, 'recent', DB.TrackKey(slim))
     return DB.GetList(id, 'recent', Config.Limits.history)
 end)
 
@@ -308,63 +333,54 @@ end)
 local function playResolved(src, e, track, mode)
     track.by = Bridge.GetName(src)
     if mode == 'queue' and e.track then
-        if #e.queue >= Config.Limits.maxQueue then return notify(src, 'queue_full') end
+        if #e.queue >= Config.Limits.maxQueue then return Notify(src, 'queue_full') end
         e.queue[#e.queue + 1] = track
-        notify(src, 'queued', 'success')
-        Broadcast(e)
+        Notify(src, 'queued', 'success')
     else
-        if e.track then
-            e.history[#e.history + 1] = e.track
-            if #e.history > 20 then table.remove(e.history, 1) end
-        end
+        PushHistory(e)
         StartTrack(e, track)
-        Broadcast(e)
     end
+    Broadcast(e)
+    Links.Sync(e)
     CreateThread(function() DB.Push(Bridge.GetIdentifier(src), 'recent', track, Config.Limits.history) end)
-    log('Song played', ('**%s** (%s) on `%s`\n%s — %s'):format(GetPlayerName(src), src, e.id, track.title or '?', track.author or '?'))
+    Log('Song played', ('**%s** (%s) on `%s`\n%s — %s'):format(GetPlayerName(src), src, e.id, track.title or '?', track.author or '?'))
 end
 
 local function handlePlay(src, id, resolver, arg, mode)
     local e = Guard(src, id, true)
     if not e then return end
     e = Links.Leader(e)
-    if IsTurntable(e) then return notify(src, 'vinyl_only') end
-    if not cooldown(lastSong, src, Config.Limits.rateLimit) then return notify(src, 'rate_limited') end
+    if IsTurntable(e) then return Notify(src, 'vinyl_only') end
+    if not cooldown(lastSong, src, Config.Limits.rateLimit) then return Notify(src, 'rate_limited') end
     TriggerClientEvent(RES .. ':client:loading', src, id, true)
     local track, err = resolver(arg)
     TriggerClientEvent(RES .. ':client:loading', src, id, false)
     if not track then
-        if err == 'too_long' then return notify(src, 'too_long', 'error', math.floor(Config.Limits.maxDuration / 60)) end
-        return notify(src, err or 'resolve_failed')
+        if err == 'too_long' then return Notify(src, 'too_long', 'error', math.floor(Config.Limits.maxDuration / 60)) end
+        return Notify(src, err or 'resolve_failed')
     end
-    if not Emitters[e.id] then return end
+    if Emitters[e.id] ~= e then return end       -- packed up / broken while the song was looked up
     playResolved(src, e, track, mode)
-    Links.Sync(e)
 end
 
 RegisterNetEvent(RES .. ':play', function(id, input, mode)
     handlePlay(source, id, Tracks.Resolve, input, mode)
 end)
 
--- entry points other files (phone app) use on behalf of a player
-function PlayFor(src, id, input, mode)
-    handlePlay(src, id, Tracks.Resolve, input, mode)
-end
-
-function PlaySavedFor(src, id, saved, mode)
-    handlePlay(src, id, Tracks.FromSaved, saved, mode)
-end
-
 RegisterNetEvent(RES .. ':playSaved', function(id, saved, mode)
     handlePlay(source, id, Tracks.FromSaved, saved, mode)
 end)
+
+-- the phone app plays a saved song on a player's behalf
+function PlaySavedFor(src, id, saved, mode)
+    handlePlay(src, id, Tracks.FromSaved, saved, mode)
+end
 
 -- Music actions act on the group's leader so linked speakers stay in step.
 local actions = {}
 local function runAction(name, src, id, ...)
     local fn = actions[name]
-    if not fn then return end
-    if not cooldown(lastAction, src, Config.Limits.actionCooldown) then return end
+    if not fn or not cooldown(lastAction, src, Config.Limits.actionCooldown) then return end
     local e = Guard(src, id, true)
     if not e then return end
     local target = (name == 'volume' or name == 'range') and e or Links.Leader(e)
@@ -441,7 +457,7 @@ action('queuePlay', function(_, e, idx)
     if e.vinyl then return Vinyl.PlayIndex(e, idx) end
     if not idx or not e.queue[idx] then return end
     local t = table.remove(e.queue, idx)
-    if e.track then e.history[#e.history + 1] = e.track end
+    PushHistory(e)
     StartTrack(e, t)
     Broadcast(e)
 end)
@@ -450,31 +466,35 @@ RegisterNetEvent(RES .. ':access', function(id, mode)
     local src = source
     local e = Emitters[id]
     if not e or e.kind ~= 'boombox' then return end
-    if e.owner ~= Bridge.GetIdentifier(src) and not isAdmin(src) then return notify(src, 'not_owner') end
+    if e.owner ~= Bridge.GetIdentifier(src) and not Bridge.IsAdmin(src) then return Notify(src, 'not_owner') end
     e.access = mode == 'owner' and 'owner' or 'anyone'
     Broadcast(e)
 end)
 
 -- clients tell us each song's length once it loads
 RegisterNetEvent(RES .. ':duration', function(id, key, dur)
+    local src = source
     local e = Emitters[id]
     dur = tonumber(dur)
-    if not e or not e.track or not dur or dur <= 0 or dur > 36000 then return end
-    if (e.track.duration or 0) > 0 then return end
-    if (e.track.id or e.track.url) ~= key then return end
+    if not e or not e.track or not dur or dur ~= dur or dur <= 0 or dur > 36000 then return end
+    if (e.track.duration or 0) > 0 or trackKey(e.track) ~= key or not hears(src, e) then return end
+    -- linked speakers share one track table, so this sets it for the whole group
+    local lead = Links.Leader(e)
     if Config.Limits.maxDuration > 0 and dur > Config.Limits.maxDuration then
-        notify(source, 'too_long', 'error', math.floor(Config.Limits.maxDuration / 60))
-        return Advance(e, true)
+        Notify(src, 'too_long', 'error', math.floor(Config.Limits.maxDuration / 60))
+        return Advance(lead, true)
     end
     e.track.duration = math.floor(dur)
-    Broadcast(e)
+    Broadcast(lead)
+    if lead.group then Links.Sync(lead) end
 end)
 
 RegisterNetEvent(RES .. ':ended', function(id, key)
     local e = Emitters[id]
-    if e and e.group then e = Links.Leader(e) end
-    if not e or not e.track or not e.playing then return end
-    if (e.track.id or e.track.url) ~= key or e.endReported then return end
+    if not e or not hears(source, e) then return end
+    e = Links.Leader(e)
+    if not e.track or not e.playing then return end
+    if trackKey(e.track) ~= key or e.endReported then return end
     if (e.track.duration or 0) > 0 and Elapsed(e) < e.track.duration - 3 then return end
     if Elapsed(e) < 3 then return end
     e.endReported = true
@@ -482,32 +502,27 @@ RegisterNetEvent(RES .. ':ended', function(id, key)
 end)
 
 ---------------------------------------------------------------- boombox lifecycle
-local function useBoombox(src, item)
-    if carrying[src] then return notify(src, 'already_carrying') end
-    TriggerClientEvent(RES .. ':client:place', src, item)
-end
-
 for item in pairs(Config.Boomboxes) do
-    Bridge.RegisterUsable(item, function(src) useBoombox(src, item) end)
-    Bridge.OnUse[item] = function(src) useBoombox(src, item) end
+    Bridge.RegisterUsable(item, function(src)
+        if carrying[src] then return Notify(src, 'already_carrying') end
+        TriggerClientEvent(RES .. ':client:place', src, item)
+    end)
 end
 
 RegisterNetEvent(RES .. ':place', function(item, coords, heading, hold)
     local src = source
-    local cfg = Config.Boomboxes[item]
+    local cfg = type(item) == 'string' and Config.Boomboxes[item]
     if not cfg or type(coords) ~= 'vector3' then return end
-    if carrying[src] then return notify(src, 'already_carrying') end
-    local ped = GetPlayerPed(src)
-    if #(GetEntityCoords(ped) - coords) > Config.Actions.place.distance + 3.0 then return notify(src, 'placement_far') end
-    if NZ.InBlacklistedZone(coords) then return notify(src, 'blacklisted_zone') end
-    if not Bridge.HasItem(src, item) then return notify(src, 'no_item') end
-    if hold and not cfg.portable then return notify(src, 'not_portable') end
-    if not Bridge.RemoveItem(src, item) then return notify(src, 'no_item') end
+    if carrying[src] then return Notify(src, 'already_carrying') end
+    if not near(src, coords, Config.Actions.place.distance + 3.0) then return Notify(src, 'placement_far') end
+    if NZ.InBlacklistedZone(coords) then return Notify(src, 'blacklisted_zone') end
+    if hold and not cfg.portable then return Notify(src, 'not_portable') end
+    if not Bridge.HasItem(src, item) or not Bridge.RemoveItem(src, item) then return Notify(src, 'no_item') end
 
     local e = NewEmitter({
         id = nextId(), kind = 'boombox', item = item, label = cfg.label, model = cfg.model,
         owner = Bridge.GetIdentifier(src), ownerSrc = src,
-        coords = coords, heading = tonumber(heading) or 0.0,
+        coords = coords, heading = toHeading(heading),
         bucket = GetPlayerRoutingBucket(src), range = Config.Ranges.boombox.default,
         access = Config.Actions.control,
     })
@@ -521,24 +536,24 @@ RegisterNetEvent(RES .. ':place', function(item, coords, heading, hold)
         Bridge.AddItem(src, item)
         return
     else
-        notify(src, 'placed', 'success')
+        Notify(src, 'placed', 'success')
     end
     Broadcast(e)
-    log('Boombox placed', ('**%s** (%s) placed `%s` (%s) at %s'):format(GetPlayerName(src), src, cfg.label, e.id, tostring(coords)))
+    Log('Boombox placed', ('**%s** (%s) placed `%s` (%s) at %s'):format(GetPlayerName(src), src, cfg.label, e.id, tostring(coords)))
 end)
 
 local function canPickup(src, e)
     if Config.Actions.pickup == 'anyone' then return true end
-    return e.owner == Bridge.GetIdentifier(src) or isAdmin(src)
+    return e.owner == Bridge.GetIdentifier(src) or Bridge.IsAdmin(src)
 end
 
 RegisterNetEvent(RES .. ':carry', function(id)
     local src = source
     local e = Guard(src, id, false)
     if not e or e.kind ~= 'boombox' or e.state ~= 'placed' then return end
-    if carrying[src] then return notify(src, 'already_carrying') end
-    if not Config.Boomboxes[e.item].portable then return notify(src, 'not_portable') end
-    if not canPickup(src, e) then return notify(src, 'not_owner') end
+    if carrying[src] then return Notify(src, 'already_carrying') end
+    if not Config.Boomboxes[e.item].portable then return Notify(src, 'not_portable') end
+    if not canPickup(src, e) then return Notify(src, 'not_owner') end
     despawnObject(e)
     e.state, e.carrier = 'carried', src
     carrying[src] = e.id
@@ -549,11 +564,12 @@ end)
 RegisterNetEvent(RES .. ':drop', function(id, coords, heading)
     local src = source
     local e = Emitters[id]
-    if not e or e.carrier ~= src or type(coords) ~= 'vector3' then return end
-    if #(GetEntityCoords(GetPlayerPed(src)) - coords) > 6.0 then coords = GetEntityCoords(GetPlayerPed(src)) end
+    if not e or e.carrier ~= src then return end
+    -- set down where the client says, unless that isn't right next to the player
+    if not near(src, coords, 6.0) then coords = GetEntityCoords(GetPlayerPed(src)) end
     carrying[src] = nil
     e.state, e.carrier = 'placed', nil
-    e.coords, e.heading = coords, tonumber(heading) or 0.0
+    e.coords, e.heading = coords, toHeading(heading)
     e.bucket = GetPlayerRoutingBucket(src)
     if not spawnObject(e) then
         Bridge.AddItem(src, e.item)
@@ -569,14 +585,21 @@ RegisterNetEvent(RES .. ':pack', function(id)
     if e.carrier ~= src then
         if not Guard(src, id, false) then return end
         if e.carrier then return end
-        if not canPickup(src, e) then return notify(src, 'not_owner') end
+        if not canPickup(src, e) then return Notify(src, 'not_owner') end
     end
     if e.vinyl then Vinyl.Return(e, src) end
     RemoveEmitter(e)
     Bridge.AddItem(src, e.item)
-    notify(src, 'packed', 'success')
-    log('Boombox packed', ('**%s** (%s) packed `%s` (%s)'):format(GetPlayerName(src), src, e.label, e.id))
+    Notify(src, 'packed', 'success')
+    Log('Boombox packed', ('**%s** (%s) packed `%s` (%s)'):format(GetPlayerName(src), src, e.label, e.id))
 end)
+
+-- a record goes back to whoever put it on, if they are still here (never to a player who is leaving)
+local function returnRecord(e, leaving)
+    if not e.vinyl then return end
+    local to = e.vinyl.ownerSrc
+    Vinyl.Return(e, to ~= leaving and to or nil)
+end
 
 AddEventHandler('playerDropped', function()
     local src = source
@@ -586,8 +609,10 @@ AddEventHandler('playerDropped', function()
         if e.kind == 'boombox' then
             local mine = e.ownerSrc == src or e.owner == ident
             if mine and Config.DeleteBoomboxWhenOwnerQuit then
+                returnRecord(e, src)
                 RemoveEmitter(e)
             elseif e.carrier == src then
+                -- set the speaker down where they stood
                 local ped = GetPlayerPed(src)
                 local pos = ped ~= 0 and GetEntityCoords(ped) or e.coords
                 carrying[src] = nil
@@ -604,40 +629,46 @@ AddEventHandler('playerDropped', function()
     end
 end)
 
+-- Everything here lives in memory, so a stopping resource deletes the props it spawned and hands
+-- records and speakers back to their owners who are online (otherwise a restart would eat them).
+-- pcall: at shutdown the inventory may already be gone, and the props must go regardless.
 AddEventHandler('onResourceStop', function(res)
     if res ~= RES then return end
     for _, e in pairs(Emitters) do
         if e.entity and DoesEntityExist(e.entity) then DeleteEntity(e.entity) end
+        pcall(returnRecord, e)
+        if e.kind == 'boombox' and e.ownerSrc and GetPlayerName(e.ownerSrc) then pcall(Bridge.AddItem, e.ownerSrc, e.item) end
     end
 end)
 
 ---------------------------------------------------------------- admin
 RegisterCommand('speakerclear', function(src, args)
-    if src ~= 0 and not isAdmin(src) then return notify(src, 'no_permission') end
+    if not Bridge.IsAdmin(src) then return Notify(src, 'no_permission') end
     local radius = tonumber(args[1])
     local origin = src ~= 0 and GetEntityCoords(GetPlayerPed(src)) or nil
     local n = 0
     for _, e in pairs(Emitters) do
         local pos = EmitterPosition(e)
         if not radius or (origin and pos and #(origin - pos) <= radius) then
-            if e.vinyl then Vinyl.Return(e, e.vinyl.ownerSrc) end
+            returnRecord(e)
             if e.kind == 'boombox' then RemoveEmitter(e) else StopEmitter(e) end
             n = n + 1
         end
     end
-    if src ~= 0 then notify(src, 'admin_cleared', 'success', n) else print(('[speaker] cleared %d'):format(n)) end
+    if src ~= 0 then Notify(src, 'admin_cleared', 'success', n) else print(('[speaker] cleared %d'):format(n)) end
 end, false)
 
 RegisterCommand('speakerstop', function(src, args)
-    if src ~= 0 and not isAdmin(src) then return notify(src, 'no_permission') end
+    if not Bridge.IsAdmin(src) then return Notify(src, 'no_permission') end
+    if src == 0 then return print('[speaker] /speakerstop works around a player; use speakerclear from the console') end
     local radius = tonumber(args[1]) or 30.0
-    local origin = src ~= 0 and GetEntityCoords(GetPlayerPed(src)) or nil
+    local origin = GetEntityCoords(GetPlayerPed(src))
     local n = 0
     for _, e in pairs(Emitters) do
         local pos = EmitterPosition(e)
-        if origin and pos and #(origin - pos) <= radius and e.track then StopEmitter(e) n = n + 1 end
+        if e.track and pos and #(origin - pos) <= radius then StopEmitter(e) n = n + 1 end
     end
-    if src ~= 0 then notify(src, 'admin_cleared', 'success', n) end
+    Notify(src, 'admin_cleared', 'success', n)
 end, false)
 
 exports('GetEmitters', function()

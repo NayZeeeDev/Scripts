@@ -1,29 +1,22 @@
 local P = Config.Actions.place
 local placing = false
-Carrying = nil            -- { id, item, prop }
+local ghost = nil          -- the see-through preview while placing
+local pendingCarry = nil   -- the id the server handed us while its model loads
+Carrying = nil             -- { id, item, prop } while you hold a boombox
 
-local function loadModel(model)
-    local hash = type(model) == 'number' and model or joaat(model)
-    if not IsModelInCdimage(hash) then return nil end
-    RequestModel(hash)
-    local t = GetGameTimer()
-    while not HasModelLoaded(hash) and GetGameTimer() - t < 5000 do Wait(0) end
-    return HasModelLoaded(hash) and hash or nil
-end
+-- controls that would fight the preview / the carry (weapon wheel and scroll, attack, aim, cover, melee;
+-- carrying also blocks sprint, jump and getting into a vehicle)
+local PLACE_LOCK = { 14, 15, 16, 17, 24, 25, 37, 44, 140, 141, 142, 257, 263 }
+local CARRY_LOCK = { 21, 22, 23, 24, 25, 44, 140, 141, 142, 257, 263 }
 
-local function loadDict(dict)
-    RequestAnimDict(dict)
-    local t = GetGameTimer()
-    while not HasAnimDictLoaded(dict) and GetGameTimer() - t < 3000 do Wait(0) end
-    return HasAnimDictLoaded(dict)
-end
-
-local function placeAnim()
+-- the "set it down" animation; blocks for its length
+local function setDown(ms, blendIn)
     local a = P.anim
-    if not a or not loadDict(a.dict) then return end
+    if not a or not Bridge.LoadAnimDict(a.dict) then return end
+    ms = ms or a.duration
     local ped = PlayerPedId()
-    TaskPlayAnim(ped, a.dict, a.clip, 4.0, 4.0, a.duration, a.flag, 0, false, false, false)
-    Wait(a.duration)
+    TaskPlayAnim(ped, a.dict, a.clip, blendIn or 4.0, 4.0, ms, a.flag, 0, false, false, false)
+    Wait(ms)
     StopAnimTask(ped, a.dict, a.clip, 2.0)
 end
 
@@ -39,10 +32,10 @@ end
 
 ---------------------------------------------------------------- placement
 local function placementLoop(item, cfg)
-    local hash = loadModel(cfg.model)
+    local hash = Bridge.LoadModel(cfg.model)
     if not hash then return end
     local ped = PlayerPedId()
-    local ghost = CreateObject(hash, GetEntityCoords(ped), false, false, false)
+    ghost = CreateObject(hash, GetEntityCoords(ped), false, false, false)
     SetModelAsNoLongerNeeded(hash)
     SetEntityAlpha(ghost, 175, false)
     SetEntityCollision(ghost, false, false)
@@ -53,6 +46,7 @@ local function placementLoop(item, cfg)
     local heading = GetEntityHeading(ped) + 180.0
     local started = GetGameTimer()
     local result, valid, spot = nil, false, nil
+    local probe, shownValid, shownHeading = 0, nil, nil
 
     local hints = {
         { key = 'E', label = NZ.L('k_place') },
@@ -64,22 +58,30 @@ local function placementLoop(item, cfg)
 
     while not result do
         ped = PlayerPedId()
-        local cam = GetGameplayCamCoord()
-        local dest = cam + rotToDir(GetGameplayCamRot(2)) * (P.distance + 6.0)
-        local h = StartExpensiveSynchronousShapeTestLosProbe(cam.x, cam.y, cam.z, dest.x, dest.y, dest.z, 1 | 16, ped, 7)
-        local _, hit, endC, normal = GetShapeTestResult(h)
-
-        if hit == 1 then
-            spot = endC
-            SetEntityCoords(ghost, endC.x, endC.y, endC.z, false, false, false, false)
-            valid = #(endC - GetEntityCoords(ped)) <= P.distance and normal.z > 0.6 and not NZ.InBlacklistedZone(endC)
-        else
-            valid = false
+        -- where the camera points: an async ray, read back a frame later, so aiming never stalls a frame
+        if probe == 0 then
+            local cam = GetGameplayCamCoord()
+            local dest = cam + rotToDir(GetGameplayCamRot(2)) * (P.distance + 6.0)
+            probe = StartShapeTestLosProbe(cam.x, cam.y, cam.z, dest.x, dest.y, dest.z, 1 | 16, ped, 7)
         end
-        SetEntityHeading(ghost, heading)
-        if valid then SetEntityDrawOutlineColor(8, 175, 162, 255) else SetEntityDrawOutlineColor(229, 72, 77, 255) end
+        local status, hit, endC, normal = GetShapeTestResult(probe)
+        if status ~= 1 then
+            probe = 0
+            if status == 2 and hit == 1 then
+                spot = endC
+                SetEntityCoords(ghost, endC.x, endC.y, endC.z, false, false, false, false)
+                valid = #(endC - GetEntityCoords(ped)) <= P.distance and normal.z > 0.6 and not NZ.InBlacklistedZone(endC)
+            else
+                valid = false
+            end
+        end
+        if heading ~= shownHeading then shownHeading = heading SetEntityHeading(ghost, heading) end
+        if valid ~= shownValid then
+            shownValid = valid
+            if valid then SetEntityDrawOutlineColor(8, 175, 162, 255) else SetEntityDrawOutlineColor(229, 72, 77, 255) end
+        end
 
-        for _, c in ipairs({ 14, 15, 16, 17, 24, 25, 37, 44, 140, 141, 142, 257, 263 }) do DisableControlAction(0, c, true) end
+        for i = 1, #PLACE_LOCK do DisableControlAction(0, PLACE_LOCK[i], true) end
         if IsDisabledControlJustPressed(0, 15) or IsDisabledControlJustPressed(0, 17) then heading = heading + 12.0 end
         if IsDisabledControlJustPressed(0, 14) or IsDisabledControlJustPressed(0, 16) then heading = heading - 12.0 end
 
@@ -97,6 +99,7 @@ local function placementLoop(item, cfg)
 
     SetEntityDrawOutline(ghost, false)
     DeleteEntity(ghost)
+    ghost = nil
     HideHints()
 
     if result == 'cancel' then return Notify(NZ.L('placement_cancel'), 'inform') end
@@ -105,7 +108,7 @@ local function placementLoop(item, cfg)
     end
     TaskTurnPedToFaceCoord(PlayerPedId(), spot.x, spot.y, spot.z, 600)
     Wait(600)
-    placeAnim()
+    setDown()
     TriggerServerEvent(RES .. ':place', item, spot, heading % 360.0, false)
 end
 
@@ -121,7 +124,7 @@ RegisterNetEvent(RES .. ':client:place', function(item)
     else
         local o = P.offset
         local spot = groundAt(GetOffsetFromEntityInWorldCoords(ped, o.x, o.y, o.z))
-        placeAnim()
+        setDown()
         TriggerServerEvent(RES .. ':place', item, spot, (GetEntityHeading(ped) + o.w) % 360.0, false)
     end
     placing = false
@@ -133,9 +136,8 @@ local function stopCarryLocal()
     local c = Carrying
     Carrying = nil
     HideHints()
-    local ped = PlayerPedId()
     local a = Config.Boomboxes[c.item] and Config.Boomboxes[c.item].attach
-    if a then StopAnimTask(ped, a.dict, a.clip, 2.0) end
+    if a then StopAnimTask(PlayerPedId(), a.dict, a.clip, 2.0) end
     if c.prop and DoesEntityExist(c.prop) then
         DetachEntity(c.prop, true, false)
         DeleteEntity(c.prop)
@@ -153,24 +155,25 @@ local function dropCarried(pack)
     local spot = groundAt(GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.55, 0.0))
     local heading = (GetEntityHeading(ped) + 180.0) % 360.0
     stopCarryLocal()
-    if not IsEntityDead(ped) then
-        local a = P.anim
-        if a and loadDict(a.dict) then
-            TaskPlayAnim(ped, a.dict, a.clip, 6.0, 4.0, 700, a.flag, 0, false, false, false)
-            Wait(700)
-            StopAnimTask(ped, a.dict, a.clip, 2.0)
-        end
-    end
+    if not IsEntityDead(ped) then setDown(700, 6.0) end
     TriggerServerEvent(RES .. ':drop', id, spot, heading)
 end
 
 RegisterNetEvent(RES .. ':client:startCarry', function(id, item)
     local cfg = Config.Boomboxes[item]
-    if not cfg or not cfg.attach or Carrying then return end
-    local ped = PlayerPedId()
-    local hash = loadModel(cfg.model)
+    if not cfg or not cfg.attach or Carrying or pendingCarry then return end
+    pendingCarry = id
+    local hash = Bridge.LoadModel(cfg.model)
+    -- the server can take it back (stopCarry) while the model loads
+    if pendingCarry ~= id then
+        if hash then SetModelAsNoLongerNeeded(hash) end
+        return
+    end
+    pendingCarry = nil
     if not hash then return end
+
     local a = cfg.attach
+    local ped = PlayerPedId()
     local prop = CreateObject(hash, GetEntityCoords(ped), true, true, false)
     SetModelAsNoLongerNeeded(hash)
     SetEntityCollision(prop, false, false)
@@ -181,23 +184,31 @@ RegisterNetEvent(RES .. ':client:startCarry', function(id, item)
     ShowHints({ { key = Config.Actions.dropKey, label = NZ.L('k_drop') }, { key = Config.Carplay.key, label = NZ.L('t_open') } })
 
     CreateThread(function()
-        local hasDict = loadDict(a.dict)
+        local hasDict = Bridge.LoadAnimDict(a.dict)
+        local checkAt = 0
         while Carrying and Carrying.id == id do
-            ped = PlayerPedId()
-            if IsEntityDead(ped) or IsPedRagdoll(ped) and GetEntityHealth(ped) <= 0 then
-                dropCarried(NZ.InBlacklistedZone(GetEntityCoords(ped)))
-                break
+            local t = GetGameTimer()
+            if t >= checkAt then
+                checkAt = t + 250
+                ped = PlayerPedId()
+                if IsEntityDead(ped) or IsPedRagdoll(ped) and GetEntityHealth(ped) <= 0 then
+                    -- dying in a blacklisted zone sends it back to the inventory instead of leaving it there
+                    dropCarried(NZ.InBlacklistedZone(GetEntityCoords(ped)))
+                    break
+                end
+                -- ragdolls, ladders and vaulting knock the hold animation off: put it back
+                if hasDict and not IsPedRagdoll(ped) and not IsEntityPlayingAnim(ped, a.dict, a.clip, 3) then
+                    TaskPlayAnim(ped, a.dict, a.clip, 3.0, 3.0, -1, a.flag, 0, false, false, false)
+                end
             end
-            if hasDict and not IsEntityPlayingAnim(ped, a.dict, a.clip, 3) and not IsPedRagdoll(ped) then
-                TaskPlayAnim(ped, a.dict, a.clip, 3.0, 3.0, -1, a.flag, 0, false, false, false)
-            end
-            for _, c in ipairs({ 21, 22, 23, 24, 25, 44, 140, 141, 142, 257, 263 }) do DisableControlAction(0, c, true) end
+            for i = 1, #CARRY_LOCK do DisableControlAction(0, CARRY_LOCK[i], true) end
             Wait(0)
         end
     end)
 end)
 
 RegisterNetEvent(RES .. ':client:stopCarry', function(id)
+    if pendingCarry == id then pendingCarry = nil end
     if Carrying and Carrying.id == id then stopCarryLocal() end
 end)
 
@@ -206,9 +217,18 @@ RegisterCommand('-nzspk_drop', function() end, false)
 RegisterKeyMapping('+nzspk_drop', 'Speaker: put down boombox', 'keyboard', Config.Actions.dropKey)
 
 ---------------------------------------------------------------- interaction on placed boomboxes
+-- target resources ask every option's canInteract every frame you aim at a prop: the state bag
+-- read behind it is remembered for a moment instead of repeated six times a frame
+local lastEnt, lastId, lastAt = nil, nil, 0
+
 local function emitterOf(entity)
-    local id = entity and Entity(entity).state.nzspk
-    return id and Emitters[id]
+    if not entity or entity == 0 then return nil end
+    local t = GetGameTimer()
+    if entity ~= lastEnt or t - lastAt > 500 then
+        lastEnt, lastAt = entity, t
+        lastId = Entity(entity).state.nzspk
+    end
+    return lastId and Emitters[lastId]
 end
 
 local function canPickup(e)
@@ -245,30 +265,31 @@ local options = {
 if Bridge.Target then
     Bridge.AddModelTarget(models, options)
 else
-    -- no target resource: [E] prompt on the closest boombox
+    -- no target resource: [E] prompt on the closest placed boombox, looked for twice a second
+    local reach = Config.Actions.useRange
     CreateThread(function()
         while true do
-            local near, best = nil, Config.Actions.useRange
-            local me = GetEntityCoords(PlayerPedId())
-            for _, e in pairs(Emitters) do
-                if e.kind == 'boombox' and e.state == 'placed' then
-                    local ent, pos = LocateEmitter(e)
-                    if pos and #(me - pos) < best then near, best = { e = e, pos = pos }, #(me - pos) end
+            local near, nearPos, best = nil, nil, reach
+            if not UI.open and not Carrying and not placing then
+                local me = GetEntityCoords(PlayerPedId())
+                for _, e in pairs(Emitters) do
+                    local c = e.kind == 'boombox' and e.state == 'placed' and e.coords
+                    -- the snapshot coords rule out every far one before any native is called
+                    if c and #(me - c) < best + 1.0 then
+                        local _, pos = LocateEmitter(e)
+                        local d = pos and #(me - pos)
+                        if d and d < best then near, nearPos, best = e, pos, d end
+                    end
                 end
             end
-            if not near or UI.open or Carrying then
+            if not near then
                 Wait(500)
             else
+                local id, at, text = near.id, nearPos + vector3(0.0, 0.0, 0.6), NZ.L('prompt')
                 local t = GetGameTimer()
-                while GetGameTimer() - t < 500 do
-                    local p = near.pos + vector3(0.0, 0.0, 0.6)
-                    SetDrawOrigin(p.x, p.y, p.z, 0)
-                    BeginTextCommandDisplayText('STRING')
-                    AddTextComponentSubstringPlayerName(NZ.L('prompt'))
-                    SetTextScale(0.32, 0.32) SetTextFont(4) SetTextCentre(true) SetTextOutline()
-                    EndTextCommandDisplayText(0.0, 0.0)
-                    ClearDrawOrigin()
-                    if IsControlJustPressed(0, 38) then OpenUI(near.e.id) break end
+                while GetGameTimer() - t < 500 and not UI.open do
+                    Bridge.DrawPrompt(at, text)
+                    if IsControlJustPressed(0, 38) then OpenUI(id) break end
                     Wait(0)
                 end
             end
@@ -278,7 +299,8 @@ end
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= RES then return end
-    if Carrying and Carrying.prop and DoesEntityExist(Carrying.prop) then DeleteEntity(Carrying.prop) end
+    if ghost and DoesEntityExist(ghost) then DeleteEntity(ghost) end
+    stopCarryLocal()
     if Bridge.Target then
         local names = {}
         for _, o in ipairs(options) do names[#names + 1] = o.name end

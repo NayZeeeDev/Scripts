@@ -1,3 +1,7 @@
+--[[
+    Database: liked / recent songs, imported records, playlists and CarPlay units.
+    The tables are created on start; columns added after the first release are added when missing.
+]]
 DB = {}
 
 CreateThread(function()
@@ -31,7 +35,8 @@ CreateThread(function()
         `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),
         KEY `idx_owner` (`owner`),
-        KEY `idx_shared` (`shared`, `updated_at`)
+        KEY `idx_shared` (`shared`, `updated_at`),
+        KEY `idx_kind` (`kind`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci]])
     MySQL.query.await([[CREATE TABLE IF NOT EXISTS `nayzeee_speaker_carplay` (
         `plate` VARCHAR(16) NOT NULL,
@@ -39,40 +44,78 @@ CreateThread(function()
         `installed_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (`plate`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci]])
-    -- columns added after the first release
-    for _, col in ipairs({
-        "ADD COLUMN `kind` VARCHAR(16) NOT NULL DEFAULT 'normal'",
-        "ADD COLUMN `collaborators` LONGTEXT NULL",
-        "ADD COLUMN `mixed` TINYINT(1) NOT NULL DEFAULT 0",
-    }) do
-        pcall(function() MySQL.query.await('ALTER TABLE `nayzeee_speaker_playlists` ' .. col) end)
+
+    -- added after the first release; looked up first so a restart doesn't log "duplicate column" errors
+    local have = {}
+    local rows = MySQL.query.await([[SELECT COLUMN_NAME AS name FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nayzeee_speaker_playlists']]) or {}
+    for _, r in ipairs(rows) do have[r.name] = true end
+    local columns = {
+        { 'kind', "ADD COLUMN `kind` VARCHAR(16) NOT NULL DEFAULT 'normal'" },
+        { 'collaborators', 'ADD COLUMN `collaborators` LONGTEXT NULL' },
+        { 'mixed', 'ADD COLUMN `mixed` TINYINT(1) NOT NULL DEFAULT 0' },
+    }
+    for _, c in ipairs(columns) do
+        if not have[c[1]] then pcall(MySQL.query.await, 'ALTER TABLE `nayzeee_speaker_playlists` ' .. c[2]) end
     end
+    -- collaborative playlists are looked up by kind on every library open
+    local indexed = MySQL.scalar.await([[SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'nayzeee_speaker_playlists' AND INDEX_NAME = 'idx_kind' LIMIT 1]])
+    if not indexed then pcall(MySQL.query.await, 'ALTER TABLE `nayzeee_speaker_playlists` ADD KEY `idx_kind` (`kind`)') end
 end)
 
--- only what the UI needs is stored, never the signed stream url
-local function slim(t)
-    return {
-        src = t.src, id = t.id, url = t.src == 'url' and t.url or nil,
-        title = t.title, author = t.author, duration = t.duration, thumb = t.thumb,
+---------------------------------------------------------------- saved songs
+local function text(v, max) return type(v) == 'string' and v ~= '' and v:sub(1, max) or nil end
+local function link(v) return type(v) == 'string' and #v <= 500 and v:match('^https?://') and v or nil end
+
+--[[
+    A song as it is stored in liked / recent / playlists: only what the UI shows and what replays it.
+    Never the signed stream url (it expires), and nothing a player made up (players send these):
+    src 'yt' needs a video id or a search ("<artist> <title>", imported playlists), src 'url' an https
+    audio link. nil when it is neither.
+]]
+function DB.Slim(t)
+    if type(t) ~= 'table' then return nil end
+    local s = {
+        title = text(t.title, 200), author = text(t.author, 120), thumb = link(t.thumb),
+        duration = math.floor(NZ.Clamp(t.duration, 0, 36000)),
     }
+    if t.src == 'url' then
+        s.src, s.url = 'url', link(t.url)
+        if not (s.url and s.url:match('^https://')) then return nil end
+    elseif t.src == 'yt' then
+        s.src = 'yt'
+        s.id = type(t.id) == 'string' and #t.id <= 64 and t.id:match('^[%w_%-]+$') and t.id or nil
+        s.search = not s.id and text(t.search, 200) or nil
+        if not s.id and not s.search then return nil end
+    else
+        return nil
+    end
+    return s
 end
 
-function DB.TrackKey(t) return (t.src .. ':' .. (t.id or t.url or '')):sub(1, 180) end
+function DB.TrackKey(t) return (t.src .. ':' .. (t.id or t.url or t.search or '')):sub(1, 180) end
 
 function DB.GetList(identifier, list, limit)
     local rows = MySQL.query.await(
         'SELECT data FROM nayzeee_speaker_tracks WHERE identifier = ? AND list = ? ORDER BY updated_at DESC, id DESC LIMIT ?',
         { identifier, list, limit }) or {}
     local out = {}
-    for i, r in ipairs(rows) do out[i] = json.decode(r.data) end
+    for _, r in ipairs(rows) do
+        local ok, t = pcall(json.decode, r.data)
+        if ok and type(t) == 'table' then out[#out + 1] = t end
+    end
     return out
 end
 
 function DB.Push(identifier, list, track, limit)
+    local slim = DB.Slim(track)
+    if not slim then return end
     MySQL.query.await(
         'INSERT INTO nayzeee_speaker_tracks (identifier, list, track_key, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = CURRENT_TIMESTAMP',
-        { identifier, list, DB.TrackKey(track), json.encode(slim(track)) })
+        { identifier, list, DB.TrackKey(slim), json.encode(slim) })
     if list == 'recent' then
+        -- keep only the newest `limit` (no await: nothing waits on the trim)
         MySQL.query(
             'DELETE FROM nayzeee_speaker_tracks WHERE identifier = ? AND list = ? AND id NOT IN (SELECT id FROM (SELECT id FROM nayzeee_speaker_tracks WHERE identifier = ? AND list = ? ORDER BY updated_at DESC, id DESC LIMIT ?) keep)',
             { identifier, list, identifier, list, limit })
@@ -88,10 +131,11 @@ function DB.Remove(identifier, list, key)
 end
 
 function DB.Has(identifier, list, key)
-    local n = MySQL.scalar.await('SELECT COUNT(*) FROM nayzeee_speaker_tracks WHERE identifier = ? AND list = ? AND track_key = ?', { identifier, list, key })
-    return (tonumber(n) or 0) > 0
+    return MySQL.scalar.await('SELECT 1 FROM nayzeee_speaker_tracks WHERE identifier = ? AND list = ? AND track_key = ? LIMIT 1',
+        { identifier, list, key }) ~= nil
 end
 
+---------------------------------------------------------------- carplay units
 function DB.CarplayInstalled(plate)
     return MySQL.scalar.await('SELECT 1 FROM nayzeee_speaker_carplay WHERE plate = ?', { plate }) ~= nil
 end

@@ -1,5 +1,6 @@
 -- Framework / inventory bridge (server). Edit freely.
 Bridge = {}
+Bridge.OnUse = {}       -- item -> function(src): what using it does (ox_inventory calls these through useItem below)
 
 local FW, Core = nil, nil
 local function detect()
@@ -91,6 +92,7 @@ function Bridge.AddItem(src, item, count)
 end
 
 function Bridge.RegisterUsable(item, cb)
+    Bridge.OnUse[item] = cb
     if FW == 'esx' then
         Core.RegisterUsableItem(item, function(src) cb(src) end)
     elseif FW == 'qbox' then
@@ -100,7 +102,9 @@ function Bridge.RegisterUsable(item, cb)
     end
 end
 
+-- src 0 is the server console, which may run every admin command
 function Bridge.IsAdmin(src)
+    if src == 0 then return true end
     if IsPlayerAceAllowed(src, Config.Admin.ace) then return true end
     local group
     if FW == 'esx' then
@@ -120,7 +124,7 @@ end
 -- Vehicle owner check for CarPlay unit removal
 function Bridge.OwnsVehicle(src, plate)
     local id = Bridge.GetIdentifier(src)
-    plate = plate and plate:gsub('^%s+', ''):gsub('%s+$', '')
+    plate = NZ.Trim(plate)
     if FW == 'esx' then
         local r = MySQL.scalar.await('SELECT owner FROM owned_vehicles WHERE TRIM(plate) = ? LIMIT 1', { plate })
         return r == id
@@ -278,14 +282,9 @@ end
 if useOx then
     exports('useItem', function(event, item, inventory)
         if event == 'usingItem' then
-            local src = inventory.id
-            local name = item.name
-            if Bridge.OnUse and Bridge.OnUse[name] then
-                SetTimeout(0, function() Bridge.OnUse[name](src) end)
-            end
+            local src, use = inventory.id, Bridge.OnUse[item.name]
+            if use then SetTimeout(0, function() use(src) end) end
             return false -- item is only removed when actually placed / installed
         end
     end)
 end
-Bridge.UsingOx = useOx
-Bridge.OnUse = {}

@@ -6,10 +6,9 @@
 @font-face{font-family:'Lexend';src:url(../fonts/lexend.woff2) format('woff2');font-weight:100 900;font-display:block}
 
 #nzShop{
-  --base:#08090a;--panel:#0e1011;--raise:#15181a;--raise-2:#1c2023;--inset:#0b0c0d;
-  --line:rgba(255,255,255,.10);--line-soft:rgba(255,255,255,.06);
+  --raise:#15181a;--line:rgba(255,255,255,.10);
   --white:#fff;--ink:#f2f4f5;--ink-2:#9ea5aa;--ink-3:#63696d;
-  --teal:#08afa2;--teal-hi:#0fd4c4;--teal-lo:#067d74;--teal-wash:rgba(8,175,162,.12);--teal-edge:rgba(8,175,162,.36);
+  --teal:#08afa2;--teal-hi:#0fd4c4;--teal-lo:#067d74;--teal-edge:rgba(8,175,162,.36);
   --red:#e5484d;--red-lo:#b8262b;
   --fast:130ms cubic-bezier(.4,0,.2,1);
   --glide:460ms cubic-bezier(.65,0,.35,1);
@@ -28,7 +27,7 @@
 #nzShop :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){#nzShop *{animation:none!important;transition:none!important}}
 /* the now playing card would sit on top of the shop */
-body.nzs-shop-open #npWrap,body.nzs-shop-open .np-wrap,body.nzs-shop-open #hints{visibility:hidden!important}
+body.nzs-shop-open #npWrap,body.nzs-shop-open #hints{visibility:hidden!important}
 
 /* ─────────── backdrop ─────────── */
 #nzShop .nzs-veil{position:absolute;inset:0;pointer-events:none;

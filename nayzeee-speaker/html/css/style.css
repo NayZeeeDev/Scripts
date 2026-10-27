@@ -13,7 +13,6 @@
   --r-xs:4px;--r-sm:6px;--r-md:10px;--r-lg:14px;
   --sh-1:0 1px 2px rgba(0,0,0,.6);
   --sh-2:0 2px 6px rgba(0,0,0,.5),0 10px 28px rgba(0,0,0,.45);
-  --sh-3:0 10px 24px rgba(0,0,0,.6),0 40px 80px rgba(0,0,0,.7);
   --fast:130ms cubic-bezier(.4,0,.2,1);
   --chamfer:polygon(0 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%);
 }
@@ -47,6 +46,10 @@ button:disabled{opacity:.35;cursor:default;pointer-events:none}
 .mark.lg{width:46px;height:46px;border-radius:9px}
 .mark.ghost{background:var(--raise-2);box-shadow:none}
 .mark.ghost::after{background:var(--inset)}
+/* brand logo from the server */
+.mark.custom{background-size:cover;background-position:center;clip-path:none;border-radius:6px}
+.mark.custom::after{display:none}
+.mark.hidden{display:none}
 
 /* title bar */
 .bar{position:relative;z-index:20;display:flex;align-items:center;gap:12px;height:56px;padding-right:14px;
@@ -234,9 +237,6 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 
 /* ═══════════════ LIBRARY ═══════════════ */
 
-.lib::before{content:'';position:absolute;right:-46px;bottom:-52px;width:252px;height:252px;border-radius:26px;opacity:.022;
-  background:var(--white);clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);pointer-events:none}
-.lib>*{position:relative;z-index:1}
 .entry{display:flex;gap:8px}
 .field-in{flex:1;display:flex;align-items:center;gap:10px;height:32px;padding:0 11px;background:var(--inset);
   border:1px solid var(--line-soft);border-radius:var(--r-xs);transition:border-color var(--fast),box-shadow var(--fast)}
@@ -246,18 +246,7 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 .field-in input::placeholder{color:var(--ink-3)}
 .field-in.err{border-color:var(--red);box-shadow:0 0 0 3px var(--red-wash)}
 
-.tabs{display:flex;gap:2px;margin-top:16px;border-bottom:1px solid var(--line-soft)}
-.tab{position:relative;display:flex;align-items:center;gap:8px;padding:9px 12px 11px;font-size:12.5px;font-weight:300;color:var(--ink-2);
-  transition:color var(--fast)}
-.tab:hover{color:var(--white)}
-.tab.on{color:var(--white);font-weight:500}
-.tab.on::after{content:'';position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--teal);border-radius:2px 2px 0 0;
-  box-shadow:0 0 9px var(--teal)}
 .tally{font-size:10px;color:var(--ink-3);background:var(--raise);border:1px solid var(--line-soft);padding:0 6px;border-radius:var(--r-xs);font-weight:400}
-
-.list{flex:1;overflow-y:auto;padding:12px 2px 16px;display:flex;flex-direction:column;gap:6px}
-.list::-webkit-scrollbar{width:8px}
-.list::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--base)}
 
 .row{display:flex;align-items:center;gap:11px;padding:8px 10px;background:var(--inset);border:1px solid var(--line-hair);
   border-radius:var(--r-sm);transition:border-color var(--fast)}
@@ -275,6 +264,7 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 .acts .icon-btn{width:26px;height:26px;font-size:11.5px}
 .acts .icon-btn.del:hover{color:var(--red);background:var(--red-wash)}
 .idx{width:16px;font-size:10.5px;color:var(--ink-3);text-align:center;flex:none}
+.idx.now{color:var(--teal)}
 
 .empty{display:flex;flex-direction:column;align-items:center;gap:9px;padding:34px 16px;text-align:center;
   border:1px dashed var(--line);border-radius:var(--r-sm);margin-top:4px}
@@ -297,6 +287,10 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 .seg{display:flex;padding:2px;background:var(--raise);border:1px solid var(--line-soft);border-radius:var(--r-sm)}
 .seg button{height:26px;padding:0 12px;border-radius:var(--r-xs);font-size:11.5px;color:var(--ink-2);font-weight:300}
 .seg button.on{background:var(--teal-wash);color:var(--white);font-weight:500;box-shadow:0 0 0 1px var(--teal-edge) inset}
+.set-row{display:flex;gap:8px;align-items:center}
+.set-row input[type=range]{width:150px}
+.set-row .val{font-size:11px;color:var(--white);width:36px;text-align:right}
+.set .btn-line,.set .btn-teal{height:28px;font-size:11.5px}
 
 /* modal */
 .scrim{position:absolute;inset:56px 0 0;z-index:60;display:grid;place-items:center;background:rgba(0,0,0,.55);backdrop-filter:blur(2px)}
@@ -328,6 +322,8 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 .compact .art{grid-area:art;width:132px}
 .compact .art-empty .mark,.compact .art-empty span{display:none}
 .compact .art-empty b{font-size:10.5px;margin:0}
+.compact .art-load{gap:6px;font-size:10px}
+.compact .art-load .spin{width:16px;height:16px}
 .compact #viz{height:32px}
 .compact .meta-row{grid-area:meta;align-self:center;min-width:0}
 .compact .entry{grid-area:entry;min-width:0}
@@ -339,7 +335,6 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 .compact .play-btn{width:44px;height:44px;font-size:15px}
 .compact .dials{grid-area:dials}
 .compact .deck-foot{grid-area:foot;margin-top:0}
-.compact .scrim{inset:56px 0 0}
 
 /* ═══════════════ NOW PLAYING ═══════════════ */
 .np-wrap{position:absolute;top:3%;left:98.5%;transform-origin:top right;z-index:40}
@@ -377,13 +372,8 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 .np-wrap.edit .np-grip{display:grid;place-items:center;position:absolute;left:6px;top:6px;width:18px;height:18px;border-radius:4px;
   background:var(--teal-wash);color:var(--teal);font-size:9px;z-index:2}
 .np-wrap.edit.drag{cursor:grabbing}
-.set-row{display:flex;gap:8px;align-items:center}
-.set-row input[type=range]{width:150px}
-.set-row .val{font-size:11px;color:var(--white);width:36px;text-align:right}
-.set .btn-line,.set .btn-teal{height:28px;font-size:11.5px}
 
 /* ═══════════════ TURNTABLE ═══════════════ */
-.vmode .entry{display:none!important}
 .stage{position:absolute;inset:0;display:none;align-items:center;
   background:radial-gradient(120% 90% at 30% 40%,#16191b 0,#070808 70%)}
 .art.vinyl .stage{display:flex}
@@ -407,10 +397,15 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 .art.spinning .grooves,.art.spinning .label{animation-play-state:running}
 .spindle{position:absolute;left:calc(50% - 3px);top:calc(50% - 3px);width:6px;height:6px;border-radius:50%;
   background:linear-gradient(#d9dcde,#6b7074);z-index:3}
-.row .idx.now{color:var(--teal)}
-.rec-thumb{width:40px;height:40px;flex:none;border-radius:3px;overflow:hidden;background:var(--raise);display:grid;place-items:center;color:var(--ink-3)}
-.rec-thumb img{width:100%;height:100%;object-fit:cover}
-.row .btn-teal{height:26px;font-size:11px;padding:0 10px}
+/* tone arm: parked, on the record, lifted over the lead-in while the needle drops */
+.arm{position:absolute;right:11%;top:6%;width:4px;height:46%;border-radius:3px;z-index:3;
+  background:linear-gradient(180deg,#cfd4d7,#6b7074);transform-origin:top center;transform:rotate(14deg);
+  transition:transform .8s cubic-bezier(.3,.9,.3,1);display:none}
+.arm::after{content:'';position:absolute;left:-2px;bottom:-5px;width:8px;height:9px;border-radius:2px;background:#e8ecee}
+.art.vinyl .arm{display:block}
+.art.spinning .arm{transform:rotate(-8deg)}
+.art.needle .arm{transform:rotate(16deg)}
+.art.needle .art-load{background:rgba(8,9,10,.55)}
 
 /* ═══════════════════════════════════════════════════════════
    NOW PLAYING — skins, cover styles, animations, fonts
@@ -419,7 +414,6 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 .np{font-family:var(--np-font,'Lexend'),system-ui,sans-serif}
 
 /* ── cover appearance ── */
-.np .np-art{position:relative}
 .np.cov-none .np-art{display:none}
 .np.cov-canvas .np-art{width:74px;height:42px;border-radius:5px}
 .np.cov-vinyl .np-art{width:40px;height:40px;border-radius:50%;background:#0d0d0e;overflow:visible}
@@ -431,7 +425,7 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 
 /* cover extras */
 .np.glow .np-art::before{content:'';position:absolute;inset:-6px;border-radius:inherit;z-index:-1;
-  background:var(--np-glow,var(--teal));filter:blur(14px);opacity:.55}
+  background:var(--teal);filter:blur(14px);opacity:.55}
 .np .np-blur{position:absolute;inset:0;z-index:-1;background-size:cover;background-position:center;
   filter:blur(26px) saturate(1.5);opacity:0;transition:opacity .4s}
 .np.blurbg .np-blur{opacity:.4}
@@ -482,7 +476,7 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 
 /* shell: terminal */
 .np.skin-shell{width:330px;border-radius:5px;clip-path:none;padding:0;flex-direction:column;align-items:stretch;gap:0;
-  background:rgba(6,8,8,.95);border-color:rgba(8,175,162,.3);font-family:var(--np-mono,'Menlo','Consolas',monospace)}
+  background:rgba(6,8,8,.95);border-color:rgba(8,175,162,.3);font-family:'Menlo','Consolas',monospace}
 .np.skin-shell::before{display:none}
 .np.skin-shell .np-bar{display:flex;align-items:center;gap:7px;height:22px;padding:0 9px;flex:none;
   background:#0d1312;border-bottom:1px solid rgba(8,175,162,.2);font-size:9.5px;color:var(--teal);letter-spacing:.04em}
@@ -544,7 +538,6 @@ input[type=range]:disabled{opacity:.4;cursor:default}
 
 /* ── appearance picker in Settings ── */
 .pick{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:2px 0 4px}
-.pick.two{grid-template-columns:repeat(2,1fr)}
 .pick button{position:relative;padding:8px 5px 7px;border:1px solid var(--line-soft);border-radius:var(--r-sm);
   background:var(--inset);color:var(--ink-3);font-size:10px;font-weight:300;display:flex;flex-direction:column;
   align-items:center;gap:7px;transition:all var(--fast)}
@@ -553,7 +546,6 @@ input[type=range]:disabled{opacity:.4;cursor:default}
   box-shadow:0 0 0 1px var(--teal-edge) inset}
 .pv{width:100%;height:30px;border-radius:4px;background:var(--raise);position:relative;overflow:hidden;display:flex;
   align-items:center;gap:3px;padding:4px}
-.pv b,.pv u{display:block;background:rgba(255,255,255,.26);border-radius:1.5px;text-decoration:none}
 .pv .sq{width:12px;height:12px;flex:none;border-radius:2px;background:rgba(255,255,255,.4)}
 .pv .ln{height:3px;border-radius:2px;background:rgba(255,255,255,.26)}
 .pick button.on .pv .sq{background:var(--teal)}
@@ -575,18 +567,3 @@ select.fontsel:focus{border-color:var(--teal)}
 .audio-note.ok{border-color:var(--teal-edge);background:var(--teal-wash)}
 .audio-note.ok i{color:var(--teal)}
 .audio-note.warn i{color:#e5a50a}
-
-/* brand logo from the server */
-.mark.custom{background-size:cover;background-position:center;clip-path:none;border-radius:6px}
-.mark.custom::after{display:none}
-.mark.hidden{display:none}
-
-/* turntable tone arm + needle drop */
-.arm{position:absolute;right:11%;top:6%;width:4px;height:46%;border-radius:3px;z-index:3;
-  background:linear-gradient(180deg,#cfd4d7,#6b7074);transform-origin:top center;transform:rotate(14deg);
-  transition:transform .8s cubic-bezier(.3,.9,.3,1);display:none}
-.art.vinyl .arm{display:block}
-.art.spinning .arm{transform:rotate(-8deg)}
-.art.needle .arm{transform:rotate(16deg)}
-.arm::after{content:'';position:absolute;left:-2px;bottom:-5px;width:8px;height:9px;border-radius:2px;background:#e8ecee}
-.art.needle .art-load{background:rgba(8,9,10,.55)}

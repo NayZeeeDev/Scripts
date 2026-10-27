@@ -13,6 +13,8 @@ local function vehicleNear()
     return near ~= 0 and near or nil
 end
 
+local opening = false   -- a car player is being asked for: mashing the key doesn't stack requests
+
 local function openPlayer()
     if UI.open then return CloseUI() end
     if Carrying then return OpenUI(Carrying.id) end
@@ -24,16 +26,22 @@ local function openPlayer()
     if not NZ.VehicleAllowed(GetEntityModel(veh), GetVehicleClass(veh)) then
         return Notify(NZ.L('blacklisted_vehicle'), 'error')
     end
-    if cp.controlBy == 'driver' and GetPedInVehicleSeat(veh, -1) ~= ped then
-        local e = Emitters['v' .. NetworkGetNetworkIdFromEntity(veh)]
-        if not e then return Notify(NZ.L('not_driver'), 'error') end
-    end
     if not NetworkGetEntityIsNetworked(veh) then return end
-    local id = NZ.Callback('vehicle:open', NetworkGetNetworkIdFromEntity(veh))
-    if not id then return end
-    local t = GetGameTimer()
-    while not Emitters[id] and GetGameTimer() - t < 2000 do Wait(0) end
-    OpenUI(id)
+    local net = NetworkGetNetworkIdFromEntity(veh)
+    -- a passenger may open a player the driver already started, but not start one
+    if cp.controlBy == 'driver' and GetPedInVehicleSeat(veh, -1) ~= ped and not Emitters['v' .. net] then
+        return Notify(NZ.L('not_driver'), 'error')
+    end
+    if opening then return end
+    opening = true
+    local id = NZ.Callback('vehicle:open', net)
+    if id then
+        -- the snapshot of a new car player is on its way
+        local t = GetGameTimer()
+        while not Emitters[id] and GetGameTimer() - t < 2000 do Wait(50) end
+        OpenUI(id)
+    end
+    opening = false
 end
 
 RegisterCommand('+nzspk_player', function() CreateThread(openPlayer) end, false)
@@ -62,32 +70,44 @@ end
 
 ---------------------------------------------------------------- GTA radio lock
 -- The radio is killed in every vehicle (not only while CarPlay plays) so the two never overlap.
+-- The control / HUD blocks only hold for the frame they are called in, so that part runs every
+-- frame in a vehicle; which vehicle you are in and the station are checked four times a second.
 if Config.DisableGTARadio then
+    local current = 0
+
     CreateThread(function()
-        local current = 0
+        local checkAt = 0
         while true do
-            local ped = PlayerPedId()
-            local veh = GetVehiclePedIsIn(ped, false)
-            if veh ~= 0 then
+            local t = GetGameTimer()
+            if t >= checkAt then
+                checkAt = t + 250
+                local veh = GetVehiclePedIsIn(PlayerPedId(), false)
                 if veh ~= current then
                     current = veh
+                    if veh ~= 0 then
+                        SetVehRadioStation(veh, 'OFF')
+                        SetVehicleRadioEnabled(veh, false)
+                    end
+                    SetUserRadioControlEnabled(veh == 0)
+                elseif veh ~= 0 and GetPlayerRadioStationIndex() ~= 255 then
                     SetVehRadioStation(veh, 'OFF')
-                    SetVehicleRadioEnabled(veh, false)
-                    SetUserRadioControlEnabled(false)
                 end
-                if GetPlayerRadioStationIndex() ~= 255 then SetVehRadioStation(veh, 'OFF') end
+            end
+            if current ~= 0 then
                 DisableControlAction(0, 85, true)   -- radio wheel
                 DisableControlAction(0, 81, true)   -- next station
                 DisableControlAction(0, 82, true)   -- previous station
                 HideHudComponentThisFrame(16)       -- radio station name
                 Wait(0)
             else
-                if current ~= 0 then
-                    current = 0
-                    SetUserRadioControlEnabled(true)
-                end
                 Wait(500)
             end
         end
+    end)
+
+    AddEventHandler('onResourceStop', function(res)
+        if res ~= RES then return end
+        SetUserRadioControlEnabled(true)
+        if current ~= 0 and DoesEntityExist(current) then SetVehicleRadioEnabled(current, true) end
     end)
 end

@@ -3,9 +3,11 @@
 -- is closing in (doppler) and what kind of space it sits in, then hands the NUI one small batch.
 -- The NUI engine ramps every value across the interval, so this loop can stay slow and cheap:
 --   * far placed speakers are skipped before any native is called
+--   * the camera / your car / your interior are only looked up once a speaker is in earshot
 --   * entity lookups are cached
 --   * raycasts are asynchronous, rate limited per speaker and capped per tick
 --   * frame tables are reused: nothing is allocated per speaker per tick
+--   * with nothing in earshot it stops messaging the NUI once the NUI has let go of the last song
 local A = Config.Audio
 local RATE      = A.updateRate or 120
 local RAY_RATE  = A.occlusionRate or 250     -- ms between occlusion ray sets per speaker
@@ -16,12 +18,19 @@ local RAY_BUDGET, PROBE_BUDGET = 4, 1        -- speakers per tick that may start
 local FLAGS = 1 | 16                         -- map + objects (vehicles and peds never occlude)
 local REACH = 30.0                           -- how far the room probe looks for walls
 
+local LET_GO = 2000                          -- ms of empty frames after the last heard one (the NUI drops a voice after 1.5 s unheard)
+
 local states = {}                            -- id -> per speaker cache
 local vehOpen = {}                           -- vehicle -> { t, v }
 local animDicts = {}                         -- dict -> true (loaded) / false (doesn't exist)
+local dancing = {}                           -- id -> { obj, dict, clip } props playing their speaker animation
 local list = {}
 local msg = { action = 'spatial', list = list }
 local rayBudget, probeBudget = 0, 0
+local heardAt = -LET_GO
+
+-- the listener, worked out once per tick when the first speaker in earshot needs it
+local cam, fx, fy, rx, ry, myVeh, myOpen, myInt, lv
 
 local DIRS = {}
 for i = 0, 7 do
@@ -61,8 +70,9 @@ local function stateOf(id)
 end
 
 ---------------------------------------------------------------- where is it
--- cached entity behind an emitter: looked up again every 2 s (handles can be reused), a failed
--- lookup is retried at most twice a second
+-- cached entity behind an emitter: looked up again every 2 s (handles can be reused). A failed
+-- lookup is retried twice a second for a placed speaker (only near ones get this far, so it is
+-- usually a prop still streaming in), and less often for a car or carrier out of scope somewhere.
 local function resolve(e, st, t)
     local mode, ref
     if e.kind == 'vehicle' then mode, ref = 1, e.vehNet
@@ -73,7 +83,7 @@ local function resolve(e, st, t)
     local ent = st.ent
     if st.mode == mode and st.ref == ref then
         if ent and t - st.entAt < 2000 and DoesEntityExist(ent) then return ent end
-        if not ent and t - st.entAt < 500 then return nil end
+        if not ent and t - st.entAt < (mode == 3 and 500 or 1500) then return nil end
     end
     st.mode, st.ref, st.entAt, ent = mode, ref, t, nil
 
@@ -275,6 +285,25 @@ local function propAnim(e, st, obj, t)
     elseif not on and playing then
         StopEntityAnim(obj, a.clip, a.dict, 1.0)
     end
+    if on then
+        local d = dancing[e.id]
+        if d then d.obj = obj else dancing[e.id] = { obj = obj, dict = a.dict, clip = a.clip } end
+    else
+        dancing[e.id] = nil
+    end
+end
+
+-- a speaker that was stopped, picked up or removed is no longer looked at by the loop: stop its prop
+local function settleAnims()
+    for id, d in pairs(dancing) do
+        local e = Emitters[id]
+        if Settings.streamer or not (e and e.track and e.playing and e.state == 'placed') then
+            if DoesEntityExist(d.obj) then StopEntityAnim(d.obj, d.clip, d.dict, 1.0) end
+            dancing[id] = nil
+            local st = states[id]
+            if st then st.anim = nil end
+        end
+    end
 end
 
 ---------------------------------------------------------------- frames
@@ -284,6 +313,16 @@ local function headFrame(f)
     f.wr, f.wh, f.ws = 0.0, 0.0, 0.0
 end
 
+-- empty frames are how the NUI lets go of what it stopped hearing about; once it has, say nothing
+local function send(t, n)
+    if n > 0 then
+        heardAt = t
+    elseif t - heardAt > LET_GO then
+        return
+    end
+    SendNUIMessage(msg)
+end
+
 local function anyPlaying()
     for _, e in pairs(Emitters) do
         if e.track then return true end
@@ -291,19 +330,23 @@ local function anyPlaying()
     return false
 end
 
+local function listener(ped, t)
+    cam = GetFinalRenderedCamCoord()
+    -- basis from the camera's yaw only: the third-person camera looks down at the ped, and feeding
+    -- that pitch into HRTF put every speaker "under" you. Height is passed, damped.
+    local yaw = math.rad(GetFinalRenderedCamRot(2).z)
+    fx, fy = -math.sin(yaw), math.cos(yaw)
+    rx, ry = math.cos(yaw), math.sin(yaw)
+    myVeh = GetVehiclePedIsIn(ped, false)
+    myOpen = myVeh ~= 0 and openness(myVeh, t) or 1.0
+    myInt = GetInteriorFromEntity(ped)
+    lv = GetEntityVelocity(myVeh ~= 0 and myVeh or ped)
+end
+
 local function tick(t, dt)
     local ped = PlayerPedId()
     local me = GetEntityCoords(ped)
-    local cam = GetFinalRenderedCamCoord()
-    -- listener basis from the camera's yaw only: the third-person camera looks down at the ped, and
-    -- feeding that pitch into HRTF put every speaker "under" you. Height is passed, damped.
-    local yaw = math.rad(GetFinalRenderedCamRot(2).z)
-    local fx, fy = -math.sin(yaw), math.cos(yaw)
-    local rx, ry = math.cos(yaw), math.sin(yaw)
-    local myVeh = GetVehiclePedIsIn(ped, false)
-    local myOpen = myVeh ~= 0 and openness(myVeh, t) or 1.0
-    local myInt = GetInteriorFromEntity(ped)
-    local lv = GetEntityVelocity(myVeh ~= 0 and myVeh or ped)
+    local heard = false
     local effects = Settings.effects ~= false and not Settings.streamer
     rayBudget, probeBudget = RAY_BUDGET, PROBE_BUDGET
     local n = 0
@@ -334,6 +377,7 @@ local function tick(t, dt)
                     local pos = GetEntityCoords(ent)
                     local dist = #(me - pos)
                     if dist <= range * UNLOAD then
+                        if not heard then heard = true listener(ped, t) end
                         local f = st.f
                         if e.state == 'placed' and kind == 'boombox' then propAnim(e, st, ent, t) end
                         local inCar = kind == 'vehicle' and ent == myVeh
@@ -433,7 +477,7 @@ local function tick(t, dt)
         list[i] = nil
         i = i + 1
     end
-    SendNUIMessage(msg)
+    send(t, n)
     return n
 end
 
@@ -443,11 +487,12 @@ CreateThread(function()
         local t = GetGameTimer()
         local dt = clamp((t - last) / 1000, 0.001, 1.0)
         last = t
+        if next(dancing) then settleAnims() end
         if not anyPlaying() then
             if list[1] ~= nil then
                 for i = #list, 1, -1 do list[i] = nil end
-                SendNUIMessage(msg)   -- an empty frame: the NUI lets go of anything it stops hearing about
             end
+            send(t, 0)
             Wait(500)
         else
             local n = tick(t, dt)

@@ -21,7 +21,9 @@
         That creates or overwrites a record with the real tracklist and cover art, live, no restart.
         Run /vinyllist to see every record, /vinyldelete <item> to remove an imported one.
 
-    cover: leave it nil and the server fetches the real album art from Spotify (if configured),
+    A track can also be { title = 'Song', link = '<youtube link or https audio link>' } to skip the search.
+
+    cover: leave it nil and the server fetches the real album art (iTunes, then Spotify if configured),
            otherwise the record shows the plain NAYZEEE sleeve. Or paste any image link.
 
     Record shop (all optional):

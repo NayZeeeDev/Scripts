@@ -4,13 +4,12 @@
     The shop sells every record in Records (vinyls.lua + /vinylimport). Where the player stands,
     the price, their money and the room in their pockets are all checked here: the UI only asks.
 
-    Prices: Config.RecordShop.records[item].price > the record's own `price` in vinyls.lua >
-    Config.RecordShop.defaultPrice. A price of false keeps a record out of the shop.
+    Price / genre / description: Config.RecordShop.records[item] > the record's own (vinyls.lua, or an
+    imported record's data) > Config.RecordShop.defaultPrice. A price of false keeps a record out.
 ]]
 local cfg = Config.RecordShop
 if not cfg or cfg.enabled == false then return end
 
-local RES = GetCurrentResourceName()
 local ACCOUNT = (cfg.currency == 'bank' or cfg.currency == 'item') and cfg.currency or 'cash'
 local MONEY_ITEM = cfg.moneyItem or 'money'
 local PREVIEW = cfg.preview or {}
@@ -19,42 +18,40 @@ local REACH = (cfg.interactDistance or 2.5) + 4.0     -- how far from the shopke
 local sessions = {}      -- src -> { loc = location | nil (admin), admin = bool }
 local adminOpen = {}     -- src -> true while an admin's /recordshop is pending
 local lastBuy, lastPreview, resolving = {}, {}, {}
-local warned = {}
+local known = {}         -- item -> whether the inventory has it (items don't change while running)
 
 local function now() return GetGameTimer() end
 
 ---------------------------------------------------------------- catalogue
-local function raw(item) return Config.Vinyls and Config.Vinyls[item] or nil end
 local function override(item) return cfg.records and cfg.records[item] or nil end
+
+-- the config override first, then the record's own value
+local function field(item, key)
+    local o, r = override(item), Records[item]
+    if o and o[key] ~= nil then return o[key] end
+    if r then return r[key] end
+end
 
 -- price for an item, or false when it isn't sold
 local function priceOf(item)
-    local o, r = override(item), raw(item)
-    local p
-    if o and o.price ~= nil then p = o.price
-    elseif r and r.price ~= nil then p = r.price
-    else p = cfg.defaultPrice or 250 end
+    local p = field(item, 'price')
+    if p == nil then p = cfg.defaultPrice or 250 end
     if p == false then return false end
     p = math.floor(tonumber(p) or 0)
     return p >= 0 and p or false
 end
 
-local function field(item, key)
-    local o, r = override(item), raw(item)
-    if o and o[key] ~= nil then return o[key] end
-    return r and r[key] or nil
-end
+local function text(v) return type(v) == 'string' and v ~= '' and v or nil end
 
 local function forSale(item)
     if not Records[item] or priceOf(item) == false then return false end
-    if not Bridge.ItemExists(item) then
-        if not warned[item] then
-            warned[item] = true
+    if known[item] == nil then
+        known[item] = Bridge.ItemExists(item) and true or false
+        if not known[item] then
             print(('^3[nayzeee-speaker] record shop: "%s" is not an item in your inventory, so it is not sold. Add it (see install/items.md).^7'):format(item))
         end
-        return false
     end
-    return true
+    return known[item]
 end
 
 local SORTS = {
@@ -88,13 +85,11 @@ local function catalogue()
         if forSale(item) then
             local cover = Vinyl.Cover(item)
             if not cover then missing[item] = true end
-            local genre = field(item, 'genre')
+            local genre = text(field(item, 'genre'))
             list[#list + 1] = {
                 item = item, artist = rec.artist ~= '' and rec.artist or 'Various', album = rec.album,
                 year = rec.year, tracks = #rec.tracks, cover = cover, titles = titlesOf(rec),
-                genre = type(genre) == 'string' and genre or nil,
-                desc = type(field(item, 'description')) == 'string' and field(item, 'description') or nil,
-                price = priceOf(item),
+                genre = genre, desc = text(field(item, 'description')), price = priceOf(item),
             }
             if genre then seen[genre] = true end
         end
@@ -145,8 +140,12 @@ end
 -- look the covers up in the background once, so the shelves are dressed before anyone walks in
 CreateThread(function()
     Wait(10000)
-    for item in pairs(Records) do
-        if Records[item] and not Records[item].cover and priceOf(item) then
+    -- a list first: an import while this runs adds records, and pairs() can't take new keys mid-walk
+    local items = {}
+    for item in pairs(Records) do items[#items + 1] = item end
+    for _, item in ipairs(items) do
+        local rec = Records[item]
+        if rec and not rec.cover and priceOf(item) then
             Vinyl.Cover(item)
             Wait(3000)          -- iTunes allows about 20 lookups a minute
         end
@@ -163,14 +162,12 @@ local function atShop(src, s)
     return #(GetEntityCoords(ped) - s.loc.coords) <= REACH
 end
 
-local function isAdmin(src) return Bridge.IsAdmin(src) end
-
 ---------------------------------------------------------------- open / close
 -- where = location index, or 'admin' after /recordshop
 NZ.RegisterCallback('shop:open', function(src, where)
     local s
     if where == 'admin' then
-        if not adminOpen[src] or not isAdmin(src) then return nil, 'no_permission' end
+        if not adminOpen[src] or not Bridge.IsAdmin(src) then return nil, 'no_permission' end
         adminOpen[src] = nil
         s = { admin = true }
     else
@@ -274,7 +271,7 @@ local command = cfg.command == nil and 'recordshop' or cfg.command
 if command and command ~= '' then
     RegisterCommand(command, function(src)
         if src == 0 then return print('[speaker] /' .. command .. ' is for players in game') end
-        if not isAdmin(src) then return Notify(src, 'no_permission') end
+        if not Bridge.IsAdmin(src) then return Notify(src, 'no_permission') end
         adminOpen[src] = true
         TriggerClientEvent(RES .. ':client:shopOpen', src, 'admin')
     end, false)
