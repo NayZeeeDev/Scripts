@@ -111,7 +111,7 @@ end
 
 function S.Range(kind, pos, rangeMult)
     local range = baseRange(kind) * (tonumber(rangeMult) or 1.0)
-    local x, y, z = coords(pos)
+    local x, _, z = coords(pos)
     if not x then return range end
 
     local h = signalCfg().height

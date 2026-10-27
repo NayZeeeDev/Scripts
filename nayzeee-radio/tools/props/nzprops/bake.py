@@ -313,7 +313,7 @@ def _bump(m: Mat, P, C, seed):
         a = np.abs(u)
         b2 = np.abs(v)
         hexd = np.maximum(a * 0.866 + b2 * 0.5, b2) < 0.42
-        h = -hexd * 1.0
+        h = -(hexd * 1.0)
         return (h * amp).astype(np.float32), (1 - 0.6 * hexd).astype(np.float32)
     if m.bump == "torx":
         # six-lobe drive recess centred on the head (planar lathe caps, like "phillips")

@@ -60,6 +60,7 @@ read_globals = {
     'IsPlayerAceAllowed', 'GetPlayerServerId', 'GetPlayerFromServerId', 'GetActivePlayers', 'PlayerId',
     'PlayerPedId', 'NetworkIsPlayerActive', 'NetworkGetPlayerIndexFromPed', 'GetPlayerRoutingBucket',
     'IsPedAPlayer', 'IsEntityDead', 'IsPedDeadOrDying', 'IsPedFatallyInjured', 'IsPlayerDead',
+    'IsPedRagdoll', 'IsPedCuffed', 'GetVehiclePedIsTryingToEnter', 'SetPauseMenuActive',
 
     -- entities
     'DoesEntityExist', 'GetEntityCoords', 'GetEntityHeading', 'GetEntityRotation', 'GetEntityModel',

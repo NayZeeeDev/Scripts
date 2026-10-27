@@ -88,6 +88,26 @@ local function encode(v)
     return nil
 end
 
+-- 'INSERT INTO `t` (`a`, `b`, `c`) VALUES (?, NULL, ?)' with only the non-nil values bound.
+-- A Lua list with a nil in the middle does not reach oxmysql as a list (it turns into a
+-- map on the way through the exports), so a missing value is written as NULL instead.
+local function insertRow(tableName, columns, values, suffix)
+    local cols, marks, bound = {}, {}, {}
+    for i = 1, #columns do
+        cols[i] = '`' .. columns[i] .. '`'
+        local v = values[i]
+        if v == nil then
+            marks[i] = 'NULL'
+        else
+            marks[i] = '?'
+            bound[#bound + 1] = v
+        end
+    end
+    local query = ('INSERT INTO `%s` (%s) VALUES (%s)'):format(tableName, table.concat(cols, ', '), table.concat(marks, ', '))
+    if suffix then query = query .. ' ' .. suffix end
+    return query, bound
+end
+
 -- ════════════════════════════════════════════════════════════════════════
 -- OXMYSQL (exports wrapped in promises)
 -- oxmysql is optional, so its lib/MySQL.lua is not in the manifest and the
@@ -129,7 +149,7 @@ local function transaction(queries)
         p:resolve(result)
     end
     local ok, err = pcall(function()
-        exports.oxmysql:transaction(queries, function(success) finish(success == true) end)
+        exports.oxmysql:transaction(queries, {}, function(success) finish(success == true) end)
     end)
     if not ok then
         NZR.Warn(('database transaction failed: %s'):format(tostring(err)))
@@ -298,12 +318,10 @@ function DB.SavePlayer(identifier, data)
     local presets = cleanPresets(data.presets) or {}
     local callsign = type(data.callsign) == 'string' and data.callsign or nil
     if mode == 'mysql' then
-        local ok, err = pcall(function()
-            exports.oxmysql:query(
-                'INSERT INTO `nzr_players` (`identifier`, `presets`, `callsign`) VALUES (?, ?, ?) '
-                .. 'ON DUPLICATE KEY UPDATE `presets` = VALUES(`presets`), `callsign` = VALUES(`callsign`)',
-                { identifier, encode(presets) or '[]', callsign })
-        end)
+        local query, values = insertRow('nzr_players', { 'identifier', 'presets', 'callsign' },
+            { identifier, encode(presets) or '[]', callsign },
+            'ON DUPLICATE KEY UPDATE `presets` = VALUES(`presets`), `callsign` = VALUES(`callsign`)')
+        local ok, err = pcall(function() exports.oxmysql:query(query, values) end)
         if not ok then NZR.Warn(('saving radio presets failed: %s'):format(tostring(err))) end
         return
     end
@@ -356,10 +374,9 @@ function DB.SaveChannels(list, by)
     if mode == 'mysql' then
         local queries = { { query = 'DELETE FROM `nzr_channels`', values = {} } }
         for _, c in ipairs(list) do
-            queries[#queries + 1] = {
-                query = 'INSERT INTO `nzr_channels` (`freq`, `access`, `code`, `jobs`, `label`, `updated_by`) VALUES (?, ?, ?, ?, ?, ?)',
-                values = { c.freq, c.access or 'open', c.code, c.jobs and encode(c.jobs) or nil, c.label, by },
-            }
+            local query, values = insertRow('nzr_channels', { 'freq', 'access', 'code', 'jobs', 'label', 'updated_by' },
+                { c.freq, c.access or 'open', c.code, c.jobs and encode(c.jobs) or nil, c.label, by })
+            queries[#queries + 1] = { query = query, values = values }
         end
         return transaction(queries)
     end
@@ -403,10 +420,9 @@ function DB.SaveVehicles(list)
     if mode == 'mysql' then
         local queries = { { query = 'DELETE FROM `nzr_vehicles`', values = {} } }
         for _, v in ipairs(list) do
-            queries[#queries + 1] = {
-                query = 'INSERT INTO `nzr_vehicles` (`model`, `label`, `range_mult`) VALUES (?, ?, ?)',
-                values = { v.model, v.label, tonumber(v.range_mult) or 1.0 },
-            }
+            local query, values = insertRow('nzr_vehicles', { 'model', 'label', 'range_mult' },
+                { v.model, v.label, tonumber(v.range_mult) or 1.0 })
+            queries[#queries + 1] = { query = query, values = values }
         end
         return transaction(queries)
     end
