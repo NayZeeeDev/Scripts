@@ -19,7 +19,7 @@ Immersive banking for **ESX Legacy, QBCore and Qbox** — personal, shared, soci
 
 ## 🔧 Install
 
-1. Import `install/install.sql` into your database. Already running an earlier build? Run `install/update.sql` as well.
+1. Import `install/install.sql` into your database.
 2. Drop the folder in `resources/[nayzeee]/nayzeee-banking`. **The folder must be named exactly `nayzeee-banking`** — every export, event and NUI callback is namespaced to it. Rename it and the resource prints the reason and stops itself rather than half-working.
 3. Add to `server.cfg` **after** your framework (`es_extended`, `qb-core` or `qbx_core`) and your inventory:
    ```cfg
@@ -92,6 +92,8 @@ Existing money is not migrated. If you're moving off another banking script, run
 
 **ATMs** — a cut-down terminal: balance, deposit, withdraw, transfer, bills. Card and PIN gated.
 
+**Tellers** — cash at a branch goes over the counter: the teller counts it through a money counter and slides it across for you to pick up, or takes your deposit and counts it.
+
 ---
 
 ## 💳 Card types
@@ -140,7 +142,7 @@ Debit cards route the charge to the account, credit cards to the line. The calle
 
 Set `Config.Cards.physicalItem = true` and each card type hands out its own item, carrying the card id, holder, account and last four digits in metadata. `install/items.md` has the block for ox_inventory, qb-inventory, qs-inventory and ESX.
 
-`install/images/` has a 3D icon per card type, plus one for every type in every style (`card_debit_teal.png`, `card_credit_chrome.png` …). On ox_inventory each card shows the style the player picked, and changes when they restyle it (`Config.Cards.skinImages`). Other inventories show the per-type image. The icons are drawn from the same colours as the cards in the app; `tools/cardicons.py` renders them again if you add a style.
+`install/images/` has a 3D icon per card type. On ox_inventory each card shows the style the player picked, and changes when they restyle it (`Config.Cards.skinImages`): those pictures are served straight from the resource (`web/images/cards/`), so there is nothing extra to copy. Other inventories show the per-type image.
 
 The same renders are in the bank itself (`web/images/cards/`): every card in your wallet list shows as its own card, ordering or restyling a card shows a big preview and the four styles to click, the phone's card chips show the card, and the ATM screen shows the card you put in. The live card on the Cards page is drawn to match — gold chip, contactless mark, type badge — and leans toward the mouse.
 
@@ -390,6 +392,31 @@ Deposits and withdrawals only go through **at a branch the player is standing in
 
 ---
 
+## 💁 The teller's counter
+
+Cash at a branch changes hands over the counter, not by magic:
+
+- **Withdrawing**: the teller runs the notes through a money counter on the counter beside them (you hear it count), turns back and slides them to the middle of the counter. Third-eye the notes (or press **E** without a target system) to pick them up. **The money only leaves the account when you pick it up**, so walking off or leaving it there costs nothing: after `collectSeconds` the teller puts it away.
+- **Depositing**: you put the notes down on the counter, the teller takes them and counts them through the machine. The money is in the account straight away; you are told when the count finishes.
+
+The bank window steps aside while it happens so you can see the counter.
+
+| Setting | Default | Description |
+|---|---|---|
+| `Config.Teller.enabled` | `true` | `false` hands cash over instantly, as before |
+| `Config.Teller.machineProp` | `bkr_prop_money_counter` | The counting machine |
+| `Config.Teller.cashProp` | `prop_anim_cash_pile_01` | The notes |
+| `Config.Teller.machine` | `vec3(0.50, 0.40, 0.05)` | Where the machine sits, from the teller |
+| `Config.Teller.counter` | `vec3(0.00, 0.70, 0.05)` | The middle of the counter, where cash changes hands |
+| `Config.Teller.countSeconds` | `4.1` | How long the machine runs |
+| `Config.Teller.collectSeconds` | `60` | How long the cash waits before the teller puts it away |
+| `Config.Teller.banks` | `{}` | Per-branch overrides of `machine` / `counter`, by position in `Config.Banks` |
+| `Config.Teller.anims` | table | The counting, handing over and picking up animations |
+
+Positions are in metres from the teller: `x` to their right, `y` toward the customer. Each point is dropped onto the surface under it, so the counter's height takes care of itself. Needs `Config.SpawnPeds`; with no teller standing there the cash is handed over at once.
+
+---
+
 ## 💵 What comes out of the machine
 
 Cash pushes out of the dispenser on a withdrawal and gets drawn back in on a deposit. There is only ever one card: it leaves the hand as it reaches the slot and carries on into the reader, and on the way out it slides back to the mouth of the slot and the hand takes it. A statement feeds out of the receipt slot.
@@ -461,7 +488,7 @@ Tapping Send or Request opens a picker with these ways to find somebody:
 | Tab | Where it comes from | Needs |
 |---|---|---|
 | **Nearby** | Players within `nearbyRadius`, closest first | Nothing |
-| **Recent** | People you have sent money to before | `install/update.sql` |
+| **Recent** | People you have sent money to before | Nothing |
 | **Contacts** | The player's own phone contacts | `Config.Phone.contacts` |
 | **Saved** | Payees saved from the bank's Send money window | A server that sends `payees` |
 
@@ -485,7 +512,7 @@ The UI lives in `web/phone/` and is deliberately phone-shaped rather than a shru
 
 ## 🔊 Sounds
 
-Seven sound files live in `web/sounds/` — a keypad press, the card going into the reader, notes being counted, the dispenser, an approval, a decline and a statement printing. **Every one was made for this resource.** Nothing is licensed in from anywhere else, so they ship with it and there is nothing to credit.
+Eight sound files live in `web/sounds/`: a keypad press, the card going into the reader, notes being counted, the dispenser, an approval, a decline, a statement printing, and the teller's money counter (`counter.ogg`).
 
 | Setting | Default | Description |
 |---|---|---|
@@ -594,15 +621,11 @@ Each factor is marked *Helping*, *Okay*, *Hurting* or *No effect yet*, so a play
 
 ---
 
-## 🗄️ Upgrading an existing install
+## 🗄️ Database
 
-`install/update.sql` adds the columns that arrived after the first release. Import it once; it is safe to run again.
+Two files: `install/install.sql` creates every table, `install/uninstall.sql` drops them all.
 
-{% hint style="danger" %}
-If you imported an older copy of `update.sql`, **check it worked.** The old version used `ADD COLUMN IF NOT EXISTS`, which MariaDB accepts and **MySQL 8 rejects outright** — leaving the database unpatched with no obvious error. The current file works on 5.7, 8 and MariaDB, and ends with a `SELECT` that lists the six columns so you can see them.
-{% endhint %}
-
-The resource checks these columns on start and prints what is missing. Anything absent switches its own feature off:
+The resource also checks the columns it relies on when it starts. If a table was created by hand or from an older copy and is missing one, the console names it and that feature switches itself off rather than erroring:
 
 | Missing | What stops working | Everything else |
 |---|---|---|
@@ -639,7 +662,7 @@ Out of the box the bank is **Fleeca Bank**: a white badge with a teal **F**, the
 | `web/images/logo.png` (`Config.UI.logo`) | Badge + name: ATM header and statements, phone splash |
 | `web/phone/icon.png` | The phone app icon |
 
-`Config.UI.name` is the name in the title bar, the intro and on the ATM. To rebrand, change `MONOGRAM`, `NAME`, `TAGLINE` or the colours at the top of `tools/logo.py` and run `python3 tools/logo.py`, or drop your own PNGs in with the same names.
+`Config.UI.name` is the name in the title bar, the intro and on the ATM. To rebrand, drop your own PNGs into `web/images/` with the same names, or point `Config.UI.mark` / `Config.UI.logo` at yours.
 
 ### Using a card at a machine
 
@@ -699,7 +722,6 @@ Branches close overnight, ATMs keep working. That's the point — night-time pla
 | Setting | Default | Description |
 |---|---|---|
 | `Config.MaxSavedTransactions` | `250` | Rows kept per account; older ones are trimmed. `0` keeps everything |
-| `Config.UpdateCheck` | off | Point at a JSON endpoint returning `{ "version": "1.0.0" }` |
 | `Config.Accounts.numberChangeCost` | `250` | Reissue your own account number |
 | `Config.Cards.pinChangePrice` | `0` | Charge for a PIN change |
 | `Config.Cards.limitResetHours` | `24` | Rolling window the card limit resets on |
@@ -782,7 +804,7 @@ nayzeee-banking/
 │  ├─ install.sql        run this once
 │  ├─ uninstall.sql      drops every table
 │  ├─ items.md           card items for every inventory
-│  ├─ images/            card item images (3D, one per type and per style)
+│  ├─ images/            item images: the four cards and the three printed papers
 │  └─ REPLACE_paycheck.lua   optional, pre-1.9 ESX only
 ├─ server/
 │  ├─ sv_bridge.lua      open — billing integrations
@@ -884,7 +906,7 @@ TriggerEvent('nz_bank:paycheck', source, amount, 'Police')
 
 | Issue | Solution |
 |---|---|
-| A modal hangs on confirm | A server callback errored. Check the console — if it mentions `nz_bank_loans`, run `install/update.sql` |
+| A modal hangs on confirm | A server callback errored. Check the console — if it mentions a missing column, re-import `install/install.sql` |
 | The ATM screen sits off the prop | The offsets do not match your model — `Config.Debug = true`, then `/atmtune` |
 | ATM keys do nothing when clicked | Same cause: the keypad origin is off. Tune it, or set `Config.ATM.screen.enabled = false` to use the pad |
 | Phone app never appears | lb-phone was not running when the resource started — restart this resource, or check the console for the reason it was rejected |

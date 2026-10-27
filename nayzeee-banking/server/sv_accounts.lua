@@ -286,17 +286,19 @@ Bank.callback('nz_bank:deposit', function(src, accountId, amount)
     Bank.log('deposit', 'Deposit',
         ('**%s** deposited **%s%s** into %s'):format(Bank.fullName(xPlayer), Config.Currency, amount, acc.label))
 
-    return { ok = true, msg = ('Deposited %s%s.'):format(Config.Currency, amount) }
+    local done = ('Deposited %s%s.'):format(Config.Currency, amount)
+    -- at a branch the money is in the account already; the teller still takes the
+    -- notes off the counter and counts them, and says so when they are done
+    if point == 'bank' and Bank.tellerOn and Bank.tellerOn() then
+        return { ok = true, msg = 'The teller is counting your deposit.', teller = { kind = 'deposit', amount = amount, done = done } }
+    end
+    return { ok = true, msg = done }
 end)
 
-Bank.callback('nz_bank:withdraw', function(src, accountId, amount)
-    local xPlayer = Bank.getPlayer(src)
-    amount = Bank.round(amount)
-    if not xPlayer or amount <= 0 then return { ok = false, msg = 'Enter a valid amount.' } end
-
-    -- the ATM fee and cap follow where the player really is, not what the client says
-    local point, why = Bank.cashPoint(src)
-    if not point then return { ok = false, msg = why } end
+--- A withdrawal at a cash point the caller has already found. `dry` runs every
+--- check and moves nothing: a branch withdrawal is checked when it is asked for
+--- and only happens once the player picks the cash up off the counter.
+function Bank.withdrawAt(src, xPlayer, accountId, amount, point, dry)
     local fromATM = point == 'atm'
 
     local acc, perms, err, atm = moneyAccess(src, accountId, point)
@@ -318,6 +320,13 @@ Bank.callback('nz_bank:withdraw', function(src, accountId, amount)
     end
     if acc.type == 'savings' then
         fee = fee + Bank.round(amount * Config.Savings.withdrawFee)
+    end
+
+    if dry then
+        -- overdraft cover is worked out by the debit itself, so only a plain shortfall is refused here
+        local cover = Config.Overdraft and Config.Overdraft.enabled
+        if not cover and acc.balance < amount + fee then return { ok = false, msg = 'Not enough in the account.' } end
+        return { ok = true }
     end
 
     -- someone else's card spends inside that card's daily limit
@@ -354,6 +363,25 @@ Bank.callback('nz_bank:withdraw', function(src, accountId, amount)
             Bank.fullName(xPlayer), Config.Currency, amount, acc.label, fromATM and ' (ATM)' or ''))
 
     return { ok = true, msg = ('Withdrew %s%s.'):format(Config.Currency, amount), fee = fee }
+end
+
+Bank.callback('nz_bank:withdraw', function(src, accountId, amount)
+    local xPlayer = Bank.getPlayer(src)
+    amount = Bank.round(amount)
+    if not xPlayer or amount <= 0 then return { ok = false, msg = 'Enter a valid amount.' } end
+
+    -- the ATM fee and cap follow where the player really is, not what the client says
+    local point, why = Bank.cashPoint(src)
+    if not point then return { ok = false, msg = why } end
+
+    -- at a branch the teller counts it out and the player picks it up (sv_teller.lua)
+    if point == 'bank' and Bank.tellerOn and Bank.tellerOn() then
+        local check = Bank.withdrawAt(src, xPlayer, accountId, amount, point, true)
+        if not check.ok then return check end
+        return Bank.tellerHold(src, accountId, amount)
+    end
+
+    return Bank.withdrawAt(src, xPlayer, accountId, amount, point)
 end)
 
 -- ═══════════════════════════════════════════════════════════

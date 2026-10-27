@@ -230,7 +230,7 @@ local function requestLoan(xPlayer, tierId)
         end)
 
         if not ok then
-            print('^3[nayzeee-banking]^7 nz_bank_loans is missing the anti-churn columns — run install/update.sql')
+            print('^3[nayzeee-banking]^7 nz_bank_loans is missing the anti-churn columns — re-import install/install.sql')
             lastClosed = 0
         end
         lastClosed = lastClosed or 0

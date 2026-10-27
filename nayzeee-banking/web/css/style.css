@@ -274,7 +274,7 @@ button:disabled{opacity:.4;pointer-events:none}
 .donut .mid b{font-size:26px;font-weight:700;letter-spacing:-.04em;color:var(--white)}
 .donut .mid span{font-size:10px;color:var(--ink-3);font-weight:400;letter-spacing:.1em;margin-top:2px}
 
-/* bank card — drawn like the 3D card renders (tools/cardicons.py): same
+/* bank card — drawn like the 3D card renders (web/images/cards): same
    gradients, gold chip, contactless mark and type badge, a slab edge and a
    resting tilt that follows the mouse */
 .bcard-stage{perspective:900px;padding:4px 6px 12px}

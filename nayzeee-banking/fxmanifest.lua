@@ -20,6 +20,7 @@ client_scripts {
     'client/cl_atm.lua',
     'client/cl_atm_dui.lua',
     'client/cl_atm_props.lua',
+    'client/cl_teller.lua',
     'client/cl_phone.lua'
 }
 
@@ -29,6 +30,7 @@ server_scripts {
     'server/sv_core.lua',
     'server/sv_multijob.lua',
     'server/sv_accounts.lua',
+    'server/sv_teller.lua',
     'server/sv_cards.lua',
     'server/sv_session.lua',
     'server/sv_paper.lua',
@@ -72,7 +74,8 @@ files {
     'web/sounds/dispense.ogg',
     'web/sounds/approved.ogg',
     'web/sounds/declined.ogg',
-    'web/sounds/receipt.ogg'
+    'web/sounds/receipt.ogg',
+    'web/sounds/counter.ogg'
 }
 
 dependencies {

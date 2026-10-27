@@ -6,12 +6,12 @@ Only needed when `Config.Cards.physicalItem = true`. One item per card type in `
 
 Every entry must be **non-stackable**, because the `cardId` in its metadata is what ties the item to a specific card in the database. Two cards sharing a stack would share an identity.
 
-Images are in `install/images/`. Copy **all** of them wherever your inventory serves item images, then restart the inventory resource:
+Images are in `install/images/`. Copy them wherever your inventory serves item images, then restart the inventory resource:
 
-- `card_debit.png`, `card_secured.png`, `card_credit.png`, `card_platinum.png`: the item's own picture
-- `card_<item>_<style>.png` (16 files): on ox_inventory each card is shown in the style the player picked in the app (teal, noir, chrome, crimson) and updates when they restyle it. Turn this off with `Config.Cards.skinImages = false`.
+- `card_debit.png`, `card_secured.png`, `card_credit.png`, `card_platinum.png`: the card items
+- `bank_receipt.png`, `bank_statement.png`, `credit_report.png`: the printed papers
 
-Added a style to `Config.Cards.skins`? Add its colours to `tools/cardicons.py` and run `python3 tools/cardicons.py` (needs `pip install numpy pillow`) to render its images.
+On ox_inventory each card also shows the style the player picked in the app (teal, noir, chrome, crimson) and updates when they restyle it. Those pictures come straight from this resource (`web/images/cards/`), so they need no copying. Turn it off with `Config.Cards.skinImages = false`.
 
 ---
 
@@ -125,7 +125,7 @@ Only needed when `Config.Paper.enabled = true` (the default). Players print thes
 
 The whole document travels in the item's metadata, so it can be handed to another player, dropped, or stored, and still reads the same when used. Using the item opens the sheet on screen. Like the cards, these must be **non-stackable**.
 
-Images: `bank_receipt.png`, `bank_statement.png`, `credit_report.png` in `install/images/`. Rebuild them with `python3 tools/papericons.py` if you change the logo.
+Images: `bank_receipt.png`, `bank_statement.png`, `credit_report.png` in `install/images/`.
 
 ### ox_inventory
 

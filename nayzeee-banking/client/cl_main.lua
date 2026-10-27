@@ -73,6 +73,13 @@ RegisterNUICallback('request', function(data, cb)
     local res = lib.callback.await(name, false, table.unpack(args, 1, args.n or #args))
     if name == 'nz_bank:getData' then res = withClientConfig(res) end
     cb(res)
+
+    -- cash at a branch goes over the counter (cl_teller.lua): the bank steps
+    -- aside so the player can watch the teller and pick the notes up
+    if type(res) == 'table' and res.ok and type(res.teller) == 'table' and Bank.tellerScene then
+        Bank.close()
+        CreateThread(function() Bank.tellerScene(res.teller) end)
+    end
 end)
 
 --- Every notification in the resource goes through here.

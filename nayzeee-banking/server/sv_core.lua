@@ -35,8 +35,8 @@ end
 -- ═══════════════════════════════════════════════════════════
 --  SCHEMA
 --
---  Some columns arrived after the first release. A server that has
---  not imported install/update.sql will not have them, and a query
+--  A table made by hand or from an older copy of install/install.sql
+--  may be missing a column, and a query
 --  against a column that is not there does not fail quietly — it
 --  throws, and it takes down whatever was calling it.
 --
@@ -119,7 +119,7 @@ CreateThread(function()
     end
 
     if #missing > 0 then
-        print('^3[nayzeee-banking]^7 import ^5install/update.sql^7 to switch these back on. Missing: ' ..
+        print('^3[nayzeee-banking]^7 re-import ^5install/install.sql^7 to switch these back on. Missing: ' ..
               table.concat(missing, ', '))
     else
         Bank.debug('schema is up to date')
@@ -735,29 +735,6 @@ CreateThread(function()
             Bank.debug('created society account for ' .. job)
         end
     end
-end)
-
--- ═══════════════════════════════════════════════════════════
---  UPDATE CHECK
--- ═══════════════════════════════════════════════════════════
-CreateThread(function()
-    if not Config.UpdateCheck or not Config.UpdateCheck.enabled then return end
-    if not Config.UpdateCheck.url or Config.UpdateCheck.url == '' then return end
-
-    Wait(8000)
-    local current = GetResourceMetadata(GetCurrentResourceName(), 'version', 0)
-
-    PerformHttpRequest(Config.UpdateCheck.url, function(code, body)
-        if code ~= 200 or not body then return end
-
-        local ok, data = pcall(json.decode, body)
-        if not ok or type(data) ~= 'table' or not data.version then return end
-
-        if data.version ~= current then
-            print(('^3[nayzeee-banking]^7 update available: ^2%s^7 (running %s)'):format(data.version, current))
-            if data.notes then print('^3[nayzeee-banking]^7 ' .. tostring(data.notes)) end
-        end
-    end, 'GET')
 end)
 
 -- ═══════════════════════════════════════════════════════════

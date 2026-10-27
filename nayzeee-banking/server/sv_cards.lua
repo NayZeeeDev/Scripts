@@ -58,7 +58,7 @@ end
 -- ═══════════════════════════════════════════════════════════
 --  PHYSICAL CARD ITEMS
 --  On ox_inventory every card carries its own picture
---  (metadata.image = card_<type>_<skin>, from install/images)
+--  (metadata.imageurl, served from this resource's web/images/cards)
 --  so the item looks like the card in the app. Other inventories
 --  show the item's default picture for that card type.
 -- ═══════════════════════════════════════════════════════════
@@ -76,8 +76,8 @@ function CardItems.meta(card, accountNumber)
         type        = t.label,
         label       = ('%s •%s'):format(t.label, last4),
         description = ('%s · ending %s'):format(card.holder or 'Unknown holder', last4),
-        image       = (Config.Cards.skinImages and t.item and card.skin)
-                      and ('%s_%s'):format(t.item, card.skin) or nil,
+        imageurl    = (Config.Cards.skinImages and t.item and card.skin)
+                      and ('nui://%s/web/images/cards/%s_%s.png'):format(GetCurrentResourceName(), t.item, card.skin) or nil,
     }
 end
 

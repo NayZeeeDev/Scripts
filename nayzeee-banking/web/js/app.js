@@ -881,7 +881,7 @@ function txRow(t) {
 /* ── cards ── */
 const cap = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
 
-/* The rendered 3D card (web/images/cards, from tools/cardicons.py) for a card
+/* The rendered 3D card (web/images/cards) for a card
    type and style. A type without an item of its own borrows its kind's art. */
 const KIND_ART = { debit: 'card_debit', secured: 'card_secured', credit: 'card_credit' };
 function cardArt(typeId, skin) {

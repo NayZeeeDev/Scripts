@@ -76,4 +76,10 @@ Locales['en'] = {
     atm_use          = 'Use ATM',
     atm_card_refused = 'The machine won\'t take that card.',
     paper_blank      = 'There is nothing printed on this.',
+
+    -- teller's counter
+    teller_collect   = 'Collect cash',
+    teller_textui    = '[E] Collect cash',
+    teller_put_away  = 'The teller put your cash away. Nothing was taken.',
+    teller_walked    = 'You walked away from the counter. Nothing was taken.',
 }

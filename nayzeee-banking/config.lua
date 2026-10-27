@@ -66,8 +66,7 @@ Config.UI = {
 
     -- YOUR LOGO
     --
-    -- Two files in web/images/, made by tools/logo.py (change the name, letters
-    -- or colours there and run it again, or drop in your own):
+    -- Two files in web/images/ (drop in your own with the same names):
     --   mark = the badge on its own, for the title bar, the intro, the PIN pad,
     --          the ATM boot screen and the phone header
     --   logo = badge + name, for the wide spots: the ATM header, statements,
@@ -96,7 +95,6 @@ Config.Intro = {
 }
 
 Config.MaxSavedTransactions = 250      -- Rows kept per account, 0 = keep everything
-Config.UpdateCheck = { enabled = false, url = '' } -- JSON endpoint returning { "version": "1.3.0" }
 
 -- ██████╗ ██████╗  █████╗ ███╗   ██╗ ██████╗██╗  ██╗███████╗███████╗
 -- ██╔══██╗██╔══██╗██╔══██╗████╗  ██║██╔════╝██║  ██║██╔════╝██╔════╝
@@ -126,6 +124,42 @@ Config.Banks = {
     { label = 'Fleeca Bank',  coords = vector4(-437.07, -1691.89, 20.92, 151.59),ped = 'ig_bankman' },
     { label = 'Pacific Bank', coords = vector4(247.97, 224.72, 106.29, 162.74),  ped = 'ig_bankman' },
     { label = 'Paleto Bank',  coords = vector4(-111.11, 6470.14, 31.63, 140.34), ped = 'ig_bankman' },
+}
+
+-- THE TELLER'S COUNTER
+-- Cash at a branch changes hands over the counter. A withdrawal: the teller
+-- runs the notes through the money counter, slides them to the middle of the
+-- counter, and the player third-eyes them to pick them up (the money only
+-- leaves the account then). A deposit: the player puts the cash down, the
+-- teller takes it and counts it through the machine.
+--
+-- Positions are from the teller, in metres: x to the teller's right, y in
+-- front of them (toward the customer), z up from their waist. Each one is
+-- dropped onto whatever surface is under it, so only x and y really matter.
+-- Wrong for one branch? Override it in `banks`, by its place in Config.Banks.
+-- Needs Config.SpawnPeds; without a teller the cash is handed over at once.
+Config.Teller = {
+    enabled = true,
+
+    machineProp    = 'bkr_prop_money_counter',   -- the counting machine on the counter
+    cashProp       = 'prop_anim_cash_pile_01',   -- the notes
+    machine        = vec3(0.50, 0.40, 0.05),     -- the machine, at the teller's side
+    machineHeading = 180.0,                      -- turned this far from the teller's own heading
+    machineTop     = 0.22,                       -- how high above the machine's base the notes sit
+    counter        = vec3(0.00, 0.70, 0.05),     -- the middle of the counter, where cash changes hands
+
+    countSeconds   = 4.1,      -- how long the machine runs (the length of web/sounds/counter.ogg)
+    collectSeconds = 60,       -- how long the cash waits on the counter before the teller puts it away
+    walkAway       = 6.0,      -- metres from the counter that count as leaving it
+
+    -- per-branch overrides, e.g. [8] = { counter = vec3(0.1, 0.8, 0.05), machine = vec3(-0.5, 0.4, 0.05) }
+    banks = {},
+
+    anims = {
+        count = { dict = 'amb@prop_human_atm@male@idle_a', clip = 'idle_b' },   -- teller at the machine
+        give  = { dict = 'mp_common', clip = 'givetake1_a' },                  -- sliding or placing the notes
+        take  = { dict = 'mp_common', clip = 'givetake1_b' },                  -- picking them up
+    },
 }
 
 --  █████╗ ████████╗███╗   ███╗███████╗
@@ -467,8 +501,8 @@ Config.Cards = {
     expiryMonths     = 24,      -- How long a card lasts
 
     physicalItem = false,       -- Give an inventory item per card type
-    skinImages   = true,        -- ox_inventory: each card item shows its own style (card_<item>_<skin>.png
-                                -- from install/images). Turn off if you add a skin without rendering its images.
+    skinImages   = true,        -- ox_inventory: each card item shows its own style, straight from
+                                -- web/images/cards/card_<item>_<skin>.png. Turn off if you add a skin without images.
     stealable    = true,        -- Cards can be taken off a player by other scripts
 
     -- Contactless: payments under the threshold skip the PIN
@@ -478,7 +512,7 @@ Config.Cards = {
     member = { maxPerMember = 1, limit = 2500 },
 
     -- Card styles. A new one needs .bcard.<name> in web/css/style.css and web/phone/style.css,
-    -- and its item pictures from tools/cardicons.py (see install/items.md)
+    -- and its pictures in web/images/cards/ (card_<item>_<name>.png)
     skins = { 'teal', 'noir', 'chrome', 'crimson' },
 
     -- Spend limits a player can pick from on their own card
@@ -936,10 +970,8 @@ Config.Statements = {
 -- ███████║╚██████╔╝╚██████╔╝██║ ╚████║██████╔╝███████║
 -- ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚══════╝
 
--- Every sound file in web/sounds/ was made for this resource. They
--- are yours with it — no attribution, nothing licensed in from
--- anywhere else. Drop your own .ogg files in that folder and point
--- the names below at them to change any of it.
+-- The sound files in web/sounds/. Drop your own .ogg files in that
+-- folder and point the names below at them to change any of it.
 Config.Sounds = {
     enabled = true,
     volume  = 0.6,       -- overall, 0.0 to 1.0
@@ -952,6 +984,7 @@ Config.Sounds = {
         approved = 'approved',   -- transaction went through
         declined = 'declined',   -- it did not
         receipt  = 'receipt',    -- a statement printing
+        counter  = 'counter',    -- the teller's money counter running
     },
 }
 
