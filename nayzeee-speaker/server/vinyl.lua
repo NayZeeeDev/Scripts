@@ -50,6 +50,11 @@ else
 end
 Vinyl.NeedleDrop = NEEDLE
 
+-- The needle only exists on the record console upgrade: a deck placed with the old turntable model
+-- has its own baked platter and record, so its music starts right away, as before.
+local CONSOLE = T.consoleModel or 'nayzeee_console'
+local function needle(e) return NEEDLE and e ~= nil and e.model == CONSOLE end
+
 -- tell everyone about a change; linked speakers mirror their leader
 local function push(e)
     Broadcast(e)
@@ -243,7 +248,7 @@ function Vinyl.PlayIndex(e, idx, how)
     v.move, v.moveAt = how == 'flow' and 'flow' or 'drop', t
 
     local land = t
-    if NEEDLE then
+    if needle(e) then
         if how == 'insert' then
             land = (v.at or t) + math.floor(INSERT_LEAD * 1000)
         elseif how ~= 'flow' then
@@ -271,7 +276,7 @@ function Vinyl.PlayIndex(e, idx, how)
         track.thumb = coverFor(a) or track.thumb
         track.by = nil
         local cue = 0
-        if NEEDLE and how ~= 'flow' then cue = math.max((land - now()) / 1000, MIN_CUE) end
+        if needle(e) and how ~= 'flow' then cue = math.max((land - now()) / 1000, MIN_CUE) end
         StartTrack(e, track, 0, cue)
         v.land = e.startedAt
         push(e)
@@ -368,7 +373,7 @@ function Vinyl.Insert(src, e, item)
     local at = now()
     if lead.vinyl then
         Vinyl.Return(lead, src, e.id)
-        if NEEDLE then at = at + math.floor(SWAP_DELAY * 1000) end
+        if needle(lead) then at = at + math.floor(SWAP_DELAY * 1000) end
     end
     lead.track, lead.playing, lead.pos = nil, false, 0
     lead.vinyl = {
