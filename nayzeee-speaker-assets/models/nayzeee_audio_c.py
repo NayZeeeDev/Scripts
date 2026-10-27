@@ -100,6 +100,12 @@ def _prism(outline, x0, x1, material, **kw):
     return M.extrude(outline, x1 - x0, z0=x0, material=material, **kw).transform(_PERM).translate(0, 0, ZC)
 
 
+def _sg(n, low):
+    """Nominal segment count that gives n in the High LOD and never fewer than ``low`` in the Medium LOD
+    (keeps the hub silhouettes round at distance)."""
+    return max(float(n), low / max(M.get_detail(), 1e-6))
+
+
 def _lathe_x(profile, segments, material, start=0.0, sweep=360.0, crease=40.0):
     """Lathe an (r, x) profile around the barrel axis.  Lathe angle 0 = bottom, 90 = front, 180 = top."""
     m = M.lathe(profile, segments, sweep=sweep, start=start, crease=crease, material=material)
@@ -224,6 +230,7 @@ def _saddles(parts):
 def _hub(sign):
     """One end-cap hub at x = sign * XE (built for +X, turned 180 deg about Z for -X so prints read)."""
     parts = []
+    hs = _sg(48, 24)                              # one count for every hub ring so their edges stay nested
     r_ring_o, r_ring_i = 0.1005, 0.0900
     ring_top = XE + 0.0026                        # chrome ring stands 2.6 mm proud of the face
     edge = 0.009
@@ -232,20 +239,20 @@ def _hub(sign):
     band = [(RG - 0.003, XI, 0.0, -1.0), (RC - 0.002, XI, 0.0, -1.0)]
     band += M.arc_profile((RC - 0.002, XI + 0.002), 0.002, -90, 0, 2)
     band += [(RC, xs - 0.0008, 1.0, 0.0), (RC - 0.0008, xs, 0.0, 1.0), (RC - 0.0030, xs, 0.0, 1.0)]
-    parts.append(_lathe_x(band, 48, "gunmetal", crease=30).named("hub_band"))
+    parts.append(_lathe_x(band, hs, "gunmetal", crease=30).named("hub_band"))
     # diamond-cut aluminium ring in the seam between the band and the bumper (catches the light)
     cut = [(RC - 0.0030, xs - 0.0002), (RC + 0.0002, xs + 0.0004), (RC + 0.0002, xs + 0.0010),
            (RC - 0.0030, xs + 0.0016)]
-    parts.append(_lathe_x(cut, 48, "brushed_aluminium", crease=30).named("hub_cut_ring"))
+    parts.append(_lathe_x(cut, hs, "brushed_aluminium", crease=30).named("hub_cut_ring"))
     # soft rubber bumper wrapping the outer edge onto the face
     rb = RC + 0.0006
     bump = [(RC - 0.0030, xs + 0.0015, 0.0, -1.0), (rb - 0.0020, xs + 0.0015, 0.0, -1.0)]
     bump += M.arc_profile((rb - 0.0020, xs + 0.0035), 0.0020, -90, 0, 1)
     bump += [(rb, XE - edge, 1.0, 0.0)] + M.arc_profile((rb - edge, XE - edge), edge, 0, 90, 3)
     bump += [(0.1125, XE, 0.0, 1.0)]
-    parts.append(_lathe_x(bump, 48, "rubber", crease=30).named("hub_bumper"))
+    parts.append(_lathe_x(bump, hs, "rubber", crease=30).named("hub_bumper"))
     # flat outer face annulus (planar UVs: no stretching)
-    face = M.lathe([(0.1127, XE - 0.0001, 0.0, 1.0), (r_ring_o - 0.0006, XE - 0.0001, 0.0, 1.0)], 48,
+    face = M.lathe([(0.1127, XE - 0.0001, 0.0, 1.0), (r_ring_o - 0.0006, XE - 0.0001, 0.0, 1.0)], hs,
                    material="satin_graphite")
     parts.append(face.rotate_y(90).translate(0, 0, ZC).uv_planar("+x").named("hub_face"))
     # polished chrome trim ring standing proud of the face
@@ -253,7 +260,7 @@ def _hub(sign):
     ring += M.arc_profile((r_ring_o - 0.0012, ring_top - 0.0012), 0.0012, 0, 90, 2)
     ring += M.arc_profile((r_ring_i + 0.0018, ring_top - 0.0018), 0.0018, 90, 180, 2)
     ring += [(r_ring_i, XE - 0.0030, -1.0, 0.0)]
-    parts.append(_lathe_x(ring, 48, "chrome", crease=50).named("hub_trim_ring"))
+    parts.append(_lathe_x(ring, hs, "chrome", crease=50).named("hub_trim_ring"))
     # six socket screws on the ring top
     for k in range(6):
         a = math.radians(30 + 60 * k)
@@ -263,18 +270,18 @@ def _hub(sign):
     # cavity: matte wall, teal light ring floor, passive radiator
     floor = XE - 0.017
     wall = [(r_ring_i + 0.0006, XE - 0.0015, -1.0, 0.0), (r_ring_i + 0.0006, floor, -1.0, 0.0)]
-    parts.append(_lathe_x(wall, 48, "matte_black_plastic").named("hub_cavity"))
-    led = M.lathe([(r_ring_i + 0.0006, floor, 0.0, 1.0), (0.0858, floor, 0.0, 1.0)], 48, material="led_teal")
+    parts.append(_lathe_x(wall, hs, "matte_black_plastic").named("hub_cavity"))
+    led = M.lathe([(r_ring_i + 0.0006, floor, 0.0, 1.0), (0.0858, floor, 0.0, 1.0)], hs, material="led_teal")
     parts.append(led.rotate_y(90).translate(0, 0, ZC).named("hub_light_ring"))
     # rubber surround (half roll) between the light ring and the diaphragm
     rs, rm = 0.0062, 0.0858 - 0.0062
     sur = [(rm + rs * math.cos(t), floor + rs * math.sin(t), math.cos(t), math.sin(t))
            for t in np.radians(np.linspace(0.0, 180.0, M.seg(4, 3) + 1))]       # >= 3 steps even in the Medium LOD
-    parts.append(_lathe_x(sur, 48, "rubber", crease=60).named("radiator_surround"))
+    parts.append(_lathe_x(sur, hs, "rubber", crease=60).named("radiator_surround"))
     # diaphragm: very shallow cone rising toward the badge
     rd = rm - rs
     dia = [(rd, floor, 0.0, 1.0), (0.0335, floor + 0.0016), (0.0, floor + 0.0016, 0.0, 1.0)]
-    d = M.lathe(dia, 48, crease=35, material="satin_graphite").rotate_y(90).translate(0, 0, ZC)
+    d = M.lathe(dia, hs, crease=35, material="satin_graphite").rotate_y(90).translate(0, 0, ZC)
     parts.append(d.uv_planar("+x").named("radiator_diaphragm"))
     # spun aluminium centre badge with a raised gloss mark
     bz = floor + 0.0016

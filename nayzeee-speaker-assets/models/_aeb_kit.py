@@ -576,3 +576,56 @@ _ns("spk_grille_graphite", "nz_spk_grille_d", "nz_grille_round_n", "nz_grille_ro
     PBR(metallic=0.5, roughness=0.45), "METAL_SOLID_SMALL",
     "Graphite powder-coated perforated steel grille, round holes (map planar).",
     specularIntensityMult=0.7, specularFalloffMult=55.0, specularFresnel=0.9, bumpiness=1.0)
+
+
+# --- heathered (melange) acoustic knit for the Echo Column: two-tone twisted yarn in a plain weave,
+#     lighter than fabric_grille_dark so the weave and the flecks read on a slim dark column.
+def _melange(w, h, threads=40, seed=341):
+    y, x = np.mgrid[0:h, 0:w].astype(np.float64) + 0.5
+    cell = w / threads
+    u, v = x / cell, y / cell
+    iu, iv = np.floor(u).astype(int), np.floor(v).astype(int)
+    fu, fv = u - iu, v - iv
+    over = ((iu + iv) % 2) == 0                                      # plain weave
+    prof = lambda t: np.sqrt(np.clip(1 - (2 * t - 1) ** 2 * 1.12, 0, 1))
+    weft = prof(fv) * (0.62 + 0.38 * np.sin(math.pi * fu))
+    warp = prof(fu) * (0.62 + 0.38 * np.sin(math.pi * fv))
+    hm = np.where(over, weft, warp)
+    # twisted two-ply yarn: light fibre flecks stretched along each thread
+    fx = tx.standardize(tx.blur(tx.white(w, h, seed), 2.6, 0.45))
+    fy = tx.standardize(tx.blur(tx.white(w, h, seed + 1), 0.45, 2.6))
+    light = tx.smoothstep(0.35, 1.6, np.where(over, fx, fy))
+    # slow yarn-to-yarn tone variation (one value per thread)
+    rr = tx.rng(seed + 2)
+    row_t, col_t = rr.normal(0, 1, threads), rr.normal(0, 1, threads)
+    tone = np.where(over, row_t[iv % threads], col_t[iu % threads])
+    return hm, light, tone
+
+
+@_tex("nz_spk_melange_d", 512, description="Charcoal melange acoustic knit (two-tone yarn), 40 threads per tile.")
+def _melange_d(w, h):
+    hm, light, tone = _melange(w, h)
+    dark, pale = tx.hex_rgb("#2a2d30"), tx.hex_rgb("#6a7076")
+    mix = np.clip(light * 0.75, 0, 1)[:, :, None]
+    c = dark[None, None, :] * (1 - mix) + pale[None, None, :] * mix
+    c = c * (0.70 + 0.30 * hm + 0.035 * tone)[:, :, None]
+    c = np.where(hm[:, :, None] < 0.07, tx.hex_rgb("#070808")[None, None, :], c)      # see-through gaps
+    return np.clip(c, 0, 1)
+
+
+@_tex("nz_spk_melange_n", 512, kind="normal", description="Melange knit relief.")
+def _melange_n(w, h):
+    hm, light, tone = _melange(w, h)
+    return tx.height_to_normal(tx.blur(hm, 0.8) * 2.4 + light * 0.25, 1.0)
+
+
+@_tex("nz_spk_melange_s", 256, kind="spec", description="Melange spec: yarn crowns slightly shiny.")
+def _melange_s(w, h):
+    hm, light, tone = _melange(w, h)
+    v = 0.14 + 0.30 * hm ** 2 + 0.10 * light
+    return np.repeat(np.clip(v, 0, 1)[:, :, None], 3, axis=2)
+
+
+_ns("spk_fabric_melange", "nz_spk_melange_d", "nz_spk_melange_n", "nz_spk_melange_s", 0.05,
+    PBR(roughness=0.93), "CARPET_SOLID", "Charcoal melange acoustic knit (Echo Column wrap); tile 0.05 m.",
+    specularIntensityMult=0.14, specularFalloffMult=9.0, specularFresnel=0.72, bumpiness=1.2)

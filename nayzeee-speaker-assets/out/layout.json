@@ -55,13 +55,13 @@
    },
    "lods": {
     "high": {
-     "tris": 15021,
-     "verts": 11664
+     "tris": 15177,
+     "verts": 11840
     },
     "medium": {
      "detail": 0.35,
-     "tris": 5296,
-     "verts": 5302
+     "tris": 5344,
+     "verts": 5358
     }
    },
    "materials": ["satin_graphite", "brushed_aluminium", "matte_black_plastic", "teal_plastic", "rubber", "gunmetal", "gloss_black_plastic", "chrome", "print_decal", "led_teal", "spk_cone_twill", "brushed_aluminium_radial", "rubber_grip"],
@@ -80,7 +80,7 @@
    "anchors": {
     "front": {
      "note": "front of the fabric grille",
-     "pos": [0.0, 0.0545, 0.2085],
+     "pos": [0.0, 0.0545, 0.2097],
      "rot": [0.0, 0.0, 0.0]
     },
     "grip": {
@@ -120,16 +120,16 @@
    },
    "lods": {
     "high": {
-     "tris": 8199,
-     "verts": 5451
+     "tris": 8497,
+     "verts": 5703
     },
     "medium": {
      "detail": 0.4,
-     "tris": 2669,
-     "verts": 2226
+     "tris": 2723,
+     "verts": 2325
     }
    },
-   "materials": ["rubber", "brushed_aluminium", "fabric_grille_dark", "brushed_aluminium_radial", "led_teal", "satin_graphite", "print_decal", "spk_webbing", "gunmetal", "chrome", "spk_stitch"],
+   "materials": ["rubber", "led_teal", "brushed_aluminium", "spk_fabric_melange", "brushed_aluminium_radial", "satin_graphite", "print_decal", "spk_webbing", "gunmetal", "chrome", "spk_stitch", "teal_plastic"],
    "meta": {
     "render": {
      "pitch": 16,
@@ -200,8 +200,8 @@
     },
     "medium": {
      "detail": 0.35,
-     "tris": 5361,
-     "verts": 5254
+     "tris": 6075,
+     "verts": 5772
     }
    },
    "materials": ["speaker_grille_metal", "rubber", "satin_graphite", "teal_plastic", "gunmetal", "brushed_aluminium", "chrome", "gloss_black_plastic", "matte_black_plastic", "led_teal", "brushed_aluminium_radial", "rubber_grip", "print_decal"],
@@ -221,12 +221,12 @@
    "anchors": {
     "controls": {
      "note": "play button on the top cap",
-     "pos": [0.0, 0.033, 0.308672],
+     "pos": [0.0, 0.033, 0.309084],
      "rot": [0.0, 0.0, 0.0]
     },
     "grip": {
      "note": "top of the carry loop, centre of the strap (hand closes here)",
-     "pos": [0.0, 0.0, 0.372409],
+     "pos": [0.0, 0.0, 0.372837],
      "rot": [0.0, 0.0, 0.0]
     },
     "led_band": {
@@ -246,17 +246,17 @@
     },
     "top": {
      "note": "highest point (outside of the carry loop)",
-     "pos": [0.0, 0.0, 0.375959],
+     "pos": [0.0, 0.0, 0.376387],
      "rot": [0.0, 0.0, 0.0]
     }
    },
    "bbox": {
-    "max": [0.141095, 0.141095, 0.375959],
+    "max": [0.141095, 0.141095, 0.376387],
     "min": [-0.141095, -0.141095, 0.0],
-    "size": [0.28219, 0.28219, 0.375959]
+    "size": [0.28219, 0.28219, 0.376387]
    },
    "collision": {
-    "max": [0.14, 0.14, 0.372409],
+    "max": [0.14, 0.14, 0.372837],
     "min": [-0.14, -0.14, 0.0],
     "shapes": 3,
     "volume": 0.014481
@@ -271,56 +271,56 @@
    },
    "lods": {
     "high": {
-     "tris": 14927,
-     "verts": 9758
+     "tris": 15011,
+     "verts": 9974
     },
     "medium": {
      "detail": 0.45,
-     "tris": 4545,
-     "verts": 3797
+     "tris": 4647,
+     "verts": 3989
     }
    },
-   "materials": ["satin_graphite", "matte_black_plastic", "speaker_grille_round", "chrome", "orb_led_band", "brushed_aluminium_radial", "brushed_aluminium", "gloss_black_plastic", "rubber", "teal_plastic", "gunmetal", "print_decal", "led_teal"],
+   "materials": ["satin_graphite", "matte_black_plastic", "speaker_grille_round", "chrome", "orb_led_band", "brushed_aluminium_radial", "orb_cap_spun", "brushed_aluminium", "gloss_black_plastic", "rubber", "teal_plastic", "print_decal", "led_teal"],
    "meta": {
     "render": {
      "pitch": 16,
      "yaw": 30
     },
-    "size_m": [0.2822, 0.2822, 0.376]
+    "size_m": [0.2822, 0.2822, 0.3764]
    },
    "sphere": {
-    "centre": [0.0, 0.0, 0.18798],
-    "radius": 0.2235
+    "centre": [0.0, 0.0, 0.188194],
+    "radius": 0.223679
    }
   },
   "nayzeee_audio_e": {
    "anchors": {
     "front": {
      "note": "centre of the grille",
-     "pos": [0.0, 0.15, 0.164],
+     "pos": [0.0, 0.15, 0.166],
      "rot": [0.0, 0.0, 0.0]
     },
     "grip": {
      "note": "centre of the rubber grip, where the hand closes",
-     "pos": [0.0, -0.022, 0.395],
+     "pos": [0.0, -0.022, 0.397],
      "rot": [0.0, 0.0, 0.0]
     },
     "top": {
      "note": "highest point (top of the grip)",
-     "pos": [0.0, -0.022, 0.4098],
+     "pos": [0.0, -0.022, 0.4118],
      "rot": [0.0, 0.0, 0.0]
     }
    },
    "bbox": {
-    "max": [0.158, 0.158, 0.4097],
-    "min": [-0.158, -0.158, 0.0],
-    "size": [0.316, 0.316, 0.4097]
+    "max": [0.16, 0.16145, 0.4117],
+    "min": [-0.16, -0.16145, 0.0],
+    "size": [0.32, 0.3229, 0.4117]
    },
    "collision": {
-    "max": [0.158, 0.158, 0.4092],
-    "min": [-0.158, -0.158, 0.0],
+    "max": [0.16, 0.16, 0.4112],
+    "min": [-0.16, -0.16, 0.0],
     "shapes": 2,
-    "volume": 0.031689
+    "volume": 0.032903
    },
    "description": "Carry Cube: rounded cube speaker with rubber corner caps, perforated round grille, fold-down bail handle, side keys and a teal band.",
    "export": true,
@@ -332,13 +332,13 @@
    },
    "lods": {
     "high": {
-     "tris": 11554,
-     "verts": 8728
+     "tris": 14470,
+     "verts": 10744
     },
     "medium": {
      "detail": 0.4,
-     "tris": 3717,
-     "verts": 3586
+     "tris": 4661,
+     "verts": 4238
     }
    },
    "materials": ["satin_graphite", "teal_plastic", "brushed_aluminium_radial", "matte_black_plastic", "gunmetal", "spk_grille_graphite", "brushed_aluminium", "chrome", "gloss_black_plastic", "print_decal", "rubber", "rubber_grip", "led_teal"],
@@ -349,8 +349,8 @@
     }
    },
    "sphere": {
-    "centre": [0.0, 0.0, 0.20485],
-    "radius": 0.282918
+    "centre": [0.0, 0.0, 0.20585],
+    "radius": 0.294278
    }
   },
   "nayzeee_audio_g": {

@@ -170,6 +170,12 @@ def _baffle(parts, d):
         led = K.cap(b, zf - 0.0028, material="led_teal")
         parts.append(_design(wall).named("light_bar_slot"))
         parts.append(_design(led).uv_planar("+y").named("light_bar"))
+    # four corner screws hold the baffle in the bezel
+    hx = W / 2 - BEZ - GAP - 0.0135
+    hz = H / 2 - BEZ - GAP - 0.0135
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            parts += K.screw((sx * hx, zf, ZC + sz * hz), "+y", 0.0024, "gunmetal", d)
     # printed teal wordmark on the bezel's bottom rail
     parts.append(K.decal("wordmark_teal", (0.0, YF + K.DECAL_OFF, Z0 + (BEZ + BF) / 2 - 0.0005), "+y",
                          height=0.0125).named("wordmark"))
@@ -308,7 +314,7 @@ def _sides(parts):
 def _feet(parts):
     prof = [(0.0, 0.0, 0.0, -1.0), (0.0255, 0.0, 0.0, -1.0)] + M.arc_profile((0.0255, 0.0025), 0.0025, -90, 0, 1)
     prof += [(0.0280, 0.0105, 1.0, 0.0), (0.0262, Z0 + 0.003)]
-    foot = M.lathe(prof, 16, crease=45, material="rubber")
+    foot = M.lathe(prof, 12, crease=45, material="rubber")
     for sx in (-1, 1):
         for sy in (-1, 1):
             parts.append(foot.translate(sx * 0.140, sy * 0.120, 0.0).named("foot"))

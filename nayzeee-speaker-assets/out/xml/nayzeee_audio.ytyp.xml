@@ -61,9 +61,9 @@
    <flags value="537001984" />
    <specialAttribute value="0" />
    <bbMin x="-0.14109506" y="-0.14109506" z="0" />
-   <bbMax x="0.14109506" y="0.14109506" z="0.37595913" />
-   <bsCentre x="0" y="0" z="0.18797956" />
-   <bsRadius value="0.22349966" />
+   <bbMax x="0.14109506" y="0.14109506" z="0.37638703" />
+   <bsCentre x="0" y="0" z="0.18819351" />
+   <bsRadius value="0.22367918" />
    <hdTextureDist value="6" />
    <name>nayzeee_audio_d</name>
    <textureDictionary>nayzeee_audio_texture</textureDictionary>
@@ -78,10 +78,10 @@
    <lodDist value="100" />
    <flags value="537001984" />
    <specialAttribute value="0" />
-   <bbMin x="-0.158" y="-0.158" z="0.000000000000000006938894" />
-   <bbMax x="0.158" y="0.158" z="0.4097" />
-   <bsCentre x="0" y="0" z="0.20485" />
-   <bsRadius value="0.2829181" />
+   <bbMin x="-0.16" y="-0.16145" z="0.000000000000000006938894" />
+   <bbMax x="0.16" y="0.16145" z="0.4117" />
+   <bsCentre x="0" y="0" z="0.20585" />
+   <bsRadius value="0.29427776" />
    <hdTextureDist value="6" />
    <name>nayzeee_audio_e</name>
    <textureDictionary>nayzeee_audio_texture</textureDictionary>

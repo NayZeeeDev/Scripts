@@ -25,7 +25,9 @@ R = 0.0552                                   # outer radius of rings / cap
 R_F = 0.0545                                 # fabric radius
 R_BASE = 0.0544                              # rubber base print band radius
 Z_BASE = 0.0222                              # top of the rubber base
-Z_F0, Z_F1 = 0.0295, 0.3875                  # fabric (tucked) between the trim rings
+LED_H = 0.0024                               # teal floor-glow ring between the base and the lower trim ring
+R_GLOW = 0.0529                              # glow ring edge radius (= base top edge, trim ring bottom edge)
+Z_F0, Z_F1 = 0.0295 + LED_H, 0.3875          # fabric (tucked) between the trim rings
 Z_CAP0, TOP = 0.3940, 0.4300                 # machined cap
 R_LED = (0.0446, 0.0484)                     # light ring channel
 Y_STRAP = 0.0
@@ -50,18 +52,24 @@ def _body(parts, n):
     # rubber base: flat bottom, rounded foot edge, short flare, vertical print band, rounded top edge
     base = [(0.0, 0.0, 0.0, -1.0), (0.0505, 0.0, 0.0, -1.0)] + arc((0.0505, 0.0030), 0.0030, -90, 0, 3)
     base += [(R_BASE, 0.0075, 1.0, 0.0), (R_BASE, 0.0195, 1.0, 0.0)] + arc((R_BASE - 0.0015, 0.0195), 0.0015, 0, 90, 2)
-    base += [(0.0522, Z_BASE, 0.0, 1.0)]
     parts.append(_lathe(base, "rubber", "base", n))
+    # floor-glow ring: a slightly domed teal light band between the base and the trim ring, 2 mm inside them
+    zg0, zg1, sag = Z_BASE - 0.0012, Z_BASE + LED_H, 0.0005
+    hh = (zg1 - zg0) / 2
+    rho = (hh * hh + sag * sag) / (2 * sag)
+    a = math.degrees(math.asin(hh / rho))
+    glow = M.arc_profile((R_GLOW + sag - rho, (zg0 + zg1) / 2), rho, -a, a, 3)
+    parts.append(_lathe(glow, "led_teal", "floor_glow", n, crease=60))
     # lower trim ring: machined aluminium, rounded edges; its top lip tucks the fabric
-    t0 = Z_BASE
-    lower = [(0.0522, t0), (0.0537, t0 + 0.0009)] + arc((0.0537, t0 + 0.0024), 0.0015, -90, 0, 2)[1:]
+    t0 = Z_BASE + LED_H
+    lower = [(R_GLOW, t0), (0.0537, t0 + 0.0009)] + arc((0.0537, t0 + 0.0024), 0.0015, -90, 0, 2)[1:]
     lower += [(R, Z_F0 - 0.0015, 1.0, 0.0)] + arc((R - 0.0015, Z_F0 - 0.0015), 0.0015, 0, 90, 2)
     lower += [(0.0527, Z_F0, 0.0, 1.0)]
     parts.append(_lathe(lower, "brushed_aluminium", "trim_ring", n))
     # fabric: rolls out from under both rings; seam-free weave (integer repeats round the column)
     fab = arc((0.0527, Z_F0 + 0.0018), 0.0018, -90, 0, 2) + [(R_F, Z_F1 - 0.0018, 1.0, 0.0)]
     fab += arc((0.0527, Z_F1 - 0.0018), 0.0018, 0, 90, 2)
-    fabric = K.lathe_n(fab, n, crease=70, material="fabric_grille_dark")
+    fabric = K.lathe_n(fab, n, crease=70, material="spk_fabric_melange")
     reps = round(2 * math.pi * R_F / 0.050)
     parts.append(K.uv_around(fabric, reps, Z_F0, Z_F1).named("fabric"))
     # upper trim ring
@@ -138,6 +146,12 @@ def _prints(parts):
                       material="brushed_aluminium")
     parts.append(K.wrap_cyl(badge.translate(0.0, 0.066, 0.0), R_F + 0.0002).named("badge"))
     parts.append(K.cyl_decal("echo_column", 0.0135, R_BASE, 0.0050).named("base_print"))
+    # woven teal label tab sewn in under the upper trim ring (front, viewer's right), printed white mark
+    a_tab = 90.0 + 48.0
+    tag = M.extrude(M.rounded_rect_2d(0.0095, 0.0175, 0.0012, 2), 0.0013, bevel=0.0005, bevel_segments=1,
+                    z0=-0.0004, cap_bottom=False, bevel_bottom=False, material="teal_plastic")
+    parts.append(K.wrap_cyl(tag.translate(0.0, Z_F1 - 0.0085, 0.0), R_F, a_tab).named("label_tab"))
+    parts.append(K.cyl_decal("mark_white", Z_F1 - 0.0105, R_F + 0.0009, 0.0060, a_tab).named("label_mark"))
     # rubber port flap on the back of the fabric (AUX / USB-C behind it), with a pull tab
     flap = M.extrude(M.rounded_rect_2d(0.024, 0.054, 0.007, 4), 0.0014, bevel=0.0006, bevel_segments=2,
                      z0=-0.0004, cap_bottom=False, bevel_bottom=False, material="rubber")

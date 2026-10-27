@@ -24,7 +24,7 @@ from lib.spec import Anchor, Capsule, Cylinder, LodSettings, ModelSpec, Sphere
 R = 0.140                 # orb radius
 ZS = 0.172                # orb centre height
 RG = R - 0.0015           # perforated upper shell radius (recessed under the chrome bead and top cap)
-RT = R + 0.0006           # top cap radius (stands proud of the grille)
+RT = R + 0.0010           # top cap radius (stands 2.5 mm proud of the grille)
 LAT_CAP = 56.0            # top cap edge latitude
 BEAD_Z = 0.0052           # chrome bead centres (+-, relative to the orb centre)
 BEAD_R = 0.0013
@@ -48,6 +48,15 @@ if "orb_led_band" not in mats.names():
     mats.register(Material("orb_led_band", "emissive", {"DiffuseSampler": "nz_led_teal_e"}, {"emissiveMultiplier": 1.8},
                            PBR(base_color=_c, roughness=0.35, emissive=_c, emissive_strength=1.8), 1.0,
                            "EMISSIVE_PLASTIC", "Frosted teal LED diffuser band (Orb equator)."))
+# Dark spun (concentric-brushed) anodised metal for the top cap dome: the gunmetal colour with the radial
+# brushing normal/spec maps (all three already in the texture dictionary).  Map with uv_radial().
+if "orb_cap_spun" not in mats.names():
+    mats.register(Material("orb_cap_spun", "normal_spec",
+                           {"DiffuseSampler": "nz_gunmetal_d", "BumpSampler": "nz_radial_n", "SpecSampler": "nz_radial_s"},
+                           {"specularIntensityMult": 0.75, "specularFalloffMult": 120.0, "specularFresnel": 0.95,
+                            "bumpiness": 0.5},
+                           PBR(metallic=0.9, roughness=0.30, normal_scale=0.6), 1.0, "METAL_SOLID_SMALL",
+                           "Dark spun anodised metal (Orb top cap); map with uv_radial()."))
 
 
 # --------------------------------------------------------------------------- helpers
@@ -68,6 +77,12 @@ def _sphere_prof(rho, lat0, lat1, n):
 
 def _lathe(profile, segments, material, crease=40.0):
     return M.lathe(profile, segments, crease=crease, material=material).translate(0, 0, ZS)
+
+
+def _sg(n, low):
+    """Nominal segment count that gives n in the High LOD and never fewer than ``low`` in the Medium LOD
+    (keeps the big round silhouettes round at distance)."""
+    return max(float(n), low / max(M.get_detail(), 1e-6))
 
 
 def _uv_conformal(mesh, repeats):
@@ -194,32 +209,36 @@ def _shell(parts):
 
 
 def _top_cap(parts):
-    """Spun-aluminium top cap: a rounded step up from the grille, then the dome to the pole."""
+    """Top cap: a bright diamond-cut aluminium edge (step face + 45 deg chamfer) around a dark bead-blasted
+    spun dark-metal dome that carries the controls and the carry loop."""
     a = math.radians(LAT_CAP)
     un, ut = np.array([math.cos(a), math.sin(a)]), np.array([-math.sin(a), math.cos(a)])
-    fr = 0.0012
-    prof = [tuple((RG - 0.0010) * un) + tuple(-ut), tuple((RT - fr) * un) + tuple(-ut)]
-    c = (RT - fr) * un + fr * ut
-    for t in np.linspace(0.0, 90.0, M.seg(3, 2) + 1)[1:]:
-        q = math.radians(t)
-        nn = -math.cos(q) * ut + math.sin(q) * un
-        prof.append(tuple(c + fr * nn) + tuple(nn))
-    lat0 = LAT_CAP + math.degrees(fr / RT)
-    prof += _sphere_prof(RT, lat0, 90.0, 7)[1:]
-    cap = _lathe(prof, 64, "brushed_aluminium_radial", crease=50)
-    parts.append(cap.uv_radial(RT * math.cos(a) + 0.001, center=(0, 0, 0)).named("top_cap"))
+    ch = 0.0016                                           # chamfer leg
+    d45 = (un + ut) / math.sqrt(2.0)                      # chamfer face normal
+    edge = [tuple((RG - 0.0010) * un) + tuple(-ut), tuple((RT - ch) * un) + tuple(-ut),
+            tuple((RT - ch) * un) + tuple(d45), tuple(RT * un + ch * ut) + tuple(d45)]
+    ring = _lathe(edge, _sg(64, 28), "brushed_aluminium_radial", crease=30)
+    parts.append(ring.uv_radial(RT * math.cos(a) + 0.001, center=(0, 0, 0)).named("cap_edge"))
+    lat0 = LAT_CAP + math.degrees(ch / RT)
+    dome = _lathe(_sphere_prof(RT, lat0, 90.0, 8), _sg(64, 28), "orb_cap_spun", crease=30)
+    parts.append(dome.uv_radial(RT * math.cos(a) + 0.001, center=(0, 0, 0)).named("top_cap"))
 
 
 # --------------------------------------------------------------------------- carry loop
 def _strap(parts):
     zr = math.sqrt(RT * RT - STRAP_X ** 2)                # cap surface (relative) at the clamps
-    blk_h, blk_w, blk_d = 0.013, 0.012, STRAP_W + 0.008
+    blk_h, blk_w, blk_d = 0.013, 0.014, STRAP_W + 0.008
     z_blk = ZS + zr - 0.004                               # clamp bottom (sunk into the cap)
     z0 = z_blk + blk_h + 0.010                            # arch centre height
     for sx in (-1, 1):
-        blk = M.rounded_box((blk_w, blk_d, blk_h), 0.0022, 3, center=(sx * STRAP_X, 0, z_blk + blk_h / 2),
+        blk = M.rounded_box((blk_w, blk_d, blk_h), 0.0025, 3, center=(sx * STRAP_X, 0, z_blk + blk_h / 2),
                             material="brushed_aluminium")
         parts.append(_cull_inside(blk, RT - 0.0002).named("strap_clamp"))
+        # dark slot frame on the clamp top where the strap dives in (reads as the slot's depth)
+        slot = M.extrude(M.rounded_rect_2d(STRAP_T + 0.0024, STRAP_W + 0.0024, 0.0014, 3), 0.0004,
+                         holes=[M.rounded_rect_2d(STRAP_T + 0.0002, STRAP_W + 0.0002, 0.0012, 3)], cap_bottom=False,
+                         material="gloss_black_plastic", z0=z_blk + blk_h - 0.0001)
+        parts.append(slot.translate(sx * STRAP_X, 0, 0).named("strap_slot"))
         for sy in (-1, 1):
             parts += _screw("+x" if sx > 0 else "-x", (sx * (STRAP_X + blk_w / 2), sy * 0.0085, z_blk + blk_h * 0.62))
     path = np.vstack([[(STRAP_X, 0, z_blk + blk_h - 0.004)],
@@ -241,7 +260,7 @@ def _button(parts, x, y, r, icon, accent=False):
     n = 32 if r > 0.008 else 20
     ro, ri, hb, c = r + 0.0020, r + 0.0004, 0.0009, 0.0003
     bits = [M.lathe([(ro, -0.0006, 1.0, 0.0), (ro, hb - c), (ro - c, hb, 0.0, 1.0), (ri, hb, 0.0, 1.0),
-                     (ri, -0.0006, -1.0, 0.0)], n, crease=30, material="gunmetal").named("button_bezel")]
+                     (ri, -0.0006, -1.0, 0.0)], n, crease=30, material="gloss_black_plastic").named("button_bezel")]
     if accent:
         bits.append(M.lathe([(ro + 0.0013, 0.0002, 0.0, 1.0), (ro + 0.0001, 0.0002, 0.0, 1.0)], n,
                             material="teal_plastic").named("button_accent"))
@@ -318,12 +337,12 @@ def _stand(parts):
 
 # --------------------------------------------------------------------------- prints, badge, ports
 def _details(parts):
-    # small raised teal mark on the front, low on the graphite shell, its bar inlaid in gloss black
-    mark, bar = M.mark_2d(0.023, 4)
-    mk = M.extrude(mark, 0.0012, holes=[bar], bevel=0.0003, bevel_segments=1, cap_bottom=False, bevel_bottom=False,
-                   material="teal_plastic", z0=-0.0004)
+    # small raised brushed-aluminium mark on the front, low on the graphite shell, its bar inlaid in teal
+    mark, bar = M.mark_2d(0.018, 4)
+    mk = M.extrude(mark, 0.0010, holes=[bar], bevel=0.0003, bevel_segments=1, cap_bottom=False, bevel_bottom=False,
+                   material="brushed_aluminium", z0=-0.0004)
     parts.append(_on_sphere(mk.uv_planar("+z"), -24.0, 90.0, R).named("front_mark"))
-    inlay = M.extrude(bar, 0.0008, cap_bottom=False, material="gloss_black_plastic", z0=-0.0004)
+    inlay = M.extrude(bar, 0.0007, cap_bottom=False, material="teal_plastic", z0=-0.0004)
     parts.append(_on_sphere(inlay, -24.0, 90.0, R).named("front_mark_bar"))
     # back: rubber port plug (USB-C / AUX) with a ridge, printed model name below
     plug = M.extrude(M.rounded_rect_2d(0.036, 0.015, 0.0055, 4), 0.0020, bevel=0.0008, bevel_segments=2,

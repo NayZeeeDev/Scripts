@@ -19,13 +19,13 @@ from models import _aeb_kit as K
 
 NAME = __name__.rsplit(".", 1)[-1]
 
-T = 0.008                                   # rubber cap thickness
+T = 0.010                                   # rubber cap thickness (proud of the body faces)
 HB = 0.150                                  # body half size (0.30 cube)
 RC = 0.020                                  # body edge radius
 ZC = T + HB                                 # body centre height
 TOP = ZC + HB                               # body top surface
-CAP_S = 0.074                               # corner cap box size
-R_CAP = RC + T                              # corner cap radius (concentric with the body corner)
+CAP_S = 0.078                               # corner cap box size
+R_CAP = 0.0160                              # corner cap edge radius: a crisp moulded block, not a soft pillow
 Y_STRIPE, W_STRIPE, D_STRIPE = 0.034, 0.010, 0.0016
 R_G = 0.1165                                # grille recess radius
 LIP = 0.0018                                # rounded lip into the recess
@@ -88,7 +88,7 @@ def _grille(parts, n, d):
     g = K.lathe_n(dome, n, crease=60, material="spk_grille_graphite").uv_planar("+z")
     out.append(g.named("grille"))
     # raised teal mark badge on the grille centre
-    mk, bar = M.mark_2d(0.034, 4)
+    mk, bar = M.mark_2d(0.027, 4)
     badge = M.extrude(mk, 0.0020, holes=[bar], bevel=0.0006, bevel_segments=2, cap_bottom=False, z0=-0.0013,
                       material="teal_plastic")
     out.append(badge.named("grille_badge"))
@@ -127,6 +127,21 @@ def _back(parts, port_c, n, d):
 
 
 # --------------------------------------------------------------------------- rubber corner caps
+def _cap_screw(pos, fac, d):
+    """Gunmetal insert washer standing 1 mm out of a rubber cap face with a dome screw in it -> parts."""
+    n = 16 if d >= 0.6 else 10
+    prof = [(0.0056, -0.0004, 1.0, 0.0), (0.0056, 0.0004, 1.0, 0.0)] + M.arc_profile((0.0050, 0.0004), 0.0006, 0, 90, 2)
+    prof += [(0.0034, 0.0010, 0.0, 1.0), (0.0030, 0.0006), (0.0030, 0.0002, -1.0, 0.0), (0.0, 0.0002, 0.0, 1.0)]
+    out = [K.lathe_n(prof, n, crease=45, material="gunmetal").orient(fac, pos).named("cap_insert")]
+    if d >= 0.6:
+        out += K.screw(np.asarray(pos) + np.asarray(_dir(fac)) * 0.0002, fac, 0.0026, "gunmetal", d)
+    return out
+
+
+def _dir(fac):
+    return {"+x": (1, 0, 0), "-x": (-1, 0, 0), "+y": (0, 1, 0), "-y": (0, -1, 0), "+z": (0, 0, 1), "-z": (0, 0, -1)}[fac]
+
+
 def _caps(parts, d):
     seg = 6 if d >= 0.6 else 4
     caps = []
@@ -137,6 +152,10 @@ def _caps(parts, d):
                 caps.append(c)
                 b = M.rounded_box((CAP_S,) * 3, R_CAP, seg, center=tuple(c), material="rubber")
                 parts.append(K.cull_inside(b, BODY_SDF, 0.0004).named("corner_cap"))
+                # front / back face of each cap: a gunmetal insert washer with a screw (the caps are bolted on)
+                fac = "+y" if sy > 0 else "-y"
+                p = (c[0] + sx * 0.009, sy * (HB + T), c[2] + sz * 0.009)
+                parts += _cap_screw(p, fac, d)
     # the body under the caps is hidden: drop it
     sdfs = [K.sdf_rounded_box(c, (CAP_S,) * 3, R_CAP) for c in caps]
     for i, p in enumerate(parts):
@@ -203,6 +222,10 @@ def _controls(parts, d):
         parts.append(K.decal(icon, (xs - 0.0030 - K.DECAL_OFF, yc, zc + dz), "-x", width=0.0085).named("key_icon"))
     led = M.hemisphere(0.0016, 12, 3, cap=False, material="led_teal").scale(1, 1, 0.7)
     parts.append(led.orient("-x", (xs, yc, zc + 0.076)).named("status_led"))
+    # viewer's left side (+X): small printed wordmark + model name, low and toward the back
+    xl = HB + K.DECAL_OFF
+    parts.append(K.decal("wordmark", (xl, -0.040, ZC - 0.080), "+x", height=0.0105).named("side_print"))
+    parts.append(K.decal("carry_cube", (xl, -0.040, ZC - 0.096), "+x", height=0.0052).named("side_print"))
 
 
 def build(detail: float) -> ModelSpec:
