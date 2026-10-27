@@ -32,7 +32,7 @@ Config.Inventory   = 'auto'      -- auto | ox_inventory | framework
 Config.Target      = 'auto'      -- auto | ox_target | qb-target | none (none = [E] prompt on the speaker)
 Config.Locale      = 'en'        -- file inside locales/
 Config.Debug       = false       -- console prints + /nzspk_attach editor
-Config.Version     = '1.0.1'     -- shown at the top of the player
+Config.Version     = '2.0.0'     -- shown at the top of the player
 Config.DirectLinks = true        -- also allow direct .mp3 / .ogg / .opus / .wav / .webm links
 
 Config.Admin = {
@@ -76,19 +76,42 @@ Config.Audio = {
     apiUrl = '',                 -- your own API, e.g. 'https://music.nayzeeedev.com' (see nayzeee-speaker-api)
     apiKey = '',
 
-    updateRate      = 120,       -- ms between spatial updates (lower = smoother, more CPU)
+    updateRate      = 120,       -- ms between spatial updates (every value glides across this gap, so 120 is smooth)
     panning         = 'HRTF',    -- HRTF (true 3D) | equalpower (cheaper)
-    reverb          = true,      -- room echo based on ceiling height + walls (costs a few raycasts)
-    maxCeiling      = 25.0,      -- highest ceiling checked for reverb
+    reverb          = true,      -- room / hall / street echo from the space around the speaker (a few raycasts, cached)
+    reverbLevel     = 1.0,       -- how much of that echo you hear (0 = dry, 1 = default, 2 = very wet)
+    maxCeiling      = 25.0,      -- highest ceiling checked when working out the space
     interiorMuffle  = true,      -- speaker in a building sounds muffled from outside (and vice versa)
-    vehicleMuffle   = true,      -- car music is muffled outside the car, opens up with windows / doors / roof
-    occlusion       = true,      -- walls between you and the speaker dampen it
+    vehicleMuffle   = true,      -- car music is muffled outside the car (bass still thumps), opens up with windows / doors / roof
+    occlusion       = true,      -- walls between you and the speaker dampen it (3 rays, so doorways sound half open)
+    occlusionRate   = 250,       -- ms between wall checks per speaker
+    roomRate        = 2500,      -- ms between space checks for a speaker that moves (placed speakers check once)
     doppler         = true,      -- pitch shifts as a car with music drives past you
     dopplerAmount   = 0.6,       -- 0 = off, 0.6 = subtle (default), 1 = realistic, 2 = exaggerated
+    maxDoppler      = 0.03,      -- the most the pitch can bend (0.03 = 3 %)
     distanceMuffle  = true,      -- far speakers lose their highs, like real air does
+    fullVolumeDistance = 1.5,    -- metres around a speaker that hear it at full level
+    rolloff         = 3.0,       -- how quickly it fades past that (higher = drops sooner); it is always silent at the range
+    closeStereo     = 1.2,       -- closer than this (or in the car / carrying it) you hear the speaker's real stereo
     syncCheck       = true,      -- pulls lagging / alt-tabbed players back to the live position
     driftTolerance  = 1.5,       -- seconds out of sync before a resync
     unloadDistance  = 1.35,      -- songs are unloaded past range * this (frees memory)
+
+    --[[
+        Each speaker's own sound. hp = low cut in Hz, low / mid / high = dB at lowHz (shelf),
+        midHz (peak, midQ wide-ness) and highHz (shelf). Remove a line to use the built-in voice.
+    ]]
+    voices = {
+        ['nayzeee_audio_a'] = { hp = 35,  low = 2.5,  lowHz = 110, mid = -1.0, midHz = 650,  midQ = 0.7, high = 1.5,  highHz = 8000 }, -- Pulse Tower: party bass, crisp top
+        ['nayzeee_audio_b'] = { hp = 70,  low = -1.0, lowHz = 150, mid = 1.0,  midHz = 2200, midQ = 0.8, high = 0.5,  highHz = 7000 }, -- Echo Column: lean, clear vocals
+        ['nayzeee_audio_c'] = { hp = 45,  low = 2.0,  lowHz = 130, mid = 1.5,  midHz = 280,  midQ = 1.1, high = -1.5, highHz = 6000 }, -- Drum Hub: round barrel boom
+        ['nayzeee_audio_d'] = { hp = 110, low = -4.5, lowHz = 180, mid = 1.0,  midHz = 1800, midQ = 0.8, high = 1.0,  highHz = 7500 }, -- Orb: small, light low end
+        ['nayzeee_audio_e'] = { hp = 75,  low = -1.5, lowHz = 160, mid = 1.5,  midHz = 1500, midQ = 0.8, high = -0.5, highHz = 6500 }, -- Carry Cube: punchy mids
+        ['nayzeee_audio_f'] = { hp = 95,  low = -2.0, lowHz = 150, mid = 3.0,  midHz = 1400, midQ = 0.7, high = -4.0, highHz = 6500 }, -- Roll Bar: mid-forward 80s boombox
+        ['nayzeee_audio_g'] = { hp = 40,  low = 1.5,  lowHz = 120, mid = 0.5,  midHz = 900,  midQ = 0.7, high = -2.5, highHz = 7000 }, -- Record Console: warm vintage
+        ['nayzeee_audio_h'] = { hp = 25,  low = 0.5,  lowHz = 100, mid = 0.0,  midHz = 1100, midQ = 0.7, high = 0.5,  highHz = 9000 }, -- Studio Set: full range
+        vehicle             = { hp = 28,  low = 2.0,  lowHz = 90,  mid = -0.5, midHz = 500,  midQ = 0.7, high = 0.5,  highHz = 8000 }, -- car systems
+    },
 
     eq = {                       -- starting EQ for every player, in dB (-12 to 12). They can change it themselves.
         bass = 0.0, mid = 0.0, treble = 0.0,
@@ -322,6 +345,7 @@ Config.Phone = {
     name     = 'Speaker',        -- app name on the phone
     range    = 0,                -- 0 = control any speaker you own anywhere; >0 = must be within this many metres
     needItem = '',               -- optional item required to use the app ('' = none)
+    insets   = { top = 0, bottom = 0 },  -- px the app keeps clear for the phone's status bar / home bar (0 = that phone's default)
 }
 -- ██████╗  ██████╗  ██████╗ ███╗   ███╗██████╗  ██████╗ ██╗  ██╗███████╗███████╗
 -- ██╔══██╗██╔═══██╗██╔═══██╗████╗ ████║██╔══██╗██╔═══██╗╚██╗██╔╝██╔════╝██╔════╝
@@ -401,6 +425,115 @@ Config.Boomboxes = {
 --      tracks: YouTube links (or video IDs) in album order. cover: any image link for the sleeve art.
 
 Config.VinylReturn = 'ejector'  -- ejector = whoever takes the record off gets it | owner = whoever put it on
+
+--  The turntable you can see: the record goes on from the player's hand, the platter spins up and the
+--      tonearm drops the needle the moment the music starts, then creeps inward across the album.
+--      Needs the turntable props (nayzeee_tt_platter, nayzeee_tt_arm, nayzeee_vinyl) in stream/.
+
+Config.Turntable = {
+    visuals    = true,           -- show the platter, tonearm and record on placed turntables
+    distance   = 35.0,           -- metres around you that turntable props exist
+    needleDrop = 'auto',         -- music waits for the needle to land: 'auto' (once the props are in stream/) | true | false
+    labelArt   = true,           -- album cover on the record label of the nearest playing turntable
+    labelSize  = 512,            -- label texture size in px (256 = lighter, 1024 = sharper)
+    putAnim    = { dict = 'mp_common', clip = 'givetake1_a', flag = 48, duration = 1400 },  -- putting a record on
+    takeAnim   = { dict = 'mp_common', clip = 'givetake1_b', flag = 48, duration = 1400 },  -- taking it off
+}
+
+-- ██████╗ ███████╗ ██████╗ ██████╗ ██████╗ ██████╗     ███████╗██╗  ██╗ ██████╗ ██████╗ 
+-- ██╔══██╗██╔════╝██╔════╝██╔═══██╗██╔══██╗██╔══██╗    ██╔════╝██║  ██║██╔═══██╗██╔══██╗
+-- ██████╔╝█████╗  ██║     ██║   ██║██████╔╝██║  ██║    ███████╗███████║██║   ██║██████╔╝
+-- ██╔══██╗██╔══╝  ██║     ██║   ██║██╔══██╗██║  ██║    ╚════██║██╔══██║██║   ██║██╔═══╝ 
+-- ██║  ██║███████╗╚██████╗╚██████╔╝██║  ██║██████╔╝    ███████║██║  ██║╚██████╔╝██║     
+-- ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     
+--  Walk up to the counter and the records stand above it in a row you browse, listen to and buy.
+--      Sells every record in vinyls.lua plus everything /vinylimport adds (price / genre / description
+--      come from vinyls.lua, or from `records` below for imported ones).
+--      With the shop props in stream/ (nayzeee_sleeve_a/_b/_c + nayzeee_vinyl) the sleeves are real 3D
+--      props with the album cover on them; without them the same shop shows cover cards instead.
+
+Config.RecordShop = {
+    enabled      = true,
+    currency     = 'cash',       -- cash | bank | item (pays with the inventory item below)
+    moneyItem    = 'money',      -- only used with currency = 'item'
+    defaultPrice = 250,          -- records without their own price in vinyls.lua
+    maxCopies    = 0,            -- most copies of one record a player can hold when buying (0 = no limit)
+    sort         = 'artist',     -- artist | album | year | price
+    genres       = { 'Hip-Hop', 'R&B', 'Pop', 'Classics' },   -- filter chip order (any other genre follows A-Z)
+
+    -- price / genre / description for imported records, or to override vinyls.lua (price = false = not sold)
+    records = {
+        -- ['vinyl_myalbum'] = { price = 400, genre = 'Hip-Hop', description = 'One short line.' },
+    },
+
+    preview = {
+        enabled  = true,         -- L / Listen plays a bit of the record's first song, only for that player
+        length   = 30,           -- seconds
+        at       = 0.3,          -- where in the song it starts (0.3 = 30 % in)
+        start    = 30,           -- seconds in, for a song whose length isn't known yet (YouTube embed)
+        volume   = 0.8,          -- on top of each player's own music volume
+        cooldown = 2.0,          -- seconds between previews per player
+    },
+
+    -- COUNTER DISPLAY
+    display        = 'auto',     -- auto (3D once the props are in stream/) | 3d | 2d (cover cards only)
+    turn           = 'sway',     -- sway (the featured sleeve rocks gently) | spin (turns all the way round)
+    swayAngle      = 14.0,       -- degrees either way for sway
+    spinSpeed      = 14.0,       -- degrees per second for spin
+    transitionTime = 420,        -- ms for the slide between records
+    sideSleeves    = true,       -- show the previous / next record either side
+    sideAngle      = 32.0,       -- how far the side sleeves turn in
+    sideAlpha      = 170,        -- 0 - 255, how strongly the side sleeves show
+    lean           = 6.0,        -- the sleeves lean back a little, like on a stand
+    coverSize      = 512,        -- cover texture size in px on the 3D sleeves (256 = lighter, 1024 = sharper)
+    depthOfField   = true,       -- soft-focus the shop behind the counter
+    sounds         = true,       -- GTA menu sounds when browsing / buying
+
+    -- Tills, monitors and the like near the display are hidden for the shopper only, then come back.
+    -- Props baked into an MLO can only be hidden by model name.
+    hideProps = {
+        enabled = true,
+        radius  = 1.6,           -- metres around the sleeves
+        maxSize = 1.6,           -- anything bigger is left alone (counters, shelves, walls)
+        models  = {
+            'prop_till_01', 'prop_till_02', 'prop_till_03', 'prop_cash_register_01', 'v_ret_gc_cashreg',
+            'v_ret_ta_till', 'prop_monitor_01a', 'prop_monitor_01b', 'prop_keyboard_01a', 'prop_mouse_01',
+        },
+    },
+
+    -- HOW PLAYERS GET IN (target on the shopkeeper, or an [E] prompt with Config.Target = 'none')
+    interactDistance = 2.5,          -- metres from the shopkeeper
+    pedDistance      = 60.0,         -- shopkeepers only exist while someone is this close
+    command          = 'recordshop', -- admins: opens the shop where you stand, for testing ('' = off)
+
+    locations = {
+        {
+            label   = 'Record Shop',
+            -- EXAMPLE SPOT: the counter of the 24/7 on Innocence Blvd. Move it to your own shop.
+            -- coords = where the shopkeeper stands, heading = the way they face (towards the customer)
+            coords  = vector3(24.47, -1346.62, 29.50),
+            heading = 271.66,
+            ped     = 'a_m_y_hipster_01',    -- shopkeeper model (false = no shopkeeper, a marker instead)
+            -- scenario = 'WORLD_HUMAN_STAND_IMPATIENT',
+            blip    = { sprite = 52, color = 26, scale = 0.7, label = 'Record Shop' },   -- false = no blip
+
+            -- Where the records stand. Without `point` it's worked out from the shopkeeper:
+            --   forward  metres in front of them, height  above their coords (the featured sleeve's bottom edge)
+            --   camDistance / camHeight  how far back and up the camera stands, on the customer's side
+            --   point = exact spot of the featured sleeve's bottom edge, cam = exact camera spot
+            --   heading = the way the display faces the customer (default: the shopkeeper's heading)
+            display = {
+                forward     = 0.75,
+                height      = 0.05,
+                camDistance = 1.05,
+                camHeight   = 0.08,
+                fov         = 40.0,
+                -- point = vector3(25.22, -1346.60, 29.55),
+                -- cam   = vector3(26.27, -1346.57, 29.79),
+            },
+        },
+    },
+}
 
 -- Records live in vinyls.lua (next to this file) so this config stays readable.
 

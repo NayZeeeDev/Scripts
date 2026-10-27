@@ -4,8 +4,8 @@ lua54 'yes'
 
 name 'nayzeee-speaker'
 author 'NAYZEEE Development'
-description 'Speakers, boomboxes and CarPlay with synced 3D audio'
-version '1.0.1'
+description 'Speakers, boomboxes, a record console, a record shop and CarPlay with synced 3D audio'
+version '2.0.0'
 
 shared_scripts {
     'config.lua',
@@ -19,10 +19,12 @@ client_scripts {
     'client/main.lua',
     'client/audio.lua',
     'client/boombox.lua',
+    'client/turntable.lua',
     'client/carplay.lua',
     'client/tools.lua',
     'client/damage.lua',
     'client/phone.lua',
+    'client/shop.lua',
 }
 
 server_scripts {
@@ -36,6 +38,7 @@ server_scripts {
     'server/tracks.lua',
     'server/main.lua',
     'server/vinyl.lua',
+    'server/shop.lua',
     'server/playlists.lua',
     'server/links.lua',
     'server/damage.lua',
@@ -53,6 +56,8 @@ files {
     'html/js/*.js',
     'html/fonts/*.woff2',
     'html/phone/index.html',
+    'html/phone/app.css',
+    'html/phone/app.js',
     'html/phone/icon.png',
     'html/img/*.png',
 }
