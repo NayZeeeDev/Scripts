@@ -194,10 +194,11 @@ def luac_check(path):
     return r.returncode == 0, (r.stderr or r.stdout).strip()
 
 
-def write_layout(manifests, path=DEFAULT_LUA, radios=None, check=True):
-    """Write the layout atomically (under a lock); returns (path, ok, message)."""
+def write_layout(manifests, path=DEFAULT_LUA, radios=None, check=True, lock=None):
+    """Write the layout atomically (under a lock kept in the work folder, never next to the Lua file);
+    returns (path, ok, message)."""
     txt = layout_lua(manifests, radios)
-    with FileLock(path + ".lock"):
+    with FileLock(lock or os.path.join(DEFAULT_WORK, ".layout.lock")):
         old = None
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
