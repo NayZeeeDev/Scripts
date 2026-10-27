@@ -3,7 +3,7 @@
 
     python3 models/_check_turntable.py          (or: python3 -m models._check_turntable)
 
-Builds nayzeee_audio_g, nayzeee_tt_platter, nayzeee_tt_arm and nayzeee_vinyl at High detail, places
+Builds nayzeee_console, nayzeee_tt_platter, nayzeee_tt_arm and nayzeee_vinyl at High detail, places
 them at the contract offsets and asserts:
   * key heights / radii: record top, slipmat top, spindle top + radius, platter radius, stylus tip,
     arm rest top, model origins, anchors in the specs;
@@ -118,7 +118,7 @@ class HeightField:
 
 def main() -> int:
     print("building High LOD models ...")
-    con = models.build("nayzeee_audio_g", 1.0)
+    con = models.build("nayzeee_console", 1.0)
     pla = models.build("nayzeee_tt_platter", 1.0)
     arm = models.build("nayzeee_tt_arm", 1.0)
     vin = models.build("nayzeee_vinyl", 1.0)

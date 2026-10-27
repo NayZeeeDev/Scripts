@@ -41,7 +41,7 @@ local INTERACT = cfg.interactDistance or 2.5
 local PREVIEW_ID = 'nzshop_preview'  -- not 'preview': the player UI uses that id for its card editor
 local MODELS = { a = 'nayzeee_sleeve_a', b = 'nayzeee_sleeve_b', c = 'nayzeee_sleeve_c' }
 local DISC_MODEL = 'nayzeee_vinyl'
-local TXD = 'nayzeee_audio_texture'
+local TXD = 'nayzeee_console_texture'     -- the record console upgrade's dictionary (sleeves + record)
 
 -- carousel slots: sideways / backwards from the featured spot (metres) and alpha
 local SIDE_ALPHA = cfg.sideSleeves == false and 0 or (cfg.sideAlpha or 170)

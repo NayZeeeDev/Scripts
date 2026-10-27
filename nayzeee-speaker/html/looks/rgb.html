@@ -1,0 +1,181 @@
+<!doctype html>
+<!--
+  The speakers' RGB light strip (client/looks.lua shows this page as the props' 'emissive4' texture).
+  The props' own animation scrolls that strip sideways, so every frame tiles left to right.
+
+  ?mode=rainbow|fade|pulse|static|music  &c=08afa2,7b2ff7  &s=speed  &b=brightness  &sat=saturation
+  music: client/looks.lua sends { t: 'level', v: 0..1 } about ten times a second.
+  static draws once and stops; every other mode draws at most 30 times a second.
+-->
+<html style="background:#000">
+<head>
+<meta charset="utf-8">
+<title>nzspk rgb</title>
+<style>
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+  canvas{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(() => {
+  'use strict';
+  const q = new URLSearchParams(location.search);
+  const num = (k, d, lo, hi) => { const v = parseFloat(q.get(k)); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+  const MODES = { rainbow: 1, fade: 1, pulse: 1, static: 1, music: 1 };
+  const mode = MODES[q.get('mode')] ? q.get('mode') : 'rainbow';
+  const speed = num('s', 1, 0.05, 5);
+  const bright = num('b', 1, 0, 1);
+  const sat = num('sat', 1, 0, 1);
+  const W = Math.max(16, Math.min(1024, Math.round(num('w', window.innerWidth || 256, 16, 1024))));
+  const H = Math.max(1, Math.min(256, Math.round(num('h', window.innerHeight || 32, 1, 256))));
+  const CYCLES = 2;            // colour repeats across the strip, like the original texture
+  const FRAME_MS = 1000 / 30;
+
+  const hex = s => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(s).trim());
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  let pal = String(q.get('c') || '').split(',').map(hex).filter(Boolean);
+  if (!pal.length) pal = [[8, 175, 162], [123, 47, 247], [255, 45, 117]];
+
+  const cv = document.getElementById('c');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d', { alpha: false });
+  g.imageSmoothingEnabled = false;
+  // one row is worked out per frame and stretched over the strip's height (it is uniform top to bottom)
+  const row = document.createElement('canvas');
+  row.width = W; row.height = 1;
+  const rg = row.getContext('2d');
+  const img = rg.createImageData(W, 1);
+  const px = img.data;
+  for (let i = 3; i < px.length; i += 4) px[i] = 255;
+
+  const clamp = (v, lo, hi) => v < lo ? lo : (v > hi ? hi : v);
+  const frac = v => v - Math.floor(v);
+  const smooth = k => k * k * (3 - 2 * k);
+  const out = [0, 0, 0], base = [0, 0, 0];
+
+  // hue 0..1 -> out (0..1 each), full saturation and value. The channels ease in and out (a smoothed
+  // HSV wheel), so the strip has no hard yellow / cyan / magenta lines where a plain wheel kinks.
+  function hue(h) {
+    h = frac(h) * 6;
+    out[0] = smooth(clamp(Math.abs(h - 3) - 1, 0, 1));
+    out[1] = smooth(clamp(2 - Math.abs(h - 2), 0, 1));
+    out[2] = smooth(clamp(2 - Math.abs(h - 4), 0, 1));
+  }
+
+  // write out (0..1) * v into pixel x, after saturation and brightness
+  function put(x, v) {
+    let r = out[0], gg = out[1], b = out[2];
+    if (sat < 1) {
+      // towards white at the same brightness (0 = white light)
+      const top = Math.max(r, gg, b);
+      r = top - (top - r) * sat; gg = top - (top - gg) * sat; b = top - (top - b) * sat;
+    }
+    const k = 255 * clamp(v * bright, 0, 1), o = x * 4;
+    px[o] = r * k; px[o + 1] = gg * k; px[o + 2] = b * k;
+  }
+
+  function palette(i, j, f) {
+    const a = pal[i % pal.length], b = pal[j % pal.length];
+    out[0] = (a[0] + (b[0] - a[0]) * f) / 255;
+    out[1] = (a[1] + (b[1] - a[1]) * f) / 255;
+    out[2] = (a[2] + (b[2] - a[2]) * f) / 255;
+  }
+
+  const keep = () => { base[0] = out[0]; base[1] = out[1]; base[2] = out[2]; };
+  const back = () => { out[0] = base[0]; out[1] = base[1]; out[2] = base[2]; };
+
+  // a gentle ripple that tiles: keeps a single colour from looking flat while the strip scrolls
+  const ripple = (x, t, depth) => 1 - depth + depth * (0.5 + 0.5 * Math.sin(2 * Math.PI * (CYCLES * x / W - t * 0.3)));
+  // 0..1 wave with CYCLES periods across the strip (smooth, tiles, no jump at the seam)
+  const wave = x => 0.5 - 0.5 * Math.cos(2 * Math.PI * CYCLES * x / W);
+
+  /* ─────────── music ─────────── */
+  const M = { target: 0, env: 0, avg: 0, hue: 0.47, kick: 0, beatAt: 0, heardAt: -1e9, msgAt: -1e9, idle: 1 };
+  window.addEventListener('message', ev => {
+    let m = ev.data;
+    if (typeof m === 'string') { try { m = JSON.parse(m); } catch (e) { return; } }
+    if (!m || m.t !== 'level') return;
+    const v = +m.v;
+    M.target = Number.isFinite(v) ? clamp(v, 0, 1) : 0;
+    M.msgAt = performance.now();
+    if (M.target > 0.02) M.heardAt = M.msgAt;
+  });
+
+  function musicStep(now, dt) {
+    if (now - M.msgAt > 700) M.target = 0;     // the updates stopped: the music did too
+    // fast attack, slower release, so the light hits with the beat and glows out after it
+    const tgt = M.target;
+    M.env += (tgt - M.env) * (1 - Math.exp(-dt / (tgt > M.env ? 0.05 : 0.32)));
+    M.avg += (tgt - M.avg) * (1 - Math.exp(-dt / 1.6));
+    if (tgt > M.avg * 1.3 + 0.06 && now - M.beatAt > 260) { M.beatAt = now; M.kick += 0.06 + 0.06 * tgt; }
+    const kick = M.kick * (1 - Math.exp(-dt / 0.12));   // the jump glides in over a few frames
+    M.kick -= kick;
+    // the hue drifts on its own, quicker the louder it is, and jumps a little on each beat
+    M.hue = frac(M.hue + dt * speed * (0.012 + 0.09 * M.env) + kick);
+    // nothing heard for a while: a slow, dim breath instead of a dead strip
+    const quiet = now - M.heardAt > 1500;
+    M.idle += ((quiet ? 1 : 0) - M.idle) * (1 - Math.exp(-dt / 0.8));
+  }
+
+  /* ─────────── frame ─────────── */
+  function draw(t, now, dt) {
+    if (mode === 'rainbow') {
+      const shift = t * speed * 0.25;
+      for (let x = 0; x < W; x++) { hue(CYCLES * x / W - shift); put(x, 1); }
+    } else if (mode === 'fade') {
+      const p = t * speed * 0.2, i = Math.floor(p), f = smooth(frac(p));
+      palette(i, i + 1, f); keep();
+      for (let x = 0; x < W; x++) { back(); put(x, ripple(x, t * speed, 0.14)); }
+    } else if (mode === 'pulse') {
+      const period = 3.2 / speed, n = Math.floor(t / period);
+      const k = 0.5 - 0.5 * Math.cos(2 * Math.PI * frac(t / period));
+      palette(n, n, 0); keep();
+      const v = 0.1 + 0.9 * Math.pow(k, 1.4);
+      for (let x = 0; x < W; x++) { back(); put(x, v * ripple(x, t * speed, 0.08)); }
+    } else if (mode === 'static') {
+      palette(0, 0, 0); keep();
+      for (let x = 0; x < W; x++) { back(); put(x, 1); }
+    } else {
+      musicStep(now, dt);
+      const breath = 0.18 + 0.1 * Math.sin(t * 1.4);
+      const v = (0.16 + 0.84 * Math.pow(M.env, 0.8)) * (1 - M.idle) + breath * M.idle;
+      const spread = 0.06 + 0.14 * M.env;
+      for (let x = 0; x < W; x++) { hue(M.hue + spread * (wave(x) - 0.5)); put(x, v * (0.9 + 0.1 * wave(x + W / 8))); }
+    }
+    rg.putImageData(img, 0, 0);
+    g.drawImage(row, 0, 0, W, 1, 0, 0, W, H);
+  }
+
+  const t0 = performance.now();
+  let last = 0, prev = t0, frozen = false;
+  function loop(now) {
+    if (frozen) return;
+    if (now - last >= FRAME_MS - 2) {
+      const dt = clamp((now - prev) / 1000, 0.001, 0.25);
+      prev = now; last = now;
+      draw((now - t0) / 1000, now, dt);
+    }
+    requestAnimationFrame(loop);
+  }
+  if (mode === 'static') draw(0, t0, 0.033);
+  else requestAnimationFrame(loop);
+
+  // for previews / tests: stop the clock and draw the frame at `secs` (music: with `level` held long enough to settle)
+  window.__frame = (secs, level) => {
+    frozen = true;
+    if (mode === 'music') {
+      M.target = level || 0; M.msgAt = performance.now(); M.heardAt = level > 0.02 ? M.msgAt : -1e9;
+      for (let i = 0; i < 90; i++) musicStep(performance.now(), 1 / 30);
+    }
+    draw(secs, performance.now(), 1 / 30);
+  };
+})();
+</script>
+</body>
+</html>

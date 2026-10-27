@@ -33,5 +33,26 @@
       "strength": 0.8,
       "roughness_across": 0.55
     }
+  },
+  "tt_brass": {
+    "anisotropy": {
+      "mode": "tangent",
+      "strength": 0.8,
+      "roughness_across": 0.5
+    }
+  },
+  "tt_platter_strobe": {
+    "anisotropy": {
+      "mode": "tangent",
+      "strength": 0.8,
+      "roughness_across": 0.5
+    }
+  },
+  "tt_plate": {
+    "anisotropy": {
+      "mode": "tangent",
+      "strength": 0.7,
+      "roughness_across": 0.5
+    }
   }
 }

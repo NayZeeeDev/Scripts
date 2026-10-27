@@ -1,359 +1,57 @@
 {
  "axes": "+Z up, +Y front, +X viewer's left",
  "models": {
-  "nayzeee_audio_a": {
+  "nayzeee_carplay_unit": {
    "anchors": {
-    "controls": {
-     "note": "top control strip centre",
-     "pos": [0.0, 0.088, 0.862],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "front": {
-     "note": "centre of the bezel face",
-     "pos": [0.0, 0.18, 0.436],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "grip": {
-     "note": "centre of the handle bar, where the hand closes",
-     "pos": [0.0, -0.085, 0.934],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "top": {
-     "note": "highest point (top of the handle bar)",
-     "pos": [0.0, -0.085, 0.95],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "woofer_hi": {
-     "note": "upper woofer centre on the baffle (LED halo)",
-     "pos": [0.0, 0.166, 0.642],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "woofer_lo": {
-     "note": "lower woofer centre on the baffle (LED halo)",
-     "pos": [0.0, 0.166, 0.232],
+    "screen_centre": {
+     "note": "centre of the lit screen",
+     "pos": [-0.0145, 0.0857, 0.056],
      "rot": [0.0, 0.0, 0.0]
     }
    },
    "bbox": {
-    "max": [0.2122, 0.1806, 0.9506],
-    "min": [-0.2122, -0.189, 0.0],
-    "size": [0.4244, 0.3696, 0.9506]
+    "max": [0.0917, 0.0956, 0.104],
+    "min": [-0.0917, -0.074, 0.0],
+    "size": [0.1834, 0.1696, 0.104]
    },
    "collision": {
-    "max": [0.21, 0.18, 0.95],
-    "min": [-0.21, -0.183, 0.0],
-    "shapes": 2,
-    "volume": 0.13284
+    "max": [0.091, 0.085, 0.104],
+    "min": [-0.091, -0.062, 0.0],
+    "shapes": 1,
+    "volume": 0.002782
    },
-   "description": "Pulse Tower: tall party speaker, two LED-ringed woofers + tweeter, top control strip, integrated top handle, rear bass ports.",
-   "export": true,
+   "description": "Image-only: double-DIN CarPlay head unit for the nayzeee_carplay inventory image.",
+   "export": false,
    "flags": 537001984,
    "lod_distances": {
-    "archetype": 120.0,
-    "high": 18.0,
+    "archetype": 60.0,
+    "high": 10.0,
     "medium": 9998.0
    },
    "lods": {
     "high": {
-     "tris": 15177,
-     "verts": 11840
+     "tris": 2904,
+     "verts": 2921
     },
     "medium": {
-     "detail": 0.35,
-     "tris": 5344,
-     "verts": 5358
+     "detail": 0.5,
+     "tris": 1420,
+     "verts": 1591
     }
    },
-   "materials": ["satin_graphite", "brushed_aluminium", "matte_black_plastic", "teal_plastic", "rubber", "gunmetal", "gloss_black_plastic", "chrome", "print_decal", "led_teal", "spk_cone_twill", "brushed_aluminium_radial", "rubber_grip"],
-   "meta": {
-    "render": {
-     "pitch": 14,
-     "yaw": 32
-    }
-   },
-   "sphere": {
-    "centre": [0.0, -0.0042, 0.4753],
-    "radius": 0.52196
-   }
-  },
-  "nayzeee_audio_b": {
-   "anchors": {
-    "front": {
-     "note": "front of the fabric grille",
-     "pos": [0.0, 0.0545, 0.2097],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "grip": {
-     "note": "top of the strap arch, where the hand closes",
-     "pos": [0.0, 0.0, 0.476],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "light_ring": {
-     "note": "centre of the top cap (teal light ring around it)",
-     "pos": [0.0, 0.0, 0.43],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "top": {
-     "note": "highest point (top of the strap)",
-     "pos": [0.0, 0.0, 0.4776],
-     "rot": [0.0, 0.0, 0.0]
-    }
-   },
-   "bbox": {
-    "max": [0.06593, 0.055492, 0.4776],
-    "min": [-0.06593, -0.056243, 0.0],
-    "size": [0.13186, 0.111735, 0.4776]
-   },
-   "collision": {
-    "max": [0.0648, 0.0552, 0.4776],
-    "min": [-0.0648, -0.0552, 0.0],
-    "shapes": 2,
-    "volume": 0.004362
-   },
-   "description": "Echo Column: slim fabric-wrapped column speaker, machined top cap with keys and a teal light ring, rubber base, webbing strap.",
-   "export": true,
-   "flags": 537001984,
-   "lod_distances": {
-    "archetype": 90.0,
-    "high": 12.0,
-    "medium": 9998.0
-   },
-   "lods": {
-    "high": {
-     "tris": 8497,
-     "verts": 5703
-    },
-    "medium": {
-     "detail": 0.4,
-     "tris": 2723,
-     "verts": 2325
-    }
-   },
-   "materials": ["rubber", "led_teal", "brushed_aluminium", "spk_fabric_melange", "brushed_aluminium_radial", "satin_graphite", "print_decal", "spk_webbing", "gunmetal", "chrome", "spk_stitch", "teal_plastic"],
-   "meta": {
-    "render": {
-     "pitch": 16,
-     "yaw": 30
-    }
-   },
-   "sphere": {
-    "centre": [0.0, -0.000376, 0.2388],
-    "radius": 0.244159
-   }
-  },
-  "nayzeee_audio_c": {
-   "anchors": {
-    "controls": {
-     "note": "play button on the top control spine",
-     "pos": [0.0, 0.0, 0.2615],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "front": {
-     "note": "front centre of the grille",
-     "pos": [0.0, 0.115, 0.142],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "grip": {
-     "note": "centre of the rubber handle grip (hand closes here)",
-     "pos": [0.0, 0.0, 0.334],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "radiator_left": {
-     "note": "+X passive radiator centre (viewer's left)",
-     "pos": [0.26, 0.0, 0.142],
-     "rot": [0.0, 90.0, 0.0]
-    },
-    "radiator_right": {
-     "note": "-X passive radiator centre (viewer's right)",
-     "pos": [-0.26, 0.0, 0.142],
-     "rot": [0.0, -90.0, 0.0]
-    },
-    "top": {
-     "note": "highest point (top of the handle grip)",
-     "pos": [0.0, 0.0, 0.3485],
-     "rot": [0.0, 0.0, 0.0]
-    }
-   },
-   "bbox": {
-    "max": [0.26345, 0.1226, 0.3485],
-    "min": [-0.26345, -0.1226, 0.0],
-    "size": [0.5269, 0.2452, 0.3485]
-   },
-   "collision": {
-    "max": [0.26, 0.122, 0.3485],
-    "min": [-0.26, -0.122, 0.0],
-    "shapes": 6,
-    "volume": 0.025059
-   },
-   "description": "Drum Hub: horizontal barrel portable with a wrap-around steel grille, chrome-ringed passive radiator hubs with teal light rings, rubber control spine and a brushed bar handle.",
-   "export": true,
-   "flags": 537001984,
-   "lod_distances": {
-    "archetype": 100.0,
-    "high": 14.0,
-    "medium": 9998.0
-   },
-   "lods": {
-    "high": {
-     "tris": 14998,
-     "verts": 11659
-    },
-    "medium": {
-     "detail": 0.35,
-     "tris": 6075,
-     "verts": 5772
-    }
-   },
-   "materials": ["speaker_grille_metal", "rubber", "satin_graphite", "teal_plastic", "gunmetal", "brushed_aluminium", "chrome", "gloss_black_plastic", "matte_black_plastic", "led_teal", "brushed_aluminium_radial", "rubber_grip", "print_decal"],
-   "meta": {
-    "render": {
-     "pitch": 20,
-     "yaw": 30
-    },
-    "size_m": [0.5269, 0.2452, 0.3485]
-   },
-   "sphere": {
-    "centre": [0.0, 0.0, 0.17425],
-    "radius": 0.299298
-   }
-  },
-  "nayzeee_audio_d": {
-   "anchors": {
-    "controls": {
-     "note": "play button on the top cap",
-     "pos": [0.0, 0.033, 0.309084],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "grip": {
-     "note": "top of the carry loop, centre of the strap (hand closes here)",
-     "pos": [0.0, 0.0, 0.372837],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "led_band": {
-     "note": "front of the teal equator LED band",
-     "pos": [0.0, 0.14, 0.172],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "orb_centre": {
-     "note": "centre of the sphere",
-     "pos": [0.0, 0.0, 0.172],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "port": {
-     "note": "downward-firing bass port mouth",
-     "pos": [0.0, 0.0, 0.036],
-     "rot": [180.0, 0.0, 0.0]
-    },
-    "top": {
-     "note": "highest point (outside of the carry loop)",
-     "pos": [0.0, 0.0, 0.376387],
-     "rot": [0.0, 0.0, 0.0]
-    }
-   },
-   "bbox": {
-    "max": [0.141095, 0.141095, 0.376387],
-    "min": [-0.141095, -0.141095, 0.0],
-    "size": [0.28219, 0.28219, 0.376387]
-   },
-   "collision": {
-    "max": [0.14, 0.14, 0.372837],
-    "min": [-0.14, -0.14, 0.0],
-    "shapes": 3,
-    "volume": 0.014481
-   },
-   "description": "Orb: spherical speaker with a perforated steel upper shell, teal LED equator, spun-aluminium top cap with a rubber carry loop, downward bass port, on a slim brushed ring stand.",
-   "export": true,
-   "flags": 537001984,
-   "lod_distances": {
-    "archetype": 100.0,
-    "high": 14.0,
-    "medium": 9998.0
-   },
-   "lods": {
-    "high": {
-     "tris": 15011,
-     "verts": 9974
-    },
-    "medium": {
-     "detail": 0.45,
-     "tris": 4647,
-     "verts": 3989
-    }
-   },
-   "materials": ["satin_graphite", "matte_black_plastic", "speaker_grille_round", "chrome", "orb_led_band", "brushed_aluminium_radial", "orb_cap_spun", "brushed_aluminium", "gloss_black_plastic", "rubber", "teal_plastic", "print_decal", "led_teal"],
-   "meta": {
-    "render": {
-     "pitch": 16,
-     "yaw": 30
-    },
-    "size_m": [0.2822, 0.2822, 0.3764]
-   },
-   "sphere": {
-    "centre": [0.0, 0.0, 0.188194],
-    "radius": 0.223679
-   }
-  },
-  "nayzeee_audio_e": {
-   "anchors": {
-    "front": {
-     "note": "centre of the grille",
-     "pos": [0.0, 0.15, 0.166],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "grip": {
-     "note": "centre of the rubber grip, where the hand closes",
-     "pos": [0.0, -0.022, 0.397],
-     "rot": [0.0, 0.0, 0.0]
-    },
-    "top": {
-     "note": "highest point (top of the grip)",
-     "pos": [0.0, -0.022, 0.4118],
-     "rot": [0.0, 0.0, 0.0]
-    }
-   },
-   "bbox": {
-    "max": [0.16, 0.16145, 0.4117],
-    "min": [-0.16, -0.16145, 0.0],
-    "size": [0.32, 0.3229, 0.4117]
-   },
-   "collision": {
-    "max": [0.16, 0.16, 0.4112],
-    "min": [-0.16, -0.16, 0.0],
-    "shapes": 2,
-    "volume": 0.032903
-   },
-   "description": "Carry Cube: rounded cube speaker with rubber corner caps, perforated round grille, fold-down bail handle, side keys and a teal band.",
-   "export": true,
-   "flags": 537001984,
-   "lod_distances": {
-    "archetype": 100.0,
-    "high": 14.0,
-    "medium": 9998.0
-   },
-   "lods": {
-    "high": {
-     "tris": 14470,
-     "verts": 10744
-    },
-    "medium": {
-     "detail": 0.4,
-     "tris": 4661,
-     "verts": 4238
-    }
-   },
-   "materials": ["satin_graphite", "teal_plastic", "brushed_aluminium_radial", "matte_black_plastic", "gunmetal", "spk_grille_graphite", "brushed_aluminium", "chrome", "gloss_black_plastic", "print_decal", "rubber", "rubber_grip", "led_teal"],
+   "materials": ["gloss_black_plastic", "screen_glass_dark", "cp_screen", "brushed_aluminium", "print_decal", "satin_graphite", "led_teal", "tt_alu_knurl", "brushed_aluminium_radial", "teal_plastic", "cp_zinc", "speaker_grille_round", "matte_black_plastic", "chrome"],
    "meta": {
     "render": {
      "pitch": 18,
-     "yaw": 34
+     "yaw": 35
     }
    },
    "sphere": {
-    "centre": [0.0, 0.0, 0.20585],
-    "radius": 0.294278
+    "centre": [0.0, 0.0108, 0.052],
+    "radius": 0.126185
    }
   },
-  "nayzeee_audio_g": {
+  "nayzeee_console": {
    "anchors": {
     "arm_offset": {
      "note": "nayzeee_tt_arm origin = pivot; rot z 0 = parked on the rest",
@@ -883,7 +581,7 @@
    }
   }
  },
- "txd": "nayzeee_audio_texture",
+ "txd": "nayzeee_console_texture",
  "units": "metres",
- "ytyp": "nayzeee_audio"
+ "ytyp": "nayzeee_console"
 }

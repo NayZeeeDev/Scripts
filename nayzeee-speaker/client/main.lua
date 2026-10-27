@@ -8,6 +8,7 @@ Settings = {
     skin = Config.NowPlaying.skin, cover = Config.NowPlaying.cover,
     glow = Config.NowPlaying.glow, blur = Config.NowPlaying.blur, viz = true,
     font = Config.NowPlaying.font, animIn = Config.NowPlaying.animIn, animOut = Config.NowPlaying.animOut,
+    rgb = true,                   -- the speakers' animated RGB lights (client/looks.lua)
 }
 
 local SKINS = { compact = true, boxy = true, gallery = true, minimal = true, macos = true, shell = true, bar = true }
@@ -278,7 +279,7 @@ RegisterNUICallback('settings', function(data, cb)
         if data.font and FONTS[data.font] then Settings.font = data.font end
         if data.animIn and ANIMS[data.animIn] then Settings.animIn = data.animIn end
         if data.animOut and ANIMS[data.animOut] then Settings.animOut = data.animOut end
-        for _, k in ipairs({ 'glow', 'blur', 'viz' }) do
+        for _, k in ipairs({ 'glow', 'blur', 'viz', 'rgb' }) do
             if data[k] ~= nil then Settings[k] = data[k] and true or false end
         end
         if data.streamer ~= nil and (data.streamer and true or false) ~= Settings.streamer then

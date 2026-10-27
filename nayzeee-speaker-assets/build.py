@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build every nayzeee prop into CodeWalker XML + DDS, GLB previews and layout.json.
+"""Build the Record Console upgrade props into CodeWalker XML + DDS, GLB previews and layout.json.
 
     python3 build.py                     # everything
     python3 build.py --only nayzeee_vinyl
@@ -8,11 +8,14 @@
 
 Outputs (deterministic):
     out/xml/<model>.ydr.xml                 one per exported model (High + Medium LOD, collision)
-    out/xml/nayzeee_audio_texture.ytd.xml   shared texture dictionary
-    out/xml/nayzeee_audio_texture/*.dds     its textures (DXT1/DXT5, full mip chains to 4 px)
-    out/xml/nayzeee_audio.ytyp.xml          one CBaseArchetypeDef per exported model
+    out/xml/nayzeee_console_texture.ytd.xml one texture dictionary for every exported model
+    out/xml/nayzeee_console_texture/*.dds   its textures (DXT1/DXT5, full mip chains to 4 px)
+    out/xml/nayzeee_console.ytyp.xml        one CBaseArchetypeDef per exported model
     out/glb/<model>.glb                     PBR previews (also image-only models)
     out/layout.json                         anchors, bounds, tri counts per LOD, meta
+The txd / ytyp names differ from the speaker pack's (nayzeee_audio_texture / nayzeee_audio.ytyp), so
+the converted files are ADDED to nayzeee-speaker/stream and never replace the pack.
+Outputs of models / dictionaries that no longer exist are deleted from out/.
 The validator (lib/validate.py) runs at the end; the exit code is non-zero on errors.
 """
 from __future__ import annotations
@@ -36,7 +39,7 @@ from lib import cwxml, dds, glb, materials, textures, validate  # noqa: E402
 from lib.mesh import parts_bounds  # noqa: E402
 
 TXD = textures.TXD_NAME
-YTYP = "nayzeee_audio"
+YTYP = "nayzeee_console"
 DDS_CACHE_VERSION = "bc-v2"
 
 
@@ -236,10 +239,20 @@ def main(argv=None) -> int:
         rows.append((name, "yes" if hi.export else "image", layout["models"][name]["lods"]["high"]["tris"],
                      layout["models"][name]["lods"]["medium"]["tris"], len(mats_used),
                      "x".join(f"{v:.3f}" for v in (hi_b - lo)), len(hi.collision), glb_kb))
-    # drop stale outputs of models that no longer exist
+    # drop stale outputs of models / dictionaries that no longer exist (renamed or removed)
+    exported = {a["name"] for a in archetypes}
     for f in os.listdir(xml_dir):
-        if f.endswith(".ydr.xml") and f[:-8] not in [a["name"] for a in archetypes]:
-            os.remove(os.path.join(xml_dir, f))
+        p = os.path.join(xml_dir, f)
+        if (f.endswith(".ydr.xml") and f[:-len(".ydr.xml")] not in exported) or \
+                (f.endswith(".ytd.xml") and f != TXD + ".ytd.xml") or \
+                (f.endswith(".ytyp.xml") and f != YTYP + ".ytyp.xml"):
+            os.remove(p)
+        elif os.path.isdir(p) and f != TXD:
+            shutil.rmtree(p)
+    if not args.no_glb:
+        for f in os.listdir(glb_dir):
+            if f.endswith(".glb") and f[:-len(".glb")] not in all_names:
+                os.remove(os.path.join(glb_dir, f))
     cwxml.write_text(os.path.join(xml_dir, YTYP + ".ytyp.xml"), cwxml.ytyp_xml(YTYP, archetypes))
     with open(os.path.join(out, "layout.json"), "w", encoding="utf-8", newline="\n") as f:
         f.write(dump_json(_clean_json(layout)) + "\n")

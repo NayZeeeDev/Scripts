@@ -1,0 +1,519 @@
+{
+ "model": "nayzeee_audio_a",
+ "source": "nayzeee_audio_a.ydr",
+ "rsc_version": 165,
+ "name": "nayzeee_audio_a",
+ "bbox": [
+  [
+   -0.05925,
+   -0.05777,
+   0.0
+  ],
+  [
+   0.05925,
+   0.05777,
+   0.19717
+  ]
+ ],
+ "bounding_sphere": [
+  0.0,
+  0.0,
+  0.09859,
+  0.12871
+ ],
+ "lod_distances": [
+  9998.0,
+  9998.0,
+  9998.0,
+  9998.0
+ ],
+ "bones": [
+  "nayzeee_audio_a"
+ ],
+ "shaders": [
+  {
+   "index": 0,
+   "name": "emissive",
+   "file": "emissive.sps",
+   "render_bucket": 0,
+   "textures": {
+    "DiffuseSampler": "rgb"
+   },
+   "params": {
+    "matMaterialColorScale": [
+     1.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "HardAlphaBlend": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "UseTessellation": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "EmissiveMultiplier": [
+     0.344,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "globalAnimUV1": [
+     0.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    "globalAnimUV0": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "texture_source": {
+    "DiffuseSampler": "embedded"
+   }
+  },
+  {
+   "index": 1,
+   "name": "normal",
+   "file": "hash_2B8AB23D",
+   "render_bucket": 0,
+   "textures": {
+    "DiffuseSampler": "sp1",
+    "BumpSampler": "sp1_n"
+   },
+   "params": {
+    "HardAlphaBlend": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "UseTessellation": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "WetnessMultiplier": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "Bumpiness": [
+     1.545,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "specularIntensityMult": [
+     0.0386,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "specularFalloffMult": [
+     17.5616,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "specularFresnel": [
+     0.97,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "globalAnimUV1": [
+     0.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    "globalAnimUV0": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "texture_source": {
+    "DiffuseSampler": "txd",
+    "BumpSampler": "txd"
+   }
+  },
+  {
+   "index": 2,
+   "name": "decal_emissive_only",
+   "file": "decal_emissive_only.sps",
+   "render_bucket": 2,
+   "textures": {
+    "DiffuseSampler": "brands"
+   },
+   "params": {
+    "matMaterialColorScale": [
+     1.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    "UseTessellation": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "EmissiveMultiplier": [
+     0.4128,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "texture_source": {
+    "DiffuseSampler": "txd"
+   }
+  },
+  {
+   "index": 3,
+   "name": "spec",
+   "file": "hash_BF11261D",
+   "render_bucket": 0,
+   "textures": {
+    "DiffuseSampler": "color",
+    "SpecSampler": "spec"
+   },
+   "params": {
+    "HardAlphaBlend": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "UseTessellation": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "WetnessMultiplier": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "specMapIntMask": [
+     0.0427,
+     0.0332,
+     0.0427,
+     0.0
+    ],
+    "specularIntensityMult": [
+     0.1202,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "specularFalloffMult": [
+     230.707199,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "specularFresnel": [
+     0.9442,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "globalAnimUV1": [
+     0.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    "globalAnimUV0": [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "texture_source": {
+    "DiffuseSampler": "embedded",
+    "SpecSampler": "embedded"
+   }
+  }
+ ],
+ "embedded_textures": [
+  {
+   "name": "spec",
+   "w": 4,
+   "h": 4,
+   "fmt": "DXT5",
+   "levels": 1
+  },
+  {
+   "name": "rgb",
+   "w": 128,
+   "h": 32,
+   "fmt": "DXT1",
+   "levels": 4
+  },
+  {
+   "name": "color",
+   "w": 4,
+   "h": 4,
+   "fmt": "DXT5",
+   "levels": 1
+  }
+ ],
+ "embedded_note": "textures in the drawable's own dictionary; they shadow same-named textures of nayzeee_audio_texture and are not part of the shared .ytd",
+ "textures_used": {
+  "brands": [
+   "DiffuseSampler"
+  ],
+  "color": [
+   "DiffuseSampler"
+  ],
+  "rgb": [
+   "DiffuseSampler"
+  ],
+  "sp1": [
+   "DiffuseSampler"
+  ],
+  "sp1_n": [
+   "BumpSampler"
+  ],
+  "spec": [
+   "SpecSampler"
+  ]
+ },
+ "txd_textures_used": {
+  "brands": [
+   "DiffuseSampler"
+  ],
+  "sp1": [
+   "DiffuseSampler"
+  ],
+  "sp1_n": [
+   "BumpSampler"
+  ]
+ },
+ "geometries": [
+  {
+   "lod": "high",
+   "model": 0,
+   "geometry": 0,
+   "bone_index": 0,
+   "shader_index": 0,
+   "shader": "emissive",
+   "textures": {
+    "DiffuseSampler": "rgb"
+   },
+   "texture_source": {
+    "DiffuseSampler": "embedded"
+   },
+   "vertices": 62,
+   "triangles": 56,
+   "layout": [
+    "Position:Float3",
+    "Normal:Float3",
+    "Colour0:Colour",
+    "TexCoord0:Float2"
+   ],
+   "bbox": [
+    [
+     -0.0593,
+     -0.0578,
+     0.0
+    ],
+    [
+     0.0593,
+     0.0578,
+     0.1971
+    ]
+   ],
+   "uv_range": [
+    [
+     -0.0366,
+     -1.0
+    ],
+    [
+     0.9634,
+     0.0
+    ]
+   ],
+   "colour0_mean": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "lod": "high",
+   "model": 0,
+   "geometry": 1,
+   "bone_index": 0,
+   "shader_index": 1,
+   "shader": "normal",
+   "textures": {
+    "DiffuseSampler": "sp1",
+    "BumpSampler": "sp1_n"
+   },
+   "texture_source": {
+    "DiffuseSampler": "txd",
+    "BumpSampler": "txd"
+   },
+   "vertices": 65,
+   "triangles": 84,
+   "layout": [
+    "Position:Float3",
+    "Normal:Float3",
+    "Colour0:Colour",
+    "TexCoord0:Float2",
+    "Tangent:Float4"
+   ],
+   "bbox": [
+    [
+     -0.0593,
+     -0.0578,
+     0.0107
+    ],
+    [
+     0.0593,
+     0.0578,
+     0.1857
+    ]
+   ],
+   "uv_range": [
+    [
+     -0.0366,
+     -0.8137
+    ],
+    [
+     0.9634,
+     -0.1863
+    ]
+   ],
+   "colour0_mean": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "lod": "high",
+   "model": 0,
+   "geometry": 2,
+   "bone_index": 0,
+   "shader_index": 2,
+   "shader": "decal_emissive_only",
+   "textures": {
+    "DiffuseSampler": "brands"
+   },
+   "texture_source": {
+    "DiffuseSampler": "txd"
+   },
+   "vertices": 6,
+   "triangles": 2,
+   "layout": [
+    "Position:Float3",
+    "Normal:Float3",
+    "Colour0:Colour",
+    "TexCoord0:Float2"
+   ],
+   "bbox": [
+    [
+     -0.0147,
+     -0.0376,
+     0.1972
+    ],
+    [
+     0.0147,
+     -0.0271,
+     0.1972
+    ]
+   ],
+   "uv_range": [
+    [
+     0.0,
+     -1.0
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "colour0_mean": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "lod": "high",
+   "model": 0,
+   "geometry": 3,
+   "bone_index": 0,
+   "shader_index": 3,
+   "shader": "spec",
+   "textures": {
+    "DiffuseSampler": "color",
+    "SpecSampler": "spec"
+   },
+   "texture_source": {
+    "DiffuseSampler": "embedded",
+    "SpecSampler": "embedded"
+   },
+   "vertices": 32,
+   "triangles": 28,
+   "layout": [
+    "Position:Float3",
+    "Normal:Float3",
+    "Colour0:Colour",
+    "TexCoord0:Float2"
+   ],
+   "bbox": [
+    [
+     -0.0496,
+     -0.0484,
+     0.0
+    ],
+    [
+     0.0496,
+     0.0484,
+     0.1971
+    ]
+   ],
+   "uv_range": [
+    [
+     -0.0357,
+     -1.0
+    ],
+    [
+     0.9643,
+     0.0
+    ]
+   ],
+   "colour0_mean": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ ]
+}

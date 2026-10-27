@@ -1,4 +1,4 @@
-"""Shared by the record console (nayzeee_audio_g), its platter (nayzeee_tt_platter) and tonearm
+"""Shared by the record console (nayzeee_console), its platter (nayzeee_tt_platter) and tonearm
 (nayzeee_tt_arm): the shared-contract geometry, small mesh helpers and the turntable-lane
 materials / textures.  Not a model (the registry ignores files starting with "_").
 

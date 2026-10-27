@@ -451,7 +451,7 @@ uniform vec2 uXi[ANISO_SAMPLES];   // this frame's stratified 2D samples (anisot
 uniform float uTotalSamples; // frames * samples per frame (for the FIS lod)
 uniform float uFisBias;      // extra blur (mip levels) for the filtered importance sampling
 uniform float uSpecOcc;      // 0..1 strength of the reflection occlusion
-uniform int uDebug;          // 0 beauty, 1 ao, 2 normal, 3 base colour, 4 specular, 5 diffuse
+uniform int uDebug;          // 0 beauty, 1 ao, 2 normal, 3 base colour, 4 specular, 5 diffuse, 6 emission only
 layout(location = 0) out vec4 o;
 
 vec3 shIrr(vec3 n) {
@@ -623,12 +623,14 @@ void main() {
   vec3 diffOut = color;
   color += spec;
 #ifndef PASS_LIGHTS
-  color += uEmissive * (uHas.w == 1 ? texture(tEmis, vUV).rgb : vec3(1.0));
-  if (uDebug == 1) color = vec3(ao);
+  vec3 emission = uEmissive * (uHas.w == 1 ? texture(tEmis, vUV).rgb : vec3(1.0));
+  color += emission;
+  if (uDebug == 6) color = emission;       // also the bloom source frame (renderer.js, "emission frame")
+  else if (uDebug == 1) color = vec3(ao);
   else if (uDebug == 2) color = N * 0.5 + 0.5;
   else if (uDebug == 3) color = s.base;
 #else
-  if (uDebug >= 1 && uDebug <= 3) color = vec3(0.0);
+  if ((uDebug >= 1 && uDebug <= 3) || uDebug == 6) color = vec3(0.0);
 #endif
   if (uDebug == 4) color = spec;
   else if (uDebug == 5) color = diffOut;
@@ -854,9 +856,21 @@ void main() {
   vec3 d = tonemap(straight);
   vec3 glow = (texture(tBloomA, uv).rgb * 0.65 + texture(tBloomB, uv).rgb * 0.35) * uBloom;
   vec3 g = 1.0 - exp(-glow);
-  vec3 pm = d * alpha + g * (1.0 - 0.5 * alpha);
-  float ga = max(g.r, max(g.g, g.b));
-  float aOut = sat(alpha + (1.0 - alpha) * ga);
+  vec3 pm;
+  float aOut;
+  if (uBg.a > 0.5) {
+    // solid background: the glow is light added over the background as well
+    pm = d * alpha + g * (1.0 - 0.5 * alpha);
+    float ga = max(g.r, max(g.g, g.b));
+    aOut = sat(alpha + (1.0 - alpha) * ga);
+  } else {
+    // transparent background: the glow only brightens what is already there (props, floor shadow) and never
+    // adds coverage.  Spilling it into empty space stored it as near-transparent pixels whose straight
+    // colour is glow / alpha -- a white "fog" (worst on the streaky floor-shadow alpha) wherever alpha is
+    // not composited exactly: thumbnails, previews, inventory scaling, mip maps.
+    pm = (d + 0.5 * g) * alpha;
+    aOut = alpha;
+  }
   vec3 sOut = aOut > 1e-6 ? clamp(pm / aOut, 0.0, 1.0) : vec3(0.0);
   vec3 srgb = toSRGB(sOut);
   // triangular dither (1 LSB), not on fully transparent / opaque alpha

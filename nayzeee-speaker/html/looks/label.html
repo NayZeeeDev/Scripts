@@ -1,0 +1,172 @@
+<!doctype html>
+<!--
+  The record on the old turntable prop while an album plays on it (client/looks.lua shows this page as
+  the prop's 'record' texture): a full vinyl disc, grooves and sheen, with the album cover as its label.
+  Same layout as the prop's own texture: the disc fills the square, the label is 36 % of its width.
+
+  ?cover=<image link>  &n=<tracks on the album>  &album=  &artist=  (text for a label without a cover)
+  If the cover can't be loaded it shows record/nayzeee.png, and failing that a plain label.
+  Drawn once per record: nothing runs per frame (the prop's own animation turns it).
+-->
+<html style="background:#060607">
+<head>
+<meta charset="utf-8">
+<title>nzspk record</title>
+<style>
+  @font-face{font-family:'Lexend';src:url(../fonts/lexend.woff2) format('woff2');font-weight:100 900}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#060607}
+  canvas{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(() => {
+  'use strict';
+  const q = new URLSearchParams(location.search);
+  const S = Math.max(64, Math.min(2048, Math.round(+q.get('size') || Math.min(window.innerWidth, window.innerHeight) || 512)));
+  const cover = /^https?:\/\//i.test(q.get('cover') || '') ? q.get('cover') : '';
+  const tracks = Math.max(1, Math.min(30, Math.round(+q.get('n') || 8)));
+  const album = (q.get('album') || '').slice(0, 60), artist = (q.get('artist') || '').slice(0, 60);
+  const FALLBACK = 'record/nayzeee.png';
+
+  const cv = document.getElementById('c');
+  cv.width = S; cv.height = S;
+  const g = cv.getContext('2d', { alpha: false });
+  const C = S / 2;
+  const R = C * 0.985;          // disc edge
+  const LABEL = C * 0.36;       // label edge (matches the prop's texture layout)
+  const HOLE = C * 0.022;
+  const LEAD_IN = R * 0.972, RUN_OUT = C * 0.415;
+  const TAU = Math.PI * 2;
+
+  // a fixed pseudo random sequence: every client draws the same grooves
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+
+  function circle(r) { g.beginPath(); g.arc(C, C, r, 0, TAU); }
+
+  function disc() {
+    seed = 7;
+    g.fillStyle = '#060607';
+    g.fillRect(0, 0, S, S);
+    // body: very dark, a touch lighter towards the rim
+    const body = g.createRadialGradient(C, C, LABEL, C, C, R);
+    body.addColorStop(0, '#0a0a0b');
+    body.addColorStop(1, '#101012');
+    circle(R); g.fillStyle = body; g.fill();
+
+    // grooves: fine rings of slightly different sheen, with a smooth band between songs
+    const lw = Math.max(0.5, S / 900);
+    g.lineWidth = lw;
+    const gaps = [];
+    for (let i = 1; i < tracks; i++) gaps.push(LEAD_IN - (LEAD_IN - RUN_OUT) * i / tracks);
+    const gapW = Math.max(1.5, S / 260);
+    const step = Math.max(0.9, S / 420);
+    for (let r = RUN_OUT; r < LEAD_IN; r += step) {
+      if (gaps.some(x => Math.abs(r - x) < gapW)) continue;
+      const a = 0.025 + 0.05 * rnd();
+      g.strokeStyle = `rgba(255,255,255,${a.toFixed(3)})`;
+      circle(r); g.stroke();
+    }
+    // the bands between songs and the lead-in / run-out read as darker, glossier rings
+    g.lineWidth = gapW * 1.4;
+    g.strokeStyle = 'rgba(0,0,0,.55)';
+    for (const x of gaps) { circle(x); g.stroke(); }
+    g.lineWidth = Math.max(1, S / 300);
+    g.strokeStyle = 'rgba(255,255,255,.07)';
+    circle(LEAD_IN + (R - LEAD_IN) * 0.5); g.stroke();
+    circle(RUN_OUT - S / 200); g.stroke();
+    // rim
+    g.lineWidth = Math.max(1, S / 256);
+    g.strokeStyle = 'rgba(255,255,255,.10)';
+    circle(R - g.lineWidth / 2); g.stroke();
+
+    // sheen: two soft light wedges opposite each other, like a lamp over the deck
+    for (const centre of [-0.78, Math.PI - 0.78]) {
+      const span = 0.55, slices = 48;
+      for (let i = 0; i < slices; i++) {
+        const k = (i + 0.5) / slices, a0 = centre - span + 2 * span * i / slices;
+        const w = Math.exp(-Math.pow((k - 0.5) / 0.2, 2));
+        g.beginPath();
+        g.moveTo(C, C);
+        g.arc(C, C, R * 0.995, a0, a0 + 2 * span / slices + 0.002);
+        g.closePath();
+        g.fillStyle = `rgba(255,255,255,${(0.085 * w).toFixed(4)})`;
+        g.fill();
+      }
+    }
+    // the label area is drawn over the sheen
+    circle(LABEL + S / 160); g.fillStyle = '#08090a'; g.fill();
+  }
+
+  function labelFinish() {
+    // a thin edge, a soft gloss and the spindle hole
+    g.lineWidth = Math.max(1, S / 220);
+    g.strokeStyle = 'rgba(0,0,0,.6)';
+    circle(LABEL); g.stroke();
+    const gloss = g.createRadialGradient(C - LABEL * 0.35, C - LABEL * 0.45, 0, C, C, LABEL);
+    gloss.addColorStop(0, 'rgba(255,255,255,.10)');
+    gloss.addColorStop(0.6, 'rgba(255,255,255,0)');
+    gloss.addColorStop(1, 'rgba(0,0,0,.18)');
+    circle(LABEL); g.fillStyle = gloss; g.fill();
+    circle(HOLE * 1.6); g.fillStyle = 'rgba(255,255,255,.12)'; g.fill();
+    circle(HOLE); g.fillStyle = '#030303'; g.fill();
+  }
+
+  // house label: teal ring on near-black, album and artist in Lexend
+  function plainLabel() {
+    circle(LABEL); g.fillStyle = '#0e1011'; g.fill();
+    g.lineWidth = LABEL * 0.06;
+    g.strokeStyle = '#08afa2';
+    circle(LABEL * 0.78); g.stroke();
+    g.fillStyle = '#f2f4f5';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const fit = (s, px, weight, y, alpha) => {
+      if (!s) return;
+      let size = px;
+      g.font = `${weight} ${size}px Lexend, system-ui, sans-serif`;
+      while (size > 6 && g.measureText(s).width > LABEL * 1.15) { size -= 1; g.font = `${weight} ${size}px Lexend, system-ui, sans-serif`; }
+      g.globalAlpha = alpha;
+      g.fillText(s, C, y);
+      g.globalAlpha = 1;
+    };
+    fit(album.toUpperCase(), Math.round(LABEL * 0.17), 600, C - LABEL * 0.36, 1);
+    fit(artist.toUpperCase(), Math.round(LABEL * 0.12), 400, C + LABEL * 0.38, 0.6);
+    labelFinish();
+  }
+
+  function coverLabel(img) {
+    g.save();
+    circle(LABEL); g.clip();
+    // cover-fit: the square middle of the picture
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const s = Math.min(iw, ih);
+    g.drawImage(img, (iw - s) / 2, (ih - s) / 2, s, s, C - LABEL, C - LABEL, LABEL * 2, LABEL * 2);
+    g.restore();
+    labelFinish();
+  }
+
+  function load(src, ok, fail) {
+    const img = new Image();
+    img.onload = () => (img.naturalWidth > 0 ? ok(img) : fail());
+    img.onerror = fail;
+    img.src = src;
+  }
+
+  function fallback() {
+    load(FALLBACK, img => { g.drawImage(img, 0, 0, S, S); }, () => { disc(); plainLabel(); });
+  }
+
+  disc();
+  if (cover) {
+    // a dark label until the cover arrives (no text flashing up first)
+    circle(LABEL); g.fillStyle = '#0e1011'; g.fill(); labelFinish();
+    load(cover, img => { disc(); coverLabel(img); }, fallback);
+  } else plainLabel();
+  if (!cover && !album && !artist) fallback();
+  if (document.fonts && document.fonts.ready && !cover) document.fonts.ready.then(() => { if (album || artist) { disc(); plainLabel(); } });
+})();
+</script>
+</body>
+</html>

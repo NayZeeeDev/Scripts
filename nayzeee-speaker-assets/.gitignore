@@ -1,3 +1,5 @@
 cache/
 __pycache__/
 *.pyc
+# derived copies of the third-party pack (regenerate with python3 tools/legacy_reader.py)
+legacy/*.glb

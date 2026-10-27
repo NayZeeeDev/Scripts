@@ -1,4 +1,7 @@
-"""Procedural textures for the shared txd ``nayzeee_audio_texture``.
+"""Procedural textures for the shared txd ``nayzeee_console_texture``.
+
+The Record Console upgrade has its OWN texture dictionary (TXD_NAME) so its files are added next to
+the speaker pack in nayzeee-speaker/stream and never replace the pack's ``nayzeee_audio_texture``.
 
 Every texture is registered by name with its size, DDS format and kind:
 
@@ -31,7 +34,7 @@ from PIL import Image, ImageDraw
 
 from . import fonts
 
-TXD_NAME = "nayzeee_audio_texture"
+TXD_NAME = "nayzeee_console_texture"
 
 # house palette (nayzeee-speaker/html/css/style.css)
 TEAL = "#08afa2"
@@ -938,8 +941,7 @@ ATLAS_TEXTURE = "nz_print_atlas"
 ATLAS_SIZE = (1024, 512)
 _LABELS = ["VOLUME", "TONE", "BASS", "TREBLE", "POWER", "START", "STOP", "START · STOP", "33", "45", "RPM",
            "33 / 45", "PITCH", "PHONO", "LINE", "AUX", "BLUETOOTH", "PAIR", "LIGHT", "BOOST", "MODE", "PLAY",
-           "HI-FI STEREO", "SIDE A", "SIDE B", "PULSE TOWER", "ECHO COLUMN", "DRUM HUB", "ORB", "CARRY CUBE",
-           "ROLL BAR", "RECORD CONSOLE", "STUDIO SET", "NAYZEEE AUDIO"]
+           "HI-FI STEREO", "SIDE A", "SIDE B", "RECORD CONSOLE", "NAYZEEE AUDIO"]
 _ICONS = ["icon_power", "icon_play", "icon_pause", "icon_bluetooth", "icon_plus", "icon_minus", "icon_up",
           "icon_down", "icon_note", "icon_speaker"]
 LABEL_PX = 24          # font size of atlas labels in pixels

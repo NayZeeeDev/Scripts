@@ -8,7 +8,8 @@
 //      accumulated per pixel into ambient occlusion, a reflection-cone occlusion and the floor's sky visibility
 //   4. phase 2 "lighting": N jittered frames (anti-aliasing), each with the three shadow-casting soft boxes
 //      sampled at a new point of their area (soft shadows) -> HDR accumulation
-//   5. bloom, tone mapping (AgX / ACES / Khronos neutral), sRGB, dither -> RGBA8 straight alpha
+//   5. bloom of the EMISSIVE parts only (one extra emission frame is the bloom source), tone mapping
+//      (AgX / ACES / Khronos neutral), sRGB, dither -> RGBA8 straight alpha
 'use strict';
 
 (function () {
@@ -1070,7 +1071,7 @@
       gl.clear(gl.COLOR_BUFFER_BIT);
       const shadowTexel = (2 * sphereR) / shadowSize;
       const nL = casters.length;
-      const debugMode = { ao: 1, normal: 2, base: 3, spec: 4, diffuse: 5 }[job.debug] || 0;
+      const debugMode = { ao: 1, normal: 2, base: 3, spec: 4, diffuse: 5, emission: 6 }[job.debug] || 0;
       // floor-shadow blur per light: the angular spacing of successive area samples, seen from mid-height
       const height = Math.max(bmax[2] - (groundZ === null ? bmin[2] : groundZ), 1e-3);
       const groundBlur = [0, 1, 2].map((k) => {
@@ -1202,17 +1203,36 @@
       }
       await sync();
 
+      // ---- emission frame: the bloom source.  Only emitters glow (LEDs, VU faces, screens).  The bloom used to
+      // threshold the whole HDR image, so the soft-box highlights on chrome (tonearm, pivot, counterweight)
+      // glowed too, and on a transparent background that glow became a white haze around them.
+      const bloom = job.bloom !== undefined ? job.bloom : 1;
+      const emitters = inst.some((it) => [...it.mats.values()].some((m) => m.emissive.some((c) => c > 0)));
+      const doBloom = bloom > 0 && emitters;
+      if (doBloom) {
+        const vpj = jitterVP(0);
+        beginFrame(vpj);
+        bindShared();
+        const xi = xiFor(0, ANISO_SPP_ENV);
+        drawMaterials('env', (q) => {
+          common(q, vpj).f3v('uSH', env.sh).f1('uTotalSamples', envFrames * ANISO_SPP_ENV).i1('uDebug', 6);
+          const l = q.u('uXi'); if (l) gl.uniform2fv(l, xi);
+        }, false);
+        gl.depthMask(true); gl.depthFunc(gl.LESS);
+        mark('p2c_emission');
+      }
+
       // ================================================================ post
       const t3 = performance.now();
       gl.disable(gl.DEPTH_TEST);
       gl.bindVertexArray(this.emptyVAO);
       const exposure = job.exposure !== undefined ? job.exposure : 1;
       const w2 = T.bh[0].w, h2 = T.bh[0].h, w4 = T.bq[0].w, h4 = T.bq[0].h;
-      const bloom = job.bloom !== undefined ? job.bloom : 1;
-      if (bloom > 0) {
+      if (doBloom) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, T.bhFB[0]); gl.viewport(0, 0, w2, h2);
-        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.acc);
-        this.p.bright.use().i1('tAcc', 0).f1('uScale', exposure).f1('uThreshold', job.bloomThreshold || 1.6).f2('uSrcRes', W, H);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.frame);
+        const thr = job.bloomThreshold !== undefined ? job.bloomThreshold : 1.0;
+        this.p.bright.use().i1('tAcc', 0).f1('uScale', exposure).f1('uThreshold', thr).f2('uSrcRes', W, H);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
         const blur = (src, dstFB, w, h, dx, dy, sigma) => {
           gl.bindFramebuffer(gl.FRAMEBUFFER, dstFB); gl.viewport(0, 0, w, h);

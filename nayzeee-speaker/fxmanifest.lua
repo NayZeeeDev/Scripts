@@ -18,6 +18,7 @@ client_scripts {
     'client/bridge.lua',
     'client/main.lua',
     'client/audio.lua',
+    'client/looks.lua',
     'client/boombox.lua',
     'client/turntable.lua',
     'client/carplay.lua',
@@ -51,6 +52,7 @@ ui_page 'html/index.html'
 
 files {
     'stream/nayzeee_audio.ytyp',
+    -- 'stream/nayzeee_console.ytyp',      -- record console upgrade: uncomment after converting it (see nayzeee-speaker-assets/README.md)
     'html/index.html',
     'html/css/*.css',
     'html/js/*.js',
@@ -60,9 +62,11 @@ files {
     'html/phone/app.js',
     'html/phone/icon.png',
     'html/img/*.png',
+    'html/looks/**/*',                    -- speaker looks: colour / design images, the RGB light and record pages
 }
 
 data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_audio.ytyp'
+-- data_file 'DLC_ITYP_REQUEST' 'stream/nayzeee_console.ytyp'   -- record console upgrade: uncomment after converting it
 
 dependencies {
     'oxmysql',

@@ -14,7 +14,7 @@
 ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
                                                         
 
-  Speakers, boomboxes & CarPlay  |  v1.0.0
+  Speakers, boomboxes & CarPlay  |  v2.0.0
   www.nayzeeedev.com  |  nayzeee-dev.gitbook.io/docs
 ]]
 
@@ -108,7 +108,7 @@ Config.Audio = {
         ['nayzeee_audio_d'] = { hp = 110, low = -4.5, lowHz = 180, mid = 1.0,  midHz = 1800, midQ = 0.8, high = 1.0,  highHz = 7500 }, -- Orb: small, light low end
         ['nayzeee_audio_e'] = { hp = 75,  low = -1.5, lowHz = 160, mid = 1.5,  midHz = 1500, midQ = 0.8, high = -0.5, highHz = 6500 }, -- Carry Cube: punchy mids
         ['nayzeee_audio_f'] = { hp = 95,  low = -2.0, lowHz = 150, mid = 3.0,  midHz = 1400, midQ = 0.7, high = -4.0, highHz = 6500 }, -- Roll Bar: mid-forward 80s boombox
-        ['nayzeee_audio_g'] = { hp = 40,  low = 1.5,  lowHz = 120, mid = 0.5,  midHz = 900,  midQ = 0.7, high = -2.5, highHz = 7000 }, -- Record Console: warm vintage
+        ['nayzeee_audio_g'] = { hp = 40,  low = 1.5,  lowHz = 120, mid = 0.5,  midHz = 900,  midQ = 0.7, high = -2.5, highHz = 7000 }, -- Turntable: warm vintage
         ['nayzeee_audio_h'] = { hp = 25,  low = 0.5,  lowHz = 100, mid = 0.0,  midHz = 1100, midQ = 0.7, high = 0.5,  highHz = 9000 }, -- Studio Set: full range
         vehicle             = { hp = 28,  low = 2.0,  lowHz = 90,  mid = -0.5, midHz = 500,  midQ = 0.7, high = 0.5,  highHz = 8000 }, -- car systems
     },
@@ -404,12 +404,60 @@ Config.Boomboxes = {
         },
     },
     ['nayzeee_audio_g'] = {
+        -- Record Console upgrade (optional, nayzeee-speaker-assets/README.md): once its files are in stream/,
+        -- set model = 'nayzeee_console' and delete the anim line (the console has no .ycd clip).
+        -- The label stays 'Turntable' while this is the pack's own turntable prop ('Record Console' fits after the upgrade).
         label = 'Turntable', model = 'nayzeee_audio_g', portable = false, vinyl = true, -- plays records only
         anim  = { dict = 'nayzeee_audio_g', clip = 'nayzeee_audio_g' },
     },
     ['nayzeee_audio_h'] = {
         label = 'Studio Set', model = 'nayzeee_audio_h', portable = false,
         anim  = { dict = 'nayzeee_audio_h', clip = 'nayzeee_audio_h' },
+    },
+}
+
+-- ██╗      ██████╗  ██████╗ ██╗  ██╗███████╗
+-- ██║     ██╔═══██╗██╔═══██╗██║ ██╔╝██╔════╝
+-- ██║     ██║   ██║██║   ██║█████╔╝ ███████╗
+-- ██║     ██║   ██║██║   ██║██╔═██╗ ╚════██║
+-- ███████╗╚██████╔╝╚██████╔╝██║  ██╗███████║
+-- ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝
+--  The speakers restyled while the server runs: new colours and designs, the NAYZEEE logo and
+--      animated RGB lights. Nothing in stream/ is changed (the looks are images in html/looks/ that
+--      are swapped in at runtime); stop the resource and the props look exactly as shipped.
+
+Config.Looks = {
+    enabled   = true,            -- false = the speakers look exactly as the pack ships them
+    logo      = true,            -- logo on the speakers: true = NAYZEEE | 'nayzeee_teal' | false = the pack's BZOOMBOX badge
+    record    = true,            -- record on the turntable: true = NAYZEEE | 'teal_vinyl' | 'crimson_vinyl' | 'smoke_vinyl' | false = the pack's
+    recordArt = true,            -- the album cover on that record while an album plays on the nearest turntable
+                                 --   (the record console upgrade has its own: Config.Turntable.labelArt)
+
+    -- A colour / design per texture of the pack ('original' = as shipped). Every look is a file:
+    --   html/looks/<texture>/<look>.png  (add your own there and list it in html/looks/library.json)
+    --   fabrics: original | graphite | teal | crimson | violet | cobalt | arctic | carbon | honeycomb | stripe | camo | sunset
+    --   drivers: original | graphite | chrome | teal | crimson | violet | gold | carbon | honeycomb
+    textures = {
+        sp1   = 'violet',        -- fabric of the Pulse Tower
+        sp2   = 'honeycomb',     -- fabric of the Echo Column AND the Carry Cube (one texture, so they always match)
+        sp3   = 'cobalt',        -- fabric of the Drum Hub
+        sp4   = 'teal',          -- fabric of the Orb
+        sp5   = 'crimson',       -- fabric of the Roll Bar
+        repro = 'chrome',        -- drivers on both ends of the Roll Bar
+    },
+
+    -- Animated lights. The Carry Cube and Roll Bar always get them; the other speakers keep their
+    -- light inside the model (see builtIn). The Turntable has none.
+    rgb = {
+        enabled    = true,       -- animated lights (players can still turn them off for themselves in Settings)
+        mode       = 'rainbow',  -- rainbow | fade | pulse | static | music (follows the music you hear)
+        colors     = { '#08afa2', '#7b2ff7', '#ff2d75' },   -- fade / pulse go through these, static uses the first
+        speed      = 1.0,        -- 0.25 = slow drift, 1 = default, 3 = fast
+        brightness = 1.0,        -- 0 - 1
+        saturation = 1.0,        -- 0 = white light, 1 = full colour
+        distance   = 60.0,       -- metres: the lights only run while one of these speakers is this close
+        builtIn    = true,       -- also try the lights built into the Pulse Tower, Echo Column, Drum Hub, Orb and
+                                 --   Studio Set (if the game doesn't allow it they simply keep their own colours)
     },
 }
 
@@ -426,15 +474,18 @@ Config.Boomboxes = {
 
 Config.VinylReturn = 'ejector'  -- ejector = whoever takes the record off gets it | owner = whoever put it on
 
---  The turntable you can see: the record goes on from the player's hand, the platter spins up and the
---      tonearm drops the needle the moment the music starts, then creeps inward across the album.
---      Needs the turntable props (nayzeee_tt_platter, nayzeee_tt_arm, nayzeee_vinyl) in stream/.
+--  The record console upgrade (nayzeee_console): the record goes on from the player's hand, the platter
+--      spins up and the tonearm drops the needle the moment the music starts, then creeps inward.
+--      Needs the converted upgrade in stream/ (nayzeee_console, nayzeee_tt_platter, nayzeee_tt_arm,
+--      nayzeee_vinyl) and Config.Boomboxes['nayzeee_audio_g'].model = 'nayzeee_console'. On the old
+--      turntable prop none of this shows (it has its own platter and record; see Config.Looks.recordArt).
 
 Config.Turntable = {
-    visuals    = true,           -- show the platter, tonearm and record on placed turntables
+    consoleModel = 'nayzeee_console',   -- the upgrade's model: platter / tonearm / record only appear on this one
+    visuals    = true,           -- show the platter, tonearm and record on placed consoles
     distance   = 35.0,           -- metres around you that turntable props exist
-    needleDrop = 'auto',         -- music waits for the needle to land: 'auto' (once the props are in stream/) | true | false
-    labelArt   = true,           -- album cover on the record label of the nearest playing turntable
+    needleDrop = 'auto',         -- music waits for the needle to land: 'auto' (once the upgrade's parts are in stream/) | true | false
+    labelArt   = true,           -- album cover on the record label of the nearest playing console
     labelSize  = 512,            -- label texture size in px (256 = lighter, 1024 = sharper)
     putAnim    = { dict = 'mp_common', clip = 'givetake1_a', flag = 48, duration = 1400 },  -- putting a record on
     takeAnim   = { dict = 'mp_common', clip = 'givetake1_b', flag = 48, duration = 1400 },  -- taking it off
@@ -449,8 +500,8 @@ Config.Turntable = {
 --  Walk up to the counter and the records stand above it in a row you browse, listen to and buy.
 --      Sells every record in vinyls.lua plus everything /vinylimport adds (price / genre / description
 --      come from vinyls.lua, or from `records` below for imported ones).
---      With the shop props in stream/ (nayzeee_sleeve_a/_b/_c + nayzeee_vinyl) the sleeves are real 3D
---      props with the album cover on them; without them the same shop shows cover cards instead.
+--      With the record console upgrade in stream/ (its nayzeee_sleeve_a/_b/_c + nayzeee_vinyl) the sleeves
+--      are real 3D props with the album cover on them; without it the same shop shows cover cards instead.
 
 Config.RecordShop = {
     enabled      = true,
@@ -476,7 +527,7 @@ Config.RecordShop = {
     },
 
     -- COUNTER DISPLAY
-    display        = 'auto',     -- auto (3D once the props are in stream/) | 3d | 2d (cover cards only)
+    display        = 'auto',     -- auto (3D once the upgrade's sleeves are in stream/) | 3d | 2d (cover cards only)
     turn           = 'sway',     -- sway (the featured sleeve rocks gently) | spin (turns all the way round)
     swayAngle      = 14.0,       -- degrees either way for sway
     spinSpeed      = 14.0,       -- degrees per second for spin

@@ -19,12 +19,12 @@ const App = {
     master: 1, effects: true, streamer: false, compact: false,
     bass: 0, mid: 0, treble: 0,
     skin: 'compact', cover: 'square', glow: false, blur: false, viz: true,
-    font: 'Lexend', animIn: 'fade', animOut: 'fade',
+    font: 'Lexend', animIn: 'fade', animOut: 'fade', rgb: true,
   },
 };
 
 // English for keys a server's locale file may not have yet, so a raw key never shows
-const EN = { pl_empty: 'Nothing in here yet' };
+const EN = { pl_empty: 'Nothing in here yet', rgb_lights: 'RGB lights', rgb_lights_s: 'Animated lights on the speakers' };
 const t = (k, ...a) => { let s = App.L[k] ?? EN[k] ?? k; a.forEach(v => { s = s.replace('%s', () => v); }); return s; };
 
 const fmt = s => {
@@ -511,6 +511,10 @@ function renderSettings(e) {
       <input type="range" min="0" max="100" step="1" value="${Math.round(s.master * 100)}" data-s="master"></div>
     <div class="set"><div class="set-txt"><b>${esc(t('effects'))}</b><span>${esc(t('effects_s'))}</span></div>
       <button class="sw ${s.effects ? 'on' : ''}" data-a="tog" data-s="effects"><i></i></button></div>`;
+  if (Looks.rgb) {
+    h += `<div class="set"><div class="set-txt"><b>${esc(t('rgb_lights'))}</b><span>${esc(t('rgb_lights_s'))}</span></div>
+      <button class="sw ${s.rgb !== false ? 'on' : ''}" data-a="tog" data-s="rgb"><i></i></button></div>`;
+  }
 
   if (NP.enabled) {
     const sc = Math.round((s.hudScale ?? NP.scale) * 100);
@@ -745,7 +749,7 @@ const ACTIONS = {
   // settings
   tog: (b) => {
     const k = b.dataset.s;
-    const on = k === 'viz' ? !(App.settings.viz !== false) : !App.settings[k];
+    const on = k === 'viz' || k === 'rgb' ? !(App.settings[k] !== false) : !App.settings[k];
     App.settings[k] = on;
     Engine.setSettings(App.settings);
     applyAppearance();
@@ -988,6 +992,49 @@ function bindHudDrag() {
   });
 }
 
+/* ─────────── speaker lights (client/looks.lua) ───────────
+   In 'music' mode the props' RGB strip follows the loudest speaker you hear. Lua turns this feed on
+   only while that strip is near; it then sends the level ten times a second, and only when it moved. */
+const Looks = { rgb: false, timer: 0, id: null, idAt: 0, sent: -1 };
+const lookBuf = new Uint8Array(128);
+function lookLevel() {
+  const now = performance.now();
+  // which speaker: looked up twice a second (the list is a fresh array), the level every tick
+  if (now - Looks.idAt > 500) {
+    Looks.idAt = now;
+    Looks.id = null;
+    const list = Engine.audible();
+    for (let i = 0; i < list.length; i++) if (list[i].kind === 'boombox') { Looks.id = list[i].id; break; }
+  }
+  const e = Looks.id && Engine.get(Looks.id);
+  const d = e && e.playing ? Engine.levels(Looks.id, lookBuf) : null;
+  let v = 0;
+  if (d) {
+    // mostly the kick and bass (the first ~1 kHz), some of everything up to ~6 kHz
+    let lo = 0, all = 0;
+    for (let i = 0; i < 6; i++) lo += d[i];
+    for (let i = 0; i < 32; i++) all += d[i];
+    const bass = Math.min(1, Math.max(0, (lo / 6 / 255 - 0.45) / 0.5));
+    const body = Math.min(1, Math.max(0, (all / 32 / 255 - 0.25) / 0.5));
+    v = 0.75 * bass + 0.25 * body;
+  }
+  v = Math.round(v * 50) / 50;
+  if (v !== Looks.sent) { Looks.sent = v; post('looksLevel', { v }); }
+}
+function lookFeed(on) {
+  if (on && !Looks.timer) Looks.timer = setInterval(lookLevel, 100);
+  else if (!on && Looks.timer) { clearInterval(Looks.timer); Looks.timer = 0; Looks.sent = -1; }
+}
+// whether the server has RGB lights (the Settings switch) and whether the feed should already run
+function lookInit(tries) {
+  post('looks').then(d => {
+    if (!d || typeof d !== 'object') { if (tries > 1) setTimeout(() => lookInit(tries - 1), 3000); return; }
+    Looks.rgb = !!d.rgb;
+    lookFeed(!!d.level);
+    if (App.open && App.view === 'settings') renderView();
+  });
+}
+
 /* ─────────── hints ─────────── */
 function showHints(list) {
   const h = $('hints');
@@ -1136,9 +1183,11 @@ window.addEventListener('message', ({ data: m }) => {
       break;
     case 'jam': App.jam = m.data || null; if (App.view === 'jam') renderView(); break;
     case 'hints': showHints(m.list); break;
+    case 'looks:level': lookFeed(!!m.on); break;
   }
 });
 
 bind();
 bindHudDrag();
 post('ready');
+lookInit(3);

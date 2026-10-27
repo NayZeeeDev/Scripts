@@ -11,9 +11,12 @@
         (or stop) sends the arm home
       * the record comes off: arm home, platter stops, the record lifts off and goes back to the hand
         of whoever gets it (or rises and fades when that player isn't here)
-    Someone walking up mid-song sees everything already in place. Nothing at all happens until the
-    turntable props (nayzeee_tt_platter, nayzeee_tt_arm, nayzeee_vinyl) are in the game, and with no
-    turntable near this only looks around once a second.
+    Someone walking up mid-song sees everything already in place.
+
+    This is the record console upgrade (nayzeee_console, Config.Turntable.consoleModel). Nothing at all
+    happens until its parts (nayzeee_tt_platter, nayzeee_tt_arm, nayzeee_vinyl) are in the game, and a
+    turntable whose prop is not the console (the old turntable, which has its own platter, record and
+    animation) gets nothing from here. With no console near this only looks around once a second.
 ]]
 local RES = GetCurrentResourceName()
 local C = Config.Turntable or {}
@@ -28,6 +31,8 @@ local TAKE     = C.takeAnim or { dict = 'mp_common', clip = 'givetake1_b', flag 
 local MODELS = { platter = 'nayzeee_tt_platter', arm = 'nayzeee_tt_arm', vinyl = 'nayzeee_vinyl' }
 local HASH = {}
 for k, name in pairs(MODELS) do HASH[k] = joaat(name) end
+local CONSOLE = joaat(C.consoleModel or 'nayzeee_console') & 0xFFFFFFFF   -- compared unsigned: hashes come back signed or not
+local TXD = 'nayzeee_console_texture'   -- the console's own dictionary (the old props' is nayzeee_audio_texture)
 
 ---------------------------------------------------------------- geometry (metres, console space)
 -- see the turntable section of the asset contract: +Y = front, +X = the player's left, +Z = up
@@ -604,6 +609,9 @@ local function bind(v, e)
         v.console = ent
     end
     if not ent or not DoesEntityExist(ent) then return false end
+    -- the old turntable prop has its own platter, record and animation: the parts are for the console only
+    v.old = (GetEntityModel(ent) & 0xFFFFFFFF) ~= CONSOLE
+    if v.old then return false end
     if not loadModels() then return false end
     local c = GetEntityCoords(ent)
     local h = GetEntityHeading(ent)
@@ -673,12 +681,12 @@ local function setLabel(vin)
         end
         SetDuiUrl(label.dui, labelPage(vin))
         if not label.replaced then
-            AddReplaceTexture('nayzeee_audio_texture', 'nayzeee_vinyl_label', 'nzspk_vinyl_label', 'label')
+            AddReplaceTexture(TXD, 'nayzeee_vinyl_label', 'nzspk_vinyl_label', 'label')
             label.replaced = true
         end
     else
         if label.replaced then
-            RemoveReplaceTexture('nayzeee_audio_texture', 'nayzeee_vinyl_label')
+            RemoveReplaceTexture(TXD, 'nayzeee_vinyl_label')
             label.replaced = false
         end
         if label.dui then SetDuiUrl(label.dui, 'about:blank') end
@@ -725,14 +733,17 @@ local function manage()
             end
         end
     end
+    local busy = false
     for id, v in pairs(V) do
         local e = Emitters[id]
         if not v.dying then
             if not isDeck(e) then retire(v) else bind(v, e) end
         end
+        -- old turntables near you don't keep the frame loop or the models around
+        if v.platter or v.dying then busy = true end
     end
     pickLabel(me)
-    if next(V) then
+    if busy then
         idleSince = GetGameTimer()
         wake()
     elseif loaded and GetGameTimer() - idleSince > 15000 then
@@ -779,7 +790,7 @@ AddEventHandler('onResourceStop', function(res)
     stopped = true
     for _, v in pairs(V) do wipe(v) end
     V = {}
-    if label.replaced then RemoveReplaceTexture('nayzeee_audio_texture', 'nayzeee_vinyl_label') end
+    if label.replaced then RemoveReplaceTexture(TXD, 'nayzeee_vinyl_label') end
     if label.dui then DestroyDui(label.dui) end
     label.dui, label.replaced = nil, false
     releaseModels()

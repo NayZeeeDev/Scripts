@@ -2,7 +2,7 @@
 
 Every mesh part names a material.  A material knows
   * which GTA V shader draws it (``shader``) and the texture name bound to each
-    sampler (textures live in the shared txd ``nayzeee_audio_texture``),
+    sampler (textures live in the shared txd ``nayzeee_console_texture``),
   * shader parameter overrides (GTA names, e.g. ``specularIntensityMult``),
   * a PBR description for the glTF previews / image renderer,
   * the default texture repeat size in metres (``tile``) used by UV helpers,

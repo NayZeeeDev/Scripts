@@ -5,7 +5,7 @@
     def build(detail):
         parts = [...]                                   # lib.mesh.Mesh parts, each with a material
         return ModelSpec(
-            name="nayzeee_audio_a",
+            name="nayzeee_console",
             parts=parts,
             collision=[Box((0, 0, 0.3), (0.3, 0.25, 0.6), "PLASTIC")],
             anchors={"grip": Anchor((0, 0, 0.62), (0, 0, 0), "carry handle centre")},

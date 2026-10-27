@@ -8,7 +8,7 @@ Model space: origin = centre of the bottom face, +Z up, disc in the XY plane.
 Details: rounded outer edge, raised outer bead (+0.3 mm), slightly raised
 label area (+0.15 mm), glossy black vinyl with the radial groove normal map
 (track gaps, lead-in at r 0.146, run-out from r 0.062).
-Resting attach offset on nayzeee_audio_g: (0.300, 0.000, 0.811), spins about +Z.
+Resting attach offset on nayzeee_console: (0.300, 0.000, 0.811), spins about +Z.
 """
 from lib import mesh as M
 from lib.spec import Anchor, Cylinder, LodSettings, ModelSpec

@@ -1,0 +1,181 @@
+{
+  "textures": {
+    "brands": {
+      "usedBy": [
+        "nayzeee_audio_a",
+        "nayzeee_audio_c",
+        "nayzeee_audio_e",
+        "nayzeee_audio_f",
+        "nayzeee_audio_g",
+        "nayzeee_audio_h"
+      ],
+      "size": [
+        128,
+        32
+      ],
+      "variants": [
+        "nayzeee",
+        "nayzeee_teal"
+      ],
+      "default": "nayzeee"
+    },
+    "record": {
+      "usedBy": [
+        "nayzeee_audio_g"
+      ],
+      "size": [
+        256,
+        256
+      ],
+      "variants": [
+        "nayzeee",
+        "teal_vinyl",
+        "crimson_vinyl",
+        "smoke_vinyl"
+      ],
+      "default": "nayzeee"
+    },
+    "repro": {
+      "usedBy": [
+        "nayzeee_audio_f"
+      ],
+      "size": [
+        128,
+        128
+      ],
+      "variants": [
+        "original",
+        "graphite",
+        "chrome",
+        "teal",
+        "crimson",
+        "violet",
+        "gold",
+        "carbon",
+        "honeycomb"
+      ],
+      "default": "chrome"
+    },
+    "sp1": {
+      "usedBy": [
+        "nayzeee_audio_a"
+      ],
+      "size": [
+        256,
+        256
+      ],
+      "variants": [
+        "original",
+        "graphite",
+        "teal",
+        "crimson",
+        "violet",
+        "cobalt",
+        "arctic",
+        "carbon",
+        "honeycomb",
+        "stripe",
+        "camo",
+        "sunset"
+      ],
+      "default": "violet"
+    },
+    "sp2": {
+      "usedBy": [
+        "nayzeee_audio_b",
+        "nayzeee_audio_e"
+      ],
+      "size": [
+        256,
+        256
+      ],
+      "variants": [
+        "original",
+        "graphite",
+        "teal",
+        "crimson",
+        "violet",
+        "cobalt",
+        "arctic",
+        "carbon",
+        "honeycomb",
+        "stripe",
+        "camo",
+        "sunset"
+      ],
+      "default": "honeycomb"
+    },
+    "sp3": {
+      "usedBy": [
+        "nayzeee_audio_c"
+      ],
+      "size": [
+        256,
+        256
+      ],
+      "variants": [
+        "original",
+        "graphite",
+        "teal",
+        "crimson",
+        "violet",
+        "cobalt",
+        "arctic",
+        "carbon",
+        "honeycomb",
+        "stripe",
+        "camo",
+        "sunset"
+      ],
+      "default": "cobalt"
+    },
+    "sp4": {
+      "usedBy": [
+        "nayzeee_audio_d"
+      ],
+      "size": [
+        256,
+        256
+      ],
+      "variants": [
+        "original",
+        "graphite",
+        "teal",
+        "crimson",
+        "violet",
+        "cobalt",
+        "arctic",
+        "carbon",
+        "honeycomb",
+        "stripe",
+        "camo",
+        "sunset"
+      ],
+      "default": "teal"
+    },
+    "sp5": {
+      "usedBy": [
+        "nayzeee_audio_f"
+      ],
+      "size": [
+        256,
+        256
+      ],
+      "variants": [
+        "original",
+        "graphite",
+        "teal",
+        "crimson",
+        "violet",
+        "cobalt",
+        "arctic",
+        "carbon",
+        "honeycomb",
+        "stripe",
+        "camo",
+        "sunset"
+      ],
+      "default": "crimson"
+    }
+  }
+}

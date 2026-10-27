@@ -14,7 +14,7 @@ Design notes
 ------------
 * Textures are NOT embedded in the drawables; shader texture parameters only
   carry the texture name and the game resolves them through the archetype's
-  txd (``nayzeee_audio_texture``).
+  txd (``nayzeee_console_texture``, see lib.textures.TXD_NAME).
 * One shader per material; one geometry per material per LOD model (split
   when a geometry would exceed 65535 vertices -- the index buffer is 16-bit).
 * Collision: a BoundComposite whose single GeometryBVH child holds one

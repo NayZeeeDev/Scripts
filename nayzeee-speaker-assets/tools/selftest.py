@@ -118,11 +118,15 @@ def test_build_and_validator():
         ha, hb = _hash_tree(a), _hash_tree(b)
         check(ha == hb and len(ha) > 3, f"deterministic output ({len(ha)} files identical)")
         xml = os.path.join(a, "xml")
+        names = sorted(os.listdir(xml))
+        check("nayzeee_console_texture.ytd.xml" in names and "nayzeee_console.ytyp.xml" in names
+              and not any(n.startswith("nayzeee_audio") for n in names),
+              "own txd/ytyp (nayzeee_console_texture / nayzeee_console), nothing named like the speaker pack")
         ydr = sorted(f for f in os.listdir(xml) if f.endswith(".ydr.xml"))[0]
         src = open(os.path.join(xml, ydr), encoding="utf-8").read()
         tampered = {
             "unknown shader parameter": src.replace('name="bumpiness"', 'name="bumpinezz"', 1),
-            "missing texture": src.replace("<Name>nz_vinyl_n</Name>", "<Name>nz_missing_n</Name>", 1),
+            "missing texture": re.sub(r'(type="Texture">\n\s*<Name>)[^<]+(</Name>)', r"\1nz_missing_n\2", src, count=1),
             "bad layout for shader": src.replace("       <Tangent />\n", "", 1),
             "NaN vertex": re.sub(r"(<Data>\n\s+)(\S+)", r"\1nan", src, count=1),
             "index out of range": re.sub(r"(<IndexBuffer>\n\s+<Data>\n\s+)(\d+)", r"\g<1>99999", src, count=1),
@@ -131,6 +135,7 @@ def test_build_and_validator():
             "unknown shader": src.replace("<Name>normal_spec</Name>", "<Name>normal_spek</Name>", 1),
         }
         for label, text in tampered.items():
+            check(text != src, f"tamper applies: {label}")
             bad = os.path.join(tmp, "bad")
             shutil.rmtree(bad, ignore_errors=True)
             shutil.copytree(xml, bad)

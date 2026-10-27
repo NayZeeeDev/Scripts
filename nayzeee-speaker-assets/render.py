@@ -9,7 +9,7 @@ floor, bloom, ACES/AgX tone mapping and heavy supersampling (32-64 jittered samp
     python3 render.py --model nayzeee_vinyl                          # -> out/previews/nayzeee_vinyl.png (512 px)
     python3 render.py --model nayzeee_vinyl --size 1024 --out shot.png --yaw 35 --pitch 18 --fov 30
     python3 render.py --model nayzeee_vinyl --quick                  # fast draft while modelling
-    python3 render.py --parts nayzeee_audio_g nayzeee_tt_platter:0.3,0,0.785 nayzeee_vinyl:0.3,0,0.811 \\
+    python3 render.py --parts nayzeee_console nayzeee_tt_platter:0.3,0,0.785 nayzeee_vinyl:0.3,0,0.811 \\
                       "nayzeee_tt_arm:0.075,-0.125,0.835:0,0,-33.6" --out console.png    # arm at groove radius 0.12
     python3 render.py --scene render/scenes/console_playing.json --out console.png
     python3 render.py --model nayzeee_vinyl --yaws 0,35,70 --out strip.png       # several angles in one row
@@ -443,10 +443,11 @@ def main(argv=None) -> int:
     look.add_argument("--ao-samples", type=int, help="ambient-occlusion directions (overrides --quality)")
     look.add_argument("--shadow", type=float, help="floor shadow opacity, 0 = no floor (default 1.0)")
     look.add_argument("--ground", help="floor height in metres (default: lowest point of the scene)")
-    look.add_argument("--bloom", type=float, help="glow strength for emissive parts (default 1.0, 0 = off)")
+    look.add_argument("--bloom", type=float, help="glow strength for emissive parts only (default 1.0, 0 = off); "
+                                                  "on a transparent background the glow never adds coverage")
     look.add_argument("--spec-occlusion", type=float, help="0..1 strength of reflection occlusion (default 1.0)")
     look.add_argument("--materials", help="extra JSON of material hints merged over render/materials.json")
-    look.add_argument("--debug", choices=["ao", "normal", "base", "spec", "diffuse"], help="debug view")
+    look.add_argument("--debug", choices=["ao", "normal", "base", "spec", "diffuse", "emission"], help="debug view")
     src = ap.add_argument_group("sources")
     src.add_argument("--glb", choices=["auto", "out", "fresh"], default="auto",
                      help="auto: out/glb when up to date, else build in-process (cache/render/glb); out: only out/glb; fresh: always rebuild")
@@ -506,7 +507,7 @@ def main(argv=None) -> int:
         for (img, st), n in zip(results, names):
             subs.append(f"{st['tris']:,} tris")
         cols = a.cols or min(4, len(names))
-        sheet = grid([r[0] for r in results], labels, cols, "nayzeee speaker / props", subs)
+        sheet = grid([r[0] for r in results], labels, cols, "nayzeee record console upgrade", subs)
         os.makedirs(os.path.dirname(os.path.abspath(a.sheet)) or ".", exist_ok=True)
         sheet.convert("RGB").save(a.sheet, compress_level=7)
         log(f"render: {a.sheet} ({len(names)} models, {time.time() - t_start:.1f} s)")
