@@ -1,0 +1,9 @@
+# build products of the props pipeline (never commit these)
+cwtool/bin/
+cwtool/obj/
+CodeWalker/
+preview/node_modules/
+preview/package-lock.json
+out/
+__pycache__/
+*.pyc

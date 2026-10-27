@@ -1,0 +1,718 @@
+"""
+nzprops.paint - materials, procedural noise and decal painting.
+
+Mat          surface material (colour, specular, gloss, bump pattern, edge wear, layer)
+noise3 / fbm3 / noise2 / fbm2   vectorised value noise (numpy only, deterministic)
+DecalCanvas  vector painting in METRES (text, rounded rects, lines, circles, vector glyphs (power,
+             arrows, check, back ...), regulatory icons, barcodes, screws, stitching, engraved seams)
+             with per-ink height / specular / gloss -> projected or chart-space decals
+font(name, px)  bundled fonts (Lexend = label face, JetBrains Mono, VT323 LCD, DejaVu for symbols).
+             Characters a face lacks (arrows, check marks ...) fall back to DejaVu automatically;
+             the power symbol (U+23FB, in no bundled font) is drawn as a vector glyph.
+"""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+FONT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fonts")
+FONTS = {
+    "label": "lexend-latin-700-normal.woff2",
+    "label-black": "lexend-latin-800-normal.woff2",
+    "label-semi": "lexend-latin-600-normal.woff2",
+    "label-reg": "lexend-latin-400-normal.woff2",
+    "mono": "jetbrains-mono-latin-500-normal.woff2",
+    "mono-bold": "jetbrains-mono-latin-700-normal.woff2",
+    "lcd": "vt323-latin-400-normal.woff2",
+    "sans": "DejaVuSans.ttf",
+    "sans-bold": "DejaVuSans-Bold.ttf",
+    "dmono": "DejaVuSansMono.ttf",
+    "dmono-bold": "DejaVuSansMono-Bold.ttf",
+}
+_font_cache: dict = {}
+
+
+def font(name: str, px: int):
+    """Load a bundled font by key (see FONTS) or file name at a pixel size."""
+    px = max(4, int(round(px)))
+    key = (name, px)
+    if key in _font_cache:
+        return _font_cache[key]
+    fname = FONTS.get(name, name)
+    for path in (os.path.join(FONT_DIR, fname), os.path.join("/usr/share/fonts/truetype/dejavu", fname)):
+        if os.path.exists(path):
+            f = ImageFont.truetype(path, px)
+            _font_cache[key] = f
+            return f
+    raise FileNotFoundError(f"font {fname} not found in {FONT_DIR}")
+
+
+# fallback faces for characters a label face does not have (arrows, check marks, symbols)
+FALLBACK = {"label": "sans-bold", "label-black": "sans-bold", "label-semi": "sans-bold", "label-reg": "sans",
+            "mono": "dmono", "mono-bold": "dmono-bold", "lcd": "dmono", "sans": "sans", "sans-bold": "sans-bold",
+            "dmono": "sans", "dmono-bold": "sans-bold"}
+# characters drawn as vector glyphs (no bundled font has them)
+VECTOR_CHARS = {"\u23fb": "power", "\u23fc": "power", "\u23fd": "power"}
+_cmap_cache: dict = {}
+
+
+def has_glyph(name: str, ch: str) -> bool:
+    """True when the bundled font `name` has a glyph for `ch` (fontTools cmap; assumes yes without it)."""
+    fname = FONTS.get(name, name)
+    cm = _cmap_cache.get(fname)
+    if cm is None:
+        try:
+            from fontTools.ttLib import TTFont
+            path = os.path.join(FONT_DIR, fname)
+            cm = set(TTFont(path).getBestCmap()) if os.path.exists(path) else set()
+        except Exception:  # fontTools missing: trust the face
+            cm = set(range(0x110000))
+        _cmap_cache[fname] = cm
+    return ord(ch) in cm or ch.isspace()
+
+
+# ---------------------------------------------------------------------------------------------
+# palette (UI accents + realistic equipment colours), sRGB 0..255
+# ---------------------------------------------------------------------------------------------
+TEAL = (8, 175, 162)
+TEAL_HI = (15, 212, 196)
+TEAL_LO = (6, 125, 116)
+RED = (229, 72, 77)
+AMBER = (229, 165, 10)
+WHITE = (242, 244, 245)
+INK2 = (158, 165, 170)
+BLACK = (12, 13, 16)
+ORANGE = (232, 106, 26)
+YELLOW = (238, 196, 26)
+
+
+def rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+# ---------------------------------------------------------------------------------------------
+# material
+# ---------------------------------------------------------------------------------------------
+@dataclass
+class Mat:
+    """Surface material evaluated per texel by the baker.
+
+    color      base colour sRGB (0..255)
+    spec       specular intensity 0..1 (GTA spec map RGB)
+    gloss      glossiness 0..1 (GTA spec map alpha -> specularFalloffMult)
+    metal      metalness for the glTF preview only (GTA's spec workflow has no metal channel)
+    grain      low frequency colour variation (fraction) ; grain_scale its size in metres
+    bump       height pattern: none stipple brushed fabric webbing foam rubber knurl ribs leather
+               orange_peel crinkle (crumpled foil) ...  (bump_amp metres, bump_scale metres)
+    edge       convex edge brightening (worn edges / highlights) 0..1
+    ao         how much baked ambient occlusion darkens this material 0..1
+    alpha      opacity for layer 'alpha' (translucent bags), 1 elsewhere
+    layer      'main' (normal_spec), 'alpha' (normal_spec_alpha), 'glow' (emissive)
+    dirt       grime in crevices / dust on top faces 0..1
+    wear       chipped edge wear 0..1 (-1 = follow `edge`); wear_color what shows through (None = auto:
+               lighter base for plastics, bright bare metal for metals / painted metal with metal > 0)
+    scratch    fine scratches in gloss + colour 0..1 (-1 = auto from gloss)
+    smudge     low frequency gloss variation (handling marks, fingerprints) 0..1 (-1 = auto)
+    cavity     darkening of concave creases 0..1
+    """
+
+    color: tuple = (128, 128, 128)
+    spec: float = 0.25
+    gloss: float = 0.35
+    metal: float = 0.0
+    grain: float = 0.03
+    grain_scale: float = 0.02
+    bump: str = "none"
+    bump_amp: float = 0.00015
+    bump_scale: float = 0.0015
+    edge: float = 0.0
+    ao: float = 0.85
+    alpha: float = 1.0
+    layer: str = "main"
+    dirt: float = 0.0
+    color2: tuple | None = None     # secondary colour used by some bump patterns (fabric weave)
+    wear: float = -1.0
+    wear_color: tuple | None = None
+    scratch: float = -1.0
+    smudge: float = -1.0
+    cavity: float = 0.5
+    extra: dict = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------------------------
+# noise
+# ---------------------------------------------------------------------------------------------
+def _hash(ix, iy, iz, seed):
+    h = (ix.astype(np.uint32) * np.uint32(73856093)) ^ (iy.astype(np.uint32) * np.uint32(19349663)) \
+        ^ (iz.astype(np.uint32) * np.uint32(83492791)) ^ np.uint32((seed * 2654435761) & 0xFFFFFFFF)
+    h = (h ^ (h >> np.uint32(13))) * np.uint32(1274126177)
+    h = h ^ (h >> np.uint32(16))
+    return (h & np.uint32(0xFFFF)).astype(np.float32) / 32767.5 - 1.0
+
+
+def noise3(p, seed=0):
+    """Value noise in [-1, 1] for points p (..., 3)."""
+    p = np.asarray(p, dtype=np.float64)
+    fl = np.floor(p)
+    f = (p - fl).astype(np.float32)
+    i = fl.astype(np.int64)
+    w = f * f * (3 - 2 * f)
+    ix, iy, iz = i[..., 0], i[..., 1], i[..., 2]
+    wx, wy, wz = w[..., 0], w[..., 1], w[..., 2]
+    out = 0.0
+    for dz in (0, 1):
+        for dy in (0, 1):
+            for dx in (0, 1):
+                v = _hash(ix + dx, iy + dy, iz + dz, seed)
+                wgt = (wx if dx else 1 - wx) * (wy if dy else 1 - wy) * (wz if dz else 1 - wz)
+                out = out + v * wgt
+    return out
+
+
+def fbm3(p, octaves=4, seed=0, lac=2.03, gain=0.5):
+    total = 0.0
+    amp = 1.0
+    norm = 0.0
+    q = np.asarray(p, dtype=np.float64)
+    for o in range(octaves):
+        total = total + amp * noise3(q, seed + o * 17)
+        norm += amp
+        amp *= gain
+        q = q * lac
+    return total / norm
+
+
+def noise2(u, v, seed=0):
+    z = np.zeros_like(u)
+    return noise3(np.stack([u, v, z], axis=-1), seed)
+
+
+def fbm2(u, v, octaves=4, seed=0):
+    z = np.zeros_like(u)
+    return fbm3(np.stack([u, v, z], axis=-1), octaves, seed)
+
+
+# ---------------------------------------------------------------------------------------------
+# decal canvas
+# ---------------------------------------------------------------------------------------------
+class DecalCanvas:
+    """A painting surface of w x h METRES at `ppm` pixels per metre.
+
+    Every drawing call takes an ink: colour (sRGB or None for height-only), opacity, height (m,
+    positive = raised), spec / gloss overrides. Shapes are rasterised with 4x supersampling.
+    Coordinates: x right, y DOWN, origin top-left, all in metres.
+    """
+
+    SS = 4
+
+    def __init__(self, w, h, ppm=2000):
+        self.w_m, self.h_m, self.ppm = float(w), float(h), float(ppm)
+        self.W = max(8, int(round(w * ppm)))
+        self.H = max(8, int(round(h * ppm)))
+        self.rgb = np.zeros((self.H, self.W, 3), np.float32)
+        self.a = np.zeros((self.H, self.W), np.float32)
+        self.height = np.zeros((self.H, self.W), np.float32)
+        self.spec = np.zeros((self.H, self.W), np.float32)
+        self.gloss = np.zeros((self.H, self.W), np.float32)
+        self.sg_a = np.zeros((self.H, self.W), np.float32)
+        self.metal = np.zeros((self.H, self.W), np.float32)
+
+    # internal ---------------------------------------------------------------------------
+    def _px(self, v):
+        return v * self.ppm * self.SS
+
+    def _mask(self, draw_fn, blur=0.0):
+        img = Image.new("L", (self.W * self.SS, self.H * self.SS), 0)
+        draw_fn(ImageDraw.Draw(img))
+        img = img.resize((self.W, self.H), Image.BOX)
+        if blur > 0:
+            img = img.filter(ImageFilter.GaussianBlur(blur))
+        return np.asarray(img, np.float32) / 255.0
+
+    def ink(self, m, color=None, alpha=1.0, height=None, spec=None, gloss=None, metal=None, height_mode="add"):
+        m = np.clip(m * alpha, 0, 1)
+        if color is not None:
+            c = np.asarray(color, np.float32)[None, None, :]
+            self.rgb = self.rgb * (1 - m[..., None]) + c * m[..., None]
+            self.a = np.maximum(self.a, m) if alpha >= 0.999 else self.a + m * (1 - self.a)
+        if height is not None:
+            if height_mode == "add":
+                self.height += m * height
+            else:
+                self.height = self.height * (1 - m) + height * m
+        if spec is not None or gloss is not None:
+            if spec is not None:
+                self.spec = self.spec * (1 - m) + spec * m
+            if gloss is not None:
+                self.gloss = self.gloss * (1 - m) + gloss * m
+            self.sg_a = np.maximum(self.sg_a, m)
+        if metal is not None:
+            self.metal = self.metal * (1 - m) + metal * m
+        return m
+
+    # shapes -----------------------------------------------------------------------------
+    def rect(self, x, y, w, h, r=0.0, fill=True, width=0.0, blur=0.0, **ink):
+        box = [self._px(x), self._px(y), self._px(x + w), self._px(y + h)]
+        rr = self._px(r)
+        lw = max(1, int(round(self._px(width)))) if not fill else 0
+
+        def fn(d):
+            if fill:
+                d.rounded_rectangle(box, radius=rr, fill=255)
+            else:
+                d.rounded_rectangle(box, radius=rr, outline=255, width=lw)
+        return self.ink(self._mask(fn, blur), **ink)
+
+    def circle(self, cx, cy, r, fill=True, width=0.0, blur=0.0, **ink):
+        box = [self._px(cx - r), self._px(cy - r), self._px(cx + r), self._px(cy + r)]
+        lw = max(1, int(round(self._px(width)))) if not fill else 0
+
+        def fn(d):
+            if fill:
+                d.ellipse(box, fill=255)
+            else:
+                d.ellipse(box, outline=255, width=lw)
+        return self.ink(self._mask(fn, blur), **ink)
+
+    def line(self, pts, width, blur=0.0, **ink):
+        P = [(self._px(x), self._px(y)) for x, y in pts]
+        lw = max(1, int(round(self._px(width))))
+
+        def fn(d):
+            d.line(P, fill=255, width=lw, joint="curve")
+        return self.ink(self._mask(fn, blur), **ink)
+
+    def polygon(self, pts, blur=0.0, **ink):
+        P = [(self._px(x), self._px(y)) for x, y in pts]
+
+        def fn(d):
+            d.polygon(P, fill=255)
+        return self.ink(self._mask(fn, blur), **ink)
+
+    def _runs(self, s, fnt, px):
+        """Lay out a string: [(kind, font or glyph name, width px)] with per-character fallback faces."""
+        out = []
+        f0 = font(fnt, px)
+        for ch in s:
+            if ch in VECTOR_CHARS:
+                out.append(("vec", VECTOR_CHARS[ch], px * 0.78))
+            elif has_glyph(fnt, ch):
+                out.append(("ch", (f0, ch), f0.getlength(ch)))
+            else:
+                fb = font(FALLBACK.get(fnt, "sans-bold"), px * 0.94)
+                out.append(("ch", (fb, ch), fb.getlength(ch)))
+        return out
+
+    @staticmethod
+    def _draw_runs(d, runs, x0, y, anchor_v, sp, px):
+        """Draw laid-out runs left to right from x0 (pixels) with vertical anchor anchor_v."""
+        cy = y + {"t": 0.5, "a": 0.5, "b": -0.5, "d": -0.45, "s": -0.36}.get(anchor_v, 0.0) * px
+        for kind, val, wch in runs:
+            if kind == "ch":
+                f, ch = val
+                d.text((x0, y), ch, font=f, fill=255, anchor="l" + anchor_v)
+            else:
+                _vector_glyph(d, val, x0 + wch / 2, cy, px * 0.72)
+            x0 += wch + sp
+
+    def text(self, x, y, s, size, fnt="label", anchor="mm", spacing=0.0, blur=0.0, rotate=0, max_w=None, **ink):
+        """size = cap height-ish in metres (font pixel size = size * ppm * 1.38). max_w shrinks the
+        text (and its spacing) until it fits that width. Symbols missing from the face (arrows, check
+        marks, the power sign ...) are drawn with DejaVu / vector glyphs automatically."""
+        if max_w is not None:
+            wdt = self.text_width(s, size, fnt, spacing)
+            if wdt > max_w:
+                k = max_w / wdt
+                size *= k
+                spacing *= k
+        px = size * self.ppm * self.SS * 1.38
+        f = font(fnt, px)
+        sp = self._px(spacing)
+        runs = self._runs(s, fnt, px)
+        simple = all(k == "ch" and v[0] is f for k, v, _ in runs)
+
+        def fn(d):
+            if simple and sp == 0:
+                d.text((self._px(x), self._px(y)), s, font=f, fill=255, anchor=anchor)
+                return
+            total = sum(r[2] for r in runs) + sp * (len(runs) - 1)
+            ax = anchor[0]
+            x0 = self._px(x) - (total / 2 if ax == "m" else (total if ax == "r" else 0))
+            self._draw_runs(d, runs, x0, self._px(y), anchor[1], sp, px)
+        if rotate:
+            # draw rotated text through a temporary canvas
+            tmp = Image.new("L", (self.W * self.SS, self.H * self.SS), 0)
+            total = sum(r[2] for r in runs) + sp * (len(runs) - 1)
+            big = Image.new("L", (int(total + px * 2), int(px * 2.2)), 0)
+            self._draw_runs(ImageDraw.Draw(big), runs, px, big.height / 2, "m", sp, px)
+            big = big.rotate(rotate, expand=True, resample=Image.BICUBIC)
+            tmp.paste(big, (int(self._px(x) - big.width / 2), int(self._px(y) - big.height / 2)))
+            m = np.asarray(tmp.resize((self.W, self.H), Image.BOX), np.float32) / 255.0
+            if blur > 0:
+                m = np.asarray(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(blur)), np.float32) / 255.0
+            return self.ink(m, **ink)
+        return self.ink(self._mask(fn, blur), **ink)
+
+    def text_width(self, s, size, fnt="label", spacing=0.0):
+        px = size * self.ppm * 1.38
+        return (sum(r[2] for r in self._runs(s, fnt, px)) + spacing * self.ppm * (len(s) - 1)) / self.ppm
+
+    def glyph(self, kind, cx, cy, s, **ink):
+        """Vector glyph centred at (cx, cy), s = glyph height in metres. Kinds: power, up, down, left,
+        right (solid triangles), chev_up / chev_down / chev_left / chev_right, check, x, back (hooked
+        return arrow), shift, tab, grid (2 x 2 menu squares), menu (3 bars), lock, speaker, mic, bolt,
+        dot, ring, signal (bars), scan (arcs)."""
+        X, Y, S = self._px(cx), self._px(cy), self._px(s)
+        return self.ink(self._mask(lambda d: _vector_glyph(d, kind, X, Y, S)), **ink)
+
+    # engraved / stitched / mechanical details ------------------------------------------
+    def groove(self, pts, width=0.0006, depth=0.00025, color=(0, 0, 0), alpha=0.45, closed=False, blur=0.0):
+        """Engraved line (panel split line, seam): a shallow dark channel along a polyline."""
+        P = list(pts) + ([pts[0]] if closed else [])
+        m = self.line(P, width, blur=blur)
+        self.ink(m, color=color, alpha=alpha)
+        self.ink(m, height=-depth)
+        return m
+
+    def groove_rect(self, x, y, w, h, r=0.0, width=0.0006, depth=0.00025, color=(0, 0, 0), alpha=0.45):
+        """Rounded rectangular split line (battery doors, service hatches, panel inserts)."""
+        m = self.rect(x, y, w, h, r=r, fill=False, width=width)
+        self.ink(m, color=color, alpha=alpha)
+        self.ink(m, height=-depth)
+        return m
+
+    def stitch(self, pts, length=0.0032, gap=0.0016, width=0.0007, color=None, height=0.00014, thread_spec=0.25,
+               thread_gloss=0.35, closed=False):
+        """Lock-stitch seam: raised thread dashes along a polyline over a faint sunk channel."""
+        P = np.asarray(list(pts) + ([pts[0]] if closed else []), np.float64)
+        seg = np.linalg.norm(np.diff(P, axis=0), axis=1)
+        sl = np.concatenate([[0.0], np.cumsum(seg)])
+        dashes = []
+        t = gap * 0.5
+        while t + length <= sl[-1]:
+            t0, t1 = t, t + length
+            dashes.append([(float(np.interp(tt, sl, P[:, 0])), float(np.interp(tt, sl, P[:, 1]))) for tt in (t0, (t0 + t1) / 2, t1)])
+            t += length + gap
+        lw = max(1, int(round(self._px(width))))
+        ch = self._mask(lambda d: d.line([(self._px(x), self._px(y)) for x, y in P], fill=255, width=max(1, int(lw * 1.6))))
+        self.ink(ch, height=-height * 0.6)
+        self.ink(ch, color=(0, 0, 0), alpha=0.18)
+
+        def fn(d):
+            for ds in dashes:
+                d.line([(self._px(x), self._px(y)) for x, y in ds], fill=255, width=lw, joint="curve")
+        m = self._mask(fn, blur=0.35)
+        self.ink(m, color=color, height=height * 1.6, spec=thread_spec if color is not None else None,
+                 gloss=thread_gloss if color is not None else None)
+        return m
+
+    def stitch_rect(self, x, y, w, h, r=0.0, inset=0.0, **kw):
+        """Stitched outline of a rounded rectangle (patches, pockets, strap ends)."""
+        x, y, w, h = x + inset, y + inset, w - 2 * inset, h - 2 * inset
+        r = min(r, w / 2, h / 2)
+        pts = []
+        if r > 0:
+            for cx, cy, a0 in ((x + w - r, y + r, -90), (x + w - r, y + h - r, 0), (x + r, y + h - r, 90), (x + r, y + r, 180)):
+                for k in range(7):
+                    a = np.radians(a0 + 90 * k / 6)
+                    pts.append((cx + r * np.cos(a), cy + r * np.sin(a)))
+        else:
+            pts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+        return self.stitch(pts, closed=True, **kw)
+
+    def screw(self, cx, cy, r, kind="phillips", color=(150, 154, 160), height=0.0005, spec=0.7, gloss=0.62, metal=1.0,
+              recess=(28, 30, 33), washer=False):
+        """Pan-head screw seen from the front: domed head + recess (phillips / slot / hex / torx) +
+        a soft contact shadow ring. Draws metal ink, raised height and the sunk drive."""
+        if washer:
+            self.circle(cx, cy, r * 1.45, color=(120, 124, 130), spec=0.6, gloss=0.5, metal=1.0, height=height * 0.25)
+        self.circle(cx, cy, r * 1.16, fill=False, width=r * 0.18, color=(0, 0, 0), alpha=0.35, blur=0.6)
+        self.circle(cx, cy, r, color=color, spec=spec, gloss=gloss, metal=metal, height=height * 0.45)
+        bl = max(0.6, r * self.ppm * 0.18)
+        self.circle(cx, cy, r * 0.82, height=height * 0.30, blur=bl)
+        self.circle(cx, cy, r * 0.55, height=height * 0.25, blur=bl)
+        self.circle(cx - r * 0.25, cy - r * 0.25, r * 0.35, color=(255, 255, 255), alpha=0.18, blur=bl)
+        d = height * 1.6
+        if kind == "phillips":
+            for w_, h_ in ((r * 1.15, r * 0.24), (r * 0.24, r * 1.15)):
+                m = self.rect(cx - w_ / 2, cy - h_ / 2, w_, h_, r=min(w_, h_) * 0.3)
+                self.ink(m, color=recess, alpha=0.9)
+                self.ink(m, height=-d)
+        elif kind == "slot":
+            m = self.rect(cx - r * 0.65, cy - r * 0.12, r * 1.3, r * 0.24)
+            self.ink(m, color=recess, alpha=0.9)
+            self.ink(m, height=-d)
+        else:
+            n = 6 if kind == "hex" else 12
+            pts = []
+            for k in range(n):
+                a = np.radians(30 + 360 * k / n)
+                rr = r * (0.48 if (kind == "hex" or k % 2 == 0) else 0.32)
+                pts.append((cx + rr * np.cos(a), cy + rr * np.sin(a)))
+            m = self.polygon(pts)
+            self.ink(m, color=recess, alpha=0.9)
+            self.ink(m, height=-d)
+
+    def rivet(self, cx, cy, r, color=(170, 174, 180), height=0.0004, spec=0.7, gloss=0.6):
+        self.circle(cx, cy, r * 1.15, fill=False, width=r * 0.16, color=(0, 0, 0), alpha=0.3, blur=0.5)
+        self.circle(cx, cy, r, color=color, spec=spec, gloss=gloss, metal=1.0, height=height * 0.5)
+        self.circle(cx, cy, r * 0.6, height=height * 0.5, blur=max(0.6, r * self.ppm * 0.2))
+
+    def perforate(self, x, y, cols, rows, pitch, r, depth=0.0008, color=(16, 17, 19), stagger=False):
+        """Grid of round holes (speaker grilles, vents): dark, sunk."""
+        pts = []
+        for j in range(rows):
+            for i in range(cols):
+                ox = pitch * 0.5 if (stagger and j % 2) else 0.0
+                pts.append((x + i * pitch + ox, y + j * pitch))
+
+        def fn(d):
+            for px, py in pts:
+                d.ellipse([self._px(px - r), self._px(py - r), self._px(px + r), self._px(py + r)], fill=255)
+        m = self._mask(fn)
+        self.ink(m, color=color, spec=0.05, gloss=0.1)
+        self.ink(m, height=-depth)
+        return m
+
+    def slots(self, x, y, w, h, n, vertical=False, fill=0.5, depth=0.0008, color=(16, 17, 19)):
+        """Row of rounded vent slots inside the box (x, y, w, h)."""
+        if not vertical:
+            sh = h / n * fill
+            for k in range(n):
+                yy = y + (k + 0.5) * h / n - sh / 2
+                m = self.rect(x, yy, w, sh, r=sh / 2)
+                self.ink(m, color=color, spec=0.05, gloss=0.1)
+                self.ink(m, height=-depth)
+        else:
+            sw = w / n * fill
+            for k in range(n):
+                xx = x + (k + 0.5) * w / n - sw / 2
+                m = self.rect(xx, y, sw, h, r=sw / 2)
+                self.ink(m, color=color, spec=0.05, gloss=0.1)
+                self.ink(m, height=-depth)
+
+    # codes ------------------------------------------------------------------------------
+    def barcode(self, x, y, w, h, seed=0, color=(18, 19, 21), digits=None, digit_size=None, quiet=True):
+        """Linear barcode (code-128 look) in the box; optional human readable digits underneath."""
+        rng = np.random.default_rng(seed)
+        bars_h = h * (0.74 if digits else 1.0)
+        mod = w / 112.0
+        pts = []
+        xx = x + (mod * 4 if quiet else 0.0)
+        end = x + w - (mod * 4 if quiet else 0.0)
+        pts.append((xx, mod * 2))
+        xx += mod * 3
+        while xx < end - mod * 6:
+            bw = mod * int(rng.integers(1, 5))
+            pts.append((xx, bw))
+            xx += bw + mod * int(rng.integers(1, 4))
+        pts.append((end - mod * 4, mod * 2))
+        pts.append((end - mod * 1.5, mod))
+
+        def fn(d):
+            for bx, bw in pts:
+                d.rectangle([self._px(bx), self._px(y), self._px(bx + bw) - 1, self._px(y + bars_h)], fill=255)
+        self.ink(self._mask(fn), color=color, spec=0.2, gloss=0.3)
+        if digits:
+            self.text(x + w / 2, y + h * 0.88, digits, digit_size or h * 0.16, fnt="mono", color=color, max_w=w * 0.96)
+
+    def datamatrix(self, x, y, s, n=14, seed=0, color=(18, 19, 21)):
+        """2D data-matrix style code (L finder + clock track + random modules), s = side length."""
+        rng = np.random.default_rng(seed + 97)
+        c = s / n
+        cells = []
+        for j in range(n):
+            for i in range(n):
+                on = False
+                if i == 0 or j == n - 1:
+                    on = True
+                elif j == 0:
+                    on = i % 2 == 0
+                elif i == n - 1:
+                    on = j % 2 == 1
+                else:
+                    on = rng.random() < 0.48
+                if on:
+                    cells.append((i, j))
+
+        def fn(d):
+            for i, j in cells:
+                d.rectangle([self._px(x + i * c), self._px(y + j * c), self._px(x + (i + 1) * c) - 1, self._px(y + (j + 1) * c) - 1], fill=255)
+        self.ink(self._mask(fn), color=color, spec=0.2, gloss=0.3)
+
+    # regulatory / handling symbols ---------------------------------------------------
+    def icon(self, kind, x, y, s, color=(24, 26, 28), label=None, **ink):
+        """Small regulatory / handling symbols in an s x s box at (x, y) top-left (generic, no real
+        certification marks): book (read the manual), factory (manufacturer), date (date of
+        manufacture), bin (crossed-out bin: separate collection), warn (caution triangle), drop (keep
+        dry), temp (temperature limits), ip (ingress rating, label='IP67'), recycle (three chasing
+        arrows), liion (battery outline + Li-ion), rf (radio-frequency emitter), dc (direct current),
+        double (double insulation)."""
+        lw = s * 0.08
+        cx, cy = x + s / 2, y + s / 2
+        if kind == "book":
+            self.polygon([(x + s * 0.05, y + s * 0.18), (cx, y + s * 0.28), (x + s * 0.95, y + s * 0.18), (x + s * 0.95, y + s * 0.85),
+                          (cx, y + s * 0.95), (x + s * 0.05, y + s * 0.85)], color=color, **ink)
+            self.line([(cx, y + s * 0.30), (cx, y + s * 0.92)], lw * 0.6, color=(255, 255, 255), **ink)
+            self.circle(x + s * 0.72, y + s * 0.38, s * 0.05, color=(255, 255, 255), **ink)
+            self.line([(x + s * 0.72, y + s * 0.5), (x + s * 0.72, y + s * 0.74)], lw * 0.8, color=(255, 255, 255), **ink)
+        elif kind in ("factory", "date"):
+            pts = [(x + s * 0.05, y + s * 0.95), (x + s * 0.05, y + s * 0.45), (x + s * 0.30, y + s * 0.60), (x + s * 0.30, y + s * 0.45),
+                   (x + s * 0.55, y + s * 0.60), (x + s * 0.55, y + s * 0.45), (x + s * 0.72, y + s * 0.55), (x + s * 0.72, y + s * 0.08),
+                   (x + s * 0.88, y + s * 0.08), (x + s * 0.88, y + s * 0.62), (x + s * 0.95, y + s * 0.62), (x + s * 0.95, y + s * 0.95)]
+            if kind == "factory":
+                self.polygon(pts, color=color, **ink)
+            else:
+                self.line(pts + [pts[0]], lw, color=color, **ink)
+        elif kind == "bin":
+            self.polygon([(x + s * 0.22, y + s * 0.22), (x + s * 0.78, y + s * 0.22), (x + s * 0.72, y + s * 0.80), (x + s * 0.28, y + s * 0.80)],
+                         color=color, **ink)
+            self.polygon([(x + s * 0.28, y + s * 0.28), (x + s * 0.72, y + s * 0.28), (x + s * 0.67, y + s * 0.74), (x + s * 0.33, y + s * 0.74)],
+                         color=(255, 255, 255), **ink)
+            self.rect(x + s * 0.15, y + s * 0.13, s * 0.7, lw, color=color, **ink)
+            self.line([(x + s * 0.1, y + s * 0.08), (x + s * 0.9, y + s * 0.84)], lw, color=color, **ink)
+            self.line([(x + s * 0.9, y + s * 0.08), (x + s * 0.1, y + s * 0.84)], lw, color=color, **ink)
+            self.rect(x + s * 0.1, y + s * 0.88, s * 0.8, lw * 1.3, color=color, **ink)
+        elif kind == "warn":
+            self.polygon([(cx, y + s * 0.04), (x + s * 0.98, y + s * 0.94), (x + s * 0.02, y + s * 0.94)], color=color, **ink)
+            self.polygon([(cx, y + s * 0.22), (x + s * 0.83, y + s * 0.86), (x + s * 0.17, y + s * 0.86)], color=(240, 196, 30), **ink)
+            self.rect(cx - lw * 0.6, y + s * 0.38, lw * 1.2, s * 0.28, r=lw * 0.3, color=color, **ink)
+            self.circle(cx, y + s * 0.76, lw * 0.75, color=color, **ink)
+        elif kind == "drop":
+            self.polygon([(x + s * 0.08, y + s * 0.5), (x + s * 0.2, y + s * 0.25), (cx, y + s * 0.12), (x + s * 0.8, y + s * 0.25),
+                          (x + s * 0.92, y + s * 0.5)], color=color, **ink)
+            self.line([(cx, y + s * 0.5), (cx, y + s * 0.82), (x + s * 0.38, y + s * 0.86)], lw, color=color, **ink)
+            for k in range(3):
+                self.circle(x + s * (0.2 + 0.3 * k), y + s * 0.04, s * 0.04, color=color, **ink)
+        elif kind == "temp":
+            self.line([(x + s * 0.2, y + s * 0.1), (x + s * 0.2, y + s * 0.9), (x + s * 0.8, y + s * 0.9), (x + s * 0.8, y + s * 0.1)], lw,
+                      color=color, **ink)
+            self.rect(cx - lw / 2, y + s * 0.3, lw, s * 0.45, color=color, **ink)
+            self.circle(cx, y + s * 0.75, s * 0.09, color=color, **ink)
+        elif kind == "ip":
+            self.rect(x + s * 0.04, y + s * 0.2, s * 0.92, s * 0.6, r=s * 0.08, fill=False, width=lw * 0.7, color=color, **ink)
+            self.text(cx, cy, label or "IP54", s * 0.3, fnt="label", color=color, max_w=s * 0.8, **ink)
+        elif kind == "recycle":
+            for k in range(3):
+                a0 = np.radians(90 + 120 * k)
+                a1 = np.radians(90 + 120 * k + 95)
+                pts = [(cx + np.cos(a) * s * 0.36, cy - np.sin(a) * s * 0.36) for a in np.linspace(a0, a1, 8)]
+                self.line(pts, lw * 1.1, color=color, **ink)
+                tip = pts[-1]
+                tang = np.array([-np.sin(a1), -np.cos(a1)])
+                nrm = np.array([np.cos(a1), -np.sin(a1)])
+                hs = s * 0.13
+                self.polygon([(tip[0] + tang[0] * hs, tip[1] + tang[1] * hs), (tip[0] + nrm[0] * hs * 0.8, tip[1] + nrm[1] * hs * 0.8),
+                              (tip[0] - nrm[0] * hs * 0.8, tip[1] - nrm[1] * hs * 0.8)], color=color, **ink)
+        elif kind == "liion":
+            self.rect(x + s * 0.06, y + s * 0.22, s * 0.8, s * 0.5, r=s * 0.06, fill=False, width=lw * 0.8, color=color, **ink)
+            self.rect(x + s * 0.86, y + s * 0.37, s * 0.08, s * 0.2, color=color, **ink)
+            self.text(x + s * 0.46, y + s * 0.47, "Li-ion", s * 0.2, fnt="label", color=color, max_w=s * 0.66, **ink)
+        elif kind == "rf":
+            self.polygon([(cx, y + s * 0.35), (cx + s * 0.12, y + s * 0.95), (cx - s * 0.12, y + s * 0.95)], color=color, **ink)
+            self.circle(cx, y + s * 0.32, s * 0.07, color=color, **ink)
+            for k, rr in enumerate((0.2, 0.33, 0.46)):
+                for side in (-1, 1):
+                    a = np.linspace(-0.6, 0.6, 7)
+                    pts = [(cx + side * np.cos(t) * s * rr, y + s * 0.32 - np.sin(t) * s * rr) for t in a]
+                    self.line(pts, lw * 0.7, color=color, **ink)
+        elif kind == "dc":
+            self.rect(x + s * 0.08, y + s * 0.36, s * 0.84, lw, color=color, **ink)
+            for k in range(3):
+                self.rect(x + s * (0.08 + 0.3 * k), y + s * 0.58, s * 0.22, lw, color=color, **ink)
+        elif kind == "double":
+            self.rect(x + s * 0.06, y + s * 0.06, s * 0.88, s * 0.88, fill=False, width=lw, color=color, **ink)
+            self.rect(x + s * 0.28, y + s * 0.28, s * 0.44, s * 0.44, fill=False, width=lw, color=color, **ink)
+        else:
+            raise ValueError(f"unknown icon {kind}")
+
+
+# ---------------------------------------------------------------------------------------------
+# vector glyphs (pixel space; used by DecalCanvas.glyph and for characters no bundled font has)
+# ---------------------------------------------------------------------------------------------
+def _vector_glyph(d: ImageDraw.ImageDraw, kind, cx, cy, s):
+    """Draw glyph `kind` centred at pixel (cx, cy), height s pixels, white (255) into a mask."""
+    lw = max(1, int(round(s * 0.13)))
+    h = s / 2
+
+    def P(px, py):
+        return (cx + px * s, cy + py * s)
+
+    def tri(a, b, c):
+        d.polygon([P(*a), P(*b), P(*c)], fill=255)
+
+    def poly(pts, width=lw):
+        d.line([P(*q) for q in pts], fill=255, width=width, joint="curve")
+
+    if kind == "power":
+        r = s * 0.42
+        d.arc([cx - r, cy - r + s * 0.06, cx + r, cy + r + s * 0.06], start=-60, end=240, fill=255, width=lw)
+        d.line([P(0, -0.5), P(0, 0.02)], fill=255, width=lw)
+    elif kind in ("up", "down", "left", "right"):
+        rot = {"up": ((0, -0.42), (0.46, 0.34), (-0.46, 0.34)), "down": ((0, 0.42), (0.46, -0.34), (-0.46, -0.34)),
+               "left": ((-0.42, 0), (0.34, -0.46), (0.34, 0.46)), "right": ((0.42, 0), (-0.34, -0.46), (-0.34, 0.46))}[kind]
+        tri(*rot)
+    elif kind.startswith("chev_"):
+        k = kind[5:]
+        pts = {"up": [(-0.42, 0.22), (0, -0.2), (0.42, 0.22)], "down": [(-0.42, -0.22), (0, 0.2), (0.42, -0.22)],
+               "left": [(0.22, -0.42), (-0.2, 0), (0.22, 0.42)], "right": [(-0.22, -0.42), (0.2, 0), (-0.22, 0.42)]}[k]
+        poly(pts)
+    elif kind == "check":
+        poly([(-0.42, 0.02), (-0.12, 0.34), (0.44, -0.36)], width=max(1, int(lw * 1.2)))
+    elif kind == "x":
+        poly([(-0.36, -0.36), (0.36, 0.36)])
+        poly([(0.36, -0.36), (-0.36, 0.36)])
+    elif kind == "back":
+        a = np.linspace(-np.pi / 2, np.pi / 2, 10)
+        arc = [(0.1 + 0.3 * np.cos(t), -0.05 + 0.3 * np.sin(t)) for t in a]
+        poly([(-0.25, -0.35)] + arc[:1] + arc[1:] + [(-0.1, 0.25)])
+        tri((-0.48, -0.35), (-0.18, -0.58), (-0.18, -0.12))
+    elif kind == "shift":
+        poly([(0, -0.46), (0.42, -0.02), (0.18, -0.02), (0.18, 0.42), (-0.18, 0.42), (-0.18, -0.02), (-0.42, -0.02), (0, -0.46)],
+             width=max(1, int(lw * 0.8)))
+    elif kind == "tab":
+        poly([(-0.45, 0), (0.3, 0)])
+        tri((0.42, 0), (0.12, -0.24), (0.12, 0.24))
+        poly([(0.46, -0.36), (0.46, 0.36)])
+    elif kind == "grid":
+        for gx in (-0.22, 0.22):
+            for gy in (-0.22, 0.22):
+                d.rectangle([cx + (gx - 0.16) * s, cy + (gy - 0.16) * s, cx + (gx + 0.16) * s, cy + (gy + 0.16) * s], fill=255)
+    elif kind == "menu":
+        for gy in (-0.3, 0.0, 0.3):
+            d.rectangle([cx - 0.42 * s, cy + (gy - 0.07) * s, cx + 0.42 * s, cy + (gy + 0.07) * s], fill=255)
+    elif kind == "lock":
+        d.rectangle([cx - 0.34 * s, cy - 0.05 * s, cx + 0.34 * s, cy + 0.46 * s], fill=255)
+        d.arc([cx - 0.24 * s, cy - 0.46 * s, cx + 0.24 * s, cy + 0.04 * s], start=180, end=360, fill=255, width=lw)
+        d.line([P(-0.24, -0.21), P(-0.24, -0.04)], fill=255, width=lw)
+        d.line([P(0.24, -0.21), P(0.24, -0.04)], fill=255, width=lw)
+    elif kind == "speaker":
+        d.polygon([P(-0.46, -0.16), P(-0.2, -0.16), P(0.08, -0.42), P(0.08, 0.42), P(-0.2, 0.16), P(-0.46, 0.16)], fill=255)
+        for rr in (0.22, 0.38):
+            d.arc([cx + 0.08 * s - rr * s, cy - rr * s, cx + 0.08 * s + rr * s, cy + rr * s], start=-45, end=45, fill=255, width=max(1, lw // 1))
+    elif kind == "mic":
+        d.rounded_rectangle([cx - 0.16 * s, cy - 0.48 * s, cx + 0.16 * s, cy + 0.1 * s], radius=0.16 * s, fill=255)
+        d.arc([cx - 0.3 * s, cy - 0.3 * s, cx + 0.3 * s, cy + 0.26 * s], start=0, end=180, fill=255, width=lw)
+        d.line([P(0, 0.26), P(0, 0.46)], fill=255, width=lw)
+    elif kind == "bolt":
+        pts = [(0.12, -0.5), (-0.26, 0.06), (0.0, 0.06), (-0.12, 0.5), (0.27, -0.1), (0.02, -0.1)]
+        d.polygon([P(*q) for q in pts], fill=255)
+    elif kind == "dot":
+        d.ellipse([cx - 0.3 * s, cy - 0.3 * s, cx + 0.3 * s, cy + 0.3 * s], fill=255)
+    elif kind == "ring":
+        d.ellipse([cx - 0.42 * s, cy - 0.42 * s, cx + 0.42 * s, cy + 0.42 * s], outline=255, width=lw)
+    elif kind == "signal":
+        for k in range(4):
+            x0 = cx + (-0.44 + k * 0.24) * s
+            d.rectangle([x0, cy + (0.44 - 0.22 * (k + 1)) * s, x0 + 0.16 * s, cy + 0.46 * s], fill=255)
+    elif kind == "scan":
+        for rr in (0.18, 0.32, 0.46):
+            d.arc([cx - rr * s, cy - rr * s, cx + rr * s, cy + rr * s], start=200, end=340, fill=255, width=max(1, int(lw * 0.8)))
+        d.ellipse([cx - 0.07 * s, cy - 0.07 * s, cx + 0.07 * s, cy + 0.07 * s], fill=255)
+    else:
+        raise ValueError(f"unknown glyph {kind}")
+    _ = h

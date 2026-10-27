@@ -1,0 +1,183 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>NAYZEEE Radio props preview</title>
+<style>html,body{margin:0;background:#1b1e22;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/modules/three/build/three.module.js","three/addons/":"/modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+<script type="module">
+// Studio renderer used by render.mjs. window.renderProp(url, views, size, extra) -> [dataURL, ...]
+// GTA axes: +X right (= the viewer's left when looking at the front), +Y forward (front of the prop),
+// +Z up. The glb is already Y-up (glTF), so GTA (x, y, z) == three (x, z, -y).
+// extra: { cams, lights, parts: [{ url, pos }] (assembled: more glbs placed at GTA offsets),
+//          transparent (no background / floor - item icons), fit (frame the bounding box tightly) }
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b1e22);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.75;
+
+const key = new THREE.DirectionalLight(0xfff4e8, 2.3);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.bias = -0.0004;
+key.shadow.normalBias = 0.01;
+scene.add(key, key.target);
+const rim = new THREE.DirectionalLight(0xbfd8ff, 0.9);
+scene.add(rim, rim.target);
+const fill = new THREE.DirectionalLight(0xffffff, 0.0);   // camera-side fill (icons: no floor bounce)
+scene.add(fill, fill.target);
+scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x202326, 0.35));
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x3a3e44, roughness: 0.92, metalness: 0 }));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const loader = new GLTFLoader();
+const gta = (x, y, z) => new THREE.Vector3(x, z, -y);
+const VIEWS = {
+  front: gta(0.62, 1.0, 0.55),        // 3/4 front, from the prop's +X side
+  front34: gta(-0.62, 1.0, 0.45),     // 3/4 front from the other side
+  face: gta(0.0, 1.0, 0.07),          // straight at the front face
+  left: gta(1.0, 0.1, 0.14),          // the +X side (the viewer's left when facing the front)
+  right: gta(-1.0, 0.1, 0.14),        // the -X side
+  side: gta(1.0, 0.12, 0.25),
+  back: gta(-0.75, -0.9, 0.45),
+  back34: gta(0.6, -1.0, 0.4),
+  top: gta(0.18, 0.42, 1.0),
+  frontlow: gta(0.35, 1.0, 0.18),
+  iso: gta(0.8, 0.8, 0.8),
+  icon: gta(0.5, 1.0, 0.36),
+};
+const BG = new THREE.Color(0x1b1e22);
+
+renderer.localClippingEnabled = true;
+const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+
+async function loadRoot(url, parts) {
+  const root = new THREE.Group();
+  const main = (await loader.loadAsync(url)).scene;
+  root.add(main);
+  for (const p of (parts || [])) {
+    const s = (await loader.loadAsync(p.url)).scene;
+    s.position.copy(gta(p.pos[0], p.pos[1], p.pos[2]));
+    root.add(s);
+  }
+  return root;
+}
+
+function fitDistance(cam, box, dir, c, margin) {
+  // place the camera on c + dir * d and grow / shrink d until the box corners fill the frame
+  const pts = [];
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) pts.push(new THREE.Vector3(x, y, z));
+  let d = box.getSize(new THREE.Vector3()).length() * 2;
+  for (let it = 0; it < 6; it++) {
+    cam.position.copy(c).addScaledVector(dir, d);
+    cam.lookAt(c);
+    cam.updateMatrixWorld();
+    let m = 0;
+    for (const p of pts) { const q = p.clone().project(cam); m = Math.max(m, Math.abs(q.x), Math.abs(q.y)); }
+    d *= m / margin;
+  }
+  cam.position.copy(c).addScaledVector(dir, d);
+  cam.lookAt(c);
+}
+
+window.renderProp = async (url, views, size, extra) => {
+  extra = extra || {};
+  renderer.setSize(size, size);
+  const root = await loadRoot(url, extra.parts);
+  root.traverse(o => {
+    if (o.isMesh) {
+      o.castShadow = true; o.receiveShadow = true;
+      const m = o.material;
+      if (m.normalMap) m.normalMap.anisotropy = 8;
+      if (m.map) m.map.anisotropy = 8;
+      if (m.transparent) { m.depthWrite = false; o.renderOrder = 2; }
+      m.clippingPlanes = [clipPlane];
+    }
+  });
+  scene.add(root);
+  clipPlane.constant = 1e6;
+  scene.background = extra.transparent ? null : BG;
+  renderer.setClearColor(0x000000, extra.transparent ? 0 : 1);
+  renderer.toneMappingExposure = extra.exposure || 1.05;
+  floor.visible = !extra.transparent;
+  const pts = (extra.lights || []).map(l => {
+    const pl = new THREE.PointLight(new THREE.Color(l.color || 0xffffff), l.intensity, l.distance || 0, 2);
+    pl.position.copy(gta(l.pos[0], l.pos[1], l.pos[2]));
+    scene.add(pl);
+    return pl;
+  });
+  const box = new THREE.Box3().setFromObject(root);
+  const c = box.getCenter(new THREE.Vector3());
+  const ext = box.getSize(new THREE.Vector3());
+  const R = Math.max(0.5 * ext.length(), 0.01);
+  floor.position.set(c.x, box.min.y - 0.0005, c.z);
+  floor.scale.set(R * 14, R * 14, 1);
+  key.position.copy(c).add(gta(0.9, 0.6, 1.6).multiplyScalar(R * 4));
+  key.target.position.copy(c);
+  const sc = key.shadow.camera;
+  sc.left = sc.bottom = -R * 1.6; sc.right = sc.top = R * 1.6; sc.near = R * 0.5; sc.far = R * 10;
+  sc.updateProjectionMatrix();
+  rim.position.copy(c).add(gta(-1.2, -1.0, 0.8).multiplyScalar(R * 4));
+  rim.target.position.copy(c);
+  const out = [];
+  for (const v of views) {
+    const cam = new THREE.PerspectiveCamera(extra.fit ? 24 : 30, 1, R * 0.02, R * 40);
+    const dir = (VIEWS[v] || VIEWS.front).clone().normalize();
+    if (extra.fit) {
+      fitDistance(cam, box, dir, c, extra.fit === true ? 0.9 : extra.fit);
+    } else {
+      const dist = R / Math.sin(THREE.MathUtils.degToRad(15)) * 1.04;
+      cam.position.copy(c).addScaledVector(dir, dist);
+      cam.lookAt(c);
+    }
+    fill.intensity = extra.fill || 0;
+    fill.position.copy(cam.position).add(gta(0.4, 0.0, 0.8).multiplyScalar(R));
+    fill.target.position.copy(c);
+    renderer.render(scene, cam);
+    out.push(renderer.domElement.toDataURL('image/png'));
+  }
+  fill.intensity = 0;
+  for (const cm of (extra.cams || [])) {
+    const cam = new THREE.PerspectiveCamera(cm.fov || 60, 1, 0.005, R * 40);
+    cam.position.copy(gta(cm.pos[0], cm.pos[1], cm.pos[2]));
+    cam.up.set(0, 1, 0);
+    cam.lookAt(gta(cm.target[0], cm.target[1], cm.target[2]));
+    clipPlane.constant = (cm.clipZ === undefined || cm.clipZ === null) ? 1e6 : cm.clipZ;
+    renderer.render(scene, cam);
+    out.push(renderer.domElement.toDataURL('image/png'));
+    clipPlane.constant = 1e6;
+  }
+  pts.forEach(pl => { scene.remove(pl); pl.dispose(); });
+  scene.remove(root);
+  root.traverse(o => {
+    if (o.isMesh) {
+      o.geometry.dispose();
+      for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap']) if (o.material[k]) o.material[k].dispose();
+      o.material.dispose();
+    }
+  });
+  return out;
+};
+window.__ready = true;
+</script>
+</body>
+</html>
