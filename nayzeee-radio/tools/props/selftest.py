@@ -76,7 +76,6 @@ def main():
     check(all(parts[p]["tris"] == k["tris"] for p, k in zip(parts, keys)), "each part model holds exactly its part's triangles")
     # no body vertex inside a key cap volume above the plate: sample the body glb positions
     import numpy as np
-    from nzprops.bake import _sample  # noqa: F401  (import check of the baker)
     body_pos = _glb_positions(os.path.join(out, "nzr_example_body", "nzr_example_body.glb"))
     inside = 0
     for k in keys:

@@ -16,7 +16,7 @@ nzprops - code-only GTA V prop pipeline (numpy + Pillow), NAYZEEE Radio edition.
 from .mesh import (Chart, Geo, arc_points, axis_angle, bezier, box, capsule, catmull, chamfer_fillet_rect, chamfer_poly,
                    circle, cylinder, ellipse, euler, extrude, fillet_poly, helix, lathe, loft, look_basis, normalize,
                    offset_poly, path_frames, pillow, plane, pocket, poly_cap, polyline_fillet, quad, rect_profile, resample,
-                   rot_x, rot_y, rot_z, rr_lathe, rrect, slab_with_holes, sphere, subdivide_poly, sweep, torus, triangulate, tube, vec,
+                   rot_x, rot_y, rot_z, rr_lathe, rrect, slab_with_holes, sphere, split_by_normal, subdivide_poly, sweep, torus, triangulate, tube, vec,
                    well_plate)
 from .paint import (AMBER, BLACK, INK2, ORANGE, RED, TEAL, TEAL_HI, TEAL_LO, WHITE, YELLOW, DecalCanvas, Mat, fbm3, font,
                     has_glyph, noise3, rgb)
@@ -27,7 +27,7 @@ __all__ = [
     "Chart", "Geo", "arc_points", "axis_angle", "bezier", "box", "capsule", "catmull", "chamfer_fillet_rect", "chamfer_poly",
     "circle", "cylinder", "ellipse", "euler", "extrude", "fillet_poly", "helix", "lathe", "loft", "look_basis", "normalize",
     "offset_poly", "path_frames", "pillow", "plane", "pocket", "poly_cap", "polyline_fillet", "quad", "rect_profile",
-    "resample", "rot_x", "rot_y", "rot_z", "rr_lathe", "rrect", "slab_with_holes", "sphere", "subdivide_poly", "sweep", "torus",
+    "resample", "rot_x", "rot_y", "rot_z", "rr_lathe", "rrect", "slab_with_holes", "sphere", "split_by_normal", "subdivide_poly", "sweep", "torus",
     "triangulate", "tube", "vec", "well_plate",
     # paint
     "AMBER", "BLACK", "INK2", "ORANGE", "RED", "TEAL", "TEAL_HI", "TEAL_LO", "WHITE", "YELLOW",

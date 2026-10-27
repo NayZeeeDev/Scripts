@@ -1326,7 +1326,7 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
     return g
 
 
-def rr_lathe(w, h, r, profile, mat, n=4, density=1.0, tag="rrl", top_split=0.7):
+def rr_lathe(w, h, r, profile, mat, n=4, density=1.0, tag="rrl", top_split=0.7, top_fn=None, close=False):
     """A 'lathe' around +Z whose cross-section is a rounded rectangle instead of a circle.
 
     profile  [(inset, z), ...] from the outside bottom to the top centre: ring k is the w x h rounded
@@ -1334,7 +1334,11 @@ def rr_lathe(w, h, r, profile, mat, n=4, density=1.0, tag="rrl", top_split=0.7):
              Example key cap: [(0, 0), (0, t - b), (b * 0.3, t - b * 0.3), (b, t), (min(w, h) / 2, t + dome)]
     Vertex normals are averaged over the surface (smooth everywhere - give every crease a small bevel).
     The rings whose profile faces up (normal z > top_split) form a separate top chart with planar UVs,
-    so legends / prints on the top get an even texel density. Used for key caps, rocker buttons, bosses."""
+    so legends / prints on the top get an even texel density. Used for key caps, rocker buttons, bosses.
+    top_fn(x, y) -> (z, dz/dx, dz/dy) replaces the height of the top rings with a smooth surface (a
+    pillow dome) and gives them exact normals - without it the shrinking rounded rectangles meet in
+    creases along the diagonals (a hip roof). close=True ends the profile on a real ring and closes the
+    top with a fan to the centre (avoid profiles that shrink to a line: sliver triangles leave texture seams)."""
     prof = [(float(a), float(z)) for a, z in profile]
     rings = []
     for ins, z in prof:
@@ -1344,6 +1348,14 @@ def rr_lathe(w, h, r, profile, mat, n=4, density=1.0, tag="rrl", top_split=0.7):
         rings.append(np.concatenate([loop, np.full((len(loop), 1), z)], axis=1))
     P = np.stack(rings)                    # (K, M, 3)
     K, M = P.shape[0], P.shape[1]
+    ks_fn = None
+    if top_fn is not None:
+        ks_fn = K - 1
+        while ks_fn > 0 and (prof[ks_fn][0] - prof[ks_fn - 1][0]) / (math.hypot(prof[ks_fn][0] - prof[ks_fn - 1][0], prof[ks_fn][1] - prof[ks_fn - 1][1]) or 1) > top_split:
+            ks_fn -= 1
+        for k in range(ks_fn + 1, K):
+            z, _, _ = top_fn(P[k, :, 0], P[k, :, 1])
+            P[k, :, 2] = z
     acc = np.zeros_like(P)
     for k in range(K - 1):
         a = P[k]
@@ -1364,6 +1376,10 @@ def rr_lathe(w, h, r, profile, mat, n=4, density=1.0, tag="rrl", top_split=0.7):
         N = -N
     bad = np.linalg.norm(acc, axis=2) < 1e-20
     N[bad] = np.array([0.0, 0.0, 1.0])
+    if ks_fn is not None:
+        for k in range(ks_fn + 1, K):
+            _, gx, gy = top_fn(P[k, :, 0], P[k, :, 1])
+            N[k] = normalize(np.stack([-np.asarray(gx, float) * np.ones(M), -np.asarray(gy, float) * np.ones(M), np.ones(M)], axis=1))
     # split rings into side / top runs
     seg_up = []
     for k in range(K - 1):
@@ -1377,8 +1393,8 @@ def rr_lathe(w, h, r, profile, mat, n=4, density=1.0, tag="rrl", top_split=0.7):
     Pw = np.concatenate([P, P[:, :1]], axis=1)
     Nw = np.concatenate([N, N[:, :1]], axis=1)
 
-    def chart(k0, k1, planar, ctag):
-        if k1 - k0 < 1:
+    def chart(k0, k1, planar, ctag, close=False):
+        if k1 - k0 < 1 and not close:
             return
         Pp, Nn = Pw[k0:k1 + 1], Nw[k0:k1 + 1]
         nr = k1 - k0 + 1
@@ -1389,9 +1405,51 @@ def rr_lathe(w, h, r, profile, mat, n=4, density=1.0, tag="rrl", top_split=0.7):
             u = np.concatenate([np.zeros((nr, 1)), np.cumsum(seg, axis=1)], axis=1)
             pl = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(Pp[:, 0, :], axis=0), axis=1))])
             UV = np.stack([u, np.repeat(-pl[:, None], M + 1, axis=1)], axis=-1)
-        ch = Chart(Pp.reshape(-1, 3), Nn.reshape(-1, 3), UV.reshape(-1, 2), grid_tris(M + 1, nr), mat, density, ctag)
+        pos, nrm, uvm = Pp.reshape(-1, 3), Nn.reshape(-1, 3), UV.reshape(-1, 2)
+        tri = grid_tris(M + 1, nr)
+        if close:
+            # fan from the last ring to the centre (no degenerate sliver rings at the middle)
+            last = Pp[-1, :M]
+            cz = float(last[:, 2].mean())
+            cn = np.array([0.0, 0.0, 1.0])
+            if top_fn is not None:
+                cz, gx, gy = top_fn(np.zeros(1), np.zeros(1))
+                cz = float(np.asarray(cz).reshape(-1)[0])
+                cn = normalize(np.array([-float(np.asarray(gx).reshape(-1)[0]), -float(np.asarray(gy).reshape(-1)[0]), 1.0]))
+            ci = len(pos)
+            pos = np.concatenate([pos, [[0.0, 0.0, cz]]])
+            nrm = np.concatenate([nrm, [cn]])
+            uvm = np.concatenate([uvm, [[0.0, 0.0]]])
+            base = (nr - 1) * (M + 1)
+            fan = np.array([(base + i, base + i + 1, ci) for i in range(M)])
+            tri = np.concatenate([tri, fan]) if len(tri) else fan
+        ch = Chart(pos, nrm, uvm, tri, mat, density, ctag)
         g.charts.append(ch.clean())
 
     chart(0, ks, False, tag + ":side")
-    chart(ks, K - 1, True, tag + ":top")
+    chart(ks, K - 1, True, tag + ":top", close=close)
     return g
+
+
+def split_by_normal(geo: "Geo", suffix=True):
+    """Split every chart into up to six charts by the dominant axis of each triangle's normal (+x -x +y
+    -y +z -z), duplicating the shared vertices. A wrapped side wall (extrude / housing) then packs as four
+    rectangles and each face can get its own texel density (tags get ':+y' etc.)."""
+    out = Geo()
+    keys = ["+x", "-x", "+y", "-y", "+z", "-z"]
+    for c in geo.charts:
+        p = c.pos[c.tri]
+        fn = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+        fn = fn + c.nrm[c.tri].sum(axis=1) * 1e-12
+        ax = np.argmax(np.abs(fn), axis=1)
+        sg = np.sign(fn[np.arange(len(fn)), ax])
+        cls = ax * 2 + (sg < 0)
+        for k in np.unique(cls):
+            sel = c.tri[cls == k]
+            used = np.unique(sel.reshape(-1))
+            remap = np.full(len(c.pos), -1, np.int64)
+            remap[used] = np.arange(len(used))
+            ch = Chart(c.pos[used], c.nrm[used], c.uvm[used], remap[sel], c.mat, c.density,
+                       f"{c.tag}:{keys[int(k)]}" if suffix else c.tag, None if c.fixed_uv is None else c.fixed_uv[used], c.part, c.lod)
+            out.charts.append(ch)
+    return out

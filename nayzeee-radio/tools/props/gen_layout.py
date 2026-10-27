@@ -227,7 +227,9 @@ def main():
         return
     path, ok, msg = write_layout(mans, args.lua, radios, check=args.check)
     built = sorted(m["anchors"]["radio"] for m in mans.values() if (m.get("anchors") or {}).get("kind") == "radio_full")
-    print(f"[layout] {path}  (radios built: {', '.join(built) or 'none'})")
+    real = [k for k in radios if k in built]
+    print(f"[layout] {path}  (built radios written: {', '.join(real) or 'none'}; placeholders: "
+          f"{', '.join(k for k in radios if k not in built) or 'none'})")
     if args.check:
         print(f"[layout] luac -p: {'ok' if ok else ('not available' if ok is None else 'FAILED ' + msg)}")
         if ok is False:

@@ -184,6 +184,14 @@ class Builder:
         self.preview.setdefault("cams", []).append(cam)
         return cam
 
+    def closeup(self, name, target, direction=(0.2, 1.0, 0.35), extent=0.1, fov=30.0, fill=0.8):
+        """Review camera framing a region: looks at `target` from `direction` (prop space) so that a
+        region `extent` metres across fills `fill` of the frame."""
+        import math as _m
+        d = normalize(np.asarray(direction, np.float64))
+        dist = (extent / 2) / (_m.tan(_m.radians(fov / 2)) * fill)
+        return self.preview_cam(name, np.asarray(target, np.float64) + d * dist, target, fov)
+
     def warn(self, msg):
         self.warnings.append(msg)
 

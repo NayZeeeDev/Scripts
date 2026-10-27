@@ -8,7 +8,8 @@ nayzeee-radio/html/img/items/<item>.png (the item names come from config/items.l
     python3 tools/props/icons.py --out /tmp/nzr-work/props/out --dest html/img/items --size 512
 
 Each icon is rendered at twice the size (3/4 front, slightly from above, framed tightly, no floor) and
-downsampled for clean edges. Also writes nzr_unknown.png (the fallback image for unknown items).
+downsampled for clean edges. Writes nzr_unknown.png (the fallback image for unknown items) only when the
+folder has none - the NUI ships its own styled one.
 Models without a .glb are skipped with a note - build them first (build.py --no-convert).
 """
 from __future__ import annotations
@@ -75,7 +76,7 @@ def main():
     ap.add_argument("--only", default=None, help="comma separated Config.Items keys")
     ap.add_argument("--chromium", default=None)
     ap.add_argument("--map", action="append", default=[], help="extra item=model pairs (e.g. test_radio=nzr_example)")
-    ap.add_argument("--no-unknown", action="store_true", help="do not (re)write nzr_unknown.png")
+    ap.add_argument("--no-unknown", action="store_true", help="never write nzr_unknown.png (default: only when missing)")
     args = ap.parse_args()
 
     import build  # tools/props/build.py (renderer helpers)
@@ -100,7 +101,7 @@ def main():
                         "fit": 0.86, "exposure": 1.35, "fill": 1.4})
         plan.append((k, model))
     os.makedirs(args.dest, exist_ok=True)
-    if not args.no_unknown:
+    if not args.no_unknown and not os.path.exists(os.path.join(args.dest, "nzr_unknown.png")):
         save_image(unknown_icon(args.size), os.path.join(args.dest, "nzr_unknown.png"))
     if not entries:
         print("[icons] nothing to render")

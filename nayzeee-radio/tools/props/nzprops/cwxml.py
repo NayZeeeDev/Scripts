@@ -283,8 +283,8 @@ def _geometry_items(geoms):
                 f"        <Item>\n          <ShaderIndex value=\"{si}\" />\n"
                 f"          <BoundingBoxMin {vattr(gmin)} w=\"0\" />\n          <BoundingBoxMax {vattr(gmax)} w=\"0\" />\n"
                 f"          <VertexBuffer>\n            <Flags value=\"0\" />\n            <Layout type=\"GTAV1\">\n{layout}\n            </Layout>\n"
-                f"            <Data>\n" + "\n".join(rows) + "\n            </Data>\n          </VertexBuffer>\n"
-                f"          <IndexBuffer>\n            <Data>\n" + "\n".join(ilines) + "\n            </Data>\n          </IndexBuffer>\n        </Item>")
+                "            <Data>\n" + "\n".join(rows) + "\n            </Data>\n          </VertexBuffer>\n"
+                "          <IndexBuffer>\n            <Data>\n" + "\n".join(ilines) + "\n            </Data>\n          </IndexBuffer>\n        </Item>")
     return geo_items
 
 

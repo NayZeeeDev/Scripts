@@ -401,7 +401,7 @@ def _auto_collision(d: Design, b: Builder):
 
 def _review(d: Design):
     """Preview views + close-up cameras for the complete / body / assembled renders."""
-    rs, b = d.rs, d.b
+    b = d.b
     ch = [c for c in b.geo.charts if not c.tag.startswith("antenna")]
     pts = np.concatenate([c.pos for c in ch])
     lo, hi = pts.min(axis=0), pts.max(axis=0)

@@ -1,6 +1,6 @@
 """
 Example radio (NOT shipped): the smallest complete use of the radio kit - two keys, a knob, a screen,
-an antenna and a light pipe. build.py only imports modules whose name starts with '_' when it runs
+a rubber-duck antenna and a light pipe. build.py only imports modules whose name starts with '_' when it runs
 with --examples (or NZR_PROPS_EXAMPLE=1); selftest.py builds it to prove the kit end to end:
 full / body / part models, anchors, the generated layout and the assembled review render.
 
@@ -9,8 +9,8 @@ Models: nzr_example, nzr_example_body, nzr_example_k1, nzr_example_k2, nzr_examp
 """
 from __future__ import annotations
 
-from .radio_common import (boss, housing, ink, keypad, knob, knob_scale, light_pipe, m_bumper_rubber, m_soft_black, model_print,
-                           print_decal, rating_label, screen_window, sma_nut, split_groove_z, whip_antenna)
+from .radio_common import (boss, densify, housing, ink, keypad, knob, knob_scale, light_pipe, m_bumper_rubber, m_soft_black, model_print,
+                           print_decal, rating_label, rubber_duck, screen_window, sma_nut, split_groove_z)
 from .radio_kit import radio
 from .common import screws
 
@@ -25,6 +25,7 @@ FY = D / 2                           # front face
 def example(r):
     shell = m_soft_black(r)
     r.add(housing(r, shell, W, D, H, z0=Z0, chamfer=0.0025, fillet=0.001, rim=0.001, dome=0.0004))
+    densify(r, 2.0, tags="housing:side:+y")         # the printed front gets twice the texels
     split_groove_z(r, [shell], W, D, Z0 + 0.012)
     # screen window high on the front, model print above it
     screen_window(r, center=(0.0, FY, ZT - 0.026), view=(0.028, 0.021))
@@ -37,7 +38,7 @@ def example(r):
     deck = knob_scale(0.012, n=16, color="white")
     print_decal(r, deck, center=(0.012, 0.0, ZT + 0.0001), normal=(0, 0, 1), up=(0, 1, 0), depth=0.0015, mats=[shell])
     r.add(sma_nut(r, (-0.011, 0.0, ZT), across=0.008, h=0.0035))
-    r.add(whip_antenna(r, (-0.011, 0.0, ZT + 0.0065), length=0.09, d0=0.008, d1=0.005))
+    r.add(rubber_duck(r, (-0.011, 0.0, ZT + 0.0065), length=0.07, d=0.0095))
     pipe, insert = light_pipe(r, (0.0, 0.004, ZT), normal=(0, 0, 1), up=(0, 1, 0), d=0.003)
     r.add(pipe)
     # bottom bumper + back screws + rating plate

@@ -17,11 +17,11 @@ Index
                 m_spring_steel m_smoked_glass m_led_lens m_led_off m_anodised_black m_olive_steel
                 m_eggcrate_foam m_hardcase m_coax m_sticker_vinyl m_mesh m_contact_gold m_print_dark
     inks        INK (white orange teal red yellow grey green), ink(name), PRINT
-    housing     housing, housing_frame, split_groove_z, split_groove_y, overmould_panel, battery_pack,
+    housing     housing, housing_frame, densify, split_groove_z, split_groove_y, overmould_panel, battery_pack,
                 latch_tab, boss, guard_ring, wells, well_for
     parts       key_cap, key, keypad, dpad, knob, knob_pair, ptt, ptt_guard, round_button
     antennas    whip_antenna, rubber_duck, sma_nut, gooseneck
-    details     speaker_bars, grille_holes, light_pipe, belt_clip, lanyard_eye, charging_contacts,
+    details     speaker_bars, grille_holes, light_pipe, led_dome, belt_clip, lanyard_eye, charging_contacts,
                 thumbscrew, round_connector, screen_window (+ the screen quad and its anchor)
     labels      legend_canvas, model_print, rating_label, battery_label, knob_scale, volume_dots,
                 print_decal, perforation_decal, slots_decal  (+ common.caution_label / rating_plate)
@@ -34,7 +34,7 @@ import numpy as np
 
 from nzprops import (DecalCanvas, Geo, box, chamfer_fillet_rect, cylinder, extrude, helix, lathe, normalize, quad, rr_lathe,
                      rrect, sweep, tube, vec, well_plate)
-from nzprops.mesh import polyline_fillet
+from nzprops.mesh import polyline_fillet, split_by_normal
 
 from .common import align, m_led, rating_plate, screw
 
@@ -226,12 +226,32 @@ def housing(b, mat, w, d, h, z0=0.0, center=(0.0, 0.0), chamfer=0.003, fillet=0.
         g.deform(fn)
     else:
         g = extrude(poly, h, mat, bevel=rim, bevel_seg=3, z0=z0, tag=tag, smooth_angle=50)
+    # one chart per face (front / back / sides / top / bottom): better packing, and densify() can give the
+    # printed front more texels (tags 'housing:side:+y' ...)
+    g = split_by_normal(g)
     return g.translate(center[0], center[1], 0)
 
 
 def housing_frame(w, d, chamfer=0.003, fillet=0.0012, segs=3):
     """The plan outline housing() uses (CCW, metres) - for grooves, bumper layouts, seam rings."""
     return chamfer_fillet_rect(w, d, chamfer, fillet, segs)
+
+
+def densify(b, k, tags=None, mats=None, part=None):
+    """Multiply the texel density of charts already added - by tag prefix (e.g. 'housing:side:+y', the
+    printed front of a housing), by material and / or by part id. Prints on those charts get sharper at
+    the cost of the rest of the atlas. Returns how many charts changed."""
+    n = 0
+    for c in b.geo.charts:
+        if tags is not None and not any(c.tag.startswith(t) for t in ([tags] if isinstance(tags, str) else tags)):
+            continue
+        if mats is not None and c.mat not in mats:
+            continue
+        if part is not None and c.part != part:
+            continue
+        c.density *= k
+        n += 1
+    return n
 
 
 def split_groove_z(r, mats, w, d, z, center=(0.0, 0.0), width=0.0005, depth=0.00025, margin=0.004):
@@ -266,8 +286,8 @@ def overmould_panel(b, mat, at, normal, up, w, h, t=0.0012, corner=None, bevel=N
     corner = min(w, h) * 0.3 if corner is None else corner
     bv = min(bevel or t * 0.7, t * 0.9, min(w, h) * 0.3)
     prof = [(0.0, 0.0), (0.0, t - bv)] + [(bv * (1 - math.cos(a)), t - bv + bv * math.sin(a)) for a in np.linspace(0.2, math.pi / 2, 4)]
-    prof += [(min(w, h) / 2 - 1e-5, t)]
-    return align(rr_lathe(w, h, corner, prof, mat, n=4, tag="overmould"), normal, up, at)
+    prof += [(min(w, h) / 2 * 0.6, t)]
+    return align(rr_lathe(w, h, corner, prof, mat, n=4, tag="overmould", close=True), normal, up, at)
 
 
 def battery_pack(b, mat, w, d, h, y_front, z0, gap=0.0006, inset=0.0004, chamfer=0.003, fillet=0.0012, rim=0.0012,
@@ -281,8 +301,8 @@ def battery_pack(b, mat, w, d, h, y_front, z0, gap=0.0006, inset=0.0004, chamfer
 
 def latch_tab(b, mat, at, normal, up, w=0.012, h=0.006, t=0.0014, ribs=5):
     """Ribbed thumb tab of a battery latch (ribs run across w)."""
-    g = rr_lathe(w, h, min(w, h) * 0.3, [(0, 0), (0, t * 0.5), (t * 0.25, t * 0.9), (t * 0.5, t), (min(w, h) / 2 - 1e-5, t)], mat,
-                 tag="latch")
+    g = rr_lathe(w, h, min(w, h) * 0.3, [(0, 0), (0, t * 0.5), (t * 0.25, t * 0.9), (t * 0.5, t), (min(w, h) / 2 * 0.6, t)], mat,
+                 tag="latch", close=True)
     for k in range(ribs):
         y = -h * 0.32 + h * 0.64 * k / max(ribs - 1, 1)
         g += box((w * 0.78, h * 0.06, t * 0.5), mat, r=t * 0.2, seg=1, center=(0, y, t + t * 0.12))
@@ -350,11 +370,16 @@ def key_cap(mat, w, h, t, corner=None, dome=0.00025, bevel=None, n=4):
     hm = min(w, h) / 2
     prof = [(0.0, 0.0), (0.0, t - bv)]
     prof += [(bv * (1 - math.cos(a)), t - bv + bv * math.sin(a)) for a in np.linspace(math.pi / 8, math.pi / 2, 4)]
-    for f in (0.3, 0.6, 0.85):
-        ins = bv + (hm - bv) * f
-        prof.append((ins, t + dome * (1 - (1 - f) ** 2)))
-    prof.append((hm - 1e-5, t + dome))
-    return rr_lathe(w, h, corner, prof, mat, n=n, tag="cap")
+    for f in (0.22, 0.45, 0.66):
+        prof.append((bv + (hm - bv) * f, t))
+    ax, ay = max(w / 2 - bv, 1e-6), max(h / 2 - bv, 1e-6)
+
+    def dome_fn(x, y):
+        # pillow dome: t at the bevel line, t + dome in the middle, smooth everywhere
+        u, v = np.clip(x / ax, -1, 1), np.clip(y / ay, -1, 1)
+        fu, fv = 1 - u * u, 1 - v * v
+        return t + dome * fu * fv, dome * (-2 * u / ax) * fv, dome * fu * (-2 * v / ay)
+    return rr_lathe(w, h, corner, prof, mat, n=n, tag="cap", top_fn=dome_fn if dome > 0 else None, close=True)
 
 
 def legend_canvas(w, h, legend=None, sub=None, glyph=None, color="white", sub_color=None, size=None, layout="row",
@@ -519,8 +544,8 @@ def ptt(r, pid="ptt", at=(0, 0, 0), normal=(1, 0, 0), up=(0, 0, 1), length=0.030
         top = length * 0.5 - length * 0.12
         for k in range(ridges):
             y = top - (length * ridge_span) * k / max(ridges - 1, 1)
-            g += box((width * 0.74, length * 0.035, ridge_h * 2.2), mat, r=ridge_h * 0.95, seg=2,
-                     center=(0, y, t + dome * 0.8 - ridge_h * 0.1))
+            g += box((width * 0.74, length * 0.035, ridge_h * 2.2), mat, r=ridge_h * 0.95, seg=1,
+                     center=(0, y, t + dome * 0.8 - ridge_h * 0.1), faces="+x -x +y -y +z")
         r.add(align(g, n, upv, at))
         if emboss:
             dc = DecalCanvas(width * 0.9, length * 0.22, ppm=max(9000, int(300 / width)))
@@ -796,6 +821,20 @@ def light_pipe(b, at, normal=(0, 0, 1), up=(0, 1, 0), d=0.003, color="red", beze
     g += cylinder(rl, 0.0001, m_led_off(b, color), segs=20, z0=-0.0003, caps=(False, True), tag="pipe_lens")
     _, _, n = _frame(normal, up)
     return align(g, normal, up, at), (vec(at) - n * 0.0002)
+
+
+def led_dome(b, color="red", d=0.003, h=None, base_h=0.0003):
+    """LED insert model geometry (nzr_led_red / _green / _amber): a small emissive dome lens on a thin
+    dark collar, origin at the lens base, facing +Z - it sits on a light_pipe() insert point. Build it
+    in a plain @prop and attach it to the body at layout leds.tx / leds.rx."""
+    h = h if h is not None else d * 0.45
+    R = d / 2
+    lens = m_led_lens(b, color)
+    g = cylinder(R * 1.05, base_h, b.mat("led_collar", color=(14, 15, 16), spec=0.4, gloss=0.5), segs=20, caps=(False, True))
+    prof = [(R, base_h)] + [(R * math.cos(a), base_h + h * math.sin(a)) for a in np.linspace(0.15, math.pi / 2, 6)]
+    prof[-1] = (0.0, prof[-1][1])
+    g += lathe(prof, lens, segs=20, smooth_angle=60, tag="led")
+    return g
 
 
 def belt_clip(b, top, normal=(0, -1, 0), up=(0, 0, 1), w=0.032, length=0.07, t=0.002, standoff=0.0035, lip=0.008, mat=None,

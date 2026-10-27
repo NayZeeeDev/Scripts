@@ -1,4 +1,5 @@
-# build products of the props pipeline (never commit these)
+# build products of the props pipeline (never commit these). The work folder lives outside the
+# repository anyway (/tmp/nzr-work/props): CodeWalker clone, cwtool build, node modules, out/.
 cwtool/bin/
 cwtool/obj/
 CodeWalker/
@@ -7,3 +8,7 @@ preview/package-lock.json
 out/
 __pycache__/
 *.pyc
+# atomic-write temp files (only exist for a moment)
+.*.tmp
+*.lock
+# xml/ IS committed: the CodeWalker XML + DDS of the last full-quality build (convert.sh converts it)
