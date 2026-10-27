@@ -49,6 +49,174 @@
   <FileName>nayzeee_vinyl_label.dds</FileName>
  </Item>
  <Item>
+  <Name>nz_brushed_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_brushed_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_brushed_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_brushed_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_brushed_s</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_brushed_s.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_chrome_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="64" />
+  <Height value="64" />
+  <MipLevels value="5" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_chrome_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_fabric_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_fabric_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_fabric_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_fabric_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_fabric_s</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_fabric_s.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_grille_round_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_grille_round_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_grille_round_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_grille_round_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_grille_round_s</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_grille_round_s.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_gunmetal_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_gunmetal_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_gunmetal_s</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_gunmetal_s.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_led_teal_e</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="32" />
+  <Height value="32" />
+  <MipLevels value="4" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_led_teal_e.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_metal_fine_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_metal_fine_n.dds</FileName>
+ </Item>
+ <Item>
   <Name>nz_paper_n</Name>
   <Unk32 value="128" />
   <Usage>NORMAL</Usage>
@@ -61,6 +229,198 @@
   <FileName>nz_paper_n.dds</FileName>
  </Item>
  <Item>
+  <Name>nz_paper_s</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="64" />
+  <Height value="64" />
+  <MipLevels value="5" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_paper_s.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_plastic_black_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_plastic_black_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_plastic_graphite_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_plastic_graphite_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_plastic_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_plastic_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_plastic_s</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_plastic_s.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_plastic_teal_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_plastic_teal_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_plastic_white_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_plastic_white_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_print_atlas</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="1024" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT5</Format>
+  <FileName>nz_print_atlas.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_radial_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_radial_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_radial_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_radial_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_radial_s</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_radial_s.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_rubber_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_rubber_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_rubber_knurl_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_rubber_knurl_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_rubber_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_rubber_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_sleeve_card_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_sleeve_card_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_spec_full</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="16" />
+  <Height value="16" />
+  <MipLevels value="3" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_spec_full.dds</FileName>
+ </Item>
+ <Item>
   <Name>nz_spec_low</Name>
   <Unk32 value="128" />
   <Usage>SPECULAR</Usage>
@@ -71,6 +431,102 @@
   <MipLevels value="3" />
   <Format>D3DFMT_DXT1</Format>
   <FileName>nz_spec_low.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_tt_brass_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="256" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_tt_brass_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_tt_plate_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="128" />
+  <MipLevels value="6" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_tt_plate_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_tt_plate_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="128" />
+  <MipLevels value="6" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_tt_plate_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_tt_sleeve_back_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_tt_sleeve_back_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_tt_slipmat_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_tt_slipmat_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_tt_slipmat_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_tt_slipmat_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_tt_strobe_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="64" />
+  <MipLevels value="5" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_tt_strobe_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_tt_strobe_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="64" />
+  <MipLevels value="5" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_tt_strobe_n.dds</FileName>
  </Item>
  <Item>
   <Name>nz_vinyl_d</Name>
@@ -107,5 +563,53 @@
   <MipLevels value="8" />
   <Format>D3DFMT_DXT1</Format>
   <FileName>nz_vinyl_s.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_vu_amber_e</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="256" />
+  <MipLevels value="7" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_vu_amber_e.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_walnut_d</Name>
+  <Unk32 value="128" />
+  <Usage>DIFFUSE</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="1024" />
+  <Height value="1024" />
+  <MipLevels value="9" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_walnut_d.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_walnut_n</Name>
+  <Unk32 value="128" />
+  <Usage>NORMAL</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_walnut_n.dds</FileName>
+ </Item>
+ <Item>
+  <Name>nz_walnut_s</Name>
+  <Unk32 value="128" />
+  <Usage>SPECULAR</Usage>
+  <UsageFlags>UNK24</UsageFlags>
+  <ExtraFlags value="0" />
+  <Width value="512" />
+  <Height value="512" />
+  <MipLevels value="8" />
+  <Format>D3DFMT_DXT1</Format>
+  <FileName>nz_walnut_s.dds</FileName>
  </Item>
 </TextureDictionary>

@@ -146,8 +146,104 @@ lib/validate.py       output validator (python3 -m lib.validate out/xml)
 models/               one file per prop
 data/shaders_gen9.json  shader/parameter names from CodeWalker (tools/extract_shader_names.py)
 tools/selftest.py     pipeline self-test
+render.py             product-shot renderer CLI (see Rendering)
+render/               WebGL2 renderer: run.js (Playwright driver), renderer.js, shaders.js,
+                      materials.json (material hints), cameras.json (per-model camera), scenes/
 ```
 
 Credits: shader parameter names come from CodeWalker by dexyfex (MIT); parameter order,
 defaults and vertex layouts follow the game's shader definitions as documented by
 CodeWalker and Sollumz (MIT).  Lexend font: SIL Open Font License.
+
+## Rendering
+
+`render.py` makes transparent product-shot PNGs (inventory images, shop art, review sheets) from the build's
+GLB files.  The renderer is our own WebGL2 code (`render/renderer.js`, `render/shaders.js`, no 3D library)
+running in the preinstalled headless Chromium through Playwright (`render/run.js`, CPU SwiftShader, so it
+needs no GPU and gives the same image every run).  Needs `node` with the global `playwright` package
+(`NODE_PATH` is found with `npm root -g`) and Chromium at `/opt/pw-browsers/chromium` (or `NZ_CHROMIUM`).
+
+```
+python3 render.py --model nayzeee_vinyl                    # -> out/previews/nayzeee_vinyl.png, 512 px
+python3 render.py --model nayzeee_audio_a --quick          # fast draft (~10 s) while modelling
+python3 render.py --model nayzeee_vinyl --size 1024 --quality high --out shot.png
+python3 render.py --model nayzeee_vinyl --yaw 35 --pitch 18 --fov 30 --bg "#15181a" --exposure 1.2
+python3 render.py --model nayzeee_vinyl --yaws 0,45,90 --out strip.png       # angles side by side
+python3 render.py --model nayzeee_audio_a --turntable 12 --out tt/a.png      # tt/a_000..011.png, a_grid.png, a.webp
+python3 render.py --sheet out/previews/contact_sheet.png                    # every exported model, labelled grid
+python3 render.py --parts nayzeee_audio_g nayzeee_tt_platter:0.3,0,0.785 nayzeee_vinyl:0.3,0,0.811 \
+                  "nayzeee_tt_arm:0.075,-0.125,0.835:0,0,-33.6" --out console.png
+python3 render.py --scene render/scenes/console_playing.json --skip-missing
+```
+
+**Quick check for model authors:** save `models/<name>.py`, then `python3 render.py --model <name> --quick`
+and open `out/previews/<name>.png`.  You do not need to run `build.py` first: when `out/glb/<name>.glb` is
+missing or older than the model / `lib` sources, the model is built in-process into `cache/render/glb`
+(never touching `out/`).  `--debug base|normal|ao|spec|diffuse --tonemap linear` shows one shading term
+(wrong UVs, flipped normals, missing tangents and AO problems stand out immediately).  `-v` prints the
+browser log and per-phase timings.
+
+| option | default | meaning |
+|---|---|---|
+| `--model NAME` | | model name (`models/NAME.py`) or a path to any `.glb` |
+| `--parts SPEC ...` | | compose models: `NAME[:x,y,z[:rx,ry,rz[:scale]]]` or `NAME:pos=x,y,z:rot=rx,ry,rz:scale=s:parent=I` |
+| `--scene FILE` | | JSON `{parts:[{model,pos,rot,scale,parent}], camera:{...}, render:{...}}`; CLI flags override it |
+| `--sheet PNG` | | all exported models (`--all`: also image-only ones) in a labelled grid (`--cols`, cells 384 px) |
+| `--out PNG` | `out/previews/<model or scene>.png` | output path |
+| `--size N` or `WxH` | 512 | pixels |
+| `--yaw / --pitch / --fov` | 35 / 18 / 30 | degrees; yaw 0 looks straight at the front (+Y), positive yaw orbits to the viewer's right (shows the -X side) |
+| `--margin` | 0.06 | empty border per side (fraction of the frame); the camera auto-frames the silhouette |
+| `--distance-scale` | 1 | pull the auto-framed camera back (>1) or in (<1) |
+| `--yaws a,b,c` | | one image per yaw, same scale, side by side in `--out` |
+| `--turntable N` | | N frames around the model at a fixed distance + grid + animated WebP |
+| `--bg` | transparent | `transparent` or `#rrggbb` |
+| `--exposure` | 1.0 | linear exposure |
+| `--tonemap` | aces | `aces`, `agx`, `neutral` (Khronos PBR Neutral), `linear` |
+| `--quality` / `--quick` | normal | draft / normal / high = 24 / 96 / 192 soft-shadow frames, 16 / 32 / 64 anti-aliasing frames, 128 / 384 / 768 AO directions |
+| `--samples`, `--ao-samples` | | override the frame / direction counts |
+| `--shadow` | 1.0 | floor-shadow opacity, 0 = no floor |
+| `--ground Z` | lowest point | floor height in metres |
+| `--bloom` | 1.0 | glow of emissive parts (LEDs, VU meters), 0 = off |
+| `--materials FILE` | | extra material hints merged over `render/materials.json` |
+| `--glb auto/out/fresh` | auto | GLB source: up-to-date `out/glb` else in-process build / only `out/glb` / always rebuild |
+| `--skip-missing` | | leave out parts whose model does not exist yet |
+
+Rotations are degrees applied X, then Y, then Z about the parent axes (R = Rz*Ry*Rx), positions metres in
+GTA model space; `parent=I` makes a part relative to an earlier part (index or model name).
+`render/scenes/` holds ready scenes at the shared-contract offsets: `console_playing.json` (console +
+platter + record + tonearm at groove radius 0.12, arm -33.6 deg), `console_deck.json` (deck parts only)
+and `record_sleeve.json` (record half out of sleeve A).  Typical times on this 4-core box: 512 px normal
+25-35 s, 1024 px normal 60-80 s, 1024 px high about 2 min, `--quick` 384 px about 10 s per model.
+
+**Per-model camera:** `render/cameras.json` sets a model's preferred yaw/pitch/fov/margin/exposure for
+`--model`, `--sheet`, `--yaws` and `--turntable` (the record uses pitch 30).  A model can also carry it in its
+spec: `ModelSpec(..., meta={"render": {"pitch": 30}})`.  Explicit CLI flags always win.
+
+**Material hints (`render/materials.json`):** renderer-only extras keyed by GLB material name; they never
+reach the game files.  `anisotropy` gives grooved/brushed surfaces their streaked highlights: `mode`
+`uv-radial` (circles around uv `center`, for anything mapped with `uv_radial`: records, spun-metal knobs and
+platters), `tangent` (grooves along U, brushed metal), `model-radial` (circles around the model's Z axis);
+`roughness_across` / `roughness_along` the perceptual roughness across / along the grooves;
+`mask_roughness: [lo, hi]` fades the effect in where the roughness map lies between lo and hi (the record's
+smooth track gaps stay glossy).  Also `roughness`, `metallic`, `base_color` (multiplies the base map),
+`emissive_scale`, `normal_scale`, and `base_texture` / `mr_texture` / `normal_texture: false` to drop a map,
+so `--materials my_test.json` can try a finish without touching the model.
+
+How it works, briefly:
+* GLBs are read as written by `lib/glb.py` (glTF Y-up converted back to GTA Z-up), metallic-roughness PBR,
+  normal maps (Toksvig-filtered), vertex colours, emissive (+ `KHR_materials_emissive_strength`), alpha
+  mask/blend (prints/decals), `KHR_materials_anisotropy`.
+* Studio: a procedural camera-relative soft-box environment (key front-left, fill right, rim strip
+  back-right, strip back-left, overhead box, low back sweep, low front bounce card, small kicker) on a dark
+  gradient.  It is GGX pre-filtered into a cube map (split sum + DFG table) for reflections and projected to
+  SH9 for diffuse light.  The rig moves with the camera, so every yaw is lit the same way (a turntable).
+* Phase 1, visibility: hundreds of orthographic depth maps from a Fibonacci sphere of directions give
+  noise-free ambient occlusion, a reflection-cone occlusion and the floor's sky visibility (contact shadow).
+* Phase 2, light: jittered frames (tent filter, so 32-64 samples per pixel of anti-aliasing) accumulate in
+  float.  Environment frames add SH x AO diffuse, occluded reflections, emission and coverage.  Soft-box
+  frames light the three shadow-casting boxes from a new point of their area each frame (shadow maps +
+  analytic GGX), which gives true soft shadows and reflections.  Anisotropic materials use the
+  anisotropic GGX (stochastic VNDF sampling for the environment).
+* The floor is a shadow catcher: black with alpha = the fraction of light the props take away from an empty
+  floor, so it composites onto any background.  Bloom from the HDR image, ACES/AgX/neutral tone mapping,
+  sRGB and a 1-LSB dither give straight-alpha RGBA8.

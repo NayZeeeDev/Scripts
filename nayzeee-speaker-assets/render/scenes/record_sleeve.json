@@ -1,0 +1,8 @@
+{
+  "_about": "Shop shot: sleeve A standing (origin = bottom-edge centre, cover +Y) with the record half out behind it toward the viewer's right (-X).",
+  "parts": [
+    { "model": "nayzeee_sleeve_a" },
+    { "model": "nayzeee_vinyl", "pos": [-0.110, -0.0045, 0.1575], "rot": [-90, 0, 0] }
+  ],
+  "camera": { "yaw": 14, "pitch": 8, "fov": 28 }
+}

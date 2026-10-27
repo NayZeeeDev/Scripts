@@ -4,13 +4,13 @@
 A hand-written WebGL2 renderer (render/renderer.js + render/shaders.js) runs in the preinstalled headless
 Chromium through Playwright (render/run.js).  It does GGX PBR with normal maps and anisotropic
 grooves, a procedural soft-box studio, soft shadows, ambient occlusion, a contact shadow on a transparent
-floor, bloom, AgX/ACES tone mapping and heavy supersampling.
+floor, bloom, ACES/AgX tone mapping and heavy supersampling (32-64 jittered samples per pixel).
 
     python3 render.py --model nayzeee_vinyl                          # -> out/previews/nayzeee_vinyl.png (512 px)
     python3 render.py --model nayzeee_vinyl --size 1024 --out shot.png --yaw 35 --pitch 18 --fov 30
     python3 render.py --model nayzeee_vinyl --quick                  # fast draft while modelling
-    python3 render.py --parts nayzeee_audio_g nayzeee_tt_platter:0.3,0,0.785 \\
-                      "nayzeee_tt_arm:0.075,-0.125,0.835:0,0,-24" nayzeee_vinyl:0.3,0,0.811 --out console.png
+    python3 render.py --parts nayzeee_audio_g nayzeee_tt_platter:0.3,0,0.785 nayzeee_vinyl:0.3,0,0.811 \\
+                      "nayzeee_tt_arm:0.075,-0.125,0.835:0,0,-33.6" --out console.png    # arm at groove radius 0.12
     python3 render.py --scene render/scenes/console_playing.json --out console.png
     python3 render.py --model nayzeee_vinyl --yaws 0,35,70 --out strip.png       # several angles in one row
     python3 render.py --model nayzeee_vinyl --turntable 12 --out tt.png          # tt_000..011.png + tt_grid.png + tt.webp
@@ -46,14 +46,14 @@ CACHE_GLB = os.path.join(ROOT, "cache", "render", "glb")
 PREVIEW_DIR = os.path.join(ROOT, "out", "previews")
 LAYOUT = os.path.join(ROOT, "out", "layout.json")
 
-QUALITY = {               # lighting frames (= samples per pixel), visibility directions
-    "draft": (24, 128),
-    "normal": (96, 384),
-    "high": (192, 768),
+QUALITY = {               # soft-box frames (soft shadows), environment frames (anti-aliasing), AO directions
+    "draft": (24, 16, 128),
+    "normal": (96, 32, 384),
+    "high": (192, 64, 768),
 }
 DEFAULTS = {
     "size": "512", "yaw": 35.0, "pitch": 18.0, "fov": 30.0, "margin": 0.06, "distance_scale": None,
-    "bg": "transparent", "exposure": 1.0, "tonemap": "agx", "quality": "normal", "samples": None,
+    "bg": "transparent", "exposure": 1.0, "tonemap": "aces", "quality": "normal", "samples": None,
     "ao_samples": None, "shadow": 1.0, "bloom": 1.0, "spec_occlusion": 1.0, "ground": "auto",
 }
 
@@ -164,7 +164,8 @@ def build_glb(name: str, dest_dir: str = CACHE_GLB) -> str:
     glb.write_glb(tmp, name, spec.parts)
     os.replace(tmp, path)
     with open(path + ".meta.json", "w") as f:
-        json.dump({"export": bool(spec.export), "description": spec.description or ""}, f)
+        json.dump({"export": bool(spec.export), "description": spec.description or "",
+                   "render": (spec.meta or {}).get("render", {})}, f)
     return path
 
 
@@ -196,6 +197,29 @@ def resolve_glb(name: str, policy: str = "auto", log=print) -> str:
     p = build_glb(name)
     log(f"render: built {name}.glb from models/{name}.py ({time.time() - t0:.1f} s)")
     return p
+
+
+def model_render_hints(name: str) -> dict:
+    """Preferred camera/look for a model: render/cameras.json, then the model's meta["render"] (layout.json)."""
+    hints = {}
+    try:
+        with open(os.path.join(RENDER_DIR, "cameras.json")) as f:
+            hints.update(json.load(f).get(name, {}))
+    except (OSError, ValueError):
+        pass
+    try:
+        with open(LAYOUT) as f:
+            hints.update(json.load(f)["models"].get(name, {}).get("meta", {}).get("render", {}))
+    except (OSError, ValueError, KeyError):
+        pass
+    meta = os.path.join(CACHE_GLB, f"{name}.glb.meta.json")
+    if os.path.isfile(meta):
+        try:
+            with open(meta) as f:
+                hints.update(json.load(f).get("render", {}))
+        except (OSError, ValueError):
+            pass
+    return {k.replace("-", "_"): v for k, v in hints.items() if not k.startswith("_")}
 
 
 def model_export_flag(name: str) -> bool:
@@ -291,7 +315,7 @@ def load_overrides(extra: str | None) -> dict:
 def make_job(opts: dict, parts: list, glbs: list, label: str, **camera_extra) -> dict:
     w, h = parse_size(opts["size"])
     q = QUALITY[opts["quality"]]
-    mats = resolve_matrices(parts)
+    mats = [p["matrix"] for p in parts] if all("matrix" in p for p in parts) else resolve_matrices(parts)
     cam = {"yaw": float(opts["yaw"]), "pitch": float(opts["pitch"]), "fov": float(opts["fov"]),
            "margin": float(opts["margin"])}
     if opts.get("distance_scale"):
@@ -312,11 +336,13 @@ def make_job(opts: dict, parts: list, glbs: list, label: str, **camera_extra) ->
         "instances": [{"glb": g, "matrix": [float(x) for x in m.T.reshape(-1)], "name": p["model"]}
                       for p, g, m in zip(parts, glbs, mats)],
         "camera": cam,
-        "samples": int(opts["samples"] or q[0]), "aoSamples": int(opts["ao_samples"] or q[1]),
+        "samples": int(opts["samples"] or q[0]), "aoSamples": int(opts["ao_samples"] or q[2]),
         "exposure": float(opts["exposure"]), "tonemap": opts["tonemap"], "shadow": float(opts["shadow"]),
         "bloom": float(opts["bloom"]), "background": parse_bg(opts["bg"]),
         "specOcclusion": float(opts["spec_occlusion"]), "overrides": opts["overrides"],
     }
+    if not opts["samples"]:
+        job["envSamples"] = q[1]
     if ground_v != "auto":
         job["ground"] = ground_v
     if opts.get("debug"):
@@ -410,10 +436,10 @@ def main(argv=None) -> int:
     look = ap.add_argument_group("look")
     look.add_argument("--bg", help="transparent (default) or #rrggbb")
     look.add_argument("--exposure", type=float, help="linear exposure multiplier (default 1.0)")
-    look.add_argument("--tonemap", choices=["agx", "aces", "neutral", "linear"], help="tone curve (default agx)")
+    look.add_argument("--tonemap", choices=["aces", "agx", "neutral", "linear"], help="tone curve (default aces)")
     look.add_argument("--quality", choices=sorted(QUALITY), help="draft / normal / high sample counts (default normal)")
     look.add_argument("--quick", action="store_true", help="= --quality draft (fast check while modelling)")
-    look.add_argument("--samples", type=int, help="lighting frames = samples per pixel (overrides --quality)")
+    look.add_argument("--samples", type=int, help="soft-box frames (soft-shadow samples); anti-aliasing frames follow as max(16, N/3)")
     look.add_argument("--ao-samples", type=int, help="ambient-occlusion directions (overrides --quality)")
     look.add_argument("--shadow", type=float, help="floor shadow opacity, 0 = no floor (default 1.0)")
     look.add_argument("--ground", help="floor height in metres (default: lowest point of the scene)")
@@ -424,12 +450,15 @@ def main(argv=None) -> int:
     src = ap.add_argument_group("sources")
     src.add_argument("--glb", choices=["auto", "out", "fresh"], default="auto",
                      help="auto: out/glb when up to date, else build in-process (cache/render/glb); out: only out/glb; fresh: always rebuild")
+    src.add_argument("--skip-missing", action="store_true",
+                     help="leave out parts whose model does not exist yet (instead of failing)")
     ap.add_argument("--verbose", "-v", action="store_true")
     a = ap.parse_args(argv)
 
     if not (a.model or a.parts or a.scene or a.sheet):
         ap.error("give --model, --parts, --scene or --sheet")
-    log = (lambda *x: print(*x, file=sys.stderr)) if True else None
+    def log(*x):
+        print(*x, file=sys.stderr)
 
     scene = {}
     if a.scene:
@@ -448,6 +477,15 @@ def main(argv=None) -> int:
         if v is not None:
             opts[k] = v
     opts["overrides"] = load_overrides(a.materials or scene.get("materials"))
+
+    def with_hints(o: dict, name: str) -> dict:
+        """o + the model's camera hints, except where the CLI or the scene set the value."""
+        o = dict(o)
+        fixed = {k for k, v in cli.items() if v is not None} | set(scene.get("render", {})) | set(scene.get("camera", {}))
+        for k, v in model_render_hints(name).items():
+            if k in DEFAULTS and k not in fixed:
+                o[k] = v
+        return o
     if a.sheet and a.size is None and "size" not in scene.get("render", {}):
         opts["size"] = "384"
 
@@ -462,7 +500,7 @@ def main(argv=None) -> int:
         jobs, labels, subs = [], [], []
         for n in names:
             g = resolve_glb(n, a.glb, log)
-            jobs.append(make_job(opts, [{"model": n}], [g], n))
+            jobs.append(make_job(with_hints(opts, n), [{"model": n}], [g], n))
             labels.append(n)
         results = run_jobs(jobs, a.verbose)
         for (img, st), n in zip(results, names):
@@ -479,13 +517,29 @@ def main(argv=None) -> int:
         parts = [parse_part(s) for s in a.parts]
     elif a.model:
         parts = [{"model": a.model, "pos": [0, 0, 0], "rot": [0, 0, 0], "scale": 1.0}]
+        opts = with_hints(opts, os.path.splitext(os.path.basename(a.model))[0])
     else:
         parts = [{"model": p["model"], "pos": p.get("pos", [0, 0, 0]), "rot": p.get("rot", [0, 0, 0]),
                   "scale": p.get("scale", 1.0), **({"parent": p["parent"]} if "parent" in p else {})}
                  for p in scene.get("parts", [])]
         if not parts:
             ap.error("scene has no parts")
-    glbs = [resolve_glb(p["model"], a.glb, log) for p in parts]
+    glbs = []
+    keep = []
+    for i, p in enumerate(parts):
+        try:
+            glbs.append(resolve_glb(p["model"], a.glb, log))
+            keep.append(i)
+        except FileNotFoundError as e:
+            if not a.skip_missing:
+                raise SystemExit(f"render: {e}  (use --skip-missing to render the parts that exist)")
+            log(f"render: skipping {p['model']} (no model yet)")
+    if len(keep) != len(parts):
+        # world matrices are resolved with the full list so children keep their parent's transform
+        mats = resolve_matrices(parts)
+        parts = [{"model": parts[i]["model"], "matrix": mats[i]} for i in keep]
+        if not parts:
+            raise SystemExit("render: none of the parts exist yet")
     stem_name = os.path.splitext(os.path.basename(a.scene))[0] if a.scene else \
         os.path.splitext(os.path.basename(parts[0]["model"]))[0]
     out = a.out or os.path.join(PREVIEW_DIR, f"{stem_name}.png")
@@ -504,7 +558,7 @@ def main(argv=None) -> int:
         for i, (img, _) in enumerate(results):
             save_png(img, f"{stem}_{i:03d}.png")
             frames.append(Image.fromarray(img, "RGBA"))
-        cols = a.cols or min(n, 6)
+        cols = a.cols or (n if n <= 6 else math.ceil(n / math.ceil(n / 6)))
         g = grid([r[0] for r in results], [f"{y % 360:.0f} deg" for y in yaws], cols)
         g.convert("RGB").save(f"{stem}_grid.png", compress_level=7)
         try:
@@ -533,5 +587,13 @@ def main(argv=None) -> int:
     return 0
 
 
+def _cli() -> int:
+    try:
+        return main()
+    except (ValueError, FileNotFoundError, RuntimeError, json.JSONDecodeError) as e:
+        print(f"render: error: {e}", file=sys.stderr)
+        return 2
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_cli())

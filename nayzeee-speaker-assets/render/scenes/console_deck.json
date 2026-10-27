@@ -1,0 +1,9 @@
+{
+  "_about": "Turntable deck close-up: platter + record + tonearm only (console-space offsets from the shared contract), arm on the record.",
+  "parts": [
+    { "model": "nayzeee_tt_platter", "pos": [0.300, 0.000, 0.785] },
+    { "model": "nayzeee_vinyl", "pos": [0.300, 0.000, 0.811] },
+    { "model": "nayzeee_tt_arm", "pos": [0.075, -0.125, 0.835], "rot": [0, 0, -33.6] }
+  ],
+  "camera": { "yaw": 24, "pitch": 34, "fov": 28 }
+}

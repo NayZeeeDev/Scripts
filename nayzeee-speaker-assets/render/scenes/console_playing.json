@@ -1,0 +1,11 @@
+{
+  "_about": "Record console (nayzeee_audio_g) playing a record, parts placed at the shared-contract offsets. Tonearm -33.6 deg about Z = stylus at groove radius 0.12 (lead-in -27.5, run-out -47.0).",
+  "parts": [
+    { "model": "nayzeee_audio_g" },
+    { "model": "nayzeee_tt_platter", "pos": [0.300, 0.000, 0.785] },
+    { "model": "nayzeee_vinyl", "pos": [0.300, 0.000, 0.811] },
+    { "model": "nayzeee_tt_arm", "pos": [0.075, -0.125, 0.835], "rot": [0, 0, -33.6] }
+  ],
+  "camera": { "yaw": 28, "pitch": 30, "fov": 30 },
+  "render": { "size": "768" }
+}

@@ -1,0 +1,10 @@
+{
+  "_about": "Preferred product-shot camera per model (used by --model, --sheet, --turntable, --yaws unless the CLI sets the value). A model can also carry these in its ModelSpec meta={'render': {...}}, which wins over this file. Keys: yaw, pitch, fov, margin, exposure, shadow.",
+  "nayzeee_vinyl": { "pitch": 30, "yaw": 30 },
+  "nayzeee_tt_platter": { "pitch": 30 },
+  "nayzeee_sleeve_a": { "pitch": 10, "yaw": 20 },
+  "nayzeee_sleeve_b": { "pitch": 10, "yaw": 20 },
+  "nayzeee_sleeve_c": { "pitch": 10, "yaw": 20 },
+  "nayzeee_audio_g": { "pitch": 24 },
+  "nayzeee_audio_h": { "pitch": 22 }
+}

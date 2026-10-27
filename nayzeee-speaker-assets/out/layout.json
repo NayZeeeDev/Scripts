@@ -1,6 +1,464 @@
 {
  "axes": "+Z up, +Y front, +X viewer's left",
  "models": {
+  "nayzeee_audio_g": {
+   "anchors": {
+    "arm_offset": {
+     "note": "nayzeee_tt_arm origin = pivot; rot z 0 = parked on the rest",
+     "pos": [0.075, -0.125, 0.835],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "arm_rest_local": {
+     "note": "console-space top of the arm rest (arm-local y 0.225 rests here)",
+     "pos": [0.075, 0.1, 0.825],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "lead_in_radius": {
+     "note": "x = groove radius from the platter centre; rot z = arm angle there",
+     "pos": [0.146, 0.0, 0.0],
+     "rot": [0.0, 0.0, -27.54]
+    },
+    "platter_offset": {
+     "note": "nayzeee_tt_platter origin (centre of its bottom face)",
+     "pos": [0.3, 0.0, 0.785],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "platter_radius": {
+     "note": "x = platter radius",
+     "pos": [0.16, 0.0, 0.0],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "record_offset": {
+     "note": "nayzeee_vinyl origin when seated on the slipmat",
+     "pos": [0.3, 0.0, 0.811],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "record_radius": {
+     "note": "x = record radius",
+     "pos": [0.1515, 0.0, 0.0],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "record_top": {
+     "note": "console-space playing surface (stylus contact height)",
+     "pos": [0.3, 0.0, 0.8132],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "run_out_radius": {
+     "note": "x = groove radius from the platter centre; rot z = arm angle there",
+     "pos": [0.062, 0.0, 0.0],
+     "rot": [0.0, 0.0, -47.007]
+    },
+    "spindle_top": {
+     "note": "console-space spindle tip",
+     "pos": [0.3, 0.0, 0.825],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "stylus_local": {
+     "note": "ARM-LOCAL stylus tip (not console space)",
+     "pos": [0.0, 0.25, -0.022],
+     "rot": [0.0, 0.0, 0.0]
+    }
+   },
+   "bbox": {
+    "max": [0.5, 0.21, 0.838034],
+    "min": [-0.5, -0.2092, 0.0],
+    "size": [1.0, 0.4192, 0.838034]
+   },
+   "collision": {
+    "max": [0.5, 0.21, 0.836313],
+    "min": [-0.5, -0.21, 0.000763],
+    "shapes": 8,
+    "volume": 0.168784
+   },
+   "description": "Record Console: walnut mid-century cabinet on splayed legs, woven grille, deck plinth (left) and control panel (right). Platter, tonearm and record are separate props at the anchors.",
+   "export": true,
+   "flags": 537001984,
+   "lod_distances": {
+    "archetype": 120.0,
+    "high": 16.0,
+    "medium": 9998.0
+   },
+   "lods": {
+    "high": {
+     "tris": 20951,
+     "verts": 15745
+    },
+    "medium": {
+     "detail": 0.35,
+     "tris": 6545,
+     "verts": 6664
+    }
+   },
+   "materials": ["walnut", "tt_brass", "fabric_grille_dark", "brushed_aluminium", "matte_black_plastic", "speaker_grille_round", "chrome", "gloss_black_plastic", "print_decal", "teal_plastic", "white_plastic", "tt_lacquer_black", "rubber", "gunmetal", "brushed_aluminium_radial", "satin_graphite", "vu_meter_amber", "tt_plate", "led_teal", "tt_alu_knurl"],
+   "meta": {
+    "render": {
+     "pitch": 24
+    },
+    "turntable": {
+     "arm_angle_lead_in_deg": -27.54,
+     "arm_angle_run_out_deg": -47.007,
+     "arm_length": 0.25,
+     "arm_lift_deg": 3.0,
+     "arm_offset": [0.075, -0.125, 0.835],
+     "arm_rest": [0.075, 0.1, 0.825],
+     "deck_top": 0.785,
+     "lead_in_radius": 0.146,
+     "pivot_to_platter_centre": 0.257391,
+     "platter_offset": [0.3, 0.0, 0.785],
+     "platter_radius": 0.16,
+     "record_offset": [0.3, 0.0, 0.811],
+     "record_radius": 0.1515,
+     "record_thickness": 0.0022,
+     "record_top": 0.8132,
+     "run_out_radius": 0.062,
+     "spin_deg_per_s_33rpm": 200.0,
+     "spindle_top": 0.825,
+     "stylus_local": [0.0, 0.25, -0.022]
+    }
+   },
+   "sphere": {
+    "centre": [0.0, 0.0004, 0.419017],
+    "radius": 0.657976
+   }
+  },
+  "nayzeee_sleeve_a": {
+   "anchors": {
+    "bottom_centre": {
+     "note": "model origin = centre of the bottom edge",
+     "pos": [0.0, 0.0, 0.0],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "cover_centre": {
+     "note": "front cover centre (+Y)",
+     "pos": [0.0, 0.002, 0.1575],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "record_mouth": {
+     "note": "open edge (-X): the record slides out here, centred in the thickness",
+     "pos": [-0.1575, 0.0, 0.1575],
+     "rot": [0.0, 0.0, 0.0]
+    }
+   },
+   "bbox": {
+    "max": [0.1575, 0.002, 0.315],
+    "min": [-0.1575, -0.002, 0.0],
+    "size": [0.315, 0.004, 0.315]
+   },
+   "collision": {
+    "max": [0.1575, 0.002, 0.315],
+    "min": [-0.1575, -0.002, 0.0],
+    "shapes": 1,
+    "volume": 0.000397
+   },
+   "description": "Record sleeve A for the shop display: a real pocket open on the -X edge; front texture nayzeee_cover_a is runtime-replaceable (UV 0..1 over the front).",
+   "export": true,
+   "flags": 537001984,
+   "lod_distances": {
+    "archetype": 50.0,
+    "high": 5.0,
+    "medium": 9998.0
+   },
+   "lods": {
+    "high": {
+     "tris": 156,
+     "verts": 204
+    },
+    "medium": {
+     "detail": 0.5,
+     "tris": 124,
+     "verts": 188
+    }
+   },
+   "materials": ["sleeve_cover_a", "sleeve_card", "tt_sleeve_back"],
+   "meta": {
+    "cover_texture": "nayzeee_cover_a",
+    "inner_gap": 0.003,
+    "open_edge": "-X",
+    "render": {
+     "pitch": 10,
+     "yaw": 20
+    },
+    "size": [0.315, 0.004, 0.315]
+   },
+   "sphere": {
+    "centre": [0.0, 0.0, 0.1575],
+    "radius": 0.221628
+   }
+  },
+  "nayzeee_sleeve_b": {
+   "anchors": {
+    "bottom_centre": {
+     "note": "model origin = centre of the bottom edge",
+     "pos": [0.0, 0.0, 0.0],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "cover_centre": {
+     "note": "front cover centre (+Y)",
+     "pos": [0.0, 0.002, 0.1575],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "record_mouth": {
+     "note": "open edge (-X): the record slides out here, centred in the thickness",
+     "pos": [-0.1575, 0.0, 0.1575],
+     "rot": [0.0, 0.0, 0.0]
+    }
+   },
+   "bbox": {
+    "max": [0.1575, 0.002, 0.315],
+    "min": [-0.1575, -0.002, 0.0],
+    "size": [0.315, 0.004, 0.315]
+   },
+   "collision": {
+    "max": [0.1575, 0.002, 0.315],
+    "min": [-0.1575, -0.002, 0.0],
+    "shapes": 1,
+    "volume": 0.000397
+   },
+   "description": "Record sleeve B for the shop display: a real pocket open on the -X edge; front texture nayzeee_cover_b is runtime-replaceable (UV 0..1 over the front).",
+   "export": true,
+   "flags": 537001984,
+   "lod_distances": {
+    "archetype": 50.0,
+    "high": 5.0,
+    "medium": 9998.0
+   },
+   "lods": {
+    "high": {
+     "tris": 156,
+     "verts": 204
+    },
+    "medium": {
+     "detail": 0.5,
+     "tris": 124,
+     "verts": 188
+    }
+   },
+   "materials": ["sleeve_cover_b", "sleeve_card", "tt_sleeve_back"],
+   "meta": {
+    "cover_texture": "nayzeee_cover_b",
+    "inner_gap": 0.003,
+    "open_edge": "-X",
+    "render": {
+     "pitch": 10,
+     "yaw": 20
+    },
+    "size": [0.315, 0.004, 0.315]
+   },
+   "sphere": {
+    "centre": [0.0, 0.0, 0.1575],
+    "radius": 0.221628
+   }
+  },
+  "nayzeee_sleeve_c": {
+   "anchors": {
+    "bottom_centre": {
+     "note": "model origin = centre of the bottom edge",
+     "pos": [0.0, 0.0, 0.0],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "cover_centre": {
+     "note": "front cover centre (+Y)",
+     "pos": [0.0, 0.002, 0.1575],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "record_mouth": {
+     "note": "open edge (-X): the record slides out here, centred in the thickness",
+     "pos": [-0.1575, 0.0, 0.1575],
+     "rot": [0.0, 0.0, 0.0]
+    }
+   },
+   "bbox": {
+    "max": [0.1575, 0.002, 0.315],
+    "min": [-0.1575, -0.002, 0.0],
+    "size": [0.315, 0.004, 0.315]
+   },
+   "collision": {
+    "max": [0.1575, 0.002, 0.315],
+    "min": [-0.1575, -0.002, 0.0],
+    "shapes": 1,
+    "volume": 0.000397
+   },
+   "description": "Record sleeve C for the shop display: a real pocket open on the -X edge; front texture nayzeee_cover_c is runtime-replaceable (UV 0..1 over the front).",
+   "export": true,
+   "flags": 537001984,
+   "lod_distances": {
+    "archetype": 50.0,
+    "high": 5.0,
+    "medium": 9998.0
+   },
+   "lods": {
+    "high": {
+     "tris": 156,
+     "verts": 204
+    },
+    "medium": {
+     "detail": 0.5,
+     "tris": 124,
+     "verts": 188
+    }
+   },
+   "materials": ["sleeve_cover_c", "sleeve_card", "tt_sleeve_back"],
+   "meta": {
+    "cover_texture": "nayzeee_cover_c",
+    "inner_gap": 0.003,
+    "open_edge": "-X",
+    "render": {
+     "pitch": 10,
+     "yaw": 20
+    },
+    "size": [0.315, 0.004, 0.315]
+   },
+   "sphere": {
+    "centre": [0.0, 0.0, 0.1575],
+    "radius": 0.221628
+   }
+  },
+  "nayzeee_tt_arm": {
+   "anchors": {
+    "finger_lift": {
+     "note": "finger lift (before the offset turn)",
+     "pos": [-0.022, 0.262, -0.006],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "pivot": {
+     "note": "model origin = pivot; rotate about Z to swing (negative = over the record), about local X to lift the tip (positive, ~3 deg)",
+     "pos": [0.0, 0.0, 0.0],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "rest_contact": {
+     "note": "tube underside resting on the arm rest post (console 0.075, 0.100, 0.825)",
+     "pos": [0.0, 0.225, -0.01],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "stylus_tip": {
+     "note": "needle tip; touches the record top (console z 0.8132) when level",
+     "pos": [0.0, 0.25, -0.022],
+     "rot": [0.0, 0.0, 0.0]
+    }
+   },
+   "bbox": {
+    "max": [0.0207, 0.272963, 0.0115],
+    "min": [-0.020767, -0.072, -0.047],
+    "size": [0.041467, 0.344963, 0.0585]
+   },
+   "collision": {
+    "max": [0.0185, 0.272, 0.0115],
+    "min": [-0.0185, -0.064, -0.047],
+    "shapes": 4,
+    "volume": 0.000124
+   },
+   "description": "Tonearm: gimbal pivot, chrome tube, counterweight, offset headshell with finger lift and a teal-accented cartridge. Origin = pivot (console attach offset 0.075, -0.125, 0.835).",
+   "export": true,
+   "flags": 537001984,
+   "lod_distances": {
+    "archetype": 60.0,
+    "high": 6.0,
+    "medium": 9998.0
+   },
+   "lods": {
+    "high": {
+     "tris": 10302,
+     "verts": 7209
+    },
+    "medium": {
+     "detail": 0.4,
+     "tris": 3378,
+     "verts": 2749
+    }
+   },
+   "materials": ["gunmetal", "tt_alu_knurl", "brushed_aluminium_radial", "satin_graphite", "chrome", "teal_plastic", "brushed_aluminium", "gloss_black_plastic", "matte_black_plastic", "print_decal"],
+   "meta": {
+    "angle_lead_in_deg": -27.54,
+    "angle_run_out_deg": -47.007,
+    "arm_length": 0.25,
+    "console_attach_offset": [0.075, -0.125, 0.835],
+    "headshell_offset_deg": -18.0,
+    "lift_deg": 3.0,
+    "render": {
+     "pitch": 24,
+     "yaw": 55
+    },
+    "rest_local_y": 0.225,
+    "stylus_local": [0.0, 0.25, -0.022],
+    "tube_centre_z": -0.006,
+    "tube_radius": 0.004
+   },
+   "sphere": {
+    "centre": [-3.3e-05, 0.100482, -0.01775],
+    "radius": 0.174123
+   }
+  },
+  "nayzeee_tt_platter": {
+   "anchors": {
+    "bottom_centre": {
+     "note": "model origin = centre of the bottom face; sits on the deck top",
+     "pos": [0.0, 0.0, 0.0],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "record_seat": {
+     "note": "top of the slipmat: nayzeee_vinyl origin goes here",
+     "pos": [0.0, 0.0, 0.026],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "rim": {
+     "note": "strobe rim, radius 0.160",
+     "pos": [0.16, 0.0, 0.0135],
+     "rot": [0.0, 0.0, 0.0]
+    },
+    "spindle_top": {
+     "note": "tip of the spindle",
+     "pos": [0.0, 0.0, 0.04],
+     "rot": [0.0, 0.0, 0.0]
+    }
+   },
+   "bbox": {
+    "max": [0.16, 0.16, 0.04],
+    "min": [-0.16, -0.16, 0.0],
+    "size": [0.32, 0.32, 0.04]
+   },
+   "collision": {
+    "max": [0.16, 0.16, 0.04],
+    "min": [-0.16, -0.16, 0.0],
+    "shapes": 2,
+    "volume": 0.002092
+   },
+   "description": "Turntable platter: spun aluminium with a strobe rim, printed felt slipmat, chrome spindle. Spins about +Z on the record console (attach offset 0.300, 0, 0.785).",
+   "export": true,
+   "flags": 537001984,
+   "lod_distances": {
+    "archetype": 60.0,
+    "high": 8.0,
+    "medium": 9998.0
+   },
+   "lods": {
+    "high": {
+     "tris": 3104,
+     "verts": 2490
+    },
+    "medium": {
+     "detail": 0.35,
+     "tris": 843,
+     "verts": 763
+    }
+   },
+   "materials": ["gunmetal", "brushed_aluminium_radial", "tt_platter_strobe", "tt_slipmat", "chrome"],
+   "meta": {
+    "console_attach_offset": [0.3, 0.0, 0.785],
+    "radius": 0.16,
+    "render": {
+     "pitch": 30
+    },
+    "slipmat_top": 0.026,
+    "spin_axis": "+Z",
+    "spin_deg_per_s_33rpm": 200.0,
+    "spindle_radius": 0.0035,
+    "spindle_top": 0.04
+   },
+   "sphere": {
+    "centre": [0.0, 0.0, 0.02],
+    "radius": 0.160683
+   }
+  },
   "nayzeee_vinyl": {
    "anchors": {
     "bottom_centre": {

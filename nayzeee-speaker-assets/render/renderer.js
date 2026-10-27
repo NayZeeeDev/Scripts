@@ -60,12 +60,11 @@
       const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
       const det = a * A + b * B + c * C;
       const inv = 1 / (det || 1e-30);
-      // cofactor matrix / det == inverse transpose; store column-major
+      // cofactor matrix / det == inverse transpose, written column-major
       const o = new Float32Array(9);
       o[0] = A * inv; o[1] = -(b * i - c * h) * inv; o[2] = (b * f - c * e) * inv;
       o[3] = B * inv; o[4] = (a * i - c * g) * inv; o[5] = -(a * f - c * d) * inv;
       o[6] = C * inv; o[7] = -(a * h - b * g) * inv; o[8] = (a * e - b * d) * inv;
-      // o currently holds the inverse in row-major order == the inverse transpose in column-major
       return { m: o, det };
     },
     ortho(l, r, b, t, n, f) {
@@ -92,16 +91,6 @@
   // glTF (x, y, z) -> GTA (x, -z, y)
   const GLTF_TO_GTA = (() => { const m = M.ident(); m[5] = 0; m[6] = 1; m[9] = -1; m[10] = 0; return m; })();
 
-  function trs(pos, rotDeg, scale) {
-    // R = Rz * Ry * Rx (rotate about X first, then Y, then Z; all about the parent axes)
-    let m = M.translate(pos[0], pos[1], pos[2]);
-    m = M.mul(m, M.rotZ(rotDeg[2]));
-    m = M.mul(m, M.rotY(rotDeg[1]));
-    m = M.mul(m, M.rotX(rotDeg[0]));
-    const s = Array.isArray(scale) ? scale : [scale, scale, scale];
-    return M.mul(m, M.scale(s[0], s[1], s[2]));
-  }
-
   const ANISO_SPP_ENV = 6;     // stochastic anisotropic samples per pixel per environment frame
   const ANISO_SPP_LIGHTS = 2;  // ... per soft-box frame
 
@@ -117,15 +106,16 @@
   // shadow: 0..2 = shadow-casting box, lit analytically with a shadow map (diffuse + reflection);
   // accent: true = small unshadowed light, lit analytically (max 2); otherwise baked into the environment map.
   const DEFAULT_RIG = {
-    sky: { top: [0.030, 0.032, 0.035], horizon: [0.058, 0.058, 0.060], floorHorizon: [0.050, 0.048, 0.046], floorBottom: [0.018, 0.018, 0.018] },
+    sky: { top: [0.041, 0.043, 0.047], horizon: [0.078, 0.078, 0.081], floorHorizon: [0.068, 0.065, 0.062], floorBottom: [0.024, 0.024, 0.024] },
     boxes: [
-      { name: 'key', az: -46, el: 36, w: 0.46, h: 0.34, r: 0.10, soft: 0.07, L: 5.5, tint: [1.0, 0.975, 0.94], shadow: 0 },
-      { name: 'fill', az: 64, el: 12, w: 0.62, h: 0.36, r: 0.12, soft: 0.10, L: 1.2, tint: [0.92, 0.96, 1.0], shadow: 1 },
-      { name: 'rim', az: 148, el: 22, w: 0.12, h: 0.55, r: 0.05, soft: 0.04, L: 6.0, tint: [1.0, 1.0, 1.0], shadow: 2 },
-      { name: 'strip', az: -150, el: 18, w: 0.09, h: 0.50, r: 0.04, soft: 0.04, L: 3.0, tint: [1.0, 1.0, 1.0], shadow: -1 },
-      { name: 'top', az: 180, el: 76, w: 0.70, h: 0.60, r: 0.20, soft: 0.12, L: 1.4, tint: [1.0, 1.0, 1.0], shadow: -1 },
-      { name: 'sweep', az: 180, el: 16, w: 1.10, h: 0.28, r: 0.20, soft: 0.15, L: 0.55, tint: [1.0, 1.0, 1.0], shadow: -1 },
-      { name: 'kicker', az: 162, el: 34, w: 0.035, h: 0.035, r: 0.035, soft: 0.02, L: 60.0, tint: [1.0, 0.98, 0.95], shadow: -1, accent: true },
+      { name: 'key', az: -46, el: 36, w: 0.46, h: 0.34, r: 0.10, soft: 0.07, L: 7.43, tint: [1.0, 0.975, 0.94], shadow: 0 },
+      { name: 'fill', az: 64, el: 12, w: 0.62, h: 0.36, r: 0.12, soft: 0.10, L: 1.62, tint: [0.92, 0.96, 1.0], shadow: 1 },
+      { name: 'rim', az: 148, el: 22, w: 0.12, h: 0.55, r: 0.05, soft: 0.04, L: 8.1, tint: [1.0, 1.0, 1.0], shadow: 2 },
+      { name: 'strip', az: -150, el: 18, w: 0.09, h: 0.50, r: 0.04, soft: 0.04, L: 4.05, tint: [1.0, 1.0, 1.0], shadow: -1 },
+      { name: 'top', az: 180, el: 76, w: 0.70, h: 0.60, r: 0.20, soft: 0.12, L: 1.89, tint: [1.0, 1.0, 1.0], shadow: -1 },
+      { name: 'sweep', az: 180, el: 9, w: 1.10, h: 0.16, r: 0.12, soft: 0.12, L: 0.42, tint: [1.0, 1.0, 1.0], shadow: -1 },
+      { name: 'bounce', az: 0, el: -16, w: 1.40, h: 0.24, r: 0.20, soft: 0.18, L: 0.432, tint: [1.0, 1.0, 1.0], shadow: -1 },
+      { name: 'kicker', az: 162, el: 34, w: 0.035, h: 0.035, r: 0.035, soft: 0.02, L: 81, tint: [1.0, 0.98, 0.95], shadow: -1, accent: true },
     ],
   };
 
@@ -203,7 +193,6 @@
     m3(n, v) { const l = this.u(n); if (l) this.gl.uniformMatrix3fv(l, false, v); return this; }
     m4(n, v) { const l = this.u(n); if (l) this.gl.uniformMatrix4fv(l, false, v); return this; }
     m4v(n, v) { const l = this.u(n); if (l) this.gl.uniformMatrix4fv(l, false, v); return this; }
-    m3t(n, v) { const l = this.u(n); if (l) this.gl.uniformMatrix3fv(l, false, v); return this; }
   }
 
   // ------------------------------------------------------------------ renderer
@@ -230,9 +219,9 @@
         brdf: P(SH.FULLSCREEN_VS, SH.BRDF_LUT_FS, 'brdf'),
         depth: P(SH.DEPTH_VS, SH.DEPTH_FS, 'depth'),
         prepass: P(SH.MESH_VS, SH.DEPTH_FS, 'prepass'),
+        prepassMask: P(SH.MESH_VS, SH.PREPASS_MASK_FS, 'prepassMask'),
         aoFill: P(SH.FULLSCREEN_VS, SH.AO_FILL_FS, 'aoFill'),
         aoGround: P(SH.GROUND_VS, SH.AO_GROUND_FS, 'aoGround'),
-
         ground: P(SH.GROUND_VS, SH.GROUND_FS, 'ground'),
         copyAdd: P(SH.FULLSCREEN_VS, SH.COPY_ADD_FS, 'copyAdd'),
         bright: P(SH.FULLSCREEN_VS, SH.BRIGHT_FS, 'bright'),
@@ -734,7 +723,7 @@
         .i1('uHasOccl', mat.occlTex ? 1 : 0);
       const a = mat.aniso;
       if (a && a.strength > 0) {
-        const mode = { 'uv-radial': 1, radial: 1, tangent: 2, 'model-radial': 3 }[a.mode] || 1;
+        const mode = { 'uv-radial': 1, radial: 1, tangent: 2, 'model-radial': 3 }[a.mode] || 1;   // unknown -> uv-radial
         const c = a.center || (mode === 3 ? [0, 0] : [0.5, 0.5]);
         const mk = a.mask_roughness || [0, 0];
         p.f4('uAniso', [a.strength, a.roughness_across !== undefined ? a.roughness_across : 0.5, mode, a.roughness_along || 0]);
@@ -754,6 +743,9 @@
       if (o.emissive_scale !== undefined) m.emissive = m.emissive.map((c) => c * o.emissive_scale);
       if (o.normal_scale !== undefined) m.normalScale = o.normal_scale;
       if (o.anisotropy !== undefined) m.aniso = o.anisotropy;
+      if (o.base_texture === false) m.baseTex = null;
+      if (o.mr_texture === false) m.mrTex = null;
+      if (o.normal_texture === false) m.normalTex = null;
       return m;
     }
 
@@ -775,19 +767,24 @@
         }
     }
 
-    drawScene(p, inst, filter, perPrim) {
+    // geometry only (depth pre-pass): one program for everything
+    drawScene(p, inst, filter) {
       const gl = this.gl;
       for (const it of inst) {
         p.m4('uModel', it.matrix).m3('uNormalMat', it.normal);
         for (const pr of it.model.prims) {
-          const mat = it.mats.get(pr.material);
-          if (!filter(mat)) continue;
-          if (perPrim) perPrim(mat);
+          if (!filter(it.mats.get(pr.material))) continue;
           gl.bindVertexArray(pr.vao);
           gl.drawElements(gl.TRIANGLES, pr.count, gl.UNSIGNED_INT, 0);
         }
       }
-      gl.disable(gl.CULL_FACE);
+    }
+
+    // depth pre-pass: opaque prims with one program, alpha-masked prims with the alpha-tested one
+    prepass(inst, vpj) {
+      this.drawScene(this.p.prepass.use().m4('uViewProj', vpj), inst, (m) => m.alphaMode === 0);
+      if (inst.some((it) => [...it.mats.values()].some((m) => m.alphaMode === 1)))
+        this.drawPass(inst, (m) => m.alphaMode === 1, () => this.p.prepassMask, (q) => q.m4('uViewProj', vpj));
     }
 
     // ---------------- main entry
@@ -941,6 +938,7 @@
         return M.mul(M.ortho(-sphereR, sphereR, -sphereR, sphereR, sphereR * 0.5, sphereR * 3.5), M.view(ey2, rr, uu, ff));
       };
       const casterFilter = (m) => m.alphaMode !== 2;
+      const anyMask = inst.some((it) => [...it.mats.values()].some((m) => m.alphaMode === 1));
       const renderDepthLayer = (arr, layer, vp, size, offFactor, offUnits) => {
         gl.bindFramebuffer(gl.FRAMEBUFFER, arr.fb);
         gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, arr.tex, 0, layer);
@@ -954,11 +952,13 @@
         for (const it of inst) {
           p.m4('uModel', it.matrix);
           for (const pr of it.model.prims) {
-            if (!casterFilter(it.mats.get(pr.material))) continue;
+            if (it.mats.get(pr.material).alphaMode !== 0) continue;
             gl.bindVertexArray(pr.vao);
             gl.drawElements(gl.TRIANGLES, pr.count, gl.UNSIGNED_INT, 0);
           }
         }
+        if (anyMask)   // cut-outs cast cut-out shadows
+          this.drawPass(inst, (m) => m.alphaMode === 1, () => this.p.prepassMask, (q) => q.m4('uViewProj', vp));
         gl.disable(gl.POLYGON_OFFSET_FILL);
       };
       const jitterVP = (i) => {
@@ -1021,8 +1021,7 @@
         // depth pre-pass so that only the front-most surface accumulates
         gl.colorMask(false, false, false, false);
         gl.depthFunc(gl.LESS); gl.depthMask(true);
-        let p = this.p.prepass.use().m4('uViewProj', vpj);
-        this.drawScene(p, inst, casterFilter);
+        this.prepass(inst, vpj);
         mark('p1_prepass');
         gl.colorMask(true, true, true, true);
         gl.depthFunc(gl.LEQUAL); gl.depthMask(false);
@@ -1037,13 +1036,12 @@
         this.useMaterialSampler(null);
         mark('p1_ao_obj');
         if (groundZ !== null) {
-          const g = this.p.aoGround.use().m4('uViewProj', vpj).i1('uNumDirs', NAO)
+          this.p.aoGround.use().m4('uViewProj', vpj).i1('uNumDirs', NAO)
             .f3v('uDirs', dirsF).m4v('uDirVP', vpsF)
             .f1('uMapTexel', aoTexel).f1('uMapSize', aoSize).i1('tMaps', 5);
           gl.depthFunc(gl.LESS);
           gl.bindVertexArray(this.groundVAO);
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-          void g;
           mark('p1_ao_ground');
         }
         gl.disable(gl.BLEND); gl.depthMask(true); gl.depthFunc(gl.LESS);
@@ -1073,6 +1071,13 @@
       const shadowTexel = (2 * sphereR) / shadowSize;
       const nL = casters.length;
       const debugMode = { ao: 1, normal: 2, base: 3, spec: 4, diffuse: 5 }[job.debug] || 0;
+      // floor-shadow blur per light: the angular spacing of successive area samples, seen from mid-height
+      const height = Math.max(bmax[2] - (groundZ === null ? bmin[2] : groundZ), 1e-3);
+      const groundBlur = [0, 1, 2].map((k) => {
+        if (k >= nL) return 0;
+        const ang = widen[k] / Math.max(job.lightWiden !== undefined ? job.lightWiden : 0.5, 1e-3);   // sqrt(solid / frames)
+        return Math.min((ang * height * 0.6) / (2 * sphereR), 0.08);
+      });
       const fisBias = job.fisBias !== undefined ? job.fisBias : 0.5;
       const cubes = [[6, env.pre[0]], [8, env.raw[0]]];
       const anyBlend = inst.some((it) => [...it.mats.values()].some((m) => m.alphaMode === 2));
@@ -1103,7 +1108,7 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.colorMask(false, false, false, false);
         gl.depthFunc(gl.LESS); gl.depthMask(true);
-        this.drawScene(this.p.prepass.use().m4('uViewProj', vpj), inst, casterFilter);
+        this.prepass(inst, vpj);
         gl.colorMask(true, true, true, true);
         gl.depthFunc(gl.LEQUAL); gl.depthMask(false);
       };
@@ -1171,7 +1176,7 @@
         mark('p2b_prepass');
         bindShared();
         const xi = xiFor(fi + 7919, ANISO_SPP_LIGHTS);
-        const lightUniforms = (q) => q.i1('uNumLights', nL).f3v('uLDir', ldirs).f3v('uLE', lE).f1v('uLWiden', lw)
+        const lightUniforms = (q) => q.f3v('uLDir', ldirs).f3v('uLE', lE).f1v('uLWiden', lw)
           .m4v('uLVP', lvp).f1('uShadowTexel', shadowTexel).f1('uShadowSize', shadowSize);
         drawMaterials('lights', (q) => {
           lightUniforms(common(q, vpj)).f1('uTotalSamples', frames * ANISO_SPP_LIGHTS);
@@ -1182,7 +1187,8 @@
           const g = lightUniforms(this.p.ground.use());
           g.m4('uViewProj', vpj).f2('uRes', W, H).f1('uEnvUp', env.envUp).f1v('uLEz', lez).f1('uUnshadowed', unshadowed)
             .f1('uOpacity', shadowOpacity).f3('uFadeCentre', centre).f1('uFadeRadius', gsize * 0.95)
-            .f1('uEdgeFade', job.edgeFade !== undefined ? job.edgeFade : 0.06).i1('tShadow', 5).i1('tAOG', 11);
+            .f1('uEdgeFade', job.edgeFade !== undefined ? job.edgeFade : 0.06).i1('tShadow', 5).i1('tAOG', 11)
+            .f3('uGroundBlur', groundBlur).f1('uFrame', fi);
           gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, T.aoGroundF);
           gl.depthFunc(gl.LESS);
           gl.bindVertexArray(this.groundVAO);
@@ -1233,7 +1239,7 @@
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, T.bq[0]);
       const bg = job.background ? [...job.background, 1] : [0, 0, 0, 0];
       fp.i1('tAcc', 0).i1('tBloomA', 1).i1('tBloomB', 2).f1('uInvFrames', 1).f1('uExposure', exposure)
-        .f1('uBloom', bloom).i1('uTonemap', { agx: 0, aces: 1, neutral: 2, linear: 3 }[job.tonemap || 'agx'] || 0)
+        .f1('uBloom', bloom).i1('uTonemap', { agx: 0, aces: 1, neutral: 2, linear: 3 }[job.tonemap || 'aces'])
         .f4('uBg', bg).f2('uRes', W, H).f1('uDither', job.dither !== undefined ? job.dither : 1.0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       const out = new Uint8Array(W * H * 4);

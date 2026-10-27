@@ -221,6 +221,19 @@ void main() { gl_Position = uViewProj * (uModel * vec4(aPos, 1.0)); }`;
   const DEPTH_FS = HEAD + `
 void main() {}`;
 
+  // depth pre-pass for alpha-masked (cut-out) materials: same vertex shader, alpha test only
+  const PREPASS_MASK_FS = HEAD + `
+in vec2 vUV;
+in vec4 vColor;
+uniform vec4 uBaseFactor;
+uniform float uAlphaCutoff;
+uniform ivec4 uHas;
+uniform sampler2D tBase;
+void main() {
+  float a = uBaseFactor.a * vColor.a * (uHas.x == 1 ? texture(tBase, vUV).a : 1.0);
+  if (a < uAlphaCutoff) discard;
+}`;
+
   // ---------------------------------------------------------------- shared material code
   const MATERIAL = `
 in vec3 vWorld;
@@ -399,7 +412,6 @@ void main() { vWorld = aPos; gl_Position = uViewProj * vec4(aPos, 1.0); }`;
   // Lights evaluated per frame: slots 0..2 = shadow-casting soft boxes (one area sample per frame,
   // shadow map per slot), slots 3..4 = small unshadowed accent lights (occluded by AO / reflection occlusion).
   const LIGHTS = `
-uniform int uNumLights;
 uniform vec3 uLDir[5];       // world direction toward this frame's sample of each light
 uniform vec3 uLE[5];         // irradiance at normal incidence of that sample (rgb, tint included)
 uniform float uLWiden[5];    // GGX alpha added so successive samples blend into the box's reflection
@@ -642,14 +654,34 @@ uniform float uOpacity;
 uniform vec3 uFadeCentre;
 uniform float uFadeRadius;
 uniform float uEdgeFade;       // fade the shadow out near the image border (fraction of the frame)
+uniform vec3 uGroundBlur;      // per light: PCF radius in shadow-map uv (one sample's share of the box at object height)
+uniform float uFrame;
 layout(location = 0) out vec4 o;
+
+// soft floor shadow for one light: rotated 8-tap Poisson PCF (the rotation changes per pixel and frame)
+float floorShadow(int k, float radius, float rot) {
+  vec4 c = uLVP[k] * vec4(vWorld + vec3(0.0, 0.0, uShadowTexel), 1.0);
+  vec3 s = c.xyz * 0.5 + 0.5;
+  if (s.z >= 1.0) return 1.0;
+  float cs = cos(rot), sn = sin(rot);
+  mat2 R = mat2(cs, sn, -sn, cs) * radius;
+  const vec2 P[8] = vec2[8](vec2(-0.613, 0.617), vec2(0.170, -0.040), vec2(-0.299, -0.792), vec2(0.645, 0.493),
+                            vec2(-0.651, -0.172), vec2(0.421, -0.581), vec2(-0.094, 0.932), vec2(0.937, -0.102));
+  float v = 0.0;
+  for (int i = 0; i < 8; i++) {
+    vec2 uv = s.xy + R * P[i];
+    v += (uv.x <= 0.0 || uv.y <= 0.0 || uv.x >= 1.0 || uv.y >= 1.0) ? 1.0 : texture(tShadow, vec4(uv, float(k), s.z));
+  }
+  return v * 0.125;
+}
 void main() {
   vec4 g = texelFetch(tAOG, ivec2(gl_FragCoord.xy), 0);
   float ao = g.y > 1e-4 ? g.x / g.y : 1.0;
   float lit = uEnvUp * ao;
-  lit += uLEz[0] * shadowK(0, vWorld, vec3(0.0, 0.0, 1.0));
-  lit += uLEz[1] * shadowK(1, vWorld, vec3(0.0, 0.0, 1.0));
-  lit += uLEz[2] * shadowK(2, vWorld, vec3(0.0, 0.0, 1.0));
+  float rot = 6.2831853 * fract(hash12(gl_FragCoord.xy) + uFrame * 0.618034);
+  lit += uLEz[0] * floorShadow(0, uGroundBlur.x, rot);
+  lit += uLEz[1] * floorShadow(1, uGroundBlur.y, rot + 2.1);
+  lit += uLEz[2] * floorShadow(2, uGroundBlur.z, rot + 4.2);
   float a = (1.0 - lit / uUnshadowed) * uOpacity;
   float r = length(vWorld.xy - uFadeCentre.xy) / uFadeRadius;
   a *= 1.0 - smoothstep(0.7, 1.0, r);
@@ -834,6 +866,7 @@ void main() {
   float aq = aOut;
   if (aq > 0.5 / 255.0 && aq < 1.0 - 0.5 / 255.0) aq = clamp(aq + n2 * uDither / 255.0, 0.0, 1.0);
   else aq = aq < 0.5 / 255.0 ? 0.0 : 1.0;
+  aq = floor(aq * 255.0 + 0.5) / 255.0;          // quantise here so rgb can be cleared where alpha is 0
   if (uBg.a > 0.5) {
     o = vec4(mix(uBg.rgb, clamp(srgb, 0.0, 1.0), aq), 1.0);
   } else {
@@ -842,7 +875,7 @@ void main() {
 }`;
 
   root.NZ_SHADERS = {
-    FULLSCREEN_VS, ENV_FS, PREFILTER_FS, BRDF_LUT_FS, MESH_VS, DEPTH_VS, DEPTH_FS,
+    FULLSCREEN_VS, ENV_FS, PREFILTER_FS, BRDF_LUT_FS, MESH_VS, DEPTH_VS, DEPTH_FS, PREPASS_MASK_FS,
     AO_FS, AO_GROUND_FS, AO_FILL_FS, GROUND_VS, MAIN_FS, GROUND_FS, COPY_ADD_FS, BRIGHT_FS, DOWN_FS, BLUR_FS, FINAL_FS,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
