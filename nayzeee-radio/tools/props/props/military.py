@@ -35,13 +35,13 @@ from dataclasses import replace as dc_replace
 import numpy as np
 
 from nzprops import DecalCanvas, Geo, box, cylinder, extrude, fillet_poly, lathe, quad, rr_lathe, rrect, sweep, tube, vec
-from nzprops.mesh import chamfer_fillet_rect, polyline_fillet
+from nzprops.mesh import chamfer_fillet_rect, polyline_fillet, well_plate
 
-from .common import align, caution_label, rating_plate, screws
+from .common import align, caution_label, screws
 from .radio_common import (INK, battery_label, battery_pack, boss, charging_contacts, gooseneck, grille_holes,
-                           housing, ink, key, key_cap, knob, light_pipe, m_bumper_rubber, m_gunmetal, m_keypad_rubber,
-                           m_print_dark, m_ranger_green, m_soft_black, print_decal, screen_window,
-                           sma_nut, well_for, wells, whip_antenna)
+                           housing, ink, key, key_cap, knob, m_bumper_rubber, m_gunmetal, m_keypad_rubber,
+                           m_led_off, m_mesh, m_print_dark, m_ranger_green, m_soft_black, print_decal, screen_window,
+                           sma_nut, whip_antenna)
 from .radio_kit import radio
 
 # ---------------------------------------------------------------------------------------------
@@ -100,13 +100,27 @@ def _face_mat(r, base, name):
     return r.mat_from(name, dc_replace(r.mats[base], layer="face"))
 
 
+def _to_face(r, g: Geo, hidden=None):
+    """Move every chart of `g` onto the face atlas (the same materials with layer='face'); charts whose mean normal
+    points along `hidden` (a screw head's underside, flush on the surface) are dropped."""
+    if hidden is not None:
+        hv = vec(hidden)
+        g.charts = [c for c in g.charts if float(np.dot(c.nrm.mean(axis=0), hv)) < 0.9]
+    for c in g.charts:
+        if not c.mat.startswith("mx_face_"):
+            m = r.mats[c.mat]
+            if m.layer != "face":
+                c.mat = _face_mat(r, c.mat, "mx_face_" + c.mat)
+    return g
+
+
 def m_emerg_orange(r):
-    return r.mat("mx_emerg_orange", color=(236, 104, 22), spec=0.42, gloss=0.55, bump="dimple", bump_amp=0.00005,
-                 bump_scale=0.0007, grain=0.03, edge=0.45, dirt=0.12, wear_color=(250, 160, 90))
+    return r.mat("mx_emerg_orange", color=(236, 104, 22), spec=0.42, gloss=0.55, bump="stipple", bump_amp=0.00002,
+                 bump_scale=0.0004, grain=0.03, edge=0.45, dirt=0.12, wear_color=(250, 160, 90))
 
 
 def m_knob_knurl(r, name="mx_knob_knurl"):
-    return r.mat(name, color=(26, 27, 29), spec=0.26, gloss=0.36, bump="knurl", bump_amp=0.00011, bump_scale=0.0008,
+    return r.mat(name, color=(26, 27, 29), spec=0.26, gloss=0.36, bump="ribs_u", bump_amp=0.00012, bump_scale=0.0007,
                  grain=0.03, grain_scale=0.02, edge=0.55, dirt=0.18, wear_color=(92, 94, 98), scratch=0.2)
 
 
@@ -127,7 +141,7 @@ def m_latch_steel(r):
 
 
 def m_strap_plate(r):
-    return r.mat("mx_strap_plate", color=(40, 42, 40), spec=0.2, gloss=0.3, bump="stipple", bump_amp=0.00004,
+    return r.mat("mx_strap_plate", color=(52, 55, 48), spec=0.2, gloss=0.3, bump="stipple", bump_amp=0.00004,
                  bump_scale=0.0005, grain=0.035, grain_scale=0.03, edge=0.6, dirt=0.25, wear_color=(84, 86, 82), cavity=0.6)
 
 
@@ -212,7 +226,10 @@ def corner_bumper(mat, sx, sy, top):
     else:
         z0 = Z0 - e
         caps = (True, False)
-    return extrude(poly, BUMPER_H, mat, bevel=0.0013, bevel_seg=2, z0=z0, caps=caps, smooth_angle=50, tag="bumper")
+    g = extrude(poly, BUMPER_H, mat, bevel=0.0013, bevel_seg=2, z0=z0, caps=caps, smooth_angle=50, tag="bumper")
+    # moulded draft: ~0.5 mm slimmer at the open end than over the corner
+    s_open = 1.0 - 0.0005 / (SX + e)
+    return g.taper(z0, z0 + BUMPER_H, s_open if top else 1.0, 1.0 if top else s_open)
 
 
 def rr_ring(w, h, cr, ring_w, t, mat, bevel=0.0006, tag="lip", n=5):
@@ -227,14 +244,15 @@ def rr_ring(w, h, cr, ring_w, t, mat, bevel=0.0006, tag="lip", n=5):
 
 
 def ring(mat, d_in, d_out, h, segs=24, bevel=0.0005, tag="ring"):
-    """Raised ring (guard ring, button collar) standing on z = 0 facing +Z: soft rounded top (6-point profile)."""
+    """Raised ring (guard ring, button collar) standing on z = 0 facing +Z: soft rounded top (6-point profile, walked
+    outer wall up -> over the top -> inner wall down, so the lathe's outside is on the right-hand side)."""
     ri, ro = d_in / 2, d_out / 2
     bv = min(bevel, h * 0.45, (ro - ri) * 0.3)
-    prof = [(ri, -0.0002), (ri, h - bv), (ri + bv, h), (ro - bv, h), (ro, h - bv), (ro, 0.0)]
+    prof = [(ro, 0.0), (ro, h - bv), (ro - bv, h), (ri + bv, h), (ri, h - bv), (ri, -0.0002)]
     return lathe(prof, mat, segs=segs, smooth_angle=50, tag=tag)
 
 
-def round_collar(mat, floor_mat, d_in, d_out, h, segs=20):
+def round_collar(mat, floor_mat, d_in, d_out, h, segs=16):
     """Raised round collar round a side button (standing on z = 0 facing +Z) + a dark floor disc inside."""
     g = ring(mat, d_in, d_out, h, segs=segs, bevel=0.0004, tag="collar")
     g += cylinder(d_in / 2, 0.0001, floor_mat, segs=segs, caps=(False, True), z0=0.00002, tag="collar_floor")
@@ -288,11 +306,20 @@ def strap_plate(r, plate_mat, web_mat, center_z, w=0.046, h=0.084, t=0.0022, y_f
     slot_hw, slot_hh = 0.0155, 0.0019
     zs = [center_z + 0.0254, center_z, center_z - 0.0254]
     holes = [(0.0, z - center_z, slot_hw, slot_hh, slot_hh) for z in zs]
-    wells(r, plate_mat, (0.0, y_face, center_z), (0, -1, 0), (0, 0, 1), (w, h), t, holes, depth=t, corner_n=2,
-          floor_mat=r.mat("mx_slot_floor", color=(14, 15, 15), spec=0.1, gloss=0.2, ao=1.0))
+    _wells(r, plate_mat, (0.0, y_face, center_z), (0, -1, 0), (0, 0, 1), (w, h), t, holes, depth=t, corner_n=2, outer_r=0.0035,
+           floor_mat=r.mat("mx_slot_floor", color=(14, 15, 15), spec=0.1, gloss=0.2, ao=1.0))
+    # moulded ribs either side of the slots + a raised border line (normal map only)
+    rb = DecalCanvas(w, h, ppm=20000)
+    for xs in (0.0035, w - 0.0035 - 0.0024):
+        for k in range(5):
+            y0 = 0.0080 + k * (h - 0.0160 - 0.0050) / 4
+            rb.rect(xs, y0, 0.0024, 0.0050, r=0.0008, color=(60, 63, 56), height=0.00035, spec=0.24, gloss=0.34)
+    r.decal(rb, center=(0.0, y_face - t, center_z), normal=(0, -1, 0), up=(0, 0, 1), mats=[plate_mat], depth=0.0012, min_dot=0.8)
     pts = [(sx * (w / 2 - 0.0038), y_face - t, center_z + sz * (h / 2 - 0.0038)) for sx in (-1, 1) for sz in (-1, 1)]
     with _hi(r):
-        r.add(screws(r, pts, (0, -1, 0), d=0.0034, kind="hex", color=(70, 72, 70), segs=8))
+        sc = screws(r, pts, (0, -1, 0), d=0.0034, kind="hex", color=(70, 72, 70), segs=10)
+        _to_face(r, sc, hidden=(0, 1, 0))
+        r.add(sc)
     # webbing: 25 mm wide, 1.3 mm thick, rounded edges
     sw, st_ = 0.025, 0.0013
     prof = rrect(sw, st_, 0.0005, 2)
@@ -396,7 +423,7 @@ def mx_ptt(r, at, mat, length=0.032, width=0.013, t=0.0026, ridges=6, ridge_h=0.
         g = key_cap(mat, width, length, t, corner, dome, bevel=bv)
         top = length * 0.5 - length * 0.13
         span = length * 0.56
-        prof = rrect(width * 0.70, 0.0011, 0.00054, 1)
+        prof = rrect(width * 0.70, 0.0011, 0.00054, 2)
         for k in range(ridges):
             y = top - span * k / max(ridges - 1, 1)
             rg = extrude(prof, ridge_h + 0.00025, mat, bevel=0.00022, bevel_seg=1, z0=t - 0.00025, caps=(False, True),
@@ -416,6 +443,59 @@ def mx_ptt(r, at, mat, length=0.032, width=0.013, t=0.0026, ridges=6, ridge_h=0.
     return origin
 
 
+def _wells(r, mat, center, normal, up, size, t, holes, depth=None, floor_mat=None, corner_n=4, outer_r=0.0015, bevel=0.0004,
+           hole_bevel=0.0003, tag="wells"):
+    """wells() with rounded plate corners in plan (outer_r): body plate standing t proud with openings into wells."""
+    g = well_plate(size[0], size[1], t, holes, mat, depth=depth, floor_mat=floor_mat, bevel=bevel, hole_bevel=hole_bevel,
+                   corner_n=corner_n, outer_r=outer_r, tag=tag)
+    r.add(align(g, normal, up, center))
+    return g
+
+
+def _well_for(r, mat, at, normal, up, size, gap=0.0005, margin=0.0012, t=0.0012, corner=None, floor_mat=None, outer_r=0.0012):
+    """well_for() with rounded plate corners: single-opening bezel; returns the floor height (0 = on the surface)."""
+    hw, hh = size[0] / 2 + gap, size[1] / 2 + gap
+    cr = min(hw, hh) * 0.35 if corner is None else min(corner + gap, hw, hh)
+    _wells(r, mat, at, normal, up, (2 * (hw + margin), 2 * (hh + margin)), t, [(0.0, 0.0, hw, hh, cr)], depth=t, floor_mat=floor_mat,
+           outer_r=outer_r)
+    return 0.0
+
+
+def _grille(r, center, cols, rows, pitch, hole_r, t, margin, mat, outer_r=0.0015):
+    """Round-hole speaker grille plate (holes fall into dark acoustic mesh wells), rounded plate corners."""
+    holes = [((i - (cols - 1) / 2) * pitch, ((rows - 1) / 2 - j) * pitch, hole_r, hole_r, hole_r) for j in range(rows) for i in range(cols)]
+    w = (cols - 1) * pitch + 2 * hole_r + 2 * margin
+    h = (rows - 1) * pitch + 2 * hole_r + 2 * margin
+    g = well_plate(w, h, t, holes, mat, floor_mat=m_mesh(r), bevel=min(0.0003, t * 0.4), hole_bevel=0.0, corner_n=2, outer_r=outer_r,
+                   tag="grille")
+    return align(g, (0, 1, 0), (0, 0, 1), center)
+
+
+def mic_port(r, at, face):
+    """Round countersunk mic port in the front face: a low raised collar, a conical countersink, the dark hole."""
+    dark = m_well_floor(r)
+    g = lathe([(0.0016, 0.0), (0.0016, 0.00012), (0.00135, 0.0003), (0.00105, 0.0003)], face, segs=10, smooth_angle=50, tag="mic")
+    g += lathe([(0.00105, 0.0003), (0.00052, -0.0002), (0.00052, -0.0008)], dark, segs=10, smooth_angle=50, tag="mic_hole")
+    g += cylinder(0.00052, 0.0001, dark, segs=10, z0=-0.0009, caps=(False, True), tag="mic_floor")
+    return align(g, (0, 1, 0), (0, 0, 1), at)
+
+
+def bumper_grooves(r, rub):
+    """Two moulded grooves round every corner bumper, near its open end (one print per side of the radio)."""
+    e = BUMPER_E
+    for top in (True, False):
+        zc = ZT + e - BUMPER_H / 2 if top else Z0 - e + BUMPER_H / 2
+        for normal, up, span in (((0, 1, 0), (0, 0, 1), W), ((0, -1, 0), (0, 0, 1), W), ((1, 0, 0), (0, 0, 1), D),
+                                 ((-1, 0, 0), (0, 0, 1), D)):
+            dc = DecalCanvas(span + 2 * e + 0.002, BUMPER_H, ppm=20000)
+            for dz in (0.0040, 0.0058):
+                yv = BUMPER_H - dz if top else dz            # canvas y runs top -> bottom
+                dc.groove([(0.0, yv), (dc.W / dc.ppm, yv)], width=0.0005, depth=0.00022, alpha=0.55)
+            nv = vec(normal)
+            center = vec(0.0, 0.0, zc) + nv * (W / 2 + e if abs(nv[0]) > 0.5 else D / 2 + e)
+            r.decal(dc, center=tuple(center), normal=normal, up=up, mats=[rub], depth=0.009, min_dot=0.5)
+
+
 def floor_caps(r, holes, center, right, up, lift=0.00006):
     """Flat 2-triangle caps just above the well floors of a wells() plate (the plate's fan-triangulated floors bake
     with streaks): one quad per opening, a little oversized so its edges tuck under the well walls."""
@@ -430,10 +510,21 @@ def floor_caps(r, holes, center, right, up, lift=0.00006):
         r.add(g)
 
 
-def chevron(s, w):
-    """Arrow-head ridge outline pointing +Y (tip at y = s), arm width w."""
-    k = w / s
-    return np.array([(0.0, s), (s, 0.0), (s - k * s * 1.4, 0.0), (0.0, s - k * s * 1.4), (-(s - k * s * 1.4), 0.0), (-s, 0.0)])
+def mx_light_pipe(r, at, d=0.0032, color="green", segs=12):
+    """Light-pipe socket on the deck (facing +Z): a raised dark bezel ring (outer wall up, over the top, down
+    the inner wall into the hole) + the recessed unlit tinted lens. Returns (Geo, insert point)."""
+    bez = r.mat("mx_pipe_bezel", color=(16, 17, 19), spec=0.4, gloss=0.55, edge=0.4)
+    rl, bh = d / 2, 0.0005
+    ro = rl + 0.0008
+    g = lathe([(ro, 0.0), (ro, bh * 0.5), (ro - 0.0002, bh), (rl + 0.0002, bh), (rl, bh * 0.5), (rl, -0.0004)], bez, segs=segs,
+              smooth_angle=50, tag="pipe")
+    g += cylinder(rl, 0.0001, m_led_off(r, color), segs=segs, z0=-0.0003, caps=(False, True), tag="pipe_lens")
+    return g.translate(*at), (vec(at) - vec(0, 0, 1) * 0.0002)
+
+
+def arrowhead():
+    """Solid rounded arrowhead outline pointing +Y (the d-pad's raised direction ridges)."""
+    return fillet_poly(np.array([(0.0, 0.0016), (0.0015, -0.0008), (-0.0015, -0.0008)]), 0.00035, 2)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -500,28 +591,29 @@ def deck_canvas():
         r0, r1 = (0.0103, 0.0119) if k % 4 else (0.0102, 0.0123)
         dc.line([(cx + sx * r0, cy + sy * r0), (cx + sx * r1, cy + sy * r1)], 0.0006 if k % 4 else 0.0009, **ink("white"))
     dc.circle(cx, cy + 0.0129 + 0.0007, 0.0006, **ink("orange"))
-    for k, lab in ((4, "5"), (8, "9"), (12, "13")):
+    for k, lab in ((4, "5"), (8, "9"), (15, "16")):
         a = math.radians(180 + k * 22.5)
         sx, sy = math.sin(a), -math.cos(a)
         rr = 0.0136
         dc.text(cx + sx * rr, cy + sy * rr, lab, 0.0016, fnt="label-semi", **ink("white"))
-    # volume: OFF detent + growing dots on the front arc
+    # volume: OFF detent (front-right of the knob, clear of the deck edge, the emergency ring and the bumper) +
+    # growing dots on the front arc
     vx, vy = C(*P_VOL)
-    a_off = math.radians(108)
-    dc.line([(vx + math.sin(a_off) * 0.0090, vy - math.cos(a_off) * 0.0090), (vx + math.sin(a_off) * 0.0107,
-             vy - math.cos(a_off) * 0.0107)], 0.0007, **ink("white"))
-    ox, oy = vx + math.sin(math.radians(93)) * 0.0118, vy - math.cos(math.radians(93)) * 0.0118
-    dc.text(ox - 0.0002, oy - 0.0021, "OFF", 0.0016, fnt="label-semi", **ink("white"))
+    a_off = math.radians(150)
+    dc.line([(vx + math.sin(a_off) * 0.0094, vy - math.cos(a_off) * 0.0094), (vx + math.sin(a_off) * 0.0108,
+             vy - math.cos(a_off) * 0.0108)], 0.0007, **ink("white"))
+    ox, oy = vx + math.sin(a_off) * 0.0126, vy - math.cos(a_off) * 0.0126
+    dc.text(ox, oy, "OFF", 0.0016, fnt="label-semi", **ink("white"))
     for k in range(8):
-        a = math.radians(126 + k * 15.0)
+        a = math.radians(165 + k * 10.7)
         rr = 0.0098
         dc.circle(vx + math.sin(a) * rr, vy - math.cos(a) * rr, 0.00026 + k * 0.00007, **ink("white"))
     tx, ty = C(P_VOL[0] - 0.0006, P_VOL[1] - 0.0118)
     dc.text(tx, ty, "VOL", 0.0018, fnt="label-semi", spacing=0.0002, **ink("white"))
     # emergency legend, LED legend, antenna legend
-    ex, ey = C(P_EMERG[0] + 0.0118, P_EMERG[1] + 0.0004)
+    ex, ey = C(P_EMERG[0] + 0.0130, P_EMERG[1] + 0.0004)
     dc.text(ex, ey, "EMER", 0.0021, fnt="label", spacing=0.0003, **ink("orange"))
-    gx, gy = C(P_LED[0] - 0.0062, P_LED[1])
+    gx, gy = C(P_LED[0] - 0.0070, P_LED[1])
     dc.text(gx, gy, "TX/RX", 0.0016, fnt="label-semi", spacing=0.0002, **ink("white"))
     ax_, ay_ = C(P_ANT[0] - 0.0004, P_ANT[1] + 0.0098)
     dc.text(ax_, ay_, "ANT 50Ω", 0.0014, fnt="label-semi", **ink("grey"))
@@ -536,6 +628,37 @@ def front_prints():
     badge.rect(0.0002, 0.0002, 0.0078, 0.0032, r=0.0006, fill=False, width=0.00024, **ink("grey"))
     badge.text(0.0041, 0.0018, "IP68", 0.0017, fnt="label-semi", spacing=0.0001, **ink("grey"))
     return mic, badge
+
+
+def mx_rating_plate(w, h, ppm=40000):
+    """Anodised dark rating plate, light engraved print (MODEL / SN / ID labels in a readable mid grey)."""
+    bg, ink_, lab = (44, 46, 42), (214, 216, 208), (150, 154, 146)
+    dc = DecalCanvas(w, h, ppm)
+    seed = 517
+    dc.rect(0, 0, w, h, r=h * 0.08, color=bg, spec=0.45, gloss=0.55)
+    dc.rect(h * 0.05, h * 0.05, w - h * 0.1, h - h * 0.1, r=h * 0.06, fill=False, width=h * 0.02, color=(120, 123, 116))
+    pad = h * 0.12
+    col = w * 0.63
+    dc.text(pad, h * 0.17, "TACTICAL RADIO", h * 0.12, fnt="label", anchor="lm", color=ink_, spacing=h * 0.008, max_w=col - pad)
+    dc.rect(pad, h * 0.27, col - pad * 1.5, h * 0.014, color=ink_)
+    vals = (("MODEL", "MX-905"), ("SN", "26-90517"), ("ID", "TXQ-MX905"))
+    vx = pad + h * 0.36
+    vs = h * 0.09
+    vs = min(vs, vs * (col - vx - h * 0.02) / max(dc.text_width(v, vs, "mono-bold") for _, v in vals))
+    for k, (a, v) in enumerate(vals):
+        y = h * (0.385 + k * 0.13)
+        dc.text(pad, y, a, h * 0.062, fnt="mono-bold", anchor="lm", color=lab)
+        dc.text(vx, y, v, vs, fnt="mono-bold", anchor="lm", color=ink_)
+    dc.text(pad, h * 0.755, "7.4 V  3400 mAh  Li-ion", h * 0.075, fnt="mono-bold", anchor="lm", color=lab, max_w=col - pad)
+    isz = h * 0.13
+    for k, kind in enumerate(("factory", "date", "book", "bin")):
+        dc.icon(kind, pad + k * isz * 1.25, h * 0.83, isz, color=ink_)
+    bx = col + h * 0.04
+    dc.barcode(bx, h * 0.12, w - bx - pad * 0.8, h * 0.42, seed=seed, color=ink_, digits="051790233", digit_size=h * 0.07)
+    ds = h * 0.30
+    dc.datamatrix(bx + (w - pad * 0.8 - bx - ds) / 2, h * 0.60, ds, n=12, seed=seed, color=ink_)
+    dc.text(pad + h * 0.66, h * 0.895, "IP68", h * 0.075, fnt="mono-bold", anchor="lm", color=lab)
+    return dc
 
 
 def key_legend(w, h, digit, sub):
@@ -553,11 +676,11 @@ def key_legend(w, h, digit, sub):
 # ---------------------------------------------------------------------------------------------
 # the radio
 # ---------------------------------------------------------------------------------------------
-@radio("military", title="MX-905 tactical handheld", code="MX-905", layers={"face": 1024}, part_boost=4.0, maps={"face": {"n": 512, "s": 512}},
+@radio("military", title="MX-905 tactical handheld", code="MX-905", layers={"face": 1024}, part_boost=4.0, maps={"face": {"n": 1024, "s": 512}},
        doc={"screen": "nzr_scr 512 x 384, colour LCD 42 x 32 mm behind smoked glass (mx905 skin)"})
 def military(r):
     green = m_ranger_green(r)
-    face = _face_mat(r, green, "mx_face")
+    face = r.mat_from("mx_face", dc_replace(r.mats[green], layer="face", bump_amp=0.00002))
     rub = m_bumper_rubber(r)
     blk = m_soft_black(r)
     _housing(r, green, face, rub)
@@ -596,6 +719,7 @@ def _housing(r, green, face, rub):
         for sy in (1, -1):
             for top in (True, False):
                 r.add(corner_bumper(rub, sx, sy, top))
+    bumper_grooves(r, rub)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -606,7 +730,9 @@ def _front(r, green, face, blk):
     with _hi(r):
         r.add(align(rr_ring(fw, fh, fcr, fbw, ft, green, bevel=0.0005, tag="frame", n=2), (0, 1, 0), (0, 0, 1), (0.0, FY, Z_FRAME)))
         pts = [(sx * X_SCREW, FY + ft, z) for sx in (1, -1) for z in Z_SCREWS]
-        r.add(screws(r, pts, (0, 1, 0), d=0.0030, kind="torx", color=(64, 66, 62), segs=9))
+        sc = screws(r, pts, (0, 1, 0), d=0.0030, kind="torx", color=(64, 66, 62), segs=12)
+        _to_face(r, sc, hidden=(0, -1, 0))   # ~18 texels across a head: the Torx recess reads
+        r.add(sc)
     # screen window + raised lip round the black bezel
     screen_window(r, center=(0.0, FY, Z_SCREEN), view=(0.042, 0.032), bezel=0.001, recess=0.0012, margin=(0.0015, 0.0025),
                   frame_mat=blk, corner=0.0008)
@@ -620,8 +746,8 @@ def _front(r, green, face, blk):
              (-cx_l, -0.0050, kw / 2 + gap, kh / 2 + gap, 0.0016 + gap),                # kup
              (cx_l, 0.0, kw / 2 + gap, 0.0070 + gap, 0.0020 + gap)]                     # kok (tall)
     with _hi(r):
-        wells(r, green, (0.0, FY, Z_CLUSTER), (0, 1, 0), (0, 0, 1), (0.0500, 0.0206), 0.0012, holes, depth=0.0012, floor_mat=m_well_floor(r),
-              corner_n=3)
+        _wells(r, green, (0.0, FY, Z_CLUSTER), (0, 1, 0), (0, 0, 1), (0.0500, 0.0206), 0.0012, holes, depth=0.0012, floor_mat=m_well_floor(r),
+               corner_n=3, outer_r=0.0014)
     floor_caps(r, holes, (0.0, FY, Z_CLUSTER), (-1, 0, 0), (0, 0, 1))
     # keypad surround: one plate with 12 wells (3-step corners)
     px, py = KP_PITCH
@@ -631,14 +757,14 @@ def _front(r, green, face, blk):
     pw = 2 * (px + w / 2 + gap + 0.0019)
     ph = 2 * (1.5 * py + h / 2 + gap + 0.0019)
     with _hi(r):
-        wells(r, green, (0.0, FY, Z_KEYPAD), (0, 1, 0), (0, 0, 1), (pw, ph), 0.0012, holes, depth=0.0012, floor_mat=m_well_floor(r), corner_n=2)
+        _wells(r, green, (0.0, FY, Z_KEYPAD), (0, 1, 0), (0, 0, 1), (pw, ph), 0.0012, holes, depth=0.0012, floor_mat=m_well_floor(r), corner_n=2,
+               outer_r=0.0015)
     floor_caps(r, holes, (0.0, FY, Z_KEYPAD), (-1, 0, 0), (0, 0, 1))
     # speaker hole array + mic port
     with _hi(r):
-        r.add(grille_holes(r, (0.0, FY, Z_SPEAKER), cols=10, rows=4, pitch=0.0026, hole_r=0.00064, t=0.0008, margin=0.0013,
-                           mat=green, corner_n=1))
-        r.add(grille_holes(r, (0.0190, FY, Z_SPEAKER + 0.0010), cols=1, rows=1, pitch=0.002, hole_r=0.0006, t=0.0006, margin=0.0009,
-                           mat=green))
+        r.add(_grille(r, (0.0, FY, Z_SPEAKER), cols=9, rows=3, pitch=0.0032, hole_r=0.00085, t=0.0008, margin=0.0016, mat=face,
+                      outer_r=0.0016))
+        r.add(mic_port(r, (0.0190, FY, Z_SPEAKER + 0.0010), face))
     mic, badge = front_prints()
     print_decal(r, mic, center=(0.0190, FY, Z_SPEAKER - 0.0028), normal=(0, 1, 0), mats=[face], depth=0.0012)
     print_decal(r, badge, center=(-0.0190, FY, Z_SPEAKER + 0.0010), normal=(0, 1, 0), mats=[face], depth=0.0012)
@@ -667,22 +793,33 @@ def _front_parts(r):
 
 
 def _dpad(r, mat):
-    """Grey square-ish 4-way rocker (16 mm) with four raised chevron ridges and a dished centre dot."""
+    """Grey square-ish 4-way rocker (16 mm) with four raised solid arrowheads (light-grey tops) and a centre ring."""
     size, t, dome = 0.016, 0.0024, 0.00025
     at = vec(0.0, FY + LIFT, Z_CLUSTER)
     origin = at + vec(0, 1, 0) * (t + dome)
-    with r.part("dpad", origin=origin, press=(0, -1, 0), depth=0.0010, u=(-size / 2, 0, 0), v=(0, 0, size / 2), shape="round",
+    with r.part("dpad", origin=origin, press=(0, -1, 0), depth=0.0010, u=(-size / 2, 0, 0), v=(0, 0, size / 2), shape="rect",
                 action="dpad", tilt=5.0):
         g = key_cap(mat, size, size, t, corner=0.0028, dome=dome, bevel=0.0007)
+        off = size * 0.30
         for ang in (0, 90, 180, 270):
-            rg = extrude(chevron(0.0019, 0.0007), 0.0007, mat, bevel=0.00018, bevel_seg=1, z0=t - 0.0001, caps=(False, True),
+            rg = extrude(arrowhead(), 0.0009, mat, bevel=0.00022, bevel_seg=1, z0=t - 0.0001, caps=(False, True),
                          smooth_angle=40, tag="ridge")
-            rg.translate(0, size * 0.27, 0).rotate(0, 0, ang)
+            rg.translate(0, off, 0).rotate(0, 0, ang)
             g += rg
         r.add(align(g, (0, 1, 0), (0, 0, 1), at))
         dc = DecalCanvas(size, size, ppm=40000)
         dc.circle(size / 2, size / 2, 0.0011, fill=False, width=0.00028, **ink("white", alpha=0.85))
-        r.decal(dc, center=origin, normal=(0, 1, 0), up=(0, 0, 1), depth=dome + 0.0012, min_dot=0.6)
+        # light-grey print on the arrow tops (cap-local x = viewer's right = canvas +x, local y = up = canvas -y)
+        tip = [(0.0, 0.0016 - 0.00045), (0.0015 - 0.0006, -0.0008 + 0.00035), (-(0.0015 - 0.0006), -0.0008 + 0.00035)]
+        for ang in (0, 90, 180, 270):
+            ca, sa = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+            pts = []
+            for x, y in tip:
+                y += off
+                lx, ly = x * ca - y * sa, x * sa + y * ca
+                pts.append((size / 2 + lx, size / 2 - ly))
+            dc.polygon(pts, color=(170, 172, 168), spec=0.3, gloss=0.4)
+        r.decal(dc, center=origin + vec(0, 1, 0) * 0.0009, normal=(0, 1, 0), up=(0, 0, 1), depth=dome + 0.0022, min_dot=0.6)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -693,7 +830,7 @@ def _top(r, green, face, rub):
     fer = r.mat("mx_ferrule", color=(36, 37, 39), spec=0.55, gloss=0.5, metal=0.8, bump="ribs", bump_amp=0.00004,
                 bump_scale=0.0006, edge=0.4, dirt=0.15)
     with _hi(r):
-        r.add(cylinder(0.0058, 0.0022, green, segs=28, bevel=0.0006, bevel_seg=2, caps=(False, True), z0=ZT - 0.0003)
+        r.add(cylinder(0.0058, 0.0022, green, segs=20, bevel=0.0006, bevel_seg=2, caps=(False, True), z0=ZT - 0.0003)
               .translate(ax, ay, 0))
         r.add(sma_nut(r, (ax, ay, ZT + 0.0019), across=0.0095, h=0.0040, finish="black", barrel_h=0.0028))
     zf = ZT + 0.0019 + 0.0040 + 0.0028
@@ -703,7 +840,7 @@ def _top(r, green, face, rub):
         zg = zf + 0.0040
         coil = r.mat("mx_coil", color=(30, 31, 33), spec=0.42, gloss=0.42, metal=0.9, edge=0.55, dirt=0.2, wear_color=(110, 112, 116),
                      scratch=0.3)
-        r.add(gooseneck(r, (ax, ay, zg), length=0.040, coil_r=0.0041, wire_r=0.0013, n_per_turn=9, segs=5, mat=coil))
+        r.add(gooseneck(r, (ax, ay, zg), length=0.040, coil_r=0.0041, wire_r=0.0016, n_per_turn=10, segs=6, mat=coil))
         zw = zg + 0.040
         r.add(lathe([(0.0, -0.0004), (0.0043, -0.0004), (0.0045, 0.0002), (0.0045, 0.0036), (0.0040, 0.0044), (0.0, 0.0044)], fer,
                     segs=20, smooth_angle=45, tag="antenna_ferrule").translate(ax, ay, zw))
@@ -714,8 +851,8 @@ def _top(r, green, face, rub):
     cxk, cyk = P_CH
     with _hi(r):
         r.add(boss(r, green, (cxk, cyk, ZT), d=0.0185, h=0.0019, shaft_d=0.006, shaft_h=0.0055, shaft_mat=m_gunmetal(r)))
-        r.add(ring(face, 0.0200, 0.0256, 0.0016, segs=36, bevel=0.0005, tag="guard").translate(cxk, cyk, ZT))
-    knob(r, "knob_ch", base=(cxk, cyk, ZT + 0.0019 + LIFT), d=0.018, h=0.0150, style="ribbed", ribs=16, rib_depth=0.00045, skirt=True,
+        r.add(ring(face, 0.0200, 0.0256, 0.0016, segs=28, bevel=0.0005, tag="guard").translate(cxk, cyk, ZT))
+    knob(r, "knob_ch", base=(cxk, cyk, ZT + 0.0019 + LIFT), d=0.018, h=0.0150, style="ribbed", ribs=16, rib_depth=0.0007, skirt=True,
          skirt_d=0.0198, skirt_h=0.0026, mat=m_knob_knurl(r), cap_mat=m_knob_cap(r), index="line", value="channel", detents=16, segs=56)
     with r.part("knob_ch"):
         # raised pointer bar on the top from the centre to the front edge (white filled)
@@ -725,18 +862,18 @@ def _top(r, green, face, rub):
     vx, vy = P_VOL
     with _hi(r):
         r.add(boss(r, green, (vx, vy, ZT), d=0.0172, h=0.0016, shaft_d=0.0055, shaft_h=0.005, shaft_mat=m_gunmetal(r)))
-    knob(r, "knob_vol", base=(vx, vy, ZT + 0.0016 + LIFT), d=0.016, h=0.0125, style="ribbed", ribs=10, rib_depth=0.00035, skirt=True,
+    knob(r, "knob_vol", base=(vx, vy, ZT + 0.0016 + LIFT), d=0.016, h=0.0125, style="ribbed", ribs=10, rib_depth=0.0006, skirt=True,
          skirt_d=0.0170, skirt_h=0.0018, mat=m_knob_knurl(r, "mx_knob_knurl_v"), cap_mat=m_knob_cap(r), index="line", value="volume", detents=24,
          segs=44)
     # emergency key recessed in a rubber guard ring
     exk, eyk = P_EMERG
     with _hi(r):
-        r.add(cylinder(0.0050, 0.0002, m_well_floor(r), segs=24, caps=(False, True), z0=ZT - 0.0001).translate(exk, eyk, 0))
-        r.add(ring(rub, 0.0106, 0.0154, 0.0031, segs=28, bevel=0.0008, tag="guard").translate(exk, eyk, ZT))
+        r.add(cylinder(0.0054, 0.0002, m_well_floor(r), segs=24, caps=(False, True), z0=ZT - 0.0001).translate(exk, eyk, 0))
+        r.add(ring(rub, 0.0106, 0.0154, 0.0031, segs=24, bevel=0.0008, tag="guard").translate(exk, eyk, ZT))
     key(r, "emerg", at=(exk, eyk, ZT + 0.0001 + LIFT), normal=(0, 0, 1), up=(0, -1, 0), size=(0.0085, 0.0085), corner=0.00425, t=0.0020,
         mat=m_emerg_orange(r), dome=0.0004, depth=0.0012, shape="round")
     # LED light pipe
-    pipe, insert = light_pipe(r, (P_LED[0], P_LED[1], ZT), normal=(0, 0, 1), up=(0, 1, 0), d=0.0032, color="green")
+    pipe, insert = mx_light_pipe(r, (P_LED[0], P_LED[1], ZT), d=0.0032, color="green", segs=12)
     with _hi(r):
         r.add(pipe)
     print_decal(r, deck_canvas(), center=(0.0, 0.0, ZT + 0.004), normal=(0, 0, 1), up=(0, -1, 0), depth=0.0065, mats=[face],
@@ -751,8 +888,8 @@ def _left(r, green, face):
     key_black = m_keypad_rubber(r, "black")
     z_ptt = 0.0400
     with _hi(r):
-        floor = well_for(r, green, (SX, YSIDE, z_ptt), (1, 0, 0), (0, 0, 1), (0.0130, 0.0320), gap=0.0005, margin=0.0016, t=0.0014,
-                         corner=0.0050, floor_mat=m_well_floor(r))
+        floor = _well_for(r, green, (SX, YSIDE, z_ptt), (1, 0, 0), (0, 0, 1), (0.0130, 0.0320), gap=0.0005, margin=0.0016, t=0.0014,
+                          corner=0.0050, floor_mat=m_well_floor(r), outer_r=0.0012)
     floor_caps(r, [(0.0, 0.0, 0.0130 / 2 + 0.0005, 0.0320 / 2 + 0.0005)], (SX, YSIDE, z_ptt), (0, 1, 0), (0, 0, 1))
     mx_ptt(r, (SX + floor + LIFT, YSIDE, z_ptt), key_black)
     with _hi(r):
@@ -778,10 +915,8 @@ def _rating_plate(r):
     plate = m_rating_plate(r)
     pw, ph, zc = 0.0200, 0.0130, -0.0270
     with _hi(r):
-        r.add(box((0.0004, pw, ph), plate, r=0.00018, seg=1, center=(SX + 0.0002, YSIDE, zc), faces="+x +y -y +z -z"))
-    rp = rating_plate(pw - 0.0006, ph - 0.0006, title="TACTICAL RADIO", model="MX-905", serial="SN 26-90517", ref="TXQ-MX905T",
-                      rating="7.4 V  3400 mAh  Li-ion", ppm=40000, bg=(44, 46, 42), ink=(206, 208, 200), ref_label="ID",
-                      foot="IP68  1 m")
+        r.add(box((0.0004, pw, ph), plate, r=0.00018, seg=1, center=(SX + 0.0002, YSIDE, zc), faces="+x +y -y +z -z", density=2.4))
+    rp = mx_rating_plate(pw - 0.0006, ph - 0.0006)
     print_decal(r, rp, center=(SX + 0.0004, YSIDE, zc), normal=(1, 0, 0), up=(0, 0, 1), mats=[plate], depth=0.0008)
 
 
@@ -791,7 +926,7 @@ def _rating_plate(r):
 def _right(r, green, face):
     z_acc = 0.0440
     with _hi(r):
-        r.add(cylinder(0.0090, 0.0010, green, segs=32, bevel=0.0005, bevel_seg=2, caps=(False, True)).rotate(0, -90, 0)
+        r.add(cylinder(0.0090, 0.0010, green, segs=20, bevel=0.0005, bevel_seg=2, caps=(False, True)).rotate(0, -90, 0)
               .translate(-SX, YSIDE, z_acc))
         r.add(bayonet_connector(r, (-SX - 0.0010, YSIDE, z_acc), (-1, 0, 0), d=0.0125, pins=6, depth=0.0032))
         # moulded strap from the connector boss down to the hanging cap
@@ -805,11 +940,14 @@ def _right(r, green, face):
     acc.text(0.006, 0.0018, "ACC", 0.0018, fnt="label-semi", spacing=0.0003, **ink("white"))
     print_decal(r, acc, center=(-SX, YSIDE, z_acc + 0.0118), normal=(-1, 0, 0), up=(0, 0, 1), mats=[face], depth=0.0012)
     # rubber grip insert on the lower right side (where the fingers wrap round), diamond tread
-    grip = r.mat("mx_grip_insert", color=(25, 26, 27), spec=0.11, gloss=0.2, bump="diamond", bump_amp=0.00012, bump_scale=0.0016,
-                 grain=0.04, grain_scale=0.03, edge=0.35, dirt=0.2, wear_color=(66, 68, 70))
+    grip = r.mat("mx_grip_insert", color=(32, 33, 34), spec=0.11, gloss=0.2, bump="diamond", bump_amp=0.0002, bump_scale=0.0024,
+                 grain=0.04, grain_scale=0.03, edge=0.35, dirt=0.2, wear_color=(70, 72, 74), layer="face")
     gp = extrude(rrect(0.0170, 0.0460, 0.0030, 3), 0.0009, grip, bevel=0.00042, bevel_seg=2, caps=(False, True), smooth_angle=50,
                  tag="grip_insert")
     r.add(align(gp, (-1, 0, 0), (0, 0, 1), (-SX, 0.00425, -0.0190)))
+    bd = DecalCanvas(0.0170, 0.0460, ppm=24000)
+    bd.groove_rect(0.0009, 0.0009, 0.0152, 0.0442, r=0.0022, width=0.0005, depth=0.00018, alpha=0.5)
+    r.decal(bd, center=(-SX - 0.0009, 0.00425, -0.0190), normal=(-1, 0, 0), up=(0, 0, 1), mats=[grip], depth=0.0012, min_dot=0.7)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -841,7 +979,7 @@ def _medium(r, green, rub):
     g += box((0.050, 0.0012, 0.0206), green, center=(0.0, FY + 0.0006, Z_CLUSTER), faces="+x -x +y +z -z")
     px, py = KP_PITCH
     w, h = KP_SIZE
-    g += box((2 * px + w + 0.004, 0.0012, 3 * py + h + 0.004), blk, center=(0.0, FY + 0.0006, Z_KEYPAD), faces="+x -x +y +z -z")
+    g += box((2 * px + w + 0.004, 0.0012, 3 * py + h + 0.004), green, center=(0.0, FY + 0.0006, Z_KEYPAD), faces="+x -x +y +z -z")
     for ri in range(4):
         for ci in range(3):
             g += box((w, 0.0022, h), key_grey, center=(-(ci - 1) * px, FY + 0.0012 + 0.0011, Z_KEYPAD + (1.5 - ri) * py),
@@ -852,9 +990,11 @@ def _medium(r, green, rub):
     # grille: one dark patch
     g += box((0.028, 0.0004, 0.010), blk, center=(0.0, FY + 0.0002, Z_SPEAKER), faces="+y")
     # knobs + emergency key
-    g += cylinder(0.0090, 0.0170, knob_m, segs=12, z0=ZT).translate(P_CH[0], P_CH[1], 0)
-    g += cylinder(0.0080, 0.0141, knob_m, segs=12, z0=ZT).translate(P_VOL[0], P_VOL[1], 0)
-    g += cylinder(0.0062, 0.0030, m_emerg_orange(r), segs=10, z0=ZT).translate(P_EMERG[0], P_EMERG[1], 0)
+    g += cylinder(0.0090, 0.0170, knob_m, segs=16, z0=ZT).translate(P_CH[0], P_CH[1], 0)
+    g += cylinder(0.0080, 0.0141, knob_m, segs=16, z0=ZT).translate(P_VOL[0], P_VOL[1], 0)
+    g += cylinder(0.0045, 0.0024, m_emerg_orange(r), segs=10, z0=ZT).translate(P_EMERG[0], P_EMERG[1], 0)
+    g += lathe([(0.0077, 0.0), (0.0077, 0.0031), (0.0053, 0.0031), (0.0053, 0.0)], rub, segs=12, smooth_angle=30,
+               tag="guard_med").translate(P_EMERG[0], P_EMERG[1], ZT)
     # antenna: one tapered lathe from the nut to the ball tip
     ax, ay = P_ANT
     zt = ZT + 0.220

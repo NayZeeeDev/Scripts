@@ -10,4 +10,4 @@ INSERT IGNORE INTO `items` (`name`, `label`, `weight`, `rare`, `can_remove`) VAL
     ('radio_earpiece', 'Radio Earpiece', 1, 0, 1),
     ('jammer_pocket', 'Pocket Jammer', 1, 0, 1),
     ('jammer_case', 'Field Jammer', 7, 0, 1),
-    ('jammer_heavy', 'Heavy Jammer', 28, 0, 1);
+    ('jammer_heavy', 'Cabinet Jammer', 28, 0, 1);

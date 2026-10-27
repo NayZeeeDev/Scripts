@@ -22,5 +22,5 @@ return {
     -- JAMMERS
     ['jammer_pocket'] = { name = 'jammer_pocket', label = 'Pocket Jammer', weight = 600, type = 'item', image = 'jammer_pocket.png', unique = false, useable = true, shouldClose = true, combinable = nil, description = 'JX-10. Fills radios close by with noise.' },
     ['jammer_case'] = { name = 'jammer_case', label = 'Field Jammer', weight = 6500, type = 'item', image = 'jammer_case.png', unique = false, useable = true, shouldClose = true, combinable = nil, description = 'JX-40 in a hard case. Reaches about a city block.' },
-    ['jammer_heavy'] = { name = 'jammer_heavy', label = 'Heavy Jammer', weight = 28000, type = 'item', image = 'jammer_heavy.png', unique = false, useable = true, shouldClose = true, combinable = nil, description = 'JX-90 cabinet with an aerial mast. Shuts down radios across a whole area.' },
+    ['jammer_heavy'] = { name = 'jammer_heavy', label = 'Cabinet Jammer', weight = 28000, type = 'item', image = 'jammer_heavy.png', unique = false, useable = true, shouldClose = true, combinable = nil, description = 'JX-90 cabinet with an aerial mast. Shuts down radios across a whole area.' },
 }

@@ -13,7 +13,7 @@
 
    Lua → NUI
      open  { id, title, code?, label?, type?, bands 1..5, time (s), seed, difficulty? 1..5 }
-           title "JX-90 · Heavy Jammer"; code / label are used when sent, else read from the
+           title "JX-90 · Cabinet Jammer"; code / label are used when sent, else read from the
            title (or the type: pocket JX-10, case JX-40, heavy JX-90)
      close
    NUI → Lua
@@ -565,7 +565,7 @@
   const DEMO = {
     pocket: { code: 'JX-10', label: 'Pocket Jammer', bands: 1, time: 25 },
     case: { code: 'JX-40', label: 'Field Jammer', bands: 2, time: 40 },
-    heavy: { code: 'JX-90', label: 'Heavy Jammer', bands: 3, time: 55 },
+    heavy: { code: 'JX-90', label: 'Cabinet Jammer', bands: 3, time: 55 },
   };
   let demoType = 'heavy', demoSeed = 7734211;
   function demoData() {

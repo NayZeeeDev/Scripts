@@ -14,7 +14,7 @@
                0..Config.Gunfire.radius m, at most Config.Gunfire.maxPerSecond shots a second.
                Relayed as 'nzr:rx:shots' to the talker's current listeners with each one's q.
     ROSTER     'nzr:roster:watch' (on). A watcher sees the channel on their TX slot:
-               'nzr:roster:data' (fkey, { label, members = { { id, name, callsign, bars, talking } } })
+               'nzr:roster:data' (fkey, { label, access, count, members = { { id, name, callsign, bars, talking } } })
                on join / leave / talk / callsign changes and every Config.Roster.refresh ms.
                bars are from the watcher's point of view (NZR.Signal); name follows
                Config.Roster.nameFormat; at most Config.Roster.maxRows rows, talking first,
@@ -267,7 +267,9 @@ function A.Roster(fkey, viewer)
         r.sortName = nil
         members[i] = r
     end
-    return { label = NZR.Channels.Label(fkey), members = members }
+    -- count = everyone on the channel (the card shows a few rows and counts the rest)
+    local label, access = NZR.Channels.Label(fkey)
+    return { label = label, access = access, count = #rows, members = members }
 end
 
 function A.PushRoster(src)

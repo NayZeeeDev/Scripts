@@ -24,7 +24,7 @@ NZR.AddLocale('en', {
     ['client.callsign_failed']      = 'That callsign was not accepted',
     ['client.callsign_off']         = 'Callsigns are turned off on this server',
     ['client.emergency_hold']       = 'Emergency alert',
-    ['client.grip_debug']           = 'Grip tuning only works with Config.Debug on',
+    ['client.grip_debug']           = 'Grip tuning is for admins, or for everyone while Config.Debug is on',
     ['client.grip_usage']           = 'Use /%s x y z rx ry rz',
     ['client.grip_printed']         = 'Grip line printed to the F8 console',
 
@@ -106,6 +106,7 @@ NZR.AddLocale('en', {
     ['client.scr_locked']           = 'TRY LATER',
     ['client.scr_invalid']          = 'OUT OF BAND',
     ['client.scr_busy']             = 'ONE MOMENT',
+    ['client.scr_onslot']           = 'ALREADY ON S%d',
     ['client.scr_error']            = 'NO REPLY',
     ['client.scr_stored']           = 'STORED',
     ['client.scr_cleared']          = 'CLEARED',

@@ -53,6 +53,7 @@
       nzr:radio:init ()                    → { ok, record, owned, labels }
       nzr:radio:join (slot, freq, code?)   → { ok = true, label, access, slot, freq } | { ok = false, reason }
                                              reason ∈ denied, code, badcode, locked, invalid, busy
+                                             (busy + slot = that channel is already on another slot)
       nzr:radio:leave (slot)               → { ok }
       nzr:radio:preset (index, freq|false) → { ok, presets } | { ok = false, reason = 'invalid' }
       nzr:radio:callsign (text|false)      → { ok, callsign } | { ok = false, reason = 'disabled' }
@@ -458,7 +459,7 @@ function R.Join(src, slot, freq, code, opts)
     end
     -- one frequency per radio: a second slot on the same channel would only double the audio
     for other, of in pairs(rec.slots) do
-        if other ~= slot and NZR.Freq.Key(of) == fkey then return fail('busy') end
+        if other ~= slot and NZR.Freq.Key(of) == fkey then return { ok = false, reason = 'busy', slot = other } end
     end
 
     if not opts.force then

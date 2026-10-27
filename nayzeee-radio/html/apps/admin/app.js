@@ -1032,7 +1032,7 @@
           ],
           jammers: [
             { id: 'j14', type: 'pocket', label: 'Pocket Jammer', owner: 'Dario Kostas', ownerId: 31, x: 412.6, y: -1630.2, z: 29.3, e: now + 214, placed: now - 686 },
-            { id: 'j15', type: 'heavy', label: 'Heavy Jammer', owner: 'Lena Ortiz', ownerId: null, x: -1120.4, y: -1520.9, z: 4.4, e: now + 1630, placed: now - 1070 },
+            { id: 'j15', type: 'heavy', label: 'Cabinet Jammer', owner: 'Lena Ortiz', ownerId: null, x: -1120.4, y: -1520.9, z: 4.4, e: now + 1630, placed: now - 1070 },
             { id: 'j16', type: 'case', label: 'Field Jammer', owner: 'Tex Holloway', ownerId: 12, x: 1985.1, y: 3051.7, z: 47.2, e: now + 1290, placed: now - 510 },
           ],
         },

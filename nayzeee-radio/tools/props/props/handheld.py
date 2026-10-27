@@ -32,12 +32,11 @@ from types import SimpleNamespace
 import numpy as np
 
 from nzprops import DecalCanvas, Geo, box, cylinder, extrude, lathe, poly_cap, quad, rrect, split_by_normal, vec, well_plate
-from nzprops.mesh import Chart, ensure_ccw, offset_poly, subdivide_poly
+from nzprops.mesh import Chart, ensure_ccw, offset_poly, path_frames, polyline_fillet, subdivide_poly, sweep
 
 from .common import align, screw
-from .radio_common import (INK, belt_clip, boss, charging_contacts, dpad, ink, key, knob, lanyard_eye, latch_tab, light_pipe,
-                           m_keypad_rubber, m_mesh, m_print_dark, m_smoked_glass, m_soft_black, model_print, ptt, rating_label,
-                           sma_nut, thumbscrew)
+from .radio_common import (INK, boss, charging_contacts, dpad, ink, key, latch_tab, light_pipe, m_keypad_rubber, m_smoked_glass,
+                           m_soft_black, model_print, ptt, sma_nut)
 from .radio_kit import radio
 
 # ---------------------------------------------------------------------------------------------
@@ -81,7 +80,7 @@ CH_XY = (0.0170, 0.0030)
 VOL_XY = (-0.0015, 0.0035)
 ANT_XY = (-0.0175, -0.0055)
 EM_XY = (-0.0185, 0.0115)
-LED_XY = (-0.0085, -0.0115)
+LED_XY = (0.0060, 0.0150)               # front edge of the deck between the knobs (seen when raised)
 CH_D, CH_H = 0.012, 0.014
 VOL_D, VOL_H = 0.013, 0.012
 BOSS_H = 0.0020
@@ -244,6 +243,30 @@ def _front(g: Geo, at_z=0.0):
     return g.deform(fn)
 
 
+def _split_part_mat(r, pid, mat, axis, dot):
+    """Triangles of part `pid` whose face normal leans more than acos(dot) away from `axis` get material `mat`
+    (split into their own charts)."""
+    ax = vec(axis)
+    out = []
+    for c in r.geo.charts:
+        if c.part != pid:
+            out.append(c)
+            continue
+        p = c.pos[c.tri]
+        fn = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+        side = (fn @ ax) / np.maximum(np.linalg.norm(fn, axis=1), 1e-30) < dot
+        for keep, m, tag in ((~side, c.mat, c.tag), (side, mat, c.tag + ":side")):
+            if not keep.any():
+                continue
+            tri = c.tri[keep]
+            used = np.unique(tri.reshape(-1))
+            remap = np.full(len(c.pos), -1, np.int64)
+            remap[used] = np.arange(len(used))
+            out.append(Chart(c.pos[used], c.nrm[used], c.uvm[used], remap[tri], m, c.density, tag,
+                             None if c.fixed_uv is None else c.fixed_uv[used], c.part, c.lod))
+    r.geo.charts = out
+
+
 def _set_mat(g: Geo, mat, suffixes):
     """Give the charts of a split_by_normal() Geo whose tag ends with one of `suffixes` another material."""
     for c in g.charts:
@@ -268,11 +291,117 @@ def _planar_uv(g: Geo):
     return g
 
 
-def _hide(g: Geo, suffixes, k=0.04):
-    """Charts of a split Geo that are never seen (faces pressed against another moulding) get almost no texels."""
+_AXIS = {"+x": 0, "-x": 0, "+y": 1, "-y": 1, "+z": 2, "-z": 2}
+
+
+def _hide(g: Geo, suffixes, k=0.04, flat=0.92):
+    """Charts of a split Geo that are never seen (faces pressed against another moulding) get almost no texels.
+    Only the flat face is starved: its rim-bevel triangles (|n . axis| < flat - they show in the seams) are split
+    off at full density, one strip chart per edge (grouped by the triangle's next-strongest normal axis), so they
+    never sample a neighbour's texels and pack as thin strips instead of a face-sized ring."""
+    out = []
+    names = ("x", "y", "z")
     for c in g.charts:
-        if any(c.tag.endswith(s) for s in suffixes):
-            c.density *= k
+        sfx = next((s for s in suffixes if c.tag.endswith(s)), None)
+        if sfx is None:
+            out.append(c)
+            continue
+        ax = _AXIS[sfx[1:]]
+        p = c.pos[c.tri]
+        fn = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+        fn = fn / np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-30)
+        flat_t = np.abs(fn[:, ax]) >= flat
+        rest = fn.copy()
+        rest[:, ax] = 0.0
+        sec = np.argmax(np.abs(rest), axis=1)
+        sgn = np.sign(rest[np.arange(len(rest)), sec])
+        groups = [(flat_t, c.density * k, c.tag)]
+        for a in range(3):
+            for sg in (1.0, -1.0):
+                if a != ax:
+                    groups.append((~flat_t & (sec == a) & (sgn == sg), c.density,
+                                   f"{c.tag[:-len(sfx)]}:bev{'+' if sg > 0 else '-'}{names[a]}{sfx}"))
+        for keep, dens, tag in groups:
+            if not keep.any():
+                continue
+            tri = c.tri[keep]
+            used = np.unique(tri.reshape(-1))
+            remap = np.full(len(c.pos), -1, np.int64)
+            remap[used] = np.arange(len(used))
+            out.append(Chart(c.pos[used], c.nrm[used], c.uvm[used], remap[tri], c.mat, dens, tag,
+                             None if c.fixed_uv is None else c.fixed_uv[used], c.part, c.lod))
+    g.charts = out
+    return g
+
+
+def _slice(c: Chart, axis, value):
+    """Cut the triangles of a chart that cross the plane pos[axis] = value (attributes interpolated linearly)."""
+    P, N, U = [*c.pos], [*c.nrm], [*c.uvm]
+    F = None if c.fixed_uv is None else [*c.fixed_uv]
+    cache = {}
+
+    def mid(i, j):
+        key = (min(i, j), max(i, j))
+        if key not in cache:
+            t = (value - P[i][axis]) / (P[j][axis] - P[i][axis])
+            P.append(P[i] + (P[j] - P[i]) * t)
+            N.append(N[i] + (N[j] - N[i]) * t)
+            U.append(U[i] + (U[j] - U[i]) * t)
+            if F is not None:
+                F.append(F[i] + (F[j] - F[i]) * t)
+            cache[key] = len(P) - 1
+        return cache[key]
+    tris = []
+    for tr in c.tri:
+        d = [P[i][axis] - value for i in tr]
+        pos = [k for k in range(3) if d[k] > 1e-9]
+        neg = [k for k in range(3) if d[k] < -1e-9]
+        if not pos or not neg:
+            tris.append(tuple(tr))
+            continue
+        # rotate so that vertex 0 is the one alone on its side
+        lone = pos[0] if len(pos) == 1 else neg[0]
+        a, b, cc = tr[lone], tr[(lone + 1) % 3], tr[(lone + 2) % 3]
+        if abs(d[(lone + 1) % 3]) <= 1e-9 or abs(d[(lone + 2) % 3]) <= 1e-9:
+            # one vertex on the plane: split into two
+            on = b if abs(d[(lone + 1) % 3]) <= 1e-9 else cc
+            other = cc if on == b else b
+            m = mid(a, other)
+            tris += [(a, b, m), (m, b, cc)] if on == b else [(a, b, m), (a, m, cc)]
+            continue
+        mb, mc = mid(a, b), mid(a, cc)
+        tris += [(a, mb, mc), (mb, b, cc), (mb, cc, mc)]
+    return Chart(np.asarray(P), np.asarray(N), np.asarray(U), np.asarray(tris), c.mat, c.density, c.tag,
+                 None if F is None else np.asarray(F), c.part, c.lod)
+
+
+def _split_front(g: Geo, suffix, x_half, z0, z1, k=0.04):
+    """The shell's front face lies under the bezel moulding except for a margin: cut it at the bezel's inner
+    bounds and starve the covered middle; the visible margin packs as four strips (top, bottom, left, right)."""
+    out = []
+    for c in g.charts:
+        if not c.tag.endswith(suffix):
+            out.append(c)
+            continue
+        for ax, v in ((0, -x_half), (0, x_half), (2, z0), (2, z1)):
+            c = _slice(c, ax, v)
+        cen = c.pos[c.tri].mean(axis=1)
+        inside = (np.abs(cen[:, 0]) < x_half) & (cen[:, 2] > z0) & (cen[:, 2] < z1)
+        top, bot = ~inside & (cen[:, 2] >= z1), ~inside & (cen[:, 2] <= z0)
+        lft = ~inside & ~top & ~bot & (cen[:, 0] > 0)
+        rgt = ~inside & ~top & ~bot & (cen[:, 0] <= 0)
+        base = c.tag[:-len(suffix)]
+        for sel, dens, tag in ((inside, c.density * k, c.tag), (top, c.density, base + ":mt" + suffix), (bot, c.density, base + ":mb" + suffix),
+                               (lft, c.density, base + ":ml" + suffix), (rgt, c.density, base + ":mr" + suffix)):
+            if not sel.any():
+                continue
+            tri = c.tri[sel]
+            used = np.unique(tri.reshape(-1))
+            remap = np.full(len(c.pos), -1, np.int64)
+            remap[used] = np.arange(len(used))
+            out.append(Chart(c.pos[used], c.nrm[used], c.uvm[used], remap[tri], c.mat, dens, tag,
+                             None if c.fixed_uv is None else c.fixed_uv[used], c.part, c.lod))
+    g.charts = out
     return g
 
 
@@ -293,7 +422,14 @@ def _mats(r):
     gwell = r.mat("px_side_well", color=(15, 16, 18), spec=0.1, gloss=0.2, bump="stipple", bump_amp=0.00002, bump_scale=0.0004,
                   edge=0.2, ao=1.0, cavity=0.8, layer="side")
     keys = m_keypad_rubber(r, "black")
-    return SimpleNamespace(soft=soft, face=face, side=side, bezel=bezel, well=well, grip=grip, gwell=gwell, keys=keys)
+    # acoustic mesh: the kit material with gentler baked AO (its half-resolution steps showed as dark stair shapes
+    # in the grille corners); LCD border: matte black mask (a glossy floor showed the flat well floor's facets as
+    # tone steps in the 1 mm border)
+    mesh = r.mat("px_mesh", color=(12, 13, 14), spec=0.05, gloss=0.1, bump="perf", bump_amp=0.00015, bump_scale=0.0006, ao=0.45,
+                 cavity=0.2, layer="face")
+    border = r.mat("px_lcd_border", color=(10, 11, 12), spec=0.22, gloss=0.32, grain=0.01, edge=0.0, ao=0.15, dirt=0.0, layer="face")
+    return SimpleNamespace(soft=soft, face=face, side=side, bezel=bezel, well=well, grip=grip, gwell=gwell, keys=keys, mesh=mesh,
+                           border=border)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -335,26 +471,22 @@ def _shell_and_battery(r, M):
         q[:, 1] = p[:, 1] + crown(p[:, 0]) * w
         return q
     g.deform(fn)
-    g = _planar_uv(split_by_normal(g))
+    g = _planar_uv(split_by_normal(g, cap_dot=0.92))
     _hide(g, (":-y", ":+z"))                 # back face against the battery, top face under the deck
+    _hide(g, (":-z",), 1.0, flat=0.995)      # the steep bevel ring of the underside packs as strips, not a ring
+    _split_front(g, ":+y", PW / 2 - 0.002, PZ0 + 0.002, PZ1 - 0.002)   # front face under the bezel moulding
     r.add(_set_mat(g, M.side, (":+x", ":-x")))
     # battery pack: 0.4 mm narrower, square-ish front corners against the shell, chamfered back corners
     ins = 0.0004
     ob = _outline(W - 2 * ins, DB, 0.0, CHAMF - ins, 0.0006, FIL, n=4)
     bt = extrude(ob, ZD - 0.0005 - (Z0 + 0.0003), M.soft, bevel=0.0010, bevel_seg=3, z0=Z0 + 0.0003, smooth_angle=50, tag="battery")
     bt.translate(0, BY + DB / 2, 0)
-    bt = _planar_uv(split_by_normal(bt))
+    bt = _planar_uv(split_by_normal(bt, cap_dot=0.92))
     _hide(bt, (":+y", ":+z"))                # front face against the shell, top face under the deck
+    _hide(bt, (":-z",), 0.5, flat=0.995)     # plain underside (the rating sticker carries its own chart)
     _set_mat(bt, M.side, (":+x", ":-x"))
     _set_mat(bt, M.face, (":-y", ":-z"))     # the labelled back and the bottom (rating label) get the print atlas
     r.add(bt)
-    # battery side grip: three shallow moulded finger ribs low on each side of the pack
-    for sx in (1, -1):
-        for k in range(3):
-            z = Z0 + 0.0105 + k * 0.0042
-            rib = box((0.0009, DB - 0.0062, 0.0016), M.side, r=0.0004, seg=1, center=(sx * (W / 2 - ins + 0.00035), BY + DB / 2 + 0.0004, z),
-                      faces="+x -x +y -y +z -z", tag="bat_rib")
-            r.hi_only(rib)
 
 
 def _deck(r, M):
@@ -413,7 +545,7 @@ def _bezel_holes(M, mesh, bezel_black, keys=True):
         fl.append(floor)
 
     gx, gz, gw, gh = GRILLE
-    hole(gx, gz, gw / 2, gh / 2, 0.0026, mesh)
+    hole(gx, gz, gw / 2, gh / 2, 0.0026, mesh, n=8)
     hole(0.0, MIC_Z, 0.0006, 0.0006, 0.0006, mesh)
     hole(0.0, SCR_Z, VIEW[0] / 2 + BEZEL, VIEW[1] / 2 + BEZEL, 0.0014, bezel_black)
     if keys:
@@ -434,16 +566,17 @@ def _grille_bars(mat, t, rounded=True):
     for k in range(n):
         zc = gz + gh / 2 - gap - bar_h / 2 - k * (bar_h + gap)
         if rounded:
-            g += box((gw - 0.0004, bar_h, t), mat, r=0.00055, seg=2, center=(-gx, zc - PZC, FLOOR + t / 2), faces="+x -x +y -y +z",
+            g += box((gw - 0.0036, bar_h, t), mat, r=0.00055, seg=2, center=(-gx, zc - PZC, FLOOR + t / 2), faces="+x -x +y -y +z",
                      tag="grille_bar")
         else:
-            g += box((gw - 0.0004, bar_h, t), mat, center=(-gx, zc - PZC, FLOOR + t / 2), faces="+x -x +y -y +z", tag="grille_bar_m")
+            g += box((gw - 0.0036, bar_h, t), mat, r=0.00055, seg=1, center=(-gx, zc - PZC, FLOOR + t / 2), faces="+x -x +y -y +z",
+                     tag="grille_bar_m")
     return g
 
 
 def _front_bezel(r, M):
-    mesh = m_mesh(r)
-    bezel_black = m_print_dark(r)
+    mesh = M.mesh
+    bezel_black = M.border
     holes, fl = _bezel_holes(M, mesh, bezel_black)
     outline = rrect(PW, PZ1 - PZ0, 0.0042, 6)
     g = holed_plate(outline, PT, holes, M.bezel, depth=PT - FLOOR, wall_mat=M.soft, floor_mats=fl, bevel=0.00045, hole_bevel=0.00028,
@@ -454,11 +587,19 @@ def _front_bezel(r, M):
     # screen (fixed UV, layout anchor) on the bezel floor + smoked glass 0.3 mm above it
     yf = FY + float(crown(0.0)) + FLOOR
     r.screen(quad((0.0, yf + 0.00006, SCR_Z), (-1, 0, 0), (0, 0, 1), VIEW[0], VIEW[1], "x", fixed_uv=True))
-    r.add(quad((0.0, yf + 0.00036, SCR_Z), (-1, 0, 0), (0, 0, 1), VIEW[0] + 2 * BEZEL - 0.0002, VIEW[1] + 2 * BEZEL - 0.0002,
-               m_smoked_glass(r), tag="glass"))
+    # smoked glass: a rounded rectangle following the window's 1.4 mm corners (0.1 mm inside the wall)
+    gl = poly_cap(rrect(VIEW[0] + 2 * BEZEL - 0.0002, VIEW[1] + 2 * BEZEL - 0.0002, 0.0013, 4), 0.0, m_smoked_glass(r), tag="glass")
+    r.add(align(gl, (0, 1, 0), (0, 0, 1), (0.0, yf + 0.00036, SCR_Z)))
     # prints on the bezel (print atlas): model code strip, ingress badge, band word
     ytop = FY + CROWN + PT
-    mp = model_print("PX-740", "PATROL", w=0.030, h=0.0080, rule_color="teal", align_="center")
+    mp = model_print("PX-740", "PATROL", w=0.030, h=0.0080, rule_color=None, align_="center")
+    # teal accent: two short bars either side of PATROL (1.2 mm clear of the word), centred on its line
+    hs = 0.0080 * 0.55 * 0.42
+    tw = mp.text_width("PATROL", hs, "label-semi", hs * 0.25)
+    for sgn in (-1, 1):
+        x_in = 0.015 + sgn * (tw / 2 + 0.0012)
+        x0 = x_in if sgn > 0 else x_in - 0.0035
+        mp.rect(x0, 0.0080 * 0.83 - 0.00015, 0.0035, 0.0003, **ink("teal"))
     r.decal(mp, center=(0.0, ytop, PRINT_Z), normal=(0, 1, 0), up=(0, 0, 1), depth=0.0012, mats=[M.bezel])
     badge = DecalCanvas(0.0075, 0.0034, ppm=40000)
     badge.rect(0.0002, 0.0002, 0.0071, 0.0030, r=0.0006, fill=False, width=0.00022, **ink("grey"))
@@ -484,9 +625,13 @@ def _key_legend(w, h, digit, sub):
     dc = DecalCanvas(w, h, ppm=60000)
     sym = len(sub) == 1 and not sub.isalpha() and sub not in ".,?"
     dx = w * 0.36 if not sym else w * 0.40
-    dc.text(dx, h * 0.52, digit, h * (0.62 if digit not in "*#" else 0.56), fnt="label", **ink("white"))
+    # Lexend's asterisk sits high in its em box: drop it to the digit line so "*" and "<" share a centre
+    dc.text(dx, h * (0.62 if digit == "*" else 0.52), digit, h * (0.62 if digit not in "*#" else 0.56), fnt="label", **ink("white"))
     if sym:
-        dc.text(w * 0.64, h * 0.52, sub, h * 0.50, fnt="sans-bold", **ink("white"))
+        if sub == "‹":
+            dc.text(w * 0.64, h * 0.50, sub, h * 0.42, fnt="sans-bold", **ink("white"))
+        else:
+            dc.text(w * 0.64, h * 0.52, sub, h * 0.50, fnt="sans-bold", **ink("white"))
     else:
         dc.text(w * 0.70, h * 0.56, sub, h * 0.30, fnt="label-semi", max_w=w * 0.40, **ink("white"))
     return dc
@@ -564,14 +709,49 @@ def _channel_knob(r, M, base):
     return origin
 
 
+def _volume_knob(r, M, base):
+    """knob_vol: 13 x 12 mm volume knob - smooth flange skirt, a smooth lower collar, a fine diamond-knurled grip
+    band (normal map only, a hair recessed between two small chamfers), a smooth rounded crown and a white dot."""
+    d, h = VOL_D, VOL_H
+    R = d / 2
+    Rs, sh = 0.0150 / 2, 0.0016
+    bev, dome = 0.0007, 0.0004
+    rec = 0.00022                               # grip band recess
+    b0, b1 = sh + 0.0011, h - 0.0017            # grip band
+    smooth = r.mat("knob_vol_black", color=(28, 29, 32), spec=0.27, gloss=0.4, bump="stipple", bump_amp=0.000016, bump_scale=0.00035,
+                   grain=0.03, edge=0.7, dirt=0.14, wear_color=(94, 96, 100), cavity=0.8)
+    knurl = r.mat("knob_vol_knurl", color=(31, 32, 35), spec=0.3, gloss=0.42, bump="knurl", bump_amp=0.00008, bump_scale=0.0006,
+                  grain=0.02, edge=0.25, dirt=0.1, wear_color=(84, 86, 90), cavity=0.0)
+    ax, fr = vec(0, 0, 1), vec(0, 1, 0)
+    origin = vec(base) + ax * (h / 2)
+    with r.part("knob_vol", origin=origin, press=-ax, depth=0.0008, u=vec(1, 0, 0) * (d / 2), v=ax * (h / 2), shape="rect",
+                action="knob", value="volume", axis=ax, detents=24):
+        segs = 36
+        g = lathe([(Rs * 0.9, 0.0), (Rs, sh * 0.3), (Rs, sh * 0.72), (Rs - 0.00025, sh), (R, sh), (R, b0 - rec), (R - rec, b0)], smooth,
+                  segs=segs, smooth_angle=40, tag="knob_skirt")
+        g += lathe([(R - rec, b0), (R - rec, (b0 + b1) / 2), (R - rec, b1)], knurl, segs=segs, smooth_angle=40, tag="knob_grip")
+        prof = [(R - rec, b1), (R, b1 + rec), (R, h - bev)]
+        prof += [(R - bev + bev * math.cos(a), h - bev + bev * math.sin(a)) for a in np.linspace(math.pi / 4, math.pi / 2, 2)]
+        prof += [(R * 0.55, h + dome * 0.7), (0.0, h + dome)]
+        g += lathe(prof, smooth, segs=segs, smooth_angle=40, tag="knob_top")
+        r.add(g.translate(*base))
+        dc = DecalCanvas(d, d, ppm=max(9000, int(300 / d)))
+        dc.circle(d / 2, d * 0.2, d * 0.07, **ink("white"))
+        r.decal(dc, center=vec(base) + ax * (h + dome), normal=ax, up=fr, depth=dome + 0.002, min_dot=0.3)
+    return origin
+
+
 def _top_parts(r, M):
     _channel_knob(r, M, (CH_XY[0], CH_XY[1], ZT + BOSS_H))
-    knob(r, "knob_vol", base=(VOL_XY[0], VOL_XY[1], ZT + BOSS_H), axis=(0, 0, 1), front=(0, 1, 0), d=VOL_D, h=VOL_H,
-         style="knurled", skirt=True, skirt_d=0.0150, skirt_h=0.0016, index="dot", value="volume", detents=24, segs=40)
+    _volume_knob(r, M, (VOL_XY[0], VOL_XY[1], ZT + BOSS_H))
     orange = r.mat("emerg_orange", color=(238, 106, 24), spec=0.34, gloss=0.48, bump="dimple", bump_amp=0.00004, bump_scale=0.00062,
                    grain=0.03, edge=0.45, dirt=0.12, wear_color=(250, 170, 110))
-    key(r, "emerg", (EM_XY[0], EM_XY[1], ZD + DECK - 0.0025), normal=(0, 0, 1), up=(0, 1, 0), size=(0.009, 0.006), t=0.0022,
+    key(r, "emerg", (EM_XY[0], EM_XY[1], ZD + DECK - 0.0019), normal=(0, 0, 1), up=(0, 1, 0), size=(0.009, 0.006), t=0.0022,
         mat=orange, corner=0.0012, dome=0.00018, bevel=0.0005, depth=0.0012)
+    # textured top only: the dimple pattern streaked on the walls (the cap's wall UVs run round the outline)
+    plain = r.mat("emerg_orange_side", color=(238, 106, 24), spec=0.34, gloss=0.48, grain=0.03, edge=0.45, dirt=0.12,
+                  wear_color=(250, 170, 110))
+    _split_part_mat(r, "emerg", plain, (0, 0, 1), 0.8)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -611,6 +791,23 @@ def _left_side(r, M):
             corner=SIDE_D / 2, dome=0.00022, bevel=0.0005, canvas=cv, depth=0.0010, shape="round")
 
 
+def _thumbscrew(r, at, normal, d=0.0058, h=0.0020):
+    """Captive cover thumbscrew in satin black oxide: knurled rim, flat top with a 0.3 mm chamfer and a
+    screwdriver slot across it (normal map)."""
+    oxide = r.mat("thumb_oxide", color=(50, 51, 56), spec=0.45, gloss=0.5, metal=1.0, bump="brushed", bump_amp=0.000004,
+                  bump_scale=0.0003, grain=0.03, edge=0.55, wear_color=(128, 130, 134), dirt=0.12, cavity=0.6)
+    knurl = r.mat("thumb_oxide_knurl", color=(50, 51, 56), spec=0.45, gloss=0.5, metal=1.0, bump="knurl", bump_amp=0.00006,
+                  bump_scale=0.00045, edge=0.4, wear_color=(118, 120, 124), dirt=0.12, cavity=0.0)
+    R, ch = d / 2, 0.0003
+    g = lathe([(R * 0.94, 0.0), (R, 0.00025), (R, h - ch)], knurl, segs=24, smooth_angle=60, tag="thumb_rim")
+    g += lathe([(R, h - ch), (R - ch, h), (R * 0.6, h), (0.0, h)], oxide, segs=24, smooth_angle=30, tag="thumb_top")
+    g = align(g, normal, (0, 0, 1), at).set_density(4.0)     # 0.45 mm knurl pitch needs ~12 px/mm to resolve
+    sl = DecalCanvas(d, d, ppm=60000)
+    sl.groove([(d * 0.14, d / 2), (d * 0.86, d / 2)], width=d * 0.11, depth=0.00035, alpha=0.7)
+    r.decal(sl, center=vec(at) + vec(normal) * h, normal=normal, up=(0, 0, 1), depth=0.0006, mats=[oxide], min_dot=0.8)
+    return g
+
+
 def _right_side(r, M):
     """-X side: accessory connector cover (gasket + two knurled thumbscrews) over a rubber grip panel."""
     sx = -W / 2
@@ -627,7 +824,7 @@ def _right_side(r, M):
     cv = holed_plate(rrect(cw, chh, 0.0026, 6), 0.0016, [], cover, bevel=0.0006, tag="acc_cover")
     r.add(align(cv, n, (0, 0, 1), (sx - 0.0005, SIDE_YC, cz)))
     for dz in (0.0115, -0.0115):
-        r.hi_only(thumbscrew(r, (sx - 0.0021, SIDE_YC, cz + dz), n, (0, 0, 1), d=0.0058, h=0.0026))
+        r.hi_only(_thumbscrew(r, (sx - 0.0021, SIDE_YC, cz + dz), n, d=0.0058, h=0.0020))
     lab = DecalCanvas(0.012, 0.014, ppm=40000)
     lab.text(0.006, 0.0036, "ACC", 0.0021, fnt="label-semi", spacing=0.0003, **ink("grey"))
     for k in range(3):
@@ -662,20 +859,78 @@ def _battery_label(w, h, pack, chem, volts, cap, wh, serial):
     return dc
 
 
+def _belt_clip(r, M, mat, w=0.032, length=CLIP_LEN, t=0.002, standoff=0.0035, lip=0.008):
+    """Belt clip (after radio_common.belt_clip, built here to spend its triangles where they show): the moulded
+    mount block (no face against the battery, 1-step edge rounds), the spring-steel plate bowing down to a bent
+    lip, two Phillips screws and two raised stamped stiffening beads pressed into the plate."""
+    top, n, upv = vec(0.0, BY, CLIP_TOP), vec(0, -1, 0), vec(0, 0, 1)
+    right = np.cross(upv, n)
+    path = [(0.0, 0.004, 0.0), (0.0, 0.0, standoff), (0.0, -length * 0.5, standoff + 0.0006), (0.0, -length + lip * 0.6, standoff),
+            (0.0, -length, standoff + lip * 0.55)]
+    P = polyline_fillet(np.asarray(path), 0.004, 6)
+    g = sweep(rrect(w, t, t * 0.45, 2), P, mat, side=(1, 0, 0), tag="clip", smooth_angle=55)
+    g += box((w + 0.004, 0.012, standoff + 0.0005), M.soft, r=0.0010, seg=1, center=(0, 0.002, (standoff + 0.0005) / 2),
+             faces="+x -x +y -y +z", tag="clip_block")
+    # stamped beads: a low rounded ridge 3 mm wide, 0.35 mm proud, fading into the plate at both ends
+    seg = np.diff(P, axis=0)
+    s_cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(seg, axis=1))])
+    s0, s1 = 0.0095, s_cum[-1] - lip * 0.95 - 0.004
+    ss = np.linspace(s0, s1, 14)
+    B = np.stack([np.interp(ss, s_cum, P[:, k]) for k in range(3)], axis=1)
+    _, _, U = path_frames(B, side=(1, 0, 0))
+    out_sgn = 1.0 if float(U[len(U) // 2][2]) > 0 else -1.0         # profile y pointing away from the radio (local +z)
+    hb, wb = 0.00035, 0.0015
+    prof = [(-wb, 0.0), (-wb * 0.72, hb * 0.62), (-wb * 0.32, hb * 0.97), (wb * 0.32, hb * 0.97), (wb * 0.72, hb * 0.62), (wb, 0.0)]
+    base = t / 2 - 0.00006
+    fade = np.clip(np.minimum(ss - s0, s1 - ss) / 0.005, 0.0, 1.0)
+    for xb in (-0.0045, 0.0045):
+        pr = [(x, out_sgn * (base + y)) for x, y in prof]
+        sc = np.stack([0.75 + 0.25 * fade, 0.55 + 0.45 * fade], axis=1)   # sinks into the plate at the ends
+        bead = sweep(pr, B, mat, closed_profile=False, caps=False, side=(1, 0, 0), scale=sc, smooth_angle=70, tag="clip_bead")
+        bead.set_density(2.0)
+        g += bead.translate(xb, 0, 0)
+    out = align(g, n, upv, top)
+    for k in range(2):
+        x = (k - 0.5) * (w * 0.5)
+        p = top + right * x + upv * (-0.003) + n * (standoff + t * 0.5 + 0.0001)
+        out += screw(r, p, n, upv, d=0.0042, kind="phillips", segs=12).set_density(2.0)
+    return out
+
+
+def _lanyard_lug(M, off=0.0021, legs=0.0058, wid=0.0034, thick=0.0012):
+    """Lanyard lug in the bottom right (-X) corner of the front shell: a rounded strap profile swept along an arch in
+    the X-Z plane, both legs buried in the housing, standing `off` clear of the bottom face and the flank."""
+    x0, z0, yc = -W / 2, Z0, YS + 0.0062
+    path = np.array([(x0 + legs, yc, z0 + 0.0008), (x0 + legs, yc, z0 - off), (x0 - off, yc, z0 - off), (x0 - off, yc, z0 + legs),
+                     (x0 + 0.0008, yc, z0 + legs)])
+    P = polyline_fillet(path, 0.0016, 4)
+    g = sweep(rrect(wid, thick, thick * 0.45, 2), P, M.soft, side=(0, 1, 0), caps=False, smooth_angle=50, tag="lanyard")
+    return g
+
+
+def _rating_canvas(w, h):
+    """Rating sticker cut to three large lines (readable when the radio is turned over) + a data-matrix code."""
+    ink_d, ink_m = (26, 28, 31), (62, 65, 69)
+    dc = DecalCanvas(w, h, ppm=40000)
+    dc.rect(0, 0, w, h, r=0.0008, color=(192, 195, 198), spec=0.42, gloss=0.52)
+    dc.rect(h * 0.06, h * 0.06, w - h * 0.12, h * 0.88, r=0.0006, fill=False, width=0.00012, color=(140, 143, 147))
+    x0, col = h * 0.16, w - h * 0.95
+    dc.text(x0, h * 0.27, "TWO-WAY RADIO  PX-740", h * 0.21, fnt="label-black", anchor="lm", max_w=col - x0, color=ink_d)
+    dc.text(x0, h * 0.55, "SN 26-07412   ID TXQ-PX740A", h * 0.15, fnt="mono-bold", anchor="lm", max_w=col - x0, color=ink_d)
+    dc.text(x0, h * 0.79, "7.4 V  2250 mAh  Li-ion  IP54", h * 0.14, fnt="mono", anchor="lm", max_w=col - x0, color=ink_m)
+    ds = h * 0.66
+    dc.datamatrix(w - h * 0.17 - ds, (h - ds) / 2, ds, n=12, seed=411, color=ink_d)
+    return dc
+
+
 def _back_and_bottom(r, M):
     rub = r.mat("latch_rubber", color=(30, 31, 34), spec=0.16, gloss=0.26, bump="rubber", bump_amp=0.00003, bump_scale=0.0004,
                 edge=0.4, dirt=0.15, wear_color=(76, 78, 82))
     # black powder-coated spring steel: satin paint (dielectric), bright steel where the edges are worn through
-    clip = r.mat("clip_steel", color=(30, 31, 34), spec=0.2, gloss=0.3, metal=0.0, bump="orange_peel", bump_amp=0.000012,
-                 bump_scale=0.0009, grain=0.035, grain_scale=0.03, edge=0.5, wear=0.25, wear_color=(128, 130, 134), dirt=0.16,
-                 scratch=0.12, smudge=0.3)
-    r.add(belt_clip(r, (0.0, BY, CLIP_TOP), normal=(0, -1, 0), up=(0, 0, 1), w=0.032, length=CLIP_LEN, t=0.002, standoff=0.0035,
-                    lip=0.008, mat=clip, block_mat=M.soft, screw_kind="phillips"))
-    # two stamped stiffening ribs down the clip plate (normal map), seen from behind
-    st = DecalCanvas(0.030, 0.046, ppm=16000)
-    for x in (0.0105, 0.0195):
-        st.groove([(x, 0.002), (x, 0.044)], width=0.0011, depth=0.00028, alpha=0.25)
-    r.decal(st, center=(0.0, BY - 0.0045, CLIP_TOP - 0.030), normal=(0, -1, 0), up=(0, 0, 1), depth=0.0025, mats=[clip])
+    clip = r.mat("clip_steel", color=(28, 29, 32), spec=0.16, gloss=0.3, metal=0.0, bump="orange_peel", bump_amp=0.000012,
+                 bump_scale=0.0009, grain=0.035, grain_scale=0.03, edge=0.8, wear=0.2, wear_color=(112, 114, 118), dirt=0.1,
+                 scratch=0.1, smudge=0.25)
+    r.add(_belt_clip(r, M, clip))
     r.add(latch_tab(r, rub, (0.0, BY, Z0 + 0.0060), (0, -1, 0), (0, 0, 1), w=0.016, h=0.0065, t=0.0013, ribs=5))
     # battery label below the clip
     bl = _battery_label(0.044, 0.025, "PB-74", "Li-ion", "7.4 V", "2250 mAh", "16.7 Wh", "SN B26-40711")
@@ -685,9 +940,13 @@ def _back_and_bottom(r, M):
     rel.glyph("down", 0.015, 0.0043, 0.0016, **ink("grey"))
     r.decal(rel, center=(0.0, BY, Z0 + 0.0125), normal=(0, -1, 0), up=(0, 0, 1), depth=0.0012, mats=[M.face])
     # rating label on the underside of the battery pack (read when the pack is lifted / the radio turned over)
-    rl = rating_label(0.040, 0.0100, model="PX-740", serial="SN 26-07412", ident="ID: TXQ-PX740A", rating="7.4 V  2250 mAh  Li-ion",
-                      title="TWO-WAY RADIO", foot="IP54", ppm=36000)
-    r.decal(rl, center=(0.0, BY + DB / 2, Z0 + 0.0003), normal=(0, 0, -1), up=(0, 1, 0), depth=0.0008, mats=[M.face])
+    # rating label: a silver vinyl sticker with its own (denser) chart, three large lines + a data-matrix code
+    vinyl = r.mat("px_rating_vinyl", color=(192, 195, 198), spec=0.42, gloss=0.52, grain=0.02, grain_scale=0.02, edge=0.15, dirt=0.18,
+                  layer="face")
+    zs = Z0 + 0.0003 - 0.00006
+    st = poly_cap(rrect(0.040, 0.0100, 0.0008, 3), 0.0, vinyl, tag="rating_sticker").set_density(1.7)
+    r.hi_only(align(st, (0, 0, -1), (0, 1, 0), (0.0, BY + DB / 2, zs)))
+    r.decal(_rating_canvas(0.040, 0.0100), center=(0.0, BY + DB / 2, zs), normal=(0, 0, -1), up=(0, 1, 0), depth=0.0004, mats=[vinyl])
     # bottom of the shell: charging contacts in a moulded recess, polarity marks, lanyard eye in the corner
     cy = FY - DF / 2 + 0.001
     r.hi_only(charging_contacts(r, (0.0035, cy, Z0), (0, 0, -1), (0, 1, 0), n=2, pitch=0.010, size=(0.0045, 0.0028), proud=0.00022))
@@ -697,8 +956,9 @@ def _back_and_bottom(r, M):
     pk.text(0.0195, 0.0090, "−", 0.0016, fnt="label-semi", **ink("grey"))
     # canvas x runs along world -X when looking up at the bottom with up = +Y: the "+" lands at the left contact
     r.decal(pk, center=(0.0035, cy - 0.0005, Z0), normal=(0, 0, -1), up=(0, 1, 0), depth=0.0008, mats=[M.soft])
-    # lanyard eye moulded onto the right flank at the bottom corner (cord threads through vertically)
-    r.hi_only(lanyard_eye(r, (-W / 2, YS + 0.0052, Z0 + 0.0052), (-1, 0, 0), up=(0, 0, 1), r=0.0028, wire=0.0011, mat=M.side))
+    # lanyard lug moulded across the bottom right corner: a flat strap arching from the underside round the corner
+    # chamfer into the flank (the cord threads through front to back between the strap and the corner)
+    r.hi_only(_lanyard_lug(M))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -725,12 +985,13 @@ def _whip(r, base):
     mat = r.mat("antenna_rubber", color=(23, 24, 26), spec=0.22, gloss=0.34, bump="rubber", bump_amp=0.00003, bump_scale=0.0006,
                 grain=0.03, grain_scale=0.02, edge=0.3, dirt=0.12, wear_color=(66, 68, 72))
     prof = [(a * 0.001, z * 0.001) for a, z in _whip_profile()]
-    g = lathe(prof, mat, segs=22, smooth_angle=50, tag="antenna_whip")
+    g = lathe(prof, mat, segs=20, smooth_angle=50, tag="antenna_whip")
     # band identification sleeve: a thin teal ring moulded into the body just above the collar
-    teal = r.mat("antenna_band", color=(26, 104, 98), spec=0.3, gloss=0.42, grain=0.03, edge=0.3, dirt=0.2, wear_color=(70, 140, 134))
-    zb0, zb1 = 0.0200, 0.0222
+    teal = r.mat("antenna_band", color=(30, 78, 76), spec=0.3, gloss=0.42, grain=0.03, edge=0.3, dirt=0.2, wear_color=(70, 140, 134))
+    zb0 = 0.0200
+    zb1 = zb0 + 0.0015
     rb = 0.00466
-    g += lathe([(0.00447, zb0 - 0.0001), (rb, zb0), (rb, zb1), (0.00446, zb1 + 0.0001)], teal, segs=22, smooth_angle=50,
+    g += lathe([(0.00447, zb0 - 0.0001), (rb, zb0), (rb, zb1), (0.00446, zb1 + 0.0001)], teal, segs=20, smooth_angle=50,
                tag="antenna_band")
     return g.translate(base[0], base[1], base[2])
 
@@ -767,9 +1028,10 @@ def _top_details(r, M):
     lp.groove([(0.004 + 0.0029 * math.cos(a), 0.004 + 0.0029 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 41)[:-1]],
               width=0.0003, depth=0.00015, alpha=0.3, closed=True)
     r.decal(lp, center=(LED_XY[0], LED_XY[1], ZT), normal=(0, 0, 1), up=(0, 1, 0), depth=0.0006, mats=[M.face])
-    # two Torx screws holding the deck
-    for p in ((0.0215, -0.0125, ZT), (0.0075, -0.0135, ZT)):
-        r.hi_only(screw(r, p, (0, 0, 1), (0, 1, 0), d=0.0028, kind="torx", color=(122, 125, 131), segs=14))
+    # two Torx screws holding the deck, symmetric in the rear corners (dull nickel plating, not chrome)
+    for p in ((0.0215, -0.0140, ZT), (-0.0215, -0.0140, ZT)):
+        r.hi_only(screw(r, p, (0, 0, 1), (0, 1, 0), d=0.0028, kind="torx", color=(110, 112, 116), segs=14, spec=0.5, gloss=0.45)
+                  .set_density(3.0))
     return np.asarray(insert, np.float64)
 
 
@@ -793,74 +1055,98 @@ def _medium(r, M):
         else:
             r.add(g, lod="m")
 
-    # housing
-    sh = extrude(_outline(W, DF, CHAMF, 0.0, FIL, 0.0006, n=2), ZD - Z0, M.soft, bevel=0.0009, bevel_seg=1, z0=Z0, smooth_angle=50,
+    # housing: 2-step fillets and 2-segment rim bevels so the silhouette and the bevel highlights survive the switch
+    sh = extrude(_outline(W, DF, CHAMF, 0.0, FIL, 0.0006, n=3), ZD - Z0, M.soft, bevel=0.0009, bevel_seg=3, z0=Z0, smooth_angle=50,
                  tag="m_shell").translate(0, FY - DF / 2, 0)
-    add_m(_set_mat(_hide(_planar_uv(split_by_normal(sh)), (":-y", ":+z"), 0.2), M.side, (":+x", ":-x")))
+    add_m(_set_mat(_hide(_planar_uv(split_by_normal(sh, cap_dot=0.92)), (":-y", ":+z"), 0.2), M.side, (":+x", ":-x")))
     ins = 0.0004
-    bt = extrude(_outline(W - 2 * ins, DB, 0.0, CHAMF - ins, 0.0006, FIL, n=2), ZD - 0.0005 - (Z0 + 0.0003), M.soft, bevel=0.0010,
-                 bevel_seg=1, z0=Z0 + 0.0003, smooth_angle=50, tag="m_battery").translate(0, BY + DB / 2, 0)
-    bt = _hide(_planar_uv(split_by_normal(bt)), (":+y", ":+z"), 0.2)
+    bt = extrude(_outline(W - 2 * ins, DB, 0.0, CHAMF - ins, 0.0006, FIL, n=3), ZD - 0.0005 - (Z0 + 0.0003), M.soft, bevel=0.0010,
+                 bevel_seg=3, z0=Z0 + 0.0003, smooth_angle=50, tag="m_battery").translate(0, BY + DB / 2, 0)
+    bt = _hide(_planar_uv(split_by_normal(bt, cap_dot=0.92)), (":+y", ":+z"), 0.2)
     _set_mat(bt, M.side, (":+x", ":-x"))
     _set_mat(bt, M.face, (":-y", ":-z"))
     add_m(bt)
-    add_m(extrude(_outline(W, D, CHAMF, CHAMF, FIL, FIL, n=2), DECK, M.face, bevel=0.0009, bevel_seg=1, z0=ZD, smooth_angle=50,
+    add_m(extrude(_outline(W, D, CHAMF, CHAMF, FIL, FIL, n=3), DECK, M.face, bevel=0.0009, bevel_seg=3, z0=ZD, smooth_angle=50,
                   tag="m_deck"))
+    for xy, dd in ((CH_XY, 0.0150), (VOL_XY, 0.0160)):
+        add_m(cylinder(dd / 2, BOSS_H, M.soft, segs=24, bevel=0.0005, bevel_seg=1, caps=(False, True), tag="m_boss").translate(xy[0], xy[1], ZT))
+    add_m(cylinder(0.0058, 0.0010, M.soft, segs=16, bevel=0.0004, bevel_seg=1, caps=(False, True), tag="m_seat")
+          .translate(ANT_XY[0], ANT_XY[1], ZT))
     # bezel with the grille / mic / screen openings only - the key stand-ins stand on its face
-    mesh = m_mesh(r)
-    holes, fl = _bezel_holes(M, mesh, m_print_dark(r), keys=False)
-    g = holed_plate(rrect(PW, PZ1 - PZ0, 0.0042, 3), PT, holes, M.bezel, depth=PT - FLOOR, wall_mat=M.soft, floor_mats=fl, bevel=0.00045,
-                    hole_bevel=0.0, corner_n=2, tag="m_bezel")
+    holes, fl = _bezel_holes(M, M.mesh, M.border, keys=False)
+    g = holed_plate(rrect(PW, PZ1 - PZ0, 0.0042, 4), PT, holes, M.bezel, depth=PT - FLOOR, wall_mat=M.soft, floor_mats=fl, bevel=0.00045,
+                    hole_bevel=0.00028, corner_n=3, tag="m_bezel")
     g += _grille_bars(M.bezel, PT + 0.00022 - FLOOR, rounded=False)
     add_m(_front(g, PZC))
-    # keys, soft keys, d-pad: plain blocks standing out of the bezel face
+    # keys, soft keys, d-pad: rounded caps (2-step corners, bevelled top rim) standing out of the bezel face
     yb = FY + PT
 
-    def front_block(pid, X, Z, w, h, t, rot=0.0):
-        blk = box((w, h, t), M.keys, r=min(w, h) * 0.22, seg=1, faces="+x -x +y -y +z", tag="m_key")
+    def front_block(pid, X, Z, w, h, t, corner, rot=0.0):
+        blk = extrude(rrect(w, h, min(corner, min(w, h) / 2 - 1e-5), 3), t, M.keys, bevel=min(0.0005, t * 0.45), bevel_seg=2,
+                      caps=(False, True), smooth_angle=50, tag="m_key")
         if rot:
             blk.rotate(0, 0, rot)
-        add_m(align(blk.translate(0, 0, t / 2), (0, 1, 0), (0, 0, 1), (X, yb + float(crown(X)) - 0.0003, Z)), part=pid)
+        add_m(align(blk, (0, 1, 0), (0, 0, 1), (X, yb + float(crown(X)) - 0.0003, Z)), part=pid)
 
     for pid, X, Z, lg, sub in _keypad_cells():
-        front_block(pid, X, Z, KEY[0], KEY[1], KEY_T - PT + 0.0006)
+        front_block(pid, X, Z, KEY[0], KEY[1], KEY_T - PT + 0.0006, KEY[1] * 0.28)
     for pid, (X, Z, w, h, cr) in CLUSTER.items():
-        front_block(pid, X, Z, w, h, 0.0019 - PT + 0.0006)
+        front_block(pid, X, Z, w, h, 0.0019 - PT + 0.0006, cr)
     s = DPAD_SIZE / math.sqrt(2)
-    front_block("dpad", 0.0, CL_Z, s, s, 0.0024 - PT + 0.0008, rot=45)
-    # knobs, emergency key
+    front_block("dpad", 0.0, CL_Z, s, s, 0.0024 - PT + 0.0008, s * 0.2, rot=45)
+    # knobs (fluted channel knob, smooth volume knob), emergency key
     knob_m = r.mat("knob_ch_black")
-    add_m(cylinder(CH_D / 2, CH_H + BOSS_H, knob_m, segs=16, bevel=0.0006, bevel_seg=1, caps=(False, True), tag="m_knob")
-          .translate(CH_XY[0], CH_XY[1], ZT), part="knob_ch")
-    add_m(cylinder(VOL_D / 2, VOL_H + BOSS_H, "knob_knurl", segs=16, bevel=0.0006, bevel_seg=1, caps=(False, True), tag="m_knob")
-          .translate(VOL_XY[0], VOL_XY[1], ZT), part="knob_vol")
-    add_m(box((0.009, 0.006, 0.0006), "emerg_orange", r=0.0008, seg=1, center=(EM_XY[0], EM_XY[1], ZT + 0.0001),
-              faces="+x -x +y -y +z", tag="m_emerg"), part="emerg")
+    kc = lathe([(0.0142 / 2, 0.0), (0.0142 / 2, 0.0018), (CH_D / 2 - 0.0007, 0.0018)], knob_m, segs=24, smooth_angle=40, tag="m_knob")
+    fo = _flute_outline(CH_D / 2, 0.00068, 16, math.pi / 2)
+    kc += extrude(fo, CH_H - 0.0018, knob_m, z0=0.0018, caps=(False, True), smooth_angle=28, tag="m_knob")
+    kc += lathe([(CH_D / 2 - 0.0004, CH_H), (CH_D / 2 - 0.0012, CH_H + 0.0003), (0.0, CH_H + 0.0004)], knob_m, segs=24, smooth_angle=40,
+                tag="m_knob")
+    add_m(kc.translate(CH_XY[0], CH_XY[1], ZT + BOSS_H), part="knob_ch")
+    kv = lathe([(0.0075, 0.0), (0.0075, 0.0016), (VOL_D / 2, 0.0016), (VOL_D / 2, VOL_H - 0.0007), (VOL_D / 2 - 0.0007, VOL_H),
+                (0.0, VOL_H + 0.0003)], "knob_vol_black", segs=28, smooth_angle=40, tag="m_knob")
+    add_m(kv.translate(VOL_XY[0], VOL_XY[1], ZT + BOSS_H), part="knob_vol")
+    add_m(extrude(rrect(0.009, 0.006, 0.0012, 2), 0.0022, "emerg_orange", z0=ZD + DECK - 0.0019, bevel=0.0004, bevel_seg=1,
+                  caps=(False, True), tag="m_emerg").translate(EM_XY[0], EM_XY[1], 0), part="emerg")
     # side parts and panels
     for sx, pw, pz0, pz1 in ((W / 2, *LPANEL), (-W / 2, *RPANEL)):
-        add_m(align(extrude(rrect(pw, pz1 - pz0, 0.004, 2), 0.0012, M.grip, bevel=0.0004, bevel_seg=1, caps=(False, True), tag="m_panel"),
+        add_m(align(extrude(rrect(pw, pz1 - pz0, 0.004, 3), 0.0012, M.grip, bevel=0.0004, bevel_seg=2, caps=(False, True), tag="m_panel"),
                     (np.sign(sx), 0, 0), (0, 0, 1), (sx, SIDE_YC, (pz0 + pz1) / 2)))
     sx = W / 2 + 0.0012
-    add_m(align(box((PTT_W, PTT_L, 0.0016), M.keys, r=0.003, seg=1, faces="+x -x +y -y +z", tag="m_ptt").translate(0, 0, 0.0008),
-                (1, 0, 0), (0, 0, 1), (sx, SIDE_YC, PTT_Z)), part="ptt")
+    add_m(align(extrude(rrect(PTT_W, PTT_L, PTT_W * 0.42, 2), 0.0016, M.keys, bevel=0.0005, bevel_seg=1, caps=(False, True), tag="m_ptt"),
+                (1, 0, 0), (0, 0, 1), (sx - 0.0004, SIDE_YC, PTT_Z)), part="ptt")
+    for k in range(5):
+        add_m(align(box((PTT_W * 0.7, 0.0008, 0.0006), M.keys, faces="+x -x +y -y +z", tag="m_ptt").translate(0, 0, 0.0003),
+                    (1, 0, 0), (0, 0, 1), (sx + 0.0012, SIDE_YC, PTT_Z + (k - 2) * 0.004)), part="ptt")
     for pid, z in zip(("side1", "side2"), SIDE_Z):
-        add_m(align(cylinder(SIDE_D / 2, 0.0006, M.keys, segs=10, caps=(False, True), tag="m_side"), (1, 0, 0), (0, 0, 1),
-                    (sx, SIDE_YC, z)), part=pid)
+        add_m(align(cylinder(SIDE_D / 2, 0.0010, M.keys, segs=16, bevel=0.0003, bevel_seg=1, caps=(False, True), tag="m_side"), (1, 0, 0),
+                    (0, 0, 1), (sx - 0.0004, SIDE_YC, z)), part=pid)
     cz, cw, chh = ACC
     add_m(align(extrude(rrect(cw, chh, 0.0026, 2), 0.0021, "acc_cover", bevel=0.0005, bevel_seg=1, caps=(False, True), tag="m_acc"),
                 (-1, 0, 0), (0, 0, 1), (-W / 2, SIDE_YC, cz)))
-    # antenna (8 sides, collar + taper + cap), nut, belt clip plate
-    prof = [(0.0, 0.0), (0.0052, 0.0), (0.0053, 0.0115), (0.0045, 0.0146), (0.0041, 0.066), (0.0036, 0.072), (0.0030, 0.152),
-            (0.0018, 0.1545), (0.0, 0.155)]
-    add_m(lathe(prof, "antenna_rubber", segs=8, smooth_angle=50, tag="antenna_m").translate(ANT_XY[0], ANT_XY[1], ZT + 0.0015 + NUT_H))
+    for dz in (0.0115, -0.0115):
+        add_m(align(cylinder(0.0029, 0.0020, "thumb_oxide", segs=10, bevel=0.0003, bevel_seg=1, caps=(False, True), tag="m_thumb"),
+                    (-1, 0, 0), (0, 0, 1), (-W / 2 - 0.0021, SIDE_YC, cz + dz)))
+    # antenna (12 sides: ribbed collar, taper, step, cap + the band ring), SMA nut, belt clip, latch tab
+    prof = [(0.0, 0.0), (0.00515, 0.0), (0.00515, 0.0006), (0.0050, 0.0010), (0.00538, 0.0035), (0.0050, 0.0062), (0.00538, 0.0088),
+            (0.0050, 0.0115), (0.00472, 0.0128), (0.00452, 0.0146), (0.00426, 0.046), (0.00408, 0.068), (0.00362, 0.0722),
+            (0.00318, 0.130), (0.00302, 0.150), (0.0021, 0.1541), (0.0, 0.155)]
+    add_m(lathe(prof, "antenna_rubber", segs=16, smooth_angle=50, tag="antenna_m").translate(ANT_XY[0], ANT_XY[1], ZT + 0.0015 + NUT_H))
+    add_m(lathe([(0.00447, 0.0199), (0.00466, 0.0200), (0.00466, 0.0215), (0.00446, 0.0216)], "antenna_band", segs=16, smooth_angle=50,
+                tag="antenna_m_band").translate(ANT_XY[0], ANT_XY[1], ZT + 0.0015 + NUT_H))
     hexo = np.array([(0.004 / math.cos(math.radians(30)) * math.cos(math.radians(30 + 60 * k)),
                       0.004 / math.cos(math.radians(30)) * math.sin(math.radians(30 + 60 * k))) for k in range(6)])
-    add_m(extrude(hexo, NUT_H + 0.0015, "sma_nickel", caps=(False, True), smooth_angle=20, tag="m_nut")
+    add_m(extrude(hexo, NUT_H, "sma_nickel", z0=0.0015, bevel=0.0003, bevel_seg=1, caps=(False, True), smooth_angle=20, tag="m_nut")
           .translate(ANT_XY[0], ANT_XY[1], ZT))
-    clip = box((0.032, CLIP_LEN, 0.002), "clip_steel", r=0.0008, seg=1, faces="+x -x +y -y +z -z", tag="m_clip")
-    clip.translate(0, -CLIP_LEN / 2 + 0.002, 0.0045)
+    add_m(cylinder(0.0032, 0.0015, "sma_nickel", segs=10, caps=(False, True), tag="m_nut").translate(ANT_XY[0], ANT_XY[1], ZT))
+    path = [(0.0, 0.004, 0.0), (0.0, 0.0, 0.0035), (0.0, -CLIP_LEN * 0.5, 0.0041), (0.0, -CLIP_LEN + 0.0048, 0.0035),
+            (0.0, -CLIP_LEN, 0.0035 + 0.0044)]
+    clip = sweep(rrect(0.032, 0.002, 0.0009, 1), polyline_fillet(np.asarray(path), 0.004, 2), "clip_steel", side=(1, 0, 0), smooth_angle=55,
+                 tag="m_clip")
     clip += box((0.036, 0.012, 0.004), M.soft, r=0.001, seg=1, center=(0, 0.002, 0.002), faces="+x -x +y -y +z", tag="m_clip")
     add_m(align(clip, (0, -1, 0), (0, 0, 1), (0.0, BY, CLIP_TOP)))
+    add_m(_lanyard_lug(M).set_tag("m_lanyard"))
+    add_m(align(box((0.016, 0.0065, 0.0013), "latch_rubber", r=0.0005, seg=1, faces="+x -x +y -y +z", tag="m_latch").translate(0, 0, 0.00065),
+                (0, -1, 0), (0, 0, 1), (0.0, BY, Z0 + 0.0060)))
 
 
 __all__ = ["handheld"]

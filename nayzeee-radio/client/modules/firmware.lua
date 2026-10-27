@@ -394,7 +394,12 @@ function proto:OnJoin(res, slot, freq, code, back)
     end
     if reason == 'power' then return end
     self:Sfx('error')
-    self:Notice(L(JOIN_NOTICE[reason] or 'scr_error'))
+    -- busy + slot: that channel already sits on another slot of this radio (not a rate limit)
+    if reason == 'busy' and tonumber(res.slot) then
+        self:Notice(L('scr_onslot', math.floor(tonumber(res.slot))))
+    else
+        self:Notice(L(JOIN_NOTICE[reason] or 'scr_error'))
+    end
     if reason == 'badcode' then
         self.code = ''
         self.view = 'code'

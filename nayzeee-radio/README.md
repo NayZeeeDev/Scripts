@@ -23,7 +23,8 @@ frequency. Three handheld models, a dash head unit for radio cars, a signal that
 distance, height and jammers, and channels you lock by code or job in game.
 
 - **ESX · QBCore · Qbox · Standalone**, detected by itself.
-- **9 inventories, 5 target scripts (or none)**, all optional and detected.
+- **9 inventories** (or the framework's own) and **5 target scripts** (or none), detected by
+  themselves.
 - **Server-authoritative.** The server decides who hears whom and how well, from real
   positions, and checks every item, channel lock, seat and jammer.
 - **No database needed.** oxmysql is used when it runs; otherwise the radio keeps its data
@@ -76,9 +77,10 @@ distance, height and jammers, and channels you lock by code or job in game.
 - A faint outline shows which part is under the cursor, and a key card on the right edge
   lists what the mouse and keys do.
 - **Mouse wheel** zooms; over a knob it turns the knob.
-- **Other players see the radio in your hand** while you have it up. The TX lamp lights red
-  while you talk, the RX lamp green while you receive, and the amber lamp blinks during an
-  emergency.
+- **Other players see the radio in your hand** while you have it up (and while you talk, if
+  `Config.Radios.Talk.showProp` is on).
+- On your raised radio the **status lamp** lights red while you talk, green while you receive
+  and blinks amber during an emergency.
 - The radio lowers by itself when you die, ragdoll, get into a vehicle, get cuffed or go
   into the water with a radio that is not waterproof.
 
@@ -88,16 +90,20 @@ distance, height and jammers, and channels you lock by code or job in game.
 - **Slots**: a radio listens to every channel in its slots at once (3, 4 or 5 by model). You
   talk on one of them, the **TX slot**. Pick it with up / down on the radio, the slots
   screen or the next-slot key.
-- The home screen shows the TX frequency, the channel name, every slot with its frequency,
-  who is talking with their signal bars, and small icons for mute and hands-free.
-- **Hands-free** keeps your mic open on the TX channel until you switch it off.
-- **Mute** silences everything you receive. Emergency alerts still come through.
+- The home screen shows the TX frequency, the channel name, your slots, who is talking, the
+  signal bars and indicators for mute and hands-free. The FX-280's segment display fits less
+  on one screen than the PX-740 and MX-905.
+- **Hands-free** keeps your mic open on the TX channel until you switch it off or turn the
+  radio off. It follows you when you change the TX slot.
+- **Mute** silences everything you receive. Emergency alerts and the caller's open mic still
+  come through.
 - **Mic clicks**: the short key-up and key-down chirps, per player, on or off in the radio's
   menu.
-- **Volume** is per player and kept between sessions.
+- **Volume** and mic clicks are personal settings, kept on the player's PC between sessions.
 
 ### Memories and callsign
-- **6 memories per character**, saved in the database (`Config.Radios.presets`).
+- **6 memories per character** (`Config.Radios.presets`), saved in the database or the JSON
+  files, so they follow the character, not the PC.
 - Store a frequency from the memories screen; the channel knob (or PRE on the head unit)
   steps through your memories and tunes the TX slot once you stop turning.
 - **Callsign** with `/callsign 1G-12` (up to 8 characters). It shows next to your name for
@@ -105,8 +111,8 @@ distance, height and jammers, and channels you lock by code or job in game.
 
 ### Locked channels
 - **Code channels**: the radio asks for a 4-digit code before it joins. Once entered, the
-  channel stays unlocked for you until you leave the server. Three wrong codes lock that
-  frequency for you for 30 seconds.
+  channel stays unlocked for the rest of your session (until you leave the server or switch
+  character). Three wrong codes lock that frequency for you for 30 seconds.
 - **Job channels**: only listed jobs from a minimum grade get in, optionally only on duty
   (`Config.Channels.requireDuty`).
 - **Fixed ranges** in the config: 1.00-10.99 is locked to police, sheriff and EMS out of the
@@ -117,12 +123,15 @@ distance, height and jammers, and channels you lock by code or job in game.
   drops that channel and they get a notification.
 
 ### Signal
-- Every link between two radios has a **quality from 0 to 1**, worked out on the server from
-  both positions. It starts to fade at 55 % of the range and is gone at the full range.
-- **Height helps**: above 40 m the range grows by 1 % per 4 m, up to +75 % (rooftops,
-  hills, helicopters).
+- Every link between two radios has a **quality from 0 to 100 %**, worked out on the server
+  from both positions. It starts to fade at 55 % of the range and is gone at the full range.
+  Height difference counts half as much as ground distance.
+- **Signal bands**: clear from 75 %, weak from 45 %, poor from 15 %; below that the link is
+  lost (`Config.Signal.tiers`).
+- **Height helps**: every 4 m above 40 m (measured from sea level, like the game's own
+  heights) adds 1 % range, up to +75 % (rooftops, hills, helicopters).
 - **Dead zones**: places you list in `Config.Signal.DeadZones` (tunnels, deep interiors)
-  shrink the range.
+  shrink the range. None are set out of the box.
 - **What you hear** follows the quality: a clear link sounds clean; a weak one sounds
   harsher, hisses and drops out in short bursts; below the lowest band you only hear the
   carrier breaking up, not the voice. Transmissions end with a squelch tail.
@@ -140,15 +149,31 @@ distance, height and jammers, and channels you lock by code or job in game.
   **right mouse** puts it away. It must be within reach, on fairly flat, dry ground and not on
   a car or a person, and you must be on foot. One per player by default.
 - Radios inside the radius **fill with static** (louder closer in, scaled by the radio's
-  volume) and their links get worse. Close to a strong jammer a radio **cannot transmit at
-  all** and shows NO SIGNAL. Jam resistance (FX-280, MX-905) takes part of the effect away.
-- A jammer runs until its battery is empty, its owner **picks it up**, the police or
-  sheriff **seize** it (they get the item), an admin takes it down, or someone **hacks** it.
-- **The hack**: a window with two dials, **Phase** and **Gain**. You shape your own
+  volume; a muted or switched-off radio stays quiet) and their links get worse. A link is as
+  bad as its worse end, so a jammer next to the listener hurts as much as one next to the
+  talker. Jam resistance (FX-280 15 %, MX-905 40 %) takes that share off every jammer.
+- What is left of a link at the centre of each jammer (default config):
+
+  | | PX-740 | FX-280 | MX-905 |
+  |---|---|---|---|
+  | **JX-10** | 15 % (poor) | 28 % (poor) | 49 % (weak) |
+  | **JX-40** | 5 %, lost, **cannot transmit** | 19 % (poor) | 43 % (poor) |
+  | **JX-90** | nothing, **cannot transmit** | 15 % (poor) | 40 % (poor) |
+
+  A radio jammed by 92 % or more (`Config.Signal.txBlockJam`) shows NO SIGNAL and cannot
+  key up: out of the box that is a PX-740 within about 45 m of a JX-40 or 90 m of a JX-90.
+  The emergency alert still goes out from there.
+- A jammer runs until its battery runs out, its owner **picks it up**, the police or
+  sheriff **seize** it (they get the item and the owner is told), an admin takes it down, or
+  someone **hacks** it. Placed jammers are not saved: when the resource stops, each running
+  one goes back to its owner's inventory if they are online.
+- **The hack**: a window with two dials, **Phase** (A / D, Q / E or ← / →) and **Gain**
+  (W / S or ↑ / ↓; mouse wheel and drag work too, Shift for fine steps). You shape your own
   counter-signal until it cancels the jammer's carrier, then hold the match while a ring
   fills. JX-10 has 1 stage, JX-40 2 and JX-90 3, against one clock (25, 40 and 55 s). The
-  carrier drifts more each stage. Fail or give up and you wait 20 s before the next try. A
-  hacked jammer goes off for everyone and its owner is told.
+  carrier drifts more each stage. Esc gives up. Walking away from the jammer, dying or
+  getting into a vehicle ends the attempt. Fail or give up and you wait 20 s before the next
+  try. A hacked jammer goes off for everyone and its owner is told.
 - Pick up / Hack works through ox_target, qb-target, qtarget, interact or
   sleepless_interact, or the built-in **[E]** prompt without a target script.
 
@@ -161,8 +186,8 @@ distance, height and jammers, and channels you lock by code or job in game.
   memories, **MUT** mutes the speaker, **PWR** switches it on and off, **EMERG** sits under a
   flip cover. A volume knob and a channel knob sit at the ends.
 - In those seats, with the head unit on and tuned, your **talk key goes through the car**
-  (`Config.Vehicles.pttPriority`). The car's aerial reaches further than any handheld, and
-  admins can scale it per car. You do not need a handheld to use the head unit.
+  (`Config.Vehicles.pttPriority`). Out of the box the car's aerial reaches further than any
+  handheld, and admins can scale it per car. You do not need a handheld to use the head unit.
 - Tuning a car goes through the same channel locks as a handheld.
 
 ### Outside speaker and cabin
@@ -196,7 +221,8 @@ distance, height and jammers, and channels you lock by code or job in game.
 
 ### Roster
 - A small card at the right edge: **who is on your TX channel**, their signal bars from your
-  side, and who is talking now (talkers move to the top).
+  side, and who is talking now (talkers move to the top). It lists 6 people and counts the
+  rest; people talking through a head unit are on it too.
 - Shown while the radio is up, toggled with the roster key, the side button or the menu, and
   for a few seconds when someone starts talking (`Config.Roster.popOnRx`).
 
@@ -214,7 +240,7 @@ distance, height and jammers, and channels you lock by code or job in game.
 |---|---|
 | **FiveM server** | OneSync enabled (`set onesync on`). The server reads player positions for range, jammers and car speakers |
 | **[ox_lib](https://github.com/overextended/ox_lib)** | required |
-| **[pma-voice](https://github.com/AvarianKnight/pma-voice)** | required. It keeps doing proximity voice and phone calls; the radio uses its own channels and never uses pma-voice's radio |
+| **[pma-voice](https://github.com/AvarianKnight/pma-voice)** | required. It keeps doing proximity voice and phone calls; the radio sends its own voice through Mumble and leaves pma-voice's radio unused |
 | **Framework** | ESX, QBCore, Qbox, or none (standalone). An ox_core server runs as standalone |
 | **Inventory** | ox_inventory, qb-inventory, ps-inventory, lj-inventory, qs-inventory, codem-inventory, tgiann-inventory, origen_inventory, core_inventory or the framework's own inventory (ESX default, QBCore) |
 | **[oxmysql](https://github.com/overextended/oxmysql)** (optional) | stores memories, callsigns, channel locks and radio cars in MySQL / MariaDB. Without it the same data goes into JSON files |
@@ -260,7 +286,7 @@ ensure nayzeee-radio
 add_ace group.admin nzr.admin allow
 # add_principal identifier.license:xxxx group.admin   (if you are not in group.admin yet)
 
-# optional, see FAQ "pma-voice and the raised radio"
+# recommended, see FAQ "pma-voice and the raised radio"
 setr voice_disableAutomaticListenerOnCamera 1
 ```
 
@@ -272,8 +298,10 @@ admins too.
   `nzr_vehicles`) are created on the first start. If your database user may not create
   tables, run `sql/install.sql` once (safe to run again).
 - **Without oxmysql**: the radio writes `players.json`, `channels.json` and `vehicles.json`
-  into `nayzeee-radio/data/`. Create that `data` folder once if it is not there; without it
-  the files land in the resource folder itself (`nzr_*.json`) and the console says so once.
+  into `nayzeee-radio/data/`. The folder ships with the resource and must stay writable by
+  the server. If it is missing the files land in the resource folder itself (`nzr_*.json`)
+  and the console says so once. **Keep `data/` when you update** the resource: it holds
+  every memory, callsign, channel lock and radio car.
 
 ### Step 4 · Items
 The resource uses 7 items: `radio`, `radio_fieldpro`, `radio_military`, `radio_earpiece`,
@@ -360,15 +388,17 @@ RX, model codes) are part of the hardware and stay as they are.
 ### First steps
 1. **Use the radio item** (or press **F10**, or type `/radio`). The radio comes up in front
    of you.
-2. **Switch it on**: turn the volume knob up (click its right half or scroll over it). On the
-   FX-280 you can also hold the POWER key. The screen runs a short self test.
+2. **Switch it on**: turn the volume knob up (click its right half or scroll up over it). On
+   the FX-280 you can also hold the POWER key for about a second. The screen runs a short
+   self test.
 3. **Type a frequency** on the keypad (`*` = decimal point) and press **OK**. A code channel
    asks for its 4-digit code next.
 4. **Hold Caps Lock to talk.** The radio does not have to be up for that.
 5. **Lower it** with the right mouse button, Esc or F10. It stays on and keeps receiving.
 
-To switch it off, turn the volume knob all the way down and keep turning for a second (or
-hold POWER on the FX-280).
+To switch it off, hold the left mouse button on the left half of the volume knob: the volume
+runs down to zero, and one more second of holding switches the set off. The mouse wheel only
+turns the volume. On the FX-280, holding POWER does the same.
 
 ### Keys while the radio is up
 | Key | What it does |
@@ -421,8 +451,14 @@ moves, OK switches or opens, BACK leaves.
 | TRY LATER | Too many wrong codes: wait 30 s |
 | RESTRICTED | Your job or grade is not allowed on it |
 | OUT OF BAND | Not a frequency the radio can tune |
-| NO CHANNEL | The TX slot is empty |
+| ONE MOMENT | Too many presses in a row |
+| ALREADY ON S2 | That frequency is already on another slot of this radio (S2 here) |
+| NO REPLY | The server did not answer |
+| KEY IN A CHANNEL · NO CHANNEL | The TX slot has no frequency yet |
+| INTERFERENCE (PX-740) · JAM nn (MX-905) | A jammer is near and the link is getting worse |
 | NO SIGNAL | Too close to a jammer to transmit |
+| NO MEMORIES | The channel knob has nothing to step through: store a memory first |
+| NOT SAVED | A memory could not be stored, try again |
 | WAIT | Emergency cooldown |
 
 ### The head unit (MV-90)
@@ -463,7 +499,7 @@ You need the `nzr.admin` ace (Step 2) or a framework group from `Config.Admin.gr
    everyone has to enter the new one. Close with Esc; with edits not yet saved it asks first.
 5. **Live** shows radios switched on, channels in use (handhelds and head units), who is
    talking and every jammer that is out with its time left. Set a waypoint on a jammer or
-   take it down from there.
+   take it down from there (its owner does not get it back).
 
 The ranges from `Config.Channels.Restricted` are listed in the sidebar, read only. Change
 them in `config/modules/channels.lua`.
@@ -476,7 +512,7 @@ them in `config/modules/channels.lua`.
 | Command | What it does |
 |---|---|
 | `/radioadmin` | Radio control window: channel locks, radio cars, live view, jammers |
-| `/radiogrip x y z rx ry rz` | Only with `Config.Debug = true`: move the radio in your hand live and print the config line to the F8 console |
+| `/radiogrip x y z rx ry rz` | Admins (the `Config.Admin` ace or framework admin groups), or anyone while `Config.Debug = true`: move the radio in your hand live and print the config line to the F8 console. Keep Debug off on a live server |
 
 ### Players
 | Key / command | What it does |
@@ -554,7 +590,7 @@ Player(src).state.nzr_job      -- { name, label, grade, gradeLabel, onDuty, isBo
 Entity(veh).state.nzr_vradio   -- head unit: { on, f = '155.50' | nil, v = 0..1, mute, label }
 GlobalState.nzr_labels         -- { ['155.50'] = { label, access = 'open'|'code'|'job' }, ranges = { { from, to, label, access } } }
 GlobalState.nzr_jammers        -- { [id] = { t = type, x, y, z, h, o = owner server id, e = expiry (os.time) } }
-GlobalState.nzr_vehicles       -- { models = { [hash] = { label, range, model } }, classes = { [n] = true } }
+GlobalState.nzr_vehicles       -- { models = { [signed hash] = { label, range = multiplier, model } }, classes = { [n] = true } }
 ```
 
 Codes are never in a state bag. Each file starts with a header that lists its API and
@@ -593,29 +629,33 @@ after an update.
 **Nobody hears me on the radio.**
 - Both radios must be switched on, on the same frequency, and the other side must not be
   muted.
-- Check the screen: NO CHANNEL means your TX slot is empty, NO SIGNAL means a jammer is too
-  close.
+- Check the screen: NO CHANNEL means your TX slot has no frequency, NO SIGNAL means a jammer
+  is too close.
 - Too far apart? Try `/radiorange`, get higher, or use a radio car.
 - pma-voice must be running and the player's voice chat on in the FiveM settings.
 - Within 4 m (`Config.Audio.nearSkip`) you hear each other in person, not through the radio.
 - Stop other radio scripts; they fight over pma-voice's voice target.
 
 **pma-voice and the raised radio.**
-While the radio is up the game renders a scripted camera, and pma-voice then listens around
-the camera by default. The camera sits right at your face, so nothing changes in practice.
-If you would rather turn that pma-voice behaviour off, add
-`setr voice_disableAutomaticListenerOnCamera 1` to server.cfg.
+While the radio is up the game renders a scripted camera. pma-voice reacts to any scripted
+camera by switching on its camera listener, which also lets you hear the players around you
+through Mumble. The radio camera sits right at your face, so on most servers nothing
+changes, but depending on your pma-voice audio settings people further away can become
+audible while your radio is up. Add `setr voice_disableAutomaticListenerOnCamera 1` to
+server.cfg to turn that pma-voice behaviour off (recommended).
 
 **I cannot join a channel.**
 RESTRICTED: your job or grade is not on the rule (or you are off duty with
 `requireDuty`). ACCESS CODE: type the 4-digit code. TRY LATER: three wrong codes, wait 30 s.
-OUT OF BAND: outside `Config.Channels.min` to `max`.
+OUT OF BAND: outside `Config.Channels.min` to `max`. ALREADY ON S2: that frequency is already
+on another slot of your radio. ONE MOMENT: you pressed too fast.
 
 **The head unit does not open.**
 The car must be a radio car (an emergency-class vehicle, a model in
 `Config.Vehicles.models`, or one added in `/radioadmin` → Vehicles), you must sit in the
 driver or front passenger seat (`Config.Vehicles.seats`), and `Config.Vehicles.enabled` must
-be on. Outside a radio car, F10 raises your handheld, and only on foot.
+be on. Outside a radio car, F10 raises your handheld, and only on foot. Your talk key still
+works on the handheld in any car; you just cannot raise it there.
 
 **`/radioadmin` says I am not allowed.**
 Add `add_ace group.admin nzr.admin allow` to server.cfg and make sure you are in
@@ -623,14 +663,15 @@ Add `add_ace group.admin nzr.admin allow` to server.cfg and make sure you are in
 framework groups in `Config.Admin.groups`.
 
 **I cannot place a jammer.**
-Get out of the vehicle, aim at the ground within 3 m, on a dry spot that is not too steep and
-not on a car or person. You can only run `Config.Jammers.maxPerPlayer` (1) at a time.
+Get out of the vehicle and aim at the ground within 3 m (`Config.Jammers.placeDistance`),
+no more than about 1.6 m above or below you, on a dry spot that is not too steep and not on a
+car, a person or another jammer. You can only run `Config.Jammers.maxPerPlayer` (1) at a time.
 
 **Nobody can hack or pick up a jammer.**
-"Pick up" is for its owner and `Config.Jammers.seizeJobs`; "Hack" for everyone else, or only
-`Config.Jammers.hackJobs` when that is set. After a failed hack you wait
-`Config.Jammers.failLockout` (20 s). Without a target script, walk up to it and look for the
-**[E]** prompt.
+"Pick up" is for its owner and `Config.Jammers.seizeJobs`; "Hack" is for everyone except the
+owner, or only `Config.Jammers.hackJobs` when that is set. Both need you on foot, within 2 m
+of it. After a failed hack you wait `Config.Jammers.failLockout` (20 s); reconnecting does not
+reset that. Without a target script, walk up to it and look for the **[E]** prompt.
 
 **Jammers are gone after a restart.**
 Placed jammers are not saved. When the resource stops, running jammers go back to their
@@ -639,8 +680,10 @@ owners if they are online.
 **The database user may not create tables.**
 Run `sql/install.sql` once.
 
-**Memories and callsigns are lost without oxmysql.**
-Create the folder `nayzeee-radio/data/` and make sure the server may write to it (Step 3).
+**Memories, callsigns or channel locks are lost without oxmysql.**
+They live in `nayzeee-radio/data/*.json`. Make sure that folder exists and the server may
+write to it (Step 3), and keep it when you replace the resource with a new version. If the
+console says it saved to `nzr_*.json` instead, the `data/` folder was missing or read-only.
 
 **Typing on the radio's keypad switches my weapon.**
 The keypad mappings only act while the radio is up, and the game's weapon keys are blocked
@@ -652,18 +695,20 @@ Nothing runs every frame unless you use the radio:
 
 | Thread | Idle | Faster only when |
 |---|---|---|
-| Radios in other players' hands | wakes every 500 ms, sweeps once a second | someone near you has a radio up |
+| Radios in other players' hands | wakes every 500 ms, rereads the state bags every 5 s | a 1 s check while someone within 120 m has a radio up |
 | Raised radio (camera, cursor, keys) | not running | every frame while your radio is up |
+| Head unit window | not running | every frame while it is open (keeps the driving keys working) |
 | Talking (voice, gunfire pick-up) | not running | every frame while you transmit |
 | Receiving (volume, dropouts, speaker distance) | not running | every 100 ms while you hear someone, 50 ms on a weak link |
 | Under-water check | not running | once a second while your radio is on |
 | Radio screen (browser) | closed | while the radio is up; closed 2 min after the last use |
 | Vehicles | nothing on foot (a 1 s check only without ox_lib's cache events) | every 500 ms while you sit in a vehicle |
 | Jammer props and static | nothing while no jammer is out | a scan every 1-5 s by distance to the nearest one; every 250 ms inside its radius |
-| Built-in [E] prompt (no target script) | every 1 s | every 250 ms near a jammer, every frame while the prompt shows |
+| Built-in [E] prompt (no target script) | every 1 s | every 250 ms while a jammer prop is spawned near you (150 m), every frame while the prompt shows |
 | Server: radio items | every 5 s | only for radios that are on |
 | Server: who hears whom | every 250 ms, nothing to do | every `Config.Signal.refresh` (1 s) while anyone talks |
 | Server: roster | every 5 s | only for players watching it |
+| Server: jammer batteries | every 10 s | nothing extra |
 
 **Still stuck?** Turn on `Config.Debug = true` and `Config.Bridge.debug = true`, restart, and
 bring the console output to [discord.gg/nayzeeedev](https://discord.gg/nayzeeedev).

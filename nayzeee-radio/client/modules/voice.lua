@@ -390,7 +390,8 @@ local function targetMix(talker, r, now, ped, myPos)
     local q = tonumber(info.q) or 0.0
     local t = tiers()
     if q < t.poor then return nil, nil end
-    if st.muted and not info.emergency then return 0.0, nil end
+    -- mute is the handheld's: a car speaker or someone else's radio next to you still plays
+    if st.muted and info.mode == 'radio' and not info.emergency then return 0.0, nil end
 
     -- close enough to hear in person (and not shut in another car): pma-voice has it
     local tped = pedOfServerId(talker)
@@ -465,7 +466,7 @@ local function restore(talker, r)
 end
 
 local function audible(info)
-    return not S().muted or info.emergency == true
+    return not S().muted or info.mode ~= 'radio' or info.emergency == true
 end
 
 local function pushRxStatus()

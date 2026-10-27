@@ -86,7 +86,7 @@ return {
         },
     },
     ['jammer_heavy'] = {
-        label = 'Heavy Jammer',
+        label = 'Cabinet Jammer',
         weight = 28000,
         stack = true,
         close = true,

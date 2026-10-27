@@ -12,7 +12,7 @@
     Use a jammer item to place it: aim, scroll to turn it, [E] to put it down. Radios near it
     fill with static; close in they can't transmit at all. It runs until its battery dies
     (life, minutes), its owner picks it up, or someone hacks it: match the jammer's waveform
-    band by band (A/D wavelength, W/S amplitude) before the timer runs out.
+    band by band (Phase on A/D, Gain on W/S) before the timer runs out.
 
     core      share of the radius where the jam is at full strength
     strength  0..1 at the core
@@ -35,6 +35,6 @@ Config.Jammers = {
     Types = {
         pocket = { label = 'Pocket Jammer', model = 'nzr_jammer_pocket', radius = 45.0,  core = 0.35, strength = 0.85, life = 15, bands = 1, time = 25 },
         case   = { label = 'Field Jammer',  model = 'nzr_jammer_case',   radius = 110.0, core = 0.35, strength = 0.95, life = 30, bands = 2, time = 40 },
-        heavy  = { label = 'Heavy Jammer',  model = 'nzr_jammer_heavy',  radius = 220.0, core = 0.30, strength = 1.00, life = 45, bands = 3, time = 55 },
+        heavy  = { label = 'Cabinet Jammer', model = 'nzr_jammer_heavy',  radius = 220.0, core = 0.30, strength = 1.00, life = 45, bands = 3, time = 55 },
     },
 }

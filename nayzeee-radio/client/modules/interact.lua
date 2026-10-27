@@ -24,7 +24,7 @@
     KEY MAPPINGS (RegisterKeyMapping, hold-style +/- like the user's ATM keypad; inert unless raised)
       +nzr_k0 .. +nzr_k9 ('0'..'9'), +nzr_back (BACK), +nzr_ok (RETURN), +nzr_up / down / left /
       right (arrows), +nzr_star (MULTIPLY)
-    NUI SENT     overlay open { hints = { { keys = { 'LMB' }, label } } }, overlay hover { id, poly = { { x, y } } }
+    NUI SENT     overlay open { hints = { { keys = { 'LMB' }, label } } }, overlay hover { id, action, value, poly = { { x, y } } }
                  (normalised 0..1 screen points, hover {} = nothing under the cursor), overlay close
     STATE        NZR.Radio.SetRaised (nzr_hold.r), LocalPlayer.state.invHotkeys (ox_inventory) off while raised
 ]]
@@ -412,7 +412,8 @@ local function sendHover(s, m, now)
         return
     end
     s.hoverPoly = poly
-    NZR.UI.Send('overlay', 'hover', { id = id, poly = poly })
+    -- action/value let the overlay name the part by what it does (the MX-905's kup is Menu)
+    NZR.UI.Send('overlay', 'hover', { id = id, action = hit.key.action, value = hit.key.value, poly = poly })
 end
 
 local function hints()

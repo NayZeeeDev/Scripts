@@ -418,7 +418,7 @@ function J.Hack(id)
                 finishHack(false, 'gone')
             elseif NZR.Radio.API.IsDead() then
                 finishHack(false, 'dead')
-            elseif IsPedInAnyVehicle(p, false) or NZR.Signal.Distance(GetEntityCoords(p), jj) > HACK_REACH + 0.5 then
+            elseif IsPedInAnyVehicle(p, false) or NZR.Signal.Distance(GetEntityCoords(p), jj) > HACK_REACH then
                 finishHack(false, 'far')
             end
             Wait(HACK_CHECK_MS)

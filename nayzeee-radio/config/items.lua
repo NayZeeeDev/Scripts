@@ -33,5 +33,5 @@ Config.ItemDefs = {
     earpiece = { label = 'Radio Earpiece',   weight = 30,   stack = true,  description = 'Coiled earpiece. Keeps your radio traffic to yourself.' },
     pocket   = { label = 'Pocket Jammer',    weight = 600,  stack = true,  description = 'JX-10. Fills radios close by with noise.' },
     case     = { label = 'Field Jammer',     weight = 6500, stack = true,  description = 'JX-40 in a hard case. Reaches about a city block.' },
-    heavy    = { label = 'Heavy Jammer',     weight = 28000, stack = true, description = 'JX-90 cabinet with an aerial mast. Shuts down radios across a whole area.' },
+    heavy    = { label = 'Cabinet Jammer',   weight = 28000, stack = true, description = 'JX-90 cabinet with an aerial mast. Shuts down radios across a whole area.' },
 }

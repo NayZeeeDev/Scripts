@@ -129,21 +129,33 @@ def knob(mat, d=0.03, h=0.016, ridges=True):
 # ---------------------------------------------------------------------------------------------
 # small detail parts (geometry)
 # ---------------------------------------------------------------------------------------------
-def m_screw(b, d=0.005, kind="phillips", color=(160, 164, 170)):
-    """Screw-head material: the drive recess is a bump pattern centred on each head (chart space)."""
+def m_screw(b, d=0.005, kind="phillips", color=(160, 164, 170), spec=None, gloss=None):
+    """Screw-head material: the drive recess is a bump pattern centred on each head (chart space).
+    spec / gloss override the bright default (0.75 / 0.6) for duller platings (own material name)."""
     bump = {"phillips": "phillips", "hex": "hexsocket", "torx": "torx"}.get(kind, "phillips")
-    return b.mat(f"screw_{kind}_{int(round(d * 10000))}", color=color, spec=0.75, gloss=0.6, metal=1.0, bump=bump,
-                 bump_amp=d * 0.12, bump_scale=d / 2, grain=0.03, grain_scale=0.01, edge=0.35, dirt=0.25, scratch=0.3)
+    name = f"screw_{kind}_{int(round(d * 10000))}"
+    if spec is not None or gloss is not None:
+        name += f"_s{int(round((spec if spec is not None else 0.75) * 100))}g{int(round((gloss if gloss is not None else 0.6) * 100))}"
+    return b.mat(name, color=color, spec=0.75 if spec is None else spec, gloss=0.6 if gloss is None else gloss, metal=1.0,
+                 bump=bump, bump_amp=d * 0.12, bump_scale=d / 2, grain=0.03, grain_scale=0.01, edge=0.35, dirt=0.25, scratch=0.3)
 
 
-def screw(b, at, normal, up=(0, 0, 1), d=0.005, kind="phillips", color=(160, 164, 170), segs=12, washer=False):
+def screw(b, at, normal, up=(0, 0, 1), d=0.005, kind="phillips", color=(160, 164, 170), segs=12, washer=False, spec=None,
+          gloss=None):
     """Pan-head screw sitting on a surface at `at` facing `normal` (head height ~ d * 0.35);
     kind 'phillips' | 'hex' | 'torx' (the drive recess is a bump pattern centred on the head)."""
-    mat = m_screw(b, d, kind, color)
+    mat = m_screw(b, d, kind, color, spec, gloss)
     r = d / 2
     h = d * 0.36
     prof = [(0.0, 0.0), (r, 0.0), (r, h * 0.45), (r * 0.86, h * 0.9), (r * 0.62, h), (0.0, h)]
     g = lathe(prof, mat, segs=segs, smooth_angle=40)
+    # the drive pattern is centred on chart coordinate (0, 0): give the domed top a planar top-down projection
+    # (centre = the screw axis) and move the side wall's chart coordinates off the pattern
+    for c in g.charts:
+        if float(c.nrm[:, 2].mean()) > 0.5:
+            c.uvm = np.stack([c.pos[:, 0], -c.pos[:, 1]], axis=1)
+        else:
+            c.uvm = c.uvm + np.array([d * 4.0, d * 4.0])
     if washer:
         g += cylinder(r * 1.45, d * 0.08, mat, segs=segs + 4, bevel=d * 0.02, bevel_seg=1).translate(0, 0, -d * 0.04)
         g.translate(0, 0, d * 0.04)

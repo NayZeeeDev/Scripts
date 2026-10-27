@@ -5,7 +5,7 @@
    Lua → NUI
      open   { x?, y? }   0..1 screen fractions of the card's top-left (from roster:moved);
                          none = docked to the right edge, top-right quarter
-     data   { fkey, label, count?, access?, members = [{ id, name, callsign, bars 0..4, talking, you }] }
+     data   { fkey, label, count?, access?, max?, members = [{ id, name, callsign, bars 0..4, talking, you }] }
      close
    NUI → Lua
      roster:moved { x, y }   after a drag (only possible while some other window gives the page
@@ -185,7 +185,9 @@
     const order = members.map((m, i) => ({ m, i }))
       .sort((a, b) => ((b.m.talking === true) - (a.m.talking === true)) || (a.i - b.i))
       .map(x => x.m);
-    const shown = order.slice(0, MAX_ROWS);
+    // Config.Roster.maxRows (sent as max) can lower the row count, the card never shows more than MAX_ROWS
+    const cap = Math.max(1, Math.min(MAX_ROWS, Math.round(num(d.max, MAX_ROWS))));
+    const shown = order.slice(0, cap);
     const more = count - shown.length;
     moreEl.textContent = more > 0 ? `+${more} ${t('ui.rs_more', 'more')}` : '';
     wrap.classList.toggle('live', shown.some(m => m.talking === true));

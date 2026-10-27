@@ -1237,7 +1237,7 @@ def _rrect_n(w, h, r, n):
 
 
 def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, bevel=0.0004, hole_bevel=0.0003,
-               corner_n=4, density=1.0, tag="plate", floor=True):
+               corner_n=4, density=1.0, tag="plate", floor=True, outer_r=0.0, outer_n=2):
     """A flat plate w x h (centred on the origin, bottom at z = 0, top face at z = t, facing +Z) with
     rounded-rectangle openings that fall into wells - key wells, knob sockets, PTT pockets, grille holes.
 
@@ -1247,17 +1247,21 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
            needs more than a key well). Holes must not overlap and must stay inside the plate (minus the
            rim bevel).
     depth  default well depth (default t: the floor sits on the plate's bottom plane)
+    outer_r  corner radius of the plate outline in plan (outer_n arc steps per corner); 0 = square corners
+           (the default). The four corner cells of the top grid become fans that follow the rounded rim -
+           no opening may reach into a corner cell closer than the radius.
     The top face is one chart (grid partition around the holes + corner fans, no slivers); every well
     gets a 45 degree top chamfer (hole_bevel), inward facing walls and an optional floor. The plate's
     vertical corners are square in plan (its top rim is bevelled) - sink it into a housing face or
-    keep it small (keypad surrounds, bezels)."""
+    keep it small (keypad surrounds, bezels) - or give it outer_r."""
     depth = t if depth is None else depth
     wall_mat = wall_mat or mat
     floor_mat = floor_mat or wall_mat
     bv = float(min(bevel, t * 0.45))
     g = Geo()
     # outer wall + rounded top rim (the cap is replaced by the holed grid below)
-    outline = rrect(w, h, 0.0)
+    outer_r = float(min(max(outer_r, 0.0), w / 2 - 1e-6, h / 2 - 1e-6))
+    outline = rrect(w, h, outer_r, outer_n) if outer_r > bv + 1e-6 else rrect(w, h, 0.0)
     rim = extrude(outline, t, mat, bevel=bv, bevel_seg=2, caps=(False, True), density=density, tag=tag + ":rim",
                   smooth_angle=50)
     rim.charts = [c for c in rim.charts if not c.tag.endswith(":top")]
@@ -1288,10 +1292,46 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
         P.extend([a, b2, c, d])
         tri.extend([(base, base + 1, base + 2), (base, base + 2, base + 3)])
 
-    for i in range(len(xs) - 1):
-        for j in range(len(ys) - 1):
+    # rounded plan corners: the rim's top edge (outline inset by the bevel) bounds the four corner cells
+    arcs = {}
+    if len(outline) > 4:
+        top = offset_poly(outline, bv)
+        per = outer_n + 1
+        rc = outer_r - bv
+        for k, key in enumerate(((1, 0), (1, 1), (0, 1), (0, 0))):      # rrect corner order: +x-y, +x+y, -x+y, -x-y
+            arcs[key] = (top[k * per:(k + 1) * per], rc)
+    ni, nj = len(xs) - 1, len(ys) - 1
+    for i in range(ni):
+        for j in range(nj):
             cx_, cy_ = (xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2
-            if any(bx[0] <= cx_ <= bx[1] and bx[2] <= cy_ <= bx[3] for bx in boxes):
+            hole_cell = any(bx[0] <= cx_ <= bx[1] and bx[2] <= cy_ <= bx[3] for bx in boxes)
+            key = (1 if i == ni - 1 else 0 if i == 0 else None, 1 if j == nj - 1 else 0 if j == 0 else None)
+            if arcs and key in arcs:
+                if hole_cell:
+                    raise ValueError("well_plate: an opening reaches into a rounded plate corner (outer_r)")
+                arc, rc = arcs[key]
+                qx = xs[i] if key[0] == 1 else xs[i + 1]        # the cell corner facing the plate centre
+                qy = ys[j] if key[1] == 1 else ys[j + 1]
+                if xs[i + 1] - xs[i] < rc - 1e-9 or ys[j + 1] - ys[j] < rc - 1e-9:
+                    raise ValueError("well_plate: outer_r is larger than a corner cell (an opening is too close to a corner)")
+                # convex corner cell walked CCW: edge point -> arc -> edge point, fanned from the inner corner
+                if key == (1, 0):
+                    ring = [(qx, ys[j])] + [tuple(a) for a in arc] + [(xs[i + 1], qy)]
+                elif key == (1, 1):
+                    ring = [(xs[i + 1], qy)] + [tuple(a) for a in arc] + [(qx, ys[j + 1])]
+                elif key == (0, 1):
+                    ring = [(qx, ys[j + 1])] + [tuple(a) for a in arc] + [(xs[i], qy)]
+                else:
+                    ring = [(xs[i], qy)] + [tuple(a) for a in arc] + [(qx, ys[j])]
+                for q in range(len(ring) - 1):
+                    a, b2 = ring[q], ring[q + 1]
+                    if abs((a[0] - qx) * (b2[1] - qy) - (a[1] - qy) * (b2[0] - qx)) < 1e-14:
+                        continue
+                    base = len(P)
+                    P.extend([(qx, qy, t), (a[0], a[1], t), (b2[0], b2[1], t)])
+                    tri.append((base, base + 1, base + 2))
+                continue
+            if hole_cell:
                 continue
             quad_((xs[i], ys[j], t), (xs[i + 1], ys[j], t), (xs[i + 1], ys[j + 1], t), (xs[i], ys[j + 1], t))
     for (x0, x1, y0, y1, cx, cy, hw, hh, r, ohw, ohh, orr, dep, cn) in boxes:
@@ -1434,10 +1474,13 @@ def rr_lathe(w, h, r, profile, mat, n=4, density=1.0, tag="rrl", top_split=0.7, 
     return g
 
 
-def split_by_normal(geo: "Geo", suffix=True):
+def split_by_normal(geo: "Geo", suffix=True, cap_dot=None):
     """Split every chart into up to six charts by the dominant axis of each triangle's normal (+x -x +y
     -y +z -z), duplicating the shared vertices. A wrapped side wall (extrude / housing) then packs as four
-    rectangles and each face can get its own texel density (tags get ':+y' etc.)."""
+    rectangles and each face can get its own texel density (tags get ':+y' etc.).
+    cap_dot: when set, a triangle joins the +z / -z chart only if its normalised |n_z| >= cap_dot; every
+    other triangle goes to the dominant of +-x / +-y - the 45 degree rim bevels of an extrude then stay
+    whole with their side wall instead of alternating between the wall and the cap chart (sawtooth)."""
     out = Geo()
     keys = ["+x", "-x", "+y", "-y", "+z", "-z"]
     for c in geo.charts:
@@ -1445,6 +1488,10 @@ def split_by_normal(geo: "Geo", suffix=True):
         fn = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
         fn = fn + c.nrm[c.tri].sum(axis=1) * 1e-12
         ax = np.argmax(np.abs(fn), axis=1)
+        if cap_dot is not None:
+            nz = np.abs(fn[:, 2]) / np.maximum(np.linalg.norm(fn, axis=1), 1e-30)
+            side = nz < cap_dot
+            ax = np.where(side, np.argmax(np.abs(fn[:, :2]), axis=1), 2)
         sg = np.sign(fn[np.arange(len(fn)), ax])
         cls = ax * 2 + (sg < 0)
         for k in np.unique(cls):

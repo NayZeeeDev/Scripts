@@ -9,8 +9,8 @@
       NZR.Roster.Visible() → bool      NZR.Roster.Update()   re-evaluate (called on every state change)
 
     EVENTS SENT      nzr:roster:watch (on) (C→S)
-    EVENTS HANDLED   nzr:roster:data (fkey, { label, members = { { id, name, callsign, bars, talking } } }) (S→C)
-    NUI SENT         roster open { x, y }, roster data { fkey, label, count, members = { { id, name, callsign,
+    EVENTS HANDLED   nzr:roster:data (fkey, { label, access, count, members = { { id, name, callsign, bars, talking } } }) (S→C)
+    NUI SENT         roster open { x, y }, roster data { fkey, label, access, count, max, members = { { id, name, callsign,
                      bars, talking, you } } }, roster close
     NUI HANDLED      'roster:moved' { x, y } → saved (KVP nzr_roster_pos) and sent back with the next open
     BUS HANDLED      'radio:changed', 'radio:rx'
@@ -106,7 +106,8 @@ RegisterNetEvent('nzr:roster:data', function(fkey, data)
         end
     end
     NZR.UI.Send(APP, 'data', {
-        fkey = key, label = data.label, count = tonumber(data.count) or #rows, members = rows,
+        fkey = key, label = data.label, access = data.access, count = tonumber(data.count) or #rows,
+        max = tonumber(Config.Roster and Config.Roster.maxRows) or nil, members = rows,
     })
 end)
 

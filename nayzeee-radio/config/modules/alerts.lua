@@ -9,7 +9,7 @@
     RADIO SYSTEM - EMERGENCY, GUNFIRE & ROSTER
     Discord: discord.gg/nayzeeedev
 
-    EMERGENCY  Hold the orange button (or press EMERG on a head unit). Everyone on that
+    EMERGENCY  Hold the orange button (or hold EMERG on a head unit). Everyone on that
                frequency gets an alert tone and your position on the map, and your mic stays
                open for a few seconds. Hook your dispatch script in config_server.lua.
     GUNFIRE    A transmitting mic picks up gunshots around the talker, and listeners hear each
@@ -40,7 +40,7 @@ Config.Gunfire = {
 Config.Roster = {
     enabled    = true,
     nameFormat = '{name} {callsign}',   -- {name} {callsign} {id}
-    maxRows    = 10,
+    maxRows    = 6,        -- rows on the roster card (6 at most); everyone else is counted as "+N more"
     refresh    = 5000,     -- ms between signal bar updates while the roster is open
     popOnRx    = true,     -- pop up for 3 s when someone talks
 }

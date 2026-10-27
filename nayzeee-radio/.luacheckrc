@@ -126,6 +126,13 @@ read_globals = {
     'NetworkIsPlayerTalking', 'MumbleIsConnected', 'MumbleSetSubmixForServerId',
     'CreateAudioSubmix', 'SetAudioSubmixEffectRadioFx', 'SetAudioSubmixEffectParamInt', 'SetAudioSubmixEffectParamFloat',
     'SetAudioSubmixOutputVolumes', 'AddAudioSubmixOutput', 'PlaySoundFrontend',
+
+    -- world: state bags, streets, water, weapons, blips, tasks (client-world modules)
+    'GetEntityFromStateBagName', 'GetEntityType', 'IsEntityVisible', 'GetLabelText',
+    'GetStreetNameAtCoord', 'GetStreetNameFromHashKey', 'GetWaterHeightNoWaves',
+    'GetWeapontypeGroup', 'IsPedCurrentWeaponSilenced', 'IsVehicleAConvertible', 'GetConvertibleRoofState',
+    'SetBlipFlashInterval', 'SetBlipRouteColour', 'SetNewWaypoint',
+    'TaskTurnPedToFaceCoord', 'TaskTurnPedToFaceEntity',
 }
 
 -- the manifest's directives are globals of their own

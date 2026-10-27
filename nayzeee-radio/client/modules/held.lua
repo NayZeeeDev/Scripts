@@ -22,8 +22,9 @@
       NZR.Held.SyncLeds()                           red = TX, green = RX, amber blinking = emergency
       NZR.Held.Grip(model) → { pos, rot }           Config.Radios.Models[m].grip (or the /radiogrip value)
 
-    COMMAND        Config.Commands.grip (/radiogrip x y z rx ry rz) - only with Config.Debug
-                   (there is no server-side admin check for it, so it stays a debug tool)
+    COMMAND        Config.Commands.grip (/radiogrip x y z rx ry rz) - Config.Debug, or an admin
+                   (the server answers nzr:admin:check; asked once, then remembered)
+    CALLBACKS      nzr:admin:check () → { ok, admin } (C→S, lib.callback)
     STATE BAGS     reads nzr_hold on every player (change handler + a 5 s sweep)
     BUS HANDLED    'radio:changed' (LEDs, own prop, preloading the models you own)
 ]]
@@ -451,10 +452,22 @@ local function toast(key, kind, ...)
     NZR.UI.Toast({ title = L('title'), message = L(key, ...), type = kind or 'info' })
 end
 
+-- Debug on: anyone. Debug off: only players the server calls admins (SPEC §9.3).
+local gripAdmin = nil
+local function gripAllowed()
+    if Config.Debug then return true end
+    if gripAdmin == nil then
+        local ok, res = pcall(lib.callback.await, 'nzr:admin:check', false)
+        -- a refused (rate limited) or failed check is asked again next time
+        if ok and type(res) == 'table' and res.ok ~= false then gripAdmin = res.admin == true end
+    end
+    return gripAdmin == true
+end
+
 local gripCmd = Config.Commands and Config.Commands.grip
 if gripCmd then
-    RegisterCommand(gripCmd, function(_, args)
-        if not Config.Debug then return toast('grip_debug', 'error') end
+    RegisterCommand(gripCmd, function(_, args) CreateThread(function()
+        if not gripAllowed() then return toast('grip_debug', 'error') end
         local S = NZR.Radio.State
         local model = S.model
         if not model then return toast('no_radio', 'error') end
@@ -477,7 +490,7 @@ if gripCmd then
         print(('^5[nayzeee-radio]^7 Config.Radios.Models.%s.grip = { pos = vec3(%.3f, %.3f, %.3f), rot = vec3(%.1f, %.1f, %.1f) },')
             :format(model, g.pos.x, g.pos.y, g.pos.z, g.rot.x, g.rot.y, g.rot.z))
         toast('grip_printed', 'success')
-    end, false)
+    end) end, false)
     CreateThread(function()
         Wait(1000)
         if Config.Debug then
